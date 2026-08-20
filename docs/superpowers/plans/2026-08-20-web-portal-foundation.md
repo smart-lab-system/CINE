@@ -2551,14 +2551,38 @@ Task 6's `test` script (`vitest run`) has run with Vitest's default `node` envir
 
 `apps/web/vitest.config.ts`:
 ```ts
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // Vite's esbuild-based JSX transform defaults to the classic runtime,
+  // which needs `React` in scope for every JSX expression — Next's own
+  // build pipeline (SWC, automatic runtime) hides this normally. Inject it
+  // for test files instead of adding a `@vitejs/plugin-react` dependency
+  // just for this.
+  esbuild: {
+    jsxInject: `import React from 'react'`,
+  },
   test: {
     environment: 'jsdom',
+    // @testing-library/react only self-registers its automatic post-test
+    // cleanup() when it finds a global `afterEach` — without this, DOM
+    // from one test in a file leaks into the next.
+    globals: true,
+  },
+  resolve: {
+    // Vitest (unlike Next's own webpack/SWC build) doesn't read tsconfig's
+    // `paths` on its own — mirror the `@/*` -> `src/*` alias here so
+    // component tests can import through `@/components/ui/*` the same way
+    // application code does.
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
 });
 ```
+
+This is more than `environment: 'jsdom'` alone: rendering real JSX via `@testing-library/react` (Step 5, below) needs the `@/components/ui/*` path alias resolved, a JSX runtime in scope, and cross-test DOM cleanup — none of which Vitest inherits from Next's own build pipeline or from `tsconfig.json`'s `paths`.
 
 - [ ] **Step 2: Write the browser-side API client helper**
 
@@ -2576,7 +2600,24 @@ import { createApiClient } from '@cine/shared';
 export const apiClient = createApiClient(
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000',
 );
+
+// `fetch`'s default credentials mode is "same-origin", which never attaches
+// cookies to this client's requests: localhost:3000 (this app) and
+// localhost:4000 (the Nest API) are different origins even in local dev.
+// CORS `credentials: true` on the server only permits a credentialed
+// request to be *received* — the browser still won't send one unless the
+// request itself opts in with `credentials: 'include'`. Requests are
+// immutable once constructed, so a Request is rebuilt here with the mode
+// forced, once, instead of repeating `credentials: 'include'` on every
+// GET/POST call site.
+apiClient.use({
+  onRequest({ request }) {
+    return new Request(request, { credentials: 'include' });
+  },
+});
 ```
+
+Without this, every authenticated request from this client would silently 401 — the cookie set by Task 6's login flow would simply never be sent.
 
 This requires the Nest API to accept credentialed cross-origin requests from the web app's dev origin — note this as a dependency for whoever wires CORS (add `app.enableCors({ origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000', credentials: true })` to `apps/api/src/main.ts` as part of this task):
 
@@ -2805,7 +2846,14 @@ function AccountsTable() {
         params: { query: { search, page: 1, pageSize: 20 } },
       });
       if (error) throw error;
-      return data as { items: AccountRow[]; total: number };
+      // AccountsController.search() returns a plain TS interface, not a
+      // class @nestjs/swagger can introspect for a response schema, so
+      // the generated type for this response body is `never` — `data`
+      // resolves to `undefined` here, which doesn't overlap enough with
+      // the real shape for a direct `as`. Bridging with `unknown` first
+      // (not `any`) until a future task gives this endpoint a properly
+      // decorated response DTO.
+      return data as unknown as { items: AccountRow[]; total: number };
     },
   });
 
@@ -3053,3 +3101,5 @@ This plan covers `WEB-AUTH-01..03` and `WEB-ACC-01..04`, plus all shared infrast
 3. **Exam Events + Lab Sessions module** (`WEB-EXAM-01..19`) — the most complex remaining slice: manifest hashing, booking conflicts (first real use of the `PostgresExceptionFilter`'s exclusion-constraint path), and the draft→scheduled FSM.
 
 Policy (`WEB-POL`), Submissions (`WEB-SUB`), and Reports (`WEB-RPT`) follow per the GĐ2/GĐ4 timeline.
+
+**Carry-forward note for the next plan:** `AccountsController`'s list/search endpoint returns a plain TS interface (`{ items, total }`), not a class `@nestjs/swagger` can introspect — so its generated response schema is empty, and Task 7's `page.tsx` had to bridge it with `data as unknown as {...}`. The Master Data module (next) will have several more list/search endpoints in the same shape. Either give each one a decorated response class (e.g. `@ApiOkResponse({ type: AccountsListResponseDto })`) from the start, or accept the same `as unknown as` bridge consistently — don't let some endpoints get real generated types and others not.
