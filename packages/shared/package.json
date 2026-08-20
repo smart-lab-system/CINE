@@ -1,0 +1,16 @@
+{
+  "name": "@cine/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "generate:api-client": "node scripts/generate-api-client.mjs"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.13.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.4.1",
+    "typescript": "^5.6.3"
+  }
+}
