@@ -1721,6 +1721,7 @@ git commit -m "feat(api): add RolesGuard and AccountsModule CRUD"
 **Files:**
 - Modify: `apps/api/src/main.ts` (mount Swagger)
 - Modify: `apps/api/package.json` (add `@nestjs/swagger`, `swagger-ui-express`)
+- Modify: `apps/api/nest-cli.json` (enable the Swagger CLI plugin)
 - Create: `packages/shared/package.json`
 - Create: `packages/shared/tsconfig.json`
 - Create: `packages/shared/scripts/generate-api-client.mjs`
@@ -1728,7 +1729,7 @@ git commit -m "feat(api): add RolesGuard and AccountsModule CRUD"
 
 **Interfaces:**
 - Consumes: the running Nest app's `/api-docs-json` OpenAPI document.
-- Produces: `packages/shared` exporting generated types (`packages/shared/src/api/schema.d.ts`, generated — not hand-written) and a thin fetch wrapper `apiClient(path, init)` from `packages/shared/src/index.ts`.
+- Produces: `packages/shared` exporting generated types (`packages/shared/src/api/schema.d.ts`, generated — not hand-written) and a thin `openapi-fetch`-based factory `createApiClient(baseUrl, accessToken?)` from `packages/shared/src/index.ts` (Task 6 calls this to build the browser-facing `apiClient` instance).
 
 - [ ] **Step 1: Add Swagger dependencies**
 
@@ -1768,10 +1769,30 @@ async function bootstrap() {
 bootstrap();
 ```
 
-Run: `pnpm --filter api dev`, then open `http://localhost:4000/api-docs` and `http://localhost:4000/api-docs-json`.
-Expected: Swagger UI loads; the JSON document lists `/health`, `/auth/*`, `/accounts/*`.
+- [ ] **Step 3: Enable the `@nestjs/swagger` CLI plugin so DTO schemas aren't empty**
 
-- [ ] **Step 3: Scaffold `packages/shared`**
+Without this, `SwaggerModule.createDocument()` can only see each DTO's property *names* via TS reflection, not their types/constraints — every request/response body in the generated OpenAPI document (and therefore in `packages/shared`'s generated client) would end up typed as an empty object. The CLI plugin reads each DTO's TS types and existing `class-validator` decorators (already on every DTO from Tasks 3-4 — `IsString`, `Length`, `IsEmail`, etc.) at compile time and synthesizes accurate Swagger schemas from them, with no changes needed to the DTO files themselves.
+
+Modify `apps/api/nest-cli.json`:
+```json
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "plugins": ["@nestjs/swagger"]
+  }
+}
+```
+
+Run: `pnpm --filter api build` (a plain `tsc`/`ts-node` run bypasses this plugin — it only runs through `nest build`/`nest start`, which is what `pnpm --filter api dev` already uses).
+
+- [ ] **Step 4: Verify Swagger and the plugin-enriched schemas**
+
+Run: `pnpm --filter api dev`, then open `http://localhost:4000/api-docs` and `http://localhost:4000/api-docs-json`.
+Expected: Swagger UI loads; the JSON document lists `/health`, `/auth/*`, `/accounts/*`, and the `components.schemas` for e.g. `CreateAccountDto` list real properties (`username`, `password`, `displayName`, `roleCodes`) rather than an empty object.
+
+- [ ] **Step 5: Scaffold `packages/shared`**
 
 `packages/shared/package.json`:
 ```json
@@ -1831,23 +1852,23 @@ export const createApiClient = (baseUrl: string, accessToken?: string) =>
   });
 ```
 
-- [ ] **Step 4: Generate the client and verify it type-checks**
+- [ ] **Step 6: Generate the client and verify it type-checks**
 
-Run (with the Nest dev server from Step 2 still running):
+Run (with the Nest dev server from Step 4 still running):
 ```bash
 mkdir -p packages/shared/src/api
 pnpm --filter @cine/shared install
 API_URL=http://localhost:4000/api-docs-json pnpm --filter @cine/shared generate:api-client
 ```
-Expected: `packages/shared/src/api/schema.d.ts` is created and contains a `paths` type with `"/health"`, `"/auth/register"`, `"/auth/login"`, `"/accounts"` keys.
+Expected: `packages/shared/src/api/schema.d.ts` is created and contains a `paths` type with `"/health"`, `"/auth/register"`, `"/auth/login"`, `"/accounts"` keys, and the `CreateAccountDto`/`LoginDto`/etc. schemas under `components.schemas` have real properties (per Step 3/4's plugin fix), not empty objects.
 
 Run: `pnpm --filter @cine/shared exec tsc --noEmit`
 Expected: PASS — no type errors in `src/index.ts` against the generated schema.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/api/src/main.ts apps/api/package.json packages/shared pnpm-lock.yaml
+git add apps/api/src/main.ts apps/api/nest-cli.json apps/api/package.json packages/shared pnpm-lock.yaml
 git commit -m "feat(shared): add Swagger docs and generated OpenAPI client package"
 ```
 
