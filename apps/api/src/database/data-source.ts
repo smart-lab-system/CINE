@@ -1,0 +1,23 @@
+import 'dotenv/config';
+import { DataSource, DataSourceOptions } from 'typeorm';
+
+// Entities are added here as they're created — starting with Task 3's
+// identity entities. Migrations always run as raw SQL against the
+// already-authored DDL; TypeORM never generates or alters schema here.
+export const dataSourceOptions: DataSourceOptions = {
+  type: 'postgres',
+  url: process.env.DATABASE_URL,
+  schema: process.env.DATABASE_SCHEMA ?? 'lab_management',
+  entities: [],
+  migrations: [__dirname + '/migrations/*.{js,ts}'],
+  // The initial migration's SQL file already wraps itself in BEGIN/COMMIT
+  // (it's the DBA-authored DDL, copied verbatim). Running TypeORM's own
+  // transaction wrapper on top would nest a COMMIT inside TypeORM's
+  // transaction and commit it early, so per-migration files own their
+  // own transaction boundaries instead.
+  migrationsTransactionMode: 'none',
+  synchronize: false,
+  logging: process.env.NODE_ENV === 'development',
+};
+
+export default new DataSource(dataSourceOptions);

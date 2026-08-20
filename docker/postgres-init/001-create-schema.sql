@@ -1,0 +1,13 @@
+-- Runs once, automatically, when the postgres container initializes an empty
+-- data directory (see the official postgres image's
+-- /docker-entrypoint-initdb.d convention).
+--
+-- Why this exists: TypeORM creates its own bookkeeping "migrations" table
+-- inside the DataSource's configured `schema` (lab_management) before it
+-- runs the first migration. On a brand-new database that schema doesn't
+-- exist yet — it's created by the initial migration's own DDL — so without
+-- this bootstrap, the very first `migration:run` fails with
+-- "schema lab_management does not exist". Creating the (empty) schema here
+-- breaks that chicken-and-egg problem; the migration's own
+-- `CREATE SCHEMA IF NOT EXISTS lab_management` then becomes a no-op.
+CREATE SCHEMA IF NOT EXISTS lab_management;
