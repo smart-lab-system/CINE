@@ -122,7 +122,7 @@ dist/
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "lint": "eslint \"src/**/*.ts\""
   },
@@ -288,7 +288,7 @@ Expected: PASS
 - [ ] **Step 7: Commit**
 
 ```bash
-git add package.json pnpm-workspace.yaml turbo.json tsconfig.base.json .gitignore apps/api
+git add package.json pnpm-workspace.yaml turbo.json tsconfig.base.json .gitignore apps/api pnpm-lock.yaml
 git commit -m "feat(api): bootstrap Nest app with health endpoint"
 ```
 
@@ -531,7 +531,7 @@ Expected: PASS — prints `All 14 expected tables are present.`, exits 0.
 - [ ] **Step 10: Commit**
 
 ```bash
-git add docker-compose.yml apps/api/.env.example apps/api/package.json apps/api/src/database
+git add docker-compose.yml apps/api/.env.example apps/api/package.json apps/api/src/database pnpm-lock.yaml
 git commit -m "feat(api): add Docker infra and apply the v2 Postgres schema as the first migration"
 ```
 
@@ -880,7 +880,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { UserEntity } from '../identity/entities/user.entity';
 import { UserRoleEntity } from '../identity/entities/user-role.entity';
@@ -990,8 +990,6 @@ export class AuthService {
 }
 ```
 
-Add the missing `In` import from `typeorm` at the top: `import { In, Repository } from 'typeorm';` (replace the earlier `Repository`-only import line).
-
 - [ ] **Step 10: Implement `JwtStrategy` and `JwtAuthGuard`**
 
 `apps/api/src/auth/jwt.strategy.ts`:
@@ -1098,7 +1096,7 @@ Expected: PASS — all three `Auth (e2e)` tests green.
 - [ ] **Step 13: Commit**
 
 ```bash
-git add apps/api/src/identity apps/api/src/auth apps/api/src/app.module.ts apps/api/src/database/data-source.ts apps/api/package.json apps/api/test/auth.e2e-spec.ts
+git add apps/api/src/identity apps/api/src/auth apps/api/src/app.module.ts apps/api/src/database/data-source.ts apps/api/package.json apps/api/test/auth.e2e-spec.ts pnpm-lock.yaml
 git commit -m "feat(api): add identity entities and JWT-based AuthModule"
 ```
 
@@ -1183,42 +1181,6 @@ import {
 import { QueryFailedError } from 'typeorm';
 
 // Postgres error codes: https://www.postgresql.org/docs/current/errcodes-appendix.html
-const UNIQUE_VIOLATION = '23505';
-const CHECK_VIOLATION = '23514';
-const EXCLUSION_VIOLATION = '23P01';
-
-@Catch(QueryFailedError)
-export class PostgresExceptionFilter implements ExceptionFilter {
-  catch(exception: QueryFailedError, host: ArgumentsHost) {
-    const code = (exception as any).code as string | undefined;
-
-    if (code === UNIQUE_VIOLATION || code === EXCLUSION_VIOLATION) {
-      return new ConflictException(
-        'This request conflicts with an existing record.',
-      ).getResponse();
-    }
-    if (code === CHECK_VIOLATION) {
-      return new BadRequestException(
-        'This request violates a data rule.',
-      ).getResponse();
-    }
-    throw exception;
-  }
-}
-```
-
-This filter only formats the response shape for now (it doesn't yet send it — see Step 3 for how it's registered). Rewrite it to actually reply on the host's HTTP response:
-
-```ts
-import {
-  ArgumentsHost,
-  Catch,
-  ConflictException,
-  ExceptionFilter,
-  BadRequestException,
-} from '@nestjs/common';
-import { QueryFailedError } from 'typeorm';
-
 const UNIQUE_VIOLATION = '23505';
 const CHECK_VIOLATION = '23514';
 const EXCLUSION_VIOLATION = '23P01';
@@ -1841,7 +1803,7 @@ Expected: PASS — no type errors in `src/index.ts` against the generated schema
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/api/src/main.ts apps/api/package.json packages/shared
+git add apps/api/src/main.ts apps/api/package.json packages/shared pnpm-lock.yaml
 git commit -m "feat(shared): add Swagger docs and generated OpenAPI client package"
 ```
 
@@ -2481,7 +2443,7 @@ Expected: PASS
 - [ ] **Step 9: Commit**
 
 ```bash
-git add apps/web
+git add apps/web pnpm-lock.yaml
 git commit -m "feat(web): scaffold Next.js app with Tailwind/shadcn UI kit, login flow, and route protection"
 ```
 
@@ -2491,6 +2453,7 @@ git commit -m "feat(web): scaffold Next.js app with Tailwind/shadcn UI kit, logi
 
 **Files:**
 - Create: `apps/web/src/lib/api-client.ts`
+- Create: `apps/web/vitest.config.ts`
 - Create: `apps/web/src/app/(dashboard)/accounts/page.tsx`
 - Create: `apps/web/src/components/accounts/account-form.tsx`
 - Create: `apps/web/src/components/accounts/account-form.test.tsx`
@@ -2518,6 +2481,19 @@ and to `devDependencies`:
 ```
 
 Run: `pnpm --filter web install`
+
+Task 6's `test` script (`vitest run`) has run with Vitest's default `node` environment so far — fine for `middleware.test.ts`, which only calls a plain function. This task's `account-form.test.tsx` renders into a DOM via Testing Library, so it needs `jsdom`. Add a project-wide Vitest config now rather than annotating every future component test file individually:
+
+`apps/web/vitest.config.ts`:
+```ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+  },
+});
+```
 
 - [ ] **Step 2: Write the browser-side API client helper**
 
@@ -2850,7 +2826,7 @@ Then open `http://localhost:3000/login`, log in with an account created via `POS
 - [ ] **Step 9: Commit**
 
 ```bash
-git add apps/web apps/api/src/main.ts
+git add apps/web apps/api/src/main.ts pnpm-lock.yaml
 git commit -m "feat(web): add accounts admin page with list, search, and create"
 ```
 
@@ -2876,7 +2852,7 @@ WORKDIR /app
 RUN corepack enable
 
 FROM base AS build
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY apps/api ./apps/api
 COPY packages/shared ./packages/shared
 RUN pnpm install --frozen-lockfile
@@ -2884,11 +2860,14 @@ RUN pnpm --filter api build
 
 FROM base AS runtime
 ENV NODE_ENV=production
-COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/apps/api/node_modules ./node_modules
-COPY --from=build /app/apps/api/package.json ./package.json
+# pnpm workspaces hoist dependencies into a content-addressed store under
+# the root node_modules/.pnpm, with apps/api/node_modules holding symlinks
+# into it — copying apps/api/node_modules alone would ship dangling
+# symlinks. Copy the whole /app tree from the build stage instead so the
+# symlink structure stays intact.
+COPY --from=build /app /app
 EXPOSE 4000
-CMD ["node", "dist/main.js"]
+CMD ["node", "apps/api/dist/main.js"]
 ```
 
 - [ ] **Step 2: Write `apps/web/Dockerfile`**
@@ -2899,7 +2878,7 @@ WORKDIR /app
 RUN corepack enable
 
 FROM base AS build
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY apps/web ./apps/web
 COPY packages/shared ./packages/shared
 RUN pnpm install --frozen-lockfile
@@ -2907,6 +2886,9 @@ RUN pnpm --filter web build
 
 FROM base AS runtime
 ENV NODE_ENV=production
+# next.config.ts's `output: 'standalone'` already traces and copies only
+# the production dependencies each page needs into .next/standalone, so
+# (unlike the API image) there's no pnpm-symlink concern here.
 COPY --from=build /app/apps/web/.next/standalone ./
 COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 EXPOSE 3000
@@ -2976,7 +2958,9 @@ pnpm --filter api migration:run
 docker compose up -d --build
 ./scripts/smoke-test.sh
 ```
-Expected: `All smoke checks passed.` printed, exit code 0. (The Postgres migration still needs to be run once against the compose network's Postgres — either by pointing `DATABASE_URL` at `localhost:5432` before containerizing `api`, or by running `docker compose run --rm api node dist/database/data-source.js` equivalent; for this plan, run the migration from the host against the exposed `5432` port before the first `docker compose up -d --build`.)
+Expected: `All smoke checks passed.` printed, exit code 0.
+
+The `pnpm --filter api migration:run` above runs from the host, against `postgres`'s `5432:5432` port mapping from Task 2 (using `apps/api/.env`'s `DATABASE_URL=postgresql://...@localhost:5432/...`) — the same command and same already-applied migration Task 2 used, just re-confirming it's still applied before the containerized `api` starts. It is idempotent (TypeORM records applied migrations and skips them), so running it again here is always safe.
 
 - [ ] **Step 6: Commit**
 
