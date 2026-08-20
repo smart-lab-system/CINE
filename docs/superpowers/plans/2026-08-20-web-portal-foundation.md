@@ -3399,6 +3399,8 @@ git commit -m "feat(web): add account editing and deletion to the accounts admin
 - Consumes: everything from Tasks 1–8.
 - Produces: `docker compose up` brings up the entire portal (4 datastores + api + web); `scripts/smoke-test.sh` exits 0 only if every service responds.
 
+Host ports `4010`/`3010` below are non-default for the same reason Task 2's datastore ports are (`5442`/`27018`/`6390`/`9010`-`9011`): this dev machine already has unrelated processes bound to `4000`/`3000`. Pick whatever's actually free on the machine running this — the numbers aren't load-bearing, only that container-internal ports (`4000`/`3000`) and Docker-network service addresses (`api:4000`) stay standard, matching Task 2's established pattern.
+
 - [ ] **Step 1: Write `apps/api/Dockerfile`**
 
 ```dockerfile
@@ -3407,7 +3409,7 @@ WORKDIR /app
 RUN corepack enable
 
 FROM base AS build
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/api ./apps/api
 COPY packages/shared ./packages/shared
 RUN pnpm install --frozen-lockfile
@@ -3422,8 +3424,16 @@ ENV NODE_ENV=production
 # symlink structure stays intact.
 COPY --from=build /app /app
 EXPOSE 4000
-CMD ["node", "apps/api/dist/main.js"]
+# apps/api/tsconfig.json has no explicit `rootDir`/`include` limiting the
+# compile to src/ — with test/*.e2e-spec.ts sitting as a sibling of src/,
+# tsc computes the common root across both and mirrors it under dist/, so
+# the real entry point is dist/src/main.js, not dist/main.js. (The same
+# latent path bug exists in apps/api/package.json's own `start` script;
+# out of scope to fix here since this task doesn't touch that file.)
+CMD ["node", "apps/api/dist/src/main.js"]
 ```
+
+`tsconfig.base.json` must be copied alongside `pnpm-workspace.yaml`/`package.json`/`pnpm-lock.yaml` — `apps/api/tsconfig.json` and `packages/shared/tsconfig.json` both `extends: "../../tsconfig.base.json"` via a relative path. Without it, `tsc` silently falls back to defaults (no `esModuleInterop`, no `skipLibCheck`, wrong `moduleResolution`) and `pnpm --filter api build` fails with dozens of `Cannot find module` errors.
 
 - [ ] **Step 2: Write `apps/web/Dockerfile`**
 
@@ -3433,7 +3443,14 @@ WORKDIR /app
 RUN corepack enable
 
 FROM base AS build
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+# NEXT_PUBLIC_* variables are inlined into the client bundle at `next
+# build` time, not read at container runtime — a plain `environment:`
+# entry in docker-compose.yml would be silently ignored by the already-
+# built bundle. Accept it as a build ARG and export it as an ENV so
+# `next build` (below) can see it.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages/shared ./packages/shared
 RUN pnpm install --frozen-lockfile
@@ -3464,9 +3481,9 @@ Modify `docker-compose.yml` — add under `services:`:
       DATABASE_SCHEMA: lab_management
       ACCESS_TOKEN_SECRET: dev-access-secret-change-me
       REFRESH_TOKEN_SECRET: dev-refresh-secret-change-me
-      WEB_ORIGIN: http://localhost:3000
+      WEB_ORIGIN: http://localhost:3010
     ports:
-      - "4000:4000"
+      - "4010:4000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -3475,14 +3492,18 @@ Modify `docker-compose.yml` — add under `services:`:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4010
     environment:
       API_URL: http://api:4000
-      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_API_URL: http://localhost:4010
     ports:
-      - "3000:3000"
+      - "3010:3000"
     depends_on:
       - api
 ```
+
+`DATABASE_URL`'s `postgres:5432` and `API_URL`'s `api:4000` are Docker-network addresses (service name + container-internal port) — unaffected by any host-side remapping. `WEB_ORIGIN` and both `NEXT_PUBLIC_API_URL` occurrences use the host-side ports because they describe how the *browser* reaches these services from outside the Docker network.
 
 - [ ] **Step 4: Write the smoke test script**
 
@@ -3491,14 +3512,17 @@ Modify `docker-compose.yml` — add under `services:`:
 #!/usr/bin/env bash
 set -euo pipefail
 
+API_PORT="${API_PORT:-4010}"
+WEB_PORT="${WEB_PORT:-3010}"
+
 echo "Checking API health..."
-curl --fail --silent http://localhost:4000/health | grep -q '"status":"ok"'
+curl --fail --silent "http://localhost:${API_PORT}/health" | grep -q '"status":"ok"'
 
 echo "Checking Swagger docs..."
-curl --fail --silent http://localhost:4000/api-docs-json > /dev/null
+curl --fail --silent "http://localhost:${API_PORT}/api-docs-json" > /dev/null
 
 echo "Checking web app responds..."
-curl --fail --silent http://localhost:3000/login > /dev/null
+curl --fail --silent "http://localhost:${WEB_PORT}/login" > /dev/null
 
 echo "All smoke checks passed."
 ```
