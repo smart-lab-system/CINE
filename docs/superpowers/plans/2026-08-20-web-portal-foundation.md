@@ -1853,12 +1853,21 @@ Note: `packages/shared/src/api/schema.d.ts` is generated output. Commit it anywa
 
 ---
 
-### Task 6: Next.js scaffold + login flow
+### Task 6: Next.js scaffold + Tailwind/shadcn UI kit + login flow
 
 **Files:**
 - Create: `apps/web/package.json`
 - Create: `apps/web/tsconfig.json`
 - Create: `apps/web/next.config.ts`
+- Create: `apps/web/postcss.config.js`
+- Create: `apps/web/tailwind.config.ts`
+- Create: `apps/web/components.json`
+- Create: `apps/web/src/lib/utils.ts`
+- Create: `apps/web/src/components/ui/button.tsx`
+- Create: `apps/web/src/components/ui/input.tsx`
+- Create: `apps/web/src/components/ui/label.tsx`
+- Create: `apps/web/src/components/ui/card.tsx`
+- Create: `apps/web/src/components/ui/table.tsx`
 - Create: `apps/web/src/app/layout.tsx`
 - Create: `apps/web/src/app/globals.css`
 - Create: `apps/web/src/app/(auth)/login/page.tsx`
@@ -1869,9 +1878,9 @@ Note: `packages/shared/src/api/schema.d.ts` is generated output. Commit it anywa
 
 **Interfaces:**
 - Consumes: Nest's `POST /auth/login`, `POST /auth/logout` (called server-side from the Route Handlers, plain `fetch`, not the generated client — Route Handlers run on the server and don't need the browser-facing client).
-- Produces: cookies `access_token` / `refresh_token` (httpOnly, `SameSite=Lax`) set by `/api/auth/login`; `middleware.ts` exporting a `config.matcher` guarding every route under `(dashboard)`.
+- Produces: cookies `access_token` / `refresh_token` (httpOnly, `SameSite=Lax`) set by `/api/auth/login`; `middleware.ts` exporting a `config.matcher` guarding every route under `(dashboard)`; a `cn()` helper and five shadcn/ui primitives (`Button`, `Input`, `Label`, `Card`/`CardHeader`/`CardTitle`/`CardContent`, `Table`/`TableHeader`/`TableBody`/`TableRow`/`TableHead`/`TableCell`) importable from `@/components/ui/*` and `@/lib/utils`, for Task 7 to reuse.
 
-- [ ] **Step 1: Scaffold `apps/web`**
+- [ ] **Step 1: Scaffold `apps/web` with Tailwind CSS**
 
 `apps/web/package.json`:
 ```json
@@ -1890,14 +1899,22 @@ Note: `packages/shared/src/api/schema.d.ts` is generated output. Commit it anywa
     "@cine/shared": "workspace:*",
     "next": "^15.0.2",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.3",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-label": "^2.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.2"
+    "vitest": "^2.1.2",
+    "tailwindcss": "^3.4.13",
+    "postcss": "^8.4.47",
+    "autoprefixer": "^10.4.20"
   }
 }
 ```
@@ -1911,7 +1928,9 @@ Note: `packages/shared/src/api/schema.d.ts` is generated output. Commit it anywa
     "moduleResolution": "bundler",
     "jsx": "preserve",
     "lib": ["dom", "dom.iterable", "esnext"],
-    "plugins": [{ "name": "next" }]
+    "plugins": [{ "name": "next" }],
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "next-env.d.ts"]
 }
@@ -1928,15 +1947,118 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 ```
 
-`apps/web/src/app/globals.css`:
+`apps/web/postcss.config.js`:
+```js
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+```
+
+`apps/web/tailwind.config.ts`:
+```ts
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  darkMode: 'class',
+  content: ['./src/**/*.{ts,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;
+```
+
+`apps/web/components.json` (lets the `shadcn` CLI add more components later, aligned with what we hand-wrote below):
+```json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "default",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "src/app/globals.css",
+    "baseColor": "slate",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils"
+  }
+}
+```
+
+`apps/web/src/lib/utils.ts`:
+```ts
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+`apps/web/src/app/globals.css` (Tailwind directives + the shadcn "slate" theme's CSS variables):
 ```css
-:root {
-  color-scheme: light;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
 }
 
 body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
+  @apply bg-background text-foreground;
 }
 ```
 
@@ -1958,7 +2080,216 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 }
 ```
 
-- [ ] **Step 2: Write the login Route Handlers**
+- [ ] **Step 2: Hand-write the shadcn/ui primitives this plan needs**
+
+These are the standard `shadcn` CLI output for each component (hand-written here so the plan doesn't depend on a network call to a component registry succeeding mid-build). Later work can still run `pnpm dlx shadcn@latest add <component>` for anything new — `components.json` above is what makes that work.
+
+`apps/web/src/components/ui/button.tsx`:
+```tsx
+import * as React from 'react';
+import { Slot } from '@radix-ui/react-slot';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '@/lib/utils';
+
+const buttonVariants = cva(
+  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+  {
+    variants: {
+      variant: {
+        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        outline: 'border border-input bg-background hover:bg-secondary',
+        destructive:
+          'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+      },
+      size: {
+        default: 'h-9 px-4 py-2',
+        sm: 'h-8 px-3 text-xs',
+      },
+    },
+    defaultVariants: { variant: 'default', size: 'default' },
+  },
+);
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button';
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    );
+  },
+);
+Button.displayName = 'Button';
+
+export { Button, buttonVariants };
+```
+
+`apps/web/src/components/ui/input.tsx`:
+```tsx
+import * as React from 'react';
+import { cn } from '@/lib/utils';
+
+const Input = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ className, type, ...props }, ref) => (
+  <input
+    type={type}
+    className={cn(
+      'flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+      className,
+    )}
+    ref={ref}
+    {...props}
+  />
+));
+Input.displayName = 'Input';
+
+export { Input };
+```
+
+`apps/web/src/components/ui/label.tsx`:
+```tsx
+import * as React from 'react';
+import * as LabelPrimitive from '@radix-ui/react-label';
+import { cn } from '@/lib/utils';
+
+const Label = React.forwardRef<
+  React.ElementRef<typeof LabelPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <LabelPrimitive.Root
+    ref={ref}
+    className={cn('text-sm font-medium leading-none', className)}
+    {...props}
+  />
+));
+Label.displayName = LabelPrimitive.Root.displayName;
+
+export { Label };
+```
+
+`apps/web/src/components/ui/card.tsx`:
+```tsx
+import * as React from 'react';
+import { cn } from '@/lib/utils';
+
+const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn('rounded-lg border bg-background shadow-sm', className)}
+      {...props}
+    />
+  ),
+);
+Card.displayName = 'Card';
+
+const CardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn('flex flex-col gap-1.5 p-6', className)} {...props} />
+));
+CardHeader.displayName = 'CardHeader';
+
+const CardTitle = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <h3 ref={ref} className={cn('text-lg font-semibold leading-none', className)} {...props} />
+));
+CardTitle.displayName = 'CardTitle';
+
+const CardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn('p-6 pt-0', className)} {...props} />
+));
+CardContent.displayName = 'CardContent';
+
+export { Card, CardHeader, CardTitle, CardContent };
+```
+
+`apps/web/src/components/ui/table.tsx`:
+```tsx
+import * as React from 'react';
+import { cn } from '@/lib/utils';
+
+const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
+  ({ className, ...props }, ref) => (
+    <div className="w-full overflow-auto">
+      <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
+    </div>
+  ),
+);
+Table.displayName = 'Table';
+
+const TableHeader = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <thead ref={ref} className={cn('[&_tr]:border-b', className)} {...props} />
+));
+TableHeader.displayName = 'TableHeader';
+
+const TableBody = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tbody ref={ref} className={cn('[&_tr:last-child]:border-0', className)} {...props} />
+));
+TableBody.displayName = 'TableBody';
+
+const TableRow = React.forwardRef<
+  HTMLTableRowElement,
+  React.HTMLAttributes<HTMLTableRowElement>
+>(({ className, ...props }, ref) => (
+  <tr
+    ref={ref}
+    className={cn('border-b transition-colors hover:bg-muted/50', className)}
+    {...props}
+  />
+));
+TableRow.displayName = 'TableRow';
+
+const TableHead = React.forwardRef<
+  HTMLTableCellElement,
+  React.ThHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <th
+    ref={ref}
+    className={cn(
+      'h-10 px-2 text-left align-middle font-medium text-muted-foreground',
+      className,
+    )}
+    {...props}
+  />
+));
+TableHead.displayName = 'TableHead';
+
+const TableCell = React.forwardRef<
+  HTMLTableCellElement,
+  React.TdHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <td ref={ref} className={cn('p-2 align-middle', className)} {...props} />
+));
+TableCell.displayName = 'TableCell';
+
+export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell };
+```
+
+- [ ] **Step 3: Write the login Route Handlers**
 
 `apps/web/src/app/api/auth/login/route.ts`:
 ```ts
@@ -2012,7 +2343,7 @@ export async function POST() {
 }
 ```
 
-- [ ] **Step 3: Write the login page**
+- [ ] **Step 4: Write the login page, styled with the shadcn/ui primitives from Step 2**
 
 `apps/web/src/app/(auth)/login/page.tsx`:
 ```tsx
@@ -2020,6 +2351,10 @@ export async function POST() {
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -2048,26 +2383,38 @@ export default function LoginPage() {
   }
 
   return (
-    <main>
-      <h1>Đăng nhập</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Tên đăng nhập
-          <input name="username" required />
-        </label>
-        <label>
-          Mật khẩu
-          <input name="password" type="password" required />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit">Đăng nhập</button>
-      </form>
+    <main className="flex min-h-screen items-center justify-center bg-muted p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>Đăng nhập</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="username">Tên đăng nhập</Label>
+              <Input id="username" name="username" required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="password">Mật khẩu</Label>
+              <Input id="password" name="password" type="password" required />
+            </div>
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            <Button type="submit" className="w-full">
+              Đăng nhập
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }
 ```
 
-- [ ] **Step 4: Write the failing test for the middleware's route-matching logic**
+- [ ] **Step 5: Write the failing test for the middleware's route-matching logic**
 
 `apps/web/src/middleware.test.ts`:
 ```ts
@@ -2086,12 +2433,12 @@ describe('isProtectedPath', () => {
 });
 ```
 
-- [ ] **Step 5: Run the test to verify it fails**
+- [ ] **Step 6: Run the test to verify it fails**
 
 Run: `pnpm --filter web test`
 Expected: FAIL — `apps/web/src/middleware.ts` (and `isProtectedPath`) don't exist yet.
 
-- [ ] **Step 6: Implement `middleware.ts`**
+- [ ] **Step 7: Implement `middleware.ts`**
 
 `apps/web/src/middleware.ts`:
 ```ts
@@ -2126,16 +2473,16 @@ export const config = {
 };
 ```
 
-- [ ] **Step 7: Run the test to verify it passes**
+- [ ] **Step 8: Run the test to verify it passes**
 
 Run: `pnpm --filter web test`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add apps/web
-git commit -m "feat(web): scaffold Next.js app with login flow and route protection"
+git commit -m "feat(web): scaffold Next.js app with Tailwind/shadcn UI kit, login flow, and route protection"
 ```
 
 ---
@@ -2150,7 +2497,7 @@ git commit -m "feat(web): scaffold Next.js app with login flow and route protect
 - Modify: `apps/web/package.json` (add `@tanstack/react-query`, `@tanstack/react-table`, `react-hook-form`, `zod`, `@hookform/resolvers`, testing libs)
 
 **Interfaces:**
-- Consumes: `createApiClient` from `@cine/shared`; the `access_token` cookie set by Task 6.
+- Consumes: `createApiClient` from `@cine/shared`; the `access_token` cookie set by Task 6; the `Button`/`Input`/`Label`/`Table`-family components from `@/components/ui/*` (Task 6, Step 2).
 - Produces: `/accounts` page rendering a searchable, paginated table with create/edit forms wired to the real API.
 
 - [ ] **Step 1: Add frontend data/UI dependencies**
@@ -2272,8 +2619,17 @@ Expected: FAIL — `./account-form` doesn't exist yet.
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const ROLE_OPTIONS = ['admin', 'operator', 'lecturer', 'student'] as const;
+const ROLE_LABELS: Record<(typeof ROLE_OPTIONS)[number], string> = {
+  admin: 'Quản trị',
+  operator: 'Vận hành phòng máy',
+  lecturer: 'Giảng viên',
+  student: 'Sinh viên',
+};
 
 const accountFormSchema = z.object({
   username: z.string().min(3).max(64),
@@ -2299,34 +2655,48 @@ export function AccountForm({
   });
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <label>
-        Tên đăng nhập
-        <input {...register('username')} />
-      </label>
-      <label>
-        Họ tên
-        <input {...register('displayName')} />
-      </label>
-      <label>
-        Mật khẩu
-        <input type="password" {...register('password')} />
-      </label>
-      <fieldset>
-        <legend>Vai trò</legend>
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="account-username">Tên đăng nhập</Label>
+        <Input id="account-username" {...register('username')} />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="account-display-name">Họ tên</Label>
+        <Input id="account-display-name" {...register('displayName')} />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="account-password">Mật khẩu</Label>
+        <Input id="account-password" type="password" {...register('password')} />
+      </div>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium">Vai trò</legend>
         {ROLE_OPTIONS.map((role) => (
-          <label key={role}>
-            <input type="checkbox" value={role} {...register('roleCodes')} />
-            {role === 'lecturer' ? 'Giảng viên' : role}
-          </label>
+          <div key={role} className="flex items-center gap-2">
+            <input
+              id={`account-role-${role}`}
+              type="checkbox"
+              value={role}
+              className="h-4 w-4 rounded border-input"
+              {...register('roleCodes')}
+            />
+            <Label htmlFor={`account-role-${role}`} className="font-normal">
+              {ROLE_LABELS[role]}
+            </Label>
+          </div>
         ))}
       </fieldset>
-      {errors.roleCodes && <p role="alert">{errors.roleCodes.message}</p>}
-      <button type="submit">Lưu</button>
+      {errors.roleCodes && (
+        <p role="alert" className="text-sm text-destructive">
+          {errors.roleCodes.message}
+        </p>
+      )}
+      <Button type="submit">Lưu</Button>
     </form>
   );
 }
 ```
+
+Native `<input type="checkbox">` elements are kept for role selection (rather than a Radix `Checkbox` primitive) — they work directly with React Hook Form's `register()` via ref, and Radix's button-based checkbox would need a `Controller` wrapper for no real visual gain at this scale.
 
 - [ ] **Step 6: Run the test to verify it passes**
 
@@ -2355,6 +2725,16 @@ import {
 } from '@tanstack/react-table';
 import { apiClient } from '../../../lib/api-client';
 import { AccountForm, AccountFormValues } from '../../../components/accounts/account-form';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AccountRow {
   id: string;
@@ -2404,40 +2784,51 @@ function AccountsTable() {
   });
 
   return (
-    <main>
-      <h1>Quản lý tài khoản</h1>
-      <input
+    <main className="mx-auto flex max-w-4xl flex-col gap-6 p-8">
+      <h1 className="text-2xl font-semibold">Quản lý tài khoản</h1>
+
+      <Input
         placeholder="Tìm kiếm..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        className="max-w-xs"
       />
-      <table>
-        <thead>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <th key={header.id}>
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
 
-      <h2>Tạo tài khoản mới</h2>
-      <AccountForm onSubmit={(values) => createAccount.mutate(values)} />
+      <Card>
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tạo tài khoản mới</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AccountForm onSubmit={(values) => createAccount.mutate(values)} />
+        </CardContent>
+      </Card>
     </main>
   );
 }
@@ -2598,7 +2989,7 @@ git commit -m "feat: wire full docker-compose stack and add a smoke test"
 
 ## Plan self-review notes
 
-- **Spec coverage:** monorepo/Turborepo (§1) → Task 1; TypeORM decision + migration approach (§4) → Task 2; identity/auth/argon2/JWT (§5, §7) → Task 3; RBAC + Postgres exception handling (§4, §7) → Task 4; Swagger/OpenAPI client generation (§6) → Task 5; no-NextAuth cookie proxy (§6) → Task 6; shadcn/ui+Tailwind is deferred to a follow-up UI-polish task (plain HTML form/table elements stand in for now so this plan stays focused on wiring, not styling) — flag this explicitly rather than silently dropping it: **the next plan (Master Data module) should introduce Tailwind + shadcn/ui and restyle the accounts page as its first task**, since polishing one unstyled page in isolation isn't worth a dedicated task here. Background jobs (§8), MongoDB policy templates (§4 module list), and reports (§9's testing note) are out of scope for this plan — they belong to later module plans (Master Data, Labs, Exam Events/Sessions, Policy, Submissions, Reports), each of which should get its own plan following this one.
+- **Spec coverage:** monorepo/Turborepo (§1) → Task 1; TypeORM decision + migration approach (§4) → Task 2; identity/auth/argon2/JWT (§5, §7) → Task 3; RBAC + Postgres exception handling (§4, §7) → Task 4; Swagger/OpenAPI client generation (§6) → Task 5; Tailwind CSS + shadcn/ui (§6) → Task 6, Step 2 (five hand-written primitives: `Button`, `Input`, `Label`, `Card`, `Table`), used throughout Tasks 6–7's pages instead of unstyled HTML; no-NextAuth cookie proxy (§6) → Task 6. Background jobs (§8), MongoDB policy templates (§4 module list), and reports (§9's testing note) are out of scope for this plan — they belong to later module plans (Master Data, Labs, Exam Events/Sessions, Policy, Submissions, Reports), each of which should get its own plan following this one and can add further shadcn components (e.g. `Select`, `Dialog`) via `pnpm dlx shadcn@latest add <component>` against the `components.json` this plan establishes.
 - **Placeholder scan:** no TBDs; every step has runnable code or an exact command.
 - **Type consistency:** `AccessTokenPayload` (Task 3) is reused as-is in Task 4's `RolesGuard`; `AccountFormValues` (Task 7) matches `CreateAccountDto`'s shape (`username`, `displayName`, `password`, `roleCodes`) field-for-field.
 
@@ -2608,7 +2999,7 @@ git commit -m "feat: wire full docker-compose stack and add a smoke test"
 
 This plan covers `WEB-AUTH-01..03` and `WEB-ACC-01..04`, plus all shared infrastructure. Once it's implemented and green, the next plans (each following this same task-based format) are, in `plan-timeline.md`'s GĐ1 order:
 
-1. **Master Data module** (`WEB-MD-01..24`) — students, lecturers, subjects, academic terms, course sections + enrollments, Excel import. First task should add Tailwind + shadcn/ui and restyle the Accounts page (see self-review note above).
+1. **Master Data module** (`WEB-MD-01..24`) — students, lecturers, subjects, academic terms, course sections + enrollments, Excel import. Reuses the Tailwind/shadcn primitives from this plan; add new shadcn components (e.g. `Select`, `Dialog`) as needed via `pnpm dlx shadcn@latest add <component>`.
 2. **Labs module** (`WEB-LAB-01..13`) — labs, workstations, layouts, the `react-konva` seating editor.
 3. **Exam Events + Lab Sessions module** (`WEB-EXAM-01..19`) — the most complex remaining slice: manifest hashing, booking conflicts (first real use of the `PostgresExceptionFilter`'s exclusion-constraint path), and the draft→scheduled FSM.
 
