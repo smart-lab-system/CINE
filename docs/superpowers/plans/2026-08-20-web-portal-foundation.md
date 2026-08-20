@@ -366,7 +366,7 @@ volumes:
   minio_data:
 ```
 
-The host-side ports (`5442`, `27018`, `6390`, `9010`/`9011`) are deliberately non-default — this dev machine already has other projects' Postgres/Mongo/Redis/MinIO bound to the standard ports (`5432`, `27017`, `6379`, `9000`/`9001`). The container-internal ports stay standard (`5432`, `27017`, `6379`, `9000`/`9001`), so nothing inside the Docker network (service-to-service traffic, e.g. `postgres:5432`) is affected — only host-side access (e.g. running `pnpm --filter api migration:run` from the host during development, before Task 8 containerizes the API too) needs the remapped port. If your machine doesn't have this conflict, these could just as well be the defaults — the specific numbers aren't load-bearing, only that whatever you pick is actually free on the host running this.
+The host-side ports (`5442`, `27018`, `6390`, `9010`/`9011`) are deliberately non-default — this dev machine already has other projects' Postgres/Mongo/Redis/MinIO bound to the standard ports (`5432`, `27017`, `6379`, `9000`/`9001`). The container-internal ports stay standard (`5432`, `27017`, `6379`, `9000`/`9001`), so nothing inside the Docker network (service-to-service traffic, e.g. `postgres:5432`) is affected — only host-side access (e.g. running `pnpm --filter api migration:run` from the host during development, before Task 9 containerizes the API too) needs the remapped port. If your machine doesn't have this conflict, these could just as well be the defaults — the specific numbers aren't load-bearing, only that whatever you pick is actually free on the host running this.
 
 Run: `docker compose up -d postgres mongo redis minio`
 Expected: all four containers report `running`/`healthy` via `docker compose ps`.
@@ -2514,7 +2514,9 @@ git commit -m "feat(web): scaffold Next.js app with Tailwind/shadcn UI kit, logi
 
 ---
 
-### Task 7: Accounts admin page (list + create + edit)
+### Task 7: Accounts admin page (list + search + create)
+
+Edit and delete are Task 8, immediately following — the backend already supports both (Task 4), this task just doesn't wire them into the UI yet.
 
 **Files:**
 - Create: `apps/web/src/lib/api-client.ts`
@@ -2526,7 +2528,7 @@ git commit -m "feat(web): scaffold Next.js app with Tailwind/shadcn UI kit, logi
 
 **Interfaces:**
 - Consumes: `createApiClient` from `@cine/shared`; the `access_token` cookie set by Task 6; the `Button`/`Input`/`Label`/`Table`-family components from `@/components/ui/*` (Task 6, Step 2).
-- Produces: `/accounts` page rendering a searchable, paginated table with create/edit forms wired to the real API.
+- Produces: `/accounts` page rendering a searchable table with a create form wired to the real API. `AccountRow` (this task) is reused by Task 8 for its edit/delete actions.
 
 - [ ] **Step 1: Add frontend data/UI dependencies**
 
@@ -2945,7 +2947,447 @@ git commit -m "feat(web): add accounts admin page with list, search, and create"
 
 ---
 
-### Task 8: Full Docker Compose wiring for api + web + smoke test
+### Task 8: Account editing and deletion UI (`WEB-ACC-02`, `WEB-ACC-03`)
+
+**Why this task exists:** this plan's Goal commits to working UI for all of `WEB-ACC-01..04`. Task 4 already built and tested `PATCH /accounts/:id` and `DELETE /accounts/:id`; Task 7 only wired Create (`WEB-ACC-01`) and Search (`WEB-ACC-04`) into the UI, leaving Edit (`WEB-ACC-02`) and Delete (`WEB-ACC-03`) with a working backend but no way to reach them from the browser. This task closes that gap rather than letting the plan's own stated scope quietly go unmet.
+
+**Files:**
+- Create: `apps/web/src/components/accounts/edit-account-form.tsx`
+- Create: `apps/web/src/components/accounts/edit-account-form.test.tsx`
+- Modify: `apps/web/src/app/(dashboard)/accounts/page.tsx` (add an actions column, wire edit/delete mutations)
+
+**Interfaces:**
+- Consumes: `AccountRow` (Task 7); `apiClient.PATCH('/accounts/{id}', ...)` and `apiClient.DELETE('/accounts/{id}', ...)` from the generated client (Task 5), matching `AccountsController`'s `@Patch(':id')`/`@Delete(':id')` routes (Task 4).
+- Produces: an "Sửa"/"Xóa" (Edit/Delete) action per row in the accounts table; `EditAccountForm` exported for reuse.
+
+There is no shadcn `Dialog`/`AlertDialog` primitive in this repo yet (Task 6 only hand-wrote `Button`/`Input`/`Label`/`Card`/`Table`) — rather than adding one just for a delete confirmation, this task uses the browser's native `window.confirm()`. This is a deliberate, minimal choice for this Foundation plan's scope, not an oversight; a later module that needs richer modal UX can add a `Dialog` primitive via `pnpm dlx shadcn@latest add dialog` and this delete confirmation can be upgraded to use it then.
+
+- [ ] **Step 1: Write the failing test for `EditAccountForm`**
+
+`apps/web/src/components/accounts/edit-account-form.test.tsx`:
+```tsx
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
+import { EditAccountForm } from './edit-account-form';
+
+describe('EditAccountForm', () => {
+  const defaultValues = {
+    displayName: 'Existing User',
+    status: 'active' as const,
+    roleCodes: ['lecturer' as const],
+  };
+
+  it("pre-fills the form with the account's current values", () => {
+    render(
+      <EditAccountForm defaultValues={defaultValues} onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText(/họ tên/i)).toHaveValue('Existing User');
+    expect(screen.getByLabelText(/giảng viên/i)).toBeChecked();
+  });
+
+  it('rejects submission when every role is unchecked', async () => {
+    const onSubmit = vi.fn();
+    render(
+      <EditAccountForm defaultValues={defaultValues} onSubmit={onSubmit} onCancel={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByLabelText(/giảng viên/i)); // uncheck the only checked role
+    fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/chọn ít nhất một vai trò/i)).toBeInTheDocument();
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('submits the edited values', async () => {
+    const onSubmit = vi.fn();
+    render(
+      <EditAccountForm defaultValues={defaultValues} onSubmit={onSubmit} onCancel={vi.fn()} />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/họ tên/i), {
+      target: { value: 'Updated Name' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      displayName: 'Updated Name',
+      status: 'active',
+      roleCodes: ['lecturer'],
+    });
+  });
+
+  it('calls onCancel when Hủy is clicked', () => {
+    const onCancel = vi.fn();
+    render(
+      <EditAccountForm defaultValues={defaultValues} onSubmit={vi.fn()} onCancel={onCancel} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /hủy/i }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `pnpm --filter web test`
+Expected: FAIL — `./edit-account-form` doesn't exist yet.
+
+- [ ] **Step 3: Implement `EditAccountForm`**
+
+`apps/web/src/components/accounts/edit-account-form.tsx`:
+```tsx
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+const ROLE_OPTIONS = ['admin', 'operator', 'lecturer', 'student'] as const;
+const ROLE_LABELS: Record<(typeof ROLE_OPTIONS)[number], string> = {
+  admin: 'Quản trị',
+  operator: 'Vận hành phòng máy',
+  lecturer: 'Giảng viên',
+  student: 'Sinh viên',
+};
+const STATUS_OPTIONS = ['pending', 'active', 'locked', 'disabled'] as const;
+
+const editAccountFormSchema = z.object({
+  displayName: z.string().min(1).max(150),
+  status: z.enum(STATUS_OPTIONS),
+  roleCodes: z.array(z.enum(ROLE_OPTIONS)).min(1, 'Chọn ít nhất một vai trò'),
+});
+
+export type EditAccountFormValues = z.infer<typeof editAccountFormSchema>;
+
+export function EditAccountForm({
+  defaultValues,
+  onSubmit,
+  onCancel,
+}: {
+  defaultValues: EditAccountFormValues;
+  onSubmit: (values: EditAccountFormValues) => void;
+  onCancel: () => void;
+}) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<EditAccountFormValues>({
+    resolver: zodResolver(editAccountFormSchema),
+    defaultValues,
+  });
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="edit-display-name">Họ tên</Label>
+        <Input id="edit-display-name" {...register('displayName')} />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="edit-status">Trạng thái</Label>
+        <select
+          id="edit-status"
+          className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm"
+          {...register('status')}
+        >
+          {STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+      </div>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium">Vai trò</legend>
+        {ROLE_OPTIONS.map((role) => (
+          <div key={role} className="flex items-center gap-2">
+            <input
+              id={`edit-role-${role}`}
+              type="checkbox"
+              value={role}
+              className="h-4 w-4 rounded border-input"
+              {...register('roleCodes')}
+            />
+            <Label htmlFor={`edit-role-${role}`} className="font-normal">
+              {ROLE_LABELS[role]}
+            </Label>
+          </div>
+        ))}
+      </fieldset>
+      {errors.roleCodes && (
+        <p role="alert" className="text-sm text-destructive">
+          {errors.roleCodes.message}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button type="submit">Lưu</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Hủy
+        </Button>
+      </div>
+    </form>
+  );
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `pnpm --filter web test`
+Expected: PASS — all 4 `EditAccountForm` tests green, plus Task 6/7's existing tests still green.
+
+- [ ] **Step 5: Wire Edit and Delete into the accounts page**
+
+Modify `apps/web/src/app/(dashboard)/accounts/page.tsx` — replace its content with:
+```tsx
+'use client';
+
+import { useState } from 'react';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
+import {
+  useReactTable,
+  getCoreRowModel,
+  createColumnHelper,
+  flexRender,
+} from '@tanstack/react-table';
+import { apiClient } from '../../../lib/api-client';
+import { AccountForm, AccountFormValues } from '../../../components/accounts/account-form';
+import {
+  EditAccountForm,
+  EditAccountFormValues,
+} from '../../../components/accounts/edit-account-form';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+
+interface AccountRow {
+  id: string;
+  username: string;
+  displayName: string;
+  status: string;
+  roles: string[];
+}
+
+const columnHelper = createColumnHelper<AccountRow>();
+const queryClient = new QueryClient();
+
+function AccountsTable() {
+  const [search, setSearch] = useState('');
+  const [editingAccount, setEditingAccount] = useState<AccountRow | null>(null);
+
+  const { data } = useQuery({
+    queryKey: ['accounts', search],
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET('/accounts', {
+        params: { query: { search, page: 1, pageSize: 20 } },
+      });
+      if (error) throw error;
+      // See Task 7's note on this cast: AccountsController.search() has no
+      // Swagger-decorated response type yet, so the generated response
+      // schema is empty.
+      return data as unknown as { items: AccountRow[]; total: number };
+    },
+  });
+
+  const queryClientInstance = useQueryClient();
+
+  const createAccount = useMutation({
+    mutationFn: async (values: AccountFormValues) => {
+      const { error } = await apiClient.POST('/accounts', { body: values });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClientInstance.invalidateQueries({ queryKey: ['accounts'] }),
+  });
+
+  const updateAccount = useMutation({
+    mutationFn: async ({
+      id,
+      values,
+    }: {
+      id: string;
+      values: EditAccountFormValues;
+    }) => {
+      const { error } = await apiClient.PATCH('/accounts/{id}', {
+        params: { path: { id } },
+        body: values,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClientInstance.invalidateQueries({ queryKey: ['accounts'] });
+      setEditingAccount(null);
+    },
+  });
+
+  const deleteAccount = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await apiClient.DELETE('/accounts/{id}', {
+        params: { path: { id } },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClientInstance.invalidateQueries({ queryKey: ['accounts'] }),
+  });
+
+  const columns = [
+    columnHelper.accessor('username', { header: 'Tên đăng nhập' }),
+    columnHelper.accessor('displayName', { header: 'Họ tên' }),
+    columnHelper.accessor('status', { header: 'Trạng thái' }),
+    columnHelper.accessor((row) => row.roles.join(', '), { header: 'Vai trò' }),
+    columnHelper.display({
+      id: 'actions',
+      header: 'Thao tác',
+      cell: ({ row }) => (
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setEditingAccount(row.original)}
+          >
+            Sửa
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onClick={() => {
+              if (window.confirm(`Xóa tài khoản "${row.original.username}"?`)) {
+                deleteAccount.mutate(row.original.id);
+              }
+            }}
+          >
+            Xóa
+          </Button>
+        </div>
+      ),
+    }),
+  ];
+
+  const table = useReactTable({
+    data: data?.items ?? [],
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  return (
+    <main className="mx-auto flex max-w-4xl flex-col gap-6 p-8">
+      <h1 className="text-2xl font-semibold">Quản lý tài khoản</h1>
+
+      <Input
+        placeholder="Tìm kiếm..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="max-w-xs"
+      />
+
+      <Card>
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {editingAccount ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sửa tài khoản — {editingAccount.username}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EditAccountForm
+              defaultValues={{
+                displayName: editingAccount.displayName,
+                status: editingAccount.status as EditAccountFormValues['status'],
+                roleCodes: editingAccount.roles as EditAccountFormValues['roleCodes'],
+              }}
+              onSubmit={(values) => updateAccount.mutate({ id: editingAccount.id, values })}
+              onCancel={() => setEditingAccount(null)}
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tạo tài khoản mới</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AccountForm onSubmit={(values) => createAccount.mutate(values)} />
+          </CardContent>
+        </Card>
+      )}
+    </main>
+  );
+}
+
+export default function AccountsPage() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AccountsTable />
+    </QueryClientProvider>
+  );
+}
+```
+
+The create form is replaced by the edit form (rather than shown alongside it) while an account is being edited, so there's only ever one form on screen at a time — clicking "Hủy" or successfully saving an edit brings the create form back.
+
+Mutation errors (both here and in Task 7's `createAccount`) aren't surfaced in the UI yet — consistent with Task 7's existing bar, not a new gap this task introduces. A later task should add error toasts/messages once a pattern for that exists across the app; don't add one-off error handling just for this task's two new mutations.
+
+- [ ] **Step 6: Manual verification (edit and delete)**
+
+With the full stack running (per Task 7 Step 8's setup): open `/accounts`, click "Sửa" on a row, change the display name and status, save, and confirm the table reflects the change after the automatic refetch. Then click "Xóa" on a different row, confirm the native browser dialog, and confirm that row disappears from the table after the refetch.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/web/src/components/accounts apps/web/src/app/\(dashboard\)/accounts/page.tsx
+git commit -m "feat(web): add account editing and deletion to the accounts admin page"
+```
+
+---
+
+### Task 9: Full Docker Compose wiring for api + web + smoke test
 
 **Files:**
 - Create: `apps/api/Dockerfile`
@@ -2954,7 +3396,7 @@ git commit -m "feat(web): add accounts admin page with list, search, and create"
 - Create: `scripts/smoke-test.sh`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1–7.
+- Consumes: everything from Tasks 1–8.
 - Produces: `docker compose up` brings up the entire portal (4 datastores + api + web); `scripts/smoke-test.sh` exits 0 only if every service responds.
 
 - [ ] **Step 1: Write `apps/api/Dockerfile`**
@@ -3088,7 +3530,8 @@ git commit -m "feat: wire full docker-compose stack and add a smoke test"
 
 - **Spec coverage:** monorepo/Turborepo (§1) → Task 1; TypeORM decision + migration approach (§4) → Task 2; identity/auth/argon2/JWT (§5, §7) → Task 3; RBAC + Postgres exception handling (§4, §7) → Task 4; Swagger/OpenAPI client generation (§6) → Task 5; Tailwind CSS + shadcn/ui (§6) → Task 6, Step 2 (five hand-written primitives: `Button`, `Input`, `Label`, `Card`, `Table`), used throughout Tasks 6–7's pages instead of unstyled HTML; no-NextAuth cookie proxy (§6) → Task 6. Background jobs (§8), MongoDB policy templates (§4 module list), and reports (§9's testing note) are out of scope for this plan — they belong to later module plans (Master Data, Labs, Exam Events/Sessions, Policy, Submissions, Reports), each of which should get its own plan following this one and can add further shadcn components (e.g. `Select`, `Dialog`) via `pnpm dlx shadcn@latest add <component>` against the `components.json` this plan establishes.
 - **Placeholder scan:** no TBDs; every step has runnable code or an exact command.
-- **Type consistency:** `AccessTokenPayload` (Task 3) is reused as-is in Task 4's `RolesGuard`; `AccountFormValues` (Task 7) matches `CreateAccountDto`'s shape (`username`, `displayName`, `password`, `roleCodes`) field-for-field.
+- **Type consistency:** `AccessTokenPayload` (Task 3) is reused as-is in Task 4's `RolesGuard`; `AccountFormValues` (Task 7) matches `CreateAccountDto`'s shape (`username`, `displayName`, `password`, `roleCodes`) field-for-field; `EditAccountFormValues` (Task 8) matches `UpdateAccountDto`'s shape (`displayName`, `status`, `roleCodes`) field-for-field.
+- **Added during execution:** Task 8 (account editing/deletion UI) was added after Task 7's review flagged that the plan's own Goal ("working UI for `WEB-ACC-01..04`") wasn't actually met — Edit and Delete had working backend endpoints since Task 4 but no frontend UI. Closed the gap rather than quietly narrowing the Goal to match what had been delivered. This pushed the original "Task 8: Docker Compose wiring" to Task 9.
 
 ---
 
