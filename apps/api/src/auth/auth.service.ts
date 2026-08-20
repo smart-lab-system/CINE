@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { UserEntity } from '../identity/entities/user.entity';
 import { UserRoleEntity } from '../identity/entities/user-role.entity';
@@ -28,7 +28,7 @@ export class AuthService {
 
   async register(dto: RegisterDto): Promise<{ id: string }> {
     const existing = await this.users.findOne({
-      where: { username: dto.username, deletedAt: undefined },
+      where: { username: dto.username, deletedAt: IsNull() },
     });
     if (existing) {
       throw new ConflictException('Username already in use');
@@ -103,7 +103,7 @@ export class AuthService {
 
   private async getRoleCodes(userId: string): Promise<string[]> {
     const assignments = await this.userRoles.find({
-      where: { userId, deletedAt: undefined },
+      where: { userId, deletedAt: IsNull() },
     });
     if (assignments.length === 0) {
       return [];
