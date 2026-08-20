@@ -18,7 +18,7 @@
 - No GraphQL/tRPC — REST + Nest's OpenAPI (Swagger) spec feeds a generated TypeScript client consumed from `packages/shared`.
 - All infra (Postgres, MongoDB, Redis, MinIO) runs locally via Docker Compose — no cloud dependency for development.
 - Postgres objects live in the `lab_management` schema (per the DDL's `CREATE SCHEMA lab_management; SET search_path TO lab_management, public;`), not `public`.
-- Booking/exclusion-style Postgres errors (`23P01`, `23514`) must be translated to friendly HTTP responses, never leaked raw to a client — this plan's tasks don't hit exclusion constraints yet (those come with `LabSessionsModule`, a later plan), but the pattern established in Task 4's exception filter must be reused there.
+- Booking/exclusion/soft-delete-guard Postgres errors (`23P01`, `23514`, `23503`) must be translated to friendly HTTP responses, never leaked raw to a client. `23503` (the DDL's `guard_master_soft_delete` trigger) is already exercised by Task 4's `AccountsService`; `23P01` (GiST exclusion, booking conflicts) isn't hit until `LabSessionsModule`, a later plan — but the pattern established in Task 4's exception filter must be reused there.
 
 ---
 
@@ -1211,6 +1211,13 @@ import { QueryFailedError } from 'typeorm';
 const UNIQUE_VIOLATION = '23505';
 const CHECK_VIOLATION = '23514';
 const EXCLUSION_VIOLATION = '23P01';
+// The DDL's guard_master_soft_delete trigger (see postgresql-schema-v2.sql)
+// raises `USING ERRCODE = 'foreign_key_violation'` when soft-deleting a
+// row that still has active children (e.g. a lecturer with active
+// session_proctors rows) — that's 23503, not a CHECK violation. Every
+// future module that soft-deletes master data through AccountsService's
+// pattern will hit this, not just accounts.
+const FOREIGN_KEY_VIOLATION = '23503';
 
 @Catch(QueryFailedError)
 export class PostgresExceptionFilter implements ExceptionFilter {
@@ -1218,7 +1225,11 @@ export class PostgresExceptionFilter implements ExceptionFilter {
     const response = host.switchToHttp().getResponse();
     const code = (exception as any).code as string | undefined;
 
-    if (code === UNIQUE_VIOLATION || code === EXCLUSION_VIOLATION) {
+    if (
+      code === UNIQUE_VIOLATION ||
+      code === EXCLUSION_VIOLATION ||
+      code === FOREIGN_KEY_VIOLATION
+    ) {
       const conflict = new ConflictException(
         'This request conflicts with an existing record.',
       );
@@ -1565,7 +1576,7 @@ export class AccountsService {
     });
 
     if (dto.roleCodes) {
-      await this.userRoles.softDelete({ userId: id });
+      await this.userRoles.update({ userId: id }, { deletedAt: new Date() });
       const roles = await this.roles.find({ where: { code: In(dto.roleCodes) } });
       await this.userRoles.save(
         roles.map((role) =>
@@ -1580,8 +1591,8 @@ export class AccountsService {
 
   async remove(id: string): Promise<void> {
     await this.findActiveOrThrow(id);
-    await this.userRoles.softDelete({ userId: id });
-    await this.users.softDelete(id);
+    await this.userRoles.update({ userId: id }, { deletedAt: new Date() });
+    await this.users.update(id, { deletedAt: new Date() });
   }
 
   private async findActiveOrThrow(id: string): Promise<UserEntity> {
@@ -1614,7 +1625,9 @@ export class AccountsService {
 }
 ```
 
-`softDelete` on `userRoles`/`users` sets `deleted_at`, which is exactly the column the DDL's `guard_master_soft_delete` trigger watches — for `users` it raises if any active `user_roles`/`students`/`lecturers` row still references it, so role assignments must be cleared first (as `remove()` does above). This surfaces as a `23514`/raised-exception style Postgres error if a future caller ever deletes out of order — caught by `PostgresExceptionFilter` either way.
+`softDelete` on `userRoles`/`users` sets `deleted_at`, which is exactly the column the DDL's `guard_master_soft_delete` trigger watches — for `users` it raises (`ERRCODE = foreign_key_violation`, `23503`) if any active `user_roles`/`students`/`lecturers` row still references it, so role assignments must be cleared first (as `remove()` does above). This surfaces as a `23503` Postgres error if a future caller ever deletes out of order — caught by `PostgresExceptionFilter` either way, per the `FOREIGN_KEY_VIOLATION` handling added above.
+
+`UserEntity`/`UserRoleEntity` are not decorated with `@DeleteDateColumn()` (they use a plain `@Column({ name: 'deleted_at', ... })`, matching Task 3's entities) — TypeORM's `repository.softDelete()` requires `@DeleteDateColumn()` and throws `MissingDeleteDateColumnError` without it. Use `repository.update(id, { deletedAt: new Date() })` (or the equivalent `update({ userId: id }, { deletedAt: new Date() })` form for a criteria object) instead of `.softDelete()` everywhere in this service.
 
 - [ ] **Step 8: Implement `AccountsController` and `AccountsModule`**
 
