@@ -1,13 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   useReactTable,
   getCoreRowModel,
@@ -41,19 +35,27 @@ interface AccountRow {
 }
 
 const columnHelper = createColumnHelper<AccountRow>();
-const queryClient = new QueryClient();
 
-function AccountsTable() {
+// The QueryClientProvider lives in (dashboard)/layout.tsx so every dashboard
+// page shares one client — and so it's never constructed at module scope,
+// which on the server would share a single cache across unrelated requests.
+export default function AccountsPage() {
   const [search, setSearch] = useState('');
   const [editingAccount, setEditingAccount] = useState<AccountRow | null>(null);
 
-  const { data } = useQuery({
+  const { data, error, isLoading } = useQuery({
     queryKey: ['accounts', search],
     queryFn: async () => {
-      const { data, error } = await apiClient.GET('/accounts', {
+      const { data, error, response } = await apiClient.GET('/accounts', {
         params: { query: { search, page: 1, pageSize: 20 } },
       });
-      if (error) throw error;
+      // openapi-fetch only fills `error` from the response *body*, which some
+      // failures leave empty — key off the status too so a 401 (expired
+      // access_token that the middleware's existence-only check waved
+      // through) can't be mistaken for an empty result set.
+      if (error || !response.ok) {
+        throw error ?? new Error(`Yêu cầu thất bại (HTTP ${response.status})`);
+      }
       // See Task 7's note on this cast: AccountsController.search() has no
       // Swagger-decorated response type yet, so the generated response
       // schema is empty.
@@ -143,7 +145,7 @@ function AccountsTable() {
   });
 
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-8">
       <h1 className="text-2xl font-semibold">Quản lý tài khoản</h1>
 
       <Input
@@ -153,32 +155,52 @@ function AccountsTable() {
         className="max-w-xs"
       />
 
-      <Card>
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+      {/* Without these two branches a failed request (e.g. an expired
+          access_token the middleware's existence-only check still lets
+          through) renders an empty table that's indistinguishable from
+          "no accounts yet". */}
+      {isLoading ? (
+        <Card>
+          <p className="p-4 text-sm text-muted-foreground">Đang tải…</p>
+        </Card>
+      ) : error ? (
+        <Card>
+          <p role="alert" className="p-4 text-sm text-destructive">
+            Không tải được danh sách tài khoản. Hãy tải lại trang hoặc đăng nhập
+            lại.
+          </p>
+        </Card>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id}>
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
 
       {editingAccount ? (
         <Card>
@@ -208,13 +230,5 @@ function AccountsTable() {
         </Card>
       )}
     </main>
-  );
-}
-
-export default function AccountsPage() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AccountsTable />
-    </QueryClientProvider>
   );
 }
