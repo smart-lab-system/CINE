@@ -321,7 +321,7 @@ services:
       POSTGRES_USER: lab_admin
       POSTGRES_PASSWORD: lab_admin_password
     ports:
-      - "5432:5432"
+      - "5442:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -336,14 +336,14 @@ services:
       MONGO_INITDB_ROOT_USERNAME: lab_admin
       MONGO_INITDB_ROOT_PASSWORD: lab_admin_password
     ports:
-      - "27017:27017"
+      - "27018:27017"
     volumes:
       - mongo_data:/data/db
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6390:6379"
     volumes:
       - redis_data:/data
 
@@ -354,8 +354,8 @@ services:
       MINIO_ROOT_USER: lab_admin
       MINIO_ROOT_PASSWORD: lab_admin_password
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9010:9000"
+      - "9011:9001"
     volumes:
       - minio_data:/data
 
@@ -366,6 +366,8 @@ volumes:
   minio_data:
 ```
 
+The host-side ports (`5442`, `27018`, `6390`, `9010`/`9011`) are deliberately non-default — this dev machine already has other projects' Postgres/Mongo/Redis/MinIO bound to the standard ports (`5432`, `27017`, `6379`, `9000`/`9001`). The container-internal ports stay standard (`5432`, `27017`, `6379`, `9000`/`9001`), so nothing inside the Docker network (service-to-service traffic, e.g. `postgres:5432`) is affected — only host-side access (e.g. running `pnpm --filter api migration:run` from the host during development, before Task 8 containerizes the API too) needs the remapped port. If your machine doesn't have this conflict, these could just as well be the defaults — the specific numbers aren't load-bearing, only that whatever you pick is actually free on the host running this.
+
 Run: `docker compose up -d postgres mongo redis minio`
 Expected: all four containers report `running`/`healthy` via `docker compose ps`.
 
@@ -375,7 +377,7 @@ Expected: all four containers report `running`/`healthy` via `docker compose ps`
 ```
 NODE_ENV=development
 PORT=4000
-DATABASE_URL=postgresql://lab_admin:lab_admin_password@localhost:5432/lab_management
+DATABASE_URL=postgresql://lab_admin:lab_admin_password@localhost:5442/lab_management
 DATABASE_SCHEMA=lab_management
 ACCESS_TOKEN_SECRET=dev-access-secret-change-me
 ACCESS_TOKEN_TTL=15m
@@ -2960,7 +2962,7 @@ docker compose up -d --build
 ```
 Expected: `All smoke checks passed.` printed, exit code 0.
 
-The `pnpm --filter api migration:run` above runs from the host, against `postgres`'s `5432:5432` port mapping from Task 2 (using `apps/api/.env`'s `DATABASE_URL=postgresql://...@localhost:5432/...`) — the same command and same already-applied migration Task 2 used, just re-confirming it's still applied before the containerized `api` starts. It is idempotent (TypeORM records applied migrations and skips them), so running it again here is always safe.
+The `pnpm --filter api migration:run` above runs from the host, against `postgres`'s host-side port mapping from Task 2 (using `apps/api/.env`'s `DATABASE_URL=postgresql://...@localhost:<host-port>/...`) — the same command and same already-applied migration Task 2 used, just re-confirming it's still applied before the containerized `api` starts. It is idempotent (TypeORM records applied migrations and skips them), so running it again here is always safe.
 
 - [ ] **Step 6: Commit**
 
