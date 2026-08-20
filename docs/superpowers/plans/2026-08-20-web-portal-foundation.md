@@ -298,6 +298,7 @@ git commit -m "feat(api): bootstrap Nest app with health endpoint"
 
 **Files:**
 - Create: `docker-compose.yml`
+- Create: `docker/postgres-init/001-create-schema.sql`
 - Create: `apps/api/.env.example`
 - Create: `apps/api/src/database/data-source.ts`
 - Create: `apps/api/src/database/migrations/0001_initial_schema.ts`
@@ -324,6 +325,7 @@ services:
       - "5442:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lab_admin -d lab_management"]
       interval: 5s
@@ -371,7 +373,32 @@ The host-side ports (`5442`, `27018`, `6390`, `9010`/`9011`) are deliberately no
 Run: `docker compose up -d postgres mongo redis minio`
 Expected: all four containers report `running`/`healthy` via `docker compose ps`.
 
-- [ ] **Step 2: Add Postgres env config**
+- [ ] **Step 2: Write the Postgres init script the migration needs to bootstrap against**
+
+TypeORM creates its own bookkeeping `migrations` table inside the DataSource's configured `schema` (`lab_management`, set in Step 5) *before* it runs the first migration. On a brand-new database, that schema doesn't exist yet — it's created by the initial migration's own DDL — so without this bootstrap, the very first `migration:run` (Step 9) fails with `schema "lab_management" does not exist`. The official Postgres image runs every `.sql` file under `/docker-entrypoint-initdb.d/` once, automatically, when it initializes an empty data directory — mounted above, in Step 1's `postgres` service.
+
+```bash
+mkdir -p docker/postgres-init
+```
+
+`docker/postgres-init/001-create-schema.sql`:
+```sql
+-- Runs once, automatically, when the postgres container initializes an
+-- empty data directory (the official postgres image's
+-- /docker-entrypoint-initdb.d convention).
+--
+-- Why this exists: TypeORM creates its own bookkeeping "migrations" table
+-- inside the DataSource's configured `schema` (lab_management) before it
+-- runs the first migration. On a brand-new database that schema doesn't
+-- exist yet — it's created by the initial migration's own DDL — so
+-- without this bootstrap, the very first `migration:run` fails with
+-- "schema lab_management does not exist". Creating the (empty) schema
+-- here breaks that chicken-and-egg problem; the migration's own
+-- `CREATE SCHEMA IF NOT EXISTS lab_management` then becomes a no-op.
+CREATE SCHEMA IF NOT EXISTS lab_management;
+```
+
+- [ ] **Step 3: Add Postgres env config**
 
 `apps/api/.env.example`:
 ```
@@ -387,7 +414,7 @@ REFRESH_TOKEN_TTL=7d
 
 Copy it: `cp apps/api/.env.example apps/api/.env` (real `.env` stays untracked per `.gitignore`).
 
-- [ ] **Step 3: Add TypeORM + Postgres driver dependencies**
+- [ ] **Step 4: Add TypeORM + Postgres driver dependencies**
 
 Modify `apps/api/package.json` — add to `dependencies`:
 ```json
@@ -398,14 +425,16 @@ Modify `apps/api/package.json` — add to `dependencies`:
 ```
 and to `scripts`:
 ```json
-"migration:run": "ts-node -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
-"migration:revert": "ts-node -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts"
+"migration:run": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
+"migration:revert": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts"
 ```
 and to `devDependencies`: `"tsconfig-paths": "^4.2.0"`.
 
+Invoking `node -r ts-node/register` rather than the `ts-node` CLI binary directly is deliberate: on some Node versions, `ts-node`'s own bin does extra CJS/ESM phase-detection that misidentifies the plain-CommonJS `data-source.ts` as an ES module and fails with `__dirname is not defined in ES module scope`. `node -r ts-node/register` registers the identical TS-compilation hook without that extra detection step.
+
 Run: `pnpm --filter api install`
 
-- [ ] **Step 4: Write the DataSource config**
+- [ ] **Step 5: Write the DataSource config**
 
 `apps/api/src/database/data-source.ts`:
 ```ts
@@ -434,7 +463,7 @@ export const dataSourceOptions: DataSourceOptions = {
 export default new DataSource(dataSourceOptions);
 ```
 
-- [ ] **Step 5: Copy the existing DDL verbatim and wrap it in a migration**
+- [ ] **Step 6: Copy the existing DDL verbatim and wrap it in a migration**
 
 ```bash
 mkdir -p apps/api/src/database/migrations/sql
@@ -467,7 +496,7 @@ export class InitialSchema1755600000000 implements MigrationInterface {
 }
 ```
 
-- [ ] **Step 6: Write the verification script (fails before the migration runs)**
+- [ ] **Step 7: Write the verification script (fails before the migration runs)**
 
 `apps/api/src/database/verify-schema.ts`:
 ```ts
@@ -515,25 +544,25 @@ async function main() {
 main();
 ```
 
-- [ ] **Step 7: Run the verification script to confirm it fails**
+- [ ] **Step 8: Run the verification script to confirm it fails**
 
 Run: `pnpm --filter api exec ts-node -r dotenv/config src/database/verify-schema.ts`
 Expected: FAIL — exits 1, lists all `EXPECTED_TABLES` as missing (schema doesn't exist yet).
 
-- [ ] **Step 8: Run the migration**
+- [ ] **Step 9: Run the migration**
 
 Run: `pnpm --filter api migration:run`
 Expected: TypeORM reports `InitialSchema1755600000000` as executed, no errors.
 
-- [ ] **Step 9: Run the verification script again to confirm it passes**
+- [ ] **Step 10: Run the verification script again to confirm it passes**
 
 Run: `pnpm --filter api exec ts-node -r dotenv/config src/database/verify-schema.ts`
 Expected: PASS — prints `All 14 expected tables are present.`, exits 0.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add docker-compose.yml apps/api/.env.example apps/api/package.json apps/api/src/database pnpm-lock.yaml
+git add docker-compose.yml docker/postgres-init apps/api/.env.example apps/api/package.json apps/api/src/database pnpm-lock.yaml
 git commit -m "feat(api): add Docker infra and apply the v2 Postgres schema as the first migration"
 ```
 
@@ -1392,16 +1421,19 @@ describe('Accounts (e2e)', () => {
     });
 
     // Grant the admin role directly — there's no self-serve "become admin"
-    // endpoint, and there shouldn't be.
+    // endpoint, and there shouldn't be. Table names are schema-qualified
+    // (lab_management.*) because this connection's search_path doesn't
+    // default to that schema (see data-source.ts's `schema` option, which
+    // scopes TypeORM's own queries but not raw dataSource.query() calls).
     const [{ id: userId }] = await dataSource.query(
-      `SELECT id FROM users WHERE username = $1`,
+      `SELECT id FROM lab_management.users WHERE username = $1`,
       [adminUsername],
     );
     const [{ id: roleId }] = await dataSource.query(
-      `SELECT id FROM roles WHERE code = 'admin'`,
+      `SELECT id FROM lab_management.roles WHERE code = 'admin'`,
     );
     await dataSource.query(
-      `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`,
+      `INSERT INTO lab_management.user_roles (user_id, role_id) VALUES ($1, $2)`,
       [userId, roleId],
     );
 
