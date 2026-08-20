@@ -1904,7 +1904,7 @@ Note: `packages/shared/src/api/schema.d.ts` is generated output. Commit it anywa
 - Test: `apps/web/src/middleware.test.ts`
 
 **Interfaces:**
-- Consumes: Nest's `POST /auth/login`, `POST /auth/logout` (called server-side from the Route Handlers, plain `fetch`, not the generated client — Route Handlers run on the server and don't need the browser-facing client).
+- Consumes: Nest's `POST /auth/login` (called server-side from the Route Handler, plain `fetch`, not the generated client — Route Handlers run on the server and don't need the browser-facing client). `/api/auth/logout` does not call Nest's `POST /auth/logout` — that endpoint is a stateless no-op per Task 3's scope decision, so clearing cookies locally is sufficient and there's nothing to gain by calling it.
 - Produces: cookies `access_token` / `refresh_token` (httpOnly, `SameSite=Lax`) set by `/api/auth/login`; `middleware.ts` exporting a `config.matcher` guarding every route under `(dashboard)`; a `cn()` helper and five shadcn/ui primitives (`Button`, `Input`, `Label`, `Card`/`CardHeader`/`CardTitle`/`CardContent`, `Table`/`TableHeader`/`TableBody`/`TableRow`/`TableHead`/`TableCell`) importable from `@/components/ui/*` and `@/lib/utils`, for Task 7 to reuse.
 
 - [ ] **Step 1: Scaffold `apps/web` with Tailwind CSS**
