@@ -1478,7 +1478,7 @@ Expected: FAIL — `/accounts` routes don't exist yet.
 ```ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Like, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { UserEntity } from '../identity/entities/user.entity';
 import { UserRoleEntity } from '../identity/entities/user-role.entity';
@@ -1594,7 +1594,7 @@ export class AccountsService {
 
   private async toView(user: UserEntity): Promise<AccountView> {
     const assignments = await this.userRoles.find({
-      where: { userId: user.id, deletedAt: undefined },
+      where: { userId: user.id, deletedAt: IsNull() },
     });
     const roleIds = assignments.map((a) => a.roleId);
     const roles =
