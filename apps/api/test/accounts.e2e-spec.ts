@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 
 describe('Accounts (e2e)', () => {
   let app: INestApplication;
@@ -16,6 +17,10 @@ describe('Accounts (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // Mirrors main.ts — without it a Postgres trigger/constraint error
+    // surfaces as a bare 500 instead of the mapped 409/400 a real client
+    // sees.
+    app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
 
     dataSource = app.get(DataSource);
@@ -168,6 +173,55 @@ describe('Accounts (e2e)', () => {
       [createdAccountId],
     );
     expect(activeRoleAssignments).toHaveLength(0);
+  });
+
+  it('rolls back the whole delete when soft-deleting the user fails mid-sequence', async () => {
+    // Real failure injection for AccountsService#remove()'s transaction:
+    // guard_master_soft_delete() also guards `users` against an active
+    // `students` row, not just `user_roles`. Giving the account a student
+    // profile makes step 2 (soft-delete the user) raise *after* step 1
+    // (clear the role assignments) already succeeded — precisely the
+    // mid-sequence failure the transaction has to undo.
+    const createResponse = await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        username: `rollback_${Date.now()}`,
+        password: 'correct-horse-battery',
+        displayName: 'Rollback User',
+        roleCodes: ['student'],
+      });
+    expect(createResponse.status).toBe(201);
+    const accountId: string = createResponse.body.id;
+
+    await dataSource.query(
+      `INSERT INTO lab_management.students (user_id, student_code, full_name)
+       VALUES ($1, $2, $3)`,
+      [accountId, `SV${Date.now()}`.slice(0, 32), 'Rollback User'],
+    );
+
+    const deleteResponse = await request(app.getHttpServer())
+      .delete(`/accounts/${accountId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    // PostgresExceptionFilter maps the trigger's 23503 to a 409.
+    expect(deleteResponse.status).toBe(409);
+
+    // The account must be exactly as it was: still active, still holding
+    // its role. Before the transaction wrapping, the role assignment would
+    // have been left soft-deleted here.
+    const [userRow] = await dataSource.query(
+      `SELECT deleted_at FROM lab_management.users WHERE id = $1`,
+      [accountId],
+    );
+    expect(userRow.deleted_at).toBeNull();
+
+    const activeRoleAssignments = await dataSource.query(
+      `SELECT id FROM lab_management.user_roles
+       WHERE user_id = $1 AND deleted_at IS NULL`,
+      [accountId],
+    );
+    expect(activeRoleAssignments).toHaveLength(1);
   });
 
   it('rejects soft-deleting a user directly at the DB level while an active role assignment still references it', async () => {

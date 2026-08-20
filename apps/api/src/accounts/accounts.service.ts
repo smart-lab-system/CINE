@@ -33,24 +33,34 @@ export class AccountsService {
     const passwordHash = await argon2.hash(dto.password, {
       type: argon2.argon2id,
     });
-    const user = await this.users.save(
-      this.users.create({
-        username: dto.username,
-        email: dto.email ?? null,
-        passwordHash,
-        displayName: dto.displayName,
-        status: 'active',
-      }),
-    );
 
-    const roles = await this.roles.find({ where: { code: In(dto.roleCodes) } });
-    await this.userRoles.save(
-      roles.map((role) =>
-        this.userRoles.create({ userId: user.id, roleId: role.id }),
-      ),
-    );
+    // Hashing stays outside the transaction — argon2 is deliberately slow
+    // (tens of milliseconds), and holding a DB transaction open for it would
+    // pin a connection for no reason.
+    return this.users.manager.transaction(async (manager) => {
+      const txUsers = manager.getRepository(UserEntity);
+      const txUserRoles = manager.getRepository(UserRoleEntity);
+      const txRoles = manager.getRepository(RoleEntity);
 
-    return { id: user.id };
+      const user = await txUsers.save(
+        txUsers.create({
+          username: dto.username,
+          email: dto.email ?? null,
+          passwordHash,
+          displayName: dto.displayName,
+          status: 'active',
+        }),
+      );
+
+      const roles = await txRoles.find({ where: { code: In(dto.roleCodes) } });
+      await txUserRoles.save(
+        roles.map((role) =>
+          txUserRoles.create({ userId: user.id, roleId: role.id }),
+        ),
+      );
+
+      return { id: user.id };
+    });
   }
 
   async search(
@@ -80,25 +90,32 @@ export class AccountsService {
   async update(id: string, dto: UpdateAccountDto): Promise<AccountView> {
     const user = await this.findActiveOrThrow(id);
 
-    await this.users.update(id, {
-      email: dto.email ?? user.email,
-      displayName: dto.displayName ?? user.displayName,
-      status: dto.status ?? user.status,
-    });
+    // Atomic: without a transaction, a failure after the role assignments
+    // were cleared but before the replacements landed would strip the
+    // account's roles outright.
+    await this.users.manager.transaction(async (manager) => {
+      const txUsers = manager.getRepository(UserEntity);
+      const txUserRoles = manager.getRepository(UserRoleEntity);
+      const txRoles = manager.getRepository(RoleEntity);
 
-    if (dto.roleCodes) {
-      // UserRoleEntity models `deleted_at` as a plain @Column, not a
-      // @DeleteDateColumn, so Repository#softDelete() would throw
-      // MissingDeleteDateColumnError. Setting the column directly via
-      // update() has the identical effect for the DB's soft-delete trigger.
-      await this.userRoles.update({ userId: id }, { deletedAt: new Date() });
-      const roles = await this.roles.find({ where: { code: In(dto.roleCodes) } });
-      await this.userRoles.save(
-        roles.map((role) =>
-          this.userRoles.create({ userId: id, roleId: role.id }),
-        ),
-      );
-    }
+      await txUsers.update(id, {
+        email: dto.email ?? user.email,
+        displayName: dto.displayName ?? user.displayName,
+        status: dto.status ?? user.status,
+      });
+
+      if (dto.roleCodes) {
+        // UserRoleEntity models `deleted_at` as a plain @Column, not a
+        // @DeleteDateColumn, so Repository#softDelete() would throw
+        // MissingDeleteDateColumnError. Setting the column directly via
+        // update() has the identical effect for the DB's soft-delete trigger.
+        await txUserRoles.update({ userId: id }, { deletedAt: new Date() });
+        const roles = await txRoles.find({ where: { code: In(dto.roleCodes) } });
+        await txUserRoles.save(
+          roles.map((role) => txUserRoles.create({ userId: id, roleId: role.id })),
+        );
+      }
+    });
 
     const updated = await this.findActiveOrThrow(id);
     return this.toView(updated);
@@ -106,13 +123,23 @@ export class AccountsService {
 
   async remove(id: string): Promise<void> {
     await this.findActiveOrThrow(id);
-    // See the note in update(): neither entity has a @DeleteDateColumn, so
-    // we set `deleted_at` via update() rather than Repository#softDelete().
-    // Role assignments are cleared first — the DDL's
-    // guard_master_soft_delete trigger raises on `users` if any active
-    // user_roles row still references it.
-    await this.userRoles.update({ userId: id }, { deletedAt: new Date() });
-    await this.users.update(id, { deletedAt: new Date() });
+
+    // Atomic: the second statement can genuinely fail — the DDL's
+    // guard_master_soft_delete trigger raises 23503 on `users` if any other
+    // active child row (a `students`/`lecturers` profile) still references
+    // it. Without a transaction that failure would leave a live account with
+    // its role assignments already wiped.
+    await this.users.manager.transaction(async (manager) => {
+      const txUsers = manager.getRepository(UserEntity);
+      const txUserRoles = manager.getRepository(UserRoleEntity);
+
+      // See the note in update(): neither entity has a @DeleteDateColumn, so
+      // we set `deleted_at` via update() rather than Repository#softDelete().
+      // Role assignments are cleared first — the same trigger raises on
+      // `users` if any active user_roles row still references it.
+      await txUserRoles.update({ userId: id }, { deletedAt: new Date() });
+      await txUsers.update(id, { deletedAt: new Date() });
+    });
   }
 
   private async findActiveOrThrow(id: string): Promise<UserEntity> {
