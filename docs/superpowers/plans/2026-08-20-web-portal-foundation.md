@@ -557,6 +557,7 @@ git commit -m "feat(api): add Docker infra and apply the v2 Postgres schema as t
 - Create: `apps/api/src/auth/types.ts`
 - Modify: `apps/api/src/database/data-source.ts` (register the three entities)
 - Modify: `apps/api/src/app.module.ts` (import `TypeOrmModule.forRoot`, `AuthModule`)
+- Modify: `apps/api/src/main.ts` (register `cookie-parser` middleware)
 - Modify: `apps/api/package.json` (add auth-related dependencies)
 - Test: `apps/api/test/auth.e2e-spec.ts`
 
@@ -574,9 +575,12 @@ Modify `apps/api/package.json` — add to `dependencies`:
 "passport-jwt": "^4.0.1",
 "argon2": "^0.41.1",
 "class-validator": "^0.14.1",
-"class-transformer": "^0.5.1"
+"class-transformer": "^0.5.1",
+"cookie-parser": "^1.4.7"
 ```
-and to `devDependencies`: `"@types/passport-jwt": "^4.0.1"`.
+and to `devDependencies`: `"@types/passport-jwt": "^4.0.1"`, `"@types/cookie-parser": "^1.4.7"`.
+
+`JwtStrategy` (Step 10, below) reads `req.cookies.access_token` — Express only populates `req.cookies` when `cookie-parser` middleware is registered. Without it, `req.cookies` is always `undefined` and that extractor silently falls through to the (unused, in the browser flow) Bearer-header path every time. Step 12 wires the middleware into `main.ts` before that gap can bite Task 6/7's browser-facing login flow.
 
 Run: `pnpm --filter api install`
 
@@ -882,7 +886,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { UserEntity } from '../identity/entities/user.entity';
 import { UserRoleEntity } from '../identity/entities/user-role.entity';
@@ -905,7 +909,7 @@ export class AuthService {
 
   async register(dto: RegisterDto): Promise<{ id: string }> {
     const existing = await this.users.findOne({
-      where: { username: dto.username, deletedAt: undefined },
+      where: { username: dto.username, deletedAt: IsNull() },
     });
     if (existing) {
       throw new ConflictException('Username already in use');
@@ -980,7 +984,7 @@ export class AuthService {
 
   private async getRoleCodes(userId: string): Promise<string[]> {
     const assignments = await this.userRoles.find({
-      where: { userId, deletedAt: undefined },
+      where: { userId, deletedAt: IsNull() },
     });
     if (assignments.length === 0) {
       return [];
@@ -1090,15 +1094,36 @@ import { JwtStrategy } from './jwt.strategy';
 export class AuthModule {}
 ```
 
-- [ ] **Step 12: Run the tests to verify they pass**
+- [ ] **Step 12: Wire `cookie-parser` into `main.ts`**
+
+Modify `apps/api/src/main.ts`:
+```ts
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.use(cookieParser());
+  const port = process.env.PORT ?? 4000;
+  await app.listen(port);
+}
+
+bootstrap();
+```
+
+This is the only thing that makes `JwtStrategy`'s `req.cookies.access_token` extractor (Step 10) actually work — without it `req.cookies` is always `undefined` on Express. Task 4 will modify this same file again to add `ValidationPipe` and the Postgres exception filter; Task 5 adds Swagger; Task 7 adds CORS. Each of those steps shows the file's state after its own addition, always including this `cookieParser()` call.
+
+- [ ] **Step 13: Run the tests to verify they pass**
 
 Run: `pnpm --filter api test:e2e`
 Expected: PASS — all three `Auth (e2e)` tests green.
 
-- [ ] **Step 13: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
-git add apps/api/src/identity apps/api/src/auth apps/api/src/app.module.ts apps/api/src/database/data-source.ts apps/api/package.json apps/api/test/auth.e2e-spec.ts pnpm-lock.yaml
+git add apps/api/src/identity apps/api/src/auth apps/api/src/app.module.ts apps/api/src/database/data-source.ts apps/api/src/main.ts apps/api/package.json apps/api/test/auth.e2e-spec.ts pnpm-lock.yaml
 git commit -m "feat(api): add identity entities and JWT-based AuthModule"
 ```
 
@@ -1219,11 +1244,13 @@ Modify `apps/api/src/main.ts`:
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { PostgresExceptionFilter } from './common/postgres-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new PostgresExceptionFilter());
   const port = process.env.PORT ?? 4000;
@@ -1702,12 +1729,14 @@ Modify `apps/api/src/main.ts`:
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { PostgresExceptionFilter } from './common/postgres-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new PostgresExceptionFilter());
 
