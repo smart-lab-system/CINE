@@ -70,9 +70,66 @@ export class AuthService {
       throw new UnauthorizedException('Invalid username or password');
     }
 
-    const roleCodes = await this.getRoleCodes(user.id);
+    // A `pending`/`locked`/`disabled` account must not get a token even with
+    // the right password. The message stays identical to the wrong-password
+    // case on purpose — a distinct "your account is locked" response would
+    // let an attacker enumerate which credentials are otherwise valid.
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('Invalid username or password');
+    }
 
     await this.users.update(user.id, { lastLoginAt: new Date() });
+
+    return this.issueSession(user);
+  }
+
+  /**
+   * Exchanges a still-valid refresh token for a fresh token pair. The
+   * refresh token rotates on every call, so a leaked one stops being usable
+   * as soon as the legitimate holder refreshes.
+   */
+  async refresh(refreshToken: string | undefined): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: PublicUser;
+  }> {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    let payload: AccessTokenPayload;
+    try {
+      payload = await this.jwt.verifyAsync<AccessTokenPayload>(refreshToken, {
+        secret: process.env.REFRESH_TOKEN_SECRET,
+      });
+    } catch {
+      // Expired, tampered with, or signed with the access-token secret.
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // Re-check the account against the DB rather than trusting the token's
+    // claims: it was minted up to REFRESH_TOKEN_TTL ago, and the account may
+    // have been locked or soft-deleted since.
+    const user = await this.users.findOne({ where: { id: payload.sub } });
+    if (!user || user.deletedAt || user.status !== 'active') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    return this.issueSession(user);
+  }
+
+  /**
+   * Signs a fresh access/refresh token pair for a user already proven to be
+   * active, and returns it alongside the public user projection. Roles are
+   * re-read here so a role change lands in the next token without a
+   * re-login.
+   */
+  private async issueSession(user: UserEntity): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: PublicUser;
+  }> {
+    const roleCodes = await this.getRoleCodes(user.id);
 
     const payload: AccessTokenPayload = {
       sub: user.id,
