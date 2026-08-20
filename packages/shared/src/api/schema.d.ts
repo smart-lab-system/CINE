@@ -99,10 +99,30 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        RegisterDto: Record<string, never>;
-        LoginDto: Record<string, never>;
-        CreateAccountDto: Record<string, never>;
-        UpdateAccountDto: Record<string, never>;
+        RegisterDto: {
+            username: string;
+            email?: string;
+            password: string;
+            displayName: string;
+        };
+        LoginDto: {
+            username: string;
+            password: string;
+        };
+        CreateAccountDto: {
+            username: string;
+            email?: string;
+            password: string;
+            displayName: string;
+            roleCodes: string[];
+        };
+        UpdateAccountDto: {
+            email?: string;
+            displayName?: string;
+            /** @enum {string} */
+            status?: "pending" | "active" | "locked" | "disabled";
+            roleCodes?: string[];
+        };
     };
     responses: never;
     parameters: never;
@@ -190,7 +210,11 @@ export interface operations {
     };
     AccountsController_search: {
         parameters: {
-            query?: never;
+            query: {
+                search?: string;
+                page: number;
+                pageSize: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -264,7 +288,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
