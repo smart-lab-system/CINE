@@ -45,6 +45,47 @@ services:
     volumes:
       - minio_data:/data
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://lab_admin:lab_admin_password@postgres:5432/lab_management
+      DATABASE_SCHEMA: lab_management
+      ACCESS_TOKEN_SECRET: dev-access-secret-change-me
+      REFRESH_TOKEN_SECRET: dev-refresh-secret-change-me
+      # This dev machine already has other, unrelated processes bound to
+      # host ports 3000/4000 (same class of conflict Task 2 hit with the
+      # datastores) — the host-side mapping below is remapped to 4010, but
+      # WEB_ORIGIN must match the browser's actual origin for the web app
+      # (http://localhost:3010, the remapped web host port) for CORS to
+      # accept credentialed requests. The container-internal port (4000)
+      # and the api<->web Docker-network hostname/port are unaffected.
+      WEB_ORIGIN: http://localhost:3010
+    ports:
+      - "4010:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # NEXT_PUBLIC_* vars are inlined into the client bundle at build
+        # time, so this must be a build arg, not just a runtime `environment:`
+        # entry — it's the browser-facing URL, so it's the remapped host
+        # port (4010), not the container-internal port.
+        NEXT_PUBLIC_API_URL: http://localhost:4010
+    environment:
+      API_URL: http://api:4000
+    ports:
+      - "3010:3000"
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
   mongo_data:
