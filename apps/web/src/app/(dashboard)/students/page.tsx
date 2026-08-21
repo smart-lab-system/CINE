@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { createColumnHelper } from '@tanstack/react-table';
 import { apiClient } from '@/lib/api-client';
 import { useEntityCrud } from '@/lib/use-entity-crud';
@@ -95,36 +96,43 @@ export default function StudentsPage() {
   ];
 
   return (
-    <EntityCrudScaffold
-      title="Quản lý sinh viên"
-      searchPlaceholder="Tìm kiếm..."
-      search={crud.search}
-      onSearchChange={crud.setSearch}
-      columns={columns}
-      items={crud.data?.items ?? []}
-      isLoading={crud.isLoading}
-      error={crud.error}
-      errorMessage="Không tải được danh sách sinh viên. Hãy tải lại trang hoặc đăng nhập lại."
-      createTitle="Tạo sinh viên mới"
-      editTitle={crud.editingItem ? `Sửa sinh viên — ${crud.editingItem.studentCode}` : null}
-      isEditing={crud.editingItem !== null}
-      createForm={<StudentForm onSubmit={(values) => crud.createMutation.mutate(values)} />}
-      editForm={
-        crud.editingItem && (
-          <EditStudentForm
-            defaultValues={{
-              fullName: crud.editingItem.fullName,
-              dateOfBirth: crud.editingItem.dateOfBirth ?? undefined,
-              classCode: crud.editingItem.classCode ?? undefined,
-              cohortYear: crud.editingItem.cohortYear ?? undefined,
-            }}
-            onSubmit={(values) =>
-              crud.updateMutation.mutate({ id: crud.editingItem!.id, values })
-            }
-            onCancel={() => crud.setEditingItem(null)}
-          />
-        )
-      }
-    />
+    <>
+      <div className="mx-auto w-full max-w-4xl px-8 pt-8">
+        <Link href="/students/import" className="text-sm underline">
+          Nhập từ Excel
+        </Link>
+      </div>
+      <EntityCrudScaffold
+        title="Quản lý sinh viên"
+        searchPlaceholder="Tìm kiếm..."
+        search={crud.search}
+        onSearchChange={crud.setSearch}
+        columns={columns}
+        items={crud.data?.items ?? []}
+        isLoading={crud.isLoading}
+        error={crud.error}
+        errorMessage="Không tải được danh sách sinh viên. Hãy tải lại trang hoặc đăng nhập lại."
+        createTitle="Tạo sinh viên mới"
+        editTitle={crud.editingItem ? `Sửa sinh viên — ${crud.editingItem.studentCode}` : null}
+        isEditing={crud.editingItem !== null}
+        createForm={<StudentForm onSubmit={(values) => crud.createMutation.mutate(values)} />}
+        editForm={
+          crud.editingItem && (
+            <EditStudentForm
+              defaultValues={{
+                fullName: crud.editingItem.fullName,
+                dateOfBirth: crud.editingItem.dateOfBirth ?? undefined,
+                classCode: crud.editingItem.classCode ?? undefined,
+                cohortYear: crud.editingItem.cohortYear ?? undefined,
+              }}
+              onSubmit={(values) =>
+                crud.updateMutation.mutate({ id: crud.editingItem!.id, values })
+              }
+              onCancel={() => crud.setEditingItem(null)}
+            />
+          )
+        }
+      />
+    </>
   );
 }
