@@ -7,6 +7,7 @@ import { SubjectEntity } from '../master-data/subjects/subject.entity';
 import { AcademicTermEntity } from '../master-data/academic-terms/academic-term.entity';
 import { LecturerEntity } from '../master-data/lecturers/lecturer.entity';
 import { StudentEntity } from '../master-data/students/student.entity';
+import { CourseSectionEntity } from '../master-data/course-sections/course-section.entity';
 
 // Entities are added here as they're created — starting with Task 3's
 // identity entities. Migrations always run as raw SQL against the
@@ -23,6 +24,7 @@ export const dataSourceOptions: DataSourceOptions = {
     AcademicTermEntity,
     LecturerEntity,
     StudentEntity,
+    CourseSectionEntity,
   ],
   migrations: [__dirname + '/migrations/*.{js,ts}'],
   // The initial migration's SQL file already wraps itself in BEGIN/COMMIT
