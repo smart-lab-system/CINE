@@ -4455,8 +4455,12 @@ describe('SubjectForm', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
+    // handleSubmit() calls onSubmit(values, event) — two arguments — so
+    // toHaveBeenCalledWith(matcher) alone would require an exact 1-arg call
+    // and fail; asserting on the first recorded argument directly avoids
+    // that.
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(
+      expect(onSubmit.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({ code: 'CS101', name: 'Nhập môn CNTT' }),
       ),
     );
@@ -4492,7 +4496,9 @@ describe('EditSubjectForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: 'New Name' })),
+      expect(onSubmit.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({ name: 'New Name' }),
+      ),
     );
   });
 });
@@ -4938,8 +4944,10 @@ describe('AcademicTermForm', () => {
     fireEvent.change(screen.getByLabelText(/ngày kết thúc/i), { target: { value: '2027-01-15' } });
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
+    // handleSubmit() calls onSubmit(values, event) — asserting on the
+    // first recorded argument avoids an exact-arg-count mismatch.
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(
+      expect(onSubmit.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({ code: 'HK1_2026', startsOn: '2026-09-01', endsOn: '2027-01-15' }),
       ),
     );
@@ -5362,8 +5370,10 @@ describe('LecturerForm', () => {
     fireEvent.change(screen.getByLabelText(/họ tên/i), { target: { value: 'Nguyễn Văn A' } });
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
+    // handleSubmit() calls onSubmit(values, event) — asserting on the
+    // first recorded argument avoids an exact-arg-count mismatch.
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(
+      expect(onSubmit.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({ employeeCode: 'GV001', fullName: 'Nguyễn Văn A' }),
       ),
     );
@@ -5811,8 +5821,10 @@ describe('StudentForm', () => {
     fireEvent.change(screen.getByLabelText(/năm nhập học/i), { target: { value: '2020' } });
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
+    // handleSubmit() calls onSubmit(values, event) — asserting on the
+    // first recorded argument avoids an exact-arg-count mismatch.
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(
+      expect(onSubmit.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({ studentCode: 'SV001', fullName: 'Trần Thị B', cohortYear: 2020 }),
       ),
     );
@@ -6335,8 +6347,10 @@ describe('CourseSectionForm', () => {
     fireEvent.change(screen.getByLabelText(/mã lớp học phần/i), { target: { value: 'SEC01' } });
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
+    // handleSubmit() calls onSubmit(values, event) — asserting on the
+    // first recorded argument avoids an exact-arg-count mismatch.
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(
+      expect(onSubmit.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({
           subjectId: SUBJECT_ID,
           academicTermId: TERM_ID,
