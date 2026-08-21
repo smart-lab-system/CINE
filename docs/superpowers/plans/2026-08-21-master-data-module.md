@@ -207,6 +207,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 
 describe('Subjects (e2e)', () => {
   let app: INestApplication;
@@ -220,6 +221,10 @@ describe('Subjects (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // e2e tests build the app independently of main.ts's bootstrap(), so the
+    // global exception filter isn't picked up automatically — same fix
+    // accounts.e2e-spec.ts already applies.
+    app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
 
     dataSource = app.get(DataSource);
@@ -737,6 +742,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 
 describe('AcademicTerms (e2e)', () => {
   let app: INestApplication;
@@ -749,6 +755,10 @@ describe('AcademicTerms (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // e2e tests build the app independently of main.ts's bootstrap(), so the
+    // global exception filter isn't picked up automatically — same fix
+    // accounts.e2e-spec.ts already applies.
+    app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
 
     const dataSource = app.get(DataSource);
@@ -1264,6 +1274,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 
 describe('Lecturers (e2e)', () => {
   let app: INestApplication;
@@ -1276,6 +1287,10 @@ describe('Lecturers (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // e2e tests build the app independently of main.ts's bootstrap(), so the
+    // global exception filter isn't picked up automatically — same fix
+    // accounts.e2e-spec.ts already applies.
+    app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
 
     const dataSource = app.get(DataSource);
@@ -1787,6 +1802,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 
 describe('Students (e2e)', () => {
   let app: INestApplication;
@@ -1799,6 +1815,10 @@ describe('Students (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // e2e tests build the app independently of main.ts's bootstrap(), so the
+    // global exception filter isn't picked up automatically — same fix
+    // accounts.e2e-spec.ts already applies.
+    app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
 
     const dataSource = app.get(DataSource);
@@ -2359,6 +2379,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 
 describe('CourseSections (e2e)', () => {
   let app: INestApplication;
@@ -2374,6 +2395,10 @@ describe('CourseSections (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // e2e tests build the app independently of main.ts's bootstrap(), so the
+    // global exception filter isn't picked up automatically — same fix
+    // accounts.e2e-spec.ts already applies.
+    app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
 
     dataSource = app.get(DataSource);
@@ -2946,6 +2971,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 
 describe('CourseSectionEnrollments (e2e)', () => {
   let app: INestApplication;
@@ -2961,6 +2987,10 @@ describe('CourseSectionEnrollments (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // e2e tests build the app independently of main.ts's bootstrap(), so the
+    // global exception filter isn't picked up automatically — same fix
+    // accounts.e2e-spec.ts already applies.
+    app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
 
     dataSource = app.get(DataSource);
@@ -3529,6 +3559,7 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { Workbook } from 'exceljs';
 import { AppModule } from '../src/app.module';
+import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 
 jest.setTimeout(20000);
 
@@ -3543,6 +3574,10 @@ describe('StudentsImport (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // e2e tests build the app independently of main.ts's bootstrap(), so the
+    // global exception filter isn't picked up automatically — same fix
+    // accounts.e2e-spec.ts already applies.
+    app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
 
     const dataSource = app.get(DataSource);
