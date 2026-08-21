@@ -6808,9 +6808,15 @@ export default function CourseSectionEnrollmentsPage() {
   const enrollmentsQuery = useQuery({
     queryKey: ['course-section-enrollments', sectionId],
     queryFn: async () => {
+      // The generated client requires `query` here even though every field
+      // on SearchEnrollmentsDto has a server-side default — its properties
+      // are typed as plain `number`, not `number | undefined`, so the
+      // OpenAPI schema (and therefore the generated client) treats them as
+      // required. pageSize is generous since this lists a whole section's
+      // roster, not a paginated admin search table.
       const { data, error, response } = await apiClient.GET(
         '/course-sections/{sectionId}/enrollments',
-        { params: { path: { sectionId } } },
+        { params: { path: { sectionId }, query: { page: 1, pageSize: 100 } } },
       );
       if (error || !response.ok) {
         throw error ?? new Error(`Yêu cầu thất bại (HTTP ${response.status})`);
