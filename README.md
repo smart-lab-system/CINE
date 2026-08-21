@@ -1,13 +1,106 @@
-# Web Management Portal
+# CINE — Web Management Portal
 
-Foundation for the lab/exam management system: a NestJS API (`apps/api`) and a
-Next.js 15 admin portal (`apps/web`) in a pnpm/Turborepo monorepo, sharing
-generated OpenAPI types through `packages/shared`. Postgres is schema-first —
-the DBA-authored v2 DDL runs verbatim as the first migration and TypeORM never
-generates schema.
+Admin web portal for **Hệ thống quản lý phòng máy** (Lab/Computer Room
+Management System), a NetSupport-School-style platform for running proctored
+exams and supervised practice sessions in university computer labs — built as
+a KLTN (graduation thesis) project.
 
-Design and implementation notes live in
-`docs/superpowers/plans/2026-08-20-web-portal-foundation.md`.
+The full system has four subsystems: this **Web Management Portal**, a
+**Master Tutor App** (lecturer desktop app), a **Client Agent** (runs on
+student workstations), and a **Central Database**. This repository implements
+the Web Management Portal only — the browser-facing admin app that manages
+accounts, master data, lab layouts, exam scheduling, policy templates,
+submissions, and reporting. The Tutor App and Client Agent are separate,
+not-yet-started subsystems; their design will follow once enough of the Web
+Portal's data model exists for them to build against.
+
+Non-code planning documents for the whole system (function trees, the
+PostgreSQL schema design, the delivery timeline) live in a **separate sibling
+repo**, `KLTN/doc/`, not in this repository.
+
+## Status
+
+**Foundation complete.** Auth (`WEB-AUTH-01..03`) and full account management
+(`WEB-ACC-01..04` — create, search, edit, delete) work end-to-end through both
+the API and the admin UI, on top of the real PostgreSQL v2 schema, with a
+Dockerized full-stack deployment and a passing test suite. Everything else —
+master data, labs, exam scheduling, policy, submissions, reports — is not yet
+built. See [Roadmap](#roadmap).
+
+## Tech stack
+
+| Layer | Choice | Why |
+| --- | --- | --- |
+| Monorepo | pnpm workspaces + Turborepo | one install, shared types, per-app builds |
+| API | NestJS 10 | modular monolith; DI, guards, pipes fit this domain well |
+| Data access | TypeORM 0.3, `synchronize: false` always | Postgres schema is **schema-first** — the DBA-authored DDL is the source of truth, entities only describe columns for querying |
+| Primary DB | PostgreSQL 16 | the already-designed v2 schema (roles, soft-delete guards, exclusion constraints) |
+| Auth | JWT (access + refresh) + argon2id | stateless access tokens, httpOnly cookies, account `status` enforced on every request |
+| Frontend | Next.js 15 (App Router) + React 19 | Server/Client Components, Route Handlers proxy auth to the API |
+| UI kit | Tailwind CSS + hand-written shadcn/ui primitives | `Button`/`Input`/`Label`/`Card`/`Table` in `apps/web/src/components/ui/` |
+| Data fetching | TanStack Query + TanStack Table | typed queries/mutations against the generated API client |
+| Forms | React Hook Form + Zod | client-side validation mirroring the API's `class-validator` DTOs |
+| API contract | `@nestjs/swagger` (CLI plugin) → `openapi-typescript` → `openapi-fetch` | one generated, fully-typed client in `packages/shared`, no GraphQL/tRPC |
+| Infra (dev + prod-like) | Docker Compose | Postgres, MongoDB, Redis, MinIO, plus the `api`/`web` apps themselves |
+| Not yet used by this app | MongoDB, Redis, MinIO | reserved for policy templates/violation logs, live machine state, and exam/submission files — consumed by later modules and by the Tutor/Agent subsystems, not by anything in this repo yet |
+
+Full rationale for every choice above: `docs/superpowers/specs/2026-08-20-web-management-portal-design.md`.
+
+## Project structure
+
+```
+apps/
+  api/                        NestJS modular monolith
+    src/
+      auth/                   register/login/logout/refresh, JWT strategy, RolesGuard
+      accounts/               account CRUD (controller/service/DTOs), transactional writes
+      identity/entities/      TypeORM entities for users/roles/user_roles (schema-first)
+      health/                 GET /health
+      common/                 PostgresExceptionFilter (23505/23514/23P01/23503 → clean HTTP errors)
+      database/               DataSource config, the v2 schema migration, verify-schema script
+      main.ts                 bootstrap: cookie-parser, ValidationPipe, CORS, Swagger
+    test/                     e2e specs — the suite that actually exercises the DB
+  web/                        Next.js 15 admin UI
+    src/
+      app/(auth)/login/       public login page
+      app/(dashboard)/        authenticated pages + shared layout (logout control, QueryClientProvider)
+      app/api/auth/           Route Handlers that proxy to the API and set httpOnly cookies
+      components/accounts/    AccountForm, EditAccountForm
+      components/ui/          hand-written shadcn/ui primitives
+      middleware.ts           gates dashboard routes on cookie presence (not JWT validity)
+packages/
+  shared/                     generated OpenAPI types + a thin `openapi-fetch` client factory
+docker/
+  postgres-init/              bootstraps the `lab_management` schema before the first migration runs
+docs/superpowers/
+  specs/                      design docs (the "why")
+  plans/                      implementation plans, task-by-task (the "how it got built")
+scripts/
+  smoke-test.sh               curl-based check against a running Docker stack
+docker-compose.yml            postgres, mongo, redis, minio, api, web
+```
+
+## What's implemented
+
+**Auth** (`apps/api/src/auth/`): register, login, logout (client-side cookie
+clear only — refresh tokens are stateless, there's no server-side revocation
+list), and `/auth/refresh` (rotates both tokens). `JwtStrategy` re-loads the
+user on every authenticated request and rejects if it's been soft-deleted or
+its `status` is no longer `active` — a locked/disabled account's existing
+tokens stop working immediately, not just at their next expiry.
+
+**Accounts** (`apps/api/src/accounts/`, `apps/web/src/components/accounts/`):
+create/search/edit/delete, `RolesGuard`-enforced to `admin` only. `create`,
+`update`, and `remove` each run in a single DB transaction — a user write and
+its role-assignment writes commit or roll back together. The DB's own
+`guard_master_soft_delete` trigger backs this up: it refuses to soft-delete a
+row that still has active children, surfaced through the API as a clean `409`
+rather than a raw Postgres error.
+
+**Not implemented in this repo yet**: master data (students, lecturers,
+subjects, terms, course sections), lab/workstation/layout management, exam
+event and lab session scheduling, policy templates, submission lookup,
+reporting. See [Roadmap](#roadmap).
 
 ## Prerequisites
 
@@ -49,9 +142,9 @@ pnpm --filter web dev   # http://localhost:3000
 
 ### Getting a first admin account
 
-The migration seeds the four roles (`admin`, `operator`, `lecturer`,
-`student`) but no users, and `POST /auth/register` deliberately can't grant
-roles to itself. So the first admin is made by hand:
+The migration seeds four roles (`admin`, `operator`, `lecturer`, `student`)
+but no users, and `POST /auth/register` deliberately can't grant roles to
+itself. So the first admin is made by hand:
 
 ```bash
 curl -X POST http://localhost:4000/auth/register \
@@ -91,6 +184,23 @@ Running the apps from the host with `pnpm dev` (not Docker) uses the plain
 `4000`/`3000` — the remapping applies only to the containerized `api`/`web`
 services.
 
+## API surface (current)
+
+Full detail always lives in Swagger (`/api-docs`, `/api-docs-json`) — this is
+just an index of what exists today.
+
+| Method + path | Auth | Notes |
+| --- | --- | --- |
+| `GET /health` | none | `{ status: 'ok' }` |
+| `POST /auth/register` | none | creates an `active` account with no roles |
+| `POST /auth/login` | none | returns `{ accessToken, refreshToken, user }` |
+| `POST /auth/logout` | none | stateless no-op — the client just clears its cookies |
+| `POST /auth/refresh` | refresh token (cookie) | rotates both tokens |
+| `POST /accounts` | `admin` | create, with `roleCodes` |
+| `GET /accounts` | `admin` | search + pagination (`search`, `page`, `pageSize`) |
+| `PATCH /accounts/:id` | `admin` | edit `displayName`/`status`/`roleCodes` |
+| `DELETE /accounts/:id` | `admin` | soft-delete, blocked at the DB level if the account has active children |
+
 ## Tests
 
 **`pnpm --filter api test:e2e` is the suite that matters.** It's what exercises
@@ -127,3 +237,18 @@ pnpm --filter api migration:run  # still run from the host, against port 5442
 The API image's entry point is `dist/src/main.js`, not `dist/main.js`:
 `apps/api/tsconfig.json` sets no `rootDir`, so `tsc` mirrors both `src/` and
 `test/` under `dist/`.
+
+## Roadmap
+
+Per `docs/superpowers/plans/2026-08-20-web-portal-foundation.md`'s own
+"What's next", in delivery order:
+
+1. **Master Data module** (`WEB-MD-01..24`) — students, lecturers, subjects,
+   academic terms, course sections + enrollments, Excel import.
+2. **Labs module** (`WEB-LAB-01..13`) — labs, workstations, layouts, a
+   `react-konva` seating editor.
+3. **Exam Events + Lab Sessions module** (`WEB-EXAM-01..19`) — manifest
+   hashing, GiST-backed booking conflicts, the draft→scheduled FSM.
+4. Policy (`WEB-POL`), Submissions (`WEB-SUB`), Reports (`WEB-RPT`).
+
+Each gets its own design + plan cycle before implementation, same as this one.
