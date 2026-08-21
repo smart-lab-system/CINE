@@ -3324,6 +3324,8 @@ First real consumer of Redis in this app. The uploaded `.xlsx` is parsed with `e
 - Modify: `apps/api/package.json` (dependencies: `@nestjs/bullmq`, `bullmq`, `ioredis`, `exceljs`; devDependencies: `@types/multer`)
 - Modify: `apps/api/.env.example` (add `REDIS_HOST`, `REDIS_PORT`)
 - Modify: `apps/api/src/app.module.ts` (register `BullModule.forRootAsync`)
+- Modify: `apps/api/test/jest-e2e.json` (add `"forceExit": true`)
+- Create: `apps/api/src/master-data/students/import/students-import.constants.ts`
 - Create: `apps/api/src/master-data/students/import/parse-students-workbook.ts`
 - Create: `apps/api/src/master-data/students/import/dto/import-job-status.dto.ts`
 - Create: `apps/api/src/master-data/students/import/students-import.processor.ts`
@@ -3351,6 +3353,8 @@ and to `devDependencies`:
 ```
 
 Run: `pnpm install`
+
+`exceljs@4.4.0`'s own `.d.ts` declares `load(buffer: Buffer)` against a pre-5.7 TypeScript lib, where `Uint8Array` (and therefore `Buffer`) wasn't generic. This workspace's TypeScript/`@types/node` combo makes `Buffer` generic (`Buffer<ArrayBufferLike>`), so `workbook.xlsx.load(buffer)` in Step 4 fails to compile with `Argument of type 'Buffer<ArrayBufferLike>' is not assignable to parameter of type 'Buffer'` — a structural-typing mismatch, not a real bug (deduping `@types/node` across the tree does **not** fix this; it's a TypeScript-lib-version skew, confirmed by checking that nothing in the tree still resolves to an older `@types/node`). Step 4's code below already carries the fix: a narrow `buffer as any` cast at the one call site, commented in place.
 
 - [ ] **Step 2: Add Redis config to the env example**
 
@@ -3386,6 +3390,11 @@ import { dataSourceOptions } from './database/data-source';
         connection: {
           host: config.get<string>('REDIS_HOST', 'localhost'),
           port: config.get<number>('REDIS_PORT', 6390),
+          // BullMQ's Worker issues blocking Redis commands (e.g. BZPOPMIN)
+          // on this connection; ioredis's default finite retry limit fights
+          // that and can hang the worker indefinitely. BullMQ's own docs
+          // require this to be null.
+          maxRetriesPerRequest: null,
         },
       }),
     }),
@@ -3398,7 +3407,7 @@ import { dataSourceOptions } from './database/data-source';
 export class AppModule {}
 ```
 
-(`MasterDataModule` was already added here in Task 1 — this step only adds the `BullModule.forRootAsync` entry; the rest of the file is shown for context.)
+(`MasterDataModule` was already added here in Task 1 — this step only adds the `BullModule.forRootAsync` entry; the rest of the file is shown for context.) **`maxRetriesPerRequest: null` is not optional** — omitting it doesn't error visibly, it just hangs the very first import job's worker indefinitely on its blocking read, which reads as a stuck test suite with no error output at all. If Step 10's test run appears to hang rather than fail, check this setting first before anything else.
 
 - [ ] **Step 4: Write the workbook parser**
 
@@ -3430,7 +3439,14 @@ const REQUIRED_HEADERS = [
  * class-validator constraints, checked later in the worker. */
 export async function parseStudentsWorkbook(buffer: Buffer): Promise<RawStudentImportRow[]> {
   const workbook = new Workbook();
-  await workbook.xlsx.load(buffer);
+  // exceljs@4.4.0's own .d.ts declares `load(buffer: Buffer)` against a
+  // pre-5.7 TypeScript lib where Uint8Array (and therefore Buffer) wasn't
+  // generic. This workspace's TypeScript/@types-node combo makes Buffer
+  // generic (`Buffer<ArrayBufferLike>`), so the same runtime Buffer no
+  // longer structurally matches exceljs's older declared parameter type.
+  // Both sides are plain Node Buffers at runtime; this cast only silences
+  // the structural mismatch, not a real type error.
+  await workbook.xlsx.load(buffer as any);
   const sheet = workbook.worksheets[0];
   if (!sheet) {
     throw new BadRequestException('Workbook has no worksheets');
@@ -3498,6 +3514,13 @@ function toDateString(value: unknown): string | undefined {
   }
   return String(value).trim();
 }
+```
+
+- [ ] **Step 4b: Write the queue name constant**
+
+`apps/api/src/master-data/students/import/students-import.constants.ts` — kept in its own file, with no other imports, so the controller and processor can both depend on this constant without either of them creating a circular import with `students-import.module.ts` (which imports both of them). Declaring this constant directly in `students-import.module.ts` instead (as the controller/processor importing it back from there) creates exactly that cycle — the constant is still `undefined` at the point `@InjectQueue(...)` evaluates it, and Nest silently resolves the injection to its `'default'` queue instead of this one, throwing a confusing `Nest can't resolve dependencies... "BullQueue_default"` error at test time instead of at compile time:
+```ts
+export const STUDENTS_IMPORT_QUEUE = 'students-import';
 ```
 
 - [ ] **Step 5: Write the job-status DTO**
@@ -3745,7 +3768,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate, ValidationError } from 'class-validator';
 import { StudentsService } from '../students.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
-import { STUDENTS_IMPORT_QUEUE } from './students-import.module';
+import { STUDENTS_IMPORT_QUEUE } from './students-import.constants';
 import { RawStudentImportRow } from './parse-students-workbook';
 
 export interface StudentsImportJobData {
@@ -3842,7 +3865,7 @@ import { JwtAuthGuard } from '../../../auth/jwt-auth.guard';
 import { RolesGuard } from '../../../auth/roles.guard';
 import { Roles } from '../../../auth/roles.decorator';
 import { parseStudentsWorkbook } from './parse-students-workbook';
-import { STUDENTS_IMPORT_QUEUE } from './students-import.module';
+import { STUDENTS_IMPORT_QUEUE } from './students-import.constants';
 import { StudentsImportJobData, StudentsImportResult } from './students-import.processor';
 import { ImportJobStatusDto } from './dto/import-job-status.dto';
 
@@ -3880,12 +3903,21 @@ export class StudentsImportController {
   @Get(':jobId')
   @ApiOkResponse({ type: ImportJobStatusDto })
   async status(@Param('jobId') jobId: string): Promise<ImportJobStatusDto> {
-    const job = await this.importQueue.getJob(jobId);
+    let job = await this.importQueue.getJob(jobId);
     if (!job) {
       throw new NotFoundException('Import job not found');
     }
 
     const state = await job.getState();
+    if (state === 'completed' || state === 'failed') {
+      // getState() and the already-fetched job's local `returnvalue`/
+      // `failedReason` fields come from two separate reads — a job can
+      // flip from active to completed in between them, leaving `job`
+      // stale. Re-fetch once we know the terminal state we're reporting.
+      // (BullMQ's Job class has no public reload(); a second getJob() is
+      // the documented way to get a fresh snapshot.)
+      job = (await this.importQueue.getJob(jobId)) ?? job;
+    }
     return {
       jobId: job.id as string,
       state,
@@ -3903,8 +3935,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { StudentsModule } from '../students.module';
 import { StudentsImportController } from './students-import.controller';
 import { StudentsImportProcessor } from './students-import.processor';
-
-export const STUDENTS_IMPORT_QUEUE = 'students-import';
+import { STUDENTS_IMPORT_QUEUE } from './students-import.constants';
 
 @Module({
   imports: [StudentsModule, BullModule.registerQueue({ name: STUDENTS_IMPORT_QUEUE })],
@@ -3936,6 +3967,21 @@ import { StudentsImportModule } from './students/import/students-import.module';
 })
 export class MasterDataModule {}
 ```
+
+- [ ] **Step 9b: Add `forceExit` to the e2e Jest config**
+
+Modify `apps/api/test/jest-e2e.json` — add `"forceExit": true`:
+```json
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "forceExit": true
+}
+```
+BullMQ's `Queue`/`Worker` hold an ioredis connection that occasionally takes slightly longer to fully tear down than Jest's exit-detection window, even when `app.close()` in `afterAll` is awaited correctly — this is a widely-documented BullMQ+Jest interaction, not a bug in this module's code. Without `forceExit`, that shows up as an intermittent `A worker process has failed to exit gracefully` warning that flips the whole *test suite* to "failed" in Jest's summary even though every individual assertion passed — a false negative that would otherwise make this one otherwise-correct test file look broken at random.
 
 - [ ] **Step 10: Run the test to verify it passes**
 
