@@ -3,6 +3,7 @@ import { DataSource, DataSourceOptions } from 'typeorm';
 import { RoleEntity } from '../identity/entities/role.entity';
 import { UserEntity } from '../identity/entities/user.entity';
 import { UserRoleEntity } from '../identity/entities/user-role.entity';
+import { SubjectEntity } from '../master-data/subjects/subject.entity';
 
 // Entities are added here as they're created — starting with Task 3's
 // identity entities. Migrations always run as raw SQL against the
@@ -11,7 +12,7 @@ export const dataSourceOptions: DataSourceOptions = {
   type: 'postgres',
   url: process.env.DATABASE_URL,
   schema: process.env.DATABASE_SCHEMA ?? 'lab_management',
-  entities: [RoleEntity, UserEntity, UserRoleEntity],
+  entities: [RoleEntity, UserEntity, UserRoleEntity, SubjectEntity],
   migrations: [__dirname + '/migrations/*.{js,ts}'],
   // The initial migration's SQL file already wraps itself in BEGIN/COMMIT
   // (it's the DBA-authored DDL, copied verbatim). Running TypeORM's own
