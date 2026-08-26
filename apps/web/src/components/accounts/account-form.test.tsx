@@ -3,50 +3,57 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { AccountForm } from './account-form';
 
+function fillCommonFields() {
+  fireEvent.change(screen.getByLabelText(/họ tên/i), {
+    target: { value: 'New User' },
+  });
+  fireEvent.change(screen.getByLabelText(/email/i), {
+    target: { value: 'new-user@example.com' },
+  });
+  fireEvent.change(screen.getByLabelText(/mật khẩu/i), {
+    target: { value: 'correct-horse-battery' },
+  });
+}
+
 describe('AccountForm', () => {
-  it('rejects submission when no role is selected', async () => {
+  it('rejects submission with an invalid email', async () => {
     const onSubmit = vi.fn();
     render(<AccountForm onSubmit={onSubmit} />);
 
-    fireEvent.change(screen.getByLabelText(/tên đăng nhập/i), {
-      target: { value: 'new_user' },
-    });
-    fireEvent.change(screen.getByLabelText(/họ tên/i), {
-      target: { value: 'New User' },
-    });
-    fireEvent.change(screen.getByLabelText(/mật khẩu/i), {
-      target: { value: 'correct-horse-battery' },
+    fillCommonFields();
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'not-an-email' },
     });
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
-    await waitFor(() => {
-      expect(screen.getByText(/chọn ít nhất một vai trò/i)).toBeInTheDocument();
-    });
-    expect(onSubmit).not.toHaveBeenCalled();
+    await waitFor(() => expect(onSubmit).not.toHaveBeenCalled());
   });
 
-  it('submits with valid data', async () => {
+  it('submits with valid data, defaulting to the teacher role', async () => {
     const onSubmit = vi.fn();
     render(<AccountForm onSubmit={onSubmit} />);
 
-    fireEvent.change(screen.getByLabelText(/tên đăng nhập/i), {
-      target: { value: 'new_user' },
-    });
-    fireEvent.change(screen.getByLabelText(/họ tên/i), {
-      target: { value: 'New User' },
-    });
-    fireEvent.change(screen.getByLabelText(/mật khẩu/i), {
-      target: { value: 'correct-horse-battery' },
-    });
-    fireEvent.click(screen.getByLabelText(/giảng viên/i));
+    fillCommonFields();
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
-      username: 'new_user',
-      displayName: 'New User',
+      name: 'New User',
+      email: 'new-user@example.com',
       password: 'correct-horse-battery',
-      roleCodes: ['lecturer'],
+      role: 'teacher',
     });
+  });
+
+  it('submits the admin role when selected', async () => {
+    const onSubmit = vi.fn();
+    render(<AccountForm onSubmit={onSubmit} />);
+
+    fillCommonFields();
+    fireEvent.click(screen.getByLabelText(/quản trị/i));
+    fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ role: 'admin' });
   });
 });

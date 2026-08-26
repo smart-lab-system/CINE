@@ -1,153 +1,104 @@
-import { EntityManager, Repository } from 'typeorm';
+import { NotFoundException } from '@nestjs/common';
+import { Repository } from 'typeorm';
 import { AccountsService } from './accounts.service';
-import { UserEntity } from '../identity/entities/user.entity';
-import { UserRoleEntity } from '../identity/entities/user-role.entity';
-import { RoleEntity } from '../identity/entities/role.entity';
+import { AccountEntity } from '../identity/entities/account.entity';
 
 /**
- * These are the atomicity cases that can't be provoked through HTTP against
- * the real database: nothing an admin can send makes `create()`'s or
- * `update()`'s *second* write fail on its own (the only naturally failing
- * statement is `remove()`'s user soft-delete, which
- * accounts.e2e-spec.ts exercises for real via the guard_master_soft_delete
- * trigger). So the transaction boundary is verified structurally here — the
- * fake EntityManager below behaves like TypeORM's: it runs the callback, and
- * if the callback rejects it records a rollback and rethrows. A write that
- * lands inside that callback is a write Postgres will undo.
+ * AccountsService is a plain single-table CRUD service now — role lives
+ * inline on `account`, so there's no more multi-statement write to verify
+ * transactionally (that used to be the whole point of this file, back when
+ * a create/update touched both `users` and `user_roles`). What's still
+ * worth a fast unit test, rather than leaving it to accounts.e2e-spec.ts
+ * against the real DB: that the plaintext password never reaches
+ * save() unhashed, and that update() doesn't clobber fields the caller
+ * didn't send.
+ *
+ * `overrides` is typed against the mock shape below, not
+ * `Partial<Repository<AccountEntity>>` — spreading the latter into the
+ * object literal would union each overridden key with Repository's real
+ * (non-jest.Mock) method signature, and the union loses `.mock`.
  */
-function createHarness(overrides: {
-  users?: Partial<Repository<UserEntity>>;
-  userRoles?: Partial<Repository<UserRoleEntity>>;
-  roles?: Partial<Repository<RoleEntity>>;
-} = {}) {
-  const state = { rolledBack: false, committed: false, transactions: 0 };
+function createHarness(overrides: Record<string, jest.Mock> = {}) {
+  const existing: AccountEntity = {
+    id: 'account-1',
+    name: 'Existing Name',
+    email: 'existing@example.com',
+    passwordHash: 'argon2id$fake-existing-hash',
+    role: 'teacher',
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+  };
 
-  const userRoles = {
+  const repo = {
     create: jest.fn((entity) => entity),
-    save: jest.fn().mockResolvedValue([]),
+    save: jest.fn(async (entity) => ({ id: 'account-1', ...entity })),
     update: jest.fn().mockResolvedValue({ affected: 1 }),
-    find: jest.fn().mockResolvedValue([]),
-    ...overrides.userRoles,
-  };
-  const roles = {
-    find: jest.fn().mockResolvedValue([{ id: 1, code: 'student' }]),
-    ...overrides.roles,
-  };
-  const users = {
-    create: jest.fn((entity) => entity),
-    save: jest.fn().mockResolvedValue({ id: 'user-1' }),
-    update: jest.fn().mockResolvedValue({ affected: 1 }),
-    findOne: jest.fn().mockResolvedValue({
-      id: 'user-1',
-      username: 'someone',
-      email: null,
-      displayName: 'Someone',
-      status: 'active',
-      deletedAt: null,
-    }),
-    ...overrides.users,
+    delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    findOne: jest.fn().mockResolvedValue(existing),
+    ...overrides,
   };
 
-  const manager = {
-    getRepository: (entity: unknown) => {
-      if (entity === UserEntity) return users;
-      if (entity === UserRoleEntity) return userRoles;
-      if (entity === RoleEntity) return roles;
-      throw new Error('unexpected entity requested from the fake manager');
-    },
-    transaction: async (runInTransaction: (m: EntityManager) => Promise<any>) => {
-      state.transactions += 1;
-      try {
-        const result = await runInTransaction(manager as unknown as EntityManager);
-        state.committed = true;
-        return result;
-      } catch (error) {
-        state.rolledBack = true;
-        throw error;
-      }
-    },
-  };
-
-  const service = new AccountsService(
-    { ...users, manager } as unknown as Repository<UserEntity>,
-    userRoles as unknown as Repository<UserRoleEntity>,
-    roles as unknown as Repository<RoleEntity>,
-  );
-
-  return { service, state, users, userRoles, roles };
+  const service = new AccountsService(repo as unknown as Repository<AccountEntity>);
+  return { service, repo, existing };
 }
 
 const createDto = {
-  username: 'new_user',
+  name: 'New Teacher',
+  email: 'new-teacher@example.com',
   password: 'correct-horse-battery',
-  displayName: 'New User',
-  roleCodes: ['student'],
+  role: 'teacher' as const,
 };
 
-describe('AccountsService transaction boundaries', () => {
-  it('create() runs the user insert and the role assignments in one transaction', async () => {
-    const { service, state, users, userRoles } = createHarness();
+describe('AccountsService', () => {
+  it('create() saves an argon2 hash, never the plaintext password', async () => {
+    const { service, repo } = createHarness();
 
-    await expect(service.create(createDto)).resolves.toEqual({ id: 'user-1' });
+    await service.create(createDto);
 
-    expect(state.transactions).toBe(1);
-    expect(state.committed).toBe(true);
-    expect(users.save).toHaveBeenCalledTimes(1);
-    expect(userRoles.save).toHaveBeenCalledTimes(1);
+    expect(repo.save).toHaveBeenCalledTimes(1);
+    const saved = repo.save.mock.calls[0][0];
+    expect(saved.passwordHash).toBeDefined();
+    expect(saved.passwordHash).not.toBe(createDto.password);
+    expect(saved.passwordHash.startsWith('$argon2id$')).toBe(true);
+    expect(saved).not.toHaveProperty('password');
   });
 
-  it('create() rolls back the user insert when the role assignments fail', async () => {
-    const { service, state, users } = createHarness({
-      userRoles: { save: jest.fn().mockRejectedValue(new Error('boom')) },
+  it('update() only overwrites the fields present in the DTO', async () => {
+    const { service, repo, existing } = createHarness();
+
+    await service.update('account-1', { name: 'Renamed' });
+
+    expect(repo.update).toHaveBeenCalledWith('account-1', {
+      name: 'Renamed',
+      email: existing.email,
+      role: existing.role,
+    });
+  });
+
+  it('update() throws NotFoundException for a missing account', async () => {
+    const { service } = createHarness({
+      findOne: jest.fn().mockResolvedValue(null),
     });
 
-    await expect(service.create(createDto)).rejects.toThrow('boom');
-
-    // The user row was written, then the failure hit — the point is that both
-    // happened inside the transaction, so the insert never survives.
-    expect(users.save).toHaveBeenCalledTimes(1);
-    expect(state.rolledBack).toBe(true);
-    expect(state.committed).toBe(false);
+    await expect(service.update('missing', { name: 'X' })).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
-  it('update() rolls back rather than leaving the account with no roles', async () => {
-    const { service, state, userRoles } = createHarness({
-      userRoles: {
-        update: jest.fn().mockResolvedValue({ affected: 2 }),
-        save: jest.fn().mockRejectedValue(new Error('boom')),
-      },
+  it('remove() hard-deletes the row once it is confirmed to exist', async () => {
+    const { service, repo } = createHarness();
+
+    await service.remove('account-1');
+
+    expect(repo.delete).toHaveBeenCalledWith('account-1');
+  });
+
+  it('remove() throws NotFoundException instead of deleting a missing account', async () => {
+    const { service, repo } = createHarness({
+      findOne: jest.fn().mockResolvedValue(null),
     });
 
-    await expect(
-      service.update('user-1', { roleCodes: ['lecturer'] }),
-    ).rejects.toThrow('boom');
-
-    // The old assignments were soft-deleted and the replacements never
-    // landed — the exact partial state the transaction exists to undo.
-    expect(userRoles.update).toHaveBeenCalledTimes(1);
-    expect(state.rolledBack).toBe(true);
-  });
-
-  it('remove() runs the role clear and the user soft-delete in one transaction', async () => {
-    const { service, state, users, userRoles } = createHarness();
-
-    await service.remove('user-1');
-
-    expect(state.transactions).toBe(1);
-    expect(state.committed).toBe(true);
-    expect(userRoles.update).toHaveBeenCalledTimes(1);
-    expect(users.update).toHaveBeenCalledTimes(1);
-  });
-
-  it('remove() rolls back the role clear when the user soft-delete fails', async () => {
-    const { service, state, userRoles } = createHarness({
-      users: { update: jest.fn().mockRejectedValue(new Error('23503')) },
-    });
-
-    await expect(service.remove('user-1')).rejects.toThrow('23503');
-
-    expect(userRoles.update).toHaveBeenCalledTimes(1);
-    expect(state.rolledBack).toBe(true);
-    expect(state.committed).toBe(false);
+    await expect(service.remove('missing')).rejects.toThrow(NotFoundException);
+    expect(repo.delete).not.toHaveBeenCalled();
   });
 });

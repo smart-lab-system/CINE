@@ -2,20 +2,27 @@ import 'dotenv/config';
 import { Client } from 'pg';
 
 const EXPECTED_TABLES = [
-  'roles',
-  'users',
-  'user_roles',
-  'students',
-  'lecturers',
-  'subjects',
-  'academic_terms',
-  'course_sections',
-  'labs',
-  'workstations',
-  'lab_layouts',
-  'lab_seats',
-  'exam_events',
-  'lab_sessions',
+  'account',
+  'semester',
+  'course',
+  'class',
+  'class_roster',
+  'enrollment',
+  'rubric',
+  'rubric_criterion',
+  'exam_session',
+  'required_deliverable',
+  'exam_material',
+  'agent_connection_event',
+  'submission',
+  'grading_result',
+  'teacher_review',
+  'grade_export',
+  'calibration_run',
+  'audit_log',
+  'rubric_template',
+  'cost_budget',
+  'grading_pipeline_config',
 ];
 
 async function main() {
@@ -23,7 +30,7 @@ async function main() {
   await client.connect();
 
   const { rows } = await client.query<{ table_name: string }>(
-    `SELECT table_name FROM information_schema.tables WHERE table_schema = 'lab_management'`,
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = 'examcollect'`,
   );
   const found = new Set(rows.map((r) => r.table_name));
   const missing = EXPECTED_TABLES.filter((t) => !found.has(t));
@@ -31,7 +38,7 @@ async function main() {
   await client.end();
 
   if (missing.length > 0) {
-    console.error('Missing tables in lab_management schema:', missing);
+    console.error('Missing tables in examcollect schema:', missing);
     process.exit(1);
   }
 

@@ -17,11 +17,11 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const user = request.user as AccessTokenPayload | undefined;
-    if (!user) {
+    const account = request.user as AccessTokenPayload | undefined;
+    if (!account) {
       return false;
     }
 
-    return requiredRoles.some((role) => user.roles.includes(role));
+    return requiredRoles.includes(account.role);
   }
 }

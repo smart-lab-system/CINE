@@ -1,32 +1,20 @@
-import {
-  ArrayMinSize,
-  IsArray,
-  IsEmail,
-  IsOptional,
-  IsString,
-  Length,
-  Matches,
-} from 'class-validator';
+import { IsEmail, IsIn, IsString, Length } from 'class-validator';
+import { AccountRole } from '../../identity/entities/account.entity';
+
+const ACCOUNT_ROLES: AccountRole[] = ['admin', 'teacher', 'super_admin', 'department_admin'];
 
 export class CreateAccountDto {
   @IsString()
-  @Matches(/^[A-Za-z0-9._-]{3,64}$/)
-  username!: string;
+  @Length(1, 150)
+  name!: string;
 
-  @IsOptional()
   @IsEmail()
-  email?: string;
+  email!: string;
 
   @IsString()
   @Length(8, 128)
   password!: string;
 
-  @IsString()
-  @Length(1, 150)
-  displayName!: string;
-
-  @IsArray()
-  @ArrayMinSize(1)
-  @IsString({ each: true })
-  roleCodes!: string[];
+  @IsIn(ACCOUNT_ROLES)
+  role!: AccountRole;
 }

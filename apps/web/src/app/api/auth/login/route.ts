@@ -16,9 +16,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(error, { status: apiResponse.status });
   }
 
-  const { accessToken, refreshToken, user } = await apiResponse.json();
+  const { accessToken, refreshToken, account } = await apiResponse.json();
 
-  const response = NextResponse.json({ user });
+  const response = NextResponse.json({ account });
   response.cookies.set('access_token', accessToken, {
     httpOnly: true,
     sameSite: 'lax',

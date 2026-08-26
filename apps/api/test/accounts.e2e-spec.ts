@@ -4,6 +4,7 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
+import { createTestAccount } from './helpers/create-account';
 
 describe('Accounts (e2e)', () => {
   let app: INestApplication;
@@ -24,38 +25,16 @@ describe('Accounts (e2e)', () => {
     await app.init();
 
     dataSource = app.get(DataSource);
-    const adminUsername = `accounts_admin_${Date.now()}`;
-
-    await request(app.getHttpServer()).post('/auth/register').send({
-      username: adminUsername,
+    const adminEmail = `accounts_admin_${Date.now()}@example.com`;
+    await createTestAccount(dataSource, {
+      email: adminEmail,
       password: 'correct-horse-battery',
-      displayName: 'Accounts Test Admin',
+      role: 'admin',
     });
-
-    // Grant the admin role directly — there's no self-serve "become admin"
-    // endpoint, and there shouldn't be.
-    //
-    // Raw queries here are schema-qualified against `lab_management`
-    // (matching auth.e2e-spec.ts): the DataSource's `schema` option only
-    // qualifies TypeORM-generated SQL for entity repositories, it does not
-    // set `search_path` on the underlying pg connection, so unqualified
-    // raw SQL would resolve against `public` (where these tables don't
-    // exist) and fail with "relation does not exist".
-    const [{ id: userId }] = await dataSource.query(
-      `SELECT id FROM lab_management.users WHERE username = $1`,
-      [adminUsername],
-    );
-    const [{ id: roleId }] = await dataSource.query(
-      `SELECT id FROM lab_management.roles WHERE code = 'admin'`,
-    );
-    await dataSource.query(
-      `INSERT INTO lab_management.user_roles (user_id, role_id) VALUES ($1, $2)`,
-      [userId, roleId],
-    );
 
     const loginResponse = await request(app.getHttpServer())
       .post('/auth/login')
-      .send({ username: adminUsername, password: 'correct-horse-battery' });
+      .send({ email: adminEmail, password: 'correct-horse-battery' });
     adminToken = loginResponse.body.accessToken;
   });
 
@@ -69,48 +48,36 @@ describe('Accounts (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post('/accounts')
       .send({
-        username: 'nobody',
+        name: 'Nobody',
+        email: 'nobody@example.com',
         password: 'irrelevant-password',
-        displayName: 'Nobody',
-        roleCodes: ['student'],
+        role: 'teacher',
       });
 
     expect(response.status).toBe(401);
   });
 
-  it('rejects account creation for an authenticated user without the admin role', async () => {
-    const nonAdminUsername = `accounts_student_${Date.now()}`;
-    await request(app.getHttpServer()).post('/auth/register').send({
-      username: nonAdminUsername,
+  it('rejects account creation for an authenticated account without the admin role', async () => {
+    const teacherEmail = `accounts_teacher_${Date.now()}@example.com`;
+    await createTestAccount(dataSource, {
+      email: teacherEmail,
       password: 'correct-horse-battery',
-      displayName: 'Accounts Test Student',
+      role: 'teacher',
     });
-
-    const [{ id: userId }] = await dataSource.query(
-      `SELECT id FROM lab_management.users WHERE username = $1`,
-      [nonAdminUsername],
-    );
-    const [{ id: roleId }] = await dataSource.query(
-      `SELECT id FROM lab_management.roles WHERE code = 'student'`,
-    );
-    await dataSource.query(
-      `INSERT INTO lab_management.user_roles (user_id, role_id) VALUES ($1, $2)`,
-      [userId, roleId],
-    );
 
     const loginResponse = await request(app.getHttpServer())
       .post('/auth/login')
-      .send({ username: nonAdminUsername, password: 'correct-horse-battery' });
-    const studentToken = loginResponse.body.accessToken;
+      .send({ email: teacherEmail, password: 'correct-horse-battery' });
+    const teacherToken = loginResponse.body.accessToken;
 
     const response = await request(app.getHttpServer())
       .post('/accounts')
-      .set('Authorization', `Bearer ${studentToken}`)
+      .set('Authorization', `Bearer ${teacherToken}`)
       .send({
-        username: `should_not_be_created_${Date.now()}`,
+        name: 'Should Not Be Created',
+        email: `should_not_be_created_${Date.now()}@example.com`,
         password: 'correct-horse-battery',
-        displayName: 'Should Not Be Created',
-        roleCodes: ['student'],
+        role: 'teacher',
       });
 
     expect(response.status).toBe(403);
@@ -121,10 +88,10 @@ describe('Accounts (e2e)', () => {
       .post('/accounts')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        username: `managed_${Date.now()}`,
+        name: 'Managed User',
+        email: `managed_${Date.now()}@example.com`,
         password: 'correct-horse-battery',
-        displayName: 'Managed User',
-        roleCodes: ['lecturer'],
+        role: 'teacher',
       });
 
     expect(response.status).toBe(201);
@@ -148,119 +115,78 @@ describe('Accounts (e2e)', () => {
     const response = await request(app.getHttpServer())
       .patch(`/accounts/${createdAccountId}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ displayName: 'Managed User (Updated)' });
+      .send({ name: 'Managed User (Updated)' });
 
     expect(response.status).toBe(200);
-    expect(response.body.displayName).toBe('Managed User (Updated)');
+    expect(response.body.name).toBe('Managed User (Updated)');
   });
 
-  it('deletes an account with no active role assignments left standing', async () => {
+  it('deletes an account with nothing referencing it', async () => {
     const response = await request(app.getHttpServer())
       .delete(`/accounts/${createdAccountId}`)
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(response.status).toBe(204);
 
-    const [deletedRow] = await dataSource.query(
-      `SELECT deleted_at FROM lab_management.users WHERE id = $1`,
+    // Hard delete — there's no deleted_at column any more, so "gone" means
+    // the row genuinely doesn't exist.
+    const rows = await dataSource.query(
+      `SELECT id FROM examcollect.account WHERE id = $1`,
       [createdAccountId],
     );
-    expect(deletedRow.deleted_at).not.toBeNull();
-
-    const activeRoleAssignments = await dataSource.query(
-      `SELECT id FROM lab_management.user_roles
-       WHERE user_id = $1 AND deleted_at IS NULL`,
-      [createdAccountId],
-    );
-    expect(activeRoleAssignments).toHaveLength(0);
+    expect(rows).toHaveLength(0);
   });
 
-  it('rolls back the whole delete when soft-deleting the user fails mid-sequence', async () => {
-    // Real failure injection for AccountsService#remove()'s transaction:
-    // guard_master_soft_delete() also guards `users` against an active
-    // `students` row, not just `user_roles`. Giving the account a student
-    // profile makes step 2 (soft-delete the user) raise *after* step 1
-    // (clear the role assignments) already succeeded — precisely the
-    // mid-sequence failure the transaction has to undo.
+  it('rejects deleting an account that is still a home teacher on an active enrollment', async () => {
+    // Real failure injection for the FK that replaced guard_master_soft_delete:
+    // enrollment.home_teacher_id -> account(id) ON DELETE RESTRICT. Giving
+    // the account an enrollment makes the delete fail for a real referential-
+    // integrity reason, not a mocked one.
     const createResponse = await request(app.getHttpServer())
       .post('/accounts')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        username: `rollback_${Date.now()}`,
+        name: 'Referenced Teacher',
+        email: `referenced_${Date.now()}@example.com`,
         password: 'correct-horse-battery',
-        displayName: 'Rollback User',
-        roleCodes: ['student'],
+        role: 'teacher',
       });
     expect(createResponse.status).toBe(201);
     const accountId: string = createResponse.body.id;
 
+    const [{ id: semesterId }] = await dataSource.query(
+      `INSERT INTO examcollect.semester (name, start_date, end_date)
+       VALUES ($1, $2, $3) RETURNING id`,
+      ['Referenced Test Semester', '2026-01-01', '2026-06-01'],
+    );
+    const [{ id: courseId }] = await dataSource.query(
+      `INSERT INTO examcollect.course (code, name, semester_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [`RF${Date.now()}`.slice(0, 32), 'Referenced Test Course', semesterId],
+    );
+    const [{ id: classId }] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseId, 'Referenced Test Class', accountId],
+    );
     await dataSource.query(
-      `INSERT INTO lab_management.students (user_id, student_code, full_name)
-       VALUES ($1, $2, $3)`,
-      [accountId, `SV${Date.now()}`.slice(0, 32), 'Rollback User'],
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, course_id, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [`SV${Date.now()}`.slice(0, 20), courseId, classId, accountId],
     );
 
     const deleteResponse = await request(app.getHttpServer())
       .delete(`/accounts/${accountId}`)
       .set('Authorization', `Bearer ${adminToken}`);
 
-    // PostgresExceptionFilter maps the trigger's 23503 to a 409.
+    // PostgresExceptionFilter maps the FK RESTRICT violation (23503) to 409.
     expect(deleteResponse.status).toBe(409);
 
-    // The account must be exactly as it was: still active, still holding
-    // its role. Before the transaction wrapping, the role assignment would
-    // have been left soft-deleted here.
-    const [userRow] = await dataSource.query(
-      `SELECT deleted_at FROM lab_management.users WHERE id = $1`,
+    const rows = await dataSource.query(
+      `SELECT id FROM examcollect.account WHERE id = $1`,
       [accountId],
     );
-    expect(userRow.deleted_at).toBeNull();
-
-    const activeRoleAssignments = await dataSource.query(
-      `SELECT id FROM lab_management.user_roles
-       WHERE user_id = $1 AND deleted_at IS NULL`,
-      [accountId],
-    );
-    expect(activeRoleAssignments).toHaveLength(1);
-  });
-
-  it('rejects soft-deleting a user directly at the DB level while an active role assignment still references it', async () => {
-    // This is the DB-level guard AccountsService#remove() relies on: it
-    // always clears user_roles before soft-deleting the user. Here we
-    // bypass the service and hit the trigger directly to prove the guard
-    // itself — not just the service's ordering — is what's protecting us.
-    const createResponse = await request(app.getHttpServer())
-      .post('/accounts')
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({
-        username: `guarded_${Date.now()}`,
-        password: 'correct-horse-battery',
-        displayName: 'Guarded User',
-        roleCodes: ['student'],
-      });
-    expect(createResponse.status).toBe(201);
-    const guardedAccountId: string = createResponse.body.id;
-
-    let caughtError: any;
-    try {
-      await dataSource.query(
-        `UPDATE lab_management.users SET deleted_at = now() WHERE id = $1`,
-        [guardedAccountId],
-      );
-    } catch (error) {
-      caughtError = error;
-    }
-
-    expect(caughtError).toBeDefined();
-    // Postgres' guard_master_soft_delete() trigger raises with
-    // USING ERRCODE = 'foreign_key_violation' (23503) when an active
-    // user_roles row still references the user being soft-deleted.
-    expect(caughtError.code).toBe('23503');
-
-    const [row] = await dataSource.query(
-      `SELECT deleted_at FROM lab_management.users WHERE id = $1`,
-      [guardedAccountId],
-    );
-    expect(row.deleted_at).toBeNull();
+    expect(rows).toHaveLength(1);
   });
 });

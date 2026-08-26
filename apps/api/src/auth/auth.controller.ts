@@ -1,18 +1,18 @@
 import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
-  @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.auth.register(dto);
-  }
-
+  // No self-serve /auth/register: every account (including the first
+  // admin) is provisioned deliberately — by an existing admin via
+  // POST /accounts, or by hand for the very first one (see README) —
+  // never by a stranger hitting a public endpoint. Account.role is NOT
+  // NULL with no "pending, no role yet" state to land in, so there's no
+  // safe role to hand out at self-signup time anyway.
   @Post('login')
   @HttpCode(200)
   login(@Body() dto: LoginDto) {

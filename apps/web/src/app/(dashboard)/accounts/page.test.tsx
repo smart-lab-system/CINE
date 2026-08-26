@@ -80,10 +80,9 @@ describe('AccountsPage fetch states', () => {
         items: [
           {
             id: 'a1',
-            username: 'nguyenvana',
-            displayName: 'Nguyễn Văn A',
-            status: 'active',
-            roles: ['lecturer'],
+            name: 'Nguyễn Văn A',
+            email: 'nguyenvana@example.com',
+            role: 'teacher',
           },
         ],
         total: 1,
@@ -94,7 +93,7 @@ describe('AccountsPage fetch states', () => {
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText('nguyenvana')).toBeInTheDocument(),
+      expect(screen.getByText('nguyenvana@example.com')).toBeInTheDocument(),
     );
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });

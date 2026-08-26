@@ -28,10 +28,9 @@ import {
 
 interface AccountRow {
   id: string;
-  username: string;
-  displayName: string;
-  status: string;
-  roles: string[];
+  name: string;
+  email: string;
+  role: string;
 }
 
 const columnHelper = createColumnHelper<AccountRow>();
@@ -104,10 +103,9 @@ export default function AccountsPage() {
   });
 
   const columns = [
-    columnHelper.accessor('username', { header: 'Tên đăng nhập' }),
-    columnHelper.accessor('displayName', { header: 'Họ tên' }),
-    columnHelper.accessor('status', { header: 'Trạng thái' }),
-    columnHelper.accessor((row) => row.roles.join(', '), { header: 'Vai trò' }),
+    columnHelper.accessor('name', { header: 'Họ tên' }),
+    columnHelper.accessor('email', { header: 'Email' }),
+    columnHelper.accessor('role', { header: 'Vai trò' }),
     columnHelper.display({
       id: 'actions',
       header: 'Thao tác',
@@ -126,7 +124,7 @@ export default function AccountsPage() {
             variant="destructive"
             size="sm"
             onClick={() => {
-              if (window.confirm(`Xóa tài khoản "${row.original.username}"?`)) {
+              if (window.confirm(`Xóa tài khoản "${row.original.name}"?`)) {
                 deleteAccount.mutate(row.original.id);
               }
             }}
@@ -205,14 +203,13 @@ export default function AccountsPage() {
       {editingAccount ? (
         <Card>
           <CardHeader>
-            <CardTitle>Sửa tài khoản — {editingAccount.username}</CardTitle>
+            <CardTitle>Sửa tài khoản — {editingAccount.name}</CardTitle>
           </CardHeader>
           <CardContent>
             <EditAccountForm
               defaultValues={{
-                displayName: editingAccount.displayName,
-                status: editingAccount.status as EditAccountFormValues['status'],
-                roleCodes: editingAccount.roles as EditAccountFormValues['roleCodes'],
+                name: editingAccount.name,
+                role: editingAccount.role as EditAccountFormValues['role'],
               }}
               onSubmit={(values) => updateAccount.mutate({ id: editingAccount.id, values })}
               onCancel={() => setEditingAccount(null)}

@@ -7,19 +7,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const ROLE_OPTIONS = ['admin', 'operator', 'lecturer', 'student'] as const;
+// `super_admin`/`department_admin` exist as account.role values in the DB
+// (reserved for future Department/Super-Admin tiering) but aren't offered
+// here: RolesGuard's @Roles('admin') only matches the literal 'admin'
+// role, so creating one of those from this form today would produce an
+// account locked out of every admin-only page, including this one.
+const ROLE_OPTIONS = ['admin', 'teacher'] as const;
 const ROLE_LABELS: Record<(typeof ROLE_OPTIONS)[number], string> = {
   admin: 'Quản trị',
-  operator: 'Vận hành phòng máy',
-  lecturer: 'Giảng viên',
-  student: 'Sinh viên',
+  teacher: 'Giảng viên',
 };
 
 const accountFormSchema = z.object({
-  username: z.string().min(3).max(64),
-  displayName: z.string().min(1).max(150),
+  name: z.string().min(1).max(150),
+  email: z.string().email(),
   password: z.string().min(8).max(128),
-  roleCodes: z.array(z.enum(ROLE_OPTIONS)).min(1, 'Chọn ít nhất một vai trò'),
+  role: z.enum(ROLE_OPTIONS),
 });
 
 export type AccountFormValues = z.infer<typeof accountFormSchema>;
@@ -35,18 +38,18 @@ export function AccountForm({
     formState: { errors },
   } = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
-    defaultValues: { roleCodes: [] },
+    defaultValues: { role: 'teacher' },
   });
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="account-username">Tên đăng nhập</Label>
-        <Input id="account-username" {...register('username')} />
+        <Label htmlFor="account-name">Họ tên</Label>
+        <Input id="account-name" {...register('name')} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="account-display-name">Họ tên</Label>
-        <Input id="account-display-name" {...register('displayName')} />
+        <Label htmlFor="account-email">Email</Label>
+        <Input id="account-email" type="email" {...register('email')} />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="account-password">Mật khẩu</Label>
@@ -58,10 +61,10 @@ export function AccountForm({
           <div key={role} className="flex items-center gap-2">
             <input
               id={`account-role-${role}`}
-              type="checkbox"
+              type="radio"
               value={role}
-              className="h-4 w-4 rounded border-input"
-              {...register('roleCodes')}
+              className="h-4 w-4 border-input"
+              {...register('role')}
             />
             <Label htmlFor={`account-role-${role}`} className="font-normal">
               {ROLE_LABELS[role]}
@@ -69,9 +72,9 @@ export function AccountForm({
           </div>
         ))}
       </fieldset>
-      {errors.roleCodes && (
+      {errors.role && (
         <p role="alert" className="text-sm text-destructive">
-          {errors.roleCodes.message}
+          {errors.role.message}
         </p>
       )}
       <Button type="submit">Lưu</Button>

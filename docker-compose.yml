@@ -2,16 +2,16 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: lab_management
-      POSTGRES_USER: lab_admin
-      POSTGRES_PASSWORD: lab_admin_password
+      POSTGRES_DB: examcollect
+      POSTGRES_USER: examcollect_admin
+      POSTGRES_PASSWORD: examcollect_admin_password
     ports:
       - "5442:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lab_admin -d lab_management"]
+      test: ["CMD-SHELL", "pg_isready -U examcollect_admin -d examcollect"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -19,8 +19,8 @@ services:
   mongo:
     image: mongo:7
     environment:
-      MONGO_INITDB_ROOT_USERNAME: lab_admin
-      MONGO_INITDB_ROOT_PASSWORD: lab_admin_password
+      MONGO_INITDB_ROOT_USERNAME: examcollect_admin
+      MONGO_INITDB_ROOT_PASSWORD: examcollect_admin_password
     ports:
       - "27018:27017"
     volumes:
@@ -37,8 +37,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: lab_admin
-      MINIO_ROOT_PASSWORD: lab_admin_password
+      MINIO_ROOT_USER: examcollect_admin
+      MINIO_ROOT_PASSWORD: examcollect_admin_password
     ports:
       - "9010:9000"
       - "9011:9001"
@@ -51,8 +51,8 @@ services:
       dockerfile: apps/api/Dockerfile
     environment:
       PORT: 4000
-      DATABASE_URL: postgresql://lab_admin:lab_admin_password@postgres:5432/lab_management
-      DATABASE_SCHEMA: lab_management
+      DATABASE_URL: postgresql://examcollect_admin:examcollect_admin_password@postgres:5432/examcollect
+      DATABASE_SCHEMA: examcollect
       ACCESS_TOKEN_SECRET: dev-access-secret-change-me
       REFRESH_TOKEN_SECRET: dev-refresh-secret-change-me
       # This dev machine already has other, unrelated processes bound to

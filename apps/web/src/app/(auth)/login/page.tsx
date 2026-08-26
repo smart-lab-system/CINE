@@ -20,13 +20,13 @@ export default function LoginPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: form.get('username'),
+        email: form.get('email'),
         password: form.get('password'),
       }),
     });
 
     if (!response.ok) {
-      setError('Sai tên đăng nhập hoặc mật khẩu.');
+      setError('Sai email hoặc mật khẩu.');
       return;
     }
 
@@ -42,8 +42,8 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="username">Tên đăng nhập</Label>
-              <Input id="username" name="username" required />
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" name="email" type="email" required />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="password">Mật khẩu</Label>

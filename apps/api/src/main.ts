@@ -13,7 +13,7 @@ async function bootstrap() {
   app.useGlobalFilters(new PostgresExceptionFilter());
 
   const config = new DocumentBuilder()
-    .setTitle('Web Management Portal API')
+    .setTitle('ExamCollect API')
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();

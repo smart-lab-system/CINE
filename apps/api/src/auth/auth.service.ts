@@ -1,86 +1,36 @@
-import {
-  ConflictException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { In, IsNull, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import * as argon2 from 'argon2';
-import { UserEntity } from '../identity/entities/user.entity';
-import { UserRoleEntity } from '../identity/entities/user-role.entity';
-import { RoleEntity } from '../identity/entities/role.entity';
-import { RegisterDto } from './dto/register.dto';
+import { AccountEntity } from '../identity/entities/account.entity';
 import { LoginDto } from './dto/login.dto';
-import { AccessTokenPayload, PublicUser } from './types';
+import { AccessTokenPayload, PublicAccount } from './types';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(UserEntity)
-    private readonly users: Repository<UserEntity>,
-    @InjectRepository(UserRoleEntity)
-    private readonly userRoles: Repository<UserRoleEntity>,
-    @InjectRepository(RoleEntity)
-    private readonly roles: Repository<RoleEntity>,
+    @InjectRepository(AccountEntity)
+    private readonly accounts: Repository<AccountEntity>,
     private readonly jwt: JwtService,
   ) {}
-
-  async register(dto: RegisterDto): Promise<{ id: string }> {
-    const existing = await this.users.findOne({
-      where: { username: dto.username, deletedAt: IsNull() },
-    });
-    if (existing) {
-      throw new ConflictException('Username already in use');
-    }
-
-    const passwordHash = await argon2.hash(dto.password, {
-      type: argon2.argon2id,
-    });
-
-    const user = this.users.create({
-      username: dto.username,
-      email: dto.email ?? null,
-      passwordHash,
-      displayName: dto.displayName,
-      status: 'active',
-    });
-    const saved = await this.users.save(user);
-
-    return { id: saved.id };
-  }
 
   async login(dto: LoginDto): Promise<{
     accessToken: string;
     refreshToken: string;
-    user: PublicUser;
+    account: PublicAccount;
   }> {
-    const user = await this.users.findOne({
-      where: { username: dto.username },
-    });
-    if (!user || user.deletedAt) {
-      throw new UnauthorizedException('Invalid username or password');
+    const account = await this.accounts.findOne({ where: { email: dto.email } });
+    if (!account) {
+      throw new UnauthorizedException('Invalid email or password');
     }
 
-    const passwordMatches = await argon2.verify(
-      user.passwordHash,
-      dto.password,
-    );
+    const passwordMatches = await argon2.verify(account.passwordHash, dto.password);
     if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid username or password');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
-    // A `pending`/`locked`/`disabled` account must not get a token even with
-    // the right password. The message stays identical to the wrong-password
-    // case on purpose — a distinct "your account is locked" response would
-    // let an attacker enumerate which credentials are otherwise valid.
-    if (user.status !== 'active') {
-      throw new UnauthorizedException('Invalid username or password');
-    }
-
-    await this.users.update(user.id, { lastLoginAt: new Date() });
-
-    return this.issueSession(user);
+    return this.issueSession(account);
   }
 
   /**
@@ -91,7 +41,7 @@ export class AuthService {
   async refresh(refreshToken: string | undefined): Promise<{
     accessToken: string;
     refreshToken: string;
-    user: PublicUser;
+    account: PublicAccount;
   }> {
     if (!refreshToken) {
       throw new UnauthorizedException('Invalid refresh token');
@@ -109,32 +59,32 @@ export class AuthService {
 
     // Re-check the account against the DB rather than trusting the token's
     // claims: it was minted up to REFRESH_TOKEN_TTL ago, and the account may
-    // have been locked or soft-deleted since.
-    const user = await this.users.findOne({ where: { id: payload.sub } });
-    if (!user || user.deletedAt || user.status !== 'active') {
+    // have been deleted (or had its role changed) since. There's no
+    // status/soft-delete column any more — a missing row is the only
+    // "revoked" state, since accounts are hard-deleted.
+    const account = await this.accounts.findOne({ where: { id: payload.sub } });
+    if (!account) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    return this.issueSession(user);
+    return this.issueSession(account);
   }
 
   /**
-   * Signs a fresh access/refresh token pair for a user already proven to be
-   * active, and returns it alongside the public user projection. Roles are
-   * re-read here so a role change lands in the next token without a
-   * re-login.
+   * Signs a fresh access/refresh token pair for an account already proven
+   * to exist, and returns it alongside the public projection. The role is
+   * re-read from the DB here so a role change lands in the next token
+   * without a re-login.
    */
-  private async issueSession(user: UserEntity): Promise<{
+  private issueSession(account: AccountEntity): {
     accessToken: string;
     refreshToken: string;
-    user: PublicUser;
-  }> {
-    const roleCodes = await this.getRoleCodes(user.id);
-
+    account: PublicAccount;
+  } {
     const payload: AccessTokenPayload = {
-      sub: user.id,
-      username: user.username,
-      roles: roleCodes,
+      sub: account.id,
+      email: account.email,
+      role: account.role,
     };
 
     const accessToken = this.jwt.sign(payload, {
@@ -149,24 +99,12 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        roles: roleCodes,
+      account: {
+        id: account.id,
+        email: account.email,
+        name: account.name,
+        role: account.role,
       },
     };
-  }
-
-  private async getRoleCodes(userId: string): Promise<string[]> {
-    const assignments = await this.userRoles.find({
-      where: { userId, deletedAt: IsNull() },
-    });
-    if (assignments.length === 0) {
-      return [];
-    }
-    const roleIds = assignments.map((a) => a.roleId);
-    const roles = await this.roles.find({ where: { id: In(roleIds) } });
-    return roles.map((r) => r.code);
   }
 }

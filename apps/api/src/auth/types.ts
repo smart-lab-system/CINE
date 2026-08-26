@@ -1,12 +1,14 @@
+import { AccountRole } from '../identity/entities/account.entity';
+
 export interface AccessTokenPayload {
   sub: string;
-  username: string;
-  roles: string[];
+  email: string;
+  role: AccountRole;
 }
 
-export interface PublicUser {
+export interface PublicAccount {
   id: string;
-  username: string;
-  displayName: string;
-  roles: string[];
+  email: string;
+  name: string;
+  role: AccountRole;
 }

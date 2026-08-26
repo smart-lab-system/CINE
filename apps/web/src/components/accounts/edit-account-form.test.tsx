@@ -5,9 +5,8 @@ import { EditAccountForm } from './edit-account-form';
 
 describe('EditAccountForm', () => {
   const defaultValues = {
-    displayName: 'Existing User',
-    status: 'active' as const,
-    roleCodes: ['lecturer' as const],
+    name: 'Existing User',
+    role: 'teacher' as const,
   };
 
   it("pre-fills the form with the account's current values", () => {
@@ -19,21 +18,6 @@ describe('EditAccountForm', () => {
     expect(screen.getByLabelText(/giảng viên/i)).toBeChecked();
   });
 
-  it('rejects submission when every role is unchecked', async () => {
-    const onSubmit = vi.fn();
-    render(
-      <EditAccountForm defaultValues={defaultValues} onSubmit={onSubmit} onCancel={vi.fn()} />,
-    );
-
-    fireEvent.click(screen.getByLabelText(/giảng viên/i)); // uncheck the only checked role
-    fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/chọn ít nhất một vai trò/i)).toBeInTheDocument();
-    });
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
   it('submits the edited values', async () => {
     const onSubmit = vi.fn();
     render(
@@ -43,13 +27,13 @@ describe('EditAccountForm', () => {
     fireEvent.change(screen.getByLabelText(/họ tên/i), {
       target: { value: 'Updated Name' },
     });
+    fireEvent.click(screen.getByLabelText(/quản trị/i));
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
-      displayName: 'Updated Name',
-      status: 'active',
-      roleCodes: ['lecturer'],
+      name: 'Updated Name',
+      role: 'admin',
     });
   });
 
