@@ -74,6 +74,21 @@ describe('AccountsPage fetch states', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
   });
 
+  it('hides the create-account form when the request fails (login-redirect fix)', async () => {
+    // AccountsController is @Roles('admin')-only, so a non-admin gets
+    // exactly this 403 shape. Before this fix the "Tạo tài khoản mới" form
+    // rendered anyway, unconditionally, right below the error card.
+    get.mockResolvedValue({
+      error: { statusCode: 403, message: 'Forbidden' },
+      response: new Response(null, { status: 403 }),
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(screen.queryByText(/tạo tài khoản mới/i)).not.toBeInTheDocument();
+  });
+
   it('renders the returned accounts on success', async () => {
     get.mockResolvedValue({
       data: {

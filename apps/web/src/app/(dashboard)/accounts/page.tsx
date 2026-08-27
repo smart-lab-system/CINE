@@ -200,32 +200,38 @@ export default function AccountsPage() {
         </Card>
       )}
 
-      {editingAccount ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Sửa tài khoản — {editingAccount.name}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EditAccountForm
-              defaultValues={{
-                name: editingAccount.name,
-                role: editingAccount.role as EditAccountFormValues['role'],
-              }}
-              onSubmit={(values) => updateAccount.mutate({ id: editingAccount.id, values })}
-              onCancel={() => setEditingAccount(null)}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Tạo tài khoản mới</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AccountForm onSubmit={(values) => createAccount.mutate(values)} />
-          </CardContent>
-        </Card>
-      )}
+      {/* Gated on !error for the same reason the table above is: the GET
+          already told us this account can't manage accounts (a non-admin
+          gets a 403 here — AccountsController is @Roles('admin')-only), so
+          showing a create/edit form whose submit would just fail the same
+          way is misleading busywork, not a usable admin screen. */}
+      {!error &&
+        (editingAccount ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Sửa tài khoản — {editingAccount.name}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EditAccountForm
+                defaultValues={{
+                  name: editingAccount.name,
+                  role: editingAccount.role as EditAccountFormValues['role'],
+                }}
+                onSubmit={(values) => updateAccount.mutate({ id: editingAccount.id, values })}
+                onCancel={() => setEditingAccount(null)}
+              />
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tạo tài khoản mới</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AccountForm onSubmit={(values) => createAccount.mutate(values)} />
+            </CardContent>
+          </Card>
+        ))}
     </main>
   );
 }

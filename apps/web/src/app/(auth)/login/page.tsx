@@ -30,7 +30,14 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/accounts');
+    // The route handler already echoes back the logged-in account (see
+    // api/auth/login/route.ts) — read its role instead of sending every
+    // role to /accounts, which is admin-only server-side
+    // (AccountsController's @Roles('admin')) and used to 403 for teachers
+    // who landed there anyway with no visible explanation.
+    const body = await response.json().catch(() => null);
+    const role = body?.account?.role;
+    router.push(role === 'teacher' ? '/exam-sessions/new' : '/accounts');
   }
 
   return (
