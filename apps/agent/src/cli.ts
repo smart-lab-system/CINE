@@ -71,6 +71,39 @@ const WORKSPACE_DIRNAME = 'exam-workspace';
 // yourself.
 const SAFE_FILENAME_CHARSET_REGEX = /^[A-Za-z0-9_.-]+$/;
 
+// Windows treats these as reserved device names REGARDLESS of extension or
+// case ("NUL.txt" still resolves to the NUL device, not a file called
+// "NUL.txt") — none of them are caught by the checks above (no separator,
+// no "..", pure letters/digits), so a required filename equal to one would
+// silently write to a device instead of a real file and throw off the
+// "created N files" count. Checked defensively on every platform (cheap,
+// and keeps behavior identical for a demo that might run partly on
+// Windows machines and partly not).
+const WINDOWS_RESERVED_DEVICE_NAMES = new Set([
+  'con',
+  'prn',
+  'aux',
+  'nul',
+  'com1',
+  'com2',
+  'com3',
+  'com4',
+  'com5',
+  'com6',
+  'com7',
+  'com8',
+  'com9',
+  'lpt1',
+  'lpt2',
+  'lpt3',
+  'lpt4',
+  'lpt5',
+  'lpt6',
+  'lpt7',
+  'lpt8',
+  'lpt9',
+]);
+
 // ---------------------------------------------------------------------------
 // CLI arg parsing
 // ---------------------------------------------------------------------------
@@ -202,6 +235,14 @@ function validateFilename(workspaceDir: string, filename: unknown): FilenameVali
       reason: `chứa ký tự không cho phép (chỉ cho phép chữ/số/_/-/.): "${filename}"`,
     };
   }
+  // "NUL", "NUL.txt", "com1.py", ... — the part before the first "." is
+  // what Windows matches against the reserved device name, case-insensitive.
+  if (WINDOWS_RESERVED_DEVICE_NAMES.has(filename.split('.')[0].toLowerCase())) {
+    return {
+      ok: false,
+      reason: `trùng tên thiết bị dành riêng của Windows (CON/PRN/AUX/NUL/COM1-9/LPT1-9): "${filename}"`,
+    };
+  }
 
   // THE actual defense: resolve the joined path to an absolute path and
   // confirm it is still strictly inside the resolved workspace directory.
@@ -233,10 +274,37 @@ function isSafeForPathSegment(value: string): boolean {
 }
 
 /**
+ * Same non-object guard the gateway itself uses on the way in
+ * (`ExamSessionGateway.isPlainObject`) — applied here on the way back, to
+ * `agent:join:ack`/`agent:join:error` payloads, since a malformed or
+ * hostile server response is just as untrustworthy as a malformed client
+ * request.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
+}
+
+/**
  * Creates `workspaceDir` and, for each entry in `requiredFiles`, an empty
  * file inside it — after independently re-validating the filename (see
  * `validateFilename`). Invalid entries are logged as warnings and skipped,
  * never written, and never crash the process.
+ *
+ * Uses the `wx` flag (`O_CREAT | O_EXCL`) rather than the default `w`:
+ * socket.io reconnects (a network blip, not a fresh exam attempt) cause
+ * `connect` to fire again, which re-emits `agent:join` and gets a fresh
+ * `agent:join:ack` — this function then runs again for the SAME files. A
+ * plain `writeFileSync(path, '')` would silently truncate whatever the
+ * student had already written into them. `wx` refuses to write if the
+ * path already exists (`EEXIST`), so an existing file — the student's own
+ * in-progress work, or a symlink someone planted at that path — is left
+ * completely untouched and still counted as "created" (it exists, which
+ * is the property this function is actually responsible for). Only a
+ * genuinely new required filename results in a new empty file.
  */
 function createSubmissionFiles(workspaceDir: string, requiredFiles: unknown): number {
   fs.mkdirSync(workspaceDir, { recursive: true });
@@ -256,9 +324,15 @@ function createSubmissionFiles(workspaceDir: string, requiredFiles: unknown): nu
       continue;
     }
     try {
-      fs.writeFileSync(result.resolvedPath!, '');
+      fs.writeFileSync(result.resolvedPath!, '', { flag: 'wx' });
       created++;
     } catch (error) {
+      if (isErrnoException(error) && error.code === 'EEXIST') {
+        // Already exists (rejoin/reconnect, or a prior run) — leave its
+        // content alone, still counts toward "sẵn sàng làm bài".
+        created++;
+        continue;
+      }
       console.warn(
         `[CẢNH BÁO] Không thể tạo file "${filename}": ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -335,17 +409,36 @@ async function main(): Promise<void> {
     }
   });
 
-  socket.on('agent:join:ack', (ack: AgentJoinAck) => {
+  // The server is not a trusted input source for shape either — a
+  // malformed/hostile `agent:join:ack` or `agent:join:error` payload (e.g.
+  // `null`, a string, a number) would throw on property access before
+  // `main().catch(...)` ever gets a chance to see it, since this runs
+  // inside a socket.io event callback, not inside `main`'s own call stack.
+  // Guard the shape first, same defense-in-depth stance as the filenames.
+  socket.on('agent:join:ack', (ack: unknown) => {
+    if (!isPlainObject(ack)) {
+      console.warn('[CẢNH BÁO] Server gửi agent:join:ack không hợp lệ (không phải object) — bỏ qua.');
+      return;
+    }
     hasJoinedOnce = true;
-    console.log(`Tham gia thành công: "${ack.sessionName}" (kết thúc lúc ${ack.endTime}).`);
+    const sessionName = typeof ack.sessionName === 'string' ? ack.sessionName : '(không rõ)';
+    const endTime = typeof ack.endTime === 'string' ? ack.endTime : '(không rõ)';
+    console.log(`Tham gia thành công: "${sessionName}" (kết thúc lúc ${endTime}).`);
     const createdCount = createSubmissionFiles(workspaceDir, ack.requiredFiles);
     console.log(`Đã tạo ${createdCount} file, sẵn sàng làm bài.`);
     console.log(`Thư mục bài làm: ${workspaceDir}`);
     console.log('Agent đang chạy nền, chờ đến hết giờ thi. Nhấn Ctrl+C để thoát.');
   });
 
-  socket.on('agent:join:error', (error: AgentJoinError) => {
-    console.error(`Lỗi tham gia phiên thi [${error.code}]: ${error.message}`);
+  socket.on('agent:join:error', (error: unknown) => {
+    if (!isPlainObject(error)) {
+      console.error('[CẢNH BÁO] Server gửi agent:join:error không hợp lệ (không phải object).');
+      shutdown(1);
+      return;
+    }
+    const code = typeof error.code === 'string' ? error.code : 'UNKNOWN';
+    const message = typeof error.message === 'string' ? error.message : '(không có thông tin)';
+    console.error(`Lỗi tham gia phiên thi [${code}]: ${message}`);
     shutdown(1);
   });
 }
