@@ -222,9 +222,15 @@ export default function NewExamSessionPage() {
                   control={form.control}
                   name="courseId"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={courses.isLoading || courses.isError}
+                    >
                       <SelectTrigger id="exam-session-course">
-                        <SelectValue placeholder="Chọn môn thi" />
+                        <SelectValue
+                          placeholder={courses.isLoading ? 'Đang tải…' : 'Chọn môn thi'}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {courses.data?.map((course) => (
@@ -236,10 +242,23 @@ export default function NewExamSessionPage() {
                     </Select>
                   )}
                 />
-                {form.formState.errors.courseId && (
+                {courses.isError ? (
                   <p role="alert" className="text-sm text-destructive">
-                    {form.formState.errors.courseId.message}
+                    Không tải được danh sách môn thi.{' '}
+                    <button
+                      type="button"
+                      onClick={() => courses.refetch()}
+                      className="underline underline-offset-2"
+                    >
+                      Thử lại
+                    </button>
                   </p>
+                ) : (
+                  form.formState.errors.courseId && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {form.formState.errors.courseId.message}
+                    </p>
+                  )
                 )}
               </div>
 
@@ -249,9 +268,15 @@ export default function NewExamSessionPage() {
                   control={form.control}
                   name="roomId"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={rooms.isLoading || rooms.isError}
+                    >
                       <SelectTrigger id="exam-session-room">
-                        <SelectValue placeholder="Chọn phòng thi" />
+                        <SelectValue
+                          placeholder={rooms.isLoading ? 'Đang tải…' : 'Chọn phòng thi'}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {rooms.data?.map((room) => (
@@ -264,10 +289,23 @@ export default function NewExamSessionPage() {
                     </Select>
                   )}
                 />
-                {form.formState.errors.roomId && (
+                {rooms.isError ? (
                   <p role="alert" className="text-sm text-destructive">
-                    {form.formState.errors.roomId.message}
+                    Không tải được danh sách phòng thi.{' '}
+                    <button
+                      type="button"
+                      onClick={() => rooms.refetch()}
+                      className="underline underline-offset-2"
+                    >
+                      Thử lại
+                    </button>
                   </p>
+                ) : (
+                  form.formState.errors.roomId && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {form.formState.errors.roomId.message}
+                    </p>
+                  )
                 )}
               </div>
 

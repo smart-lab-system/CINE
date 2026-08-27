@@ -64,7 +64,8 @@ apps/
       auth/                   login/logout/refresh, JWT strategy, RolesGuard (no self-serve register)
       accounts/               account CRUD (controller/service/DTOs) — admin-only
       identity/entities/      AccountEntity (Teacher/Admin — Student never gets a login row)
-      course/entities/        Semester, Course, Class, ClassRoster, Enrollment
+      course/                 GET /courses (+ enrollmentCount), entities: Semester, Course, Class, ClassRoster, Enrollment
+      room/                   GET /rooms — physical lab rooms (logistics metadata, not on the auth path)
       exam-session/entities/  ExamSession, RequiredDeliverable, ExamMaterial
       agent-connection/entities/  AgentConnectionEvent (append-only)
       submission/entities/    Submission
@@ -80,11 +81,14 @@ apps/
   web/                        Next.js 15 app
     src/
       app/(auth)/login/       public login page (email + password)
-      app/(dashboard)/        authenticated pages + shared layout (logout control, QueryClientProvider)
-      app/api/auth/           Route Handlers that proxy to the API and set httpOnly cookies
+      app/admin/              admin area (dashboard, accounts, ai-config/cost/audit-log placeholders) — AppShell layout
+      app/teacher/            teacher area (dashboard, exam-sessions list/new, submissions/grading placeholders) — AppShell layout
+      app/(exam-live)/exam-sessions/[id]/  chrome-less real-time lobby (projector-facing), outside both AppShells
+      app/api/auth/           Route Handlers that proxy to the API and set httpOnly cookies (+ a non-httpOnly display-only `account` cookie)
+      components/layout/      AppShell (Sidebar+Topbar), SidebarNav, StatCard, PlaceholderPage
       components/accounts/    AccountForm, EditAccountForm
       components/ui/          hand-written shadcn/ui primitives
-      middleware.ts           gates dashboard routes on cookie presence (not JWT validity)
+      middleware.ts           gates on cookie presence (auth) + decoded JWT role (UX-only routing; JwtAuthGuard/RolesGuard on the backend is the real enforcement)
 packages/
   shared/                     generated OpenAPI types + a thin `openapi-fetch` client factory
 docker/
@@ -234,9 +238,14 @@ just an index of what exists today.
 | `POST /auth/logout` | none | stateless no-op — the client just clears its cookies |
 | `POST /auth/refresh` | refresh token (cookie) | rotates both tokens |
 | `POST /accounts` | `admin` | create, body `{ name, email, password, role }` |
-| `GET /accounts` | `admin` | search + pagination (`search`, `page`, `pageSize`) |
+| `GET /accounts` | `admin` | search + pagination (`search`, `role`, `page`, `pageSize`) |
 | `PATCH /accounts/:id` | `admin` | edit `name`/`email`/`role` |
 | `DELETE /accounts/:id` | `admin` | hard delete, blocked (`409`) if the account is still referenced elsewhere |
+| `GET /courses` | any authenticated | includes `enrollmentCount` per course (one JOIN+GROUP BY, no N+1) |
+| `GET /rooms` | any authenticated | unpaginated — small, near-static reference list |
+| `POST /exam-sessions` | any authenticated | create + its `RequiredDeliverable` rows, one transaction; caller becomes the owner |
+| `GET /exam-sessions` | any authenticated | owner-scoped list, paginated (`page`, `pageSize`) |
+| `GET /exam-sessions/:id` | any authenticated | 403 if the caller isn't the owner |
 
 ## Tests
 

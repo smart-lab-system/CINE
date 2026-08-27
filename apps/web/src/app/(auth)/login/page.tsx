@@ -10,10 +10,12 @@ import { Label } from '@/components/ui/label';
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setPending(true);
 
     const form = new FormData(event.currentTarget);
     const response = await fetch('/api/auth/login', {
@@ -27,6 +29,7 @@ export default function LoginPage() {
 
     if (!response.ok) {
       setError('Sai email hoặc mật khẩu.');
+      setPending(false);
       return;
     }
 
@@ -64,8 +67,8 @@ export default function LoginPage() {
                 {error}
               </p>
             )}
-            <Button type="submit" className="w-full">
-              Đăng nhập
+            <Button type="submit" className="w-full" disabled={pending}>
+              {pending ? 'Đang đăng nhập…' : 'Đăng nhập'}
             </Button>
           </form>
         </CardContent>

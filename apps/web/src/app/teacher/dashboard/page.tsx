@@ -10,7 +10,7 @@ import { StatCard } from '@/components/layout/stat-card';
 export default function TeacherDashboardPage() {
   // pageSize: 1 — only `total` is read here; the list itself is what
   // /teacher/exam-sessions renders.
-  const { data, isLoading } = useExamSessions({ page: 1, pageSize: 1 });
+  const { data, isLoading, isError } = useExamSessions({ page: 1, pageSize: 1 });
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
@@ -21,6 +21,7 @@ export default function TeacherDashboardPage() {
           label="Phiên thi đã tạo"
           value={isLoading ? null : (data?.total ?? '—')}
           variant="info"
+          isError={isError}
         />
         <StatCard icon={Inbox} label="Bài chờ chấm" value="—" variant="warning" />
       </div>

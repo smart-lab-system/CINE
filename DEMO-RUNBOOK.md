@@ -114,20 +114,25 @@ different email.
 
 **Do:** open `http://localhost:3000/login`, enter the email/password from
 step 5, submit.
-**Expect:** redirected to `/exam-sessions/new` (the demo account from step
-5 is a `teacher`; an `admin` account instead lands on `/accounts`, the
-account-management page — login redirects by role since `/accounts` is
-admin-only server-side). An `access_token` cookie is set either way
-(devtools → Application → Cookies, or just proceed — step 7 will 401
-immediately if it wasn't).
+**Expect:** redirected to `/teacher/dashboard` (the demo account from step
+5 is a `teacher`; an `admin` account instead lands on `/admin/dashboard` —
+login redirects by role, and `middleware.ts` independently re-checks role
+on every navigation, so a teacher can never land in `/admin/*` or vice
+versa). An `access_token` cookie is set either way (devtools → Application
+→ Cookies, or just proceed — step 7 will 401 immediately if it wasn't).
 **If not:** "Sai email hoặc mật khẩu." means the hash/password don't
 match — regenerate the hash in step 5 and re-insert (or `UPDATE
 examcollect.account SET password_hash = '<new-hash>' WHERE email = '...'`).
 
 ## 7. Create a real exam session
 
-**Do:** go to `http://localhost:3000/exam-sessions/new`. Fill in:
+**Do:** from the dashboard, click "Tạo phiên thi" in the sidebar (or go
+straight to `http://localhost:3000/teacher/exam-sessions/new`). Fill in:
 - **Tên phiên thi**: anything, e.g. `Demo — Kiểm tra cuối kỳ`.
+- **Môn thi** / **Phòng thi** / **Loại kỳ thi**: pick any option from each
+  dropdown — the dev DB is seeded with 2 courses and 3 rooms (migration
+  `AddCourseRoomExamType`). If a Select shows no options, `GET /courses`
+  or `GET /rooms` failed — check the API terminal.
 - **Thời gian bắt đầu / kết thúc**: pick a window that covers *right now*
   through at least a few hours out (start ≤ now ≤ end). A session is
   created immediately joinable (`status = 'active'`, no separate

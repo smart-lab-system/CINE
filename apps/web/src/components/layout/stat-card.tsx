@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
+import { CircleAlert, type LucideIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,10 @@ interface StatCardProps {
   label: string;
   value: string | number | null;
   variant?: 'accent' | 'success' | 'warning' | 'info';
+  /** The query behind `value` failed — shown distinctly from "—" (no data
+   * source wired up yet) so a real outage isn't silently indistinguishable
+   * from an intentional placeholder. */
+  isError?: boolean;
 }
 
 const VARIANT_CLASSES: Record<NonNullable<StatCardProps['variant']>, string> = {
@@ -24,14 +28,14 @@ const VARIANT_CLASSES: Record<NonNullable<StatCardProps['variant']>, string> = {
  * so a genuinely-loading card is never mistaken for one with nothing to
  * show.
  */
-export function StatCard({ icon: Icon, label, value, variant = 'accent' }: StatCardProps) {
+export function StatCard({ icon: Icon, label, value, variant = 'accent', isError }: StatCardProps) {
   return (
     <Card>
       <CardContent className="flex items-center gap-4 p-6">
         <div
           className={cn(
             'flex h-11 w-11 shrink-0 items-center justify-center rounded-full',
-            VARIANT_CLASSES[variant],
+            isError ? 'bg-destructive/10 text-destructive' : VARIANT_CLASSES[variant],
           )}
         >
           <Icon className="h-5 w-5" aria-hidden="true" />
@@ -40,6 +44,11 @@ export function StatCard({ icon: Icon, label, value, variant = 'accent' }: StatC
           <span className="text-sm text-muted-foreground">{label}</span>
           {value === null ? (
             <Skeleton className="h-7 w-16" />
+          ) : isError ? (
+            <span className="flex items-center gap-1.5 text-sm text-destructive" role="alert">
+              <CircleAlert className="h-4 w-4" aria-hidden="true" />
+              Không tải được
+            </span>
           ) : (
             <span className="font-display text-2xl font-bold">{value}</span>
           )}
