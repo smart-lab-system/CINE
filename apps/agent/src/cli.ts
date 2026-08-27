@@ -1,0 +1,453 @@
+/**
+ * Minimal CLI agent for the exam-live demo.
+ *
+ * Simulates a real student's machine: connects to the exam-live WebSocket
+ * gateway (unauthenticated — agents are public by design, unlike the
+ * teacher lobby's cookie-based session), joins an exam session by code, and
+ * creates the declared submission files locally. Stays running afterwards
+ * (a real agent runs in the background until the exam ends).
+ *
+ * Usage:
+ *   ts-node src/cli.ts --full-name="Nguyen Van A" --student-id=20120001 --session-code=ABCD12
+ *   ts-node src/cli.ts                              (prompts interactively for any value not passed as a flag)
+ *
+ * Flags:
+ *   --full-name=<name>        student's display name (prompted if omitted)
+ *   --student-id=<id>         MSSV — also used as the workspace subfolder name (prompted if omitted)
+ *   --session-code=<code>     exam session join code (prompted if omitted)
+ *   --backend-url=<url>       API base URL (default: http://localhost:4000; also settable via
+ *                             the BACKEND_URL env var — the flag wins if both are given)
+ *   -h, --help                print usage and exit
+ */
+
+import { io, Socket } from 'socket.io-client';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as readline from 'node:readline/promises';
+import process from 'node:process';
+
+// ---------------------------------------------------------------------------
+// Client side of the WebSocket Event Contract implemented by
+// apps/api/src/exam-session/exam-session.gateway.ts. Do not rename/reshape
+// any of this without updating that file's contract comment too.
+//
+// Exported so src/mock-agent.ts can `import type` these instead of
+// re-declaring the same contract shapes — a type-only import, so it never
+// pulls in (or executes) this file's runtime code/`main()` call below.
+// ---------------------------------------------------------------------------
+
+export interface AgentJoinPayload {
+  fullName: string;
+  studentId: string;
+  sessionCode: string;
+}
+
+export interface AgentJoinAck {
+  examSessionId: string;
+  sessionName: string;
+  requiredFiles: string[];
+  endTime: string;
+}
+
+export type AgentJoinErrorCode = 'SESSION_NOT_FOUND' | 'SESSION_NOT_ACTIVE' | 'INVALID_INPUT';
+
+export interface AgentJoinError {
+  code: AgentJoinErrorCode;
+  message: string;
+}
+
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+
+const DEFAULT_BACKEND_URL = 'http://localhost:4000';
+const WORKSPACE_DIRNAME = 'exam-workspace';
+
+// Mirrors SAFE_FILENAME_REGEX's character class from
+// apps/api/src/exam-session/dto/create-exam-session.dto.ts. That regex
+// protects a DIFFERENT trust boundary — it validates what a *teacher* may
+// declare when creating a session. This one re-validates what the *server*
+// echoes back to THIS process over the wire in `agent:join:ack`. The
+// backend having already validated the filename at write time (Task 2),
+// and the gateway echoing it back unmodified (Task 3), is not a reason to
+// skip re-checking it here: never trust a filename received over the
+// network for constructing a filesystem path without re-checking it
+// yourself.
+const SAFE_FILENAME_CHARSET_REGEX = /^[A-Za-z0-9_.-]+$/;
+
+// Windows treats these as reserved device names REGARDLESS of extension or
+// case ("NUL.txt" still resolves to the NUL device, not a file called
+// "NUL.txt") — none of them are caught by the checks above (no separator,
+// no "..", pure letters/digits), so a required filename equal to one would
+// silently write to a device instead of a real file and throw off the
+// "created N files" count. Checked defensively on every platform (cheap,
+// and keeps behavior identical for a demo that might run partly on
+// Windows machines and partly not).
+const WINDOWS_RESERVED_DEVICE_NAMES = new Set([
+  'con',
+  'prn',
+  'aux',
+  'nul',
+  'com1',
+  'com2',
+  'com3',
+  'com4',
+  'com5',
+  'com6',
+  'com7',
+  'com8',
+  'com9',
+  'lpt1',
+  'lpt2',
+  'lpt3',
+  'lpt4',
+  'lpt5',
+  'lpt6',
+  'lpt7',
+  'lpt8',
+  'lpt9',
+]);
+
+// ---------------------------------------------------------------------------
+// CLI arg parsing
+// ---------------------------------------------------------------------------
+
+interface CliArgs {
+  fullName?: string;
+  studentId?: string;
+  sessionCode?: string;
+  backendUrl?: string;
+  help?: boolean;
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const args: CliArgs = {};
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    if (token === '-h' || token === '--help') {
+      args.help = true;
+      continue;
+    }
+    if (!token.startsWith('--')) {
+      continue; // ignore stray positional args
+    }
+
+    const eqIndex = token.indexOf('=');
+    let key: string;
+    let value: string | undefined;
+    if (eqIndex !== -1) {
+      key = token.slice(2, eqIndex);
+      value = token.slice(eqIndex + 1);
+    } else {
+      key = token.slice(2);
+      const next = argv[i + 1];
+      if (next !== undefined && !next.startsWith('--')) {
+        value = next;
+        i++;
+      }
+    }
+
+    switch (key) {
+      case 'full-name':
+        args.fullName = value;
+        break;
+      case 'student-id':
+        args.studentId = value;
+        break;
+      case 'session-code':
+        args.sessionCode = value;
+        break;
+      case 'backend-url':
+        args.backendUrl = value;
+        break;
+      default:
+        console.warn(`Cờ không xác định, bỏ qua: --${key}`);
+    }
+  }
+  return args;
+}
+
+function printUsage(): void {
+  console.log(`Agent CLI — kết nối phiên thi và tự tạo file bài nộp.
+
+Cách dùng:
+  ts-node src/cli.ts [--full-name="Ho Ten"] [--student-id=MSSV] [--session-code=CODE] [--backend-url=http://localhost:4000]
+
+Bỏ trống bất kỳ giá trị nào để được hỏi trực tiếp trên terminal.
+Biến môi trường BACKEND_URL cũng có thể dùng để set backend URL (cờ --backend-url được ưu tiên hơn).`);
+}
+
+/** Treats an empty/whitespace-only string as "not provided". */
+function nonEmpty(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
+}
+
+async function promptMissing(args: CliArgs): Promise<AgentJoinPayload> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const fullName = nonEmpty(args.fullName) ?? (await askNonEmpty(rl, 'Họ và tên: '));
+    const studentId = nonEmpty(args.studentId) ?? (await askNonEmpty(rl, 'Mã số sinh viên (MSSV): '));
+    const sessionCode = nonEmpty(args.sessionCode) ?? (await askNonEmpty(rl, 'Mã phiên thi: '));
+    return { fullName, studentId, sessionCode };
+  } finally {
+    rl.close();
+  }
+}
+
+async function askNonEmpty(rl: readline.Interface, question: string): Promise<string> {
+  // A blank fullName/studentId/sessionCode would fail the backend's own
+  // @Length(1, ...) validation anyway (INVALID_INPUT) — catch it locally
+  // with a clearer message instead of round-tripping to the server first.
+  for (;;) {
+    const answer = (await rl.question(question)).trim();
+    if (answer.length > 0) {
+      return answer;
+    }
+    console.log('Giá trị không được để trống, vui lòng nhập lại.');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Path-traversal defense (the core security property this task exists to
+// prove). Layered, independently-redundant checks — a regex-only check can
+// miss encoding tricks that only surface once the path is actually
+// resolved, so the resolved-path prefix check (step 5) is the real
+// defense; steps 1-4 exist to fail fast with a specific, readable reason
+// before ever touching the filesystem.
+// ---------------------------------------------------------------------------
+
+interface FilenameValidationResult {
+  ok: boolean;
+  reason?: string;
+  resolvedPath?: string;
+}
+
+function validateFilename(workspaceDir: string, filename: unknown): FilenameValidationResult {
+  if (typeof filename !== 'string' || filename.length === 0) {
+    return { ok: false, reason: `không phải chuỗi hợp lệ (${JSON.stringify(filename)})` };
+  }
+  if (filename.includes('/') || filename.includes('\\')) {
+    return { ok: false, reason: `chứa dấu phân cách đường dẫn ("/" hoặc "\\"): "${filename}"` };
+  }
+  if (filename.includes('..')) {
+    return { ok: false, reason: `chứa chuỗi ".." (path traversal): "${filename}"` };
+  }
+  if (!SAFE_FILENAME_CHARSET_REGEX.test(filename)) {
+    return {
+      ok: false,
+      reason: `chứa ký tự không cho phép (chỉ cho phép chữ/số/_/-/.): "${filename}"`,
+    };
+  }
+  // "NUL", "NUL.txt", "com1.py", ... — the part before the first "." is
+  // what Windows matches against the reserved device name, case-insensitive.
+  if (WINDOWS_RESERVED_DEVICE_NAMES.has(filename.split('.')[0].toLowerCase())) {
+    return {
+      ok: false,
+      reason: `trùng tên thiết bị dành riêng của Windows (CON/PRN/AUX/NUL/COM1-9/LPT1-9): "${filename}"`,
+    };
+  }
+
+  // THE actual defense: resolve the joined path to an absolute path and
+  // confirm it is still strictly inside the resolved workspace directory.
+  // Checked independently of the checks above (which could in principle
+  // have a gap) via a resolved-path prefix comparison, not a string/regex
+  // comparison on the raw filename.
+  const resolvedWorkspace = path.resolve(workspaceDir);
+  const resolvedTarget = path.resolve(path.join(workspaceDir, filename));
+  const requiredPrefix = resolvedWorkspace + path.sep;
+  if (!resolvedTarget.startsWith(requiredPrefix)) {
+    return {
+      ok: false,
+      reason: `đường dẫn sau khi resolve nằm ngoài thư mục workspace: "${filename}" -> "${resolvedTarget}"`,
+    };
+  }
+
+  return { ok: true, resolvedPath: resolvedTarget };
+}
+
+/**
+ * studentId is LOCAL input (typed by whoever runs this CLI, or piped in
+ * from a roster) rather than server-supplied — but it still becomes a
+ * directory name (`./exam-workspace/<studentId>/`), so it gets the same
+ * allow-list treatment before this process ever touches the filesystem
+ * with it.
+ */
+function isSafeForPathSegment(value: string): boolean {
+  return SAFE_FILENAME_CHARSET_REGEX.test(value) && !value.includes('..');
+}
+
+/**
+ * Same non-object guard the gateway itself uses on the way in
+ * (`ExamSessionGateway.isPlainObject`) — applied here on the way back, to
+ * `agent:join:ack`/`agent:join:error` payloads, since a malformed or
+ * hostile server response is just as untrustworthy as a malformed client
+ * request.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
+}
+
+/**
+ * Creates `workspaceDir` and, for each entry in `requiredFiles`, an empty
+ * file inside it — after independently re-validating the filename (see
+ * `validateFilename`). Invalid entries are logged as warnings and skipped,
+ * never written, and never crash the process.
+ *
+ * Uses the `wx` flag (`O_CREAT | O_EXCL`) rather than the default `w`:
+ * socket.io reconnects (a network blip, not a fresh exam attempt) cause
+ * `connect` to fire again, which re-emits `agent:join` and gets a fresh
+ * `agent:join:ack` — this function then runs again for the SAME files. A
+ * plain `writeFileSync(path, '')` would silently truncate whatever the
+ * student had already written into them. `wx` refuses to write if the
+ * path already exists (`EEXIST`), so an existing file — the student's own
+ * in-progress work, or a symlink someone planted at that path — is left
+ * completely untouched and still counted as "created" (it exists, which
+ * is the property this function is actually responsible for). Only a
+ * genuinely new required filename results in a new empty file.
+ */
+function createSubmissionFiles(workspaceDir: string, requiredFiles: unknown): number {
+  fs.mkdirSync(workspaceDir, { recursive: true });
+
+  if (!Array.isArray(requiredFiles)) {
+    console.warn(
+      `[CẢNH BÁO] requiredFiles từ server không phải mảng (${JSON.stringify(requiredFiles)}) — không tạo file nào.`,
+    );
+    return 0;
+  }
+
+  let created = 0;
+  for (const filename of requiredFiles) {
+    const result = validateFilename(workspaceDir, filename);
+    if (!result.ok) {
+      console.warn(`[CẢNH BÁO BẢO MẬT] Bỏ qua filename không an toàn — ${result.reason}`);
+      continue;
+    }
+    try {
+      fs.writeFileSync(result.resolvedPath!, '', { flag: 'wx' });
+      created++;
+    } catch (error) {
+      if (isErrnoException(error) && error.code === 'EEXIST') {
+        // Already exists (rejoin/reconnect, or a prior run) — leave its
+        // content alone, still counts toward "sẵn sàng làm bài".
+        created++;
+        continue;
+      }
+      console.warn(
+        `[CẢNH BÁO] Không thể tạo file "${filename}": ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+  return created;
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.help) {
+    printUsage();
+    process.exit(0);
+  }
+
+  const backendUrl = nonEmpty(args.backendUrl) ?? nonEmpty(process.env.BACKEND_URL) ?? DEFAULT_BACKEND_URL;
+  const payload = await promptMissing(args);
+
+  if (!isSafeForPathSegment(payload.studentId)) {
+    console.error(
+      `Mã số sinh viên "${payload.studentId}" chứa ký tự không hợp lệ để dùng làm tên thư mục ` +
+        `(chỉ cho phép chữ/số/_/-/., không được chứa "..").`,
+    );
+    process.exit(1);
+  }
+
+  const workspaceDir = path.resolve(process.cwd(), WORKSPACE_DIRNAME, payload.studentId);
+
+  console.log(`Đang kết nối tới ${backendUrl}/exam-live ...`);
+  const socket: Socket = io(`${backendUrl}/exam-live`, {
+    // No cookie/JWT — agents are public/unauthenticated by design, unlike
+    // the teacher lobby (which authenticates via an httpOnly cookie).
+    reconnection: true,
+  });
+
+  let hasJoinedOnce = false;
+  let shuttingDown = false;
+
+  const shutdown = (exitCode: number): void => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    socket.removeAllListeners();
+    socket.disconnect();
+    process.exit(exitCode);
+  };
+
+  process.on('SIGINT', () => {
+    console.log('\nĐã nhận Ctrl+C, đang ngắt kết nối...');
+    shutdown(0);
+  });
+  process.on('SIGTERM', () => {
+    shutdown(0);
+  });
+
+  socket.on('connect', () => {
+    console.log(`Đã kết nối (socket id: ${socket.id}). Đang tham gia phiên thi...`);
+    socket.emit('agent:join', payload);
+  });
+
+  socket.on('connect_error', (error: Error) => {
+    console.warn(`Không thể kết nối tới ${backendUrl}/exam-live: ${error.message}. Đang thử lại...`);
+  });
+
+  socket.on('disconnect', (reason: string) => {
+    if (!shuttingDown && hasJoinedOnce) {
+      console.warn(`Mất kết nối tới server (${reason}). socket.io sẽ tự động thử kết nối lại...`);
+    }
+  });
+
+  // The server is not a trusted input source for shape either — a
+  // malformed/hostile `agent:join:ack` or `agent:join:error` payload (e.g.
+  // `null`, a string, a number) would throw on property access before
+  // `main().catch(...)` ever gets a chance to see it, since this runs
+  // inside a socket.io event callback, not inside `main`'s own call stack.
+  // Guard the shape first, same defense-in-depth stance as the filenames.
+  socket.on('agent:join:ack', (ack: unknown) => {
+    if (!isPlainObject(ack)) {
+      console.warn('[CẢNH BÁO] Server gửi agent:join:ack không hợp lệ (không phải object) — bỏ qua.');
+      return;
+    }
+    hasJoinedOnce = true;
+    const sessionName = typeof ack.sessionName === 'string' ? ack.sessionName : '(không rõ)';
+    const endTime = typeof ack.endTime === 'string' ? ack.endTime : '(không rõ)';
+    console.log(`Tham gia thành công: "${sessionName}" (kết thúc lúc ${endTime}).`);
+    const createdCount = createSubmissionFiles(workspaceDir, ack.requiredFiles);
+    console.log(`Đã tạo ${createdCount} file, sẵn sàng làm bài.`);
+    console.log(`Thư mục bài làm: ${workspaceDir}`);
+    console.log('Agent đang chạy nền, chờ đến hết giờ thi. Nhấn Ctrl+C để thoát.');
+  });
+
+  socket.on('agent:join:error', (error: unknown) => {
+    if (!isPlainObject(error)) {
+      console.error('[CẢNH BÁO] Server gửi agent:join:error không hợp lệ (không phải object).');
+      shutdown(1);
+      return;
+    }
+    const code = typeof error.code === 'string' ? error.code : 'UNKNOWN';
+    const message = typeof error.message === 'string' ? error.message : '(không có thông tin)';
+    console.error(`Lỗi tham gia phiên thi [${code}]: ${message}`);
+    shutdown(1);
+  });
+}
+
+main().catch((error) => {
+  console.error('Lỗi không mong muốn:', error instanceof Error ? error.message : error);
+  process.exit(1);
+});

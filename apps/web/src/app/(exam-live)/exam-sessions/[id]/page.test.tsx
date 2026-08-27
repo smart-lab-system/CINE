@@ -1,0 +1,173 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
+import ExamSessionLobbyPage from './page';
+import { socket as mockSocket } from '@/lib/socket';
+
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ id: 'session-123' }),
+}));
+
+// A single fake socket.io-client `Socket`, built once so the module graph
+// resolves `import { socket } from '@/lib/socket'` (in both page.tsx and
+// this test file) to the exact same object. `on`/`off` register/remove
+// listeners exactly like the real thing; `emit` is a spy (outgoing,
+// server-bound — must NOT trigger this fake's own listeners); `__trigger`
+// is a test-only helper simulating an incoming server -> client event.
+vi.mock('@/lib/socket', () => {
+  const listeners = new Map<string, Array<(...args: unknown[]) => void>>();
+
+  const socket = {
+    connected: false,
+    on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), cb]);
+    }),
+    off: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+      listeners.set(
+        event,
+        (listeners.get(event) ?? []).filter((listener) => listener !== cb),
+      );
+    }),
+    emit: vi.fn(),
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    __trigger(event: string, payload?: unknown) {
+      for (const listener of listeners.get(event) ?? []) {
+        listener(payload);
+      }
+    },
+    __listenerCount(event: string): number {
+      return (listeners.get(event) ?? []).length;
+    },
+    __reset() {
+      listeners.clear();
+      socket.connected = false;
+      socket.on.mockClear();
+      socket.off.mockClear();
+      socket.emit.mockClear();
+      socket.connect.mockClear();
+      socket.disconnect.mockClear();
+    },
+  };
+
+  return { socket };
+});
+
+// Cast once — the mock's extra `__trigger`/`__listenerCount`/`__reset`
+// helpers aren't part of the real `Socket` type this module normally
+// exports.
+const fakeSocket = mockSocket as unknown as {
+  connected: boolean;
+  emit: ReturnType<typeof vi.fn>;
+  connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+  __trigger(event: string, payload?: unknown): void;
+  __listenerCount(event: string): number;
+  __reset(): void;
+};
+
+// `__trigger` invokes the page's registered listeners synchronously and
+// outside of any React event handler, which is exactly what a real
+// incoming socket.io event does — wrapping it in `act()` just tells
+// React Testing Library "this state update is expected", matching how the
+// browser would actually batch it, and silences the act() warning.
+function trigger(event: string, payload?: unknown) {
+  act(() => fakeSocket.__trigger(event, payload));
+}
+
+beforeEach(() => {
+  fakeSocket.__reset();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('ExamSessionLobbyPage', () => {
+  it('connects and subscribes to the session from the URL param on mount', () => {
+    render(<ExamSessionLobbyPage />);
+
+    expect(fakeSocket.connect).toHaveBeenCalledTimes(1);
+
+    trigger('connect');
+
+    expect(fakeSocket.emit).toHaveBeenCalledWith('teacher:subscribe', {
+      examSessionId: 'session-123',
+    });
+  });
+
+  it('appends a student row when lobby:student_joined fires, without a page reload', async () => {
+    render(<ExamSessionLobbyPage />);
+    trigger('connect');
+
+    trigger('lobby:student_joined', {
+      studentId: '21120001',
+      fullName: 'Nguyễn Văn A',
+      joinedAt: '2026-08-27T01:00:00.000Z',
+    });
+
+    await waitFor(() => expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument());
+    expect(screen.getByText('21120001')).toBeInTheDocument();
+    expect(screen.getByText('Đang kết nối')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    // The count region announces via aria-live, not the table itself.
+    expect(screen.getByText(/Số sinh viên đã tham gia:/)).toBeInTheDocument();
+  });
+
+  it('marks a student disconnected instead of removing the row', async () => {
+    render(<ExamSessionLobbyPage />);
+    trigger('connect');
+    trigger('lobby:student_joined', {
+      studentId: '21120001',
+      fullName: 'Nguyễn Văn A',
+      joinedAt: '2026-08-27T01:00:00.000Z',
+    });
+    await waitFor(() => expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument());
+
+    trigger('agent:disconnected', {
+      studentId: '21120001',
+      disconnectedAt: '2026-08-27T01:05:00.000Z',
+    });
+
+    await waitFor(() => expect(screen.getByText('Mất kết nối')).toBeInTheDocument());
+    // Still present — a dropped student is never removed from the list.
+    expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument();
+  });
+
+  it('shows a visible alert (not an empty "waiting" state) on teacher:subscribe:error', async () => {
+    render(<ExamSessionLobbyPage />);
+    trigger('connect');
+
+    trigger('teacher:subscribe:error', {
+      code: 'FORBIDDEN',
+      message: 'You do not own this exam session.',
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        /Bạn không phải là chủ của phiên thi này/,
+      ),
+    );
+    // The normal "no students yet" copy must not also be on screen.
+    expect(screen.queryByText('Chưa có sinh viên nào tham gia.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Số sinh viên đã tham gia:/)).not.toBeInTheDocument();
+  });
+
+  it('removes every listener and disconnects on unmount, leaving nothing registered', () => {
+    const { unmount } = render(<ExamSessionLobbyPage />);
+    trigger('connect');
+
+    expect(fakeSocket.__listenerCount('connect')).toBeGreaterThan(0);
+    expect(fakeSocket.__listenerCount('lobby:student_joined')).toBeGreaterThan(0);
+    expect(fakeSocket.__listenerCount('agent:disconnected')).toBeGreaterThan(0);
+    expect(fakeSocket.__listenerCount('teacher:subscribe:error')).toBeGreaterThan(0);
+
+    unmount();
+
+    expect(fakeSocket.__listenerCount('connect')).toBe(0);
+    expect(fakeSocket.__listenerCount('lobby:student_joined')).toBe(0);
+    expect(fakeSocket.__listenerCount('agent:disconnected')).toBe(0);
+    expect(fakeSocket.__listenerCount('teacher:subscribe:error')).toBe(0);
+    expect(fakeSocket.disconnect).toHaveBeenCalledTimes(1);
+  });
+});

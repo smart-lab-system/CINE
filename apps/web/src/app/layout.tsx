@@ -2,7 +2,7 @@ import './globals.css';
 import type { ReactNode } from 'react';
 
 export const metadata = {
-  title: 'Lab Management — Web Portal',
+  title: 'ExamCollect',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
