@@ -7,5 +7,9 @@ dist/
 *.tsbuildinfo
 .superpowers/
 
+# apps/agent writes real submission files here when run locally/manually
+# tested — never demo/test output belonging to the repo.
+exam-workspace/
+
 # Personal Claude Code project instructions — not shared with the team/repo.
 CLAUDE.md

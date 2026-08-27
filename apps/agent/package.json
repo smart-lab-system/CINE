@@ -1,0 +1,18 @@
+{
+  "name": "agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal CLI agent that connects to the exam-live WebSocket gateway as a student and creates the declared submission files on this machine.",
+  "scripts": {
+    "cli": "ts-node src/cli.ts",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}
