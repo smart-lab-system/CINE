@@ -172,10 +172,17 @@ khớp chính xác payload dưới đây.
 { examSessionId: string }
 ```
 
-Server join socket này vào room `exam-session:{examSessionId}` sau khi
-validate JWT + giáo viên là chủ phiên thi đó.
+Server join socket này vào room `exam-session:{examSessionId}:teachers`
+sau khi validate JWT + giáo viên là chủ phiên thi đó — **ruling bổ sung
+sau final review**: room này CHỈ có giáo viên, agent KHÔNG join room nào
+cả (xem ruling ngay dưới `agent:join`). Ban đầu kế hoạch dùng chung 1
+room `exam-session:{id}` cho cả agent lẫn giáo viên — review cuối phát
+hiện đây là lỗ hổng thật: bất kỳ agent nào (không cần xác thực, chỉ cần
+biết session code công khai) cũng nhận được `lobby:student_joined`/
+`agent:disconnected` của toàn bộ sinh viên khác. Đã tách room, agent
+không còn nhận được 2 event này.
 
-**Event: `lobby:student_joined` (Server → room `exam-session:{id}`)**
+**Event: `lobby:student_joined` (Server → room `exam-session:{id}:teachers`)**
 
 ```ts
 {
@@ -415,9 +422,12 @@ Việc cần làm — theo đúng **WebSocket Event Contract** ở Global Constr
     `agent:join:error` code `SESSION_NOT_FOUND`.
   - Check `now() < start_time || now() > end_time || status != 'active'`
     → emit `agent:join:error` code `SESSION_NOT_ACTIVE`.
-  - Hợp lệ → join socket vào room `exam-session:{examSessionId}`, lưu
-    `studentId`/`examSessionId` vào `socket.data` (dùng cho disconnect
-    handler), emit `agent:join:ack` kèm `requiredFiles` (map từ
+  - Hợp lệ → **KHÔNG join socket vào room nào** (ruling bổ sung sau final
+    review — xem ghi chú ở mục `teacher:subscribe` của Global Constraints;
+    agent không cần nhận broadcast nào nên không có lý do để join chung
+    room với giáo viên), chỉ lưu `studentId`/`examSessionId` vào
+    `socket.data` (dùng cho disconnect handler + guard chống double-join),
+    emit `agent:join:ack` kèm `requiredFiles` (map từ
     `required_deliverable`).
   - Broadcast `lobby:student_joined` cho room đó (không gửi lại cho chính
     agent vừa join, dùng `socket.to(room).emit(...)`).
@@ -435,7 +445,8 @@ Việc cần làm — theo đúng **WebSocket Event Contract** ở Global Constr
     chỉ là gọi cùng 1 service ở một entry point khác. Payload trả về có
     `sub` (account id) — dùng để so `teacher_id`.
   - Validate giáo viên là chủ phiên thi (`teacher_id` khớp `payload.sub`).
-  - Join socket vào room `exam-session:{examSessionId}`.
+  - Join socket vào room `exam-session:{examSessionId}:teachers` (room
+    riêng cho giáo viên — xem ruling ở Global Constraints).
   - Nên tái dùng `ExamSessionService` (Task 2) để tra `exam_session` theo
     `code` (trong `agent:join`) và theo `id` (trong `teacher:subscribe`)
     thay vì gateway tự viết query TypeORM riêng — giữ logic truy vấn ở 1
