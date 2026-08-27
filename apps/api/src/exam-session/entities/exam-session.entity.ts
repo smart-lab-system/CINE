@@ -1,4 +1,4 @@
-import { Check, Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { CourseEntity } from '../../course/entities/course.entity';
@@ -22,12 +22,26 @@ export type ExamSessionStatus =
 @Entity({ name: 'exam_session' })
 @Check('ck_exam_session_time', 'end_time > start_time')
 export class ExamSessionEntity extends BaseEntity {
-  @Column({ name: 'course_id', type: 'uuid' })
-  courseId!: string;
+  @Column({ type: 'varchar', length: 200 })
+  name!: string;
 
-  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: false })
+  // Short join code an Agent enters to connect via WebSocket (see
+  // agent-connection module). Queried on every `agent:join` — indexed
+  // unique so lookups stay fast and no two sessions can collide.
+  @Index('uq_exam_session_code', { unique: true })
+  @Column({ type: 'varchar', length: 20 })
+  code!: string;
+
+  // Nullable because the Course module doesn't exist yet — the minimal
+  // exam-session-join demo (2026-08-27) never sets this. Once Course is
+  // built for real, flip this back to NOT NULL in its own migration; not
+  // this task's job.
+  @Column({ name: 'course_id', type: 'uuid', nullable: true })
+  courseId!: string | null;
+
+  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'course_id' })
-  course!: CourseEntity;
+  course!: CourseEntity | null;
 
   @Column({ name: 'teacher_id', type: 'uuid' })
   teacherId!: string;
