@@ -77,6 +77,19 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
 
   private readonly logger = new Logger(ExamSessionGateway.name);
 
+  // `agent:join` rate limiting — a DoS guard against a single client
+  // spamming this handler (each attempt hits the DB). Sliding window,
+  // keyed by `client.id` (this socket's own connection id, not IP) so the
+  // limit is strictly per-connection — never shared across sockets, which
+  // matters because in dev/test many sockets share the same source IP
+  // (localhost). Every entry is deleted in handleDisconnect, so the Map
+  // can never grow past "currently connected sockets" — bounded by
+  // connection count, not by elapsed time, so it can't leak/OOM over a
+  // long-running demo.
+  private static readonly AGENT_JOIN_RATE_LIMIT = 5;
+  private static readonly AGENT_JOIN_RATE_WINDOW_MS = 60_000;
+  private readonly agentJoinAttempts = new Map<string, number[]>();
+
   constructor(
     private readonly examSessions: ExamSessionService,
     private readonly jwt: JwtService,
@@ -94,6 +107,20 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: AgentJoinDto,
   ): Promise<void> {
+    // Rate limit first, before any validation/DB work — the point is to
+    // stop a spamming client from burning DB queries on every attempt,
+    // not just the ones that would otherwise succeed. Never emits an
+    // event back to the client: rate-limit internals aren't part of the
+    // `agent:join` event contract, so a limited client just gets
+    // disconnected and the reason is logged server-side only.
+    if (this.isAgentJoinRateLimited(client)) {
+      this.logger.warn(
+        `agent:join rate limit exceeded for socket ${client.id} (ip=${client.handshake.address}) — disconnecting`,
+      );
+      client.disconnect(true);
+      return;
+    }
+
     // `plainToInstance`/`validate()` assume an object to walk — a
     // string/number/array/null payload (`socket.emit('agent:join',
     // 'foo')`) isn't one, and `validate()` throws a raw TypeError on it
@@ -269,6 +296,12 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
    * this is a no-op for them.
    */
   handleDisconnect(client: Socket): void {
+    // Always clean up this socket's rate-limit entry, regardless of
+    // whether it ever joined a session — otherwise the Map would keep an
+    // entry for every socket that ever connected, for as long as the
+    // process runs.
+    this.agentJoinAttempts.delete(client.id);
+
     const studentId = client.data?.studentId as string | undefined;
     const examSessionId = client.data?.examSessionId as string | undefined;
     if (!studentId || !examSessionId) {
@@ -280,6 +313,24 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
       disconnectedAt: new Date().toISOString(),
     };
     this.server.to(examSessionRoom(examSessionId)).emit('agent:disconnected', disconnected);
+  }
+
+  /**
+   * Sliding window: at most AGENT_JOIN_RATE_LIMIT attempts per
+   * AGENT_JOIN_RATE_WINDOW_MS, per socket. Expired timestamps are pruned
+   * on every call — no separate timer/interval needed, and a socket that
+   * stops spamming self-heals within one window without ever
+   * disconnecting.
+   */
+  private isAgentJoinRateLimited(client: Socket): boolean {
+    const now = Date.now();
+    const windowStart = now - ExamSessionGateway.AGENT_JOIN_RATE_WINDOW_MS;
+    const attempts = (this.agentJoinAttempts.get(client.id) ?? []).filter(
+      (timestamp) => timestamp > windowStart,
+    );
+    attempts.push(now);
+    this.agentJoinAttempts.set(client.id, attempts);
+    return attempts.length > ExamSessionGateway.AGENT_JOIN_RATE_LIMIT;
   }
 
   private emitJoinError(client: Socket, code: AgentJoinErrorCode, message: string): void {
