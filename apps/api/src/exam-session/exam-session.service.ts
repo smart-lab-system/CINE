@@ -60,6 +60,13 @@ export class ExamSessionService {
               teacherId,
               startTime: new Date(dto.startTime),
               endTime: new Date(dto.endTime),
+              // The column defaults to 'draft' — this demo's scope has no
+              // separate "publish" step between creating a session and an
+              // agent being able to join it, so a freshly-created session
+              // must be immediately joinable. Without this, agent:join
+              // rejects with SESSION_NOT_ACTIVE until someone flips the row
+              // by hand.
+              status: 'active',
             }),
           );
 
