@@ -4,6 +4,7 @@ dist/
 .env
 .turbo/
 *.log
+*.tsbuildinfo
 .superpowers/
 
 # Personal Claude Code project instructions — not shared with the team/repo.
