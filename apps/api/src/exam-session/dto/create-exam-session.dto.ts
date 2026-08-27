@@ -1,10 +1,12 @@
 import {
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsISO8601,
   IsString,
   Length,
   Matches,
+  MaxLength,
   Validate,
   ValidationArguments,
   ValidatorConstraint,
@@ -47,7 +49,20 @@ export class CreateExamSessionDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  // Duplicate filenames pass every other check here (each string is
+  // individually valid) but collide on the DB's unique index
+  // (uq_required_deliverable_session_filename) at insert time, which
+  // surfaces as a 409 the frontend can't explain to the user ("why did
+  // creating a session fail?" for what's really "you typed the same
+  // filename twice"). Catch it here as a 400 instead, matching Zod's
+  // client-side .refine() for the same rule.
+  @ArrayUnique()
   @IsString({ each: true })
   @Matches(SAFE_FILENAME_REGEX, { each: true })
+  // Matches required_deliverable.required_filename's varchar(255) column —
+  // without this, an overlong filename passes DTO validation and hits the
+  // DB's own length truncation error, which PostgresExceptionFilter has no
+  // mapping for (falls through to a bare 500 instead of 400).
+  @MaxLength(255, { each: true })
   requiredFilenames!: string[];
 }

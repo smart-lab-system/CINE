@@ -58,6 +58,42 @@ const createExamSessionSchema = z
       message: 'Thời gian kết thúc phải sau thời gian bắt đầu',
       path: ['endTime'],
     },
+  )
+  // Mirrors the backend's @ArrayUnique() on requiredFilenames (see
+  // create-exam-session.dto.ts) — without this, a duplicate filename
+  // (a realistic typo: retyping the same name twice) passes every
+  // per-field check here, reaches the API, and only then hits the DB's
+  // unique index (uq_required_deliverable_session_filename), coming back
+  // as a 409 the generic API-error banner can't explain. Catch it
+  // client-side and point at exactly which entry is the duplicate.
+  .refine(
+    (values) => {
+      const seen = new Set<string>();
+      for (const filename of values.requiredFilenames) {
+        if (seen.has(filename.value)) return false;
+        seen.add(filename.value);
+      }
+      return true;
+    },
+    (values) => {
+      const seen = new Set<string>();
+      let duplicateIndex = -1;
+      for (const [index, filename] of values.requiredFilenames.entries()) {
+        if (seen.has(filename.value)) {
+          duplicateIndex = index;
+          break;
+        }
+        seen.add(filename.value);
+      }
+      const duplicateName = duplicateIndex === -1 ? '' : values.requiredFilenames[duplicateIndex].value;
+      return {
+        message: `Tên file "${duplicateName}" bị trùng — mỗi file bắt buộc phải có tên khác nhau.`,
+        path:
+          duplicateIndex === -1
+            ? ['requiredFilenames']
+            : ['requiredFilenames', duplicateIndex, 'value'],
+      };
+    },
   );
 
 export type CreateExamSessionFormValues = z.infer<typeof createExamSessionSchema>;
@@ -93,7 +129,13 @@ export default function NewExamSessionPage() {
   if (created) {
     return (
       <main className="mx-auto flex w-full max-w-xl flex-col items-center gap-6 p-8">
-        <Card className="w-full">
+        {/* Every error path above uses role="alert" — this is the equivalent
+            for the success outcome (a11y requirement in the plan's Global
+            Constraints applies to loading/error states; extended here to
+            success so a screen reader announces the newly created code
+            instead of silence). role="status" (not "alert") since this
+            isn't urgent/interrupting, just an important state change. */}
+        <Card className="w-full" role="status">
           <CardHeader>
             <CardTitle>Đã tạo phiên thi</CardTitle>
           </CardHeader>
@@ -166,7 +208,14 @@ export default function NewExamSessionPage() {
 
               {createExamSession.isError && (
                 <p role="alert" className="text-sm text-destructive">
-                  Không tạo được phiên thi. Vui lòng thử lại.
+                  {/* A retry can never succeed for a duplicate-filename 409 — the
+                      client-side .refine() above should already catch that case
+                      before submit, but this is the fallback for anything that
+                      still reaches the API (e.g. a race, or a bypass), so it must
+                      point at a real, checkable cause instead of blindly
+                      suggesting "thử lại". */}
+                  Không tạo được phiên thi. Vui lòng kiểm tra danh sách file bắt buộc
+                  có bị trùng tên không, sau đó thử lại.
                 </p>
               )}
             </CardContent>
