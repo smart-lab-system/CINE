@@ -52,4 +52,14 @@ async function bootstrap() {
   await app.listen(port);
 }
 
-bootstrap();
+// Without a .catch(), a startup failure (DB unreachable, port already in
+// use — hit for real during the Task 9 demo run when a leftover dev
+// server from an earlier session was still bound to 4000) becomes an
+// unhandled promise rejection: Node dumps a raw internal stack trace and
+// exits non-zero anyway, just without ever explaining what actually went
+// wrong. This makes the same non-zero exit produce one readable line
+// first.
+bootstrap().catch((error) => {
+  console.error('API failed to start:', error instanceof Error ? error.message : error);
+  process.exit(1);
+});
