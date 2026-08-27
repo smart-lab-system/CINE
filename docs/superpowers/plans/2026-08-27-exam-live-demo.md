@@ -110,9 +110,25 @@ khớp chính xác payload dưới đây.
 - Namespace: `/exam-live`
 - Agent connect: không cần JWT (public), nhưng phải validate `sessionCode`
   + thời gian hiệu lực ngay khi nhận event `agent:join`.
-- Giáo viên (frontend lobby) connect: đính kèm JWT trong
-  `socket.handshake.auth.token`, gateway validate bằng guard có sẵn từ
-  scaffold auth.
+- Giáo viên (frontend lobby) connect: **ruling (controller, trước khi
+  dispatch bất kỳ task nào)** — kế hoạch gốc mô tả đính kèm JWT trong
+  `socket.handshake.auth.token`, đọc từ "store/localStorage". Repo này
+  KHÔNG lưu access token ở đâu JS đọc được: `access_token` là cookie
+  `httpOnly` (set bởi `app/api/auth/login/route.ts`, đọc bởi
+  `middleware.ts`) — chính xác để JS không đọc được, chống XSS lấy cắp
+  token. Không có "store/localStorage" nào chứa JWT để đưa vào
+  `auth.token`. Vì vậy: **giáo viên connect KHÔNG dùng
+  `socket.handshake.auth.token`** — client tạo socket với
+  `withCredentials: true` (không set `auth.token`), trình duyệt tự động
+  đính kèm cookie `access_token` vào request handshake y hệt cách
+  `apiClient` REST đã làm (xem comment trong `lib/api-client.ts`).
+  Gateway đọc access token bằng cách tự parse
+  `client.handshake.headers.cookie` (chuỗi `"access_token=...; ..."`) lấy
+  giá trị `access_token`, rồi verify bằng `JwtService` — cùng cơ chế xác
+  thực với HTTP, chỉ khác nơi lấy token thô. CORS trên gateway phải bật
+  `credentials: true` cho origin frontend (như REST) để trình duyệt chịu
+  gửi cookie kèm request cross-origin dev (`localhost:3000` →
+  `localhost:4000`).
 
 **Event: `agent:join` (Agent → Server)**
 
@@ -236,41 +252,59 @@ required_deliverable (
 )
 ```
 
-**Lưu ý bắt buộc đọc trước khi làm task này**: `ExamSessionEntity` và
-`RequiredDeliverableEntity` **đã tồn tại** trong repo
-(`apps/api/src/exam-session/entities/`) với schema đầy đủ hơn bản rút gọn
-trên (có `submission_rule`, `rubric_id`, `deliverable_type`, quan hệ tới
-`CourseEntity`/`AccountEntity` bắt buộc, v.v. — theo CLAUDE.md gốc, không
-theo phạm vi rút gọn của demo này). Việc của task này KHÔNG phải là tạo
-bảng mới từ đầu, mà là **quyết định và thực hiện một trong hai hướng**,
-ghi rõ lựa chọn + lý do vào commit message:
+**Ruling đã chốt (bởi controller, trước khi dispatch — không tự đổi
+hướng)**: `ExamSessionEntity` và `RequiredDeliverableEntity` **đã tồn
+tại** trong repo (`apps/api/src/exam-session/entities/`), viết theo
+CLAUDE.md gốc. Task này **SỬA entity hiện có** (không tạo bảng/entity
+song song) — một `ExamSession` duy nhất trong toàn hệ thống, demo chỉ
+dùng một tập con field của nó:
 
-- **(A) Sửa entity hiện có** cho khớp bản rút gọn ở trên (nới lỏng các FK
-  bắt buộc tới `Course`/`Rubric` thành optional/bỏ, thêm cột `name`/`code`/
-  `status` nếu thiếu) rồi `migration:generate` — rủi ro: lệch khỏi schema
-  CLAUDE.md gốc mà Task tương lai (ngoài phạm vi demo) sẽ cần dùng lại.
-- **(B) Thêm entity/bảng riêng cho demo** (vd `DemoExamSessionEntity` /
-  bảng `demo_exam_session`) độc lập với entity CLAUDE.md gốc, không đụng
-  tới `ExamSessionEntity` hiện có — rủi ro: trùng lặp khái niệm, cần dọn
-  lại khi build tính năng thật sau demo.
+- `ExamSessionEntity`: thêm 2 cột mới `name` (`varchar`, not null) và
+  `code` (`varchar`, not null, **unique index** — cột này được query mỗi
+  lần agent join, cần nhanh). Đổi `course_id`/quan hệ `course` thành
+  **nullable** (`@Column({..., nullable: true})` +
+  `@ManyToOne(() => CourseEntity, { nullable: true, ... })`, kiểu TS
+  `string | null`) — demo không có `Course` module nên luôn để `null`;
+  khi module Course được build thật sau demo, cột quay lại NOT NULL bằng
+  migration riêng, không phải việc của task này. **KHÔNG** thêm giá trị
+  enum `status` mới: `status` giữ nguyên enum hiện có
+  (`draft|scheduled|active|completed|cancelled`) — demo chỉ dùng giá trị
+  `'active'` (Task 2 phải set tường minh `status: 'active'` lúc tạo, vì
+  default hiện tại của cột là `'draft'`); "closed" trong mô tả DoD/schema
+  rút gọn ở đầu task này KHÔNG cần một enum value riêng — hết `end_time`
+  tự nhiên đã khiến `agent:join` trả `SESSION_NOT_ACTIVE` (xem điều kiện
+  ở Task 3), không có endpoint "đóng phiên thi" nào trong phạm vi 11
+  task này.
+- `RequiredDeliverableEntity`: **không cần migration nào** — cột
+  `deliverable_type` đã tồn tại (not null) nhưng demo không phân biệt
+  loại file; Task 2 khi insert luôn set `deliverableType: 'document'` cho
+  mọi filename khai báo, không cần thêm/đổi cột.
+- `submission_rule` (jsonb, default `{}`) và `rubric_id` (đã nullable)
+  giữ nguyên, không đụng tới — không có code nào trong 11 task này đọc/ghi
+  2 cột đó.
 
-Nếu không chắc hướng nào đúng, đây là quyết định kiến trúc thật (không
-phải chi tiết vụn) — dừng lại và hỏi trước khi migration, đừng tự chọn one
-cách âm thầm.
+Việc cần làm:
 
-Việc cần làm (sau khi đã chốt hướng A hoặc B):
-
-- Tạo/sửa entity + chạy `pnpm --filter api migration:generate
-  src/database/migrations/<Name>` (đúng ORM/quy trình xác nhận ở Task 0).
-- `code` phải có unique index — đây là cột được query mỗi lần agent join,
-  cần nhanh.
+- Sửa `apps/api/src/exam-session/entities/exam-session.entity.ts` theo
+  ruling trên, rồi chạy `pnpm --filter api migration:generate
+  src/database/migrations/AddExamSessionNameCode` (entity-driven — xác
+  nhận quy trình này khớp Task 0). Review kỹ file migration sinh ra trước
+  khi chạy — lần trước `migration:generate` từng sinh trùng `CREATE TYPE`
+  cho 1 enum dùng chung, phải tự soát bằng mắt, không chỉ chạy thẳng.
 - `required_filename`: chỉ validate ở tầng ứng dụng (Task 2) — chỉ cho
   phép ký tự chữ/số/`_`/`-`/`.`, cấm `..`, `/`, `\` (chống path traversal
   khi agent dùng tên này để tạo file). Không cần CHECK constraint ở DB cho
   việc này trong phạm vi demo.
-- Foreign key `exam_session_id` trên `required_deliverable` dùng
-  `ON DELETE CASCADE` (xoá phiên thi thì xoá luôn deliverable liên quan —
-  hợp lý ở giai đoạn demo).
+- FK `exam_session_id` trên `required_deliverable` **hiện đã là**
+  `ON DELETE RESTRICT` (theo convention entity-driven toàn repo — xem
+  `RequiredDeliverableEntity`). Kế hoạch gốc đề xuất `ON DELETE CASCADE`
+  cho riêng bảng này; **ruling: giữ nguyên RESTRICT, không đổi** — đổi
+  riêng 1 bảng sang cascade trong khi mọi bảng khác dùng RESTRICT phá vỡ
+  tính nhất quán toàn schema chỉ để tiện demo. Hệ quả: xoá thử 1
+  `exam_session` có deliverable con sẽ bị chặn 409 — nếu cần dọn dữ liệu
+  demo, xoá `required_deliverable` trước. Không có task nào trong 11 task
+  này thực sự cần xoá `exam_session` nên đây không chặn acceptance
+  criteria nào.
 
 Acceptance criteria:
 
@@ -317,8 +351,12 @@ Endpoint cần có:
     giữa chừng để lại dữ liệu rác).
   - Response: thông tin phiên thi vừa tạo, gồm `code`.
 - `GET /exam-sessions/:id` — JWT required, chỉ giáo viên sở hữu
-  (`teacher_id` khớp `req.user.id`/`req.user.sub`) mới xem được — trả 403
-  nếu không khớp.
+  (`teacher_id` khớp `req.user.sub` — **ruling**: payload JWT thật của
+  repo này là `AccessTokenPayload { sub, email, role }`, KHÔNG có field
+  `id`; NestJS gắn payload này thẳng vào `request.user` qua
+  `JwtStrategy.validate()`, nên id tài khoản đang đăng nhập là
+  `req.user.sub`, không phải `req.user.id`) mới xem được — trả 403 nếu
+  không khớp.
   - Response gồm `requiredDeliverables` (join sẵn).
 
 Acceptance criteria:
@@ -340,8 +378,12 @@ File: `apps/api/src/exam-session/exam-session.gateway.ts`
 Việc cần làm — theo đúng **WebSocket Event Contract** ở Global Constraints
 (không tự đổi tên event/field):
 
-- Tạo `@WebSocketGateway({ namespace: '/exam-live', cors: { origin: <đúng
-  domain frontend, KHÔNG dùng '*'> } })`.
+- Tạo `@WebSocketGateway({ namespace: '/exam-live', cors: { origin:
+  process.env.WEB_ORIGIN ?? 'http://localhost:3000', credentials: true }
+  })` — dùng lại đúng biến `WEB_ORIGIN` mà `main.ts` đã dùng cho CORS HTTP
+  (không tạo biến môi trường CORS riêng cho WS). `credentials: true` bắt
+  buộc phải có — thiếu nó trình duyệt sẽ không gửi cookie `access_token`
+  kèm request handshake (xem ruling JWT/cookie ở Global Constraints).
 - Handler `@SubscribeMessage('agent:join')`:
   - Validate payload bằng class-validator (tạo DTO riêng cho WS payload,
     không tái dùng chay object không kiểu).
@@ -356,10 +398,25 @@ Việc cần làm — theo đúng **WebSocket Event Contract** ở Global Constr
   - Broadcast `lobby:student_joined` cho room đó (không gửi lại cho chính
     agent vừa join, dùng `socket.to(room).emit(...)`).
 - Handler `@SubscribeMessage('teacher:subscribe')`:
-  - Validate JWT từ `socket.handshake.auth.token` (dùng lại JWT verify
-    logic có sẵn từ auth module — KHÔNG viết lại logic verify token mới).
-  - Validate giáo viên là chủ phiên thi (`teacher_id` khớp).
+  - Validate JWT lấy từ cookie `access_token` trong
+    `client.handshake.headers.cookie` (xem ruling ở mục "Namespace &
+    connection" của Global Constraints — KHÔNG dùng
+    `socket.handshake.auth.token`, cookie httpOnly không đưa vào đó
+    được). "Dùng lại logic có sẵn, không viết lại verify mới" nghĩa là:
+    inject `JwtService` (từ `@nestjs/jwt`, cùng thư viện `AuthService`
+    đang dùng) vào gateway, gọi
+    `this.jwt.verifyAsync(token, { secret: process.env.ACCESS_TOKEN_SECRET })`
+    trực tiếp trong handler (giống hệt cách `AuthService.refresh()` đã
+    verify refresh token) — KHÔNG viết lại thuật toán/thư viện JWT mới,
+    chỉ là gọi cùng 1 service ở một entry point khác. Payload trả về có
+    `sub` (account id) — dùng để so `teacher_id`.
+  - Validate giáo viên là chủ phiên thi (`teacher_id` khớp `payload.sub`).
   - Join socket vào room `exam-session:{examSessionId}`.
+  - Nên tái dùng `ExamSessionService` (Task 2) để tra `exam_session` theo
+    `code` (trong `agent:join`) và theo `id` (trong `teacher:subscribe`)
+    thay vì gateway tự viết query TypeORM riêng — giữ logic truy vấn ở 1
+    chỗ, khớp quy tắc CLAUDE.md "controller/gateway không chứa business
+    logic".
 - Handler `handleDisconnect`: nếu `socket.data.studentId` tồn tại,
   broadcast `agent:disconnected` cho đúng room.
 
@@ -410,16 +467,25 @@ Acceptance criteria:
 
 Mục tiêu: giáo viên tạo phiên thi + khai báo file bắt buộc qua UI.
 
-File (dùng App Router thật của repo — xác nhận nhóm route hiện có ở Task 0
-trước khi tạo `(exam-live)` mới, có thể route group đã tồn tại dưới tên
-khác):
+File (đã xác nhận ở scan trước dispatch: `apps/web/src/app` hiện chỉ có
+`(auth)`/`(dashboard)`, **chưa có `(exam-live)`** — task này tạo mới hoàn
+toàn):
 
 ```
+app/(exam-live)/layout.tsx
 app/(exam-live)/exam-sessions/new/page.tsx
 app/(exam-live)/exam-sessions/new/_components/RequiredFilenamesInput.tsx
 hooks/useExamSession.ts
 lib/api/exam-session.ts
 ```
+
+`app/(exam-live)/layout.tsx` **bắt buộc phải có** — `QueryClientProvider`
+hiện chỉ được cấp bởi `app/(dashboard)/layout.tsx`, các route group khác
+trong ngoặc không tự kế thừa layout của nhau trong Next.js App Router.
+Không có layout riêng, mọi hook TanStack Query trong `(exam-live)` sẽ lỗi
+lúc runtime vì thiếu Provider. Copy đúng pattern
+`(dashboard)/layout.tsx`: `QueryClient` khởi tạo lười trong `useState`
+(không phải module scope — lý do đã ghi chú sẵn trong file đó).
 
 Việc cần làm:
 
@@ -460,10 +526,12 @@ lib/socket.ts   // socket.io-client instance, khởi tạo 1 lần
 
 Việc cần làm:
 
-- `lib/socket.ts`: khởi tạo `io('<backend-url>/exam-live', { auth: {
-  token: <JWT từ store/localStorage hoặc cookie tùy pattern thật của repo
-  — xác nhận ở Task 0> } })`, export instance dùng chung (không tạo mới
-  mỗi lần render).
+- `lib/socket.ts`: khởi tạo `io('<backend-url>/exam-live', {
+  withCredentials: true })` (KHÔNG set `auth.token` — xem ruling JWT/cookie
+  ở Global Constraints, mục "Namespace & connection": access token là
+  cookie httpOnly, JS không đọc được, trình duyệt tự gửi kèm khi
+  `withCredentials: true`), export instance dùng chung (không tạo mới mỗi
+  lần render).
 - Trang lobby: `useEffect` emit `teacher:subscribe` với `examSessionId` từ
   URL param, lắng nghe `lobby:student_joined` và `agent:disconnected`,
   cập nhật state danh sách sinh viên (`useState`, trừ khi repo đã có sẵn
