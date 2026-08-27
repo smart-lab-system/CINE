@@ -3,9 +3,11 @@
 A checklist to run the full exam-live demo end to end: stand up the stack,
 log in, create a session, join it with a real agent and a batch of mock
 agents, and watch the lobby update live. Verified start-to-finish against a
-freshly-booted stack on 2026-08-27 (see
+freshly-booted stack on 2026-08-27, and re-verified after the
+session-activation step below was removed (see
 `.superpowers/sdd/2026-08-27-exam-live-demo/task-9-report.md` for the full
-run log). Run from the repo root unless a step says otherwise.
+run log, including the follow-up). Run from the repo root unless a step
+says otherwise.
 
 Every step has a **Do** (commands/actions) and an **Expect** (what success
 looks like). A short **If not** line covers the one most likely failure.
@@ -124,9 +126,11 @@ examcollect.account SET password_hash = '<new-hash>' WHERE email = '...'`).
 **Do:** go to `http://localhost:3000/exam-sessions/new`. Fill in:
 - **Tên phiên thi**: anything, e.g. `Demo — Kiểm tra cuối kỳ`.
 - **Thời gian bắt đầu / kết thúc**: pick a window that covers *right now*
-  through at least a few hours out (start ≤ now ≤ end) — the agent join
-  step below checks this window server-side, not just the `status` field
-  (see step 8).
+  through at least a few hours out (start ≤ now ≤ end). A session is
+  created immediately joinable (`status = 'active'`, no separate
+  publish/activation step) — but `agent:join` still checks this time
+  window server-side, so a start time in the future or an end time
+  already passed will still reject joins even though `status` is active.
 - **File bắt buộc nộp**: 2-3 filenames, e.g. `baitap1.py`, `baocao.docx`,
   `ket_qua.txt` (click "Thêm file" to add more rows).
 
@@ -139,25 +143,7 @@ Network and check the `POST /exam-sessions` response body for the actual
 validation error (usually a filename with a disallowed character, or
 end time not after start time).
 
-## 8. Activate the session (required, no UI for this yet)
-
-A newly-created session's `status` is `draft`. **No activation
-endpoint/button exists in this codebase yet** — an agent's `agent:join`
-is rejected with `SESSION_NOT_ACTIVE` unless `status = 'active'` *and* the
-current time is within `[start_time, end_time]`. This is a known, accepted
-gap (documented in Task 7's report), not something to route around
-silently — flip it by hand for the demo:
-
-**Do:**
-```bash
-docker compose exec postgres psql -U examcollect_admin -d examcollect -c \
-  "UPDATE examcollect.exam_session SET status='active' WHERE code='<YOUR_CODE>';"
-```
-**Expect:** `UPDATE 1`.
-**If not:** `UPDATE 0` means the code was mistyped — codes are stored
-uppercase; double check what step 7 printed.
-
-## 9. Open the lobby
+## 8. Open the lobby
 
 **Do:** click "Vào phòng chờ phiên thi" from step 7 (or go straight to
 `http://localhost:3000/exam-sessions/<id>`).
@@ -168,29 +154,31 @@ live via WebSocket, no refresh needed for the next steps.
 WebSocket call failed — almost always an expired/missing login (re-do step
 6) or opening someone else's session id.
 
-## 10. Run the real agent
+## 9. Run the real agent
 
 **Do (new terminal):**
 ```bash
 cd apps/agent
 npx ts-node src/cli.ts --full-name="Nguyen Van Demo" --student-id="21120099" --session-code=<YOUR_CODE>
 ```
-(Omit any flag to be prompted for it interactively instead.)
+(Omit any flag to be prompted for it interactively instead.) The session
+from step 7 is joinable immediately — no activation step needed in
+between.
 **Expect:** console ends with `Đã tạo N file, sẵn sàng làm bài.` and
 `Agent đang chạy nền...` (stays running, does not exit). Check the files:
 ```bash
 ls apps/agent/exam-workspace/21120099/
 # -> exactly the filenames declared in step 7, all present
 ```
-The **already-open lobby tab** (step 9) updates within ~1s, no refresh:
+The **already-open lobby tab** (step 8) updates within ~1s, no refresh:
 one row, name/MSSV as passed above, green "Đang kết nối".
 **If not:** `[SESSION_NOT_FOUND]` = wrong/mistyped code.
-`[SESSION_NOT_ACTIVE]` = step 8 was skipped, or the time window in step 7
-doesn't cover right now.
+`[SESSION_NOT_ACTIVE]` = the time window from step 7 doesn't cover right
+now (a session is active by default, but still time-gated — see step 7).
 
-## 11. Run the mock agent (batch load)
+## 10. Run the mock agent (batch load)
 
-**Do (new terminal, real agent from step 10 keeps running):**
+**Do (new terminal, real agent from step 9 keeps running):**
 ```bash
 cd apps/agent
 npx ts-node src/mock-agent.ts --session <YOUR_CODE> --count 10 --keep-alive
@@ -201,11 +189,11 @@ running (`--keep-alive`) — leave it. The lobby tab now shows **11 rows**
 total (1 real + 10 mock), all green "Đang kết nối",
 `Số sinh viên đã tham gia: 11 (11 đang kết nối)`.
 **If not:** any `Thất bại > 0` — check the failing agent's error code in
-the per-agent output line, same codes as step 10's "If not".
+the per-agent output line, same codes as step 9's "If not".
 
-## 12. Disconnect one agent
+## 11. Disconnect one agent
 
-**Do:** go to the real agent's terminal (step 10) and press **Ctrl+C**.
+**Do:** go to the real agent's terminal (step 9) and press **Ctrl+C**.
 **Expect:** the CLI prints a disconnect message and exits. Within ~1s the
 lobby tab flips that one row's status from green "Đang kết nối" to red
 "Mất kết nối" — **the row stays in the table**, it does not disappear.
@@ -217,11 +205,11 @@ be a real regression — the frontend is supposed to mark, never remove
 `handleAgentDisconnected`). Nothing like this was observed in the verified
 run.
 
-## 13. Tear down
+## 12. Tear down
 
 **Do:**
 ```bash
-# Ctrl+C the mock-agent terminal (step 11) — disconnects its 10 kept-alive sockets
+# Ctrl+C the mock-agent terminal (step 10) — disconnects its 10 kept-alive sockets
 # Ctrl+C the api dev / web dev terminals (steps 3-4)
 docker compose down          # or leave postgres running for next time
 ```
@@ -233,10 +221,6 @@ precedent as every earlier task's manual testing in this plan).
 
 ## Known gaps this runbook works around (not fixed by this task)
 
-- **No exam-session activation endpoint/UI** — step 8's direct SQL
-  `UPDATE` is the only way to reach `status = 'active'` today. Flagged
-  since Task 7; still open. Building a real "Bắt đầu phiên thi" action is
-  future work, not in scope for this demo plan.
 - **No self-serve account registration** — step 5's direct SQL `INSERT` is
   intentional (see README's "Getting a first admin account"), not a
   workaround for a bug.
@@ -250,3 +234,17 @@ precedent as every earlier task's manual testing in this plan).
   EADDRINUSE root cause itself (that's still an operational gotcha, not a
   bug — see step 3's "If not") but makes it, and any future startup
   failure, obvious instead of alarming.
+
+## Fixed since (follow-up, source-level)
+
+- `apps/api/src/exam-session/exam-session.service.ts`: `create()` used to
+  leave `status` unset, so it fell through to the column default
+  (`'draft'`) and a freshly-created session needed a manual SQL `UPDATE`
+  to `status = 'active'` before any agent could join it — that used to be
+  step 8 of this runbook. Fixed at the source (commit `e21238a`): `create()`
+  now explicitly sets `status: 'active'`, so a session is joinable the
+  moment it's created. Re-verified for real after the fix: created a
+  session through the real UI and joined it with the real agent CLI with
+  zero SQL run in between (see the task-9 report's follow-up section).
+  Step 8 (activation) has been removed from this runbook; steps renumbered
+  accordingly.
