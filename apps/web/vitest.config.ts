@@ -17,6 +17,8 @@ export default defineConfig({
     // this, DOM from one test in a file leaks into the next (e.g. two
     // "Lưu" buttons by the second test in account-form.test.tsx).
     globals: true,
+    // Radix UI jsdom polyfills — see the file for what and why.
+    setupFiles: ['./vitest.setup.ts'],
   },
   resolve: {
     // Vitest (unlike Next's own webpack/SWC build) doesn't read tsconfig's

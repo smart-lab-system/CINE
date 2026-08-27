@@ -257,6 +257,7 @@ export interface operations {
         parameters: {
             query: {
                 search?: string;
+                role?: "admin" | "teacher" | "super_admin" | "department_admin";
                 page: number;
                 pageSize: number;
             };

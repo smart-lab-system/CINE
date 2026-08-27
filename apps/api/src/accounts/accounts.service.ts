@@ -54,6 +54,10 @@ export class AccountsService {
       });
     }
 
+    if (query.role) {
+      qb.andWhere('a.role = :role', { role: query.role });
+    }
+
     qb.orderBy('a.created_at', 'DESC')
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize);

@@ -15,6 +15,14 @@ function fillCommonFields() {
   });
 }
 
+// Role is now a shadcn/Radix Select (was raw radio inputs) — open it via
+// its trigger (role="combobox", labelled by the "Vai trò" <Label>) and
+// pick the option by its rendered text.
+function selectRole(name: RegExp) {
+  fireEvent.click(screen.getByRole('combobox', { name: /vai trò/i }));
+  fireEvent.click(screen.getByRole('option', { name }));
+}
+
 describe('AccountForm', () => {
   it('rejects submission with an invalid email', async () => {
     const onSubmit = vi.fn();
@@ -50,7 +58,7 @@ describe('AccountForm', () => {
     render(<AccountForm onSubmit={onSubmit} />);
 
     fillCommonFields();
-    fireEvent.click(screen.getByLabelText(/quản trị/i));
+    selectRole(/quản trị/i);
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
