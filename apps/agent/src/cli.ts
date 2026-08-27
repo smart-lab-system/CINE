@@ -30,24 +30,28 @@ import process from 'node:process';
 // Client side of the WebSocket Event Contract implemented by
 // apps/api/src/exam-session/exam-session.gateway.ts. Do not rename/reshape
 // any of this without updating that file's contract comment too.
+//
+// Exported so src/mock-agent.ts can `import type` these instead of
+// re-declaring the same contract shapes — a type-only import, so it never
+// pulls in (or executes) this file's runtime code/`main()` call below.
 // ---------------------------------------------------------------------------
 
-interface AgentJoinPayload {
+export interface AgentJoinPayload {
   fullName: string;
   studentId: string;
   sessionCode: string;
 }
 
-interface AgentJoinAck {
+export interface AgentJoinAck {
   examSessionId: string;
   sessionName: string;
   requiredFiles: string[];
   endTime: string;
 }
 
-type AgentJoinErrorCode = 'SESSION_NOT_FOUND' | 'SESSION_NOT_ACTIVE' | 'INVALID_INPUT';
+export type AgentJoinErrorCode = 'SESSION_NOT_FOUND' | 'SESSION_NOT_ACTIVE' | 'INVALID_INPUT';
 
-interface AgentJoinError {
+export interface AgentJoinError {
   code: AgentJoinErrorCode;
   message: string;
 }
