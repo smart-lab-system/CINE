@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
@@ -11,6 +12,12 @@ async function bootstrap() {
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new PostgresExceptionFilter());
+  // Nest's ApplicationConfig has no default WebSocket adapter (it's `null`
+  // until set here) — without this, ExamSessionGateway ("/exam-live")
+  // throws at connection time (WebSocketsController calls
+  // `adapter.bindClientConnect` unconditionally). Verified against
+  // node_modules/@nestjs/core for this NestJS 10.4.4 install.
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   const config = new DocumentBuilder()
     .setTitle('ExamCollect API')

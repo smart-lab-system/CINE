@@ -1,19 +1,25 @@
 import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { ExamSessionService } from './exam-session.service';
 import { ExamSessionController } from './exam-session.controller';
+import { ExamSessionGateway } from './exam-session.gateway';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ExamSessionEntity, RequiredDeliverableEntity]),
+    // Registered the same way AuthModule does (JwtModule.register({}) with
+    // no default secret) — ExamSessionGateway calls jwt.verifyAsync with an
+    // explicit secret per-call, same as AuthService does.
+    JwtModule.register({}),
   ],
   controllers: [ExamSessionController],
-  providers: [ExamSessionService],
-  // Exported so Task 3's WebSocket gateway module can inject
-  // ExamSessionService (findByCode/listRequiredDeliverables) instead of
-  // writing its own TypeORM queries.
+  providers: [ExamSessionService, ExamSessionGateway],
+  // Exported so a future module can inject ExamSessionService
+  // (findByCode/listRequiredDeliverables) instead of writing its own
+  // TypeORM queries.
   exports: [ExamSessionService],
 })
 export class ExamSessionModule {}
