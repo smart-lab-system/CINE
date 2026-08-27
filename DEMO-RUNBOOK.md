@@ -114,9 +114,12 @@ different email.
 
 **Do:** open `http://localhost:3000/login`, enter the email/password from
 step 5, submit.
-**Expect:** redirected to `/accounts`; an `access_token` cookie is set
-(devtools → Application → Cookies, or just proceed — step 7 will 401
-immediately if it wasn't).
+**Expect:** redirected to `/exam-sessions/new` (the demo account from step
+5 is a `teacher`; an `admin` account instead lands on `/accounts`, the
+account-management page — see `fix/login-role-redirect`, branched off this
+one, for the role-aware redirect and why it exists). An `access_token`
+cookie is set either way (devtools → Application → Cookies, or just
+proceed — step 7 will 401 immediately if it wasn't).
 **If not:** "Sai email hoặc mật khẩu." means the hash/password don't
 match — regenerate the hash in step 5 and re-insert (or `UPDATE
 examcollect.account SET password_hash = '<new-hash>' WHERE email = '...'`).
