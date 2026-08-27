@@ -10,8 +10,10 @@ import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
+import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import {
   ExamSessionResponseDto,
+  ExamSessionListItemDto,
   RequiredDeliverableResponseDto,
 } from './dto/exam-session-response.dto';
 import {
@@ -58,6 +60,9 @@ export class ExamSessionService {
               name: dto.name,
               code,
               teacherId,
+              courseId: dto.courseId,
+              roomId: dto.roomId,
+              examType: dto.examType,
               startTime: new Date(dto.startTime),
               endTime: new Date(dto.endTime),
               // The column defaults to 'draft' — this demo's scope has no
@@ -138,6 +143,42 @@ export class ExamSessionService {
     return this.toResponseDto(session, deliverables);
   }
 
+  /**
+   * Powers the "Quản lý kỳ thi" list page — owner-scoped (only sessions
+   * this teacher created), newest first, paginated. One query with two
+   * JOINs (course, room) for the display names, not a query per row.
+   */
+  async findAllForOwner(
+    teacherId: string,
+    query: SearchExamSessionsDto,
+  ): Promise<{ items: ExamSessionListItemDto[]; total: number }> {
+    const [rows, total] = await this.sessions
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.course', 'course')
+      .leftJoinAndSelect('s.room', 'room')
+      .where('s.teacherId = :teacherId', { teacherId })
+      .orderBy('s.startTime', 'DESC')
+      .skip((query.page - 1) * query.pageSize)
+      .take(query.pageSize)
+      .getManyAndCount();
+
+    const items = rows.map((session) => {
+      const item = new ExamSessionListItemDto();
+      item.id = session.id;
+      item.name = session.name;
+      item.code = session.code;
+      item.courseName = session.course.name;
+      item.roomName = session.room.name;
+      item.examType = session.examType;
+      item.startTime = session.startTime;
+      item.endTime = session.endTime;
+      item.status = session.status;
+      return item;
+    });
+
+    return { items, total };
+  }
+
   private generateCode(): string {
     let code = '';
     for (let i = 0; i < EXAM_SESSION_CODE_LENGTH; i++) {
@@ -173,6 +214,8 @@ export class ExamSessionService {
     dto.code = session.code;
     dto.teacherId = session.teacherId;
     dto.courseId = session.courseId;
+    dto.roomId = session.roomId;
+    dto.examType = session.examType;
     dto.startTime = session.startTime;
     dto.endTime = session.endTime;
     dto.status = session.status;

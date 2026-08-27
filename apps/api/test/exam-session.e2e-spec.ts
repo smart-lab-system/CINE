@@ -17,6 +17,8 @@ describe('ExamSession (e2e)', () => {
   let dataSource: DataSource;
   let ownerToken: string;
   let otherToken: string;
+  let courseId: string;
+  let roomId: string;
 
   function futureWindow() {
     const startTime = new Date(Date.now() + 60_000).toISOString();
@@ -60,6 +62,26 @@ describe('ExamSession (e2e)', () => {
       .post('/auth/login')
       .send({ email: otherEmail, password: 'correct-horse-battery' });
     otherToken = otherLogin.body.accessToken;
+
+    // courseId/roomId/examType are required on CreateExamSessionDto as of
+    // the frontend rebuild's Phase 2 — every POST /exam-sessions below
+    // needs a real course + room to reference.
+    const [semester] = await dataSource.query(
+      `INSERT INTO examcollect.semester (name, start_date, end_date)
+       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
+      [`Test Semester ${Date.now()}`],
+    );
+    const [course] = await dataSource.query(
+      `INSERT INTO examcollect.course (code, name, semester_id)
+       VALUES ($1, 'Exam Session Test Course', $2) RETURNING id`,
+      [`ES${Date.now()}`, semester.id],
+    );
+    courseId = course.id;
+    const [room] = await dataSource.query(
+      `INSERT INTO examcollect.room (name, capacity)
+       VALUES ('Exam Session Test Room', 30) RETURNING id`,
+    );
+    roomId = room.id;
   });
 
   afterAll(async () => {
@@ -74,6 +96,9 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Happy Path Session',
+        courseId,
+        roomId,
+        examType: 'TK',
         startTime,
         endTime,
         requiredFilenames: ['Cau1.docx', 'Cau2.docx'],
@@ -92,6 +117,9 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Happy Path Session 2',
+        courseId,
+        roomId,
+        examType: 'TK',
         startTime,
         endTime,
         requiredFilenames: ['Cau1.docx'],
@@ -108,6 +136,9 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Unsafe Filename Session',
+        courseId,
+        roomId,
+        examType: 'TK',
         startTime,
         endTime,
         requiredFilenames: ['../etc/passwd'],
@@ -131,6 +162,9 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Duplicate Filename Session',
+        courseId,
+        roomId,
+        examType: 'TK',
         startTime,
         endTime,
         requiredFilenames: ['Cau1.docx', 'Cau1.docx'],
@@ -165,6 +199,9 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Ownership Check Session',
+        courseId,
+        roomId,
+        examType: 'TK',
         startTime,
         endTime,
         requiredFilenames: ['Cau1.docx'],

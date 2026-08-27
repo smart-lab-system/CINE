@@ -1,5 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 
+export type ExamType = 'TK' | 'GK' | 'CK';
+
 // Mirrors CreateExamSessionDto
 // (apps/api/src/exam-session/dto/create-exam-session.dto.ts). Hand-written
 // rather than imported from `@cine/shared`, matching how account-form.tsx
@@ -8,6 +10,9 @@ import { apiClient } from '@/lib/api-client';
 // below, so a drift here is still a compile error, just not an import one.
 export interface CreateExamSessionInput {
   name: string;
+  courseId: string;
+  roomId: string;
+  examType: ExamType;
   /** ISO 8601 (e.g. `new Date(...).toISOString()`), not a raw <input> value. */
   startTime: string;
   /** ISO 8601, must be after `startTime`. */
@@ -28,11 +33,42 @@ export interface ExamSessionResponse {
   name: string;
   code: string;
   teacherId: string;
-  courseId: string | null;
+  courseId: string;
+  roomId: string;
+  examType: ExamType;
   startTime: string;
   endTime: string;
   status: string;
   requiredDeliverables: RequiredDeliverableResponse[];
+}
+
+// Mirrors ExamSessionListItemDto — deliberately leaner than
+// ExamSessionResponse (no requiredDeliverables), matching the list
+// endpoint's own lean query.
+export interface ExamSessionListItem {
+  id: string;
+  name: string;
+  code: string;
+  courseName: string;
+  roomName: string;
+  examType: ExamType;
+  startTime: string;
+  endTime: string;
+  status: string;
+}
+
+export interface SearchExamSessionsParams {
+  page: number;
+  pageSize: number;
+}
+
+async function throwIfFailed(error: unknown, response: Response) {
+  // openapi-fetch only fills `error` from the response *body*, which some
+  // failures leave empty — key off the status too, same reasoning as
+  // apps/web/src/app/admin/accounts/page.tsx's GET /accounts call.
+  if (error || !response.ok) {
+    throw error ?? new Error(`Yêu cầu thất bại (HTTP ${response.status})`);
+  }
 }
 
 /**
@@ -46,17 +82,21 @@ export async function createExamSession(
   body: CreateExamSessionInput,
 ): Promise<ExamSessionResponse> {
   const { data, error, response } = await apiClient.POST('/exam-sessions', { body });
-  // openapi-fetch only fills `error` from the response *body*, which some
-  // failures leave empty — key off the status too, same reasoning as
-  // apps/web/src/app/admin/accounts/page.tsx's GET /accounts call.
-  if (error || !response.ok) {
-    throw error ?? new Error(`Yêu cầu thất bại (HTTP ${response.status})`);
-  }
-  // Cast needed for the same reason as the accounts page's GET /accounts
-  // cast: ExamSessionEntity.status/RequiredDeliverableEntity.deliverableType
-  // are custom string-union types with no `@ApiProperty({ enum: ... })`, so
-  // the Swagger CLI plugin generated `Record<string, never>` for them
-  // instead of a string type — a DTO-decoration gap, not a real runtime
-  // shape mismatch (the JSON body genuinely has `status: "draft"` etc.).
+  await throwIfFailed(error, response);
+  // Cast needed: ExamSessionEntity.status/examType/RequiredDeliverableEntity
+  // .deliverableType are custom string-union types with no
+  // `@ApiProperty({ enum: ... })`, so the Swagger CLI plugin generated
+  // `Record<string, never>` for them instead of a string type — a
+  // DTO-decoration gap, not a real runtime shape mismatch.
   return data as unknown as ExamSessionResponse;
+}
+
+export async function listExamSessions(
+  params: SearchExamSessionsParams,
+): Promise<{ items: ExamSessionListItem[]; total: number }> {
+  const { data, error, response } = await apiClient.GET('/exam-sessions', {
+    params: { query: params },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as { items: ExamSessionListItem[]; total: number };
 }

@@ -9,6 +9,7 @@ import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { RequiredDeliverableEntity } from '../exam-session/entities/required-deliverable.entity';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
+import { RoomEntity } from '../room/entities/room.entity';
 import { AgentConnectionEventEntity } from '../agent-connection/entities/agent-connection-event.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { RubricEntity } from '../grading/entities/rubric.entity';
@@ -40,6 +41,7 @@ export const dataSourceOptions: DataSourceOptions = {
     ClassEntity,
     ClassRosterEntity,
     EnrollmentEntity,
+    RoomEntity,
     ExamSessionEntity,
     RequiredDeliverableEntity,
     ExamMaterialEntity,

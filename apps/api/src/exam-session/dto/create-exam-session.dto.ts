@@ -2,8 +2,10 @@ import {
   ArrayMinSize,
   ArrayUnique,
   IsArray,
+  IsIn,
   IsISO8601,
   IsString,
+  IsUUID,
   Length,
   Matches,
   MaxLength,
@@ -12,6 +14,9 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
+import { ExamType } from '../entities/exam-session.entity';
+
+const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
 
 // Path-traversal defense (Task 1 review ruling, carried into this DTO):
 // only letters/digits/`_`/`-`/`.` are allowed, AND the literal substring
@@ -39,6 +44,15 @@ export class CreateExamSessionDto {
   @IsString()
   @Length(1, 200)
   name!: string;
+
+  @IsUUID()
+  courseId!: string;
+
+  @IsUUID()
+  roomId!: string;
+
+  @IsIn(EXAM_TYPES)
+  examType!: ExamType;
 
   @IsISO8601()
   startTime!: string;

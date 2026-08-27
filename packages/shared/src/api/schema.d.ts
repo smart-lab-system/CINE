@@ -102,7 +102,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["ExamSessionController_findAllForOwner"];
         put?: never;
         post: operations["ExamSessionController_create"];
         delete?: never;
@@ -119,6 +119,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["ExamSessionController_findOne"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CourseController_findAll"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["RoomController_findAll"];
         put?: never;
         post?: never;
         delete?: never;
@@ -150,6 +182,10 @@ export interface components {
         };
         CreateExamSessionDto: {
             name: string;
+            courseId: string;
+            roomId: string;
+            /** @enum {string} */
+            examType: "TK" | "GK" | "CK";
             startTime: string;
             endTime: string;
             requiredFilenames: string[];
@@ -164,13 +200,24 @@ export interface components {
             name: string;
             code: string;
             teacherId: string;
-            courseId: string | null;
+            courseId: string;
+            roomId: string;
+            examType: Record<string, never>;
             /** Format: date-time */
             startTime: string;
             /** Format: date-time */
             endTime: string;
             status: Record<string, never>;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
+        };
+        RoomEntity: {
+            name: string;
+            capacity: number | null;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
     };
     responses: never;
@@ -340,6 +387,26 @@ export interface operations {
             };
         };
     };
+    ExamSessionController_findAllForOwner: {
+        parameters: {
+            query: {
+                page: number;
+                pageSize: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ExamSessionController_create: {
         parameters: {
             query?: never;
@@ -380,6 +447,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    CourseController_findAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    RoomController_findAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomEntity"][];
                 };
             };
         };

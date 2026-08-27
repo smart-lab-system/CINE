@@ -2,6 +2,7 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { CourseEntity } from '../../course/entities/course.entity';
+import { RoomEntity } from '../../room/entities/room.entity';
 import { RubricEntity } from '../../grading/entities/rubric.entity';
 
 // CLAUDE.md doesn't enumerate ExamSession.status values explicitly (only
@@ -16,6 +17,9 @@ export type ExamSessionStatus =
   | 'active'
   | 'completed'
   | 'cancelled';
+
+// TK = Thường kỳ, GK = Giữa kỳ, CK = Cuối kỳ.
+export type ExamType = 'TK' | 'GK' | 'CK';
 
 // Authenticates joining at the COURSE level (via Enrollment), NOT hard-tied
 // to a single class/room.
@@ -32,16 +36,40 @@ export class ExamSessionEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 20 })
   code!: string;
 
-  // Nullable because the Course module doesn't exist yet — the minimal
-  // exam-session-join demo (2026-08-27) never sets this. Once Course is
-  // built for real, flip this back to NOT NULL in its own migration; not
-  // this task's job.
-  @Column({ name: 'course_id', type: 'uuid', nullable: true })
-  courseId!: string | null;
+  // Required as of the frontend rebuild's Phase 2 (Course is now a real,
+  // populated module — the earlier "Course module doesn't exist yet"
+  // nullable exception no longer applies). The migration that added this
+  // constraint backfilled every pre-existing NULL row to a seeded course
+  // before altering the column, since e2e-test-created sessions already
+  // existed with no course_id — see AddCourseRoomExamType's `up()`.
+  @Column({ name: 'course_id', type: 'uuid' })
+  courseId!: string;
 
-  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: true })
+  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: false })
   @JoinColumn({ name: 'course_id' })
-  course!: CourseEntity | null;
+  course!: CourseEntity;
+
+  // Which physical computer lab this session happens in — pure logistics
+  // metadata, NEVER part of the join/auth path (see RoomEntity's comment).
+  // Required + RESTRICT is a PROVISIONAL constraint scoped to this
+  // capstone's actual deployment (a physical lab) — not an architectural
+  // invariant the way course-level auth independence is. A future
+  // direction supporting exams with no fixed physical room would need to
+  // revisit this nullability, not the auth design.
+  @Column({ name: 'room_id', type: 'uuid' })
+  roomId!: string;
+
+  @ManyToOne(() => RoomEntity, { onDelete: 'RESTRICT', nullable: false })
+  @JoinColumn({ name: 'room_id' })
+  room!: RoomEntity;
+
+  @Column({
+    name: 'exam_type',
+    type: 'enum',
+    enum: ['TK', 'GK', 'CK'],
+    enumName: 'exam_type',
+  })
+  examType!: ExamType;
 
   @Column({ name: 'teacher_id', type: 'uuid' })
   teacherId!: string;

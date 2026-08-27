@@ -2,14 +2,20 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, FormProvider, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { TriangleAlert } from 'lucide-react';
 import { useCreateExamSession } from '@/hooks/useExamSession';
+import { useCourses } from '@/hooks/useCourses';
+import { useRooms } from '@/hooks/useRooms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import { RequiredFilenamesInput } from './_components/RequiredFilenamesInput';
 
 // Must stay byte-for-byte identical to SAFE_FILENAME_REGEX in
@@ -20,6 +26,8 @@ import { RequiredFilenamesInput } from './_components/RequiredFilenamesInput';
 // A mismatch here means the form accepts something the server 400s on.
 const SAFE_FILENAME_REGEX = /^(?!.*\.\.)[A-Za-z0-9_.-]+$/;
 
+const EXAM_TYPES = ['TK', 'GK', 'CK'] as const;
+
 const createExamSessionSchema = z
   .object({
     name: z
@@ -27,6 +35,9 @@ const createExamSessionSchema = z
       .trim()
       .min(1, 'Vui lòng nhập tên phiên thi')
       .max(200, 'Tên phiên thi tối đa 200 ký tự'),
+    courseId: z.string().uuid('Vui lòng chọn môn thi'),
+    roomId: z.string().uuid('Vui lòng chọn phòng thi'),
+    examType: z.enum(EXAM_TYPES, { message: 'Vui lòng chọn loại kỳ thi' }),
     // Bound to <input type="datetime-local">, so this is the browser's
     // "YYYY-MM-DDTHH:mm" local-time string, not ISO 8601 yet — converted to
     // a real ISO string in onSubmit before it reaches the API (the backend's
@@ -98,28 +109,53 @@ const createExamSessionSchema = z
 
 export type CreateExamSessionFormValues = z.infer<typeof createExamSessionSchema>;
 
-// Moved from app/(exam-live)/exam-sessions/new (Phase 0 route rename — see
-// design spec). Course/Room/Exam-type fields (P3) land in Phase 2 once
-// GET /courses and GET /rooms exist; this page's content is otherwise
-// unchanged from before the move.
+// Moved from app/(exam-live)/exam-sessions/new (Phase 0 route rename). P3
+// fields (Course/Room/Exam-type) added in Phase 2 once GET /courses and
+// GET /rooms existed.
 export default function NewExamSessionPage() {
   const createExamSession = useCreateExamSession();
+  const courses = useCourses();
+  const rooms = useRooms();
   const [created, setCreated] = useState<{ id: string; code: string } | null>(null);
 
   const form = useForm<CreateExamSessionFormValues>({
     resolver: zodResolver(createExamSessionSchema),
     defaultValues: {
       name: '',
+      courseId: '',
+      roomId: '',
+      // Empty-string sentinel for "not yet chosen" (same as courseId/
+      // roomId above), even though it's outside the Zod enum's real
+      // output type — the resolver still rejects submit until the user
+      // consciously picks one; this cast only tells RHF what shape the
+      // default *starts* as.
+      examType: '' as CreateExamSessionFormValues['examType'],
       startTime: '',
       endTime: '',
       requiredFilenames: [{ value: '' }],
     },
   });
 
+  const selectedCourse = courses.data?.find((c) => c.id === form.watch('courseId'));
+  const selectedRoom = rooms.data?.find((r) => r.id === form.watch('roomId'));
+  // Non-blocking on purpose (see RoomEntity.capacity's own comment) —
+  // teachers may have valid reasons for a mismatch (partial class
+  // attendance, overflow handled elsewhere).
+  const capacityWarning =
+    selectedCourse &&
+    selectedRoom &&
+    selectedRoom.capacity !== null &&
+    selectedRoom.capacity < selectedCourse.enrollmentCount
+      ? `Phòng "${selectedRoom.name}" có sức chứa ${selectedRoom.capacity} máy nhưng lớp "${selectedCourse.name}" có ${selectedCourse.enrollmentCount} sinh viên.`
+      : null;
+
   function onSubmit(values: CreateExamSessionFormValues) {
     createExamSession.mutate(
       {
         name: values.name,
+        courseId: values.courseId,
+        roomId: values.roomId,
+        examType: values.examType,
         startTime: new Date(values.startTime).toISOString(),
         endTime: new Date(values.endTime).toISOString(),
         requiredFilenames: values.requiredFilenames.map((filename) => filename.value),
@@ -176,6 +212,95 @@ export default function NewExamSessionPage() {
                 {form.formState.errors.name && (
                   <p role="alert" className="text-sm text-destructive">
                     {form.formState.errors.name.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="exam-session-course">Môn thi</Label>
+                <Controller
+                  control={form.control}
+                  name="courseId"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="exam-session-course">
+                        <SelectValue placeholder="Chọn môn thi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {courses.data?.map((course) => (
+                          <SelectItem key={course.id} value={course.id}>
+                            {course.code} — {course.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {form.formState.errors.courseId && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {form.formState.errors.courseId.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="exam-session-room">Phòng thi</Label>
+                <Controller
+                  control={form.control}
+                  name="roomId"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="exam-session-room">
+                        <SelectValue placeholder="Chọn phòng thi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {rooms.data?.map((room) => (
+                          <SelectItem key={room.id} value={room.id}>
+                            {room.name}
+                            {room.capacity !== null ? ` (${room.capacity} máy)` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {form.formState.errors.roomId && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {form.formState.errors.roomId.message}
+                  </p>
+                )}
+              </div>
+
+              {capacityWarning && (
+                <Alert variant="warning">
+                  <TriangleAlert />
+                  <AlertDescription>{capacityWarning}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="exam-session-type">Loại kỳ thi</Label>
+                <Controller
+                  control={form.control}
+                  name="examType"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="exam-session-type">
+                        <SelectValue placeholder="Chọn loại kỳ thi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EXAM_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {EXAM_TYPE_LABELS[type]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {form.formState.errors.examType && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {form.formState.errors.examType.message}
                   </p>
                 )}
               </div>

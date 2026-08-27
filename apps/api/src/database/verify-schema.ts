@@ -8,6 +8,7 @@ const EXPECTED_TABLES = [
   'class',
   'class_roster',
   'enrollment',
+  'room',
   'rubric',
   'rubric_criterion',
   'exam_session',
