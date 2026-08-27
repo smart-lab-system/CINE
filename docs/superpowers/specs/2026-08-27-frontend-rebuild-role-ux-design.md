@@ -127,10 +127,16 @@ app/
 ```
 
 `components/layout/app-shell.tsx`: one shared component (Sidebar + Topbar +
-`QueryClientProvider` + `Toaster`), takes `role` and a `nav` items array as
-props. Both `admin/layout.tsx` and `teacher/layout.tsx` are a few lines each,
-just wiring their own nav array in. Sidebar collapses on small screens via a
-shadcn `Sheet`; no animation library, Tailwind transitions only.
+`QueryClientProvider` + `Toaster`), takes a `role: 'admin' | 'teacher'` prop
+and resolves its own nav array (`ADMIN_NAV`/`TEACHER_NAV`) internally —
+*not* a `nav` items array passed in from the layout. `admin/layout.tsx` and
+`teacher/layout.tsx` are Server Components; `AppShell` is a Client
+Component, and `NavItem`'s `icon` field is a Lucide *component reference*
+(a function), which React Server Components cannot serialize across that
+boundary as a prop. Passing only the plain `role` string and resolving nav
+config inside the Client Component avoids that entirely. Sidebar collapses
+on small screens via a shadcn `Sheet`; no animation library, Tailwind
+transitions only.
 
 ### Route protection (2 layers, unchanged principle from the master brief)
 

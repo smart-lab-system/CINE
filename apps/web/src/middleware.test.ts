@@ -72,4 +72,19 @@ describe('middleware', () => {
     const response = middleware(makeRequest('/admin/dashboard', 'not-a-jwt'));
     expect(response.status).not.toBe(307);
   });
+
+  it('redirects "/" to the role-appropriate dashboard instead of 404ing', () => {
+    const response = middleware(makeRequest('/', fakeToken({ role: 'teacher' })));
+    expect(new URL(response.headers.get('location')!).pathname).toBe('/teacher/dashboard');
+  });
+
+  it('does not treat a same-prefix-but-different route as the admin area', () => {
+    // "/administrator" starts with "/admin" as a string, but is not under
+    // the /admin/* segment — a plain startsWith('/admin') would wrongly
+    // redirect a teacher away from it.
+    const response = middleware(
+      makeRequest('/administrator', fakeToken({ role: 'teacher' })),
+    );
+    expect(response.status).not.toBe(307);
+  });
 });

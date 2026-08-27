@@ -15,6 +15,13 @@ export function isProtectedPath(pathname: string): boolean {
   );
 }
 
+// Exact-or-segment match only — `/admin`/`/admin/...` matches, a
+// hypothetical future `/administrator` route would not (plain
+// `startsWith('/admin')` would wrongly treat it as the same area).
+function isUnderSegment(pathname: string, segment: string): boolean {
+  return pathname === segment || pathname.startsWith(`${segment}/`);
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -36,13 +43,24 @@ export function middleware(request: NextRequest) {
   // that token will simply 401 against the API, same as before this
   // middleware existed, and the page-level error states already handle it.
   const role = decodeAccessTokenRole(accessToken.value);
+  const isAdminRole = role !== null && ADMIN_ROLES.has(role);
+  const homeHref = isAdminRole ? '/admin/dashboard' : '/teacher/dashboard';
+
+  // There's no page at "/" — send a logged-in visitor straight to their
+  // dashboard instead of a 404. Only applies with a decodable role; an
+  // undecodable token falls through to isProtectedPath's normal handling
+  // below (untouched, not a 404 risk since "/" isn't a real route either
+  // way).
+  if (pathname === '/' && role) {
+    return NextResponse.redirect(new URL(homeHref, request.url));
+  }
+
   if (role) {
-    const isAdminRole = ADMIN_ROLES.has(role);
-    if (pathname.startsWith('/admin') && !isAdminRole) {
-      return NextResponse.redirect(new URL('/teacher/dashboard', request.url));
+    if (isUnderSegment(pathname, '/admin') && !isAdminRole) {
+      return NextResponse.redirect(new URL(homeHref, request.url));
     }
-    if (pathname.startsWith('/teacher') && isAdminRole) {
-      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    if (isUnderSegment(pathname, '/teacher') && isAdminRole) {
+      return NextResponse.redirect(new URL(homeHref, request.url));
     }
   }
 

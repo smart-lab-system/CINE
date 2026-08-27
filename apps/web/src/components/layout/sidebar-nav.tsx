@@ -17,17 +17,21 @@ interface SidebarNavProps {
 export function SidebarNav({ items, onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
 
+  // Exactly one nav item is ever active, even when several hrefs match the
+  // current path (e.g. at /teacher/exam-sessions/new, both
+  // "/teacher/exam-sessions" and "/teacher/exam-sessions/new" match) — the
+  // longest/most-specific href wins, so only "Tạo phiên thi" highlights,
+  // not both it and "Quản lý kỳ thi" at once.
+  const activeHref = items.reduce<string | null>((best, item) => {
+    const matches = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    if (!matches) return best;
+    return best === null || item.href.length > best.length ? item.href : best;
+  }, null);
+
   return (
     <nav className="flex flex-col gap-1 p-3" aria-label="Điều hướng chính">
       {items.map((item) => {
-        // Dashboard's own href would otherwise prefix-match every other
-        // route under the same role root (e.g. "/teacher" prefixes
-        // "/teacher/exam-sessions") — exact match only for it, prefix match
-        // for the rest so a detail route (e.g. "/teacher/exam-sessions/new")
-        // still highlights its parent nav item.
-        const isActive =
-          pathname === item.href ||
-          (item.href.split('/').length > 2 && pathname.startsWith(`${item.href}/`));
+        const isActive = item.href === activeHref;
         const Icon = item.icon;
 
         return (

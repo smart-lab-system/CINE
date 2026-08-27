@@ -49,6 +49,11 @@ export function AppShell({ role, children }: AppShellProps) {
   // layouts already documented).
   const [queryClient] = useState(() => new QueryClient());
   const account = useCurrentAccount();
+  // admin/layout.tsx and teacher/layout.tsx stay mounted across child-page
+  // navigations (that's how App Router layouts work), so without this the
+  // mobile Sheet would stay open after tapping a nav link — the user would
+  // have to close it by hand every time.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -65,7 +70,7 @@ export function AppShell({ role, children }: AppShellProps) {
         <div className="flex min-h-screen flex-1 flex-col">
           <header className="sticky top-0 z-40 flex items-center justify-between gap-4 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:px-8">
             <div className="flex items-center gap-2 md:hidden">
-              <Sheet>
+              <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
                 <SheetTrigger asChild>
                   <Button type="button" variant="outline" size="sm" aria-label="Mở menu điều hướng">
                     <Menu className="h-4 w-4" />
@@ -75,7 +80,7 @@ export function AppShell({ role, children }: AppShellProps) {
                   <SheetHeader className="px-4 py-4">
                     <SheetTitle>ExamCollect</SheetTitle>
                   </SheetHeader>
-                  <SidebarNav items={nav} />
+                  <SidebarNav items={nav} onNavigate={() => setMobileNavOpen(false)} />
                 </SheetContent>
               </Sheet>
             </div>
