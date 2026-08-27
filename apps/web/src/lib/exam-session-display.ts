@@ -24,3 +24,37 @@ export const EXAM_SESSION_STATUS_BADGE_VARIANT: Record<
   completed: 'accent',
   cancelled: 'destructive',
 };
+
+/**
+ * `ExamSessionEntity.status` has no real lifecycle transitions implemented
+ * anywhere in the backend yet (see that entity's own comment) — `create()`
+ * hardcodes every session to `'active'` and nothing ever flips it to
+ * `'completed'` once `endTime` passes. Displaying the raw column as-is
+ * would show "Đang diễn ra" forever, even for a session that ended days
+ * ago — misleading, not just stale.
+ *
+ * This derives what to actually show from the session's real time window,
+ * for `'active'` rows only — `'draft'`/`'cancelled'` are explicit teacher
+ * decisions a clock should never override, so those still render as-is via
+ * EXAM_SESSION_STATUS_LABELS/_BADGE_VARIANT above. `'scheduled'`/
+ * `'completed'` are included too, on the chance the backend ever starts
+ * setting them for real.
+ */
+export function getDisplaySessionStatus(
+  status: string,
+  startTime: string,
+  endTime: string,
+): { label: string; variant: NonNullable<BadgeProps['variant']> } {
+  if (status === 'active') {
+    const now = Date.now();
+    const start = new Date(startTime).getTime();
+    const end = new Date(endTime).getTime();
+    if (now < start) return { label: 'Sắp diễn ra', variant: 'info' };
+    if (now > end) return { label: 'Đã kết thúc', variant: 'accent' };
+    return { label: 'Đang diễn ra', variant: 'success' };
+  }
+  return {
+    label: EXAM_SESSION_STATUS_LABELS[status] ?? status,
+    variant: EXAM_SESSION_STATUS_BADGE_VARIANT[status] ?? 'default',
+  };
+}

@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CalendarClock, Plus } from 'lucide-react';
+import { toast } from 'sonner';
+import { CalendarClock, Copy, Plus } from 'lucide-react';
 import { useExamSessions } from '@/hooks/useExamSession';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,11 +18,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  EXAM_SESSION_STATUS_BADGE_VARIANT,
-  EXAM_SESSION_STATUS_LABELS,
-  EXAM_TYPE_LABELS,
-} from '@/lib/exam-session-display';
+import { EXAM_TYPE_LABELS, getDisplaySessionStatus } from '@/lib/exam-session-display';
+
+async function copySessionCode(code: string) {
+  try {
+    await navigator.clipboard.writeText(code);
+    toast.success(`Đã sao chép mã "${code}"`);
+  } catch {
+    // Clipboard access can be denied (permissions, non-HTTPS context) —
+    // the code is still right there in the table for the teacher to read
+    // out loud, so this is a degraded-but-usable failure, not a dead end.
+    toast.error('Không sao chép được — hãy đọc mã trực tiếp cho sinh viên.');
+  }
+}
 
 const PAGE_SIZE = 20;
 
@@ -96,6 +105,7 @@ export default function ExamSessionsListPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Tên phiên thi</TableHead>
+                  <TableHead>Mã phiên thi</TableHead>
                   <TableHead>Môn thi</TableHead>
                   <TableHead>Phòng</TableHead>
                   <TableHead>Loại</TableHead>
@@ -105,27 +115,43 @@ export default function ExamSessionsListPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data?.items.map((session) => (
-                  <TableRow key={session.id}>
-                    <TableCell className="font-medium">{session.name}</TableCell>
-                    <TableCell>{session.courseName}</TableCell>
-                    <TableCell>{session.roomName}</TableCell>
-                    <TableCell>{EXAM_TYPE_LABELS[session.examType] ?? session.examType}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatDateTime(session.startTime)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={EXAM_SESSION_STATUS_BADGE_VARIANT[session.status] ?? 'default'}>
-                        {EXAM_SESSION_STATUS_LABELS[session.status] ?? session.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button asChild type="button" variant="outline" size="sm">
-                        <Link href={`/exam-sessions/${session.id}`}>Vào phòng chờ</Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {data?.items.map((session) => {
+                  const displayStatus = getDisplaySessionStatus(
+                    session.status,
+                    session.startTime,
+                    session.endTime,
+                  );
+                  return (
+                    <TableRow key={session.id}>
+                      <TableCell className="font-medium">{session.name}</TableCell>
+                      <TableCell>
+                        <button
+                          type="button"
+                          onClick={() => copySessionCode(session.code)}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-input px-2 py-1 font-mono text-sm tracking-wider transition-colors hover:bg-secondary"
+                          title="Sao chép mã phiên thi để gửi cho sinh viên"
+                        >
+                          {session.code}
+                          <Copy className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                        </button>
+                      </TableCell>
+                      <TableCell>{session.courseName}</TableCell>
+                      <TableCell>{session.roomName}</TableCell>
+                      <TableCell>{EXAM_TYPE_LABELS[session.examType] ?? session.examType}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDateTime(session.startTime)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button asChild type="button" variant="outline" size="sm">
+                          <Link href={`/exam-sessions/${session.id}`}>Vào phòng chờ</Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </Card>
