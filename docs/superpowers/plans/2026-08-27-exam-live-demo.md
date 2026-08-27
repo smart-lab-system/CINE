@@ -193,6 +193,30 @@ Broadcast mỗi khi 1 agent join thành công vào đúng phiên thi đó.
 { studentId: string; disconnectedAt: string; }
 ```
 
+**Event: `teacher:subscribe:error` (Server → giáo viên, khi subscribe thất
+bại) — bổ sung sau khi Task 3 phát hiện gap: bản gốc của contract không
+định nghĩa lỗi cho `teacher:subscribe`, khiến JWT hết hạn/sai chủ
+phiên/session không tồn tại đều "fail im lặng", frontend (Task 6) không
+có cách phân biệt "đang chờ sinh viên join" với "subscribe thất bại".
+Ruling (controller, sau khi Task 3 báo DONE_WITH_CONCERNS): thêm event
+này, KHÔNG đổi lại 6 event đã định nghĩa ở trên.**
+
+```ts
+{
+  code: 'UNAUTHORIZED' | 'SESSION_NOT_FOUND' | 'FORBIDDEN';
+  message: string;
+}
+```
+
+- `UNAUTHORIZED`: cookie `access_token` thiếu, hết hạn, hoặc verify JWT
+  thất bại.
+- `SESSION_NOT_FOUND`: `examSessionId` không tồn tại.
+- `FORBIDDEN`: JWT hợp lệ nhưng không phải chủ phiên thi
+  (`teacher_id !== payload.sub`).
+
+Task 6 (frontend lobby, dispatch sau) PHẢI lắng nghe event này và hiển
+thị lỗi rõ ràng cho giáo viên thay vì để trang treo im lặng.
+
 ---
 
 ## Task 0 — Xác minh môi trường & scaffold hiện có
@@ -535,7 +559,11 @@ Việc cần làm:
 - Trang lobby: `useEffect` emit `teacher:subscribe` với `examSessionId` từ
   URL param, lắng nghe `lobby:student_joined` và `agent:disconnected`,
   cập nhật state danh sách sinh viên (`useState`, trừ khi repo đã có sẵn
-  pattern state management khác — xác nhận ở Task 0).
+  pattern state management khác — xác nhận ở Task 0). **Bắt buộc lắng
+  nghe thêm `teacher:subscribe:error`** (bổ sung vào contract sau Task
+  3 — xem Global Constraints) và hiển thị lỗi rõ ràng (`role="alert"`)
+  thay vì để trang trông như "chưa có ai join" khi thực ra subscribe đã
+  thất bại (JWT hết hạn/không phải chủ phiên/session không tồn tại).
 - Cleanup: `useEffect` return function phải `socket.off(...)` đúng
   listener khi unmount — tránh listener bị đăng ký trùng khi component
   re-render.
