@@ -98,6 +98,10 @@ const createExamSessionSchema = z
 
 export type CreateExamSessionFormValues = z.infer<typeof createExamSessionSchema>;
 
+// Moved from app/(exam-live)/exam-sessions/new (Phase 0 route rename — see
+// design spec). Course/Room/Exam-type fields (P3) land in Phase 2 once
+// GET /courses and GET /rooms exist; this page's content is otherwise
+// unchanged from before the move.
 export default function NewExamSessionPage() {
   const createExamSession = useCreateExamSession();
   const [created, setCreated] = useState<{ id: string; code: string } | null>(null);
@@ -128,7 +132,7 @@ export default function NewExamSessionPage() {
 
   if (created) {
     return (
-      <main className="mx-auto flex w-full max-w-xl flex-col items-center gap-6 p-8">
+      <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-6">
         {/* Every error path above uses role="alert" — this is the equivalent
             for the success outcome (a11y requirement in the plan's Global
             Constraints applies to loading/error states; extended here to
@@ -154,13 +158,13 @@ export default function NewExamSessionPage() {
             </Link>
           </CardContent>
         </Card>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-col gap-6 p-8">
-      <h1 className="text-2xl font-semibold">Tạo phiên thi mới</h1>
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
+      <h1 className="font-display text-2xl font-bold">Tạo phiên thi mới</h1>
 
       <FormProvider {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
@@ -226,6 +230,6 @@ export default function NewExamSessionPage() {
           </Button>
         </form>
       </FormProvider>
-    </main>
+    </div>
   );
 }

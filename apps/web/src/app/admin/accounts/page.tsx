@@ -35,9 +35,14 @@ interface AccountRow {
 
 const columnHelper = createColumnHelper<AccountRow>();
 
-// The QueryClientProvider lives in (dashboard)/layout.tsx so every dashboard
-// page shares one client — and so it's never constructed at module scope,
-// which on the server would share a single cache across unrelated requests.
+// Moved from app/(dashboard)/accounts (Phase 0 route rename — see design
+// spec's "Routes & AppShell" section). Content is otherwise unchanged from
+// before the move: the list/create split, hooks/useAccounts.ts +
+// lib/api/accounts.ts layer fix, and Dialog-based create flow are Phase 1
+// work, not this one.
+//
+// The QueryClientProvider lives in admin/layout.tsx (via AppShell) so
+// every admin page shares one client.
 export default function AccountsPage() {
   const [search, setSearch] = useState('');
   const [editingAccount, setEditingAccount] = useState<AccountRow | null>(null);
@@ -143,8 +148,8 @@ export default function AccountsPage() {
   });
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-8">
-      <h1 className="text-2xl font-semibold">Quản lý tài khoản</h1>
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+      <h1 className="font-display text-2xl font-bold">Quản lý tài khoản</h1>
 
       <Input
         placeholder="Tìm kiếm..."
@@ -232,6 +237,6 @@ export default function AccountsPage() {
             </CardContent>
           </Card>
         ))}
-    </main>
+    </div>
   );
 }

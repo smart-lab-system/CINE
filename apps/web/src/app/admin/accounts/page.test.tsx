@@ -15,8 +15,8 @@ vi.mock('@/lib/api-client', () => ({
 }));
 
 function renderPage() {
-  // The real provider lives in (dashboard)/layout.tsx; retries off so a
-  // failing query settles on the first attempt.
+  // The real provider lives in admin/layout.tsx (via AppShell); retries off
+  // so a failing query settles on the first attempt.
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });

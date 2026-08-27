@@ -31,6 +31,17 @@ export async function POST(request: NextRequest) {
     path: '/',
     maxAge: 60 * 60 * 24 * 7,
   });
+  // Deliberately NOT httpOnly and NOT used for any auth/authorization
+  // decision (middleware decodes the real access_token JWT for that, see
+  // lib/jwt.ts) — this only lets client components (AppShell's Topbar)
+  // display "who's logged in" without an extra fetch roundtrip. Same
+  // 15-minute lifetime as access_token so it doesn't outlive the session it
+  // describes.
+  response.cookies.set(
+    'account',
+    JSON.stringify({ name: account.name, email: account.email, role: account.role }),
+    { httpOnly: false, sameSite: 'lax', path: '/', maxAge: 60 * 15 },
+  );
 
   return response;
 }

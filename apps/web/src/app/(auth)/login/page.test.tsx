@@ -27,9 +27,11 @@ afterEach(() => {
 // login used to send every role to /accounts, which is admin-only
 // server-side (AccountsController's @Roles('admin')) — a teacher landed
 // there anyway and saw a 403'd table sitting above a still-live "Tạo tài
-// khoản mới" form with no explanation.
+// khoản mới" form with no explanation. Destinations updated for the
+// role-scoped route rename (/admin/*, /teacher/*) — see the frontend
+// rebuild design spec.
 describe('LoginPage redirect', () => {
-  it('sends a teacher to the exam-session creation page, not the admin accounts page', async () => {
+  it('sends a teacher to their dashboard, not the admin area', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({ account: { id: '1', role: 'teacher' } }),
@@ -40,10 +42,10 @@ describe('LoginPage redirect', () => {
     render(<LoginPage />);
     submit();
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/exam-sessions/new'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/teacher/dashboard'));
   });
 
-  it('sends an admin to the accounts page', async () => {
+  it('sends an admin to the admin dashboard', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({ account: { id: '2', role: 'admin' } }),
@@ -54,10 +56,10 @@ describe('LoginPage redirect', () => {
     render(<LoginPage />);
     submit();
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/accounts'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/admin/dashboard'));
   });
 
-  it('falls back to the accounts page when the response body has no usable role', async () => {
+  it('falls back to the admin dashboard when the response body has no usable role', async () => {
     // Same safe default as before this fix, for a shape the client didn't
     // expect (rather than crashing on `body.account.role`).
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
@@ -67,7 +69,7 @@ describe('LoginPage redirect', () => {
     render(<LoginPage />);
     submit();
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/accounts'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/admin/dashboard'));
   });
 
   it('shows an error and does not redirect on invalid credentials', async () => {

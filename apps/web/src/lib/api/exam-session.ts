@@ -48,7 +48,7 @@ export async function createExamSession(
   const { data, error, response } = await apiClient.POST('/exam-sessions', { body });
   // openapi-fetch only fills `error` from the response *body*, which some
   // failures leave empty — key off the status too, same reasoning as
-  // apps/web/src/app/(dashboard)/accounts/page.tsx's GET /accounts call.
+  // apps/web/src/app/admin/accounts/page.tsx's GET /accounts call.
   if (error || !response.ok) {
     throw error ?? new Error(`Yêu cầu thất bại (HTTP ${response.status})`);
   }

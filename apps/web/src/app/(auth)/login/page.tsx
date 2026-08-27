@@ -32,12 +32,15 @@ export default function LoginPage() {
 
     // The route handler already echoes back the logged-in account (see
     // api/auth/login/route.ts) — read its role instead of sending every
-    // role to /accounts, which is admin-only server-side
+    // role to /admin/*, which is admin-only server-side
     // (AccountsController's @Roles('admin')) and used to 403 for teachers
-    // who landed there anyway with no visible explanation.
+    // who landed there anyway with no visible explanation. This is a
+    // convenience default, not the security boundary — middleware.ts
+    // re-checks role from the JWT on every navigation regardless of what
+    // this push() targets.
     const body = await response.json().catch(() => null);
     const role = body?.account?.role;
-    router.push(role === 'teacher' ? '/exam-sessions/new' : '/accounts');
+    router.push(role === 'teacher' ? '/teacher/dashboard' : '/admin/dashboard');
   }
 
   return (
