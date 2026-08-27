@@ -54,8 +54,22 @@ interface TeacherSubscribeError {
   message: string;
 }
 
-function examSessionRoom(examSessionId: string): string {
-  return `exam-session:${examSessionId}`;
+// Teacher-only broadcast room. Deliberately NOT shared with agents: an
+// agent only needs the (public, session-code-gated) `sessionCode` to open
+// a socket and `agent:join` — there is no authentication step for it at
+// all. Before this fix, agents and teachers joined the SAME room
+// (`exam-session:{id}`), so any unauthenticated agent socket that chose to
+// listen for `lobby:student_joined`/`agent:disconnected` would silently
+// receive every other student's `{studentId, fullName, joinedAt}` as they
+// joined — real classmate PII leaked to an unauthenticated peer holding
+// only the projector-displayed code. `lobby:student_joined` and
+// `agent:disconnected` broadcast ONLY to this room now; agents are never
+// members of it (see handleAgentJoin — it no longer calls `client.join`
+// at all, since nothing in this plan needs server -> agent push yet; if a
+// future feature does, give agents their own, differently-named room,
+// never this one).
+function teacherRoom(examSessionId: string): string {
+  return `exam-session:${examSessionId}:teachers`;
 }
 
 // Agent always connects OUT to this server (never the reverse) — the
@@ -121,6 +135,22 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
       return;
     }
 
+    // Idempotency guard (deferred Minor from an earlier review, bundled
+    // into this fix): a socket that already completed `agent:join` once
+    // has `client.data.examSessionId` set. Letting a second `agent:join`
+    // through would overwrite `client.data.studentId`/`examSessionId` —
+    // desyncing handleDisconnect's broadcast target from reality — and
+    // would re-broadcast a duplicate `lobby:student_joined` for a student
+    // already showing in the lobby. None of the contract's 3 error codes
+    // fit "already joined", so this is intentionally silent (ignored, not
+    // errored) rather than inventing a 4th code for it.
+    if (client.data.examSessionId) {
+      this.logger.debug(
+        `agent:join ignored: socket ${client.id} already joined session ${client.data.examSessionId as string}`,
+      );
+      return;
+    }
+
     // `plainToInstance`/`validate()` assume an object to walk — a
     // string/number/array/null payload (`socket.emit('agent:join',
     // 'foo')`) isn't one, and `validate()` throws a raw TypeError on it
@@ -171,12 +201,12 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
     const deliverables = await this.examSessions.listRequiredDeliverables(session.id);
 
     // Stashed on the socket for handleDisconnect — a disconnecting socket
-    // has no other way to know which room/student it was.
+    // has no other way to know which room/student it was. Note: the agent
+    // socket itself never joins any room (see teacherRoom's doc comment) —
+    // `client.data` is enough for handleDisconnect to know which teacher
+    // room to broadcast `agent:disconnected` to.
     client.data.studentId = dto.studentId;
     client.data.examSessionId = session.id;
-
-    const room = examSessionRoom(session.id);
-    await client.join(room);
 
     const ack: AgentJoinAck = {
       examSessionId: session.id,
@@ -186,14 +216,17 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
     };
     client.emit('agent:join:ack', ack);
 
-    // Broadcast to the room WITHOUT echoing back to the agent that just
-    // joined — `client.to(room)`, never `this.server.to(room)`.
+    // Broadcast to the teacher room only. Agents are never members of any
+    // room (see teacherRoom's doc comment), so this can never echo back to
+    // the joining agent regardless of `client.to` vs `this.server.to` —
+    // `client.to` is kept anyway since it costs nothing and matches the
+    // "don't echo to sender" intent explicitly.
     const joined: LobbyStudentJoined = {
       studentId: dto.studentId,
       fullName: dto.fullName,
       joinedAt: new Date().toISOString(),
     };
-    client.to(room).emit('lobby:student_joined', joined);
+    client.to(teacherRoom(session.id)).emit('lobby:student_joined', joined);
   }
 
   /**
@@ -286,7 +319,7 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
       return;
     }
 
-    await client.join(examSessionRoom(examSessionId));
+    await client.join(teacherRoom(examSessionId));
   }
 
   /**
@@ -312,7 +345,7 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
       studentId,
       disconnectedAt: new Date().toISOString(),
     };
-    this.server.to(examSessionRoom(examSessionId)).emit('agent:disconnected', disconnected);
+    this.server.to(teacherRoom(examSessionId)).emit('agent:disconnected', disconnected);
   }
 
   /**
