@@ -94,6 +94,22 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: AgentJoinDto,
   ): Promise<void> {
+    // `plainToInstance`/`validate()` assume an object to walk — a
+    // string/number/array/null payload (`socket.emit('agent:join',
+    // 'foo')`) isn't one, and `validate()` throws a raw TypeError on it
+    // instead of returning validation errors, which would otherwise
+    // surface as Nest's generic internal-error event instead of the
+    // contracted `agent:join:error`/`INVALID_INPUT`. Reject it here,
+    // before either call.
+    if (!this.isPlainObject(body)) {
+      this.emitJoinError(
+        client,
+        'INVALID_INPUT',
+        'fullName, studentId, and sessionCode are required and must be within length limits.',
+      );
+      return;
+    }
+
     const dto = plainToInstance(AgentJoinDto, body ?? {});
     const errors = await validate(dto);
     if (errors.length > 0) {
@@ -168,6 +184,16 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: TeacherSubscribeDto,
   ): Promise<void> {
+    // Same non-object guard as handleAgentJoin — a string/number/array/
+    // null payload would otherwise reach `plainToInstance`/`validate()`
+    // and throw a raw TypeError before the `teacher:subscribe:error`
+    // path below ever runs.
+    if (!this.isPlainObject(body)) {
+      this.logger.warn(`teacher:subscribe rejected: non-object payload from ${client.id}`);
+      this.emitSubscribeError(client, 'SESSION_NOT_FOUND', 'No exam session matches this id.');
+      return;
+    }
+
     const dto = plainToInstance(TeacherSubscribeDto, body ?? {});
     const errors = await validate(dto);
     if (errors.length > 0) {
@@ -264,6 +290,15 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
   private emitSubscribeError(client: Socket, code: TeacherSubscribeErrorCode, message: string): void {
     const error: TeacherSubscribeError = { code, message };
     client.emit('teacher:subscribe:error', error);
+  }
+
+  // `plainToInstance` + `validate()` both assume a plain object to walk
+  // property-by-property — a string/number/array/null "payload" isn't
+  // one, and `class-validator`'s `validate()` throws a raw TypeError on
+  // those instead of returning validation errors. Guard against that
+  // shape *before* either call, not after.
+  private isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
   // Cookie header comes across as one raw string, e.g.
