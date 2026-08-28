@@ -3,8 +3,21 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { socket } from '@/lib/socket';
+import { useExamSessionDetail } from '@/hooks/useExamSession';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getDisplaySessionStatus } from '@/lib/exam-session-display';
 import { LobbyList, type LobbyStudent } from './_components/LobbyList';
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 // Server -> Client payloads, per the WebSocket Event Contract
 // (apps/api/src/exam-session/exam-session.gateway.ts). Kept local to this
@@ -41,6 +54,23 @@ const SUBSCRIBE_ERROR_MESSAGES: Record<TeacherSubscribeErrorCode, string> = {
 export default function ExamSessionLobbyPage() {
   const params = useParams<{ id: string }>();
   const examSessionId = params.id;
+
+  // Read-only metadata (name/start/end/status) via REST — separate from
+  // the live roster below, which only ever comes from the WebSocket.
+  // `agent:join` already independently re-derives the real time window
+  // server-side (ExamSessionGateway — a stale/forever-'active' status
+  // column can never let a late agent actually join), but this page had
+  // no way to tell the *teacher* the session was over, so a lobby for an
+  // exam that ended yesterday looked identical to a live one waiting for
+  // students — reported directly against the live app.
+  const sessionDetail = useExamSessionDetail(examSessionId);
+  const displayStatus = sessionDetail.data
+    ? getDisplaySessionStatus(
+        sessionDetail.data.status,
+        sessionDetail.data.startTime,
+        sessionDetail.data.endTime,
+      )
+    : null;
 
   const [students, setStudents] = useState<LobbyStudent[]>([]);
   const [subscribeError, setSubscribeError] = useState<TeacherSubscribeErrorPayload | null>(
@@ -140,6 +170,25 @@ export default function ExamSessionLobbyPage() {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-8">
       <h1 className="text-2xl font-semibold">Phòng chờ phiên thi</h1>
+
+      {displayStatus && displayStatus.label !== 'Đang diễn ra' && (
+        <Alert variant={displayStatus.label === 'Đã kết thúc' ? 'warning' : 'info'}>
+          <AlertDescription>
+            {displayStatus.label === 'Đã kết thúc' ? (
+              <>
+                Kỳ thi này đã kết thúc lúc {formatDateTime(sessionDetail.data!.endTime)}. Đây là
+                chế độ xem lại — sinh viên không thể tham gia mới (máy chủ đã tự chặn ở bước
+                kết nối, kể cả khi còn nhớ mã phiên thi).
+              </>
+            ) : (
+              <>
+                Kỳ thi này chưa bắt đầu — sẽ mở lúc {formatDateTime(sessionDetail.data!.startTime)}.
+                Sinh viên chưa thể tham gia trước thời điểm đó.
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {subscribeError ? (
         // A distinct, visible failure state — role="alert" + destructive

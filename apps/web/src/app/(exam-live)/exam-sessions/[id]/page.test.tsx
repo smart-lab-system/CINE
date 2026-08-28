@@ -8,6 +8,17 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'session-123' }),
 }));
 
+// Session metadata (name/start/end/status) now comes through
+// useExamSessionDetail — mocked directly (not the underlying apiClient) so
+// these tests don't need a QueryClientProvider ancestor, same convention
+// as admin/accounts/page.test.tsx. Defaults to "not loaded yet", which
+// keeps every pre-existing test's behavior identical (no banner renders
+// without session data) — only the new describe block below overrides it.
+const useExamSessionDetailMock = vi.fn();
+vi.mock('@/hooks/useExamSession', () => ({
+  useExamSessionDetail: (...args: unknown[]) => useExamSessionDetailMock(...args),
+}));
+
 // A single fake socket.io-client `Socket`, built once so the module graph
 // resolves `import { socket } from '@/lib/socket'` (in both page.tsx and
 // this test file) to the exact same object. `on`/`off` register/remove
@@ -77,6 +88,8 @@ function trigger(event: string, payload?: unknown) {
 
 beforeEach(() => {
   fakeSocket.__reset();
+  useExamSessionDetailMock.mockReset();
+  useExamSessionDetailMock.mockReturnValue({ data: undefined, isLoading: true });
 });
 
 afterEach(() => {
@@ -169,5 +182,59 @@ describe('ExamSessionLobbyPage', () => {
     expect(fakeSocket.__listenerCount('agent:disconnected')).toBe(0);
     expect(fakeSocket.__listenerCount('teacher:subscribe:error')).toBe(0);
     expect(fakeSocket.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  // Pins the fix for a real bug reported against the live app: a session
+  // whose end_time had long passed still showed as if it were a live,
+  // currently-open waiting room, because ExamSessionEntity.status has no
+  // real lifecycle transitions and this page never showed the session's
+  // actual timing at all.
+  describe('session timing banner', () => {
+    it('shows an ended banner for a session past its end_time, distinct from the live waiting state', () => {
+      useExamSessionDetailMock.mockReturnValue({
+        data: {
+          status: 'active',
+          startTime: '2026-08-27T08:22:00.000Z',
+          endTime: '2026-08-27T11:27:00.000Z',
+        },
+        isLoading: false,
+      });
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(screen.getByText(/đã kết thúc lúc/i)).toBeInTheDocument();
+    });
+
+    it('shows an upcoming banner for a session before its start_time', () => {
+      const future = new Date(Date.now() + 3_600_000).toISOString();
+      useExamSessionDetailMock.mockReturnValue({
+        data: {
+          status: 'active',
+          startTime: future,
+          endTime: new Date(Date.now() + 7_200_000).toISOString(),
+        },
+        isLoading: false,
+      });
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(screen.getByText(/chưa bắt đầu/i)).toBeInTheDocument();
+    });
+
+    it('shows no timing banner for a session currently within its window', () => {
+      useExamSessionDetailMock.mockReturnValue({
+        data: {
+          status: 'active',
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 60_000).toISOString(),
+        },
+        isLoading: false,
+      });
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(screen.queryByText(/đã kết thúc lúc/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/chưa bắt đầu/i)).not.toBeInTheDocument();
+    });
   });
 });

@@ -100,3 +100,16 @@ export async function listExamSessions(
   await throwIfFailed(error, response);
   return data as unknown as { items: ExamSessionListItem[]; total: number };
 }
+
+/**
+ * 404s if the session doesn't exist, 403s if the caller isn't its owner
+ * (see ExamSessionService.findByIdForOwner) — both surface as a thrown
+ * error, same convention as every other function here.
+ */
+export async function getExamSession(id: string): Promise<ExamSessionResponse> {
+  const { data, error, response } = await apiClient.GET('/exam-sessions/{id}', {
+    params: { path: { id } },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as ExamSessionResponse;
+}
