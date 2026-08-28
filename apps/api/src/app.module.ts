@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { AccountsModule } from './accounts/accounts.module';
@@ -13,6 +14,11 @@ import { dataSourceOptions } from './database/data-source';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot(dataSourceOptions),
+    // Powers ExamSessionScheduler (the finalize sweep). Registered once,
+    // app-wide, as @nestjs/schedule requires. Its intervals are cleared
+    // on module destroy, so `app.close()` in the e2e specs leaves no
+    // timer behind.
+    ScheduleModule.forRoot(),
     HealthModule,
     AuthModule,
     AccountsModule,

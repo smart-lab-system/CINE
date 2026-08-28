@@ -1,4 +1,10 @@
-import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
@@ -11,10 +17,12 @@ import {
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { Server, Socket } from 'socket.io';
+import { Subscription } from 'rxjs';
 import { AccessTokenPayload } from '../auth/types';
 import { AgentJoinDto } from './dto/agent-join.dto';
 import { TeacherSubscribeDto } from './dto/teacher-subscribe.dto';
 import { ExamSessionService } from './exam-session.service';
+import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 
 // Server -> Agent, exactly these 4 fields per the WebSocket Event Contract
 // — no teacher_id, no other ExamSession field leaks to the agent.
@@ -36,6 +44,13 @@ interface LobbyStudentJoined {
   studentId: string;
   fullName: string;
   joinedAt: string;
+}
+
+// Server -> agents (and the watching teacher). Carries no student data
+// at all, which is why the same payload can safely go to both rooms.
+interface ExamFinalize {
+  examSessionId: string;
+  reason: ExamFinalizeReason;
 }
 
 interface AgentDisconnected {
@@ -72,6 +87,17 @@ function teacherRoom(examSessionId: string): string {
   return `exam-session:${examSessionId}:teachers`;
 }
 
+// Agents' own room — the "differently-named room" teacherRoom's comment
+// above said to create if server -> agent push ever became necessary. It
+// has: `exam:finalize` is the server telling every agent in a session to
+// upload its final files. Membership is unauthenticated (so is
+// `agent:join` itself), so NOTHING carrying student data may ever be
+// broadcast here — `exam:finalize` is only an id plus a reason, and any
+// future event added to this room must clear the same bar.
+function agentRoom(examSessionId: string): string {
+  return `exam-session:${examSessionId}:agents`;
+}
+
 // Agent always connects OUT to this server (never the reverse) — the
 // riskiest architectural bet of the exam-live demo. Namespace and every
 // event name/payload shape below are the shared contract with the
@@ -85,7 +111,9 @@ function teacherRoom(examSessionId: string): string {
     credentials: true,
   },
 })
-export class ExamSessionGateway implements OnGatewayDisconnect {
+export class ExamSessionGateway
+  implements OnGatewayDisconnect, OnModuleInit, OnModuleDestroy
+{
   @WebSocketServer()
   private readonly server!: Server;
 
@@ -104,10 +132,42 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
   private static readonly AGENT_JOIN_RATE_WINDOW_MS = 60_000;
   private readonly agentJoinAttempts = new Map<string, number[]>();
 
+  private finalizedSubscription?: Subscription;
+
   constructor(
     private readonly examSessions: ExamSessionService,
     private readonly jwt: JwtService,
+    private readonly events: ExamSessionEvents,
   ) {}
+
+  /**
+   * Turns the service's domain event into the wire event. The service
+   * owns the status transition and publishes; this owns the socket and
+   * broadcasts — see ExamSessionEvents for why they talk through a bus
+   * instead of injecting each other.
+   */
+  onModuleInit(): void {
+    this.finalizedSubscription = this.events.finalized$.subscribe(
+      ({ examSessionId, reason }) => {
+        const payload: ExamFinalize = { examSessionId, reason };
+        // Both rooms: agents need the command, and the teacher watching
+        // the page needs to see the session flip to "Đã kết thúc"
+        // without polling. Safe to share one payload — it contains no
+        // student data (see ExamFinalize).
+        this.server.to(agentRoom(examSessionId)).emit('exam:finalize', payload);
+        this.server.to(teacherRoom(examSessionId)).emit('exam:finalize', payload);
+        this.logger.log(
+          `exam:finalize broadcast for session ${examSessionId} (reason=${reason})`,
+        );
+      },
+    );
+  }
+
+  onModuleDestroy(): void {
+    // Without this, a torn-down module (every e2e test file does one)
+    // leaves a live subscriber holding a dead `server` reference.
+    this.finalizedSubscription?.unsubscribe();
+  }
 
   /**
    * Agent -> Server. Public (no JWT — an exam-taking machine has no
@@ -207,6 +267,12 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
     // room to broadcast `agent:disconnected` to.
     client.data.studentId = dto.studentId;
     client.data.examSessionId = session.id;
+
+    // Joined AFTER all validation passed, and only to the agents room —
+    // never teacherRoom (see its comment: that would leak every
+    // classmate's {studentId, fullName} to an unauthenticated socket).
+    // Needed so `exam:finalize` can reach this agent.
+    await client.join(agentRoom(session.id));
 
     const ack: AgentJoinAck = {
       examSessionId: session.id,

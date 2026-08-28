@@ -16,6 +16,7 @@ import {
   ExamSessionListItemDto,
   RequiredDeliverableResponseDto,
 } from './dto/exam-session-response.dto';
+import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 import {
   DEFAULT_DELIVERABLE_TYPE,
   EXAM_SESSION_CODE_ALPHABET,
@@ -36,6 +37,7 @@ export class ExamSessionService {
     private readonly sessions: Repository<ExamSessionEntity>,
     @InjectRepository(RequiredDeliverableEntity)
     private readonly deliverables: Repository<RequiredDeliverableEntity>,
+    private readonly events: ExamSessionEvents,
   ) {}
 
   /**
@@ -177,6 +179,86 @@ export class ExamSessionService {
     });
 
     return { items, total };
+  }
+
+  /**
+   * THE ONLY place `exam_session.status` is allowed to become
+   * 'completed'. Both callers — the scheduled sweep
+   * (ExamSessionScheduler) and the teacher's manual
+   * POST /exam-sessions/:id/finalize — go through here, so the
+   * transition and the broadcast can never drift apart.
+   *
+   * The guard is `WHERE status = 'active'` inside the UPDATE itself,
+   * not a read-then-write: the job tick and a teacher clicking "Chốt
+   * bài ngay" can land at the same instant, and only one of them may
+   * come away having changed the row. Postgres serializes the two
+   * UPDATEs on the row lock, the loser matches zero rows, and
+   * `affected` tells us which we were — so `exam:finalize` is
+   * broadcast exactly once, never twice.
+   *
+   * Returns true if THIS call performed the transition. False means
+   * the session was already completed (or cancelled/draft/scheduled) —
+   * not an error: finalizing an already-finalized session is a no-op
+   * by design.
+   */
+  async finalizeExamSession(
+    examSessionId: string,
+    reason: ExamFinalizeReason,
+  ): Promise<boolean> {
+    const result = await this.sessions
+      .createQueryBuilder()
+      .update(ExamSessionEntity)
+      .set({ status: 'completed' })
+      .where('id = :id', { id: examSessionId })
+      .andWhere('status = :active', { active: 'active' })
+      .execute();
+
+    if ((result.affected ?? 0) === 0) {
+      return false;
+    }
+
+    this.events.publishFinalized({ examSessionId, reason });
+    return true;
+  }
+
+  /**
+   * Sessions whose window has closed but whose status still says
+   * 'active' — the scheduled sweep's work list. Returns ids only: the
+   * sweep has no use for the rest of the row, and finalizeExamSession
+   * re-checks the status atomically anyway, so a row that stops being
+   * eligible between this query and that UPDATE is handled correctly
+   * (it simply matches zero rows).
+   *
+   * Backed by idx_exam_session_status_end_time — see
+   * AddExamSessionFinalizeIndex. Without it this is a seq scan on every
+   * tick, forever, for a query that almost always returns nothing.
+   */
+  async findFinalizableIds(now: Date): Promise<string[]> {
+    const rows = await this.sessions
+      .createQueryBuilder('s')
+      .select('s.id', 'id')
+      .where('s.status = :active', { active: 'active' })
+      .andWhere('s.endTime <= :now', { now })
+      .getRawMany<{ id: string }>();
+    return rows.map((row) => row.id);
+  }
+
+  /**
+   * Owner-checked manual finalize behind POST /exam-sessions/:id/finalize.
+   * Same 404/403 semantics as findByIdForOwner (reused verbatim rather
+   * than re-deriving the ownership rule), then delegates the actual
+   * transition to finalizeExamSession.
+   */
+  async finalizeForOwner(
+    id: string,
+    teacherId: string,
+  ): Promise<ExamSessionResponseDto> {
+    await this.findByIdForOwner(id, teacherId);
+    await this.finalizeExamSession(id, 'manual');
+    // Re-read rather than patching the in-memory copy: if the scheduled
+    // sweep won the race, the row is already completed and the teacher
+    // must still see the true current state, not a guess.
+    return this.findByIdForOwner(id, teacherId);
   }
 
   private generateCode(): string {

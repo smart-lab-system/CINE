@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -50,5 +61,29 @@ export class ExamSessionController {
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: Request) {
     return this.examSessions.findByIdForOwner(id, req.user!.sub);
+  }
+
+  /**
+   * Manual "Chốt bài ngay". Teacher-only and owner-only (the ownership
+   * check lives in the service, reusing findByIdForOwner), and shares
+   * ExamSessionService.finalizeExamSession with the scheduled sweep — the
+   * two never diverge because there is only one implementation.
+   *
+   * 200, not 201: this mutates an existing session, it does not create
+   * anything. Idempotent — finalizing an already-completed session
+   * returns the same 200 with the same body and broadcasts nothing a
+   * second time.
+   *
+   * ParseUUIDPipe here but not on GET /:id: a non-uuid id reaching the
+   * service turns into a Postgres 22P02 (invalid text representation),
+   * which PostgresExceptionFilter has no mapping for. GET already had
+   * that quirk before this change and fixing it there is out of scope,
+   * but a new write endpoint should not ship with it.
+   */
+  @Post(':id/finalize')
+  @Roles('teacher')
+  @HttpCode(200)
+  finalize(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    return this.examSessions.finalizeForOwner(id, req.user!.sub);
   }
 }
