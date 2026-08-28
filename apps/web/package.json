@@ -18,10 +18,12 @@
     "@tanstack/react-table": "^8.20.5",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "konva": "^10.3.1",
     "next": "^15.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.53.0",
+    "react-konva": "^19.2.5",
     "tailwind-merge": "^2.5.3",
     "zod": "^3.23.8"
   },

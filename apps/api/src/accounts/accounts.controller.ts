@@ -34,6 +34,11 @@ export class AccountsController {
     return this.accounts.search(query);
   }
 
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.accounts.findOne(id);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateAccountDto) {
     return this.accounts.update(id, dto);

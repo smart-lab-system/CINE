@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { LogoutButton } from '@/components/layout/logout-button';
+import { DashboardShell } from '@/components/layout/dashboard-shell';
 
 export default function DashboardLayout({
   children,
@@ -17,13 +17,7 @@ export default function DashboardLayout({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="flex min-h-screen flex-col">
-        <header className="flex items-center justify-between border-b px-8 py-4">
-          <span className="font-semibold">Quản lý phòng máy</span>
-          <LogoutButton />
-        </header>
-        {children}
-      </div>
+      <DashboardShell>{children}</DashboardShell>
     </QueryClientProvider>
   );
 }

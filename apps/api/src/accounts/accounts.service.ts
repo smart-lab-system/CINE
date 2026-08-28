@@ -5,9 +5,17 @@ import * as argon2 from 'argon2';
 import { UserEntity } from '../identity/entities/user.entity';
 import { UserRoleEntity } from '../identity/entities/user-role.entity';
 import { RoleEntity } from '../identity/entities/role.entity';
+import { LecturerEntity } from '../master-data/entities/lecturer.entity';
+import { StudentEntity } from '../master-data/entities/student.entity';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { SearchAccountsDto } from './dto/search-accounts.dto';
+
+export interface AccountLinkedProfile {
+  type: 'lecturer' | 'student';
+  code: string;
+  fullName: string;
+}
 
 export interface AccountView {
   id: string;
@@ -16,6 +24,7 @@ export interface AccountView {
   displayName: string;
   status: string;
   roles: string[];
+  linkedProfile: AccountLinkedProfile | null;
 }
 
 @Injectable()
@@ -27,6 +36,10 @@ export class AccountsService {
     private readonly userRoles: Repository<UserRoleEntity>,
     @InjectRepository(RoleEntity)
     private readonly roles: Repository<RoleEntity>,
+    @InjectRepository(LecturerEntity)
+    private readonly lecturers: Repository<LecturerEntity>,
+    @InjectRepository(StudentEntity)
+    private readonly students: Repository<StudentEntity>,
   ) {}
 
   async create(dto: CreateAccountDto): Promise<{ id: string }> {
@@ -82,9 +95,18 @@ export class AccountsService {
       .take(query.pageSize);
 
     const [users, total] = await qb.getManyAndCount();
-    const items = await Promise.all(users.map((u) => this.toView(u)));
+    const linkedProfiles = await this.loadLinkedProfiles(users.map((u) => u.id));
+    const items = await Promise.all(
+      users.map((u) => this.toView(u, linkedProfiles.get(u.id) ?? null)),
+    );
 
     return { items, total };
+  }
+
+  async findOne(id: string): Promise<AccountView> {
+    const user = await this.findActiveOrThrow(id);
+    const linkedProfiles = await this.loadLinkedProfiles([user.id]);
+    return this.toView(user, linkedProfiles.get(user.id) ?? null);
   }
 
   async update(id: string, dto: UpdateAccountDto): Promise<AccountView> {
@@ -118,7 +140,8 @@ export class AccountsService {
     });
 
     const updated = await this.findActiveOrThrow(id);
-    return this.toView(updated);
+    const linkedProfiles = await this.loadLinkedProfiles([updated.id]);
+    return this.toView(updated, linkedProfiles.get(updated.id) ?? null);
   }
 
   async remove(id: string): Promise<void> {
@@ -150,7 +173,49 @@ export class AccountsService {
     return user;
   }
 
-  private async toView(user: UserEntity): Promise<AccountView> {
+  private async loadLinkedProfiles(
+    userIds: string[],
+  ): Promise<Map<string, AccountLinkedProfile>> {
+    const map = new Map<string, AccountLinkedProfile>();
+    if (userIds.length === 0) {
+      return map;
+    }
+
+    const lecturers = await this.lecturers.find({
+      where: { userId: In(userIds), deletedAt: IsNull() },
+    });
+    for (const lecturer of lecturers) {
+      if (!lecturer.userId) {
+        continue;
+      }
+      map.set(lecturer.userId, {
+        type: 'lecturer',
+        code: lecturer.employeeCode,
+        fullName: lecturer.fullName,
+      });
+    }
+
+    const students = await this.students.find({
+      where: { userId: In(userIds), deletedAt: IsNull() },
+    });
+    for (const student of students) {
+      if (!student.userId || map.has(student.userId)) {
+        continue;
+      }
+      map.set(student.userId, {
+        type: 'student',
+        code: student.studentCode,
+        fullName: student.fullName,
+      });
+    }
+
+    return map;
+  }
+
+  private async toView(
+    user: UserEntity,
+    linkedProfile: AccountLinkedProfile | null,
+  ): Promise<AccountView> {
     const assignments = await this.userRoles.find({
       where: { userId: user.id, deletedAt: IsNull() },
     });
@@ -167,6 +232,7 @@ export class AccountsService {
       displayName: user.displayName,
       status: user.status,
       roles: roles.map((r) => r.code),
+      linkedProfile,
     };
   }
 }

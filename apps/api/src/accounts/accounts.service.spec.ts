@@ -3,6 +3,8 @@ import { AccountsService } from './accounts.service';
 import { UserEntity } from '../identity/entities/user.entity';
 import { UserRoleEntity } from '../identity/entities/user-role.entity';
 import { RoleEntity } from '../identity/entities/role.entity';
+import { LecturerEntity } from '../master-data/entities/lecturer.entity';
+import { StudentEntity } from '../master-data/entities/student.entity';
 
 /**
  * These are the atomicity cases that can't be provoked through HTTP against
@@ -19,6 +21,8 @@ function createHarness(overrides: {
   users?: Partial<Repository<UserEntity>>;
   userRoles?: Partial<Repository<UserRoleEntity>>;
   roles?: Partial<Repository<RoleEntity>>;
+  lecturers?: Partial<Repository<LecturerEntity>>;
+  students?: Partial<Repository<StudentEntity>>;
 } = {}) {
   const state = { rolledBack: false, committed: false, transactions: 0 };
 
@@ -32,6 +36,14 @@ function createHarness(overrides: {
   const roles = {
     find: jest.fn().mockResolvedValue([{ id: 1, code: 'student' }]),
     ...overrides.roles,
+  };
+  const lecturers = {
+    find: jest.fn().mockResolvedValue([]),
+    ...overrides.lecturers,
+  };
+  const students = {
+    find: jest.fn().mockResolvedValue([]),
+    ...overrides.students,
   };
   const users = {
     create: jest.fn((entity) => entity),
@@ -72,9 +84,11 @@ function createHarness(overrides: {
     { ...users, manager } as unknown as Repository<UserEntity>,
     userRoles as unknown as Repository<UserRoleEntity>,
     roles as unknown as Repository<RoleEntity>,
+    lecturers as unknown as Repository<LecturerEntity>,
+    students as unknown as Repository<StudentEntity>,
   );
 
-  return { service, state, users, userRoles, roles };
+  return { service, state, users, userRoles, roles, lecturers, students };
 }
 
 const createDto = {
@@ -149,5 +163,41 @@ describe('AccountsService transaction boundaries', () => {
     expect(userRoles.update).toHaveBeenCalledTimes(1);
     expect(state.rolledBack).toBe(true);
     expect(state.committed).toBe(false);
+  });
+
+  it('findOne() includes a linked lecturer profile when present', async () => {
+    const { service, lecturers } = createHarness({
+      userRoles: {
+        find: jest.fn().mockResolvedValue([{ userId: 'user-1', roleId: 1 }]),
+      },
+      roles: {
+        find: jest.fn().mockResolvedValue([{ id: 1, code: 'lecturer' }]),
+      },
+      lecturers: {
+        find: jest.fn().mockResolvedValue([
+          {
+            userId: 'user-1',
+            employeeCode: '000001',
+            fullName: 'Phạm Quảng Tri',
+          },
+        ]),
+      },
+    });
+
+    await expect(service.findOne('user-1')).resolves.toEqual({
+      id: 'user-1',
+      username: 'someone',
+      email: null,
+      displayName: 'Someone',
+      status: 'active',
+      roles: ['lecturer'],
+      linkedProfile: {
+        type: 'lecturer',
+        code: '000001',
+        fullName: 'Phạm Quảng Tri',
+      },
+    });
+
+    expect(lecturers.find).toHaveBeenCalled();
   });
 });

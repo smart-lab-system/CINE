@@ -144,6 +144,40 @@ describe('Accounts (e2e)', () => {
     ).toBe(true);
   });
 
+  it('returns the linked lecturer profile on account search', async () => {
+    const employeeCode = `GV${Date.now()}`.slice(0, 6);
+    const createResponse = await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        username: employeeCode,
+        password: employeeCode,
+        displayName: 'Linked Lecturer',
+        roleCodes: ['lecturer'],
+      });
+    expect(createResponse.status).toBe(201);
+    const accountId: string = createResponse.body.id;
+
+    await dataSource.query(
+      `INSERT INTO lab_management.lecturers (user_id, employee_code, full_name)
+       VALUES ($1, $2, $3)`,
+      [accountId, employeeCode, 'Linked Lecturer'],
+    );
+
+    const response = await request(app.getHttpServer())
+      .get(`/accounts?search=${employeeCode}&page=1&pageSize=20`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    const item = response.body.items.find((row: any) => row.id === accountId);
+    expect(item).toBeDefined();
+    expect(item.linkedProfile).toEqual({
+      type: 'lecturer',
+      code: employeeCode,
+      fullName: 'Linked Lecturer',
+    });
+  });
+
   it('updates an account', async () => {
     const response = await request(app.getHttpServer())
       .patch(`/accounts/${createdAccountId}`)

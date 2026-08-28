@@ -40,8 +40,8 @@ services:
       MINIO_ROOT_USER: lab_admin
       MINIO_ROOT_PASSWORD: lab_admin_password
     ports:
-      - "9010:9000"
-      - "9011:9001"
+      - "9020:9000"
+      - "9021:9001"
     volumes:
       - minio_data:/data
 
@@ -63,11 +63,20 @@ services:
       # accept credentialed requests. The container-internal port (4000)
       # and the api<->web Docker-network hostname/port are unaffected.
       WEB_ORIGIN: http://localhost:3010
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: lab_admin
+      MINIO_SECRET_KEY: lab_admin_password
+      MINIO_ROSTER_BUCKET: course-rosters
+      MINIO_EXAM_ROSTER_BUCKET: exam-rosters
     ports:
       - "4010:4000"
     depends_on:
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_started
 
   web:
     build:

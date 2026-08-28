@@ -3,5 +3,15 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
-  "transform": { "^.+\\.(t|j)s$": "ts-jest" }
+  "transform": {
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "isolatedModules": true,
+        "diagnostics": false
+      }
+    ]
+  },
+  "globalSetup": "<rootDir>/jest-e2e.global-setup.ts",
+  "setupFiles": ["<rootDir>/jest-e2e.setup.ts"]
 }

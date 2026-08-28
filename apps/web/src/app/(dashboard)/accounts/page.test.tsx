@@ -80,10 +80,15 @@ describe('AccountsPage fetch states', () => {
         items: [
           {
             id: 'a1',
-            username: 'nguyenvana',
-            displayName: 'Nguyễn Văn A',
+            username: '000001',
+            displayName: 'Phạm Quảng Tri',
             status: 'active',
             roles: ['lecturer'],
+            linkedProfile: {
+              type: 'lecturer',
+              code: '000001',
+              fullName: 'Phạm Quảng Tri',
+            },
           },
         ],
         total: 1,
@@ -94,8 +99,14 @@ describe('AccountsPage fetch states', () => {
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText('nguyenvana')).toBeInTheDocument(),
+      expect(screen.getByText('000001')).toBeInTheDocument(),
     );
+    expect(screen.getByText(/GV: 000001 — Phạm Quảng Tri/)).toBeInTheDocument();
+    expect(screen.getByText('Giảng viên')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /thêm mới/i }),
+    ).toHaveAttribute('href', '/accounts/new');
+    expect(screen.queryByText(/tạo tài khoản mới/i)).not.toBeInTheDocument();
   });
 });

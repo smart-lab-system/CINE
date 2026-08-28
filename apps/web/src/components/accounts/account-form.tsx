@@ -18,7 +18,7 @@ const ROLE_LABELS: Record<(typeof ROLE_OPTIONS)[number], string> = {
 const accountFormSchema = z.object({
   username: z.string().min(3).max(64),
   displayName: z.string().min(1).max(150),
-  password: z.string().min(8).max(128),
+  password: z.string().min(6).max(128),
   roleCodes: z.array(z.enum(ROLE_OPTIONS)).min(1, 'Chọn ít nhất một vai trò'),
 });
 

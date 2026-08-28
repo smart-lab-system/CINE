@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -9,13 +10,10 @@ import {
   flexRender,
 } from '@tanstack/react-table';
 import { apiClient } from '../../../lib/api-client';
-import { AccountForm, AccountFormValues } from '../../../components/accounts/account-form';
-import {
-  EditAccountForm,
-  EditAccountFormValues,
-} from '../../../components/accounts/edit-account-form';
+import { PageHeader } from '@/components/layout/page-header';
+import { PageShell } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -32,16 +30,46 @@ interface AccountRow {
   displayName: string;
   status: string;
   roles: string[];
+  linkedProfile: {
+    type: 'lecturer' | 'student';
+    code: string;
+    fullName: string;
+  } | null;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Chờ duyệt',
+  active: 'Hoạt động',
+  locked: 'Khóa',
+  disabled: 'Vô hiệu',
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Quản trị',
+  operator: 'Vận hành phòng máy',
+  lecturer: 'Giảng viên',
+  student: 'Sinh viên',
+};
+
+function formatLinkedProfile(
+  profile: AccountRow['linkedProfile'],
+): string {
+  if (!profile) {
+    return '—';
+  }
+  const label = profile.type === 'lecturer' ? 'GV' : 'SV';
+  return `${label}: ${profile.code} — ${profile.fullName}`;
+}
+
+function formatRoles(roles: string[]): string {
+  return roles.map((role) => ROLE_LABELS[role] ?? role).join(', ');
 }
 
 const columnHelper = createColumnHelper<AccountRow>();
 
-// The QueryClientProvider lives in (dashboard)/layout.tsx so every dashboard
-// page shares one client — and so it's never constructed at module scope,
-// which on the server would share a single cache across unrelated requests.
 export default function AccountsPage() {
   const [search, setSearch] = useState('');
-  const [editingAccount, setEditingAccount] = useState<AccountRow | null>(null);
+  const queryClientInstance = useQueryClient();
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['accounts', search],
@@ -49,47 +77,10 @@ export default function AccountsPage() {
       const { data, error, response } = await apiClient.GET('/accounts', {
         params: { query: { search, page: 1, pageSize: 20 } },
       });
-      // openapi-fetch only fills `error` from the response *body*, which some
-      // failures leave empty — key off the status too so a 401 (expired
-      // access_token that the middleware's existence-only check waved
-      // through) can't be mistaken for an empty result set.
       if (error || !response.ok) {
         throw error ?? new Error(`Yêu cầu thất bại (HTTP ${response.status})`);
       }
-      // See Task 7's note on this cast: AccountsController.search() has no
-      // Swagger-decorated response type yet, so the generated response
-      // schema is empty.
       return data as unknown as { items: AccountRow[]; total: number };
-    },
-  });
-
-  const queryClientInstance = useQueryClient();
-
-  const createAccount = useMutation({
-    mutationFn: async (values: AccountFormValues) => {
-      const { error } = await apiClient.POST('/accounts', { body: values });
-      if (error) throw error;
-    },
-    onSuccess: () => queryClientInstance.invalidateQueries({ queryKey: ['accounts'] }),
-  });
-
-  const updateAccount = useMutation({
-    mutationFn: async ({
-      id,
-      values,
-    }: {
-      id: string;
-      values: EditAccountFormValues;
-    }) => {
-      const { error } = await apiClient.PATCH('/accounts/{id}', {
-        params: { path: { id } },
-        body: values,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClientInstance.invalidateQueries({ queryKey: ['accounts'] });
-      setEditingAccount(null);
     },
   });
 
@@ -100,26 +91,29 @@ export default function AccountsPage() {
       });
       if (error) throw error;
     },
-    onSuccess: () => queryClientInstance.invalidateQueries({ queryKey: ['accounts'] }),
+    onSuccess: () =>
+      queryClientInstance.invalidateQueries({ queryKey: ['accounts'] }),
   });
 
   const columns = [
     columnHelper.accessor('username', { header: 'Tên đăng nhập' }),
     columnHelper.accessor('displayName', { header: 'Họ tên' }),
-    columnHelper.accessor('status', { header: 'Trạng thái' }),
-    columnHelper.accessor((row) => row.roles.join(', '), { header: 'Vai trò' }),
+    columnHelper.accessor('linkedProfile', {
+      header: 'Liên kết',
+      cell: ({ getValue }) => formatLinkedProfile(getValue()),
+    }),
+    columnHelper.accessor('status', {
+      header: 'Trạng thái',
+      cell: ({ getValue }) => STATUS_LABELS[getValue()] ?? getValue(),
+    }),
+    columnHelper.accessor((row) => formatRoles(row.roles), { header: 'Vai trò' }),
     columnHelper.display({
       id: 'actions',
       header: 'Thao tác',
       cell: ({ row }) => (
         <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setEditingAccount(row.original)}
-          >
-            Sửa
+          <Button type="button" variant="outline" size="sm" asChild>
+            <Link href={`/accounts/${row.original.id}/edit`}>Sửa</Link>
           </Button>
           <Button
             type="button"
@@ -145,8 +139,16 @@ export default function AccountsPage() {
   });
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-8">
-      <h1 className="text-2xl font-semibold">Quản lý tài khoản</h1>
+    <PageShell>
+      <PageHeader
+        title="Tài khoản"
+        description="Quản lý tài khoản đăng nhập hệ thống"
+        actions={
+          <Button asChild>
+            <Link href="/accounts/new">Thêm mới</Link>
+          </Button>
+        }
+      />
 
       <Input
         placeholder="Tìm kiếm..."
@@ -155,10 +157,6 @@ export default function AccountsPage() {
         className="max-w-xs"
       />
 
-      {/* Without these two branches a failed request (e.g. an expired
-          access_token the middleware's existence-only check still lets
-          through) renders an empty table that's indistinguishable from
-          "no accounts yet". */}
       {isLoading ? (
         <Card>
           <p className="p-4 text-sm text-muted-foreground">Đang tải…</p>
@@ -192,7 +190,10 @@ export default function AccountsPage() {
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -201,34 +202,6 @@ export default function AccountsPage() {
           </Table>
         </Card>
       )}
-
-      {editingAccount ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Sửa tài khoản — {editingAccount.username}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EditAccountForm
-              defaultValues={{
-                displayName: editingAccount.displayName,
-                status: editingAccount.status as EditAccountFormValues['status'],
-                roleCodes: editingAccount.roles as EditAccountFormValues['roleCodes'],
-              }}
-              onSubmit={(values) => updateAccount.mutate({ id: editingAccount.id, values })}
-              onCancel={() => setEditingAccount(null)}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Tạo tài khoản mới</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AccountForm onSubmit={(values) => createAccount.mutate(values)} />
-          </CardContent>
-        </Card>
-      )}
-    </main>
+    </PageShell>
   );
 }

@@ -1,6 +1,6 @@
--- PostgreSQL schema v2 for the Lab Exam Management system.
+-- PostgreSQL schema for the Lab Exam Management system.
 -- Target: PostgreSQL 16+.
--- This script is intended to run as one transaction on a clean database.
+-- Single source of truth: apply this script once on a clean database.
 
 BEGIN;
 
@@ -94,6 +94,35 @@ CREATE TYPE artifact_kind AS ENUM (
     'resubmission'
 );
 
+CREATE TYPE student_status AS ENUM (
+    'active',
+    'graduated'
+);
+
+CREATE TYPE enrollment_status AS ENUM (
+    'active',
+    'dropped',
+    'withdrawn'
+);
+
+CREATE TYPE workstation_status AS ENUM (
+    'available',
+    'maintenance',
+    'broken',
+    'retired'
+);
+
+CREATE TYPE workstation_type AS ENUM (
+    'master',
+    'client'
+);
+
+CREATE TYPE seat_shape AS ENUM (
+    'rect',
+    'circle',
+    'diamond'
+);
+
 -- Identity and RBAC.
 CREATE TABLE roles (
     id SMALLINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -162,9 +191,7 @@ CREATE TABLE students (
     user_id UUID,
     student_code CITEXT NOT NULL,
     full_name VARCHAR(150) NOT NULL,
-    date_of_birth DATE,
-    class_code VARCHAR(50),
-    cohort_year SMALLINT,
+    status student_status NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,
@@ -172,8 +199,6 @@ CREATE TABLE students (
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CONSTRAINT ck_students_code
         CHECK (student_code::TEXT ~ '^[A-Za-z0-9._-]{3,32}$'),
-    CONSTRAINT ck_students_cohort
-        CHECK (cohort_year IS NULL OR cohort_year BETWEEN 1900 AND 2200),
     CONSTRAINT ck_students_deleted_at
         CHECK (deleted_at IS NULL OR deleted_at >= created_at)
 );
@@ -185,6 +210,8 @@ CREATE TABLE lecturers (
     full_name VARCHAR(150) NOT NULL,
     department VARCHAR(150),
     academic_title VARCHAR(100),
+    email CITEXT,
+    phone VARCHAR(20),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,
@@ -192,6 +219,16 @@ CREATE TABLE lecturers (
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CONSTRAINT ck_lecturers_code
         CHECK (employee_code::TEXT ~ '^[A-Za-z0-9._-]{2,32}$'),
+    CONSTRAINT ck_lecturers_email_format
+        CHECK (
+            email IS NULL
+            OR email::TEXT ~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+        ),
+    CONSTRAINT ck_lecturers_phone
+        CHECK (
+            phone IS NULL
+            OR phone ~ '^[+]?[0-9 ()-]{8,20}$'
+        ),
     CONSTRAINT ck_lecturers_deleted_at
         CHECK (deleted_at IS NULL OR deleted_at >= created_at)
 );
@@ -239,6 +276,8 @@ CREATE TABLE course_sections (
     section_code CITEXT NOT NULL,
     nominal_class_code VARCHAR(50),
     name VARCHAR(200),
+    lecturer_id UUID,
+    max_enrollment SMALLINT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,
@@ -249,8 +288,12 @@ CREATE TABLE course_sections (
         FOREIGN KEY (academic_term_id)
         REFERENCES academic_terms (id)
         ON DELETE RESTRICT,
+    CONSTRAINT fk_course_sections_lecturer
+        FOREIGN KEY (lecturer_id) REFERENCES lecturers (id) ON DELETE RESTRICT,
     CONSTRAINT ck_course_sections_code
         CHECK (section_code::TEXT ~ '^[A-Za-z0-9._-]{1,64}$'),
+    CONSTRAINT ck_course_sections_max_enrollment
+        CHECK (max_enrollment IS NULL OR max_enrollment > 0),
     CONSTRAINT ck_course_sections_deleted_at
         CHECK (deleted_at IS NULL OR deleted_at >= created_at)
 );
@@ -260,6 +303,7 @@ CREATE TABLE course_section_enrollments (
     course_section_id UUID NOT NULL,
     student_id UUID NOT NULL,
     enrolled_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status enrollment_status NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,
@@ -305,6 +349,9 @@ CREATE TABLE workstations (
     serial_number VARCHAR(100),
     operating_system VARCHAR(120),
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    type workstation_type NOT NULL DEFAULT 'client',
+    status workstation_status NOT NULL DEFAULT 'available',
+    notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,
@@ -353,6 +400,9 @@ CREATE TABLE lab_seats (
     position_x NUMERIC(10, 2) NOT NULL,
     position_y NUMERIC(10, 2) NOT NULL,
     rotation_degrees NUMERIC(5, 2) NOT NULL DEFAULT 0,
+    shape seat_shape NOT NULL DEFAULT 'rect',
+    is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+    notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,
@@ -375,6 +425,26 @@ CREATE TABLE lab_seats (
     CONSTRAINT ck_lab_seats_rotation
         CHECK (rotation_degrees BETWEEN -360 AND 360),
     CONSTRAINT ck_lab_seats_deleted_at
+        CHECK (deleted_at IS NULL OR deleted_at >= created_at)
+);
+
+CREATE TABLE seating_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(150) NOT NULL,
+    description TEXT,
+    canvas_width INTEGER NOT NULL DEFAULT 1280,
+    canvas_height INTEGER NOT NULL DEFAULT 720,
+    layout_data JSONB NOT NULL DEFAULT '[]'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT ck_seating_templates_name
+        CHECK (length(btrim(name)) > 0),
+    CONSTRAINT ck_seating_templates_canvas
+        CHECK (canvas_width > 0 AND canvas_height > 0),
+    CONSTRAINT ck_seating_templates_layout_data
+        CHECK (jsonb_typeof(layout_data) = 'array'),
+    CONSTRAINT ck_seating_templates_deleted_at
         CHECK (deleted_at IS NULL OR deleted_at >= created_at)
 );
 
@@ -1429,49 +1499,54 @@ BEGIN
         END IF;
     END IF;
 
-    IF TG_TABLE_NAME = 'exam_event_sections'
-       AND TG_OP IN ('UPDATE', 'DELETE')
-       AND (
-            TG_OP = 'DELETE'
-            OR NEW.deleted_at IS NOT NULL
-            OR NEW.course_section_id IS DISTINCT FROM OLD.course_section_id
-       )
-       AND EXISTS (
-            SELECT 1
-            FROM lab_sessions AS ls
-            JOIN session_participants AS sp
-              ON sp.session_id = ls.id
-            WHERE ls.exam_event_id = OLD.exam_event_id
-              AND sp.course_section_id = OLD.course_section_id
-       ) THEN
-        RAISE EXCEPTION
-            'Cannot remove event section while room participants reference it'
-            USING ERRCODE = 'foreign_key_violation';
+    -- Nested IFs (not AND) so PL/pgSQL never plans NEW.stored_object_id
+    -- against exam_event_sections, and never plans NEW.course_section_id
+    -- against exam_event_files. A combined boolean expression is one SPI
+    -- plan and raises "record new has no field ...".
+    IF TG_TABLE_NAME = 'exam_event_sections' THEN
+        IF TG_OP IN ('UPDATE', 'DELETE')
+           AND (
+                TG_OP = 'DELETE'
+                OR NEW.deleted_at IS NOT NULL
+                OR NEW.course_section_id IS DISTINCT FROM OLD.course_section_id
+           )
+           AND EXISTS (
+                SELECT 1
+                FROM lab_sessions AS ls
+                JOIN session_participants AS sp
+                  ON sp.session_id = ls.id
+                WHERE ls.exam_event_id = OLD.exam_event_id
+                  AND sp.course_section_id = OLD.course_section_id
+           ) THEN
+            RAISE EXCEPTION
+                'Cannot remove event section while room participants reference it'
+                USING ERRCODE = 'foreign_key_violation';
+        END IF;
+
+        IF TG_OP IN ('INSERT', 'UPDATE')
+           AND NOT EXISTS (
+                SELECT 1
+                FROM course_sections AS cs
+                WHERE cs.id = NEW.course_section_id
+                  AND cs.subject_id = NEW.subject_id
+                  AND cs.deleted_at IS NULL
+           ) THEN
+            RAISE EXCEPTION 'Event section must reference an active course section'
+                USING ERRCODE = 'foreign_key_violation';
+        END IF;
     END IF;
 
-    IF TG_TABLE_NAME = 'exam_event_sections'
-       AND TG_OP IN ('INSERT', 'UPDATE')
-       AND NOT EXISTS (
-            SELECT 1
-            FROM course_sections AS cs
-            WHERE cs.id = NEW.course_section_id
-              AND cs.subject_id = NEW.subject_id
-              AND cs.deleted_at IS NULL
-       ) THEN
-        RAISE EXCEPTION 'Event section must reference an active course section'
-            USING ERRCODE = 'foreign_key_violation';
-    END IF;
-
-    IF TG_TABLE_NAME = 'exam_event_files'
-       AND TG_OP IN ('INSERT', 'UPDATE')
-       AND NOT EXISTS (
-            SELECT 1
-            FROM stored_objects AS so
-            WHERE so.id = NEW.stored_object_id
-              AND so.deleted_at IS NULL
-       ) THEN
-        RAISE EXCEPTION 'Event file must reference an active stored object'
-            USING ERRCODE = 'foreign_key_violation';
+    IF TG_TABLE_NAME = 'exam_event_files' THEN
+        IF TG_OP IN ('INSERT', 'UPDATE')
+           AND NOT EXISTS (
+                SELECT 1
+                FROM stored_objects AS so
+                WHERE so.id = NEW.stored_object_id
+                  AND so.deleted_at IS NULL
+           ) THEN
+            RAISE EXCEPTION 'Event file must reference an active stored object'
+                USING ERRCODE = 'foreign_key_violation';
+        END IF;
     END IF;
 
     RETURN COALESCE(NEW, OLD);
@@ -1554,15 +1629,16 @@ BEGIN
         FROM lab_sessions
         WHERE id = NEW.session_id;
 
-        IF TG_TABLE_NAME = 'session_proctors'
-           AND NOT EXISTS (
+        IF TG_TABLE_NAME = 'session_proctors' THEN
+            IF NOT EXISTS (
                 SELECT 1
                 FROM lecturers AS l
                 WHERE l.id = NEW.lecturer_id
                   AND l.deleted_at IS NULL
-           ) THEN
-            RAISE EXCEPTION 'Proctor must reference an active lecturer'
-                USING ERRCODE = 'foreign_key_violation';
+            ) THEN
+                RAISE EXCEPTION 'Proctor must reference an active lecturer'
+                    USING ERRCODE = 'foreign_key_violation';
+            END IF;
         END IF;
 
         IF TG_TABLE_NAME = 'session_participants' THEN
@@ -2255,6 +2331,10 @@ CREATE UNIQUE INDEX uq_lecturers_code_active
     ON lecturers (employee_code)
     WHERE deleted_at IS NULL;
 
+CREATE UNIQUE INDEX uq_lecturers_email_active
+    ON lecturers (email)
+    WHERE deleted_at IS NULL AND email IS NOT NULL;
+
 CREATE UNIQUE INDEX uq_subjects_code_active
     ON subjects (code)
     WHERE deleted_at IS NULL;
@@ -2266,14 +2346,13 @@ CREATE UNIQUE INDEX uq_academic_terms_code_active
 CREATE UNIQUE INDEX uq_course_sections_active
     ON course_sections (
         academic_term_id,
-        subject_id,
         section_code
     )
     WHERE deleted_at IS NULL;
 
 CREATE UNIQUE INDEX uq_course_section_enrollments_active
     ON course_section_enrollments (course_section_id, student_id)
-    WHERE deleted_at IS NULL;
+    WHERE deleted_at IS NULL AND status = 'active';
 
 CREATE UNIQUE INDEX uq_labs_code_active
     ON labs (code)
@@ -2307,6 +2386,14 @@ CREATE UNIQUE INDEX uq_lab_seats_code_active
 CREATE UNIQUE INDEX uq_lab_seats_workstation_active
     ON lab_seats (layout_id, workstation_id)
     WHERE deleted_at IS NULL AND workstation_id IS NOT NULL;
+
+CREATE UNIQUE INDEX uq_seating_templates_name_active
+    ON seating_templates (name)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_seating_templates_name
+    ON seating_templates (name)
+    WHERE deleted_at IS NULL;
 
 CREATE UNIQUE INDEX uq_stored_objects_location_active
     ON stored_objects (bucket_name, object_key)
@@ -2369,10 +2456,6 @@ CREATE INDEX idx_user_roles_role
 
 CREATE INDEX idx_students_name_trgm
     ON students USING gin (full_name gin_trgm_ops)
-    WHERE deleted_at IS NULL;
-
-CREATE INDEX idx_students_class
-    ON students (class_code, student_code)
     WHERE deleted_at IS NULL;
 
 CREATE INDEX idx_lecturers_name_trgm
@@ -2628,6 +2711,7 @@ BEGIN
         'workstations',
         'lab_layouts',
         'lab_seats',
+        'seating_templates',
         'stored_objects',
         'exam_event_sections',
         'exam_event_files',
