@@ -4,8 +4,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ACCOUNT_ROLE_LABELS, ACCOUNT_ROLE_OPTIONS } from '@/lib/account-roles';
 
@@ -39,36 +39,40 @@ export function AccountForm({
   });
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="account-name">Họ tên</Label>
-        <Input id="account-name" {...register('name')} />
-        {errors.name && (
-          <p role="alert" className="text-sm text-destructive">
-            {errors.name.message}
-          </p>
-        )}
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="account-email">Email</Label>
-        <Input id="account-email" type="email" {...register('email')} />
-        {errors.email && (
-          <p role="alert" className="text-sm text-destructive">
-            {errors.email.message}
-          </p>
-        )}
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="account-password">Mật khẩu</Label>
-        <Input id="account-password" type="password" {...register('password')} />
-        {errors.password && (
-          <p role="alert" className="text-sm text-destructive">
-            {errors.password.message}
-          </p>
-        )}
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="account-role">Vai trò</Label>
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+      <FormField id="account-name" label="Họ tên" error={errors.name?.message}>
+        <Input id="account-name" invalid={Boolean(errors.name)} {...register('name')} />
+      </FormField>
+
+      <FormField id="account-email" label="Email" error={errors.email?.message}>
+        <Input
+          id="account-email"
+          type="email"
+          autoComplete="off"
+          placeholder="ten.giangvien@truong.edu.vn"
+          invalid={Boolean(errors.email)}
+          {...register('email')}
+        />
+      </FormField>
+
+      <FormField
+        id="account-password"
+        label="Mật khẩu"
+        error={errors.password?.message}
+        // The rule is stated up front rather than only after a rejected
+        // submit — it's cheaper to meet a requirement you can see.
+        hint="Tối thiểu 8 ký tự. Người dùng nên đổi lại sau lần đăng nhập đầu."
+      >
+        <Input
+          id="account-password"
+          type="password"
+          autoComplete="new-password"
+          invalid={Boolean(errors.password)}
+          {...register('password')}
+        />
+      </FormField>
+
+      <FormField id="account-role" label="Vai trò" error={errors.role?.message}>
         <Controller
           control={control}
           name="role"
@@ -87,14 +91,10 @@ export function AccountForm({
             </Select>
           )}
         />
-        {errors.role && (
-          <p role="alert" className="text-sm text-destructive">
-            {errors.role.message}
-          </p>
-        )}
-      </div>
-      <Button type="submit" disabled={submitting}>
-        {submitting ? 'Đang lưu…' : 'Lưu'}
+      </FormField>
+
+      <Button type="submit" className="w-full" loading={submitting}>
+        {submitting ? 'Đang tạo…' : 'Tạo tài khoản'}
       </Button>
     </form>
   );

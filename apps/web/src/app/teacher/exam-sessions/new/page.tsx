@@ -5,14 +5,16 @@ import Link from 'next/link';
 import { useForm, FormProvider, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { TriangleAlert } from 'lucide-react';
+import { toast } from 'sonner';
+import { ArrowLeft, CircleAlert, CircleCheckBig, Copy, TriangleAlert } from 'lucide-react';
 import { useCreateExamSession } from '@/hooks/useExamSession';
 import { useCourses } from '@/hooks/useCourses';
 import { useRooms } from '@/hooks/useRooms';
+import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
@@ -109,6 +111,32 @@ const createExamSessionSchema = z
 
 export type CreateExamSessionFormValues = z.infer<typeof createExamSessionSchema>;
 
+const EMPTY_FORM: CreateExamSessionFormValues = {
+  name: '',
+  courseId: '',
+  roomId: '',
+  // Empty-string sentinel for "not yet chosen" (same as courseId/roomId
+  // above), even though it's outside the Zod enum's real output type — the
+  // resolver still rejects submit until the user consciously picks one;
+  // this cast only tells RHF what shape the default *starts* as.
+  examType: '' as CreateExamSessionFormValues['examType'],
+  startTime: '',
+  endTime: '',
+  requiredFilenames: [{ value: '' }],
+};
+
+async function copySessionCode(code: string) {
+  try {
+    await navigator.clipboard.writeText(code);
+    toast.success(`Đã sao chép mã "${code}"`);
+  } catch {
+    // Clipboard access can be denied (permissions, non-HTTPS context) —
+    // the code is on screen at projector size anyway, so this is a
+    // degraded-but-usable failure, not a dead end.
+    toast.error('Không sao chép được — hãy đọc mã trực tiếp cho sinh viên.');
+  }
+}
+
 // Moved from app/(exam-live)/exam-sessions/new (Phase 0 route rename). P3
 // fields (Course/Room/Exam-type) added in Phase 2 once GET /courses and
 // GET /rooms existed.
@@ -120,20 +148,7 @@ export default function NewExamSessionPage() {
 
   const form = useForm<CreateExamSessionFormValues>({
     resolver: zodResolver(createExamSessionSchema),
-    defaultValues: {
-      name: '',
-      courseId: '',
-      roomId: '',
-      // Empty-string sentinel for "not yet chosen" (same as courseId/
-      // roomId above), even though it's outside the Zod enum's real
-      // output type — the resolver still rejects submit until the user
-      // consciously picks one; this cast only tells RHF what shape the
-      // default *starts* as.
-      examType: '' as CreateExamSessionFormValues['examType'],
-      startTime: '',
-      endTime: '',
-      requiredFilenames: [{ value: '' }],
-    },
+    defaultValues: EMPTY_FORM,
   });
 
   const selectedCourse = courses.data?.find((c) => c.id === form.watch('courseId'));
@@ -168,30 +183,53 @@ export default function NewExamSessionPage() {
 
   if (created) {
     return (
-      <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-6">
-        {/* Every error path above uses role="alert" — this is the equivalent
-            for the success outcome (a11y requirement in the plan's Global
-            Constraints applies to loading/error states; extended here to
-            success so a screen reader announces the newly created code
-            instead of silence). role="status" (not "alert") since this
-            isn't urgent/interrupting, just an important state change. */}
-        <Card className="w-full" role="status">
-          <CardHeader>
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
+        {/* Every error path below uses role="alert" — this is the
+            equivalent for the success outcome, so a screen reader
+            announces the newly created code instead of silence.
+            role="status" (not "alert") since this isn't urgent or
+            interrupting, just an important state change. */}
+        <Card data-animate role="status" className="overflow-hidden">
+          <div className="h-1 w-full bg-success" aria-hidden="true" />
+          <CardHeader className="items-center text-center">
+            <span className="icon-chip mb-1 h-12 w-12 rounded-full bg-success-subtle text-success-strong">
+              <CircleCheckBig className="h-6 w-6" aria-hidden="true" />
+            </span>
             <CardTitle>Đã tạo phiên thi</CardTitle>
+            <CardDescription>
+              Đọc mã này cho sinh viên hoặc chiếu lên máy chiếu để sinh viên tự nhập.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Đọc mã này cho sinh viên hoặc chiếu lên máy chiếu để sinh viên tự nhập:
-            </p>
-            {/* Large + wide letter-spacing on purpose — this is read off a
-                projector from across a room, not scanned in a table. */}
-            <p className="text-6xl font-bold tracking-[0.3em]">{created.code}</p>
-            <Link
-              href={`/exam-sessions/${created.id}`}
-              className="text-sm font-medium text-primary underline underline-offset-4"
-            >
-              Vào phòng chờ phiên thi
-            </Link>
+          <CardContent className="flex flex-col items-center gap-6">
+            {/* Oversized with wide tracking on purpose — this is read off
+                a projector from across a room, not scanned in a table. */}
+            <p className="break-all text-center text-beacon text-primary">{created.code}</p>
+
+            <Button type="button" variant="outline" size="sm" onClick={() => copySessionCode(created.code)}>
+              <Copy className="h-4 w-4" aria-hidden="true" />
+              Sao chép mã
+            </Button>
+
+            <div className="flex w-full flex-col gap-2 sm:flex-row">
+              <Button asChild className="flex-1">
+                <Link href={`/exam-sessions/${created.id}`}>Vào phòng chờ</Link>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  // Reset before clearing `created`, so the form that
+                  // reappears is empty rather than still holding the
+                  // session that was just created.
+                  form.reset(EMPTY_FORM);
+                  createExamSession.reset();
+                  setCreated(null);
+                }}
+              >
+                Tạo phiên thi khác
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -199,25 +237,49 @@ export default function NewExamSessionPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
-      <h1 className="font-display text-2xl font-bold">Tạo phiên thi mới</h1>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
+      <PageHeader
+        title="Tạo phiên thi mới"
+        description="Khai báo lớp, phòng, khung giờ và những file sinh viên bắt buộc phải nộp."
+        actions={
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/teacher/exam-sessions">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Danh sách phiên thi
+            </Link>
+          </Button>
+        }
+      />
 
       <FormProvider {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
-          <Card>
-            <CardContent className="flex flex-col gap-4 pt-6">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="exam-session-name">Tên phiên thi</Label>
-                <Input id="exam-session-name" {...form.register('name')} />
-                {form.formState.errors.name && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {form.formState.errors.name.message}
-                  </p>
-                )}
-              </div>
+          <Card data-animate>
+            <CardHeader>
+              <CardTitle>Thông tin phiên thi</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-5">
+              <FormField
+                id="exam-session-name"
+                label="Tên phiên thi"
+                error={form.formState.errors.name?.message}
+              >
+                <Input
+                  id="exam-session-name"
+                  placeholder="vd: Thi cuối kỳ Lập trình Web — nhóm 03"
+                  invalid={Boolean(form.formState.errors.name)}
+                  {...form.register('name')}
+                />
+              </FormField>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="exam-session-course">Môn thi</Label>
+              <FormField
+                id="exam-session-course"
+                label="Môn thi"
+                error={
+                  courses.isError
+                    ? undefined
+                    : form.formState.errors.courseId?.message
+                }
+              >
                 <Controller
                   control={form.control}
                   name="courseId"
@@ -242,28 +304,29 @@ export default function NewExamSessionPage() {
                     </Select>
                   )}
                 />
-                {courses.isError ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    Không tải được danh sách môn thi.{' '}
+                {courses.isError && (
+                  <p
+                    role="alert"
+                    className="flex items-center gap-1.5 text-small font-medium text-danger-strong"
+                  >
+                    <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    Không tải được danh sách môn thi.
                     <button
                       type="button"
                       onClick={() => courses.refetch()}
-                      className="underline underline-offset-2"
+                      className="rounded-sm underline underline-offset-2 hover:no-underline"
                     >
                       Thử lại
                     </button>
                   </p>
-                ) : (
-                  form.formState.errors.courseId && (
-                    <p role="alert" className="text-sm text-destructive">
-                      {form.formState.errors.courseId.message}
-                    </p>
-                  )
                 )}
-              </div>
+              </FormField>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="exam-session-room">Phòng thi</Label>
+              <FormField
+                id="exam-session-room"
+                label="Phòng thi"
+                error={rooms.isError ? undefined : form.formState.errors.roomId?.message}
+              >
                 <Controller
                   control={form.control}
                   name="roomId"
@@ -289,25 +352,23 @@ export default function NewExamSessionPage() {
                     </Select>
                   )}
                 />
-                {rooms.isError ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    Không tải được danh sách phòng thi.{' '}
+                {rooms.isError && (
+                  <p
+                    role="alert"
+                    className="flex items-center gap-1.5 text-small font-medium text-danger-strong"
+                  >
+                    <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    Không tải được danh sách phòng thi.
                     <button
                       type="button"
                       onClick={() => rooms.refetch()}
-                      className="underline underline-offset-2"
+                      className="rounded-sm underline underline-offset-2 hover:no-underline"
                     >
                       Thử lại
                     </button>
                   </p>
-                ) : (
-                  form.formState.errors.roomId && (
-                    <p role="alert" className="text-sm text-destructive">
-                      {form.formState.errors.roomId.message}
-                    </p>
-                  )
                 )}
-              </div>
+              </FormField>
 
               {capacityWarning && (
                 <Alert variant="warning">
@@ -316,8 +377,11 @@ export default function NewExamSessionPage() {
                 </Alert>
               )}
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="exam-session-type">Loại kỳ thi</Label>
+              <FormField
+                id="exam-session-type"
+                label="Loại kỳ thi"
+                error={form.formState.errors.examType?.message}
+              >
                 <Controller
                   control={form.control}
                   name="examType"
@@ -336,61 +400,64 @@ export default function NewExamSessionPage() {
                     </Select>
                   )}
                 />
-                {form.formState.errors.examType && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {form.formState.errors.examType.message}
-                  </p>
-                )}
-              </div>
+              </FormField>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="exam-session-start-time">Thời gian bắt đầu</Label>
-                <Input
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField
                   id="exam-session-start-time"
-                  type="datetime-local"
-                  {...form.register('startTime')}
-                />
-                {form.formState.errors.startTime && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {form.formState.errors.startTime.message}
-                  </p>
-                )}
-              </div>
+                  label="Thời gian bắt đầu"
+                  error={form.formState.errors.startTime?.message}
+                >
+                  <Input
+                    id="exam-session-start-time"
+                    type="datetime-local"
+                    invalid={Boolean(form.formState.errors.startTime)}
+                    {...form.register('startTime')}
+                  />
+                </FormField>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="exam-session-end-time">Thời gian kết thúc</Label>
-                <Input
+                <FormField
                   id="exam-session-end-time"
-                  type="datetime-local"
-                  {...form.register('endTime')}
-                />
-                {form.formState.errors.endTime && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {form.formState.errors.endTime.message}
-                  </p>
-                )}
+                  label="Thời gian kết thúc"
+                  error={form.formState.errors.endTime?.message}
+                >
+                  <Input
+                    id="exam-session-end-time"
+                    type="datetime-local"
+                    invalid={Boolean(form.formState.errors.endTime)}
+                    {...form.register('endTime')}
+                  />
+                </FormField>
               </div>
 
               <RequiredFilenamesInput />
 
               {createExamSession.isError && (
-                <p role="alert" className="text-sm text-destructive">
-                  {/* A retry can never succeed for a duplicate-filename 409 — the
-                      client-side .refine() above should already catch that case
-                      before submit, but this is the fallback for anything that
-                      still reaches the API (e.g. a race, or a bypass), so it must
-                      point at a real, checkable cause instead of blindly
-                      suggesting "thử lại". */}
-                  Không tạo được phiên thi. Vui lòng kiểm tra danh sách file bắt buộc
-                  có bị trùng tên không, sau đó thử lại.
-                </p>
+                <Alert variant="destructive">
+                  <CircleAlert />
+                  <AlertDescription>
+                    {/* A retry can never succeed for a duplicate-filename
+                        409 — the client-side .refine() above should catch
+                        that before submit, but this is the fallback for
+                        anything that still reaches the API (a race, or a
+                        bypass), so it points at a real, checkable cause
+                        instead of blindly suggesting "thử lại". */}
+                    Không tạo được phiên thi. Vui lòng kiểm tra danh sách file bắt buộc có bị
+                    trùng tên không, sau đó thử lại.
+                  </AlertDescription>
+                </Alert>
               )}
             </CardContent>
           </Card>
 
-          <Button type="submit" disabled={createExamSession.isPending}>
-            {createExamSession.isPending ? 'Đang tạo…' : 'Tạo phiên thi'}
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button asChild variant="outline">
+              <Link href="/teacher/exam-sessions">Hủy</Link>
+            </Button>
+            <Button type="submit" size="lg" loading={createExamSession.isPending}>
+              {createExamSession.isPending ? 'Đang tạo…' : 'Tạo phiên thi'}
+            </Button>
+          </div>
         </form>
       </FormProvider>
     </div>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function LogoutButton() {
@@ -20,13 +21,12 @@ export function LogoutButton() {
   }
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={handleLogout}
-      disabled={pending}
-    >
+    // Ghost, not outline: signing out is the least important action on
+    // every screen it appears on, and it sits three inches from whatever
+    // the page's real primary action is. It should be findable, not
+    // competitive.
+    <Button type="button" variant="ghost" size="sm" onClick={handleLogout} loading={pending}>
+      {!pending && <LogOut className="h-4 w-4" aria-hidden="true" />}
       Đăng xuất
     </Button>
   );

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Search, Users } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -19,6 +19,8 @@ import {
 } from '@/lib/account-roles';
 import { AccountForm, AccountFormValues } from '@/components/accounts/account-form';
 import { EditAccountForm, EditAccountFormValues } from '@/components/accounts/edit-account-form';
+import { EmptyState } from '@/components/layout/empty-state';
+import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,6 +31,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -67,6 +71,10 @@ export default function AccountsPage() {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AccountView | null>(null);
+  // Was a native window.confirm(). A browser dialog can't be styled, can't
+  // name the consequence, and looks like a page error rather than part of
+  // the product — for a destructive action that's exactly the wrong tone.
+  const [deletingAccount, setDeletingAccount] = useState<AccountView | null>(null);
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -115,10 +123,13 @@ export default function AccountsPage() {
     );
   }
 
-  function handleDelete(account: AccountView) {
-    if (!window.confirm(`Xóa tài khoản "${account.name}"?`)) return;
-    deleteAccount.mutate(account.id, {
-      onSuccess: () => toast.success('Đã xoá tài khoản'),
+  function handleDelete() {
+    if (!deletingAccount) return;
+    deleteAccount.mutate(deletingAccount.id, {
+      onSuccess: () => {
+        toast.success('Đã xoá tài khoản');
+        setDeletingAccount(null);
+      },
       onError: () =>
         toast.error(
           'Không xoá được tài khoản — tài khoản này có thể đang sở hữu dữ liệu khác (phiên thi, lớp...).',
@@ -127,8 +138,14 @@ export default function AccountsPage() {
   }
 
   const columns = [
-    columnHelper.accessor('name', { header: 'Họ tên' }),
-    columnHelper.accessor('email', { header: 'Email' }),
+    columnHelper.accessor('name', {
+      header: 'Họ tên',
+      cell: ({ getValue }) => <span className="font-medium text-foreground">{getValue()}</span>,
+    }),
+    columnHelper.accessor('email', {
+      header: 'Email',
+      cell: ({ getValue }) => <span className="text-muted-foreground">{getValue()}</span>,
+    }),
     columnHelper.accessor('role', {
       header: 'Vai trò',
       cell: ({ getValue }) => {
@@ -145,24 +162,37 @@ export default function AccountsPage() {
     columnHelper.accessor('createdAt', {
       header: 'Ngày tạo',
       cell: ({ getValue }) => (
-        <span className="text-muted-foreground">{formatDate(getValue())}</span>
+        <span className="whitespace-nowrap text-muted-foreground">{formatDate(getValue())}</span>
       ),
     }),
     columnHelper.display({
       id: 'actions',
       header: 'Thao tác',
       cell: ({ row }) => (
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setEditingAccount(row.original)}>
-            Sửa
+        // Icon buttons with a per-row accessible name: "Sửa" repeated
+        // twenty times down a column tells a screen-reader user nothing
+        // about which row they're on.
+        <div className="flex justify-end gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setEditingAccount(row.original)}
+            aria-label={`Sửa tài khoản ${row.original.name}`}
+            title="Sửa tài khoản"
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             type="button"
-            variant="destructive"
-            size="sm"
-            onClick={() => handleDelete(row.original)}
+            variant="ghost"
+            size="icon"
+            onClick={() => setDeletingAccount(row.original)}
+            aria-label={`Xóa tài khoản ${row.original.name}`}
+            title="Xóa tài khoản"
+            className="hover:bg-danger-subtle hover:text-danger-strong"
           >
-            Xóa
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       ),
@@ -180,148 +210,174 @@ export default function AccountsPage() {
   const hasActiveFilters = search.trim() !== '' || roleFilter !== 'all';
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-2xl font-bold">Quản lý tài khoản</h1>
-        {/* Hidden (not just disabled) when the list query itself failed —
-            AccountsController is @Roles('admin')-only, so if GET /accounts
-            403'd, POST /accounts would too; showing a create button whose
-            submit can only fail the same way is misleading busywork, not a
-            usable admin screen. */}
-        {!error && (
-          <Button type="button" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Tạo tài khoản
-          </Button>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Quản lý tài khoản"
+        description="Cấp và thu hồi quyền truy cập ExamCollect cho giảng viên và quản trị viên."
+        actions={
+          /* Hidden (not just disabled) when the list query itself failed —
+             AccountsController is @Roles('admin')-only, so if GET /accounts
+             403'd, POST /accounts would too; showing a create button whose
+             submit can only fail the same way is misleading busywork, not a
+             usable admin screen. */
+          !error && (
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Tạo tài khoản
+            </Button>
+          )
+        }
+      />
+
+      <div data-animate className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              placeholder="Tìm theo tên hoặc email..."
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-9"
+              aria-label="Tìm kiếm tài khoản"
+            />
+          </div>
+          <Select value={roleFilter} onValueChange={handleRoleFilterChange}>
+            <SelectTrigger className="sm:w-48" aria-label="Lọc theo vai trò">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả vai trò</SelectItem>
+              {ACCOUNT_ROLE_OPTIONS.map((role) => (
+                <SelectItem key={role} value={role}>
+                  {ACCOUNT_ROLE_LABELS[role]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {isLoading ? (
+          <Card>
+            <CardContent className="flex flex-col gap-3 p-6">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </CardContent>
+          </Card>
+        ) : error ? (
+          <Alert variant="destructive">
+            <AlertDescription className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>Không tải được danh sách tài khoản. Hãy thử lại.</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+                Thử lại
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : table.getRowModel().rows.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon={Users}
+              title={hasActiveFilters ? 'Không tìm thấy tài khoản phù hợp' : 'Chưa có tài khoản nào'}
+              description={
+                hasActiveFilters
+                  ? 'Thử đổi từ khoá tìm kiếm hoặc bộ lọc vai trò.'
+                  : 'Tạo tài khoản đầu tiên cho giáo viên hoặc quản trị viên khác.'
+              }
+              action={
+                hasActiveFilters ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setSearch('');
+                      setRoleFilter('all');
+                      setPage(1);
+                    }}
+                  >
+                    Xoá bộ lọc
+                  </Button>
+                ) : (
+                  <Button type="button" onClick={() => setCreateOpen(true)}>
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Tạo tài khoản
+                  </Button>
+                )
+              }
+            />
+          </Card>
+        ) : (
+          <>
+            {/* overflow-hidden so the tinted header band is clipped by the
+                card's own corner radius instead of squaring it off. */}
+            <Card className="overflow-hidden">
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                      {headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          className={header.column.id === 'actions' ? 'text-right' : undefined}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+
+            <div className="flex items-center justify-between gap-4 text-small text-muted-foreground">
+              <span>
+                Trang {page}/{totalPages} • {total} tài khoản
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Trước
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Sau
+                </Button>
+              </div>
+            </div>
+          </>
         )}
       </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Tìm theo tên hoặc email..."
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-8"
-            aria-label="Tìm kiếm tài khoản"
-          />
-        </div>
-        <Select value={roleFilter} onValueChange={handleRoleFilterChange}>
-          <SelectTrigger className="sm:w-48" aria-label="Lọc theo vai trò">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tất cả vai trò</SelectItem>
-            {ACCOUNT_ROLE_OPTIONS.map((role) => (
-              <SelectItem key={role} value={role}>
-                {ACCOUNT_ROLE_LABELS[role]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {isLoading ? (
-        <Card>
-          <CardContent className="flex flex-col gap-3 p-6">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-9 w-full" />
-            ))}
-          </CardContent>
-        </Card>
-      ) : error ? (
-        <Alert variant="destructive">
-          <AlertDescription className="flex items-center justify-between gap-4">
-            <span>Không tải được danh sách tài khoản. Hãy thử lại.</span>
-            <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
-              Thử lại
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : table.getRowModel().rows.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-subtle text-accent">
-              <Users className="h-6 w-6" aria-hidden="true" />
-            </div>
-            <p className="font-medium">
-              {hasActiveFilters ? 'Không tìm thấy tài khoản phù hợp' : 'Chưa có tài khoản nào'}
-            </p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {hasActiveFilters
-                ? 'Thử đổi từ khoá tìm kiếm hoặc bộ lọc vai trò.'
-                : 'Tạo tài khoản đầu tiên cho giáo viên hoặc quản trị viên khác.'}
-            </p>
-            {!hasActiveFilters && (
-              <Button type="button" onClick={() => setCreateOpen(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                Tạo tài khoản
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <Card>
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              Trang {page}/{totalPages} • {total} tài khoản
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Trước
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Sau
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Tạo tài khoản mới</DialogTitle>
+            <DialogDescription>
+              Tài khoản dùng được ngay sau khi tạo. Gửi mật khẩu cho người dùng qua kênh riêng.
+            </DialogDescription>
           </DialogHeader>
           <AccountForm onSubmit={handleCreate} submitting={createAccount.isPending} />
         </DialogContent>
@@ -330,7 +386,8 @@ export default function AccountsPage() {
       <Dialog open={editingAccount !== null} onOpenChange={(open) => !open && setEditingAccount(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sửa tài khoản {editingAccount ? `— ${editingAccount.name}` : ''}</DialogTitle>
+            <DialogTitle>Sửa tài khoản</DialogTitle>
+            <DialogDescription>{editingAccount?.email}</DialogDescription>
           </DialogHeader>
           {editingAccount && (
             <EditAccountForm
@@ -343,6 +400,35 @@ export default function AccountsPage() {
               submitting={updateAccount.isPending}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deletingAccount !== null}
+        onOpenChange={(open) => !open && setDeletingAccount(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Xóa tài khoản?</DialogTitle>
+            <DialogDescription>
+              <strong className="font-semibold text-foreground">{deletingAccount?.name}</strong> (
+              {deletingAccount?.email}) sẽ mất quyền truy cập ExamCollect ngay lập tức. Không thể
+              hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeletingAccount(null)}>
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              loading={deleteAccount.isPending}
+            >
+              {deleteAccount.isPending ? 'Đang xoá…' : 'Xóa tài khoản'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

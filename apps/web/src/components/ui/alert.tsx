@@ -2,16 +2,24 @@ import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
+/**
+ * Tinted ground + matching left border + `-strong` text. The `-strong`
+ * step (not the base hue) is what makes the text legible on its own tint:
+ * see the contrast table in globals.css.
+ */
 const alertVariants = cva(
-  'relative w-full rounded-lg border px-4 py-3 text-sm [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:h-4 [&>svg]:w-4 [&>svg+div]:translate-y-[-3px] [&:has(svg)]:pl-11',
+  'relative w-full rounded-lg border border-l-[3px] px-4 py-3 text-body [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-3.5 [&>svg]:h-[18px] [&>svg]:w-[18px] [&:has(svg)]:pl-12',
   {
     variants: {
       variant: {
-        default: 'bg-background text-foreground',
-        destructive: 'border-destructive/50 text-destructive [&>svg]:text-destructive',
-        warning: 'border-warning/30 bg-warning-subtle text-warning [&>svg]:text-warning',
-        success: 'border-success/30 bg-success-subtle text-success [&>svg]:text-success',
-        info: 'border-info/30 bg-info-subtle text-info [&>svg]:text-info',
+        default: 'border-border bg-surface text-foreground',
+        destructive:
+          'border-danger/30 border-l-danger bg-danger-subtle text-danger-strong [&>svg]:text-danger',
+        warning:
+          'border-warning/40 border-l-warning bg-warning-subtle text-warning-strong [&>svg]:text-warning',
+        success:
+          'border-success/30 border-l-success bg-success-subtle text-success-strong [&>svg]:text-success',
+        info: 'border-info/30 border-l-info bg-info-subtle text-info-strong [&>svg]:text-info',
       },
     },
     defaultVariants: { variant: 'default' },
@@ -26,18 +34,18 @@ const Alert = React.forwardRef<
 ));
 Alert.displayName = 'Alert';
 
-const AlertTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
+const AlertTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h5 ref={ref} className={cn('mb-1 font-medium leading-none', className)} {...props} />
+    <h5 ref={ref} className={cn('mb-1 text-h3 leading-none', className)} {...props} />
   ),
 );
 AlertTitle.displayName = 'AlertTitle';
 
 const AlertDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('text-sm [&_p]:leading-relaxed', className)} {...props} />
+  <div ref={ref} className={cn('text-body [&_p]:leading-relaxed', className)} {...props} />
 ));
 AlertDescription.displayName = 'AlertDescription';
 

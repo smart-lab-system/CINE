@@ -32,7 +32,7 @@ describe('AccountForm', () => {
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'not-an-email' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /tạo tài khoản/i }));
 
     await waitFor(() => expect(onSubmit).not.toHaveBeenCalled());
   });
@@ -42,7 +42,7 @@ describe('AccountForm', () => {
     render(<AccountForm onSubmit={onSubmit} />);
 
     fillCommonFields();
-    fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /tạo tài khoản/i }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
@@ -59,7 +59,7 @@ describe('AccountForm', () => {
 
     fillCommonFields();
     selectRole(/quản trị/i);
-    fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /tạo tài khoản/i }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ role: 'admin' });

@@ -2,49 +2,324 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+ * ExamCollect design tokens.
+ *
+ * Palette: Deep Indigo (--primary, navigation/brand) + Teal (--accent,
+ * call-to-action) on a cool off-white app background. Academic, calm,
+ * trustworthy — deliberately not the default shadcn black-on-white, and
+ * deliberately not a saturated consumer-app palette.
+ *
+ * Contrast note (measured, not assumed): the brief's teal
+ * hsl(174 62% 40%) = #26A69A only reaches 3.0:1 against white — fine for
+ * non-text UI (WCAG 1.4.11 wants 3:1 for borders/indicators/icons), NOT
+ * fine for a 14px button label or a body-size link (needs 4.5:1). So every
+ * semantic hue carries three tokens:
+ *
+ *   --x          the brief's value. Fills, rings, indicators, icons,
+ *                borders, decorative gradients. 3:1 surfaces only.
+ *   --x-strong   same hue + saturation, darker lightness. Solid fills that
+ *                carry white label text, and coloured text on light
+ *                backgrounds. >= 4.5:1 both ways.
+ *   --x-subtle   very light tint for badge/soft backgrounds. Pairs with
+ *                --x-strong as its text colour.
+ *
+ * Verified pairs (contrast ratio):
+ *   white on --accent-strong .............. 4.79:1
+ *   --accent-strong on --accent-subtle .... 5.06:1
+ *   white on --primary .................... 11.7:1
+ *   --primary on --primary-subtle ......... 10.4:1
+ *   white on --danger ..................... 4.84:1
+ *   --muted-foreground on --background .... 4.50:1
+ *   --muted-foreground on --surface ....... 4.79:1
+ *   --foreground on --background .......... 15.9:1
+ * ------------------------------------------------------------------------ */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    /* Surfaces */
+    --background: 220 33% 98%;        /* #F6F8FB — app canvas, cool not stark */
+    --surface: 0 0% 100%;             /* #FFFFFF — cards, sidebar, topbar */
+    --surface-2: 220 20% 96%;         /* #F1F3F7 — table head, row hover, wells */
+    --foreground: 222 47% 11%;        /* #0F172A */
+    --muted-foreground: 215 16% 47%;  /* #64748B */
+    --border: 220 16% 90%;            /* #DDE2EA */
 
-    /* Semantic tokens (added for the admin/teacher app shell rebuild).
-       Each has a DEFAULT/foreground pair for solid use (buttons, alerts —
-       dark, saturated DEFAULT + near-white foreground, same shape as
-       --primary/--destructive above) and a "subtle" pair for badges/soft
-       backgrounds (very light background + the DEFAULT hue as text) so a
-       status/role badge in a dense table isn't a loud solid pill. All
-       DEFAULT values are dark/saturated enough to double as body text
-       directly on --background (e.g. `text-success`) at WCAG AA contrast. */
-    --accent: 221 83% 40%;
-    --accent-foreground: 210 40% 98%;
-    --accent-subtle: 221 100% 96%;
+    /* shadcn aliases onto the same surfaces, so every stock primitive
+       (Card, Dialog, Select, Sheet...) inherits the system without each
+       component needing a bespoke class. */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --secondary: 220 20% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 20% 96%;
+    --input: 220 16% 90%;
 
-    --success: 142 71% 29%;
-    --success-foreground: 210 40% 98%;
-    --success-subtle: 142 60% 94%;
+    /* Primary — Deep Indigo. Brand, sidebar active, admin badge. */
+    --primary: 231 48% 30%;           /* #26317A */
+    --primary-foreground: 0 0% 100%;
+    --primary-strong: 231 48% 24%;    /* hover/pressed on solid indigo */
+    --primary-subtle: 231 60% 95%;    /* #EBEDFB — indigo badge background */
 
-    --warning: 32 95% 32%;
-    --warning-foreground: 210 40% 98%;
-    --warning-subtle: 38 100% 94%;
+    /* Accent — Teal. The single call-to-action colour. */
+    --accent: 174 62% 40%;            /* #26A69A — brief value, non-text use */
+    --accent-foreground: 0 0% 100%;
+    --accent-strong: 174 62% 31%;     /* #1E8076 — CTA fill + teal text */
+    --accent-stronger: 174 62% 25%;   /* CTA hover/pressed */
+    --accent-subtle: 174 45% 94%;     /* #E7F5F3 */
 
-    --info: 201 90% 32%;
-    --info-foreground: 210 40% 98%;
-    --info-subtle: 201 90% 95%;
+    /* Semantic */
+    --success: 152 55% 42%;
+    --success-foreground: 0 0% 100%;
+    --success-strong: 152 60% 26%;
+    --success-subtle: 152 50% 94%;
+
+    --warning: 38 92% 50%;            /* #F5A623 — needs a DARK foreground */
+    --warning-foreground: 30 60% 12%;
+    --warning-strong: 38 92% 30%;
+    --warning-subtle: 38 92% 94%;
+
+    --danger: 0 72% 51%;              /* #DC2626 — white text passes at 4.84 */
+    --danger-foreground: 0 0% 100%;
+    --danger-strong: 0 72% 43%;
+    --danger-subtle: 0 86% 96%;
+
+    --info: 205 80% 46%;
+    --info-foreground: 0 0% 100%;
+    --info-strong: 205 80% 34%;
+    --info-subtle: 205 80% 95%;
+
+    /* shadcn's `destructive` is the same colour as --danger; kept as an
+       alias so stock variants keep working. */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --ring: 174 62% 40%;              /* focus ring = brand teal */
+
+    /* Elevation — soft, multi-layer, tinted with the slate text colour
+       instead of pure black, so shadows read as depth rather than dirt. */
+    --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+    --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08);
+    --shadow-lg: 0 12px 32px -8px rgb(15 23 42 / 0.14);
+
+    --radius: 0.75rem;                /* 12px */
+  }
+
+  /* Dark mode: tokens are defined so nothing hardcodes a light value, but
+     no toggle is wired into the UI yet (darkMode: 'class' — nothing sets
+     the class). Treat these as a reviewed starting point, not a shipped,
+     visually-audited theme. */
+  .dark {
+    --background: 222 40% 8%;
+    --surface: 222 33% 12%;
+    --surface-2: 222 28% 17%;
+    --foreground: 210 30% 96%;
+    --muted-foreground: 215 16% 65%;
+    --border: 222 22% 22%;
+
+    --card: 222 33% 12%;
+    --card-foreground: 210 30% 96%;
+    --popover: 222 33% 12%;
+    --popover-foreground: 210 30% 96%;
+    --secondary: 222 28% 17%;
+    --secondary-foreground: 210 30% 96%;
+    --muted: 222 28% 17%;
+    --input: 222 22% 22%;
+
+    --primary: 231 55% 66%;
+    --primary-foreground: 231 48% 12%;
+    --primary-strong: 231 55% 74%;
+    --primary-subtle: 231 35% 22%;
+
+    --accent: 174 55% 48%;
+    --accent-foreground: 174 62% 10%;
+    --accent-strong: 174 55% 60%;
+    --accent-stronger: 174 55% 70%;
+    --accent-subtle: 174 35% 20%;
+
+    --success: 152 50% 48%;
+    --success-strong: 152 50% 62%;
+    --success-subtle: 152 30% 18%;
+    --warning: 38 85% 58%;
+    --warning-foreground: 30 60% 10%;
+    --warning-strong: 38 85% 68%;
+    --warning-subtle: 38 40% 20%;
+    --danger: 0 72% 60%;
+    --danger-strong: 0 80% 72%;
+    --danger-subtle: 0 40% 20%;
+    --info: 205 75% 55%;
+    --info-strong: 205 80% 68%;
+    --info-subtle: 205 40% 20%;
+    --destructive: 0 72% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --ring: 174 55% 52%;
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+    --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.45);
+    --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.6);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* One visible, brand-coloured focus ring for every interactive element,
+     declared once here rather than re-specified (and quietly varied) by
+     each component. :focus-visible, not :focus, so a mouse click on a
+     button doesn't leave a ring behind.
+
+     This composes correctly with Tailwind's shadow utilities: `shadow-sm`
+     emits `box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow),
+     var(--tw-shadow)`, so setting the ring variables here lights up the
+     ring through that same declaration instead of being overwritten by it. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring/70 ring-offset-2 ring-offset-background;
+  }
+
+  /* Text fields and the Radix Select trigger (a button[role="combobox"])
+     always match :focus-visible, including on a plain mouse click — so
+     they'd otherwise stack this ring on top of their own focus border and
+     read as two concentric halos. Drop the offset so the ring sits tight
+     against the field's border and the two cues read as one. */
+  input:focus-visible,
+  textarea:focus-visible,
+  [role='combobox']:focus-visible {
+    --tw-ring-offset-width: 0px;
+  }
+
+  ::selection {
+    background-color: hsl(var(--accent) / 0.22);
+    color: hsl(var(--foreground));
+  }
+
+  /* Scrollbars styled to the palette instead of the OS default grey slab —
+     it's on screen the whole time, so it may as well belong. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+    background-clip: content-box;
   }
 }
 
-body {
-  @apply bg-background text-foreground font-sans;
+@layer components {
+  /* Card that lifts on hover. Only transform + box-shadow animate — both
+     are cheap; width/height/top would force layout on every frame. */
+  .card-elevated {
+    @apply rounded-lg border border-border bg-card shadow-sm;
+    transition:
+      box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 200ms ease;
+  }
+  .card-elevated:hover {
+    @apply shadow-md;
+    border-color: hsl(var(--border) / 0.7);
+    transform: translateY(-2px);
+  }
+
+  /* Sidebar nav row. The active state is three cues at once — tinted
+     indigo ground, indigo label, and the teal rail that slides between
+     items (see sidebar-nav.tsx) — because a single cue reads as a hover
+     accident at a glance. */
+  .sidebar-item {
+    @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-small font-medium text-muted-foreground;
+    transition:
+      background-color 150ms ease,
+      color 150ms ease;
+  }
+  .sidebar-item:hover {
+    background-color: hsl(var(--surface-2));
+    color: hsl(var(--foreground));
+  }
+  .sidebar-item[data-active='true'] {
+    background-color: hsl(var(--primary) / 0.08);
+    color: hsl(var(--primary));
+    @apply font-semibold;
+  }
+  .dark .sidebar-item[data-active='true'] {
+    background-color: hsl(var(--primary) / 0.18);
+  }
+
+  /* Small-caps group heading — sidebar sections, field clusters. */
+  .section-label {
+    @apply text-caption font-semibold uppercase tracking-[0.08em] text-muted-foreground;
+  }
+
+  /* Tinted rounded square behind an icon — used by stat cards and empty
+     states so a glyph never floats alone in whitespace. */
+  .icon-chip {
+    @apply flex shrink-0 items-center justify-center rounded-xl;
+  }
+}
+
+@layer utilities {
+  /* Page background wash: one very soft indigo bloom top-left and one teal
+     bloom top-right, both far below the text. Depth without a gradient
+     that fights the content. */
+  .app-wash {
+    background-image:
+      radial-gradient(60rem 32rem at 8% -8%, hsl(var(--primary) / 0.07), transparent 60%),
+      radial-gradient(48rem 28rem at 100% 0%, hsl(var(--accent) / 0.07), transparent 60%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+
+  /* Faint ruled grid — an answer-sheet reference, used on the auth screen. */
+  .grid-rule {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.55) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.55) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+}
+
+/* Accessibility floor: honour the OS "reduce motion" setting everywhere.
+   GSAP is gated separately in lib/gsap.ts (a JS tween ignores CSS media
+   queries) — this covers Tailwind transitions, tailwindcss-animate's
+   dialog/toast keyframes, and smooth scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .card-elevated:hover {
+    transform: none;
+  }
 }

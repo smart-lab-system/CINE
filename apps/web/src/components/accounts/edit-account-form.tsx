@@ -4,8 +4,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ACCOUNT_ROLE_LABELS, ACCOUNT_ROLE_OPTIONS } from '@/lib/account-roles';
 
@@ -40,18 +40,17 @@ export function EditAccountForm({
   });
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="edit-name">Họ tên</Label>
-        <Input id="edit-name" {...register('name')} />
-        {errors.name && (
-          <p role="alert" className="text-sm text-destructive">
-            {errors.name.message}
-          </p>
-        )}
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="edit-role">Vai trò</Label>
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+      <FormField id="edit-name" label="Họ tên" error={errors.name?.message}>
+        <Input id="edit-name" invalid={Boolean(errors.name)} {...register('name')} />
+      </FormField>
+
+      <FormField
+        id="edit-role"
+        label="Vai trò"
+        error={errors.role?.message}
+        hint="Đổi sang Quản trị sẽ cấp quyền vào toàn bộ khu vực quản trị."
+      >
         <Controller
           control={control}
           name="role"
@@ -70,18 +69,18 @@ export function EditAccountForm({
             </Select>
           )}
         />
-        {errors.role && (
-          <p role="alert" className="text-sm text-destructive">
-            {errors.role.message}
-          </p>
-        )}
-      </div>
-      <div className="flex gap-2">
-        <Button type="submit" disabled={submitting}>
-          {submitting ? 'Đang lưu…' : 'Lưu'}
-        </Button>
+      </FormField>
+
+      {/* Safe option on the left, committing action on the right — the
+          conventional order, and the one the DOM follows too, so tabbing
+          reaches "Hủy" before "Lưu thay đổi" rather than landing on the
+          destructive-by-accident choice first. */}
+      <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="outline" onClick={onCancel}>
           Hủy
+        </Button>
+        <Button type="submit" loading={submitting}>
+          {submitting ? 'Đang lưu…' : 'Lưu thay đổi'}
         </Button>
       </div>
     </form>

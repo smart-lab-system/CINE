@@ -21,7 +21,11 @@ export const EXAM_SESSION_STATUS_BADGE_VARIANT: Record<
   draft: 'default',
   scheduled: 'info',
   active: 'success',
-  completed: 'accent',
+  // Neutral, not a brand colour: a finished session needs no attention,
+  // and teal sits close enough to the green used for "Đang diễn ra"
+  // (174° vs 152°) that two coloured pills in the same column would be
+  // easy to confuse at a glance.
+  completed: 'default',
   cancelled: 'destructive',
 };
 
@@ -50,7 +54,7 @@ export function getDisplaySessionStatus(
     const start = new Date(startTime).getTime();
     const end = new Date(endTime).getTime();
     if (now < start) return { label: 'Sắp diễn ra', variant: 'info' };
-    if (now > end) return { label: 'Đã kết thúc', variant: 'accent' };
+    if (now > end) return { label: 'Đã kết thúc', variant: 'default' };
     return { label: 'Đang diễn ra', variant: 'success' };
   }
   return {

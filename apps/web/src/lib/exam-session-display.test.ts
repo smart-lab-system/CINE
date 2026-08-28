@@ -23,7 +23,7 @@ describe('getDisplaySessionStatus', () => {
       '2026-08-27T08:22:00.000Z',
       '2026-08-27T11:27:00.000Z',
     );
-    expect(result).toEqual({ label: 'Đã kết thúc', variant: 'accent' });
+    expect(result).toEqual({ label: 'Đã kết thúc', variant: 'default' });
   });
 
   it('shows "Sắp diễn ra" before startTime', () => {

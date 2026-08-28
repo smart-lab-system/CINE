@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { ClipboardCheck } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { useExamSessionDetail } from '@/hooks/useExamSession';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
@@ -51,6 +53,15 @@ const SUBSCRIBE_ERROR_MESSAGES: Record<TeacherSubscribeErrorCode, string> = {
   FORBIDDEN: 'Bạn không phải là chủ của phiên thi này.',
 };
 
+/**
+ * The projector-facing lobby. Deliberately outside the admin/teacher app
+ * shell (its own route group, no sidebar) and deliberately outside
+ * PageTransition: this screen is watched live while an exam starts, so
+ * rows appear the instant the server says so. Nothing here staggers,
+ * fades, or animates on update — see the design spec's "do not animate"
+ * list. The only motion is the standing "live" pulse, which reports that
+ * the socket is open rather than reacting to any particular event.
+ */
 export default function ExamSessionLobbyPage() {
   const params = useParams<{ id: string }>();
   const examSessionId = params.id;
@@ -168,60 +179,94 @@ export default function ExamSessionLobbyPage() {
   const connectedCount = students.filter((s) => s.status === 'connected').length;
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-8">
-      <h1 className="text-2xl font-semibold">Phòng chờ phiên thi</h1>
+    <main className="app-wash min-h-screen bg-background px-4 py-8 md:px-8">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="icon-chip mt-0.5 h-10 w-10 bg-gradient-to-br from-primary to-accent text-white shadow-sm">
+              <ClipboardCheck className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="flex flex-col gap-1">
+              <h1 className="text-h1 text-foreground">Phòng chờ phiên thi</h1>
+              {sessionDetail.data && (
+                <p className="text-body text-muted-foreground">{sessionDetail.data.name}</p>
+              )}
+            </div>
+          </div>
+          {displayStatus && (
+            <Badge variant={displayStatus.variant} className="shrink-0 self-start">
+              {displayStatus.label}
+            </Badge>
+          )}
+        </div>
 
-      {displayStatus && displayStatus.label !== 'Đang diễn ra' && (
-        <Alert variant={displayStatus.label === 'Đã kết thúc' ? 'warning' : 'info'}>
-          <AlertDescription>
-            {displayStatus.label === 'Đã kết thúc' ? (
-              <>
-                Kỳ thi này đã kết thúc lúc {formatDateTime(sessionDetail.data!.endTime)}. Đây là
-                chế độ xem lại — sinh viên không thể tham gia mới (máy chủ đã tự chặn ở bước
-                kết nối, kể cả khi còn nhớ mã phiên thi).
-              </>
-            ) : (
-              <>
-                Kỳ thi này chưa bắt đầu — sẽ mở lúc {formatDateTime(sessionDetail.data!.startTime)}.
-                Sinh viên chưa thể tham gia trước thời điểm đó.
-              </>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
+        {displayStatus && displayStatus.label !== 'Đang diễn ra' && (
+          <Alert variant={displayStatus.label === 'Đã kết thúc' ? 'warning' : 'info'}>
+            <AlertDescription>
+              {displayStatus.label === 'Đã kết thúc' ? (
+                <>
+                  Kỳ thi này đã kết thúc lúc {formatDateTime(sessionDetail.data!.endTime)}. Đây là
+                  chế độ xem lại — sinh viên không thể tham gia mới (máy chủ đã tự chặn ở bước
+                  kết nối, kể cả khi còn nhớ mã phiên thi).
+                </>
+              ) : (
+                <>
+                  Kỳ thi này chưa bắt đầu — sẽ mở lúc {formatDateTime(sessionDetail.data!.startTime)}.
+                  Sinh viên chưa thể tham gia trước thời điểm đó.
+                </>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
-      {subscribeError ? (
-        // A distinct, visible failure state — role="alert" + destructive
-        // styling — instead of silently rendering "Chưa có sinh viên nào
-        // tham gia." when the subscribe actually failed (expired JWT, not
-        // the session owner, or a bogus session id).
-        <Card>
-          <CardHeader>
-            <CardTitle>Không thể mở phòng chờ</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p role="alert" className="text-sm text-destructive">
-              {SUBSCRIBE_ERROR_MESSAGES[subscribeError.code] ?? subscribeError.message}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {/* Count-only aria-live region: announces "3 sinh viên đã tham
-              gia" on change without re-announcing the entire table on
-              every join/disconnect. */}
-          <p aria-live="polite" className="text-sm text-muted-foreground">
-            Số sinh viên đã tham gia: <strong>{students.length}</strong> (
-            {connectedCount} đang kết nối)
-          </p>
-
+        {subscribeError ? (
+          // A distinct, visible failure state — role="alert" + destructive
+          // styling — instead of silently rendering an empty roster when
+          // the subscribe actually failed (expired JWT, not the session
+          // owner, or a bogus session id).
           <Card>
-            <CardContent className="pt-6">
+            <CardHeader>
+              <CardTitle>Không thể mở phòng chờ</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {SUBSCRIBE_ERROR_MESSAGES[subscribeError.code] ?? subscribeError.message}
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="overflow-hidden">
+            <CardHeader className="flex-row items-center justify-between gap-4 border-b border-border bg-surface-2/60">
+              <CardTitle className="text-h3">Sinh viên trong phòng</CardTitle>
+              <span className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.08em] text-success-strong">
+                <span className="relative flex h-2 w-2" aria-hidden="true">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+                </span>
+                Trực tiếp
+              </span>
+            </CardHeader>
+
+            {/* Count-only aria-live region: announces "3 sinh viên đã tham
+                gia" on change without re-announcing the entire table on
+                every join/disconnect. */}
+            <p
+              aria-live="polite"
+              className="border-b border-border px-6 py-3 text-body text-muted-foreground"
+            >
+              Số sinh viên đã tham gia:{' '}
+              <strong className="text-h3 text-foreground">{students.length}</strong> (
+              {connectedCount} đang kết nối)
+            </p>
+
+            <CardContent className="p-0">
               <LobbyList students={students} />
             </CardContent>
           </Card>
-        </>
-      )}
+        )}
+      </div>
     </main>
   );
 }
