@@ -17,6 +17,7 @@ describe('ExamSession (e2e)', () => {
   let dataSource: DataSource;
   let ownerToken: string;
   let otherToken: string;
+  let adminToken: string;
   let courseId: string;
   let roomId: string;
 
@@ -62,6 +63,20 @@ describe('ExamSession (e2e)', () => {
       .post('/auth/login')
       .send({ email: otherEmail, password: 'correct-horse-battery' });
     otherToken = otherLogin.body.accessToken;
+
+    // Role fixture for the RolesGuard test below. An admin is a fully
+    // valid, fully authenticated account, so a 403 on POST can only come
+    // from the role check — never from a missing/expired token.
+    const adminEmail = `exam_session_admin_${Date.now()}@example.com`;
+    await createTestAccount(dataSource, {
+      email: adminEmail,
+      password: 'correct-horse-battery',
+      role: 'admin',
+    });
+    const adminLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: adminEmail, password: 'correct-horse-battery' });
+    adminToken = adminLogin.body.accessToken;
 
     // courseId/roomId/examType are required on CreateExamSessionDto as of
     // the frontend rebuild's Phase 2 — every POST /exam-sessions below
@@ -219,5 +234,47 @@ describe('ExamSession (e2e)', () => {
       .get(`/exam-sessions/${sessionId}`)
       .set('Authorization', `Bearer ${otherToken}`);
     expect(otherView.status).toBe(403);
+  });
+
+  it('rejects exam session creation by a non-teacher role with 403', async () => {
+    const { startTime, endTime } = futureWindow();
+    // Unique per run: the "nothing was persisted" assertion below queries by
+    // name, so a row left behind by an earlier (pre-guard) run must not be
+    // able to fail a later, correct one.
+    const sessionName = `Admin Role Rejected Session ${Date.now()}`;
+
+    // Before @Roles('teacher') landed on the handler, this returned 201:
+    // ExamSessionController only had JwtAuthGuard, so ANY authenticated
+    // account could create a session it would then own via `teacher_id`.
+    const response = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: sessionName,
+        courseId,
+        roomId,
+        examType: 'TK',
+        startTime,
+        endTime,
+        requiredFilenames: ['Cau1.docx'],
+      });
+
+    expect(response.status).toBe(403);
+
+    // Rejected at the guard, so nothing may have been persisted.
+    const rows = await dataSource.query(
+      `SELECT id FROM examcollect.exam_session WHERE name = $1`,
+      [sessionName],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('still lets a teacher read their own sessions after the role guard (no regression)', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`);
+
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body.items)).toBe(true);
   });
 });
