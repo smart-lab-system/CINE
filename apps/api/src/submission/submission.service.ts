@@ -316,6 +316,11 @@ export class SubmissionService {
       return (await repo.findOneByOrFail({ id: created.id })) as SubmissionEntity;
     }
 
+    // TODO: nothing produces 'invalid' yet. When a flow does (a required
+    // file still missing at the deadline, say), decide deliberately whether
+    // a later successful upload should clear it — the DB trigger allows no
+    // transition OUT of 'invalid', so that would need a schema change, not
+    // just a branch here.
     if (existing.status === 'collected' || existing.status === 'invalid') {
       await repo.update(existing.id, fileFields);
     } else {

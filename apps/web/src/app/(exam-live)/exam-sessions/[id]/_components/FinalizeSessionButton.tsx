@@ -18,7 +18,12 @@ interface FinalizeSessionButtonProps {
   disabled: boolean;
   submitting: boolean;
   error: Error | null;
-  onConfirm: () => void;
+  /**
+   * Must resolve only once the finalize request has settled — the dialog
+   * stays open until then so a failure is visible. Rejection is expected
+   * and handled here; the reason is rendered from `error`.
+   */
+  onConfirm: () => Promise<unknown>;
 }
 
 /**
@@ -83,9 +88,19 @@ export function FinalizeSessionButton({
             <Button
               variant="destructive"
               disabled={submitting}
+              // Closes on success only. Closing on click instead would fire
+              // the request and immediately hide the dialog the error is
+              // rendered inside, so a failed finalize would look exactly
+              // like a successful one — the failure mode this button can
+              // least afford.
               onClick={() => {
-                onConfirm();
-                setOpen(false);
+                void onConfirm()
+                  .then(() => setOpen(false))
+                  .catch(() => {
+                    // Swallowed on purpose: the reason is already in
+                    // `error` and shown above. Rethrowing here would only
+                    // become an unhandled rejection.
+                  });
               }}
             >
               {submitting && (

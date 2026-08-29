@@ -334,7 +334,7 @@ export default function ExamSessionLobbyPage() {
                 disabled={!canFinalize}
                 submitting={finalize.isPending}
                 error={finalize.error}
-                onConfirm={() => finalize.mutate()}
+                onConfirm={() => finalize.mutateAsync()}
               />
             )}
           </div>

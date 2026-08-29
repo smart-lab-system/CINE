@@ -16,7 +16,7 @@ vi.mock('next/navigation', () => ({
 // without session data) — only the new describe block below overrides it.
 const useExamSessionDetailMock = vi.fn();
 const useSubmissionsMock = vi.fn();
-const finalizeMutateMock = vi.fn();
+const finalizeMutateAsyncMock = vi.fn();
 const useFinalizeExamSessionMock = vi.fn();
 vi.mock('@/hooks/useExamSession', () => ({
   useExamSessionDetail: (...args: unknown[]) => useExamSessionDetailMock(...args),
@@ -96,7 +96,8 @@ beforeEach(() => {
   useExamSessionDetailMock.mockReset();
   useSubmissionsMock.mockReset();
   useFinalizeExamSessionMock.mockReset();
-  finalizeMutateMock.mockReset();
+  finalizeMutateAsyncMock.mockReset();
+  finalizeMutateAsyncMock.mockResolvedValue(undefined);
   useExamSessionDetailMock.mockReturnValue({
     data: undefined,
     isLoading: true,
@@ -104,7 +105,7 @@ beforeEach(() => {
   });
   useSubmissionsMock.mockReturnValue({ data: undefined, isError: false });
   useFinalizeExamSessionMock.mockReturnValue({
-    mutate: finalizeMutateMock,
+    mutateAsync: finalizeMutateAsyncMock,
     isPending: false,
     error: null,
   });
@@ -387,11 +388,39 @@ describe('ExamSessionLobbyPage', () => {
       await waitFor(() =>
         expect(screen.getByText(/không thể hoàn tác/i)).toBeInTheDocument(),
       );
-      expect(finalizeMutateMock).not.toHaveBeenCalled();
+      expect(finalizeMutateAsyncMock).not.toHaveBeenCalled();
 
       fireEvent.click(screen.getByRole('button', { name: /^chốt bài$/i }));
 
-      expect(finalizeMutateMock).toHaveBeenCalledTimes(1);
+      expect(finalizeMutateAsyncMock).toHaveBeenCalledTimes(1);
+      // Closes once the request settles, not on click — see below.
+      await waitFor(() =>
+        expect(screen.queryByText(/không thể hoàn tác/i)).not.toBeInTheDocument(),
+      );
+    });
+
+    it('keeps the dialog open and shows the reason when finalizing fails', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      finalizeMutateAsyncMock.mockRejectedValue(new Error('Yêu cầu thất bại (HTTP 403)'));
+      useFinalizeExamSessionMock.mockReturnValue({
+        mutateAsync: finalizeMutateAsyncMock,
+        isPending: false,
+        error: new Error('Yêu cầu thất bại (HTTP 403)'),
+      });
+      render(<ExamSessionLobbyPage />);
+
+      fireEvent.click(screen.getByRole('button', { name: /chốt bài ngay/i }));
+      await waitFor(() =>
+        expect(screen.getByText(/không thể hoàn tác/i)).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole('button', { name: /^chốt bài$/i }));
+
+      // Closing on click would have hidden this, making a failed
+      // finalize look exactly like a successful one.
+      await waitFor(() =>
+        expect(screen.getByText(/Không thể chốt bài/i)).toBeInTheDocument(),
+      );
+      expect(screen.getByText(/không thể hoàn tác/i)).toBeInTheDocument();
     });
 
     it('disables finalizing for a session that is no longer active', () => {
