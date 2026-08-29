@@ -40,17 +40,28 @@ describe('Backup (e2e)', () => {
   function joined(studentId: string): Promise<{ socket: Socket; ack: Record<string, unknown> }> {
     return new Promise((resolve, reject) => {
       const socket = connect();
+      // Cleared on both outcomes: a pending timer keeps the event loop alive
+      // past teardown, and Jest force-kills the worker for it.
+      const timer = setTimeout(() => reject(new Error('join timed out')), 5_000);
       socket.on('connect', () => socket.emit('agent:join', { studentId, sessionCode }));
-      socket.on('agent:join:ack', (ack: Record<string, unknown>) => resolve({ socket, ack }));
-      socket.on('agent:join:error', (e: { code: string }) => reject(new Error(e.code)));
-      setTimeout(() => reject(new Error('join timed out')), 5_000);
+      socket.on('agent:join:ack', (ack: Record<string, unknown>) => {
+        clearTimeout(timer);
+        resolve({ socket, ack });
+      });
+      socket.on('agent:join:error', (e: { code: string }) => {
+        clearTimeout(timer);
+        reject(new Error(e.code));
+      });
     });
   }
 
   function ask<T>(socket: Socket, event: string): Promise<T> {
     return new Promise((resolve, reject) => {
-      socket.emit(event, {}, (reply: T) => resolve(reply));
-      setTimeout(() => reject(new Error(`${event} timed out`)), 5_000);
+      const timer = setTimeout(() => reject(new Error(`${event} timed out`)), 5_000);
+      socket.emit(event, {}, (reply: T) => {
+        clearTimeout(timer);
+        resolve(reply);
+      });
     });
   }
 

@@ -53,12 +53,23 @@ describe('Attendance (e2e)', () => {
     return new Promise((resolve, reject) => {
       const socket = io(`${baseUrl}/exam-live`, { reconnection: false, forceNew: true });
       sockets.push(socket);
-      socket.on('connect', () => socket.emit('agent:join', { studentId, sessionCode }));
-      socket.on('agent:join:ack', () => resolve(socket));
-      socket.on('agent:join:error', (error: { code: string }) =>
-        reject(new Error(`${studentId}: ${error.code}`)),
+      // Cleared on both outcomes. A pending timer keeps the event loop alive
+      // after the suite is done, and Jest then force-kills the worker
+      // mid-teardown — which is a warning on a good day and a spurious
+      // failure in some other suite on a bad one.
+      const timer = setTimeout(
+        () => reject(new Error(`${studentId}: join timed out`)),
+        5_000,
       );
-      setTimeout(() => reject(new Error(`${studentId}: join timed out`)), 5_000);
+      socket.on('connect', () => socket.emit('agent:join', { studentId, sessionCode }));
+      socket.on('agent:join:ack', () => {
+        clearTimeout(timer);
+        resolve(socket);
+      });
+      socket.on('agent:join:error', (error: { code: string }) => {
+        clearTimeout(timer);
+        reject(new Error(`${studentId}: ${error.code}`));
+      });
     });
   }
 

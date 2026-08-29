@@ -214,10 +214,16 @@ describe('Exam materials (e2e)', () => {
     const ack = await new Promise<Record<string, unknown>>((resolve, reject) => {
       const socket = io(`${baseUrl}/exam-live`, { reconnection: false, forceNew: true });
       sockets.push(socket);
+      const timer = setTimeout(() => reject(new Error('join timed out')), 5_000);
       socket.on('connect', () => socket.emit('agent:join', { studentId: MSSV, sessionCode }));
-      socket.on('agent:join:ack', resolve);
-      socket.on('agent:join:error', (e: { code: string }) => reject(new Error(e.code)));
-      setTimeout(() => reject(new Error('join timed out')), 5_000);
+      socket.on('agent:join:ack', (body: Record<string, unknown>) => {
+        clearTimeout(timer);
+        resolve(body);
+      });
+      socket.on('agent:join:error', (e: { code: string }) => {
+        clearTimeout(timer);
+        reject(new Error(e.code));
+      });
     });
 
     // A count and a time. Putting the files themselves on the join ack is
@@ -232,10 +238,16 @@ describe('Exam materials (e2e)', () => {
     const socket = io(`${baseUrl}/exam-live`, { reconnection: false, forceNew: true });
     sockets.push(socket);
     await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('join timed out')), 5_000);
       socket.on('connect', () => socket.emit('agent:join', { studentId: MSSV, sessionCode }));
-      socket.on('agent:join:ack', () => resolve());
-      socket.on('agent:join:error', (e: { code: string }) => reject(new Error(e.code)));
-      setTimeout(() => reject(new Error('join timed out')), 5_000);
+      socket.on('agent:join:ack', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      socket.on('agent:join:error', (e: { code: string }) => {
+        clearTimeout(timer);
+        reject(new Error(e.code));
+      });
     });
 
     const reply = await new Promise<{
