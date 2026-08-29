@@ -94,7 +94,8 @@ describe('ExamSession (e2e)', () => {
     courseId = course.id;
     const [room] = await dataSource.query(
       `INSERT INTO examcollect.room (name, capacity)
-       VALUES ('Exam Session Test Room', 30) RETURNING id`,
+       VALUES ($1, 30) RETURNING id`,
+      [`Exam Session Test Room ${Date.now()}`],
     );
     roomId = room.id;
   });

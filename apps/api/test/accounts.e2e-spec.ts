@@ -157,7 +157,7 @@ describe('Accounts (e2e)', () => {
     const [{ id: semesterId }] = await dataSource.query(
       `INSERT INTO examcollect.semester (name, start_date, end_date)
        VALUES ($1, $2, $3) RETURNING id`,
-      ['Referenced Test Semester', '2026-01-01', '2026-06-01'],
+      [`Referenced Test Semester ${Date.now()}`, '2026-01-01', '2026-06-01'],
     );
     const [{ id: courseId }] = await dataSource.query(
       `INSERT INTO examcollect.course (code, name, semester_id)

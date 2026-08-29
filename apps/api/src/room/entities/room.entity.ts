@@ -1,4 +1,4 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 
 // Pure logistics metadata — which physical computer lab an exam session is
@@ -10,6 +10,9 @@ import { BaseEntity } from '../../shared/base.entity';
 // constraint, not an architectural invariant.
 @Entity({ name: 'room' })
 export class RoomEntity extends BaseEntity {
+  // Same shared-namespace reason as semester.name: rooms are university-wide
+  // and writable by any Trưởng khoa.
+  @Index('uq_room_name', { unique: true })
   @Column({ type: 'varchar', length: 100 })
   name!: string;
 
