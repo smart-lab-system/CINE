@@ -4,6 +4,7 @@ import { ExamSessionEvents } from './exam-session.events';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { ClassService } from '../course/class.service';
+import { AttendanceService } from '../agent-connection/attendance.service';
 
 /**
  * Covers the exam_session state machine added in the submission phase:
@@ -53,6 +54,7 @@ function createHarness(affected: number) {
     // class, that is a real change and this should fail loudly rather than
     // quietly return a convenient stub.
     {} as ClassService,
+    {} as AttendanceService,
   );
 
   return { service, sessions, builder, published };

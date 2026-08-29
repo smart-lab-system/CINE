@@ -12,6 +12,7 @@ import { ExamSessionScheduler } from './exam-session.scheduler';
 import { AccessRequestGateway } from './access-request.gateway';
 import { AccessRequestStore } from './access-request.store';
 import { AdminModule } from '../admin/admin.module';
+import { AgentConnectionModule } from '../agent-connection/agent-connection.module';
 
 @Module({
   imports: [
@@ -26,6 +27,9 @@ import { AdminModule } from '../admin/admin.module';
     // Approving an access request opens a rule the machine enforces, so the
     // opening is written to audit_log.
     AdminModule,
+    // Every join and disconnect goes in the attendance log, which is what
+    // makes the lobby survive a refresh and the headcount mean anything.
+    AgentConnectionModule,
   ],
   controllers: [ExamSessionController],
   providers: [

@@ -27,6 +27,7 @@ import { ExamSessionService } from './exam-session.service';
 import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 import { EnrollmentService } from '../course/enrollment.service';
 import { AccessRequestStore } from './access-request.store';
+import { AttendanceService } from '../agent-connection/attendance.service';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -143,6 +144,7 @@ export class ExamSessionGateway
     private readonly events: ExamSessionEvents,
     private readonly enrollments: EnrollmentService,
     private readonly accessRequests: AccessRequestStore,
+    private readonly attendance: AttendanceService,
   ) {}
 
   /**
@@ -315,6 +317,13 @@ export class ExamSessionGateway
       })),
       endTime: session.endTime.toISOString(),
     };
+    // Awaited BEFORE the ack, not fired off after it. The agent replies to
+    // the ack — including by dying and reconnecting — so an unawaited write
+    // here can land after the disconnect it precedes, and the log comes out
+    // in an order that never happened. One extra round-trip buys an event
+    // stream that can be trusted to be in sequence.
+    await this.attendance.recordJoin(session.id, dto.studentId, session.startTime);
+
     client.emit('agent:join:ack', ack);
 
     // Broadcast to the teacher room only. Agents are never members of any
@@ -461,6 +470,12 @@ export class ExamSessionGateway
       disconnectedAt: new Date().toISOString(),
     };
     this.server.to(teacherRoom(examSessionId)).emit('agent:disconnected', disconnected);
+
+    // handleDisconnect is synchronous by socket.io's contract, so this is
+    // fire-and-forget by necessity as well as by design. Without it, a
+    // student whose machine died stays "present" forever and the headcount
+    // counts a chair that is empty.
+    void this.attendance.recordDisconnect(examSessionId, studentId);
   }
 
   /**

@@ -122,6 +122,25 @@ export class ExamSessionEntity extends BaseEntity {
   })
   status!: ExamSessionStatus;
 
+  /**
+   * The headcount an invigilator took before the exam, and when.
+   *
+   * An OBSERVATION, not a lock. Confirming does not close the session to
+   * new joins: a crashed machine must be able to rejoin, and refusing that
+   * harms a real student to protect a number. Joins after this timestamp are
+   * marked and visible, never blocked.
+   *
+   * WHICH students were present is not stored — it is derived from
+   * agent_connection_event (latest event per MSSV before this timestamp), so
+   * the same fact never lives in two places and cannot disagree with itself.
+   * Without the count, "45 present, 46 submissions" is not detectable at all.
+   */
+  @Column({ name: 'attendance_confirmed_at', type: 'timestamptz', nullable: true })
+  attendanceConfirmedAt!: Date | null;
+
+  @Column({ name: 'attendance_confirmed_count', type: 'int', nullable: true })
+  attendanceConfirmedCount!: number | null;
+
   @Column({ name: 'rubric_id', type: 'uuid', nullable: true })
   rubricId!: string | null;
 

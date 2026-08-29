@@ -80,6 +80,24 @@ export class ExamSessionController {
    * that quirk before this change and fixing it there is out of scope,
    * but a new write endpoint should not ship with it.
    */
+  /**
+   * The lobby's data: three groups, the headcount, and — once the session is
+   * over — who submitted without having been counted. Read from the
+   * attendance log rather than from whatever the page happened to witness,
+   * so a refresh mid-exam does not lose the room.
+   */
+  @Get(':id/attendance')
+  findAttendance(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    return this.examSessions.findAttendanceForOwner(id, req.user!.sub);
+  }
+
+  /** "Chốt sĩ số" — an observation, not a lock on the door. */
+  @Post(':id/attendance/confirm')
+  @HttpCode(200)
+  confirmAttendance(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    return this.examSessions.confirmAttendanceForOwner(id, req.user!.sub);
+  }
+
   @Post(':id/finalize')
   @Roles('teacher')
   @HttpCode(200)

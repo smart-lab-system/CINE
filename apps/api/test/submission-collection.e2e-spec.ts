@@ -125,6 +125,10 @@ describe('Submission collection (e2e)', () => {
   afterAll(async () => {
     socket?.removeAllListeners();
     socket?.disconnect();
+    // The server still has disconnect handlers to run — attendance writes
+    // one event per agent. Closing the pool out from under them turns a
+    // green run into a wall of red ERROR lines that mean nothing.
+    await new Promise((resolve) => setTimeout(resolve, 500));
     await app.close();
   });
 
