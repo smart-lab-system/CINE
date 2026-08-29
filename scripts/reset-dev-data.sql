@@ -38,7 +38,6 @@ DELETE FROM examcollect.exam_session;
 
 -- ---- Academic structure: keep only the migration's seed ---------------
 DELETE FROM examcollect.enrollment;
-DELETE FROM examcollect.class_roster;
 DELETE FROM examcollect.class;
 
 DELETE FROM examcollect.rubric_criterion;

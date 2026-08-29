@@ -4,7 +4,6 @@ import { AccountEntity } from '../identity/entities/account.entity';
 import { SemesterEntity } from '../course/entities/semester.entity';
 import { CourseEntity } from '../course/entities/course.entity';
 import { ClassEntity } from '../course/entities/class.entity';
-import { ClassRosterEntity } from '../course/entities/class-roster.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { RequiredDeliverableEntity } from '../exam-session/entities/required-deliverable.entity';
@@ -39,7 +38,6 @@ export const dataSourceOptions: DataSourceOptions = {
     SemesterEntity,
     CourseEntity,
     ClassEntity,
-    ClassRosterEntity,
     EnrollmentEntity,
     RoomEntity,
     ExamSessionEntity,

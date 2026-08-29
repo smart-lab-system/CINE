@@ -2,6 +2,7 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { CourseEntity } from '../../course/entities/course.entity';
+import { ClassEntity } from '../../course/entities/class.entity';
 import { RoomEntity } from '../../room/entities/room.entity';
 import { RubricEntity } from '../../grading/entities/rubric.entity';
 
@@ -56,6 +57,24 @@ export class ExamSessionEntity extends BaseEntity {
   @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: false })
   @JoinColumn({ name: 'course_id' })
   course!: CourseEntity;
+
+  // WHICH CLASS WAS EXPECTED — never who is allowed in. Authentication
+  // stays at course level via Enrollment (Security rule 1), which is what
+  // makes a make-up exam work: a student enrolled in the course may sit
+  // this session even though their home class is a different one. This
+  // column only answers 'who should have been here', so the lobby can tell
+  // an expected student from a make-up one and count 45 against 46.
+  //
+  // Nullable for the sessions created before this column existed: they
+  // have no expected roster, and the lobby degrades to what it showed
+  // then — connected students, no headcount. Every session created through
+  // the form carries one.
+  @Column({ name: 'class_id', type: 'uuid', nullable: true })
+  classId!: string | null;
+
+  @ManyToOne(() => ClassEntity, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'class_id' })
+  class!: ClassEntity | null;
 
   // Which physical computer lab this session happens in — pure logistics
   // metadata, NEVER part of the join/auth path (see RoomEntity's comment).

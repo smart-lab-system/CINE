@@ -6,7 +6,6 @@ const EXPECTED_TABLES = [
   'semester',
   'course',
   'class',
-  'class_roster',
   'enrollment',
   'room',
   'rubric',

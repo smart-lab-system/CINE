@@ -64,7 +64,7 @@ apps/
       auth/                   login/logout/refresh, JWT strategy, RolesGuard (no self-serve register)
       accounts/               account CRUD (controller/service/DTOs) — admin-only
       identity/entities/      AccountEntity (Teacher/Admin — Student never gets a login row)
-      course/                 GET /courses (+ enrollmentCount), entities: Semester, Course, Class, ClassRoster, Enrollment
+      course/                 GET /courses (+ enrollmentCount), entities: Semester, Course, Class, Enrollment
       room/                   GET /rooms — physical lab rooms (logistics metadata, not on the auth path)
       exam-session/entities/  ExamSession, RequiredDeliverable, ExamMaterial
       agent-connection/entities/  AgentConnectionEvent (append-only)
@@ -295,10 +295,11 @@ Per `CLAUDE.md`'s Main Business Flow and MVP scope, in rough delivery order
 schema/entities below already exist, only the service/controller/UI layer
 doesn't):
 
-1. **Course/Semester/Roster module** — courses, semesters, classes, Excel
-   import of `class_roster`, and deriving `enrollment` (course-level
-   join-auth, independent of physical room/class — see `CLAUDE.md` Security
-   rule 1).
+1. **Course/Semester/Roster module** — courses, semesters, classes, and the
+   Excel import that writes `enrollment` (course-level join-auth,
+   independent of physical room/class — see `CLAUDE.md` Security rule 1).
+   `class_roster` was dropped: it had the same natural key over the same
+   rows from the same file, and nothing ever converted one into the other.
 2. **Exam Session module** — session creation, `RequiredDeliverable`
    declaration, exam-material upload (presigned URL, released only after
    `start_time`), the WebSocket gateway the Student Agent connects to.
