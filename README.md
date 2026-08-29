@@ -67,7 +67,7 @@ apps/
       course/                 GET /courses (+ enrollmentCount), entities: Semester, Course, Class, Enrollment
       room/                   GET /rooms — physical lab rooms (logistics metadata, not on the auth path)
       exam-session/entities/  ExamSession, RequiredDeliverable, ExamMaterial
-      agent-connection/entities/  AgentConnectionEvent (append-only)
+      agent-connection/        attendance log — who was in the room and when; entity: AgentConnectionEvent (append-only)
       submission/entities/    Submission
       grading/entities/       Rubric, RubricCriterion, GradingResult, TeacherReview, GradeExport
       calibration/entities/   CalibrationRun
