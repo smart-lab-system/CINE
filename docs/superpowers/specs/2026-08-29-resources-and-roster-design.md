@@ -1,7 +1,8 @@
 # Design: Academic Resources & Roster Verification
 
 **Date:** 2026-08-29
-**Status:** Approved in conversation, pending spec review by user
+**Status:** Reviewed by user; revised on that review (sequencing, `super_admin`,
+orphan courses, restore condition, late-arrival labels) and awaiting sign-off
 **Branch:** `feature/resources-and-roster` (worktree at `.claude/worktrees/resources-and-roster`)
 **Builds on:** the submission module (`docs/superpowers/plans/2026-08-27-exam-live-demo.md`
 and the submission phase merged in PR #4/#5), which delivered the working
@@ -72,9 +73,24 @@ returns 403.
 | `department_admin` | `/department` *(new)* | Học kỳ, Môn học, Lớp học, Phòng thi |
 | `teacher` | `/teacher` | Kỳ thi, Bài thu, Chấm điểm |
 
-`middleware.ts` branches three ways instead of two. `super_admin` keeps its
-current behaviour (routed with admins, not offered in the create-account
-form) — untouched, so this change cannot introduce a second trap.
+`middleware.ts` branches three ways instead of two.
+
+**`super_admin` is already the same trap, verified not assumed.** An earlier
+draft of this document said it "keeps its current behaviour … so this change
+cannot introduce a second trap". That was asserted, not checked. Checking it:
+the entire API contains exactly two `@Roles(...)` values — `'admin'` on
+accounts and `'teacher'` on exam-session and submission. **No handler
+anywhere accepts `super_admin`**, while `middleware.ts` routes it into
+`/admin/*`. A `super_admin` account would land on an admin page where every
+call returns 403 — identical to `department_admin`. It is latent only
+because no account carries either role (0 rows, verified).
+
+Fixing that one role by name would leave the same hole open for the next
+enum value someone adds. So the fix is general: **a role with no configured
+area is sent to an explicit "tài khoản chưa được gán vai trò" page**, not
+into an area whose APIs will refuse it. The mapping role → area becomes
+exhaustive and anything unmapped fails visibly instead of silently. That
+covers `super_admin` today and any future addition for free.
 
 The create-account form gains `department_admin`, labelled "Trưởng khoa".
 
@@ -108,6 +124,19 @@ nobody; it becomes visible once a Trưởng khoa is assigned. The dev reset
 script and DEMO-RUNBOOK gain a step assigning the seeded courses to the
 demo Trưởng khoa. Tightening to NOT NULL is a follow-up once no unassigned
 course remains.
+
+**Orphans must not be invisible.** "Belongs to nobody, listed to nobody" is a
+silent failure: a course nobody can see is also a course nobody can assign,
+which makes the two seeded courses a bootstrap deadlock. Two things close it:
+
+- A course created through the new UI always takes its creator's id, so an
+  orphan can only ever be a legacy row, never a newly produced one.
+- The FK is `ON DELETE RESTRICT`, so deleting a head who owns courses is
+  refused — orphaning by deletion cannot happen either.
+- Admin gets a read-only **"Môn học chưa có chủ"** list with an assign
+  action, plus a count surfaced on the admin dashboard. Assigning ownership
+  is an administrative act, not academic authoring, so this does not
+  contradict §3.4.
 
 Rejected alternatives, recorded so this is not relitigated:
 
@@ -310,8 +339,19 @@ per MSSV before `confirmed_at`), so nothing is stored twice.
 
 Confirming does **not** close the session to new joins. A crashed machine
 must be able to rejoin, and blocking that harms a real student. Joins after
-the baseline are marked "joined after headcount" — visible, not refused.
-That mark is derived (`occurred_at > attendance_confirmed_at`), not stored.
+the baseline are marked, visible and not refused. The mark is derived
+(`occurred_at > attendance_confirmed_at`), not stored.
+
+**Two very different things wear that mark, and they must not look alike.**
+The event log already separates them:
+
+| | Meaning | Invigilator reads it as |
+| --- | --- | --- |
+| Has an earlier `connected` event this session | machine crashed and came back | expected, no action |
+| No earlier event at all | someone appeared *after* the count | **investigate** |
+
+Showing both as one label would bury the case the headcount exists to catch
+underneath the routine one. They render as separate labels.
 
 ### 6.4 Detecting the 45/46 case
 
@@ -402,24 +442,48 @@ and PUTs it over the existing presigned-URL path to
 `backups/{examSessionId}/{studentId}/latest.zip`, overwriting. No
 `Submission` row is created — a backup is not a submission.
 
-On `reconnected`, the server tells the agent a backup exists; the agent
-restores it only when the expected files are missing locally, so a healthy
-machine's in-progress work is never overwritten by an older snapshot.
+On `reconnected`, the server tells the agent a backup exists.
+
+**"Missing locally" is not a usable condition, and an earlier draft got this
+wrong.** The agent creates the required files (with the `wx` flag) as part of
+joining, so by the time a restore is evaluated the files always exist — on a
+wiped machine they exist and are *empty*. A restore gated on "missing" would
+therefore never fire in exactly the case it was written for, and the
+student's work would be lost silently.
+
+The rule is ordered and content-based instead:
+
+1. On `reconnected` with a backup available, **restore runs first**, before
+   any required file is created.
+2. A restore **never overwrites a non-empty local file**. Empty (0 bytes) or
+   absent is replaced; anything with content is left alone.
+3. Required files still missing after the restore are then created empty, as
+   on a normal join.
+
+| Situation | Outcome |
+| --- | --- |
+| Intact machine, work on disk | files non-empty → untouched |
+| Wiped machine, no files | restored from backup |
+| Wiped machine, agent already made empties | empty → restored |
+| Student deliberately emptied a file | restored to its last snapshot |
+
+The last row is a deliberate trade: handing back the student's own earlier
+content is recoverable, losing their work is not.
 
 ## 9. Testing
 
 Required, each verified RED before the fix:
 
-1. `agent:join` **refuses** an MSSV with no enrollment for the course.
-2. `agent:join` **admits** an enrolled student from another class, flagged
-   as make-up.
-3. A Trưởng khoa editing another head's `course` gets **403**.
-4. Import with any bad row writes **nothing**; the same file twice changes
-   nothing.
-5. An approved access request writes an `audit_log` entry naming approver,
-   MSSV and reason.
-6. `submission.home_class_id` / `home_teacher_id` are populated from
-   enrollment.
+1. *(Phase 1)* `agent:join` **refuses** an MSSV with no enrollment for the course.
+2. *(Phase 4)* `agent:join` **admits** an enrolled student from another
+   class, flagged as make-up.
+3. *(Phase 2)* A Trưởng khoa editing another head's `course` gets **403**.
+4. *(Phase 3)* Import with any bad row writes **nothing**; the same file
+   twice changes nothing.
+5. *(Phase 1)* An approved access request writes an `audit_log` entry
+   naming approver, MSSV and reason.
+6. *(Phase 1)* `submission.home_class_id` / `home_teacher_id` are populated
+   from enrollment.
 
 Plus: a lecturer sees only their own classes; the headcount discrepancy
 check names the extra student.
@@ -428,21 +492,56 @@ Existing suites must stay green: api 57 unit + 31 e2e, web 47. The
 `agent:join` contract change means `cli.ts`, `mock-agent.ts` and the lobby
 page tests all move with it.
 
-## 10. Scope note
+## 10. Sequencing — five phases, security first
 
-This phase carries fourteen workstreams and is too large for one
-implementation plan executed straight through. The implementation plan
-should stage it, with the system coherent at every boundary:
+An earlier draft made this one phase of fourteen workstreams with the
+security fix as its third stage. That was wrong. §1 calls the missing
+enrollment check a **standing violation of Security rule 1**, and then
+queued it behind term and lab CRUD — so any trouble in an Excel edge case
+or a `class_id` migration would have delayed closing an open hole. A live
+security gap does not wait on CRUD screens.
 
-- **Stage A** — roles, areas, `course.department_head_id`, resource CRUD.
-- **Stage B** — `class_roster` removal, `enrollment.student_name`, Excel
-  import, `exam_session.class_id`, lecturer-scoped class selection.
-- **Stage C** — enrollment enforcement, access requests, attendance log,
-  three-group lobby, headcount baseline, `submission` NOT NULL restore.
-- **Stage D** — snapshot backup and restore on reconnect.
+The gap does not actually depend on that work. Enforcement needs only
+`enrollment` rows for a course, and `exam_session.course_id` already
+exists; rows can be seeded by SQL until the importer lands.
 
-Stage C is the security-critical one and the only stage that changes the
-`agent:join` contract; it should not be merged without the tests in §9.
+**Phase 1 — Close Security rule 1** *(first, smallest, ships alone)*
+`enrollment.student_name`; `agent:join` requires an enrollment for the
+session's course and answers with the authoritative name; `NOT_ENROLLED`;
+the access-request flow with its `audit_log` entry;
+`submission.home_class_id`/`home_teacher_id` populated and restored to
+NOT NULL. Roster seeded by SQL, documented in the runbook.
+
+> **Enforcement and the valve are one deliverable.** Shipping the refusal
+> without the access-request path would mean a student missing from a
+> hand-seeded roster is locked out on exam day with no recourse — replacing
+> a security gap with an availability one. They are never split across
+> phases, never merged separately.
+
+No make-up detection yet: without `class_id` every enrolled student in the
+course is simply admitted. That is strictly tighter than today and strictly
+looser than the end state — safe in both directions.
+
+**Phase 2 — Roles and academic resources**
+The unmapped-role page (§3.1, covers `super_admin`); `/department` area and
+the three-way middleware; `course.department_head_id` with the orphan list;
+CRUD for semester, room, course, class; unique constraints on
+`semester.name` and `room.name`.
+
+**Phase 3 — Roster and session ↔ class**
+Drop `class_roster`; the Excel importer replacing the SQL seed;
+`exam_session.class_id` and the create-session form losing its "Môn thi"
+field; lecturer-scoped class selection.
+
+**Phase 4 — Pre-exam verification**
+The attendance log; the three-group lobby with make-up detection; the
+headcount baseline and the discrepancy check.
+
+**Phase 5 — Snapshot backup and restore on reconnect.**
+
+Phase 1 is the only phase that changes the `agent:join` contract and must
+not merge without tests §9.1, §9.5 and §9.6. Every later phase is additive
+to a system that is already correct on the security question.
 
 ## 11. Deliberately left for later
 
@@ -450,9 +549,15 @@ Stage C is the security-critical one and the only stage that changes the
   The `SOMAY` token needs a seat/workstation concept, which this schema
   does not have; the abandoned `worktree-master-data-module` branch modelled
   it as `lab_seats`/`workstations` and is worth reading before designing it.
-- Exam materials and a generated INSTRUCTIONS file in each student folder,
-  released only after `start_time` (Security rule 2). That branch modelled
-  this as `exam_event_files`.
+- Exam materials and a generated INSTRUCTIONS file in each student folder.
+  **Security rule 2 travels with this item and must not be lost because it
+  ships outside the main flow**: materials are released to an agent only
+  after the server confirms `start_time` has passed, even for an agent that
+  connected earlier. Separating "allowed into the lobby" from "allowed to see
+  the exam" is the whole point of the rule; a phase that distributes files on
+  join would leak the exam to early joiners. The abandoned
+  `worktree-master-data-module` branch modelled the storage side as
+  `exam_event_files`.
 - Reports from lecturer to Trưởng khoa, once grading data exists.
 - `super_admin` remains unused. If an academic-affairs tier is ever
   wanted — the role that would really own term dates — that enum slot is
