@@ -20,12 +20,13 @@ import { Server, Socket } from 'socket.io';
 import { Subscription } from 'rxjs';
 import { AccessTokenPayload } from '../auth/types';
 import { agentRoom, teacherRoom } from '../common/exam-live-rooms';
-import { isPlainObject } from '../common/exam-live-socket';
+import { extractAccessTokenFromCookie, isPlainObject } from '../common/exam-live-socket';
 import { AgentJoinDto } from './dto/agent-join.dto';
 import { TeacherSubscribeDto } from './dto/teacher-subscribe.dto';
 import { ExamSessionService } from './exam-session.service';
 import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 import { EnrollmentService } from '../course/enrollment.service';
+import { AccessRequestStore } from './access-request.store';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -141,6 +142,7 @@ export class ExamSessionGateway
     private readonly jwt: JwtService,
     private readonly events: ExamSessionEvents,
     private readonly enrollments: EnrollmentService,
+    private readonly accessRequests: AccessRequestStore,
   ) {}
 
   /**
@@ -366,7 +368,7 @@ export class ExamSessionGateway
       return;
     }
 
-    const token = this.extractAccessTokenFromCookie(client.handshake.headers.cookie);
+    const token = extractAccessTokenFromCookie(client.handshake.headers.cookie);
     if (!token) {
       this.logger.warn(`teacher:subscribe rejected: no access_token cookie from ${client.id}`);
       this.emitSubscribeError(client, 'UNAUTHORIZED', 'Missing or invalid access token.');
@@ -419,6 +421,20 @@ export class ExamSessionGateway
     }
 
     await client.join(teacherRoom(examSessionId));
+
+    // Replay whatever is still waiting for a decision. Access requests live
+    // in server memory, not in the socket that first announced them, so a
+    // teacher who refreshed mid-exam would otherwise never see a student who
+    // asked before the reload — and that student waits forever.
+    for (const pending of this.accessRequests.listForSession(examSessionId)) {
+      client.emit('lobby:access_request', {
+        requestId: pending.requestId,
+        studentId: pending.studentId,
+        fullName: pending.fullName,
+        reason: pending.reason,
+        requestedAt: pending.requestedAt,
+      });
+    }
   }
 
   /**
@@ -475,30 +491,4 @@ export class ExamSessionGateway
     client.emit('teacher:subscribe:error', error);
   }
 
-  // Cookie header comes across as one raw string, e.g.
-  // "access_token=xyz; other=1" — pulling one value out of it doesn't
-  // need a full cookie-parsing dependency (`cookie` is only a transitive
-  // dependency of cookie-parser here, not declared in this package's own
-  // package.json, and this pnpm workspace doesn't hoist phantom deps).
-  private extractAccessTokenFromCookie(cookieHeader: string | undefined): string | null {
-    if (!cookieHeader) {
-      return null;
-    }
-    for (const pair of cookieHeader.split(';')) {
-      const separatorIndex = pair.indexOf('=');
-      if (separatorIndex === -1) {
-        continue;
-      }
-      const key = pair.slice(0, separatorIndex).trim();
-      if (key === 'access_token') {
-        const rawValue = pair.slice(separatorIndex + 1).trim();
-        try {
-          return decodeURIComponent(rawValue);
-        } catch {
-          return rawValue;
-        }
-      }
-    }
-    return null;
-  }
 }

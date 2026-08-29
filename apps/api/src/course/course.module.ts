@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CourseEntity } from './entities/course.entity';
+import { ClassEntity } from './entities/class.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
 import { CourseService } from './course.service';
 import { EnrollmentService } from './enrollment.service';
@@ -14,9 +15,9 @@ import { CourseController } from './course.controller';
  * second set of repositories over the same table.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([CourseEntity, EnrollmentEntity])],
+  imports: [TypeOrmModule.forFeature([CourseEntity, ClassEntity, EnrollmentEntity])],
   controllers: [CourseController],
   providers: [CourseService, EnrollmentService],
-  exports: [EnrollmentService],
+  exports: [CourseService, EnrollmentService],
 })
 export class CourseModule {}

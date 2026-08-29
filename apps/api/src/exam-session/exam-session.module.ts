@@ -9,6 +9,9 @@ import { ExamSessionController } from './exam-session.controller';
 import { ExamSessionGateway } from './exam-session.gateway';
 import { ExamSessionEvents } from './exam-session.events';
 import { ExamSessionScheduler } from './exam-session.scheduler';
+import { AccessRequestGateway } from './access-request.gateway';
+import { AccessRequestStore } from './access-request.store';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { ExamSessionScheduler } from './exam-session.scheduler';
     // agent:join must check the student has an Enrollment for this
     // session's course before letting them in (Security rule 1).
     CourseModule,
+    // Approving an access request opens a rule the machine enforces, so the
+    // opening is written to audit_log.
+    AdminModule,
   ],
   controllers: [ExamSessionController],
   providers: [
@@ -27,6 +33,8 @@ import { ExamSessionScheduler } from './exam-session.scheduler';
     ExamSessionGateway,
     ExamSessionEvents,
     ExamSessionScheduler,
+    AccessRequestStore,
+    AccessRequestGateway,
   ],
   // Exported so a future module can inject ExamSessionService
   // (findByCode/listRequiredDeliverables) instead of writing its own

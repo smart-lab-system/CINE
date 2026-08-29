@@ -1,4 +1,4 @@
-import { IsString, Length, Matches } from 'class-validator';
+import { IsOptional, IsString, Length, Matches } from 'class-validator';
 
 // Exactly ck_submission_mssv / ck_enrollment_mssv. Enforced at join, not
 // at submission time, so a student with a malformed id finds out in the
@@ -11,9 +11,16 @@ export const STUDENT_MSSV_REGEX = /^[A-Za-z0-9]{4,20}$/;
 // rename these fields, other tasks (agent CLI, mock agent, frontend lobby)
 // depend on this exact shape).
 export class AgentJoinDto {
+  /**
+   * Accepted for backward compatibility and ignored. Identity now comes from
+   * the Enrollment the server resolves by MSSV — a typed name would have to
+   * be reconciled against the roster spelling, which is the fuzzy matching
+   * this design removes rather than solves. Agents may stop sending it.
+   */
+  @IsOptional()
   @IsString()
   @Length(1, 100)
-  fullName!: string;
+  fullName?: string;
 
   @IsString()
   @Matches(STUDENT_MSSV_REGEX, {

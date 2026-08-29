@@ -31,4 +31,48 @@ export class EnrollmentService {
   ): Promise<EnrollmentEntity | null> {
     return this.enrollments.findOne({ where: { courseId, studentMssv } });
   }
+
+  /**
+   * Adds a student the roster did not have, on an invigilator's decision.
+   *
+   * Approving an access request has to write this row rather than grant a
+   * one-off pass: a submission is NOT NULL on home_class_id and
+   * home_teacher_id, and inventing a routing at collection time is exactly
+   * the guessing this project forbids. The invigilator names the class, so
+   * nothing is inferred.
+   *
+   * The roster gaining a person is not silent — the caller writes an
+   * audit_log entry naming who approved it and why.
+   *
+   * Idempotent against uq_enrollment_course_student: two invigilators
+   * approving the same student produce one row, not a unique violation.
+   */
+  async addManually(input: {
+    courseId: string;
+    studentMssv: string;
+    studentName: string;
+    homeClassId: string;
+    homeTeacherId: string;
+  }): Promise<EnrollmentEntity> {
+    await this.enrollments
+      .createQueryBuilder()
+      .insert()
+      .values({
+        courseId: input.courseId,
+        studentMssv: input.studentMssv,
+        studentName: input.studentName,
+        homeClassId: input.homeClassId,
+        homeTeacherId: input.homeTeacherId,
+      })
+      .orIgnore()
+      .execute();
+
+    const saved = await this.findForCourse(input.courseId, input.studentMssv);
+    if (!saved) {
+      throw new Error(
+        `enrollment for ${input.studentMssv} vanished immediately after insert`,
+      );
+    }
+    return saved;
+  }
 }

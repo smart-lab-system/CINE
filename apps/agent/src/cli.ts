@@ -34,6 +34,7 @@ import {
   type ExamFinalizePayload,
   type RequiredDeliverable,
 } from './submission-uploader';
+import { NoTerminalError, promptAccessRequest, sendAccessRequest } from './access-request';
 
 // ---------------------------------------------------------------------------
 // Client side of the WebSocket Event Contract implemented by
@@ -46,9 +47,15 @@ import {
 // ---------------------------------------------------------------------------
 
 export interface AgentJoinPayload {
-  fullName: string;
   studentId: string;
   sessionCode: string;
+  /**
+   * No longer sent on join and ignored if it is: the server answers with the
+   * roster name instead of comparing one. Still asked for — once — when a
+   * student has no roster row and has to request access, because then there
+   * is no authoritative name to fall back on.
+   */
+  fullName?: string;
 }
 
 export interface AgentJoinAck {
@@ -206,12 +213,22 @@ function nonEmpty(value: string | undefined): string | undefined {
 }
 
 async function promptMissing(args: CliArgs): Promise<AgentJoinPayload> {
+  // Two questions, not three. The name is the server's to supply.
+  const providedStudentId = nonEmpty(args.studentId);
+  const providedSessionCode = nonEmpty(args.sessionCode);
+  if (providedStudentId && providedSessionCode) {
+    // Nothing to ask, so do not open stdin at all. Creating a readline
+    // interface starts consuming the stream immediately, which on a piped
+    // stdin swallows a line meant for a later prompt — the access-request
+    // flow then hung waiting for input that had already been eaten.
+    return { studentId: providedStudentId, sessionCode: providedSessionCode };
+  }
+
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
-    const fullName = nonEmpty(args.fullName) ?? (await askNonEmpty(rl, 'Họ và tên: '));
-    const studentId = nonEmpty(args.studentId) ?? (await askNonEmpty(rl, 'Mã số sinh viên (MSSV): '));
-    const sessionCode = nonEmpty(args.sessionCode) ?? (await askNonEmpty(rl, 'Mã phiên thi: '));
-    return { fullName, studentId, sessionCode };
+    const studentId = providedStudentId ?? (await askNonEmpty(rl, 'Mã số sinh viên (MSSV): '));
+    const sessionCode = providedSessionCode ?? (await askNonEmpty(rl, 'Mã phiên thi: '));
+    return { studentId, sessionCode };
   } finally {
     rl.close();
   }
@@ -436,6 +453,8 @@ async function main(): Promise<void> {
   // successful join — the server only broadcasts it to the agents room,
   // which this socket joins during agent:join.
   let requiredDeliverables: RequiredDeliverable[] = [];
+  // Guards against a reconnect re-prompting a student who is already waiting.
+  let requestingAccess = false;
   let examSessionId = "";
   let finalizing = false;
 
@@ -575,7 +594,78 @@ async function main(): Promise<void> {
     }
     const code = typeof error.code === 'string' ? error.code : 'UNKNOWN';
     const message = typeof error.message === 'string' ? error.message : '(không có thông tin)';
+
+    // The one refusal that is not the end of the road. Everything else here
+    // is a wrong code or a closed session, which no invigilator can wave
+    // through; not being on the roster is a records problem, and a records
+    // problem must not cost a student their exam.
+    if (code === 'NOT_ENROLLED' && !requestingAccess) {
+      requestingAccess = true;
+      void requestAccess();
+      return;
+    }
+
     console.error(`Lỗi tham gia phiên thi [${code}]: ${message}`);
+    shutdown(1);
+  });
+
+  async function requestAccess(): Promise<void> {
+    try {
+      const { fullName, reason } = await promptAccessRequest(payload.studentId);
+      const ack = await sendAccessRequest(socket, {
+        sessionCode: payload.sessionCode,
+        studentId: payload.studentId,
+        fullName,
+        reason,
+      });
+      if (!ack.ok) {
+        // ALREADY_ENROLLED means the roster gained them between the refusal
+        // and the request — retrying the join is the right move, not an error.
+        if (ack.code === 'ALREADY_ENROLLED') {
+          console.log('Bạn đã có trong danh sách. Đang thử tham gia lại...');
+          requestingAccess = false;
+          socket.emit('agent:join', payload);
+          return;
+        }
+        console.error(`Không gửi được yêu cầu [${ack.code}]: ${ack.message}`);
+        shutdown(1);
+        return;
+      }
+      console.log('');
+      console.log('Đã gửi yêu cầu. Đang chờ giảng viên duyệt — KHÔNG tắt cửa sổ này.');
+      console.log('Nếu chờ quá lâu, hãy báo trực tiếp với giám thị trong phòng.');
+    } catch (error) {
+      if (error instanceof NoTerminalError) {
+        console.error('');
+        console.error(`MSSV ${payload.studentId} không có trong danh sách lớp của môn thi này.`);
+        console.error('Agent đang chạy không có terminal nên không hỏi được thông tin.');
+        console.error('Hãy chạy agent trực tiếp trong cửa sổ lệnh, hoặc báo giám thị.');
+        shutdown(1);
+        return;
+      }
+      console.error(
+        'Không gửi được yêu cầu:',
+        error instanceof Error ? error.message : error,
+      );
+      shutdown(1);
+    }
+  }
+
+  socket.on('agent:access-granted', () => {
+    console.log('Giảng viên đã duyệt. Đang vào phòng thi...');
+    requestingAccess = false;
+    // Re-join rather than having the server fake an ack: the same path every
+    // other student takes, so nothing about this student is special from here on.
+    socket.emit('agent:join', payload);
+  });
+
+  socket.on('agent:access-denied', (body: unknown) => {
+    const message =
+      isPlainObject(body) && typeof body.message === 'string'
+        ? body.message
+        : 'Giảng viên đã từ chối yêu cầu.';
+    console.error(message);
+    console.error('Hãy liên hệ giám thị trong phòng thi.');
     shutdown(1);
   });
 }
