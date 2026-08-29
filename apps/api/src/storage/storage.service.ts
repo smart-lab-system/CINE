@@ -1,5 +1,6 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -10,6 +11,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   BACKUP_KEY_PREFIX,
   BACKUP_OBJECT_NAME,
+  MATERIAL_KEY_PREFIX,
   DOWNLOAD_URL_TTL_SECONDS,
   SAFE_KEY_SEGMENT_REGEX,
   SUBMISSION_KEY_PREFIX,
@@ -76,6 +78,48 @@ export class StorageService {
       }
     }
     return [SUBMISSION_KEY_PREFIX, ...segments].join('/');
+  }
+
+  /**
+   * Where one exam material lives.
+   *
+   * Keyed by the material's id, never by the filename the teacher typed:
+   * two materials may share a name, and a key built from user input is a
+   * key that can be steered.
+   */
+  buildMaterialKey(examSessionId: string, examMaterialId: string): string {
+    const segments = [examSessionId, examMaterialId];
+    for (const segment of segments) {
+      if (!segment || !SAFE_KEY_SEGMENT_REGEX.test(segment)) {
+        throw new InternalServerErrorException(
+          `Refusing to build a storage key from an unsafe segment: ${JSON.stringify(segment)}`,
+        );
+      }
+    }
+    return [MATERIAL_KEY_PREFIX, ...segments].join('/');
+  }
+
+  /**
+   * Removes one object. Used when a teacher deletes a material they
+   * uploaded by mistake — dropping only the row would leave the file in
+   * storage forever, still readable by anyone holding an old signed URL.
+   *
+   * A missing object is success, not an error: the caller's intent is "this
+   * should not exist", and it already does not.
+   */
+  async deleteObject(key: string): Promise<void> {
+    try {
+      await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+    } catch (error) {
+      if (isNotFound(error)) {
+        return;
+      }
+      this.logger.error(
+        `DeleteObject failed for key ${key}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
   }
 
   /**

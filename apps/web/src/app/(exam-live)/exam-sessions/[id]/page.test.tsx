@@ -20,6 +20,7 @@ const finalizeMutateAsyncMock = vi.fn();
 const useFinalizeExamSessionMock = vi.fn();
 const useAttendanceMock = vi.fn();
 const useConfirmAttendanceMock = vi.fn();
+const useExamMaterialsMock = vi.fn();
 const confirmMutateMock = vi.fn();
 const refetchAttendanceMock = vi.fn();
 vi.mock('@/hooks/useExamSession', () => ({
@@ -28,6 +29,12 @@ vi.mock('@/hooks/useExamSession', () => ({
   useFinalizeExamSession: (...args: unknown[]) => useFinalizeExamSessionMock(...args),
   useAttendance: (...args: unknown[]) => useAttendanceMock(...args),
   useConfirmAttendance: (...args: unknown[]) => useConfirmAttendanceMock(...args),
+  useExamMaterials: (...args: unknown[]) => useExamMaterialsMock(...args),
+  // The two mutations are inert here: nothing in these tests uploads or
+  // deletes a file, and a shared no-op keeps the card from throwing while
+  // the page around it is what is under test.
+  useUploadExamMaterial: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
+  useDeleteExamMaterial: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
 
 /**
@@ -158,6 +165,8 @@ beforeEach(() => {
   confirmMutateMock.mockReset();
   refetchAttendanceMock.mockReset();
   useAttendanceMock.mockReturnValue(attendanceOf());
+  useExamMaterialsMock.mockReset();
+  useExamMaterialsMock.mockReturnValue({ data: [], isLoading: false, isError: false, error: null });
   useConfirmAttendanceMock.mockReturnValue({
     mutate: confirmMutateMock,
     isPending: false,

@@ -175,6 +175,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/materials/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_requestMaterialUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ExamSessionController_findMaterials"];
+        put?: never;
+        post: operations["ExamSessionController_createMaterial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/materials/{materialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["ExamSessionController_removeMaterial"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/finalize": {
         parameters: {
             query?: never;
@@ -482,6 +530,16 @@ export interface components {
             endTime: string;
             status: Record<string, never>;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
+        };
+        RequestMaterialUploadDto: {
+            fileName: string;
+            fileSize: number;
+        };
+        CreateExamMaterialDto: {
+            fileName: string;
+            fileSize: number;
+            examMaterialId: string;
+            storageKey: string;
         };
         AccountEntity: {
             name: string;
@@ -868,6 +926,95 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ExamSessionController_requestMaterialUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestMaterialUploadDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ExamSessionController_findMaterials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    ExamSessionController_createMaterial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateExamMaterialDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    ExamSessionController_removeMaterial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                materialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };

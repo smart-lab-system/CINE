@@ -37,6 +37,7 @@ import {
 } from './submission-uploader';
 import { NoTerminalError, promptAccessRequest, sendAccessRequest } from './access-request';
 import { restoreBackup, startSnapshotLoop } from './backup';
+import { downloadMaterials, writeInstructions } from './exam-materials';
 
 // ---------------------------------------------------------------------------
 // Client side of the WebSocket Event Contract implemented by
@@ -585,6 +586,36 @@ async function main(): Promise<void> {
     const createdCount = createSubmissionFiles(workspaceDir, ack.requiredFiles);
     console.log(`Đã tạo ${createdCount} file, sẵn sàng làm bài.`);
     console.log(`Thư mục bài làm: ${workspaceDir}`);
+
+    // Asked for separately from the join, and the server re-checks the
+    // clock on that request: an agent may be in the lobby before it may
+    // hold the paper (CLAUDE.md Security rule 2).
+    const materialNames: string[] = [];
+    if (typeof ack.examMaterialCount === 'number' && ack.examMaterialCount > 0) {
+      const outcome = await downloadMaterials(socket, workspaceDir);
+      materialNames.push(...outcome.fileNames);
+      if (outcome.status === 'downloaded' && outcome.downloaded > 0) {
+        console.log(`Đã tải ${outcome.downloaded} file đề thi vào thư mục "de-thi".`);
+      } else if (outcome.status === 'not-yet') {
+        console.log(`Đề thi chưa mở — sẽ mở lúc ${outcome.releaseAt ?? '(chưa rõ)'}.`);
+      } else if (outcome.status === 'failed') {
+        console.warn('[CẢNH BÁO] Không tải được đề thi. Hãy báo giám thị.');
+      }
+    }
+
+    // Written from what the server already declared, so it cannot disagree
+    // with what will actually be collected — the names here are the exact
+    // ones just created on disk.
+    await writeInstructions(workspaceDir, {
+      sessionName,
+      studentName,
+      studentId: payload.studentId,
+      endTime,
+      requiredFiles: Array.isArray(ack.requiredFiles)
+        ? (ack.requiredFiles as string[])
+        : [],
+      materialFileNames: materialNames,
+    });
 
     if (!stopSnapshots) {
       stopSnapshots = startSnapshotLoop(socket, workspaceDir);

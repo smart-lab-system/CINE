@@ -12,6 +12,11 @@ import {
   type SearchExamSessionsParams,
 } from '@/lib/api/exam-session';
 import { confirmAttendance, getAttendance } from '@/lib/api/attendance';
+import {
+  deleteExamMaterial,
+  listExamMaterials,
+  uploadExamMaterial,
+} from '@/lib/api/exam-materials';
 
 /**
  * TanStack Query mutation wrapping `createExamSession` — pages call this
@@ -104,6 +109,40 @@ export function useConfirmAttendance(examSessionId: string) {
       // so the whole view is re-read rather than patched.
       void queryClient.invalidateQueries({
         queryKey: ['exam-sessions', examSessionId, 'attendance'],
+      });
+    },
+  });
+}
+
+/* ---------------------------------------------------------------- materials */
+
+export function useExamMaterials(examSessionId: string) {
+  return useQuery({
+    queryKey: ['exam-sessions', examSessionId, 'materials'],
+    queryFn: () => listExamMaterials(examSessionId),
+    enabled: Boolean(examSessionId),
+  });
+}
+
+export function useUploadExamMaterial(examSessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => uploadExamMaterial(examSessionId, file),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['exam-sessions', examSessionId, 'materials'],
+      });
+    },
+  });
+}
+
+export function useDeleteExamMaterial(examSessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (materialId: string) => deleteExamMaterial(examSessionId, materialId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['exam-sessions', examSessionId, 'materials'],
       });
     },
   });

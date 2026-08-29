@@ -30,6 +30,7 @@ import { AccessRequestStore } from './access-request.store';
 import { AttendanceService } from '../agent-connection/attendance.service';
 import { StorageService } from '../storage/storage.service';
 import { renderFilename } from './filename-template';
+import { ExamMaterialService } from './exam-material.service';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -67,6 +68,16 @@ interface AgentJoinAck {
   // it back for confirmation.
   studentName: string;
   endTime: string;
+  /**
+   * How many exam materials this session has, and when they open.
+   *
+   * The COUNT, never the files. An agent learns there is something to
+   * fetch and when it may fetch it; the bytes come from a separate request
+   * that re-checks the clock (Security rule 2). Telling it "there are two
+   * files, here they are" on join is exactly the leak the rule names.
+   */
+  examMaterialCount: number;
+  materialsReleaseAt: string;
   /**
    * Whether a snapshot of this student's folder is waiting in storage.
    *
@@ -110,6 +121,19 @@ interface AgentDisconnected {
   studentId: string;
   disconnectedAt: string;
 }
+
+/**
+ * Reply to `agent:request-materials`.
+ *
+ * NOT_YET_RELEASED carries the time rather than just saying no: an agent
+ * that connected early should be able to come back at exactly the right
+ * moment instead of polling, and a student watching should be told when the
+ * paper opens rather than that something failed.
+ */
+type AgentMaterialsAck =
+  | { ok: true; materials: { id: string; fileName: string; fileSize: number; downloadUrl?: string }[] }
+  | { ok: false; code: 'NOT_JOINED' | 'STORAGE_UNAVAILABLE'; message: string }
+  | { ok: false; code: 'NOT_YET_RELEASED'; message: string; releaseAt: string };
 
 // Added to the contract after Task 3 flagged the original gap: no error
 // event existed for `teacher:subscribe` failures (see plan commit
@@ -166,6 +190,7 @@ export class ExamSessionGateway
     private readonly accessRequests: AccessRequestStore,
     private readonly attendance: AttendanceService,
     private readonly storage: StorageService,
+    private readonly materials: ExamMaterialService,
   ) {}
 
   /**
@@ -358,9 +383,13 @@ export class ExamSessionGateway
       );
     }
 
+    const materialState = await this.materials.listForAgent(session, new Date());
+
     const ack: AgentJoinAck = {
       examSessionId: session.id,
       backupAvailable,
+      examMaterialCount: materialState.released ? materialState.materials.length : 0,
+      materialsReleaseAt: session.startTime.toISOString(),
       sessionName: session.name,
       studentName: enrollment.studentName,
       requiredFiles: resolved.map((deliverable) => deliverable.requiredFilename),
@@ -387,6 +416,53 @@ export class ExamSessionGateway
       joinedAt: new Date().toISOString(),
     };
     client.to(teacherRoom(session.id)).emit('lobby:student_joined', joined);
+  }
+
+  /**
+   * Agent -> Server. The exam materials, or the time they open.
+   *
+   * A separate request rather than a field on the join ack, and that is the
+   * point: Security rule 2 says an agent may sit in the lobby before the
+   * exam starts and still not hold the paper. The clock is re-checked here,
+   * on the read, every time — so an agent that connected early and waited
+   * gets the files at start_time and not a second before.
+   */
+  @SubscribeMessage('agent:request-materials')
+  async handleRequestMaterials(
+    @ConnectedSocket() client: Socket,
+  ): Promise<AgentMaterialsAck> {
+    const examSessionId = client.data?.examSessionId as string | undefined;
+    if (!examSessionId) {
+      return { ok: false, code: 'NOT_JOINED', message: 'This connection has not joined an exam session.' };
+    }
+
+    const session = await this.examSessions.findById(examSessionId);
+    if (!session) {
+      return { ok: false, code: 'NOT_JOINED', message: 'This exam session no longer exists.' };
+    }
+
+    try {
+      const state = await this.materials.listForAgent(session, new Date());
+      if (!state.released) {
+        return {
+          ok: false,
+          code: 'NOT_YET_RELEASED',
+          message: 'Đề thi chưa được mở.',
+          releaseAt: state.releaseAt,
+        };
+      }
+      return { ok: true, materials: state.materials };
+    } catch (error) {
+      this.logger.error(
+        `agent:request-materials failed for session ${examSessionId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      return {
+        ok: false,
+        code: 'STORAGE_UNAVAILABLE',
+        message: 'Không lấy được đề thi. Hãy thử lại.',
+      };
+    }
   }
 
   /**

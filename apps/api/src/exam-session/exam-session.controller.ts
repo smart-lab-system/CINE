@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -17,6 +18,11 @@ import { Roles } from '../auth/roles.decorator';
 import { ExamSessionService } from './exam-session.service';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
+import { ExamMaterialService } from './exam-material.service';
+import {
+  CreateExamMaterialDto,
+  RequestMaterialUploadDto,
+} from './dto/exam-material.dto';
 
 // JWT required on every route; RolesGuard is registered class-wide but only
 // bites on handlers that carry @Roles(...) (it returns true when no metadata
@@ -38,7 +44,10 @@ import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 @Controller('exam-sessions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ExamSessionController {
-  constructor(private readonly examSessions: ExamSessionService) {}
+  constructor(
+    private readonly examSessions: ExamSessionService,
+    private readonly materials: ExamMaterialService,
+  ) {}
 
   @Post()
   @Roles('teacher')
@@ -96,6 +105,60 @@ export class ExamSessionController {
   @HttpCode(200)
   confirmAttendance(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.examSessions.confirmAttendanceForOwner(id, req.user!.sub);
+  }
+
+  /**
+   * Exam materials — the question paper, the dataset, the starter code.
+   *
+   * Two steps, like a submission: mint a URL, then confirm the object
+   * landed. The file never passes through this server (Security rule 5),
+   * and no row exists until the bytes really do — a session that lists a
+   * paper nobody can open is worse than one that lists nothing.
+   *
+   * Teacher-only, and owner-scoped inside the service. Releasing these to
+   * an AGENT is a different question with a different gate — see
+   * ExamMaterialService.listForAgent and Security rule 2.
+   */
+  @Post(':id/materials/upload-url')
+  @Roles('teacher')
+  @HttpCode(200)
+  async requestMaterialUpload(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RequestMaterialUploadDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.materials.requestUpload(session, dto);
+  }
+
+  @Post(':id/materials')
+  @Roles('teacher')
+  async createMaterial(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateExamMaterialDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.materials.create(session, dto);
+  }
+
+  @Get(':id/materials')
+  @Roles('teacher')
+  async findMaterials(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.materials.listForTeacher(session);
+  }
+
+  @Delete(':id/materials/:materialId')
+  @Roles('teacher')
+  @HttpCode(204)
+  async removeMaterial(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('materialId', ParseUUIDPipe) materialId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.materials.remove(session, materialId);
   }
 
   @Post(':id/finalize')

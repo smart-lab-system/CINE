@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
 import { AttendancePanel } from './_components/AttendancePanel';
+import { ExamMaterialsCard } from './_components/ExamMaterialsCard';
 import {
   SubmissionStatusTable,
   type DeliverableState,
@@ -382,6 +383,14 @@ export default function ExamSessionLobbyPage() {
           </Card>
         ) : (
           <>
+            {sessionDetail.data && (
+              <ExamMaterialsCard
+                examSessionId={examSessionId}
+                releaseAt={formatDateTime(sessionDetail.data.startTime)}
+                canEdit={sessionDetail.data.status !== 'completed'}
+              />
+            )}
+
             <AttendancePanel
               attendance={attendance.data}
               isLoading={attendance.isLoading}

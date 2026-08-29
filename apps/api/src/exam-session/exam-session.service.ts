@@ -353,6 +353,10 @@ export class ExamSessionService {
    * DTO; the attendance paths need the entity itself, and re-deriving 404
    * then 403 a second time is how the two drift apart.
    */
+  async findEntityForOwner(id: string, teacherId: string): Promise<ExamSessionEntity> {
+    return this.findOwnedBy(id, teacherId);
+  }
+
   private async findOwnedBy(id: string, teacherId: string): Promise<ExamSessionEntity> {
     const session = await this.sessions.findOne({ where: { id } });
     if (!session) {

@@ -32,6 +32,22 @@ export const SUBMISSION_KEY_PREFIX = 'submissions';
  * submits it the ordinary way.
  */
 export const BACKUP_KEY_PREFIX = 'backups';
+
+/**
+ * The teacher's exam materials — question paper, dataset, starter code:
+ *
+ *   materials/{examSessionId}/{examMaterialId}
+ *
+ * Keyed by the material's own id rather than its filename: two materials
+ * may legitimately be called the same thing, and a key built from a
+ * teacher-typed name is a key built from user input.
+ *
+ * Being IN storage is not the same as being RELEASED. Security rule 2 says
+ * an agent may only receive these once start_time has passed, even if it
+ * connected earlier — separating "allowed into the lobby" from "allowed to
+ * see the exam". That gate is on the read path, not on the key.
+ */
+export const MATERIAL_KEY_PREFIX = 'materials';
 export const BACKUP_OBJECT_NAME = 'latest.zip';
 
 /**

@@ -3,8 +3,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CourseModule } from '../course/course.module';
 import { ExamSessionEntity } from './entities/exam-session.entity';
+import { ExamMaterialEntity } from './entities/exam-material.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { ExamSessionService } from './exam-session.service';
+import { ExamMaterialService } from './exam-material.service';
 import { ExamSessionController } from './exam-session.controller';
 import { ExamSessionGateway } from './exam-session.gateway';
 import { ExamSessionEvents } from './exam-session.events';
@@ -17,7 +19,11 @@ import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ExamSessionEntity, RequiredDeliverableEntity]),
+    TypeOrmModule.forFeature([
+      ExamSessionEntity,
+      RequiredDeliverableEntity,
+      ExamMaterialEntity,
+    ]),
     // Registered the same way AuthModule does (JwtModule.register({}) with
     // no default secret) — ExamSessionGateway calls jwt.verifyAsync with an
     // explicit secret per-call, same as AuthService does.
@@ -38,6 +44,7 @@ import { StorageModule } from '../storage/storage.module';
   controllers: [ExamSessionController],
   providers: [
     ExamSessionService,
+    ExamMaterialService,
     ExamSessionGateway,
     ExamSessionEvents,
     ExamSessionScheduler,
