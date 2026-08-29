@@ -35,7 +35,11 @@ export async function readWorkbook(file: File): Promise<SheetData[]> {
   // so it stays out of every other page's bundle.
   const { Workbook } = await import('exceljs');
   const workbook = new Workbook();
-  await workbook.xlsx.load(await file.arrayBuffer());
+  // Wrapped in a Uint8Array rather than passed as a raw ArrayBuffer: the
+  // unwrapped buffer is identified by `instanceof` deeper in the zip reader,
+  // which fails whenever it crosses a realm boundary — the case the fixture
+  // test hits, and the same shape of bug an iframe or a worker would produce.
+  await workbook.xlsx.load(new Uint8Array(await file.arrayBuffer()));
 
   return workbook.worksheets.map((sheet) => {
     const rowCount = Math.min(sheet.rowCount, MAX_ROWS);

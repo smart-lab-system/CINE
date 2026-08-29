@@ -53,12 +53,19 @@ WHERE name <> 'Học kỳ 1 2026-2027';
 DELETE FROM examcollect.room
 WHERE name NOT IN ('Phòng máy A1', 'Phòng máy A2', 'Phòng máy B1');
 
--- ---- Accounts: keep the two the runbook documents ---------------------
+-- ---- Accounts: keep the three the runbook documents -------------------
 -- demo-admin is kept on purpose, not just for symmetry: verifying the
 -- teacher-only guard on POST /exam-sessions needs a real admin login.
+-- demo-head is the Trưởng khoa the runbook's step 5b needs: since Phase 3
+-- the class and its roster are created through that account, so a reset
+-- that removed it would leave the demo with no way back to a working state.
 DELETE FROM examcollect.cost_budget;
 DELETE FROM examcollect.account
-WHERE email NOT IN ('demo-teacher@example.com', 'demo-admin@example.com');
+WHERE email NOT IN (
+  'demo-teacher@example.com',
+  'demo-admin@example.com',
+  'demo-head@example.com'
+);
 
 COMMIT;
 

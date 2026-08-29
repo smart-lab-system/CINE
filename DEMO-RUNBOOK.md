@@ -48,30 +48,17 @@ of newly-applied migrations, no errors.
 **If not:** confirm step 1's Postgres is healthy first — almost every
 migration failure at this step is "can't connect," not a schema problem.
 
-### Seed a class roster (required since enrollment is enforced)
+### The class list is no longer seeded by SQL
 
-```bash
-docker exec -i cine-postgres-1 psql -U examcollect_admin -d examcollect \
-  < scripts/seed-roster.sql
-```
+`agent:join` refuses any MSSV without an `enrollment` for the session's
+course (CLAUDE.md Security rule 1 — knowing the session code is not
+access), so a database with no roster admits nobody, including the mock
+agent. Until Phase 3 that was patched with `scripts/seed-roster.sql`; the
+roster now arrives through the importer, and a demo that reached into
+Postgres would be showing a path that no longer exists.
 
-**Expect:** a one-row summary, `CS101 | Nhóm 01 | 22`.
-
-**Why this step exists:** `agent:join` refuses any MSSV without an
-`enrollment` for the session's course (CLAUDE.md Security rule 1 — knowing
-the session code is not access). On an unseeded database every agent,
-including the mock one, gets `NOT_ENROLLED` and the demo cannot start.
-
-The script seeds `MSSVTEST01`…`MSSVTEST20` — exactly the identities
-`mock-agent.ts` generates, so `--count 20` works unchanged — plus
-`SV20120001` (Nguyễn Văn A) and `SV20120002` (Trần Thị B) for driving the
-real agent by hand. It is idempotent; re-running changes nothing. A later
-phase replaces it with the Excel importer.
-
-**If not:** the script keys off course `CS101` and account
-`demo-teacher@example.com`. If either is missing, run
-`scripts/reset-dev-data.sql` first (it restores the migration seed) and
-create the demo teacher as documented below.
+The list is loaded through the UI in **step 5b**, from an .xlsx committed at
+`scripts/sample-roster.xlsx`. Nothing to do here.
 
 ## 3. Start the API
 
@@ -116,9 +103,16 @@ There's no self-serve registration (deliberate — see README's "Getting a
 first admin account"). The first account on any fresh database has to be
 inserted directly.
 
-**Already have one on this machine?** A demo account already exists in
-this repo's dev Postgres from the verification run:
-`demo-teacher@example.com` / `Demo123456!`. Skip to step 6.
+**Already have one on this machine?** Two demo accounts already exist in
+this repo's dev Postgres from the verification runs:
+`demo-teacher@example.com` / `Demo123456!` (role `teacher`) and
+`demo-head@example.com` / `Demo123456!` (role `department_admin` — the
+Trưởng khoa). Skip to step 5b.
+
+Both are needed now: a lecturer no longer creates a session for a *course*,
+they create one for a **class they were assigned**, and only a Trưởng khoa
+creates classes and loads their roster. That split is the point — see
+step 5b.
 
 **Do (fresh database — generate the hash, then insert):**
 ```bash
@@ -135,10 +129,61 @@ docker compose exec postgres psql -U examcollect_admin -d examcollect -c \
 email is already taken — either reuse it (it's the same account) or pick a
 different email.
 
+## 5b. Set up the class and import its roster (Trưởng khoa)
+
+Everything a lecturer needs before they can run an exam — a class assigned
+to them, and a list of who is in it — belongs to the Trưởng khoa. This is
+the phase-3 flow, and it replaces the SQL seed entirely.
+
+**Do:** log in at `http://localhost:3000/login` as
+`demo-head@example.com` / `Demo123456!`.
+**Expect:** `/department/dashboard`. The sidebar has Học kỳ, Môn học, Lớp
+học, Phòng thi — and no admin screens, whatever you type in the address bar.
+
+**Do (Môn học):** the dev database seeds `CS101`/`CS201` with no owner, so
+they are invisible here by design. Either create your own course under an
+existing học kỳ, or log in as an admin and assign one from
+`/admin/unowned-courses`. Creating one is faster.
+**Expect:** the course appears in the list, owned by you — ownership comes
+from the logged-in account and is never accepted from the form.
+
+**Do (Lớp học):** "Thêm lớp", pick the course, name it `Nhóm 01`, and
+choose **Demo Teacher** as giảng viên phụ trách.
+**Expect:** the row appears with the lecturer's name.
+**If not:** an empty giảng viên dropdown means no account has role
+`teacher` — create one as in step 5.
+
+**Do (roster):** on that row, click **Danh sách SV**, then pick the file
+`scripts/sample-roster.xlsx`.
+**Expect:** a grid preview with real spreadsheet column letters. The file
+has a title row, then headers, so set **Số dòng tiêu đề = 2**, **Cột MSSV =
+Cột B**, **Cột họ tên = Cột C**. The review then reads
+`Thêm 22 · Đổi tên 0 · Giữ nguyên 0`. Click "Xác nhận nhập danh sách".
+**Expect:** `Đã nhập xong: thêm 22, cập nhật 0, giữ nguyên 0`, and the
+"Đang có trong lớp (22)" table below fills in.
+
+The file never reaches the API — it is parsed in the browser and posted as
+JSON (Security rule 5). Nothing is written until that last click.
+
+**Worth showing, three things:**
+
+1. **Import the same file again.** `Giữ nguyên 22`, nothing changes.
+2. **Import `scripts/sample-roster-bad.xlsx`.** One MSSV has spaces in it;
+   the whole file is refused and the offending row is named. 22 of 23 would
+   give a headcount that looks healthy and is not.
+3. **Import a file with a student removed** (delete a row from a copy).
+   They are listed under "không có trong file" and **kept**. Removing them
+   takes ticking the box — deleting an enrollment locks that student out of
+   the exam, and the mistake surfaces on exam day.
+
+**If not:** "Không đọc được file" means it is not a real .xlsx (an old .xls
+or a renamed .csv). Regenerate the fixtures with
+`pnpm --filter web make:sample-roster`.
+
 ## 6. Log in through the real UI
 
-**Do:** open `http://localhost:3000/login`, enter the email/password from
-step 5, submit.
+**Do:** log out of the Trưởng khoa account, then open
+`http://localhost:3000/login` and log in as `demo-teacher@example.com`.
 **Expect:** redirected to `/teacher/dashboard` (the demo account from step
 5 is a `teacher`; an `admin` account instead lands on `/admin/dashboard` —
 login redirects by role, and `middleware.ts` independently re-checks role
@@ -154,10 +199,17 @@ examcollect.account SET password_hash = '<new-hash>' WHERE email = '...'`).
 **Do:** from the dashboard, click "Tạo phiên thi" in the sidebar (or go
 straight to `http://localhost:3000/teacher/exam-sessions/new`). Fill in:
 - **Tên phiên thi**: anything, e.g. `Demo — Kiểm tra cuối kỳ`.
-- **Môn thi** / **Phòng thi** / **Loại kỳ thi**: pick any option from each
-  dropdown — the dev DB is seeded with 2 courses and 3 rooms (migration
-  `AddCourseRoomExamType`). If a Select shows no options, `GET /courses`
-  or `GET /rooms` failed — check the API terminal.
+- **Lớp thi**: the class from step 5b, shown as `<mã môn> — Nhóm 01
+  (22 SV)`. Only classes assigned to *this* lecturer appear, and the course
+  is derived from the class server-side — a lecturer picks the class they
+  teach, never a course. An empty dropdown means no class names this
+  account; go back to step 5b.
+- **Phòng thi** / **Loại kỳ thi**: any option — the dev DB seeds 3 rooms
+  (migration `AddCourseRoomExamType`). If Phòng thi is empty, `GET /rooms`
+  failed; check the API terminal.
+- A class with **0 SV** still creates a session, with a warning: it is
+  legal, but nobody would get in, and finding that out at the start of an
+  exam is the failure the warning exists to prevent.
 - **Thời gian bắt đầu / kết thúc**: pick a window that covers *right now*
   through at least a few hours out (start ≤ now ≤ end). A session is
   created immediately joinable (`status = 'active'`, no separate
@@ -269,9 +321,11 @@ terminal window — it refuses to hang waiting for input that cannot arrive.
 
 ## 10. Run the mock agent (batch load)
 
-The mock identities (`MSSVTEST01`…`MSSVTEST20`) are seeded by step 2, so
-`--count 20` works as-is. Raising `--count` past 20 needs matching rows in
-`scripts/seed-roster.sql`, or the extra agents get `NOT_ENROLLED`.
+The mock identities (`MSSVTEST01`…`MSSVTEST20`) are exactly the first 20
+rows of `scripts/sample-roster.xlsx`, imported in step 5b, so `--count 20`
+works as-is. Raising `--count` past 20 means adding rows in
+`apps/web/scripts/make-sample-roster.mjs`, regenerating and re-importing —
+otherwise the extra agents get `NOT_ENROLLED`, which is the rule working.
 
 **Do (new terminal, real agent from step 9 keeps running):**
 ```bash
