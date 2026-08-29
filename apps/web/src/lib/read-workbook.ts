@@ -39,7 +39,16 @@ export async function readWorkbook(file: File): Promise<SheetData[]> {
   // unwrapped buffer is identified by `instanceof` deeper in the zip reader,
   // which fails whenever it crosses a realm boundary — the case the fixture
   // test hits, and the same shape of bug an iframe or a worker would produce.
-  await workbook.xlsx.load(new Uint8Array(await file.arrayBuffer()));
+  //
+  // exceljs ships ONE set of typings for TWO runtime builds, and they
+  // describe the Node one, where `load` takes a Buffer. What actually runs
+  // here is the browser build — its package.json `browser` field points at
+  // dist/exceljs.min.js, which hands the argument straight to JSZip and
+  // accepts any Uint8Array. There is no Buffer in a browser to satisfy the
+  // declared type with, so the browser signature is stated instead.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const xlsx = workbook.xlsx as unknown as { load(data: Uint8Array): Promise<unknown> };
+  await xlsx.load(bytes);
 
   return workbook.worksheets.map((sheet) => {
     const rowCount = Math.min(sheet.rowCount, MAX_ROWS);
