@@ -218,6 +218,14 @@ straight to `http://localhost:3000/teacher/exam-sessions/new`). Fill in:
   already passed will still reject joins even though `status` is active.
 - **File bắt buộc nộp**: 2-3 filenames, e.g. `baitap1.py`, `baocao.docx`,
   `ket_qua.txt` (click "Thêm file" to add more rows).
+- **Tên file riêng cho từng sinh viên**: click the `{MSSV}` / `{TEN}` /
+  `{PHONG}` / `{SOMAY}` chips to build a pattern like
+  `{PHONG}_{MSSV}_{TEN}.docx`. A preview under the field shows what one
+  student would get. The server fills these from the roster and the room, so
+  every student is told a different, finished filename and nobody types one.
+  Diacritics are stripped: "Nguyễn Văn An" becomes `NguyenVanAn`.
+  `{SOMAY}` is the machine's own hostname — useful only if the lab names
+  its machines after seats; it renders `UNKNOWN` otherwise, visibly.
 
 Submit ("Tạo phiên thi").
 **Expect:** a confirmation screen showing a large 6-character **code**
@@ -227,6 +235,28 @@ down** — every agent below needs it.
 Network and check the `POST /exam-sessions` response body for the actual
 validation error (usually a filename with a disallowed character, or
 end time not after start time).
+
+## 7b. Upload the exam paper
+
+**Do:** open the session (step 8's lobby link) and use the **"Đề thi và tài
+liệu"** card to upload any PDF or dataset.
+**Expect:** the file listed with its size, and a blue notice naming the time
+students will first be able to open it.
+
+**The thing worth showing:** uploading does NOT publish. An agent that
+connects early gets a COUNT of materials on its join ack and nothing else;
+the files come from a separate request that re-reads the clock every time
+(CLAUDE.md Security rule 2 — "allowed into the lobby" and "allowed to see
+the exam" are different questions). Putting the files on the join ack is
+precisely the leak the rule names, and the join ack is checked in the test
+suite for not containing a filename.
+
+Delete removes the object as well as the row — a paper the teacher believes
+they deleted must not stay readable to anyone holding an old signed URL.
+
+**If not:** an upload that fails at the confirm step means the PUT to MinIO
+did not land; check `docker compose ps` and the browser's Network tab. No
+row is written until the object is really there, on purpose.
 
 ## 8. Open the lobby
 
@@ -442,6 +472,42 @@ hands the work back to the student, who submits it normally at finalize.
 **If not:** `NO_BACKUP` means no snapshot exists yet for that (session,
 MSSV) — take one first. A restore that reports `failed` means MinIO is
 unreachable; check `docker compose ps`.
+
+## 11c. Chấm điểm (AI-assisted)
+
+Grading is a SEPARATE screen reached by choosing a session, and that is the
+design: collection and grading are two pipelines joined by one explicit
+teacher action. A finished session can sit for a week and nothing happens.
+
+**Do:** go to **Chấm điểm** in the sidebar and pick the session.
+**Expect:** an empty result table saying nothing has been graded — because
+finalizing collected the work and started nothing.
+
+**Do (rubric):** add two criteria, e.g. "Trình bày thuật toán rõ ràng" (5đ)
+and "Có kiểm thử cho trường hợp biên" (5đ), then **"Lưu thành phiên bản
+mới"**.
+**Expect:** "phiên bản 1 · 10 điểm". Save again after editing → **phiên bản
+2**, and version 1 is still listed. There is no update button anywhere, and
+that is deliberate: changing criteria that existing results cite is what
+Security rule 7 forbids.
+
+**Do:** press **"Bắt đầu chấm"**.
+**Expect:** "Đã chấm N bài bằng rubric phiên bản 2", then a row per student
+with a suggested score, the model name **`keyword-match@1`**, and a
+**"Cần giảng viên xem"** badge. Click "Bằng chứng" to see the per-criterion
+verdict and why.
+
+**Why every row is flagged:** no AI model is configured, so the local
+keyword provider runs. It is not pretending to be a model — it names itself
+in every result and its confidence is capped below the auto-approval
+threshold, so nothing it produces is ever approved without a human. Wiring a
+real provider is one binding in `grading.module.ts`.
+
+**Press "Bắt đầu chấm" again.** Nothing changes: a submission that already
+has a result is skipped. One click, one AI opinion.
+
+**If not:** "Môn học này chưa có rubric" means the active rubric belongs to
+a different course — the rubric is per COURSE, shared by every class of it.
 
 ## 12. Tear down
 
