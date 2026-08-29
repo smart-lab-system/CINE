@@ -4,8 +4,11 @@
  * Simulates a real student's machine: connects to the exam-live WebSocket
  * gateway (unauthenticated — agents are public by design, unlike the
  * teacher lobby's cookie-based session), joins an exam session by code, and
- * creates the declared submission files locally. Stays running afterwards
- * (a real agent runs in the background until the exam ends).
+ * creates the declared submission files locally, then stays running until the
+ * server broadcasts `exam:finalize` — at which point it hashes and uploads
+ * every declared deliverable straight to object storage through a presigned
+ * URL (the file never passes through the API server, per CLAUDE.md Security
+ * rule 5) and confirms each upload back over the socket.
  *
  * Usage:
  *   ts-node src/cli.ts --full-name="Nguyen Van A" --student-id=20120001 --session-code=ABCD12
@@ -25,6 +28,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as readline from 'node:readline/promises';
 import process from 'node:process';
+import {
+  formatSummary,
+  uploadAllDeliverables,
+  type ExamFinalizePayload,
+  type RequiredDeliverable,
+} from './submission-uploader';
 
 // ---------------------------------------------------------------------------
 // Client side of the WebSocket Event Contract implemented by
@@ -46,6 +55,10 @@ export interface AgentJoinAck {
   examSessionId: string;
   sessionName: string;
   requiredFiles: string[];
+  // Added for the submission phase: every submission event is keyed by
+  // requiredDeliverableId, never by filename, so the agent needs the ids
+  // as well as the names it writes to disk.
+  requiredDeliverables: RequiredDeliverable[];
   endTime: string;
 }
 
@@ -345,6 +358,35 @@ function createSubmissionFiles(workspaceDir: string, requiredFiles: unknown): nu
   return created;
 }
 
+/**
+ * Reads one deliverable's bytes out of the workspace for upload.
+ *
+ * Returns null when the file is not there — the student deleted it, or
+ * never created it. That is a reportable outcome, not an error: the other
+ * deliverables must still be collected (see uploadAllDeliverables).
+ *
+ * The filename is re-validated here even though createSubmissionFiles
+ * already validated it on the way in. The server is not a trusted source
+ * for a path at upload time any more than it was at join time, and the ack
+ * that produced this list arrived over the same untrusted socket.
+ */
+function makeWorkspaceReader(workspaceDir: string) {
+  return async (deliverable: RequiredDeliverable): Promise<Buffer | null> => {
+    const validation = validateFilename(workspaceDir, deliverable.requiredFilename);
+    if (!validation.ok) {
+      throw new Error(`filename không an toàn — ${validation.reason}`);
+    }
+    try {
+      return await fs.promises.readFile(validation.resolvedPath!);
+    } catch (error) {
+      if (isErrnoException(error) && error.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -379,6 +421,14 @@ async function main(): Promise<void> {
 
   let hasJoinedOnce = false;
   let shuttingDown = false;
+  // Captured from `agent:join:ack` and refreshed on every rejoin, so a
+  // reconnect mid-exam cannot leave the finalize handler working from a
+  // stale deliverable list. `exam:finalize` cannot arrive before a
+  // successful join — the server only broadcasts it to the agents room,
+  // which this socket joins during agent:join.
+  let requiredDeliverables: RequiredDeliverable[] = [];
+  let examSessionId = "";
+  let finalizing = false;
 
   const shutdown = (exitCode: number): void => {
     if (shuttingDown) {
@@ -428,10 +478,79 @@ async function main(): Promise<void> {
     const sessionName = typeof ack.sessionName === 'string' ? ack.sessionName : '(không rõ)';
     const endTime = typeof ack.endTime === 'string' ? ack.endTime : '(không rõ)';
     console.log(`Tham gia thành công: "${sessionName}" (kết thúc lúc ${endTime}).`);
+    requiredDeliverables = Array.isArray(ack.requiredDeliverables)
+      ? (ack.requiredDeliverables as RequiredDeliverable[])
+      : [];
+    examSessionId = typeof ack.examSessionId === 'string' ? ack.examSessionId : '';
     const createdCount = createSubmissionFiles(workspaceDir, ack.requiredFiles);
     console.log(`Đã tạo ${createdCount} file, sẵn sàng làm bài.`);
     console.log(`Thư mục bài làm: ${workspaceDir}`);
     console.log('Agent đang chạy nền, chờ đến hết giờ thi. Nhấn Ctrl+C để thoát.');
+  });
+
+  /**
+   * Server -> agent: the exam is over (the scheduled sweep, or the teacher
+   * pressing "Chốt bài ngay"). This is the moment the whole agent exists
+   * for.
+   */
+  socket.on('exam:finalize', (finalizePayload: unknown) => {
+    if (!isPlainObject(finalizePayload)) {
+      console.warn('[CẢNH BÁO] Server gửi exam:finalize không hợp lệ — bỏ qua.');
+      return;
+    }
+    const reason = (finalizePayload as unknown as ExamFinalizePayload).reason;
+    if (finalizing) {
+      // A duplicate broadcast must never start a second upload loop over
+      // the same files while the first one is still running.
+      console.log('Đang nộp bài theo lệnh trước đó — bỏ qua lệnh chốt bài lặp.');
+      return;
+    }
+    if (requiredDeliverables.length === 0 || !examSessionId) {
+      console.warn(
+        '[CẢNH BÁO] Nhận lệnh chốt bài nhưng chưa có danh sách file bắt buộc — không nộp được gì.',
+      );
+      return;
+    }
+
+    finalizing = true;
+    const reasonText = reason === 'manual' ? 'giáo viên chốt bài' : 'tự động theo lịch';
+    console.log(`\nHết giờ thi (${reasonText}). Đang nộp bài...`);
+
+    void uploadAllDeliverables({
+      socket,
+      examSessionId,
+      studentId: payload.studentId,
+      deliverables: requiredDeliverables,
+      readContent: makeWorkspaceReader(workspaceDir),
+      log: (message) => console.log(message),
+    })
+      .then((summary) => {
+        console.log(formatSummary(summary));
+        if (summary.missing > 0 || summary.failed > 0) {
+          const stragglers = summary.results
+            .filter((r) => r.outcome !== 'uploaded')
+            .map((r) => `${r.deliverable.requiredFilename} (${r.reason})`)
+            .join(', ');
+          console.log(`Các file chưa nộp được: ${stragglers}`);
+          console.log('Hãy báo giám thị ngay nếu còn file bắt buộc chưa nộp được.');
+        }
+        console.log('Agent vẫn đang chạy. Nhấn Ctrl+C để thoát.');
+      })
+      .catch((error: unknown) => {
+        // uploadAllDeliverables catches every per-deliverable failure
+        // itself, so reaching here means something outside the loop broke.
+        // It must never become an unhandled rejection that kills the
+        // process at the exact moment the student needs it alive.
+        console.error(
+          'Lỗi không mong muốn khi nộp bài:',
+          error instanceof Error ? error.message : error,
+        );
+      })
+      .finally(() => {
+        // Cleared so a later finalize (a rejoin, or a manual chốt after a
+        // scheduled one) can retry whatever did not make it.
+        finalizing = false;
+      });
   });
 
   socket.on('agent:join:error', (error: unknown) => {
