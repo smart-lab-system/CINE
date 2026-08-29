@@ -192,15 +192,27 @@ WebSocket call failed — almost always an expired/missing login (re-do step
 **Do (new terminal):**
 ```bash
 cd apps/agent
-npx ts-node src/cli.ts --full-name="Nguyen Van Demo" --student-id="21120099" --session-code=<YOUR_CODE>
+npx ts-node src/cli.ts --student-id="SV20120001" --session-code=<YOUR_CODE>
 ```
-(Omit any flag to be prompted for it interactively instead.) The session
-from step 7 is joinable immediately — no activation step needed in
-between.
-**Expect:** console ends with `Đã tạo N file, sẵn sàng làm bài.` and
-`Agent đang chạy nền...` (stays running, does not exit). Check the files:
+**No `--full-name` any more.** The agent asks for MSSV and session code
+only; the server answers with the name on the roster. A typed name would
+have to be reconciled against the roster spelling ("Nguyen Van A" vs
+"Nguyễn Văn A"), which is a guess, so the comparison was removed rather
+than solved.
+
+`SV20120001` comes from the roster seeded in step 2. **An MSSV that is not
+on the roster is refused** — that is step 9b.
+
+**Expect:** the console confirms the identity before anything else:
+```
+Xác nhận danh tính: Nguyễn Văn A (MSSV SV20120001).
+Nếu KHÔNG phải bạn, hãy thoát ngay và báo giám thị.
+Đã tạo N file, sẵn sàng làm bài.
+Agent đang chạy nền...          (stays running, does not exit)
+```
+Check the files:
 ```bash
-ls apps/agent/exam-workspace/21120099/
+ls apps/agent/exam-workspace/SV20120001/
 # -> exactly the filenames declared in step 7, all present
 ```
 The **already-open lobby tab** (step 8) updates within ~1s, no refresh:
@@ -209,7 +221,57 @@ one row, name/MSSV as passed above, green "Đang kết nối".
 `[SESSION_NOT_ACTIVE]` = the time window from step 7 doesn't cover right
 now (a session is active by default, but still time-gated — see step 7).
 
+## 9b. Refuse an outsider, then let them in on purpose
+
+The part worth showing: the system refuses someone it should refuse, and a
+human can still let them in without anyone editing the database.
+
+**Do (new terminal), with an MSSV deliberately NOT on the roster:**
+```bash
+cd apps/agent
+npx ts-node src/cli.ts --student-id="SV20124444" --session-code=<YOUR_CODE>
+```
+**Expect:** the agent does not die. It offers the way out and waits:
+```
+MSSV SV20124444 không có trong danh sách lớp của môn thi này.
+Bạn có thể gửi yêu cầu để giảng viên duyệt cho vào thi.
+Họ và tên của bạn: _
+```
+Type a name and a reason. Then:
+```
+Đã gửi yêu cầu. Đang chờ giảng viên duyệt — KHÔNG tắt cửa sổ này.
+```
+
+This is what a leaked session code buys someone on its own: nothing.
+Knowing the code is not access (CLAUDE.md Security rule 1).
+
+**Then, in the lobby tab (step 8):** the request appears with the name and
+reason given. Approve it, choosing the class. The waiting agent joins by
+itself — no restart:
+```
+Giảng viên đã duyệt. Đang vào phòng thi...
+Xác nhận danh tính: <tên vừa nhập> (MSSV SV20124444).
+```
+
+**Then show the trail** — a human overriding the machine is never silent:
+```bash
+docker compose exec postgres psql -U examcollect_admin -d examcollect -c \
+  "SELECT actor_id, action, new_value FROM examcollect.audit_log
+     WHERE action = 'exam_session.access_granted'
+     ORDER BY occurred_at DESC LIMIT 1;"
+```
+**Expect:** one row naming the approving teacher, the MSSV, the reason they
+gave, and the class they were assigned to.
+
+**If the agent exits with "không có terminal":** it was started without an
+interactive console (piped or redirected stdin). Run it directly in a
+terminal window — it refuses to hang waiting for input that cannot arrive.
+
 ## 10. Run the mock agent (batch load)
+
+The mock identities (`MSSVTEST01`…`MSSVTEST20`) are seeded by step 2, so
+`--count 20` works as-is. Raising `--count` past 20 needs matching rows in
+`scripts/seed-roster.sql`, or the extra agents get `NOT_ENROLLED`.
 
 **Do (new terminal, real agent from step 9 keeps running):**
 ```bash
