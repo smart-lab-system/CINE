@@ -4,11 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { ClassEntity } from './entities/class.entity';
 import { CourseEntity } from './entities/course.entity';
 import { AccountEntity } from '../identity/entities/account.entity';
+import { EnrollmentEntity } from './entities/enrollment.entity';
 import { CreateClassDto, UpdateClassDto } from './dto/course.dto';
 
 /**
@@ -25,6 +26,7 @@ export class ClassService {
     private readonly courses: Repository<CourseEntity>,
     @InjectRepository(AccountEntity)
     private readonly accounts: Repository<AccountEntity>,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   /** Every class under every course this head owns. */
@@ -59,23 +61,49 @@ export class ClassService {
     headId: string,
     dto: UpdateClassDto,
   ): Promise<ClassEntity> {
-    const klass = await this.findOwnedBy(id, headId);
+    const klass = await this.findOwnedByHead(id, headId);
     if (dto.teacherId) {
       await this.assertIsTeacher(dto.teacherId);
     }
+
+    const lecturerChanged =
+      dto.teacherId !== undefined && dto.teacherId !== klass.teacherId;
     Object.assign(klass, dto);
-    return this.classes.save(klass);
+
+    if (!lecturerChanged) {
+      return this.classes.save(klass);
+    }
+
+    // enrollment.home_teacher_id is copied onto every submission the student
+    // makes, so a class that changes lecturer while its roster still points
+    // at the previous one routes work to someone who no longer teaches it.
+    // One transaction: the class and its roster must never disagree.
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.save(ClassEntity, klass);
+      await manager.update(
+        EnrollmentEntity,
+        { homeClassId: saved.id },
+        { homeTeacherId: saved.teacherId },
+      );
+      return saved;
+    });
   }
 
   async removeForHead(id: string, headId: string): Promise<void> {
-    const klass = await this.findOwnedBy(id, headId);
+    const klass = await this.findOwnedByHead(id, headId);
     // enrollment.home_class_id is ON DELETE RESTRICT, so a class that still
     // has students refuses to go — a 409, never a silent orphaning of the
     // roster.
     await this.classes.remove(klass);
   }
 
-  private async findOwnedBy(id: string, headId: string): Promise<ClassEntity> {
+  /**
+   * The class, if it belongs to a course this head owns — 404 when it does
+   * not exist at all, 403 when it exists but is someone else's. Public
+   * because the roster endpoints hang off a class and must answer ownership
+   * the same way, in the same place, rather than re-deriving the rule.
+   */
+  async findOwnedByHead(id: string, headId: string): Promise<ClassEntity> {
     const klass = await this.classes.findOne({ where: { id } });
     if (!klass) {
       throw new NotFoundException('Class not found');

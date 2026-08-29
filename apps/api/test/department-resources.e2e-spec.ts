@@ -281,6 +281,42 @@ describe('Department resources (e2e)', () => {
       // run.
       expect(response.status).toBe(400);
     });
+
+    it('moves the roster to the new lecturer when a class changes hands', async () => {
+      const replacement = await makeAccount('dept_replacement', 'teacher');
+
+      const course = await request(app.getHttpServer())
+        .post('/courses')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send(newCourse('j'));
+      const klass = await request(app.getHttpServer())
+        .post('/classes')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ courseId: course.body.id, name: 'Nhóm bàn giao', teacherId: lecturerId });
+
+      const student = `H${Date.now().toString(36)}`.slice(0, 20);
+      await request(app.getHttpServer())
+        .post(`/classes/${klass.body.id}/roster`)
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ students: [{ mssv: student, name: 'Sinh viên bàn giao' }] });
+
+      const response = await request(app.getHttpServer())
+        .patch(`/classes/${klass.body.id}`)
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ teacherId: replacement.id });
+      expect(response.status).toBe(200);
+
+      // enrollment.home_teacher_id is copied onto every submission the
+      // student makes. A class that changes lecturer while its roster still
+      // points at the old one routes work to someone who no longer teaches
+      // it — and nothing about the submission would look wrong.
+      const [row] = await dataSource.query(
+        `SELECT home_teacher_id FROM examcollect.enrollment
+         WHERE course_id = $1 AND student_mssv = $2`,
+        [course.body.id, student],
+      );
+      expect(row.home_teacher_id).toBe(replacement.id);
+    });
   });
   describe('teacher pick list', () => {
     it('lets a head read teacher options without exposing anything else', async () => {

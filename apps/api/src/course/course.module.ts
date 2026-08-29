@@ -9,6 +9,7 @@ import { ClassService } from './class.service';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { SemesterEntity } from './entities/semester.entity';
 import { EnrollmentService } from './enrollment.service';
+import { RosterService } from './roster.service';
 import { CourseController } from './course.controller';
 import { SemesterController } from './semester.controller';
 import { ClassController } from './class.controller';
@@ -23,7 +24,16 @@ import { ClassController } from './class.controller';
 @Module({
   imports: [TypeOrmModule.forFeature([CourseEntity, ClassEntity, EnrollmentEntity, SemesterEntity, AccountEntity])],
   controllers: [CourseController, SemesterController, ClassController],
-  providers: [CourseService, SemesterService, ClassService, EnrollmentService],
-  exports: [CourseService, EnrollmentService],
+  providers: [
+    CourseService,
+    SemesterService,
+    ClassService,
+    EnrollmentService,
+    RosterService,
+  ],
+  // ClassService is exported for ExamSessionService: creating a session
+  // needs the lecturer's own scope on a class, and that scope is decided in
+  // one place rather than re-derived against a second set of repositories.
+  exports: [CourseService, ClassService, EnrollmentService],
 })
 export class CourseModule {}

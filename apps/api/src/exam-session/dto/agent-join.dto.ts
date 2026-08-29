@@ -1,10 +1,10 @@
 import { IsOptional, IsString, Length, Matches } from 'class-validator';
+import { STUDENT_MSSV_REGEX } from '../../common/student-mssv';
 
-// Exactly ck_submission_mssv / ck_enrollment_mssv. Enforced at join, not
-// at submission time, so a student with a malformed id finds out in the
-// first ten seconds instead of when their work fails to save at the end
-// of the exam — by which point nothing can be done about it.
-export const STUDENT_MSSV_REGEX = /^[A-Za-z0-9]{4,20}$/;
+// Re-exported so the WebSocket event contract's own DTO file still reads
+// as the one place the join payload is described. The rule itself lives in
+// common/, next to the other module that has to spell it identically.
+export { STUDENT_MSSV_REGEX };
 
 // Validated shape of the `agent:join` WebSocket payload (see the WebSocket
 // Event Contract in the exam-live demo plan's Global Constraints — do not
