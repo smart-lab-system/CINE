@@ -112,7 +112,10 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: `Agent Join Session ${stamp}`,
-        courseId,
+        // The session names its CLASS; the course is derived from it. Join
+        // authentication still happens at course level via enrollment —
+        // that separation is what these tests are about.
+        classId: klass.id,
         roomId: room.id,
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),

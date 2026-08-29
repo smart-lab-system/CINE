@@ -13,6 +13,8 @@ export class ExamSessionResponseDto {
   code!: string;
   teacherId!: string;
   courseId!: string;
+  // Null only for the sessions created before a session named a class.
+  classId!: string | null;
   roomId!: string;
   examType!: ExamType;
   startTime!: Date;
@@ -32,6 +34,7 @@ export class ExamSessionListItemDto {
   name!: string;
   code!: string;
   courseName!: string;
+  className!: string | null;
   roomName!: string;
   examType!: ExamType;
   startTime!: Date;

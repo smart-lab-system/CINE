@@ -97,7 +97,7 @@ describe('Submission collection (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: `Submission Session ${stamp}`,
-        courseId: course.id,
+        classId,
         roomId: room.id,
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),

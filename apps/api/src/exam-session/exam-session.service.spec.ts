@@ -3,6 +3,7 @@ import { ExamSessionService } from './exam-session.service';
 import { ExamSessionEvents } from './exam-session.events';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
+import { ClassService } from '../course/class.service';
 
 /**
  * Covers the exam_session state machine added in the submission phase:
@@ -47,6 +48,11 @@ function createHarness(affected: number) {
     sessions as unknown as Repository<ExamSessionEntity>,
     deliverables as unknown as Repository<RequiredDeliverableEntity>,
     events,
+    // Only create() touches it, and these tests are about finalize. Left
+    // unimplemented on purpose: if a finalize path ever starts resolving a
+    // class, that is a real change and this should fail loudly rather than
+    // quietly return a convenient stub.
+    {} as ClassService,
   );
 
   return { service, sessions, builder, published };

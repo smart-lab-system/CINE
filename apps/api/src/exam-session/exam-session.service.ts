@@ -16,6 +16,7 @@ import {
   ExamSessionListItemDto,
   RequiredDeliverableResponseDto,
 } from './dto/exam-session-response.dto';
+import { ClassService } from '../course/class.service';
 import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 import {
   DEFAULT_DELIVERABLE_TYPE,
@@ -38,6 +39,7 @@ export class ExamSessionService {
     @InjectRepository(RequiredDeliverableEntity)
     private readonly deliverables: Repository<RequiredDeliverableEntity>,
     private readonly events: ExamSessionEvents,
+    private readonly classes: ClassService,
   ) {}
 
   /**
@@ -52,6 +54,12 @@ export class ExamSessionService {
     teacherId: string,
     dto: CreateExamSessionDto,
   ): Promise<ExamSessionResponseDto> {
+    // Before any code is generated: 404 for a class that does not exist, 403
+    // for a colleague's. `class.teacher_id` is the whole of a lecturer's
+    // scope, and this is the only thing standing between them and running an
+    // exam for someone else's class.
+    const klass = await this.classes.findTaughtBy(dto.classId, teacherId);
+
     for (let attempt = 1; attempt <= EXAM_SESSION_CODE_MAX_ATTEMPTS; attempt++) {
       const code = this.generateCode();
 
@@ -62,7 +70,11 @@ export class ExamSessionService {
               name: dto.name,
               code,
               teacherId,
-              courseId: dto.courseId,
+              classId: klass.id,
+              // Derived, never taken from the body — a session whose course did
+              // not match its class would make every enrollment check after
+              // it ask about the wrong course.
+              courseId: klass.courseId,
               roomId: dto.roomId,
               examType: dto.examType,
               startTime: new Date(dto.startTime),
@@ -185,6 +197,7 @@ export class ExamSessionService {
     const [rows, total] = await this.sessions
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.course', 'course')
+      .leftJoinAndSelect('s.class', 'class')
       .leftJoinAndSelect('s.room', 'room')
       .where('s.teacherId = :teacherId', { teacherId })
       .orderBy('s.startTime', 'DESC')
@@ -198,6 +211,9 @@ export class ExamSessionService {
       item.name = session.name;
       item.code = session.code;
       item.courseName = session.course.name;
+      // Null for sessions that predate class_id — the list says so rather
+      // than inventing a class they never had.
+      item.className = session.class?.name ?? null;
       item.roomName = session.room.name;
       item.examType = session.examType;
       item.startTime = session.startTime;
@@ -324,6 +340,7 @@ export class ExamSessionService {
     dto.code = session.code;
     dto.teacherId = session.teacherId;
     dto.courseId = session.courseId;
+    dto.classId = session.classId;
     dto.roomId = session.roomId;
     dto.examType = session.examType;
     dto.startTime = session.startTime;

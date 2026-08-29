@@ -39,6 +39,11 @@ export class ClassController {
     return this.classes.findForHead(req.user!.sub);
   }
 
+  /**
+   * The lecturer's own classes, with course and roster size — the list the
+   * create-session form is built from. A class the caller does not teach
+   * appearing here would put it one click away from an exam.
+   */
   @Get('teaching')
   @Roles('teacher')
   findTeaching(@Req() req: Request) {

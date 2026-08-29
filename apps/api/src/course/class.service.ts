@@ -11,6 +11,7 @@ import { CourseEntity } from './entities/course.entity';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
 import { CreateClassDto, UpdateClassDto } from './dto/course.dto';
+import { TeachingClassView } from './course.types';
 
 /**
  * A class has no scope column of its own: it inherits the department through
@@ -45,9 +46,59 @@ export class ClassService {
     });
   }
 
-  /** Classes this lecturer teaches — the scope that already existed. */
-  async findForTeacher(teacherId: string): Promise<ClassEntity[]> {
-    return this.classes.find({ where: { teacherId }, order: { name: 'ASC' } });
+  /**
+   * Classes this lecturer teaches, shaped for the create-session form: the
+   * course they belong to and how many students the roster holds.
+   *
+   * One query with a JOIN and a GROUP BY, not a count per row — this list is
+   * fetched on every visit to the form, and the capacity warning needs the
+   * number for whichever class the lecturer picks, not just the first.
+   *
+   * A `studentCount` of 0 is meaningful rather than empty: it says nobody
+   * has imported a roster for that class yet, which the form surfaces.
+   */
+  async findForTeacher(teacherId: string): Promise<TeachingClassView[]> {
+    const { entities, raw } = await this.classes
+      .createQueryBuilder('k')
+      .innerJoinAndSelect('k.course', 'course')
+      .leftJoin('enrollment', 'e', 'e.home_class_id = k.id')
+      .addSelect('COUNT(e.id)', 'studentCount')
+      .where('k.teacherId = :teacherId', { teacherId })
+      .groupBy('k.id')
+      .addGroupBy('course.id')
+      .orderBy('course.code', 'ASC')
+      .addOrderBy('k.name', 'ASC')
+      .getRawAndEntities<{ studentCount: string }>();
+
+    return entities.map((klass, index) => ({
+      id: klass.id,
+      name: klass.name,
+      courseId: klass.courseId,
+      courseCode: klass.course.code,
+      courseName: klass.course.name,
+      studentCount: parseInt(raw[index].studentCount, 10),
+    }));
+  }
+
+  /**
+   * The class, if this lecturer is the one who teaches it — 404 when it does
+   * not exist, 403 when it is a colleague's.
+   *
+   * `class.teacher_id` is the whole of a lecturer's scope, so this is what
+   * stands between them and creating an exam session for someone else's
+   * class. Same 404-then-403 shape as ExamSessionService.findByIdForOwner,
+   * for the same reason: a 403 on a class that does not exist would confirm
+   * that some other lecturer's class has that id.
+   */
+  async findTaughtBy(id: string, teacherId: string): Promise<ClassEntity> {
+    const klass = await this.classes.findOne({ where: { id } });
+    if (!klass) {
+      throw new NotFoundException('Class not found');
+    }
+    if (klass.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not teach this class');
+    }
+    return klass;
   }
 
   async createForHead(headId: string, dto: CreateClassDto): Promise<ClassEntity> {

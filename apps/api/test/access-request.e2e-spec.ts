@@ -117,7 +117,7 @@ describe('Access request (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: `Access Session ${stamp}`,
-        courseId,
+        classId,
         roomId: room.id,
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
