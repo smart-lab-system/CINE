@@ -19,17 +19,33 @@ import { validate } from 'class-validator';
 import { Server, Socket } from 'socket.io';
 import { Subscription } from 'rxjs';
 import { AccessTokenPayload } from '../auth/types';
+import { agentRoom, teacherRoom } from '../common/exam-live-rooms';
+import { isPlainObject } from '../common/exam-live-socket';
 import { AgentJoinDto } from './dto/agent-join.dto';
 import { TeacherSubscribeDto } from './dto/teacher-subscribe.dto';
 import { ExamSessionService } from './exam-session.service';
 import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 
-// Server -> Agent, exactly these 4 fields per the WebSocket Event Contract
-// — no teacher_id, no other ExamSession field leaks to the agent.
+// Server -> Agent. No teacher_id, no other ExamSession field leaks to the
+// agent.
+//
+// `requiredDeliverables` was added for the submission phase. Every
+// submission event is keyed by requiredDeliverableId — never by filename,
+// so nothing downstream ever has to match a file by name — and this ack is
+// where the agent learns those ids. `requiredFiles` is kept alongside it,
+// unchanged: it is what the agent uses to create the working files on disk,
+// and dropping it would break the existing flow for no gain.
+interface AgentJoinAckDeliverable {
+  id: string;
+  requiredFilename: string;
+  deliverableType: string;
+}
+
 interface AgentJoinAck {
   examSessionId: string;
   sessionName: string;
   requiredFiles: string[];
+  requiredDeliverables: AgentJoinAckDeliverable[];
   endTime: string;
 }
 
@@ -67,35 +83,6 @@ type TeacherSubscribeErrorCode = 'UNAUTHORIZED' | 'SESSION_NOT_FOUND' | 'FORBIDD
 interface TeacherSubscribeError {
   code: TeacherSubscribeErrorCode;
   message: string;
-}
-
-// Teacher-only broadcast room. Deliberately NOT shared with agents: an
-// agent only needs the (public, session-code-gated) `sessionCode` to open
-// a socket and `agent:join` — there is no authentication step for it at
-// all. Before this fix, agents and teachers joined the SAME room
-// (`exam-session:{id}`), so any unauthenticated agent socket that chose to
-// listen for `lobby:student_joined`/`agent:disconnected` would silently
-// receive every other student's `{studentId, fullName, joinedAt}` as they
-// joined — real classmate PII leaked to an unauthenticated peer holding
-// only the projector-displayed code. `lobby:student_joined` and
-// `agent:disconnected` broadcast ONLY to this room now; agents are never
-// members of it (see handleAgentJoin — it no longer calls `client.join`
-// at all, since nothing in this plan needs server -> agent push yet; if a
-// future feature does, give agents their own, differently-named room,
-// never this one).
-function teacherRoom(examSessionId: string): string {
-  return `exam-session:${examSessionId}:teachers`;
-}
-
-// Agents' own room — the "differently-named room" teacherRoom's comment
-// above said to create if server -> agent push ever became necessary. It
-// has: `exam:finalize` is the server telling every agent in a session to
-// upload its final files. Membership is unauthenticated (so is
-// `agent:join` itself), so NOTHING carrying student data may ever be
-// broadcast here — `exam:finalize` is only an id plus a reason, and any
-// future event added to this room must clear the same bar.
-function agentRoom(examSessionId: string): string {
-  return `exam-session:${examSessionId}:agents`;
 }
 
 // Agent always connects OUT to this server (never the reverse) — the
@@ -218,7 +205,7 @@ export class ExamSessionGateway
     // surface as Nest's generic internal-error event instead of the
     // contracted `agent:join:error`/`INVALID_INPUT`. Reject it here,
     // before either call.
-    if (!this.isPlainObject(body)) {
+    if (!isPlainObject(body)) {
       this.emitJoinError(
         client,
         'INVALID_INPUT',
@@ -267,6 +254,10 @@ export class ExamSessionGateway
     // room to broadcast `agent:disconnected` to.
     client.data.studentId = dto.studentId;
     client.data.examSessionId = session.id;
+    // Read back by SubmissionGateway for submission.student_name_input.
+    // Captured once, here, so an agent cannot claim a different name per
+    // uploaded file (see AgentSocketIdentity).
+    client.data.fullName = dto.fullName;
 
     // Joined AFTER all validation passed, and only to the agents room —
     // never teacherRoom (see its comment: that would leak every
@@ -278,6 +269,11 @@ export class ExamSessionGateway
       examSessionId: session.id,
       sessionName: session.name,
       requiredFiles: deliverables.map((deliverable) => deliverable.requiredFilename),
+      requiredDeliverables: deliverables.map((deliverable) => ({
+        id: deliverable.id,
+        requiredFilename: deliverable.requiredFilename,
+        deliverableType: deliverable.deliverableType,
+      })),
       endTime: session.endTime.toISOString(),
     };
     client.emit('agent:join:ack', ack);
@@ -314,7 +310,7 @@ export class ExamSessionGateway
     // null payload would otherwise reach `plainToInstance`/`validate()`
     // and throw a raw TypeError before the `teacher:subscribe:error`
     // path below ever runs.
-    if (!this.isPlainObject(body)) {
+    if (!isPlainObject(body)) {
       this.logger.warn(`teacher:subscribe rejected: non-object payload from ${client.id}`);
       this.emitSubscribeError(client, 'SESSION_NOT_FOUND', 'No exam session matches this id.');
       return;
@@ -440,15 +436,6 @@ export class ExamSessionGateway
   private emitSubscribeError(client: Socket, code: TeacherSubscribeErrorCode, message: string): void {
     const error: TeacherSubscribeError = { code, message };
     client.emit('teacher:subscribe:error', error);
-  }
-
-  // `plainToInstance` + `validate()` both assume a plain object to walk
-  // property-by-property — a string/number/array/null "payload" isn't
-  // one, and `class-validator`'s `validate()` throws a raw TypeError on
-  // those instead of returning validation errors. Guard against that
-  // shape *before* either call, not after.
-  private isPlainObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
   // Cookie header comes across as one raw string, e.g.

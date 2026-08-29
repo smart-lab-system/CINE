@@ -115,6 +115,34 @@ export class ExamSessionService {
   }
 
   /**
+   * Plain lookup with no ownership check — for callers that have already
+   * established who is asking by other means. SubmissionService uses it:
+   * an agent is not an account, so there is no teacher_id to compare it
+   * against; its authority comes from having completed `agent:join` for
+   * this exact session (see AgentSocketIdentity).
+   *
+   * Anything acting on behalf of a logged-in teacher must keep using
+   * findByIdForOwner instead.
+   */
+  async findById(id: string): Promise<ExamSessionEntity | null> {
+    return this.sessions.findOne({ where: { id } });
+  }
+
+  /**
+   * One deliverable, scoped to its session. The scoping is the point: a
+   * caller passing a valid deliverable id from a DIFFERENT session must
+   * get null, not that other session's row.
+   */
+  async findDeliverable(
+    examSessionId: string,
+    requiredDeliverableId: string,
+  ): Promise<RequiredDeliverableEntity | null> {
+    return this.deliverables.findOne({
+      where: { id: requiredDeliverableId, examSessionId },
+    });
+  }
+
+  /**
    * Reused by the WebSocket gateway (Task 3) to validate/track submissions
    * against the filenames declared for a session.
    */

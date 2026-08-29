@@ -6,6 +6,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { ExamSessionModule } from './exam-session/exam-session.module';
+import { SubmissionModule } from './submission/submission.module';
 import { CourseModule } from './course/course.module';
 import { RoomModule } from './room/room.module';
 import { dataSourceOptions } from './database/data-source';
@@ -23,6 +24,7 @@ import { dataSourceOptions } from './database/data-source';
     AuthModule,
     AccountsModule,
     ExamSessionModule,
+    SubmissionModule,
     CourseModule,
     RoomModule,
   ],
