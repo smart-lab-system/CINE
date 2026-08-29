@@ -28,6 +28,7 @@ import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 import { EnrollmentService } from '../course/enrollment.service';
 import { AccessRequestStore } from './access-request.store';
 import { AttendanceService } from '../agent-connection/attendance.service';
+import { StorageService } from '../storage/storage.service';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -56,6 +57,15 @@ interface AgentJoinAck {
   // it back for confirmation.
   studentName: string;
   endTime: string;
+  /**
+   * Whether a snapshot of this student's folder is waiting in storage.
+   *
+   * Reported on every join, not only on a rejoin the SERVER can see: a
+   * machine that was wiped and re-imaged runs an agent with no memory of
+   * having joined before, so the agent cannot work this out for itself.
+   * False on a genuine first join, which is the common case.
+   */
+  backupAvailable: boolean;
 }
 
 // NOT_ENROLLED closes CLAUDE.md Security rule 1: knowing the session code
@@ -145,6 +155,7 @@ export class ExamSessionGateway
     private readonly enrollments: EnrollmentService,
     private readonly accessRequests: AccessRequestStore,
     private readonly attendance: AttendanceService,
+    private readonly storage: StorageService,
   ) {}
 
   /**
@@ -305,8 +316,24 @@ export class ExamSessionGateway
     // Needed so `exam:finalize` can reach this agent.
     await client.join(agentRoom(session.id));
 
+    // A storage hiccup must not cost a student their exam: not knowing
+    // whether a backup exists is worth strictly less than getting in.
+    let backupAvailable = false;
+    try {
+      backupAvailable = await this.storage.objectExists(
+        this.storage.buildBackupKey(session.id, dto.studentId),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `could not check for a backup for ${dto.studentId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
     const ack: AgentJoinAck = {
       examSessionId: session.id,
+      backupAvailable,
       sessionName: session.name,
       studentName: enrollment.studentName,
       requiredFiles: deliverables.map((deliverable) => deliverable.requiredFilename),

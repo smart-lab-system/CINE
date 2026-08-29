@@ -239,6 +239,47 @@ live via WebSocket, no refresh needed for the next steps.
 WebSocket call failed — almost always an expired/missing login (re-do step
 6) or opening someone else's session id.
 
+## 8b. The three groups, and the headcount
+
+The lobby is not one list of whoever connected. It answers three separate
+questions, because an invigilator standing in the room does three separate
+things about them.
+
+**Do:** with the real agent from step 9 connected (come back here after it),
+look at the "Điểm danh" card.
+**Expect:**
+- **Có mặt** — students of this class who are connected. Nothing to do.
+- **Chưa vào phòng** — on the class list and not here. These are the names
+  to call out. A student who connected and then dropped shows here too, with
+  the time they were lost, because "never turned up" and "their machine
+  died" need the same action but not the same explanation.
+- **Thi bù (lớp khác)** — connected, enrolled in this course through a
+  DIFFERENT class. They show with their home class, so they read as "from
+  Nhóm 05, sitting here" rather than as an unfamiliar name. To see this,
+  import a second class's roster (step 5b) and join with one of its MSSVs.
+
+All of it comes from the server's log, not from this browser tab. **Refresh
+the page** — the room is still there. Before this it was page state, and one
+refresh emptied it.
+
+**Do:** press **Chốt sĩ số**.
+**Expect:** "Đã chốt N lúc HH:MM:SS". It does NOT close the session.
+
+**Then start one more agent.** It joins fine, and gets a red badge: **"Mới
+vào sau khi chốt"**. Now Ctrl+C an already-counted agent and restart it — it
+gets a blue **"Kết nối lại sau khi chốt"** instead. Two labels, never one:
+a machine that crashed and came back is routine, someone who appeared after
+the count is the case the count exists to catch.
+
+**After finalize (step 12),** if more students submitted than were counted,
+the card names them — MSSV, name, home class, and when they connected.
+That is the question the class list and the submission list cannot answer
+on their own.
+
+**If not:** an empty "Điểm danh" card with "chưa có danh sách để đối chiếu"
+means the session has no class — it predates step 5b's flow. Create a new
+session through the form.
+
 ## 9. Run the real agent
 
 **Do (new terminal):**
@@ -353,6 +394,54 @@ be a real regression — the frontend is supposed to mark, never remove
 (`apps/web/src/app/(exam-live)/exam-sessions/[id]/page.tsx`,
 `handleAgentDisconnected`). Nothing like this was observed in the verified
 run.
+
+## 11b. Snapshot backup and restore on a wiped machine
+
+Reconnect is two cases that look alike. A network blip with the machine
+intact **already worked** — the agent creates files with the `wx` flag, so
+work is never truncated. This is the other one: the machine is wiped or
+swapped and the work is simply gone.
+
+**Do:** with an agent running from step 9, write something real into its
+workspace file:
+```bash
+echo "bai lam that cua sinh vien" > apps/agent/exam-workspace/SV20120001/baitap1.py
+```
+Wait for the snapshot (four minutes), or force one immediately:
+```bash
+pnpm --filter agent exec ts-node src/verify-backup.ts <YOUR_CODE> SV20120001
+```
+**Expect:** `8/8 checks passed`. That script drives the real
+uploadSnapshot/restoreBackup against real MinIO and checks all three rows of
+the design's table — an intact machine keeps its work, a wiped one gets it
+back, and a machine whose files exist but are empty gets it back too.
+
+**Do (by hand, the way it really happens):** Ctrl+C the agent, delete its
+workspace entirely, and start it again with the same MSSV:
+```bash
+rm -rf apps/agent/exam-workspace/SV20120001
+cd apps/agent && npx ts-node src/cli.ts --student-id=SV20120001 --session-code=<YOUR_CODE>
+```
+**Expect:**
+```
+Máy chủ báo có bản sao lưu bài làm của bạn. Đang khôi phục...
+Đã khôi phục N file từ bản sao lưu.
+```
+and the file contains what you wrote before the wipe.
+
+**Why the restore runs before the files are created:** the agent creates
+every required file empty as part of joining. A rule of "restore what is
+missing" would therefore never fire — on a wiped machine the files exist and
+are empty — and the student's work would be lost silently in exactly the
+case the backup was built for. The rule is content-based instead: empty or
+absent is replaced, anything with content is left alone.
+
+**A backup is not a submission.** No Submission row is written; restoring
+hands the work back to the student, who submits it normally at finalize.
+
+**If not:** `NO_BACKUP` means no snapshot exists yet for that (session,
+MSSV) — take one first. A restore that reports `failed` means MinIO is
+unreachable; check `docker compose ps`.
 
 ## 12. Tear down
 

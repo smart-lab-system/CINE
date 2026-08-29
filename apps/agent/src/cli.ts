@@ -35,6 +35,7 @@ import {
   type RequiredDeliverable,
 } from './submission-uploader';
 import { NoTerminalError, promptAccessRequest, sendAccessRequest } from './access-request';
+import { restoreBackup, startSnapshotLoop } from './backup';
 
 // ---------------------------------------------------------------------------
 // Client side of the WebSocket Event Contract implemented by
@@ -457,6 +458,10 @@ async function main(): Promise<void> {
   let requestingAccess = false;
   let examSessionId = "";
   let finalizing = false;
+  // One loop for the life of the process, started after the first
+  // successful join. A reconnect re-joins and re-acks, and starting a
+  // second loop there would double the upload rate for the rest of the exam.
+  let stopSnapshots: (() => void) | null = null;
 
   const shutdown = (exitCode: number): void => {
     if (shuttingDown) {
@@ -502,6 +507,16 @@ async function main(): Promise<void> {
       console.warn('[CẢNH BÁO] Server gửi agent:join:ack không hợp lệ (không phải object) — bỏ qua.');
       return;
     }
+    void handleJoinAck(ack);
+  });
+
+  /**
+   * Split out of the listener because a restore has to be awaited, and it
+   * has to finish BEFORE the required files are created — see restoreBackup.
+   * A socket.io listener cannot await, so the ordering would otherwise be
+   * whatever the event loop decided.
+   */
+  async function handleJoinAck(ack: Record<string, unknown>): Promise<void> {
     hasJoinedOnce = true;
     const sessionName = typeof ack.sessionName === 'string' ? ack.sessionName : '(không rõ)';
     const endTime = typeof ack.endTime === 'string' ? ack.endTime : '(không rõ)';
@@ -515,11 +530,41 @@ async function main(): Promise<void> {
       ? (ack.requiredDeliverables as RequiredDeliverable[])
       : [];
     examSessionId = typeof ack.examSessionId === 'string' ? ack.examSessionId : '';
+    // FIRST, before any required file is created. The agent creates those
+    // empty, so a restore that ran afterwards would be looking at its own
+    // handiwork and would find every file "already there".
+    if (ack.backupAvailable === true) {
+      console.log('Máy chủ báo có bản sao lưu bài làm của bạn. Đang khôi phục...');
+      const outcome = await restoreBackup(socket, workspaceDir);
+      if (outcome.status === 'restored') {
+        console.log(
+          `Đã khôi phục ${outcome.restored} file từ bản sao lưu` +
+            (outcome.skipped > 0
+              ? ` (giữ nguyên ${outcome.skipped} file bạn đã có sẵn trên máy).`
+              : '.'),
+        );
+      } else if (outcome.status === 'failed') {
+        // Not fatal: the student can still sit the exam, they just start
+        // from what is on this machine. Said plainly so a technician in the
+        // room can decide whether to act.
+        console.warn(
+          '[CẢNH BÁO] Không tải được bản sao lưu. Bạn vẫn làm bài bình thường — ' +
+            'hãy báo giám thị nếu bài làm cũ của bạn bị mất.',
+        );
+      }
+    }
+
     const createdCount = createSubmissionFiles(workspaceDir, ack.requiredFiles);
     console.log(`Đã tạo ${createdCount} file, sẵn sàng làm bài.`);
     console.log(`Thư mục bài làm: ${workspaceDir}`);
+
+    if (!stopSnapshots) {
+      stopSnapshots = startSnapshotLoop(socket, workspaceDir);
+      console.log('Bài làm của bạn sẽ được sao lưu tự động vài phút một lần.');
+    }
+
     console.log('Agent đang chạy nền, chờ đến hết giờ thi. Nhấn Ctrl+C để thoát.');
-  });
+  }
 
   /**
    * Server -> agent: the exam is over (the scheduled sweep, or the teacher
@@ -546,6 +591,11 @@ async function main(): Promise<void> {
     }
 
     finalizing = true;
+    // The snapshot exists to survive the exam, not to outlast it. Stopped
+    // here so a timer cannot fire mid-upload and compete with the real
+    // submission for the same lab network.
+    stopSnapshots?.();
+    stopSnapshots = null;
     const reasonText = reason === 'manual' ? 'giáo viên chốt bài' : 'tự động theo lịch';
     console.log(`\nHết giờ thi (${reasonText}). Đang nộp bài...`);
 

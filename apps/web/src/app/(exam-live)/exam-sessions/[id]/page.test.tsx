@@ -166,6 +166,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Unconditionally, not at the end of the one test that installs them: a
+  // failed assertion there would otherwise leave fake timers in place, and
+  // every later test in this file would hang in waitFor waiting for a clock
+  // that never advances. One red test would read as eleven.
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -204,7 +209,6 @@ describe('ExamSessionLobbyPage', () => {
       vi.advanceTimersByTime(700);
     });
     expect(refetchAttendanceMock).toHaveBeenCalledTimes(1);
-    vi.useRealTimers();
   });
 
   it('splits the room into who is here, who is missing, and who is sitting a make-up', async () => {

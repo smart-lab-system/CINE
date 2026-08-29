@@ -13,6 +13,7 @@ import { AccessRequestGateway } from './access-request.gateway';
 import { AccessRequestStore } from './access-request.store';
 import { AdminModule } from '../admin/admin.module';
 import { AgentConnectionModule } from '../agent-connection/agent-connection.module';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
@@ -30,6 +31,9 @@ import { AgentConnectionModule } from '../agent-connection/agent-connection.modu
     // Every join and disconnect goes in the attendance log, which is what
     // makes the lobby survive a refresh and the headcount mean anything.
     AgentConnectionModule,
+    // agent:join answers whether a snapshot is waiting, so a wiped machine
+    // learns it can be restored at the only moment it would ask.
+    StorageModule,
   ],
   controllers: [ExamSessionController],
   providers: [
