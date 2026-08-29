@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { ExamSessionModule } from './exam-session/exam-session.module';
 import { SubmissionModule } from './submission/submission.module';
+import { GradingModule } from './grading/grading.module';
 import { CourseModule } from './course/course.module';
 import { RoomModule } from './room/room.module';
 import { dataSourceOptions } from './database/data-source';
@@ -25,6 +26,7 @@ import { dataSourceOptions } from './database/data-source';
     AccountsModule,
     ExamSessionModule,
     SubmissionModule,
+    GradingModule,
     CourseModule,
     RoomModule,
   ],

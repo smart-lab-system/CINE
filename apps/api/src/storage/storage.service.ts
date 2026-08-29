@@ -100,6 +100,31 @@ export class StorageService {
   }
 
   /**
+   * Reads an object's bytes into memory.
+   *
+   * This is NOT a hole in Security rule 5. That rule is about UPLOADS: a
+   * file must never travel through this process on its way in, because an
+   * exam's worth of concurrent uploads would make the API the bottleneck,
+   * and there is a presigned URL for exactly that. Grading is the opposite
+   * shape — the server has to read the words to grade them, one submission
+   * at a time, after the exam is over. There is no version of that which
+   * does not read the file.
+   *
+   * When grading moves to a worker, this call moves with it and the API
+   * process stops reading submissions again.
+   */
+  async getObject(key: string): Promise<Buffer> {
+    const response = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    const body = response.Body;
+    if (!body) {
+      throw new InternalServerErrorException(`Object ${key} has no body`);
+    }
+    return Buffer.from(await body.transformToByteArray());
+  }
+
+  /**
    * Removes one object. Used when a teacher deletes a material they
    * uploaded by mistake — dropping only the row would leave the file in
    * storage forever, still readable by anyone holding an old signed URL.
