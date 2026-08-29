@@ -65,19 +65,19 @@ export class SubmissionEntity extends BaseEntity {
   @Column({ name: 'student_name_input', type: 'varchar', length: 150 })
   studentNameInput!: string;
 
-  @Column({ name: 'home_class_id', type: 'uuid', nullable: true })
-  homeClassId!: string | null;
+  @Column({ name: 'home_class_id', type: 'uuid' })
+  homeClassId!: string;
 
-  @ManyToOne(() => ClassEntity, { onDelete: 'RESTRICT', nullable: true })
+  @ManyToOne(() => ClassEntity, { onDelete: 'RESTRICT', nullable: false })
   @JoinColumn({ name: 'home_class_id' })
-  homeClass!: ClassEntity | null;
+  homeClass!: ClassEntity;
 
-  @Column({ name: 'home_teacher_id', type: 'uuid', nullable: true })
-  homeTeacherId!: string | null;
+  @Column({ name: 'home_teacher_id', type: 'uuid' })
+  homeTeacherId!: string;
 
-  @ManyToOne(() => AccountEntity, { onDelete: 'RESTRICT', nullable: true })
+  @ManyToOne(() => AccountEntity, { onDelete: 'RESTRICT', nullable: false })
   @JoinColumn({ name: 'home_teacher_id' })
-  homeTeacher!: AccountEntity | null;
+  homeTeacher!: AccountEntity;
 
   @Column({ name: 'storage_key', type: 'text', nullable: true })
   storageKey!: string | null;

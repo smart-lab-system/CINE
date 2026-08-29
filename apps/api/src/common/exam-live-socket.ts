@@ -15,16 +15,26 @@ export interface AgentSocketIdentity {
   examSessionId: string;
   studentId: string;
   fullName: string;
+  /**
+   * Where a submission from this student gets routed. Resolved once, from
+   * the Enrollment that `agent:join` already had to find in order to admit
+   * them at all — so collection never repeats that lookup, and a submission
+   * can never be written with nobody to route it to.
+   */
+  homeClassId: string;
+  homeTeacherId: string;
 }
 
 export function readAgentIdentity(client: Socket): AgentSocketIdentity | null {
   const examSessionId = client.data?.examSessionId as string | undefined;
   const studentId = client.data?.studentId as string | undefined;
   const fullName = client.data?.fullName as string | undefined;
-  if (!examSessionId || !studentId || !fullName) {
+  const homeClassId = client.data?.homeClassId as string | undefined;
+  const homeTeacherId = client.data?.homeTeacherId as string | undefined;
+  if (!examSessionId || !studentId || !fullName || !homeClassId || !homeTeacherId) {
     return null;
   }
-  return { examSessionId, studentId, fullName };
+  return { examSessionId, studentId, fullName, homeClassId, homeTeacherId };
 }
 
 /**

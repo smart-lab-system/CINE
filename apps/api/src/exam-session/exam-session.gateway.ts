@@ -25,6 +25,7 @@ import { AgentJoinDto } from './dto/agent-join.dto';
 import { TeacherSubscribeDto } from './dto/teacher-subscribe.dto';
 import { ExamSessionService } from './exam-session.service';
 import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
+import { EnrollmentService } from '../course/enrollment.service';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -46,10 +47,24 @@ interface AgentJoinAck {
   sessionName: string;
   requiredFiles: string[];
   requiredDeliverables: AgentJoinAckDeliverable[];
+  // The name on the roster, not the one the student typed. Comparing a
+  // typed name against the roster would be fuzzy matching ("Nguyen Van A"
+  // vs "Nguyễn Văn A"), so the comparison is removed rather than solved:
+  // the server answers with the authoritative spelling and the agent shows
+  // it back for confirmation.
+  studentName: string;
   endTime: string;
 }
 
-type AgentJoinErrorCode = 'SESSION_NOT_FOUND' | 'SESSION_NOT_ACTIVE' | 'INVALID_INPUT';
+// NOT_ENROLLED closes CLAUDE.md Security rule 1: knowing the session code
+// is not access. Every refusal here has a human override — see the
+// access-request flow — because a student missing from an imported roster
+// must not be locked out of an exam with no recourse.
+type AgentJoinErrorCode =
+  | 'SESSION_NOT_FOUND'
+  | 'SESSION_NOT_ACTIVE'
+  | 'INVALID_INPUT'
+  | 'NOT_ENROLLED';
 
 interface AgentJoinError {
   code: AgentJoinErrorCode;
@@ -125,6 +140,7 @@ export class ExamSessionGateway
     private readonly examSessions: ExamSessionService,
     private readonly jwt: JwtService,
     private readonly events: ExamSessionEvents,
+    private readonly enrollments: EnrollmentService,
   ) {}
 
   /**
@@ -245,6 +261,22 @@ export class ExamSessionGateway
       return;
     }
 
+    // Security rule 1. Checked at COURSE level, never at class level —
+    // that is what allows a student to sit a make-up exam with another
+    // class's session without a special case.
+    const enrollment = await this.enrollments.findForCourse(session.courseId, dto.studentId);
+    if (!enrollment) {
+      this.logger.warn(
+        `agent:join refused: ${dto.studentId} has no enrollment for course ${session.courseId}`,
+      );
+      this.emitJoinError(
+        client,
+        'NOT_ENROLLED',
+        'Mã số sinh viên này không có trong danh sách của môn thi. Hãy gửi yêu cầu cho giảng viên.',
+      );
+      return;
+    }
+
     const deliverables = await this.examSessions.listRequiredDeliverables(session.id);
 
     // Stashed on the socket for handleDisconnect — a disconnecting socket
@@ -255,9 +287,13 @@ export class ExamSessionGateway
     client.data.studentId = dto.studentId;
     client.data.examSessionId = session.id;
     // Read back by SubmissionGateway for submission.student_name_input.
-    // Captured once, here, so an agent cannot claim a different name per
-    // uploaded file (see AgentSocketIdentity).
-    client.data.fullName = dto.fullName;
+    // Taken from the enrollment rather than from `dto.fullName`: the
+    // roster is authoritative, and a name the student typed is not
+    // identity.
+    client.data.fullName = enrollment.studentName;
+    // Carried so collection never has to look the enrollment up again.
+    client.data.homeClassId = enrollment.homeClassId;
+    client.data.homeTeacherId = enrollment.homeTeacherId;
 
     // Joined AFTER all validation passed, and only to the agents room —
     // never teacherRoom (see its comment: that would leak every
@@ -268,6 +304,7 @@ export class ExamSessionGateway
     const ack: AgentJoinAck = {
       examSessionId: session.id,
       sessionName: session.name,
+      studentName: enrollment.studentName,
       requiredFiles: deliverables.map((deliverable) => deliverable.requiredFilename),
       requiredDeliverables: deliverables.map((deliverable) => ({
         id: deliverable.id,
@@ -285,7 +322,7 @@ export class ExamSessionGateway
     // "don't echo to sender" intent explicitly.
     const joined: LobbyStudentJoined = {
       studentId: dto.studentId,
-      fullName: dto.fullName,
+      fullName: enrollment.studentName,
       joinedAt: new Date().toISOString(),
     };
     client.to(teacherRoom(session.id)).emit('lobby:student_joined', joined);

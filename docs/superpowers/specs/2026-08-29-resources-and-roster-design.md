@@ -222,9 +222,16 @@ the first place, and it is what makes make-up exams work.
 
 ### 4.3 Full list of schema changes
 
+> An earlier draft claimed `enrollment` was empty so no backfill was needed.
+> That was read off a freshly reset dev database. Every real one has rows —
+> the accounts e2e suite creates an enrollment per run and cannot clean up
+> after itself — and the single `ADD COLUMN ... NOT NULL` this implied fails
+> outright. Columns added NOT NULL here are added, backfilled, then
+> tightened.
+
 ```
 + course.department_head_id       → account, nullable
-+ enrollment.student_name         varchar(150) NOT NULL (table is empty; no backfill)
++ enrollment.student_name         varchar(150) NOT NULL (add, backfill, tighten)
 + exam_session.class_id           → class, nullable
 + exam_session.attendance_confirmed_at    timestamptz null
 + exam_session.attendance_confirmed_count int null

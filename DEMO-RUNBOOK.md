@@ -48,6 +48,31 @@ of newly-applied migrations, no errors.
 **If not:** confirm step 1's Postgres is healthy first — almost every
 migration failure at this step is "can't connect," not a schema problem.
 
+### Seed a class roster (required since enrollment is enforced)
+
+```bash
+docker exec -i cine-postgres-1 psql -U examcollect_admin -d examcollect \
+  < scripts/seed-roster.sql
+```
+
+**Expect:** a one-row summary, `CS101 | Nhóm 01 | 22`.
+
+**Why this step exists:** `agent:join` refuses any MSSV without an
+`enrollment` for the session's course (CLAUDE.md Security rule 1 — knowing
+the session code is not access). On an unseeded database every agent,
+including the mock one, gets `NOT_ENROLLED` and the demo cannot start.
+
+The script seeds `MSSVTEST01`…`MSSVTEST20` — exactly the identities
+`mock-agent.ts` generates, so `--count 20` works unchanged — plus
+`SV20120001` (Nguyễn Văn A) and `SV20120002` (Trần Thị B) for driving the
+real agent by hand. It is idempotent; re-running changes nothing. A later
+phase replaces it with the Excel importer.
+
+**If not:** the script keys off course `CS101` and account
+`demo-teacher@example.com`. If either is missing, run
+`scripts/reset-dev-data.sql` first (it restores the migration seed) and
+create the demo teacher as documented below.
+
 ## 3. Start the API
 
 **Do (separate terminal, stays running):**

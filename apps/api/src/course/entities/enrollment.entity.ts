@@ -18,6 +18,15 @@ export class EnrollmentEntity extends BaseEntity {
   @Column({ name: 'student_mssv', type: 'citext' })
   studentMssv!: string;
 
+  // Absorbed from class_roster, which carried the same natural key
+  // (course_id, student_mssv) over the same rows from the same Excel file
+  // and is dropped in a later phase. This is the authoritative spelling of
+  // the student's name: agent:join answers with it rather than asking the
+  // student to type their own name, so there is never a typed value to
+  // reconcile against this one.
+  @Column({ name: 'student_name', type: 'varchar', length: 150 })
+  studentName!: string;
+
   @Column({ name: 'course_id', type: 'uuid' })
   courseId!: string;
 

@@ -59,10 +59,19 @@ export interface AgentJoinAck {
   // requiredDeliverableId, never by filename, so the agent needs the ids
   // as well as the names it writes to disk.
   requiredDeliverables: RequiredDeliverable[];
+  // The roster spelling of this student's name, from the server. The name
+  // typed into this CLI is not used for identity and is not what comes back
+  // here — showing it lets the student catch "wrong MSSV" before the exam
+  // rather than after it.
+  studentName: string;
   endTime: string;
 }
 
-export type AgentJoinErrorCode = 'SESSION_NOT_FOUND' | 'SESSION_NOT_ACTIVE' | 'INVALID_INPUT';
+export type AgentJoinErrorCode =
+  | 'SESSION_NOT_FOUND'
+  | 'SESSION_NOT_ACTIVE'
+  | 'INVALID_INPUT'
+  | 'NOT_ENROLLED';
 
 export interface AgentJoinError {
   code: AgentJoinErrorCode;
@@ -477,6 +486,11 @@ async function main(): Promise<void> {
     hasJoinedOnce = true;
     const sessionName = typeof ack.sessionName === 'string' ? ack.sessionName : '(không rõ)';
     const endTime = typeof ack.endTime === 'string' ? ack.endTime : '(không rõ)';
+    const studentName = typeof ack.studentName === 'string' ? ack.studentName : null;
+    if (studentName) {
+      console.log(`Xác nhận danh tính: ${studentName} (MSSV ${payload.studentId}).`);
+      console.log('Nếu KHÔNG phải bạn, hãy thoát ngay và báo giám thị.');
+    }
     console.log(`Tham gia thành công: "${sessionName}" (kết thúc lúc ${endTime}).`);
     requiredDeliverables = Array.isArray(ack.requiredDeliverables)
       ? (ack.requiredDeliverables as RequiredDeliverable[])
