@@ -1,10 +1,12 @@
 'use client';
 
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createExamSession,
   listExamSessions,
   getExamSession,
+  finalizeExamSession,
+  listSubmissions,
   type CreateExamSessionInput,
   type ExamSessionResponse,
   type SearchExamSessionsParams,
@@ -42,5 +44,37 @@ export function useExamSessionDetail(id: string | undefined) {
     queryKey: ['exam-session', id],
     queryFn: () => getExamSession(id!),
     enabled: !!id,
+  });
+}
+
+/**
+ * "Chốt bài ngay". On success the session detail is invalidated so the
+ * page re-reads the real status from the server rather than assuming the
+ * mutation result is still current — the scheduled sweep may have
+ * finalized it in the same second.
+ */
+export function useFinalizeExamSession(id: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation<ExamSessionResponse, Error, void>({
+    mutationFn: () => finalizeExamSession(id!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-session', id] });
+    },
+  });
+}
+
+/**
+ * Initial state for the submission table. Live updates arrive over the
+ * socket (`lobby:submission_status`); this is only the "what already
+ * happened before this page opened" half.
+ *
+ * No polling interval: the socket is the live channel, and a poll on top
+ * would fight it for the same state.
+ */
+export function useSubmissions(examSessionId: string | undefined) {
+  return useQuery({
+    queryKey: ['exam-session-submissions', examSessionId],
+    queryFn: () => listSubmissions(examSessionId!),
+    enabled: !!examSessionId,
   });
 }

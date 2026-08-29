@@ -57,6 +57,21 @@ export interface ExamSessionListItem {
   status: string;
 }
 
+/**
+ * Mirrors SubmissionStatusView
+ * (apps/api/src/submission/submission.service.ts). `submittedAt` is an ISO
+ * string over the wire; `fileSize` is a string because the column is a
+ * bigint.
+ */
+export interface SubmissionStatusItem {
+  studentMssv: string;
+  studentNameInput: string;
+  requiredDeliverableId: string;
+  status: 'received' | 'validated' | 'collected' | 'invalid';
+  submittedAt: string;
+  fileSize: string | null;
+}
+
 export interface SearchExamSessionsParams {
   page: number;
   pageSize: number;
@@ -112,4 +127,37 @@ export async function getExamSession(id: string): Promise<ExamSessionResponse> {
   });
   await throwIfFailed(error, response);
   return data as unknown as ExamSessionResponse;
+}
+
+/**
+ * Manual "Chốt bài ngay". Shares ExamSessionService.finalizeExamSession
+ * with the scheduled sweep server-side, so the two can never diverge.
+ *
+ * Idempotent: finalizing an already-completed session returns the same 200
+ * with the same body and broadcasts nothing a second time. 403 if the
+ * caller is not the owning teacher.
+ */
+export async function finalizeExamSession(id: string): Promise<ExamSessionResponse> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/finalize', {
+    params: { path: { id } },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as ExamSessionResponse;
+}
+
+/**
+ * Everything collected so far. The page's live `lobby:submission_status`
+ * events only cover what happens while it is open, so without this initial
+ * fetch a refresh mid-exam would show an empty table with every file
+ * already in storage.
+ */
+export async function listSubmissions(
+  examSessionId: string,
+): Promise<{ items: SubmissionStatusItem[] }> {
+  const { data, error, response } = await apiClient.GET(
+    '/exam-sessions/{examSessionId}/submissions',
+    { params: { path: { examSessionId } } },
+  );
+  await throwIfFailed(error, response);
+  return data as unknown as { items: SubmissionStatusItem[] };
 }

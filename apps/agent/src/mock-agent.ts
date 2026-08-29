@@ -14,9 +14,16 @@
  * reconnection loop — built for throughput and aggregate reporting, not
  * for fidelity to what a real exam-taking machine does.
  *
+ * With --simulate-submission it also answers `exam:finalize` by uploading a
+ * synthesized file per deliverable. That path runs the SAME
+ * uploadAllDeliverables() the real agent uses — only the source of the
+ * bytes differs (memory instead of disk), because a mock that uploads
+ * differently from the real agent would not be testing the real flow.
+ *
  * Usage:
- *   ts-node src/mock-agent.ts --session <code> [--count <n>] [--keep-alive] [--backend-url <url>]
+ *   ts-node src/mock-agent.ts --session <code> [--count <n>] [--keep-alive] [--simulate-submission] [--backend-url <url>]
  *   ts-node src/mock-agent.ts --session ABCD12 --count 50
+ *   ts-node src/mock-agent.ts --session ABCD12 --count 20 --keep-alive --simulate-submission
  *
  * Flags:
  *   --session <code>      exam session join code (required)
@@ -27,6 +34,9 @@
  *                          every socket immediately after its ack/error —
  *                          fast test mode, also exercises the gateway's
  *                          `agent:disconnected` broadcast for each one)
+ *   --simulate-submission  on `exam:finalize`, upload a synthesized file for
+ *                          every declared deliverable. Implies --keep-alive,
+ *                          since a disconnected socket never hears finalize.
  *   --backend-url <url>   API base URL (default: http://localhost:4000;
  *                         also settable via the BACKEND_URL env var — the
  *                         flag wins if both are given)
@@ -45,6 +55,11 @@ import process from 'node:process';
 // ---------------------------------------------------------------------------
 
 import type { AgentJoinPayload, AgentJoinAck, AgentJoinErrorCode, AgentJoinError } from './cli';
+import {
+  uploadAllDeliverables,
+  type RequiredDeliverable,
+  type UploadSummary,
+} from './submission-uploader';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -73,6 +88,7 @@ interface MockAgentArgs {
   sessionCode?: string;
   count: number;
   keepAlive: boolean;
+  simulateSubmission: boolean;
   backendUrl?: string;
   help: boolean;
 }
@@ -94,6 +110,8 @@ Cờ:
   --count <n>            Số agent giả lập mở song song, mặc định ${DEFAULT_COUNT}.
   --keep-alive            Giữ kết nối các agent tham gia THÀNH CÔNG sau khi in báo cáo
                           (mặc định: ngắt kết nối mọi socket ngay khi nhận ack/error).
+  --simulate-submission   Khi nhận exam:finalize, tự nộp 1 file giả cho mỗi deliverable
+                          (nội dung sinh trong bộ nhớ, KHÔNG ghi ra đĩa). Tự bật --keep-alive.
   --backend-url <url>    URL API backend, mặc định ${DEFAULT_BACKEND_URL}
                           (cũng có thể set qua biến môi trường BACKEND_URL).
   -h, --help              In hướng dẫn này rồi thoát.
@@ -107,6 +125,7 @@ function parseArgs(argv: string[]): MockAgentArgs {
   let countRaw: string | undefined;
   let backendUrl: string | undefined;
   let keepAlive = false;
+  let simulateSubmission = false;
   let help = false;
 
   for (let i = 0; i < argv.length; i++) {
@@ -129,6 +148,13 @@ function parseArgs(argv: string[]): MockAgentArgs {
     // otherwise `--keep-alive --count 5` would silently eat "--count".
     if (key === 'keep-alive') {
       keepAlive = inlineValue === undefined ? true : inlineValue !== 'false';
+      continue;
+    }
+
+    // Same boolean-flag handling as --keep-alive: it must not swallow the
+    // next token as a value.
+    if (key === 'simulate-submission') {
+      simulateSubmission = inlineValue === undefined ? true : inlineValue !== 'false';
       continue;
     }
 
@@ -164,7 +190,18 @@ function parseArgs(argv: string[]): MockAgentArgs {
     process.exit(1);
   }
 
-  return { sessionCode: nonEmpty(sessionCode), count, keepAlive, backendUrl: nonEmpty(backendUrl), help };
+  return {
+    sessionCode: nonEmpty(sessionCode),
+    count,
+    // A socket that disconnects right after its ack never receives
+    // `exam:finalize`, so --simulate-submission without --keep-alive could
+    // only ever report zero uploads. Implied rather than rejected: the
+    // combination has exactly one sensible meaning.
+    keepAlive: keepAlive || simulateSubmission,
+    simulateSubmission,
+    backendUrl: nonEmpty(backendUrl),
+    help,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -185,7 +222,12 @@ function generateIdentities(count: number): MockIdentity[] {
     const suffix = String(i).padStart(width, '0');
     identities.push({
       fullName: `Sinh viên test ${suffix}`,
-      studentId: `MSSV_TEST_${suffix}`,
+      // Letters and digits only, 4-20 chars: exactly ck_submission_mssv and
+      // the AgentJoinDto rule it mirrors. These used to read
+      // "MSSV_TEST_01" — the underscores passed agent:join back when it only
+      // checked length, and would then have been rejected by the DB at the
+      // moment the submission row was written, i.e. at the end of the exam.
+      studentId: `MSSVTEST${suffix}`,
     });
   }
   return identities;
@@ -208,6 +250,32 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Synthesizes one deliverable in memory.
+ *
+ * The mock agent never writes to disk (that is the whole point of it being
+ * lighter than the real agent), so this stands in for reading the
+ * student's file. The content is identifiable on sight in MinIO, and
+ * distinct per student and per deliverable so two mock uploads can never
+ * be confused for one another.
+ */
+function mockDeliverableContent(
+  identity: MockIdentity,
+  deliverable: RequiredDeliverable,
+): Buffer {
+  return Buffer.from(
+    [
+      `# Bai lam gia lap (mock-agent)`,
+      `Sinh vien: ${identity.fullName} (${identity.studentId})`,
+      `File bat buoc: ${deliverable.requiredFilename}`,
+      `Deliverable id: ${deliverable.id}`,
+      `Sinh luc: ${new Date().toISOString()}`,
+      ``,
+    ].join('\n'),
+    'utf8',
+  );
+}
+
 interface AgentOutcome {
   index: number;
   identity: MockIdentity;
@@ -221,6 +289,8 @@ interface AgentOutcome {
   ack?: AgentJoinAck;
   /** Set only when this connection stays open after settling (successful join + --keep-alive). */
   keptAliveSocket?: Socket;
+  /** Resolves once this agent has finished its finalize upload — only with --simulate-submission. */
+  submissionDone?: Promise<UploadSummary>;
 }
 
 function runOneAgent(
@@ -230,6 +300,7 @@ function runOneAgent(
   sessionCode: string,
   backendUrl: string,
   keepAlive: boolean,
+  simulateSubmission: boolean,
 ): Promise<AgentOutcome> {
   return new Promise((resolve) => {
     const openedAt = Date.now();
@@ -271,6 +342,7 @@ function runOneAgent(
       errorCode?: AgentJoinErrorCode | LocalFailureCode;
       errorMessage?: string;
       ack?: AgentJoinAck;
+      submissionDone?: Promise<UploadSummary>;
     }): void {
       if (settled) {
         return;
@@ -304,6 +376,7 @@ function runOneAgent(
         errorMessage: partial.errorMessage,
         ack: partial.ack,
         keptAliveSocket: staysConnected ? socket : undefined,
+        submissionDone: partial.submissionDone,
       });
     }
 
@@ -328,7 +401,26 @@ function runOneAgent(
         settle({ status: 'error', errorCode: 'INVALID_RESPONSE', errorMessage: 'agent:join:ack không phải object.' });
         return;
       }
-      settle({ status: 'success', ack: ack as unknown as AgentJoinAck });
+      const typedAck = ack as unknown as AgentJoinAck;
+
+      if (!simulateSubmission) {
+        settle({ status: 'success', ack: typedAck });
+        return;
+      }
+
+      const deliverables = Array.isArray(typedAck.requiredDeliverables)
+        ? typedAck.requiredDeliverables
+        : [];
+      // Armed before settle() so the listener is in place the instant the
+      // join is reported — a session finalized moments later must not find
+      // this socket still unwired.
+      const submissionDone = armFinalizeUpload(
+        socket,
+        identity,
+        typedAck.examSessionId,
+        deliverables,
+      );
+      settle({ status: 'success', ack: typedAck, submissionDone });
     }
 
     function onError(error: unknown): void {
@@ -347,6 +439,84 @@ function runOneAgent(
     socket.on('agent:join:ack', onAck);
     socket.on('agent:join:error', onError);
   });
+}
+
+/**
+ * Waits for `exam:finalize` on one kept-alive socket, then runs the exact
+ * same upload loop the real agent runs — only the byte source differs.
+ *
+ * Resolves with the summary. Never rejects: a mock agent that throws would
+ * take down the whole batch report, and the point of running 20 of these is
+ * to see how many succeeded, including the ones that did not.
+ */
+function armFinalizeUpload(
+  socket: Socket,
+  identity: MockIdentity,
+  examSessionId: string,
+  deliverables: RequiredDeliverable[],
+): Promise<UploadSummary> {
+  return new Promise<UploadSummary>((resolve) => {
+    let started = false;
+    socket.on('exam:finalize', () => {
+      // A duplicate broadcast must not start a second upload loop over the
+      // same deliverables.
+      if (started) {
+        return;
+      }
+      started = true;
+
+      void uploadAllDeliverables({
+        socket,
+        examSessionId,
+        studentId: identity.studentId,
+        deliverables,
+        readContent: async (deliverable) =>
+          mockDeliverableContent(identity, deliverable),
+        // Per-file lines would be 20 agents x N files of noise; the
+        // aggregate report below is what this tool is for.
+      })
+        .then(resolve)
+        .catch((error: unknown) => {
+          resolve({
+            results: [],
+            uploaded: 0,
+            missing: 0,
+            failed: deliverables.length,
+            total: deliverables.length,
+            elapsedMs: 0,
+          });
+          console.warn(
+            `[${identity.studentId}] lỗi khi nộp bài: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+    });
+  });
+}
+
+/**
+ * Aggregate submission report — the --simulate-submission counterpart to
+ * printSummary()"s join report, in the same shape so the two read together.
+ */
+function printSubmissionSummary(summaries: UploadSummary[], batchElapsedMs: number): void {
+  const fullySubmitted = summaries.filter((s) => s.uploaded === s.total && s.total > 0).length;
+  const partial = summaries.filter((s) => s.uploaded > 0 && s.uploaded < s.total).length;
+  const none = summaries.filter((s) => s.uploaded === 0).length;
+  const totalFiles = summaries.reduce((sum, s) => sum + s.total, 0);
+  const uploadedFiles = summaries.reduce((sum, s) => sum + s.uploaded, 0);
+  const failedFiles = summaries.reduce((sum, s) => sum + s.failed, 0);
+  const avgMs =
+    summaries.length > 0
+      ? summaries.reduce((sum, s) => sum + s.elapsedMs, 0) / summaries.length
+      : 0;
+
+  console.log('');
+  console.log('=== Kết quả nộp bài (--simulate-submission) ===');
+  console.log(`Agent nộp ĐỦ file: ${fullySubmitted}/${summaries.length}`);
+  console.log(`Agent nộp THIẾU một phần: ${partial}`);
+  console.log(`Agent KHÔNG nộp được file nào: ${none}`);
+  console.log(`Tổng file đã nộp: ${uploadedFiles}/${totalFiles} (lỗi: ${failedFiles})`);
+  console.log(`Thời gian nộp trung bình mỗi agent: ${avgMs.toFixed(2)} ms`);
+  console.log(`Tổng thời gian từ lúc nhận exam:finalize: ${batchElapsedMs}ms`);
 }
 
 // ---------------------------------------------------------------------------
@@ -417,7 +587,17 @@ async function main(): Promise<void> {
 
   const batchStart = Date.now();
   const outcomes = await Promise.all(
-    identities.map((identity, i) => runOneAgent(i + 1, identities.length, identity, sessionCode, backendUrl, args.keepAlive)),
+    identities.map((identity, i) =>
+      runOneAgent(
+        i + 1,
+        identities.length,
+        identity,
+        sessionCode,
+        backendUrl,
+        args.keepAlive,
+        args.simulateSubmission,
+      ),
+    ),
   );
   const batchElapsedMs = Date.now() - batchStart;
 
@@ -436,6 +616,20 @@ async function main(): Promise<void> {
   console.log(
     `${keptSockets.length} kết nối đang được GIỮ SỐNG (khớp với số join thành công) — mở trang lobby để xem, nhấn Ctrl+C để ngắt tất cả và thoát.`,
   );
+
+  if (args.simulateSubmission) {
+    const pending = outcomes
+      .map((o) => o.submissionDone)
+      .filter((p): p is Promise<UploadSummary> => p !== undefined);
+    console.log(
+      `Đang chờ exam:finalize để nộp bài cho ${pending.length} agent (hết giờ thi, hoặc giáo viên bấm "Chốt bài ngay")...`,
+    );
+    const finalizeStart = Date.now();
+    const summaries = await Promise.all(pending);
+    printSubmissionSummary(summaries, Date.now() - finalizeStart);
+    console.log('');
+    console.log('Đã nộp xong. Nhấn Ctrl+C để ngắt tất cả và thoát.');
+  }
 
   let shuttingDown = false;
   const shutdown = (): void => {

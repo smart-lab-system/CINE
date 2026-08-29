@@ -1,4 +1,10 @@
-import { IsString, Length } from 'class-validator';
+import { IsString, Length, Matches } from 'class-validator';
+
+// Exactly ck_submission_mssv / ck_enrollment_mssv. Enforced at join, not
+// at submission time, so a student with a malformed id finds out in the
+// first ten seconds instead of when their work fails to save at the end
+// of the exam — by which point nothing can be done about it.
+export const STUDENT_MSSV_REGEX = /^[A-Za-z0-9]{4,20}$/;
 
 // Validated shape of the `agent:join` WebSocket payload (see the WebSocket
 // Event Contract in the exam-live demo plan's Global Constraints — do not
@@ -10,7 +16,9 @@ export class AgentJoinDto {
   fullName!: string;
 
   @IsString()
-  @Length(1, 20)
+  @Matches(STUDENT_MSSV_REGEX, {
+    message: 'studentId must be 4-20 letters or digits',
+  })
   studentId!: string;
 
   // Bounded to `exam_session.code`'s column length (varchar(20)) — the

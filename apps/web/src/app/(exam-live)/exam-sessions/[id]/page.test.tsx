@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import ExamSessionLobbyPage from './page';
 import { socket as mockSocket } from '@/lib/socket';
@@ -15,8 +15,13 @@ vi.mock('next/navigation', () => ({
 // keeps every pre-existing test's behavior identical (no banner renders
 // without session data) — only the new describe block below overrides it.
 const useExamSessionDetailMock = vi.fn();
+const useSubmissionsMock = vi.fn();
+const finalizeMutateAsyncMock = vi.fn();
+const useFinalizeExamSessionMock = vi.fn();
 vi.mock('@/hooks/useExamSession', () => ({
   useExamSessionDetail: (...args: unknown[]) => useExamSessionDetailMock(...args),
+  useSubmissions: (...args: unknown[]) => useSubmissionsMock(...args),
+  useFinalizeExamSession: (...args: unknown[]) => useFinalizeExamSessionMock(...args),
 }));
 
 // A single fake socket.io-client `Socket`, built once so the module graph
@@ -89,7 +94,21 @@ function trigger(event: string, payload?: unknown) {
 beforeEach(() => {
   fakeSocket.__reset();
   useExamSessionDetailMock.mockReset();
-  useExamSessionDetailMock.mockReturnValue({ data: undefined, isLoading: true });
+  useSubmissionsMock.mockReset();
+  useFinalizeExamSessionMock.mockReset();
+  finalizeMutateAsyncMock.mockReset();
+  finalizeMutateAsyncMock.mockResolvedValue(undefined);
+  useExamSessionDetailMock.mockReturnValue({
+    data: undefined,
+    isLoading: true,
+    refetch: vi.fn(),
+  });
+  useSubmissionsMock.mockReturnValue({ data: undefined, isError: false });
+  useFinalizeExamSessionMock.mockReturnValue({
+    mutateAsync: finalizeMutateAsyncMock,
+    isPending: false,
+    error: null,
+  });
 });
 
 afterEach(() => {
@@ -192,6 +211,7 @@ describe('ExamSessionLobbyPage', () => {
   describe('session timing banner', () => {
     it('shows an ended banner for a session past its end_time, distinct from the live waiting state', () => {
       useExamSessionDetailMock.mockReturnValue({
+        refetch: vi.fn(),
         data: {
           status: 'active',
           startTime: '2026-08-27T08:22:00.000Z',
@@ -208,6 +228,7 @@ describe('ExamSessionLobbyPage', () => {
     it('shows an upcoming banner for a session before its start_time', () => {
       const future = new Date(Date.now() + 3_600_000).toISOString();
       useExamSessionDetailMock.mockReturnValue({
+        refetch: vi.fn(),
         data: {
           status: 'active',
           startTime: future,
@@ -223,6 +244,7 @@ describe('ExamSessionLobbyPage', () => {
 
     it('shows no timing banner for a session currently within its window', () => {
       useExamSessionDetailMock.mockReturnValue({
+        refetch: vi.fn(),
         data: {
           status: 'active',
           startTime: new Date(Date.now() - 60_000).toISOString(),
@@ -235,6 +257,193 @@ describe('ExamSessionLobbyPage', () => {
 
       expect(screen.queryByText(/đã kết thúc lúc/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/chưa bắt đầu/i)).not.toBeInTheDocument();
+    });
+  });
+  /** A session that is live right now, with two required deliverables. */
+  function activeSessionWithDeliverables() {
+    return {
+      refetch: vi.fn(),
+      data: {
+        id: 'session-123',
+        name: 'Kiểm tra giữa kỳ',
+        status: 'active',
+        startTime: new Date(Date.now() - 60_000).toISOString(),
+        endTime: new Date(Date.now() + 60_000).toISOString(),
+        requiredDeliverables: [
+          { id: 'deliverable-1', requiredFilename: 'Cau1.docx', deliverableType: 'document' },
+          { id: 'deliverable-2', requiredFilename: 'Cau2.docx', deliverableType: 'document' },
+        ],
+      },
+      isLoading: false,
+    };
+  }
+
+  describe('submission status', () => {
+    it('renders a column per required deliverable and starts every cell at "Chưa nộp"', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+
+      trigger('lobby:student_joined', {
+        studentId: 'SV001',
+        fullName: 'Nguyễn Văn A',
+        joinedAt: '2026-08-29T01:00:00.000Z',
+      });
+
+      await waitFor(() => expect(screen.getByText('Cau1.docx')).toBeInTheDocument());
+      expect(screen.getByText('Cau2.docx')).toBeInTheDocument();
+      // A student who joined but submitted nothing still needs a row —
+      // "chưa nộp" is the absence of a submission, never an event.
+      expect(screen.getAllByText('Chưa nộp')).toHaveLength(2);
+    });
+
+    it('flips a cell to "Đã nộp" on lobby:submission_status, without a reload', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+      trigger('lobby:student_joined', {
+        studentId: 'SV001',
+        fullName: 'Nguyễn Văn A',
+        joinedAt: '2026-08-29T01:00:00.000Z',
+      });
+
+      trigger('lobby:submission_status', {
+        studentId: 'SV001',
+        requiredDeliverableId: 'deliverable-1',
+        status: 'collected',
+        submittedAt: '2026-08-29T01:30:00.000Z',
+      });
+
+      await waitFor(() => expect(screen.getByText('Đã nộp')).toBeInTheDocument());
+      // The other deliverable is untouched.
+      expect(screen.getAllByText('Chưa nộp')).toHaveLength(1);
+    });
+
+    it('counts a student as fully submitted only once every deliverable is collected', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+      trigger('lobby:student_joined', {
+        studentId: 'SV001',
+        fullName: 'Nguyễn Văn A',
+        joinedAt: '2026-08-29T01:00:00.000Z',
+      });
+
+      trigger('lobby:submission_status', {
+        studentId: 'SV001',
+        requiredDeliverableId: 'deliverable-1',
+        status: 'collected',
+        submittedAt: '2026-08-29T01:30:00.000Z',
+      });
+      await waitFor(() =>
+        expect(screen.getByText('0/1')).toBeInTheDocument(),
+      );
+
+      trigger('lobby:submission_status', {
+        studentId: 'SV001',
+        requiredDeliverableId: 'deliverable-2',
+        status: 'collected',
+        submittedAt: '2026-08-29T01:31:00.000Z',
+      });
+
+      await waitFor(() => expect(screen.getByText('1/1')).toBeInTheDocument());
+    });
+
+    it('shows students already collected before the page opened', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      // No lobby:student_joined for this student — they joined before this
+      // page was opened, so only the REST fetch knows about them.
+      useSubmissionsMock.mockReturnValue({
+        data: {
+          items: [
+            {
+              studentMssv: 'SV999',
+              studentNameInput: 'Trần Thị B',
+              requiredDeliverableId: 'deliverable-1',
+              status: 'collected',
+              submittedAt: '2026-08-29T00:10:00.000Z',
+              fileSize: '120',
+            },
+          ],
+        },
+        isError: false,
+      });
+
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+
+      await waitFor(() => expect(screen.getByText('Trần Thị B')).toBeInTheDocument());
+      expect(screen.getByText('Đã nộp')).toBeInTheDocument();
+    });
+  });
+
+  describe('finalize', () => {
+    it('asks for confirmation before finalizing, and only finalizes on confirm', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      render(<ExamSessionLobbyPage />);
+
+      fireEvent.click(screen.getByRole('button', { name: /chốt bài ngay/i }));
+
+      // The dialog exists precisely because this cannot be undone.
+      await waitFor(() =>
+        expect(screen.getByText(/không thể hoàn tác/i)).toBeInTheDocument(),
+      );
+      expect(finalizeMutateAsyncMock).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: /^chốt bài$/i }));
+
+      expect(finalizeMutateAsyncMock).toHaveBeenCalledTimes(1);
+      // Closes once the request settles, not on click — see below.
+      await waitFor(() =>
+        expect(screen.queryByText(/không thể hoàn tác/i)).not.toBeInTheDocument(),
+      );
+    });
+
+    it('keeps the dialog open and shows the reason when finalizing fails', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      finalizeMutateAsyncMock.mockRejectedValue(new Error('Yêu cầu thất bại (HTTP 403)'));
+      useFinalizeExamSessionMock.mockReturnValue({
+        mutateAsync: finalizeMutateAsyncMock,
+        isPending: false,
+        error: new Error('Yêu cầu thất bại (HTTP 403)'),
+      });
+      render(<ExamSessionLobbyPage />);
+
+      fireEvent.click(screen.getByRole('button', { name: /chốt bài ngay/i }));
+      await waitFor(() =>
+        expect(screen.getByText(/không thể hoàn tác/i)).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole('button', { name: /^chốt bài$/i }));
+
+      // Closing on click would have hidden this, making a failed
+      // finalize look exactly like a successful one.
+      await waitFor(() =>
+        expect(screen.getByText(/Không thể chốt bài/i)).toBeInTheDocument(),
+      );
+      expect(screen.getByText(/không thể hoàn tác/i)).toBeInTheDocument();
+    });
+
+    it('disables finalizing for a session that is no longer active', () => {
+      const session = activeSessionWithDeliverables();
+      session.data.status = 'completed';
+      useExamSessionDetailMock.mockReturnValue(session);
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(screen.getByRole('button', { name: /chốt bài ngay/i })).toBeDisabled();
+    });
+
+    it('re-reads the session when exam:finalize arrives from another source', async () => {
+      const session = activeSessionWithDeliverables();
+      useExamSessionDetailMock.mockReturnValue(session);
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+
+      // The scheduled sweep, or a teacher on another screen. The page must
+      // not assume the new status — it asks the server.
+      trigger('exam:finalize', { examSessionId: 'session-123', reason: 'scheduled' });
+
+      await waitFor(() => expect(session.refetch).toHaveBeenCalled());
     });
   });
 });

@@ -6,6 +6,8 @@ import { RequiredDeliverableEntity } from './entities/required-deliverable.entit
 import { ExamSessionService } from './exam-session.service';
 import { ExamSessionController } from './exam-session.controller';
 import { ExamSessionGateway } from './exam-session.gateway';
+import { ExamSessionEvents } from './exam-session.events';
+import { ExamSessionScheduler } from './exam-session.scheduler';
 
 @Module({
   imports: [
@@ -16,7 +18,12 @@ import { ExamSessionGateway } from './exam-session.gateway';
     JwtModule.register({}),
   ],
   controllers: [ExamSessionController],
-  providers: [ExamSessionService, ExamSessionGateway],
+  providers: [
+    ExamSessionService,
+    ExamSessionGateway,
+    ExamSessionEvents,
+    ExamSessionScheduler,
+  ],
   // Exported so a future module can inject ExamSessionService
   // (findByCode/listRequiredDeliverables) instead of writing its own
   // TypeORM queries.

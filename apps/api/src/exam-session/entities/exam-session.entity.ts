@@ -25,6 +25,14 @@ export type ExamType = 'TK' | 'GK' | 'CK';
 // to a single class/room.
 @Entity({ name: 'exam_session' })
 @Check('ck_exam_session_time', 'end_time > start_time')
+// Backs ExamSessionScheduler's sweep query (status = 'active' AND
+// end_time <= now()), which runs every 30 seconds forever. Leading with
+// `status` is what makes it useful: the overwhelming majority of rows
+// settle at 'completed', so the equality predicate eliminates them first
+// and the range scan on end_time only walks the handful still open.
+// Without it, every tick is a sequential scan of the whole table for a
+// query that almost always returns nothing.
+@Index('idx_exam_session_status_end_time', ['status', 'endTime'])
 export class ExamSessionEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 200 })
   name!: string;

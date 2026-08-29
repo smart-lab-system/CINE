@@ -1,4 +1,10 @@
-import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
@@ -11,17 +17,35 @@ import {
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { Server, Socket } from 'socket.io';
+import { Subscription } from 'rxjs';
 import { AccessTokenPayload } from '../auth/types';
+import { agentRoom, teacherRoom } from '../common/exam-live-rooms';
+import { isPlainObject } from '../common/exam-live-socket';
 import { AgentJoinDto } from './dto/agent-join.dto';
 import { TeacherSubscribeDto } from './dto/teacher-subscribe.dto';
 import { ExamSessionService } from './exam-session.service';
+import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 
-// Server -> Agent, exactly these 4 fields per the WebSocket Event Contract
-// — no teacher_id, no other ExamSession field leaks to the agent.
+// Server -> Agent. No teacher_id, no other ExamSession field leaks to the
+// agent.
+//
+// `requiredDeliverables` was added for the submission phase. Every
+// submission event is keyed by requiredDeliverableId — never by filename,
+// so nothing downstream ever has to match a file by name — and this ack is
+// where the agent learns those ids. `requiredFiles` is kept alongside it,
+// unchanged: it is what the agent uses to create the working files on disk,
+// and dropping it would break the existing flow for no gain.
+interface AgentJoinAckDeliverable {
+  id: string;
+  requiredFilename: string;
+  deliverableType: string;
+}
+
 interface AgentJoinAck {
   examSessionId: string;
   sessionName: string;
   requiredFiles: string[];
+  requiredDeliverables: AgentJoinAckDeliverable[];
   endTime: string;
 }
 
@@ -36,6 +60,13 @@ interface LobbyStudentJoined {
   studentId: string;
   fullName: string;
   joinedAt: string;
+}
+
+// Server -> agents (and the watching teacher). Carries no student data
+// at all, which is why the same payload can safely go to both rooms.
+interface ExamFinalize {
+  examSessionId: string;
+  reason: ExamFinalizeReason;
 }
 
 interface AgentDisconnected {
@@ -54,24 +85,6 @@ interface TeacherSubscribeError {
   message: string;
 }
 
-// Teacher-only broadcast room. Deliberately NOT shared with agents: an
-// agent only needs the (public, session-code-gated) `sessionCode` to open
-// a socket and `agent:join` — there is no authentication step for it at
-// all. Before this fix, agents and teachers joined the SAME room
-// (`exam-session:{id}`), so any unauthenticated agent socket that chose to
-// listen for `lobby:student_joined`/`agent:disconnected` would silently
-// receive every other student's `{studentId, fullName, joinedAt}` as they
-// joined — real classmate PII leaked to an unauthenticated peer holding
-// only the projector-displayed code. `lobby:student_joined` and
-// `agent:disconnected` broadcast ONLY to this room now; agents are never
-// members of it (see handleAgentJoin — it no longer calls `client.join`
-// at all, since nothing in this plan needs server -> agent push yet; if a
-// future feature does, give agents their own, differently-named room,
-// never this one).
-function teacherRoom(examSessionId: string): string {
-  return `exam-session:${examSessionId}:teachers`;
-}
-
 // Agent always connects OUT to this server (never the reverse) — the
 // riskiest architectural bet of the exam-live demo. Namespace and every
 // event name/payload shape below are the shared contract with the
@@ -85,7 +98,9 @@ function teacherRoom(examSessionId: string): string {
     credentials: true,
   },
 })
-export class ExamSessionGateway implements OnGatewayDisconnect {
+export class ExamSessionGateway
+  implements OnGatewayDisconnect, OnModuleInit, OnModuleDestroy
+{
   @WebSocketServer()
   private readonly server!: Server;
 
@@ -104,10 +119,42 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
   private static readonly AGENT_JOIN_RATE_WINDOW_MS = 60_000;
   private readonly agentJoinAttempts = new Map<string, number[]>();
 
+  private finalizedSubscription?: Subscription;
+
   constructor(
     private readonly examSessions: ExamSessionService,
     private readonly jwt: JwtService,
+    private readonly events: ExamSessionEvents,
   ) {}
+
+  /**
+   * Turns the service's domain event into the wire event. The service
+   * owns the status transition and publishes; this owns the socket and
+   * broadcasts — see ExamSessionEvents for why they talk through a bus
+   * instead of injecting each other.
+   */
+  onModuleInit(): void {
+    this.finalizedSubscription = this.events.finalized$.subscribe(
+      ({ examSessionId, reason }) => {
+        const payload: ExamFinalize = { examSessionId, reason };
+        // Both rooms: agents need the command, and the teacher watching
+        // the page needs to see the session flip to "Đã kết thúc"
+        // without polling. Safe to share one payload — it contains no
+        // student data (see ExamFinalize).
+        this.server.to(agentRoom(examSessionId)).emit('exam:finalize', payload);
+        this.server.to(teacherRoom(examSessionId)).emit('exam:finalize', payload);
+        this.logger.log(
+          `exam:finalize broadcast for session ${examSessionId} (reason=${reason})`,
+        );
+      },
+    );
+  }
+
+  onModuleDestroy(): void {
+    // Without this, a torn-down module (every e2e test file does one)
+    // leaves a live subscriber holding a dead `server` reference.
+    this.finalizedSubscription?.unsubscribe();
+  }
 
   /**
    * Agent -> Server. Public (no JWT — an exam-taking machine has no
@@ -158,7 +205,7 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
     // surface as Nest's generic internal-error event instead of the
     // contracted `agent:join:error`/`INVALID_INPUT`. Reject it here,
     // before either call.
-    if (!this.isPlainObject(body)) {
+    if (!isPlainObject(body)) {
       this.emitJoinError(
         client,
         'INVALID_INPUT',
@@ -207,11 +254,26 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
     // room to broadcast `agent:disconnected` to.
     client.data.studentId = dto.studentId;
     client.data.examSessionId = session.id;
+    // Read back by SubmissionGateway for submission.student_name_input.
+    // Captured once, here, so an agent cannot claim a different name per
+    // uploaded file (see AgentSocketIdentity).
+    client.data.fullName = dto.fullName;
+
+    // Joined AFTER all validation passed, and only to the agents room —
+    // never teacherRoom (see its comment: that would leak every
+    // classmate's {studentId, fullName} to an unauthenticated socket).
+    // Needed so `exam:finalize` can reach this agent.
+    await client.join(agentRoom(session.id));
 
     const ack: AgentJoinAck = {
       examSessionId: session.id,
       sessionName: session.name,
       requiredFiles: deliverables.map((deliverable) => deliverable.requiredFilename),
+      requiredDeliverables: deliverables.map((deliverable) => ({
+        id: deliverable.id,
+        requiredFilename: deliverable.requiredFilename,
+        deliverableType: deliverable.deliverableType,
+      })),
       endTime: session.endTime.toISOString(),
     };
     client.emit('agent:join:ack', ack);
@@ -248,7 +310,7 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
     // null payload would otherwise reach `plainToInstance`/`validate()`
     // and throw a raw TypeError before the `teacher:subscribe:error`
     // path below ever runs.
-    if (!this.isPlainObject(body)) {
+    if (!isPlainObject(body)) {
       this.logger.warn(`teacher:subscribe rejected: non-object payload from ${client.id}`);
       this.emitSubscribeError(client, 'SESSION_NOT_FOUND', 'No exam session matches this id.');
       return;
@@ -374,15 +436,6 @@ export class ExamSessionGateway implements OnGatewayDisconnect {
   private emitSubscribeError(client: Socket, code: TeacherSubscribeErrorCode, message: string): void {
     const error: TeacherSubscribeError = { code, message };
     client.emit('teacher:subscribe:error', error);
-  }
-
-  // `plainToInstance` + `validate()` both assume a plain object to walk
-  // property-by-property — a string/number/array/null "payload" isn't
-  // one, and `class-validator`'s `validate()` throws a raw TypeError on
-  // those instead of returning validation errors. Guard against that
-  // shape *before* either call, not after.
-  private isPlainObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
   // Cookie header comes across as one raw string, e.g.
