@@ -29,6 +29,7 @@ import { EnrollmentService } from '../course/enrollment.service';
 import { AccessRequestStore } from './access-request.store';
 import { AttendanceService } from '../agent-connection/attendance.service';
 import { StorageService } from '../storage/storage.service';
+import { renderFilename } from './filename-template';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -41,6 +42,15 @@ import { StorageService } from '../storage/storage.service';
 // and dropping it would break the existing flow for no gain.
 interface AgentJoinAckDeliverable {
   id: string;
+  /**
+   * RESOLVED for this student, not the pattern the teacher declared.
+   *
+   * A deliverable may be declared as `{PHONG}_{MSSV}_{TEN}.docx`; the
+   * server fills it from the roster and the room and sends the finished
+   * name. The agent creates exactly what it is told and never composes a
+   * filename itself — submission identity is still decided before the exam,
+   * it just now depends on who is sitting it.
+   */
   requiredFilename: string;
   deliverableType: string;
 }
@@ -294,6 +304,23 @@ export class ExamSessionGateway
 
     const deliverables = await this.examSessions.listRequiredDeliverables(session.id);
 
+    // Rendered once, here, and used for both fields of the ack — the agent
+    // must never see two different names for the same deliverable.
+    const filenameContext = {
+      studentMssv: dto.studentId,
+      // The roster spelling, the same one the ack confirms back to the
+      // student. A name they typed is not identity and must not end up in a
+      // filename either.
+      studentName: enrollment.studentName,
+      roomName: session.room?.name ?? '',
+      machineName: dto.machineName ?? null,
+    };
+    const resolved = deliverables.map((deliverable) => ({
+      id: deliverable.id,
+      requiredFilename: renderFilename(deliverable.requiredFilename, filenameContext),
+      deliverableType: deliverable.deliverableType,
+    }));
+
     // Stashed on the socket for handleDisconnect — a disconnecting socket
     // has no other way to know which room/student it was. Note: the agent
     // socket itself never joins any room (see teacherRoom's doc comment) —
@@ -336,12 +363,8 @@ export class ExamSessionGateway
       backupAvailable,
       sessionName: session.name,
       studentName: enrollment.studentName,
-      requiredFiles: deliverables.map((deliverable) => deliverable.requiredFilename),
-      requiredDeliverables: deliverables.map((deliverable) => ({
-        id: deliverable.id,
-        requiredFilename: deliverable.requiredFilename,
-        deliverableType: deliverable.deliverableType,
-      })),
+      requiredFiles: resolved.map((deliverable) => deliverable.requiredFilename),
+      requiredDeliverables: resolved,
       endTime: session.endTime.toISOString(),
     };
     // Awaited BEFORE the ack, not fired off after it. The agent replies to

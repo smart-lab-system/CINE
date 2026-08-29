@@ -22,13 +22,21 @@ describe('agent:join enrollment enforcement (e2e)', () => {
   let dataSource: DataSource;
   let baseUrl: string;
   let sessionCode: string;
+  let templatedCode: string;
   let courseId: string;
+  // Hoisted so the filename tests can build their own sessions from the
+  // same fixtures instead of a second set that could drift from these.
+  let token: string;
+  let classId: string;
+  let roomId: string;
+  let roomName: string;
 
   const ENROLLED_MSSV = 'SV20120001';
   const ENROLLED_NAME = 'Nguyễn Văn A';
   const STRANGER_MSSV = 'SV20129999';
 
   const sockets: Socket[] = [];
+  const fixtureStamp = Date.now();
 
   function connect(): Socket {
     const socket = io(`${baseUrl}/exam-live`, { reconnection: false, forceNew: true });
@@ -66,7 +74,7 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     baseUrl = await app.getUrl();
     dataSource = app.get(DataSource);
 
-    const stamp = Date.now();
+    const stamp = fixtureStamp;
     const email = `agent_join_teacher_${stamp}@example.com`;
     const teacherId = await createTestAccount(dataSource, {
       email,
@@ -76,7 +84,7 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     const login = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email, password: 'correct-horse-battery' });
-    const token: string = login.body.accessToken;
+    token = login.body.accessToken;
 
     const [semester] = await dataSource.query(
       `INSERT INTO examcollect.semester (name, start_date, end_date)
@@ -93,11 +101,15 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
       [`Agent Join Room ${stamp}`],
     );
+    roomId = room.id;
+    // What {PHONG} renders to: separators dropped, each word capitalised.
+    roomName = `AgentJoinRoom${stamp}`;
     const [klass] = await dataSource.query(
       `INSERT INTO examcollect.class (course_id, name, teacher_id)
        VALUES ($1, 'N01', $2) RETURNING id`,
       [courseId, teacherId],
     );
+    classId = klass.id;
 
     // One student on the roster, one deliberately absent from it.
     await dataSource.query(
@@ -124,6 +136,23 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       });
     expect(created.status).toBe(201);
     sessionCode = created.body.code;
+
+    // A second session whose deliverable is declared as a PATTERN. Same
+    // class, same roster — only the filename rule differs.
+    const templated = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: `Agent Join Templated ${stamp}`,
+        classId: klass.id,
+        roomId: room.id,
+        examType: 'TK',
+        startTime: new Date(Date.now() - 60_000).toISOString(),
+        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        requiredFilenames: ['{PHONG}_{MSSV}_{TEN}_{SOMAY}.docx'],
+      });
+    expect(templated.status).toBe(201);
+    templatedCode = templated.body.code;
   });
 
   afterAll(async () => {
@@ -172,5 +201,61 @@ describe('agent:join enrollment enforcement (e2e)', () => {
 
     expect(reply.event).toBe('ack');
     expect(reply.body.studentName).toBe(ENROLLED_NAME);
+  });
+
+  describe('per-student filenames', () => {
+    it('resolves a declared pattern into this student\'s own filename', async () => {
+      const reply = await join(connect(), {
+        studentId: ENROLLED_MSSV,
+        sessionCode: templatedCode,
+        machineName: 'MAY07',
+      });
+
+      expect(reply.event).toBe('ack');
+      const ack = reply.body as unknown as {
+        requiredFiles: string[];
+        requiredDeliverables: { requiredFilename: string }[];
+      };
+      // The teacher declared one pattern; the student is told one finished
+      // name. Nothing is composed on the agent's side, and nothing is
+      // matched later — submission identity is still decided in advance,
+      // it just now depends on who is sitting the exam.
+      const expected = `${roomName}_${ENROLLED_MSSV}_NguyenVanA_MAY07.docx`;
+      expect(ack.requiredFiles).toEqual([expected]);
+      // Both fields carry the same name — an agent must never see two
+      // different names for one deliverable.
+      expect(ack.requiredDeliverables[0].requiredFilename).toBe(expected);
+    });
+
+    it('says UNKNOWN when the machine will not name itself', async () => {
+      const reply = await join(connect(), {
+        studentId: ENROLLED_MSSV,
+        sessionCode: templatedCode,
+      });
+
+      const ack = reply.body as unknown as { requiredFiles: string[] };
+      // A hole would render as "..._SV001_NguyenVanA_.docx", which reads as
+      // a bug and hides which part is missing.
+      expect(ack.requiredFiles[0]).toContain('_UNKNOWN.docx');
+    });
+
+    it('rejects a pattern with a token nobody defined', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/exam-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: `Bad Token ${fixtureStamp}`,
+          classId,
+          roomId,
+          examType: 'TK',
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: ['{LOP}_Cau1.docx'],
+        });
+
+      // Otherwise it reaches every agent as a literal "{LOP}" and forty
+      // students submit a file the teacher never asked for.
+      expect(response.status).toBe(400);
+    });
   });
 });

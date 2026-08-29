@@ -20,13 +20,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import { RequiredFilenamesInput } from './_components/RequiredFilenamesInput';
 
-// Must stay byte-for-byte identical to SAFE_FILENAME_REGEX in
-// apps/api/src/exam-session/dto/create-exam-session.dto.ts. The character
-// class alone already rejects "/" and "\" (path separators aren't in the
-// allowed set); the `(?!.*\.\.)` lookahead additionally rejects a literal
-// ".." even though "." and "." are each individually allowed characters.
-// A mismatch here means the form accepts something the server 400s on.
-const SAFE_FILENAME_REGEX = /^(?!.*\.\.)[A-Za-z0-9_.-]+$/;
+// Must stay byte-for-byte identical to FILENAME_TEMPLATE_REGEX in
+// apps/api/src/exam-session/filename-template.ts. It is the old
+// SAFE_FILENAME_REGEX plus the four tokens the server fills per student —
+// the same character class and the same `(?!.*\.\.)` lookahead, so a
+// pattern is held to exactly the path-traversal rules a literal name is. A
+// mismatch here means the form accepts something the server 400s on.
+const FILENAME_TEMPLATE_REGEX =
+  /^(?!.*\.\.)(?:[A-Za-z0-9_.-]|\{(?:MSSV|TEN|PHONG|SOMAY)\})+$/;
 
 const EXAM_TYPES = ['TK', 'GK', 'CK'] as const;
 
@@ -54,8 +55,8 @@ const createExamSessionSchema = z
             .trim()
             .min(1, 'Tên file không được để trống')
             .regex(
-              SAFE_FILENAME_REGEX,
-              'Tên file chỉ được chứa chữ, số, "_", "-", "." và không được chứa ".."',
+              FILENAME_TEMPLATE_REGEX,
+              'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
             ),
         }),
       )

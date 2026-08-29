@@ -27,6 +27,7 @@ import { io, Socket } from 'socket.io-client';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as readline from 'node:readline/promises';
+import * as os from 'node:os';
 import process from 'node:process';
 import {
   formatSummary,
@@ -57,6 +58,16 @@ export interface AgentJoinPayload {
    * is no authoritative name to fall back on.
    */
   fullName?: string;
+  /**
+   * This machine's own name, read from the OS.
+   *
+   * Fills {SOMAY} when the teacher declared a filename pattern that uses
+   * it. Read, never asked: CLAUDE.md forbids adding a step for the student,
+   * and a seat number they typed would be a value nobody could check. A lab
+   * names its machines after their seats, so the hostname is the closest
+   * true answer available for free.
+   */
+  machineName?: string;
 }
 
 export interface AgentJoinAck {
@@ -222,16 +233,33 @@ async function promptMissing(args: CliArgs): Promise<AgentJoinPayload> {
     // interface starts consuming the stream immediately, which on a piped
     // stdin swallows a line meant for a later prompt — the access-request
     // flow then hung waiting for input that had already been eaten.
-    return { studentId: providedStudentId, sessionCode: providedSessionCode };
+    return {
+      studentId: providedStudentId,
+      sessionCode: providedSessionCode,
+      machineName: machineName(),
+    };
   }
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
     const studentId = providedStudentId ?? (await askNonEmpty(rl, 'Mã số sinh viên (MSSV): '));
     const sessionCode = providedSessionCode ?? (await askNonEmpty(rl, 'Mã phiên thi: '));
-    return { studentId, sessionCode };
+    return { studentId, sessionCode, machineName: machineName() };
   } finally {
     rl.close();
+  }
+}
+
+/**
+ * The hostname, or undefined if the OS will not say. Never fatal — a
+ * pattern using {SOMAY} renders it as UNKNOWN, which is visible, and a
+ * pattern that does not use it never notices.
+ */
+function machineName(): string | undefined {
+  try {
+    return nonEmpty(os.hostname());
+  } catch {
+    return undefined;
   }
 }
 

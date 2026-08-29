@@ -34,4 +34,17 @@ export class AgentJoinDto {
   @IsString()
   @Length(1, 20)
   sessionCode!: string;
+
+  /**
+   * The lab machine's own name, if the agent knows it. Fills {SOMAY} in a
+   * filename pattern.
+   *
+   * Optional, and read from the OS rather than typed: CLAUDE.md forbids
+   * adding a step for the student, and a seat number they type is a value
+   * nobody can check. A missing one renders as UNKNOWN, visibly.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  machineName?: string;
 }

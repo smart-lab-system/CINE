@@ -126,7 +126,10 @@ export class ExamSessionService {
    * always stored (see EXAM_SESSION_CODE_ALPHABET).
    */
   async findByCode(code: string): Promise<ExamSessionEntity | null> {
-    return this.sessions.findOne({ where: { code } });
+    // The room comes with it: a filename pattern may contain {PHONG}, and
+    // fetching the room separately on every join would be a second query
+    // for a value the same row already points at.
+    return this.sessions.findOne({ where: { code }, relations: { room: true } });
   }
 
   /**
