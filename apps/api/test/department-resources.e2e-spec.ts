@@ -282,4 +282,34 @@ describe('Department resources (e2e)', () => {
       expect(response.status).toBe(400);
     });
   });
+  describe('teacher pick list', () => {
+    it('lets a head read teacher options without exposing anything else', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/accounts/teachers')
+        .set('Authorization', `Bearer ${headToken}`);
+
+      expect(response.status).toBe(200);
+      const found = response.body.find((a: { id: string }) => a.id === lecturerId);
+      expect(found).toBeDefined();
+      // Narrower than search() on purpose: a head names a lecturer, they do
+      // not audit accounts.
+      expect(Object.keys(found).sort()).toEqual(['id', 'name']);
+    });
+
+    it('still refuses the full account list to a head', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/accounts')
+        .set('Authorization', `Bearer ${headToken}`);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('refuses the pick list to a teacher', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/accounts/teachers')
+        .set('Authorization', `Bearer ${teacherToken}`);
+
+      expect(response.status).toBe(403);
+    });
+  });
 });

@@ -1,5 +1,9 @@
 import {
   LayoutDashboard,
+  BookOpen,
+  GraduationCap,
+  DoorOpen,
+  CalendarRange,
   Users,
   Bot,
   Wallet,
@@ -31,9 +35,23 @@ export interface NavItem {
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Quản lý tài khoản', href: '/admin/accounts', icon: Users },
+  // A course with no owner is invisible to every Trưởng khoa, which makes it
+  // unassignable by them too — so admin needs somewhere to see and fix it.
+  { label: 'Môn chưa có chủ', href: '/admin/unowned-courses', icon: BookOpen },
   { label: 'Cấu hình AI', href: '/admin/ai-config', icon: Bot },
   { label: 'Chi phí', href: '/admin/cost', icon: Wallet },
   { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
+];
+
+// Trưởng khoa owns the academic structure an exam session is built from.
+// Semesters and rooms are university-wide (every head maintains the same
+// list); courses and classes are scoped to the head who owns the course.
+export const DEPARTMENT_NAV: NavItem[] = [
+  { label: 'Dashboard', href: '/department/dashboard', icon: LayoutDashboard },
+  { label: 'Học kỳ', href: '/department/semesters', icon: CalendarRange },
+  { label: 'Môn học', href: '/department/courses', icon: BookOpen },
+  { label: 'Lớp học', href: '/department/classes', icon: GraduationCap },
+  { label: 'Phòng thi', href: '/department/rooms', icon: DoorOpen },
 ];
 
 export const TEACHER_NAV: NavItem[] = [
