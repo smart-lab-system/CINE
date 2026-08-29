@@ -25,6 +25,7 @@ describe('Department resources (e2e)', () => {
   let adminToken: string;
   let semesterId: string;
   let lecturerId: string;
+  let lecturerToken: string;
 
   async function login(email: string): Promise<string> {
     const response = await request(app.getHttpServer())
@@ -57,7 +58,9 @@ describe('Department resources (e2e)', () => {
     otherHeadToken = (await makeAccount('dept_other', 'department_admin')).token;
     teacherToken = (await makeAccount('dept_teacher', 'teacher')).token;
     adminToken = (await makeAccount('dept_admin', 'admin')).token;
-    lecturerId = (await makeAccount('dept_lecturer', 'teacher')).id;
+    const lecturer = await makeAccount('dept_lecturer', 'teacher');
+    lecturerId = lecturer.id;
+    lecturerToken = lecturer.token;
 
     const [semester] = await dataSource.query(
       `INSERT INTO examcollect.semester (name, start_date, end_date)
@@ -295,9 +298,12 @@ describe('Department resources (e2e)', () => {
         .send({ courseId: course.body.id, name: 'Nhóm bàn giao', teacherId: lecturerId });
 
       const student = `H${Date.now().toString(36)}`.slice(0, 20);
+      // The LECTURER owns the roster, so the list is loaded as them. A head
+      // creates the class and names who teaches it; from there the list is
+      // the lecturer's.
       await request(app.getHttpServer())
         .post(`/classes/${klass.body.id}/roster`)
-        .set('Authorization', `Bearer ${headToken}`)
+        .set('Authorization', `Bearer ${lecturerToken}`)
         .send({ students: [{ mssv: student, name: 'Sinh viên bàn giao' }] });
 
       const response = await request(app.getHttpServer())

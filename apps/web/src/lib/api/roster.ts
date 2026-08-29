@@ -53,3 +53,32 @@ export async function importRoster(
   await throwIfFailed(error, response);
   return data as unknown as RosterImportResult;
 }
+
+/**
+ * One student, typed in rather than imported. Same rules as a row of the
+ * file — the MSSV is validated identically server-side, and a student who
+ * already sits in a sibling class of the same course is refused.
+ */
+export async function addRosterStudent(
+  classId: string,
+  student: RosterEntry,
+): Promise<RosterEntry> {
+  const { data, error, response } = await apiClient.POST(
+    '/classes/{id}/roster/students',
+    { params: { path: { id: classId } }, body: student },
+  );
+  await throwIfFailed(error, response);
+  return data as unknown as RosterEntry;
+}
+
+/** The undo for a mistyped MSSV. */
+export async function removeRosterStudent(
+  classId: string,
+  studentMssv: string,
+): Promise<void> {
+  const { error, response } = await apiClient.DELETE(
+    '/classes/{id}/roster/students/{studentMssv}',
+    { params: { path: { id: classId, studentMssv } } },
+  );
+  await throwIfFailed(error, response);
+}

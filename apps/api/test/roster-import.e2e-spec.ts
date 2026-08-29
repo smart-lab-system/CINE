@@ -24,6 +24,7 @@ describe('Roster import (e2e)', () => {
   let headToken: string;
   let otherHeadToken: string;
   let teacherToken: string;
+  let otherTeacherToken: string;
   let lecturerId: string;
   let courseId: string;
   let classId: string;
@@ -47,7 +48,7 @@ describe('Roster import (e2e)', () => {
   }
 
   /** The roster as the API reports it, sorted so comparisons are stable. */
-  async function readRoster(id: string, token: string) {
+  async function readRoster(id: string, token: string = teacherToken) {
     const response = await request(app.getHttpServer())
       .get(`/classes/${id}/roster`)
       .set('Authorization', `Bearer ${token}`);
@@ -83,6 +84,7 @@ describe('Roster import (e2e)', () => {
     const lecturer = await makeAccount('roster_lecturer', 'teacher');
     lecturerId = lecturer.id;
     teacherToken = lecturer.token;
+    otherTeacherToken = (await makeAccount('roster_other_teacher', 'teacher')).token;
 
     const [semester] = await dataSource.query(
       `INSERT INTO examcollect.semester (name, start_date, end_date)
@@ -141,7 +143,7 @@ describe('Roster import (e2e)', () => {
     const a = mssv('a');
     const b = mssv('b');
 
-    const response = await importRoster(id, headToken, {
+    const response = await importRoster(id, teacherToken, {
       students: [
         { mssv: a, name: 'Nguyễn Văn A' },
         { mssv: b, name: 'Trần Thị B' },
@@ -150,7 +152,7 @@ describe('Roster import (e2e)', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ added: 2, updated: 0, unchanged: 0, removed: 0 });
-    expect(await readRoster(id, headToken)).toEqual(
+    expect(await readRoster(id)).toEqual(
       [`${a}|Nguyễn Văn A`, `${b}|Trần Thị B`].sort(),
     );
   });
@@ -162,21 +164,21 @@ describe('Roster import (e2e)', () => {
       { mssv: mssv('d'), name: 'Trần Thị D' },
     ];
 
-    await importRoster(id, headToken, { students });
-    const before = await readRoster(id, headToken);
+    await importRoster(id, teacherToken, { students });
+    const before = await readRoster(id);
 
-    const second = await importRoster(id, headToken, { students });
+    const second = await importRoster(id, teacherToken, { students });
 
     expect(second.status).toBe(200);
     expect(second.body).toMatchObject({ added: 0, updated: 0, unchanged: 2, removed: 0 });
-    expect(await readRoster(id, headToken)).toEqual(before);
+    expect(await readRoster(id)).toEqual(before);
   });
 
   it('writes nothing at all when one row in the file is bad', async () => {
     const id = await freshClass();
     const good = mssv('e');
-    await importRoster(id, headToken, { students: [{ mssv: good, name: 'Đã có sẵn' }] });
-    const before = await readRoster(id, headToken);
+    await importRoster(id, teacherToken, { students: [{ mssv: good, name: 'Đã có sẵn' }] });
+    const before = await readRoster(id);
 
     // 19 valid rows and one MSSV with a space in it. Importing the 19 would
     // leave a roster that looks complete and is not.
@@ -186,17 +188,17 @@ describe('Roster import (e2e)', () => {
     }));
     students.push({ mssv: 'SV 001', name: 'Có dấu cách' });
 
-    const response = await importRoster(id, headToken, { students });
+    const response = await importRoster(id, teacherToken, { students });
 
     expect(response.status).toBe(400);
-    expect(await readRoster(id, headToken)).toEqual(before);
+    expect(await readRoster(id)).toEqual(before);
   });
 
   it('rejects a file that lists the same MSSV twice', async () => {
     const id = await freshClass();
     const twice = mssv('g');
 
-    const response = await importRoster(id, headToken, {
+    const response = await importRoster(id, teacherToken, {
       students: [
         { mssv: twice, name: 'Nguyễn Văn G' },
         { mssv: twice, name: 'Nguyễn Văn G (dòng 2)' },
@@ -204,18 +206,18 @@ describe('Roster import (e2e)', () => {
     });
 
     expect(response.status).toBe(400);
-    expect(await readRoster(id, headToken)).toEqual([]);
+    expect(await readRoster(id)).toEqual([]);
   });
 
   it('rejects a row with no name', async () => {
     const id = await freshClass();
 
-    const response = await importRoster(id, headToken, {
+    const response = await importRoster(id, teacherToken, {
       students: [{ mssv: mssv('h'), name: '' }],
     });
 
     expect(response.status).toBe(400);
-    expect(await readRoster(id, headToken)).toEqual([]);
+    expect(await readRoster(id)).toEqual([]);
   });
 
   it('updates a name that changed and leaves the rest alone', async () => {
@@ -223,14 +225,14 @@ describe('Roster import (e2e)', () => {
     const changed = mssv('i');
     const same = mssv('j');
 
-    await importRoster(id, headToken, {
+    await importRoster(id, teacherToken, {
       students: [
         { mssv: changed, name: 'Nguyen Van I' },
         { mssv: same, name: 'Trần Thị J' },
       ],
     });
 
-    const response = await importRoster(id, headToken, {
+    const response = await importRoster(id, teacherToken, {
       students: [
         { mssv: changed, name: 'Nguyễn Văn I' },
         { mssv: same, name: 'Trần Thị J' },
@@ -239,7 +241,7 @@ describe('Roster import (e2e)', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ added: 0, updated: 1, unchanged: 1 });
-    expect(await readRoster(id, headToken)).toContain(`${changed}|Nguyễn Văn I`);
+    expect(await readRoster(id)).toContain(`${changed}|Nguyễn Văn I`);
   });
 
   it('reports students missing from the file without deleting them', async () => {
@@ -247,14 +249,14 @@ describe('Roster import (e2e)', () => {
     const kept = mssv('k');
     const dropped = mssv('l');
 
-    await importRoster(id, headToken, {
+    await importRoster(id, teacherToken, {
       students: [
         { mssv: kept, name: 'Ở lại' },
         { mssv: dropped, name: 'Vắng trong file' },
       ],
     });
 
-    const response = await importRoster(id, headToken, {
+    const response = await importRoster(id, teacherToken, {
       students: [{ mssv: kept, name: 'Ở lại' }],
     });
 
@@ -265,7 +267,7 @@ describe('Roster import (e2e)', () => {
     expect(response.body.missing).toEqual([{ mssv: dropped, name: 'Vắng trong file' }]);
     // Deleting this student locks them out of the exam, and the mistake
     // surfaces on exam day. It takes an explicit decision, not a re-import.
-    expect(await readRoster(id, headToken)).toHaveLength(2);
+    expect(await readRoster(id)).toHaveLength(2);
   });
 
   it('removes them only when asked explicitly', async () => {
@@ -273,33 +275,33 @@ describe('Roster import (e2e)', () => {
     const kept = mssv('m');
     const dropped = mssv('n');
 
-    await importRoster(id, headToken, {
+    await importRoster(id, teacherToken, {
       students: [
         { mssv: kept, name: 'Ở lại' },
         { mssv: dropped, name: 'Thôi học' },
       ],
     });
 
-    const response = await importRoster(id, headToken, {
+    const response = await importRoster(id, teacherToken, {
       students: [{ mssv: kept, name: 'Ở lại' }],
       removeMissing: true,
     });
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ added: 0, updated: 0, unchanged: 1, removed: 1 });
-    expect(await readRoster(id, headToken)).toEqual([`${kept}|Ở lại`]);
+    expect(await readRoster(id)).toEqual([`${kept}|Ở lại`]);
   });
 
   it('refuses a student who already belongs to another class of the course', async () => {
     const shared = mssv('o');
-    await importRoster(siblingClassId, headToken, {
+    await importRoster(siblingClassId, teacherToken, {
       students: [{ mssv: shared, name: 'Đã ở nhóm phụ' }],
     });
 
     // Typed differently in the second file on purpose: citext makes these
     // the same student, so the clash must be caught by the database's own
     // notion of equality rather than by a string compare in application code.
-    const response = await importRoster(classId, headToken, {
+    const response = await importRoster(classId, teacherToken, {
       students: [{ mssv: shared.toLowerCase(), name: 'Đã ở nhóm phụ' }],
     });
 
@@ -311,24 +313,129 @@ describe('Roster import (e2e)', () => {
     expect(response.body.message).toContain('Nhóm phụ');
   });
 
-  it('refuses a head importing into another head\'s class', async () => {
+  it('refuses a lecturer importing into a class they do not teach', async () => {
     const id = await freshClass();
 
-    const response = await importRoster(id, otherHeadToken, {
-      students: [{ mssv: mssv('p'), name: 'Không phải khoa này' }],
+    const response = await importRoster(id, otherTeacherToken, {
+      students: [{ mssv: mssv('p'), name: 'Không phải lớp của tôi' }],
     });
+
+    // class.teacher_id is the whole of a lecturer's scope. It is the only
+    // thing standing between them and rewriting a colleague's class list.
+    expect(response.status).toBe(403);
+  });
+
+  it('refuses a Trưởng khoa writing the list, while letting them read it', async () => {
+    const id = await freshClass();
+    await importRoster(id, teacherToken, {
+      students: [{ mssv: mssv('q'), name: 'Do giảng viên nhập' }],
+    });
+
+    // Read: a head needs their department's headcounts.
+    const read = await readRoster(id, headToken);
+    expect(read).toHaveLength(1);
+
+    // Write: exactly ONE writer per list. Two roles maintaining the same
+    // roster means two people who can disagree about who maintains it.
+    const written = await importRoster(id, headToken, {
+      students: [{ mssv: mssv('r'), name: 'Trưởng khoa sửa' }],
+    });
+    expect(written.status).toBe(403);
+  });
+
+  it('refuses a head reading a class outside their own courses', async () => {
+    const id = await freshClass();
+
+    const response = await request(app.getHttpServer())
+      .get(`/classes/${id}/roster`)
+      .set('Authorization', `Bearer ${otherHeadToken}`);
 
     expect(response.status).toBe(403);
   });
 
-  it('refuses a teacher, even the one who teaches the class', async () => {
-    const response = await importRoster(classId, teacherToken, {
-      students: [{ mssv: mssv('q'), name: 'Giảng viên tự thêm' }],
+  describe('adding and removing one student by hand', () => {
+    it('adds a late transfer without re-sending the whole file', async () => {
+      const id = await freshClass();
+      const existing = mssv('s');
+      await importRoster(id, teacherToken, {
+        students: [{ mssv: existing, name: 'Có sẵn' }],
+      });
+
+      const added = mssv('t');
+      const response = await request(app.getHttpServer())
+        .post(`/classes/${id}/roster/students`)
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({ mssv: added, name: 'Chuyển lớp muộn' });
+
+      expect(response.status).toBe(201);
+      expect(await readRoster(id)).toHaveLength(2);
     });
 
-    // A lecturer short one student on exam day has the access-request path,
-    // which writes an audit_log entry. Rewriting the class list is the
-    // Trưởng khoa's act.
-    expect(response.status).toBe(403);
+    it('holds a typed student to the same MSSV rule as a file row', async () => {
+      const id = await freshClass();
+
+      const response = await request(app.getHttpServer())
+        .post(`/classes/${id}/roster/students`)
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({ mssv: 'SV 001', name: 'Có dấu cách' });
+
+      // A hand-typed row is not a looser row.
+      expect(response.status).toBe(400);
+      expect(await readRoster(id)).toEqual([]);
+    });
+
+    it('refuses a student who already sits in a sibling class', async () => {
+      const shared = mssv('u');
+      await importRoster(siblingClassId, teacherToken, {
+        students: [{ mssv: shared, name: 'Đã ở nhóm phụ' }],
+      });
+
+      const response = await request(app.getHttpServer())
+        .post(`/classes/${classId}/roster/students`)
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({ mssv: shared, name: 'Đã ở nhóm phụ' });
+
+      // Same rule as the import: moving a student changes where their
+      // submission is routed, and it is not a side effect of typing a name.
+      expect(response.status).toBe(409);
+    });
+
+    it('removes one student — the undo for a mistyped MSSV', async () => {
+      const id = await freshClass();
+      const keep = mssv('v');
+      const drop = mssv('w');
+      await importRoster(id, teacherToken, {
+        students: [
+          { mssv: keep, name: 'Ở lại' },
+          { mssv: drop, name: 'Gõ nhầm' },
+        ],
+      });
+
+      const response = await request(app.getHttpServer())
+        .delete(`/classes/${id}/roster/students/${drop}`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+
+      expect(response.status).toBe(204);
+      expect(await readRoster(id)).toEqual([`${keep}|Ở lại`]);
+    });
+
+    it('will not delete a student who is in a different class', async () => {
+      const shared = mssv('x');
+      await importRoster(siblingClassId, teacherToken, {
+        students: [{ mssv: shared, name: 'Ở nhóm phụ' }],
+      });
+
+      const response = await request(app.getHttpServer())
+        .delete(`/classes/${classId}/roster/students/${shared}`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+
+      // A valid MSSV from a sibling class reads as not-found, never as
+      // permission to delete someone else's student.
+      expect(response.status).toBe(404);
+      // The sibling class is a shared fixture that several tests import
+      // into, so its size is not the assertion — that THIS student is
+      // still on it is.
+      expect(await readRoster(siblingClassId)).toContain(`${shared}|Ở nhóm phụ`);
+    });
   });
 });

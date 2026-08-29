@@ -58,5 +58,6 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/teacher/dashboard', icon: LayoutDashboard },
   { label: 'Quản lý kỳ thi', href: '/teacher/exam-sessions', icon: CalendarClock },
   { label: 'Quản lý bài thu', href: '/teacher/submissions', icon: Inbox },
+  { label: 'Lớp của tôi', href: '/teacher/classes', icon: GraduationCap },
   { label: 'Chấm điểm', href: '/teacher/grading', icon: ClipboardCheck },
 ];

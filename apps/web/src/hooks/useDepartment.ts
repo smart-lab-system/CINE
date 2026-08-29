@@ -22,7 +22,13 @@ import {
   updateRoom,
   updateSemester,
 } from '@/lib/api/department';
-import { importRoster, listRoster, type RosterEntry } from '@/lib/api/roster';
+import {
+  addRosterStudent,
+  importRoster,
+  listRoster,
+  removeRosterStudent,
+  type RosterEntry,
+} from '@/lib/api/roster';
 
 /**
  * TanStack wrappers for the academic resources. Pages call these, never the
@@ -190,6 +196,28 @@ export function useImportRoster(classId: string) {
       void queryClient.invalidateQueries({ queryKey: ['roster', classId] });
       // The lecturer's class picker shows a student count per class, and an
       // import is the only thing that changes it.
+      void queryClient.invalidateQueries({ queryKey: ['classes'] });
+    },
+  });
+}
+
+export function useAddRosterStudent(classId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (student: RosterEntry) => addRosterStudent(classId, student),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['roster', classId] });
+      void queryClient.invalidateQueries({ queryKey: ['classes'] });
+    },
+  });
+}
+
+export function useRemoveRosterStudent(classId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (studentMssv: string) => removeRosterStudent(classId, studentMssv),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['roster', classId] });
       void queryClient.invalidateQueries({ queryKey: ['classes'] });
     },
   });

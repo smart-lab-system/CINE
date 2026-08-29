@@ -101,6 +101,24 @@ export class ClassService {
     return klass;
   }
 
+  /**
+   * The class, for anyone allowed to LOOK at its roster.
+   *
+   * Two roles reach the same list by two different routes — a lecturer
+   * through `class.teacher_id`, a Trưởng khoa through the course they own —
+   * and neither is allowed to see anyone else's. Writing is narrower and
+   * goes through findTaughtBy: exactly one writer per list.
+   */
+  async findReadableBy(
+    id: string,
+    accountId: string,
+    role: string,
+  ): Promise<ClassEntity> {
+    return role === 'department_admin'
+      ? this.findOwnedByHead(id, accountId)
+      : this.findTaughtBy(id, accountId);
+  }
+
   async createForHead(headId: string, dto: CreateClassDto): Promise<ClassEntity> {
     await this.assertOwnsCourse(dto.courseId, headId);
     await this.assertIsTeacher(dto.teacherId);

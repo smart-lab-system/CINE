@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In } from 'typeorm';
 import { ClassEntity } from './entities/class.entity';
@@ -7,15 +7,17 @@ import { ImportRosterDto, RosterStudentDto } from './dto/roster.dto';
 import { RosterEntry, RosterImportResult } from './course.types';
 
 /**
- * The class list, imported from the Excel file the training office issues.
+ * The class list — the Excel the training office issues, or a name typed in
+ * one at a time.
  *
- * It writes `enrollment` — the table `agent:join` authenticates against —
+ * It writes `enrollment`, the table `agent:join` authenticates against,
  * which is why an import is a deliberate act with an explicit removal step
  * rather than a mirror of whatever file was dragged in last.
  *
- * Ownership is decided before anything here is called: the controller goes
- * through `ClassService`, which is the single place "is this course yours"
- * is answered.
+ * Ownership is decided before anything here is called: the controller
+ * resolves the class through `ClassService`, which is the single place
+ * "is this class yours" is answered — for a lecturer that means
+ * `class.teacher_id`, for a Trưởng khoa it means the course they own.
  */
 @Injectable()
 export class RosterService {
@@ -124,6 +126,76 @@ export class RosterService {
         })),
       };
     });
+  }
+
+  /**
+   * Adds one student by hand.
+   *
+   * The bulk import is for the file the training office sends; this is for
+   * the student who is genuinely on the class list and simply not in it —
+   * a late transfer, a correction. Same rules as a row of the file: the
+   * MSSV is validated identically, and a student already sitting in a
+   * sibling class of the same course is refused rather than moved.
+   *
+   * Not audited, and that is deliberate. The access-request path writes an
+   * `audit_log` entry because a machine-enforced refusal is being opened by
+   * a human at exam time; editing your own class list beforehand is
+   * ordinary preparation, and auditing it would bury the entries that
+   * matter under the ones that do not.
+   */
+  async addStudent(klass: ClassEntity, student: RosterStudentDto): Promise<RosterEntry> {
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(EnrollmentEntity);
+      const existing = await repo.find({
+        where: { courseId: klass.courseId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const byMssv = new Map(
+        existing.map((row) => [row.studentMssv.toLowerCase(), row]),
+      );
+
+      await this.assertNoCrossClassMove(manager, klass, [student], byMssv);
+
+      const current = byMssv.get(student.mssv.toLowerCase());
+      if (current) {
+        // Already in THIS class. Updating the name rather than refusing:
+        // the caller's intent is "this student should be on the list", and
+        // they already are.
+        await repo.update(current.id, {
+          studentName: student.name,
+          homeTeacherId: klass.teacherId,
+        });
+      } else {
+        await repo.insert({
+          courseId: klass.courseId,
+          studentMssv: student.mssv,
+          studentName: student.name,
+          homeClassId: klass.id,
+          homeTeacherId: klass.teacherId,
+        });
+      }
+
+      return { mssv: student.mssv, name: student.name };
+    });
+  }
+
+  /**
+   * Removes one student from this class's list.
+   *
+   * The counterpart to adding by hand: a lecturer who typed the wrong MSSV
+   * needs an undo that is not "re-import the whole file with a tick".
+   * Scoped to the class, so a valid MSSV from a sibling class reads as
+   * not-found rather than deleting someone else's student.
+   */
+  async removeStudent(klass: ClassEntity, studentMssv: string): Promise<void> {
+    const repo = this.dataSource.getRepository(EnrollmentEntity);
+    const enrollment = await repo.findOne({
+      where: { courseId: klass.courseId, studentMssv, homeClassId: klass.id },
+    });
+    if (!enrollment) {
+      throw new NotFoundException('Sinh viên này không có trong danh sách lớp.');
+    }
+    await repo.remove(enrollment);
   }
 
   /**

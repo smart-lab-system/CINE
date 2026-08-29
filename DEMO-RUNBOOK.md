@@ -153,8 +153,16 @@ choose **Demo Teacher** as giảng viên phụ trách.
 **If not:** an empty giảng viên dropdown means no account has role
 `teacher` — create one as in step 5.
 
-**Do (roster):** on that row, click **Danh sách SV**, then pick the file
-`scripts/sample-roster.xlsx`.
+**Then log in as the LECTURER** (`demo-teacher@example.com`) and open
+**Lớp của tôi** → the class → **Danh sách SV**.
+
+The roster belongs to the lecturer, not the Trưởng khoa: they are the one
+the training office sends the file to, and the one who finds out on exam day
+that it is wrong. A head can read the list — they need their department's
+headcounts — but exactly one person writes it, so two people can never
+disagree about who maintains it.
+
+**Do (roster):** pick the file `scripts/sample-roster.xlsx`.
 **Expect:** a grid preview with real spreadsheet column letters. The file
 has a title row, then headers, so set **Số dòng tiêu đề = 2**, **Cột MSSV =
 Cột B**, **Cột họ tên = Cột C**. The review then reads
@@ -176,9 +184,15 @@ JSON (Security rule 5). Nothing is written until that last click.
    takes ticking the box — deleting an enrollment locks that student out of
    the exam, and the mistake surfaces on exam day.
 
+**Do (one student by hand):** in **Thêm thủ công một sinh viên**, type an
+MSSV and a name. For the late transfer and the correction — the cases where
+sending the whole file again would be theatre. The typed row is held to the
+same MSSV rule as a row of the file, and the row's bin icon is the undo.
+
 **If not:** "Không đọc được file" means it is not a real .xlsx (an old .xls
 or a renamed .csv). Regenerate the fixtures with
-`pnpm --filter web make:sample-roster`.
+`pnpm --filter web make:sample-roster`. A **403** on import means you are
+logged in as the Trưởng khoa — switch to the lecturer who teaches the class.
 
 ## 6. Log in through the real UI
 

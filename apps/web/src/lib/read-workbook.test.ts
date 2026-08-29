@@ -31,8 +31,18 @@ function load(name: string): File {
   });
 }
 
+/**
+ * Both cases decompress and parse a genuine .xlsx through exceljs. That is
+ * real work — normally under a second, but seconds when the machine is
+ * also running the API suite — and vitest's 5s default is not a meaningful
+ * bound for it. These tests assert what comes OUT of the parser, never how
+ * fast; an intermittent timeout here says nothing about the code and
+ * teaches everyone to re-run instead of read.
+ */
+const PARSE_TIMEOUT_MS = 30_000;
+
 describe('readWorkbook against the demo fixtures', () => {
-  it('reads the sample roster into 22 students', async () => {
+  it('reads the sample roster into 22 students', { timeout: PARSE_TIMEOUT_MS }, async () => {
     const sheets = await readWorkbook(load('sample-roster.xlsx'));
 
     expect(sheets).toHaveLength(1);
@@ -51,7 +61,7 @@ describe('readWorkbook against the demo fixtures', () => {
     expect(parsed.students.map((s) => s.mssv)).toContain('SV20120001');
   });
 
-  it('refuses the whole broken fixture and points at the row', async () => {
+  it('refuses the whole broken fixture and points at the row', { timeout: PARSE_TIMEOUT_MS }, async () => {
     const sheets = await readWorkbook(load('sample-roster-bad.xlsx'));
     const parsed = extractRoster(sheets[0].rows, MAPPING);
 
