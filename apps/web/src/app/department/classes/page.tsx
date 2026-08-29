@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { GraduationCap } from 'lucide-react';
+import Link from 'next/link';
+import { GraduationCap, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -66,6 +68,14 @@ export default function ClassesPage() {
       onAdd={openCreate}
       onEdit={openEdit}
       onDelete={setDeleting}
+      rowActions={(k) => (
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/department/classes/${k.id}/roster`}>
+            <Users className="h-4 w-4" aria-hidden="true" />
+            Danh sách SV
+          </Link>
+        </Button>
+      )}
       rows={classes.data}
       rowKey={(k) => k.id}
       isLoading={classes.isLoading}

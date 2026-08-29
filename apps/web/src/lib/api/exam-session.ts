@@ -10,7 +10,12 @@ export type ExamType = 'TK' | 'GK' | 'CK';
 // below, so a drift here is still a compile error, just not an import one.
 export interface CreateExamSessionInput {
   name: string;
-  courseId: string;
+  /**
+   * The class sitting this exam. The course is derived from it server-side:
+   * a lecturer is scoped by `class.teacher_id`, so the class is both the
+   * choice they make and the thing that can be checked against them.
+   */
+  classId: string;
   roomId: string;
   examType: ExamType;
   /** ISO 8601 (e.g. `new Date(...).toISOString()`), not a raw <input> value. */
@@ -34,6 +39,8 @@ export interface ExamSessionResponse {
   code: string;
   teacherId: string;
   courseId: string;
+  /** Null only for sessions created before a session named a class. */
+  classId: string | null;
   roomId: string;
   examType: ExamType;
   startTime: string;
@@ -50,6 +57,7 @@ export interface ExamSessionListItem {
   name: string;
   code: string;
   courseName: string;
+  className: string | null;
   roomName: string;
   examType: ExamType;
   startTime: string;

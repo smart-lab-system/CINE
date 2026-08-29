@@ -22,6 +22,7 @@ import {
   updateRoom,
   updateSemester,
 } from '@/lib/api/department';
+import { importRoster, listRoster, type RosterEntry } from '@/lib/api/roster';
 
 /**
  * TanStack wrappers for the academic resources. Pages call these, never the
@@ -163,4 +164,33 @@ export function useAssignCourseOwner() {
 
 export function useTeacherOptions() {
   return useQuery({ queryKey: ['accounts', 'teachers'], queryFn: listTeacherOptions });
+}
+
+/* ------------------------------------------------------------------- roster */
+
+/**
+ * The class list. Keyed by class id so two classes never share a cache
+ * entry — the importer computes its diff against whatever this returns, and
+ * a stale entry from another class would show the user a diff that deletes
+ * everyone.
+ */
+export function useRoster(classId: string) {
+  return useQuery({
+    queryKey: ['roster', classId],
+    queryFn: () => listRoster(classId),
+  });
+}
+
+export function useImportRoster(classId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { students: RosterEntry[]; removeMissing: boolean }) =>
+      importRoster(classId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['roster', classId] });
+      // The lecturer's class picker shows a student count per class, and an
+      // import is the only thing that changes it.
+      void queryClient.invalidateQueries({ queryKey: ['classes'] });
+    },
+  });
 }

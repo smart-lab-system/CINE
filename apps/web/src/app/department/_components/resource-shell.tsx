@@ -40,6 +40,12 @@ interface ResourceShellProps<T> {
   emptyDescription: string;
   /** Rendered under the header — dialogs, extra notices. */
   children?: ReactNode;
+  /**
+   * Extra per-row controls, placed before edit and delete. Used where a row
+   * leads somewhere rather than just being edited in place — a class opens
+   * onto its roster.
+   */
+  rowActions?: (row: T) => ReactNode;
 }
 
 /**
@@ -68,6 +74,7 @@ export function ResourceShell<T>({
   emptyTitle,
   emptyDescription,
   children,
+  rowActions,
 }: ResourceShellProps<T>) {
   return (
     <div className="flex flex-col gap-6">
@@ -135,6 +142,7 @@ export function ResourceShell<T>({
                         </TableCell>
                       ))}
                       <TableCell className="whitespace-nowrap text-right">
+                        {rowActions?.(row)}
                         <Button
                           variant="ghost"
                           size="sm"

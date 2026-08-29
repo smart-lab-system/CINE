@@ -335,6 +335,22 @@ export interface paths {
         patch: operations["ClassController_update"];
         trace?: never;
     };
+    "/classes/{id}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ClassController_findRoster"];
+        put?: never;
+        post: operations["ClassController_importRoster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{examSessionId}/submissions": {
         parameters: {
             query?: never;
@@ -406,7 +422,7 @@ export interface components {
         };
         CreateExamSessionDto: {
             name: string;
-            courseId: string;
+            classId: string;
             roomId: string;
             /** @enum {string} */
             examType: "TK" | "GK" | "CK";
@@ -425,6 +441,7 @@ export interface components {
             code: string;
             teacherId: string;
             courseId: string;
+            classId: string | null;
             roomId: string;
             examType: Record<string, never>;
             /** Format: date-time */
@@ -511,6 +528,14 @@ export interface components {
         UpdateClassDto: {
             name?: string;
             teacherId?: string;
+        };
+        RosterStudentDto: {
+            mssv: string;
+            name: string;
+        };
+        ImportRosterDto: {
+            students: components["schemas"]["RosterStudentDto"][];
+            removeMissing?: boolean;
         };
         RoomEntity: {
             name: string;
@@ -1067,7 +1092,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClassEntity"][];
+                    "application/json": Record<string, never>[];
                 };
             };
         };
@@ -1135,6 +1160,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClassEntity"];
+                };
+            };
+        };
+    };
+    ClassController_findRoster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    ClassController_importRoster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRosterDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };

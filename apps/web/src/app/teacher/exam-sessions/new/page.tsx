@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import { ArrowLeft, CircleAlert, CircleCheckBig, Copy, TriangleAlert } from 'lucide-react';
 import { useCreateExamSession } from '@/hooks/useExamSession';
-import { useCourses } from '@/hooks/useCourses';
+import { useTeachingClasses } from '@/hooks/useTeaching';
 import { useRooms } from '@/hooks/useRooms';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,7 @@ const createExamSessionSchema = z
       .trim()
       .min(1, 'Vui lòng nhập tên phiên thi')
       .max(200, 'Tên phiên thi tối đa 200 ký tự'),
-    courseId: z.string().uuid('Vui lòng chọn môn thi'),
+    classId: z.string().uuid('Vui lòng chọn lớp thi'),
     roomId: z.string().uuid('Vui lòng chọn phòng thi'),
     examType: z.enum(EXAM_TYPES, { message: 'Vui lòng chọn loại kỳ thi' }),
     // Bound to <input type="datetime-local">, so this is the browser's
@@ -113,9 +113,9 @@ export type CreateExamSessionFormValues = z.infer<typeof createExamSessionSchema
 
 const EMPTY_FORM: CreateExamSessionFormValues = {
   name: '',
-  courseId: '',
+  classId: '',
   roomId: '',
-  // Empty-string sentinel for "not yet chosen" (same as courseId/roomId
+  // Empty-string sentinel for "not yet chosen" (same as classId/roomId
   // above), even though it's outside the Zod enum's real output type — the
   // resolver still rejects submit until the user consciously picks one;
   // this cast only tells RHF what shape the default *starts* as.
@@ -142,7 +142,7 @@ async function copySessionCode(code: string) {
 // GET /rooms existed.
 export default function NewExamSessionPage() {
   const createExamSession = useCreateExamSession();
-  const courses = useCourses();
+  const classes = useTeachingClasses();
   const rooms = useRooms();
   const [created, setCreated] = useState<{ id: string; code: string } | null>(null);
 
@@ -151,24 +151,31 @@ export default function NewExamSessionPage() {
     defaultValues: EMPTY_FORM,
   });
 
-  const selectedCourse = courses.data?.find((c) => c.id === form.watch('courseId'));
+  const selectedClass = classes.data?.find((c) => c.id === form.watch('classId'));
   const selectedRoom = rooms.data?.find((r) => r.id === form.watch('roomId'));
   // Non-blocking on purpose (see RoomEntity.capacity's own comment) —
-  // teachers may have valid reasons for a mismatch (partial class
-  // attendance, overflow handled elsewhere).
+  // teachers may have valid reasons for a mismatch (partial attendance,
+  // overflow handled elsewhere). Counted against the CLASS now, not the
+  // course: a course's enrollment spans every class in it, so comparing it
+  // to one lab's machine count was warning about nothing real.
   const capacityWarning =
-    selectedCourse &&
+    selectedClass &&
     selectedRoom &&
     selectedRoom.capacity !== null &&
-    selectedRoom.capacity < selectedCourse.enrollmentCount
-      ? `Phòng "${selectedRoom.name}" có sức chứa ${selectedRoom.capacity} máy nhưng lớp "${selectedCourse.name}" có ${selectedCourse.enrollmentCount} sinh viên.`
+    selectedRoom.capacity < selectedClass.studentCount
+      ? `Phòng "${selectedRoom.name}" có ${selectedRoom.capacity} máy nhưng lớp "${selectedClass.name}" có ${selectedClass.studentCount} sinh viên.`
       : null;
+
+  // Not an error: a session can be created and run without a roster. But
+  // nobody will get in — agent:join requires an enrollment — and finding
+  // that out at the start of the exam is the failure this warning prevents.
+  const noRoster = selectedClass?.studentCount === 0;
 
   function onSubmit(values: CreateExamSessionFormValues) {
     createExamSession.mutate(
       {
         name: values.name,
-        courseId: values.courseId,
+        classId: values.classId,
         roomId: values.roomId,
         examType: values.examType,
         startTime: new Date(values.startTime).toISOString(),
@@ -271,49 +278,51 @@ export default function NewExamSessionPage() {
                 />
               </FormField>
 
+              {/* The lecturer picks a CLASS, not a course. The course
+                  follows from it server-side, and this list only ever holds
+                  classes they were assigned — a class is what they actually
+                  teach, and what the roster and the headcount hang off. */}
               <FormField
-                id="exam-session-course"
-                label="Môn thi"
+                id="exam-session-class"
+                label="Lớp thi"
                 error={
-                  courses.isError
-                    ? undefined
-                    : form.formState.errors.courseId?.message
+                  classes.isError ? undefined : form.formState.errors.classId?.message
                 }
               >
                 <Controller
                   control={form.control}
-                  name="courseId"
+                  name="classId"
                   render={({ field }) => (
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
-                      disabled={courses.isLoading || courses.isError}
+                      disabled={classes.isLoading || classes.isError}
                     >
-                      <SelectTrigger id="exam-session-course">
+                      <SelectTrigger id="exam-session-class">
                         <SelectValue
-                          placeholder={courses.isLoading ? 'Đang tải…' : 'Chọn môn thi'}
+                          placeholder={classes.isLoading ? 'Đang tải…' : 'Chọn lớp thi'}
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {courses.data?.map((course) => (
-                          <SelectItem key={course.id} value={course.id}>
-                            {course.code} — {course.name}
+                        {classes.data?.map((klass) => (
+                          <SelectItem key={klass.id} value={klass.id}>
+                            {klass.courseCode} — {klass.name} ({klass.studentCount} SV)
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   )}
                 />
-                {courses.isError && (
+                {classes.isError && (
                   <p
                     role="alert"
                     className="flex items-center gap-1.5 text-small font-medium text-danger-strong"
                   >
                     <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    Không tải được danh sách môn thi.
+                    Không tải được danh sách lớp.
                     <button
                       type="button"
-                      onClick={() => courses.refetch()}
+                      onClick={() => classes.refetch()}
                       className="rounded-sm underline underline-offset-2 hover:no-underline"
                     >
                       Thử lại
@@ -321,6 +330,26 @@ export default function NewExamSessionPage() {
                   </p>
                 )}
               </FormField>
+
+              {!classes.isLoading && !classes.isError && classes.data?.length === 0 && (
+                <Alert variant="info">
+                  <AlertDescription>
+                    Bạn chưa được giao lớp nào. Trưởng khoa là người tạo lớp và phân công
+                    giảng viên — hãy liên hệ trước khi tạo phiên thi.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {noRoster && (
+                <Alert variant="warning">
+                  <TriangleAlert />
+                  <AlertDescription>
+                    Lớp {selectedClass?.name} chưa có danh sách sinh viên. Bạn vẫn tạo được
+                    phiên thi, nhưng chưa nhập danh sách thì không sinh viên nào vào được —
+                    hãy nhờ Trưởng khoa nhập danh sách lớp trước.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <FormField
                 id="exam-session-room"
