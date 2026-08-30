@@ -113,7 +113,7 @@ export function AppShell({ role, children }: AppShellProps) {
           </header>
 
           <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
-            <PageTransition className="mx-auto w-full max-w-6xl">{children}</PageTransition>
+            <PageTransition className="w-full">{children}</PageTransition>
           </main>
         </div>
       </div>
