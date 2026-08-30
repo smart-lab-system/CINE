@@ -5,6 +5,7 @@ import { StorageModule } from '../storage/storage.module';
 import { SubmissionEntity } from './entities/submission.entity';
 import { SubmissionService } from './submission.service';
 import { SubmissionGateway } from './submission.gateway';
+import { BackupGateway } from './backup.gateway';
 import { SubmissionController } from './submission.controller';
 
 /**
@@ -20,7 +21,7 @@ import { SubmissionController } from './submission.controller';
     StorageModule,
   ],
   controllers: [SubmissionController],
-  providers: [SubmissionService, SubmissionGateway],
+  providers: [SubmissionService, SubmissionGateway, BackupGateway],
   exports: [SubmissionService],
 })
 export class SubmissionModule {}

@@ -16,6 +16,9 @@ import {
   ExamSessionListItemDto,
   RequiredDeliverableResponseDto,
 } from './dto/exam-session-response.dto';
+import { ClassService } from '../course/class.service';
+import { AttendanceService } from '../agent-connection/attendance.service';
+import { AttendanceView } from '../agent-connection/attendance.types';
 import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 import {
   DEFAULT_DELIVERABLE_TYPE,
@@ -38,6 +41,8 @@ export class ExamSessionService {
     @InjectRepository(RequiredDeliverableEntity)
     private readonly deliverables: Repository<RequiredDeliverableEntity>,
     private readonly events: ExamSessionEvents,
+    private readonly classes: ClassService,
+    private readonly attendance: AttendanceService,
   ) {}
 
   /**
@@ -52,6 +57,12 @@ export class ExamSessionService {
     teacherId: string,
     dto: CreateExamSessionDto,
   ): Promise<ExamSessionResponseDto> {
+    // Before any code is generated: 404 for a class that does not exist, 403
+    // for a colleague's. `class.teacher_id` is the whole of a lecturer's
+    // scope, and this is the only thing standing between them and running an
+    // exam for someone else's class.
+    const klass = await this.classes.findTaughtBy(dto.classId, teacherId);
+
     for (let attempt = 1; attempt <= EXAM_SESSION_CODE_MAX_ATTEMPTS; attempt++) {
       const code = this.generateCode();
 
@@ -62,7 +73,11 @@ export class ExamSessionService {
               name: dto.name,
               code,
               teacherId,
-              courseId: dto.courseId,
+              classId: klass.id,
+              // Derived, never taken from the body — a session whose course did
+              // not match its class would make every enrollment check after
+              // it ask about the wrong course.
+              courseId: klass.courseId,
               roomId: dto.roomId,
               examType: dto.examType,
               startTime: new Date(dto.startTime),
@@ -111,7 +126,10 @@ export class ExamSessionService {
    * always stored (see EXAM_SESSION_CODE_ALPHABET).
    */
   async findByCode(code: string): Promise<ExamSessionEntity | null> {
-    return this.sessions.findOne({ where: { code } });
+    // The room comes with it: a filename pattern may contain {PHONG}, and
+    // fetching the room separately on every join would be a second query
+    // for a value the same row already points at.
+    return this.sessions.findOne({ where: { code }, relations: { room: true } });
   }
 
   /**
@@ -161,14 +179,7 @@ export class ExamSessionService {
     id: string,
     teacherId: string,
   ): Promise<ExamSessionResponseDto> {
-    const session = await this.sessions.findOne({ where: { id } });
-    if (!session) {
-      throw new NotFoundException('Exam session not found');
-    }
-    if (session.teacherId !== teacherId) {
-      throw new ForbiddenException('You do not own this exam session');
-    }
-
+    const session = await this.findOwnedBy(id, teacherId);
     const deliverables = await this.listRequiredDeliverables(session.id);
     return this.toResponseDto(session, deliverables);
   }
@@ -185,6 +196,7 @@ export class ExamSessionService {
     const [rows, total] = await this.sessions
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.course', 'course')
+      .leftJoinAndSelect('s.class', 'class')
       .leftJoinAndSelect('s.room', 'room')
       .where('s.teacherId = :teacherId', { teacherId })
       .orderBy('s.startTime', 'DESC')
@@ -198,6 +210,9 @@ export class ExamSessionService {
       item.name = session.name;
       item.code = session.code;
       item.courseName = session.course.name;
+      // Null for sessions that predate class_id — the list says so rather
+      // than inventing a class they never had.
+      item.className = session.class?.name ?? null;
       item.roomName = session.room.name;
       item.examType = session.examType;
       item.startTime = session.startTime;
@@ -289,6 +304,70 @@ export class ExamSessionService {
     return this.findByIdForOwner(id, teacherId);
   }
 
+  /**
+   * Who is in the room, for the session's owner. 404/403 first, through the
+   * same ownership check every other read uses.
+   */
+  async findAttendanceForOwner(id: string, teacherId: string): Promise<AttendanceView> {
+    const session = await this.findOwnedBy(id, teacherId);
+    return this.attendance.buildView(session);
+  }
+
+  /**
+   * Records the headcount: how many students were in the room, and when.
+   *
+   * It does NOT close the session — a crashed machine must be able to
+   * rejoin, and refusing that harms a real student to protect a number.
+   * Joins afterwards are marked and visible instead.
+   *
+   * Recounting mid-exam is allowed on purpose: an invigilator who finds two
+   * more students should be able to say so. Recounting after finalize is
+   * not, because that number is what the discrepancy check measures
+   * against, and moving it afterwards rewrites the answer rather than
+   * recording it. The event log is append-only either way, so the evidence
+   * survives regardless of the baseline.
+   */
+  async confirmAttendanceForOwner(
+    id: string,
+    teacherId: string,
+  ): Promise<{ confirmedAt: string; confirmedCount: number }> {
+    const session = await this.findOwnedBy(id, teacherId);
+    if (session.status === 'completed') {
+      throw new ConflictException(
+        'Phiên thi đã kết thúc — không thể chốt lại sĩ số sau khi đã chốt bài.',
+      );
+    }
+
+    const confirmedCount = await this.attendance.countPresent(session.id);
+    const confirmedAt = new Date();
+    await this.sessions.update(session.id, {
+      attendanceConfirmedAt: confirmedAt,
+      attendanceConfirmedCount: confirmedCount,
+    });
+
+    return { confirmedAt: confirmedAt.toISOString(), confirmedCount };
+  }
+
+  /**
+   * The ownership rule, in one place. findByIdForOwner returns the response
+   * DTO; the attendance paths need the entity itself, and re-deriving 404
+   * then 403 a second time is how the two drift apart.
+   */
+  async findEntityForOwner(id: string, teacherId: string): Promise<ExamSessionEntity> {
+    return this.findOwnedBy(id, teacherId);
+  }
+
+  private async findOwnedBy(id: string, teacherId: string): Promise<ExamSessionEntity> {
+    const session = await this.sessions.findOne({ where: { id } });
+    if (!session) {
+      throw new NotFoundException('Exam session not found');
+    }
+    if (session.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not own this exam session');
+    }
+    return session;
+  }
+
   private generateCode(): string {
     let code = '';
     for (let i = 0; i < EXAM_SESSION_CODE_LENGTH; i++) {
@@ -324,6 +403,7 @@ export class ExamSessionService {
     dto.code = session.code;
     dto.teacherId = session.teacherId;
     dto.courseId = session.courseId;
+    dto.classId = session.classId;
     dto.roomId = session.roomId;
     dto.examType = session.examType;
     dto.startTime = session.startTime;

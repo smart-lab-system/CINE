@@ -1,5 +1,7 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import {
+  DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -7,6 +9,10 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
+  BACKUP_KEY_PREFIX,
+  BACKUP_OBJECT_NAME,
+  MATERIAL_KEY_PREFIX,
+  DOWNLOAD_URL_TTL_SECONDS,
   SAFE_KEY_SEGMENT_REGEX,
   SUBMISSION_KEY_PREFIX,
   UPLOAD_URL_TTL_SECONDS,
@@ -17,9 +23,11 @@ import {
  * in the codebase touches the SDK.
  *
  * CLAUDE.md Security rule 5: submission files NEVER pass through this
- * server. The only two things it does are mint a scoped, expiring PUT URL
- * and, afterwards, ask storage whether the object actually landed. There
- * is deliberately no upload/download method here to reach for later.
+ * server. Everything here mints a scoped, expiring URL or asks storage a
+ * yes/no question about an object — no method reads or writes bytes, and
+ * none should ever be added. `generateDownloadUrl` is not an exception to
+ * that rule: the signature lets the AGENT fetch the object directly, which
+ * is the rule being obeyed rather than bent.
  */
 @Injectable()
 export class StorageService {
@@ -70,6 +78,115 @@ export class StorageService {
       }
     }
     return [SUBMISSION_KEY_PREFIX, ...segments].join('/');
+  }
+
+  /**
+   * Where one exam material lives.
+   *
+   * Keyed by the material's id, never by the filename the teacher typed:
+   * two materials may share a name, and a key built from user input is a
+   * key that can be steered.
+   */
+  buildMaterialKey(examSessionId: string, examMaterialId: string): string {
+    const segments = [examSessionId, examMaterialId];
+    for (const segment of segments) {
+      if (!segment || !SAFE_KEY_SEGMENT_REGEX.test(segment)) {
+        throw new InternalServerErrorException(
+          `Refusing to build a storage key from an unsafe segment: ${JSON.stringify(segment)}`,
+        );
+      }
+    }
+    return [MATERIAL_KEY_PREFIX, ...segments].join('/');
+  }
+
+  /**
+   * Reads an object's bytes into memory.
+   *
+   * This is NOT a hole in Security rule 5. That rule is about UPLOADS: a
+   * file must never travel through this process on its way in, because an
+   * exam's worth of concurrent uploads would make the API the bottleneck,
+   * and there is a presigned URL for exactly that. Grading is the opposite
+   * shape — the server has to read the words to grade them, one submission
+   * at a time, after the exam is over. There is no version of that which
+   * does not read the file.
+   *
+   * When grading moves to a worker, this call moves with it and the API
+   * process stops reading submissions again.
+   */
+  async getObject(key: string): Promise<Buffer> {
+    const response = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    const body = response.Body;
+    if (!body) {
+      throw new InternalServerErrorException(`Object ${key} has no body`);
+    }
+    return Buffer.from(await body.transformToByteArray());
+  }
+
+  /**
+   * Removes one object. Used when a teacher deletes a material they
+   * uploaded by mistake — dropping only the row would leave the file in
+   * storage forever, still readable by anyone holding an old signed URL.
+   *
+   * A missing object is success, not an error: the caller's intent is "this
+   * should not exist", and it already does not.
+   */
+  async deleteObject(key: string): Promise<void> {
+    try {
+      await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+    } catch (error) {
+      if (isNotFound(error)) {
+        return;
+      }
+      this.logger.error(
+        `DeleteObject failed for key ${key}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Where a student's periodic snapshot lives. Same segment validation as
+   * a submission key, and for the same reason: a caller must not be able to
+   * build a key that walks out of its own prefix.
+   */
+  buildBackupKey(examSessionId: string, studentMssv: string): string {
+    const segments = [examSessionId, studentMssv];
+    for (const segment of segments) {
+      if (!segment || !SAFE_KEY_SEGMENT_REGEX.test(segment)) {
+        throw new InternalServerErrorException(
+          `Refusing to build a storage key from an unsafe segment: ${JSON.stringify(segment)}`,
+        );
+      }
+    }
+    return [BACKUP_KEY_PREFIX, ...segments, BACKUP_OBJECT_NAME].join('/');
+  }
+
+  /**
+   * Presigned GET for exactly this key — used to hand a student's own
+   * snapshot back to them after their machine was wiped.
+   *
+   * Reading through this server instead would mean an exam's worth of
+   * archives streaming through the API process, which is the bottleneck
+   * Security rule 5 exists to prevent. The signature covers the key, so the
+   * URL cannot be pointed at anyone else's backup.
+   */
+  async generateDownloadUrl(
+    key: string,
+    expiresInSeconds: number = DOWNLOAD_URL_TTL_SECONDS,
+  ): Promise<{ downloadUrl: string; expiresIn: number }> {
+    const expiresIn = Math.min(
+      Math.max(1, Math.floor(expiresInSeconds)),
+      DOWNLOAD_URL_TTL_SECONDS,
+    );
+    const downloadUrl = await getSignedUrl(
+      this.client,
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      { expiresIn },
+    );
+    return { downloadUrl, expiresIn };
   }
 
   /**

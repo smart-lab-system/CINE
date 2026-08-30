@@ -301,9 +301,12 @@ export class SubmissionService {
           examSessionId: identity.examSessionId,
           requiredDeliverableId: dto.requiredDeliverableId,
           studentMssv: identity.studentId,
-          // home_class_id / home_teacher_id stay NULL — "not yet routed".
-          // Resolving them needs Enrollment, which does not exist yet; see
-          // MakeSubmissionHomeRoutingNullable.
+          // Routed from the Enrollment that agent:join resolved, carried on
+          // the socket identity. These were NULL for the whole submission
+          // module because nothing could answer them; now nothing can be
+          // collected without an enrollment, so they always can be.
+          homeClassId: identity.homeClassId,
+          homeTeacherId: identity.homeTeacherId,
           submittedVia: 'normal',
           status: 'received',
           ...fileFields,

@@ -2,6 +2,7 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { CourseEntity } from '../../course/entities/course.entity';
+import { ClassEntity } from '../../course/entities/class.entity';
 import { RoomEntity } from '../../room/entities/room.entity';
 import { RubricEntity } from '../../grading/entities/rubric.entity';
 
@@ -57,6 +58,24 @@ export class ExamSessionEntity extends BaseEntity {
   @JoinColumn({ name: 'course_id' })
   course!: CourseEntity;
 
+  // WHICH CLASS WAS EXPECTED — never who is allowed in. Authentication
+  // stays at course level via Enrollment (Security rule 1), which is what
+  // makes a make-up exam work: a student enrolled in the course may sit
+  // this session even though their home class is a different one. This
+  // column only answers 'who should have been here', so the lobby can tell
+  // an expected student from a make-up one and count 45 against 46.
+  //
+  // Nullable for the sessions created before this column existed: they
+  // have no expected roster, and the lobby degrades to what it showed
+  // then — connected students, no headcount. Every session created through
+  // the form carries one.
+  @Column({ name: 'class_id', type: 'uuid', nullable: true })
+  classId!: string | null;
+
+  @ManyToOne(() => ClassEntity, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'class_id' })
+  class!: ClassEntity | null;
+
   // Which physical computer lab this session happens in — pure logistics
   // metadata, NEVER part of the join/auth path (see RoomEntity's comment).
   // Required + RESTRICT is a PROVISIONAL constraint scoped to this
@@ -102,6 +121,25 @@ export class ExamSessionEntity extends BaseEntity {
     default: 'draft',
   })
   status!: ExamSessionStatus;
+
+  /**
+   * The headcount an invigilator took before the exam, and when.
+   *
+   * An OBSERVATION, not a lock. Confirming does not close the session to
+   * new joins: a crashed machine must be able to rejoin, and refusing that
+   * harms a real student to protect a number. Joins after this timestamp are
+   * marked and visible, never blocked.
+   *
+   * WHICH students were present is not stored — it is derived from
+   * agent_connection_event (latest event per MSSV before this timestamp), so
+   * the same fact never lives in two places and cannot disagree with itself.
+   * Without the count, "45 present, 46 submissions" is not detectable at all.
+   */
+  @Column({ name: 'attendance_confirmed_at', type: 'timestamptz', nullable: true })
+  attendanceConfirmedAt!: Date | null;
+
+  @Column({ name: 'attendance_confirmed_count', type: 'int', nullable: true })
+  attendanceConfirmedCount!: number | null;
 
   @Column({ name: 'rubric_id', type: 'uuid', nullable: true })
   rubricId!: string | null;

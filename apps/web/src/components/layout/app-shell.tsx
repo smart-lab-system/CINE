@@ -12,10 +12,10 @@ import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { UserChip } from '@/components/layout/user-chip';
 import { PageTransition } from '@/components/motion/page-transition';
 import { useCurrentAccount } from '@/hooks/useCurrentAccount';
-import { ADMIN_NAV, TEACHER_NAV } from '@/lib/nav-config';
+import { ADMIN_NAV, DEPARTMENT_NAV, TEACHER_NAV } from '@/lib/nav-config';
 
 interface AppShellProps {
-  role: 'admin' | 'teacher';
+  role: 'admin' | 'department' | 'teacher';
   children: ReactNode;
 }
 
@@ -34,9 +34,14 @@ interface AppShellProps {
  * passed directly to Client Components").
  */
 export function AppShell({ role, children }: AppShellProps) {
-  const nav = role === 'admin' ? ADMIN_NAV : TEACHER_NAV;
-  const homeHref = role === 'admin' ? '/admin/dashboard' : '/teacher/dashboard';
-  const navLabel = role === 'admin' ? 'Quản trị' : 'Giảng dạy';
+  // One lookup per area rather than nested ternaries — a fourth area is a
+  // row here, not another branch to get wrong.
+  const AREA = {
+    admin: { nav: ADMIN_NAV, home: '/admin/dashboard', label: 'Quản trị' },
+    department: { nav: DEPARTMENT_NAV, home: '/department/dashboard', label: 'Khoa' },
+    teacher: { nav: TEACHER_NAV, home: '/teacher/dashboard', label: 'Giảng dạy' },
+  } as const;
+  const { nav, home: homeHref, label: navLabel } = AREA[role];
   // Lazily-constructed, one per browser session — never at module scope.
   // This file is a Client Component but Next still renders it on the
   // server, where a module-scope instance would be a single cache shared

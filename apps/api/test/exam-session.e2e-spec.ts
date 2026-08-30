@@ -18,7 +18,11 @@ describe('ExamSession (e2e)', () => {
   let ownerToken: string;
   let otherToken: string;
   let adminToken: string;
+  let ownerId: string;
+  let otherId: string;
   let courseId: string;
+  let classId: string;
+  let foreignClassId: string;
   let roomId: string;
 
   function futureWindow() {
@@ -43,7 +47,7 @@ describe('ExamSession (e2e)', () => {
     dataSource = app.get(DataSource);
 
     const ownerEmail = `exam_session_owner_${Date.now()}@example.com`;
-    await createTestAccount(dataSource, {
+    ownerId = await createTestAccount(dataSource, {
       email: ownerEmail,
       password: 'correct-horse-battery',
       role: 'teacher',
@@ -54,7 +58,7 @@ describe('ExamSession (e2e)', () => {
     ownerToken = ownerLogin.body.accessToken;
 
     const otherEmail = `exam_session_other_${Date.now()}@example.com`;
-    await createTestAccount(dataSource, {
+    otherId = await createTestAccount(dataSource, {
       email: otherEmail,
       password: 'correct-horse-battery',
       role: 'teacher',
@@ -78,9 +82,9 @@ describe('ExamSession (e2e)', () => {
       .send({ email: adminEmail, password: 'correct-horse-battery' });
     adminToken = adminLogin.body.accessToken;
 
-    // courseId/roomId/examType are required on CreateExamSessionDto as of
-    // the frontend rebuild's Phase 2 — every POST /exam-sessions below
-    // needs a real course + room to reference.
+    // A session is created for a CLASS as of Phase 3; its course is derived
+    // server-side. Every POST /exam-sessions below therefore needs a real
+    // class the owner teaches, plus a room.
     const [semester] = await dataSource.query(
       `INSERT INTO examcollect.semester (name, start_date, end_date)
        VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
@@ -94,9 +98,26 @@ describe('ExamSession (e2e)', () => {
     courseId = course.id;
     const [room] = await dataSource.query(
       `INSERT INTO examcollect.room (name, capacity)
-       VALUES ('Exam Session Test Room', 30) RETURNING id`,
+       VALUES ($1, 30) RETURNING id`,
+      [`Exam Session Test Room ${Date.now()}`],
     );
     roomId = room.id;
+
+    const [klass] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseId, `Nhóm của tôi ${Date.now()}`, ownerId],
+    );
+    classId = klass.id;
+
+    // A class of the SAME course taught by someone else — the scope check
+    // has to be about who teaches the class, not about the course existing.
+    const [foreign] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseId, `Nhóm của người khác ${Date.now()}`, otherId],
+    );
+    foreignClassId = foreign.id;
   });
 
   afterAll(async () => {
@@ -111,7 +132,7 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Happy Path Session',
-        courseId,
+        classId,
         roomId,
         examType: 'TK',
         startTime,
@@ -132,7 +153,7 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Happy Path Session 2',
-        courseId,
+        classId,
         roomId,
         examType: 'TK',
         startTime,
@@ -143,6 +164,97 @@ describe('ExamSession (e2e)', () => {
     expect(second.body.code).not.toBe(response.body.code);
   });
 
+  it('derives the course from the class instead of taking it from the body', async () => {
+    const { startTime, endTime } = futureWindow();
+
+    const response = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Derived Course Session',
+        classId,
+        // Sent and ignored: a lecturer picks the class they teach, and the
+        // course follows from it. Accepting a course from the body would let
+        // a session name a course its class does not belong to, and every
+        // enrollment check afterwards would be asking about the wrong one.
+        courseId: '00000000-0000-4000-8000-000000000000',
+        roomId,
+        examType: 'TK',
+        startTime,
+        endTime,
+        requiredFilenames: ['Cau1.docx'],
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.classId).toBe(classId);
+    expect(response.body.courseId).toBe(courseId);
+  });
+
+  it('refuses a class the lecturer does not teach', async () => {
+    const { startTime, endTime } = futureWindow();
+
+    const response = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Foreign Class Session',
+        classId: foreignClassId,
+        roomId,
+        examType: 'TK',
+        startTime,
+        endTime,
+        requiredFilenames: ['Cau1.docx'],
+      });
+
+    // Same course, different lecturer. class.teacher_id is what scopes a
+    // lecturer, so this is the only thing standing between them and running
+    // an exam for a colleague's class.
+    expect(response.status).toBe(403);
+  });
+
+  it('returns 404 for a class that does not exist', async () => {
+    const { startTime, endTime } = futureWindow();
+
+    const response = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Missing Class Session',
+        classId: '00000000-0000-4000-8000-000000000000',
+        roomId,
+        examType: 'TK',
+        startTime,
+        endTime,
+        requiredFilenames: ['Cau1.docx'],
+      });
+
+    expect(response.status).toBe(404);
+  });
+
+  it('lists only the classes this lecturer teaches, with their roster size', async () => {
+    const student = `T${Date.now().toString(36)}`.slice(0, 20);
+    await dataSource.query(
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [student, 'Sinh viên đếm được', courseId, classId, ownerId],
+    );
+
+    const response = await request(app.getHttpServer())
+      .get('/classes/teaching')
+      .set('Authorization', `Bearer ${ownerToken}`);
+
+    expect(response.status).toBe(200);
+    const mine = response.body.find((c: { id: string }) => c.id === classId);
+    expect(mine).toMatchObject({ courseId, studentCount: 1 });
+    expect(mine.courseCode).toBeDefined();
+    // The create-session form is built from this list, so a class the caller
+    // does not teach appearing here would put it one click from an exam.
+    expect(response.body.map((c: { id: string }) => c.id)).not.toContain(
+      foreignClassId,
+    );
+  });
+
   it('rejects an unsafe (path-traversal-adjacent) required filename with 400', async () => {
     const { startTime, endTime } = futureWindow();
 
@@ -151,7 +263,7 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Unsafe Filename Session',
-        courseId,
+        classId,
         roomId,
         examType: 'TK',
         startTime,
@@ -177,7 +289,7 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Duplicate Filename Session',
-        courseId,
+        classId,
         roomId,
         examType: 'TK',
         startTime,
@@ -214,7 +326,7 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Ownership Check Session',
-        courseId,
+        classId,
         roomId,
         examType: 'TK',
         startTime,
@@ -251,7 +363,7 @@ describe('ExamSession (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: sessionName,
-        courseId,
+        classId,
         roomId,
         examType: 'TK',
         startTime,
@@ -289,7 +401,7 @@ describe('ExamSession (e2e)', () => {
         .set('Authorization', `Bearer ${ownerToken}`)
         .send({
           name: `${name} ${Date.now()}`,
-          courseId,
+          classId,
           roomId,
           examType: 'TK',
           startTime,

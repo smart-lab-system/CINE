@@ -24,10 +24,15 @@ const DELIVERABLE_ID = '22222222-2222-4222-8222-222222222222';
 const MSSV = 'SV20120001';
 const EXPECTED_KEY = `submissions/${SESSION_ID}/${MSSV}/${DELIVERABLE_ID}`;
 
+const HOME_CLASS_ID = '44444444-4444-4444-8444-444444444444';
+const HOME_TEACHER_ID = '55555555-5555-4555-8555-555555555555';
+
 const identity: AgentSocketIdentity = {
   examSessionId: SESSION_ID,
   studentId: MSSV,
   fullName: 'Nguyen Van A',
+  homeClassId: HOME_CLASS_ID,
+  homeTeacherId: HOME_TEACHER_ID,
 };
 
 const confirmDto = {

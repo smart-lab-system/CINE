@@ -24,6 +24,20 @@ import { SearchAccountsDto } from './dto/search-accounts.dto';
 export class AccountsController {
   constructor(private readonly accounts: AccountsService) {}
 
+  /**
+   * Overrides the class-level @Roles('admin') for this route only: a Trưởng
+   * khoa must name a lecturer when creating a class. It returns id and name
+   * and nothing else, so widening the audience does not widen what leaks.
+   *
+   * Declared before any ':id' route so the literal segment cannot be parsed
+   * as a uuid param.
+   */
+  @Get('teachers')
+  @Roles('admin', 'department_admin')
+  listTeacherOptions() {
+    return this.accounts.listTeacherOptions();
+  }
+
   @Post()
   create(@Body() dto: CreateAccountDto) {
     return this.accounts.create(dto);

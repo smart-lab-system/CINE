@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ClipboardCheck } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import {
+  useAttendance,
+  useConfirmAttendance,
   useExamSessionDetail,
   useFinalizeExamSession,
   useSubmissions,
@@ -13,7 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
-import { LobbyList, type LobbyStudent } from './_components/LobbyList';
+import { AttendancePanel } from './_components/AttendancePanel';
+import { ExamMaterialsCard } from './_components/ExamMaterialsCard';
 import {
   SubmissionStatusTable,
   type DeliverableState,
@@ -35,16 +38,13 @@ function formatDateTime(iso: string): string {
 // (apps/api/src/exam-session/exam-session.gateway.ts and
 // apps/api/src/submission/submission.gateway.ts). Kept local to this page
 // rather than in `lib/socket.ts` — this page is the only consumer.
-interface LobbyStudentJoinedPayload {
-  studentId: string;
-  fullName: string;
-  joinedAt: string;
-}
-
-interface AgentDisconnectedPayload {
-  studentId: string;
-  disconnectedAt: string;
-}
+/**
+ * Both of these now only say "the room changed" — the room itself is read
+ * back from the attendance log, which is the only copy that survives a
+ * refresh. Their fields are still part of the wire contract; this page
+ * simply no longer keeps its own tally from them.
+ */
+type RoomChangedPayload = unknown;
 
 interface LobbySubmissionStatusPayload {
   studentId: string;
@@ -113,10 +113,35 @@ export default function ExamSessionLobbyPage() {
   const submissions = useSubmissions(examSessionId);
   const finalize = useFinalizeExamSession(examSessionId);
 
-  const [students, setStudents] = useState<LobbyStudent[]>([]);
+  const attendance = useAttendance(examSessionId);
+  const confirmAttendance = useConfirmAttendance(examSessionId);
+  const refetchAttendance = attendance.refetch;
+
   const [liveSubmissions, setLiveSubmissions] = useState<LiveSubmissionMap>({});
   const [subscribeError, setSubscribeError] = useState<TeacherSubscribeErrorPayload | null>(
     null,
+  );
+
+  /**
+   * A room of forty agents joins in a burst, and each join is one event. A
+   * refetch per event would be forty requests for one answer, so they
+   * collapse into one trailing read.
+   */
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleAttendanceRefetch = useCallback(() => {
+    if (refetchTimer.current) {
+      clearTimeout(refetchTimer.current);
+    }
+    refetchTimer.current = setTimeout(() => void refetchAttendance(), 600);
+  }, [refetchAttendance]);
+
+  useEffect(
+    () => () => {
+      if (refetchTimer.current) {
+        clearTimeout(refetchTimer.current);
+      }
+    },
+    [],
   );
 
   useEffect(() => {
@@ -129,7 +154,6 @@ export default function ExamSessionLobbyPage() {
     // showing the previous error forever (subscribing successfully never
     // emits any "ok" event to clear it).
     setSubscribeError(null);
-    setStudents([]);
     setLiveSubmissions({});
 
     // `teacher:subscribe` only joins a socket.io room — there is no
@@ -143,37 +167,12 @@ export default function ExamSessionLobbyPage() {
       socket.emit('teacher:subscribe', { examSessionId });
     }
 
-    // Upsert by studentId rather than always appending: if the same agent
-    // disconnects and reconnects (a fresh `agent:join`), the server
-    // broadcasts `lobby:student_joined` again — that should flip the
-    // existing row back to "connected" with the new joinedAt, not create a
-    // second row for the same student.
-    function handleStudentJoined(payload: LobbyStudentJoinedPayload) {
-      setStudents((prev) => {
-        const next: LobbyStudent = {
-          studentId: payload.studentId,
-          fullName: payload.fullName,
-          joinedAt: payload.joinedAt,
-          status: 'connected',
-        };
-        const existingIndex = prev.findIndex((s) => s.studentId === payload.studentId);
-        if (existingIndex === -1) {
-          return [...prev, next];
-        }
-        const copy = [...prev];
-        copy[existingIndex] = next;
-        return copy;
-      });
-    }
-
-    // Marks the row disconnected — never removes it. A teacher needs to
-    // see who *was* connected and dropped, not just who currently is.
-    function handleAgentDisconnected(payload: AgentDisconnectedPayload) {
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.studentId === payload.studentId ? { ...s, status: 'disconnected' } : s,
-        ),
-      );
+    // The event says the room changed; the server says how. Re-reading is
+    // what makes a mid-exam refresh safe, and it is also the only way this
+    // page can know a student is a make-up rather than a stranger — a fact
+    // no socket payload carries.
+    function handleRoomChanged(_payload: RoomChangedPayload) {
+      scheduleAttendanceRefetch();
     }
 
     // Kept in its own state rather than merged into the query cache: a
@@ -198,8 +197,8 @@ export default function ExamSessionLobbyPage() {
     }
 
     socket.on('connect', handleConnect);
-    socket.on('lobby:student_joined', handleStudentJoined);
-    socket.on('agent:disconnected', handleAgentDisconnected);
+    socket.on('lobby:student_joined', handleRoomChanged);
+    socket.on('agent:disconnected', handleRoomChanged);
     socket.on('lobby:submission_status', handleSubmissionStatus);
     socket.on('exam:finalize', handleExamFinalize);
     socket.on('teacher:subscribe:error', handleSubscribeError);
@@ -220,8 +219,8 @@ export default function ExamSessionLobbyPage() {
 
     return () => {
       socket.off('connect', handleConnect);
-      socket.off('lobby:student_joined', handleStudentJoined);
-      socket.off('agent:disconnected', handleAgentDisconnected);
+      socket.off('lobby:student_joined', handleRoomChanged);
+      socket.off('agent:disconnected', handleRoomChanged);
       socket.off('lobby:submission_status', handleSubmissionStatus);
       socket.off('exam:finalize', handleExamFinalize);
       socket.off('teacher:subscribe:error', handleSubscribeError);
@@ -231,7 +230,7 @@ export default function ExamSessionLobbyPage() {
       // leave just this session's room otherwise).
       socket.disconnect();
     };
-  }, [examSessionId, refetchSession]);
+  }, [examSessionId, refetchSession, scheduleAttendanceRefetch]);
 
   const deliverables = useMemo(
     () =>
@@ -267,8 +266,15 @@ export default function ExamSessionLobbyPage() {
       return created;
     };
 
-    for (const student of students) {
-      ensure(student.studentId, student.fullName);
+    // Everyone the class expects, plus everyone who turned up — so a
+    // student who never connected still gets a row of "Chưa nộp" instead of
+    // silently not existing at finalize time.
+    for (const student of [
+      ...(attendance.data?.present ?? []),
+      ...(attendance.data?.absent ?? []),
+      ...(attendance.data?.makeup ?? []),
+    ]) {
+      ensure(student.mssv, student.name);
     }
 
     for (const item of submissions.data?.items ?? []) {
@@ -296,7 +302,7 @@ export default function ExamSessionLobbyPage() {
     return [...byMssv.values()].sort((a, b) =>
       a.studentMssv.localeCompare(b.studentMssv),
     );
-  }, [students, submissions.data, liveSubmissions]);
+  }, [attendance.data, submissions.data, liveSubmissions]);
 
   const fullySubmitted = useMemo(() => {
     if (deliverables.length === 0) {
@@ -307,7 +313,6 @@ export default function ExamSessionLobbyPage() {
     ).length;
   }, [rows, deliverables]);
 
-  const connectedCount = students.filter((s) => s.status === 'connected').length;
   const canFinalize = sessionDetail.data?.status === 'active';
 
   return (
@@ -378,34 +383,23 @@ export default function ExamSessionLobbyPage() {
           </Card>
         ) : (
           <>
-            <Card className="overflow-hidden">
-              <CardHeader className="flex-row items-center justify-between gap-4 border-b border-border bg-surface-2/60">
-                <CardTitle className="text-h3">Sinh viên trong phòng</CardTitle>
-                <span className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.08em] text-success-strong">
-                  <span className="relative flex h-2 w-2" aria-hidden="true">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-                  </span>
-                  Trực tiếp
-                </span>
-              </CardHeader>
+            {sessionDetail.data && (
+              <ExamMaterialsCard
+                examSessionId={examSessionId}
+                releaseAt={formatDateTime(sessionDetail.data.startTime)}
+                canEdit={sessionDetail.data.status !== 'completed'}
+              />
+            )}
 
-              {/* Count-only aria-live region: announces "3 sinh viên đã tham
-                  gia" on change without re-announcing the entire table on
-                  every join/disconnect. */}
-              <p
-                aria-live="polite"
-                className="border-b border-border px-6 py-3 text-body text-muted-foreground"
-              >
-                Số sinh viên đã tham gia:{' '}
-                <strong className="text-h3 text-foreground">{students.length}</strong> (
-                {connectedCount} đang kết nối)
-              </p>
-
-              <CardContent className="p-0">
-                <LobbyList students={students} />
-              </CardContent>
-            </Card>
+            <AttendancePanel
+              attendance={attendance.data}
+              isLoading={attendance.isLoading}
+              error={attendance.error}
+              canConfirm={canFinalize}
+              confirming={confirmAttendance.isPending}
+              confirmError={confirmAttendance.error}
+              onConfirm={() => confirmAttendance.mutate()}
+            />
 
             <Card className="overflow-hidden">
               <CardHeader className="border-b border-border bg-surface-2/60">

@@ -27,6 +27,7 @@ import { io, Socket } from 'socket.io-client';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as readline from 'node:readline/promises';
+import * as os from 'node:os';
 import process from 'node:process';
 import {
   formatSummary,
@@ -34,6 +35,9 @@ import {
   type ExamFinalizePayload,
   type RequiredDeliverable,
 } from './submission-uploader';
+import { NoTerminalError, promptAccessRequest, sendAccessRequest } from './access-request';
+import { restoreBackup, startSnapshotLoop } from './backup';
+import { downloadMaterials, writeInstructions } from './exam-materials';
 
 // ---------------------------------------------------------------------------
 // Client side of the WebSocket Event Contract implemented by
@@ -46,9 +50,25 @@ import {
 // ---------------------------------------------------------------------------
 
 export interface AgentJoinPayload {
-  fullName: string;
   studentId: string;
   sessionCode: string;
+  /**
+   * No longer sent on join and ignored if it is: the server answers with the
+   * roster name instead of comparing one. Still asked for — once — when a
+   * student has no roster row and has to request access, because then there
+   * is no authoritative name to fall back on.
+   */
+  fullName?: string;
+  /**
+   * This machine's own name, read from the OS.
+   *
+   * Fills {SOMAY} when the teacher declared a filename pattern that uses
+   * it. Read, never asked: CLAUDE.md forbids adding a step for the student,
+   * and a seat number they typed would be a value nobody could check. A lab
+   * names its machines after their seats, so the hostname is the closest
+   * true answer available for free.
+   */
+  machineName?: string;
 }
 
 export interface AgentJoinAck {
@@ -59,10 +79,19 @@ export interface AgentJoinAck {
   // requiredDeliverableId, never by filename, so the agent needs the ids
   // as well as the names it writes to disk.
   requiredDeliverables: RequiredDeliverable[];
+  // The roster spelling of this student's name, from the server. The name
+  // typed into this CLI is not used for identity and is not what comes back
+  // here — showing it lets the student catch "wrong MSSV" before the exam
+  // rather than after it.
+  studentName: string;
   endTime: string;
 }
 
-export type AgentJoinErrorCode = 'SESSION_NOT_FOUND' | 'SESSION_NOT_ACTIVE' | 'INVALID_INPUT';
+export type AgentJoinErrorCode =
+  | 'SESSION_NOT_FOUND'
+  | 'SESSION_NOT_ACTIVE'
+  | 'INVALID_INPUT'
+  | 'NOT_ENROLLED';
 
 export interface AgentJoinError {
   code: AgentJoinErrorCode;
@@ -197,14 +226,41 @@ function nonEmpty(value: string | undefined): string | undefined {
 }
 
 async function promptMissing(args: CliArgs): Promise<AgentJoinPayload> {
+  // Two questions, not three. The name is the server's to supply.
+  const providedStudentId = nonEmpty(args.studentId);
+  const providedSessionCode = nonEmpty(args.sessionCode);
+  if (providedStudentId && providedSessionCode) {
+    // Nothing to ask, so do not open stdin at all. Creating a readline
+    // interface starts consuming the stream immediately, which on a piped
+    // stdin swallows a line meant for a later prompt — the access-request
+    // flow then hung waiting for input that had already been eaten.
+    return {
+      studentId: providedStudentId,
+      sessionCode: providedSessionCode,
+      machineName: machineName(),
+    };
+  }
+
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
-    const fullName = nonEmpty(args.fullName) ?? (await askNonEmpty(rl, 'Họ và tên: '));
-    const studentId = nonEmpty(args.studentId) ?? (await askNonEmpty(rl, 'Mã số sinh viên (MSSV): '));
-    const sessionCode = nonEmpty(args.sessionCode) ?? (await askNonEmpty(rl, 'Mã phiên thi: '));
-    return { fullName, studentId, sessionCode };
+    const studentId = providedStudentId ?? (await askNonEmpty(rl, 'Mã số sinh viên (MSSV): '));
+    const sessionCode = providedSessionCode ?? (await askNonEmpty(rl, 'Mã phiên thi: '));
+    return { studentId, sessionCode, machineName: machineName() };
   } finally {
     rl.close();
+  }
+}
+
+/**
+ * The hostname, or undefined if the OS will not say. Never fatal — a
+ * pattern using {SOMAY} renders it as UNKNOWN, which is visible, and a
+ * pattern that does not use it never notices.
+ */
+function machineName(): string | undefined {
+  try {
+    return nonEmpty(os.hostname());
+  } catch {
+    return undefined;
   }
 }
 
@@ -427,8 +483,14 @@ async function main(): Promise<void> {
   // successful join — the server only broadcasts it to the agents room,
   // which this socket joins during agent:join.
   let requiredDeliverables: RequiredDeliverable[] = [];
+  // Guards against a reconnect re-prompting a student who is already waiting.
+  let requestingAccess = false;
   let examSessionId = "";
   let finalizing = false;
+  // One loop for the life of the process, started after the first
+  // successful join. A reconnect re-joins and re-acks, and starting a
+  // second loop there would double the upload rate for the rest of the exam.
+  let stopSnapshots: (() => void) | null = null;
 
   const shutdown = (exitCode: number): void => {
     if (shuttingDown) {
@@ -474,19 +536,94 @@ async function main(): Promise<void> {
       console.warn('[CẢNH BÁO] Server gửi agent:join:ack không hợp lệ (không phải object) — bỏ qua.');
       return;
     }
+    void handleJoinAck(ack);
+  });
+
+  /**
+   * Split out of the listener because a restore has to be awaited, and it
+   * has to finish BEFORE the required files are created — see restoreBackup.
+   * A socket.io listener cannot await, so the ordering would otherwise be
+   * whatever the event loop decided.
+   */
+  async function handleJoinAck(ack: Record<string, unknown>): Promise<void> {
     hasJoinedOnce = true;
     const sessionName = typeof ack.sessionName === 'string' ? ack.sessionName : '(không rõ)';
     const endTime = typeof ack.endTime === 'string' ? ack.endTime : '(không rõ)';
+    const studentName = typeof ack.studentName === 'string' ? ack.studentName : null;
+    if (studentName) {
+      console.log(`Xác nhận danh tính: ${studentName} (MSSV ${payload.studentId}).`);
+      console.log('Nếu KHÔNG phải bạn, hãy thoát ngay và báo giám thị.');
+    }
     console.log(`Tham gia thành công: "${sessionName}" (kết thúc lúc ${endTime}).`);
     requiredDeliverables = Array.isArray(ack.requiredDeliverables)
       ? (ack.requiredDeliverables as RequiredDeliverable[])
       : [];
     examSessionId = typeof ack.examSessionId === 'string' ? ack.examSessionId : '';
+    // FIRST, before any required file is created. The agent creates those
+    // empty, so a restore that ran afterwards would be looking at its own
+    // handiwork and would find every file "already there".
+    if (ack.backupAvailable === true) {
+      console.log('Máy chủ báo có bản sao lưu bài làm của bạn. Đang khôi phục...');
+      const outcome = await restoreBackup(socket, workspaceDir);
+      if (outcome.status === 'restored') {
+        console.log(
+          `Đã khôi phục ${outcome.restored} file từ bản sao lưu` +
+            (outcome.skipped > 0
+              ? ` (giữ nguyên ${outcome.skipped} file bạn đã có sẵn trên máy).`
+              : '.'),
+        );
+      } else if (outcome.status === 'failed') {
+        // Not fatal: the student can still sit the exam, they just start
+        // from what is on this machine. Said plainly so a technician in the
+        // room can decide whether to act.
+        console.warn(
+          '[CẢNH BÁO] Không tải được bản sao lưu. Bạn vẫn làm bài bình thường — ' +
+            'hãy báo giám thị nếu bài làm cũ của bạn bị mất.',
+        );
+      }
+    }
+
     const createdCount = createSubmissionFiles(workspaceDir, ack.requiredFiles);
     console.log(`Đã tạo ${createdCount} file, sẵn sàng làm bài.`);
     console.log(`Thư mục bài làm: ${workspaceDir}`);
+
+    // Asked for separately from the join, and the server re-checks the
+    // clock on that request: an agent may be in the lobby before it may
+    // hold the paper (CLAUDE.md Security rule 2).
+    const materialNames: string[] = [];
+    if (typeof ack.examMaterialCount === 'number' && ack.examMaterialCount > 0) {
+      const outcome = await downloadMaterials(socket, workspaceDir);
+      materialNames.push(...outcome.fileNames);
+      if (outcome.status === 'downloaded' && outcome.downloaded > 0) {
+        console.log(`Đã tải ${outcome.downloaded} file đề thi vào thư mục "de-thi".`);
+      } else if (outcome.status === 'not-yet') {
+        console.log(`Đề thi chưa mở — sẽ mở lúc ${outcome.releaseAt ?? '(chưa rõ)'}.`);
+      } else if (outcome.status === 'failed') {
+        console.warn('[CẢNH BÁO] Không tải được đề thi. Hãy báo giám thị.');
+      }
+    }
+
+    // Written from what the server already declared, so it cannot disagree
+    // with what will actually be collected — the names here are the exact
+    // ones just created on disk.
+    await writeInstructions(workspaceDir, {
+      sessionName,
+      studentName,
+      studentId: payload.studentId,
+      endTime,
+      requiredFiles: Array.isArray(ack.requiredFiles)
+        ? (ack.requiredFiles as string[])
+        : [],
+      materialFileNames: materialNames,
+    });
+
+    if (!stopSnapshots) {
+      stopSnapshots = startSnapshotLoop(socket, workspaceDir);
+      console.log('Bài làm của bạn sẽ được sao lưu tự động vài phút một lần.');
+    }
+
     console.log('Agent đang chạy nền, chờ đến hết giờ thi. Nhấn Ctrl+C để thoát.');
-  });
+  }
 
   /**
    * Server -> agent: the exam is over (the scheduled sweep, or the teacher
@@ -513,6 +650,11 @@ async function main(): Promise<void> {
     }
 
     finalizing = true;
+    // The snapshot exists to survive the exam, not to outlast it. Stopped
+    // here so a timer cannot fire mid-upload and compete with the real
+    // submission for the same lab network.
+    stopSnapshots?.();
+    stopSnapshots = null;
     const reasonText = reason === 'manual' ? 'giáo viên chốt bài' : 'tự động theo lịch';
     console.log(`\nHết giờ thi (${reasonText}). Đang nộp bài...`);
 
@@ -561,7 +703,78 @@ async function main(): Promise<void> {
     }
     const code = typeof error.code === 'string' ? error.code : 'UNKNOWN';
     const message = typeof error.message === 'string' ? error.message : '(không có thông tin)';
+
+    // The one refusal that is not the end of the road. Everything else here
+    // is a wrong code or a closed session, which no invigilator can wave
+    // through; not being on the roster is a records problem, and a records
+    // problem must not cost a student their exam.
+    if (code === 'NOT_ENROLLED' && !requestingAccess) {
+      requestingAccess = true;
+      void requestAccess();
+      return;
+    }
+
     console.error(`Lỗi tham gia phiên thi [${code}]: ${message}`);
+    shutdown(1);
+  });
+
+  async function requestAccess(): Promise<void> {
+    try {
+      const { fullName, reason } = await promptAccessRequest(payload.studentId);
+      const ack = await sendAccessRequest(socket, {
+        sessionCode: payload.sessionCode,
+        studentId: payload.studentId,
+        fullName,
+        reason,
+      });
+      if (!ack.ok) {
+        // ALREADY_ENROLLED means the roster gained them between the refusal
+        // and the request — retrying the join is the right move, not an error.
+        if (ack.code === 'ALREADY_ENROLLED') {
+          console.log('Bạn đã có trong danh sách. Đang thử tham gia lại...');
+          requestingAccess = false;
+          socket.emit('agent:join', payload);
+          return;
+        }
+        console.error(`Không gửi được yêu cầu [${ack.code}]: ${ack.message}`);
+        shutdown(1);
+        return;
+      }
+      console.log('');
+      console.log('Đã gửi yêu cầu. Đang chờ giảng viên duyệt — KHÔNG tắt cửa sổ này.');
+      console.log('Nếu chờ quá lâu, hãy báo trực tiếp với giám thị trong phòng.');
+    } catch (error) {
+      if (error instanceof NoTerminalError) {
+        console.error('');
+        console.error(`MSSV ${payload.studentId} không có trong danh sách lớp của môn thi này.`);
+        console.error('Agent đang chạy không có terminal nên không hỏi được thông tin.');
+        console.error('Hãy chạy agent trực tiếp trong cửa sổ lệnh, hoặc báo giám thị.');
+        shutdown(1);
+        return;
+      }
+      console.error(
+        'Không gửi được yêu cầu:',
+        error instanceof Error ? error.message : error,
+      );
+      shutdown(1);
+    }
+  }
+
+  socket.on('agent:access-granted', () => {
+    console.log('Giảng viên đã duyệt. Đang vào phòng thi...');
+    requestingAccess = false;
+    // Re-join rather than having the server fake an ack: the same path every
+    // other student takes, so nothing about this student is special from here on.
+    socket.emit('agent:join', payload);
+  });
+
+  socket.on('agent:access-denied', (body: unknown) => {
+    const message =
+      isPlainObject(body) && typeof body.message === 'string'
+        ? body.message
+        : 'Giảng viên đã từ chối yêu cầu.';
+    console.error(message);
+    console.error('Hãy liên hệ giám thị trong phòng thi.');
     shutdown(1);
   });
 }

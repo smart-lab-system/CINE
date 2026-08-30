@@ -15,6 +15,7 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import { ExamType } from '../entities/exam-session.entity';
+import { FILENAME_TEMPLATE_REGEX } from '../filename-template';
 
 const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
 
@@ -45,8 +46,18 @@ export class CreateExamSessionDto {
   @Length(1, 200)
   name!: string;
 
+  /**
+   * The class sitting this exam. Replaces `courseId`, which is now derived
+   * from it server-side: a lecturer is scoped by `class.teacher_id`, so
+   * naming the class is both the choice they actually make and the thing
+   * that can be checked against them.
+   *
+   * Taking a course from the body would additionally let a session name a
+   * course its class does not belong to — and every enrollment check after
+   * that would be asking about the wrong one.
+   */
   @IsUUID()
-  courseId!: string;
+  classId!: string;
 
   @IsUUID()
   roomId!: string;
@@ -72,7 +83,17 @@ export class CreateExamSessionDto {
   // client-side .refine() for the same rule.
   @ArrayUnique()
   @IsString({ each: true })
-  @Matches(SAFE_FILENAME_REGEX, { each: true })
+  // A declared name is either a literal filename or a pattern with tokens
+  // the server fills per student ({MSSV}, {TEN}, {PHONG}, {SOMAY}). The
+  // pattern form carries the SAME path-traversal rules — it is
+  // SAFE_FILENAME_REGEX plus the tokens, not a looser check — and a token
+  // nobody defined is rejected here rather than reaching an agent as a
+  // literal "{LOP}" in a filename.
+  @Matches(FILENAME_TEMPLATE_REGEX, {
+    each: true,
+    message:
+      'Tên file chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
+  })
   // Matches required_deliverable.required_filename's varchar(255) column —
   // without this, an overlong filename passes DTO validation and hits the
   // DB's own length truncation error, which PostgresExceptionFilter has no

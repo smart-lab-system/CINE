@@ -18,11 +18,62 @@ const useExamSessionDetailMock = vi.fn();
 const useSubmissionsMock = vi.fn();
 const finalizeMutateAsyncMock = vi.fn();
 const useFinalizeExamSessionMock = vi.fn();
+const useAttendanceMock = vi.fn();
+const useConfirmAttendanceMock = vi.fn();
+const useExamMaterialsMock = vi.fn();
+const confirmMutateMock = vi.fn();
+const refetchAttendanceMock = vi.fn();
 vi.mock('@/hooks/useExamSession', () => ({
   useExamSessionDetail: (...args: unknown[]) => useExamSessionDetailMock(...args),
   useSubmissions: (...args: unknown[]) => useSubmissionsMock(...args),
   useFinalizeExamSession: (...args: unknown[]) => useFinalizeExamSessionMock(...args),
+  useAttendance: (...args: unknown[]) => useAttendanceMock(...args),
+  useConfirmAttendance: (...args: unknown[]) => useConfirmAttendanceMock(...args),
+  useExamMaterials: (...args: unknown[]) => useExamMaterialsMock(...args),
+  // The two mutations are inert here: nothing in these tests uploads or
+  // deletes a file, and a shared no-op keeps the card from throwing while
+  // the page around it is what is under test.
+  useUploadExamMaterial: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
+  useDeleteExamMaterial: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
+
+/**
+ * Attendance comes from the server, not from the socket — the whole point
+ * of moving it out of page state. Tests describe a room by building one of
+ * these rather than by replaying join events.
+ */
+function attendanceOf(overrides: Record<string, unknown> = {}) {
+  return {
+    data: {
+      classId: 'class-1',
+      className: 'Nhóm 01',
+      rosterSize: 0,
+      confirmedAt: null,
+      confirmedCount: null,
+      present: [],
+      absent: [],
+      makeup: [],
+      discrepancy: null,
+      ...overrides,
+    },
+    isLoading: false,
+    error: null,
+    refetch: refetchAttendanceMock,
+  };
+}
+
+function student(mssv: string, name: string, extra: Record<string, unknown> = {}) {
+  return {
+    mssv,
+    name,
+    connected: true,
+    joinedLate: false,
+    firstSeenAt: '2026-08-29T01:00:00.000Z',
+    lastEventAt: '2026-08-29T01:00:00.000Z',
+    afterHeadcount: null,
+    ...extra,
+  };
+}
 
 // A single fake socket.io-client `Socket`, built once so the module graph
 // resolves `import { socket } from '@/lib/socket'` (in both page.tsx and
@@ -109,9 +160,26 @@ beforeEach(() => {
     isPending: false,
     error: null,
   });
+  useAttendanceMock.mockReset();
+  useConfirmAttendanceMock.mockReset();
+  confirmMutateMock.mockReset();
+  refetchAttendanceMock.mockReset();
+  useAttendanceMock.mockReturnValue(attendanceOf());
+  useExamMaterialsMock.mockReset();
+  useExamMaterialsMock.mockReturnValue({ data: [], isLoading: false, isError: false, error: null });
+  useConfirmAttendanceMock.mockReturnValue({
+    mutate: confirmMutateMock,
+    isPending: false,
+    error: null,
+  });
 });
 
 afterEach(() => {
+  // Unconditionally, not at the end of the one test that installs them: a
+  // failed assertion there would otherwise leave fake timers in place, and
+  // every later test in this file would hang in waitFor waiting for a clock
+  // that never advances. One red test would read as eleven.
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -128,7 +196,8 @@ describe('ExamSessionLobbyPage', () => {
     });
   });
 
-  it('appends a student row when lobby:student_joined fires, without a page reload', async () => {
+  it('re-reads the room from the server when an agent joins or drops', async () => {
+    vi.useFakeTimers();
     render(<ExamSessionLobbyPage />);
     trigger('connect');
 
@@ -137,33 +206,97 @@ describe('ExamSessionLobbyPage', () => {
       fullName: 'Nguyễn Văn A',
       joinedAt: '2026-08-27T01:00:00.000Z',
     });
-
-    await waitFor(() => expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument());
-    expect(screen.getByText('21120001')).toBeInTheDocument();
-    expect(screen.getByText('Đang kết nối')).toBeInTheDocument();
-    expect(screen.getByRole('table')).toBeInTheDocument();
-    // The count region announces via aria-live, not the table itself.
-    expect(screen.getByText(/Số sinh viên đã tham gia:/)).toBeInTheDocument();
-  });
-
-  it('marks a student disconnected instead of removing the row', async () => {
-    render(<ExamSessionLobbyPage />);
-    trigger('connect');
-    trigger('lobby:student_joined', {
-      studentId: '21120001',
-      fullName: 'Nguyễn Văn A',
-      joinedAt: '2026-08-27T01:00:00.000Z',
-    });
-    await waitFor(() => expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument());
-
     trigger('agent:disconnected', {
-      studentId: '21120001',
+      studentId: '21120002',
       disconnectedAt: '2026-08-27T01:05:00.000Z',
     });
 
-    await waitFor(() => expect(screen.getByText('Mất kết nối')).toBeInTheDocument());
-    // Still present — a dropped student is never removed from the list.
-    expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument();
+    // Forty agents joining at once is forty events for one answer, so the
+    // reads collapse into a single trailing one.
+    expect(refetchAttendanceMock).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+    expect(refetchAttendanceMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('splits the room into who is here, who is missing, and who is sitting a make-up', async () => {
+    useAttendanceMock.mockReturnValue(
+      attendanceOf({
+        rosterSize: 2,
+        present: [student('SV001', 'Nguyễn Văn A')],
+        absent: [
+          student('SV002', 'Trần Thị B', {
+            connected: false,
+            firstSeenAt: null,
+            lastEventAt: null,
+          }),
+        ],
+        makeup: [student('SV900', 'Phạm Thi Bù', { homeClassName: 'Nhóm 05' })],
+      }),
+    );
+
+    render(<ExamSessionLobbyPage />);
+
+    await waitFor(() => expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument());
+    // A name to call out, not a name that is simply absent from a list.
+    expect(screen.getByText('Trần Thị B')).toBeInTheDocument();
+    // A make-up student reads as "from Nhóm 05, sitting here" rather than as
+    // an unfamiliar name among familiar ones.
+    expect(screen.getByText('Phạm Thi Bù')).toBeInTheDocument();
+    expect(screen.getByText('Nhóm 05')).toBeInTheDocument();
+  });
+
+  it('tells a machine that came back apart from someone who appeared after the count', async () => {
+    useAttendanceMock.mockReturnValue(
+      attendanceOf({
+        rosterSize: 2,
+        confirmedAt: '2026-08-29T01:30:00.000Z',
+        confirmedCount: 1,
+        present: [
+          student('SV001', 'Máy hỏng rồi vào lại', { afterHeadcount: 'returned' }),
+          student('SV002', 'Xuất hiện sau khi chốt', { afterHeadcount: 'new' }),
+        ],
+      }),
+    );
+
+    render(<ExamSessionLobbyPage />);
+
+    // One label for both would bury the case the headcount exists to catch
+    // underneath the routine one.
+    await waitFor(() =>
+      expect(screen.getByText('Kết nối lại sau khi chốt')).toBeInTheDocument(),
+    );
+    expect(screen.getByText('Mới vào sau khi chốt')).toBeInTheDocument();
+  });
+
+  it('names the students behind a headcount-vs-submissions gap', async () => {
+    useAttendanceMock.mockReturnValue(
+      attendanceOf({
+        confirmedAt: '2026-08-29T01:30:00.000Z',
+        confirmedCount: 45,
+        discrepancy: {
+          confirmedCount: 45,
+          submittedCount: 46,
+          unaccounted: [student('SV999', 'Người thứ 46')],
+        },
+      }),
+    );
+
+    render(<ExamSessionLobbyPage />);
+
+    await waitFor(() => expect(screen.getByText(/lệch 1/)).toBeInTheDocument());
+    // Named, not just counted.
+    expect(screen.getByText('SV999')).toBeInTheDocument();
+  });
+
+  it('records the headcount on demand', async () => {
+    useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+    render(<ExamSessionLobbyPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /Chốt sĩ số/ }));
+
+    expect(confirmMutateMock).toHaveBeenCalledTimes(1);
   });
 
   it('shows a visible alert (not an empty "waiting" state) on teacher:subscribe:error', async () => {
@@ -182,7 +315,7 @@ describe('ExamSessionLobbyPage', () => {
     );
     // The normal "no students yet" copy must not also be on screen.
     expect(screen.queryByText('Chưa có sinh viên nào tham gia.')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Số sinh viên đã tham gia:/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Điểm danh')).not.toBeInTheDocument();
   });
 
   it('removes every listener and disconnects on unmount, leaving nothing registered', () => {
@@ -281,14 +414,11 @@ describe('ExamSessionLobbyPage', () => {
   describe('submission status', () => {
     it('renders a column per required deliverable and starts every cell at "Chưa nộp"', async () => {
       useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      useAttendanceMock.mockReturnValue(
+        attendanceOf({ rosterSize: 1, present: [student('SV001', 'Nguyễn Văn A')] }),
+      );
       render(<ExamSessionLobbyPage />);
       trigger('connect');
-
-      trigger('lobby:student_joined', {
-        studentId: 'SV001',
-        fullName: 'Nguyễn Văn A',
-        joinedAt: '2026-08-29T01:00:00.000Z',
-      });
 
       await waitFor(() => expect(screen.getByText('Cau1.docx')).toBeInTheDocument());
       expect(screen.getByText('Cau2.docx')).toBeInTheDocument();

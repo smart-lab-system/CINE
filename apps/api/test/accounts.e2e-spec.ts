@@ -157,7 +157,7 @@ describe('Accounts (e2e)', () => {
     const [{ id: semesterId }] = await dataSource.query(
       `INSERT INTO examcollect.semester (name, start_date, end_date)
        VALUES ($1, $2, $3) RETURNING id`,
-      ['Referenced Test Semester', '2026-01-01', '2026-06-01'],
+      [`Referenced Test Semester ${Date.now()}`, '2026-01-01', '2026-06-01'],
     );
     const [{ id: courseId }] = await dataSource.query(
       `INSERT INTO examcollect.course (code, name, semester_id)
@@ -171,9 +171,9 @@ describe('Accounts (e2e)', () => {
     );
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [`SV${Date.now()}`.slice(0, 20), courseId, classId, accountId],
+         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [`SV${Date.now()}`.slice(0, 20), 'Referenced Test Student', courseId, classId, accountId],
     );
 
     const deleteResponse = await request(app.getHttpServer())

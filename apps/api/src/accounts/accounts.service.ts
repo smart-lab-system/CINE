@@ -22,6 +22,22 @@ export class AccountsService {
     private readonly accounts: Repository<AccountEntity>,
   ) {}
 
+  /**
+   * Teacher accounts as a pick list: id and name, nothing else.
+   *
+   * A Trưởng khoa has to name a lecturer when creating a class, but has no
+   * business seeing emails, roles or timestamps — so this is a deliberately
+   * narrower shape than search(), not a relaxation of the admin-only guard
+   * on it.
+   */
+  async listTeacherOptions(): Promise<Array<{ id: string; name: string }>> {
+    return this.accounts.find({
+      where: { role: 'teacher' },
+      select: { id: true, name: true },
+      order: { name: 'ASC' },
+    });
+  }
+
   async create(dto: CreateAccountDto): Promise<{ id: string }> {
     const passwordHash = await argon2.hash(dto.password, {
       type: argon2.argon2id,

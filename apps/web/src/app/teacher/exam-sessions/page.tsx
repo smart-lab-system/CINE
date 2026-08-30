@@ -111,6 +111,7 @@ export default function ExamSessionsListPage() {
                     <TableHead>Tên phiên thi</TableHead>
                     <TableHead>Mã phiên thi</TableHead>
                     <TableHead>Môn thi</TableHead>
+                    <TableHead>Lớp</TableHead>
                     <TableHead>Phòng</TableHead>
                     <TableHead>Loại</TableHead>
                     <TableHead>Bắt đầu</TableHead>
@@ -147,6 +148,7 @@ export default function ExamSessionsListPage() {
                           </button>
                         </TableCell>
                         <TableCell>{session.courseName}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">{session.className ?? String.fromCharCode(8212)}</TableCell>
                         <TableCell className="whitespace-nowrap">{session.roomName}</TableCell>
                         <TableCell className="whitespace-nowrap">
                           {EXAM_TYPE_LABELS[session.examType] ?? session.examType}

@@ -25,7 +25,13 @@ const DELIVERABLE_ID = '22222222-2222-4222-8222-222222222222';
 const MSSV = 'SV20120001';
 
 function joinedSocket(
-  data: Partial<{ examSessionId: string; studentId: string; fullName: string }> = {},
+  data: Partial<{
+    examSessionId: string;
+    studentId: string;
+    fullName: string;
+    homeClassId: string;
+    homeTeacherId: string;
+  }> = {},
 ): Socket {
   return {
     id: 'socket-1',
@@ -33,6 +39,8 @@ function joinedSocket(
       examSessionId: SESSION_ID,
       studentId: MSSV,
       fullName: 'Nguyen Van A',
+      homeClassId: '44444444-4444-4444-8444-444444444444',
+      homeTeacherId: '55555555-5555-4555-8555-555555555555',
       ...data,
     },
   } as unknown as Socket;
@@ -120,6 +128,8 @@ describe('SubmissionGateway — identity', () => {
       examSessionId: SESSION_ID,
       studentId: MSSV,
       fullName: 'Nguyen Van A',
+      homeClassId: '44444444-4444-4444-8444-444444444444',
+      homeTeacherId: '55555555-5555-4555-8555-555555555555',
     });
   });
 

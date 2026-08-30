@@ -1,17 +1,19 @@
 import type { BadgeProps } from '@/components/ui/badge';
 
-// `super_admin`/`department_admin` exist as account.role values in the DB
-// (reserved for future Department/Super-Admin tiering) but aren't offered
-// for creation/filtering here: RolesGuard's @Roles('admin') only matches
-// the literal 'admin' role, so creating one of those from this UI today
-// would produce an account locked out of every admin-only page, including
-// this one. Shared by account-form.tsx, edit-account-form.tsx, and the
-// accounts list page's role filter + badge.
-export const ACCOUNT_ROLE_OPTIONS = ['admin', 'teacher'] as const;
+// The three roles the system actually implements. `department_admin` joins
+// the list now that it has an area (/department), routes that accept it, and
+// resources to own — before that, creating one produced an account that could
+// log in and do nothing.
+//
+// `super_admin` is still absent, and deliberately so: no API handler accepts
+// it. An account carrying it is sent to /unassigned-role, which says as much,
+// rather than to a screen where every request 403s in silence.
+export const ACCOUNT_ROLE_OPTIONS = ['admin', 'department_admin', 'teacher'] as const;
 export type AccountRoleOption = (typeof ACCOUNT_ROLE_OPTIONS)[number];
 
 export const ACCOUNT_ROLE_LABELS: Record<AccountRoleOption, string> = {
   admin: 'Quản trị',
+  department_admin: 'Trưởng khoa',
   teacher: 'Giảng viên',
 };
 
@@ -19,8 +21,14 @@ export const ACCOUNT_ROLE_LABELS: Record<AccountRoleOption, string> = {
 // colours used by the shell, so "who am I / who is this row" reads the
 // same way in the topbar and in a table. Never the only signal: each badge
 // carries its own label.
-export const ACCOUNT_ROLE_BADGE_VARIANT: Record<AccountRoleOption, 'primary' | 'accent'> = {
+export const ACCOUNT_ROLE_BADGE_VARIANT: Record<
+  AccountRoleOption,
+  'primary' | 'accent' | 'info'
+> = {
   admin: 'primary',
+  // Its own colour, not a shade of admin: a Trưởng khoa is a different job,
+  // and a table where two roles look alike is a table that gets misread.
+  department_admin: 'info',
   teacher: 'accent',
 };
 
@@ -31,7 +39,7 @@ const ROLE_DISPLAY: Record<string, { label: string; variant: NonNullable<BadgePr
   {
     admin: { label: 'Quản trị', variant: 'primary' },
     super_admin: { label: 'Super Admin', variant: 'primary' },
-    department_admin: { label: 'Admin khoa', variant: 'primary' },
+    department_admin: { label: 'Trưởng khoa', variant: 'info' },
     teacher: { label: 'Giảng viên', variant: 'accent' },
   };
 

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { decodeAccessTokenRole } from '@/lib/jwt';
+import {
+  ALL_AREAS,
+  UNASSIGNED_ROLE_PATH,
+  areaForRole,
+  homeForRole,
+} from '@/lib/role-areas';
 
 const PUBLIC_PATHS = ['/login'];
-
-// Every role that may enter /admin/*. Mirrors AccountEntity.AccountRole's
-// admin-family values (see apps/api/src/identity/entities/account.entity.ts)
-// — super_admin/department_admin have no tiering logic yet, but they are
-// still admin-area accounts, not teachers.
-const ADMIN_ROLES = new Set(['admin', 'super_admin', 'department_admin']);
 
 export function isProtectedPath(pathname: string): boolean {
   return !PUBLIC_PATHS.some(
@@ -37,29 +37,44 @@ export function middleware(request: NextRequest) {
 
   // Role-based redirect below is a UX convenience only — it decides which
   // dashboard to send someone to, never whether they're allowed to see
-  // data. The backend's JwtAuthGuard/RolesGuard (unchanged) is the real
-  // enforcement on every actual API call. If the role can't be decoded
-  // (e.g. a malformed/expired token) we deliberately don't block here —
-  // that token will simply 401 against the API, same as before this
-  // middleware existed, and the page-level error states already handle it.
+  // data. The backend's JwtAuthGuard/RolesGuard is the real enforcement on
+  // every actual API call. If the role can't be decoded (e.g. a
+  // malformed/expired token) we deliberately don't block here — that token
+  // will simply 401 against the API, and the page-level error states
+  // already handle it.
   const role = decodeAccessTokenRole(accessToken.value);
-  const isAdminRole = role !== null && ADMIN_ROLES.has(role);
-  const homeHref = isAdminRole ? '/admin/dashboard' : '/teacher/dashboard';
+  if (!role) {
+    return NextResponse.next();
+  }
+
+  const ownArea = areaForRole(role);
+  const homeHref = homeForRole(role);
 
   // There's no page at "/" — send a logged-in visitor straight to their
-  // dashboard instead of a 404. Only applies with a decodable role; an
-  // undecodable token falls through to isProtectedPath's normal handling
-  // below (untouched, not a 404 risk since "/" isn't a real route either
-  // way).
-  if (pathname === '/' && role) {
+  // dashboard instead of a 404.
+  if (pathname === '/') {
     return NextResponse.redirect(new URL(homeHref, request.url));
   }
 
-  if (role) {
-    if (isUnderSegment(pathname, '/admin') && !isAdminRole) {
-      return NextResponse.redirect(new URL(homeHref, request.url));
+  // A role with no area gets the page that explains that, and is kept out of
+  // every real area. Previously such a role was lumped in with admins and
+  // landed somewhere that 403'd on every request without saying why.
+  if (!ownArea) {
+    if (pathname === UNASSIGNED_ROLE_PATH) {
+      return NextResponse.next();
     }
-    if (isUnderSegment(pathname, '/teacher') && isAdminRole) {
+    return NextResponse.redirect(new URL(UNASSIGNED_ROLE_PATH, request.url));
+  }
+
+  // Someone with a real area has no reason to sit on the unassigned page.
+  if (pathname === UNASSIGNED_ROLE_PATH) {
+    return NextResponse.redirect(new URL(homeHref, request.url));
+  }
+
+  // One rule for every area instead of a branch per area: adding a fourth
+  // area means adding it to ROLE_AREAS, not editing this.
+  for (const area of ALL_AREAS) {
+    if (isUnderSegment(pathname, area) && area !== ownArea) {
       return NextResponse.redirect(new URL(homeHref, request.url));
     }
   }
