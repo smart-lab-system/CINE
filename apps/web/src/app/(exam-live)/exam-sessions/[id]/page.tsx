@@ -286,6 +286,8 @@ export default function ExamSessionLobbyPage() {
         row.byDeliverable[item.requiredDeliverableId] = {
           state: item.status,
           submittedAt: item.submittedAt,
+          downloadUrl: item.downloadUrl,
+          fileSize: item.fileSize,
         };
       }
     }
@@ -296,7 +298,10 @@ export default function ExamSessionLobbyPage() {
       const mssv = key.slice(0, separator);
       const deliverableId = key.slice(separator + 1);
       const row = ensure(mssv, mssv);
-      row.byDeliverable[deliverableId] = value;
+      row.byDeliverable[deliverableId] = {
+        ...row.byDeliverable[deliverableId],
+        ...value,
+      };
     }
 
     return [...byMssv.values()].sort((a, b) =>

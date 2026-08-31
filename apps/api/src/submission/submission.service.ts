@@ -33,6 +33,7 @@ export interface SubmissionStatusView {
   status: SubmissionEntity['status'];
   submittedAt: Date;
   fileSize: string | null;
+  downloadUrl: string | null;
 }
 
 /**
@@ -175,14 +176,20 @@ export class SubmissionService {
       where: { examSessionId },
       order: { submittedAt: 'ASC' },
     });
-    return rows.map((row) => ({
-      studentMssv: row.studentMssv,
-      studentNameInput: row.studentNameInput,
-      requiredDeliverableId: row.requiredDeliverableId,
-      status: row.status,
-      submittedAt: row.submittedAt,
-      fileSize: row.fileSize,
-    }));
+
+    return Promise.all(
+      rows.map(async (row) => ({
+        studentMssv: row.studentMssv,
+        studentNameInput: row.studentNameInput,
+        requiredDeliverableId: row.requiredDeliverableId,
+        status: row.status,
+        submittedAt: row.submittedAt,
+        fileSize: row.fileSize,
+        downloadUrl: row.storageKey
+          ? (await this.storage.generateDownloadUrl(row.storageKey)).downloadUrl
+          : null,
+      })),
+    );
   }
 
   /**

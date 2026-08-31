@@ -1,7 +1,16 @@
 'use client';
 
+import { useState } from 'react';
 import { FileCheck } from 'lucide-react';
 import { EmptyState } from '@/components/layout/empty-state';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -19,7 +28,15 @@ export interface SubmissionRowStudent {
   /** Whatever the student typed into the agent; falls back to the MSSV. */
   fullName: string;
   /** Keyed by requiredDeliverableId. A missing key means "chưa nộp". */
-  byDeliverable: Record<string, { state: DeliverableState; submittedAt?: string }>;
+  byDeliverable: Record<
+    string,
+    {
+      state: DeliverableState;
+      submittedAt?: string;
+      downloadUrl?: string | null;
+      fileSize?: string | null;
+    }
+  >;
 }
 
 export interface DeliverableColumn {
@@ -78,6 +95,23 @@ function formatTime(iso: string | undefined): string | null {
   });
 }
 
+function formatFileSize(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return value;
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /**
  * Students down, required deliverables across. A real <table> because the
  * data genuinely is a matrix — a screen reader can then announce which
@@ -87,6 +121,11 @@ export function SubmissionStatusTable({
   deliverables,
   students,
 }: SubmissionStatusTableProps) {
+  const [selectedStudentMssv, setSelectedStudentMssv] = useState<string | null>(null);
+  const selectedStudent = selectedStudentMssv
+    ? students.find((student) => student.studentMssv === selectedStudentMssv) ?? null
+    : null;
+
   if (deliverables.length === 0) {
     return (
       <EmptyState
@@ -112,8 +151,9 @@ export function SubmissionStatusTable({
   return (
     // The matrix grows one column per required file, so it scrolls inside
     // its own container rather than pushing the page sideways.
-    <div className="overflow-x-auto">
-      <Table>
+    <>
+      <div className="overflow-x-auto">
+        <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead scope="col">Sinh viên</TableHead>
@@ -122,6 +162,9 @@ export function SubmissionStatusTable({
                 {deliverable.requiredFilename}
               </TableHead>
             ))}
+            <TableHead scope="col" className="whitespace-nowrap">
+              Xem bài nộp
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -161,10 +204,87 @@ export function SubmissionStatusTable({
                   </TableCell>
                 );
               })}
+              <TableCell className="whitespace-nowrap">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelectedStudentMssv(student.studentMssv)}
+                  disabled={!deliverables.some((deliverable) => {
+                    const cell = student.byDeliverable[deliverable.id];
+                    return Boolean(cell?.downloadUrl);
+                  })}
+                >
+                  Xem bài nộp
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
-      </Table>
-    </div>
+        </Table>
+      </div>
+
+      <Dialog open={selectedStudent !== null} onOpenChange={(open) => !open && setSelectedStudentMssv(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Xem bài nộp</DialogTitle>
+            <DialogDescription>
+              {selectedStudent ? (
+                <>
+                  {selectedStudent.fullName} · {selectedStudent.studentMssv}
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedStudent && (
+            <div className="space-y-3">
+              {deliverables.map((deliverable) => {
+                const cell = selectedStudent.byDeliverable[deliverable.id];
+                const state: DeliverableState = cell?.state ?? 'pending';
+                const presentation = STATE_PRESENTATION[state];
+                const time = formatTime(cell?.submittedAt);
+                const fileSize = formatFileSize(cell?.fileSize);
+
+                return (
+                  <div
+                    key={deliverable.id}
+                    className="flex flex-col gap-3 rounded-lg border border-border bg-surface-2/40 p-4 sm:flex-row sm:items-start sm:justify-between"
+                  >
+                    <div className="space-y-1">
+                      <p className="font-medium text-foreground">{deliverable.requiredFilename}</p>
+                      <p className={cn('inline-flex items-center gap-2 text-sm', presentation.text)}>
+                        <span
+                          className={cn('h-2 w-2 shrink-0 rounded-full', presentation.dot)}
+                          aria-hidden="true"
+                        />
+                        <span aria-hidden="true">{presentation.symbol}</span>
+                        {presentation.label}
+                      </p>
+                      {time && <p className="text-caption text-muted-foreground">Nộp lúc {time}</p>}
+                      {fileSize && (
+                        <p className="text-caption text-muted-foreground">Kích thước: {fileSize}</p>
+                      )}
+                    </div>
+
+                    {cell?.downloadUrl ? (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={cell.downloadUrl} target="_blank" rel="noreferrer">
+                          Mở file
+                        </a>
+                      </Button>
+                    ) : (
+                      <span className="text-caption text-muted-foreground">
+                        Chưa có file để mở
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

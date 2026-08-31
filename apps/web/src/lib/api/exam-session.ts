@@ -78,6 +78,7 @@ export interface SubmissionStatusItem {
   status: 'received' | 'validated' | 'collected' | 'invalid';
   submittedAt: string;
   fileSize: string | null;
+  downloadUrl: string | null;
 }
 
 export interface SearchExamSessionsParams {

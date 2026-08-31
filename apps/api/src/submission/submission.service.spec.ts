@@ -66,6 +66,7 @@ function createHarness(
     session?: ExamSessionEntity | null;
     deliverable?: object | null;
     objectExists?: jest.Mock;
+    submissions?: Array<Partial<SubmissionEntity>>;
   } = {},
 ) {
   const examSessions = {
@@ -81,16 +82,20 @@ function createHarness(
     generateUploadUrl: jest
       .fn()
       .mockResolvedValue({ uploadUrl: 'http://storage/signed', expiresIn: 900 }),
+    generateDownloadUrl: jest.fn().mockResolvedValue({ downloadUrl: 'http://storage/view' }),
     objectExists: overrides.objectExists ?? jest.fn().mockResolvedValue(true),
+  };
+  const submissions = {
+    find: jest.fn().mockResolvedValue(overrides.submissions ?? []),
   };
   const transaction = jest.fn();
   const service = new SubmissionService(
     { transaction } as unknown as DataSource,
-    {} as Repository<SubmissionEntity>,
+    submissions as unknown as Repository<SubmissionEntity>,
     examSessions as unknown as ExamSessionService,
     storage as unknown as StorageService,
   );
-  return { service, examSessions, storage, transaction };
+  return { service, examSessions, storage, submissions, transaction };
 }
 
 describe('SubmissionService — preconditions', () => {
@@ -232,5 +237,42 @@ describe('SubmissionService.confirmSubmission — success', () => {
       identity.studentId,
       DELIVERABLE_ID,
     );
+  });
+});
+
+describe('SubmissionService.listForSession', () => {
+  it('returns signed download URLs for stored submissions', async () => {
+    const { service, storage, submissions } = createHarness({
+      submissions: [
+        {
+          studentMssv: MSSV,
+          studentNameInput: 'Nguyen Van A',
+          requiredDeliverableId: DELIVERABLE_ID,
+          status: 'collected',
+          submittedAt: new Date('2026-08-29T04:00:00.000Z'),
+          fileSize: '128',
+          storageKey: EXPECTED_KEY,
+        },
+      ],
+    });
+
+    const rows = await service.listForSession(SESSION_ID);
+
+    expect(submissions.find).toHaveBeenCalledWith({
+      where: { examSessionId: SESSION_ID },
+      order: { submittedAt: 'ASC' },
+    });
+    expect(storage.generateDownloadUrl).toHaveBeenCalledWith(EXPECTED_KEY);
+    expect(rows).toEqual([
+      {
+        studentMssv: MSSV,
+        studentNameInput: 'Nguyen Van A',
+        requiredDeliverableId: DELIVERABLE_ID,
+        status: 'collected',
+        submittedAt: new Date('2026-08-29T04:00:00.000Z'),
+        fileSize: '128',
+        downloadUrl: 'http://storage/view',
+      },
+    ]);
   });
 });
