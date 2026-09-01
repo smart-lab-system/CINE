@@ -176,6 +176,24 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void
 }
 
 describe('SessionController — join flow (design spec §4)', () => {
+  it('emits the default form state immediately so the renderer can render before the first submit', async () => {
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    let sawInitialState = false;
+    controller.on('state', (state) => {
+      if (state.joinPhase === 'form' && state.connection === 'idle' && state.joinError === null) {
+        sawInitialState = true;
+      }
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(sawInitialState).toBe(true);
+    expect(controller.getState().joinPhase).toBe('form');
+    expect(controller.getState().joinError).toBeNull();
+
+    controller.quit();
+  });
+
   it('state a -> b -> c: a successful join reaches "joined" with the roster name and a checklist', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });

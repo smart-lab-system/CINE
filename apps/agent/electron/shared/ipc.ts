@@ -23,6 +23,13 @@ export const IPC_CHANNELS = {
   quit: 'agent:quit',
   /** Main -> renderer: the whole picture, pushed on every change. */
   state: 'agent:state',
+  /** Renderer -> main (request/response): the current snapshot, pulled once
+   *  on mount. The push channel above alone races the renderer's own
+   *  `useEffect` registration — main can (and typically does) send the
+   *  first `agent:state` before `ipcRenderer.on` is wired up, and that
+   *  message is simply dropped, not queued. This is the renderer's
+   *  guaranteed way to catch up regardless of timing. */
+  getState: 'agent:get-state',
 } as const;
 
 export interface JoinRequest {
@@ -43,4 +50,8 @@ export interface AgentApi {
   quit(): void;
   /** Returns an unsubscribe function, same convention React effects expect. */
   onState(callback: (state: AgentState) => void): () => void;
+  /** One-shot pull of whatever state exists right now — call on mount,
+   *  before/alongside subscribing via `onState`, so a state pushed before
+   *  this component was listening is never permanently lost. */
+  getState(): Promise<AgentState>;
 }

@@ -211,6 +211,9 @@ export class SessionController extends EventEmitter {
     super();
     this.backendUrl = options.backendUrl;
     this.workspaceRoot = options.workspaceRoot;
+    queueMicrotask(() => {
+      this.emit('state', this.state);
+    });
   }
 
   getState(): AgentState {
