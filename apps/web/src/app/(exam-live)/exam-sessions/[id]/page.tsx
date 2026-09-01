@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ClipboardCheck } from 'lucide-react';
+import { toast } from 'sonner';
 import { socket } from '@/lib/socket';
+import type { PendingAccessRequest } from '@/lib/access-request';
 import {
   useAttendance,
   useConfirmAttendance,
@@ -11,10 +13,12 @@ import {
   useFinalizeExamSession,
   useSubmissions,
 } from '@/hooks/useExamSession';
+import { useTeachingClasses } from '@/hooks/useTeaching';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
+import { AccessRequestPanel } from './_components/AccessRequestPanel';
 import { AttendancePanel } from './_components/AttendancePanel';
 import { ExamMaterialsCard } from './_components/ExamMaterialsCard';
 import {
@@ -121,6 +125,16 @@ export default function ExamSessionLobbyPage() {
   const [subscribeError, setSubscribeError] = useState<TeacherSubscribeErrorPayload | null>(
     null,
   );
+  // Students outside the class roster asking to be let in (Security rule
+  // 1's human override). Kept in page state, not the query cache — same
+  // reasoning as liveSubmissions: this only ever grows/shrinks from
+  // socket events and a resolve action, never from a refetch.
+  const [pendingAccessRequests, setPendingAccessRequests] = useState<PendingAccessRequest[]>([]);
+  const teachingClasses = useTeachingClasses();
+  const classesForThisCourse = useMemo(
+    () => (teachingClasses.data ?? []).filter((k) => k.courseId === sessionDetail.data?.courseId),
+    [teachingClasses.data, sessionDetail.data?.courseId],
+  );
 
   /**
    * A room of forty agents joins in a burst, and each join is one event. A
@@ -155,6 +169,7 @@ export default function ExamSessionLobbyPage() {
     // emits any "ok" event to clear it).
     setSubscribeError(null);
     setLiveSubmissions({});
+    setPendingAccessRequests([]);
 
     // `teacher:subscribe` only joins a socket.io room — there is no
     // `teacher:unsubscribe` in the contract. Re-emitting on every
@@ -196,11 +211,34 @@ export default function ExamSessionLobbyPage() {
       void refetchSession();
     }
 
+    // A student outside the roster asking to be let in — see
+    // AccessRequestGateway.broadcast. Before this handler existed, this
+    // event reached the browser and was simply never listened for: the
+    // teacher was not told anything, ever, at any point. Two cues, not
+    // one — a toast for "look now" and the panel itself (rendered below)
+    // for "still here if you looked away" — because a toast alone is
+    // gone in a few seconds if the teacher is looking at a different tab
+    // or a projector, and a panel alone can be missed if it is below the
+    // fold. Deduped by requestId: `teacher:subscribe` replays whatever is
+    // still pending on every (re)connect (a network blip, or simply
+    // opening a second tab), and a request already known must not become
+    // two rows.
+    function handleAccessRequest(payload: PendingAccessRequest) {
+      setPendingAccessRequests((prev) =>
+        prev.some((r) => r.requestId === payload.requestId) ? prev : [...prev, payload],
+      );
+      toast.warning(`${payload.fullName} (MSSV ${payload.studentId}) xin vào phiên thi`, {
+        description: payload.reason,
+        duration: 10_000,
+      });
+    }
+
     socket.on('connect', handleConnect);
     socket.on('lobby:student_joined', handleRoomChanged);
     socket.on('agent:disconnected', handleRoomChanged);
     socket.on('lobby:submission_status', handleSubmissionStatus);
     socket.on('exam:finalize', handleExamFinalize);
+    socket.on('lobby:access_request', handleAccessRequest);
     socket.on('teacher:subscribe:error', handleSubscribeError);
 
     function handleSubscribeError(payload: TeacherSubscribeErrorPayload) {
@@ -223,6 +261,7 @@ export default function ExamSessionLobbyPage() {
       socket.off('agent:disconnected', handleRoomChanged);
       socket.off('lobby:submission_status', handleSubmissionStatus);
       socket.off('exam:finalize', handleExamFinalize);
+      socket.off('lobby:access_request', handleAccessRequest);
       socket.off('teacher:subscribe:error', handleSubscribeError);
       // Disconnect on unmount, not just remove listeners — see
       // lib/socket.ts's comment on why this page owns the connect/
@@ -388,6 +427,14 @@ export default function ExamSessionLobbyPage() {
           </Card>
         ) : (
           <>
+            <AccessRequestPanel
+              requests={pendingAccessRequests}
+              classes={classesForThisCourse}
+              onResolved={(requestId) =>
+                setPendingAccessRequests((prev) => prev.filter((r) => r.requestId !== requestId))
+              }
+            />
+
             {sessionDetail.data && (
               <ExamMaterialsCard
                 examSessionId={examSessionId}
