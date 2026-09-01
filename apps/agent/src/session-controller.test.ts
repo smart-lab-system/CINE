@@ -385,6 +385,53 @@ describe('SessionController — after joining', () => {
     controller.quit();
   });
 
+  it('deletes the workspace folder once every required file is confirmed collected — QA-reported gap', async () => {
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+
+    const workspaceDir = controllerWorkspaceDir(controller);
+    fs.writeFileSync(path.join(workspaceDir, 'Cau1.docx'), 'bai lam');
+    expect(fs.existsSync(workspaceDir)).toBe(true);
+
+    const socket = [...ns.sockets.values()][ns.sockets.size - 1];
+    socket.emit('exam:finalize', { examSessionId: 'exam-1', reason: 'manual' });
+
+    const state = await waitForState(controller, (s) => s.submission.summary !== null);
+    expect(state.submission.summary?.uploaded).toBe(1);
+    expect(state.submission.summary?.missing).toBe(0);
+    expect(state.submission.summary?.failed).toBe(0);
+    // The whole point: once the server has confirmed it has every file,
+    // the folder that could tempt/confuse a student into thinking they
+    // still need it is gone.
+    expect(fs.existsSync(workspaceDir)).toBe(false);
+    controller.quit();
+  });
+
+  it('does NOT delete the workspace folder when a required file could not be collected — the other half of the same gap', async () => {
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+
+    // join already auto-creates the required file as an empty stub — a
+    // genuine "missing" outcome only happens if the student deletes it
+    // afterward, which is exactly the case being reproduced here. This is
+    // the "partial collection" case: deleting the folder would destroy
+    // the student's only copy of whatever work they still had.
+    const workspaceDir = controllerWorkspaceDir(controller);
+    fs.unlinkSync(path.join(workspaceDir, 'Cau1.docx'));
+
+    const socket = [...ns.sockets.values()][ns.sockets.size - 1];
+    socket.emit('exam:finalize', { examSessionId: 'exam-1', reason: 'manual' });
+
+    const state = await waitForState(controller, (s) => s.submission.summary !== null);
+    expect(state.submission.summary?.missing).toBe(1);
+    expect(fs.existsSync(workspaceDir)).toBe(true);
+    controller.quit();
+  });
+
   it('notifies (and logs) on a disconnect that happens after already joining', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
@@ -399,6 +446,24 @@ describe('SessionController — after joining', () => {
 
     await waitForState(controller, (s) => s.connection === 'disconnected');
     expect(notifications.some((n) => n.title.includes('Mất kết nối'))).toBe(true);
+    controller.quit();
+  });
+
+  it('never deletes the workspace folder on a disconnect — a student mid-exam has no way to know they lost connection', async () => {
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+
+    const workspaceDir = controllerWorkspaceDir(controller);
+    fs.writeFileSync(path.join(workspaceDir, 'Cau1.docx'), 'bai lam dang do');
+
+    const socket = [...ns.sockets.values()][ns.sockets.size - 1];
+    socket.disconnect(true);
+    await waitForState(controller, (s) => s.connection === 'disconnected');
+
+    expect(fs.existsSync(workspaceDir)).toBe(true);
+    expect(fs.readFileSync(path.join(workspaceDir, 'Cau1.docx'), 'utf8')).toBe('bai lam dang do');
     controller.quit();
   });
 

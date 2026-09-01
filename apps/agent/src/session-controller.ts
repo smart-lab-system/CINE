@@ -16,6 +16,7 @@
  */
 
 import { EventEmitter } from 'node:events';
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { io, Socket } from 'socket.io-client';
@@ -580,6 +581,17 @@ export class SessionController extends EventEmitter {
           .map((r) => `${r.deliverable.requiredFilename} (${r.reason})`)
           .join(', ');
         this.notify('Còn file chưa nộp được', `${stragglers}. Hãy báo giám thị ngay.`);
+      } else {
+        // QA-reported gap (point 6): the folder must survive every OTHER
+        // event in this app's life — a dropped connection, a reconnect, an
+        // exam simply running long — because a student mid-exam has no way
+        // to know they're disconnected and would lose unsaved work the
+        // moment it's deleted out from under them. The ONLY safe trigger is
+        // "every required file is confirmed collected, right here" — never
+        // disconnect, never time-up on its own — the socket 'disconnect'
+        // handler and quit() elsewhere in this class both deliberately
+        // never touch the filesystem, only in-memory/socket state.
+        this.removeWorkspaceAfterCollection();
       }
     } catch (error) {
       // uploadAllDeliverables catches every per-deliverable failure itself,
@@ -621,6 +633,24 @@ export class SessionController extends EventEmitter {
   private notify(title: string, body: string): void {
     this.emit('notify', { title, body } satisfies NotifyEvent);
     this.log(`${title}: ${body}`);
+  }
+
+  /**
+   * Deletes the student's workspace folder — called ONLY from
+   * `handleFinalize`, and only once every required file has already been
+   * confirmed uploaded (see the caller). A failure here is a disk-hygiene
+   * nit, not a data-loss risk (the submission is already safely on the
+   * server by the time this runs), so it never escalates to the student as
+   * an error — logged and swallowed.
+   */
+  private removeWorkspaceAfterCollection(): void {
+    if (!this.workspaceDir) return;
+    try {
+      fs.rmSync(this.workspaceDir, { recursive: true, force: true });
+      this.log(`Đã thu bài xong, dọn thư mục làm bài: ${this.workspaceDir}`);
+    } catch (error) {
+      this.log(`Không dọn được thư mục làm bài (bài đã nộp không bị ảnh hưởng): ${describeError(error)}`);
+    }
   }
 }
 

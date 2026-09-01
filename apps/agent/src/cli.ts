@@ -675,6 +675,20 @@ async function main(): Promise<void> {
             .join(', ');
           console.log(`Các file chưa nộp được: ${stragglers}`);
           console.log('Hãy báo giám thị ngay nếu còn file bắt buộc chưa nộp được.');
+        } else {
+          // QA-reported gap (point 6): only delete once every required file
+          // is confirmed collected, right here — never on disconnect/
+          // reconnect/time-up on its own, since a student mid-exam has no
+          // way to know they're disconnected and would lose unsaved work.
+          try {
+            fs.rmSync(workspaceDir, { recursive: true, force: true });
+            console.log(`Đã thu bài xong, dọn thư mục làm bài: ${workspaceDir}`);
+          } catch (error) {
+            console.warn(
+              'Không dọn được thư mục làm bài (bài đã nộp không bị ảnh hưởng):',
+              error instanceof Error ? error.message : error,
+            );
+          }
         }
         console.log('Agent vẫn đang chạy. Nhấn Ctrl+C để thoát.');
       })
