@@ -81,9 +81,15 @@ export interface SubmissionStatusItem {
   downloadUrl: string | null;
 }
 
+export type ExamSessionStatusFilter = 'draft' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+
 export interface SearchExamSessionsParams {
   page: number;
   pageSize: number;
+  /** Matches session name OR code, case-insensitive. */
+  search?: string;
+  status?: ExamSessionStatusFilter;
+  examType?: ExamType;
 }
 
 async function throwIfFailed(error: unknown, response: Response) {

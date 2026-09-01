@@ -193,12 +193,26 @@ export class ExamSessionService {
     teacherId: string,
     query: SearchExamSessionsDto,
   ): Promise<{ items: ExamSessionListItemDto[]; total: number }> {
-    const [rows, total] = await this.sessions
+    const qb = this.sessions
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.course', 'course')
       .leftJoinAndSelect('s.class', 'class')
       .leftJoinAndSelect('s.room', 'room')
-      .where('s.teacherId = :teacherId', { teacherId })
+      .where('s.teacherId = :teacherId', { teacherId });
+
+    if (query.search) {
+      qb.andWhere('(s.name ILIKE :search OR s.code ILIKE :search)', {
+        search: `%${query.search}%`,
+      });
+    }
+    if (query.status) {
+      qb.andWhere('s.status = :status', { status: query.status });
+    }
+    if (query.examType) {
+      qb.andWhere('s.examType = :examType', { examType: query.examType });
+    }
+
+    const [rows, total] = await qb
       .orderBy('s.startTime', 'DESC')
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize)
