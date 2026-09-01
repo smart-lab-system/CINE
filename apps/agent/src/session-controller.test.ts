@@ -176,6 +176,51 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void
 }
 
 describe('SessionController — join flow (design spec §4)', () => {
+  it('emits the default form state on its own, before any command — the renderer has nothing else to render from', async () => {
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    // A listener attached synchronously, right after construction — the
+    // exact shape of what electron/main/index.ts's wireController() does.
+    // getState() alone can't catch a regression here (it trivially
+    // returns the right default either way); this asserts the 'state'
+    // EVENT itself actually fires, unprompted. A regression means the
+    // renderer's join form never appears on a fresh launch: nothing else
+    // ever prompts this class to emit until the student calls join(),
+    // which they cannot do on a blank window.
+    let emitted: AgentState | null = null;
+    controller.on('state', (state) => {
+      emitted = state;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(emitted).not.toBeNull();
+    const state = emitted!;
+    expect(state).toEqual({
+      connection: 'idle',
+      joinPhase: 'form',
+      joinError: null,
+      studentId: null,
+      sessionCode: null,
+      studentName: null,
+      sessionName: null,
+      endTime: null,
+      confirmedAt: null,
+      requiredFiles: [],
+      backup: {
+        available: false,
+        status: 'idle',
+        restoredCount: 0,
+        skippedCount: 0,
+        lastSnapshotAt: null,
+        lastSnapshotFailed: false,
+      },
+      materials: { count: 0, releaseAt: null, status: 'idle', downloadedFileNames: [] },
+      submission: { finalizing: false, summary: null },
+      log: [],
+    });
+    controller.quit();
+  });
+
   it('state a -> b -> c: a successful join reaches "joined" with the roster name and a checklist', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });

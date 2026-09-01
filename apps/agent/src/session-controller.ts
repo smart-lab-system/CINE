@@ -211,6 +211,25 @@ export class SessionController extends EventEmitter {
     super();
     this.backendUrl = options.backendUrl;
     this.workspaceRoot = options.workspaceRoot;
+    // Without this, the renderer's join form never appears: main.ts's
+    // `webContents.on('did-finish-load', ...)` only replays a state if
+    // `latestState` is already set, which only happens once this class
+    // has emitted 'state' at least once — and nothing did that until the
+    // student called join(), which they cannot do on a window with no
+    // form rendered yet. A blank window forever, on every fresh launch —
+    // missed by every automated check here (they all call join()
+    // immediately) and by the "process stayed alive" smoke test, since
+    // neither one looks at what actually rendered.
+    //
+    // queueMicrotask, not a synchronous emit: a listener attached right
+    // after `new SessionController(...)` (main.ts's `c.on('state', ...)`
+    // does exactly this, synchronously, in the same tick) would miss a
+    // synchronous emit fired from inside the constructor it's still
+    // returning from. Deferring to the next microtask guarantees that
+    // listener is already registered by the time this fires.
+    queueMicrotask(() => {
+      this.emit('state', this.state);
+    });
   }
 
   getState(): AgentState {
