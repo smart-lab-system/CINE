@@ -16,13 +16,20 @@ import {
   Tray,
   ipcMain,
   nativeImage,
+  shell,
   type IpcMainEvent,
 } from 'electron';
 import { SessionController, type AgentState } from '../../src/session-controller';
 import { IPC_CHANNELS, type JoinRequest, type SendAccessRequestRequest } from '../shared/ipc';
 
 const JOIN_WINDOW_SIZE = { width: 360, height: 560 };
-const DETAIL_WINDOW_SIZE = { width: 440, height: 700 };
+// Widened from 440 — required filenames are generated (studentId + name +
+// session code, see workspace-files.ts) and routinely run to 60+ chars;
+// DetailView's filename span also wraps now (belt-and-suspenders: no width
+// eliminates wrapping entirely, since a filename can always be longer than
+// the window, but the two together mean it wraps at most once or twice
+// instead of forcing a horizontal scrollbar).
+const DETAIL_WINDOW_SIZE = { width: 480, height: 720 };
 
 const BACKEND_URL = process.env.BACKEND_URL?.trim() || 'http://localhost:4000';
 
@@ -133,6 +140,18 @@ function wireController(): SessionController {
     if (Notification.isSupported()) {
       new Notification({ title, body, icon: nativeImage.createFromPath(iconPath) }).show();
     }
+  });
+  // Opens the freshly-created workspace folder in Explorer/Finder so the
+  // student never has to go find it themselves (see SessionController's
+  // 'open-workspace' doc comment for why this fires exactly once).
+  // shell.openPath resolves to an error string on failure rather than
+  // throwing — never worth interrupting the exam over, just worth a log.
+  c.on('open-workspace', (workspaceDir: string) => {
+    void shell.openPath(workspaceDir).then((errorMessage) => {
+      if (errorMessage) {
+        console.error(`Không tự mở được thư mục bài làm (${workspaceDir}): ${errorMessage}`);
+      }
+    });
   });
 
   return c;

@@ -43,16 +43,24 @@ export function DetailView({ state }: { state: AgentState }) {
   const remainingMs = useRemainingTime(state.endTime);
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-5">
+    <div className="flex h-full flex-col gap-4 overflow-y-auto overflow-x-hidden p-5">
       <div className="flex items-center justify-between">
         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-bold ${CONNECTION_TONE_CLASS[state.connection]}`}>
           <span className="h-1.5 w-1.5 rounded-full bg-current" />
           {CONNECTION_LABEL[state.connection]}
         </span>
-        {remainingMs !== null && (
-          <span className="text-caption text-muted-foreground">
-            Còn <b className="font-mono tabular-nums text-foreground">{formatDuration(remainingMs)}</b>
-          </span>
+        {/* Once exam:finalize has landed, `endTime` is stale by definition
+            whenever the teacher closed the session before the scheduled
+            time — counting down against it would keep telling the student
+            they still have time left after they've already submitted. */}
+        {state.examEnded ? (
+          <span className="text-caption font-semibold text-muted-foreground">Đã kết thúc</span>
+        ) : (
+          remainingMs !== null && (
+            <span className="text-caption text-muted-foreground">
+              Còn <b className="font-mono tabular-nums text-foreground">{formatDuration(remainingMs)}</b>
+            </span>
+          )
         )}
       </div>
 
@@ -64,9 +72,9 @@ export function DetailView({ state }: { state: AgentState }) {
       <Section title="File bắt buộc nộp">
         <div className="flex flex-col gap-1.5">
           {state.requiredFiles.map((file) => (
-            <div key={file.filename} className="flex items-center gap-2 text-small">
+            <div key={file.filename} className="flex items-start gap-2 text-small">
               <span
-                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-caption font-extrabold ${
+                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded text-caption font-extrabold ${
                   file.created
                     ? 'bg-success-subtle text-success-strong'
                     : 'border border-dashed border-border bg-surface-2 text-muted-foreground'
@@ -74,7 +82,12 @@ export function DetailView({ state }: { state: AgentState }) {
               >
                 {file.created ? '✓' : '·'}
               </span>
-              <span className="font-mono text-caption">{file.filename}</span>
+              {/* break-all, not truncate: required filenames are generated
+                  (studentId + name + session code, see workspace-files.ts)
+                  and can run well past what any reasonable window width
+                  fits on one line — wrapping keeps the full name readable
+                  instead of forcing a horizontal scrollbar at any width. */}
+              <span className="min-w-0 break-all font-mono text-caption">{file.filename}</span>
               {!file.created && <span className="text-caption text-muted-foreground">— chưa tạo được</span>}
             </div>
           ))}
@@ -85,7 +98,12 @@ export function DetailView({ state }: { state: AgentState }) {
         <div className="flex flex-col gap-2 text-caption text-muted-foreground">
           <StatusRow icon="🗂">{materialsSummary(state)}</StatusRow>
           <StatusRow icon="💾">{backupSummary(state)}</StatusRow>
-          {(state.submission.finalizing || state.submission.summary) && (
+          {/* examEnded, not just finalizing/summary: the rare path where
+              handleFinalize's upload throws before ever setting a summary
+              must still show something here — silently showing nothing
+              would look identical to "exam still running, nothing to
+              report yet". */}
+          {(state.examEnded || state.submission.finalizing) && (
             <StatusRow icon="📤">{submissionSummary(state)}</StatusRow>
           )}
         </div>
@@ -167,7 +185,11 @@ function submissionSummary(state: AgentState): string {
   }
   const summary = state.submission.summary;
   if (!summary) {
-    return '';
+    // examEnded but no summary: handleFinalize's own catch branch, or its
+    // "no required-deliverable list yet" guard — either way the exam is
+    // over and nothing got uploaded, which is worth surfacing loudly
+    // rather than leaving this row silently blank.
+    return state.examEnded ? 'Đã hết giờ làm bài nhưng có lỗi khi nộp — hãy báo giám thị ngay.' : '';
   }
   const parts = [`Đã nộp ${summary.uploaded}/${summary.total} file`];
   if (summary.missing > 0) parts.push(`${summary.missing} thiếu`);
