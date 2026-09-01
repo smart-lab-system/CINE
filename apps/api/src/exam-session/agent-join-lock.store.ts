@@ -29,6 +29,12 @@ export type LockStatus = { locked: true; retryAfterMs: number } | { locked: fals
  * implicit source of truth for anything else (a report, an audit trail); if
  * a durable record of failed attempts is ever wanted, it is a separate,
  * explicitly durable addition, not a reuse of this Map.
+ *
+ * No eviction: an MSSV that fails, gets locked, and never comes back keeps
+ * a small entry here for the life of the process. At this project's scale
+ * (CLAUDE.md: ~10 real concurrent connections) that is negligible — if the
+ * scale ever changes, a periodic sweep of entries whose `lockedUntil` (or
+ * last activity) is older than MAX_LOCKOUT_MS would be a cheap addition.
  */
 @Injectable()
 export class AgentJoinLockStore {
@@ -70,6 +76,17 @@ export class AgentJoinLockStore {
   recordFailure(mssv: string): LockStatus {
     const key = this.key(mssv);
     const entry = this.entries.get(key) ?? this.newEntry();
+
+    // Defensive: the one caller today always checks checkLock() first, so
+    // this never fires in practice — but a store this stateful should stay
+    // correct on its own, not only when called in the right order. Without
+    // it, a future caller that skips the check could pile a second,
+    // escalated lockout on top of one that hasn't expired yet.
+    if (entry.lockedUntil && entry.lockedUntil > Date.now()) {
+      this.entries.set(key, entry);
+      return { locked: true, retryAfterMs: entry.lockedUntil - Date.now() };
+    }
+
     entry.failureCount += 1;
 
     if (entry.failureCount < AgentJoinLockStore.MAX_FAILURES) {

@@ -91,7 +91,6 @@ describe('AgentJoinLockStore', () => {
           if (result.locked) {
             lockoutDurations.push(result.retryAfterMs);
           }
-
         }
         // Jump past whatever this round's lockout was so the next round's
         // failures start counting from zero again.
