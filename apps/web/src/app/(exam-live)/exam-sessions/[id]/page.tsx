@@ -130,6 +130,11 @@ export default function ExamSessionLobbyPage() {
   // reasoning as liveSubmissions: this only ever grows/shrinks from
   // socket events and a resolve action, never from a refetch.
   const [pendingAccessRequests, setPendingAccessRequests] = useState<PendingAccessRequest[]>([]);
+  // Gates both the state update and the toast in handleAccessRequest below
+  // on the exact same check — a ref, not state, because it's read-and-
+  // written synchronously inside a socket callback and never needs to
+  // trigger a render on its own.
+  const knownAccessRequestIds = useRef<Set<string>>(new Set());
   const teachingClasses = useTeachingClasses();
   const classesForThisCourse = useMemo(
     () => (teachingClasses.data ?? []).filter((k) => k.courseId === sessionDetail.data?.courseId),
@@ -179,6 +184,16 @@ export default function ExamSessionLobbyPage() {
     // membership, so the subscription must be redone or this page would
     // silently stop receiving events after any network blip.
     function handleConnect() {
+      // Cleared here, not just once on mount: `teacher:subscribe`'s
+      // replay is the only authoritative list of what's still pending, so
+      // a reconnect must rebuild from it rather than keep whatever this
+      // tab happened to accumulate before the drop — a request another
+      // invigilator resolved during the outage must not linger as a
+      // stale row here. Clearing the dedup set alongside is what lets the
+      // replayed events re-add themselves (and re-toast) instead of being
+      // silently treated as "already known".
+      setPendingAccessRequests([]);
+      knownAccessRequestIds.current.clear();
       socket.emit('teacher:subscribe', { examSessionId });
     }
 
@@ -219,14 +234,18 @@ export default function ExamSessionLobbyPage() {
     // for "still here if you looked away" — because a toast alone is
     // gone in a few seconds if the teacher is looking at a different tab
     // or a projector, and a panel alone can be missed if it is below the
-    // fold. Deduped by requestId: `teacher:subscribe` replays whatever is
-    // still pending on every (re)connect (a network blip, or simply
-    // opening a second tab), and a request already known must not become
-    // two rows.
+    // fold. Both cues gated on the SAME dedup set (cleared in
+    // handleConnect above): `teacher:subscribe` replays whatever is still
+    // pending on every (re)connect, and a request already known must
+    // neither become a second row NOR fire a second toast — a Wi-Fi
+    // hiccup with five requests already on screen must not restack five
+    // more toasts for rows that never left.
     function handleAccessRequest(payload: PendingAccessRequest) {
-      setPendingAccessRequests((prev) =>
-        prev.some((r) => r.requestId === payload.requestId) ? prev : [...prev, payload],
-      );
+      if (knownAccessRequestIds.current.has(payload.requestId)) {
+        return;
+      }
+      knownAccessRequestIds.current.add(payload.requestId);
+      setPendingAccessRequests((prev) => [...prev, payload]);
       toast.warning(`${payload.fullName} (MSSV ${payload.studentId}) xin vào phiên thi`, {
         description: payload.reason,
         duration: 10_000,
@@ -430,9 +449,10 @@ export default function ExamSessionLobbyPage() {
             <AccessRequestPanel
               requests={pendingAccessRequests}
               classes={classesForThisCourse}
-              onResolved={(requestId) =>
-                setPendingAccessRequests((prev) => prev.filter((r) => r.requestId !== requestId))
-              }
+              onResolved={(requestId) => {
+                knownAccessRequestIds.current.delete(requestId);
+                setPendingAccessRequests((prev) => prev.filter((r) => r.requestId !== requestId));
+              }}
             />
 
             {sessionDetail.data && (

@@ -64,6 +64,22 @@ export function resolveAccessRequest(
         reject(new Error('Máy chủ trả về phản hồi không hợp lệ.'));
         return;
       }
+      // Shape-checked past "is an object", not just cast — an `ok` that
+      // isn't really a boolean (or a failure with no `message`) must not
+      // silently pass as a real ack: the caller reads `.ok` to decide
+      // between closing the dialog and rendering an error, and a
+      // malformed truthy-but-not-`true` value would be read as success
+      // and remove the row for a request the server never actually
+      // resolved.
+      const record = ack as Record<string, unknown>;
+      if (typeof record.ok !== 'boolean') {
+        reject(new Error('Máy chủ trả về phản hồi không hợp lệ (thiếu trường "ok").'));
+        return;
+      }
+      if (!record.ok && typeof record.message !== 'string') {
+        reject(new Error('Máy chủ trả về phản hồi không hợp lệ (thiếu thông báo lỗi).'));
+        return;
+      }
       resolve(ack as ResolveAccessRequestAck);
     });
   });

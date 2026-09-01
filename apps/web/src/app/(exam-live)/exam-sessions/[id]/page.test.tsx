@@ -205,6 +205,7 @@ beforeEach(() => {
   useTeachingClassesMock.mockReset();
   useTeachingClassesMock.mockReturnValue({ data: [] });
   resolveAccessRequestMock.mockReset();
+  toastWarningMock.mockReset();
 });
 
 afterEach(() => {
@@ -643,7 +644,7 @@ describe('ExamSessionLobbyPage', () => {
       );
     });
 
-    it('never shows the same pending request twice — teacher:subscribe replays it on every reconnect', async () => {
+    it('never shows the same pending request twice, and never re-toasts it either — teacher:subscribe replays it on every reconnect', async () => {
       useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
       render(<ExamSessionLobbyPage />);
       trigger('connect');
@@ -652,6 +653,27 @@ describe('ExamSessionLobbyPage', () => {
       trigger('lobby:access_request', accessRequest()); // same requestId, e.g. replayed on reconnect
 
       await waitFor(() => expect(screen.getAllByText('Người Lạ')).toHaveLength(1));
+      // Not two toasts either — a teacher with five requests already on
+      // screen must not get five more toasts for rows that never left,
+      // just because a Wi-Fi hiccup replayed them.
+      expect(toastWarningMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('a genuine reconnect rebuilds the list from the replay — a request another invigilator resolved during the outage does not linger', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+      trigger('lobby:access_request', accessRequest());
+      await waitFor(() => expect(screen.getByText('Người Lạ')).toBeInTheDocument());
+
+      // The socket drops and reconnects — a brand-new server-side socket,
+      // per lib/socket.ts's own doc comment. teacher:subscribe's replay is
+      // the only thing that follows; this test's fake socket doesn't
+      // replay anything, simulating "this request was already resolved by
+      // someone else while this tab was disconnected".
+      trigger('connect');
+
+      await waitFor(() => expect(screen.queryByText('Người Lạ')).not.toBeInTheDocument());
     });
 
     it('offers only classes belonging to this session\'s own course', async () => {
@@ -698,6 +720,41 @@ describe('ExamSessionLobbyPage', () => {
         homeClassId: 'class-mine',
       });
       await waitFor(() => expect(screen.queryByText('Người Lạ')).not.toBeInTheDocument());
+    });
+
+    it('shows the server error and keeps the row when the server refuses to approve', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      useTeachingClassesMock.mockReturnValue({
+        data: [
+          { id: 'class-mine', name: 'Nhóm 01', courseId: 'course-1', courseCode: 'CS101', courseName: 'x', studentCount: 0 },
+        ],
+      });
+      // The most likely real-world failure: approving without CLASS_REQUIRED
+      // — the server enforces it even though the button is already disabled
+      // client-side until a class is picked, so this exercises the actual
+      // server round-trip failing for some other reason with the same code.
+      resolveAccessRequestMock.mockResolvedValue({
+        ok: false,
+        code: 'CLASS_REQUIRED',
+        message: 'Hãy chọn lớp cho sinh viên này trước khi duyệt.',
+      });
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+      trigger('lobby:access_request', accessRequest());
+      await waitFor(() => expect(screen.getByText('Người Lạ')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
+      fireEvent.click(await screen.findByRole('combobox'));
+      fireEvent.click(await screen.findByText('Nhóm 01'));
+      fireEvent.click(screen.getByRole('button', { name: 'Duyệt vào thi' }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByText('Hãy chọn lớp cho sinh viên này trước khi duyệt.'),
+        ).toBeInTheDocument(),
+      );
+      // The row stays — nothing was actually approved.
+      expect(screen.getByText('Người Lạ')).toBeInTheDocument();
     });
 
     it('removes the request from the panel once denied, without asking for a class', async () => {
