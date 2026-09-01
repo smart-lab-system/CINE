@@ -281,6 +281,55 @@ describe('ExamSession (e2e)', () => {
     expect(rows).toHaveLength(0);
   });
 
+  it('rejects a session shorter than 15 minutes with 400 — QA-reported gap', async () => {
+    const startTime = new Date(Date.now() + 60_000).toISOString();
+    // 5 minutes — long enough to look plausible, still under the 15-minute
+    // floor, so this can't accidentally pass for the wrong reason (e.g.
+    // colliding with the separate "end must be after start" rule).
+    const endTime = new Date(Date.now() + 60_000 + 5 * 60_000).toISOString();
+
+    const response = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Too Short Session',
+        classId,
+        roomId,
+        examType: 'TK',
+        startTime,
+        endTime,
+        requiredFilenames: ['Cau1.docx'],
+      });
+
+    expect(response.status).toBe(400);
+
+    const rows = await dataSource.query(
+      `SELECT id FROM examcollect.exam_session WHERE name = $1`,
+      ['Too Short Session'],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('accepts a session exactly 15 minutes long — the floor is inclusive', async () => {
+    const startTime = new Date(Date.now() + 60_000).toISOString();
+    const endTime = new Date(Date.now() + 60_000 + 15 * 60_000).toISOString();
+
+    const response = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Exactly Fifteen Minutes Session',
+        classId,
+        roomId,
+        examType: 'TK',
+        startTime,
+        endTime,
+        requiredFilenames: ['Cau1.docx'],
+      });
+
+    expect(response.status).toBe(201);
+  });
+
   it('rejects a duplicate required filename with 400, not 409 (Important #2 fix)', async () => {
     const { startTime, endTime } = futureWindow();
 

@@ -176,17 +176,48 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void
 }
 
 describe('SessionController — join flow (design spec §4)', () => {
-  it('emits the default form state immediately so the renderer can render before the first submit', async () => {
+  it('emits the default form state on its own, before any command — the renderer has nothing else to render from', async () => {
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
-    let sawInitialState = false;
+    // A listener attached synchronously, right after construction — the
+    // exact shape of what electron/main/index.ts's wireController() does.
+    // getState() alone can't catch a regression here (it trivially
+    // returns the right default either way); this asserts the 'state'
+    // EVENT itself actually fires, unprompted. A regression means the
+    // renderer's join form never appears on a fresh launch: nothing else
+    // ever prompts this class to emit until the student calls join(),
+    // which they cannot do on a blank window.
+    let emitted: AgentState | null = null;
     controller.on('state', (state) => {
-      if (state.joinPhase === 'form' && state.connection === 'idle' && state.joinError === null) {
-        sawInitialState = true;
-      }
+      emitted = state;
     });
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
+    expect(emitted).not.toBeNull();
+    const state = emitted!;
+    expect(state).toEqual({
+      connection: 'idle',
+      joinPhase: 'form',
+      joinError: null,
+      studentId: null,
+      sessionCode: null,
+      studentName: null,
+      sessionName: null,
+      endTime: null,
+      confirmedAt: null,
+      requiredFiles: [],
+      backup: {
+        available: false,
+        status: 'idle',
+        restoredCount: 0,
+        skippedCount: 0,
+        lastSnapshotAt: null,
+        lastSnapshotFailed: false,
+      },
+      materials: { count: 0, releaseAt: null, status: 'idle', downloadedFileNames: [] },
+      submission: { finalizing: false, summary: null },
+      log: [],
+    });
     expect(sawInitialState).toBe(true);
     expect(controller.getState().joinPhase).toBe('form');
     expect(controller.getState().joinError).toBeNull();
@@ -337,6 +368,37 @@ describe('SessionController — join flow (design spec §4)', () => {
 });
 
 describe('SessionController — after joining', () => {
+  it('a reconnect does not recreate a required file the student has since renamed away — QA-reported bug', async () => {
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    const joined = await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+    const workspaceDir = controllerWorkspaceDir(controller);
+    expect(joined.requiredFiles).toEqual([{ filename: 'Cau1.docx', created: true }]);
+
+    // The student renames their required file to something else, WITH
+    // real content in it — exactly the QA repro: before the fix, a
+    // reconnect's `createSubmissionFiles` re-runs unconditionally and
+    // creates a fresh EMPTY Cau1.docx back at the original path, which
+    // `submission:confirm` then uploads at finalize as a "successful"
+    // 0-byte submission — while the student's real, renamed file is
+    // never touched or submitted at all.
+    fs.writeFileSync(path.join(workspaceDir, 'Cau1.docx'), 'bai lam that cua sinh vien');
+    fs.renameSync(path.join(workspaceDir, 'Cau1.docx'), path.join(workspaceDir, 'Cau1_final.docx'));
+
+    const serverSocket = [...ns.sockets.values()][ns.sockets.size - 1];
+    serverSocket.conn.close();
+    await waitForState(controller, (s) => s.connection === 'disconnected');
+    await waitForState(controller, (s) => s.connection === 'connected', 10_000);
+    await waitFor(() => joinAttemptCount === 2, 5000); // the rejoin actually happened
+
+    expect(fs.existsSync(path.join(workspaceDir, 'Cau1.docx'))).toBe(false); // not recreated
+    expect(fs.readFileSync(path.join(workspaceDir, 'Cau1_final.docx'), 'utf8')).toBe(
+      'bai lam that cua sinh vien',
+    ); // the student's real work is exactly as they left it
+    controller.quit();
+  }, 15_000);
+
   it('re-emits agent:join automatically after a network blip, without the student resubmitting the form', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
@@ -385,7 +447,13 @@ describe('SessionController — after joining', () => {
     controller.quit();
   });
 
-  it('deletes the workspace folder once every required file is confirmed collected — QA-reported gap', async () => {
+  it('does not re-attempt agent:join (and does not regress the UI) if the socket reconnects after exam:finalize', async () => {
+    // Reproduces the bug report: teacher finalizes early, agent logs the
+    // upload as done, but a later reconnect still re-emits agent:join —
+    // which the (now 'completed') session rejects with SESSION_NOT_ACTIVE,
+    // and that error used to unconditionally flip joinPhase away from
+    // 'joined', kicking the student back to what looks like a rejection
+    // screen right after they successfully submitted.
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
     controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
@@ -393,44 +461,29 @@ describe('SessionController — after joining', () => {
 
     const workspaceDir = controllerWorkspaceDir(controller);
     fs.writeFileSync(path.join(workspaceDir, 'Cau1.docx'), 'bai lam');
-    expect(fs.existsSync(workspaceDir)).toBe(true);
 
     const socket = [...ns.sockets.values()][ns.sockets.size - 1];
     socket.emit('exam:finalize', { examSessionId: 'exam-1', reason: 'manual' });
+    await waitForState(controller, (s) => s.submission.summary !== null);
+    expect(controller.getState().examEnded).toBe(true);
+    expect(joinAttemptCount).toBe(1);
 
-    const state = await waitForState(controller, (s) => s.submission.summary !== null);
-    expect(state.submission.summary?.uploaded).toBe(1);
-    expect(state.submission.summary?.missing).toBe(0);
-    expect(state.submission.summary?.failed).toBe(0);
-    // The whole point: once the server has confirmed it has every file,
-    // the folder that could tempt/confuse a student into thinking they
-    // still need it is gone.
-    expect(fs.existsSync(workspaceDir)).toBe(false);
+    // The real server would now reject a rejoin with SESSION_NOT_ACTIVE
+    // (the session is 'completed') — configuring that here proves the
+    // client never even attempts it, not merely that this particular
+    // reply would have been handled gracefully.
+    nextJoinReply = { type: 'error', error: { code: 'SESSION_NOT_ACTIVE', message: 'not active anymore' } };
+    socket.conn.close();
+    await waitForState(controller, (s) => s.connection === 'disconnected');
+    await waitForState(controller, (s) => s.connection === 'connected', 10_000);
+    // No state change to await for the negative case — give a wrongly-sent
+    // agent:join a moment to round-trip if the guard were missing.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(joinAttemptCount).toBe(1); // never re-attempted
+    expect(controller.getState().joinPhase).toBe('joined'); // never regressed
     controller.quit();
-  });
-
-  it('does NOT delete the workspace folder when a required file could not be collected — the other half of the same gap', async () => {
-    nextJoinReply = { type: 'ack', ack: {} };
-    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
-    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
-    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
-
-    // join already auto-creates the required file as an empty stub — a
-    // genuine "missing" outcome only happens if the student deletes it
-    // afterward, which is exactly the case being reproduced here. This is
-    // the "partial collection" case: deleting the folder would destroy
-    // the student's only copy of whatever work they still had.
-    const workspaceDir = controllerWorkspaceDir(controller);
-    fs.unlinkSync(path.join(workspaceDir, 'Cau1.docx'));
-
-    const socket = [...ns.sockets.values()][ns.sockets.size - 1];
-    socket.emit('exam:finalize', { examSessionId: 'exam-1', reason: 'manual' });
-
-    const state = await waitForState(controller, (s) => s.submission.summary !== null);
-    expect(state.submission.summary?.missing).toBe(1);
-    expect(fs.existsSync(workspaceDir)).toBe(true);
-    controller.quit();
-  });
+  }, 15_000);
 
   it('notifies (and logs) on a disconnect that happens after already joining', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
@@ -466,6 +519,33 @@ describe('SessionController — after joining', () => {
     expect(fs.readFileSync(path.join(workspaceDir, 'Cau1.docx'), 'utf8')).toBe('bai lam dang do');
     controller.quit();
   });
+  it('emits open-workspace exactly once, right after the first join creates the folder — not again on a reconnect', async () => {
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    const opened: string[] = [];
+    controller.on('open-workspace', (dir: string) => opened.push(dir));
+
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+
+    expect(opened).toEqual([controllerWorkspaceDir(controller)]);
+
+    // A reconnect replays agent:join:ack (see the "re-emits agent:join
+    // automatically" test above) — createSubmissionFiles running again is
+    // fine (idempotent), but the folder must not pop open a second time.
+    const serverSocket = [...ns.sockets.values()][ns.sockets.size - 1];
+    serverSocket.conn.close();
+    await waitForState(controller, (s) => s.connection === 'disconnected');
+    await waitForState(controller, (s) => s.connection === 'connected', 10_000);
+    await waitFor(() => joinAttemptCount === 2, 5000);
+    // The second ack's async handler has no state change of its own to
+    // await on (requiredFiles/workspaceDir are already set) — give its
+    // microtasks a tick before asserting the negative.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(opened).toHaveLength(1);
+    controller.quit();
+  }, 15_000);
 
   it('quit() disconnects cleanly and does not throw when called twice', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
