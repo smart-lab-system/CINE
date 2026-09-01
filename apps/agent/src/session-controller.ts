@@ -487,7 +487,20 @@ export class SessionController extends EventEmitter {
     });
 
     if (!this.stopSnapshots) {
-      this.stopSnapshots = startSnapshotLoop(this.socket!, workspaceDir);
+      this.stopSnapshots = startSnapshotLoop(this.socket!, workspaceDir, (result) => {
+        if (result === 'failed') {
+          this.patch({ backup: { ...this.state.backup, lastSnapshotFailed: true } });
+          return;
+        }
+        if (result === 'uploaded') {
+          this.patch({
+            backup: { ...this.state.backup, lastSnapshotAt: new Date().toISOString(), lastSnapshotFailed: false },
+          });
+        }
+        // 'empty' (nothing written yet) leaves lastSnapshotAt/lastSnapshotFailed
+        // alone — there is nothing new to report, and clearing a real
+        // earlier timestamp back to null would read as "never backed up".
+      });
     }
   }
 
