@@ -1,8 +1,15 @@
 # Design: Student Agent — from CLI to an Electron app
 
 **Date:** 2026-09-01
-**Status:** Approved in chat (package structure, UX mockup, rate-limit
-design, teacher-notify broadcast, sequencing) — writing plan next.
+**Status:** Approved in chat, implemented directly (no separate plan doc,
+per explicit user direction) rather than via `writing-plans` +
+`executing-plans`/`subagent-driven-development`. Phase 0 (§5.1/§5.2/§6)
+and Phases 1-2 (§8.2/§8.3, built together — see §8.4) are done, tested,
+and code-reviewed (PASS both times). Phase 3's UI (access-request form,
+states f/g) shipped as part of the same Electron push. What's left:
+`cli.ts` deletion, gated on a human actually walking the §8.4 parity
+checklist against the running app — not done, not something this session
+can do (no way to see/click a running Electron window).
 **Branch:** `feature/student-agent-app` (worktree at
 `.claude/worktrees/student-agent-app`, branched from `origin/main` at
 `78ae94c`, after PR #6 merged)

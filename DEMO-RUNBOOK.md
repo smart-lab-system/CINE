@@ -326,6 +326,18 @@ session through the form.
 
 ## 9. Run the real agent
 
+**An Electron app is replacing this CLI** (see
+`docs/superpowers/specs/2026-09-01-student-agent-electron-design.md`) —
+`pnpm --filter agent dev` launches it: a real window instead of a
+terminal, the same MSSV + session-code fields, native notifications
+instead of console lines. It is not yet the documented path here because
+`cli.ts` is the only thing that has ever proven this whole flow
+start-to-finish, and it stays that way until the design's §8.4 parity
+checklist has actually been walked through against it — do that first if
+you're validating the new app, using the steps below as the reference
+behavior to match. Once confirmed, `cli.ts` is deleted and this section
+gets rewritten around the Electron app instead.
+
 **Do (new terminal):**
 ```bash
 cd apps/agent
