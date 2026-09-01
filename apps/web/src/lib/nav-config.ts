@@ -52,6 +52,9 @@ export const DEPARTMENT_NAV: NavItem[] = [
   { label: 'Môn học', href: '/department/courses', icon: BookOpen },
   { label: 'Lớp học', href: '/department/classes', icon: GraduationCap },
   { label: 'Phòng thi', href: '/department/rooms', icon: DoorOpen },
+  // Read-only — who is currently teaching in this head's department. The
+  // account itself stays admin's to manage (see /admin/accounts).
+  { label: 'Giảng viên', href: '/department/teachers', icon: Users },
 ];
 
 export const TEACHER_NAV: NavItem[] = [

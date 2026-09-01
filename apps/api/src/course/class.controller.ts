@@ -40,6 +40,21 @@ export class ClassController {
   }
 
   /**
+   * The teachers currently assigned to at least one class in this head's
+   * department — QA-reported gap (point 7): "ở trưởng khoa, ko có quản lý
+   * giảng viên hiện tại có trong khoa". Distinct from GET /accounts/teachers
+   * (accounts.controller.ts): that one is a global, unscoped id+name picker
+   * used when assigning a class; this is department-scoped and carries
+   * email + how many classes, for a head to actually see who is teaching
+   * for them. Read-only — the account itself stays admin's to manage.
+   */
+  @Get('teachers')
+  @Roles('department_admin')
+  findTeachers(@Req() req: Request) {
+    return this.classes.findTeachersForHead(req.user!.sub);
+  }
+
+  /**
    * The lecturer's own classes, with course and roster size — the list the
    * create-session form is built from. A class the caller does not teach
    * appearing here would put it one click away from an exam.

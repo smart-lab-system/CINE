@@ -11,7 +11,7 @@ import { CourseEntity } from './entities/course.entity';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
 import { CreateClassDto, UpdateClassDto } from './dto/course.dto';
-import { TeachingClassView } from './course.types';
+import { DepartmentTeacherView, TeachingClassView } from './course.types';
 
 /**
  * A class has no scope column of its own: it inherits the department through
@@ -44,6 +44,50 @@ export class ClassService {
       where: { courseId: In(owned.map((c) => c.id)) },
       order: { name: 'ASC' },
     });
+  }
+
+  /**
+   * The teachers currently assigned to at least one class under a course
+   * this head owns — QA-reported gap (point 7). There is no direct
+   * account<->department relation to query (see course.types.ts's
+   * DepartmentTeacherView doc comment): derived by the same join
+   * findForHead already does (course.department_head_id = headId), one
+   * level further down to class.teacher_id, deduped and counted.
+   */
+  async findTeachersForHead(headId: string): Promise<DepartmentTeacherView[]> {
+    const owned = await this.courses.find({
+      where: { departmentHeadId: headId },
+      select: { id: true },
+    });
+    if (owned.length === 0) {
+      return [];
+    }
+
+    const raw = await this.classes
+      .createQueryBuilder('k')
+      .innerJoin('k.teacher', 'teacher')
+      .select('teacher.id', 'teacherId')
+      .addSelect('teacher.name', 'teacherName')
+      .addSelect('teacher.email', 'teacherEmail')
+      .addSelect('COUNT(DISTINCT k.id)', 'classCount')
+      .where('k.courseId IN (:...courseIds)', { courseIds: owned.map((c) => c.id) })
+      .groupBy('teacher.id')
+      .addGroupBy('teacher.name')
+      .addGroupBy('teacher.email')
+      .orderBy('teacher.name', 'ASC')
+      .getRawMany<{
+        teacherId: string;
+        teacherName: string;
+        teacherEmail: string;
+        classCount: string;
+      }>();
+
+    return raw.map((row) => ({
+      id: row.teacherId,
+      name: row.teacherName,
+      email: row.teacherEmail,
+      classCount: parseInt(row.classCount, 10),
+    }));
   }
 
   /**

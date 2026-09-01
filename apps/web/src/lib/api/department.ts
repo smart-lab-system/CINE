@@ -225,3 +225,26 @@ export async function listTeacherOptions(): Promise<TeacherOption[]> {
   await throwIfFailed(error, response);
   return data as unknown as TeacherOption[];
 }
+
+/* --------------------------------------------------- department teachers -- */
+
+/**
+ * A teacher as this head sees them — mirrors DepartmentTeacherView
+ * (apps/api/src/course/course.types.ts). Distinct from TeacherOption above:
+ * that one is the global id+name picker used when assigning a class; this
+ * is scoped to classes under a course this head owns, and carries enough
+ * (email, class count) to actually be a "who's teaching for me" view, not
+ * just a picker.
+ */
+export interface DepartmentTeacher {
+  id: string;
+  name: string;
+  email: string;
+  classCount: number;
+}
+
+export async function listDepartmentTeachers(): Promise<DepartmentTeacher[]> {
+  const { data, error, response } = await apiClient.GET('/classes/teachers');
+  await throwIfFailed(error, response);
+  return data as unknown as DepartmentTeacher[];
+}

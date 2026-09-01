@@ -324,6 +324,79 @@ describe('Department resources (e2e)', () => {
       expect(row.home_teacher_id).toBe(replacement.id);
     });
   });
+  describe('department teachers list (QA-reported gap: point 7)', () => {
+    it('lists a teacher only once, with the number of classes they teach across this head\'s courses', async () => {
+      const teacher = await makeAccount('dept_teachers_a', 'teacher');
+      const courseOne = await request(app.getHttpServer())
+        .post('/courses')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send(newCourse('k'));
+      const courseTwo = await request(app.getHttpServer())
+        .post('/courses')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send(newCourse('l'));
+
+      await request(app.getHttpServer())
+        .post('/classes')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ courseId: courseOne.body.id, name: 'Nhóm GV A - 1', teacherId: teacher.id });
+      await request(app.getHttpServer())
+        .post('/classes')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ courseId: courseTwo.body.id, name: 'Nhóm GV A - 2', teacherId: teacher.id });
+
+      const response = await request(app.getHttpServer())
+        .get('/classes/teachers')
+        .set('Authorization', `Bearer ${headToken}`);
+
+      expect(response.status).toBe(200);
+      const rows = response.body.filter((t: { id: string }) => t.id === teacher.id);
+      // Two classes, ONE row — a head sees who is teaching for them, not
+      // one line per class.
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ classCount: 2 });
+      expect(rows[0].email).toBeDefined();
+    });
+
+    it('never lists a teacher who has no class under this head — the pick list stays global, this does not', async () => {
+      const untouched = await makeAccount('dept_teachers_untouched', 'teacher');
+
+      const response = await request(app.getHttpServer())
+        .get('/classes/teachers')
+        .set('Authorization', `Bearer ${headToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.map((t: { id: string }) => t.id)).not.toContain(untouched.id);
+    });
+
+    it('never lists a teacher who only teaches for a DIFFERENT head\'s department', async () => {
+      const foreignTeacher = await makeAccount('dept_teachers_foreign', 'teacher');
+      const foreignCourse = await request(app.getHttpServer())
+        .post('/courses')
+        .set('Authorization', `Bearer ${otherHeadToken}`)
+        .send(newCourse('m'));
+      await request(app.getHttpServer())
+        .post('/classes')
+        .set('Authorization', `Bearer ${otherHeadToken}`)
+        .send({ courseId: foreignCourse.body.id, name: 'Nhóm khoa khác', teacherId: foreignTeacher.id });
+
+      const response = await request(app.getHttpServer())
+        .get('/classes/teachers')
+        .set('Authorization', `Bearer ${headToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.map((t: { id: string }) => t.id)).not.toContain(foreignTeacher.id);
+    });
+
+    it('refuses the department teachers list to a teacher', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/classes/teachers')
+        .set('Authorization', `Bearer ${teacherToken}`);
+
+      expect(response.status).toBe(403);
+    });
+  });
+
   describe('teacher pick list', () => {
     it('lets a head read teacher options without exposing anything else', async () => {
       const response = await request(app.getHttpServer())

@@ -11,6 +11,7 @@ import {
   deleteCourse,
   deleteRoom,
   deleteSemester,
+  listDepartmentTeachers,
   listMyClasses,
   listMyCourses,
   listRooms,
@@ -170,6 +171,13 @@ export function useAssignCourseOwner() {
 
 export function useTeacherOptions() {
   return useQuery({ queryKey: ['accounts', 'teachers'], queryFn: listTeacherOptions });
+}
+
+/* ---------------------------------------------------- department teachers */
+
+/** Who is currently teaching for this head — QA-reported gap (point 7). */
+export function useDepartmentTeachers() {
+  return useQuery({ queryKey: ['classes', 'teachers'], queryFn: listDepartmentTeachers });
 }
 
 /* ------------------------------------------------------------------- roster */
