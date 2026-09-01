@@ -413,6 +413,26 @@ export class SessionController extends EventEmitter {
   }
 
   private async doHandleJoinAck(ack: AgentJoinAck): Promise<void> {
+    // Captured BEFORE the flag flips — this is the one thing that decides
+    // whether the filesystem gets touched at all this round. A rejoin
+    // (network blip, or the access-request grant's own rejoin) must never
+    // repeat the restore/create step: `createSubmissionFiles` only
+    // protects the exact literal filename it's given (`wx` on that one
+    // path) — if the student has since RENAMED their real work away from
+    // that name, a second call creates a fresh EMPTY file back at the
+    // original path, and `submission:confirm` at finalize time uploads
+    // *that* — 0 bytes, reported as a successful upload — while the
+    // student's actual, renamed file is never touched or submitted at
+    // all. Confirmed by direct repro before this fix (student renames
+    // Cau1.docx → Cau1_final.docx with real content; a rejoin recreates
+    // an empty Cau1.docx; makeWorkspaceReader on 'Cau1.docx' at finalize
+    // returns 0 bytes, not null, so it never shows up as "missing"
+    // either — a silent, undetectable loss of the student's real work).
+    // Same reasoning for the backup restore just below it: it exists for
+    // a wiped/replaced machine, which looks identical to a first join —
+    // never for "the same machine, same process, momentarily
+    // disconnected," which is what every later ack in this session is.
+    const isFirstJoin = !this.hasJoinedOnce;
     this.hasJoinedOnce = true;
     const studentId = this.state.studentId ?? '';
     const workspaceDir = this.workspaceDir!;
@@ -435,30 +455,37 @@ export class SessionController extends EventEmitter {
       this.state.studentName ? `Xác nhận danh tính: ${this.state.studentName}.` : 'Đã tham gia phiên thi.',
     );
 
-    if (ack.backupAvailable === true) {
-      this.patch({ backup: { ...this.state.backup, status: 'restoring' } });
-      const outcome = await restoreBackup(this.socket!, workspaceDir);
-      if (outcome.status === 'restored') {
-        this.patch({
-          backup: {
-            ...this.state.backup,
-            status: 'restored',
-            restoredCount: outcome.restored,
-            skippedCount: outcome.skipped,
-          },
-        });
-        this.log(`Đã khôi phục ${outcome.restored} file từ bản sao lưu (giữ nguyên ${outcome.skipped} file có sẵn).`);
-      } else if (outcome.status === 'failed') {
-        this.patch({ backup: { ...this.state.backup, status: 'failed' } });
-        this.notify('Không khôi phục được bản sao lưu', 'Bạn vẫn làm bài bình thường — hãy báo giám thị nếu bài làm cũ bị mất.');
-      } else {
-        this.patch({ backup: { ...this.state.backup, status: 'nothing-to-restore' } });
+    if (!isFirstJoin) {
+      // Kết nối lại — giữ nguyên toàn bộ file đã có trên máy, không đụng
+      // tới filesystem. state.requiredFiles already holds the checklist
+      // from the real first join and stays exactly as it was.
+      this.log('Đã kết nối lại. Giữ nguyên các file đã có trên máy, không tạo lại.');
+    } else {
+      if (ack.backupAvailable === true) {
+        this.patch({ backup: { ...this.state.backup, status: 'restoring' } });
+        const outcome = await restoreBackup(this.socket!, workspaceDir);
+        if (outcome.status === 'restored') {
+          this.patch({
+            backup: {
+              ...this.state.backup,
+              status: 'restored',
+              restoredCount: outcome.restored,
+              skippedCount: outcome.skipped,
+            },
+          });
+          this.log(`Đã khôi phục ${outcome.restored} file từ bản sao lưu (giữ nguyên ${outcome.skipped} file có sẵn).`);
+        } else if (outcome.status === 'failed') {
+          this.patch({ backup: { ...this.state.backup, status: 'failed' } });
+          this.notify('Không khôi phục được bản sao lưu', 'Bạn vẫn làm bài bình thường — hãy báo giám thị nếu bài làm cũ bị mất.');
+        } else {
+          this.patch({ backup: { ...this.state.backup, status: 'nothing-to-restore' } });
+        }
       }
-    }
 
-    const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
-    this.patch({ requiredFiles: created.files });
-    this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
+      const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
+      this.patch({ requiredFiles: created.files });
+      this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
+    }
 
     const materialNames: string[] = [];
     if (typeof ack.examMaterialCount === 'number' && ack.examMaterialCount > 0) {
