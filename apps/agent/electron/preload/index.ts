@@ -29,6 +29,9 @@ const api: AgentApi = {
     ipcRenderer.on(IPC_CHANNELS.state, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.state, listener);
   },
+  getState(): Promise<AgentState> {
+    return ipcRenderer.invoke(IPC_CHANNELS.getState) as Promise<AgentState>;
+  },
 };
 
 contextBridge.exposeInMainWorld('agent', api);

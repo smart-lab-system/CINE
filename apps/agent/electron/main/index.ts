@@ -139,6 +139,10 @@ function wireController(): SessionController {
 }
 
 function registerIpcHandlers(c: SessionController): void {
+  // Request/response, not push: the renderer calls this once on mount to
+  // pick up whatever state already exists, closing the gap the push-only
+  // `agent:state` channel can't — see IPC_CHANNELS.getState's doc comment.
+  ipcMain.handle(IPC_CHANNELS.getState, () => c.getState());
   ipcMain.on(IPC_CHANNELS.join, (_event: IpcMainEvent, payload: JoinRequest) => {
     c.join(payload);
   });

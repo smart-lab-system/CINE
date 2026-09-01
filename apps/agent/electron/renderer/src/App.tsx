@@ -17,7 +17,20 @@ export default function App() {
   // DetailView, not replay the confirmation badge.
   const [confirmationShown, setConfirmationShown] = useState(false);
 
-  useEffect(() => window.agent.onState(setState), []);
+  // Subscribe first, then pull — in that order. main pushes `agent:state`
+  // proactively (on controller construction, and again on did-finish-load),
+  // but those pushes almost always land before this effect has even run
+  // (React defers effects until after commit/paint, well after the module
+  // script that triggers did-finish-load finishes), so `onState` alone
+  // reliably misses the very first state and this component is stuck
+  // rendering `null` forever — there is nothing else to ever re-trigger a
+  // push. `getState()` closes that gap by pulling the current snapshot
+  // directly instead of waiting on a push to have landed in time.
+  useEffect(() => {
+    const unsubscribe = window.agent.onState(setState);
+    void window.agent.getState().then(setState);
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (state?.joinPhase !== 'joined' || confirmationShown) {
