@@ -491,6 +491,13 @@ async function main(): Promise<void> {
   // successful join. A reconnect re-joins and re-acks, and starting a
   // second loop there would double the upload rate for the rest of the exam.
   let stopSnapshots: (() => void) | null = null;
+  // Refreshed on every join/rejoin alongside the state above — needed by
+  // handleMaterialsUpdated below, which runs on its own, well after
+  // handleJoinAck's own local consts of the same name have gone out of scope.
+  let lastSessionName = '(không rõ)';
+  let lastStudentName: string | null = null;
+  let lastEndTime = '(không rõ)';
+  let lastRequiredFiles: string[] = [];
 
   const shutdown = (exitCode: number): void => {
     if (shuttingDown) {
@@ -565,6 +572,10 @@ async function main(): Promise<void> {
     const sessionName = typeof ack.sessionName === 'string' ? ack.sessionName : '(không rõ)';
     const endTime = typeof ack.endTime === 'string' ? ack.endTime : '(không rõ)';
     const studentName = typeof ack.studentName === 'string' ? ack.studentName : null;
+    lastSessionName = sessionName;
+    lastStudentName = studentName;
+    lastEndTime = endTime;
+    lastRequiredFiles = Array.isArray(ack.requiredFiles) ? (ack.requiredFiles as string[]) : [];
     if (studentName) {
       console.log(`Xác nhận danh tính: ${studentName} (MSSV ${payload.studentId}).`);
       console.log('Nếu KHÔNG phải bạn, hãy thoát ngay và báo giám thị.');
@@ -642,6 +653,50 @@ async function main(): Promise<void> {
     }
 
     console.log('Agent đang chạy nền, chờ đến hết giờ thi. Nhấn Ctrl+C để thoát.');
+  }
+
+  /**
+   * Server -> agent: a teacher added an exam material after this agent
+   * already joined. QA-reported gap: this agent used to ask for materials
+   * exactly once, at join-ack time, gated on the join ack's OWN count — a
+   * student connected before the teacher uploaded anything got
+   * `examMaterialCount: 0` and was never told to ask again, permanently,
+   * short of a full disconnect/reconnect. This is that "ask again" nudge;
+   * the actual release gate stays exactly where it already was (server-side,
+   * re-checked on every request), unaffected by when the nudge arrives.
+   */
+  socket.on('exam:materials-updated', () => {
+    void handleMaterialsUpdated();
+  });
+
+  async function handleMaterialsUpdated(): Promise<void> {
+    if (!hasJoinedOnce) {
+      // Not actually in an exam yet — nothing to fetch into.
+      return;
+    }
+    try {
+      const outcome = await downloadMaterials(socket, workspaceDir);
+      if (outcome.status === 'downloaded' && outcome.downloaded > 0) {
+        console.log(`Đã tải ${outcome.downloaded} file đề thi mới vào thư mục "de-thi".`);
+      } else if (outcome.status === 'not-yet') {
+        console.log(`Đề thi chưa mở — sẽ mở lúc ${outcome.releaseAt ?? '(chưa rõ)'}.`);
+      } else if (outcome.status === 'failed') {
+        console.warn('[CẢNH BÁO] Không tải được đề thi. Hãy báo giám thị.');
+      }
+      await writeInstructions(workspaceDir, {
+        sessionName: lastSessionName,
+        studentName: lastStudentName,
+        studentId: payload.studentId,
+        endTime: lastEndTime,
+        requiredFiles: lastRequiredFiles,
+        materialFileNames: outcome.fileNames,
+      });
+    } catch (error) {
+      console.warn(
+        'Lỗi không mong muốn khi tải đề thi mới:',
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 
   /**

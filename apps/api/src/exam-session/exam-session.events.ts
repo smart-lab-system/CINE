@@ -13,6 +13,22 @@ export interface ExamFinalizedEvent {
 }
 
 /**
+ * A teacher successfully attached a new exam material to a session.
+ *
+ * Carries no material data on purpose — this is a "check again" nudge, not
+ * a delivery. The agent still fetches through `agent:request-materials`,
+ * which is the one place Security rule 2 is enforced (ExamMaterialService.
+ * listForAgent re-checks the release clock on every call); this event only
+ * exists to make sure an already-connected agent ever asks again at all.
+ * QA-reported gap: a student who joined BEFORE the teacher uploaded
+ * anything got `examMaterialCount: 0` in their join ack and, without this,
+ * was never told to re-check — permanently, short of a full reconnect.
+ */
+export interface ExamMaterialAddedEvent {
+  examSessionId: string;
+}
+
+/**
  * One-way, in-process bus between ExamSessionService (which owns the
  * status transition) and ExamSessionGateway (which owns the socket).
  *
@@ -36,10 +52,17 @@ export interface ExamFinalizedEvent {
 @Injectable()
 export class ExamSessionEvents {
   private readonly finalizedSubject = new Subject<ExamFinalizedEvent>();
+  private readonly materialAddedSubject = new Subject<ExamMaterialAddedEvent>();
 
   readonly finalized$: Observable<ExamFinalizedEvent> = this.finalizedSubject.asObservable();
+  readonly materialAdded$: Observable<ExamMaterialAddedEvent> =
+    this.materialAddedSubject.asObservable();
 
   publishFinalized(event: ExamFinalizedEvent): void {
     this.finalizedSubject.next(event);
+  }
+
+  publishMaterialAdded(event: ExamMaterialAddedEvent): void {
+    this.materialAddedSubject.next(event);
   }
 }

@@ -30,6 +30,16 @@ type JoinReply = { type: 'ack'; ack: Partial<AgentJoinAck> } | { type: 'error'; 
 let nextJoinReply: JoinReply | null = null;
 let joinAttemptCount = 0;
 
+type MaterialsReply =
+  | { ok: true; materials: { id: string; fileName: string; fileSize: number; downloadUrl?: string }[] }
+  | { ok: false; code: 'NOT_JOINED' | 'STORAGE_UNAVAILABLE'; message: string }
+  | { ok: false; code: 'NOT_YET_RELEASED'; message: string; releaseAt: string };
+// Mirrors nextJoinReply's pattern — QA-reported gap tests drive this
+// across TWO separate agent:request-materials calls in one test (the
+// join-time one, then a later one after `exam:materials-updated`), so it
+// needs to be swappable mid-test, not just a fixed beforeAll reply.
+let nextMaterialsReply: MaterialsReply = { ok: true, materials: [] };
+
 function baseAck(overrides: Partial<AgentJoinAck> = {}): AgentJoinAck {
   return {
     examSessionId: 'exam-1',
@@ -55,6 +65,11 @@ beforeAll(async () => {
         res.writeHead(200);
         res.end();
       });
+      return;
+    }
+    if (req.method === 'GET' && req.url?.startsWith('/fake-materials/')) {
+      res.writeHead(200);
+      res.end('noi dung de thi');
       return;
     }
     res.writeHead(404);
@@ -106,6 +121,10 @@ beforeAll(async () => {
         ack({ ok: true, status: 'submitted', submittedAt: new Date().toISOString() });
       },
     );
+
+    socket.on('agent:request-materials', (_payload: unknown, ack: (reply: MaterialsReply) => void) => {
+      ack(nextMaterialsReply);
+    });
   });
 
   await new Promise<void>((resolve) => httpServer.listen(0, resolve));
@@ -129,6 +148,7 @@ afterEach(() => {
   uploadedBodies = [];
   joinAttemptCount = 0;
   accessRequestReply = { ok: true, requestId: 'req-1' };
+  nextMaterialsReply = { ok: true, materials: [] };
 });
 
 function tmpWorkspaceRoot(): string {
@@ -546,6 +566,34 @@ describe('SessionController — after joining', () => {
     expect(opened).toHaveLength(1);
     controller.quit();
   }, 15_000);
+
+  it('fetches a material added AFTER join, on exam:materials-updated — QA-reported gap', async () => {
+    // Default baseAck: examMaterialCount 0 — the exact "nothing existed
+    // yet when I joined" case that used to leave this agent stuck forever.
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+    expect(controller.getState().materials.status).toBe('idle');
+
+    // The teacher uploads a material now, well after this agent joined.
+    nextMaterialsReply = {
+      ok: true,
+      materials: [
+        { id: 'm1', fileName: 'de-thi.pdf', fileSize: 15, downloadUrl: `${baseUrl}/fake-materials/m1` },
+      ],
+    };
+    const socket = [...ns.sockets.values()][ns.sockets.size - 1];
+    socket.emit('exam:materials-updated', {});
+
+    const state = await waitForState(controller, (s) => s.materials.status === 'downloaded');
+    expect(state.materials.downloadedFileNames).toEqual(['de-thi.pdf']);
+
+    const workspaceDir = controllerWorkspaceDir(controller);
+    const materialPath = path.join(workspaceDir, 'de-thi', 'de-thi.pdf');
+    expect(fs.readFileSync(materialPath, 'utf8')).toBe('noi dung de thi');
+    controller.quit();
+  });
 
   it('quit() disconnects cleanly and does not throw when called twice', async () => {
     nextJoinReply = { type: 'ack', ack: {} };

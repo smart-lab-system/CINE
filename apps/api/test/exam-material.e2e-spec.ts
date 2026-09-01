@@ -297,4 +297,125 @@ describe('Exam materials (e2e)', () => {
     // they deleted, still readable by anyone holding an old signed URL.
     expect((await fetch(url)).status).toBe(404);
   });
+
+  /**
+   * QA-reported gap: a student who joined BEFORE the teacher uploaded
+   * anything got `examMaterialCount: 0` in their join ack and was never
+   * told to ask again — permanently, short of a full reconnect. A session
+   * of its own, not the shared `sessionId` above: that one already has
+   * materials from earlier tests in this file, which would defeat the
+   * "count 0 at join time" precondition this test needs.
+   */
+  it('notifies an already-joined agent when the teacher adds a material afterward', async () => {
+    const lateStamp = `${stamp}L`;
+    const email = `material_late_${lateStamp}@example.com`;
+    const teacherId = await createTestAccount(dataSource, {
+      email,
+      password: 'correct-horse-battery',
+      role: 'teacher',
+    });
+    const lateToken = await login(email);
+    const lateMssv = `L${lateStamp}`.slice(0, 20);
+
+    const [semester] = await dataSource.query(
+      `INSERT INTO examcollect.semester (name, start_date, end_date)
+       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
+      [`Late Material Semester ${lateStamp}`],
+    );
+    const [course] = await dataSource.query(
+      `INSERT INTO examcollect.course (code, name, semester_id)
+       VALUES ($1, 'Môn đề thi trễ', $2) RETURNING id`,
+      [`LM${lateStamp}`.slice(0, 20), semester.id],
+    );
+    const [klass] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [course.id, `Nhóm đề thi trễ ${lateStamp}`, teacherId],
+    );
+    const [room] = await dataSource.query(
+      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
+      [`Late Material Room ${lateStamp}`],
+    );
+    await dataSource.query(
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [lateMssv, 'Sinh viên vào sớm', course.id, klass.id, teacherId],
+    );
+
+    const created = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${lateToken}`)
+      .send({
+        name: `Late Material Session ${lateStamp}`,
+        classId: klass.id,
+        roomId: room.id,
+        examType: 'CK',
+        startTime: new Date(Date.now() - 60_000).toISOString(),
+        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        requiredFilenames: ['Cau1.docx'],
+      });
+    expect(created.status).toBe(201);
+    const lateSessionId = created.body.id;
+    const lateSessionCode = created.body.code;
+
+    // Joins BEFORE any material exists — this is the exact case that used
+    // to leave a student stuck forever.
+    const socket = io(`${baseUrl}/exam-live`, { reconnection: false, forceNew: true });
+    sockets.push(socket);
+    const ack = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('join timed out')), 5_000);
+      socket.on('connect', () =>
+        socket.emit('agent:join', { studentId: lateMssv, sessionCode: lateSessionCode }),
+      );
+      socket.on('agent:join:ack', (body: Record<string, unknown>) => {
+        clearTimeout(timer);
+        resolve(body);
+      });
+      socket.on('agent:join:error', (e: { code: string }) => {
+        clearTimeout(timer);
+        reject(new Error(e.code));
+      });
+    });
+    expect(ack.examMaterialCount).toBe(0);
+
+    // Start listening BEFORE the upload, so there is no window to miss it.
+    const notifiedPromise = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('materials-updated timed out')), 5_000);
+      socket.once('exam:materials-updated', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
+    const minted = await request(app.getHttpServer())
+      .post(`/exam-sessions/${lateSessionId}/materials/upload-url`)
+      .set('Authorization', `Bearer ${lateToken}`)
+      .send({ fileName: 'de-thi-tre.pdf', fileSize: 20 });
+    await fetch(minted.body.uploadUrl, {
+      method: 'PUT',
+      body: '%PDF-1.4 uploaded late',
+      headers: { 'Content-Type': 'application/pdf' },
+    });
+    const confirmed = await request(app.getHttpServer())
+      .post(`/exam-sessions/${lateSessionId}/materials`)
+      .set('Authorization', `Bearer ${lateToken}`)
+      .send({
+        examMaterialId: minted.body.examMaterialId,
+        storageKey: minted.body.storageKey,
+        fileName: 'de-thi-tre.pdf',
+        fileSize: 20,
+      });
+    expect(confirmed.status).toBe(201);
+
+    await notifiedPromise;
+
+    // And the agent really can fetch it now, re-asking the same way it
+    // always has — the nudge only tells it to look again.
+    const reply = await new Promise<{ ok: boolean; materials?: { fileName: string }[] }>(
+      (resolve) => socket.emit('agent:request-materials', {}, resolve),
+    );
+    expect(reply.ok).toBe(true);
+    expect(reply.materials!.map((m) => m.fileName)).toContain('de-thi-tre.pdf');
+  });
 });
