@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createSubmissionFiles, isSafeForPathSegment, validateFilename } from './workspace-files';
+import {
+  createSubmissionFiles,
+  isSafeForPathSegment,
+  makeWorkspaceReader,
+  validateFilename,
+} from './workspace-files';
 
 /**
  * The path-traversal defense — the core security property this module
@@ -132,5 +137,37 @@ describe('createSubmissionFiles', () => {
     const result = createSubmissionFiles(workspaceDir, 'not-an-array');
 
     expect(result).toEqual({ createdCount: 0, files: [] });
+  });
+});
+
+describe('makeWorkspaceReader', () => {
+  const deliverable = (requiredFilename: string) => ({
+    id: 'd1',
+    requiredFilename,
+    deliverableType: 'document',
+  });
+
+  it("reads a required file's bytes", async () => {
+    const root = tmpWorkspace();
+    fs.writeFileSync(path.join(root, 'Cau1.docx'), 'bai lam');
+    const read = makeWorkspaceReader(root);
+
+    const content = await read(deliverable('Cau1.docx'));
+
+    expect(content?.toString('utf8')).toBe('bai lam');
+  });
+
+  it('returns null for a required file the student never created', async () => {
+    const root = tmpWorkspace();
+    const read = makeWorkspaceReader(root);
+
+    expect(await read(deliverable('Cau1.docx'))).toBeNull();
+  });
+
+  it('throws rather than reading an unsafe filename, even one the server itself sent', async () => {
+    const root = tmpWorkspace();
+    const read = makeWorkspaceReader(root);
+
+    await expect(read(deliverable('../evil.txt'))).rejects.toThrow(/không an toàn/);
   });
 });

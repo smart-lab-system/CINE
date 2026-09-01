@@ -15,6 +15,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type { ReadDeliverableContent, RequiredDeliverable } from './submission-uploader';
 
 export const WORKSPACE_DIRNAME = 'exam-workspace';
 
@@ -160,4 +161,33 @@ export function createSubmissionFiles(
     }
   }
   return { createdCount, files };
+}
+
+/**
+ * Reads one deliverable's bytes out of the workspace for upload.
+ *
+ * Returns null when the file is not there — the student deleted it, or
+ * never created it. That is a reportable outcome, not an error: the other
+ * deliverables must still be collected (see uploadAllDeliverables).
+ *
+ * The filename is re-validated here even though createSubmissionFiles
+ * already validated it on the way in. The server is not a trusted source
+ * for a path at upload time any more than it was at join time, and the ack
+ * that produced this list arrived over the same untrusted socket.
+ */
+export function makeWorkspaceReader(workspaceDir: string): ReadDeliverableContent {
+  return async (deliverable: RequiredDeliverable): Promise<Buffer | null> => {
+    const validation = validateFilename(workspaceDir, deliverable.requiredFilename);
+    if (!validation.ok) {
+      throw new Error(`filename không an toàn — ${validation.reason}`);
+    }
+    try {
+      return await fs.promises.readFile(validation.resolvedPath!);
+    } catch (error) {
+      if (isErrnoException(error) && error.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
+  };
 }
