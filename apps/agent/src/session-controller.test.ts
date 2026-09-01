@@ -502,6 +502,23 @@ describe('SessionController — after joining', () => {
     controller.quit();
   });
 
+  it('never deletes the workspace folder on a disconnect — a student mid-exam has no way to know they lost connection', async () => {
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+
+    const workspaceDir = controllerWorkspaceDir(controller);
+    fs.writeFileSync(path.join(workspaceDir, 'Cau1.docx'), 'bai lam dang do');
+
+    const socket = [...ns.sockets.values()][ns.sockets.size - 1];
+    socket.disconnect(true);
+    await waitForState(controller, (s) => s.connection === 'disconnected');
+
+    expect(fs.existsSync(workspaceDir)).toBe(true);
+    expect(fs.readFileSync(path.join(workspaceDir, 'Cau1.docx'), 'utf8')).toBe('bai lam dang do');
+    controller.quit();
+  });
   it('emits open-workspace exactly once, right after the first join creates the folder — not again on a reconnect', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
