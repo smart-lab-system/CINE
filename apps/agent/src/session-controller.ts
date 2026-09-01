@@ -125,6 +125,18 @@ export interface AgentState {
   materials: MaterialsState;
   submission: SubmissionState;
   log: LogEntry[];
+  /**
+   * True from the moment `exam:finalize` is first received, forever —
+   * regardless of whether the upload itself succeeds. Once the server has
+   * closed the session, nothing this client does can reopen it, and a
+   * later reconnect (network blip, laptop sleep, a dev-server restart)
+   * must not try `agent:join` again: the server would reject it with
+   * SESSION_NOT_ACTIVE now that the session is 'completed', and treating
+   * that like any other join error would regress the UI from "already
+   * submitted" back to a join/error screen — see connectSocket's
+   * `on('connect')` and handleJoinError's own `examEnded` guards.
+   */
+  examEnded: boolean;
 }
 
 export interface NotifyEvent {
@@ -159,6 +171,7 @@ function initialState(): AgentState {
     materials: { count: 0, releaseAt: null, status: 'idle', downloadedFileNames: [] },
     submission: { finalizing: false, summary: null },
     log: [],
+    examEnded: false,
   };
 }
 
@@ -180,13 +193,22 @@ export interface SessionControllerOptions {
 }
 
 /**
- * Emits exactly two events, {@link AgentState} and {@link NotifyEvent} —
- * documented here rather than as overloaded `on()` signatures (which would
- * need unsafe class/interface declaration merging) since `EventEmitter`
- * itself is already untyped:
- *   - `'state'`  — `(state: AgentState) => void`, on every state change.
- *   - `'notify'` — `(notification: NotifyEvent) => void`, for the moments
- *     `electron/main` should fire a native `Notification`.
+ * Emits exactly three events — documented here rather than as overloaded
+ * `on()` signatures (which would need unsafe class/interface declaration
+ * merging) since `EventEmitter` itself is already untyped:
+ *   - `'state'`         — `(state: {@link AgentState}) => void`, on every
+ *     state change.
+ *   - `'notify'`        — `(notification: {@link NotifyEvent}) => void`,
+ *     for the moments `electron/main` should fire a native `Notification`.
+ *   - `'open-workspace'` — `(workspaceDir: string) => void`, fired once,
+ *     right after the FIRST successful join creates the workspace folder —
+ *     `electron/main` opens it in the OS file manager so the student never
+ *     has to go looking for it themselves (CLAUDE.md's "don't push work
+ *     onto anyone the system can resolve itself"). Deliberately not
+ *     re-fired on a reconnect's repeat `agent:join:ack` (see
+ *     `doHandleJoinAck`'s `isFirstJoin`) — the folder is already open by
+ *     then, and popping a second Explorer window on every network blip
+ *     would be the opposite of "stay out of the way".
  */
 export class SessionController extends EventEmitter {
   private readonly backendUrl: string;
@@ -342,6 +364,17 @@ export class SessionController extends EventEmitter {
 
     socket.on('connect', () => {
       this.patch({ connection: 'connected' });
+      if (this.state.examEnded) {
+        // The exam is already over for this student (exam:finalize was
+        // already received at least once) — re-emitting agent:join here
+        // would only get rejected with SESSION_NOT_ACTIVE now that the
+        // session itself is 'completed' server-side, which would wrongly
+        // regress the UI from "already submitted" back to an error/join
+        // screen. Nothing left to authenticate once the exam has ended,
+        // successfully uploaded or not.
+        this.log('Kết nối lại sau khi bài thi đã kết thúc — không gửi lại yêu cầu vào thi.');
+        return;
+      }
       this.emitJoin();
     });
 
@@ -357,7 +390,10 @@ export class SessionController extends EventEmitter {
 
     socket.on('disconnect', (reason: string) => {
       this.patch({ connection: 'disconnected' });
-      if (!this.shuttingDown && this.hasJoinedOnce) {
+      // "...Đang thử kết nối lại" would be a lie once the exam has ended:
+      // the transport may still reconnect, but connect's own examEnded
+      // guard above means nothing more actually happens when it does.
+      if (!this.shuttingDown && this.hasJoinedOnce && !this.state.examEnded) {
         this.notify('Mất kết nối', `Mất kết nối tới máy chủ (${reason}). Đang thử kết nối lại...`);
       }
     });
@@ -432,25 +468,9 @@ export class SessionController extends EventEmitter {
   }
 
   private async doHandleJoinAck(ack: AgentJoinAck): Promise<void> {
-    // Captured BEFORE the flag flips — this is the one thing that decides
-    // whether the filesystem gets touched at all this round. A rejoin
-    // (network blip, or the access-request grant's own rejoin) must never
-    // repeat the restore/create step: `createSubmissionFiles` only
-    // protects the exact literal filename it's given (`wx` on that one
-    // path) — if the student has since RENAMED their real work away from
-    // that name, a second call creates a fresh EMPTY file back at the
-    // original path, and `submission:confirm` at finalize time uploads
-    // *that* — 0 bytes, reported as a successful upload — while the
-    // student's actual, renamed file is never touched or submitted at
-    // all. Confirmed by direct repro before this fix (student renames
-    // Cau1.docx → Cau1_final.docx with real content; a rejoin recreates
-    // an empty Cau1.docx; makeWorkspaceReader on 'Cau1.docx' at finalize
-    // returns 0 bytes, not null, so it never shows up as "missing"
-    // either — a silent, undetectable loss of the student's real work).
-    // Same reasoning for the backup restore just below it: it exists for
-    // a wiped/replaced machine, which looks identical to a first join —
-    // never for "the same machine, same process, momentarily
-    // disconnected," which is what every later ack in this session is.
+    // Captured before the flag flips: a reconnect replays this same method
+    // (server re-acks `agent:join`), and `isFirstJoin` is what keeps
+    // 'open-workspace' a one-time thing instead of firing on every blip.
     const isFirstJoin = !this.hasJoinedOnce;
     this.hasJoinedOnce = true;
     const studentId = this.state.studentId ?? '';
@@ -501,9 +521,17 @@ export class SessionController extends EventEmitter {
         }
       }
 
-      const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
-      this.patch({ requiredFiles: created.files });
-      this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
+    const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
+    this.patch({ requiredFiles: created.files });
+    this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
+    if (isFirstJoin) {
+      // Fired before materials/instructions finish writing, not after —
+      // those can take a real amount of time on a slow connection, and the
+      // student's own required files already exist right now. The file
+      // manager window shows whatever is in the folder at the moment it's
+      // opened AND keeps refreshing as more arrives, so there's no benefit
+      // to waiting for the rest.
+      this.emit('open-workspace', workspaceDir);
     }
 
     const materialNames: string[] = [];
@@ -567,6 +595,14 @@ export class SessionController extends EventEmitter {
   }
 
   private handleJoinError(error: AgentJoinError): void {
+    if (this.state.examEnded) {
+      // Should be unreachable now that connect() itself skips emitJoin
+      // once the exam has ended — kept as a second layer so no future
+      // path that calls emitJoin can regress an already-finished exam
+      // back to a join/error screen.
+      this.log(`[CẢNH BÁO] Nhận agent:join:error (${error.code}) sau khi thi đã kết thúc — bỏ qua.`);
+      return;
+    }
     const code = error.code;
     const message = typeof error.message === 'string' ? error.message : '(không có thông tin)';
 
@@ -590,6 +626,15 @@ export class SessionController extends EventEmitter {
   }
 
   private async handleFinalize(payload: ExamFinalizePayload): Promise<void> {
+    // Set unconditionally, before either guard below can return early: the
+    // server has closed the session the moment this event was sent at all
+    // (a duplicate broadcast, or a client-side gap that leaves nothing to
+    // upload, included) — from here on `connect`'s own examEnded check is
+    // what stops a later reconnect from re-emitting agent:join into a
+    // session that will only ever reject it now.
+    if (!this.state.examEnded) {
+      this.patch({ examEnded: true });
+    }
     if (this.finalizing) {
       this.log('Đang nộp bài theo lệnh trước đó — bỏ qua lệnh chốt bài lặp.');
       return;

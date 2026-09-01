@@ -447,6 +447,44 @@ describe('SessionController — after joining', () => {
     controller.quit();
   });
 
+  it('does not re-attempt agent:join (and does not regress the UI) if the socket reconnects after exam:finalize', async () => {
+    // Reproduces the bug report: teacher finalizes early, agent logs the
+    // upload as done, but a later reconnect still re-emits agent:join —
+    // which the (now 'completed') session rejects with SESSION_NOT_ACTIVE,
+    // and that error used to unconditionally flip joinPhase away from
+    // 'joined', kicking the student back to what looks like a rejection
+    // screen right after they successfully submitted.
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+
+    const workspaceDir = controllerWorkspaceDir(controller);
+    fs.writeFileSync(path.join(workspaceDir, 'Cau1.docx'), 'bai lam');
+
+    const socket = [...ns.sockets.values()][ns.sockets.size - 1];
+    socket.emit('exam:finalize', { examSessionId: 'exam-1', reason: 'manual' });
+    await waitForState(controller, (s) => s.submission.summary !== null);
+    expect(controller.getState().examEnded).toBe(true);
+    expect(joinAttemptCount).toBe(1);
+
+    // The real server would now reject a rejoin with SESSION_NOT_ACTIVE
+    // (the session is 'completed') — configuring that here proves the
+    // client never even attempts it, not merely that this particular
+    // reply would have been handled gracefully.
+    nextJoinReply = { type: 'error', error: { code: 'SESSION_NOT_ACTIVE', message: 'not active anymore' } };
+    socket.conn.close();
+    await waitForState(controller, (s) => s.connection === 'disconnected');
+    await waitForState(controller, (s) => s.connection === 'connected', 10_000);
+    // No state change to await for the negative case — give a wrongly-sent
+    // agent:join a moment to round-trip if the guard were missing.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(joinAttemptCount).toBe(1); // never re-attempted
+    expect(controller.getState().joinPhase).toBe('joined'); // never regressed
+    controller.quit();
+  }, 15_000);
+
   it('notifies (and logs) on a disconnect that happens after already joining', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
@@ -463,6 +501,34 @@ describe('SessionController — after joining', () => {
     expect(notifications.some((n) => n.title.includes('Mất kết nối'))).toBe(true);
     controller.quit();
   });
+
+  it('emits open-workspace exactly once, right after the first join creates the folder — not again on a reconnect', async () => {
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    const opened: string[] = [];
+    controller.on('open-workspace', (dir: string) => opened.push(dir));
+
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+
+    expect(opened).toEqual([controllerWorkspaceDir(controller)]);
+
+    // A reconnect replays agent:join:ack (see the "re-emits agent:join
+    // automatically" test above) — createSubmissionFiles running again is
+    // fine (idempotent), but the folder must not pop open a second time.
+    const serverSocket = [...ns.sockets.values()][ns.sockets.size - 1];
+    serverSocket.conn.close();
+    await waitForState(controller, (s) => s.connection === 'disconnected');
+    await waitForState(controller, (s) => s.connection === 'connected', 10_000);
+    await waitFor(() => joinAttemptCount === 2, 5000);
+    // The second ack's async handler has no state change of its own to
+    // await on (requiredFiles/workspaceDir are already set) — give its
+    // microtasks a tick before asserting the negative.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(opened).toHaveLength(1);
+    controller.quit();
+  }, 15_000);
 
   it('quit() disconnects cleanly and does not throw when called twice', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
