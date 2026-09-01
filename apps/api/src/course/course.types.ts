@@ -45,3 +45,25 @@ export interface TeachingClassView {
   /** Students on the imported roster — 0 means nobody has imported one yet. */
   studentCount: number;
 }
+
+/**
+ * A teacher as a Trưởng khoa sees them — QA-reported gap: "ở trưởng khoa,
+ * ko có quản lý giảng viên hiện tại có trong khoa". There is no
+ * department/khoa table (see the AddDepartmentHeadAndNameUniqueness
+ * migration's own reasoning); a teacher's membership in a department is
+ * entirely implicit, derived from being assigned (class.teacher_id) to a
+ * class under a course this head owns. Deliberately read-only and
+ * name/email/count only — the teacher ACCOUNT itself stays admin's to
+ * create/edit/delete (AccountsController is admin-only for that); this is
+ * a head's view of who is currently teaching in their department, not a
+ * second place to manage accounts.
+ */
+export interface DepartmentTeacherView {
+  id: string;
+  name: string;
+  email: string;
+  /** Classes taught under a course this head owns — never 0, since that
+   *  would mean the teacher has no class here at all and so would never
+   *  appear in this list in the first place. */
+  classCount: number;
+}
