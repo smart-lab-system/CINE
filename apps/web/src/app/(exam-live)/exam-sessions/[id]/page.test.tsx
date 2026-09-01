@@ -37,6 +37,36 @@ vi.mock('@/hooks/useExamSession', () => ({
   useDeleteExamMaterial: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
 
+const useTeachingClassesMock = vi.fn();
+vi.mock('@/hooks/useTeaching', () => ({
+  useTeachingClasses: () => useTeachingClassesMock(),
+}));
+
+const resolveAccessRequestMock = vi.fn();
+vi.mock('@/lib/access-request', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/access-request')>('@/lib/access-request');
+  return { ...actual, resolveAccessRequest: (...args: unknown[]) => resolveAccessRequestMock(...args) };
+});
+
+// sonner needs a mounted <Toaster/> to render anything into the DOM — this
+// page-level test has none (that lives in the app shell), so a real
+// toast.warning() call here would silently push to sonner's own internal
+// store and never appear in jsdom at all. Mocked so the CALL itself — the
+// actual attention cue — is what gets verified, not a DOM node that would
+// never exist in this test's tree.
+const toastWarningMock = vi.fn();
+vi.mock('sonner', () => ({
+  toast: {
+    warning: (...args: unknown[]) => toastWarningMock(...args),
+    // AccessRequestPanel also fires toast.success on a resolved request —
+    // a real (unmocked) function here so that call doesn't throw, even
+    // though these tests don't assert on it directly.
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
 /**
  * Attendance comes from the server, not from the socket — the whole point
  * of moving it out of page state. Tests describe a room by building one of
@@ -172,6 +202,10 @@ beforeEach(() => {
     isPending: false,
     error: null,
   });
+  useTeachingClassesMock.mockReset();
+  useTeachingClassesMock.mockReturnValue({ data: [] });
+  resolveAccessRequestMock.mockReset();
+  toastWarningMock.mockReset();
 });
 
 afterEach(() => {
@@ -400,6 +434,7 @@ describe('ExamSessionLobbyPage', () => {
         id: 'session-123',
         name: 'Kiểm tra giữa kỳ',
         status: 'active',
+        courseId: 'course-1',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 60_000).toISOString(),
         requiredDeliverables: [
@@ -574,6 +609,179 @@ describe('ExamSessionLobbyPage', () => {
       trigger('exam:finalize', { examSessionId: 'session-123', reason: 'scheduled' });
 
       await waitFor(() => expect(session.refetch).toHaveBeenCalled());
+    });
+  });
+
+  // Pins the fix for a real bug reported against the live app: the
+  // backend has always broadcast `lobby:access_request` when a student
+  // outside the roster asks to join, but this page never listened for
+  // it — the teacher was never told anything, ever, at any point.
+  describe('access requests', () => {
+    function accessRequest(overrides: Record<string, unknown> = {}) {
+      return {
+        requestId: 'req-1',
+        studentId: 'SV999',
+        fullName: 'Người Lạ',
+        reason: 'Thi bù, chuyển từ nhóm khác',
+        requestedAt: '2026-08-29T01:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    it('shows a request the moment it arrives, with the toast attention cue', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+
+      trigger('lobby:access_request', accessRequest());
+
+      await waitFor(() => expect(screen.getByText('Người Lạ')).toBeInTheDocument());
+      expect(screen.getByText('SV999')).toBeInTheDocument();
+      expect(screen.getByText('Thi bù, chuyển từ nhóm khác')).toBeInTheDocument();
+      expect(toastWarningMock).toHaveBeenCalledWith(
+        expect.stringContaining('Người Lạ'),
+        expect.objectContaining({ description: 'Thi bù, chuyển từ nhóm khác' }),
+      );
+    });
+
+    it('never shows the same pending request twice, and never re-toasts it either — teacher:subscribe replays it on every reconnect', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+
+      trigger('lobby:access_request', accessRequest());
+      trigger('lobby:access_request', accessRequest()); // same requestId, e.g. replayed on reconnect
+
+      await waitFor(() => expect(screen.getAllByText('Người Lạ')).toHaveLength(1));
+      // Not two toasts either — a teacher with five requests already on
+      // screen must not get five more toasts for rows that never left,
+      // just because a Wi-Fi hiccup replayed them.
+      expect(toastWarningMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('a genuine reconnect rebuilds the list from the replay — a request another invigilator resolved during the outage does not linger', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+      trigger('lobby:access_request', accessRequest());
+      await waitFor(() => expect(screen.getByText('Người Lạ')).toBeInTheDocument());
+
+      // The socket drops and reconnects — a brand-new server-side socket,
+      // per lib/socket.ts's own doc comment. teacher:subscribe's replay is
+      // the only thing that follows; this test's fake socket doesn't
+      // replay anything, simulating "this request was already resolved by
+      // someone else while this tab was disconnected".
+      trigger('connect');
+
+      await waitFor(() => expect(screen.queryByText('Người Lạ')).not.toBeInTheDocument());
+    });
+
+    it('offers only classes belonging to this session\'s own course', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      useTeachingClassesMock.mockReturnValue({
+        data: [
+          { id: 'class-mine', name: 'Nhóm 01 (đúng môn)', courseId: 'course-1', courseCode: 'CS101', courseName: 'x', studentCount: 0 },
+          { id: 'class-other', name: 'Nhóm khác môn', courseId: 'course-2', courseCode: 'CS999', courseName: 'y', studentCount: 0 },
+        ],
+      });
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+      trigger('lobby:access_request', accessRequest());
+      await waitFor(() => expect(screen.getByText('Người Lạ')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
+      fireEvent.click(await screen.findByRole('combobox'));
+
+      expect(await screen.findByText('Nhóm 01 (đúng môn)')).toBeInTheDocument();
+      expect(screen.queryByText('Nhóm khác môn')).not.toBeInTheDocument();
+    });
+
+    it('removes the request from the panel once approved', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      useTeachingClassesMock.mockReturnValue({
+        data: [
+          { id: 'class-mine', name: 'Nhóm 01', courseId: 'course-1', courseCode: 'CS101', courseName: 'x', studentCount: 0 },
+        ],
+      });
+      resolveAccessRequestMock.mockResolvedValue({ ok: true });
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+      trigger('lobby:access_request', accessRequest());
+      await waitFor(() => expect(screen.getByText('Người Lạ')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
+      fireEvent.click(await screen.findByRole('combobox'));
+      fireEvent.click(await screen.findByText('Nhóm 01'));
+      fireEvent.click(screen.getByRole('button', { name: 'Duyệt vào thi' }));
+
+      expect(resolveAccessRequestMock).toHaveBeenCalledWith({
+        requestId: 'req-1',
+        approve: true,
+        homeClassId: 'class-mine',
+      });
+      await waitFor(() => expect(screen.queryByText('Người Lạ')).not.toBeInTheDocument());
+    });
+
+    it('shows the server error and keeps the row when the server refuses to approve', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      useTeachingClassesMock.mockReturnValue({
+        data: [
+          { id: 'class-mine', name: 'Nhóm 01', courseId: 'course-1', courseCode: 'CS101', courseName: 'x', studentCount: 0 },
+        ],
+      });
+      // The most likely real-world failure: approving without CLASS_REQUIRED
+      // — the server enforces it even though the button is already disabled
+      // client-side until a class is picked, so this exercises the actual
+      // server round-trip failing for some other reason with the same code.
+      resolveAccessRequestMock.mockResolvedValue({
+        ok: false,
+        code: 'CLASS_REQUIRED',
+        message: 'Hãy chọn lớp cho sinh viên này trước khi duyệt.',
+      });
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+      trigger('lobby:access_request', accessRequest());
+      await waitFor(() => expect(screen.getByText('Người Lạ')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
+      fireEvent.click(await screen.findByRole('combobox'));
+      fireEvent.click(await screen.findByText('Nhóm 01'));
+      fireEvent.click(screen.getByRole('button', { name: 'Duyệt vào thi' }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByText('Hãy chọn lớp cho sinh viên này trước khi duyệt.'),
+        ).toBeInTheDocument(),
+      );
+      // The row stays — nothing was actually approved.
+      expect(screen.getByText('Người Lạ')).toBeInTheDocument();
+    });
+
+    it('removes the request from the panel once denied, without asking for a class', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      resolveAccessRequestMock.mockResolvedValue({ ok: true });
+      render(<ExamSessionLobbyPage />);
+      trigger('connect');
+      trigger('lobby:access_request', accessRequest());
+      await waitFor(() => expect(screen.getByText('Người Lạ')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: 'Từ chối' }));
+
+      expect(resolveAccessRequestMock).toHaveBeenCalledWith({
+        requestId: 'req-1',
+        approve: false,
+        homeClassId: undefined,
+      });
+      await waitFor(() => expect(screen.queryByText('Người Lạ')).not.toBeInTheDocument());
+    });
+
+    it('removes every access-request listener on unmount', () => {
+      const { unmount } = render(<ExamSessionLobbyPage />);
+      trigger('connect');
+
+      expect(fakeSocket.__listenerCount('lobby:access_request')).toBeGreaterThan(0);
+      unmount();
+      expect(fakeSocket.__listenerCount('lobby:access_request')).toBe(0);
     });
   });
 });
