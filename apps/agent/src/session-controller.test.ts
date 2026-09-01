@@ -176,17 +176,48 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void
 }
 
 describe('SessionController — join flow (design spec §4)', () => {
-  it('emits the default form state immediately so the renderer can render before the first submit', async () => {
+  it('emits the default form state on its own, before any command — the renderer has nothing else to render from', async () => {
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
-    let sawInitialState = false;
+    // A listener attached synchronously, right after construction — the
+    // exact shape of what electron/main/index.ts's wireController() does.
+    // getState() alone can't catch a regression here (it trivially
+    // returns the right default either way); this asserts the 'state'
+    // EVENT itself actually fires, unprompted. A regression means the
+    // renderer's join form never appears on a fresh launch: nothing else
+    // ever prompts this class to emit until the student calls join(),
+    // which they cannot do on a blank window.
+    let emitted: AgentState | null = null;
     controller.on('state', (state) => {
-      if (state.joinPhase === 'form' && state.connection === 'idle' && state.joinError === null) {
-        sawInitialState = true;
-      }
+      emitted = state;
     });
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
+    expect(emitted).not.toBeNull();
+    const state = emitted!;
+    expect(state).toEqual({
+      connection: 'idle',
+      joinPhase: 'form',
+      joinError: null,
+      studentId: null,
+      sessionCode: null,
+      studentName: null,
+      sessionName: null,
+      endTime: null,
+      confirmedAt: null,
+      requiredFiles: [],
+      backup: {
+        available: false,
+        status: 'idle',
+        restoredCount: 0,
+        skippedCount: 0,
+        lastSnapshotAt: null,
+        lastSnapshotFailed: false,
+      },
+      materials: { count: 0, releaseAt: null, status: 'idle', downloadedFileNames: [] },
+      submission: { finalizing: false, summary: null },
+      log: [],
+    });
     expect(sawInitialState).toBe(true);
     expect(controller.getState().joinPhase).toBe('form');
     expect(controller.getState().joinError).toBeNull();
@@ -337,6 +368,37 @@ describe('SessionController — join flow (design spec §4)', () => {
 });
 
 describe('SessionController — after joining', () => {
+  it('a reconnect does not recreate a required file the student has since renamed away — QA-reported bug', async () => {
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    const joined = await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
+    const workspaceDir = controllerWorkspaceDir(controller);
+    expect(joined.requiredFiles).toEqual([{ filename: 'Cau1.docx', created: true }]);
+
+    // The student renames their required file to something else, WITH
+    // real content in it — exactly the QA repro: before the fix, a
+    // reconnect's `createSubmissionFiles` re-runs unconditionally and
+    // creates a fresh EMPTY Cau1.docx back at the original path, which
+    // `submission:confirm` then uploads at finalize as a "successful"
+    // 0-byte submission — while the student's real, renamed file is
+    // never touched or submitted at all.
+    fs.writeFileSync(path.join(workspaceDir, 'Cau1.docx'), 'bai lam that cua sinh vien');
+    fs.renameSync(path.join(workspaceDir, 'Cau1.docx'), path.join(workspaceDir, 'Cau1_final.docx'));
+
+    const serverSocket = [...ns.sockets.values()][ns.sockets.size - 1];
+    serverSocket.conn.close();
+    await waitForState(controller, (s) => s.connection === 'disconnected');
+    await waitForState(controller, (s) => s.connection === 'connected', 10_000);
+    await waitFor(() => joinAttemptCount === 2, 5000); // the rejoin actually happened
+
+    expect(fs.existsSync(path.join(workspaceDir, 'Cau1.docx'))).toBe(false); // not recreated
+    expect(fs.readFileSync(path.join(workspaceDir, 'Cau1_final.docx'), 'utf8')).toBe(
+      'bai lam that cua sinh vien',
+    ); // the student's real work is exactly as they left it
+    controller.quit();
+  }, 15_000);
+
   it('re-emits agent:join automatically after a network blip, without the student resubmitting the form', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });

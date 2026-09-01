@@ -233,6 +233,22 @@ export class SessionController extends EventEmitter {
     super();
     this.backendUrl = options.backendUrl;
     this.workspaceRoot = options.workspaceRoot;
+    // Without this, the renderer's join form never appears: main.ts's
+    // `webContents.on('did-finish-load', ...)` only replays a state if
+    // `latestState` is already set, which only happens once this class
+    // has emitted 'state' at least once — and nothing did that until the
+    // student called join(), which they cannot do on a window with no
+    // form rendered yet. A blank window forever, on every fresh launch —
+    // missed by every automated check here (they all call join()
+    // immediately) and by the "process stayed alive" smoke test, since
+    // neither one looks at what actually rendered.
+    //
+    // queueMicrotask, not a synchronous emit: a listener attached right
+    // after `new SessionController(...)` (main.ts's `c.on('state', ...)`
+    // does exactly this, synchronously, in the same tick) would miss a
+    // synchronous emit fired from inside the constructor it's still
+    // returning from. Deferring to the next microtask guarantees that
+    // listener is already registered by the time this fires.
     queueMicrotask(() => {
       this.emit('state', this.state);
     });
@@ -478,26 +494,32 @@ export class SessionController extends EventEmitter {
       this.state.studentName ? `Xác nhận danh tính: ${this.state.studentName}.` : 'Đã tham gia phiên thi.',
     );
 
-    if (ack.backupAvailable === true) {
-      this.patch({ backup: { ...this.state.backup, status: 'restoring' } });
-      const outcome = await restoreBackup(this.socket!, workspaceDir);
-      if (outcome.status === 'restored') {
-        this.patch({
-          backup: {
-            ...this.state.backup,
-            status: 'restored',
-            restoredCount: outcome.restored,
-            skippedCount: outcome.skipped,
-          },
-        });
-        this.log(`Đã khôi phục ${outcome.restored} file từ bản sao lưu (giữ nguyên ${outcome.skipped} file có sẵn).`);
-      } else if (outcome.status === 'failed') {
-        this.patch({ backup: { ...this.state.backup, status: 'failed' } });
-        this.notify('Không khôi phục được bản sao lưu', 'Bạn vẫn làm bài bình thường — hãy báo giám thị nếu bài làm cũ bị mất.');
-      } else {
-        this.patch({ backup: { ...this.state.backup, status: 'nothing-to-restore' } });
+    if (!isFirstJoin) {
+      // Kết nối lại — giữ nguyên toàn bộ file đã có trên máy, không đụng
+      // tới filesystem. state.requiredFiles already holds the checklist
+      // from the real first join and stays exactly as it was.
+      this.log('Đã kết nối lại. Giữ nguyên các file đã có trên máy, không tạo lại.');
+    } else {
+      if (ack.backupAvailable === true) {
+        this.patch({ backup: { ...this.state.backup, status: 'restoring' } });
+        const outcome = await restoreBackup(this.socket!, workspaceDir);
+        if (outcome.status === 'restored') {
+          this.patch({
+            backup: {
+              ...this.state.backup,
+              status: 'restored',
+              restoredCount: outcome.restored,
+              skippedCount: outcome.skipped,
+            },
+          });
+          this.log(`Đã khôi phục ${outcome.restored} file từ bản sao lưu (giữ nguyên ${outcome.skipped} file có sẵn).`);
+        } else if (outcome.status === 'failed') {
+          this.patch({ backup: { ...this.state.backup, status: 'failed' } });
+          this.notify('Không khôi phục được bản sao lưu', 'Bạn vẫn làm bài bình thường — hãy báo giám thị nếu bài làm cũ bị mất.');
+        } else {
+          this.patch({ backup: { ...this.state.backup, status: 'nothing-to-restore' } });
+        }
       }
-    }
 
     const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
     this.patch({ requiredFiles: created.files });

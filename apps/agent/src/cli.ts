@@ -546,6 +546,21 @@ async function main(): Promise<void> {
    * whatever the event loop decided.
    */
   async function handleJoinAck(ack: Record<string, unknown>): Promise<void> {
+    // Captured BEFORE the flag flips. A rejoin (network blip, or the
+    // access-request grant's own rejoin) must never repeat the restore/
+    // create step below: createSubmissionFiles only protects the exact
+    // literal filename it's given (`wx` on that one path) — if the
+    // student has since RENAMED their real work away from that name, a
+    // second call silently creates a fresh EMPTY file back at the
+    // original path, which gets uploaded at finalize as a "successful"
+    // 0-byte submission while the student's actual, renamed file is
+    // never touched or submitted at all (confirmed by direct repro; QA
+    // report, 2026-09-01). Same reasoning for the backup restore just
+    // below it: it exists for a wiped/replaced machine, which looks
+    // identical to a first join — never for "the same machine, same
+    // process, momentarily disconnected," which is what every later ack
+    // in this run is.
+    const isFirstJoin = !hasJoinedOnce;
     hasJoinedOnce = true;
     const sessionName = typeof ack.sessionName === 'string' ? ack.sessionName : '(không rõ)';
     const endTime = typeof ack.endTime === 'string' ? ack.endTime : '(không rõ)';
@@ -559,33 +574,37 @@ async function main(): Promise<void> {
       ? (ack.requiredDeliverables as RequiredDeliverable[])
       : [];
     examSessionId = typeof ack.examSessionId === 'string' ? ack.examSessionId : '';
-    // FIRST, before any required file is created. The agent creates those
-    // empty, so a restore that ran afterwards would be looking at its own
-    // handiwork and would find every file "already there".
-    if (ack.backupAvailable === true) {
-      console.log('Máy chủ báo có bản sao lưu bài làm của bạn. Đang khôi phục...');
-      const outcome = await restoreBackup(socket, workspaceDir);
-      if (outcome.status === 'restored') {
-        console.log(
-          `Đã khôi phục ${outcome.restored} file từ bản sao lưu` +
-            (outcome.skipped > 0
-              ? ` (giữ nguyên ${outcome.skipped} file bạn đã có sẵn trên máy).`
-              : '.'),
-        );
-      } else if (outcome.status === 'failed') {
-        // Not fatal: the student can still sit the exam, they just start
-        // from what is on this machine. Said plainly so a technician in the
-        // room can decide whether to act.
-        console.warn(
-          '[CẢNH BÁO] Không tải được bản sao lưu. Bạn vẫn làm bài bình thường — ' +
-            'hãy báo giám thị nếu bài làm cũ của bạn bị mất.',
-        );
+    if (!isFirstJoin) {
+      console.log('Đã kết nối lại. Giữ nguyên các file đã có trên máy, không tạo lại.');
+    } else {
+      // FIRST, before any required file is created. The agent creates those
+      // empty, so a restore that ran afterwards would be looking at its own
+      // handiwork and would find every file "already there".
+      if (ack.backupAvailable === true) {
+        console.log('Máy chủ báo có bản sao lưu bài làm của bạn. Đang khôi phục...');
+        const outcome = await restoreBackup(socket, workspaceDir);
+        if (outcome.status === 'restored') {
+          console.log(
+            `Đã khôi phục ${outcome.restored} file từ bản sao lưu` +
+              (outcome.skipped > 0
+                ? ` (giữ nguyên ${outcome.skipped} file bạn đã có sẵn trên máy).`
+                : '.'),
+          );
+        } else if (outcome.status === 'failed') {
+          // Not fatal: the student can still sit the exam, they just start
+          // from what is on this machine. Said plainly so a technician in the
+          // room can decide whether to act.
+          console.warn(
+            '[CẢNH BÁO] Không tải được bản sao lưu. Bạn vẫn làm bài bình thường — ' +
+              'hãy báo giám thị nếu bài làm cũ của bạn bị mất.',
+          );
+        }
       }
-    }
 
-    const createdCount = createSubmissionFiles(workspaceDir, ack.requiredFiles);
-    console.log(`Đã tạo ${createdCount} file, sẵn sàng làm bài.`);
-    console.log(`Thư mục bài làm: ${workspaceDir}`);
+      const createdCount = createSubmissionFiles(workspaceDir, ack.requiredFiles);
+      console.log(`Đã tạo ${createdCount} file, sẵn sàng làm bài.`);
+      console.log(`Thư mục bài làm: ${workspaceDir}`);
+    }
 
     // Asked for separately from the join, and the server re-checks the
     // clock on that request: an agent may be in the lobby before it may
