@@ -166,24 +166,42 @@ export class StorageService {
 
   /**
    * Presigned GET for exactly this key — used to hand a student's own
-   * snapshot back to them after their machine was wiped.
+   * snapshot back to them after their machine was wiped, and (with
+   * `filename` set) to let a teacher's browser save a submission/material
+   * as an openable file.
    *
    * Reading through this server instead would mean an exam's worth of
    * archives streaming through the API process, which is the bottleneck
    * Security rule 5 exists to prevent. The signature covers the key, so the
    * URL cannot be pointed at anyone else's backup.
+   *
+   * QA-reported gap: the object key itself is a bare UUID/id (see
+   * buildSubmissionKey/buildMaterialKey — no extension, ever, by design:
+   * the id must stay stable even if a required filename or its extension
+   * changes). With neither the key nor the stored object carrying a
+   * filename, a browser following this URL had nothing to name the saved
+   * file after but that bare id — no extension, wrong/default app,
+   * "a weird file". `ResponseContentDisposition` is a request-time
+   * override signed into the URL itself; it changes nothing about the
+   * object in storage, only what this ONE presigned response claims.
    */
   async generateDownloadUrl(
     key: string,
-    expiresInSeconds: number = DOWNLOAD_URL_TTL_SECONDS,
+    options?: { expiresInSeconds?: number; filename?: string },
   ): Promise<{ downloadUrl: string; expiresIn: number }> {
     const expiresIn = Math.min(
-      Math.max(1, Math.floor(expiresInSeconds)),
+      Math.max(1, Math.floor(options?.expiresInSeconds ?? DOWNLOAD_URL_TTL_SECONDS)),
       DOWNLOAD_URL_TTL_SECONDS,
     );
     const downloadUrl = await getSignedUrl(
       this.client,
-      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ...(options?.filename && {
+          ResponseContentDisposition: buildContentDisposition(options.filename),
+        }),
+      }),
       { expiresIn },
     );
     return { downloadUrl, expiresIn };
@@ -237,6 +255,31 @@ export class StorageService {
       throw error;
     }
   }
+}
+
+/**
+ * Builds a Content-Disposition value safe to sign into a presigned URL.
+ * Two forms together (RFC 6266): a quoted, transliterated-to-ASCII
+ * fallback for anything that only understands the old form, and
+ * `filename*` with percent-encoded UTF-8 for everything else — most
+ * required filenames and exam material names in this app are Vietnamese,
+ * so shipping the ASCII fallback alone would come out mangled (diacritics
+ * dropped silently) in the one case this exists to help with.
+ */
+function buildContentDisposition(filename: string): string {
+  const asciiFallback =
+    filename
+      // NFKD splits a diacritic off its base letter (á -> a + ´), so
+      // stripping combining marks afterward is a transliteration
+      // ("Câu1.docx" -> "Cau1.docx"), not a blunt "replace with _".
+      .normalize('NFKD')
+      .replace(/[̀-ͯ]/g, '')
+      // CR/LF or a raw quote here would break out of the quoted string
+      // (header injection); anything still outside printable ASCII after
+      // the transliteration above has no better fallback than a filler.
+      .replace(/[\r\n"]/g, '')
+      .replace(/[^\x20-\x7e]/g, '_') || 'file';
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
 function requireEnv(name: string): string {

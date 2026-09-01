@@ -172,10 +172,18 @@ export class SubmissionService {
    * session detail it fetched, and pairs the two client-side.
    */
   async listForSession(examSessionId: string): Promise<SubmissionStatusView[]> {
-    const rows = await this.submissions.find({
-      where: { examSessionId },
-      order: { submittedAt: 'ASC' },
-    });
+    const [rows, deliverables] = await Promise.all([
+      this.submissions.find({
+        where: { examSessionId },
+        order: { submittedAt: 'ASC' },
+      }),
+      // For the download URL's filename only (see below) — still no SQL
+      // JOIN, and still through ExamSessionService rather than a second
+      // repository over exam-session's own table (this module's own
+      // reasoning for importing ExamSessionModule in the first place).
+      this.examSessions.listRequiredDeliverables(examSessionId),
+    ]);
+    const filenameById = new Map(deliverables.map((d) => [d.id, d.requiredFilename]));
 
     return Promise.all(
       rows.map(async (row) => ({
@@ -185,8 +193,17 @@ export class SubmissionService {
         status: row.status,
         submittedAt: row.submittedAt,
         fileSize: row.fileSize,
+        // QA-reported gap: the storage key is a bare id, no extension —
+        // nothing a browser follows this URL could ever name the saved
+        // file after. filename is the declared requiredFilename, the same
+        // ground truth submission identity already uses everywhere else
+        // (exact-filename-match collection) — not a guess.
         downloadUrl: row.storageKey
-          ? (await this.storage.generateDownloadUrl(row.storageKey)).downloadUrl
+          ? (
+              await this.storage.generateDownloadUrl(row.storageKey, {
+                filename: filenameById.get(row.requiredDeliverableId),
+              })
+            ).downloadUrl
           : null,
       })),
     );
