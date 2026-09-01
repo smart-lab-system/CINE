@@ -95,6 +95,22 @@ function formatTime(iso: string | undefined): string | null {
   });
 }
 
+// QA-reported gap (point 2): the teacher had no way to see what format a
+// submitted file actually is without opening it. There is no separately
+// captured "real" format anywhere in the system (see submission.entity.ts —
+// only storageKey/checksum/fileSize) — deriving it from the deliverable's
+// OWN declared requiredFilename is not a guess, it's the same fact the rest
+// of the system already treats as ground truth for what this deliverable
+// IS (submission identity is an exact filename match, by design — see
+// CLAUDE.md's collection rules), so no backend/agent change is needed.
+function formatFileExtension(requiredFilename: string): string | null {
+  const dot = requiredFilename.lastIndexOf('.');
+  if (dot === -1 || dot === requiredFilename.length - 1) {
+    return null;
+  }
+  return requiredFilename.slice(dot + 1).toUpperCase();
+}
+
 function formatFileSize(value: string | null | undefined): string | null {
   if (!value) {
     return null;
@@ -245,6 +261,12 @@ export function SubmissionStatusTable({
                 const presentation = STATE_PRESENTATION[state];
                 const time = formatTime(cell?.submittedAt);
                 const fileSize = formatFileSize(cell?.fileSize);
+                // Only shown once a file actually exists to describe — a
+                // format label on a deliverable nobody submitted yet would
+                // read as "there's a DOCX here" when there is nothing.
+                const fileFormat = cell?.downloadUrl
+                  ? formatFileExtension(deliverable.requiredFilename)
+                  : null;
 
                 return (
                   <div
@@ -264,6 +286,9 @@ export function SubmissionStatusTable({
                       {time && <p className="text-caption text-muted-foreground">Nộp lúc {time}</p>}
                       {fileSize && (
                         <p className="text-caption text-muted-foreground">Kích thước: {fileSize}</p>
+                      )}
+                      {fileFormat && (
+                        <p className="text-caption text-muted-foreground">Định dạng: {fileFormat}</p>
                       )}
                     </div>
 
