@@ -123,4 +123,38 @@ describe('apiClient — silent refresh on 401', () => {
     expect(b.response.status).toBe(200);
     expect(refreshCalls).toBe(1);
   });
+
+  it('degrades to the original 401 for a body-carrying request, instead of throwing', async () => {
+    // A plain canned-response mock (like every other test in this file
+    // uses) never actually reads the Request's body, so it never
+    // reproduces this bug — `bodyUsed` stays false and `.clone()` stays
+    // happy no matter what. A REAL fetch implementation streams the body
+    // to the network as part of sending the request, which is what
+    // actually marks it consumed — `.text()`'d here to match that
+    // observable effect for a POST/PATCH/PUT (or body-carrying DELETE),
+    // the same as it would be by the time openapi-fetch's own outgoing
+    // `fetch(request, requestInitExt)` call has gone out.
+    (fetch as ReturnType<typeof vi.fn>).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes('/api/auth/refresh')) {
+        return jsonResponse({ account: { role: 'teacher' } });
+      }
+      if (url.includes('/accounts')) {
+        if (input instanceof Request) {
+          await input.text();
+        }
+        return jsonResponse({ message: 'Unauthorized' }, 401);
+      }
+      throw new Error(`unexpected fetch to ${url}`);
+    });
+
+    const apiClient = await freshApiClient();
+
+    const result = await apiClient.POST('/accounts', {
+      body: { name: 'Cô A', email: 'a@example.com', password: 'x', role: 'teacher' },
+    });
+    // The honest original 401 — not silently treated as success, and not
+    // a crashed TypeError from cloning an already-consumed body either.
+    expect(result.response.status).toBe(401);
+  });
 });

@@ -25,8 +25,11 @@ export async function POST(request: NextRequest) {
     // automatically forward the INCOMING request's cookies, so the
     // refresh_token has to be passed on explicitly. Nest's controller
     // reads it off `req.cookies?.refresh_token` (same place JwtStrategy
-    // reads `access_token`).
-    headers: { Cookie: `refresh_token=${refreshToken}` },
+    // reads `access_token`). encodeURIComponent'd — this value is
+    // whatever the browser sent, not yet validated by anything at the
+    // point it's interpolated into a header, and cookie-parser (wired in
+    // main.ts) decodes it transparently on the way back out.
+    headers: { Cookie: `refresh_token=${encodeURIComponent(refreshToken)}` },
   });
 
   if (!apiResponse.ok) {
@@ -45,9 +48,13 @@ export async function POST(request: NextRequest) {
 
   const response = NextResponse.json({ account });
   // Mirrors login/route.ts's cookie options exactly — a token minted here
-  // must expire on the same schedule as one minted at login.
+  // must expire on the same schedule as one minted at login, and be
+  // exactly as reachable (secure, sameSite, path) or a session refreshed
+  // here could silently behave differently from one that started at
+  // login.
   response.cookies.set('access_token', accessToken, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 15,
@@ -57,6 +64,7 @@ export async function POST(request: NextRequest) {
   // refreshes") — the new value, not the one this request came in with.
   response.cookies.set('refresh_token', nextRefreshToken, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 24 * 7,
@@ -64,7 +72,13 @@ export async function POST(request: NextRequest) {
   response.cookies.set(
     'account',
     JSON.stringify({ name: account.name, email: account.email, role: account.role }),
-    { httpOnly: false, sameSite: 'lax', path: '/', maxAge: 60 * 15 },
+    {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 15,
+    },
   );
 
   return response;

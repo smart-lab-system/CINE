@@ -51,7 +51,7 @@ describe('POST /api/auth/refresh', () => {
     expect(refreshCookie?.httpOnly).toBe(true);
   });
 
-  it('answers 401 and clears every auth cookie when there is no refresh_token to begin with', async () => {
+  it('answers 401 without contacting the Nest API when there is no refresh_token to begin with', async () => {
     const response = await POST(requestWithCookie(undefined));
 
     expect(response.status).toBe(401);

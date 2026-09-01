@@ -78,6 +78,20 @@ apiClient.use({
       return undefined;
     }
 
-    return fetch(request.clone());
+    try {
+      return await fetch(request.clone());
+    } catch {
+      // `.clone()` throws for any request whose body has already been
+      // read — true of every POST/PATCH/PUT and a body-carrying DELETE
+      // by this point: openapi-fetch's own outgoing `fetch(request, ...)`
+      // call already consumed it sending this attempt. A GET has no body
+      // to consume, so it retries cleanly; a body-carrying request falls
+      // back to the original 401 instead of crashing on it — the same
+      // outcome those requests already had before this middleware
+      // existed, not a regression, just not yet a case this can retry
+      // (replaying the body would mean cloning it before the FIRST
+      // attempt ever sends, which is a real follow-up, not this fix).
+      return undefined;
+    }
   },
 });
