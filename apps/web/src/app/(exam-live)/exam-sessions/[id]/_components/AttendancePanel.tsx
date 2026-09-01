@@ -24,6 +24,27 @@ interface AttendancePanelProps {
   confirming: boolean;
   confirmError: Error | null;
   onConfirm: () => void;
+  /** The session's own start_time — needed only to say how late a late
+   *  joiner actually was (see StudentMarks). Not part of Attendance
+   *  itself: attendance is derived from agent_connection_event, which
+   *  knows nothing about the session it belongs to. */
+  startTime: string;
+}
+
+/**
+ * Minutes between the session starting and a student's first join —
+ * QA-reported gap: "vào muộn nhưng ko nói vào lúc mấy giờ, trễ mấy giờ".
+ * Both timestamps were already flowing to this page (firstSeenAt via
+ * Attendance, startTime via the session detail already fetched for the
+ * countdown/materials-release copy elsewhere on this same page) — this is
+ * the one place nobody had subtracted them yet.
+ */
+function lateMinutes(firstSeenAt: string | null, startTime: string): number | null {
+  if (!firstSeenAt) return null;
+  const seen = new Date(firstSeenAt).getTime();
+  const start = new Date(startTime).getTime();
+  if (Number.isNaN(seen) || Number.isNaN(start)) return null;
+  return Math.max(0, Math.round((seen - start) / 60_000));
 }
 
 function formatTime(iso: string | null): string {
@@ -56,6 +77,7 @@ export function AttendancePanel({
   confirming,
   confirmError,
   onConfirm,
+  startTime,
 }: AttendancePanelProps) {
   if (isLoading) {
     return (
@@ -161,6 +183,7 @@ export function AttendancePanel({
           description="Sinh viên của lớp này đang kết nối."
           students={attendance.present}
           empty="Chưa có sinh viên nào của lớp này vào phòng."
+          startTime={startTime}
         />
 
         <Group
@@ -168,6 +191,7 @@ export function AttendancePanel({
           description="Có trong danh sách lớp nhưng chưa kết nối — gọi tên và tìm sinh viên."
           students={attendance.absent}
           empty="Cả lớp đã vào đủ."
+          startTime={startTime}
         />
 
         {attendance.makeup.length > 0 && (
@@ -177,6 +201,7 @@ export function AttendancePanel({
             students={attendance.makeup}
             empty=""
             showHomeClass
+            startTime={startTime}
           />
         )}
       </CardContent>
@@ -234,12 +259,14 @@ function Group({
   students,
   empty,
   showHomeClass = false,
+  startTime,
 }: {
   title: string;
   description: string;
   students: AttendanceStudent[];
   empty: string;
   showHomeClass?: boolean;
+  startTime: string;
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -279,7 +306,7 @@ function Group({
                     </TableCell>
                   )}
                   <TableCell className="whitespace-nowrap">
-                    <StudentMarks student={student} />
+                    <StudentMarks student={student} startTime={startTime} />
                   </TableCell>
                 </TableRow>
               ))}
@@ -291,13 +318,25 @@ function Group({
   );
 }
 
-function StudentMarks({ student }: { student: AttendanceStudent }) {
+function StudentMarks({
+  student,
+  startTime,
+}: {
+  student: AttendanceStudent;
+  startTime: string;
+}) {
   const marks: React.ReactNode[] = [];
 
   if (student.joinedLate) {
+    // QA-reported gap: the badge used to just say "Vào muộn" — no clock
+    // time, no idea how late. Both are derivable from data this page
+    // already has (firstSeenAt, and the session's own startTime), just
+    // never subtracted before now.
+    const minutes = lateMinutes(student.firstSeenAt, startTime);
     marks.push(
       <Badge key="late" variant="warning">
-        Vào muộn
+        Vào muộn{student.firstSeenAt ? ` lúc ${formatTime(student.firstSeenAt)}` : ''}
+        {minutes !== null ? ` (trễ ${minutes} phút)` : ''}
       </Badge>,
     );
   }

@@ -471,6 +471,12 @@ export default function ExamSessionLobbyPage() {
               confirming={confirmAttendance.isPending}
               confirmError={confirmAttendance.error}
               onConfirm={() => confirmAttendance.mutate()}
+              // AttendancePanel loads independently of sessionDetail (its
+              // own isLoading/error come from the attendance query alone)
+              // — an empty fallback here just means lateMinutes() can't
+              // compute yet (Number.isNaN guards it), not a crash, for
+              // however briefly sessionDetail is still loading.
+              startTime={sessionDetail.data?.startTime ?? ''}
             />
 
             <Card className="overflow-hidden">
