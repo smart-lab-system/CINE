@@ -125,6 +125,16 @@ Verified against `apps/api/src/common/student-mssv.ts` and
 Both are client-side conveniences only — the server DTOs (`AgentJoinDto`)
 remain the actual enforcement, unchanged.
 
+**Flagged, not fixed here: `EXAM_SESSION_CODE_ALPHABET` contains both `O`/`0`
+and `I`/`1`.** A code the teacher reads aloud and a student hand-types is
+exactly where those pairs cause real mistypes — this is a genuine
+contributor to the `SESSION_NOT_FOUND`/lockout risk this whole section
+exists to manage, and this app cannot fix it: the alphabet is chosen at
+session-code generation time, server-side, before this client ever sees a
+code. Changing it is a separate, `apps/api`-only decision (whether existing
+sessions' codes stay valid, whether it is even worth the churn this late)
+that does not belong inside this design. Noted here only so it is not lost.
+
 ### 5.2 Rate limiting — new, server-side, per-MSSV, escalating
 
 The existing limiter (`ExamSessionGateway.isAgentJoinRateLimited`) stays:
@@ -165,6 +175,13 @@ resets it for free by reconnecting.
   `retryAfterMs` field on the error payload — unlike the existing silent
   disconnect, this one has to reach the UI so state d2 can render a real
   countdown, not a client-guessed one.
+- **This store is a live spam-guard, nothing else.** It must never become
+  an implicit source of truth for anything else — a future "how many times
+  did each student get it wrong" report, an audit trail, a dashboard. It
+  silently loses everything on a server restart (accepted above), which is
+  fine for "block the next attempt" and wrong for anything meant to be
+  looked at later. If that kind of record is ever wanted, it is a separate,
+  explicitly durable addition — not a reuse of this Map.
 
 ## 6. Notifying the teacher when a join fails for `SESSION_NOT_ACTIVE`
 
@@ -219,24 +236,93 @@ one of: join, resend-access-request, quit. Main pushes state (connection,
 join result, file checklist, backup/materials status, notification log) and
 fires native `Notification`s.
 
-`cli.ts` is deleted in Phase 3, once parity is confirmed — not before.
+**The push direction is typed and shape-checked too, not just the request
+direction.** Everything main pushes still originates from the network — the
+API server, which enforces length on several fields (`sessionName` up to
+200 chars, roster `name` up to 150) but not character class. Main validates
+the *shape* of what it forwards the same way `cli.ts` already validates
+`agent:join:ack`/`:error` (the existing `isPlainObject` guard, carried
+over) — that catches a malformed payload, not a hostile one.
+
+**The actual defense against a hostile string is a flat rule, not a
+per-field check: the renderer never uses `dangerouslySetInnerHTML`, and
+never builds DOM/HTML from a server-sourced string outside JSX's own
+escaping, anywhere.** In this app that means `sessionName`, the joining
+student's own `studentName`, deliverable/material filenames, and every
+notification-log line — all render as plain JSX children, never as HTML.
+This app has no view of *other* students (unlike the teacher's web lobby,
+a different app, out of this spec's scope) — the surface here is smaller
+than a multi-student list, but the same rule applies to it regardless: an
+Electron renderer sits one exposed IPC call away from the main process's
+real filesystem access, so a DOM injection here is worth more to an
+attacker than the same bug in an ordinary browser tab.
+
+`cli.ts` is deleted in Phase 3, once parity is confirmed against the
+checklist in §8.4 — not before.
 
 ## 8. Sequencing
 
-**Phase 1** — Electron shell (main/preload/renderer scaffold via
-electron-vite) + `agent-contract.ts` + `session-controller.ts` + the 8-state
-join screen (§4) with §5's constraints + tray minimize + native
-notifications for the core lifecycle (join success, disconnect, exam
-finalize, submission summary) + both server changes (§5.2 rate limit,
-§6 broadcast) with their own e2e tests.
+### 8.1 Phase 0 — the two server changes, alone, first
 
-**Phase 2** — Detail window (checklist, backup status, materials status,
-countdown, notification log) reachable only via the tray icon + native
-notifications for backup/materials events.
+§5.2 (rate limit) and §6 (teacher broadcast) ship as their own phase,
+**before any Electron code exists.** Both are pure `apps/api` work,
+e2e-testable against a real socket with zero Electron dependency, and both
+are a real security/UX improvement to the exam-live gateway **regardless of
+which client connects** — a scripted attacker hitting the WebSocket
+directly is exactly who §5.2 defends against, whether `cli.ts`, the new
+app, or nothing official at all is on the other end.
 
-**Phase 3** — Access-request as a form (state f/g) replacing the readline
-prompt; delete `cli.ts`; repoint `mock-agent.ts`'s type imports; update
-`DEMO-RUNBOOK.md`'s agent-launch steps.
+This mirrors the resources-and-roster phase's own sequencing rule (§10 of
+that spec): a security-relevant server change does not wait behind
+UI/scaffolding work whose own risk (electron-vite configuration, a
+context-bridge that behaves oddly) is unrelated and orthogonal. If the
+Electron scaffold hits a snag in Phase 1, Phase 0's work is already shipped
+and mergeable on its own.
+
+### 8.2 Phase 1 — Electron shell + join screen
+
+`electron-vite` scaffold (main/preload/renderer) + `agent-contract.ts` +
+`session-controller.ts` + the 8-state join screen (§4) with §5.1's input
+constraints + tray minimize + native notifications for the core lifecycle
+(join success, disconnect, exam finalize, submission summary). Consumes
+Phase 0's `RATE_LIMITED` code and countdown directly — no server work left
+in this phase.
+
+### 8.3 Phase 2 — Detail window
+
+Checklist, backup status, materials status, countdown, notification log —
+reachable only via the tray icon. Native notifications for backup/materials
+events.
+
+### 8.4 Phase 3 — Access-request UI, then delete `cli.ts`
+
+Access-request as a form (state f/g) replacing the readline prompt.
+`cli.ts` is the only thing that has ever proven this whole flow end-to-end
+against the real API — deleting it is a one-way door, so "parity" is a
+checklist, not a feeling:
+
+| `cli.ts` capability | Verified on the Electron app |
+| --- | --- |
+| Join (MSSV + code, machineName) | ☐ |
+| Parse `agent:join:ack` (deliverables, session name, end time) | ☐ |
+| Restore backup **before** creating required files | ☐ |
+| Create required files with `wx` (idempotent on reconnect) | ☐ |
+| Download exam materials, respecting the release gate | ☐ |
+| Write `INSTRUCTIONS.txt` | ☐ |
+| Periodic snapshot loop | ☐ |
+| `exam:finalize` → stop snapshots → sequential checksum'd upload | ☐ |
+| Upload summary (uploaded/missing/failed) surfaced to the student | ☐ |
+| `NOT_ENROLLED` → access-request branch | ☐ |
+| Access-request: `ALREADY_ENROLLED` retries the join | ☐ |
+| `agent:access-granted` → rejoin | ☐ |
+| `agent:access-denied` → clear message, stop | ☐ |
+| Reconnect after a network blip (no duplicate "mất kết nối" on first try) | ☐ |
+| Graceful shutdown (SIGINT/SIGTERM equivalent — window close / tray Thoát) | ☐ |
+| `connect_error` (never reaches server at all) | ☐ |
+
+Only once every row is checked: delete `cli.ts`, repoint `mock-agent.ts`'s
+type imports to `agent-contract.ts`, update `DEMO-RUNBOOK.md`'s agent-launch
+steps.
 
 ## 9. Testing
 
@@ -250,6 +336,15 @@ prompt; delete `cli.ts`; repoint `mock-agent.ts`'s type imports; update
   CLAUDE.md already states this project has no CI and verification is
   manual. Run via `pnpm --filter agent dev` against the real API, same as
   every other phase's live verification in this engagement.
+- **Manual verification target is Windows, not the dev machine.** The real
+  deployment is the school's lab machines (CLAUDE.md), and tray behavior,
+  native `Notification` rendering, and minimize-to-tray are all OS-specific
+  Electron behavior that a macOS/Linux dev run does not exercise faithfully
+  — a pass on the dev OS is not evidence of a pass on Windows. Every manual
+  checkpoint in §8 (Phase 1's tray+notifications, Phase 2's detail window,
+  Phase 3's parity checklist) must be run on an actual Windows machine
+  before being marked done, not assumed from a dev-machine run on another
+  OS.
 
 ## 10. Deliberately left for later
 
@@ -258,6 +353,19 @@ prompt; delete `cli.ts`; repoint `mock-agent.ts`'s type imports; update
 - Persisting `join_attempt_failed` history (§6.2).
 - A configurable rate-limit cap/backoff curve — the numbers in §5.2 are a
   starting point, not tuned against a real lab.
+- **A teacher-side unlock for a locked-out student — considered for this
+  phase, not built in it.** The gap is real: §5.2's lockout is
+  self-service-only (wait out the timer), and a teacher watching a genuine
+  student get locked out mid-check-in currently has no button, only "tell
+  them to wait." But building the unlock now would mean widening this
+  spec's own stated non-goal (§2: no `apps/web` changes) to add a new
+  teacher-facing control, and CLAUDE.md's Security rule 4 makes any human
+  override of a machine-enforced rule require its own audit-logged design
+  — the same category `AccessRequestGateway`'s approval flow already
+  handles for `NOT_ENROLLED`, and a lockout override deserves the same
+  treatment, not a quick unaudited bypass bolted on here. It is a separate,
+  right-sized addition once §5.2 has run against a real session and the
+  numbers below are confirmed, not guessed.
 - The two unrelated `main`-branch findings from this phase's baseline check
   (gitlink tracking, `Button variant="secondary"` type error) — reported
   separately, fixed only if the user asks.
