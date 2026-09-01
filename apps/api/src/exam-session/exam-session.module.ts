@@ -13,6 +13,7 @@ import { ExamSessionEvents } from './exam-session.events';
 import { ExamSessionScheduler } from './exam-session.scheduler';
 import { AccessRequestGateway } from './access-request.gateway';
 import { AccessRequestStore } from './access-request.store';
+import { AgentJoinLockStore } from './agent-join-lock.store';
 import { AdminModule } from '../admin/admin.module';
 import { AgentConnectionModule } from '../agent-connection/agent-connection.module';
 import { StorageModule } from '../storage/storage.module';
@@ -50,6 +51,7 @@ import { StorageModule } from '../storage/storage.module';
     ExamSessionScheduler,
     AccessRequestStore,
     AccessRequestGateway,
+    AgentJoinLockStore,
   ],
   // Exported so a future module can inject ExamSessionService
   // (findByCode/listRequiredDeliverables) instead of writing its own
