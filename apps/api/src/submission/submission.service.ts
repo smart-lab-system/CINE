@@ -8,6 +8,7 @@ import { StorageService } from '../storage/storage.service';
 import { SubmissionEntity } from './entities/submission.entity';
 import { RequestUploadUrlDto } from './dto/request-upload-url.dto';
 import { ConfirmSubmissionDto } from './dto/confirm-submission.dto';
+import { SearchSubmissionsDto } from './dto/search-submissions.dto';
 import {
   ConfirmSubmissionAck,
   LobbySubmissionStatus,
@@ -30,6 +31,25 @@ export interface SubmissionStatusView {
   studentMssv: string;
   studentNameInput: string;
   requiredDeliverableId: string;
+  status: SubmissionEntity['status'];
+  submittedAt: Date;
+  fileSize: string | null;
+  downloadUrl: string | null;
+}
+
+/**
+ * A submission as seen from the cross-session "Quản lý bài thu" page —
+ * SubmissionStatusView plus the two facts that page needs and a
+ * single-session view already knows without asking (which session, which
+ * deliverable).
+ */
+export interface TeacherSubmissionView {
+  id: string;
+  examSessionId: string;
+  examSessionName: string;
+  requiredFilename: string;
+  studentMssv: string;
+  studentNameInput: string;
   status: SubmissionEntity['status'];
   submittedAt: Date;
   fileSize: string | null;
@@ -190,6 +210,74 @@ export class SubmissionService {
           : null,
       })),
     );
+  }
+
+  /**
+   * Everything collected across EVERY session this teacher owns — powers
+   * "Quản lý bài thu" (QA-reported gap: there was no way to see a
+   * submission without first knowing which session it belonged to).
+   *
+   * Scoped through `exam_session.teacher_id`, the exact same ownership
+   * fact `ExamSessionService.findAllForOwner` scopes "Quản lý kỳ thi" by —
+   * deliberately NOT `submission.home_teacher_id` (that column exists for
+   * routing a make-up student's grading to their OWN class teacher, a
+   * different question from "which sessions did I run").
+   */
+  async listForTeacher(
+    teacherId: string,
+    query: SearchSubmissionsDto,
+  ): Promise<{ items: TeacherSubmissionView[]; total: number }> {
+    const qb = this.submissions
+      .createQueryBuilder('sub')
+      .innerJoinAndSelect('sub.examSession', 'session')
+      .innerJoinAndSelect('sub.requiredDeliverable', 'deliverable')
+      .where('session.teacherId = :teacherId', { teacherId });
+
+    if (query.examSessionId) {
+      qb.andWhere('sub.examSessionId = :examSessionId', {
+        examSessionId: query.examSessionId,
+      });
+    }
+    if (query.status) {
+      qb.andWhere('sub.status = :status', { status: query.status });
+    }
+    if (query.search) {
+      qb.andWhere('(sub.studentMssv ILIKE :search OR sub.studentNameInput ILIKE :search)', {
+        search: `%${query.search}%`,
+      });
+    }
+
+    const [rows, total] = await qb
+      .orderBy('sub.submittedAt', 'DESC')
+      .skip((query.page - 1) * query.pageSize)
+      .take(query.pageSize)
+      .getManyAndCount();
+
+    const items = await Promise.all(
+      rows.map(async (row) => ({
+        id: row.id,
+        examSessionId: row.examSessionId,
+        examSessionName: row.examSession.name,
+        requiredFilename: row.requiredDeliverable.requiredFilename,
+        studentMssv: row.studentMssv,
+        studentNameInput: row.studentNameInput,
+        status: row.status,
+        submittedAt: row.submittedAt,
+        fileSize: row.fileSize,
+        // filename set (unlike listForSession above, not yet updated on
+        // this branch) — the storage key alone has no extension for a
+        // browser to name the downloaded file after.
+        downloadUrl: row.storageKey
+          ? (
+              await this.storage.generateDownloadUrl(row.storageKey, {
+                filename: row.requiredDeliverable.requiredFilename,
+              })
+            ).downloadUrl
+          : null,
+      })),
+    );
+
+    return { items, total };
   }
 
   /**

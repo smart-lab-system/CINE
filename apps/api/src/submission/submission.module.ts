@@ -7,6 +7,7 @@ import { SubmissionService } from './submission.service';
 import { SubmissionGateway } from './submission.gateway';
 import { BackupGateway } from './backup.gateway';
 import { SubmissionController } from './submission.controller';
+import { TeacherSubmissionsController } from './teacher-submissions.controller';
 
 /**
  * Imports ExamSessionModule for its already-exported ExamSessionService
@@ -20,7 +21,7 @@ import { SubmissionController } from './submission.controller';
     ExamSessionModule,
     StorageModule,
   ],
-  controllers: [SubmissionController],
+  controllers: [SubmissionController, TeacherSubmissionsController],
   providers: [SubmissionService, SubmissionGateway, BackupGateway],
   exports: [SubmissionService],
 })
