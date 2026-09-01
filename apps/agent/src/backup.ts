@@ -200,8 +200,18 @@ export async function restoreBackup(
  * `unref()` so a still-pending timer never keeps the process alive after
  * finalize — the agent's job is done at that point, and a lingering handle
  * would leave the student's window open for another four minutes.
+ *
+ * `onResult`, if given, is called after every attempt (not just failures)
+ * — `cli.ts` doesn't need it (its own `console.warn` below already covers
+ * the one outcome a student watching a terminal cares about), but
+ * `session-controller.ts` does: the detail window's "last backed up at"
+ * line has no other way to learn a snapshot just happened.
  */
-export function startSnapshotLoop(socket: Socket, workspaceDir: string): () => void {
+export function startSnapshotLoop(
+  socket: Socket,
+  workspaceDir: string,
+  onResult?: (result: 'uploaded' | 'empty' | 'failed') => void,
+): () => void {
   const timer = setInterval(() => {
     void uploadSnapshot(socket, workspaceDir).then((result) => {
       if (result === 'failed') {
@@ -210,6 +220,7 @@ export function startSnapshotLoop(socket: Socket, workspaceDir: string): () => v
         // that. Not an error the student can act on, so not an error.
         console.warn('[CẢNH BÁO] Không sao lưu được lần này — sẽ thử lại sau vài phút.');
       }
+      onResult?.(result);
     });
   }, SNAPSHOT_INTERVAL_MS);
 

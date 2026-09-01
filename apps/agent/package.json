@@ -2,25 +2,41 @@
   "name": "agent",
   "version": "0.1.0",
   "private": true,
-  "description": "Minimal CLI agent that connects to the exam-live WebSocket gateway as a student and creates the declared submission files on this machine.",
+  "description": "Student agent that connects to the exam-live WebSocket gateway, joins an exam session, and creates the declared submission files on this machine. The Electron app in electron/ is replacing src/cli.ts (design spec 2026-09-01-student-agent-electron-design.md) — cli.ts stays until parity is confirmed (§8.4), then is deleted.",
+  "main": "./out/main/index.js",
   "scripts": {
     "cli": "ts-node src/cli.ts",
     "mock-agent": "ts-node src/mock-agent.ts",
-    "build": "tsc --noEmit",
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p electron/tsconfig.node.json && tsc --noEmit -p electron/renderer/tsconfig.json",
+    "build:electron": "electron-vite build",
+    "preview:electron": "electron-vite preview",
     "lint": "eslint .",
     "test": "vitest run"
   },
   "dependencies": {
     "jszip": "^3.10.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@types/node": "^20.16.10",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.11.0",
     "@typescript-eslint/parser": "^8.11.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.2.0",
+    "electron-vite": "^2.3.0",
     "eslint": "^9.13.0",
+    "postcss": "^8.4.47",
+    "socket.io": "^4.8.3",
+    "tailwindcss": "^3.4.13",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",
+    "vite": "^5.4.10",
     "vitest": "^2.1.2"
   }
 }

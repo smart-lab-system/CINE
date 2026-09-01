@@ -13,5 +13,13 @@ export const DEFAULT_DELIVERABLE_TYPE: DeliverableType = 'document';
 // (Task 3), which normalizes any incoming sessionCode to uppercase before
 // querying.
 export const EXAM_SESSION_CODE_LENGTH = 6;
-export const EXAM_SESSION_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+// `O`/`0` and `I`/`1` deliberately excluded — a code the teacher reads
+// aloud and a student hand-types is exactly where those pairs cause real
+// mistypes (see the student-agent-electron-design spec, §5.1). Only
+// consulted here, at generation time: matching a typed-in code is an
+// exact-match DB lookup (see ExamSessionGateway.handleAgentJoin), never a
+// character-class check, so this change is backward-compatible by
+// construction — a session created before this change keeps whatever code
+// it already has, `O`/`I`/`0`/`1` included, and still joins fine.
+export const EXAM_SESSION_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const EXAM_SESSION_CODE_MAX_ATTEMPTS = 5;

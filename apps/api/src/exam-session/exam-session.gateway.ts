@@ -27,10 +27,12 @@ import { ExamSessionService } from './exam-session.service';
 import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 import { EnrollmentService } from '../course/enrollment.service';
 import { AccessRequestStore } from './access-request.store';
+import { AgentJoinLockStore } from './agent-join-lock.store';
 import { AttendanceService } from '../agent-connection/attendance.service';
 import { StorageService } from '../storage/storage.service';
 import { renderFilename } from './filename-template';
 import { ExamMaterialService } from './exam-material.service';
+import { STUDENT_MSSV_REGEX } from '../common/student-mssv';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -93,21 +95,43 @@ interface AgentJoinAck {
 // is not access. Every refusal here has a human override — see the
 // access-request flow — because a student missing from an imported roster
 // must not be locked out of an exam with no recourse.
+//
+// RATE_LIMITED (spec §5.2) is the one code that overrides whatever the
+// underlying outcome would have been: once an MSSV is locked out, every
+// attempt gets this code back, regardless of whether the code/session it
+// sent this time was actually correct.
 type AgentJoinErrorCode =
   | 'SESSION_NOT_FOUND'
   | 'SESSION_NOT_ACTIVE'
   | 'INVALID_INPUT'
-  | 'NOT_ENROLLED';
+  | 'NOT_ENROLLED'
+  | 'RATE_LIMITED';
 
 interface AgentJoinError {
   code: AgentJoinErrorCode;
   message: string;
+  /** Only set for RATE_LIMITED — how long until this MSSV may try again.
+   *  Server-computed and sent explicitly so the UI renders a real
+   *  countdown, never a client-guessed one. */
+  retryAfterMs?: number;
 }
 
 interface LobbyStudentJoined {
   studentId: string;
   fullName: string;
   joinedAt: string;
+}
+
+/**
+ * Spec §6.1. Broadcast to the teacher room when a join fails because the
+ * session isn't open yet/anymore — the one failure mode that both reaches
+ * the server and isn't the student's fault. No more PII than
+ * LobbyStudentJoined already carries.
+ */
+interface LobbyJoinAttemptFailed {
+  studentId: string;
+  code: 'SESSION_NOT_ACTIVE';
+  occurredAt: string;
 }
 
 // Server -> agents (and the watching teacher). Carries no student data
@@ -188,6 +212,7 @@ export class ExamSessionGateway
     private readonly events: ExamSessionEvents,
     private readonly enrollments: EnrollmentService,
     private readonly accessRequests: AccessRequestStore,
+    private readonly agentJoinLocks: AgentJoinLockStore,
     private readonly attendance: AttendanceService,
     private readonly storage: StorageService,
     private readonly materials: ExamMaterialService,
@@ -272,19 +297,43 @@ export class ExamSessionGateway
     // contracted `agent:join:error`/`INVALID_INPUT`. Reject it here,
     // before either call.
     if (!isPlainObject(body)) {
-      this.emitJoinError(
+      this.emitJoinFailure(
         client,
+        null,
         'INVALID_INPUT',
         'fullName, studentId, and sessionCode are required and must be within length limits.',
       );
       return;
     }
 
+    // Spec §5.2: keyed by MSSV, so it survives a reconnect (unlike the
+    // per-socket limiter above). Extracted from the RAW body, before
+    // validation — a lockout must intercept even a malformed follow-up
+    // attempt, not just a well-formed one. Only a syntactically valid MSSV
+    // is treated as a key: there is nothing meaningful to lock out for a
+    // payload with no usable studentId, and the per-socket limiter above
+    // already guards that case. Checking never extends or resets a lock —
+    // see AgentJoinLockStore.checkLock.
+    const candidateMssv = this.extractCandidateMssv(body);
+    if (candidateMssv) {
+      const lock = this.agentJoinLocks.checkLock(candidateMssv);
+      if (lock.locked) {
+        this.emitJoinError(
+          client,
+          'RATE_LIMITED',
+          'Quá nhiều lần thử sai. Vui lòng thử lại sau.',
+          lock.retryAfterMs,
+        );
+        return;
+      }
+    }
+
     const dto = plainToInstance(AgentJoinDto, body ?? {});
     const errors = await validate(dto);
     if (errors.length > 0) {
-      this.emitJoinError(
+      this.emitJoinFailure(
         client,
+        candidateMssv,
         'INVALID_INPUT',
         'fullName, studentId, and sessionCode are required and must be within length limits.',
       );
@@ -297,7 +346,7 @@ export class ExamSessionGateway
     const normalizedCode = dto.sessionCode.trim().toUpperCase();
     const session = await this.examSessions.findByCode(normalizedCode);
     if (!session) {
-      this.emitJoinError(client, 'SESSION_NOT_FOUND', 'No exam session matches this code.');
+      this.emitJoinFailure(client, dto.studentId, 'SESSION_NOT_FOUND', 'No exam session matches this code.');
       return;
     }
 
@@ -307,7 +356,19 @@ export class ExamSessionGateway
       now >= session.startTime.getTime() &&
       now <= session.endTime.getTime();
     if (!isActive) {
+      // Does NOT count toward the lockout (§5.2) — a patient early student
+      // retrying is not spam. Does get its own, separate throttle (§6.3)
+      // for the teacher broadcast below, so a repeatedly-retrying student
+      // doesn't flood the lobby with one repeated event.
       this.emitJoinError(client, 'SESSION_NOT_ACTIVE', 'This exam session is not currently active.');
+      if (this.agentJoinLocks.shouldNotify(dto.studentId)) {
+        const failed: LobbyJoinAttemptFailed = {
+          studentId: dto.studentId,
+          code: 'SESSION_NOT_ACTIVE',
+          occurredAt: new Date().toISOString(),
+        };
+        client.to(teacherRoom(session.id)).emit('lobby:join_attempt_failed', failed);
+      }
       return;
     }
 
@@ -402,6 +463,11 @@ export class ExamSessionGateway
     // in an order that never happened. One extra round-trip buys an event
     // stream that can be trusted to be in sequence.
     await this.attendance.recordJoin(session.id, dto.studentId, session.startTime);
+
+    // A join that actually succeeds is strong evidence this MSSV isn't
+    // being abused — see AgentJoinLockStore.clear for why this also wipes
+    // the escalation history, not just the failure count.
+    this.agentJoinLocks.clear(dto.studentId);
 
     client.emit('agent:join:ack', ack);
 
@@ -622,9 +688,61 @@ export class ExamSessionGateway
     return attempts.length > ExamSessionGateway.AGENT_JOIN_RATE_LIMIT;
   }
 
-  private emitJoinError(client: Socket, code: AgentJoinErrorCode, message: string): void {
-    const error: AgentJoinError = { code, message };
+  private emitJoinError(
+    client: Socket,
+    code: AgentJoinErrorCode,
+    message: string,
+    retryAfterMs?: number,
+  ): void {
+    const error: AgentJoinError = { code, message, ...(retryAfterMs !== undefined && { retryAfterMs }) };
     client.emit('agent:join:error', error);
+  }
+
+  /**
+   * Records one SESSION_NOT_FOUND/INVALID_INPUT failure against `mssv`
+   * (spec §5.2) and emits either the code that was actually about to be
+   * sent, or RATE_LIMITED if this failure is the one that just tipped the
+   * count over the threshold — the 5th failing attempt gets the lockout
+   * countdown, not a generic error a student has no way to act on
+   * differently.
+   *
+   * `mssv` is null when the payload had no syntactically valid MSSV to key
+   * on at all (see the `extractCandidateMssv` call site) — nothing to
+   * record in that case, so this just falls through to the plain error.
+   */
+  private emitJoinFailure(
+    client: Socket,
+    mssv: string | null,
+    code: 'SESSION_NOT_FOUND' | 'INVALID_INPUT',
+    message: string,
+  ): void {
+    if (mssv) {
+      const result = this.agentJoinLocks.recordFailure(mssv);
+      if (result.locked) {
+        this.emitJoinError(
+          client,
+          'RATE_LIMITED',
+          'Quá nhiều lần thử sai. Vui lòng thử lại sau.',
+          result.retryAfterMs,
+        );
+        return;
+      }
+    }
+    this.emitJoinError(client, code, message);
+  }
+
+  /**
+   * Pulls a usable MSSV out of the raw `agent:join` payload, before any
+   * class-validator pass — spec §5.2's lock check has to run ahead of full
+   * DTO validation (see the call site), so it needs the studentId straight
+   * off the wire. Returns null rather than the raw value when it isn't
+   * even shaped like a real MSSV: the lock store is keyed by MSSV, and
+   * there is nothing meaningful to lock out for a value that could never
+   * belong to a real student either way.
+   */
+  private extractCandidateMssv(body: Record<string, unknown>): string | null {
+    const raw = body.studentId;
+    return typeof raw === 'string' && STUDENT_MSSV_REGEX.test(raw) ? raw : null;
   }
 
   private emitSubscribeError(client: Socket, code: TeacherSubscribeErrorCode, message: string): void {

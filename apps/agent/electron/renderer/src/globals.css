@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+ * ExamCollect design tokens — copied from apps/web/src/app/globals.css
+ * (see this app's tailwind.config.ts for why it's a copy, not a shared
+ * package). Only the values actually used by this app's screens are kept;
+ * see the web file for the full contrast-ratio table these were measured
+ * against.
+ * ------------------------------------------------------------------------ */
+
+:root {
+  --background: 220 33% 98%;
+  --surface: 0 0% 100%;
+  --surface-2: 220 20% 96%;
+  --foreground: 222 47% 11%;
+  --muted-foreground: 215 16% 47%;
+  --border: 220 16% 90%;
+
+  --primary: 231 48% 30%;
+  --primary-foreground: 0 0% 100%;
+  --primary-strong: 231 48% 24%;
+  --primary-subtle: 231 60% 95%;
+
+  --accent: 174 62% 40%;
+  --accent-foreground: 0 0% 100%;
+  --accent-strong: 174 62% 31%;
+  --accent-stronger: 174 62% 25%;
+  --accent-subtle: 174 45% 94%;
+
+  --success: 152 55% 42%;
+  --success-foreground: 0 0% 100%;
+  --success-strong: 152 60% 26%;
+  --success-subtle: 152 50% 94%;
+
+  --warning: 38 92% 50%;
+  --warning-foreground: 30 60% 12%;
+  --warning-strong: 38 92% 30%;
+  --warning-subtle: 38 92% 94%;
+
+  --danger: 0 72% 51%;
+  --danger-foreground: 0 0% 100%;
+  --danger-strong: 0 72% 43%;
+  --danger-subtle: 0 86% 96%;
+
+  --info: 205 80% 46%;
+  --info-foreground: 0 0% 100%;
+  --info-strong: 205 80% 34%;
+  --info-subtle: 205 80% 95%;
+
+  --ring: 174 62% 40%; /* focus ring = brand teal */
+
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.1);
+  --shadow-lg: 0 20px 44px -12px rgb(15 23 42 / 0.22);
+  --radius: 0.75rem;
+}
+
+/* `darkMode: 'media'` in tailwind.config.ts — this app has no in-app
+   toggle (nothing to persist a preference in beyond localStorage, which
+   isn't worth the weight here), so it simply follows the OS setting, the
+   same as the rest of a Windows lab machine's other apps would. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 222 40% 8%;
+    --surface: 222 33% 12%;
+    --surface-2: 222 28% 17%;
+    --foreground: 210 30% 96%;
+    --muted-foreground: 215 16% 65%;
+    --border: 222 22% 22%;
+
+    --primary: 231 55% 66%;
+    --primary-foreground: 231 48% 12%;
+    --primary-strong: 231 55% 74%;
+    --primary-subtle: 231 35% 22%;
+
+    --accent: 174 55% 48%;
+    --accent-foreground: 174 62% 10%;
+    --accent-strong: 174 55% 60%;
+    --accent-stronger: 174 55% 70%;
+    --accent-subtle: 174 35% 20%;
+
+    --success: 152 50% 48%;
+    --success-strong: 152 50% 62%;
+    --success-subtle: 152 30% 18%;
+
+    --warning: 38 85% 58%;
+    --warning-foreground: 30 60% 10%;
+    --warning-strong: 38 85% 68%;
+    --warning-subtle: 38 40% 20%;
+
+    --danger: 0 72% 60%;
+    --danger-strong: 0 80% 72%;
+    --danger-subtle: 0 40% 20%;
+
+    --info: 205 75% 55%;
+    --info-strong: 205 80% 68%;
+    --info-subtle: 205 40% 20%;
+
+    --ring: 174 55% 52%;
+
+    --shadow-lg: 0 20px 44px -12px rgb(0 0 0 / 0.55);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    /* This app's whole window is the UI — nothing here is ever meant to
+       be text-selected or dragged like a document. */
+    user-select: none;
+  }
+
+  input,
+  textarea {
+    user-select: text;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring/70 ring-offset-2 ring-offset-background;
+  }
+}
