@@ -41,6 +41,33 @@ class IsAfterStartTimeConstraint implements ValidatorConstraintInterface {
   }
 }
 
+// QA-reported gap: nothing stopped a teacher from creating a session a few
+// seconds long. 15 minutes is the minimum a student can plausibly join,
+// read the instructions, and submit anything at all.
+export const MIN_EXAM_DURATION_MINUTES = 15;
+const MIN_EXAM_DURATION_MS = MIN_EXAM_DURATION_MINUTES * 60 * 1000;
+
+@ValidatorConstraint({ name: 'HasMinimumDuration', async: false })
+class HasMinimumDurationConstraint implements ValidatorConstraintInterface {
+  validate(endTime: string, args: ValidationArguments): boolean {
+    const { startTime } = args.object as CreateExamSessionDto;
+    const start = new Date(startTime).getTime();
+    const end = new Date(endTime).getTime();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      // Not this constraint's problem to report — IsAfterStartTimeConstraint
+      // (or IsISO8601) already fails the field for that, and stacking a
+      // second, contradictory message ("too short" on a negative duration)
+      // would only confuse whoever reads the 400 response.
+      return true;
+    }
+    return end - start >= MIN_EXAM_DURATION_MS;
+  }
+
+  defaultMessage(): string {
+    return `endTime must be at least ${MIN_EXAM_DURATION_MINUTES} minutes after startTime`;
+  }
+}
+
 export class CreateExamSessionDto {
   @IsString()
   @Length(1, 200)
@@ -70,6 +97,7 @@ export class CreateExamSessionDto {
 
   @IsISO8601()
   @Validate(IsAfterStartTimeConstraint)
+  @Validate(HasMinimumDurationConstraint)
   endTime!: string;
 
   @IsArray()
