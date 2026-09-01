@@ -31,7 +31,17 @@ const FILENAME_TEMPLATE_REGEX =
 
 const EXAM_TYPES = ['TK', 'GK', 'CK'] as const;
 
-const createExamSessionSchema = z
+// Must stay in sync with MIN_EXAM_DURATION_MINUTES in
+// apps/api/src/exam-session/dto/create-exam-session.dto.ts — QA-reported
+// gap: nothing stopped a teacher from creating a session a few seconds
+// long. Catching it here means a teacher sees the message next to the
+// field they need to fix, instead of a generic API-error banner after a
+// round trip.
+const MIN_EXAM_DURATION_MINUTES = 15;
+
+// Exported so the rule can be unit-tested directly against the schema
+// (this form has no other test coverage yet — see page.test.tsx history).
+export const createExamSessionSchema = z
   .object({
     name: z
       .string()
@@ -70,6 +80,21 @@ const createExamSessionSchema = z
     },
     {
       message: 'Thời gian kết thúc phải sau thời gian bắt đầu',
+      path: ['endTime'],
+    },
+  )
+  // Mirrors the backend's HasMinimumDurationConstraint. Skips entirely when
+  // end <= start — that's the previous .refine()'s error to report, not a
+  // "too short" message stacked on top of an already-invalid ordering.
+  .refine(
+    (values) => {
+      const start = new Date(values.startTime).getTime();
+      const end = new Date(values.endTime).getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return true;
+      return end - start >= MIN_EXAM_DURATION_MINUTES * 60_000;
+    },
+    {
+      message: `Phiên thi phải kéo dài ít nhất ${MIN_EXAM_DURATION_MINUTES} phút`,
       path: ['endTime'],
     },
   )
