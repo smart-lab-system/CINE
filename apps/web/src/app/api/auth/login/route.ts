@@ -21,12 +21,18 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.json({ account });
   response.cookies.set('access_token', accessToken, {
     httpOnly: true,
+    // Off in dev (no HTTPS on localhost) and on in production — matched
+    // exactly by refresh/route.ts, which mints a token on the same
+    // schedule as this one and must be exactly as reachable, not just
+    // the same maxAge/sameSite/path.
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 15,
   });
   response.cookies.set('refresh_token', refreshToken, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 24 * 7,
@@ -40,7 +46,13 @@ export async function POST(request: NextRequest) {
   response.cookies.set(
     'account',
     JSON.stringify({ name: account.name, email: account.email, role: account.role }),
-    { httpOnly: false, sameSite: 'lax', path: '/', maxAge: 60 * 15 },
+    {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 15,
+    },
   );
 
   return response;
