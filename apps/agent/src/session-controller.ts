@@ -397,6 +397,22 @@ export class SessionController extends EventEmitter {
   // -------------------------------------------------------------------
 
   private async handleJoinAck(ack: AgentJoinAck): Promise<void> {
+    try {
+      await this.doHandleJoinAck(ack);
+    } catch (error) {
+      // Fired from a socket listener via `void this.handleJoinAck(...)` —
+      // an uncaught rejection here has no `.catch` to land in and would
+      // crash Electron's main process outright, at the exact moment a
+      // student is mid-exam. Reported, not swallowed: the student is
+      // already confirmed joined by this point (that patch happens first,
+      // synchronously, below), so this can only affect backup/materials/
+      // instructions — worth surfacing, never worth taking the app down
+      // for.
+      this.log(`Lỗi không mong muốn sau khi vào thi: ${describeError(error)}`);
+    }
+  }
+
+  private async doHandleJoinAck(ack: AgentJoinAck): Promise<void> {
     this.hasJoinedOnce = true;
     const studentId = this.state.studentId ?? '';
     const workspaceDir = this.workspaceDir!;

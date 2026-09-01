@@ -28,6 +28,7 @@ let uploadedBodies: Buffer[] = [];
 
 type JoinReply = { type: 'ack'; ack: Partial<AgentJoinAck> } | { type: 'error'; error: AgentJoinError };
 let nextJoinReply: JoinReply | null = null;
+let joinAttemptCount = 0;
 
 function baseAck(overrides: Partial<AgentJoinAck> = {}): AgentJoinAck {
   return {
@@ -64,6 +65,7 @@ beforeAll(async () => {
 
   ns.on('connection', (socket: ServerSocket) => {
     socket.on('agent:join', () => {
+      joinAttemptCount++;
       const reply = nextJoinReply;
       if (!reply) {
         socket.emit('agent:join:error', { code: 'SESSION_NOT_FOUND', message: 'no reply configured' });
@@ -125,6 +127,7 @@ let accessRequestReply: { ok: boolean; requestId?: string; code?: string; messag
 afterEach(() => {
   nextJoinReply = null;
   uploadedBodies = [];
+  joinAttemptCount = 0;
   accessRequestReply = { ok: true, requestId: 'req-1' };
 });
 
@@ -157,6 +160,21 @@ function waitForState(
   });
 }
 
+/** For asserting on something outside SessionController's own `state`
+ *  events entirely (here: a count the fake server keeps) — `waitForState`
+ *  only ever resolves the instant the CLIENT patches, which can land
+ *  before an emit it just sent has actually reached and been processed by
+ *  the server. Polling, not racing a single push, is what closes that gap. */
+async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void> {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) {
+      throw new Error('timed out waiting for condition');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
 describe('SessionController — join flow (design spec §4)', () => {
   it('state a -> b -> c: a successful join reaches "joined" with the roster name and a checklist', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
@@ -186,6 +204,22 @@ describe('SessionController — join flow (design spec §4)', () => {
     expect(state.joinError?.code).toBe('SESSION_NOT_FOUND');
     controller.quit();
   });
+
+  it('group 1b: a connection that never succeeds shows connect_error, not a plain error, before the first join', async () => {
+    // A port nothing is listening on — the request fails locally
+    // (ECONNREFUSED), no real network flakiness needed for this to be
+    // deterministic.
+    const controller = new SessionController({
+      backendUrl: 'http://127.0.0.1:1',
+      workspaceRoot: tmpWorkspaceRoot(),
+    });
+
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    const state = await waitForState(controller, (s) => s.joinPhase === 'connect_error', 10_000);
+
+    expect(state.connection).toBe('connect_error');
+    controller.quit();
+  }, 15_000);
 
   it('rejects an unsafe studentId locally, before ever touching the network', async () => {
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
@@ -285,6 +319,34 @@ describe('SessionController — join flow (design spec §4)', () => {
 });
 
 describe('SessionController — after joining', () => {
+  it('re-emits agent:join automatically after a network blip, without the student resubmitting the form', async () => {
+    nextJoinReply = { type: 'ack', ack: {} };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined');
+    expect(joinAttemptCount).toBe(1);
+
+    // socket.conn.close() (not socket.disconnect()) — a graceful server-
+    // initiated disconnect tells socket.io-client's own reason
+    // ('io server disconnect') NOT to auto-reconnect, which is correct
+    // for "you're not welcome" but wrong for what this test simulates: an
+    // ordinary dropped connection.
+    const serverSocket = [...ns.sockets.values()][ns.sockets.size - 1];
+    serverSocket.conn.close();
+
+    await waitForState(controller, (s) => s.connection === 'disconnected');
+    const state = await waitForState(controller, (s) => s.connection === 'connected', 10_000);
+    expect(state.joinPhase).toBe('joined'); // never regresses to the form
+
+    // The client patches 'connected' the instant its own 'connect' handler
+    // runs — before the agent:join it emits in that same handler has
+    // necessarily reached and been processed by the server yet. Poll for
+    // the count instead of asserting immediately.
+    await waitFor(() => joinAttemptCount === 2, 5000);
+    expect(joinAttemptCount).toBe(2); // proves a real re-join happened, not just a silent reconnect
+    controller.quit();
+  }, 15_000);
+
   it('exam:finalize uploads every required deliverable and records the summary', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });

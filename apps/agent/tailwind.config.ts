@@ -16,13 +16,17 @@ const config: Config = {
     extend: {
       colors: {
         border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         surface: {
           DEFAULT: 'hsl(var(--surface))',
           2: 'hsl(var(--surface-2))',
+        },
+        // No DEFAULT — nothing in this app uses bg-muted/text-muted, only
+        // text-muted-foreground (every secondary/helper line in the UI).
+        muted: {
+          foreground: 'hsl(var(--muted-foreground))',
         },
         primary: {
           DEFAULT: 'hsl(var(--primary))',
@@ -73,6 +77,15 @@ const config: Config = {
         DEFAULT: 'var(--shadow-sm)',
         md: 'var(--shadow-md)',
         lg: 'var(--shadow-lg)',
+      },
+      // Only the steps this app's components actually use — apps/web's
+      // `display`/`h1`/`beacon` steps have no screen here that needs them.
+      fontSize: {
+        h2: ['1.25rem', { lineHeight: '1.75rem', letterSpacing: '-0.012em', fontWeight: '600' }],
+        h3: ['1rem', { lineHeight: '1.5rem', letterSpacing: '-0.006em', fontWeight: '600' }],
+        body: ['0.875rem', { lineHeight: '1.5' }],
+        small: ['0.8125rem', { lineHeight: '1.5' }],
+        caption: ['0.75rem', { lineHeight: '1.4', letterSpacing: '0.01em', fontWeight: '500' }],
       },
       fontFamily: {
         // System UI stack, not apps/web's Google-Fonts-loaded Inter: a
