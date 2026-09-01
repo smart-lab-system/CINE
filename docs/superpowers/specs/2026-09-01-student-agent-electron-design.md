@@ -53,6 +53,8 @@ of a terminal, and give the student a status they can see instead of read.
 - A live signal to the teacher when a join fails for `SESSION_NOT_ACTIVE`
   (§6) — the one failure mode that both reaches the server and is not the
   student's fault.
+- Session codes generated without `O`/`0`/`I`/`1` (§5.1) — found while
+  designing §5.2, small enough to fix in this same phase.
 - `cli.ts` deleted once the app has full parity, verified.
 
 **Non-goals**
@@ -125,15 +127,33 @@ Verified against `apps/api/src/common/student-mssv.ts` and
 Both are client-side conveniences only — the server DTOs (`AgentJoinDto`)
 remain the actual enforcement, unchanged.
 
-**Flagged, not fixed here: `EXAM_SESSION_CODE_ALPHABET` contains both `O`/`0`
-and `I`/`1`.** A code the teacher reads aloud and a student hand-types is
-exactly where those pairs cause real mistypes — this is a genuine
-contributor to the `SESSION_NOT_FOUND`/lockout risk this whole section
-exists to manage, and this app cannot fix it: the alphabet is chosen at
-session-code generation time, server-side, before this client ever sees a
-code. Changing it is a separate, `apps/api`-only decision (whether existing
-sessions' codes stay valid, whether it is even worth the churn this late)
-that does not belong inside this design. Noted here only so it is not lost.
+**Included in this phase: drop `O`/`0` and `I`/`1` from
+`EXAM_SESSION_CODE_ALPHABET`.** A code the teacher reads aloud and a
+student hand-types is exactly where those pairs cause real mistypes — a
+genuine contributor to the `SESSION_NOT_FOUND`/lockout risk this whole
+section exists to manage. This is an `apps/api`-only, one-line change
+(`exam-session.types.ts`), small enough to fold into Phase 0 alongside
+§5.2/§6 rather than deferred:
+
+```
+// before
+export const EXAM_SESSION_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+// after
+export const EXAM_SESSION_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+```
+
+32 characters instead of 36 (24 letters minus `O`/`I`, 8 digits minus
+`0`/`1`) — 32⁶ ≈ 1.07 billion possible codes, still far beyond anything
+§5.2's rate limit lets an attacker search.
+
+**Backward-compatible by construction, no migration:** the alphabet is
+consulted only at generation time (`ExamSessionService.generateCode`).
+Lookup is an exact-match query against the stored `code` column, normalized
+to uppercase — never a regex or character-class check against the
+alphabet (confirmed: `AgentJoinDto.sessionCode` validates only
+`@Length(1, 20)`, no `@Matches`). A session created yesterday with an `O`
+or a `1` in its code keeps working exactly as it does today; only codes
+generated *after* this change are drawn from the narrower set.
 
 ### 5.2 Rate limiting — new, server-side, per-MSSV, escalating
 
@@ -262,15 +282,18 @@ checklist in §8.4 — not before.
 
 ## 8. Sequencing
 
-### 8.1 Phase 0 — the two server changes, alone, first
+### 8.1 Phase 0 — the three server changes, alone, first
 
-§5.2 (rate limit) and §6 (teacher broadcast) ship as their own phase,
-**before any Electron code exists.** Both are pure `apps/api` work,
-e2e-testable against a real socket with zero Electron dependency, and both
-are a real security/UX improvement to the exam-live gateway **regardless of
-which client connects** — a scripted attacker hitting the WebSocket
-directly is exactly who §5.2 defends against, whether `cli.ts`, the new
-app, or nothing official at all is on the other end.
+§5.2 (rate limit), §6 (teacher broadcast), and the §5.1 alphabet fix ship
+as their own phase, **before any Electron code exists.** All three are
+pure `apps/api` work, e2e-testable against a real socket/service with zero
+Electron dependency, and all three are a real security/UX improvement to
+the exam-live gateway **regardless of which client connects** — a scripted
+attacker hitting the WebSocket directly is exactly who §5.2 defends
+against, and a code generated with the narrower alphabet is less
+mistype-prone whether it is read into `cli.ts`, this app, or copied by
+hand, whether `cli.ts`, the new app, or nothing official at all is on the
+other end.
 
 This mirrors the resources-and-roster phase's own sequencing rule (§10 of
 that spec): a security-relevant server change does not wait behind
@@ -332,6 +355,12 @@ steps.
   `apps/api/test/*.e2e-spec.ts` — verify RED first (no lockout after 4
   failures; lockout after 5; `NOT_ENROLLED`/`SESSION_NOT_ACTIVE` never
   incrementing the counter; the broadcast firing once per MSSV per 30s).
+- §5.1 alphabet fix: unit test on `generateCode` (or a direct string-content
+  assertion on `EXAM_SESSION_CODE_ALPHABET`) confirming it excludes
+  `O`/`0`/`I`/`1`; one e2e check that a session code containing `O`/`I` from
+  before the change (seeded directly in the test DB) still joins
+  successfully, proving the backward-compatibility claim isn't just
+  reasoned about but actually exercised.
 - Electron shell/tray/native notifications: no automated coverage —
   CLAUDE.md already states this project has no CI and verification is
   manual. Run via `pnpm --filter agent dev` against the real API, same as
