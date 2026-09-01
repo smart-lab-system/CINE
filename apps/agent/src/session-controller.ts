@@ -522,9 +522,10 @@ export class SessionController extends EventEmitter {
         }
       }
 
-    const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
-    this.patch({ requiredFiles: created.files });
-    this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
+      const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
+      this.patch({ requiredFiles: created.files });
+      this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
+    }
     if (isFirstJoin) {
       // Fired before materials/instructions finish writing, not after —
       // those can take a real amount of time on a slow connection, and the

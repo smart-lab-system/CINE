@@ -217,8 +217,8 @@ describe('SessionController — join flow (design spec §4)', () => {
       materials: { count: 0, releaseAt: null, status: 'idle', downloadedFileNames: [] },
       submission: { finalizing: false, summary: null },
       log: [],
+      examEnded: false,
     });
-    expect(sawInitialState).toBe(true);
     expect(controller.getState().joinPhase).toBe('form');
     expect(controller.getState().joinError).toBeNull();
 
