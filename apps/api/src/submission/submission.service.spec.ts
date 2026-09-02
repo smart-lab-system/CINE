@@ -312,3 +312,149 @@ describe('SubmissionService.listForSession', () => {
     });
   });
 });
+
+/**
+ * "Quản lý bài thu" — QA-reported gap: there was no way to see a
+ * submission without first knowing which exam session it belonged to.
+ * The query builder is mocked down to its chain here (matching
+ * exam-session.service.spec.ts's own pattern for the same reason) — the
+ * real cross-table query runs against Postgres in
+ * submission-collection.e2e-spec.ts / a new e2e test, not here.
+ */
+describe('SubmissionService.listForTeacher', () => {
+  const TEACHER_ID = '66666666-6666-4666-8666-666666666666';
+
+  interface ListBuilderMock {
+    innerJoinAndSelect: jest.Mock;
+    where: jest.Mock;
+    andWhere: jest.Mock;
+    orderBy: jest.Mock;
+    skip: jest.Mock;
+    take: jest.Mock;
+    getManyAndCount: jest.Mock;
+  }
+
+  function createTeacherHarness(rows: Array<Record<string, unknown>>, total: number) {
+    const builder = {} as ListBuilderMock;
+    builder.innerJoinAndSelect = jest.fn(() => builder);
+    builder.where = jest.fn(() => builder);
+    builder.andWhere = jest.fn(() => builder);
+    builder.orderBy = jest.fn(() => builder);
+    builder.skip = jest.fn(() => builder);
+    builder.take = jest.fn(() => builder);
+    builder.getManyAndCount = jest.fn().mockResolvedValue([rows, total]);
+
+    const submissions = { createQueryBuilder: jest.fn(() => builder) };
+    const storage = {
+      generateDownloadUrl: jest.fn().mockResolvedValue({ downloadUrl: 'http://storage/view' }),
+    };
+    const service = new SubmissionService(
+      {} as DataSource,
+      submissions as unknown as Repository<SubmissionEntity>,
+      {} as ExamSessionService,
+      storage as unknown as StorageService,
+    );
+    return { service, submissions, builder, storage };
+  }
+
+  function row(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'sub-1',
+      examSessionId: SESSION_ID,
+      examSession: { name: 'Giữa kỳ Lập trình Web' },
+      requiredDeliverable: { requiredFilename: 'Cau1.docx' },
+      studentMssv: MSSV,
+      studentNameInput: 'Nguyen Van A',
+      status: 'collected',
+      submittedAt: new Date('2026-08-29T04:00:00.000Z'),
+      fileSize: '128',
+      storageKey: EXPECTED_KEY,
+      ...overrides,
+    };
+  }
+
+  it('scopes by exam_session.teacher_id and shapes the row with session name + filename', async () => {
+    const { service, builder, storage } = createTeacherHarness([row()], 1);
+
+    const result = await service.listForTeacher(TEACHER_ID, { page: 1, pageSize: 20 });
+
+    expect(builder.where).toHaveBeenCalledWith('session.teacherId = :teacherId', {
+      teacherId: TEACHER_ID,
+    });
+    expect(storage.generateDownloadUrl).toHaveBeenCalledWith(EXPECTED_KEY, {
+      filename: 'Cau1.docx',
+    });
+    expect(result).toEqual({
+      items: [
+        {
+          id: 'sub-1',
+          examSessionId: SESSION_ID,
+          examSessionName: 'Giữa kỳ Lập trình Web',
+          requiredFilename: 'Cau1.docx',
+          studentMssv: MSSV,
+          studentNameInput: 'Nguyen Van A',
+          status: 'collected',
+          submittedAt: new Date('2026-08-29T04:00:00.000Z'),
+          fileSize: '128',
+          downloadUrl: 'http://storage/view',
+        },
+      ],
+      total: 1,
+    });
+  });
+
+  it('adds an examSessionId filter only when one is given', async () => {
+    const { service, builder } = createTeacherHarness([row()], 1);
+
+    await service.listForTeacher(TEACHER_ID, { page: 1, pageSize: 20, examSessionId: SESSION_ID });
+
+    expect(builder.andWhere).toHaveBeenCalledWith('sub.examSessionId = :examSessionId', {
+      examSessionId: SESSION_ID,
+    });
+  });
+
+  it('adds a status filter only when one is given', async () => {
+    const { service, builder } = createTeacherHarness([row()], 1);
+
+    await service.listForTeacher(TEACHER_ID, { page: 1, pageSize: 20, status: 'invalid' });
+
+    expect(builder.andWhere).toHaveBeenCalledWith('sub.status = :status', { status: 'invalid' });
+  });
+
+  it('adds a search filter matching MSSV or the typed name only when one is given', async () => {
+    const { service, builder } = createTeacherHarness([row()], 1);
+
+    await service.listForTeacher(TEACHER_ID, { page: 1, pageSize: 20, search: 'Nguyen' });
+
+    expect(builder.andWhere).toHaveBeenCalledWith(
+      '(sub.studentMssv ILIKE :search OR sub.studentNameInput ILIKE :search)',
+      { search: '%Nguyen%' },
+    );
+  });
+
+  it('adds none of the optional filters when none are given', async () => {
+    const { service, builder } = createTeacherHarness([row()], 1);
+
+    await service.listForTeacher(TEACHER_ID, { page: 1, pageSize: 20 });
+
+    expect(builder.andWhere).not.toHaveBeenCalled();
+  });
+
+  it('paginates with the given page/pageSize', async () => {
+    const { service, builder } = createTeacherHarness([row()], 1);
+
+    await service.listForTeacher(TEACHER_ID, { page: 3, pageSize: 10 });
+
+    expect(builder.skip).toHaveBeenCalledWith(20);
+    expect(builder.take).toHaveBeenCalledWith(10);
+  });
+
+  it('never calls storage for a submission with no storageKey yet', async () => {
+    const { service, storage } = createTeacherHarness([row({ storageKey: null })], 1);
+
+    const result = await service.listForTeacher(TEACHER_ID, { page: 1, pageSize: 20 });
+
+    expect(storage.generateDownloadUrl).not.toHaveBeenCalled();
+    expect(result.items[0].downloadUrl).toBeNull();
+  });
+});

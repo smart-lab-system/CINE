@@ -495,6 +495,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TeacherSubmissionsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/courses/{courseId}/rubrics": {
         parameters: {
             query?: never;
@@ -1603,6 +1619,29 @@ export interface operations {
             path: {
                 examSessionId: string;
             };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TeacherSubmissionsController_list: {
+        parameters: {
+            query: {
+                page: number;
+                pageSize: number;
+                search?: string;
+                status?: "received" | "validated" | "collected" | "invalid";
+                examSessionId?: string;
+            };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
