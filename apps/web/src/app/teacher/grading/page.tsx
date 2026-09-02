@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ClipboardCheck, Play, Plus, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -52,9 +53,25 @@ const VERDICT_LABELS: Record<GradingResult['criterionResults'][number]['verdict'
  * look like one continuous flow — which is exactly what must not be built.
  */
 export default function GradingPage() {
+  // useSearchParams requires a Suspense boundary in the App Router — the
+  // rest of the page has no reason to wait on anything, so only this one
+  // read is wrapped, not the whole tree.
+  return (
+    <Suspense>
+      <GradingPageContent />
+    </Suspense>
+  );
+}
+
+function GradingPageContent() {
+  const searchParams = useSearchParams();
   const sessions = useExamSessions({ page: 1, pageSize: 50 });
   const classes = useTeachingClasses();
-  const [sessionId, setSessionId] = useState<string>('');
+  // Seeded once, from the submissions detail page's "Chấm điểm" link
+  // (?sessionId=) — the dropdown below still lets the teacher change it;
+  // this only saves them from picking a session they already came here to
+  // grade.
+  const [sessionId, setSessionId] = useState<string>(() => searchParams.get('sessionId') ?? '');
 
   const session = sessions.data?.items.find((item) => item.id === sessionId);
   // The rubric belongs to the COURSE, and the session list carries only the

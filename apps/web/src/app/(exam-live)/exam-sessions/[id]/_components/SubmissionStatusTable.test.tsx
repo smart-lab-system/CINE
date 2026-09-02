@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { SubmissionStatusTable, type DeliverableColumn, type SubmissionRowStudent } from './SubmissionStatusTable';
+import { SubmissionStatusTable } from './SubmissionStatusTable';
+import type { DeliverableColumn, SubmissionRowStudent } from '@/lib/submission-rows';
 
 // QA-reported gap (point 2): "chưa có cột định dạng file nộp" — the teacher
 // had no way to see what format a submitted file is without opening it.
@@ -93,5 +94,38 @@ describe('SubmissionStatusTable — download link filename', () => {
     const link = screen.getByRole('link', { name: 'Mở file' });
     expect(link).toHaveAttribute('download', 'Cau1.docx');
     expect(link).toHaveAttribute('href', 'https://storage.example/signed');
+  });
+});
+
+// The default empty-students copy ("Bảng sẽ tự cập nhật...") assumes a live,
+// still-updating table — true on the lobby page, false on the post-hoc
+// submissions detail page that reuses this same component. An override
+// keeps one component instead of two near-identical copies.
+describe('SubmissionStatusTable — empty-students copy', () => {
+  const deliverables: DeliverableColumn[] = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
+
+  it('shows the default live-page copy when no override is given', () => {
+    render(<SubmissionStatusTable deliverables={deliverables} students={[]} />);
+
+    expect(
+      screen.getByText(/Bảng sẽ tự cập nhật ngay khi agent trên máy sinh viên nộp bài/),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the caller-supplied copy instead, when given one', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[]}
+        emptyStudentsDescription="Chưa có sinh viên nào nộp bài trong phiên này."
+      />,
+    );
+
+    expect(
+      screen.getByText('Chưa có sinh viên nào nộp bài trong phiên này.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Bảng sẽ tự cập nhật ngay khi agent trên máy sinh viên nộp bài/),
+    ).not.toBeInTheDocument();
   });
 });

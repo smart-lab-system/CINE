@@ -20,33 +20,25 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import type {
+  DeliverableColumn,
+  DeliverableState,
+  SubmissionRowStudent,
+} from '@/lib/submission-rows';
 
-export type DeliverableState = 'collected' | 'invalid' | 'pending';
-
-export interface SubmissionRowStudent {
-  studentMssv: string;
-  /** Whatever the student typed into the agent; falls back to the MSSV. */
-  fullName: string;
-  /** Keyed by requiredDeliverableId. A missing key means "chưa nộp". */
-  byDeliverable: Record<
-    string,
-    {
-      state: DeliverableState;
-      submittedAt?: string;
-      downloadUrl?: string | null;
-      fileSize?: string | null;
-    }
-  >;
-}
-
-export interface DeliverableColumn {
-  id: string;
-  requiredFilename: string;
-}
+const DEFAULT_EMPTY_STUDENTS_DESCRIPTION =
+  'Bảng sẽ tự cập nhật ngay khi agent trên máy sinh viên nộp bài — không cần tải lại trang.';
 
 interface SubmissionStatusTableProps {
   deliverables: DeliverableColumn[];
   students: SubmissionRowStudent[];
+  /**
+   * Overrides the "no students yet" copy. The default assumes a live,
+   * still-updating table (true on the lobby page); the per-session
+   * submissions detail page reuses this component post-hoc, with nothing
+   * left to auto-update, so it supplies its own copy instead.
+   */
+  emptyStudentsDescription?: string;
 }
 
 /**
@@ -136,6 +128,7 @@ function formatFileSize(value: string | null | undefined): string | null {
 export function SubmissionStatusTable({
   deliverables,
   students,
+  emptyStudentsDescription = DEFAULT_EMPTY_STUDENTS_DESCRIPTION,
 }: SubmissionStatusTableProps) {
   const [selectedStudentMssv, setSelectedStudentMssv] = useState<string | null>(null);
   const selectedStudent = selectedStudentMssv
@@ -158,7 +151,7 @@ export function SubmissionStatusTable({
       <EmptyState
         icon={FileCheck}
         title="Chưa có bài nộp nào"
-        description="Bảng sẽ tự cập nhật ngay khi agent trên máy sinh viên nộp bài — không cần tải lại trang."
+        description={emptyStudentsDescription}
         tone="muted"
       />
     );
