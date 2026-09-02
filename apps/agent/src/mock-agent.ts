@@ -9,10 +9,11 @@
  * basic-load-test the join flow and the lobby page without gathering N
  * real students.
  *
- * Deliberately lighter than the real agent (src/cli.ts): no filesystem
- * writes (never touches `exam-workspace/`), no interactive prompts, no
- * reconnection loop — built for throughput and aggregate reporting, not
- * for fidelity to what a real exam-taking machine does.
+ * Deliberately lighter than the real agent (the Electron app, driven by
+ * session-controller.ts): no filesystem writes (never touches
+ * `exam-workspace/`), no interactive prompts, no reconnection loop — built
+ * for throughput and aggregate reporting, not for fidelity to what a real
+ * exam-taking machine does.
  *
  * With --simulate-submission it also answers `exam:finalize` by uploading a
  * synthesized file per deliverable. That path runs the SAME
@@ -48,13 +49,14 @@ import process from 'node:process';
 
 // ---------------------------------------------------------------------------
 // Client side of the WebSocket Event Contract implemented by
-// apps/api/src/exam-session/exam-session.gateway.ts. `import type` only —
-// erased at compile time, so this never executes src/cli.ts's module-level
-// `main().catch(...)` side effect. Do not rename/reshape any of this
-// without updating that file's contract comment too.
+// apps/api/src/exam-session/exam-session.gateway.ts — the canonical copy
+// now lives in agent-contract.ts (cli.ts, which used to declare its own
+// copy of these same shapes, is retired: design spec §8.4, parity
+// confirmed against the running Electron app). Do not rename/reshape any
+// of this without updating that file's contract comment too.
 // ---------------------------------------------------------------------------
 
-import type { AgentJoinPayload, AgentJoinAck, AgentJoinErrorCode, AgentJoinError } from './cli';
+import type { AgentJoinPayload, AgentJoinAck, AgentJoinErrorCode, AgentJoinError } from './agent-contract';
 import {
   uploadAllDeliverables,
   type RequiredDeliverable,
@@ -240,11 +242,12 @@ function generateIdentities(count: number): MockIdentity[] {
 /**
  * Same non-object guard the gateway itself uses on the way in
  * (`ExamSessionGateway.isPlainObject`) and the real agent uses on the way
- * back (`cli.ts`'s own `isPlainObject`) — applied here too, since a
- * malformed/hostile `agent:join:ack`/`agent:join:error` payload is just as
- * untrustworthy for this script as for the real one. Re-declared locally
- * (not imported) because it's a runtime value, not a type — importing a
- * value from cli.ts would execute that file's module-level `main()` call.
+ * back (`session-controller.ts`'s own `isPlainObject`) — applied here too,
+ * since a malformed/hostile `agent:join:ack`/`agent:join:error` payload is
+ * just as untrustworthy for this script as for the real one. Re-declared
+ * locally (not imported) because it's a runtime value, not a type — this
+ * script's own contract import above is `import type` only, from
+ * agent-contract.ts (a pure type-declaration file, nothing to execute).
  */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -395,7 +398,8 @@ function runOneAgent(
     }
 
     // The server is not a trusted input source for shape either — same
-    // defense-in-depth stance as cli.ts's own ack/error handlers.
+    // defense-in-depth stance session-controller.ts's own ack/error
+    // handlers already take.
     function onAck(ack: unknown): void {
       if (!isPlainObject(ack)) {
         settle({ status: 'error', errorCode: 'INVALID_RESPONSE', errorMessage: 'agent:join:ack không phải object.' });

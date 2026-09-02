@@ -3,9 +3,10 @@
  * putting one back.
  *
  * Reconnect splits into two cases that look alike and are not. A network
- * blip with the machine intact is ALREADY handled — `cli.ts` creates its
- * files with the `wx` flag, so an agent that comes back never truncates
- * work that is already there. The case this file exists for is the other
+ * blip with the machine intact is ALREADY handled — `createSubmissionFiles`
+ * (workspace-files.ts) creates files with the `wx` flag, so an agent that
+ * comes back never truncates work that is already there. The case this file
+ * exists for is the other
  * one: a machine wiped or swapped mid-exam, where the work is simply gone
  * and no amount of careful file handling brings it back.
  *

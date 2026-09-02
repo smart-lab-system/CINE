@@ -6,10 +6,12 @@ per explicit user direction) rather than via `writing-plans` +
 `executing-plans`/`subagent-driven-development`. Phase 0 (§5.1/§5.2/§6)
 and Phases 1-2 (§8.2/§8.3, built together — see §8.4) are done, tested,
 and code-reviewed (PASS both times). Phase 3's UI (access-request form,
-states f/g) shipped as part of the same Electron push. What's left:
-`cli.ts` deletion, gated on a human actually walking the §8.4 parity
-checklist against the running app — not done, not something this session
-can do (no way to see/click a running Electron window).
+states f/g) shipped as part of the same Electron push. **Complete:** the
+user walked the §8.4 parity checklist against the running Electron app
+themselves — the one part of this spec no session could verify directly
+(no way to see/click a running Electron window) — and confirmed it holds.
+`cli.ts` is deleted; §8.4's checklist below is kept, checked off, as the
+record of what was actually verified before that one-way door closed.
 **Branch:** `feature/student-agent-app` (worktree at
 `.claude/worktrees/student-agent-app`, branched from `origin/main` at
 `78ae94c`, after PR #6 merged)
@@ -284,8 +286,8 @@ Electron renderer sits one exposed IPC call away from the main process's
 real filesystem access, so a DOM injection here is worth more to an
 attacker than the same bug in an ordinary browser tab.
 
-`cli.ts` is deleted in Phase 3, once parity is confirmed against the
-checklist in §8.4 — not before.
+`cli.ts` was deleted in Phase 3, once parity was confirmed against the
+checklist in §8.4.
 
 ## 8. Sequencing
 
@@ -327,32 +329,33 @@ events.
 ### 8.4 Phase 3 — Access-request UI, then delete `cli.ts`
 
 Access-request as a form (state f/g) replacing the readline prompt.
-`cli.ts` is the only thing that has ever proven this whole flow end-to-end
-against the real API — deleting it is a one-way door, so "parity" is a
-checklist, not a feeling:
+`cli.ts` was the only thing that had ever proven this whole flow
+end-to-end against the real API — deleting it was a one-way door, so
+"parity" was a checklist, not a feeling. **Walked by the user directly
+against the running Electron app — every row confirmed:**
 
 | `cli.ts` capability | Verified on the Electron app |
 | --- | --- |
-| Join (MSSV + code, machineName) | ☐ |
-| Parse `agent:join:ack` (deliverables, session name, end time) | ☐ |
-| Restore backup **before** creating required files | ☐ |
-| Create required files with `wx` (idempotent on reconnect) | ☐ |
-| Download exam materials, respecting the release gate | ☐ |
-| Write `INSTRUCTIONS.txt` | ☐ |
-| Periodic snapshot loop | ☐ |
-| `exam:finalize` → stop snapshots → sequential checksum'd upload | ☐ |
-| Upload summary (uploaded/missing/failed) surfaced to the student | ☐ |
-| `NOT_ENROLLED` → access-request branch | ☐ |
-| Access-request: `ALREADY_ENROLLED` retries the join | ☐ |
-| `agent:access-granted` → rejoin | ☐ |
-| `agent:access-denied` → clear message, stop | ☐ |
-| Reconnect after a network blip (no duplicate "mất kết nối" on first try) | ☐ |
-| Graceful shutdown (SIGINT/SIGTERM equivalent — window close / tray Thoát) | ☐ |
-| `connect_error` (never reaches server at all) | ☐ |
+| Join (MSSV + code, machineName) | ☑ |
+| Parse `agent:join:ack` (deliverables, session name, end time) | ☑ |
+| Restore backup **before** creating required files | ☑ |
+| Create required files with `wx` (idempotent on reconnect) | ☑ |
+| Download exam materials, respecting the release gate | ☑ |
+| Write `INSTRUCTIONS.txt` | ☑ |
+| Periodic snapshot loop | ☑ |
+| `exam:finalize` → stop snapshots → sequential checksum'd upload | ☑ |
+| Upload summary (uploaded/missing/failed) surfaced to the student | ☑ |
+| `NOT_ENROLLED` → access-request branch | ☑ |
+| Access-request: `ALREADY_ENROLLED` retries the join | ☑ |
+| `agent:access-granted` → rejoin | ☑ |
+| `agent:access-denied` → clear message, stop | ☑ |
+| Reconnect after a network blip (no duplicate "mất kết nối" on first try) | ☑ |
+| Graceful shutdown (SIGINT/SIGTERM equivalent — window close / tray Thoát) | ☑ |
+| `connect_error` (never reaches server at all) | ☑ |
 
-Only once every row is checked: delete `cli.ts`, repoint `mock-agent.ts`'s
-type imports to `agent-contract.ts`, update `DEMO-RUNBOOK.md`'s agent-launch
-steps.
+Done: `cli.ts` deleted, `mock-agent.ts`'s type imports repointed to
+`agent-contract.ts`, `DEMO-RUNBOOK.md`'s agent-launch steps rewritten
+around the Electron app.
 
 ## 9. Testing
 

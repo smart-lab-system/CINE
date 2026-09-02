@@ -202,9 +202,9 @@ export async function restoreBackup(
  * would leave the student's window open for another four minutes.
  *
  * `onResult`, if given, is called after every attempt (not just failures)
- * — `cli.ts` doesn't need it (its own `console.warn` below already covers
- * the one outcome a student watching a terminal cares about), but
- * `session-controller.ts` does: the detail window's "last backed up at"
+ * — optional because the `console.warn` below already covers a failure on
+ * its own, but `session-controller.ts` (the only caller now that `cli.ts`
+ * is retired) always passes it: the detail window's "last backed up at"
  * line has no other way to learn a snapshot just happened.
  */
 export function startSnapshotLoop(

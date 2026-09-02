@@ -1,10 +1,12 @@
 /**
  * Path-traversal defense and required-file creation for a student's
  * workspace folder. Extracted from cli.ts (ported verbatim, no behavior
- * change) so session-controller.ts can reuse it without pulling in
- * cli.ts's own `main()` module-level side effect, and so this — the core
- * security property this whole area exists to prove — has direct unit
- * test coverage of its own, which it did not have before this extraction.
+ * change) so session-controller.ts could reuse it without pulling in
+ * cli.ts's own `main()` module-level side effect (cli.ts itself is now
+ * retired — design spec §8.4 — but the extraction it prompted stands on
+ * its own merit regardless), and so this — the core security property
+ * this whole area exists to prove — has direct unit test coverage of its
+ * own, which it did not have before this extraction.
  *
  * Layered, independently-redundant checks — a regex-only check can miss
  * encoding tricks that only surface once the path is actually resolved,

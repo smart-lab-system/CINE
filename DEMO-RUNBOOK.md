@@ -326,49 +326,55 @@ session through the form.
 
 ## 9. Run the real agent
 
-**An Electron app is replacing this CLI** (see
-`docs/superpowers/specs/2026-09-01-student-agent-electron-design.md`) —
-`pnpm --filter agent dev` launches it: a real window instead of a
-terminal, the same MSSV + session-code fields, native notifications
-instead of console lines. It is not yet the documented path here because
-`cli.ts` is the only thing that has ever proven this whole flow
-start-to-finish, and it stays that way until the design's §8.4 parity
-checklist has actually been walked through against it — do that first if
-you're validating the new app, using the steps below as the reference
-behavior to match. Once confirmed, `cli.ts` is deleted and this section
-gets rewritten around the Electron app instead.
+The Electron app (`docs/superpowers/specs/2026-09-01-student-agent-electron-design.md`)
+is the only agent now — the `cli.ts` terminal prototype this section used
+to document was deleted once the app's own parity against it was
+confirmed (§8.4).
 
 **Do (new terminal):**
 ```bash
-cd apps/agent
-npx ts-node src/cli.ts --student-id="SV20120001" --session-code=<YOUR_CODE>
+pnpm --filter agent dev
 ```
-**No `--full-name` any more.** The agent asks for MSSV and session code
-only; the server answers with the name on the roster. A typed name would
-have to be reconciled against the roster spelling ("Nguyen Van A" vs
-"Nguyễn Văn A"), which is a guess, so the comparison was removed rather
-than solved.
+A real window opens: **"Vào phòng thi"**, two fields — **Mã số sinh viên
+(MSSV)** and **Mã phiên thi** — and a **Xác nhận vào thi** button (no name
+field: the server answers with the roster's own spelling, never a typed
+one to reconcile).
+
+Enter MSSV `SV20120001` (from the roster seeded in step 2) and the code
+from step 7, then submit.
 
 `SV20120001` comes from the roster seeded in step 2. **An MSSV that is not
 on the roster is refused** — that is step 9b.
 
-**Expect:** the console confirms the identity before anything else:
+**Expect:** the button briefly reads "Đang xác nhận với máy chủ…", then
+the window fills with a green checkmark, **Nguyễn Văn A** (the roster
+name, not what you typed) and the session name, and a badge:
+**"Đã điểm danh lúc HH:MM:SS"**. After ~3 seconds it **minimizes to the
+system tray on its own** — a tray icon appears, tooltip "ExamCollect
+Agent".
+
+Check the files (Electron writes into the OS's own Documents folder, not
+the repo — on the Windows lab machines this is `Documents\exam-workspace\`;
+on a non-Windows dev machine, wherever `app.getPath('documents')`
+resolves to there):
 ```
-Xác nhận danh tính: Nguyễn Văn A (MSSV SV20120001).
-Nếu KHÔNG phải bạn, hãy thoát ngay và báo giám thị.
-Đã tạo N file, sẵn sàng làm bài.
-Agent đang chạy nền...          (stays running, does not exit)
-```
-Check the files:
-```bash
-ls apps/agent/exam-workspace/SV20120001/
+<Documents>/exam-workspace/SV20120001/
 # -> exactly the filenames declared in step 7, all present
 ```
 The **already-open lobby tab** (step 8) updates within ~1s, no refresh:
-one row, name/MSSV as passed above, green "Đang kết nối".
-**If not:** `[SESSION_NOT_FOUND]` = wrong/mistyped code.
-`[SESSION_NOT_ACTIVE]` = the time window from step 7 doesn't cover right
-now (a session is active by default, but still time-gated — see step 7).
+one row, name/MSSV as confirmed above, green "Đang kết nối".
+
+**Click the tray icon** (or right-click → "Xem chi tiết") to reopen the
+window — it now shows the read-only detail screen instead of replaying
+the confirmation: **"File bắt buộc nộp"** (a checkmark per required file),
+**"Trạng thái"** (đề thi/sao lưu/nộp bài, one line each), and **"Nhật
+ký"** — a running log, newest first, including the exact line the old
+console used to print: `Đã tạo N file, sẵn sàng làm bài. Thư mục: ...`.
+
+**If not:** a red banner reading "Không tìm thấy phiên thi." =
+wrong/mistyped code. "Phiên thi chưa tới giờ bắt đầu hoặc đã kết thúc." =
+the time window from step 7 doesn't cover right now (a session is active
+by default, but still time-gated — see step 7).
 
 ## 9b. Refuse an outsider, then let them in on purpose
 
@@ -377,30 +383,26 @@ human can still let them in without anyone editing the database.
 
 **Do (new terminal), with an MSSV deliberately NOT on the roster:**
 ```bash
-cd apps/agent
-npx ts-node src/cli.ts --student-id="SV20124444" --session-code=<YOUR_CODE>
+pnpm --filter agent dev
 ```
-**Expect:** the agent does not die. It offers the way out and waits:
+Submit with MSSV `SV20124444` and the same session code. **Expect:** the
+window does not error out — it switches to a different form,
+**"Gửi yêu cầu vào thi"**:
 ```
-MSSV SV20124444 không có trong danh sách lớp của môn thi này.
-Bạn có thể gửi yêu cầu để giảng viên duyệt cho vào thi.
-Họ và tên của bạn: _
+MSSV SV20124444 chưa có trong danh sách lớp. Giảng viên sẽ duyệt trực tiếp.
 ```
-Type a name and a reason. Then:
-```
-Đã gửi yêu cầu. Đang chờ giảng viên duyệt — KHÔNG tắt cửa sổ này.
-```
+with **Họ và tên** and **Lý do** fields and a **Gửi yêu cầu** button. Fill
+both in and submit. **Expect:** a waiting screen —
+**"Đã gửi yêu cầu"** / "Đang chờ giảng viên duyệt. Đừng tắt cửa sổ này…".
 
 This is what a leaked session code buys someone on its own: nothing.
 Knowing the code is not access (CLAUDE.md Security rule 1).
 
 **Then, in the lobby tab (step 8):** the request appears with the name and
-reason given. Approve it, choosing the class. The waiting agent joins by
-itself — no restart:
-```
-Giảng viên đã duyệt. Đang vào phòng thi...
-Xác nhận danh tính: <tên vừa nhập> (MSSV SV20124444).
-```
+reason given. Approve it, choosing the class. **The waiting window joins
+by itself** — no restart, no resubmitting anything — landing on the same
+green-checkmark confirmation step 9 described, MSSV `SV20124444` this
+time.
 
 **Then show the trail** — a human overriding the machine is never silent:
 ```bash
@@ -411,10 +413,6 @@ docker compose exec postgres psql -U examcollect_admin -d examcollect -c \
 ```
 **Expect:** one row naming the approving teacher, the MSSV, the reason they
 gave, and the class they were assigned to.
-
-**If the agent exits with "không có terminal":** it was started without an
-interactive console (piped or redirected stdin). Run it directly in a
-terminal window — it refuses to hang waiting for input that cannot arrive.
 
 ## 10. Run the mock agent (batch load)
 
@@ -439,10 +437,11 @@ the per-agent output line, same codes as step 9's "If not".
 
 ## 11. Disconnect one agent
 
-**Do:** go to the real agent's terminal (step 9) and press **Ctrl+C**.
-**Expect:** the CLI prints a disconnect message and exits. Within ~1s the
-lobby tab flips that one row's status from green "Đang kết nối" to red
-"Mất kết nối" — **the row stays in the table**, it does not disappear.
+**Do:** right-click the real agent's tray icon (step 9) and choose
+**"Thoát"**.
+**Expect:** the window and tray icon close. Within ~1s the lobby tab flips
+that one row's status from green "Đang kết nối" to red "Mất kết nối" —
+**the row stays in the table**, it does not disappear.
 `Số sinh viên đã tham gia:` stays at `11`; the connected count in
 parentheses drops to `10`.
 **If not:** the row disappearing entirely (instead of turning red) would
@@ -459,9 +458,10 @@ work is never truncated. This is the other one: the machine is wiped or
 swapped and the work is simply gone.
 
 **Do:** with an agent running from step 9, write something real into its
-workspace file:
+workspace file (Electron writes into the OS's own Documents folder, not
+the repo — see step 9):
 ```bash
-echo "bai lam that cua sinh vien" > apps/agent/exam-workspace/SV20120001/baitap1.py
+echo "bai lam that cua sinh vien" > "<Documents>/exam-workspace/SV20120001/baitap1.py"
 ```
 Wait for the snapshot (four minutes), or force one immediately:
 ```bash
@@ -472,16 +472,19 @@ uploadSnapshot/restoreBackup against real MinIO and checks all three rows of
 the design's table — an intact machine keeps its work, a wiped one gets it
 back, and a machine whose files exist but are empty gets it back too.
 
-**Do (by hand, the way it really happens):** Ctrl+C the agent, delete its
-workspace entirely, and start it again with the same MSSV:
+**Do (by hand, the way it really happens):** quit the agent (tray →
+"Thoát", step 11), delete its workspace entirely, and start it again with
+the same MSSV:
 ```bash
-rm -rf apps/agent/exam-workspace/SV20120001
-cd apps/agent && npx ts-node src/cli.ts --student-id=SV20120001 --session-code=<YOUR_CODE>
+rm -rf "<Documents>/exam-workspace/SV20120001"
+pnpm --filter agent dev
 ```
-**Expect:**
+Rejoin with MSSV `SV20120001` and the same session code (step 9's form).
+**Expect:** the "Trạng thái" section of the detail view (tray → "Xem chi
+tiết") reads **"Sao lưu: đã khôi phục N file."**, and the log panel's
+newest line reads:
 ```
-Máy chủ báo có bản sao lưu bài làm của bạn. Đang khôi phục...
-Đã khôi phục N file từ bản sao lưu.
+Đã khôi phục N file từ bản sao lưu (giữ nguyên M file có sẵn).
 ```
 and the file contains what you wrote before the wipe.
 
