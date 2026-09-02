@@ -83,7 +83,11 @@ describe('ExamMaterialService — Security rule 2', () => {
     if (!result.released) return;
     expect(result.materials[0]).toMatchObject({ fileName: 'de-thi.pdf', fileSize: 1024 });
     // Security rule 5: the file goes storage -> agent, never through here.
-    expect(storage.generateDownloadUrl).toHaveBeenCalledWith('materials/session-1/material-1');
+    // filename: QA-reported gap — the storage key alone has no extension
+    // for a browser to name the downloaded file after.
+    expect(storage.generateDownloadUrl).toHaveBeenCalledWith('materials/session-1/material-1', {
+      filename: 'de-thi.pdf',
+    });
   });
 
   it('is not fooled by a session with no materials', async () => {

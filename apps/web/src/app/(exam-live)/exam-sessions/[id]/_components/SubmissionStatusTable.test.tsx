@@ -64,3 +64,34 @@ describe('SubmissionStatusTable — file format', () => {
     expect(screen.queryByText(/Định dạng:/)).not.toBeInTheDocument();
   });
 });
+
+// QA-reported gap: "khi ấn vào 'Xem bài nộp' và tải file về, thì lại tải
+// một file kì lạ chứ ko phải bài của sinh viên" — the real fix is the
+// API's Content-Disposition header (cross-origin, so the HTML `download`
+// attribute alone is browser-ignored for this link), but this attribute
+// should still name the real file rather than silently having none.
+describe('SubmissionStatusTable — download link filename', () => {
+  const deliverables: DeliverableColumn[] = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
+
+  it('names the download after the required filename, not left blank', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[
+          {
+            studentMssv: 'SV001',
+            fullName: 'Nguyễn Văn A',
+            byDeliverable: {
+              d1: { state: 'collected', downloadUrl: 'https://storage.example/signed', fileSize: '2048' },
+            },
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Xem bài nộp' }));
+
+    const link = screen.getByRole('link', { name: 'Mở file' });
+    expect(link).toHaveAttribute('download', 'Cau1.docx');
+    expect(link).toHaveAttribute('href', 'https://storage.example/signed');
+  });
+});

@@ -67,6 +67,7 @@ function createHarness(
     deliverable?: object | null;
     objectExists?: jest.Mock;
     submissions?: Array<Partial<SubmissionEntity>>;
+    deliverables?: Array<{ id: string; requiredFilename: string }>;
   } = {},
 ) {
   const examSessions = {
@@ -75,6 +76,9 @@ function createHarness(
     ),
     findDeliverable: jest.fn().mockResolvedValue(
       overrides.deliverable === undefined ? { id: DELIVERABLE_ID } : overrides.deliverable,
+    ),
+    listRequiredDeliverables: jest.fn().mockResolvedValue(
+      overrides.deliverables ?? [{ id: DELIVERABLE_ID, requiredFilename: 'Cau1.docx' }],
     ),
   };
   const storage = {
@@ -262,7 +266,12 @@ describe('SubmissionService.listForSession', () => {
       where: { examSessionId: SESSION_ID },
       order: { submittedAt: 'ASC' },
     });
-    expect(storage.generateDownloadUrl).toHaveBeenCalledWith(EXPECTED_KEY);
+    // QA-reported gap: the storage key alone has no extension for a
+    // browser to name the downloaded file after — filename must be the
+    // declared requiredFilename, not left out the way it used to be.
+    expect(storage.generateDownloadUrl).toHaveBeenCalledWith(EXPECTED_KEY, {
+      filename: 'Cau1.docx',
+    });
     expect(rows).toEqual([
       {
         studentMssv: MSSV,
@@ -274,5 +283,32 @@ describe('SubmissionService.listForSession', () => {
         downloadUrl: 'http://storage/view',
       },
     ]);
+  });
+
+  it('still returns a download URL, with no filename hint, for a deliverable this session no longer declares', async () => {
+    // A deliverable can outlive a submission row referencing it in theory
+    // (the FK is what actually prevents this in the DB, but the service
+    // layer must not crash if the lookup ever comes back short) — falling
+    // back to no filename, not throwing, keeps the row usable.
+    const { service, storage } = createHarness({
+      deliverables: [],
+      submissions: [
+        {
+          studentMssv: MSSV,
+          studentNameInput: 'Nguyen Van A',
+          requiredDeliverableId: DELIVERABLE_ID,
+          status: 'collected',
+          submittedAt: new Date('2026-08-29T04:00:00.000Z'),
+          fileSize: '128',
+          storageKey: EXPECTED_KEY,
+        },
+      ],
+    });
+
+    await service.listForSession(SESSION_ID);
+
+    expect(storage.generateDownloadUrl).toHaveBeenCalledWith(EXPECTED_KEY, {
+      filename: undefined,
+    });
   });
 });

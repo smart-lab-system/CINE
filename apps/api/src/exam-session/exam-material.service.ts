@@ -195,7 +195,13 @@ export class ExamMaterialService {
       uploadedAt: material.uploadedAt.toISOString(),
     };
     if (withUrl) {
-      view.downloadUrl = (await this.storage.generateDownloadUrl(material.storageKey)).downloadUrl;
+      // QA-reported gap (same root cause as submission downloads): the
+      // storage key is a bare id, no extension for a browser to go on.
+      view.downloadUrl = (
+        await this.storage.generateDownloadUrl(material.storageKey, {
+          filename: material.fileName,
+        })
+      ).downloadUrl;
     }
     return view;
   }
