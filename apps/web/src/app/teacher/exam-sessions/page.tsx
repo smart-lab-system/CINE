@@ -5,11 +5,14 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { CalendarClock, Copy, DoorOpen, Plus } from 'lucide-react';
 import { useExamSessions } from '@/hooks/useExamSession';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { EmptyState } from '@/components/layout/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -21,6 +24,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EXAM_TYPE_LABELS, getDisplaySessionStatus } from '@/lib/exam-session-display';
+import type { ExamSessionStatusFilter, ExamType } from '@/lib/api/exam-session';
+
+const STATUS_FILTER_LABELS: Record<ExamSessionStatusFilter, string> = {
+  draft: 'Nháp',
+  scheduled: 'Đã lên lịch',
+  active: 'Đang diễn ra',
+  completed: 'Đã kết thúc',
+  cancelled: 'Đã hủy',
+};
+const STATUS_FILTER_OPTIONS = Object.keys(STATUS_FILTER_LABELS) as ExamSessionStatusFilter[];
+const EXAM_TYPE_OPTIONS: ExamType[] = ['TK', 'GK', 'CK'];
 
 async function copySessionCode(code: string) {
   try {
@@ -48,10 +62,44 @@ function formatDateTime(iso: string): string {
 
 export default function ExamSessionsListPage() {
   const [page, setPage] = useState(1);
-  const { data, error, isLoading, refetch } = useExamSessions({ page, pageSize: PAGE_SIZE });
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<ExamSessionStatusFilter | 'all'>('all');
+  const [examType, setExamType] = useState<ExamType | 'all'>('all');
+  const debouncedSearch = useDebouncedValue(search, 300);
+
+  const { data, error, isLoading, refetch } = useExamSessions({
+    page,
+    pageSize: PAGE_SIZE,
+    search: debouncedSearch.trim() || undefined,
+    status: status === 'all' ? undefined : status,
+    examType: examType === 'all' ? undefined : examType,
+  });
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasActiveFilters = search.trim() !== '' || status !== 'all' || examType !== 'all';
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
+
+  function handleStatusChange(value: string) {
+    setStatus(value as typeof status);
+    setPage(1);
+  }
+
+  function handleExamTypeChange(value: string) {
+    setExamType(value as typeof examType);
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setSearch('');
+    setStatus('all');
+    setExamType('all');
+    setPage(1);
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -67,6 +115,42 @@ export default function ExamSessionsListPage() {
           </Button>
         }
       />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Input
+          value={search}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="Tìm theo tên hoặc mã phiên thi..."
+          className="sm:max-w-xs"
+          aria-label="Tìm kiếm phiên thi"
+        />
+        <Select value={status} onValueChange={handleStatusChange}>
+          <SelectTrigger className="sm:w-48" aria-label="Lọc theo trạng thái">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tất cả trạng thái</SelectItem>
+            {STATUS_FILTER_OPTIONS.map((value) => (
+              <SelectItem key={value} value={value}>
+                {STATUS_FILTER_LABELS[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={examType} onValueChange={handleExamTypeChange}>
+          <SelectTrigger className="sm:w-40" aria-label="Lọc theo loại kỳ thi">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tất cả loại</SelectItem>
+            {EXAM_TYPE_OPTIONS.map((value) => (
+              <SelectItem key={value} value={value}>
+                {EXAM_TYPE_LABELS[value] ?? value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div data-animate className="flex flex-col gap-4">
         {isLoading ? (
@@ -90,15 +174,25 @@ export default function ExamSessionsListPage() {
           <Card>
             <EmptyState
               icon={CalendarClock}
-              title="Chưa có phiên thi nào"
-              description="Tạo phiên thi đầu tiên để lấy mã cho sinh viên và bắt đầu thu bài."
+              title={hasActiveFilters ? 'Không tìm thấy phiên thi phù hợp' : 'Chưa có phiên thi nào'}
+              description={
+                hasActiveFilters
+                  ? 'Thử đổi từ khoá tìm kiếm hoặc bộ lọc trạng thái/loại kỳ thi.'
+                  : 'Tạo phiên thi đầu tiên để lấy mã cho sinh viên và bắt đầu thu bài.'
+              }
               action={
-                <Button asChild>
-                  <Link href="/teacher/exam-sessions/new">
-                    <Plus className="h-4 w-4" aria-hidden="true" />
-                    Tạo phiên thi
-                  </Link>
-                </Button>
+                hasActiveFilters ? (
+                  <Button type="button" variant="outline" onClick={clearFilters}>
+                    Xoá bộ lọc
+                  </Button>
+                ) : (
+                  <Button asChild>
+                    <Link href="/teacher/exam-sessions/new">
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      Tạo phiên thi
+                    </Link>
+                  </Button>
+                )
               }
             />
           </Card>
