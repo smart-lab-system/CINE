@@ -1,6 +1,7 @@
 /**
- * The finalize -> upload loop, shared by the real agent (src/cli.ts) and
- * the mock agent (src/mock-agent.ts).
+ * The finalize -> upload loop, shared by the real agent (the Electron app,
+ * driven by src/session-controller.ts) and the mock agent
+ * (src/mock-agent.ts).
  *
  * The two differ only in where a deliverable's bytes come from — the real
  * agent reads the student's file off disk, the mock agent synthesizes it in
@@ -241,7 +242,8 @@ async function uploadOne(
  * Socket.IO acknowledgement with a timeout and a shape guard.
  *
  * The server is not a trusted input source for shape any more than the
- * client is — the same stance cli.ts already takes with `agent:join:ack`.
+ * client is — the same stance session-controller.ts already takes with
+ * `agent:join:ack`.
  * A malformed ack must surface as a failed deliverable, not as a TypeError
  * thrown inside a socket callback where nothing can catch it.
  */

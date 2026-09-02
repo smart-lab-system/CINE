@@ -21,7 +21,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { io, Socket } from 'socket.io-client';
 import type { AgentJoinAck, AgentJoinError, AgentJoinErrorCode, AgentJoinPayload } from './agent-contract';
-import { NoTerminalError as _NoTerminalError, sendAccessRequest, type AccessErrorCode } from './access-request';
+import { sendAccessRequest, type AccessErrorCode } from './access-request';
 import { restoreBackup, startSnapshotLoop } from './backup';
 import { downloadMaterials, writeInstructions } from './exam-materials';
 import {
@@ -37,13 +37,6 @@ import {
   makeWorkspaceReader,
   WORKSPACE_DIRNAME,
 } from './workspace-files';
-
-// _NoTerminalError: access-request.ts's readline-based promptAccessRequest
-// is what throws it — this controller never calls that function (the
-// renderer collects fullName/reason instead), so it never surfaces here.
-// Imported with an underscore only to document that this was considered,
-// not missed.
-void _NoTerminalError;
 
 // ---------------------------------------------------------------------------
 // State shape pushed to the renderer

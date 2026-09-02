@@ -2,13 +2,12 @@
  * Client side of the `agent:join` WebSocket Event Contract implemented by
  * apps/api/src/exam-session/exam-session.gateway.ts.
  *
- * This is the canonical copy for the Electron app (`electron/main/`,
- * via session-controller.ts). `cli.ts` still declares its own identical
- * copy for now — it and `mock-agent.ts` are repointed here only once
- * `cli.ts` is deleted (design spec §8.4), not before, so the still-working
- * CLI is never touched by this phase's refactor. Do not rename/reshape
- * anything here without updating exam-session.gateway.ts's contract
- * comment too.
+ * The canonical copy — for the Electron app (`electron/main/`, via
+ * session-controller.ts) and for `mock-agent.ts`. `cli.ts` used to declare
+ * its own separate copy of these same shapes; it is now retired (design
+ * spec §8.4 — parity was confirmed against the running Electron app), so
+ * this is the only copy left. Do not rename/reshape anything here without
+ * updating exam-session.gateway.ts's contract comment too.
  */
 
 export interface AgentJoinPayload {

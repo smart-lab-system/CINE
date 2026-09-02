@@ -6,16 +6,17 @@
  * registrar missed — on exam day, with nothing they can do. This is the way
  * out: ask, wait for the invigilator, and join if they say yes.
  *
- * Extracted from cli.ts rather than added to it: that file is already a long
- * argument parser plus a socket lifecycle, and this is a self-contained
- * conversation with its own prompts.
- *
  * Client side of the contract in
- * apps/api/src/exam-session/access-request.gateway.ts.
+ * apps/api/src/exam-session/access-request.gateway.ts. The Electron app's
+ * own form (electron/renderer/src/components/JoinScreen.tsx's
+ * AccessRequestForm, states f/g) collects fullName/reason and calls
+ * `sendAccessRequest` below directly — the readline-based prompt this file
+ * used to also export (`promptAccessRequest`, for `cli.ts`'s terminal UI,
+ * plus the `NoTerminalError` it threw when there was no TTY to ask
+ * through) was removed when `cli.ts` was retired (design spec §8.4);
+ * nothing else ever called either one.
  */
 
-import * as readline from 'node:readline/promises';
-import process from 'node:process';
 import type { Socket } from 'socket.io-client';
 
 export interface RequestAccessPayload {
@@ -40,58 +41,6 @@ export type RequestAccessAck =
 
 /** How long to wait for the acknowledgement, not for the human decision. */
 const ACK_TIMEOUT_MS = 20_000;
-
-/**
- * Thrown when there is no terminal to ask through. The caller reports it and
- * exits rather than waiting on input that can never arrive.
- */
-export class NoTerminalError extends Error {
-  constructor() {
-    super('không có terminal để nhập thông tin');
-    this.name = 'NoTerminalError';
-  }
-}
-
-/**
- * Asks the two things the server cannot supply for someone who is not on the
- * roster: who they say they are, and why they should be let in. Both go on
- * the invigilator's screen, so a blank answer helps nobody.
- */
-export async function promptAccessRequest(studentId: string): Promise<{
-  fullName: string;
-  reason: string;
-}> {
-  // Without a TTY there is nobody to answer, and readline would wait for
-  // a line that never comes — the agent would hang silently at the exact
-  // moment a student needs it to say something. Piped input is no
-  // substitute either: readline delivers buffered lines as fast as it can
-  // read them, so the second prompt loses its answer to the first.
-  if (!process.stdin.isTTY) {
-    throw new NoTerminalError();
-  }
-
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    console.log('');
-    console.log(`MSSV ${studentId} không có trong danh sách lớp của môn thi này.`);
-    console.log('Bạn có thể gửi yêu cầu để giảng viên duyệt cho vào thi.');
-    const fullName = await askNonEmpty(rl, 'Họ và tên của bạn: ');
-    const reason = await askNonEmpty(rl, 'Lý do (vd: đăng ký muộn, thi bù): ');
-    return { fullName, reason };
-  } finally {
-    rl.close();
-  }
-}
-
-async function askNonEmpty(rl: readline.Interface, question: string): Promise<string> {
-  for (;;) {
-    const answer = (await rl.question(question)).trim();
-    if (answer.length > 0) {
-      return answer;
-    }
-    console.log('Giá trị không được để trống, vui lòng nhập lại.');
-  }
-}
 
 /**
  * Sends the request and resolves with the server's acknowledgement. The
