@@ -18,6 +18,7 @@ jest.mock('@aws-sdk/client-s3', () => {
   return {
     S3Client: jest.fn().mockImplementation(() => ({ send: sendMock })),
     PutObjectCommand: jest.fn().mockImplementation((input) => ({ __type: 'Put', input })),
+    GetObjectCommand: jest.fn().mockImplementation((input) => ({ __type: 'Get', input })),
     HeadObjectCommand: jest.fn().mockImplementation((input) => ({ __type: 'Head', input })),
     S3ServiceException: FakeS3ServiceException,
   };
@@ -29,7 +30,7 @@ jest.mock('@aws-sdk/s3-request-presigner', () => ({
 
 import { S3ServiceException } from '@aws-sdk/client-s3';
 import { StorageService } from './storage.service';
-import { UPLOAD_URL_TTL_SECONDS } from './storage.types';
+import { DOWNLOAD_URL_TTL_SECONDS, UPLOAD_URL_TTL_SECONDS } from './storage.types';
 
 const SESSION_ID = '11111111-1111-4111-8111-111111111111';
 const DELIVERABLE_ID = '22222222-2222-4222-8222-222222222222';
@@ -102,6 +103,54 @@ describe('StorageService', () => {
 
       expect(getSignedUrlMock.mock.calls[0][2]).toEqual({
         expiresIn: UPLOAD_URL_TTL_SECONDS,
+      });
+    });
+  });
+
+  describe('generateDownloadUrl', () => {
+    it('signs a bare GET when no filename is given (e.g. the agent backup restore path)', async () => {
+      const key = service.buildSubmissionKey(SESSION_ID, MSSV, DELIVERABLE_ID);
+
+      await service.generateDownloadUrl(key);
+
+      const [, command] = getSignedUrlMock.mock.calls[0];
+      expect(command.input).toEqual({ Bucket: 'test-bucket', Key: key });
+      expect(command.input.ResponseContentDisposition).toBeUndefined();
+    });
+
+    it(
+      'signs a Content-Disposition header when a filename is given — ' +
+        'QA-reported gap: the key itself is a bare id, nothing for a browser to name the saved file after',
+      async () => {
+        const key = service.buildSubmissionKey(SESSION_ID, MSSV, DELIVERABLE_ID);
+
+        await service.generateDownloadUrl(key, { filename: 'Cau1.docx' });
+
+        const [, command] = getSignedUrlMock.mock.calls[0];
+        expect(command.input.ResponseContentDisposition).toBe(
+          'attachment; filename="Cau1.docx"; filename*=UTF-8\'\'Cau1.docx',
+        );
+      },
+    );
+
+    it('transliterates a Vietnamese filename for the ASCII fallback, and percent-encodes the real one', async () => {
+      await service.generateDownloadUrl('submissions/x/y/z', { filename: 'Câu 1 - Bài tập.docx' });
+
+      const [, command] = getSignedUrlMock.mock.calls[0];
+      expect(command.input.ResponseContentDisposition).toBe(
+        "attachment; filename=\"Cau 1 - Bai tap.docx\"; filename*=UTF-8''" +
+          encodeURIComponent('Câu 1 - Bài tập.docx'),
+      );
+    });
+
+    it('still respects the TTL cap with a filename set', async () => {
+      await service.generateDownloadUrl('submissions/x/y/z', {
+        filename: 'x.docx',
+        expiresInSeconds: 86_400,
+      });
+
+      expect(getSignedUrlMock.mock.calls[0][2]).toEqual({
+        expiresIn: DOWNLOAD_URL_TTL_SECONDS,
       });
     });
   });

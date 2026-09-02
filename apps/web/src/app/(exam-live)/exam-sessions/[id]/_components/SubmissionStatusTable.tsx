@@ -294,7 +294,18 @@ export function SubmissionStatusTable({
 
                     {cell?.downloadUrl ? (
                       <Button asChild variant="outline" size="sm">
-                        <a href={cell.downloadUrl} target="_blank" rel="noreferrer">
+                        {/* download's real fix is the API's
+                            Content-Disposition header (cross-origin, so this
+                            attribute alone is browser-ignored) — set anyway
+                            as the honest hint for same-origin/future cases,
+                            and so this line doesn't quietly claim the file
+                            has no name of its own. */}
+                        <a
+                          href={cell.downloadUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          download={deliverable.requiredFilename}
+                        >
                           Mở file
                         </a>
                       </Button>

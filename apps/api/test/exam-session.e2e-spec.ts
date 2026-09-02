@@ -438,6 +438,152 @@ describe('ExamSession (e2e)', () => {
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body.items)).toBe(true);
   });
+  describe('GET /exam-sessions — filters (QA-reported gap)', () => {
+    // A unique prefix per test run so "search" assertions can't accidentally
+    // match a session some OTHER test in this file created.
+    const stamp = Date.now().toString(36);
+
+    async function createFilterSession(
+      nameSuffix: string,
+      examType: 'TK' | 'GK' | 'CK' = 'TK',
+    ): Promise<string> {
+      const { startTime, endTime } = futureWindow();
+      const response = await request(app.getHttpServer())
+        .post('/exam-sessions')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          name: `Filter${stamp} ${nameSuffix}`,
+          classId,
+          roomId,
+          examType,
+          startTime,
+          endTime,
+          requiredFilenames: ['Cau1.docx'],
+        });
+      expect(response.status).toBe(201);
+      return response.body.id;
+    }
+
+    it('search matches the name, case-insensitively, and excludes a session that does not match', async () => {
+      const matchingId = await createFilterSession('Giữa kỳ Toán');
+      // A control WITHOUT "Giữa" in its name (it still has the stamp, so
+      // it's still one of "this teacher's sessions from this test run" —
+      // the point is proving the search TERM narrows the result, not just
+      // proving scoping-by-teacher already works, which the earlier
+      // "still lets a teacher read their own sessions" test covers).
+      const unrelated = await request(app.getHttpServer())
+        .post('/exam-sessions')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          name: `Không liên quan gì cả ${stamp}`,
+          classId,
+          roomId,
+          examType: 'TK',
+          ...futureWindow(),
+          requiredFilenames: ['Cau1.docx'],
+        });
+      const unrelatedId = unrelated.body.id;
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `filter${stamp} Giữa` })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      expect(ids).toContain(matchingId);
+      expect(ids).not.toContain(unrelatedId);
+    });
+
+    it('search also matches the session code, and excludes a session with a different one', async () => {
+      const sessionId = await createFilterSession('Cuối kỳ Lý');
+      const otherId = await createFilterSession('Một phiên khác');
+      const created = await request(app.getHttpServer())
+        .get(`/exam-sessions/${sessionId}`)
+        .set('Authorization', `Bearer ${ownerToken}`);
+      const code: string = created.body.code;
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: code })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      expect(ids).toContain(sessionId);
+      // A DIFFERENT session's own unique code cannot be a substring of
+      // this one's — proves the code narrowed the result rather than the
+      // response just being "everything on page 1" regardless.
+      expect(ids).not.toContain(otherId);
+    });
+
+    it('examType filters out every other type', async () => {
+      await createFilterSession('Loại GK', 'GK');
+      await createFilterSession('Loại CK', 'CK');
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `filter${stamp}`, examType: 'GK' })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(
+        response.body.items.every((item: { examType: string }) => item.examType === 'GK'),
+      ).toBe(true);
+      expect(response.body.items.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('status filters out a finalized session from the active list, and vice versa', async () => {
+      const activeId = await createFilterSession('Vẫn đang mở');
+      const completedId = await createFilterSession('Đã chốt');
+      const finalize = await request(app.getHttpServer())
+        .post(`/exam-sessions/${completedId}/finalize`)
+        .set('Authorization', `Bearer ${ownerToken}`);
+      expect(finalize.status).toBe(200);
+
+      const active = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `filter${stamp}`, status: 'active' })
+        .set('Authorization', `Bearer ${ownerToken}`);
+      expect(active.body.items.map((item: { id: string }) => item.id)).toContain(activeId);
+      expect(active.body.items.map((item: { id: string }) => item.id)).not.toContain(completedId);
+
+      const completed = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `filter${stamp}`, status: 'completed' })
+        .set('Authorization', `Bearer ${ownerToken}`);
+      expect(completed.body.items.map((item: { id: string }) => item.id)).toContain(completedId);
+      expect(completed.body.items.map((item: { id: string }) => item.id)).not.toContain(activeId);
+    });
+
+    it('rejects an unrecognized status value with 400, rather than silently ignoring it', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ status: 'not-a-real-status' })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('combined with pagination, still reports the right total for the filtered set', async () => {
+      await createFilterSession('Trang 1', 'CK');
+      await createFilterSession('Trang 2', 'CK');
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `filter${stamp} Trang`, examType: 'CK', page: 1, pageSize: 1 })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.items).toHaveLength(1);
+      // Exactly 2 (the two sessions this test itself created), not "at
+      // least 2" — a total that also counted every OTHER session this
+      // owner has (dozens, from the rest of this file) would still be
+      // "greater than or equal to 2" without the filter doing anything.
+      expect(response.body.total).toBe(2);
+    });
+  });
+
   describe('POST /exam-sessions/:id/finalize', () => {
     // Every session here uses a FUTURE window on purpose: the scheduled
     // sweep (ExamSessionScheduler, running for real inside this app

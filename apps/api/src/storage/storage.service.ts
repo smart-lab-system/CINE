@@ -175,12 +175,15 @@ export class StorageService {
    * Security rule 5 exists to prevent. The signature covers the key, so the
    * URL cannot be pointed at anyone else's backup.
    *
-   * The object key itself is a bare UUID/id (see buildSubmissionKey/
-   * buildMaterialKey — no extension, ever, by design: the id must stay
-   * stable even if a declared filename or its extension changes).
-   * `ResponseContentDisposition` is a request-time override signed into
-   * the URL itself; it changes nothing about the object in storage, only
-   * what this ONE presigned response claims.
+   * QA-reported gap: the object key itself is a bare UUID/id (see
+   * buildSubmissionKey/buildMaterialKey — no extension, ever, by design:
+   * the id must stay stable even if a required filename or its extension
+   * changes). With neither the key nor the stored object carrying a
+   * filename, a browser following this URL had nothing to name the saved
+   * file after but that bare id — no extension, wrong/default app,
+   * "a weird file". `ResponseContentDisposition` is a request-time
+   * override signed into the URL itself; it changes nothing about the
+   * object in storage, only what this ONE presigned response claims.
    */
   async generateDownloadUrl(
     key: string,
