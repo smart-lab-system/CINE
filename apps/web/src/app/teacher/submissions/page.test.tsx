@@ -158,6 +158,34 @@ describe('SubmissionsPage', () => {
     );
   });
 
+  it('does not show a link to the session lobby while viewing all sessions', () => {
+    render(<SubmissionsPage />);
+
+    expect(screen.queryByRole('link', { name: /Phòng chờ/ })).not.toBeInTheDocument();
+  });
+
+  it('shows a link to that session\'s lobby once the exam-session filter narrows to one session', () => {
+    useExamSessionsMock.mockReturnValue({
+      data: {
+        items: [
+          { id: 'session-1', name: 'Giữa kỳ Lập trình Web' },
+          { id: 'session-2', name: 'Cuối kỳ Cấu trúc dữ liệu' },
+        ],
+        total: 2,
+      },
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    render(<SubmissionsPage />);
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo phiên thi' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Cuối kỳ Cấu trúc dữ liệu' }));
+
+    const link = screen.getByRole('link', { name: /Phòng chờ/ });
+    expect(link).toHaveAttribute('href', '/exam-sessions/session-2');
+  });
+
   it('"Xoá bộ lọc" resets every filter back to its default', () => {
     useTeacherSubmissionsMock.mockReturnValue({
       data: { items: [], total: 0 },
