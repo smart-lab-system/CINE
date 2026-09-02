@@ -11,6 +11,7 @@ import { ExamMaterialEntity } from './entities/exam-material.entity';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { StorageService } from '../storage/storage.service';
 import { CreateExamMaterialDto, RequestMaterialUploadDto } from './dto/exam-material.dto';
+import { ExamSessionEvents } from './exam-session.events';
 
 /** What a teacher sees about a material they uploaded. */
 export interface ExamMaterialView {
@@ -43,6 +44,7 @@ export class ExamMaterialService {
     @InjectRepository(ExamMaterialEntity)
     private readonly materials: Repository<ExamMaterialEntity>,
     private readonly storage: StorageService,
+    private readonly events: ExamSessionEvents,
   ) {}
 
   /**
@@ -98,6 +100,13 @@ export class ExamMaterialService {
         fileSize: String(dto.fileSize),
       }),
     );
+    // QA-reported gap: an agent that joined before this material existed
+    // used to never learn it was added — it asked for materials exactly
+    // once, at join-ack time. This nudges every already-connected agent in
+    // the session to ask again; ExamSessionGateway owns the actual
+    // broadcast (see its own doc comment for why this goes through an
+    // event bus rather than injecting the gateway here).
+    this.events.publishMaterialAdded({ examSessionId: session.id });
     return this.toView(saved);
   }
 

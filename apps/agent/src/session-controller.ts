@@ -423,6 +423,12 @@ export class SessionController extends EventEmitter {
       void this.handleFinalize(payload as unknown as ExamFinalizePayload);
     });
 
+    // No payload to validate — this is purely a "check again" nudge, see
+    // handleMaterialsUpdated's own doc comment.
+    socket.on('exam:materials-updated', () => {
+      void this.handleMaterialsUpdated();
+    });
+
     socket.on('agent:access-granted', () => {
       this.notify('Đã được duyệt', 'Giảng viên đã duyệt yêu cầu. Đang vào phòng thi...');
       this.setJoinPhase('joining');
@@ -522,9 +528,10 @@ export class SessionController extends EventEmitter {
         }
       }
 
-    const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
-    this.patch({ requiredFiles: created.files });
-    this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
+      const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
+      this.patch({ requiredFiles: created.files });
+      this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
+    }
     if (isFirstJoin) {
       // Fired before materials/instructions finish writing, not after —
       // those can take a real amount of time on a slow connection, and the
@@ -535,37 +542,12 @@ export class SessionController extends EventEmitter {
       this.emit('open-workspace', workspaceDir);
     }
 
-    const materialNames: string[] = [];
+    let materialNames: string[] = [];
     if (typeof ack.examMaterialCount === 'number' && ack.examMaterialCount > 0) {
       this.patch({
         materials: { ...this.state.materials, count: ack.examMaterialCount, status: 'pending' },
       });
-      const outcome = await downloadMaterials(this.socket!, workspaceDir);
-      materialNames.push(...outcome.fileNames);
-      if (outcome.status === 'downloaded') {
-        this.patch({
-          materials: {
-            ...this.state.materials,
-            status: 'downloaded',
-            downloadedFileNames: outcome.fileNames,
-          },
-        });
-        if (outcome.downloaded > 0) {
-          this.notify('Đã tải xong đề thi', `${outcome.downloaded} file trong thư mục "de-thi" — sẵn sàng làm bài.`);
-        }
-      } else if (outcome.status === 'not-yet') {
-        this.patch({
-          materials: {
-            ...this.state.materials,
-            status: 'not-yet',
-            releaseAt: outcome.releaseAt ?? null,
-          },
-        });
-        this.log(`Đề thi chưa mở — sẽ mở lúc ${outcome.releaseAt ?? '(chưa rõ)'}.`);
-      } else if (outcome.status === 'failed') {
-        this.patch({ materials: { ...this.state.materials, status: 'failed' } });
-        this.notify('Không tải được đề thi', 'Hãy báo giám thị.');
-      }
+      materialNames = await this.syncMaterials(workspaceDir);
     }
 
     await writeInstructions(workspaceDir, {
@@ -592,6 +574,79 @@ export class SessionController extends EventEmitter {
         // alone — there is nothing new to report, and clearing a real
         // earlier timestamp back to null would read as "never backed up".
       });
+    }
+  }
+
+  /**
+   * Fetches whatever exam materials are available right now, patches state,
+   * and returns the resulting file names (for `writeInstructions`). Shared
+   * by `doHandleJoinAck` (count > 0 at join time) and `handleMaterialsUpdated`
+   * below (a material the teacher added AFTER this agent already joined).
+   *
+   * Safe to call with nothing new to fetch — `downloadMaterials` itself
+   * re-checks the release clock (Security rule 2, unaffected by this) and
+   * skips any file already on disk, so a redundant call is a no-op, not a
+   * re-download.
+   */
+  private async syncMaterials(workspaceDir: string): Promise<string[]> {
+    const outcome = await downloadMaterials(this.socket!, workspaceDir);
+    if (outcome.status === 'downloaded') {
+      this.patch({
+        materials: {
+          ...this.state.materials,
+          status: 'downloaded',
+          downloadedFileNames: outcome.fileNames,
+        },
+      });
+      if (outcome.downloaded > 0) {
+        this.notify('Đã tải xong đề thi', `${outcome.downloaded} file trong thư mục "de-thi" — sẵn sàng làm bài.`);
+      }
+    } else if (outcome.status === 'not-yet') {
+      this.patch({
+        materials: {
+          ...this.state.materials,
+          status: 'not-yet',
+          releaseAt: outcome.releaseAt ?? null,
+        },
+      });
+      this.log(`Đề thi chưa mở — sẽ mở lúc ${outcome.releaseAt ?? '(chưa rõ)'}.`);
+    } else if (outcome.status === 'failed') {
+      this.patch({ materials: { ...this.state.materials, status: 'failed' } });
+      this.notify('Không tải được đề thi', 'Hãy báo giám thị.');
+    }
+    return outcome.fileNames;
+  }
+
+  /**
+   * Server -> agent: a teacher added an exam material after this agent
+   * already joined. QA-reported gap: this agent used to ask for materials
+   * exactly once, at join-ack time, gated on the join ack's OWN count —
+   * a student connected before the teacher uploaded anything got
+   * `examMaterialCount: 0` and was never told to ask again, permanently,
+   * short of a full disconnect/reconnect. This event is that "ask again"
+   * nudge; the actual release gate stays exactly where it already was
+   * (server-side, re-checked on every request), unaffected by when the
+   * nudge arrives.
+   */
+  private async handleMaterialsUpdated(): Promise<void> {
+    if (this.state.joinPhase !== 'joined' || !this.workspaceDir || !this.socket) {
+      // Not actually in an exam yet (still on the join form, rejected,
+      // waiting on an access request...) — nothing to fetch into.
+      return;
+    }
+    const workspaceDir = this.workspaceDir;
+    try {
+      const fileNames = await this.syncMaterials(workspaceDir);
+      await writeInstructions(workspaceDir, {
+        sessionName: this.state.sessionName ?? '(không rõ)',
+        studentName: this.state.studentName,
+        studentId: this.state.studentId ?? '',
+        endTime: this.state.endTime ?? '(không rõ)',
+        requiredFiles: this.state.requiredFiles.map((f) => f.filename),
+        materialFileNames: fileNames,
+      });
+    } catch (error) {
+      this.log(`Lỗi không mong muốn khi tải đề thi mới: ${describeError(error)}`);
     }
   }
 

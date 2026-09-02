@@ -205,6 +205,7 @@ export class ExamSessionGateway
   private readonly agentJoinAttempts = new Map<string, number[]>();
 
   private finalizedSubscription?: Subscription;
+  private materialAddedSubscription?: Subscription;
 
   constructor(
     private readonly examSessions: ExamSessionService,
@@ -239,12 +240,25 @@ export class ExamSessionGateway
         );
       },
     );
+
+    // QA-reported gap: a student who joined before the teacher uploaded
+    // anything got `examMaterialCount: 0` at join time and, without this,
+    // was never told to ask again — see ExamMaterialAddedEvent's own doc
+    // comment. Agent room only: the teacher already knows they just
+    // uploaded it, and materials are never leaked into teacherRoom's
+    // broadcast the way exam:finalize's status change legitimately is.
+    this.materialAddedSubscription = this.events.materialAdded$.subscribe(
+      ({ examSessionId }) => {
+        this.server.to(agentRoom(examSessionId)).emit('exam:materials-updated', {});
+      },
+    );
   }
 
   onModuleDestroy(): void {
     // Without this, a torn-down module (every e2e test file does one)
     // leaves a live subscriber holding a dead `server` reference.
     this.finalizedSubscription?.unsubscribe();
+    this.materialAddedSubscription?.unsubscribe();
   }
 
   /**

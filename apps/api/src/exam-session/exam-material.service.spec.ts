@@ -3,6 +3,7 @@ import { ExamMaterialService } from './exam-material.service';
 import { ExamMaterialEntity } from './entities/exam-material.entity';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { StorageService } from '../storage/storage.service';
+import { ExamSessionEvents } from './exam-session.events';
 
 /**
  * CLAUDE.md Security rule 2, tested at the only place it is decided.
@@ -36,12 +37,14 @@ describe('ExamMaterialService — Security rule 2', () => {
         .fn()
         .mockResolvedValue({ downloadUrl: 'https://signed', expiresIn: 300 }),
     };
+    const events = { publishMaterialAdded: jest.fn() };
     const service = new ExamMaterialService(
       materials as unknown as Repository<ExamMaterialEntity>,
       storage as unknown as StorageService,
+      events as unknown as ExamSessionEvents,
     );
     const session = { id: 'session-1', startTime: START } as ExamSessionEntity;
-    return { service, session, materials, storage };
+    return { service, session, materials, storage, events };
   }
 
   it('releases nothing one second before start_time', async () => {
@@ -96,5 +99,71 @@ describe('ExamMaterialService — Security rule 2', () => {
     if (after.released) {
       expect(after.materials).toEqual([]);
     }
+  });
+});
+
+/**
+ * QA-reported gap: a student who joined before the teacher uploaded
+ * anything got `examMaterialCount: 0` in their join ack and was never told
+ * to ask again — permanently, short of a full reconnect. This pins the
+ * server-side half of the fix: `create()` must publish the nudge every
+ * time, unconditionally, since it has no way to know whether an agent is
+ * already connected and stuck waiting.
+ */
+describe('ExamMaterialService.create — publishes the materials-updated nudge', () => {
+  const START = new Date('2026-09-01T09:00:00.000Z');
+
+  function harness() {
+    const materials = {
+      create: jest.fn((row) => row),
+      save: jest.fn(async (row) => ({ ...row, uploadedAt: START })),
+    };
+    const storage = {
+      buildMaterialKey: jest.fn(
+        (examSessionId: string, examMaterialId: string) =>
+          `materials/${examSessionId}/${examMaterialId}`,
+      ),
+      objectExists: jest.fn().mockResolvedValue(true),
+      generateDownloadUrl: jest
+        .fn()
+        .mockResolvedValue({ downloadUrl: 'https://signed', expiresIn: 300 }),
+    };
+    const events = { publishMaterialAdded: jest.fn() };
+    const service = new ExamMaterialService(
+      materials as unknown as Repository<ExamMaterialEntity>,
+      storage as unknown as StorageService,
+      events as unknown as ExamSessionEvents,
+    );
+    const session = { id: 'session-1', startTime: START } as ExamSessionEntity;
+    return { service, session, events };
+  }
+
+  it('publishes exactly one nudge, scoped to this session, after a successful create', async () => {
+    const { service, session, events } = harness();
+
+    await service.create(session, {
+      examMaterialId: 'material-1',
+      storageKey: 'materials/session-1/material-1',
+      fileName: 'de-thi.pdf',
+      fileSize: 1024,
+    });
+
+    expect(events.publishMaterialAdded).toHaveBeenCalledTimes(1);
+    expect(events.publishMaterialAdded).toHaveBeenCalledWith({ examSessionId: 'session-1' });
+  });
+
+  it('does NOT publish when the storage key does not match — nothing was actually created', async () => {
+    const { service, session, events } = harness();
+
+    await expect(
+      service.create(session, {
+        examMaterialId: 'material-1',
+        storageKey: 'someone-elses-key',
+        fileName: 'de-thi.pdf',
+        fileSize: 1024,
+      }),
+    ).rejects.toThrow();
+
+    expect(events.publishMaterialAdded).not.toHaveBeenCalled();
   });
 });
