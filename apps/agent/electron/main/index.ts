@@ -31,7 +31,12 @@ const JOIN_WINDOW_SIZE = { width: 360, height: 560 };
 // instead of forcing a horizontal scrollbar).
 const DETAIL_WINDOW_SIZE = { width: 480, height: 720 };
 
-const BACKEND_URL = process.env.BACKEND_URL?.trim() || 'http://localhost:4000';
+// Precedence: an explicit BACKEND_URL env var (dev/testing override) beats
+// MAIN_VITE_BACKEND_URL (baked in at build time from .env.production for the
+// packaged .exe — see env.d.ts and dist:win), which beats the localhost
+// fallback used by plain `pnpm dev`.
+const BACKEND_URL =
+  process.env.BACKEND_URL?.trim() || import.meta.env.MAIN_VITE_BACKEND_URL || 'http://localhost:4000';
 
 const iconPath = join(__dirname, '../../electron/resources/icon.png');
 const trayIconPath = join(__dirname, '../../electron/resources/tray-icon.png');
