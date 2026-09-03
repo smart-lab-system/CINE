@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { DoorOpen, Inbox } from 'lucide-react';
+import { Inbox } from 'lucide-react';
 import { useTeacherSubmissions } from '@/hooks/useTeacherSubmissions';
 import { useExamSessions } from '@/hooks/useExamSession';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -164,23 +164,24 @@ export default function SubmissionsPage() {
       {examSessionId !== 'all' && (
         // The submissions page's own data (Submission + ExamSession) can only
         // ever say "who submitted" — it has no roster to compare against, so
-        // it cannot answer "who is still missing". The lobby page already can
-        // (AttendanceService, built on Enrollment) and stays viewable after the
-        // exam ends — this links there instead of duplicating that answer from
-        // a weaker source (docs/superpowers/specs/2026-09-02-submissions-page-
-        // session-link-design.md).
+        // it cannot answer "who is still missing". The per-session detail
+        // page already can (AttendanceService, built on Enrollment) and
+        // stays viewable after the exam ends — this links there instead of
+        // duplicating that answer from a weaker source (see
+        // docs/superpowers/specs/2026-09-02-submission-session-detail-page-
+        // design.md; supersedes the lobby-page link this row originally had).
         <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-2/60 px-4 py-3 text-small text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span>
             Đang xem bài nộp của{' '}
             <strong className="text-foreground">
               {selectedSession?.name ?? 'phiên thi này'}
             </strong>{' '}
-            — xem đầy đủ trạng thái điểm danh & nộp bài tại phòng chờ của phiên.
+            — xem đầy đủ trạng thái nộp bài và chấm điểm tại đây.
           </span>
           <Button asChild variant="outline" size="sm" className="shrink-0">
-            <Link href={`/exam-sessions/${examSessionId}`}>
-              <DoorOpen className="h-4 w-4" aria-hidden="true" />
-              Phòng chờ
+            <Link href={`/teacher/submissions/${examSessionId}`}>
+              <Inbox className="h-4 w-4" aria-hidden="true" />
+              Xem chi tiết phiên
             </Link>
           </Button>
         </div>

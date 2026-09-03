@@ -158,13 +158,13 @@ describe('SubmissionsPage', () => {
     );
   });
 
-  it('does not show a link to the session lobby while viewing all sessions', () => {
+  it('does not show a link to the session detail page while viewing all sessions', () => {
     render(<SubmissionsPage />);
 
-    expect(screen.queryByRole('link', { name: /Phòng chờ/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Xem chi tiết phiên/ })).not.toBeInTheDocument();
   });
 
-  it('shows a link to that session\'s lobby once the exam-session filter narrows to one session', () => {
+  it('shows a link to that session\'s detail page once the exam-session filter narrows to one session', () => {
     useExamSessionsMock.mockReturnValue({
       data: {
         items: [
@@ -182,8 +182,8 @@ describe('SubmissionsPage', () => {
     fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo phiên thi' }));
     fireEvent.click(screen.getByRole('option', { name: 'Cuối kỳ Cấu trúc dữ liệu' }));
 
-    const link = screen.getByRole('link', { name: /Phòng chờ/ });
-    expect(link).toHaveAttribute('href', '/exam-sessions/session-2');
+    const link = screen.getByRole('link', { name: /Xem chi tiết phiên/ });
+    expect(link).toHaveAttribute('href', '/teacher/submissions/session-2');
   });
 
   it('"Xoá bộ lọc" resets every filter back to its default', () => {

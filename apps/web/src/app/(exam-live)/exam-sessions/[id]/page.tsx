@@ -18,14 +18,11 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
+import { buildSubmissionRows, countFullySubmitted, type DeliverableState } from '@/lib/submission-rows';
 import { AccessRequestPanel } from './_components/AccessRequestPanel';
 import { AttendancePanel } from './_components/AttendancePanel';
 import { ExamMaterialsCard } from './_components/ExamMaterialsCard';
-import {
-  SubmissionStatusTable,
-  type DeliverableState,
-  type SubmissionRowStudent,
-} from './_components/SubmissionStatusTable';
+import { SubmissionStatusTable } from './_components/SubmissionStatusTable';
 import { FinalizeSessionButton } from './_components/FinalizeSessionButton';
 
 function formatDateTime(iso: string): string {
@@ -299,82 +296,43 @@ export default function ExamSessionLobbyPage() {
     [sessionDetail.data],
   );
 
-  /**
-   * One row per student, from the union of three sources: who joined the
-   * lobby, what was already collected when the page opened, and what has
-   * arrived over the socket since. A student who joined but submitted
-   * nothing still needs a row (all "Chưa nộp"), and a student whose join
-   * event predates this page still needs one too.
-   */
-  const rows = useMemo<SubmissionRowStudent[]>(() => {
-    const byMssv = new Map<string, SubmissionRowStudent>();
+  // Who joined the lobby, plus what was already collected when the page
+  // opened — the same union the per-session submissions detail page builds
+  // from the same two sources (see lib/submission-rows.ts). Live socket
+  // events are strictly newer than this and are overlaid separately below,
+  // since a REST-only page has no such third source to merge in.
+  const baseRows = useMemo(
+    () => buildSubmissionRows(attendance.data, submissions.data?.items),
+    [attendance.data, submissions.data],
+  );
 
-    const ensure = (mssv: string, fullName: string) => {
-      const existing = byMssv.get(mssv);
-      if (existing) {
-        // A real name always beats the MSSV placeholder, whichever source
-        // happened to be seen first.
-        if (existing.fullName === mssv && fullName !== mssv) {
-          existing.fullName = fullName;
-        }
-        return existing;
-      }
-      const created: SubmissionRowStudent = { studentMssv: mssv, fullName, byDeliverable: {} };
-      byMssv.set(mssv, created);
-      return created;
-    };
-
-    // Everyone the class expects, plus everyone who turned up — so a
-    // student who never connected still gets a row of "Chưa nộp" instead of
-    // silently not existing at finalize time.
-    for (const student of [
-      ...(attendance.data?.present ?? []),
-      ...(attendance.data?.absent ?? []),
-      ...(attendance.data?.makeup ?? []),
-    ]) {
-      ensure(student.mssv, student.name);
+  const rows = useMemo(() => {
+    if (Object.keys(liveSubmissions).length === 0) {
+      return baseRows;
     }
-
-    for (const item of submissions.data?.items ?? []) {
-      const row = ensure(item.studentMssv, item.studentNameInput || item.studentMssv);
-      // Only the two terminal states are shown; `received`/`validated`
-      // exist for milliseconds inside one server-side transaction and are
-      // not something a teacher can act on.
-      if (item.status === 'collected' || item.status === 'invalid') {
-        row.byDeliverable[item.requiredDeliverableId] = {
-          state: item.status,
-          submittedAt: item.submittedAt,
-          downloadUrl: item.downloadUrl,
-          fileSize: item.fileSize,
-        };
-      }
-    }
-
-    // Live events last: they are strictly newer than the initial fetch.
+    // Cloned, not mutated in place: `baseRows` is memoized on
+    // attendance/submissions alone, so writing into its row objects here
+    // would leak into the next render even if only `liveSubmissions`
+    // changed — corrupting the very state this memo is meant to be pure
+    // over.
+    const byMssv = new Map(
+      baseRows.map((row) => [row.studentMssv, { ...row, byDeliverable: { ...row.byDeliverable } }]),
+    );
     for (const [key, value] of Object.entries(liveSubmissions)) {
       const separator = key.indexOf(':');
       const mssv = key.slice(0, separator);
       const deliverableId = key.slice(separator + 1);
-      const row = ensure(mssv, mssv);
-      row.byDeliverable[deliverableId] = {
-        ...row.byDeliverable[deliverableId],
-        ...value,
-      };
+      const row = byMssv.get(mssv) ?? { studentMssv: mssv, fullName: mssv, byDeliverable: {} };
+      row.byDeliverable = { ...row.byDeliverable, [deliverableId]: { ...row.byDeliverable[deliverableId], ...value } };
+      byMssv.set(mssv, row);
     }
+    return [...byMssv.values()].sort((a, b) => a.studentMssv.localeCompare(b.studentMssv));
+  }, [baseRows, liveSubmissions]);
 
-    return [...byMssv.values()].sort((a, b) =>
-      a.studentMssv.localeCompare(b.studentMssv),
-    );
-  }, [attendance.data, submissions.data, liveSubmissions]);
-
-  const fullySubmitted = useMemo(() => {
-    if (deliverables.length === 0) {
-      return 0;
-    }
-    return rows.filter((row) =>
-      deliverables.every((d) => row.byDeliverable[d.id]?.state === 'collected'),
-    ).length;
-  }, [rows, deliverables]);
+  const fullySubmitted = useMemo(
+    () => countFullySubmitted(rows, deliverables),
+    [rows, deliverables],
+  );
 
   const canFinalize = sessionDetail.data?.status === 'active';
 
