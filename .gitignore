@@ -3,6 +3,7 @@ dist/
 out/
 .next/
 .env
+.env.production
 .turbo/
 *.log
 *.tsbuildinfo
@@ -11,6 +12,9 @@ out/
 # apps/agent writes real submission files here when run locally/manually
 # tested — never demo/test output belonging to the repo.
 exam-workspace/
+
+# electron-builder output (apps/agent's dist:win) — built artifacts, not source.
+release/
 
 # Personal Claude Code project instructions — not shared with the team/repo.
 CLAUDE.md
