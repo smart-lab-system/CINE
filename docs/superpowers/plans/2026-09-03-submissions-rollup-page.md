@@ -151,17 +151,25 @@ describe('Submission overview (e2e)', () => {
     `OV${stamp}${String(i).padStart(2, '0')}`.slice(0, 20),
   );
 
+  /**
+   * Luôn tạo qua API với classId thật và >= 1 filename: CreateExamSessionDto
+   * bắt buộc `@IsUUID() classId` (courseId được suy ra từ class ở server) và
+   * `@ArrayMinSize(1) requiredFilenames`. Hai kịch bản biên (không gắn lớp /
+   * không có file bắt buộc) được dựng bằng cách gỡ bớt SAU khi tạo — xem
+   * `detachClass` và `dropDeliverables` bên dưới. Đừng thử gửi null/[] vào
+   * API: đó là 400, không phải kịch bản test.
+   */
   async function createSession(
     name: string,
     filenames: string[],
-    opts: { classId: string | null; startOffsetMs: number; endOffsetMs: number },
+    opts: { startOffsetMs: number; endOffsetMs: number },
   ): Promise<{ id: string; deliverableIds: string[] }> {
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
       .send({
         name,
-        classId: opts.classId,
+        classId,
         roomId,
         examType: 'TK',
         startTime: new Date(Date.now() + opts.startOffsetMs).toISOString(),
@@ -175,18 +183,42 @@ describe('Submission overview (e2e)', () => {
     };
   }
 
-  /** Ghi thẳng một dòng submission — bỏ qua socket/storage, chỉ cần con số. */
+  /** class_id là nullable ở entity nhưng bắt buộc ở DTO — gỡ sau khi tạo. */
+  async function detachClass(sessionId: string): Promise<void> {
+    await dataSource.query(
+      `UPDATE ${schema}.exam_session SET class_id = NULL WHERE id = $1`,
+      [sessionId],
+    );
+  }
+
+  /** Dựng phiên requiredDeliverableCount = 0 mà không phải chống @ArrayMinSize(1). */
+  async function dropDeliverables(sessionId: string): Promise<void> {
+    await dataSource.query(
+      `DELETE FROM ${schema}.required_deliverable WHERE exam_session_id = $1`,
+      [sessionId],
+    );
+  }
+
+  /**
+   * Ghi thẳng một dòng submission — bỏ qua socket/storage, chỉ cần con số.
+   *
+   * home_class_id / home_teacher_id là NOT NULL (migration
+   * RestoreSubmissionHomeRoutingNotNull) — bỏ trống là 23502, không phải
+   * insert im lặng.
+   */
   async function insertSubmission(
     sessionId: string,
     deliverableId: string,
     mssv: string,
     status: 'collected' | 'invalid',
+    homeClassId: string = classId,
   ): Promise<void> {
     await dataSource.query(
       `INSERT INTO ${schema}.submission
-         (exam_session_id, required_deliverable_id, student_mssv, student_name_input, status)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [sessionId, deliverableId, mssv, `SV ${mssv}`, status],
+         (exam_session_id, required_deliverable_id, student_mssv, student_name_input,
+          home_class_id, home_teacher_id, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [sessionId, deliverableId, mssv, `SV ${mssv}`, homeClassId, teacherId, status],
     );
   }
 
@@ -266,7 +298,7 @@ describe('Submission overview (e2e)', () => {
     const session = await createSession(
       `Fanout ${stamp}`,
       ['Cau1.docx', 'Cau2.docx', 'Cau3.docx'],
-      { classId, startOffsetMs: -7_200_000, endOffsetMs: -3_600_000 },
+      { startOffsetMs: -7_200_000, endOffsetMs: -3_600_000 },
     );
     for (const deliverableId of session.deliverableIds) {
       await insertSubmission(session.id, deliverableId, ROSTER[0], 'collected');
@@ -287,7 +319,7 @@ describe('Submission overview (e2e)', () => {
     const session = await createSession(
       `Invalid ${stamp}`,
       ['Cau1.docx', 'Cau2.docx', 'Cau3.docx'],
-      { classId, startOffsetMs: -7_200_000, endOffsetMs: -3_600_000 },
+      { startOffsetMs: -7_200_000, endOffsetMs: -3_600_000 },
     );
     await insertSubmission(session.id, session.deliverableIds[0], ROSTER[1], 'invalid');
     await insertSubmission(session.id, session.deliverableIds[1], ROSTER[1], 'invalid');
@@ -302,7 +334,7 @@ describe('Submission overview (e2e)', () => {
     const session = await createSession(
       `OnlyInvalid ${stamp}`,
       ['Cau1.docx', 'Cau2.docx'],
-      { classId, startOffsetMs: -7_200_000, endOffsetMs: -3_600_000 },
+      { startOffsetMs: -7_200_000, endOffsetMs: -3_600_000 },
     );
     await insertSubmission(session.id, session.deliverableIds[0], ROSTER[2], 'invalid');
 
@@ -315,11 +347,12 @@ describe('Submission overview (e2e)', () => {
   }, 30_000);
 
   it('requiredDeliverableCount = 0: không ai nộp đủ, API vẫn trả bình thường', async () => {
-    const session = await createSession(`NoDeliv ${stamp}`, [], {
-      classId,
+    // Tạo với 1 file rồi xoá — API từ chối mảng rỗng (@ArrayMinSize(1)).
+    const session = await createSession(`NoDeliv ${stamp}`, ['Cau1.docx'], {
       startOffsetMs: -7_200_000,
       endOffsetMs: -3_600_000,
     });
+    await dropDeliverables(session.id);
 
     const item = bySessionId(await fetchOverview(), session.id);
 
@@ -347,12 +380,19 @@ describe('Submission overview (e2e)', () => {
     const session = await createSession(
       `Union ${stamp}`,
       ['Cau1.docx', 'Cau2.docx'],
-      { classId, startOffsetMs: -7_200_000, endOffsetMs: -3_600_000 },
+      { startOffsetMs: -7_200_000, endOffsetMs: -3_600_000 },
     );
     await insertSubmission(session.id, session.deliverableIds[0], ROSTER[3], 'collected');
     await insertSubmission(session.id, session.deliverableIds[1], ROSTER[3], 'collected');
     await insertSubmission(session.id, session.deliverableIds[0], ROSTER[4], 'collected');
-    await insertSubmission(session.id, session.deliverableIds[0], makeupMssv, 'collected');
+    // home_class_id của SV thi ghép là lớp GỐC của họ, không phải lớp đang thi.
+    await insertSubmission(
+      session.id,
+      session.deliverableIds[0],
+      makeupMssv,
+      'collected',
+      otherClass.id,
+    );
 
     const item = bySessionId(await fetchOverview(), session.id);
 
@@ -367,11 +407,13 @@ describe('Submission overview (e2e)', () => {
 
   it('phiên không gắn lớp: rosterKnown false, notSubmittedCount 0', async () => {
     const session = await createSession(`NoClass ${stamp}`, ['Cau1.docx'], {
-      classId: null,
       startOffsetMs: -7_200_000,
       endOffsetMs: -3_600_000,
     });
+    // Submission phải ghi TRƯỚC khi gỡ lớp: home_class_id là NOT NULL và
+    // phải trỏ tới một class có thật.
     await insertSubmission(session.id, session.deliverableIds[0], ROSTER[5], 'collected');
+    await detachClass(session.id);
 
     const item = bySessionId(await fetchOverview(), session.id);
 
@@ -1299,7 +1341,9 @@ excluded from attention. See spec sections 4.1-4.3."
 
 ```ts
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+// fireEvent/waitFor dùng ở Task 5 (search) — import sẵn để Task 5 chỉ thêm
+// describe block, không phải sửa dòng import.
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 
 const useSessionOverviewMock = vi.fn();
@@ -1877,18 +1921,17 @@ describe('SubmissionsPage — search theo MSSV', () => {
       error: null,
     });
 
-    const { rerender } = render(<SubmissionsPage />);
-    const input = screen.getByLabelText('Tìm sinh viên theo MSSV hoặc tên');
-    input.focus();
-    // Debounce 300ms: đẩy giá trị rồi chờ hook được gọi lại với enabled=true.
-    await new Promise<void>((resolve) => {
-      const { fireEvent } = require('@testing-library/react');
-      fireEvent.change(input, { target: { value: '21520123' } });
-      setTimeout(resolve, 400);
+    render(<SubmissionsPage />);
+    // useDebouncedValue là hook THẬT (300ms), không mock — dùng waitFor để
+    // chờ nó nhả giá trị. `require()` không tồn tại trong vitest ESM: import
+    // fireEvent/waitFor ở đầu file cùng render/screen.
+    fireEvent.change(screen.getByLabelText('Tìm sinh viên theo MSSV hoặc tên'), {
+      target: { value: '21520123' },
     });
-    rerender(<SubmissionsPage />);
 
-    expect(screen.getByText('Cuối kỳ')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Cuối kỳ')).toBeInTheDocument();
+    });
     expect(screen.queryByText('Giữa kỳ #2')).not.toBeInTheDocument();
     const link = screen
       .getAllByRole('link')
@@ -1903,15 +1946,15 @@ describe('SubmissionsPage — search theo MSSV', () => {
       error: null,
     });
     render(<SubmissionsPage />);
-    const { fireEvent } = require('@testing-library/react');
     fireEvent.change(screen.getByLabelText('Tìm sinh viên theo MSSV hoặc tên'), {
       target: { value: 'khongton' },
     });
-    await new Promise((resolve) => setTimeout(resolve, 400));
 
-    expect(
-      screen.getByText(/Sinh viên chưa nộp gì sẽ không xuất hiện ở đây/),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Sinh viên chưa nộp gì sẽ không xuất hiện ở đây/),
+      ).toBeInTheDocument();
+    });
   });
 });
 ```
