@@ -203,7 +203,7 @@ describe('SubmissionsPage — tỉ lệ', () => {
     // Spec §4.4: nhóm không có phiên cần chú ý mặc định thu gọn.
     fireEvent.click(screen.getByRole('button'));
 
-    expect(screen.getByText('đã thu 5 bài')).toBeInTheDocument();
+    expect(screen.getByText('đã thu bài của 5 sinh viên')).toBeInTheDocument();
     expect(screen.getByText('phiên không gắn lớp')).toBeInTheDocument();
     expect(screen.queryByText(/\/5 đã nộp đủ/)).not.toBeInTheDocument();
   });
@@ -221,6 +221,13 @@ describe('SubmissionsPage — tỉ lệ', () => {
 
     expect(screen.getByText('phiên chưa khai file bắt buộc')).toBeInTheDocument();
     expect(screen.queryByText(/đã nộp đủ/)).not.toBeInTheDocument();
+    // Không có gì trung thực để đếm ở đây (expectedCount là sĩ số lớp, không
+    // phải số đã nộp) — khoá lại để con số sai không lặng lẽ quay lại. Soi
+    // trong nhóm (không phải toàn `screen`): mô tả tĩnh của PageHeader cũng
+    // chứa cụm "đã thu" ("...đã thu đủ bài, phiên nào còn thiếu...") nên một
+    // query không giới hạn sẽ khớp nhầm câu đó.
+    const group = screen.getByRole('region', { name: /Nhập môn CSDL/ });
+    expect(within(group).queryByText(/đã thu/)).not.toBeInTheDocument();
   });
 });
 

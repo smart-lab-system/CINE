@@ -84,9 +84,23 @@ function SessionRow({
           </span>
         ) : (
           <>
-            <span className="font-medium text-foreground">
-              đã thu {item.expectedCount} bài
-            </span>
+            {/*
+              !hasRatio(item) chỉ xảy ra ở đúng 2 trường hợp, và expectedCount
+              có nghĩa khác nhau ở mỗi trường hợp — không được dùng chung một
+              câu cho cả hai (đó chính là lỗi bị bắt ở review):
+                - !rosterKnown: không có roster, expectedCount đếm SINH VIÊN
+                  đã nộp gì đó, không phải BÀI -> phải nói rõ là sinh viên.
+                - rosterKnown && requiredDeliverableCount === 0: expectedCount
+                  là sĩ số lớp, không phải số đã nộp -> không có gì trung
+                  thực để đếm, nên KHÔNG hiện số (spec §3.3: hiện "đã thu 40
+                  bài" cho phiên chưa từng yêu cầu gì là báo động giả kiểu
+                  ngược).
+            */}
+            {!item.rosterKnown && (
+              <span className="font-medium text-foreground">
+                đã thu bài của {item.expectedCount} sinh viên
+              </span>
+            )}
             <span className="text-caption">
               {item.rosterKnown ? 'phiên chưa khai file bắt buộc' : 'phiên không gắn lớp'}
             </span>
