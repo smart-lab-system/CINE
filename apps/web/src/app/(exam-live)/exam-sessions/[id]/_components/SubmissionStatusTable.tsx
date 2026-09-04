@@ -157,6 +157,7 @@ export function SubmissionStatusTable({
   const appliedFocusRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Bẫy 6: không có prop (trang lobby) thì không được tự mở dialog nào cả.
     if (!focusStudentMssv) return;
     if (appliedFocusRef.current === focusStudentMssv) return;
 
@@ -180,11 +181,21 @@ export function SubmissionStatusTable({
   }, [focusStudentMssv, students]);
 
   // Bẫy 4: Radix trả focus về trigger khi đóng dialog, nhưng dialog này mở
-  // bằng code nên không có trigger — focus sẽ rơi về <body> và giảng viên mất
+  // bằng code nên không có trigger — mặc định của Radix là để focus ở
+  // phần tử đã focus TRƯỚC KHI dialog mở, tức là <body>, và giảng viên mất
   // vị trí. Trả nó về nút "Xem bài nộp" của chính dòng đó.
   const returnFocusToRow = (mssv: string) => {
     document.getElementById(viewButtonDomId(mssv))?.focus();
   };
+
+  // `onOpenChange` chạy đồng bộ khi dialog đóng, nhưng Radix chỉ thực sự
+  // trả focus về (mặc định: <body>, vì không có trigger) SAU đó, khi
+  // `DialogContent` unmount — nên gọi returnFocusToRow ngay trong
+  // onOpenChange bị Radix ghi đè lại về <body> ngay sau. Ref này nhớ SV nào
+  // đang đóng, để `onCloseAutoFocus` bên dưới (đúng thời điểm Radix tự
+  // trả focus) có thể preventDefault() hành vi mặc định đó và focus đúng
+  // chỗ thay vào đó.
+  const closingStudentMssvRef = useRef<string | null>(null);
 
   if (deliverables.length === 0) {
     return (
@@ -228,73 +239,73 @@ export function SubmissionStatusTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {students.map((student) => (
-            <TableRow
-              key={student.studentMssv}
-              id={rowDomId(student.studentMssv)}
-              aria-current={
-                focusStudentMssv &&
-                student.studentMssv.toLowerCase() === focusStudentMssv.toLowerCase()
-                  ? 'true'
-                  : undefined
-              }
-              className={cn(
-                focusStudentMssv &&
-                  student.studentMssv.toLowerCase() === focusStudentMssv.toLowerCase() &&
-                  'bg-info-subtle',
-              )}
-            >
-              <TableCell>
-                <span className="font-medium text-foreground">{student.fullName}</span>
-                <span className="ml-2 font-mono text-caption text-muted-foreground">
-                  {student.studentMssv}
-                </span>
-              </TableCell>
-              {deliverables.map((deliverable) => {
-                const cell = student.byDeliverable[deliverable.id];
-                const state: DeliverableState = cell?.state ?? 'pending';
-                const presentation = STATE_PRESENTATION[state];
-                const time = formatTime(cell?.submittedAt);
-                return (
-                  <TableCell key={deliverable.id} className="whitespace-nowrap">
-                    <span
-                      className={cn(
-                        'inline-flex items-center gap-2 font-medium',
-                        presentation.text,
-                      )}
-                    >
+          {students.map((student) => {
+            // Tính một lần, dùng lại cho cả aria-current lẫn className — hai
+            // nơi dùng cùng một điều kiện thì chỉ nên có một chỗ định nghĩa
+            // nó là gì.
+            const isFocused = Boolean(
+              focusStudentMssv &&
+                student.studentMssv.toLowerCase() === focusStudentMssv.toLowerCase(),
+            );
+            return (
+              <TableRow
+                key={student.studentMssv}
+                id={rowDomId(student.studentMssv)}
+                aria-current={isFocused ? 'true' : undefined}
+                className={cn(isFocused && 'bg-info-subtle')}
+              >
+                <TableCell>
+                  <span className="font-medium text-foreground">{student.fullName}</span>
+                  <span className="ml-2 font-mono text-caption text-muted-foreground">
+                    {student.studentMssv}
+                  </span>
+                </TableCell>
+                {deliverables.map((deliverable) => {
+                  const cell = student.byDeliverable[deliverable.id];
+                  const state: DeliverableState = cell?.state ?? 'pending';
+                  const presentation = STATE_PRESENTATION[state];
+                  const time = formatTime(cell?.submittedAt);
+                  return (
+                    <TableCell key={deliverable.id} className="whitespace-nowrap">
                       <span
-                        className={cn('h-2 w-2 shrink-0 rounded-full', presentation.dot)}
-                        aria-hidden="true"
-                      />
-                      <span aria-hidden="true">{presentation.symbol}</span>
-                      {presentation.label}
-                    </span>
-                    {time && (
-                      <span className="ml-2 tabular-nums text-caption text-muted-foreground">
-                        {time}
+                        className={cn(
+                          'inline-flex items-center gap-2 font-medium',
+                          presentation.text,
+                        )}
+                      >
+                        <span
+                          className={cn('h-2 w-2 shrink-0 rounded-full', presentation.dot)}
+                          aria-hidden="true"
+                        />
+                        <span aria-hidden="true">{presentation.symbol}</span>
+                        {presentation.label}
                       </span>
-                    )}
-                  </TableCell>
-                );
-              })}
-              <TableCell className="whitespace-nowrap">
-                <Button
-                  id={viewButtonDomId(student.studentMssv)}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedStudentMssv(student.studentMssv)}
-                  disabled={!deliverables.some((deliverable) => {
-                    const cell = student.byDeliverable[deliverable.id];
-                    return Boolean(cell?.downloadUrl);
-                  })}
-                >
-                  Xem bài nộp
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
+                      {time && (
+                        <span className="ml-2 tabular-nums text-caption text-muted-foreground">
+                          {time}
+                        </span>
+                      )}
+                    </TableCell>
+                  );
+                })}
+                <TableCell className="whitespace-nowrap">
+                  <Button
+                    id={viewButtonDomId(student.studentMssv)}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedStudentMssv(student.studentMssv)}
+                    disabled={!deliverables.some((deliverable) => {
+                      const cell = student.byDeliverable[deliverable.id];
+                      return Boolean(cell?.downloadUrl);
+                    })}
+                  >
+                    Xem bài nộp
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
         </Table>
       </div>
@@ -303,12 +314,21 @@ export function SubmissionStatusTable({
         open={selectedStudent !== null}
         onOpenChange={(open) => {
           if (open) return;
-          const closing = selectedStudentMssv;
+          closingStudentMssvRef.current = selectedStudentMssv;
           setSelectedStudentMssv(null);
-          if (closing) returnFocusToRow(closing);
         }}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent
+          className="sm:max-w-2xl"
+          onCloseAutoFocus={(event) => {
+            const closing = closingStudentMssvRef.current;
+            if (!closing) return;
+            // Chặn Radix trả focus về mặc định của nó (<body>, vì không có
+            // trigger thật) rồi tự trả focus về đúng dòng.
+            event.preventDefault();
+            returnFocusToRow(closing);
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Xem bài nộp</DialogTitle>
             <DialogDescription>

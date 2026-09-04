@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { SubmissionStatusTable } from './SubmissionStatusTable';
 import type { DeliverableColumn, SubmissionRowStudent } from '@/lib/submission-rows';
@@ -162,7 +162,7 @@ describe('SubmissionStatusTable — focusStudentMssv', () => {
     expect(screen.getByText('SV A1 · A1')).toBeInTheDocument();
   });
 
-  it('bẫy 2: refetch (mảng students đổi identity) KHÔNG mở lại dialog đã đóng', () => {
+  it('bẫy 2: refetch (mảng students đổi identity) KHÔNG mở lại dialog đã đóng', async () => {
     const students = [makeStudent('A1')];
     const { rerender } = render(
       <SubmissionStatusTable
@@ -176,6 +176,17 @@ describe('SubmissionStatusTable — focusStudentMssv', () => {
     // GV đóng dialog.
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // Bẫy 4 (nửa focus): dialog này mở bằng code, không có trigger để Radix
+    // tự trả focus về — mặc định của nó là <body>, và giảng viên mất vị trí
+    // đang đọc, trừ khi onCloseAutoFocus can thiệp. Radix's FocusScope chạy
+    // bước trả-focus-mặc-định của nó trong một setTimeout(0) khi
+    // DialogContent unmount (xem @radix-ui/react-focus-scope), tức là SAU
+    // khi fireEvent ở trên đã return — nên assertion này phải chờ nó bằng
+    // waitFor thay vì đọc document.activeElement ngay lập tức.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Xem bài nộp' })).toHaveFocus();
+    });
 
     // React Query refetch: cùng nội dung, mảng MỚI.
     rerender(
