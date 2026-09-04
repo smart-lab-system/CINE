@@ -22,6 +22,11 @@ vi.mock('@/hooks/useExamSession', () => ({
   useSubmissions: (...args: unknown[]) => useSubmissionsMock(...args),
 }));
 
+const useGradingResultsMock = vi.fn();
+vi.mock('@/hooks/useGrading', () => ({
+  useGradingResults: (...args: unknown[]) => useGradingResultsMock(...args),
+}));
+
 // Wraps (rather than stubs) the real component: this file's pre-existing
 // tests render actual student rows through it, so a bare stub would blind
 // them. The wrapper still captures every prop for the new ?student= tests
@@ -56,6 +61,8 @@ beforeEach(() => {
   useExamSessionDetailMock.mockReset();
   useAttendanceMock.mockReset();
   useSubmissionsMock.mockReset();
+  useGradingResultsMock.mockReset();
+  useGradingResultsMock.mockReturnValue({ data: undefined });
 
   useExamSessionDetailMock.mockReturnValue({
     data: {
@@ -172,5 +179,17 @@ describe('SubmissionSessionDetailPage — ?student=', () => {
     searchParamsMock.mockReturnValue(new URLSearchParams(''));
     render(<SubmissionSessionDetailPage />);
     expect(submissionStatusTableProps.focusStudentMssv).toBeUndefined();
+  });
+});
+
+describe('SubmissionSessionDetailPage — gradingByMssv', () => {
+  it('map kết quả chấm theo MSSV và truyền xuống bảng', () => {
+    useGradingResultsMock.mockReturnValue({
+      data: [{ studentMssv: 'A1', aiTotalScore: 8.5, status: 'ai_graded' }],
+    });
+    render(<SubmissionSessionDetailPage />);
+    expect(submissionStatusTableProps.gradingByMssv).toEqual({
+      A1: { score: 8.5, status: 'ai_graded' },
+    });
   });
 });

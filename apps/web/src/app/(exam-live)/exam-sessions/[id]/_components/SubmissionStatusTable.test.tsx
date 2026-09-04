@@ -271,3 +271,51 @@ describe('SubmissionStatusTable — focusStudentMssv', () => {
     }
   });
 });
+
+describe('SubmissionStatusTable — gradingByMssv', () => {
+  const deliverables = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
+  const student: SubmissionRowStudent = {
+    studentMssv: 'A1',
+    fullName: 'SV A1',
+    byDeliverable: { d1: { state: 'collected', downloadUrl: 'https://x.test/f' } },
+  };
+
+  it('vắng prop: dialog không nói gì về điểm, không có nút Chấm lại', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student]}
+        focusStudentMssv="A1"
+      />,
+    );
+    expect(screen.queryByText(/Điểm AI/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Chấm lại/ })).not.toBeInTheDocument();
+  });
+
+  it('bài chưa chấm: không hiện điểm, không hiện nút Chấm lại', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student]}
+        focusStudentMssv="A1"
+        gradingByMssv={{}}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /Chấm lại/ })).not.toBeInTheDocument();
+  });
+
+  it('bài đã chấm: hiện điểm chỉ-đọc và nút Chấm lại DISABLED kèm lý do', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student]}
+        focusStudentMssv="A1"
+        gradingByMssv={{ A1: { score: 8.5, status: 'ai_graded' } }}
+      />,
+    );
+    expect(screen.getByText('Điểm AI: 8.5')).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: /Chấm lại/ });
+    expect(button).toBeDisabled();
+    expect(screen.getByText('Có khi module chấm điểm hoàn thiện')).toBeInTheDocument();
+  });
+});

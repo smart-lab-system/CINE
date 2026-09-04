@@ -45,6 +45,12 @@ interface SubmissionStatusTableProps {
    * đó không đổi hành vi. Xem spec §5.2 và sáu cái bẫy ở §6.
    */
   focusStudentMssv?: string;
+  /**
+   * Điểm CHỈ-ĐỌC theo MSSV, chỉ trang chi tiết post-hoc truyền. Vắng mặt ở
+   * trang lobby: giữa lúc thi thì điểm chưa tồn tại và không có nghĩa gì.
+   * Tầng 2 (spec §7) mới làm chấm/chấm lại thật.
+   */
+  gradingByMssv?: Record<string, { score: number | null; status: string }>;
 }
 
 /** id DOM phải ổn định để effect focus tìm lại được đúng dòng. */
@@ -144,6 +150,7 @@ export function SubmissionStatusTable({
   students,
   emptyStudentsDescription = DEFAULT_EMPTY_STUDENTS_DESCRIPTION,
   focusStudentMssv,
+  gradingByMssv,
 }: SubmissionStatusTableProps) {
   const [selectedStudentMssv, setSelectedStudentMssv] = useState<string | null>(null);
   const selectedStudent = selectedStudentMssv
@@ -414,6 +421,30 @@ export function SubmissionStatusTable({
                   </div>
                 );
               })}
+
+              {(() => {
+                const grade = gradingByMssv?.[selectedStudent.studentMssv];
+                if (!grade) return null;
+                return (
+                  <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-2/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                      <p className="font-medium text-foreground">
+                        Điểm AI: {grade.score ?? '—'}
+                      </p>
+                      <p className="text-caption text-muted-foreground">
+                        Có khi module chấm điểm hoàn thiện
+                      </p>
+                    </div>
+                    {/* Disabled kèm lý do nhìn thấy được, theo quy ước sẵn có
+                        của codebase (placeholder-page.tsx, StatCard.hint) —
+                        một nút trông sống mà bấm không ra gì là cách nhanh
+                        nhất dạy giảng viên rằng app hỏng. Spec §5.4. */}
+                    <Button type="button" variant="outline" size="sm" disabled>
+                      Chấm lại
+                    </Button>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </DialogContent>

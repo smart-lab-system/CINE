@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ClipboardCheck, Inbox } from 'lucide-react';
 import { useAttendance, useExamSessionDetail, useSubmissions } from '@/hooks/useExamSession';
+import { useGradingResults } from '@/hooks/useGrading';
 import { buildSubmissionRows, countFullySubmitted } from '@/lib/submission-rows';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +44,19 @@ function SubmissionSessionDetailContent() {
   const sessionDetail = useExamSessionDetail(sessionId);
   const attendance = useAttendance(sessionId);
   const submissions = useSubmissions(sessionId);
+  const gradingResults = useGradingResults(sessionId);
+
+  /**
+   * Chỉ-đọc. Nguồn là GET /exam-sessions/:id/grading-results, đã có sẵn —
+   * Tầng 1 không thêm endpoint chấm nào.
+   */
+  const gradingByMssv = useMemo(() => {
+    const map: Record<string, { score: number | null; status: string }> = {};
+    for (const result of gradingResults.data ?? []) {
+      map[result.studentMssv] = { score: result.aiTotalScore, status: result.status };
+    }
+    return map;
+  }, [gradingResults.data]);
 
   const deliverables = useMemo(
     () =>
@@ -135,6 +149,7 @@ function SubmissionSessionDetailContent() {
             students={rows}
             emptyStudentsDescription="Chưa có sinh viên nào nộp bài trong phiên này."
             focusStudentMssv={focusStudentMssv}
+            gradingByMssv={gradingByMssv}
           />
         </CardContent>
       </Card>
