@@ -279,6 +279,11 @@ describe('SubmissionStatusTable — gradingByMssv', () => {
     fullName: 'SV A1',
     byDeliverable: { d1: { state: 'collected', downloadUrl: 'https://x.test/f' } },
   };
+  const otherStudent: SubmissionRowStudent = {
+    studentMssv: 'B2',
+    fullName: 'SV B2',
+    byDeliverable: { d1: { state: 'collected', downloadUrl: 'https://x.test/g' } },
+  };
 
   it('vắng prop: dialog không nói gì về điểm, không có nút Chấm lại', () => {
     render(
@@ -301,6 +306,7 @@ describe('SubmissionStatusTable — gradingByMssv', () => {
         gradingByMssv={{}}
       />,
     );
+    expect(screen.queryByText(/Điểm AI/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Chấm lại/ })).not.toBeInTheDocument();
   });
 
@@ -317,5 +323,47 @@ describe('SubmissionStatusTable — gradingByMssv', () => {
     const button = screen.getByRole('button', { name: /Chấm lại/ });
     expect(button).toBeDisabled();
     expect(screen.getByText('Có khi module chấm điểm hoàn thiện')).toBeInTheDocument();
+  });
+
+  // Review round 1 (Important): every test above uses exactly ONE student,
+  // so a lookup bug that ignores the key entirely — e.g.
+  // `Object.values(gradingByMssv ?? {})[0]` instead of
+  // `gradingByMssv?.[selectedStudent.studentMssv]` — would still pass all
+  // three. In a grading UI, showing one student's score on another
+  // student's dialog is a real-consequence bug, not a cosmetic one, so this
+  // pins the lookup in BOTH directions with two students and two distinct
+  // scores. B2's entry is listed FIRST on purpose: `Object.values(...)[0]`
+  // would then resolve to B2's record even though A1's dialog is the one
+  // open, which is exactly the failure mode this test must catch.
+  it('mở dialog của A1 thì hiện đúng điểm của A1, không lẫn điểm của B2', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student, otherStudent]}
+        focusStudentMssv="A1"
+        gradingByMssv={{
+          B2: { score: 3, status: 'ai_graded' },
+          A1: { score: 8.5, status: 'ai_graded' },
+        }}
+      />,
+    );
+    expect(screen.getByText('Điểm AI: 8.5')).toBeInTheDocument();
+    expect(screen.queryByText('Điểm AI: 3')).not.toBeInTheDocument();
+  });
+
+  // Minor 1: `aiTotalScore` (mapped to `score` here) is nullable for a real
+  // state — a result row exists (status `ai_grading`) before a score is
+  // written. The render falls back to '—' via `grade.score ?? '—'`; this
+  // pins that fallback actually fires instead of e.g. printing "null".
+  it('điểm null (đang chấm dở) hiện gạch ngang thay vì "null"', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student]}
+        focusStudentMssv="A1"
+        gradingByMssv={{ A1: { score: null, status: 'ai_grading' } }}
+      />,
+    );
+    expect(screen.getByText('Điểm AI: —')).toBeInTheDocument();
   });
 });
