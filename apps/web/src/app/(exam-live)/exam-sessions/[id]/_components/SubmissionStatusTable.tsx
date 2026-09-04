@@ -188,13 +188,15 @@ export function SubmissionStatusTable({
     document.getElementById(viewButtonDomId(mssv))?.focus();
   };
 
-  // `onOpenChange` chạy đồng bộ khi dialog đóng, nhưng Radix chỉ thực sự
-  // trả focus về (mặc định: <body>, vì không có trigger) SAU đó, khi
-  // `DialogContent` unmount — nên gọi returnFocusToRow ngay trong
-  // onOpenChange bị Radix ghi đè lại về <body> ngay sau. Ref này nhớ SV nào
-  // đang đóng, để `onCloseAutoFocus` bên dưới (đúng thời điểm Radix tự
-  // trả focus) có thể preventDefault() hành vi mặc định đó và focus đúng
-  // chỗ thay vào đó.
+  // `onOpenChange` chạy đồng bộ khi dialog đóng, nhưng gọi returnFocusToRow
+  // ngay trong đó không có tác dụng: lúc này `DialogContent` — và
+  // `FocusScope` bên trong nó — vẫn còn mounted, và guard "trapped" của
+  // FocusScope lập tức revert bất kỳ `.focus()` nào nhắm ra ngoài container
+  // dialog trở lại bên trong nó. Ref này nhớ SV nào đang đóng, để
+  // `onCloseAutoFocus` bên dưới — đúng lúc `DialogContent` unmount và
+  // FocusScope không còn giữ trap nữa — mới preventDefault() hành vi mặc
+  // định của Radix (trả về <body>, vì không có trigger thật) và focus
+  // đúng chỗ thay vào đó.
   const closingStudentMssvRef = useRef<string | null>(null);
 
   if (deliverables.length === 0) {
@@ -327,6 +329,14 @@ export function SubmissionStatusTable({
             // trigger thật) rồi tự trả focus về đúng dòng.
             event.preventDefault();
             returnFocusToRow(closing);
+            // Reset sau khi dùng: ref này chỉ được gán trong onOpenChange,
+            // nhưng onCloseAutoFocus lại chạy khi DialogContent unmount —
+            // hai thời điểm đó có thể tách rời nhau. Nếu một cập nhật
+            // socket trên trang lobby xoá SV đang mở dialog khỏi `students`
+            // giữa chừng, dialog đóng lại mà KHÔNG qua onOpenChange, và nếu
+            // không reset thì lần đóng kế tiếp sẽ đọc lại MSSV cũ này, focus
+            // nhầm dòng.
+            closingStudentMssvRef.current = null;
           }}
         >
           <DialogHeader>
