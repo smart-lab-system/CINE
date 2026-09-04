@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { SubmissionStatusTable } from './SubmissionStatusTable';
@@ -127,5 +127,136 @@ describe('SubmissionStatusTable — empty-students copy', () => {
     expect(
       screen.queryByText(/Bảng sẽ tự cập nhật ngay khi agent trên máy sinh viên nộp bài/),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('SubmissionStatusTable — focusStudentMssv', () => {
+  const deliverables = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
+  const makeStudent = (mssv: string): SubmissionRowStudent => ({
+    studentMssv: mssv,
+    fullName: `SV ${mssv}`,
+    byDeliverable: {
+      d1: { state: 'collected', submittedAt: '2026-09-01T10:00:00Z', downloadUrl: 'https://x.test/f' },
+    },
+  });
+
+  it('bẫy 6: không có prop thì không mở dialog', () => {
+    render(<SubmissionStatusTable deliverables={deliverables} students={[makeStudent('A1')]} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('bẫy 1: dữ liệu về SAU render đầu vẫn mở dialog', () => {
+    const { rerender } = render(
+      <SubmissionStatusTable deliverables={deliverables} students={[]} focusStudentMssv="A1" />,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    rerender(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[makeStudent('A1')]}
+        focusStudentMssv="A1"
+      />,
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('SV A1 · A1')).toBeInTheDocument();
+  });
+
+  it('bẫy 2: refetch (mảng students đổi identity) KHÔNG mở lại dialog đã đóng', () => {
+    const students = [makeStudent('A1')];
+    const { rerender } = render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={students}
+        focusStudentMssv="A1"
+      />,
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // GV đóng dialog.
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // React Query refetch: cùng nội dung, mảng MỚI.
+    rerender(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[makeStudent('A1')]}
+        focusStudentMssv="A1"
+      />,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('bẫy 3: MSSV không tồn tại thì im lặng, không crash, không dialog', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[makeStudent('A1')]}
+        focusStudentMssv="KHONG-TON-TAI"
+      />,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('SV A1')).toBeInTheDocument();
+  });
+
+  it('dòng được nhắm tới có aria-current để không chỉ dựa vào màu (bẫy 4)', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[makeStudent('A1'), makeStudent('B2')]}
+        focusStudentMssv="B2"
+      />,
+    );
+    // Matching focusStudentMssv also opens that student's dialog (bẫy 6),
+    // and Radix marks the background aria-hidden while a dialog is open —
+    // so the rows must be queried with `hidden: true` to look past that
+    // transient a11y-hiding rather than through it never existing.
+    const rows = screen.getAllByRole('row', { hidden: true });
+    const marked = rows.filter((row) => row.getAttribute('aria-current') === 'true');
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveTextContent('B2');
+  });
+
+  // Not in the brief's Step 1 test block verbatim, but bẫy 5 is one of the
+  // six the task explicitly requires code AND a test for — without this,
+  // the `reduceMotion ? 'auto' : 'smooth'` branch would be untested. The
+  // global vitest.setup.ts stub always returns matches: false, so this
+  // test overrides window.matchMedia itself to exercise the reduce branch,
+  // and restores both stubs afterwards so it doesn't leak into other tests.
+  it('bẫy 5: prefers-reduced-motion thì cuộn tức thì thay vì mượt', () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({
+        media: query,
+        matches: query === '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList) as typeof window.matchMedia;
+
+    const scrollIntoViewSpy = vi
+      .spyOn(Element.prototype, 'scrollIntoView')
+      .mockImplementation(() => {});
+
+    try {
+      render(
+        <SubmissionStatusTable
+          deliverables={deliverables}
+          students={[makeStudent('A1')]}
+          focusStudentMssv="A1"
+        />,
+      );
+
+      expect(scrollIntoViewSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ behavior: 'auto' }),
+      );
+    } finally {
+      scrollIntoViewSpy.mockRestore();
+      window.matchMedia = originalMatchMedia;
+    }
   });
 });

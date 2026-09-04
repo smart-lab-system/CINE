@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileCheck } from 'lucide-react';
 import { EmptyState } from '@/components/layout/empty-state';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,20 @@ interface SubmissionStatusTableProps {
    * left to auto-update, so it supplies its own copy instead.
    */
   emptyStudentsDescription?: string;
+  /**
+   * Đến từ luồng search (`?student=`): highlight dòng của SV này và mở sẵn
+   * dialog bài nộp của họ, ĐÚNG MỘT LẦN. Vắng mặt ở trang lobby, nên trang
+   * đó không đổi hành vi. Xem spec §5.2 và sáu cái bẫy ở §6.
+   */
+  focusStudentMssv?: string;
+}
+
+/** id DOM phải ổn định để effect focus tìm lại được đúng dòng. */
+function rowDomId(mssv: string): string {
+  return `submission-row-${encodeURIComponent(mssv)}`;
+}
+function viewButtonDomId(mssv: string): string {
+  return `submission-view-${encodeURIComponent(mssv)}`;
 }
 
 /**
@@ -129,11 +143,48 @@ export function SubmissionStatusTable({
   deliverables,
   students,
   emptyStudentsDescription = DEFAULT_EMPTY_STUDENTS_DESCRIPTION,
+  focusStudentMssv,
 }: SubmissionStatusTableProps) {
   const [selectedStudentMssv, setSelectedStudentMssv] = useState<string | null>(null);
   const selectedStudent = selectedStudentMssv
     ? students.find((student) => student.studentMssv === selectedStudentMssv) ?? null
     : null;
+
+  // Bẫy 2: React Query refetch tạo mảng `students` MỚI mỗi lần. Nếu effect
+  // dưới phụ thuộc vào `students`, dialog sẽ tự bật lại ngay giữa lúc giảng
+  // viên đang đọc. Ref chốt "đã áp dụng rồi", và chỉ reset khi
+  // focusStudentMssv đổi — không phải khi students đổi.
+  const appliedFocusRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!focusStudentMssv) return;
+    if (appliedFocusRef.current === focusStudentMssv) return;
+
+    // Bẫy 1: render đầu tiên students còn rỗng (query đang chạy). Điều kiện
+    // kích hoạt là "đã tìm thấy dòng", không phải "vừa mount".
+    const match = students.find(
+      (student) => student.studentMssv.toLowerCase() === focusStudentMssv.toLowerCase(),
+    );
+    // Bẫy 3: URL cũ hoặc sửa tay -> không có dòng nào khớp. Im lặng bỏ qua.
+    if (!match) return;
+
+    appliedFocusRef.current = focusStudentMssv;
+    setSelectedStudentMssv(match.studentMssv);
+
+    const row = document.getElementById(rowDomId(match.studentMssv));
+    if (row) {
+      // Bẫy 5: tôn trọng prefers-reduced-motion.
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      row.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    }
+  }, [focusStudentMssv, students]);
+
+  // Bẫy 4: Radix trả focus về trigger khi đóng dialog, nhưng dialog này mở
+  // bằng code nên không có trigger — focus sẽ rơi về <body> và giảng viên mất
+  // vị trí. Trả nó về nút "Xem bài nộp" của chính dòng đó.
+  const returnFocusToRow = (mssv: string) => {
+    document.getElementById(viewButtonDomId(mssv))?.focus();
+  };
 
   if (deliverables.length === 0) {
     return (
@@ -178,7 +229,21 @@ export function SubmissionStatusTable({
         </TableHeader>
         <TableBody>
           {students.map((student) => (
-            <TableRow key={student.studentMssv}>
+            <TableRow
+              key={student.studentMssv}
+              id={rowDomId(student.studentMssv)}
+              aria-current={
+                focusStudentMssv &&
+                student.studentMssv.toLowerCase() === focusStudentMssv.toLowerCase()
+                  ? 'true'
+                  : undefined
+              }
+              className={cn(
+                focusStudentMssv &&
+                  student.studentMssv.toLowerCase() === focusStudentMssv.toLowerCase() &&
+                  'bg-info-subtle',
+              )}
+            >
               <TableCell>
                 <span className="font-medium text-foreground">{student.fullName}</span>
                 <span className="ml-2 font-mono text-caption text-muted-foreground">
@@ -215,8 +280,9 @@ export function SubmissionStatusTable({
               })}
               <TableCell className="whitespace-nowrap">
                 <Button
+                  id={viewButtonDomId(student.studentMssv)}
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   size="sm"
                   onClick={() => setSelectedStudentMssv(student.studentMssv)}
                   disabled={!deliverables.some((deliverable) => {
@@ -233,7 +299,15 @@ export function SubmissionStatusTable({
         </Table>
       </div>
 
-      <Dialog open={selectedStudent !== null} onOpenChange={(open) => !open && setSelectedStudentMssv(null)}>
+      <Dialog
+        open={selectedStudent !== null}
+        onOpenChange={(open) => {
+          if (open) return;
+          const closing = selectedStudentMssv;
+          setSelectedStudentMssv(null);
+          if (closing) returnFocusToRow(closing);
+        }}
+      >
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Xem bài nộp</DialogTitle>
