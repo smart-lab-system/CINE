@@ -495,6 +495,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/submissions/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TeacherSubmissionsController_listOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/submissions": {
         parameters: {
             query?: never;
@@ -953,6 +969,9 @@ export interface operations {
             query: {
                 page: number;
                 pageSize: number;
+                search?: string;
+                status?: "draft" | "scheduled" | "active" | "completed" | "cancelled";
+                examType?: "TK" | "GK" | "CK";
             };
             header?: never;
             path?: never;
@@ -1619,6 +1638,23 @@ export interface operations {
             path: {
                 examSessionId: string;
             };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TeacherSubmissionsController_listOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
