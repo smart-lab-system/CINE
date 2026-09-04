@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ChevronDown, ChevronRight, Inbox } from 'lucide-react';
-import { useSessionOverview } from '@/hooks/useSubmissionOverview';
+import { useSessionOverview, useTeacherSubmissions } from '@/hooks/useSubmissionOverview';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   PHASE_LABELS,
   PHASE_VARIANTS,
@@ -21,6 +22,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function formatDateTime(iso: string): string {
@@ -138,6 +140,37 @@ export default function SubmissionsPage() {
   // cạnh nhau phải được phân loại theo cùng một mốc thời gian.
   const now = Date.now();
 
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const trimmedSearch = debouncedSearch.trim();
+  const isSearching = trimmedSearch !== '';
+
+  // pageSize 200: đủ để gom hết bài của MỘT sinh viên qua ~8 kỳ/năm (spec
+  // §1.2) trong một trang, nên luồng này không cần phân trang riêng.
+  const searchResults = useTeacherSubmissions(
+    { page: 1, pageSize: 200, search: trimmedSearch || undefined },
+    isSearching,
+  );
+
+  /**
+   * Phiên có xuất hiện trong kết quả search, kèm MSSV khớp — gom theo
+   * examSessionId. Endpoint /submissions trả về dòng-per-file, còn câu trả
+   * lời GV cần là "nằm ở phiên nào" (spec §3.4).
+   */
+  const searchGroups = useMemo(() => {
+    if (!isSearching) return [];
+    const byId = new Map<string, { item: SessionOverviewItem; mssv: string }>();
+    for (const row of searchResults.data?.items ?? []) {
+      const item = (data ?? []).find((session) => session.id === row.examSessionId);
+      if (item && !byId.has(item.id)) {
+        byId.set(item.id, { item, mssv: row.studentMssv });
+      }
+    }
+    return [...byId.values()].sort(
+      (a, b) => new Date(b.item.startTime).getTime() - new Date(a.item.startTime).getTime(),
+    );
+  }, [isSearching, searchResults.data, data]);
+
   const attention = useMemo(
     () =>
       (data ?? [])
@@ -147,13 +180,28 @@ export default function SubmissionsPage() {
   );
   const groups = useMemo(() => groupByCourseClass(data ?? [], now), [data, now]);
 
+  // Dùng chung cho cả nhánh loading và nhánh chính — ô search phải luôn có
+  // mặt, kể cả khi danh sách phiên (browse) còn đang tải.
+  const header = (
+    <>
+      <PageHeader
+        title="Quản lý bài thu"
+        description="Phiên thi nào đã thu đủ bài, phiên nào còn thiếu — và tìm bài của một sinh viên qua tất cả các kỳ."
+      />
+      <Input
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Tìm sinh viên theo MSSV hoặc tên..."
+        aria-label="Tìm sinh viên theo MSSV hoặc tên"
+        className="sm:max-w-sm"
+      />
+    </>
+  );
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-8">
-        <PageHeader
-          title="Quản lý bài thu"
-          description="Phiên thi nào đã thu đủ bài, phiên nào còn thiếu — và tìm bài của một sinh viên qua tất cả các kỳ."
-        />
+        {header}
         <Card>
           <CardContent
             className="flex flex-col gap-3 p-6"
@@ -170,10 +218,7 @@ export default function SubmissionsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader
-        title="Quản lý bài thu"
-        description="Phiên thi nào đã thu đủ bài, phiên nào còn thiếu — và tìm bài của một sinh viên qua tất cả các kỳ."
-      />
+      {header}
 
       {error ? (
         <Alert variant="destructive">
@@ -184,6 +229,40 @@ export default function SubmissionsPage() {
             </Button>
           </AlertDescription>
         </Alert>
+      ) : isSearching ? (
+        searchResults.isLoading ? (
+          <Card>
+            <CardContent className="flex flex-col gap-3 p-6">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
+            </CardContent>
+          </Card>
+        ) : searchGroups.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon={Inbox}
+              title={`Không tìm thấy bài nộp nào khớp «${trimmedSearch}»`}
+              // Honest về giới hạn: endpoint /submissions chỉ tìm được SV đã
+              // nộp ÍT NHẤT một file — SV chưa nộp gì thì search này không
+              // thấy. Nói thẳng điều đó thay vì một câu "không tìm thấy" trơ
+              // trọi — im lặng bỏ sót đúng ca GV đang cần tra ("em có nộp mà
+              // thầy!") còn tệ hơn một search thừa nhận điểm mù của nó.
+              description="Sinh viên chưa nộp gì sẽ không xuất hiện ở đây — hãy mở phiên thi tương ứng để xem danh sách vắng."
+              action={
+                <Button type="button" variant="outline" onClick={() => setSearch('')}>
+                  Xoá tìm kiếm
+                </Button>
+              }
+            />
+          </Card>
+        ) : (
+          <div data-animate className="flex flex-col gap-2">
+            {searchGroups.map(({ item, mssv }) => (
+              <SessionRow key={item.id} item={item} now={now} showContext studentHint={mssv} />
+            ))}
+          </div>
+        )
       ) : (data ?? []).length === 0 ? (
         <Card>
           <EmptyState

@@ -245,3 +245,78 @@ describe('SubmissionsPage — điều hướng', () => {
     expect(links.every((href) => !href!.includes('student='))).toBe(true);
   });
 });
+
+describe('SubmissionsPage — search theo MSSV', () => {
+  it('không gọi endpoint search khi ô tìm còn rỗng', () => {
+    render(<SubmissionsPage />);
+    expect(useTeacherSubmissionsMock).toHaveBeenCalledWith(expect.anything(), false);
+  });
+
+  it('gõ từ khoá thì bật search và thu hẹp về những phiên có SV đó', async () => {
+    useSessionOverviewMock.mockReturnValue({
+      data: [
+        make({ id: 's1', name: 'Giữa kỳ #2' }),
+        make({ id: 's2', name: 'Cuối kỳ', courseName: 'CTDL', courseId: 'course-2' }),
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    useTeacherSubmissionsMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 'sub-1',
+            examSessionId: 's2',
+            examSessionName: 'Cuối kỳ',
+            requiredFilename: 'Cau1.docx',
+            studentMssv: '21520123',
+            studentNameInput: 'Nguyễn Văn A',
+            status: 'collected',
+            submittedAt: new Date().toISOString(),
+            fileSize: '1024',
+            downloadUrl: 'https://example.test/f',
+          },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SubmissionsPage />);
+    // useDebouncedValue là hook THẬT (300ms), không mock — dùng waitFor để
+    // chờ nó nhả giá trị. `require()` không tồn tại trong vitest ESM: import
+    // fireEvent/waitFor ở đầu file cùng render/screen.
+    fireEvent.change(screen.getByLabelText('Tìm sinh viên theo MSSV hoặc tên'), {
+      target: { value: '21520123' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Cuối kỳ')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Giữa kỳ #2')).not.toBeInTheDocument();
+    const link = screen
+      .getAllByRole('link')
+      .find((el) => el.getAttribute('href')?.startsWith('/teacher/submissions/s2'));
+    expect(link?.getAttribute('href')).toBe('/teacher/submissions/s2?student=21520123');
+  });
+
+  it('empty state của search nói rõ SV chưa nộp gì sẽ không xuất hiện', async () => {
+    useTeacherSubmissionsMock.mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      error: null,
+    });
+    render(<SubmissionsPage />);
+    fireEvent.change(screen.getByLabelText('Tìm sinh viên theo MSSV hoặc tên'), {
+      target: { value: 'khongton' },
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Sinh viên chưa nộp gì sẽ không xuất hiện ở đây/),
+      ).toBeInTheDocument();
+    });
+  });
+});
