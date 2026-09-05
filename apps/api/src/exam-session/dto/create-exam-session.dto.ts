@@ -47,6 +47,37 @@ class IsAfterStartTimeConstraint implements ValidatorConstraintInterface {
 export const MIN_EXAM_DURATION_MINUTES = 15;
 const MIN_EXAM_DURATION_MS = MIN_EXAM_DURATION_MINUTES * 60 * 1000;
 
+/**
+ * How far into the past `startTime` may be declared.
+ *
+ * Not zero. The realistic case is a lecturer who forgot to create the
+ * session, whose exam is already under way, and who is now entering the
+ * time it actually started — refusing that would push them into recording
+ * a start time they know is wrong. What this does refuse is a session
+ * backdated far enough that it is describing a different event: an exam
+ * last week, or a window chosen to sit around a room booking that has
+ * already passed.
+ */
+export const MAX_BACKDATE_MINUTES = 30;
+const MAX_BACKDATE_MS = MAX_BACKDATE_MINUTES * 60 * 1000;
+
+@ValidatorConstraint({ name: 'IsNotExcessivelyBackdated', async: false })
+class IsNotExcessivelyBackdatedConstraint implements ValidatorConstraintInterface {
+  validate(startTime: string): boolean {
+    const start = new Date(startTime).getTime();
+    if (!Number.isFinite(start)) {
+      // @IsISO8601 already reports this field; a second message about the
+      // same value would only compete with it.
+      return true;
+    }
+    return start >= Date.now() - MAX_BACKDATE_MS;
+  }
+
+  defaultMessage(): string {
+    return `startTime must not be more than ${MAX_BACKDATE_MINUTES} minutes in the past`;
+  }
+}
+
 @ValidatorConstraint({ name: 'HasMinimumDuration', async: false })
 class HasMinimumDurationConstraint implements ValidatorConstraintInterface {
   validate(endTime: string, args: ValidationArguments): boolean {
@@ -93,6 +124,7 @@ export class CreateExamSessionDto {
   examType!: ExamType;
 
   @IsISO8601()
+  @Validate(IsNotExcessivelyBackdatedConstraint)
   startTime!: string;
 
   @IsISO8601()

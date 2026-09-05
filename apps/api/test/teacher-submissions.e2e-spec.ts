@@ -160,6 +160,23 @@ describe('Teacher submissions (e2e)', () => {
       [MSSV_FOREIGN, foreignCourse.id, foreignClass.id, otherTeacherId],
     );
 
+    // All three sessions below run at the same time — every one of them
+    // has to be live for its agent to connect and submit. That means no
+    // two of them may share a room (ex_exam_session_room_overlap), so each
+    // gets its own. `room` above is still the first one handed out.
+    let roomsHandedOut = 0;
+    async function freshRoomId(): Promise<string> {
+      roomsHandedOut += 1;
+      if (roomsHandedOut === 1) {
+        return room.id as string;
+      }
+      const [extra] = await dataSource.query(
+        `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
+        [`Phòng nộp bài ${stamp}-${roomsHandedOut}`],
+      );
+      return extra.id as string;
+    }
+
     async function createSession(name: string, forClassId: string, token: string) {
       const response = await request(app.getHttpServer())
         .post('/exam-sessions')
@@ -167,7 +184,7 @@ describe('Teacher submissions (e2e)', () => {
         .send({
           name,
           classId: forClassId,
-          roomId: room.id,
+          roomId: await freshRoomId(),
           examType: 'TK',
           startTime: new Date(Date.now() - 60_000).toISOString(),
           endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -183,7 +200,17 @@ describe('Teacher submissions (e2e)', () => {
 
     const sessionA = await createSession(`Phiên A ${stamp}`, classId, teacherToken);
     sessionAId = sessionA.id;
-    const sessionB = await createSession(`Phiên B ${stamp}`, classId, teacherToken);
+    // Its own class, for the same reason it needs its own room: A and B
+    // run concurrently and one class cannot sit two exams at once. Join
+    // authentication is at course level, so MSSV_B still gets in — and
+    // "every session this teacher owns" is decided by who owns the class,
+    // which is still this teacher.
+    const [classBRow] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [course.id, `Nhóm B ${stamp}`, teacherId],
+    );
+    const sessionB = await createSession(`Phiên B ${stamp}`, classBRow.id, teacherToken);
     sessionBId = sessionB.id;
     const foreignSession = await createSession(`Phiên lạ ${stamp}`, foreignClass.id, otherToken);
     foreignSessionId = foreignSession.id;

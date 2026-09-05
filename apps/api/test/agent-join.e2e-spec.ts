@@ -111,6 +111,23 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     );
     classId = klass.id;
 
+    // The two sessions below both run at the same time, so they cannot
+    // share a room or a class (ex_exam_session_room_overlap /
+    // ex_exam_session_class_overlap). The templated session keeps the room
+    // above, because `roomName` is what its {PHONG} assertion expects; the
+    // plain session gets these. Join authentication is at COURSE level, so
+    // a second class in the same course changes nothing these tests are
+    // about — the enrolled student still gets in.
+    const [plainRoom] = await dataSource.query(
+      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
+      [`Agent Join Plain Room ${stamp}`],
+    );
+    const [plainClass] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+       VALUES ($1, 'N02', $2) RETURNING id`,
+      [courseId, teacherId],
+    );
+
     // One student on the roster, one deliberately absent from it.
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
@@ -127,8 +144,8 @@ describe('agent:join enrollment enforcement (e2e)', () => {
         // The session names its CLASS; the course is derived from it. Join
         // authentication still happens at course level via enrollment —
         // that separation is what these tests are about.
-        classId: klass.id,
-        roomId: room.id,
+        classId: plainClass.id,
+        roomId: plainRoom.id,
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),

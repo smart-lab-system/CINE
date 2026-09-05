@@ -1,4 +1,4 @@
-import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { Check, Column, Entity, Exclusion, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { CourseEntity } from '../../course/entities/course.entity';
@@ -26,6 +26,26 @@ export type ExamType = 'TK' | 'GK' | 'CK';
 // to a single class/room.
 @Entity({ name: 'exam_session' })
 @Check('ck_exam_session_time', 'end_time > start_time')
+// Two exams cannot share a room, and one class cannot sit two exams at
+// once. See AddExamSessionOverlapConstraints for why these are EXCLUDE
+// constraints rather than a check in ExamSessionService (short version: a
+// pre-INSERT check cannot see a row another request is inserting right
+// now, and the service is not the only thing that can write this table).
+//
+// `'[)'` makes the range half-open, so back-to-back exams do not collide.
+// The predicate is what lets a session that finished early release its
+// room for the rest of its declared window — rooms are scarce, and holding
+// one against a finished exam would be a worse bug than the one these
+// constraints prevent. `class_id` is nullable and NULL never satisfies
+// `WITH =`, so a session with no class holds no class slot.
+@Exclusion(
+  'ex_exam_session_room_overlap',
+  `USING gist ("room_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'completed' AND "status" <> 'cancelled')`,
+)
+@Exclusion(
+  'ex_exam_session_class_overlap',
+  `USING gist ("class_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'completed' AND "status" <> 'cancelled')`,
+)
 // Backs ExamSessionScheduler's sweep query (status = 'active' AND
 // end_time <= now()), which runs every 30 seconds forever. Leading with
 // `status` is what makes it useful: the overwhelming majority of rows

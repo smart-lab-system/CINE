@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createExamSessionSchema } from './page';
+import { createExamSessionSchema, describeCreateError } from './schema';
 
 // QA-reported gap: nothing stopped a teacher from creating a session a few
 // seconds long. Mirrors the backend's HasMinimumDurationConstraint (see
@@ -22,7 +22,7 @@ describe('createExamSessionSchema — minimum duration', () => {
   }
 
   it('rejects a session shorter than 15 minutes, pointing at endTime', () => {
-    const start = new Date('2026-09-01T08:00:00');
+    const start = futureStart();
     const end = new Date(start.getTime() + 5 * 60_000); // 5 minutes
 
     const result = createExamSessionSchema.safeParse(
@@ -37,7 +37,7 @@ describe('createExamSessionSchema — minimum duration', () => {
   });
 
   it('accepts a session exactly 15 minutes long — the floor is inclusive', () => {
-    const start = new Date('2026-09-01T08:00:00');
+    const start = futureStart();
     const end = new Date(start.getTime() + 15 * 60_000);
 
     const result = createExamSessionSchema.safeParse(
@@ -48,7 +48,7 @@ describe('createExamSessionSchema — minimum duration', () => {
   });
 
   it('does not stack the "too short" message on top of an invalid ordering', () => {
-    const start = new Date('2026-09-01T08:00:00');
+    const start = futureStart();
     const end = new Date(start.getTime() - 5 * 60_000); // before start
 
     const result = createExamSessionSchema.safeParse(
@@ -63,6 +63,90 @@ describe('createExamSessionSchema — minimum duration', () => {
     }
   });
 });
+
+describe('createExamSessionSchema — backdating', () => {
+  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
+
+  function baseValues(startTime: string, endTime: string) {
+    return {
+      name: 'Kiểm tra giữa kỳ',
+      classId: VALID_UUID,
+      roomId: VALID_UUID,
+      examType: 'GK' as const,
+      startTime,
+      endTime,
+      requiredFilenames: [{ value: 'Cau1.docx' }],
+    };
+  }
+
+  it('accepts a session declared a few minutes after it started', () => {
+    // The lecturer forgot to create the session and is now entering the
+    // time the exam really began. Refusing this would make them record a
+    // start time they know is wrong.
+    const start = new Date(Date.now() - 10 * 60_000);
+    const end = new Date(Date.now() + 60 * 60_000);
+
+    const result = createExamSessionSchema.safeParse(
+      baseValues(toLocalInput(start), toLocalInput(end)),
+    );
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a session backdated past the grace window, pointing at startTime', () => {
+    const start = new Date(Date.now() - 45 * 60_000);
+    const end = new Date(Date.now() + 60 * 60_000);
+
+    const result = createExamSessionSchema.safeParse(
+      baseValues(toLocalInput(start), toLocalInput(end)),
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'startTime');
+      expect(issue?.message).toBe(
+        'Thời gian bắt đầu không được sớm hơn hiện tại quá 30 phút',
+      );
+    }
+  });
+});
+
+describe('describeCreateError', () => {
+  it('shows the server’s own explanation when there is one', () => {
+    // A room clash names the room and the session holding it. Replacing
+    // that with a generic sentence is what the old hardcoded banner did,
+    // and it sent lecturers looking at their filename list instead.
+    const message = 'Phòng A1-05 đã có phiên thi "Ca sáng" lúc 08:00–10:00 ngày 12/09.';
+
+    expect(describeCreateError({ statusCode: 409, message })).toBe(message);
+  });
+
+  it('joins the list Nest returns for a failed validation', () => {
+    expect(
+      describeCreateError({
+        statusCode: 400,
+        message: ['startTime must not be more than 30 minutes in the past', 'name too long'],
+      }),
+    ).toBe('startTime must not be more than 30 minutes in the past. name too long');
+  });
+
+  it('falls back when the failure carried no message at all', () => {
+    // Network failure, or a status openapi-fetch could not parse a body
+    // from — there is nothing specific to say, so say something true.
+    expect(describeCreateError(null)).toBe(
+      'Không tạo được phiên thi. Vui lòng kiểm tra lại thông tin và thử lại.',
+    );
+  });
+});
+
+// A day out, so nothing here trips the backdating rule as the calendar
+// moves — the earlier fixed 2026-09-01 date silently became a past date.
+function futureStart(): Date {
+  const start = new Date();
+  start.setDate(start.getDate() + 1);
+  start.setHours(8, 0, 0, 0);
+  return start;
+}
 
 // Matches the "YYYY-MM-DDTHH:mm" shape <input type="datetime-local"> produces —
 // the schema validates this raw local-time string, not an ISO string.
