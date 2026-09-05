@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { gsap, useGSAP, MOTION, MOTION_OK } from '@/lib/gsap';
 import type { NavItem } from '@/lib/nav-config';
+import { cn } from '@/lib/utils';
 
 interface SidebarNavProps {
   items: NavItem[];
@@ -12,6 +13,10 @@ interface SidebarNavProps {
    *  the sheet title already says where you are. */
   label?: string;
   onNavigate?: () => void;
+  /** Icon-only rail. The labels stay in the DOM as sr-only text — hiding
+   *  them with `display: none` would leave each link with no accessible
+   *  name at all, and `title` alone is a weak substitute. */
+  collapsed?: boolean;
 }
 
 /** Height of the teal rail, in px. Fixed so only `y` ever animates: height
@@ -28,7 +33,7 @@ const RAIL_HEIGHT = 20;
  * as a hover artifact at a glance; the rail is the piece that makes the
  * change legible as movement rather than a redraw.
  */
-export function SidebarNav({ items, label, onNavigate }: SidebarNavProps) {
+export function SidebarNav({ items, label, onNavigate, collapsed = false }: SidebarNavProps) {
   const pathname = usePathname();
   const listRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLSpanElement>(null);
@@ -97,12 +102,20 @@ export function SidebarNav({ items, label, onNavigate }: SidebarNavProps) {
     // to y=0 before each new tween, so every navigation would flash the
     // indicator to the top of the list first. `overwrite: 'auto'` above is
     // what supersedes the previous tween instead.
-    { dependencies: [activeHref] },
+    // `collapsed` is a dependency because the rail's `y` comes from a
+    // one-off offsetTop read: collapsing the sidebar re-lays-out the list,
+    // and without this the rail would stay parked at the old offset.
+    { dependencies: [activeHref, collapsed] },
   );
 
   return (
-    <nav className="flex flex-col gap-2 px-3 py-2" aria-label="Điều hướng chính">
-      {label && <p className="section-label px-3 pt-2">{label}</p>}
+    <nav
+      className={cn('flex flex-col gap-2 py-2', collapsed ? 'px-2' : 'px-3')}
+      aria-label="Điều hướng chính"
+    >
+      {label && (
+        <p className={cn('section-label px-3 pt-2', collapsed && 'sr-only')}>{label}</p>
+      )}
 
       <div ref={listRef} className="relative flex flex-col gap-1">
         <span
@@ -123,10 +136,11 @@ export function SidebarNav({ items, label, onNavigate }: SidebarNavProps) {
               onClick={onNavigate}
               data-active={isActive}
               aria-current={isActive ? 'page' : undefined}
-              className="sidebar-item"
+              title={collapsed ? item.label : undefined}
+              className={cn('sidebar-item', collapsed && 'justify-center px-0')}
             >
               <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-              {item.label}
+              <span className={cn('truncate', collapsed && 'sr-only')}>{item.label}</span>
             </Link>
           );
         })}

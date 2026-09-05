@@ -251,8 +251,12 @@
      indigo ground, indigo label, and the teal rail that slides between
      items (see sidebar-nav.tsx) — because a single cue reads as a hover
      accident at a glance. */
+  /* min-h is what keeps a row the same height with its label hidden as it
+     is with the label showing (collapsed sidebar) — the teal active rail
+     is positioned from a measured offsetTop, so a 1-2px drift per row
+     would accumulate down the list. */
   .sidebar-item {
-    @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-small font-medium text-muted-foreground;
+    @apply relative flex min-h-10 items-center gap-3 rounded-lg px-3 py-2.5 text-small font-medium text-muted-foreground;
     transition:
       background-color 150ms ease,
       color 150ms ease;

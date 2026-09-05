@@ -40,7 +40,11 @@ function FacetRow({
       aria-pressed={active}
       className={cn(
         'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-small transition-colors',
-        active ? 'bg-foreground text-background' : 'hover:bg-surface-2',
+        // Indigo là màu primary của hệ thống. Nền đen cũ đọc như một ô bị
+        // vô hiệu hoá chứ không phải một bộ lọc đang bật.
+        active
+          ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary-strong'
+          : 'hover:bg-surface-2',
       )}
     >
       {dot && <span className={cn('h-2 w-2 shrink-0 rounded-full', dot)} aria-hidden="true" />}
