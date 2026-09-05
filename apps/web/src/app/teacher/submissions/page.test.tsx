@@ -1,16 +1,19 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-// fireEvent/waitFor dùng ở Task 5 (search) — import sẵn để Task 5 chỉ thêm
-// describe block, không phải sửa dòng import.
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 
 const useSessionOverviewMock = vi.fn();
 const useTeacherSubmissionsMock = vi.fn();
 
+const archiveMutate = vi.fn();
+const closeMutate = vi.fn();
+
 vi.mock('@/hooks/useSubmissionOverview', () => ({
   useSessionOverview: () => useSessionOverviewMock(),
   useTeacherSubmissions: (...args: unknown[]) => useTeacherSubmissionsMock(...args),
+  useArchiveSession: () => ({ mutate: archiveMutate }),
+  useCloseAttention: () => ({ mutate: closeMutate }),
 }));
 
 vi.mock('next/link', () => ({
@@ -42,8 +45,13 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     rosterKnown: true,
     fullySubmittedCount: 40,
     partialCount: 0,
-    notSubmittedCount: 0,
+    attendedNoSubmissionCount: 0,
+    neverAttendedCount: 0,
     invalidFileCount: 0,
+    semesterId: 'sem-1',
+    semesterName: 'Học kỳ 1 2026-2027',
+    archivedAt: null,
+    attentionClosedAt: null,
     ...overrides,
   };
 }
@@ -97,146 +105,53 @@ describe('SubmissionsPage — trạng thái tải', () => {
   });
 });
 
-describe('SubmissionsPage — dải cần chú ý', () => {
-  it('không render dải khi mọi phiên đều ổn', () => {
+describe('SubmissionsPage — bố cục mới', () => {
+  it('KHÔNG còn dải "Cần chú ý" là danh sách riêng', () => {
+    useSessionOverviewMock.mockReturnValue({
+      data: [make({ id: 's1', name: 'Giữa kỳ #2', neverAttendedCount: 2, fullySubmittedCount: 38 })],
+      isLoading: false, error: null, refetch: vi.fn(),
+    });
     render(<SubmissionsPage />);
+    // Tên phiên xuất hiện đúng MỘT lần trên cả trang — đây là thứ chữa phàn
+    // nàn "thấy cùng một phiên hai lần".
+    expect(screen.getAllByText('Giữa kỳ #2')).toHaveLength(1);
     expect(screen.queryByRole('region', { name: 'Cần chú ý' })).not.toBeInTheDocument();
   });
 
-  it('phiên cần chú ý xuất hiện ở CẢ dải ghim VÀ nhóm Môn/Lớp của nó', () => {
-    useSessionOverviewMock.mockReturnValue({
-      data: [make({ id: 's1', name: 'Giữa kỳ #2', invalidFileCount: 2, fullySubmittedCount: 38 })],
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-    render(<SubmissionsPage />);
-
-    const strip = screen.getByRole('region', { name: 'Cần chú ý' });
-    expect(within(strip).getByText('Giữa kỳ #2')).toBeInTheDocument();
-
-    // Spec §4.4: KHÔNG được lọc nó khỏi nhóm gốc — nhóm phải đầy đủ.
-    const group = screen.getByRole('region', { name: /Nhập môn CSDL/ });
-    expect(within(group).getByText('Giữa kỳ #2')).toBeInTheDocument();
-    expect(within(group).getByText(/1 cần chú ý/)).toBeInTheDocument();
-  });
-
-  it('sắp lý do theo ưu tiên và hiện đủ mọi lý do', () => {
+  it('hiện dải cảnh báo phòng khi mọi phiên đỏ cùng một phòng, khác môn', () => {
     useSessionOverviewMock.mockReturnValue({
       data: [
-        make({
-          id: 's1',
-          invalidFileCount: 2,
-          partialCount: 3,
-          notSubmittedCount: 5,
-          fullySubmittedCount: 32,
-        }),
+        make({ id: 'a', courseId: 'c1', roomName: 'A3-01',
+               attendedNoSubmissionCount: 2, fullySubmittedCount: 38 }),
+        make({ id: 'b', courseId: 'c2', courseName: 'CTDL', classId: 'k2', className: 'N05',
+               roomName: 'A3-01', attendedNoSubmissionCount: 3, fullySubmittedCount: 37 }),
       ],
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
+      isLoading: false, error: null, refetch: vi.fn(),
     });
     render(<SubmissionsPage />);
-
-    const strip = screen.getByRole('region', { name: 'Cần chú ý' });
-    expect(within(strip).getByText('2 file không hợp lệ')).toBeInTheDocument();
-    expect(within(strip).getByText('3 sinh viên nộp thiếu file')).toBeInTheDocument();
-    expect(within(strip).getByText('5 sinh viên chưa nộp')).toBeInTheDocument();
+    expect(screen.getByText(/đều ở phòng/)).toBeInTheDocument();
   });
 
-  it('phiên trong grace period không lên dải', () => {
+  it('KHÔNG hiện dải cảnh báo khi chỉ một phiên đỏ', () => {
     useSessionOverviewMock.mockReturnValue({
-      data: [
-        make({
-          endTime: new Date(Date.now() - 60_000).toISOString(),
-          notSubmittedCount: 5,
-          fullySubmittedCount: 35,
-        }),
-      ],
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
+      data: [make({ id: 'a', attendedNoSubmissionCount: 2, fullySubmittedCount: 38 })],
+      isLoading: false, error: null, refetch: vi.fn(),
     });
     render(<SubmissionsPage />);
-
-    expect(screen.queryByRole('region', { name: 'Cần chú ý' })).not.toBeInTheDocument();
-    // Spec §4.4: nhóm không có phiên cần chú ý mặc định thu gọn — phiên này
-    // không cần chú ý (còn trong grace), nên phải mở nhóm ra mới thấy badge.
-    fireEvent.click(screen.getByRole('button'));
-    expect(screen.getByText('Đang thu bài')).toBeInTheDocument();
-  });
-});
-
-describe('SubmissionsPage — tỉ lệ', () => {
-  it('hiện X/Y khi biết roster và có file bắt buộc', () => {
-    useSessionOverviewMock.mockReturnValue({
-      data: [make({ fullySubmittedCount: 38, notSubmittedCount: 2 })],
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-    render(<SubmissionsPage />);
-    // notSubmittedCount: 2 (> 0) cũng là một lý do cần chú ý (§4.1), nên
-    // phiên này hợp lệ nằm ở CẢ dải ghim VÀ nhóm (§4.4, khoá ở describe
-    // "dải cần chú ý") — soi đúng nhóm để không đụng bản sao trên dải ghim.
-    const group = screen.getByRole('region', { name: /Nhập môn CSDL/ });
-    expect(within(group).getByText('38/40 đã nộp đủ')).toBeInTheDocument();
+    expect(screen.queryByText(/đều ở phòng/)).not.toBeInTheDocument();
   });
 
-  it('phiên không gắn lớp: không hiện mẫu số', () => {
-    useSessionOverviewMock.mockReturnValue({
-      data: [
-        make({
-          classId: null,
-          className: null,
-          rosterKnown: false,
-          expectedCount: 5,
-          fullySubmittedCount: 5,
-          notSubmittedCount: 0,
-        }),
-      ],
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    });
+  it('sĩ số nằm ở tiêu đề nhóm, và không dòng nào hiện tỉ lệ x/y', () => {
     render(<SubmissionsPage />);
-    // Spec §4.4: nhóm không có phiên cần chú ý mặc định thu gọn.
-    fireEvent.click(screen.getByRole('button'));
-
-    expect(screen.getByText('đã thu bài của 5 sinh viên')).toBeInTheDocument();
-    expect(screen.getByText('phiên không gắn lớp')).toBeInTheDocument();
-    expect(screen.queryByText(/\/5 đã nộp đủ/)).not.toBeInTheDocument();
-  });
-
-  it('chưa khai file bắt buộc: không hiện tỉ lệ', () => {
-    useSessionOverviewMock.mockReturnValue({
-      data: [make({ requiredDeliverableCount: 0, fullySubmittedCount: 0 })],
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-    render(<SubmissionsPage />);
-    // Spec §4.4: nhóm không có phiên cần chú ý mặc định thu gọn.
-    fireEvent.click(screen.getByRole('button'));
-
-    expect(screen.getByText('phiên chưa khai file bắt buộc')).toBeInTheDocument();
+    expect(screen.getByText(/40 sinh viên/)).toBeInTheDocument();
     expect(screen.queryByText(/đã nộp đủ/)).not.toBeInTheDocument();
-    // Không có gì trung thực để đếm ở đây (expectedCount là sĩ số lớp, không
-    // phải số đã nộp) — khoá lại để con số sai không lặng lẽ quay lại. Soi
-    // trong nhóm (không phải toàn `screen`): mô tả tĩnh của PageHeader cũng
-    // chứa cụm "đã thu" ("...đã thu đủ bài, phiên nào còn thiếu...") nên một
-    // query không giới hạn sẽ khớp nhầm câu đó.
-    const group = screen.getByRole('region', { name: /Nhập môn CSDL/ });
-    expect(within(group).queryByText(/đã thu/)).not.toBeInTheDocument();
   });
 });
 
 describe('SubmissionsPage — điều hướng', () => {
   it('mỗi phiên link tới trang chi tiết, không kèm ?student=', () => {
     render(<SubmissionsPage />);
-    // Spec §4.4: nhóm không có phiên cần chú ý mặc định thu gọn — phiên
-    // mặc định của `make()` không cần chú ý, nên phải mở nhóm ra mới có link.
-    fireEvent.click(screen.getByRole('button'));
+    // Bảng không còn thu gọn nhóm: mọi dòng hiện sẵn, không phải bấm mở.
     const links = screen
       .getAllByRole('link')
       .map((el) => el.getAttribute('href'))
@@ -292,9 +207,13 @@ describe('SubmissionsPage — search theo MSSV', () => {
       target: { value: '21520123' },
     });
 
+    // Phải chờ một thứ CHỈ chế độ search mới vẽ. Bảng duyệt giờ hiện sẵn mọi
+    // dòng (không còn nhóm thu gọn), nên chờ 'Cuối kỳ' sẽ khớp ngay ô trong
+    // bảng duyệt — tức là qua waitFor vì lý do sai, trước cả khi debounce nhả.
     await waitFor(() => {
-      expect(screen.getByText('Cuối kỳ')).toBeInTheDocument();
+      expect(screen.getByText('Sinh viên 21520123 trong phiên này')).toBeInTheDocument();
     });
+    expect(screen.getByText('Cuối kỳ')).toBeInTheDocument();
     expect(screen.queryByText('Giữa kỳ #2')).not.toBeInTheDocument();
     const link = screen
       .getAllByRole('link')
