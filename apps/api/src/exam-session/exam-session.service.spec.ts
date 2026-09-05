@@ -5,6 +5,7 @@ import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { ClassService } from '../course/class.service';
 import { AttendanceService } from '../agent-connection/attendance.service';
+import { ScheduleConflictService } from './schedule-conflict.service';
 
 /**
  * Covers the exam_session state machine added in the submission phase:
@@ -55,6 +56,9 @@ function createHarness(affected: number) {
     // quietly return a convenient stub.
     {} as ClassService,
     {} as AttendanceService,
+    // Same reasoning as ClassService above: only create() consults it, and
+    // every test here is about finalize.
+    {} as ScheduleConflictService,
   );
 
   return { service, sessions, builder, published };

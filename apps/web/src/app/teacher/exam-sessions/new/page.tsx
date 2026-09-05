@@ -20,122 +20,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import { RequiredFilenamesInput } from './_components/RequiredFilenamesInput';
 
-// Must stay byte-for-byte identical to FILENAME_TEMPLATE_REGEX in
-// apps/api/src/exam-session/filename-template.ts. It is the old
-// SAFE_FILENAME_REGEX plus the four tokens the server fills per student —
-// the same character class and the same `(?!.*\.\.)` lookahead, so a
-// pattern is held to exactly the path-traversal rules a literal name is. A
-// mismatch here means the form accepts something the server 400s on.
-const FILENAME_TEMPLATE_REGEX =
-  /^(?!.*\.\.)(?:[A-Za-z0-9_.-]|\{(?:MSSV|TEN|PHONG|SOMAY)\})+$/;
-
-const EXAM_TYPES = ['TK', 'GK', 'CK'] as const;
-
-// Must stay in sync with MIN_EXAM_DURATION_MINUTES in
-// apps/api/src/exam-session/dto/create-exam-session.dto.ts — QA-reported
-// gap: nothing stopped a teacher from creating a session a few seconds
-// long. Catching it here means a teacher sees the message next to the
-// field they need to fix, instead of a generic API-error banner after a
-// round trip.
-const MIN_EXAM_DURATION_MINUTES = 15;
-
-// Exported so the rule can be unit-tested directly against the schema
-// (this form has no other test coverage yet — see page.test.tsx history).
-export const createExamSessionSchema = z
-  .object({
-    name: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập tên phiên thi')
-      .max(200, 'Tên phiên thi tối đa 200 ký tự'),
-    classId: z.string().uuid('Vui lòng chọn lớp thi'),
-    roomId: z.string().uuid('Vui lòng chọn phòng thi'),
-    examType: z.enum(EXAM_TYPES, { message: 'Vui lòng chọn loại kỳ thi' }),
-    // Bound to <input type="datetime-local">, so this is the browser's
-    // "YYYY-MM-DDTHH:mm" local-time string, not ISO 8601 yet — converted to
-    // a real ISO string in onSubmit before it reaches the API (the backend's
-    // @IsISO8601() needs a full ISO string, e.g. with seconds + offset).
-    startTime: z.string().min(1, 'Vui lòng chọn thời gian bắt đầu'),
-    endTime: z.string().min(1, 'Vui lòng chọn thời gian kết thúc'),
-    requiredFilenames: z
-      .array(
-        z.object({
-          value: z
-            .string()
-            .trim()
-            .min(1, 'Tên file không được để trống')
-            .regex(
-              FILENAME_TEMPLATE_REGEX,
-              'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
-            ),
-        }),
-      )
-      .min(1, 'Cần khai báo ít nhất 1 file bắt buộc'),
-  })
-  .refine(
-    (values) => {
-      const start = new Date(values.startTime).getTime();
-      const end = new Date(values.endTime).getTime();
-      return Number.isFinite(start) && Number.isFinite(end) && end > start;
-    },
-    {
-      message: 'Thời gian kết thúc phải sau thời gian bắt đầu',
-      path: ['endTime'],
-    },
-  )
-  // Mirrors the backend's HasMinimumDurationConstraint. Skips entirely when
-  // end <= start — that's the previous .refine()'s error to report, not a
-  // "too short" message stacked on top of an already-invalid ordering.
-  .refine(
-    (values) => {
-      const start = new Date(values.startTime).getTime();
-      const end = new Date(values.endTime).getTime();
-      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return true;
-      return end - start >= MIN_EXAM_DURATION_MINUTES * 60_000;
-    },
-    {
-      message: `Phiên thi phải kéo dài ít nhất ${MIN_EXAM_DURATION_MINUTES} phút`,
-      path: ['endTime'],
-    },
-  )
-  // Mirrors the backend's @ArrayUnique() on requiredFilenames (see
-  // create-exam-session.dto.ts) — without this, a duplicate filename
-  // (a realistic typo: retyping the same name twice) passes every
-  // per-field check here, reaches the API, and only then hits the DB's
-  // unique index (uq_required_deliverable_session_filename), coming back
-  // as a 409 the generic API-error banner can't explain. Catch it
-  // client-side and point at exactly which entry is the duplicate.
-  .refine(
-    (values) => {
-      const seen = new Set<string>();
-      for (const filename of values.requiredFilenames) {
-        if (seen.has(filename.value)) return false;
-        seen.add(filename.value);
-      }
-      return true;
-    },
-    (values) => {
-      const seen = new Set<string>();
-      let duplicateIndex = -1;
-      for (const [index, filename] of values.requiredFilenames.entries()) {
-        if (seen.has(filename.value)) {
-          duplicateIndex = index;
-          break;
-        }
-        seen.add(filename.value);
-      }
-      const duplicateName = duplicateIndex === -1 ? '' : values.requiredFilenames[duplicateIndex].value;
-      return {
-        message: `Tên file "${duplicateName}" bị trùng — mỗi file bắt buộc phải có tên khác nhau.`,
-        path:
-          duplicateIndex === -1
-            ? ['requiredFilenames']
-            : ['requiredFilenames', duplicateIndex, 'value'],
-      };
-    },
-  );
-
-export type CreateExamSessionFormValues = z.infer<typeof createExamSessionSchema>;
+import {
+  createExamSessionSchema,
+  describeCreateError,
+  EXAM_TYPES,
+  type CreateExamSessionFormValues,
+} from './schema';
 
 const EMPTY_FORM: CreateExamSessionFormValues = {
   name: '',
@@ -491,14 +381,14 @@ export default function NewExamSessionPage() {
                 <Alert variant="destructive">
                   <CircleAlert />
                   <AlertDescription>
-                    {/* A retry can never succeed for a duplicate-filename
-                        409 — the client-side .refine() above should catch
-                        that before submit, but this is the fallback for
-                        anything that still reaches the API (a race, or a
-                        bypass), so it points at a real, checkable cause
-                        instead of blindly suggesting "thử lại". */}
-                    Không tạo được phiên thi. Vui lòng kiểm tra danh sách file bắt buộc có bị
-                    trùng tên không, sau đó thử lại.
+                    {/* The server's message, not a guess at what went
+                        wrong. A room or class clash names the booking
+                        already holding the slot — the one thing that tells
+                        the lecturer what to change. This banner used to
+                        hardcode the duplicate-filename explanation, which
+                        sent anyone hitting a clash to inspect their
+                        filename list instead. */}
+                    {describeCreateError(createExamSession.error)}
                   </AlertDescription>
                 </Alert>
               )}

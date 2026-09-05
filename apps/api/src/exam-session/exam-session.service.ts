@@ -26,11 +26,14 @@ import {
   EXAM_SESSION_CODE_LENGTH,
   EXAM_SESSION_CODE_MAX_ATTEMPTS,
 } from './exam-session.types';
+import { ScheduleConflictService } from './schedule-conflict.service';
 
 // Name of the unique index from AddExamSessionNameCode1787795324287 — used
 // to tell "the code we guessed collided, try another one" apart from any
 // other unique/check violation the transaction might raise.
 const UNIQUE_CODE_CONSTRAINT = 'uq_exam_session_code';
+
+
 
 @Injectable()
 export class ExamSessionService {
@@ -43,6 +46,7 @@ export class ExamSessionService {
     private readonly events: ExamSessionEvents,
     private readonly classes: ClassService,
     private readonly attendance: AttendanceService,
+    private readonly scheduleConflicts: ScheduleConflictService,
   ) {}
 
   /**
@@ -62,6 +66,21 @@ export class ExamSessionService {
     // scope, and this is the only thing standing between them and running an
     // exam for someone else's class.
     const klass = await this.classes.findTaughtBy(dto.classId, teacherId);
+
+    // Advisory, and deliberately outside the retry loop below: the
+    // authority on this rule is the pair of EXCLUDE constraints on the
+    // table (see AddExamSessionOverlapConstraints), which is what holds
+    // when two lecturers submit at the same instant. What this adds is the
+    // only thing a constraint cannot: a message that names the room, the
+    // session already holding it, and when — so the lecturer knows what to
+    // change. Without it they get "This request conflicts with an existing
+    // record" from PostgresExceptionFilter and no way to act on it.
+    await this.scheduleConflicts.assertNone(
+      dto.roomId,
+      klass.id,
+      new Date(dto.startTime),
+      new Date(dto.endTime),
+    );
 
     for (let attempt = 1; attempt <= EXAM_SESSION_CODE_MAX_ATTEMPTS; attempt++) {
       const code = this.generateCode();

@@ -35,6 +35,23 @@ describe('Submission overview (e2e)', () => {
    * `detachClass` và `dropDeliverables` bên dưới. Đừng thử gửi null/[] vào
    * API: đó là 400, không phải kịch bản test.
    */
+  /**
+   * Mỗi phiên tạo ra chiếm một khung giờ riêng, không đè lên phiên nào
+   * khác — cả spec dùng chung một phòng và một lớp, mà hai phiên chưa kết
+   * thúc thì không được trùng (ex_exam_session_room_overlap /
+   * ex_exam_session_class_overlap).
+   */
+  let windowCursor = 0;
+  function freshFutureWindow() {
+    windowCursor += 1;
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() + windowCursor);
+    start.setUTCHours(8, 0, 0, 0);
+    const end = new Date(start);
+    end.setUTCHours(10);
+    return { startTime: start.toISOString(), endTime: end.toISOString() };
+  }
+
   async function createSession(
     name: string,
     filenames: string[],
@@ -48,13 +65,31 @@ describe('Submission overview (e2e)', () => {
         classId,
         roomId,
         examType: 'TK',
-        startTime: new Date(Date.now() + opts.startOffsetMs).toISOString(),
-        endTime: new Date(Date.now() + opts.endOffsetMs).toISOString(),
+        // Tạo ở khung hợp lệ rồi mới dời — cùng kiểu với detachClass/
+        // dropDeliverables bên dưới. DTO chặn khai giờ bắt đầu lùi quá
+        // MAX_BACKDATE_MINUTES (lùi hai tiếng là mô tả một kỳ thi mà agent
+        // không thể nào thu bài được), nhưng fixture ở đây đúng là những
+        // phiên đã thi xong và đã có bài.
+        ...freshFutureWindow(),
         requiredFilenames: filenames,
       });
     expect(response.status).toBe(201);
+    const id = response.body.id as string;
+
+    const startTime = new Date(Date.now() + opts.startOffsetMs);
+    const endTime = new Date(Date.now() + opts.endOffsetMs);
+    // Khung giờ đã khép lại nghĩa là phiên đã xong — cũng chính là điều
+    // khiến nó nhả phòng và lớp cho phiên của test kế tiếp.
+    const status = endTime.getTime() <= Date.now() ? 'completed' : 'active';
+    await dataSource.query(
+      `UPDATE ${schema}.exam_session
+         SET start_time = $2, end_time = $3, status = $4
+       WHERE id = $1`,
+      [id, startTime, endTime, status],
+    );
+
     return {
-      id: response.body.id as string,
+      id,
       deliverableIds: (response.body.requiredDeliverables as { id: string }[]).map((d) => d.id),
     };
   }
@@ -347,8 +382,10 @@ describe('Submission overview (e2e)', () => {
         classId: foreignClass.id,
         roomId,
         examType: 'TK',
-        startTime: new Date(Date.now() - 7_200_000).toISOString(),
-        endTime: new Date(Date.now() - 3_600_000).toISOString(),
+        // Khung riêng, vì phòng dùng chung với các phiên khác của spec.
+        // Test này chỉ hỏi "phiên của giảng viên khác có lọt vào danh sách
+        // của mình không", giờ giấc không liên quan.
+        ...freshFutureWindow(),
         requiredFilenames: ['Cau1.docx'],
       });
     expect(foreign.status).toBe(201);

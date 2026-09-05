@@ -182,6 +182,22 @@ describe('Attendance (e2e)', () => {
     }
   });
 
+  // Every test here creates its own live session, and they all have to use
+  // the same class: the in-class / make-up split under test is decided by
+  // enrollment.home_class_id against the session's class, so swapping in a
+  // fresh class per test would change what is being measured. Two live
+  // sessions cannot share a class (ex_exam_session_class_overlap), so the
+  // previous test's session is closed instead — which is what would have
+  // happened in life anyway, and is exactly the transition that releases a
+  // room and a class.
+  afterEach(async () => {
+    await dataSource.query(
+      `UPDATE examcollect.exam_session SET status = 'completed'
+       WHERE room_id = $1 AND status <> 'completed'`,
+      [roomId],
+    );
+  });
+
   afterAll(async () => {
     for (const socket of sockets) {
       socket.removeAllListeners();

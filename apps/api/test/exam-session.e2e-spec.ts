@@ -25,10 +25,30 @@ describe('ExamSession (e2e)', () => {
   let foreignClassId: string;
   let roomId: string;
 
+  /**
+   * A window no other call to this helper overlaps.
+   *
+   * It used to return the same `now + 1min .. now + 1h` for every call,
+   * which was fine while nothing checked room availability. It is not fine
+   * now: one room and one class are shared by the whole spec, so the second
+   * session in any test would collide with the first
+   * (ex_exam_session_room_overlap). None of these tests is about
+   * scheduling — the shared window was incidental — so each call simply
+   * gets its own day.
+   *
+   * Days rather than hours also keeps every session clear of
+   * ExamSessionScheduler's sweep, which would otherwise finalize a session
+   * mid-test once its end_time passed.
+   */
+  let windowCursor = 0;
   function futureWindow() {
-    const startTime = new Date(Date.now() + 60_000).toISOString();
-    const endTime = new Date(Date.now() + 3_600_000).toISOString();
-    return { startTime, endTime };
+    windowCursor += 1;
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() + windowCursor);
+    start.setUTCHours(8, 0, 0, 0);
+    const end = new Date(start);
+    end.setUTCHours(10);
+    return { startTime: start.toISOString(), endTime: end.toISOString() };
   }
 
   beforeAll(async () => {
@@ -147,7 +167,9 @@ describe('ExamSession (e2e)', () => {
 
     // A second session's code must never collide with the first — cheap
     // extra assurance the generator/retry loop actually produces distinct
-    // codes, not just "a code".
+    // codes, not just "a code". Its own window: this assertion is about
+    // code generation, and reusing the first session's slot would only
+    // mean testing the room-overlap rule a second time.
     const second = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${ownerToken}`)
@@ -156,8 +178,7 @@ describe('ExamSession (e2e)', () => {
         classId,
         roomId,
         examType: 'TK',
-        startTime,
-        endTime,
+        ...futureWindow(),
         requiredFilenames: ['Cau1.docx'],
       });
     expect(second.status).toBe(201);
