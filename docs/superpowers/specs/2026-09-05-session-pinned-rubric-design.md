@@ -29,6 +29,11 @@ theo bản mới nhất**, kể cả kỳ đã thi xong từ trước bằng đ�
 vẫn ghi đúng `rubric_id_version` nên lịch sử không sai — nhưng *lựa chọn* thì
 sai, vì không ai từng chọn cả.
 
+Và nó không dừng ở "tự mình sửa của mình": rubric thuộc **môn**, nên **đồng
+nghiệp dạy lớp khác cùng môn cũng ghi đè được** — đã kiểm chứng bằng thực nghiệm,
+xem §3.2.1. Dưới `findActive`, một giảng viên có thể đổi rubric mà lượt chấm của
+người khác sẽ dùng, và người kia không hề được hỏi.
+
 ### 1.2 Nguyên tắc user nêu (là lý do quyết định, không phải sở thích)
 
 > Toàn bộ thiết kế từ đầu tới giờ đi theo 1 nguyên tắc lặp lại: **quyết định
@@ -90,6 +95,39 @@ vừa chứng minh. Bản nháp đầu của spec này có bước đó; nó th�
 **Vị trí:** đặt **trước** `assertNone` (kiểm trùng lịch) và trước vòng lặp sinh
 mã. Lý do: đây là lỗi đầu vào (400), còn trùng lịch là xung đột trạng thái (409)
 — báo lỗi đầu vào trước, và không lặp lại phép kiểm ở mỗi lần retry mã.
+
+#### 3.2.1 Rubric KHÔNG có chủ sở hữu — so `courseId` là đủ, không phải khoảng mù
+
+Câu hỏi cần trả lời dứt điểm: giảng viên A gắn một rubric *"do giảng viên B
+soạn"* cho đúng môn A dạy — cùng môn, khác người tạo — thì rơi vào 400, hay lọt
+qua vì chỉ so `courseId` mà không so quyền sở hữu rubric?
+
+**Trả lời: lọt qua, và đó là hành vi ĐÚNG — vì rubric không có chủ sở hữu.**
+
+Xác nhận bằng thực nghiệm ngày 2026-09-05, không phải suy luận:
+
+1. **Introspect bảng thật.** `examcollect.rubric` có đúng sáu cột — `id`,
+   `created_at`, `updated_at`, `course_id`, `version`, `is_active`. **Không cột
+   nào trỏ tới `account`.** "Rubric của giảng viên B" không tồn tại như một khái
+   niệm trong schema.
+2. **Probe e2e** (dựng rồi xoá): một môn, hai lớp, hai giảng viên khác nhau.
+   - B đọc rubric A vừa soạn → **200**, thấy version 1.
+   - B lưu đè lên → **201, version = 2**.
+
+Đây là chủ đích, không phải lỗ hổng. `RubricService.assertTeachesCourse` scope
+theo `class.teacher_id`, và comment của chính service nói thẳng: *"A rubric
+belongs to the COURSE — two lecturers teaching two classes of one course share
+it, which is the point of grading them against the same criteria."*
+
+Vậy phép kiểm duy nhất ở §3.2 (`rubric.courseId === klass.courseId`) là **đủ**:
+nếu rubric cùng môn thì giảng viên vốn đã có quyền với nó rồi.
+
+**Phát hiện phụ, và nó là thêm một lý do cho spec này.** Vì B ghi đè được và bản
+mới thành `isActive`, nên dưới thiết kế `findActive` hiện tại **B âm thầm đổi
+rubric mà lượt chấm tương lai của A sẽ dùng** — A không hề được hỏi. Sau khi ghim
+`rubric_id`, các phiên A đã tạo **miễn nhiễm**: chúng vẫn trỏ v1. Ghim rubric
+không chỉ chống "đổi rubric giữa hai kỳ thi của chính mình", nó còn chống cả việc
+đồng nghiệp cùng môn sửa rubric sau lưng.
 
 ### 3.3 `PATCH /exam-sessions/:id/rubric` — endpoint HẸP, không phải PATCH tổng quát
 
@@ -340,6 +378,12 @@ Test này pass nghĩa là `findActive` đã chết thật. Fail nghĩa là còn 
   *(Không có case 403 riêng: `findTaughtBy` đã chặn lớp không phải của mình từ
   trước, nên rubric của môn giảng viên không dạy tất yếu rơi vào case 400 ở
   trên — xem §3.2. Đừng viết test mong 403, nó sẽ ra 400.)*
+- **Tạo phiên với rubric do đồng nghiệp cùng môn soạn → 201, KHÔNG phải lỗi.**
+  Test này pin hành vi ở §3.2.1 để không ai "sửa" nó thành 403 vì tưởng là lỗ
+  hổng. Kèm hai test giữ chỗ cho tiền đề của nó: giảng viên B **đọc được** rubric
+  A soạn cho môn chung (200), và **lưu được phiên bản mới** đè lên (201, version
+  tăng) — hiện chưa có test nào phủ, chỉ có case phủ định ở
+  `grading.e2e-spec.ts:189`.
 - Tạo phiên **không** `rubricId` → 201, `rubric_id` NULL.
 - `PATCH .../rubric` khi phiên **chưa** có kết quả chấm → 200.
 - `PATCH .../rubric` khi phiên **đã** có kết quả chấm → 409.
