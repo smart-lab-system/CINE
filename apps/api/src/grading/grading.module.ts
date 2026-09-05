@@ -12,6 +12,7 @@ import { GradingService } from './grading.service';
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
+import { AdminModule } from '../admin/admin.module';
 import { GradingController } from './grading.controller';
 import { AI_GRADING_PROVIDER } from './ai-provider/ai-grading-provider';
 import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
@@ -38,6 +39,8 @@ import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
     ]),
     StorageModule,
     ExamSessionModule,
+    // Sửa điểm sau khi đã công bố phải để lại dấu vết — Security rule 4.
+    AdminModule,
   ],
   controllers: [GradingController],
   providers: [

@@ -8,6 +8,7 @@ import {
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { SubmitReviewDto } from './dto/submit-review.dto';
+import { AuditLogService } from '../admin/audit-log.service';
 
 /**
  * The statuses a result CAN be reviewed in.
@@ -27,6 +28,16 @@ const REVIEWABLE: GradingResultStatus[] = [
   'finalized',
   'exported',
 ];
+
+/**
+ * Scores that have been PUBLISHED. From here on, every edit leaves a trace.
+ *
+ * The narrowness is the point. An edit made while marking is still in progress
+ * is ordinary work — logging those would bury the log in noise and it would
+ * stop answering the one question it exists for: who changed a score after the
+ * class was told what it was.
+ */
+const PUBLISHED: GradingResultStatus[] = ['finalized', 'exported'];
 
 /** Statuses that block finalising: the AI is still working, or it said it was unsure. */
 const BLOCKS_FINALIZE: GradingResultStatus[] = [
@@ -53,6 +64,7 @@ export class TeacherReviewService {
     private readonly criteria: Repository<RubricCriterionEntity>,
     @InjectRepository(TeacherReviewEntity)
     private readonly reviews: Repository<TeacherReviewEntity>,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**
@@ -71,6 +83,11 @@ export class TeacherReviewService {
     }
 
     const finalScore = await this.validateAndTotal(result, dto);
+
+    // Read BEFORE the new row is written, or `currentFinalScore` returns the
+    // score just saved and the audit entry says 10 became 10.
+    const published = PUBLISHED.includes(result.status);
+    const previousScore = published ? await this.currentFinalScore(result) : null;
 
     await this.reviews.save(
       this.reviews.create({
@@ -92,6 +109,20 @@ export class TeacherReviewService {
       ['auto_approved', 'flagged_for_review'],
       'teacher_reviewed',
     );
+
+    if (published) {
+      // Security rule 4. The status does not move — the lifecycle has no exit
+      // from `finalized`, and it needs none: the current score is the newest
+      // review row, and this is now it.
+      await this.auditLog.recordUserAction({
+        actorId: teacherId,
+        action: 'grading_result.score_edited_after_finalize',
+        targetType: 'grading_result',
+        targetId: result.id,
+        oldValue: { finalScore: previousScore },
+        newValue: { finalScore },
+      });
+    }
 
     return { finalScore };
   }
