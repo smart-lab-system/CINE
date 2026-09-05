@@ -36,12 +36,16 @@ export const PHASE_VARIANTS: Record<SessionPhase, NonNullable<BadgeProps['varian
   ended: 'default',
 };
 
+export type AttentionKind = 'attended-no-submission' | 'partial' | 'never-attended';
+
 export interface AttentionReason {
-  kind: 'invalid' | 'partial' | 'not-submitted';
+  kind: AttentionKind;
   count: number;
   label: string;
-  variant: NonNullable<BadgeProps['variant']>;
-  /** 1 gấp nhất. Xem bảng ưu tiên spec §4.1. */
+  /** Ánh xạ sang màu ở tầng UI. Không dùng BadgeProps nữa: bảng dùng chấm
+   *  tròn + chữ, không dùng pill (spec §5.4). */
+  tone: 'danger' | 'warning' | 'caution';
+  /** 1 gấp nhất. Bảng ưu tiên spec §1.2. */
   priority: 1 | 2 | 3;
 }
 
@@ -74,28 +78,33 @@ export function hasRatio(item: SessionOverviewItem): boolean {
   return item.rosterKnown && item.requiredDeliverableCount > 0;
 }
 
+/**
+ * Ba cổng chặn, theo đúng thứ tự:
+ *  1. archived/closed  — giảng viên đã nói "đừng nhắc nữa" (spec §1.3)
+ *  2. phải là `ended`  — grace period còn đang nhận file, kết luận lúc này là
+ *                        báo động giả
+ *  3. hasRatio         — không biết roster hoặc chưa khai file bắt buộc thì
+ *                        không thể nói ai thiếu
+ *
+ * `invalidFileCount` KHÔNG sinh lý do: chưa luồng production nào tạo ra
+ * status 'invalid' (TODO ở submission.service.ts). Đừng để giảng viên tin hệ
+ * thống đang canh một thứ nó không canh — spec §4.4.
+ */
 export function getAttentionReasons(
   item: SessionOverviewItem,
   now: number,
 ): AttentionReason[] {
-  // Chỉ phiên đã thật sự xong mới bị kết luận. draft/cancelled là quyết định
-  // có chủ ý của GV; collecting còn đang nhận file.
-  if (getSessionPhase(item, now) !== 'ended') {
-    return [];
-  }
-  // Không biết roster, hoặc chưa khai file bắt buộc -> không kết luận được
-  // là "thiếu". §4.2(b) và §3.3.
-  if (!hasRatio(item)) {
-    return [];
-  }
+  if (item.archivedAt !== null || item.attentionClosedAt !== null) return [];
+  if (getSessionPhase(item, now) !== 'ended') return [];
+  if (!hasRatio(item)) return [];
 
   const reasons: AttentionReason[] = [];
-  if (item.invalidFileCount > 0) {
+  if (item.attendedNoSubmissionCount > 0) {
     reasons.push({
-      kind: 'invalid',
-      count: item.invalidFileCount,
-      label: `${item.invalidFileCount} file không hợp lệ`,
-      variant: 'destructive',
+      kind: 'attended-no-submission',
+      count: item.attendedNoSubmissionCount,
+      label: `${item.attendedNoSubmissionCount} sinh viên vào phòng nhưng không có bài`,
+      tone: 'danger',
       priority: 1,
     });
   }
@@ -104,16 +113,16 @@ export function getAttentionReasons(
       kind: 'partial',
       count: item.partialCount,
       label: `${item.partialCount} sinh viên nộp thiếu file`,
-      variant: 'warning',
+      tone: 'warning',
       priority: 2,
     });
   }
-  if (item.notSubmittedCount > 0) {
+  if (item.neverAttendedCount > 0) {
     reasons.push({
-      kind: 'not-submitted',
-      count: item.notSubmittedCount,
-      label: `${item.notSubmittedCount} sinh viên chưa nộp`,
-      variant: 'default',
+      kind: 'never-attended',
+      count: item.neverAttendedCount,
+      label: `${item.neverAttendedCount} sinh viên vắng thi`,
+      tone: 'caution',
       priority: 3,
     });
   }
