@@ -66,6 +66,24 @@ export async function saveRubric(
   return data as unknown as Rubric;
 }
 
+/**
+ * Đổi rubric của một phiên thi. `null` để gỡ.
+ *
+ * Server trả 409 khi phiên đã có kết quả chấm — từ lúc đó, đổi rubric là
+ * viết lại lịch sử chấm điểm. UI phải tắt nút trước khi tới đó, nhưng lỗi
+ * này vẫn là lớp chặn cuối.
+ */
+export async function setSessionRubric(
+  examSessionId: string,
+  rubricId: string | null,
+): Promise<void> {
+  const { error, response } = await apiClient.PATCH('/exam-sessions/{id}/rubric', {
+    params: { path: { id: examSessionId } },
+    body: { rubricId },
+  });
+  if (error || !response.ok) throw fail(error, response);
+}
+
 export async function startGrading(examSessionId: string): Promise<StartGradingResult> {
   const { data, error, response } = await apiClient.POST(
     '/exam-sessions/{id}/start-grading',
