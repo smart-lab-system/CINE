@@ -240,7 +240,7 @@ describe('Submission overview (e2e)', () => {
     // Nếu SQL join thô rồi GROUP BY, con số này sẽ là 3, 40 hoặc 120.
     expect(item.fullySubmittedCount).toBe(1);
     expect(item.partialCount).toBe(0);
-    expect(item.notSubmittedCount).toBe(39);
+    expect(item.neverAttendedCount).toBe(39);
     expect(item.expectedCount).toBe(40);
     expect(item.requiredDeliverableCount).toBe(3);
     expect(item.rosterKnown).toBe(true);
@@ -272,7 +272,7 @@ describe('Submission overview (e2e)', () => {
     const item = bySessionId(await fetchOverview(), session.id);
 
     expect(item.partialCount).toBe(1);
-    expect(item.notSubmittedCount).toBe(39);
+    expect(item.neverAttendedCount).toBe(39);
     expect(item.fullySubmittedCount).toBe(0);
     expect(item.invalidFileCount).toBe(1);
   }, 30_000);
@@ -292,7 +292,7 @@ describe('Submission overview (e2e)', () => {
     expect(item.expectedCount).toBe(40);
   }, 30_000);
 
-  it('bất biến: fully + partial + notSubmitted === expectedCount, kể cả khi có SV thi ghép', async () => {
+  it('bất biến: fully + partial + neverAttended === expectedCount, kể cả khi có SV thi ghép', async () => {
     // SV thi ghép: enrolled cùng course nhưng home_class_id là lớp KHÁC ->
     // không thuộc roster, nhưng có bài nộp -> phải nằm trong expectedCount.
     const [otherClass] = await dataSource.query(
@@ -330,13 +330,13 @@ describe('Submission overview (e2e)', () => {
     expect(item.expectedCount).toBe(41); // 40 roster + 1 thi ghép
     expect(item.fullySubmittedCount).toBe(1); // ROSTER[3]
     expect(item.partialCount).toBe(2); // ROSTER[4] + SV thi ghép
-    expect(item.notSubmittedCount).toBe(38);
+    expect(item.neverAttendedCount).toBe(38);
     expect(
-      item.fullySubmittedCount + item.partialCount + item.notSubmittedCount,
+      item.fullySubmittedCount + item.partialCount + item.neverAttendedCount,
     ).toBe(item.expectedCount);
   }, 30_000);
 
-  it('phiên không gắn lớp: rosterKnown false, notSubmittedCount 0', async () => {
+  it('phiên không gắn lớp: rosterKnown false, neverAttendedCount 0', async () => {
     const session = await createSession(`NoClass ${stamp}`, ['Cau1.docx'], {
       startOffsetMs: -7_200_000,
       endOffsetMs: -3_600_000,
@@ -349,7 +349,7 @@ describe('Submission overview (e2e)', () => {
     const item = bySessionId(await fetchOverview(), session.id);
 
     expect(item.rosterKnown).toBe(false);
-    expect(item.notSubmittedCount).toBe(0);
+    expect(item.neverAttendedCount).toBe(0);
     expect(item.expectedCount).toBe(1);
     expect(item.fullySubmittedCount).toBe(1);
   }, 30_000);
