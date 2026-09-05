@@ -72,10 +72,24 @@ export class GradingService {
     session: ExamSessionEntity,
     teacherId: string,
   ): Promise<StartGradingResult> {
-    const rubric = await this.rubrics.findActive(session.courseId);
-    if (!rubric) {
+    // The rubric this session is graded against was decided when the paper
+    // was written, and is read back here — never resolved now. That is the
+    // whole difference from the old findActive(courseId): editing the
+    // course's rubric between two exams must not change how the earlier one
+    // is graded, and a colleague teaching another class of the same course
+    // must not be able to change it from under this session either.
+    if (!session.rubricId) {
       throw new BadRequestException(
-        'Môn học này chưa có rubric — hãy tạo rubric trước khi chấm.',
+        'Phiên thi này chưa gắn rubric — hãy gắn rubric trước khi chấm.',
+      );
+    }
+    const rubric = await this.rubrics.findById(session.rubricId);
+    if (!rubric) {
+      // The FK is ON DELETE RESTRICT, so this is unreachable through any
+      // supported path. Reported rather than assumed away: a 400 naming the
+      // cause beats a TypeError on the next line.
+      throw new BadRequestException(
+        'Rubric của phiên thi này không còn tồn tại.',
       );
     }
 

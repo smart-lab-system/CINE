@@ -205,6 +205,75 @@ describe('Session-pinned rubric (e2e)', () => {
     expect(created.body.rubricId).toBe(byB.id);
   });
 
+  it('CHỐT: chấm theo rubric ĐÃ GHIM, không theo bản active mới nhất (§8.1)', async () => {
+    const v1 = await saveRubric(tokenA, courseId, 'Tiêu chí bản 1');
+    const created = await createSession(tokenA, {
+      classId: classAId,
+      rubricId: v1.id,
+    });
+    expect(created.status).toBe(201);
+
+    // Bản 2 ra đời SAU khi phiên đã ghim v1, và trở thành bản active của môn.
+    // Dưới findActive() cũ, lượt chấm dưới đây sẽ dùng v2 — đó là bug.
+    const v2 = await saveRubric(tokenA, courseId, 'Tiêu chí bản 2');
+    expect(v2.version).toBeGreaterThan(v1.version);
+
+    // Một bài đã thu, để có cái mà chấm. Trigger validate_submission_lifecycle
+    // chỉ cho INSERT ở 'received'/'invalid'; tới 'collected' phải đi qua
+    // UPDATE từng bước, y như submission.service.ts làm ở luồng thật.
+    const [submission] = await dataSource.query(
+      `INSERT INTO examcollect.submission
+         (exam_session_id, required_deliverable_id, student_mssv,
+          student_name_input, home_class_id, home_teacher_id, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'received') RETURNING id`,
+      [
+        created.body.id,
+        created.body.requiredDeliverables[0].id,
+        `SVP${stamp}`.slice(0, 20),
+        'SV Ghim',
+        classAId,
+        idA,
+      ],
+    );
+    await dataSource.query(
+      `UPDATE examcollect.submission SET status = 'validated' WHERE id = $1`,
+      [submission.id],
+    );
+    await dataSource.query(
+      `UPDATE examcollect.submission SET status = 'collected' WHERE id = $1`,
+      [submission.id],
+    );
+
+    const started = await request(app.getHttpServer())
+      .post(`/exam-sessions/${created.body.id}/start-grading`)
+      .set('Authorization', `Bearer ${tokenA}`);
+
+    expect(started.status).toBe(200);
+    // ĐÂY là khẳng định của cả spec.
+    expect(started.body.rubricId).toBe(v1.id);
+    expect(started.body.rubricVersion).toBe(v1.version);
+
+    const [result] = await dataSource.query(
+      `SELECT g.rubric_id_version FROM examcollect.grading_result g
+       WHERE g.submission_id = $1`,
+      [submission.id],
+    );
+    expect(result.rubric_id_version).toBe(v1.id);
+  });
+
+  it('từ chối chấm khi phiên chưa gắn rubric, và nói về PHIÊN THI', async () => {
+    const created = await createSession(tokenA, { classId: classAId });
+
+    const started = await request(app.getHttpServer())
+      .post(`/exam-sessions/${created.body.id}/start-grading`)
+      .set('Authorization', `Bearer ${tokenA}`);
+
+    expect(started.status).toBe(400);
+    // Thông báo cũ nói "Môn học này chưa có rubric" — sai chỗ: môn có thể
+    // đủ rubric mà phiên vẫn chưa gắn.
+    expect(started.body.message).toContain('Phiên thi');
+  });
+
   describe('PATCH /exam-sessions/:id/rubric', () => {
     function setRubric(token: string, sessionId: string, rubricId: string | null) {
       return request(app.getHttpServer())
