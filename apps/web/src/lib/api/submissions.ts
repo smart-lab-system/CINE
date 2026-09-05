@@ -19,8 +19,15 @@ export interface SessionOverviewItem {
   rosterKnown: boolean;
   fullySubmittedCount: number;
   partialCount: number;
-  notSubmittedCount: number;
+  /** Có event kết nối, 0 bài nộp — nghi mất bài. Xem spec §1.2. */
+  attendedNoSubmissionCount: number;
+  /** Không event nào, 0 bài nộp — vắng thi. */
+  neverAttendedCount: number;
   invalidFileCount: number;
+  semesterId: string;
+  semesterName: string;
+  archivedAt: string | null;
+  attentionClosedAt: string | null;
 }
 
 /**
@@ -71,3 +78,24 @@ export async function listTeacherSubmissions(
   throwIfFailed(error, response);
   return data as unknown as { items: TeacherSubmission[]; total: number };
 }
+
+/**
+ * Bốn thao tác vòng đời. Không hàm nào trả dữ liệu — trang gọi xong thì
+ * invalidate query overview, vì mọi con số roll-up có thể đổi theo.
+ */
+async function lifecycle(
+  path: 'archive' | 'attention-close',
+  method: 'POST' | 'DELETE',
+  id: string,
+): Promise<void> {
+  const call = method === 'POST' ? apiClient.POST : apiClient.DELETE;
+  const { error, response } = await call(`/exam-sessions/{id}/${path}` as never, {
+    params: { path: { id } },
+  } as never);
+  throwIfFailed(error, response);
+}
+
+export const archiveSession = (id: string) => lifecycle('archive', 'POST', id);
+export const unarchiveSession = (id: string) => lifecycle('archive', 'DELETE', id);
+export const closeAttention = (id: string) => lifecycle('attention-close', 'POST', id);
+export const reopenAttention = (id: string) => lifecycle('attention-close', 'DELETE', id);
