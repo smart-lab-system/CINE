@@ -11,6 +11,7 @@ import {
   CalendarClock,
   ClipboardCheck,
   Inbox,
+  ListChecks,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -62,5 +63,8 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Quản lý kỳ thi', href: '/teacher/exam-sessions', icon: CalendarClock },
   { label: 'Quản lý bài thu', href: '/teacher/submissions', icon: Inbox },
   { label: 'Lớp của tôi', href: '/teacher/classes', icon: GraduationCap },
+  // Trước "Chấm điểm" vì đó là thứ tự thật của công việc: rubric phải có
+  // trước khi tạo phiên thi, và phiên thi phải ghim rubric trước khi chấm.
+  { label: 'Rubric', href: '/teacher/rubrics', icon: ListChecks },
   { label: 'Chấm điểm', href: '/teacher/grading', icon: ClipboardCheck },
 ];
