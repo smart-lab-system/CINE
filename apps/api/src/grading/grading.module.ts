@@ -10,6 +10,8 @@ import { StorageModule } from '../storage/storage.module';
 import { ExamSessionModule } from '../exam-session/exam-session.module';
 import { GradingService } from './grading.service';
 import { RubricService } from './rubric.service';
+import { TeacherReviewService } from './teacher-review.service';
+import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { GradingController } from './grading.controller';
 import { AI_GRADING_PROVIDER } from './ai-provider/ai-grading-provider';
 import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
@@ -29,6 +31,7 @@ import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
       RubricEntity,
       RubricCriterionEntity,
       GradingResultEntity,
+      TeacherReviewEntity,
       SubmissionEntity,
       RequiredDeliverableEntity,
       ClassEntity,
@@ -40,6 +43,7 @@ import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
   providers: [
     GradingService,
     RubricService,
+    TeacherReviewService,
     { provide: AI_GRADING_PROVIDER, useClass: KeywordGradingProvider },
   ],
   exports: [GradingService, RubricService],

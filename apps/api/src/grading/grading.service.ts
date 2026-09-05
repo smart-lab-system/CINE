@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -253,6 +255,46 @@ export class GradingService {
       .limit(1)
       .getCount();
     return count > 0;
+  }
+
+  /**
+   * One grading result, with ownership already proved.
+   *
+   * `:id` on the review route is a GradingResult, not an exam session, so the
+   * path to the owner is three hops:
+   *
+   *   grading_result.submission_id → submission.exam_session_id
+   *                                → exam_session.teacher_id
+   *
+   * The rule lives in a method with a NAME rather than inline in a controller.
+   * That is the only thing that stops the next route forgetting it.
+   *
+   * Anchored on `exam_session.teacher_id` — whoever CREATED the session —
+   * consistent with `start-grading`. See spec §4.3 for the known tension with
+   * `submission.home_teacher_id`, which routes a make-up exam's paper to a
+   * different teacher entirely. That is a task of its own, not a decision to
+   * make quietly here.
+   */
+  async findResultForOwner(
+    gradingResultId: string,
+    teacherId: string,
+  ): Promise<GradingResultEntity> {
+    const rows = await this.results
+      .createQueryBuilder('g')
+      .innerJoin('submission', 's', 's.id = g.submission_id')
+      .innerJoin('exam_session', 'e', 'e.id = s.exam_session_id')
+      .addSelect('e.teacher_id', 'ownerTeacherId')
+      .where('g.id = :id', { id: gradingResultId })
+      .getRawAndEntities<{ ownerTeacherId: string }>();
+
+    const result = rows.entities[0];
+    if (!result) {
+      throw new NotFoundException('Grading result not found');
+    }
+    if (rows.raw[0].ownerTeacherId !== teacherId) {
+      throw new ForbiddenException('You do not own the exam session of this result');
+    }
+    return result;
   }
 
   /** Results for one session, newest submission first. */
