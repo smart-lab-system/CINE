@@ -14,6 +14,7 @@ import { ExamSessionScheduler } from './exam-session.scheduler';
 import { AccessRequestGateway } from './access-request.gateway';
 import { AccessRequestStore } from './access-request.store';
 import { AgentJoinLockStore } from './agent-join-lock.store';
+import { ScheduleConflictService } from './schedule-conflict.service';
 import { AdminModule } from '../admin/admin.module';
 import { AgentConnectionModule } from '../agent-connection/agent-connection.module';
 import { StorageModule } from '../storage/storage.module';
@@ -45,6 +46,7 @@ import { StorageModule } from '../storage/storage.module';
   controllers: [ExamSessionController],
   providers: [
     ExamSessionService,
+    ScheduleConflictService,
     ExamMaterialService,
     ExamSessionGateway,
     ExamSessionEvents,

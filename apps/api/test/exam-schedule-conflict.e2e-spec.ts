@@ -144,7 +144,11 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const ids = sessions.map((row: { id: string }) => row.id);
     if (ids.length > 0) {
       // Every FK into exam_session is ON DELETE RESTRICT, so children go
-      // first, deepest first.
+      // first, deepest first. This list has to grow whenever a new table
+      // gains an exam_session_id — a missing one surfaces here as a
+      // foreign-key violation during teardown, not as a failing assertion,
+      // so it is worth checking against the FKs on exam_session if this
+      // afterAll ever starts throwing.
       for (const table of [
         'grade_export',
         'submission',

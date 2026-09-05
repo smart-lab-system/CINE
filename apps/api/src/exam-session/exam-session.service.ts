@@ -26,38 +26,14 @@ import {
   EXAM_SESSION_CODE_LENGTH,
   EXAM_SESSION_CODE_MAX_ATTEMPTS,
 } from './exam-session.types';
+import { ScheduleConflictService } from './schedule-conflict.service';
 
 // Name of the unique index from AddExamSessionNameCode1787795324287 — used
 // to tell "the code we guessed collided, try another one" apart from any
 // other unique/check violation the transaction might raise.
 const UNIQUE_CODE_CONSTRAINT = 'uq_exam_session_code';
 
-// Formatted for the lecturer reading the error, not for the server's
-// locale. The API has no timezone convention of its own and a VPS commonly
-// runs on UTC, so an unqualified format would report an hour that is not
-// the one anybody in the room experienced.
-const CLASH_TIME = new Intl.DateTimeFormat('vi-VN', {
-  timeZone: 'Asia/Ho_Chi_Minh',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
-const CLASH_DATE = new Intl.DateTimeFormat('vi-VN', {
-  timeZone: 'Asia/Ho_Chi_Minh',
-  day: '2-digit',
-  month: '2-digit',
-});
 
-function describeWindow(start: Date, end: Date): string {
-  return `${CLASH_TIME.format(start)}–${CLASH_TIME.format(end)} ngày ${CLASH_DATE.format(start)}`;
-}
-
-interface ScheduleClash {
-  sessionName: string;
-  ownerName: string;
-  startTime: Date;
-  endTime: Date;
-}
 
 @Injectable()
 export class ExamSessionService {
@@ -70,6 +46,7 @@ export class ExamSessionService {
     private readonly events: ExamSessionEvents,
     private readonly classes: ClassService,
     private readonly attendance: AttendanceService,
+    private readonly scheduleConflicts: ScheduleConflictService,
   ) {}
 
   /**
@@ -98,7 +75,7 @@ export class ExamSessionService {
     // session already holding it, and when — so the lecturer knows what to
     // change. Without it they get "This request conflicts with an existing
     // record" from PostgresExceptionFilter and no way to act on it.
-    await this.assertNoScheduleConflict(
+    await this.scheduleConflicts.assertNone(
       dto.roomId,
       klass.id,
       new Date(dto.startTime),
@@ -159,84 +136,6 @@ export class ExamSessionService {
 
     // Unreachable — the loop above always either returns or throws.
     throw new ConflictException('Could not generate a unique exam session code');
-  }
-
-  /**
-   * Reports the first booking that would collide, in words the lecturer can
-   * act on. Two queries rather than one with a discriminator: the room
-   * clash is reported in preference to the class clash because changing
-   * room is the cheaper fix, and expressing that as an ORDER BY over a
-   * union reads far worse than asking twice.
-   *
-   * Both queries mirror the EXCLUDE constraints exactly — same half-open
-   * range, same status predicate. They have to: a pre-check that is stricter
-   * than the constraint refuses valid bookings, and one that is looser hands
-   * the lecturer a generic 409 from the database instead of this message.
-   */
-  private async assertNoScheduleConflict(
-    roomId: string,
-    classId: string,
-    startTime: Date,
-    endTime: Date,
-  ): Promise<void> {
-    const roomClash = await this.findClash('s.room_id = :key', roomId, startTime, endTime);
-    if (roomClash) {
-      throw new ConflictException(
-        `Phòng ${roomClash.ownerName} đã có phiên thi "${roomClash.sessionName}" lúc ` +
-          `${describeWindow(roomClash.startTime, roomClash.endTime)}. ` +
-          `Hãy chọn phòng khác hoặc đổi khung giờ.`,
-      );
-    }
-
-    const classClash = await this.findClash('s.class_id = :key', classId, startTime, endTime);
-    if (classClash) {
-      throw new ConflictException(
-        `Lớp ${classClash.ownerName} đã có phiên thi "${classClash.sessionName}" lúc ` +
-          `${describeWindow(classClash.startTime, classClash.endTime)}. ` +
-          `Một lớp không thể thi hai ca cùng lúc.`,
-      );
-    }
-  }
-
-  private async findClash(
-    keyPredicate: string,
-    key: string,
-    startTime: Date,
-    endTime: Date,
-  ): Promise<ScheduleClash | undefined> {
-    const joinTable = keyPredicate.includes('room_id') ? 'room' : 'class';
-    const raw = await this.sessions
-      .createQueryBuilder('s')
-      .innerJoin(joinTable, 'o', `o.id = s.${joinTable}_id`)
-      .select([
-        's.name AS "sessionName"',
-        'o.name AS "ownerName"',
-        's.start_time AS "startTime"',
-        's.end_time AS "endTime"',
-      ])
-      .where(keyPredicate, { key })
-      // Matches the constraint's predicate: a finished or cancelled exam
-      // holds nothing, which is what lets a session that ended early free
-      // its room for the rest of its declared window.
-      .andWhere(`s.status <> 'completed' AND s.status <> 'cancelled'`)
-      .andWhere(
-        `tstzrange(s.start_time, s.end_time, '[)') && tstzrange(:startTime, :endTime, '[)')`,
-        { startTime, endTime },
-      )
-      .orderBy('s.start_time', 'ASC')
-      .limit(1)
-      .getRawOne<ScheduleClash>();
-
-    if (!raw) {
-      return undefined;
-    }
-    // getRawOne bypasses entity hydration, so these arrive however the
-    // driver returned them.
-    return {
-      ...raw,
-      startTime: new Date(raw.startTime),
-      endTime: new Date(raw.endTime),
-    };
   }
 
   /**

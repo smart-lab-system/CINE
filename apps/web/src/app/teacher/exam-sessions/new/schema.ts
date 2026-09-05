@@ -48,15 +48,21 @@ const MAX_BACKDATE_MINUTES = 30;
  * `message` arrives as a string for a single failure and as an array when
  * Nest's ValidationPipe rejects several fields at once.
  */
+const FALLBACK_CREATE_ERROR =
+  'Không tạo được phiên thi. Vui lòng kiểm tra lại thông tin và thử lại.';
+
 export function describeCreateError(error: unknown): string {
-  const message = (error as { message?: unknown } | null | undefined)?.message;
+  if (typeof error !== 'object' || error === null || !('message' in error)) {
+    return FALLBACK_CREATE_ERROR;
+  }
+  const { message } = error;
   if (typeof message === 'string' && message.trim() !== '') {
     return message;
   }
   if (Array.isArray(message) && message.length > 0) {
     return message.join('. ');
   }
-  return 'Không tạo được phiên thi. Vui lòng kiểm tra lại thông tin và thử lại.';
+  return FALLBACK_CREATE_ERROR;
 }
 
 // Exported so the rule can be unit-tested directly against the schema
