@@ -28,8 +28,20 @@ const REVIEWABLE: GradingResultStatus[] = [
   'exported',
 ];
 
+/** Statuses that block finalising: the AI is still working, or it said it was unsure. */
+const BLOCKS_FINALIZE: GradingResultStatus[] = [
+  'ai_grading',
+  'ai_graded',
+  'flagged_for_review',
+];
+
 export interface ReviewOutcome {
   finalScore: number;
+}
+
+export interface FinalizeGradesOutcome {
+  reviewedByHand: number;
+  acceptedAsProposed: number;
 }
 
 @Injectable()
@@ -82,6 +94,86 @@ export class TeacherReviewService {
     );
 
     return { finalScore };
+  }
+
+  /**
+   * Publishes a whole session's grades.
+   *
+   * Named apart from `finalize` on purpose — that one closes COLLECTION, this
+   * one closes GRADING. Sharing a name would blur the two pipelines CLAUDE.md
+   * exists to keep apart.
+   *
+   * Idempotent by design: a second call finds nothing left to do, returns
+   * {0, 0}, and does not throw. Pressing a button twice is ordinary, and the
+   * second press is harmless.
+   *
+   * One transaction. A half-finalised session leaves some results `finalized`
+   * and others `teacher_reviewed`, and no screen can describe that state.
+   */
+  async finalizeGrades(
+    examSessionId: string,
+    teacherId: string,
+  ): Promise<FinalizeGradesOutcome> {
+    const all = await this.results
+      .createQueryBuilder('g')
+      .innerJoin('submission', 's', 's.id = g.submission_id')
+      .where('s.exam_session_id = :id', { id: examSessionId })
+      .getMany();
+
+    if (all.length === 0) {
+      throw new BadRequestException(
+        'Phiên thi này chưa chấm bài nào — chưa có điểm để chốt.',
+      );
+    }
+
+    const blocking = all.filter((result) => BLOCKS_FINALIZE.includes(result.status));
+    if (blocking.length > 0) {
+      throw new ConflictException(
+        `Còn ${blocking.length} bài chưa duyệt xong — hãy duyệt hết trước khi chốt điểm.`,
+      );
+    }
+
+    let reviewedByHand = 0;
+    let acceptedAsProposed = 0;
+
+    for (const result of all) {
+      if (result.status === 'auto_approved') {
+        // A bulk-accepted result still gets a REAL review row carrying the
+        // name of whoever pressed the button. Jumping straight to finalized
+        // would leave a published score with nobody's name on it.
+        await this.reviews.save(
+          this.reviews.create({
+            gradingResultId: result.id,
+            teacherId,
+            finalScore: String(result.aiTotalScore ?? 0),
+            editedCriteria: (result.criterionResults ?? []) as unknown as Record<
+              string,
+              unknown
+            >,
+          }),
+        );
+        if (!(await this.advance(result.id, ['auto_approved'], 'teacher_reviewed'))) {
+          throw new ConflictException(
+            'Một bài vừa đổi trạng thái — hãy tải lại và chốt lại.',
+          );
+        }
+        acceptedAsProposed++;
+      } else if (result.status === 'teacher_reviewed') {
+        reviewedByHand++;
+      } else {
+        // finalized / exported: already published. This is the branch that
+        // makes a second call harmless.
+        continue;
+      }
+
+      if (!(await this.advance(result.id, ['teacher_reviewed'], 'finalized'))) {
+        throw new ConflictException(
+          'Một bài vừa đổi trạng thái — hãy tải lại và chốt lại.',
+        );
+      }
+    }
+
+    return { reviewedByHand, acceptedAsProposed };
   }
 
   /**

@@ -104,16 +104,23 @@ describe('TeacherReview (e2e)', () => {
   }
 
   /**
-   * Một kết quả chấm ĐANG DỞ, dựng bằng đường hợp pháp.
+   * Một kết quả chấm ở đúng trạng thái muốn có, dựng bằng đường HỢP PHÁP.
    *
-   * Không lùi ngược một kết quả đã chấm về `ai_grading` —
-   * `validate_grading_result_lifecycle` từ chối mọi transition đi ngược
+   * `validate_grading_result_lifecycle` từ chối MỌI transition đi ngược
    * ("Invalid grading result status transition: flagged_for_review ->
-   * ai_grading"). Cách đúng là INSERT mới, vì trigger cho phép đúng một giá
-   * trị lúc INSERT: `ai_grading`. Từ đó `ai_graded` là một bước tiến hợp lệ.
+   * ai_grading"), nên không thể lùi một kết quả đã chấm về trạng thái sớm hơn.
+   * Cách đúng là INSERT mới — trigger cho phép đúng một giá trị lúc INSERT là
+   * `ai_grading` — rồi đi tiến từng bước theo đúng bản đồ:
+   *
+   *   ai_grading → ai_graded → auto_approved
+   *
+   * `aiTotalScore`/`criterionResults` để NULL: những ca dùng helper này không
+   * quan tâm tới nội dung AI, chỉ quan tâm tới trạng thái.
    */
-  async function sessionWithInFlightResult(
-    status: 'ai_grading' | 'ai_graded',
+  const LEGAL_PATH = ['ai_grading', 'ai_graded', 'auto_approved'] as const;
+
+  async function resultAtStatus(
+    target: (typeof LEGAL_PATH)[number],
   ): Promise<{ sessionId: string; resultId: string }> {
     const { sessionId, submissionId } = await sessionWithCollectedSubmission();
 
@@ -123,10 +130,11 @@ describe('TeacherReview (e2e)', () => {
        VALUES ($1, $2, $3, 'ai_grading') RETURNING id`,
       [submissionId, rubricId, idA],
     );
-    if (status === 'ai_graded') {
+
+    for (const step of LEGAL_PATH.slice(1, LEGAL_PATH.indexOf(target) + 1)) {
       await dataSource.query(
-        `UPDATE examcollect.grading_result SET status = 'ai_graded' WHERE id = $1`,
-        [result.id],
+        `UPDATE examcollect.grading_result SET status = $2 WHERE id = $1`,
+        [result.id, step],
       );
     }
     return { sessionId, resultId: result.id };
@@ -316,7 +324,7 @@ describe('TeacherReview (e2e)', () => {
   });
 
   it('CỔNG TRẠNG THÁI: duyệt khi ai_grading → 409 và KHÔNG ghi dòng nào (§6.1.1)', async () => {
-    const { resultId } = await sessionWithInFlightResult('ai_grading');
+    const { resultId } = await resultAtStatus('ai_grading');
 
     const response = await submitReview(tokenA, resultId, fullMarks());
 
@@ -326,7 +334,7 @@ describe('TeacherReview (e2e)', () => {
   });
 
   it('CỔNG TRẠNG THÁI: duyệt khi ai_graded → 409 và không ghi dòng nào', async () => {
-    const { resultId } = await sessionWithInFlightResult('ai_graded');
+    const { resultId } = await resultAtStatus('ai_graded');
 
     const response = await submitReview(tokenA, resultId, fullMarks());
 
@@ -381,5 +389,95 @@ describe('TeacherReview (e2e)', () => {
 
     expect(response.status).toBe(400);
     expect(await countReviews(resultId)).toBe(0);
+  });
+
+  describe('POST /exam-sessions/:id/finalize-grades', () => {
+    function finalize(token: string, sessionId: string) {
+      return request(app.getHttpServer())
+        .post(`/exam-sessions/${sessionId}/finalize-grades`)
+        .set('Authorization', `Bearer ${token}`);
+    }
+
+    async function statusesOf(sessionId: string): Promise<string[]> {
+      const rows = await dataSource.query(
+        `SELECT g.status FROM examcollect.grading_result g
+         JOIN examcollect.submission s ON s.id = g.submission_id
+         WHERE s.exam_session_id = $1`,
+        [sessionId],
+      );
+      return rows.map((r: { status: string }) => r.status);
+    }
+
+    it('từ chối 409 khi còn bài chưa duyệt xong', async () => {
+      const { sessionId } = await resultAtStatus('ai_grading');
+
+      const response = await finalize(tokenA, sessionId);
+
+      expect(response.status).toBe(409);
+      expect(await statusesOf(sessionId)).toEqual(['ai_grading']);
+    });
+
+    it('từ chối 400 khi phiên chưa chấm bài nào', async () => {
+      const { sessionId } = await sessionWithCollectedSubmission();
+
+      const response = await finalize(tokenA, sessionId);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('từ chối giảng viên không sở hữu phiên với 403', async () => {
+      const { sessionId } = await sessionWithOneGradedSubmission();
+
+      const response = await finalize(tokenB, sessionId);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('sinh TeacherReview THẬT cho bài auto_approved, mang id người bấm nút', async () => {
+      // Provider keyword-match luôn cho confidence thấp nên start-grading
+      // đưa bài về flagged_for_review — không lùi ngược được. Dựng thẳng một
+      // kết quả ở auto_approved qua đường tiến hợp lệ.
+      const { sessionId, resultId } = await resultAtStatus('auto_approved');
+
+      const response = await finalize(tokenA, sessionId);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ reviewedByHand: 0, acceptedAsProposed: 1 });
+      expect(await statusesOf(sessionId)).toEqual(['finalized']);
+
+      const [row] = await dataSource.query(
+        `SELECT teacher_id, final_score FROM examcollect.teacher_review
+         WHERE grading_result_id = $1`,
+        [resultId],
+      );
+      // Không bài nào nhảy thẳng sang finalized: bảng điểm cuối cùng không được
+      // có dòng nào không ai đứng tên.
+      expect(row.teacher_id).toBe(idA);
+      expect(Number(row.final_score)).toBeGreaterThanOrEqual(0);
+    });
+
+    it('đếm riêng bài đã duyệt tay và bài chấp nhận theo đề xuất AI', async () => {
+      const { sessionId, resultId } = await sessionWithOneGradedSubmission();
+      expect((await submitReview(tokenA, resultId, fullMarks())).status).toBe(201);
+
+      const response = await finalize(tokenA, sessionId);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ reviewedByHand: 1, acceptedAsProposed: 0 });
+      expect(await statusesOf(sessionId)).toEqual(['finalized']);
+    });
+
+    it('gọi lần hai là vô hại: {0,0}, không lỗi, không dòng review mới', async () => {
+      const { sessionId, resultId } = await sessionWithOneGradedSubmission();
+      expect((await submitReview(tokenA, resultId, fullMarks())).status).toBe(201);
+      expect((await finalize(tokenA, sessionId)).status).toBe(200);
+      const before = await countReviews(resultId);
+
+      const second = await finalize(tokenA, sessionId);
+
+      expect(second.status).toBe(200);
+      expect(second.body).toEqual({ reviewedByHand: 0, acceptedAsProposed: 0 });
+      expect(await countReviews(resultId)).toBe(before);
+    });
   });
 });

@@ -125,6 +125,18 @@ export class GradingController {
     return this.teacherReviews.review(result, req.user!.sub, dto);
   }
 
+  /**
+   * Publishes a session's grades. The point of no return: from here on, a
+   * score edit is exceptional and lands in the audit log.
+   */
+  @Post('exam-sessions/:id/finalize-grades')
+  @Roles('teacher')
+  @HttpCode(200)
+  async finalizeGrades(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.teacherReviews.finalizeGrades(session.id, req.user!.sub);
+  }
+
   @Get('exam-sessions/:id/grading-results')
   @Roles('teacher')
   async listResults(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
