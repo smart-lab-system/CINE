@@ -204,4 +204,101 @@ describe('Session-pinned rubric (e2e)', () => {
     expect(created.status).toBe(201);
     expect(created.body.rubricId).toBe(byB.id);
   });
+
+  describe('PATCH /exam-sessions/:id/rubric', () => {
+    function setRubric(token: string, sessionId: string, rubricId: string | null) {
+      return request(app.getHttpServer())
+        .patch(`/exam-sessions/${sessionId}/rubric`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ rubricId });
+    }
+
+    /**
+     * Một GradingResult là đủ để khoá — không cần bài nộp hợp lệ. Trigger
+     * validate_submission_lifecycle cho INSERT thẳng ở 'invalid'.
+     */
+    async function attachOneGradingResult(sessionId: string, deliverableId: string, rubricId: string) {
+      const [submission] = await dataSource.query(
+        `INSERT INTO examcollect.submission
+           (exam_session_id, required_deliverable_id, student_mssv,
+            student_name_input, home_class_id, home_teacher_id, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'invalid') RETURNING id`,
+        [
+          sessionId,
+          deliverableId,
+          `SVL${stamp}`.slice(0, 20),
+          'SV Khoá',
+          classAId,
+          idA,
+        ],
+      );
+      await dataSource.query(
+        `INSERT INTO examcollect.grading_result
+           (submission_id, rubric_id_version, grading_triggered_by, status)
+         VALUES ($1, $2, $3, 'ai_grading')`,
+        [submission.id, rubricId, idA],
+      );
+    }
+
+    it('gắn rubric cho phiên chưa chấm', async () => {
+      const created = await createSession(tokenA, { classId: classAId });
+      const rubric = await saveRubric(tokenA, courseId, 'Gắn sau');
+
+      const patched = await setRubric(tokenA, created.body.id, rubric.id);
+
+      expect(patched.status).toBe(200);
+      expect(patched.body.rubricId).toBe(rubric.id);
+      expect(patched.body.rubricVersion).toBe(rubric.version);
+    });
+
+    it('gỡ rubric bằng null', async () => {
+      const rubric = await saveRubric(tokenA, courseId, 'Sẽ gỡ');
+      const created = await createSession(tokenA, {
+        classId: classAId,
+        rubricId: rubric.id,
+      });
+
+      const patched = await setRubric(tokenA, created.body.id, null);
+
+      expect(patched.status).toBe(200);
+      expect(patched.body.rubricId).toBeNull();
+      expect(patched.body.rubricVersion).toBeNull();
+    });
+
+    it('từ chối rubric khác môn với 400', async () => {
+      const created = await createSession(tokenA, { classId: classAId });
+      const foreign = await saveRubric(tokenA, otherCourseId, 'Khác môn');
+
+      const patched = await setRubric(tokenA, created.body.id, foreign.id);
+
+      expect(patched.status).toBe(400);
+    });
+
+    it('từ chối người không sở hữu phiên với 403', async () => {
+      const created = await createSession(tokenA, { classId: classAId });
+      const rubric = await saveRubric(tokenA, courseId, 'Của A');
+
+      const patched = await setRubric(tokenB, created.body.id, rubric.id);
+
+      expect(patched.status).toBe(403);
+    });
+
+    it('từ chối với 409 khi phiên đã có kết quả chấm', async () => {
+      const rubric = await saveRubric(tokenA, courseId, 'Đã chấm');
+      const created = await createSession(tokenA, {
+        classId: classAId,
+        rubricId: rubric.id,
+      });
+      await attachOneGradingResult(
+        created.body.id,
+        created.body.requiredDeliverables[0].id,
+        rubric.id,
+      );
+
+      const other = await saveRubric(tokenA, courseId, 'Đổi sau khi chấm');
+      const patched = await setRubric(tokenA, created.body.id, other.id);
+
+      expect(patched.status).toBe(409);
+    });
+  });
 });

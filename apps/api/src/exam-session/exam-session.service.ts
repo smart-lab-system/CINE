@@ -179,6 +179,41 @@ export class ExamSessionService {
   }
 
   /**
+   * Writes a rubric onto an already-created session.
+   *
+   * The caller has already proved two things this method does not re-check:
+   * that they own the session (findEntityForOwner) and that nothing has been
+   * graded yet (GradingService.hasResultsForSession). Both live in the
+   * controller because the second one belongs to the grading module, and
+   * pulling it in here would invert the module dependency.
+   *
+   * Same single check as create(): the rubric must belong to this session's
+   * course. There is no rubric ownership to check — see create().
+   */
+  async setRubric(
+    session: ExamSessionEntity,
+    rubricId: string | null,
+  ): Promise<ExamSessionResponseDto> {
+    let rubric: RubricEntity | null = null;
+    if (rubricId) {
+      rubric = await this.rubrics.findOne({ where: { id: rubricId } });
+      if (!rubric || rubric.courseId !== session.courseId) {
+        throw new BadRequestException(
+          'Rubric không thuộc môn học của phiên thi này.',
+        );
+      }
+    }
+
+    await this.sessions.update(session.id, { rubricId: rubric?.id ?? null });
+    const deliverables = await this.listRequiredDeliverables(session.id);
+    return this.toResponseDto(
+      { ...session, rubricId: rubric?.id ?? null },
+      deliverables,
+      rubric?.version ?? null,
+    );
+  }
+
+  /**
    * Reused by the WebSocket gateway (Task 3) on `agent:join` — looks up a
    * session by its join code. The gateway is responsible for upper-casing
    * whatever code it receives before calling this, matching how codes are

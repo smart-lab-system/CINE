@@ -220,6 +220,27 @@ export class GradingService {
     });
   }
 
+  /**
+   * Has anything in this session been graded yet.
+   *
+   * Deliberately NOT `RubricService.hasResults(rubricId)` — that counts
+   * results for a rubric VERSION across the whole system, and the question
+   * here is about one SESSION. A rubric shared by two sessions would make
+   * the wrong one answer true.
+   *
+   * This is what closes the window on changing a session's rubric: once a
+   * result cites a version, swapping the rubric rewrites grading history.
+   */
+  async hasResultsForSession(examSessionId: string): Promise<boolean> {
+    const count = await this.results
+      .createQueryBuilder('g')
+      .innerJoin('submission', 's', 's.id = g.submission_id')
+      .where('s.exam_session_id = :id', { id: examSessionId })
+      .limit(1)
+      .getCount();
+    return count > 0;
+  }
+
   /** Results for one session, newest submission first. */
   async listForSession(examSessionId: string): Promise<GradingResultView[]> {
     const rows = await this.results
