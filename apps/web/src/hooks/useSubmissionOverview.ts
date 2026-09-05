@@ -1,9 +1,13 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  archiveSession,
+  closeAttention,
   listSessionOverview,
   listTeacherSubmissions,
+  reopenAttention,
+  unarchiveSession,
   type SearchSubmissionsParams,
 } from '@/lib/api/submissions';
 
@@ -24,5 +28,33 @@ export function useTeacherSubmissions(params: SearchSubmissionsParams, enabled: 
     queryKey: ['submissions', 'search', params],
     queryFn: () => listTeacherSubmissions(params),
     enabled,
+  });
+}
+
+/**
+ * `on: true` bật trạng thái, `false` gỡ. Một hook cho cả hai chiều vì nút trên
+ * bảng cũng là một nút đảo trạng thái, không phải hai nút khác nhau.
+ *
+ * Invalidate cả overview: lưu trữ/khép đổi cả số đếm ở cột lọc lẫn danh sách.
+ */
+export function useArchiveSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, on }: { id: string; on: boolean }) =>
+      on ? archiveSession(id) : unarchiveSession(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['submissions', 'overview'] });
+    },
+  });
+}
+
+export function useCloseAttention() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, on }: { id: string; on: boolean }) =>
+      on ? closeAttention(id) : reopenAttention(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['submissions', 'overview'] });
+    },
   });
 }

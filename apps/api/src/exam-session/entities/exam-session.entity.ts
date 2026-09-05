@@ -161,6 +161,13 @@ export class ExamSessionEntity extends BaseEntity {
   @Column({ name: 'attendance_confirmed_count', type: 'int', nullable: true })
   attendanceConfirmedCount!: number | null;
 
+  /** Xem AddSessionLifecycleColumns migration cho lý do tách hai cột. */
+  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
+  archivedAt!: Date | null;
+
+  @Column({ name: 'attention_closed_at', type: 'timestamptz', nullable: true })
+  attentionClosedAt!: Date | null;
+
   @Column({ name: 'rubric_id', type: 'uuid', nullable: true })
   rubricId!: string | null;
 

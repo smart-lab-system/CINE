@@ -32,8 +32,13 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     rosterKnown: true,
     fullySubmittedCount: 40,
     partialCount: 0,
-    notSubmittedCount: 0,
+    attendedNoSubmissionCount: 0,
+    neverAttendedCount: 0,
     invalidFileCount: 0,
+    semesterId: 'sem-1',
+    semesterName: 'Học kỳ 1 2026-2027',
+    archivedAt: null,
+    attentionClosedAt: null,
     ...overrides,
   };
 }
@@ -96,37 +101,54 @@ describe('getAttentionReasons', () => {
     expect(getAttentionReasons(make(), NOW)).toEqual([]);
   });
 
-  it('ba lý do xuất hiện đúng thứ tự ưu tiên: invalid, partial, chưa nộp', () => {
+  it('ba mức đúng thứ tự ưu tiên: vào phòng mất bài, thiếu file, vắng thi', () => {
     const item = make({
-      invalidFileCount: 2,
+      attendedNoSubmissionCount: 2,
       partialCount: 3,
-      notSubmittedCount: 5,
-      fullySubmittedCount: 32,
+      neverAttendedCount: 5,
+      fullySubmittedCount: 30,
     });
     const reasons = getAttentionReasons(item, NOW);
 
-    expect(reasons.map((r) => r.kind)).toEqual(['invalid', 'partial', 'not-submitted']);
+    expect(reasons.map((r) => r.kind)).toEqual([
+      'attended-no-submission', 'partial', 'never-attended',
+    ]);
     expect(reasons.map((r) => r.priority)).toEqual([1, 2, 3]);
-    expect(reasons[0].label).toBe('2 file không hợp lệ');
+    expect(reasons[0].label).toBe('2 sinh viên vào phòng nhưng không có bài');
     expect(reasons[1].label).toBe('3 sinh viên nộp thiếu file');
-    expect(reasons[2].label).toBe('5 sinh viên chưa nộp');
-    expect(reasons[0].variant).toBe('destructive');
-    expect(reasons[1].variant).toBe('warning');
-    expect(reasons[2].variant).toBe('default');
+    expect(reasons[2].label).toBe('5 sinh viên vắng thi');
+    expect(reasons.map((r) => r.tone)).toEqual(['danger', 'warning', 'caution']);
+  });
+
+  it('phiên đã lưu trữ không bao giờ có lý do, dù số liệu xấu', () => {
+    const item = make({
+      archivedAt: '2026-09-01T00:00:00.000Z',
+      attendedNoSubmissionCount: 9,
+      fullySubmittedCount: 0,
+    });
+    expect(getAttentionReasons(item, NOW)).toEqual([]);
+  });
+
+  it('phiên đã khép không bao giờ có lý do, dù số liệu xấu', () => {
+    const item = make({
+      attentionClosedAt: '2026-09-01T00:00:00.000Z',
+      attendedNoSubmissionCount: 9,
+      fullySubmittedCount: 0,
+    });
+    expect(getAttentionReasons(item, NOW)).toEqual([]);
   });
 
   it('trong grace: không lý do nào, dù thiếu bài — báo động giả', () => {
     const item = make({
       endTime: new Date(NOW - 60_000).toISOString(),
-      notSubmittedCount: 5,
-      invalidFileCount: 2,
-      fullySubmittedCount: 33,
+      neverAttendedCount: 5,
+      fullySubmittedCount: 35,
     });
     expect(getAttentionReasons(item, NOW)).toEqual([]);
   });
 
   it('rosterKnown false: không lý do nào', () => {
-    const item = make({ rosterKnown: false, notSubmittedCount: 0, expectedCount: 3 });
+    const item = make({ rosterKnown: false, expectedCount: 3 });
     expect(getAttentionReasons(item, NOW)).toEqual([]);
   });
 
@@ -136,9 +158,14 @@ describe('getAttentionReasons', () => {
   });
 
   it('draft và cancelled: không bao giờ có lý do', () => {
-    const shape = { notSubmittedCount: 40, fullySubmittedCount: 0, invalidFileCount: 9 };
+    const shape = { neverAttendedCount: 40, fullySubmittedCount: 0 };
     expect(getAttentionReasons(make({ status: 'draft', ...shape }), NOW)).toEqual([]);
     expect(getAttentionReasons(make({ status: 'cancelled', ...shape }), NOW)).toEqual([]);
+  });
+
+  it('invalidFileCount KHÔNG sinh lý do — nó đang ngủ', () => {
+    const item = make({ invalidFileCount: 7, fullySubmittedCount: 40 });
+    expect(getAttentionReasons(item, NOW)).toEqual([]);
   });
 });
 
@@ -152,15 +179,17 @@ describe('hasRatio', () => {
 
 describe('compareSessions', () => {
   it('lý do gấp hơn xếp trước; cùng mức thì phiên mới hơn trước', () => {
-    const invalid = make({ id: 'a', invalidFileCount: 1, fullySubmittedCount: 39 });
-    const missing = make({ id: 'b', notSubmittedCount: 1, fullySubmittedCount: 39 });
+    // Mức 1 (nghi mất bài) phải xếp trước mức 3 (vắng thi). invalidFileCount
+    // không còn dùng được để dựng thứ hạng — nó đã thôi sinh lý do.
+    const lost = make({ id: 'a', attendedNoSubmissionCount: 1, fullySubmittedCount: 39 });
+    const absent = make({ id: 'b', neverAttendedCount: 1, fullySubmittedCount: 39 });
     const clean = make({ id: 'c' });
     const cleanOlder = make({
       id: 'd',
       startTime: new Date(NOW - 10 * HOUR).toISOString(),
     });
 
-    const sorted = [clean, missing, cleanOlder, invalid]
+    const sorted = [clean, absent, cleanOlder, lost]
       .sort((x, y) => compareSessions(x, y, NOW))
       .map((s) => s.id);
 
@@ -171,7 +200,13 @@ describe('compareSessions', () => {
 describe('groupByCourseClass', () => {
   it('gom theo môn + lớp, và ĐẾM cả phiên cần chú ý trong nhóm', () => {
     const items = [
-      make({ id: 'a', courseName: 'CSDL', className: 'N01', invalidFileCount: 1 }),
+      make({
+        id: 'a',
+        courseName: 'CSDL',
+        className: 'N01',
+        attendedNoSubmissionCount: 1,
+        fullySubmittedCount: 39,
+      }),
       make({ id: 'b', courseName: 'CSDL', className: 'N01' }),
       // courseId/classId phải đổi theo courseName/className: nhóm khoá theo
       // ID (khớp implementation, và đúng ngữ nghĩa — 2 môn trùng tên hiển thị

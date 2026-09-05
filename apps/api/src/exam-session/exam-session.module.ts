@@ -15,6 +15,7 @@ import { AccessRequestGateway } from './access-request.gateway';
 import { AccessRequestStore } from './access-request.store';
 import { AgentJoinLockStore } from './agent-join-lock.store';
 import { ScheduleConflictService } from './schedule-conflict.service';
+import { SessionLifecycleService } from './session-lifecycle.service';
 import { AdminModule } from '../admin/admin.module';
 import { AgentConnectionModule } from '../agent-connection/agent-connection.module';
 import { StorageModule } from '../storage/storage.module';
@@ -47,6 +48,7 @@ import { StorageModule } from '../storage/storage.module';
   providers: [
     ExamSessionService,
     ScheduleConflictService,
+    SessionLifecycleService,
     ExamMaterialService,
     ExamSessionGateway,
     ExamSessionEvents,
