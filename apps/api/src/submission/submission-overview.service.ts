@@ -27,6 +27,8 @@ interface OverviewRawRow {
   semester_id: string;
   semester_name: string;
   archived_at: Date | null;
+  rubric_id: string | null;
+  rubric_version: number | string | null;
   attention_closed_at: Date | null;
 }
 
@@ -138,6 +140,7 @@ export class SubmissionOverviewService {
              rm.name AS room_name,
              s.exam_type, s.start_time, s.end_time, s.status,
              s.archived_at, s.attention_closed_at,
+             s.rubric_id, rb.version AS rubric_version,
              sem.id AS semester_id, sem.name AS semester_name,
              d.required_count,
              rs.roster_size,
@@ -148,6 +151,9 @@ export class SubmissionOverviewService {
       -- course.semester_id là NOT NULL, nên JOIN thường không bỏ sót phiên nào.
       JOIN      ${schema}.semester sem ON sem.id = c.semester_id
       LEFT JOIN ${schema}.class  cl ON cl.id = s.class_id
+      -- LEFT, không phải JOIN: phiên chưa gắn rubric PHẢI còn trong kết quả.
+      -- Đổi thành JOIN thường là âm thầm giấu mất bài thi thật (§5.3).
+      LEFT JOIN ${schema}.rubric rb ON rb.id = s.rubric_id
       JOIN      ${schema}.room   rm ON rm.id = s.room_id
       LEFT JOIN deliv       d  ON d.exam_session_id  = s.id
       LEFT JOIN per_session ps ON ps.exam_session_id = s.id
@@ -171,6 +177,10 @@ export class SubmissionOverviewService {
       startTime: new Date(row.start_time).toISOString(),
       endTime: new Date(row.end_time).toISOString(),
       status: row.status as SessionOverviewItem['status'],
+      rubricId: row.rubric_id,
+      // Number(): node-postgres trả integer dạng string ở một số kiểu, theo
+      // đúng quy ước đã áp dụng cho mọi con số khác trong file này.
+      rubricVersion: row.rubric_version === null ? null : Number(row.rubric_version),
       requiredDeliverableCount: toCount(row.required_count),
       expectedCount: toCount(row.expected_count),
       rosterKnown: toCount(row.roster_size) > 0,

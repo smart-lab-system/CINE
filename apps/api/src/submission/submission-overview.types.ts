@@ -21,6 +21,16 @@ export interface SessionOverviewItem {
   endTime: string;
   status: ExamSessionStatus;
 
+  /**
+   * Rubric đã ghim cho phiên này — `null` nghĩa là chưa chấm được.
+   *
+   * `null` KHÔNG phải lý do để loại phiên khỏi danh sách: xem spec
+   * 2026-09-05-session-pinned-rubric §5.3. Trang Chấm điểm hiện nó ra kèm
+   * trạng thái chặn, vì bài thi thật của SV đang nằm trong đó.
+   */
+  rubricId: string | null;
+  rubricVersion: number | null;
+
   requiredDeliverableCount: number;
   /** |roster ∪ người đã nộp| — §3.2. KHÔNG phải rosterSize. */
   expectedCount: number;
