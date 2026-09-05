@@ -4,6 +4,7 @@ import {
   IsArray,
   IsIn,
   IsISO8601,
+  IsOptional,
   IsString,
   IsUUID,
   Length,
@@ -119,6 +120,18 @@ export class CreateExamSessionDto {
 
   @IsUUID()
   roomId!: string;
+
+  /**
+   * Rubric dùng để chấm phiên này — quyết định lúc ra đề, không tra lại lúc
+   * chấm (spec 2026-09-05-session-pinned-rubric §1.2).
+   *
+   * Tuỳ chọn: §3.1 của kế hoạch tổng thể nói "gắn rubric chấm điểm (nếu dùng
+   * AI chấm)", nên phiên không chấm bằng AI vẫn tạo, thi và thu bài bình
+   * thường — chỉ "Bắt đầu chấm" là bị chặn tới khi có rubric.
+   */
+  @IsOptional()
+  @IsUUID()
+  rubricId?: string;
 
   @IsIn(EXAM_TYPES)
   examType!: ExamType;

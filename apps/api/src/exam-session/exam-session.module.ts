@@ -15,6 +15,7 @@ import { AccessRequestGateway } from './access-request.gateway';
 import { AccessRequestStore } from './access-request.store';
 import { AgentJoinLockStore } from './agent-join-lock.store';
 import { ScheduleConflictService } from './schedule-conflict.service';
+import { RubricEntity } from '../grading/entities/rubric.entity';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { AdminModule } from '../admin/admin.module';
 import { AgentConnectionModule } from '../agent-connection/agent-connection.module';
@@ -26,6 +27,11 @@ import { StorageModule } from '../storage/storage.module';
       ExamSessionEntity,
       RequiredDeliverableEntity,
       ExamMaterialEntity,
+      // Only so ExamSessionService can check a rubric belongs to the
+      // session's course. Deliberately the entity and not GradingModule:
+      // GradingModule imports THIS module, and importing it back would be a
+      // cycle needing forwardRef.
+      RubricEntity,
     ]),
     // Registered the same way AuthModule does (JwtModule.register({}) with
     // no default secret) — ExamSessionGateway calls jwt.verifyAsync with an
