@@ -2,7 +2,7 @@
 
 import { FormEvent, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ClipboardCheck, ShieldCheck } from 'lucide-react';
+import { ClipboardCheck, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { gsap, useGSAP, MOTION, MOTION_OK } from '@/lib/gsap';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,10 @@ export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Typing a password blind is where most failed logins here actually come
+  // from — the accounts are handed out by the khoa admin, so people are
+  // transcribing a string they did not choose.
+  const [showPassword, setShowPassword] = useState(false);
   const scope = useRef<HTMLDivElement>(null);
 
   // A timeline rather than a stagger, because the three steps genuinely
@@ -136,13 +140,35 @@ export default function LoginPage() {
 
               <div data-login-row>
                 <FormField id="password" label="Mật khẩu">
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      // Room for the toggle, so a long password never runs
+                      // underneath it.
+                      className="pr-10"
+                      required
+                    />
+                    {/* type="button" is load-bearing: inside a <form> a bare
+                        <button> defaults to type="submit", so revealing the
+                        password would submit the form. */}
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      aria-pressed={showPassword}
+                      aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted-foreground transition-colors duration-200 ease-smooth hover:text-foreground"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Eye className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
                 </FormField>
               </div>
 

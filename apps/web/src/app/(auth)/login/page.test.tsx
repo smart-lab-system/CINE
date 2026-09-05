@@ -8,14 +8,20 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
+// Exact strings, not /mật khẩu/i: the show/hide toggle is labelled
+// "Hiện mật khẩu", so a loose pattern now matches two elements and throws.
+function passwordInput() {
+  return screen.getByLabelText('Mật khẩu');
+}
+
 function submit() {
-  fireEvent.change(screen.getByLabelText(/email/i), {
+  fireEvent.change(screen.getByLabelText('Email'), {
     target: { value: 'someone@example.com' },
   });
-  fireEvent.change(screen.getByLabelText(/mật khẩu/i), {
+  fireEvent.change(passwordInput(), {
     target: { value: 'correct-horse-battery' },
   });
-  fireEvent.click(screen.getByRole('button', { name: /đăng nhập/i }));
+  fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập' }));
 }
 
 afterEach(() => {
@@ -85,6 +91,34 @@ describe('LoginPage redirect', () => {
         /sai email hoặc mật khẩu/i,
       ),
     );
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
+// The accounts here are issued by the khoa admin, so people are typing a
+// string they did not choose — being able to read it back is the point.
+describe('LoginPage password visibility', () => {
+  it('starts masked and only reveals the password on request', () => {
+    render(<LoginPage />);
+
+    expect(passwordInput()).toHaveAttribute('type', 'password');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hiện mật khẩu' }));
+    expect(passwordInput()).toHaveAttribute('type', 'text');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ẩn mật khẩu' }));
+    expect(passwordInput()).toHaveAttribute('type', 'password');
+  });
+
+  it('does not submit the form when the toggle is clicked', () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    render(<LoginPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Hiện mật khẩu' }));
+
+    // A bare <button> inside a <form> defaults to type="submit"; this pins
+    // the explicit type="button" that stops the reveal from logging in.
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
   });
 });
