@@ -1,15 +1,14 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Fragment, Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ClipboardCheck, Play, Plus, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { Play } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -26,12 +25,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useExamSessions } from '@/hooks/useExamSession';
-import { useTeachingClasses } from '@/hooks/useTeaching';
+import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import {
   useGradingResults,
   useRubrics,
-  useSaveRubric,
+  useSetSessionRubric,
   useStartGrading,
 } from '@/hooks/useGrading';
 import type { GradingResult } from '@/lib/api/grading';
@@ -65,27 +63,37 @@ export default function GradingPage() {
 
 function GradingPageContent() {
   const searchParams = useSearchParams();
-  const sessions = useExamSessions({ page: 1, pageSize: 50 });
-  const classes = useTeachingClasses();
-  // Seeded once, from the submissions detail page's "Chấm điểm" link
-  // (?sessionId=) — the dropdown below still lets the teacher change it;
-  // this only saves them from picking a session they already came here to
-  // grade.
+  // Nguồn là overview, không phải GET /exam-sessions. Ba lý do, mỗi lý do
+  // tự nó đã đủ: endpoint kia có trần cứng 50 phiên; overview đã mang sẵn
+  // `courseId`, chấm dứt trò suy courseId bằng cách khớp TÊN môn (hai môn
+  // cùng tên khác học kỳ khớp nhầm bản đầu, và giảng viên sửa rubric của
+  // môn sai); và nó đã có số liệu bài nộp lẫn rubric đã ghim, đủ dựng cả
+  // trạng thái chặn mà không gọi thêm API nào.
+  const overview = useSessionOverview();
   const [sessionId, setSessionId] = useState<string>(() => searchParams.get('sessionId') ?? '');
 
-  const session = sessions.data?.items.find((item) => item.id === sessionId);
-  // The rubric belongs to the COURSE, and the session list carries only the
-  // course NAME — the class list is what maps a session's course to an id.
-  const courseId = useMemo(() => {
-    if (!session) return undefined;
-    return classes.data?.find((klass) => klass.courseName === session.courseName)?.courseId;
-  }, [session, classes.data]);
+  // Chỉ phiên có bài để chấm.
+  //
+  // KHÔNG lọc theo rubric — phiên thiếu rubric phải hiện ra kèm trạng thái
+  // chặn, vì bài thi thật của SV đang nằm trong đó (spec §5.3).
+  //
+  // KHÔNG lọc theo archivedAt — lưu trữ là khái niệm của luồng THU BÀI;
+  // gắn nó vào chấm điểm nghĩa là giảng viên dọn dẹp một màn hình thì âm
+  // thầm mất đường vào màn hình kia.
+  const gradable = useMemo(
+    () =>
+      (overview.data ?? []).filter(
+        (item) => item.fullySubmittedCount + item.partialCount > 0,
+      ),
+    [overview.data],
+  );
 
-  const rubrics = useRubrics(courseId);
+  const session = gradable.find((item) => item.id === sessionId);
+  const courseId = session?.courseId;
+
   const results = useGradingResults(sessionId || undefined);
   const start = useStartGrading(sessionId || undefined);
-
-  const active = rubrics.data?.find((rubric) => rubric.isActive);
+  const hasResults = (results.data?.length ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -102,17 +110,26 @@ function GradingPageContent() {
           <Select value={sessionId} onValueChange={setSessionId}>
             <SelectTrigger id="grading-session" className="max-w-xl">
               <SelectValue
-                placeholder={sessions.isLoading ? 'Đang tải…' : 'Chọn một phiên thi'}
+                placeholder={overview.isLoading ? 'Đang tải…' : 'Chọn một phiên thi'}
               />
             </SelectTrigger>
             <SelectContent>
-              {sessions.data?.items.map((item) => (
+              {gradable.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
                   {item.name} — {item.courseName}
+                  {/* Nhìn thấy được TRƯỚC khi chọn. Danh sách là một
+                      <Select>, badge không đặt được trong option, nên hậu
+                      tố văn bản là cách duy nhất. */}
+                  {item.rubricId ? '' : ' — chưa gắn rubric'}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {!overview.isLoading && gradable.length === 0 && (
+            <p className="text-caption text-muted-foreground">
+              Chưa có phiên thi nào thu được bài. Chấm điểm chỉ làm việc với bài đã thu.
+            </p>
+          )}
           {session && session.status !== 'completed' && (
             <p className="text-caption text-muted-foreground">
               Phiên thi này chưa chốt bài. Chấm được, nhưng chỉ chấm những bài đã thu xong.
@@ -121,9 +138,14 @@ function GradingPageContent() {
         </CardContent>
       </Card>
 
-      {sessionId && (
+      {session && (
         <>
-          <RubricCard courseId={courseId} />
+          <SessionRubricCard
+            sessionId={session.id}
+            courseId={courseId}
+            rubricVersion={session.rubricVersion}
+            hasResults={hasResults}
+          />
 
           <Card className="overflow-hidden">
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-4 border-b border-border bg-surface-2/60">
@@ -132,7 +154,15 @@ function GradingPageContent() {
                 type="button"
                 size="sm"
                 loading={start.isPending}
-                disabled={!active}
+                // Theo rubric ĐÃ GHIM của phiên, không theo bản `isActive`
+                // của môn. Bản active có thể đã là v5 trong khi phiên này
+                // ghim v3 — và v3 mới là thứ nó sẽ được chấm bằng.
+                disabled={!session.rubricId}
+                title={
+                  session.rubricId
+                    ? undefined
+                    : 'Phiên thi này chưa gắn rubric — gắn rubric ở trên trước khi chấm.'
+                }
                 onClick={() => start.mutate()}
               >
                 <Play className="h-4 w-4" aria-hidden="true" />
@@ -141,14 +171,6 @@ function GradingPageContent() {
             </CardHeader>
 
             <CardContent className="flex flex-col gap-4 p-6">
-              {!active && (
-                <Alert variant="warning">
-                  <AlertDescription>
-                    Môn này chưa có rubric đang dùng. Tạo rubric ở trên trước khi chấm.
-                  </AlertDescription>
-                </Alert>
-              )}
-
               {start.isError && (
                 <Alert variant="destructive">
                   <AlertDescription>{start.error.message}</AlertDescription>
@@ -204,8 +226,11 @@ function ResultsTable({ results }: { results: GradingResult[] }) {
         </TableHeader>
         <TableBody>
           {results.map((result) => (
-            <>
-              <TableRow key={result.id}>
+            // Key trên Fragment, không phải trên <TableRow> bên trong: mỗi
+            // vòng lặp trả về HAI hàng, nên phần tử ngoài cùng mới là thứ
+            // React cần định danh.
+            <Fragment key={result.id}>
+              <TableRow>
                 <TableCell>
                   <span className="font-medium">{result.studentName}</span>{' '}
                   <span className="font-mono text-muted-foreground">{result.studentMssv}</span>
@@ -255,7 +280,7 @@ function ResultsTable({ results }: { results: GradingResult[] }) {
                   </TableCell>
                 </TableRow>
               )}
-            </>
+            </Fragment>
           ))}
         </TableBody>
       </Table>
@@ -264,152 +289,129 @@ function ResultsTable({ results }: { results: GradingResult[] }) {
 }
 
 /**
- * The rubric editor. Saving always creates a new VERSION — there is no
- * update path in the API, because changing criteria that existing results
- * cite is what Security rule 7 forbids. The card says so, so a version
- * number climbing during authoring reads as intended rather than as a bug.
+ * Rubric của phiên thi này — hiển thị, và đổi được cho tới khi bài đầu tiên
+ * được chấm.
+ *
+ * KHÔNG phải editor. Soạn rubric là việc theo MÔN, làm một lần, và sống ở
+ * /teacher/rubrics. Ở đây chỉ có một quyết định: phiên này chấm bằng bản
+ * nào — và phiên bản hiện ra là bản ĐÃ GHIM của phiên, không phải bản mới
+ * nhất của môn.
  */
-function RubricCard({ courseId }: { courseId: string | undefined }) {
+function SessionRubricCard({
+  sessionId,
+  courseId,
+  rubricVersion,
+  hasResults,
+}: {
+  sessionId: string;
+  courseId: string | undefined;
+  rubricVersion: number | null;
+  hasResults: boolean;
+}) {
   const rubrics = useRubrics(courseId);
-  const save = useSaveRubric(courseId);
-  const active = rubrics.data?.find((rubric) => rubric.isActive);
-  const [draft, setDraft] = useState<{ description: string; maxPoints: string }[] | null>(
-    null,
-  );
+  const setRubric = useSetSessionRubric(sessionId);
+  const options = rubrics.data ?? [];
 
-  const rows =
-    draft ??
-    active?.criteria.map((c) => ({
-      description: c.description,
-      maxPoints: String(c.maxPoints),
-    })) ??
-    [{ description: '', maxPoints: '5' }];
+  // Phiên chưa gắn rubric: chặn, nhưng KHÔNG ẩn khỏi danh sách và không im
+  // lặng. Bài thi thật của sinh viên đang nằm trong phiên này (spec §5.3).
+  if (rubricVersion === null) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col gap-4 py-6">
+          <Alert variant="warning">
+            <AlertDescription>
+              <span className="font-semibold">
+                Phiên thi này chưa gắn rubric — chưa chấm được.
+              </span>{' '}
+              Bài đã thu vẫn còn nguyên; chọn rubric bên dưới là chấm được ngay.
+            </AlertDescription>
+          </Alert>
 
-  function update(next: typeof rows) {
-    setDraft(next);
+          {options.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <Select
+                onValueChange={(value) => setRubric.mutate(value)}
+                disabled={setRubric.isPending}
+              >
+                <SelectTrigger id="attach-rubric" className="max-w-md">
+                  <SelectValue placeholder="Chọn rubric cho phiên thi này" />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((rubric) => (
+                    <SelectItem key={rubric.id} value={rubric.id}>
+                      Phiên bản {rubric.version} — {rubric.totalPoints} điểm
+                      {rubric.isActive ? ' (mới nhất)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Link
+                href="/teacher/rubrics"
+                className="text-small font-semibold underline underline-offset-2"
+              >
+                Quản lý rubric
+              </Link>
+            </div>
+          ) : (
+            <p className="text-small text-muted-foreground">
+              Môn này chưa có rubric nào.{' '}
+              <Link
+                href="/teacher/rubrics"
+                className="font-semibold underline underline-offset-2"
+              >
+                Soạn rubric
+              </Link>{' '}
+              rồi quay lại đây.
+            </p>
+          )}
+
+          {setRubric.isError && (
+            <Alert variant="destructive">
+              <AlertDescription>{setRubric.error.message}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
     <Card>
-      <CardHeader className="flex-row flex-wrap items-center justify-between gap-4">
-        <CardTitle className="text-h3">
-          Rubric
-          {active && (
-            <span className="ml-2 font-normal text-muted-foreground">
-              phiên bản {active.version} · {active.totalPoints} điểm
-            </span>
-          )}
-        </CardTitle>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          loading={save.isPending}
-          disabled={!courseId}
-          onClick={() =>
-            save.mutate(
-              rows
-                .filter((row) => row.description.trim() !== '')
-                .map((row) => ({
-                  description: row.description.trim(),
-                  maxPoints: Number(row.maxPoints) || 0,
-                })),
-              { onSuccess: () => setDraft(null) },
-            )
-          }
-        >
-          Lưu thành phiên bản mới
-        </Button>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-4">
-        <p className="text-small text-muted-foreground">
-          Mỗi lần lưu tạo một phiên bản mới. Bài đã chấm vẫn giữ nguyên phiên bản cũ — sửa
-          rubric không được phép làm thay đổi những kết quả đã có.
+      <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
+        <p className="text-small">
+          Phiên thi này chấm theo{' '}
+          <span className="font-semibold">rubric phiên bản {rubricVersion}</span>.{' '}
+          <Link
+            href="/teacher/rubrics"
+            className="underline underline-offset-2 text-muted-foreground"
+          >
+            Quản lý rubric
+          </Link>
         </p>
 
-        {!courseId && (
-          <Alert variant="info">
-            <AlertDescription>
-              Chưa xác định được môn của phiên thi này. Hãy chọn một phiên thi thuộc lớp bạn
-              đang dạy.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {save.isError && (
-          <Alert variant="destructive">
-            <AlertDescription>{save.error.message}</AlertDescription>
-          </Alert>
-        )}
-
-        <div className="flex flex-col gap-3">
-          {rows.map((row, index) => (
-            <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor={`criterion-${index}`}>Tiêu chí {index + 1}</Label>
-                <Input
-                  id={`criterion-${index}`}
-                  value={row.description}
-                  placeholder="vd: Trình bày thuật toán rõ ràng, có độ phức tạp"
-                  onChange={(event) =>
-                    update(
-                      rows.map((r, i) =>
-                        i === index ? { ...r, description: event.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-              </div>
-              <div className="flex w-28 flex-col gap-1.5">
-                <Label htmlFor={`criterion-points-${index}`}>Điểm tối đa</Label>
-                <Input
-                  id={`criterion-points-${index}`}
-                  type="number"
-                  min={0.25}
-                  step={0.25}
-                  value={row.maxPoints}
-                  onChange={(event) =>
-                    update(
-                      rows.map((r, i) =>
-                        i === index ? { ...r, maxPoints: event.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={rows.length === 1}
-                aria-label={`Xoá tiêu chí ${index + 1}`}
-                onClick={() => update(rows.filter((_, i) => i !== index))}
-                className="shrink-0 hover:bg-danger-subtle hover:text-danger-strong"
-              >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="self-start"
-          onClick={() => update([...rows, { description: '', maxPoints: '5' }])}
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Thêm tiêu chí
-        </Button>
-
-        {rubrics.data && rubrics.data.length > 1 && (
-          <p className="flex items-center gap-2 text-caption text-muted-foreground">
-            <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />
-            Đã có {rubrics.data.length} phiên bản. Các phiên bản cũ được giữ lại để đối chiếu
-            với những bài đã chấm theo chúng.
+        {hasResults ? (
+          // Không phải nút tắt câm: nói luôn vì sao. Đổi rubric sau khi đã
+          // chấm là viết lại thứ mà kết quả đã trỏ tới — Security rule 7.
+          <p className="text-caption text-muted-foreground">
+            Đã có kết quả chấm nên không đổi được rubric nữa.
           </p>
+        ) : (
+          <Select
+            onValueChange={(value) => setRubric.mutate(value)}
+            disabled={setRubric.isPending || options.length === 0}
+          >
+            <SelectTrigger id="change-rubric" className="max-w-xs">
+              <SelectValue placeholder="Đổi rubric" />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((rubric) => (
+                <SelectItem key={rubric.id} value={rubric.id}>
+                  Phiên bản {rubric.version} — {rubric.totalPoints} điểm
+                  {rubric.isActive ? ' (mới nhất)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </CardContent>
     </Card>

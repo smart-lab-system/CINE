@@ -13,10 +13,12 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => searchParams,
 }));
 
-const useExamSessionsMock = vi.fn();
-vi.mock('@/hooks/useExamSession', () => ({
-  useExamSessions: (...args: unknown[]) => useExamSessionsMock(...args),
+const useSessionOverviewMock = vi.fn();
+vi.mock('@/hooks/useSubmissionOverview', () => ({
+  useSessionOverview: (...args: unknown[]) => useSessionOverviewMock(...args),
 }));
+
+const useSetSessionRubricMock = vi.fn();
 
 const useTeachingClassesMock = vi.fn();
 vi.mock('@/hooks/useTeaching', () => ({
@@ -31,25 +33,36 @@ vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: (...args: unknown[]) => useGradingResultsMock(...args),
   useRubrics: (...args: unknown[]) => useRubricsMock(...args),
   useSaveRubric: (...args: unknown[]) => useSaveRubricMock(...args),
+  useSetSessionRubric: (...args: unknown[]) => useSetSessionRubricMock(...args),
   useStartGrading: (...args: unknown[]) => useStartGradingMock(...args),
 }));
 
 beforeEach(() => {
   searchParams = new URLSearchParams();
-  useExamSessionsMock.mockReset();
+  useSessionOverviewMock.mockReset();
+  useSetSessionRubricMock.mockReset();
   useTeachingClassesMock.mockReset();
   useGradingResultsMock.mockReset();
   useRubricsMock.mockReset();
   useSaveRubricMock.mockReset();
   useStartGradingMock.mockReset();
 
-  useExamSessionsMock.mockReturnValue({
-    data: {
-      items: [{ id: 'session-2', name: 'Cuối kỳ', courseName: 'Cấu trúc dữ liệu' }],
-      total: 1,
-    },
+  useSessionOverviewMock.mockReturnValue({
+    data: [
+      {
+        id: 'session-2',
+        name: 'Cuối kỳ',
+        courseId: 'course-1',
+        courseName: 'Cấu trúc dữ liệu',
+        rubricId: 'rubric-1',
+        rubricVersion: 3,
+        fullySubmittedCount: 2,
+        partialCount: 0,
+      },
+    ],
     isLoading: false,
   });
+  useSetSessionRubricMock.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null });
   useTeachingClassesMock.mockReturnValue({ data: [] });
   useGradingResultsMock.mockReturnValue({ data: [], isLoading: false });
   useRubricsMock.mockReturnValue({ data: [], isLoading: false });
@@ -77,5 +90,77 @@ describe('GradingPage', () => {
     render(<GradingPage />);
 
     expect(screen.getByText('Kết quả chấm')).toBeInTheDocument();
+  });
+
+  it('KHÔNG ẩn phiên có bài thu mà chưa gắn rubric (spec §5.3)', () => {
+    // Test quan trọng nhất của trang này. Ẩn phiên thiếu rubric là giấu mất
+    // bài thi thật của sinh viên vì một field mà hệ thống chưa từng hỏi
+    // giảng viên — đúng lỗi đã phải đẻ ra màn admin/unowned-courses để cứu.
+    useSessionOverviewMock.mockReturnValue({
+      data: [
+        {
+          id: 'session-9',
+          name: 'Phiên thiếu rubric',
+          courseId: 'course-1',
+          courseName: 'Lập trình Web',
+          rubricId: null,
+          rubricVersion: null,
+          fullySubmittedCount: 3,
+          partialCount: 0,
+        },
+      ],
+      isLoading: false,
+    });
+    searchParams = new URLSearchParams('sessionId=session-9');
+
+    render(<GradingPage />);
+
+    // Hai chỗ, có chủ đích: hậu tố trong ô chọn (thấy được TRƯỚC khi chọn)
+    // và thẻ chặn sau khi chọn. Khẳng định riêng thẻ chặn, vì nó là thứ nói
+    // rõ bài vẫn còn và chỉ ra cách xử lý.
+    expect(screen.getByText(/chưa chấm được/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/chưa gắn rubric/i).length).toBeGreaterThan(0);
+    // Và không được tắt câm: nút phải nêu lý do.
+    const startButton = screen.getByRole('button', { name: /Bắt đầu chấm/i });
+    expect(startButton).toBeDisabled();
+    expect(startButton).toHaveAttribute('title', expect.stringMatching(/chưa gắn rubric/i));
+  });
+
+  it('ẩn phiên chưa có bài nộp nào — không có gì để chấm', () => {
+    useSessionOverviewMock.mockReturnValue({
+      data: [
+        {
+          id: 'session-8',
+          name: 'Phiên chưa ai nộp',
+          courseId: 'course-1',
+          courseName: 'Lập trình Web',
+          rubricId: 'rubric-1',
+          rubricVersion: 1,
+          fullySubmittedCount: 0,
+          partialCount: 0,
+        },
+      ],
+      isLoading: false,
+    });
+    searchParams = new URLSearchParams('sessionId=session-8');
+
+    render(<GradingPage />);
+
+    // Khác hẳn ca trên: ở đây không có bài nào để mất, nên ẩn là đúng.
+    expect(screen.queryByText('Kết quả chấm')).not.toBeInTheDocument();
+  });
+
+  it('hiện phiên bản rubric đã ghim của phiên, không phải bản mới nhất của môn', () => {
+    useRubricsMock.mockReturnValue({
+      // Môn đã có bản 5 đang active — phiên vẫn phải nói bản 3.
+      data: [{ id: 'rubric-5', version: 5, isActive: true, totalPoints: 10, criteria: [] }],
+      isLoading: false,
+    });
+    searchParams = new URLSearchParams('sessionId=session-2');
+
+    render(<GradingPage />);
+
+    expect(screen.getByText(/phiên bản 3/i)).toBeInTheDocument();
+    expect(screen.queryByText(/phiên bản 5/i)).not.toBeInTheDocument();
   });
 });

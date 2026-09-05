@@ -37,6 +37,8 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     invalidFileCount: 0,
     semesterId: 'sem-1',
     semesterName: 'Học kỳ 1 2026-2027',
+    rubricId: null,
+    rubricVersion: null,
     archivedAt: null,
     attentionClosedAt: null,
     ...overrides,
