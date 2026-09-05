@@ -111,6 +111,55 @@ describe('createExamSessionSchema — backdating', () => {
   });
 });
 
+describe('createExamSessionSchema — rubric', () => {
+  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
+
+  function baseValues(extra: Record<string, unknown> = {}) {
+    const start = futureStart();
+    const end = new Date(start.getTime() + 60 * 60_000);
+    return {
+      name: 'Kiểm tra giữa kỳ',
+      classId: VALID_UUID,
+      roomId: VALID_UUID,
+      examType: 'GK' as const,
+      startTime: toLocalInput(start),
+      endTime: toLocalInput(end),
+      requiredFilenames: [{ value: 'Cau1.docx' }],
+      ...extra,
+    };
+  }
+
+  it('cho phép bỏ trống rubric — rubric là tuỳ chọn', () => {
+    expect(createExamSessionSchema.safeParse(baseValues()).success).toBe(true);
+  });
+
+  it('giữ rubricId hợp lệ đi xuyên qua schema', () => {
+    // Khẳng định GIÁ TRỊ, không chỉ success: zod mặc định loại bỏ key lạ,
+    // nên `success === true` vẫn đúng kể cả khi schema không hề biết tới
+    // rubricId — và form sẽ âm thầm gửi đi thiếu field.
+    const rubricId = '22222222-2222-4222-8222-222222222222';
+
+    const result = createExamSessionSchema.safeParse(baseValues({ rubricId }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rubricId).toBe(rubricId);
+    }
+  });
+
+  it('coi chuỗi rỗng là "không chọn", không phải uuid hỏng', () => {
+    // <Select> trả '' khi chưa chọn gì. Không xử lý thì một form hoàn toàn
+    // hợp lệ bị chặn bằng lỗi "uuid không hợp lệ" — mà người dùng thì không
+    // hề chọn gì sai cả.
+    const result = createExamSessionSchema.safeParse(baseValues({ rubricId: '' }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rubricId).toBeUndefined();
+    }
+  });
+});
+
 describe('describeCreateError', () => {
   it('shows the server’s own explanation when there is one', () => {
     // A room clash names the room and the session holding it. Replacing

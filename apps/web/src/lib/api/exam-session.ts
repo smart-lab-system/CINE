@@ -17,6 +17,12 @@ export interface CreateExamSessionInput {
    */
   classId: string;
   roomId: string;
+  /**
+   * Rubric để chấm phiên này, ghim ngay lúc tạo. Bỏ trống là hợp lệ: phiên
+   * không chấm bằng AI vẫn thi và thu bài bình thường, và rubric gắn được
+   * sau ở trang Chấm điểm cho tới khi bài đầu tiên được chấm.
+   */
+  rubricId?: string;
   examType: ExamType;
   /** ISO 8601 (e.g. `new Date(...).toISOString()`), not a raw <input> value. */
   startTime: string;
