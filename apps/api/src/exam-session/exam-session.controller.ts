@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ExamSessionService } from './exam-session.service';
+import { SessionLifecycleService } from './session-lifecycle.service';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import { ExamMaterialService } from './exam-material.service';
@@ -47,6 +48,7 @@ export class ExamSessionController {
   constructor(
     private readonly examSessions: ExamSessionService,
     private readonly materials: ExamMaterialService,
+    private readonly lifecycle: SessionLifecycleService,
   ) {}
 
   @Post()
@@ -166,5 +168,47 @@ export class ExamSessionController {
   @HttpCode(200)
   finalize(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.examSessions.finalizeForOwner(id, req.user!.sub);
+  }
+
+  /**
+   * "Lưu trữ" — phiên nháp/tạo thử, ẩn khỏi cả trang "Quản lý bài thu".
+   * Khác hẳn attention-close bên dưới: cái này nói "không phải việc thật",
+   * cái kia nói "việc thật này đã xong". Xem spec §4.3.
+   */
+  @Post(':id/archive')
+  @Roles('teacher')
+  @HttpCode(200)
+  async archive(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    await this.lifecycle.archive(id, req.user!.sub);
+    return { ok: true };
+  }
+
+  @Delete(':id/archive')
+  @Roles('teacher')
+  @HttpCode(200)
+  async unarchive(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    await this.lifecycle.unarchive(id, req.user!.sub);
+    return { ok: true };
+  }
+
+  /**
+   * "Khép" — phiên rời mục cần chú ý nhưng vẫn nằm trong danh sách theo môn.
+   * Hôm nay chỉ giảng viên bấm; khi module xuất điểm ra đời nó ghi vào CÙNG
+   * cột này tự động (spec §1.3).
+   */
+  @Post(':id/attention-close')
+  @Roles('teacher')
+  @HttpCode(200)
+  async closeAttention(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    await this.lifecycle.closeAttention(id, req.user!.sub);
+    return { ok: true };
+  }
+
+  @Delete(':id/attention-close')
+  @Roles('teacher')
+  @HttpCode(200)
+  async reopenAttention(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    await this.lifecycle.reopenAttention(id, req.user!.sub);
+    return { ok: true };
   }
 }
