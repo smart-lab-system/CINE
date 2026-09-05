@@ -183,14 +183,44 @@ Body:
 Nhận từ client thì tổng có thể không khớp các phần, và bảng phân tích theo tiêu
 chí thành một lời nói dối.
 
-Kiểm, theo thứ tự:
+Kiểm, theo thứ tự — *bạn là ai* → *việc này làm được không* → *dữ liệu có hợp lệ không*:
 
 1. `findResultForOwner` → 404 / 403 (§4.2)
-2. Mỗi `criterionId` phải thuộc đúng `rubric_id_version` của kết quả này → 400
-3. Phải khai **đủ** mọi tiêu chí của rubric đó → 400. Thiếu một tiêu chí nghĩa
+2. **Cổng trạng thái → 409** (§6.1.1)
+3. Mỗi `criterionId` phải thuộc đúng `rubric_id_version` của kết quả này → 400
+4. Phải khai **đủ** mọi tiêu chí của rubric đó → 400. Thiếu một tiêu chí nghĩa
    là tổng bị tính hụt mà không ai nhận ra.
-4. `0 ≤ points ≤ criterion.maxPoints` → 400. Nhờ (3)+(4), tổng luôn nằm trong
+5. `0 ≤ points ≤ criterion.maxPoints` → 400. Nhờ (4)+(5), tổng luôn nằm trong
    thang điểm rubric, không cần kiểm riêng.
+
+#### 6.1.1 Cổng trạng thái — kiểm TƯỜNG MINH, không suy từ `advance()`
+
+```
+Cho phép:  auto_approved · flagged_for_review · teacher_reviewed · finalized · exported
+Từ chối:   ai_grading · ai_graded            → 409
+```
+
+**Vì sao đây là một phép kiểm riêng chứ không phải hệ quả của `advance()`.**
+Bản nháp đầu của spec này không có bước này: nó tạo dòng review trước, rồi gọi
+`advance(id, [auto_approved, flagged_for_review], teacher_reviewed)`, và coi
+`false` là "không sao, chắc là gọi lần hai". Cách đó **gộp hai tình huống khác
+hẳn nhau vào cùng một hành vi im lặng**:
+
+| Status thật | `advance` trả | Bản nháp đầu làm gì | Đúng ra phải |
+|---|---|---|---|
+| `teacher_reviewed` / `finalized` | `false` | tạo dòng, bỏ qua | tạo dòng — **đúng**, đây là sửa lần hai |
+| `ai_grading` / `ai_graded` | `false` | tạo dòng, bỏ qua | **409, không tạo gì** |
+
+Ở `ai_grading`, `ai_total_score` và `criterion_results` đều còn **NULL** — nên
+dòng review sinh ra sẽ đánh giá một kết quả chấm rỗng. Và vì status không phải
+`finalized`, nhánh audit ở §7 cũng không chạy. Sai lặng lẽ ở cả hai tầng.
+
+Bốn phép kiểm payload (3-5) **không** bắt được chuyện này: chúng đối chiếu với
+rubric, mà rubric tồn tại độc lập với việc AI đã chấm xong hay chưa.
+
+Ghi chú `Đang chấm — không sửa được` ở rail (§8) là **tiện lợi hiển thị**, không
+phải hàng rào. Một request gọi thẳng API không đi qua UI, nên hàng rào thật phải
+ở đây.
 
 **Giảng viên sửa điểm số trực tiếp; `verdict` là nhãn định tính đi kèm.**
 `pointsFor()` chỉ cho ba mức (đủ / nửa / không), mà chấm thật cần 3/5 điểm. Cả
@@ -207,8 +237,19 @@ Lưu nguyên trạng chứ không lưu diff, vì một dòng review phải tự 
 dựng lại điểm từ một chuỗi diff là đúng thứ khiến lịch sử sửa điểm khó tra khi
 cần nhất.
 
-Transition: `auto_approved | flagged_for_review` → `teacher_reviewed`. Gọi lần
-hai tạo dòng mới, status giữ nguyên (`advance` trả `false`, không phải lỗi).
+Sau khi qua cổng §6.1.1, mọi status còn lại đều hợp lệ, và `advance` chỉ còn
+đúng một việc: chuyển `auto_approved | flagged_for_review` → `teacher_reviewed`.
+Với `teacher_reviewed` / `finalized` / `exported` thì nó trả `false` — và ở đây
+`false` có **đúng một nghĩa**: "đã qua mốc đó rồi", tức đang sửa lần thứ hai.
+Không còn nghĩa thứ hai nào để lẫn.
+
+Phân hoạch đầy đủ của các status hợp lệ, không có kẽ hở:
+
+| Status khi gọi | Tạo dòng review | `advance` | Ghi `AuditLog` |
+|---|---|---|---|
+| `auto_approved`, `flagged_for_review` | ✅ | → `teacher_reviewed` | ❌ |
+| `teacher_reviewed` | ✅ | không đổi | ❌ |
+| `finalized`, `exported` | ✅ | không đổi | ✅ (§7) |
 
 **`grading_result.flag_for_review` KHÔNG bị tắt sau khi duyệt.** Nó ghi lại việc
 *AI đã từng không chắc về bài này*, và đó là dữ liệu đầu vào cho calibration
@@ -334,7 +375,11 @@ bài thu.
   | `auto_approved` | **Tự duyệt** |
   | `teacher_reviewed` | **Đã duyệt** |
   | `finalized`, `exported` | **Đã chốt** |
-  | `ai_grading`, `ai_graded` | **Đang chấm** — chỉ thấy được nếu ai đó mở trang giữa lúc chấm; không sửa được |
+  | `ai_grading`, `ai_graded` | **Đang chấm** — chỉ thấy được nếu ai đó mở trang giữa lúc chấm; khung phải chỉ đọc |
+
+  Việc khung phải chỉ-đọc ở nhóm "Đang chấm" là **tiện lợi hiển thị, không phải
+  bảo đảm**. Hàng rào thật nằm ở cổng trạng thái §6.1.1 — một request gọi thẳng
+  API không đi qua rail này.
 
   Sau khi chốt, cả phiên nằm gọn trong "Đã chốt" — rail không rỗng đi, nó đổi
   nhóm. Mỗi dòng là sinh viên + điểm hiện tại (điểm cuối nếu đã có review, điểm
@@ -398,8 +443,11 @@ ghi, `Number(...)` khi đọc). `Number(...)` trước khi trả ra API.
 
 - Hai giảng viên cùng duyệt một bài → hai dòng review, dòng sau thắng. Đúng mô
   hình append-only; không cần khoá.
-- `advance` trả `false` (không đổi được trạng thái vì đã ở trạng thái khác) →
-  **không phải lỗi** khi đang review lần hai; **là 409** khi đang finalize.
+- `advance` trả `false` ở `review` → luôn có nghĩa "đã qua mốc `teacher_reviewed`
+  rồi", tức sửa lần thứ hai; **không phải lỗi**. Nghĩa này chỉ đơn trị được vì
+  cổng §6.1.1 đã loại `ai_grading`/`ai_graded` từ trước.
+- `advance` trả `false` ở `finalize-grades` → **409**: một kết quả vừa đổi trạng
+  thái dưới chân, nên cả lệnh chốt phải dừng thay vì chốt nửa vời.
 - Phiên có kết quả nhưng **tất cả** đều `auto_approved` → chốt được ngay, hộp
   xác nhận nói "0 bài đã duyệt, N bài theo đề xuất AI".
 - Kết quả ở `exported` → sửa vẫn được, vẫn ghi audit. Export chưa tồn tại (§12)
@@ -425,6 +473,13 @@ và là thứ phân biệt một cuốn sổ dùng được với một cuốn s
 
 - review tạo một dòng + chuyển `auto_approved` → `teacher_reviewed`
 - review lần hai tạo dòng **thứ hai**, status **giữ nguyên**, không lỗi
+- **review khi `status = ai_grading` → 409, và `teacher_review` KHÔNG có dòng
+  nào mới.** Khẳng định cả hai vế: chỉ kiểm mã 409 thì một hiện thực tạo dòng
+  rồi mới ném lỗi vẫn pass. Đây là ca bảo vệ §6.1.1.
+- review khi `status = ai_graded` → 409, cũng không tạo dòng nào. Trạng thái này
+  chỉ tồn tại trong tích tắc ở hiện thực inline hiện tại, nhưng nó là một trạng
+  thái thật và `ai_graded → teacher_reviewed` không phải transition hợp lệ —
+  không chặn thì dòng review sinh ra mà status kẹt lại ở `ai_graded`.
 - server tính `finalScore` bằng tổng, **bỏ qua tổng client gửi lên**
 - thiếu một tiêu chí → 400 · `criterionId` lạ → 400 · `points > maxPoints` → 400
 - `finalize-grades` khi còn `flagged_for_review` → **409**
