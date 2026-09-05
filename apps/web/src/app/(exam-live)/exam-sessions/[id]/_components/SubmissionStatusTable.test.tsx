@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { SubmissionStatusTable } from './SubmissionStatusTable';
 import type { DeliverableColumn, SubmissionRowStudent } from '@/lib/submission-rows';
@@ -127,5 +127,243 @@ describe('SubmissionStatusTable — empty-students copy', () => {
     expect(
       screen.queryByText(/Bảng sẽ tự cập nhật ngay khi agent trên máy sinh viên nộp bài/),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('SubmissionStatusTable — focusStudentMssv', () => {
+  const deliverables = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
+  const makeStudent = (mssv: string): SubmissionRowStudent => ({
+    studentMssv: mssv,
+    fullName: `SV ${mssv}`,
+    byDeliverable: {
+      d1: { state: 'collected', submittedAt: '2026-09-01T10:00:00Z', downloadUrl: 'https://x.test/f' },
+    },
+  });
+
+  it('bẫy 6: không có prop thì không mở dialog', () => {
+    render(<SubmissionStatusTable deliverables={deliverables} students={[makeStudent('A1')]} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('bẫy 1: dữ liệu về SAU render đầu vẫn mở dialog', () => {
+    const { rerender } = render(
+      <SubmissionStatusTable deliverables={deliverables} students={[]} focusStudentMssv="A1" />,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    rerender(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[makeStudent('A1')]}
+        focusStudentMssv="A1"
+      />,
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('SV A1 · A1')).toBeInTheDocument();
+  });
+
+  it('bẫy 2: refetch (mảng students đổi identity) KHÔNG mở lại dialog đã đóng', async () => {
+    const students = [makeStudent('A1')];
+    const { rerender } = render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={students}
+        focusStudentMssv="A1"
+      />,
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // GV đóng dialog.
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // Bẫy 4 (nửa focus): dialog này mở bằng code, không có trigger để Radix
+    // tự trả focus về — mặc định của nó là <body>, và giảng viên mất vị trí
+    // đang đọc, trừ khi onCloseAutoFocus can thiệp. Radix's FocusScope chạy
+    // bước trả-focus-mặc-định của nó trong một setTimeout(0) khi
+    // DialogContent unmount (xem @radix-ui/react-focus-scope), tức là SAU
+    // khi fireEvent ở trên đã return — nên assertion này phải chờ nó bằng
+    // waitFor thay vì đọc document.activeElement ngay lập tức.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Xem bài nộp' })).toHaveFocus();
+    });
+
+    // React Query refetch: cùng nội dung, mảng MỚI.
+    rerender(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[makeStudent('A1')]}
+        focusStudentMssv="A1"
+      />,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('bẫy 3: MSSV không tồn tại thì im lặng, không crash, không dialog', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[makeStudent('A1')]}
+        focusStudentMssv="KHONG-TON-TAI"
+      />,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('SV A1')).toBeInTheDocument();
+  });
+
+  it('dòng được nhắm tới có aria-current để không chỉ dựa vào màu (bẫy 4)', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[makeStudent('A1'), makeStudent('B2')]}
+        focusStudentMssv="B2"
+      />,
+    );
+    // Matching focusStudentMssv also opens that student's dialog (bẫy 6),
+    // and Radix marks the background aria-hidden while a dialog is open —
+    // so the rows must be queried with `hidden: true` to look past that
+    // transient a11y-hiding rather than through it never existing.
+    const rows = screen.getAllByRole('row', { hidden: true });
+    const marked = rows.filter((row) => row.getAttribute('aria-current') === 'true');
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveTextContent('B2');
+  });
+
+  // Not in the brief's Step 1 test block verbatim, but bẫy 5 is one of the
+  // six the task explicitly requires code AND a test for — without this,
+  // the `reduceMotion ? 'auto' : 'smooth'` branch would be untested. The
+  // global vitest.setup.ts stub always returns matches: false, so this
+  // test overrides window.matchMedia itself to exercise the reduce branch,
+  // and restores both stubs afterwards so it doesn't leak into other tests.
+  it('bẫy 5: prefers-reduced-motion thì cuộn tức thì thay vì mượt', () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({
+        media: query,
+        matches: query === '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList) as typeof window.matchMedia;
+
+    const scrollIntoViewSpy = vi
+      .spyOn(Element.prototype, 'scrollIntoView')
+      .mockImplementation(() => {});
+
+    try {
+      render(
+        <SubmissionStatusTable
+          deliverables={deliverables}
+          students={[makeStudent('A1')]}
+          focusStudentMssv="A1"
+        />,
+      );
+
+      expect(scrollIntoViewSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ behavior: 'auto' }),
+      );
+    } finally {
+      scrollIntoViewSpy.mockRestore();
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+});
+
+describe('SubmissionStatusTable — gradingByMssv', () => {
+  const deliverables = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
+  const student: SubmissionRowStudent = {
+    studentMssv: 'A1',
+    fullName: 'SV A1',
+    byDeliverable: { d1: { state: 'collected', downloadUrl: 'https://x.test/f' } },
+  };
+  const otherStudent: SubmissionRowStudent = {
+    studentMssv: 'B2',
+    fullName: 'SV B2',
+    byDeliverable: { d1: { state: 'collected', downloadUrl: 'https://x.test/g' } },
+  };
+
+  it('vắng prop: dialog không nói gì về điểm, không có nút Chấm lại', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student]}
+        focusStudentMssv="A1"
+      />,
+    );
+    expect(screen.queryByText(/Điểm AI/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Chấm lại/ })).not.toBeInTheDocument();
+  });
+
+  it('bài chưa chấm: không hiện điểm, không hiện nút Chấm lại', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student]}
+        focusStudentMssv="A1"
+        gradingByMssv={{}}
+      />,
+    );
+    expect(screen.queryByText(/Điểm AI/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Chấm lại/ })).not.toBeInTheDocument();
+  });
+
+  it('bài đã chấm: hiện điểm chỉ-đọc và nút Chấm lại DISABLED kèm lý do', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student]}
+        focusStudentMssv="A1"
+        gradingByMssv={{ A1: { score: 8.5, status: 'ai_graded' } }}
+      />,
+    );
+    expect(screen.getByText('Điểm AI: 8.5')).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: /Chấm lại/ });
+    expect(button).toBeDisabled();
+    expect(screen.getByText('Có khi module chấm điểm hoàn thiện')).toBeInTheDocument();
+  });
+
+  // Review round 1 (Important): every test above uses exactly ONE student,
+  // so a lookup bug that ignores the key entirely — e.g.
+  // `Object.values(gradingByMssv ?? {})[0]` instead of
+  // `gradingByMssv?.[selectedStudent.studentMssv]` — would still pass all
+  // three. In a grading UI, showing one student's score on another
+  // student's dialog is a real-consequence bug, not a cosmetic one, so this
+  // pins the lookup in BOTH directions with two students and two distinct
+  // scores. B2's entry is listed FIRST on purpose: `Object.values(...)[0]`
+  // would then resolve to B2's record even though A1's dialog is the one
+  // open, which is exactly the failure mode this test must catch.
+  it('mở dialog của A1 thì hiện đúng điểm của A1, không lẫn điểm của B2', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student, otherStudent]}
+        focusStudentMssv="A1"
+        gradingByMssv={{
+          B2: { score: 3, status: 'ai_graded' },
+          A1: { score: 8.5, status: 'ai_graded' },
+        }}
+      />,
+    );
+    expect(screen.getByText('Điểm AI: 8.5')).toBeInTheDocument();
+    expect(screen.queryByText('Điểm AI: 3')).not.toBeInTheDocument();
+  });
+
+  // Minor 1: `aiTotalScore` (mapped to `score` here) is nullable for a real
+  // state — a result row exists (status `ai_grading`) before a score is
+  // written. The render falls back to '—' via `grade.score ?? '—'`; this
+  // pins that fallback actually fires instead of e.g. printing "null".
+  it('điểm null (đang chấm dở) hiện gạch ngang thay vì "null"', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[student]}
+        focusStudentMssv="A1"
+        gradingByMssv={{ A1: { score: null, status: 'ai_grading' } }}
+      />,
+    );
+    expect(screen.getByText('Điểm AI: —')).toBeInTheDocument();
   });
 });

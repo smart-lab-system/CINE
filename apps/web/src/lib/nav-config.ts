@@ -9,8 +9,8 @@ import {
   Wallet,
   ScrollText,
   CalendarClock,
-  Inbox,
   ClipboardCheck,
+  Inbox,
   type LucideIcon,
 } from 'lucide-react';
 

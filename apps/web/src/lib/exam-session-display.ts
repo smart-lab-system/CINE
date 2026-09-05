@@ -30,19 +30,17 @@ export const EXAM_SESSION_STATUS_BADGE_VARIANT: Record<
 };
 
 /**
- * `ExamSessionEntity.status` has no real lifecycle transitions implemented
- * anywhere in the backend yet (see that entity's own comment) — `create()`
- * hardcodes every session to `'active'` and nothing ever flips it to
- * `'completed'` once `endTime` passes. Displaying the raw column as-is
- * would show "Đang diễn ra" forever, even for a session that ended days
- * ago — misleading, not just stale.
+ * Suy trạng thái hiển thị từ khung giờ thật của phiên, cho các dòng `'active'`.
  *
- * This derives what to actually show from the session's real time window,
- * for `'active'` rows only — `'draft'`/`'cancelled'` are explicit teacher
- * decisions a clock should never override, so those still render as-is via
- * EXAM_SESSION_STATUS_LABELS/_BADGE_VARIANT above. `'scheduled'`/
- * `'completed'` are included too, on the chance the backend ever starts
- * setting them for real.
+ * `ExamSessionScheduler` (apps/api/src/exam-session/exam-session.scheduler.ts)
+ * có sweep chuyển `active -> completed` khi `end_time` đã qua, và
+ * "Chốt bài ngay" cũng chuyển ngay lập tức — nên `'completed'` là thật, không
+ * còn là "trên lý thuyết" như bản ghi chú trước của hàm này nói. Cái vẫn cần
+ * suy ở đây là quãng giữa hai lần sweep. `'draft'`/`'cancelled'` là quyết định
+ * có chủ ý của giảng viên, đồng hồ không được ghi đè.
+ *
+ * Trang "Quản lý bài thu" cần thêm một phase nữa (`'collecting'`, trong grace
+ * period) — xem lib/submission-attention.ts, không nhân bản luật đó vào đây.
  */
 export function getDisplaySessionStatus(
   status: string,

@@ -5,6 +5,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { SubmissionService } from './submission.service';
 import { SearchSubmissionsDto } from './dto/search-submissions.dto';
+import { SubmissionOverviewService } from './submission-overview.service';
 
 /**
  * "Quản lý bài thu" — QA-reported gap: there was no way to see a
@@ -21,7 +22,22 @@ import { SearchSubmissionsDto } from './dto/search-submissions.dto';
 @Controller('submissions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TeacherSubmissionsController {
-  constructor(private readonly submissions: SubmissionService) {}
+  constructor(
+    private readonly submissions: SubmissionService,
+    private readonly overview: SubmissionOverviewService,
+  ) {}
+
+  /**
+   * Roll-up theo phiên cho "Quản lý bài thu". Không phân trang — một GV có
+   * vài chục phiên (spec §1.2), nên phân trang chỉ thêm state mà không giảm
+   * tải gì.
+   */
+  @Get('overview')
+  @Roles('teacher')
+  async listOverview(@Req() req: Request) {
+    const items = await this.overview.overviewForTeacher(req.user!.sub);
+    return { items };
+  }
 
   @Get()
   @Roles('teacher')
