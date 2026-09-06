@@ -151,6 +151,11 @@ export class TeacherReviewService {
         .createQueryBuilder(GradingResultEntity, 'g')
         .innerJoin('submission', 's', 's.id = g.submission_id')
         .where('s.exam_session_id = :id', { id: examSessionId })
+        // Thứ tự khoá hàng phải XÁC ĐỊNH. Không có ORDER BY thì thứ tự chỉ
+        // đúng do tình cờ (heap scan), và hai giao dịch chốt cùng một phiên
+        // — một cú double-click là đủ — có thể khoá các hàng theo hai thứ tự
+        // khác nhau và ôm chết nhau. Không tốn gì: 50 hàng đã ở trong bộ nhớ.
+        .orderBy('g.id')
         .getMany();
 
       if (all.length === 0) {

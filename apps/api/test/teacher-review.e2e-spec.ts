@@ -558,16 +558,23 @@ describe('TeacherReview (e2e)', () => {
       const { sessionId, resultIds } = await sessionWithAutoApproved(3);
       const service = app.get(TeacherReviewService);
       const original = TeacherReviewService.prototype.advance;
-      let calls = 0;
+      // Gãy khi chạm vào bài THỨ HAI, tức sau khi bài đầu đã đi trọn. Buộc
+      // phải có thứ gì đó ghi xong trước điểm gãy: gãy ngay bài đầu thì chưa
+      // có gì để rollback và test sẽ xanh kể cả khi không có transaction.
+      //
+      // Bám theo "bài nào" chứ không theo số lần gọi: một hằng số kiểu
+      // `calls === 5` khoá cứng vào hình dạng vòng lặp, và nếu vòng lặp đổi
+      // số lần advance mỗi bài thì test lặng lẽ thôi kiểm tra thứ nó sinh ra
+      // để kiểm tra, mà không có gì đỏ lên.
+      const touched = new Set<string>();
       const spy = jest
         .spyOn(service, 'advance')
         .mockImplementation((...args: Parameters<TeacherReviewService['advance']>) => {
-          calls += 1;
-          // Mỗi bài auto_approved đi qua 2 lần advance. Gãy ở lần thứ 5 nghĩa
-          // là hai bài đầu đã xong hẳn và bài thứ ba vừa ghi xong dòng review.
-          if (calls === 5) {
+          const [resultId] = args;
+          if (touched.size > 0 && !touched.has(resultId)) {
             throw new Error('mô phỏng sự cố giữa chừng');
           }
+          touched.add(resultId);
           return original.call(service, ...args);
         });
 
