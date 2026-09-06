@@ -68,9 +68,32 @@ export class RubricService {
     return Promise.all(rows.map((row) => this.toView(row)));
   }
 
-  /** The version new grading runs will use, or null if none exists yet. */
-  async findActive(courseId: string): Promise<RubricEntity | null> {
+  /**
+   * The version to offer as the default when CREATING a session — not the
+   * version a grading run will use. A grading run reads the rubric the
+   * session pinned (`exam_session.rubric_id`), decided when the paper was
+   * written.
+   *
+   * The old name was `findActive`, and it meant the second thing. Renamed
+   * rather than kept, so that meaning cannot creep back through a new
+   * caller: a rubric edited between two exams of one course must not change
+   * how the earlier exam is graded.
+   */
+  async findDefaultForCourse(courseId: string): Promise<RubricEntity | null> {
     return this.rubrics.findOne({ where: { courseId, isActive: true } });
+  }
+
+  /**
+   * One version by id, with no scope check.
+   *
+   * Deliberate: every caller has already established scope by other means —
+   * the session was owner-checked, and `rubric_id` can only have been
+   * written by a path that already forced `rubric.courseId ===
+   * session.courseId`. Re-checking here would only obscure where the rule
+   * is actually enforced.
+   */
+  async findById(rubricId: string): Promise<RubricEntity | null> {
+    return this.rubrics.findOne({ where: { id: rubricId } });
   }
 
   /**
@@ -99,9 +122,11 @@ export class RubricService {
         .findOne({ where: { courseId }, order: { version: 'DESC' } });
       const version = (latest?.version ?? 0) + 1;
 
-      // Exactly one active version per course: `findActive` is what a
-      // grading run resolves, and two actives would make which rubric was
-      // used a matter of row order.
+      // Exactly one active version per course. `isActive` no longer decides
+      // how anything is GRADED — a session pins its own rubric — but it is
+      // still what `findDefaultForCourse` offers as the pre-selected choice
+      // when a lecturer creates a session, and two actives would make that
+      // choice a matter of row order.
       await manager
         .getRepository(RubricEntity)
         .update({ courseId, isActive: true }, { isActive: false });

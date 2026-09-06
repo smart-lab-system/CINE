@@ -6,6 +6,7 @@ import { RequiredDeliverableEntity } from './entities/required-deliverable.entit
 import { ClassService } from '../course/class.service';
 import { AttendanceService } from '../agent-connection/attendance.service';
 import { ScheduleConflictService } from './schedule-conflict.service';
+import { RubricEntity } from '../grading/entities/rubric.entity';
 
 /**
  * Covers the exam_session state machine added in the submission phase:
@@ -49,6 +50,9 @@ function createHarness(affected: number) {
     {} as DataSource,
     sessions as unknown as Repository<ExamSessionEntity>,
     deliverables as unknown as Repository<RequiredDeliverableEntity>,
+    // Same reasoning as ClassService below: only create() reads a rubric,
+    // and every test here is about finalize.
+    {} as Repository<RubricEntity>,
     events,
     // Only create() touches it, and these tests are about finalize. Left
     // unimplemented on purpose: if a finalize path ever starts resolving a

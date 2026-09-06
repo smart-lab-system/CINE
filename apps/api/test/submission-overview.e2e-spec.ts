@@ -354,6 +354,23 @@ describe('Submission overview (e2e)', () => {
     expect(item.fullySubmittedCount).toBe(1);
   }, 30_000);
 
+  it('phiên có bài thu mà CHƯA gắn rubric vẫn nằm trong overview, rubricId null', async () => {
+    // Bảo vệ spec 2026-09-05-session-pinned-rubric §5.3: endpoint không được
+    // lọc bỏ phiên vì thiếu rubric — bài thi thật của SV đang nằm trong đó,
+    // và giảng viên sẽ không có cách nào biết trang Chấm điểm đang giấu nó.
+    const session = await createSession(`NoRubric ${stamp}`, ['Cau1.docx'], {
+      startOffsetMs: -7_200_000,
+      endOffsetMs: -3_600_000,
+    });
+    await insertSubmission(session.id, session.deliverableIds[0], ROSTER[0], 'collected');
+
+    const item = bySessionId(await fetchOverview(), session.id);
+
+    expect(item.rubricId).toBeNull();
+    expect(item.rubricVersion).toBeNull();
+    expect(item.fullySubmittedCount).toBe(1);
+  });
+
   it('không rò rỉ phiên của giảng viên khác', async () => {
     const otherEmail = `overview_other_${stamp}@example.com`;
     const otherTeacherId = await createTestAccount(dataSource, {

@@ -76,6 +76,19 @@ export const createExamSessionSchema = z
       .max(200, 'Tên phiên thi tối đa 200 ký tự'),
     classId: z.string().uuid('Vui lòng chọn lớp thi'),
     roomId: z.string().uuid('Vui lòng chọn phòng thi'),
+    /**
+     * Rubric dùng để chấm phiên này — quyết định ở đây, lúc ra đề, chứ
+     * không tra lại lúc bấm "Bắt đầu chấm". Tuỳ chọn: phiên không chấm bằng
+     * AI vẫn tạo, thi và thu bài bình thường.
+     *
+     * `<Select>` trả '' khi chưa chọn gì. Không quy đổi thành undefined thì
+     * một form hoàn toàn hợp lệ bị chặn bằng lỗi "uuid không hợp lệ", trong
+     * khi người dùng không hề chọn gì sai.
+     */
+    rubricId: z
+      .union([z.literal(''), z.string().uuid('Rubric không hợp lệ')])
+      .optional()
+      .transform((value) => (value === '' ? undefined : value)),
     examType: z.enum(EXAM_TYPES, { message: 'Vui lòng chọn loại kỳ thi' }),
     // Bound to <input type="datetime-local">, so this is the browser's
     // "YYYY-MM-DDTHH:mm" local-time string, not ISO 8601 yet — converted to

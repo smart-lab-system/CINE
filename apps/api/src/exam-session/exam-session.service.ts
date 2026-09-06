@@ -1,14 +1,21 @@
 import { randomInt } from 'crypto';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import {
+  DataSource,
+  FindOptionsRelations,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
+import { RubricEntity } from '../grading/entities/rubric.entity';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import {
@@ -43,6 +50,12 @@ export class ExamSessionService {
     private readonly sessions: Repository<ExamSessionEntity>,
     @InjectRepository(RequiredDeliverableEntity)
     private readonly deliverables: Repository<RequiredDeliverableEntity>,
+    // The repository, not RubricService. GradingModule already imports
+    // ExamSessionModule; depending on RubricService here would invert that
+    // and force forwardRef. One `findOne` is not worth bending the module
+    // graph for.
+    @InjectRepository(RubricEntity)
+    private readonly rubrics: Repository<RubricEntity>,
     private readonly events: ExamSessionEvents,
     private readonly classes: ClassService,
     private readonly attendance: AttendanceService,
@@ -66,6 +79,32 @@ export class ExamSessionService {
     // scope, and this is the only thing standing between them and running an
     // exam for someone else's class.
     const klass = await this.classes.findTaughtBy(dto.classId, teacherId);
+
+    // The rubric this session will be graded against, decided here rather
+    // than resolved at grading time. Editing the course's rubric after this
+    // point must not change how this session is graded.
+    //
+    // ONE check, not two. A rubric has no owner — the table has no column
+    // pointing at an account, and two lecturers teaching one course share
+    // its rubric on purpose. `findTaughtBy` above already proved this
+    // lecturer teaches this class, hence this course; if the rubric belongs
+    // to the same course they already have every right to it. Checking
+    // "does this teacher own the rubric" would be checking a thing that
+    // does not exist.
+    //
+    // Before assertNone: this is bad input (400), a clashing booking is a
+    // conflict with existing state (409), and the input error is the one
+    // worth reporting first. Before the code-generation loop too, so a
+    // code collision does not re-run it.
+    let rubric: RubricEntity | null = null;
+    if (dto.rubricId) {
+      rubric = await this.rubrics.findOne({ where: { id: dto.rubricId } });
+      if (!rubric || rubric.courseId !== klass.courseId) {
+        throw new BadRequestException(
+          'Rubric không thuộc môn học của lớp này — hãy chọn rubric của đúng môn.',
+        );
+      }
+    }
 
     // Advisory, and deliberately outside the retry loop below: the
     // authority on this rule is the pair of EXCLUDE constraints on the
@@ -108,6 +147,7 @@ export class ExamSessionService {
               // rejects with SESSION_NOT_ACTIVE until someone flips the row
               // by hand.
               status: 'active',
+              rubricId: rubric?.id ?? null,
             }),
           );
 
@@ -122,7 +162,7 @@ export class ExamSessionService {
             ),
           );
 
-          return this.toResponseDto(session, savedDeliverables);
+          return this.toResponseDto(session, savedDeliverables, rubric?.version ?? null);
         });
       } catch (error) {
         const isLastAttempt = attempt >= EXAM_SESSION_CODE_MAX_ATTEMPTS;
@@ -136,6 +176,41 @@ export class ExamSessionService {
 
     // Unreachable — the loop above always either returns or throws.
     throw new ConflictException('Could not generate a unique exam session code');
+  }
+
+  /**
+   * Writes a rubric onto an already-created session.
+   *
+   * The caller has already proved two things this method does not re-check:
+   * that they own the session (findEntityForOwner) and that nothing has been
+   * graded yet (GradingService.hasResultsForSession). Both live in the
+   * controller because the second one belongs to the grading module, and
+   * pulling it in here would invert the module dependency.
+   *
+   * Same single check as create(): the rubric must belong to this session's
+   * course. There is no rubric ownership to check — see create().
+   */
+  async setRubric(
+    session: ExamSessionEntity,
+    rubricId: string | null,
+  ): Promise<ExamSessionResponseDto> {
+    let rubric: RubricEntity | null = null;
+    if (rubricId) {
+      rubric = await this.rubrics.findOne({ where: { id: rubricId } });
+      if (!rubric || rubric.courseId !== session.courseId) {
+        throw new BadRequestException(
+          'Rubric không thuộc môn học của phiên thi này.',
+        );
+      }
+    }
+
+    await this.sessions.update(session.id, { rubricId: rubric?.id ?? null });
+    const deliverables = await this.listRequiredDeliverables(session.id);
+    return this.toResponseDto(
+      { ...session, rubricId: rubric?.id ?? null },
+      deliverables,
+      rubric?.version ?? null,
+    );
   }
 
   /**
@@ -198,9 +273,9 @@ export class ExamSessionService {
     id: string,
     teacherId: string,
   ): Promise<ExamSessionResponseDto> {
-    const session = await this.findOwnedBy(id, teacherId);
+    const session = await this.findOwnedBy(id, teacherId, { rubric: true });
     const deliverables = await this.listRequiredDeliverables(session.id);
-    return this.toResponseDto(session, deliverables);
+    return this.toResponseDto(session, deliverables, session.rubric?.version ?? null);
   }
 
   /**
@@ -390,8 +465,12 @@ export class ExamSessionService {
     return this.findOwnedBy(id, teacherId);
   }
 
-  private async findOwnedBy(id: string, teacherId: string): Promise<ExamSessionEntity> {
-    const session = await this.sessions.findOne({ where: { id } });
+  private async findOwnedBy(
+    id: string,
+    teacherId: string,
+    relations?: FindOptionsRelations<ExamSessionEntity>,
+  ): Promise<ExamSessionEntity> {
+    const session = await this.sessions.findOne({ where: { id }, relations });
     if (!session) {
       throw new NotFoundException('Exam session not found');
     }
@@ -426,9 +505,15 @@ export class ExamSessionService {
     );
   }
 
+  /**
+   * @param rubricVersion phiên bản của rubric đã ghim. Truyền vào thay vì tra
+   * ở đây: cả hai người gọi đều đã cầm sẵn entity rubric (create vừa kiểm nó,
+   * findByIdForOwner nạp kèm quan hệ), nên tra lại là một truy vấn thừa.
+   */
   private toResponseDto(
     session: ExamSessionEntity,
     deliverables: RequiredDeliverableEntity[],
+    rubricVersion: number | null = null,
   ): ExamSessionResponseDto {
     const dto = new ExamSessionResponseDto();
     dto.id = session.id;
@@ -442,6 +527,8 @@ export class ExamSessionService {
     dto.startTime = session.startTime;
     dto.endTime = session.endTime;
     dto.status = session.status;
+    dto.rubricId = session.rubricId;
+    dto.rubricVersion = rubricVersion;
     dto.requiredDeliverables = deliverables.map((deliverable) => {
       const view = new RequiredDeliverableResponseDto();
       view.id = deliverable.id;

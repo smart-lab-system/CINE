@@ -591,6 +591,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/rubric": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["GradingController_setSessionRubric"];
+        trace?: never;
+    };
     "/exam-sessions/{id}/grading-results": {
         parameters: {
             query?: never;
@@ -664,6 +680,7 @@ export interface components {
             name: string;
             classId: string;
             roomId: string;
+            rubricId?: string;
             /** @enum {string} */
             examType: "TK" | "GK" | "CK";
             startTime: string;
@@ -689,6 +706,8 @@ export interface components {
             /** Format: date-time */
             endTime: string;
             status: Record<string, never>;
+            rubricId: string | null;
+            rubricVersion: number | null;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
         };
         RequestMaterialUploadDto: {
@@ -793,6 +812,9 @@ export interface components {
         };
         SaveRubricDto: {
             criteria: components["schemas"]["RubricCriterionDto"][];
+        };
+        SetSessionRubricDto: {
+            rubricId: string | null;
         };
         RoomEntity: {
             name: string;
@@ -1861,6 +1883,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    GradingController_setSessionRubric: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSessionRubricDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponseDto"];
                 };
             };
         };

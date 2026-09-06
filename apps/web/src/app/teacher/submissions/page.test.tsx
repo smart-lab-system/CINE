@@ -40,6 +40,8 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     startTime: new Date(Date.now() - 4 * HOUR).toISOString(),
     endTime: new Date(Date.now() - 2 * HOUR).toISOString(),
     status: 'completed',
+    rubricId: null,
+    rubricVersion: null,
     requiredDeliverableCount: 3,
     expectedCount: 40,
     rosterKnown: true,

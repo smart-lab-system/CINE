@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import { RequiredFilenamesInput } from './_components/RequiredFilenamesInput';
+import { RubricPicker } from './_components/RubricPicker';
 
 import {
   createExamSessionSchema,
@@ -38,6 +39,9 @@ const EMPTY_FORM: CreateExamSessionFormValues = {
   examType: '' as CreateExamSessionFormValues['examType'],
   startTime: '',
   endTime: '',
+  // Cùng kiểu sentinel chuỗi rỗng như classId/roomId — schema quy nó về
+  // undefined, vì "chưa chọn rubric" là hợp lệ chứ không phải uuid hỏng.
+  rubricId: '',
   requiredFilenames: [{ value: '' }],
 };
 
@@ -96,6 +100,10 @@ export default function NewExamSessionPage() {
         examType: values.examType,
         startTime: new Date(values.startTime).toISOString(),
         endTime: new Date(values.endTime).toISOString(),
+        // Schema đã quy chuỗi rỗng về undefined, nên "không chọn rubric" đi
+        // ra ngoài dây dưới dạng field vắng mặt — đúng cái DTO @IsOptional
+        // của server chờ đợi.
+        rubricId: values.rubricId,
         requiredFilenames: values.requiredFilenames.map((filename) => filename.value),
       },
       {
@@ -321,6 +329,12 @@ export default function NewExamSessionPage() {
                   <AlertDescription>{capacityWarning}</AlertDescription>
                 </Alert>
               )}
+
+              {/* Sau phòng thi, vì nó phụ thuộc lớp đã chọn (rubric thuộc
+                  MÔN, và môn suy ra từ lớp) — đặt trước thì nó rỗng suốt
+                  cho tới khi người dùng quay lại. */}
+              <RubricPicker courseId={selectedClass?.courseId} />
+
 
               <FormField
                 id="exam-session-type"

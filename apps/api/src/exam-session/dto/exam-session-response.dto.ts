@@ -20,6 +20,15 @@ export class ExamSessionResponseDto {
   startTime!: Date;
   endTime!: Date;
   status!: ExamSessionStatus;
+  /**
+   * Rubric đã ghim cho phiên này, hoặc null nếu phiên không chấm bằng AI.
+   *
+   * Ghim chứ không tra lại: sửa rubric của môn sau khi phiên này đã tạo
+   * KHÔNG được đổi cách chấm phiên này.
+   */
+  rubricId!: string | null;
+  /** Phiên bản của rubric đã ghim — để UI nói "phiên bản N" mà không gọi thêm API. */
+  rubricVersion!: number | null;
   requiredDeliverables!: RequiredDeliverableResponseDto[];
 }
 

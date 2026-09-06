@@ -14,6 +14,14 @@ export interface SessionOverviewItem {
   startTime: string;
   endTime: string;
   status: 'draft' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+  /**
+   * Rubric đã ghim cho phiên — `null` nghĩa là chưa chấm được.
+   *
+   * `null` KHÔNG phải lý do để ẩn phiên khỏi trang Chấm điểm: bài thi thật
+   * của SV đang nằm trong đó, và giảng viên chưa từng được hỏi field này.
+   */
+  rubricId: string | null;
+  rubricVersion: number | null;
   requiredDeliverableCount: number;
   expectedCount: number;
   rosterKnown: boolean;

@@ -1,10 +1,12 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -17,6 +19,7 @@ import { ExamSessionService } from '../exam-session/exam-session.service';
 import { GradingService } from './grading.service';
 import { RubricService } from './rubric.service';
 import { SaveRubricDto } from './dto/rubric.dto';
+import { SetSessionRubricDto } from './dto/set-session-rubric.dto';
 
 /**
  * The grading side of the API.
@@ -67,6 +70,36 @@ export class GradingController {
   async startGrading(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.grading.startGrading(session, req.user!.sub);
+  }
+
+  /**
+   * Changes which rubric a session will be graded against — until the first
+   * result exists, then never again.
+   *
+   * Lives on GradingController rather than ExamSessionController because
+   * GradingModule imports ExamSessionModule in one direction; a route
+   * needing rubric knowledge on the session controller would invert that.
+   * The path is still `exam-sessions/...`, exactly like `start-grading`
+   * above — this controller carries no prefix.
+   *
+   * The 409 is the point: once a GradingResult cites a rubric version,
+   * swapping the session's rubric rewrites what was already decided, which
+   * is what Security rule 7 exists to prevent.
+   */
+  @Patch('exam-sessions/:id/rubric')
+  @Roles('teacher')
+  async setSessionRubric(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetSessionRubricDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    if (await this.grading.hasResultsForSession(session.id)) {
+      throw new ConflictException(
+        'Phiên thi này đã có kết quả chấm — không đổi được rubric nữa.',
+      );
+    }
+    return this.examSessions.setRubric(session, dto.rubricId);
   }
 
   @Get('exam-sessions/:id/grading-results')

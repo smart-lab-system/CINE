@@ -5,6 +5,7 @@ import {
   listGradingResults,
   listRubrics,
   saveRubric,
+  setSessionRubric,
   startGrading,
 } from '@/lib/api/grading';
 
@@ -32,6 +33,24 @@ export function useGradingResults(examSessionId: string | undefined) {
     queryKey: ['exam-sessions', examSessionId, 'grading-results'],
     queryFn: () => listGradingResults(examSessionId!),
     enabled: Boolean(examSessionId),
+  });
+}
+
+/**
+ * Ghim rubric cho một phiên thi.
+ *
+ * Invalidate overview chứ không phải danh sách rubric: danh sách phiên của
+ * trang Chấm điểm lấy từ overview, và `rubricId` của phiên vừa đổi nằm
+ * trong chính payload ấy — không invalidate thì thẻ chặn vẫn còn nguyên
+ * sau khi người dùng vừa gắn xong.
+ */
+export function useSetSessionRubric(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rubricId: string | null) => setSessionRubric(examSessionId!, rubricId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['submissions', 'overview'] });
+    },
   });
 }
 

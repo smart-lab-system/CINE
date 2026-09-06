@@ -194,6 +194,25 @@ describe('Grading (e2e)', () => {
   });
 
   describe('the boundary between collecting and grading', () => {
+    // The session above was created before any rubric existed — the
+    // versioning block is what creates them — and a session is now graded
+    // against the rubric it PINNED, not against whichever version happens
+    // to be active. So pin the current one here, through the same endpoint
+    // a teacher uses.
+    beforeAll(async () => {
+      const rubrics = await request(app.getHttpServer())
+        .get(`/courses/${courseId}/rubrics`)
+        .set('Authorization', `Bearer ${token}`);
+      const active = rubrics.body.find((rubric: { isActive: boolean }) => rubric.isActive);
+      expect(active).toBeDefined();
+
+      const patched = await request(app.getHttpServer())
+        .patch(`/exam-sessions/${sessionId}/rubric`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ rubricId: active.id });
+      expect(patched.status).toBe(200);
+    });
+
     it('does not grade anything on its own', async () => {
       // Wording chosen to overlap the rubric's criteria: this is what makes
       // a non-zero score assertable further down, which is what caught
@@ -321,7 +340,7 @@ describe('Grading (e2e)', () => {
     });
   });
 
-  it('says so instead of grading when the course has no rubric', async () => {
+  it('says so instead of grading when the SESSION has no rubric', async () => {
     const [otherCourse] = await dataSource.query(
       `INSERT INTO examcollect.course (code, name, semester_id)
        VALUES ($1, 'Môn chưa có rubric',
@@ -333,8 +352,15 @@ describe('Grading (e2e)', () => {
        VALUES ($1, $2, $3) RETURNING id`,
       [otherCourse.id, `Nhóm chưa rubric ${stamp}`, teacherId],
     );
+    // Its own room, not `SELECT ... LIMIT 1`. Sharing a room with another
+    // session running at the same time is refused by
+    // ex_exam_session_room_overlap, and the session creation then fails —
+    // which used to make this test pass for the wrong reason, since the
+    // undefined id produced a 400 from ParseUUIDPipe rather than the 400
+    // this test is actually about.
     const [room] = await dataSource.query(
-      `SELECT id FROM examcollect.room LIMIT 1`,
+      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
+      [`No Rubric Room ${stamp}`],
     );
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -355,5 +381,9 @@ describe('Grading (e2e)', () => {
 
     // Not a silent zero-out-of-zero for every student.
     expect(response.status).toBe(400);
+    // And it names the right thing. The message used to say the COURSE had
+    // no rubric, which was the wrong place to look once a session pins its
+    // own: a course can have several rubrics while this session pinned none.
+    expect(response.body.message).toContain('Phiên thi');
   });
 });
