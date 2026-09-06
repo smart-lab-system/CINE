@@ -10,6 +10,13 @@ export interface Rubric {
   criteria: { id: string; description: string; maxPoints: number }[];
 }
 
+/** Một tiêu chí trong một lần duyệt của giảng viên. */
+export interface ReviewCriterion {
+  criterionId: string;
+  verdict: 'met' | 'partially_met' | 'not_met';
+  points: number;
+}
+
 /** Mirrors GradingResultView (apps/api/src/grading/grading.service.ts). */
 export interface GradingResult {
   id: string;
@@ -27,6 +34,16 @@ export interface GradingResult {
     points: number;
     evidence: string;
   }[];
+  /**
+   * Điểm cuối cùng — dòng `teacher_review` mới nhất.
+   *
+   * `null` nghĩa là "AI đã chấm, chưa ai duyệt", KHÔNG phải "điểm bằng 0".
+   * Hai thứ đó không được hiển thị giống nhau.
+   */
+  finalScore: number | null;
+  reviewedAt: string | null;
+  reviewedByName: string | null;
+  editedCriteria: ReviewCriterion[] | null;
 }
 
 export interface StartGradingResult {
@@ -91,6 +108,39 @@ export async function startGrading(examSessionId: string): Promise<StartGradingR
   );
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as StartGradingResult;
+}
+
+/**
+ * Một lần duyệt bài. Server tự tính tổng — client KHÔNG gửi `finalScore`.
+ *
+ * 409 khi bài còn đang chấm (`ai_grading`/`ai_graded`); 400 khi thiếu tiêu chí
+ * hoặc điểm vượt thang.
+ */
+export async function submitReview(
+  gradingResultId: string,
+  criteria: ReviewCriterion[],
+): Promise<{ finalScore: number }> {
+  const { data, error, response } = await apiClient.POST(
+    '/grading-results/{id}/review',
+    { params: { path: { id: gradingResultId } }, body: { criteria } },
+  );
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { finalScore: number };
+}
+
+/**
+ * Chốt điểm cả phiên. 409 khi còn bài chưa duyệt xong; 400 khi phiên chưa chấm
+ * bài nào. Gọi lần hai là vô hại — trả `{0, 0}`.
+ */
+export async function finalizeGrades(
+  examSessionId: string,
+): Promise<{ reviewedByHand: number; acceptedAsProposed: number }> {
+  const { data, error, response } = await apiClient.POST(
+    '/exam-sessions/{id}/finalize-grades',
+    { params: { path: { id: examSessionId } } },
+  );
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { reviewedByHand: number; acceptedAsProposed: number };
 }
 
 export async function listGradingResults(examSessionId: string): Promise<GradingResult[]> {

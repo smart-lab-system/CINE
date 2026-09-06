@@ -480,4 +480,128 @@ describe('TeacherReview (e2e)', () => {
       expect(await countReviews(resultId)).toBe(before);
     });
   });
+
+  describe('GET /exam-sessions/:id/grading-results — điểm cuối cùng', () => {
+    function listResults(sessionId: string) {
+      return request(app.getHttpServer())
+        .get(`/exam-sessions/${sessionId}/grading-results`)
+        .set('Authorization', `Bearer ${tokenA}`);
+    }
+
+    it('trả điểm từ dòng review MỚI NHẤT, không phải dòng đầu tiên', async () => {
+      const { sessionId, resultId } = await sessionWithOneGradedSubmission();
+      expect((await submitReview(tokenA, resultId, fullMarks())).status).toBe(201);
+      await submitReview(tokenA, resultId, {
+        criteria: criterionIds.map((criterionId) => ({
+          criterionId,
+          verdict: 'partially_met' as const,
+          points: 2.5,
+        })),
+      });
+
+      const response = await listResults(sessionId);
+
+      expect(response.status).toBe(200);
+      const view = response.body[0];
+      expect(view.finalScore).toBe(5);
+      expect(view.reviewedByName).toBeTruthy();
+      expect(view.reviewedAt).toBeTruthy();
+      expect(view.editedCriteria).toHaveLength(2);
+    });
+
+    it('trả null cho bài chưa ai duyệt', async () => {
+      const { sessionId } = await sessionWithOneGradedSubmission();
+
+      const response = await listResults(sessionId);
+
+      const view = response.body[0];
+      // null nghĩa là "AI đã chấm, chưa ai duyệt" — KHÔNG phải "điểm bằng 0".
+      expect(view.finalScore).toBeNull();
+      expect(view.reviewedByName).toBeNull();
+      expect(view.reviewedAt).toBeNull();
+      expect(view.editedCriteria).toBeNull();
+    });
+  });
+
+  describe('Security rule 4 — audit cho sửa điểm sau khi chốt', () => {
+    async function auditEntriesFor(resultId: string) {
+      return dataSource.query(
+        `SELECT action, old_value, new_value, actor_id
+         FROM examcollect.audit_log
+         WHERE target_type = 'grading_result' AND target_id = $1
+         ORDER BY occurred_at ASC`,
+        [resultId],
+      );
+    }
+
+    async function finalizeSession(sessionId: string) {
+      const response = await request(app.getHttpServer())
+        .post(`/exam-sessions/${sessionId}/finalize-grades`)
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(response.status).toBe(200);
+    }
+
+    function halfMarks() {
+      return {
+        criteria: criterionIds.map((criterionId) => ({
+          criterionId,
+          verdict: 'partially_met' as const,
+          points: 2.5,
+        })),
+      };
+    }
+
+    it('duyệt TRƯỚC khi chốt KHÔNG ghi audit', async () => {
+      const { resultId } = await sessionWithOneGradedSubmission();
+
+      expect((await submitReview(tokenA, resultId, fullMarks())).status).toBe(201);
+
+      // Đây là điều làm cuốn sổ có nghĩa. Giảng viên duyệt 40 bài sẽ sửa tới
+      // sửa lui; ghi hết thì audit log ngập sự kiện vô nghĩa và không còn tra
+      // được "ai sửa điểm sau khi công bố".
+      expect(await auditEntriesFor(resultId)).toHaveLength(0);
+    });
+
+    it('sửa SAU khi chốt CÓ ghi audit, với đúng điểm cũ và điểm mới', async () => {
+      const { sessionId, resultId } = await sessionWithOneGradedSubmission();
+      expect((await submitReview(tokenA, resultId, fullMarks())).status).toBe(201);
+      await finalizeSession(sessionId);
+
+      const corrected = await submitReview(tokenA, resultId, halfMarks());
+
+      expect(corrected.status).toBe(201);
+      expect(corrected.body.finalScore).toBe(5);
+
+      const entries = await auditEntriesFor(resultId);
+      expect(entries).toHaveLength(1);
+      expect(entries[0].action).toBe('grading_result.score_edited_after_finalize');
+      expect(entries[0].actor_id).toBe(idA);
+      expect(entries[0].old_value).toEqual({ finalScore: 10 });
+      expect(entries[0].new_value).toEqual({ finalScore: 5 });
+    });
+
+    it('sửa sau khi chốt KHÔNG đổi status — điểm cuối là dòng review mới nhất', async () => {
+      const { sessionId, resultId } = await sessionWithOneGradedSubmission();
+      expect((await submitReview(tokenA, resultId, fullMarks())).status).toBe(201);
+      await finalizeSession(sessionId);
+
+      await submitReview(tokenA, resultId, {
+        criteria: criterionIds.map((criterionId) => ({
+          criterionId,
+          verdict: 'not_met' as const,
+          points: 0,
+        })),
+      });
+
+      const [row] = await dataSource.query(
+        `SELECT status FROM examcollect.grading_result WHERE id = $1`,
+        [resultId],
+      );
+      // Máy trạng thái không có đường ra khỏi finalized, và không cần.
+      expect(row.status).toBe('finalized');
+      // Duyệt tay (1) + sửa sau khi chốt (1). finalizeGrades KHÔNG sinh dòng
+      // nào ở đây vì bài này đã ở teacher_reviewed, không phải auto_approved.
+      expect(await countReviews(resultId)).toBe(2);
+    });
+  });
 });
