@@ -5,6 +5,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { SubmissionService } from './submission.service';
 import { SearchSubmissionsDto } from './dto/search-submissions.dto';
+import { SessionOverviewQueryDto } from './dto/session-overview-query.dto';
 import { SubmissionOverviewService } from './submission-overview.service';
 
 /**
@@ -31,11 +32,16 @@ export class TeacherSubmissionsController {
    * Roll-up theo phiên cho "Quản lý bài thu". Không phân trang — một GV có
    * vài chục phiên (spec §1.2), nên phân trang chỉ thêm state mà không giảm
    * tải gì.
+   *
+   * `?student=` giữ lại những phiên có sinh viên khớp — kể cả sinh viên CHƯA
+   * NỘP GÌ, thứ GET /submissions không bao giờ thấy được vì nó đọc bảng
+   * submission. Người giảng viên đi tra gần như luôn là người đang có vấn đề,
+   * tức là đúng nhóm không có dòng nào trong bảng đó.
    */
   @Get('overview')
   @Roles('teacher')
-  async listOverview(@Req() req: Request) {
-    const items = await this.overview.overviewForTeacher(req.user!.sub);
+  async listOverview(@Query() query: SessionOverviewQueryDto, @Req() req: Request) {
+    const items = await this.overview.overviewForTeacher(req.user!.sub, query.student);
     return { items };
   }
 

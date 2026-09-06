@@ -31,6 +31,17 @@ export interface SessionOverviewItem {
   attendedNoSubmissionCount: number;
   /** Không event nào, 0 bài nộp — vắng thi. */
   neverAttendedCount: number;
+
+  /**
+   * Trong roster phiên này, vắng ở đây, nhưng CÓ mặt ở một phiên khác cùng
+   * môn + cùng loại kỳ thi — thi bù. Backend ĐÃ trừ khỏi neverAttendedCount,
+   * nên cộng cả hai mới ra "tổng số người không có gì ở phiên này".
+   */
+  satElsewhereCount: number;
+
+  /** Chỉ khác null khi request mang `student`. Ai khớp, trong phiên này. */
+  matchedStudents: { mssv: string; name: string }[] | null;
+
   invalidFileCount: number;
   semesterId: string;
   semesterName: string;
@@ -68,8 +79,17 @@ function throwIfFailed(error: unknown, response: Response): void {
   }
 }
 
-export async function listSessionOverview(): Promise<SessionOverviewItem[]> {
-  const { data, error, response } = await apiClient.GET('/submissions/overview');
+/**
+ * Mọi phiên của giảng viên này.
+ *
+ * `student` giữ lại những phiên có sinh viên khớp MSSV/tên — kể cả sinh viên
+ * CHƯA NỘP GÌ. Đó là điểm khác biệt với GET /submissions, thứ chỉ đọc bảng
+ * submission và vì vậy không bao giờ thấy được đúng nhóm mà giảng viên đi tra.
+ */
+export async function listSessionOverview(student?: string): Promise<SessionOverviewItem[]> {
+  const { data, error, response } = await apiClient.GET('/submissions/overview', {
+    params: { query: student ? { student } : {} },
+  });
   throwIfFailed(error, response);
   // Cast: ExamSessionStatus/ExamType là string union không có
   // @ApiProperty({ enum }), cùng khoảng trống DTO mà lib/api/exam-session.ts

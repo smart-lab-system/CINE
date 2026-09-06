@@ -18,7 +18,8 @@ function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
     semesterId: 'sem-1', semesterName: 'Học kỳ 1 2026-2027',
     requiredDeliverableCount: 2, expectedCount: 10, rosterKnown: true,
     fullySubmittedCount: 10, partialCount: 0,
-    attendedNoSubmissionCount: 0, neverAttendedCount: 0, invalidFileCount: 0,
+    attendedNoSubmissionCount: 0, neverAttendedCount: 0, satElsewhereCount: 0,
+    invalidFileCount: 0, matchedStudents: null,
     rubricId: null,
     rubricVersion: null,
     archivedAt: null, attentionClosedAt: null,
@@ -151,5 +152,20 @@ describe('detectRoomFailure', () => {
 
   it('phiên đỏ ở hai phòng khác nhau → KHÔNG cảnh báo', () => {
     expect(detectRoomFailure([red('a', 'A3-01', 'c1'), red('b', 'B1-05', 'c2')], NOW)).toBeNull();
+  });
+});
+
+describe('lọc theo "thi bù ở phiên khác"', () => {
+  it('là một facet chọn được, không bị gộp vào vắng thi', () => {
+    const items = [
+      make({ id: 'a', satElsewhereCount: 2, fullySubmittedCount: 8 }),
+      make({ id: 'b', neverAttendedCount: 2, fullySubmittedCount: 8 }),
+    ];
+    const facets = buildFacets(items, EMPTY_FILTERS, NOW);
+    expect(facets.kinds.find((k) => k.value === 'sat-elsewhere')?.count).toBe(1);
+
+    const ids = applyFilters(items, { ...EMPTY_FILTERS, kinds: ['sat-elsewhere'] }, NOW)
+      .map((i) => i.id);
+    expect(ids).toEqual(['a']);
   });
 });

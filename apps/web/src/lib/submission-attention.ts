@@ -36,17 +36,23 @@ export const PHASE_VARIANTS: Record<SessionPhase, NonNullable<BadgeProps['varian
   ended: 'default',
 };
 
-export type AttentionKind = 'attended-no-submission' | 'partial' | 'never-attended';
+export type AttentionKind =
+  | 'attended-no-submission'
+  | 'partial'
+  | 'never-attended'
+  /** Có mặt ở một phiên khác cùng môn + cùng loại kỳ thi. Không phải lỗi. */
+  | 'sat-elsewhere';
 
 export interface AttentionReason {
   kind: AttentionKind;
   count: number;
   label: string;
   /** Ánh xạ sang màu ở tầng UI. Không dùng BadgeProps nữa: bảng dùng chấm
-   *  tròn + chữ, không dùng pill (spec §5.4). */
-  tone: 'danger' | 'warning' | 'caution';
+   *  tròn + chữ, không dùng pill (spec §5.4). `neutral` dành cho dòng chỉ
+   *  thông báo — tô nó màu cảnh báo là dạy giảng viên bỏ qua màu cảnh báo. */
+  tone: 'danger' | 'warning' | 'caution' | 'neutral';
   /** 1 gấp nhất. Bảng ưu tiên spec §1.2. */
-  priority: 1 | 2 | 3;
+  priority: 1 | 2 | 3 | 4;
 }
 
 /**
@@ -126,13 +132,27 @@ export function getAttentionReasons(
       priority: 3,
     });
   }
+  // Cuối danh sách, và cố ý: đây là câu trả lời cho một câu hỏi giảng viên
+  // sắp hỏi ("còn em này đâu?"), không phải một việc phải làm. Xếp nó lên
+  // trên "vắng thi" là đẩy thông tin lấn chỗ của việc thật.
+  if (item.satElsewhereCount > 0) {
+    reasons.push({
+      kind: 'sat-elsewhere',
+      count: item.satElsewhereCount,
+      label: `${item.satElsewhereCount} sinh viên thi bù ở phiên khác`,
+      tone: 'neutral',
+      priority: 4,
+    });
+  }
   return reasons;
 }
 
-/** 4 = không cần chú ý; nhỏ hơn là gấp hơn. */
+/** 5 = không cần chú ý; nhỏ hơn là gấp hơn. Phải nằm NGOÀI dải priority —
+ *  khi 'sat-elsewhere' (priority 4) ra đời, một sentinel bằng 4 sẽ xếp phiên
+ *  chỉ-thi-bù ngang hàng với phiên chẳng có gì để nói. */
 function attentionRank(item: SessionOverviewItem, now: number): number {
   const reasons = getAttentionReasons(item, now);
-  return reasons.length === 0 ? 4 : reasons[0].priority;
+  return reasons.length === 0 ? 5 : reasons[0].priority;
 }
 
 /** Lý do gấp hơn trước; cùng mức thì phiên mới hơn trước. */

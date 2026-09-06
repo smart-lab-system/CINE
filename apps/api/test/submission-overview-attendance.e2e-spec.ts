@@ -160,7 +160,12 @@ describe('Submission overview — attendance tiers (e2e)', () => {
 
     const item = await overview(s.id);
     expect(item.attendedNoSubmissionCount).toBe(0);
-    expect(item.neverAttendedCount).toBe(4);
+    // "Không có gì ở phiên này" tách làm hai kể từ satElsewhereCount: SV có
+    // mặt ở một phiên khác CÙNG MÔN + CÙNG LOẠI kỳ thi là thi bù, không phải
+    // vắng thi. Mọi phiên ở đây dùng chung môn và đều là TK, nên SV đã kết
+    // nối ở test trước rơi sang nhóm đó — điều đúng, và cũng là lý do con số
+    // bất biến phải viết thành tổng chứ không phải một vế.
+    expect((item.neverAttendedCount as number) + (item.satElsewhereCount as number)).toBe(4);
   }, 30_000);
 
   it('SV nộp thiếu → partial, bất kể có event hay không', async () => {
@@ -184,7 +189,10 @@ describe('Submission overview — attendance tiers (e2e)', () => {
     // expectedCount vọt lên 13 thay vì 4.
     expect(item.attendedNoSubmissionCount).toBe(1);
     expect(item.expectedCount).toBe(4);
-    expect(item.neverAttendedCount).toBe(3);
+    // Xem ghi chú ở test "SV không event và 0 bài": mọi phiên trong file này
+    // cùng môn + cùng loại TK, nên SV đã có mặt ở phiên trước rơi sang
+    // satElsewhere. Tổng hai nhóm mới là con số bất biến.
+    expect((item.neverAttendedCount as number) + (item.satElsewhereCount as number)).toBe(3);
   }, 30_000);
 
   it('bất biến: 4 nhóm cộng lại bằng expectedCount', async () => {
@@ -198,10 +206,17 @@ describe('Submission overview — attendance tiers (e2e)', () => {
     expect(item.fullySubmittedCount).toBe(1);
     expect(item.partialCount).toBe(1);
     expect(item.attendedNoSubmissionCount).toBe(1);
-    expect(item.neverAttendedCount).toBe(1);
+    // Xem ghi chú ở test "SV không event và 0 bài": mọi phiên trong file này
+    // cùng môn + cùng loại TK, nên SV đã có mặt ở phiên trước rơi sang
+    // satElsewhere. Tổng hai nhóm mới là con số bất biến.
+    expect(
+      (item.neverAttendedCount as number) + (item.satElsewhereCount as number),
+    ).toBe(1);
+    // NĂM nhóm, không phải bốn.
     expect(
       (item.fullySubmittedCount as number) + (item.partialCount as number) +
-      (item.attendedNoSubmissionCount as number) + (item.neverAttendedCount as number),
+      (item.attendedNoSubmissionCount as number) + (item.satElsewhereCount as number) +
+      (item.neverAttendedCount as number),
     ).toBe(item.expectedCount);
   }, 30_000);
 
@@ -220,6 +235,9 @@ describe('Submission overview — attendance tiers (e2e)', () => {
     item = await overview(s.id);
     // Lọc là việc của client — API vẫn trả phiên đã lưu trữ, kèm mốc.
     expect(item.archivedAt).toEqual(expect.any(String));
-    expect(item.neverAttendedCount).toBe(4);
+    // Xem ghi chú ở test "SV không event và 0 bài": mọi phiên trong file này
+    // cùng môn + cùng loại TK, nên SV đã có mặt ở phiên trước rơi sang
+    // satElsewhere. Tổng hai nhóm mới là con số bất biến.
+    expect((item.neverAttendedCount as number) + (item.satElsewhereCount as number)).toBe(4);
   }, 30_000);
 });

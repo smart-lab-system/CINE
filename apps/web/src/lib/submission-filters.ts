@@ -112,6 +112,7 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
     'attended-no-submission': 'Nghi mất bài',
     partial: 'Thiếu file',
     'never-attended': 'Vắng thi',
+    'sat-elsewhere': 'Thi bù ở phiên khác',
   };
   const kinds: FacetOption[] = (Object.keys(KIND_LABELS) as AttentionKind[]).map((kind) => ({
     value: kind,

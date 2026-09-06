@@ -34,7 +34,9 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     partialCount: 0,
     attendedNoSubmissionCount: 0,
     neverAttendedCount: 0,
+    satElsewhereCount: 0,
     invalidFileCount: 0,
+    matchedStudents: null,
     semesterId: 'sem-1',
     semesterName: 'Học kỳ 1 2026-2027',
     rubricId: null,
@@ -240,5 +242,60 @@ describe('groupByCourseClass', () => {
     );
     expect(groups).toHaveLength(1);
     expect(groups[0].className).toBeNull();
+  });
+});
+
+/**
+ * Trước đây sinh viên thi bù ở phiên khác bị đếm vào neverAttendedCount và
+ * hiện ra là "vắng thi" — vừa sai bản chất vừa tốn công: giảng viên đi truy
+ * một người đã thi rồi. Backend tách sẵn con số; ở đây nó phải trở thành một
+ * lý do riêng, và phải là lý do NHẸ nhất.
+ */
+describe('thi bù ở phiên khác', () => {
+  it('là một lý do riêng, tách khỏi vắng thi', () => {
+    const reasons = getAttentionReasons(
+      make({ satElsewhereCount: 2, fullySubmittedCount: 38 }),
+      NOW,
+    );
+    expect(reasons.map((r) => r.kind)).toEqual(['sat-elsewhere']);
+    expect(reasons[0].count).toBe(2);
+  });
+
+  it('xếp sau mọi lý do thật — nó là thông tin, không phải lỗi', () => {
+    const reasons = getAttentionReasons(
+      make({
+        attendedNoSubmissionCount: 1,
+        partialCount: 1,
+        neverAttendedCount: 1,
+        satElsewhereCount: 1,
+        fullySubmittedCount: 36,
+      }),
+      NOW,
+    );
+    expect(reasons[reasons.length - 1].kind).toBe('sat-elsewhere');
+  });
+
+  it('tone trung tính, không dùng màu cảnh báo', () => {
+    const [reason] = getAttentionReasons(
+      make({ satElsewhereCount: 1, fullySubmittedCount: 39 }),
+      NOW,
+    );
+    expect(reason.tone).toBe('neutral');
+  });
+
+  it('vẫn im lặng trong grace period, như mọi lý do khác', () => {
+    // Còn trong grace thì file đang bay về — kết luận lúc này là báo động giả.
+    const inGrace = make({
+      satElsewhereCount: 3,
+      fullySubmittedCount: 37,
+      endTime: new Date(NOW - 60_000).toISOString(),
+    });
+    expect(getAttentionReasons(inGrace, NOW)).toEqual([]);
+  });
+
+  it('không đẩy phiên chỉ-thi-bù lên trước phiên nghi mất bài', () => {
+    const onlyMakeup = make({ id: 'makeup', satElsewhereCount: 5, fullySubmittedCount: 35 });
+    const lostWork = make({ id: 'lost', attendedNoSubmissionCount: 1, fullySubmittedCount: 39 });
+    expect(compareSessions(onlyMakeup, lostWork, NOW)).toBeGreaterThan(0);
   });
 });

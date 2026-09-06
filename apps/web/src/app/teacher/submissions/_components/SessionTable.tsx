@@ -5,18 +5,25 @@ import Link from 'next/link';
 import { Archive, ArchiveRestore, CircleCheck, ClipboardCheck, Eye, RotateCcw } from 'lucide-react';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 import {
-  PHASE_LABELS, getAttentionReasons, getSessionPhase, type SessionGroup,
+  PHASE_LABELS, getAttentionReasons, getSessionPhase,
+  type AttentionReason, type SessionGroup,
 } from '@/lib/submission-attention';
 import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-const TONE_DOT: Record<'danger' | 'warning' | 'caution', string> = {
+// 'neutral' cố ý dùng màu chữ phụ, không phải một sắc cảnh báo nhạt hơn:
+// dòng 'thi bù ở phiên khác' trả lời một câu hỏi chứ không giao việc, và tô
+// nó cùng họ màu với ba mức kia là dạy giảng viên bỏ qua cả ba.
+type ReasonTone = AttentionReason['tone'];
+const TONE_DOT: Record<ReasonTone, string> = {
   danger: 'bg-danger', warning: 'bg-warning', caution: 'bg-warning/60',
+  neutral: 'bg-muted-foreground/50',
 };
-const TONE_TEXT: Record<'danger' | 'warning' | 'caution', string> = {
+const TONE_TEXT: Record<ReasonTone, string> = {
   danger: 'text-danger-strong', warning: 'text-warning-strong', caution: 'text-warning-strong/80',
+  neutral: 'text-muted-foreground',
 };
 
 function formatDateTime(iso: string): string {

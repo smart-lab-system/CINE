@@ -1782,7 +1782,9 @@ export interface operations {
     };
     TeacherSubmissionsController_listOverview: {
         parameters: {
-            query?: never;
+            query?: {
+                student?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

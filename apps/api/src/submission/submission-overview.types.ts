@@ -1,5 +1,10 @@
 import type { ExamSessionStatus, ExamType } from '../exam-session/entities/exam-session.entity';
 
+export interface MatchedStudent {
+  mssv: string;
+  name: string;
+}
+
 /**
  * Một dòng của "Quản lý bài thu" — xem
  * docs/superpowers/specs/2026-09-03-submissions-rollup-page-design.md §3.1.
@@ -48,12 +53,33 @@ export interface SessionOverviewItem {
   /** Không có event nào và 0 bài nộp. Mức 🟡: vắng thi, việc hành chính. */
   neverAttendedCount: number;
 
+  /**
+   * Trong roster phiên này, không có mặt ở đây, nhưng CÓ dấu vết ở một phiên
+   * khác **cùng môn và cùng loại kỳ thi** — sinh viên thi bù ở phiên khác.
+   *
+   * Tách khỏi `neverAttendedCount` vì gọi họ là "vắng thi" vừa sai vừa tốn
+   * công: giảng viên đi truy một người đã thi rồi. Đây là thông tin, không
+   * phải lỗi.
+   *
+   * Điều kiện cùng `exam_type` là bắt buộc, không phải cho chặt chẽ: chỉ so
+   * môn thôi thì sinh viên dự giữa kỳ rồi bỏ cuối kỳ sẽ bị gắn nhầm là thi
+   * bù, và người đáng truy nhất lại thành người được bỏ qua.
+   */
+  satElsewhereCount: number;
+
   /** Đếm theo FILE, không theo sinh viên. */
   invalidFileCount: number;
 
   /** Học kỳ của môn — nguồn cho bộ lọc phạm vi (spec §4.3). */
   semesterId: string;
   semesterName: string;
+
+  /**
+   * Sinh viên khớp từ khoá tìm kiếm, trong phiên này. `null` khi request
+   * không mang `student` — không phải mảng rỗng, để "không tìm" và "tìm mà
+   * không ra" là hai chuyện khác nhau ở tầng gọi.
+   */
+  matchedStudents: MatchedStudent[] | null;
 
   /** ISO, hoặc null. Xem SessionLifecycleService. */
   archivedAt: string | null;

@@ -272,7 +272,12 @@ describe('Submission overview (e2e)', () => {
     const item = bySessionId(await fetchOverview(), session.id);
 
     expect(item.partialCount).toBe(1);
-    expect(item.neverAttendedCount).toBe(39);
+  // "Không có gì ở phiên này" giờ tách làm hai: satElsewhere (SV có mặt ở
+  // một phiên khác CÙNG MÔN + CÙNG LOẠI kỳ thi) và neverAttended (vắng
+  // thật). Mọi phiên trong file này dùng chung một môn và đều là TK, nên các
+  // test chạy trước đã để lại dấu vết cho vài SV — tổng hai nhóm mới là con
+  // số bất biến, còn tỉ lệ giữa chúng phụ thuộc thứ tự test.
+    expect(item.neverAttendedCount + item.satElsewhereCount).toBe(39);
     expect(item.fullySubmittedCount).toBe(0);
     expect(item.invalidFileCount).toBe(1);
   }, 30_000);
@@ -330,9 +335,20 @@ describe('Submission overview (e2e)', () => {
     expect(item.expectedCount).toBe(41); // 40 roster + 1 thi ghép
     expect(item.fullySubmittedCount).toBe(1); // ROSTER[3]
     expect(item.partialCount).toBe(2); // ROSTER[4] + SV thi ghép
-    expect(item.neverAttendedCount).toBe(38);
+  // "Không có gì ở phiên này" giờ tách làm hai: satElsewhere (SV có mặt ở
+  // một phiên khác CÙNG MÔN + CÙNG LOẠI kỳ thi) và neverAttended (vắng
+  // thật). Mọi phiên trong file này dùng chung một môn và đều là TK, nên các
+  // test chạy trước đã để lại dấu vết cho vài SV — tổng hai nhóm mới là con
+  // số bất biến, còn tỉ lệ giữa chúng phụ thuộc thứ tự test.
+    expect(item.neverAttendedCount + item.satElsewhereCount).toBe(38);
+    // Bất biến giờ có NĂM nhóm, không phải ba. Cộng thiếu một nhóm là cách
+    // một sinh viên biến mất khỏi bảng mà không ai nhận ra.
     expect(
-      item.fullySubmittedCount + item.partialCount + item.neverAttendedCount,
+      item.fullySubmittedCount +
+        item.partialCount +
+        item.attendedNoSubmissionCount +
+        item.satElsewhereCount +
+        item.neverAttendedCount,
     ).toBe(item.expectedCount);
   }, 30_000);
 

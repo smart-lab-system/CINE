@@ -11,11 +11,23 @@ import {
   type SearchSubmissionsParams,
 } from '@/lib/api/submissions';
 
-/** Mọi phiên của GV này kèm số liệu roll-up. Không phân trang — spec §1.2. */
-export function useSessionOverview() {
+/**
+ * Mọi phiên của GV này kèm số liệu roll-up. Không phân trang — spec §1.2.
+ *
+ * `student` biến nó thành luồng tìm kiếm: cùng endpoint, cùng hình dạng dữ
+ * liệu, chỉ hẹp lại còn những phiên có sinh viên khớp. Dùng lại chính endpoint
+ * này thay vì GET /submissions là điều sửa được lỗ cũ — endpoint kia đọc bảng
+ * submission nên không bao giờ thấy sinh viên chưa nộp gì, tức đúng nhóm mà
+ * giảng viên đi tra.
+ *
+ * Khoá query mang `student`, nên chế độ duyệt và từng lượt tìm nằm ở các ô
+ * cache riêng: gõ rồi xoá ô search không bắt tải lại danh sách đầy đủ.
+ */
+export function useSessionOverview(student?: string, enabled = true) {
   return useQuery({
-    queryKey: ['submissions', 'overview'],
-    queryFn: listSessionOverview,
+    queryKey: ['submissions', 'overview', student ?? null],
+    queryFn: () => listSessionOverview(student),
+    enabled,
   });
 }
 

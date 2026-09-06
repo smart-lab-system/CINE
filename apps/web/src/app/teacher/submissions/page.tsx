@@ -7,7 +7,6 @@ import {
   useArchiveSession,
   useCloseAttention,
   useSessionOverview,
-  useTeacherSubmissions,
 } from '@/hooks/useSubmissionOverview';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
@@ -57,20 +56,19 @@ function formatDateTime(iso: string): string {
  * không mang cột Tình trạng: mức độ là chuyện của chế độ duyệt, và người đang
  * tra một sinh viên sẽ bấm vào phiên để xem tiếp.
  */
-function SearchResultRow({
-  item,
-  now,
-  studentHint,
-}: {
-  item: SessionOverviewItem;
-  now: number;
-  studentHint: string;
-}) {
+function SearchResultRow({ item, now }: { item: SessionOverviewItem; now: number }) {
   const phase = getSessionPhase(item, now);
+  const matched = item.matchedStudents ?? [];
+  // Trang chi tiết nhận MSSV, không nhận tên — một tên có thể trùng.
+  const primary = matched[0];
 
   return (
     <Link
-      href={`/teacher/submissions/${item.id}?student=${encodeURIComponent(studentHint)}`}
+      href={
+        primary
+          ? `/teacher/submissions/${item.id}?student=${encodeURIComponent(primary.mssv)}`
+          : `/teacher/submissions/${item.id}`
+      }
       className="flex flex-col gap-2 rounded-lg border border-border bg-surface-1 px-4 py-3 transition-colors hover:bg-surface-2/60"
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -88,8 +86,14 @@ function SearchResultRow({
         <span>{item.roomName}</span>
       </div>
 
+      {/* Hiện đúng ai khớp, không chỉ "có khớp": gõ nhầm một chữ số MSSV mà
+          vẫn ra kết quả là cách tra nhầm người mà không ai phát hiện. */}
       <span className="text-caption text-muted-foreground">
-        Sinh viên {studentHint} trong phiên này
+        {primary
+          ? `${primary.mssv} — ${primary.name}${
+              matched.length > 1 ? ` và ${matched.length - 1} sinh viên khác` : ''
+            }`
+          : 'Có sinh viên khớp trong phiên này'}
       </span>
     </Link>
   );
@@ -115,31 +119,18 @@ export default function SubmissionsPage() {
   const trimmedSearch = debouncedSearch.trim();
   const isSearching = trimmedSearch !== '';
 
-  // pageSize 200: đủ để gom hết bài của MỘT sinh viên qua ~8 kỳ/năm (spec
-  // §1.2) trong một trang, nên luồng này không cần phân trang riêng.
-  const searchResults = useTeacherSubmissions(
-    { page: 1, pageSize: 200, search: trimmedSearch || undefined },
-    isSearching,
-  );
+  // Cùng endpoint roll-up, chỉ hẹp lại theo sinh viên. Bản trước gọi
+  // GET /submissions rồi đối chiếu ngược về danh sách phiên, và vì endpoint
+  // đó đọc bảng submission nên sinh viên chưa nộp gì là vô hình — đúng nhóm
+  // giảng viên đi tra. Server giờ tìm trên roster ∪ người đã nộp.
+  const searchResults = useSessionOverview(trimmedSearch || undefined, isSearching);
 
-  /**
-   * Phiên có xuất hiện trong kết quả search, kèm MSSV khớp — gom theo
-   * examSessionId. Endpoint /submissions trả về dòng-per-file, còn câu trả
-   * lời GV cần là "nằm ở phiên nào" (spec §3.4).
-   */
   const searchGroups = useMemo(() => {
     if (!isSearching) return [];
-    const byId = new Map<string, { item: SessionOverviewItem; mssv: string }>();
-    for (const row of searchResults.data?.items ?? []) {
-      const item = (data ?? []).find((session) => session.id === row.examSessionId);
-      if (item && !byId.has(item.id)) {
-        byId.set(item.id, { item, mssv: row.studentMssv });
-      }
-    }
-    return [...byId.values()].sort(
-      (a, b) => new Date(b.item.startTime).getTime() - new Date(a.item.startTime).getTime(),
+    return [...(searchResults.data ?? [])].sort(
+      (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
     );
-  }, [isSearching, searchResults.data, data]);
+  }, [isSearching, searchResults.data]);
 
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const items = useMemo(() => data ?? [], [data]);
@@ -227,13 +218,12 @@ export default function SubmissionsPage() {
           <Card>
             <EmptyState
               icon={Inbox}
-              title={`Không tìm thấy bài nộp nào khớp «${trimmedSearch}»`}
-              // Honest về giới hạn: endpoint /submissions chỉ tìm được SV đã
-              // nộp ÍT NHẤT một file — SV chưa nộp gì thì search này không
-              // thấy. Nói thẳng điều đó thay vì một câu "không tìm thấy" trơ
-              // trọi — im lặng bỏ sót đúng ca GV đang cần tra ("em có nộp mà
-              // thầy!") còn tệ hơn một search thừa nhận điểm mù của nó.
-              description="Sinh viên chưa nộp gì sẽ không xuất hiện ở đây — hãy mở phiên thi tương ứng để xem danh sách vắng."
+              title={`Không tìm thấy sinh viên nào khớp «${trimmedSearch}»`}
+              // Điểm mù cũ đã hết: search chạy trên roster ∪ người đã nộp, nên
+              // sinh viên chưa nộp gì vẫn ra. Không còn gì phải thú nhận ở
+              // đây, và giữ lại câu cảnh báo cũ sẽ khiến giảng viên tự nghi
+              // ngờ một kết quả đã đúng.
+              description="Không có phiên nào của bạn chứa sinh viên này — kiểm tra lại MSSV, hoặc lớp đó do giảng viên khác phụ trách."
               action={
                 <Button type="button" variant="outline" onClick={() => setSearch('')}>
                   Xoá tìm kiếm
@@ -243,8 +233,8 @@ export default function SubmissionsPage() {
           </Card>
         ) : (
           <div data-animate className="flex flex-col gap-2">
-            {searchGroups.map(({ item, mssv }) => (
-              <SearchResultRow key={item.id} item={item} now={now} studentHint={mssv} />
+            {searchGroups.map((item) => (
+              <SearchResultRow key={item.id} item={item} now={now} />
             ))}
           </div>
         )

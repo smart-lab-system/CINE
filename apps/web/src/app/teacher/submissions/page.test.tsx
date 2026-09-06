@@ -4,14 +4,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 
 const useSessionOverviewMock = vi.fn();
-const useTeacherSubmissionsMock = vi.fn();
 
 const archiveMutate = vi.fn();
 const closeMutate = vi.fn();
 
 vi.mock('@/hooks/useSubmissionOverview', () => ({
-  useSessionOverview: () => useSessionOverviewMock(),
-  useTeacherSubmissions: (...args: unknown[]) => useTeacherSubmissionsMock(...args),
+  useSessionOverview: (...args: unknown[]) => useSessionOverviewMock(...args),
   useArchiveSession: () => ({ mutate: archiveMutate }),
   useCloseAttention: () => ({ mutate: closeMutate }),
 }));
@@ -49,6 +47,8 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     partialCount: 0,
     attendedNoSubmissionCount: 0,
     neverAttendedCount: 0,
+    satElsewhereCount: 0,
+    matchedStudents: null,
     invalidFileCount: 0,
     semesterId: 'sem-1',
     semesterName: 'Học kỳ 1 2026-2027',
@@ -60,8 +60,6 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
 
 beforeEach(() => {
   useSessionOverviewMock.mockReset();
-  useTeacherSubmissionsMock.mockReset();
-  useTeacherSubmissionsMock.mockReturnValue({ data: undefined, isLoading: false, error: null });
   useSessionOverviewMock.mockReturnValue({
     data: [make()],
     isLoading: false,
@@ -163,59 +161,57 @@ describe('SubmissionsPage — điều hướng', () => {
   });
 });
 
-describe('SubmissionsPage — search theo MSSV', () => {
-  it('không gọi endpoint search khi ô tìm còn rỗng', () => {
+/**
+ * Search chạy trên CHÍNH endpoint roll-up, chỉ thêm `student`. Bản trước gọi
+ * GET /submissions — endpoint đọc bảng submission — nên sinh viên chưa nộp gì
+ * là vô hình, đúng nhóm mà giảng viên đi tra. Server giờ tìm trên roster ∪
+ * người đã nộp, và trang chỉ vẽ lại thứ nó trả về.
+ */
+describe('SubmissionsPage — search theo sinh viên', () => {
+  it('không bật lượt tìm nào khi ô tìm còn rỗng', () => {
     render(<SubmissionsPage />);
-    expect(useTeacherSubmissionsMock).toHaveBeenCalledWith(expect.anything(), false);
+    expect(useSessionOverviewMock).toHaveBeenCalledWith(undefined, false);
   });
 
-  it('gõ từ khoá thì bật search và thu hẹp về những phiên có SV đó', async () => {
-    useSessionOverviewMock.mockReturnValue({
-      data: [
-        make({ id: 's1', name: 'Giữa kỳ #2' }),
-        make({ id: 's2', name: 'Cuối kỳ', courseName: 'CTDL', courseId: 'course-2' }),
-      ],
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-    useTeacherSubmissionsMock.mockReturnValue({
-      data: {
-        items: [
-          {
-            id: 'sub-1',
-            examSessionId: 's2',
-            examSessionName: 'Cuối kỳ',
-            requiredFilename: 'Cau1.docx',
-            studentMssv: '21520123',
-            studentNameInput: 'Nguyễn Văn A',
-            status: 'collected',
-            submittedAt: new Date().toISOString(),
-            fileSize: '1024',
-            downloadUrl: 'https://example.test/f',
+  it('gõ từ khoá thì thu hẹp về những phiên có sinh viên đó', async () => {
+    useSessionOverviewMock.mockImplementation((student?: string) =>
+      student
+        ? {
+            data: [
+              make({
+                id: 's2',
+                name: 'Cuối kỳ',
+                courseName: 'CTDL',
+                courseId: 'course-2',
+                matchedStudents: [{ mssv: '21520123', name: 'Nguyễn Văn A' }],
+              }),
+            ],
+            isLoading: false,
+            error: null,
+            refetch: vi.fn(),
+          }
+        : {
+            data: [
+              make({ id: 's1', name: 'Giữa kỳ #2' }),
+              make({ id: 's2', name: 'Cuối kỳ', courseName: 'CTDL', courseId: 'course-2' }),
+            ],
+            isLoading: false,
+            error: null,
+            refetch: vi.fn(),
           },
-        ],
-        total: 1,
-      },
-      isLoading: false,
-      error: null,
-    });
+    );
 
     render(<SubmissionsPage />);
-    // useDebouncedValue là hook THẬT (300ms), không mock — dùng waitFor để
-    // chờ nó nhả giá trị. `require()` không tồn tại trong vitest ESM: import
-    // fireEvent/waitFor ở đầu file cùng render/screen.
+    // useDebouncedValue là hook THẬT (300ms), không mock — waitFor chờ nó nhả.
     fireEvent.change(screen.getByLabelText('Tìm sinh viên theo MSSV hoặc tên'), {
       target: { value: '21520123' },
     });
 
-    // Phải chờ một thứ CHỈ chế độ search mới vẽ. Bảng duyệt giờ hiện sẵn mọi
-    // dòng (không còn nhóm thu gọn), nên chờ 'Cuối kỳ' sẽ khớp ngay ô trong
-    // bảng duyệt — tức là qua waitFor vì lý do sai, trước cả khi debounce nhả.
+    // Chờ một thứ CHỈ chế độ search mới vẽ: bảng duyệt cũng có chữ 'Cuối kỳ',
+    // nên chờ nó sẽ qua waitFor vì lý do sai, trước cả khi debounce nhả.
     await waitFor(() => {
-      expect(screen.getByText('Sinh viên 21520123 trong phiên này')).toBeInTheDocument();
+      expect(screen.getByText(/21520123 — Nguyễn Văn A/)).toBeInTheDocument();
     });
-    expect(screen.getByText('Cuối kỳ')).toBeInTheDocument();
     expect(screen.queryByText('Giữa kỳ #2')).not.toBeInTheDocument();
     const link = screen
       .getAllByRole('link')
@@ -223,21 +219,59 @@ describe('SubmissionsPage — search theo MSSV', () => {
     expect(link?.getAttribute('href')).toBe('/teacher/submissions/s2?student=21520123');
   });
 
-  it('empty state của search nói rõ SV chưa nộp gì sẽ không xuất hiện', async () => {
-    useTeacherSubmissionsMock.mockReturnValue({
-      data: { items: [], total: 0 },
-      isLoading: false,
-      error: null,
+  // Gõ nhầm một chữ số MSSV mà vẫn ra kết quả là cách tra nhầm người mà không
+  // ai phát hiện. Dòng kết quả phải nói ra nó tìm thấy AI.
+  it('nêu tên sinh viên khớp, và nói rõ khi khớp nhiều người', async () => {
+    useSessionOverviewMock.mockImplementation((student?: string) =>
+      student
+        ? {
+            data: [
+              make({
+                id: 's3',
+                name: 'Thực hành',
+                matchedStudents: [
+                  { mssv: '21520123', name: 'Nguyễn Văn A' },
+                  { mssv: '21520124', name: 'Nguyễn Văn B' },
+                ],
+              }),
+            ],
+            isLoading: false,
+            error: null,
+            refetch: vi.fn(),
+          }
+        : { data: [], isLoading: false, error: null, refetch: vi.fn() },
+    );
+
+    render(<SubmissionsPage />);
+    fireEvent.change(screen.getByLabelText('Tìm sinh viên theo MSSV hoặc tên'), {
+      target: { value: 'Nguyễn Văn' },
     });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/21520123 — Nguyễn Văn A và 1 sinh viên khác/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('empty state không còn thú nhận điểm mù đã được vá', async () => {
+    useSessionOverviewMock.mockImplementation((student?: string) =>
+      student
+        ? { data: [], isLoading: false, error: null, refetch: vi.fn() }
+        : { data: [make({ id: 's1' })], isLoading: false, error: null, refetch: vi.fn() },
+    );
+
     render(<SubmissionsPage />);
     fireEvent.change(screen.getByLabelText('Tìm sinh viên theo MSSV hoặc tên'), {
       target: { value: 'khongton' },
     });
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Sinh viên chưa nộp gì sẽ không xuất hiện ở đây/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Không có phiên nào của bạn chứa sinh viên này/)).toBeInTheDocument();
     });
+    // Câu cũ khiến giảng viên tự nghi ngờ một kết quả đã đúng.
+    expect(
+      screen.queryByText(/Sinh viên chưa nộp gì sẽ không xuất hiện ở đây/),
+    ).not.toBeInTheDocument();
   });
 });
