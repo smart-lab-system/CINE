@@ -116,7 +116,24 @@ Partial unique index, không phải bảng con một dòng: nó ép đúng bất
 
 Phải chạy trong **một transaction**: gỡ cờ kỳ cũ rồi gắn kỳ mới. Làm ngược thứ tự sẽ đụng unique index. Gọi lại trên chính kỳ đang hiện hành là hợp lệ và không làm gì (idempotent) — bấm hai lần không phải lỗi.
 
-Ghi `audit_log`: đổi kỳ hiện hành đổi thứ **mọi giảng viên trong trường nhìn thấy**. Đó là loại hành động phải trả lời được câu "ai đổi, lúc nào".
+Ghi audit qua **`AuditLogService.recordUserAction`**, không tự viết `INSERT` mới. Đổi kỳ hiện hành đổi thứ **mọi giảng viên trong trường nhìn thấy** — phải trả lời được "ai đổi, lúc nào".
+
+Lý do bắt buộc đi qua service, không phải chuyện phong cách: `AuditLogEntity` có
+PK phức hợp `(occurred_at, id)`, bảng partition theo `occurred_at`, và một
+`@BeforeInsert stampOccurredAt()` tồn tại để JS `Date` và Postgres không lệch
+độ chính xác. Insert thô bỏ qua hook đó sẽ ghi ra một dòng **không tìm lại
+được bằng chính khoá của nó**.
+
+**Hai request đổi cờ đồng thời.** T1 đổi sang kỳ B, T2 đổi sang kỳ C, gần như
+cùng lúc: T1 khoá row của kỳ A ở lệnh gỡ cờ, T2 chờ, rồi T2 gắn cờ cho C khi B
+đã có cờ → đụng `uq_semester_single_current`.
+
+Điều này **không** trồi lên thành 500: `PostgresExceptionFilter` đã map `23505`
+sang `ConflictException` từ trước. Cái thiếu là **thông điệp** — câu chung
+*"This request conflicts with an existing record."* vô nghĩa với người vừa bấm
+chuyển học kỳ. Bắt riêng `QueryFailedError` mã `23505` trong service này và trả
+409 với câu nói đúng chuyện: *"Một yêu cầu khác vừa đổi kỳ hiện hành. Tải lại
+rồi thử lại."*
 
 **Không có endpoint gỡ cờ.** Trạng thái "không kỳ nào hiện hành" chỉ tồn tại lúc cài mới, không phải thứ ai đó chọn — gỡ cờ mà không gắn kỳ khác là làm mù cả hệ thống, không có ca dùng thật nào.
 
@@ -241,7 +258,14 @@ Tương tự cho giảng viên: `?semesterId=` của kỳ mà họ không dạy 
 - **Mốc con trong học kỳ** (đợt đăng ký, tuần thi giữa kỳ/cuối kỳ). Ở ExamCollect, giảng viên đặt giờ từng phiên thi tường minh, nên "tuần thi" là thứ nổi lên từ dữ liệu chứ không cần khai báo. Thêm mốc con là thêm thứ phải khai mà không ai đọc.
 - **Nhiều lịch song song** (chính quy / vừa học vừa làm). Một lịch là đủ cho phạm vi đồ án.
 - **Nhân bản lớp/danh sách sinh viên sang kỳ mới.** Đây là cách B đã loại ở giai đoạn bàn thiết kế — spec này là ống kính, không phải chuyển giao.
-- **`room` cũng đang bị mọi Trưởng khoa cùng sửa** (`DEPARTMENT_NAV` ghi rõ "Semesters and rooms are university-wide"). Đúng cùng một lớp vấn đề phân quyền mà spec này sửa cho học kỳ, nhưng để riêng — trộn vào đây là mở rộng phạm vi giữa chừng. Đáng làm sau.
+- **Dọn dữ liệu e2e.** Xem §9.3 — DB dev hiện có 1084 học kỳ do e2e tích tụ. Việc dọn (hoặc cho e2e tự dọn) nằm ngoài spec này, nhưng nó **chặn việc demo** tính năng này, nên phải xử lý trước khi demo chứ không phải "sau này".
+- **`room` cũng đang bị mọi Trưởng khoa cùng sửa** (`DEPARTMENT_NAV` ghi rõ "Semesters and rooms are university-wide"). Đúng cùng một lớp lỗi phân quyền mà spec này sửa cho học kỳ, và **đang mở**, không phải rủi ro lý thuyết: hai Trưởng khoa cùng tạo phòng "A3-01" với `capacity` khác nhau sẽ gây nhầm thật lúc xếp lịch thi.
+
+  Không trộn vào đây — trộn là mở rộng phạm vi giữa chừng. Nhưng **việc kế tiếp
+  ngay sau khi merge spec này**, và nó dùng lại gần như nguyên bộ khung vừa dựng:
+  chỉ cần chuyển quyền ghi `room` sang `super_admin`. Phòng thi **không** cần khái
+  niệm "hiện hành" như học kỳ — không có gì để gạt cờ, chỉ có một chủ sở hữu để
+  sửa lại cho đúng tầng.
 
 ---
 
@@ -255,4 +279,39 @@ Tương tự cho giảng viên: `?semesterId=` của kỳ mà họ không dạy 
 6. Chuông báo kỳ hết hạn
 7. Nhắc việc tồn đọng kỳ trước *(cắt trước tiên nếu hết thời gian)*
 
-Bước 1–3 phải đi liền nhau: giữa chừng chúng, `department_admin` mất quyền sửa học kỳ mà `super_admin` chưa có nhà để vào.
+### 9.1 Bước 1–3 là MỘT lần merge, không tách PR
+
+Thói quen của dự án này là PR nhỏ, merge từng phần. **Chỗ này là ngoại lệ.**
+Giữa bước 2 và bước 3, `department_admin` đã mất quyền sửa học kỳ mà
+`super_admin` chưa có area để đăng nhập vào — tức là một khoảng thời gian
+thật sự **không ai trong hệ thống sửa được lịch học kỳ**. Ai theo phản xạ tách
+nhỏ PR ở đây sẽ tạo ra đúng khoảng trống đó.
+
+### 9.2 Migration KHÔNG tự backfill cờ
+
+Sau migration, không kỳ nào có `is_current` cho tới khi có người gạt.
+
+Đây là lựa chọn, không phải thiếu sót. Backfill "kỳ nào chứa hôm nay" nghe tiện,
+nhưng nó là **đúng cái heuristic mà §2.2 vừa loại**, chỉ chạy một lần thay vì mỗi
+lần đọc — và ở ca kỳ hè chồng kỳ chính nó vẫn chọn sai, chỉ khác là sai **im
+lặng**, vì màn hình trông bình thường nên không ai đi kiểm.
+
+Không backfill thì trạng thái sai là **ồn**: mọi trang nói "Chưa có học kỳ hiện
+hành", ai đó sửa trong hai phút. Ồn-và-đúng hơn im-lặng-và-sai, cùng nguyên tắc
+với §2.3.
+
+*Không thêm backfill vào migration này về sau.*
+
+### 9.3 Bước vận hành bắt buộc sau khi chạy migration
+
+Trước khi mở lại hệ thống cho giảng viên (hoặc trước khi demo), theo khuôn
+`DEMO-RUNBOOK.md`:
+
+1. `admin` tạo tài khoản Phòng Đào tạo (`POST /accounts`, role `super_admin`).
+2. Đăng nhập tài khoản đó, vào `/academic/semesters`.
+3. Gạt cờ hiện hành cho đúng học kỳ.
+4. Kiểm một trang bất kỳ của giảng viên: bộ lọc phải hiện đúng kỳ đó.
+
+**Cảnh báo cho người chạy bước 3:** DB dev hiện có **1084 học kỳ**, gần như toàn
+bộ là rác do e2e tích tụ (mỗi lần chạy tạo một `Semester ${stamp}` mới và không
+dọn). Chọn đúng kỳ trong dropdown đó là việc thật, không phải hình thức. Xem §8.
