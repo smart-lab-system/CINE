@@ -83,49 +83,65 @@ export class TeacherReviewService {
       );
     }
 
-    const finalScore = await this.validateAndTotal(result, dto);
+    // One transaction, for the same reason `finalizeGrades` is one, and a
+    // sharper one: Security rule 4 says there is no path to a score edit that
+    // skips the log. With the review row and the log entry committing on
+    // separate connections there WAS such a path — the row lands, the log
+    // write fails, and a published score has changed with nobody's name on
+    // it, looking entirely ordinary in the table.
+    return this.dataSource.transaction(async (manager) => {
+      const finalScore = await this.validateAndTotal(result, dto, manager);
 
-    // Read BEFORE the new row is written, or `currentFinalScore` returns the
-    // score just saved and the audit entry says 10 became 10.
-    const published = PUBLISHED.includes(result.status);
-    const previousScore = published ? await this.currentFinalScore(result) : null;
+      // Read BEFORE the new row is written, or `currentFinalScore` returns the
+      // score just saved and the audit entry says 10 became 10.
+      const published = PUBLISHED.includes(result.status);
+      const previousScore = published
+        ? await this.currentFinalScore(result, manager)
+        : null;
 
-    await this.reviews.save(
-      this.reviews.create({
-        gradingResultId: result.id,
-        teacherId,
-        finalScore: String(finalScore),
-        // Stored as sent, not as a diff against the AI. A review row has to be
-        // readable on its own; reconstructing a score from a chain of diffs is
-        // exactly what makes an edit history useless at the moment it matters.
-        editedCriteria: dto.criteria as unknown as Record<string, unknown>,
-      }),
-    );
+      const reviews = manager.getRepository(TeacherReviewEntity);
+      await reviews.save(
+        reviews.create({
+          gradingResultId: result.id,
+          teacherId,
+          finalScore: String(finalScore),
+          // Stored as sent, not as a diff against the AI. A review row has to
+          // be readable on its own; reconstructing a score from a chain of
+          // diffs is exactly what makes an edit history useless at the moment
+          // it matters.
+          editedCriteria: dto.criteria as unknown as Record<string, unknown>,
+        }),
+      );
 
-    // `false` now carries exactly ONE meaning here: already past
-    // teacher_reviewed, so this is a second edit. The other meaning was
-    // removed by the status gate above.
-    await this.advance(
-      result.id,
-      ['auto_approved', 'flagged_for_review'],
-      'teacher_reviewed',
-    );
+      // `false` now carries exactly ONE meaning here: already past
+      // teacher_reviewed, so this is a second edit. The other meaning was
+      // removed by the status gate above.
+      await this.advance(
+        result.id,
+        ['auto_approved', 'flagged_for_review'],
+        'teacher_reviewed',
+        manager,
+      );
 
-    if (published) {
-      // Security rule 4. The status does not move — the lifecycle has no exit
-      // from `finalized`, and it needs none: the current score is the newest
-      // review row, and this is now it.
-      await this.auditLog.recordUserAction({
-        actorId: teacherId,
-        action: 'grading_result.score_edited_after_finalize',
-        targetType: 'grading_result',
-        targetId: result.id,
-        oldValue: { finalScore: previousScore },
-        newValue: { finalScore },
-      });
-    }
+      if (published) {
+        // Security rule 4. The status does not move — the lifecycle has no
+        // exit from `finalized`, and it needs none: the current score is the
+        // newest review row, and this is now it.
+        await this.auditLog.recordUserAction(
+          {
+            actorId: teacherId,
+            action: 'grading_result.score_edited_after_finalize',
+            targetType: 'grading_result',
+            targetId: result.id,
+            oldValue: { finalScore: previousScore },
+            newValue: { finalScore },
+          },
+          manager,
+        );
+      }
 
-    return { finalScore };
+      return { finalScore };
+    });
   }
 
   /**
@@ -260,8 +276,11 @@ export class TeacherReviewService {
   }
 
   /** A result's current score: the newest review row, or the AI's own. */
-  async currentFinalScore(result: GradingResultEntity): Promise<number | null> {
-    const latest = await this.reviews.findOne({
+  async currentFinalScore(
+    result: GradingResultEntity,
+    manager: EntityManager = this.reviews.manager,
+  ): Promise<number | null> {
+    const latest = await manager.getRepository(TeacherReviewEntity).findOne({
       where: { gradingResultId: result.id },
       order: { reviewedAt: 'DESC' },
     });
@@ -282,8 +301,9 @@ export class TeacherReviewService {
   private async validateAndTotal(
     result: GradingResultEntity,
     dto: SubmitReviewDto,
+    manager: EntityManager = this.criteria.manager,
   ): Promise<number> {
-    const criteria = await this.criteria.find({
+    const criteria = await manager.getRepository(RubricCriterionEntity).find({
       where: { rubricId: result.rubricIdVersion },
     });
     const byId = new Map(criteria.map((c) => [c.id, Number(c.maxPoints)]));

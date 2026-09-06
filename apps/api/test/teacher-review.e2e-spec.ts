@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { TeacherReviewService } from '../src/grading/teacher-review.service';
+import { AuditLogService } from '../src/admin/audit-log.service';
 import { createTestAccount } from './helpers/create-account';
 
 /**
@@ -715,6 +716,50 @@ describe('TeacherReview (e2e)', () => {
       // Duyệt tay (1) + sửa sau khi chốt (1). finalizeGrades KHÔNG sinh dòng
       // nào ở đây vì bài này đã ở teacher_reviewed, không phải auto_approved.
       expect(await countReviews(resultId)).toBe(2);
+    });
+
+    /**
+     * Security rule 4 nói KHÔNG có đường sửa điểm nào đi vòng qua cuốn sổ.
+     * Trước thay đổi này thì có đúng một đường: dòng review commit xong rồi
+     * lệnh ghi audit mới chạy, trên một connection khác. Audit hỏng là điểm
+     * đã đổi mà không ai đứng tên — và không có gì báo cho ai biết, vì bản
+     * thân dòng review trông hoàn toàn bình thường.
+     *
+     * Thay đổi ở production làm test này đỏ: bỏ `dataSource.transaction` khỏi
+     * `review()`, hoặc để `recordUserAction` chạy ngoài manager của nó.
+     *
+     * Sự cố phải bơm vào — không ép được audit_log hỏng từ bên ngoài. Thứ
+     * được kiểm chứng là DB sau đó: dòng review có ở lại không, và điểm hiện
+     * hành là điểm nào.
+     */
+    it('audit hỏng thì điểm KHÔNG đổi — không có đường sửa nào vòng qua sổ', async () => {
+      const { sessionId, resultId } = await sessionWithOneGradedSubmission();
+      expect((await submitReview(tokenA, resultId, fullMarks())).status).toBe(201);
+      await finalizeSession(sessionId);
+      const reviewsBefore = await countReviews(resultId);
+
+      const auditLog = app.get(AuditLogService);
+      const spy = jest
+        .spyOn(auditLog, 'recordUserAction')
+        .mockRejectedValue(new Error('mô phỏng audit_log hỏng'));
+
+      try {
+        const corrected = await submitReview(tokenA, resultId, halfMarks());
+        expect(corrected.status).toBe(500);
+      } finally {
+        spy.mockRestore();
+      }
+
+      expect(await countReviews(resultId)).toBe(reviewsBefore);
+      expect(await auditEntriesFor(resultId)).toHaveLength(0);
+      const [latest] = await dataSource.query(
+        `SELECT final_score FROM examcollect.teacher_review
+         WHERE grading_result_id = $1 ORDER BY reviewed_at DESC LIMIT 1`,
+        [resultId],
+      );
+      // 10 là điểm đã công bố. Nếu ra 5 nghĩa là bản sửa đã sống sót mà cuốn
+      // sổ thì trống.
+      expect(Number(latest.final_score)).toBe(10);
     });
   });
 });
