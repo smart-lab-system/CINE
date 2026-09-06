@@ -4,7 +4,7 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
-import { createTestAccount } from './helpers/create-account';
+import { createTestAccount, type TestAccountRole } from './helpers/create-account';
 
 /**
  * Trưởng khoa owns the academic structure an exam session is built from.
@@ -21,6 +21,7 @@ describe('Department resources (e2e)', () => {
   let headToken: string;
   let headId: string;
   let otherHeadToken: string;
+  let academicToken: string;
   let teacherToken: string;
   let adminToken: string;
   let semesterId: string;
@@ -34,7 +35,7 @@ describe('Department resources (e2e)', () => {
     return response.body.accessToken;
   }
 
-  async function makeAccount(prefix: string, role: 'department_admin' | 'teacher' | 'admin') {
+  async function makeAccount(prefix: string, role: TestAccountRole) {
     const email = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}@example.com`;
     const id = await createTestAccount(dataSource, {
       email,
@@ -56,6 +57,7 @@ describe('Department resources (e2e)', () => {
     headId = head.id;
     headToken = head.token;
     otherHeadToken = (await makeAccount('dept_other', 'department_admin')).token;
+    academicToken = (await makeAccount('dept_academic', 'academic_affairs')).token;
     teacherToken = (await makeAccount('dept_teacher', 'teacher')).token;
     adminToken = (await makeAccount('dept_admin', 'admin')).token;
     const lecturer = await makeAccount('dept_lecturer', 'teacher');
@@ -154,17 +156,29 @@ describe('Department resources (e2e)', () => {
   });
 
   describe('semesters and rooms', () => {
-    it('lets a head create a semester', async () => {
-      const response = await request(app.getHttpServer())
+    // Lịch học kỳ là quyết định cấp trường, không phải của từng khoa — nên
+    // Trưởng khoa KHÔNG tạo được nữa. Cả hai vế đều được khẳng định ở đây, vì
+    // "ai được" mà không kèm "ai không được" là nửa bài test.
+    it('Phòng Đào tạo tạo được học kỳ; Trưởng khoa thì không', async () => {
+      const allowed = await request(app.getHttpServer())
         .post('/semesters')
-        .set('Authorization', `Bearer ${headToken}`)
+        .set('Authorization', `Bearer ${academicToken}`)
         .send({
           name: `Học kỳ ${Date.now()}`,
           startDate: '2026-09-01',
           endDate: '2027-01-15',
         });
+      expect(allowed.status).toBe(201);
 
-      expect(response.status).toBe(201);
+      const refused = await request(app.getHttpServer())
+        .post('/semesters')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({
+          name: `Học kỳ khoa ${Date.now()}`,
+          startDate: '2026-09-01',
+          endDate: '2027-01-15',
+        });
+      expect(refused.status).toBe(403);
     });
 
     it('rejects a duplicate semester name with 409, not a 500', async () => {
@@ -172,16 +186,19 @@ describe('Department resources (e2e)', () => {
       const body = { name, startDate: '2026-09-01', endDate: '2027-01-15' };
       await request(app.getHttpServer())
         .post('/semesters')
-        .set('Authorization', `Bearer ${headToken}`)
+        .set('Authorization', `Bearer ${academicToken}`)
         .send(body);
 
       const second = await request(app.getHttpServer())
         .post('/semesters')
-        .set('Authorization', `Bearer ${otherHeadToken}`)
+        .set('Authorization', `Bearer ${academicToken}`)
         .send(body);
 
-      // Two heads share one namespace, so this collision is expected traffic,
-      // not an internal error.
+      // uq_semester_name giờ bảo vệ một thứ KHÁC trước. Nó ra đời vì hai
+      // Trưởng khoa có thể cùng tạo "Học kỳ 1 2026-2027" với ngày khác nhau —
+      // một miếng vá cho việc phân quyền sai tầng, và cái sai đó đã sửa: chỉ
+      // Phòng Đào tạo tạo được học kỳ. Ràng buộc vẫn giữ, giờ chống cùng một
+      // người lỡ tạo trùng, và vẫn phải ra 409 chứ không phải 500.
       expect(second.status).toBe(409);
     });
 

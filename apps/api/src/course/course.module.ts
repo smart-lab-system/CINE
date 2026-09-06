@@ -13,6 +13,7 @@ import { RosterService } from './roster.service';
 import { CourseController } from './course.controller';
 import { SemesterController } from './semester.controller';
 import { ClassController } from './class.controller';
+import { AdminModule } from '../admin/admin.module';
 
 /**
  * Owns the academic structure (CLAUDE.md's module map puts Course, Semester,
@@ -22,7 +23,12 @@ import { ClassController } from './class.controller';
  * second set of repositories over the same table.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([CourseEntity, ClassEntity, EnrollmentEntity, SemesterEntity, AccountEntity])],
+  imports: [
+    TypeOrmModule.forFeature([CourseEntity, ClassEntity, EnrollmentEntity, SemesterEntity, AccountEntity]),
+    // AuditLogService: đổi kỳ hiện hành đổi thứ mọi giảng viên nhìn thấy, nên
+    // nó phải trả lời được "ai đổi, lúc nào".
+    AdminModule,
+  ],
   controllers: [CourseController, SemesterController, ClassController],
   providers: [
     CourseService,
