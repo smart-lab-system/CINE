@@ -189,4 +189,41 @@ describe('Accounts (e2e)', () => {
     );
     expect(rows).toHaveLength(1);
   });
+
+  // Tên role mô tả CÔNG VIỆC, không phải thứ bậc. 'super_admin' nói "quyền cao
+  // nhất" trong khi việc của nó là giữ lịch học kỳ cấp trường — và cái tên đó
+  // nên để dành cho một tier siêu quản trị thật, nếu sau này cần.
+  it('nhận role academic_affairs, và từ chối tên cũ', async () => {
+    const email = `academic_${Date.now()}@example.com`;
+    const created = await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Phòng Đào tạo',
+        email,
+        password: 'correct-horse-battery',
+        role: 'academic_affairs',
+      });
+    expect(created.status).toBe(201);
+
+    // POST chỉ trả { id } theo thiết kế, nên đọc lại qua đường đọc thật —
+    // cách này còn chứng minh thêm là SearchAccountsDto cũng nhận giá trị mới.
+    const found = await request(app.getHttpServer())
+      .get('/accounts')
+      .query({ search: email })
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(found.body.items[0].role).toBe('academic_affairs');
+
+    await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Cũ',
+        email: `old_${Date.now()}@example.com`,
+        password: 'correct-horse-battery',
+        role: 'super_admin',
+      })
+      .expect(400);
+  });
 });

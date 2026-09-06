@@ -6,7 +6,9 @@ export interface AccountView {
   id: string;
   name: string;
   email: string;
-  role: AccountRoleOption | 'super_admin' | 'department_admin';
+  // `academic_affairs` chưa nằm trong ACCOUNT_ROLE_OPTIONS (form tạo tài khoản
+  // chưa mở nó — xem Task 4), nhưng backend đã trả về được, nên type phải chứa.
+  role: AccountRoleOption | 'academic_affairs';
   createdAt: string;
 }
 

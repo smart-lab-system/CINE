@@ -668,13 +668,13 @@ export interface components {
             email: string;
             password: string;
             /** @enum {string} */
-            role: "admin" | "teacher" | "super_admin" | "department_admin";
+            role: "admin" | "teacher" | "academic_affairs" | "department_admin";
         };
         UpdateAccountDto: {
             name?: string;
             email?: string;
             /** @enum {string} */
-            role?: "admin" | "teacher" | "super_admin" | "department_admin";
+            role?: "admin" | "teacher" | "academic_affairs" | "department_admin";
         };
         CreateExamSessionDto: {
             name: string;
@@ -935,7 +935,7 @@ export interface operations {
         parameters: {
             query: {
                 search?: string;
-                role?: "admin" | "teacher" | "super_admin" | "department_admin";
+                role?: "admin" | "teacher" | "academic_affairs" | "department_admin";
                 page: number;
                 pageSize: number;
             };

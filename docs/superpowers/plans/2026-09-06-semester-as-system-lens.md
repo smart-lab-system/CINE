@@ -19,6 +19,19 @@
 - Audit đi qua `AuditLogService.recordUserAction`, không `INSERT` thô. Spec §4.2.
 - File TypeScript trong repo dùng **CRLF**; `core.autocrlf=true` nên git tự chuẩn hoá — viết bằng editor bình thường là được.
 - Chạy e2e cần Postgres (cổng 5442) + MinIO (9010) đang chạy và bucket `examcollect-submissions` tồn tại.
+- **Regenerate OpenAPI schema — dùng curl, đừng để script tự fetch.** Trên máy
+  này `fetch` của Node từ tiến trình generate hỏng không đoán trước được
+  (`ResolveError: fetch failed`) trong khi `curl` tới cùng URL trả 200. Cách chạy
+  được:
+
+  ```bash
+  cd apps/api && npm run dev          # nền, chờ tới khi API lên
+  curl -sf http://localhost:4000/api-docs-json -o /tmp/openapi.json
+  cd packages/shared && API_URL="file:///tmp/openapi.json" node scripts/generate-api-client.mjs
+  ```
+
+  Kiểm bằng `grep -c` trên `packages/shared/src/api/schema.d.ts` rằng tên mới có mặt
+  và tên cũ bằng 0 — script in "Wrote ..." kể cả khi nội dung không đổi.
 - Lệnh: e2e `cd apps/api && npx jest --config ./test/jest-e2e.json --runInBand`; unit api `npx jest`; web `cd apps/web && npx vitest run`. **`turbo run` hỏng trên máy này** (thiếu pnpm 9.12.0) — build/lint chạy trực tiếp: `npx nest build`, `npx next build`, `npx next lint`.
 
 ---
