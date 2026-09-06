@@ -3,6 +3,8 @@ import { INestApplication } from '@nestjs/common';
 import { DataSource, QueryRunner } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { AuditLogEntity } from '../src/admin/entities/audit-log.entity';
+import { randomUUID } from 'node:crypto';
+import { AuditLogService } from '../src/admin/audit-log.service';
 import { createTestAccount } from './helpers/create-account';
 
 /**
@@ -32,12 +34,14 @@ describe('AuditLog (e2e)', () => {
   let dataSource: DataSource;
   let runner: QueryRunner;
   let actorId: string;
+  let auditLog: AuditLogService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
     await app.init();
     dataSource = app.get(DataSource);
+    auditLog = app.get(AuditLogService);
 
     actorId = await createTestAccount(dataSource, {
       email: `audit_actor_${Date.now()}@example.com`,
@@ -131,5 +135,51 @@ describe('AuditLog (e2e)', () => {
         repo.create({ ...newEntry(), actorType: 'user', actorId: null }),
       ),
     ).rejects.toThrow();
+  });
+
+  // Có hành động mà audit phải sống chết cùng nó. Đổi kỳ hiện hành đổi thứ MỌI
+  // giảng viên trong trường nhìn thấy, nên một dòng audit nói về việc đã
+  // rollback còn tệ hơn không có dòng nào — recordUserAction phải ghi được
+  // TRONG transaction của caller, không phải bằng repository riêng của nó.
+  it('không để lại dòng audit khi transaction bao ngoài rollback', async () => {
+    const targetId = randomUUID();
+
+    await expect(
+      dataSource.transaction(async (manager) => {
+        await auditLog.recordUserAction(
+          {
+            actorId,
+            action: 'test.rolled_back',
+            targetType: 'test',
+            targetId,
+          },
+          manager,
+        );
+        throw new Error('force rollback');
+      }),
+    ).rejects.toThrow('force rollback');
+
+    const rows = await dataSource.query(
+      `SELECT 1 FROM examcollect.audit_log WHERE target_id = $1`,
+      [targetId],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('vẫn ghi bình thường khi không truyền manager', async () => {
+    const targetId = randomUUID();
+    await auditLog.recordUserAction({
+      actorId,
+      action: 'test.plain_write',
+      targetType: 'test',
+      targetId,
+    });
+
+    const rows = await dataSource.query(
+      `SELECT action FROM examcollect.audit_log WHERE target_id = $1`,
+      [targetId],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].action).toBe('test.plain_write');
   });
 });

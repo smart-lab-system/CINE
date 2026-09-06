@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { AuditLogEntity } from './entities/audit-log.entity';
 
 /**
@@ -19,16 +19,34 @@ export class AuditLogService {
     private readonly entries: Repository<AuditLogEntity>,
   ) {}
 
-  async recordUserAction(input: {
-    actorId: string;
-    action: string;
-    targetType: string;
-    targetId: string;
-    oldValue?: Record<string, unknown>;
-    newValue?: Record<string, unknown>;
-  }): Promise<void> {
-    await this.entries.save(
-      this.entries.create({
+  /**
+   * `manager` ghi audit TRONG transaction của caller. Không truyền thì ghi
+   * bằng repository riêng, đúng như trước.
+   *
+   * Cần thiết vì có hành động mà audit phải sống chết cùng nó: đổi kỳ hiện
+   * hành đổi thứ MỌI giảng viên trong trường nhìn thấy, nên một dòng audit nói
+   * về việc đã rollback còn tệ hơn không có dòng nào.
+   *
+   * Cả hai nhánh đều đi qua repository (`create` + `save`), không INSERT thô:
+   * entity có PK phức hợp (occurred_at, id) trên bảng partition, và
+   * `@BeforeInsert stampOccurredAt()` giữ cho JS Date và Postgres không lệch
+   * độ chính xác. Insert thô ghi ra dòng không tìm lại được bằng chính khoá
+   * của nó.
+   */
+  async recordUserAction(
+    input: {
+      actorId: string;
+      action: string;
+      targetType: string;
+      targetId: string;
+      oldValue?: Record<string, unknown>;
+      newValue?: Record<string, unknown>;
+    },
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager ? manager.getRepository(AuditLogEntity) : this.entries;
+    await repo.save(
+      repo.create({
         actorType: 'user',
         actorId: input.actorId,
         action: input.action,
