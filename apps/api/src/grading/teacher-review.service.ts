@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import {
   GradingResultEntity,
   GradingResultStatus,
@@ -64,6 +64,7 @@ export class TeacherReviewService {
     private readonly criteria: Repository<RubricCriterionEntity>,
     @InjectRepository(TeacherReviewEntity)
     private readonly reviews: Repository<TeacherReviewEntity>,
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly auditLog: AuditLogService,
   ) {}
 
@@ -145,66 +146,82 @@ export class TeacherReviewService {
     examSessionId: string,
     teacherId: string,
   ): Promise<FinalizeGradesOutcome> {
-    const all = await this.results
-      .createQueryBuilder('g')
-      .innerJoin('submission', 's', 's.id = g.submission_id')
-      .where('s.exam_session_id = :id', { id: examSessionId })
-      .getMany();
+    return this.dataSource.transaction(async (manager) => {
+      const all = await manager
+        .createQueryBuilder(GradingResultEntity, 'g')
+        .innerJoin('submission', 's', 's.id = g.submission_id')
+        .where('s.exam_session_id = :id', { id: examSessionId })
+        .getMany();
 
-    if (all.length === 0) {
-      throw new BadRequestException(
-        'Phiên thi này chưa chấm bài nào — chưa có điểm để chốt.',
-      );
-    }
-
-    const blocking = all.filter((result) => BLOCKS_FINALIZE.includes(result.status));
-    if (blocking.length > 0) {
-      throw new ConflictException(
-        `Còn ${blocking.length} bài chưa duyệt xong — hãy duyệt hết trước khi chốt điểm.`,
-      );
-    }
-
-    let reviewedByHand = 0;
-    let acceptedAsProposed = 0;
-
-    for (const result of all) {
-      if (result.status === 'auto_approved') {
-        // A bulk-accepted result still gets a REAL review row carrying the
-        // name of whoever pressed the button. Jumping straight to finalized
-        // would leave a published score with nobody's name on it.
-        await this.reviews.save(
-          this.reviews.create({
-            gradingResultId: result.id,
-            teacherId,
-            finalScore: String(result.aiTotalScore ?? 0),
-            editedCriteria: (result.criterionResults ?? []) as unknown as Record<
-              string,
-              unknown
-            >,
-          }),
+      if (all.length === 0) {
+        throw new BadRequestException(
+          'Phiên thi này chưa chấm bài nào — chưa có điểm để chốt.',
         );
-        if (!(await this.advance(result.id, ['auto_approved'], 'teacher_reviewed'))) {
+      }
+
+      const blocking = all.filter((result) => BLOCKS_FINALIZE.includes(result.status));
+      if (blocking.length > 0) {
+        throw new ConflictException(
+          `Còn ${blocking.length} bài chưa duyệt xong — hãy duyệt hết trước khi chốt điểm.`,
+        );
+      }
+
+      // Every write below goes through THIS manager. A `this.reviews` or a
+      // bare `this.advance` here would take its own connection from the pool
+      // and commit outside the open transaction, so a rollback would leave
+      // exactly the half-finalised session the transaction exists to prevent.
+      const reviews = manager.getRepository(TeacherReviewEntity);
+      let reviewedByHand = 0;
+      let acceptedAsProposed = 0;
+
+      for (const result of all) {
+        if (result.status === 'auto_approved') {
+          // A bulk-accepted result still gets a REAL review row carrying the
+          // name of whoever pressed the button. Jumping straight to finalized
+          // would leave a published score with nobody's name on it.
+          await reviews.save(
+            reviews.create({
+              gradingResultId: result.id,
+              teacherId,
+              finalScore: String(result.aiTotalScore ?? 0),
+              editedCriteria: (result.criterionResults ?? []) as unknown as Record<
+                string,
+                unknown
+              >,
+            }),
+          );
+          if (
+            !(await this.advance(
+              result.id,
+              ['auto_approved'],
+              'teacher_reviewed',
+              manager,
+            ))
+          ) {
+            throw new ConflictException(
+              'Một bài vừa đổi trạng thái — hãy tải lại và chốt lại.',
+            );
+          }
+          acceptedAsProposed++;
+        } else if (result.status === 'teacher_reviewed') {
+          reviewedByHand++;
+        } else {
+          // finalized / exported: already published. This is the branch that
+          // makes a second call harmless.
+          continue;
+        }
+
+        if (
+          !(await this.advance(result.id, ['teacher_reviewed'], 'finalized', manager))
+        ) {
           throw new ConflictException(
             'Một bài vừa đổi trạng thái — hãy tải lại và chốt lại.',
           );
         }
-        acceptedAsProposed++;
-      } else if (result.status === 'teacher_reviewed') {
-        reviewedByHand++;
-      } else {
-        // finalized / exported: already published. This is the branch that
-        // makes a second call harmless.
-        continue;
       }
 
-      if (!(await this.advance(result.id, ['teacher_reviewed'], 'finalized'))) {
-        throw new ConflictException(
-          'Một bài vừa đổi trạng thái — hãy tải lại và chốt lại.',
-        );
-      }
-    }
-
-    return { reviewedByHand, acceptedAsProposed };
+      return { reviewedByHand, acceptedAsProposed };
+    });
   }
 
   /**
@@ -221,8 +238,13 @@ export class TeacherReviewService {
     resultId: string,
     from: GradingResultStatus[],
     to: GradingResultStatus,
+    // Defaults to the pool's own manager, which is what `review()` wants — it
+    // is a single write and needs no transaction. `finalizeGrades` passes its
+    // transaction manager in; without that these UPDATEs would run on a
+    // different connection and survive a rollback.
+    manager: EntityManager = this.results.manager,
   ): Promise<boolean> {
-    const updated = await this.results
+    const updated = await manager
       .createQueryBuilder()
       .update(GradingResultEntity)
       .set({ status: to })

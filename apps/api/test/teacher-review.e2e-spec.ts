@@ -4,6 +4,7 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
+import { TeacherReviewService } from '../src/grading/teacher-review.service';
 import { createTestAccount } from './helpers/create-account';
 
 /**
@@ -408,6 +409,66 @@ describe('TeacherReview (e2e)', () => {
       return rows.map((r: { status: string }) => r.status);
     }
 
+    /**
+     * Một phiên có `count` kết quả chấm, TẤT CẢ ở `auto_approved`.
+     *
+     * Dựng bằng đường tiến hợp lệ (ai_grading → ai_graded → auto_approved) vì
+     * `validate_grading_result_lifecycle` từ chối mọi transition đi ngược —
+     * cùng lý do như `resultAtStatus`, chỉ khác là nhiều bài trong MỘT phiên.
+     */
+    async function sessionWithAutoApproved(
+      count: number,
+    ): Promise<{ sessionId: string; resultIds: string[] }> {
+      const { sessionId, submissionId } = await sessionWithCollectedSubmission();
+      const [deliverable] = await dataSource.query(
+        `SELECT id FROM examcollect.required_deliverable WHERE exam_session_id = $1`,
+        [sessionId],
+      );
+
+      const submissionIds = [submissionId];
+      for (let i = 1; i < count; i += 1) {
+        const [row] = await dataSource.query(
+          `INSERT INTO examcollect.submission
+             (exam_session_id, required_deliverable_id, student_mssv,
+              student_name_input, home_class_id, home_teacher_id, status)
+           VALUES ($1, $2, $3, $4, $5, $6, 'received') RETURNING id`,
+          [
+            sessionId,
+            deliverable.id,
+            `F${i}${stamp}${dayCursor}`,
+            `SV Chốt ${i}`,
+            classId,
+            idA,
+          ],
+        );
+        for (const status of ['validated', 'collected']) {
+          await dataSource.query(
+            `UPDATE examcollect.submission SET status = $2 WHERE id = $1`,
+            [row.id, status],
+          );
+        }
+        submissionIds.push(row.id);
+      }
+
+      const resultIds: string[] = [];
+      for (const id of submissionIds) {
+        const [result] = await dataSource.query(
+          `INSERT INTO examcollect.grading_result
+             (submission_id, rubric_id_version, grading_triggered_by, status)
+           VALUES ($1, $2, $3, 'ai_grading') RETURNING id`,
+          [id, rubricId, idA],
+        );
+        for (const step of ['ai_graded', 'auto_approved']) {
+          await dataSource.query(
+            `UPDATE examcollect.grading_result SET status = $2 WHERE id = $1`,
+            [result.id, step],
+          );
+        }
+        resultIds.push(result.id);
+      }
+      return { sessionId, resultIds };
+    }
+
     it('từ chối 409 khi còn bài chưa duyệt xong', async () => {
       const { sessionId } = await resultAtStatus('ai_grading');
 
@@ -478,6 +539,51 @@ describe('TeacherReview (e2e)', () => {
       expect(second.status).toBe(200);
       expect(second.body).toEqual({ reviewedByHand: 0, acceptedAsProposed: 0 });
       expect(await countReviews(resultId)).toBe(before);
+    });
+
+    /**
+     * Chốt điểm là MỘT giao dịch: hoặc cả phiên được công bố, hoặc không bài
+     * nào bị đụng tới.
+     *
+     * Thay đổi ở production làm test này đỏ: bỏ `dataSource.transaction` khỏi
+     * `finalizeGrades`. Khi đó hai bài đầu đã `finalized` kèm hai dòng review,
+     * bài thứ ba treo lại ở `auto_approved` — một phiên chốt DỞ, trạng thái mà
+     * không màn hình nào mô tả nổi và không thao tác nào của giảng viên gỡ được.
+     *
+     * Sự cố phải BƠM VÀO: không có cách nào khác làm một vòng lặp gãy đúng
+     * giữa chừng một cách xác định. Nhưng thứ được kiểm chứng là TRẠNG THÁI
+     * THẬT trong database sau đó, không phải số lần mock bị gọi.
+     */
+    it('gãy giữa chừng thì KHÔNG bài nào được chốt, KHÔNG dòng review nào ở lại', async () => {
+      const { sessionId, resultIds } = await sessionWithAutoApproved(3);
+      const service = app.get(TeacherReviewService);
+      const original = TeacherReviewService.prototype.advance;
+      let calls = 0;
+      const spy = jest
+        .spyOn(service, 'advance')
+        .mockImplementation((...args: Parameters<TeacherReviewService['advance']>) => {
+          calls += 1;
+          // Mỗi bài auto_approved đi qua 2 lần advance. Gãy ở lần thứ 5 nghĩa
+          // là hai bài đầu đã xong hẳn và bài thứ ba vừa ghi xong dòng review.
+          if (calls === 5) {
+            throw new Error('mô phỏng sự cố giữa chừng');
+          }
+          return original.call(service, ...args);
+        });
+
+      try {
+        const response = await finalize(tokenA, sessionId);
+        expect(response.status).toBe(500);
+      } finally {
+        spy.mockRestore();
+      }
+
+      expect(await statusesOf(sessionId)).toEqual([
+        'auto_approved',
+        'auto_approved',
+        'auto_approved',
+      ]);
+      expect(await Promise.all(resultIds.map(countReviews))).toEqual([0, 0, 0]);
     });
   });
 
