@@ -4,7 +4,7 @@
 
 **Goal:** Lịch học kỳ chuyển về một tier cấp trường, "kỳ hiện hành" thành cờ tường minh, và mọi màn hình danh sách lọc theo học kỳ với cùng một control.
 
-**Architecture:** Thêm `semester.is_current` (cờ, không suy từ ngày) do role `super_admin` — area mới `/academic`, nhãn "Phòng Đào tạo" — gạt qua `PUT /semesters/:id/current`. Bốn endpoint danh sách nhận thêm `semesterId` như một **bộ lọc AND thêm vào điều kiện sở hữu sẵn có**, không bao giờ thay thế nó. Frontend dùng một `useSemesterFilter()` mang sẵn logic seed-once, và một `<SemesterFilter>` đặt trên 5 trang.
+**Architecture:** Thêm `semester.is_current` (cờ, không suy từ ngày) do role `academic_affairs` — area mới `/academic`, nhãn "Phòng Đào tạo" — gạt qua `PUT /semesters/:id/current`. Bốn endpoint danh sách nhận thêm `semesterId` như một **bộ lọc AND thêm vào điều kiện sở hữu sẵn có**, không bao giờ thay thế nó. Frontend dùng một `useSemesterFilter()` mang sẵn logic seed-once, và một `<SemesterFilter>` đặt trên 5 trang.
 
 **Tech Stack:** NestJS 11 + TypeORM + PostgreSQL 16 (partial unique index), Next.js 15 App Router + TanStack Query + shadcn/ui, Jest (e2e, `--runInBand`) + Vitest (web).
 
@@ -12,10 +12,10 @@
 
 ## Global Constraints
 
-- **Task 1–3 là MỘT lần merge.** Không tách PR. Giữa task 2 và 3, `department_admin` đã mất quyền sửa học kỳ mà `super_admin` chưa có area để đăng nhập — tách ra là tạo một khoảng thời gian thật sự không ai sửa được lịch học kỳ. Spec §9.1.
+- **Task 0–4 là MỘT lần merge.** Không tách PR. Giữa task 3 và 4, `department_admin` đã mất quyền sửa học kỳ mà `academic_affairs` chưa có area để đăng nhập — tách ra là tạo một khoảng thời gian thật sự không ai sửa được lịch học kỳ. Spec §9.1.
 - **`semesterId` là bộ lọc, không bao giờ là phạm vi.** Mọi query giữ nguyên `.where(<điều kiện sở hữu>)` rồi mới `.andWhere('... semesterId = :semesterId')`. Không bao giờ viết thành nhánh if/else. Spec §5.1.
 - **Không backfill `is_current` trong migration.** Spec §9.2 giải thích vì sao, và nói rõ không thêm về sau.
-- Giá trị enum DB giữ nguyên `super_admin`; chỉ nhãn hiển thị là "Phòng Đào tạo". Spec §3.2.
+- Giá trị enum DB đổi `academic_affairs` → `academic_affairs` (Task 0); nhãn hiển thị "Phòng Đào tạo". Spec §3.2.
 - Audit đi qua `AuditLogService.recordUserAction`, không `INSERT` thô. Spec §4.2.
 - File TypeScript trong repo dùng **CRLF**; `core.autocrlf=true` nên git tự chuẩn hoá — viết bằng editor bình thường là được.
 - Chạy e2e cần Postgres (cổng 5442) + MinIO (9010) đang chạy và bucket `examcollect-submissions` tồn tại.
@@ -46,6 +46,128 @@
 - `apps/web/src/hooks/useSemesterFilter.ts` — mới
 - `apps/web/src/components/layout/semester-filter.tsx` — mới
 - 5 trang danh sách + `lib/submission-filters.ts` (xoá `pickDefaultSemester`)
+
+---
+
+### Task 0: Đổi tên role `super_admin` → `academic_affairs`
+
+Phải đi TRƯỚC Task 3 — đó là chỗ đầu tiên viết `@Roles(...)` cho tier này. Làm
+sớm nhất trong khối để không có bước trung gian nào viết tên cũ rồi phải sửa lại.
+
+**Files:**
+- Create: `apps/api/src/database/migrations/1788690000000-RenameSuperAdminToAcademicAffairs.ts`
+- Modify: `apps/api/src/identity/entities/account.entity.ts`
+- Modify: `apps/api/src/accounts/dto/create-account.dto.ts`, `search-accounts.dto.ts`, `update-account.dto.ts`
+- Modify: `apps/api/test/helpers/create-account.ts`
+- Modify: `apps/web/src/lib/account-roles.ts`, `lib/api/accounts.ts`, `app/unassigned-role/page.tsx`
+- Regenerate: `packages/shared/src/api/schema.d.ts`
+
+**Interfaces:**
+- Produces: `AccountRole = 'admin' | 'teacher' | 'academic_affairs' | 'department_admin'`
+
+- [ ] **Step 1: Viết test đỏ**
+
+Thêm vào `apps/api/test/accounts.e2e-spec.ts`:
+
+```typescript
+  // Tên role mô tả công việc, không phải thứ bậc. 'super_admin' nói "quyền
+  // cao nhất" trong khi việc của nó là giữ lịch học kỳ — và cái tên đó nên để
+  // dành cho một tier siêu quản trị thật, nếu sau này cần.
+  it('nhận role academic_affairs, và từ chối tên cũ', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Phòng Đào tạo',
+        email: `academic_${Date.now()}@example.com`,
+        password: 'correct-horse-battery',
+        role: 'academic_affairs',
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.role).toBe('academic_affairs');
+
+    await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Cũ',
+        email: `old_${Date.now()}@example.com`,
+        password: 'correct-horse-battery',
+        role: 'super_admin',
+      })
+      .expect(400);
+  }, 30_000);
+```
+
+- [ ] **Step 2: Chạy để thấy nó đỏ**
+
+Run: `cd apps/api && npx jest --config ./test/jest-e2e.json --runInBand --testPathPattern accounts`
+Expected: FAIL — `academic_affairs` bị `@IsIn` từ chối (400), còn `super_admin` vẫn được nhận (201).
+
+- [ ] **Step 3: Migration**
+
+Create `apps/api/src/database/migrations/1788690000000-RenameSuperAdminToAcademicAffairs.ts`:
+
+```typescript
+import { MigrationInterface, QueryRunner } from 'typeorm';
+
+/**
+ * `super_admin` là tên thứ bậc gán cho một công việc cụ thể: giữ lịch học kỳ
+ * cấp trường. Đổi thành tên công việc, cùng lý do area đặt là /academic chứ
+ * không /super-admin — và để trả lại cái tên cho một tier siêu quản trị thật
+ * nếu sau này cần.
+ *
+ * RENAME VALUE chỉ sửa catalog, không rewrite bảng (Postgres 10+). An toàn
+ * với dữ liệu đang có: mọi row mang giá trị cũ tự động đọc ra tên mới.
+ */
+export class RenameSuperAdminToAcademicAffairs1788690000000 implements MigrationInterface {
+  name = 'RenameSuperAdminToAcademicAffairs1788690000000';
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TYPE "examcollect"."account_role" RENAME VALUE 'super_admin' TO 'academic_affairs'`,
+    );
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TYPE "examcollect"."account_role" RENAME VALUE 'academic_affairs' TO 'super_admin'`,
+    );
+  }
+}
+```
+
+- [ ] **Step 4: Đổi tên trong source**
+
+`account.entity.ts` — cả type alias, `enum:` array trong `@Column`, và doc comment
+đầu file (đang nói `super_admin`/`department_admin` chưa có tiering):
+
+```typescript
+export type AccountRole = 'admin' | 'teacher' | 'academic_affairs' | 'department_admin';
+```
+
+Ba DTO (`create`/`search`/`update`) — đổi trong mảng `ACCOUNT_ROLES`.
+
+`apps/api/test/helpers/create-account.ts`, `apps/web/src/lib/api/accounts.ts`,
+`apps/web/src/app/unassigned-role/page.tsx` — đổi chuỗi.
+
+**Không** sửa `1787766223206-InitialSchema.ts`: migration đã chạy là lịch sử, sửa
+nó làm chữ ký khác đi trên máy đã migrate.
+
+- [ ] **Step 5: Chạy migration + test**
+
+Run: `cd apps/api && npm run migration:run && npx jest --config ./test/jest-e2e.json --runInBand`
+Expected: migration chạy sạch; mọi suite pass.
+
+- [ ] **Step 6: Regenerate schema + commit**
+
+```bash
+cd apps/api && npm run dev   # nền, chờ /api-docs-json trả 200
+cd packages/shared && node scripts/generate-api-client.mjs
+# dừng API dev
+git add apps/api/src apps/api/test apps/web/src packages/shared/src/api/schema.d.ts
+git commit -m "refactor(identity): role academic_affairs, tên theo công việc chứ không thứ bậc"
+```
 
 ---
 
@@ -307,7 +429,7 @@ git commit -m "feat(audit): ghi được trong transaction của caller"
 
 ---
 
-### Task 3: `PUT /semesters/:id/current` + chuyển quyền sang `super_admin`
+### Task 3: `PUT /semesters/:id/current` + chuyển quyền sang `academic_affairs`
 
 **Files:**
 - Modify: `apps/api/src/course/semester.service.ts`
@@ -317,11 +439,11 @@ git commit -m "feat(audit): ghi được trong transaction của caller"
 
 **Interfaces:**
 - Consumes: `SemesterEntity.isCurrent` (Task 1), `recordUserAction(input, manager?)` (Task 2)
-- Produces: `SemesterService.setCurrent(id: string, actorId: string): Promise<SemesterEntity>`; route `PUT /semesters/:id/current` (`@Roles('super_admin')`)
+- Produces: `SemesterService.setCurrent(id: string, actorId: string): Promise<SemesterEntity>`; route `PUT /semesters/:id/current` (`@Roles('academic_affairs')`)
 
 - [ ] **Step 1: Viết test đỏ**
 
-Thêm vào `apps/api/test/semester-current.e2e-spec.ts` (cần `request` từ supertest, và ba tài khoản: một `super_admin`, một `department_admin`, một `teacher` — dùng helper `createTestAccount` như các spec khác):
+Thêm vào `apps/api/test/semester-current.e2e-spec.ts` (cần `request` từ supertest, và ba tài khoản: một `academic_affairs`, một `department_admin`, một `teacher` — dùng helper `createTestAccount` như các spec khác):
 
 ```typescript
   describe('PUT /semesters/:id/current', () => {
@@ -505,7 +627,7 @@ Modify `apps/api/src/course/semester.controller.ts`:
 
 ```typescript
   @Put(':id/current')
-  @Roles('super_admin')
+  @Roles('academic_affairs')
   setCurrent(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.semesters.setCurrent(id, req.user!.sub);
   }
@@ -513,14 +635,14 @@ Modify `apps/api/src/course/semester.controller.ts`:
 
 Thêm `Put`, `Req` vào import từ `@nestjs/common`, và `import type { Request } from 'express';`.
 
-Đổi `@Roles('department_admin')` thành `@Roles('super_admin')` trên `create`, `update`, `remove`. **Không** đụng `@Get()` — read vẫn mở cho mọi role, giảng viên cần danh sách để đổ vào bộ lọc.
+Đổi `@Roles('department_admin')` thành `@Roles('academic_affairs')` trên `create`, `update`, `remove`. **Không** đụng `@Get()` — read vẫn mở cho mọi role, giảng viên cần danh sách để đổ vào bộ lọc.
 
 Đổi doc comment đầu class:
 
 ```typescript
 /**
  * Read mở cho mọi role (bộ lọc học kỳ ở mọi màn hình cần danh sách này);
- * write thuộc Phòng Đào tạo (`super_admin`).
+ * write thuộc Phòng Đào tạo (`academic_affairs`).
  *
  * Trước đây write thuộc Trưởng khoa, và đó là sai tầng: lịch học kỳ là quyết
  * định cấp trường, công bố một lần cho toàn trường, không phải thứ mỗi khoa
@@ -542,7 +664,7 @@ Expected: tất cả pass.
 - [ ] **Step 7: Chạy toàn bộ e2e — đổi quyền có thể làm hỏng spec khác**
 
 Run: `cd apps/api && npx jest --config ./test/jest-e2e.json --runInBand`
-Expected: mọi suite pass. Spec nào đang tạo học kỳ bằng token `department_admin` sẽ đỏ — sửa chúng sang tài khoản `super_admin`, đừng nới quyền lại.
+Expected: mọi suite pass. Spec nào đang tạo học kỳ bằng token `department_admin` sẽ đỏ — sửa chúng sang tài khoản `academic_affairs`, đừng nới quyền lại.
 
 - [ ] **Step 8: Commit**
 
@@ -565,7 +687,7 @@ git commit -m "feat(semester): Phòng Đào tạo sở hữu lịch học kỳ, 
 
 **Interfaces:**
 - Consumes: `PUT /semesters/:id/current` (Task 3)
-- Produces: area `/academic`; `ACADEMIC_NAV`; `ACCOUNT_ROLE_OPTIONS` gồm `super_admin`
+- Produces: area `/academic`; `ACADEMIC_NAV`; `ACCOUNT_ROLE_OPTIONS` gồm `academic_affairs`
 
 - [ ] **Step 1: Viết test đỏ cho routing**
 
@@ -574,14 +696,14 @@ Thêm vào `apps/web/src/middleware.test.ts`:
 ```typescript
   it('đưa Phòng Đào tạo vào area của họ, không phải trang chưa-gán-vai-trò', async () => {
     const response = await middleware(
-      makeRequest('/academic/semesters', fakeToken({ role: 'super_admin' })),
+      makeRequest('/academic/semesters', fakeToken({ role: 'academic_affairs' })),
     );
     expect(response.status).not.toBe(307);
   });
 
   it('đẩy Phòng Đào tạo ra khỏi /department/*', async () => {
     const response = await middleware(
-      makeRequest('/department/courses', fakeToken({ role: 'super_admin' })),
+      makeRequest('/department/courses', fakeToken({ role: 'academic_affairs' })),
     );
     expect(new URL(response.headers.get('location')!).pathname).toBe(
       '/academic/semesters',
@@ -598,12 +720,16 @@ Thêm vào `apps/web/src/middleware.test.ts`:
   });
 ```
 
-Test cũ `'sends a role with no area to the unassigned-role page'` dùng `super_admin` — đổi giá trị role trong test đó sang một chuỗi không có thật (`'some_future_role'`), vì `super_admin` giờ **có** area. Giữ nguyên tên và ý nghĩa của test: role không map được vẫn phải về `/unassigned-role`.
+Test cũ `'sends a role with no area to the unassigned-role page'` dùng chuỗi
+`'super_admin'` — **để nguyên**. Sau Task 0 giá trị đó không còn là role nào cả,
+nên nó vẫn đúng là "role không map được phải về /unassigned-role", và giờ test
+đó bảo vệ thêm một điều thật: một token cũ mang tên role trước khi đổi không
+được lọt vào area nào.
 
 - [ ] **Step 2: Chạy để thấy nó đỏ**
 
 Run: `cd apps/web && npx vitest run src/middleware.test.ts`
-Expected: FAIL — `super_admin` vẫn bị đẩy về `/unassigned-role`.
+Expected: FAIL — role `academic_affairs` vẫn bị đẩy về `/unassigned-role` (chưa có trong ROLE_AREAS).
 
 - [ ] **Step 3: Đăng ký area**
 
@@ -614,14 +740,13 @@ export const ROLE_AREAS = {
   admin: '/admin',
   department_admin: '/department',
   teacher: '/teacher',
-  // Phòng Đào tạo. Giá trị enum trong DB vẫn là `super_admin` — đổi enum kéo
-  // theo migration và làm hỏng token đang lưu hành, mà thứ người dùng đọc là
-  // nhãn. Area đặt tên theo CÔNG VIỆC (`/academic`) chứ không theo thứ bậc.
-  super_admin: '/academic',
+  // Phòng Đào tạo. Tên role mô tả CÔNG VIỆC, không phải thứ bậc — area cũng
+  // vậy (`/academic`, không phải `/super-admin`).
+  academic_affairs: '/academic',
 } as const;
 ```
 
-Và `homeForRole`'s doc comment: đổi câu `super_admin` has no area today thành:
+Và `homeForRole`'s doc comment: đổi câu `academic_affairs` has no area today thành:
 
 ```typescript
 /**
@@ -673,15 +798,15 @@ Modify `apps/web/src/components/layout/app-shell.tsx`:
 Modify `apps/web/src/lib/account-roles.ts`:
 
 ```typescript
-// Bốn role hệ thống thực sự cài đặt. `super_admin` gia nhập danh sách khi nó
-// có area (/academic), route chấp nhận nó (@Roles('super_admin') trên
+// Bốn role hệ thống thực sự cài đặt. `academic_affairs` gia nhập danh sách khi
+// nó có area (/academic), route chấp nhận nó (@Roles('academic_affairs') trên
 // semester writes) và tài nguyên để sở hữu — trước đó, tạo một tài khoản như
 // vậy sinh ra người đăng nhập được mà không làm được gì.
 export const ACCOUNT_ROLE_OPTIONS = [
   'admin',
   'department_admin',
   'teacher',
-  'super_admin',
+  'academic_affairs',
 ] as const;
 ```
 
@@ -690,7 +815,7 @@ export const ACCOUNT_ROLE_LABELS: Record<AccountRoleOption, string> = {
   admin: 'Quản trị',
   department_admin: 'Trưởng khoa',
   teacher: 'Giảng viên',
-  super_admin: 'Phòng Đào tạo',
+  academic_affairs: 'Phòng Đào tạo',
 };
 ```
 
@@ -703,11 +828,11 @@ export const ACCOUNT_ROLE_BADGE_VARIANT: Record<
   department_admin: 'info',
   teacher: 'accent',
   // Màu riêng: một bảng mà hai role trông giống nhau là bảng bị đọc nhầm.
-  super_admin: 'warning',
+  academic_affairs: 'warning',
 };
 ```
 
-Và trong `ROLE_DISPLAY`, đổi `super_admin: { label: 'Super Admin', ... }` thành `super_admin: { label: 'Phòng Đào tạo', variant: 'warning' }`.
+Và trong `ROLE_DISPLAY`, đổi `academic_affairs: { label: 'Super Admin', ... }` thành `academic_affairs: { label: 'Phòng Đào tạo', variant: 'warning' }`.
 
 - [ ] **Step 5: Layout + dời trang**
 
@@ -800,7 +925,7 @@ với
 
 ```tsx
 const hasAcademicAccount = (accounts.data?.items ?? []).some(
-  (a) => a.role === 'super_admin',
+  (a) => a.role === 'academic_affairs',
 );
 ```
 
@@ -819,7 +944,7 @@ it('cảnh báo khi chưa có tài khoản Phòng Đào tạo nào', async () =>
 
 it('im lặng khi đã có', async () => {
   useAccountsMock.mockReturnValue({
-    data: { items: [{ id: '1', name: 'P', email: 'p@x.vn', role: 'super_admin' }], total: 1 },
+    data: { items: [{ id: '1', name: 'P', email: 'p@x.vn', role: 'academic_affairs' }], total: 1 },
     isLoading: false,
     error: null,
   });
@@ -854,7 +979,7 @@ git add apps/web/src packages/shared/src/api/schema.d.ts
 git commit -m "feat(web): tier Phòng Đào tạo, và trang Học kỳ dời khỏi khoa"
 ```
 
-> **Đây là điểm merge.** Task 1–4 đi cùng nhau lên main. Không mở PR riêng cho từng task.
+> **Đây là điểm merge.** Task 0–4 đi cùng nhau lên main. Không mở PR riêng cho từng task.
 
 ---
 
@@ -1800,7 +1925,7 @@ git commit -m "feat(web): nhắc việc tồn đọng của kỳ trước ở da
 
 Chạy bước vận hành §9.3 của spec trước khi demo:
 
-1. `admin` tạo tài khoản Phòng Đào tạo (`POST /accounts`, role `super_admin`).
+1. `admin` tạo tài khoản Phòng Đào tạo (`POST /accounts`, role `academic_affairs`).
 2. Đăng nhập, vào `/academic/semesters`, gạt cờ cho `Học kỳ 1 2026-2027`.
 3. Mở một trang giảng viên, xác nhận bộ lọc hiện đúng kỳ đó.
 

@@ -26,7 +26,10 @@ Và một vấn đề sâu hơn về phân quyền: **bất kỳ Trưởng khoa 
 
 Ở trường thật, lịch học kỳ là quyết định của Phòng Đào tạo, công bố một lần cho toàn trường. Không khoa nào tự đặt lịch riêng.
 
-Enum `account_role` đã có sẵn `super_admin`, và ghi chú trong `role-areas.ts` từ trước đã nêu đúng chỗ nó thuộc về: *"nếu có tier academic-affairs — role thật sự sở hữu lịch học kỳ cấp trường — thì đây là chỗ nó thuộc về"*. Spec này hiện thực hoá đúng ý định đó.
+Enum `account_role` đã có sẵn một giá trị để dành cho việc này. Ghi chú trong
+`role-areas.ts` từ trước nêu đúng chỗ nó thuộc về: *"nếu có tier academic-affairs
+— role thật sự sở hữu lịch học kỳ cấp trường — thì đây là chỗ nó thuộc về"*. Spec
+này hiện thực hoá đúng ý định đó, và đổi luôn tên giá trị enum cho khớp — xem §3.2.
 
 **Phương án đã cân nhắc và loại:** giao cho `admin` (tier cấp trường đã chạy, có sẵn 6 trang, và đã giữ một việc học vụ cùng loại là `unowned-courses`). Rẻ hơn thật, nhưng nó gộp hai công việc khác nhau — quản trị hạ tầng và học vụ — vào một tài khoản, tức là lặp lại đúng lỗi phân quyền sai tầng mà spec này sinh ra để sửa, chỉ ở tầng khác.
 
@@ -61,27 +64,38 @@ Một tier một trang là hợp lý, không phải thiếu sót: Phòng Đào t
 
 | Hạng mục | Giá trị |
 |---|---|
-| Giá trị enum trong DB | `super_admin` — **giữ nguyên**, không migrate |
-| Nhãn hiển thị | **"Phòng Đào tạo"** (đổi từ "Super Admin") |
+| Giá trị enum trong DB | `super_admin` → **`academic_affairs`** |
+| Nhãn hiển thị | **"Phòng Đào tạo"** |
 | Area | `/academic` |
 | Trang chủ của role | `/academic/semesters` |
 
-Giữ enum và đổi nhãn là có chủ ý: đổi giá trị enum kéo theo migration, làm hỏng token đang lưu hành, và không mang lại gì — cái người dùng đọc là nhãn. Nhãn "Super Admin" mô tả **thứ bậc**; "Phòng Đào tạo" mô tả **công việc**, và công việc mới là thứ quyết định ai được cấp tài khoản này.
+Đổi tên ở **mọi tầng**, không chỉ nhãn. `super_admin` mô tả **thứ bậc**;
+`academic_affairs` mô tả **công việc** — và công việc mới là thứ quyết định ai được cấp
+tài khoản này. Area đặt `/academic` chứ không `/super-admin`, cùng lý do.
 
-Area đặt tên `/academic` chứ không `/super-admin`, cùng lý do.
+**Một bản nháp trước của spec này giữ nguyên enum và chỉ đổi nhãn**, với lý do
+"đổi enum kéo theo migration, làm hỏng token đang lưu hành". Cả hai vế đều sai:
+`ALTER TYPE ... RENAME VALUE` có từ Postgres 10 (ở đây là 16.15) và chỉ sửa
+catalog, không rewrite bảng; còn tài khoản mang role `super_admin` thì **không có
+cái nào tồn tại**, nên không token nào mang được nó. Chi phí thật của việc đổi:
+một câu lệnh migration, cộng khoảng 18 tham chiếu trong source.
 
+Giữ nguyên thì code viết một đằng, màn hình đọc một nẻo, vĩnh viễn — đúng loại
+lệch tên/việc mà cả spec này sinh ra để sửa ở tầng phân quyền. Đổi tên cũng trả
+lại cái tên `super_admin` cho một tier siêu quản trị thật, nếu sau này cần; hiện
+nó đang bị chiếm bởi thứ không phải siêu quản trị.
 ### 3.3 Những chỗ phải sửa để tier tồn tại
 
 Rẻ hơn nhiều so với lo ngại ban đầu, vì shell đã lấy nav từ một map theo area:
 
 | File | Sửa |
 |---|---|
-| `lib/role-areas.ts` | `ROLE_AREAS` += `super_admin: '/academic'` |
+| `lib/role-areas.ts` | `ROLE_AREAS` += `academic_affairs: '/academic'` |
 | `lib/nav-config.ts` | `ACADEMIC_NAV = [{ label: 'Học kỳ', href: '/academic/semesters', icon: CalendarRange }]` |
 | `components/layout/app-shell.tsx` | `role` prop += `'academic'`; thêm một mục vào map `AREA` |
 | `app/academic/layout.tsx` | mới, 4 dòng, y hệt `app/admin/layout.tsx` |
 | `app/academic/semesters/page.tsx` | dời từ `app/department/semesters/page.tsx`, thêm nút gạt cờ |
-| `lib/account-roles.ts` | `ACCOUNT_ROLE_OPTIONS` += `super_admin`; nhãn "Phòng Đào tạo"; xoá đoạn ghi chú "deliberately absent" |
+| `lib/account-roles.ts` | `ACCOUNT_ROLE_OPTIONS` += `academic_affairs`; nhãn "Phòng Đào tạo"; xoá đoạn ghi chú "deliberately absent" |
 
 **Không cần dashboard riêng.** Tier một trang thì trang đó là nhà.
 
@@ -112,7 +126,7 @@ Partial unique index, không phải bảng con một dòng: nó ép đúng bất
 
 ### 4.2 Đổi kỳ hiện hành
 
-`PUT /semesters/:id/current`, `@Roles('super_admin')`.
+`PUT /semesters/:id/current`, `@Roles('academic_affairs')`.
 
 Phải chạy trong **một transaction**: gỡ cờ kỳ cũ rồi gắn kỳ mới. Làm ngược thứ tự sẽ đụng unique index. Gọi lại trên chính kỳ đang hiện hành là hợp lệ và không làm gì (idempotent) — bấm hai lần không phải lỗi.
 
@@ -248,7 +262,7 @@ Tương tự cho giảng viên: `?semesterId=` của kỳ mà họ không dạy 
 - Mỗi trang mặc định đúng kỳ hiện hành, và **gieo một lần** — đổi tay rồi refetch không bị ghi đè
 - "Tất cả học kỳ" trả lại toàn bộ, và cột học kỳ xuất hiện đúng lúc đó
 - Chuông báo hiện khi và chỉ khi `now > end_date` của kỳ hiện hành
-- `super_admin` vào `/academic/semesters` được; vào `/admin/*`, `/department/*`, `/teacher/*` bị đẩy về nhà nó
+- `academic_affairs` vào `/academic/semesters` được; vào `/admin/*`, `/department/*`, `/teacher/*` bị đẩy về nhà nó
 - Ba role kia vào `/academic/*` bị đẩy về nhà chúng
 
 ---
@@ -263,7 +277,7 @@ Tương tự cho giảng viên: `?semesterId=` của kỳ mà họ không dạy 
 
   Không trộn vào đây — trộn là mở rộng phạm vi giữa chừng. Nhưng **việc kế tiếp
   ngay sau khi merge spec này**, và nó dùng lại gần như nguyên bộ khung vừa dựng:
-  chỉ cần chuyển quyền ghi `room` sang `super_admin`. Phòng thi **không** cần khái
+  chỉ cần chuyển quyền ghi `room` sang `academic_affairs`. Phòng thi **không** cần khái
   niệm "hiện hành" như học kỳ — không có gì để gạt cờ, chỉ có một chủ sở hữu để
   sửa lại cho đúng tầng.
 
@@ -271,19 +285,20 @@ Tương tự cho giảng viên: `?semesterId=` của kỳ mà họ không dạy 
 
 ## 9. Thứ tự triển khai
 
-1. Migration `is_current` + partial unique index
-2. API học kỳ: `PUT /:id/current`, đổi writes sang `@Roles('super_admin')`, chặn xoá kỳ hiện hành, `isCurrent` trong response, audit log
-3. Tier `/academic`: role-areas, nav, AppShell, layout, dời trang Học kỳ, mở `super_admin` trong tuỳ chọn tạo tài khoản
-4. `semesterId` cho 4 endpoint danh sách + test §7.2 cho từng cái
-5. `useSemesterFilter()` + `<SemesterFilter>`, gắn vào 5 trang, xoá `pickDefaultSemester()`
-6. Chuông báo kỳ hết hạn
-7. Nhắc việc tồn đọng kỳ trước *(cắt trước tiên nếu hết thời gian)*
+1. Đổi tên giá trị enum `super_admin` → `academic_affairs` (§3.2) — đi trước mọi thứ viết `@Roles`
+2. Migration `is_current` + partial unique index
+3. API học kỳ: `PUT /:id/current`, đổi writes sang `@Roles('academic_affairs')`, chặn xoá kỳ hiện hành, `isCurrent` trong response, audit log
+4. Tier `/academic`: role-areas, nav, AppShell, layout, dời trang Học kỳ, mở `academic_affairs` trong tuỳ chọn tạo tài khoản
+5. `semesterId` cho 4 endpoint danh sách + test §7.2 cho từng cái
+6. `useSemesterFilter()` + `<SemesterFilter>`, gắn vào 5 trang, xoá `pickDefaultSemester()`
+7. Chuông báo kỳ hết hạn
+8. Nhắc việc tồn đọng kỳ trước *(cắt trước tiên nếu hết thời gian)*
 
-### 9.1 Bước 1–3 là MỘT lần merge, không tách PR
+### 9.1 Bước 1–4 là MỘT lần merge, không tách PR
 
 Thói quen của dự án này là PR nhỏ, merge từng phần. **Chỗ này là ngoại lệ.**
-Giữa bước 2 và bước 3, `department_admin` đã mất quyền sửa học kỳ mà
-`super_admin` chưa có area để đăng nhập vào — tức là một khoảng thời gian
+Giữa bước 3 và bước 4, `department_admin` đã mất quyền sửa học kỳ mà
+`academic_affairs` chưa có area để đăng nhập vào — tức là một khoảng thời gian
 thật sự **không ai trong hệ thống sửa được lịch học kỳ**. Ai theo phản xạ tách
 nhỏ PR ở đây sẽ tạo ra đúng khoảng trống đó.
 
@@ -307,7 +322,7 @@ với §2.3.
 Trước khi mở lại hệ thống cho giảng viên (hoặc trước khi demo), theo khuôn
 `DEMO-RUNBOOK.md`:
 
-1. `admin` tạo tài khoản Phòng Đào tạo (`POST /accounts`, role `super_admin`).
+1. `admin` tạo tài khoản Phòng Đào tạo (`POST /accounts`, role `academic_affairs`).
 2. Đăng nhập tài khoản đó, vào `/academic/semesters`.
 3. Gạt cờ hiện hành cho đúng học kỳ.
 4. Kiểm một trang bất kỳ của giảng viên: bộ lọc phải hiện đúng kỳ đó.
