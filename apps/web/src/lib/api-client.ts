@@ -54,6 +54,17 @@ apiClient.use({
 // request: that's what lets concurrent 401s share it.
 let refreshInFlight: Promise<boolean> | null = null;
 
+/**
+ * Mints a fresh cookie pair, resolving `false` when the refresh token is
+ * dead too.
+ *
+ * CONCURRENT CALLS SHARE ONE REQUEST. lib/socket-recovery.ts depends on that:
+ * when a lobby tab discovers the expired token through an XHR 401 and through
+ * a socket UNAUTHORIZED in the same instant, two independent calls would each
+ * rotate the refresh token, and the second rotation would invalidate the pair
+ * the first just wrote into the cookie jar — logging the teacher out for real
+ * while trying to keep them signed in.
+ */
 export function refreshSession(): Promise<boolean> {
   if (!refreshInFlight) {
     refreshInFlight = fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
@@ -98,16 +109,19 @@ apiClient.use({
       return undefined;
     }
 
-    // The clone taken in onRequest, before the body was streamed out.
-    // `request.clone()` is only a fallback for a request that somehow never
-    // passed through onRequest — for a body-carrying one it would throw,
-    // which is exactly the case the WeakMap exists to cover.
+    // The clone taken in onRequest, before the body was streamed out. No
+    // `request.clone()` fallback: onRequest runs for every request on this
+    // client, so a miss here means the middleware wiring is broken, and
+    // cloning would throw for exactly the body-carrying requests the WeakMap
+    // exists to serve. Surfacing the original 401 is the honest answer.
     const replay = replayable.get(request);
+    if (!replay) {
+      return undefined;
+    }
     try {
-      return await fetch(replay ?? request.clone());
+      return await fetch(replay);
     } catch {
-      // Nothing replayable and nothing cloneable. The original 401 is the
-      // honest answer, same as before this middleware existed.
+      // The network died between the refresh and the replay.
       return undefined;
     }
   },

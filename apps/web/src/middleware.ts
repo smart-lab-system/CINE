@@ -6,28 +6,15 @@ import {
   areaForRole,
   homeForRole,
 } from '@/lib/role-areas';
+import {
+  clearSessionCookies,
+  setSessionCookies,
+  type Session,
+} from '@/lib/auth-cookies';
 
 const PUBLIC_PATHS = ['/login'];
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
-
-// Must match login/route.ts and api/auth/refresh/route.ts exactly — a token
-// minted here has to expire on the same schedule as one minted at login, and
-// be exactly as reachable (secure, sameSite, path), or a session revived here
-// would quietly behave differently from one that started at login.
-const COOKIE_BASE = {
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
-  path: '/',
-} as const;
-const ACCESS_TOKEN_MAX_AGE = 60 * 15;
-const REFRESH_TOKEN_MAX_AGE = 60 * 60 * 24 * 7;
-
-interface RefreshedSession {
-  accessToken: string;
-  refreshToken: string;
-  account?: { name: string; email: string; role: string };
-}
 
 export function isProtectedPath(pathname: string): boolean {
   return !PUBLIC_PATHS.some(
@@ -54,7 +41,7 @@ function isUnderSegment(pathname: string, segment: string): boolean {
  * Never throws. A dead API has to send the visitor to /login; letting the
  * rejection escape would 500 every page in the app instead.
  */
-async function refreshSession(refreshToken: string): Promise<RefreshedSession | null> {
+async function refreshSession(refreshToken: string): Promise<Session | null> {
   try {
     const apiResponse = await fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
@@ -70,59 +57,17 @@ async function refreshSession(refreshToken: string): Promise<RefreshedSession | 
     if (
       typeof body !== 'object' ||
       body === null ||
-      typeof (body as RefreshedSession).accessToken !== 'string' ||
-      typeof (body as RefreshedSession).refreshToken !== 'string'
+      typeof (body as Session).accessToken !== 'string' ||
+      typeof (body as Session).refreshToken !== 'string'
     ) {
       return null;
     }
-    return body as RefreshedSession;
+    return body as Session;
   } catch {
     return null;
   }
 }
 
-function applySession(response: NextResponse, session: RefreshedSession): NextResponse {
-  response.cookies.set('access_token', session.accessToken, {
-    ...COOKIE_BASE,
-    httpOnly: true,
-    maxAge: ACCESS_TOKEN_MAX_AGE,
-  });
-  // Rotated on every refresh (AuthService.refresh: "a leaked one stops being
-  // usable as soon as the legitimate holder refreshes") — write back the NEW
-  // value, never the one this request arrived with.
-  response.cookies.set('refresh_token', session.refreshToken, {
-    ...COOKIE_BASE,
-    httpOnly: true,
-    maxAge: REFRESH_TOKEN_MAX_AGE,
-  });
-  if (session.account) {
-    response.cookies.set(
-      'account',
-      JSON.stringify({
-        name: session.account.name,
-        email: session.account.email,
-        role: session.account.role,
-      }),
-      // Readable by client JS on purpose — display data (the name in the
-      // header), never an authorisation input.
-      { ...COOKIE_BASE, httpOnly: false, maxAge: ACCESS_TOKEN_MAX_AGE },
-    );
-  }
-  return response;
-}
-
-/**
- * Expired, revoked, or the account is gone — nothing short of a real login
- * recovers from this. The stale cookies go rather than being left to fail the
- * same way on the next navigation, which is what would otherwise turn one
- * dead refresh token into a pointless API round-trip on every request.
- */
-function clearSession(response: NextResponse): NextResponse {
-  response.cookies.delete('access_token');
-  response.cookies.delete('refresh_token');
-  response.cookies.delete('account');
-  return response;
-}
 
 /**
  * Where this visitor is allowed to be, given the role in their token.
@@ -203,12 +148,12 @@ export async function middleware(request: NextRequest) {
   const refreshToken = request.cookies.get('refresh_token')?.value;
   const session = refreshToken ? await refreshSession(refreshToken) : null;
   if (!session) {
-    return clearSession(NextResponse.redirect(new URL('/login', request.url)));
+    return clearSessionCookies(NextResponse.redirect(new URL('/login', request.url)));
   }
 
   // Routed on the REFRESHED token, not treated as "no role known": the claim
   // that decides which area this visitor belongs in lives inside it.
-  return applySession(routeByRole(request, session.accessToken), session);
+  return setSessionCookies(routeByRole(request, session.accessToken), session);
 }
 
 export const config = {

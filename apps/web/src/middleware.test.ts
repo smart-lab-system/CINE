@@ -239,6 +239,25 @@ describe('middleware — silent refresh on an expired access_token', () => {
     expect(new URL(response.headers.get('location')!).pathname).toBe('/login');
   });
 
+  // Without this, dropping a `cookies.delete` from clearSessionCookies would
+  // pass every other test in this file while leaving a dead refresh_token in
+  // the browser — one wasted API round-trip per navigation, forever, for a
+  // token that can never succeed again.
+  it('clears the dead cookies rather than leaving them to fail again', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })));
+    const response = await middleware(
+      makeRequest('/teacher/dashboard', undefined, 'expired-or-revoked'),
+    );
+
+    const setCookie = response.headers.getSetCookie().join('\n');
+    for (const name of ['access_token', 'refresh_token', 'account']) {
+      expect(setCookie).toContain(`${name}=;`);
+    }
+    // Next expires them at the epoch rather than with Max-Age=0; either way
+    // the browser is told to drop the cookie immediately.
+    expect(setCookie).toContain('Expires=Thu, 01 Jan 1970');
+  });
+
   // A dead API must not strand the user in a redirect loop with cookies that
   // would have worked once it came back — but it must not hang either.
   it('redirects to /login when the refresh call throws', async () => {
