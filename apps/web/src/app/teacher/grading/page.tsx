@@ -1,12 +1,11 @@
 'use client';
 
-import { Fragment, Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Play } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -17,28 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
+import { ReviewWorkspace } from './_components/ReviewWorkspace';
+import { FinalizeGradesButton } from './_components/FinalizeGradesButton';
 import {
   useGradingResults,
   useRubrics,
   useSetSessionRubric,
   useStartGrading,
 } from '@/hooks/useGrading';
-import type { GradingResult } from '@/lib/api/grading';
-
-const VERDICT_LABELS: Record<GradingResult['criterionResults'][number]['verdict'], string> = {
-  met: 'Đạt',
-  partially_met: 'Đạt một phần',
-  not_met: 'Chưa đạt',
-};
 
 /**
  * Grading — deliberately its own screen, reached by choosing a session.
@@ -197,93 +183,18 @@ function GradingPageContent() {
                   mới chạy.
                 </p>
               ) : (
-                <ResultsTable results={results.data!} />
+                <div className="flex flex-col gap-4">
+                  <ReviewWorkspace examSessionId={sessionId} results={results.data!} />
+                  <FinalizeGradesButton
+                    examSessionId={sessionId}
+                    results={results.data!}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
         </>
       )}
-    </div>
-  );
-}
-
-function ResultsTable({ results }: { results: GradingResult[] }) {
-  const [open, setOpen] = useState<string | null>(null);
-
-  return (
-    <div className="overflow-x-auto rounded-md border border-border">
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead scope="col">Sinh viên</TableHead>
-            <TableHead scope="col">Điểm AI đề xuất</TableHead>
-            <TableHead scope="col">Mô hình</TableHead>
-            <TableHead scope="col">Trạng thái</TableHead>
-            <TableHead scope="col" className="text-right">
-              <span className="sr-only">Bằng chứng</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {results.map((result) => (
-            // Key trên Fragment, không phải trên <TableRow> bên trong: mỗi
-            // vòng lặp trả về HAI hàng, nên phần tử ngoài cùng mới là thứ
-            // React cần định danh.
-            <Fragment key={result.id}>
-              <TableRow>
-                <TableCell>
-                  <span className="font-medium">{result.studentName}</span>{' '}
-                  <span className="font-mono text-muted-foreground">{result.studentMssv}</span>
-                </TableCell>
-                <TableCell className="tabular-nums">
-                  {/* "Đề xuất", never "điểm": the teacher decides, and the
-                      column heading has to say so every time it is read. */}
-                  {result.aiTotalScore ?? '—'}
-                </TableCell>
-                <TableCell className="font-mono text-caption text-muted-foreground">
-                  {result.modelUsed ?? '—'}
-                </TableCell>
-                <TableCell>
-                  {result.flagForReview ? (
-                    <Badge variant="warning">Cần giảng viên xem</Badge>
-                  ) : (
-                    <Badge variant="success">Tự duyệt</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setOpen(open === result.id ? null : result.id)}
-                  >
-                    {open === result.id ? 'Ẩn' : 'Bằng chứng'}
-                  </Button>
-                </TableCell>
-              </TableRow>
-              {open === result.id && (
-                <TableRow key={`${result.id}-evidence`} className="hover:bg-transparent">
-                  <TableCell colSpan={5} className="bg-surface-2/60">
-                    <ul className="flex flex-col gap-2 py-2">
-                      {result.criterionResults.map((criterion, index) => (
-                        <li key={criterion.criterionId ?? index} className="flex flex-col gap-0.5">
-                          <span className="text-small font-medium">
-                            {VERDICT_LABELS[criterion.verdict] ?? criterion.verdict} ·{' '}
-                            {criterion.points} điểm
-                          </span>
-                          <span className="text-caption text-muted-foreground">
-                            {criterion.evidence}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </TableCell>
-                </TableRow>
-              )}
-            </Fragment>
-          ))}
-        </TableBody>
-      </Table>
     </div>
   );
 }
