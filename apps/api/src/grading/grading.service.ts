@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -255,6 +257,46 @@ export class GradingService {
     return count > 0;
   }
 
+  /**
+   * One grading result, with ownership already proved.
+   *
+   * `:id` on the review route is a GradingResult, not an exam session, so the
+   * path to the owner is three hops:
+   *
+   *   grading_result.submission_id → submission.exam_session_id
+   *                                → exam_session.teacher_id
+   *
+   * The rule lives in a method with a NAME rather than inline in a controller.
+   * That is the only thing that stops the next route forgetting it.
+   *
+   * Anchored on `exam_session.teacher_id` — whoever CREATED the session —
+   * consistent with `start-grading`. See spec §4.3 for the known tension with
+   * `submission.home_teacher_id`, which routes a make-up exam's paper to a
+   * different teacher entirely. That is a task of its own, not a decision to
+   * make quietly here.
+   */
+  async findResultForOwner(
+    gradingResultId: string,
+    teacherId: string,
+  ): Promise<GradingResultEntity> {
+    const rows = await this.results
+      .createQueryBuilder('g')
+      .innerJoin('submission', 's', 's.id = g.submission_id')
+      .innerJoin('exam_session', 'e', 'e.id = s.exam_session_id')
+      .addSelect('e.teacher_id', 'ownerTeacherId')
+      .where('g.id = :id', { id: gradingResultId })
+      .getRawAndEntities<{ ownerTeacherId: string }>();
+
+    const result = rows.entities[0];
+    if (!result) {
+      throw new NotFoundException('Grading result not found');
+    }
+    if (rows.raw[0].ownerTeacherId !== teacherId) {
+      throw new ForbiddenException('You do not own the exam session of this result');
+    }
+    return result;
+  }
+
   /** Results for one session, newest submission first. */
   async listForSession(examSessionId: string): Promise<GradingResultView[]> {
     const rows = await this.results
@@ -265,19 +307,64 @@ export class GradingService {
       .orderBy('s.student_mssv', 'ASC')
       .getRawAndEntities<{ studentMssv: string; studentName: string }>();
 
-    return rows.entities.map((entity, index) => ({
-      id: entity.id,
-      submissionId: entity.submissionId,
-      studentMssv: rows.raw[index].studentMssv,
-      studentName: rows.raw[index].studentName,
-      status: entity.status,
-      modelUsed: entity.modelUsed,
-      aiTotalScore: entity.aiTotalScore === null ? null : Number(entity.aiTotalScore),
-      confidence: entity.confidence === null ? null : Number(entity.confidence),
-      flagForReview: entity.flagForReview,
-      criterionResults: entity.criterionResults,
-    }));
+    // The newest review of each result, in ONE query for the whole list.
+    //
+    // DISTINCT ON is Postgres's idiom for "latest row per group", and it uses
+    // idx_teacher_review_result_time exactly as that index was shaped. The
+    // alternative, LEFT JOIN LATERAL, gives the same answer but has to be
+    // written as raw SQL spliced into a query-builder chain, which reads worse
+    // for no gain.
+    const ids = rows.entities.map((entity) => entity.id);
+    const latest: LatestReviewRow[] =
+      ids.length === 0
+        ? []
+        : await this.results.manager.query(
+            `SELECT DISTINCT ON (tr.grading_result_id)
+                    tr.grading_result_id AS "resultId",
+                    tr.final_score       AS "finalScore",
+                    tr.reviewed_at       AS "reviewedAt",
+                    tr.edited_criteria   AS "editedCriteria",
+                    a.name               AS "reviewedByName"
+             FROM examcollect.teacher_review tr
+             JOIN examcollect.account a ON a.id = tr.teacher_id
+             WHERE tr.grading_result_id = ANY($1)
+             ORDER BY tr.grading_result_id, tr.reviewed_at DESC`,
+            [ids],
+          );
+    const reviewByResult = new Map(latest.map((row) => [row.resultId, row]));
+
+    return rows.entities.map((entity, index) => {
+      const review = reviewByResult.get(entity.id);
+      return {
+        id: entity.id,
+        submissionId: entity.submissionId,
+        studentMssv: rows.raw[index].studentMssv,
+        studentName: rows.raw[index].studentName,
+        status: entity.status,
+        modelUsed: entity.modelUsed,
+        aiTotalScore: entity.aiTotalScore === null ? null : Number(entity.aiTotalScore),
+        confidence: entity.confidence === null ? null : Number(entity.confidence),
+        flagForReview: entity.flagForReview,
+        criterionResults: entity.criterionResults,
+        // null means "the AI graded it, nobody has reviewed it" — NOT
+        // "the score is zero".
+        finalScore: review ? Number(review.finalScore) : null,
+        reviewedAt: review ? new Date(review.reviewedAt).toISOString() : null,
+        reviewedByName: review ? review.reviewedByName : null,
+        editedCriteria: review ? review.editedCriteria : null,
+      };
+    });
   }
+}
+
+/** One row of the DISTINCT ON lookup above. */
+interface LatestReviewRow {
+  resultId: string;
+  /** numeric(6,2) — the driver hands this back as a string. */
+  finalScore: string;
+  reviewedAt: Date;
+  editedCriteria: unknown[];
+  reviewedByName: string;
 }
 
 export interface GradingResultView {
@@ -291,4 +378,11 @@ export interface GradingResultView {
   confidence: number | null;
   flagForReview: boolean;
   criterionResults: unknown[];
+  /** numeric(6,2) ở DB; null nghĩa là chưa ai duyệt, KHÔNG phải điểm 0. */
+  finalScore: number | null;
+  reviewedAt: string | null;
+  /** TÊN giảng viên. Không trả id: trang này không dùng tới, và dấu vết
+   *  ai-làm-gì thuộc về audit_log chứ không phải payload hiển thị. */
+  reviewedByName: string | null;
+  editedCriteria: unknown[] | null;
 }

@@ -1,4 +1,4 @@
-import { Check, Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { RubricEntity } from './rubric.entity';
 
@@ -10,6 +10,11 @@ import { RubricEntity } from './rubric.entity';
 @Entity({ name: 'rubric_criterion' })
 @Check('ck_rubric_criterion_max_points', 'max_points > 0')
 export class RubricCriterionEntity extends BaseEntity {
+  // Every read of this table filters on rubric_id and nothing else, and
+  // Postgres does not index a foreign key's referencing side — see
+  // AddRubricCriterionRubricIndex for why it matters more over time than it
+  // does today.
+  @Index('idx_rubric_criterion_rubric')
   @Column({ name: 'rubric_id', type: 'uuid' })
   rubricId!: string;
 

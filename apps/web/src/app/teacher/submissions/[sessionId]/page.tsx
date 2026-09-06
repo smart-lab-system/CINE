@@ -53,7 +53,18 @@ function SubmissionSessionDetailContent() {
   const gradingByMssv = useMemo(() => {
     const map: Record<string, { score: number | null; status: string }> = {};
     for (const result of gradingResults.data ?? []) {
-      map[result.studentMssv] = { score: result.aiTotalScore, status: result.status };
+      map[result.studentMssv] = {
+        // Điểm giảng viên đã chốt thắng điểm AI đề xuất. Trước khi có
+        // TeacherReview thì chỉ có `aiTotalScore`, nên trang này đọc thẳng
+        // nó — giờ để nguyên sẽ khiến một bài đã duyệt 7.5 vẫn hiện 4.0 ở
+        // đây trong khi trang Chấm điểm hiện 7.5. Hai màn hình nói hai con
+        // số khác nhau về cùng một bài là lỗi tệ hơn hẳn việc thiếu số.
+        //
+        // `??` chứ không phải `||`: điểm 0 do giảng viên chấm là một quyết
+        // định, không phải một giá trị trống.
+        score: result.finalScore ?? result.aiTotalScore,
+        status: result.status,
+      };
     }
     return map;
   }, [gradingResults.data]);

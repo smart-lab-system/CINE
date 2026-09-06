@@ -18,8 +18,10 @@ import { Roles } from '../auth/roles.decorator';
 import { ExamSessionService } from '../exam-session/exam-session.service';
 import { GradingService } from './grading.service';
 import { RubricService } from './rubric.service';
+import { TeacherReviewService } from './teacher-review.service';
 import { SaveRubricDto } from './dto/rubric.dto';
 import { SetSessionRubricDto } from './dto/set-session-rubric.dto';
+import { SubmitReviewDto } from './dto/submit-review.dto';
 
 /**
  * The grading side of the API.
@@ -35,6 +37,7 @@ export class GradingController {
   constructor(
     private readonly grading: GradingService,
     private readonly rubrics: RubricService,
+    private readonly teacherReviews: TeacherReviewService,
     private readonly examSessions: ExamSessionService,
   ) {}
 
@@ -100,6 +103,38 @@ export class GradingController {
       );
     }
     return this.examSessions.setRubric(session, dto.rubricId);
+  }
+
+  /**
+   * One review of one result. Creates a TeacherReview row — it NEVER
+   * overwrites GradingResult (Security rule 6, and
+   * guard_grading_result_ai_immutable refuses if anything tries).
+   *
+   * Checks in order: who are you (404/403) → is this possible at all (409) →
+   * is the input valid (400). The status gate is the middle one, and it is
+   * what stops a review being written while the AI is still grading.
+   */
+  @Post('grading-results/:id/review')
+  @Roles('teacher')
+  async submitReview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SubmitReviewDto,
+    @Req() req: Request,
+  ) {
+    const result = await this.grading.findResultForOwner(id, req.user!.sub);
+    return this.teacherReviews.review(result, req.user!.sub, dto);
+  }
+
+  /**
+   * Publishes a session's grades. The point of no return: from here on, a
+   * score edit is exceptional and lands in the audit log.
+   */
+  @Post('exam-sessions/:id/finalize-grades')
+  @Roles('teacher')
+  @HttpCode(200)
+  async finalizeGrades(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.teacherReviews.finalizeGrades(session.id, req.user!.sub);
   }
 
   @Get('exam-sessions/:id/grading-results')

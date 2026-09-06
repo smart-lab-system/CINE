@@ -185,11 +185,40 @@ describe('SubmissionSessionDetailPage — ?student=', () => {
 describe('SubmissionSessionDetailPage — gradingByMssv', () => {
   it('map kết quả chấm theo MSSV và truyền xuống bảng', () => {
     useGradingResultsMock.mockReturnValue({
-      data: [{ studentMssv: 'A1', aiTotalScore: 8.5, status: 'ai_graded' }],
+      data: [
+        { studentMssv: 'A1', aiTotalScore: 8.5, finalScore: null, status: 'ai_graded' },
+      ],
     });
     render(<SubmissionSessionDetailPage />);
     expect(submissionStatusTableProps.gradingByMssv).toEqual({
       A1: { score: 8.5, status: 'ai_graded' },
+    });
+  });
+
+  it('điểm giảng viên đã chốt thắng điểm AI đề xuất', () => {
+    // Không có test này thì hai màn hình lặng lẽ nói hai con số khác nhau về
+    // cùng một bài: trang Chấm điểm hiện 7.5, trang này hiện 4.0.
+    useGradingResultsMock.mockReturnValue({
+      data: [
+        { studentMssv: 'A1', aiTotalScore: 4, finalScore: 7.5, status: 'finalized' },
+      ],
+    });
+    render(<SubmissionSessionDetailPage />);
+    expect(submissionStatusTableProps.gradingByMssv).toEqual({
+      A1: { score: 7.5, status: 'finalized' },
+    });
+  });
+
+  it('điểm 0 do giảng viên chấm KHÔNG bị rơi về điểm AI', () => {
+    // `??` chứ không phải `||` — đây là ca duy nhất phân biệt được hai toán tử.
+    useGradingResultsMock.mockReturnValue({
+      data: [
+        { studentMssv: 'A1', aiTotalScore: 6, finalScore: 0, status: 'finalized' },
+      ],
+    });
+    render(<SubmissionSessionDetailPage />);
+    expect(submissionStatusTableProps.gradingByMssv).toEqual({
+      A1: { score: 0, status: 'finalized' },
     });
   });
 });
