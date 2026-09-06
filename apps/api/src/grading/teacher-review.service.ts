@@ -259,10 +259,11 @@ export class TeacherReviewService {
     resultId: string,
     from: GradingResultStatus[],
     to: GradingResultStatus,
-    // Defaults to the pool's own manager, which is what `review()` wants — it
-    // is a single write and needs no transaction. `finalizeGrades` passes its
-    // transaction manager in; without that these UPDATEs would run on a
-    // different connection and survive a rollback.
+    // Both current callers — `review()` and `finalizeGrades()` — pass their
+    // transaction manager, and must: without it these UPDATEs run on a
+    // different connection and survive the rollback that was supposed to undo
+    // them. The default is for a caller that genuinely needs no transaction,
+    // and there is none today.
     manager: EntityManager = this.results.manager,
   ): Promise<boolean> {
     const updated = await manager
