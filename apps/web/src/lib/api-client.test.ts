@@ -124,37 +124,49 @@ describe('apiClient — silent refresh on 401', () => {
     expect(refreshCalls).toBe(1);
   });
 
-  it('degrades to the original 401 for a body-carrying request, instead of throwing', async () => {
-    // A plain canned-response mock (like every other test in this file
-    // uses) never actually reads the Request's body, so it never
-    // reproduces this bug — `bodyUsed` stays false and `.clone()` stays
-    // happy no matter what. A REAL fetch implementation streams the body
-    // to the network as part of sending the request, which is what
-    // actually marks it consumed — `.text()`'d here to match that
-    // observable effect for a POST/PATCH/PUT (or body-carrying DELETE),
-    // the same as it would be by the time openapi-fetch's own outgoing
-    // `fetch(request, requestInitExt)` call has gone out.
+  // H3. A Request's body can be read exactly once, and openapi-fetch's own
+  // outgoing `fetch(request, requestInitExt)` consumes it while sending the
+  // first attempt — so by the time the 401 comes back there is nothing left
+  // to replay, and every POST/PATCH/PUT (and body-carrying DELETE) used to
+  // fall back to surfacing the 401. A teacher who hit "Lưu điểm" at minute 16
+  // got an error for no reason a person could see.
+  it('replays a body-carrying request after refreshing, body intact', async () => {
+    let accountCalls = 0;
+    const bodiesSeen: string[] = [];
+
     (fetch as ReturnType<typeof vi.fn>).mockImplementation(async (input: RequestInfo | URL) => {
       const url = urlOf(input);
       if (url.includes('/api/auth/refresh')) {
         return jsonResponse({ account: { role: 'teacher' } });
       }
       if (url.includes('/accounts')) {
+        accountCalls++;
+        // A canned-response mock never reads the Request, so `bodyUsed`
+        // stays false and the bug cannot reproduce. A REAL fetch streams
+        // the body to the network as part of sending — reading it here is
+        // what matches that observable effect.
         if (input instanceof Request) {
-          await input.text();
+          bodiesSeen.push(await input.text());
         }
-        return jsonResponse({ message: 'Unauthorized' }, 401);
+        return accountCalls === 1
+          ? jsonResponse({ message: 'Unauthorized' }, 401)
+          : jsonResponse({ id: 'acc-1' }, 201);
       }
       throw new Error(`unexpected fetch to ${url}`);
     });
 
     const apiClient = await freshApiClient();
-
     const result = await apiClient.POST('/accounts', {
       body: { name: 'Cô A', email: 'a@example.com', password: 'x', role: 'teacher' },
     });
-    // The honest original 401 — not silently treated as success, and not
-    // a crashed TypeError from cloning an already-consumed body either.
-    expect(result.response.status).toBe(401);
+
+    expect(accountCalls).toBe(2);
+    expect(result.response.status).toBe(201);
+    // The replay has to carry the SAME body. A retry that quietly dropped it
+    // would create an empty account instead of the one that was filled in —
+    // worse than the 401 this replaces, because it looks like success.
+    expect(bodiesSeen).toHaveLength(2);
+    expect(bodiesSeen[1]).toBe(bodiesSeen[0]);
+    expect(JSON.parse(bodiesSeen[1]).email).toBe('a@example.com');
   });
 });

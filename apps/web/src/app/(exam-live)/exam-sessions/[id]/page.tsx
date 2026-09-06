@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import { ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { socket } from '@/lib/socket';
+import { createSubscriptionRecovery } from '@/lib/socket-recovery';
+import { refreshSession } from '@/lib/api-client';
 import type { PendingAccessRequest } from '@/lib/access-request';
 import {
   useAttendance,
@@ -173,6 +175,20 @@ export default function ExamSessionLobbyPage() {
     setLiveSubmissions({});
     setPendingAccessRequests([]);
 
+    // Created per mount, and capped at one attempt for its whole life — see
+    // createSubscriptionRecovery for why that cap is the loop guard rather
+    // than mere caution.
+    const recovery = createSubscriptionRecovery({
+      refresh: refreshSession,
+      reconnect: () => {
+        // Disconnect first, on purpose. socket.connect() on an already-open
+        // socket is a no-op, and the open one is precisely the connection
+        // holding the stale handshake cookie that caused this.
+        socket.disconnect();
+        socket.connect();
+      },
+    });
+
     // `teacher:subscribe` only joins a socket.io room — there is no
     // `teacher:unsubscribe` in the contract. Re-emitting on every
     // `connect` (not just the first) is required, not optional: if this
@@ -257,8 +273,23 @@ export default function ExamSessionLobbyPage() {
     socket.on('lobby:access_request', handleAccessRequest);
     socket.on('teacher:subscribe:error', handleSubscribeError);
 
+    // UNAUTHORIZED is the one code here that is usually recoverable, and it
+    // used to be handled like the two that never are. The token behind a
+    // socket is only ever checked at subscribe time, i.e. at (re)connect —
+    // so this fires when a network blip reconnects a lobby that has been
+    // open longer than ACCESS_TOKEN_TTL, which for a three-hour exam is
+    // routine rather than exceptional. Refresh and redial before deciding
+    // the session is over; show the message only once that has failed too.
     function handleSubscribeError(payload: TeacherSubscribeErrorPayload) {
-      setSubscribeError(payload);
+      if (payload.code !== 'UNAUTHORIZED') {
+        setSubscribeError(payload);
+        return;
+      }
+      void recovery.recover().then((recovered) => {
+        if (!recovered) {
+          setSubscribeError(payload);
+        }
+      });
     }
 
     // The shared socket may already be connected (e.g. a fast client-side

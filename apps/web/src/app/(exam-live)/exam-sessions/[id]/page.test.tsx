@@ -352,6 +352,57 @@ describe('ExamSessionLobbyPage', () => {
     expect(screen.queryByText('Điểm danh')).not.toBeInTheDocument();
   });
 
+  // H2. UNAUTHORIZED is the one subscribe error that is usually recoverable
+  // and used to be treated like the two that are not. `access_token` has
+  // maxAge 15m, so a socket that drops and auto-reconnects after that window
+  // shakes hands with no token at all — while refresh_token is still good for
+  // another 7 days. Telling the teacher to log in again there throws away a
+  // working session mid-exam.
+  it('refreshes and redials on UNAUTHORIZED instead of telling the teacher to log in', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ account: {} }), { status: 200 })),
+    );
+
+    render(<ExamSessionLobbyPage />);
+    trigger('connect');
+    fakeSocket.connect.mockClear();
+    fakeSocket.disconnect.mockClear();
+
+    trigger('teacher:subscribe:error', {
+      code: 'UNAUTHORIZED',
+      message: 'Missing or invalid access token.',
+    });
+
+    // Redialled, because the handshake cookie is frozen at connection time —
+    // a refreshed cookie reaches the gateway only via a NEW handshake.
+    await waitFor(() => expect(fakeSocket.connect).toHaveBeenCalled());
+    expect(fakeSocket.disconnect).toHaveBeenCalled();
+    expect(screen.queryByText(/Phiên đăng nhập đã hết hạn/)).not.toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to the login message when the refresh token is dead too', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })));
+
+    render(<ExamSessionLobbyPage />);
+    trigger('connect');
+    fakeSocket.connect.mockClear();
+
+    trigger('teacher:subscribe:error', {
+      code: 'UNAUTHORIZED',
+      message: 'Missing or invalid access token.',
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/Phiên đăng nhập đã hết hạn/),
+    );
+    expect(fakeSocket.connect).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
+
   it('removes every listener and disconnects on unmount, leaving nothing registered', () => {
     const { unmount } = render(<ExamSessionLobbyPage />);
     trigger('connect');

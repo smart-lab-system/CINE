@@ -20,12 +20,32 @@ export const apiClient = createApiClient(
 // immutable once constructed, so a Request is rebuilt here with the mode
 // forced, once, instead of repeating `credentials: 'include'` on every
 // GET/POST call site.
+// A Request's body can be read exactly ONCE, and openapi-fetch's own
+// outgoing `fetch(request, requestInitExt)` consumes it while sending the
+// first attempt. By the time a 401 comes back there is nothing left to
+// replay — so the clone has to be taken HERE, before that first send ever
+// goes out, not in onResponse where it is already too late.
+//
+// Keyed by the Request object openapi-fetch carries from onRequest through
+// to onResponse: it is one `request` variable across both hooks (see
+// openapi-fetch/dist/index.js), so the identity holds. A WeakMap, so a
+// request that never 401s is collected without any bookkeeping of its own.
+const replayable = new WeakMap<Request, Request>();
+
 apiClient.use({
   onRequest({ request }) {
-    return new Request(request, { credentials: 'include' });
+    const credentialed = new Request(request, { credentials: 'include' });
+    replayable.set(credentialed, credentialed.clone());
+    return credentialed;
   },
 });
 
+// Exported because the exam-live socket needs the same refresh (see
+// lib/socket-recovery.ts): when a lobby tab's XHR and its socket both
+// discover the expired token in the same instant, sharing this promise is
+// what makes that ONE call to /api/auth/refresh instead of two racing ones
+// that would rotate the refresh token out from under each other.
+//
 // In-flight refresh, shared across every request that hits this at once —
 // without it, a page that fires N requests the moment `access_token`
 // expires (ACCESS_TOKEN_TTL=15m; a teacher watching a live lobby for
@@ -34,7 +54,7 @@ apiClient.use({
 // request: that's what lets concurrent 401s share it.
 let refreshInFlight: Promise<boolean> | null = null;
 
-function refreshSession(): Promise<boolean> {
+export function refreshSession(): Promise<boolean> {
   if (!refreshInFlight) {
     refreshInFlight = fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
       .then((res) => res.ok)
@@ -78,19 +98,16 @@ apiClient.use({
       return undefined;
     }
 
+    // The clone taken in onRequest, before the body was streamed out.
+    // `request.clone()` is only a fallback for a request that somehow never
+    // passed through onRequest — for a body-carrying one it would throw,
+    // which is exactly the case the WeakMap exists to cover.
+    const replay = replayable.get(request);
     try {
-      return await fetch(request.clone());
+      return await fetch(replay ?? request.clone());
     } catch {
-      // `.clone()` throws for any request whose body has already been
-      // read — true of every POST/PATCH/PUT and a body-carrying DELETE
-      // by this point: openapi-fetch's own outgoing `fetch(request, ...)`
-      // call already consumed it sending this attempt. A GET has no body
-      // to consume, so it retries cleanly; a body-carrying request falls
-      // back to the original 401 instead of crashing on it — the same
-      // outcome those requests already had before this middleware
-      // existed, not a regression, just not yet a case this can retry
-      // (replaying the body would mean cloning it before the FIRST
-      // attempt ever sends, which is a real follow-up, not this fix).
+      // Nothing replayable and nothing cloneable. The original 401 is the
+      // honest answer, same as before this middleware existed.
       return undefined;
     }
   },
