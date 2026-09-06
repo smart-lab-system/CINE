@@ -128,7 +128,11 @@ export class SubmissionOverviewService {
         -- sinh viên ngồi nhờ thường do giảng viên KHÁC tạo — lọc theo giảng
         -- viên ở đây sẽ làm chính ca thi bù trở nên vô hình, tức là bỏ sót
         -- đúng thứ CTE này sinh ra để thấy.
-        SELECT DISTINCT es.course_id, es.exam_type,
+        -- Không cần DISTINCT ở tầng này: UNION bên trong (không phải UNION
+        -- ALL) đã khử trùng (exam_session_id, student_mssv), và exam_session_id
+        -- xác định luôn course_id/exam_type — thêm DISTINCT chỉ là một bước
+        -- sort không gộp thêm được dòng nào.
+        SELECT es.course_id, es.exam_type,
                es.id AS exam_session_id, ps.student_mssv
         FROM (
           SELECT exam_session_id, student_mssv FROM ${schema}.submission

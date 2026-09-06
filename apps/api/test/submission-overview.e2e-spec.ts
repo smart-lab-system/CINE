@@ -240,7 +240,11 @@ describe('Submission overview (e2e)', () => {
     // Nếu SQL join thô rồi GROUP BY, con số này sẽ là 3, 40 hoặc 120.
     expect(item.fullySubmittedCount).toBe(1);
     expect(item.partialCount).toBe(0);
-    expect(item.neverAttendedCount).toBe(39);
+    // Viết thành TỔNG, không phải một vế: mọi phiên trong file này cùng môn
+    // và cùng loại TK, nên một test thêm vào phía trên sẽ đẩy vài SV từ
+    // neverAttended sang satElsewhere mà không có gì sai. Con số bất biến là
+    // tổng hai nhóm.
+    expect(item.neverAttendedCount + item.satElsewhereCount).toBe(39);
     expect(item.expectedCount).toBe(40);
     expect(item.requiredDeliverableCount).toBe(3);
     expect(item.rosterKnown).toBe(true);
@@ -365,7 +369,7 @@ describe('Submission overview (e2e)', () => {
     const item = bySessionId(await fetchOverview(), session.id);
 
     expect(item.rosterKnown).toBe(false);
-    expect(item.neverAttendedCount).toBe(0);
+    expect(item.neverAttendedCount + item.satElsewhereCount).toBe(0);
     expect(item.expectedCount).toBe(1);
     expect(item.fullySubmittedCount).toBe(1);
   }, 30_000);

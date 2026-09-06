@@ -5,10 +5,8 @@ import {
   archiveSession,
   closeAttention,
   listSessionOverview,
-  listTeacherSubmissions,
   reopenAttention,
   unarchiveSession,
-  type SearchSubmissionsParams,
 } from '@/lib/api/submissions';
 
 /**
@@ -27,18 +25,6 @@ export function useSessionOverview(student?: string, enabled = true) {
   return useQuery({
     queryKey: ['submissions', 'overview', student ?? null],
     queryFn: () => listSessionOverview(student),
-    enabled,
-  });
-}
-
-/**
- * Chỉ chạy khi có từ khoá — luồng search (§4.5). `enabled` để trang không
- * gọi endpoint này lúc ô search còn rỗng.
- */
-export function useTeacherSubmissions(params: SearchSubmissionsParams, enabled: boolean) {
-  return useQuery({
-    queryKey: ['submissions', 'search', params],
-    queryFn: () => listTeacherSubmissions(params),
     enabled,
   });
 }
