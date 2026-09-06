@@ -23,9 +23,9 @@ import {
   useUpdateClass,
 } from '@/hooks/useDepartment';
 import type { Klass } from '@/lib/api/department';
-import { ResourceShell } from '../_components/resource-shell';
-import { ResourceFormDialog } from '../_components/resource-form-dialog';
-import { ConfirmDeleteDialog } from '../_components/confirm-delete-dialog';
+import { ResourceShell } from '@/components/resource/resource-shell';
+import { ResourceFormDialog } from '@/components/resource/resource-form-dialog';
+import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog';
 
 const EMPTY = { courseId: '', name: '', teacherId: '' };
 

@@ -21,6 +21,7 @@ import {
   updateClass,
   updateCourse,
   updateRoom,
+  setCurrentSemester,
   updateSemester,
 } from '@/lib/api/department';
 import {
@@ -84,6 +85,10 @@ export function useUpdateSemester() {
 
 export function useDeleteSemester() {
   return useInvalidating(DEPARTMENT_KEYS.semesters, deleteSemester);
+}
+
+export function useSetCurrentSemester() {
+  return useInvalidating(DEPARTMENT_KEYS.semesters, setCurrentSemester);
 }
 
 /* -------------------------------------------------------------------- rooms */

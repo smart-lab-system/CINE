@@ -15,6 +15,8 @@ export interface Semester {
   name: string;
   startDate: string;
   endDate: string;
+  /** Kỳ đang hiện hành, do Phòng Đào tạo gạt. Tối đa một kỳ trong toàn hệ thống. */
+  isCurrent: boolean;
 }
 
 export interface Course {
@@ -48,13 +50,34 @@ async function throwIfFailed(error: unknown, response: Response) {
 
 /* ---------------------------------------------------------------- semesters */
 
+/**
+ * Gạt cờ kỳ hiện hành. PUT: nó đặt một trạng thái tuyệt đối ("kỳ này là kỳ
+ * hiện hành"), không sửa lẻ một phần bản ghi. Chỉ Phòng Đào tạo gọi được.
+ */
+export async function setCurrentSemester(id: string): Promise<Semester> {
+  const { data, error, response } = await apiClient.PUT('/semesters/{id}/current', {
+    params: { path: { id } },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as Semester;
+}
+
 export async function listSemesters(): Promise<Semester[]> {
   const { data, error, response } = await apiClient.GET('/semesters');
   await throwIfFailed(error, response);
   return data as unknown as Semester[];
 }
 
-export async function createSemester(body: Omit<Semester, 'id'>): Promise<Semester> {
+/**
+ * Những gì người dùng NHẬP cho một học kỳ.
+ *
+ * Không phải `Omit<Semester, 'id'>`: `isCurrent` không bao giờ là thứ nhập lúc
+ * tạo hay sửa — nó chỉ đổi qua setCurrentSemester, và để nó lọt vào form là mở
+ * đường cho hai kỳ cùng gạt cờ qua một request tạo.
+ */
+export type SemesterInput = Pick<Semester, 'name' | 'startDate' | 'endDate'>;
+
+export async function createSemester(body: SemesterInput): Promise<Semester> {
   const { data, error, response } = await apiClient.POST('/semesters', { body });
   await throwIfFailed(error, response);
   return data as unknown as Semester;
@@ -62,7 +85,7 @@ export async function createSemester(body: Omit<Semester, 'id'>): Promise<Semest
 
 export async function updateSemester(
   id: string,
-  body: Partial<Omit<Semester, 'id'>>,
+  body: Partial<SemesterInput>,
 ): Promise<Semester> {
   const { data, error, response } = await apiClient.PATCH('/semesters/{id}', {
     params: { path: { id } },

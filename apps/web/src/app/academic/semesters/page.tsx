@@ -2,18 +2,21 @@
 
 import { useState } from 'react';
 import { CalendarRange } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   useCreateSemester,
   useDeleteSemester,
   useSemesters,
+  useSetCurrentSemester,
   useUpdateSemester,
 } from '@/hooks/useDepartment';
 import type { Semester } from '@/lib/api/department';
-import { ResourceShell } from '../_components/resource-shell';
-import { ResourceFormDialog } from '../_components/resource-form-dialog';
-import { ConfirmDeleteDialog } from '../_components/confirm-delete-dialog';
+import { ResourceShell } from '@/components/resource/resource-shell';
+import { ResourceFormDialog } from '@/components/resource/resource-form-dialog';
+import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog';
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -27,6 +30,7 @@ export default function SemestersPage() {
   const create = useCreateSemester();
   const update = useUpdateSemester();
   const remove = useDeleteSemester();
+  const setCurrent = useSetCurrentSemester();
 
   const [form, setForm] = useState(EMPTY);
   const [editing, setEditing] = useState<Semester | null>(null);
@@ -54,7 +58,7 @@ export default function SemestersPage() {
   return (
     <ResourceShell<Semester>
       title="Học kỳ"
-      description="Học kỳ dùng chung toàn trường — mọi trưởng khoa cùng nhìn và cùng sửa một danh sách. Tên học kỳ không được trùng."
+      description="Lịch học kỳ của toàn trường. Chỉ Phòng Đào tạo sửa được; mọi khoa và giảng viên đều đọc cùng danh sách này. Kỳ đang gạt cờ là mặc định cho mọi màn hình lọc theo học kỳ."
       icon={CalendarRange}
       addLabel="Thêm học kỳ"
       onAdd={openCreate}
@@ -70,6 +74,27 @@ export default function SemestersPage() {
         { label: 'Tên học kỳ', render: (s) => <span className="font-medium">{s.name}</span> },
         { label: 'Bắt đầu', tight: true, render: (s) => formatDate(s.startDate) },
         { label: 'Kết thúc', tight: true, render: (s) => formatDate(s.endDate) },
+        {
+          label: 'Hiện hành',
+          tight: true,
+          // Kỳ đang giữ cờ hiện badge, không hiện nút: không có thao tác "gỡ
+          // cờ" — gỡ mà không gắn kỳ khác là làm mù mọi màn hình lọc theo học
+          // kỳ, nên cách duy nhất để đổi là gạt sang một kỳ khác.
+          render: (s) =>
+            s.isCurrent ? (
+              <Badge variant="success">Đang hiện hành</Badge>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={setCurrent.isPending}
+                onClick={() => setCurrent.mutate(s.id)}
+              >
+                Đặt làm hiện hành
+              </Button>
+            ),
+        },
       ]}
     >
       <ResourceFormDialog

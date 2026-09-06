@@ -136,6 +136,35 @@ describe('middleware', () => {
     expect(response.status).toBe(200);
   });
 
+  // Phòng Đào tạo: tier cấp trường sở hữu lịch học kỳ, và chỉ thế. Area
+  // /academic đặt theo CÔNG VIỆC, không theo thứ bậc — cùng lý do role đổi tên
+  // từ super_admin thành academic_affairs.
+  it('đưa Phòng Đào tạo vào area của họ', async () => {
+    const response = await middleware(
+      makeRequest('/academic/semesters', fakeToken({ role: 'academic_affairs' })),
+    );
+    expect(response.status).not.toBe(307);
+  });
+
+  it('đẩy Phòng Đào tạo ra khỏi /department/*', async () => {
+    const response = await middleware(
+      makeRequest('/department/courses', fakeToken({ role: 'academic_affairs' })),
+    );
+    // Tier một trang: nhà của nó LÀ trang đó, không phải /academic/dashboard.
+    expect(new URL(response.headers.get('location')!).pathname).toBe(
+      '/academic/semesters',
+    );
+  });
+
+  it('đẩy Trưởng khoa ra khỏi /academic/*', async () => {
+    const response = await middleware(
+      makeRequest('/academic/semesters', fakeToken({ role: 'department_admin' })),
+    );
+    expect(new URL(response.headers.get('location')!).pathname).toBe(
+      '/department/dashboard',
+    );
+  });
+
   it('keeps a mapped role off the unassigned-role page', async () => {
     const response = await middleware(
       makeRequest('/unassigned-role', fakeToken({ role: 'teacher' })),

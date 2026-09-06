@@ -12,7 +12,7 @@ import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { UserChip } from '@/components/layout/user-chip';
 import { PageTransition } from '@/components/motion/page-transition';
 import { useCurrentAccount } from '@/hooks/useCurrentAccount';
-import { ADMIN_NAV, DEPARTMENT_NAV, TEACHER_NAV } from '@/lib/nav-config';
+import { ACADEMIC_NAV, ADMIN_NAV, DEPARTMENT_NAV, TEACHER_NAV } from '@/lib/nav-config';
 import { cn } from '@/lib/utils';
 
 /** Remembers the rail state across navigations and sessions — a teacher who
@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 const NAV_COLLAPSED_KEY = 'examcollect.nav-collapsed';
 
 interface AppShellProps {
-  role: 'admin' | 'department' | 'teacher';
+  role: 'admin' | 'department' | 'teacher' | 'academic';
   children: ReactNode;
 }
 
@@ -46,6 +46,8 @@ export function AppShell({ role, children }: AppShellProps) {
     admin: { nav: ADMIN_NAV, home: '/admin/dashboard', label: 'Quản trị' },
     department: { nav: DEPARTMENT_NAV, home: '/department/dashboard', label: 'Khoa' },
     teacher: { nav: TEACHER_NAV, home: '/teacher/dashboard', label: 'Giảng dạy' },
+    // Nhà là chính trang Học kỳ: tier này không có dashboard, và không cần.
+    academic: { nav: ACADEMIC_NAV, home: '/academic/semesters', label: 'Phòng Đào tạo' },
   } as const;
   const { nav, home: homeHref, label: navLabel } = AREA[role];
   // Lazily-constructed, one per browser session — never at module scope.

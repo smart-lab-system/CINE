@@ -367,6 +367,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/semesters/{id}/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SemesterController_setCurrent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/semesters/{id}": {
         parameters: {
             query?: never;
@@ -735,6 +751,7 @@ export interface components {
             name: string;
             startDate: string;
             endDate: string;
+            isCurrent: boolean;
             id: string;
             /** Format: date-time */
             createdAt: string;
@@ -1493,6 +1510,27 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemesterEntity"];
+                };
+            };
+        };
+    };
+    SemesterController_setCurrent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

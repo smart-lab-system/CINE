@@ -78,6 +78,15 @@ export default function AccountsPage() {
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
+  /**
+   * Chưa ai giữ vai trò Phòng Đào tạo thì KHÔNG AI đặt được kỳ hiện hành, và
+   * mọi màn hình lọc theo học kỳ đứng im mà không nói vì sao. Hành vi đúng,
+   * nhưng phải hiện ra — spec §7.3.
+   *
+   * Chỉ nhìn trang hiện tại của danh sách đã phân trang. Sai-âm ở trang 2 chỉ
+   * làm mất một lời nhắc; gọi thêm một query đếm role chỉ để vẽ một dòng là
+   * không đáng.
+   */
   const { data, error, isLoading, refetch } = useAccounts({
     search: debouncedSearch || undefined,
     role: roleFilter === 'all' ? undefined : roleFilter,
@@ -209,6 +218,10 @@ export default function AccountsPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasActiveFilters = search.trim() !== '' || roleFilter !== 'all';
 
+  const hasAcademicAccount = (data?.items ?? []).some(
+    (account) => account.role === 'academic_affairs',
+  );
+
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
@@ -228,6 +241,16 @@ export default function AccountsPage() {
           )
         }
       />
+
+      {!isLoading && !error && !hasAcademicAccount && (
+        <Alert variant="warning">
+          <AlertDescription>
+            Chưa có tài khoản Phòng Đào tạo nào. Không ai đặt được học kỳ hiện hành,
+            nên mọi màn hình lọc theo học kỳ sẽ trống cho tới khi có một tài khoản
+            mang vai trò này.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div data-animate className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row">

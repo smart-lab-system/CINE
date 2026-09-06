@@ -44,12 +44,19 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
 ];
 
+// Phòng Đào tạo sở hữu đúng một thứ: quyển lịch học kỳ cấp trường. Một tier
+// một trang là hợp lý, không phải thiếu sót — spec §3.1.
+export const ACADEMIC_NAV: NavItem[] = [
+  { label: 'Học kỳ', href: '/academic/semesters', icon: CalendarRange },
+];
+
 // Trưởng khoa owns the academic structure an exam session is built from.
-// Semesters and rooms are university-wide (every head maintains the same
-// list); courses and classes are scoped to the head who owns the course.
+// Học kỳ KHÔNG còn ở đây — nó là lịch cấp trường, thuộc Phòng Đào tạo
+// (/academic). Trưởng khoa vẫn ĐỌC được danh sách kỳ (bộ lọc cần nó), chỉ
+// không sửa. Phòng thi thì vẫn dùng chung toàn trường và mọi head cùng sửa —
+// cùng lớp vấn đề, để làm sau (spec §8).
 export const DEPARTMENT_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/department/dashboard', icon: LayoutDashboard },
-  { label: 'Học kỳ', href: '/department/semesters', icon: CalendarRange },
   { label: 'Môn học', href: '/department/courses', icon: BookOpen },
   { label: 'Lớp học', href: '/department/classes', icon: GraduationCap },
   { label: 'Phòng thi', href: '/department/rooms', icon: DoorOpen },

@@ -1,20 +1,25 @@
 import type { BadgeProps } from '@/components/ui/badge';
 
-// The three roles the system actually implements. `department_admin` joins
-// the list now that it has an area (/department), routes that accept it, and
-// resources to own — before that, creating one produced an account that could
-// log in and do nothing.
+// Bốn role hệ thống thực sự cài đặt. Một role chỉ vào danh sách này khi nó có
+// area, có route chấp nhận nó, và có tài nguyên để sở hữu — trước đó, tạo một
+// tài khoản như vậy sinh ra người đăng nhập được mà không làm được gì.
 //
-// `super_admin` is still absent, and deliberately so: no API handler accepts
-// it. An account carrying it is sent to /unassigned-role, which says as much,
-// rather than to a screen where every request 403s in silence.
-export const ACCOUNT_ROLE_OPTIONS = ['admin', 'department_admin', 'teacher'] as const;
+// `academic_affairs` (Phòng Đào tạo) gia nhập khi nó có cả ba: area /academic,
+// @Roles('academic_affairs') trên các route ghi học kỳ, và quyển lịch học kỳ
+// cấp trường để sở hữu.
+export const ACCOUNT_ROLE_OPTIONS = [
+  'admin',
+  'department_admin',
+  'teacher',
+  'academic_affairs',
+] as const;
 export type AccountRoleOption = (typeof ACCOUNT_ROLE_OPTIONS)[number];
 
 export const ACCOUNT_ROLE_LABELS: Record<AccountRoleOption, string> = {
   admin: 'Quản trị',
   department_admin: 'Trưởng khoa',
   teacher: 'Giảng viên',
+  academic_affairs: 'Phòng Đào tạo',
 };
 
 // Indigo for administrators, teal for teachers — the same two brand
@@ -23,13 +28,14 @@ export const ACCOUNT_ROLE_LABELS: Record<AccountRoleOption, string> = {
 // carries its own label.
 export const ACCOUNT_ROLE_BADGE_VARIANT: Record<
   AccountRoleOption,
-  'primary' | 'accent' | 'info'
+  'primary' | 'accent' | 'info' | 'warning'
 > = {
   admin: 'primary',
   // Its own colour, not a shade of admin: a Trưởng khoa is a different job,
   // and a table where two roles look alike is a table that gets misread.
   department_admin: 'info',
   teacher: 'accent',
+  academic_affairs: 'warning',
 };
 
 // Every role the JWT can actually carry, including the two not creatable
@@ -38,7 +44,7 @@ export const ACCOUNT_ROLE_BADGE_VARIANT: Record<
 const ROLE_DISPLAY: Record<string, { label: string; variant: NonNullable<BadgeProps['variant']> }> =
   {
     admin: { label: 'Quản trị', variant: 'primary' },
-    super_admin: { label: 'Super Admin', variant: 'primary' },
+    academic_affairs: { label: 'Phòng Đào tạo', variant: 'warning' },
     department_admin: { label: 'Trưởng khoa', variant: 'info' },
     teacher: { label: 'Giảng viên', variant: 'accent' },
   };
