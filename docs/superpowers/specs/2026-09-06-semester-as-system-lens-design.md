@@ -258,7 +258,7 @@ Tương tự cho giảng viên: `?semesterId=` của kỳ mà họ không dạy 
 - **Mốc con trong học kỳ** (đợt đăng ký, tuần thi giữa kỳ/cuối kỳ). Ở ExamCollect, giảng viên đặt giờ từng phiên thi tường minh, nên "tuần thi" là thứ nổi lên từ dữ liệu chứ không cần khai báo. Thêm mốc con là thêm thứ phải khai mà không ai đọc.
 - **Nhiều lịch song song** (chính quy / vừa học vừa làm). Một lịch là đủ cho phạm vi đồ án.
 - **Nhân bản lớp/danh sách sinh viên sang kỳ mới.** Đây là cách B đã loại ở giai đoạn bàn thiết kế — spec này là ống kính, không phải chuyển giao.
-- **Dọn dữ liệu e2e.** Xem §9.3 — DB dev hiện có 1084 học kỳ do e2e tích tụ. Việc dọn (hoặc cho e2e tự dọn) nằm ngoài spec này, nhưng nó **chặn việc demo** tính năng này, nên phải xử lý trước khi demo chứ không phải "sau này".
+- **Cho e2e tự dọn.** Đã cân nhắc và **loại**. Header `scripts/reset-dev-data.sql` giải thích vì sao e2e cố tình không dọn: mỗi lần chạy cần giá trị duy nhất, và gỡ ngược lại sẽ khiến một test hỏng phá luôn fixture của lần chạy sau. Cách đúng là chạy script reset khi cần, không phải sửa e2e. Xem §9.4 cho tình trạng đã xử lý.
 - **`room` cũng đang bị mọi Trưởng khoa cùng sửa** (`DEPARTMENT_NAV` ghi rõ "Semesters and rooms are university-wide"). Đúng cùng một lớp lỗi phân quyền mà spec này sửa cho học kỳ, và **đang mở**, không phải rủi ro lý thuyết: hai Trưởng khoa cùng tạo phòng "A3-01" với `capacity` khác nhau sẽ gây nhầm thật lúc xếp lịch thi.
 
   Không trộn vào đây — trộn là mở rộng phạm vi giữa chừng. Nhưng **việc kế tiếp
@@ -312,6 +312,28 @@ Trước khi mở lại hệ thống cho giảng viên (hoặc trước khi demo
 3. Gạt cờ hiện hành cho đúng học kỳ.
 4. Kiểm một trang bất kỳ của giảng viên: bộ lọc phải hiện đúng kỳ đó.
 
-**Cảnh báo cho người chạy bước 3:** DB dev hiện có **1084 học kỳ**, gần như toàn
-bộ là rác do e2e tích tụ (mỗi lần chạy tạo một `Semester ${stamp}` mới và không
-dọn). Chọn đúng kỳ trong dropdown đó là việc thật, không phải hình thức. Xem §8.
+### 9.4 Tình trạng DB dev (đã xử lý 2026-09-06)
+
+Khi viết spec này, DB dev có **1084 học kỳ** — rác e2e tích tụ, khiến dropdown
+chọn kỳ hiện hành không dùng nổi và chặn luôn việc nghiệm thu tính năng này.
+Đã xử lý trước khi triển khai:
+
+- Xuất `audit_log` (90 dòng, trong đó **26 dòng
+  `grading_result.score_edited_after_finalize`** — bằng chứng cho yêu cầu
+  "audit mọi sửa điểm sau finalized") ra `KLTN/audit-log-export-2026-09-06.csv`.
+- `DROP SCHEMA examcollect CASCADE` → `migration:run` → `verify-schema` báo đủ
+  21 bảng → tạo lại ba tài khoản demo.
+- Chạy lại toàn bộ e2e: **191/191 pass**, xác nhận schema dựng lại không hỏng gì.
+
+**Tốc độ tích rác, đo thật trên một lượt e2e đầy đủ:** +22 semester, +48
+account, +73 exam_session, +83 agent_connection_event. Nghĩa là dropdown sẽ
+lại khó dùng sau khoảng chục lượt chạy — chạy `scripts/reset-dev-data.sql`
+trước khi demo, và drop schema khi phần bị ghim đã quá nhiều.
+
+**Vì sao reset không bao giờ về sạch:** hai bảng append-only
+(`audit_log`, `agent_connection_event`) là RESTRICT foreign key ghim ngược lên
+account và exam_session, mà một exam_session bị ghim thì ghim tiếp course,
+class, room, semester của nó. Script đã được viết lại để **bỏ qua** phần bị
+ghim thay vì nghẹn ở đó — bản trước gọi thẳng `DELETE FROM agent_connection_event`
+và chết ngay dòng đó, rollback cả transaction, tức là không dọn được gì trong
+khi vẫn trông như đã chạy.
