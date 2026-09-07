@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Inbox } from 'lucide-react';
 import {
   useArchiveSession,
@@ -109,7 +110,20 @@ function SearchResultRow({ item, now }: { item: SessionOverviewItem; now: number
  * thông tin. Xem
  * docs/superpowers/specs/2026-09-05-submissions-triage-layout-design.md.
  */
+/**
+ * useSearchParams đòi một ranh giới Suspense trong App Router — không có nó,
+ * `next build` đổ ở bước prerender `/teacher/submissions`. Chỉ bọc đúng một
+ * lần đọc đó, cùng khuôn với trang chi tiết phiên.
+ */
 export default function SubmissionsPage() {
+  return (
+    <Suspense>
+      <SubmissionsContent />
+    </Suspense>
+  );
+}
+
+function SubmissionsContent() {
   const { data, isLoading, error, refetch } = useSessionOverview();
   // Chốt `now` một lần mỗi render thay vì gọi Date.now() rải rác: hai dòng
   // cạnh nhau phải được phân loại theo cùng một mốc thời gian.
@@ -143,9 +157,31 @@ export default function SubmissionsPage() {
   // Đào tạo gạt. Giờ cả app chỉ còn một định nghĩa. Việc LỌC vẫn chạy ở client
   // như cũ; chỉ NGUỒN của mặc định đổi.
   const semesterFilter = useSemesterFilter('submissions');
+
+  /**
+   * `?semesterId=` từ URL thắng mặc định gieo.
+   *
+   * Đây là mắt nối cho lời nhắc ở dashboard ("HK1 còn 3 phiên cần chú ý"):
+   * bấm vào phải mở đúng kỳ đó, chứ không phải mở kỳ hiện hành rồi để giảng
+   * viên tự đổi lại.
+   *
+   * Đọc thẳng từ URL mỗi render, KHÔNG thêm một ref seed thứ hai — cùng khuôn
+   * với `?student=` mà trang chi tiết phiên đã dùng. Bộ chọn vẫn đổi được: một
+   * khi giảng viên bấm chọn kỳ khác thì URL không còn tham số đó nữa.
+   */
+  const semesterFromUrl = useSearchParams().get('semesterId');
+  const [overriddenByUser, setOverriddenByUser] = useState(false);
+  const effectiveSemesterId =
+    !overriddenByUser && semesterFromUrl ? semesterFromUrl : semesterFilter.semesterId;
+
+  function handleSemesterChange(next: string | null) {
+    setOverriddenByUser(true);
+    semesterFilter.setSemesterId(next);
+  }
+
   const activeFilters = useMemo<FilterState>(
-    () => ({ ...filters, semesterId: semesterFilter.semesterId }),
-    [filters, semesterFilter.semesterId],
+    () => ({ ...filters, semesterId: effectiveSemesterId }),
+    [filters, effectiveSemesterId],
   );
 
   const facets = useMemo(
@@ -173,6 +209,16 @@ export default function SubmissionsPage() {
       <PageHeader
         title="Quản lý bài thu"
         description="Phiên thi nào đã thu đủ bài, phiên nào còn thiếu — và tìm bài của một sinh viên qua tất cả các kỳ."
+        actions={
+          <SemesterFilter
+            value={effectiveSemesterId}
+            onChange={handleSemesterChange}
+            semesters={semesterFilter.semesters}
+            current={semesterFilter.current}
+            isStale={semesterFilter.isStale}
+            staleDays={semesterFilter.staleDays}
+          />
+        }
       />
       <Input
         value={search}

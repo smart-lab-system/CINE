@@ -39,6 +39,14 @@ vi.mock('@/hooks/useSubmissionOverview', () => ({
   useCloseAttention: () => ({ mutate: closeMutate }),
 }));
 
+// Trang đọc ?semesterId= từ URL (mắt nối cho lời nhắc ở dashboard), nên
+// useSearchParams phải trả một đối tượng thật — không mock thì nó là null và
+// mọi test đổ ở '.get'.
+const searchParamsMock = new URLSearchParams();
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => searchParamsMock,
+}));
+
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>

@@ -5,7 +5,6 @@ import { X } from 'lucide-react';
 import type { AttentionKind } from '@/lib/submission-attention';
 import type { FacetOption, FilterState } from '@/lib/submission-filters';
 import { EMPTY_FILTERS } from '@/lib/submission-filters';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 const KIND_DOT: Record<string, string> = {
@@ -81,23 +80,10 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
 
   return (
     <aside className="flex flex-col gap-1 rounded-xl border border-border bg-surface-1 p-3 lg:sticky lg:top-4">
-      {facets.semesters.length > 1 && (
-        <Section title="Học kỳ">
-          <Select
-            value={filters.semesterId ?? 'all'}
-            onValueChange={(v) => onChange({ ...filters, semesterId: v === 'all' ? null : v })}
-          >
-            <SelectTrigger aria-label="Lọc theo học kỳ"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả học kỳ</SelectItem>
-              {facets.semesters.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Section>
-      )}
-
+      {/* Mục "Học kỳ" đã rời khỏi đây lên PageHeader, dùng <SemesterFilter>
+          chung với bốn màn hình còn lại. Hai control cho cùng một thứ — một
+          trong đó suy danh sách kỳ từ facet của chính bảng này — là cách chắc
+          chắn để chúng lệch nhau. */}
       <Section title="Cần chú ý">
         <p className="mb-2 flex items-baseline gap-2">
           <span className="text-h2 font-bold text-danger-strong tabular-nums">{attentionTotal}</span>
