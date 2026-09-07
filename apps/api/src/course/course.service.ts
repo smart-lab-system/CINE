@@ -53,9 +53,13 @@ export class CourseService {
    * nothing else: class, exam_session and enrollment all reach it through
    * `course_id`, so this one predicate scopes the whole academic tree.
    */
-  async findForHead(headId: string): Promise<CourseEntity[]> {
+  /** `semesterId` AND vào `departmentHeadId`, không thay thế nó. Spec §5.1. */
+  async findForHead(headId: string, semesterId?: string): Promise<CourseEntity[]> {
     return this.courses.find({
-      where: { departmentHeadId: headId },
+      where: {
+        departmentHeadId: headId,
+        ...(semesterId ? { semesterId } : {}),
+      },
       order: { code: 'ASC' },
     });
   }

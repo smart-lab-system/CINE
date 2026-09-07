@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -19,6 +20,7 @@ import { ClassService } from './class.service';
 import { RosterService } from './roster.service';
 import { CreateClassDto, UpdateClassDto } from './dto/course.dto';
 import { ImportRosterDto, RosterStudentDto } from './dto/roster.dto';
+import { SemesterScopeDto } from './dto/semester-scope.dto';
 
 /**
  * Two different "mine" here, because two roles have a legitimate but
@@ -35,8 +37,8 @@ export class ClassController {
 
   @Get('mine')
   @Roles('department_admin')
-  findMine(@Req() req: Request) {
-    return this.classes.findForHead(req.user!.sub);
+  findMine(@Query() query: SemesterScopeDto, @Req() req: Request) {
+    return this.classes.findForHead(req.user!.sub, query.semesterId);
   }
 
   /**
@@ -61,8 +63,8 @@ export class ClassController {
    */
   @Get('teaching')
   @Roles('teacher')
-  findTeaching(@Req() req: Request) {
-    return this.classes.findForTeacher(req.user!.sub);
+  findTeaching(@Query() query: SemesterScopeDto, @Req() req: Request) {
+    return this.classes.findForTeacher(req.user!.sub, query.semesterId);
   }
 
   @Post()

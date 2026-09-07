@@ -305,6 +305,11 @@ export class ExamSessionService {
     if (query.examType) {
       qb.andWhere('s.examType = :examType', { examType: query.examType });
     }
+    if (query.semesterId) {
+      // Qua course, vì exam_session không mang semester_id — nó thừa hưởng học
+      // kỳ từ môn. `course` đã leftJoin ở trên nên không thêm join nào.
+      qb.andWhere('course.semesterId = :semesterId', { semesterId: query.semesterId });
+    }
 
     const [rows, total] = await qb
       .orderBy('s.startTime', 'DESC')

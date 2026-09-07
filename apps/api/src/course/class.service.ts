@@ -31,9 +31,18 @@ export class ClassService {
   ) {}
 
   /** Every class under every course this head owns. */
-  async findForHead(headId: string): Promise<ClassEntity[]> {
+  /**
+   * `semesterId` là BỘ LỌC, không phải PHẠM VI. Nó thu hẹp tập môn học ĐÃ
+   * thuộc về head này — `departmentHeadId` ở nguyên trong cùng object `where`,
+   * nên nó là AND. Viết thành nhánh if/else ở đây là mở đường cho một head
+   * truyền semesterId hợp lệ rồi thấy lớp của khoa khác. Spec §5.1.
+   */
+  async findForHead(headId: string, semesterId?: string): Promise<ClassEntity[]> {
     const owned = await this.courses.find({
-      where: { departmentHeadId: headId },
+      where: {
+        departmentHeadId: headId,
+        ...(semesterId ? { semesterId } : {}),
+      },
       select: { id: true },
     });
     if (owned.length === 0) {
@@ -101,15 +110,28 @@ export class ClassService {
    * A `studentCount` of 0 is meaningful rather than empty: it says nobody
    * has imported a roster for that class yet, which the form surfaces.
    */
-  async findForTeacher(teacherId: string): Promise<TeachingClassView[]> {
-    const { entities, raw } = await this.classes
+  async findForTeacher(
+    teacherId: string,
+    semesterId?: string,
+  ): Promise<TeachingClassView[]> {
+    const qb = this.classes
       .createQueryBuilder('k')
       .innerJoinAndSelect('k.course', 'course')
+      .innerJoinAndSelect('course.semester', 'semester')
       .leftJoin('enrollment', 'e', 'e.home_class_id = k.id')
       .addSelect('COUNT(e.id)', 'studentCount')
-      .where('k.teacherId = :teacherId', { teacherId })
+      // Điều kiện sở hữu đứng ở .where và Ở NGUYÊN ĐÓ. Bộ lọc bên dưới chỉ
+      // được AND thêm — không bao giờ thay thế. Spec §5.1.
+      .where('k.teacherId = :teacherId', { teacherId });
+
+    if (semesterId) {
+      qb.andWhere('course.semesterId = :semesterId', { semesterId });
+    }
+
+    const { entities, raw } = await qb
       .groupBy('k.id')
       .addGroupBy('course.id')
+      .addGroupBy('semester.id')
       .orderBy('course.code', 'ASC')
       .addOrderBy('k.name', 'ASC')
       .getRawAndEntities<{ studentCount: string }>();
@@ -120,6 +142,8 @@ export class ClassService {
       courseId: klass.courseId,
       courseCode: klass.course.code,
       courseName: klass.course.name,
+      semesterId: klass.course.semesterId,
+      semesterName: klass.course.semester.name,
       studentCount: parseInt(raw[index].studentCount, 10),
     }));
   }

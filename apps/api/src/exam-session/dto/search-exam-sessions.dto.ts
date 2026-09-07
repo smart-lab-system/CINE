@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min } from 'class-validator';
 import { ExamType, ExamSessionStatus } from '../entities/exam-session.entity';
 
 const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
@@ -47,4 +47,14 @@ export class SearchExamSessionsDto {
   @IsOptional()
   @IsIn(EXAM_TYPES)
   examType?: ExamType;
+
+  /**
+   * Lọc, không phải phạm vi — service AND nó vào `s.teacherId`. Spec §5.1.
+   *
+   * Phiên thi không mang `semester_id`: nó thừa hưởng học kỳ từ môn, nên bộ lọc
+   * đi qua `course.semesterId`.
+   */
+  @IsOptional()
+  @IsUUID()
+  semesterId?: string;
 }

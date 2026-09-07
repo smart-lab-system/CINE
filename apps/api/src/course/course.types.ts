@@ -44,6 +44,15 @@ export interface TeachingClassView {
   courseName: string;
   /** Students on the imported roster — 0 means nobody has imported one yet. */
   studentCount: number;
+
+  /**
+   * Học kỳ của môn. Đây là thứ DUY NHẤT phân biệt "N01" của HK1 với "N01" của
+   * HK2: `uq_class_course_name` chỉ unique trên (course_id, name), nên hai kỳ
+   * cùng có lớp trùng tên là bình thường, và trên màn hình chúng giống hệt nhau
+   * nếu không có trường này.
+   */
+  semesterId: string;
+  semesterName: string;
 }
 
 /**

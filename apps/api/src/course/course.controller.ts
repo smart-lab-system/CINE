@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import {
   CreateCourseDto,
   UpdateCourseDto,
 } from './dto/course.dto';
+import { SemesterScopeDto } from './dto/semester-scope.dto';
 
 /**
  * Read is open to any authenticated account — the create-exam-session form
@@ -43,8 +45,8 @@ export class CourseController {
 
   @Get('mine')
   @Roles('department_admin')
-  findMine(@Req() req: Request) {
-    return this.courses.findForHead(req.user!.sub);
+  findMine(@Query() query: SemesterScopeDto, @Req() req: Request) {
+    return this.courses.findForHead(req.user!.sub, query.semesterId);
   }
 
   /**

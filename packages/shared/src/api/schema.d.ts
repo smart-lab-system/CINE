@@ -1043,6 +1043,7 @@ export interface operations {
                 search?: string;
                 status?: "draft" | "scheduled" | "active" | "completed" | "cancelled";
                 examType?: "TK" | "GK" | "CK";
+                semesterId?: string;
             };
             header?: never;
             path?: never;
@@ -1372,7 +1373,9 @@ export interface operations {
     };
     CourseController_findMine: {
         parameters: {
-            query?: never;
+            query?: {
+                semesterId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1586,7 +1589,9 @@ export interface operations {
     };
     ClassController_findMine: {
         parameters: {
-            query?: never;
+            query?: {
+                semesterId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1624,7 +1629,9 @@ export interface operations {
     };
     ClassController_findTeaching: {
         parameters: {
-            query?: never;
+            query?: {
+                semesterId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
