@@ -21,26 +21,6 @@ export const EMPTY_FILTERS: FilterState = {
 
 export interface FacetOption { value: string; label: string; count: number }
 
-/**
- * Học kỳ mặc định, suy từ chính các phiên (payload không mang start/end của
- * học kỳ): kỳ nào có phiên bao trùm `now` thì đang chạy. Không có thì lấy kỳ
- * có phiên gần `now` nhất về phía quá khứ. Spec §4.3.
- */
-export function pickDefaultSemester(items: SessionOverviewItem[], now: number): string | null {
-  if (items.length === 0) return null;
-
-  const running = items.find(
-    (i) => new Date(i.startTime).getTime() <= now && now <= new Date(i.endTime).getTime(),
-  );
-  if (running) return running.semesterId;
-
-  const past = items
-    .filter((i) => new Date(i.endTime).getTime() < now)
-    .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime());
-  if (past.length > 0) return past[0].semesterId;
-
-  return items[0].semesterId;
-}
 
 /** Ẩn/hiện theo vòng đời. `archived` thắng `closed` — spec §4.3. */
 function passesLifecycle(item: SessionOverviewItem, f: FilterState): boolean {

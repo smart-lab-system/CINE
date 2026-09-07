@@ -16,10 +16,18 @@ export interface TeachingClass {
   courseName: string;
   /** 0 means no roster has been imported for this class yet. */
   studentCount: number;
+  /**
+   * Học kỳ của môn. Thứ DUY NHẤT phân biệt "N01" của HK1 với "N01" của HK2 —
+   * `uq_class_course_name` chỉ unique trên (course_id, name).
+   */
+  semesterId: string;
+  semesterName: string;
 }
 
-export async function listTeachingClasses(): Promise<TeachingClass[]> {
-  const { data, error, response } = await apiClient.GET('/classes/teaching');
+export async function listTeachingClasses(semesterId?: string): Promise<TeachingClass[]> {
+  const { data, error, response } = await apiClient.GET('/classes/teaching', {
+    params: { query: semesterId ? { semesterId } : {} },
+  });
   if (error || !response.ok) {
     throw error ?? new Error(`Yêu cầu thất bại (HTTP ${response.status})`);
   }

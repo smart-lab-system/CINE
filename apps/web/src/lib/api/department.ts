@@ -138,8 +138,10 @@ export async function deleteRoom(id: string): Promise<void> {
 /* ------------------------------------------------------------------ courses */
 
 /** Only the courses this head owns — the scope is server-side. */
-export async function listMyCourses(): Promise<Course[]> {
-  const { data, error, response } = await apiClient.GET('/courses/mine');
+export async function listMyCourses(semesterId?: string): Promise<Course[]> {
+  const { data, error, response } = await apiClient.GET('/courses/mine', {
+    params: { query: semesterId ? { semesterId } : {} },
+  });
   await throwIfFailed(error, response);
   return data as unknown as Course[];
 }
@@ -177,8 +179,10 @@ export async function deleteCourse(id: string): Promise<void> {
 
 /* ------------------------------------------------------------------ classes */
 
-export async function listMyClasses(): Promise<Klass[]> {
-  const { data, error, response } = await apiClient.GET('/classes/mine');
+export async function listMyClasses(semesterId?: string): Promise<Klass[]> {
+  const { data, error, response } = await apiClient.GET('/classes/mine', {
+    params: { query: semesterId ? { semesterId } : {} },
+  });
   await throwIfFailed(error, response);
   return data as unknown as Klass[];
 }

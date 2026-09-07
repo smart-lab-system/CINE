@@ -16,6 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { SemesterFilter } from '@/components/layout/semester-filter';
+import { useSemesterFilter } from '@/hooks/useSemesterFilter';
 import { useTeachingClasses } from '@/hooks/useTeaching';
 
 /**
@@ -26,13 +28,28 @@ import { useTeachingClasses } from '@/hooks/useTeaching';
  * of who is in it.
  */
 export default function TeacherClassesPage() {
-  const classes = useTeachingClasses();
+  const filter = useSemesterFilter('teacher-classes');
+  const classes = useTeachingClasses(filter.semesterId);
+
+  // Cột học kỳ chỉ có nghĩa ở chế độ "Tất cả": khi đã lọc một kỳ, mọi dòng
+  // mang cùng giá trị và cột đó là một hằng số lặp lại trên từng dòng.
+  const showSemester = filter.semesterId === null;
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Lớp của tôi"
-        description="Các lớp bạn được phân công. Mỗi lớp có một danh sách sinh viên — đó là thứ quyết định ai vào được phiên thi."
+        description="Các lớp bạn được phân công trong học kỳ đang chọn. Mỗi lớp có một danh sách sinh viên — đó là thứ quyết định ai vào được phiên thi."
+        actions={
+          <SemesterFilter
+            value={filter.semesterId}
+            onChange={filter.setSemesterId}
+            semesters={filter.semesters}
+            current={filter.current}
+            isStale={filter.isStale}
+            staleDays={filter.staleDays}
+          />
+        }
       />
 
       <Card className="overflow-hidden">
@@ -51,8 +68,16 @@ export default function TeacherClassesPage() {
           ) : (classes.data?.length ?? 0) === 0 ? (
             <EmptyState
               icon={GraduationCap}
-              title="Bạn chưa được giao lớp nào"
-              description="Trưởng khoa là người tạo lớp và phân công giảng viên. Chưa có lớp thì chưa tạo được phiên thi."
+              title={
+                showSemester
+                  ? 'Bạn chưa được giao lớp nào'
+                  : 'Học kỳ này bạn chưa được giao lớp nào'
+              }
+              description={
+                showSemester
+                  ? 'Trưởng khoa là người tạo lớp và phân công giảng viên. Chưa có lớp thì chưa tạo được phiên thi.'
+                  : 'Chọn "Tất cả học kỳ" để xem các lớp ở kỳ khác. Trưởng khoa là người tạo lớp và phân công giảng viên.'
+              }
               tone="muted"
             />
           ) : (
@@ -62,6 +87,7 @@ export default function TeacherClassesPage() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead scope="col">Môn</TableHead>
                     <TableHead scope="col">Lớp</TableHead>
+                    {showSemester && <TableHead scope="col">Học kỳ</TableHead>}
                     <TableHead scope="col">Sĩ số</TableHead>
                     <TableHead scope="col" className="text-right">
                       <span className="sr-only">Hành động</span>
@@ -76,6 +102,11 @@ export default function TeacherClassesPage() {
                         <span className="text-muted-foreground">{klass.courseName}</span>
                       </TableCell>
                       <TableCell className="font-medium">{klass.name}</TableCell>
+                      {showSemester && (
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                          {klass.semesterName}
+                        </TableCell>
+                      )}
                       <TableCell className="whitespace-nowrap tabular-nums">
                         {klass.studentCount === 0 ? (
                           // Not an empty cell: a class with no roster admits

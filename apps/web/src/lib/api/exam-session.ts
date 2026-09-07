@@ -96,6 +96,7 @@ export interface SearchExamSessionsParams {
   search?: string;
   status?: ExamSessionStatusFilter;
   examType?: ExamType;
+  semesterId?: string;
 }
 
 async function throwIfFailed(error: unknown, response: Response) {

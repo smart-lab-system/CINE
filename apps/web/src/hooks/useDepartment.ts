@@ -115,8 +115,11 @@ export function useDeleteRoom() {
 
 /* ------------------------------------------------------------------ courses */
 
-export function useMyCourses() {
-  return useQuery({ queryKey: DEPARTMENT_KEYS.courses, queryFn: listMyCourses });
+export function useMyCourses(semesterId?: string | null) {
+  return useQuery({
+    queryKey: [...DEPARTMENT_KEYS.courses, semesterId ?? null],
+    queryFn: () => listMyCourses(semesterId ?? undefined),
+  });
 }
 
 export function useCreateCourse() {
@@ -138,8 +141,11 @@ export function useDeleteCourse() {
 
 /* ------------------------------------------------------------------ classes */
 
-export function useMyClasses() {
-  return useQuery({ queryKey: DEPARTMENT_KEYS.classes, queryFn: listMyClasses });
+export function useMyClasses(semesterId?: string | null) {
+  return useQuery({
+    queryKey: [...DEPARTMENT_KEYS.classes, semesterId ?? null],
+    queryFn: () => listMyClasses(semesterId ?? undefined),
+  });
 }
 
 export function useCreateClass() {

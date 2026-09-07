@@ -20,6 +20,8 @@ import {
   useUpdateCourse,
 } from '@/hooks/useDepartment';
 import type { Course } from '@/lib/api/department';
+import { SemesterFilter } from '@/components/layout/semester-filter';
+import { useSemesterFilter } from '@/hooks/useSemesterFilter';
 import { ResourceShell } from '@/components/resource/resource-shell';
 import { ResourceFormDialog } from '@/components/resource/resource-form-dialog';
 import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog';
@@ -27,7 +29,8 @@ import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog
 const EMPTY = { code: '', name: '', semesterId: '' };
 
 export default function CoursesPage() {
-  const courses = useMyCourses();
+  const filter = useSemesterFilter('department-courses');
+  const courses = useMyCourses(filter.semesterId);
   const semesters = useSemesters();
   const create = useCreateCourse();
   const update = useUpdateCourse();
@@ -59,6 +62,16 @@ export default function CoursesPage() {
 
   return (
     <ResourceShell<Course>
+      filter={
+        <SemesterFilter
+          value={filter.semesterId}
+          onChange={filter.setSemesterId}
+          semesters={filter.semesters}
+          current={filter.current}
+          isStale={filter.isStale}
+          staleDays={filter.staleDays}
+        />
+      }
       title="Môn học"
       description="Chỉ hiện những môn thuộc khoa bạn. Mọi lớp học, phiên thi và danh sách sinh viên đều gắn vào môn, nên đây là gốc của phạm vi quản lý."
       icon={BookOpen}

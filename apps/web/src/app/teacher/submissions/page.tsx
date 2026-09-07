@@ -21,9 +21,10 @@ import {
   applyFilters,
   buildFacets,
   detectRoomFailure,
-  pickDefaultSemester,
   type FilterState,
 } from '@/lib/submission-filters';
+import { SemesterFilter } from '@/components/layout/semester-filter';
+import { useSemesterFilter } from '@/hooks/useSemesterFilter';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import { EmptyState } from '@/components/layout/empty-state';
@@ -135,17 +136,26 @@ export default function SubmissionsPage() {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const items = useMemo(() => data ?? [], [data]);
 
-  // Học kỳ mặc định chỉ chốt MỘT LẦN, khi dữ liệu về lần đầu — nếu tính lại
-  // mỗi render thì lựa chọn của giảng viên sẽ bị ghi đè ngay lập tức.
-  const seededRef = useRef(false);
-  useEffect(() => {
-    if (seededRef.current || items.length === 0) return;
-    seededRef.current = true;
-    setFilters((prev) => ({ ...prev, semesterId: pickDefaultSemester(items, Date.now()) }));
-  }, [items]);
+  // Học kỳ đến từ useSemesterFilter, không còn suy từ giờ phiên thi.
+  //
+  // pickDefaultSemester() cũ suy "kỳ hiện tại" từ start/end của CHÍNH các phiên
+  // — một định nghĩa thứ hai, và nó có thể mâu thuẫn với cờ is_current mà Phòng
+  // Đào tạo gạt. Giờ cả app chỉ còn một định nghĩa. Việc LỌC vẫn chạy ở client
+  // như cũ; chỉ NGUỒN của mặc định đổi.
+  const semesterFilter = useSemesterFilter('submissions');
+  const activeFilters = useMemo<FilterState>(
+    () => ({ ...filters, semesterId: semesterFilter.semesterId }),
+    [filters, semesterFilter.semesterId],
+  );
 
-  const facets = useMemo(() => buildFacets(items, filters, now), [items, filters, now]);
-  const visible = useMemo(() => applyFilters(items, filters, now), [items, filters, now]);
+  const facets = useMemo(
+    () => buildFacets(items, activeFilters, now),
+    [items, activeFilters, now],
+  );
+  const visible = useMemo(
+    () => applyFilters(items, activeFilters, now),
+    [items, activeFilters, now],
+  );
   const groups = useMemo(() => groupByCourseClass(visible, now), [visible, now]);
   const roomFailure = useMemo(() => detectRoomFailure(visible, now), [visible, now]);
   const attentionTotal = useMemo(
@@ -251,7 +261,7 @@ export default function SubmissionsPage() {
           <div className="lg:w-[205px] lg:shrink-0">
             <FilterRail
               facets={facets}
-              filters={filters}
+              filters={activeFilters}
               onChange={setFilters}
               attentionTotal={attentionTotal}
             />

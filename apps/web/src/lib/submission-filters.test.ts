@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EMPTY_FILTERS, applyFilters, buildFacets, detectRoomFailure, pickDefaultSemester,
+  EMPTY_FILTERS, applyFilters, buildFacets, detectRoomFailure,
 } from './submission-filters';
 import type { SessionOverviewItem } from './api/submissions';
 
@@ -26,32 +26,6 @@ function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
     ...o,
   };
 }
-
-describe('pickDefaultSemester', () => {
-  it('chọn học kỳ đang chạy', () => {
-    // Học kỳ suy ra từ chính các phiên: kỳ nào có phiên bao trùm hôm nay.
-    const items = [
-      make({ id: 'a', semesterId: 'cu', startTime: new Date(NOW - 200 * 24 * HOUR).toISOString(),
-             endTime: new Date(NOW - 199 * 24 * HOUR).toISOString() }),
-      make({ id: 'b', semesterId: 'nay' }),
-    ];
-    expect(pickDefaultSemester(items, NOW)).toBe('nay');
-  });
-
-  it('không kỳ nào đang chạy → kỳ gần nhất đã qua', () => {
-    const items = [
-      make({ id: 'a', semesterId: 'cu-hon', startTime: new Date(NOW - 400 * 24 * HOUR).toISOString(),
-             endTime: new Date(NOW - 399 * 24 * HOUR).toISOString() }),
-      make({ id: 'b', semesterId: 'gan-hon', startTime: new Date(NOW - 100 * 24 * HOUR).toISOString(),
-             endTime: new Date(NOW - 99 * 24 * HOUR).toISOString() }),
-    ];
-    expect(pickDefaultSemester(items, NOW)).toBe('gan-hon');
-  });
-
-  it('rỗng → null', () => {
-    expect(pickDefaultSemester([], NOW)).toBeNull();
-  });
-});
 
 describe('applyFilters', () => {
   const base = [

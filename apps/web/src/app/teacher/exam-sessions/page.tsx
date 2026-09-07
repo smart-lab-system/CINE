@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { CalendarClock, Copy, DoorOpen, Plus } from 'lucide-react';
 import { useExamSessions } from '@/hooks/useExamSession';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useSemesterFilter } from '@/hooks/useSemesterFilter';
+import { SemesterFilter } from '@/components/layout/semester-filter';
 import { EmptyState } from '@/components/layout/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -66,6 +68,14 @@ export default function ExamSessionsListPage() {
   const [status, setStatus] = useState<ExamSessionStatusFilter | 'all'>('all');
   const [examType, setExamType] = useState<ExamType | 'all'>('all');
   const debouncedSearch = useDebouncedValue(search, 300);
+  const filter = useSemesterFilter('exam-sessions');
+
+  // Đổi kỳ phải về trang 1: trang 4 của kỳ cũ gần như chắc chắn không tồn tại
+  // ở kỳ mới, và người dùng sẽ thấy một bảng trống mà không hiểu vì sao.
+  function handleSemesterChange(next: string | null) {
+    filter.setSemesterId(next);
+    setPage(1);
+  }
 
   const { data, error, isLoading, refetch } = useExamSessions({
     page,
@@ -73,6 +83,7 @@ export default function ExamSessionsListPage() {
     search: debouncedSearch.trim() || undefined,
     status: status === 'all' ? undefined : status,
     examType: examType === 'all' ? undefined : examType,
+    semesterId: filter.semesterId ?? undefined,
   });
 
   const total = data?.total ?? 0;
@@ -116,7 +127,15 @@ export default function ExamSessionsListPage() {
         }
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <SemesterFilter
+          value={filter.semesterId}
+          onChange={handleSemesterChange}
+          semesters={filter.semesters}
+          current={filter.current}
+          isStale={filter.isStale}
+          staleDays={filter.staleDays}
+        />
         <Input
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}

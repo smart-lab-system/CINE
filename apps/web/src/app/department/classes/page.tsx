@@ -23,6 +23,8 @@ import {
   useUpdateClass,
 } from '@/hooks/useDepartment';
 import type { Klass } from '@/lib/api/department';
+import { SemesterFilter } from '@/components/layout/semester-filter';
+import { useSemesterFilter } from '@/hooks/useSemesterFilter';
 import { ResourceShell } from '@/components/resource/resource-shell';
 import { ResourceFormDialog } from '@/components/resource/resource-form-dialog';
 import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog';
@@ -30,7 +32,11 @@ import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog
 const EMPTY = { courseId: '', name: '', teacherId: '' };
 
 export default function ClassesPage() {
-  const classes = useMyClasses();
+  const filter = useSemesterFilter('department-classes');
+  const classes = useMyClasses(filter.semesterId);
+  // Pick-list của form tạo lớp KHÔNG lọc theo kỳ đang xem: lọc danh sách là
+  // thu hẹp tầm nhìn, còn thu hẹp một form là chặn người ta tạo lớp cho kỳ
+  // khác. Lọc không bao giờ được lấy đi một lựa chọn khỏi form.
   const courses = useMyCourses();
   const teachers = useTeacherOptions();
   const create = useCreateClass();
@@ -61,6 +67,16 @@ export default function ClassesPage() {
 
   return (
     <ResourceShell<Klass>
+      filter={
+        <SemesterFilter
+          value={filter.semesterId}
+          onChange={filter.setSemesterId}
+          semesters={filter.semesters}
+          current={filter.current}
+          isStale={filter.isStale}
+          staleDays={filter.staleDays}
+        />
+      }
       title="Lớp học"
       description="Mỗi lớp thuộc một môn của khoa bạn và có đúng một giảng viên phụ trách. Giảng viên chỉ thấy và tạo phiên thi cho lớp mình được giao."
       icon={GraduationCap}

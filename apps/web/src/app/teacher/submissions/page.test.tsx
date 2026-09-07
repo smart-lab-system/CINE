@@ -8,6 +8,31 @@ const useSessionOverviewMock = vi.fn();
 const archiveMutate = vi.fn();
 const closeMutate = vi.fn();
 
+// useSemesterFilter gọi useSemesters() — một TanStack query THẬT, và các test
+// này render không có QueryClientProvider. Mock ở tầng hook, cùng khuôn với
+// các mock sẵn có trong file, thay vì dựng provider chỉ để bộ lọc có dữ liệu.
+vi.mock('@/hooks/useDepartment', () => ({
+  useSemesters: () => ({
+    data: [
+      {
+        id: 'sem-1',
+        name: 'Học kỳ 1 2026-2027',
+        startDate: '2026-09-01',
+        endDate: '2027-01-15',
+        isCurrent: true,
+      },
+      {
+        id: 'sem-2',
+        name: 'Học kỳ 2 2026-2027',
+        startDate: '2027-02-01',
+        endDate: '2027-06-30',
+        isCurrent: false,
+      },
+    ],
+    isLoading: false,
+  }),
+}));
+
 vi.mock('@/hooks/useSubmissionOverview', () => ({
   useSessionOverview: (...args: unknown[]) => useSessionOverviewMock(...args),
   useArchiveSession: () => ({ mutate: archiveMutate }),

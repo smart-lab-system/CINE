@@ -38,6 +38,12 @@ interface ResourceShellProps<T> {
   error: Error | null;
   emptyTitle: string;
   emptyDescription: string;
+  /**
+   * Control lọc, đặt giữa tiêu đề và nút thêm. Là một slot chứ không phải một
+   * prop `semesterId` cụ thể: shell này không nên biết học kỳ là gì, và trang
+   * thứ tư (Phòng thi) lọc theo thứ khác hoặc không lọc gì.
+   */
+  filter?: ReactNode;
   /** Rendered under the header — dialogs, extra notices. */
   children?: ReactNode;
   /**
@@ -73,6 +79,7 @@ export function ResourceShell<T>({
   error,
   emptyTitle,
   emptyDescription,
+  filter,
   children,
   rowActions,
 }: ResourceShellProps<T>) {
@@ -83,10 +90,13 @@ export function ResourceShell<T>({
           <h1 className="text-h1 text-foreground">{title}</h1>
           <p className="text-body text-muted-foreground">{description}</p>
         </div>
-        <Button onClick={onAdd} className="shrink-0 self-start">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {addLabel}
-        </Button>
+        <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-start">
+          {filter}
+          <Button onClick={onAdd} className="self-start">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {addLabel}
+          </Button>
+        </div>
       </div>
 
       {error && (
