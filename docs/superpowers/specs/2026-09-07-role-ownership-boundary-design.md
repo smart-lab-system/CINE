@@ -1,7 +1,7 @@
 # Ranh giới sở hữu giữa ba tier
 
 **Ngày:** 2026-09-07
-**Trạng thái:** chờ duyệt
+**Trạng thái:** đã thực hiện (2026-09-08)
 **Tiếp nối:** `2026-09-06-semester-as-system-lens-design.md` (đã dời Học kỳ sang Phòng Đào tạo)
 
 ---

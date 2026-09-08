@@ -95,7 +95,8 @@ describe('GradingPage', () => {
   it('KHÔNG ẩn phiên có bài thu mà chưa gắn rubric (spec §5.3)', () => {
     // Test quan trọng nhất của trang này. Ẩn phiên thiếu rubric là giấu mất
     // bài thi thật của sinh viên vì một field mà hệ thống chưa từng hỏi
-    // giảng viên — đúng lỗi đã phải đẻ ra màn admin/unowned-courses để cứu.
+    // giảng viên — đúng lỗi đã phải đẻ ra màn "môn chưa có chủ" để cứu (nay ở
+    // /academic/courses, lọc "Chỉ môn chưa có chủ").
     useSessionOverviewMock.mockReturnValue({
       data: [
         {
