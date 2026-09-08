@@ -88,7 +88,8 @@ export class CourseController {
   assignOwner(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignCourseOwnerDto,
+    @Req() req: Request,
   ) {
-    return this.courses.assignOwner(id, dto.departmentHeadId);
+    return this.courses.assignOwner(id, dto.departmentHeadId, req.user!.sub);
   }
 }

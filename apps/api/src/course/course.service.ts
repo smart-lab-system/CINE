@@ -1,8 +1,15 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { CourseEntity } from './entities/course.entity';
 import { ClassEntity } from './entities/class.entity';
+import { AccountEntity } from '../identity/entities/account.entity';
+import { AuditLogService } from '../admin/audit-log.service';
 import { CourseView } from './course.types';
 import { CreateCourseDto, UpdateCourseDto } from './dto/course.dto';
 
@@ -13,6 +20,10 @@ export class CourseService {
     private readonly courses: Repository<CourseEntity>,
     @InjectRepository(ClassEntity)
     private readonly classes: Repository<ClassEntity>,
+    @InjectRepository(AccountEntity)
+    private readonly accounts: Repository<AccountEntity>,
+    private readonly dataSource: DataSource,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**
@@ -109,14 +120,62 @@ export class CourseService {
     await this.courses.remove(course);
   }
 
-  /** Admin-only: hand an unowned (or reassigned) course to a head. */
-  async assignOwner(id: string, departmentHeadId: string): Promise<CourseEntity> {
+  /**
+   * Phân công một môn về một Trưởng khoa.
+   *
+   * Hai bước kiểm mà bản trước không có, và cả hai đều là lỗ hở thật:
+   *
+   * 1. Người nhận PHẢI có role `department_admin`. FK là RESTRICT nên nó chỉ
+   *    bảo đảm tài khoản TỒN TẠI, không bảo đảm VAI TRÒ. Gán cho một `teacher`
+   *    là ca tệ nhất có thể: môn đó có `department_head_id IS NOT NULL` nên
+   *    rời khỏi danh sách chưa-có-chủ, mà `/courses/mine` cũng không head nào
+   *    trả về — nó biến mất khỏi MỌI màn hình, kể cả màn cứu hộ dựng ra để cứu
+   *    đúng tình huống này, và không có đường sửa qua UI.
+   *
+   * 2. Ghi audit, trong CÙNG transaction với `save`. Phân công đổi quyền đọc
+   *    của cả cây course → class → exam_session → submission — thao tác duy
+   *    nhất trong hệ thống dịch chuyển được "ai đọc được bài thi của ai". Vết
+   *    audit không được sống sót qua một lần ghi thất bại, và ngược lại; cùng
+   *    lý do `SemesterService.setCurrent` đã làm thế.
+   */
+  async assignOwner(
+    id: string,
+    departmentHeadId: string,
+    actorId: string,
+  ): Promise<CourseEntity> {
     const course = await this.courses.findOne({ where: { id } });
     if (!course) {
       throw new NotFoundException('Course not found');
     }
-    course.departmentHeadId = departmentHeadId;
-    return this.courses.save(course);
+
+    const target = await this.accounts.findOne({
+      where: { id: departmentHeadId },
+      select: { id: true, role: true },
+    });
+    if (!target || target.role !== 'department_admin') {
+      throw new BadRequestException('Chỉ gán được môn cho Trưởng khoa');
+    }
+
+    const previousOwner = course.departmentHeadId;
+
+    return this.dataSource.transaction(async (manager) => {
+      course.departmentHeadId = departmentHeadId;
+      const saved = await manager.getRepository(CourseEntity).save(course);
+
+      await this.auditLog.recordUserAction(
+        {
+          actorId,
+          action: 'course.assign_owner',
+          targetType: 'course',
+          targetId: course.id,
+          oldValue: { departmentHeadId: previousOwner },
+          newValue: { departmentHeadId, code: course.code },
+        },
+        manager,
+      );
+
+      return saved;
+    });
   }
 
   /**
