@@ -1,7 +1,15 @@
 import { DataSource } from 'typeorm';
 import * as argon2 from 'argon2';
+import type { AccountRole } from '../../src/identity/entities/account.entity';
 
-export type TestAccountRole = 'admin' | 'teacher' | 'academic_affairs' | 'department_admin';
+/**
+ * Alias, không phải bản chép.
+ *
+ * Trước đây đây là một union viết tay trùng nội dung với `AccountRole` — và
+ * một danh sách chép tay là chỗ một giá trị đã nghỉ (`super_admin`) có thể
+ * sống sót sau khi enum đã đổi, rồi từ đó bò ngược vào code thật.
+ */
+export type TestAccountRole = AccountRole;
 
 /**
  * Inserts an account directly, bypassing the API — there's no self-serve

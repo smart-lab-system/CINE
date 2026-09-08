@@ -44,6 +44,20 @@ describe('Accounts (e2e)', () => {
 
   let createdAccountId: string;
 
+  it('enum cua Postgres bac mot role khong ton tai - day la luoi chan cho @Roles', async () => {
+    // createTestAccount INSERT thang vao bang that, nen enum account_role tu
+    // bac gia tri la. Day la ly do cac e2e spec la luoi bat chinh cho viec go
+    // dung ten role: neu ca code lan test cung dung sai MOT gia tri, DB van do
+    // — khong nhu unit test co mock, noi ca hai ben cung sai se xanh.
+    await expect(
+      dataSource.query(
+        `INSERT INTO examcollect.account (name, email, password_hash, role)
+         VALUES ('X', $1, 'aaaaaaaaaaaaaaaaaaaaaaaa', 'super_admin')`,
+        [`stale_role_${Date.now()}@example.com`],
+      ),
+    ).rejects.toThrow(/super_admin/);
+  });
+
   it('rejects account creation without a token', async () => {
     const response = await request(app.getHttpServer())
       .post('/accounts')
