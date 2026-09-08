@@ -163,4 +163,65 @@ describe('GET /courses — danh mục môn', () => {
     // Cái không được xảy ra là 200.
     expect(res.status).not.toBe(200);
   });
+
+  describe('POST /courses — hai vai, hai nghĩa', () => {
+    it('Trưởng khoa tạo môn thì chủ là chính mình', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/courses')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({
+          code: `HD${Date.now()}`.slice(0, 20),
+          name: 'Môn của khoa',
+          semesterId: semesterA,
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.departmentHeadId).toBe(headId);
+    });
+
+    it('Phòng Đào tạo tạo môn thì chủ để TRỐNG — công bố danh mục, chờ phân công', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/courses')
+        .set('Authorization', `Bearer ${academicToken}`)
+        .send({
+          code: `AC${Date.now()}`.slice(0, 20),
+          name: 'Môn công bố',
+          semesterId: semesterA,
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.departmentHeadId).toBeNull();
+    });
+
+    it('giảng viên không tạo được môn', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/courses')
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({
+          code: `TC${Date.now()}`.slice(0, 20),
+          name: 'Môn giảng viên',
+          semesterId: semesterA,
+        });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('departmentHeadId trong body bị BỎ QUA, không được dùng để gán chủ', async () => {
+      // whitelist: true strip nó, nhưng test này khẳng định INVARIANT chứ không
+      // khẳng định cấu hình pipe: không ai được tạo một môn thuộc về người
+      // khác, bằng bất cứ đường nào.
+      const res = await request(app.getHttpServer())
+        .post('/courses')
+        .set('Authorization', `Bearer ${academicToken}`)
+        .send({
+          code: `BD${Date.now()}`.slice(0, 20),
+          name: 'Môn có body bẩn',
+          semesterId: semesterA,
+          departmentHeadId: headId,
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.departmentHeadId).toBeNull();
+    });
+  });
 });

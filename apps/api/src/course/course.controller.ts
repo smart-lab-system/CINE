@@ -24,6 +24,21 @@ import {
 } from './dto/course.dto';
 import { SemesterScopeDto } from './dto/semester-scope.dto';
 import { CourseCatalogQueryDto } from './dto/course-catalog.dto';
+import type { CourseWriteActor } from './course.service';
+
+/**
+ * Danh tính người ghi, lấy từ token.
+ *
+ * Ép kiểu ở đúng MỘT chỗ này thay vì rải ở mỗi handler: `RolesGuard` đã bảo
+ * đảm chỉ hai vai đó tới được các route dùng nó, và gom lại một chỗ thì lời
+ * hứa ấy có một địa chỉ để đọc.
+ */
+function writeActor(req: Request): CourseWriteActor {
+  return {
+    id: req.user!.sub,
+    role: req.user!.role as CourseWriteActor['role'],
+  };
+}
 
 /**
  * Read is open to any authenticated account — the create-exam-session form
@@ -64,9 +79,9 @@ export class CourseController {
   }
 
   @Post()
-  @Roles('department_admin')
+  @Roles('department_admin', 'academic_affairs')
   create(@Body() dto: CreateCourseDto, @Req() req: Request) {
-    return this.courses.createForHead(req.user!.sub, dto);
+    return this.courses.createForActor(writeActor(req), dto);
   }
 
   @Patch(':id')

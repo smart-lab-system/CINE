@@ -13,6 +13,18 @@ import { AuditLogService } from '../admin/audit-log.service';
 import { CourseCatalogView } from './course.types';
 import { CreateCourseDto, UpdateCourseDto } from './dto/course.dto';
 
+/**
+ * Ai được ghi lên bảng `course`, và danh tính của họ.
+ *
+ * Hẹp hơn `AccountRole` có chủ đích: `admin` và `teacher` KHÔNG bao giờ tới
+ * được các hàm nhận kiểu này, nên chúng không cần nhánh nào, và một lời gọi
+ * sai chỗ hỏng ở compile-time.
+ */
+export interface CourseWriteActor {
+  id: string;
+  role: 'department_admin' | 'academic_affairs';
+}
+
 @Injectable()
 export class CourseService {
   constructor(
@@ -105,14 +117,24 @@ export class CourseService {
     });
   }
 
-  /** Ownership is taken from the caller, never from the request body. */
-  async createForHead(headId: string, dto: CreateCourseDto): Promise<CourseEntity> {
+  /**
+   * Chủ của môn mới suy từ VAI của người gọi, không bao giờ từ request body.
+   *
+   * `CreateCourseDto` không có `departmentHeadId` và không được thêm: nhận nó
+   * ở body thì phải chặn `department_admin` set nó (nếu không, một head tạo
+   * môn thuộc về head khác) — một bài toán phân quyền theo trường body mà ta
+   * không cần mở ra.
+   */
+  async createForActor(
+    actor: CourseWriteActor,
+    dto: CreateCourseDto,
+  ): Promise<CourseEntity> {
     return this.courses.save(
       this.courses.create({
         code: dto.code,
         name: dto.name,
         semesterId: dto.semesterId,
-        departmentHeadId: headId,
+        departmentHeadId: ownerOnCreate(actor.role, actor.id),
       }),
     );
   }
@@ -207,5 +229,29 @@ export class CourseService {
       throw new ForbiddenException('You do not own this course');
     }
     return course;
+  }
+}
+
+/**
+ * RolesGuard đã hẹp về đúng hai vai trước khi tới đây. Viết dạng exhaustive để
+ * vai thứ ba thêm vào `@Roles` sau này nổ ở compile-time, chứ không âm thầm
+ * sinh ra môn không chủ.
+ */
+function ownerOnCreate(
+  actorRole: CourseWriteActor['role'],
+  actorId: string,
+): string | null {
+  switch (actorRole) {
+    case 'department_admin':
+      return actorId; // head tự tạo môn của khoa mình — như cũ
+    case 'academic_affairs':
+      return null; // công bố danh mục, chờ phân công
+    default: {
+      // Không phải phòng hộ thừa: tham số hẹp là LỜI HỨA của RolesGuard, và
+      // đây là chỗ lời hứa đó bị kiểm. Thêm vai thứ ba vào @Roles mà quên chỗ
+      // này thì `never` không nhận được nó và tsc đỏ ngay.
+      const unreachable: never = actorRole;
+      throw new Error(`Vai không xử lý được khi tạo môn: ${String(unreachable)}`);
+    }
   }
 }
