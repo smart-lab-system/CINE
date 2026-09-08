@@ -53,7 +53,7 @@ export default function RoomsPage() {
   return (
     <ResourceShell<Room>
       title="Phòng thi"
-      description="Phòng máy dùng chung toàn trường — nhiều khoa xếp lịch thi vào cùng một phòng ở các ca khác nhau, nên phòng không thuộc về khoa nào. Tên phòng không được trùng."
+      description="Phòng máy dùng chung toàn trường — nhiều khoa xếp lịch thi vào cùng một phòng ở các ca khác nhau, nên phòng không thuộc về khoa nào. Chỉ Phòng Đào tạo sửa được; tên phòng không được trùng."
       icon={DoorOpen}
       addLabel="Thêm phòng"
       onAdd={openCreate}
