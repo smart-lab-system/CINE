@@ -218,10 +218,41 @@ export async function deleteClass(id: string): Promise<void> {
 
 /* ------------------------------------------------------- unowned (admin) --- */
 
-export async function listUnownedCourses(): Promise<Course[]> {
-  const { data, error, response } = await apiClient.GET('/courses/unowned');
+/** Một môn như Phòng Đào tạo thấy trong danh mục cấp trường. */
+export interface CourseCatalogEntry {
+  id: string;
+  code: string;
+  name: string;
+  semesterId: string;
+  departmentHeadId: string | null;
+  departmentHeadName: string | null;
+  enrollmentCount: number;
+}
+
+/**
+ * Danh mục môn cấp trường.
+ *
+ * KHÁC `listMyCourses()` (`/courses/mine`), là danh sách môn của MỘT khoa dành
+ * cho Trưởng khoa — hai endpoint độc lập, tên gần giống nhau, đừng gộp.
+ *
+ * `unowned` gửi đi dưới dạng chuỗi `'true'`, và `false` thì BỎ HẲN tham số:
+ * API dùng `@IsIn(['true'])` nên `?unowned=false` sẽ ra 400. Đó là cố ý ở phía
+ * API — `"false"` là truthy, nên nhận nó là mở một cái bẫy im lặng.
+ */
+export async function listCourseCatalog(params: {
+  semesterId?: string;
+  unowned?: boolean;
+}): Promise<CourseCatalogEntry[]> {
+  const { data, error, response } = await apiClient.GET('/courses', {
+    params: {
+      query: {
+        ...(params.semesterId ? { semesterId: params.semesterId } : {}),
+        ...(params.unowned ? { unowned: 'true' as const } : {}),
+      },
+    },
+  });
   await throwIfFailed(error, response);
-  return data as unknown as Course[];
+  return data as unknown as CourseCatalogEntry[];
 }
 
 export async function assignCourseOwner(

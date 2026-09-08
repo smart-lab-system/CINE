@@ -278,7 +278,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["CourseController_findAll"];
+        get: operations["CourseController_findCatalog"];
         put?: never;
         post: operations["CourseController_create"];
         delete?: never;
@@ -295,22 +295,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["CourseController_findMine"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/courses/unowned": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["CourseController_findUnowned"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1329,9 +1313,12 @@ export interface operations {
             };
         };
     };
-    CourseController_findAll: {
+    CourseController_findCatalog: {
         parameters: {
-            query?: never;
+            query?: {
+                semesterId?: string;
+                unowned?: "true";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1376,25 +1363,6 @@ export interface operations {
             query?: {
                 semesterId?: string;
             };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourseEntity"][];
-                };
-            };
-        };
-    };
-    CourseController_findUnowned: {
-        parameters: {
-            query?: never;
             header?: never;
             path?: never;
             cookie?: never;

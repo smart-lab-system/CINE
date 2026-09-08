@@ -17,7 +17,7 @@ import {
   listRooms,
   listSemesters,
   listTeacherOptions,
-  listUnownedCourses,
+  listCourseCatalog,
   updateClass,
   updateCourse,
   updateRoom,
@@ -45,7 +45,9 @@ export const DEPARTMENT_KEYS = {
   rooms: ['rooms'] as const,
   courses: ['courses', 'mine'] as const,
   classes: ['classes', 'mine'] as const,
-  unowned: ['courses', 'unowned'] as const,
+  // Danh mục cấp trường — KHÔNG dùng chung key với `courses` (`/courses/mine`),
+  // vì hai endpoint trả hai tập dữ liệu khác nhau cho hai role khác nhau.
+  catalog: ['courses', 'catalog'] as const,
 };
 
 function useInvalidating<TArgs, TResult>(
@@ -166,13 +168,37 @@ export function useDeleteClass() {
 
 /* ------------------------------------------------------------------ unowned */
 
-export function useUnownedCourses() {
-  return useQuery({ queryKey: DEPARTMENT_KEYS.unowned, queryFn: listUnownedCourses });
+/** Danh mục môn cấp trường — chỉ Phòng Đào tạo gọi được. */
+export function useCourseCatalog(params: { semesterId?: string | null; unowned?: boolean }) {
+  return useQuery({
+    queryKey: [...DEPARTMENT_KEYS.catalog, params.semesterId ?? null, params.unowned ?? false],
+    queryFn: () =>
+      listCourseCatalog({
+        semesterId: params.semesterId ?? undefined,
+        unowned: params.unowned,
+      }),
+  });
+}
+
+export function useCreateCatalogCourse() {
+  return useInvalidating(DEPARTMENT_KEYS.catalog, createCourse);
+}
+
+export function useUpdateCatalogCourse() {
+  return useInvalidating(
+    DEPARTMENT_KEYS.catalog,
+    (args: { id: string; body: Parameters<typeof updateCourse>[1] }) =>
+      updateCourse(args.id, args.body),
+  );
+}
+
+export function useDeleteCatalogCourse() {
+  return useInvalidating(DEPARTMENT_KEYS.catalog, deleteCourse);
 }
 
 export function useAssignCourseOwner() {
   return useInvalidating(
-    DEPARTMENT_KEYS.unowned,
+    DEPARTMENT_KEYS.catalog,
     (args: { id: string; departmentHeadId: string }) =>
       assignCourseOwner(args.id, args.departmentHeadId),
   );
