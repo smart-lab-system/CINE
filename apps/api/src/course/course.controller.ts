@@ -23,6 +23,7 @@ import {
   UpdateCourseDto,
 } from './dto/course.dto';
 import { SemesterScopeDto } from './dto/semester-scope.dto';
+import { CourseCatalogQueryDto } from './dto/course-catalog.dto';
 
 /**
  * Read is open to any authenticated account — the create-exam-session form
@@ -38,26 +39,28 @@ import { SemesterScopeDto } from './dto/semester-scope.dto';
 export class CourseController {
   constructor(private readonly courses: CourseService) {}
 
+  /**
+   * Danh mục môn cấp trường. Chỉ Phòng Đào tạo — trước đây handler này KHÔNG
+   * có `@Roles` nào, tức mọi user đăng nhập đọc được mọi môn toàn trường, và
+   * không màn hình nào ở web dùng nó.
+   *
+   * KHÁC `GET /courses/mine`: cái đó là danh sách môn CỦA MỘT KHOA, dành cho
+   * Trưởng khoa, scope bằng `department_head_id`. Hai endpoint độc lập, tên
+   * gần giống nhau, không giao nhau — đừng gộp.
+   */
   @Get()
-  findAll() {
-    return this.courses.findAll();
+  @Roles('academic_affairs')
+  findCatalog(@Query() query: CourseCatalogQueryDto) {
+    return this.courses.findCatalog({
+      semesterId: query.semesterId,
+      unowned: query.unowned === 'true',
+    });
   }
 
   @Get('mine')
   @Roles('department_admin')
   findMine(@Query() query: SemesterScopeDto, @Req() req: Request) {
     return this.courses.findForHead(req.user!.sub, query.semesterId);
-  }
-
-  /**
-   * Admin-only. A course with no owner is invisible to every Trưởng khoa,
-   * so without this it is also unassignable — and the migration-seeded
-   * courses start out exactly that way.
-   */
-  @Get('unowned')
-  @Roles('admin')
-  findUnowned() {
-    return this.courses.findUnowned();
   }
 
   @Post()
@@ -84,7 +87,7 @@ export class CourseController {
   }
 
   @Patch(':id/owner')
-  @Roles('admin')
+  @Roles('academic_affairs')
   assignOwner(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignCourseOwnerDto,

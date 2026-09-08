@@ -6,17 +6,10 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount, type TestAccountRole } from './helpers/create-account';
 
-/**
- * NOTE cho Task 5: endpoint hiện còn `@Roles('admin')`, nên ở đây dùng
- * `adminToken`. Khi Task 5 đổi decorator sang `academic_affairs`, đổi luôn
- * token trong file này sang `academicToken`. Cố ý KHÔNG dùng academicToken
- * ngay từ đầu: test sẽ đỏ vì HAI lý do lẫn nhau, và vòng đỏ mất giá trị chẩn
- * đoán.
- */
 describe('PATCH /courses/:id/owner', () => {
   let app: INestApplication;
   let dataSource: DataSource;
-  let adminToken: string;
+  let academicToken: string;
   let headId: string;
   let teacherId: string;
   let semesterId: string;
@@ -48,7 +41,7 @@ describe('PATCH /courses/:id/owner', () => {
     await app.init();
     dataSource = app.get(DataSource);
 
-    adminToken = (await makeAccount('assign_admin', 'admin')).token;
+    academicToken = (await makeAccount('assign_academic', 'academic_affairs')).token;
     headId = (await makeAccount('assign_head', 'department_admin')).id;
     teacherId = (await makeAccount('assign_teacher', 'teacher')).id;
 
@@ -69,7 +62,7 @@ describe('PATCH /courses/:id/owner', () => {
 
     const res = await request(app.getHttpServer())
       .patch(`/courses/${courseId}/owner`)
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${academicToken}`)
       .send({ departmentHeadId: headId });
 
     expect(res.status).toBe(200);
@@ -94,7 +87,7 @@ describe('PATCH /courses/:id/owner', () => {
 
     const res = await request(app.getHttpServer())
       .patch(`/courses/${courseId}/owner`)
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${academicToken}`)
       .send({ departmentHeadId: teacherId });
 
     expect(res.status).toBe(400);
@@ -119,7 +112,7 @@ describe('PATCH /courses/:id/owner', () => {
 
     const res = await request(app.getHttpServer())
       .patch(`/courses/${courseId}/owner`)
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${academicToken}`)
       .send({ departmentHeadId: '00000000-0000-4000-8000-000000000000' });
 
     expect(res.status).toBe(400);

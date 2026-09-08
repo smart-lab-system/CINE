@@ -5,12 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { CourseEntity } from './entities/course.entity';
 import { ClassEntity } from './entities/class.entity';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { AuditLogService } from '../admin/audit-log.service';
-import { CourseView } from './course.types';
+import { CourseCatalogView } from './course.types';
 import { CreateCourseDto, UpdateCourseDto } from './dto/course.dto';
 
 @Injectable()
@@ -37,24 +37,54 @@ export class CourseService {
   }
 
   /**
-   * One query (LEFT JOIN + GROUP BY), not one COUNT per course — avoids
-   * the N+1 the create-exam-session form's capacity warning would
-   * otherwise cost.
+   * Danh mục môn cấp trường, cho Phòng Đào tạo.
+   *
+   * Thay cho hai hàm trước đó: `findAll()` (không role, không lọc, không
+   * consumer nào ở web) và `findUnowned()` (chỉ lọc `IS NULL`, KHÔNG lọc học
+   * kỳ — đo được 157 môn chưa chủ trải 152 kỳ dồn vào một danh sách phẳng).
+   * Gộp lại thì lỗi thiếu lọc kỳ hết theo CẤU TRÚC, không phải được vá: không
+   * còn hàm nào đọc bảng này mà không đi qua `semesterId`.
+   *
+   * Một query (LEFT JOIN + GROUP BY), không phải một COUNT mỗi môn.
    */
-  async findAll(): Promise<CourseView[]> {
-    const { entities, raw } = await this.courses
+  async findCatalog(filter: {
+    semesterId?: string;
+    unowned?: boolean;
+  }): Promise<CourseCatalogView[]> {
+    const qb = this.courses
       .createQueryBuilder('c')
       .leftJoin('enrollment', 'e', 'e.course_id = c.id')
+      .leftJoin(AccountEntity, 'head', 'head.id = c.department_head_id')
       .addSelect('COUNT(e.id)', 'enrollmentCount')
+      .addSelect('head.name', 'departmentHeadName')
       .groupBy('c.id')
-      .orderBy('c.code', 'ASC')
-      .getRawAndEntities<{ enrollmentCount: string }>();
+      // `head.id` PHẢI có mặt: TypeORM tự đưa khoá chính của alias được join
+      // vào SELECT, nên thiếu nó là Postgres 42803 ("must appear in the GROUP
+      // BY clause"). Nhóm thêm theo khoá chính không đổi kết quả — mỗi môn có
+      // tối đa một chủ — và nó làm `head.name` phụ thuộc hàm, tức hợp lệ.
+      .addGroupBy('head.id')
+      .addGroupBy('head.name')
+      .orderBy('c.code', 'ASC');
+
+    if (filter.semesterId) {
+      qb.andWhere('c.semester_id = :semesterId', { semesterId: filter.semesterId });
+    }
+    if (filter.unowned) {
+      qb.andWhere('c.department_head_id IS NULL');
+    }
+
+    const { entities, raw } = await qb.getRawAndEntities<{
+      enrollmentCount: string;
+      departmentHeadName: string | null;
+    }>();
 
     return entities.map((course, index) => ({
       id: course.id,
       code: course.code,
       name: course.name,
       semesterId: course.semesterId,
+      departmentHeadId: course.departmentHeadId,
+      departmentHeadName: raw[index].departmentHeadName ?? null,
       enrollmentCount: parseInt(raw[index].enrollmentCount, 10),
     }));
   }
@@ -71,21 +101,6 @@ export class CourseService {
         departmentHeadId: headId,
         ...(semesterId ? { semesterId } : {}),
       },
-      order: { code: 'ASC' },
-    });
-  }
-
-  /**
-   * Courses nobody owns — admin-only.
-   *
-   * An unowned course is listed to no Trưởng khoa, which makes it also
-   * unassignable by them: without this view the seeded courses would be a
-   * bootstrap deadlock, and any future orphan would go quiet instead of
-   * being noticed.
-   */
-  async findUnowned(): Promise<CourseEntity[]> {
-    return this.courses.find({
-      where: { departmentHeadId: IsNull() },
       order: { code: 'ASC' },
     });
   }

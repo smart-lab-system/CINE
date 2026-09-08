@@ -1,11 +1,23 @@
-export interface CourseView {
+/**
+ * Một môn như Phòng Đào tạo thấy trong danh mục cấp trường.
+ *
+ * `departmentHeadName` là lý do view này tồn tại: một cột `departmentHeadId`
+ * dạng uuid không nói được cho ai đọc màn hình biết môn đang thuộc khoa nào,
+ * và bắt trang tự tra 1 tài khoản / 1 dòng là N+1 trên đúng màn hình có nhiều
+ * dòng nhất.
+ *
+ * `null` ở cả hai trường nghĩa là CHƯA CÓ CHỦ — không phải "thuộc mọi người".
+ * Một môn chưa có chủ không hiện trong màn hình của bất kỳ Trưởng khoa nào.
+ */
+export interface CourseCatalogView {
   id: string;
   code: string;
   name: string;
   semesterId: string;
-  // How many students are enrolled in this course (via Enrollment) —
-  // powers the create-exam-session form's non-blocking capacity-vs-
-  // enrollment warning once a Room is also selected.
+  departmentHeadId: string | null;
+  departmentHeadName: string | null;
+  /** Sinh viên đã đăng ký (qua Enrollment) — Phòng Đào tạo cần nó để biết một
+   *  môn đã có người học trước khi phân công hay xoá. */
   enrollmentCount: number;
 }
 

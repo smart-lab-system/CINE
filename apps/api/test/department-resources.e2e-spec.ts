@@ -238,8 +238,12 @@ describe('Department resources (e2e)', () => {
     });
   });
 
+  // `GET /courses/unowned` đã bị xoá: nó gộp vào `GET /courses?unowned=true`.
+  // Hai endpoint trả dữ liệu chồng nhau thì trang phải chọn một, và cái thứ
+  // hai sẽ trôi. Gộp lại còn làm lỗi thiếu lọc học kỳ của `findUnowned()` hết
+  // theo CẤU TRÚC thay vì được vá.
   describe('unowned courses', () => {
-    it('shows admin the courses nobody owns, and lets them assign one', async () => {
+    it('Phòng Đào tạo thấy môn chưa có chủ và phân công được; xong thì môn rời danh sách', async () => {
       const [orphan] = await dataSource.query(
         `INSERT INTO examcollect.course (code, name, semester_id)
          VALUES ($1, 'Môn mồ côi', $2) RETURNING id`,
@@ -247,31 +251,39 @@ describe('Department resources (e2e)', () => {
       );
 
       const listed = await request(app.getHttpServer())
-        .get('/courses/unowned')
-        .set('Authorization', `Bearer ${adminToken}`);
+        .get('/courses')
+        .query({ semesterId, unowned: 'true' })
+        .set('Authorization', `Bearer ${academicToken}`);
       expect(listed.status).toBe(200);
       expect(listed.body.map((c: { id: string }) => c.id)).toContain(orphan.id);
 
       const assigned = await request(app.getHttpServer())
         .patch(`/courses/${orphan.id}/owner`)
-        .set('Authorization', `Bearer ${adminToken}`)
+        .set('Authorization', `Bearer ${academicToken}`)
         .send({ departmentHeadId: headId });
       expect(assigned.status).toBe(200);
 
       // Once owned it leaves the orphan list — otherwise the list would grow
       // forever and stop meaning anything.
       const after = await request(app.getHttpServer())
-        .get('/courses/unowned')
-        .set('Authorization', `Bearer ${adminToken}`);
+        .get('/courses')
+        .query({ semesterId, unowned: 'true' })
+        .set('Authorization', `Bearer ${academicToken}`);
       expect(after.body.map((c: { id: string }) => c.id)).not.toContain(orphan.id);
     });
 
-    it('refuses the orphan list to a head', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/courses/unowned')
+    it('từ chối danh mục cho Trưởng khoa, và cả cho admin', async () => {
+      const head = await request(app.getHttpServer())
+        .get('/courses')
         .set('Authorization', `Bearer ${headToken}`);
+      expect(head.status).toBe(403);
 
-      expect(response.status).toBe(403);
+      // Admin từng giữ màn hình này. Phân công một môn về một khoa là việc học
+      // vụ, không phải quản trị hạ tầng — nên vế này là điều spec THAY ĐỔI.
+      const admin = await request(app.getHttpServer())
+        .get('/courses')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(admin.status).toBe(403);
     });
   });
   describe('classes', () => {
