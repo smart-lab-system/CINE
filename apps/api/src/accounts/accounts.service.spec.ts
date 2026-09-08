@@ -18,6 +18,16 @@ import { AccountEntity } from '../identity/entities/account.entity';
  * object literal would union each overridden key with Repository's real
  * (non-jest.Mock) method signature, and the union loses `.mock`.
  */
+/** Hình dạng một dòng của câu đếm phụ thuộc trong `remove()`. count(*) của
+ *  Postgres về qua driver dưới dạng CHUỖI, nên mock phải là chuỗi. */
+const ZERO_DEPENDENCIES = {
+  courses: '0',
+  classes: '0',
+  exam_sessions: '0',
+  rubrics: '0',
+  audit_entries: '0',
+};
+
 function createHarness(overrides: Record<string, jest.Mock> = {}) {
   const existing: AccountEntity = {
     id: 'account-1',
@@ -35,6 +45,9 @@ function createHarness(overrides: Record<string, jest.Mock> = {}) {
     update: jest.fn().mockResolvedValue({ affected: 1 }),
     delete: jest.fn().mockResolvedValue({ affected: 1 }),
     findOne: jest.fn().mockResolvedValue(existing),
+    // `remove()` đếm phụ thuộc trước khi xoá. Mặc định "không phụ thuộc gì",
+    // để test xoá-được vẫn nói về việc xoá; hai test dưới override nó.
+    query: jest.fn().mockResolvedValue([ZERO_DEPENDENCIES]),
     ...overrides,
   };
 
@@ -99,6 +112,39 @@ describe('AccountsService', () => {
     });
 
     await expect(service.remove('missing')).rejects.toThrow(NotFoundException);
+    expect(repo.delete).not.toHaveBeenCalled();
+  });
+
+  it('remove() gọi phụ thuộc học vụ là GIẢI ĐƯỢC, và không xoá', async () => {
+    const { service, repo } = createHarness({
+      query: jest
+        .fn()
+        .mockResolvedValue([{ ...ZERO_DEPENDENCIES, courses: '3', classes: '1' }]),
+    });
+
+    await expect(service.remove('account-1')).rejects.toMatchObject({
+      response: {
+        resolvable: { courses: 3, classes: 1, examSessions: 0, rubrics: 0 },
+        permanent: { auditLogEntries: 0 },
+      },
+    });
+    expect(repo.delete).not.toHaveBeenCalled();
+  });
+
+  it('remove() gọi dòng audit là VĨNH VIỄN, và nói ra thay vì bảo thử lại', async () => {
+    // Phân biệt hai loại là toàn bộ giá trị của việc đếm. `audit_log` mang
+    // trigger BEFORE UPDATE OR DELETE, nên dòng chặn không xoá được để giải
+    // chặn — một con số tổng sẽ hàm ý "gỡ hết rồi thử lại", lời khuyên không
+    // bao giờ chạy được.
+    const { service, repo } = createHarness({
+      query: jest
+        .fn()
+        .mockResolvedValue([{ ...ZERO_DEPENDENCIES, audit_entries: '7' }]),
+    });
+
+    await expect(service.remove('account-1')).rejects.toMatchObject({
+      response: { permanent: { auditLogEntries: 7 } },
+    });
     expect(repo.delete).not.toHaveBeenCalled();
   });
 });
