@@ -50,14 +50,27 @@ const ROLE_DISPLAY: Record<string, { label: string; variant: NonNullable<BadgePr
   };
 
 /**
- * Label + badge colour for any role string. Falls back to showing the raw
- * value rather than hiding an unrecognised role: if the backend adds a
- * fifth tier, the topbar should say something true-but-ugly instead of
- * silently mislabelling the account.
+ * Label + badge colour cho một role bất kỳ.
+ *
+ * Role không có trong map hiện ra như một CẢNH BÁO, không phải như một vai
+ * trò. Bản trước trả `{ label: role, variant: 'default' }` với ý đúng — thà
+ * nói một điều thật mà xấu hơn là dán nhãn sai âm thầm — nhưng chưa đủ xấu:
+ * một chuỗi enum thô trong badge xám đọc y như một vai trò hợp lệ, và đó chính
+ * là cách người dùng kết luận hệ thống có hai role riêng biệt "Phòng Đào tạo"
+ * và `super_admin` (một tab giữ bundle cũ, hoặc một JWT phát trước migration
+ * rename, là đủ).
+ *
+ * Cùng nguyên tắc `ROLE_AREAS` đã ghi: unmapped means visibly unmapped. Vẫn in
+ * ra giá trị thô, vì đó là thứ duy nhất giúp chẩn đoán.
  */
 export function getRoleDisplay(role: string): {
   label: string;
   variant: NonNullable<BadgeProps['variant']>;
 } {
-  return ROLE_DISPLAY[role] ?? { label: role, variant: 'default' };
+  return (
+    ROLE_DISPLAY[role] ?? {
+      label: `Vai trò không xác định (${role})`,
+      variant: 'destructive',
+    }
+  );
 }
