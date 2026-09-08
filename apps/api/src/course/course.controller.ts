@@ -85,20 +85,20 @@ export class CourseController {
   }
 
   @Patch(':id')
-  @Roles('department_admin')
+  @Roles('department_admin', 'academic_affairs')
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCourseDto,
     @Req() req: Request,
   ) {
-    return this.courses.updateForHead(id, req.user!.sub, dto);
+    return this.courses.updateForActor(id, writeActor(req), dto);
   }
 
   @Delete(':id')
-  @Roles('department_admin')
+  @Roles('department_admin', 'academic_affairs')
   @HttpCode(204)
   remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
-    return this.courses.removeForHead(id, req.user!.sub);
+    return this.courses.removeForActor(id, writeActor(req));
   }
 
   @Patch(':id/owner')

@@ -224,4 +224,62 @@ describe('GET /courses — danh mục môn', () => {
       expect(res.body.departmentHeadId).toBeNull();
     });
   });
+
+  describe('PATCH/DELETE /courses/:id — ai sửa được cái gì', () => {
+    async function makeOrphan() {
+      const [row] = await dataSource.query(
+        `INSERT INTO examcollect.course (code, name, semester_id)
+         VALUES ($1, 'Môn chờ phân công', $2) RETURNING id`,
+        [`PO${Date.now()}${Math.random().toString(36).slice(2, 5)}`.slice(0, 20), semesterA],
+      );
+      return row.id as string;
+    }
+
+    it('Phòng Đào tạo sửa được môn CHƯA có chủ', async () => {
+      const id = await makeOrphan();
+      const res = await request(app.getHttpServer())
+        .patch(`/courses/${id}`)
+        .set('Authorization', `Bearer ${academicToken}`)
+        .send({ name: 'Tên đã sửa' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe('Tên đã sửa');
+    });
+
+    it('Phòng Đào tạo KHÔNG sửa được môn ĐÃ có chủ — đó là việc của khoa', async () => {
+      const id = await makeOrphan();
+      await request(app.getHttpServer())
+        .patch(`/courses/${id}/owner`)
+        .set('Authorization', `Bearer ${academicToken}`)
+        .send({ departmentHeadId: headId })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/courses/${id}`)
+        .set('Authorization', `Bearer ${academicToken}`)
+        .send({ name: 'Không được đổi' });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('Phòng Đào tạo xoá được môn chưa có chủ', async () => {
+      const id = await makeOrphan();
+      await request(app.getHttpServer())
+        .delete(`/courses/${id}`)
+        .set('Authorization', `Bearer ${academicToken}`)
+        .expect(204);
+    });
+
+    it('Trưởng khoa KHÔNG sửa được môn chưa có chủ', async () => {
+      const orphan = await makeOrphan();
+      const refused = await request(app.getHttpServer())
+        .patch(`/courses/${orphan}`)
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ name: 'Head cướp môn' });
+
+      // Môn chưa có chủ không thuộc head nào — nhận nó qua PATCH là một đường
+      // vòng qua assignOwner, tức vòng qua kiểm vai và vòng qua audit log.
+      expect(refused.status).toBe(403);
+    });
+  });
 });

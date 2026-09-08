@@ -139,18 +139,18 @@ export class CourseService {
     );
   }
 
-  async updateForHead(
+  async updateForActor(
     id: string,
-    headId: string,
+    actor: CourseWriteActor,
     dto: UpdateCourseDto,
   ): Promise<CourseEntity> {
-    const course = await this.findOwnedBy(id, headId);
+    const course = await this.findWritableBy(id, actor);
     Object.assign(course, dto);
     return this.courses.save(course);
   }
 
-  async removeForHead(id: string, headId: string): Promise<void> {
-    const course = await this.findOwnedBy(id, headId);
+  async removeForActor(id: string, actor: CourseWriteActor): Promise<void> {
+    const course = await this.findWritableBy(id, actor);
     // Every FK into course is ON DELETE RESTRICT, so a course with classes,
     // sessions or enrollments refuses to go and PostgresExceptionFilter
     // turns that into a 409 rather than a 500.
@@ -216,17 +216,38 @@ export class CourseService {
   }
 
   /**
-   * 404 when it does not exist, 403 when it belongs to another head — the
-   * same two-step ExamSessionService.findByIdForOwner uses, so ownership
-   * reads the same way everywhere in this codebase.
+   * 404 khi không tồn tại, 403 khi không phải của người gọi — hai bước giống
+   * `ExamSessionService.findByIdForOwner`, để quyền sở hữu đọc giống nhau ở
+   * mọi chỗ trong codebase này.
+   *
+   * Hai vai có hai định nghĩa "của mình", và đó là toàn bộ ranh giới:
+   *
+   * - Trưởng khoa: môn có `department_head_id` bằng chính mình. Môn CHƯA có
+   *   chủ KHÔNG phải của họ — nhận nó qua PATCH là một đường vòng qua
+   *   `assignOwner`, tức vòng qua kiểm vai và vòng qua audit log.
+   * - Phòng Đào tạo: môn chưa có chủ, tức thứ chính họ vừa công bố. Một khi
+   *   môn đã có chủ, nó thuộc khoa — sai sót sau phân công là việc của khoa.
    */
-  private async findOwnedBy(id: string, headId: string): Promise<CourseEntity> {
+  private async findWritableBy(
+    id: string,
+    actor: CourseWriteActor,
+  ): Promise<CourseEntity> {
     const course = await this.courses.findOne({ where: { id } });
     if (!course) {
       throw new NotFoundException('Course not found');
     }
-    if (course.departmentHeadId !== headId) {
-      throw new ForbiddenException('You do not own this course');
+
+    const writable =
+      actor.role === 'department_admin'
+        ? course.departmentHeadId === actor.id
+        : course.departmentHeadId === null;
+
+    if (!writable) {
+      throw new ForbiddenException(
+        actor.role === 'department_admin'
+          ? 'You do not own this course'
+          : 'Môn này đã có chủ — chỉ Trưởng khoa phụ trách sửa được',
+      );
     }
     return course;
   }
