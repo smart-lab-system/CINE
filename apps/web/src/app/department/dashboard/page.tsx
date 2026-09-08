@@ -20,30 +20,55 @@ export default function DepartmentDashboardPage() {
   const classes = useMyClasses();
   const rooms = useRooms();
 
-  const missingLink =
+  /**
+   * Mắt nối còn thiếu trong chuỗi: kỳ → môn → lớp → phiên thi. Nhưng chủ thể
+   * của hai mắt đầu đã đổi ở spec ranh-giới-sở-hữu, nên câu chữ phải đổi theo.
+   *
+   * `href: null` cho nhánh học kỳ là điều quan trọng nhất ở đây: trước đây nó
+   * trỏ `/department/semesters`, một route đã bị xoá (404), kèm chỉ dẫn "Tạo
+   * học kỳ ngay" mà API trả 403. Một cái nút không làm được việc nó nói còn tệ
+   * hơn không có nút.
+   */
+  const missingLink: { text: string; href: string | null; cta?: string } | null =
     (semesters.data?.length ?? 0) === 0
-      ? { href: '/department/semesters', what: 'học kỳ', next: 'môn học' }
+      ? {
+          text: 'Phòng Đào tạo chưa tạo học kỳ nào — chưa tạo được môn học.',
+          href: null,
+        }
       : (courses.data?.length ?? 0) === 0
-        ? { href: '/department/courses', what: 'môn học', next: 'lớp học' }
+        ? {
+            text: 'Chưa có môn học nào — chưa tạo được lớp học. Bạn có thể tự tạo, hoặc chờ Phòng Đào tạo phân công.',
+            href: '/department/courses',
+            cta: 'Tạo môn học ngay',
+          }
         : (classes.data?.length ?? 0) === 0
-          ? { href: '/department/classes', what: 'lớp học', next: 'phiên thi' }
+          ? {
+              text: 'Chưa có lớp học nào — chưa tạo được phiên thi.',
+              href: '/department/classes',
+              cta: 'Tạo lớp học ngay',
+            }
           : null;
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Dashboard"
-        description="Tài nguyên học vụ của khoa bạn. Học kỳ và phòng thi dùng chung toàn trường; môn học và lớp học thuộc riêng khoa bạn."
+        description="Tài nguyên học vụ của khoa bạn. Học kỳ và phòng thi do Phòng Đào tạo quản lý; môn học và lớp học thuộc riêng khoa bạn."
       />
 
       {missingLink && (
         <Alert variant="info">
           <AlertDescription>
-            Chưa có {missingLink.what} nào — chưa tạo được {missingLink.next}.{' '}
-            <Link href={missingLink.href} className="font-semibold underline">
-              Tạo {missingLink.what} ngay
-            </Link>
-            .
+            {missingLink.text}
+            {missingLink.href && (
+              <>
+                {' '}
+                <Link href={missingLink.href} className="font-semibold underline">
+                  {missingLink.cta}
+                </Link>
+                .
+              </>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -53,7 +78,7 @@ export default function DepartmentDashboardPage() {
           icon={CalendarRange}
           label="Học kỳ"
           value={semesters.data?.length ?? 0}
-          hint="Dùng chung toàn trường"
+          hint="Dùng chung toàn trường — Phòng Đào tạo quản lý"
           isError={semesters.isError}
         />
         <StatCard
@@ -74,7 +99,7 @@ export default function DepartmentDashboardPage() {
           icon={DoorOpen}
           label="Phòng thi"
           value={rooms.data?.length ?? 0}
-          hint="Dùng chung toàn trường"
+          hint="Dùng chung toàn trường — Phòng Đào tạo quản lý"
           isError={rooms.isError}
         />
       </div>
