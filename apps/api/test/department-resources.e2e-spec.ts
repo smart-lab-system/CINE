@@ -202,18 +202,39 @@ describe('Department resources (e2e)', () => {
       expect(second.status).toBe(409);
     });
 
-    it('lets a head create a room, and refuses a teacher', async () => {
+    // Phòng thi là tài nguyên CẤP TRƯỜNG, cùng lớp với Học kỳ: dùng chung
+    // toàn trường, uq_room_name unique toàn cục, không khoa nào sở hữu. Trước
+    // spec ranh-giới-sở-hữu, mọi Trưởng khoa đều ghi được — nên vế "head 403"
+    // dưới đây là điều spec này THAY ĐỔI, không phải điều nó bảo toàn.
+    it('Phòng Đào tạo tạo được phòng thi; Trưởng khoa và giảng viên thì không', async () => {
       const allowed = await request(app.getHttpServer())
         .post('/rooms')
-        .set('Authorization', `Bearer ${headToken}`)
+        .set('Authorization', `Bearer ${academicToken}`)
         .send({ name: `Phòng máy ${Date.now()}`, capacity: 40 });
       expect(allowed.status).toBe(201);
 
-      const refused = await request(app.getHttpServer())
+      const refusedHead = await request(app.getHttpServer())
+        .post('/rooms')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ name: `Phòng máy ${Date.now()}h`, capacity: 40 });
+      expect(refusedHead.status).toBe(403);
+
+      const refusedTeacher = await request(app.getHttpServer())
         .post('/rooms')
         .set('Authorization', `Bearer ${teacherToken}`)
-        .send({ name: `Phòng máy ${Date.now()}x`, capacity: 40 });
-      expect(refused.status).toBe(403);
+        .send({ name: `Phòng máy ${Date.now()}t`, capacity: 40 });
+      expect(refusedTeacher.status).toBe(403);
+    });
+
+    // GET vẫn mở: form tạo phiên thi của giảng viên cần danh sách phòng, và
+    // đọc một danh sách phòng máy toàn trường không tiết lộ gì.
+    it('mọi role đăng nhập vẫn đọc được danh sách phòng', async () => {
+      for (const token of [academicToken, headToken, teacherToken]) {
+        const res = await request(app.getHttpServer())
+          .get('/rooms')
+          .set('Authorization', `Bearer ${token}`);
+        expect(res.status).toBe(200);
+      }
     });
   });
 
