@@ -1,4 +1,4 @@
-import { ArgumentsHost } from '@nestjs/common';
+import { ArgumentsHost, Logger } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { PostgresExceptionFilter } from './postgres-exception.filter';
 
@@ -62,9 +62,35 @@ describe('PostgresExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(400);
   });
 
-  it('rethrows unrecognized Postgres error codes', () => {
-    const { host } = createHost();
+  it('trả 500 cho mã Postgres lạ — KHÔNG ném lại, vì ném lại là không gửi gì cả', () => {
+    // Bản trước `throw exception` ở nhánh này. Ném lại BÊN TRONG một exception
+    // filter thì response không bao giờ được gửi: client treo tới khi timeout
+    // thay vì nhận 500. Đã đo được thật — một lỗi 42803 (GROUP BY) làm supertest
+    // treo 5s mỗi request, rồi `app.close()` treo theo, rồi cả jest treo 47 phút.
+    // Một lỗi SQL lạ phải thành 500 nhìn thấy được, không thành một cái treo.
+    const { host, status, json } = createHost();
 
-    expect(() => filter.catch(fabricateError('99999'), host)).toThrow();
+    expect(() => filter.catch(fabricateError('42803'), host)).not.toThrow();
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 500 }),
+    );
+  });
+
+  it('vẫn ghi log mã và stack của lỗi lạ — 500 im lặng thì không chẩn đoán được', () => {
+    // Đổi từ "ném lại" sang "trả 500" có nguy cơ NUỐT lỗi. Stack phải đi đâu đó,
+    // nếu không ta đổi một cái treo lấy một cái 500 vô nghĩa.
+    const { host } = createHost();
+    const logError = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    filter.catch(fabricateError('42803'), host);
+
+    expect(logError).toHaveBeenCalledWith(
+      expect.stringContaining('42803'),
+      expect.any(String),
+    );
+    logError.mockRestore();
   });
 });

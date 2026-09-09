@@ -214,11 +214,21 @@ export default function AcademicCoursesPage() {
         submitLabel={editing ? 'Lưu' : 'Tạo'}
         submitting={create.isPending || update.isPending}
         error={create.error ?? update.error}
-        onSubmit={() =>
-          editing
-            ? update.mutateAsync({ id: editing.id, body: form })
-            : create.mutateAsync({ ...form, semesterId: semesterFilter.semesterId! })
-        }
+        // Sửa thì không cần kỳ (môn đã thuộc một kỳ rồi); TẠO thì cần. Bộ lọc
+        // ở "Tất cả học kỳ" nghĩa là chưa chọn kỳ nào, và một môn phải thuộc
+        // đúng một kỳ.
+        canSubmit={editing !== null || !noSemester}
+        onSubmit={() => {
+          if (editing) {
+            return update.mutateAsync({ id: editing.id, body: form });
+          }
+          // Không dùng `!`: `canSubmit` đã chặn đường này khi chưa chọn kỳ, và
+          // một non-null assertion ở đây sẽ nói dối đúng lúc nó sai.
+          if (semesterFilter.semesterId === null) {
+            return Promise.reject(new Error('Chưa chọn học kỳ.'));
+          }
+          return create.mutateAsync({ ...form, semesterId: semesterFilter.semesterId });
+        }}
       >
         {noSemester && (
           <Alert variant="info">

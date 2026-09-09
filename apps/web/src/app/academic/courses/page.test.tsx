@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import CatalogPage from './page';
 
@@ -43,9 +43,11 @@ vi.mock('@/hooks/useAccounts', () => ({
   }),
 }));
 
+const filterState = { semesterId: 's1' as string | null };
+
 vi.mock('@/hooks/useSemesterFilter', () => ({
   useSemesterFilter: () => ({
-    semesterId: 's1',
+    semesterId: filterState.semesterId,
     setSemesterId: vi.fn(),
     semesters: [],
     current: null,
@@ -56,6 +58,10 @@ vi.mock('@/hooks/useSemesterFilter', () => ({
 }));
 
 describe('trang danh mục môn của Phòng Đào tạo', () => {
+  beforeEach(() => {
+    filterState.semesterId = 's1';
+  });
+
   it('nói rõ môn nào chưa có chủ, và tên chủ khi đã có', () => {
     render(<CatalogPage />);
     // "Chưa có chủ" là một TRẠNG THÁI cần đọc ra được, không phải một ô trống:
@@ -68,5 +74,26 @@ describe('trang danh mục môn của Phòng Đào tạo', () => {
   it('có công tắc lọc riêng môn chưa có chủ', () => {
     render(<CatalogPage />);
     expect(screen.getByLabelText(/chỉ môn chưa có chủ/i)).toBeInTheDocument();
+  });
+
+  it('đang xem "Tất cả học kỳ" thì KHÔNG bấm Tạo được — mỗi môn phải thuộc một kỳ', () => {
+    // Trước đây nút này vẫn bấm được: `semesterId!` đẩy null lên API, DTO
+    // @IsUUID() bác, người dùng nhận một 400 chung chung sau một vòng round-trip.
+    // API vẫn là hàng rào thật; đây là chỗ nói ra trước khi họ bấm.
+    filterState.semesterId = null;
+    render(<CatalogPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /thêm môn học/i }));
+
+    expect(screen.getByRole('button', { name: /^tạo$/i })).toBeDisabled();
+    expect(screen.getByText(/chọn một học kỳ cụ thể/i)).toBeInTheDocument();
+  });
+
+  it('đã chọn một học kỳ thì bấm Tạo được', () => {
+    render(<CatalogPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /thêm môn học/i }));
+
+    expect(screen.getByRole('button', { name: /^tạo$/i })).toBeEnabled();
   });
 });

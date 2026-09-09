@@ -20,6 +20,16 @@ interface ResourceFormDialogProps {
   submitting: boolean;
   error: Error | null;
   onSubmit: () => Promise<unknown>;
+  /**
+   * Mặc định `true`. Đặt `false` khi form phụ thuộc một lựa chọn NGOÀI nó mà
+   * người dùng chưa làm — ví dụ danh mục môn cần một học kỳ cụ thể, còn bộ lọc
+   * đang ở "Tất cả học kỳ".
+   *
+   * Đây là phòng thủ nhiều lớp, không phải hàng rào: API vẫn kiểm và vẫn trả
+   * 400. Nhưng một nút bấm được cho một form mà API luôn từ chối là bắt người
+   * dùng đi một vòng round-trip để nhận một lỗi mà ta đã biết trước.
+   */
+  canSubmit?: boolean;
   children: ReactNode;
 }
 
@@ -44,6 +54,7 @@ export function ResourceFormDialog({
   submitting,
   error,
   onSubmit,
+  canSubmit = true,
   children,
 }: ResourceFormDialogProps) {
   function handleSubmit(event: FormEvent) {
@@ -80,7 +91,7 @@ export function ResourceFormDialog({
             >
               Huỷ
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || !canSubmit}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               {submitLabel}
             </Button>
