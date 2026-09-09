@@ -10,6 +10,8 @@ describe('PATCH /courses/:id/owner', () => {
   let app: INestApplication;
   let dataSource: DataSource;
   let academicToken: string;
+  let headToken: string;
+  let teacherToken: string;
   let headId: string;
   let teacherId: string;
   let semesterId: string;
@@ -42,8 +44,12 @@ describe('PATCH /courses/:id/owner', () => {
     dataSource = app.get(DataSource);
 
     academicToken = (await makeAccount('assign_academic', 'academic_affairs')).token;
-    headId = (await makeAccount('assign_head', 'department_admin')).id;
-    teacherId = (await makeAccount('assign_teacher', 'teacher')).id;
+    const head = await makeAccount('assign_head', 'department_admin');
+    headId = head.id;
+    headToken = head.token;
+    const teacher = await makeAccount('assign_teacher', 'teacher');
+    teacherId = teacher.id;
+    teacherToken = teacher.token;
 
     const [semester] = await dataSource.query(
       `INSERT INTO examcollect.semester (name, start_date, end_date)
@@ -105,6 +111,26 @@ describe('PATCH /courses/:id/owner', () => {
       [courseId],
     );
     expect(entries).toHaveLength(0);
+  });
+
+  it('Trưởng khoa và giảng viên KHÔNG tự phân công được môn', async () => {
+    // Vế còn thiếu: phân công là việc học vụ cấp trường. Nếu một head tự gán
+    // được môn cho chính mình thì toàn bộ kiểm vai + audit ở trên đi vòng.
+    const courseId = await makeOrphanCourse();
+
+    for (const token of [headToken, teacherToken]) {
+      const res = await request(app.getHttpServer())
+        .patch(`/courses/${courseId}/owner`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ departmentHeadId: headId });
+      expect(res.status).toBe(403);
+    }
+
+    const [course] = await dataSource.query(
+      `SELECT department_head_id FROM examcollect.course WHERE id = $1`,
+      [courseId],
+    );
+    expect(course.department_head_id).toBeNull();
   });
 
   it('gán cho một uuid không phải tài khoản nào thì 400, không phải 500', async () => {

@@ -270,6 +270,24 @@ describe('GET /courses — danh mục môn', () => {
         .expect(204);
     });
 
+    it('giảng viên không sửa và không xoá được môn nào', async () => {
+      // Vế còn thiếu: RolesGuard chặn `teacher` khỏi CẢ PATCH lẫn DELETE. Quy
+      // ước của dự án là mọi ranh giới quyền phải có test hai vế, và vế này
+      // trước đây chỉ được suy ra từ test của POST.
+      const id = await makeOrphan();
+
+      const patched = await request(app.getHttpServer())
+        .patch(`/courses/${id}`)
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({ name: 'Giảng viên đổi tên' });
+      expect(patched.status).toBe(403);
+
+      const deleted = await request(app.getHttpServer())
+        .delete(`/courses/${id}`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+      expect(deleted.status).toBe(403);
+    });
+
     it('Trưởng khoa KHÔNG sửa được môn chưa có chủ', async () => {
       const orphan = await makeOrphan();
       const refused = await request(app.getHttpServer())
