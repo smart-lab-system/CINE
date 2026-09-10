@@ -92,6 +92,46 @@ const STATE_PRESENTATION: Record<
   },
 };
 
+/**
+ * The table's own scrollport (see components/ui/table.tsx for why the cap
+ * has to live on the wrapper and nowhere else).
+ *
+ * Two ways of being bounded, because the two layouts have different
+ * information to work with. Stacked on a narrow screen there is no height
+ * to divide up, so `22rem` simply stops one list from eating the whole
+ * page. Side by side from `lg`, the page bounds each panel to the viewport
+ * and this grows into whatever is left (`flex-1`) — so nothing here has to
+ * guess how tall the card header, the progress line, or the "không tải
+ * được" alert above it happen to be today.
+ *
+ * A box that scrolls has to be focusable to be scrollable without a mouse
+ * (WCAG 2.1.1), and a focusable box needs a name — hence all three.
+ */
+const SCROLL_CONTAINER = {
+  role: 'region',
+  'aria-label': 'Bảng trạng thái nộp bài',
+  tabIndex: 0,
+  className: 'max-h-[22rem] overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1',
+} as const;
+
+/**
+ * The rule under the sticky header, drawn by the cells rather than the row.
+ *
+ * The header row already asks for `border-b` (see TableHeader), but the
+ * primitive's table is `border-collapse: collapse`, where a collapsed
+ * border belongs to the TABLE, not to the row that declared it — so it
+ * stays put while a sticky `<thead>` travels, and the header ends up
+ * looking like it is sitting on top of the first body row with no edge
+ * between them. An inset shadow is painted by the cell itself, so it goes
+ * where the cell goes.
+ *
+ * The collapsed border TableHeader asks for is switched off alongside
+ * (`[&_tr]:border-b-0` on the header below) — leaving both would stack a
+ * 1px border and a 1px shadow into a 2px rule while the header sits at
+ * rest, which then thins to 1px the moment it sticks.
+ */
+const STICKY_HEAD_RULE = 'shadow-[inset_0_-1px_0_hsl(var(--border))]';
+
 function formatTime(iso: string | undefined): string | null {
   if (!iso) {
     return null;
@@ -230,19 +270,29 @@ export function SubmissionStatusTable({
 
   return (
     // The matrix grows one column per required file, so it scrolls inside
-    // its own container rather than pushing the page sideways.
+    // its own container rather than pushing the page sideways — and, since
+    // it grows one ROW per student, that same container caps its height so
+    // a class of forty no longer pushes everything below it off the page.
+    // Exactly one scrollport, deliberately: a second wrapper around this
+    // one would become what the sticky header below resolves against, and
+    // the header would scroll away. See components/ui/table.tsx.
     <>
-      <div className="overflow-x-auto">
-        <Table>
-        <TableHeader>
+      <Table container={SCROLL_CONTAINER}>
+        <TableHeader className="sticky top-0 z-10 [&_tr]:border-b-0">
           <TableRow className="hover:bg-transparent">
-            <TableHead scope="col">Sinh viên</TableHead>
+            <TableHead scope="col" className={STICKY_HEAD_RULE}>
+              Sinh viên
+            </TableHead>
             {deliverables.map((deliverable) => (
-              <TableHead key={deliverable.id} scope="col" className="whitespace-nowrap">
+              <TableHead
+                key={deliverable.id}
+                scope="col"
+                className={cn('whitespace-nowrap', STICKY_HEAD_RULE)}
+              >
                 {deliverable.requiredFilename}
               </TableHead>
             ))}
-            <TableHead scope="col" className="whitespace-nowrap">
+            <TableHead scope="col" className={cn('whitespace-nowrap', STICKY_HEAD_RULE)}>
               Xem bài nộp
             </TableHead>
           </TableRow>
@@ -316,8 +366,7 @@ export function SubmissionStatusTable({
             );
           })}
         </TableBody>
-        </Table>
-      </div>
+      </Table>
 
       <Dialog
         open={selectedStudent !== null}

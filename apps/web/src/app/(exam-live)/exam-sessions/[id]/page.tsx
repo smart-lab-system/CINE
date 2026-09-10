@@ -369,7 +369,10 @@ export default function ExamSessionLobbyPage() {
 
   return (
     <main className="app-wash min-h-screen bg-background px-4 py-8 md:px-8">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+      {/* Wider than the rest of the app on purpose: from `lg` up the two
+          roster panels sit side by side (see below), and 4xl left each of
+          them too narrow to read. */}
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
             <span className="icon-chip mt-0.5 h-10 w-10 bg-gradient-to-br from-primary to-accent text-white shadow-sm">
@@ -452,52 +455,87 @@ export default function ExamSessionLobbyPage() {
               />
             )}
 
-            <AttendancePanel
-              attendance={attendance.data}
-              isLoading={attendance.isLoading}
-              error={attendance.error}
-              canConfirm={canFinalize}
-              confirming={confirmAttendance.isPending}
-              confirmError={confirmAttendance.error}
-              onConfirm={() => confirmAttendance.mutate()}
-              // AttendancePanel loads independently of sessionDetail (its
-              // own isLoading/error come from the attendance query alone)
-              // — an empty fallback here just means lateMinutes() can't
-              // compute yet (Number.isNaN guards it), not a crash, for
-              // however briefly sessionDetail is still loading.
-              startTime={sessionDetail.data?.startTime ?? ''}
-            />
+            {/* Who is in the room, and what has arrived from them — two
+                halves of the same question, so they belong beside each
+                other rather than a screen apart. Stacked below `lg`;
+                `items-start` so the shorter panel keeps its own height
+                instead of stretching to match the taller one. */}
+            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+              {/* Each panel is bounded to the viewport and pinned there,
+                  and the list inside it then takes whatever height is
+                  left over (`flex-1` against these `flex` columns).
 
-            <Card className="overflow-hidden">
-              <CardHeader className="border-b border-border bg-surface-2/60">
-                <CardTitle className="text-h3">Trạng thái nộp bài</CardTitle>
-              </CardHeader>
+                  That indirection is the point: capping the lists against
+                  a constant instead would mean guessing how tall
+                  everything above them is, and that height is not
+                  knowable here — the ended-session alert, the materials
+                  list and AccessRequestPanel all come and go, and
+                  DiscrepancyNotice inside the attendance card names one
+                  student per unaccounted submission, so it has no upper
+                  bound at all. Measuring nothing beats guessing well.
 
-              <p
-                aria-live="polite"
-                className="border-b border-border px-6 py-3 text-body text-muted-foreground"
-              >
-                <strong className="text-h3 text-foreground">
-                  {fullySubmitted}/{rows.length}
-                </strong>{' '}
-                sinh viên đã nộp đủ {deliverables.length} file bắt buộc
-              </p>
+                  `3rem` is the only number, and it describes this rule
+                  rather than the page: the 1.5rem pin offset, plus the
+                  same again so the panel does not sit flush against the
+                  bottom edge. `min-h` keeps a short-but-wide window (a
+                  1024x400 window is a real thing on Windows) from
+                  collapsing the lists to nothing. */}
+              <div className="lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:min-h-[22rem] lg:flex-col">
+              <AttendancePanel
+                attendance={attendance.data}
+                isLoading={attendance.isLoading}
+                error={attendance.error}
+                canConfirm={canFinalize}
+                confirming={confirmAttendance.isPending}
+                confirmError={confirmAttendance.error}
+                onConfirm={() => confirmAttendance.mutate()}
+                // AttendancePanel loads independently of sessionDetail (its
+                // own isLoading/error come from the attendance query alone)
+                // — an empty fallback here just means lateMinutes() can't
+                // compute yet (Number.isNaN guards it), not a crash, for
+                // however briefly sessionDetail is still loading.
+                startTime={sessionDetail.data?.startTime ?? ''}
+              />
+              </div>
 
-              {submissions.isError && (
-                <div className="px-6 py-3">
-                  <Alert variant="warning">
-                    <AlertDescription>
-                      Không tải được danh sách bài đã nộp trước đó. Bảng dưới chỉ hiển thị các
-                      bài nộp phát sinh từ lúc mở trang này.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
+              <div className="lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:min-h-[22rem] lg:flex-col">
+              <Card className="overflow-hidden lg:flex lg:min-h-0 lg:flex-col">
+                <CardHeader className="border-b border-border bg-surface-2/60">
+                  <CardTitle className="text-h3">Trạng thái nộp bài</CardTitle>
+                </CardHeader>
 
-              <CardContent className="p-0">
-                <SubmissionStatusTable deliverables={deliverables} students={rows} />
-              </CardContent>
-            </Card>
+                <p
+                  aria-live="polite"
+                  className="border-b border-border px-6 py-3 text-body text-muted-foreground"
+                >
+                  <strong className="text-h3 text-foreground">
+                    {fullySubmitted}/{rows.length}
+                  </strong>{' '}
+                  sinh viên đã nộp đủ {deliverables.length} file bắt buộc
+                </p>
+
+                {submissions.isError && (
+                  <div className="px-6 py-3">
+                    <Alert variant="warning">
+                      <AlertDescription>
+                        Không tải được danh sách bài đã nộp trước đó. Bảng dưới chỉ hiển thị các
+                        bài nộp phát sinh từ lúc mở trang này.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+
+                {/* `min-h-0` is load-bearing, not decoration: a flex item
+                    defaults to `min-height: auto`, which refuses to shrink
+                    below its content, and the table inside is exactly the
+                    content that would refuse. Without it the card grows
+                    past the viewport and the cap above does nothing. */}
+                <CardContent className="p-0 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+                  <SubmissionStatusTable deliverables={deliverables} students={rows} />
+                </CardContent>
+              </Card>
+              </div>
+            </div>
           </>
         )}
       </div>
