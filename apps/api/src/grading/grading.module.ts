@@ -10,6 +10,9 @@ import { StorageModule } from '../storage/storage.module';
 import { ExamSessionModule } from '../exam-session/exam-session.module';
 import { GradingService } from './grading.service';
 import { RubricService } from './rubric.service';
+import { TeacherReviewService } from './teacher-review.service';
+import { TeacherReviewEntity } from './entities/teacher-review.entity';
+import { AdminModule } from '../admin/admin.module';
 import { GradingController } from './grading.controller';
 import { AI_GRADING_PROVIDER } from './ai-provider/ai-grading-provider';
 import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
@@ -29,17 +32,21 @@ import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
       RubricEntity,
       RubricCriterionEntity,
       GradingResultEntity,
+      TeacherReviewEntity,
       SubmissionEntity,
       RequiredDeliverableEntity,
       ClassEntity,
     ]),
     StorageModule,
     ExamSessionModule,
+    // Sửa điểm sau khi đã công bố phải để lại dấu vết — Security rule 4.
+    AdminModule,
   ],
   controllers: [GradingController],
   providers: [
     GradingService,
     RubricService,
+    TeacherReviewService,
     { provide: AI_GRADING_PROVIDER, useClass: KeywordGradingProvider },
   ],
   exports: [GradingService, RubricService],

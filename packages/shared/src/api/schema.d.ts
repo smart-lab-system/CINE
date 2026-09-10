@@ -607,6 +607,38 @@ export interface paths {
         patch: operations["GradingController_setSessionRubric"];
         trace?: never;
     };
+    "/grading-results/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GradingController_submitReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/finalize-grades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GradingController_finalizeGrades"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/grading-results": {
         parameters: {
             query?: never;
@@ -815,6 +847,15 @@ export interface components {
         };
         SetSessionRubricDto: {
             rubricId: string | null;
+        };
+        ReviewCriterionDto: {
+            criterionId: string;
+            /** @enum {string} */
+            verdict: "met" | "partially_met" | "not_met";
+            points: number;
+        };
+        SubmitReviewDto: {
+            criteria: components["schemas"]["ReviewCriterionDto"][];
         };
         RoomEntity: {
             name: string;
@@ -1910,6 +1951,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    GradingController_submitReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitReviewDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    GradingController_finalizeGrades: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };

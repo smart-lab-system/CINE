@@ -2,11 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  finalizeGrades,
   listGradingResults,
   listRubrics,
   saveRubric,
   setSessionRubric,
   startGrading,
+  submitReview,
+  type ReviewCriterion,
 } from '@/lib/api/grading';
 
 export function useRubrics(courseId: string | undefined) {
@@ -50,6 +53,44 @@ export function useSetSessionRubric(examSessionId: string | undefined) {
     mutationFn: (rubricId: string | null) => setSessionRubric(examSessionId!, rubricId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['submissions', 'overview'] });
+    },
+  });
+}
+
+/**
+ * Một lần duyệt bài. Invalidate danh sách kết quả vì điểm và trạng thái của
+ * bài vừa duyệt đều nằm trong đó.
+ */
+export function useSubmitReview(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      gradingResultId,
+      criteria,
+    }: {
+      gradingResultId: string;
+      criteria: ReviewCriterion[];
+    }) => submitReview(gradingResultId, criteria),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['exam-sessions', examSessionId, 'grading-results'],
+      });
+    },
+  });
+}
+
+/**
+ * Chốt điểm cả phiên — mốc công bố, không phải một lần lưu. Sau đó mọi lần sửa
+ * đều để lại dấu vết trong nhật ký.
+ */
+export function useFinalizeGrades(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => finalizeGrades(examSessionId!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['exam-sessions', examSessionId, 'grading-results'],
+      });
     },
   });
 }
