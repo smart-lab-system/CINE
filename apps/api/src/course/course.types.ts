@@ -46,6 +46,27 @@ export interface TeachingClassView {
   studentCount: number;
 }
 
+/** Một dòng của file import không nhập được, và vì sao. `row` là 0-based. */
+export interface ImportClassRowError {
+  row: number;
+  reason: string;
+}
+
+/**
+ * Kết quả import lớp hàng loạt (CLAUDE.md §7.2.1).
+ *
+ * `errors` không rỗng KHÔNG có nghĩa là cả batch hỏng: các con số phía
+ * trên vẫn là những gì đã thực sự ghi vào DB. Xem
+ * `ClassImportService.importForHead` cho lý do vì sao ở đây một dòng lỗi
+ * không chặn cả file, còn ở import roster thì có.
+ */
+export interface ImportClassResult {
+  coursesCreated: number;
+  classesCreated: number;
+  classesUpdated: number;
+  errors: ImportClassRowError[];
+}
+
 /**
  * A class as a Trưởng khoa sees it: what they created, plus how far it has
  * actually got (CLAUDE.md §7.2.5).

@@ -11,6 +11,7 @@ import {
   deleteCourse,
   deleteRoom,
   deleteSemester,
+  importClasses,
   listDepartmentTeachers,
   listMyClasses,
   listMyCourses,
@@ -151,6 +152,15 @@ export function useUpdateClass() {
 
 export function useDeleteClass() {
   return useInvalidating(DEPARTMENT_KEYS.classes, deleteClass);
+}
+
+/**
+ * Import hàng loạt cũng tạo Course như tác dụng phụ, nên phải invalidate
+ * cả hai danh sách — chỉ refresh lớp sẽ để danh sách môn cũ trên màn hình
+ * cho tới lần tải trang sau.
+ */
+export function useImportClasses() {
+  return useInvalidating(DEPARTMENT_KEYS.classes, importClasses, [DEPARTMENT_KEYS.courses]);
 }
 
 /* ------------------------------------------------------------------ unowned */

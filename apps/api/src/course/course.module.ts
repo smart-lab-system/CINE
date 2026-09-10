@@ -6,6 +6,7 @@ import { EnrollmentEntity } from './entities/enrollment.entity';
 import { CourseService } from './course.service';
 import { SemesterService } from './semester.service';
 import { ClassService } from './class.service';
+import { ClassImportService } from './class-import.service';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { SemesterEntity } from './entities/semester.entity';
 import { EnrollmentService } from './enrollment.service';
@@ -40,6 +41,7 @@ import { AdminModule } from '../admin/admin.module';
     CourseService,
     SemesterService,
     ClassService,
+    ClassImportService,
     EnrollmentService,
     RosterService,
   ],

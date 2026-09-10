@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import type { ClassImportRow } from '@/lib/class-import-file';
 
 /**
  * The academic resources a Trưởng khoa maintains.
@@ -257,4 +258,37 @@ export async function listDepartmentTeachers(): Promise<DepartmentTeacher[]> {
   const { data, error, response } = await apiClient.GET('/classes/teachers');
   await throwIfFailed(error, response);
   return data as unknown as DepartmentTeacher[];
+}
+
+/* ----------------------------------------------------------- class import */
+
+export interface ImportClassRowError {
+  /** 0-based index into the `rows` that were sent. */
+  row: number;
+  reason: string;
+}
+
+export interface ImportClassResult {
+  coursesCreated: number;
+  classesCreated: number;
+  classesUpdated: number;
+  /**
+   * Không rỗng KHÔNG có nghĩa là cả batch hỏng — các con số trên vẫn là
+   * những gì đã thực sự ghi. Một dòng sai email giảng viên không chặn 49
+   * dòng còn lại (CLAUDE.md §7.2.1).
+   */
+  errors: ImportClassRowError[];
+}
+
+/**
+ * File .xlsx đã được parse ở browser (Security rule 5) — đây chỉ gửi JSON.
+ * Học kỳ hỏi đúng một lần cho cả batch, không phải mỗi dòng.
+ */
+export async function importClasses(body: {
+  semesterId: string;
+  rows: ClassImportRow[];
+}): Promise<ImportClassResult> {
+  const { data, error, response } = await apiClient.POST('/classes/import', { body });
+  await throwIfFailed(error, response);
+  return data as unknown as ImportClassResult;
 }

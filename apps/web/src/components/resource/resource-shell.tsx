@@ -46,6 +46,13 @@ interface ResourceShellProps<T> {
    * onto its roster.
    */
   rowActions?: (row: T) => ReactNode;
+  /**
+   * Extra buttons beside the add button, for actions that create rows by a
+   * different route — bulk import, for instance. A slot rather than a
+   * second `onImport` prop, so the shell does not grow a concept per screen
+   * that needs one.
+   */
+  headerActions?: ReactNode;
 }
 
 /**
@@ -75,6 +82,7 @@ export function ResourceShell<T>({
   emptyDescription,
   children,
   rowActions,
+  headerActions,
 }: ResourceShellProps<T>) {
   return (
     <div className="flex flex-col gap-6">
@@ -83,10 +91,13 @@ export function ResourceShell<T>({
           <h1 className="text-h1 text-foreground">{title}</h1>
           <p className="text-body text-muted-foreground">{description}</p>
         </div>
-        <Button onClick={onAdd} className="shrink-0 self-start">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {addLabel}
-        </Button>
+        <div className="flex shrink-0 flex-wrap gap-2 self-start">
+          {headerActions}
+          <Button onClick={onAdd}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {addLabel}
+          </Button>
+        </div>
       </div>
 
       {error && (

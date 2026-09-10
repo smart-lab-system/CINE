@@ -479,6 +479,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/classes/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ClassController_importClasses"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/classes": {
         parameters: {
             query?: never;
@@ -925,6 +941,16 @@ export interface components {
             name?: string;
             startDate?: string;
             endDate?: string;
+        };
+        ImportClassRowDto: {
+            courseCode: string;
+            courseName: string;
+            className: string;
+            teacherEmail: string;
+        };
+        ImportClassesDto: {
+            semesterId: string;
+            rows: components["schemas"]["ImportClassRowDto"][];
         };
         CreateClassDto: {
             courseId: string;
@@ -1760,7 +1786,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClassEntity"][];
+                    "application/json": Record<string, never>[];
                 };
             };
         };
@@ -1801,6 +1827,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    ClassController_importClasses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportClassesDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };

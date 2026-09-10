@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { GraduationCap, Users } from 'lucide-react';
+import { FileUp, GraduationCap, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +26,8 @@ import type { Klass } from '@/lib/api/department';
 import { ResourceShell } from '@/components/resource/resource-shell';
 import { ResourceFormDialog } from '@/components/resource/resource-form-dialog';
 import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog';
+import { useSemesterFilter } from '@/hooks/useSemesterFilter';
+import { ImportClassesDialog } from './_components/import-classes-dialog';
 
 const EMPTY = { courseId: '', name: '', teacherId: '' };
 
@@ -36,6 +38,11 @@ export default function ClassesPage() {
   const create = useCreateClass();
   const update = useUpdateClass();
   const remove = useDeleteClass();
+  // Chỉ dùng làm giá trị khởi tạo cho ô chọn kỳ trong dialog import.
+  // Dialog vẫn hỏi tường minh: import nhầm kỳ là loại lỗi phải dọn tay
+  // từng dòng, nên nó không được suy ngầm từ bất cứ đâu.
+  const semesterFilter = useSemesterFilter('department-classes');
+  const [importOpen, setImportOpen] = useState(false);
 
   const [form, setForm] = useState(EMPTY);
   const [editing, setEditing] = useState<Klass | null>(null);
@@ -66,6 +73,12 @@ export default function ClassesPage() {
       icon={GraduationCap}
       addLabel="Thêm lớp"
       onAdd={openCreate}
+      headerActions={
+        <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
+          <FileUp className="h-4 w-4" aria-hidden="true" />
+          Import Excel
+        </Button>
+      }
       onEdit={openEdit}
       onDelete={setDeleting}
       rowActions={(k) => (
@@ -124,6 +137,12 @@ export default function ClassesPage() {
         },
       ]}
     >
+      <ImportClassesDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        defaultSemesterId={semesterFilter.semesterId}
+      />
+
       {noCourses && (
         <Alert variant="info">
           <AlertDescription>
