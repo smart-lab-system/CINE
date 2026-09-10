@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -16,8 +17,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ExamSessionService } from './exam-session.service';
+import { ExamSessionReassignService } from './exam-session-reassign.service';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
+import { ReassignTeacherDto } from './dto/reassign-teacher.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import { ExamMaterialService } from './exam-material.service';
 import {
@@ -49,6 +52,7 @@ export class ExamSessionController {
     private readonly examSessions: ExamSessionService,
     private readonly materials: ExamMaterialService,
     private readonly lifecycle: SessionLifecycleService,
+    private readonly reassign: ExamSessionReassignService,
   ) {}
 
   @Post()
@@ -72,6 +76,24 @@ export class ExamSessionController {
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: Request) {
     return this.examSessions.findByIdForOwner(id, req.user!.sub);
+  }
+
+  /**
+   * Chuyển chủ phiên thi — `admin` duy nhất (CLAUDE.md §7.2.6). Vá lỗ
+   * hổng ở §5.5: đổi `class.teacher_id` không kéo theo các phiên thi đã
+   * tạo, và trước route này không ai sửa được một phiên đã tạo sai chủ.
+   *
+   * Route ghi ĐẦU TIÊN trên controller này mang `@Roles('admin')` — chủ
+   * cũ cũng không tự chuyển được, vì tự chuyển là lách khỏi audit.
+   */
+  @Patch(':id/teacher')
+  @Roles('admin')
+  reassignTeacher(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReassignTeacherDto,
+    @Req() req: Request,
+  ) {
+    return this.reassign.reassignTeacher(id, dto.teacherId, req.user!.sub);
   }
 
   /**

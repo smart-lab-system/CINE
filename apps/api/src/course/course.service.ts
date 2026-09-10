@@ -1,18 +1,29 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { CourseEntity } from './entities/course.entity';
 import { ClassEntity } from './entities/class.entity';
+import { AccountEntity } from '../identity/entities/account.entity';
+import { AuditLogService } from '../admin/audit-log.service';
 import { CourseView } from './course.types';
 import { CreateCourseDto, UpdateCourseDto } from './dto/course.dto';
 
 @Injectable()
 export class CourseService {
   constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
     @InjectRepository(CourseEntity)
     private readonly courses: Repository<CourseEntity>,
     @InjectRepository(ClassEntity)
     private readonly classes: Repository<ClassEntity>,
+    @InjectRepository(AccountEntity)
+    private readonly accounts: Repository<AccountEntity>,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**
@@ -106,13 +117,68 @@ export class CourseService {
   }
 
   /** Admin-only: hand an unowned (or reassigned) course to a head. */
-  async assignOwner(id: string, departmentHeadId: string): Promise<CourseEntity> {
+  /**
+   * Audit là bắt buộc ở đây, cùng lý do với
+   * `ExamSessionReassignService.reassignTeacher` (CLAUDE.md §5.3 + §7.2.6):
+   * `Course` là tầng Tham chiếu, nhưng đổi chủ của nó đổi luôn ai đọc được
+   * `Class → Enrollment →` (qua `teacher_id`) `ExamSession` của cả khoa.
+   * Phép thử ở §1.1 là "thao tác này có đổi quyền đọc xuống dưới không",
+   * không phải "bảng đang sửa là bảng gì". Escape hatch không có vết là
+   * escape hatch không kiểm soát được.
+   *
+   * Ghi trong CÙNG transaction với lần ghi cột: một dòng audit trên
+   * connection khác là một đường để quyền đọc đổi chủ mà không có tên ai
+   * bên cạnh — cột đã lưu, audit lỗi, không ai biết.
+   */
+  async assignOwner(
+    id: string,
+    departmentHeadId: string,
+    actorId: string,
+  ): Promise<CourseEntity> {
     const course = await this.courses.findOne({ where: { id } });
     if (!course) {
       throw new NotFoundException('Course not found');
     }
-    course.departmentHeadId = departmentHeadId;
-    return this.courses.save(course);
+
+    const head = await this.accounts.findOne({
+      where: { id: departmentHeadId },
+      select: { id: true, role: true, isActive: true },
+    });
+    if (!head || head.role !== 'department_admin') {
+      // `findForHead` lọc theo `department_head_id`; trỏ cột này vào một
+      // giảng viên hay admin tạo ra môn học không màn hình nào quản lý được
+      // — đúng cái trạng thái mồ côi mà route này tồn tại để sửa.
+      throw new BadRequestException('Chỉ gán được môn học cho tài khoản trưởng khoa');
+    }
+    if (!head.isActive) {
+      throw new BadRequestException('Tài khoản trưởng khoa này đã bị vô hiệu hoá');
+    }
+
+    const previousOwnerId = course.departmentHeadId;
+    if (previousOwnerId === departmentHeadId) {
+      throw new BadRequestException('Môn học này đã thuộc trưởng khoa đó');
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      course.departmentHeadId = departmentHeadId;
+      const saved = await manager.getRepository(CourseEntity).save(course);
+
+      await this.auditLog.recordUserAction(
+        {
+          actorId,
+          action: 'course.assign_owner',
+          targetType: 'course',
+          targetId: course.id,
+          // `null` khi trước đó là môn mồ côi — đó là ca thường của route
+          // này, và phải đọc ra được từ sổ chứ không phải suy đoán.
+          oldValue: { departmentHeadId: previousOwnerId },
+          newValue: { departmentHeadId },
+        },
+        manager,
+      );
+
+      return saved;
+    });
   }
 
   /**

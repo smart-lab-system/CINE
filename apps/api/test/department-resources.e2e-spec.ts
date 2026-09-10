@@ -344,6 +344,37 @@ describe('Department resources (e2e)', () => {
         .get('/courses/unowned')
         .set('Authorization', `Bearer ${adminToken}`);
       expect(after.body.map((c: { id: string }) => c.id)).not.toContain(orphan.id);
+
+      // Gán chủ đổi quyền đọc xuống tới bài nộp của cả khoa (CLAUDE.md
+      // §5.3/§1.1), nên phải có vết. `null` ở old_value là ca thường của
+      // route này — môn mồ côi — và phải đọc ra được từ sổ.
+      const [entry] = await dataSource.query(
+        `SELECT action, old_value, new_value
+           FROM examcollect.audit_log
+          WHERE target_type = 'course' AND target_id = $1`,
+        [orphan.id],
+      );
+      expect(entry).toMatchObject({ action: 'course.assign_owner' });
+      expect(entry.old_value).toMatchObject({ departmentHeadId: null });
+      expect(entry.new_value).toMatchObject({ departmentHeadId: headId });
+    });
+
+    it('refuses to point department_head_id at an account that is not a head', async () => {
+      const [orphan] = await dataSource.query(
+        `INSERT INTO examcollect.course (code, name, semester_id)
+         VALUES ($1, 'Môn mồ côi 2', $2) RETURNING id`,
+        [`O2${Date.now()}`.slice(0, 20), semesterId],
+      );
+
+      const response = await request(app.getHttpServer())
+        .patch(`/courses/${orphan.id}/owner`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ departmentHeadId: lecturerId });
+
+      // `findForHead` lọc theo cột này — gán cho một giảng viên tạo ra môn
+      // học không màn hình nào quản lý được, đúng cái trạng thái mồ côi mà
+      // route này tồn tại để sửa.
+      expect(response.status).toBe(400);
     });
 
     it('refuses the orphan list to a head', async () => {

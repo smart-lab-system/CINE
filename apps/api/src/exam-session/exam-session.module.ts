@@ -6,7 +6,9 @@ import { ExamSessionEntity } from './entities/exam-session.entity';
 import { ExamMaterialEntity } from './entities/exam-material.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { ExamSessionService } from './exam-session.service';
+import { ExamSessionReassignService } from './exam-session-reassign.service';
 import { ExamMaterialService } from './exam-material.service';
+import { AccountEntity } from '../identity/entities/account.entity';
 import { ExamSessionController } from './exam-session.controller';
 import { ExamSessionGateway } from './exam-session.gateway';
 import { ExamSessionEvents } from './exam-session.events';
@@ -32,6 +34,11 @@ import { StorageModule } from '../storage/storage.module';
       // GradingModule imports THIS module, and importing it back would be a
       // cycle needing forwardRef.
       RubricEntity,
+      // ExamSessionReassignService kiểm tài khoản đích thật là giảng viên
+      // và còn hoạt động, trước khi giao phiên thi cho họ. Entity chứ
+      // không phải AccountsModule: một `findOne` không đáng để kéo cả
+      // module (và cả AccountsController) vào graph.
+      AccountEntity,
     ]),
     // Registered the same way AuthModule does (JwtModule.register({}) with
     // no default secret) — ExamSessionGateway calls jwt.verifyAsync with an
@@ -53,6 +60,7 @@ import { StorageModule } from '../storage/storage.module';
   controllers: [ExamSessionController],
   providers: [
     ExamSessionService,
+    ExamSessionReassignService,
     ScheduleConflictService,
     SessionLifecycleService,
     ExamMaterialService,
