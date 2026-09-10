@@ -1,9 +1,11 @@
 'use client';
 
-import { Users } from 'lucide-react';
+import Link from 'next/link';
+import { GraduationCap, Users } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/layout/empty-state';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -28,6 +30,11 @@ import { useDepartmentTeachers } from '@/hooks/useDepartment';
  * teaching in their department, not a second place to manage accounts. A
  * teacher only appears here once actually assigned to a class (see
  * /department/classes) — this page has nothing of its own to add.
+ *
+ * Vì thế nó rỗng đúng lúc cần nhất: một khoa vừa lập chưa gán ai, và
+ * câu hỏi thật lúc đó là "phân công ở đâu". Empty state phải trả lời
+ * bằng một nút, không phải bằng một câu mô tả — đúng như `EmptyState`
+ * đã nói về prop `action` của chính nó.
  */
 export default function DepartmentTeachersPage() {
   const teachers = useDepartmentTeachers();
@@ -57,8 +64,16 @@ export default function DepartmentTeachersPage() {
             <EmptyState
               icon={Users}
               title="Chưa có giảng viên nào"
-              description="Gán giảng viên cho một lớp học ở mục Lớp học — họ sẽ xuất hiện ở đây ngay khi được gán."
+              description="Danh sách này suy ra từ việc phân công: một giảng viên xuất hiện ở đây ngay khi bạn gán họ vào một lớp thuộc môn của khoa. Việc gán làm ở mục Lớp học."
               tone="muted"
+              action={
+                <Button asChild>
+                  <Link href="/department/classes">
+                    <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                    Tới Lớp học
+                  </Link>
+                </Button>
+              }
             />
           ) : (
             <div className="overflow-x-auto">
