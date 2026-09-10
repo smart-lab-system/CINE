@@ -22,8 +22,9 @@ export class RoomService {
   /**
    * Rooms are university-wide facilities, not departmental property: two
    * departments book the same lab in different slots, so scoping a room to
-   * one of them would make that impossible. Any Trưởng khoa may maintain
-   * the list; `uq_room_name` keeps the shared namespace honest.
+   * one of them would make that impossible. `admin` maintains the list
+   * (RoomController explains why); `uq_room_name` keeps the shared
+   * namespace honest.
    */
   async create(dto: CreateRoomDto): Promise<RoomEntity> {
     return this.rooms.save(this.rooms.create(dto));

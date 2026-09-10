@@ -36,6 +36,13 @@ export interface NavItem {
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Quản lý tài khoản', href: '/admin/accounts', icon: Users },
+  // Học kỳ và phòng thi là tài nguyên cấp trường: không ai sở hữu, nên
+  // không ownership check nào chặn được một khoa sửa dữ liệu của khoa
+  // khác. Quyền ghi vì thế ở đây, không ở /department (CLAUDE.md §1.4).
+  // Mọi role vẫn ĐỌC được hai danh sách này — bộ lọc học kỳ và form tạo
+  // phiên thi phụ thuộc vào chúng.
+  { label: 'Học kỳ', href: '/admin/semesters', icon: CalendarRange },
+  { label: 'Phòng thi', href: '/admin/rooms', icon: DoorOpen },
   // A course with no owner is invisible to every Trưởng khoa, which makes it
   // unassignable by them too — so admin needs somewhere to see and fix it.
   { label: 'Môn chưa có chủ', href: '/admin/unowned-courses', icon: BookOpen },
@@ -44,15 +51,13 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
 ];
 
-// Trưởng khoa owns the academic structure an exam session is built from.
-// Semesters and rooms are university-wide (every head maintains the same
-// list); courses and classes are scoped to the head who owns the course.
+// Trưởng khoa owns the academic structure an exam session is built from:
+// courses and classes, scoped to the head who owns the course. Học kỳ và
+// phòng thi KHÔNG nằm ở đây — xem ADMIN_NAV.
 export const DEPARTMENT_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/department/dashboard', icon: LayoutDashboard },
-  { label: 'Học kỳ', href: '/department/semesters', icon: CalendarRange },
   { label: 'Môn học', href: '/department/courses', icon: BookOpen },
   { label: 'Lớp học', href: '/department/classes', icon: GraduationCap },
-  { label: 'Phòng thi', href: '/department/rooms', icon: DoorOpen },
   // Read-only — who is currently teaching in this head's department. The
   // account itself stays admin's to manage (see /admin/accounts).
   { label: 'Giảng viên', href: '/department/teachers', icon: Users },

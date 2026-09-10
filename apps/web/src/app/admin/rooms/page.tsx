@@ -11,9 +11,9 @@ import {
   useUpdateRoom,
 } from '@/hooks/useDepartment';
 import type { Room } from '@/lib/api/department';
-import { ResourceShell } from '../_components/resource-shell';
-import { ResourceFormDialog } from '../_components/resource-form-dialog';
-import { ConfirmDeleteDialog } from '../_components/confirm-delete-dialog';
+import { ResourceShell } from '@/components/resource/resource-shell';
+import { ResourceFormDialog } from '@/components/resource/resource-form-dialog';
+import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog';
 
 const EMPTY = { name: '', capacity: '' };
 
@@ -53,7 +53,7 @@ export default function RoomsPage() {
   return (
     <ResourceShell<Room>
       title="Phòng thi"
-      description="Phòng máy dùng chung toàn trường — nhiều khoa xếp lịch thi vào cùng một phòng ở các ca khác nhau, nên phòng không thuộc về khoa nào. Tên phòng không được trùng."
+      description="Phòng máy dùng chung toàn trường — nhiều khoa xếp lịch thi vào cùng một phòng ở các ca khác nhau, nên phòng không thuộc về khoa nào và chỉ quản trị viên khai báo. Tên phòng không được trùng."
       icon={DoorOpen}
       addLabel="Thêm phòng"
       onAdd={openCreate}
