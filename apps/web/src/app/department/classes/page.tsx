@@ -95,6 +95,33 @@ export default function ClassesPage() {
             <span className="text-muted-foreground">{teacherName(k.teacherId)}</span>
           ),
         },
+        // Ba cột đếm read-only (CLAUDE.md §7.2.5). Không có chúng thì tầm
+        // nhìn của Trưởng khoa dừng lại đúng lúc lớp được tạo và giảng
+        // viên được gán. Chỉ con số — nội dung bài nộp/điểm là việc của
+        // chức năng báo cáo GV→TK trong tương lai.
+        {
+          label: 'Sĩ số',
+          tight: true,
+          render: (k) =>
+            k.rosterCount === 0 ? (
+              // Không phải ô trống: lớp chưa có danh sách thì không sinh
+              // viên nào vào được phiên thi, và Trưởng khoa nên thấy điều
+              // đó ở đây chứ không phải vào hôm thi.
+              <span className="text-warning-strong">chưa có</span>
+            ) : (
+              <span className="tabular-nums">{k.rosterCount}</span>
+            ),
+        },
+        {
+          label: 'Phiên thi',
+          tight: true,
+          render: (k) => <span className="tabular-nums">{k.examSessionCount}</span>,
+        },
+        {
+          label: 'Đã chấm',
+          tight: true,
+          render: (k) => <span className="tabular-nums">{k.gradedCount}</span>,
+        },
       ]}
     >
       {noCourses && (

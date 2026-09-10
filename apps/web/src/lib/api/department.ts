@@ -25,11 +25,21 @@ export interface Course {
   departmentHeadId: string | null;
 }
 
+/**
+ * Mirrors `ClassWithCountsView` (apps/api/src/course/course.types.ts).
+ *
+ * Ba cột đếm là CHỈ ĐẾM: điểm, tên file, tên sinh viên đã nộp đều không
+ * thuộc về đây (CLAUDE.md §7.2.5 — đây là lần đầu Trưởng khoa chạm tới
+ * tầng Sở hữu, và ranh giới giữ ở mức con số).
+ */
 export interface Klass {
   id: string;
   courseId: string;
   name: string;
   teacherId: string;
+  rosterCount: number;
+  examSessionCount: number;
+  gradedCount: number;
 }
 
 export interface Room {

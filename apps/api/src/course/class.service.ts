@@ -5,13 +5,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { ClassEntity } from './entities/class.entity';
 import { CourseEntity } from './entities/course.entity';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
 import { CreateClassDto, UpdateClassDto } from './dto/course.dto';
-import { DepartmentTeacherView, TeachingClassView } from './course.types';
+import {
+  ClassWithCountsView,
+  DepartmentTeacherView,
+  TeachingClassView,
+} from './course.types';
 
 /**
  * A class has no scope column of its own: it inherits the department through
@@ -30,8 +34,25 @@ export class ClassService {
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
-  /** Every class under every course this head owns. */
-  async findForHead(headId: string): Promise<ClassEntity[]> {
+  /**
+   * Every class under every course this head owns, kèm 3 cột đếm read-only
+   * (CLAUDE.md §7.2.5): sĩ số roster, số phiên thi, số bài đã chấm.
+   *
+   * Không có ba con số này thì tầm nhìn của Trưởng khoa dừng lại đúng lúc
+   * họ tạo lớp và gán giảng viên — sau đó lớp có ai học, có thi hay không,
+   * chấm được bao nhiêu, họ không biết gì.
+   *
+   * **CHỈ ĐẾM — không bao giờ trả nội dung bài nộp hay điểm.** Đây là lần
+   * đầu `department_admin` chạm tới tầng Sở hữu (§1.1), dù chỉ qua một con
+   * số; ranh giới giữ tường minh bằng cách không `SELECT` bất kỳ cột nào
+   * của `submission`/`grading_result` ngoài `COUNT()`. Nội dung là việc
+   * của chức năng báo cáo GV→TK trong tương lai, không phải của route này.
+   *
+   * `COUNT(DISTINCT)` chứ không phải `COUNT`: ba `LEFT JOIN` song song
+   * trên cùng một hàng lớp nhân bản hàng với nhau, nên một lớp 2 sinh
+   * viên có 3 phiên thi sẽ báo sĩ số 6.
+   */
+  async findForHead(headId: string): Promise<ClassWithCountsView[]> {
     const owned = await this.courses.find({
       where: { departmentHeadId: headId },
       select: { id: true },
@@ -39,11 +60,45 @@ export class ClassService {
     if (owned.length === 0) {
       return [];
     }
-    // One query with an IN, not one per course.
-    return this.classes.find({
-      where: { courseId: In(owned.map((c) => c.id)) },
-      order: { name: 'ASC' },
-    });
+
+    const { entities, raw } = await this.classes
+      .createQueryBuilder('k')
+      .leftJoin('enrollment', 'e', 'e.home_class_id = k.id')
+      .leftJoin('exam_session', 'sess', 'sess.class_id = k.id')
+      // `grading_result` không có cột `exam_session_id` — nó với tới phiên
+      // thi qua `submission`. Viết thành chuỗi `LEFT JOIN` phẳng sẽ nhân
+      // hàng thêm một tầng nữa; subquery tương quan giữ nó ở một tầng.
+      .leftJoin(
+        'grading_result',
+        'g',
+        `g.submission_id IN (
+           SELECT s.id FROM examcollect.submission s
+            WHERE s.exam_session_id = sess.id
+         )
+         AND g.status IN ('auto_approved', 'flagged_for_review',
+                          'teacher_reviewed', 'finalized', 'exported')`,
+      )
+      .addSelect('COUNT(DISTINCT e.id)', 'rosterCount')
+      .addSelect('COUNT(DISTINCT sess.id)', 'examSessionCount')
+      .addSelect('COUNT(DISTINCT g.id)', 'gradedCount')
+      .where('k.courseId IN (:...courseIds)', { courseIds: owned.map((c) => c.id) })
+      .groupBy('k.id')
+      .orderBy('k.name', 'ASC')
+      .getRawAndEntities<{
+        rosterCount: string;
+        examSessionCount: string;
+        gradedCount: string;
+      }>();
+
+    return entities.map((klass, index) => ({
+      id: klass.id,
+      courseId: klass.courseId,
+      name: klass.name,
+      teacherId: klass.teacherId,
+      rosterCount: parseInt(raw[index].rosterCount, 10),
+      examSessionCount: parseInt(raw[index].examSessionCount, 10),
+      gradedCount: parseInt(raw[index].gradedCount, 10),
+    }));
   }
 
   /**

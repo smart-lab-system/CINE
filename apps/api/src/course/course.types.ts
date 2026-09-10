@@ -47,6 +47,29 @@ export interface TeachingClassView {
 }
 
 /**
+ * A class as a Trưởng khoa sees it: what they created, plus how far it has
+ * actually got (CLAUDE.md §7.2.5).
+ *
+ * **Ba con số, không có nội dung nào.** Đây là lần đầu `department_admin`
+ * chạm tới tầng Sở hữu (§1.1) — điểm, tên file, tên sinh viên đã nộp đều
+ * KHÔNG thuộc về đây. Thêm bất cứ trường nào như vậy vào interface này là
+ * đổi ranh giới phân quyền, không phải thêm một cột hiển thị; nội dung là
+ * việc của chức năng báo cáo GV→TK trong tương lai.
+ */
+export interface ClassWithCountsView {
+  id: string;
+  courseId: string;
+  name: string;
+  teacherId: string;
+  /** Sinh viên trong roster của lớp này. */
+  rosterCount: number;
+  /** Phiên thi giảng viên đã mở cho lớp này. */
+  examSessionCount: number;
+  /** Bài đã chấm xong — không tính bài đang chấm hoặc máy vừa chấm xong. */
+  gradedCount: number;
+}
+
+/**
  * A teacher as a Trưởng khoa sees them — QA-reported gap: "ở trưởng khoa,
  * ko có quản lý giảng viên hiện tại có trong khoa". There is no
  * department/khoa table (see the AddDepartmentHeadAndNameUniqueness
