@@ -33,4 +33,17 @@ export class AccountEntity extends BaseEntity {
     enumName: 'account_role',
   })
   role!: AccountRole;
+
+  // Xoá cứng một Account đã dạy một lớp là bất khả, và đúng như vậy: FK
+  // RESTRICT (class.teacher_id, enrollment.home_teacher_id,
+  // exam_session.teacher_id) chặn ở tầng DB, còn audit_log thì bất biến.
+  // Đây là công cụ thật cho nhân sự nghỉ việc: chặn đăng nhập ngay, không
+  // xoá gì, không phá FK nào đang trỏ vào account này.
+  //
+  // Chỉ `login`/`refresh` đọc cột này — access token đã cấp vẫn sống hết
+  // TTL của nó (15 phút). Trần thời gian đó là có chủ ý: kiểm tra
+  // is_active trên MỌI request nghĩa là một query account cho mỗi lời gọi
+  // API, đổi lấy 15 phút mà một tài khoản vừa bị khoá vẫn thao tác được.
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive!: boolean;
 }

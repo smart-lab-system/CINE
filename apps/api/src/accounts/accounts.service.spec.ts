@@ -25,6 +25,7 @@ function createHarness(overrides: Record<string, jest.Mock> = {}) {
     email: 'existing@example.com',
     passwordHash: 'argon2id$fake-existing-hash',
     role: 'teacher',
+    isActive: true,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
   };
@@ -100,5 +101,33 @@ describe('AccountsService', () => {
 
     await expect(service.remove('missing')).rejects.toThrow(NotFoundException);
     expect(repo.delete).not.toHaveBeenCalled();
+  });
+
+  it('deactivate() flips is_active without deleting anything', async () => {
+    const { service, repo } = createHarness();
+
+    await service.deactivate('account-1');
+
+    expect(repo.update).toHaveBeenCalledWith('account-1', { isActive: false });
+    // Cả điểm của tính năng này: KHÔNG xoá. Một `delete` lọt vào đây sẽ
+    // đâm vào FK RESTRICT ngay tài khoản đầu tiên đã dạy một lớp.
+    expect(repo.delete).not.toHaveBeenCalled();
+  });
+
+  it('reactivate() flips it back', async () => {
+    const { service, repo } = createHarness();
+
+    await service.reactivate('account-1');
+
+    expect(repo.update).toHaveBeenCalledWith('account-1', { isActive: true });
+  });
+
+  it('deactivate() throws NotFoundException for a missing account', async () => {
+    const { service, repo } = createHarness({
+      findOne: jest.fn().mockResolvedValue(null),
+    });
+
+    await expect(service.deactivate('missing')).rejects.toThrow(NotFoundException);
+    expect(repo.update).not.toHaveBeenCalled();
   });
 });

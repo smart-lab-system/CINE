@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
@@ -17,6 +18,11 @@ describe('Accounts (e2e)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
+    // `/auth/refresh` reads the token off `req.cookies`, which Express only
+    // populates when cookie-parser is registered — without this the refresh
+    // test below would pass for the wrong reason (401 because the cookie was
+    // never parsed, not because the account was deactivated).
+    app.use(cookieParser());
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     // Mirrors main.ts — without it a Postgres trigger/constraint error
     // surfaces as a bare 500 instead of the mapped 409/400 a real client
@@ -188,5 +194,117 @@ describe('Accounts (e2e)', () => {
       [accountId],
     );
     expect(rows).toHaveLength(1);
+  });
+
+  /**
+   * Vô hiệu hoá thay cho xoá cứng (CLAUDE.md §7.2.8).
+   *
+   * Xoá cứng một tài khoản đã dạy một lớp là bất khả — FK RESTRICT chặn,
+   * và đúng như vậy (test ngay ở trên pin điều đó). Nhưng nhân sự nghỉ
+   * việc là chuyện có thật, nên phải có một đường thật để chặn họ đăng
+   * nhập mà không phá bất kỳ FK nào đang trỏ tới.
+   */
+  describe('deactivation', () => {
+    const PASSWORD = 'correct-horse-battery';
+
+    async function makeTeacher(prefix: string) {
+      const email = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}@example.com`;
+      const id = await createTestAccount(dataSource, { email, password: PASSWORD, role: 'teacher' });
+      return { id, email };
+    }
+
+    function login(email: string) {
+      return request(app.getHttpServer()).post('/auth/login').send({ email, password: PASSWORD });
+    }
+
+    it('blocks login for a deactivated account, and restores it on reactivate', async () => {
+      const teacher = await makeTeacher('deact');
+
+      expect((await login(teacher.email)).status).toBe(200);
+
+      const deactivated = await request(app.getHttpServer())
+        .patch(`/accounts/${teacher.id}/deactivate`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(deactivated.status).toBe(204);
+
+      expect((await login(teacher.email)).status).toBe(401);
+
+      const reactivated = await request(app.getHttpServer())
+        .patch(`/accounts/${teacher.id}/reactivate`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(reactivated.status).toBe(204);
+
+      expect((await login(teacher.email)).status).toBe(200);
+    });
+
+    it('stops a refresh token minted BEFORE the deactivation from issuing new sessions', async () => {
+      const teacher = await makeTeacher('deact_refresh');
+
+      const session = await login(teacher.email);
+      expect(session.status).toBe(200);
+      const refreshToken: string = session.body.refreshToken;
+
+      await request(app.getHttpServer())
+        .patch(`/accounts/${teacher.id}/deactivate`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      // Refresh token sống tới 7 ngày. Nếu chỉ chặn ở `login`, tài khoản
+      // đã vô hiệu hoá vẫn tự cấp access token mới suốt một tuần — vô
+      // hiệu hoá trên giấy, không có thật.
+      const refreshed = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .set('Cookie', [`refresh_token=${refreshToken}`]);
+      expect(refreshed.status).toBe(401);
+    });
+
+    it('does not delete anything — the row and its FK references survive', async () => {
+      const teacher = await makeTeacher('deact_keeps');
+
+      await request(app.getHttpServer())
+        .patch(`/accounts/${teacher.id}/deactivate`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      const rows = await dataSource.query(
+        `SELECT is_active FROM examcollect.account WHERE id = $1`,
+        [teacher.id],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].is_active).toBe(false);
+    });
+
+    it('surfaces isActive in the admin account list', async () => {
+      const teacher = await makeTeacher('deact_view');
+      await request(app.getHttpServer())
+        .patch(`/accounts/${teacher.id}/deactivate`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      const listed = await request(app.getHttpServer())
+        .get(`/accounts?search=${encodeURIComponent(teacher.email)}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(listed.status).toBe(200);
+      const found = listed.body.items.find((a: { id: string }) => a.id === teacher.id);
+      expect(found).toMatchObject({ isActive: false });
+    });
+
+    it('refuses deactivation to a teacher', async () => {
+      const victim = await makeTeacher('deact_victim');
+      const attacker = await makeTeacher('deact_attacker');
+      const attackerToken = (await login(attacker.email)).body.accessToken;
+
+      const response = await request(app.getHttpServer())
+        .patch(`/accounts/${victim.id}/deactivate`)
+        .set('Authorization', `Bearer ${attackerToken}`);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('404s on an account that does not exist', async () => {
+      const response = await request(app.getHttpServer())
+        .patch('/accounts/00000000-0000-0000-0000-000000000000/deactivate')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(response.status).toBe(404);
+    });
   });
 });

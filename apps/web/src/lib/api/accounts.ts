@@ -7,6 +7,8 @@ export interface AccountView {
   name: string;
   email: string;
   role: AccountRoleOption | 'super_admin' | 'department_admin';
+  /** `false` = bị vô hiệu hoá: không đăng nhập được, nhưng dữ liệu còn nguyên. */
+  isActive: boolean;
   createdAt: string;
 }
 
@@ -72,6 +74,25 @@ export async function updateAccount(id: string, body: UpdateAccountInput): Promi
 
 export async function deleteAccount(id: string): Promise<void> {
   const { error, response } = await apiClient.DELETE('/accounts/{id}', {
+    params: { path: { id } },
+  });
+  await throwIfFailed(error, response);
+}
+
+/**
+ * Vô hiệu hoá thay cho xoá: `deleteAccount` sẽ trả 409 với bất kỳ tài
+ * khoản nào đã dạy một lớp (FK RESTRICT), nên đây mới là đường dùng được
+ * cho nhân sự nghỉ việc. Xem CLAUDE.md §7.2.8.
+ */
+export async function deactivateAccount(id: string): Promise<void> {
+  const { error, response } = await apiClient.PATCH('/accounts/{id}/deactivate', {
+    params: { path: { id } },
+  });
+  await throwIfFailed(error, response);
+}
+
+export async function reactivateAccount(id: string): Promise<void> {
+  const { error, response } = await apiClient.PATCH('/accounts/{id}/reactivate', {
     params: { path: { id } },
   });
   await throwIfFailed(error, response);

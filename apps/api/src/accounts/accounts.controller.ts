@@ -53,6 +53,26 @@ export class AccountsController {
     return this.accounts.update(id, dto);
   }
 
+  /**
+   * Vô hiệu hoá / mở lại tài khoản — đường thật cho nhân sự nghỉ việc,
+   * vì `DELETE` bị FK RESTRICT chặn ngay khi tài khoản đã dạy gì đó
+   * (CLAUDE.md §7.2.8).
+   *
+   * `:id/deactivate` là literal segment nên không tranh chấp với `:id`
+   * ở trên; thứ tự khai báo ở đây không phải là điều kiện đúng/sai.
+   */
+  @Patch(':id/deactivate')
+  @HttpCode(204)
+  async deactivate(@Param('id') id: string) {
+    await this.accounts.deactivate(id);
+  }
+
+  @Patch(':id/reactivate')
+  @HttpCode(204)
+  async reactivate(@Param('id') id: string) {
+    await this.accounts.reactivate(id);
+  }
+
   @Delete(':id')
   @HttpCode(204)
   async remove(@Param('id') id: string) {

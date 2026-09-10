@@ -111,6 +111,38 @@ export interface paths {
         patch: operations["AccountsController_update"];
         trace?: never;
     };
+    "/accounts/{id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["AccountsController_deactivate"];
+        trace?: never;
+    };
+    "/accounts/{id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["AccountsController_reactivate"];
+        trace?: never;
+    };
     "/exam-sessions": {
         parameters: {
             query?: never;
@@ -757,6 +789,7 @@ export interface components {
             email: string;
             passwordHash: string;
             role: Record<string, never>;
+            isActive: boolean;
             id: string;
             /** Format: date-time */
             createdAt: string;
@@ -1056,6 +1089,44 @@ export interface operations {
                 content: {
                     "application/json": Record<string, never>;
                 };
+            };
+        };
+    };
+    AccountsController_deactivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountsController_reactivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

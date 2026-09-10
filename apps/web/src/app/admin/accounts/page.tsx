@@ -2,14 +2,20 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, UserCheck, UserX, Users } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
   createColumnHelper,
   flexRender,
 } from '@tanstack/react-table';
-import { useAccounts, useCreateAccount, useUpdateAccount, useDeleteAccount } from '@/hooks/useAccounts';
+import {
+  useAccounts,
+  useCreateAccount,
+  useUpdateAccount,
+  useDeleteAccount,
+  useToggleAccountActive,
+} from '@/hooks/useAccounts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import type { AccountView } from '@/lib/api/accounts';
 import {
@@ -60,10 +66,10 @@ function formatDate(iso: string): string {
  * (CLAUDE.md's API-call-layering rule — the previous version of this page
  * called `apiClient` directly).
  *
- * No "Trạng thái" column: `account` has no status/soft-delete column in
- * this schema (a deliberate earlier design decision — see
- * apps/api/src/identity/entities/account.entity.ts) — there's nothing to
- * show.
+ * Cột "Trạng thái" đọc `account.is_active` (CLAUDE.md §7.2.8). Vô hiệu
+ * hoá là đường dùng được cho nhân sự nghỉ việc; "Xóa" vẫn còn nhưng chỉ
+ * thành công với tài khoản chưa từng dạy gì — FK RESTRICT chặn phần còn
+ * lại, và đúng như vậy.
  */
 export default function AccountsPage() {
   const [search, setSearch] = useState('');
@@ -88,6 +94,7 @@ export default function AccountsPage() {
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
   const deleteAccount = useDeleteAccount();
+  const toggleActive = useToggleAccountActive();
 
   function handleSearchChange(value: string) {
     setSearch(value);
@@ -137,6 +144,21 @@ export default function AccountsPage() {
     });
   }
 
+  function handleToggleActive(account: AccountView) {
+    toggleActive.mutate(
+      { id: account.id, isActive: account.isActive },
+      {
+        onSuccess: () =>
+          toast.success(
+            account.isActive
+              ? `Đã vô hiệu hoá ${account.name} — không đăng nhập được nữa, dữ liệu giữ nguyên.`
+              : `Đã mở lại quyền đăng nhập cho ${account.name}.`,
+          ),
+        onError: () => toast.error('Không đổi được trạng thái tài khoản.'),
+      },
+    );
+  }
+
   const columns = [
     columnHelper.accessor('name', {
       header: 'Họ tên',
@@ -158,6 +180,15 @@ export default function AccountsPage() {
           </Badge>
         );
       },
+    }),
+    columnHelper.accessor('isActive', {
+      header: 'Trạng thái',
+      cell: ({ getValue }) =>
+        getValue() ? (
+          <Badge variant="success">Hoạt động</Badge>
+        ) : (
+          <Badge variant="default">Đã vô hiệu hoá</Badge>
+        ),
     }),
     columnHelper.accessor('createdAt', {
       header: 'Ngày tạo',
@@ -182,6 +213,28 @@ export default function AccountsPage() {
             title="Sửa tài khoản"
           >
             <Pencil className="h-4 w-4" aria-hidden="true" />
+          </Button>
+          {/* Trước nút Xóa: với hầu hết tài khoản đã đi vào việc, đây là
+              thao tác DUY NHẤT thực sự chạy được — Xóa sẽ trả 409 vì FK
+              RESTRICT. Đặt cái dùng được lên trước cái gần như luôn hỏng. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => handleToggleActive(row.original)}
+            disabled={toggleActive.isPending}
+            aria-label={
+              row.original.isActive
+                ? `Vô hiệu hoá tài khoản ${row.original.name}`
+                : `Mở lại tài khoản ${row.original.name}`
+            }
+            title={row.original.isActive ? 'Vô hiệu hoá tài khoản' : 'Mở lại tài khoản'}
+          >
+            {row.original.isActive ? (
+              <UserX className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <UserCheck className="h-4 w-4" aria-hidden="true" />
+            )}
           </Button>
           <Button
             type="button"
@@ -412,8 +465,12 @@ export default function AccountsPage() {
             <DialogTitle>Xóa tài khoản?</DialogTitle>
             <DialogDescription>
               <strong className="font-semibold text-foreground">{deletingAccount?.name}</strong> (
-              {deletingAccount?.email}) sẽ mất quyền truy cập ExamCollect ngay lập tức. Không thể
-              hoàn tác.
+              {deletingAccount?.email}) sẽ bị xoá hẳn khỏi hệ thống. Không thể hoàn tác.
+              <br />
+              <br />
+              Nếu tài khoản này đã dạy lớp hoặc mở phiên thi, thao tác xoá sẽ bị từ chối để không
+              làm mất dữ liệu đó — hãy dùng <strong className="font-semibold">vô hiệu hoá</strong>{' '}
+              để chặn đăng nhập mà vẫn giữ nguyên lịch sử.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

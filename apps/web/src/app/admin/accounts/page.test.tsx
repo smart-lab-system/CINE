@@ -11,12 +11,14 @@ const useAccountsMock = vi.fn();
 const createMutate = vi.fn();
 const updateMutate = vi.fn();
 const deleteMutate = vi.fn();
+const toggleActiveMutate = vi.fn();
 
 vi.mock('@/hooks/useAccounts', () => ({
   useAccounts: (...args: unknown[]) => useAccountsMock(...args),
   useCreateAccount: () => ({ mutate: createMutate, isPending: false }),
   useUpdateAccount: () => ({ mutate: updateMutate, isPending: false }),
   useDeleteAccount: () => ({ mutate: deleteMutate, isPending: false }),
+  useToggleAccountActive: () => ({ mutate: toggleActiveMutate, isPending: false }),
 }));
 
 beforeEach(() => {
@@ -24,6 +26,7 @@ beforeEach(() => {
   createMutate.mockReset();
   updateMutate.mockReset();
   deleteMutate.mockReset();
+  toggleActiveMutate.mockReset();
 });
 
 describe('AccountsPage fetch states', () => {
@@ -80,6 +83,7 @@ describe('AccountsPage fetch states', () => {
             name: 'Nguyễn Văn A',
             email: 'nguyenvana@example.com',
             role: 'teacher',
+            isActive: true,
             createdAt: '2026-01-15T00:00:00.000Z',
           },
         ],
@@ -95,6 +99,58 @@ describe('AccountsPage fetch states', () => {
     expect(screen.getByText('nguyenvana@example.com')).toBeInTheDocument();
     expect(screen.getByText('Giảng viên')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  /**
+   * Vô hiệu hoá là đường DUY NHẤT dùng được với tài khoản đã đi vào việc
+   * (Xóa bị FK RESTRICT chặn — xem accounts.e2e-spec.ts). Nên nút này phải
+   * gửi đúng chiều: `isActive` truyền lên là trạng thái HIỆN TẠI, hook tự
+   * suy ra gọi deactivate hay reactivate.
+   */
+  it('sends the current isActive so the hook can pick the right direction', () => {
+    useAccountsMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 'a1',
+            name: 'Đang hoạt động',
+            email: 'active@example.com',
+            role: 'teacher',
+            isActive: true,
+            createdAt: '2026-01-15T00:00:00.000Z',
+          },
+          {
+            id: 'a2',
+            name: 'Đã khoá',
+            email: 'inactive@example.com',
+            role: 'teacher',
+            isActive: false,
+            createdAt: '2026-01-15T00:00:00.000Z',
+          },
+        ],
+        total: 2,
+      },
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+
+    render(<AccountsPage />);
+
+    expect(screen.getByText('Hoạt động')).toBeInTheDocument();
+    expect(screen.getByText('Đã vô hiệu hoá')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /vô hiệu hoá tài khoản Đang hoạt động/i }));
+    expect(toggleActiveMutate).toHaveBeenCalledWith(
+      { id: 'a1', isActive: true },
+      expect.anything(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /mở lại tài khoản Đã khoá/i }));
+    expect(toggleActiveMutate).toHaveBeenLastCalledWith(
+      { id: 'a2', isActive: false },
+      expect.anything(),
+    );
   });
 
   it('opens the create dialog, submits, and shows a success toast on create', async () => {

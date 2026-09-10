@@ -12,6 +12,7 @@ export interface AccountView {
   name: string;
   email: string;
   role: AccountRole;
+  isActive: boolean;
   createdAt: Date;
 }
 
@@ -105,6 +106,27 @@ export class AccountsService {
     await this.accounts.delete(id);
   }
 
+  /**
+   * Đường thật cho nhân sự nghỉ việc, thay cho `remove()` — cái sẽ bị FK
+   * RESTRICT chặn ngay khi tài khoản đã dạy bất cứ thứ gì (CLAUDE.md
+   * §7.2.8). Không xoá gì, không đụng FK nào; chỉ chặn đăng nhập và
+   * refresh (xem `AuthService`).
+   *
+   * Không audit: đây là tầng Tham chiếu, và cột `is_active` cùng
+   * `updated_at` đã tự nói ra trạng thái hiện tại. Audit dành cho thao
+   * tác đổi AI ĐỌC ĐƯỢC GÌ (§7.2.6) — khoá đăng nhập không mở rộng quyền
+   * đọc của bất kỳ ai.
+   */
+  async deactivate(id: string): Promise<void> {
+    await this.findOrThrow(id);
+    await this.accounts.update(id, { isActive: false });
+  }
+
+  async reactivate(id: string): Promise<void> {
+    await this.findOrThrow(id);
+    await this.accounts.update(id, { isActive: true });
+  }
+
   private async findOrThrow(id: string): Promise<AccountEntity> {
     const account = await this.accounts.findOne({ where: { id } });
     if (!account) {
@@ -119,6 +141,7 @@ export class AccountsService {
       name: account.name,
       email: account.email,
       role: account.role,
+      isActive: account.isActive,
       createdAt: account.createdAt,
     };
   }
