@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within, waitFor } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest';
 import { SubmissionStatusTable } from './SubmissionStatusTable';
 import type { DeliverableColumn, SubmissionRowStudent } from '@/lib/submission-rows';
+import { scrollportsAbove } from '@/test-utils/scrollports';
 
 // QA-reported gap (point 2): "chưa có cột định dạng file nộp" — the teacher
 // had no way to see what format a submitted file is without opening it.
@@ -365,5 +366,79 @@ describe('SubmissionStatusTable — gradingByMssv', () => {
       />,
     );
     expect(screen.getByText('Điểm AI: —')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Bố cục: bảng này từng nằm trong HAI div `overflow-x-auto` lồng nhau —
+ * một do component tự bọc, một do primitive `Table` luôn bọc. Hai
+ * scrollport lồng nhau không chỉ dư: cái trong cùng là cái mà `sticky`
+ * của `<thead>` giải theo, và nó cao tự do, nên header không bao giờ
+ * dính. Xem `components/ui/table.test.tsx` cho quy tắc CSS đứng sau.
+ *
+ * jsdom không tính layout, nên "dính thật" không kiểm được ở đây; cái
+ * kiểm được là hai điều kiện khiến nó dính hay không: chỉ MỘT scrollport,
+ * và trần chiều cao nằm đúng trên scrollport đó.
+ */
+describe('SubmissionStatusTable — vùng cuộn', () => {
+  const cols: DeliverableColumn[] = [
+    { id: 'd1', requiredFilename: 'bai1.c' },
+    { id: 'd2', requiredFilename: 'bai2.c' },
+  ];
+
+  const rows: SubmissionRowStudent[] = [
+    {
+      studentMssv: '2111001',
+      fullName: 'Nguyễn Văn A',
+      byDeliverable: { d1: { state: 'collected' }, d2: { state: 'collected' } },
+    },
+    { studentMssv: '2111002', fullName: 'Trần Thị B', byDeliverable: { d1: { state: 'collected' } } },
+  ];
+
+  it('bọc bảng trong đúng MỘT scrollport, không phải hai div lồng nhau', () => {
+    render(<SubmissionStatusTable deliverables={cols} students={rows} />);
+
+    // Nếu con số này thành 2, header dính sẽ hỏng — đây chính là hồi quy
+    // mà test này canh.
+    expect(scrollportsAbove(screen.getByRole('table'))).toHaveLength(1);
+  });
+
+  it('đặt trần chiều cao trên chính scrollport đó, và cho focus bằng bàn phím', () => {
+    render(<SubmissionStatusTable deliverables={cols} students={rows} />);
+
+    const [scrollport] = scrollportsAbove(screen.getByRole('table'));
+    expect(scrollport.className).toContain('overflow-y-auto');
+    expect(scrollport.className).toMatch(/max-h-\[/);
+    expect(scrollport).toHaveAttribute('tabindex', '0');
+    expect(scrollport).toHaveAccessibleName();
+  });
+
+  it('ghim header bảng, kèm đường kẻ dưới không do border-collapse vẽ', () => {
+    render(<SubmissionStatusTable deliverables={cols} students={rows} />);
+
+    const head = screen.getByRole('table').querySelector('thead') as HTMLElement;
+    expect(head.className).toContain('sticky');
+    expect(head.className).toContain('top-0');
+
+    // Opaque, and this is worth pinning: the house style for header bands
+    // on this very page is `bg-surface-2/60` (see the two CardHeaders and
+    // ExamMaterialsCard). A stuck header at 60% opacity shows the rows
+    // sliding through it, and nothing else would fail if it happened.
+    expect(head.className).toMatch(/\bbg-surface-2\b/);
+    expect(head.className).not.toMatch(/bg-surface-2\//);
+
+    // `border-collapse: collapse` (mặc định của primitive Table) không vẽ
+    // border của hàng dính khi cuộn — border thuộc về table, không thuộc
+    // về `<tr>`. Nên đường kẻ dưới header phải đến từ shadow trên `<th>`,
+    // nếu không header dính sẽ trông như đè lên dòng đầu tiên.
+    const th = head.querySelector('th') as HTMLElement;
+    expect(th.className).toMatch(/shadow-\[inset/);
+  });
+
+  it('không dựng vùng cuộn khi chưa có dòng nào để cuộn', () => {
+    render(<SubmissionStatusTable deliverables={cols} students={[]} />);
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByText('Chưa có bài nộp nào')).toBeInTheDocument();
   });
 });

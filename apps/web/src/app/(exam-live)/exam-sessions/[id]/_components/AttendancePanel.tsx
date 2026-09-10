@@ -107,7 +107,7 @@ export function AttendancePanel({
   const noClass = attendance.classId === null;
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden lg:flex lg:min-h-0 lg:flex-col">
       <CardHeader className="flex-row flex-wrap items-center justify-between gap-4 border-b border-border bg-surface-2/60">
         <CardTitle className="text-h3">
           Điểm danh
@@ -141,7 +141,11 @@ export function AttendancePanel({
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-6 p-6">
+      {/* Two regions, on purpose. Everything the invigilator has to keep
+          glancing at — the counters, and any warning about the room — is
+          above the scrollport and never moves. Only the three name lists
+          scroll, because they are the part that grows with the class. */}
+      <CardContent className="flex flex-col gap-4 p-6">
         {confirmError && (
           <Alert variant="destructive">
             <AlertDescription>{confirmError.message}</AlertDescription>
@@ -177,7 +181,27 @@ export function AttendancePanel({
             </Badge>
           )}
         </p>
+      </CardContent>
 
+      {/* `22rem` while the two lobby panels are stacked on a narrow
+          screen, where there is no height to divide up anyway. Side by
+          side from `lg`, the page bounds this card to the viewport and
+          this region takes whatever is left (`flex-1`).
+
+          That is deliberately not a constant. Everything above it inside
+          this card varies — the noClass notice, a confirm error, and
+          DiscrepancyNotice, which names one student per unaccounted
+          submission and so has no upper bound — so any number here would
+          be wrong exactly when the panel matters most.
+
+          Focusable and named because a box that scrolls is unusable
+          without a mouse otherwise (WCAG 2.1.1). */}
+      <div
+        role="region"
+        aria-label="Danh sách điểm danh theo nhóm"
+        tabIndex={0}
+        className="flex max-h-[22rem] flex-col overflow-y-auto border-t border-border px-6 lg:max-h-none lg:min-h-0 lg:flex-1"
+      >
         <Group
           title="Có mặt"
           description="Sinh viên của lớp này đang kết nối."
@@ -204,7 +228,7 @@ export function AttendancePanel({
             startTime={startTime}
           />
         )}
-      </CardContent>
+      </div>
     </Card>
   );
 }
@@ -269,8 +293,19 @@ function Group({
   startTime: string;
 }) {
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex flex-col gap-0.5">
+    <section className="flex flex-col gap-2 pb-6">
+      {/* Sticky, and it works here for the same reason it needs help
+          inside a table: this heading is a plain child of the scrollport
+          above, not buried under the table's own `overflow-x` wrapper, so
+          `top-0` resolves against the box that actually scrolls. Opaque
+          `bg-card` — a translucent band would show the names sliding
+          underneath it.
+
+          The band's own top padding travels with it, so it is charged
+          against the visible list for as long as it is stuck: `pt-6`
+          would eat two rows out of the 22rem stacked layout, hence the
+          smaller value until there is room to spare. */}
+      <div className="sticky top-0 z-10 flex flex-col gap-0.5 bg-card pb-2 pt-3 lg:pt-6">
         <h3 className="text-body font-semibold text-foreground">
           {title}{' '}
           <span className="tabular-nums text-muted-foreground">({students.length})</span>
@@ -283,8 +318,19 @@ function Group({
           {empty}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border">
-          <Table>
+        /* One wrapper, not two: the Table primitive already provides the
+           horizontal scroller, so the frame goes on that same element
+           rather than a second div around it.
+
+           No height cap here, on purpose — the region above owns the
+           scrolling for all three groups at once. The cost is that these
+           column headers cannot be sticky (this wrapper is a scrollport
+           that never scrolls, so a sticky `<thead>` would have nothing to
+           stick against — see components/ui/table.tsx); the sticky group
+           heading above is what tells you where you are instead. Capping
+           this wrapper to buy sticky columns would break that heading, so
+           it is one or the other, not both. */
+        <Table container={{ className: 'rounded-md border border-border' }}>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead scope="col">Họ tên</TableHead>
@@ -311,8 +357,7 @@ function Group({
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
-        </div>
+        </Table>
       )}
     </section>
   );
