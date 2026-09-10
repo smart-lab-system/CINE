@@ -101,13 +101,25 @@ export class ClassService {
    * A `studentCount` of 0 is meaningful rather than empty: it says nobody
    * has imported a roster for that class yet, which the form surfaces.
    */
-  async findForTeacher(teacherId: string): Promise<TeachingClassView[]> {
-    const { entities, raw } = await this.classes
+  async findForTeacher(
+    teacherId: string,
+    semesterId?: string,
+  ): Promise<TeachingClassView[]> {
+    const qb = this.classes
       .createQueryBuilder('k')
       .innerJoinAndSelect('k.course', 'course')
       .leftJoin('enrollment', 'e', 'e.home_class_id = k.id')
       .addSelect('COUNT(e.id)', 'studentCount')
-      .where('k.teacherId = :teacherId', { teacherId })
+      .where('k.teacherId = :teacherId', { teacherId });
+
+    // AND vào owner-scope, không thay thế nó: bộ lọc kỳ chỉ HẸP tầm nhìn
+    // của giảng viên trong phạm vi họ vốn đã được phép thấy. Một `orWhere`
+    // ở đây sẽ mở lớp của người khác ra.
+    if (semesterId) {
+      qb.andWhere('course.semesterId = :semesterId', { semesterId });
+    }
+
+    const { entities, raw } = await qb
       .groupBy('k.id')
       .addGroupBy('course.id')
       .orderBy('course.code', 'ASC')

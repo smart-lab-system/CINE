@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { Roles } from '../auth/roles.decorator';
 import { ClassService } from './class.service';
 import { RosterService } from './roster.service';
 import { CreateClassDto, UpdateClassDto } from './dto/course.dto';
+import { SemesterScopeDto } from './dto/semester-scope.dto';
 import { ImportRosterDto, RosterStudentDto } from './dto/roster.dto';
 
 /**
@@ -58,11 +60,16 @@ export class ClassController {
    * The lecturer's own classes, with course and roster size — the list the
    * create-session form is built from. A class the caller does not teach
    * appearing here would put it one click away from an exam.
+   *
+   * `semesterId` là tuỳ chọn và chỉ HẸP thêm phạm vi đã bị owner-scope
+   * chặn (`AND`, không phải `OR`): vắng nó nghĩa là tất cả học kỳ, không
+   * phải lỗi. Học kỳ ở đây là tham số lọc, không phải điều kiện thao tác
+   * (CLAUDE.md §1.2).
    */
   @Get('teaching')
   @Roles('teacher')
-  findTeaching(@Req() req: Request) {
-    return this.classes.findForTeacher(req.user!.sub);
+  findTeaching(@Query() query: SemesterScopeDto, @Req() req: Request) {
+    return this.classes.findForTeacher(req.user!.sub, query.semesterId);
   }
 
   @Post()

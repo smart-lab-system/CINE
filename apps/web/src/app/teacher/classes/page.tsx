@@ -17,6 +17,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTeachingClasses } from '@/hooks/useTeaching';
+import { useSemesterFilter } from '@/hooks/useSemesterFilter';
+import { SemesterFilter } from '@/components/layout/semester-filter';
 
 /**
  * The lecturer's classes, and the way in to each one's roster.
@@ -24,15 +26,32 @@ import { useTeachingClasses } from '@/hooks/useTeaching';
  * Read-only about the class itself — a lecturer does not create classes or
  * reassign themselves; a Trưởng khoa does that. What is theirs is the list
  * of who is in it.
+ *
+ * Lọc theo học kỳ, mặc định là kỳ hợp lý nhất hôm nay (tính từ ngày, xem
+ * `useSemesterFilter`). Một giảng viên dạy nhiều kỳ liên tiếp sẽ tích tụ
+ * lớp mãi mãi, nên danh sách không lọc là danh sách không đọc được sau
+ * năm thứ hai — nhưng "Tất cả học kỳ" vẫn luôn nằm trong dropdown, vì lớp
+ * kỳ cũ vẫn mở được phiên thi lại/thi bù (CLAUDE.md §1.2).
  */
 export default function TeacherClassesPage() {
-  const classes = useTeachingClasses();
+  const semesterFilter = useSemesterFilter('teacher-classes');
+  const classes = useTeachingClasses(semesterFilter.semesterId);
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Lớp của tôi"
         description="Các lớp bạn được phân công. Mỗi lớp có một danh sách sinh viên — đó là thứ quyết định ai vào được phiên thi."
+        actions={
+          <SemesterFilter
+            value={semesterFilter.semesterId}
+            onChange={semesterFilter.setSemesterId}
+            semesters={semesterFilter.semesters}
+            current={semesterFilter.current}
+            isStale={semesterFilter.isStale}
+            staleDays={semesterFilter.staleDays}
+          />
+        }
       />
 
       <Card className="overflow-hidden">
@@ -49,12 +68,33 @@ export default function TeacherClassesPage() {
               </Alert>
             </div>
           ) : (classes.data?.length ?? 0) === 0 ? (
-            <EmptyState
-              icon={GraduationCap}
-              title="Bạn chưa được giao lớp nào"
-              description="Trưởng khoa là người tạo lớp và phân công giảng viên. Chưa có lớp thì chưa tạo được phiên thi."
-              tone="muted"
-            />
+            /* Hai câu chuyện khác nhau, không được nói chung một câu:
+               "chưa ai giao lớp cho bạn" là việc của Trưởng khoa, còn
+               "kỳ này bạn không dạy" thì chỉ cần đổi bộ lọc. */
+            semesterFilter.semesterId !== null ? (
+              <EmptyState
+                icon={GraduationCap}
+                title="Không có lớp nào trong học kỳ này"
+                description="Bạn có thể chọn học kỳ khác, hoặc “Tất cả học kỳ” để xem toàn bộ lớp đã từng được phân công."
+                tone="muted"
+                action={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => semesterFilter.setSemesterId(null)}
+                  >
+                    Xem tất cả học kỳ
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={GraduationCap}
+                title="Bạn chưa được giao lớp nào"
+                description="Trưởng khoa là người tạo lớp và phân công giảng viên. Chưa có lớp thì chưa tạo được phiên thi."
+                tone="muted"
+              />
+            )
           ) : (
             <div className="overflow-x-auto">
               <Table>

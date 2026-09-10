@@ -175,6 +175,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/teacher": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["ExamSessionController_reassignTeacher"];
+        trace?: never;
+    };
     "/exam-sessions/{id}/attendance": {
         parameters: {
             query?: never;
@@ -774,15 +790,8 @@ export interface components {
             rubricVersion: number | null;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
         };
-        RequestMaterialUploadDto: {
-            fileName: string;
-            fileSize: number;
-        };
-        CreateExamMaterialDto: {
-            fileName: string;
-            fileSize: number;
-            examMaterialId: string;
-            storageKey: string;
+        ReassignTeacherDto: {
+            teacherId: string;
         };
         AccountEntity: {
             name: string;
@@ -819,6 +828,81 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        ClassEntity: {
+            courseId: string;
+            course: components["schemas"]["CourseEntity"];
+            name: string;
+            teacherId: string;
+            teacher: components["schemas"]["AccountEntity"];
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RoomEntity: {
+            name: string;
+            capacity: number | null;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RubricEntity: {
+            courseId: string;
+            course: components["schemas"]["CourseEntity"];
+            version: number;
+            isActive: boolean;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ExamSessionEntity: {
+            name: string;
+            code: string;
+            courseId: string;
+            course: components["schemas"]["CourseEntity"];
+            classId: string | null;
+            class: components["schemas"]["ClassEntity"] | null;
+            roomId: string;
+            room: components["schemas"]["RoomEntity"];
+            examType: Record<string, never>;
+            teacherId: string;
+            teacher: components["schemas"]["AccountEntity"];
+            /** Format: date-time */
+            startTime: string;
+            /** Format: date-time */
+            endTime: string;
+            submissionRule: Record<string, never>;
+            status: Record<string, never>;
+            /** Format: date-time */
+            attendanceConfirmedAt: string | null;
+            attendanceConfirmedCount: number | null;
+            /** Format: date-time */
+            archivedAt: string | null;
+            /** Format: date-time */
+            attentionClosedAt: string | null;
+            rubricId: string | null;
+            rubric: components["schemas"]["RubricEntity"] | null;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RequestMaterialUploadDto: {
+            fileName: string;
+            fileSize: number;
+        };
+        CreateExamMaterialDto: {
+            fileName: string;
+            fileSize: number;
+            examMaterialId: string;
+            storageKey: string;
+        };
         CreateCourseDto: {
             code: string;
             name: string;
@@ -841,18 +925,6 @@ export interface components {
             name?: string;
             startDate?: string;
             endDate?: string;
-        };
-        ClassEntity: {
-            courseId: string;
-            course: components["schemas"]["CourseEntity"];
-            name: string;
-            teacherId: string;
-            teacher: components["schemas"]["AccountEntity"];
-            id: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
         };
         CreateClassDto: {
             courseId: string;
@@ -889,15 +961,6 @@ export interface components {
         };
         SubmitReviewDto: {
             criteria: components["schemas"]["ReviewCriterionDto"][];
-        };
-        RoomEntity: {
-            name: string;
-            capacity: number | null;
-            id: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
         };
         CreateRoomDto: {
             name: string;
@@ -1193,6 +1256,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_reassignTeacher: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReassignTeacherDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionEntity"];
                 };
             };
         };
@@ -1698,7 +1786,9 @@ export interface operations {
     };
     ClassController_findTeaching: {
         parameters: {
-            query?: never;
+            query?: {
+                semesterId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
