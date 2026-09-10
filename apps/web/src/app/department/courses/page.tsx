@@ -19,6 +19,7 @@ import {
   useSemesters,
   useUpdateCourse,
 } from '@/hooks/useDepartment';
+import { useCurrentSemester } from '@/hooks/useSemesterFilter';
 import type { Course } from '@/lib/api/department';
 import { ResourceShell } from '@/components/resource/resource-shell';
 import { ResourceFormDialog } from '@/components/resource/resource-form-dialog';
@@ -26,9 +27,21 @@ import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog
 
 const EMPTY = { code: '', name: '', semesterId: '' };
 
+function formatRange(startDate: string, endDate: string): string {
+  const fmt = (iso: string) => {
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString('vi-VN');
+  };
+  return `${fmt(startDate)} – ${fmt(endDate)}`;
+}
+
 export default function CoursesPage() {
   const courses = useMyCourses();
   const semesters = useSemesters();
+  // Cùng công thức với banner ở header và bộ lọc danh sách — ba chỗ
+  // trả lời "kỳ nào là hiện tại" phải giống nhau, nếu không người dùng
+  // sẽ thấy header nói một đằng còn form chọn sẵn một nẻo.
+  const { current: defaultSemester } = useCurrentSemester();
   const create = useCreateCourse();
   const update = useUpdateCourse();
   const remove = useDeleteCourse();
@@ -47,7 +60,12 @@ export default function CoursesPage() {
 
   function openCreate() {
     setEditing(null);
-    setForm({ ...EMPTY, semesterId: semesters.data?.[0]?.id ?? '' });
+    // KHÔNG phải `semesters.data[0]`: danh sách sắp theo `start_date
+    // DESC`, nên phần tử đầu là kỳ có ngày bắt đầu XA NHẤT trong tương
+    // lai. Quản trị viên tạo sẵn kỳ sau là chuyện thường, và khi đó form
+    // sẽ mặc định vào một kỳ còn nhiều tháng nữa mới tới — đúng cái bẫy
+    // `MAX(start_date)` mà CLAUDE.md §7.2.3 mô tả.
+    setForm({ ...EMPTY, semesterId: defaultSemester?.id ?? '' });
     setFormOpen(true);
   }
 
@@ -142,6 +160,13 @@ export default function CoursesPage() {
               {semesters.data?.map((semester) => (
                 <SelectItem key={semester.id} value={semester.id}>
                   {semester.name}
+                  {/* Khoảng ngày ngay cạnh tên: tên kỳ do người nhập tự
+                      đặt nên không bảo đảm nói lên điều gì, còn ngày thì
+                      luôn cho biết lựa chọn này có hợp lý không. */}
+                  <span className="ml-2 text-caption text-muted-foreground">
+                    {formatRange(semester.startDate, semester.endDate)}
+                    {defaultSemester?.id === semester.id ? " · mặc định" : ''}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>

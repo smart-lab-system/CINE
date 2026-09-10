@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Toaster } from '@/components/ui/sonner';
 import { Brand } from '@/components/layout/brand';
+import { CurrentSemesterBadge } from '@/components/layout/current-semester-badge';
 import { LogoutButton } from '@/components/layout/logout-button';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { UserChip } from '@/components/layout/user-chip';
@@ -169,9 +170,14 @@ export function AppShell({ role, children }: AppShellProps) {
               </Sheet>
             </div>
 
+            {/* Học kỳ hiện tại, cho cả ba role. Chỉ là chữ suy ra theo
+                ngày — xem doc comment của CurrentSemesterBadge cho
+                ranh giới với hướng `is_current` đã bị revert. */}
+            <CurrentSemesterBadge className="min-w-0" />
+
             <div className="flex-1" />
 
-            <div className="flex items-center gap-2 md:gap-4">
+            <div className="flex shrink-0 items-center gap-2 md:gap-4">
               {account && <UserChip account={account} />}
               <div className="h-6 w-px bg-border" aria-hidden="true" />
               <LogoutButton />

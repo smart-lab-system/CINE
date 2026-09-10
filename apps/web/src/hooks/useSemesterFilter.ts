@@ -6,24 +6,27 @@ import type { Semester } from '@/lib/api/department';
 
 const DAY_MS = 86_400_000;
 
-export interface SemesterFilterState {
-  /** `null` = tất cả học kỳ. */
-  semesterId: string | null;
-  setSemesterId: (value: string | null) => void;
-  semesters: Semester[];
+export interface CurrentSemesterState {
   /**
    * Kỳ "hợp lý nhất hôm nay" — TÍNH TỪ NGÀY, không đọc cờ nào.
    *
-   * KHÔNG phải `is_current` quay lại (CLAUDE.md §1.2 — hướng đó đã bị
-   * revert có chủ đích): không lưu ở đâu, không API set-current, không
-   * banner, và quan trọng nhất là **không chặn thao tác nào**. Nó chỉ
-   * quyết định dropdown mở ra ở giá trị gì.
+   * KHÔNG phải `is_current` quay lại (CLAUDE.md §1.2): không lưu ở đâu,
+   * không API set-current, và quan trọng nhất là **không chặn thao tác
+   * nào**. Nó chỉ trả lời "hôm nay hợp lý nhất là kỳ nào" cho phần hiển
+   * thị và cho giá trị khởi tạo của các ô chọn kỳ.
    */
   current: Semester | null;
+  semesters: Semester[];
   isLoading: boolean;
   /** Kỳ mặc định đã quá `end_date` — hệ thống không tự sửa, nên phải nói ra. */
   isStale: boolean;
   staleDays: number;
+}
+
+export interface SemesterFilterState extends CurrentSemesterState {
+  /** `null` = tất cả học kỳ. */
+  semesterId: string | null;
+  setSemesterId: (value: string | null) => void;
 }
 
 /**
@@ -32,15 +35,14 @@ export interface SemesterFilterState {
  *
  * KHÔNG dùng `MAX(start_date)` vô điều kiện: quản trị viên tạo sẵn kỳ sau
  * trong khi cả trường vẫn đang ở kỳ hiện tại là chuyện thường, và MAX đơn
- * giản sẽ nhảy sang kỳ tương lai chưa ai có lớp — giảng viên mở trang lên
- * và thấy rỗng mà không hiểu vì sao. CLAUDE.md §7.2.3.
+ * giản sẽ nhảy sang kỳ tương lai chưa ai có lớp — người dùng mở form ra và
+ * thấy mặc định là một kỳ còn nhiều tháng nữa mới tới. CLAUDE.md §7.2.3.
  *
- * Tính ở client, không phải một endpoint riêng: dữ liệu vào là danh sách
- * `GET /semesters` mà mọi trang đã tải sẵn, và công thức thì không phụ
- * thuộc vào ai đang đăng nhập. Một endpoint cho việc này chỉ thêm một
- * round-trip và một nơi nữa để lệch.
+ * Export ra ngoài vì đây là ĐỊNH NGHĨA dùng chung của "kỳ hiện tại": banner
+ * ở header, bộ lọc danh sách và mặc định của form tạo Môn học đều phải trả
+ * lời giống nhau. Hai công thức song song là cách chúng lệch nhau.
  */
-function pickDefaultSemester(semesters: Semester[], now: number): Semester | null {
+export function pickDefaultSemester(semesters: Semester[], now: number): Semester | null {
   const started = semesters
     .filter((s) => new Date(s.startDate).getTime() <= now)
     .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
@@ -79,6 +81,30 @@ function calendarDaysSince(endDate: string, now: number): number {
 }
 
 /**
+ * Chỉ đọc: "hôm nay là kỳ nào", không kèm state lựa chọn nào.
+ *
+ * Dùng cho banner ở header và cho giá trị khởi tạo của form tạo Môn học —
+ * những chỗ cần biết kỳ mặc định nhưng không có bộ lọc để giữ.
+ */
+export function useCurrentSemester(): CurrentSemesterState {
+  const { data, isLoading } = useSemesters();
+  const semesters = data ?? [];
+  const now = Date.now();
+  const current = pickDefaultSemester(semesters, now);
+  const staleDays = current ? calendarDaysSince(current.endDate, now) : 0;
+
+  return {
+    current,
+    semesters,
+    isLoading,
+    // Ngày cuối của kỳ vẫn là một ngày TRONG kỳ, nên phải > 0 chứ không
+    // phải >= 0.
+    isStale: current !== null && staleDays > 0,
+    staleDays: staleDays > 0 ? staleDays : 0,
+  };
+}
+
+/**
  * Bộ lọc kỳ dùng chung cho mọi màn hình danh sách.
  *
  * Logic gieo-một-lần nằm Ở ĐÂY, không ở trang: tính lại mặc định mỗi
@@ -90,10 +116,8 @@ function calendarDaysSince(endDate: string, now: number): number {
  * trang thì không.
  */
 export function useSemesterFilter(scopeKey: string): SemesterFilterState {
-  const { data, isLoading } = useSemesters();
-  const semesters = data ?? [];
-  const now = Date.now();
-  const current = pickDefaultSemester(semesters, now);
+  const currentState = useCurrentSemester();
+  const { current, isLoading } = currentState;
 
   const [semesterId, setSemesterId] = useState<string | null>(null);
   const seededFor = useRef<string | null>(null);
@@ -111,17 +135,5 @@ export function useSemesterFilter(scopeKey: string): SemesterFilterState {
     // lần, ngay khi `isLoading` chuyển sang false.
   }, [isLoading, scopeKey]);
 
-  const staleDays = current ? calendarDaysSince(current.endDate, now) : 0;
-
-  return {
-    semesterId,
-    setSemesterId,
-    semesters,
-    current,
-    isLoading,
-    // Ngày cuối của kỳ vẫn là một ngày TRONG kỳ, nên phải > 0 chứ không
-    // phải >= 0.
-    isStale: current !== null && staleDays > 0,
-    staleDays: staleDays > 0 ? staleDays : 0,
-  };
+  return { ...currentState, semesterId, setSemesterId };
 }
