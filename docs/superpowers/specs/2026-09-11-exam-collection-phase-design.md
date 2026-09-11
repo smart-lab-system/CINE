@@ -1,6 +1,6 @@
 # Giai đoạn "Đang thu bài" và hành động "Thu lại" — Thiết kế
 
-**Ngày:** 2026-09-11 · **rev 2** (sau review)
+**Ngày:** 2026-09-11 · **rev 3** (sau review lần 2)
 **Trạng thái:** chờ review lại
 **Nguồn:** task #4 "Thu lại bài thi" (session `0f3ad631`, mở từ 2026-08-31, chưa từng thi công)
 
@@ -122,6 +122,10 @@ ALTER TABLE "examcollect"."exam_session" ADD COLUMN "completed_by" uuid
 
 **Không dùng `updated_at` thay `completed_at`.** `updated_at` đổi theo mọi UPDATE — đổi rubric, archive, đóng attention đều chạm nó. Dòng cảnh báo §7.3 sẽ sai ngẫu nhiên và không ai truy ra vì sao.
 
+**`ADD VALUE` ở đây an toàn vì dự án chạy migration NGOÀI transaction** — đã kiểm: `data-source.ts` đặt `migrationsTransactionMode: 'none'`, với lý do `InitialSchema` tự viết `BEGIN/COMMIT` của nó. Postgres 16.15. Nên câu `ALTER TYPE` commit ngay và giá trị `'collecting'` dùng được lập tức.
+
+> ⚠️ **Cái bẫy nằm ở quy ước của chính dự án.** Vì `migrationsTransactionMode` là `none`, mỗi file migration **được phép** tự bọc `BEGIN/COMMIT` — và `InitialSchema` làm đúng thế. Nếu ai đó sau này bọc migration NÀY trong `BEGIN/COMMIT` rồi thêm một backfill/CHECK/partial index dùng tới `'collecting'`, Postgres sẽ ném `unsafe use of new value of enum type` — **lúc deploy, không phải lúc dev**. Migration này vì thế cố ý **không** bọc transaction và **không** dùng `'collecting'` ở bất cứ đâu trong chính nó. Thêm backfill về sau thì tách thành migration thứ hai.
+
 **`down()` ném lỗi, không im lặng.** Postgres không xoá được giá trị enum. Một `down()` rỗng trông như revert thành công; ném lỗi kèm giải thích là trung thực hơn. Hai cột thì `DROP COLUMN` được, nhưng `down()` vẫn ném ngay từ đầu vì enum không lùi được.
 
 ### 4.1 Ràng buộc GiST — đã kiểm, không ảnh hưởng
@@ -139,6 +143,32 @@ Không gây vấn đề: khoảng `tstzrange(start_time, end_time, '[)')` của 
 
 `NULL` ở đây mang nghĩa cụ thể và phải giữ đúng nghĩa đó: **không người nào xác nhận phiên này**. Task 3 đọc chính cột này để biết được phép kết luận "vắng thi" hay không (§8.1).
 
+### 4.3 Hai đường có thể đua nhau — và thua sai hướng thì mất chữ ký của giảng viên
+
+Tại đúng mốc `endTime + grace`, giảng viên bấm xác nhận trong khi scheduler cũng tick. Cả hai cùng `UPDATE ... WHERE status = 'collecting'`; Postgres serialize trên row lock và **một trong hai match 0 dòng**.
+
+Nếu scheduler thắng thì `completed_by = NULL`, và theo §8.1 Task 3 **không được** kết luận vắng thi — dù giảng viên thật sự đã đứng đó xác nhận. Ý định của con người bị một `@Interval` ghi đè, im lặng.
+
+Không giải bằng cách "ưu tiên" — không có cách nào ưu tiên một bên trong hai UPDATE đồng thời. Giải bằng cách cho đường của giảng viên **nhận cả phiên vừa bị quét đóng**:
+
+```sql
+-- Đường giảng viên
+UPDATE exam_session SET status = 'completed', completed_at = now(), completed_by = :teacherId
+ WHERE id = :id
+   AND (
+         status = 'collecting'
+      -- Thua cuộc đua với scheduler trong gang tấc: phiên đã `completed`
+      -- nhưng CHƯA AI ký tên. Giảng viên vẫn đang đứng trong phòng, nên
+      -- chữ ký của họ là sự thật, còn NULL kia chỉ là kết quả của thứ tự
+      -- đến trước đến sau.
+      OR (status = 'completed' AND completed_by IS NULL AND :now <= end_time + :grace)
+   );
+```
+
+Chặn bằng `:now <= end_time + grace` để nó không thành đường ký khống: sau cửa sổ đó giảng viên đã rời phòng, và "xác nhận" một buổi thi hôm qua không còn là quan sát.
+
+Scheduler giữ nguyên `WHERE status = 'collecting'` và kiểm `affected` — đúng khuôn mà `finalizeExamSession` đã dùng, với comment giải thích sẵn ở đó.
+
 ---
 
 ## 5. Rà soát chỗ so sánh trạng thái
@@ -151,7 +181,7 @@ Không gây vấn đề: khoảng `tstzrange(start_time, end_time, '[)')` của 
 | `buildDiscrepancy` (`attendance.service.ts:194`) | `status !== 'completed'` → bỏ qua | `isExamOver()` | Báo cáo "nộp bài mà không được điểm danh" **biến mất đúng lúc giảng viên cần nó** để chọn thu lại ai |
 | Xoá đề thi (`exam-material.service.ts:175`) | chặn khi `completed` | `isExamOver()` | Đề thi **mở khoá xoá trở lại** suốt cửa sổ thu bài |
 | `findFinalizableIds` | `active` + `endTime <= now` | điều kiện tìm **giữ nguyên**; đích chuyển đổi thành `collecting` | — |
-| *(mới)* `findCollectionExpiredIds` | — | `collecting` + `endTime + grace <= now` | Phiên treo ở `collecting` vĩnh viễn |
+| *(mới)* `findCollectionExpiredIds` | — | `collecting` + `endTime + grace <= now` — mốc theo `endTime` theo lịch, **không** theo lúc vào `collecting` (§9.6) | Phiên treo ở `collecting` vĩnh viễn |
 | `SearchExamSessionsDto` | 5 giá trị | 6 | Lọc theo trạng thái mới trả rỗng |
 | `getSessionPhase` (web) | suy từ `status` + đồng hồ | **đọc `status` thẳng, xoá suy diễn** — xem dưới | Hai nguồn sự thật |
 | `agent:join` | `status === 'active'` | **giữ nguyên** | Cố ý — xem §2, ngoài phạm vi |
@@ -239,10 +269,19 @@ Dùng ack có timeout của Socket.IO:
 // 3 giây: agent chỉ cần trả lời đã nhận, chưa cần upload xong. Quá mốc
 // này thì coi như không tới — thà báo thừa một máy không với được còn hơn
 // báo thiếu, vì giảng viên còn đứng trong phòng và xử lý tay được.
-await socket.timeout(3000).emitWithAck('exam:recollect', { examSessionId });
+//
+// SONG SONG, không tuần tự: 10 máy đã treo × 3 giây = 30 giây request
+// đứng hình, trong khi cả 10 timeout đó đếm cùng một lúc được.
+const results = await Promise.allSettled(
+  targets.map((socket) =>
+    socket.timeout(ACK_TIMEOUT_MS).emitWithAck('exam:recollect', { examSessionId }),
+  ),
+);
 ```
 
 Hai con số lệch nhau là thông tin quan trọng nhất trên màn hình: 2 em `unreachable` sẽ **không nộp được** qua đường này, và giảng viên cần biết **ngay khi còn ở trong phòng**, chứ không phải phát hiện lúc chấm. `unreachableNames` là phần họ hành động dựa vào, không phải con số.
+
+**Tên lấy từ `enrollment.student_name`**, không từ socket: em `unreachable` theo định nghĩa là em **không có socket** để đọc tên ra. Cột đó `NOT NULL` (đã kiểm `information_schema`), nên không có ca "không biết tên" — roster luôn có tên, vì `RosterStudentDto.name` mang `@Length(1, 150)` nên một dòng thiếu họ tên bị từ chối ngay ở tầng DTO, không chỉ ở browser.
 
 ### 6.4 Bấm nhiều lần
 
@@ -278,7 +317,7 @@ Câu thứ hai chống đúng cách hiểu sai mà lựa chọn (a) tạo ra.
 
 ### 7.3 Khi có bài về sau xác nhận
 
-Không chặn, nhưng phải nói. Màn hình phiên hiện thêm một dòng khi có bài nộp với `submitted_at > completed_at`: *"Có N bài nộp về sau khi bạn xác nhận kết thúc."*
+Không chặn, nhưng phải nói. Màn hình phiên hiện thêm một dòng khi có bài nộp với `submitted_at > completed_at`: *"Có N sinh viên nộp bài sau khi bạn xác nhận kết thúc."* — **đếm sinh viên, không đếm file**: một em nộp 2 file sau xác nhận là `N = 1`. Con số này để giảng viên biết có bao nhiêu *người* cần nhìn lại, và đếm file sẽ thổi phồng nó theo số deliverable của phiên.
 
 Đây là cách trả lời nhu cầu "con số cuối không đổi" mà không phải chặn upload — giảng viên biết con số đã đổi, thay vì không biết. Chỉ hiện khi `completed_by IS NOT NULL`: phiên do quét dự phòng đóng thì không có ai để nói "sau khi **bạn** xác nhận".
 
@@ -348,7 +387,15 @@ Escape hatch **đã tồn tại** từ 2026-09-11: `PATCH /exam-sessions/:id/tea
 
 Spec này **làm hậu quả của lỗ hổng đó nặng thêm** và không giải quyết nó. Ghi lại để lần sau cân nhắc §7.2.6 có nên mở cho `department_admin` hay có đường nhanh hơn.
 
-### 9.5 Triển khai giữa chừng
+### 9.5 Chốt bài sớm kéo dãn giai đoạn `collecting`
+
+"Chốt bài ngay" không kiểm thời gian (`finalizeExamSession` chỉ có `WHERE status = 'active'`), nên giảng viên bấm lúc 10:00 cho phiên đến 11:00 sẽ đưa phiên vào `collecting` **ngay lúc đó**. Quét dự phòng dùng `endTime + grace` nên phải chờ tới 11:30 — một tiếng rưỡi ở `collecting` dù cả phòng đã nộp xong lúc 10:05.
+
+**Chấp nhận, có chủ đích.** Phương án thay thế là tính mốc từ lúc vào `collecting`, nhưng `isAcceptingUploads` **cũng** tính theo `endTime + grace` — đổi một bên mà không đổi bên kia sẽ tạo ra khoảng thời gian phiên đã `completed` mà vẫn nhận bài, hoặc ngược lại. Đó đúng là kiểu tách đôi nghĩa mà §5 tồn tại để chống.
+
+Nói cách khác: `collecting` kéo dài bao lâu là **hệ quả của `SUBMISSION_GRACE_PERIOD_MS`**, không phải một tham số độc lập. Muốn rút ngắn thì rút ngắn grace, và khi đó cửa sổ nhận bài rút theo — đó là lựa chọn có thật, không phải tác dụng phụ. Hệ quả duy nhất của việc chờ là một dòng trạng thái trên màn hình; không thao tác nào bị chặn.
+
+### 9.6 Triển khai giữa chừng
 
 Phiên đang `active` có `endTime` đã qua từ lâu sẽ bị quét sang `collecting`, rồi gần như ngay lập tức sang `completed` ở tick sau — và `exam:finalize` bắn cho một buổi thi đã chết, không còn agent nào nghe. Vô hại nhưng ồn trong log. Một lần, lúc triển khai.
 
@@ -376,6 +423,10 @@ Phiên đang `active` có `endTime` đã qua từ lâu sẽ bị quét sang `col
 | "Thu lại" | `acknowledged` < `missing` khi một agent không ack trong 3s |
 | "Thu lại" | Phiên **không** ở `collecting` → 409 |
 | Phân quyền | Cả hai route teacher-only + owner-only, như `finalize` |
+| "Thu lại" | Sau khi agent nộp lại, em đó **rời khỏi** tập đích ở lần bấm sau (vòng khép kín) |
+| Đua hai đường | Scheduler đóng phiên trước, giảng viên bấm ngay sau trong grace → `completed_by` **là giảng viên**, không phải NULL (§4.3) |
+| Đua hai đường | Giảng viên bấm sau `endTime + grace` cho phiên đã tự đóng → **không** ghi `completed_by` |
+| Chốt sớm | "Chốt bài ngay" lúc `endTime - 1h` → vào `collecting`; quét dự phòng **không** đụng tới cho tới `endTime + grace` (§9.5) |
 | GiST | Tạo được phiên mới cùng phòng, bắt đầu từ `endTime`, khi phiên cũ đang `collecting` |
 
 ---
