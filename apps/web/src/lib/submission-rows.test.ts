@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildSubmissionRows, countFullySubmitted } from './submission-rows';
+import {
+  buildSubmissionRows,
+  countFullySubmitted,
+  countRecollectTargets,
+  countStudentsSubmittingAfter,
+} from './submission-rows';
 import type { Attendance } from './api/attendance';
 import type { SubmissionStatusItem } from './api/exam-session';
 
@@ -151,5 +156,104 @@ describe('countFullySubmitted', () => {
     );
 
     expect(countFullySubmitted(rows, [])).toBe(0);
+  });
+});
+
+describe('countRecollectTargets', () => {
+  const twoFiles = [{ id: 'd1' }, { id: 'd2' }];
+
+  it('đếm em đã dự thi mà thiếu file', () => {
+    const rows = buildSubmissionRows(
+      attendance({ present: [attendanceStudent('SV20120001', 'A')] }),
+      [submission({ requiredDeliverableId: 'd1' })],
+    );
+
+    expect(countRecollectTargets(rows, new Set(['SV20120001']), twoFiles)).toBe(1);
+  });
+
+  it('KHÔNG đếm em vắng thi, dù em đó cũng "thiếu" cả hai file', () => {
+    // Em chưa từng kết nối thì không có máy nào để gửi lệnh tới. Đếm em
+    // đó vào là hứa với giảng viên một việc hệ thống không làm được, rồi
+    // báo lại "1 máy không phản hồi" cho một cái ghế trống.
+    const rows = buildSubmissionRows(
+      attendance({ absent: [attendanceStudent('SV20120002', 'B')] }),
+      [],
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(countRecollectTargets(rows, new Set(), twoFiles)).toBe(0);
+  });
+
+  it('em nộp đủ rơi khỏi tập đích', () => {
+    const rows = buildSubmissionRows(
+      attendance({ present: [attendanceStudent('SV20120001', 'A')] }),
+      [
+        submission({ requiredDeliverableId: 'd1' }),
+        submission({ requiredDeliverableId: 'd2' }),
+      ],
+    );
+
+    expect(countRecollectTargets(rows, new Set(['SV20120001']), twoFiles)).toBe(0);
+  });
+
+  it('file invalid vẫn tính là chưa đủ', () => {
+    const rows = buildSubmissionRows(
+      attendance({ present: [attendanceStudent('SV20120001', 'A')] }),
+      [
+        submission({ requiredDeliverableId: 'd1' }),
+        submission({ requiredDeliverableId: 'd2', status: 'invalid' }),
+      ],
+    );
+
+    expect(countRecollectTargets(rows, new Set(['SV20120001']), twoFiles)).toBe(1);
+  });
+
+  it('chưa khai file bắt buộc thì không có ai để thu lại', () => {
+    const rows = buildSubmissionRows(
+      attendance({ present: [attendanceStudent('SV20120001', 'A')] }),
+      [],
+    );
+
+    expect(countRecollectTargets(rows, new Set(['SV20120001']), [])).toBe(0);
+  });
+});
+
+describe('countStudentsSubmittingAfter', () => {
+  const CONFIRMED_AT = new Date('2026-08-29T05:00:00.000Z').getTime();
+
+  it('đếm NGƯỜI, không đếm file', () => {
+    // Một em nộp hai file sau khi xác nhận là 1, không phải 2 — đếm file
+    // sẽ thổi con số lên theo số deliverable của phiên.
+    const rows = buildSubmissionRows(attendance(), [
+      submission({ requiredDeliverableId: 'd1', submittedAt: '2026-08-29T05:01:00.000Z' }),
+      submission({ requiredDeliverableId: 'd2', submittedAt: '2026-08-29T05:02:00.000Z' }),
+    ]);
+
+    expect(countStudentsSubmittingAfter(rows, CONFIRMED_AT)).toBe(1);
+  });
+
+  it('bỏ qua bài nộp trước mốc', () => {
+    const rows = buildSubmissionRows(attendance(), [
+      submission({ requiredDeliverableId: 'd1', submittedAt: '2026-08-29T04:59:00.000Z' }),
+    ]);
+
+    expect(countStudentsSubmittingAfter(rows, CONFIRMED_AT)).toBe(0);
+  });
+
+  it('một em nộp trước và một em nộp sau thì chỉ đếm em nộp sau', () => {
+    const rows = buildSubmissionRows(attendance(), [
+      submission({
+        studentMssv: 'SV20120001',
+        requiredDeliverableId: 'd1',
+        submittedAt: '2026-08-29T04:00:00.000Z',
+      }),
+      submission({
+        studentMssv: 'SV20120002',
+        requiredDeliverableId: 'd1',
+        submittedAt: '2026-08-29T05:30:00.000Z',
+      }),
+    ]);
+
+    expect(countStudentsSubmittingAfter(rows, CONFIRMED_AT)).toBe(1);
   });
 });

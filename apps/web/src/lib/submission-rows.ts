@@ -96,3 +96,51 @@ export function countFullySubmitted(
     deliverables.every((d) => row.byDeliverable[d.id]?.state === 'collected'),
   ).length;
 }
+
+/**
+ * Bao nhiêu máy "Thu lại" sẽ nhắm tới — đã dự thi mà chưa nộp đủ.
+ *
+ * Phản chiếu `RecollectService.findMissing` (apps/api). Hai chỗ, một
+ * định nghĩa, và đó là một đánh đổi có ý thức: con số trên nút phải tự
+ * cập nhật theo sự kiện socket mà không polling (spec §7.1), nên nó phải
+ * tính được từ dữ liệu trang đã có. Chúng có thể lệch nhau trong vài
+ * giây giữa hai lần đồng bộ, và điều đó chấp nhận được vì con số sau khi
+ * bấm — `RecollectResult.missing` — mới là con số có thẩm quyền.
+ *
+ * `attended` phải chỉ gồm người CÓ mặt: `rows` là hợp của roster và
+ * người đã nộp, nên nó cũng chứa cả em vắng thi. Gửi lệnh thu lại cho
+ * một máy chưa từng kết nối là không có gì để thu, và đếm em đó vào là
+ * hứa với giảng viên một việc không làm được.
+ */
+export function countRecollectTargets(
+  rows: SubmissionRowStudent[],
+  attendedMssv: Set<string>,
+  deliverables: { id: string }[],
+): number {
+  if (deliverables.length === 0) {
+    return 0;
+  }
+  return rows.filter(
+    (row) =>
+      attendedMssv.has(row.studentMssv) &&
+      !deliverables.every((d) => row.byDeliverable[d.id]?.state === 'collected'),
+  ).length;
+}
+
+/**
+ * Bao nhiêu SINH VIÊN có bài về sau mốc `since` (spec §7.3).
+ *
+ * Đếm người, không đếm file: một em nộp 2 file sau khi giảng viên xác
+ * nhận là `1`, không phải `2`. Đếm file sẽ thổi con số lên theo số
+ * deliverable của phiên và làm nó nói sai về số người cần nhìn lại.
+ */
+export function countStudentsSubmittingAfter(
+  rows: SubmissionRowStudent[],
+  since: number,
+): number {
+  return rows.filter((row) =>
+    Object.values(row.byDeliverable).some(
+      (entry) => entry.submittedAt !== undefined && new Date(entry.submittedAt).getTime() > since,
+    ),
+  ).length;
+}

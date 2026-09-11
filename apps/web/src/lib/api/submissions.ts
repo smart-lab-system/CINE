@@ -13,7 +13,9 @@ export interface SessionOverviewItem {
   examType: 'TK' | 'GK' | 'CK';
   startTime: string;
   endTime: string;
-  status: 'draft' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+  /**  = hết giờ làm bài, file đang bay về, chưa ai chốt.
+   *  Thêm 2026-09-11 — xem exam_session.entity.ts. */
+  status: 'draft' | 'scheduled' | 'active' | 'collecting' | 'completed' | 'cancelled';
   /**
    * Rubric đã ghim cho phiên — `null` nghĩa là chưa chấm được.
    *

@@ -67,7 +67,11 @@ describe('SessionTable — cột Tình trạng', () => {
   });
 
   it('phiên đang thu bài hiện tên pha, KHÔNG hiện lý do', () => {
+    // `status: 'collecting'` từ 2026-09-11 — trước đó pha này phải suy ra
+    // từ `completed` + grace period, giờ cột status nói thẳng. Ý của test
+    // không đổi: còn đang thu bài thì mọi kết luận đều là báo động giả.
     renderTable([make({
+      status: 'collecting',
       endTime: new Date(NOW - 60_000).toISOString(),
       neverAttendedCount: 5, fullySubmittedCount: 17,
     })]);

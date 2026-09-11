@@ -564,6 +564,8 @@ export class ExamSessionService {
     dto.startTime = session.startTime;
     dto.endTime = session.endTime;
     dto.status = session.status;
+    dto.completedAt = session.completedAt ?? null;
+    dto.completedBy = session.completedBy ?? null;
     dto.rubricId = session.rubricId;
     dto.rubricVersion = rubricVersion;
     dto.requiredDeliverables = deliverables.map((deliverable) => {

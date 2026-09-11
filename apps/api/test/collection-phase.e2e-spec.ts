@@ -292,6 +292,12 @@ describe('Collection phase (e2e)', () => {
     expect(row.status).toBe('completed');
     expect(row.completed_by).toBe(teacherId);
     expect(row.completed_at).not.toBeNull();
+
+    // Và cả hai phải RA TỚI API, không chỉ nằm trong DB: màn hình phiên
+    // đọc đúng cặp này để biết có được xưng "bạn" trong dòng cảnh báo
+    // "có bài về sau khi bạn xác nhận" hay không (spec §7.3).
+    expect(res.body.completedBy).toBe(teacherId);
+    expect(res.body.completedAt).not.toBeNull();
   });
 
   it('gọi lần hai là no-op và KHÔNG ghi đè completed_at', async () => {

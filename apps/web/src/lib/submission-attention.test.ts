@@ -71,31 +71,65 @@ describe('getSessionPhase', () => {
     expect(getSessionPhase(item, NOW)).toBe('running');
   });
 
-  it('vừa hết giờ, còn trong grace là collecting', () => {
+  it('đọc collecting thẳng từ status, không suy từ đồng hồ', () => {
+    // `endTime` còn ở TƯƠNG LAI mà status đã là `collecting` — đó là
+    // "Chốt bài ngay". Suy từ đồng hồ sẽ trả 'running', tức nói sai hẳn
+    // tình trạng của một phiên đã hết bài làm.
     const item = make({
-      status: 'completed',
-      startTime: new Date(NOW - 2 * HOUR).toISOString(),
-      endTime: new Date(NOW - 60_000).toISOString(),
-    });
-    expect(getSessionPhase(item, NOW)).toBe('collecting');
-  });
-
-  it('chốt tay trước endTime vẫn là collecting, KHÔNG phải running', () => {
-    // FinalizeSessionButton đặt status='completed' ngay lúc bấm, có thể
-    // trước endTime cả tiếng — spec §4.3.
-    const item = make({
-      status: 'completed',
+      status: 'collecting',
       startTime: new Date(NOW - HOUR).toISOString(),
       endTime: new Date(NOW + HOUR).toISOString(),
     });
     expect(getSessionPhase(item, NOW)).toBe('collecting');
   });
 
-  it('biên grace: đúng endTime + 30 phút vẫn collecting, thêm 1ms là ended', () => {
-    const inside = make({ endTime: new Date(NOW - SUBMISSION_GRACE_MS).toISOString() });
+  it('collecting vẫn là collecting kể cả khi đã quá grace', () => {
+    // Cột status là nguồn sự thật, không phải đồng hồ. Lượt quét dự
+    // phòng là thứ đưa phiên ra khỏi `collecting`; tới lúc nó chạy thì
+    // màn hình phải nói đúng cái đang có trong DB.
+    const item = make({
+      status: 'collecting',
+      endTime: new Date(NOW - SUBMISSION_GRACE_MS - HOUR).toISOString(),
+    });
+    expect(getSessionPhase(item, NOW)).toBe('collecting');
+  });
+
+  it('completed là Đã kết thúc, kể cả còn trong grace', () => {
+    // ĐỔI CÓ CHỦ ĐÍCH ngày 2026-09-11. Trước đây `completed` + trong
+    // grace suy ra 'collecting', vì `completed` là trạng thái hậu-thi
+    // DUY NHẤT nên nó phải gánh cả hai nghĩa. Giờ `collecting` là trạng
+    // thái thật, nên `completed` chỉ còn một nghĩa: đã có người chốt.
+    const item = make({
+      status: 'completed',
+      startTime: new Date(NOW - 2 * HOUR).toISOString(),
+      endTime: new Date(NOW - 60_000).toISOString(),
+    });
+    expect(getSessionPhase(item, NOW)).toBe('ended');
+  });
+
+  it('active mà đồng hồ đã qua endTime vẫn hiện collecting trong lúc chờ lượt quét', () => {
+    // Lượt quét chạy mỗi 30 giây, nên có một quãng ngắn phiên còn
+    // `active` dù đã hết giờ. Để nó hiện 'running' trong quãng đó là nói
+    // sai; nhánh suy-từ-đồng-hồ tồn tại đúng cho ca này.
+    const item = make({
+      status: 'active',
+      startTime: new Date(NOW - 2 * HOUR).toISOString(),
+      endTime: new Date(NOW - 10_000).toISOString(),
+    });
+    expect(getSessionPhase(item, NOW)).toBe('collecting');
+  });
+
+  it('biên grace của nhánh suy-từ-đồng-hồ: đúng +30 phút vẫn collecting, thêm 1ms là ended', () => {
+    const inside = make({
+      status: 'active',
+      endTime: new Date(NOW - SUBMISSION_GRACE_MS).toISOString(),
+    });
     expect(getSessionPhase(inside, NOW)).toBe('collecting');
 
-    const outside = make({ endTime: new Date(NOW - SUBMISSION_GRACE_MS - 1).toISOString() });
+    const outside = make({
+      status: 'active',
+      endTime: new Date(NOW - SUBMISSION_GRACE_MS - 1).toISOString(),
+    });
     expect(getSessionPhase(outside, NOW)).toBe('ended');
   });
 });
@@ -142,13 +176,49 @@ describe('getAttentionReasons', () => {
     expect(getAttentionReasons(item, NOW)).toEqual([]);
   });
 
-  it('trong grace: không lý do nào, dù thiếu bài — báo động giả', () => {
+  it('đang thu bài: không lý do nào, dù thiếu bài — báo động giả', () => {
+    // Nguyên tắc không đổi: còn đang thu bài thì kết luận là báo động
+    // giả. Cái đổi là trạng thái biểu đạt nó — trước 2026-09-11 phải suy
+    // từ `completed` + grace period, giờ `collecting` nói thẳng.
     const item = make({
+      status: 'collecting',
       endTime: new Date(NOW - 60_000).toISOString(),
       neverAttendedCount: 5,
       fullySubmittedCount: 35,
     });
     expect(getAttentionReasons(item, NOW)).toEqual([]);
+  });
+
+  it('active mà đã qua endTime cũng im lặng — lượt quét chưa kịp tick', () => {
+    const item = make({
+      status: 'active',
+      endTime: new Date(NOW - 10_000).toISOString(),
+      neverAttendedCount: 5,
+      fullySubmittedCount: 35,
+    });
+    expect(getAttentionReasons(item, NOW)).toEqual([]);
+  });
+
+  it('giảng viên đã xác nhận kết thúc: kết luận ĐƯỢC phép, kể cả còn trong grace', () => {
+    // ĐỔI CÓ CHỦ ĐÍCH ngày 2026-09-11. Trước đây `completed` trong grace
+    // vẫn im lặng, vì `completed` khi đó cũng có nghĩa "vừa hết giờ".
+    //
+    // Giờ tới được `completed` trong grace chỉ có một đường: một người
+    // đã bấm "Xác nhận kết thúc" — lượt quét dự phòng chỉ chạy SAU grace
+    // nên không tạo ra được trạng thái này. Người đó vừa nhìn khắp
+    // phòng, và đó chính là lúc kết luận trở nên đáng tin (spec §8.1).
+    //
+    // Đánh đổi đi kèm: một em đang upload file lớn có thể bị kể tên vài
+    // giây trước khi bài về. Spec §7.3 trả lời ca đó bằng dòng "có N
+    // sinh viên nộp bài sau khi bạn xác nhận kết thúc", chứ không bằng
+    // cách im lặng thêm 30 phút nữa.
+    const item = make({
+      status: 'completed',
+      endTime: new Date(NOW - 60_000).toISOString(),
+      neverAttendedCount: 5,
+      fullySubmittedCount: 35,
+    });
+    expect(getAttentionReasons(item, NOW).map((r) => r.kind)).toEqual(['never-attended']);
   });
 
   it('rosterKnown false: không lý do nào', () => {
@@ -283,14 +353,16 @@ describe('thi bù ở phiên khác', () => {
     expect(reason.tone).toBe('neutral');
   });
 
-  it('vẫn im lặng trong grace period, như mọi lý do khác', () => {
-    // Còn trong grace thì file đang bay về — kết luận lúc này là báo động giả.
-    const inGrace = make({
+  it('vẫn im lặng khi phiên đang thu bài, như mọi lý do khác', () => {
+    // Còn đang thu bài thì file đang bay về — kết luận lúc này là báo
+    // động giả.
+    const collecting = make({
+      status: 'collecting',
       satElsewhereCount: 3,
       fullySubmittedCount: 37,
       endTime: new Date(NOW - 60_000).toISOString(),
     });
-    expect(getAttentionReasons(inGrace, NOW)).toEqual([]);
+    expect(getAttentionReasons(collecting, NOW)).toEqual([]);
   });
 
   it('không đẩy phiên chỉ-thi-bù lên trước phiên nghi mất bài', () => {

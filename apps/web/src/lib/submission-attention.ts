@@ -56,24 +56,50 @@ export interface AttentionReason {
 }
 
 /**
- * `ended` phải hỏi cả `status`, không chỉ đồng hồ: "Chốt bài ngay"
- * (FinalizeSessionButton) đặt status='completed' ngay lúc bấm, có thể trước
- * endTime cả tiếng. Chỉ so now với endTime thì phiên vừa chốt sẽ hiện "Đang
- * diễn ra" suốt quãng còn lại — spec §4.3.
- *
- * Nhưng biên grace vẫn là endTime + 30', KHÔNG phải thời-điểm-chốt + 30',
- * vì backend cho upload theo đúng công thức đó.
+ * Chỉ ba trường quyết định phase — nhận kiểu cấu trúc chứ không nhận
+ * `SessionOverviewItem`, để màn hình phòng thi (`ExamSessionResponse`)
+ * dùng lại được cùng một luật thay vì viết bản thứ hai của nó.
  */
-export function getSessionPhase(item: SessionOverviewItem, now: number): SessionPhase {
-  if (item.status === 'draft' || item.status === 'cancelled') {
-    return item.status;
+export interface SessionPhaseInput {
+  status: string;
+  startTime: string;
+  endTime: string;
+}
+
+/**
+ * `collecting` và `completed` là trạng thái THẬT trong DB từ 2026-09-11,
+ * nên đồng hồ không còn tiếng nói ở hai ca đó — đọc thẳng.
+ *
+ * Trước đó `completed` là trạng thái hậu-thi duy nhất và phải gánh cả hai
+ * nghĩa, nên hàm này suy "đang thu bài" từ grace period. Giờ nó không
+ * phải suy nữa: `collecting` nghĩa là hết giờ làm bài, `completed` nghĩa
+ * là đã có người chốt.
+ *
+ * Nhánh suy-từ-đồng-hồ ở cuối còn lại cho ĐÚNG MỘT ca: phiên vẫn
+ * `active` mà đồng hồ đã qua `endTime` — lượt quét chạy mỗi 30 giây nên
+ * có một quãng ngắn như vậy, và để nó hiện "Đang diễn ra" trong quãng đó
+ * là nói sai. Phiên `completed` tạo trước khi giai đoạn thu bài ra đời
+ * (spec §9.3) đi qua nhánh `completed` ở trên và cho ra 'ended', đúng
+ * như chúng vốn là. Đừng mở rộng nhánh cuối — giữ hai nguồn sự thật
+ * song song là đúng thứ nó từng gây ra.
+ */
+export function getSessionPhase(item: SessionPhaseInput, now: number): SessionPhase {
+  if (item.status === 'draft') {
+    return 'draft';
+  }
+  if (item.status === 'cancelled') {
+    return 'cancelled';
+  }
+  if (item.status === 'collecting') {
+    return 'collecting';
+  }
+  if (item.status === 'completed') {
+    return 'ended';
   }
 
   const start = new Date(item.startTime).getTime();
   const end = new Date(item.endTime).getTime();
-  const ended = item.status === 'completed' || now > end;
-
-  if (!ended) {
+  if (now <= end) {
     return now < start ? 'upcoming' : 'running';
   }
   return now <= end + SUBMISSION_GRACE_MS ? 'collecting' : 'ended';

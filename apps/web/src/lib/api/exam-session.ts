@@ -52,6 +52,16 @@ export interface ExamSessionResponse {
   startTime: string;
   endTime: string;
   status: string;
+  /**
+   * Khi phiên rời `collecting`, và ai chốt.
+   *
+   * `completedBy === null` nghĩa là **không ai xác nhận** — lượt quét dự
+   * phòng đã đóng phiên. Với phiên tạo trước 2026-09-11 thì cả hai đều
+   * `null` và phải đọc là "không biết" (spec §9.3). Cả hai trường hợp
+   * đều không có ai để xưng "bạn", nên dòng cảnh báo ở §7.3 không hiện.
+   */
+  completedAt: string | null;
+  completedBy: string | null;
   requiredDeliverables: RequiredDeliverableResponse[];
 }
 
@@ -164,6 +174,50 @@ export async function finalizeExamSession(id: string): Promise<ExamSessionRespon
   });
   await throwIfFailed(error, response);
   return data as unknown as ExamSessionResponse;
+}
+
+/**
+ * "Xác nhận kết thúc" — `collecting → completed`, ghi tên người chốt.
+ *
+ * Khác `finalizeExamSession` ở trên, và hai nút này đứng cạnh nhau nên
+ * chỗ khác biệt cần nói rõ: `finalize` nghĩa là "hết giờ, nộp đi" và đưa
+ * phiên VÀO giai đoạn thu bài; cái này nghĩa là "tôi đã nhìn phòng,
+ * xong" và đưa nó RA.
+ *
+ * KHÔNG chặn upload: bài vẫn được nhận tới `endTime + 30 phút` (spec
+ * §3.1). Idempotent, 200.
+ */
+export async function confirmSessionEnd(id: string): Promise<ExamSessionResponse> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/confirm-end', {
+    params: { path: { id } },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as ExamSessionResponse;
+}
+
+export interface RecollectResult {
+  /** Số sinh viên đã dự thi mà chưa nộp đủ file bắt buộc. */
+  missing: number;
+  /** Số máy ĐÃ TRẢ LỜI trong 3 giây — không phải số lệnh đã gửi. */
+  acknowledged: number;
+  unreachable: number;
+  /** Phần giảng viên hành động dựa vào, quan trọng hơn con số. */
+  unreachableNames: string[];
+}
+
+/**
+ * "Thu lại" — yêu cầu agent của những em chưa nộp đủ gửi lại bài.
+ *
+ * Bấm lại bao nhiêu lần cũng được: server không đổi trạng thái gì, và em
+ * đã nộp giữa hai lần bấm tự rơi khỏi tập đích. 409 nếu phiên không ở
+ * `collecting`.
+ */
+export async function recollectSubmissions(id: string): Promise<RecollectResult> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/recollect', {
+    params: { path: { id } },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as RecollectResult;
 }
 
 /**

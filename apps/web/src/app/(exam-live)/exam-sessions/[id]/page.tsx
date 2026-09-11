@@ -11,8 +11,10 @@ import type { PendingAccessRequest } from '@/lib/access-request';
 import {
   useAttendance,
   useConfirmAttendance,
+  useConfirmSessionEnd,
   useExamSessionDetail,
   useFinalizeExamSession,
+  useRecollect,
   useSubmissions,
 } from '@/hooks/useExamSession';
 import { useTeachingClasses } from '@/hooks/useTeaching';
@@ -20,8 +22,16 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
-import { buildSubmissionRows, countFullySubmitted, type DeliverableState } from '@/lib/submission-rows';
+import { getSessionPhase } from '@/lib/submission-attention';
+import {
+  buildSubmissionRows,
+  countFullySubmitted,
+  countRecollectTargets,
+  countStudentsSubmittingAfter,
+  type DeliverableState,
+} from '@/lib/submission-rows';
 import { AccessRequestPanel } from './_components/AccessRequestPanel';
+import { CollectionPhaseActions } from './_components/CollectionPhaseActions';
 import { AttendancePanel } from './_components/AttendancePanel';
 import { ExamMaterialsCard } from './_components/ExamMaterialsCard';
 import { SubmissionStatusTable } from './_components/SubmissionStatusTable';
@@ -115,6 +125,8 @@ export default function ExamSessionLobbyPage() {
   // mid-exam would show an empty table with every file already in storage.
   const submissions = useSubmissions(examSessionId);
   const finalize = useFinalizeExamSession(examSessionId);
+  const confirmEnd = useConfirmSessionEnd(examSessionId);
+  const recollect = useRecollect(examSessionId);
 
   const attendance = useAttendance(examSessionId);
   const confirmAttendance = useConfirmAttendance(examSessionId);
@@ -365,7 +377,55 @@ export default function ExamSessionLobbyPage() {
     [rows, deliverables],
   );
 
+  // Ai CÓ MẶT — `rows` là hợp của roster và người đã nộp, nên nó cũng
+  // chứa em vắng thi, và một máy chưa từng kết nối thì không có gì để
+  // thu lại.
+  const attendedMssv = useMemo(
+    () =>
+      new Set(
+        [...(attendance.data?.present ?? []), ...(attendance.data?.makeup ?? [])].map(
+          (student) => student.mssv,
+        ),
+      ),
+    [attendance.data],
+  );
+
+  const recollectTargets = useMemo(
+    () => countRecollectTargets(rows, attendedMssv, deliverables),
+    [rows, attendedMssv, deliverables],
+  );
+
+  // Khi con số trên được tính. Ghi lại ở đây chứ không đọc `Date.now()`
+  // lúc render: nếu socket rớt, `rows` ngừng đổi và mốc này đứng yên —
+  // đó chính là tín hiệu giảng viên cần thấy. Đọc đồng hồ lúc render sẽ
+  // cho ra một mốc luôn tươi mới trên một con số đã chết.
+  const [countedAt, setCountedAt] = useState<number | null>(null);
+  useEffect(() => {
+    setCountedAt(Date.now());
+  }, [rows]);
+
   const canFinalize = sessionDetail.data?.status === 'active';
+
+  const phase = sessionDetail.data
+    ? getSessionPhase(sessionDetail.data, Date.now())
+    : null;
+
+  /**
+   * Spec §7.3 — có bao nhiêu SINH VIÊN nộp bài sau khi giảng viên xác
+   * nhận kết thúc.
+   *
+   * Chỉ khi `completedBy` khác null: phiên do lượt quét dự phòng đóng
+   * thì không có ai để xưng "bạn", và phiên tạo trước 2026-09-11 có cả
+   * hai cột đều null, phải đọc là "không biết" chứ không phải "chưa xác
+   * nhận" (spec §9.3).
+   */
+  const lateAfterConfirm = useMemo(() => {
+    const { completedAt, completedBy } = sessionDetail.data ?? {};
+    if (!completedAt || !completedBy) {
+      return 0;
+    }
+    return countStudentsSubmittingAfter(rows, new Date(completedAt).getTime());
+  }, [rows, sessionDetail.data]);
 
   return (
     <main className="app-wash min-h-screen bg-background px-4 py-8 md:px-8">
@@ -400,21 +460,59 @@ export default function ExamSessionLobbyPage() {
           </div>
         </div>
 
-        {displayStatus && displayStatus.label !== 'Đang diễn ra' && (
-          <Alert variant={displayStatus.label === 'Đã kết thúc' ? 'warning' : 'info'}>
+        {sessionDetail.data && (
+          <CollectionPhaseActions
+            status={sessionDetail.data.status}
+            missingCount={recollectTargets}
+            countedAt={countedAt}
+            endTime={sessionDetail.data.endTime}
+            recollecting={recollect.isPending}
+            recollectError={recollect.error}
+            onRecollect={() => recollect.mutateAsync()}
+            confirming={confirmEnd.isPending}
+            confirmError={confirmEnd.error}
+            onConfirmEnd={() => confirmEnd.mutateAsync()}
+          />
+        )}
+
+        {/* Spec §7.3. Không chặn bài về sau khi xác nhận, nhưng phải
+            NÓI — giảng viên biết con số đã đổi, thay vì không biết. */}
+        {lateAfterConfirm > 0 && (
+          <Alert variant="info">
             <AlertDescription>
-              {displayStatus.label === 'Đã kết thúc' ? (
-                <>
-                  Kỳ thi này đã kết thúc lúc {formatDateTime(sessionDetail.data!.endTime)}. Đây là
-                  chế độ xem lại — sinh viên không thể tham gia mới (máy chủ đã tự chặn ở bước
-                  kết nối, kể cả khi còn nhớ mã phiên thi).
-                </>
-              ) : (
-                <>
-                  Kỳ thi này chưa bắt đầu — sẽ mở lúc {formatDateTime(sessionDetail.data!.startTime)}.
-                  Sinh viên chưa thể tham gia trước thời điểm đó.
-                </>
-              )}
+              Có {lateAfterConfirm} sinh viên nộp bài sau khi bạn xác nhận kết thúc.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Phân nhánh theo PHASE, không theo chuỗi nhãn. So nhãn là lỗi
+            có sẵn từ trước: `getDisplaySessionStatus` trả 'Đã hoàn thành'
+            cho phiên `completed`, không phải 'Đã kết thúc', nên một phiên
+            đã xong lại rơi vào nhánh else và hiện "chưa bắt đầu — sẽ mở
+            lúc ...". Thêm `collecting` vào chỉ làm nó sai thêm một ca. */}
+        {phase === 'ended' && (
+          <Alert variant="warning">
+            <AlertDescription>
+              Kỳ thi này đã kết thúc lúc {formatDateTime(sessionDetail.data!.endTime)}. Đây là
+              chế độ xem lại — sinh viên không thể tham gia mới (máy chủ đã tự chặn ở bước
+              kết nối, kể cả khi còn nhớ mã phiên thi).
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {(phase === 'upcoming' || phase === 'draft') && (
+          <Alert variant="info">
+            <AlertDescription>
+              Kỳ thi này chưa bắt đầu — sẽ mở lúc {formatDateTime(sessionDetail.data!.startTime)}.
+              Sinh viên chưa thể tham gia trước thời điểm đó.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {phase === 'cancelled' && (
+          <Alert variant="warning">
+            <AlertDescription>
+              Phiên thi này đã bị huỷ. Sinh viên không thể tham gia.
             </AlertDescription>
           </Alert>
         )}
@@ -451,7 +549,14 @@ export default function ExamSessionLobbyPage() {
               <ExamMaterialsCard
                 examSessionId={examSessionId}
                 releaseAt={formatDateTime(sessionDetail.data.startTime)}
-                canEdit={sessionDetail.data.status !== 'completed'}
+                // `collecting` cũng phải chặn, không chỉ `completed`:
+                // API dùng `isExamOver()` và trả 403 cho cả hai (xem
+                // exam-material.service.ts). Để nút sửa hiện ra ở đây sẽ
+                // mời giảng viên bấm vào một thứ chắc chắn hỏng.
+                canEdit={
+                  sessionDetail.data.status !== 'completed' &&
+                  sessionDetail.data.status !== 'collecting'
+                }
               />
             )}
 

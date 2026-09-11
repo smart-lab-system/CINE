@@ -834,6 +834,9 @@ export interface components {
             /** Format: date-time */
             endTime: string;
             status: Record<string, never>;
+            /** Format: date-time */
+            completedAt: string | null;
+            completedBy: string | null;
             rubricId: string | null;
             rubricVersion: number | null;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
