@@ -111,6 +111,31 @@ export async function startGrading(examSessionId: string): Promise<StartGradingR
 }
 
 /**
+ * Tiến độ của một lượt chấm đang chạy.
+ *
+ * `total`/`pending`/`done` đếm bản ghi chấm của CHÍNH phiên này.
+ * `queue` là câu hỏi khác — hàng đợi toàn hệ thống có đang kẹt không —
+ * và cố ý tách riêng: trộn chúng lại sẽ cho giảng viên A thấy con số
+ * của giảng viên B.
+ */
+export interface GradingProgress {
+  total: number;
+  pending: number;
+  done: number;
+  byStatus: Record<string, number>;
+  queue: { waiting: number; active: number; failed: number };
+}
+
+export async function getGradingProgress(examSessionId: string): Promise<GradingProgress> {
+  const { data, error, response } = await apiClient.GET(
+    '/exam-sessions/{id}/grading-progress',
+    { params: { path: { id: examSessionId } } },
+  );
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as GradingProgress;
+}
+
+/**
  * Một lần duyệt bài. Server tự tính tổng — client KHÔNG gửi `finalScore`.
  *
  * 409 khi bài còn đang chấm (`ai_grading`/`ai_graded`); 400 khi thiếu tiêu chí

@@ -137,6 +137,25 @@ export class GradingController {
     return this.teacherReviews.finalizeGrades(session.id, req.user!.sub);
   }
 
+  /**
+   * Tiến độ của một lượt chấm đang chạy.
+   *
+   * Tồn tại vì từ 2026-09-11 `POST .../start-grading` trả về NGAY sau khi
+   * xếp hàng, không phải sau khi chấm xong. Không có route này thì giảng
+   * viên bấm "Bắt đầu chấm" rồi nhìn một màn hình không đổi gì trong
+   * nhiều phút — kỹ thuật đúng, trải nghiệm thụt lùi.
+   *
+   * `total/pending/done/byStatus` đếm `grading_result` nên CHÍNH XÁC
+   * theo phiên; `queue` đếm toàn hàng đợi và chỉ để trả lời "có đang kẹt
+   * không". Hai nguồn, hai câu hỏi — xem GradingProgress.
+   */
+  @Get('exam-sessions/:id/grading-progress')
+  @Roles('teacher')
+  async gradingProgress(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.grading.progress(session.id);
+  }
+
   @Get('exam-sessions/:id/grading-results')
   @Roles('teacher')
   async listResults(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {

@@ -6,9 +6,16 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Queue } from 'bullmq';
 import { In, Repository } from 'typeorm';
-import { GradingResultEntity } from './entities/grading-result.entity';
+import {
+  GRADE_JOB_OPTIONS,
+  GRADING_QUEUE,
+  GradeSubmissionJob,
+} from './grading.queue';
+import { GradingResultEntity, GradingResultStatus } from './entities/grading-result.entity';
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
@@ -26,8 +33,40 @@ import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
 export interface StartGradingResult {
   rubricId: string;
   rubricVersion: number;
+  /**
+   * ĐÃ XẾP HÀNG, không phải ĐÃ CHẤM — đổi nghĩa từ 2026-09-11 khi chấm
+   * điểm chuyển lên BullMQ. Màn hình gọi route này phải đọc tiến độ từ
+   * `GET /exam-sessions/:id/grading-progress`, không được coi response
+   * này là "xong".
+   */
   queued: number;
   alreadyGraded: number;
+}
+
+/**
+ * Cảnh báo khi một lượt bấm tạo ra quá nhiều job.
+ *
+ * Không CHẶN — giảng viên có 150 bài thật thì họ có quyền chấm cả 150.
+ * Nhưng với model thật mỗi job là một lời gọi có tính phí, nên một lượt
+ * lớn bất thường phải để lại dấu vết đọc được, thay vì chỉ hiện ra ở hoá
+ * đơn cuối tháng.
+ */
+const LARGE_BATCH_WARNING = 100;
+
+/**
+ * Tiến độ chấm của một phiên.
+ *
+ * `total`/`pending`/`done`/`byStatus` đếm `grading_result` — CHÍNH XÁC
+ * theo phiên. `queue` đếm TOÀN hàng đợi và chỉ trả lời "có đang kẹt
+ * không"; tách riêng vì trộn chúng lại sẽ cho giảng viên A thấy tiến độ
+ * của giảng viên B.
+ */
+export interface GradingProgress {
+  total: number;
+  pending: number;
+  done: number;
+  byStatus: Record<string, number>;
+  queue: { waiting: number; active: number; failed: number };
 }
 
 /**
@@ -55,6 +94,7 @@ export class GradingService {
     private readonly rubrics: RubricService,
     private readonly storage: StorageService,
     @Inject(AI_GRADING_PROVIDER) private readonly provider: AIGradingProvider,
+    @InjectQueue(GRADING_QUEUE) private readonly queue: Queue<GradeSubmissionJob>,
   ) {}
 
   /**
@@ -128,21 +168,171 @@ export class GradingService {
       ),
     );
 
-    for (const submission of todo) {
-      await this.gradeOne(
-        submission,
-        filenames.get(submission.requiredDeliverableId) ?? '',
-        rubric.id,
-        criteria,
-        teacherId,
-      );
-    }
+    // MỌI dòng `grading_result` được tạo NGAY ĐÂY, đồng bộ, trước khi
+    // job nào chạy — và đó là phần quan trọng nhất của việc chuyển sang
+    // hàng đợi, không phải một chi tiết tối ưu.
+    //
+    // Nếu để `gradeOne` tạo dòng bên trong worker (như trước khi có hàng
+    // đợi, khi nó chạy inline nên không khác gì), thì một job đã xếp
+    // hàng mà chưa được nhặt sẽ KHÔNG có dòng nào. `finalizeGrades` truy
+    // theo `exam_session_id` và chỉ thấy những bài đã chấm xong — nên nó
+    // chốt sạch chúng và 28 bài còn lại trở nên VÔ HÌNH: không bị bỏ
+    // qua, không bị chốt 0 điểm, chỉ đơn giản là không có mặt. Worker
+    // chấm chúng sau đó và chúng nằm lại ở `auto_approved` vĩnh viễn,
+    // trên một phiên mà giảng viên tin là đã đóng.
+    //
+    // Tạo trước làm `BLOCKS_FINALIZE` (đã có sẵn, gồm `ai_grading`) hoạt
+    // động đúng như thiết kế mà không sửa một dòng nào ở
+    // TeacherReviewService — guard hỏi DB, nơi sự thật vốn đã ở đó, thay
+    // vì phải hỏi Redis.
+    //
+    // Và nó cho luôn nguồn tiến độ per-session: đếm `grading_result`
+    // theo status là chính xác, đầy đủ ngay khi hàm này trả về, và sống
+    // sót cả khi Redis bị xoá. `queue.getJobCounts()` KHÔNG dùng được
+    // cho việc đó — nó đếm toàn hàng đợi, nên hai giảng viên chấm cùng
+    // lúc sẽ thấy tiến độ của nhau.
+    await this.results.save(
+      todo.map((submission) =>
+        this.results.create({
+          submissionId: submission.id,
+          rubricIdVersion: rubric.id,
+          gradingTriggeredBy: teacherId,
+          status: 'ai_grading',
+        }),
+      ),
+    );
+
+    await this.queue.addBulk(
+      todo.map((submission) => ({
+        name: 'grade-submission',
+        data: {
+          submissionId: submission.id,
+          requiredFilename: filenames.get(submission.requiredDeliverableId) ?? '',
+          rubricId: rubric.id,
+          teacherId,
+        } satisfies GradeSubmissionJob,
+        opts: {
+          ...GRADE_JOB_OPTIONS,
+          // jobId theo submission: BullMQ bỏ qua job trùng id, nên bấm
+          // "Bắt đầu chấm" hai lần không tạo hai lượt chấm cho một bài —
+          // tầng phòng thứ hai sau bộ lọc `alreadyGraded` ở trên.
+          // Dấu gạch nối, KHÔNG phải dấu hai chấm: BullMQ 6 từ chối
+          // jobId chứa ":" ("Custom Id cannot contain :") — nó dùng ký
+          // tự đó cho khoá Redis của chính mình.
+          jobId: `grade-${submission.id}`,
+        },
+      })),
+    );
+
+    this.logger.log(
+      `session ${session.id}: xếp hàng ${todo.length} bài` +
+        (todo.length >= LARGE_BATCH_WARNING
+          ? ` — LƯỢT LỚN, mỗi bài là một lời gọi model có tính phí`
+          : ''),
+    );
 
     return {
       rubricId: rubric.id,
       rubricVersion: rubric.version,
+      // `queued` từ nay nghĩa là ĐÃ XẾP HÀNG, không phải ĐÃ CHẤM. Đây là
+      // thay đổi hợp đồng API, và màn hình gọi nó phải đọc tiến độ từ
+      // `GET /exam-sessions/:id/grading-progress` thay vì tin rằng
+      // response này nghĩa là xong.
       queued: todo.length,
       alreadyGraded: alreadyGraded.size,
+    };
+  }
+
+  /**
+   * Tiến độ chấm của MỘT phiên.
+   *
+   * Đếm `grading_result`, không đếm job: mọi dòng đã tồn tại từ lúc
+   * `startGrading` trả về (xem lý do ở đó), nên con số này đầy đủ ngay
+   * lập tức và không phụ thuộc Redis còn giữ job hay đã dọn.
+   *
+   * `queueStuck` là câu hỏi KHÁC, và cố ý tách riêng: nó đọc
+   * `getJobCounts()`, vốn đếm TOÀN hàng đợi chứ không theo phiên. Trộn
+   * hai con số đó vào một chỗ sẽ cho giảng viên A thấy tiến độ của giảng
+   * viên B.
+   */
+  /**
+   * Điểm vào của hàng đợi — worker gọi hàm này, không gọi `gradeOne`.
+   *
+   * Tra lại submission theo id: job payload chỉ chứa id vì một entity
+   * serialize vào Redis là bản chụp có thể đã cũ khi job được nhặt.
+   *
+   * IDEMPOTENT Ở ĐÂY, không chỉ ở `startGrading`: một job retry sau khi
+   * model đã trả lời nhưng trước khi transition cuối kịp ghi sẽ chạy lại
+   * hàm này. `ai_total_score` là bất biến ở tầng DB (Security rule 6,
+   * `trg_grading_result_guard_ai_immutable`), nên ghi lần hai KHÔNG âm
+   * thầm sai — nó NỔ. Thoát sớm là cách đúng để tránh cái nổ đó, và đây
+   * là chỗ dùng ràng buộc DB làm cơ chế phát hiện chứ không chỉ làm cơ
+   * chế chặn.
+   */
+  async gradeOneById(job: GradeSubmissionJob): Promise<void> {
+    const result = await this.results.findOne({
+      where: { submissionId: job.submissionId },
+    });
+    if (!result) {
+      // Dòng được tạo đồng bộ ở `startGrading`, nên không có nó nghĩa là
+      // ai đó đã xoá. Không throw: retry mãi một thứ không quay lại
+      // không giúp gì. Ghi lại rồi coi job là xong.
+      this.logger.warn(`submission ${job.submissionId} không còn dòng chấm — bỏ job`);
+      return;
+    }
+    if (result.aiTotalScore !== null && result.aiTotalScore !== undefined) {
+      this.logger.log(`submission ${job.submissionId} đã có điểm AI — bỏ qua job lặp`);
+      return;
+    }
+
+    const submission = await this.submissions.findOne({ where: { id: job.submissionId } });
+    if (!submission) {
+      this.logger.warn(`submission ${job.submissionId} không còn tồn tại — bỏ job`);
+      return;
+    }
+
+    const criteria = await this.criteria.find({
+      where: { rubricId: job.rubricId },
+      order: { createdAt: 'ASC' },
+    });
+
+    await this.gradeOne(submission, job.requiredFilename, job.rubricId, criteria, result);
+  }
+
+  async progress(examSessionId: string): Promise<GradingProgress> {
+    const rows = await this.results
+      .createQueryBuilder('g')
+      .innerJoin('submission', 's', 's.id = g.submission_id')
+      .select('g.status', 'status')
+      .addSelect('COUNT(*)::int', 'count')
+      // Quyền sở hữu đã được controller kiểm bằng `findEntityForOwner`,
+      // đúng khuôn mà `finalizeGrades` và `listResults` dùng — không
+      // dựng bản sao thứ hai của luật đó ở đây.
+      .where('s.exam_session_id = :id', { id: examSessionId })
+      .groupBy('g.status')
+      .getRawMany<{ status: GradingResultStatus; count: number }>();
+
+    const byStatus = Object.fromEntries(rows.map((row) => [row.status, row.count])) as Record<
+      GradingResultStatus,
+      number | undefined
+    >;
+    const total = rows.reduce((sum, row) => sum + row.count, 0);
+    const pending = byStatus.ai_grading ?? 0;
+
+    const counts = await this.queue.getJobCounts('waiting', 'active', 'failed');
+
+    return {
+      total,
+      pending,
+      done: total - pending,
+      byStatus: Object.fromEntries(rows.map((row) => [row.status, row.count])),
+      // TOÀN hàng đợi, không theo phiên — chỉ để trả lời "hàng đợi có
+      // đang kẹt không", không bao giờ để vẽ thanh tiến độ.
+      queue: {
+        waiting: counts.waiting ?? 0,
+        active: counts.active ?? 0,
+        failed: counts.failed ?? 0,
+      },
     };
   }
 
@@ -157,10 +347,14 @@ export class GradingService {
    * `auto_approved` without ever having been `ai_grading` never had a model
    * look at it.
    *
-   * Run inline for now. The queue this becomes is a real piece of work
-   * (BullMQ, one job per submission, retries) and is deliberately not in
-   * this slice — but the shape here is already one call per submission, so
-   * the change is where `gradeOne` is invoked from, not what it does.
+   * Chạy như MỘT JOB BullMQ cho mỗi bài — xem `grading.processor.ts`.
+   * `startGrading` không còn gọi thẳng hàm này; nó tạo dòng, xếp hàng, và
+   * worker gọi `gradeOneById` bên dưới.
+   *
+   * `existingResult` bắt buộc, không còn tuỳ chọn: dòng đã được tạo đồng
+   * bộ ở `startGrading` (xem lý do dài ở đó). Tạo lại ở đây sẽ đụng
+   * `uq_grading_result_submission`, và quan trọng hơn là phá đúng tính
+   * chất khiến việc tạo trước có giá trị.
    */
   private async gradeOne(
     submission: SubmissionEntity,
@@ -172,16 +366,8 @@ export class GradingService {
     requiredFilename: string,
     rubricId: string,
     criteria: RubricCriterionEntity[],
-    teacherId: string,
+    result: GradingResultEntity,
   ): Promise<void> {
-    const result = await this.results.save(
-      this.results.create({
-        submissionId: submission.id,
-        rubricIdVersion: rubricId,
-        gradingTriggeredBy: teacherId,
-        status: 'ai_grading',
-      }),
-    );
 
     let content = '';
     try {

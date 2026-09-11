@@ -10,7 +10,7 @@
 
 **Spec:** `CLAUDE.md` §7.1 (Lõi backlog), §5.6/§5.7 (rubric reuse, AI-vs-human score separation), §1.1 (Sở hữu tier), "AI Grading Strategy" section (cascade, caching, batch), Security rules 3/4/5/6/7/9. Prior spec docs from the grading session: `docs/superpowers/specs/2026-09-05-session-pinned-rubric-design.md`, `docs/superpowers/specs/2026-09-05-teacher-review-design.md`.
 
-## Trạng thái — rev 3 (2026-09-11, sau khi chốt D1/D2)
+## Trạng thái — rev 4 (2026-09-11, thêm rà soát Task 4)
 
 > Bản gốc viết ngày 2026-09-10, TRƯỚC khi `feature/exam-collection-phase` tồn tại và trước một lượt review hạ tầng. Mục này ghi lại mọi chỗ bản gốc **sai hoặc lỗi thời**, tại đúng task của nó. Đọc plan này thì đọc cả các khối `> **Sửa ở rev 2**` — bản gốc còn nguyên bên dưới để đối chiếu, KHÔNG phải để làm theo.
 
@@ -19,7 +19,7 @@
 | 1. Giới hạn file đầu vào | ✅ Xong — commit `ffa4372`, có một chỗ lệch plan, xem Task 1 |
 | 2. `semester_name` snapshot | ✅ Xong — cột đổi tên thành `semester_name`, xem Task 2 |
 | 3. Đóng băng roster + `absent` | ✅ Xong — hai giá trị enum, guard tạm ở `agent:join` |
-| 4. BullMQ queue | Sẵn sàng — 7 điểm sửa + 1 thay đổi hợp đồng API, xem Task 4 |
+| 4. BullMQ queue | ✅ Xong — kèm route tiến độ và UI đọc nó |
 | 5. Claude provider | ⛔ **CHẶN** — chưa có `ANTHROPIC_API_KEY`, và kiến trúc chấm AI chưa chốt |
 | 6. Cascade | Phụ thuộc Task 5 |
 | 7. GradeExport | Phụ thuộc Task 2 + Task 3 |
@@ -927,6 +927,54 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ## Task 4: Move grading onto a BullMQ queue (A2a + §7.1.3)
 
+> # Sửa ở rev 4 — bốn điểm nữa, một trong đó CHẶN
+
+### 4A (CHẶN) — chốt điểm giữa chừng, và vì sao `BLOCKS_FINALIZE` không cứu được
+
+Trước Task 4, `startGrading` trả về khi mọi bài đã chấm xong, nên **không tồn tại** trạng thái "phiên chấm dở". Sau Task 4 trạng thái đó tồn tại trong nhiều phút. Cùng loại lỗi với việc `collecting` tách đôi nghĩa của `completed`: một trạng thái mới mà mọi đường code giả định nhị phân đều chưa biết tới.
+
+**Đã kiểm — hệ thống có sẵn một nửa phòng thủ:** `teacher-review.service.ts` khai
+
+```ts
+const BLOCKS_FINALIZE: GradingResultStatus[] = ['ai_grading', 'ai_graded', 'flagged_for_review'];
+// -> ConflictException "Còn N bài chưa duyệt xong — hãy duyệt hết trước khi chốt điểm."
+```
+
+Nên ca "20/48 đã chấm rồi bấm chốt" **không lọt**. Thất bại thật hẹp hơn và tệ hơn:
+
+`gradeOne` tạo dòng `grading_result` ở `ai_grading` **bên trong worker**. Một job đã xếp hàng nhưng chưa được nhặt thì **chưa có dòng nào**. `finalizeGrades` truy `WHERE s.exam_session_id = ?` và chỉ thấy 20 dòng, tất cả `auto_approved`, rồi chốt sạch. 28 bài kia không bị bỏ qua cũng không bị chốt 0 điểm — chúng **vô hình**; worker chấm xong sau đó và chúng nằm lại ở `auto_approved` vĩnh viễn, trên một phiên mà giảng viên tin là đã đóng.
+
+**Cách sửa — không cần code mới:** tạo TẤT CẢ dòng `grading_result` ở `ai_grading` **đồng bộ, trong chính transaction của `startGrading`**, cùng lượt với `addBulk`. Khi đó:
+
+- `BLOCKS_FINALIZE` hoạt động đúng như thiết kế, không sửa một dòng nào
+- guard không phải hỏi Redis — nó hỏi DB, nơi sự thật vốn đã ở đó
+- tham số `existingResultId` mà Step 6 thêm cho ca retry có công dụng thứ hai, rõ ràng hơn: worker **tái dùng** dòng đã có thay vì tạo mới
+- và nó tự giải luôn 4C bên dưới
+
+### 4B — `removeOnComplete` giới hạn theo SỐ, không theo thời gian
+
+`removeOnComplete: 1_000` với 144 job một lượt nghĩa là job của phiên trước bị dọn trước khi ai kịp nhìn. Dùng `KeepJobs`: `{ age: 24 * 3600, count: 5_000 }`.
+
+> Đã kiểm `bullmq@6.3.4`: `KeepJobs` có thật, và doc của chính nó nói thêm một điều đáng biết — BullMQ dọn **best-effort khi job kế tiếp kết thúc**, không có timer nền. Job quá hạn vẫn nằm đó nếu không còn job nào chạy. Đó là một lý do nữa để tiến độ đọc từ DB chứ không từ queue.
+
+### 4C — `getJobCounts()` đếm TOÀN QUEUE, không theo phiên
+
+Nó trả tổng `waiting`/`active`/`failed` của mọi phiên. Hai giảng viên chấm cùng lúc thì mỗi người thấy tiến độ của cả hai.
+
+Nhờ 4A, chuyện này tự tan: mọi dòng `grading_result` đã tồn tại từ lúc `startGrading` trả về, nên tiến độ per-session là một câu `COUNT(*) GROUP BY status` — **chính xác, đầy đủ ngay lập tức, và sống sót cả khi Redis bị xoá**.
+
+`getJobCounts()` vẫn giữ, nhưng cho đúng một việc khác: **queue có đang kẹt không**. Hai nguồn, hai câu hỏi, và response phải tách chúng ra thay vì trộn vào một con số.
+
+### 4D — job không có timeout, và KHÔNG sửa được bằng một dòng
+
+Một lời gọi treo ở tầng mạng chiếm slot vô hạn; với `concurrency: 5` thì 5 job treo là dừng cả queue.
+
+> **Đã kiểm `bullmq@6.3.4/dist/esm/interfaces/base-job-options.d.ts`: KHÔNG có trường `timeout`.** Chỉ `attempts`, `backoff`, `removeOnComplete`, `removeOnFail`, `delay`, `priority`, `jobId`. Nó bị bỏ sau Bull v3. Nên đây không phải "một dòng trong job options" như trực giác mách.
+
+Đặt trong **processor**, không trong provider: mọi provider — kể cả provider thêm sau này — đều đi qua đó, đúng cùng lập luận đã đặt giới hạn kích thước ở `extractText` thay vì ở chỗ gọi model.
+
+---
+
 > **Sửa ở rev 2 — bảy điểm. Kiến trúc lõi (một job một bài, payload chỉ chứa id, jobId dedupe, ném lỗi thay vì bắt, idempotent ở `gradeOneById`) GIỮ NGUYÊN — phần đó đúng.**
 >
 > **(a) Chính sách retry phải phân loại theo lỗi.** `attempts: 3` + backoff 5s, nhưng Task 5 ném trên **mọi** `APIError`. Một 400 — sai shape `thinking`, schema hỏng, model id sai — sẽ retry 5s→10s→20s rồi mới chết, trong lúc đó chiếm worker slot. Deploy sai một model id thì 40 bài × 3 lần = 120 lời gọi chắc chắn thất bại trước khi có ai biết. Cần: `RateLimitError`/5xx/timeout → retry; 4xx khác → `UnrecoverableError` của BullMQ, fail ngay.
@@ -967,7 +1015,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - Consumes: `GradingService.gradeOne` (currently `private` — becomes `public` so the processor can call it; its signature is unchanged).
 - Produces: queue name `'grading'`; job payload `GradeSubmissionJob { submissionId: string; requiredFilename: string; rubricId: string; teacherId: string }`; `GradingService.startGrading` returns the same `StartGradingResult` shape but `queued` now means *enqueued*, not *graded*. Tasks 5 and 6 change what happens **inside** `gradeOne`, never where it is called from.
 
-- [ ] **Step 1: Verify Redis is reachable and add the env config**
+- [x] **Step 1: Verify Redis is reachable and add the env config**
 
 ```bash
 docker compose up -d redis
@@ -985,14 +1033,14 @@ REDIS_HOST=localhost
 REDIS_PORT=6390
 ```
 
-- [ ] **Step 2: Install the dependencies**
+- [x] **Step 2: Install the dependencies**
 
 ```bash
 cd apps/api
 pnpm add bullmq ioredis @nestjs/bullmq
 ```
 
-- [ ] **Step 3: Write the failing processor unit test**
+- [x] **Step 3: Write the failing processor unit test**
 
 ```typescript
 // apps/api/src/grading/grading.processor.spec.ts
@@ -1037,12 +1085,12 @@ describe('GradingProcessor', () => {
 });
 ```
 
-- [ ] **Step 4: Run to confirm failure**
+- [x] **Step 4: Run to confirm failure**
 
 Run: `pnpm --filter api test -- grading.processor`
 Expected: FAIL — module does not exist.
 
-- [ ] **Step 5: Add the queue definition and processor**
+- [x] **Step 5: Add the queue definition and processor**
 
 ```typescript
 // apps/api/src/grading/grading.queue.ts
@@ -1095,7 +1143,7 @@ export class GradingProcessor extends WorkerHost {
 }
 ```
 
-- [ ] **Step 6: Refactor `GradingService` — enqueue instead of loop, and make the retry safe**
+- [x] **Step 6: Refactor `GradingService` — enqueue instead of loop, and make the retry safe**
 
 In `apps/api/src/grading/grading.service.ts`:
 
@@ -1182,7 +1230,7 @@ Change `gradeOne` from `private` to `public`, and give it an optional last param
 
 Update `gradeOne`'s stale doc comment: the paragraph beginning "Run inline for now. The queue this becomes is a real piece of work..." is now wrong. Replace it with a line saying it runs as a BullMQ job per submission and pointing at `grading.processor.ts`.
 
-- [ ] **Step 7: Register BullMQ in the modules**
+- [x] **Step 7: Register BullMQ in the modules**
 
 In `apps/api/src/app.module.ts`, add to `imports`:
 
@@ -1200,12 +1248,12 @@ In `apps/api/src/app.module.ts`, add to `imports`:
 
 In `apps/api/src/grading/grading.module.ts`, add `BullModule.registerQueue({ name: GRADING_QUEUE })` to `imports` and `GradingProcessor` to `providers`.
 
-- [ ] **Step 8: Run the processor test**
+- [x] **Step 8: Run the processor test**
 
 Run: `pnpm --filter api test -- grading.processor`
 Expected: PASS.
 
-- [ ] **Step 9: Write and run the queue e2e test**
+- [x] **Step 9: Write and run the queue e2e test**
 
 ```typescript
 // apps/api/test/grading-queue.e2e-spec.ts
@@ -1253,11 +1301,11 @@ Write `waitFor(fn, {timeout})` as a small local helper in the test file if the s
 Run: `pnpm --filter api test:e2e -- grading-queue`
 Expected: PASS. The e2e run needs Redis up — add that to the e2e prerequisites note in `apps/api/test/README.md` if one exists, or to `DEMO-RUNBOOK.md`.
 
-- [ ] **Step 10: Update CLAUDE.md**
+- [x] **Step 10: Update CLAUDE.md**
 
 §7.1.3: mark `✅ Đã làm (2026-09-10)`. In the Tech Stack section, the "Queue: BullMQ — Grading Queue (one job per submission)" line is now true rather than aspirational — no edit needed, but verify it says exactly that.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add apps/api/package.json apps/api/pnpm-lock.yaml apps/api/.env.example apps/api/src apps/api/test CLAUDE.md

@@ -1,0 +1,146 @@
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
+import { Job, UnrecoverableError } from 'bullmq';
+import { GradingService } from './grading.service';
+import { GRADE_JOB_TIMEOUT_MS, GRADING_QUEUE, GradeSubmissionJob } from './grading.queue';
+
+/**
+ * Bao nhiêu bài chạy song song.
+ *
+ * Đặt tường minh và đặt CẠNH `limiter`, vì hai con số này tương tác:
+ * `limiter` giữ nhịp gọi API, còn `concurrency` giữ số bài đang bay.
+ * Mặc định của BullMQ là 1 — nghĩa là 40 bài × 10s ≈ 7 phút tuần tự, tức
+ * không dùng chút năng lực song song nào. Ngược lại đặt 20 thì 20 lời
+ * gọi đồng thời sẽ đụng rate limit, rồi retry, rồi đụng lại.
+ */
+const GRADE_CONCURRENCY = 5;
+
+/** Trần nhịp gọi. Chọn cùng lúc với `concurrency` ở trên — xem lý do ở đó. */
+const GRADE_RATE_LIMIT = { max: 10, duration: 1_000 };
+
+/**
+ * Một job = một bài (CLAUDE.md §7.1.3).
+ *
+ * Vì sao không phải một job cho cả phiên: chấm 40+ bài bằng model thật
+ * mất 3-15s/bài, tức 2-12 PHÚT — quá hạn mọi HTTP request, và nếu giảng
+ * viên đóng tab giữa chừng thì một job nguyên khối mất sạch tiến độ.
+ * Per-bài nghĩa là retry đúng bài lỗi, tiến độ đọc được từ DB, và chi
+ * phí AI không bị tính hai lần cho cùng một bài.
+ */
+@Processor(GRADING_QUEUE, {
+  concurrency: GRADE_CONCURRENCY,
+  limiter: GRADE_RATE_LIMIT,
+})
+export class GradingProcessor extends WorkerHost implements OnModuleDestroy {
+  private readonly logger = new Logger(GradingProcessor.name);
+
+  constructor(private readonly grading: GradingService) {
+    super();
+  }
+
+  async process(job: Job<GradeSubmissionJob>): Promise<void> {
+    const started = Date.now();
+    try {
+      await this.withTimeout(this.grading.gradeOneById(job.data), job.data.submissionId);
+    } catch (error) {
+      // PHÂN LOẠI trước khi để BullMQ retry.
+      //
+      // `attempts: 3` + backoff là đúng cho rate limit, 5xx và timeout —
+      // những thứ tự hết. Nó SAI cho 4xx: sai shape `thinking`, schema
+      // hỏng, model id không tồn tại. Một lỗi như thế retry 5s→10s→20s
+      // rồi mới chết, và trong lúc đó chiếm slot. Deploy nhầm một model
+      // id là 40 bài × 3 lần = 120 lời gọi chắc chắn thất bại trước khi
+      // ai kịp biết.
+      //
+      // `UnrecoverableError` bảo BullMQ dừng ngay, không thử lại.
+      if (isPermanentFailure(error)) {
+        const reason = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `submission ${job.data.submissionId}: lỗi KHÔNG retry được — ${reason}`,
+        );
+        throw new UnrecoverableError(reason);
+      }
+      throw error;
+    }
+    // Không log nội dung bài làm hay output model — chỉ id và thời gian.
+    this.logger.log(`graded submission ${job.data.submissionId} in ${Date.now() - started}ms`);
+  }
+
+  /**
+   * Trần thời gian cho một bài — xem `GRADE_JOB_TIMEOUT_MS` để biết vì
+   * sao nó phải nằm ở đây chứ không ở job options.
+   *
+   * `Promise.race` chứ không `AbortSignal`: `AIGradingProvider` là một
+   * seam đã có, và bắt mọi implementation phải nhận signal là đổi hợp
+   * đồng của seam đó vì một lo ngại ở tầng hạ tầng. Đánh đổi phải nói
+   * ra: lời gọi bị bỏ rơi vẫn chạy tiếp ở nền cho tới khi SDK tự bỏ
+   * cuộc — ta giải phóng SLOT, không giải phóng kết nối. Với mục đích ở
+   * đây (không để 5 bài treo dừng cả hàng đợi) thì đúng cái cần.
+   */
+  private async withTimeout<T>(work: Promise<T>, submissionId: string): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        work,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `chấm bài ${submissionId} quá ${GRADE_JOB_TIMEOUT_MS}ms — bỏ để không giữ slot`,
+                ),
+              ),
+            GRADE_JOB_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } finally {
+      // Không clear thì timer giữ event loop sống thêm 2 phút sau MỌI bài
+      // chấm nhanh, và `app.close()` trong e2e treo vì đúng lý do đó.
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
+  }
+
+  /**
+   * Lỗi biến mất vào trong BullMQ nếu không có listener này — và với một
+   * đường ống chạy nền, tốn tiền, "vì sao bài này không có điểm" là câu
+   * hỏi đầu tiên khi có sự cố.
+   *
+   * Ghi số lần thử: một bài chết ở lần 1 và một bài chết ở lần 3 là hai
+   * câu chuyện khác nhau.
+   */
+  @OnWorkerEvent('failed')
+  onFailed(job: Job<GradeSubmissionJob> | undefined, error: Error): void {
+    this.logger.error(
+      `job ${job?.id ?? '(không rõ)'} submission ${job?.data?.submissionId ?? '(không rõ)'} ` +
+        `thất bại lần ${job?.attemptsMade ?? 0}: ${error.message}`,
+    );
+  }
+
+  /**
+   * Đóng worker khi module tắt.
+   *
+   * Không có nó, Ctrl-C giữa lượt chấm để job ở trạng thái `active` cho
+   * tới hết stall timeout (mặc định 30 giây) — trong dev thì gây nhầm
+   * lẫn ("sao chấm lại không chạy"), trong demo thì tệ hơn.
+   */
+  async onModuleDestroy(): Promise<void> {
+    await this.worker?.close();
+  }
+}
+
+/**
+ * Lỗi sẽ KHÔNG khác đi nếu thử lại.
+ *
+ * 4xx trừ 408 (timeout) và 429 (rate limit): sai cấu hình hoặc sai
+ * request, và cả hai đều cần người sửa chứ không cần chờ.
+ */
+function isPermanentFailure(error: unknown): boolean {
+  const status = (error as { status?: unknown })?.status;
+  if (typeof status !== 'number') {
+    return false;
+  }
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}

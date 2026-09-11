@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { GRADING_QUEUE } from './grading.queue';
+import { GradingProcessor } from './grading.processor';
 import { RubricEntity } from './entities/rubric.entity';
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { GradingResultEntity } from './entities/grading-result.entity';
@@ -41,10 +44,13 @@ import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
     ExamSessionModule,
     // Sửa điểm sau khi đã công bố phải để lại dấu vết — Security rule 4.
     AdminModule,
+    // Chấm điểm chạy trên hàng đợi: một job một bài (CLAUDE.md §7.1.3).
+    BullModule.registerQueue({ name: GRADING_QUEUE }),
   ],
   controllers: [GradingController],
   providers: [
     GradingService,
+    GradingProcessor,
     RubricService,
     TeacherReviewService,
     { provide: AI_GRADING_PROVIDER, useClass: KeywordGradingProvider },

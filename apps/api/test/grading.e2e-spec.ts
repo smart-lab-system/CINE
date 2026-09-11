@@ -83,6 +83,35 @@ describe('Grading (e2e)', () => {
     return row.id as string;
   }
 
+  /**
+   * Chờ hàng đợi chấm xong phiên này.
+   *
+   * Cần từ 2026-09-11: `POST .../start-grading` trả về ngay sau khi xếp
+   * hàng, nên mọi khẳng định về KẾT QUẢ phải chờ worker chạy.
+   *
+   * Hỏi `grading-progress` chứ không ngủ một khoảng cố định: ngủ đủ lâu
+   * thì test chậm, ngủ không đủ thì test chớp tắt — và một test chớp tắt
+   * ở đường chấm điểm là thứ người ta sẽ bắt đầu chạy lại cho tới khi nó
+   * xanh, tức là hỏng hẳn tác dụng.
+   */
+  async function waitForGrading(examSessionId: string, timeoutMs = 20_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const progress = await request(app.getHttpServer())
+        .get(`/exam-sessions/${examSessionId}/grading-progress`)
+        .set('Authorization', `Bearer ${token}`);
+      if (progress.status === 200 && progress.body.pending === 0 && progress.body.total > 0) {
+        return;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(
+          `hàng đợi chấm chưa xong sau ${timeoutMs}ms: ${JSON.stringify(progress.body)}`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -237,7 +266,11 @@ describe('Grading (e2e)', () => {
         .set('Authorization', `Bearer ${token}`);
 
       expect(started.status).toBe(200);
+      // `queued` nghĩa là ĐÃ XẾP HÀNG, không phải ĐÃ CHẤM — đổi nghĩa từ
+      // 2026-09-11 khi chấm điểm chuyển lên BullMQ. Mọi khẳng định về kết
+      // quả phải chờ worker, và đó là lý do có `waitForGrading` bên dưới.
       expect(started.body).toMatchObject({ queued: 1, rubricVersion: 2 });
+      await waitForGrading(sessionId);
 
       const results = await request(app.getHttpServer())
         .get(`/exam-sessions/${sessionId}/grading-results`)
