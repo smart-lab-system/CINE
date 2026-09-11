@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * The counterweight to enrollment enforcement.
@@ -112,6 +113,18 @@ describe('Access request (e2e)', () => {
     );
     classId = klass.id;
 
+    // Một sinh viên CÓ trong roster, từ 2026-09-11: mở phiên là đóng
+    // băng danh sách dự thi, và một lớp rỗng thì không có gì để chụp.
+    // Điều này cũng làm bối cảnh test đúng hơn bối cảnh cũ: ca thật của
+    // access-request là "roster CÓ tồn tại, em này không nằm trong đó",
+    // không phải "lớp chưa có ai".
+    await dataSource.query(
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [`AR${Date.now() % 100000}`, 'Sinh viên có trong roster', courseId, classId, teacherId],
+    );
+
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
@@ -126,6 +139,9 @@ describe('Access request (e2e)', () => {
       });
     expect(created.status).toBe(201);
     sessionId = created.body.id;
+    // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
+    // dự thi. Xem test/helpers/open-session.ts.
+    await openSession(app, token, sessionId);
     sessionCode = created.body.code;
   });
 

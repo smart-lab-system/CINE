@@ -18,7 +18,7 @@
 | --- | --- |
 | 1. Giới hạn file đầu vào | ✅ Xong — commit `ffa4372`, có một chỗ lệch plan, xem Task 1 |
 | 2. `semester_name` snapshot | ✅ Xong — cột đổi tên thành `semester_name`, xem Task 2 |
-| 3. Đóng băng roster + `absent` | Sẵn sàng — D1/D2 đã chốt, phạm vi thu hẹp, xem Task 3 |
+| 3. Đóng băng roster + `absent` | ✅ Xong — hai giá trị enum, guard tạm ở `agent:join` |
 | 4. BullMQ queue | Sẵn sàng — 7 điểm sửa + 1 thay đổi hợp đồng API, xem Task 4 |
 | 5. Claude provider | ⛔ **CHẶN** — chưa có `ANTHROPIC_API_KEY`, và kiến trúc chấm AI chưa chốt |
 | 6. Cascade | Phụ thuộc Task 5 |
@@ -490,7 +490,7 @@ These two CLAUDE.md items are one task because §7.1.2 says so explicitly ("Kèm
 - Consumes: `EnrollmentEntity` (`courseId`, `studentMssv`, `studentName`, `homeClassId`, `homeTeacherId`), `ExamSessionEntity.classId`/`courseId`.
 - Produces: `SessionRosterEntity { id, examSessionId, studentMssv, studentName, homeClassId, homeTeacherId, source: 'frozen' | 'manual', frozenAt }`; `SessionRosterService.freeze(session): Promise<{ students: number; submissionsSeeded: number }>`; `SubmissionStatus` gains `'absent'`; `POST /exam-sessions/:id/open` (teacher-only) triggers the freeze. Task 7 (GradeExport) reads `session_roster` as the authoritative "who should appear on the grade sheet" list.
 
-- [ ] **Step 1: Find where a session actually starts**
+- [x] **Step 1: Find where a session actually starts**
 
 ```bash
 cd apps/api
@@ -500,7 +500,7 @@ grep -rn "status" src/exam-session/exam-session.scheduler.ts
 
 Read what these return. You are looking for the transition into `status: 'active'` — whether it is a route a teacher calls, a scheduler tick, or (most likely, given `ExamSessionStatus`'s own comment says the list is *inferred* and unconfirmed) **nothing at all yet**. Record which of the three it is; the freeze hook goes at that exact point, and if it is "nothing yet", this task introduces `POST /exam-sessions/:id/open` as that point.
 
-- [ ] **Step 2: Write the failing e2e test**
+- [x] **Step 2: Write the failing e2e test**
 
 ```typescript
 // apps/api/test/session-roster-freeze.e2e-spec.ts
@@ -572,12 +572,12 @@ describe('POST /exam-sessions/:id/open — freeze the sitting list', () => {
 
 The last test is CLAUDE.md §5.8's escape hatch surviving the freeze, which §7.1.1 marks **Bắt buộc giữ** — if the freeze blocked it, a legitimate late-registering student could not sit the exam at all.
 
-- [ ] **Step 3: Run to confirm failure**
+- [x] **Step 3: Run to confirm failure**
 
 Run: `pnpm --filter api test:e2e -- session-roster-freeze`
 Expected: FAIL — 404, no such route.
 
-- [ ] **Step 4: Add the entity**
+- [x] **Step 4: Add the entity**
 
 ```typescript
 // apps/api/src/exam-session/entities/session-roster.entity.ts
@@ -652,7 +652,7 @@ export class SessionRosterEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 5: Add `'absent'` to `SubmissionStatus`**
+- [x] **Step 5: Add `'absent'` to `SubmissionStatus`**
 
 In `apps/api/src/submission/entities/submission.entity.ts`:
 
@@ -673,7 +673,7 @@ Add above the type:
 // rồi chuyển sang `received` khi agent nộp file đầu tiên.
 ```
 
-- [ ] **Step 6: Write the migration by hand**
+- [x] **Step 6: Write the migration by hand**
 
 `migration:generate` cannot express the enum-value addition safely (it drops and recreates the type, which fails while columns depend on it). Write it manually:
 
@@ -729,14 +729,14 @@ export class AddSessionRosterAndAbsentStatus<timestamp> implements MigrationInte
 
 **Note:** `ALTER TYPE ... ADD VALUE` cannot run inside a transaction block on PostgreSQL < 12. This project is on 16 (verified via `SELECT version()` in the migration runner output), where it is transaction-safe — no special handling needed.
 
-- [ ] **Step 7: Register the entity and run the migration**
+- [x] **Step 7: Register the entity and run the migration**
 
 Add `SessionRosterEntity` to the `entities` array in `apps/api/src/database/data-source.ts` and to `TypeOrmModule.forFeature([...])` in `apps/api/src/exam-session/exam-session.module.ts`.
 
 Run: `pnpm migration:run`
 Expected: executed successfully.
 
-- [ ] **Step 8: Write the freeze service**
+- [x] **Step 8: Write the freeze service**
 
 ```typescript
 // apps/api/src/exam-session/session-roster.service.ts
@@ -867,7 +867,7 @@ docker exec cine-postgres-1 psql -U examcollect_admin -d examcollect -c "\sf exa
 ```
 If it rejects an INSERT whose status is not `received`, extend it in this same migration to allow `received` **or** `absent` as an initial state, and to allow `absent → received` (the agent's first upload on a student who had been seeded absent). Add the new transitions to the trigger with the same `CREATE OR REPLACE FUNCTION` style the initial migration used — do not drop and recreate the trigger itself.
 
-- [ ] **Step 9: Wire the route**
+- [x] **Step 9: Wire the route**
 
 In `apps/api/src/exam-session/exam-session.controller.ts`:
 
@@ -894,21 +894,21 @@ In `apps/api/src/exam-session/exam-session.controller.ts`:
 
 Inject `SessionRosterService`, register it in `exam-session.module.ts` `providers`, and import `RosterStudentDto` from `../course/dto/roster.dto` (reuse — the validation rules are identical and duplicating the MSSV regex is how the two drift apart).
 
-- [ ] **Step 10: Run the tests**
+- [x] **Step 10: Run the tests**
 
 Run: `pnpm --filter api test:e2e -- session-roster-freeze`
 Expected: PASS, all four.
 
-- [ ] **Step 11: Run the whole api suite — this task changes a shared enum**
+- [x] **Step 11: Run the whole api suite — this task changes a shared enum**
 
 Run: `pnpm --filter api test && pnpm --filter api test:e2e`
 Expected: PASS. Any spec asserting an exhaustive `SubmissionStatus` union or counting submission rows per session will need updating — that is expected fallout of adding a status, not a reason to revert.
 
-- [ ] **Step 12: Update CLAUDE.md**
+- [x] **Step 12: Update CLAUDE.md**
 
 §7.1.1 and §7.1.2: mark both `✅ Đã làm (2026-09-10)`. §3.1 relations diagram: add `ExamSession ──1:n──> SessionRoster`. §3.2: add a `SessionRoster` row (`semester_id`: không — vay qua `exam_session`; chủ: không có cột chủ, đọc qua phiên).
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add apps/api/src apps/api/test CLAUDE.md

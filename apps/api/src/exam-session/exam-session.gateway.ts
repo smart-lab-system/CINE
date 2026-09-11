@@ -34,6 +34,7 @@ import { renderFilename } from './filename-template';
 import { ExamMaterialService } from './exam-material.service';
 import { STUDENT_MSSV_REGEX } from '../common/student-mssv';
 import { RECOLLECT_ACK_TIMEOUT_MS } from './recollect.types';
+import { SessionRosterService } from './session-roster.service';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -106,6 +107,10 @@ type AgentJoinErrorCode =
   | 'SESSION_NOT_ACTIVE'
   | 'INVALID_INPUT'
   | 'NOT_ENROLLED'
+  // Guard TẠM THỜI: phiên chưa đóng băng danh sách dự thi (§7.1.1).
+  // Khác SESSION_NOT_ACTIVE ở chỗ nó là việc của GIẢNG VIÊN, không
+  // phải của đồng hồ — nên thông điệp nói đúng nút cần bấm.
+  | 'SESSION_NOT_OPEN'
   | 'RATE_LIMITED';
 
 interface AgentJoinError {
@@ -218,6 +223,7 @@ export class ExamSessionGateway
     private readonly attendance: AttendanceService,
     private readonly storage: StorageService,
     private readonly materials: ExamMaterialService,
+    private readonly sessionRoster: SessionRosterService,
   ) {}
 
   /**
@@ -384,6 +390,34 @@ export class ExamSessionGateway
         };
         client.to(teacherRoom(session.id)).emit('lobby:join_attempt_failed', failed);
       }
+      return;
+    }
+
+    // GUARD TẠM THỜI — sẽ được thay khi `scheduled` thành trạng thái
+    // thật (CLAUDE.md §7.1.1b), lúc đó điều kiện đúng là `status ===
+    // 'active'` và guard này biến mất.
+    //
+    // Phiên `active` ngay từ lúc tạo, nên không có transition nào để móc
+    // việc đóng băng danh sách dự thi vào (§7.1.1). Nếu không chặn ở
+    // đây, tồn tại cửa sổ — từ lúc tạo phiên tới lúc ai đó nhớ bấm "Mở
+    // phiên thi", có thể nhiều ngày — mà sinh viên vào thi và nộp bài
+    // trong khi `session_roster` rỗng. Đó đúng là lỗ hổng §7.1.1 sinh ra
+    // để bịt, chỉ dịch sang chỗ khác.
+    //
+    // Chọn chặn thay vì tự đóng băng ở lần join đầu, CÓ CHỦ ĐÍCH: ảnh
+    // chốt là chứng từ, và để một sự kiện TCP quyết định thời điểm lập
+    // nó thì không ai chọn, không ai biết, không tái lập được — cùng
+    // loại lỗi mà việc tách `not_submitted`/`absent` vừa từ chối, chỉ
+    // khác tầng. Chặn thì hỏng TO và SỚM: cả phòng dừng ở giây đầu,
+    // giảng viên bấm một nút là xong. Tự đóng băng thì hỏng nhỏ và
+    // muộn — thiếu vài người trong ảnh chốt, lộ ra lúc chấm.
+    if (!(await this.sessionRoster.isFrozen(session.id))) {
+      this.logger.warn(`agent:join refused: session ${session.id} chưa đóng băng danh sách dự thi`);
+      this.emitJoinError(
+        client,
+        'SESSION_NOT_OPEN',
+        'Phiên chưa được mở. Giảng viên bấm "Mở phiên thi" trước khi sinh viên vào.',
+      );
       return;
     }
 

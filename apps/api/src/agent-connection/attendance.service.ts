@@ -199,10 +199,24 @@ export class AttendanceService {
       return null;
     }
 
+    // CHỈ những dòng là bài nộp THẬT.
+    //
+    // Từ 2026-09-11, mở phiên gieo sẵn một dòng `not_submitted` cho mỗi
+    // (sinh viên × file bắt buộc) — §7.1.2, để "vắng" có chỗ ngồi trong
+    // bảng điểm. Nghĩa là bất biến cũ "có dòng = đã nộp" KHÔNG còn đúng,
+    // và một `COUNT(*)` ở đây sẽ báo cả lớp đã nộp bài ngay khi phiên vừa
+    // mở. Con số này là thứ giảng viên đối chiếu với sĩ số đã chốt, nên
+    // thổi phồng nó là biến báo cáo lệch thành báo động giả toàn phần.
+    //
+    // `absent` cũng bị loại, và vì cùng một lý do: nó là dòng `not_submitted`
+    // đã được kết luận, không phải một bài nộp.
     const rows = await this.submissions
       .createQueryBuilder('s')
       .select('DISTINCT s.student_mssv', 'mssv')
       .where('s.exam_session_id = :id', { id: session.id })
+      .andWhere('s.status NOT IN (:...notSubmitted)', {
+        notSubmitted: ['not_submitted', 'absent'],
+      })
       .getRawMany<{ mssv: string }>();
 
     const unaccounted = rows

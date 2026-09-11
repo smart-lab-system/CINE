@@ -62,11 +62,17 @@ function viewButtonDomId(mssv: string): string {
 }
 
 /**
- * "Chưa nộp" is the absence of a row, not a status the server ever sends —
- * so it is derived here, from a deliverable having no entry for a student.
- * The three states are given a word AND a shape, never colour alone: this
- * table is watched from across a room on a projector, where a red/green
- * difference is the first thing to get lost.
+ * "Chưa nộp" là mặc định khi một sinh viên chưa có ô nào cho deliverable
+ * đó — HOẶC khi server gửi về `not_submitted`, dòng được gieo sẵn lúc mở
+ * phiên (§7.1.2). Trước 2026-09-11 nó chỉ là sự VẮNG MẶT của một dòng;
+ * ghi lại ở đây vì cái bất biến cũ đó đã hết đúng.
+ *
+ * "Vắng thi" KHÁC "Chưa nộp" và phải đọc ra được là khác: nó nghĩa là một
+ * giảng viên đã nhìn khắp phòng rồi kết luận, không phải "chưa thấy file".
+ *
+ * Mỗi trạng thái có một CHỮ và một HÌNH, không bao giờ chỉ có màu: bảng
+ * này được nhìn từ xa qua máy chiếu, nơi khác biệt đỏ/xanh là thứ mất đầu
+ * tiên.
  */
 const STATE_PRESENTATION: Record<
   DeliverableState,
@@ -83,6 +89,12 @@ const STATE_PRESENTATION: Record<
     text: 'text-danger-strong',
     dot: 'bg-danger',
     symbol: '✕',
+  },
+  absent: {
+    label: 'Vắng thi',
+    text: 'text-warning-strong',
+    dot: 'bg-warning',
+    symbol: '○',
   },
   pending: {
     label: 'Chưa nộp',

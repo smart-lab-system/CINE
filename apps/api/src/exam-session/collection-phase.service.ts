@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { ExamSessionService } from './exam-session.service';
+import { SessionRosterService } from './session-roster.service';
 import { ExamSessionResponseDto } from './dto/exam-session-response.dto';
 import { SUBMISSION_GRACE_PERIOD_MS } from '../submission/submission.types';
 
@@ -17,10 +18,14 @@ import { SUBMISSION_GRACE_PERIOD_MS } from '../submission/submission.types';
  */
 @Injectable()
 export class CollectionPhaseService {
+  private readonly logger = new Logger(CollectionPhaseService.name);
+
   constructor(
     @InjectRepository(ExamSessionEntity)
     private readonly sessions: Repository<ExamSessionEntity>,
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly examSessions: ExamSessionService,
+    private readonly roster: SessionRosterService,
   ) {}
 
   /**
@@ -45,23 +50,41 @@ export class CollectionPhaseService {
   async confirmEnd(id: string, teacherId: string): Promise<ExamSessionResponseDto> {
     await this.examSessions.findByIdForOwner(id, teacherId);
 
-    await this.sessions
-      .createQueryBuilder()
-      .update(ExamSessionEntity)
-      .set({ status: 'completed', completedAt: () => 'now()', completedBy: teacherId })
-      .where('id = :id', { id })
-      .andWhere(
-        `(status = :collecting
-          OR (status = :completed
-              AND completed_by IS NULL
-              AND now() <= end_time + make_interval(secs => :graceSecs)))`,
-        {
-          collecting: 'collecting',
-          completed: 'completed',
-          graceSecs: SUBMISSION_GRACE_PERIOD_MS / 1000,
-        },
-      )
-      .execute();
+    await this.dataSource.transaction(async (manager) => {
+      const result = await manager
+        .createQueryBuilder()
+        .update(ExamSessionEntity)
+        .set({ status: 'completed', completedAt: () => 'now()', completedBy: teacherId })
+        .where('id = :id', { id })
+        .andWhere(
+          `(status = :collecting
+            OR (status = :completed
+                AND completed_by IS NULL
+                AND now() <= end_time + make_interval(secs => :graceSecs)))`,
+          {
+            collecting: 'collecting',
+            completed: 'completed',
+            graceSecs: SUBMISSION_GRACE_PERIOD_MS / 1000,
+          },
+        )
+        .execute();
+
+      // GẮN VỚI `affected`, không gắn với lời gọi. 0 dòng nghĩa là phiên
+      // đã có người ký hoặc đã quá cửa sổ — không có chữ ký MỚI nào ở
+      // đây, nên không ai vừa quan sát phòng, nên không được kết luận
+      // vắng thi. Chạy vô điều kiện sẽ biến một lần bấm nhầm vào phiên
+      // hôm qua thành một phán xét học vụ.
+      if ((result.affected ?? 0) > 0) {
+        // CÙNG transaction với việc đổi trạng thái phiên: "đã chốt" và
+        // "đã kết luận vắng thi" phải cùng đúng hoặc cùng không. Một
+        // phiên `completed` có `completed_by` mà vẫn còn `not_submitted`
+        // sẽ đọc như "quét dự phòng đóng" ở mọi chỗ khác (§8.1).
+        const marked = await this.roster.markAbsentees(manager, id);
+        if (marked > 0) {
+          this.logger.log(`session ${id}: ${marked} dòng chưa nộp → vắng thi (ký bởi ${teacherId})`);
+        }
+      }
+    });
 
     // Đọc lại thay vì vá bản sao trong bộ nhớ: nếu 0 dòng khớp (phiên
     // đã có người ký, hoặc đã quá cửa sổ), giảng viên vẫn phải thấy

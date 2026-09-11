@@ -440,7 +440,19 @@ export class SubmissionService {
     if (existing.status === 'collected' || existing.status === 'invalid') {
       await repo.update(existing.id, fileFields);
     } else {
-      if (existing.status === 'received') {
+      // Dòng GIEO SẴN lúc đóng băng (`not_submitted`), và dòng đã bị kết
+      // luận vắng thi rồi mới có bài về (`absent` — spec collecting §3.1
+      // cố ý KHÔNG chặn upload sau khi xác nhận), đều bước vào đường
+      // chính ở đây thay vì nhảy thẳng tới `collected`.
+      //
+      // Đi từng bước chứ không tắt: `collected` phải luôn nghĩa là "đã
+      // đi hết đường kiểm tra". Một dòng nhảy cóc tới `collected` trông
+      // giống hệt một bài đã qua kiểm, và trigger vòng đời cũng sẽ từ
+      // chối nó — đúng như thiết kế.
+      if (existing.status === 'not_submitted' || existing.status === 'absent') {
+        await repo.update(existing.id, { status: 'received' });
+      }
+      if (existing.status !== 'validated') {
         await repo.update(existing.id, { status: 'validated' });
       }
       await repo.update(existing.id, { ...fileFields, status: 'collected' });

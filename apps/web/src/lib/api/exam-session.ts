@@ -91,7 +91,10 @@ export interface SubmissionStatusItem {
   studentMssv: string;
   studentNameInput: string;
   requiredDeliverableId: string;
-  status: 'received' | 'validated' | 'collected' | 'invalid';
+  /** `not_submitted`/`absent` có từ 2026-09-11 (§7.1.2): dòng được gieo
+   *  sẵn lúc mở phiên, nên "chưa nộp" không còn là sự VẮNG MẶT của một
+   *  dòng. Xem SubmissionStatus ở apps/api. */
+  status: 'not_submitted' | 'received' | 'validated' | 'collected' | 'invalid' | 'absent';
   submittedAt: string;
   fileSize: string | null;
   downloadUrl: string | null;

@@ -7,6 +7,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * "Quản lý bài thu" (QA-reported gap) — GET /submissions, a real submission
@@ -191,6 +192,9 @@ describe('Teacher submissions (e2e)', () => {
           requiredFilenames: ['Cau1.docx'],
         });
       expect(response.status).toBe(201);
+      // Guard §7.1.1: agent:join từ chối phiên chưa đóng băng danh sách
+      // dự thi. Lớp truyền vào phải đã có ít nhất một sinh viên.
+      await openSession(app, token, response.body.id);
       return {
         id: response.body.id as string,
         code: response.body.code as string,
@@ -209,6 +213,15 @@ describe('Teacher submissions (e2e)', () => {
       `INSERT INTO examcollect.class (course_id, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
       [course.id, `Nhóm B ${stamp}`, teacherId],
+    );
+    // Nhóm B cũng cần một sinh viên để đóng băng được. MSSV_B vẫn vào
+    // thi ở phiên B qua xác thực cấp MÔN, đúng như chú thích ở trên nói —
+    // em này chỉ tồn tại để ảnh chốt của nhóm B không rỗng.
+    await dataSource.query(
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
+       VALUES ($1, 'Sinh viên nhóm B', $2, $3, $4)`,
+      [`TSN${stamp}`.slice(0, 20), course.id, classBRow.id, teacherId],
     );
     const sessionB = await createSession(`Phiên B ${stamp}`, classBRow.id, teacherToken);
     sessionBId = sessionB.id;

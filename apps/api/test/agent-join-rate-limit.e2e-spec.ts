@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * Spec: docs/superpowers/specs/2026-09-01-student-agent-electron-design.md
@@ -141,6 +142,11 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
         requiredFilenames: ['Cau1.docx'],
       });
     expect(active.status).toBe(201);
+    // Guard §7.1.1: agent:join từ chối phiên chưa đóng băng danh sách
+    // dự thi. Cần ít nhất một em trong lớp để có gì mà chụp — em này
+    // không tham gia khẳng định nào, mọi ca dưới đây dùng MSSV riêng.
+    await enrollFreshStudent('SEED');
+    await openSession(app, token, active.body.id);
     activeSessionCode = active.body.code;
 
     // Not yet started — status is 'active' but the window hasn't opened,

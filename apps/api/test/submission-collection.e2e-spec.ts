@@ -7,6 +7,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * The whole collection path against the real stack — Postgres for the row,
@@ -106,6 +107,9 @@ describe('Submission collection (e2e)', () => {
       });
     expect(created.status).toBe(201);
     sessionId = created.body.id;
+    // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
+    // dự thi. Xem test/helpers/open-session.ts.
+    await openSession(app, token, sessionId);
     sessionCode = created.body.code;
     deliverableId = created.body.requiredDeliverables[0].id;
 

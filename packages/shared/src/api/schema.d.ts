@@ -303,6 +303,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_open"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/roster/students": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_addRosterStudent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/recollect": {
         parameters: {
             query?: never;
@@ -959,6 +991,26 @@ export interface components {
             examMaterialId: string;
             storageKey: string;
         };
+        RosterStudentDto: {
+            mssv: string;
+            name: string;
+        };
+        SessionRosterEntity: {
+            examSessionId: string;
+            examSession: components["schemas"]["ExamSessionEntity"];
+            studentMssv: string;
+            studentName: string;
+            homeClassId: string;
+            homeClass: components["schemas"]["ClassEntity"];
+            homeTeacherId: string;
+            homeTeacher: components["schemas"]["AccountEntity"];
+            source: Record<string, never>;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         CreateCourseDto: {
             code: string;
             name: string;
@@ -1000,10 +1052,6 @@ export interface components {
         UpdateClassDto: {
             name?: string;
             teacherId?: string;
-        };
-        RosterStudentDto: {
-            mssv: string;
-            name: string;
         };
         ImportRosterDto: {
             students: components["schemas"]["RosterStudentDto"][];
@@ -1518,6 +1566,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_open: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    ExamSessionController_addRosterStudent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterStudentDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRosterEntity"];
                 };
             };
         };
