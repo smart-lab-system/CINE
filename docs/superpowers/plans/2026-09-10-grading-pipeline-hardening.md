@@ -10,7 +10,7 @@
 
 **Spec:** `CLAUDE.md` §7.1 (Lõi backlog), §5.6/§5.7 (rubric reuse, AI-vs-human score separation), §1.1 (Sở hữu tier), "AI Grading Strategy" section (cascade, caching, batch), Security rules 3/4/5/6/7/9. Prior spec docs from the grading session: `docs/superpowers/specs/2026-09-05-session-pinned-rubric-design.md`, `docs/superpowers/specs/2026-09-05-teacher-review-design.md`.
 
-## Trạng thái — rev 2 (2026-09-11)
+## Trạng thái — rev 3 (2026-09-11, sau khi chốt D1/D2)
 
 > Bản gốc viết ngày 2026-09-10, TRƯỚC khi `feature/exam-collection-phase` tồn tại và trước một lượt review hạ tầng. Mục này ghi lại mọi chỗ bản gốc **sai hoặc lỗi thời**, tại đúng task của nó. Đọc plan này thì đọc cả các khối `> **Sửa ở rev 2**` — bản gốc còn nguyên bên dưới để đối chiếu, KHÔNG phải để làm theo.
 
@@ -18,7 +18,7 @@
 | --- | --- |
 | 1. Giới hạn file đầu vào | ✅ Xong — commit `ffa4372`, có một chỗ lệch plan, xem Task 1 |
 | 2. `semester_name` snapshot | ✅ Xong — cột đổi tên thành `semester_name`, xem Task 2 |
-| 3. Đóng băng roster + `absent` | ⛔ **CHẶN** — 2 quyết định chưa chốt, xem Task 3 |
+| 3. Đóng băng roster + `absent` | Sẵn sàng — D1/D2 đã chốt, phạm vi thu hẹp, xem Task 3 |
 | 4. BullMQ queue | Sẵn sàng — 7 điểm sửa + 1 thay đổi hợp đồng API, xem Task 4 |
 | 5. Claude provider | ⛔ **CHẶN** — chưa có `ANTHROPIC_API_KEY`, và kiến trúc chấm AI chưa chốt |
 | 6. Cascade | Phụ thuộc Task 5 |
@@ -407,42 +407,53 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ## Task 3: Freeze the sitting list when a session opens, and give absence a row (§7.1.1 + §7.1.2)
 
-> # ⛔ CHẶN — hai quyết định phải chốt TRƯỚC khi viết migration
->
-> Cả hai đều đụng migration enum. Chọn sai thì phải viết migration thứ hai để sửa, nên không được vừa code vừa quyết.
+> **D1 và D2 đã chốt ngày 2026-09-11.** Hai mục dưới đây là quyết định, không phải lựa chọn còn mở.
 
-### ⛔ D1 — `absent` một giá trị hay hai?
+### ✅ D1 — HAI giá trị: `not_submitted` → `absent`
 
-Bản gốc (Step 5) thêm **một** giá trị: `SubmissionStatus` + `'absent'`.
+`not_submitted` là **sự thật về dữ liệu**; `absent` là **phán xét học vụ**. Gieo một phán xét lúc phiên vừa mở nghĩa là bảng điểm xuất năm phút sau ghi cả lớp vắng thi.
 
-Spec `docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md` §8.1 — ship ngày 2026-09-11, SAU khi plan này viết — hợp đồng **hai** giá trị:
+Thi công:
 
-| `completed_by` | Được kết luận gì |
-| --- | --- |
-| `NOT NULL` (người xác nhận) | được đánh **`vắng thi`** |
-| `NULL` (quét dự phòng đóng) | giữ nguyên **`chưa nộp`** |
+- Một migration, **hai** `ADD VALUE` — không đắt hơn một.
+- Trigger mở thêm: INSERT ở `not_submitted`; transition `not_submitted → absent` và `not_submitted → received`.
+- `confirmEnd` thêm một bulk UPDATE, **trong cùng transaction**, **sau** khi `exam_session` đã sang `completed`, và **chỉ trên đường có `completed_by`**:
 
-Lý do spec tách hai: `absent` là **phán xét học vụ**, `not_submitted` là **sự thật về dữ liệu**. Gieo phán xét lúc 7h00 khi phiên vừa mở nghĩa là bảng điểm xuất lúc 7h05 ghi cả lớp vắng thi. Và một `@Interval` 30 giây không phải thứ được phép tuyên bố một sinh viên vắng thi.
+```sql
+UPDATE examcollect.submission
+   SET status = 'absent'
+ WHERE exam_session_id = $1 AND status = 'not_submitted'
+```
 
-**Đề xuất:** theo spec — hai giá trị `not_submitted` → `absent`, transition đặt ở `POST /:id/confirm-end`, một migration enum duy nhất cho cả hai.
+  Đường quét dự phòng **tuyệt đối không** chạy câu này — đó là toàn bộ hợp đồng §8.1 của spec collecting.
 
-### ⛔ D2 — móc "đóng băng" vào đâu?
+- `confirmEnd` chạm `submission` **không phải phình phạm vi**: đó là lý do route ấy tồn tại. Nếu nó chỉ đổi một cột trên `exam_session` thì cái "người duy nhất biết trong phòng còn ai" không được ghi lại ở đâu cả.
 
-Bản gốc Step 1 đoán *"most likely nothing at all yet"* rồi tự tạo `POST /exam-sessions/:id/open`. **Đã tra: đoán sai, và thực tế tệ hơn.**
+> ⚠️ **`not_submitted` tồn dư là HỢP LỆ.** Phiên do quét dự phòng đóng để lại `not_submitted` vĩnh viễn, mang nghĩa *"không ai xác nhận buổi thi này"*. Ghi điều này vào doc comment của enum: nếu không, sáu tháng nữa sẽ có người viết một job "dọn dẹp" chúng thành `absent` và phá đúng thứ ta đang xây.
 
-`exam-session.service.ts:151` — `create()` ghi thẳng `status: 'active'` **ngay lúc tạo phiên**. Không tồn tại transition `scheduled → active` nào trong codebase; scheduler chỉ làm `active → collecting`.
+### ✅ D2 — đích là (d), nhưng XẾP SAU; Task 3 dùng guard tạm
 
-Nên cửa sổ hở không phải "giữa tick scheduler và lúc bấm open" — nó là **từ lúc tạo phiên tới lúc ai đó nhớ bấm**, có thể nhiều ngày. Trong cửa sổ đó `agent:join` cho vào (chỉ kiểm `status === 'active'`), sinh viên nộp được, `session_roster` rỗng. Đúng lỗ hổng §7.1.1 sinh ra để bịt, chỉ dịch sang chỗ khác.
+Đo trên DB dev: `draft` **0**, `scheduled` **0**. Hai trạng thái đầu của vòng đời chưa bao giờ tồn tại — `create()` ghi thẳng `active`. Nên hệ thống **không có khoảnh khắc nào mang nghĩa "buổi thi bắt đầu"**, và đó mới là gốc của vấn đề.
 
-Ba đường:
+Đích **(d)**: `create()` ghi `scheduled`; "Mở phiên thi" = freeze + `→ active` trong một transaction. **Spec riêng, làm sau** — nó chạm `create()`, UI, 10 suite e2e, demo runbook, và cần câu trả lời cho 860 phiên đang `active` không có ảnh chốt. Ghi vào CLAUDE.md §7.1.1b.
 
-| | Cách | Đánh đổi |
-| --- | --- | --- |
-| (a) | Freeze ngay trong `create()` | Roster lớp có thể chưa import lúc đó |
-| (b) | `agent:join` từ chối khi `session_roster` rỗng | Fail-safe, không có cửa hở — nhưng chặn mọi phiên ĐANG tồn tại |
-| (c) | Freeze tự động ở lần `agent:join` đầu tiên | Không cửa hở, không chặn ai — nhưng biến một thao tác học vụ thành tác dụng phụ của một sinh viên kết nối |
+**Task 3 làm gì bây giờ** — giữ nguyên phạm vi, bỏ phần móc vào vòng đời:
 
-**Đề xuất:** (b) kèm backfill trong chính migration — tự chốt roster cho mọi phiên `active`/`collecting` đang có, nên không phiên nào rơi vào trạng thái bị chặn.
+- Bảng `session_roster` + hai giá trị enum + sửa trigger
+- `SessionRosterService.freeze()` và `addManually()`
+- `POST /:id/open` là đường chủ động **và duy nhất**
+- `confirmEnd` thêm bulk UPDATE (D1)
+- **Guard tạm:** `agent:join` từ chối khi `session_roster` rỗng, kèm thông báo chỉ rõ việc cần làm — *"Phiên chưa được mở. Giảng viên bấm 'Mở phiên thi' trước khi sinh viên vào."*
+
+Guard đó chính là phương án (b), và đúng như bản rà soát nói, nó **không cứu được tại chỗ**. Ở vai trò TẠM THỜI thì đó lại là điểm mạnh:
+
+1. Nó đóng cửa sổ hở — không tồn tại phiên nhận bài mà không có ảnh chốt.
+2. Nó **hỏng to và sớm**: cả phòng bị chặn ở giây đầu, giảng viên biết ngay và bấm một nút. So với freeze-ở-lần-join-đầu thì hỏng **nhỏ và muộn** — ảnh chốt thiếu vài người, phát hiện lúc chấm.
+3. Mỗi lần phải bấm "Mở phiên" là một lần hệ thống tự nhắc rằng khoảnh khắc đó nên nằm trong vòng đời, chứ không phải là một nút rời.
+
+Một lỗi không cứu được tại chỗ nhưng không thể bỏ sót an toàn hơn một lỗi cứu được nhưng không ai biết là có. Ảnh chốt sai âm thầm là loại tệ nhất ở đây.
+
+**Task 3 không phải làm lại khi (d) tới:** `POST /:id/open` viết bây giờ chính là route mà (d) sẽ dùng, chỉ thêm việc đổi status; guard tạm được thay bằng guard `status === 'active'` tốt hơn.
 
 ---
 

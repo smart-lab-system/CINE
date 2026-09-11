@@ -11,9 +11,34 @@ import { RubricEntity } from '../../grading/entities/rubric.entity';
 // files are coming in) -> completed (a teacher signed off, or the backup
 // sweep closed it) / cancelled (aborted before it started).
 //
-// No longer "inferred, confirm before relying on it": the lifecycle is
-// specified and tested as of 2026-09-11 — see
+// The second half of that — active -> collecting -> completed — is
+// specified and tested as of 2026-09-11, see
 // docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md.
+//
+// ⚠️ THE FIRST HALF IS FICTION, AND THAT IS KNOWN DEBT. Nothing produces
+// `draft` or `scheduled`: the column defaults to 'draft' but
+// ExamSessionService.create() overrides it with 'active' outright (see
+// the comment at that line for why — this demo has no publish step), and
+// no code path writes 'scheduled' at all. Measured on the dev database
+// 2026-09-11: draft 0, scheduled 0, active 860, collecting 53,
+// completed 2252. Not "rare" — never.
+//
+// It matters beyond tidiness: because a session is `active` from the
+// instant it is created, there is NO moment in this system that means
+// "the exam is starting", and CLAUDE.md §7.1.1 (freeze the sitting list
+// when a session opens) needs exactly that moment. Until it exists, the
+// freeze hangs off POST /exam-sessions/:id/open — a button a human must
+// remember — and agent:join refuses a session whose roster was never
+// frozen, so the gap fails loudly instead of silently collecting an exam
+// nobody has a sitting list for.
+//
+// The real fix is to make `scheduled` real: create() writes 'scheduled',
+// and "Mở phiên thi" freezes the roster and flips to 'active' in one
+// transaction. Deliberately deferred to its own spec (decision
+// 2026-09-11) rather than folded into the freeze work: it changes
+// create(), the UI, ten e2e suites and the demo runbook, and it needs an
+// answer for the 860 sessions already sitting in `active` with no
+// snapshot behind them.
 export type ExamSessionStatus =
   | 'draft'
   | 'scheduled'
