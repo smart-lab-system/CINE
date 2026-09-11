@@ -5,8 +5,8 @@ import { SemesterEntity } from './entities/semester.entity';
 import { CreateSemesterDto, UpdateSemesterDto } from './dto/course.dto';
 
 /**
- * Terms are university-wide: every Trưởng khoa reads and writes the same
- * list, and none of them owns it. Scoping a term to a department would mean
+ * Terms are university-wide: every role reads the same list, `admin` alone
+ * writes it, and nobody owns one. Scoping a term to a department would mean
  * each one creating its own "Học kỳ 1 2026-2027", which is the same real
  * term wearing different ids.
  *

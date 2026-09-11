@@ -86,7 +86,10 @@ export class CourseController {
   assignOwner(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignCourseOwnerDto,
+    @Req() req: Request,
   ) {
-    return this.courses.assignOwner(id, dto.departmentHeadId);
+    // `actorId` bắt buộc: gán chủ môn học đổi quyền đọc xuống tới bài nộp
+    // của cả khoa, nên phải có tên người quyết định trong audit_log.
+    return this.courses.assignOwner(id, dto.departmentHeadId, req.user!.sub);
   }
 }

@@ -111,6 +111,38 @@ export interface paths {
         patch: operations["AccountsController_update"];
         trace?: never;
     };
+    "/accounts/{id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["AccountsController_deactivate"];
+        trace?: never;
+    };
+    "/accounts/{id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["AccountsController_reactivate"];
+        trace?: never;
+    };
     "/exam-sessions": {
         parameters: {
             query?: never;
@@ -141,6 +173,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/teacher": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["ExamSessionController_reassignTeacher"];
         trace?: never;
     };
     "/exam-sessions/{id}/attendance": {
@@ -425,6 +473,22 @@ export interface paths {
         get: operations["ClassController_findTeaching"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/classes/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ClassController_importClasses"];
         delete?: never;
         options?: never;
         head?: never;
@@ -742,21 +806,15 @@ export interface components {
             rubricVersion: number | null;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
         };
-        RequestMaterialUploadDto: {
-            fileName: string;
-            fileSize: number;
-        };
-        CreateExamMaterialDto: {
-            fileName: string;
-            fileSize: number;
-            examMaterialId: string;
-            storageKey: string;
+        ReassignTeacherDto: {
+            teacherId: string;
         };
         AccountEntity: {
             name: string;
             email: string;
             passwordHash: string;
             role: Record<string, never>;
+            isActive: boolean;
             id: string;
             /** Format: date-time */
             createdAt: string;
@@ -786,6 +844,81 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        ClassEntity: {
+            courseId: string;
+            course: components["schemas"]["CourseEntity"];
+            name: string;
+            teacherId: string;
+            teacher: components["schemas"]["AccountEntity"];
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RoomEntity: {
+            name: string;
+            capacity: number | null;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RubricEntity: {
+            courseId: string;
+            course: components["schemas"]["CourseEntity"];
+            version: number;
+            isActive: boolean;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ExamSessionEntity: {
+            name: string;
+            code: string;
+            courseId: string;
+            course: components["schemas"]["CourseEntity"];
+            classId: string | null;
+            class: components["schemas"]["ClassEntity"] | null;
+            roomId: string;
+            room: components["schemas"]["RoomEntity"];
+            examType: Record<string, never>;
+            teacherId: string;
+            teacher: components["schemas"]["AccountEntity"];
+            /** Format: date-time */
+            startTime: string;
+            /** Format: date-time */
+            endTime: string;
+            submissionRule: Record<string, never>;
+            status: Record<string, never>;
+            /** Format: date-time */
+            attendanceConfirmedAt: string | null;
+            attendanceConfirmedCount: number | null;
+            /** Format: date-time */
+            archivedAt: string | null;
+            /** Format: date-time */
+            attentionClosedAt: string | null;
+            rubricId: string | null;
+            rubric: components["schemas"]["RubricEntity"] | null;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RequestMaterialUploadDto: {
+            fileName: string;
+            fileSize: number;
+        };
+        CreateExamMaterialDto: {
+            fileName: string;
+            fileSize: number;
+            examMaterialId: string;
+            storageKey: string;
+        };
         CreateCourseDto: {
             code: string;
             name: string;
@@ -809,17 +942,15 @@ export interface components {
             startDate?: string;
             endDate?: string;
         };
-        ClassEntity: {
-            courseId: string;
-            course: components["schemas"]["CourseEntity"];
-            name: string;
-            teacherId: string;
-            teacher: components["schemas"]["AccountEntity"];
-            id: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
+        ImportClassRowDto: {
+            courseCode: string;
+            courseName: string;
+            className: string;
+            teacherEmail: string;
+        };
+        ImportClassesDto: {
+            semesterId: string;
+            rows: components["schemas"]["ImportClassRowDto"][];
         };
         CreateClassDto: {
             courseId: string;
@@ -856,15 +987,6 @@ export interface components {
         };
         SubmitReviewDto: {
             criteria: components["schemas"]["ReviewCriterionDto"][];
-        };
-        RoomEntity: {
-            name: string;
-            capacity: number | null;
-            id: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
         };
         CreateRoomDto: {
             name: string;
@@ -1059,6 +1181,44 @@ export interface operations {
             };
         };
     };
+    AccountsController_deactivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountsController_reactivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ExamSessionController_findAllForOwner: {
         parameters: {
             query: {
@@ -1122,6 +1282,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_reassignTeacher: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReassignTeacherDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionEntity"];
                 };
             };
         };
@@ -1601,7 +1786,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClassEntity"][];
+                    "application/json": Record<string, never>[];
                 };
             };
         };
@@ -1627,7 +1812,9 @@ export interface operations {
     };
     ClassController_findTeaching: {
         parameters: {
-            query?: never;
+            query?: {
+                semesterId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1640,6 +1827,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    ClassController_importClasses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportClassesDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };

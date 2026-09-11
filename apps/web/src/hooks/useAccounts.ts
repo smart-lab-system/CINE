@@ -6,6 +6,8 @@ import {
   createAccount,
   updateAccount,
   deleteAccount,
+  deactivateAccount,
+  reactivateAccount,
   type SearchAccountsParams,
   type CreateAccountInput,
   type UpdateAccountInput,
@@ -50,6 +52,20 @@ export function useDeleteAccount() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteAccount(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [ACCOUNTS_QUERY_KEY] }),
+  });
+}
+
+/**
+ * Một hook cho cả hai chiều: màn hình chỉ có một nút gạt, và tách thành
+ * hai mutation sẽ buộc trang phải tự chọn hook nào theo trạng thái hàng —
+ * logic đó thuộc về đây, không thuộc về trang.
+ */
+export function useToggleAccountActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      isActive ? deactivateAccount(id) : reactivateAccount(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [ACCOUNTS_QUERY_KEY] }),
   });
 }

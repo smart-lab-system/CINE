@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -16,8 +17,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ClassService } from './class.service';
+import { ClassImportService } from './class-import.service';
 import { RosterService } from './roster.service';
 import { CreateClassDto, UpdateClassDto } from './dto/course.dto';
+import { ImportClassesDto } from './dto/import-classes.dto';
+import { SemesterScopeDto } from './dto/semester-scope.dto';
 import { ImportRosterDto, RosterStudentDto } from './dto/roster.dto';
 
 /**
@@ -31,6 +35,7 @@ export class ClassController {
   constructor(
     private readonly classes: ClassService,
     private readonly roster: RosterService,
+    private readonly classImport: ClassImportService,
   ) {}
 
   @Get('mine')
@@ -58,11 +63,33 @@ export class ClassController {
    * The lecturer's own classes, with course and roster size — the list the
    * create-session form is built from. A class the caller does not teach
    * appearing here would put it one click away from an exam.
+   *
+   * `semesterId` là tuỳ chọn và chỉ HẸP thêm phạm vi đã bị owner-scope
+   * chặn (`AND`, không phải `OR`): vắng nó nghĩa là tất cả học kỳ, không
+   * phải lỗi. Học kỳ ở đây là tham số lọc, không phải điều kiện thao tác
+   * (CLAUDE.md §1.2).
    */
   @Get('teaching')
   @Roles('teacher')
-  findTeaching(@Req() req: Request) {
-    return this.classes.findForTeacher(req.user!.sub);
+  findTeaching(@Query() query: SemesterScopeDto, @Req() req: Request) {
+    return this.classes.findForTeacher(req.user!.sub, query.semesterId);
+  }
+
+  /**
+   * Import hàng loạt từ Excel (CLAUDE.md §7.2.1). File .xlsx được parse ở
+   * browser và không bao giờ lên server (Security rule 5) — thứ tới đây
+   * là JSON thường.
+   *
+   * 201 kể cả khi có dòng lỗi: các dòng hợp lệ ĐÃ được ghi, và `errors`
+   * trong body liệt kê phần còn lại. Trả 4xx sẽ nói dối rằng không có gì
+   * thay đổi. Route khai báo trước `@Post()` — `import` là literal
+   * segment nên không tranh chấp, nhưng đọc theo thứ tự này rõ hơn.
+   */
+  @Post('import')
+  @Roles('department_admin')
+  @HttpCode(201)
+  importClasses(@Body() dto: ImportClassesDto, @Req() req: Request) {
+    return this.classImport.importForHead(req.user!.sub, dto);
   }
 
   @Post()

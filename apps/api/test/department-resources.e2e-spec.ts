@@ -153,50 +153,168 @@ describe('Department resources (e2e)', () => {
     });
   });
 
+  /**
+   * Học kỳ và phòng thi là tài nguyên CẤP TRƯỜNG (CLAUDE.md §1.4/§2.2):
+   * không ai sở hữu chúng, nên không có ownership check nào chặn được một
+   * Trưởng khoa sửa/xoá dữ liệu của khoa khác. Cách duy nhất giữ ranh giới
+   * là để đúng `admin` ghi. Read vẫn mở cho mọi role — mọi màn hình lọc
+   * theo kỳ và mọi form tạo phiên thi đều cần hai danh sách này.
+   */
   describe('semesters and rooms', () => {
-    it('lets a head create a semester', async () => {
+    function semesterBody(suffix: string) {
+      return {
+        name: `Học kỳ ${Date.now()}${suffix}`,
+        startDate: '2026-09-01',
+        endDate: '2027-01-15',
+      };
+    }
+
+    async function adminCreatesSemester(suffix: string): Promise<string> {
+      const created = await request(app.getHttpServer())
+        .post('/semesters')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(semesterBody(suffix));
+      expect(created.status).toBe(201);
+      return created.body.id;
+    }
+
+    async function adminCreatesRoom(suffix: string): Promise<string> {
+      const created = await request(app.getHttpServer())
+        .post('/rooms')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: `Phòng máy ${Date.now()}${suffix}`, capacity: 40 });
+      expect(created.status).toBe(201);
+      return created.body.id;
+    }
+
+    it('lets admin create a semester', async () => {
       const response = await request(app.getHttpServer())
         .post('/semesters')
-        .set('Authorization', `Bearer ${headToken}`)
-        .send({
-          name: `Học kỳ ${Date.now()}`,
-          startDate: '2026-09-01',
-          endDate: '2027-01-15',
-        });
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(semesterBody('a'));
 
       expect(response.status).toBe(201);
     });
 
-    it('rejects a duplicate semester name with 409, not a 500', async () => {
-      const name = `Học kỳ trùng ${Date.now()}`;
-      const body = { name, startDate: '2026-09-01', endDate: '2027-01-15' };
-      await request(app.getHttpServer())
+    it('refuses semester creation to a head', async () => {
+      const response = await request(app.getHttpServer())
         .post('/semesters')
         .set('Authorization', `Bearer ${headToken}`)
+        .send(semesterBody('b'));
+
+      expect(response.status).toBe(403);
+    });
+
+    it('lets admin edit a semester, and refuses a head', async () => {
+      const id = await adminCreatesSemester('c');
+
+      const byHead = await request(app.getHttpServer())
+        .patch(`/semesters/${id}`)
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ name: `Đổi trộm ${Date.now()}` });
+      expect(byHead.status).toBe(403);
+
+      const byAdmin = await request(app.getHttpServer())
+        .patch(`/semesters/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: `Học kỳ đã sửa ${Date.now()}` });
+      expect(byAdmin.status).toBe(200);
+    });
+
+    it('lets admin delete an empty semester, and refuses a head', async () => {
+      const id = await adminCreatesSemester('d');
+
+      const byHead = await request(app.getHttpServer())
+        .delete(`/semesters/${id}`)
+        .set('Authorization', `Bearer ${headToken}`);
+      expect(byHead.status).toBe(403);
+
+      const byAdmin = await request(app.getHttpServer())
+        .delete(`/semesters/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(byAdmin.status).toBe(204);
+    });
+
+    it('rejects a duplicate semester name with 409, not a 500', async () => {
+      const body = { name: `Học kỳ trùng ${Date.now()}`, startDate: '2026-09-01', endDate: '2027-01-15' };
+      await request(app.getHttpServer())
+        .post('/semesters')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(body);
 
       const second = await request(app.getHttpServer())
         .post('/semesters')
-        .set('Authorization', `Bearer ${otherHeadToken}`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(body);
 
-      // Two heads share one namespace, so this collision is expected traffic,
-      // not an internal error.
+      // `uq_semester_name` giữ một namespace duy nhất cho cả trường; gõ
+      // trùng tên là chuyện thường ngày, phải là 409 chứ không phải lỗi nội bộ.
       expect(second.status).toBe(409);
     });
 
-    it('lets a head create a room, and refuses a teacher', async () => {
+    it('lets admin create a room, and refuses both a head and a teacher', async () => {
       const allowed = await request(app.getHttpServer())
         .post('/rooms')
-        .set('Authorization', `Bearer ${headToken}`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ name: `Phòng máy ${Date.now()}`, capacity: 40 });
       expect(allowed.status).toBe(201);
 
-      const refused = await request(app.getHttpServer())
+      const byHead = await request(app.getHttpServer())
+        .post('/rooms')
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ name: `Phòng máy ${Date.now()}h`, capacity: 40 });
+      expect(byHead.status).toBe(403);
+
+      const byTeacher = await request(app.getHttpServer())
         .post('/rooms')
         .set('Authorization', `Bearer ${teacherToken}`)
         .send({ name: `Phòng máy ${Date.now()}x`, capacity: 40 });
-      expect(refused.status).toBe(403);
+      expect(byTeacher.status).toBe(403);
+    });
+
+    it('lets admin edit a room, and refuses a head', async () => {
+      const id = await adminCreatesRoom('e');
+
+      const byHead = await request(app.getHttpServer())
+        .patch(`/rooms/${id}`)
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ capacity: 60 });
+      expect(byHead.status).toBe(403);
+
+      const byAdmin = await request(app.getHttpServer())
+        .patch(`/rooms/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ capacity: 60 });
+      expect(byAdmin.status).toBe(200);
+      expect(byAdmin.body.capacity).toBe(60);
+    });
+
+    it('lets admin delete an unused room, and refuses a head', async () => {
+      const id = await adminCreatesRoom('f');
+
+      const byHead = await request(app.getHttpServer())
+        .delete(`/rooms/${id}`)
+        .set('Authorization', `Bearer ${headToken}`);
+      expect(byHead.status).toBe(403);
+
+      const byAdmin = await request(app.getHttpServer())
+        .delete(`/rooms/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(byAdmin.status).toBe(204);
+    });
+
+    it('keeps read open to every role — write moving to admin must not blind the filters', async () => {
+      for (const token of [headToken, teacherToken, adminToken]) {
+        const semesters = await request(app.getHttpServer())
+          .get('/semesters')
+          .set('Authorization', `Bearer ${token}`);
+        expect(semesters.status).toBe(200);
+
+        const rooms = await request(app.getHttpServer())
+          .get('/rooms')
+          .set('Authorization', `Bearer ${token}`);
+        expect(rooms.status).toBe(200);
+      }
     });
   });
 
@@ -226,6 +344,37 @@ describe('Department resources (e2e)', () => {
         .get('/courses/unowned')
         .set('Authorization', `Bearer ${adminToken}`);
       expect(after.body.map((c: { id: string }) => c.id)).not.toContain(orphan.id);
+
+      // Gán chủ đổi quyền đọc xuống tới bài nộp của cả khoa (CLAUDE.md
+      // §5.3/§1.1), nên phải có vết. `null` ở old_value là ca thường của
+      // route này — môn mồ côi — và phải đọc ra được từ sổ.
+      const [entry] = await dataSource.query(
+        `SELECT action, old_value, new_value
+           FROM examcollect.audit_log
+          WHERE target_type = 'course' AND target_id = $1`,
+        [orphan.id],
+      );
+      expect(entry).toMatchObject({ action: 'course.assign_owner' });
+      expect(entry.old_value).toMatchObject({ departmentHeadId: null });
+      expect(entry.new_value).toMatchObject({ departmentHeadId: headId });
+    });
+
+    it('refuses to point department_head_id at an account that is not a head', async () => {
+      const [orphan] = await dataSource.query(
+        `INSERT INTO examcollect.course (code, name, semester_id)
+         VALUES ($1, 'Môn mồ côi 2', $2) RETURNING id`,
+        [`O2${Date.now()}`.slice(0, 20), semesterId],
+      );
+
+      const response = await request(app.getHttpServer())
+        .patch(`/courses/${orphan.id}/owner`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ departmentHeadId: lecturerId });
+
+      // `findForHead` lọc theo cột này — gán cho một giảng viên tạo ra môn
+      // học không màn hình nào quản lý được, đúng cái trạng thái mồ côi mà
+      // route này tồn tại để sửa.
+      expect(response.status).toBe(400);
     });
 
     it('refuses the orphan list to a head', async () => {

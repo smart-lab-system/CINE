@@ -11,9 +11,9 @@ import {
   useUpdateSemester,
 } from '@/hooks/useDepartment';
 import type { Semester } from '@/lib/api/department';
-import { ResourceShell } from '../_components/resource-shell';
-import { ResourceFormDialog } from '../_components/resource-form-dialog';
-import { ConfirmDeleteDialog } from '../_components/confirm-delete-dialog';
+import { ResourceShell } from '@/components/resource/resource-shell';
+import { ResourceFormDialog } from '@/components/resource/resource-form-dialog';
+import { ConfirmDeleteDialog } from '@/components/resource/confirm-delete-dialog';
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -54,7 +54,7 @@ export default function SemestersPage() {
   return (
     <ResourceShell<Semester>
       title="Học kỳ"
-      description="Học kỳ dùng chung toàn trường — mọi trưởng khoa cùng nhìn và cùng sửa một danh sách. Tên học kỳ không được trùng."
+      description="Học kỳ dùng chung toàn trường — mọi role đều đọc được danh sách này, nhưng chỉ quản trị viên khai báo và sửa. Tên học kỳ không được trùng."
       icon={CalendarRange}
       addLabel="Thêm học kỳ"
       onAdd={openCreate}

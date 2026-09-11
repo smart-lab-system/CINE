@@ -30,6 +30,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Sau khi verify mật khẩu, không phải trước: kiểm trước thì endpoint
+    // này trả lời khác nhau cho "email này tồn tại nhưng bị khoá" và
+    // "email này không tồn tại" — một oracle liệt kê tài khoản.
+    if (!account.isActive) {
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hoá.');
+    }
+
     return this.issueSession(account);
   }
 
@@ -59,11 +66,14 @@ export class AuthService {
 
     // Re-check the account against the DB rather than trusting the token's
     // claims: it was minted up to REFRESH_TOKEN_TTL ago, and the account may
-    // have been deleted (or had its role changed) since. There's no
-    // status/soft-delete column any more — a missing row is the only
-    // "revoked" state, since accounts are hard-deleted.
+    // have been deleted, deactivated, or had its role changed since.
+    //
+    // `is_active` phải được kiểm Ở ĐÂY chứ không chỉ ở `login`: refresh
+    // token sống 7 ngày, nên nếu chỉ chặn đường đăng nhập thì một tài
+    // khoản vừa bị vô hiệu hoá vẫn tự cấp access token mới suốt một tuần
+    // — vô hiệu hoá trên giấy, không có thật.
     const account = await this.accounts.findOne({ where: { id: payload.sub } });
-    if (!account) {
+    if (!account || !account.isActive) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 

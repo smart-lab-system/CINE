@@ -20,21 +20,34 @@ export default function DepartmentDashboardPage() {
   const classes = useMyClasses();
   const rooms = useRooms();
 
-  const missingLink =
-    (semesters.data?.length ?? 0) === 0
-      ? { href: '/department/semesters', what: 'học kỳ', next: 'môn học' }
-      : (courses.data?.length ?? 0) === 0
-        ? { href: '/department/courses', what: 'môn học', next: 'lớp học' }
-        : (classes.data?.length ?? 0) === 0
-          ? { href: '/department/classes', what: 'lớp học', next: 'phiên thi' }
-          : null;
+  // Không có học kỳ nào thì cả chuỗi đứng lại, nhưng Trưởng khoa KHÔNG tự
+  // tạo được nữa (học kỳ là cấp trường — CLAUDE.md §1.4). Nói rõ phải nhờ
+  // ai, thay vì đưa một link dẫn tới màn hình họ không có quyền.
+  const noSemester = (semesters.data?.length ?? 0) === 0;
+  const missingLink = noSemester
+    ? null
+    : (courses.data?.length ?? 0) === 0
+      ? { href: '/department/courses', what: 'môn học', next: 'lớp học' }
+      : (classes.data?.length ?? 0) === 0
+        ? { href: '/department/classes', what: 'lớp học', next: 'phiên thi' }
+        : null;
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Dashboard"
-        description="Tài nguyên học vụ của khoa bạn. Học kỳ và phòng thi dùng chung toàn trường; môn học và lớp học thuộc riêng khoa bạn."
+        description="Tài nguyên học vụ của khoa bạn. Học kỳ và phòng thi do quản trị viên khai báo dùng chung toàn trường; môn học và lớp học thuộc riêng khoa bạn."
       />
+
+      {noSemester && (
+        <Alert variant="info">
+          <AlertDescription>
+            Chưa có học kỳ nào trong hệ thống — chưa tạo được môn học. Học kỳ do
+            quản trị viên khai báo dùng chung toàn trường, hãy liên hệ quản trị
+            viên để mở học kỳ mới.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {missingLink && (
         <Alert variant="info">
