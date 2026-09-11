@@ -20,7 +20,7 @@ import {
   AIGradingProvider,
   GradingRequest,
 } from './ai-provider/ai-grading-provider';
-import { extractText } from './extract-text';
+import { extractText, GradingInputTooLargeError } from './extract-text';
 import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
 
 export interface StartGradingResult {
@@ -198,10 +198,20 @@ export class GradingService {
       // Not fatal, and not scored zero either: an unreadable file is a fact
       // about the extraction, never a judgement about the work. It reaches
       // the provider as empty content, which is what sends it to a human.
+      //
+      // Hai ca dẫn tới cùng kết cục nhưng cần hai cách xử lý khác nhau từ
+      // phía con người: "quá lớn" nghĩa là em nộp nhầm thứ gì đó (thường
+      // là cả thư mục dự án), còn "không đọc được" nghĩa là định dạng
+      // này chưa được hỗ trợ. Một dòng log chung sẽ xoá mất khác biệt đó.
+      //
+      // Nêu id bài nộp, KHÔNG bao giờ nêu nội dung — đây là bài làm của
+      // sinh viên.
       this.logger.warn(
-        `could not read ${submission.storageKey} for grading: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        error instanceof GradingInputTooLargeError
+          ? `submission ${submission.id} bị bỏ qua chấm tự động: ${error.message}`
+          : `could not read ${submission.storageKey} for grading: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
       );
     }
 
