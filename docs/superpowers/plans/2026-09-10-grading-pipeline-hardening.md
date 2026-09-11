@@ -10,6 +10,30 @@
 
 **Spec:** `CLAUDE.md` §7.1 (Lõi backlog), §5.6/§5.7 (rubric reuse, AI-vs-human score separation), §1.1 (Sở hữu tier), "AI Grading Strategy" section (cascade, caching, batch), Security rules 3/4/5/6/7/9. Prior spec docs from the grading session: `docs/superpowers/specs/2026-09-05-session-pinned-rubric-design.md`, `docs/superpowers/specs/2026-09-05-teacher-review-design.md`.
 
+## Trạng thái — rev 2 (2026-09-11)
+
+> Bản gốc viết ngày 2026-09-10, TRƯỚC khi `feature/exam-collection-phase` tồn tại và trước một lượt review hạ tầng. Mục này ghi lại mọi chỗ bản gốc **sai hoặc lỗi thời**, tại đúng task của nó. Đọc plan này thì đọc cả các khối `> **Sửa ở rev 2**` — bản gốc còn nguyên bên dưới để đối chiếu, KHÔNG phải để làm theo.
+
+| Task | Trạng thái |
+| --- | --- |
+| 1. Giới hạn file đầu vào | ✅ Xong — commit `ffa4372`, có một chỗ lệch plan, xem Task 1 |
+| 2. `semester_code` snapshot | Sẵn sàng — 3 điểm sửa, xem Task 2 |
+| 3. Đóng băng roster + `absent` | ⛔ **CHẶN** — 2 quyết định chưa chốt, xem Task 3 |
+| 4. BullMQ queue | Sẵn sàng — 7 điểm sửa + 1 thay đổi hợp đồng API, xem Task 4 |
+| 5. Claude provider | ⛔ **CHẶN** — chưa có `ANTHROPIC_API_KEY`, và kiến trúc chấm AI chưa chốt |
+| 6. Cascade | Phụ thuộc Task 5 |
+| 7. GradeExport | Phụ thuộc Task 2 + Task 3 |
+
+### Những gì bản review nêu mà tôi KHÔNG xác nhận được
+
+Ghi ra để không ai đi "sửa" một thứ không hỏng:
+
+- **"Gieo dòng submission làm `attendedNoSubmissionCount` trả 0 vĩnh viễn"** — sai với codebase này. `submission-overview.service.ts` đếm bằng `COUNT(*) FILTER (WHERE sub.status = 'collected')`, không đếm theo sự tồn tại dòng. Dòng gieo sẵn đóng góp 0 vào cả `collected_files` lẫn `invalid_files`, nên con số không đổi. `AttentionKind` dẫn xuất từ nó cũng không đổi.
+- **"Một `PATCH /exam-sessions/:id` nhận cả object body rồi `repo.save()` sẽ ghi đè `semesterCode`"** — route đó không tồn tại; controller chỉ có `@Patch(':id/teacher')`. Vẫn thêm `{ update: false }` vì rẻ, nhưng tiền đề thì không đúng.
+- **"`addManually` trùng MSSV sẽ ném 23505 thô lên client"** — sai. `PostgresExceptionFilter` đã map `23505 → ConflictException` toàn cục.
+
+---
+
 ## Global Constraints
 
 - **Model IDs are exact strings, never date-suffixed**: `claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`. CLAUDE.md's own "AI Grading Strategy" table mandates the cascade (cheap first pass → stronger model for the low-confidence remainder), which is why Haiku leads rather than Opus.
@@ -20,10 +44,20 @@
 - **Security rule 9**: GradeExport column mapping is always explicitly supplied by the teacher. Never infer a column from its header.
 - **Never log student content or model output verbatim** — grading text is student work. Log ids, token counts, model names, durations.
 - Run `pnpm --filter api build && pnpm --filter api test && pnpm --filter web build` after each task.
+- **e2e phải chạy SERIAL**: `npx jest --config ./test/jest-e2e.json --runInBand`. Nhánh `fix/e2e-test-config` đặt `maxWorkers: 1` nhưng **chưa merge**; chạy song song cho ra fail giả hàng loạt (176/234 ở một lần đo).
+- **Nhánh này chồng lên `feature/exam-collection-phase`** (12 commit, chưa merge), vì Task 3 đọc `completed_by` do nhánh đó thêm.
 
 ---
 
 ## Task 1: Reject oversized / unextractable files before they reach the model (§7.1.4)
+
+> **✅ XONG — commit `ffa4372`.** Một chỗ làm KHÁC plan:
+>
+> Test ở Step 1 khẳng định `text.length <= 200_000`, nhưng `capChars` mà Step 4 đưa ra trả `slice(0, 200_000) + TRUNCATION_NOTICE` — **dài hơn** 200.000. Test đó đỏ như viết.
+>
+> Đã sửa theo hướng đúng hơn: `MAX_GRADING_INPUT_CHARS` là trần của thứ THẬT SỰ gửi đi, nên dòng thông báo nằm TRONG nó — `slice(0, MAX - NOTICE.length) + NOTICE`. Một giới hạn bị chính cái nhãn của nó đẩy vượt qua là đúng kiểu sai mà giới hạn không được phép mắc.
+>
+> Thêm 3 ca test ngoài plan: biên "đúng bằng giới hạn thì nhận", "nói ra là đã cắt", và chống hồi quy `.pdf` vẫn trả `''` chứ không biến thành lỗi.
 
 **Files:**
 - Modify: `apps/api/src/grading/grading.types.ts`
@@ -35,7 +69,7 @@
 - Consumes: nothing new.
 - Produces: `MAX_GRADING_INPUT_BYTES` and `MAX_GRADING_INPUT_CHARS` in `grading.types.ts`; `extractText` throws `GradingInputTooLargeError` (exported from `extract-text.ts`) instead of silently handing 30 MB of `node_modules` to a paid model. Task 5 relies on content already being bounded before it builds a prompt.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/api/src/grading/extract-text.spec.ts
@@ -64,12 +98,12 @@ describe('extractText input limits', () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 Run: `pnpm --filter api test -- extract-text`
 Expected: FAIL — `GradingInputTooLargeError` is not exported.
 
-- [ ] **Step 3: Add the constants**
+- [x] **Step 3: Add the constants**
 
 Append to `apps/api/src/grading/grading.types.ts`:
 
@@ -100,7 +134,7 @@ export const MAX_GRADING_INPUT_CHARS = 200_000;
 export const TRUNCATION_NOTICE = '\n\n[...nội dung bị cắt do vượt giới hạn chấm tự động]';
 ```
 
-- [ ] **Step 4: Enforce them in `extract-text.ts`**
+- [x] **Step 4: Enforce them in `extract-text.ts`**
 
 Read the file first, then add at the top of `extractText` (before any parsing branch) and at its return points:
 
@@ -140,12 +174,12 @@ At the very start of `extractText(bytes, requiredFilename)`:
 
 Wrap every `return` of extracted text in `capChars(...)`.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `pnpm --filter api test -- extract-text`
 Expected: PASS.
 
-- [ ] **Step 6: Make `gradeOne` treat the new error as "unreadable", not as a crash**
+- [x] **Step 6: Make `gradeOne` treat the new error as "unreadable", not as a crash**
 
 In `apps/api/src/grading/grading.service.ts`, the existing `try/catch` around extraction already logs and leaves `content = ''`, which routes the submission to a human via the provider's zero-confidence path. `GradingInputTooLargeError` inherits that behaviour for free — but the log line must say which case it was, so add inside the existing `catch`:
 
@@ -161,12 +195,12 @@ In `apps/api/src/grading/grading.service.ts`, the existing `try/catch` around ex
 
 Import `GradingInputTooLargeError`. Note the log names the submission id, never the content.
 
-- [ ] **Step 7: Run the grading service's own tests**
+- [x] **Step 7: Run the grading service's own tests**
 
 Run: `pnpm --filter api test -- grading`
 Expected: PASS (no behaviour change for existing cases).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/grading
@@ -182,6 +216,23 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ---
 
 ## Task 2: Snapshot `semester_code` on `ExamSession` (§7.1.5)
+
+> **Sửa ở rev 2 — ba điểm, đều đã kiểm bằng DB thật.**
+>
+> **(a) Đổi tên cột thành `semester_name`.** Bảng `semester` **không có cột `code`** — chỉ `name`, `start_date`, `end_date`. Nên `semester_code` là tên sai cho một giá trị vĩnh viễn chỉ có thể là name, và đây là cột bất biến nên tên phải đúng ngay lần đầu. Đổi tên trong entity, migration, DTO, và Task 7.
+>
+> **(b) Chặn UPDATE ở tầng TypeORM: `@Column({ ..., update: false })`.** JSDoc ghi "KHÔNG BAO GIỜ sửa" chỉ là lời hứa. Cùng lập luận mà Task 4 Step 6 dùng cho `ai_total_score` (bất biến ở tầng DB là thứ làm retry không âm thầm sai) áp thẳng vào đây. Khi một cột kỳ bị ghi đè, bảng điểm chỉ đơn giản ghi sai kỳ, mãi mãi, và không ai phát hiện.
+>
+> **(c) Backfill: đã kiểm, 0 dòng không giải được.** Bản gốc giả định quan hệ `exam_session → course → semester` luôn giải ra tên. Đã đếm trước khi viết migration:
+>
+> ```sql
+> SELECT count(*) FROM examcollect.exam_session es
+>   LEFT JOIN examcollect.course c ON c.id = es.course_id
+>   LEFT JOIN examcollect.semester s ON s.id = c.semester_id
+>  WHERE s.name IS NULL;   -- → 0
+> ```
+>
+> Nên `SET NOT NULL` an toàn, không cần giá trị dự phòng. `max(length(name))` hiện là 42, `varchar(150)` thừa sức.
 
 **Files:**
 - Create: `apps/api/src/database/migrations/<timestamp>-AddExamSessionSemesterCode.ts`
@@ -355,6 +406,62 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ---
 
 ## Task 3: Freeze the sitting list when a session opens, and give absence a row (§7.1.1 + §7.1.2)
+
+> # ⛔ CHẶN — hai quyết định phải chốt TRƯỚC khi viết migration
+>
+> Cả hai đều đụng migration enum. Chọn sai thì phải viết migration thứ hai để sửa, nên không được vừa code vừa quyết.
+
+### ⛔ D1 — `absent` một giá trị hay hai?
+
+Bản gốc (Step 5) thêm **một** giá trị: `SubmissionStatus` + `'absent'`.
+
+Spec `docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md` §8.1 — ship ngày 2026-09-11, SAU khi plan này viết — hợp đồng **hai** giá trị:
+
+| `completed_by` | Được kết luận gì |
+| --- | --- |
+| `NOT NULL` (người xác nhận) | được đánh **`vắng thi`** |
+| `NULL` (quét dự phòng đóng) | giữ nguyên **`chưa nộp`** |
+
+Lý do spec tách hai: `absent` là **phán xét học vụ**, `not_submitted` là **sự thật về dữ liệu**. Gieo phán xét lúc 7h00 khi phiên vừa mở nghĩa là bảng điểm xuất lúc 7h05 ghi cả lớp vắng thi. Và một `@Interval` 30 giây không phải thứ được phép tuyên bố một sinh viên vắng thi.
+
+**Đề xuất:** theo spec — hai giá trị `not_submitted` → `absent`, transition đặt ở `POST /:id/confirm-end`, một migration enum duy nhất cho cả hai.
+
+### ⛔ D2 — móc "đóng băng" vào đâu?
+
+Bản gốc Step 1 đoán *"most likely nothing at all yet"* rồi tự tạo `POST /exam-sessions/:id/open`. **Đã tra: đoán sai, và thực tế tệ hơn.**
+
+`exam-session.service.ts:151` — `create()` ghi thẳng `status: 'active'` **ngay lúc tạo phiên**. Không tồn tại transition `scheduled → active` nào trong codebase; scheduler chỉ làm `active → collecting`.
+
+Nên cửa sổ hở không phải "giữa tick scheduler và lúc bấm open" — nó là **từ lúc tạo phiên tới lúc ai đó nhớ bấm**, có thể nhiều ngày. Trong cửa sổ đó `agent:join` cho vào (chỉ kiểm `status === 'active'`), sinh viên nộp được, `session_roster` rỗng. Đúng lỗ hổng §7.1.1 sinh ra để bịt, chỉ dịch sang chỗ khác.
+
+Ba đường:
+
+| | Cách | Đánh đổi |
+| --- | --- | --- |
+| (a) | Freeze ngay trong `create()` | Roster lớp có thể chưa import lúc đó |
+| (b) | `agent:join` từ chối khi `session_roster` rỗng | Fail-safe, không có cửa hở — nhưng chặn mọi phiên ĐANG tồn tại |
+| (c) | Freeze tự động ở lần `agent:join` đầu tiên | Không cửa hở, không chặn ai — nhưng biến một thao tác học vụ thành tác dụng phụ của một sinh viên kết nối |
+
+**Đề xuất:** (b) kèm backfill trong chính migration — tự chốt roster cho mọi phiên `active`/`collecting` đang có, nên không phiên nào rơi vào trạng thái bị chặn.
+
+---
+
+> **Sửa ở rev 2 — bốn điểm kỹ thuật, không chặn.**
+>
+> **(e) Trigger `validate_submission_lifecycle` CHẶN cả hai đầu — đã đọc từ DB.** Bản gốc Step 8 bảo "đọc trigger, sửa nếu cần" và coi là chuyện nhỏ. Thực tế:
+>
+> ```
+> INSERT: chỉ cho 'received' hoặc 'invalid'
+> UPDATE: chỉ received→validated|invalid, validated→collected|invalid
+> ```
+>
+> Nên **gieo dòng ở `absent` bị chặn ngay ở INSERT**, và nhánh else của `writeCollected` sẽ chạy `absent → collected` một bước — **cũng bị chặn**. (Lưu ý: lỗi là trigger từ chối, KHÔNG phải `storage_key` NULL như bản review đoán.) Trigger phải được mở rộng trong cùng migration này.
+>
+> **(f) `addManually` cần transaction + guard trạng thái phiên.** Hai `getRepository` gọi rời nhau. Và không có gì chặn thêm sinh viên sau khi phiên đã `completed` — spec §6.5 đã đặt tiền lệ đúng (route "Thu lại" trả 409 khi không ở `collecting`), áp cùng nguyên tắc ở đây.
+>
+> **(g) Insert phải phân lô `chunk: 100`.** `rows` là tích Descartes sinh viên × deliverable: 200 × 3 = 600 dòng trong một statement, mỗi dòng kiểm 3 FK RESTRICT. Quy mô đồ án không nổ, nhưng một tham số loại bỏ hẳn class lỗi này.
+>
+> **(h) Bỏ `frozenAt`, dùng `createdAt` của `BaseEntity`.** Hai cột cùng nghĩa, cùng `default now()`. Sau này sửa một cột quên cột kia thì chúng lệch và không ai biết cột nào đúng.
 
 These two CLAUDE.md items are one task because §7.1.2 says so explicitly ("Kèm §7.1.1: lúc đóng băng, sinh sẵn một dòng bài nộp trạng thái `chưa nộp` cho mỗi sinh viên") — an `absent` status with no frozen list to enumerate has nothing to iterate over.
 
@@ -808,6 +915,30 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ---
 
 ## Task 4: Move grading onto a BullMQ queue (A2a + §7.1.3)
+
+> **Sửa ở rev 2 — bảy điểm. Kiến trúc lõi (một job một bài, payload chỉ chứa id, jobId dedupe, ném lỗi thay vì bắt, idempotent ở `gradeOneById`) GIỮ NGUYÊN — phần đó đúng.**
+>
+> **(a) Chính sách retry phải phân loại theo lỗi.** `attempts: 3` + backoff 5s, nhưng Task 5 ném trên **mọi** `APIError`. Một 400 — sai shape `thinking`, schema hỏng, model id sai — sẽ retry 5s→10s→20s rồi mới chết, trong lúc đó chiếm worker slot. Deploy sai một model id thì 40 bài × 3 lần = 120 lời gọi chắc chắn thất bại trước khi có ai biết. Cần: `RateLimitError`/5xx/timeout → retry; 4xx khác → `UnrecoverableError` của BullMQ, fail ngay.
+>
+> **(b) Thiếu `concurrency` và rate limit.** `WorkerHost` mặc định concurrency 1 → 40 bài × 10s ≈ 7 phút tuần tự. Đặt tường minh cạnh `attempts`/`backoff` vì chúng tương tác:
+>
+> ```ts
+> @Processor(GRADING_QUEUE, { concurrency: 5, limiter: { max: 10, duration: 1000 } })
+> ```
+>
+> **(c) Worker chạy CÙNG process với API — ghi ra là quyết định, không phải sơ suất.** Ở quy mô ~10 kết nối thì đúng. Hệ quả phải ghi: một lượt chấm nặng làm chậm request HTTP; restart API hủy job giữa chừng (BullMQ đưa về stalled rồi retry — an toàn nhờ idempotency ở Step 6, nhưng chỉ khi `stalledInterval` được cấu hình).
+>
+> **(d) Thiếu graceful shutdown.** Không có `OnModuleDestroy` gọi `worker.close()`. Ctrl-C giữa lượt chấm để job ở `active` tới hết stall timeout (mặc định 30s) — trong dev thì gây nhầm lẫn, trong demo thì tệ hơn.
+>
+> **(e) LỖ HỔNG LỚN NHẤT — không có gì quan sát được, và hợp đồng API đổi nghĩa.** `queued` đổi từ "đã chấm" thành "đã xếp hàng". Trang `apps/web/src/app/teacher/grading/page.tsx` hiện chỉ có `useStartGrading` + `useGradingResults`, **không có gì đọc tiến độ**. Sau Task 4, giảng viên bấm chấm rồi nhìn màn hình trống 7 phút — kỹ thuật đúng, trải nghiệm thụt lùi. Task này KHÔNG được coi là xong nếu thiếu:
+>
+> - `GET /exam-sessions/:id/grading-progress` đọc `queue.getJobCounts()` + đếm `grading_result` theo status
+> - `@OnWorkerEvent('failed')` log job id + số lần thử
+> - UI đọc tiến độ đó
+>
+> **(f) Không giới hạn số job một giảng viên tạo.** 3 phiên × 48 bài bấm liên tiếp = 144 job. Với model thật đó là tiền thật. Tối thiểu: log tổng số job kèm cảnh báo khi vượt ngưỡng.
+>
+> **(g) `.env` thiếu `REDIS_PASSWORD` và `REDIS_DB` (optional).** `getOrThrow` trên hai biến mà không có đường cấu hình auth nghĩa là chuyển sang Redis có mật khẩu phải sửa code.
 
 **Files:**
 - Modify: `apps/api/package.json` (add `bullmq`, `ioredis`, `@nestjs/bullmq`)
