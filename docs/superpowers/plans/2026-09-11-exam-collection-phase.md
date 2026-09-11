@@ -53,7 +53,7 @@ Nền móng: ba task sau đều đọc từ đây. Không có hành vi nào đ�
 **Interfaces:**
 - Produces: `ExamSessionStatus` thêm `'collecting'`; `ExamSessionEntity.completedAt: Date | null`, `ExamSessionEntity.completedBy: string | null`; `isExamOver(status): boolean`; `isCollectionOpen(status): boolean`.
 
-- [ ] **Step 1: Viết test cho hai predicate**
+- [x] **Step 1: Viết test cho hai predicate**
 
 ```typescript
 // apps/api/src/exam-session/exam-session.types.spec.ts
@@ -99,12 +99,12 @@ describe('isCollectionOpen', () => {
 });
 ```
 
-- [ ] **Step 2: Chạy để thấy fail**
+- [x] **Step 2: Chạy để thấy fail**
 
 Run: `cd apps/api && pnpm test -- exam-session.types.spec`
 Expected: FAIL — `isExamOver`/`isCollectionOpen` chưa tồn tại.
 
-- [ ] **Step 3: Thêm `'collecting'` vào union type**
+- [x] **Step 3: Thêm `'collecting'` vào union type**
 
 Trong `apps/api/src/exam-session/entities/exam-session.entity.ts`, sửa union (dòng 15-20):
 
@@ -127,7 +127,7 @@ và enum của cột `status` (khoảng dòng 139):
     enum: ['draft', 'scheduled', 'active', 'collecting', 'completed', 'cancelled'],
 ```
 
-- [ ] **Step 4: Thêm hai cột vào entity**
+- [x] **Step 4: Thêm hai cột vào entity**
 
 Ngay dưới cột `status` trong cùng file:
 
@@ -152,7 +152,7 @@ Ngay dưới cột `status` trong cùng file:
   completedBy!: string | null;
 ```
 
-- [ ] **Step 5: Viết migration bằng tay**
+- [x] **Step 5: Viết migration bằng tay**
 
 Không dùng `migration:generate` — nó sẽ sinh `ALTER TYPE` theo kiểu tạo type mới rồi `USING` cast, tức rewrite cả bảng, và mất luôn mệnh đề `AFTER 'active'`.
 
@@ -203,7 +203,7 @@ export class AddCollectingStatus1789200000000 implements MigrationInterface {
 }
 ```
 
-- [ ] **Step 6: Chạy migration**
+- [x] **Step 6: Chạy migration**
 
 Run: `cd apps/api && pnpm migration:run`
 Expected: `AddCollectingStatus1789200000000 has been executed successfully.`
@@ -216,7 +216,7 @@ docker exec cine-postgres-1 psql -U examcollect_admin -d examcollect -t -c \
 ```
 Expected: `draft, scheduled, active, collecting, completed, cancelled` — đúng thứ tự đó.
 
-- [ ] **Step 7: Thêm hai predicate**
+- [x] **Step 7: Thêm hai predicate**
 
 Vào cuối `apps/api/src/exam-session/exam-session.types.ts`:
 
@@ -246,26 +246,26 @@ export function isCollectionOpen(status: ExamSessionStatus): boolean {
 }
 ```
 
-- [ ] **Step 8: Chạy test lại**
+- [x] **Step 8: Chạy test lại**
 
 Run: `cd apps/api && pnpm test -- exam-session.types.spec`
 Expected: PASS, 5 test.
 
-- [ ] **Step 9: Thêm `collecting` vào DTO lọc**
+- [x] **Step 9: Thêm `collecting` vào DTO lọc**
 
 Trong `apps/api/src/exam-session/dto/search-exam-sessions.dto.ts`, thêm `'collecting'` vào mảng giá trị hợp lệ, ngay sau `'active'` — cùng thứ tự với enum để đọc ra vòng đời.
 
-- [ ] **Step 10: Build cả hai app**
+- [x] **Step 10: Build cả hai app**
 
 Run: `pnpm --filter api build && pnpm --filter web build`
 Expected: PASS cả hai. Web build sẽ lộ ra mọi chỗ TypeScript exhaustive-check trên `ExamSessionStatus` còn thiếu nhánh `collecting` — sửa từng chỗ bằng cách thêm nhánh, không bằng `default:`.
 
-- [ ] **Step 11: Chạy e2e để chắc chưa có gì vỡ**
+- [x] **Step 11: Chạy e2e để chắc chưa có gì vỡ**
 
 Run: `cd apps/api && pnpm test:e2e`
 Expected: PASS toàn bộ. Task này chưa đổi hành vi nào, nên một suite đỏ ở đây là hồi quy thật.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add apps/api/src/database/migrations apps/api/src/exam-session apps/web/src
@@ -300,7 +300,7 @@ conclude absence."
 - Consumes: `isExamOver`, `isCollectionOpen`, `ExamSessionEntity.completedAt/completedBy` (Task 1).
 - Produces: `CollectionPhaseService.confirmEnd(id, teacherId): Promise<ExamSessionResponseDto>`; `CollectionPhaseService.completeExpired(id): Promise<boolean>`; `ExamSessionService.findCollectionExpiredIds(now): Promise<string[]>`; route `POST /exam-sessions/:id/confirm-end`.
 
-- [ ] **Step 1: Viết e2e cho vòng đời**
+- [x] **Step 1: Viết e2e cho vòng đời**
 
 ```typescript
 // apps/api/test/collection-phase.e2e-spec.ts
@@ -462,12 +462,12 @@ describe('Collection phase (e2e)', () => {
 });
 ```
 
-- [ ] **Step 2: Chạy để thấy fail**
+- [x] **Step 2: Chạy để thấy fail**
 
 Run: `cd apps/api && pnpm test:e2e -- collection-phase`
 Expected: FAIL — `sweepExpiredCollection` và route `confirm-end` chưa tồn tại; ca đầu tiên fail vì scheduler vẫn đưa thẳng sang `completed`.
 
-- [ ] **Step 3: Đổi đích của `finalizeExamSession`**
+- [x] **Step 3: Đổi đích của `finalizeExamSession`**
 
 Trong `apps/api/src/exam-session/exam-session.service.ts`, sửa `.set({ status: 'completed' })` thành `'collecting'` và cập nhật doc comment:
 
@@ -498,7 +498,7 @@ Trong `apps/api/src/exam-session/exam-session.service.ts`, sửa `.set({ status:
 
 Phần còn lại của hàm không đổi.
 
-- [ ] **Step 4: Thêm truy vấn tìm phiên thu bài đã hết hạn**
+- [x] **Step 4: Thêm truy vấn tìm phiên thu bài đã hết hạn**
 
 Ngay dưới `findFinalizableIds` trong cùng file:
 
@@ -531,7 +531,7 @@ Ngay dưới `findFinalizableIds` trong cùng file:
 
 Import `SUBMISSION_GRACE_PERIOD_MS` từ `../submission/submission.types`.
 
-- [ ] **Step 5: Tạo `CollectionPhaseService`**
+- [x] **Step 5: Tạo `CollectionPhaseService`**
 
 File riêng, không nối vào `exam-session.service.ts` (đã 541 dòng, quá ngưỡng 500 của File Organization Rules).
 
@@ -626,7 +626,7 @@ export class CollectionPhaseService {
 }
 ```
 
-- [ ] **Step 6: Thêm tick thứ hai vào scheduler**
+- [x] **Step 6: Thêm tick thứ hai vào scheduler**
 
 Trong `apps/api/src/exam-session/exam-session.scheduler.ts`, thêm cờ chống chồng lấn riêng và một handler mới:
 
@@ -686,7 +686,7 @@ Trong `apps/api/src/exam-session/exam-session.scheduler.ts`, thêm cờ chống 
 
 Thêm `private readonly collectionPhase: CollectionPhaseService` vào constructor.
 
-- [ ] **Step 7: Thêm route**
+- [x] **Step 7: Thêm route**
 
 Trong `apps/api/src/exam-session/exam-session.controller.ts`, ngay dưới route `finalize`:
 
@@ -711,7 +711,7 @@ Trong `apps/api/src/exam-session/exam-session.controller.ts`, ngay dưới route
 
 Thêm `CollectionPhaseService` vào constructor và `providers` của `exam-session.module.ts`.
 
-- [ ] **Step 8: Sửa ba guard**
+- [x] **Step 8: Sửa ba guard**
 
 `apps/api/src/submission/submission.service.ts` — `isAcceptingUploads`:
 
@@ -755,17 +755,17 @@ function isAcceptingUploads(session: ExamSessionEntity, now: Date): boolean {
     }
 ```
 
-- [ ] **Step 9: Chạy e2e**
+- [x] **Step 9: Chạy e2e**
 
 Run: `cd apps/api && pnpm test:e2e -- collection-phase`
 Expected: PASS, 14 test.
 
-- [ ] **Step 10: Chạy toàn bộ e2e**
+- [x] **Step 10: Chạy toàn bộ e2e**
 
 Run: `cd apps/api && pnpm test:e2e`
 Expected: PASS. Task này đổi ý nghĩa của `completed` nên đây là chỗ hồi quy lộ ra — chú ý `exam-session`, `submission-collection`, `session-lifecycle`, `attendance`. Suite nào đỏ thì đọc kỹ trước khi sửa test: có thể chính nó đang khẳng định hành vi cũ mà spec cố ý đổi, và khi đó sửa test là đúng — nhưng phải nói rõ trong commit vì sao.
 
-- [ ] **Step 11: Regenerate OpenAPI client**
+- [x] **Step 11: Regenerate OpenAPI client**
 
 ```bash
 pnpm --filter api build
@@ -776,12 +776,12 @@ cd packages/shared && pnpm generate:api-client
 ```
 Kiểm: `grep -n '"/exam-sessions/{id}/confirm-end"' packages/shared/src/api/schema.d.ts` phải có kết quả.
 
-- [ ] **Step 12: Build web**
+- [x] **Step 12: Build web**
 
 Run: `pnpm --filter web build`
 Expected: PASS.
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add apps/api/src apps/api/test packages/shared/src
@@ -819,7 +819,7 @@ missing when it is most needed, exam materials deletable again."
 - Consumes: `CollectionPhaseService` (không trực tiếp — chỉ cần status `collecting`), `agentRoom()` trong gateway.
 - Produces: `RecollectResult { missing: number; acknowledged: number; unreachable: number; unreachableNames: string[] }`; `RecollectService.requestRecollect(id, teacherId): Promise<RecollectResult>`; `ExamSessionGateway.requestRecollect(examSessionId, mssvs): Promise<string[]>` trả về danh sách MSSV đã ack; route `POST /exam-sessions/:id/recollect`.
 
-- [ ] **Step 1: Viết e2e**
+- [x] **Step 1: Viết e2e**
 
 ```typescript
 // apps/api/test/recollect.e2e-spec.ts
@@ -931,12 +931,12 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
 });
 ```
 
-- [ ] **Step 2: Chạy để thấy fail**
+- [x] **Step 2: Chạy để thấy fail**
 
 Run: `cd apps/api && pnpm test:e2e -- recollect`
 Expected: FAIL — 404, route chưa có.
 
-- [ ] **Step 3: Khai kiểu trả về**
+- [x] **Step 3: Khai kiểu trả về**
 
 ```typescript
 // apps/api/src/exam-session/recollect.types.ts
@@ -969,7 +969,7 @@ export interface RecollectResult {
 export const RECOLLECT_ACK_TIMEOUT_MS = 3_000;
 ```
 
-- [ ] **Step 4: Thêm hàm phát lệnh có ack vào gateway**
+- [x] **Step 4: Thêm hàm phát lệnh có ack vào gateway**
 
 Trong `apps/api/src/exam-session/exam-session.gateway.ts`:
 
@@ -1014,7 +1014,7 @@ Trong `apps/api/src/exam-session/exam-session.gateway.ts`:
   }
 ```
 
-- [ ] **Step 5: Tạo `RecollectService`**
+- [x] **Step 5: Tạo `RecollectService`**
 
 ```typescript
 // apps/api/src/exam-session/recollect.service.ts
@@ -1101,7 +1101,7 @@ export class RecollectService {
 }
 ```
 
-- [ ] **Step 6: Thêm route**
+- [x] **Step 6: Thêm route**
 
 ```typescript
   /**
@@ -1120,18 +1120,18 @@ export class RecollectService {
 
 Đăng ký `RecollectService` trong `exam-session.module.ts` và thêm vào constructor của controller.
 
-- [ ] **Step 7: Chạy e2e**
+- [x] **Step 7: Chạy e2e**
 
 Run: `cd apps/api && pnpm test:e2e -- recollect`
 Expected: PASS, 8 test.
 
-- [ ] **Step 8: Regenerate OpenAPI + build**
+- [x] **Step 8: Regenerate OpenAPI + build**
 
 Theo đúng thủ tục ở Global Constraints, rồi:
 Run: `pnpm --filter api build && pnpm --filter web build`
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/api/src apps/api/test packages/shared/src
@@ -1164,7 +1164,7 @@ otherwise freeze the request for thirty."
 - Consumes: sự kiện `exam:recollect` với payload `{ examSessionId: string }`, callback ack `(ack: RecollectAck) => void`.
 - Produces: agent upload lại mọi required deliverable và **không** đụng `examEnded`.
 
-- [ ] **Step 1: Viết test**
+- [x] **Step 1: Viết test**
 
 ```typescript
 // apps/agent/src/session-controller.test.ts — thêm vào describe hiện có
@@ -1216,12 +1216,12 @@ it('acks even when the upload itself fails', async () => {
 });
 ```
 
-- [ ] **Step 2: Chạy để thấy fail**
+- [x] **Step 2: Chạy để thấy fail**
 
 Run: `cd apps/agent && pnpm test -- session-controller`
 Expected: FAIL — agent chưa lắng nghe `exam:recollect`.
 
-- [ ] **Step 3: Xử lý sự kiện**
+- [x] **Step 3: Xử lý sự kiện**
 
 Trong `apps/agent/src/session-controller.ts`, cạnh handler `exam:finalize`:
 
@@ -1249,17 +1249,17 @@ Trong `apps/agent/src/session-controller.ts`, cạnh handler `exam:finalize`:
 
 Nếu đường upload hiện nằm inline trong handler `exam:finalize`, tách nó thành `uploadAllDeliverables(reason)` trước và cho cả hai handler cùng gọi — hai bản sao của đường nộp bài sẽ lệch nhau.
 
-- [ ] **Step 4: Chạy test lại**
+- [x] **Step 4: Chạy test lại**
 
 Run: `cd apps/agent && pnpm test -- session-controller`
 Expected: PASS.
 
-- [ ] **Step 5: Chạy lại e2e task 3**
+- [x] **Step 5: Chạy lại e2e task 3**
 
 Run: `cd apps/api && pnpm test:e2e -- recollect`
 Expected: vẫn PASS — e2e dùng socket client riêng nên không phụ thuộc agent thật, nhưng chạy lại để chắc không có gì lệch hợp đồng.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/agent/src
@@ -1291,7 +1291,7 @@ student's screen from 'submitted' back to a join/error state."
 - Consumes: `POST /exam-sessions/:id/confirm-end`, `POST /exam-sessions/:id/recollect` → `RecollectResult` (Task 2, 3).
 - Produces: component `<CollectionPhaseActions sessionId status missingCount onRefresh />`.
 
-- [ ] **Step 1: Sửa test của `getSessionPhase`**
+- [x] **Step 1: Sửa test của `getSessionPhase`**
 
 Trong `apps/web/src/lib/submission-attention.test.ts`, thêm và sửa:
 
@@ -1312,12 +1312,12 @@ it('completed là Đã kết thúc, kể cả còn trong grace', () => {
 });
 ```
 
-- [ ] **Step 2: Chạy để thấy fail**
+- [x] **Step 2: Chạy để thấy fail**
 
 Run: `pnpm --filter web test -- submission-attention`
 Expected: FAIL.
 
-- [ ] **Step 3: Sửa `getSessionPhase`**
+- [x] **Step 3: Sửa `getSessionPhase`**
 
 ```typescript
 /**
@@ -1351,12 +1351,12 @@ export function getSessionPhase(item: SessionOverviewItem, now: number): Session
 }
 ```
 
-- [ ] **Step 4: Chạy test lại**
+- [x] **Step 4: Chạy test lại**
 
 Run: `pnpm --filter web test -- submission-attention`
 Expected: PASS.
 
-- [ ] **Step 5: Thêm hàm API + hook**
+- [x] **Step 5: Thêm hàm API + hook**
 
 Trong `apps/web/src/lib/api/exam-session.ts`:
 
@@ -1386,7 +1386,7 @@ export async function recollectSubmissions(id: string): Promise<RecollectResult>
 
 Trong `apps/web/src/hooks/useExamSession.ts`, thêm `useConfirmSessionEnd()` và `useRecollect()` theo đúng khuôn mutation đã có trong file (invalidate query của phiên sau khi thành công).
 
-- [ ] **Step 6: Viết test component**
+- [x] **Step 6: Viết test component**
 
 ```typescript
 // CollectionPhaseActions.test.tsx
@@ -1429,12 +1429,12 @@ it('chỉ hiện khi phiên đang collecting', () => {
 });
 ```
 
-- [ ] **Step 7: Chạy để thấy fail**
+- [x] **Step 7: Chạy để thấy fail**
 
 Run: `pnpm --filter web test -- CollectionPhaseActions`
 Expected: FAIL — chưa có component.
 
-- [ ] **Step 8: Viết component**
+- [x] **Step 8: Viết component**
 
 Hai nút cạnh nhau, chỉ render khi `status === 'collecting'`. Nút "Thu lại" mang `missingCount`, disabled kèm dòng "Tất cả đã nộp đủ" khi bằng 0. Nút "Xác nhận kết thúc" mở `Dialog` với nội dung:
 
@@ -1444,12 +1444,12 @@ Sau khi thu lại, render `Alert` với `{acknowledged}/{missing} máy đã nh�
 
 Kèm mốc `tính đến HH:mm:ss` cạnh `missingCount`, lấy từ thời điểm dữ liệu về. Khi socket rớt, mốc đứng yên và giảng viên **nhìn thấy** là nó đứng, thay vì tin vào một con số chết.
 
-- [ ] **Step 9: Chạy test lại**
+- [x] **Step 9: Chạy test lại**
 
 Run: `pnpm --filter web test -- CollectionPhaseActions`
 Expected: PASS.
 
-- [ ] **Step 10: Gắn vào trang phiên**
+- [x] **Step 10: Gắn vào trang phiên**
 
 Trong `apps/web/src/app/(exam-live)/exam-sessions/[id]/page.tsx`, render `<CollectionPhaseActions>` cạnh `FinalizeSessionButton` đã có. `missingCount` lấy từ `attendance`/overview đã fetch sẵn trên trang; làm mới theo sự kiện socket bài-nộp-về mà trang đã đăng ký, không thêm polling.
 
@@ -1459,17 +1459,17 @@ Thêm dòng §7.3 khi `completedBy !== null` và có bài nộp sau `completedAt
 
 Đếm **sinh viên**, không đếm file: một em nộp 2 file sau xác nhận là `N = 1`.
 
-- [ ] **Step 11: Chạy toàn bộ test web + build**
+- [x] **Step 11: Chạy toàn bộ test web + build**
 
 Run: `pnpm --filter web test && pnpm --filter web build`
 Expected: PASS cả hai. Chú ý `exam-sessions/[id]/page.test.tsx` — nó có thể đang khẳng định `FinalizeSessionButton` là nút duy nhất.
 
-- [ ] **Step 12: Chạy toàn bộ e2e lần cuối**
+- [x] **Step 12: Chạy toàn bộ e2e lần cuối**
 
 Run: `cd apps/api && pnpm test:e2e`
 Expected: PASS toàn bộ.
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add apps/web/src

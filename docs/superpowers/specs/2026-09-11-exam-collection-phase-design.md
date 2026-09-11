@@ -1,6 +1,6 @@
 # Giai đoạn "Đang thu bài" và hành động "Thu lại" — Thiết kế
 
-**Ngày:** 2026-09-11 · **rev 4** (sau khi thi công Task 1-2 phát hiện hai chỗ spec sai)
+**Ngày:** 2026-09-11 · **rev 5** (thi công xong cả 5 task; ghi thêm hai hệ quả spec không lường)
 **Trạng thái:** chờ review lại
 **Nguồn:** task #4 "Thu lại bài thi" (session `0f3ad631`, mở từ 2026-08-31, chưa từng thi công)
 
@@ -189,7 +189,7 @@ Scheduler giữ nguyên `WHERE status = 'collecting'` và kiểm `affected` — 
 | `buildDiscrepancy` (`attendance.service.ts:194`) | `status !== 'completed'` → bỏ qua | `isExamOver()` | Báo cáo "nộp bài mà không được điểm danh" **biến mất đúng lúc giảng viên cần nó** để chọn thu lại ai |
 | Xoá đề thi (`exam-material.service.ts:175`) | chặn khi `completed` | `isExamOver()` | Đề thi **mở khoá xoá trở lại** suốt cửa sổ thu bài |
 | `findFinalizableIds` | `active` + `endTime <= now` | điều kiện tìm **giữ nguyên**; đích chuyển đổi thành `collecting` | — |
-| *(mới)* `findCollectionExpiredIds` | — | `collecting` + `endTime + grace <= now` — mốc theo `endTime` theo lịch, **không** theo lúc vào `collecting` (§9.6) | Phiên treo ở `collecting` vĩnh viễn |
+| *(mới)* `findCollectionExpiredIds` | — | `collecting` + `endTime + grace <= now` — mốc theo `endTime` theo lịch, **không** theo lúc vào `collecting` (§9.7) | Phiên treo ở `collecting` vĩnh viễn |
 | `SearchExamSessionsDto` | 5 giá trị | 6 | Lọc theo trạng thái mới trả rỗng |
 | `getSessionPhase` (web) | suy từ `status` + đồng hồ | **đọc `status` thẳng, xoá suy diễn** — xem dưới | Hai nguồn sự thật |
 | `confirmAttendanceForOwner` (`exam-session.service.ts`) | `status === 'completed'` | `isExamOver()` | Chốt lại sĩ số sau khi hết giờ **viết lại chính con số** mà báo cáo lệch đang đo dựa vào |
@@ -332,6 +332,12 @@ Không chặn, nhưng phải nói. Màn hình phiên hiện thêm một dòng kh
 
 Đây là cách trả lời nhu cầu "con số cuối không đổi" mà không phải chặn upload — giảng viên biết con số đã đổi, thay vì không biết. Chỉ hiện khi `completed_by IS NOT NULL`: phiên do quét dự phòng đóng thì không có ai để nói "sau khi **bạn** xác nhận".
 
+> **Bổ sung ở rev 5 — hệ quả spec không lường, phát hiện lúc thi công.** `getSessionPhase` phía web trước đây trả `collecting` cho phiên `completed` còn trong grace, nên panel "cần chú ý" im lặng suốt 30 phút sau khi chốt. Đọc thẳng `status` làm nó thành `ended` NGAY, và panel bắt đầu kể tên sinh viên từ lúc đó.
+
+Giữ nguyên hành vi mới, vì nó đúng với §8.1: đường DUY NHẤT tới `completed` trong grace là một người bấm nút, và lượt quét dự phòng chỉ chạy SAU grace nên không tạo ra được trạng thái đó. Người vừa nhìn khắp phòng chính là lúc kết luận đáng tin.
+
+Cái giá: một em đang upload file lớn có thể bị kể tên vài giây trước khi bài về. Dòng ở mục này là câu trả lời cho ca đó — không phải im lặng thêm 30 phút nữa. Ghi lại ở đây vì nó là một quyết định, không phải một tác dụng phụ.
+
 ---
 
 ## 8. Quan hệ với Plan C
@@ -390,7 +396,15 @@ Migration không đụng dữ liệu sẵn có: chúng vẫn `completed`, `compl
 
 Lưu ý cho §7.3: `completed_at IS NULL` phải đọc là "không biết", không phải "chưa xác nhận". Dòng cảnh báo không hiện cho các phiên này.
 
-### 9.4 Chủ phiên chưa chắc là người đang đứng trong phòng
+### 9.4 Con số trên nút "Thu lại" tính ở CLIENT
+
+> **Thêm ở rev 5.** `countRecollectTargets` (web) nhân bản định nghĩa của `RecollectService.findMissing` (api) — hai chỗ, một luật.
+
+Lý do chấp nhận: §7.1 yêu cầu con số tự làm mới theo sự kiện socket, không polling, nên nó phải tính được từ dữ liệu trang đã có. Một endpoint riêng sẽ phải poll, hoặc phải thêm một sự kiện socket chỉ để đẩy một con số.
+
+Ràng buộc đi kèm: con số CÓ THẨM QUYỀN là `RecollectResult.missing` trả về sau khi bấm, không phải con số trên nút. Nút chỉ nói "khoảng chừng bấy nhiêu máy". Nếu sau này hai bên lệch nhau đủ để gây khó chịu, đường đúng là cho server đẩy con số qua socket, không phải sửa cho hai bản giống nhau hơn.
+
+### 9.5 Chủ phiên chưa chắc là người đang đứng trong phòng
 
 `exam_session.teacher_id` không tự đổi khi `class.teacher_id` đổi (CLAUDE.md §5.5). Người coi thi thay không phải chủ phiên thì **không bấm được "Thu lại"** — và khác với finalize (hậu quả là chấm muộn), ở đây cửa sổ chỉ dài 30 phút và đóng lại vĩnh viễn.
 
@@ -398,7 +412,7 @@ Escape hatch **đã tồn tại** từ 2026-09-11: `PATCH /exam-sessions/:id/tea
 
 Spec này **làm hậu quả của lỗ hổng đó nặng thêm** và không giải quyết nó. Ghi lại để lần sau cân nhắc §7.2.6 có nên mở cho `department_admin` hay có đường nhanh hơn.
 
-### 9.5 Chốt bài sớm kéo dãn giai đoạn `collecting`
+### 9.6 Chốt bài sớm kéo dãn giai đoạn `collecting`
 
 "Chốt bài ngay" không kiểm thời gian (`finalizeExamSession` chỉ có `WHERE status = 'active'`), nên giảng viên bấm lúc 10:00 cho phiên đến 11:00 sẽ đưa phiên vào `collecting` **ngay lúc đó**. Quét dự phòng dùng `endTime + grace` nên phải chờ tới 11:30 — một tiếng rưỡi ở `collecting` dù cả phòng đã nộp xong lúc 10:05.
 
@@ -406,7 +420,7 @@ Spec này **làm hậu quả của lỗ hổng đó nặng thêm** và không gi
 
 Nói cách khác: `collecting` kéo dài bao lâu là **hệ quả của `SUBMISSION_GRACE_PERIOD_MS`**, không phải một tham số độc lập. Muốn rút ngắn thì rút ngắn grace, và khi đó cửa sổ nhận bài rút theo — đó là lựa chọn có thật, không phải tác dụng phụ. Hệ quả duy nhất của việc chờ là một dòng trạng thái trên màn hình; không thao tác nào bị chặn.
 
-### 9.6 Triển khai giữa chừng
+### 9.7 Triển khai giữa chừng
 
 Phiên đang `active` có `endTime` đã qua từ lâu sẽ bị quét sang `collecting`, rồi gần như ngay lập tức sang `completed` ở tick sau — và `exam:finalize` bắn cho một buổi thi đã chết, không còn agent nào nghe. Vô hại nhưng ồn trong log. Một lần, lúc triển khai.
 
@@ -437,7 +451,7 @@ Phiên đang `active` có `endTime` đã qua từ lâu sẽ bị quét sang `col
 | "Thu lại" | Sau khi agent nộp lại, em đó **rời khỏi** tập đích ở lần bấm sau (vòng khép kín) |
 | Đua hai đường | Scheduler đóng phiên trước, giảng viên bấm ngay sau trong grace → `completed_by` **là giảng viên**, không phải NULL (§4.3) |
 | Đua hai đường | Giảng viên bấm sau `endTime + grace` cho phiên đã tự đóng → **không** ghi `completed_by` |
-| Chốt sớm | "Chốt bài ngay" lúc `endTime - 1h` → vào `collecting`; quét dự phòng **không** đụng tới cho tới `endTime + grace` (§9.5) |
+| Chốt sớm | "Chốt bài ngay" lúc `endTime - 1h` → vào `collecting`; quét dự phòng **không** đụng tới cho tới `endTime + grace` (§9.6) |
 | GiST | Tạo được phiên mới cùng phòng, bắt đầu từ `endTime`, khi phiên cũ đang `collecting` |
 | GiST | **Chốt bài sớm** rồi đặt phiên khác cùng phòng TRONG khung giờ cũ → 201 (pin §4.1; ca có sẵn ở `exam-schedule-conflict.e2e-spec.ts`) |
 | Điểm danh | Chốt lại sĩ số khi phiên đang `collecting` → 409 (pin guard thứ tư; ca có sẵn ở `attendance.e2e-spec.ts`) |
