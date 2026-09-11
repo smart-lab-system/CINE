@@ -16,6 +16,10 @@ export type ExamSessionStatus =
   | 'draft'
   | 'scheduled'
   | 'active'
+  // Hết giờ làm bài, đang gom bài về, giảng viên CHƯA xác nhận. Xem
+  // docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md.
+  // `completed` từ nay nghĩa là "đã có người chốt", không phải "hết giờ".
+  | 'collecting'
   | 'completed'
   | 'cancelled';
 
@@ -136,11 +140,30 @@ export class ExamSessionEntity extends BaseEntity {
 
   @Column({
     type: 'enum',
-    enum: ['draft', 'scheduled', 'active', 'completed', 'cancelled'],
+    enum: ['draft', 'scheduled', 'active', 'collecting', 'completed', 'cancelled'],
     enumName: 'exam_session_status',
     default: 'draft',
   })
   status!: ExamSessionStatus;
+
+  /**
+   * Thời điểm phiên rời `collecting`. KHÔNG dùng `updated_at` thay: cột
+   * đó đổi theo mọi UPDATE (gắn rubric, archive, đóng attention), nên
+   * dòng cảnh báo "có bài về sau khi bạn xác nhận" sẽ sai ngẫu nhiên.
+   */
+  @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
+  completedAt!: Date | null;
+
+  /**
+   * Ai chốt phiên. `NULL` mang nghĩa CỤ THỂ và phải giữ đúng nghĩa đó:
+   * **không người nào xác nhận** — lượt quét dự phòng đã đóng nó.
+   *
+   * Plan C Task 3 đọc chính cột này để biết có được kết luận "vắng thi"
+   * hay không: một `@Interval` 30 giây không phải thứ được phép tuyên bố
+   * một sinh viên vắng thi (spec §8.1).
+   */
+  @Column({ name: 'completed_by', type: 'uuid', nullable: true })
+  completedBy!: string | null;
 
   /**
    * The headcount an invigilator took before the exam, and when.

@@ -3,10 +3,12 @@ import { IsIn, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-valid
 import { ExamType, ExamSessionStatus } from '../entities/exam-session.entity';
 
 const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
+// Cùng thứ tự với enum trong DB, để đọc ra đúng vòng đời.
 const EXAM_SESSION_STATUSES: ExamSessionStatus[] = [
   'draft',
   'scheduled',
   'active',
+  'collecting',
   'completed',
   'cancelled',
 ];
