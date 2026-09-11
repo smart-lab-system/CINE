@@ -287,6 +287,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/confirm-end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_confirmEnd"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/archive": {
         parameters: {
             query?: never;
@@ -895,6 +911,9 @@ export interface components {
             submissionRule: Record<string, never>;
             status: Record<string, never>;
             /** Format: date-time */
+            completedAt: string | null;
+            completedBy: string | null;
+            /** Format: date-time */
             attendanceConfirmedAt: string | null;
             attendanceConfirmedCount: number | null;
             /** Format: date-time */
@@ -1225,7 +1244,7 @@ export interface operations {
                 page: number;
                 pageSize: number;
                 search?: string;
-                status?: "draft" | "scheduled" | "active" | "completed" | "cancelled";
+                status?: "draft" | "scheduled" | "active" | "collecting" | "completed" | "cancelled";
                 examType?: "TK" | "GK" | "CK";
             };
             header?: never;
@@ -1441,6 +1460,27 @@ export interface operations {
         };
     };
     ExamSessionController_finalize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_confirmEnd: {
         parameters: {
             query?: never;
             header?: never;

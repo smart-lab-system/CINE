@@ -1,6 +1,6 @@
 # Giai đoạn "Đang thu bài" và hành động "Thu lại" — Thiết kế
 
-**Ngày:** 2026-09-11 · **rev 3** (sau review lần 2)
+**Ngày:** 2026-09-11 · **rev 4** (sau khi thi công Task 1-2 phát hiện hai chỗ spec sai)
 **Trạng thái:** chờ review lại
 **Nguồn:** task #4 "Thu lại bài thi" (session `0f3ad631`, mở từ 2026-08-31, chưa từng thi công)
 
@@ -128,11 +128,17 @@ ALTER TABLE "examcollect"."exam_session" ADD COLUMN "completed_by" uuid
 
 **`down()` ném lỗi, không im lặng.** Postgres không xoá được giá trị enum. Một `down()` rỗng trông như revert thành công; ném lỗi kèm giải thích là trung thực hơn. Hai cột thì `DROP COLUMN` được, nhưng `down()` vẫn ném ngay từ đầu vì enum không lùi được.
 
-### 4.1 Ràng buộc GiST — đã kiểm, không ảnh hưởng
+### 4.1 Ràng buộc GiST — phải sửa, lập luận ban đầu THIẾU
 
-`ex_exam_session_room_overlap` và `ex_exam_session_class_overlap` có predicate `WHERE status <> 'completed' AND status <> 'cancelled'`. Phiên ở `collecting` vẫn nằm trong ràng buộc thêm tối đa 30 phút.
+> **Sửa ở rev 4 — lập luận của rev 1-3 sai, test bắt được lúc thi công.** Bản trước viết: *"khoảng thời gian của phiên đó đã trôi qua, nên một phiên mới bắt đầu từ `endTime` trở đi không chồng lấn"* và kết luận không cần làm gì. Điều đó **chỉ đúng khi phiên hết giờ tự nhiên**. Với **"Chốt bài ngay"** — mà chính §3 nói là cũng dẫn vào `collecting` — `end_time` còn ở **tương lai**, nên khoảng thời gian VẪN chồng lấn và phòng bị khoá tới hết giờ theo lịch.
 
-Không gây vấn đề: khoảng `tstzrange(start_time, end_time, '[)')` của phiên đó **đã trôi qua**, nên một phiên mới bắt đầu từ `endTime` trở đi không chồng lấn. Kiểm bằng test, không chỉ bằng lập luận (§10).
+Đó là hồi quy thật với một hành vi đã có test: `exam-schedule-conflict.e2e-spec.ts` → *"frees the room once a session finishes early"*, kèm lý do viết ngay trong test — *"an exam that finished at 09:00 must not keep a lab blocked until the 12:00 it was scheduled to end at"*.
+
+**Việc phải làm:** một migration RIÊNG (`CollectingFreesTheRoom`) dựng lại hai ràng buộc với predicate `status <> 'collecting' AND <> 'completed' AND <> 'cancelled'`. Chỉ `draft | scheduled | active` mới giữ chỗ. Đúng về nghĩa: phòng bị chiếm bởi buổi thi CHƯA xong; vào `collecting` là đã thi xong, bài còn bay về qua mạng nhưng cái phòng thì trống.
+
+Migration riêng chứ không gộp vào `AddCollectingStatus`, và đó chính là ca mà §4 đã dặn trước: predicate này **dùng** giá trị `'collecting'`.
+
+Câu "kiểm bằng test, không chỉ bằng lập luận" ở bản trước là thứ duy nhất cứu được mục này.
 
 ### 4.2 `completed_by` là thứ phân biệt hai đường
 
@@ -173,7 +179,9 @@ Scheduler giữ nguyên `WHERE status = 'collecting'` và kiểm `affected` — 
 
 ## 5. Rà soát chỗ so sánh trạng thái
 
-Đây là phần rủi ro nhất của thay đổi này. Ba guard hiện viết `=== 'completed'` vì `completed` từng là **trạng thái hậu-thi duy nhất**. Thêm `collecting` tách đôi nghĩa đó, và bỏ sót bất kỳ chỗ nào đều gây lỗi im lặng.
+Đây là phần rủi ro nhất của thay đổi này. Các guard hiện so sánh thẳng với `'completed'` vì đó từng là **trạng thái hậu-thi duy nhất**. Thêm `collecting` tách đôi nghĩa đó, và bỏ sót bất kỳ chỗ nào đều gây lỗi im lặng.
+
+> **Sửa ở rev 4: có NĂM chỗ, không phải ba.** Bản trước liệt kê ba, tìm bằng cách grep `=== 'completed'`. Hai chỗ nữa lọt lưới vì viết khác cú pháp, và **bộ e2e tìm ra chúng chứ không phải bản rà soát**: `confirmAttendanceForOwner` (cũng `=== 'completed'`, nhưng ở file tôi không grep tới) và `ScheduleConflictService` (SQL `<> 'completed'`). Bài học ghi lại ở đây: đếm call site bằng grep một chuỗi là cách bỏ sót — thứ tìm ra phần còn lại là chạy toàn bộ test.
 
 | Chỗ | Hiện tại | Sau | Bỏ sót thì sao |
 |---|---|---|---|
@@ -184,6 +192,9 @@ Scheduler giữ nguyên `WHERE status = 'collecting'` và kiểm `affected` — 
 | *(mới)* `findCollectionExpiredIds` | — | `collecting` + `endTime + grace <= now` — mốc theo `endTime` theo lịch, **không** theo lúc vào `collecting` (§9.6) | Phiên treo ở `collecting` vĩnh viễn |
 | `SearchExamSessionsDto` | 5 giá trị | 6 | Lọc theo trạng thái mới trả rỗng |
 | `getSessionPhase` (web) | suy từ `status` + đồng hồ | **đọc `status` thẳng, xoá suy diễn** — xem dưới | Hai nguồn sự thật |
+| `confirmAttendanceForOwner` (`exam-session.service.ts`) | `status === 'completed'` | `isExamOver()` | Chốt lại sĩ số sau khi hết giờ **viết lại chính con số** mà báo cáo lệch đang đo dựa vào |
+| `ScheduleConflictService` (SQL) | `<> 'completed' AND <> 'cancelled'` | thêm `<> 'collecting'` | Pre-check **chặt hơn** constraint → từ chối booking mà DB sẽ chấp nhận. Chính doc comment của class đó cảnh báo ca này |
+| Hai ràng buộc GiST (migration) | `<> 'completed' AND <> 'cancelled'` | thêm `<> 'collecting'` | Phòng bị khoá tới hết giờ theo lịch khi chốt bài sớm — xem §4.1 |
 | `agent:join` | `status === 'active'` | **giữ nguyên** | Cố ý — xem §2, ngoài phạm vi |
 
 > **Sửa ở rev 2.** Bản đầu viết "đọc `collecting` trực tiếp, **giữ suy diễn làm fallback**" ở cột giải pháp, trong khi cột rủi ro của chính dòng đó viết "Hai nguồn sự thật" — giải pháp chính là rủi ro. `getSessionPhase` **xoá hẳn** nhánh suy diễn `now > end`: khi `collecting` là trạng thái thật thì đồng hồ không còn tiếng nói. Nhánh `now <= end + grace ? 'collecting' : 'ended'` chỉ còn dùng cho **phiên `completed` tạo trước khi triển khai** (§9.3) — phạm vi hẹp đó ghi ngay trong hàm, không để mở.
@@ -428,6 +439,8 @@ Phiên đang `active` có `endTime` đã qua từ lâu sẽ bị quét sang `col
 | Đua hai đường | Giảng viên bấm sau `endTime + grace` cho phiên đã tự đóng → **không** ghi `completed_by` |
 | Chốt sớm | "Chốt bài ngay" lúc `endTime - 1h` → vào `collecting`; quét dự phòng **không** đụng tới cho tới `endTime + grace` (§9.5) |
 | GiST | Tạo được phiên mới cùng phòng, bắt đầu từ `endTime`, khi phiên cũ đang `collecting` |
+| GiST | **Chốt bài sớm** rồi đặt phiên khác cùng phòng TRONG khung giờ cũ → 201 (pin §4.1; ca có sẵn ở `exam-schedule-conflict.e2e-spec.ts`) |
+| Điểm danh | Chốt lại sĩ số khi phiên đang `collecting` → 409 (pin guard thứ tư; ca có sẵn ở `attendance.e2e-spec.ts`) |
 
 ---
 

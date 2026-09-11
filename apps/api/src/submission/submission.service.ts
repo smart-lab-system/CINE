@@ -17,6 +17,7 @@ import {
   SubmissionErrorCode,
   SUBMISSION_GRACE_PERIOD_MS,
 } from './submission.types';
+import { isCollectionOpen } from '../exam-session/exam-session.types';
 
 /** Postgres unique_violation. */
 const UNIQUE_VIOLATION = '23505';
@@ -465,7 +466,10 @@ function error(code: SubmissionErrorCode, message: string): SubmissionAckError {
  * anything before start_time, are refused.
  */
 function isAcceptingUploads(session: ExamSessionEntity, now: Date): boolean {
-  if (session.status !== 'active' && session.status !== 'completed') {
+  // `isCollectionOpen` gồm cả `collecting` — thiếu nó thì mọi file bay
+  // về TRONG lúc thu bài bị từ chối, tức hỏng đúng thứ giai đoạn đó sinh
+  // ra để phục vụ.
+  if (!isCollectionOpen(session.status)) {
     return false;
   }
   const at = now.getTime();

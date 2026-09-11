@@ -32,8 +32,10 @@ import {
   EXAM_SESSION_CODE_ALPHABET,
   EXAM_SESSION_CODE_LENGTH,
   EXAM_SESSION_CODE_MAX_ATTEMPTS,
+  isExamOver,
 } from './exam-session.types';
 import { ScheduleConflictService } from './schedule-conflict.service';
+import { SUBMISSION_GRACE_PERIOD_MS } from '../submission/submission.types';
 
 // Name of the unique index from AddExamSessionNameCode1787795324287 — used
 // to tell "the code we guessed collided, try another one" apart from any
@@ -333,11 +335,16 @@ export class ExamSessionService {
   }
 
   /**
-   * THE ONLY place `exam_session.status` is allowed to become
-   * 'completed'. Both callers — the scheduled sweep
-   * (ExamSessionScheduler) and the teacher's manual
-   * POST /exam-sessions/:id/finalize — go through here, so the
-   * transition and the broadcast can never drift apart.
+   * Hết giờ làm bài: `active → collecting`. Cả lượt quét theo lịch
+   * (ExamSessionScheduler) lẫn "Chốt bài ngay" thủ công đều đi qua đây,
+   * nên chuyển trạng thái và broadcast không bao giờ lệch nhau.
+   *
+   * ĐÍCH LÀ `collecting`, KHÔNG phải `completed` — từ 2026-09-11
+   * `completed` nghĩa là "đã có người chốt" (spec §3). Nhưng sự kiện
+   * phát ra vẫn là `exam:finalize` và vẫn phát Ở ĐÂY: agent nộp bài khi
+   * nhận nó, nên dời nó xuống bước xác nhận sẽ khiến agent chỉ nộp sau
+   * khi giảng viên bấm — ngược hẳn ý đồ. Tên sự kiện vì thế giờ hơi
+   * lệch nghĩa; đổi tên là phá agent đã triển khai, nên giữ (spec §2).
    *
    * The guard is `WHERE status = 'active'` inside the UPDATE itself,
    * not a read-then-write: the job tick and a teacher clicking "Chốt
@@ -348,9 +355,8 @@ export class ExamSessionService {
    * broadcast exactly once, never twice.
    *
    * Returns true if THIS call performed the transition. False means
-   * the session was already completed (or cancelled/draft/scheduled) —
-   * not an error: finalizing an already-finalized session is a no-op
-   * by design.
+   * the session had already left `active` — not an error: finalizing an
+   * already-finalized session is a no-op by design.
    */
   async finalizeExamSession(
     examSessionId: string,
@@ -359,7 +365,7 @@ export class ExamSessionService {
     const result = await this.sessions
       .createQueryBuilder()
       .update(ExamSessionEntity)
-      .set({ status: 'completed' })
+      .set({ status: 'collecting' })
       .where('id = :id', { id: examSessionId })
       .andWhere('status = :active', { active: 'active' })
       .execute();
@@ -390,6 +396,32 @@ export class ExamSessionService {
       .select('s.id', 'id')
       .where('s.status = :active', { active: 'active' })
       .andWhere('s.endTime <= :now', { now })
+      .getRawMany<{ id: string }>();
+    return rows.map((row) => row.id);
+  }
+
+  /**
+   * Phiên còn kẹt ở `collecting` sau khi cửa sổ nhận bài đã đóng — danh
+   * sách việc của lượt quét dự phòng. Không có nó thì một phiên giảng
+   * viên quên bấm sẽ treo ở `collecting` vĩnh viễn.
+   *
+   * Mốc là `end_time + grace` THEO LỊCH, không tính từ lúc vào
+   * `collecting`: `isAcceptingUploads` dùng đúng công thức đó, và lệch
+   * hai bên sẽ tạo ra quãng phiên đã `completed` mà vẫn nhận bài (spec
+   * §9.5). Hệ quả có chủ đích: chốt bài sớm thì `collecting` kéo dài
+   * tới hết grace của giờ thi theo lịch.
+   *
+   * Dùng chung idx_exam_session_status_end_time với findFinalizableIds.
+   */
+  async findCollectionExpiredIds(now: Date): Promise<string[]> {
+    const rows = await this.sessions
+      .createQueryBuilder('s')
+      .select('s.id', 'id')
+      .where('s.status = :collecting', { collecting: 'collecting' })
+      .andWhere('s.endTime + make_interval(secs => :graceSecs) <= :now', {
+        graceSecs: SUBMISSION_GRACE_PERIOD_MS / 1000,
+        now,
+      })
       .getRawMany<{ id: string }>();
     return rows.map((row) => row.id);
   }
@@ -440,7 +472,12 @@ export class ExamSessionService {
     teacherId: string,
   ): Promise<{ confirmedAt: string; confirmedCount: number }> {
     const session = await this.findOwnedBy(id, teacherId);
-    if (session.status === 'completed') {
+    // `isExamOver`, không phải `=== 'completed'`: chốt lại sĩ số sau khi
+    // hết giờ sẽ viết lại chính con số mà báo cáo lệch đang đo dựa vào —
+    // và điều đó đúng từ lúc vào `collecting`, không phải chỉ sau khi
+    // giảng viên xác nhận. Đây là guard thứ TƯ cùng loại; ba cái kia ở
+    // `isAcceptingUploads`, `buildDiscrepancy` và xoá đề thi.
+    if (isExamOver(session.status)) {
       throw new ConflictException(
         'Phiên thi đã kết thúc — không thể chốt lại sĩ số sau khi đã chốt bài.',
       );

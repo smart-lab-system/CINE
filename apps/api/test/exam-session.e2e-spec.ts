@@ -571,7 +571,11 @@ describe('ExamSession (e2e)', () => {
 
       const completed = await request(app.getHttpServer())
         .get('/exam-sessions')
-        .query({ search: `filter${stamp}`, status: 'completed' })
+        // `collecting`, không phải `completed`: finalize giờ dừng ở
+        // giai đoạn thu bài (spec §3). Lọc theo trạng thái mà luồng
+        // thật sự tạo ra mới là kiểm bộ lọc; đổi sang một trạng thái
+        // không ai đang ở sẽ cho một test xanh vô nghĩa.
+        .query({ search: `filter${stamp}`, status: 'collecting' })
         .set('Authorization', `Bearer ${ownerToken}`);
       expect(completed.body.items.map((item: { id: string }) => item.id)).toContain(completedId);
       expect(completed.body.items.map((item: { id: string }) => item.id)).not.toContain(activeId);
@@ -629,7 +633,12 @@ describe('ExamSession (e2e)', () => {
       return created.body.id as string;
     }
 
-    it('flips an active session owned by the caller to completed', async () => {
+    it('flips an active session owned by the caller to collecting', async () => {
+      // Đổi từ `completed` sang `collecting` ngày 2026-09-11 — CÓ CHỦ
+      // ĐÍCH, không phải nới lỏng test. "Chốt bài ngay" nghĩa là "hết
+      // giờ, nộp đi", và giai đoạn thu bài bắt đầu từ đó; `completed`
+      // từ nay nghĩa là "đã có người xác nhận" và chỉ tới được qua
+      // POST /confirm-end. Xem spec §3.
       const sessionId = await createSession('Manual Finalize');
 
       const response = await request(app.getHttpServer())
@@ -637,18 +646,20 @@ describe('ExamSession (e2e)', () => {
         .set('Authorization', `Bearer ${ownerToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body.status).toBe('completed');
+      expect(response.body.status).toBe('collecting');
 
       // The response is not the only thing that must be right — the
       // column is now the source of truth the UI reads back.
       const [row] = await dataSource.query(
-        `SELECT status FROM examcollect.exam_session WHERE id = $1`,
+        `SELECT status, completed_at FROM examcollect.exam_session WHERE id = $1`,
         [sessionId],
       );
-      expect(row.status).toBe('completed');
+      expect(row.status).toBe('collecting');
+      // Chưa ai xác nhận, nên chưa có dấu vết chốt nào.
+      expect(row.completed_at).toBeNull();
     });
 
-    it('is idempotent — a second finalize still returns 200/completed', async () => {
+    it('is idempotent — a second finalize still returns 200/collecting', async () => {
       const sessionId = await createSession('Double Finalize');
 
       const first = await request(app.getHttpServer())
@@ -663,7 +674,7 @@ describe('ExamSession (e2e)', () => {
       // the second one a no-op rather than a second transition.
       expect(first.status).toBe(200);
       expect(second.status).toBe(200);
-      expect(second.body.status).toBe('completed');
+      expect(second.body.status).toBe('collecting');
     });
 
     it('rejects a teacher who does not own the session with 403', async () => {

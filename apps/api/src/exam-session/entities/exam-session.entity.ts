@@ -6,12 +6,14 @@ import { ClassEntity } from '../../course/entities/class.entity';
 import { RoomEntity } from '../../room/entities/room.entity';
 import { RubricEntity } from '../../grading/entities/rubric.entity';
 
-// CLAUDE.md doesn't enumerate ExamSession.status values explicitly (only
-// exam_session/exam_session in the Main Business Flow phases) — this list
-// is inferred: draft (being set up) -> scheduled (waiting for start_time)
-// -> active (start_time has passed, agents may connect) -> completed
-// (finalize processed) / cancelled (aborted before it started). Confirm/
-// adjust before relying on it in application code.
+// draft (being set up) -> scheduled (waiting for start_time) -> active
+// (start_time has passed, agents may connect) -> collecting (time is up,
+// files are coming in) -> completed (a teacher signed off, or the backup
+// sweep closed it) / cancelled (aborted before it started).
+//
+// No longer "inferred, confirm before relying on it": the lifecycle is
+// specified and tested as of 2026-09-11 — see
+// docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md.
 export type ExamSessionStatus =
   | 'draft'
   | 'scheduled'
@@ -42,13 +44,20 @@ export type ExamType = 'TK' | 'GK' | 'CK';
 // one against a finished exam would be a worse bug than the one these
 // constraints prevent. `class_id` is nullable and NULL never satisfies
 // `WITH =`, so a session with no class holds no class slot.
+//
+// It must list `collecting` as well as `completed`, and that is not
+// cosmetic: since 2026-09-11 "Chốt bài ngay" lands in `collecting`, so a
+// predicate naming only `completed` holds the lab until the hour the exam
+// was scheduled to end at. Once collection starts the exam is over —
+// files still arrive over the network, but the room itself is free.
+// `exam-schedule-conflict.e2e-spec.ts` pins this.
 @Exclusion(
   'ex_exam_session_room_overlap',
-  `USING gist ("room_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'completed' AND "status" <> 'cancelled')`,
+  `USING gist ("room_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'collecting' AND "status" <> 'completed' AND "status" <> 'cancelled')`,
 )
 @Exclusion(
   'ex_exam_session_class_overlap',
-  `USING gist ("class_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'completed' AND "status" <> 'cancelled')`,
+  `USING gist ("class_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'collecting' AND "status" <> 'completed' AND "status" <> 'cancelled')`,
 )
 // Backs ExamSessionScheduler's sweep query (status = 'active' AND
 // end_time <= now()), which runs every 30 seconds forever. Leading with

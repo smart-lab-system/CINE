@@ -18,6 +18,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ExamSessionService } from './exam-session.service';
 import { ExamSessionReassignService } from './exam-session-reassign.service';
+import { CollectionPhaseService } from './collection-phase.service';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { ReassignTeacherDto } from './dto/reassign-teacher.dto';
@@ -53,6 +54,7 @@ export class ExamSessionController {
     private readonly materials: ExamMaterialService,
     private readonly lifecycle: SessionLifecycleService,
     private readonly reassign: ExamSessionReassignService,
+    private readonly collectionPhase: CollectionPhaseService,
   ) {}
 
   @Post()
@@ -190,6 +192,23 @@ export class ExamSessionController {
   @HttpCode(200)
   finalize(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.examSessions.finalizeForOwner(id, req.user!.sub);
+  }
+
+  /**
+   * "Xác nhận kết thúc" — `collecting → completed`, ghi tên người chốt.
+   *
+   * Khác `finalize` ở trên: `finalize` nghĩa là "hết giờ, nộp đi" và đưa
+   * phiên VÀO `collecting`; cái này nghĩa là "tôi đã nhìn phòng, xong"
+   * và đưa nó RA. Hai nút khác nhau trên màn hình, hai ý nghĩa khác nhau.
+   *
+   * 200 và idempotent, như `finalize`: gọi lại trên phiên đã chốt trả
+   * về cùng trạng thái, không lỗi.
+   */
+  @Post(':id/confirm-end')
+  @Roles('teacher')
+  @HttpCode(200)
+  confirmEnd(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    return this.collectionPhase.confirmEnd(id, req.user!.sub);
   }
 
   /**

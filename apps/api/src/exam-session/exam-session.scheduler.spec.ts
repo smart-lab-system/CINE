@@ -1,5 +1,6 @@
 import { ExamSessionScheduler } from './exam-session.scheduler';
 import { ExamSessionService } from './exam-session.service';
+import { CollectionPhaseService } from './collection-phase.service';
 
 /**
  * Drives the sweep directly at a chosen `now` — no timers, no @Interval,
@@ -13,8 +14,14 @@ function createHarness(overrides: Partial<Record<SchedulerDeps, jest.Mock>> = {}
     finalizeExamSession: jest.fn().mockResolvedValue(true),
     ...overrides,
   };
-  const scheduler = new ExamSessionScheduler(examSessions as unknown as ExamSessionService);
-  return { scheduler, examSessions };
+  // `completeExpired` chỉ dùng ở lượt quét thu bài; các test dưới đây lái
+  // lượt finalize, nên một stub là đủ và không che giấu gì.
+  const collectionPhase = { completeExpired: jest.fn().mockResolvedValue(true) };
+  const scheduler = new ExamSessionScheduler(
+    examSessions as unknown as ExamSessionService,
+    collectionPhase as unknown as CollectionPhaseService,
+  );
+  return { scheduler, examSessions, collectionPhase };
 }
 
 const NOW = new Date('2026-08-29T10:00:00Z');
