@@ -33,6 +33,7 @@ import { StorageService } from '../storage/storage.service';
 import { renderFilename } from './filename-template';
 import { ExamMaterialService } from './exam-material.service';
 import { STUDENT_MSSV_REGEX } from '../common/student-mssv';
+import { RECOLLECT_ACK_TIMEOUT_MS } from './recollect.types';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -682,6 +683,49 @@ export class ExamSessionGateway
     // student whose machine died stays "present" forever and the headcount
     // counts a chair that is empty.
     void this.attendance.recordDisconnect(examSessionId, studentId);
+  }
+
+  /**
+   * Yêu cầu đúng những agent trong `mssvs` nộp lại. Trả về MSSV của
+   * những agent ĐÃ ack — theo cách viết mà chính socket đó tự khai.
+   *
+   * Nhắm TỪNG MÁY chứ không phát cả phòng: em đã nộp đủ mà nhận lệnh nộp
+   * lại sẽ upload đè lên bài của chính mình.
+   *
+   * So sánh hạ chữ thường ở cả hai đầu vì `student_mssv` là `citext` —
+   * Postgres coi 'SV001' và 'sv001' là một sinh viên, `Set.has()` thì
+   * không. Danh sách đích mang cách viết của roster, agent mang cách
+   * viết người ngồi máy gõ vào, nên hai đầu lệch nhau là chuyện thường,
+   * và so thẳng sẽ trượt lúc được lúc không.
+   *
+   * Sự kiện MỚI, không tái dùng `exam:finalize`: agent đặt `examEnded`
+   * vĩnh viễn khi nhận `exam:finalize`, nên bắn lại sự kiện đó sẽ không
+   * đổi được gì ở phía nó.
+   */
+  async requestRecollect(examSessionId: string, mssvs: string[]): Promise<string[]> {
+    const wanted = new Set(mssvs.map((mssv) => mssv.toLowerCase()));
+    const sockets = await this.server.in(agentRoom(examSessionId)).fetchSockets();
+    const targets = sockets.filter((socket) => {
+      const mssv: unknown = socket.data.studentId;
+      return typeof mssv === 'string' && wanted.has(mssv.toLowerCase());
+    });
+
+    // SONG SONG: 10 máy treo × 3 giây tuần tự là 30 giây request đứng
+    // hình, trong khi cả 10 khoảng chờ đó đếm cùng lúc được. allSettled
+    // chứ không all: một máy không trả lời là thông tin cần báo cáo, chứ
+    // không phải lý do bỏ luôn kết quả của chín máy kia.
+    const settled = await Promise.allSettled(
+      targets.map(async (socket) => {
+        await socket
+          .timeout(RECOLLECT_ACK_TIMEOUT_MS)
+          .emitWithAck('exam:recollect', { examSessionId });
+        return socket.data.studentId as string;
+      }),
+    );
+
+    return settled
+      .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
+      .map((result) => result.value);
   }
 
   /**

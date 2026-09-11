@@ -31,9 +31,11 @@ describe('Collection phase (e2e)', () => {
   let teacherToken: string;
   let teacherId: string;
   let otherTeacherToken: string;
-  let classId: string;
+  // Không có phòng và lớp dùng chung: mỗi phiên tự seed phòng và lớp
+  // riêng (xem seedActiveSession), vì hai ràng buộc GiST loại trừ theo
+  // khoảng thời gian và mọi phiên ở đây đều đang diễn ra. Môn học thì
+  // dùng chung được — nó không nằm trong ràng buộc nào cả.
   let courseId: string;
-  let roomId: string;
 
   const PASSWORD = 'correct-horse-battery';
   let windowCursor = 0;
@@ -197,17 +199,6 @@ describe('Collection phase (e2e)', () => {
       [`CP${Date.now()}`.slice(0, 20), semester.id],
     );
     courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`Collect Room ${Date.now()}`],
-    );
-    roomId = room.id;
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm thu bài ${Date.now()}`, teacherId],
-    );
-    classId = klass.id;
   });
 
   afterAll(async () => {

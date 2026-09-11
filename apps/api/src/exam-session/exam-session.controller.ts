@@ -19,6 +19,7 @@ import { Roles } from '../auth/roles.decorator';
 import { ExamSessionService } from './exam-session.service';
 import { ExamSessionReassignService } from './exam-session-reassign.service';
 import { CollectionPhaseService } from './collection-phase.service';
+import { RecollectService } from './recollect.service';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { ReassignTeacherDto } from './dto/reassign-teacher.dto';
@@ -55,6 +56,7 @@ export class ExamSessionController {
     private readonly lifecycle: SessionLifecycleService,
     private readonly reassign: ExamSessionReassignService,
     private readonly collectionPhase: CollectionPhaseService,
+    private readonly recollectService: RecollectService,
   ) {}
 
   @Post()
@@ -209,6 +211,19 @@ export class ExamSessionController {
   @HttpCode(200)
   confirmEnd(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.collectionPhase.confirmEnd(id, req.user!.sub);
+  }
+
+  /**
+   * "Thu lại" — yêu cầu agent của những em chưa nộp đủ gửi lại bài.
+   *
+   * Cho bấm nhiều lần: đây là thao tác đọc-rồi-gửi, không đổi trạng thái
+   * gì ở server, và em đã nộp giữa hai lần bấm tự rơi khỏi tập đích.
+   */
+  @Post(':id/recollect')
+  @Roles('teacher')
+  @HttpCode(200)
+  recollect(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    return this.recollectService.requestRecollect(id, req.user!.sub);
   }
 
   /**
