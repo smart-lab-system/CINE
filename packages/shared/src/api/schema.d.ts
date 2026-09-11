@@ -829,6 +829,7 @@ export interface components {
             classId: string | null;
             roomId: string;
             examType: Record<string, never>;
+            semesterName: string;
             /** Format: date-time */
             startTime: string;
             /** Format: date-time */
@@ -921,6 +922,7 @@ export interface components {
             roomId: string;
             room: components["schemas"]["RoomEntity"];
             examType: Record<string, never>;
+            semesterName: string;
             teacherId: string;
             teacher: components["schemas"]["AccountEntity"];
             /** Format: date-time */

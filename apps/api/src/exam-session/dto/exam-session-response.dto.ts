@@ -17,6 +17,9 @@ export class ExamSessionResponseDto {
   classId!: string | null;
   roomId!: string;
   examType!: ExamType;
+  /** Tên học kỳ chụp lúc tạo phiên — xem ExamSessionEntity.semesterName.
+   *  KHÔNG đổi theo khi học kỳ bị đổi tên sau đó. */
+  semesterName!: string;
   startTime!: Date;
   endTime!: Date;
   status!: ExamSessionStatus;

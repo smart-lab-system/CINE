@@ -131,6 +131,32 @@ export class ExamSessionEntity extends BaseEntity {
   })
   examType!: ExamType;
 
+  /**
+   * Tên học kỳ, chụp MỘT LẦN lúc tạo phiên (CLAUDE.md §7.1.5).
+   *
+   * Vì sao không join qua `course.semester.name` mỗi lần cần: bảng điểm
+   * và bài nộp phải tự khai được chúng thuộc kỳ nào, độc lập với mọi
+   * thay đổi sau đó ở `Course`/`Semester` — môn đổi tên, lớp bị xoá, kỳ
+   * bị sửa ngày. Export lọc thẳng `WHERE semester_name = ?` và đúng
+   * vĩnh viễn.
+   *
+   * Đây là snapshot CÓ CHỦ ĐÍCH, không phải denormalize để tối ưu. Đừng
+   * "sửa" nó thành một quan hệ.
+   *
+   * `update: false` chứ không chỉ là lời hứa trong doc comment. Cùng lập
+   * luận mà `trg_grading_result_guard_ai_immutable` dùng cho
+   * `ai_total_score`: một bất biến chỉ được ghi trong chú thích thì
+   * không phải bất biến. Và khi cột này bị ghi đè, triệu chứng duy nhất
+   * là bảng điểm ghi sai kỳ — không lỗi, không cảnh báo, không ai phát
+   * hiện.
+   *
+   * TÊN CỘT là `semester_name`, không phải `semester_code`: bảng
+   * `semester` không có cột `code` nào cả — chỉ `name`, `start_date`,
+   * `end_date`. Một cột bất biến thì tên phải đúng ngay lần đầu.
+   */
+  @Column({ name: 'semester_name', type: 'varchar', length: 150, update: false })
+  semesterName!: string;
+
   @Column({ name: 'teacher_id', type: 'uuid' })
   teacherId!: string;
 

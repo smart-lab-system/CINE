@@ -17,7 +17,7 @@
 | Task | Trạng thái |
 | --- | --- |
 | 1. Giới hạn file đầu vào | ✅ Xong — commit `ffa4372`, có một chỗ lệch plan, xem Task 1 |
-| 2. `semester_code` snapshot | Sẵn sàng — 3 điểm sửa, xem Task 2 |
+| 2. `semester_name` snapshot | ✅ Xong — cột đổi tên thành `semester_name`, xem Task 2 |
 | 3. Đóng băng roster + `absent` | ⛔ **CHẶN** — 2 quyết định chưa chốt, xem Task 3 |
 | 4. BullMQ queue | Sẵn sàng — 7 điểm sửa + 1 thay đổi hợp đồng API, xem Task 4 |
 | 5. Claude provider | ⛔ **CHẶN** — chưa có `ANTHROPIC_API_KEY`, và kiến trúc chấm AI chưa chốt |
@@ -244,7 +244,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - Consumes: `Course.semesterId` → `Semester.name` (read once, at session-create time).
 - Produces: `ExamSessionEntity.semesterCode: string` — written once at creation, never updated. Task 7 (GradeExport) filters on it.
 
-- [ ] **Step 1: Write the failing e2e test**
+- [x] **Step 1: Write the failing e2e test**
 
 ```typescript
 // apps/api/test/exam-session-semester-code.e2e-spec.ts
@@ -295,12 +295,12 @@ describe('exam_session.semester_code snapshot', () => {
 
 (The second test requires Plan B Task 1 to have landed — `PATCH /semesters/:id` is `admin`-only there and `department_admin`-only before it. If Plan B Task 1 has not landed on this branch, log in as `department_admin` for the rename instead.)
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 Run: `pnpm --filter api test:e2e -- exam-session-semester-code`
 Expected: FAIL — `semesterCode` is `undefined`.
 
-- [ ] **Step 3: Add the column to the entity**
+- [x] **Step 3: Add the column to the entity**
 
 In `apps/api/src/exam-session/entities/exam-session.entity.ts`, after `examType`:
 
@@ -320,7 +320,7 @@ In `apps/api/src/exam-session/entities/exam-session.entity.ts`, after `examType`
   semesterCode!: string;
 ```
 
-- [ ] **Step 4: Generate and inspect the migration**
+- [x] **Step 4: Generate and inspect the migration**
 
 ```bash
 cd apps/api
@@ -349,7 +349,7 @@ The generated `up()` will contain `ADD "semester_code" character varying(150) NO
   }
 ```
 
-- [ ] **Step 5: Run the migration**
+- [x] **Step 5: Run the migration**
 
 Run: `pnpm migration:run`
 Expected: executed successfully. Verify with:
@@ -358,7 +358,7 @@ docker exec cine-postgres-1 psql -U examcollect_admin -d examcollect -c "SELECT 
 ```
 Expected: `0`.
 
-- [ ] **Step 6: Populate it on create**
+- [x] **Step 6: Populate it on create**
 
 In `apps/api/src/exam-session/exam-session.service.ts`'s `create` method: the class → course lookup already happens there (`courseId` is derived from `classId`, per `CreateExamSessionDto`'s doc comment). Extend that same lookup to carry the semester name — one query, not a second round-trip:
 
@@ -377,20 +377,20 @@ and set `semesterCode: klass.course.semester.name` in the `create({...})` call a
 
 Adapt to however `create` currently resolves the class — read the method in full first; if it already loads the class with `relations: { course: true }`, extend that relation object rather than adding a query.
 
-- [ ] **Step 7: Expose it in the response DTO**
+- [x] **Step 7: Expose it in the response DTO**
 
 Add `semesterCode: string` to whatever response shape `GET /exam-sessions/:id` and `POST /exam-sessions` return (`apps/api/src/exam-session/dto/exam-session-response.dto.ts`) and to the mapper that builds it.
 
-- [ ] **Step 8: Run the tests**
+- [x] **Step 8: Run the tests**
 
 Run: `pnpm --filter api test:e2e -- exam-session`
 Expected: PASS — including the pre-existing exam-session e2e specs, which must not regress.
 
-- [ ] **Step 9: Update CLAUDE.md**
+- [x] **Step 9: Update CLAUDE.md**
 
 §7.1.5: mark `✅ Đã làm (2026-09-10)`. §3.2 ownership matrix: `ExamSession`'s "Có `semester_id` riêng?" cell becomes "Không — vay qua `class_id` → `course_id`; **có `semester_code` snapshot** (§7.1.5)". This is the one deliberate exception to "`semester_id` xuất hiện đúng một lần" — say so there explicitly so it does not read as a violation of §3.2.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add apps/api/src/database/migrations apps/api/src/exam-session apps/api/test CLAUDE.md

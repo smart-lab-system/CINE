@@ -80,7 +80,11 @@ export class ExamSessionService {
     // for a colleague's. `class.teacher_id` is the whole of a lecturer's
     // scope, and this is the only thing standing between them and running an
     // exam for someone else's class.
-    const klass = await this.classes.findTaughtBy(dto.classId, teacherId);
+    // Nạp kèm course→semester trong CÙNG lượt tra này để chụp
+    // `semester_name` (§7.1.5) — không phải một round-trip thứ hai.
+    const klass = await this.classes.findTaughtBy(dto.classId, teacherId, {
+      course: { semester: true },
+    });
 
     // The rubric this session will be graded against, decided here rather
     // than resolved at grading time. Editing the course's rubric after this
@@ -138,6 +142,10 @@ export class ExamSessionService {
               // not match its class would make every enrollment check after
               // it ask about the wrong course.
               courseId: klass.courseId,
+              // Chụp MỘT LẦN, tại đây, và không bao giờ đọc lại từ quan
+              // hệ nữa (§7.1.5). Cột mang `update: false` nên một
+              // `save()` về sau không ghi đè được.
+              semesterName: klass.course.semester.name,
               roomId: dto.roomId,
               examType: dto.examType,
               startTime: new Date(dto.startTime),
@@ -561,6 +569,7 @@ export class ExamSessionService {
     dto.classId = session.classId;
     dto.roomId = session.roomId;
     dto.examType = session.examType;
+    dto.semesterName = session.semesterName;
     dto.startTime = session.startTime;
     dto.endTime = session.endTime;
     dto.status = session.status;

@@ -384,10 +384,13 @@ describe('Collection phase (e2e)', () => {
       [courseId, `Nhóm quá hạn ${Date.now()}`, teacherId],
     );
     const [old] = await dataSource.query(
+      // semester_name NOT NULL từ 2026-09-11 (§7.1.5). INSERT thô bỏ
+      // qua service nên phải tự cấp — giá trị nào cũng được, ca này
+      // không kiểm học kỳ.
       `INSERT INTO examcollect.exam_session
          (name, code, course_id, class_id, room_id, teacher_id, exam_type,
-          start_time, end_time, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, 'collecting') RETURNING id`,
+          start_time, end_time, status, semester_name)
+       VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, 'collecting', 'HK kiểm thử') RETURNING id`,
       [
         `Phiên quá hạn ${Date.now()}`,
         `OLD${Date.now()}`.slice(0, 20),
