@@ -97,7 +97,20 @@ export interface SubmissionStatusItem {
   downloadUrl: string | null;
 }
 
-export type ExamSessionStatusFilter = 'draft' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+/**
+ * Phải khớp `EXAM_SESSION_STATUSES` trong
+ * apps/api/src/exam-session/dto/search-exam-sessions.dto.ts. Thiếu một
+ * giá trị ở đây không gây lỗi build — nó chỉ làm mất hẳn một lựa chọn
+ * khỏi dropdown lọc, vì `STATUS_FILTER_OPTIONS` sinh ra từ chính kiểu
+ * này (xem teacher/exam-sessions/page.tsx).
+ */
+export type ExamSessionStatusFilter =
+  | 'draft'
+  | 'scheduled'
+  | 'active'
+  | 'collecting'
+  | 'completed'
+  | 'cancelled';
 
 export interface SearchExamSessionsParams {
   page: number;

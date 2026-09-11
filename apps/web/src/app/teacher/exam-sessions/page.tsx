@@ -30,6 +30,7 @@ const STATUS_FILTER_LABELS: Record<ExamSessionStatusFilter, string> = {
   draft: 'Nháp',
   scheduled: 'Đã lên lịch',
   active: 'Đang diễn ra',
+  collecting: 'Đang thu bài',
   completed: 'Đã kết thúc',
   cancelled: 'Đã hủy',
 };
