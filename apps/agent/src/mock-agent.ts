@@ -459,6 +459,17 @@ function armFinalizeUpload(
   examSessionId: string,
   deliverables: RequiredDeliverable[],
 ): Promise<UploadSummary> {
+  const runUpload = (): Promise<UploadSummary> =>
+    uploadAllDeliverables({
+      socket,
+      examSessionId,
+      studentId: identity.studentId,
+      deliverables,
+      readContent: async (deliverable) => mockDeliverableContent(identity, deliverable),
+      // Per-file lines would be 20 agents x N files of noise; the
+      // aggregate report below is what this tool is for.
+    });
+
   return new Promise<UploadSummary>((resolve) => {
     let started = false;
     socket.on('exam:finalize', () => {
@@ -469,16 +480,7 @@ function armFinalizeUpload(
       }
       started = true;
 
-      void uploadAllDeliverables({
-        socket,
-        examSessionId,
-        studentId: identity.studentId,
-        deliverables,
-        readContent: async (deliverable) =>
-          mockDeliverableContent(identity, deliverable),
-        // Per-file lines would be 20 agents x N files of noise; the
-        // aggregate report below is what this tool is for.
-      })
+      void runUpload()
         .then(resolve)
         .catch((error: unknown) => {
           resolve({
@@ -493,6 +495,25 @@ function armFinalizeUpload(
             `[${identity.studentId}] lỗi khi nộp bài: ${error instanceof Error ? error.message : String(error)}`,
           );
         });
+    });
+
+    /**
+     * "Thu lại" — cùng hợp đồng với agent thật (xem session-controller).
+     *
+     * Có mặt ở đây vì công cụ này là thứ dùng để demo và đo tải chính cái
+     * màn hình đó: một mock agent không ack sẽ khiến giảng viên thấy cả
+     * phòng là "không phản hồi", trông hệt như tính năng bị hỏng.
+     *
+     * Không đụng `started` và không resolve promise: promise kia báo cáo
+     * lượt chốt bài, còn đây là một lượt nộp thêm sau nó.
+     */
+    socket.on('exam:recollect', (_payload: unknown, ack?: (result: { ok: boolean }) => void) => {
+      ack?.({ ok: true });
+      void runUpload().catch((error: unknown) => {
+        console.warn(
+          `[${identity.studentId}] lỗi khi thu lại: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
     });
   });
 }
