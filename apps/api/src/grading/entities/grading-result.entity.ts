@@ -1,4 +1,4 @@
-import { Check, Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { SubmissionEntity } from '../../submission/entities/submission.entity';
@@ -27,6 +27,11 @@ export type GradingResultStatus =
 // to a stronger model, so both sides need to be the same comparable type.
 @Entity({ name: 'grading_result' })
 @Check('ck_grading_result_confidence', 'confidence IS NULL OR confidence BETWEEN 0 AND 1')
+// Một bài = MỘT dòng chấm. Trước 2026-09-12 đây chỉ là quy ước, và
+// grading.service.ts viện dẫn một ràng buộc chưa từng tồn tại. Xem
+// migration AddGradingResultSubmissionIndex để biết nó bịt TOCTOU nào,
+// và vì sao cột này còn cần một chỉ mục cho `progress()`.
+@Index('uq_grading_result_submission', ['submissionId'], { unique: true })
 export class GradingResultEntity extends BaseEntity {
   @Column({ name: 'submission_id', type: 'uuid' })
   submissionId!: string;
