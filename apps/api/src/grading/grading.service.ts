@@ -54,6 +54,24 @@ export interface StartGradingResult {
 const LARGE_BATCH_WARNING = 100;
 
 /**
+ * Số bài mỗi lô khi `startGrading` tạo dòng và xếp hàng.
+ *
+ * Cùng con số với `INSERT_CHUNK` của `SessionRosterService`, và cố ý:
+ * hai chỗ đều là "ghi một lô lớn trong một request đồng bộ", nên chúng
+ * nên hỏng ở cùng một ngưỡng chứ không phải hai ngưỡng khác nhau.
+ */
+const START_GRADING_CHUNK = 100;
+
+/** Cắt một mảng thành các lô kích thước `size`. */
+function chunk<T>(rows: T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) {
+    batches.push(rows.slice(i, i + size));
+  }
+  return batches;
+}
+
+/**
  * Tiến độ chấm của một phiên.
  *
  * `total`/`pending`/`done`/`byStatus` đếm `grading_result` — CHÍNH XÁC
@@ -191,38 +209,50 @@ export class GradingService {
     // sót cả khi Redis bị xoá. `queue.getJobCounts()` KHÔNG dùng được
     // cho việc đó — nó đếm toàn hàng đợi, nên hai giảng viên chấm cùng
     // lúc sẽ thấy tiến độ của nhau.
-    await this.results.save(
-      todo.map((submission) =>
-        this.results.create({
-          submissionId: submission.id,
-          rubricIdVersion: rubric.id,
-          gradingTriggeredBy: teacherId,
-          status: 'ai_grading',
-        }),
-      ),
-    );
+    // Chia lô — cùng con số và cùng lý do như `SessionRosterService`:
+    // việc tạo dòng đồng bộ dời chi phí vào chính request của giảng
+    // viên, và một phiên 150 bài là 150 dòng trong MỘT câu lệnh, mỗi
+    // dòng kiểm ba khoá ngoại RESTRICT cộng chỉ mục duy nhất mới. Ở quy
+    // mô đồ án thì chưa nổ; chia lô loại hẳn class lỗi thay vì để nó
+    // chờ tới phiên lớn nhất trong năm.
+    for (const batch of chunk(todo, START_GRADING_CHUNK)) {
+      await this.results.save(
+        batch.map((submission) =>
+          this.results.create({
+            submissionId: submission.id,
+            rubricIdVersion: rubric.id,
+            gradingTriggeredBy: teacherId,
+            status: 'ai_grading',
+          }),
+        ),
+      );
+    }
 
-    await this.queue.addBulk(
-      todo.map((submission) => ({
-        name: 'grade-submission',
-        data: {
-          submissionId: submission.id,
-          requiredFilename: filenames.get(submission.requiredDeliverableId) ?? '',
-          rubricId: rubric.id,
-          teacherId,
-        } satisfies GradeSubmissionJob,
-        opts: {
-          ...GRADE_JOB_OPTIONS,
-          // jobId theo submission: BullMQ bỏ qua job trùng id, nên bấm
-          // "Bắt đầu chấm" hai lần không tạo hai lượt chấm cho một bài —
-          // tầng phòng thứ hai sau bộ lọc `alreadyGraded` ở trên.
-          // Dấu gạch nối, KHÔNG phải dấu hai chấm: BullMQ 6 từ chối
-          // jobId chứa ":" ("Custom Id cannot contain :") — nó dùng ký
-          // tự đó cho khoá Redis của chính mình.
-          jobId: `grade-${submission.id}`,
-        },
-      })),
-    );
+    // `addBulk` cũng chia lô: nó là MỘT pipeline Redis, nên một lô lớn
+    // là một gói lớn và một lần chờ dài.
+    for (const batch of chunk(todo, START_GRADING_CHUNK)) {
+      await this.queue.addBulk(
+        batch.map((submission) => ({
+          name: 'grade-submission',
+          data: {
+            submissionId: submission.id,
+            requiredFilename: filenames.get(submission.requiredDeliverableId) ?? '',
+            rubricId: rubric.id,
+            teacherId,
+          } satisfies GradeSubmissionJob,
+          opts: {
+            ...GRADE_JOB_OPTIONS,
+            // jobId theo submission: BullMQ bỏ qua job trùng id, nên bấm
+            // "Bắt đầu chấm" hai lần không tạo hai lượt chấm cho một bài —
+            // tầng phòng thứ hai sau bộ lọc `alreadyGraded` ở trên.
+            // Dấu gạch nối, KHÔNG phải dấu hai chấm: BullMQ 6 từ chối
+            // jobId chứa ":" ("Custom Id cannot contain :") — nó dùng ký
+            // tự đó cho khoá Redis của chính mình.
+            jobId: `grade-${submission.id}`,
+          },
+        })),
+      );
+    }
 
     this.logger.log(
       `session ${session.id}: xếp hàng ${todo.length} bài` +
@@ -370,6 +400,18 @@ export class GradingService {
   ): Promise<void> {
 
     let content = '';
+    // Hai con số, không phải một. `extractText` là CPU-BOUND — parse
+    // docx nghĩa là giải nén zip rồi đi cây XML, và nó chạy trên chính
+    // event loop của API. Với `concurrency: 5` thì năm bài cùng extract
+    // là năm lần chặn event loop, và mọi request HTTP khác — kể cả
+    // `progress()` đang bị poll 2 giây một lần — xếp hàng sau chúng.
+    //
+    // Lời gọi model thì ngược lại, gần như toàn bộ là chờ mạng, nên nó
+    // KHÔNG chặn gì cả. Trộn hai con số vào một dòng log sẽ giấu mất
+    // đúng thứ cần biết trước khi bật model thật: nếu extract chiếm
+    // phần đáng kể, câu trả lời là `worker_threads` hoặc hạ
+    // `concurrency`, chứ không phải mua thêm quota.
+    const extractStarted = Date.now();
     try {
       if (!submission.storageKey) {
         // A collected submission with no object behind it should not exist —
@@ -412,7 +454,15 @@ export class GradingService {
       })),
     };
 
+    const extractMs = Date.now() - extractStarted;
+    const modelStarted = Date.now();
     const outcome = await this.provider.grade(request);
+    // Kích thước nội dung, không phải nội dung. `chars` là thứ dự đoán
+    // chi phí token, nên nó thuộc về dòng này.
+    this.logger.log(
+      `submission ${submission.id}: extract ${extractMs}ms (CPU) / ` +
+        `model ${Date.now() - modelStarted}ms (I/O), ${content.length} ký tự`,
+    );
 
     // The AI's own output, written once. A teacher's later edit creates a
     // TeacherReview row instead of touching any of this — Security rule 6,

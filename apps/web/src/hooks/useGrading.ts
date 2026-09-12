@@ -121,10 +121,39 @@ export function useStartGrading(examSessionId: string | undefined) {
 }
 
 /**
+ * Nhịp hỏi lại: nhanh lúc đầu, chậm dần.
+ *
+ * 2 giây là đúng cho phút đầu — giảng viên vừa bấm nút và đang nhìn.
+ * Nhưng một lượt 40 bài mất nhiều phút, và không ai theo dõi từng giây
+ * suốt ngần ấy. Giữ nguyên 2 giây tới cuối là 2.5 request/giây khi năm
+ * giảng viên chấm cùng lúc cuối kỳ, mỗi request một GROUP BY join hai
+ * bảng — trên đúng process đang chạy năm worker chấm.
+ */
+export const PROGRESS_POLL_FAST_MS = 2_000;
+export const PROGRESS_POLL_SLOW_MS = 5_000;
+export const PROGRESS_FAST_WINDOW_MS = 60_000;
+
+/**
+ * Quyết định nhịp — tách ra vì nó là toàn bộ luật, và luật thì nên ghim
+ * được bằng test mà không phải dựng một QueryClient.
+ */
+export function progressPollIntervalMs(pending: number, elapsedMs: number): number | false {
+  if (pending <= 0) {
+    return false;
+  }
+  return elapsedMs < PROGRESS_FAST_WINDOW_MS ? PROGRESS_POLL_FAST_MS : PROGRESS_POLL_SLOW_MS;
+}
+
+/**
  * Theo dõi một lượt chấm cho tới khi xong.
  *
- * Hỏi lại mỗi 2 giây CHỈ KHI còn bài đang chấm, rồi tự dừng: một trang
- * mở suốt buổi không được phép gọi mãi một endpoint không còn gì để nói.
+ * Hỏi lại CHỈ KHI còn bài đang chấm, rồi tự dừng: một trang mở suốt
+ * buổi không được phép gọi mãi một endpoint không còn gì để nói.
+ *
+ * `refetchIntervalInBackground` để mặc định (false), nên TanStack Query
+ * tự dừng hỏi khi cửa sổ mất focus và hỏi lại khi quay về. Bấm "Bắt đầu
+ * chấm" rồi chuyển tab là hành vi mặc định của một lượt chấm dài, và
+ * một tab nền không ai nhìn thì mỗi request là chi phí thuần.
  *
  * Khi lượt chấm kết thúc, nó làm mới danh sách kết quả đúng một lần —
  * đó là chỗ duy nhất biết được "vừa xong", vì response của
@@ -133,12 +162,26 @@ export function useStartGrading(examSessionId: string | undefined) {
 export function useGradingProgress(examSessionId: string | undefined) {
   const queryClient = useQueryClient();
   const settled = useRef(true);
+  /** Lượt chấm HIỆN TẠI bắt đầu lúc nào — mốc để giãn nhịp. */
+  const startedAt = useRef<number | null>(null);
 
   const query = useQuery({
     queryKey: ['exam-sessions', examSessionId, 'grading-progress'],
     queryFn: () => getGradingProgress(examSessionId!),
     enabled: Boolean(examSessionId),
-    refetchInterval: (query) => ((query.state.data?.pending ?? 0) > 0 ? 2_000 : false),
+    refetchInterval: (query) => {
+      const pending = query.state.data?.pending ?? 0;
+      if (pending <= 0) {
+        // Đặt lại mốc: lượt chấm sau phải được một phút nhanh của
+        // riêng nó, không kế thừa đồng hồ của lượt trước.
+        startedAt.current = null;
+        return false;
+      }
+      if (startedAt.current === null) {
+        startedAt.current = Date.now();
+      }
+      return progressPollIntervalMs(pending, Date.now() - startedAt.current);
+    },
   });
 
   const pending = query.data?.pending ?? 0;

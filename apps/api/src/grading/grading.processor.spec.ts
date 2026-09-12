@@ -77,6 +77,44 @@ describe('GradingProcessor', () => {
     await expect(processor.process(jobFor())).rejects.toBeInstanceOf(UnrecoverableError);
   });
 
+  it('KHÔNG đưa văn bản lỗi của API vào chỗ nào đọc được', async () => {
+    // Ca rò rỉ thật sắp tới ở Task 5: `Anthropic.APIError.message` ở một
+    // số shape 400 được dựng từ body server trả về — mà body đó là
+    // request của CHÍNH TA, tức chứa lại bài làm của sinh viên. Nhánh
+    // catch này đứng ở tầng đã cầm dữ liệu đó, nên nó không được in
+    // nguyên văn lời của tầng dưới.
+    //
+    // `failedReason` của `UnrecoverableError` nằm trong Redis và hiện ra
+    // ở mọi bảng quản trị hàng đợi — nên nó là đích cần kiểm, không phải
+    // chỉ dòng log.
+    const essay = 'Thuật toán sắp xếp nổi bọt hoạt động bằng cách MSSV 2011060123';
+    gradeOneById.mockRejectedValue(
+      Object.assign(new Error(`400 invalid_request_error: {"content":"${essay}"}`), {
+        status: 400,
+        type: 'invalid_request_error',
+      }),
+    );
+
+    const caught = (await processor.process(jobFor()).catch((e: unknown) => e)) as Error;
+
+    expect(caught).toBeInstanceOf(UnrecoverableError);
+    expect(caught.message).not.toContain(essay);
+    // Vẫn phải đủ để đi sửa: hai thứ đó nói được đi đọc chỗ nào.
+    expect(caught.message).toContain('400');
+    expect(caught.message).toContain('invalid_request_error');
+  });
+
+  it('GIỮ NGUYÊN message của lỗi do chính repo này dựng', async () => {
+    // Lỗi không có `status` là lỗi của ta — timeout, file quá lớn, lỗi
+    // lập trình. Message của chúng đã an toàn và là thứ duy nhất có ích;
+    // cắt luôn cả nhóm này sẽ làm mọi sự cố nội bộ trở nên mù.
+    gradeOneById.mockRejectedValue(new Error('file vượt 200k ký tự'));
+
+    const caught = (await processor.process(jobFor()).catch((e: unknown) => e)) as Error;
+
+    expect(caught.message).toContain('file vượt 200k ký tự');
+  });
+
   it('404 KHÔNG retry', async () => {
     gradeOneById.mockRejectedValue(Object.assign(new Error('not found'), { status: 404 }));
 

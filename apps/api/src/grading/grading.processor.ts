@@ -54,11 +54,13 @@ export class GradingProcessor extends WorkerHost implements OnModuleDestroy {
       //
       // `UnrecoverableError` bảo BullMQ dừng ngay, không thử lại.
       if (isPermanentFailure(error)) {
-        const reason = error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `submission ${job.data.submissionId}: lỗi KHÔNG retry được — ${reason}`,
+          `submission ${job.data.submissionId}: lỗi KHÔNG retry được — ${describeError(error)}`,
         );
-        throw new UnrecoverableError(reason);
+        // Thông điệp của `UnrecoverableError` đi vào `job.failedReason`,
+        // tức nằm trong Redis và hiện ra ở mọi bảng quản trị hàng đợi.
+        // Cùng lý do như log: không đưa văn bản lỗi thô vào đó.
+        throw new UnrecoverableError(describeError(error));
       }
       throw error;
     }
@@ -115,7 +117,7 @@ export class GradingProcessor extends WorkerHost implements OnModuleDestroy {
   onFailed(job: Job<GradeSubmissionJob> | undefined, error: Error): void {
     this.logger.error(
       `job ${job?.id ?? '(không rõ)'} submission ${job?.data?.submissionId ?? '(không rõ)'} ` +
-        `thất bại lần ${job?.attemptsMade ?? 0}: ${error.message}`,
+        `thất bại lần ${job?.attemptsMade ?? 0}: ${describeError(error)}`,
     );
   }
 
@@ -129,6 +131,32 @@ export class GradingProcessor extends WorkerHost implements OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
   }
+}
+
+/**
+ * Mô tả một lỗi ĐỦ để điều tra, KHÔNG đủ để rò bài làm của sinh viên.
+ *
+ * Vì sao không log `error.message` thô: ở một số shape lỗi 400, SDK dựng
+ * message từ phần body mà server trả về, và body đó là request của
+ * chính ta — tức chứa lại nội dung bài. Một nhánh catch ở tầng đã cầm
+ * dữ liệu bài làm không được phép in nguyên văn lời của tầng dưới.
+ *
+ * Cái thật sự cần để sửa là `status` và `type` — "400 invalid_request"
+ * đủ để biết đi đọc chỗ nào, còn 4KB bài luận của một em thì không.
+ * `AIGradingProvider` là nơi biết cụ thể sai gì; nó có trách nhiệm ném
+ * ra một message đã tự làm sạch nếu muốn message đó hiện ở đây.
+ *
+ * Lỗi KHÔNG phải từ API (timeout của ta, `GradingInputTooLargeError`,
+ * lỗi lập trình) không có `status` — chúng do chính repo này dựng nên
+ * message an toàn, và giữ nguyên message là thứ duy nhất có ích.
+ */
+function describeError(error: unknown): string {
+  const api = error as { status?: unknown; type?: unknown; name?: unknown };
+  if (typeof api?.status === 'number') {
+    const type = typeof api.type === 'string' ? api.type : String(api.name ?? 'lỗi API');
+    return `HTTP ${api.status} ${type} (nội dung lỗi bị cắt — có thể chứa bài làm)`;
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
