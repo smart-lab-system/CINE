@@ -70,8 +70,17 @@ export class SessionRosterService {
         where: { courseId: session.courseId, homeClassId: session.classId! },
       });
       if (enrolled.length === 0) {
+        // Vế thứ hai không thừa. Guard này đúng cho ca thường (mở phiên
+        // trước khi nhập roster là lỗi thật) và SAI cho ca hiếm: phiên
+        // chỉ dành cho thi bù, lớp cố ý rỗng, người dự thi đều thêm tay.
+        // Ca hiếm ấy cần một cờ trên phiên để phân biệt "rỗng do quên"
+        // với "rỗng có chủ đích" — tức chạm vòng đời, tức thuộc spec
+        // `scheduled`. Cho tới lúc đó, nói thẳng là CHƯA HỖ TRỢ: người
+        // gặp nó mà chỉ đọc vế đầu sẽ đi tìm một roster không tồn tại
+        // rồi kết luận hệ thống hỏng.
         throw new BadRequestException(
-          'Lớp của phiên thi này chưa có sinh viên nào trong danh sách — hãy nhập roster trước khi mở phiên.',
+          'Lớp của phiên thi này chưa có sinh viên nào trong danh sách — hãy nhập roster trước khi mở phiên. ' +
+            'Nếu đây là phiên thi bù không có lớp cố định, tính năng này chưa được hỗ trợ.',
         );
       }
 
@@ -87,38 +96,21 @@ export class SessionRosterService {
         })),
       );
 
-      // Một dòng cho mỗi (sinh viên × file bắt buộc): "vắng" phải có CHỖ
-      // NGỒI trong bảng điểm, không phải là sự thiếu một bản ghi.
-      //
-      // `not_submitted`, KHÔNG phải `absent` — đó là toàn bộ quyết định
-      // D1: ở thời điểm này chưa ai quan sát gì cả, và một bảng điểm
-      // xuất ngay sau đây phải đọc được là "chưa kết luận", không phải
-      // "cả lớp vắng thi".
-      const deliverables = await manager.getRepository(RequiredDeliverableEntity).find({
-        where: { examSessionId: session.id },
-      });
-      const rows = enrolled.flatMap((student) =>
-        deliverables.map((deliverable) => ({
-          examSessionId: session.id,
-          requiredDeliverableId: deliverable.id,
-          studentMssv: student.studentMssv,
-          studentNameInput: student.studentName,
-          homeClassId: student.homeClassId,
-          homeTeacherId: student.homeTeacherId,
-          status: 'not_submitted' as const,
+      const seeded = await this.seedSeats(
+        manager,
+        session.id,
+        enrolled.map((row) => ({
+          mssv: row.studentMssv,
+          name: row.studentName,
+          homeClassId: row.homeClassId,
+          homeTeacherId: row.homeTeacherId,
         })),
       );
-      // `submitted_at` nhận `now()` mặc định và KHÔNG có nghĩa gì chừng
-      // nào dòng còn ở `not_submitted`/`absent` — nó chỉ trở thành thật
-      // khi file bay về và `writeCollected` ghi đè. Cột không để nullable
-      // được vì mọi bài nộp thật đều phải có, nên nghĩa của nó được ghi
-      // ở đây thay vì ở schema.
-      await this.insertChunked(manager.getRepository(SubmissionEntity), rows);
 
       this.logger.log(
-        `session ${session.id}: chốt ${enrolled.length} sinh viên, gieo ${rows.length} dòng chưa nộp`,
+        `session ${session.id}: chốt ${enrolled.length} sinh viên, gieo ${seeded} dòng chưa nộp`,
       );
-      return { students: enrolled.length, submissionsSeeded: rows.length };
+      return { students: enrolled.length, submissionsSeeded: seeded };
     });
   }
 
@@ -126,9 +118,16 @@ export class SessionRosterService {
    * Thêm một sinh viên vào ảnh chốt tại phòng thi — đường thoát hiểm
    * §5.8, mà §7.1.1 đánh dấu "bắt buộc giữ".
    *
-   * Không gieo dòng submission cho người này: em vào muộn sẽ nộp bằng
-   * đường thường, và `writeCollected` tự tạo dòng. Gieo thêm ở đây sẽ
-   * tạo `not_submitted` cho một em có thể đang ngồi nộp ngay lúc đó.
+   * GIEO chỗ ngồi như `freeze`, không chỉ ghi ảnh chốt. Lý do cũ ở đây —
+   * "em vào muộn sẽ nộp bằng đường thường, `writeCollected` tự tạo
+   * dòng" — chỉ đúng cho em CÓ nộp. Em được thêm tay rồi không nộp gì
+   * thì không có dòng nào, nên không bị `markAbsentees` đụng tới, không
+   * có mặt trong bảng điểm, và không xuất hiện ở bất kỳ phép đếm nào:
+   * đúng lỗ hổng §7.1.2 vừa bịt, chỉ khác đường vào.
+   *
+   * Nỗi lo đua với em đang nộp là không có thật: `writeCollected` dắt
+   * một dòng `not_submitted`/`absent` có sẵn qua `received → validated →
+   * collected` (submission.service.ts) thay vì đâm vào nó.
    */
   async addManually(
     session: ExamSessionEntity,
@@ -161,19 +160,28 @@ export class SessionRosterService {
         where: { courseId: session.courseId, studentMssv: student.mssv },
       });
 
-      return rosterRepo.save(
+      // Em có enrollment (thi bù lớp khác) thì giữ lớp/GV GỐC của họ —
+      // định tuyến ở §3.3. Không có enrollment nào thì họ thuộc lớp của
+      // phiên này.
+      const homeClassId = enrollment?.homeClassId ?? session.classId!;
+      const homeTeacherId = enrollment?.homeTeacherId ?? session.teacherId;
+
+      const saved = await rosterRepo.save(
         rosterRepo.create({
           examSessionId: session.id,
           studentMssv: student.mssv,
           studentName: student.name,
-          // Em có enrollment (thi bù lớp khác) thì giữ lớp/GV GỐC của
-          // họ — định tuyến ở §3.3. Không có enrollment nào thì họ thuộc
-          // lớp của phiên này.
-          homeClassId: enrollment?.homeClassId ?? session.classId!,
-          homeTeacherId: enrollment?.homeTeacherId ?? session.teacherId,
+          homeClassId,
+          homeTeacherId,
           source: 'manual',
         }),
       );
+
+      await this.seedSeats(manager, session.id, [
+        { mssv: student.mssv, name: student.name, homeClassId, homeTeacherId },
+      ]);
+
+      return saved;
     });
   }
 
@@ -200,20 +208,93 @@ export class SessionRosterService {
     examSessionId: string,
     student: { mssv: string; name: string; homeClassId: string; homeTeacherId: string },
   ): Promise<void> {
-    await this.dataSource
-      .getRepository(SessionRosterEntity)
-      .createQueryBuilder()
-      .insert()
-      .values({
+    // Một transaction: cùng lý do như `freeze` — ảnh chốt và chỗ ngồi
+    // phải cùng tồn tại hoặc cùng không.
+    await this.dataSource.transaction(async (manager) => {
+      await manager
+        .getRepository(SessionRosterEntity)
+        .createQueryBuilder()
+        .insert()
+        .values({
+          examSessionId,
+          studentMssv: student.mssv,
+          studentName: student.name,
+          homeClassId: student.homeClassId,
+          homeTeacherId: student.homeTeacherId,
+          source: 'manual',
+        })
+        .orIgnore()
+        .execute();
+
+      // Cũng gieo chỗ ngồi ở đây. Em được duyệt vào thi rồi chỉ nộp 1
+      // trong 3 file bắt buộc thì hai file kia không có dòng nào — em
+      // biến mất khỏi bảng điểm ở đúng hai ô đó.
+      await this.seedSeats(manager, examSessionId, [
+        {
+          mssv: student.mssv,
+          name: student.name,
+          homeClassId: student.homeClassId,
+          homeTeacherId: student.homeTeacherId,
+        },
+      ]);
+    });
+  }
+
+  /**
+   * Gieo một dòng `submission` cho mỗi (sinh viên × file bắt buộc).
+   *
+   * "Vắng" phải có CHỖ NGỒI trong bảng điểm, không phải là sự thiếu một
+   * bản ghi. `not_submitted`, KHÔNG phải `absent` — đó là toàn bộ quyết
+   * định D1: ở thời điểm này chưa ai quan sát gì cả, và một bảng điểm
+   * xuất ngay sau đây phải đọc được là "chưa kết luận", không phải "cả
+   * lớp vắng thi".
+   *
+   * `submitted_at` nhận `now()` mặc định và KHÔNG có nghĩa gì chừng nào
+   * dòng còn ở `not_submitted`/`absent` — nó chỉ trở thành thật khi file
+   * bay về và `writeCollected` ghi đè.
+   *
+   * `ON CONFLICT DO NOTHING` trên `uq_submission_identity` là thứ làm
+   * hàm này dùng được ở CẢ BA đường vào: lúc đóng băng (chưa có gì),
+   * lúc thêm tay giữa buổi (em có thể đã nộp một file rồi — dòng đó
+   * phải được giữ nguyên, không bị kéo ngược về `not_submitted`), và
+   * lúc duyệt lại một access-request (không có gì để làm).
+   */
+  private async seedSeats(
+    manager: EntityManager,
+    examSessionId: string,
+    students: { mssv: string; name: string; homeClassId: string; homeTeacherId: string }[],
+  ): Promise<number> {
+    const deliverables = await manager.getRepository(RequiredDeliverableEntity).find({
+      where: { examSessionId },
+    });
+    if (deliverables.length === 0 || students.length === 0) {
+      return 0;
+    }
+
+    const rows = students.flatMap((student) =>
+      deliverables.map((deliverable) => ({
         examSessionId,
+        requiredDeliverableId: deliverable.id,
         studentMssv: student.mssv,
-        studentName: student.name,
+        studentNameInput: student.name,
         homeClassId: student.homeClassId,
         homeTeacherId: student.homeTeacherId,
-        source: 'manual',
-      })
-      .orIgnore()
-      .execute();
+        status: 'not_submitted' as const,
+      })),
+    );
+
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
+      const result = await manager
+        .getRepository(SubmissionEntity)
+        .createQueryBuilder()
+        .insert()
+        .values(rows.slice(i, i + INSERT_CHUNK))
+        .orIgnore()
+        .execute();
+      inserted += result.identifiers.filter(Boolean).length;
+    }
+    return inserted;
   }
 
   private async insertChunked<T extends object>(

@@ -257,6 +257,98 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
     expect(frozen.map((r: { source: string }) => r.source)).toEqual(['frozen', 'manual']);
   });
 
+  it('thêm tay cũng GIEO chỗ ngồi, không chỉ ghi ảnh chốt', async () => {
+    // Lỗ hổng §7.1.2 quay lại bằng cửa sau. Trước sửa này, `addManually`
+    // chỉ ghi `session_roster`; em được thêm tay rồi KHÔNG nộp gì sẽ
+    // không có dòng submission nào — nên `markAbsentees` không đụng tới,
+    // bảng điểm không có em, và mọi phép đếm bỏ qua em. Không phải "sai
+    // điểm", mà là "không tồn tại".
+    const session = await seedSession({ students: 1, deliverables: ['Cau1.docx', 'Cau2.docx'] });
+    await open(session.id);
+    const mssv = `FZSEAT${Date.now() % 100000}`;
+
+    await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.id}/roster/students`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ mssv, name: 'Lê Thị Thêm Tay' })
+      .expect(201);
+
+    const seats = (await submissionRows(session.id)).filter(
+      (r: { student_mssv: string }) => r.student_mssv.toLowerCase() === mssv.toLowerCase(),
+    );
+    // Một dòng cho MỖI file bắt buộc — cùng hình dạng như đường đóng băng.
+    expect(seats).toHaveLength(2);
+    expect(seats.every((r: { status: string }) => r.status === 'not_submitted')).toBe(true);
+  });
+
+  it('em thêm tay rồi không nộp gì bị kết luận VẮNG THI, không biến mất', async () => {
+    // Hệ quả thật của test trên, đo ở đầu ra thay vì ở bảng: đây mới là
+    // điều người dùng thấy.
+    const session = await seedSession({ students: 1 });
+    await open(session.id);
+    const mssv = `FZABS${Date.now() % 100000}`;
+    await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.id}/roster/students`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ mssv, name: 'Phạm Văn Không Đến' })
+      .expect(201);
+
+    await scheduler.sweep(new Date(session.endTime.getTime() + 1_000));
+    await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.id}/confirm-end`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .expect(200);
+
+    const rows = (await submissionRows(session.id)).filter(
+      (r: { student_mssv: string }) => r.student_mssv.toLowerCase() === mssv.toLowerCase(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('absent');
+  });
+
+  it('thêm tay KHÔNG kéo ngược dòng của em đã nộp về chưa nộp', async () => {
+    // `ON CONFLICT DO NOTHING` là thứ làm việc gieo dùng được ở giữa
+    // buổi thi. Thêm tay một em đã có dòng `collected` mà ghi đè thành
+    // `not_submitted` sẽ XOÁ một bài nộp thật khỏi bảng điểm.
+    const session = await seedSession({ students: 1 });
+    await open(session.id);
+    const mssv = session.students[0];
+    await dataSource.query(
+      `UPDATE examcollect.submission SET status = 'received'
+         WHERE exam_session_id = $1 AND student_mssv = $2 AND required_deliverable_id = $3`,
+      [session.id, mssv, session.deliverableIds[0]],
+    );
+
+    // Trùng MSSV nên route trả 409 — nhưng điều cần khẳng định là dòng
+    // submission KHÔNG bị đụng vào.
+    await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.id}/roster/students`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ mssv, name: 'Trùng người đã nộp' })
+      .expect(409);
+
+    const rows = await submissionRows(session.id);
+    expect(rows.find((r: { student_mssv: string }) => r.student_mssv.toLowerCase() === mssv.toLowerCase())?.status).toBe(
+      'received',
+    );
+  });
+
+  it('giảng viên không phải chủ phiên không thêm được người vào ảnh chốt', async () => {
+    // `session_roster` là chứng từ trả lời "ai đáng lẽ có mặt", và nó
+    // chứa MSSV + họ tên — dữ liệu cá nhân của người thứ ba. Owner-only,
+    // không phải teacher-only.
+    const session = await seedSession({ students: 1 });
+    await open(session.id);
+
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.id}/roster/students`)
+      .set('Authorization', `Bearer ${otherTeacherToken}`)
+      .send({ mssv: `FZ403${Date.now() % 100000}`, name: 'Người ngoài' });
+
+    expect(res.status).toBe(403);
+    expect(await rosterRows(session.id)).toHaveLength(1);
+  });
+
   it('thêm tay trùng MSSV trả 409, không phải lỗi DB thô', async () => {
     const session = await seedSession({ students: 1 });
     await open(session.id);
