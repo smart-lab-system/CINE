@@ -158,12 +158,24 @@ export class AddSessionRosterAndAbsence1789190000000 implements MigrationInterfa
     await queryRunner.query(`DROP TYPE "examcollect"."session_roster_source"`);
 
     // Postgres KHÔNG xoá được một giá trị khỏi enum. `not_submitted` và
-    // `absent` ở lại — vô hại khi không dòng nào còn dùng, và ghi ra đây
-    // để người đọc sau không tưởng `down()` bị viết thiếu.
+    // `absent` ở lại — ghi ra đây để người đọc sau không tưởng `down()`
+    // bị viết thiếu.
     //
-    // Kèm một cảnh báo thật: nếu còn dòng nào mang hai giá trị đó,
-    // trigger cũ ở trên sẽ từ chối mọi UPDATE chạm tới chúng. Revert
-    // migration này trên dữ liệu đã dùng tính năng là việc cần cân nhắc,
-    // không phải một nút bấm.
+    // ĐÃ CHẠY THỬ (2026-09-12, DB nháp có đủ dữ liệu của cả ba tính
+    // năng). Kết quả, không phải dự đoán:
+    //
+    //   - `session_roster` DROP sạch: không bảng nào tham chiếu tới nó,
+    //     nên không có FK RESTRICT nào chặn.
+    //   - Dòng `submission` SỐNG SÓT và vẫn mang `status = 'absent'` —
+    //     một giá trị mà code đã lùi không có nhánh nào xử lý. Nó không
+    //     nổ; nó rơi qua mọi `switch`/`filter` và được đếm sai.
+    //   - Trigger cũ khôi phục ở trên sẽ từ chối mọi UPDATE chạm vào
+    //     những dòng ấy (nó chỉ biết `received`/`validated`).
+    //
+    // Nên `down()` này KHÔNG phải một rollback thật: nó trả schema về,
+    // không trả dữ liệu về. Trước khi revert trên dữ liệu đã dùng tính
+    // năng, phải quyết những dòng `not_submitted`/`absent` đi đâu — xoá
+    // chúng, hay đưa về `received`. Không có câu trả lời đúng chung, nên
+    // migration này cố ý không tự chọn hộ.
   }
 }

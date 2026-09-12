@@ -27,6 +27,17 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * lỗi rõ ràng — đó là hành vi mong muốn, không phải thứ cần bọc
  * `COALESCE` cho qua: một phiên thi không truy được học kỳ là dữ liệu
  * hỏng cần người nhìn, không phải thứ để điền đại một chuỗi vào.
+ *
+ * GIỚI HẠN KHI DEPLOY — đọc schema, chưa đo. `SET NOT NULL` ở bước ba
+ * làm migration này BREAKING với code cũ: một instance chưa cập nhật
+ * chạy song song sẽ INSERT `exam_session` thiếu cột và nhận 23502. Tức
+ * ROLLING DEPLOY sẽ vỡ; dừng-rồi-chạy thì không.
+ *
+ * Ở quy mô đồ án, dừng-rồi-chạy là lựa chọn đúng và không cần sửa gì.
+ * Ghi ra để nó là một giới hạn ĐÃ BIẾT chứ không phải một bất ngờ. Nếu
+ * sau này cần rolling deploy thật, mẫu chuẩn là tách làm ba lần deploy
+ * chứ không phải ba câu lệnh: thêm cột nullable → deploy code ghi cột →
+ * mới `SET NOT NULL` ở lần deploy sau.
  */
 export class AddExamSessionSemesterName1789180000000 implements MigrationInterface {
   name = 'AddExamSessionSemesterName1789180000000';
