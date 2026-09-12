@@ -99,9 +99,40 @@ describe('GradingProcessor', () => {
 
     expect(caught).toBeInstanceOf(UnrecoverableError);
     expect(caught.message).not.toContain(essay);
+    // Chốt chặn CẤU TRÚC, không chỉ chốt một chuỗi. Shape lỗi của SDK sẽ
+    // đổi, và lần đổi sau có thể mang bài làm vào qua `headers` hay
+    // `request` thay vì `message`. Khẳng định "không có JSON nào ở đây"
+    // sống sót qua những lần đổi ấy; khẳng định "không chứa đúng câu
+    // essay này" thì không.
+    expect(caught.message).not.toMatch(/[{}]/);
     // Vẫn phải đủ để đi sửa: hai thứ đó nói được đi đọc chỗ nào.
     expect(caught.message).toContain('400');
     expect(caught.message).toContain('invalid_request_error');
+  });
+
+  it('lỗi RETRY ĐƯỢC cũng phải sạch — nó vẫn bị ghi vào Redis', async () => {
+    // bullmq 6.3.4 `Job.moveToFailed` gán `failedReason = err.message`
+    // TRƯỚC khi hỏi `shouldRetry`, rồi truyền nó vào `moveToDelayed`.
+    // Nên một lần thử hỏng ở giữa chừng cũng ghi message thô vào Redis,
+    // và `removeOnFail: false` giữ nó ở đó.
+    const essay = 'Cây nhị phân tìm kiếm của em MSSV 2011060456';
+    gradeOneById.mockRejectedValue(
+      Object.assign(new Error(`503 overloaded: {"content":"${essay}"}`), {
+        status: 503,
+        type: 'overloaded_error',
+      }),
+    );
+
+    const caught = (await processor.process(jobFor()).catch((e: unknown) => e)) as Error & {
+      status?: number;
+    };
+
+    expect(caught.message).not.toContain(essay);
+    expect(caught.message).toContain('503');
+    // `status` phải sống sót: nó là thứ `isPermanentFailure` đọc, và
+    // che message không được phép biến một 503 thành một lỗi vô danh.
+    expect(caught.status).toBe(503);
+    expect(caught).not.toBeInstanceOf(UnrecoverableError);
   });
 
   it('GIỮ NGUYÊN message của lỗi do chính repo này dựng', async () => {

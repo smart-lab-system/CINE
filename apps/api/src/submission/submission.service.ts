@@ -198,10 +198,15 @@ export class SubmissionService {
    */
   async listForSession(examSessionId: string): Promise<SubmissionStatusView[]> {
     const [rows, deliverables] = await Promise.all([
-      this.submissions.find({
-        where: { examSessionId },
-        order: { submittedAt: 'ASC' },
-      }),
+      // `NULLS LAST` tường minh dù ASC của Postgres vốn đã thế. Mặc định
+      // đó LẬT khi ai đó đổi sang DESC — và không có gì ở dòng `'ASC'`
+      // nói cho họ biết điều ấy. `listForTeacher` đã phải trả giá đúng
+      // một lần; chỗ này viết rõ để không phải trả lần hai.
+      this.submissions
+        .createQueryBuilder('sub')
+        .where('sub.examSessionId = :examSessionId', { examSessionId })
+        .orderBy('sub.submittedAt', 'ASC', 'NULLS LAST')
+        .getMany(),
       // For the download URL's filename only (see below) — still no SQL
       // JOIN, and still through ExamSessionService rather than a second
       // repository over exam-session's own table (this module's own

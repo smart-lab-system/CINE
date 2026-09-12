@@ -62,7 +62,19 @@ export class GradingProcessor extends WorkerHost implements OnModuleDestroy {
         // Cùng lý do như log: không đưa văn bản lỗi thô vào đó.
         throw new UnrecoverableError(describeError(error));
       }
-      throw error;
+      // Lỗi RETRY ĐƯỢC cũng phải sạch trước khi ra khỏi đây.
+      //
+      // Đã đọc bullmq 6.3.4 `Job.moveToFailed`: nó gán
+      // `failedReason = err.message` NGAY, trước khi hỏi `shouldRetry`,
+      // rồi truyền cả `failedReason` lẫn `stacktrace` vào `moveToDelayed`
+      // / `retryJob`. Nên một lần thử hỏng ở giữa chừng vẫn ghi message
+      // thô vào Redis — không chỉ lần cuối. `removeOnFail: false` nghĩa
+      // là nó nằm đó cho tới khi có người dọn.
+      //
+      // 5xx ÍT khi dội lại request body hơn 4xx, nên đây là bịt một lỗ
+      // hẹp. Nhưng nó hẹp vì xác suất, không vì cơ chế — và chi phí bịt
+      // là ba dòng.
+      throw redactIfFromApi(error);
     }
     // Không log nội dung bài làm hay output model — chỉ id và thời gian.
     this.logger.log(`graded submission ${job.data.submissionId} in ${Date.now() - started}ms`);
@@ -157,6 +169,25 @@ function describeError(error: unknown): string {
     return `HTTP ${api.status} ${type} (nội dung lỗi bị cắt — có thể chứa bài làm)`;
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Thay một lỗi ĐẾN TỪ API bằng một lỗi mang đúng thông tin an toàn, giữ
+ * nguyên `status` để `isPermanentFailure` và mọi thứ đọc nó vẫn đúng.
+ *
+ * Lỗi KHÔNG có `status` trả về NGUYÊN BẢN — cả message lẫn stack. Đó là
+ * lỗi do chính repo này dựng, message đã sạch, và stack của nó chỉ ra
+ * đúng dòng cần sửa. Thay nó bằng một Error mới sẽ đổi một lỗ rò tưởng
+ * tượng lấy một stack vô dụng.
+ */
+function redactIfFromApi(error: unknown): unknown {
+  if (typeof (error as { status?: unknown })?.status !== 'number') {
+    return error;
+  }
+  const redacted = new Error(describeError(error));
+  redacted.name = 'RedactedApiError';
+  (redacted as { status?: number }).status = (error as { status: number }).status;
+  return redacted;
 }
 
 /**

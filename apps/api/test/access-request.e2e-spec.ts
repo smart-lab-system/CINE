@@ -249,6 +249,36 @@ describe('Access request (e2e)', () => {
       });
     });
     expect(ackBody.studentName).toBe(STRANGER_NAME);
+
+    // Và em phải có CHỖ NGỒI, không chỉ có quyền vào.
+    //
+    // Đây là nửa còn lại của §7.1.2, đi qua một cửa khác. `enrollment`
+    // trả lời "em được phép thi"; `session_roster` trả lời "em đáng lẽ
+    // có mặt"; dòng `submission` là chỗ mà kết luận về em sẽ được ghi.
+    // Thiếu cái thứ ba thì em được duyệt vào, ngồi xuống, không nộp gì,
+    // rồi biến mất khỏi bảng điểm — không bị đánh vắng, không bị đếm,
+    // chỉ là không tồn tại.
+    const roster = await dataSource.query(
+      `SELECT source FROM examcollect.session_roster
+        WHERE exam_session_id = $1 AND student_mssv = $2`,
+      [sessionId, STRANGER_MSSV],
+    );
+    expect(roster).toHaveLength(1);
+    expect(roster[0].source).toBe('manual');
+
+    const seats = await dataSource.query(
+      `SELECT s.status, s.submitted_at
+         FROM examcollect.submission s
+        WHERE s.exam_session_id = $1 AND s.student_mssv = $2`,
+      [sessionId, STRANGER_MSSV],
+    );
+    const deliverables = await dataSource.query(
+      `SELECT count(*)::int AS n FROM examcollect.required_deliverable WHERE exam_session_id = $1`,
+      [sessionId],
+    );
+    expect(seats).toHaveLength(deliverables[0].n);
+    expect(seats.every((r: { status: string }) => r.status === 'not_submitted')).toBe(true);
+    expect(seats.every((r: { submitted_at: Date | null }) => r.submitted_at === null)).toBe(true);
   });
 
   it('tells the student when the invigilator refuses', async () => {
