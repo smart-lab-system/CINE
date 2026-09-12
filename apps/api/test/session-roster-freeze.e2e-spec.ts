@@ -212,6 +212,47 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
     expect(seeded.every((r: { status: string }) => r.status === 'not_submitted')).toBe(true);
   });
 
+  it('dòng gieo sẵn KHÔNG có giờ nộp — null, không phải giờ mở phiên', async () => {
+    // Cột có `DEFAULT now()`, nên bỏ trống sẽ cho một giờ bịa: đúng lúc
+    // giảng viên bấm Mở phiên. Mọi câu lọc theo `submitted_at` — thống
+    // kê nộp sớm/muộn, cảnh báo §7.3 — sẽ âm thầm đếm cả chúng, và
+    // người viết câu ấy không có lý do gì nghi ngờ một cột NOT NULL.
+    const session = await seedSession({ students: 2 });
+
+    await open(session.id);
+
+    const rows = await dataSource.query(
+      `SELECT submitted_at FROM examcollect.submission WHERE exam_session_id = $1`,
+      [session.id],
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r: { submitted_at: Date | null }) => r.submitted_at === null)).toBe(true);
+  });
+
+  it('nộp thật thì giờ nộp có ngay, và là giờ nộp chứ không phải giờ mở', async () => {
+    // Vế còn lại: nullable không được làm hỏng ca thường.
+    const session = await seedSession({ students: 1 });
+    await open(session.id);
+    const opened = Date.now();
+
+    await dataSource.query(
+      `UPDATE examcollect.submission SET status = 'received' WHERE exam_session_id = $1`,
+      [session.id],
+    );
+    await dataSource.query(
+      `UPDATE examcollect.submission SET status = 'validated', submitted_at = now()
+         WHERE exam_session_id = $1`,
+      [session.id],
+    );
+
+    const [row] = await dataSource.query(
+      `SELECT submitted_at FROM examcollect.submission WHERE exam_session_id = $1`,
+      [session.id],
+    );
+    expect(row.submitted_at).not.toBeNull();
+    expect(new Date(row.submitted_at).getTime()).toBeGreaterThanOrEqual(opened - 1_000);
+  });
+
   it('miễn nhiễm với sửa roster sau khi đã chốt', async () => {
     const session = await seedSession({ students: 2 });
     await open(session.id);

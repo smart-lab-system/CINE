@@ -95,7 +95,9 @@ export interface SubmissionStatusItem {
    *  sẵn lúc mở phiên, nên "chưa nộp" không còn là sự VẮNG MẶT của một
    *  dòng. Xem SubmissionStatus ở apps/api. */
   status: 'not_submitted' | 'received' | 'validated' | 'collected' | 'invalid' | 'absent';
-  submittedAt: string;
+  /** `null` khi chưa có file nào bay về (`not_submitted`/`absent`).
+   *  KHÔNG phải "không rõ giờ" — là "chưa có giờ nào để mà nói". */
+  submittedAt: string | null;
   fileSize: string | null;
   downloadUrl: string | null;
 }

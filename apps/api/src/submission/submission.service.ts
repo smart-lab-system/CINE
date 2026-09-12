@@ -33,7 +33,7 @@ export interface SubmissionStatusView {
   studentNameInput: string;
   requiredDeliverableId: string;
   status: SubmissionEntity['status'];
-  submittedAt: Date;
+  submittedAt: Date | null;
   fileSize: string | null;
   downloadUrl: string | null;
 }
@@ -52,7 +52,7 @@ export interface TeacherSubmissionView {
   studentMssv: string;
   studentNameInput: string;
   status: SubmissionEntity['status'];
-  submittedAt: Date;
+  submittedAt: Date | null;
   fileSize: string | null;
   downloadUrl: string | null;
 }
@@ -169,7 +169,11 @@ export class SubmissionService {
     }
 
     const saved = await this.upsertCollected(identity, dto, expectedKey);
-    const submittedAt = saved.submittedAt.toISOString();
+    // Không thể null ở đây: `upsertCollected` vừa ghi `submittedAt` trên
+    // MỌI nhánh của nó. Vế `??` là để trình biên dịch không phải tin lời
+    // tôi — nếu một nhánh tương lai quên ghi, ack sẽ nói giờ hiện tại
+    // thay vì nổ ở giữa một lượt nộp bài đang diễn ra.
+    const submittedAt = (saved.submittedAt ?? new Date()).toISOString();
 
     return {
       ack: { ok: true, status: saved.status, submittedAt },
@@ -266,7 +270,12 @@ export class SubmissionService {
     }
 
     const [rows, total] = await qb
-      .orderBy('sub.submittedAt', 'DESC')
+      // NULLS LAST tường minh. Postgres mặc định NULLS FIRST cho DESC,
+      // nên từ khi `submitted_at` được phép NULL (§7.1.2 gieo dòng chưa
+      // nộp), trang này sẽ mở ra bằng một trang đầy những dòng KHÔNG CÓ
+      // FILE — sắp theo một cột mà chúng không có giá trị. Bài nộp thật
+      // gần nhất là thứ trang "Quản lý bài thu" phải dẫn đầu.
+      .orderBy('sub.submittedAt', 'DESC', 'NULLS LAST')
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize)
       .getManyAndCount();

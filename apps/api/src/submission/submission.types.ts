@@ -72,8 +72,10 @@ export type ConfirmSubmissionAck = ConfirmSubmissionAckSuccess | SubmissionAckEr
  * milliseconds inside one transaction and are not a thing a teacher can
  * act on.
  *
- * "Chưa nộp" is the absence of a row, not a status — which is why nothing
- * broadcasts it.
+ * Từ §7.1.2, "chưa nộp" LÀ một trạng thái (`not_submitted`, gieo sẵn
+ * lúc đóng băng) chứ không còn là sự vắng mặt của một dòng — nhưng vẫn
+ * không có gì broadcast nó, vì nó không phải một SỰ KIỆN: không có thời
+ * điểm nào mà "em ấy vừa chưa nộp".
  */
 export interface LobbySubmissionStatus {
   studentId: string;

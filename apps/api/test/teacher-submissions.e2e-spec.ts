@@ -261,6 +261,30 @@ describe('Teacher submissions (e2e)', () => {
     expect(typeof item.examSessionName).toBe('string');
   });
 
+  it('dẫn đầu bằng bài nộp thật, không phải bằng dòng chưa nộp', async () => {
+    // Postgres mặc định NULLS FIRST cho DESC. Từ khi `submitted_at` được
+    // phép NULL, thiếu `NULLS LAST` sẽ làm trang đầu của "Quản lý bài
+    // thu" toàn dòng KHÔNG CÓ FILE — sắp theo một cột mà chúng không có
+    // giá trị nào để sắp.
+    const response = await request(app.getHttpServer())
+      .get('/submissions')
+      .set('Authorization', `Bearer ${teacherToken}`);
+
+    expect(response.status).toBe(200);
+    const times = response.body.items.map(
+      (i: { submittedAt: string | null }) => i.submittedAt,
+    );
+    const firstNull = times.indexOf(null);
+    const lastReal = times.reduce(
+      (acc: number, t: string | null, i: number) => (t !== null ? i : acc),
+      -1,
+    );
+    if (firstNull !== -1) {
+      expect(firstNull).toBeGreaterThan(lastReal);
+    }
+    expect(times[0]).not.toBeNull();
+  });
+
   it('never leaks a submission from a session this teacher does not own', async () => {
     const response = await request(app.getHttpServer())
       .get('/submissions')

@@ -19,7 +19,7 @@ export interface SubmissionRowStudent {
     string,
     {
       state: DeliverableState;
-      submittedAt?: string;
+      submittedAt?: string | null;
       downloadUrl?: string | null;
       fileSize?: string | null;
     }
@@ -145,7 +145,7 @@ export function countStudentsSubmittingAfter(
 ): number {
   return rows.filter((row) =>
     Object.values(row.byDeliverable).some(
-      (entry) => entry.submittedAt !== undefined && new Date(entry.submittedAt).getTime() > since,
+      (entry) => entry.submittedAt != null && new Date(entry.submittedAt).getTime() > since,
     ),
   ).length;
 }

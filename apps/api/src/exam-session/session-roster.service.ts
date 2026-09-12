@@ -249,9 +249,9 @@ export class SessionRosterService {
    * xuất ngay sau đây phải đọc được là "chưa kết luận", không phải "cả
    * lớp vắng thi".
    *
-   * `submitted_at` nhận `now()` mặc định và KHÔNG có nghĩa gì chừng nào
-   * dòng còn ở `not_submitted`/`absent` — nó chỉ trở thành thật khi file
-   * bay về và `writeCollected` ghi đè.
+   * `submitted_at` là NULL tường minh: chưa có file nào bay về. Cột có
+   * `DEFAULT now()` nên bỏ trống sẽ cho một giờ bịa — đúng lúc giảng
+   * viên bấm Mở phiên — mà mọi câu lọc theo cột ấy sẽ âm thầm đếm.
    *
    * `ON CONFLICT DO NOTHING` trên `uq_submission_identity` là thứ làm
    * hàm này dùng được ở CẢ BA đường vào: lúc đóng băng (chưa có gì),
@@ -280,6 +280,7 @@ export class SessionRosterService {
         homeClassId: student.homeClassId,
         homeTeacherId: student.homeTeacherId,
         status: 'not_submitted' as const,
+        submittedAt: null,
       })),
     );
 

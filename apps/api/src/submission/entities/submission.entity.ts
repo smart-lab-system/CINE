@@ -126,8 +126,18 @@ export class SubmissionEntity extends BaseEntity {
   })
   submittedVia!: SubmissionVia;
 
-  @Column({ name: 'submitted_at', type: 'timestamptz', default: () => 'now()' })
-  submittedAt!: Date;
+  /**
+   * Khi nào file thật sự bay về. `null` nghĩa là CHƯA CÓ FILE NÀO —
+   * dòng gieo sẵn lúc đóng băng (`not_submitted`) hoặc dòng đã kết luận
+   * vắng thi (`absent`).
+   *
+   * Nullable có chủ đích, kể cả khi mọi bài nộp thật đều có giá trị:
+   * để NOT NULL thì dòng chưa nộp phải mang một giờ bịa (mặc định
+   * `now()`, tức lúc giảng viên bấm Mở phiên), và mọi câu lọc theo cột
+   * này sẽ âm thầm tính cả chúng.
+   */
+  @Column({ name: 'submitted_at', type: 'timestamptz', nullable: true, default: () => 'now()' })
+  submittedAt!: Date | null;
 
   @Column({
     type: 'enum',

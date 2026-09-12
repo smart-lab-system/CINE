@@ -144,7 +144,7 @@ const SCROLL_CONTAINER = {
  */
 const STICKY_HEAD_RULE = 'shadow-[inset_0_-1px_0_hsl(var(--border))]';
 
-function formatTime(iso: string | undefined): string | null {
+function formatTime(iso: string | null | undefined): string | null {
   if (!iso) {
     return null;
   }
