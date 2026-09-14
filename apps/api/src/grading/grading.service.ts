@@ -26,6 +26,7 @@ import {
   AI_GRADING_PROVIDER,
   AIGradingProvider,
   GradingRequest,
+  enforceScoring,
 } from './ai-provider/ai-grading-provider';
 import { extractText, GradingInputTooLargeError } from './extract-text';
 import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
@@ -464,14 +465,26 @@ export class GradingService {
         `model ${Date.now() - modelStarted}ms (I/O), ${content.length} ký tự`,
     );
 
+    // ĐIỂM DO SERVER TÍNH. Provider chỉ được phép phán đoán (`verdict` +
+    // `evidence`); mọi con số đều tính lại ở đây. Xem `enforceScoring` để
+    // biết vì sao tin provider tự giác là không đủ.
+    const scored = enforceScoring(
+      outcome.criterionResults,
+      criteria.map((criterion) => ({
+        id: criterion.id,
+        description: criterion.description,
+        maxPoints: Number(criterion.maxPoints),
+      })),
+    );
+
     // The AI's own output, written once. A teacher's later edit creates a
     // TeacherReview row instead of touching any of this — Security rule 6,
     // enforced by trg_grading_result_guard_ai_immutable as well as here.
     await this.results.update(result.id, {
       status: 'ai_graded',
       modelUsed: outcome.modelUsed,
-      criterionResults: outcome.criterionResults,
-      aiTotalScore: String(outcome.totalScore),
+      criterionResults: scored.criterionResults,
+      aiTotalScore: String(scored.totalScore),
       confidence: String(outcome.confidence),
     });
 
