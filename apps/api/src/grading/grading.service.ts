@@ -205,9 +205,21 @@ export class GradingService {
     const outcome = await this.provider.grade(request);
     // Kích thước nội dung, không phải nội dung. `chars` là thứ dự đoán
     // chi phí token, nên nó thuộc về dòng này.
+    // Token đi vào log Ở ĐÂY, ngay cạnh thời gian. Module admin sẽ quyết
+    // định lưu chúng vào đâu, nhưng nếu chúng không ra khỏi hàm này thì
+    // không ai lấy lại được — `CalibrationRun.cost_usd` và dashboard chi
+    // phí AI đều đã nằm trong schema chờ dữ liệu này.
+    //
+    // `cacheRead` là con số đáng nhìn nhất: nó là BẰNG CHỨNG DUY NHẤT rằng
+    // prompt caching có tác dụng thật. Bài đầu của một phiên sẽ có
+    // `cacheCreate > 0, cacheRead = 0`; 39 bài sau phải ngược lại. Nếu
+    // không, một thứ gì đó đang phá tiền tố cache.
+    const { usage } = outcome;
     this.logger.log(
       `submission ${submission.id}: extract ${extractMs}ms (CPU) / ` +
-        `model ${Date.now() - modelStarted}ms (I/O), ${content.length} ký tự`,
+        `model ${Date.now() - modelStarted}ms (I/O), ${content.length} ký tự — ` +
+        `token in=${usage.inputTokens} out=${usage.outputTokens} ` +
+        `cacheRead=${usage.cacheReadTokens} cacheCreate=${usage.cacheCreationTokens}`,
     );
 
     // ĐIỂM DO SERVER TÍNH. Provider chỉ được phép phán đoán (`verdict` +

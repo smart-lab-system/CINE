@@ -49,6 +49,24 @@ export interface GradingRequest {
   criteria: GradingRubricCriterion[];
 }
 
+/**
+ * Token đã dùng cho một lượt chấm.
+ *
+ * Spec này chỉ GHI LOG; lưu vào đâu là việc của module admin. Nhưng nếu
+ * provider NUỐT MẤT con số này thì không ai lấy lại được —
+ * `CalibrationRun.cost_usd` và dashboard chi phí AI đều mất nguồn vĩnh
+ * viễn, và cả hai đều đã nằm trong schema chờ dữ liệu.
+ *
+ * `cacheReadTokens > 0` cũng là BẰNG CHỨNG DUY NHẤT rằng prompt caching có
+ * tác dụng thật, thay vì chỉ là một câu trong báo cáo.
+ */
+export interface GradingUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+}
+
 export interface GradingOutcome {
   /**
    * What actually did the grading, named precisely enough to audit later —
@@ -65,6 +83,7 @@ export interface GradingOutcome {
    * return 0 rather than 1 — the safe direction is "ask a human".
    */
   confidence: number;
+  usage: GradingUsage;
 }
 
 export interface AIGradingProvider {

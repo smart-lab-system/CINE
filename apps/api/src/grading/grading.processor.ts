@@ -7,16 +7,33 @@ import { GRADE_JOB_TIMEOUT_MS, GRADING_QUEUE, GradeSubmissionJob } from './gradi
 /**
  * Bao nhiêu bài chạy song song.
  *
+ * Đọc từ env, mặc định giữ nguyên giá trị cũ. Lỗ thật là KHÔNG CHỈNH ĐƯỢC
+ * mà không deploy lại, không phải giá trị cụ thể: giới hạn TPM của tài
+ * khoản phụ thuộc tier, và chưa biết token đọc-từ-cache có tính vào TPM hay
+ * không. Chỉnh sẵn một con số theo một giới hạn chưa biết là đoán — đo bằng
+ * `GradingOutcome.usage` sau một lượt chấm thật rồi mới chỉnh.
+ *
  * Đặt tường minh và đặt CẠNH `limiter`, vì hai con số này tương tác:
  * `limiter` giữ nhịp gọi API, còn `concurrency` giữ số bài đang bay.
  * Mặc định của BullMQ là 1 — nghĩa là 40 bài × 10s ≈ 7 phút tuần tự, tức
  * không dùng chút năng lực song song nào. Ngược lại đặt 20 thì 20 lời
  * gọi đồng thời sẽ đụng rate limit, rồi retry, rồi đụng lại.
  */
-const GRADE_CONCURRENCY = 5;
+const GRADE_CONCURRENCY = Number(process.env.GRADE_CONCURRENCY ?? 5);
 
-/** Trần nhịp gọi. Chọn cùng lúc với `concurrency` ở trên — xem lý do ở đó. */
-const GRADE_RATE_LIMIT = { max: 10, duration: 1_000 };
+/**
+ * Trần nhịp gọi. Chọn cùng lúc với `concurrency` ở trên — xem lý do ở đó.
+ *
+ * LƯU Ý QUAN TRỌNG: trong BullMQ, `limiter` là giới hạn **THÔNG LƯỢNG** (số
+ * job trên một khoảng thời gian), **KHÔNG** phải giới hạn song song. Song
+ * song là `concurrency` ở trên, một tuỳ chọn riêng. Đặt
+ * `{ max: 3, duration: 10000 }` mà tưởng là "3 job chạy song song" sẽ bóp
+ * một lượt 40 bài xuống tối thiểu 133 giây, bất kể model nhanh cỡ nào.
+ */
+const GRADE_RATE_LIMIT = {
+  max: Number(process.env.GRADE_RATE_MAX ?? 10),
+  duration: Number(process.env.GRADE_RATE_DURATION_MS ?? 1_000),
+};
 
 /**
  * Một job = một bài (CLAUDE.md §7.1.3).

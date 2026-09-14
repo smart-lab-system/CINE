@@ -86,6 +86,15 @@ export class KeywordGradingProvider implements AIGradingProvider {
       // mentioned, never that it was answered correctly, so nothing this
       // provider produces should clear an auto-approval threshold.
       confidence: unreadable ? 0 : 0.2,
+      // Số 0 ở đây là SỰ THẬT, không phải chỗ trống chờ điền: provider này
+      // chạy cục bộ bằng đếm từ và không gọi API nào. Một lượt chấm bằng nó
+      // tốn đúng 0 token, và dashboard chi phí phải đọc được điều đó.
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+      },
     };
   }
 
