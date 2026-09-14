@@ -8,23 +8,23 @@ import {
 /**
  * Giới hạn đầu vào cho một lượt chấm (CLAUDE.md §7.1.4).
  *
- * Chặn ở đây chứ không ở chỗ gọi model: mọi provider — kể cả provider
- * thêm về sau — đều đi qua `extractText`, nên một chỗ chặn là đủ và
- * không có đường vòng.
+ * Trần BYTE đã chuyển sang `DocumentResolver` — xem
+ * `content-resolver/content-resolver.spec.ts`. Lý do: lời tuyên bố cũ ở
+ * đây ("mọi provider đều đi qua `extractText`, nên một chỗ chặn là đủ")
+ * KHÔNG đúng — ảnh không đi qua hàm này, nên cửa thủng đúng bằng nhánh
+ * chưa xây.
+ *
+ * Trần KÝ TỰ ở lại đây, vì nó là thuộc tính của việc trích text: một docx
+ * 2MB toàn chữ vẫn ra hàng triệu ký tự, và chỉ hàm này nhìn thấy điều đó.
  */
 describe('extractText input limits', () => {
-  it('từ chối file vượt MAX_GRADING_INPUT_BYTES TRƯỚC khi phân tích nó', async () => {
-    // Trước khi parse, không phải sau: parse một file 30MB đã tốn thời
-    // gian và bộ nhớ rồi mới biết là phải vứt.
+  it('KHÔNG còn tự chặn theo byte — việc đó là của resolver', async () => {
+    // Ghim chỗ trách nhiệm đã chuyển đi, thay vì xoá test đi trong im lặng.
+    // Nếu ai đó thêm lại trần byte vào đây, test này đỏ và họ sẽ đọc được
+    // lý do ở trên trước khi làm hai chỗ chặn cùng một thứ.
     const tooBig = Buffer.alloc(MAX_GRADING_INPUT_BYTES + 1, 0x41);
 
-    await expect(extractText(tooBig, 'Cau1.txt')).rejects.toThrow(GradingInputTooLargeError);
-  });
-
-  it('nhận file đúng bằng giới hạn — biên là "vượt", không phải "bằng"', async () => {
-    const exactly = Buffer.alloc(MAX_GRADING_INPUT_BYTES, 0x41);
-
-    await expect(extractText(exactly, 'Cau1.txt')).resolves.toBeDefined();
+    await expect(extractText(tooBig, 'Cau1.txt')).resolves.toBeDefined();
   });
 
   it('cắt text ở MAX_GRADING_INPUT_CHARS, KỂ CẢ dòng thông báo cắt', async () => {

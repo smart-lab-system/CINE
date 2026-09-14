@@ -19,7 +19,9 @@ import {
   GradingRequest,
   enforceScoring,
 } from './ai-provider/ai-grading-provider';
-import { extractText, GradingInputTooLargeError } from './extract-text';
+import { GradingInputTooLargeError } from './extract-text';
+import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
+import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
 import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
 
 /**
@@ -27,9 +29,11 @@ import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
  *
  * CLAUDE.md is unambiguous that collection and grading are two pipelines
  * joined by one explicit teacher action, and that they must never be one
- * continuous job. That is why nothing here is reachable from the collection
- * path: `startGrading` is called by a controller, from a click, and by
- * nothing else. A submission reaching `collected` triggers exactly nothing.
+ * continuous job. Đường vào duy nhất của file này là `gradeOneById`, và nó
+ * chỉ tới được qua hàng đợi BullMQ — mà hàng đợi ấy do
+ * `GradingRunService.startGrading` nạp, vốn chỉ được gọi bởi một controller,
+ * từ một cú bấm, và bởi không gì khác. A submission reaching `collected`
+ * triggers exactly nothing.
  */
 @Injectable()
 export class GradingService {
@@ -44,6 +48,7 @@ export class GradingService {
     private readonly criteria: Repository<RubricCriterionEntity>,
     private readonly storage: StorageService,
     @Inject(AI_GRADING_PROVIDER) private readonly provider: AIGradingProvider,
+    private readonly resolvers: ContentResolverRegistry,
   ) {}
 
   /**
@@ -87,7 +92,14 @@ export class GradingService {
       order: { createdAt: 'ASC' },
     });
 
-    await this.gradeOne(submission, job.requiredFilename, job.rubricId, criteria, result);
+    await this.gradeOne(
+      submission,
+      job.requiredFilename,
+      job.rubricId,
+      criteria,
+      result,
+      job.deliverableType,
+    );
   }
 
 
@@ -122,6 +134,8 @@ export class GradingService {
     rubricId: string,
     criteria: RubricCriterionEntity[],
     result: GradingResultEntity,
+    /** Loại ĐÃ KHAI ở `required_deliverable` — bộ định tuyến đọc nó. */
+    deliverableType: DeliverableType,
   ): Promise<void> {
 
     let content = '';
@@ -146,7 +160,10 @@ export class GradingService {
         throw new Error('collected submission has no storage key');
       }
       const bytes = await this.storage.getObject(submission.storageKey);
-      content = await extractText(bytes, requiredFilename);
+      // Bộ định tuyến TẤT ĐỊNH: loại bài nộp là thứ giảng viên đã khai,
+      // không phải thứ đoán từ tên file. 0 token, ~0ms.
+      const resolved = await this.resolvers.for(deliverableType).resolve(bytes, requiredFilename);
+      content = resolved.text;
     } catch (error) {
       // Not fatal, and not scored zero either: an unreadable file is a fact
       // about the extraction, never a judgement about the work. It reaches
@@ -179,7 +196,7 @@ export class GradingService {
     const request: GradingRequest = {
       studentMssv: submission.studentMssv,
       content,
-      deliverableType: 'document',
+      deliverableType,
       criteria: rubricCriteria,
     };
 
@@ -201,9 +218,13 @@ export class GradingService {
       // Cho 0 điểm là hướng an toàn, nhưng an-toàn-và-im-lặng vẫn là lỗi.
       // Guard coverage (G3) sẽ xử lý chính thức; tới lúc đó ít nhất nó
       // phải nhìn thấy được trong log.
+      // Cắt danh sách: một model hỏng có thể trả về hàng chục id bịa, và
+      // một dòng log dài vô hạn là thứ làm người ta bỏ qua cả dòng.
+      const shown = scored.unknownCriterionIds.slice(0, 5).join(', ');
+      const extra = scored.unknownCriterionIds.length - 5;
       this.logger.warn(
         `submission ${submission.id}: model trả về tiêu chí không có trong rubric ` +
-          `(${scored.unknownCriterionIds.join(', ')}) — chấm 0 cho chúng`,
+          `(${shown}${extra > 0 ? ` và ${extra} id khác` : ''}) — chấm 0 cho chúng`,
       );
     }
 

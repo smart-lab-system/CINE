@@ -168,9 +168,18 @@ export class GradingRunService {
     // `submissions/{session}/{mssv}/{deliverableId}` — deliberately built
     // from ids so nothing user-typed can steer it, which also means it
     // carries no extension and cannot tell an extractor what it is holding.
-    const filenames = new Map(
+    // Tên file VÀ loại bài nộp, cùng một lượt đọc: cả hai đều là thứ
+    // giảng viên đã khai trước phiên thi, và cả hai đều phải đi theo job
+    // để worker không phải hỏi lại DB.
+    const deliverables = new Map(
       (await this.deliverables.find({ where: { examSessionId: session.id } })).map(
-        (deliverable) => [deliverable.id, deliverable.requiredFilename],
+        (deliverable) => [
+          deliverable.id,
+          {
+            requiredFilename: deliverable.requiredFilename,
+            deliverableType: deliverable.deliverableType,
+          },
+        ],
       ),
     );
 
@@ -224,7 +233,10 @@ export class GradingRunService {
           name: 'grade-submission',
           data: {
             submissionId: submission.id,
-            requiredFilename: filenames.get(submission.requiredDeliverableId) ?? '',
+            requiredFilename:
+              deliverables.get(submission.requiredDeliverableId)?.requiredFilename ?? '',
+            deliverableType:
+              deliverables.get(submission.requiredDeliverableId)?.deliverableType ?? 'document',
             rubricId: rubric.id,
             teacherId,
           } satisfies GradeSubmissionJob,
@@ -261,6 +273,17 @@ export class GradingRunService {
     };
   }
 
+  /**
+   * Tiến độ chấm của MỘT phiên.
+   *
+   * Đếm `grading_result`, KHÔNG đếm job: mọi dòng đã tồn tại từ lúc
+   * `startGrading` trả về (xem lý do dài ở đó), nên con số này đầy đủ ngay
+   * lập tức và sống sót cả khi Redis bị xoá.
+   *
+   * `queue` là câu hỏi KHÁC — "hàng đợi có đang kẹt không" — và cố ý tách
+   * riêng: `getJobCounts()` đếm TOÀN hàng đợi chứ không theo phiên, nên
+   * trộn hai con số sẽ cho giảng viên A thấy tiến độ của giảng viên B.
+   */
   async progress(examSessionId: string): Promise<GradingProgress> {
     const rows = await this.results
       .createQueryBuilder('g')

@@ -1,8 +1,14 @@
 import { JobsOptions } from 'bullmq';
+import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
 
 export const GRADING_QUEUE = 'grading';
 
 export interface GradeSubmissionJob {
+  /**
+   * Loại bài nộp ĐÃ KHAI lúc tạo phiên. Bộ định tuyến tất định đọc trường
+   * này để chọn resolver — không đoán từ tên file, không hỏi model.
+   */
+  deliverableType: DeliverableType;
   submissionId: string;
   /** Tên file đã khai báo — chỉ ĐUÔI của nó được dùng để chọn extractor. */
   requiredFilename: string;

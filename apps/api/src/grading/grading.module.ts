@@ -13,6 +13,12 @@ import { StorageModule } from '../storage/storage.module';
 import { ExamSessionModule } from '../exam-session/exam-session.module';
 import { GradingService } from './grading.service';
 import { GradingRunService } from './grading-run.service';
+import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
+import { DocumentResolver } from './content-resolver/document-resolver';
+import {
+  SUBMISSION_CONTENT_RESOLVERS,
+  SubmissionContentResolver,
+} from './content-resolver/submission-content-resolver';
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
@@ -52,6 +58,16 @@ import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
   providers: [
     GradingService,
     GradingRunService,
+    DocumentResolver,
+    ContentResolverRegistry,
+    {
+      // Danh sách resolver khai Ở ĐÂY và không ở đâu khác. Thêm nhánh ảnh
+      // hay nhánh code sau này là thêm một phần tử vào mảng này — không
+      // phải sửa GradingService.
+      provide: SUBMISSION_CONTENT_RESOLVERS,
+      useFactory: (doc: DocumentResolver): SubmissionContentResolver[] => [doc],
+      inject: [DocumentResolver],
+    },
     GradingProcessor,
     RubricService,
     TeacherReviewService,

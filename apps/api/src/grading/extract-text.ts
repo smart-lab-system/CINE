@@ -68,13 +68,16 @@ function extensionOf(key: string): string {
  * and cannot say what the bytes are.
  */
 export async function extractText(bytes: Buffer, declaredFilename: string): Promise<string> {
-  // Trước MỌI nhánh phân tích, kể cả nhánh trả rỗng: parse xong một file
-  // 30MB rồi mới biết phải vứt là đã trả giá đúng cái giá mà giới hạn
-  // này sinh ra để tránh.
-  if (bytes.byteLength > MAX_GRADING_INPUT_BYTES) {
-    throw new GradingInputTooLargeError(bytes.byteLength);
-  }
-
+  // Trần BYTE đã chuyển sang `DocumentResolver` (content-resolver/).
+  //
+  // Nó từng nằm ở đây, với lời tuyên bố "để mọi provider, kể cả provider
+  // thêm sau này, đều đi qua cùng một cửa". Lời ấy không đúng: ẢNH không
+  // đi qua hàm này (nhánh cuối trả rỗng cho ảnh), nên cái cửa thủng đúng
+  // bằng nhánh chưa xây. Ở tầng resolver thì mọi loại bài nộp đều phải qua.
+  //
+  // Trần KÝ TỰ (`MAX_GRADING_INPUT_CHARS`, qua `capChars`) VẪN ở lại đây,
+  // vì nó là thuộc tính của việc trích text: một docx 2MB toàn chữ vẫn ra
+  // hàng triệu ký tự, và đó là chuyện chỉ hàm này nhìn thấy.
   const extension = extensionOf(declaredFilename);
 
   if (extension === '.docx') {
