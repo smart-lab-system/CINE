@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -18,6 +19,8 @@ import { Roles } from '../auth/roles.decorator';
 import { ExamSessionService } from '../exam-session/exam-session.service';
 import { GradingService } from './grading.service';
 import { GradingRunService } from './grading-run.service';
+import { GradingReferenceService } from './grading-reference.service';
+import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { SaveRubricDto } from './dto/rubric.dto';
@@ -41,6 +44,7 @@ export class GradingController {
     private readonly rubrics: RubricService,
     private readonly teacherReviews: TeacherReviewService,
     private readonly examSessions: ExamSessionService,
+    private readonly references: GradingReferenceService,
   ) {}
 
   @Get('courses/:courseId/rubrics')
@@ -156,6 +160,61 @@ export class GradingController {
   async gradingProgress(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.gradingRun.progress(session.id);
+  }
+
+  /**
+   * Chọn đề bài và đáp án mẫu cho lượt chấm.
+   *
+   * `PUT` chứ không `POST`: một phiên có đúng MỘT bản tài liệu tham chiếu
+   * (`uq_grading_reference_session`), và gọi lại là sửa bản đó chứ không
+   * tạo bản thứ hai.
+   *
+   * 409 khi phiên đã có kết quả chấm — cùng luật với `PATCH /:id/rubric`.
+   */
+  @Put('exam-sessions/:id/grading-reference')
+  @Roles('teacher')
+  async setGradingReference(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpsertGradingReferenceDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.references.upsert(session, dto, req.user!.sub);
+  }
+
+  /**
+   * URL upload cho đáp án mẫu. File đi thẳng lên kho, không qua NestJS
+   * (Security rule 5).
+   *
+   * Khoá nằm dưới prefix `grading-reference/`, TÁCH HẲN khỏi `materials/`
+   * — đó là cơ chế giữ cho đáp án không bao giờ lọt vào `listForAgent`.
+   */
+  @Post('exam-sessions/:id/grading-reference/answer-key-upload')
+  @Roles('teacher')
+  @HttpCode(200)
+  async requestAnswerKeyUpload(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.references.requestAnswerKeyUpload(session);
+  }
+
+  /**
+   * Lượt chấm này sẽ chạy ở mức ngữ cảnh nào.
+   *
+   * Tồn tại để màn hình chấm nói ra TRƯỚC khi giảng viên bấm. Mức "chỉ có
+   * rubric" là mức hệ thống chạy hôm nay, âm thầm — không cấm nó, nhưng
+   * một giảng viên chấm ở mức đó mà tin mình đủ tài liệu sẽ để lọt đúng
+   * những em mà tính năng này sinh ra để bảo vệ.
+   */
+  @Get('exam-sessions/:id/grading-readiness')
+  @Roles('teacher')
+  async gradingReadiness(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    // Kiểm chủ sở hữu trước: `session_roster` và tài liệu chấm là dữ liệu
+    // của phiên, không phải thông tin công khai.
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.references.readiness(session.id);
   }
 
   @Get('exam-sessions/:id/grading-results')
