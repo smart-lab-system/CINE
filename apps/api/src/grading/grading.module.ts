@@ -12,6 +12,7 @@ import { ClassEntity } from '../course/entities/class.entity';
 import { StorageModule } from '../storage/storage.module';
 import { ExamSessionModule } from '../exam-session/exam-session.module';
 import { GradingService } from './grading.service';
+import { GradingRunService } from './grading-run.service';
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
@@ -50,11 +51,12 @@ import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
   controllers: [GradingController],
   providers: [
     GradingService,
+    GradingRunService,
     GradingProcessor,
     RubricService,
     TeacherReviewService,
     { provide: AI_GRADING_PROVIDER, useClass: KeywordGradingProvider },
   ],
-  exports: [GradingService, RubricService],
+  exports: [GradingService, GradingRunService, RubricService],
 })
 export class GradingModule {}

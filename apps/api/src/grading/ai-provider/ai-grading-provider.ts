@@ -92,18 +92,34 @@ export const AI_GRADING_PROVIDER = Symbol('AI_GRADING_PROVIDER');
 export function enforceScoring(
   criterionResults: CriterionResult[],
   criteria: GradingRubricCriterion[],
-): { criterionResults: CriterionResult[]; totalScore: number } {
+): {
+  criterionResults: CriterionResult[];
+  totalScore: number;
+  /**
+   * Tiêu chí model trả về mà rubric không có.
+   *
+   * Trả ra thay vì nuốt: cho 0 điểm là hướng AN TOÀN, nhưng an-toàn-và-im-
+   * lặng vẫn là lỗi trong một hệ thống lấy "fail loudly" làm nguyên tắc.
+   * Guard coverage (G3) sẽ là chỗ xử lý chính thức; tới lúc đó người gọi
+   * ít nhất phải ghi được một dòng log.
+   */
+  unknownCriterionIds: string[];
+} {
   const maxByCriterion = new Map(criteria.map((c) => [c.id, Number(c.maxPoints)]));
-  const enforced = criterionResults.map((row) => ({
-    ...row,
-    // Tiêu chí lạ không có maxPoints để tính → 0. Không ném: guard coverage
-    // (G3) mới là chỗ báo cáo chuyện đó, và ném ở đây sẽ mất luôn những
-    // tiêu chí hợp lệ khác trong cùng lượt chấm.
-    points: pointsFor(row.verdict, maxByCriterion.get(row.criterionId) ?? 0),
-  }));
+  const unknownCriterionIds: string[] = [];
+  const enforced = criterionResults.map((row) => {
+    const maxPoints = maxByCriterion.get(row.criterionId);
+    if (maxPoints === undefined) {
+      // Không ném: ném ở đây sẽ mất luôn những tiêu chí hợp lệ khác trong
+      // cùng lượt chấm. Ghi lại để người gọi báo cáo.
+      unknownCriterionIds.push(row.criterionId);
+    }
+    return { ...row, points: pointsFor(row.verdict, maxPoints ?? 0) };
+  });
   return {
     criterionResults: enforced,
     totalScore: enforced.reduce((sum, row) => sum + row.points, 0),
+    unknownCriterionIds,
   };
 }
 

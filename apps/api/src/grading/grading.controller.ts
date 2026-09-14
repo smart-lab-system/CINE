@@ -17,6 +17,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ExamSessionService } from '../exam-session/exam-session.service';
 import { GradingService } from './grading.service';
+import { GradingRunService } from './grading-run.service';
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { SaveRubricDto } from './dto/rubric.dto';
@@ -36,6 +37,7 @@ import { SubmitReviewDto } from './dto/submit-review.dto';
 export class GradingController {
   constructor(
     private readonly grading: GradingService,
+    private readonly gradingRun: GradingRunService,
     private readonly rubrics: RubricService,
     private readonly teacherReviews: TeacherReviewService,
     private readonly examSessions: ExamSessionService,
@@ -72,7 +74,7 @@ export class GradingController {
   @HttpCode(200)
   async startGrading(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
-    return this.grading.startGrading(session, req.user!.sub);
+    return this.gradingRun.startGrading(session, req.user!.sub);
   }
 
   /**
@@ -153,7 +155,7 @@ export class GradingController {
   @Roles('teacher')
   async gradingProgress(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
-    return this.grading.progress(session.id);
+    return this.gradingRun.progress(session.id);
   }
 
   @Get('exam-sessions/:id/grading-results')

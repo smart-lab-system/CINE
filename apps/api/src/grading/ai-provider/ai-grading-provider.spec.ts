@@ -54,17 +54,35 @@ describe('enforceScoring', () => {
     expect(out.criterionResults[0].evidence).toBe('trích dẫn');
   });
 
-  it('criterionId lạ → 0 điểm, không nổ', () => {
+  it('criterionId lạ → 0 điểm, không nổ, NHƯNG phải báo ra', () => {
     // Tiêu chí không thuộc rubric này không có maxPoints để mà tính. Cho 0
-    // và để guard coverage (G3) báo cáo — nổ ở đây sẽ mất luôn những tiêu
-    // chí hợp lệ khác trong cùng lượt chấm.
+    // là hướng AN TOÀN — nhưng an-toàn-và-im-lặng vẫn là lỗi trong một hệ
+    // thống lấy "fail loudly" làm nguyên tắc. Nổ ở đây thì mất luôn những
+    // tiêu chí hợp lệ khác trong cùng lượt chấm, nên trả ra cho người gọi
+    // ghi log là điểm cân bằng đúng.
     const out = enforceScoring(
-      [{ criterionId: 'không-có-thật', verdict: 'met', points: 10, evidence: 'x' }],
+      [
+        { criterionId: 'không-có-thật', verdict: 'met', points: 10, evidence: 'x' },
+        { criterionId: 'c1', verdict: 'met', points: 0, evidence: 'y' },
+      ],
       CRITERIA,
     );
 
     expect(out.criterionResults[0].points).toBe(0);
-    expect(out.totalScore).toBe(0);
+    expect(out.unknownCriterionIds).toEqual(['không-có-thật']);
+    // Tiêu chí hợp lệ trong cùng lượt KHÔNG bị mất.
+    expect(out.criterionResults[1].points).toBe(10);
+    expect(out.totalScore).toBe(10);
+  });
+
+  it('mọi tiêu chí hợp lệ → unknownCriterionIds rỗng', () => {
+    const out = enforceScoring(
+      [{ criterionId: 'c1', verdict: 'partially_met', points: 0, evidence: 'z' }],
+      CRITERIA,
+    );
+
+    expect(out.unknownCriterionIds).toEqual([]);
+    expect(out.criterionResults[0].points).toBe(5); // partially_met qua đường enforceScoring
   });
 
   it('mảng rỗng → tổng 0', () => {
