@@ -281,6 +281,75 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     expect(res.status).toBe(400);
   });
 
+  it('W1: gửi rõ null thì XOÁ, khác hẳn với bỏ trống', async () => {
+    // Chọn nhầm file làm đề thì thay được — nhưng "thôi không dùng đề nữa"
+    // cũng phải có đường. Gộp `undefined` và `null` làm một sẽ khiến giảng
+    // viên đổi được lựa chọn mà không bỏ được.
+    const session = await seedSession();
+    await setReference(session.id, {
+      questionMaterialId: session.materialId,
+      modelAnswerNote: 'ghi chú',
+    }).expect(200);
+    expect((await readiness(session.id)).body.level).toBe('with_model_answer');
+
+    await setReference(session.id, { questionMaterialId: null }).expect(200);
+
+    const res = await readiness(session.id).expect(200);
+    expect(res.body.hasQuestion).toBe(false);
+    // Trường KHÔNG gửi vẫn giữ nguyên.
+    expect(res.body.hasModelAnswer).toBe(true);
+  });
+
+  it('S1: xin URL upload đáp án mẫu sau khi đã chấm cũng bị chặn', async () => {
+    // Guard đóng băng phải phủ MỌI đường ghi, không chỉ đường `upsert` —
+    // nếu không thì upload được file mới đè lên file cũ mà không qua cửa nào.
+    const session = await seedSession();
+    await seedGradingResult(session);
+
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.id}/grading-reference/answer-key-upload`)
+      .set('Authorization', `Bearer ${teacherToken}`);
+
+    expect(res.status).toBe(409);
+  });
+
+  it('W3: xoá file đang được chọn làm đề → 409 NÓI RÕ LÝ DO', async () => {
+    // FK RESTRICT chặn được, nhưng PostgresExceptionFilter map 23503 thành
+    // "This request conflicts with an existing record" — giảng viên không
+    // có cách nào biết tại sao file của chính họ không xoá được.
+    const session = await seedSession();
+    await setReference(session.id, { questionMaterialId: session.materialId }).expect(200);
+
+    const res = await request(app.getHttpServer())
+      .delete(`/exam-sessions/${session.id}/materials/${session.materialId}`)
+      .set('Authorization', `Bearer ${teacherToken}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/đề bài/i);
+  });
+
+  it('S5: không dòng exam_material nào mang khoá grading-reference/', async () => {
+    // Chốt chặn CẤU TRÚC, bổ sung cho T-SEC-1: nếu một thay đổi tương lai
+    // vô tình ghi bản ghi tài liệu chấm vào bảng exam_material thì test
+    // này đỏ, kể cả khi nội dung đáp án không xuất hiện trong payload.
+    const session = await seedSession();
+    await setReference(session.id, {
+      questionMaterialId: session.materialId,
+      modelAnswerNote: 'bí mật',
+    }).expect(200);
+
+    const view = await materials.listForAgent(session.entity, new Date());
+
+    expect(view.released).toBe(true);
+    const keys = await dataSource.query(
+      `SELECT storage_key FROM examcollect.exam_material WHERE exam_session_id = $1`,
+      [session.id],
+    );
+    expect(
+      keys.every((r: { storage_key: string }) => !r.storage_key.startsWith('grading-reference/')),
+    ).toBe(true);
+  });
+
   it('giảng viên không phải chủ phiên nhận 403 ở cả hai route', async () => {
     const session = await seedSession();
 

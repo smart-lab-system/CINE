@@ -4,7 +4,9 @@ import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
  * Tài liệu tham chiếu cho một lượt chấm. Mọi trường đều tuỳ chọn — ba mức
  * suy giảm (`GradingReadiness`) là hợp lệ, chỉ là kém dần.
  *
- * Gửi lại chỉ một trường thì các trường kia GIỮ NGUYÊN (xem
+ * Bỏ TRỐNG một trường thì trường đó GIỮ NGUYÊN; gửi rõ `null` thì XOÁ.
+ * Hai thứ đó khác nhau, và gộp chúng làm một sẽ khiến giảng viên đổi được
+ * lựa chọn nhưng không bỏ được (xem
  * `GradingReferenceService.upsert`): giảng viên thêm ghi chú sau khi đã
  * chọn đề không được làm mất lựa chọn đề.
  */
@@ -18,7 +20,7 @@ export class UpsertGradingReferenceDto {
    */
   @IsOptional()
   @IsUUID()
-  questionMaterialId?: string;
+  questionMaterialId?: string | null;
 
   /**
    * Khoá do `POST /:id/grading-reference/answer-key-upload` cấp.
@@ -29,12 +31,12 @@ export class UpsertGradingReferenceDto {
   @IsOptional()
   @IsString()
   @MaxLength(512)
-  modelAnswerStorageKey?: string;
+  modelAnswerStorageKey?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  modelAnswerFilename?: string;
+  modelAnswerFilename?: string | null;
 
   /**
    * Lối vào rẻ nhất: một câu, không cần file.
@@ -45,5 +47,5 @@ export class UpsertGradingReferenceDto {
   @IsOptional()
   @IsString()
   @MaxLength(4000)
-  modelAnswerNote?: string;
+  modelAnswerNote?: string | null;
 }

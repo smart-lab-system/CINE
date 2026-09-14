@@ -32,6 +32,15 @@ export interface LoadedGradingReference {
   modelAnswer?: Buffer;
   modelAnswerFilename?: string;
   note?: string;
+  /**
+   * Mức NGỮ CẢNH THẬT SỰ có được, tính từ những gì đọc được — khác với
+   * `readiness()`, vốn báo mức đã CẤU HÌNH mà không chạm vào kho lưu trữ.
+   *
+   * Hai con số này lệch nhau khi file bị xoá khỏi kho sau khi đã ghi nhận.
+   * Không có trường này thì giảng viên thấy "đủ tài liệu" trước khi bấm,
+   * lượt chấm âm thầm chạy ở mức thấp hơn, và chỉ một dòng log biết điều đó.
+   */
+  loadedLevel: GradingReadinessLevel;
 }
 
 @Injectable()
@@ -106,14 +115,23 @@ export class GradingReferenceService {
     const existing = await this.references.findOne({
       where: { examSessionId: session.id },
     });
+
+    // `undefined` (không gửi) giữ nguyên; `null` (gửi rõ) XOÁ.
+    //
+    // Dùng `??` cho cả hai sẽ gộp chúng làm một và giảng viên đổi được
+    // lựa chọn nhưng không bỏ được: chọn nhầm file làm đề thì thay được,
+    // còn "thôi không dùng đề nữa" thì không có đường nào. Phân biệt hai
+    // ca này tốn đúng một phép so sánh.
+    const keep = <T>(sent: T | null | undefined, current: T | null | undefined): T | null =>
+      sent === undefined ? (current ?? null) : sent;
+
     const row = this.references.create({
       ...(existing ?? {}),
       examSessionId: session.id,
-      questionMaterialId: dto.questionMaterialId ?? existing?.questionMaterialId ?? null,
-      modelAnswerStorageKey:
-        dto.modelAnswerStorageKey ?? existing?.modelAnswerStorageKey ?? null,
-      modelAnswerFilename: dto.modelAnswerFilename ?? existing?.modelAnswerFilename ?? null,
-      modelAnswerNote: dto.modelAnswerNote ?? existing?.modelAnswerNote ?? null,
+      questionMaterialId: keep(dto.questionMaterialId, existing?.questionMaterialId),
+      modelAnswerStorageKey: keep(dto.modelAnswerStorageKey, existing?.modelAnswerStorageKey),
+      modelAnswerFilename: keep(dto.modelAnswerFilename, existing?.modelAnswerFilename),
+      modelAnswerNote: keep(dto.modelAnswerNote, existing?.modelAnswerNote),
       createdBy: existing?.createdBy ?? teacherId,
     });
     return this.references.save(row);
@@ -176,10 +194,13 @@ export class GradingReferenceService {
       relations: { questionMaterial: true },
     });
     if (!row) {
-      return {};
+      return { loadedLevel: 'rubric_only' };
     }
 
-    const loaded: LoadedGradingReference = { note: row.modelAnswerNote ?? undefined };
+    const loaded: LoadedGradingReference = {
+      note: row.modelAnswerNote ?? undefined,
+      loadedLevel: 'rubric_only',
+    };
 
     if (row.questionMaterial) {
       try {
@@ -203,6 +224,24 @@ export class GradingReferenceService {
             `${error instanceof Error ? error.message : String(error)}`,
         );
       }
+    }
+
+    // Mức tính từ thứ THẬT SỰ nạp được, không phải từ thứ đã cấu hình.
+    if (loaded.questionPdf) {
+      loaded.loadedLevel = loaded.modelAnswer || loaded.note ? 'with_model_answer' : 'with_question';
+    }
+
+    const configured = await this.readiness(examSessionId);
+    if (configured.level !== loaded.loadedLevel) {
+      // Không ném: mất một tài liệu làm bài chấm kém đi, nhưng không chấm
+      // gì cả thì tệ hơn. Nhưng KHÔNG ĐƯỢC im lặng — đây đúng là ca mà
+      // giảng viên thấy "đủ tài liệu" trước khi bấm rồi lượt chấm chạy ở
+      // mức thấp hơn mà không ai biết.
+      this.logger.error(
+        `session ${examSessionId}: NGỮ CẢNH SUY GIẢM — cấu hình ở mức ` +
+          `"${configured.level}" nhưng chỉ nạp được "${loaded.loadedLevel}". ` +
+          'Kiểm tra file trên kho lưu trữ.',
+      );
     }
 
     return loaded;
