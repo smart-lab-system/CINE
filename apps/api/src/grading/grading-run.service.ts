@@ -274,6 +274,85 @@ export class GradingRunService {
   }
 
   /**
+   * Xếp hàng lại những bài đang treo ở `ai_grading` mà queue không còn job.
+   *
+   * CÁI CỨU THẬT LÀ DB, KHÔNG PHẢI QUEUE. `grading_result` được tạo đồng
+   * bộ TRƯỚC khi xếp hàng (xem `startGrading`), nên sự thật nằm ở Postgres.
+   * Redis mất sạch thì các dòng vẫn ở `ai_grading` — chỉ là không còn job
+   * nào để chấm chúng, và thanh tiến độ đứng yên mãi mãi.
+   *
+   * An toàn khi chạy lặp vô hạn, nhờ hai lớp đã có sẵn: `jobId =
+   * grade-${submissionId}` khiến BullMQ tự loại trùng, và `gradeOneById`
+   * thoát sớm khi `aiTotalScore` đã có.
+   *
+   * MỘT ROUTE GIẢNG VIÊN BẤM, không phải `@Interval` tự chạy — theo
+   * §7.1.3, chấm điểm là hành động chủ động của giảng viên, kể cả khi là
+   * chấm lại. Một job nền tự xếp hàng lại sẽ âm thầm tiêu tiền model cho
+   * những bài mà có thể không ai còn muốn chấm.
+   */
+  async regradeStuck(
+    session: ExamSessionEntity,
+    teacherId: string,
+  ): Promise<{ stuck: number; requeued: number }> {
+    const stuck = await this.results
+      .createQueryBuilder('g')
+      .innerJoin('submission', 's', 's.id = g.submission_id')
+      .select(['g.id AS id', 'g.submission_id AS submission_id', 'g.rubric_id_version AS rubric_id'])
+      .where('s.exam_session_id = :sessionId', { sessionId: session.id })
+      .andWhere('g.status = :status', { status: 'ai_grading' })
+      .getRawMany<{ id: string; submission_id: string; rubric_id: string }>();
+
+    if (stuck.length === 0) {
+      return { stuck: 0, requeued: 0 };
+    }
+
+    // Chỉ xếp lại những bài KHÔNG còn job sống. Một bài đang được worker
+    // chấm dở cũng ở `ai_grading`, và xếp lại nó là tự tạo ra đúng cái
+    // lượt chấm trùng mà `jobId` sinh ra để chặn — chặn được, nhưng lúc
+    // đó con số trả về cho giảng viên sẽ nói dối.
+    const deliverables = new Map(
+      (await this.deliverables.find({ where: { examSessionId: session.id } })).map((d) => [
+        d.id,
+        { requiredFilename: d.requiredFilename, deliverableType: d.deliverableType },
+      ]),
+    );
+    const submissions = await this.submissions.find({
+      where: { id: In(stuck.map((row) => row.submission_id)) },
+    });
+    const byId = new Map(submissions.map((s) => [s.id, s]));
+
+    let requeued = 0;
+    for (const row of stuck) {
+      const jobId = `grade-${row.submission_id}`;
+      if (await this.queue.getJob(jobId)) {
+        continue;
+      }
+      const submission = byId.get(row.submission_id);
+      if (!submission) {
+        continue;
+      }
+      const deliverable = deliverables.get(submission.requiredDeliverableId);
+      await this.queue.add(
+        'grade-submission',
+        {
+          submissionId: row.submission_id,
+          requiredFilename: deliverable?.requiredFilename ?? '',
+          deliverableType: deliverable?.deliverableType ?? 'document',
+          rubricId: row.rubric_id,
+          teacherId,
+        } satisfies GradeSubmissionJob,
+        { ...GRADE_JOB_OPTIONS, jobId },
+      );
+      requeued += 1;
+    }
+
+    this.logger.log(
+      `session ${session.id}: ${stuck.length} bài treo ở ai_grading, xếp hàng lại ${requeued}`,
+    );
+    return { stuck: stuck.length, requeued };
+  }
+
+  /**
    * Tiến độ chấm của MỘT phiên.
    *
    * Đếm `grading_result`, KHÔNG đếm job: mọi dòng đã tồn tại từ lúc

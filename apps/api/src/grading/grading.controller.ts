@@ -163,6 +163,26 @@ export class GradingController {
   }
 
   /**
+   * Chấm tiếp những bài đang treo.
+   *
+   * Tồn tại vì Redis có thể mất sạch trong khi `grading_result` vẫn nằm
+   * nguyên ở Postgres: các dòng ở `ai_grading` không còn job nào để chấm
+   * chúng, và thanh tiến độ đứng yên mãi mãi.
+   *
+   * Là một ROUTE để giảng viên bấm, không phải `@Interval` tự chạy — theo
+   * §7.1.3, chấm điểm là hành động chủ động, kể cả khi là chấm lại. Một
+   * job nền tự xếp hàng lại sẽ âm thầm tiêu tiền model cho những bài mà
+   * có thể không ai còn muốn chấm.
+   */
+  @Post('exam-sessions/:id/regrade-stuck')
+  @Roles('teacher')
+  @HttpCode(200)
+  async regradeStuck(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.gradingRun.regradeStuck(session, req.user!.sub);
+  }
+
+  /**
    * Chọn đề bài và đáp án mẫu cho lượt chấm.
    *
    * `PUT` chứ không `POST`: một phiên có đúng MỘT bản tài liệu tham chiếu

@@ -268,6 +268,83 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
     );
   });
 
+  it('đối soát: bài treo ở ai_grading mà queue mất job → xếp hàng lại', async () => {
+    // Redis mất sạch trong khi grading_result vẫn nằm nguyên ở Postgres:
+    // dòng ở `ai_grading` không còn job nào để chấm, và thanh tiến độ của
+    // giảng viên đứng yên mãi mãi. Sự thật ở DB, không ở queue.
+    const sessionId = await seedSessionWithSubmissions(2);
+
+    // Dựng ĐÚNG tình huống thật: dòng chấm tồn tại ở `ai_grading` nhưng
+    // CHƯA TỪNG được chấm và không có job nào — đó chính là trạng thái sau
+    // khi Redis mất sạch giữa lúc `startGrading` vừa tạo xong các dòng.
+    //
+    // KHÔNG tua ngược một dòng đã chấm: `trg_grading_result_guard_ai_immutable`
+    // từ chối, và nó từ chối ĐÚNG (Security rule 6). Việc test phải lách
+    // một ràng buộc an toàn là dấu hiệu test đang dựng sai tình huống.
+    const [rubric] = await dataSource.query(
+      `INSERT INTO examcollect.rubric (course_id, version)
+       SELECT course_id, 9000 + $2 FROM examcollect.exam_session WHERE id = $1
+       RETURNING id`,
+      [sessionId, seedCursor],
+    );
+    const subs = await dataSource.query(
+      `SELECT id FROM examcollect.submission WHERE exam_session_id = $1`,
+      [sessionId],
+    );
+    for (const sub of subs) {
+      await dataSource.query(
+        `INSERT INTO examcollect.grading_result
+           (submission_id, rubric_id_version, grading_triggered_by, status)
+         VALUES ($1, $2, $3, 'ai_grading')`,
+        [sub.id, rubric.id, teacherId],
+      );
+    }
+    expect((await progress(sessionId)).body.pending).toBe(2);
+
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/regrade-stuck`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.stuck).toBe(2);
+    expect(res.body.requeued).toBeGreaterThan(0);
+    await waitForGrading(sessionId);
+  });
+
+  it('đối soát khi KHÔNG có bài nào treo → không tạo job nào', async () => {
+    // Bấm nhiều lần phải vô hại: đây là nút mà giảng viên sẽ bấm khi lo
+    // lắng, tức bấm nhiều lần liên tiếp.
+    const sessionId = await seedSessionWithSubmissions(1);
+    await startGrading(sessionId);
+    await waitForGrading(sessionId);
+
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/regrade-stuck`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ stuck: 0, requeued: 0 });
+  });
+
+  it('giảng viên không phải chủ phiên không đối soát được', async () => {
+    const sessionId = await seedSessionWithSubmissions(1);
+    const otherEmail = `queue_regrade_${Date.now()}@example.com`;
+    await createTestAccount(dataSource, {
+      email: otherEmail,
+      password: PASSWORD,
+      role: 'teacher',
+    });
+    const otherLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: otherEmail, password: PASSWORD });
+
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/regrade-stuck`)
+      .set('Authorization', `Bearer ${otherLogin.body.accessToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
   it('giảng viên không phải chủ phiên không xem được tiến độ', async () => {
     const sessionId = await seedSessionWithSubmissions(1);
     const otherEmail = `queue_other_${Date.now()}@example.com`;
