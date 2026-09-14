@@ -47,6 +47,25 @@ export interface GradingRequest {
   /** What kind of file it came from, for providers that care. */
   deliverableType: string;
   criteria: GradingRubricCriterion[];
+  /**
+   * Đề bài và đáp án mẫu — ngữ cảnh để phán đoán một bài lệch rubric.
+   *
+   * Đi THEO REQUEST, không phải trạng thái trên provider. Provider là
+   * singleton của Nest và worker chạy `concurrency: 5`, nên một trường
+   * `this.reference` đặt trước rồi đọc sau sẽ bị bài khác ghi đè giữa hai
+   * lần `await` — và đường RETRY là chỗ chắc chắn dính: giữa lượt chấm
+   * đầu và lượt chấm lại có một lời gọi mạng 15-30 giây, thừa chỗ cho bài
+   * của phiên khác chen vào.
+   *
+   * Tuỳ chọn, cùng lý do như `deliverableType`: provider nào không quan
+   * tâm thì bỏ qua. Thêm một trường optional KHÔNG bắt ai phải làm gì —
+   * đó là chỗ tôi đã lập luận sai khi chọn `withReference()` lúc đầu.
+   */
+  reference?: {
+    questionPdf?: Buffer;
+    modelAnswerPdf?: Buffer;
+    modelAnswerNote?: string;
+  };
 }
 
 /**

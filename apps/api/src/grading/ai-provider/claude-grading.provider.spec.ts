@@ -164,14 +164,45 @@ describe('ClaudeGradingProvider', () => {
     expect(caught.message).toMatch(/criterionResults/);
   });
 
-  it('tài liệu tham chiếu đi vào prompt qua withReference', async () => {
+  it('tài liệu tham chiếu đi THEO REQUEST, không phải trạng thái trên provider', async () => {
+    // Provider là singleton của Nest và worker chạy `concurrency: 5`. Một
+    // trường `this.reference` đặt trước rồi đọc sau sẽ bị bài của phiên
+    // khác ghi đè giữa hai lần `await` — và đường RETRY là chỗ chắc chắn
+    // dính, vì giữa hai lượt chấm có một lời gọi mạng 15-30 giây.
     createMock.mockResolvedValue(okResponse());
 
-    await new ClaudeGradingProvider()
-      .withReference({ questionPdf: Buffer.from('%PDF-1.4 de thi') })
-      .grade(REQUEST);
+    await new ClaudeGradingProvider().grade({
+      ...REQUEST,
+      reference: { questionPdf: Buffer.from('%PDF-1.4 de thi') },
+    });
 
     const content = createMock.mock.calls[0][0].messages[0].content;
     expect(content.some((b: { type: string }) => b.type === 'document')).toBe(true);
+  });
+
+  it('MỘT provider dùng chung cho hai bài KHÔNG lẫn tài liệu của nhau', async () => {
+    // Ca mà thiết kế cũ (trạng thái trên provider) sẽ trượt.
+    createMock.mockResolvedValue(okResponse());
+    const provider = new ClaudeGradingProvider();
+
+    await provider.grade({ ...REQUEST, reference: { modelAnswerNote: 'đáp án phiên A' } });
+    await provider.grade({ ...REQUEST, reference: { modelAnswerNote: 'đáp án phiên B' } });
+
+    const first = JSON.stringify(createMock.mock.calls[0][0].messages[0].content);
+    const second = JSON.stringify(createMock.mock.calls[1][0].messages[0].content);
+    expect(first).toContain('đáp án phiên A');
+    expect(first).not.toContain('đáp án phiên B');
+    expect(second).toContain('đáp án phiên B');
+    expect(second).not.toContain('đáp án phiên A');
+  });
+
+  it('không có reference thì vẫn chấm được — mức suy giảm 1 là hợp lệ', async () => {
+    createMock.mockResolvedValue(okResponse());
+
+    await new ClaudeGradingProvider().grade(REQUEST);
+
+    const content = createMock.mock.calls[0][0].messages[0].content;
+    expect(content.some((b: { type: string }) => b.type === 'document')).toBe(false);
+    expect(JSON.stringify(content)).toContain('BEGIN SUBMISSION');
   });
 });

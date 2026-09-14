@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { GradingService } from '../src/grading/grading.service';
 
 /**
  * Vòng đời `grading_result` ở tầng DB.
@@ -169,6 +170,54 @@ describe('Vòng đời grading_result (e2e)', () => {
         [id],
       ),
     ).rejects.toThrow(/Invalid grading result status transition/);
+  });
+
+  it('markUngradable đưa bài hỏng ra khỏi ai_grading', async () => {
+    // Migration mở cửa là chưa đủ — phải có ai ĐI QUA nó. Trước hàm này,
+    // một job hết retry chỉ để lại một dòng log, còn dòng chấm nằm mãi ở
+    // `ai_grading` và `progress()` đếm nó là `pending` vĩnh viễn.
+    const id = await seedGradingResultAtAiGrading();
+    const [row0] = await dataSource.query(
+      `SELECT submission_id FROM examcollect.grading_result WHERE id = $1`,
+      [id],
+    );
+
+    await app.get(GradingService).markUngradable(row0.submission_id, 'HTTP 503 overloaded_error');
+
+    const [row] = await dataSource.query(
+      `SELECT status, flag_for_review, confidence FROM examcollect.grading_result WHERE id = $1`,
+      [id],
+    );
+    expect(row.status).toBe('flagged_for_review');
+    expect(row.flag_for_review).toBe(true);
+    // 0 điểm tin cậy, KHÔNG phải 0 điểm bài: không chấm được là sự thật về
+    // hệ thống, không phải phán xét về bài làm.
+    expect(Number(row.confidence)).toBe(0);
+    const [scored] = await dataSource.query(
+      `SELECT ai_total_score FROM examcollect.grading_result WHERE id = $1`,
+      [id],
+    );
+    expect(scored.ai_total_score).toBeNull();
+  });
+
+  it('markUngradable gọi hai lần là vô hại', async () => {
+    // Nó được gọi từ một event handler của BullMQ, thứ có thể bắn nhiều
+    // lần cho cùng một job.
+    const id = await seedGradingResultAtAiGrading();
+    const [row0] = await dataSource.query(
+      `SELECT submission_id FROM examcollect.grading_result WHERE id = $1`,
+      [id],
+    );
+    const grading = app.get(GradingService);
+
+    await grading.markUngradable(row0.submission_id, 'lần một');
+    await expect(grading.markUngradable(row0.submission_id, 'lần hai')).resolves.not.toThrow();
+
+    const [row] = await dataSource.query(
+      `SELECT status FROM examcollect.grading_result WHERE id = $1`,
+      [id],
+    );
+    expect(row.status).toBe('flagged_for_review');
   });
 
   it('đường cũ ai_grading → ai_graded vẫn đi được', async () => {

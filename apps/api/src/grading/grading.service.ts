@@ -55,6 +55,34 @@ export class GradingService {
   ) {}
 
   /**
+   * Kết thúc một bài mà AI không chấm được: `ai_grading → flagged_for_review`.
+   *
+   * Không có hàm này thì migration `AllowAiGradingToFlagged` mở một cánh
+   * cửa mà không ai đi qua: một job hết retry chỉ ghi được một dòng log,
+   * còn dòng `grading_result` nằm lại ở `ai_grading` VĨNH VIỄN — đúng cái
+   * thanh tiến độ đứng ở 38/40 mà cả Task 1 sinh ra để sửa.
+   *
+   * `confidence = 0`, `flagForReview = true`: không có điểm nào, và bài
+   * này cần người xem. KHÔNG chấm 0 — không chấm được là sự thật về hệ
+   * thống, không phải phán xét về bài làm.
+   */
+  async markUngradable(submissionId: string, reason: string): Promise<void> {
+    const result = await this.results.findOne({ where: { submissionId } });
+    if (!result || result.status !== 'ai_grading') {
+      // Đã đi tiếp rồi (chấm xong, hoặc một lần gọi trước đã đánh dấu).
+      // Im lặng bỏ qua: hàm này được gọi từ một event handler có thể bắn
+      // nhiều lần.
+      return;
+    }
+    await this.results.update(result.id, {
+      status: 'flagged_for_review',
+      flagForReview: true,
+      confidence: '0',
+    });
+    this.logger.error(`submission ${submissionId}: AI không chấm được — ${reason}`);
+  }
+
+  /**
    * Điểm vào của hàng đợi — worker gọi hàm này, không gọi `gradeOne`.
    *
    * Tra lại submission theo id: job payload chỉ chứa id vì một entity
@@ -188,6 +216,18 @@ export class GradingService {
       );
     }
 
+    // Nạp đề bài + đáp án mẫu và đưa vào provider.
+    //
+    // Đây là chỗ toàn bộ thiết kế này quy tụ: không có bước này thì model
+    // vẫn chấm mà chưa bao giờ nhìn thấy đề, và câu hỏi "bài này lệch
+    // rubric nhưng có đúng không" vẫn bất khả.
+    //
+    // Tài liệu đi THEO REQUEST. Provider là singleton và worker chạy
+    // `concurrency: 5`, nên đặt nó làm trạng thái trên provider sẽ bị bài
+    // của phiên khác ghi đè giữa hai lần `await` — và đường retry bên dưới
+    // là chỗ chắc chắn dính, vì giữa hai lượt chấm có một lời gọi mạng
+    // 15-30 giây.
+    const reference = await this.references.loadForGrading(submission.examSessionId);
     // Một bản duy nhất: prompt và phép ép điểm PHẢI nhìn thấy cùng một tập
     // tiêu chí. Hai bản sao là cách chúng lệch nhau.
     const rubricCriteria = criteria.map((criterion) => ({
@@ -201,36 +241,16 @@ export class GradingService {
       content,
       deliverableType,
       criteria: rubricCriteria,
+      reference: {
+        questionPdf: reference.questionPdf,
+        modelAnswerPdf: reference.modelAnswer,
+        modelAnswerNote: reference.note,
+      },
     };
 
     const extractMs = Date.now() - extractStarted;
     const modelStarted = Date.now();
 
-    // Nạp đề bài + đáp án mẫu và đưa vào provider.
-    //
-    // Đây là chỗ toàn bộ thiết kế này quy tụ: không có bước này thì model
-    // vẫn chấm mà chưa bao giờ nhìn thấy đề, và câu hỏi "bài này lệch
-    // rubric nhưng có đúng không" vẫn bất khả.
-    //
-    // `withReference` chỉ tồn tại trên provider Claude, nên kiểm kiểu ở
-    // đây thay vì bắt mọi implementation của seam phải nhận hai Buffer —
-    // provider cục bộ không cần PDF nào, và đổi hợp đồng của seam vì nhu
-    // cầu của đúng một implementation là ngược.
-    const reference = await this.references.loadForGrading(submission.examSessionId);
-    const provider = this.provider as AIGradingProvider & {
-      withReference?: (ref: {
-        questionPdf?: Buffer;
-        modelAnswerPdf?: Buffer;
-        modelAnswerNote?: string;
-      }) => AIGradingProvider;
-    };
-    if (provider.withReference) {
-      provider.withReference({
-        questionPdf: reference.questionPdf,
-        modelAnswerPdf: reference.modelAnswer,
-        modelAnswerNote: reference.note,
-      });
-    }
 
     // Chấm, kiểm bằng guard, và CHẤM LẠI ĐÚNG MỘT LẦN nếu lượt đầu không
     // tin được (spec §6.4).

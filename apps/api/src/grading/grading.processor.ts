@@ -172,11 +172,40 @@ export class GradingProcessor extends WorkerHost implements OnModuleDestroy {
    * câu chuyện khác nhau.
    */
   @OnWorkerEvent('failed')
-  onFailed(job: Job<GradeSubmissionJob> | undefined, error: Error): void {
+  async onFailed(job: Job<GradeSubmissionJob> | undefined, error: Error): Promise<void> {
+    const attempts = job?.attemptsMade ?? 0;
+    const reason = describeError(error);
     this.logger.error(
       `job ${job?.id ?? '(không rõ)'} submission ${job?.data?.submissionId ?? '(không rõ)'} ` +
-        `thất bại lần ${job?.attemptsMade ?? 0}: ${describeError(error)}`,
+        `thất bại lần ${attempts}: ${reason}`,
     );
+
+    // HẾT ĐƯỜNG THỬ LẠI → kết thúc dòng chấm ở tầng DB.
+    //
+    // Không có khối này thì migration `AllowAiGradingToFlagged` mở một
+    // cánh cửa mà KHÔNG AI ĐI QUA: một job hết retry chỉ để lại dòng log
+    // ở trên, còn `grading_result` nằm mãi ở `ai_grading`, `progress()`
+    // đếm nó là `pending`, và thanh tiến độ của giảng viên đứng ở 38/40
+    // vĩnh viễn. Đó chính xác là lỗi mà cả Task 1 sinh ra để sửa — mở cửa
+    // thôi thì chưa đủ.
+    //
+    // `UnrecoverableError` nghĩa là không thử lại nữa, bất kể còn lượt.
+    const maxAttempts = job?.opts?.attempts ?? 1;
+    const exhausted = error instanceof UnrecoverableError || attempts >= maxAttempts;
+    if (!exhausted || !job?.data?.submissionId) {
+      return;
+    }
+    try {
+      await this.grading.markUngradable(job.data.submissionId, reason);
+    } catch (writeError) {
+      // Handler của event: ném ở đây không ai bắt, và nó có thể làm chết
+      // cả worker. Ghi lại rồi thôi — nút "Chấm tiếp bài đang treo" là
+      // đường phục hồi cho đúng ca này.
+      this.logger.error(
+        `submission ${job.data.submissionId}: không đánh dấu được là chấm hỏng — ` +
+          `${writeError instanceof Error ? writeError.message : String(writeError)}`,
+      );
+    }
   }
 
   /**

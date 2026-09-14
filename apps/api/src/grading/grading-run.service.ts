@@ -324,8 +324,21 @@ export class GradingRunService {
     let requeued = 0;
     for (const row of stuck) {
       const jobId = `grade-${row.submission_id}`;
-      if (await this.queue.getJob(jobId)) {
-        continue;
+      const existing = await this.queue.getJob(jobId);
+      if (existing) {
+        // `removeOnFail: false` giữ job đã chết hẳn lại trong Redis để
+        // điều tra, nên `getJob` trả về chúng y như job đang sống. Bỏ qua
+        // theo sự tồn tại thôi thì route này thành vô dụng ĐÚNG LÚC nó
+        // cần nhất: bài hết retry là bài chắc chắn treo.
+        //
+        // Job đã xong thì dòng đã rời `ai_grading`, nên nó không lọt vào
+        // truy vấn ở trên — chỉ còn hai ca ở đây: đang chạy (bỏ qua) và
+        // đã chết (xoá đi rồi xếp lại, vì `jobId` trùng sẽ bị BullMQ từ
+        // chối nếu bản cũ còn nằm đó).
+        if (!(await existing.isFailed())) {
+          continue;
+        }
+        await existing.remove();
       }
       const submission = byId.get(row.submission_id);
       if (!submission) {

@@ -109,34 +109,15 @@ export class ClaudeGradingProvider implements AIGradingProvider {
   private readonly logger = new Logger(ClaudeGradingProvider.name);
   private readonly client = new Anthropic();
 
-  /**
-   * Tài liệu tham chiếu cho lượt chấm hiện tại.
-   *
-   * Đặt qua `withReference()` chứ không nhét vào `GradingRequest`: seam
-   * `AIGradingProvider` là hợp đồng dùng chung cho mọi provider, kể cả
-   * provider cục bộ không cần PDF nào. Bắt mọi implementation nhận thêm
-   * hai Buffer là đổi hợp đồng vì nhu cầu của đúng một implementation.
-   */
-  private reference: {
-    questionPdf?: Buffer;
-    modelAnswerPdf?: Buffer;
-    modelAnswerNote?: string;
-  } = {};
-
-  withReference(reference: {
-    questionPdf?: Buffer;
-    modelAnswerPdf?: Buffer;
-    modelAnswerNote?: string;
-  }): this {
-    this.reference = reference;
-    return this;
-  }
+  // KHÔNG có trạng thái nào ở đây. Provider là singleton và worker chạy
+  // năm job song song — mọi trường mutable trên nó là một cuộc đua chờ
+  // xảy ra. Tài liệu tham chiếu đi theo `request.reference`.
 
   async grade(request: GradingRequest): Promise<GradingOutcome> {
     const prompt = buildGraderPrompt({
       criteria: request.criteria,
       studentText: request.content,
-      ...this.reference,
+      ...(request.reference ?? {}),
     });
 
     const response = await this.client.messages.create({
