@@ -78,11 +78,19 @@ export interface GradingOutcome {
   criterionResults: CriterionResult[];
   totalScore: number;
   /**
-   * 0-1. Compared against a threshold to decide whether a teacher must look
-   * at this one. A provider that cannot estimate its own confidence must
-   * return 0 rather than 1 — the safe direction is "ask a human".
+   * TRẦN tin cậy mà CƠ CHẾ của provider này có thể biện minh — không phải
+   * một phán đoán về bài nộp cụ thể.
+   *
+   * Đây là thuộc tính của phương pháp, không phải của bài làm. Đối sánh từ
+   * khoá không bao giờ biện minh nổi một điểm số tự duyệt, dù nó khớp
+   * 100% từ khoá, nên trần của nó thấp. Một model mạnh đọc hiểu bài và
+   * trích được dẫn chứng thì trần là 1.
+   *
+   * `confidence` THẬT do `applyGuards` tính từ các phép đo cơ học, rồi bị
+   * kẹp xuống dưới trần này. Guard chỉ được HẠ, không được NÂNG: một phép
+   * đo cơ học sạch không biến việc đếm từ thành việc hiểu bài.
    */
-  confidence: number;
+  confidenceCeiling: number;
   usage: GradingUsage;
 }
 

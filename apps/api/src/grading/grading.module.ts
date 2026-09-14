@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GRADING_QUEUE } from './grading.queue';
@@ -27,8 +27,9 @@ import { TeacherReviewService } from './teacher-review.service';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { AdminModule } from '../admin/admin.module';
 import { GradingController } from './grading.controller';
-import { AI_GRADING_PROVIDER } from './ai-provider/ai-grading-provider';
+import { AI_GRADING_PROVIDER, AIGradingProvider } from './ai-provider/ai-grading-provider';
 import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
+import { ClaudeGradingProvider } from './ai-provider/claude-grading.provider';
 
 /**
  * Which model grades is decided HERE and nowhere else.
@@ -77,7 +78,33 @@ import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
     GradingProcessor,
     RubricService,
     TeacherReviewService,
-    { provide: AI_GRADING_PROVIDER, useClass: KeywordGradingProvider },
+    ClaudeGradingProvider,
+    KeywordGradingProvider,
+    {
+      provide: AI_GRADING_PROVIDER,
+      useFactory: (
+        claude: ClaudeGradingProvider,
+        keyword: KeywordGradingProvider,
+      ): AIGradingProvider => {
+        if (process.env.ANTHROPIC_API_KEY) {
+          return claude;
+        }
+        // NÓI RA, không im lặng rơi về đếm từ.
+        //
+        // Không có key thì hệ thống vẫn chấm được — nhưng bằng đối sánh
+        // từ khoá, thứ không bao giờ vượt ngưỡng auto-approve và không
+        // phán đoán được gì về tính đúng đắn. Rơi về nó trong im lặng
+        // nghĩa là mọi người tin hệ thống đang gọi model trong khi nó
+        // đang đếm từ, và bảng điểm trông y hệt nhau ở cả hai ca.
+        new Logger(GradingModule.name).warn(
+          'ANTHROPIC_API_KEY chưa được đặt — chấm điểm chạy bằng ' +
+            'KeywordGradingProvider (đối sánh từ khoá, KHÔNG gọi model). ' +
+            'Điểm sinh ra chỉ dùng để thử luồng, không dùng để chấm thật.',
+        );
+        return keyword;
+      },
+      inject: [ClaudeGradingProvider, KeywordGradingProvider],
+    },
   ],
   exports: [GradingService, GradingRunService, GradingReferenceService, RubricService],
 })

@@ -19,7 +19,36 @@ import { GRADE_JOB_TIMEOUT_MS, GRADING_QUEUE, GradeSubmissionJob } from './gradi
  * không dùng chút năng lực song song nào. Ngược lại đặt 20 thì 20 lời
  * gọi đồng thời sẽ đụng rate limit, rồi retry, rồi đụng lại.
  */
-const GRADE_CONCURRENCY = Number(process.env.GRADE_CONCURRENCY ?? 5);
+/**
+ * Đọc một số nguyên dương từ env, hoặc NỔ NGAY LÚC KHỞI ĐỘNG.
+ *
+ * `Number(process.env.X ?? mặc_định)` là một cái bẫy im lặng: `??` chỉ bắt
+ * `null`/`undefined`, nên `GRADE_CONCURRENCY=` (rỗng) đi qua và cho `0`,
+ * còn `GRADE_CONCURRENCY=abc` cho `NaN`. Worker của BullMQ kiểm
+ * `jobsInProgress.size < opts.concurrency`, và cả `0 < 0` lẫn `0 < NaN`
+ * đều `false` — worker lặng lẽ ngừng nhận job. Không lỗi, không log, hàng
+ * đợi trông khoẻ mạnh trên mọi bảng quản trị, và không bài nào được chấm.
+ *
+ * Ném lúc nạp module là kết cục ĐÚNG: nó lộ ra ngay khi khởi động, trước
+ * khi có job nào được xếp hàng, thay vì lộ ra dưới dạng "sao chấm không
+ * chạy" ba ngày sau.
+ */
+function envPositiveInt(key: string, fallback: number): number {
+  const raw = process.env[key];
+  if (raw === undefined || raw.trim() === '') {
+    return fallback;
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 1) {
+    throw new Error(
+      `${key}="${raw}" không phải số nguyên dương — từ chối khởi động với một ` +
+        'hàng đợi chấm điểm hỏng.',
+    );
+  }
+  return Math.trunc(value);
+}
+
+const GRADE_CONCURRENCY = envPositiveInt('GRADE_CONCURRENCY', 5);
 
 /**
  * Trần nhịp gọi. Chọn cùng lúc với `concurrency` ở trên — xem lý do ở đó.
@@ -31,8 +60,8 @@ const GRADE_CONCURRENCY = Number(process.env.GRADE_CONCURRENCY ?? 5);
  * một lượt 40 bài xuống tối thiểu 133 giây, bất kể model nhanh cỡ nào.
  */
 const GRADE_RATE_LIMIT = {
-  max: Number(process.env.GRADE_RATE_MAX ?? 10),
-  duration: Number(process.env.GRADE_RATE_DURATION_MS ?? 1_000),
+  max: envPositiveInt('GRADE_RATE_MAX', 10),
+  duration: envPositiveInt('GRADE_RATE_DURATION_MS', 1_000),
 };
 
 /**

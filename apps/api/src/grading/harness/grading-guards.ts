@@ -27,6 +27,18 @@ import { EvidenceCheck, verifyEvidence } from './evidence-check';
  */
 const UNTRUSTWORTHY_RATIO = 0.5;
 
+/**
+ * Sàn tuyệt đối, đi kèm tỉ lệ ở trên.
+ *
+ * Với rubric 1-2 tiêu chí, tỉ lệ mất nghĩa: một tiêu chí trượt trên tổng
+ * hai là đúng 50%, và một sai lệch chữ in nhỏ (biến thể chưa có trong
+ * `TYPOGRAPHIC_FOLD`) sẽ kích hoạt chấm lại cho MỌI bài của phiên đó.
+ *
+ * Yêu cầu ÍT NHẤT hai tiêu chí trượt: một lượt trượt là nhiễu ở mọi cỡ
+ * rubric, còn hai lượt trượt cùng lúc mới bắt đầu là một khuôn mẫu.
+ */
+const UNTRUSTWORTHY_MIN_COUNT = 2;
+
 export interface GuardInput {
   /** Bài làm nguyên văn — thứ dẫn chứng phải đối chiếu vào. */
   studentText: string;
@@ -76,7 +88,7 @@ export function applyGuards(input: GuardInput): GuardOutcome {
   // G2 — dẫn chứng có định vị được không.
   const unverified = perCriterion.filter((r) => r.check === 'unverified');
   if (
-    perCriterion.length > 0 &&
+    unverified.length >= UNTRUSTWORTHY_MIN_COUNT &&
     unverified.length / perCriterion.length >= UNTRUSTWORTHY_RATIO
   ) {
     return {
@@ -101,9 +113,13 @@ export function applyGuards(input: GuardInput): GuardOutcome {
   //
   // Bất đối xứng chi phí quyết định hướng nghiêng: kích hoạt thừa tốn
   // ~$0,05; bỏ sót là một sinh viên mất điểm mà không ai biết.
-  const needsAdvocate = input.criterionResults.some(
-    (row) => row.verdict === 'not_met' || verifyEvidence(input.studentText, row.evidence) === 'empty',
-  );
+  // Đọc lại từ `perCriterion` thay vì gọi `verifyEvidence` lần hai: hàm
+  // đó thuần nên hai lời gọi cho cùng kết quả, nhưng hai nguồn cho cùng
+  // một sự thật là thứ người đọc sau phải tự chứng minh là chúng không
+  // thể lệch nhau.
+  const needsAdvocate =
+    input.criterionResults.some((row) => row.verdict === 'not_met') ||
+    perCriterion.some((r) => r.check === 'empty');
 
   // Một tiêu chí không định vị được (dưới ngưỡng) vẫn kéo bài sang cho
   // người xem: ta không công bố một điểm số dựa trên dẫn chứng chưa kiểm

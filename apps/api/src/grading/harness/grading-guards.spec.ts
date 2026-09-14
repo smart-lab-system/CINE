@@ -151,6 +151,56 @@ describe('applyGuards', () => {
     expect(out.confidence).toBe(0.85);
   });
 
+  it('W2: rubric 2 tiêu chí, MỘT cái trượt → KHÔNG coi cả lượt là hỏng', () => {
+    // Đúng 50%, nhưng với rubric nhỏ thì tỉ lệ mất nghĩa: một sai lệch
+    // chữ in nhỏ sẽ kích hoạt chấm lại cho MỌI bài của phiên. Sàn tối
+    // thiểu 2 tiêu chí trượt giữ cho ngưỡng có nghĩa ở mọi cỡ rubric.
+    const out = applyGuards({
+      studentText: BAI,
+      criteria: [{ id: 'c1' }, { id: 'c2' }],
+      criterionResults: [
+        { criterionId: 'c1', verdict: 'met', evidence: 'đoạn một và đoạn hai' },
+        { criterionId: 'c2', verdict: 'met', evidence: 'KHÔNG CÓ TRONG BÀI' },
+      ],
+    });
+
+    expect(out.runUntrustworthy).toBe(false);
+    expect(out.status).toBe('flagged_for_review');
+    expect(out.confidence).toBe(0.5);
+  });
+
+  it('W2: rubric 2 tiêu chí, CẢ HAI trượt → vẫn là hỏng', () => {
+    const out = applyGuards({
+      studentText: BAI,
+      criteria: [{ id: 'c1' }, { id: 'c2' }],
+      criterionResults: [
+        { criterionId: 'c1', verdict: 'met', evidence: 'KHÔNG CÓ TRONG BÀI' },
+        { criterionId: 'c2', verdict: 'met', evidence: 'CŨNG KHÔNG CÓ NỐT' },
+      ],
+    });
+
+    expect(out.runUntrustworthy).toBe(true);
+  });
+
+  it('S4: verdict met nhưng KHÔNG có dẫn chứng → vẫn kích hoạt Advocate', () => {
+    // "Đạt" mà không trích được gì là một mâu thuẫn: nếu em đạt tiêu chí
+    // thì phải có chỗ nào đó trong bài chứng minh điều đó. Ca này đi qua
+    // đường `empty`, không phải đường `not_met`.
+    const out = applyGuards({
+      studentText: BAI,
+      criteria: CRITERIA,
+      criterionResults: [
+        { criterionId: 'c1', verdict: 'met', evidence: '' },
+        { criterionId: 'c2', verdict: 'met', evidence: 'đoạn một và đoạn hai' },
+        { criterionId: 'c3', verdict: 'met', evidence: 'phần kết luận dài hơn' },
+        { criterionId: 'c4', verdict: 'met', evidence: 'đoạn một và đoạn hai' },
+      ],
+    });
+
+    expect(out.needsAdvocate).toBe(true);
+    expect(out.status).toBe('flagged_for_review');
+  });
+
   it('coverage hỏng được kiểm TRƯỚC dẫn chứng', () => {
     // Thứ tự quan trọng: nếu model trả sai bộ tiêu chí thì việc đếm tỉ lệ
     // dẫn chứng trên bộ sai ấy không có nghĩa gì.

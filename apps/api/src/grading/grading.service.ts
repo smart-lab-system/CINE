@@ -20,7 +20,9 @@ import {
   enforceScoring,
 } from './ai-provider/ai-grading-provider';
 import { GradingInputTooLargeError } from './extract-text';
+import { applyGuards } from './harness/grading-guards';
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
+import { GradingReferenceService } from './grading-reference.service';
 import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
 import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
 
@@ -49,6 +51,7 @@ export class GradingService {
     private readonly storage: StorageService,
     @Inject(AI_GRADING_PROVIDER) private readonly provider: AIGradingProvider,
     private readonly resolvers: ContentResolverRegistry,
+    private readonly references: GradingReferenceService,
   ) {}
 
   /**
@@ -202,7 +205,66 @@ export class GradingService {
 
     const extractMs = Date.now() - extractStarted;
     const modelStarted = Date.now();
-    const outcome = await this.provider.grade(request);
+
+    // Nạp đề bài + đáp án mẫu và đưa vào provider.
+    //
+    // Đây là chỗ toàn bộ thiết kế này quy tụ: không có bước này thì model
+    // vẫn chấm mà chưa bao giờ nhìn thấy đề, và câu hỏi "bài này lệch
+    // rubric nhưng có đúng không" vẫn bất khả.
+    //
+    // `withReference` chỉ tồn tại trên provider Claude, nên kiểm kiểu ở
+    // đây thay vì bắt mọi implementation của seam phải nhận hai Buffer —
+    // provider cục bộ không cần PDF nào, và đổi hợp đồng của seam vì nhu
+    // cầu của đúng một implementation là ngược.
+    const reference = await this.references.loadForGrading(submission.examSessionId);
+    const provider = this.provider as AIGradingProvider & {
+      withReference?: (ref: {
+        questionPdf?: Buffer;
+        modelAnswerPdf?: Buffer;
+        modelAnswerNote?: string;
+      }) => AIGradingProvider;
+    };
+    if (provider.withReference) {
+      provider.withReference({
+        questionPdf: reference.questionPdf,
+        modelAnswerPdf: reference.modelAnswer,
+        modelAnswerNote: reference.note,
+      });
+    }
+
+    // Chấm, kiểm bằng guard, và CHẤM LẠI ĐÚNG MỘT LẦN nếu lượt đầu không
+    // tin được (spec §6.4).
+    //
+    // Vì sao đúng một lần: chấm lại vô hạn thì tốn tiền và có thể trượt
+    // tiếp; đẩy thẳng cho giảng viên thì trung thực nhưng nếu model hay
+    // trượt thì họ ngập bài flag. Một lần là điểm cân bằng, và số lần
+    // trượt được ghi log để có dữ liệu THẬT về tần suất — con số đó là
+    // thứ nói cho ta biết guard có đang báo động giả hay không, và nó đi
+    // thẳng vào báo cáo calibration.
+    let outcome = await this.provider.grade(request);
+    let guards = applyGuards({
+      studentText: content,
+      criteria: rubricCriteria,
+      criterionResults: outcome.criterionResults,
+    });
+
+    if (guards.runUntrustworthy) {
+      this.logger.warn(
+        `submission ${submission.id}: lượt chấm không tin được (${guards.reason}) — ` +
+          'chấm lại một lần',
+      );
+      outcome = await this.provider.grade(request);
+      guards = applyGuards({
+        studentText: content,
+        criteria: rubricCriteria,
+        criterionResults: outcome.criterionResults,
+      });
+      if (guards.runUntrustworthy) {
+        this.logger.error(
+          `submission ${submission.id}: chấm lại vẫn không tin được — chuyển giảng viên`,
+        );
+      }
+    }
     // Kích thước nội dung, không phải nội dung. `chars` là thứ dự đoán
     // chi phí token, nên nó thuộc về dòng này.
     // Token đi vào log Ở ĐÂY, ngay cạnh thời gian. Module admin sẽ quyết
@@ -221,6 +283,11 @@ export class GradingService {
         `token in=${usage.inputTokens} out=${usage.outputTokens} ` +
         `cacheRead=${usage.cacheReadTokens} cacheCreate=${usage.cacheCreationTokens}`,
     );
+
+    // Guard chỉ được HẠ tin cậy, không được NÂNG quá trần mà cơ chế của
+    // provider biện minh nổi. Mọi phép đo cơ học sạch cũng không biến
+    // việc đếm từ thành việc hiểu bài.
+    const finalConfidence = Math.min(guards.confidence, outcome.confidenceCeiling);
 
     // ĐIỂM DO SERVER TÍNH. Provider chỉ được phép phán đoán (`verdict` +
     // `evidence`); mọi con số đều tính lại ở đây. Xem `enforceScoring` để
@@ -248,14 +315,26 @@ export class GradingService {
       modelUsed: outcome.modelUsed,
       criterionResults: scored.criterionResults,
       aiTotalScore: String(scored.totalScore),
-      confidence: String(outcome.confidence),
+      // confidence từ GUARD, không phải từ provider. Model tự chấm độ
+      // tin cậy của chính nó là tín hiệu hiệu chỉnh kém nhất có thể — và
+      // đặt ngưỡng auto-approve lên con số đó là cho model quyền tự kết
+      // thúc việc chấm một sinh viên dựa trên cảm giác của nó.
+      confidence: String(finalConfidence),
     });
 
-    const confident = outcome.confidence >= AUTO_APPROVE_CONFIDENCE;
+    // Trạng thái cuối cũng do guard quyết. `AUTO_APPROVE_CONFIDENCE` vẫn
+    // là lớp chặn thứ hai: guard có thể trả `auto_approved` với một
+    // confidence dưới ngưỡng nếu ai đó chỉnh số ở `grading-guards.ts` mà
+    // quên chỗ này.
+    const confident =
+      guards.status === 'auto_approved' && finalConfidence >= AUTO_APPROVE_CONFIDENCE;
     await this.results.update(result.id, {
       status: confident ? 'auto_approved' : 'flagged_for_review',
       flagForReview: !confident,
     });
+    if (!confident && guards.reason) {
+      this.logger.log(`submission ${submission.id}: chuyển giảng viên — ${guards.reason}`);
+    }
   }
 
   /**

@@ -5,7 +5,7 @@ import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity'
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { StorageService } from '../storage/storage.service';
 import { GradingReferenceEntity } from './entities/grading-reference.entity';
-import { GradingService } from './grading.service';
+import { GradingResultEntity } from './entities/grading-result.entity';
 import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
 
 /**
@@ -52,8 +52,9 @@ export class GradingReferenceService {
     private readonly references: Repository<GradingReferenceEntity>,
     @InjectRepository(ExamMaterialEntity)
     private readonly materials: Repository<ExamMaterialEntity>,
+    @InjectRepository(GradingResultEntity)
+    private readonly results: Repository<GradingResultEntity>,
     private readonly storage: StorageService,
-    private readonly grading: GradingService,
   ) {}
 
   /**
@@ -145,7 +146,24 @@ export class GradingReferenceService {
    * vì dựng một cột version: không có version thì không có gì để lệch.
    */
   private async assertNotGradedYet(session: ExamSessionEntity): Promise<void> {
-    if (await this.grading.hasResultsForSession(session.id)) {
+    // Hỏi thẳng DB thay vì gọi `GradingService.hasResultsForSession`.
+    //
+    // Không phải vì trùng lặp không quan trọng, mà vì chiều ngược lại đã
+    // tồn tại: `GradingService.gradeOne` gọi `loadForGrading` của file
+    // này. Hai service cùng module import nhau là phụ thuộc vòng, thứ
+    // CLAUDE.md cấm thẳng — và dưới CommonJS nó không nổ, nó chỉ cho ra
+    // `undefined` ở một chỗ không ai ngờ.
+    //
+    // Đặt guard ở SERVICE chứ không ở controller, dù controller có tiền
+    // lệ (`setSessionRubric`): guard ở controller là guard mà đường gọi
+    // tương lai đi vòng qua được.
+    const graded = await this.results
+      .createQueryBuilder('g')
+      .innerJoin('submission', 's', 's.id = g.submission_id')
+      .where('s.exam_session_id = :id', { id: session.id })
+      .limit(1)
+      .getCount();
+    if (graded > 0) {
       throw new ConflictException(
         'Phiên thi này đã có kết quả chấm — không đổi được tài liệu tham chiếu nữa.',
       );
