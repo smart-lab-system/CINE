@@ -106,6 +106,10 @@ export class KeywordGradingProvider implements AIGradingProvider {
         cacheReadTokens: 0,
         cacheCreationTokens: 0,
       },
+      // Provider này chỉ đếm từ trên rubric và bài làm — đề bài và đáp án
+      // mẫu không tham gia vào bất cứ phép nào. Khai `false` cả hai là nói
+      // thật, không phải chưa làm.
+      contextUsed: { question: false, modelAnswer: false },
     };
   }
 

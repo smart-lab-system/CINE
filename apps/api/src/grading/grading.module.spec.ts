@@ -1,38 +1,55 @@
 import { selectGradingProvider } from './grading.module';
 import { ClaudeGradingProvider } from './ai-provider/claude-grading.provider';
 import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
+import { FallbackGradingProvider } from './ai-provider/fallback-grading.provider';
 
 /**
  * "Lượt chấm này gọi model nào" — quyết định nghiệp vụ, không phải chi tiết
  * lắp ráp.
  *
- * Bộ test này tồn tại vì nhánh Claude KHÔNG CÒN chạy trong e2e từ
+ * Bộ test này tồn tại vì nhánh gọi model thật KHÔNG CÒN chạy trong e2e từ
  * 2026-09-15: guard `NODE_ENV === 'test'` luôn trả về keyword provider ở
- * đó, có chủ ý, để một bộ test không tiêu tiền thật. Đánh đổi là nhánh
- * còn lại không còn ai kiểm — nên nó phải được kiểm Ở ĐÂY, nơi `NODE_ENV`
- * đặt được bằng tay.
+ * đó, có chủ ý, để một bộ test không tiêu tiền thật. Đánh đổi là mọi nhánh
+ * còn lại không còn ai kiểm — nên chúng phải được kiểm Ở ĐÂY, nơi
+ * `NODE_ENV` đặt được bằng tay.
  */
 describe('selectGradingProvider', () => {
-  // Hai vật thế thân, không phải instance thật: hàm này chỉ CHỌN giữa hai
-  // thứ được trao cho nó, nên dựng provider thật là kiểm thứ khác.
+  // Vật thế thân, không phải instance thật: hàm này chỉ DỰNG CHUỖI từ
+  // những thứ được trao cho nó, nên khởi tạo provider thật là kiểm thứ khác.
   const claude = { name: 'claude-opus-5' } as ClaudeGradingProvider;
   const keyword = { name: 'keyword-match@1' } as KeywordGradingProvider;
 
+  const TIER_VARS = [
+    'GRADING_TIER1_BASE_URL',
+    'GRADING_TIER1_MODEL',
+    'GRADING_TIER1_API_KEY',
+    'GRADING_TIER1_CEILING',
+    'GRADING_TIER2_BASE_URL',
+    'GRADING_TIER2_MODEL',
+    'GRADING_TIER2_API_KEY',
+  ];
   const ORIGINAL = { ...process.env };
+
+  beforeEach(() => {
+    // Máy chạy test có thể đã có các biến này trong `.env` thật. Xoá sạch
+    // trước mỗi ca để test nói về thứ nó đặt, không về thứ máy đang có.
+    for (const key of TIER_VARS) {
+      delete process.env[key];
+    }
+    delete process.env.ANTHROPIC_API_KEY;
+  });
 
   afterEach(() => {
     // Khôi phục TỪNG BIẾN, không gán `process.env = ORIGINAL`: gán cả đối
-    // tượng làm đứt liên kết mà các module đã giữ tham chiếu tới, và triệu
-    // chứng sẽ hiện ở một suite khác chạy sau.
+    // tượng làm đứt liên kết mà các module đã giữ tham chiếu tới.
     //
     // Và phải XOÁ chứ không gán khi giá trị gốc là `undefined`:
     // `process.env` ép mọi giá trị về chuỗi, nên `process.env.X = undefined`
     // cho ra chuỗi `"undefined"` — MỘT CHUỖI TRUTHY. Một suite chạy sau sẽ
-    // thấy "có khoá API" ở một máy chưa bao giờ đặt khoá. Đúng cái bẫy mà
-    // test "khoá rỗng tính là không có khoá" ở dưới nói tới, chỉ là ở tầng
-    // dọn dẹp của chính bộ test.
-    restore('NODE_ENV', ORIGINAL.NODE_ENV);
-    restore('ANTHROPIC_API_KEY', ORIGINAL.ANTHROPIC_API_KEY);
+    // thấy "có khoá API" ở một máy chưa bao giờ đặt khoá.
+    for (const key of [...TIER_VARS, 'ANTHROPIC_API_KEY', 'NODE_ENV']) {
+      restore(key, ORIGINAL[key]);
+    }
   });
 
   function restore(key: string, value: string | undefined): void {
@@ -43,39 +60,94 @@ describe('selectGradingProvider', () => {
     }
   }
 
-  it('NODE_ENV=test → keyword, KỂ CẢ khi đã có khoá API', () => {
-    // Ca đắt nhất nếu vỡ, và nó vỡ trong IM LẶNG: có credit thì test vẫn
-    // xanh, chỉ là mỗi lần chạy `pnpm test:e2e` lại tiêu tiền thật.
+  function setTier1(overrides: Record<string, string> = {}): void {
+    process.env.GRADING_TIER1_BASE_URL = 'https://example.test/v1';
+    process.env.GRADING_TIER1_MODEL = 'model-bac-1';
+    process.env.GRADING_TIER1_API_KEY = 'sk-giả-định';
+    for (const [k, v] of Object.entries(overrides)) {
+      process.env[k] = v;
+    }
+  }
+
+  it('NODE_ENV=test → keyword, KỂ CẢ khi đã cấu hình đủ mọi bậc', () => {
+    // Ca đắt nhất nếu vỡ, và nó vỡ trong IM LẶNG: có credit thì e2e vẫn
+    // xanh, chỉ là mỗi lần chạy lại tiêu tiền thật.
     process.env.NODE_ENV = 'test';
     process.env.ANTHROPIC_API_KEY = 'sk-ant-api03-giả-định';
+    setTier1();
 
     expect(selectGradingProvider(claude, keyword)).toBe(keyword);
   });
 
-  it('ngoài test, có khoá → Claude', () => {
-    // Nhánh mà e2e không còn chạm tới được nữa. Không có test này thì
-    // không chỗ nào trong repo khẳng định hệ thống thật gọi model thật.
+  it('không bậc nào cấu hình → keyword TRẦN, không bọc chuỗi', () => {
+    // Bọc một chuỗi chỉ có sàn là thêm một tầng gián tiếp không đổi lấy gì.
+    process.env.NODE_ENV = 'development';
+
+    expect(selectGradingProvider(claude, keyword)).toBe(keyword);
+  });
+
+  it('có khoá Claude → chuỗi Claude rồi tới sàn', () => {
     process.env.NODE_ENV = 'development';
     process.env.ANTHROPIC_API_KEY = 'sk-ant-api03-giả-định';
 
-    expect(selectGradingProvider(claude, keyword)).toBe(claude);
+    const provider = selectGradingProvider(claude, keyword);
+
+    expect(provider).toBeInstanceOf(FallbackGradingProvider);
+    expect(provider.name).toBe('fallback(claude-opus-5 → keyword-match@1)');
   });
 
-  it('ngoài test, KHÔNG có khoá → keyword', () => {
+  it('bậc 1 đứng TRƯỚC Claude — thứ tự là thứ quyết định ai chấm', () => {
+    // Thứ tự không phải chi tiết: bậc đầu là bậc chấm gần như mọi bài, và
+    // trần tin cậy của NÓ quyết định có bài nào tự duyệt được hay không.
     process.env.NODE_ENV = 'development';
-    delete process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-api03-giả-định';
+    setTier1();
+
+    const provider = selectGradingProvider(claude, keyword);
+
+    expect(provider.name).toBe('fallback(model-bac-1 → claude-opus-5 → keyword-match@1)');
+  });
+
+  it('sàn LUÔN là bậc cuối', () => {
+    // Không có sàn thì một ngày mọi nhà cung cấp cùng hỏng sẽ thành một
+    // lượt chấm không có kết cục nào — bài treo, không lỗi, không điểm.
+    process.env.NODE_ENV = 'development';
+    setTier1();
+
+    expect(selectGradingProvider(claude, keyword).name).toMatch(/→ keyword-match@1\)$/);
+  });
+
+  it('bậc khai THIẾU biến thì bị bỏ qua, không đoán phần còn lại', () => {
+    // Đoán một baseUrl hay một tên model là cách chắc chắn nhất để có một
+    // bậc luôn trả 404 mà không ai hiểu vì sao.
+    process.env.NODE_ENV = 'development';
+    process.env.GRADING_TIER1_BASE_URL = 'https://example.test/v1';
+    process.env.GRADING_TIER1_MODEL = 'model-bac-1';
+    // thiếu API_KEY
 
     expect(selectGradingProvider(claude, keyword)).toBe(keyword);
   });
 
   it('khoá rỗng tính là KHÔNG có khoá', () => {
     // `ANTHROPIC_API_KEY=` trong `.env` cho chuỗi rỗng. Coi nó là "có
-    // khoá" nghĩa là gọi API với khoá rỗng, nhận 401, và bài nộp đi thẳng
-    // vào `flagged_for_review` với một lý do không nói gì về nguyên nhân.
-    // Cùng họ lỗi với `Number('')` → 0 đã giết hàng đợi ở Plan 1.
+    // khoá" nghĩa là gọi API với khoá rỗng, nhận 401, rồi bài rơi vào
+    // flagged_for_review với một lý do không nói gì về nguyên nhân. Cùng
+    // họ với `Number('')` → 0 đã giết hàng đợi ở Plan 1.
     process.env.NODE_ENV = 'development';
     process.env.ANTHROPIC_API_KEY = '';
 
     expect(selectGradingProvider(claude, keyword)).toBe(keyword);
+  });
+
+  it('bậc 2 cấu hình mà bậc 1 không → bậc 2 vẫn chạy, không cần lấp chỗ trống', () => {
+    // Số thứ tự là ĐỘ ƯU TIÊN, không phải chỉ số mảng phải liên tục.
+    process.env.NODE_ENV = 'development';
+    process.env.GRADING_TIER2_BASE_URL = 'https://example.test/v1';
+    process.env.GRADING_TIER2_MODEL = 'model-bac-2';
+    process.env.GRADING_TIER2_API_KEY = 'sk-giả-định';
+
+    expect(selectGradingProvider(claude, keyword).name).toBe(
+      'fallback(model-bac-2 → keyword-match@1)',
+    );
   });
 });

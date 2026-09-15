@@ -111,6 +111,32 @@ export interface GradingOutcome {
    */
   confidenceCeiling: number;
   usage: GradingUsage;
+  /**
+   * Ngữ cảnh mà lượt chấm này THỰC SỰ tiêu thụ — không phải ngữ cảnh đã
+   * được cấu hình.
+   *
+   * Hai con số đó từng luôn trùng nhau vì chỉ có một provider. Từ khi có
+   * chuỗi dự phòng thì không: các endpoint tương thích OpenAI KHÔNG nhận
+   * được PDF, nên một bài do bậc dự phòng chấm chạy ở mức "chỉ có rubric"
+   * dù giảng viên đã upload đủ đề bài và đáp án mẫu.
+   *
+   * Không có trường này thì hỏng hai chỗ, cả hai đều âm thầm:
+   *
+   * 1. `grading-readiness` báo "mức 3 — đủ tài liệu" theo CẤU HÌNH, giảng
+   *    viên tin là bài được chấm có đề bài, mà thật ra không. Đúng thứ
+   *    §3.4 sinh ra để chặn.
+   * 2. Calibration §11.2 so nhánh A (chỉ rubric) với nhánh B (có đề bài) —
+   *    toàn bộ luận điểm của đồ án. Không biết một DÒNG thực sự chạy ở mức
+   *    nào thì hai nhánh lẫn vào nhau và con số không nói lên gì.
+   *
+   * Dùng hai boolean chứ không dùng lại enum mức độ ở `grading-reference.
+   * service.ts`: provider là tầng thấp nhất và không được phép import
+   * ngược lên tầng service. Việc quy hai cờ này thành "mức" là của service.
+   */
+  contextUsed: {
+    question: boolean;
+    modelAnswer: boolean;
+  };
 }
 
 export interface AIGradingProvider {

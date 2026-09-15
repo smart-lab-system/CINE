@@ -205,6 +205,16 @@ export class ClaudeGradingProvider implements AIGradingProvider {
       // văn) có thể biện minh cho một điểm số tự duyệt, NẾU các phép đo cơ
       // học của `applyGuards` đồng ý. Con số cuối vẫn do guard quyết.
       confidenceCeiling: 1,
+      // Bậc DUY NHẤT đọc được PDF. Báo đúng những gì lượt này thật sự
+      // nhận, không phải những gì giảng viên đã upload: nếu `reference`
+      // rỗng thì lượt chấm chạy ở mức "chỉ có rubric" dù phiên có đủ
+      // tài liệu, và `grading-readiness` không được phép nói ngược lại.
+      contextUsed: {
+        question: Boolean(request.reference?.questionPdf),
+        modelAnswer: Boolean(
+          request.reference?.modelAnswerPdf || request.reference?.modelAnswerNote,
+        ),
+      },
       usage: {
         inputTokens: response.usage.input_tokens ?? 0,
         outputTokens: response.usage.output_tokens,
