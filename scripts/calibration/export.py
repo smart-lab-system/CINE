@@ -34,6 +34,19 @@ except ImportError:  # pragma: no cover - lỗi môi trường, không phải l�
 
 # Một dòng mỗi BÀI. `branch` suy ra từ dữ liệu đã lưu chứ không gán tay —
 # xem README §"Nhánh được SUY RA".
+#
+# ⚠️ `LEFT JOIN LATERAL ... LIMIT 1`, KHÔNG phải `LEFT JOIN` thường.
+#
+# `teacher_review` KHÔNG có ràng buộc unique trên `grading_result_id`, và
+# đó là thiết kế: Security rule 6 nói mỗi lần sửa điểm tạo một DÒNG MỚI,
+# không ghi đè. Index `(grading_result_id, reviewed_at DESC)` có sẵn chính
+# là để lấy lần duyệt mới nhất.
+#
+# Một `LEFT JOIN` thường sẽ nhân bản bài: một bài duyệt hai lần ra hai
+# dòng CSV với hai `final_score` khác nhau. Pearson khi đó tương quan cùng
+# một điểm AI với nhiều điểm người, và kappa đếm trùng cặp verdict — con
+# số trông vẫn hợp lý, chỉ là sai. Dev DB hiện có 0 ca trùng, nên lỗi này
+# nằm im cho tới đúng lúc chạy trên dữ liệu thật để viết báo cáo.
 RESULTS_SQL = """
 SELECT
     gr.id                          AS grading_result_id,
@@ -53,7 +66,13 @@ SELECT
 FROM examcollect.grading_result gr
 JOIN examcollect.submission s   ON s.id = gr.submission_id
 JOIN examcollect.exam_session es ON es.id = s.exam_session_id
-LEFT JOIN examcollect.teacher_review tr ON tr.grading_result_id = gr.id
+LEFT JOIN LATERAL (
+    SELECT t.final_score, t.reviewed_at
+    FROM examcollect.teacher_review t
+    WHERE t.grading_result_id = gr.id
+    ORDER BY t.reviewed_at DESC
+    LIMIT 1
+) tr ON true
 WHERE gr.ai_total_score IS NOT NULL
 ORDER BY es.id, s.student_mssv
 """
@@ -69,7 +88,13 @@ SELECT
     gr.criterion_results,
     tr.edited_criteria
 FROM examcollect.grading_result gr
-LEFT JOIN examcollect.teacher_review tr ON tr.grading_result_id = gr.id
+LEFT JOIN LATERAL (
+    SELECT t.edited_criteria
+    FROM examcollect.teacher_review t
+    WHERE t.grading_result_id = gr.id
+    ORDER BY t.reviewed_at DESC
+    LIMIT 1
+) tr ON true
 WHERE gr.ai_total_score IS NOT NULL
   AND jsonb_array_length(gr.criterion_results) > 0
 """
@@ -88,11 +113,19 @@ def derive_branch(row: dict) -> str:
     """
     if row["context_used_question"] is None:
         return "?"
+
+    has_context = bool(row["context_used_question"] or row["context_used_model_answer"])
+
     if row["co_advocate"]:
-        return "C"
-    if row["context_used_question"] or row["context_used_model_answer"]:
-        return "B"
-    return "A"
+        # Nhánh C là "B + Advocate", nên nó BAO HÀM việc có ngữ cảnh. Hôm
+        # nay `runAdvocate` trả `null` khi `loadedLevel === 'rubric_only'`
+        # nên ca này không xảy ra được — nhưng nó là một BẤT BIẾN Ở FILE
+        # KHÁC, và bất biến do người khác giữ thì phải kiểm chứ không tin.
+        # Nếu nó vỡ, dòng đó phải thành `?` để người đọc thấy có gì lạ,
+        # chứ không lặng lẽ được xếp vào C và làm bẩn so sánh B→C.
+        return "C" if has_context else "?"
+
+    return "B" if has_context else "A"
 
 
 def export_results(cur, out_dir: Path) -> int:

@@ -19,3 +19,9 @@ release/
 # Personal Claude Code project instructions — not shared with the team/repo.
 CLAUDE.md
 
+
+# Python — script calibration offline sinh bytecode
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/

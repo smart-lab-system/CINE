@@ -33,6 +33,14 @@ export interface GradingResult {
     verdict: 'met' | 'partially_met' | 'not_met';
     points: number;
     evidence: string;
+    /**
+     * Máy có định vị được `evidence` trong bài làm không (từ 2026-09-15).
+     *
+     * `null`/thiếu = chấm trước khi hệ thống ghi lại điều này, KHÁC `'ok'`.
+     * UI chưa dùng, nhưng kiểu phải nói đúng thứ API trả về — một kiểu nói
+     * thiếu là một kiểu sẽ được tin.
+     */
+    check?: 'ok' | 'empty' | 'unverified' | null;
   }[];
   /**
    * Điểm cuối cùng — dòng `teacher_review` mới nhất.

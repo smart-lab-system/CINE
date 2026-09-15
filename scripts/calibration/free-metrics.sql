@@ -125,14 +125,52 @@ ORDER BY so_bai DESC;
 \echo '     một tập chấm mù. Đừng báo cáo nó như bằng chứng về độ chính xác.'
 \echo ''
 
+-- "Có sửa" phải nghĩa là GIẢNG VIÊN ĐỔI MỘT VERDICT, không phải "có một
+-- dòng review tồn tại".
+--
+-- `TeacherReviewService` luôn ghi TOÀN BỘ mảng tiêu chí vào
+-- `edited_criteria`, kể cả đường tự-duyệt-hàng-loạt (`finalizeGrades` chép
+-- thẳng `criterion_results` sang). Nên `edited_criteria <> '{}'` đúng với
+-- MỌI dòng, và đếm nó ra "100% bài đều bị sửa" — một con số vừa sai vừa
+-- đúng cái hướng làm người đọc kết luận AI chấm tệ.
+--
+-- Phép so đúng là đối chiếu verdict theo `criterionId`. Đây cũng chính là
+-- ràng buộc A2 của anchor (§10.3): chỉ học từ lần SỬA THẬT, vì học từ
+-- "thầy bấm đồng ý" là dạy AI rằng nó đã đúng — vòng lặp tự khen.
+WITH cap_verdict AS (
+  SELECT
+    tr.id                                        AS review_id,
+    ai.value ->> 'criterionId'                   AS cid,
+    ai.value ->> 'verdict'                       AS ai_verdict,
+    te.verdict                                   AS teacher_verdict
+  FROM examcollect.teacher_review tr
+  JOIN examcollect.grading_result gr ON gr.id = tr.grading_result_id
+  CROSS JOIN LATERAL jsonb_array_elements(gr.criterion_results) AS ai(value)
+  LEFT JOIN LATERAL (
+    SELECT t.value ->> 'verdict' AS verdict
+    FROM jsonb_array_elements(tr.edited_criteria) AS t(value)
+    WHERE t.value ->> 'criterionId' = ai.value ->> 'criterionId'
+    LIMIT 1
+  ) te ON true
+  WHERE gr.ai_total_score IS NOT NULL
+    -- Bỏ qua dòng `edited_criteria` không phải mảng: entity mặc định `{}`,
+    -- và `jsonb_array_elements` trên object sẽ NỔ chứ không trả rỗng.
+    AND jsonb_typeof(tr.edited_criteria) = 'array'
+),
+sua_that AS (
+  SELECT review_id
+  FROM cap_verdict
+  WHERE teacher_verdict IS NOT NULL AND teacher_verdict <> ai_verdict
+  GROUP BY review_id
+)
 SELECT
   count(*)                                                     AS so_lan_duyet,
-  count(*) FILTER (WHERE tr.edited_criteria IS NOT NULL
-                     AND tr.edited_criteria <> '{}'::jsonb)    AS co_sua_tieu_chi,
+  count(*) FILTER (WHERE st.review_id IS NOT NULL)             AS co_doi_verdict,
   round(avg(abs(tr.final_score - gr.ai_total_score))::numeric, 2)
                                                                AS lech_diem_trung_binh,
   count(*) FILTER (WHERE tr.final_score > gr.ai_total_score)    AS nguoi_cham_cao_hon,
   count(*) FILTER (WHERE tr.final_score < gr.ai_total_score)    AS nguoi_cham_thap_hon
 FROM examcollect.teacher_review tr
 JOIN examcollect.grading_result gr ON gr.id = tr.grading_result_id
+LEFT JOIN sua_that st ON st.review_id = tr.id
 WHERE gr.ai_total_score IS NOT NULL;
