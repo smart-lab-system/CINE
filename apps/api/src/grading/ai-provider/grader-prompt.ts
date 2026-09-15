@@ -113,6 +113,32 @@ function renderRubric(criteria: GradingRubricCriterion[]): string {
  * tiêu là cho model thấy chuẩn của giảng viên này, chứ không phải dạy nó
  * rằng AI luôn sai.
  */
+/**
+ * Thoát ký tự XML cho nội dung do SINH VIÊN viết.
+ *
+ * `studentExcerpt` chính là `evidence` mà model đã trích NGUYÊN VĂN từ
+ * bài làm — tức nó là chữ của sinh viên, và sinh viên biết bài mình sẽ
+ * được AI chấm. Một em viết `</excerpt></correction></teacher_corrections>`
+ * vào bài, được trích lại, rồi lần duyệt đó thành anchor, sẽ phá khung
+ * XML của khối cache ② cho MỌI bài còn lại của phiên.
+ *
+ * VÌ SAO THOÁT CHỨ KHÔNG BỌC NONCE như `wrapSubmission`:
+ *
+ * 1. Nonce đổi theo từng lượt, mà khối này nằm trong LỚP CACHE ②. Đặt một
+ *    giá trị đổi-mỗi-lần vào đó là sập cache — đúng bài học T-SEC-4, chỉ
+ *    khác chỗ đặt. Nonce là công cụ SAI cho một khối được cache.
+ * 2. Nguyên tắc "không lọc bài làm" (T-SEC-2) tồn tại vì guard verbatim
+ *    đối chiếu vào văn bản gốc: sửa bài làm là phá phép kiểm đó. Anchor
+ *    thì KHÔNG bị `verifyEvidence` đối chiếu — nó là ngữ cảnh few-shot,
+ *    chỉ để model đọc. Nên thoát ký tự ở đây không phá thứ gì.
+ *
+ * Hai lý do trên là lý do cùng một vấn đề có hai lời giải khác nhau ở hai
+ * chỗ khác nhau, chứ không phải một chỗ làm sai.
+ */
+function escapeXml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function renderAnchors(anchors: Anchor[] | undefined): string {
   if (!anchors || anchors.length === 0) {
     return '';
@@ -124,10 +150,10 @@ function renderAnchors(anchors: Anchor[] | undefined): string {
     'mọi phán đoán của hệ thống đều sai.',
     ...anchors.map((a) =>
       [
-        `  <correction criterion="${a.criterionId}">`,
-        `    <excerpt>${a.studentExcerpt}</excerpt>`,
-        `    <system_said>${a.aiVerdict}</system_said>`,
-        `    <teacher_said>${a.teacherVerdict}</teacher_said>`,
+        `  <correction criterion="${escapeXml(a.criterionId)}">`,
+        `    <excerpt>${escapeXml(a.studentExcerpt)}</excerpt>`,
+        `    <system_said>${escapeXml(a.aiVerdict)}</system_said>`,
+        `    <teacher_said>${escapeXml(a.teacherVerdict)}</teacher_said>`,
         '  </correction>',
       ].join('\n'),
     ),

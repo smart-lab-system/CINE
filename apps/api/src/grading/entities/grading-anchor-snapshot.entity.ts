@@ -37,6 +37,16 @@ export class GradingAnchorSnapshotEntity extends BaseEntity {
   @JoinColumn({ name: 'rubric_id_version' })
   rubric!: RubricEntity;
 
-  @Column({ type: 'jsonb', default: () => `'[]'` })
+  /**
+   * `update: false` — bất biến ép ở tầng ORM, không chỉ ở câu
+   * `ON CONFLICT DO NOTHING`.
+   *
+   * Câu SQL kia chỉ bảo vệ đường `freezeFor`. Một lời gọi `save()` hay
+   * `update()` qua repository sẽ đi vòng qua nó hoàn toàn, và triệu chứng
+   * là bài 1-5 với bài 6-40 được chấm theo hai chuẩn — không lỗi, không
+   * log, chỉ có điểm lệch. Cùng lập luận đã dùng cho
+   * `exam_session.semester_name` (CLAUDE.md §7.1.5).
+   */
+  @Column({ type: 'jsonb', default: () => `'[]'`, update: false })
   anchors!: Anchor[];
 }

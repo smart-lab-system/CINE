@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GradingResultEntity } from './entities/grading-result.entity';
+import { GradingAnchorSnapshotEntity } from './entities/grading-anchor-snapshot.entity';
 import { Anchor } from './ai-provider/anchor.types';
 import { ANCHOR_MAX_PER_CRITERION, ANCHOR_MAX_TOKENS } from './grading.types';
 
@@ -45,6 +46,9 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3);
 }
 
+/** Ba giá trị verdict hợp lệ. `jsonb` không ép enum, nên phải lọc ở đây. */
+const VALID_VERDICTS = new Set(['met', 'partially_met', 'not_met']);
+
 @Injectable()
 export class AnchorService {
   private readonly logger = new Logger(AnchorService.name);
@@ -52,6 +56,13 @@ export class AnchorService {
   constructor(
     @InjectRepository(GradingResultEntity)
     private readonly results: Repository<GradingResultEntity>,
+    // Repository RIÊNG cho bảng ảnh chụp, dù cả hai chỉ dùng `.query()`.
+    // `Repository.query()` chạy trên DataSource nên gọi qua repository nào
+    // cũng được về mặt kỹ thuật — nhưng người đọc sau sẽ hiểu
+    // `this.results` là chạm `grading_result`, và một câu SQL về bảng khác
+    // nấp sau cái tên đó là chỗ để hiểu nhầm.
+    @InjectRepository(GradingAnchorSnapshotEntity)
+    private readonly snapshots: Repository<GradingAnchorSnapshotEntity>,
   ) {}
 
   /**
@@ -99,7 +110,8 @@ export class AnchorService {
     // gian duyệt. A4 cần thứ tự theo thời gian.
     rows.sort((a, b) => {
       const byTime = a.reviewed_at.getTime() - b.reviewed_at.getTime();
-      return byTime !== 0 ? byTime : a.review_id.localeCompare(b.review_id);
+      if (byTime !== 0) return byTime;
+      return a.review_id < b.review_id ? -1 : a.review_id > b.review_id ? 1 : 0;
     });
 
     const anchors: Anchor[] = [];
@@ -129,7 +141,7 @@ export class AnchorService {
   async freezeFor(examSessionId: string, rubricIdVersion: string): Promise<Anchor[]> {
     const anchors = await this.buildFor(rubricIdVersion);
 
-    await this.results.query(
+    await this.snapshots.query(
       `
       INSERT INTO examcollect.grading_anchor_snapshot
              (exam_session_id, rubric_id_version, anchors)
@@ -156,7 +168,7 @@ export class AnchorService {
    * Khác `[]`, nghĩa là "đã chụp, và lúc đó chưa có lần sửa thật nào".
    */
   async loadFor(examSessionId: string): Promise<Anchor[] | null> {
-    const rows: { anchors: Anchor[] }[] = await this.results.query(
+    const rows: { anchors: Anchor[] }[] = await this.snapshots.query(
       `SELECT anchors FROM examcollect.grading_anchor_snapshot WHERE exam_session_id = $1`,
       [examSessionId],
     );
@@ -208,6 +220,19 @@ export class AnchorService {
       if (!aiVerdict || !teacherVerdict || aiVerdict === teacherVerdict) {
         continue;
       }
+      // Chỉ nhận ba giá trị hợp lệ. `criterion_results` và
+      // `edited_criteria` là `jsonb` — DB không ép enum ở đó, nên một dòng
+      // dữ liệu hỏng (migration tay, nhập lại từ backup) sẽ đi thẳng vào
+      // prompt dưới dạng `<teacher_said>rác</teacher_said>` và dạy model
+      // một nhãn không tồn tại. Lọc ở đây rẻ hơn nhiều so với đi tìm vì
+      // sao model bắt đầu trả về verdict lạ.
+      if (!VALID_VERDICTS.has(aiVerdict) || !VALID_VERDICTS.has(teacherVerdict)) {
+        this.logger.warn(
+          `bỏ qua anchor có verdict không hợp lệ (ai=${aiVerdict}, thầy=${teacherVerdict}) ` +
+            `ở review ${row.review_id}`,
+        );
+        continue;
+      }
 
       out.push({
         criterionId,
@@ -245,11 +270,16 @@ export class AnchorService {
       kept.push(...bucket.slice(-ANCHOR_MAX_PER_CRITERION));
     }
     // Sắp lại lần cuối: gom theo tiêu chí ở trên đã phá thứ tự thời gian.
-    kept.sort((a, b) =>
-      a.reviewedAt === b.reviewedAt
-        ? a.reviewId.localeCompare(b.reviewId)
-        : a.reviewedAt.localeCompare(b.reviewedAt),
-    );
+    // So bằng toán tử chứ không localeCompare: chuỗi ISO 8601 sắp theo
+    // từ điển trùng với sắp theo thời gian, và localeCompare phụ thuộc
+    // locale của tiến trình — một thứ không nên tham gia vào một phép sắp
+    // xếp mà cache byte-exact dựa vào.
+    kept.sort((a, b) => {
+      if (a.reviewedAt !== b.reviewedAt) {
+        return a.reviewedAt < b.reviewedAt ? -1 : 1;
+      }
+      return a.reviewId < b.reviewId ? -1 : a.reviewId > b.reviewId ? 1 : 0;
+    });
 
     const withinBudget: Anchor[] = [];
     let tokens = 0;
