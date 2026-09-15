@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -9,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GradeSubmissionJob } from './grading.queue';
-import { GradingResultEntity, GradingResultStatus } from './entities/grading-result.entity';
+import { GradingResultEntity } from './entities/grading-result.entity';
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { StorageService } from '../storage/storage.service';

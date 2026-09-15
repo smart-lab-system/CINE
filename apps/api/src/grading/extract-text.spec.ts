@@ -1,4 +1,4 @@
-import { extractText, GradingInputTooLargeError } from './extract-text';
+import { extractText } from './extract-text';
 import {
   MAX_GRADING_INPUT_BYTES,
   MAX_GRADING_INPUT_CHARS,
