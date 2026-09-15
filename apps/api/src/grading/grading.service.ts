@@ -407,6 +407,12 @@ export class GradingService {
     // ĐIỂM DO SERVER TÍNH. Provider chỉ được phép phán đoán (`verdict` +
     // `evidence`); mọi con số đều tính lại ở đây. Xem `enforceScoring` để
     // biết vì sao tin provider tự giác là không đủ.
+    // Tra cứu theo id chứ không ghép theo chỉ số mảng: `enforceScoring` và
+    // `applyGuards` đọc cùng một nguồn nhưng không hứa giữ nguyên thứ tự,
+    // và ghép lệch một ô sẽ gán kết quả kiểm của tiêu chí này cho tiêu chí
+    // khác — một sai lệch không bao giờ lộ ra trong log.
+    const checkByCriterion = new Map(guards.perCriterion.map((r) => [r.criterionId, r.check]));
+
     const scored = enforceScoring(outcome.criterionResults, rubricCriteria);
     if (scored.unknownCriterionIds.length > 0) {
       // Cho 0 điểm là hướng an toàn, nhưng an-toàn-và-im-lặng vẫn là lỗi.
@@ -428,7 +434,25 @@ export class GradingService {
     await this.results.update(result.id, {
       status: 'ai_graded',
       modelUsed: outcome.modelUsed,
-      criterionResults: scored.criterionResults,
+      // GHÉP KẾT QUẢ KIỂM DẪN CHỨNG vào từng tiêu chí trước khi lưu.
+      //
+      // `applyGuards` tính `check` ('ok' | 'empty' | 'unverified') cho mọi
+      // tiêu chí của MỌI bài, miễn phí, rồi trước 2026-09-15 vứt đi — chỉ
+      // `confidence` tổng hợp sống sót. Spec §11.5 lại tuyên bố hai chỉ số
+      // "tỉ lệ unverified" và "tỉ lệ phủ tiêu chí" đã chạy sẵn trên 100%
+      // số bài; điều đó chỉ đúng nếu con số được GHI LẠI.
+      //
+      // Tính lại offline là bất khả trên thực tế: `verifyEvidence` cần bài
+      // làm nguyên văn (nằm ở object storage, không ở DB) và một bản
+      // `TYPOGRAPHIC_FOLD` + tách elision viết lại bằng Python — hai bản
+      // cài đặt cho cùng một phép đo, chắc chắn lệch nhau theo thời gian.
+      //
+      // `jsonb` nên thêm trường không cần migration. Ghi CÙNG lượt update
+      // này vì trigger bất biến đóng băng cột ngay sau đó.
+      criterionResults: scored.criterionResults.map((row) => ({
+        ...row,
+        check: checkByCriterion.get(row.criterionId) ?? null,
+      })),
       aiTotalScore: String(scored.totalScore),
       // confidence từ GUARD, không phải từ provider. Model tự chấm độ
       // tin cậy của chính nó là tín hiệu hiệu chỉnh kém nhất có thể — và

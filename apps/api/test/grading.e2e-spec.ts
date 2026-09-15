@@ -296,6 +296,26 @@ describe('Grading (e2e)', () => {
       // Keyword provider chỉ đếm từ trên rubric — không đọc đề bài.
       expect(contextRow.context_used_question).toBe(false);
       expect(contextRow.context_used_model_answer).toBe(false);
+
+      // Kết quả KIỂM DẪN CHỨNG phải được lưu theo từng tiêu chí.
+      //
+      // `applyGuards` tính nó miễn phí cho 100% số bài rồi trước
+      // 2026-09-15 vứt đi. Spec §11.5 dựa vào đúng con số này cho một
+      // trong hai chỉ số calibration KHÔNG cần người chấm — và tính lại
+      // offline là bất khả, vì `verifyEvidence` cần bài làm nguyên văn
+      // (ở object storage) cộng một bản cài đặt thứ hai bằng Python.
+      const [checkRow] = await dataSource.query(
+        `SELECT gr.criterion_results
+           FROM examcollect.grading_result gr
+           JOIN examcollect.submission s ON s.id = gr.submission_id
+          WHERE s.exam_session_id = $1`,
+        [sessionId],
+      );
+      const checks = (checkRow.criterion_results as { check?: string }[]).map((c) => c.check);
+      expect(checks.length).toBeGreaterThan(0);
+      for (const check of checks) {
+        expect(['ok', 'empty', 'unverified']).toContain(check);
+      }
       // Evidence, not just a number — the teacher's job is to check the
       // reasoning, and there is nothing to check without it.
       expect(results.body[0].criterionResults[0].evidence).toBeTruthy();
