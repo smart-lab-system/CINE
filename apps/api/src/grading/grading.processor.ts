@@ -3,6 +3,7 @@ import { Logger, OnModuleDestroy } from '@nestjs/common';
 import { Job, UnrecoverableError } from 'bullmq';
 import { GradingService } from './grading.service';
 import { GRADE_JOB_TIMEOUT_MS, GRADING_QUEUE, GradeSubmissionJob } from './grading.queue';
+import { envPositiveInt } from './env';
 
 /**
  * Bao nhiêu bài chạy song song.
@@ -19,35 +20,6 @@ import { GRADE_JOB_TIMEOUT_MS, GRADING_QUEUE, GradeSubmissionJob } from './gradi
  * không dùng chút năng lực song song nào. Ngược lại đặt 20 thì 20 lời
  * gọi đồng thời sẽ đụng rate limit, rồi retry, rồi đụng lại.
  */
-/**
- * Đọc một số nguyên dương từ env, hoặc NỔ NGAY LÚC KHỞI ĐỘNG.
- *
- * `Number(process.env.X ?? mặc_định)` là một cái bẫy im lặng: `??` chỉ bắt
- * `null`/`undefined`, nên `GRADE_CONCURRENCY=` (rỗng) đi qua và cho `0`,
- * còn `GRADE_CONCURRENCY=abc` cho `NaN`. Worker của BullMQ kiểm
- * `jobsInProgress.size < opts.concurrency`, và cả `0 < 0` lẫn `0 < NaN`
- * đều `false` — worker lặng lẽ ngừng nhận job. Không lỗi, không log, hàng
- * đợi trông khoẻ mạnh trên mọi bảng quản trị, và không bài nào được chấm.
- *
- * Ném lúc nạp module là kết cục ĐÚNG: nó lộ ra ngay khi khởi động, trước
- * khi có job nào được xếp hàng, thay vì lộ ra dưới dạng "sao chấm không
- * chạy" ba ngày sau.
- */
-function envPositiveInt(key: string, fallback: number): number {
-  const raw = process.env[key];
-  if (raw === undefined || raw.trim() === '') {
-    return fallback;
-  }
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 1) {
-    throw new Error(
-      `${key}="${raw}" không phải số nguyên dương — từ chối khởi động với một ` +
-        'hàng đợi chấm điểm hỏng.',
-    );
-  }
-  return Math.trunc(value);
-}
-
 const GRADE_CONCURRENCY = envPositiveInt('GRADE_CONCURRENCY', 5);
 
 /**

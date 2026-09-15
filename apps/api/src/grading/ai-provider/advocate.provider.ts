@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { AdvocateOpinion } from './advocate.types';
 import { buildAdvocatePrompt } from './advocate-prompt';
+import { AdvocateProvider, AdvocateRequest } from './advocate-provider';
 import { badOutputError } from './provider-failure';
 
 /**
@@ -118,15 +119,6 @@ const ADVOCATE_JSON_SCHEMA: Record<string, unknown> = {
   },
 };
 
-export interface AdvocateRequest {
-  /** Chỉ để ghi log — KHÔNG đi vào prompt. */
-  studentMssv: string;
-  content: string;
-  questionPdf?: Buffer;
-  modelAnswerPdf?: Buffer;
-  modelAnswerNote?: string;
-}
-
 /**
  * Lượt hỏi thứ hai: "bỏ qua rubric, em ấy có đúng không?"
  *
@@ -136,10 +128,10 @@ export interface AdvocateRequest {
  * chỉ ở tầng quy ước.
  */
 @Injectable()
-export class AdvocateProvider {
+export class ClaudeAdvocateProvider implements AdvocateProvider {
   readonly name = ADVOCATE_MODEL;
 
-  private readonly logger = new Logger(AdvocateProvider.name);
+  private readonly logger = new Logger(ClaudeAdvocateProvider.name);
   private readonly client = new Anthropic();
 
   // KHÔNG có trạng thái nào ở đây — cùng lý do với `ClaudeGradingProvider`:

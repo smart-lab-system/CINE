@@ -30,7 +30,10 @@ import { GradingController } from './grading.controller';
 import { AI_GRADING_PROVIDER, AIGradingProvider } from './ai-provider/ai-grading-provider';
 import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
 import { ClaudeGradingProvider } from './ai-provider/claude-grading.provider';
-import { AdvocateProvider } from './ai-provider/advocate.provider';
+import { ClaudeAdvocateProvider } from './ai-provider/advocate.provider';
+import { ADVOCATE_PROVIDER, AdvocateProvider } from './ai-provider/advocate-provider';
+import { OpenAICompatibleAdvocateProvider } from './ai-provider/openai-compatible-advocate.provider';
+import { FallbackAdvocateProvider } from './ai-provider/fallback-advocate.provider';
 import {
   OpenAICompatibleConfig,
   OpenAICompatibleProvider,
@@ -41,6 +44,9 @@ import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
 /** Trần mặc định cho một bậc dự phòng chưa được calibration đo. */
 const DEFAULT_FALLBACK_CEILING = 0.5;
 
+/** Trần số bậc quét từ env — một biến gõ nhầm không được biến vòng lặp thành vô hạn. */
+const MAX_TIERS = 5;
+
 /**
  * Đọc cấu hình một bậc tương thích OpenAI từ env.
  *
@@ -48,7 +54,7 @@ const DEFAULT_FALLBACK_CEILING = 0.5;
  * NÓI RA — đoán một `baseUrl` hay một tên model là cách chắc chắn nhất để
  * có một bậc luôn trả 404 mà không ai hiểu vì sao.
  */
-function readTier(index: number): OpenAICompatibleConfig | null {
+export function readTier(index: number): OpenAICompatibleConfig | null {
   const prefix = `GRADING_TIER${index}_`;
   const baseUrl = process.env[`${prefix}BASE_URL`]?.trim();
   const model = process.env[`${prefix}MODEL`]?.trim();
@@ -180,6 +186,54 @@ export function selectGradingProvider(
   return new FallbackGradingProvider(tiers);
 }
 
+/**
+ * Chuỗi Advocate — CÙNG các bậc với chuỗi chấm, cùng thứ tự.
+ *
+ * Quyết định của chủ đồ án 2026-09-15. Không dùng chung chuỗi thì Advocate
+ * gắn cứng Claude, mà Claude đang hết credit, nên cơ chế công bằng của cả
+ * thiết kế sẽ tồn tại trên giấy và không chạy một lần nào.
+ *
+ * KHÔNG có bậc sàn. Khác biệt có chủ ý với chuỗi chấm: sàn tồn tại vì một
+ * bài PHẢI có kết cục, còn Advocate là ý kiến THÊM — và không có ý kiến
+ * nào tốt hơn một lập luận bênh vực dựng bằng đếm từ, thứ giảng viên sẽ
+ * đọc và có thể tin. Mọi bậc chết thì chuỗi ném, `GradingService` bắt,
+ * ghi log, và bài đi tiếp KHÔNG có ý kiến phản biện.
+ *
+ * Trả `null` khi không có bậc nào: `GradingService` đọc `null` là "tính
+ * năng này chưa bật", khác hẳn với "đã chạy và không có gì để nói".
+ */
+export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): AdvocateProvider | null {
+  // Cùng lý do với chuỗi chấm: một bộ test không được tiêu tiền thật.
+  if (process.env.NODE_ENV === 'test') {
+    return null;
+  }
+
+  const tiers: { provider: AdvocateProvider; label: string }[] = [];
+  for (let index = 1; index <= MAX_TIERS; index++) {
+    const config = readTier(index);
+    if (config) {
+      tiers.push({
+        provider: new OpenAICompatibleAdvocateProvider(config),
+        label: config.tier,
+      });
+    }
+  }
+  if (process.env.ANTHROPIC_API_KEY?.trim()) {
+    tiers.push({ provider: claude, label: `tầng Claude (${claude.name})` });
+  }
+
+  if (tiers.length === 0) {
+    new Logger('GradingModule').warn(
+      'Không có bậc model nào — lượt phản biện (Advocate) sẽ KHÔNG chạy. ' +
+        'Bài lệch rubric vẫn được chấm và vẫn chuyển giảng viên, nhưng không ' +
+        'có ý kiến thứ hai nào đi kèm.',
+    );
+    return null;
+  }
+
+  return new FallbackAdvocateProvider(tiers);
+}
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -220,13 +274,17 @@ export function selectGradingProvider(
     TeacherReviewService,
     ClaudeGradingProvider,
     KeywordGradingProvider,
-    // KHÔNG đi qua `AI_GRADING_PROVIDER`. Advocate không phải một
-    // implementation thay thế của việc chấm theo rubric — nó là một vai
-    // KHÁC, hỏi một câu khác, và luôn là Claude (spec §2.1: cùng model với
-    // Grader, vì cache khoá theo model). Nhét nó sau cái token kia sẽ biến
-    // "chọn model nào" và "có chạy lượt phản biện không" thành một quyết
-    // định, trong khi chúng là hai.
-    AdvocateProvider,
+    // Token RIÊNG, không đi qua `AI_GRADING_PROVIDER`: Advocate không phải
+    // một implementation thay thế của việc chấm theo rubric — nó là một
+    // vai KHÁC, hỏi một câu khác. Gộp hai token sẽ biến "chọn model nào"
+    // và "có chạy lượt phản biện không" thành một quyết định, trong khi
+    // chúng là hai.
+    ClaudeAdvocateProvider,
+    {
+      provide: ADVOCATE_PROVIDER,
+      useFactory: selectAdvocateProvider,
+      inject: [ClaudeAdvocateProvider],
+    },
     {
       provide: AI_GRADING_PROVIDER,
       useFactory: selectGradingProvider,

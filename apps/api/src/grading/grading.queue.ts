@@ -1,5 +1,6 @@
 import { JobsOptions } from 'bullmq';
 import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
+import { envPositiveInt } from './env';
 
 export const GRADING_QUEUE = 'grading';
 
@@ -32,10 +33,25 @@ export interface GradeSubmissionJob {
  * `concurrency` 5 thì 5 bài treo là dừng cả hàng đợi, và không có gì
  * trong BullMQ tự gỡ ra.
  *
- * 120 giây: một bài tự luận dài qua model mạnh mất 15-30s; 120s là rộng
- * gấp bốn mà vẫn cắt được ca treo thật.
+ * ⚠️ 120 GIÂY KHÔNG CÒN ĐỦ, và con số này là ĐO ĐƯỢC chứ không phải ước
+ * lượng (2026-09-15, tầng 1 = qwen3.8-flash):
+ *
+ *   chấm 3 tiêu chí           45,8 giây
+ *   lượt phản biện, bài NGẮN  61,4 giây   (893/1073 token là reasoning)
+ *   ───────────────────────────────────
+ *   một bài cần Advocate     ~107 giây+   → sát hoặc vượt trần 120s cũ
+ *
+ * Trần cũ chọn khi chỉ có Claude ("15-30s, 120s là rộng gấp bốn"). Với một
+ * model free chậm làm bậc đầu thì nó không còn là bốn lần dư mà là thiếu.
+ *
+ * Mặc định 240s, và ĐỌC ĐƯỢC TỪ ENV: giới hạn thật phụ thuộc bậc nào đang
+ * chạy, mà bậc thì đổi bằng `.env` chứ không bằng deploy. Cùng lập luận
+ * §9.1a — lỗ thật là KHÔNG CHỈNH ĐƯỢC, không phải giá trị cụ thể.
+ *
+ * Cái giá phải biết: một job treo giữ chỗ lâu gấp đôi. Với `concurrency`
+ * 5 thì tệ nhất là 5 chỗ bị giữ 4 phút, chấp nhận được ở quy mô này.
  */
-export const GRADE_JOB_TIMEOUT_MS = 120_000;
+export const GRADE_JOB_TIMEOUT_MS = envPositiveInt('GRADE_JOB_TIMEOUT_MS', 240_000);
 
 /**
  * Tuỳ chọn cho mỗi job. Khai ở đây, không rải trong `startGrading`, vì

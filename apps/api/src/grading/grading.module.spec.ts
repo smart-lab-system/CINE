@@ -1,4 +1,4 @@
-import { selectGradingProvider } from './grading.module';
+import { readTier, selectGradingProvider } from './grading.module';
 import { ClaudeGradingProvider } from './ai-provider/claude-grading.provider';
 import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
 import { FallbackGradingProvider } from './ai-provider/fallback-grading.provider';
@@ -143,16 +143,13 @@ describe('selectGradingProvider', () => {
     // Trần của bậc đầu quyết định CÓ BÀI NÀO TỰ DUYỆT ĐƯỢC KHÔNG, nên một
     // giá trị rác không được phép âm thầm trở thành một con số nào đó.
     // Cùng họ với `Number('')` → 0 đã giết hàng đợi ở Plan 1.
+    // Kiểm thẳng `readTier` thay vì chọc vào cấu trúc bên trong chuỗi:
+    // bản trước đọc `chain.tiers[0].provider.config.ceiling`, và nó vỡ
+    // ngay lần refactor đầu tiên (`TierChain` dùng chung) — đúng dấu hiệu
+    // của một test bám vào chỗ riêng tư thay vì vào hành vi.
     function ceilingOf(raw?: string): number {
-      process.env.NODE_ENV = 'development';
       setTier1(raw === undefined ? {} : { GRADING_TIER1_CEILING: raw });
-      const chain = selectGradingProvider(claude, keyword) as unknown as {
-        tiers: { provider: { config?: { ceiling: number } } }[];
-      };
-      // `OpenAICompatibleProvider` giữ config ở trường private; đọc qua
-      // cấu trúc là chấp nhận được trong test vì đây là thứ DUY NHẤT quan
-      // sát được của một quyết định không có đường ra công khai nào khác.
-      return chain.tiers[0].provider.config!.ceiling;
+      return readTier(1)!.ceiling;
     }
 
     it.each([

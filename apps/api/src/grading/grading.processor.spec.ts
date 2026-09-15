@@ -169,7 +169,12 @@ describe('GradingProcessor', () => {
       gradeOneById.mockReturnValue(new Promise(() => {}));
 
       const running = processor.process(jobFor());
-      const assertion = expect(running).rejects.toThrow(/quá 120000ms/);
+      // Bám HẰNG SỐ, không bám con số: trần này đọc từ env và đã đổi một
+      // lần (120s → 240s, sau khi đo lượt phản biện mất 61s). Một test ghi
+      // cứng con số sẽ đỏ vì cấu hình đổi chứ không vì hành vi sai.
+      const assertion = expect(running).rejects.toThrow(
+        new RegExp(`quá ${GRADE_JOB_TIMEOUT_MS}ms`),
+      );
       await jest.advanceTimersByTimeAsync(GRADE_JOB_TIMEOUT_MS + 1);
       await assertion;
     } finally {

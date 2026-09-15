@@ -7,7 +7,8 @@ jest.mock('@anthropic-ai/sdk', () => {
   return { __esModule: true, default: Anthropic };
 });
 
-import { AdvocateProvider, AdvocateRequest } from './advocate.provider';
+import { ClaudeAdvocateProvider } from './advocate.provider';
+import { AdvocateRequest } from './advocate-provider';
 
 const REQUEST: AdvocateRequest = {
   studentMssv: '2011060001',
@@ -41,7 +42,7 @@ function okResponse(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe('AdvocateProvider', () => {
+describe('ClaudeAdvocateProvider', () => {
   beforeEach(() => createMock.mockReset());
 
   it('MÙ RUBRIC — không tiêu chí nào lọt vào prompt', async () => {
@@ -56,7 +57,7 @@ describe('AdvocateProvider', () => {
     // ngày mai không ai "tiện tay" thêm vào.
     createMock.mockResolvedValue(okResponse());
 
-    await new AdvocateProvider().advocate(REQUEST);
+    await new ClaudeAdvocateProvider().advocate(REQUEST);
 
     const params = createMock.mock.calls[0][0];
     const everything = JSON.stringify([params.system, params.messages]);
@@ -83,7 +84,7 @@ describe('AdvocateProvider', () => {
     // tiền tố ở một namespace khác (spec §2.1).
     createMock.mockResolvedValue(okResponse());
 
-    await new AdvocateProvider().advocate(REQUEST);
+    await new ClaudeAdvocateProvider().advocate(REQUEST);
 
     const params = createMock.mock.calls[0][0];
     expect(params.model).toBe('claude-opus-5');
@@ -98,7 +99,7 @@ describe('AdvocateProvider', () => {
     // tra sau khi sai.
     createMock.mockResolvedValue(okResponse());
 
-    await new AdvocateProvider().advocate(REQUEST);
+    await new ClaudeAdvocateProvider().advocate(REQUEST);
 
     const schema = JSON.stringify(createMock.mock.calls[0][0].output_config.format.schema);
     expect(schema).not.toContain('points');
@@ -109,7 +110,7 @@ describe('AdvocateProvider', () => {
   it('map usage đủ bốn con số, gồm cả token đọc từ cache', async () => {
     createMock.mockResolvedValue(okResponse());
 
-    const opinion = await new AdvocateProvider().advocate(REQUEST);
+    const opinion = await new ClaudeAdvocateProvider().advocate(REQUEST);
 
     expect(opinion.usage).toEqual({
       inputTokens: 4200,
@@ -122,7 +123,7 @@ describe('AdvocateProvider', () => {
   it('giữ nguyên phán đoán và kiến nghị — đó là phần model ĐƯỢC quyết', async () => {
     createMock.mockResolvedValue(okResponse());
 
-    const opinion = await new AdvocateProvider().advocate(REQUEST);
+    const opinion = await new ClaudeAdvocateProvider().advocate(REQUEST);
 
     expect(opinion.isCorrect).toBe('yes');
     expect(opinion.suggestedVerdicts).toEqual([
@@ -162,7 +163,7 @@ describe('AdvocateProvider', () => {
       }),
     );
 
-    const opinion = await new AdvocateProvider().advocate(REQUEST);
+    const opinion = await new ClaudeAdvocateProvider().advocate(REQUEST);
 
     expect(opinion.isCorrect).toBe('no');
     expect(opinion.suggestedVerdicts).toEqual([]);
@@ -171,7 +172,7 @@ describe('AdvocateProvider', () => {
   it('schema BẮT BUỘC model trả injectionAttempt, không để tuỳ tâm', async () => {
     createMock.mockResolvedValue(okResponse());
 
-    await new AdvocateProvider().advocate(REQUEST);
+    await new ClaudeAdvocateProvider().advocate(REQUEST);
 
     const schema = createMock.mock.calls[0][0].output_config.format.schema as {
       required: string[];
@@ -189,7 +190,7 @@ describe('AdvocateProvider', () => {
       usage: { input_tokens: 10, output_tokens: 0 },
     });
 
-    const caught = (await new AdvocateProvider()
+    const caught = (await new ClaudeAdvocateProvider()
       .advocate(REQUEST)
       .catch((e: unknown) => e)) as Error & { status?: number };
 
@@ -218,7 +219,7 @@ describe('AdvocateProvider', () => {
       }),
     );
 
-    const caught = (await new AdvocateProvider()
+    const caught = (await new ClaudeAdvocateProvider()
       .advocate(REQUEST)
       .catch((e: unknown) => e)) as Error & { status?: number };
 
@@ -233,7 +234,7 @@ describe('AdvocateProvider', () => {
     // `this.reference` đặt trước rồi đọc sau sẽ bị bài của phiên khác ghi
     // đè giữa hai lần `await`.
     createMock.mockResolvedValue(okResponse());
-    const provider = new AdvocateProvider();
+    const provider = new ClaudeAdvocateProvider();
 
     await provider.advocate({ ...REQUEST, modelAnswerNote: 'đáp án phiên A' });
     await provider.advocate({ ...REQUEST, modelAnswerNote: 'đáp án phiên B' });
@@ -249,7 +250,7 @@ describe('AdvocateProvider', () => {
   it('có đề bài thì gửi làm document block, không trích text', async () => {
     createMock.mockResolvedValue(okResponse());
 
-    await new AdvocateProvider().advocate({
+    await new ClaudeAdvocateProvider().advocate({
       ...REQUEST,
       questionPdf: Buffer.from('%PDF-1.4 de thi'),
     });
@@ -263,7 +264,7 @@ describe('AdvocateProvider', () => {
     // đây là để hở đúng cái cửa đã khoá ở lượt đầu.
     createMock.mockResolvedValue(okResponse());
 
-    await new AdvocateProvider().advocate(REQUEST);
+    await new ClaudeAdvocateProvider().advocate(REQUEST);
 
     const content = JSON.stringify(createMock.mock.calls[0][0].messages[0].content);
     expect(content).toContain('BEGIN SUBMISSION');

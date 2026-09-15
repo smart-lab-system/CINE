@@ -21,8 +21,11 @@ import {
 } from './ai-provider/ai-grading-provider';
 import { GradingInputTooLargeError } from './extract-text';
 import { applyGuards } from './harness/grading-guards';
+import { verifyEvidence } from './harness/evidence-check';
+import { AdvocateOpinion } from './ai-provider/advocate.types';
+import { ADVOCATE_PROVIDER, AdvocateProvider } from './ai-provider/advocate-provider';
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
-import { GradingReferenceService } from './grading-reference.service';
+import { GradingReferenceService, LoadedGradingReference } from './grading-reference.service';
 import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
 import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
 
@@ -52,7 +55,88 @@ export class GradingService {
     @Inject(AI_GRADING_PROVIDER) private readonly provider: AIGradingProvider,
     private readonly resolvers: ContentResolverRegistry,
     private readonly references: GradingReferenceService,
+    // `null` là một trạng thái HỢP LỆ, không phải thiếu sót: không có bậc
+    // model nào thì lượt phản biện không chạy, và bài vẫn được chấm bình
+    // thường. Kiểu dữ liệu nói ra điều đó để không ai phải đoán.
+    @Inject(ADVOCATE_PROVIDER) private readonly advocate: AdvocateProvider | null,
   ) {}
+
+  /**
+   * Lượt phản biện, và ba lý do nó có thể KHÔNG chạy.
+   *
+   * Trả `null` ở cả ba, vì `advocate_opinion = NULL` mang đúng nghĩa
+   * "không có ý kiến thứ hai cho bài này" — khác `{}` là "đã chạy và
+   * không kiến nghị gì".
+   *
+   * 1. Cổng `needsAdvocate` không mở. Cổng này cố ý RỘNG (spec §7.1): nó
+   *    đọc `verdict`, một trường BẮT BUỘC, chứ không đọc `uncoveredContent`
+   *    vốn tuỳ tâm. Bất đối xứng chi phí quyết định hướng nghiêng — kích
+   *    hoạt thừa tốn ~$0,05, bỏ sót là một sinh viên âm thầm mất điểm.
+   *
+   * 2. Phiên không có tài liệu tham chiếu nào. Advocate MÙ RUBRIC, nên
+   *    không có đề bài thì nó chẳng còn gì để đối chiếu và sẽ chỉ đọc lại
+   *    bài làm rồi đoán. Đây chính là T-DEGRADE-1 từ Plan 1 — tới giờ mới
+   *    có thứ để nó điều khiển.
+   *
+   * 3. Chuỗi Advocate hỏng hết bậc. Bài VẪN có điểm của Grader và VẪN
+   *    sang giảng viên; chỉ thiếu ý kiến thứ hai. Một lượt phản biện hỏng
+   *    không được phép làm hỏng lượt chấm.
+   */
+  private async runAdvocate(
+    submission: SubmissionEntity,
+    studentText: string,
+    needsAdvocate: boolean,
+    reference: LoadedGradingReference,
+  ): Promise<AdvocateOpinion | null> {
+    if (!needsAdvocate || !this.advocate) {
+      return null;
+    }
+    if (reference.loadedLevel === 'rubric_only') {
+      this.logger.log(
+        `submission ${submission.id}: bỏ qua lượt phản biện — phiên không có đề bài ` +
+          'để đối chiếu (mức suy giảm 1)',
+      );
+      return null;
+    }
+
+    try {
+      const opinion = await this.advocate.advocate({
+        studentMssv: submission.studentMssv,
+        content: studentText,
+        questionPdf: reference.questionPdf,
+        modelAnswerPdf: reference.modelAnswer,
+        modelAnswerNote: reference.note,
+      });
+
+      // DẪN CHỨNG CỦA ADVOCATE CŨNG BỊ KIỂM NGUYÊN VĂN.
+      //
+      // Bịa ở đây nguy hiểm HƠN Grader bịa: Advocate đang lập luận để NÂNG
+      // điểm, và một giảng viên đang chấm bài thứ 35 sẽ có xu hướng đồng ý.
+      //
+      // Nhưng chỉ BÁO, không tự loại kiến nghị — loại bỏ là thay giảng
+      // viên quyết, và §2.2 nói rõ Advocate chỉ kiến nghị còn người quyết
+      // là giảng viên. Việc của hệ thống là đặt cạnh kiến nghị một dòng
+      // "mẩu này không tìm thấy trong bài".
+      const unverified = opinion.evidence.filter(
+        (quote) => verifyEvidence(studentText, quote) === 'unverified',
+      );
+      if (unverified.length > 0) {
+        this.logger.warn(
+          `submission ${submission.id}: Advocate trích ${unverified.length}/` +
+            `${opinion.evidence.length} dẫn chứng KHÔNG định vị được trong bài`,
+        );
+      }
+      return { ...opinion, unverifiedEvidence: unverified };
+    } catch (error) {
+      // Nuốt có chủ ý, và đây là một trong rất ít chỗ được phép nuốt: giá
+      // trị của Advocate là phụ trợ, còn giá trị của lượt chấm là chính.
+      this.logger.warn(
+        `submission ${submission.id}: lượt phản biện hỏng, bài vẫn được chấm — ` +
+          (error instanceof Error ? error.message : String(error)),
+      );
+      return null;
+    }
+  }
 
   /**
    * Kết thúc một bài mà AI không chấm được: `ai_grading → flagged_for_review`.
@@ -304,6 +388,13 @@ export class GradingService {
         `cacheRead=${usage.cacheReadTokens} cacheCreate=${usage.cacheCreationTokens}`,
     );
 
+    // LƯỢT HỎI THỨ HAI — "bỏ qua rubric, em ấy có đúng không?"
+    //
+    // `applyGuards` trả `needsAdvocate` từ Plan 1 và tới giờ CHƯA AI ĐỌC
+    // nó — giống hệt ca `markUngradable` ở Task 1: một cánh cửa mở mà
+    // không ai đi qua. Đây là chỗ đi qua nó.
+    const advocate = await this.runAdvocate(submission, content, guards.needsAdvocate, reference);
+
     // Guard chỉ được HẠ tin cậy, không được NÂNG quá trần mà cơ chế của
     // provider biện minh nổi. Mọi phép đo cơ học sạch cũng không biến
     // việc đếm từ thành việc hiểu bài.
@@ -346,6 +437,11 @@ export class GradingService {
       // được ghi.
       contextUsedQuestion: outcome.contextUsed.question,
       contextUsedModelAnswer: outcome.contextUsed.modelAnswer,
+      // CÙNG một `update` với `aiTotalScore`, bắt buộc:
+      // `trg_grading_result_guard_ai_immutable` đóng băng cột này ngay khi
+      // `ai_total_score` được ghi, nên ghi thành hai lần sẽ bị DB từ chối.
+      // Ba test ở `grading-lifecycle.e2e-spec.ts` khoá đúng ràng buộc đó.
+      advocateOpinion: advocate,
     });
 
     // Trạng thái cuối cũng do guard quyết. `AUTO_APPROVE_CONFIDENCE` vẫn
