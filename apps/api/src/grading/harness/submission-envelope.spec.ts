@@ -53,7 +53,7 @@ describe('wrapSubmission', () => {
     expect(env.injectionSuspected).toBe(true);
   });
 
-  it('bài bình thường KHÔNG bị nghi oan', () => {
+  it('T-SEC-2: bài làm giữ NGUYÊN BYTE, không bị lọc — và bài thường không bị nghi oan', () => {
     // Báo động giả ở đây không vô hại: nó gắn cờ liêm chính học thuật lên
     // một sinh viên không làm gì sai.
     const env = wrapSubmission(

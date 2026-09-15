@@ -783,6 +783,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/regrade-stuck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GradingController_regradeStuck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/grading-reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["GradingController_setGradingReference"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/grading-reference/answer-key-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GradingController_requestAnswerKeyUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/grading-readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GradingController_gradingReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/grading-results": {
         parameters: {
             query?: never;
@@ -1091,6 +1155,42 @@ export interface components {
         };
         SubmitReviewDto: {
             criteria: components["schemas"]["ReviewCriterionDto"][];
+        };
+        UpsertGradingReferenceDto: {
+            questionMaterialId?: string | null;
+            modelAnswerStorageKey?: string | null;
+            modelAnswerFilename?: string | null;
+            modelAnswerNote?: string | null;
+        };
+        ExamMaterialEntity: {
+            examSessionId: string;
+            examSession: components["schemas"]["ExamSessionEntity"];
+            storageKey: string;
+            fileName: string;
+            fileSize: string;
+            /** Format: date-time */
+            uploadedAt: string;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        GradingReferenceEntity: {
+            examSessionId: string;
+            examSession?: components["schemas"]["ExamSessionEntity"];
+            questionMaterialId: string | null;
+            questionMaterial?: components["schemas"]["ExamMaterialEntity"] | null;
+            modelAnswerStorageKey: string | null;
+            modelAnswerFilename: string | null;
+            modelAnswerNote: string | null;
+            createdBy: string;
+            createdByAccount?: components["schemas"]["AccountEntity"];
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         CreateRoomDto: {
             name: string;
@@ -2404,6 +2504,90 @@ export interface operations {
         };
     };
     GradingController_gradingProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    GradingController_regradeStuck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GradingController_setGradingReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertGradingReferenceDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradingReferenceEntity"];
+                };
+            };
+        };
+    };
+    GradingController_requestAnswerKeyUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GradingController_gradingReadiness: {
         parameters: {
             query?: never;
             header?: never;

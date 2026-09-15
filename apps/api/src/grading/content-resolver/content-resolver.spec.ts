@@ -11,7 +11,7 @@ describe('ContentResolverRegistry', () => {
     expect(registry.for('document')).toBeInstanceOf(DocumentResolver);
   });
 
-  it('loại chưa có resolver thì NỔ, không im lặng rơi về document', () => {
+  it('T-B1: loại chưa có resolver thì NỔ, không im lặng rơi về document', () => {
     // Trước thay đổi này `deliverableType` bị hardcode 'document', nên bài
     // code và ảnh viết tay đi cùng đường với bài tự luận — chấm ra một con
     // số trông hợp lệ từ một đường xử lý sai, và không ai phát hiện.
@@ -30,7 +30,7 @@ describe('ContentResolverRegistry', () => {
 describe('DocumentResolver', () => {
   const resolver = new DocumentResolver();
 
-  it('chặn file vượt trần TRƯỚC khi parse', async () => {
+  it('T-B4: chặn file vượt trần TRƯỚC khi parse', async () => {
     // Trần này trước đây nằm trong `extractText` với comment "để mọi
     // provider đi qua cùng một cửa" — nhưng ảnh KHÔNG đi qua `extractText`
     // (nó trả rỗng cho ảnh), nên cửa thủng đúng bằng nhánh chưa xây.

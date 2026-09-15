@@ -172,7 +172,7 @@ describe('Vòng đời grading_result (e2e)', () => {
     ).rejects.toThrow(/Invalid grading result status transition/);
   });
 
-  it('markUngradable đưa bài hỏng ra khỏi ai_grading', async () => {
+  it('T-B3: markUngradable đưa bài hỏng ra khỏi ai_grading', async () => {
     // Migration mở cửa là chưa đủ — phải có ai ĐI QUA nó. Trước hàm này,
     // một job hết retry chỉ để lại một dòng log, còn dòng chấm nằm mãi ở
     // `ai_grading` và `progress()` đếm nó là `pending` vĩnh viễn.

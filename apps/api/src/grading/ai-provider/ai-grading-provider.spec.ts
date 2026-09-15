@@ -17,7 +17,7 @@ describe('enforceScoring', () => {
     { id: 'c2', description: 'Tiêu chí 2', maxPoints: 6 },
   ];
 
-  it('bỏ qua points provider trả về, tính lại từ verdict', () => {
+  it('T-B2: bỏ qua points provider trả về, tính lại từ verdict', () => {
     const out = enforceScoring(
       [
         { criterionId: 'c1', verdict: 'not_met', points: 10, evidence: '' },
