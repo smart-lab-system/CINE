@@ -86,6 +86,21 @@ import { ClaudeGradingProvider } from './ai-provider/claude-grading.provider';
         claude: ClaudeGradingProvider,
         keyword: KeywordGradingProvider,
       ): AIGradingProvider => {
+        // TEST KHÔNG BAO GIỜ ĐƯỢC GỌI API TÍNH TIỀN.
+        //
+        // Guard này được thêm ngày 2026-09-15, sau khi khoá API thật xuất
+        // hiện trong `.env` và 5 test e2e đỏ ngay lập tức: binding ở dưới
+        // đọc "có khoá" là "dùng Claude", nên cả bộ e2e bắt đầu gọi API
+        // thật. Hôm đó nó lộ ra vì tài khoản chưa có credit. Nếu đã có
+        // credit thì nó sẽ KHÔNG lộ ra — test vẫn xanh, chỉ là mỗi lần
+        // chạy `pnpm test:e2e` lại tiêu một ít tiền, chậm hơn, và phụ
+        // thuộc vào một dịch vụ ngoài mạng. Đó mới là ca đắt.
+        //
+        // "Có một khoá trong .env" không phải lời xin phép tiêu tiền.
+        // Lượt chấm thật do một giảng viên bấm nút; một bộ test thì không.
+        if (process.env.NODE_ENV === 'test') {
+          return keyword;
+        }
         if (process.env.ANTHROPIC_API_KEY) {
           return claude;
         }

@@ -3,6 +3,7 @@ import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { SubmissionEntity } from '../../submission/entities/submission.entity';
 import { RubricEntity } from './rubric.entity';
+import type { AdvocateOpinion } from '../ai-provider/advocate.types';
 
 export type GradingResultStatus =
   | 'ai_grading'
@@ -67,6 +68,22 @@ export class GradingResultEntity extends BaseEntity {
 
   @Column({ type: 'numeric', precision: 4, scale: 3, nullable: true })
   confidence!: string | null;
+
+  /**
+   * Ý kiến của Advocate — lượt hỏi thứ hai, mù rubric. CHỈ KIẾN NGHỊ:
+   * không bao giờ đổi `aiTotalScore` (spec §2.2).
+   *
+   * `null` = Advocate KHÔNG chạy cho bài này (cổng ở `applyGuards` không
+   * mở), khác hẳn `{}` = chạy và không kiến nghị gì. Khoảng 80% số bài ở
+   * `null`, và chính sự phân biệt đó đo được tỉ lệ kích hoạt cổng cho
+   * calibration mà không cần thêm cột đếm nào.
+   *
+   * Bất biến cùng luật với output của Grader — `advocate_opinion` đã được
+   * thêm vào `guard_grading_result_ai_immutable` ở migration
+   * 1789240000000, nên đây không phải một lời hứa trong comment.
+   */
+  @Column({ name: 'advocate_opinion', type: 'jsonb', nullable: true })
+  advocateOpinion!: AdvocateOpinion | null;
 
   @Column({ name: 'flag_for_review', type: 'boolean', default: false })
   flagForReview!: boolean;

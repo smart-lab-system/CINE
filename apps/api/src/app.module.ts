@@ -37,6 +37,29 @@ import { dataSourceOptions } from './database/data-source';
           password: config.get<string>('REDIS_PASSWORD') || undefined,
           db: Number(config.get<string>('REDIS_DB') ?? 0),
         },
+        /**
+         * Không gian khoá RIÊNG cho test. `'bull'` là mặc định của BullMQ,
+         * nên ngoài test không có gì đổi.
+         *
+         * Vì sao cần (2026-09-15, mất một buổi để tìm ra): một hàng đợi
+         * BullMQ là tài nguyên TOÀN CỤC theo Redis, không thuộc về tiến
+         * trình nào. `pnpm --filter api dev` đang chạy trong một terminal
+         * khác cũng đăng ký một worker trên đúng hàng đợi `grading` ấy, và
+         * nó GIÀNH job của bộ e2e — rồi chấm bằng provider của CHÍNH NÓ,
+         * chạy từ `dist/` cũ, với `NODE_ENV` không phải `test`.
+         *
+         * Triệu chứng hôm đó: 5 test đỏ với `modelUsed: null`, và
+         * `failedReason` trong Redis là một lỗi HTTP 400 của Anthropic —
+         * trong khi provider mà chính tiến trình test bind vào là
+         * `keyword-match@1`, đã kiểm bằng probe. Hai sự thật mâu thuẫn cho
+         * tới khi đọc `stacktrace` của job và thấy đường dẫn `dist\src\`.
+         *
+         * Guard `NODE_ENV === 'test'` ở `grading.module.ts` chặn tiến trình
+         * TEST gọi API tính tiền. Prefix này chặn tiến trình KHÁC nhìn thấy
+         * job của test — cần cả hai, vì cái thứ nhất không với tới được một
+         * tiến trình mà bộ test không điều khiển.
+         */
+        prefix: process.env.NODE_ENV === 'test' ? 'bull-test' : 'bull',
       }),
     }),
     // Powers ExamSessionScheduler (the finalize sweep). Registered once,

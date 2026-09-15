@@ -220,6 +220,70 @@ describe('Vòng đời grading_result (e2e)', () => {
     expect(row.status).toBe('flagged_for_review');
   });
 
+  /**
+   * `advocate_opinion` bất biến cùng luật với output của Grader.
+   *
+   * Ba test này khoá lại ràng buộc quyết định cả hình dạng của Task 3:
+   * Advocate PHẢI ghi trong cùng một UPDATE với `ai_total_score`. Không
+   * có chúng thì người viết Task 3 sẽ tự nhiên viết hai lần ghi — chấm
+   * xong ghi điểm, chạy Advocate xong ghi ý kiến — và phát hiện ra sai
+   * ở tầng production, nơi triệu chứng là một job chết với một lỗi
+   * Postgres không nói gì về Advocate.
+   */
+  it('advocate_opinion ghi CÙNG LÚC với ai_total_score thì được', async () => {
+    const id = await seedGradingResultAtAiGrading();
+
+    await expect(
+      dataSource.query(
+        `UPDATE examcollect.grading_result
+            SET status = 'ai_graded', ai_total_score = 7.5, model_used = 'claude-opus-5',
+                confidence = 0.3, advocate_opinion = $1
+          WHERE id = $2`,
+        [JSON.stringify({ isCorrect: 'partially', reasoning: 'em đi hướng khác' }), id],
+      ),
+    ).resolves.not.toThrow();
+
+    const [row] = await dataSource.query(
+      `SELECT advocate_opinion FROM examcollect.grading_result WHERE id = $1`,
+      [id],
+    );
+    expect(row.advocate_opinion.isCorrect).toBe('partially');
+  });
+
+  it('advocate_opinion ghi SAU khi đã chốt điểm thì bị TỪ CHỐI', async () => {
+    // Ý kiến phản biện sửa được sau khi giảng viên đã đọc thì nó không
+    // còn là bằng chứng. Security rule 6 áp cho cả hai lượt, không riêng
+    // Grader.
+    const id = await seedGradingResultAtAiGrading();
+    await dataSource.query(
+      `UPDATE examcollect.grading_result
+          SET status = 'ai_graded', ai_total_score = 7.5, confidence = 0.3
+        WHERE id = $1`,
+      [id],
+    );
+
+    await expect(
+      dataSource.query(
+        `UPDATE examcollect.grading_result SET advocate_opinion = $1 WHERE id = $2`,
+        [JSON.stringify({ isCorrect: 'yes' }), id],
+      ),
+    ).rejects.toThrow(/immutable/i);
+  });
+
+  it('dòng chưa từng chấm vẫn ghi advocate_opinion được', async () => {
+    // Trigger chỉ khoá khi `ai_total_score IS NOT NULL`. Không có test
+    // này thì một lần siết tay trigger sẽ chặn luôn cả đường ghi hợp lệ
+    // mà không ai biết cho tới khi Task 3 đỏ vì một lý do khác.
+    const id = await seedGradingResultAtAiGrading();
+
+    await expect(
+      dataSource.query(
+        `UPDATE examcollect.grading_result SET advocate_opinion = $1 WHERE id = $2`,
+        [JSON.stringify({ isCorrect: 'no' }), id],
+      ),
+    ).resolves.not.toThrow();
+  });
+
   it('đường cũ ai_grading → ai_graded vẫn đi được', async () => {
     const id = await seedGradingResultAtAiGrading();
 
