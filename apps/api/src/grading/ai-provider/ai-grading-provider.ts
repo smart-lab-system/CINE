@@ -19,6 +19,8 @@
  * number is then derived from the verdict, here, in code that always
  * derives it the same way.
  */
+import { Anchor } from './anchor.types';
+
 export type CriterionVerdict = 'met' | 'partially_met' | 'not_met';
 
 export interface CriterionResult {
@@ -66,6 +68,16 @@ export interface GradingRequest {
     modelAnswerPdf?: Buffer;
     modelAnswerNote?: string;
   };
+  /**
+   * Anchor ĐÃ ĐÓNG BĂNG cho lượt chấm này (§10, A3).
+   *
+   * Đi theo REQUEST như `reference`, cùng lý do: provider là singleton và
+   * worker chạy `concurrency: 5`, nên một trường đặt trước rồi đọc sau sẽ
+   * bị bài của phiên khác ghi đè giữa hai lần `await`.
+   *
+   * Vắng mặt ở gần như mọi lượt chấm — anchor mặc định TẮT (§10.0).
+   */
+  anchors?: Anchor[];
 }
 
 /**

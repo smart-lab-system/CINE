@@ -15,6 +15,8 @@ import { GradingService } from './grading.service';
 import { GradingRunService } from './grading-run.service';
 import { GradingReferenceService } from './grading-reference.service';
 import { GradingReferenceEntity } from './entities/grading-reference.entity';
+import { GradingAnchorSnapshotEntity } from './entities/grading-anchor-snapshot.entity';
+import { AnchorService } from './anchor.service';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
 import { DocumentResolver } from './content-resolver/document-resolver';
@@ -127,9 +129,7 @@ export function selectGradingProvider(
   let topCeiling: number | undefined;
 
   // Quét tới MAX_TIERS chứ không cố định [1, 2]: thêm một bậc phải đúng là
-  // thêm ba dòng `.env`, không phải sửa mảng này rồi deploy lại. Có trần
-  // để một biến gõ nhầm không biến vòng lặp thành vô hạn.
-  const MAX_TIERS = 5;
+  // thêm ba dòng `.env`, không phải sửa mảng này rồi deploy lại.
   for (let index = 1; index <= MAX_TIERS; index++) {
     const config = readTier(index);
     if (config) {
@@ -245,6 +245,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
       RequiredDeliverableEntity,
       ClassEntity,
       GradingReferenceEntity,
+      GradingAnchorSnapshotEntity,
       ExamMaterialEntity,
     ]),
     StorageModule,
@@ -272,6 +273,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     GradingProcessor,
     RubricService,
     TeacherReviewService,
+    AnchorService,
     ClaudeGradingProvider,
     KeywordGradingProvider,
     // Token RIÊNG, không đi qua `AI_GRADING_PROVIDER`: Advocate không phải

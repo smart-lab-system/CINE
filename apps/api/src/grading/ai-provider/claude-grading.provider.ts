@@ -118,6 +118,7 @@ export class ClaudeGradingProvider implements AIGradingProvider {
     const prompt = buildGraderPrompt({
       criteria: request.criteria,
       studentText: request.content,
+      anchors: request.anchors,
       ...(request.reference ?? {}),
     });
 

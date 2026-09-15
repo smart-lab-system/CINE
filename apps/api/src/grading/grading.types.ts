@@ -44,3 +44,45 @@ export const MAX_GRADING_INPUT_CHARS = 200_000;
  * rằng model đã nhìn thấy cả bài.
  */
 export const TRUNCATION_NOTICE = '\n\n[...nội dung bị cắt do vượt giới hạn chấm tự động]';
+
+/**
+ * ANCHOR MẶC ĐỊNH TẮT — và đây là quyết định, không phải giá trị khởi tạo.
+ *
+ * §10.0: anchor LÀ nhánh D của calibration, tức một THÍ NGHIỆM. Một thứ
+ * đang được thí nghiệm không được phép là mặc định của hệ thống chấm điểm
+ * thật. Bật nó kích hoạt cùng lúc ba rủi ro chưa ai đo:
+ *
+ *   1. Vòng lặp neo — thầy nhìn đề xuất AI, sửa nhẹ, ta học cái sửa nhẹ,
+ *      AI tự tin hơn, thầy sửa ít hơn, và hệ hội tụ về đúng thiên lệch
+ *      ban đầu của AI. Nó siết dần TRONG IM LẶNG.
+ *   2. Anchor mâu thuẫn — thầy nới tay với em A, siết với em B; nạp cả
+ *      hai là đưa model tín hiệu ngược nhau. Cắt bớt một cái GIẤU mâu
+ *      thuẫn chứ không giải quyết nó.
+ *   3. Loãng chú ý — chưa ai chứng minh ở cửa sổ 1M, cũng chưa ai loại trừ.
+ *
+ * Tắt mặc định hoá giải cả ba mà không cần biết cái nào có thật.
+ *
+ * `=== 'true'` chứ KHÔNG `Boolean(...)`: `Boolean('false')` là `true`, và
+ * repo này đã mất một buổi vì đúng họ lỗi đó (`GRADE_CONCURRENCY` rỗng →
+ * `Number('')` → 0 → hàng đợi lặng lẽ ngừng nhận job).
+ */
+export const GRADING_ANCHORS_ENABLED = process.env.GRADING_ANCHORS_ENABLED === 'true';
+
+/**
+ * K — tối đa bao nhiêu anchor cho MỖI tiêu chí (§10.0).
+ *
+ * Trần này đủ nhỏ để rủi ro "loãng chú ý" không thành vấn đề dù nó có
+ * thật, nên ta không phải chờ ai chứng minh điều đó trước khi bật.
+ */
+export const ANCHOR_MAX_PER_CRITERION = 3;
+
+/**
+ * Trần TỔNG cho cả khối anchor, tính bằng token ước lượng (§10.0).
+ *
+ * Ước lượng chứ không đếm thật: đếm token đúng cần gọi API, mà đây là một
+ * quyết định phải ra được lúc ghép prompt, offline, tất định. Ước lượng
+ * thấp hơn thực tế sẽ cắt hơi nhiều — chấp nhận được; ước lượng cao hơn
+ * thực tế sẽ vượt trần — không chấp nhận được. Nên hệ số chọn theo hướng
+ * thận trọng ở `estimateTokens`.
+ */
+export const ANCHOR_MAX_TOKENS = 4000;

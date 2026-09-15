@@ -1,5 +1,6 @@
 import { GradingRubricCriterion } from './ai-grading-provider';
 import { SYSTEM_DELIMITER_RULE, wrapSubmission } from '../harness/submission-envelope';
+import { Anchor } from './anchor.types';
 
 /**
  * Ghép context cho Grader, xếp theo BA LỚP CACHE lồng nhau.
@@ -41,6 +42,15 @@ export interface GraderPromptInput {
   questionPdf?: Buffer;
   modelAnswerPdf?: Buffer;
   modelAnswerNote?: string;
+  /**
+   * Anchor — few-shot từ lần sửa THẬT của giảng viên (§10).
+   *
+   * MẶC ĐỊNH KHÔNG CÓ. Người gọi chỉ truyền khi
+   * `GRADING_ANCHORS_ENABLED === 'true'`; file này không tự đọc env, để
+   * `buildGraderPrompt` vẫn là một hàm thuần và test được mà không phải
+   * dàn dựng biến môi trường.
+   */
+  anchors?: Anchor[];
 }
 
 export interface GraderPrompt {
@@ -91,15 +101,65 @@ function renderRubric(criteria: GradingRubricCriterion[]): string {
   ].join('\n');
 }
 
+/**
+ * Khối anchor. Trả chuỗi RỖNG khi không có — và khối rỗng đó bị
+ * `.filter(Boolean)` loại hẳn, không để lại một thẻ `<anchors/>` trống.
+ *
+ * Vì sao quan trọng: mặc định anchor TẮT, nên đường không-anchor là đường
+ * chạy của gần như mọi lượt chấm. Một thẻ rỗng thừa ở đó sẽ đổi byte của
+ * lớp cache ② cho TOÀN BỘ hệ thống, đổi lấy đúng con số không.
+ *
+ * Đóng khung là "hai người chấm bất đồng", không phải "đáp án đúng": mục
+ * tiêu là cho model thấy chuẩn của giảng viên này, chứ không phải dạy nó
+ * rằng AI luôn sai.
+ */
+function renderAnchors(anchors: Anchor[] | undefined): string {
+  if (!anchors || anchors.length === 0) {
+    return '';
+  }
+  return [
+    '<teacher_corrections>',
+    'Những lần giảng viên này SỬA phán đoán của hệ thống ở chính rubric trên.',
+    'Dùng chúng để hiểu chuẩn chấm của thầy/cô, KHÔNG phải để kết luận rằng',
+    'mọi phán đoán của hệ thống đều sai.',
+    ...anchors.map((a) =>
+      [
+        `  <correction criterion="${a.criterionId}">`,
+        `    <excerpt>${a.studentExcerpt}</excerpt>`,
+        `    <system_said>${a.aiVerdict}</system_said>`,
+        `    <teacher_said>${a.teacherVerdict}</teacher_said>`,
+        '  </correction>',
+      ].join('\n'),
+    ),
+    '</teacher_corrections>',
+  ].join('\n');
+}
+
 export function buildGraderPrompt(input: GraderPromptInput): GraderPrompt {
   const envelope = wrapSubmission(input.studentText);
 
   const userContent: PromptBlock[] = [];
 
-  // ② rubric — dùng lại cho mọi phiên cùng rubric version.
+  // ② rubric (+ anchor) — dùng lại cho mọi phiên cùng rubric version.
+  //
+  // Anchor nằm TRONG CÙNG khối với rubric, không phải một breakpoint
+  // riêng. Hai lý do:
+  //
+  // 1. Ngân sách breakpoint là 4, và system + rubric + đề/đáp án +
+  //    (anchor) đã chạm trần. Một breakpoint nữa không còn chỗ.
+  // 2. Anchor khoá theo `rubric_id_version` — CÙNG vòng đời với rubric.
+  //    Hai thứ đổi cùng lúc thì tách breakpoint không mua được gì.
+  //
+  // Đánh đổi phải nói ra: tập anchor được ĐÓNG BĂNG THEO PHIÊN (A3), nên
+  // hai phiên cùng rubric mà bấm chấm ở hai thời điểm khác nhau sẽ có hai
+  // khối ② khác nhau và KHÔNG dùng chung được cache lớp này. Chấp nhận
+  // được — cache lớp ② chỉ hữu ích khi hai phiên cùng môn được chấm cách
+  // nhau dưới 5 phút, và đó là ca hiếm.
   userContent.push({
     type: 'text',
-    text: renderRubric(input.criteria),
+    text: [renderRubric(input.criteria), renderAnchors(input.anchors)]
+      .filter(Boolean)
+      .join('\n\n'),
     cache_control: CACHE_CONTROL,
   });
 

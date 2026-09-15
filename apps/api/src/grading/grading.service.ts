@@ -27,7 +27,8 @@ import { ADVOCATE_PROVIDER, AdvocateProvider } from './ai-provider/advocate-prov
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
 import { GradingReferenceService, LoadedGradingReference } from './grading-reference.service';
 import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
-import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
+import { AUTO_APPROVE_CONFIDENCE, GRADING_ANCHORS_ENABLED } from './grading.types';
+import { AnchorService } from './anchor.service';
 
 /**
  * Chấm MỘT bài: đọc file, gọi model, ghi kết quả.
@@ -59,6 +60,7 @@ export class GradingService {
     // model nào thì lượt phản biện không chạy, và bài vẫn được chấm bình
     // thường. Kiểu dữ liệu nói ra điều đó để không ai phải đoán.
     @Inject(ADVOCATE_PROVIDER) private readonly advocate: AdvocateProvider | null,
+    private readonly anchors: AnchorService,
   ) {}
 
   /**
@@ -324,6 +326,18 @@ export class GradingService {
       maxPoints: Number(criterion.maxPoints),
     }));
 
+    // Anchor đọc từ ẢNH CHỤP của phiên, không dựng lại ở đây (A3).
+    //
+    // Dựng lại mỗi bài sẽ để một lần duyệt giữa chừng lọt vào tập anchor,
+    // và bài 6-40 được chấm theo chuẩn khác bài 1-5 — trong cùng một lượt
+    // chấm. Đó là lý do `GradingRunService.startGrading` chụp một lần.
+    //
+    // `null` (phiên chấm trước khi tính năng tồn tại, hoặc anchor đang tắt
+    // lúc bấm chấm) → `undefined` → prompt không có khối anchor nào.
+    const anchors = GRADING_ANCHORS_ENABLED
+      ? await this.anchors.loadFor(submission.examSessionId)
+      : null;
+
     const request: GradingRequest = {
       studentMssv: submission.studentMssv,
       content,
@@ -334,6 +348,7 @@ export class GradingService {
         modelAnswerPdf: reference.modelAnswer,
         modelAnswerNote: reference.note,
       },
+      anchors: anchors ?? undefined,
     };
 
     const extractMs = Date.now() - extractStarted;

@@ -14,6 +14,8 @@ import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { RequiredDeliverableEntity } from '../exam-session/entities/required-deliverable.entity';
 import { RubricService } from './rubric.service';
+import { AnchorService } from './anchor.service';
+import { GRADING_ANCHORS_ENABLED } from './grading.types';
 
 export interface StartGradingResult {
   rubricId: string;
@@ -100,6 +102,7 @@ export class GradingRunService {
     @InjectRepository(RequiredDeliverableEntity)
     private readonly deliverables: Repository<RequiredDeliverableEntity>,
     private readonly rubrics: RubricService,
+    private readonly anchors: AnchorService,
     @InjectQueue(GRADING_QUEUE) private readonly queue: Queue<GradeSubmissionJob>,
   ) {}
 
@@ -154,6 +157,22 @@ export class GradingRunService {
     });
     if (collected.length === 0) {
       return { rubricId: rubric.id, rubricVersion: rubric.version, queued: 0, alreadyGraded: 0 };
+    }
+
+    // A3 — ĐÓNG BĂNG tập anchor TRƯỚC khi xếp bài nào vào hàng đợi.
+    //
+    // Thứ tự quan trọng: nếu chụp sau khi job đã chạy thì bài đầu tiên có
+    // thể được chấm trước lúc có ảnh chụp, và nó sẽ chấm với tập anchor
+    // khác 39 bài còn lại — đúng cái A3 sinh ra để chặn.
+    //
+    // Chỉ chụp khi anchor BẬT. Ghi một ảnh rỗng lúc đang tắt sẽ bị đọc
+    // lại như "lúc đó rubric này chưa có lần sửa nào" vào ngày bật tính
+    // năng — một sự thật lịch sử bịa ra, và không ai truy ngược được.
+    if (GRADING_ANCHORS_ENABLED) {
+      const anchors = await this.anchors.freezeFor(session.id, rubric.id);
+      this.logger.log(
+        `session ${session.id}: đóng băng ${anchors.length} anchor cho rubric v${rubric.version}`,
+      );
     }
 
     const existing = await this.results.find({
