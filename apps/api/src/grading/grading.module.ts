@@ -30,6 +30,7 @@ import { GradingController } from './grading.controller';
 import { AI_GRADING_PROVIDER, AIGradingProvider } from './ai-provider/ai-grading-provider';
 import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
 import { ClaudeGradingProvider } from './ai-provider/claude-grading.provider';
+import { AdvocateProvider } from './ai-provider/advocate.provider';
 
 /**
  * Which model grades is decided HERE and nowhere else.
@@ -125,6 +126,13 @@ export function selectGradingProvider(
     TeacherReviewService,
     ClaudeGradingProvider,
     KeywordGradingProvider,
+    // KHÔNG đi qua `AI_GRADING_PROVIDER`. Advocate không phải một
+    // implementation thay thế của việc chấm theo rubric — nó là một vai
+    // KHÁC, hỏi một câu khác, và luôn là Claude (spec §2.1: cùng model với
+    // Grader, vì cache khoá theo model). Nhét nó sau cái token kia sẽ biến
+    // "chọn model nào" và "có chạy lượt phản biện không" thành một quyết
+    // định, trong khi chúng là hai.
+    AdvocateProvider,
     {
       provide: AI_GRADING_PROVIDER,
       useFactory: selectGradingProvider,
