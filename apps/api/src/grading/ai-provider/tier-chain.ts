@@ -91,6 +91,27 @@ export class TierChain<Req, Res> {
       } catch (error) {
         const kind = classifyProviderFailure(error);
 
+        // LƯỢT THĂM DÒ HỎNG — bất kể vì lý do gì — nghĩa là bậc vẫn chưa
+        // sống. Phải nhả cờ Ở ĐÂY, trước mọi nhánh khác.
+        //
+        // Không nhả thì `probing` treo ở `true` trong khi `openedAt` vẫn
+        // còn, và `isBreakerOpen` trả `true` VĨNH VIỄN: bậc đó không bao
+        // giờ được thử lại cho tới khi khởi động lại tiến trình. Nguy hiểm
+        // nhất ở chuỗi Advocate, vốn KHÔNG có bậc sàn đỡ.
+        //
+        // Đặt lại `openedAt = now` chứ không xoá: xoá sẽ cho bài kế tiếp
+        // thăm dò ngay lập tức, biến breaker thành "thử lại mọi lời gọi"
+        // và mất sạch tác dụng của chu kỳ nguội.
+        if (tier.probing) {
+          tier.probing = false;
+          tier.openedAt = now;
+          tier.reason = describe(error);
+          this.logger.warn(
+            `${tier.label}: thăm dò hỏng, nghỉ thêm ${BREAKER_COOLDOWN_MS / 1000}s — ` +
+              tier.reason,
+          );
+        }
+
         if (kind === 'transient') {
           throw error;
         }

@@ -82,6 +82,10 @@ export class GradingService {
    *    sang giảng viên; chỉ thiếu ý kiến thứ hai. Một lượt phản biện hỏng
    *    không được phép làm hỏng lượt chấm.
    */
+  // LƯU Ý KHI SỬA: `grading-advocate.spec.ts` dựng một instance MỘT PHẦN
+  // bằng `Object.create` và chỉ gán `advocate` + `logger`. Thêm một phụ
+  // thuộc mới (`this.references`, `this.results`...) vào hàm này mà quên
+  // cập nhật test sẽ cho test XANH trong khi production nhận `undefined`.
   private async runAdvocate(
     submission: SubmissionEntity,
     studentText: string,

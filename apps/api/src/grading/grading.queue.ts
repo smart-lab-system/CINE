@@ -44,14 +44,20 @@ export interface GradeSubmissionJob {
  * Trần cũ chọn khi chỉ có Claude ("15-30s, 120s là rộng gấp bốn"). Với một
  * model free chậm làm bậc đầu thì nó không còn là bốn lần dư mà là thiếu.
  *
- * Mặc định 240s, và ĐỌC ĐƯỢC TỪ ENV: giới hạn thật phụ thuộc bậc nào đang
+ * Mặc định 300s, KHÔNG phải 240s. 240 là đúng bằng 90 (trần HTTP lượt
+ * chấm) + 150 (trần HTTP lượt phản biện), tức BIÊN BẰNG KHÔNG: một lượt
+ * chấm trả lời chậm ở giây thứ 89 rồi một lượt phản biện dùng hết 150s sẽ
+ * bị trần job cắt đúng lúc đang ghi, và ý kiến phản biện mất trắng. 300s
+ * để lại 60s cho phần còn lại của hàm (đọc file, ghi DB).
+ *
+ * ĐỌC ĐƯỢC TỪ ENV: giới hạn thật phụ thuộc bậc nào đang
  * chạy, mà bậc thì đổi bằng `.env` chứ không bằng deploy. Cùng lập luận
  * §9.1a — lỗ thật là KHÔNG CHỈNH ĐƯỢC, không phải giá trị cụ thể.
  *
- * Cái giá phải biết: một job treo giữ chỗ lâu gấp đôi. Với `concurrency`
- * 5 thì tệ nhất là 5 chỗ bị giữ 4 phút, chấp nhận được ở quy mô này.
+ * Cái giá phải biết: một job treo giữ chỗ lâu hơn hẳn. Với `concurrency`
+ * 5 thì tệ nhất là 5 chỗ bị giữ 5 phút, chấp nhận được ở quy mô này.
  */
-export const GRADE_JOB_TIMEOUT_MS = envPositiveInt('GRADE_JOB_TIMEOUT_MS', 240_000);
+export const GRADE_JOB_TIMEOUT_MS = envPositiveInt('GRADE_JOB_TIMEOUT_MS', 300_000);
 
 /**
  * Tuỳ chọn cho mỗi job. Khai ở đây, không rải trong `startGrading`, vì
