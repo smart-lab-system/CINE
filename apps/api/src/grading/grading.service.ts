@@ -340,6 +340,12 @@ export class GradingService {
       // đặt ngưỡng auto-approve lên con số đó là cho model quyền tự kết
       // thúc việc chấm một sinh viên dựa trên cảm giác của nó.
       confidence: String(finalConfidence),
+      // Ngữ cảnh THẬT SỰ đã dùng, lấy từ bậc đã trả lời trong chuỗi dự
+      // phòng — không phải từ cấu hình của phiên. Ghi CÙNG lượt update
+      // này vì trigger bất biến đóng băng chúng ngay khi `ai_total_score`
+      // được ghi.
+      contextUsedQuestion: outcome.contextUsed.question,
+      contextUsedModelAnswer: outcome.contextUsed.modelAnswer,
     });
 
     // Trạng thái cuối cũng do guard quyết. `AUTO_APPROVE_CONFIDENCE` vẫn

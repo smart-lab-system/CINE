@@ -63,6 +63,11 @@ const DEAD_CODES = new Set([
  * bậc chết, và thế thì một lỗi lập trình của chính ta (gửi tham số sai)
  * sẽ lặng lẽ đẩy cả lượt chấm xuống model yếu hơn thay vì nổ ra để sửa.
  * So chuỗi hẹp, hỏng lộ liễu, còn hơn bắt rộng, hỏng âm thầm.
+ *
+ * Chuỗi ĐO ĐƯỢC ngày 2026-09-15, giữ nguyên văn để lần sau grep ra được
+ * chỗ này khi Anthropic đổi câu chữ:
+ *   "Your credit balance is too low to access the Anthropic API.
+ *    Please go to Plans & Billing to upgrade or purchase credits."
  */
 const CREDIT_MESSAGE = /credit balance is too low|insufficient (credit|balance|funds)/i;
 

@@ -34,6 +34,16 @@ interface Tier {
   label: string;
   openedAt?: number;
   reason?: string;
+  /**
+   * Đã có MỘT lời gọi thăm dò đang bay sau khi hết hạn nguội.
+   *
+   * Cần vì provider này là singleton của Nest còn worker chạy
+   * `concurrency: 5`: Node xen kẽ ở mỗi `await`, nên không có cờ này thì cả
+   * 5 job cùng thấy breaker vừa mở, cùng lao vào một nhà cung cấp có thể
+   * vẫn đang chết — 5 lời gọi phí mỗi 60 giây. Nửa-mở đúng nghĩa là cho
+   * MỘT bài thăm dò, số còn lại vẫn đi bậc dưới cho tới khi có câu trả lời.
+   */
+  probing?: boolean;
 }
 
 export class FallbackGradingProvider implements AIGradingProvider {
@@ -64,7 +74,16 @@ export class FallbackGradingProvider implements AIGradingProvider {
       tried++;
 
       try {
-        return await this.gradeWithRetryOnBadOutput(tier, request);
+        const outcome = await this.gradeWithRetryOnBadOutput(tier, request);
+        // Thăm dò thành công: bậc sống lại, mở cửa cho mọi bài sau. Đây là
+        // chỗ DUY NHẤT được xoá `openedAt` — xem ghi chú ở `isBreakerOpen`.
+        if (tier.probing) {
+          this.logger.log(`${tier.label}: đã sống lại`);
+          tier.probing = false;
+          tier.openedAt = undefined;
+          tier.reason = undefined;
+        }
+        return outcome;
       } catch (error) {
         const kind = classifyProviderFailure(error);
 
@@ -128,18 +147,29 @@ export class FallbackGradingProvider implements AIGradingProvider {
     if (now - tier.openedAt < BREAKER_COOLDOWN_MS) {
       return true;
     }
-    // Hết hạn nguội: đóng breaker để bài này THỬ LẠI bậc đó. Một lượt 40
-    // bài kéo dài nhiều phút, và một nhà cung cấp hồi sinh giữa chừng phải
-    // được dùng lại — nếu không thì cả phiên bị khoá xuống model yếu chỉ
-    // vì một sự cố ở phút đầu.
-    this.logger.log(`${tier.label}: hết hạn nguội, thử lại bậc này`);
-    tier.openedAt = undefined;
-    tier.reason = undefined;
+    // Đã có một bài đang thăm dò: mọi bài khác vẫn coi bậc này là đóng.
+    // Không có nhánh này thì 5 job song song cùng lao vào một nhà cung cấp
+    // có thể vẫn đang chết, mỗi 60 giây một lần.
+    if (tier.probing) {
+      return true;
+    }
+    // Hết hạn nguội: cho ĐÚNG MỘT bài thử lại bậc đó. Một lượt 40 bài kéo
+    // dài nhiều phút, và một nhà cung cấp hồi sinh giữa chừng phải được
+    // dùng lại — nếu không thì cả phiên bị khoá xuống model yếu chỉ vì một
+    // sự cố ở phút đầu.
+    this.logger.log(`${tier.label}: hết hạn nguội, cho một bài thăm dò`);
+    tier.probing = true;
+    // GIỮ `openedAt`. Xoá ở đây là lỗi tôi vừa mắc và test bắt được: nhánh
+    // đầu hàm này thoát sớm khi `openedAt === undefined`, nên xoá nó làm
+    // mọi job song song thấy breaker ĐÓNG HẲN và cùng lao vào — đúng cái
+    // stampede mà nửa-mở sinh ra để chặn. Chỉ lượt thăm dò THÀNH CÔNG mới
+    // được quyền xoá.
     return false;
   }
 
   private openBreaker(tier: Tier, error: unknown, now: number): void {
     tier.openedAt = now;
+    tier.probing = false;
     tier.reason = describe(error);
     this.logger.error(
       `${tier.label}: BẬC CHẾT, nghỉ ${BREAKER_COOLDOWN_MS / 1000}s rồi thử lại — ${tier.reason}`,

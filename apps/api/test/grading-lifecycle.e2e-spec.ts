@@ -287,6 +287,28 @@ describe('Vòng đời grading_result (e2e)', () => {
     ).resolves.not.toThrow();
   });
 
+  it('context_used_* cũng bất biến sau khi đã chốt điểm', async () => {
+    // Hai cột này là một phần output của AI: chúng nói lượt chấm THỰC SỰ
+    // đọc được đề bài hay không. Sửa được sau khi chốt nghĩa là làm đẹp
+    // được số liệu calibration §11.2 mà không ai thấy — nhánh A biến
+    // thành nhánh B bằng một câu UPDATE.
+    const id = await seedGradingResultAtAiGrading();
+    await dataSource.query(
+      `UPDATE examcollect.grading_result
+          SET status = 'ai_graded', ai_total_score = 7.5, confidence = 0.3,
+              context_used_question = false, context_used_model_answer = false
+        WHERE id = $1`,
+      [id],
+    );
+
+    await expect(
+      dataSource.query(
+        `UPDATE examcollect.grading_result SET context_used_question = true WHERE id = $1`,
+        [id],
+      ),
+    ).rejects.toThrow(/immutable/i);
+  });
+
   it('đường cũ ai_grading → ai_graded vẫn đi được', async () => {
     const id = await seedGradingResultAtAiGrading();
 

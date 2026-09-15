@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { AdvocateOpinion } from './advocate.types';
 import { buildAdvocatePrompt } from './advocate-prompt';
+import { badOutputError } from './provider-failure';
 
 /**
  * CÙNG model với Grader, không phải model rẻ hơn (spec §2.1).
@@ -169,20 +170,16 @@ export class AdvocateProvider {
     // `stop_reason: 'refusal'` là HTTP 200 — kiểm TRƯỚC khi đọc nội dung.
     if (response.stop_reason === 'refusal') {
       const detail = response.stop_details;
-      const error = new Error(
+      throw badOutputError(
         `Advocate từ chối đọc bài này (${detail?.type ?? 'không rõ'}) — cần người xem`,
       );
-      (error as { status?: number }).status = 422;
-      throw error;
     }
 
     const text = response.content.find(
       (block): block is Anthropic.TextBlock => block.type === 'text',
     );
     if (!text) {
-      const error = new Error('Advocate không trả về khối text nào');
-      (error as { status?: number }).status = 422;
-      throw error;
+      throw badOutputError('Advocate không trả về khối text nào');
     }
 
     const validation = AdvocateOutputSchema.safeParse(JSON.parse(text.text));
@@ -190,9 +187,7 @@ export class AdvocateProvider {
       // KHÔNG nêu nội dung trả về: nó chứa dẫn chứng trích từ bài làm của
       // sinh viên, và message này đi vào `failedReason` trong Redis.
       const paths = validation.error.issues.map((i) => i.path.join('.')).join(', ');
-      const error = new Error(`Output của Advocate không khớp schema ở: ${paths}`);
-      (error as { status?: number }).status = 422;
-      throw error;
+      throw badOutputError(`Output của Advocate không khớp schema ở: ${paths}`);
     }
     const parsed = validation.data;
 

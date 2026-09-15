@@ -153,6 +153,79 @@ describe('FallbackGradingProvider', () => {
     expect(second.modelUsed).toBe('broken');
   });
 
+  it('breaker NỬA-MỞ: hết hạn nguội chỉ cho MỘT bài thăm dò', async () => {
+    // Provider là singleton của Nest, worker chạy concurrency 5, và Node
+    // xen kẽ ở mỗi `await` — nên không có nửa-mở thì cả 5 job cùng thấy
+    // breaker vừa mở và cùng lao vào một nhà cung cấp có thể vẫn đang
+    // chết, mỗi 60 giây một lần.
+    const dead = stub('dead', [httpProviderError(403, 'access_denied', 'hết tiền')]);
+    const bottom = stub('bottom', [outcome('bottom')]);
+    const chain = new FallbackGradingProvider([
+      { provider: dead, label: 'bậc 1' },
+      { provider: bottom, label: 'sàn' },
+    ]);
+
+    await chain.grade(REQUEST); // mở breaker
+    expect(dead.calls).toBe(1);
+
+    // Tua đồng hồ qua hạn nguội, rồi bắn 3 bài CÙNG LÚC.
+    const realNow = Date.now;
+    Date.now = () => realNow() + 61_000;
+    try {
+      await Promise.all([chain.grade(REQUEST), chain.grade(REQUEST), chain.grade(REQUEST)]);
+    } finally {
+      Date.now = realNow;
+    }
+
+    // Đúng MỘT lời gọi thăm dò thêm, không phải ba.
+    expect(dead.calls).toBe(2);
+  });
+
+  it('thăm dò THÀNH CÔNG thì bậc mở lại cho mọi bài sau', async () => {
+    const flaky = stub('flaky', [
+      httpProviderError(403, 'access_denied', 'hết tiền'),
+      outcome('flaky'),
+    ]);
+    const bottom = stub('bottom', [outcome('bottom')]);
+    const chain = new FallbackGradingProvider([
+      { provider: flaky, label: 'bậc 1' },
+      { provider: bottom, label: 'sàn' },
+    ]);
+
+    await chain.grade(REQUEST); // chết → xuống sàn
+
+    const realNow = Date.now;
+    Date.now = () => realNow() + 61_000;
+    try {
+      expect((await chain.grade(REQUEST)).modelUsed).toBe('flaky'); // thăm dò OK
+      expect((await chain.grade(REQUEST)).modelUsed).toBe('flaky'); // đã mở hẳn
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('lỗi 422 KHÔNG mang cờ badOutput vẫn là transient — hợp đồng với provider', async () => {
+    // Khoá lại đúng cái bẫy W1: `ClaudeGradingProvider` từng ném Error tự
+    // dựng với `status: 422` nhưng KHÔNG có cờ `badOutput`. Phân loại đọc
+    // nó thành `transient`, chuỗi ném thẳng ra ngoài, rồi
+    // `isPermanentFailure(422)` ở processor giết job — bài chết dù sàn
+    // hoàn toàn chấm được nó.
+    //
+    // Test này giữ cho hành vi phân loại KHÔNG đổi (422 trần vẫn là
+    // transient); thứ đã sửa là các provider giờ đánh dấu cờ. Ngày nào ai
+    // đó ném 422 trần trở lại, họ sẽ thấy nó không rơi bậc.
+    const raw = Object.assign(new Error('422 trần'), { status: 422 });
+    const odd = stub('odd', [raw]);
+    const bottom = stub('bottom', [outcome('bottom')]);
+    const chain = new FallbackGradingProvider([
+      { provider: odd, label: 'bậc 1' },
+      { provider: bottom, label: 'sàn' },
+    ]);
+
+    await expect(chain.grade(REQUEST)).rejects.toThrow('422 trần');
+    expect(bottom.calls).toBe(0);
+  });
+
   it('mọi bậc chết → ném lỗi CUỐI, không nuốt', async () => {
     const dead1 = stub('d1', [httpProviderError(403, 'access_denied', 'bậc 1 hết tiền')]);
     const dead2 = stub('d2', [httpProviderError(400, 'insufficient_user_quota', 'sàn hết quota')]);

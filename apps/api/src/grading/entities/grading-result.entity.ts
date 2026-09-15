@@ -85,6 +85,25 @@ export class GradingResultEntity extends BaseEntity {
   @Column({ name: 'advocate_opinion', type: 'jsonb', nullable: true })
   advocateOpinion!: AdvocateOpinion | null;
 
+  /**
+   * Ngữ cảnh lượt chấm này THỰC SỰ đọc được — không phải ngữ cảnh đã cấu
+   * hình cho phiên.
+   *
+   * Hai thứ đó lệch nhau từ khi có chuỗi dự phòng: endpoint tương thích
+   * OpenAI không gửi được PDF, nên bài do bậc dự phòng chấm chạy ở mức
+   * "chỉ có rubric" dù phiên có đủ tài liệu. `grading-readiness` báo theo
+   * cấu hình, còn hai cột này là thứ nói ra sự thật.
+   *
+   * `null` = chấm trước khi hệ thống biết ghi lại điều này, KHÁC `false`
+   * = đã đo và không có. Calibration §11.2 cần phân biệt "không biết" với
+   * "không có" để không gộp nhầm nhánh A vào nhánh B.
+   */
+  @Column({ name: 'context_used_question', type: 'boolean', nullable: true })
+  contextUsedQuestion!: boolean | null;
+
+  @Column({ name: 'context_used_model_answer', type: 'boolean', nullable: true })
+  contextUsedModelAnswer!: boolean | null;
+
   @Column({ name: 'flag_for_review', type: 'boolean', default: false })
   flagForReview!: boolean;
 

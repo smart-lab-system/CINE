@@ -282,6 +282,20 @@ describe('Grading (e2e)', () => {
         // is meaningless if nobody can say which AI.
         modelUsed: 'keyword-match@1',
       });
+      // Ngữ cảnh THẬT SỰ đã dùng phải được LƯU, không chỉ được provider
+      // khai rồi rơi mất: `grading-readiness` báo mức theo cấu hình, còn
+      // hai cột này là thứ duy nhất nói lượt chấm đọc được những gì. Thiếu
+      // chúng thì calibration §11.2 không tách nổi nhánh A khỏi nhánh B.
+      const [contextRow] = await dataSource.query(
+        `SELECT context_used_question, context_used_model_answer
+           FROM examcollect.grading_result gr
+           JOIN examcollect.submission s ON s.id = gr.submission_id
+          WHERE s.exam_session_id = $1`,
+        [sessionId],
+      );
+      // Keyword provider chỉ đếm từ trên rubric — không đọc đề bài.
+      expect(contextRow.context_used_question).toBe(false);
+      expect(contextRow.context_used_model_answer).toBe(false);
       // Evidence, not just a number — the teacher's job is to check the
       // reasoning, and there is nothing to check without it.
       expect(results.body[0].criterionResults[0].evidence).toBeTruthy();

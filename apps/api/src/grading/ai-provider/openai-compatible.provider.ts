@@ -282,11 +282,16 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
       try {
         const parsed = JSON.parse(text) as { error?: { code?: string; message?: string } };
         code = parsed.error?.code;
-        // Message của nhà cung cấp về TRẠNG THÁI TÀI KHOẢN, không phải về
-        // bài làm — nên giữ lại được, và nó là thứ duy nhất nhận diện được
-        // ca hết credit của Anthropic.
+        // Message của nhà cung cấp thường nói về TRẠNG THÁI TÀI KHOẢN chứ
+        // không về bài làm, và nó là thứ duy nhất nhận diện được ca hết
+        // credit của Anthropic — nên giữ lại.
+        //
+        // Nhưng đó là một giả định về HÀNH VI CỦA NGƯỜI KHÁC: một nhà cung
+        // cấp dội lại nội dung request trong body 4xx sẽ biến dòng này
+        // thành đường rò bài làm vào `failedReason` ở Redis. Cắt 200 ký tự
+        // giữ đủ để chẩn đoán mà không đủ để rò một bài luận.
         if (parsed.error?.message) {
-          message = `HTTP ${response.status} ${parsed.error.message}`;
+          message = `HTTP ${response.status} ${parsed.error.message.slice(0, 200)}`;
         }
       } catch {
         // Body không phải JSON: giữ nguyên message chỉ có mã HTTP. KHÔNG

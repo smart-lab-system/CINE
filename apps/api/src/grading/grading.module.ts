@@ -120,7 +120,11 @@ export function selectGradingProvider(
   const tiers: { provider: AIGradingProvider; label: string }[] = [];
   let topCeiling: number | undefined;
 
-  for (const index of [1, 2]) {
+  // Quét tới MAX_TIERS chứ không cố định [1, 2]: thêm một bậc phải đúng là
+  // thêm ba dòng `.env`, không phải sửa mảng này rồi deploy lại. Có trần
+  // để một biến gõ nhầm không biến vòng lặp thành vô hạn.
+  const MAX_TIERS = 5;
+  for (let index = 1; index <= MAX_TIERS; index++) {
     const config = readTier(index);
     if (config) {
       topCeiling ??= config.ceiling;
@@ -128,7 +132,11 @@ export function selectGradingProvider(
     }
   }
 
-  if (process.env.ANTHROPIC_API_KEY) {
+  // `.trim()` như `readTier`: `ANTHROPIC_API_KEY=  ` (có khoảng trắng) là
+  // truthy trong JavaScript, nên nếu không cắt thì Claude được xếp vào
+  // chuỗi với một khoá rỗng, nhận 401, và ăn mất một lời gọi cùng một chu
+  // kỳ breaker 60 giây của bài đầu tiên.
+  if (process.env.ANTHROPIC_API_KEY?.trim()) {
     topCeiling ??= 1;
     tiers.push({ provider: claude, label: `tầng Claude (${claude.name})` });
   }

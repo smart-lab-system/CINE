@@ -9,6 +9,7 @@ jest.mock('@anthropic-ai/sdk', () => {
 
 import { ClaudeGradingProvider } from './claude-grading.provider';
 import { GradingRequest } from './ai-grading-provider';
+import { classifyProviderFailure } from './provider-failure';
 
 const REQUEST: GradingRequest = {
   studentMssv: '2011060001',
@@ -244,5 +245,59 @@ describe('ClaudeGradingProvider', () => {
     const content = createMock.mock.calls[0][0].messages[0].content;
     expect(content.some((b: { type: string }) => b.type === 'document')).toBe(false);
     expect(JSON.stringify(content)).toContain('BEGIN SUBMISSION');
+  });
+});
+
+describe('ClaudeGradingProvider — hợp đồng với chuỗi dự phòng', () => {
+  beforeEach(() => createMock.mockReset());
+
+  /**
+   * W1 từ code review 2026-09-15.
+   *
+   * Ba lỗi 422 của provider này từng là `new Error` tự dựng, KHÔNG mang cờ
+   * `badOutput`. Hệ quả: `classifyProviderFailure` xếp chúng là
+   * `transient`, `FallbackGradingProvider` ném thẳng ra ngoài, rồi
+   * `isPermanentFailure(422)` ở processor bọc thành `UnrecoverableError`
+   * và giết job — một lượt Claude từ chối giết luôn bài đó, dù bậc dưới
+   * hoàn toàn chấm được.
+   *
+   * Tức chuỗi dự phòng vừa xây KHÔNG áp dụng cho chính tầng Claude.
+   */
+  it.each([
+    [
+      'từ chối',
+      { stop_reason: 'refusal', stop_details: { type: 'refusal' }, content: [], usage: { input_tokens: 1, output_tokens: 0 } },
+    ],
+    [
+      'không có khối text',
+      { stop_reason: 'end_turn', content: [], usage: { input_tokens: 1, output_tokens: 0 } },
+    ],
+  ])('%s → mang cờ badOutput để chuỗi rơi được bậc', async (_label, response) => {
+    createMock.mockResolvedValue(response);
+
+    const caught = await new ClaudeGradingProvider().grade(REQUEST).catch((e: unknown) => e);
+
+    expect(classifyProviderFailure(caught)).toBe('bad_output');
+  });
+
+  it('output sai schema cũng mang cờ badOutput', async () => {
+    createMock.mockResolvedValue(
+      okResponse({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              criterionResults: [{ criterionId: 'c1', verdict: 'SAI', evidence: 'x' }],
+              uncoveredContent: [],
+              injectionAttempt: { detected: false },
+            }),
+          },
+        ],
+      }),
+    );
+
+    const caught = await new ClaudeGradingProvider().grade(REQUEST).catch((e: unknown) => e);
+
+    expect(classifyProviderFailure(caught)).toBe('bad_output');
   });
 });

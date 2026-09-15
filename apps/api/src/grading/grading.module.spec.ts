@@ -139,6 +139,36 @@ describe('selectGradingProvider', () => {
     expect(selectGradingProvider(claude, keyword)).toBe(keyword);
   });
 
+  describe('trần tin cậy đọc từ env', () => {
+    // Trần của bậc đầu quyết định CÓ BÀI NÀO TỰ DUYỆT ĐƯỢC KHÔNG, nên một
+    // giá trị rác không được phép âm thầm trở thành một con số nào đó.
+    // Cùng họ với `Number('')` → 0 đã giết hàng đợi ở Plan 1.
+    function ceilingOf(raw?: string): number {
+      process.env.NODE_ENV = 'development';
+      setTier1(raw === undefined ? {} : { GRADING_TIER1_CEILING: raw });
+      const chain = selectGradingProvider(claude, keyword) as unknown as {
+        tiers: { provider: { config?: { ceiling: number } } }[];
+      };
+      // `OpenAICompatibleProvider` giữ config ở trường private; đọc qua
+      // cấu trúc là chấp nhận được trong test vì đây là thứ DUY NHẤT quan
+      // sát được của một quyết định không có đường ra công khai nào khác.
+      return chain.tiers[0].provider.config!.ceiling;
+    }
+
+    it.each([
+      ['không khai', undefined, 0.5],
+      ['rỗng', '', 0.5],
+      ['không phải số', 'abc', 0.5],
+      ['0 — không có nghĩa', '0', 0.5],
+      ['âm', '-1', 0.5],
+      ['lớn hơn 1', '1.5', 0.5],
+      ['hợp lệ', '0.9', 0.9],
+      ['đúng 1', '1', 1],
+    ])('%s → %s', (_label, raw, expected) => {
+      expect(ceilingOf(raw as string | undefined)).toBe(expected);
+    });
+  });
+
   it('bậc 2 cấu hình mà bậc 1 không → bậc 2 vẫn chạy, không cần lấp chỗ trống', () => {
     // Số thứ tự là ĐỘ ƯU TIÊN, không phải chỉ số mảng phải liên tục.
     process.env.NODE_ENV = 'development';

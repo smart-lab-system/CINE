@@ -8,6 +8,7 @@ import {
   GradingRequest,
 } from './ai-grading-provider';
 import { buildGraderPrompt } from './grader-prompt';
+import { badOutputError } from './provider-failure';
 
 /**
  * Model dùng để chấm. Một chỗ, để calibration biết chính xác cái gì đã chấm.
@@ -144,11 +145,14 @@ export class ClaudeGradingProvider implements AIGradingProvider {
     // và sinh viên nhận 0 điểm vì model không chịu trả lời.
     if (response.stop_reason === 'refusal') {
       const detail = response.stop_details;
-      const error = new Error(
+      // `badOutputError` chứ không phải Error tự dựng: cờ `badOutput` là
+      // thứ `classifyProviderFailure` đọc ĐẦU TIÊN. Thiếu nó thì một lượt
+      // từ chối bị xếp là `transient`, chuỗi dự phòng ném thẳng ra ngoài,
+      // và `isPermanentFailure(422)` ở processor giết luôn job — bài chết
+      // dù bậc dưới hoàn toàn chấm được nó. Xem `provider-failure.ts`.
+      throw badOutputError(
         `Model từ chối chấm bài này (${detail?.type ?? 'không rõ'}) — cần người xem`,
       );
-      (error as { status?: number }).status = 422;
-      throw error;
     }
 
     // Validate ở PHÍA MÌNH, không tin `output_config.format` là đủ.
@@ -161,9 +165,7 @@ export class ClaudeGradingProvider implements AIGradingProvider {
       (block): block is Anthropic.TextBlock => block.type === 'text',
     );
     if (!text) {
-      const error = new Error('Model không trả về khối text nào');
-      (error as { status?: number }).status = 422;
-      throw error;
+      throw badOutputError('Model không trả về khối text nào');
     }
 
     const validation = GraderOutputSchema.safeParse(JSON.parse(text.text));
@@ -172,9 +174,7 @@ export class ClaudeGradingProvider implements AIGradingProvider {
       // từ bài làm của sinh viên, và message này đi vào `failedReason`
       // trong Redis. Chỉ nêu đường dẫn tới trường sai.
       const paths = validation.error.issues.map((i) => i.path.join('.')).join(', ');
-      const error = new Error(`Output của model không khớp schema ở: ${paths}`);
-      (error as { status?: number }).status = 422;
-      throw error;
+      throw badOutputError(`Output của model không khớp schema ở: ${paths}`);
     }
     const parsed = validation.data;
 
