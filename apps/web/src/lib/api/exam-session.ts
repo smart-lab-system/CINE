@@ -124,6 +124,13 @@ export interface SearchExamSessionsParams {
   search?: string;
   status?: ExamSessionStatusFilter;
   examType?: ExamType;
+  /**
+   * Học kỳ của môn mà phiên thuộc về. Bỏ trống = tất cả học kỳ.
+   *
+   * `undefined`, KHÔNG phải `null`: openapi-fetch serialize null thành
+   * `?semesterId=` và @IsUUID ở backend sẽ trả 400 cho chuỗi rỗng đó.
+   */
+  semesterId?: string;
 }
 
 async function throwIfFailed(error: unknown, response: Response) {

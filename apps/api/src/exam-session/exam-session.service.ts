@@ -315,6 +315,19 @@ export class ExamSessionService {
     if (query.examType) {
       qb.andWhere('s.examType = :examType', { examType: query.examType });
     }
+    // AND vào owner-scope, KHÔNG thay thế nó: bộ lọc kỳ chỉ hẹp tầm nhìn
+    // của giảng viên trong phạm vi họ vốn đã được phép thấy. Một `orWhere`
+    // ở đây sẽ kéo phiên của giảng viên khác cùng kỳ vào, và kết quả vẫn
+    // trông "có dữ liệu" nên không ai nghi ngờ — e2e ghim đúng ca đó.
+    //
+    // Đọc `course.semesterId` (khoá ngoại), không phải `s.semesterName`
+    // (bản chụp lúc tạo phiên): dropdown gửi lên id của bảng `semester`,
+    // và /submissions/overview cũng suy học kỳ từ cùng một cột — hai
+    // trang không được trả lời khác nhau câu "phiên này thuộc kỳ nào".
+    // `course` đã được join sẵn ở trên nên không thêm lượt đi DB nào.
+    if (query.semesterId) {
+      qb.andWhere('course.semesterId = :semesterId', { semesterId: query.semesterId });
+    }
 
     const [rows, total] = await qb
       .orderBy('s.startTime', 'DESC')

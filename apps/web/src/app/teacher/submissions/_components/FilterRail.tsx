@@ -81,7 +81,15 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
 
   return (
     <aside className="flex flex-col gap-1 rounded-xl border border-border bg-surface-1 p-3 lg:sticky lg:top-4">
-      {facets.semesters.length > 1 && (
+      {/* Ngưỡng là > 0, KHÔNG phải > 1 như `rooms`/`examTypes`. Quy tắc
+          "một lựa chọn là nhiễu" đúng cho một thuộc tính của phiên, nhưng
+          học kỳ là chiều THỜI GIAN mà giảng viên đang đứng trong đó: ẩn ô
+          này khi họ mới dạy một kỳ khiến họ đọc thành "chức năng lọc theo
+          học kỳ đã bị gỡ" — chính phản hồi đã dẫn tới thay đổi này
+          (2026-09-15). Ô cũng là chỗ duy nhất nói ra rằng trang đang bị
+          hẹp về một kỳ, vì học kỳ cố ý không tính vào `hasActive` bên
+          dưới và nút "Xoá tất cả bộ lọc" cố ý giữ nó lại. */}
+      {facets.semesters.length > 0 && (
         <Section title="Học kỳ">
           <Select
             value={filters.semesterId ?? 'all'}

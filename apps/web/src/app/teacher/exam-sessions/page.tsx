@@ -24,6 +24,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EXAM_TYPE_LABELS, getDisplaySessionStatus } from '@/lib/exam-session-display';
+import { useSemesterFilter } from '@/hooks/useSemesterFilter';
+import { SemesterFilter } from '@/components/layout/semester-filter';
 import type { ExamSessionStatusFilter, ExamType } from '@/lib/api/exam-session';
 
 const STATUS_FILTER_LABELS: Record<ExamSessionStatusFilter, string> = {
@@ -61,12 +63,25 @@ function formatDateTime(iso: string): string {
   });
 }
 
+/**
+ * Lọc theo học kỳ, mặc định là kỳ hợp lý nhất hôm nay (tính từ ngày, xem
+ * `useSemesterFilter` — cùng định nghĩa mà badge trên topbar, "Lớp của
+ * tôi" và trang Bài thu đang đọc). Thêm 2026-09-15: yêu cầu QA "Tạo filter
+ * cho cả trang quản lý kỳ thi và bài thu" lần đầu chỉ làm ba bộ lọc
+ * tên/trạng thái/loại, nên một giảng viên dạy qua nhiều kỳ phải lật từng
+ * trang 20 dòng mới tìm lại được phiên của kỳ cũ.
+ *
+ * "Tất cả học kỳ" luôn nằm trong dropdown: phiên của kỳ cũ vẫn phải mở
+ * lại được để tra bài thi bù (CLAUDE.md §1.2 — học kỳ không bao giờ chặn
+ * một thao tác).
+ */
 export default function ExamSessionsListPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<ExamSessionStatusFilter | 'all'>('all');
   const [examType, setExamType] = useState<ExamType | 'all'>('all');
   const debouncedSearch = useDebouncedValue(search, 300);
+  const semesterFilter = useSemesterFilter('teacher-exam-sessions');
 
   const { data, error, isLoading, refetch } = useExamSessions({
     page,
@@ -74,6 +89,9 @@ export default function ExamSessionsListPage() {
     search: debouncedSearch.trim() || undefined,
     status: status === 'all' ? undefined : status,
     examType: examType === 'all' ? undefined : examType,
+    // `?? undefined`: null nghĩa là "tất cả kỳ", và cách nói điều đó với
+    // API là KHÔNG gửi tham số — xem doc của SearchExamSessionsParams.
+    semesterId: semesterFilter.semesterId ?? undefined,
   });
 
   const total = data?.total ?? 0;
@@ -92,6 +110,13 @@ export default function ExamSessionsListPage() {
 
   function handleExamTypeChange(value: string) {
     setExamType(value as typeof examType);
+    setPage(1);
+  }
+
+  function handleSemesterChange(value: string | null) {
+    semesterFilter.setSemesterId(value);
+    // Đang ở trang 3 của kỳ này mà đổi kỳ thì trang 3 của kỳ kia có thể
+    // không tồn tại, và bảng hiện ra rỗng như thể kỳ đó không có phiên nào.
     setPage(1);
   }
 
@@ -117,7 +142,15 @@ export default function ExamSessionsListPage() {
         }
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <SemesterFilter
+          value={semesterFilter.semesterId}
+          onChange={handleSemesterChange}
+          semesters={semesterFilter.semesters}
+          current={semesterFilter.current}
+          isStale={semesterFilter.isStale}
+          staleDays={semesterFilter.staleDays}
+        />
         <Input
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
@@ -173,29 +206,53 @@ export default function ExamSessionsListPage() {
           </Alert>
         ) : data && data.items.length === 0 ? (
           <Card>
-            <EmptyState
-              icon={CalendarClock}
-              title={hasActiveFilters ? 'Không tìm thấy phiên thi phù hợp' : 'Chưa có phiên thi nào'}
-              description={
-                hasActiveFilters
-                  ? 'Thử đổi từ khoá tìm kiếm hoặc bộ lọc trạng thái/loại kỳ thi.'
-                  : 'Tạo phiên thi đầu tiên để lấy mã cho sinh viên và bắt đầu thu bài.'
-              }
-              action={
-                hasActiveFilters ? (
+            {/* Ba câu chuyện khác nhau, không được nói chung một câu.
+                "Bộ lọc không khớp" thì xoá bộ lọc; "kỳ này bạn không có
+                phiên nào" thì đổi kỳ — và chỉ khi KHÔNG lọc gì cả thì mới
+                thật sự là "bạn chưa tạo phiên nào bao giờ" và mới nên mời
+                họ tạo. Cùng khuôn với "Lớp của tôi". */}
+            {hasActiveFilters ? (
+              <EmptyState
+                icon={CalendarClock}
+                title="Không tìm thấy phiên thi phù hợp"
+                description="Thử đổi từ khoá tìm kiếm hoặc bộ lọc trạng thái/loại kỳ thi."
+                action={
                   <Button type="button" variant="outline" onClick={clearFilters}>
                     Xoá bộ lọc
                   </Button>
-                ) : (
+                }
+              />
+            ) : semesterFilter.semesterId !== null ? (
+              <EmptyState
+                icon={CalendarClock}
+                title="Không có phiên thi nào trong học kỳ này"
+                description="Bạn có thể chọn học kỳ khác, hoặc xem toàn bộ phiên thi đã từng tạo."
+                tone="muted"
+                action={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleSemesterChange(null)}
+                  >
+                    Xem tất cả học kỳ
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={CalendarClock}
+                title="Chưa có phiên thi nào"
+                description="Tạo phiên thi đầu tiên để lấy mã cho sinh viên và bắt đầu thu bài."
+                action={
                   <Button asChild>
                     <Link href="/teacher/exam-sessions/new">
                       <Plus className="h-4 w-4" aria-hidden="true" />
                       Tạo phiên thi
                     </Link>
                   </Button>
-                )
-              }
-            />
+                }
+              />
+            )}
           </Card>
         ) : (
           <>

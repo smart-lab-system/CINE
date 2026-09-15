@@ -1431,6 +1431,7 @@ export interface operations {
                 search?: string;
                 status?: "draft" | "scheduled" | "active" | "collecting" | "completed" | "cancelled";
                 examType?: "TK" | "GK" | "CK";
+                semesterId?: string;
             };
             header?: never;
             path?: never;

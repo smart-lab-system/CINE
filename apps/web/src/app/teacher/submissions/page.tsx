@@ -21,9 +21,10 @@ import {
   applyFilters,
   buildFacets,
   detectRoomFailure,
-  pickDefaultSemester,
+  resolveDefaultSemester,
   type FilterState,
 } from '@/lib/submission-filters';
+import { useCurrentSemester } from '@/hooks/useSemesterFilter';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import { EmptyState } from '@/components/layout/empty-state';
@@ -135,14 +136,29 @@ export default function SubmissionsPage() {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const items = useMemo(() => data ?? [], [data]);
 
+  // Kỳ mặc định đọc từ ĐỊNH NGHĨA DÙNG CHUNG (cùng thứ badge trên topbar
+  // và bộ lọc của "Lớp của tôi" đang đọc), không phải một công thức riêng
+  // của trang này — xem `resolveDefaultSemester`.
+  const { current: currentSemester, isLoading: semestersLoading } = useCurrentSemester();
+  const currentSemesterId = currentSemester?.id ?? null;
+
   // Học kỳ mặc định chỉ chốt MỘT LẦN, khi dữ liệu về lần đầu — nếu tính lại
   // mỗi render thì lựa chọn của giảng viên sẽ bị ghi đè ngay lập tức.
+  //
+  // Chờ cả GET /semesters xong mới gieo: gieo sớm sẽ chốt bằng nhánh lùi
+  // (kỳ của phiên mới nhất) rồi `seededRef` khoá luôn, và câu trả lời
+  // đúng về sau không bao giờ được dùng. `/semesters` lỗi thì
+  // `isLoading` vẫn về false với `current = null`, và nhánh lùi lúc đó
+  // là câu trả lời đúng chứ không phải một sự cố.
   const seededRef = useRef(false);
   useEffect(() => {
-    if (seededRef.current || items.length === 0) return;
+    if (seededRef.current || items.length === 0 || semestersLoading) return;
     seededRef.current = true;
-    setFilters((prev) => ({ ...prev, semesterId: pickDefaultSemester(items, Date.now()) }));
-  }, [items]);
+    setFilters((prev) => ({
+      ...prev,
+      semesterId: resolveDefaultSemester(items, currentSemesterId),
+    }));
+  }, [items, semestersLoading, currentSemesterId]);
 
   const facets = useMemo(() => buildFacets(items, filters, now), [items, filters, now]);
   const visible = useMemo(() => applyFilters(items, filters, now), [items, filters, now]);

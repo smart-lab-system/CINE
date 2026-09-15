@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EMPTY_FILTERS, applyFilters, buildFacets, detectRoomFailure, pickDefaultSemester,
+  EMPTY_FILTERS, applyFilters, buildFacets, detectRoomFailure, resolveDefaultSemester,
 } from './submission-filters';
 import type { SessionOverviewItem } from './api/submissions';
 
@@ -27,29 +27,48 @@ function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
   };
 }
 
-describe('pickDefaultSemester', () => {
-  it('chọn học kỳ đang chạy', () => {
-    // Học kỳ suy ra từ chính các phiên: kỳ nào có phiên bao trùm hôm nay.
+describe('resolveDefaultSemester', () => {
+  it('dùng kỳ hiện tại của hệ thống khi giảng viên CÓ phiên trong kỳ đó', () => {
+    // Điểm của hàm này: câu trả lời đến TỪ BÊN NGOÀI (useCurrentSemester),
+    // không tự suy lại từ mốc thời gian của các phiên.
     const items = [
-      make({ id: 'a', semesterId: 'cu', startTime: new Date(NOW - 200 * 24 * HOUR).toISOString(),
-             endTime: new Date(NOW - 199 * 24 * HOUR).toISOString() }),
+      make({ id: 'a', semesterId: 'cu', startTime: new Date(NOW - 200 * 24 * HOUR).toISOString() }),
       make({ id: 'b', semesterId: 'nay' }),
     ];
-    expect(pickDefaultSemester(items, NOW)).toBe('nay');
+    expect(resolveDefaultSemester(items, 'nay')).toBe('nay');
   });
 
-  it('không kỳ nào đang chạy → kỳ gần nhất đã qua', () => {
+  it('kỳ hiện tại được tôn trọng kể cả khi phiên MỚI NHẤT thuộc kỳ khác', () => {
+    // Ca phân biệt hai công thức: bản cũ suy từ phiên nên sẽ trả 'tuong-lai'.
     const items = [
-      make({ id: 'a', semesterId: 'cu-hon', startTime: new Date(NOW - 400 * 24 * HOUR).toISOString(),
-             endTime: new Date(NOW - 399 * 24 * HOUR).toISOString() }),
-      make({ id: 'b', semesterId: 'gan-hon', startTime: new Date(NOW - 100 * 24 * HOUR).toISOString(),
-             endTime: new Date(NOW - 99 * 24 * HOUR).toISOString() }),
+      make({ id: 'a', semesterId: 'nay' }),
+      make({ id: 'b', semesterId: 'tuong-lai',
+             startTime: new Date(NOW + 60 * 24 * HOUR).toISOString(),
+             endTime: new Date(NOW + 61 * 24 * HOUR).toISOString() }),
     ];
-    expect(pickDefaultSemester(items, NOW)).toBe('gan-hon');
+    expect(resolveDefaultSemester(items, 'nay')).toBe('nay');
+  });
+
+  it('kỳ hiện tại mà giảng viên không có phiên nào → lùi về kỳ có phiên mới nhất', () => {
+    // Không lùi thì mở trang ra là bảng rỗng, và giảng viên vừa dạy xong
+    // kỳ trước sẽ đọc thành "mất dữ liệu".
+    const items = [
+      make({ id: 'a', semesterId: 'cu-hon', startTime: new Date(NOW - 400 * 24 * HOUR).toISOString() }),
+      make({ id: 'b', semesterId: 'gan-hon', startTime: new Date(NOW - 100 * 24 * HOUR).toISOString() }),
+    ];
+    expect(resolveDefaultSemester(items, 'ky-nay-khong-co-phien')).toBe('gan-hon');
+  });
+
+  it('chưa biết kỳ hiện tại (GET /semesters còn đang tải hoặc lỗi) → kỳ có phiên mới nhất', () => {
+    const items = [
+      make({ id: 'a', semesterId: 'cu-hon', startTime: new Date(NOW - 400 * 24 * HOUR).toISOString() }),
+      make({ id: 'b', semesterId: 'gan-hon', startTime: new Date(NOW - 100 * 24 * HOUR).toISOString() }),
+    ];
+    expect(resolveDefaultSemester(items, null)).toBe('gan-hon');
   });
 
   it('rỗng → null', () => {
-    expect(pickDefaultSemester([], NOW)).toBeNull();
+    expect(resolveDefaultSemester([], 'nay')).toBeNull();
   });
 });
 
