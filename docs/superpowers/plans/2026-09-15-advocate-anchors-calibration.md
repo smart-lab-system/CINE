@@ -530,32 +530,44 @@ hay tệ*.
 
 ---
 
-## Task 7: Regenerate `schema.d.ts` + kiểm chứng toàn bộ
+## Task 7: Regenerate `schema.d.ts` + kiểm chứng toàn bộ — ✅ XONG (2026-09-15)
 
 Giống Plan 1 Task 12, và **chỉ cần nếu Task 1–6 có thêm route API**. Nếu không
 thêm route nào thì bỏ Step 1–2, giữ Step 3.
 
-- [ ] **Step 1–2:** build + chạy API (`dist/src/main.js`, không phải
-  `dist/main.js`) → `pnpm generate:api-client` → tắt API
+- [x] **Step 1–2: BỎ QUA — đúng theo điều kiện trên.** Task 1–6 không thêm route
+  nào: `git diff --stat 49b0fc4..HEAD -- '*.controller.ts'` không có thay đổi
+  route, và API chạy lên vẫn đúng **71 route = 71 operation** trong
+  `schema.d.ts`. (Lần đếm đầu ra 72 là do một `@Post()` nằm trong **comment** ở
+  `class.controller.ts:85` — không phải route thật.)
 
-- [ ] **Step 3: Kiểm chứng đầy đủ**
+- [x] **Step 3: Kiểm chứng đầy đủ** — chạy 2026-09-15, tất cả xanh:
 
-```bash
-cd apps/api && npx tsc --noEmit && npx jest && \
-  npx jest --config ./test/jest-e2e.json && \
-  npx eslint src test --ext .ts
-cd ../web && npx tsc --noEmit && npx vitest run && npx next build
-cd ../.. && node scripts/find-import-cycles.js apps/api/src
-```
+| Lệnh | Kết quả |
+|---|---|
+| `apps/api` · `tsc --noEmit` | sạch |
+| `apps/api` · `jest` (unit) | **291 pass, 1 skipped** (skip = T-CACHE-1 trả tiền) |
+| `apps/api` · `jest --config test/jest-e2e.json` | **347 pass / 35 suite**, 92s |
+| `apps/api` · `eslint src test` | **0 error, 6 warning** (trước dọn: 9) |
+| `apps/web` · `tsc` · `vitest` · `next build` | **351 pass**, build sạch |
+| `scripts/find-import-cycles.js` | **0 vòng lặp / 211 file** |
 
-Mong đợi: tsc sạch · unit PASS · e2e PASS · lint 0 error · web tsc **chỉ còn 2
-lỗi `read-workbook.test.ts` có sẵn** · web build sạch · 0 vòng lặp import.
+- [x] **Step 4: Đối chiếu §14** — làm, và **kết quả KHÁC kỳ vọng của plan**.
+  Plan viết "Đủ 21/21". Thực tế **19 ✅ · 1 ⚠️ · 1 ⏸**:
+  - **⏸ T-CACHE-1** — Task 0 không xong (hết credit Anthropic), nên phép đo
+    chưa chạy lần nào. Test đã viết sẵn và `describe.skip` cho tới khi đặt
+    `RUN_PAID_INTEGRATION=true`.
+  - **⚠️ T-G2-1b** — mới phủ nửa đầu (phát hiện `applyGuards`); vế "chấm lại 1
+    lần rồi dừng" ở `gradeOne` chưa có test nào. Phát hiện ĐÚNG LÚC dựng cột
+    trạng thái cho bảng — trước đó bảng không nói ca nào có test thật nên không
+    ai thấy.
+  - Kèm hai sai lệch tầng được ghi ra thay vì để im: T-ADV-1 và T-ADV-2 chạy ở
+    unit chứ không e2e (ghi chú ① dưới bảng).
 
-- [ ] **Step 4: Đối chiếu §14** — sau plan này phải tick thêm **T-ADV-1**,
-  **T-ANCHOR-0**, **T-ANCHOR-1**, và **T-CACHE-1** nếu Task 0 xong. Đủ 21/21.
-
-- [ ] **Step 5: Commit + gọi code-reviewer** (CLAUDE.md HANDOFF RULE: không báo
-  "done" khi chưa có VERDICT).
+- [x] **Step 5: Commit + code-reviewer** — `fb1db33` (+ commit sửa theo review).
+  VERDICT: **APPROVED WITH WARNINGS**; W1 (dòng T-SEC-4 trỏ nhầm
+  `anchor.spec.ts`, file đó chỉ nhắc mã này trong comment) đã sửa, cùng S3/S5
+  (gốc đường dẫn của các file e2e).
 
 ---
 
