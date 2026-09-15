@@ -49,8 +49,14 @@ export interface AdvocateOpinion {
    * NÂNG điểm, và một giảng viên đang chấm bài thứ 35 sẽ có xu hướng đồng
    * ý. Nên những mẩu không kiểm được phải hiện ra — nhưng KHÔNG tự động
    * loại bỏ kiến nghị, vì loại bỏ là thay giảng viên quyết.
+   *
+   * `null` = CHƯA kiểm, `[]` = đã kiểm và không mẩu nào trượt. Hai thứ đó
+   * phải phân biệt được: provider trả về `null` vì `verifyEvidence` cần
+   * bài làm nguyên văn, thứ chỉ `GradingService` cầm. Nếu cả hai cùng là
+   * `[]` thì một người đọc sau — hoặc một màn hình — sẽ đọc "chưa ai kiểm"
+   * thành "đã kiểm, sạch", đúng ở chỗ nguy hiểm nhất.
    */
-  unverifiedEvidence: string[];
+  unverifiedEvidence: string[] | null;
   /** Của riêng lượt Advocate. Lượt Grader có usage riêng, không cộng vào đây. */
   usage: {
     inputTokens: number;

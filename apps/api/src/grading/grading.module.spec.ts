@@ -24,9 +24,24 @@ describe('selectGradingProvider', () => {
     // Khôi phục TỪNG BIẾN, không gán `process.env = ORIGINAL`: gán cả đối
     // tượng làm đứt liên kết mà các module đã giữ tham chiếu tới, và triệu
     // chứng sẽ hiện ở một suite khác chạy sau.
-    process.env.NODE_ENV = ORIGINAL.NODE_ENV;
-    process.env.ANTHROPIC_API_KEY = ORIGINAL.ANTHROPIC_API_KEY;
+    //
+    // Và phải XOÁ chứ không gán khi giá trị gốc là `undefined`:
+    // `process.env` ép mọi giá trị về chuỗi, nên `process.env.X = undefined`
+    // cho ra chuỗi `"undefined"` — MỘT CHUỖI TRUTHY. Một suite chạy sau sẽ
+    // thấy "có khoá API" ở một máy chưa bao giờ đặt khoá. Đúng cái bẫy mà
+    // test "khoá rỗng tính là không có khoá" ở dưới nói tới, chỉ là ở tầng
+    // dọn dẹp của chính bộ test.
+    restore('NODE_ENV', ORIGINAL.NODE_ENV);
+    restore('ANTHROPIC_API_KEY', ORIGINAL.ANTHROPIC_API_KEY);
   });
+
+  function restore(key: string, value: string | undefined): void {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
 
   it('NODE_ENV=test → keyword, KỂ CẢ khi đã có khoá API', () => {
     // Ca đắt nhất nếu vỡ, và nó vỡ trong IM LẶNG: có credit thì test vẫn
