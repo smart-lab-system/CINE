@@ -190,7 +190,13 @@ export default function SubmissionsPage() {
     </>
   );
 
-  if (isLoading) {
+  // Chờ CẢ /semesters, không chỉ danh sách phiên: hai query chạy song song,
+  // và nếu danh sách phiên về trước thì trang vẽ một lượt với semesterId =
+  // null — tức TẤT CẢ các kỳ — rồi mới co lại về kỳ hiện tại khi seed chạy.
+  // Một khung hình sai vẫn là một khung hình sai, và nó nhấp nháy đúng vào
+  // con số "phiên cần chú ý". /semesters lỗi thì isLoading vẫn về false, nên
+  // đây không phải một đường treo vô hạn.
+  if (isLoading || semestersLoading) {
     return (
       <div className="flex flex-col gap-8">
         {header}

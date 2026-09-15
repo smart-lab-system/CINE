@@ -655,6 +655,7 @@ describe('ExamSession (e2e)', () => {
       classIdForSession: string,
       nameSuffix: string,
       token: string,
+      examType: 'TK' | 'GK' | 'CK' = 'TK',
     ): Promise<string> {
       const { startTime, endTime } = futureWindow();
       const response = await request(app.getHttpServer())
@@ -664,7 +665,7 @@ describe('ExamSession (e2e)', () => {
           name: `Sem${stamp} ${nameSuffix}`,
           classId: classIdForSession,
           roomId,
-          examType: 'TK',
+          examType,
           startTime,
           endTime,
           requiredFilenames: ['Cau1.docx'],
@@ -717,6 +718,48 @@ describe('ExamSession (e2e)', () => {
         .set('Authorization', `Bearer ${ownerToken}`);
 
       expect(response.status).toBe(400);
+    });
+
+    it('a well-formed semesterId that matches no semester gives an empty list, not a 404', async () => {
+      // Kỳ "không tồn tại" là một câu trả lời hợp lệ (0 phiên), không phải
+      // một sự cố. Ghim lại để một lần refactor sau không biến nó thành
+      // 404 và làm trang danh sách nổ thay vì hiện bảng rỗng.
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ semesterId: '00000000-0000-4000-8000-000000000000' })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.items).toHaveLength(0);
+      expect(response.body.total).toBe(0);
+    });
+
+    it('chains onto the other three filters instead of widening them', async () => {
+      // Mỗi phiên "sai" dưới đây lệch khỏi phiên đúng ĐÚNG MỘT chiều. Nếu
+      // một `andWhere` nào đó bị viết nhầm thành `orWhere`, chính phiên
+      // lệch theo chiều đó sẽ lọt vào kết quả — và chỉ luôn ra chiều hỏng.
+      const wanted = await createIn(otherSemesterClassId, 'Gộp đúng', ownerToken, 'CK');
+      const wrongType = await createIn(otherSemesterClassId, 'Gộp sai loại', ownerToken, 'GK');
+      const wrongSemester = await createIn(classId, 'Gộp sai kỳ', ownerToken, 'CK');
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({
+          search: `Sem${stamp} Gộp`,
+          examType: 'CK',
+          status: 'active',
+          semesterId: otherSemesterId,
+        })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      // toEqual, không phải toContain: bốn bộ lọc AND với nhau thì kết quả
+      // là đúng MỘT phiên, và đó mới là điều cần chứng minh.
+      expect(ids).toEqual([wanted]);
+      expect(ids).not.toContain(wrongType);
+      expect(ids).not.toContain(wrongSemester);
+      expect(response.body.total).toBe(1);
     });
 
     it('treats an absent semesterId as all semesters, not as an error', async () => {
