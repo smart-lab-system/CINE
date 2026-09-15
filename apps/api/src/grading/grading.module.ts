@@ -40,6 +40,51 @@ import { ClaudeGradingProvider } from './ai-provider/claude-grading.provider';
  * is configured, the local keyword provider runs, names itself honestly in
  * every result, and never reaches the auto-approval threshold.
  */
+
+/**
+ * Hàm RIÊNG, export ra, chứ không phải một arrow function ẩn trong
+ * `useFactory`: quyết định "lượt chấm này gọi model nào" là một quyết
+ * định nghiệp vụ, và nó phải test được mà không phải dựng cả một app
+ * Nest. Từ 2026-09-15 nó lại càng phải test được ở tầng unit, vì nhánh
+ * Claude giờ KHÔNG CÒN chạy trong e2e nữa (xem guard bên dưới).
+ */
+export function selectGradingProvider(
+  claude: ClaudeGradingProvider,
+  keyword: KeywordGradingProvider,
+): AIGradingProvider {
+  // TEST KHÔNG BAO GIỜ ĐƯỢC GỌI API TÍNH TIỀN.
+  //
+  // Guard này được thêm ngày 2026-09-15, sau khi khoá API thật xuất hiện
+  // trong `.env` và 5 test e2e đỏ ngay lập tức: binding ở dưới đọc "có
+  // khoá" là "dùng Claude", nên cả bộ e2e bắt đầu gọi API thật. Hôm đó
+  // nó lộ ra vì tài khoản chưa có credit. Nếu đã có credit thì nó sẽ
+  // KHÔNG lộ ra — test vẫn xanh, chỉ là mỗi lần chạy `pnpm test:e2e`
+  // lại tiêu một ít tiền, chậm hơn, và phụ thuộc vào một dịch vụ ngoài
+  // mạng. Đó mới là ca đắt.
+  //
+  // "Có một khoá trong .env" không phải lời xin phép tiêu tiền. Lượt
+  // chấm thật do một giảng viên bấm nút; một bộ test thì không.
+  if (process.env.NODE_ENV === 'test') {
+    return keyword;
+  }
+  if (process.env.ANTHROPIC_API_KEY) {
+    return claude;
+  }
+  // NÓI RA, không im lặng rơi về đếm từ.
+  //
+  // Không có key thì hệ thống vẫn chấm được — nhưng bằng đối sánh từ
+  // khoá, thứ không bao giờ vượt ngưỡng auto-approve và không phán đoán
+  // được gì về tính đúng đắn. Rơi về nó trong im lặng nghĩa là mọi người
+  // tin hệ thống đang gọi model trong khi nó đang đếm từ, và bảng điểm
+  // trông y hệt nhau ở cả hai ca.
+  new Logger('GradingModule').warn(
+    'ANTHROPIC_API_KEY chưa được đặt — chấm điểm chạy bằng ' +
+      'KeywordGradingProvider (đối sánh từ khoá, KHÔNG gọi model). ' +
+      'Điểm sinh ra chỉ dùng để thử luồng, không dùng để chấm thật.',
+  );
+  return keyword;
+}
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -82,42 +127,7 @@ import { ClaudeGradingProvider } from './ai-provider/claude-grading.provider';
     KeywordGradingProvider,
     {
       provide: AI_GRADING_PROVIDER,
-      useFactory: (
-        claude: ClaudeGradingProvider,
-        keyword: KeywordGradingProvider,
-      ): AIGradingProvider => {
-        // TEST KHÔNG BAO GIỜ ĐƯỢC GỌI API TÍNH TIỀN.
-        //
-        // Guard này được thêm ngày 2026-09-15, sau khi khoá API thật xuất
-        // hiện trong `.env` và 5 test e2e đỏ ngay lập tức: binding ở dưới
-        // đọc "có khoá" là "dùng Claude", nên cả bộ e2e bắt đầu gọi API
-        // thật. Hôm đó nó lộ ra vì tài khoản chưa có credit. Nếu đã có
-        // credit thì nó sẽ KHÔNG lộ ra — test vẫn xanh, chỉ là mỗi lần
-        // chạy `pnpm test:e2e` lại tiêu một ít tiền, chậm hơn, và phụ
-        // thuộc vào một dịch vụ ngoài mạng. Đó mới là ca đắt.
-        //
-        // "Có một khoá trong .env" không phải lời xin phép tiêu tiền.
-        // Lượt chấm thật do một giảng viên bấm nút; một bộ test thì không.
-        if (process.env.NODE_ENV === 'test') {
-          return keyword;
-        }
-        if (process.env.ANTHROPIC_API_KEY) {
-          return claude;
-        }
-        // NÓI RA, không im lặng rơi về đếm từ.
-        //
-        // Không có key thì hệ thống vẫn chấm được — nhưng bằng đối sánh
-        // từ khoá, thứ không bao giờ vượt ngưỡng auto-approve và không
-        // phán đoán được gì về tính đúng đắn. Rơi về nó trong im lặng
-        // nghĩa là mọi người tin hệ thống đang gọi model trong khi nó
-        // đang đếm từ, và bảng điểm trông y hệt nhau ở cả hai ca.
-        new Logger(GradingModule.name).warn(
-          'ANTHROPIC_API_KEY chưa được đặt — chấm điểm chạy bằng ' +
-            'KeywordGradingProvider (đối sánh từ khoá, KHÔNG gọi model). ' +
-            'Điểm sinh ra chỉ dùng để thử luồng, không dùng để chấm thật.',
-        );
-        return keyword;
-      },
+      useFactory: selectGradingProvider,
       inject: [ClaudeGradingProvider, KeywordGradingProvider],
     },
   ],

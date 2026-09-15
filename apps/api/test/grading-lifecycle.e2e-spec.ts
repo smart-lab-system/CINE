@@ -255,6 +255,9 @@ describe('Vòng đời grading_result (e2e)', () => {
     // còn là bằng chứng. Security rule 6 áp cho cả hai lượt, không riêng
     // Grader.
     const id = await seedGradingResultAtAiGrading();
+    // `model_used` cố ý bỏ trống: test này kiểm TRIGGER, không kiểm một
+    // lượt chấm hoàn chỉnh. Thứ duy nhất trigger đọc để quyết định có khoá
+    // hay không là `OLD.ai_total_score`.
     await dataSource.query(
       `UPDATE examcollect.grading_result
           SET status = 'ai_graded', ai_total_score = 7.5, confidence = 0.3
