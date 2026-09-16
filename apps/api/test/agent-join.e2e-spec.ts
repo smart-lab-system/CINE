@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * `agent:join` is the system's only authentication boundary for students,
@@ -128,6 +129,18 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       [courseId, teacherId],
     );
 
+    // Lớp N02 cũng cần ÍT NHẤT một sinh viên, từ 2026-09-11: mở phiên
+    // là đóng băng danh sách dự thi của LỚP phiên đó, và một lớp rỗng
+    // thì không có gì để chụp. Em này không xuất hiện trong khẳng định
+    // nào — xác thực vào thi vẫn ở cấp MÔN, đúng như các test dưới đây
+    // kiểm.
+    await dataSource.query(
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [`N02${stamp}`.slice(0, 20), 'Sinh viên lớp N02', courseId, plainClass.id, teacherId],
+    );
+
     // One student on the roster, one deliberately absent from it.
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
@@ -152,6 +165,9 @@ describe('agent:join enrollment enforcement (e2e)', () => {
         requiredFilenames: ['Cau1.docx'],
       });
     expect(created.status).toBe(201);
+    // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
+    // dự thi. Xem test/helpers/open-session.ts.
+    await openSession(app, token, created.body.id);
     sessionCode = created.body.code;
 
     // A second session whose deliverable is declared as a PATTERN. Same
@@ -169,6 +185,9 @@ describe('agent:join enrollment enforcement (e2e)', () => {
         requiredFilenames: ['{PHONG}_{MSSV}_{TEN}_{SOMAY}.docx'],
       });
     expect(templated.status).toBe(201);
+    // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
+    // dự thi. Xem test/helpers/open-session.ts.
+    await openSession(app, token, templated.body.id);
     templatedCode = templated.body.code;
   });
 

@@ -23,6 +23,7 @@ import {
   useGradingResults,
   useRubrics,
   useSetSessionRubric,
+  useGradingProgress,
   useStartGrading,
 } from '@/hooks/useGrading';
 
@@ -79,6 +80,11 @@ function GradingPageContent() {
 
   const results = useGradingResults(sessionId || undefined);
   const start = useStartGrading(sessionId || undefined);
+  const progress = useGradingProgress(sessionId || undefined);
+  // Chỉ "đang chấm" khi THẬT SỰ còn bài chưa xong. Dùng chính con số
+  // của phiên này, không dùng trạng thái nút bấm: mutation kết thúc sau
+  // vài trăm mili giây, còn lượt chấm thì chạy tiếp nhiều phút.
+  const grading = (progress.data?.pending ?? 0) > 0;
   const hasResults = (results.data?.length ?? 0) > 0;
 
   return (
@@ -143,10 +149,16 @@ function GradingPageContent() {
                 // Theo rubric ĐÃ GHIM của phiên, không theo bản `isActive`
                 // của môn. Bản active có thể đã là v5 trong khi phiên này
                 // ghim v3 — và v3 mới là thứ nó sẽ được chấm bằng.
-                disabled={!session.rubricId}
+                //
+                // Cũng chặn khi lượt chấm trước còn đang chạy: bấm lại lúc
+                // đó không tạo thêm gì (jobId trùng bị bỏ qua), nhưng nút
+                // bấm được trong khi không có gì xảy ra là một lời nói dối.
+                disabled={!session.rubricId || grading}
                 title={
                   session.rubricId
-                    ? undefined
+                    ? grading
+                      ? 'Đang chấm — chờ lượt hiện tại xong đã.'
+                      : undefined
                     : 'Phiên thi này chưa gắn rubric — gắn rubric ở trên trước khi chấm.'
                 }
                 onClick={() => start.mutate()}
@@ -160,6 +172,47 @@ function GradingPageContent() {
               {start.isError && (
                 <Alert variant="destructive">
                   <AlertDescription>{start.error.message}</AlertDescription>
+                </Alert>
+              )}
+
+              {/* Chấm điểm chạy NỀN từ 2026-09-11: `Bắt đầu chấm` trả về
+                  ngay sau khi xếp hàng, và một lượt 40 bài mất nhiều phút.
+                  Không có dòng này thì giảng viên bấm nút rồi nhìn một màn
+                  hình không đổi gì — đúng thứ mà việc chuyển sang hàng đợi
+                  lẽ ra phải cải thiện, không phải làm tệ đi. */}
+              {grading && (
+                <Alert variant="info">
+                  <AlertDescription className="flex flex-col gap-2">
+                    <span>
+                      Đang chấm {progress.data!.done}/{progress.data!.total} bài. Trang tự
+                      cập nhật — không cần chờ ở đây.
+                    </span>
+                    <span
+                      className="h-1.5 w-full overflow-hidden rounded-full bg-border"
+                      role="progressbar"
+                      aria-valuenow={progress.data!.done}
+                      aria-valuemin={0}
+                      aria-valuemax={progress.data!.total}
+                    >
+                      <span
+                        className="block h-full rounded-full bg-primary transition-[width] duration-500"
+                        style={{
+                          width: `${Math.round(
+                            (progress.data!.done / Math.max(progress.data!.total, 1)) * 100,
+                          )}%`,
+                        }}
+                      />
+                    </span>
+                    {progress.data!.queue.failed > 0 && (
+                      // Hàng đợi TOÀN hệ thống, không phải của riêng phiên
+                      // này — nên nó nói "có gì đó đang hỏng", không nói
+                      // "bài của bạn hỏng". Hai câu khác nhau.
+                      <span className="text-caption text-muted-foreground">
+                        Hàng đợi đang có {progress.data!.queue.failed} job lỗi — nếu tiến độ
+                        đứng yên, hãy báo quản trị viên.
+                      </span>
+                    )}
+                  </AlertDescription>
                 </Alert>
               )}
 

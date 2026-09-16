@@ -54,9 +54,12 @@ export class KeywordGradingProvider implements AIGradingProvider {
           criterionId: criterion.id,
           verdict: 'not_met' as CriterionVerdict,
           points: 0,
-          evidence: unreadable
-            ? 'Không đọc được nội dung bài làm — cần giảng viên chấm tay.'
-            : 'Tiêu chí không có từ khoá đủ đặc trưng để đối chiếu tự động.',
+          // RỖNG, không phải một câu giải thích: chuỗi rỗng là tín hiệu
+          // hợp lệ ("sinh viên không đề cập"), còn một câu giải thích
+          // không nằm trong bài làm sẽ bị guard verbatim đánh là không
+          // định vị được — đúng một cách vô ích, vì nó vốn không phải
+          // trích dẫn.
+          evidence: '',
         };
       }
 
@@ -69,10 +72,17 @@ export class KeywordGradingProvider implements AIGradingProvider {
         criterionId: criterion.id,
         verdict,
         points: pointsFor(verdict, criterion.maxPoints),
-        evidence:
-          found.length > 0
-            ? `Tìm thấy trong bài: ${found.slice(0, 6).join(', ')} (${found.length}/${keywords.length} từ khoá).`
-            : `Không tìm thấy từ khoá nào của tiêu chí: ${keywords.slice(0, 6).join(', ')}.`,
+        // TRÍCH NGUYÊN VĂN quanh từ khoá đầu tiên tìm được, không phải mô
+        // tả về việc tìm thấy gì.
+        //
+        // Provider này là hàng thay thế trong lúc phát triển, nên nó phải
+        // tôn trọng ĐÚNG hợp đồng mà provider thật tôn trọng — trong đó có
+        // guard verbatim (`harness/evidence-check.ts`), vốn đòi dẫn chứng
+        // phải định vị được trong bài làm. Một mô tả kiểu "tìm thấy 3/4 từ
+        // khoá" không định vị được, nên nó sẽ bị đánh `unverified` và mọi
+        // bài chấm bằng provider này đều rơi vào nhánh "không tin được" —
+        // biến môi trường dev thành một thứ không chạy giống production.
+        evidence: found.length > 0 ? excerptAround(request.content, found[0]) : '',
       };
     });
 
@@ -82,10 +92,24 @@ export class KeywordGradingProvider implements AIGradingProvider {
       modelUsed: this.name,
       criterionResults,
       totalScore: Math.round(totalScore * 100) / 100,
-      // Capped low on purpose. Word overlap is evidence that a topic was
-      // mentioned, never that it was answered correctly, so nothing this
-      // provider produces should clear an auto-approval threshold.
-      confidence: unreadable ? 0 : 0.2,
+      // Trần thấp có chủ đích. Đối sánh từ khoá là bằng chứng một chủ đề
+      // ĐƯỢC NHẮC TỚI, không bao giờ là bằng chứng nó được TRẢ LỜI ĐÚNG —
+      // nên không gì provider này sinh ra được phép vượt ngưỡng tự duyệt,
+      // kể cả khi mọi guard cơ học đều sạch.
+      confidenceCeiling: unreadable ? 0 : 0.2,
+      // Số 0 ở đây là SỰ THẬT, không phải chỗ trống chờ điền: provider này
+      // chạy cục bộ bằng đếm từ và không gọi API nào. Một lượt chấm bằng nó
+      // tốn đúng 0 token, và dashboard chi phí phải đọc được điều đó.
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+      },
+      // Provider này chỉ đếm từ trên rubric và bài làm — đề bài và đáp án
+      // mẫu không tham gia vào bất cứ phép nào. Khai `false` cả hai là nói
+      // thật, không phải chưa làm.
+      contextUsed: { question: false, modelAnswer: false },
     };
   }
 
@@ -116,4 +140,24 @@ function normalize(value: string): string {
     .replace(/đ/gi, 'd')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ');
+}
+
+/**
+ * Trích một đoạn NGUYÊN VĂN quanh vị trí từ khoá khớp.
+ *
+ * Phải trả về text gốc chứ không phải text đã chuẩn hoá: guard verbatim
+ * đối chiếu vào bài làm THẬT, nên một đoạn đã bỏ dấu sẽ không định vị được.
+ *
+ * Tìm trên bản chuẩn hoá (để khớp được "trinh bay" với "trình bày") rồi
+ * cắt theo ĐÚNG chỉ số đó trên bản gốc — hai chuỗi có cùng độ dài vì
+ * `normalize` chỉ thay ký tự, không thêm bớt.
+ */
+function excerptAround(original: string, keyword: string, radius = 60): string {
+  const at = normalize(original).indexOf(keyword);
+  if (at === -1) {
+    return '';
+  }
+  const start = Math.max(0, at - radius);
+  const end = Math.min(original.length, at + keyword.length + radius);
+  return original.slice(start, end).trim();
 }

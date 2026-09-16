@@ -83,6 +83,35 @@ describe('Grading (e2e)', () => {
     return row.id as string;
   }
 
+  /**
+   * Chờ hàng đợi chấm xong phiên này.
+   *
+   * Cần từ 2026-09-11: `POST .../start-grading` trả về ngay sau khi xếp
+   * hàng, nên mọi khẳng định về KẾT QUẢ phải chờ worker chạy.
+   *
+   * Hỏi `grading-progress` chứ không ngủ một khoảng cố định: ngủ đủ lâu
+   * thì test chậm, ngủ không đủ thì test chớp tắt — và một test chớp tắt
+   * ở đường chấm điểm là thứ người ta sẽ bắt đầu chạy lại cho tới khi nó
+   * xanh, tức là hỏng hẳn tác dụng.
+   */
+  async function waitForGrading(examSessionId: string, timeoutMs = 20_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const progress = await request(app.getHttpServer())
+        .get(`/exam-sessions/${examSessionId}/grading-progress`)
+        .set('Authorization', `Bearer ${token}`);
+      if (progress.status === 200 && progress.body.pending === 0 && progress.body.total > 0) {
+        return;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(
+          `hàng đợi chấm chưa xong sau ${timeoutMs}ms: ${JSON.stringify(progress.body)}`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -237,7 +266,11 @@ describe('Grading (e2e)', () => {
         .set('Authorization', `Bearer ${token}`);
 
       expect(started.status).toBe(200);
+      // `queued` nghĩa là ĐÃ XẾP HÀNG, không phải ĐÃ CHẤM — đổi nghĩa từ
+      // 2026-09-11 khi chấm điểm chuyển lên BullMQ. Mọi khẳng định về kết
+      // quả phải chờ worker, và đó là lý do có `waitForGrading` bên dưới.
       expect(started.body).toMatchObject({ queued: 1, rubricVersion: 2 });
+      await waitForGrading(sessionId);
 
       const results = await request(app.getHttpServer())
         .get(`/exam-sessions/${sessionId}/grading-results`)
@@ -249,6 +282,40 @@ describe('Grading (e2e)', () => {
         // is meaningless if nobody can say which AI.
         modelUsed: 'keyword-match@1',
       });
+      // Ngữ cảnh THẬT SỰ đã dùng phải được LƯU, không chỉ được provider
+      // khai rồi rơi mất: `grading-readiness` báo mức theo cấu hình, còn
+      // hai cột này là thứ duy nhất nói lượt chấm đọc được những gì. Thiếu
+      // chúng thì calibration §11.2 không tách nổi nhánh A khỏi nhánh B.
+      const [contextRow] = await dataSource.query(
+        `SELECT context_used_question, context_used_model_answer
+           FROM examcollect.grading_result gr
+           JOIN examcollect.submission s ON s.id = gr.submission_id
+          WHERE s.exam_session_id = $1`,
+        [sessionId],
+      );
+      // Keyword provider chỉ đếm từ trên rubric — không đọc đề bài.
+      expect(contextRow.context_used_question).toBe(false);
+      expect(contextRow.context_used_model_answer).toBe(false);
+
+      // Kết quả KIỂM DẪN CHỨNG phải được lưu theo từng tiêu chí.
+      //
+      // `applyGuards` tính nó miễn phí cho 100% số bài rồi trước
+      // 2026-09-15 vứt đi. Spec §11.5 dựa vào đúng con số này cho một
+      // trong hai chỉ số calibration KHÔNG cần người chấm — và tính lại
+      // offline là bất khả, vì `verifyEvidence` cần bài làm nguyên văn
+      // (ở object storage) cộng một bản cài đặt thứ hai bằng Python.
+      const [checkRow] = await dataSource.query(
+        `SELECT gr.criterion_results
+           FROM examcollect.grading_result gr
+           JOIN examcollect.submission s ON s.id = gr.submission_id
+          WHERE s.exam_session_id = $1`,
+        [sessionId],
+      );
+      const checks = (checkRow.criterion_results as { check?: string }[]).map((c) => c.check);
+      expect(checks.length).toBeGreaterThan(0);
+      for (const check of checks) {
+        expect(['ok', 'empty', 'unverified']).toContain(check);
+      }
       // Evidence, not just a number — the teacher's job is to check the
       // reasoning, and there is nothing to check without it.
       expect(results.body[0].criterionResults[0].evidence).toBeTruthy();

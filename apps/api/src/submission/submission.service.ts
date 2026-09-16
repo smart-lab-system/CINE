@@ -33,7 +33,7 @@ export interface SubmissionStatusView {
   studentNameInput: string;
   requiredDeliverableId: string;
   status: SubmissionEntity['status'];
-  submittedAt: Date;
+  submittedAt: Date | null;
   fileSize: string | null;
   downloadUrl: string | null;
 }
@@ -52,7 +52,7 @@ export interface TeacherSubmissionView {
   studentMssv: string;
   studentNameInput: string;
   status: SubmissionEntity['status'];
-  submittedAt: Date;
+  submittedAt: Date | null;
   fileSize: string | null;
   downloadUrl: string | null;
 }
@@ -169,7 +169,11 @@ export class SubmissionService {
     }
 
     const saved = await this.upsertCollected(identity, dto, expectedKey);
-    const submittedAt = saved.submittedAt.toISOString();
+    // Không thể null ở đây: `upsertCollected` vừa ghi `submittedAt` trên
+    // MỌI nhánh của nó. Vế `??` là để trình biên dịch không phải tin lời
+    // tôi — nếu một nhánh tương lai quên ghi, ack sẽ nói giờ hiện tại
+    // thay vì nổ ở giữa một lượt nộp bài đang diễn ra.
+    const submittedAt = (saved.submittedAt ?? new Date()).toISOString();
 
     return {
       ack: { ok: true, status: saved.status, submittedAt },
@@ -194,10 +198,15 @@ export class SubmissionService {
    */
   async listForSession(examSessionId: string): Promise<SubmissionStatusView[]> {
     const [rows, deliverables] = await Promise.all([
-      this.submissions.find({
-        where: { examSessionId },
-        order: { submittedAt: 'ASC' },
-      }),
+      // `NULLS LAST` tường minh dù ASC của Postgres vốn đã thế. Mặc định
+      // đó LẬT khi ai đó đổi sang DESC — và không có gì ở dòng `'ASC'`
+      // nói cho họ biết điều ấy. `listForTeacher` đã phải trả giá đúng
+      // một lần; chỗ này viết rõ để không phải trả lần hai.
+      this.submissions
+        .createQueryBuilder('sub')
+        .where('sub.examSessionId = :examSessionId', { examSessionId })
+        .orderBy('sub.submittedAt', 'ASC', 'NULLS LAST')
+        .getMany(),
       // For the download URL's filename only (see below) — still no SQL
       // JOIN, and still through ExamSessionService rather than a second
       // repository over exam-session's own table (this module's own
@@ -266,7 +275,12 @@ export class SubmissionService {
     }
 
     const [rows, total] = await qb
-      .orderBy('sub.submittedAt', 'DESC')
+      // NULLS LAST tường minh. Postgres mặc định NULLS FIRST cho DESC,
+      // nên từ khi `submitted_at` được phép NULL (§7.1.2 gieo dòng chưa
+      // nộp), trang này sẽ mở ra bằng một trang đầy những dòng KHÔNG CÓ
+      // FILE — sắp theo một cột mà chúng không có giá trị. Bài nộp thật
+      // gần nhất là thứ trang "Quản lý bài thu" phải dẫn đầu.
+      .orderBy('sub.submittedAt', 'DESC', 'NULLS LAST')
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize)
       .getManyAndCount();
@@ -440,7 +454,19 @@ export class SubmissionService {
     if (existing.status === 'collected' || existing.status === 'invalid') {
       await repo.update(existing.id, fileFields);
     } else {
-      if (existing.status === 'received') {
+      // Dòng GIEO SẴN lúc đóng băng (`not_submitted`), và dòng đã bị kết
+      // luận vắng thi rồi mới có bài về (`absent` — spec collecting §3.1
+      // cố ý KHÔNG chặn upload sau khi xác nhận), đều bước vào đường
+      // chính ở đây thay vì nhảy thẳng tới `collected`.
+      //
+      // Đi từng bước chứ không tắt: `collected` phải luôn nghĩa là "đã
+      // đi hết đường kiểm tra". Một dòng nhảy cóc tới `collected` trông
+      // giống hệt một bài đã qua kiểm, và trigger vòng đời cũng sẽ từ
+      // chối nó — đúng như thiết kế.
+      if (existing.status === 'not_submitted' || existing.status === 'absent') {
+        await repo.update(existing.id, { status: 'received' });
+      }
+      if (existing.status !== 'validated') {
         await repo.update(existing.id, { status: 'validated' });
       }
       await repo.update(existing.id, { ...fileFields, status: 'collected' });

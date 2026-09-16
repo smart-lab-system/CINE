@@ -336,10 +336,13 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     // reschedule endpoint gets the same protection for free.
     await expect(
       dataSource.query(
+        // semester_name NOT NULL từ 2026-09-11 (§7.1.5). Phải cấp, nếu
+        // không INSERT chết ở 23502 trước khi chạm ràng buộc GiST mà ca
+        // này sinh ra để kiểm — một test xanh-vì-sai-lý-do đảo ngược.
         `INSERT INTO examcollect.exam_session
            (name, code, teacher_id, class_id, course_id, room_id, exam_type,
-            start_time, end_time, submission_rule, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, '{}'::jsonb, 'active')`,
+            start_time, end_time, submission_rule, status, semester_name)
+         VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, '{}'::jsonb, 'active', 'HK kiểm thử')`,
         [
           'Chèn thẳng DB',
           `RAW${Date.now() % 1000}`,

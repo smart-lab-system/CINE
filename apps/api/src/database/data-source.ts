@@ -6,6 +6,9 @@ import { CourseEntity } from '../course/entities/course.entity';
 import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
+import { SessionRosterEntity } from '../exam-session/entities/session-roster.entity';
+import { GradingReferenceEntity } from '../grading/entities/grading-reference.entity';
+import { GradingAnchorSnapshotEntity } from '../grading/entities/grading-anchor-snapshot.entity';
 import { RequiredDeliverableEntity } from '../exam-session/entities/required-deliverable.entity';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { RoomEntity } from '../room/entities/room.entity';
@@ -41,6 +44,7 @@ export const dataSourceOptions: DataSourceOptions = {
     EnrollmentEntity,
     RoomEntity,
     ExamSessionEntity,
+    SessionRosterEntity,
     RequiredDeliverableEntity,
     ExamMaterialEntity,
     AgentConnectionEventEntity,
@@ -48,6 +52,8 @@ export const dataSourceOptions: DataSourceOptions = {
     RubricEntity,
     RubricCriterionEntity,
     GradingResultEntity,
+    GradingReferenceEntity,
+    GradingAnchorSnapshotEntity,
     TeacherReviewEntity,
     GradeExportEntity,
     CalibrationRunEntity,

@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { ExamSessionScheduler } from '../src/exam-session/exam-session.scheduler';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * "Thu lại" — spec
@@ -111,6 +112,9 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
   }
 
   async function joinAgent(session: SeededSession, mssv: string): Promise<Socket> {
+    // Guard §7.1.1. Idempotent, nên gọi mỗi lần join là an toàn — và
+    // đặt ở đây thay vì trong seed vì roster được nhập SAU khi tạo phiên.
+    await openSession(app, teacherToken, session.id);
     const socket = io(`${baseUrl}/exam-live`, { reconnection: false, forceNew: true });
     openSockets.push(socket);
     await new Promise<void>((resolve) => socket.on('connect', () => resolve()));

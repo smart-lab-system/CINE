@@ -22,24 +22,40 @@ export const EMPTY_FILTERS: FilterState = {
 export interface FacetOption { value: string; label: string; count: number }
 
 /**
- * Học kỳ mặc định, suy từ chính các phiên (payload không mang start/end của
- * học kỳ): kỳ nào có phiên bao trùm `now` thì đang chạy. Không có thì lấy kỳ
- * có phiên gần `now` nhất về phía quá khứ. Spec §4.3.
+ * Học kỳ mặc định của trang — lấy từ ĐỊNH NGHĨA DÙNG CHUNG của "kỳ hiện
+ * tại" (`useSemesterFilter.pickDefaultSemester`, tính từ start_date của
+ * bảng `semester`), không tự suy lại.
+ *
+ * Trước 2026-09-15 file này có công thức RIÊNG, suy kỳ mặc định từ
+ * start/end của CÁC PHIÊN THI. Nó trả lời lệch với badge học kỳ trên
+ * topbar và với bộ lọc của "Lớp của tôi" — hai chỗ cùng đọc định nghĩa
+ * dùng chung. Doc comment của định nghĩa đó đã nói trước: "Hai công thức
+ * song song là cách chúng lệch nhau."
+ *
+ * `items` chỉ còn dùng cho bước LÙI, và chỉ khi câu trả lời dùng chung
+ * không chỉ tới dữ liệu nào: giảng viên chưa có phiên nào trong kỳ hiện
+ * tại mà mở trang ra thấy bảng rỗng sẽ đọc thành "mất dữ liệu", nên khi
+ * đó lấy kỳ của phiên MỚI NHẤT họ thực sự có. Đây không phải định nghĩa
+ * thứ hai của "kỳ hiện tại" — nó không bao giờ ghi đè câu trả lời dùng
+ * chung, chỉ điền vào chỗ trống.
  */
-export function pickDefaultSemester(items: SessionOverviewItem[], now: number): string | null {
+export function resolveDefaultSemester(
+  items: SessionOverviewItem[],
+  currentSemesterId: string | null,
+): string | null {
   if (items.length === 0) return null;
 
-  const running = items.find(
-    (i) => new Date(i.startTime).getTime() <= now && now <= new Date(i.endTime).getTime(),
+  if (currentSemesterId !== null && items.some((i) => i.semesterId === currentSemesterId)) {
+    return currentSemesterId;
+  }
+
+  // Tự tìm phiên mới nhất thay vì tin vào thứ tự server trả về: endpoint
+  // hiện sắp theo start_time DESC, nhưng đó là chi tiết của câu SQL chứ
+  // không phải hợp đồng nào mà file này đọc được.
+  const newest = items.reduce((a, b) =>
+    new Date(b.startTime).getTime() > new Date(a.startTime).getTime() ? b : a,
   );
-  if (running) return running.semesterId;
-
-  const past = items
-    .filter((i) => new Date(i.endTime).getTime() < now)
-    .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime());
-  if (past.length > 0) return past[0].semesterId;
-
-  return items[0].semesterId;
+  return newest.semesterId;
 }
 
 /** Ẩn/hiện theo vòng đời. `archived` thắng `closed` — spec §4.3. */

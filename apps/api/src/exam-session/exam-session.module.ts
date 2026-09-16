@@ -9,6 +9,8 @@ import { ExamSessionService } from './exam-session.service';
 import { ExamSessionReassignService } from './exam-session-reassign.service';
 import { CollectionPhaseService } from './collection-phase.service';
 import { RecollectService } from './recollect.service';
+import { SessionRosterService } from './session-roster.service';
+import { SessionRosterEntity } from './entities/session-roster.entity';
 import { ExamMaterialService } from './exam-material.service';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { ExamSessionController } from './exam-session.controller';
@@ -29,6 +31,7 @@ import { StorageModule } from '../storage/storage.module';
   imports: [
     TypeOrmModule.forFeature([
       ExamSessionEntity,
+      SessionRosterEntity,
       RequiredDeliverableEntity,
       ExamMaterialEntity,
       // Only so ExamSessionService can check a rubric belongs to the
@@ -65,6 +68,7 @@ import { StorageModule } from '../storage/storage.module';
     ExamSessionReassignService,
     CollectionPhaseService,
     RecollectService,
+    SessionRosterService,
     ScheduleConflictService,
     SessionLifecycleService,
     ExamMaterialService,
@@ -78,6 +82,6 @@ import { StorageModule } from '../storage/storage.module';
   // Exported so a future module can inject ExamSessionService
   // (findByCode/listRequiredDeliverables) instead of writing its own
   // TypeORM queries.
-  exports: [ExamSessionService],
+  exports: [ExamSessionService, SessionRosterService],
 })
 export class ExamSessionModule {}

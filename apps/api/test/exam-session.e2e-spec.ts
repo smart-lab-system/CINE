@@ -24,6 +24,9 @@ describe('ExamSession (e2e)', () => {
   let classId: string;
   let foreignClassId: string;
   let roomId: string;
+  let semesterId: string;
+  let otherSemesterId: string;
+  let otherSemesterClassId: string;
 
   /**
    * A window no other call to this helper overlaps.
@@ -110,6 +113,7 @@ describe('ExamSession (e2e)', () => {
        VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
       [`Test Semester ${Date.now()}`],
     );
+    semesterId = semester.id;
     const [course] = await dataSource.query(
       `INSERT INTO examcollect.course (code, name, semester_id)
        VALUES ($1, 'Exam Session Test Course', $2) RETURNING id`,
@@ -138,6 +142,27 @@ describe('ExamSession (e2e)', () => {
       [courseId, `Nhóm của người khác ${Date.now()}`, otherId],
     );
     foreignClassId = foreign.id;
+
+    // Một học kỳ THỨ HAI mà CHÍNH owner cũng dạy. Bộ lọc kỳ không chứng
+    // minh được gì nếu mọi phiên trong spec đều thuộc một kỳ: kết quả
+    // "đúng" khi đó cũng là kết quả của việc không lọc gì cả.
+    const [otherSemester] = await dataSource.query(
+      `INSERT INTO examcollect.semester (name, start_date, end_date)
+       VALUES ($1, '2026-07-01', '2026-12-01') RETURNING id`,
+      [`Test Semester Two ${Date.now()}`],
+    );
+    otherSemesterId = otherSemester.id;
+    const [otherCourse] = await dataSource.query(
+      `INSERT INTO examcollect.course (code, name, semester_id)
+       VALUES ($1, 'Exam Session Test Course II', $2) RETURNING id`,
+      [`ES2${Date.now()}`, otherSemesterId],
+    );
+    const [otherKlass] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [otherCourse.id, `Nhóm kỳ sau ${Date.now()}`, ownerId],
+    );
+    otherSemesterClassId = otherKlass.id;
   });
 
   afterAll(async () => {
@@ -606,6 +631,149 @@ describe('ExamSession (e2e)', () => {
       // owner has (dozens, from the rest of this file) would still be
       // "greater than or equal to 2" without the filter doing anything.
       expect(response.body.total).toBe(2);
+    });
+  });
+
+  /**
+   * Học kỳ — bộ lọc thứ tư, thêm 2026-09-15.
+   *
+   * Ba bộ lọc trên chỉ đọc cột của chính `exam_session`. Cái này đi qua
+   * `course.semester_id`, tức qua một JOIN — nên nó là cái duy nhất trong
+   * nhóm có thể bị viết nhầm thành `orWhere` và mở phiên của giảng viên
+   * khác ra. Test thứ hai ghim đúng chuyện đó, theo cùng khuôn mà bộ lọc
+   * kỳ của "Lớp của tôi" đã ghim khi nó ra mắt.
+   *
+   * Lọc theo `course.semester_id`, KHÔNG phải `exam_session.semester_name`
+   * (bản chụp lúc tạo): dropdown trên UI mang id của bảng `semester`, và
+   * `/submissions/overview` cũng suy học kỳ từ `course.semester_id` — hai
+   * trang phải trả lời giống nhau câu "phiên này thuộc kỳ nào".
+   */
+  describe('GET /exam-sessions — semester filter', () => {
+    const stamp = Date.now().toString(36);
+
+    async function createIn(
+      classIdForSession: string,
+      nameSuffix: string,
+      token: string,
+      examType: 'TK' | 'GK' | 'CK' = 'TK',
+    ): Promise<string> {
+      const { startTime, endTime } = futureWindow();
+      const response = await request(app.getHttpServer())
+        .post('/exam-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: `Sem${stamp} ${nameSuffix}`,
+          classId: classIdForSession,
+          roomId,
+          examType,
+          startTime,
+          endTime,
+          requiredFilenames: ['Cau1.docx'],
+        });
+      expect(response.status).toBe(201);
+      return response.body.id as string;
+    }
+
+    it('narrows to one semester — the same teacher own sessions in the other semester drop out', async () => {
+      const inFirst = await createIn(classId, 'Kỳ một', ownerToken);
+      const inSecond = await createIn(otherSemesterClassId, 'Kỳ hai', ownerToken);
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `Sem${stamp} Kỳ`, semesterId: otherSemesterId })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      expect(ids).toContain(inSecond);
+      expect(ids).not.toContain(inFirst);
+      // Cả hai phiên đều khớp `search`, nên total = 1 chứng minh chính bộ
+      // lọc kỳ đã cắt — không phải search làm hộ nó.
+      expect(response.body.total).toBe(1);
+    });
+
+    it('ANDs onto the owner scope — another teacher session in the SAME semester stays invisible', async () => {
+      const mine = await createIn(classId, 'Của tôi', ownerToken);
+      const theirs = await createIn(foreignClassId, 'Của người khác', otherToken);
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `Sem${stamp} Của`, semesterId })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      expect(ids).toContain(mine);
+      // `theirs` nằm ĐÚNG học kỳ đang lọc và vẫn phải vắng mặt: một
+      // `orWhere` đặt nhầm ở đây biến một tiện ích thành lỗ hổng phân
+      // quyền, và kết quả vẫn trông "có dữ liệu" nên không ai nghi ngờ.
+      expect(ids).not.toContain(theirs);
+      expect(response.body.total).toBe(1);
+    });
+
+    it('rejects a semesterId that is not a UUID with 400, rather than silently ignoring it', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ semesterId: 'not-a-uuid' })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('a well-formed semesterId that matches no semester gives an empty list, not a 404', async () => {
+      // Kỳ "không tồn tại" là một câu trả lời hợp lệ (0 phiên), không phải
+      // một sự cố. Ghim lại để một lần refactor sau không biến nó thành
+      // 404 và làm trang danh sách nổ thay vì hiện bảng rỗng.
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ semesterId: '00000000-0000-4000-8000-000000000000' })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.items).toHaveLength(0);
+      expect(response.body.total).toBe(0);
+    });
+
+    it('chains onto the other three filters instead of widening them', async () => {
+      // Mỗi phiên "sai" dưới đây lệch khỏi phiên đúng ĐÚNG MỘT chiều. Nếu
+      // một `andWhere` nào đó bị viết nhầm thành `orWhere`, chính phiên
+      // lệch theo chiều đó sẽ lọt vào kết quả — và chỉ luôn ra chiều hỏng.
+      const wanted = await createIn(otherSemesterClassId, 'Gộp đúng', ownerToken, 'CK');
+      const wrongType = await createIn(otherSemesterClassId, 'Gộp sai loại', ownerToken, 'GK');
+      const wrongSemester = await createIn(classId, 'Gộp sai kỳ', ownerToken, 'CK');
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({
+          search: `Sem${stamp} Gộp`,
+          examType: 'CK',
+          status: 'active',
+          semesterId: otherSemesterId,
+        })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      // toEqual, không phải toContain: bốn bộ lọc AND với nhau thì kết quả
+      // là đúng MỘT phiên, và đó mới là điều cần chứng minh.
+      expect(ids).toEqual([wanted]);
+      expect(ids).not.toContain(wrongType);
+      expect(ids).not.toContain(wrongSemester);
+      expect(response.body.total).toBe(1);
+    });
+
+    it('treats an absent semesterId as all semesters, not as an error', async () => {
+      const inFirst = await createIn(classId, 'Không lọc một', ownerToken);
+      const inSecond = await createIn(otherSemesterClassId, 'Không lọc hai', ownerToken);
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `Sem${stamp} Không lọc` })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      expect(ids).toEqual(expect.arrayContaining([inFirst, inSecond]));
     });
   });
 

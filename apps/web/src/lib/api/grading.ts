@@ -33,6 +33,14 @@ export interface GradingResult {
     verdict: 'met' | 'partially_met' | 'not_met';
     points: number;
     evidence: string;
+    /**
+     * Máy có định vị được `evidence` trong bài làm không (từ 2026-09-15).
+     *
+     * `null`/thiếu = chấm trước khi hệ thống ghi lại điều này, KHÁC `'ok'`.
+     * UI chưa dùng, nhưng kiểu phải nói đúng thứ API trả về — một kiểu nói
+     * thiếu là một kiểu sẽ được tin.
+     */
+    check?: 'ok' | 'empty' | 'unverified' | null;
   }[];
   /**
    * Điểm cuối cùng — dòng `teacher_review` mới nhất.
@@ -108,6 +116,31 @@ export async function startGrading(examSessionId: string): Promise<StartGradingR
   );
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as StartGradingResult;
+}
+
+/**
+ * Tiến độ của một lượt chấm đang chạy.
+ *
+ * `total`/`pending`/`done` đếm bản ghi chấm của CHÍNH phiên này.
+ * `queue` là câu hỏi khác — hàng đợi toàn hệ thống có đang kẹt không —
+ * và cố ý tách riêng: trộn chúng lại sẽ cho giảng viên A thấy con số
+ * của giảng viên B.
+ */
+export interface GradingProgress {
+  total: number;
+  pending: number;
+  done: number;
+  byStatus: Record<string, number>;
+  queue: { waiting: number; active: number; failed: number };
+}
+
+export async function getGradingProgress(examSessionId: string): Promise<GradingProgress> {
+  const { data, error, response } = await apiClient.GET(
+    '/exam-sessions/{id}/grading-progress',
+    { params: { path: { id: examSessionId } } },
+  );
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as GradingProgress;
 }
 
 /**

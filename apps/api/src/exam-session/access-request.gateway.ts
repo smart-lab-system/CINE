@@ -17,6 +17,7 @@ import { extractAccessTokenFromCookie, isPlainObject } from '../common/exam-live
 import { AuditLogService } from '../admin/audit-log.service';
 import { CourseService } from '../course/course.service';
 import { EnrollmentService } from '../course/enrollment.service';
+import { SessionRosterService } from './session-roster.service';
 import { ExamSessionService } from './exam-session.service';
 import { AccessRequestStore, PendingAccessRequest } from './access-request.store';
 import { RequestAccessDto, ResolveAccessRequestDto } from './dto/access-request.dto';
@@ -77,6 +78,7 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
     private readonly examSessions: ExamSessionService,
     private readonly courses: CourseService,
     private readonly enrollments: EnrollmentService,
+    private readonly sessionRoster: SessionRosterService,
     private readonly auditLog: AuditLogService,
     private readonly pending: AccessRequestStore,
     private readonly jwt: JwtService,
@@ -200,6 +202,17 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
       courseId: session.courseId,
       studentMssv: request.studentId,
       studentName: request.fullName,
+      homeClassId: homeClass.id,
+      homeTeacherId: homeClass.teacherId,
+    });
+
+    // Vào ảnh chốt luôn, không chỉ vào enrollment (CLAUDE.md §7.1.1).
+    // Thiếu dòng này thì em được duyệt vào thi được và nộp bài được,
+    // nhưng bảng điểm — vốn đọc ảnh chốt để biết ai thuộc về nó — sẽ bỏ
+    // sót đúng em vừa được cho vào.
+    await this.sessionRoster.ensureManual(session.id, {
+      mssv: request.studentId,
+      name: request.fullName,
       homeClassId: homeClass.id,
       homeTeacherId: homeClass.teacherId,
     });

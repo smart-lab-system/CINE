@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, FindOptionsRelations, Repository } from 'typeorm';
 import { ClassEntity } from './entities/class.entity';
 import { CourseEntity } from './entities/course.entity';
 import { AccountEntity } from '../identity/entities/account.entity';
@@ -201,8 +201,21 @@ export class ClassService {
    * for the same reason: a 403 on a class that does not exist would confirm
    * that some other lecturer's class has that id.
    */
-  async findTaughtBy(id: string, teacherId: string): Promise<ClassEntity> {
-    const klass = await this.classes.findOne({ where: { id } });
+  async findTaughtBy(
+    id: string,
+    teacherId: string,
+    /**
+     * Quan hệ cần nạp kèm. Mặc định KHÔNG nạp gì — ba người gọi cũ
+     * (importRoster, addStudent, removeStudent) chỉ cần kiểm quyền, và
+     * nạp thừa cho họ là trả tiền cho một join không ai đọc.
+     *
+     * `ExamSessionService.create` truyền `{ course: { semester: true } }`
+     * để chụp `semester_name` trong CÙNG lượt tra lớp, thay vì bắn thêm
+     * một round-trip.
+     */
+    relations?: FindOptionsRelations<ClassEntity>,
+  ): Promise<ClassEntity> {
+    const klass = await this.classes.findOne({ where: { id }, relations });
     if (!klass) {
       throw new NotFoundException('Class not found');
     }

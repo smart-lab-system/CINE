@@ -14,6 +14,17 @@ vi.mock('@/hooks/useSubmissionOverview', () => ({
   useCloseAttention: () => ({ mutate: closeMutate }),
 }));
 
+// Kỳ mặc định của trang giờ đến từ `useCurrentSemester` (GET /semesters)
+// thay vì tự suy từ các phiên. Mock ở mức hook, giống `useSessionOverview`
+// ngay trên — không mock thì nó gọi useQuery thật và nổ vì không có
+// QueryClientProvider. Mặc định trả kỳ của fixture bên dưới, nên hành vi
+// của mọi test cũ giữ nguyên.
+const useCurrentSemesterMock = vi.fn();
+
+vi.mock('@/hooks/useSemesterFilter', () => ({
+  useCurrentSemester: () => useCurrentSemesterMock(),
+}));
+
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
@@ -21,6 +32,13 @@ vi.mock('next/link', () => ({
 }));
 
 import SubmissionsPage from './page';
+
+const CURRENT_SEMESTER = {
+  id: 'sem-1',
+  name: 'Học kỳ 1 2026-2027',
+  startDate: '2026-08-01',
+  endDate: '2026-12-31',
+};
 
 const HOUR = 3_600_000;
 
@@ -65,6 +83,14 @@ beforeEach(() => {
     isLoading: false,
     error: null,
     refetch: vi.fn(),
+  });
+  useCurrentSemesterMock.mockReset();
+  useCurrentSemesterMock.mockReturnValue({
+    current: CURRENT_SEMESTER,
+    semesters: [CURRENT_SEMESTER],
+    isLoading: false,
+    isStale: false,
+    staleDays: 0,
   });
 });
 

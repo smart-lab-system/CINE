@@ -29,12 +29,14 @@ const useGradingResultsMock = vi.fn();
 const useRubricsMock = vi.fn();
 const useSaveRubricMock = vi.fn();
 const useStartGradingMock = vi.fn();
+const useGradingProgressMock = vi.fn();
 vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: (...args: unknown[]) => useGradingResultsMock(...args),
   useRubrics: (...args: unknown[]) => useRubricsMock(...args),
   useSaveRubric: (...args: unknown[]) => useSaveRubricMock(...args),
   useSetSessionRubric: (...args: unknown[]) => useSetSessionRubricMock(...args),
   useStartGrading: (...args: unknown[]) => useStartGradingMock(...args),
+  useGradingProgress: (...args: unknown[]) => useGradingProgressMock(...args),
 }));
 
 beforeEach(() => {
@@ -43,6 +45,10 @@ beforeEach(() => {
   useSetSessionRubricMock.mockReset();
   useTeachingClassesMock.mockReset();
   useGradingResultsMock.mockReset();
+  // Mặc định: không có lượt chấm nào đang chạy. Khối tiến độ chỉ hiện
+  // khi pending > 0, nên mặc định này giữ nguyên hành vi của mọi ca cũ.
+  useGradingProgressMock.mockReset();
+  useGradingProgressMock.mockReturnValue({ data: undefined, isLoading: false });
   useRubricsMock.mockReset();
   useSaveRubricMock.mockReset();
   useStartGradingMock.mockReset();
@@ -162,5 +168,65 @@ describe('GradingPage', () => {
 
     expect(screen.getByText(/phiên bản 3/i)).toBeInTheDocument();
     expect(screen.queryByText(/phiên bản 5/i)).not.toBeInTheDocument();
+  });
+
+  describe('chấm điểm chạy nền', () => {
+    it('hiện tiến độ khi còn bài đang chấm', () => {
+      // Lý do tồn tại của khối này: từ 2026-09-11 "Bắt đầu chấm" trả về
+      // ngay sau khi xếp hàng, và một lượt 40 bài mất nhiều phút. Không có
+      // nó, giảng viên bấm nút rồi nhìn một màn hình đứng yên — chuyển
+      // sang hàng đợi mà đổi một timeout lấy một màn hình im lặng.
+      useGradingProgressMock.mockReturnValue({
+        data: { total: 10, pending: 4, done: 6, byStatus: {}, queue: { waiting: 4, active: 1, failed: 0 } },
+        isLoading: false,
+      });
+      searchParams = new URLSearchParams('sessionId=session-2');
+
+      render(<GradingPage />);
+
+      expect(screen.getByText(/đang chấm 6\/10 bài/i)).toBeInTheDocument();
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '6');
+    });
+
+    it('khoá nút trong lúc đang chấm', () => {
+      // Bấm lại lúc đó không tạo thêm gì — jobId trùng bị bỏ qua — nhưng
+      // một nút bấm được trong khi không có gì xảy ra là một lời nói dối.
+      useGradingProgressMock.mockReturnValue({
+        data: { total: 10, pending: 4, done: 6, byStatus: {}, queue: { waiting: 4, active: 1, failed: 0 } },
+        isLoading: false,
+      });
+      searchParams = new URLSearchParams('sessionId=session-2');
+
+      render(<GradingPage />);
+
+      expect(screen.getByRole('button', { name: /bắt đầu chấm/i })).toBeDisabled();
+    });
+
+    it('chấm xong thì khối tiến độ biến mất', () => {
+      useGradingProgressMock.mockReturnValue({
+        data: { total: 10, pending: 0, done: 10, byStatus: {}, queue: { waiting: 0, active: 0, failed: 0 } },
+        isLoading: false,
+      });
+      searchParams = new URLSearchParams('sessionId=session-2');
+
+      render(<GradingPage />);
+
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /bắt đầu chấm/i })).toBeEnabled();
+    });
+
+    it('job lỗi trong hàng đợi nói "có gì đó hỏng", không nói "bài của bạn hỏng"', () => {
+      // `queue` đếm TOÀN hàng đợi, không theo phiên — nên câu chữ phải là
+      // một lời nhắc chung, không phải một kết luận về phiên này.
+      useGradingProgressMock.mockReturnValue({
+        data: { total: 10, pending: 4, done: 6, byStatus: {}, queue: { waiting: 2, active: 1, failed: 3 } },
+        isLoading: false,
+      });
+      searchParams = new URLSearchParams('sessionId=session-2');
+
+      render(<GradingPage />);
+
+      expect(screen.getByText(/hàng đợi đang có 3 job lỗi/i)).toBeInTheDocument();
+    });
   });
 });

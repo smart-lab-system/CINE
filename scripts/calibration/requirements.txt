@@ -1,0 +1,7 @@
+# Chỉ cần cho analyze.py / export.py. `free-metrics.sql` KHÔNG cần gì —
+# nó chạy bằng psql, và đó là chủ ý: hai chỉ số ở §11.5 phải đọc được
+# ngay hôm nay, không sau một lượt cài đặt.
+pandas>=2.2
+scipy>=1.13
+scikit-learn>=1.5
+psycopg2-binary>=2.9

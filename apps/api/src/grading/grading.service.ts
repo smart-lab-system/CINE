@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -7,37 +6,39 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
+import { GradeSubmissionJob } from './grading.queue';
 import { GradingResultEntity } from './entities/grading-result.entity';
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
-import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
-import { RequiredDeliverableEntity } from '../exam-session/entities/required-deliverable.entity';
 import { StorageService } from '../storage/storage.service';
-import { RubricService } from './rubric.service';
 import {
   AI_GRADING_PROVIDER,
   AIGradingProvider,
   GradingRequest,
+  enforceScoring,
 } from './ai-provider/ai-grading-provider';
-import { extractText } from './extract-text';
-import { AUTO_APPROVE_CONFIDENCE } from './grading.types';
-
-export interface StartGradingResult {
-  rubricId: string;
-  rubricVersion: number;
-  queued: number;
-  alreadyGraded: number;
-}
+import { GradingInputTooLargeError } from './extract-text';
+import { applyGuards } from './harness/grading-guards';
+import { verifyEvidence } from './harness/evidence-check';
+import { AdvocateOpinion } from './ai-provider/advocate.types';
+import { ADVOCATE_PROVIDER, AdvocateProvider } from './ai-provider/advocate-provider';
+import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
+import { GradingReferenceService, LoadedGradingReference } from './grading-reference.service';
+import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
+import { AUTO_APPROVE_CONFIDENCE, GRADING_ANCHORS_ENABLED } from './grading.types';
+import { AnchorService } from './anchor.service';
 
 /**
- * The GRADING half of the system, and the boundary in front of it.
+ * Chấm MỘT bài: đọc file, gọi model, ghi kết quả.
  *
  * CLAUDE.md is unambiguous that collection and grading are two pipelines
  * joined by one explicit teacher action, and that they must never be one
- * continuous job. That is why nothing here is reachable from the collection
- * path: `startGrading` is called by a controller, from a click, and by
- * nothing else. A submission reaching `collected` triggers exactly nothing.
+ * continuous job. Đường vào duy nhất của file này là `gradeOneById`, và nó
+ * chỉ tới được qua hàng đợi BullMQ — mà hàng đợi ấy do
+ * `GradingRunService.startGrading` nạp, vốn chỉ được gọi bởi một controller,
+ * từ một cú bấm, và bởi không gì khác. A submission reaching `collected`
+ * triggers exactly nothing.
  */
 @Injectable()
 export class GradingService {
@@ -50,101 +51,177 @@ export class GradingService {
     private readonly submissions: Repository<SubmissionEntity>,
     @InjectRepository(RubricCriterionEntity)
     private readonly criteria: Repository<RubricCriterionEntity>,
-    @InjectRepository(RequiredDeliverableEntity)
-    private readonly deliverables: Repository<RequiredDeliverableEntity>,
-    private readonly rubrics: RubricService,
     private readonly storage: StorageService,
     @Inject(AI_GRADING_PROVIDER) private readonly provider: AIGradingProvider,
+    private readonly resolvers: ContentResolverRegistry,
+    private readonly references: GradingReferenceService,
+    // `null` là một trạng thái HỢP LỆ, không phải thiếu sót: không có bậc
+    // model nào thì lượt phản biện không chạy, và bài vẫn được chấm bình
+    // thường. Kiểu dữ liệu nói ra điều đó để không ai phải đoán.
+    @Inject(ADVOCATE_PROVIDER) private readonly advocate: AdvocateProvider | null,
+    private readonly anchors: AnchorService,
   ) {}
 
   /**
-   * The explicit action. Creates one grading result per collected
-   * submission and grades them.
+   * Lượt phản biện, và ba lý do nó có thể KHÔNG chạy.
    *
-   * Only `collected` submissions are eligible: `invalid` means a required
-   * file was missing, and grading a submission that is not there produces a
-   * zero that reads like a judgement about the work.
+   * Trả `null` ở cả ba, vì `advocate_opinion = NULL` mang đúng nghĩa
+   * "không có ý kiến thứ hai cho bài này" — khác `{}` là "đã chạy và
+   * không kiến nghị gì".
    *
-   * Idempotent by omission — a submission that already has a result is
-   * skipped rather than re-graded. A teacher clicking twice must not
-   * produce two AI opinions on one piece of work, and re-grading is a
-   * separate decision that would need its own audit trail.
+   * 1. Cổng `needsAdvocate` không mở. Cổng này cố ý RỘNG (spec §7.1): nó
+   *    đọc `verdict`, một trường BẮT BUỘC, chứ không đọc `uncoveredContent`
+   *    vốn tuỳ tâm. Bất đối xứng chi phí quyết định hướng nghiêng — kích
+   *    hoạt thừa tốn ~$0,05, bỏ sót là một sinh viên âm thầm mất điểm.
+   *
+   * 2. Phiên không có tài liệu tham chiếu nào. Advocate MÙ RUBRIC, nên
+   *    không có đề bài thì nó chẳng còn gì để đối chiếu và sẽ chỉ đọc lại
+   *    bài làm rồi đoán. Đây chính là T-DEGRADE-1 từ Plan 1 — tới giờ mới
+   *    có thứ để nó điều khiển.
+   *
+   * 3. Chuỗi Advocate hỏng hết bậc. Bài VẪN có điểm của Grader và VẪN
+   *    sang giảng viên; chỉ thiếu ý kiến thứ hai. Một lượt phản biện hỏng
+   *    không được phép làm hỏng lượt chấm.
    */
-  async startGrading(
-    session: ExamSessionEntity,
-    teacherId: string,
-  ): Promise<StartGradingResult> {
-    // The rubric this session is graded against was decided when the paper
-    // was written, and is read back here — never resolved now. That is the
-    // whole difference from the old findActive(courseId): editing the
-    // course's rubric between two exams must not change how the earlier one
-    // is graded, and a colleague teaching another class of the same course
-    // must not be able to change it from under this session either.
-    if (!session.rubricId) {
-      throw new BadRequestException(
-        'Phiên thi này chưa gắn rubric — hãy gắn rubric trước khi chấm.',
-      );
+  // LƯU Ý KHI SỬA: `grading-advocate.spec.ts` dựng một instance MỘT PHẦN
+  // bằng `Object.create` và chỉ gán `advocate` + `logger`. Thêm một phụ
+  // thuộc mới (`this.references`, `this.results`...) vào hàm này mà quên
+  // cập nhật test sẽ cho test XANH trong khi production nhận `undefined`.
+  private async runAdvocate(
+    submission: SubmissionEntity,
+    studentText: string,
+    needsAdvocate: boolean,
+    reference: LoadedGradingReference,
+  ): Promise<AdvocateOpinion | null> {
+    if (!needsAdvocate || !this.advocate) {
+      return null;
     }
-    const rubric = await this.rubrics.findById(session.rubricId);
-    if (!rubric) {
-      // The FK is ON DELETE RESTRICT, so this is unreachable through any
-      // supported path. Reported rather than assumed away: a 400 naming the
-      // cause beats a TypeError on the next line.
-      throw new BadRequestException(
-        'Rubric của phiên thi này không còn tồn tại.',
+    if (reference.loadedLevel === 'rubric_only') {
+      this.logger.log(
+        `submission ${submission.id}: bỏ qua lượt phản biện — phiên không có đề bài ` +
+          'để đối chiếu (mức suy giảm 1)',
       );
+      return null;
+    }
+
+    try {
+      const opinion = await this.advocate.advocate({
+        studentMssv: submission.studentMssv,
+        content: studentText,
+        questionPdf: reference.questionPdf,
+        modelAnswerPdf: reference.modelAnswer,
+        modelAnswerNote: reference.note,
+      });
+
+      // DẪN CHỨNG CỦA ADVOCATE CŨNG BỊ KIỂM NGUYÊN VĂN.
+      //
+      // Bịa ở đây nguy hiểm HƠN Grader bịa: Advocate đang lập luận để NÂNG
+      // điểm, và một giảng viên đang chấm bài thứ 35 sẽ có xu hướng đồng ý.
+      //
+      // Nhưng chỉ BÁO, không tự loại kiến nghị — loại bỏ là thay giảng
+      // viên quyết, và §2.2 nói rõ Advocate chỉ kiến nghị còn người quyết
+      // là giảng viên. Việc của hệ thống là đặt cạnh kiến nghị một dòng
+      // "mẩu này không tìm thấy trong bài".
+      const unverified = opinion.evidence.filter(
+        (quote) => verifyEvidence(studentText, quote) === 'unverified',
+      );
+      if (unverified.length > 0) {
+        this.logger.warn(
+          `submission ${submission.id}: Advocate trích ${unverified.length}/` +
+            `${opinion.evidence.length} dẫn chứng KHÔNG định vị được trong bài`,
+        );
+      }
+      return { ...opinion, unverifiedEvidence: unverified };
+    } catch (error) {
+      // Nuốt có chủ ý, và đây là một trong rất ít chỗ được phép nuốt: giá
+      // trị của Advocate là phụ trợ, còn giá trị của lượt chấm là chính.
+      this.logger.warn(
+        `submission ${submission.id}: lượt phản biện hỏng, bài vẫn được chấm — ` +
+          (error instanceof Error ? error.message : String(error)),
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Kết thúc một bài mà AI không chấm được: `ai_grading → flagged_for_review`.
+   *
+   * Không có hàm này thì migration `AllowAiGradingToFlagged` mở một cánh
+   * cửa mà không ai đi qua: một job hết retry chỉ ghi được một dòng log,
+   * còn dòng `grading_result` nằm lại ở `ai_grading` VĨNH VIỄN — đúng cái
+   * thanh tiến độ đứng ở 38/40 mà cả Task 1 sinh ra để sửa.
+   *
+   * `confidence = 0`, `flagForReview = true`: không có điểm nào, và bài
+   * này cần người xem. KHÔNG chấm 0 — không chấm được là sự thật về hệ
+   * thống, không phải phán xét về bài làm.
+   */
+  async markUngradable(submissionId: string, reason: string): Promise<void> {
+    const result = await this.results.findOne({ where: { submissionId } });
+    if (!result || result.status !== 'ai_grading') {
+      // Đã đi tiếp rồi (chấm xong, hoặc một lần gọi trước đã đánh dấu).
+      // Im lặng bỏ qua: hàm này được gọi từ một event handler có thể bắn
+      // nhiều lần.
+      return;
+    }
+    await this.results.update(result.id, {
+      status: 'flagged_for_review',
+      flagForReview: true,
+      confidence: '0',
+    });
+    this.logger.error(`submission ${submissionId}: AI không chấm được — ${reason}`);
+  }
+
+  /**
+   * Điểm vào của hàng đợi — worker gọi hàm này, không gọi `gradeOne`.
+   *
+   * Tra lại submission theo id: job payload chỉ chứa id vì một entity
+   * serialize vào Redis là bản chụp có thể đã cũ khi job được nhặt.
+   *
+   * IDEMPOTENT Ở ĐÂY, không chỉ ở `startGrading`: một job retry sau khi
+   * model đã trả lời nhưng trước khi transition cuối kịp ghi sẽ chạy lại
+   * hàm này. `ai_total_score` là bất biến ở tầng DB (Security rule 6,
+   * `trg_grading_result_guard_ai_immutable`), nên ghi lần hai KHÔNG âm
+   * thầm sai — nó NỔ. Thoát sớm là cách đúng để tránh cái nổ đó, và đây
+   * là chỗ dùng ràng buộc DB làm cơ chế phát hiện chứ không chỉ làm cơ
+   * chế chặn.
+   */
+  async gradeOneById(job: GradeSubmissionJob): Promise<void> {
+    const result = await this.results.findOne({
+      where: { submissionId: job.submissionId },
+    });
+    if (!result) {
+      // Dòng được tạo đồng bộ ở `startGrading`, nên không có nó nghĩa là
+      // ai đó đã xoá. Không throw: retry mãi một thứ không quay lại
+      // không giúp gì. Ghi lại rồi coi job là xong.
+      this.logger.warn(`submission ${job.submissionId} không còn dòng chấm — bỏ job`);
+      return;
+    }
+    if (result.aiTotalScore !== null && result.aiTotalScore !== undefined) {
+      this.logger.log(`submission ${job.submissionId} đã có điểm AI — bỏ qua job lặp`);
+      return;
+    }
+
+    const submission = await this.submissions.findOne({ where: { id: job.submissionId } });
+    if (!submission) {
+      this.logger.warn(`submission ${job.submissionId} không còn tồn tại — bỏ job`);
+      return;
     }
 
     const criteria = await this.criteria.find({
-      where: { rubricId: rubric.id },
+      where: { rubricId: job.rubricId },
       order: { createdAt: 'ASC' },
     });
-    if (criteria.length === 0) {
-      throw new BadRequestException('Rubric đang dùng không có tiêu chí nào.');
-    }
 
-    const collected = await this.submissions.find({
-      where: { examSessionId: session.id, status: 'collected' },
-    });
-    if (collected.length === 0) {
-      return { rubricId: rubric.id, rubricVersion: rubric.version, queued: 0, alreadyGraded: 0 };
-    }
-
-    const existing = await this.results.find({
-      where: { submissionId: In(collected.map((s) => s.id)) },
-      select: { submissionId: true },
-    });
-    const alreadyGraded = new Set(existing.map((row) => row.submissionId));
-    const todo = collected.filter((submission) => !alreadyGraded.has(submission.id));
-
-    // The declared filename is the ONLY place the file's format is
-    // recorded. A submission's storage key is
-    // `submissions/{session}/{mssv}/{deliverableId}` — deliberately built
-    // from ids so nothing user-typed can steer it, which also means it
-    // carries no extension and cannot tell an extractor what it is holding.
-    const filenames = new Map(
-      (await this.deliverables.find({ where: { examSessionId: session.id } })).map(
-        (deliverable) => [deliverable.id, deliverable.requiredFilename],
-      ),
+    await this.gradeOne(
+      submission,
+      job.requiredFilename,
+      job.rubricId,
+      criteria,
+      result,
+      job.deliverableType,
     );
-
-    for (const submission of todo) {
-      await this.gradeOne(
-        submission,
-        filenames.get(submission.requiredDeliverableId) ?? '',
-        rubric.id,
-        criteria,
-        teacherId,
-      );
-    }
-
-    return {
-      rubricId: rubric.id,
-      rubricVersion: rubric.version,
-      queued: todo.length,
-      alreadyGraded: alreadyGraded.size,
-    };
   }
+
 
   /**
    * One submission, through the whole lifecycle.
@@ -157,10 +234,14 @@ export class GradingService {
    * `auto_approved` without ever having been `ai_grading` never had a model
    * look at it.
    *
-   * Run inline for now. The queue this becomes is a real piece of work
-   * (BullMQ, one job per submission, retries) and is deliberately not in
-   * this slice — but the shape here is already one call per submission, so
-   * the change is where `gradeOne` is invoked from, not what it does.
+   * Chạy như MỘT JOB BullMQ cho mỗi bài — xem `grading.processor.ts`.
+   * `startGrading` không còn gọi thẳng hàm này; nó tạo dòng, xếp hàng, và
+   * worker gọi `gradeOneById` bên dưới.
+   *
+   * `existingResult` bắt buộc, không còn tuỳ chọn: dòng đã được tạo đồng
+   * bộ ở `startGrading` (xem lý do dài ở đó). Tạo lại ở đây sẽ đụng
+   * `uq_grading_result_submission`, và quan trọng hơn là phá đúng tính
+   * chất khiến việc tạo trước có giá trị.
    */
   private async gradeOne(
     submission: SubmissionEntity,
@@ -172,18 +253,24 @@ export class GradingService {
     requiredFilename: string,
     rubricId: string,
     criteria: RubricCriterionEntity[],
-    teacherId: string,
+    result: GradingResultEntity,
+    /** Loại ĐÃ KHAI ở `required_deliverable` — bộ định tuyến đọc nó. */
+    deliverableType: DeliverableType,
   ): Promise<void> {
-    const result = await this.results.save(
-      this.results.create({
-        submissionId: submission.id,
-        rubricIdVersion: rubricId,
-        gradingTriggeredBy: teacherId,
-        status: 'ai_grading',
-      }),
-    );
 
     let content = '';
+    // Hai con số, không phải một. `extractText` là CPU-BOUND — parse
+    // docx nghĩa là giải nén zip rồi đi cây XML, và nó chạy trên chính
+    // event loop của API. Với `concurrency: 5` thì năm bài cùng extract
+    // là năm lần chặn event loop, và mọi request HTTP khác — kể cả
+    // `progress()` đang bị poll 2 giây một lần — xếp hàng sau chúng.
+    //
+    // Lời gọi model thì ngược lại, gần như toàn bộ là chờ mạng, nên nó
+    // KHÔNG chặn gì cả. Trộn hai con số vào một dòng log sẽ giấu mất
+    // đúng thứ cần biết trước khi bật model thật: nếu extract chiếm
+    // phần đáng kể, câu trả lời là `worker_threads` hoặc hạ
+    // `concurrency`, chứ không phải mua thêm quota.
+    const extractStarted = Date.now();
     try {
       if (!submission.storageKey) {
         // A collected submission with no object behind it should not exist —
@@ -193,30 +280,167 @@ export class GradingService {
         throw new Error('collected submission has no storage key');
       }
       const bytes = await this.storage.getObject(submission.storageKey);
-      content = await extractText(bytes, requiredFilename);
+      // Bộ định tuyến TẤT ĐỊNH: loại bài nộp là thứ giảng viên đã khai,
+      // không phải thứ đoán từ tên file. 0 token, ~0ms.
+      const resolved = await this.resolvers.for(deliverableType).resolve(bytes, requiredFilename);
+      content = resolved.text;
     } catch (error) {
       // Not fatal, and not scored zero either: an unreadable file is a fact
       // about the extraction, never a judgement about the work. It reaches
       // the provider as empty content, which is what sends it to a human.
+      //
+      // Hai ca dẫn tới cùng kết cục nhưng cần hai cách xử lý khác nhau từ
+      // phía con người: "quá lớn" nghĩa là em nộp nhầm thứ gì đó (thường
+      // là cả thư mục dự án), còn "không đọc được" nghĩa là định dạng
+      // này chưa được hỗ trợ. Một dòng log chung sẽ xoá mất khác biệt đó.
+      //
+      // Nêu id bài nộp, KHÔNG bao giờ nêu nội dung — đây là bài làm của
+      // sinh viên.
       this.logger.warn(
-        `could not read ${submission.storageKey} for grading: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        error instanceof GradingInputTooLargeError
+          ? `submission ${submission.id} bị bỏ qua chấm tự động: ${error.message}`
+          : `could not read ${submission.storageKey} for grading: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
       );
     }
+
+    // Nạp đề bài + đáp án mẫu và đưa vào provider.
+    //
+    // Đây là chỗ toàn bộ thiết kế này quy tụ: không có bước này thì model
+    // vẫn chấm mà chưa bao giờ nhìn thấy đề, và câu hỏi "bài này lệch
+    // rubric nhưng có đúng không" vẫn bất khả.
+    //
+    // Tài liệu đi THEO REQUEST. Provider là singleton và worker chạy
+    // `concurrency: 5`, nên đặt nó làm trạng thái trên provider sẽ bị bài
+    // của phiên khác ghi đè giữa hai lần `await` — và đường retry bên dưới
+    // là chỗ chắc chắn dính, vì giữa hai lượt chấm có một lời gọi mạng
+    // 15-30 giây.
+    const reference = await this.references.loadForGrading(submission.examSessionId);
+    // Một bản duy nhất: prompt và phép ép điểm PHẢI nhìn thấy cùng một tập
+    // tiêu chí. Hai bản sao là cách chúng lệch nhau.
+    const rubricCriteria = criteria.map((criterion) => ({
+      id: criterion.id,
+      description: criterion.description,
+      maxPoints: Number(criterion.maxPoints),
+    }));
+
+    // Anchor đọc từ ẢNH CHỤP của phiên, không dựng lại ở đây (A3).
+    //
+    // Dựng lại mỗi bài sẽ để một lần duyệt giữa chừng lọt vào tập anchor,
+    // và bài 6-40 được chấm theo chuẩn khác bài 1-5 — trong cùng một lượt
+    // chấm. Đó là lý do `GradingRunService.startGrading` chụp một lần.
+    //
+    // `null` (phiên chấm trước khi tính năng tồn tại, hoặc anchor đang tắt
+    // lúc bấm chấm) → `undefined` → prompt không có khối anchor nào.
+    const anchors = GRADING_ANCHORS_ENABLED
+      ? await this.anchors.loadFor(submission.examSessionId)
+      : null;
 
     const request: GradingRequest = {
       studentMssv: submission.studentMssv,
       content,
-      deliverableType: 'document',
-      criteria: criteria.map((criterion) => ({
-        id: criterion.id,
-        description: criterion.description,
-        maxPoints: Number(criterion.maxPoints),
-      })),
+      deliverableType,
+      criteria: rubricCriteria,
+      reference: {
+        questionPdf: reference.questionPdf,
+        modelAnswerPdf: reference.modelAnswer,
+        modelAnswerNote: reference.note,
+      },
+      anchors: anchors ?? undefined,
     };
 
-    const outcome = await this.provider.grade(request);
+    const extractMs = Date.now() - extractStarted;
+    const modelStarted = Date.now();
+
+
+    // Chấm, kiểm bằng guard, và CHẤM LẠI ĐÚNG MỘT LẦN nếu lượt đầu không
+    // tin được (spec §6.4).
+    //
+    // Vì sao đúng một lần: chấm lại vô hạn thì tốn tiền và có thể trượt
+    // tiếp; đẩy thẳng cho giảng viên thì trung thực nhưng nếu model hay
+    // trượt thì họ ngập bài flag. Một lần là điểm cân bằng, và số lần
+    // trượt được ghi log để có dữ liệu THẬT về tần suất — con số đó là
+    // thứ nói cho ta biết guard có đang báo động giả hay không, và nó đi
+    // thẳng vào báo cáo calibration.
+    let outcome = await this.provider.grade(request);
+    let guards = applyGuards({
+      studentText: content,
+      criteria: rubricCriteria,
+      criterionResults: outcome.criterionResults,
+    });
+
+    if (guards.runUntrustworthy) {
+      this.logger.warn(
+        `submission ${submission.id}: lượt chấm không tin được (${guards.reason}) — ` +
+          'chấm lại một lần',
+      );
+      outcome = await this.provider.grade(request);
+      guards = applyGuards({
+        studentText: content,
+        criteria: rubricCriteria,
+        criterionResults: outcome.criterionResults,
+      });
+      if (guards.runUntrustworthy) {
+        this.logger.error(
+          `submission ${submission.id}: chấm lại vẫn không tin được — chuyển giảng viên`,
+        );
+      }
+    }
+    // Kích thước nội dung, không phải nội dung. `chars` là thứ dự đoán
+    // chi phí token, nên nó thuộc về dòng này.
+    // Token đi vào log Ở ĐÂY, ngay cạnh thời gian. Module admin sẽ quyết
+    // định lưu chúng vào đâu, nhưng nếu chúng không ra khỏi hàm này thì
+    // không ai lấy lại được — `CalibrationRun.cost_usd` và dashboard chi
+    // phí AI đều đã nằm trong schema chờ dữ liệu này.
+    //
+    // `cacheRead` là con số đáng nhìn nhất: nó là BẰNG CHỨNG DUY NHẤT rằng
+    // prompt caching có tác dụng thật. Bài đầu của một phiên sẽ có
+    // `cacheCreate > 0, cacheRead = 0`; 39 bài sau phải ngược lại. Nếu
+    // không, một thứ gì đó đang phá tiền tố cache.
+    const { usage } = outcome;
+    this.logger.log(
+      `submission ${submission.id}: extract ${extractMs}ms (CPU) / ` +
+        `model ${Date.now() - modelStarted}ms (I/O), ${content.length} ký tự — ` +
+        `token in=${usage.inputTokens} out=${usage.outputTokens} ` +
+        `cacheRead=${usage.cacheReadTokens} cacheCreate=${usage.cacheCreationTokens}`,
+    );
+
+    // LƯỢT HỎI THỨ HAI — "bỏ qua rubric, em ấy có đúng không?"
+    //
+    // `applyGuards` trả `needsAdvocate` từ Plan 1 và tới giờ CHƯA AI ĐỌC
+    // nó — giống hệt ca `markUngradable` ở Task 1: một cánh cửa mở mà
+    // không ai đi qua. Đây là chỗ đi qua nó.
+    const advocate = await this.runAdvocate(submission, content, guards.needsAdvocate, reference);
+
+    // Guard chỉ được HẠ tin cậy, không được NÂNG quá trần mà cơ chế của
+    // provider biện minh nổi. Mọi phép đo cơ học sạch cũng không biến
+    // việc đếm từ thành việc hiểu bài.
+    const finalConfidence = Math.min(guards.confidence, outcome.confidenceCeiling);
+
+    // ĐIỂM DO SERVER TÍNH. Provider chỉ được phép phán đoán (`verdict` +
+    // `evidence`); mọi con số đều tính lại ở đây. Xem `enforceScoring` để
+    // biết vì sao tin provider tự giác là không đủ.
+    // Tra cứu theo id chứ không ghép theo chỉ số mảng: `enforceScoring` và
+    // `applyGuards` đọc cùng một nguồn nhưng không hứa giữ nguyên thứ tự,
+    // và ghép lệch một ô sẽ gán kết quả kiểm của tiêu chí này cho tiêu chí
+    // khác — một sai lệch không bao giờ lộ ra trong log.
+    const checkByCriterion = new Map(guards.perCriterion.map((r) => [r.criterionId, r.check]));
+
+    const scored = enforceScoring(outcome.criterionResults, rubricCriteria);
+    if (scored.unknownCriterionIds.length > 0) {
+      // Cho 0 điểm là hướng an toàn, nhưng an-toàn-và-im-lặng vẫn là lỗi.
+      // Guard coverage (G3) sẽ xử lý chính thức; tới lúc đó ít nhất nó
+      // phải nhìn thấy được trong log.
+      // Cắt danh sách: một model hỏng có thể trả về hàng chục id bịa, và
+      // một dòng log dài vô hạn là thứ làm người ta bỏ qua cả dòng.
+      const shown = scored.unknownCriterionIds.slice(0, 5).join(', ');
+      const extra = scored.unknownCriterionIds.length - 5;
+      this.logger.warn(
+        `submission ${submission.id}: model trả về tiêu chí không có trong rubric ` +
+          `(${shown}${extra > 0 ? ` và ${extra} id khác` : ''}) — chấm 0 cho chúng`,
+      );
+    }
 
     // The AI's own output, written once. A teacher's later edit creates a
     // TeacherReview row instead of touching any of this — Security rule 6,
@@ -224,16 +448,57 @@ export class GradingService {
     await this.results.update(result.id, {
       status: 'ai_graded',
       modelUsed: outcome.modelUsed,
-      criterionResults: outcome.criterionResults,
-      aiTotalScore: String(outcome.totalScore),
-      confidence: String(outcome.confidence),
+      // GHÉP KẾT QUẢ KIỂM DẪN CHỨNG vào từng tiêu chí trước khi lưu.
+      //
+      // `applyGuards` tính `check` ('ok' | 'empty' | 'unverified') cho mọi
+      // tiêu chí của MỌI bài, miễn phí, rồi trước 2026-09-15 vứt đi — chỉ
+      // `confidence` tổng hợp sống sót. Spec §11.5 lại tuyên bố hai chỉ số
+      // "tỉ lệ unverified" và "tỉ lệ phủ tiêu chí" đã chạy sẵn trên 100%
+      // số bài; điều đó chỉ đúng nếu con số được GHI LẠI.
+      //
+      // Tính lại offline là bất khả trên thực tế: `verifyEvidence` cần bài
+      // làm nguyên văn (nằm ở object storage, không ở DB) và một bản
+      // `TYPOGRAPHIC_FOLD` + tách elision viết lại bằng Python — hai bản
+      // cài đặt cho cùng một phép đo, chắc chắn lệch nhau theo thời gian.
+      //
+      // `jsonb` nên thêm trường không cần migration. Ghi CÙNG lượt update
+      // này vì trigger bất biến đóng băng cột ngay sau đó.
+      criterionResults: scored.criterionResults.map((row) => ({
+        ...row,
+        check: checkByCriterion.get(row.criterionId) ?? null,
+      })),
+      aiTotalScore: String(scored.totalScore),
+      // confidence từ GUARD, không phải từ provider. Model tự chấm độ
+      // tin cậy của chính nó là tín hiệu hiệu chỉnh kém nhất có thể — và
+      // đặt ngưỡng auto-approve lên con số đó là cho model quyền tự kết
+      // thúc việc chấm một sinh viên dựa trên cảm giác của nó.
+      confidence: String(finalConfidence),
+      // Ngữ cảnh THẬT SỰ đã dùng, lấy từ bậc đã trả lời trong chuỗi dự
+      // phòng — không phải từ cấu hình của phiên. Ghi CÙNG lượt update
+      // này vì trigger bất biến đóng băng chúng ngay khi `ai_total_score`
+      // được ghi.
+      contextUsedQuestion: outcome.contextUsed.question,
+      contextUsedModelAnswer: outcome.contextUsed.modelAnswer,
+      // CÙNG một `update` với `aiTotalScore`, bắt buộc:
+      // `trg_grading_result_guard_ai_immutable` đóng băng cột này ngay khi
+      // `ai_total_score` được ghi, nên ghi thành hai lần sẽ bị DB từ chối.
+      // Ba test ở `grading-lifecycle.e2e-spec.ts` khoá đúng ràng buộc đó.
+      advocateOpinion: advocate,
     });
 
-    const confident = outcome.confidence >= AUTO_APPROVE_CONFIDENCE;
+    // Trạng thái cuối cũng do guard quyết. `AUTO_APPROVE_CONFIDENCE` vẫn
+    // là lớp chặn thứ hai: guard có thể trả `auto_approved` với một
+    // confidence dưới ngưỡng nếu ai đó chỉnh số ở `grading-guards.ts` mà
+    // quên chỗ này.
+    const confident =
+      guards.status === 'auto_approved' && finalConfidence >= AUTO_APPROVE_CONFIDENCE;
     await this.results.update(result.id, {
       status: confident ? 'auto_approved' : 'flagged_for_review',
       flagForReview: !confident,
     });
+    if (!confident && guards.reason) {
+      this.logger.log(`submission ${submission.id}: chuyển giảng viên — ${guards.reason}`);
+    }
   }
 
   /**

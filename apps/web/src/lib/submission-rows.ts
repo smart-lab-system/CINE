@@ -8,7 +8,7 @@ import type { SubmissionStatusItem } from './api/exam-session';
  * here rather than inside either page's own component.
  */
 
-export type DeliverableState = 'collected' | 'invalid' | 'pending';
+export type DeliverableState = 'collected' | 'invalid' | 'absent' | 'pending';
 
 export interface SubmissionRowStudent {
   studentMssv: string;
@@ -19,7 +19,7 @@ export interface SubmissionRowStudent {
     string,
     {
       state: DeliverableState;
-      submittedAt?: string;
+      submittedAt?: string | null;
       downloadUrl?: string | null;
       fileSize?: string | null;
     }
@@ -68,10 +68,15 @@ export function buildSubmissionRows(
 
   for (const item of submissions ?? []) {
     const row = ensure(item.studentMssv, item.studentNameInput || item.studentMssv);
-    // Only the two terminal states are shown; `received`/`validated` exist
-    // for milliseconds inside one server-side transaction and are not
-    // something a teacher can act on.
-    if (item.status === 'collected' || item.status === 'invalid') {
+    // `received`/`validated` tồn tại vài mili giây trong một transaction
+    // phía server — không phải thứ giảng viên hành động được, nên không
+    // hiện. `not_submitted` cũng không: nó rơi về "Chưa nộp", đúng bằng
+    // cái mà sự vắng mặt của một dòng từng có nghĩa.
+    //
+    // `absent` thì CÓ hiện, và khác "Chưa nộp": nó nghĩa là một giảng
+    // viên đã nhìn khắp phòng rồi kết luận (§7.1.2). Gộp hai thứ đó vào
+    // một ô là xoá đúng sự phân biệt mà cả Task 3 sinh ra để tạo.
+    if (item.status === 'collected' || item.status === 'invalid' || item.status === 'absent') {
       row.byDeliverable[item.requiredDeliverableId] = {
         state: item.status,
         submittedAt: item.submittedAt,
@@ -140,7 +145,7 @@ export function countStudentsSubmittingAfter(
 ): number {
   return rows.filter((row) =>
     Object.values(row.byDeliverable).some(
-      (entry) => entry.submittedAt !== undefined && new Date(entry.submittedAt).getTime() > since,
+      (entry) => entry.submittedAt != null && new Date(entry.submittedAt).getTime() > since,
     ),
   ).length;
 }

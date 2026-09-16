@@ -89,8 +89,16 @@ function createHarness(
     generateDownloadUrl: jest.fn().mockResolvedValue({ downloadUrl: 'http://storage/view' }),
     objectExists: overrides.objectExists ?? jest.fn().mockResolvedValue(true),
   };
+  // `listForSession` dùng QueryBuilder chứ không `find()`, vì nó cần
+  // `NULLS LAST` tường minh (xem lý do ở service). Mock giữ cả hai:
+  // `find` cho những đường còn dùng nó, builder cho đường danh sách.
+  const listBuilder: Record<string, jest.Mock> = {};
+  listBuilder.where = jest.fn(() => listBuilder);
+  listBuilder.orderBy = jest.fn(() => listBuilder);
+  listBuilder.getMany = jest.fn().mockResolvedValue(overrides.submissions ?? []);
   const submissions = {
     find: jest.fn().mockResolvedValue(overrides.submissions ?? []),
+    createQueryBuilder: jest.fn(() => listBuilder),
   };
   const transaction = jest.fn();
   const service = new SubmissionService(
@@ -99,7 +107,7 @@ function createHarness(
     examSessions as unknown as ExamSessionService,
     storage as unknown as StorageService,
   );
-  return { service, examSessions, storage, submissions, transaction };
+  return { service, examSessions, storage, submissions, listBuilder, transaction };
 }
 
 describe('SubmissionService — preconditions', () => {
@@ -246,7 +254,7 @@ describe('SubmissionService.confirmSubmission — success', () => {
 
 describe('SubmissionService.listForSession', () => {
   it('returns signed download URLs for stored submissions', async () => {
-    const { service, storage, submissions } = createHarness({
+    const { service, storage, listBuilder } = createHarness({
       submissions: [
         {
           studentMssv: MSSV,
@@ -262,9 +270,13 @@ describe('SubmissionService.listForSession', () => {
 
     const rows = await service.listForSession(SESSION_ID);
 
-    expect(submissions.find).toHaveBeenCalledWith({
-      where: { examSessionId: SESSION_ID },
-      order: { submittedAt: 'ASC' },
+    // `NULLS LAST` tường minh là phần đáng ghim ở đây, không phải việc
+    // dùng QueryBuilder: từ khi `submitted_at` được phép NULL, thứ tự
+    // này quyết định dòng chưa nộp nằm đầu hay cuối danh sách, và mặc
+    // định của Postgres LẬT theo chiều sắp.
+    expect(listBuilder.orderBy).toHaveBeenCalledWith('sub.submittedAt', 'ASC', 'NULLS LAST');
+    expect(listBuilder.where).toHaveBeenCalledWith('sub.examSessionId = :examSessionId', {
+      examSessionId: SESSION_ID,
     });
     // QA-reported gap: the storage key alone has no extension for a
     // browser to name the downloaded file after — filename must be the

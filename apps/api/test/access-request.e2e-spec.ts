@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * The counterweight to enrollment enforcement.
@@ -112,6 +113,18 @@ describe('Access request (e2e)', () => {
     );
     classId = klass.id;
 
+    // Một sinh viên CÓ trong roster, từ 2026-09-11: mở phiên là đóng
+    // băng danh sách dự thi, và một lớp rỗng thì không có gì để chụp.
+    // Điều này cũng làm bối cảnh test đúng hơn bối cảnh cũ: ca thật của
+    // access-request là "roster CÓ tồn tại, em này không nằm trong đó",
+    // không phải "lớp chưa có ai".
+    await dataSource.query(
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [`AR${Date.now() % 100000}`, 'Sinh viên có trong roster', courseId, classId, teacherId],
+    );
+
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
@@ -126,6 +139,9 @@ describe('Access request (e2e)', () => {
       });
     expect(created.status).toBe(201);
     sessionId = created.body.id;
+    // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
+    // dự thi. Xem test/helpers/open-session.ts.
+    await openSession(app, token, sessionId);
     sessionCode = created.body.code;
   });
 
@@ -233,6 +249,36 @@ describe('Access request (e2e)', () => {
       });
     });
     expect(ackBody.studentName).toBe(STRANGER_NAME);
+
+    // Và em phải có CHỖ NGỒI, không chỉ có quyền vào.
+    //
+    // Đây là nửa còn lại của §7.1.2, đi qua một cửa khác. `enrollment`
+    // trả lời "em được phép thi"; `session_roster` trả lời "em đáng lẽ
+    // có mặt"; dòng `submission` là chỗ mà kết luận về em sẽ được ghi.
+    // Thiếu cái thứ ba thì em được duyệt vào, ngồi xuống, không nộp gì,
+    // rồi biến mất khỏi bảng điểm — không bị đánh vắng, không bị đếm,
+    // chỉ là không tồn tại.
+    const roster = await dataSource.query(
+      `SELECT source FROM examcollect.session_roster
+        WHERE exam_session_id = $1 AND student_mssv = $2`,
+      [sessionId, STRANGER_MSSV],
+    );
+    expect(roster).toHaveLength(1);
+    expect(roster[0].source).toBe('manual');
+
+    const seats = await dataSource.query(
+      `SELECT s.status, s.submitted_at
+         FROM examcollect.submission s
+        WHERE s.exam_session_id = $1 AND s.student_mssv = $2`,
+      [sessionId, STRANGER_MSSV],
+    );
+    const deliverables = await dataSource.query(
+      `SELECT count(*)::int AS n FROM examcollect.required_deliverable WHERE exam_session_id = $1`,
+      [sessionId],
+    );
+    expect(seats).toHaveLength(deliverables[0].n);
+    expect(seats.every((r: { status: string }) => r.status === 'not_submitted')).toBe(true);
+    expect(seats.every((r: { submitted_at: Date | null }) => r.submitted_at === null)).toBe(true);
   });
 
   it('tells the student when the invigilator refuses', async () => {

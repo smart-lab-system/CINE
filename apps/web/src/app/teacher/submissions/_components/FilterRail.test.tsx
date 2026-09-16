@@ -72,6 +72,37 @@ describe('FilterRail', () => {
     expect(screen.getByText('Loại kỳ thi')).toBeInTheDocument();
   });
 
+  it('ô chọn học kỳ vẫn hiện khi giảng viên CHỈ dạy một kỳ', () => {
+    // Khác `rooms`/`examTypes` một cách có chủ đích. Giảng viên mới chỉ
+    // có phiên trong đúng một kỳ, và bản trước ẩn ô này đi — họ đọc thành
+    // "chức năng lọc theo học kỳ đã bị gỡ". Học kỳ là chiều THỜI GIAN:
+    // thấy mình đang đứng ở kỳ nào là một phần của thông tin, kể cả khi
+    // chỉ có một lựa chọn.
+    render(
+      <FilterRail
+        facets={{ ...facets, semesters: [facets.semesters[0]] }}
+        filters={{ ...EMPTY_FILTERS, semesterId: 'sem-1' }}
+        onChange={onChange}
+        attentionTotal={6}
+      />,
+    );
+    expect(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' })).toBeInTheDocument();
+  });
+
+  it('chọn "Tất cả học kỳ" trả semesterId về null', () => {
+    render(
+      <FilterRail
+        facets={facets}
+        filters={{ ...EMPTY_FILTERS, semesterId: 'sem-1' }}
+        onChange={onChange}
+        attentionTotal={6}
+      />,
+    );
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Tất cả học kỳ' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ semesterId: null }));
+  });
+
   it('link xoá bộ lọc chỉ hiện khi có bộ lọc đang bật', () => {
     const { rerender } = render(
       <FilterRail facets={facets} filters={EMPTY_FILTERS} onChange={onChange} attentionTotal={6} />,

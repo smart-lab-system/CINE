@@ -20,6 +20,8 @@ import { ExamSessionService } from './exam-session.service';
 import { ExamSessionReassignService } from './exam-session-reassign.service';
 import { CollectionPhaseService } from './collection-phase.service';
 import { RecollectService } from './recollect.service';
+import { SessionRosterService } from './session-roster.service';
+import { RosterStudentDto } from '../course/dto/roster.dto';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { ReassignTeacherDto } from './dto/reassign-teacher.dto';
@@ -57,6 +59,7 @@ export class ExamSessionController {
     private readonly reassign: ExamSessionReassignService,
     private readonly collectionPhase: CollectionPhaseService,
     private readonly recollectService: RecollectService,
+    private readonly sessionRoster: SessionRosterService,
   ) {}
 
   @Post()
@@ -211,6 +214,44 @@ export class ExamSessionController {
   @HttpCode(200)
   confirmEnd(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.collectionPhase.confirmEnd(id, req.user!.sub);
+  }
+
+  /**
+   * "Mở phiên thi" — đóng băng danh sách dự thi (CLAUDE.md §7.1.1).
+   *
+   * Đây là đường CHỦ ĐỘNG và DUY NHẤT cho tới khi `scheduled` thành
+   * trạng thái thật (§7.1.1b): phiên hiện `active` ngay từ lúc tạo, nên
+   * không có transition nào để móc việc chốt vào. Trong lúc chờ,
+   * `agent:join` từ chối phiên chưa chốt — cửa sổ hở bị đóng bằng một
+   * lỗi to và sớm thay vì một ảnh chốt thiếu người phát hiện lúc chấm.
+   *
+   * Idempotent: bấm lần hai trả về đúng con số cũ, `submissionsSeeded: 0`.
+   */
+  @Post(':id/open')
+  @Roles('teacher')
+  @HttpCode(200)
+  async open(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.sessionRoster.freeze(session);
+  }
+
+  /**
+   * Thêm một sinh viên vào ảnh chốt tại phòng thi — đường thoát hiểm
+   * §5.8, §7.1.1 đánh dấu "bắt buộc giữ".
+   *
+   * Dùng lại `RosterStudentDto` của module course thay vì khai một DTO
+   * mới: luật hợp lệ của MSSV và tên là một, và hai bản sao là cách
+   * chúng lệch nhau.
+   */
+  @Post(':id/roster/students')
+  @Roles('teacher')
+  async addRosterStudent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RosterStudentDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.sessionRoster.addManually(session, { mssv: dto.mssv, name: dto.name });
   }
 
   /**

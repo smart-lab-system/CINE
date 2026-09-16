@@ -6,7 +6,36 @@ import { ExamSessionEntity } from '../../exam-session/entities/exam-session.enti
 import { RequiredDeliverableEntity } from '../../exam-session/entities/required-deliverable.entity';
 
 export type SubmissionVia = 'normal' | 'backup' | 'manual_pull';
-export type SubmissionStatus = 'received' | 'validated' | 'collected' | 'invalid';
+
+/**
+ * `not_submitted` và `absent` là HAI giá trị, không phải một — quyết
+ * định 2026-09-11, xem spec collecting §8.1 và CLAUDE.md §7.1.2.
+ *
+ * `not_submitted` là **sự thật về dữ liệu**: dòng được gieo sẵn lúc
+ * đóng băng roster (§7.1.1), nghĩa là "chưa thấy bài của em này". Nhờ
+ * nó, "vắng" có CHỖ NGỒI trong bảng điểm thay vì là sự vắng mặt của
+ * một bản ghi — trước đó bảng điểm không phân biệt được vắng thi / đã
+ * nộp chưa chấm / 0 điểm.
+ *
+ * `absent` là **phán xét học vụ**: chỉ đạt tới ở "Xác nhận kết thúc",
+ * và CHỈ khi `exam_session.completed_by IS NOT NULL` — tức có một con
+ * người đã nhìn khắp phòng. Lượt quét dự phòng đóng phiên thì KHÔNG
+ * chuyển: một `@Interval` 30 giây không phải thứ được phép tuyên bố một
+ * sinh viên vắng thi.
+ *
+ * ⚠️ **`not_submitted` tồn dư là dữ liệu HỢP LỆ, không phải rác.** Phiên
+ * do quét dự phòng đóng sẽ giữ `not_submitted` vĩnh viễn, và nó mang
+ * nghĩa cụ thể: *"không có ai xác nhận buổi thi này"*. ĐỪNG viết job
+ * dọn dẹp chúng thành `absent` — làm thế là xoá đúng sự phân biệt mà
+ * hai giá trị này sinh ra để giữ.
+ */
+export type SubmissionStatus =
+  | 'not_submitted'
+  | 'received'
+  | 'validated'
+  | 'collected'
+  | 'invalid'
+  | 'absent';
 
 // Submission — COLLECTION lifecycle. Stops at collected/invalid; does NOT
 // auto-transition into grading (see GradingResult and the state-machine
@@ -97,12 +126,22 @@ export class SubmissionEntity extends BaseEntity {
   })
   submittedVia!: SubmissionVia;
 
-  @Column({ name: 'submitted_at', type: 'timestamptz', default: () => 'now()' })
-  submittedAt!: Date;
+  /**
+   * Khi nào file thật sự bay về. `null` nghĩa là CHƯA CÓ FILE NÀO —
+   * dòng gieo sẵn lúc đóng băng (`not_submitted`) hoặc dòng đã kết luận
+   * vắng thi (`absent`).
+   *
+   * Nullable có chủ đích, kể cả khi mọi bài nộp thật đều có giá trị:
+   * để NOT NULL thì dòng chưa nộp phải mang một giờ bịa (mặc định
+   * `now()`, tức lúc giảng viên bấm Mở phiên), và mọi câu lọc theo cột
+   * này sẽ âm thầm tính cả chúng.
+   */
+  @Column({ name: 'submitted_at', type: 'timestamptz', nullable: true, default: () => 'now()' })
+  submittedAt!: Date | null;
 
   @Column({
     type: 'enum',
-    enum: ['received', 'validated', 'collected', 'invalid'],
+    enum: ['not_submitted', 'received', 'validated', 'collected', 'invalid', 'absent'],
     enumName: 'submission_status',
     default: 'received',
   })

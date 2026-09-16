@@ -10,6 +10,30 @@
 
 **Spec:** `CLAUDE.md` §7.1 (Lõi backlog), §5.6/§5.7 (rubric reuse, AI-vs-human score separation), §1.1 (Sở hữu tier), "AI Grading Strategy" section (cascade, caching, batch), Security rules 3/4/5/6/7/9. Prior spec docs from the grading session: `docs/superpowers/specs/2026-09-05-session-pinned-rubric-design.md`, `docs/superpowers/specs/2026-09-05-teacher-review-design.md`.
 
+## Trạng thái — rev 4 (2026-09-11, thêm rà soát Task 4)
+
+> Bản gốc viết ngày 2026-09-10, TRƯỚC khi `feature/exam-collection-phase` tồn tại và trước một lượt review hạ tầng. Mục này ghi lại mọi chỗ bản gốc **sai hoặc lỗi thời**, tại đúng task của nó. Đọc plan này thì đọc cả các khối `> **Sửa ở rev 2**` — bản gốc còn nguyên bên dưới để đối chiếu, KHÔNG phải để làm theo.
+
+| Task | Trạng thái |
+| --- | --- |
+| 1. Giới hạn file đầu vào | ✅ Xong — commit `ffa4372`, có một chỗ lệch plan, xem Task 1 |
+| 2. `semester_name` snapshot | ✅ Xong — cột đổi tên thành `semester_name`, xem Task 2 |
+| 3. Đóng băng roster + `absent` | ✅ Xong — hai giá trị enum, guard tạm ở `agent:join` |
+| 4. BullMQ queue | ✅ Xong — kèm route tiến độ và UI đọc nó |
+| 5. Claude provider | ⛔ **CHẶN** — chưa có `ANTHROPIC_API_KEY`, và kiến trúc chấm AI chưa chốt |
+| 6. Cascade | Phụ thuộc Task 5 |
+| 7. GradeExport | Phụ thuộc Task 2 + Task 3 |
+
+### Những gì bản review nêu mà tôi KHÔNG xác nhận được
+
+Ghi ra để không ai đi "sửa" một thứ không hỏng:
+
+- **"Gieo dòng submission làm `attendedNoSubmissionCount` trả 0 vĩnh viễn"** — sai với codebase này. `submission-overview.service.ts` đếm bằng `COUNT(*) FILTER (WHERE sub.status = 'collected')`, không đếm theo sự tồn tại dòng. Dòng gieo sẵn đóng góp 0 vào cả `collected_files` lẫn `invalid_files`, nên con số không đổi. `AttentionKind` dẫn xuất từ nó cũng không đổi.
+- **"Một `PATCH /exam-sessions/:id` nhận cả object body rồi `repo.save()` sẽ ghi đè `semesterCode`"** — route đó không tồn tại; controller chỉ có `@Patch(':id/teacher')`. Vẫn thêm `{ update: false }` vì rẻ, nhưng tiền đề thì không đúng.
+- **"`addManually` trùng MSSV sẽ ném 23505 thô lên client"** — sai. `PostgresExceptionFilter` đã map `23505 → ConflictException` toàn cục.
+
+---
+
 ## Global Constraints
 
 - **Model IDs are exact strings, never date-suffixed**: `claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`. CLAUDE.md's own "AI Grading Strategy" table mandates the cascade (cheap first pass → stronger model for the low-confidence remainder), which is why Haiku leads rather than Opus.
@@ -20,10 +44,20 @@
 - **Security rule 9**: GradeExport column mapping is always explicitly supplied by the teacher. Never infer a column from its header.
 - **Never log student content or model output verbatim** — grading text is student work. Log ids, token counts, model names, durations.
 - Run `pnpm --filter api build && pnpm --filter api test && pnpm --filter web build` after each task.
+- **e2e phải chạy SERIAL**: `npx jest --config ./test/jest-e2e.json --runInBand`. Nhánh `fix/e2e-test-config` đặt `maxWorkers: 1` nhưng **chưa merge**; chạy song song cho ra fail giả hàng loạt (176/234 ở một lần đo).
+- **Nhánh này chồng lên `feature/exam-collection-phase`** (12 commit, chưa merge), vì Task 3 đọc `completed_by` do nhánh đó thêm.
 
 ---
 
 ## Task 1: Reject oversized / unextractable files before they reach the model (§7.1.4)
+
+> **✅ XONG — commit `ffa4372`.** Một chỗ làm KHÁC plan:
+>
+> Test ở Step 1 khẳng định `text.length <= 200_000`, nhưng `capChars` mà Step 4 đưa ra trả `slice(0, 200_000) + TRUNCATION_NOTICE` — **dài hơn** 200.000. Test đó đỏ như viết.
+>
+> Đã sửa theo hướng đúng hơn: `MAX_GRADING_INPUT_CHARS` là trần của thứ THẬT SỰ gửi đi, nên dòng thông báo nằm TRONG nó — `slice(0, MAX - NOTICE.length) + NOTICE`. Một giới hạn bị chính cái nhãn của nó đẩy vượt qua là đúng kiểu sai mà giới hạn không được phép mắc.
+>
+> Thêm 3 ca test ngoài plan: biên "đúng bằng giới hạn thì nhận", "nói ra là đã cắt", và chống hồi quy `.pdf` vẫn trả `''` chứ không biến thành lỗi.
 
 **Files:**
 - Modify: `apps/api/src/grading/grading.types.ts`
@@ -35,7 +69,7 @@
 - Consumes: nothing new.
 - Produces: `MAX_GRADING_INPUT_BYTES` and `MAX_GRADING_INPUT_CHARS` in `grading.types.ts`; `extractText` throws `GradingInputTooLargeError` (exported from `extract-text.ts`) instead of silently handing 30 MB of `node_modules` to a paid model. Task 5 relies on content already being bounded before it builds a prompt.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // apps/api/src/grading/extract-text.spec.ts
@@ -64,12 +98,12 @@ describe('extractText input limits', () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 Run: `pnpm --filter api test -- extract-text`
 Expected: FAIL — `GradingInputTooLargeError` is not exported.
 
-- [ ] **Step 3: Add the constants**
+- [x] **Step 3: Add the constants**
 
 Append to `apps/api/src/grading/grading.types.ts`:
 
@@ -100,7 +134,7 @@ export const MAX_GRADING_INPUT_CHARS = 200_000;
 export const TRUNCATION_NOTICE = '\n\n[...nội dung bị cắt do vượt giới hạn chấm tự động]';
 ```
 
-- [ ] **Step 4: Enforce them in `extract-text.ts`**
+- [x] **Step 4: Enforce them in `extract-text.ts`**
 
 Read the file first, then add at the top of `extractText` (before any parsing branch) and at its return points:
 
@@ -140,12 +174,12 @@ At the very start of `extractText(bytes, requiredFilename)`:
 
 Wrap every `return` of extracted text in `capChars(...)`.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `pnpm --filter api test -- extract-text`
 Expected: PASS.
 
-- [ ] **Step 6: Make `gradeOne` treat the new error as "unreadable", not as a crash**
+- [x] **Step 6: Make `gradeOne` treat the new error as "unreadable", not as a crash**
 
 In `apps/api/src/grading/grading.service.ts`, the existing `try/catch` around extraction already logs and leaves `content = ''`, which routes the submission to a human via the provider's zero-confidence path. `GradingInputTooLargeError` inherits that behaviour for free — but the log line must say which case it was, so add inside the existing `catch`:
 
@@ -161,12 +195,12 @@ In `apps/api/src/grading/grading.service.ts`, the existing `try/catch` around ex
 
 Import `GradingInputTooLargeError`. Note the log names the submission id, never the content.
 
-- [ ] **Step 7: Run the grading service's own tests**
+- [x] **Step 7: Run the grading service's own tests**
 
 Run: `pnpm --filter api test -- grading`
 Expected: PASS (no behaviour change for existing cases).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/grading
@@ -183,6 +217,23 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ## Task 2: Snapshot `semester_code` on `ExamSession` (§7.1.5)
 
+> **Sửa ở rev 2 — ba điểm, đều đã kiểm bằng DB thật.**
+>
+> **(a) Đổi tên cột thành `semester_name`.** Bảng `semester` **không có cột `code`** — chỉ `name`, `start_date`, `end_date`. Nên `semester_code` là tên sai cho một giá trị vĩnh viễn chỉ có thể là name, và đây là cột bất biến nên tên phải đúng ngay lần đầu. Đổi tên trong entity, migration, DTO, và Task 7.
+>
+> **(b) Chặn UPDATE ở tầng TypeORM: `@Column({ ..., update: false })`.** JSDoc ghi "KHÔNG BAO GIỜ sửa" chỉ là lời hứa. Cùng lập luận mà Task 4 Step 6 dùng cho `ai_total_score` (bất biến ở tầng DB là thứ làm retry không âm thầm sai) áp thẳng vào đây. Khi một cột kỳ bị ghi đè, bảng điểm chỉ đơn giản ghi sai kỳ, mãi mãi, và không ai phát hiện.
+>
+> **(c) Backfill: đã kiểm, 0 dòng không giải được.** Bản gốc giả định quan hệ `exam_session → course → semester` luôn giải ra tên. Đã đếm trước khi viết migration:
+>
+> ```sql
+> SELECT count(*) FROM examcollect.exam_session es
+>   LEFT JOIN examcollect.course c ON c.id = es.course_id
+>   LEFT JOIN examcollect.semester s ON s.id = c.semester_id
+>  WHERE s.name IS NULL;   -- → 0
+> ```
+>
+> Nên `SET NOT NULL` an toàn, không cần giá trị dự phòng. `max(length(name))` hiện là 42, `varchar(150)` thừa sức.
+
 **Files:**
 - Create: `apps/api/src/database/migrations/<timestamp>-AddExamSessionSemesterCode.ts`
 - Modify: `apps/api/src/exam-session/entities/exam-session.entity.ts`
@@ -193,7 +244,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - Consumes: `Course.semesterId` → `Semester.name` (read once, at session-create time).
 - Produces: `ExamSessionEntity.semesterCode: string` — written once at creation, never updated. Task 7 (GradeExport) filters on it.
 
-- [ ] **Step 1: Write the failing e2e test**
+- [x] **Step 1: Write the failing e2e test**
 
 ```typescript
 // apps/api/test/exam-session-semester-code.e2e-spec.ts
@@ -244,12 +295,12 @@ describe('exam_session.semester_code snapshot', () => {
 
 (The second test requires Plan B Task 1 to have landed — `PATCH /semesters/:id` is `admin`-only there and `department_admin`-only before it. If Plan B Task 1 has not landed on this branch, log in as `department_admin` for the rename instead.)
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 Run: `pnpm --filter api test:e2e -- exam-session-semester-code`
 Expected: FAIL — `semesterCode` is `undefined`.
 
-- [ ] **Step 3: Add the column to the entity**
+- [x] **Step 3: Add the column to the entity**
 
 In `apps/api/src/exam-session/entities/exam-session.entity.ts`, after `examType`:
 
@@ -269,7 +320,7 @@ In `apps/api/src/exam-session/entities/exam-session.entity.ts`, after `examType`
   semesterCode!: string;
 ```
 
-- [ ] **Step 4: Generate and inspect the migration**
+- [x] **Step 4: Generate and inspect the migration**
 
 ```bash
 cd apps/api
@@ -298,7 +349,7 @@ The generated `up()` will contain `ADD "semester_code" character varying(150) NO
   }
 ```
 
-- [ ] **Step 5: Run the migration**
+- [x] **Step 5: Run the migration**
 
 Run: `pnpm migration:run`
 Expected: executed successfully. Verify with:
@@ -307,7 +358,7 @@ docker exec cine-postgres-1 psql -U examcollect_admin -d examcollect -c "SELECT 
 ```
 Expected: `0`.
 
-- [ ] **Step 6: Populate it on create**
+- [x] **Step 6: Populate it on create**
 
 In `apps/api/src/exam-session/exam-session.service.ts`'s `create` method: the class → course lookup already happens there (`courseId` is derived from `classId`, per `CreateExamSessionDto`'s doc comment). Extend that same lookup to carry the semester name — one query, not a second round-trip:
 
@@ -326,20 +377,20 @@ and set `semesterCode: klass.course.semester.name` in the `create({...})` call a
 
 Adapt to however `create` currently resolves the class — read the method in full first; if it already loads the class with `relations: { course: true }`, extend that relation object rather than adding a query.
 
-- [ ] **Step 7: Expose it in the response DTO**
+- [x] **Step 7: Expose it in the response DTO**
 
 Add `semesterCode: string` to whatever response shape `GET /exam-sessions/:id` and `POST /exam-sessions` return (`apps/api/src/exam-session/dto/exam-session-response.dto.ts`) and to the mapper that builds it.
 
-- [ ] **Step 8: Run the tests**
+- [x] **Step 8: Run the tests**
 
 Run: `pnpm --filter api test:e2e -- exam-session`
 Expected: PASS — including the pre-existing exam-session e2e specs, which must not regress.
 
-- [ ] **Step 9: Update CLAUDE.md**
+- [x] **Step 9: Update CLAUDE.md**
 
 §7.1.5: mark `✅ Đã làm (2026-09-10)`. §3.2 ownership matrix: `ExamSession`'s "Có `semester_id` riêng?" cell becomes "Không — vay qua `class_id` → `course_id`; **có `semester_code` snapshot** (§7.1.5)". This is the one deliberate exception to "`semester_id` xuất hiện đúng một lần" — say so there explicitly so it does not read as a violation of §3.2.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add apps/api/src/database/migrations apps/api/src/exam-session apps/api/test CLAUDE.md
@@ -355,6 +406,73 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ---
 
 ## Task 3: Freeze the sitting list when a session opens, and give absence a row (§7.1.1 + §7.1.2)
+
+> **D1 và D2 đã chốt ngày 2026-09-11.** Hai mục dưới đây là quyết định, không phải lựa chọn còn mở.
+
+### ✅ D1 — HAI giá trị: `not_submitted` → `absent`
+
+`not_submitted` là **sự thật về dữ liệu**; `absent` là **phán xét học vụ**. Gieo một phán xét lúc phiên vừa mở nghĩa là bảng điểm xuất năm phút sau ghi cả lớp vắng thi.
+
+Thi công:
+
+- Một migration, **hai** `ADD VALUE` — không đắt hơn một.
+- Trigger mở thêm: INSERT ở `not_submitted`; transition `not_submitted → absent` và `not_submitted → received`.
+- `confirmEnd` thêm một bulk UPDATE, **trong cùng transaction**, **sau** khi `exam_session` đã sang `completed`, và **chỉ trên đường có `completed_by`**:
+
+```sql
+UPDATE examcollect.submission
+   SET status = 'absent'
+ WHERE exam_session_id = $1 AND status = 'not_submitted'
+```
+
+  Đường quét dự phòng **tuyệt đối không** chạy câu này — đó là toàn bộ hợp đồng §8.1 của spec collecting.
+
+- `confirmEnd` chạm `submission` **không phải phình phạm vi**: đó là lý do route ấy tồn tại. Nếu nó chỉ đổi một cột trên `exam_session` thì cái "người duy nhất biết trong phòng còn ai" không được ghi lại ở đâu cả.
+
+> ⚠️ **`not_submitted` tồn dư là HỢP LỆ.** Phiên do quét dự phòng đóng để lại `not_submitted` vĩnh viễn, mang nghĩa *"không ai xác nhận buổi thi này"*. Ghi điều này vào doc comment của enum: nếu không, sáu tháng nữa sẽ có người viết một job "dọn dẹp" chúng thành `absent` và phá đúng thứ ta đang xây.
+
+### ✅ D2 — đích là (d), nhưng XẾP SAU; Task 3 dùng guard tạm
+
+Đo trên DB dev: `draft` **0**, `scheduled` **0**. Hai trạng thái đầu của vòng đời chưa bao giờ tồn tại — `create()` ghi thẳng `active`. Nên hệ thống **không có khoảnh khắc nào mang nghĩa "buổi thi bắt đầu"**, và đó mới là gốc của vấn đề.
+
+Đích **(d)**: `create()` ghi `scheduled`; "Mở phiên thi" = freeze + `→ active` trong một transaction. **Spec riêng, làm sau** — nó chạm `create()`, UI, 10 suite e2e, demo runbook, và cần câu trả lời cho 860 phiên đang `active` không có ảnh chốt. Ghi vào CLAUDE.md §7.1.1b.
+
+**Task 3 làm gì bây giờ** — giữ nguyên phạm vi, bỏ phần móc vào vòng đời:
+
+- Bảng `session_roster` + hai giá trị enum + sửa trigger
+- `SessionRosterService.freeze()` và `addManually()`
+- `POST /:id/open` là đường chủ động **và duy nhất**
+- `confirmEnd` thêm bulk UPDATE (D1)
+- **Guard tạm:** `agent:join` từ chối khi `session_roster` rỗng, kèm thông báo chỉ rõ việc cần làm — *"Phiên chưa được mở. Giảng viên bấm 'Mở phiên thi' trước khi sinh viên vào."*
+
+Guard đó chính là phương án (b), và đúng như bản rà soát nói, nó **không cứu được tại chỗ**. Ở vai trò TẠM THỜI thì đó lại là điểm mạnh:
+
+1. Nó đóng cửa sổ hở — không tồn tại phiên nhận bài mà không có ảnh chốt.
+2. Nó **hỏng to và sớm**: cả phòng bị chặn ở giây đầu, giảng viên biết ngay và bấm một nút. So với freeze-ở-lần-join-đầu thì hỏng **nhỏ và muộn** — ảnh chốt thiếu vài người, phát hiện lúc chấm.
+3. Mỗi lần phải bấm "Mở phiên" là một lần hệ thống tự nhắc rằng khoảnh khắc đó nên nằm trong vòng đời, chứ không phải là một nút rời.
+
+Một lỗi không cứu được tại chỗ nhưng không thể bỏ sót an toàn hơn một lỗi cứu được nhưng không ai biết là có. Ảnh chốt sai âm thầm là loại tệ nhất ở đây.
+
+**Task 3 không phải làm lại khi (d) tới:** `POST /:id/open` viết bây giờ chính là route mà (d) sẽ dùng, chỉ thêm việc đổi status; guard tạm được thay bằng guard `status === 'active'` tốt hơn.
+
+---
+
+> **Sửa ở rev 2 — bốn điểm kỹ thuật, không chặn.**
+>
+> **(e) Trigger `validate_submission_lifecycle` CHẶN cả hai đầu — đã đọc từ DB.** Bản gốc Step 8 bảo "đọc trigger, sửa nếu cần" và coi là chuyện nhỏ. Thực tế:
+>
+> ```
+> INSERT: chỉ cho 'received' hoặc 'invalid'
+> UPDATE: chỉ received→validated|invalid, validated→collected|invalid
+> ```
+>
+> Nên **gieo dòng ở `absent` bị chặn ngay ở INSERT**, và nhánh else của `writeCollected` sẽ chạy `absent → collected` một bước — **cũng bị chặn**. (Lưu ý: lỗi là trigger từ chối, KHÔNG phải `storage_key` NULL như bản review đoán.) Trigger phải được mở rộng trong cùng migration này.
+>
+> **(f) `addManually` cần transaction + guard trạng thái phiên.** Hai `getRepository` gọi rời nhau. Và không có gì chặn thêm sinh viên sau khi phiên đã `completed` — spec §6.5 đã đặt tiền lệ đúng (route "Thu lại" trả 409 khi không ở `collecting`), áp cùng nguyên tắc ở đây.
+>
+> **(g) Insert phải phân lô `chunk: 100`.** `rows` là tích Descartes sinh viên × deliverable: 200 × 3 = 600 dòng trong một statement, mỗi dòng kiểm 3 FK RESTRICT. Quy mô đồ án không nổ, nhưng một tham số loại bỏ hẳn class lỗi này.
+>
+> **(h) Bỏ `frozenAt`, dùng `createdAt` của `BaseEntity`.** Hai cột cùng nghĩa, cùng `default now()`. Sau này sửa một cột quên cột kia thì chúng lệch và không ai biết cột nào đúng.
 
 These two CLAUDE.md items are one task because §7.1.2 says so explicitly ("Kèm §7.1.1: lúc đóng băng, sinh sẵn một dòng bài nộp trạng thái `chưa nộp` cho mỗi sinh viên") — an `absent` status with no frozen list to enumerate has nothing to iterate over.
 
@@ -372,7 +490,7 @@ These two CLAUDE.md items are one task because §7.1.2 says so explicitly ("Kèm
 - Consumes: `EnrollmentEntity` (`courseId`, `studentMssv`, `studentName`, `homeClassId`, `homeTeacherId`), `ExamSessionEntity.classId`/`courseId`.
 - Produces: `SessionRosterEntity { id, examSessionId, studentMssv, studentName, homeClassId, homeTeacherId, source: 'frozen' | 'manual', frozenAt }`; `SessionRosterService.freeze(session): Promise<{ students: number; submissionsSeeded: number }>`; `SubmissionStatus` gains `'absent'`; `POST /exam-sessions/:id/open` (teacher-only) triggers the freeze. Task 7 (GradeExport) reads `session_roster` as the authoritative "who should appear on the grade sheet" list.
 
-- [ ] **Step 1: Find where a session actually starts**
+- [x] **Step 1: Find where a session actually starts**
 
 ```bash
 cd apps/api
@@ -382,7 +500,7 @@ grep -rn "status" src/exam-session/exam-session.scheduler.ts
 
 Read what these return. You are looking for the transition into `status: 'active'` — whether it is a route a teacher calls, a scheduler tick, or (most likely, given `ExamSessionStatus`'s own comment says the list is *inferred* and unconfirmed) **nothing at all yet**. Record which of the three it is; the freeze hook goes at that exact point, and if it is "nothing yet", this task introduces `POST /exam-sessions/:id/open` as that point.
 
-- [ ] **Step 2: Write the failing e2e test**
+- [x] **Step 2: Write the failing e2e test**
 
 ```typescript
 // apps/api/test/session-roster-freeze.e2e-spec.ts
@@ -454,12 +572,12 @@ describe('POST /exam-sessions/:id/open — freeze the sitting list', () => {
 
 The last test is CLAUDE.md §5.8's escape hatch surviving the freeze, which §7.1.1 marks **Bắt buộc giữ** — if the freeze blocked it, a legitimate late-registering student could not sit the exam at all.
 
-- [ ] **Step 3: Run to confirm failure**
+- [x] **Step 3: Run to confirm failure**
 
 Run: `pnpm --filter api test:e2e -- session-roster-freeze`
 Expected: FAIL — 404, no such route.
 
-- [ ] **Step 4: Add the entity**
+- [x] **Step 4: Add the entity**
 
 ```typescript
 // apps/api/src/exam-session/entities/session-roster.entity.ts
@@ -534,7 +652,7 @@ export class SessionRosterEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 5: Add `'absent'` to `SubmissionStatus`**
+- [x] **Step 5: Add `'absent'` to `SubmissionStatus`**
 
 In `apps/api/src/submission/entities/submission.entity.ts`:
 
@@ -555,7 +673,7 @@ Add above the type:
 // rồi chuyển sang `received` khi agent nộp file đầu tiên.
 ```
 
-- [ ] **Step 6: Write the migration by hand**
+- [x] **Step 6: Write the migration by hand**
 
 `migration:generate` cannot express the enum-value addition safely (it drops and recreates the type, which fails while columns depend on it). Write it manually:
 
@@ -611,14 +729,14 @@ export class AddSessionRosterAndAbsentStatus<timestamp> implements MigrationInte
 
 **Note:** `ALTER TYPE ... ADD VALUE` cannot run inside a transaction block on PostgreSQL < 12. This project is on 16 (verified via `SELECT version()` in the migration runner output), where it is transaction-safe — no special handling needed.
 
-- [ ] **Step 7: Register the entity and run the migration**
+- [x] **Step 7: Register the entity and run the migration**
 
 Add `SessionRosterEntity` to the `entities` array in `apps/api/src/database/data-source.ts` and to `TypeOrmModule.forFeature([...])` in `apps/api/src/exam-session/exam-session.module.ts`.
 
 Run: `pnpm migration:run`
 Expected: executed successfully.
 
-- [ ] **Step 8: Write the freeze service**
+- [x] **Step 8: Write the freeze service**
 
 ```typescript
 // apps/api/src/exam-session/session-roster.service.ts
@@ -749,7 +867,7 @@ docker exec cine-postgres-1 psql -U examcollect_admin -d examcollect -c "\sf exa
 ```
 If it rejects an INSERT whose status is not `received`, extend it in this same migration to allow `received` **or** `absent` as an initial state, and to allow `absent → received` (the agent's first upload on a student who had been seeded absent). Add the new transitions to the trigger with the same `CREATE OR REPLACE FUNCTION` style the initial migration used — do not drop and recreate the trigger itself.
 
-- [ ] **Step 9: Wire the route**
+- [x] **Step 9: Wire the route**
 
 In `apps/api/src/exam-session/exam-session.controller.ts`:
 
@@ -776,21 +894,21 @@ In `apps/api/src/exam-session/exam-session.controller.ts`:
 
 Inject `SessionRosterService`, register it in `exam-session.module.ts` `providers`, and import `RosterStudentDto` from `../course/dto/roster.dto` (reuse — the validation rules are identical and duplicating the MSSV regex is how the two drift apart).
 
-- [ ] **Step 10: Run the tests**
+- [x] **Step 10: Run the tests**
 
 Run: `pnpm --filter api test:e2e -- session-roster-freeze`
 Expected: PASS, all four.
 
-- [ ] **Step 11: Run the whole api suite — this task changes a shared enum**
+- [x] **Step 11: Run the whole api suite — this task changes a shared enum**
 
 Run: `pnpm --filter api test && pnpm --filter api test:e2e`
 Expected: PASS. Any spec asserting an exhaustive `SubmissionStatus` union or counting submission rows per session will need updating — that is expected fallout of adding a status, not a reason to revert.
 
-- [ ] **Step 12: Update CLAUDE.md**
+- [x] **Step 12: Update CLAUDE.md**
 
 §7.1.1 and §7.1.2: mark both `✅ Đã làm (2026-09-10)`. §3.1 relations diagram: add `ExamSession ──1:n──> SessionRoster`. §3.2: add a `SessionRoster` row (`semester_id`: không — vay qua `exam_session`; chủ: không có cột chủ, đọc qua phiên).
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add apps/api/src apps/api/test CLAUDE.md
@@ -809,6 +927,78 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ## Task 4: Move grading onto a BullMQ queue (A2a + §7.1.3)
 
+> # Sửa ở rev 4 — bốn điểm nữa, một trong đó CHẶN
+
+### 4A (CHẶN) — chốt điểm giữa chừng, và vì sao `BLOCKS_FINALIZE` không cứu được
+
+Trước Task 4, `startGrading` trả về khi mọi bài đã chấm xong, nên **không tồn tại** trạng thái "phiên chấm dở". Sau Task 4 trạng thái đó tồn tại trong nhiều phút. Cùng loại lỗi với việc `collecting` tách đôi nghĩa của `completed`: một trạng thái mới mà mọi đường code giả định nhị phân đều chưa biết tới.
+
+**Đã kiểm — hệ thống có sẵn một nửa phòng thủ:** `teacher-review.service.ts` khai
+
+```ts
+const BLOCKS_FINALIZE: GradingResultStatus[] = ['ai_grading', 'ai_graded', 'flagged_for_review'];
+// -> ConflictException "Còn N bài chưa duyệt xong — hãy duyệt hết trước khi chốt điểm."
+```
+
+Nên ca "20/48 đã chấm rồi bấm chốt" **không lọt**. Thất bại thật hẹp hơn và tệ hơn:
+
+`gradeOne` tạo dòng `grading_result` ở `ai_grading` **bên trong worker**. Một job đã xếp hàng nhưng chưa được nhặt thì **chưa có dòng nào**. `finalizeGrades` truy `WHERE s.exam_session_id = ?` và chỉ thấy 20 dòng, tất cả `auto_approved`, rồi chốt sạch. 28 bài kia không bị bỏ qua cũng không bị chốt 0 điểm — chúng **vô hình**; worker chấm xong sau đó và chúng nằm lại ở `auto_approved` vĩnh viễn, trên một phiên mà giảng viên tin là đã đóng.
+
+**Cách sửa — không cần code mới:** tạo TẤT CẢ dòng `grading_result` ở `ai_grading` **đồng bộ, trong chính transaction của `startGrading`**, cùng lượt với `addBulk`. Khi đó:
+
+- `BLOCKS_FINALIZE` hoạt động đúng như thiết kế, không sửa một dòng nào
+- guard không phải hỏi Redis — nó hỏi DB, nơi sự thật vốn đã ở đó
+- tham số `existingResultId` mà Step 6 thêm cho ca retry có công dụng thứ hai, rõ ràng hơn: worker **tái dùng** dòng đã có thay vì tạo mới
+- và nó tự giải luôn 4C bên dưới
+
+### 4B — `removeOnComplete` giới hạn theo SỐ, không theo thời gian
+
+`removeOnComplete: 1_000` với 144 job một lượt nghĩa là job của phiên trước bị dọn trước khi ai kịp nhìn. Dùng `KeepJobs`: `{ age: 24 * 3600, count: 5_000 }`.
+
+> Đã kiểm `bullmq@6.3.4`: `KeepJobs` có thật, và doc của chính nó nói thêm một điều đáng biết — BullMQ dọn **best-effort khi job kế tiếp kết thúc**, không có timer nền. Job quá hạn vẫn nằm đó nếu không còn job nào chạy. Đó là một lý do nữa để tiến độ đọc từ DB chứ không từ queue.
+
+### 4C — `getJobCounts()` đếm TOÀN QUEUE, không theo phiên
+
+Nó trả tổng `waiting`/`active`/`failed` của mọi phiên. Hai giảng viên chấm cùng lúc thì mỗi người thấy tiến độ của cả hai.
+
+Nhờ 4A, chuyện này tự tan: mọi dòng `grading_result` đã tồn tại từ lúc `startGrading` trả về, nên tiến độ per-session là một câu `COUNT(*) GROUP BY status` — **chính xác, đầy đủ ngay lập tức, và sống sót cả khi Redis bị xoá**.
+
+`getJobCounts()` vẫn giữ, nhưng cho đúng một việc khác: **queue có đang kẹt không**. Hai nguồn, hai câu hỏi, và response phải tách chúng ra thay vì trộn vào một con số.
+
+### 4D — job không có timeout, và KHÔNG sửa được bằng một dòng
+
+Một lời gọi treo ở tầng mạng chiếm slot vô hạn; với `concurrency: 5` thì 5 job treo là dừng cả queue.
+
+> **Đã kiểm `bullmq@6.3.4/dist/esm/interfaces/base-job-options.d.ts`: KHÔNG có trường `timeout`.** Chỉ `attempts`, `backoff`, `removeOnComplete`, `removeOnFail`, `delay`, `priority`, `jobId`. Nó bị bỏ sau Bull v3. Nên đây không phải "một dòng trong job options" như trực giác mách.
+
+Đặt trong **processor**, không trong provider: mọi provider — kể cả provider thêm sau này — đều đi qua đó, đúng cùng lập luận đã đặt giới hạn kích thước ở `extractText` thay vì ở chỗ gọi model.
+
+---
+
+> **Sửa ở rev 2 — bảy điểm. Kiến trúc lõi (một job một bài, payload chỉ chứa id, jobId dedupe, ném lỗi thay vì bắt, idempotent ở `gradeOneById`) GIỮ NGUYÊN — phần đó đúng.**
+>
+> **(a) Chính sách retry phải phân loại theo lỗi.** `attempts: 3` + backoff 5s, nhưng Task 5 ném trên **mọi** `APIError`. Một 400 — sai shape `thinking`, schema hỏng, model id sai — sẽ retry 5s→10s→20s rồi mới chết, trong lúc đó chiếm worker slot. Deploy sai một model id thì 40 bài × 3 lần = 120 lời gọi chắc chắn thất bại trước khi có ai biết. Cần: `RateLimitError`/5xx/timeout → retry; 4xx khác → `UnrecoverableError` của BullMQ, fail ngay.
+>
+> **(b) Thiếu `concurrency` và rate limit.** `WorkerHost` mặc định concurrency 1 → 40 bài × 10s ≈ 7 phút tuần tự. Đặt tường minh cạnh `attempts`/`backoff` vì chúng tương tác:
+>
+> ```ts
+> @Processor(GRADING_QUEUE, { concurrency: 5, limiter: { max: 10, duration: 1000 } })
+> ```
+>
+> **(c) Worker chạy CÙNG process với API — ghi ra là quyết định, không phải sơ suất.** Ở quy mô ~10 kết nối thì đúng. Hệ quả phải ghi: một lượt chấm nặng làm chậm request HTTP; restart API hủy job giữa chừng (BullMQ đưa về stalled rồi retry — an toàn nhờ idempotency ở Step 6, nhưng chỉ khi `stalledInterval` được cấu hình).
+>
+> **(d) Thiếu graceful shutdown.** Không có `OnModuleDestroy` gọi `worker.close()`. Ctrl-C giữa lượt chấm để job ở `active` tới hết stall timeout (mặc định 30s) — trong dev thì gây nhầm lẫn, trong demo thì tệ hơn.
+>
+> **(e) LỖ HỔNG LỚN NHẤT — không có gì quan sát được, và hợp đồng API đổi nghĩa.** `queued` đổi từ "đã chấm" thành "đã xếp hàng". Trang `apps/web/src/app/teacher/grading/page.tsx` hiện chỉ có `useStartGrading` + `useGradingResults`, **không có gì đọc tiến độ**. Sau Task 4, giảng viên bấm chấm rồi nhìn màn hình trống 7 phút — kỹ thuật đúng, trải nghiệm thụt lùi. Task này KHÔNG được coi là xong nếu thiếu:
+>
+> - `GET /exam-sessions/:id/grading-progress` đọc `queue.getJobCounts()` + đếm `grading_result` theo status
+> - `@OnWorkerEvent('failed')` log job id + số lần thử
+> - UI đọc tiến độ đó
+>
+> **(f) Không giới hạn số job một giảng viên tạo.** 3 phiên × 48 bài bấm liên tiếp = 144 job. Với model thật đó là tiền thật. Tối thiểu: log tổng số job kèm cảnh báo khi vượt ngưỡng.
+>
+> **(g) `.env` thiếu `REDIS_PASSWORD` và `REDIS_DB` (optional).** `getOrThrow` trên hai biến mà không có đường cấu hình auth nghĩa là chuyển sang Redis có mật khẩu phải sửa code.
+
 **Files:**
 - Modify: `apps/api/package.json` (add `bullmq`, `ioredis`, `@nestjs/bullmq`)
 - Modify: `apps/api/.env.example`, `apps/api/.env`
@@ -825,7 +1015,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - Consumes: `GradingService.gradeOne` (currently `private` — becomes `public` so the processor can call it; its signature is unchanged).
 - Produces: queue name `'grading'`; job payload `GradeSubmissionJob { submissionId: string; requiredFilename: string; rubricId: string; teacherId: string }`; `GradingService.startGrading` returns the same `StartGradingResult` shape but `queued` now means *enqueued*, not *graded*. Tasks 5 and 6 change what happens **inside** `gradeOne`, never where it is called from.
 
-- [ ] **Step 1: Verify Redis is reachable and add the env config**
+- [x] **Step 1: Verify Redis is reachable and add the env config**
 
 ```bash
 docker compose up -d redis
@@ -843,14 +1033,14 @@ REDIS_HOST=localhost
 REDIS_PORT=6390
 ```
 
-- [ ] **Step 2: Install the dependencies**
+- [x] **Step 2: Install the dependencies**
 
 ```bash
 cd apps/api
 pnpm add bullmq ioredis @nestjs/bullmq
 ```
 
-- [ ] **Step 3: Write the failing processor unit test**
+- [x] **Step 3: Write the failing processor unit test**
 
 ```typescript
 // apps/api/src/grading/grading.processor.spec.ts
@@ -895,12 +1085,12 @@ describe('GradingProcessor', () => {
 });
 ```
 
-- [ ] **Step 4: Run to confirm failure**
+- [x] **Step 4: Run to confirm failure**
 
 Run: `pnpm --filter api test -- grading.processor`
 Expected: FAIL — module does not exist.
 
-- [ ] **Step 5: Add the queue definition and processor**
+- [x] **Step 5: Add the queue definition and processor**
 
 ```typescript
 // apps/api/src/grading/grading.queue.ts
@@ -953,7 +1143,7 @@ export class GradingProcessor extends WorkerHost {
 }
 ```
 
-- [ ] **Step 6: Refactor `GradingService` — enqueue instead of loop, and make the retry safe**
+- [x] **Step 6: Refactor `GradingService` — enqueue instead of loop, and make the retry safe**
 
 In `apps/api/src/grading/grading.service.ts`:
 
@@ -1040,7 +1230,7 @@ Change `gradeOne` from `private` to `public`, and give it an optional last param
 
 Update `gradeOne`'s stale doc comment: the paragraph beginning "Run inline for now. The queue this becomes is a real piece of work..." is now wrong. Replace it with a line saying it runs as a BullMQ job per submission and pointing at `grading.processor.ts`.
 
-- [ ] **Step 7: Register BullMQ in the modules**
+- [x] **Step 7: Register BullMQ in the modules**
 
 In `apps/api/src/app.module.ts`, add to `imports`:
 
@@ -1058,12 +1248,12 @@ In `apps/api/src/app.module.ts`, add to `imports`:
 
 In `apps/api/src/grading/grading.module.ts`, add `BullModule.registerQueue({ name: GRADING_QUEUE })` to `imports` and `GradingProcessor` to `providers`.
 
-- [ ] **Step 8: Run the processor test**
+- [x] **Step 8: Run the processor test**
 
 Run: `pnpm --filter api test -- grading.processor`
 Expected: PASS.
 
-- [ ] **Step 9: Write and run the queue e2e test**
+- [x] **Step 9: Write and run the queue e2e test**
 
 ```typescript
 // apps/api/test/grading-queue.e2e-spec.ts
@@ -1111,11 +1301,11 @@ Write `waitFor(fn, {timeout})` as a small local helper in the test file if the s
 Run: `pnpm --filter api test:e2e -- grading-queue`
 Expected: PASS. The e2e run needs Redis up — add that to the e2e prerequisites note in `apps/api/test/README.md` if one exists, or to `DEMO-RUNBOOK.md`.
 
-- [ ] **Step 10: Update CLAUDE.md**
+- [x] **Step 10: Update CLAUDE.md**
 
 §7.1.3: mark `✅ Đã làm (2026-09-10)`. In the Tech Stack section, the "Queue: BullMQ — Grading Queue (one job per submission)" line is now true rather than aspirational — no edit needed, but verify it says exactly that.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add apps/api/package.json apps/api/pnpm-lock.yaml apps/api/.env.example apps/api/src apps/api/test CLAUDE.md

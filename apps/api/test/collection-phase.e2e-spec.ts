@@ -9,6 +9,7 @@ import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter
 import { ExamSessionScheduler } from '../src/exam-session/exam-session.scheduler';
 import { SUBMISSION_GRACE_PERIOD_MS } from '../src/submission/submission.types';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * Giai đoạn "Đang thu bài" — spec
@@ -124,13 +125,20 @@ describe('Collection phase (e2e)', () => {
   }
 
   /** Agent thật, join thật — cần cho các ca upload. */
-  async function joinAgent(sessionCode: string, mssv: string): Promise<Socket> {
+  async function joinAgent(
+    session: { id: string; code: string },
+    mssv: string,
+  ): Promise<Socket> {
+    // Guard §7.1.1: agent:join từ chối phiên chưa đóng băng danh sách
+    // dự thi. Idempotent, và đặt ở đây vì roster được nhập SAU khi tạo
+    // phiên — nên nhận cả session object thay vì chỉ mã phiên.
+    await openSession(app, teacherToken, session.id);
     const socket = io(`${baseUrl}/exam-live`, { reconnection: false, forceNew: true });
     await new Promise<void>((resolve) => socket.on('connect', () => resolve()));
     await new Promise<void>((resolve, reject) => {
       socket.on('agent:join:ack', () => resolve());
       socket.on('agent:join:error', (e) => reject(new Error(JSON.stringify(e))));
-      socket.emit('agent:join', { fullName: 'ignored', studentId: mssv, sessionCode });
+      socket.emit('agent:join', { fullName: 'ignored', studentId: mssv, sessionCode: session.code });
     });
     return socket;
   }
@@ -235,7 +243,7 @@ describe('Collection phase (e2e)', () => {
     // khiến agent chỉ nộp sau khi giảng viên bấm — ngược hẳn ý đồ.
     const session = await seedActiveSession();
     await enrol('SVFIN001', 'Sinh viên finalize', session.classId);
-    const socket = await joinAgent(session.code, 'SVFIN001');
+    const socket = await joinAgent(session, 'SVFIN001');
     let fired = 0;
     socket.on('exam:finalize', () => {
       fired += 1;
@@ -255,7 +263,7 @@ describe('Collection phase (e2e)', () => {
     // bay về đều bị từ chối.
     const session = await seedActiveSession();
     await enrol('SVUP001', 'Sinh viên upload', session.classId);
-    const socket = await joinAgent(session.code, 'SVUP001');
+    const socket = await joinAgent(session, 'SVUP001');
     await advanceToCollecting(session);
 
     const status = await submitFile(socket, session.id, session.deliverableId, 'SVUP001');
@@ -318,7 +326,7 @@ describe('Collection phase (e2e)', () => {
     // bài của sinh viên mà không ai phát hiện tới lúc chấm.
     const session = await seedActiveSession();
     await enrol('SVLATE01', 'Sinh viên nộp muộn', session.classId);
-    const socket = await joinAgent(session.code, 'SVLATE01');
+    const socket = await joinAgent(session, 'SVLATE01');
     await advanceToCollecting(session);
     await confirmEnd(session.id);
 
@@ -384,10 +392,13 @@ describe('Collection phase (e2e)', () => {
       [courseId, `Nhóm quá hạn ${Date.now()}`, teacherId],
     );
     const [old] = await dataSource.query(
+      // semester_name NOT NULL từ 2026-09-11 (§7.1.5). INSERT thô bỏ
+      // qua service nên phải tự cấp — giá trị nào cũng được, ca này
+      // không kiểm học kỳ.
       `INSERT INTO examcollect.exam_session
          (name, code, course_id, class_id, room_id, teacher_id, exam_type,
-          start_time, end_time, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, 'collecting') RETURNING id`,
+          start_time, end_time, status, semester_name)
+       VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, 'collecting', 'HK kiểm thử') RETURNING id`,
       [
         `Phiên quá hạn ${Date.now()}`,
         `OLD${Date.now()}`.slice(0, 20),

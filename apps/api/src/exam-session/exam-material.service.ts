@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -179,6 +180,21 @@ export class ExamMaterialService {
     if (isExamOver(session.status)) {
       throw new ForbiddenException(
         'Phiên thi đã kết thúc — đề thi được giữ lại để đối chiếu, không xoá được nữa.',
+      );
+    }
+
+    // File đã được chọn làm ĐỀ BÀI để chấm thì `grading_reference` giữ nó
+    // bằng FK RESTRICT. Kiểm ở đây để nói ĐÚNG lý do: nếu để FK nổ,
+    // `PostgresExceptionFilter` map 23503 thành một 409 chung chung
+    // ("This request conflicts with an existing record") và giảng viên
+    // không có cách nào biết tại sao file của chính họ không xoá được.
+    const referencedBy = await this.materials.manager.count('grading_reference', {
+      where: { questionMaterialId: material.id },
+    });
+    if (referencedBy > 0) {
+      throw new ConflictException(
+        'File này đang được chọn làm đề bài cho việc chấm điểm. ' +
+          'Hãy bỏ chọn nó trong phần tài liệu chấm trước khi xoá.',
       );
     }
 

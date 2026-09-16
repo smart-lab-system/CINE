@@ -1,8 +1,9 @@
-import { Check, Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { SubmissionEntity } from '../../submission/entities/submission.entity';
 import { RubricEntity } from './rubric.entity';
+import type { AdvocateOpinion } from '../ai-provider/advocate.types';
 
 export type GradingResultStatus =
   | 'ai_grading'
@@ -27,6 +28,11 @@ export type GradingResultStatus =
 // to a stronger model, so both sides need to be the same comparable type.
 @Entity({ name: 'grading_result' })
 @Check('ck_grading_result_confidence', 'confidence IS NULL OR confidence BETWEEN 0 AND 1')
+// Một bài = MỘT dòng chấm. Trước 2026-09-12 đây chỉ là quy ước, và
+// grading.service.ts viện dẫn một ràng buộc chưa từng tồn tại. Xem
+// migration AddGradingResultSubmissionIndex để biết nó bịt TOCTOU nào,
+// và vì sao cột này còn cần một chỉ mục cho `progress()`.
+@Index('uq_grading_result_submission', ['submissionId'], { unique: true })
 export class GradingResultEntity extends BaseEntity {
   @Column({ name: 'submission_id', type: 'uuid' })
   submissionId!: string;
@@ -62,6 +68,41 @@ export class GradingResultEntity extends BaseEntity {
 
   @Column({ type: 'numeric', precision: 4, scale: 3, nullable: true })
   confidence!: string | null;
+
+  /**
+   * Ý kiến của Advocate — lượt hỏi thứ hai, mù rubric. CHỈ KIẾN NGHỊ:
+   * không bao giờ đổi `aiTotalScore` (spec §2.2).
+   *
+   * `null` = Advocate KHÔNG chạy cho bài này (cổng ở `applyGuards` không
+   * mở), khác hẳn `{}` = chạy và không kiến nghị gì. Khoảng 80% số bài ở
+   * `null`, và chính sự phân biệt đó đo được tỉ lệ kích hoạt cổng cho
+   * calibration mà không cần thêm cột đếm nào.
+   *
+   * Bất biến cùng luật với output của Grader — `advocate_opinion` đã được
+   * thêm vào `guard_grading_result_ai_immutable` ở migration
+   * 1789240000000, nên đây không phải một lời hứa trong comment.
+   */
+  @Column({ name: 'advocate_opinion', type: 'jsonb', nullable: true })
+  advocateOpinion!: AdvocateOpinion | null;
+
+  /**
+   * Ngữ cảnh lượt chấm này THỰC SỰ đọc được — không phải ngữ cảnh đã cấu
+   * hình cho phiên.
+   *
+   * Hai thứ đó lệch nhau từ khi có chuỗi dự phòng: endpoint tương thích
+   * OpenAI không gửi được PDF, nên bài do bậc dự phòng chấm chạy ở mức
+   * "chỉ có rubric" dù phiên có đủ tài liệu. `grading-readiness` báo theo
+   * cấu hình, còn hai cột này là thứ nói ra sự thật.
+   *
+   * `null` = chấm trước khi hệ thống biết ghi lại điều này, KHÁC `false`
+   * = đã đo và không có. Calibration §11.2 cần phân biệt "không biết" với
+   * "không có" để không gộp nhầm nhánh A vào nhánh B.
+   */
+  @Column({ name: 'context_used_question', type: 'boolean', nullable: true })
+  contextUsedQuestion!: boolean | null;
+
+  @Column({ name: 'context_used_model_answer', type: 'boolean', nullable: true })
+  contextUsedModelAnswer!: boolean | null;
 
   @Column({ name: 'flag_for_review', type: 'boolean', default: false })
   flagForReview!: boolean;

@@ -91,8 +91,13 @@ export interface SubmissionStatusItem {
   studentMssv: string;
   studentNameInput: string;
   requiredDeliverableId: string;
-  status: 'received' | 'validated' | 'collected' | 'invalid';
-  submittedAt: string;
+  /** `not_submitted`/`absent` có từ 2026-09-11 (§7.1.2): dòng được gieo
+   *  sẵn lúc mở phiên, nên "chưa nộp" không còn là sự VẮNG MẶT của một
+   *  dòng. Xem SubmissionStatus ở apps/api. */
+  status: 'not_submitted' | 'received' | 'validated' | 'collected' | 'invalid' | 'absent';
+  /** `null` khi chưa có file nào bay về (`not_submitted`/`absent`).
+   *  KHÔNG phải "không rõ giờ" — là "chưa có giờ nào để mà nói". */
+  submittedAt: string | null;
   fileSize: string | null;
   downloadUrl: string | null;
 }
@@ -119,6 +124,13 @@ export interface SearchExamSessionsParams {
   search?: string;
   status?: ExamSessionStatusFilter;
   examType?: ExamType;
+  /**
+   * Học kỳ của môn mà phiên thuộc về. Bỏ trống = tất cả học kỳ.
+   *
+   * `undefined`, KHÔNG phải `null`: openapi-fetch serialize null thành
+   * `?semesterId=` và @IsUUID ở backend sẽ trả 400 cho chuỗi rỗng đó.
+   */
+  semesterId?: string;
 }
 
 async function throwIfFailed(error: unknown, response: Response) {

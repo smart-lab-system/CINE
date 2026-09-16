@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * Who is in the room, answered from the log rather than from a browser tab.
@@ -105,6 +106,9 @@ describe('Attendance (e2e)', () => {
         requiredFilenames: ['Cau1.docx'],
       });
     expect(created.status).toBe(201);
+    // Guard §7.1.1: agent:join từ chối phiên chưa đóng băng danh sách
+    // dự thi. Roster của lớp này đã nhập ở beforeAll.
+    await openSession(app, teacherToken, created.body.id);
     return { id: created.body.id, code: created.body.code };
   }
 
@@ -394,11 +398,24 @@ describe('Attendance (e2e)', () => {
     );
     for (const mssv of [IN_CLASS_A, IN_CLASS_B]) {
       await dataSource.query(
+        // UPSERT, không phải INSERT, từ 2026-09-11: mở phiên gieo sẵn một
+        // dòng `not_submitted` cho mỗi (sinh viên × file), nên "chưa nộp"
+        // không còn là sự VẮNG MẶT của một dòng. Một INSERT thuần ở đây
+        // đụng uq_submission_identity.
+        //
+        // Dừng ở `received` chứ không nhảy tới `collected`: trigger vòng
+        // đời chỉ cho đi từng bước, và ca này chỉ cần một bài nộp TỒN TẠI
+        // để báo cáo lệch điểm danh đếm được.
         `INSERT INTO examcollect.submission
            (exam_session_id, required_deliverable_id, student_mssv, student_name_input,
             home_class_id, home_teacher_id, storage_key, checksum, file_size,
             submitted_via, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 'normal', 'received')`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 'normal', 'received')
+         ON CONFLICT (exam_session_id, required_deliverable_id, student_mssv)
+         DO UPDATE SET storage_key = EXCLUDED.storage_key,
+                       checksum    = EXCLUDED.checksum,
+                       file_size   = EXCLUDED.file_size,
+                       status      = 'received'`,
         [session.id, deliverable.id, mssv, mssv, classId, teacherId, `k/${mssv}`, 'a'.repeat(64)],
       );
     }

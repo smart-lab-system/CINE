@@ -98,11 +98,39 @@ describe('TeacherReview (e2e)', () => {
       .set('Authorization', `Bearer ${tokenA}`);
     expect(started.status).toBe(200);
 
-    const [result] = await dataSource.query(
-      `SELECT id FROM examcollect.grading_result WHERE submission_id = $1`,
-      [submissionId],
-    );
-    return { sessionId, resultId: result.id };
+    // Từ 2026-09-11 `start-grading` chỉ XẾP HÀNG. Dòng `grading_result`
+    // đã tồn tại ngay lúc này (cố ý — xem GradingService.startGrading),
+    // nhưng nó ở `ai_grading`, và `ai_grading` không nằm trong REVIEWABLE:
+    // duyệt lúc đó trả 409, đúng như thiết kế. Bộ test này nói về DUYỆT,
+    // nên nó phải chờ model trả lời trước.
+    const resultId = await waitForGraded(submissionId);
+    return { sessionId, resultId };
+  }
+
+  /**
+   * Chờ đúng MỘT bài rời khỏi `ai_grading`.
+   *
+   * Hỏi DB chứ không ngủ một khoảng cố định: ngủ đủ lâu thì test chậm,
+   * ngủ không đủ thì test chớp tắt — và một test chớp tắt ở đường chấm
+   * điểm là thứ người ta sẽ chạy lại cho tới khi nó xanh.
+   */
+  async function waitForGraded(submissionId: string, timeoutMs = 20_000): Promise<string> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const [row] = await dataSource.query(
+        `SELECT id, status FROM examcollect.grading_result WHERE submission_id = $1`,
+        [submissionId],
+      );
+      if (row && row.status !== 'ai_grading') {
+        return row.id as string;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(
+          `bài ${submissionId} chưa chấm xong sau ${timeoutMs}ms (status=${row?.status ?? 'không có dòng'})`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
   }
 
   /**

@@ -80,7 +80,11 @@ export class ExamSessionService {
     // for a colleague's. `class.teacher_id` is the whole of a lecturer's
     // scope, and this is the only thing standing between them and running an
     // exam for someone else's class.
-    const klass = await this.classes.findTaughtBy(dto.classId, teacherId);
+    // Nạp kèm course→semester trong CÙNG lượt tra này để chụp
+    // `semester_name` (§7.1.5) — không phải một round-trip thứ hai.
+    const klass = await this.classes.findTaughtBy(dto.classId, teacherId, {
+      course: { semester: true },
+    });
 
     // The rubric this session will be graded against, decided here rather
     // than resolved at grading time. Editing the course's rubric after this
@@ -138,6 +142,10 @@ export class ExamSessionService {
               // not match its class would make every enrollment check after
               // it ask about the wrong course.
               courseId: klass.courseId,
+              // Chụp MỘT LẦN, tại đây, và không bao giờ đọc lại từ quan
+              // hệ nữa (§7.1.5). Cột mang `update: false` nên một
+              // `save()` về sau không ghi đè được.
+              semesterName: klass.course.semester.name,
               roomId: dto.roomId,
               examType: dto.examType,
               startTime: new Date(dto.startTime),
@@ -306,6 +314,19 @@ export class ExamSessionService {
     }
     if (query.examType) {
       qb.andWhere('s.examType = :examType', { examType: query.examType });
+    }
+    // AND vào owner-scope, KHÔNG thay thế nó: bộ lọc kỳ chỉ hẹp tầm nhìn
+    // của giảng viên trong phạm vi họ vốn đã được phép thấy. Một `orWhere`
+    // ở đây sẽ kéo phiên của giảng viên khác cùng kỳ vào, và kết quả vẫn
+    // trông "có dữ liệu" nên không ai nghi ngờ — e2e ghim đúng ca đó.
+    //
+    // Đọc `course.semesterId` (khoá ngoại), không phải `s.semesterName`
+    // (bản chụp lúc tạo phiên): dropdown gửi lên id của bảng `semester`,
+    // và /submissions/overview cũng suy học kỳ từ cùng một cột — hai
+    // trang không được trả lời khác nhau câu "phiên này thuộc kỳ nào".
+    // `course` đã được join sẵn ở trên nên không thêm lượt đi DB nào.
+    if (query.semesterId) {
+      qb.andWhere('course.semesterId = :semesterId', { semesterId: query.semesterId });
     }
 
     const [rows, total] = await qb
@@ -561,6 +582,7 @@ export class ExamSessionService {
     dto.classId = session.classId;
     dto.roomId = session.roomId;
     dto.examType = session.examType;
+    dto.semesterName = session.semesterName;
     dto.startTime = session.startTime;
     dto.endTime = session.endTime;
     dto.status = session.status;
