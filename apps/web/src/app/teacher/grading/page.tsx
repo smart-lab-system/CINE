@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Play } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
@@ -230,6 +231,16 @@ function GradingPageContent() {
                 onChange={setBucket}
               />
               <AnomalyPanel results={results.data!} rubric={pinnedRubric} />
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+                <p className="flex-1 text-small text-muted-foreground">
+                  Nhiều bài cùng một kiểu? Xử lý cả nhóm trong một màn thay vì mở từng bài.
+                </p>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/teacher/grading/matrix?sessionId=${sessionId}`}>
+                    Mở ma trận điều hành
+                  </Link>
+                </Button>
+              </div>
             </>
           )}
 

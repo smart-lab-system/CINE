@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -14,11 +14,11 @@ import { advocateScore, bucketOf, type Bucket } from '@/lib/grading-triage';
 import type { GradingResult, Rubric } from '@/lib/api/grading';
 
 /** Lý do một bài còn nằm lại, bằng ngôn ngữ khảo thí. */
-const HELD_FOR: Record<Bucket, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
-  flagged: { label: 'Chờ bạn duyệt', variant: 'default' },
-  low: { label: 'Đang chấm', variant: 'secondary' },
-  high: { label: 'Trích dẫn đã đối chiếu', variant: 'outline' },
-  stuck: { label: 'Quá hạn xử lý', variant: 'secondary' },
+const HELD_FOR: Record<Bucket, { label: string; variant: BadgeProps['variant'] }> = {
+  flagged: { label: 'Chờ bạn duyệt', variant: 'warning' },
+  low: { label: 'Đang chấm', variant: 'info' },
+  high: { label: 'Trích dẫn đã đối chiếu', variant: 'success' },
+  stuck: { label: 'Quá hạn xử lý', variant: 'destructive' },
 };
 
 /** Câu đầu của lập luận phản biện, cắt cho vừa một dòng bảng. */
