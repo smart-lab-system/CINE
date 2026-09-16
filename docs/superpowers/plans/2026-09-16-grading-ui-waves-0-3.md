@@ -23,6 +23,14 @@
 - **File `< 500` dòng.** Vượt thì tách sang `_components/`.
 - **`pnpm check:cycles` phải in `0`.**
 - **Sau mỗi task:** `npx tsc --noEmit` ở app tương ứng, chạy test của task, rồi commit.
+- **Ba chi tiết đã sai trong bản nháp plan, sửa khi thực thi:** script dev của API là
+  `pnpm dev`, không phải `pnpm start:dev` · e2e xác thực bằng
+  `Authorization: Bearer`, không phải cookie · repo **không có**
+  `@testing-library/user-event`, dùng `fireEvent` theo nếp sẵn có thay vì
+  thêm dependency.
+- **Lỗi tsc CÓ SẴN trên nhánh nền:** `apps/web/src/lib/read-workbook.test.ts` có 2
+  lỗi `File` của buffer vs `File` của DOM. Đã xác minh bằng `git stash`. Không
+  thuộc phạm vi plan này; đừng tưởng mình vừa làm hỏng.
 
 ---
 
@@ -840,7 +848,7 @@ git commit -m "feat(grading): teacher_review nhận ghi chú và minh chứng do
 - [ ] **Step 1: Chạy API rồi sinh lại schema**
 
 ```bash
-cd apps/api && pnpm start:dev   # cửa sổ riêng, đợi "Nest application successfully started"
+cd apps/api && pnpm dev   # cửa sổ riêng, đợi "Nest application successfully started"
 cd ../.. && pnpm generate:api-client
 git diff --stat packages/shared/src/api/schema.d.ts
 ```
