@@ -55,16 +55,19 @@ Sơ đồ này vẽ **từ code**, không từ thiết kế. Dấu **✗** đán
 ║                                (danh sách) · FinalizeGradesButton        ║
 ║  /teacher/grading/[resultId]   BÀN CHẤM: AnswerPane (tô theo toạ độ) ·   ║
 ║                                CriterionCard · AdvocatePanel             ║
+║  /teacher/grading/matrix       MA TRẬN: DeltaGroups (4 nhóm) ·           ║
+║                                MatrixTable · BulkActionBar ·             ║
+║                                CriterionAdjustPanel                      ║
 ║                                                                          ║
-║  lib/api/grading.ts  →  biết 13/13 route.  hooks/useGrading.ts           ║
+║  lib/api/grading.ts  →  biết 14/14 route.  hooks/useGrading.ts           ║
 ║                                                                          ║
 ║  lib/grading-triage.ts  hàm thuần: phân loại nhóm, bất thường, điểm      ║
-║                         quy từ kiến nghị phản biện                       ║
+║                         quy từ kiến nghị phản biện, nhóm theo mức lệch   ║
 ╚═════════════════════════════════╤════════════════════════════════════════╝
                                   │ REST · openapi-fetch
                                   │ type sinh từ packages/shared/src/api/schema.d.ts
 ╔═════════════════════════════════▼════════════════════════════════════════╗
-║ TẦNG 2 — API · GradingController (12 route, TẤT CẢ @Roles('teacher'))    ║
+║ TẦNG 2 — API · GradingController (13 route, TẤT CẢ @Roles('teacher'))    ║
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║  Rubric    GET  courses/:courseId/rubrics                                ║
 ║            POST courses/:courseId/rubrics        (chỉ tạo version mới)   ║
@@ -81,6 +84,7 @@ Sơ đồ này vẽ **từ code**, không từ thiết kế. Dấu **✗** đán
 ║            GET  grading-results/:id/submission-text   ← toạ độ dẫn chứng ║
 ║                                                                          ║
 ║  Duyệt     POST grading-results/:id/review                               ║
+║            POST exam-sessions/:id/bulk-review     ← một luật, N bài      ║
 ║            POST exam-sessions/:id/finalize-grades                        ║
 ╚══╤═══════════════╤═══════════════╤═══════════════╤═══════════════════════╝
    │               │               │               │
@@ -342,6 +346,8 @@ Ba điều quan trọng nhất không nằm ở hộp nào, mà ở **đường 
 | `ai-provider/grader-prompt.ts` | Dựng prompt + 3 lớp cache + render anchor | Đổi một byte ở đây là đổi chi phí toàn hệ thống |
 | `content-resolver/` | Chọn cách đọc file theo `deliverable_type` | **Seam** cho nhánh ảnh và nhánh code (§9) |
 | `submission-text.service.ts` | Bài làm + TOẠ ĐỘ mọi dẫn chứng, cho màn Bàn chấm | Định vị trên chuỗi phẳng TRƯỚC, chẻ đoạn SAU. Đảo lại là trượt mọi trích dẫn vắt qua ranh giới đoạn |
+| `bulk-rules.ts` | Bốn luật hàng loạt → danh sách tiêu chí đã chỉnh | **Hàm thuần, leaf.** Dùng lại `pointsFor` chứ không chép, và duyệt theo RUBRIC chứ không theo đầu ra AI |
+| `bulk-review.service.ts` | Áp một luật cho N bài trong MỘT giao dịch | Máy móc duyệt dùng lại `reviewWithin`; file riêng vì điều phối một lô khác trách nhiệm với duyệt một bài |
 | `grading.module.ts` | Dựng chuỗi provider từ env | `selectGradingProvider` export ra để test được |
 
 ### 4.1 Vì sao ranh giới file nằm ở đó
@@ -410,6 +416,7 @@ Breaker có **thăm dò half-open**: hết 60s thì một lời gọi được t
 | `grading_reference` | Đề bài + đáp án mẫu của một phiên. Đóng băng khi đã có kết quả chấm |
 | `grading_result` | Một dòng mỗi bài. Chứa `criterion_results` (jsonb), `ai_total_score`, `confidence`, `advocate_opinion`, `context_used_*` |
 | `teacher_review` | Sửa của giảng viên. **Không bao giờ** ghi đè `grading_result` |
+| `teacher_review.applied_rule` | Luật hàng loạt nào sinh ra dòng này; `null` = duyệt tay. Tồn tại vì audit CHỈ bắn sau khi chốt điểm, nên duyệt hàng loạt trước khi chốt không có dấu vết nào khác |
 | `grading_anchor_snapshot` | Ảnh chụp anchor của một phiên. `unique(exam_session_id)`, `update: false` |
 | `grade_export` | **Chỉ có entity, chưa có service/controller** — xem §11 |
 
