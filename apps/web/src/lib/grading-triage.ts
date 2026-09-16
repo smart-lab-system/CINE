@@ -172,3 +172,35 @@ export function findAnomalies(
 
   return out;
 }
+
+/**
+ * Bốn nhóm của màn Ma trận điều hành.
+ *
+ * `no-advocate` là nhóm THỨ TƯ, không có trong bản mẫu: bài không có ý kiến
+ * phản biện thì KHÔNG tính được khoảng cách, và nhét nó vào `zero` là nói
+ * dối — hai lượt không hề đồng thuận, chỉ có một lượt lên tiếng. Nó cũng
+ * đúng là nhóm mà luật "giữ điểm lượt chấm" dùng tới.
+ */
+export type DeltaGroup = 'zero' | 'small' | 'large' | 'no-advocate';
+
+/**
+ * MỘT ngưỡng, không phải hai.
+ *
+ * Ba nhóm có khoảng cách được chia bởi đúng một con số, và đúng 1,5 thuộc
+ * nhóm DƯỚI: biên phải nằm ở một phía cố định, không thì một bài lệch đúng
+ * ngưỡng rơi vào "cần đọc kỹ" hay không là tuỳ thứ tự hai câu `if`.
+ */
+export const DELTA_SMALL_MAX = 1.5;
+
+export function deltaGroupOf(
+  result: GradingResult,
+  maxByCriterion: Map<string, number>,
+): DeltaGroup {
+  const advocate = advocateScore(result, maxByCriterion);
+  if (advocate === null || result.aiTotalScore === null) {
+    return 'no-advocate';
+  }
+  const delta = Math.abs(advocate - result.aiTotalScore);
+  if (delta === 0) return 'zero';
+  return delta <= DELTA_SMALL_MAX ? 'small' : 'large';
+}
