@@ -38,7 +38,233 @@ Giảng viên sửa điểm thì tạo dòng `teacher_review` mới. Đây là S
 
 ---
 
-## 2. Một bài đi qua hệ thống
+## 2. Kiến trúc hiện tại
+
+Sơ đồ này vẽ **từ code**, không từ thiết kế. Dấu **✗** đánh dấu thứ đã có ở backend nhưng **không có đường nào gọi tới từ UI** — đọc §11 trước khi lập kế hoạch dựa trên sơ đồ này.
+
+```
+╔══════════════════════════════════════════════════════════════════════════╗
+║ TẦNG 1 — WEB (Next.js App Router, apps/web)                              ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║  /teacher/rubrics              RubricEditor — tạo VERSION mới, không sửa ║
+║  /teacher/exam-sessions/new    RubricPicker — ghim rubric vào phiên      ║
+║  /teacher/submissions/[id]     cầu nối sang màn Chấm điểm                ║
+║  /teacher/grading              ReviewWorkspace · ReviewDetail            ║
+║                                FinalizeGradesButton                      ║
+║                                                                          ║
+║  lib/api/grading.ts  →  biết 8/12 route.  hooks/useGrading.ts            ║
+║                                                                          ║
+║  ✗ KHÔNG có màn hình nào cho: chọn đề bài · đáp án mẫu · readiness ·     ║
+║    ý kiến Advocate · context_used · đối soát bài treo                    ║
+╚═════════════════════════════════╤════════════════════════════════════════╝
+                                  │ REST · openapi-fetch
+                                  │ type sinh từ packages/shared/src/api/schema.d.ts
+╔═════════════════════════════════▼════════════════════════════════════════╗
+║ TẦNG 2 — API · GradingController (12 route, TẤT CẢ @Roles('teacher'))    ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║  Rubric    GET  courses/:courseId/rubrics                                ║
+║            POST courses/:courseId/rubrics        (chỉ tạo version mới)   ║
+║            PATCH exam-sessions/:id/rubric                                ║
+║                                                                          ║
+║  Ngữ cảnh ✗PUT  exam-sessions/:id/grading-reference                      ║
+║           ✗POST exam-sessions/:id/.../answer-key-upload                  ║
+║           ✗GET  exam-sessions/:id/grading-readiness                      ║
+║                                                                          ║
+║  Chấm      POST exam-sessions/:id/start-grading                          ║
+║            GET  exam-sessions/:id/grading-progress                       ║
+║            GET  exam-sessions/:id/grading-results                        ║
+║           ✗POST exam-sessions/:id/regrade-stuck                          ║
+║                                                                          ║
+║  Duyệt     POST grading-results/:id/review                               ║
+║            POST exam-sessions/:id/finalize-grades                        ║
+╚══╤═══════════════╤═══════════════╤═══════════════╤═══════════════════════╝
+   │               │               │               │
+   ▼               ▼               ▼               ▼
+┌────────────┐ ┌──────────────┐ ┌─────────────┐ ┌──────────────────┐
+│RubricService│ │GradingRun    │ │GradingRef   │ │TeacherReview     │
+│             │ │Service       │ │Service      │ │Service           │
+│ version hoá │ │ • tạo dòng   │ │ • 3 mức     │ │ • review()       │
+│ bất biến khi│ │   ĐỒNG BỘ    │ │   readiness │ │ • finalizeGrades │
+│ đã chấm     │ │ • freeze     │ │ • đóng băng │ │ • advance() từng │
+│             │ │   anchor     │ │   khi đã    │ │   bước một       │
+│             │ │ • enqueue    │ │   chấm      │ │                  │
+│             │ │ • progress   │ │             │ │ KHÔNG ghi đè     │
+│             │ │ • regrade    │ │             │ │ ai_total_score   │
+└────────────┘ └──────┬───────┘ └─────────────┘ └──────────────────┘
+                      │ MỘT job mỗi bài
+╔═════════════════════▼════════════════════════════════════════════════════╗
+║ TẦNG 3 — HÀNG ĐỢI (BullMQ trên Redis)                                    ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║  GradingProcessor    concurrency 5 · 10 job/giây · trần job 300s         ║
+║                      phân loại lỗi TRƯỚC khi để BullMQ retry             ║
+║                                                                          ║
+║  ⚠ Queue là TOÀN CỤC theo Redis, không theo tiến trình. Một dev server   ║
+║    đang chạy sẽ nuốt job của test → prefix 'bull-test' khi NODE_ENV=test ║
+╚═════════════════════╤════════════════════════════════════════════════════╝
+                      │ GradingService.gradeOneById()
+╔═════════════════════▼════════════════════════════════════════════════════╗
+║ TẦNG 4 — CHẤM MỘT BÀI (GradingService.gradeOne)                          ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║                                                                          ║
+║  ┌────────────────────────────────────────────────────────────────────┐  ║
+║  │ ① ĐỌC FILE — ContentResolverRegistry (bộ định tuyến TẤT ĐỊNH)      │  ║
+║  │    theo deliverable_type đã KHAI. 0 token, ~0ms, không đoán.       │  ║
+║  │                                                                    │  ║
+║  │      document ──► DocumentResolver (mammoth)          ✔ CÓ         │  ║
+║  │      image    ──► (trống — seam chờ nhánh ảnh)        ✗ CHƯA       │  ║
+║  │      code     ──► (trống — seam chờ Docker sandbox)   ✗ CHƯA       │  ║
+║  │                                                                    │  ║
+║  │    Không có resolver → NỔ, không im lặng rơi về document.          │  ║
+║  └────────────────────────────────────────────────────────────────────┘  ║
+║                                 │                                        ║
+║  ┌──────────────────────────────▼─────────────────────────────────────┐  ║
+║  │ ② DỰNG PROMPT — grader-prompt.ts, ba lớp cache lồng nhau           │  ║
+║  │                                                                    │  ║
+║  │   lớp ① luật hệ thống + luật phân giới   dùng lại MỌI phiên        │  ║
+║  │   lớp ② rubric + anchor                  dùng lại trong 1 rubric   │  ║
+║  │   lớp ③ đề bài + đáp án mẫu              dùng lại trong 1 phiên    │  ║
+║  │   ────────────────────────────────────────────────────────────     │  ║
+║  │   phần đổi   bài làm, bọc bằng nonce (submission-envelope.ts)      │  ║
+║  │                                                                    │  ║
+║  │   ⚠ Cache là KHỚP TIỀN TỐ. Nonce không bao giờ được vào lớp ①.     │  ║
+║  │   ⚠ Tiền tố < 1024 token → cache KHÔNG kích hoạt (đã đo).          │  ║
+║  └──────────────────────────────┬─────────────────────────────────────┘  ║
+║                                 │                                        ║
+║  ┌──────────────────────────────▼─────────────────────────────────────┐  ║
+║  │ ③ GỌI MODEL — provider.grade()  → xem TẦNG 5                       │  ║
+║  └──────────────────────────────┬─────────────────────────────────────┘  ║
+║                                 │                                        ║
+║  ┌──────────────────────────────▼─────────────────────────────────────┐  ║
+║  │ ④ GUARD — harness/grading-guards.ts (HÀM THUẦN)                    │  ║
+║  │                                                                    │  ║
+║  │   G1 điểm phải khớp verdict    G2 dẫn chứng phải CÓ THẬT trong bài │  ║
+║  │   G3 phủ đủ tiêu chí, không id lạ                                  │  ║
+║  │                                                                    │  ║
+║  │   → confidence (ĐO ĐƯỢC, không phải model tự chấm)                 │  ║
+║  │   → needsAdvocate · runUntrustworthy                               │  ║
+║  │                                                                    │  ║
+║  │   ≥50% tiêu chí không kiểm được ──► CHẤM LẠI ĐÚNG MỘT LẦN ──┐      │  ║
+║  │                                         ▲                  │       │  ║
+║  │                                         └──────────────────┘       │  ║
+║  │                                    (trần cứng 2 lời gọi)           │  ║
+║  └──────────────────────────────┬─────────────────────────────────────┘  ║
+║                                 │                                        ║
+║  ┌──────────────────────────────▼─────────────────────────────────────┐  ║
+║  │ ⑤ LƯỢT PHẢN BIỆN — runAdvocate()   "bỏ qua rubric, em ấy có đúng?" │  ║
+║  │                                                                    │  ║
+║  │   Chạy KHI VÀ CHỈ KHI: có bậc advocate · có tiêu chí not_met ·     │  ║
+║  │   VÀ có đề bài trong grading_reference                             │  ║
+║  │                                                                    │  ║
+║  │  ✗ Hôm nay điều kiện 3 KHÔNG BAO GIỜ đúng — không UI nào đặt được  │  ║
+║  │    grading_reference. Nhánh này chưa chạy lần nào trong thực tế.   │  ║
+║  │                                                                    │  ║
+║  │   Trả về Ý KIẾN, không bao giờ trả về điểm.                        │  ║
+║  └──────────────────────────────┬─────────────────────────────────────┘  ║
+║                                 │                                        ║
+║  ┌──────────────────────────────▼─────────────────────────────────────┐  ║
+║  │ ⑥ TÍNH ĐIỂM — enforceScoring()                                     │  ║
+║  │   SERVER tính từ verdict. Mọi con số provider trả về bị BỎ QUA.    │  ║
+║  │   confidence cuối = min(guard, trần của bậc đã trả lời)            │  ║
+║  └──────────────────────────────┬─────────────────────────────────────┘  ║
+║                                 │                                        ║
+║  ┌──────────────────────────────▼─────────────────────────────────────┐  ║
+║  │ ⑦ GHI — hai lượt update, vì trigger ép đi TỪNG BƯỚC                │  ║
+║  │    ai_grading → ai_graded → auto_approved | flagged_for_review     │  ║
+║  │                                                                    │  ║
+║  │   ⚠ ai_total_score · criterion_results · advocate_opinion ·        │  ║
+║  │    context_used_* phải ghi trong CÙNG một update(): trigger bất    │  ║
+║  │     biến đóng băng tất cả ngay khi ai_total_score có giá trị.      │  ║
+║  └────────────────────────────────────────────────────────────────────┘  ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║ TẦNG 5 — CHUỖI MODEL (TierChain, dùng chung Grader và Advocate)          ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║                                                                          ║
+║   bậc 1  OpenAI-compatible  GRADING_TIER1_*   trần 0.5   ← đang dùng     ║
+║     │                                                                    ║
+║     │ tier_dead (401 / hết credit / model lạ) → mở breaker, nghỉ 60s     ║
+║     │ bad_output (JSON sai schema / cụt)      → rơi bậc NGAY             ║
+║     │ transient  (429 / 5xx / mạng)           → thử lại TRONG bậc        ║
+║     ▼                                                                    ║
+║   bậc 2  OpenAI-compatible  GRADING_TIER2_*   trần 0.5                   ║
+║     │                                                                    ║
+║     ▼                                                                    ║
+║  bậc 3  ClaudeGradingProvider (ANTHROPIC_API_KEY)  trần 1.0  ✗ hết credit║
+║     │                                                                    ║
+║     ▼                                                                    ║
+║   SÀN    KeywordGradingProvider   trần 0.2 (0 nếu file không đọc được)   ║
+║          luôn có mặt, không cần cấu hình → chuỗi không bao giờ "hết bậc" ║
+║                                                                          ║
+║   Breaker có THĂM DÒ half-open: hết 60s thử một lời gọi; hỏng thì nghỉ   ║
+║   thêm 60s.                                                              ║
+║                                                                          ║
+║   ⚠ HỆ QUẢ CỦA BẢNG TRẦN: AUTO_APPROVE_CONFIDENCE = 0.85 > mọi trần trừ  ║
+║     bậc Claude. Không có Claude ⇒ KHÔNG BÀI NÀO TỰ DUYỆT. Mọi bài qua    ║
+║     tay giảng viên. Đó là hành vi đã chọn, không phải tác dụng phụ.      ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║ TẦNG 6 — LƯU TRỮ                                                         ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║  PostgreSQL (schema examcollect)          MinIO / S3                     ║
+║                                            • bài nộp                     ║
+║  rubric ──1:n── rubric_criterion           • tài liệu đề thi             ║
+║     │                                      • đáp án mẫu (KHÔNG BAO GIỜ   ║
+║     │ rubric_id_version                      tới agent — Security rule 2)║
+║     ▼                                                                    ║
+║  grading_result ──1:n── teacher_review    Redis                          ║
+║     │  ai_total_score   final_score        • hàng đợi chấm               ║
+║     │  criterion_results (+check)          • heartbeat agent             ║
+║     │  advocate_opinion                                                  ║
+║     │  context_used_question/model_answer                                ║
+║     │                                                                    ║
+║  exam_session ──1:1── grading_reference ──► exam_material (đề bài)       ║
+║     └────────1:1── grading_anchor_snapshot  (unique, update:false)       ║
+║                                                                          ║
+║  grade_export  ✗ CHỈ CÓ ENTITY — không service, không controller         ║
+║                                                                          ║
+║  BA TRIGGER ÉP Ở TẦNG DB, không chỉ ở code:                              ║
+║   • validate_grading_result_lifecycle   INSERT chỉ nhận ai_grading;      ║
+║                                         UPDATE đi từng bước một          ║
+║   • guard_grading_result_ai_immutable   đóng băng đầu ra AI              ║
+║   • guard_rubric_criteria_immutable     cấm sửa rubric đã có kết quả     ║
+╚══════════════════════════════════════════════════════════════════════════╝
+```
+
+### 2.1 Vòng anchor — vì sao nó là một vòng, không phải một bảng tra cứu
+
+Anchor là chỗ duy nhất hệ thống **học từ chính giảng viên**, và nó khép kín:
+
+```
+   giảng viên sửa điểm            AnchorService.buildFor()
+   POST .../review                SELECT DISTINCT ON (gr.id)
+        │                         FROM grading_result gr
+        ▼                         JOIN teacher_review  tr
+   teacher_review  ──────────────►  (chỉ lấy lần duyệt MỚI NHẤT mỗi bài)
+   edited_criteria                        │
+                                          │ ≤3 anchor/tiêu chí, ≤4000 token
+                                          ▼
+                                 grading_anchor_snapshot
+                                 ĐÓNG BĂNG lúc bấm "Bắt đầu chấm"
+                                          │
+                                          ▼
+                                 lớp cache ② của prompt
+                                 (mặc định TẮT — xem §6)
+```
+
+**Vì sao phải đóng băng:** không có nó, một lần duyệt giữa chừng sẽ lọt vào tập anchor, và bài 6-40 được chấm theo chuẩn khác bài 1-5 — **trong cùng một lượt chấm**. Không lỗi, không log, chỉ có điểm lệch.
+
+### 2.2 Đọc sơ đồ này thế nào
+
+Ba điều quan trọng nhất không nằm ở hộp nào, mà ở **đường nối giữa chúng**:
+
+1. **`GradingService` không biết model nào đang chấm.** Nó chỉ thấy interface `AIGradingProvider`. Toàn bộ tầng 5 có thể thay mà tầng 4 không đổi một dòng — đó là lý do CLAUDE.md cấm nghiệp vụ import SDK trực tiếp.
+2. **Guard nằm GIỮA model và điểm, không nằm sau.** Model không bao giờ chạm được vào con số cuối. Xoá tầng ④/⑥ đi thì hệ thống vẫn chạy, vẫn cho ra điểm, và mất toàn bộ tính đo được.
+3. **Tám dấu ✗ trong sơ đồ gần như đều nằm ở tầng 1.** Backend đầy đủ hơn UI rất nhiều — và đó là hình dạng của công việc tiếp theo.
+
+
+## 3. Một bài đi qua hệ thống
 
 ```
    Giảng viên bấm "Bắt đầu chấm"
@@ -63,7 +289,7 @@ Giảng viên sửa điểm thì tạo dòng `teacher_review` mới. Đây là S
         │                       đề bài + đáp án mẫu. Đáp án mẫu KHÔNG BAO GIỜ tới agent.
         │
         ├─ 3. Nạp anchor        AnchorService.loadFor() — đọc ẢNH CHỤP, không dựng lại
-        │                       (mặc định TẮT, xem §5)
+        │                       (mặc định TẮT, xem §6)
         │
         ├─ 4. Gọi model         provider.grade()  ← FallbackGradingProvider (chuỗi bậc)
         │      │
@@ -84,7 +310,7 @@ Giảng viên sửa điểm thì tạo dòng `teacher_review` mới. Đây là S
 
 ---
 
-## 3. Bản đồ file
+## 4. Bản đồ file
 
 `apps/api/src/grading/` — 47 file, ~6.600 dòng (chưa tính test).
 
@@ -103,10 +329,10 @@ Giảng viên sửa điểm thì tạo dòng `teacher_review` mới. Đây là S
 | `ai-provider/tier-chain.ts` | Chuỗi bậc + circuit breaker | Dùng chung cho cả Grader và Advocate — một bản, không hai |
 | `ai-provider/provider-failure.ts` | Phân loại lỗi ba rổ | Leaf, không import gì |
 | `ai-provider/grader-prompt.ts` | Dựng prompt + 3 lớp cache + render anchor | Đổi một byte ở đây là đổi chi phí toàn hệ thống |
-| `content-resolver/` | Chọn cách đọc file theo `deliverable_type` | **Seam** cho nhánh ảnh và nhánh code (§8) |
+| `content-resolver/` | Chọn cách đọc file theo `deliverable_type` | **Seam** cho nhánh ảnh và nhánh code (§9) |
 | `grading.module.ts` | Dựng chuỗi provider từ env | `selectGradingProvider` export ra để test được |
 
-### 3.1 Vì sao ranh giới file nằm ở đó
+### 4.1 Vì sao ranh giới file nằm ở đó
 
 - **`harness/` là hàm thuần, không phải service.** Guard và evidence-check không chạm DB, không chạm mạng. Nhờ vậy 30 ca test của chúng chạy trong mili giây và không cần Nest. Đừng biến chúng thành `@Injectable`.
 - **`provider-failure.ts`, `env.ts`, `advocate.types.ts`, `anchor.types.ts` là leaf module** — không import gì. CLAUDE.md cấm vòng lặp import sau một sự cố thật: `@Matches(undefined)` không ném lỗi, class-validator đăng ký rồi chấp nhận **mọi** giá trị, và `../etc/passwd` qua được validation. Chạy `pnpm check:cycles`; nó phải in **0**.
@@ -114,7 +340,7 @@ Giảng viên sửa điểm thì tạo dòng `teacher_review` mới. Đây là S
 
 ---
 
-## 4. Chuỗi model dự phòng
+## 5. Chuỗi model dự phòng
 
 `GradingService` chỉ thấy một interface `AIGradingProvider`. Việc model nào chấm được quyết ở **đúng một chỗ**: `selectGradingProvider()` trong `grading.module.ts`.
 
@@ -128,7 +354,7 @@ Một bậc chỉ bật khi **đủ cả ba** biến `BASE_URL` + `MODEL` + `API
 
 **Hệ quả quan trọng của bảng trần trên:** `AUTO_APPROVE_CONFIDENCE = 0.85`, mà trần của mọi bậc dự phòng là 0.5. Nghĩa là **khi không có Claude thì không bài nào tự duyệt được** — mọi bài đều qua tay giảng viên. Đó là hành vi đã chọn, không phải tác dụng phụ. Muốn đổi thì đổi `GRADING_TIERn_CEILING`, và hiểu rằng bạn đang cho một model chưa được calibration quyền tự kết thúc việc chấm một sinh viên.
 
-### 4.1 Circuit breaker
+### 5.1 Circuit breaker
 
 Lỗi được phân ba rổ trong `provider-failure.ts`:
 
@@ -142,7 +368,7 @@ Breaker có **thăm dò half-open**: hết 60s thì một lời gọi được t
 
 ---
 
-## 5. Cấu hình
+## 6. Cấu hình
 
 | Biến | Mặc định | Tác dụng |
 |---|---|---|
@@ -162,9 +388,9 @@ Breaker có **thăm dò half-open**: hết 60s thì một lời gọi được t
 
 ---
 
-## 6. Dữ liệu
+## 7. Dữ liệu
 
-### 6.1 Bảng
+### 7.1 Bảng
 
 | Bảng | Vai trò |
 |---|---|
@@ -173,9 +399,9 @@ Breaker có **thăm dò half-open**: hết 60s thì một lời gọi được t
 | `grading_result` | Một dòng mỗi bài. Chứa `criterion_results` (jsonb), `ai_total_score`, `confidence`, `advocate_opinion`, `context_used_*` |
 | `teacher_review` | Sửa của giảng viên. **Không bao giờ** ghi đè `grading_result` |
 | `grading_anchor_snapshot` | Ảnh chụp anchor của một phiên. `unique(exam_session_id)`, `update: false` |
-| `grade_export` | **Chỉ có entity, chưa có service/controller** — xem §8 |
+| `grade_export` | **Chỉ có entity, chưa có service/controller** — xem §11 |
 
-### 6.2 Ba trigger phải biết
+### 7.2 Ba trigger phải biết
 
 1. **`validate_grading_result_lifecycle`** — INSERT chỉ nhận `ai_grading`; UPDATE đi **từng bước một**. Muốn dựng một dòng `finalized` trong test thì phải đi hết chuỗi bằng nhiều UPDATE, không `INSERT ... VALUES ('finalized')` được. Xem `GRADING_PATHS` trong `department-class-counts.e2e-spec.ts`.
 2. **`guard_grading_result_ai_immutable`** — đóng băng `ai_total_score`, `criterion_results`, `advocate_opinion`, `context_used_*` **ngay khi `ai_total_score` được ghi**. Hệ quả thực tế: mọi trường đó phải ghi trong **cùng một `update()`**, không thể ghi làm hai lần.
@@ -185,7 +411,7 @@ Breaker có **thăm dò half-open**: hết 60s thì một lời gọi được t
 
 ---
 
-## 7. Test
+## 8. Test
 
 ```bash
 cd apps/api
@@ -200,7 +426,7 @@ node ../../scripts/find-import-cycles.js src   # phải in 0
 
 **Điều kiện chạy e2e:** Postgres + MinIO + Redis đang chạy (`docker compose up -d postgres minio redis`) **và** bucket `examcollect-submissions` đã tạo. Thiếu bucket cho ra lỗi trông y hệt lỗi nghiệp vụ. Docker Desktop có thể tự tắt giữa phiên — triệu chứng là hàng nghìn lỗi Redis trông như code hỏng.
 
-### 7.1 §14 là gì và tại sao phải quan tâm
+### 8.1 §14 là gì và tại sao phải quan tâm
 
 Spec §14 liệt kê **21 ca test bắt buộc**, mỗi ca có mã (`T-SEC-2`, `T-G2-1b`, …), và bảng đó giờ có cột **Trạng thái** + **Nơi chạy** trỏ tới file chạy nó.
 
@@ -210,7 +436,7 @@ Hiện tại: **20 ✅ · 1 ⏸**. Ca `T-CACHE-1` (đo prompt caching) chưa ch�
 
 ---
 
-## 8. Muốn làm X thì sửa ở đâu
+## 9. Muốn làm X thì sửa ở đâu
 
 | Muốn | Sửa ở đâu | Cảnh báo |
 |---|---|---|
@@ -218,12 +444,12 @@ Hiện tại: **20 ✅ · 1 ⏸**. Ca `T-CACHE-1` (đo prompt caching) chưa ch�
 | Đổi cách tính `confidence` | `harness/grading-guards.ts` | Hàm thuần — viết test trước. `AUTO_APPROVE_CONFIDENCE` là **lớp chặn thứ hai**, sửa một chỗ là chưa đủ |
 | Hỗ trợ loại bài mới (ảnh / code) | `content-resolver/` — thêm một `SubmissionContentResolver` | **Seam đã dựng sẵn từ Plan 1 Task 4.** Registry ném lỗi nếu không có resolver cho loại đó, cố ý: rơi âm thầm về `document` cho ra điểm trông hợp lệ từ một đường xử lý sai |
 | Đổi prompt | `ai-provider/grader-prompt.ts` | Prompt caching là **khớp tiền tố**. Đổi một byte ở lớp ① là trả giá đầy đủ cho ~6.300 token × 40 bài × mọi phiên |
-| Thêm cột AI vào `grading_result` | migration + trigger bất biến + cùng một `update()` | Xem §6.2 |
+| Thêm cột AI vào `grading_result` | migration + trigger bất biến + cùng một `update()` | Xem §7.2 |
 | Thêm route | controller + regenerate `schema.d.ts` | `packages/shared/src/api/schema.d.ts` generate **từ API đang chạy**, không từ source. Quên bước này thì `apps/web` fail typecheck ở đúng dòng gọi API mới |
 
 ---
 
-## 9. Những cái bẫy đã tốn thời gian thật
+## 10. Những cái bẫy đã tốn thời gian thật
 
 Danh sách này là lý do tài liệu tồn tại. Mỗi dòng đã tốn ít nhất một buổi.
 
@@ -238,7 +464,7 @@ Danh sách này là lý do tài liệu tồn tại. Mỗi dòng đã tốn ít n
 
 ---
 
-## 10. Cái CHƯA có
+## 11. Cái CHƯA có
 
 Ghi ra để không ai tưởng chúng đã tồn tại.
 
@@ -255,7 +481,7 @@ Ghi ra để không ai tưởng chúng đã tồn tại.
 
 ---
 
-## 11. Đọc thêm
+## 12. Đọc thêm
 
 - `CLAUDE.md` — mô hình vai trò, 9 Security rule, quy tắc tổ chức file
 - Spec `docs/superpowers/specs/2026-09-14-ai-grading-agent-design.md` — **§14** (bảng test), **§15.0** (đã đo), **§15.1** (chưa đo)
