@@ -471,13 +471,24 @@ Ghi ra để không ai tưởng chúng đã tồn tại.
 | Chưa có | Ghi chú |
 |---|---|
 | **Toàn bộ UI** cho advocate / anchor / readiness | Backend trả dữ liệu đầy đủ, không màn hình nào hiển thị. Đây là khoảng trống lớn nhất |
-| **Nhánh ảnh** (bài viết tay chụp lại) | Seam resolver đã sẵn, chưa có resolver |
-| **Nhánh code** (Docker sandbox) | Seam đã sẵn. Sandbox là **yêu cầu bảo mật bắt buộc**, không phải tối ưu |
+| **Nhánh ảnh** (bài viết tay chụp lại) | Thiếu **hai** thứ, không phải một: resolver, VÀ đường khai loại bài — xem ghi chú dưới bảng |
+| **Nhánh code** (Docker sandbox) | Thiếu **ba** thứ: đường khai loại bài, resolver, và cả `src/sandbox` (chưa tồn tại). Sandbox là **yêu cầu bảo mật bắt buộc**, không phải tối ưu |
 | **`GradeExport`** — ghi điểm ngược vào file bảng điểm của giảng viên | Chỉ có entity. Security rule 9: cột MSSV và cột điểm **do giảng viên chỉ định**, không bao giờ đoán |
 | **Cohen's kappa với người chấm độc lập** | Script đã sẵn (`scripts/calibration/`), chưa có buổi chấm mù nào |
 | **T-CACHE-1** | Chờ credit Anthropic |
 | **Dashboard chi phí AI** | `usage` đã đi vào log, chưa lưu vào bảng nào |
 | **Batch API** | Chấm không cần thời gian thực — đây là đường giảm chi phí chưa dùng |
+
+> **Bộ định tuyến có ba cửa, nhưng chỉ một cửa có người gõ.**
+> `ContentResolverRegistry` định tuyến đúng theo `deliverable_type` và ném lỗi
+> nếu thiếu resolver (§3 bước ①, test T-B1/T-B4). Nhưng `exam-session.types.ts`
+> có `DEFAULT_DELIVERABLE_TYPE = 'document'` và comment ghi rõ *"the client never
+> selects deliverableType, and no other value is ever produced by this module"* —
+> form tạo phiên không hỏi, DTO không nhận. Nên **không đường nào trong hệ thống
+> sinh ra được một deliverable `image` hay `code_project`**, dù enum trong DB có
+> đủ ba giá trị.
+>
+> Hệ quả khi lập kế hoạch: thêm một resolver là **chưa đủ để nhánh đó chạy**.
 
 ---
 
