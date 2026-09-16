@@ -27,6 +27,8 @@ import { TeacherReviewService } from './teacher-review.service';
 import { SaveRubricDto } from './dto/rubric.dto';
 import { SetSessionRubricDto } from './dto/set-session-rubric.dto';
 import { SubmitReviewDto } from './dto/submit-review.dto';
+import { BulkReviewDto } from './dto/bulk-review.dto';
+import { BulkReviewService } from './bulk-review.service';
 
 /**
  * The grading side of the API.
@@ -47,6 +49,7 @@ export class GradingController {
     private readonly examSessions: ExamSessionService,
     private readonly references: GradingReferenceService,
     private readonly submissionText: SubmissionTextService,
+    private readonly bulkReviews: BulkReviewService,
   ) {}
 
   @Get('courses/:courseId/rubrics')
@@ -131,6 +134,25 @@ export class GradingController {
   ) {
     const result = await this.grading.findResultForOwner(id, req.user!.sub);
     return this.teacherReviews.review(result, req.user!.sub, dto);
+  }
+
+  /**
+   * Áp một luật cho nhiều bài cùng lúc.
+   *
+   * MỘT route cho cả duyệt hàng loạt lẫn can thiệp theo tiêu chí: chúng là
+   * cùng một phép toán ở hai độ mịn, và tách đôi thì phần khó — giao dịch,
+   * khoá hàng, cổng trạng thái, audit — bị nhân đôi còn phần dễ thì không.
+   */
+  @Post('exam-sessions/:id/bulk-review')
+  @Roles('teacher')
+  @HttpCode(200)
+  async bulkReview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BulkReviewDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.bulkReviews.bulkReview(session, req.user!.sub, dto);
   }
 
   /**

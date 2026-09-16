@@ -27,6 +27,7 @@ import {
 } from './content-resolver/submission-content-resolver';
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
+import { BulkReviewService } from './bulk-review.service';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { AdminModule } from '../admin/admin.module';
 import { GradingController } from './grading.controller';
@@ -275,6 +276,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     GradingProcessor,
     RubricService,
     TeacherReviewService,
+    BulkReviewService,
     AnchorService,
     ClaudeGradingProvider,
     KeywordGradingProvider,
