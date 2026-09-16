@@ -1023,7 +1023,8 @@ phát hiện đúng (`runUntrustworthy = true`, `confidence = 0`) khi ≥50% ti�
 `grading.service.ts` (`gradeOne`, đoạn `if (guards.runUntrustworthy)`) và
 **chưa có test nào** khẳng định `provider.grade` được gọi đúng hai lần rồi
 dừng. Phát hiện lúc đối chiếu bảng này ngày 2026-09-15; chưa vá vì nó cần một
-harness `gradeOne` đầy đủ (8 dependency), không thuộc phạm vi Plan 2. Đừng đọc
+harness `gradeOne` đầy đủ (GradingService có **9** dependency), không thuộc
+phạm vi Plan 2. Đừng đọc
 dấu ✅ của các dòng khác như thể dòng này cũng vậy.
 
 ---
