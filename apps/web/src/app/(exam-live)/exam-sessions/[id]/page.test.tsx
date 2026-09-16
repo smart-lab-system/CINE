@@ -18,6 +18,10 @@ const useExamSessionDetailMock = vi.fn();
 const useSubmissionsMock = vi.fn();
 const finalizeMutateAsyncMock = vi.fn();
 const useFinalizeExamSessionMock = vi.fn();
+const confirmEndMutateAsyncMock = vi.fn();
+const useConfirmSessionEndMock = vi.fn();
+const recollectMutateAsyncMock = vi.fn();
+const useRecollectMock = vi.fn();
 const useAttendanceMock = vi.fn();
 const useConfirmAttendanceMock = vi.fn();
 const useExamMaterialsMock = vi.fn();
@@ -27,6 +31,8 @@ vi.mock('@/hooks/useExamSession', () => ({
   useExamSessionDetail: (...args: unknown[]) => useExamSessionDetailMock(...args),
   useSubmissions: (...args: unknown[]) => useSubmissionsMock(...args),
   useFinalizeExamSession: (...args: unknown[]) => useFinalizeExamSessionMock(...args),
+  useConfirmSessionEnd: (...args: unknown[]) => useConfirmSessionEndMock(...args),
+  useRecollect: (...args: unknown[]) => useRecollectMock(...args),
   useAttendance: (...args: unknown[]) => useAttendanceMock(...args),
   useConfirmAttendance: (...args: unknown[]) => useConfirmAttendanceMock(...args),
   useExamMaterials: (...args: unknown[]) => useExamMaterialsMock(...args),
@@ -187,6 +193,20 @@ beforeEach(() => {
   useSubmissionsMock.mockReturnValue({ data: undefined, isError: false });
   useFinalizeExamSessionMock.mockReturnValue({
     mutateAsync: finalizeMutateAsyncMock,
+    isPending: false,
+    error: null,
+  });
+  // Hai mutation của giai đoạn thu bài. Trơ ở mặc định — chỉ khối
+  // describe riêng của chúng mới ghi đè.
+  confirmEndMutateAsyncMock.mockReset();
+  recollectMutateAsyncMock.mockReset();
+  useConfirmSessionEndMock.mockReturnValue({
+    mutateAsync: confirmEndMutateAsyncMock,
+    isPending: false,
+    error: null,
+  });
+  useRecollectMock.mockReturnValue({
+    mutateAsync: recollectMutateAsyncMock,
     isPending: false,
     error: null,
   });
@@ -475,6 +495,212 @@ describe('ExamSessionLobbyPage', () => {
 
       expect(screen.queryByText(/đã kết thúc lúc/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/chưa bắt đầu/i)).not.toBeInTheDocument();
+    });
+
+    it('phiên completed hiện "đã kết thúc", KHÔNG phải "chưa bắt đầu"', () => {
+      // Lỗi có sẵn từ trước, lộ ra khi rà lại chỗ này: banner phân nhánh
+      // bằng cách so CHUỖI NHÃN với 'Đã kết thúc', nhưng
+      // `getDisplaySessionStatus` trả 'Đã hoàn thành' cho phiên
+      // `completed` — nên một phiên đã xong rơi vào nhánh else và mời
+      // giảng viên chờ tới một giờ mở đã trôi qua từ lâu.
+      useExamSessionDetailMock.mockReturnValue({
+        refetch: vi.fn(),
+        data: {
+          status: 'completed',
+          startTime: '2026-08-27T08:22:00.000Z',
+          endTime: '2026-08-27T11:27:00.000Z',
+        },
+        isLoading: false,
+      });
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(screen.getByText(/đã kết thúc lúc/i)).toBeInTheDocument();
+      expect(screen.queryByText(/chưa bắt đầu/i)).not.toBeInTheDocument();
+    });
+
+    it('phiên đang thu bài không hiện banner nào — panel thu bài đã nói rồi', () => {
+      useExamSessionDetailMock.mockReturnValue({
+        refetch: vi.fn(),
+        data: {
+          status: 'collecting',
+          startTime: new Date(Date.now() - 7_200_000).toISOString(),
+          endTime: new Date(Date.now() - 60_000).toISOString(),
+          requiredDeliverables: [],
+        },
+        isLoading: false,
+      });
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(screen.queryByText(/đã kết thúc lúc/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/chưa bắt đầu/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('giai đoạn thu bài', () => {
+    /** Phiên đã hết giờ, đang thu bài, hai file bắt buộc. */
+    function collectingSession(overrides: Record<string, unknown> = {}) {
+      return {
+        refetch: vi.fn(),
+        data: {
+          id: 'session-123',
+          name: 'Kiểm tra giữa kỳ',
+          status: 'collecting',
+          courseId: 'course-1',
+          startTime: new Date(Date.now() - 7_200_000).toISOString(),
+          endTime: new Date(Date.now() - 60_000).toISOString(),
+          completedAt: null,
+          completedBy: null,
+          requiredDeliverables: [
+            { id: 'deliverable-1', requiredFilename: 'Cau1.docx', deliverableType: 'document' },
+            { id: 'deliverable-2', requiredFilename: 'Cau2.docx', deliverableType: 'document' },
+          ],
+          ...overrides,
+        },
+        isLoading: false,
+      };
+    }
+
+    it('đếm đúng số máy sẽ nhận lệnh: đã dự thi và chưa nộp đủ', async () => {
+      useExamSessionDetailMock.mockReturnValue(collectingSession());
+      useAttendanceMock.mockReturnValue(
+        attendanceOf({
+          rosterSize: 3,
+          present: [student('SV001', 'A'), student('SV002', 'B')],
+          // Em vắng thi KHÔNG được tính: không có máy nào để gửi lệnh
+          // tới, và kể tên em đó là hứa một việc không làm được.
+          absent: [student('SV003', 'C', { connected: false })],
+        }),
+      );
+      useSubmissionsMock.mockReturnValue({
+        data: {
+          items: [
+            {
+              studentMssv: 'SV001',
+              studentNameInput: 'A',
+              requiredDeliverableId: 'deliverable-1',
+              status: 'collected',
+              submittedAt: '2026-08-29T01:00:00.000Z',
+              fileSize: '10',
+              downloadUrl: null,
+            },
+            {
+              studentMssv: 'SV001',
+              studentNameInput: 'A',
+              requiredDeliverableId: 'deliverable-2',
+              status: 'collected',
+              submittedAt: '2026-08-29T01:00:00.000Z',
+              fileSize: '10',
+              downloadUrl: null,
+            },
+          ],
+        },
+        isError: false,
+      });
+
+      render(<ExamSessionLobbyPage />);
+
+      // SV001 nộp đủ, SV002 chưa nộp gì, SV003 vắng thi → đúng một máy.
+      expect(
+        await screen.findByRole('button', { name: /thu lại \(1\)/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('không hiện hai nút khi phiên chưa hết giờ', () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      useAttendanceMock.mockReturnValue(attendanceOf());
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(screen.queryByRole('button', { name: /thu lại/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /xác nhận kết thúc/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('nói ra khi có bài về sau lúc giảng viên xác nhận', async () => {
+      const confirmedAt = '2026-08-29T02:00:00.000Z';
+      useExamSessionDetailMock.mockReturnValue(
+        collectingSession({
+          status: 'completed',
+          completedAt: confirmedAt,
+          completedBy: 'teacher-1',
+        }),
+      );
+      useAttendanceMock.mockReturnValue(
+        attendanceOf({ rosterSize: 1, present: [student('SV001', 'A')] }),
+      );
+      useSubmissionsMock.mockReturnValue({
+        data: {
+          items: [
+            // Cùng MỘT em, hai file, cả hai đều sau mốc xác nhận — con số
+            // phải là 1. Đếm file sẽ ra 2 và thổi phồng số NGƯỜI cần nhìn
+            // lại theo số deliverable của phiên.
+            {
+              studentMssv: 'SV001',
+              studentNameInput: 'A',
+              requiredDeliverableId: 'deliverable-1',
+              status: 'collected',
+              submittedAt: '2026-08-29T02:01:00.000Z',
+              fileSize: '10',
+              downloadUrl: null,
+            },
+            {
+              studentMssv: 'SV001',
+              studentNameInput: 'A',
+              requiredDeliverableId: 'deliverable-2',
+              status: 'collected',
+              submittedAt: '2026-08-29T02:02:00.000Z',
+              fileSize: '10',
+              downloadUrl: null,
+            },
+          ],
+        },
+        isError: false,
+      });
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(
+        await screen.findByText(/Có 1 sinh viên nộp bài sau khi bạn xác nhận kết thúc/i),
+      ).toBeInTheDocument();
+    });
+
+    it('phiên do lượt quét dự phòng đóng thì KHÔNG có dòng đó', () => {
+      // `completedBy === null` nghĩa là không ai xác nhận — không có ai
+      // để xưng "bạn". Phiên tạo trước 2026-09-11 cũng rơi vào đây, và
+      // với chúng `completedAt = null` phải đọc là "không biết".
+      useExamSessionDetailMock.mockReturnValue(
+        collectingSession({
+          status: 'completed',
+          completedAt: '2026-08-29T02:00:00.000Z',
+          completedBy: null,
+        }),
+      );
+      useAttendanceMock.mockReturnValue(
+        attendanceOf({ rosterSize: 1, present: [student('SV001', 'A')] }),
+      );
+      useSubmissionsMock.mockReturnValue({
+        data: {
+          items: [
+            {
+              studentMssv: 'SV001',
+              studentNameInput: 'A',
+              requiredDeliverableId: 'deliverable-1',
+              status: 'collected',
+              submittedAt: '2026-08-29T02:01:00.000Z',
+              fileSize: '10',
+              downloadUrl: null,
+            },
+          ],
+        },
+        isError: false,
+      });
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(screen.queryByText(/sau khi bạn xác nhận kết thúc/i)).not.toBeInTheDocument();
     });
   });
   /** A session that is live right now, with two required deliverables. */

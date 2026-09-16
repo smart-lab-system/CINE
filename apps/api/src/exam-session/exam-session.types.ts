@@ -1,3 +1,4 @@
+import type { ExamSessionStatus } from './entities/exam-session.entity';
 import { DeliverableType } from './entities/required-deliverable.entity';
 
 // Every deliverable declared through POST /exam-sessions is a plain
@@ -23,3 +24,25 @@ export const EXAM_SESSION_CODE_LENGTH = 6;
 // it already has, `O`/`I`/`0`/`1` included, and still joins fine.
 export const EXAM_SESSION_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const EXAM_SESSION_CODE_MAX_ATTEMPTS = 5;
+
+/**
+ * "Kỳ thi đã qua" — đúng cho cả `collecting` lẫn `completed`.
+ *
+ * Tồn tại vì cả ba chỗ dùng nó trước đây đều viết `=== 'completed'` khi
+ * `completed` còn là trạng thái hậu-thi DUY NHẤT. Thêm `collecting` làm
+ * cả ba sai một cách im lặng. Trạng thái thứ tư sau này chỉ phải sửa ở
+ * đây, không phải đi tìm lại từng chuỗi so sánh.
+ */
+export function isExamOver(status: ExamSessionStatus): boolean {
+  return status === 'collecting' || status === 'completed';
+}
+
+/**
+ * Phiên còn nhận bài nộp về.
+ *
+ * KHÁC `isExamOver`, và khác có chủ đích: `active` là còn nhận nhưng
+ * chưa qua. Gộp hai hàm thành một sẽ xoá mất đúng sự khác biệt đó.
+ */
+export function isCollectionOpen(status: ExamSessionStatus): boolean {
+  return status === 'active' || status === 'collecting' || status === 'completed';
+}

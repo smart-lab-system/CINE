@@ -6,7 +6,8 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "check:cycles": "node scripts/find-import-cycles.js apps/api/src && node scripts/find-import-cycles.js apps/agent/src"
   },
   "devDependencies": {
     "turbo": "^2.1.3",

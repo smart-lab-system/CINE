@@ -7,6 +7,8 @@ import { ExamMaterialEntity } from './entities/exam-material.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { ExamSessionService } from './exam-session.service';
 import { ExamSessionReassignService } from './exam-session-reassign.service';
+import { CollectionPhaseService } from './collection-phase.service';
+import { RecollectService } from './recollect.service';
 import { ExamMaterialService } from './exam-material.service';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { ExamSessionController } from './exam-session.controller';
@@ -61,6 +63,8 @@ import { StorageModule } from '../storage/storage.module';
   providers: [
     ExamSessionService,
     ExamSessionReassignService,
+    CollectionPhaseService,
+    RecollectService,
     ScheduleConflictService,
     SessionLifecycleService,
     ExamMaterialService,

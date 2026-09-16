@@ -72,3 +72,25 @@ export interface AgentJoinError {
   /** Only set for RATE_LIMITED. */
   retryAfterMs?: number;
 }
+
+/**
+ * Server -> Agent, khi giảng viên bấm "Thu lại" (spec
+ * docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md §6).
+ *
+ * Sự kiện RIÊNG, không tái dùng `exam:finalize`: agent đặt `examEnded`
+ * vĩnh viễn khi nhận `exam:finalize`, nên bắn lại sự kiện đó không đổi
+ * được gì ở phía này.
+ */
+export interface ExamRecollectPayload {
+  examSessionId: string;
+}
+
+/**
+ * Ack cho `exam:recollect`. Nghĩa là "máy này còn sống và đã nhận lệnh",
+ * KHÔNG phải "đã nộp xong" — server đếm ack để báo cho giảng viên biết
+ * máy nào không với tới được, và chờ upload xong mới ack sẽ biến một
+ * máy đang upload chậm thành một máy bị coi là đã tắt.
+ */
+export interface RecollectAck {
+  ok: boolean;
+}

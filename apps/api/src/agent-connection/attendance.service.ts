@@ -6,6 +6,7 @@ import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ClassEntity } from '../course/entities/class.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
+import { isExamOver } from '../exam-session/exam-session.types';
 import {
   AttendanceDiscrepancy,
   AttendanceStudentView,
@@ -191,7 +192,10 @@ export class AttendanceService {
     classNames: Map<string, string>,
   ): Promise<AttendanceDiscrepancy | null> {
     const confirmedAt = session.attendanceConfirmedAt;
-    if (session.status !== 'completed' || !confirmedAt || session.attendanceConfirmedCount === null) {
+    // `isExamOver`, không phải `=== 'completed'`: báo cáo lệch là thứ
+    // giảng viên đọc để chọn thu lại ai, nên nó phải có mặt TRONG lúc
+    // thu bài, không phải chỉ sau khi đã chốt.
+    if (!isExamOver(session.status) || !confirmedAt || session.attendanceConfirmedCount === null) {
       return null;
     }
 

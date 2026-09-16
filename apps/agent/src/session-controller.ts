@@ -20,7 +20,13 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { io, Socket } from 'socket.io-client';
-import type { AgentJoinAck, AgentJoinError, AgentJoinErrorCode, AgentJoinPayload } from './agent-contract';
+import type {
+  AgentJoinAck,
+  AgentJoinError,
+  AgentJoinErrorCode,
+  AgentJoinPayload,
+  RecollectAck,
+} from './agent-contract';
 import { sendAccessRequest, type AccessErrorCode } from './access-request';
 import { restoreBackup, startSnapshotLoop } from './backup';
 import { downloadMaterials, writeInstructions } from './exam-materials';
@@ -416,6 +422,24 @@ export class SessionController extends EventEmitter {
       void this.handleFinalize(payload as unknown as ExamFinalizePayload);
     });
 
+    /**
+     * Giảng viên bấm "Thu lại" — nộp lại mọi deliverable bắt buộc.
+     *
+     * Không đọc payload: nó chỉ chứa `examSessionId`, và socket này đã
+     * gắn với đúng một phiên từ lúc `agent:join` — kiểm lại sẽ là so một
+     * giá trị với chính nó.
+     *
+     * Ack NGAY, TRƯỚC mọi guard và trước cả upload. Ack nghĩa là "máy
+     * này còn sống và đã nhận lệnh", không phải "đã nộp xong". Server
+     * dùng nó để nói cho giảng viên biết máy nào không với tới được, và
+     * một máy im lặng vì upload lỗi sẽ bị báo nhầm là đã tắt — trong khi
+     * nó đang ở ngay đó, báo lỗi trên màn hình, và xử lý tay được.
+     */
+    socket.on('exam:recollect', (_payload: unknown, ack?: (result: RecollectAck) => void) => {
+      ack?.({ ok: true });
+      void this.handleRecollect();
+    });
+
     // No payload to validate — this is purely a "check again" nudge, see
     // handleMaterialsUpdated's own doc comment.
     socket.on('exam:materials-updated', () => {
@@ -684,21 +708,70 @@ export class SessionController extends EventEmitter {
     if (!this.state.examEnded) {
       this.patch({ examEnded: true });
     }
+    const reasonText = payload.reason === 'manual' ? 'giáo viên chốt bài' : 'tự động theo lịch';
+    await this.collectAll('finalize', {
+      title: 'Hết giờ thi',
+      body: `${reasonText}. Đang nộp bài...`,
+    });
+  }
+
+  /**
+   * "Thu lại" — giảng viên yêu cầu nộp lại (spec §6).
+   *
+   * KHÔNG đụng `examEnded`, và đó là điểm khác duy nhất đáng kể so với
+   * `handleFinalize`: cờ đó là thứ chặn agent gửi lại `agent:join` sau
+   * khi phiên đóng, nên đặt lại nó sẽ làm màn hình của sinh viên tụt từ
+   * "đã nộp" về màn hình join/lỗi — đúng con bug mà guard đó sinh ra để
+   * chặn.
+   *
+   * Ack đã được gửi ở call site, trước khi hàm này chạy.
+   */
+  private async handleRecollect(): Promise<void> {
+    try {
+      await this.collectAll('recollect', {
+        title: 'Nộp lại bài',
+        body: 'Giảng viên yêu cầu nộp lại. Đang nộp...',
+      });
+    } catch (error) {
+      // Gọi qua `void` từ một socket listener, nên một rejection ở đây
+      // không có `.catch` nào để rơi vào và sẽ hạ luôn tiến trình chính
+      // của Electron — giữa lúc giảng viên đang đứng cạnh cái máy đó.
+      this.log(`Lỗi không mong muốn khi thu lại: ${describeError(error)}`);
+    }
+  }
+
+  /**
+   * Đường nộp bài dùng chung của "hết giờ" và "Thu lại".
+   *
+   * Một bản duy nhất, không phải hai: bản sao thứ hai của đường nộp bài
+   * sẽ lệch khỏi bản đầu ở đúng những chi tiết khó thấy nhất — cờ
+   * `finalizing`, việc dừng snapshot, điều kiện xoá thư mục làm bài.
+   */
+  private async collectAll(
+    trigger: 'finalize' | 'recollect',
+    announcement: NotifyEvent,
+  ): Promise<void> {
     if (this.finalizing) {
-      this.log('Đang nộp bài theo lệnh trước đó — bỏ qua lệnh chốt bài lặp.');
+      this.log(
+        trigger === 'recollect'
+          ? 'Đang nộp bài theo lệnh trước đó — bỏ qua lệnh thu lại.'
+          : 'Đang nộp bài theo lệnh trước đó — bỏ qua lệnh chốt bài lặp.',
+      );
       return;
     }
     if (this.requiredDeliverables.length === 0 || !this.examSessionId || !this.state.studentId) {
-      this.log('[CẢNH BÁO] Nhận lệnh chốt bài nhưng chưa có danh sách file bắt buộc — không nộp được gì.');
+      this.log('[CẢNH BÁO] Nhận lệnh nộp bài nhưng chưa có danh sách file bắt buộc — không nộp được gì.');
       return;
     }
 
     this.finalizing = true;
+    // Idempotent, và với `recollect` thì snapshot đã dừng từ lượt chốt
+    // bài trước đó — gọi lại ở đây là để đường đi này đúng một mình, chứ
+    // không phải vì nó còn việc để làm.
     this.stopSnapshots?.();
     this.stopSnapshots = null;
     this.patch({ submission: { ...this.state.submission, finalizing: true } });
-    const reasonText = payload.reason === 'manual' ? 'giáo viên chốt bài' : 'tự động theo lịch';
-    this.notify('Hết giờ thi', `${reasonText}. Đang nộp bài...`);
+    this.notify(announcement.title, announcement.body);
 
     try {
       const summary = await uploadAllDeliverables({

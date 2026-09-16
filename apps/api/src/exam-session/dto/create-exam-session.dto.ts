@@ -16,17 +16,14 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import { ExamType } from '../entities/exam-session.entity';
+// Cả hai regex tên file đều lấy từ đây. SAFE_FILENAME_REGEX từng được
+// khai ngay trong file này và filename-template.ts import ngược lại —
+// một vòng lặp mà CommonJS gỡ theo thứ tự nạp, và khi gỡ sai thì
+// `@Matches(undefined)` bên dưới nhận MỌI tên file. Xem doc comment của
+// SAFE_FILENAME_REGEX.
 import { FILENAME_TEMPLATE_REGEX } from '../filename-template';
 
 const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
-
-// Path-traversal defense (Task 1 review ruling, carried into this DTO):
-// only letters/digits/`_`/`-`/`.` are allowed, AND the literal substring
-// ".." is rejected outright — the character class alone would already
-// reject "/"+"\" (neither is in the allowed set), but ".." alone is built
-// entirely from allowed characters, so it needs its own negative lookahead
-// to be caught (e.g. a lone ".." with no path separator at all).
-export const SAFE_FILENAME_REGEX = /^(?!.*\.\.)[A-Za-z0-9_.-]+$/;
 
 @ValidatorConstraint({ name: 'IsAfterStartTime', async: false })
 class IsAfterStartTimeConstraint implements ValidatorConstraintInterface {

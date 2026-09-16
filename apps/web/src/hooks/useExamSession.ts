@@ -6,9 +6,12 @@ import {
   listExamSessions,
   getExamSession,
   finalizeExamSession,
+  confirmSessionEnd,
+  recollectSubmissions,
   listSubmissions,
   type CreateExamSessionInput,
   type ExamSessionResponse,
+  type RecollectResult,
   type SearchExamSessionsParams,
 } from '@/lib/api/exam-session';
 import { confirmAttendance, getAttendance } from '@/lib/api/attendance';
@@ -66,6 +69,30 @@ export function useFinalizeExamSession(id: string | undefined) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['exam-session', id] });
     },
+  });
+}
+
+/** "Xác nhận kết thúc" — `collecting → completed`. Xem confirmSessionEnd. */
+export function useConfirmSessionEnd(id: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation<ExamSessionResponse, Error, void>({
+    mutationFn: () => confirmSessionEnd(id!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-session', id] });
+    },
+  });
+}
+
+/**
+ * "Thu lại". KHÔNG invalidate gì cả — và đó là chủ ý, không phải thiếu
+ * sót: lệnh này không đổi trạng thái nào ở server, nó chỉ nhờ vài cái
+ * máy nộp lại bài. Bài về sẽ tới qua `lobby:submission_status` như mọi
+ * bài khác, và trang đã lắng nghe sự kiện đó rồi. Invalidate ở đây sẽ
+ * đọc lại đúng lúc chưa có gì mới để đọc.
+ */
+export function useRecollect(id: string | undefined) {
+  return useMutation<RecollectResult, Error, void>({
+    mutationFn: () => recollectSubmissions(id!),
   });
 }
 

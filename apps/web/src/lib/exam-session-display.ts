@@ -10,6 +10,9 @@ export const EXAM_SESSION_STATUS_LABELS: Record<string, string> = {
   draft: 'Nháp',
   scheduled: 'Đã lên lịch',
   active: 'Đang diễn ra',
+  // Hết giờ làm bài, file đang bay về, chưa ai chốt. Là một giá trị THẬT
+  // của cột status từ 2026-09-11, không còn phải suy ra.
+  collecting: 'Đang thu bài',
   completed: 'Đã hoàn thành',
   cancelled: 'Đã huỷ',
 };
@@ -21,6 +24,10 @@ export const EXAM_SESSION_STATUS_BADGE_VARIANT: Record<
   draft: 'default',
   scheduled: 'info',
   active: 'success',
+  // `info`, không phải `success`: giai đoạn này còn việc phải làm — hai
+  // nút "Thu lại"/"Xác nhận kết thúc" đang chờ ai đó bấm — nên nó không
+  // được trông giống một trạng thái đã yên.
+  collecting: 'info',
   // Neutral, not a brand colour: a finished session needs no attention,
   // and teal sits close enough to the green used for "Đang diễn ra"
   // (174° vs 152°) that two coloured pills in the same column would be

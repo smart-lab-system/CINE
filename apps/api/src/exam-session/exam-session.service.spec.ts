@@ -69,13 +69,21 @@ function createHarness(affected: number) {
 }
 
 describe('ExamSessionService.finalizeExamSession', () => {
-  it('flips an active session to completed and broadcasts exam:finalize once', async () => {
+  it('flips an active session to collecting and broadcasts exam:finalize once', async () => {
+    // Đích đổi từ `completed` sang `collecting` ngày 2026-09-11 — CÓ CHỦ
+    // ĐÍCH. Hết giờ không còn là kết thúc phiên; `completed` giờ nghĩa là
+    // "đã có người xác nhận" (spec §3).
+    //
+    // Sự kiện vẫn bắn Ở ĐÂY và vẫn tên `exam:finalize`: agent nộp bài khi
+    // nhận nó, nên dời nó xuống bước xác nhận sẽ khiến agent chỉ nộp sau
+    // khi giảng viên bấm — ngược hẳn ý đồ. Khẳng định này là thứ giữ hai
+    // điều đó không trôi ra xa nhau.
     const { service, builder, published } = createHarness(1);
 
     const changed = await service.finalizeExamSession('session-1', 'scheduled');
 
     expect(changed).toBe(true);
-    expect(builder.set).toHaveBeenCalledWith({ status: 'completed' });
+    expect(builder.set).toHaveBeenCalledWith({ status: 'collecting' });
     expect(published).toEqual([{ examSessionId: 'session-1', reason: 'scheduled' }]);
   });
 

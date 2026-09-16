@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ExamMaterialEntity } from './entities/exam-material.entity';
 import { ExamSessionEntity } from './entities/exam-session.entity';
+import { isExamOver } from './exam-session.types';
 import { StorageService } from '../storage/storage.service';
 import { CreateExamMaterialDto, RequestMaterialUploadDto } from './dto/exam-material.dto';
 import { ExamSessionEvents } from './exam-session.events';
@@ -172,7 +173,10 @@ export class ExamMaterialService {
       // must read as "not found", not as someone else's file.
       throw new NotFoundException('Exam material not found');
     }
-    if (session.status === 'completed') {
+    // `isExamOver`: đề thi phải khoá ngay khi hết giờ, không đợi tới lúc
+    // giảng viên chốt — nếu không, nó mở khoá xoá trở lại suốt cửa sổ
+    // thu bài.
+    if (isExamOver(session.status)) {
       throw new ForbiddenException(
         'Phiên thi đã kết thúc — đề thi được giữ lại để đối chiếu, không xoá được nữa.',
       );

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { ExamSessionService } from './exam-session.service';
+import { CollectionPhaseService } from './collection-phase.service';
 
 /**
  * Closes exam sessions whose `end_time` has passed.
@@ -30,7 +31,17 @@ export class ExamSessionScheduler {
   // no-op — but it would double the query load for no benefit.
   private running = false;
 
-  constructor(private readonly examSessions: ExamSessionService) {}
+  /**
+   * Cờ RIÊNG cho lượt quét thu bài, không dùng chung với `running`:
+   * hai lượt làm hai việc khác nhau trên hai tập phiên khác nhau, và
+   * để một lượt chậm chặn lượt kia là ghép hai sự cố không liên quan.
+   */
+  private runningCollectionSweep = false;
+
+  constructor(
+    private readonly examSessions: ExamSessionService,
+    private readonly collectionPhase: CollectionPhaseService,
+  ) {}
 
   @Interval('exam-session-finalize-sweep', ExamSessionScheduler.SWEEP_INTERVAL_MS)
   async handleSweep(): Promise<void> {
@@ -88,5 +99,56 @@ export class ExamSessionScheduler {
       this.logger.log(`finalize sweep completed ${finalized} exam session(s)`);
     }
     return finalized;
+  }
+
+  /**
+   * Lượt quét thứ hai: đóng phiên kẹt ở `collecting` vì không ai bấm
+   * "Xác nhận kết thúc" — mất điện, đóng nhầm tab, quên. Không có nó
+   * thì phiên treo ở `collecting` vĩnh viễn.
+   */
+  @Interval('exam-session-collection-sweep', ExamSessionScheduler.SWEEP_INTERVAL_MS)
+  async handleCollectionSweep(): Promise<void> {
+    if (this.runningCollectionSweep) {
+      this.logger.debug('collection sweep skipped: previous tick still running');
+      return;
+    }
+    this.runningCollectionSweep = true;
+    try {
+      await this.sweepExpiredCollection(new Date());
+    } catch (error) {
+      this.logger.error(
+        'collection sweep failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+    } finally {
+      this.runningCollectionSweep = false;
+    }
+  }
+
+  /** Tách khỏi handler để test lái được một tick tại `now` đã chọn. */
+  async sweepExpiredCollection(now: Date): Promise<number> {
+    const ids = await this.examSessions.findCollectionExpiredIds(now);
+    if (ids.length === 0) {
+      return 0;
+    }
+
+    let closed = 0;
+    for (const id of ids) {
+      try {
+        if (await this.collectionPhase.completeExpired(id)) {
+          closed++;
+        }
+      } catch (error) {
+        this.logger.error(
+          `failed to close collection for exam session ${id}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
+    }
+
+    if (closed > 0) {
+      this.logger.log(`collection sweep closed ${closed} exam session(s)`);
+    }
+    return closed;
   }
 }

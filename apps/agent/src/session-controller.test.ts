@@ -25,6 +25,12 @@ let io: SocketIoServer;
 let ns: Namespace;
 let baseUrl: string;
 let uploadedBodies: Buffer[] = [];
+/** Cho một test bắt object storage trả lỗi — xem ca "vẫn ack dù upload
+ *  thất bại" trong khối recollect. */
+let storagePutShouldFail = false;
+/** Cho một test bắt object storage trả lời CHẬM — xem ca "ack về trước
+ *  khi upload xong". */
+let storagePutDelayMs = 0;
 
 type JoinReply = { type: 'ack'; ack: Partial<AgentJoinAck> } | { type: 'error'; error: AgentJoinError };
 let nextJoinReply: JoinReply | null = null;
@@ -61,9 +67,16 @@ beforeAll(async () => {
       const chunks: Buffer[] = [];
       req.on('data', (chunk: Buffer) => chunks.push(chunk));
       req.on('end', () => {
-        uploadedBodies.push(Buffer.concat(chunks));
-        res.writeHead(200);
-        res.end();
+        setTimeout(() => {
+          if (storagePutShouldFail) {
+            res.writeHead(500);
+            res.end();
+            return;
+          }
+          uploadedBodies.push(Buffer.concat(chunks));
+          res.writeHead(200);
+          res.end();
+        }, storagePutDelayMs);
       });
       return;
     }
@@ -146,6 +159,8 @@ let accessRequestReply: { ok: boolean; requestId?: string; code?: string; messag
 afterEach(() => {
   nextJoinReply = null;
   uploadedBodies = [];
+  storagePutShouldFail = false;
+  storagePutDelayMs = 0;
   joinAttemptCount = 0;
   accessRequestReply = { ok: true, requestId: 'req-1' };
   nextMaterialsReply = { ok: true, materials: [] };
@@ -606,6 +621,133 @@ describe('SessionController — after joining', () => {
       controller.quit();
     }).not.toThrow();
   });
+});
+
+/**
+ * "Thu lại" — spec
+ * docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md §6.
+ *
+ * Ack được phát bằng `socket.timeout().emitWithAck()` từ phía server, y
+ * như `RecollectService` làm thật: server đếm ACK chứ không đếm emit, nên
+ * một test tự gọi callback bằng tay sẽ không kiểm được đúng thứ đang lo.
+ */
+describe('SessionController — exam:recollect', () => {
+  /**
+   * Đưa agent vào đúng trạng thái mà "Thu lại" nhắm tới: đã hết giờ, đã
+   * nộp, nhưng THIẾU một file — nên thư mục làm bài vẫn còn (handleFinalize
+   * chỉ xoá nó khi mọi file đã vào). Một em nộp đủ thì không nằm trong tập
+   * đích của server, nên trạng thái đó không phải cái cần dựng ở đây.
+   */
+  async function joinThenFinalizeWithOneFileMissing(): Promise<{
+    controller: SessionController;
+    socket: ServerSocket;
+    workspaceDir: string;
+  }> {
+    nextJoinReply = {
+      type: 'ack',
+      ack: {
+        requiredFiles: ['Cau1.docx', 'Cau2.docx'],
+        requiredDeliverables: [
+          { id: 'd1', requiredFilename: 'Cau1.docx', deliverableType: 'document' },
+          { id: 'd2', requiredFilename: 'Cau2.docx', deliverableType: 'document' },
+        ],
+      },
+    };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length === 2);
+
+    const workspaceDir = controllerWorkspaceDir(controller);
+    fs.writeFileSync(path.join(workspaceDir, 'Cau1.docx'), 'cau 1');
+    fs.rmSync(path.join(workspaceDir, 'Cau2.docx'));
+
+    const socket = [...ns.sockets.values()][ns.sockets.size - 1];
+    socket.emit('exam:finalize', { examSessionId: 'exam-1', reason: 'scheduled' });
+    const state = await waitForState(controller, (s) => s.submission.summary !== null);
+
+    expect(state.submission.summary?.uploaded).toBe(1);
+    expect(state.submission.summary?.missing).toBe(1);
+    expect(fs.existsSync(workspaceDir)).toBe(true);
+    expect(state.examEnded).toBe(true);
+    return { controller, socket, workspaceDir };
+  }
+
+  it('nộp lại MỌI file bắt buộc, kể cả file đã nộp được lần trước', async () => {
+    // Agent gửi lại tất cả chứ không cố đoán server còn thiếu gì: bản ghi
+    // submission là upsert theo (phiên, deliverable, MSSV), nên nộp lại
+    // file cũ chỉ ghi đè đúng bằng chính nó — còn để agent tự suy ra "tôi
+    // thiếu gì" là dựng một bản sao thứ hai của sự thật mà server đã có.
+    const { controller, socket, workspaceDir } = await joinThenFinalizeWithOneFileMissing();
+    fs.writeFileSync(path.join(workspaceDir, 'Cau2.docx'), 'cau 2');
+    uploadedBodies = [];
+
+    await socket.timeout(2000).emitWithAck('exam:recollect', { examSessionId: 'exam-1' });
+    await waitFor(() => uploadedBodies.length === 2, 5000);
+
+    expect(uploadedBodies.map((b) => b.toString('utf8'))).toEqual(['cau 1', 'cau 2']);
+    controller.quit();
+  }, 15_000);
+
+  it('ack để server đếm được là đã với tới máy này', async () => {
+    const { controller, socket } = await joinThenFinalizeWithOneFileMissing();
+
+    const ack = await socket.timeout(2000).emitWithAck('exam:recollect', { examSessionId: 'exam-1' });
+
+    expect(ack).toEqual({ ok: true });
+    controller.quit();
+  }, 15_000);
+
+  it('KHÔNG đụng tới examEnded', async () => {
+    // `examEnded` là thứ chặn agent gửi lại `agent:join` sau khi phiên
+    // đóng. Đặt lại nó ở đây sẽ làm màn hình của sinh viên tụt từ "đã
+    // nộp" về màn hình join/lỗi — đúng con bug mà guard đó sinh ra để
+    // chặn (xem ca "does not re-attempt agent:join" ở trên).
+    const { controller, socket } = await joinThenFinalizeWithOneFileMissing();
+
+    await socket.timeout(2000).emitWithAck('exam:recollect', { examSessionId: 'exam-1' });
+
+    expect(controller.getState().examEnded).toBe(true);
+    expect(controller.getState().joinPhase).toBe('joined');
+    controller.quit();
+  }, 15_000);
+
+  it('ack về TRƯỚC khi upload xong, không chờ file bay hết', async () => {
+    // Đây là lý do ack nằm ở dòng đầu handler chứ không ở cuối. Server
+    // chỉ chờ 3 giây; một em có file 50MB trên mạng phòng máy đang tải
+    // nặng sẽ bị báo unreachable nếu agent chờ upload xong mới trả lời —
+    // và giảng viên sẽ đi tìm một cái máy vẫn đang làm việc bình thường.
+    const { controller, socket, workspaceDir } = await joinThenFinalizeWithOneFileMissing();
+    fs.writeFileSync(path.join(workspaceDir, 'Cau2.docx'), 'cau 2');
+    uploadedBodies = [];
+    storagePutDelayMs = 1500;
+
+    // Hạn ack 500ms, ngắn hơn hẳn một lượt upload: nếu handler chờ upload
+    // thì emitWithAck ném timeout và test đỏ ngay ở dòng này.
+    const ack = await socket.timeout(500).emitWithAck('exam:recollect', { examSessionId: 'exam-1' });
+
+    expect(ack).toEqual({ ok: true });
+    // Và upload vẫn thật sự chạy tới cùng sau đó — ack sớm không phải là
+    // ack thay cho việc nộp bài.
+    await waitFor(() => uploadedBodies.length === 2, 10_000);
+    controller.quit();
+  }, 20_000);
+
+  it('vẫn ack dù upload thất bại', async () => {
+    // Ack nghĩa là "tôi còn sống và đã nhận lệnh", KHÔNG phải "đã nộp
+    // xong". Nuốt ack khi upload lỗi sẽ báo máy đó unreachable, và giảng
+    // viên sẽ đi tìm một cái máy đã tắt — trong khi nó đang ở ngay đó,
+    // báo lỗi trên màn hình, và xử lý tay được.
+    const { controller, socket, workspaceDir } = await joinThenFinalizeWithOneFileMissing();
+    fs.writeFileSync(path.join(workspaceDir, 'Cau2.docx'), 'cau 2');
+    storagePutShouldFail = true;
+
+    const ack = await socket.timeout(2000).emitWithAck('exam:recollect', { examSessionId: 'exam-1' });
+
+    expect(ack).toEqual({ ok: true });
+    // Và lỗi không bị chôn: nó phải hiện ra ở đâu đó sinh viên đọc được.
+    await waitFor(() => controller.getState().submission.summary?.failed === 2, 5000);
+    controller.quit();
+  }, 15_000);
 });
 
 /** Recovers the same workspaceDir SessionController computed internally

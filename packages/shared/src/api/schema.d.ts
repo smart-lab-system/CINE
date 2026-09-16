@@ -287,6 +287,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/confirm-end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_confirmEnd"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/recollect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_recollect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/archive": {
         parameters: {
             query?: never;
@@ -802,6 +834,9 @@ export interface components {
             /** Format: date-time */
             endTime: string;
             status: Record<string, never>;
+            /** Format: date-time */
+            completedAt: string | null;
+            completedBy: string | null;
             rubricId: string | null;
             rubricVersion: number | null;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
@@ -894,6 +929,9 @@ export interface components {
             endTime: string;
             submissionRule: Record<string, never>;
             status: Record<string, never>;
+            /** Format: date-time */
+            completedAt: string | null;
+            completedBy: string | null;
             /** Format: date-time */
             attendanceConfirmedAt: string | null;
             attendanceConfirmedCount: number | null;
@@ -1225,7 +1263,7 @@ export interface operations {
                 page: number;
                 pageSize: number;
                 search?: string;
-                status?: "draft" | "scheduled" | "active" | "completed" | "cancelled";
+                status?: "draft" | "scheduled" | "active" | "collecting" | "completed" | "cancelled";
                 examType?: "TK" | "GK" | "CK";
             };
             header?: never;
@@ -1457,6 +1495,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_confirmEnd: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_recollect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };

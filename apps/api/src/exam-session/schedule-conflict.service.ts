@@ -133,10 +133,18 @@ export class ScheduleConflictService {
         's.end_time AS "endTime"',
       ])
       .where(`s.${target.column} = :key`, { key })
-      // Matches the constraint's predicate: a finished or cancelled exam
-      // holds nothing, which is what lets a session that ended early free
-      // its room for the rest of its declared window.
-      .andWhere(`s.status <> 'completed' AND s.status <> 'cancelled'`)
+      // Matches the constraint's predicate EXACTLY — including
+      // `collecting`, added 2026-09-11. A finished, collecting or
+      // cancelled exam holds nothing, which is what lets a session that
+      // ended early free its room for the rest of its declared window.
+      //
+      // Leaving `collecting` out here while the constraint excludes it
+      // makes this pre-check stricter than the constraint, which is the
+      // failure this class's own doc comment warns about: it refuses
+      // bookings the database would have accepted.
+      .andWhere(
+        `s.status <> 'collecting' AND s.status <> 'completed' AND s.status <> 'cancelled'`,
+      )
       .andWhere(
         `tstzrange(s.start_time, s.end_time, '[)') && tstzrange(:startTime, :endTime, '[)')`,
         { startTime, endTime },

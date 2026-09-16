@@ -21,6 +21,19 @@ export class ExamSessionResponseDto {
   endTime!: Date;
   status!: ExamSessionStatus;
   /**
+   * Thời điểm phiên rời `collecting`, và ai chốt.
+   *
+   * `completedBy = null` mang nghĩa CỤ THỂ: **không người nào xác nhận** —
+   * lượt quét dự phòng đã đóng nó. Màn hình phiên đọc đúng cặp này để
+   * quyết định có hiện dòng "có bài về sau khi BẠN xác nhận" hay không:
+   * không có ai để xưng "bạn" thì không có dòng đó (spec §7.3).
+   *
+   * Với phiên tạo trước 2026-09-11 thì cả hai đều `null` và phải đọc là
+   * "không biết", không phải "chưa xác nhận" (spec §9.3).
+   */
+  completedAt!: Date | null;
+  completedBy!: string | null;
+  /**
    * Rubric đã ghim cho phiên này, hoặc null nếu phiên không chấm bằng AI.
    *
    * Ghim chứ không tra lại: sửa rubric của môn sau khi phiên này đã tạo

@@ -1,5 +1,3 @@
-import { SAFE_FILENAME_REGEX } from './dto/create-exam-session.dto';
-
 /**
  * Per-student filenames, from one pattern declared before the exam.
  *
@@ -14,6 +12,27 @@ import { SAFE_FILENAME_REGEX } from './dto/create-exam-session.dto';
  * is no separate flag: a flag would be a second fact about the same string
  * that could disagree with it.
  */
+
+/**
+ * Path-traversal defense (Task 1 review ruling): only letters/digits/`_`/
+ * `-`/`.` are allowed, AND the literal substring ".." is rejected outright
+ * — the character class alone would already reject "/" and "\" (neither is
+ * in the allowed set), but ".." is built entirely from allowed characters,
+ * so it needs its own negative lookahead to be caught (e.g. a lone ".."
+ * with no path separator at all).
+ *
+ * Lives HERE, not in create-exam-session.dto.ts where it was declared
+ * until 2026-09-11, and that move is load-bearing rather than tidying.
+ * The DTO needs FILENAME_TEMPLATE_REGEX below and this module needed
+ * SAFE_FILENAME_REGEX from the DTO, so the two files imported each other.
+ * Under CommonJS a cycle resolves to whichever module is required first,
+ * and when this one won the race the DTO evaluated `@Matches(undefined)` —
+ * which class-validator registers happily and which then accepts every
+ * filename, `../etc/passwd` included. Both filename rules now live in one
+ * leaf module that imports nothing, so there is no order left to depend
+ * on. See create-exam-session.dto.spec.ts, which pins exactly that order.
+ */
+export const SAFE_FILENAME_REGEX = /^(?!.*\.\.)[A-Za-z0-9_.-]+$/;
 
 /** The only tokens that exist. Anything else is rejected at the DTO. */
 export const FILENAME_TOKENS = ['MSSV', 'TEN', 'PHONG', 'SOMAY'] as const;
