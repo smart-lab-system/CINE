@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  bulkReview,
   finalizeGrades,
   getGradingProgress,
   getGradingReadiness,
@@ -282,5 +283,23 @@ export function useSubmissionText(gradingResultId: string | undefined) {
     queryFn: () => getSubmissionText(gradingResultId!),
     enabled: Boolean(gradingResultId),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Duyệt hàng loạt.
+ *
+ * Invalidate danh sách kết quả — điểm và trạng thái của mọi bài vừa áp đều
+ * nằm trong đó, và màn Ma trận đọc chính danh sách ấy.
+ */
+export function useBulkReview(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Parameters<typeof bulkReview>[1]) => bulkReview(examSessionId!, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['exam-sessions', examSessionId, 'grading-results'],
+      });
+    },
   });
 }

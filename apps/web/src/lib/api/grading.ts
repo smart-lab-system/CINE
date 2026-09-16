@@ -365,3 +365,44 @@ export async function regradeStuck(
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as { stuck: number; requeued: number };
 }
+
+export type BulkRule =
+  | { kind: 'keep_ai' }
+  | { kind: 'apply_advocate' }
+  | { kind: 'criterion_full_marks'; criterionId: string }
+  | { kind: 'criterion_bonus'; criterionId: string; points: number };
+
+export type SkipReason = 'not_reviewable' | 'no_advocate' | 'unchanged';
+
+export interface BulkReviewOutcome {
+  applied: number;
+  /**
+   * LÝ DO, không chỉ số đếm.
+   *
+   * `skipped: 3` bắt giảng viên tự đi tìm ba bài nào trong bốn mươi lăm bài.
+   */
+  skipped: { resultId: string; reason: SkipReason }[];
+  /** Bài đã công bố — mỗi bài một dòng nhật ký. */
+  audited: number;
+}
+
+/**
+ * Áp một luật cho nhiều bài.
+ *
+ * `resultIds` LUÔN tường minh, kể cả khi là cả phiên — "cho điểm tối đa cả
+ * lớp" là thao tác mà *cả lớp* phải do người gửi khai ra, không do server suy.
+ *
+ * 400 khi có id không thuộc phiên, hoặc tiêu chí không thuộc rubric của phiên
+ * — cả hai đều KHÔNG áp gì cả.
+ */
+export async function bulkReview(
+  examSessionId: string,
+  body: { resultIds: string[]; rule: BulkRule; privateNote?: string },
+): Promise<BulkReviewOutcome> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/bulk-review', {
+    params: { path: { id: examSessionId } },
+    body: body as never,
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as BulkReviewOutcome;
+}

@@ -8,6 +8,7 @@ import {
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { SubmitReviewDto } from './dto/submit-review.dto';
+import type { BulkRule } from './bulk-rules';
 import { AuditLogService } from '../admin/audit-log.service';
 
 /**
@@ -77,7 +78,7 @@ export class TeacherReviewService {
     teacherId: string,
     dto: SubmitReviewDto,
   ): Promise<ReviewOutcome> {
-    if (!REVIEWABLE.includes(result.status)) {
+    if (!this.isReviewable(result)) {
       throw new ConflictException(
         'Bài này chưa chấm xong — chưa duyệt được. Hãy đợi AI chấm xong.',
       );
@@ -90,63 +91,105 @@ export class TeacherReviewService {
     // write fails, and a published score has changed with nobody's name on
     // it, looking entirely ordinary in the table.
     return this.dataSource.transaction(async (manager) => {
-      const finalScore = await this.validateAndTotal(result, dto, manager);
-
-      // Read BEFORE the new row is written, or `currentFinalScore` returns the
-      // score just saved and the audit entry says 10 became 10.
-      const published = PUBLISHED.includes(result.status);
-      const previousScore = published
-        ? await this.currentFinalScore(result, manager)
-        : null;
-
-      const reviews = manager.getRepository(TeacherReviewEntity);
-      await reviews.save(
-        reviews.create({
-          gradingResultId: result.id,
-          teacherId,
-          finalScore: String(finalScore),
-          // Stored as sent, not as a diff against the AI. A review row has to
-          // be readable on its own; reconstructing a score from a chain of
-          // diffs is exactly what makes an edit history useless at the moment
-          // it matters.
-          editedCriteria: dto.criteria as unknown as Record<string, unknown>,
-          // `?? null` chứ không `?? ''`: chuỗi rỗng đọc ra như "đã viết rồi
-          // xoá", khác "chưa bao giờ viết". Trường ghi chú là chỗ người ta
-          // đi tìm lý do sáu tháng sau, nên khác biệt đó có giá.
-          privateNote: dto.privateNote ?? null,
-          studentFeedback: dto.studentFeedback ?? null,
-        }),
-      );
-
-      // `false` now carries exactly ONE meaning here: already past
-      // teacher_reviewed, so this is a second edit. The other meaning was
-      // removed by the status gate above.
-      await this.advance(
-        result.id,
-        ['auto_approved', 'flagged_for_review'],
-        'teacher_reviewed',
-        manager,
-      );
-
-      if (published) {
-        // Security rule 4. The status does not move — the lifecycle has no
-        // exit from `finalized`, and it needs none: the current score is the
-        // newest review row, and this is now it.
-        await this.auditLog.recordUserAction(
-          {
-            actorId: teacherId,
-            action: 'grading_result.score_edited_after_finalize',
-            targetType: 'grading_result',
-            targetId: result.id,
-            oldValue: { finalScore: previousScore },
-            newValue: { finalScore },
-          },
-          manager,
-        );
-      }
-
+      const { finalScore } = await this.reviewWithin(manager, result, teacherId, dto, null);
       return { finalScore };
     });
+  }
+
+  /**
+   * Bài này có duyệt được không.
+   *
+   * Public vì `BulkReviewService` cần ĐÚNG danh sách này, và hỏi nó ở đây là
+   * cách duy nhất không có bản sao thứ hai để trôi. Hai người gọi xử lý câu
+   * trả lời `false` ngược nhau — `review()` NÉM, bulk BỎ QUA — nên phép kiểm
+   * nằm ngoài `reviewWithin`, không nằm trong.
+   */
+  isReviewable(result: GradingResultEntity): boolean {
+    return REVIEWABLE.includes(result.status);
+  }
+
+  /**
+   * Một lượt duyệt, TRONG giao dịch của người gọi.
+   *
+   * Rút ra khỏi `review()` để `bulkReview()` dùng lại đúng máy móc này — cùng
+   * nguyên tắc đã áp cho `verifyEvidence` / `locateEvidence`: một cài đặt,
+   * hai đường vào. Gọi `review()` 45 lần là 45 giao dịch, và hỏng giữa chừng
+   * để lại nửa lớp đã chỉnh mà không ai biết ranh giới ở đâu.
+   *
+   * KHÔNG kiểm `REVIEWABLE` ở đây — xem `isReviewable`.
+   */
+  async reviewWithin(
+    manager: EntityManager,
+    result: GradingResultEntity,
+    teacherId: string,
+    dto: SubmitReviewDto,
+    appliedRule: BulkRule | null,
+  ): Promise<{ finalScore: number; audited: boolean }> {
+    const finalScore = await this.validateAndTotal(result, dto, manager);
+
+    // Read BEFORE the new row is written, or `currentFinalScore` returns the
+    // score just saved and the audit entry says 10 became 10.
+    const published = PUBLISHED.includes(result.status);
+    const previousScore = published ? await this.currentFinalScore(result, manager) : null;
+
+    const reviews = manager.getRepository(TeacherReviewEntity);
+    await reviews.save(
+      reviews.create({
+        gradingResultId: result.id,
+        teacherId,
+        finalScore: String(finalScore),
+        // Stored as sent, not as a diff against the AI. A review row has to
+        // be readable on its own; reconstructing a score from a chain of
+        // diffs is exactly what makes an edit history useless at the moment
+        // it matters.
+        editedCriteria: dto.criteria as unknown as Record<string, unknown>,
+        // `?? null` chứ không `?? ''`: chuỗi rỗng đọc ra như "đã viết rồi
+        // xoá", khác "chưa bao giờ viết". Trường ghi chú là chỗ người ta
+        // đi tìm lý do sáu tháng sau, nên khác biệt đó có giá.
+        privateNote: dto.privateNote ?? null,
+        studentFeedback: dto.studentFeedback ?? null,
+        appliedRule,
+      }),
+    );
+
+    // `false` now carries exactly ONE meaning here: already past
+    // teacher_reviewed, so this is a second edit. The other meaning was
+    // removed by the status gate in the caller.
+    await this.advance(
+      result.id,
+      ['auto_approved', 'flagged_for_review'],
+      'teacher_reviewed',
+      manager,
+    );
+
+    if (published) {
+      // Security rule 4. The status does not move — the lifecycle has no
+      // exit from `finalized`, and it needs none: the current score is the
+      // newest review row, and this is now it.
+      //
+      // `appliedRule` vào `newValue` để phân biệt 45 quyết định riêng lẻ với
+      // một cú bấm ảnh hưởng 45 bài — khác biệt đó là thứ người đọc sổ sáu
+      // tháng sau cần thấy. Tên hành động GIỮ NGUYÊN: câu hỏi thật của thanh
+      // tra là "ai đổi điểm sau khi công bố", và tách làm hai tên buộc mọi
+      // truy vấn sau này phải nhớ hỏi cả hai.
+      await this.auditLog.recordUserAction(
+        {
+          actorId: teacherId,
+          action: 'grading_result.score_edited_after_finalize',
+          targetType: 'grading_result',
+          targetId: result.id,
+          oldValue: { finalScore: previousScore },
+          newValue: {
+            finalScore,
+            ...(appliedRule ? { appliedRule } : {}),
+            ...(dto.privateNote ? { privateNote: dto.privateNote } : {}),
+          },
+        },
+        manager,
+      );
+    }
+
+    return { finalScore, audited: published };
   }
 
   /**
