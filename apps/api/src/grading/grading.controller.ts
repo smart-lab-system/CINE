@@ -20,6 +20,7 @@ import { ExamSessionService } from '../exam-session/exam-session.service';
 import { GradingService } from './grading.service';
 import { GradingRunService } from './grading-run.service';
 import { GradingReferenceService } from './grading-reference.service';
+import { SubmissionTextService } from './submission-text.service';
 import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
@@ -45,6 +46,7 @@ export class GradingController {
     private readonly teacherReviews: TeacherReviewService,
     private readonly examSessions: ExamSessionService,
     private readonly references: GradingReferenceService,
+    private readonly submissionText: SubmissionTextService,
   ) {}
 
   @Get('courses/:courseId/rubrics')
@@ -129,6 +131,26 @@ export class GradingController {
   ) {
     const result = await this.grading.findResultForOwner(id, req.user!.sub);
     return this.teacherReviews.review(result, req.user!.sub, dto);
+  }
+
+  /**
+   * Bài làm kèm VỊ TRÍ mọi dẫn chứng AI đã trích.
+   *
+   * Trả toạ độ chứ không trả chuỗi thô, vì phép đối chiếu chạy trên cả bài
+   * đã làm phẳng và chỉ phía cầm nguyên chuỗi đó mới định vị đúng được —
+   * spec 2026-09-16 §5.2. Client tự so lại sẽ trượt đúng những trích dẫn
+   * vắt qua ranh giới đoạn.
+   *
+   * Kiểm sở hữu như 11 route còn lại: đây là bài làm của sinh viên.
+   */
+  @Get('grading-results/:id/submission-text')
+  @Roles('teacher')
+  async submissionTextForResult(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const result = await this.grading.findResultForOwner(id, req.user!.sub);
+    return this.submissionText.forResult(result);
   }
 
   /**
