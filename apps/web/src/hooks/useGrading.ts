@@ -74,10 +74,14 @@ export function useSubmitReview(examSessionId: string | undefined) {
     mutationFn: ({
       gradingResultId,
       criteria,
+      privateNote,
+      studentFeedback,
     }: {
       gradingResultId: string;
       criteria: ReviewCriterion[];
-    }) => submitReview(gradingResultId, criteria),
+      privateNote?: string;
+      studentFeedback?: string;
+    }) => submitReview(gradingResultId, criteria, { privateNote, studentFeedback }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ['exam-sessions', examSessionId, 'grading-results'],

@@ -230,10 +230,21 @@ export async function getGradingProgress(examSessionId: string): Promise<Grading
 export async function submitReview(
   gradingResultId: string,
   criteria: ReviewCriterion[],
+  notes?: { privateNote?: string; studentFeedback?: string },
 ): Promise<{ finalScore: number }> {
   const { data, error, response } = await apiClient.POST(
     '/grading-results/{id}/review',
-    { params: { path: { id: gradingResultId } }, body: { criteria } },
+    {
+      params: { path: { id: gradingResultId } },
+      body: {
+        criteria,
+        // Bỏ trống thì KHÔNG gửi, để server lưu `null` thay vì chuỗi rỗng:
+        // "đã viết rồi xoá" và "chưa bao giờ viết" là hai chuyện khác nhau
+        // ở một trường tồn tại để tra lý do sáu tháng sau.
+        ...(notes?.privateNote ? { privateNote: notes.privateNote } : {}),
+        ...(notes?.studentFeedback ? { studentFeedback: notes.studentFeedback } : {}),
+      },
+    },
   );
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as { finalScore: number };
