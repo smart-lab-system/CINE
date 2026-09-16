@@ -37,6 +37,20 @@ export class TeacherReviewEntity extends BaseEntity {
   @Column({ name: 'edited_criteria', type: 'jsonb', default: {} })
   editedCriteria!: Record<string, unknown>;
 
+  /**
+   * Ghi chú cho chính giảng viên. KHÔNG bao giờ gửi cho sinh viên.
+   *
+   * Tách khỏi `studentFeedback` có chủ đích: gộp làm một thì hoặc giảng
+   * viên tự kiểm duyệt ghi chú của mình — và mất đi lý do thật của quyết
+   * định — hoặc một câu viết cho mình lọt tới sinh viên.
+   */
+  @Column({ name: 'private_note', type: 'text', nullable: true })
+  privateNote!: string | null;
+
+  /** Nhận xét chính thức. Đi vào phiếu phúc khảo gửi sinh viên. */
+  @Column({ name: 'student_feedback', type: 'text', nullable: true })
+  studentFeedback!: string | null;
+
   @Column({ name: 'reviewed_at', type: 'timestamptz', default: () => 'now()' })
   reviewedAt!: Date;
 }

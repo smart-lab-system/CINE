@@ -611,6 +611,12 @@ export class GradingService {
         confidence: entity.confidence === null ? null : Number(entity.confidence),
         flagForReview: entity.flagForReview,
         criterionResults: entity.criterionResults,
+        // Đầu ra của lượt phản biện. Backend đã ghi ba cột này từ Plan 2;
+        // cho tới đây không đường nào đọc chúng ra, nên tính năng hoàn
+        // chỉnh ở tầng ghi mà vô hình ở tầng đọc.
+        advocateOpinion: entity.advocateOpinion,
+        contextUsedQuestion: entity.contextUsedQuestion,
+        contextUsedModelAnswer: entity.contextUsedModelAnswer,
         // null means "the AI graded it, nobody has reviewed it" — NOT
         // "the score is zero".
         finalScore: review ? Number(review.finalScore) : null,
@@ -643,6 +649,20 @@ export interface GradingResultView {
   confidence: number | null;
   flagForReview: boolean;
   criterionResults: unknown[];
+  /**
+   * Ý kiến lượt phản biện.
+   *
+   * `null` nghĩa là cổng KHÔNG kích hoạt — không có tiêu chí `not_met`, hoặc
+   * phiên chưa có đề bài — khác hẳn "đã chạy và không bênh được gì". Màn
+   * hình phải nói ra khác biệt đó, nên payload phải giữ được nó.
+   */
+  advocateOpinion: AdvocateOpinion | null;
+  /**
+   * Ngữ cảnh lượt chấm THỰC SỰ đọc được. `null` = chấm trước khi hệ thống
+   * ghi lại điều này, KHÁC `false` (= đã đo và không có).
+   */
+  contextUsedQuestion: boolean | null;
+  contextUsedModelAnswer: boolean | null;
   /** numeric(6,2) ở DB; null nghĩa là chưa ai duyệt, KHÔNG phải điểm 0. */
   finalScore: number | null;
   reviewedAt: string | null;

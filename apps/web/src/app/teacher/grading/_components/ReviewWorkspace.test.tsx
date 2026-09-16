@@ -1,13 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { ReviewWorkspace } from './ReviewWorkspace';
 import type { GradingResult } from '@/lib/api/grading';
-
-const useSubmitReviewMock = vi.fn();
-vi.mock('@/hooks/useGrading', () => ({
-  useSubmitReview: (...args: unknown[]) => useSubmitReviewMock(...args),
-}));
 
 function result(over: Partial<GradingResult> = {}): GradingResult {
   return {
@@ -28,6 +23,12 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
         evidence: 'chưa nêu độ phức tạp',
       },
     ],
+    // Mặc định là "cổng phản biện không kích hoạt" và "chấm trước khi hệ
+    // thống ghi lại ngữ cảnh" — đúng hình dạng của mọi bài đã chấm trước
+    // hôm nay, nên đó là mặc định trung thực cho factory này.
+    advocateOpinion: null,
+    contextUsedQuestion: null,
+    contextUsedModelAnswer: null,
     finalScore: null,
     reviewedAt: null,
     reviewedByName: null,
@@ -37,16 +38,7 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
 }
 
 describe('ReviewWorkspace', () => {
-  beforeEach(() => {
-    useSubmitReviewMock.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      isError: false,
-      error: null,
-    });
-  });
-
-  it('nhóm rail theo status, đếm đúng từng nhóm', () => {
+  it('nhóm danh sách theo status, đếm đúng từng nhóm', () => {
     render(
       <ReviewWorkspace
         examSessionId="e1"
@@ -78,42 +70,27 @@ describe('ReviewWorkspace', () => {
       />,
     );
 
-    // Khoanh vùng vào rail: tổng ở khung phải cũng là 7.5 và cũng đúng, nên
-    // getByText toàn trang sẽ khớp hai chỗ. Điều cần khẳng định là DÒNG TRONG
-    // RAIL hiện điểm cuối cùng chứ không phải điểm AI.
-    const railRow = screen.getByRole('button', { name: /Nguyễn Văn A/ });
-    expect(railRow).toHaveTextContent('7.5');
+    const row = screen.getByRole('link', { name: /Nguyễn Văn A/ });
+    expect(row).toHaveTextContent('7.5');
     // Điểm cuối cùng thắng điểm AI — đó là cả điểm của việc duyệt.
-    expect(railRow).not.toHaveTextContent('4');
+    expect(row).not.toHaveTextContent('4');
   });
 
-  it('bài đang chấm thì khung phải chỉ đọc, không có nút Lưu', () => {
+  it('mỗi dòng là một LINK trỏ thẳng vào bài, kèm phiên thi', () => {
+    // Đường dẫn trỏ thẳng vào một bài là thứ cần thật khi sinh viên phúc
+    // khảo — gửi được cho đồng nghiệp mà không phải mô tả đường đi.
     render(
-      <ReviewWorkspace
-        examSessionId="e1"
-        results={[result({ id: 'r1', status: 'ai_grading' })]}
-      />,
+      <ReviewWorkspace examSessionId="e1" results={[result({ id: 'r1' })]} />,
     );
 
-    expect(screen.queryByRole('button', { name: /Lưu duyệt/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/AI đang chấm/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Nguyễn Văn A/ })).toHaveAttribute(
+      'href',
+      '/teacher/grading/r1?sessionId=e1',
+    );
   });
 
-  it('sau khi chốt, nút Lưu cảnh báo sẽ ghi nhật ký', () => {
-    render(
-      <ReviewWorkspace
-        examSessionId="e1"
-        results={[
-          result({
-            id: 'r1',
-            status: 'finalized',
-            finalScore: 7.5,
-            editedCriteria: [{ criterionId: 'c1', verdict: 'met', points: 7.5 }],
-          }),
-        ]}
-      />,
-    );
-
-    expect(screen.getByText(/ghi vào nhật ký/i)).toBeInTheDocument();
+  it('danh sách rỗng nói rõ, không hiện khung trắng', () => {
+    render(<ReviewWorkspace examSessionId="e1" results={[]} />);
+    expect(screen.getByText(/Chưa có bài nào để duyệt/)).toBeInTheDocument();
   });
 });
