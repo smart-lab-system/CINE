@@ -1,3 +1,14 @@
+> ⚠️ **BẢN PHÁC TRƯỚC KHI CODE — không phải mô tả hệ thống đang chạy.**
+>
+> File này vẽ ý định ban đầu (2026-09) và có những thứ **chưa bao giờ được xây**:
+> Docker sandbox cho nhánh code, semantic clustering, bi-directional highlighting,
+> và "Zod JSON Schema" (repo dùng zod v3 nên schema được viết tay). Giữ lại vì nó
+> giải thích vì sao kiến trúc được chia tầng như hiện tại.
+>
+> **Muốn biết hệ thống thật sự có gì và code nằm ở đâu → `docs/grading-system-guide.md`.**
+
+---
+
 1. Sơ đồ kiến trúc phân tầng tổng thể (Layered Architecture)Hệ thống được tổ chức thành 4 tầng độc lập, bảo đảm tính mở rộng, an toàn khi thực thi mã nguồn lạ và tối ưu hóa chi phí token:  ┌───────────────────────────────────────────────────────────────────────────────────────────┐
 │                           1. CLIENT LAYER: NEXT.JS WEB APP                                │
 │  ┌───────────────────────────┬───────────────────────────────┬─────────────────────────┐  │
