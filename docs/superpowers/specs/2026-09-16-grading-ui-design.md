@@ -1,6 +1,6 @@
 # Giao diện chấm điểm — thiết kế
 
-**Ngày:** 2026-09-16 · **rev 1**
+**Ngày:** 2026-09-16 · **rev 2** (sau phản biện — xem §13)
 **Trạng thái:** chờ duyệt
 **Nhánh nền:** `feature/grading-pipeline-hardening` (HEAD `209930f`)
 **Bản mẫu bấm được:** https://claude.ai/artifact/1eARVjMh1B15SN9bKy2KjJ
@@ -315,33 +315,123 @@ AI tự sửa, đúng cái điều mà cả ba lớp chặn tồn tại để ng
 └─────────────────────────────┴─────────────────────────────────────┘
 ```
 
-### 5.2 Tô sáng hai chiều — cơ chế
+### 5.2 Tô sáng hai chiều — SERVER định vị, client chỉ vẽ
 
-Khác với `docs/AI-grading-architecture.md`, chỗ này **không cần lưu offset**.
+> **rev 2 đảo ngược hoàn toàn mục này.** rev 1 để client tự so chuỗi. Sai, và
+> sai theo kiểu nguy hiểm — xem §13.1.
 
+#### 5.2.1 Vì sao client không được phép tự so chuỗi
+
+`normalizeForMatch()` kết thúc bằng:
+
+```ts
+return out.replace(/\s+/g, ' ').trim().toLowerCase();
 ```
-Với mỗi tiêu chí:
-  needle = normalize(evidence)          ← cùng phép chuẩn hoá của evidence-check.ts
-  hay    = normalize(nội dung bài làm)
-  at     = hay.indexOf(needle)
-  at === -1  →  không tô. Đó CHÍNH LÀ điều G2 phát hiện.
+
+Server đối chiếu trên một chuỗi **đã làm phẳng**: `\n\n` giữa hai đoạn thành
+một dấu cách. Hệ quả trực tiếp: **một trích dẫn vắt qua ranh giới đoạn vẫn
+hợp lệ và vẫn được chấm `ok`.**
+
+Bất kỳ cách nào chẻ bài làm ra rồi so từng mảnh — theo đoạn, theo câu, theo
+trang — đều **không tìm thấy đúng những trích dẫn đó**, và UI sẽ tô gạch đỏ
+"không tìm thấy trong bài làm" cho một câu mà guard đã xác nhận có thật. Đó là
+UI vu cho AI bịa dẫn chứng. Không có cách nào để người dùng biết bên nào đúng.
+
+Và `verifyEvidence` **không phải** một `indexOf`. Nó còn:
+
+- tách elision `…` / `...` thành nhiều mẩu, so từng mẩu
+- ép **thứ tự**: mẩu sau phải nằm sau mẩu trước (`indexOf(part, cursor)`)
+- loại mẩu ngắn hơn `MIN_EVIDENCE_CHARS = 10` — dưới ngưỡng đó một chuỗi khớp
+  bừa vào gần như mọi bài tiếng Việt
+
+Tái tạo cả bốn hành vi này ở client, rồi giữ cho hai bản không trôi khỏi nhau
+qua mọi lần refactor, là công việc không có lý do gì để tồn tại.
+
+#### 5.2.2 Route trả về toạ độ
+
+`GET /grading-results/:id/submission-text` chạy **chính hàm đã dùng lúc chấm**,
+rồi trả ra vị trí:
+
+```ts
+{
+  paragraphs: string[],        // text thô, chẻ theo /\n{2,}/ — GIỮ cấu trúc bài viết
+  spans: {
+    criterionId: string,
+    paragraph: number,         // chỉ số trong `paragraphs`
+    start: number, end: number // offset RAW trong đúng đoạn đó
+  }[],
+  unlocatable: string[],       // criterionId không định vị được — khớp `check === 'unverified'`
+  truncatedByGrading: boolean, // bài đã bị cắt lúc chấm (§5.2.4)
+}
 ```
 
-Chuẩn hoá phải **dùng lại** logic của `harness/evidence-check.ts` (hoa/thường,
-dấu cong `"" ''`, khoảng trắng gộp, elision `…`). Viết lại một bản riêng ở
-client là cách chắc chắn nhất để hai bên bất đồng về cùng một chuỗi, và triệu
-chứng sẽ là "highlight thỉnh thoảng không hiện" — một lỗi không ai truy được.
+Thứ tự bắt buộc ở server: **định vị trên chuỗi phẳng trước, chẻ đoạn sau.** Làm
+ngược lại là tự dựng lại đúng cái lỗi ở §5.2.1.
 
-> **Đề xuất kèm theo:** tách phép chuẩn hoá sang `packages/shared` để hai bên
-> dùng chung đúng một bản. Nếu không làm, phải có test khoá hai bản khớp nhau.
+Một trích dẫn vắt qua hai đoạn ra **hai span cùng `criterionId`**. Client tô cả
+hai; về mặt thị giác chúng là một vệt liền, ngắt đúng chỗ xuống dòng.
 
-**Chồng lấn:** sắp theo `start`, giữ đoạn đầu, bỏ đoạn giao. Hai tiêu chí trích
-cùng một câu là chuyện có thật; tô lồng nhau cho ra HTML không đọc được.
+Cần thêm vào `harness/evidence-check.ts` một hàm trả vị trí thay vì chỉ trả
+verdict — dùng chung đúng bộ `normalizeForMatch` + `splitElision` + ràng buộc
+thứ tự, không viết lại. File vẫn là leaf, vẫn test được không cần dựng gì.
 
-**Chiều ngược lại:** bôi đen một đoạn trong bài làm → popup *"Gán làm minh
-chứng cho [tiêu chí]"* → ghi vào `editedCriteria` của lượt duyệt. **Không ghi
-đè** `criterion_results` — trigger `guard_grading_result_ai_immutable` chặn ở
-tầng DB, và đó là Security rule 6.
+> **Quy chiếu ngược về offset thô.** Chuẩn hoá làm đổi độ dài (gộp khoảng
+> trắng, xoá zero-width), nên vị trí tìm được nằm trong hệ toạ độ của chuỗi đã
+> chuẩn hoá. Phải dựng một mảng ánh xạ index-chuẩn-hoá → index-thô trong cùng
+> một lượt duyệt lúc chuẩn hoá. Bỏ bước này thì highlight lệch dần theo mỗi
+> khoảng trắng kép phía trước — sai vài ký tự, đủ để đọc ra như "gần đúng".
+
+#### 5.2.3 Client làm gì
+
+Render `paragraphs` thành `<p>`, bọc `<mark>` theo `spans`. **Không có phép so
+chuỗi nào ở client.**
+
+**Chồng lấn:** hai tiêu chí trích cùng một câu là chuyện có thật. Sắp theo
+`start`, giữ span đầu, bỏ phần giao — tô lồng nhau cho ra HTML không đọc được.
+Việc này ở client vì nó là quyết định trình bày, không phải quyết định đối chiếu.
+
+#### 5.2.4 Không có trần cắt riêng cho UI
+
+`extractText()` đã cắt ở `MAX_GRADING_INPUT_CHARS = 200_000` qua `capChars()`,
+và dán `TRUNCATION_NOTICE` vào trong giới hạn đó.
+
+Route này trả **đúng chuỗi ấy**. Đặt một trần thứ hai, thấp hơn, cho "nhẹ
+payload" sẽ giấu mất phần văn bản mà model ĐÃ đọc và ĐÃ trích — và trích dẫn
+nằm trong phần bị giấu hiện ra thành "không tìm thấy". Lại đúng lỗi §5.2.1.
+
+Bài tự luận thật là 2–8k ký tự; 200k là trần bệnh lý, và nén HTTP lo phần đó.
+
+`truncatedByGrading` để UI nói được *"phần cuối bài không được chấm"* — thông
+tin giảng viên cần, và là thứ một trần phía UI sẽ xoá mất.
+
+#### 5.2.5 Chiều ngược lại — gán minh chứng
+
+Bôi đen một đoạn trong bài làm → *"Gán làm minh chứng cho [tiêu chí]"*.
+
+Đường ghi là `POST /grading-results/:id/review` — **không phải** một route
+`teacher-review` riêng; route đó không tồn tại. Payload vẫn là
+`SubmitReviewDto`, tức **toàn bộ tiêu chí**, mỗi tiêu chí đủ
+`{ criterionId, verdict, points }`. `validateAndTotal()` ném lỗi nếu
+`seen.size !== criteria.length`.
+
+Điều đó cho không một bảo đảm: **không thể gán minh chứng mà quên cập nhật
+verdict**, vì không có đường gửi riêng một tiêu chí.
+
+`ReviewCriterionDto` cần thêm `pinnedEvidence?: string`:
+
+```ts
+@IsOptional() @IsString() @MaxLength(2000)
+pinnedEvidence?: string;
+```
+
+> ⚠️ **Thêm trường vào payload mà quên sửa DTO là một lỗi IM LẶNG.** `main.ts`
+> chạy `new ValidationPipe({ whitelist: true, transform: true })` — **không có**
+> `forbidNonWhitelisted`. Trường lạ bị **cắt bỏ không báo**, request trả
+> **200 OK**, và minh chứng giảng viên vừa gán biến mất không dấu vết. Đây là
+> cùng một họ lỗi với `@Matches(undefined)` đã tốn một buổi của repo này.
+
+**Không ghi đè** `criterion_results` — trigger `guard_grading_result_ai_immutable`
+chặn ở tầng DB, và đó là Security rule 6.
 
 ### 5.3 Thẻ tiêu chí
 
@@ -453,7 +543,9 @@ rubric đã có kết quả chấm. Hai đường khả dĩ:
 | # | Việc | Ghi chú |
 |---|---|---|
 | 1 | Thêm `advocateOpinion` + `contextUsedQuestion` + `contextUsedModelAnswer` vào `GradingResultView` và `listForSession()` | Chỉ đọc. Không đụng đường ghi, nên không chạm trigger bất biến |
-| 2 | `GET /grading-results/:id/submission-text` | `@Roles('teacher')` + kiểm sở hữu phiên qua `findOwnedBy`, y như 11 route còn lại — đây là bài làm của sinh viên, không phải tài nguyên công khai. Tái dùng `ContentResolverRegistry` + `storage.getObject()`. Trả `{ text, truncated }`. **Phải** qua cùng một resolver với lúc chấm — một đường trích text thứ hai là một đường cho ra chuỗi khác, và highlight sẽ trượt |
+| 2 | `GET /grading-results/:id/submission-text` | `@Roles('teacher')` + kiểm sở hữu phiên qua `findOwnedBy`, y như 11 route còn lại — đây là bài làm của sinh viên, không phải tài nguyên công khai. Tái dùng `ContentResolverRegistry` + `storage.getObject()`. Trả `{ paragraphs, spans, unlocatable, truncatedByGrading }` (§5.2.2) — **toạ độ, không phải chuỗi thô**. **Phải** qua cùng một resolver với lúc chấm |
+| 2b | Thêm hàm trả vị trí vào `harness/evidence-check.ts` | Dùng chung `normalizeForMatch` + `splitElision` + ràng buộc thứ tự với `verifyEvidence`. Kèm mảng ánh xạ index-chuẩn-hoá → index-thô. Giữ nguyên tính leaf |
+| 2c | Thêm `pinnedEvidence?` vào `ReviewCriterionDto` | **Bắt buộc.** Không có nó, trường bị `whitelist: true` cắt im lặng và trả 200 (§5.2.5) |
 | 3 | Migration: `teacher_review` thêm `reason_tag`, `private_note`, `student_feedback` | Cả ba nullable |
 | 4 | Regenerate `packages/shared/src/api/schema.d.ts` | Sinh **từ API đang chạy**, không từ source. Bỏ bước này ⇒ `apps/web` fail typecheck |
 
@@ -519,25 +611,24 @@ nghiệp vụ.
 
 | Rủi ro | Mức | Xử lý |
 |---|---|---|
-| Hai bản chuẩn hoá chuỗi (client/server) trôi khỏi nhau | **Cao** | Tách sang `packages/shared`, hoặc test khoá hai bản khớp |
-| Bài `.docx` dài làm cột trái nặng | Trung bình | Trả `{ text, truncated }`, cắt ở server, nói rõ khi bị cắt |
+| ~~Hai bản chuẩn hoá chuỗi trôi khỏi nhau~~ | — | **Đã loại bỏ bằng thiết kế** ở rev 2: chỉ còn một bộ đối chiếu, ở server (§5.2) |
+| UI nói "không tìm thấy" cho trích dẫn guard đã chấm `ok` | **Cao** | Nguồn gốc của mọi lỗi ở §13.1. Khoá bằng test: một trích dẫn vắt qua `\n\n` phải ra span, không ra `unlocatable` |
+| Trích xuất lại lúc đọc khác lúc chấm | Trung bình | Cùng resolver, cùng file bất biến, mammoth pin version. Nếu `unlocatable` lệch với `check` đã lưu → hiện cảnh báo thay vì im lặng |
+| Bài `.docx` dài làm cột trái nặng | Thấp | 200k là trần bệnh lý; bài thật 2–8k ký tự. Nén HTTP lo phần còn lại |
 | Lượt phản biện chạy lần đầu cho kết quả kém | Trung bình | Đó chính là lý do phải chạy thử 3 bài trước (đợt 1) |
 | Huỷ tiêu chí đụng bất biến rubric | Trung bình | Đi đường 1 ở §6.4 |
 | Đợt 5 (sandbox) trượt lịch, kéo theo cả kế hoạch | Thấp | Đã tách độc lập, không chặn đợt nào khác |
 
 ---
 
-## 11. Câu hỏi còn mở
+## 11. Bốn câu hỏi của rev 1 — đã chốt
 
-1. **Chuẩn hoá chuỗi: tách `packages/shared` hay khoá bằng test?** Tách sạch
-   hơn nhưng đụng cấu trúc package. Khuyến nghị: tách, vì đây đúng là định
-   nghĩa của "type/logic dùng bởi 2+ module".
-2. **Bàn chấm là route riêng hay panel trong `/teacher/grading`?** Route riêng
-   cho phép deep-link vào một bài — hữu ích khi phúc khảo. Khuyến nghị: route riêng.
-3. **Ma trận là màn riêng hay một chế độ xem của Điều phối?** Plan gốc tách
-   riêng. Khuyến nghị: giữ tách, vì nó có bộ thao tác hàng loạt riêng.
-4. **Cắt nội dung bài làm ở bao nhiêu ký tự?** Chưa đo. Cần một mẫu `.docx`
-   thật của lớp để quyết.
+| | Chốt | Vì sao |
+|---|---|---|
+| **1** Chuẩn hoá chuỗi: tách `packages/shared` hay khoá bằng test? | **Câu hỏi biến mất** | Client không còn so chuỗi (§5.2). Không có bản thứ hai để trôi, nên không cần chia sẻ gì |
+| **2** Bàn chấm: route riêng hay panel? | **Route riêng** `/teacher/grading/[resultId]` | Split-view cần hai cột 50-50; nhét vào panel làm hẹp chỗ đọc. Và deep-link là thứ cần thật khi sinh viên phúc khảo |
+| **3** Ma trận: màn riêng hay chế độ xem? | **Route riêng** `/teacher/grading/matrix` | Nó có bảng lớn + thanh thao tác hàng loạt dính đáy; gộp vào làm màn Điều phối mất sự tinh gọn |
+| **4** Cắt text ở bao nhiêu ký tự? | **Không đặt trần mới** | Dùng đúng `MAX_GRADING_INPUT_CHARS = 200_000` đã có. Một trần thứ hai giấu mất phần model đã đọc (§5.2.4) |
 
 ---
 
@@ -547,3 +638,56 @@ nghiệp vụ.
 bảng "Cái CHƯA có" nói *"toàn bộ UI cho advocate/anchor/readiness"* nhưng
 **không** nói rằng ngay cả tầng đọc cũng thiếu. Người lập kế hoạch dựa vào
 bảng đó sẽ ước lượng thiếu.
+
+---
+
+## 13. Nhật ký phản biện (rev 1 → rev 2)
+
+Một lượt phản biện nêu bốn điểm. Hai điểm chỉ đúng chỗ hở; **không kiến nghị
+kỹ thuật nào đứng được sau khi đọc code.** Ghi lại vì cách chúng sai hữu ích
+hơn bản thân chúng.
+
+### 13.1 Một lỗi, ba lần xuất hiện
+
+Ba kiến nghị khác nhau — chẻ bài làm theo đoạn rồi so từng đoạn · cắt text ở
+30.000 ký tự · để client tự so chuỗi — cùng phạm **một** lỗi:
+
+> Chúng tạo ra tình huống UI báo "không tìm thấy trong bài làm" cho một trích
+> dẫn mà guard G2 đã chấm `ok`.
+
+Vì `normalizeForMatch` làm phẳng `\s+`, phạm vi đối chiếu của server là **cả
+bài, một dòng**. Mọi thứ thu hẹp phạm vi đó ở phía client — chẻ nhỏ, cắt
+ngắn, hay so lại bằng một bản logic khác — đều tạo ra bất đồng mà người dùng
+không có cách nào phân xử. Và bất đồng này rơi đúng vào tính năng mà cả hệ
+thống dựa vào để chứng minh nó không bịa.
+
+Đây là lý do rev 2 đảo chiều: **phạm vi đối chiếu phải nằm cùng một chỗ với
+phép đối chiếu.** Server có cả hai; client không được có cái nào.
+
+### 13.2 Từng điểm
+
+| Kiến nghị | Phán quyết | Căn cứ trong code |
+|---|---|---|
+| Trả `paragraphs: string[]` để client so từng đoạn | **Bác.** Giữ ý tưởng chẻ đoạn, bỏ ý tưởng client so chuỗi | `normalizeForMatch` gộp `\s+`, nên trích dẫn vắt đoạn là hợp lệ |
+| Payload gán minh chứng `PUT /teacher-review` | **Bác.** Route không tồn tại | `grading.controller.ts` — đường duy nhất là `POST /grading-results/:id/review` |
+| Schema `{criterionId, verdict, pinnedEvidence, teacherComment}` | **Bác.** Thiếu `points` → 400 | `ReviewCriterionDto`: `@IsNumber @Min(0) points!` |
+| "Tránh gán text nhưng không cập nhật verdict" | **Không xảy ra được** | `validateAndTotal`: `seen.size !== criteria.length` → 400 |
+| Trần cắt 30.000 ký tự, "payload dưới 100KB" | **Bác.** Sai ràng buộc, và sai số học | Trần thật là `MAX_GRADING_INPUT_CHARS = 200_000`. 30k ký tự tiếng Việt UTF-8 ≈ 60–90KB, không phải "dưới 100KB" thoải mái |
+| Route riêng cho Bàn chấm và Ma trận | **Nhận.** Lý do phúc khảo tốt hơn lý do rev 1 viết | — |
+
+### 13.3 Điều phản biện KHÔNG thấy, và đáng ra phải thấy
+
+`main.ts` chạy `new ValidationPipe({ whitelist: true, transform: true })`
+**không kèm `forbidNonWhitelisted`**. Một kiến nghị "thêm trường vào payload"
+mà không nói tới điều này là kiến nghị dẫn thẳng tới một lỗi im lặng: server
+cắt trường lạ, trả 200, dữ liệu không bao giờ tới DB.
+
+### 13.4 Điều phản biện thấy đúng
+
+§5.2 của rev 1 viết `hay.indexOf(needle)` và gọi đó là "cùng phép chuẩn hoá của
+evidence-check.ts". Không đúng: nó bỏ qua tách elision, bỏ qua ràng buộc thứ
+tự, bỏ qua `MIN_EVIDENCE_CHARS`. Mục đó **phải** được viết lại, và phản biện
+đúng khi chỉ vào nó — chỉ là lỗ to hơn nhiều so với mô tả.
+
+Tương tự, payload gán minh chứng ở rev 1 đúng là chưa có schema. Giờ có, ở
+§5.2.5.
