@@ -110,9 +110,15 @@ Sơ đồ này vẽ **từ code**, không từ thiết kế. Dấu **✗** đán
 ║  │ ① ĐỌC FILE — ContentResolverRegistry (bộ định tuyến TẤT ĐỊNH)      │  ║
 ║  │    theo deliverable_type đã KHAI. 0 token, ~0ms, không đoán.       │  ║
 ║  │                                                                    │  ║
-║  │      document ──► DocumentResolver (mammoth)          ✔ CÓ         │  ║
-║  │      image    ──► (trống — seam chờ nhánh ảnh)        ✗ CHƯA       │  ║
-║  │      code     ──► (trống — seam chờ Docker sandbox)   ✗ CHƯA       │  ║
+║  │      document ──► DocumentResolver ──► extractText()   ✔ CÓ        │  ║
+║  │      image    ──► (chưa đăng ký)                       ✗ CHƯA      │  ║
+║  │      code     ──► (chưa đăng ký)                       ✗ CHƯA      │  ║
+║  │                                                                    │  ║
+║  │    ⚠ NHƯNG: deliverable_type bị hardcode 'document' (xem §11),     │  ║
+║  │      nên KHÔNG bài nào tới được hai cửa dưới. Bài code KHÔNG bị    │  ║
+║  │      chặn — nó đi đường document, và extractText đọc .py .java     │  ║
+║  │      .cpp … như VĂN BẢN THUẦN. Model ĐỌC mã, không CHẠY mã.        │  ║
+║  │      .zip / .rar / .pdf / ảnh → chuỗi rỗng → flagged_for_review.   │  ║
 ║  │                                                                    │  ║
 ║  │    Không có resolver → NỔ, không im lặng rơi về document.          │  ║
 ║  └────────────────────────────────────────────────────────────────────┘  ║
@@ -489,6 +495,18 @@ Ghi ra để không ai tưởng chúng đã tồn tại.
 > đủ ba giá trị.
 >
 > Hệ quả khi lập kế hoạch: thêm một resolver là **chưa đủ để nhánh đó chạy**.
+>
+> **Và bài code hôm nay KHÔNG bị chặn — nó bị chấm sai kiểu.** Vì type luôn là
+> `document`, một file `.py` / `.java` / `.cpp` đi thẳng vào `extractText()` và
+> được đọc như **văn bản thuần** (chúng nằm trong `TEXT_EXTENSIONS`). Model ĐỌC
+> mã nguồn và chấm theo rubric; nó không CHẠY mã, không có test case nào được
+> thực thi. Hệ thống ra điểm bình thường và **không cảnh báo gì** về sự khác
+> biệt đó — người xem demo rất dễ tưởng đây là autograder.
+>
+> `.zip` và `.rar` thì khác: chúng không nằm trong `TEXT_EXTENSIONS` nên
+> `extractText` trả **chuỗi rỗng**, bài sang `flagged_for_review`. Không hỏng,
+> nhưng cũng không chấm được — mà đó lại là định dạng nộp bài phổ biến nhất
+> cho một bài thi lập trình.
 
 ---
 
