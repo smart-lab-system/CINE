@@ -30,6 +30,8 @@ const useRubricsMock = vi.fn();
 const useSaveRubricMock = vi.fn();
 const useStartGradingMock = vi.fn();
 const useGradingProgressMock = vi.fn();
+const useGradingReadinessMock = vi.fn();
+const useRegradeStuckMock = vi.fn();
 vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: (...args: unknown[]) => useGradingResultsMock(...args),
   useRubrics: (...args: unknown[]) => useRubricsMock(...args),
@@ -37,6 +39,17 @@ vi.mock('@/hooks/useGrading', () => ({
   useSetSessionRubric: (...args: unknown[]) => useSetSessionRubricMock(...args),
   useStartGrading: (...args: unknown[]) => useStartGradingMock(...args),
   useGradingProgress: (...args: unknown[]) => useGradingProgressMock(...args),
+  useGradingReadiness: (...args: unknown[]) => useGradingReadinessMock(...args),
+  useRegradeStuck: (...args: unknown[]) => useRegradeStuckMock(...args),
+  useSetGradingReference: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  // Khi có kết quả chấm, ReviewWorkspace và FinalizeGradesButton cũng mount.
+  useSubmitReview: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+  useFinalizeGrades: () => ({ mutate: vi.fn(), isPending: false, isError: false, isSuccess: false }),
+}));
+
+// Dialog cấu hình đọc danh sách tài liệu qua hook riêng của phiên thi.
+vi.mock('@/hooks/useExamSession', () => ({
+  useExamMaterials: () => ({ data: [], isLoading: false }),
 }));
 
 beforeEach(() => {
@@ -52,6 +65,12 @@ beforeEach(() => {
   useRubricsMock.mockReset();
   useSaveRubricMock.mockReset();
   useStartGradingMock.mockReset();
+  // Mặc định: chưa nạp được mức sẵn sàng. Dải chỉ render khi có data, nên
+  // mặc định này giữ nguyên hành vi của mọi ca cũ.
+  useGradingReadinessMock.mockReset();
+  useGradingReadinessMock.mockReturnValue({ data: undefined, isLoading: false });
+  useRegradeStuckMock.mockReset();
+  useRegradeStuckMock.mockReturnValue({ mutate: vi.fn(), isPending: false, isSuccess: false });
 
   useSessionOverviewMock.mockReturnValue({
     data: [
@@ -227,6 +246,114 @@ describe('GradingPage', () => {
       render(<GradingPage />);
 
       expect(screen.getByText(/hàng đợi đang có 3 job lỗi/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('điều phối', () => {
+    const READY = { level: 'with_question', warning: null, hasQuestion: true, hasModelAnswer: false };
+
+    function gradedResult(over: Record<string, unknown> = {}) {
+      return {
+        id: 'r1',
+        submissionId: 'sub-1',
+        studentMssv: '2151010023',
+        studentName: 'Nguyễn Minh Anh',
+        status: 'flagged_for_review',
+        modelUsed: 'keyword-match@1',
+        aiTotalScore: 4,
+        confidence: 0.3,
+        flagForReview: true,
+        criterionResults: [
+          { criterionId: 'c1', verdict: 'not_met', points: 0, evidence: '', check: 'empty' },
+        ],
+        advocateOpinion: null,
+        contextUsedQuestion: null,
+        contextUsedModelAnswer: null,
+        finalScore: null,
+        reviewedAt: null,
+        reviewedByName: null,
+        editedCriteria: null,
+        ...over,
+      };
+    }
+
+    it('dải mức sẵn sàng đứng TRƯỚC khối tiến độ', async () => {
+      useGradingReadinessMock.mockReturnValue({ data: READY, isLoading: false });
+      useGradingProgressMock.mockReturnValue({
+        data: { total: 4, pending: 2, done: 2, byStatus: {}, queue: { waiting: 1, active: 1, failed: 0 } },
+        isLoading: false,
+      });
+      searchParams = new URLSearchParams('sessionId=session-2');
+      render(<GradingPage />);
+
+      const readiness = await screen.findByText(/Mức sẵn sàng chấm/);
+      const progress = screen.getByText(/Đang chấm 2\/4 bài/);
+      // "Bạn đang chấm với bao nhiêu ngữ cảnh" quan trọng hơn "đã chấm bao
+      // nhiêu bài" — mức sẵn sàng quyết định lượt phản biện có chạy không.
+      expect(readiness.compareDocumentPosition(progress)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    it('nút chấm lại bài treo TẮT khi hàng đợi còn job chạy', async () => {
+      useGradingReadinessMock.mockReturnValue({ data: READY, isLoading: false });
+      useGradingResultsMock.mockReturnValue({
+        data: [gradedResult({ status: 'ai_grading' })],
+        isLoading: false,
+      });
+      useGradingProgressMock.mockReturnValue({
+        data: { total: 1, pending: 1, done: 0, byStatus: {}, queue: { waiting: 0, active: 2, failed: 0 } },
+        isLoading: false,
+      });
+      searchParams = new URLSearchParams('sessionId=session-2');
+      render(<GradingPage />);
+
+      // Một bài đang được worker chấm dở cũng ở `ai_grading`; xếp lại nó là
+      // tự tạo ra đúng lượt chấm trùng mà jobId sinh ra để chặn.
+      expect(await screen.findByRole('button', { name: /Chấm lại/ })).toBeDisabled();
+    });
+
+    it('nút chấm lại BẬT khi hàng đợi rỗng mà vẫn còn bài treo', async () => {
+      useGradingReadinessMock.mockReturnValue({ data: READY, isLoading: false });
+      useGradingResultsMock.mockReturnValue({
+        data: [gradedResult({ status: 'ai_grading' })],
+        isLoading: false,
+      });
+      useGradingProgressMock.mockReturnValue({
+        data: { total: 1, pending: 1, done: 0, byStatus: {}, queue: { waiting: 0, active: 0, failed: 0 } },
+        isLoading: false,
+      });
+      searchParams = new URLSearchParams('sessionId=session-2');
+      render(<GradingPage />);
+
+      expect(await screen.findByRole('button', { name: /Chấm lại 1 bài treo/ })).toBeEnabled();
+    });
+
+    it('cảnh báo khi ngữ cảnh đã cấu hình LỆCH với ngữ cảnh lượt chấm đọc được', async () => {
+      useGradingReadinessMock.mockReturnValue({ data: READY, isLoading: false });
+      useGradingResultsMock.mockReturnValue({
+        data: [gradedResult({ contextUsedQuestion: false })],
+        isLoading: false,
+      });
+      searchParams = new URLSearchParams('sessionId=session-2');
+      render(<GradingPage />);
+
+      expect(await screen.findByText(/mà không đọc được đề/)).toBeInTheDocument();
+    });
+
+    it('KHÔNG cảnh báo khi contextUsedQuestion là null — bài chấm trước khi đo', async () => {
+      useGradingReadinessMock.mockReturnValue({ data: READY, isLoading: false });
+      useGradingResultsMock.mockReturnValue({
+        data: [gradedResult({ contextUsedQuestion: null })],
+        isLoading: false,
+      });
+      searchParams = new URLSearchParams('sessionId=session-2');
+      render(<GradingPage />);
+
+      await screen.findByText(/Mức sẵn sàng chấm/);
+      // null = chưa đo, khác false = đã đo và không có. Gộp hai thứ sẽ báo
+      // động giả trên mọi bài cũ.
+      expect(screen.queryByText(/mà không đọc được đề/)).not.toBeInTheDocument();
     });
   });
 });
