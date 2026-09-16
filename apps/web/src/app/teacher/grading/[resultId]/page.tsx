@@ -138,8 +138,11 @@ export default function GradingDetailPage({
               {readiness.data.hasQuestion ? 'Mức 2 — có đề bài' : 'Mức 1 — chỉ có thang chấm'}
             </Badge>
           )}
+          {/* Nói về BẬC MODEL đã trả lời, không về cấu hình phiên: provider
+              sàn khai `false` trung thực vì nó chỉ đếm từ khoá. Dùng tông
+              trung tính, không phải tông lỗi. */}
           {result.contextUsedQuestion === false && readiness.data?.hasQuestion && (
-            <Badge variant="destructive">bài này chấm mà không đọc được đề</Badge>
+            <Badge variant="default">lượt chấm không dùng đề bài</Badge>
           )}
         </div>
       </div>

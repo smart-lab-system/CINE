@@ -118,7 +118,13 @@ function GradingPageContent() {
   );
 
   /**
-   * Ngữ cảnh đã cấu hình KHÁC ngữ cảnh lượt chấm thật sự đọc được.
+   * Phiên CÓ đề bài, nhưng lượt chấm trả lời mà không dùng tới nó.
+   *
+   * `contextUsedQuestion` nói về BẬC MODEL ĐÃ TRẢ LỜI, không về cấu hình
+   * phiên — provider sàn (đếm từ khoá) khai `false` một cách trung thực vì
+   * nó không đụng tới đề bài. Nên câu chữ đi kèm KHÔNG được suy ra nguyên
+   * nhân "file bị xoá": với cấu hình không có Claude thì đây là mọi bài, và
+   * một cảnh báo đúng 100% số lần nhưng sai nguyên nhân còn tệ hơn im lặng.
    *
    * `=== false` chứ không `!contextUsedQuestion`: `null` nghĩa là bài chấm
    * trước khi hệ thống ghi lại điều này, và gộp nó vào đây sẽ báo động giả
@@ -191,12 +197,12 @@ function GradingPageContent() {
           )}
 
           {contextMismatch && (
-            <Alert variant="warning">
+            <Alert variant="info">
               <AlertDescription>
-                Phiên này được cấu hình có đề bài, nhưng một số bài đã chấm{' '}
-                <span className="font-semibold">mà không đọc được đề</span> — nhiều khả năng
-                file đã bị xoá khỏi kho sau khi chỉ định. Những bài đó được chấm ở mức ngữ
-                cảnh thấp hơn bạn nghĩ.
+                Phiên này có đề bài, nhưng một số bài được chấm bởi một lượt{' '}
+                <span className="font-semibold">không dùng tới đề bài</span>. Thường là do mô
+                hình dự phòng đang trả lời thay — nó chỉ đối chiếu rubric. Lượt phản biện vẫn
+                chạy bình thường, vì nó đọc đề bài bằng đường riêng.
               </AlertDescription>
             </Alert>
           )}

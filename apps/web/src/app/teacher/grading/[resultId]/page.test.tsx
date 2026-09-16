@@ -151,17 +151,17 @@ describe('GradingDetailPage', () => {
     );
   });
 
-  it('cảnh báo riêng cho bài chấm mà không đọc được đề', async () => {
+  it('báo riêng cho bài mà lượt chấm không dùng đề bài', async () => {
     resultsData = [result({ contextUsedQuestion: false })];
     await page();
-    expect(await screen.findByText(/chấm mà không đọc được đề/)).toBeInTheDocument();
+    expect(await screen.findByText(/không dùng đề bài/)).toBeInTheDocument();
   });
 
   it('không cảnh báo khi contextUsedQuestion là null', async () => {
     await page();
     await screen.findByText('Xử lý nhất quán dữ liệu');
     // null = bài chấm trước khi hệ thống đo, khác false = đã đo và không có.
-    expect(screen.queryByText(/chấm mà không đọc được đề/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/không dùng đề bài/)).not.toBeInTheDocument();
   });
 
   it('không tìm thấy bài thì chỉ đường quay lại, không hiện trang trống', async () => {

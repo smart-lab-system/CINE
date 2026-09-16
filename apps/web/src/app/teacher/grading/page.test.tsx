@@ -329,7 +329,7 @@ describe('GradingPage', () => {
       expect(await screen.findByRole('button', { name: /Chấm lại 1 bài treo/ })).toBeEnabled();
     });
 
-    it('cảnh báo khi ngữ cảnh đã cấu hình LỆCH với ngữ cảnh lượt chấm đọc được', async () => {
+    it('báo khi lượt chấm trả lời mà không dùng tới đề bài', async () => {
       useGradingReadinessMock.mockReturnValue({ data: READY, isLoading: false });
       useGradingResultsMock.mockReturnValue({
         data: [gradedResult({ contextUsedQuestion: false })],
@@ -338,7 +338,7 @@ describe('GradingPage', () => {
       searchParams = new URLSearchParams('sessionId=session-2');
       render(<GradingPage />);
 
-      expect(await screen.findByText(/mà không đọc được đề/)).toBeInTheDocument();
+      expect(await screen.findByText(/không dùng tới đề bài/)).toBeInTheDocument();
     });
 
     it('KHÔNG cảnh báo khi contextUsedQuestion là null — bài chấm trước khi đo', async () => {
@@ -353,7 +353,7 @@ describe('GradingPage', () => {
       await screen.findByText(/Mức sẵn sàng chấm/);
       // null = chưa đo, khác false = đã đo và không có. Gộp hai thứ sẽ báo
       // động giả trên mọi bài cũ.
-      expect(screen.queryByText(/mà không đọc được đề/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/không dùng tới đề bài/)).not.toBeInTheDocument();
     });
   });
 });
