@@ -308,6 +308,21 @@ describe('Duyệt hàng loạt (e2e)', () => {
     expect(await reviewCount(resultIds)).toBe(0);
   });
 
+  it('id LẶP → 400 nói đúng nguyên nhân, không nói "không thuộc phiên"', async () => {
+    // Không chặn ở DTO thì truy vấn trả về ít hàng hơn số id gửi lên, phép so
+    // khớp số lượng ở service bắt được, và thông báo nói về một chuyện hoàn
+    // toàn khác — người sửa lỗi đi tìm nhầm chỗ.
+    const { sessionId, resultIds } = await sessionWithGradedResults(1);
+
+    const res = await bulk(sessionId, {
+      resultIds: [resultIds[0], resultIds[0]],
+      rule: { kind: 'keep_ai' },
+    }).expect(400);
+
+    expect(JSON.stringify(res.body)).toMatch(/lặp/i);
+    expect(await reviewCount(resultIds)).toBe(0);
+  });
+
   it('tiêu chí không thuộc rubric của phiên → 400 và không ghi gì', async () => {
     const { sessionId, resultIds } = await sessionWithGradedResults(2);
 

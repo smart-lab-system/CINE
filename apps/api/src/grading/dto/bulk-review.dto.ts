@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsIn,
   IsNumber,
@@ -58,6 +59,10 @@ export class BulkReviewDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(500)
+  // Trùng id thì truy vấn trả về ít hàng hơn số id gửi lên, và phép so khớp
+  // số lượng ở service sẽ báo "có bài không thuộc phiên thi này" — một thông
+  // báo nói về chuyện hoàn toàn khác. Chặn ở đây để lỗi nói đúng nguyên nhân.
+  @ArrayUnique({ message: 'Danh sách có bài bị lặp — mỗi bài chỉ được nêu một lần.' })
   @IsUUID('4', { each: true })
   resultIds!: string[];
 
