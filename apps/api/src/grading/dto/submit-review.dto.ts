@@ -4,7 +4,10 @@ import {
   IsArray,
   IsIn,
   IsNumber,
+  IsOptional,
+  IsString,
   IsUUID,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -33,6 +36,26 @@ export class ReviewCriterionDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   points!: number;
+
+  /**
+   * Đoạn giảng viên tự bôi đen làm minh chứng, khi AI trích sai hoặc không
+   * trích được.
+   *
+   * Đi CÙNG `verdict` và `points` của chính tiêu chí đó, không phải một
+   * trường riêng ở tầng trên: `validateAndTotal` đòi payload phủ đủ mọi
+   * tiêu chí, nên không tồn tại đường gửi một minh chứng mà bỏ trống đánh
+   * giá đi kèm.
+   *
+   * ⚠️ Trường này BẮT BUỘC phải khai ở đây. `main.ts` chạy
+   * `ValidationPipe({ whitelist: true })` mà KHÔNG kèm
+   * `forbidNonWhitelisted`, nên một trường chưa khai bị cắt bỏ **không
+   * báo** và request vẫn trả 201 — giảng viên thấy lưu thành công trong
+   * khi dữ liệu không bao giờ tới DB.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  pinnedEvidence?: string;
 }
 
 /**
@@ -49,4 +72,16 @@ export class SubmitReviewDto {
   @ValidateNested({ each: true })
   @Type(() => ReviewCriterionDto)
   criteria!: ReviewCriterionDto[];
+
+  /** Ghi chú cho chính giảng viên. Không gửi cho sinh viên. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  privateNote?: string;
+
+  /** Nhận xét chính thức, đi vào phiếu phúc khảo. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  studentFeedback?: string;
 }

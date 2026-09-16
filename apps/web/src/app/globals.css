@@ -98,6 +98,17 @@
 
     --ring: 174 62% 40%;              /* focus ring = brand teal */
 
+    /* Evidence highlights — one hue per rubric criterion, on the grading
+       workspace. Deliberately NOT reused from the semantic set: success /
+       warning / danger carry a JUDGEMENT (passed / careful / broken), while
+       these carry only "belongs to criterion N". Tinting criterion 3's
+       quote green would read as "this criterion passed" even when it did
+       not. Kept light enough for --foreground to clear 4.5:1 on top. */
+    --ev-1: 45 93% 76%;
+    --ev-2: 213 94% 87%;
+    --ev-3: 152 55% 85%;
+    --ev-4: 280 70% 89%;
+
     /* Elevation — soft, multi-layer, tinted with the slate text colour
        instead of pure black, so shadows read as depth rather than dirt. */
     --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04);
@@ -156,6 +167,14 @@
     --destructive-foreground: 0 0% 100%;
 
     --ring: 174 55% 52%;
+
+    /* Cùng hue, tối đi — trên nền tối một vệt tô sáng phải là mảng ĐẬM hơn
+       chữ xung quanh, không phải sáng hơn, nếu không nó đọc ra như lỗi hiển
+       thị chứ không như một dấu bút. */
+    --ev-1: 45 60% 28%;
+    --ev-2: 213 55% 30%;
+    --ev-3: 152 45% 24%;
+    --ev-4: 280 45% 30%;
 
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.35);
     --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.45);

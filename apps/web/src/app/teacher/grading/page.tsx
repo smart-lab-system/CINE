@@ -1,8 +1,8 @@
 'use client';
 
 import { Suspense, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Play } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -19,10 +19,18 @@ import {
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { ReviewWorkspace } from './_components/ReviewWorkspace';
 import { FinalizeGradesButton } from './_components/FinalizeGradesButton';
+import { SessionRubricCard } from './_components/SessionRubricCard';
+import { ReadinessStrip } from './_components/ReadinessStrip';
+import { GradingReferenceDialog } from './_components/GradingReferenceDialog';
+import { ConfidenceTiles } from './_components/ConfidenceTiles';
+import { AnomalyPanel } from './_components/AnomalyPanel';
+import { NotBuiltYetPanel } from './_components/NotBuiltYetPanel';
+import { bucketOf, type Bucket } from '@/lib/grading-triage';
 import {
   useGradingResults,
+  useGradingReadiness,
+  useRegradeStuck,
   useRubrics,
-  useSetSessionRubric,
   useGradingProgress,
   useStartGrading,
 } from '@/hooks/useGrading';
@@ -87,6 +95,46 @@ function GradingPageContent() {
   const grading = (progress.data?.pending ?? 0) > 0;
   const hasResults = (results.data?.length ?? 0) > 0;
 
+  const readiness = useGradingReadiness(sessionId || undefined);
+  const regrade = useRegradeStuck(sessionId || undefined);
+  const rubrics = useRubrics(courseId);
+  const [configuring, setConfiguring] = useState(false);
+  const [bucket, setBucket] = useState<Bucket>('flagged');
+
+  // Rubric ĐÃ GHIM của phiên, không phải bản mới nhất của môn: bản active
+  // có thể đã là v5 trong khi phiên này được chấm bằng v3, và thang điểm
+  // dùng để quy kiến nghị phản biện phải là thang đã chấm.
+  const pinnedRubric = rubrics.data?.find(
+    (item) => item.version === session?.rubricVersion,
+  );
+
+  const queueActive = progress.data?.queue.active ?? 0;
+  const shown = useMemo(
+    () => (results.data ?? []).filter((item) => bucketOf(item, queueActive) === bucket),
+    [results.data, queueActive, bucket],
+  );
+  const stuckCount = useMemo(
+    () => (results.data ?? []).filter((item) => bucketOf(item, queueActive) === 'stuck').length,
+    [results.data, queueActive],
+  );
+
+  /**
+   * Phiên CÓ đề bài, nhưng lượt chấm trả lời mà không dùng tới nó.
+   *
+   * `contextUsedQuestion` nói về BẬC MODEL ĐÃ TRẢ LỜI, không về cấu hình
+   * phiên — provider sàn (đếm từ khoá) khai `false` một cách trung thực vì
+   * nó không đụng tới đề bài. Nên câu chữ đi kèm KHÔNG được suy ra nguyên
+   * nhân "file bị xoá": với cấu hình không có Claude thì đây là mọi bài, và
+   * một cảnh báo đúng 100% số lần nhưng sai nguyên nhân còn tệ hơn im lặng.
+   *
+   * `=== false` chứ không `!contextUsedQuestion`: `null` nghĩa là bài chấm
+   * trước khi hệ thống ghi lại điều này, và gộp nó vào đây sẽ báo động giả
+   * trên mọi bài cũ.
+   */
+  const contextMismatch =
+    readiness.data?.hasQuestion === true &&
+    (results.data ?? []).some((item) => item.contextUsedQuestion === false);
+
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
@@ -138,6 +186,63 @@ function GradingPageContent() {
             rubricVersion={session.rubricVersion}
             hasResults={hasResults}
           />
+
+          {/* Mức sẵn sàng đứng TRƯỚC tiến độ. "Đã chấm 45/45" không nói gì
+              về việc 45 bài ấy được chấm với đề bài trong tay hay không, và
+              lượt phản biện chỉ chạy khi có đề bài. */}
+          {readiness.data && (
+            <ReadinessStrip
+              readiness={readiness.data}
+              onConfigure={() => setConfiguring(true)}
+            />
+          )}
+
+          {contextMismatch && (
+            <Alert variant="info">
+              <AlertDescription>
+                Phiên này có đề bài, nhưng một số bài được chấm bởi một lượt{' '}
+                <span className="font-semibold">không dùng tới đề bài</span>. Thường là do mô
+                hình dự phòng đang trả lời thay — nó chỉ đối chiếu rubric. Lượt phản biện vẫn
+                chạy bình thường, vì nó đọc đề bài bằng đường riêng.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <GradingReferenceDialog
+            examSessionId={session.id}
+            open={configuring}
+            onOpenChange={setConfiguring}
+            readiness={
+              readiness.data ?? {
+                level: 'rubric_only',
+                warning: null,
+                hasQuestion: false,
+                hasModelAnswer: false,
+              }
+            }
+          />
+
+          {hasResults && (
+            <>
+              <ConfidenceTiles
+                results={results.data!}
+                queueActive={queueActive}
+                active={bucket}
+                onChange={setBucket}
+              />
+              <AnomalyPanel results={results.data!} rubric={pinnedRubric} />
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+                <p className="flex-1 text-small text-muted-foreground">
+                  Nhiều bài cùng một kiểu? Xử lý cả nhóm trong một màn thay vì mở từng bài.
+                </p>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/teacher/grading/matrix?sessionId=${sessionId}`}>
+                    Mở ma trận điều hành
+                  </Link>
+                </Button>
+              </div>
+            </>
+          )}
 
           <Card className="overflow-hidden">
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-4 border-b border-border bg-surface-2/60">
@@ -237,7 +342,60 @@ function GradingPageContent() {
                 </p>
               ) : (
                 <div className="flex flex-col gap-4">
-                  <ReviewWorkspace examSessionId={sessionId} results={results.data!} />
+                  {shown.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-border px-4 py-3 text-small text-muted-foreground">
+                      Không có bài nào trong nhóm đang lọc. Chọn một ô khác ở trên.
+                    </p>
+                  ) : (
+                    <ReviewWorkspace examSessionId={sessionId} results={shown} />
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Chỉ bật khi hàng đợi KHÔNG còn job chạy. Một bài đang
+                        được worker chấm dở cũng ở `ai_grading`, và xếp lại
+                        nó là tự tạo ra đúng lượt chấm trùng mà jobId sinh ra
+                        để chặn — chặn được, nhưng con số trả về sẽ nói dối. */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      loading={regrade.isPending}
+                      disabled={queueActive > 0 || stuckCount === 0}
+                      title={
+                        stuckCount === 0
+                          ? 'Không có bài nào treo.'
+                          : queueActive > 0
+                            ? 'Hàng đợi còn đang chạy — chờ xong đã, nếu không sẽ xếp lại cả bài đang được chấm dở.'
+                            : undefined
+                      }
+                      onClick={() => regrade.mutate()}
+                    >
+                      Chấm lại {stuckCount} bài treo
+                    </Button>
+                    {regrade.isSuccess && (
+                      <span className="text-caption text-muted-foreground">
+                        Đã xếp lại {regrade.data.requeued}/{regrade.data.stuck} bài.
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <NotBuiltYetPanel
+                      title="Điều khiển hàng đợi"
+                      missing="Hàng đợi đã có sẵn cơ chế tạm dừng và chạy lại, nhưng chưa có đường gọi từ màn hình này."
+                    >
+                      <Button variant="outline" size="sm">Tạm dừng</Button>
+                      <Button variant="outline" size="sm">Huỷ phần còn lại</Button>
+                    </NotBuiltYetPanel>
+
+                    <NotBuiltYetPanel
+                      title="Chấm thử trước"
+                      missing="Hiện chỉ chấm được cả phiên một lượt — chưa chọn được một nhóm nhỏ để thử trước khi giao cả lớp."
+                    >
+                      <Button variant="outline" size="sm">Chọn 3 bài chấm thử</Button>
+                    </NotBuiltYetPanel>
+                  </div>
+
                   <FinalizeGradesButton
                     examSessionId={sessionId}
                     results={results.data!}
@@ -249,135 +407,5 @@ function GradingPageContent() {
         </>
       )}
     </div>
-  );
-}
-
-/**
- * Rubric của phiên thi này — hiển thị, và đổi được cho tới khi bài đầu tiên
- * được chấm.
- *
- * KHÔNG phải editor. Soạn rubric là việc theo MÔN, làm một lần, và sống ở
- * /teacher/rubrics. Ở đây chỉ có một quyết định: phiên này chấm bằng bản
- * nào — và phiên bản hiện ra là bản ĐÃ GHIM của phiên, không phải bản mới
- * nhất của môn.
- */
-function SessionRubricCard({
-  sessionId,
-  courseId,
-  rubricVersion,
-  hasResults,
-}: {
-  sessionId: string;
-  courseId: string | undefined;
-  rubricVersion: number | null;
-  hasResults: boolean;
-}) {
-  const rubrics = useRubrics(courseId);
-  const setRubric = useSetSessionRubric(sessionId);
-  const options = rubrics.data ?? [];
-
-  // Phiên chưa gắn rubric: chặn, nhưng KHÔNG ẩn khỏi danh sách và không im
-  // lặng. Bài thi thật của sinh viên đang nằm trong phiên này (spec §5.3).
-  if (rubricVersion === null) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col gap-4 py-6">
-          <Alert variant="warning">
-            <AlertDescription>
-              <span className="font-semibold">
-                Phiên thi này chưa gắn rubric — chưa chấm được.
-              </span>{' '}
-              Bài đã thu vẫn còn nguyên; chọn rubric bên dưới là chấm được ngay.
-            </AlertDescription>
-          </Alert>
-
-          {options.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <Select
-                onValueChange={(value) => setRubric.mutate(value)}
-                disabled={setRubric.isPending}
-              >
-                <SelectTrigger id="attach-rubric" className="max-w-md">
-                  <SelectValue placeholder="Chọn rubric cho phiên thi này" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map((rubric) => (
-                    <SelectItem key={rubric.id} value={rubric.id}>
-                      Phiên bản {rubric.version} — {rubric.totalPoints} điểm
-                      {rubric.isActive ? ' (mới nhất)' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Link
-                href="/teacher/rubrics"
-                className="text-small font-semibold underline underline-offset-2"
-              >
-                Quản lý rubric
-              </Link>
-            </div>
-          ) : (
-            <p className="text-small text-muted-foreground">
-              Môn này chưa có rubric nào.{' '}
-              <Link
-                href="/teacher/rubrics"
-                className="font-semibold underline underline-offset-2"
-              >
-                Soạn rubric
-              </Link>{' '}
-              rồi quay lại đây.
-            </p>
-          )}
-
-          {setRubric.isError && (
-            <Alert variant="destructive">
-              <AlertDescription>{setRubric.error.message}</AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
-        <p className="text-small">
-          Phiên thi này chấm theo{' '}
-          <span className="font-semibold">rubric phiên bản {rubricVersion}</span>.{' '}
-          <Link
-            href="/teacher/rubrics"
-            className="underline underline-offset-2 text-muted-foreground"
-          >
-            Quản lý rubric
-          </Link>
-        </p>
-
-        {hasResults ? (
-          // Không phải nút tắt câm: nói luôn vì sao. Đổi rubric sau khi đã
-          // chấm là viết lại thứ mà kết quả đã trỏ tới — Security rule 7.
-          <p className="text-caption text-muted-foreground">
-            Đã có kết quả chấm nên không đổi được rubric nữa.
-          </p>
-        ) : (
-          <Select
-            onValueChange={(value) => setRubric.mutate(value)}
-            disabled={setRubric.isPending || options.length === 0}
-          >
-            <SelectTrigger id="change-rubric" className="max-w-xs">
-              <SelectValue placeholder="Đổi rubric" />
-            </SelectTrigger>
-            <SelectContent>
-              {options.map((rubric) => (
-                <SelectItem key={rubric.id} value={rubric.id}>
-                  Phiên bản {rubric.version} — {rubric.totalPoints} điểm
-                  {rubric.isActive ? ' (mới nhất)' : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </CardContent>
-    </Card>
   );
 }

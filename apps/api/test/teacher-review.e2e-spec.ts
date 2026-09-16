@@ -790,4 +790,70 @@ describe('TeacherReview (e2e)', () => {
       expect(Number(latest.final_score)).toBe(10);
     });
   });
+
+  /**
+   * Ghi chú và minh chứng do giảng viên gán — spec 2026-09-16 §5.2.5.
+   *
+   * Ca đáng sợ nhất ở đây KHÔNG phải một lỗi 400. Nó là một 201 im lặng:
+   * `main.ts` chạy `ValidationPipe({ whitelist: true })` mà KHÔNG kèm
+   * `forbidNonWhitelisted`, nên một trường chưa khai trong DTO bị cắt bỏ
+   * không báo, request vẫn thành công, và thứ giảng viên vừa gán biến mất
+   * không dấu vết. Bộ test này tồn tại để cái cắt đó không im lặng được.
+   */
+  describe('ghi chú và minh chứng gán tay', () => {
+    it('lưu pinnedEvidence, ghi chú riêng và nhận xét cho sinh viên', async () => {
+      const { resultId } = await sessionWithOneGradedSubmission();
+
+      const res = await submitReview(tokenA, resultId, {
+        criteria: criterionIds.map((criterionId, index) => ({
+          criterionId,
+          verdict: 'met' as const,
+          points: 5,
+          ...(index === 0 ? { pinnedEvidence: 'em đã nêu đủ cả hai chiều' } : {}),
+        })),
+        privateNote: 'châm chước lỗi chính tả',
+        studentFeedback: 'Bài tốt, thiếu ví dụ minh hoạ.',
+      });
+      expect(res.status).toBe(201);
+
+      const [row] = await dataSource.query(
+        `SELECT edited_criteria, private_note, student_feedback
+           FROM examcollect.teacher_review
+          WHERE grading_result_id = $1
+          ORDER BY reviewed_at DESC LIMIT 1`,
+        [resultId],
+      );
+      expect(row.private_note).toBe('châm chước lỗi chính tả');
+      expect(row.student_feedback).toBe('Bài tốt, thiếu ví dụ minh hoạ.');
+      expect(row.edited_criteria[0].pinnedEvidence).toBe('em đã nêu đủ cả hai chiều');
+    });
+
+    it('vẫn bắt buộc chấm ĐỦ mọi tiêu chí, kể cả khi chỉ muốn gán minh chứng', async () => {
+      // Không có đường gửi riêng một tiêu chí, nên không có ca "gán minh
+      // chứng mà quên cập nhật đánh giá". Ràng buộc đó là thứ cho không.
+      const { resultId } = await sessionWithOneGradedSubmission();
+
+      const res = await submitReview(tokenA, resultId, {
+        criteria: [
+          { criterionId: criterionIds[0], verdict: 'met', points: 5, pinnedEvidence: 'abc' },
+        ],
+      });
+      expect(res.status).toBe(400);
+      expect(await countReviews(resultId)).toBe(0);
+    });
+
+    it('bỏ trống ghi chú thì lưu null, không lưu chuỗi rỗng', async () => {
+      const { resultId } = await sessionWithOneGradedSubmission();
+      const res = await submitReview(tokenA, resultId, fullMarks());
+      expect(res.status).toBe(201);
+
+      const [row] = await dataSource.query(
+        `SELECT private_note, student_feedback FROM examcollect.teacher_review
+          WHERE grading_result_id = $1`,
+        [resultId],
+      );
+      expect(row.private_note).toBeNull();
+      expect(row.student_feedback).toBeNull();
+    });
+  });
 });

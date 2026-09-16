@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   GROUP_LABELS,
@@ -9,16 +10,18 @@ import {
   type ReviewGroup,
 } from '@/lib/grading-groups';
 import type { GradingResult } from '@/lib/api/grading';
-import { ReviewDetail } from './ReviewDetail';
 
 /**
- * Hai cột: rail trái là tiến độ cả phiên, khung phải là bài đang duyệt.
+ * Danh sách bài của một phiên, nhóm theo trạng thái.
  *
- * Không phải bảng phẳng — duyệt bài là việc THEO TỪNG BÀI, cần chỗ cho đoạn
- * bằng chứng và ô sửa của từng tiêu chí; với 40 bài, bảng thành 40 lần đóng/mở.
+ * TỪ 2026-09-16 đây là danh sách thuần: khung chấm chi tiết chuyển sang route
+ * riêng `/teacher/grading/[resultId]`. Lý do là không gian — split-view cần
+ * hai cột 50-50 cho bài làm và thang chấm, và nhét nó vào nửa phải của một
+ * trang đã có rail trái thì cả hai bên đều chật. Route riêng cũng cho một
+ * đường dẫn trỏ thẳng vào một bài, thứ cần thật khi sinh viên phúc khảo.
  *
- * Cũng không phải chế độ toàn màn hình một bài: nó giấu mất "còn bao nhiêu bài
- * Cần xem", mà đó chính là điều kiện bật nút Chốt.
+ * Vẫn KHÔNG phải chế độ toàn màn hình một bài: danh sách này giữ nguyên
+ * "còn bao nhiêu bài cần duyệt", mà đó chính là điều kiện bật nút Chốt.
  */
 export function ReviewWorkspace({
   examSessionId,
@@ -36,14 +39,20 @@ export function ReviewWorkspace({
     return map;
   }, [results]);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected =
-    results.find((result) => result.id === selectedId) ?? results[0] ?? null;
+  if (results.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-small text-muted-foreground">Chưa có bài nào để duyệt.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="grid gap-0 p-0 md:grid-cols-[minmax(14rem,18rem)_1fr]">
-        <nav className="flex flex-col gap-4 border-b border-border p-4 md:border-b-0 md:border-r">
+      <CardContent className="p-0">
+        <nav className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
           {GROUP_ORDER.filter((group) => (grouped.get(group)?.length ?? 0) > 0).map(
             (group) => (
               <div key={group} className="flex flex-col gap-1">
@@ -51,12 +60,10 @@ export function ReviewWorkspace({
                   {GROUP_LABELS[group]} ({grouped.get(group)!.length})
                 </p>
                 {grouped.get(group)!.map((result) => (
-                  <button
+                  <Link
                     key={result.id}
-                    type="button"
-                    onClick={() => setSelectedId(result.id)}
-                    data-active={result.id === selected?.id}
-                    className="flex items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-small hover:bg-surface-2 data-[active=true]:bg-surface-2"
+                    href={`/teacher/grading/${result.id}?sessionId=${examSessionId}`}
+                    className="flex items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-small hover:bg-surface-2"
                   >
                     <span className="truncate">{result.studentName}</span>
                     <span className="tabular-nums text-muted-foreground">
@@ -66,24 +73,12 @@ export function ReviewWorkspace({
                           giá trị trống. */}
                       {result.finalScore ?? result.aiTotalScore ?? '—'}
                     </span>
-                  </button>
+                  </Link>
                 ))}
               </div>
             ),
           )}
         </nav>
-
-        <div className="p-6">
-          {selected ? (
-            <ReviewDetail
-              key={selected.id}
-              examSessionId={examSessionId}
-              result={selected}
-            />
-          ) : (
-            <p className="text-small text-muted-foreground">Chưa có bài nào để duyệt.</p>
-          )}
-        </div>
       </CardContent>
     </Card>
   );

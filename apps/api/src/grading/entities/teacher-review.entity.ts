@@ -2,6 +2,7 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { GradingResultEntity } from './grading-result.entity';
+import type { BulkRule } from '../bulk-rules';
 
 // Edits always create a new row here — the original AI output in
 // GradingResult is never overwritten (see the guard trigger there).
@@ -36,6 +37,31 @@ export class TeacherReviewEntity extends BaseEntity {
 
   @Column({ name: 'edited_criteria', type: 'jsonb', default: {} })
   editedCriteria!: Record<string, unknown>;
+
+  /**
+   * Ghi chú cho chính giảng viên. KHÔNG bao giờ gửi cho sinh viên.
+   *
+   * Tách khỏi `studentFeedback` có chủ đích: gộp làm một thì hoặc giảng
+   * viên tự kiểm duyệt ghi chú của mình — và mất đi lý do thật của quyết
+   * định — hoặc một câu viết cho mình lọt tới sinh viên.
+   */
+  @Column({ name: 'private_note', type: 'text', nullable: true })
+  privateNote!: string | null;
+
+  /** Nhận xét chính thức. Đi vào phiếu phúc khảo gửi sinh viên. */
+  @Column({ name: 'student_feedback', type: 'text', nullable: true })
+  studentFeedback!: string | null;
+
+  /**
+   * Luật hàng loạt đã sinh ra dòng này. `null` = duyệt tay từng bài.
+   *
+   * Đây là thứ trả lời được "vì sao em được điểm này" cho một dòng bất kỳ,
+   * kể cả dòng chưa bao giờ đi qua audit — và audit chỉ bắn sau khi chốt
+   * điểm, nên ca thường gặp nhất (duyệt hàng loạt TRƯỚC khi chốt) không có
+   * dấu vết nào khác ngoài cột này.
+   */
+  @Column({ name: 'applied_rule', type: 'jsonb', nullable: true })
+  appliedRule!: BulkRule | null;
 
   @Column({ name: 'reviewed_at', type: 'timestamptz', default: () => 'now()' })
   reviewedAt!: Date;

@@ -20,12 +20,15 @@ import { ExamSessionService } from '../exam-session/exam-session.service';
 import { GradingService } from './grading.service';
 import { GradingRunService } from './grading-run.service';
 import { GradingReferenceService } from './grading-reference.service';
+import { SubmissionTextService } from './submission-text.service';
 import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { SaveRubricDto } from './dto/rubric.dto';
 import { SetSessionRubricDto } from './dto/set-session-rubric.dto';
 import { SubmitReviewDto } from './dto/submit-review.dto';
+import { BulkReviewDto } from './dto/bulk-review.dto';
+import { BulkReviewService } from './bulk-review.service';
 
 /**
  * The grading side of the API.
@@ -45,6 +48,8 @@ export class GradingController {
     private readonly teacherReviews: TeacherReviewService,
     private readonly examSessions: ExamSessionService,
     private readonly references: GradingReferenceService,
+    private readonly submissionText: SubmissionTextService,
+    private readonly bulkReviews: BulkReviewService,
   ) {}
 
   @Get('courses/:courseId/rubrics')
@@ -129,6 +134,45 @@ export class GradingController {
   ) {
     const result = await this.grading.findResultForOwner(id, req.user!.sub);
     return this.teacherReviews.review(result, req.user!.sub, dto);
+  }
+
+  /**
+   * Áp một luật cho nhiều bài cùng lúc.
+   *
+   * MỘT route cho cả duyệt hàng loạt lẫn can thiệp theo tiêu chí: chúng là
+   * cùng một phép toán ở hai độ mịn, và tách đôi thì phần khó — giao dịch,
+   * khoá hàng, cổng trạng thái, audit — bị nhân đôi còn phần dễ thì không.
+   */
+  @Post('exam-sessions/:id/bulk-review')
+  @Roles('teacher')
+  @HttpCode(200)
+  async bulkReview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BulkReviewDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.bulkReviews.bulkReview(session, req.user!.sub, dto);
+  }
+
+  /**
+   * Bài làm kèm VỊ TRÍ mọi dẫn chứng AI đã trích.
+   *
+   * Trả toạ độ chứ không trả chuỗi thô, vì phép đối chiếu chạy trên cả bài
+   * đã làm phẳng và chỉ phía cầm nguyên chuỗi đó mới định vị đúng được —
+   * spec 2026-09-16 §5.2. Client tự so lại sẽ trượt đúng những trích dẫn
+   * vắt qua ranh giới đoạn.
+   *
+   * Kiểm sở hữu như 11 route còn lại: đây là bài làm của sinh viên.
+   */
+  @Get('grading-results/:id/submission-text')
+  @Roles('teacher')
+  async submissionTextForResult(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const result = await this.grading.findResultForOwner(id, req.user!.sub);
+    return this.submissionText.forResult(result);
   }
 
   /**
