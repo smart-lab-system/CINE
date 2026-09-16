@@ -110,6 +110,11 @@ export class TeacherReviewService {
           // diffs is exactly what makes an edit history useless at the moment
           // it matters.
           editedCriteria: dto.criteria as unknown as Record<string, unknown>,
+          // `?? null` chứ không `?? ''`: chuỗi rỗng đọc ra như "đã viết rồi
+          // xoá", khác "chưa bao giờ viết". Trường ghi chú là chỗ người ta
+          // đi tìm lý do sáu tháng sau, nên khác biệt đó có giá.
+          privateNote: dto.privateNote ?? null,
+          studentFeedback: dto.studentFeedback ?? null,
         }),
       );
 
