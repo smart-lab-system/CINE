@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   advocateScore,
+  deltaGroupOf,
   bucketOf,
   countBuckets,
   findAnomalies,
@@ -206,5 +207,40 @@ describe('findAnomalies', () => {
 
   it('danh sách rỗng không sinh bất thường nào', () => {
     expect(findAnomalies([], max)).toEqual([]);
+  });
+});
+
+describe('deltaGroupOf', () => {
+  const max = new Map([['c1', 4]]);
+
+  function withAdvocate(aiPoints: number, suggested: 'met' | 'partially_met' | 'not_met') {
+    return result({
+      aiTotalScore: aiPoints,
+      criterionResults: [criterion({ criterionId: 'c1', verdict: 'not_met', points: aiPoints })],
+      advocateOpinion: opinion({
+        suggestedVerdicts: [{ criterionId: 'c1', suggestedVerdict: suggested, why: '' }],
+      }),
+    });
+  }
+
+  it('không có ý kiến phản biện → nhóm RIÊNG, không gộp vào "không lệch"', () => {
+    // Gộp vào "không lệch" là nói dối: hai lượt không hề đồng thuận, chỉ có
+    // một lượt lên tiếng.
+    expect(deltaGroupOf(result({ advocateOpinion: null }), max)).toBe('no-advocate');
+  });
+
+  it('hai lượt cho cùng điểm → zero', () => {
+    expect(deltaGroupOf(withAdvocate(0, 'not_met'), max)).toBe('zero');
+  });
+
+  it('lệch ĐÚNG 1,5 vẫn thuộc nhóm dưới', () => {
+    // AI 0.5, phản biện đề nghị partially_met = 2 ⇒ lệch đúng 1.5.
+    // Biên phải nằm ở một phía cố định, không thì một bài lệch đúng ngưỡng
+    // rơi vào nhóm nào là tuỳ thứ tự hai câu `if`.
+    expect(deltaGroupOf(withAdvocate(0.5, 'partially_met'), max)).toBe('small');
+  });
+
+  it('lệch trên 1,5 → large', () => {
+    expect(deltaGroupOf(withAdvocate(0, 'met'), max)).toBe('large');
   });
 });
