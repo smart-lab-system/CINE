@@ -28,6 +28,12 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
         evidence: 'chưa nêu độ phức tạp',
       },
     ],
+    // Mặc định là "cổng phản biện không kích hoạt" và "chấm trước khi hệ
+    // thống ghi lại ngữ cảnh" — đúng hình dạng của mọi bài đã chấm trước
+    // hôm nay, nên đó là mặc định trung thực cho factory này.
+    advocateOpinion: null,
+    contextUsedQuestion: null,
+    contextUsedModelAnswer: null,
     finalScore: null,
     reviewedAt: null,
     reviewedByName: null,

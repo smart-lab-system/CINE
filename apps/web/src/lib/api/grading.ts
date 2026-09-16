@@ -15,6 +15,68 @@ export interface ReviewCriterion {
   criterionId: string;
   verdict: 'met' | 'partially_met' | 'not_met';
   points: number;
+  /**
+   * Đoạn giảng viên tự bôi đen làm minh chứng, khi AI trích sai hoặc không
+   * trích được. Đi cùng `verdict` và `points` của chính tiêu chí đó — server
+   * đòi payload phủ đủ mọi tiêu chí, nên không có đường gán minh chứng mà
+   * bỏ trống đánh giá.
+   */
+  pinnedEvidence?: string;
+}
+
+/** Mirrors AdvocateOpinion (apps/api/src/grading/ai-provider/advocate.types.ts). */
+export interface AdvocateOpinion {
+  isCorrect: 'yes' | 'partially' | 'no';
+  /** Văn xuôi, viết cho giảng viên đọc — không phải cho máy parse. */
+  reasoning: string;
+  evidence: string[];
+  suggestedVerdicts: {
+    criterionId: string;
+    suggestedVerdict: 'met' | 'partially_met' | 'not_met';
+    why: string;
+  }[];
+  /**
+   * Dẫn chứng KHÔNG định vị được trong bài.
+   *
+   * `null` = CHƯA đối chiếu, `[]` = đã đối chiếu và không mẩu nào trượt.
+   * Hiển thị hai thứ đó giống nhau là sai đúng ở chỗ nguy hiểm nhất: lượt
+   * phản biện đang lập luận để NÂNG điểm, và một giảng viên ở bài thứ 35
+   * sẽ có xu hướng đồng ý.
+   */
+  unverifiedEvidence: string[] | null;
+}
+
+/** Một mẩu dẫn chứng đã được server định vị, theo offset TRONG MỘT ĐOẠN. */
+export interface SubmissionTextSpan {
+  criterionId: string;
+  paragraph: number;
+  start: number;
+  end: number;
+}
+
+/**
+ * Bài làm kèm toạ độ dẫn chứng.
+ *
+ * Client KHÔNG tự so chuỗi. Server đối chiếu trên cả bài đã làm phẳng, nên
+ * chỉ nó mới định vị đúng được — kể cả trích dẫn vắt qua ranh giới đoạn.
+ */
+export interface SubmissionText {
+  paragraphs: string[];
+  spans: SubmissionTextSpan[];
+  /** Tiêu chí có dẫn chứng nhưng không tìm thấy trong bài làm. */
+  unlocatable: string[];
+  /** Bài đã bị cắt LÚC CHẤM — phần sau đó model chưa bao giờ đọc. */
+  truncatedByGrading: boolean;
+}
+
+export type ReadinessLevel = 'rubric_only' | 'with_question' | 'with_model_answer';
+
+export interface GradingReadiness {
+  level: ReadinessLevel;
+  /** `null` khi đủ tài liệu. Chuỗi này để UI hiện nguyên văn. */
+  warning: string | null;
+  hasQuestion: boolean;
+  hasModelAnswer: boolean;
 }
 
 /** Mirrors GradingResultView (apps/api/src/grading/grading.service.ts). */
@@ -42,6 +104,22 @@ export interface GradingResult {
      */
     check?: 'ok' | 'empty' | 'unverified' | null;
   }[];
+  /**
+   * Ý kiến của lượt phản biện.
+   *
+   * `null` nghĩa là cổng KHÔNG kích hoạt — không có tiêu chí chưa đạt, hoặc
+   * phiên chưa có đề bài. Khác hẳn "đã chạy và không bênh được gì", và màn
+   * hình phải nói ra khác biệt đó thay vì vẽ một khối rỗng.
+   */
+  advocateOpinion: AdvocateOpinion | null;
+  /**
+   * Ngữ cảnh lượt chấm THỰC SỰ đọc được, không phải ngữ cảnh đã cấu hình.
+   *
+   * `null` = chấm trước khi hệ thống ghi lại điều này; `false` = đã đo và
+   * không có. Hai giá trị đó dẫn tới hai câu khác nhau trên màn hình.
+   */
+  contextUsedQuestion: boolean | null;
+  contextUsedModelAnswer: boolean | null;
   /**
    * Điểm cuối cùng — dòng `teacher_review` mới nhất.
    *
@@ -183,4 +261,96 @@ export async function listGradingResults(examSessionId: string): Promise<Grading
   );
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as GradingResult[];
+}
+
+/**
+ * Bài làm kèm vị trí dẫn chứng.
+ *
+ * Trả về toạ độ, không phải chuỗi thô để client tự tìm. Xem
+ * `docs/superpowers/specs/2026-09-16-grading-ui-design.md` §5.2 cho lý do:
+ * phép đối chiếu chạy trên cả bài đã làm phẳng, nên client chẻ đoạn rồi tự
+ * so sẽ trượt đúng những trích dẫn vắt qua ranh giới đoạn — và báo "không
+ * tìm thấy" cho câu mà hệ thống đã xác nhận có thật.
+ */
+export async function getSubmissionText(gradingResultId: string): Promise<SubmissionText> {
+  const { data, error, response } = await apiClient.GET(
+    '/grading-results/{id}/submission-text',
+    { params: { path: { id: gradingResultId } } },
+  );
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as SubmissionText;
+}
+
+/** Mức ngữ cảnh mà phiên này sẽ được chấm với. */
+export async function getGradingReadiness(examSessionId: string): Promise<GradingReadiness> {
+  const { data, error, response } = await apiClient.GET(
+    '/exam-sessions/{id}/grading-readiness',
+    { params: { path: { id: examSessionId } } },
+  );
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as GradingReadiness;
+}
+
+export interface GradingReferenceInput {
+  questionMaterialId?: string | null;
+  modelAnswerStorageKey?: string | null;
+  modelAnswerFilename?: string | null;
+  modelAnswerNote?: string | null;
+}
+
+/**
+ * Đặt tài liệu tham chiếu cho một phiên.
+ *
+ * BỎ TRỐNG một trường = GIỮ NGUYÊN; gửi `null` = XOÁ. Hai thứ đó khác nhau,
+ * và gộp chúng sẽ khiến giảng viên chỉ sửa ghi chú lại mất luôn lựa chọn đề
+ * bài — một mất mát họ không thấy cho tới lượt chấm sau.
+ *
+ * Server trả 409 khi phiên đã có kết quả chấm: từ lúc đó, đổi tài liệu là
+ * viết lại ngữ cảnh mà những bài đã chấm đã dùng.
+ */
+export async function setGradingReference(
+  examSessionId: string,
+  body: GradingReferenceInput,
+): Promise<void> {
+  const { error, response } = await apiClient.PUT('/exam-sessions/{id}/grading-reference', {
+    params: { path: { id: examSessionId } },
+    body,
+  });
+  if (error || !response.ok) throw fail(error, response);
+}
+
+/**
+ * Xin URL để tải đáp án mẫu thẳng lên kho.
+ *
+ * File KHÔNG đi qua API server (Security rule 5). Khoá do server cấp, client
+ * không được tự đặt — một khoá tuỳ ý sẽ cho phép trỏ bản ghi này vào bất kỳ
+ * object nào trong bucket.
+ */
+export async function requestAnswerKeyUpload(
+  examSessionId: string,
+): Promise<{ storageKey: string; uploadUrl: string; expiresIn: number }> {
+  const { data, error, response } = await apiClient.POST(
+    '/exam-sessions/{id}/grading-reference/answer-key-upload',
+    { params: { path: { id: examSessionId } } },
+  );
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { storageKey: string; uploadUrl: string; expiresIn: number };
+}
+
+/**
+ * Xếp lại những bài kẹt ở `ai_grading` mà KHÔNG còn job sống.
+ *
+ * `stuck` là số bài đang kẹt, `requeued` là số bài thật sự được xếp lại —
+ * hai con số có thể khác nhau, và trộn chúng sẽ báo cho giảng viên một
+ * tiến độ chưa xảy ra.
+ */
+export async function regradeStuck(
+  examSessionId: string,
+): Promise<{ stuck: number; requeued: number }> {
+  const { data, error, response } = await apiClient.POST(
+    '/exam-sessions/{id}/regrade-stuck',
+    { params: { path: { id: examSessionId } } },
+  );
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { stuck: number; requeued: number };
 }

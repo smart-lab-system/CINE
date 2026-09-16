@@ -5,12 +5,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   finalizeGrades,
   getGradingProgress,
+  getGradingReadiness,
+  getSubmissionText,
   listGradingResults,
   listRubrics,
+  regradeStuck,
   saveRubric,
+  setGradingReference,
   setSessionRubric,
   startGrading,
   submitReview,
+  type GradingReferenceInput,
   type ReviewCriterion,
 } from '@/lib/api/grading';
 
@@ -202,4 +207,76 @@ export function useGradingProgress(examSessionId: string | undefined) {
   }, [pending, examSessionId, queryClient]);
 
   return query;
+}
+
+/**
+ * Khoá cache của mức sẵn sàng — export để test ghim đúng chuỗi này.
+ *
+ * Invalidate nhầm khoá là một lỗi KHÔNG hiện ra: lưu xong, server đã đổi,
+ * màn hình vẫn vẽ mức cũ, và giảng viên bấm "Bắt đầu chấm" tin rằng mình
+ * đang ở mức 2 trong khi vừa gỡ đề bài ra.
+ */
+export function readinessQueryKey(examSessionId: string | undefined) {
+  return ['exam-sessions', examSessionId, 'grading-readiness'] as const;
+}
+
+/** Phiên này sẽ được chấm với bao nhiêu ngữ cảnh. */
+export function useGradingReadiness(examSessionId: string | undefined) {
+  return useQuery({
+    queryKey: readinessQueryKey(examSessionId),
+    queryFn: () => getGradingReadiness(examSessionId!),
+    enabled: Boolean(examSessionId),
+  });
+}
+
+/**
+ * Lưu tài liệu tham chiếu.
+ *
+ * Invalidate mức sẵn sàng, vì đó chính là thứ vừa đổi — và nó là điều kiện
+ * để lượt phản biện chạy được.
+ */
+export function useSetGradingReference(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: GradingReferenceInput) => setGradingReference(examSessionId!, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: readinessQueryKey(examSessionId) });
+    },
+  });
+}
+
+/**
+ * Xếp lại bài treo.
+ *
+ * Invalidate TIẾN ĐỘ chứ không phải kết quả: những bài này vừa quay lại
+ * hàng đợi, nên thứ đổi ngay là con số đang chạy, không phải điểm.
+ * `useGradingProgress` sẽ tự làm mới kết quả khi lượt chấm kết thúc.
+ */
+export function useRegradeStuck(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => regradeStuck(examSessionId!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['exam-sessions', examSessionId, 'grading-progress'],
+      });
+    },
+  });
+}
+
+/**
+ * Bài làm kèm toạ độ dẫn chứng.
+ *
+ * `staleTime` dài có chủ đích: nội dung một bài đã nộp không đổi, còn mỗi
+ * lần gọi là một lần tải file từ kho rồi trích lại text — đắt hơn hẳn mọi
+ * endpoint khác ở màn này. Giảng viên chuyển qua lại giữa các tiêu chí
+ * không được phép kéo theo một lượt tải file mỗi lần.
+ */
+export function useSubmissionText(gradingResultId: string | undefined) {
+  return useQuery({
+    queryKey: ['grading-results', gradingResultId, 'submission-text'],
+    queryFn: () => getSubmissionText(gradingResultId!),
+    enabled: Boolean(gradingResultId),
+    staleTime: 5 * 60 * 1000,
+  });
 }

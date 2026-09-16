@@ -751,6 +751,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/grading-results/{id}/submission-text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GradingController_submissionTextForResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/finalize-grades": {
         parameters: {
             query?: never;
@@ -1152,9 +1168,12 @@ export interface components {
             /** @enum {string} */
             verdict: "met" | "partially_met" | "not_met";
             points: number;
+            pinnedEvidence?: string;
         };
         SubmitReviewDto: {
             criteria: components["schemas"]["ReviewCriterionDto"][];
+            privateNote?: string;
+            studentFeedback?: string;
         };
         UpsertGradingReferenceDto: {
             questionMaterialId?: string | null;
@@ -2474,6 +2493,27 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    GradingController_submissionTextForResult: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
