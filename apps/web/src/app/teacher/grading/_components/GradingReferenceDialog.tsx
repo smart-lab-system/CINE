@@ -63,17 +63,28 @@ export function GradingReferenceDialog({
   // Security rule 9: đoán sai một lần là cả lượt chấm đọc nhầm tài liệu mà
   // không ai biết.
   const [questionId, setQuestionId] = useState<string>(NO_QUESTION);
+  /**
+   * Người dùng có động vào nhóm radio không.
+   *
+   * Cần một cờ RIÊNG chứ không so với giá trị ban đầu, vì dialog KHÔNG biết
+   * phiên đang chọn tài liệu nào: `grading-readiness` chỉ trả về cờ boolean
+   * `hasQuestion`, không trả id. Không có cờ này thì "Không dùng đề bài"
+   * trùng giá trị khởi tạo, không bao giờ được coi là một thay đổi, và trở
+   * thành một nút bấm được mà không có gì xảy ra.
+   */
+  const [questionTouched, setQuestionTouched] = useState(false);
   const [note, setNote] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Giá trị ban đầu, để biết trường nào THẬT SỰ đổi.
-  const [initial] = useState({ questionId: NO_QUESTION, note: '' });
+  /** Ghi chú ban đầu — trường này thì ta biết là rỗng lúc mở dialog. */
+  const [initialNote] = useState('');
 
   useEffect(() => {
     if (!open) {
       setError(null);
+      setQuestionTouched(false);
     }
   }, [open]);
 
@@ -87,10 +98,13 @@ export function GradingReferenceDialog({
    */
   function buildPayload(answerKey: string | null): GradingReferenceInput {
     const body: GradingReferenceInput = {};
-    if (questionId !== initial.questionId) {
+    if (questionTouched) {
+      // `null` khi chọn "Không dùng đề bài" — gửi `null` lên một phiên vốn
+      // đã không có đề bài là vô hại, còn KHÔNG gửi khi người dùng vừa bấm
+      // gỡ thì thao tác của họ biến mất không dấu vết.
       body.questionMaterialId = questionId === NO_QUESTION ? null : questionId;
     }
-    if (note !== initial.note) {
+    if (note !== initialNote) {
       body.modelAnswerNote = note.trim() === '' ? null : note.trim();
     }
     if (answerKey && file) {
@@ -148,7 +162,10 @@ export function GradingReferenceDialog({
                   value={material.id}
                   aria-label={material.fileName}
                   checked={questionId === material.id}
-                  onChange={() => setQuestionId(material.id)}
+                  onChange={() => {
+                    setQuestionTouched(true);
+                    setQuestionId(material.id);
+                  }}
                 />
                 <span className="truncate">{material.fileName}</span>
               </label>
@@ -160,8 +177,11 @@ export function GradingReferenceDialog({
                   name="question-material"
                   value={NO_QUESTION}
                   aria-label="Không dùng đề bài"
-                  checked={questionId === NO_QUESTION && initial.questionId !== NO_QUESTION}
-                  onChange={() => setQuestionId(NO_QUESTION)}
+                  checked={questionTouched && questionId === NO_QUESTION}
+                  onChange={() => {
+                    setQuestionTouched(true);
+                    setQuestionId(NO_QUESTION);
+                  }}
                 />
                 <span>Không dùng đề bài</span>
               </label>

@@ -70,15 +70,26 @@ export interface EvidenceLocation {
 }
 
 /**
- * Một ký tự qua bảng gấp kiểu chữ in. Trả chuỗi vì có ca 1→0 (zero-width).
+ * Bản không trạng thái của `TYPOGRAPHIC_FOLD`, dựng MỘT LẦN lúc nạp module.
  *
- * `re` mang cờ `g`, và `RegExp.test` với cờ `g` NHỚ `lastIndex` giữa các
- * lời gọi — dùng thẳng nó ở đây sẽ cho kết quả đổi theo thứ tự ký tự đi
- * qua. Dựng bản không trạng thái từ `source` là cách rẻ nhất để không dính.
+ * Hai lý do, và lý do thứ hai mới là lý do nó nằm ở đây chứ không trong vòng
+ * lặp:
+ *
+ * ① `re` gốc mang cờ `g`, và `RegExp.test` với cờ `g` NHỚ `lastIndex` giữa
+ *    các lời gọi — dùng thẳng nó cho từng ký tự sẽ cho kết quả đổi theo thứ
+ *    tự ký tự đi qua, tức một phép chuẩn hoá không tất định.
+ * ② `new RegExp(...)` bên trong vòng lặp ký tự là ~5 lần cấp phát cho MỖI ký
+ *    tự của MỖI bài — sáu chữ số cho một lượt chấm, trên đúng đường nóng mà
+ *    `verifyEvidence` chạy cho mọi tiêu chí của mọi bài.
  */
+const TYPOGRAPHIC_FOLD_CHAR: [RegExp, string][] = TYPOGRAPHIC_FOLD.map(
+  ([re, to]) => [new RegExp(re.source), to] as [RegExp, string],
+);
+
+/** Một ký tự qua bảng gấp kiểu chữ in. Trả chuỗi vì có ca 1→0 (zero-width). */
 function foldChar(ch: string): string {
-  for (const [re, to] of TYPOGRAPHIC_FOLD) {
-    if (new RegExp(re.source).test(ch)) {
+  for (const [re, to] of TYPOGRAPHIC_FOLD_CHAR) {
+    if (re.test(ch)) {
       return to;
     }
   }

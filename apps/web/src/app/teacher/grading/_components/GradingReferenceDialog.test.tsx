@@ -167,4 +167,43 @@ describe('GradingReferenceDialog', () => {
     await screen.findByLabelText('de-thi-cuoi-ky.pdf');
     expect(screen.getByText(/không bao giờ hiển thị trên màn chấm/i)).toBeInTheDocument();
   });
+
+  it('chọn "Không dùng đề bài" THẬT SỰ gửi lệnh gỡ', async () => {
+    // Bản đầu so `questionId` với một giá trị ban đầu hardcode là NO_QUESTION,
+    // nên bấm vào đây trùng giá trị khởi tạo, không được coi là thay đổi, và
+    // không gửi gì. Một nút bấm được mà không có gì xảy ra.
+    open({ ...base, level: 'with_question', hasQuestion: true });
+    await screen.findByLabelText('de-thi-cuoi-ky.pdf');
+
+    fireEvent.click(screen.getByLabelText('Không dùng đề bài'));
+    fireEvent.click(screen.getByRole('button', { name: /^Lưu/ }));
+
+    await waitFor(() =>
+      expect(setGradingReferenceMock).toHaveBeenCalledWith({ questionMaterialId: null }),
+    );
+  });
+
+  it('chọn "Không dùng đề bài" rồi thì radio đó hiện ra là ĐANG CHỌN', async () => {
+    open();
+    await screen.findByLabelText('de-thi-cuoi-ky.pdf');
+
+    const none = screen.getByLabelText('Không dùng đề bài') as HTMLInputElement;
+    expect(none.checked).toBe(false);
+
+    fireEvent.click(none);
+    expect((screen.getByLabelText('Không dùng đề bài') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('không động vào nhóm radio thì KHÔNG gửi questionMaterialId', async () => {
+    open({ ...base, level: 'with_question', hasQuestion: true });
+    await screen.findByLabelText('de-thi-cuoi-ky.pdf');
+
+    fireEvent.change(screen.getByLabelText(/Ghi chú đáp án/), {
+      target: { value: 'chỉ sửa ghi chú' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Lưu/ }));
+
+    await waitFor(() => expect(setGradingReferenceMock).toHaveBeenCalled());
+    expect(setGradingReferenceMock.mock.calls[0][0]).not.toHaveProperty('questionMaterialId');
+  });
 });
