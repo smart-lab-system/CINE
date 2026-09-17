@@ -6,7 +6,8 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "seed:sample": "node scripts/seed-sample-data.mjs"
   },
   "devDependencies": {
     "turbo": "^2.1.3",
