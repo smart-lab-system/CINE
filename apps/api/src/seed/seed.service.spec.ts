@@ -21,8 +21,12 @@ function createHarness(accountCount: number) {
 
   const service = new SeedService(
     accountsService as unknown as AccountsService,
+    {} as never,
+    {} as never,
     auditLog as unknown as AuditLogService,
     accountsRepo as unknown as Repository<AccountEntity>,
+    {} as never,
+    {} as never,
   );
 
   return { service, accountsRepo, accountsService, auditLog };

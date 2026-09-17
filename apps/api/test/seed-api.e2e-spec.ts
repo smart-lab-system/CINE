@@ -180,4 +180,49 @@ describe('Seed API (e2e)', () => {
       expect(withOld.status).toBe(401);
     });
   });
+
+  describe('POST /admin/seed/semesters and rooms', () => {
+    it('ensures semester and room idempotently', async () => {
+      const semesterName = `Seed HK ${stamp}`;
+      const roomName = `Seed Room ${stamp}`;
+
+      const sem1 = await request(app.getHttpServer())
+        .post('/admin/seed/semesters')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: semesterName,
+          startDate: '2026-09-01',
+          endDate: '2027-01-15',
+        });
+      expect(sem1.status).toBe(201);
+      expect(sem1.body.created).toBe(true);
+
+      const sem2 = await request(app.getHttpServer())
+        .post('/admin/seed/semesters')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: semesterName,
+          startDate: '2026-09-01',
+          endDate: '2027-01-15',
+        });
+      expect(sem2.status).toBe(200);
+      expect(sem2.body.created).toBe(false);
+      expect(sem2.body.id).toBe(sem1.body.id);
+
+      const room1 = await request(app.getHttpServer())
+        .post('/admin/seed/rooms')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: roomName, capacity: 40 });
+      expect(room1.status).toBe(201);
+      expect(room1.body.created).toBe(true);
+
+      const room2 = await request(app.getHttpServer())
+        .post('/admin/seed/rooms')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: roomName, capacity: 40 });
+      expect(room2.status).toBe(200);
+      expect(room2.body.created).toBe(false);
+      expect(room2.body.id).toBe(room1.body.id);
+    });
+  });
 });

@@ -8,9 +8,15 @@ import { Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditLogService } from '../admin/audit-log.service';
+import { SemesterService } from '../course/semester.service';
+import { SemesterEntity } from '../course/entities/semester.entity';
 import { AccountEntity, AccountRole } from '../identity/entities/account.entity';
+import { RoomEntity } from '../room/entities/room.entity';
+import { RoomService } from '../room/room.service';
 import { BootstrapAdminDto } from './dto/bootstrap-admin.dto';
 import { EnsureAccountDto } from './dto/ensure-account.dto';
+import { EnsureRoomDto } from './dto/ensure-room.dto';
+import { EnsureSemesterDto } from './dto/ensure-semester.dto';
 import { SeedErrorCode, SeedEnsureResult } from './seed.types';
 
 export type SeedAccountView = SeedEnsureResult<{
@@ -20,13 +26,30 @@ export type SeedAccountView = SeedEnsureResult<{
   isActive: boolean;
 }>;
 
+export type SeedSemesterView = SeedEnsureResult<{
+  name: string;
+  startDate: string;
+  endDate: string;
+}>;
+
+export type SeedRoomView = SeedEnsureResult<{
+  name: string;
+  capacity: number | null;
+}>;
+
 @Injectable()
 export class SeedService {
   constructor(
     private readonly accountsService: AccountsService,
+    private readonly semesterService: SemesterService,
+    private readonly roomService: RoomService,
     private readonly auditLog: AuditLogService,
     @InjectRepository(AccountEntity)
     private readonly accounts: Repository<AccountEntity>,
+    @InjectRepository(SemesterEntity)
+    private readonly semesters: Repository<SemesterEntity>,
+    @InjectRepository(RoomEntity)
+    private readonly rooms: Repository<RoomEntity>,
   ) {}
 
   /**
@@ -128,6 +151,115 @@ export class SeedService {
       email: existing.email,
       role: existing.role,
       isActive: existing.isActive,
+    };
+  }
+
+  /** Ensure semester by name (spec §6.3). */
+  async ensureSemester(
+    dto: EnsureSemesterDto,
+    actorId: string,
+  ): Promise<SeedSemesterView> {
+    const existing = await this.semesters.findOne({
+      where: { name: dto.name },
+    });
+
+    if (!existing) {
+      const created = await this.semesterService.create({
+        name: dto.name,
+        startDate: dto.startDate,
+        endDate: dto.endDate,
+      });
+
+      await this.auditLog.recordUserAction({
+        actorId,
+        action: 'seed.ensure_semester',
+        targetType: 'semester',
+        targetId: created.id,
+        newValue: {
+          name: created.name,
+          startDate: created.startDate,
+          endDate: created.endDate,
+        },
+      });
+
+      return {
+        id: created.id,
+        created: true,
+        name: created.name,
+        startDate: created.startDate,
+        endDate: created.endDate,
+      };
+    }
+
+    if (dto.updateDates === true) {
+      const updated = await this.semesterService.update(existing.id, {
+        startDate: dto.startDate,
+        endDate: dto.endDate,
+      });
+      return {
+        id: updated.id,
+        created: false,
+        name: updated.name,
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+      };
+    }
+
+    return {
+      id: existing.id,
+      created: false,
+      name: existing.name,
+      startDate: existing.startDate,
+      endDate: existing.endDate,
+    };
+  }
+
+  /** Ensure room by name (spec §6.4). */
+  async ensureRoom(
+    dto: EnsureRoomDto,
+    actorId: string,
+  ): Promise<SeedRoomView> {
+    const existing = await this.rooms.findOne({ where: { name: dto.name } });
+
+    if (!existing) {
+      const created = await this.roomService.create({
+        name: dto.name,
+        capacity: dto.capacity,
+      });
+
+      await this.auditLog.recordUserAction({
+        actorId,
+        action: 'seed.ensure_room',
+        targetType: 'room',
+        targetId: created.id,
+        newValue: { name: created.name, capacity: created.capacity },
+      });
+
+      return {
+        id: created.id,
+        created: true,
+        name: created.name,
+        capacity: created.capacity,
+      };
+    }
+
+    if (dto.updateCapacity === true && dto.capacity !== undefined) {
+      const updated = await this.roomService.update(existing.id, {
+        capacity: dto.capacity,
+      });
+      return {
+        id: updated.id,
+        created: false,
+        name: updated.name,
+        capacity: updated.capacity,
+      };
+    }
+
+    return {
+      id: existing.id,
+      created: false,
+      name: existing.name,
+      capacity: existing.capacity,
     };
   }
 }
