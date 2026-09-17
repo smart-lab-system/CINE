@@ -1,0 +1,55 @@
+{
+  "admin": {
+    "name": "Quản trị hệ thống Khoa CNTT",
+    "email": "cntt.admin@iuh.edu.vn"
+  },
+  "accounts": [
+    {
+      "name": "Trần Thị Hương",
+      "email": "truongkhoa.cntt@iuh.edu.vn",
+      "role": "department_admin"
+    },
+    {
+      "name": "Nguyễn Văn An",
+      "email": "gv.nguyenvanan@iuh.edu.vn",
+      "role": "teacher"
+    }
+  ],
+  "semesters": [
+    {
+      "name": "Học kỳ 1 năm học 2026-2027",
+      "startDate": "2026-09-01",
+      "endDate": "2027-01-15"
+    }
+  ],
+  "rooms": [
+    { "name": "Phòng máy H1.1", "capacity": 40 },
+    { "name": "Phòng máy H1.2", "capacity": 40 },
+    { "name": "Phòng máy H2.1", "capacity": 30 }
+  ],
+  "courses": [
+    {
+      "code": "4220004247",
+      "name": "Nhập môn Lập trình",
+      "semesterName": "Học kỳ 1 năm học 2026-2027",
+      "departmentHeadEmail": "truongkhoa.cntt@iuh.edu.vn"
+    }
+  ],
+  "classes": [
+    {
+      "courseCode": "4220004247",
+      "semesterName": "Học kỳ 1 năm học 2026-2027",
+      "name": "Nhóm 01",
+      "teacherEmail": "gv.nguyenvanan@iuh.edu.vn"
+    }
+  ],
+  "rosters": [
+    {
+      "courseCode": "4220004247",
+      "semesterName": "Học kỳ 1 năm học 2026-2027",
+      "className": "Nhóm 01",
+      "studentsFile": "students.json",
+      "removeMissing": false
+    }
+  ]
+}

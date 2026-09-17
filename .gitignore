@@ -4,6 +4,8 @@ out/
 .next/
 .env
 .env.production
+.env.seed.local
+scripts/seed-fixtures/.env.seed.local
 .turbo/
 *.log
 *.tsbuildinfo
