@@ -4,6 +4,7 @@ import { AgentConnectionEventEntity } from './entities/agent-connection-event.en
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ClassEntity } from '../course/entities/class.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
+import { SessionRosterEntity } from '../exam-session/entities/session-roster.entity';
 import { AttendanceService } from './attendance.service';
 
 /**
@@ -23,6 +24,7 @@ import { AttendanceService } from './attendance.service';
       EnrollmentEntity,
       ClassEntity,
       SubmissionEntity,
+      SessionRosterEntity,
     ]),
   ],
   providers: [AttendanceService],

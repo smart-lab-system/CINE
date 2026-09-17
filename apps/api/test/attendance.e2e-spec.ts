@@ -234,6 +234,41 @@ describe('Attendance (e2e)', () => {
     expect(row.event_type).toBe('connected');
   });
 
+  // Cái mà màn hình phòng chờ KHÔNG có cách nào biết trước 2026-09-17:
+  // panel điểm danh dựng từ `enrollment`, nên một phiên CHƯA đóng băng
+  // danh sách dự thi trông y hệt một phiên đã mở — đủ tên, đủ sĩ số,
+  // 0/N có mặt — trong khi `agent:join` từ chối mọi sinh viên. Giảng
+  // viên chỉ biết khi cả phòng đồng loạt báo lỗi.
+  it('nói thẳng phiên đã đóng băng danh sách dự thi hay chưa', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({
+        name: `Chưa mở ${Date.now()}`,
+        classId,
+        roomId,
+        examType: 'TK',
+        startTime: new Date(Date.now() - 60_000).toISOString(),
+        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        requiredFilenames: ['Cau1.docx'],
+      });
+    expect(created.status).toBe(201);
+
+    // Cố ý KHÔNG gọi openSession: đây đúng là trạng thái mọi phiên đều
+    // đi qua ngay sau khi tạo.
+    const before = await attendance(created.body.id);
+    expect(before.status).toBe(200);
+    expect(before.body.rosterFrozen).toBe(false);
+    // Danh sách vẫn đầy đủ — chính là lý do cờ này phải tồn tại riêng,
+    // không suy ra được từ rosterSize.
+    expect(before.body.rosterSize).toBe(3);
+
+    await openSession(app, teacherToken, created.body.id);
+
+    const after = await attendance(created.body.id);
+    expect(after.body.rosterFrozen).toBe(true);
+  });
+
   it('splits the room into in-class, missing, and make-up', async () => {
     const session = await createSession('Three Groups');
     await joinAgent(session.code, IN_CLASS_A);

@@ -42,6 +42,17 @@ export interface AttendanceView {
   className: string | null;
   /** 0 when the session has no class, or its class has no roster yet. */
   rosterSize: number;
+  /**
+   * Đã đóng băng danh sách dự thi chưa (§7.1.1) — tức phiên đã được
+   * "mở" hay chưa.
+   *
+   * KHÔNG suy ra được từ `rosterSize`, và đó là lý do nó phải nằm ở
+   * đây: mọi nhóm trên dựng từ `enrollment`, nên chúng đầy đủ tên và
+   * đúng sĩ số kể cả khi `session_roster` còn rỗng — đúng lúc
+   * `agent:join` đang từ chối cả phòng. Trước khi có cờ này, màn hình
+   * phòng chờ không có cách nào phân biệt hai tình huống đó.
+   */
+  rosterFrozen: boolean;
   confirmedAt: string | null;
   confirmedCount: number | null;
   /** On the roster and here. */

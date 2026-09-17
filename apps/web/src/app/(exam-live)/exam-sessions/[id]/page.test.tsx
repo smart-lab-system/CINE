@@ -24,6 +24,8 @@ const recollectMutateAsyncMock = vi.fn();
 const useRecollectMock = vi.fn();
 const useAttendanceMock = vi.fn();
 const useConfirmAttendanceMock = vi.fn();
+const openMutateMock = vi.fn();
+const useOpenSessionMock = vi.fn();
 const useExamMaterialsMock = vi.fn();
 const confirmMutateMock = vi.fn();
 const refetchAttendanceMock = vi.fn();
@@ -35,6 +37,7 @@ vi.mock('@/hooks/useExamSession', () => ({
   useRecollect: (...args: unknown[]) => useRecollectMock(...args),
   useAttendance: (...args: unknown[]) => useAttendanceMock(...args),
   useConfirmAttendance: (...args: unknown[]) => useConfirmAttendanceMock(...args),
+  useOpenSession: (...args: unknown[]) => useOpenSessionMock(...args),
   useExamMaterials: (...args: unknown[]) => useExamMaterialsMock(...args),
   // The two mutations are inert here: nothing in these tests uploads or
   // deletes a file, and a shared no-op keeps the card from throwing while
@@ -84,6 +87,7 @@ function attendanceOf(overrides: Record<string, unknown> = {}) {
       classId: 'class-1',
       className: 'Nhóm 01',
       rosterSize: 0,
+      rosterFrozen: true,
       confirmedAt: null,
       confirmedCount: null,
       present: [],
@@ -219,6 +223,13 @@ beforeEach(() => {
   useExamMaterialsMock.mockReturnValue({ data: [], isLoading: false, isError: false, error: null });
   useConfirmAttendanceMock.mockReturnValue({
     mutate: confirmMutateMock,
+    isPending: false,
+    error: null,
+  });
+  useOpenSessionMock.mockReset();
+  openMutateMock.mockReset();
+  useOpenSessionMock.mockReturnValue({
+    mutate: openMutateMock,
     isPending: false,
     error: null,
   });
@@ -1059,6 +1070,53 @@ describe('ExamSessionLobbyPage', () => {
       expect(fakeSocket.__listenerCount('lobby:access_request')).toBeGreaterThan(0);
       unmount();
       expect(fakeSocket.__listenerCount('lobby:access_request')).toBe(0);
+    });
+  });
+
+  /**
+   * Khoảng hở §7.1.1b, nhìn từ phía giảng viên.
+   *
+   * `agent:join` từ chối phiên chưa đóng băng danh sách dự thi, và
+   * đường DUY NHẤT để đóng băng là POST /exam-sessions/:id/open —
+   * nhưng trang này chưa từng gọi nó. Thông báo lỗi hiện trên máy sinh
+   * viên bảo giảng viên bấm "Mở phiên thi", một cái nút không tồn tại.
+   * Tệ hơn: panel điểm danh dựng từ `enrollment` nên màn hình vẫn đủ
+   * 100 cái tên và 0/100 có mặt, trông y như một phòng thi bình thường
+   * chưa ai tới. Báo cáo trực tiếp từ người dùng, 2026-09-17.
+   */
+  describe('phiên chưa được mở', () => {
+    function unopened() {
+      const session = activeSessionWithDeliverables();
+      useExamSessionDetailMock.mockReturnValue(session);
+      useAttendanceMock.mockReturnValue(attendanceOf({ rosterFrozen: false }));
+    }
+
+    it('nói rõ sinh viên chưa vào được, thay vì để màn hình trông bình thường', async () => {
+      unopened();
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(await screen.findByText(/Sinh viên chưa vào được/)).toBeInTheDocument();
+    });
+
+    it('đưa ra đúng cái nút mà máy sinh viên đang bảo giảng viên đi tìm', async () => {
+      unopened();
+      render(<ExamSessionLobbyPage />);
+
+      fireEvent.click(await screen.findByRole('button', { name: /Mở phiên thi/ }));
+
+      expect(openMutateMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('im lặng khi phiên đã mở — đây không phải một lời nhắc thường trực', async () => {
+      useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
+      useAttendanceMock.mockReturnValue(attendanceOf({ rosterFrozen: true }));
+
+      render(<ExamSessionLobbyPage />);
+      await screen.findByText(/Kiểm tra giữa kỳ/);
+
+      expect(screen.queryByRole('button', { name: /Mở phiên thi/ })).toBeNull();
+      expect(screen.queryByText(/Sinh viên chưa vào được/)).toBeNull();
     });
   });
 });

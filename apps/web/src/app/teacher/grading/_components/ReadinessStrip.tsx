@@ -60,7 +60,7 @@ export function ReadinessStrip({
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="section-label">Mức sẵn sàng chấm · đang ở mức {level} trên 3</p>
-        <Button size="sm" onClick={onConfigure}>
+        <Button size="sm" onClick={onConfigure} className="text-white">
           Cấu hình đề bài &amp; đáp án
         </Button>
       </div>

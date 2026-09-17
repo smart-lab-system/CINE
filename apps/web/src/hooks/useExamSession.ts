@@ -7,10 +7,12 @@ import {
   getExamSession,
   finalizeExamSession,
   confirmSessionEnd,
+  openSession,
   recollectSubmissions,
   listSubmissions,
   type CreateExamSessionInput,
   type ExamSessionResponse,
+  type OpenSessionResult,
   type RecollectResult,
   type SearchExamSessionsParams,
 } from '@/lib/api/exam-session';
@@ -68,6 +70,25 @@ export function useFinalizeExamSession(id: string | undefined) {
     mutationFn: () => finalizeExamSession(id!),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['exam-session', id] });
+    },
+  });
+}
+
+/**
+ * "Mở phiên thi" — đóng băng danh sách dự thi và cho sinh viên vào.
+ *
+ * Invalidate `attendance` chứ không phải `exam-session`: việc mở phiên
+ * KHÔNG đổi `status` (phiên đã `active` từ lúc tạo), nó chỉ đổi câu
+ * trả lời cho "đã chốt danh sách chưa" — và câu đó nằm trong view
+ * điểm danh. Invalidate nhầm chỗ sẽ để lại cảnh báo trên màn hình sau
+ * khi giảng viên vừa bấm xong.
+ */
+export function useOpenSession(id: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation<OpenSessionResult, Error, void>({
+    mutationFn: () => openSession(id!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-sessions', id, 'attendance'] });
     },
   });
 }

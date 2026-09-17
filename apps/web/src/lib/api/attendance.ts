@@ -33,6 +33,15 @@ export interface Attendance {
   classId: string | null;
   className: string | null;
   rosterSize: number;
+  /**
+   * Đã đóng băng danh sách dự thi chưa — tức phiên đã được "mở" hay
+   * chưa (§7.1.1).
+   *
+   * Không suy ra được từ `rosterSize`: mọi nhóm ở dưới dựng từ
+   * `enrollment`, nên chúng đầy đủ tên và đúng sĩ số kể cả khi
+   * `agent:join` đang từ chối cả phòng vì `session_roster` còn rỗng.
+   */
+  rosterFrozen: boolean;
   confirmedAt: string | null;
   confirmedCount: number | null;
   present: AttendanceStudent[];

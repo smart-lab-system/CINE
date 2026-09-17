@@ -6,6 +6,7 @@ import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ClassEntity } from '../course/entities/class.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
+import { SessionRosterEntity } from '../exam-session/entities/session-roster.entity';
 import { isExamOver } from '../exam-session/exam-session.types';
 import {
   AttendanceDiscrepancy,
@@ -41,6 +42,11 @@ export class AttendanceService {
     private readonly classes: Repository<ClassEntity>,
     @InjectRepository(SubmissionEntity)
     private readonly submissions: Repository<SubmissionEntity>,
+    // Đọc thẳng bảng thay vì gọi SessionRosterService.isFrozen: lấy
+    // service đó về đây kéo theo ExamSessionModule, và module này
+    // được ExamSessionModule import (xem comment ở AgentConnectionModule).
+    @InjectRepository(SessionRosterEntity)
+    private readonly sessionRoster: Repository<SessionRosterEntity>,
   ) {}
 
   /**
@@ -165,10 +171,17 @@ export class AttendanceService {
     const byName = (a: AttendanceStudentView, b: AttendanceStudentView) =>
       a.mssv.localeCompare(b.mssv);
 
+    // Cùng một phép đo với SessionRosterService.isFrozen — cái mà
+    // `agent:join` hỏi trước khi cho một sinh viên vào phòng.
+    const frozenRows = await this.sessionRoster.count({
+      where: { examSessionId: session.id },
+    });
+
     return {
       classId: session.classId,
       className: session.classId ? (classNames.get(session.classId) ?? null) : null,
       rosterSize: roster.length,
+      rosterFrozen: frozenRows > 0,
       confirmedAt: confirmedAt ? confirmedAt.toISOString() : null,
       confirmedCount: session.attendanceConfirmedCount,
       present: present.sort(byName),

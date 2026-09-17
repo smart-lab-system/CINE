@@ -220,6 +220,35 @@ export async function confirmSessionEnd(id: string): Promise<ExamSessionResponse
   return data as unknown as ExamSessionResponse;
 }
 
+/** Kết quả đóng băng danh sách dự thi — xem SessionRosterService.freeze. */
+export interface OpenSessionResult {
+  /** Số sinh viên được chụp vào ảnh chốt. */
+  students: number;
+  /** Số dòng `not_submitted` được gieo sẵn (§7.1.2). 0 khi bấm lần hai. */
+  submissionsSeeded: number;
+}
+
+/**
+ * "Mở phiên thi" — đóng băng danh sách dự thi (CLAUDE.md §7.1.1).
+ *
+ * Cho tới khi `scheduled` thành trạng thái thật (§7.1.1b), đây là
+ * đường DUY NHẤT để một phiên trở nên vào được: `agent:join` từ chối
+ * mọi sinh viên khi `session_roster` còn rỗng. Phiên `active` ngay từ
+ * lúc tạo, nên không có transition nào để móc việc chốt vào — và vì
+ * thế "đang diễn ra" KHÔNG hàm ý "đã mở".
+ *
+ * Idempotent: bấm lần hai trả về đúng con số cũ với
+ * `submissionsSeeded: 0`. 400 khi phiên không gắn lớp, hoặc lớp chưa
+ * có sinh viên nào — cả hai đều kèm câu giải thích hiển thị được.
+ */
+export async function openSession(id: string): Promise<OpenSessionResult> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/open', {
+    params: { path: { id } },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as OpenSessionResult;
+}
+
 export interface RecollectResult {
   /** Số sinh viên đã dự thi mà chưa nộp đủ file bắt buộc. */
   missing: number;

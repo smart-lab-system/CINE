@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ClipboardCheck } from 'lucide-react';
+import { ClipboardCheck, DoorOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { socket } from '@/lib/socket';
 import { createSubscriptionRecovery } from '@/lib/socket-recovery';
@@ -14,11 +14,13 @@ import {
   useConfirmSessionEnd,
   useExamSessionDetail,
   useFinalizeExamSession,
+  useOpenSession,
   useRecollect,
   useSubmissions,
 } from '@/hooks/useExamSession';
 import { useTeachingClasses } from '@/hooks/useTeaching';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
@@ -130,6 +132,7 @@ export default function ExamSessionLobbyPage() {
 
   const attendance = useAttendance(examSessionId);
   const confirmAttendance = useConfirmAttendance(examSessionId);
+  const openSession = useOpenSession(examSessionId);
   const refetchAttendance = attendance.refetch;
 
   const [liveSubmissions, setLiveSubmissions] = useState<LiveSubmissionMap>({});
@@ -411,6 +414,20 @@ export default function ExamSessionLobbyPage() {
     : null;
 
   /**
+   * §7.1.1b. `agent:join` từ chối mọi sinh viên khi danh sách dự thi
+   * chưa được đóng băng, và không có gì trên màn hình này từng nói ra
+   * điều đó: panel điểm danh dựng từ `enrollment` nên nó vẫn hiện đủ
+   * tên, đúng sĩ số, 0/N có mặt — giống hệt một phòng thi mà chưa ai
+   * kịp tới.
+   *
+   * Chỉ hỏi ở hai pha mà việc mở phiên còn có nghĩa. Với phiên đã kết
+   * thúc hoặc đã huỷ thì không còn gì để mở, và một lời mời ở đó chỉ
+   * làm người đọc tưởng mình bỏ sót việc.
+   */
+  const needsOpening =
+    attendance.data?.rosterFrozen === false && (phase === 'running' || phase === 'upcoming');
+
+  /**
    * Spec §7.3 — có bao nhiêu SINH VIÊN nộp bài sau khi giảng viên xác
    * nhận kết thúc.
    *
@@ -473,6 +490,45 @@ export default function ExamSessionLobbyPage() {
             confirmError={confirmEnd.error}
             onConfirmEnd={() => confirmEnd.mutateAsync()}
           />
+        )}
+
+        {needsOpening && (
+          <Alert variant="warning">
+            <DoorOpen aria-hidden="true" />
+            <AlertDescription>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-1">
+                  <strong className="font-semibold">
+                    Sinh viên chưa vào được — phiên thi chưa được mở.
+                  </strong>
+                  <span>
+                    &ldquo;Đang diễn ra&rdquo; chỉ nói phiên đang trong khung giờ thi. Danh
+                    sách dự thi thì chưa được chốt, nên máy chủ đang từ chối mọi máy sinh
+                    viên. Bấm nút này để chốt danh sách và mở cửa phòng.
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="shrink-0 self-start sm:self-auto"
+                  disabled={openSession.isPending}
+                  // `mutate`, không phải `mutateAsync`: lỗi đã được hiện
+                  // ngay dưới đây qua `openSession.error`, nên không có
+                  // gì để nối tiếp — và một `mutateAsync` không ai bắt
+                  // sẽ để lại unhandled rejection mỗi lần mở hụt.
+                  onClick={() => openSession.mutate()}
+                >
+                  <DoorOpen className="h-4 w-4" aria-hidden="true" />
+                  {openSession.isPending ? 'Đang mở…' : 'Mở phiên thi'}
+                </Button>
+              </div>
+              {openSession.error && (
+                <p className="mt-3 text-small text-danger-strong">
+                  {openSession.error.message}
+                </p>
+              )}
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Spec §7.3. Không chặn bài về sau khi xác nhận, nhưng phải

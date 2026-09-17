@@ -20,6 +20,7 @@ function attendance(overrides: Partial<Attendance> = {}): Attendance {
     classId: 'class-1',
     className: 'CNM01',
     rosterSize: 0,
+    rosterFrozen: true,
     confirmedAt: null,
     confirmedCount: null,
     present: [],

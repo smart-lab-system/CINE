@@ -55,6 +55,7 @@ export function BulkActionBar({
           size="sm"
           disabled={pending}
           onClick={() => onApply({ kind: 'keep_ai' })}
+          className="text-black"
         >
           Giữ điểm lượt chấm
         </Button>
