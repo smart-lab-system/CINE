@@ -1,5 +1,5 @@
 import { readTier, selectGradingProvider } from './grading.module';
-import { ClaudeGradingProvider } from './ai-provider/claude-grading.provider';
+import { ClaudeGradingProvider, GRADER_MODEL } from './ai-provider/claude-grading.provider';
 import { KeywordGradingProvider } from './ai-provider/keyword-grading.provider';
 import { FallbackGradingProvider } from './ai-provider/fallback-grading.provider';
 
@@ -16,7 +16,7 @@ import { FallbackGradingProvider } from './ai-provider/fallback-grading.provider
 describe('selectGradingProvider', () => {
   // Vật thế thân, không phải instance thật: hàm này chỉ DỰNG CHUỖI từ
   // những thứ được trao cho nó, nên khởi tạo provider thật là kiểm thứ khác.
-  const claude = { name: 'claude-opus-5' } as ClaudeGradingProvider;
+  const claude = { name: GRADER_MODEL } as ClaudeGradingProvider;
   const keyword = { name: 'keyword-match@1' } as KeywordGradingProvider;
 
   const TIER_VARS = [
@@ -93,7 +93,7 @@ describe('selectGradingProvider', () => {
     const provider = selectGradingProvider(claude, keyword);
 
     expect(provider).toBeInstanceOf(FallbackGradingProvider);
-    expect(provider.name).toBe('fallback(claude-opus-5 → keyword-match@1)');
+    expect(provider.name).toBe(`fallback(${GRADER_MODEL} → keyword-match@1)`);
   });
 
   it('bậc 1 đứng TRƯỚC Claude — thứ tự là thứ quyết định ai chấm', () => {
@@ -105,7 +105,7 @@ describe('selectGradingProvider', () => {
 
     const provider = selectGradingProvider(claude, keyword);
 
-    expect(provider.name).toBe('fallback(model-bac-1 → claude-opus-5 → keyword-match@1)');
+    expect(provider.name).toBe(`fallback(model-bac-1 → ${GRADER_MODEL} → keyword-match@1)`);
   });
 
   it('sàn LUÔN là bậc cuối', () => {

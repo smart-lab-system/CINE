@@ -71,6 +71,55 @@ const DEAD_CODES = new Set([
  */
 const CREDIT_MESSAGE = /credit balance is too low|insufficient (credit|balance|funds)/i;
 
+/**
+ * Mã ở tầng KẾT NỐI: chưa bao giờ mở nổi một kênh tới bậc đó.
+ *
+ * ĐO THẬT 2026-09-17. Tầng 2 khai một hostname Tailscale; máy chấm
+ * không nối vào tailnet đó nên `fetch` ném:
+ *
+ *   TypeError: fetch failed
+ *     cause: Error { code: ENOTFOUND, message: getaddrinfo ENOTFOUND ... }
+ *
+ * Trước khi có bảng này, ca đó rơi xuống nhánh mặc định `transient`,
+ * `TierChain` NÉM RA, và bậc Claude lẫn bậc SÀN ngay bên dưới không bao
+ * giờ được gọi. Một bài nộp thật đã bị bỏ rơi đúng như vậy: hết 3 lượt
+ * retry, `markUngradable`, `grading_result` không có model nào. Lời hứa
+ * "sàn không bao giờ vắng mặt" ở `grading.module.ts` bị chính nhánh
+ * `transient` phá vỡ.
+ *
+ * `tier_dead` chứ không `transient`, vì hệ quả mới là thứ quyết định:
+ * lượt retry kế tiếp cũng sẽ không phân giải nổi cái tên đó, trong khi
+ * bậc dưới thì chấm được ngay. Và `tier_dead` KHÔNG phải án tử — breaker
+ * vẫn cho bậc này một lượt thăm dò sau `BREAKER_COOLDOWN_MS`.
+ *
+ * CHỈ những mã "chưa từng nối được". `ETIMEDOUT`/`ECONNRESET` ở lại
+ * `transient` có chủ ý: chúng nghĩa là kênh ĐÃ mở rồi mới đứt, tức bậc
+ * đó có thật và đang sống — đúng ca mà retry cùng bậc là hướng đúng.
+ */
+const UNREACHABLE_CODES = new Set(['enotfound', 'econnrefused', 'eai_again']);
+
+/**
+ * Lần theo chuỗi `cause` tìm mã kết nối.
+ *
+ * Bắt buộc phải đi sâu: `fetch` của Node trả `TypeError: fetch failed`
+ * với `code` KHÔNG xác định ở tầng ngoài, mã thật nằm trong `cause`. Đọc
+ * mỗi tầng ngoài là lý do lỗi này lọt lưới suốt.
+ *
+ * Chặn ở 5 tầng: một chuỗi `cause` tự trỏ vòng lại sẽ treo vòng lặp, và
+ * một hàm phân loại lỗi treo thì giết luôn worker chấm.
+ */
+function isUnreachable(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; current && depth < 5; depth++) {
+    const code = (current as ErrorShape).code;
+    if (typeof code === 'string' && UNREACHABLE_CODES.has(code.toLowerCase())) {
+      return true;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 interface ErrorShape {
   status?: unknown;
   code?: unknown;
@@ -90,6 +139,12 @@ export function classifyProviderFailure(error: unknown): ProviderFailureKind {
 
   const code = typeof e.code === 'string' ? e.code.toLowerCase() : '';
   if (code && DEAD_CODES.has(code)) {
+    return 'tier_dead';
+  }
+
+  // Sau DEAD_CODES vì cùng một kết luận, nhưng đọc `cause` chứ không
+  // đọc mỗi tầng ngoài.
+  if (isUnreachable(error)) {
     return 'tier_dead';
   }
 

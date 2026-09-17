@@ -20,7 +20,15 @@ import { badOutputError } from './provider-failure';
  * định sự công bằng là ngược — nó bỏ sót thì bài bị chấm theo rubric, điểm
  * thấp, và KHÔNG AI BIẾT.
  */
-const GRADER_MODEL = 'claude-opus-5';
+// Đổi từ `claude-opus-5` ngày 2026-09-17: khoá của gateway đang khai
+// trong `.env` KHÔNG đăng ký opus-5 (đo được: 403 "Please subscribe to
+// model in the API Key: claude-opus-5"), nên tầng Claude chết ở mọi bài.
+// `claude-sonnet-4-6` là model Claude mà khoá này dùng được, và đã đo là
+// nuốt trọn hình dạng tham số ở đây (adaptive thinking + effort cao).
+//
+// Gateway có thể tự định tuyến sang model khác — `modelUsed` vì thế đọc
+// `response.model`, không đọc hằng số này.
+export const GRADER_MODEL = 'claude-sonnet-4-6';
 
 /**
  * Schema output. KHÔNG có `points`, KHÔNG có `totalScore`, KHÔNG có
@@ -169,7 +177,28 @@ export class ClaudeGradingProvider implements AIGradingProvider {
       throw badOutputError('Model không trả về khối text nào');
     }
 
-    const validation = GraderOutputSchema.safeParse(JSON.parse(text.text));
+    // `JSON.parse` phải có lưới của riêng nó, không gộp vào safeParse.
+    //
+    // ĐO THẬT 2026-09-17: một gateway Anthropic nhận
+    // `output_config.format = json_schema` nhưng KHÔNG thực thi nó, và
+    // model trả về Markdown. `JSON.parse` ném `SyntaxError` thô — không
+    // `status`, không `code`, không cờ `badOutput` — nên
+    // `classifyProviderFailure` xếp nó là `transient`, `TierChain` NÉM RA,
+    // và bậc sàn ngay bên dưới không bao giờ được gọi. Bài nộp bị bỏ rơi
+    // sau 3 lượt retry, đúng như ca `ENOTFOUND` ở tầng 2.
+    //
+    // Một bậc trả về thứ không parse nổi là BẬC ĐÓ TRẢ RÁC: rơi bậc mới
+    // là hướng đúng, không phải gọi lại cùng bậc ba lần rồi bỏ bài.
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text.text);
+    } catch {
+      // KHÔNG nêu nội dung trả về: nó chứa bài làm của sinh viên, và
+      // message này đi vào `failedReason` trong Redis.
+      throw badOutputError('Model trả về text không phải JSON');
+    }
+
+    const validation = GraderOutputSchema.safeParse(payload);
     if (!validation.success) {
       // KHÔNG nêu nội dung trả về trong message: nó chứa dẫn chứng trích
       // từ bài làm của sinh viên, và message này đi vào `failedReason`
@@ -191,7 +220,18 @@ export class ClaudeGradingProvider implements AIGradingProvider {
     }
 
     return {
-      modelUsed: GRADER_MODEL,
+      // Model ĐÃ TRẢ LỜI, không phải model đã xin.
+      //
+      // Đo thật 2026-09-17: gateway trong `.env` nhận yêu cầu
+      // `claude-sonnet-4-6` rồi trả về `model: "claude-sonnet-5"` — nó tự
+      // định tuyến. Ghi hằng số ở đây sẽ làm `grading_result.model_used`
+      // khai một model chưa hề chấm bài nào, và cả module calibration
+      // (§11) đo AI-vs-người đều dựng trên đúng cột đó.
+      //
+      // `??` chứ không `||`: một gateway trả chuỗi rỗng là bất thường và
+      // phải lộ ra như chuỗi rỗng, không được lặng lẽ hoá thành tên model
+      // ta tự nghĩ ra.
+      modelUsed: response.model ?? GRADER_MODEL,
       // `points` để 0 — `enforceScoring` ở `GradingService` tính lại toàn
       // bộ từ `verdict`. Model chưa bao giờ nhìn thấy trường này.
       criterionResults: parsed.criterionResults.map((row) => ({

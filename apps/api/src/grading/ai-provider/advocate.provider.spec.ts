@@ -7,7 +7,7 @@ jest.mock('@anthropic-ai/sdk', () => {
   return { __esModule: true, default: Anthropic };
 });
 
-import { ClaudeAdvocateProvider } from './advocate.provider';
+import { ADVOCATE_MODEL, ClaudeAdvocateProvider } from './advocate.provider';
 import { AdvocateRequest } from './advocate-provider';
 
 const REQUEST: AdvocateRequest = {
@@ -87,7 +87,7 @@ describe('ClaudeAdvocateProvider', () => {
     await new ClaudeAdvocateProvider().advocate(REQUEST);
 
     const params = createMock.mock.calls[0][0];
-    expect(params.model).toBe('claude-opus-5');
+    expect(params.model).toBe(ADVOCATE_MODEL);
     expect(params.thinking).toEqual({ type: 'adaptive' });
     expect(params.thinking.budget_tokens).toBeUndefined();
     expect(params.messages.every((m: { role: string }) => m.role === 'user')).toBe(true);

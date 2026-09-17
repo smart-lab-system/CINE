@@ -14,7 +14,9 @@ import { badOutputError } from './provider-failure';
  * là ngược: model rẻ bỏ sót một ca lệch thì bài đó bị chấm theo rubric,
  * điểm thấp, KHÔNG AI BIẾT — hỏng âm thầm, trái nguyên tắc "fail loudly".
  */
-const ADVOCATE_MODEL = 'claude-opus-5';
+// Cùng lý do với GRADER_MODEL (xem claude-grading.provider.ts): khoá
+// gateway chưa đăng ký opus-5.
+export const ADVOCATE_MODEL = 'claude-sonnet-4-6';
 
 /**
  * Lượt hỏi thứ hai: "bỏ qua rubric, em ấy có đúng không?"

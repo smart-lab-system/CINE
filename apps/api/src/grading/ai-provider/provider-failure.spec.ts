@@ -47,6 +47,40 @@ describe('classifyProviderFailure', () => {
     });
   });
 
+  describe('không nối được tới bậc — cũng là bậc chết', () => {
+    /**
+     * ĐO THẬT 2026-09-17: tầng 2 khai một hostname Tailscale, máy chấm
+     * không nối vào tailnet đó, nên `fetch` ném:
+     *
+     *   TypeError: fetch failed
+     *     cause: Error { code: ENOTFOUND, message: getaddrinfo ENOTFOUND ... }
+     *
+     * Mã nằm ở `cause`, KHÔNG ở `error.code` — nên phân loại chỉ đọc
+     * tầng ngoài sẽ trả `transient`, `TierChain` ném ra, và bậc Claude
+     * lẫn bậc sàn ngay bên dưới KHÔNG BAO GIỜ được gọi. Một bài nộp
+     * thật đã bị bỏ rơi đúng như vậy (grading_result không có model nào,
+     * hết 3 lượt retry rồi `markUngradable`).
+     *
+     * Chọn `tier_dead` chứ không `transient`: một bậc không phân giải
+     * nổi tên miền thì lượt retry kế tiếp cũng không nối được, trong khi
+     * bậc sàn ở dưới luôn chấm được. Breaker vẫn cho nó sống lại sau
+     * BREAKER_COOLDOWN_MS, nên đây không phải án tử vĩnh viễn.
+     */
+    function fetchFailed(code: string): Error {
+      const cause = Object.assign(new Error(`getaddrinfo ${code} lwszir.tail9ebe62.ts.net`), {
+        code,
+      });
+      return Object.assign(new TypeError('fetch failed'), { cause });
+    }
+
+    it.each(['ENOTFOUND', 'ECONNREFUSED', 'EAI_AGAIN'])(
+      '%s: chưa từng nối được nên rơi bậc, không retry cùng bậc',
+      (code) => {
+        expect(classifyProviderFailure(fetchFailed(code))).toBe('tier_dead');
+      },
+    );
+  });
+
   describe('tạm thời — ném ra cho BullMQ retry CÙNG bậc', () => {
     it('429 KHÔNG kèm mã chết là nghẽn nhịp thật, không phải hết hàng', () => {
       // Phân biệt này quan trọng: rơi bậc vì một cú rate limit là tự hạ

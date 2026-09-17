@@ -7,7 +7,10 @@ jest.mock('@anthropic-ai/sdk', () => {
   return { __esModule: true, default: Anthropic };
 });
 
-import { ClaudeGradingProvider } from './claude-grading.provider';
+import { ClaudeGradingProvider, GRADER_MODEL } from './claude-grading.provider';
+
+/** Đọc qua một tên riêng: đổi model là đổi MỘT chỗ, không phải cả spec. */
+const GRADER_MODEL_FOR_TEST = GRADER_MODEL;
 import { GradingRequest } from './ai-grading-provider';
 import { classifyProviderFailure } from './provider-failure';
 
@@ -54,7 +57,7 @@ describe('ClaudeGradingProvider', () => {
     await new ClaudeGradingProvider().grade(REQUEST);
 
     const params = createMock.mock.calls[0][0];
-    expect(params.model).toBe('claude-opus-5');
+    expect(params.model).toBe(GRADER_MODEL);
     expect(params.thinking).toEqual({ type: 'adaptive' });
     expect(params.thinking.budget_tokens).toBeUndefined();
     expect(params.messages.every((m: { role: string }) => m.role === 'user')).toBe(true);
@@ -82,6 +85,36 @@ describe('ClaudeGradingProvider', () => {
     expect(schema).not.toContain('points');
     expect(schema).not.toContain('totalScore');
     expect(schema).not.toContain('confidence');
+  });
+
+  describe('modelUsed — ghi model ĐÃ TRẢ LỜI, không ghi model đã xin', () => {
+    /**
+     * ĐO THẬT 2026-09-17: gọi gateway đang khai trong `.env` và xin
+     * `claude-sonnet-4-6`, response trả về `"model":"claude-sonnet-5"` —
+     * gateway tự định tuyến sang model khác.
+     *
+     * Ghi hằng số vào `model_used` nghĩa là bảng calibration (§11) sẽ
+     * khai một model không hề chấm bài nào. Cả module đo AI-vs-người dựng
+     * trên cột đó, nên sai ở đây làm hỏng chính kết luận của đồ án — và
+     * hỏng trong im lặng, vì con số vẫn đẹp.
+     */
+    it('lấy theo response.model khi nhà cung cấp định tuyến sang model khác', async () => {
+      createMock.mockResolvedValue(okResponse({ model: 'claude-sonnet-5' }));
+
+      const outcome = await new ClaudeGradingProvider().grade(REQUEST);
+
+      expect(outcome.modelUsed).toBe('claude-sonnet-5');
+    });
+
+    it('quay về model đã xin khi response không khai model', async () => {
+      // Không bịa `unknown`: biết mình đã xin gì vẫn tốt hơn là mất hẳn
+      // thông tin, và một số gateway cũ không trả trường này.
+      createMock.mockResolvedValue(okResponse());
+
+      const outcome = await new ClaudeGradingProvider().grade(REQUEST);
+
+      expect(outcome.modelUsed).toBe(GRADER_MODEL_FOR_TEST);
+    });
   });
 
   it('map usage sang GradingOutcome, gồm cả token đọc từ cache', async () => {
@@ -274,6 +307,32 @@ describe('ClaudeGradingProvider — hợp đồng với chuỗi dự phòng', ()
     ],
   ])('%s → mang cờ badOutput để chuỗi rơi được bậc', async (_label, response) => {
     createMock.mockResolvedValue(response);
+
+    const caught = await new ClaudeGradingProvider().grade(REQUEST).catch((e: unknown) => e);
+
+    expect(classifyProviderFailure(caught)).toBe('bad_output');
+  });
+
+  it('text KHÔNG phải JSON cũng mang cờ badOutput', async () => {
+    /**
+     * ĐO THẬT 2026-09-17, không phải ca giả định.
+     *
+     * Gọi gateway đang khai trong `.env` bằng đúng provider này: nó nhận
+     * `output_config.format = json_schema` nhưng KHÔNG thực thi, và model
+     * trả về Markdown (`## Kết quả...`). `JSON.parse` ném `SyntaxError`
+     * thô — không `status`, không `code` — nên `classifyProviderFailure`
+     * xếp nó là `transient`, `TierChain` NÉM RA, và bậc sàn ngay dưới
+     * không được gọi. Bài nộp bị bỏ rơi sau 3 lượt retry.
+     *
+     * Cùng một họ lỗi với ca `ENOTFOUND` ở tầng 2, chỉ khác chỗ phát
+     * sinh: một output không parse nổi là BẬC NÀY TRẢ RÁC, phải rơi bậc,
+     * không phải retry cùng bậc ba lần rồi bỏ bài.
+     */
+    createMock.mockResolvedValue(
+      okResponse({
+        content: [{ type: 'text', text: 'Kết quả chấm: tiêu chí 1 đạt, cho 10 điểm.' }],
+      }),
+    );
 
     const caught = await new ClaudeGradingProvider().grade(REQUEST).catch((e: unknown) => e);
 
