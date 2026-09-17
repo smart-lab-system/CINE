@@ -48,6 +48,12 @@ import { AdminModule } from '../admin/admin.module';
   // ClassService is exported for ExamSessionService: creating a session
   // needs the lecturer's own scope on a class, and that scope is decided in
   // one place rather than re-derived against a second set of repositories.
-  exports: [CourseService, ClassService, EnrollmentService],
+  exports: [
+    CourseService,
+    ClassService,
+    EnrollmentService,
+    SemesterService,
+    RosterService,
+  ],
 })
 export class CourseModule {}
