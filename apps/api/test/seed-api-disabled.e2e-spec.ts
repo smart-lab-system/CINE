@@ -5,14 +5,14 @@ import { AppModule } from '../src/app.module';
 
 /**
  * Flag unset → SeedModule is not registered → seed routes are absent (404).
- * Do not set SEED_API_ENABLED here. Runs before seed-api.e2e-spec.ts
- * alphabetically so AppModule loads with the gate closed.
+ * setup-e2e.ts clears SEED_API_ENABLED and points DATABASE_URL at
+ * examcollect_e2e (never the demo DB).
  */
 describe('Seed API disabled (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    delete process.env.SEED_API_ENABLED;
+    process.env.SEED_API_ENABLED = 'false';
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],

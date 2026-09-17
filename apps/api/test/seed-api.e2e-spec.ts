@@ -1,5 +1,3 @@
-process.env.SEED_API_ENABLED = 'true';
-
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
@@ -11,10 +9,10 @@ import { createTestAccount } from './helpers/create-account';
 import { SeedErrorCode } from '../src/seed/seed.types';
 
 /**
- * Seed API enabled. SeedModule is imported explicitly so routes register even
- * if AppModule was first loaded in this worker with the flag off (e.g. after
- * seed-api-disabled.e2e-spec.ts). SEED_API_ENABLED is set for documentation
- * and for AppModule when this file loads first.
+ * Seed API enabled. SeedModule is imported explicitly — setup-e2e clears
+ * SEED_API_ENABLED so AppModule alone never registers seed routes (keeps
+ * seed-api-disabled.e2e-spec.ts honest). DATABASE_URL is forced to
+ * examcollect_e2e (never the demo DB).
  */
 describe('Seed API (e2e)', () => {
   let app: INestApplication;
@@ -23,8 +21,6 @@ describe('Seed API (e2e)', () => {
   const stamp = Date.now();
 
   beforeAll(async () => {
-    process.env.SEED_API_ENABLED = 'true';
-
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule, SeedModule],
     }).compile();
