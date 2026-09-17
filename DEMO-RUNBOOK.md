@@ -48,19 +48,20 @@ of newly-applied migrations, no errors.
 **If not:** confirm step 1's Postgres is healthy first — almost every
 migration failure at this step is "can't connect," not a schema problem.
 
-### The class list is no longer seeded by SQL
+### Academic data is not seeded by migration
 
+After `migration:run`, the schema is empty of học kỳ / môn / lớp / roster.
 `agent:join` refuses any MSSV without an `enrollment` for the session's
-course (CLAUDE.md Security rule 1 — knowing the session code is not
-access), so a database with no roster admits nobody, including the mock
-agent. Until Phase 3 that was patched with `scripts/seed-roster.sql`; the
-roster now arrives through the importer, and a demo that reached into
-Postgres would be showing a path that no longer exists.
-
-The list is loaded through the UI in **step 5b**, from an .xlsx committed at
-`scripts/sample-roster.xlsx`. Nothing to do here.
+course (CLAUDE.md Security rule 1), so a database with no roster admits
+nobody. Load the production-shaped sample graph with **`pnpm seed:sample`**
+in step 5 (Seed API). The optional Excel importer is an **Appendix** for
+demoing the UI — not required on the happy path.
 
 ## 3. Start the API
+
+Uncomment or set `SEED_API_ENABLED=true` in `apps/api/.env` (see
+`.env.example`) so step 5's seed script can call `/seed/*` and
+`/admin/seed/*`. Restart after changing it.
 
 **Do (separate terminal, stays running):**
 ```bash
@@ -97,129 +98,72 @@ http://localhost:3000/login` returns `200`.
 **If not:** same port-conflict story as step 3, on port 3000 instead —
 check with `netstat -ano | grep ":3000"`.
 
-## 5. Get a teacher account to log in with
+## 5. Seed sample accounts, class, and roster
 
 There's no self-serve registration (deliberate — see README's "Getting a
-first admin account"). The first account on any fresh database has to be
-inserted directly.
+first admin account"). On a fresh DB, one command bootstraps admin, head,
+teacher, học kỳ, phòng, môn `4220004247`, lớp **Nhóm 01**, and 22 SV from
+`scripts/seed-fixtures/students.json`.
 
-**Already have one on this machine?** Two demo accounts already exist in
-this repo's dev Postgres from the verification runs:
-`demo-teacher@example.com` / `Demo123456!` (role `teacher`) and
-`demo-head@example.com` / `Demo123456!` (role `department_admin` — the
-Trưởng khoa). Skip to step 5b.
-
-Both are needed now: a lecturer no longer creates a session for a *course*,
-they create one for a **class they were assigned**, and only a Trưởng khoa
-creates classes and loads their roster. That split is the point — see
-step 5b.
-
-**Do (fresh database — generate the hash, then insert):**
+**Do:**
 ```bash
-cd apps/api
-node -e "require('argon2').hash('Demo123456!',{type:2}).then(console.log)"
-# copy the printed $argon2id$... hash, then:
-cd ..
-docker compose exec postgres psql -U examcollect_admin -d examcollect -c \
-  "INSERT INTO examcollect.account (name, email, password_hash, role)
-   VALUES ('Demo Teacher', 'demo-teacher@example.com', '<paste-hash-here>', 'teacher');"
+# once: copy example and set a local password (gitignored)
+cp scripts/seed-fixtures/.env.seed.example .env.seed.local
+# edit .env.seed.local — set SEED_BOOTSTRAP_PASSWORD=… (min 8 chars)
+
+pnpm seed:sample
 ```
-**Expect:** `INSERT 0 1`.
-**If not:** `duplicate key value violates unique constraint` means the
-email is already taken — either reuse it (it's the same account) or pick a
-different email.
+**Expect:** JSON lines for bootstrap (201 or skipped), login, accounts,
+semesters, rooms, courses, classes, roster (`added: 22` on first run).
+Re-run is safe (idempotent; password unchanged unless
+`--update-passwords`).
+**If not:**
+- `SEED_BOOTSTRAP_PASSWORD is required` → create `.env.seed.local`.
+- `ECONNREFUSED` → start the API (step 3).
+- `404` on `/seed/…` → set `SEED_API_ENABLED=true` and restart the API.
+- `401` on login → env password does not match an existing admin; use
+  `--admin-email <existing-admin>` with that account's password, or wipe
+  the local volume (`docker compose down -v`) and seed on a clean DB.
 
-## 5b. Set up the class and import its roster (Trưởng khoa)
+Accounts created (password = `SEED_BOOTSTRAP_PASSWORD`):
 
-Everything a lecturer needs before they can run an exam — a class assigned
-to them, and a list of who is in it — belongs to the Trưởng khoa. This is
-the phase-3 flow, and it replaces the SQL seed entirely.
+| Role | Email |
+| --- | --- |
+| admin | `cntt.admin@iuh.edu.vn` |
+| department_admin | `truongkhoa.cntt@iuh.edu.vn` |
+| teacher | `gv.nguyenvanan@iuh.edu.vn` |
 
-**Do:** log in at `http://localhost:3000/login` as
-`demo-head@example.com` / `Demo123456!`.
-**Expect:** `/department/dashboard`. The sidebar has Học kỳ, Môn học, Lớp
-học, Phòng thi — and no admin screens, whatever you type in the address bar.
+Roster MSSVs are in `scripts/seed-fixtures/students.json` (first 20 for
+mock-agent `--count 20`; `24000321` / `24000322` for hand-driven agent).
 
-**Do (Môn học):** the dev database seeds `CS101`/`CS201` with no owner, so
-they are invisible here by design. Either create your own course under an
-existing học kỳ, or log in as an admin and assign one from
-`/admin/unowned-courses`. Creating one is faster.
-**Expect:** the course appears in the list, owned by you — ownership comes
-from the logged-in account and is never accepted from the form.
-
-**Do (Lớp học):** "Thêm lớp", pick the course, name it `Nhóm 01`, and
-choose **Demo Teacher** as giảng viên phụ trách.
-**Expect:** the row appears with the lecturer's name.
-**If not:** an empty giảng viên dropdown means no account has role
-`teacher` — create one as in step 5.
-
-**Then log in as the LECTURER** (`demo-teacher@example.com`) and open
-**Lớp của tôi** → the class → **Danh sách SV**.
-
-The roster belongs to the lecturer, not the Trưởng khoa: they are the one
-the training office sends the file to, and the one who finds out on exam day
-that it is wrong. A head can read the list — they need their department's
-headcounts — but exactly one person writes it, so two people can never
-disagree about who maintains it.
-
-**Do (roster):** pick the file `scripts/sample-roster.xlsx`.
-**Expect:** a grid preview with real spreadsheet column letters. The file
-has a title row, then headers, so set **Số dòng tiêu đề = 2**, **Cột MSSV =
-Cột B**, **Cột họ tên = Cột C**. The review then reads
-`Thêm 22 · Đổi tên 0 · Giữ nguyên 0`. Click "Xác nhận nhập danh sách".
-**Expect:** `Đã nhập xong: thêm 22, cập nhật 0, giữ nguyên 0`, and the
-"Đang có trong lớp (22)" table below fills in.
-
-The file never reaches the API — it is parsed in the browser and posted as
-JSON (Security rule 5). Nothing is written until that last click.
-
-**Worth showing, three things:**
-
-1. **Import the same file again.** `Giữ nguyên 22`, nothing changes.
-2. **Import `scripts/sample-roster-bad.xlsx`.** One MSSV has spaces in it;
-   the whole file is refused and the offending row is named. 22 of 23 would
-   give a headcount that looks healthy and is not.
-3. **Import a file with a student removed** (delete a row from a copy).
-   They are listed under "không có trong file" and **kept**. Removing them
-   takes ticking the box — deleting an enrollment locks that student out of
-   the exam, and the mistake surfaces on exam day.
-
-**Do (one student by hand):** in **Thêm thủ công một sinh viên**, type an
-MSSV and a name. For the late transfer and the correction — the cases where
-sending the whole file again would be theatre. The typed row is held to the
-same MSSV rule as a row of the file, and the row's bin icon is the undo.
-
-**If not:** "Không đọc được file" means it is not a real .xlsx (an old .xls
-or a renamed .csv). Regenerate the fixtures with
-`pnpm --filter web make:sample-roster`. A **403** on import means you are
-logged in as the Trưởng khoa — switch to the lecturer who teaches the class.
+To walk the Excel importer UI instead, see **Appendix A** — not required
+here.
 
 ## 6. Log in through the real UI
 
-**Do:** log out of the Trưởng khoa account, then open
-`http://localhost:3000/login` and log in as `demo-teacher@example.com`.
-**Expect:** redirected to `/teacher/dashboard` (the demo account from step
-5 is a `teacher`; an `admin` account instead lands on `/admin/dashboard` —
+**Do:** open `http://localhost:3000/login` and log in as
+`gv.nguyenvanan@iuh.edu.vn` with the password from `.env.seed.local`.
+**Expect:** redirected to `/teacher/dashboard` (this fixture account is a
+`teacher`; an `admin` account instead lands on `/admin/dashboard` —
 login redirects by role, and `middleware.ts` independently re-checks role
 on every navigation, so a teacher can never land in `/admin/*` or vice
 versa). An `access_token` cookie is set either way (devtools → Application
 → Cookies, or just proceed — step 7 will 401 immediately if it wasn't).
-**If not:** "Sai email hoặc mật khẩu." means the hash/password don't
-match — regenerate the hash in step 5 and re-insert (or `UPDATE
-examcollect.account SET password_hash = '<new-hash>' WHERE email = '...'`).
-
+**If not:** "Sai email hoặc mật khẩu." means the password in
+`.env.seed.local` does not match — re-seed with `--update-passwords` or
+reset via admin UI.
 ## 7. Create a real exam session
 
 **Do:** from the dashboard, click "Tạo phiên thi" in the sidebar (or go
 straight to `http://localhost:3000/teacher/exam-sessions/new`). Fill in:
 - **Tên phiên thi**: anything, e.g. `Demo — Kiểm tra cuối kỳ`.
-- **Lớp thi**: the class from step 5b, shown as `<mã môn> — Nhóm 01
+- **Lớp thi**: the class from step 5, shown as `4220004247 — Nhóm 01
   (22 SV)`. Only classes assigned to *this* lecturer appear, and the course
   is derived from the class server-side — a lecturer picks the class they
   teach, never a course. An empty dropdown means no class names this
-  account; go back to step 5b.
-- **Phòng thi** / **Loại kỳ thi**: any option — the dev DB seeds 3 rooms
-  (migration `AddCourseRoomExamType`). If Phòng thi is empty, `GET /rooms`
+  account; re-run step 5.
+- **Phòng thi** / **Loại kỳ thi**: any option — step 5 seeds three rooms
+  (`Phòng máy H1.1` / `H1.2` / `H2.1`). If Phòng thi is empty, `GET /rooms`
   failed; check the API terminal.
 - A class with **0 SV** still creates a session, with a warning: it is
   legal, but nobody would get in, and finding that out at the start of an
@@ -300,7 +244,8 @@ look at the "Điểm danh" card.
 - **Thi bù (lớp khác)** — connected, enrolled in this course through a
   DIFFERENT class. They show with their home class, so they read as "from
   Nhóm 05, sitting here" rather than as an unfamiliar name. To see this,
-  import a second class's roster (step 5b) and join with one of its MSSVs.
+  create a second class under the same course (department UI or seed) and
+  join with one of its MSSVs.
 
 All of it comes from the server's log, not from this browser tab. **Refresh
 the page** — the room is still there. Before this it was page state, and one
@@ -321,8 +266,8 @@ That is the question the class list and the submission list cannot answer
 on their own.
 
 **If not:** an empty "Điểm danh" card with "chưa có danh sách để đối chiếu"
-means the session has no class — it predates step 5b's flow. Create a new
-session through the form.
+means the session has no class — it predates step 5's seeded class. Create a
+new session through the form.
 
 ## 9. Run the real agent
 
@@ -340,14 +285,14 @@ A real window opens: **"Vào phòng thi"**, two fields — **Mã số sinh viên
 field: the server answers with the roster's own spelling, never a typed
 one to reconcile).
 
-Enter MSSV `SV20120001` (from the roster seeded in step 2) and the code
-from step 7, then submit.
+Enter MSSV `24000321` (from `scripts/seed-fixtures/students.json`, reserved
+for hand-driven agent) and the code from step 7, then submit.
 
-`SV20120001` comes from the roster seeded in step 2. **An MSSV that is not
-on the roster is refused** — that is step 9b.
+`24000321` is on the roster from step 5. **An MSSV that is not on the
+roster is refused** — that is step 9b.
 
 **Expect:** the button briefly reads "Đang xác nhận với máy chủ…", then
-the window fills with a green checkmark, **Nguyễn Văn A** (the roster
+the window fills with a green checkmark, **Nguyễn Văn An** (the roster
 name, not what you typed) and the session name, and a badge:
 **"Đã điểm danh lúc HH:MM:SS"**. After ~3 seconds it **minimizes to the
 system tray on its own** — a tray icon appears, tooltip "ExamCollect
@@ -358,7 +303,7 @@ the repo — on the Windows lab machines this is `Documents\exam-workspace\`;
 on a non-Windows dev machine, wherever `app.getPath('documents')`
 resolves to there):
 ```
-<Documents>/exam-workspace/SV20120001/
+<Documents>/exam-workspace/24000321/
 # -> exactly the filenames declared in step 7, all present
 ```
 The **already-open lobby tab** (step 8) updates within ~1s, no refresh:
@@ -385,11 +330,11 @@ human can still let them in without anyone editing the database.
 ```bash
 pnpm --filter agent dev
 ```
-Submit with MSSV `SV20124444` and the same session code. **Expect:** the
+Submit with MSSV `24999999` and the same session code. **Expect:** the
 window does not error out — it switches to a different form,
 **"Gửi yêu cầu vào thi"**:
 ```
-MSSV SV20124444 chưa có trong danh sách lớp. Giảng viên sẽ duyệt trực tiếp.
+MSSV 24999999 chưa có trong danh sách lớp. Giảng viên sẽ duyệt trực tiếp.
 ```
 with **Họ và tên** and **Lý do** fields and a **Gửi yêu cầu** button. Fill
 both in and submit. **Expect:** a waiting screen —
@@ -401,7 +346,7 @@ Knowing the code is not access (CLAUDE.md Security rule 1).
 **Then, in the lobby tab (step 8):** the request appears with the name and
 reason given. Approve it, choosing the class. **The waiting window joins
 by itself** — no restart, no resubmitting anything — landing on the same
-green-checkmark confirmation step 9 described, MSSV `SV20124444` this
+green-checkmark confirmation step 9 described, MSSV `24999999` this
 time.
 
 **Then show the trail** — a human overriding the machine is never silent:
@@ -416,11 +361,13 @@ gave, and the class they were assigned to.
 
 ## 10. Run the mock agent (batch load)
 
-The mock identities (`MSSVTEST01`…`MSSVTEST20`) are exactly the first 20
-rows of `scripts/sample-roster.xlsx`, imported in step 5b, so `--count 20`
-works as-is. Raising `--count` past 20 means adding rows in
-`apps/web/scripts/make-sample-roster.mjs`, regenerating and re-importing —
-otherwise the extra agents get `NOT_ENROLLED`, which is the rule working.
+The mock identities are the first N rows of
+`scripts/seed-fixtures/students.json` (same list `pnpm seed:sample` and
+`sample-roster.xlsx` use), so `--count 20` works after step 5. Raising
+`--count` past the fixture length fails clearly — add rows to
+`students.json`, re-run `pnpm seed:sample` (and optionally
+`pnpm --filter web make:sample-roster`), otherwise the extra agents would
+get `NOT_ENROLLED`.
 
 **Do (new terminal, real agent from step 9 keeps running):**
 ```bash
@@ -461,11 +408,11 @@ swapped and the work is simply gone.
 workspace file (Electron writes into the OS's own Documents folder, not
 the repo — see step 9):
 ```bash
-echo "bai lam that cua sinh vien" > "<Documents>/exam-workspace/SV20120001/baitap1.py"
+echo "bai lam that cua sinh vien" > "<Documents>/exam-workspace/24000321/baitap1.py"
 ```
 Wait for the snapshot (four minutes), or force one immediately:
 ```bash
-pnpm --filter agent exec ts-node src/verify-backup.ts <YOUR_CODE> SV20120001
+pnpm --filter agent exec ts-node src/verify-backup.ts <YOUR_CODE> 24000321
 ```
 **Expect:** `8/8 checks passed`. That script drives the real
 uploadSnapshot/restoreBackup against real MinIO and checks all three rows of
@@ -476,10 +423,10 @@ back, and a machine whose files exist but are empty gets it back too.
 "Thoát", step 11), delete its workspace entirely, and start it again with
 the same MSSV:
 ```bash
-rm -rf "<Documents>/exam-workspace/SV20120001"
+rm -rf "<Documents>/exam-workspace/24000321"
 pnpm --filter agent dev
 ```
-Rejoin with MSSV `SV20120001` and the same session code (step 9's form).
+Rejoin with MSSV `24000321` and the same session code (step 9's form).
 **Expect:** the "Trạng thái" section of the detail view (tray → "Xem chi
 tiết") reads **"Sao lưu: đã khôi phục N file."**, and the log panel's
 newest line reads:
@@ -546,17 +493,41 @@ a different course — the rubric is per COURSE, shared by every class of it.
 # Ctrl+C the api dev / web dev terminals (steps 3-4)
 docker compose down          # or leave postgres running for next time
 ```
-No cleanup is required in Postgres — the demo teacher account, exam
-session, and required-deliverable rows are harmless dev-only data (same
+No cleanup is required in Postgres — the seeded accounts, exam
+session, and required-deliverable rows are harmless local/staging data (same
 precedent as every earlier task's manual testing in this plan).
+
+---
+
+## Appendix A — Excel roster importer (optional)
+
+Step 5 already loads the roster via Seed API. Use this appendix only when
+you want to **show the UI importer** (training-office file → lecturer).
+
+**Do:** log in as `gv.nguyenvanan@iuh.edu.vn`, open **Lớp của tôi** →
+`4220004247 — Nhóm 01` → **Danh sách SV**.
+
+**Do (roster):** pick `scripts/sample-roster.xlsx` (regenerate with
+`pnpm --filter web make:sample-roster` from `students.json`).
+**Expect:** set **Số dòng tiêu đề = 2**, **Cột MSSV = Cột B**, **Cột họ tên
+= Cột C**. Review shows adds/updates; confirm. The file never reaches the
+API — parsed in the browser and posted as JSON (Security rule 5).
+
+**Worth showing:**
+
+1. **Import the same file again** — `Giữ nguyên`, nothing changes.
+2. **Import `scripts/sample-roster-bad.xlsx`** — one MSSV has spaces; the
+   whole file is refused.
+3. **Import a file with a student removed** — listed under "không có trong
+   file" and **kept** unless you tick remove.
 
 ---
 
 ## Known gaps this runbook works around (not fixed by this task)
 
-- **No self-serve account registration** — step 5's direct SQL `INSERT` is
-  intentional (see README's "Getting a first admin account"), not a
-  workaround for a bug.
+- **No self-serve account registration** — step 5 uses Seed API bootstrap /
+  `pnpm seed:sample` (see README's "Getting a first admin account"). SQL
+  insert remains a fallback when `SEED_API_ENABLED` is off.
 
 ## Fixed during this task's real run
 

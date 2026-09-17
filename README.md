@@ -108,8 +108,9 @@ CLAUDE.md                     the actual product spec — roles, schema, busines
 **Auth** (`apps/api/src/auth/`): login (by email) and `/auth/refresh`
 (rotates both tokens). No `/auth/register` — `account.role` is `NOT NULL`
 with no "signed up, not yet approved" state to land in, so every account
-(including the first admin) is provisioned deliberately via `POST /accounts`
-or the manual bootstrap below, never by a stranger hitting a public
+(including the first admin) is provisioned deliberately via Seed API
+bootstrap / `pnpm seed:sample`, `POST /accounts`, or the SQL fallback below,
+never by a stranger hitting a public
 endpoint. `JwtStrategy` re-loads the account on every authenticated request
 and rejects if the row is gone — accounts are hard-deleted, so "not found"
 is the only revocation state (no separate lock/disable status column).
@@ -177,8 +178,19 @@ pnpm --filter web dev   # http://localhost:3000
 
 ### Getting a first admin account
 
-There's no self-serve register endpoint (see "What's implemented" above),
-so the first admin is inserted directly:
+There's no self-serve register endpoint (see "What's implemented" above).
+**Preferred (local/staging with Seed API on):** set `SEED_API_ENABLED=true`
+in `apps/api/.env`, copy `scripts/seed-fixtures/.env.seed.example` →
+`.env.seed.local`, set `SEED_BOOTSTRAP_PASSWORD`, then:
+
+```bash
+pnpm seed:sample
+```
+
+That bootstraps `cntt.admin@iuh.edu.vn` plus the sample academic graph
+(see `DEMO-RUNBOOK.md` step 5). Re-run is idempotent.
+
+**Fallback when Seed API is off:** insert the first admin directly:
 
 ```bash
 docker compose exec postgres psql -U examcollect_admin -d examcollect -c \
