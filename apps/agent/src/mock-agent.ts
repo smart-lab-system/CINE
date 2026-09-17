@@ -3,7 +3,8 @@
  *
  * Opens N concurrent WebSocket connections to the exam-live gateway
  * (`Promise.all` over N independent connect+join attempts, never a serial
- * await-in-a-loop), each with a distinct generated (never real) identity,
+ * await-in-a-loop), each with a distinct identity from
+ * `scripts/seed-fixtures/students.json` (same list as `pnpm seed:sample`),
  * all joining the same session code. Reports aggregate success/failure
  * counts and average time-to-ack, so a teacher/dev can functional- and
  * basic-load-test the join flow and the lobby page without gathering N
@@ -22,7 +23,7 @@
  * differently from the real agent would not be testing the real flow.
  *
  * Usage:
- *   ts-node src/mock-agent.ts --session <code> [--count <n>] [--keep-alive] [--simulate-submission] [--backend-url <url>]
+ *   ts-node src/mock-agent.ts --session <code> [--count <n>] [--keep-alive] [--simulate-submission] [--backend-url <url>] [--students <path>]
  *   ts-node src/mock-agent.ts --session ABCD12 --count 50
  *   ts-node src/mock-agent.ts --session ABCD12 --count 20 --keep-alive --simulate-submission
  *
@@ -41,10 +42,14 @@
  *   --backend-url <url>   API base URL (default: http://localhost:4000;
  *                         also settable via the BACKEND_URL env var — the
  *                         flag wins if both are given)
+ *   --students <path>     JSON array of { mssv, name } (default:
+ *                         scripts/seed-fixtures/students.json at repo root)
  *   -h, --help             print usage and exit
  */
 
 import { io, Socket } from 'socket.io-client';
+import { existsSync, readFileSync } from 'node:fs';
+import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
 // ---------------------------------------------------------------------------
@@ -92,8 +97,17 @@ interface MockAgentArgs {
   keepAlive: boolean;
   simulateSubmission: boolean;
   backendUrl?: string;
+  studentsPath?: string;
   help: boolean;
 }
+
+const DEFAULT_STUDENTS_PATH = join(
+  // apps/agent/src → repo root
+  resolve(__dirname, '..', '..', '..'),
+  'scripts',
+  'seed-fixtures',
+  'students.json',
+);
 
 /** Treats an empty/whitespace-only string as "not provided". */
 function nonEmpty(value: string | undefined): string | undefined {
@@ -116,16 +130,19 @@ Cờ:
                           (nội dung sinh trong bộ nhớ, KHÔNG ghi ra đĩa). Tự bật --keep-alive.
   --backend-url <url>    URL API backend, mặc định ${DEFAULT_BACKEND_URL}
                           (cũng có thể set qua biến môi trường BACKEND_URL).
+  --students <path>      File JSON [{mssv,name},…] — mặc định
+                          scripts/seed-fixtures/students.json (cùng nguồn với
+                          pnpm seed:sample / sample-roster.xlsx).
   -h, --help              In hướng dẫn này rồi thoát.
 
-Danh tính agent được SINH TỰ ĐỘNG, KHÔNG dùng MSSV thật:
-  "Sinh viên test 01" / "MSSV_TEST_01", tăng dần theo --count.`);
+Danh tính lấy N phần tử đầu của file students (khớp roster đã seed).`);
 }
 
 function parseArgs(argv: string[]): MockAgentArgs {
   let sessionCode: string | undefined;
   let countRaw: string | undefined;
   let backendUrl: string | undefined;
+  let studentsPath: string | undefined;
   let keepAlive = false;
   let simulateSubmission = false;
   let help = false;
@@ -181,6 +198,9 @@ function parseArgs(argv: string[]): MockAgentArgs {
       case 'backend-url':
         backendUrl = value;
         break;
+      case 'students':
+        studentsPath = value;
+        break;
       default:
         console.warn(`Cờ không xác định, bỏ qua: --${key}`);
     }
@@ -202,12 +222,13 @@ function parseArgs(argv: string[]): MockAgentArgs {
     keepAlive: keepAlive || simulateSubmission,
     simulateSubmission,
     backendUrl: nonEmpty(backendUrl),
+    studentsPath: nonEmpty(studentsPath),
     help,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Fake identity generation — NEVER real MSSV data.
+// Identities from the shared students fixture (same list as seed:sample).
 // ---------------------------------------------------------------------------
 
 interface MockIdentity {
@@ -215,24 +236,64 @@ interface MockIdentity {
   studentId: string;
 }
 
-function generateIdentities(count: number): MockIdentity[] {
-  // Width grows with `count` so e.g. --count 150 still zero-pads
-  // consistently ("001".."150") instead of losing sort order at "099"/"100".
-  const width = Math.max(2, String(count).length);
-  const identities: MockIdentity[] = [];
-  for (let i = 1; i <= count; i++) {
-    const suffix = String(i).padStart(width, '0');
-    identities.push({
-      fullName: `Sinh viên test ${suffix}`,
-      // Letters and digits only, 4-20 chars: exactly ck_submission_mssv and
-      // the AgentJoinDto rule it mirrors. These used to read
-      // "MSSV_TEST_01" — the underscores passed agent:join back when it only
-      // checked length, and would then have been rejected by the DB at the
-      // moment the submission row was written, i.e. at the end of the exam.
-      studentId: `MSSVTEST${suffix}`,
+interface FixtureStudent {
+  mssv: string;
+  name: string;
+}
+
+function resolveStudentsPath(override?: string): string {
+  if (!override) return DEFAULT_STUDENTS_PATH;
+  return isAbsolute(override) ? override : resolve(process.cwd(), override);
+}
+
+function loadFixtureStudents(path: string): FixtureStudent[] {
+  if (!existsSync(path)) {
+    console.error(`Không tìm thấy file students: ${path}`);
+    process.exit(1);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    console.error(`Không đọc được JSON students tại ${path}: ${err}`);
+    process.exit(1);
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    console.error(`File students phải là mảng {mssv,name} không rỗng: ${path}`);
+    process.exit(1);
+  }
+  const students: FixtureStudent[] = [];
+  for (const row of parsed) {
+    if (
+      !row ||
+      typeof row !== 'object' ||
+      typeof (row as FixtureStudent).mssv !== 'string' ||
+      typeof (row as FixtureStudent).name !== 'string'
+    ) {
+      console.error(`Mỗi phần tử students cần {mssv, name} string: ${path}`);
+      process.exit(1);
+    }
+    students.push({
+      mssv: (row as FixtureStudent).mssv,
+      name: (row as FixtureStudent).name,
     });
   }
-  return identities;
+  return students;
+}
+
+function generateIdentities(count: number, studentsPath?: string): MockIdentity[] {
+  const path = resolveStudentsPath(studentsPath);
+  const students = loadFixtureStudents(path);
+  if (count > students.length) {
+    console.error(
+      `--count ${count} vượt quá ${students.length} sinh viên trong ${path}. Thêm SV vào fixture hoặc giảm --count.`,
+    );
+    process.exit(1);
+  }
+  return students.slice(0, count).map((s) => ({
+    fullName: s.name,
+    studentId: s.mssv,
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -581,7 +642,7 @@ async function main(): Promise<void> {
   }
 
   const backendUrl = args.backendUrl ?? nonEmpty(process.env.BACKEND_URL) ?? DEFAULT_BACKEND_URL;
-  const identities = generateIdentities(args.count);
+  const identities = generateIdentities(args.count, args.studentsPath);
   const sessionCode = args.sessionCode;
 
   console.log(

@@ -55,10 +55,9 @@ describe('readWorkbook against the demo fixtures', () => {
 
     expect(parsed.errors).toEqual([]);
     expect(parsed.students).toHaveLength(22);
-    // Exactly the identities mock-agent.ts generates; --count 20 depends on
-    // these existing after an import.
-    expect(parsed.students[0]).toEqual({ mssv: 'MSSVTEST01', name: 'Sinh viên test 01' });
-    expect(parsed.students.map((s) => s.mssv)).toContain('SV20120001');
+    // Same list as scripts/seed-fixtures/students.json (seed:sample + mock-agent).
+    expect(parsed.students[0]).toEqual({ mssv: '24000301', name: 'Nguyễn Hoàng Minh' });
+    expect(parsed.students.map((s) => s.mssv)).toContain('24000321');
   });
 
   it('refuses the whole broken fixture and points at the row', { timeout: PARSE_TIMEOUT_MS }, async () => {
@@ -69,7 +68,7 @@ describe('readWorkbook against the demo fixtures', () => {
     expect(parsed.errors).toEqual([
       {
         row: 8,
-        reason: 'MSSV "SV 2012 0003" không hợp lệ (chỉ gồm 4-20 chữ cái hoặc chữ số)',
+        reason: 'MSSV "240 00399" không hợp lệ (chỉ gồm 4-20 chữ cái hoặc chữ số)',
       },
     ]);
     // 22 of 23 is not a partial success.
