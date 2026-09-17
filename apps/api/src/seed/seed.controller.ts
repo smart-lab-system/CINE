@@ -1,11 +1,23 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { BootstrapAdminDto } from './dto/bootstrap-admin.dto';
+import { EnsureAccountDto } from './dto/ensure-account.dto';
 import { SeedService } from './seed.service';
 
 /**
  * Seed surface (spec §5–§6). Registered only when SEED_API_ENABLED=true.
- * `/seed/bootstrap-admin` is public; `/admin/seed/*` routes get Jwt+Roles
- * in later tasks.
+ * `/seed/bootstrap-admin` is public; `/admin/seed/*` requires admin JWT.
  */
 @Controller()
 export class SeedController {
@@ -15,5 +27,18 @@ export class SeedController {
   @HttpCode(201)
   bootstrapAdmin(@Body() dto: BootstrapAdminDto) {
     return this.seed.bootstrapAdmin(dto);
+  }
+
+  @Post('admin/seed/accounts')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  async ensureAccount(
+    @Body() dto: EnsureAccountDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.seed.ensureAccount(dto, req.user!.sub);
+    res.status(result.created ? 201 : 200);
+    return result;
   }
 }
