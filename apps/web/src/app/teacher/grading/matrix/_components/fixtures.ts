@@ -34,6 +34,7 @@ export function result(over: Partial<GradingResult> = {}): GradingResult {
     aiTotalScore: 1.5,
     confidence: 0.2,
     flagForReview: true,
+    ungradableReason: null,
     criterionResults: [
       { criterionId: 'c1', verdict: 'not_met', points: 0, evidence: 'a', check: 'ok' },
       { criterionId: 'c2', verdict: 'partially_met', points: 1.5, evidence: 'b', check: 'ok' },

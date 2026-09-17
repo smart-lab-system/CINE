@@ -115,6 +115,11 @@ export default function GradingDetailPage({
 
   const readOnly = IN_PROGRESS.includes(result.status);
   const published = PUBLISHED.includes(result.status);
+  // AI hỏng hẳn — khác `readOnly` (đang chấm, hai trạng thái không bao
+  // giờ cùng đúng: markUngradable đưa thẳng ai_grading → flagged_for_
+  // review, bỏ qua ai_graded). `criterionResults` rỗng VĨNH VIỄN ở ca
+  // này, không phải "chưa xong".
+  const aiFailedToGrade = result.ungradableReason !== null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -151,6 +156,15 @@ export default function GradingDetailPage({
         <Alert variant="info">
           <AlertDescription>
             AI đang chấm bài này — chưa duyệt được. Tải lại sau ít phút.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {aiFailedToGrade && (
+        <Alert variant="warning">
+          <AlertDescription>
+            AI không chấm được bài này — {result.ungradableReason}. Chấm tay các tiêu chí bên
+            dưới.
           </AlertDescription>
         </Alert>
       )}

@@ -90,6 +90,12 @@ export interface GradingResult {
   aiTotalScore: number | null;
   confidence: number | null;
   flagForReview: boolean;
+  /**
+   * Vì sao AI KHÔNG chấm được bài này — `null` với mọi bài chấm bình
+   * thường. Đã qua `describeError()` ở backend trước khi tới đây, an
+   * toàn hiển thị thẳng: không chứa bài làm của sinh viên hay khoá API.
+   */
+  ungradableReason: string | null;
   criterionResults: {
     criterionId: string;
     verdict: 'met' | 'partially_met' | 'not_met';
