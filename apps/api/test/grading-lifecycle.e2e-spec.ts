@@ -236,7 +236,7 @@ describe('Vòng đời grading_result (e2e)', () => {
     await expect(
       dataSource.query(
         `UPDATE examcollect.grading_result
-            SET status = 'ai_graded', ai_total_score = 7.5, model_used = 'claude-opus-5',
+            SET status = 'ai_graded', ai_total_score = 7.5, model_used = 'claude-sonnet-4-6',
                 confidence = 0.3, advocate_opinion = $1
           WHERE id = $2`,
         [JSON.stringify({ isCorrect: 'partially', reasoning: 'em đi hướng khác' }), id],

@@ -13,8 +13,10 @@ import { badOutputError } from './provider-failure';
 /**
  * Model dùng để chấm. Một chỗ, để calibration biết chính xác cái gì đã chấm.
  *
- * Opus 5 cho CẢ Grader lẫn Advocate (Plan 2), không cascade sang model rẻ
- * hơn. Ba lý do, ghi ở spec §2.1: cache khoá theo model nên cascade phải
+ * CÙNG MỘT model cho CẢ Grader lẫn Advocate (Plan 2), không cascade sang
+ * model rẻ hơn — tên model cụ thể đổi theo thời gian (xem comment dưới),
+ * quyết định "cùng một model" thì không. Ba lý do, ghi ở spec §2.1: cache
+ * khoá theo model nên cascade phải
  * ghi tiền tố hai lần ở hai namespace; adaptive thinking ĐÃ LÀ cascade làm
  * bên trong với đầy đủ thông tin; và đặt model yếu nhất ở đúng điểm quyết
  * định sự công bằng là ngược — nó bỏ sót thì bài bị chấm theo rubric, điểm

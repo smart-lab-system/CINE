@@ -199,6 +199,32 @@ describe('ClaudeAdvocateProvider', () => {
     expect(caught.message).toMatch(/từ chối/i);
   });
 
+  it('text KHÔNG phải JSON cũng ném lỗi có status, không để SyntaxError bay ra', async () => {
+    /**
+     * Cùng lỗ hổng đã vá ở `ClaudeGradingProvider` (code review 2026-09-17,
+     * W1): dòng này gọi cùng gateway, cùng
+     * `output_config.format = json_schema`, cùng model — và có đúng cùng
+     * một `JSON.parse(text.text)` KHÔNG được bọc. Một gateway không thực
+     * thi ràng buộc JSON sẽ làm hỏng đường Advocate y hệt đường Grader:
+     * `SyntaxError` không `status`, không `code` → `classifyProviderFailure`
+     * xếp `transient` → `TierChain` ném ra → chuỗi Advocate (vốn KHÔNG có
+     * bậc sàn) chết theo. `runAdvocate` ở `grading.service.ts` nuốt lỗi
+     * này, nên hậu quả không lộ ra thành bài bị bỏ rơi như bên Grader —
+     * nhưng nó lặng lẽ xoá mất ý kiến phản biện của MỌI bài, không chỉ
+     * bài gặp lỗi.
+     */
+    createMock.mockResolvedValue(
+      okResponse({ content: [{ type: 'text', text: 'Nhận định: bài làm đúng hướng.' }] }),
+    );
+
+    const caught = (await new ClaudeAdvocateProvider()
+      .advocate(REQUEST)
+      .catch((e: unknown) => e)) as Error & { status?: number };
+
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.status).toBe(422);
+  });
+
   it('output sai schema → ném, và KHÔNG nêu nội dung trả về', async () => {
     // Message này đi vào `failedReason` trong Redis, và nội dung model trả
     // về chứa dẫn chứng trích từ bài làm của sinh viên.

@@ -7,7 +7,9 @@ import { AdvocateProvider, AdvocateRequest } from './advocate-provider';
 import { badOutputError } from './provider-failure';
 
 /**
- * CÙNG model với Grader, không phải model rẻ hơn (spec §2.1).
+ * CÙNG model với Grader, không phải model rẻ hơn (spec §2.1) — tên model
+ * cụ thể đổi theo thời gian (xem comment dưới), quyết định "cùng model
+ * với Grader" thì không.
  *
  * Cache khoá theo model, nên một cascade hai model sẽ ghi khối tiền tố ở
  * HAI namespace. Và đặt model yếu nhất ở đúng điểm quyết định sự công bằng
@@ -73,7 +75,27 @@ export class ClaudeAdvocateProvider implements AdvocateProvider {
       throw badOutputError('Advocate không trả về khối text nào');
     }
 
-    const validation = AdvocateOutputSchema.safeParse(JSON.parse(text.text));
+    // `JSON.parse` phải có lưới của riêng nó, không gộp vào safeParse.
+    //
+    // Cùng lỗ hổng đã vá ở `ClaudeGradingProvider` (code review 2026-09-17,
+    // W1): dòng này gọi cùng gateway, cùng `output_config.format =
+    // json_schema`. Một gateway không thực thi ràng buộc JSON sẽ trả về
+    // prose, và `SyntaxError` thô — không `status`, không `code`, không cờ
+    // `badOutput` — khiến `classifyProviderFailure` xếp nó là `transient`.
+    // Chuỗi Advocate KHÔNG có bậc sàn (xem `fallback-advocate.provider.ts`),
+    // nên `TierChain` ném ra sẽ giết cả chuỗi — và vì `runAdvocate` ở
+    // `grading.service.ts` nuốt lỗi này, hậu quả không lộ ra thành bài bị
+    // bỏ rơi, mà lặng lẽ xoá mất ý kiến phản biện của MỌI bài.
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text.text);
+    } catch {
+      // KHÔNG nêu nội dung trả về: có thể chứa dẫn chứng trích từ bài làm
+      // của sinh viên, và message này đi vào `failedReason` trong Redis.
+      throw badOutputError('Advocate trả về text không phải JSON');
+    }
+
+    const validation = AdvocateOutputSchema.safeParse(payload);
     if (!validation.success) {
       // KHÔNG nêu nội dung trả về: nó chứa dẫn chứng trích từ bài làm của
       // sinh viên, và message này đi vào `failedReason` trong Redis.
