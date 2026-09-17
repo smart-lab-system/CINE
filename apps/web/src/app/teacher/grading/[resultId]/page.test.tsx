@@ -187,4 +187,31 @@ describe('GradingDetailPage', () => {
     // quản trị viên biết cần làm gì (ở đây: nạp lại quota).
     expect(screen.getByText(/nội dung lỗi bị cắt/)).toBeInTheDocument();
   });
+
+  it('AI không chấm được → chấm tay được, Lưu duyệt gửi đủ tiêu chí từ rubric', async () => {
+    resultsData = [
+      result({
+        ungradableReason:
+          'HTTP 400 invalid_request_error (nội dung lỗi bị cắt — có thể chứa bài làm)',
+        criterionResults: [],
+        aiTotalScore: null,
+      }),
+    ];
+    await page();
+
+    // Rubric của test có đúng một tiêu chí, maxPoints 4 (xem fixture
+    // `rubric` ở đầu file) — nó phải hiện được dù `criterionResults` rỗng.
+    await screen.findByText('Xử lý nhất quán dữ liệu');
+    expect(screen.getByText(/AI chưa chấm tiêu chí này/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '4' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Lưu duyệt$/ }));
+
+    expect(submitMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        criteria: [{ criterionId: 'c1', verdict: 'met', points: 4 }],
+      }),
+      expect.anything(),
+    );
+  });
 });

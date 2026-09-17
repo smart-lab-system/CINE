@@ -21,6 +21,7 @@ import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import type { ReviewCriterion } from '@/lib/api/grading';
 import { AnswerPane } from './_components/AnswerPane';
 import { CriterionCard } from './_components/CriterionCard';
+import { ManualCriterionCard } from './_components/ManualCriterionCard';
 import { AdvocatePanel } from './_components/AdvocatePanel';
 
 /** AI còn đang làm việc — chưa duyệt được. */
@@ -59,17 +60,28 @@ export default function GradingDetailPage({
   const [privateNote, setPrivateNote] = useState('');
   const [studentFeedback, setStudentFeedback] = useState('');
 
-  // Điểm khởi đầu: bản giảng viên đã sửa nếu có, chưa thì bản AI đề xuất.
-  const initial = useMemo<ReviewCriterion[]>(
-    () =>
-      result?.editedCriteria ??
-      (result?.criterionResults ?? []).map((criterion) => ({
-        criterionId: criterion.criterionId,
-        verdict: criterion.verdict,
-        points: criterion.points,
-      })),
-    [result],
-  );
+  // Điểm khởi đầu: bản giảng viên đã sửa nếu có; nếu AI không chấm được
+  // (`ungradableReason` khác null) thì dựng từ RUBRIC, mỗi tiêu chí bắt
+  // đầu ở 0đ/chưa đạt — `criterionResults` rỗng VĨNH VIỄN ở ca này, dựng
+  // từ nó sẽ cho một danh sách trống không sửa được. Ca còn lại dựng từ
+  // bản AI đề xuất như cũ.
+  const initial = useMemo<ReviewCriterion[]>(() => {
+    if (result?.editedCriteria) {
+      return result.editedCriteria;
+    }
+    if (result?.ungradableReason != null) {
+      return (rubric?.criteria ?? []).map((criterion) => ({
+        criterionId: criterion.id,
+        verdict: 'not_met' as const,
+        points: 0,
+      }));
+    }
+    return (result?.criterionResults ?? []).map((criterion) => ({
+      criterionId: criterion.criterionId,
+      verdict: criterion.verdict,
+      points: criterion.points,
+    }));
+  }, [result, rubric]);
   const rows = draft ?? initial;
 
   // Tổng LUÔN tính từ các ô, không cho nhập tay — khớp với việc server cũng
@@ -205,35 +217,51 @@ export default function GradingDetailPage({
           </CardHeader>
 
           <CardContent className="flex max-h-[64vh] flex-col gap-3 overflow-y-auto p-4 [scroll-padding-top:0.75rem]">
-            {rows.map((row) => {
-              const criterion = result.criterionResults.find(
-                (item) => item.criterionId === row.criterionId,
-              );
-              const spec = rubric?.criteria.find((item) => item.id === row.criterionId);
-              if (!criterion) return null;
-              return (
-                <CriterionCard
-                  key={row.criterionId}
-                  criterion={criterion}
-                  index={criterionIndexOf(row.criterionId)}
-                  description={spec?.description ?? 'Tiêu chí'}
-                  maxPoints={spec?.maxPoints ?? 0}
-                  confidence={result.confidence}
-                  draft={row}
-                  active={activeCriterionId === row.criterionId}
-                  onActivate={() => setActive(row.criterionId)}
-                  onChange={(patch) => update(row.criterionId, patch)}
-                >
-                  <AdvocatePanel
-                    opinion={result.advocateOpinion}
-                    criterionId={row.criterionId}
-                    maxPoints={spec?.maxPoints ?? 0}
-                    hasQuestion={readiness.data?.hasQuestion ?? false}
-                    onApply={(next) => update(row.criterionId, next)}
-                  />
-                </CriterionCard>
-              );
-            })}
+            {aiFailedToGrade
+              ? rows.map((row) => {
+                  const spec = rubric?.criteria.find((item) => item.id === row.criterionId);
+                  return (
+                    <ManualCriterionCard
+                      key={row.criterionId}
+                      index={criterionIndexOf(row.criterionId)}
+                      description={spec?.description ?? 'Tiêu chí'}
+                      maxPoints={spec?.maxPoints ?? 0}
+                      draft={row}
+                      active={activeCriterionId === row.criterionId}
+                      onActivate={() => setActive(row.criterionId)}
+                      onChange={(patch) => update(row.criterionId, patch)}
+                    />
+                  );
+                })
+              : rows.map((row) => {
+                  const criterion = result.criterionResults.find(
+                    (item) => item.criterionId === row.criterionId,
+                  );
+                  const spec = rubric?.criteria.find((item) => item.id === row.criterionId);
+                  if (!criterion) return null;
+                  return (
+                    <CriterionCard
+                      key={row.criterionId}
+                      criterion={criterion}
+                      index={criterionIndexOf(row.criterionId)}
+                      description={spec?.description ?? 'Tiêu chí'}
+                      maxPoints={spec?.maxPoints ?? 0}
+                      confidence={result.confidence}
+                      draft={row}
+                      active={activeCriterionId === row.criterionId}
+                      onActivate={() => setActive(row.criterionId)}
+                      onChange={(patch) => update(row.criterionId, patch)}
+                    >
+                      <AdvocatePanel
+                        opinion={result.advocateOpinion}
+                        criterionId={row.criterionId}
+                        maxPoints={spec?.maxPoints ?? 0}
+                        hasQuestion={readiness.data?.hasQuestion ?? false}
+                        onApply={(next) => update(row.criterionId, next)}
+                      />
+                    </CriterionCard>
+                  );
+                })}
           </CardContent>
 
           {!readOnly && (
