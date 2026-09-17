@@ -10,7 +10,10 @@ import { SubmissionModule } from './submission/submission.module';
 import { GradingModule } from './grading/grading.module';
 import { CourseModule } from './course/course.module';
 import { RoomModule } from './room/room.module';
+import { SeedModule } from './seed/seed.module';
 import { dataSourceOptions } from './database/data-source';
+
+const seedEnabled = process.env.SEED_API_ENABLED === 'true';
 
 @Module({
   imports: [
@@ -29,6 +32,7 @@ import { dataSourceOptions } from './database/data-source';
     GradingModule,
     CourseModule,
     RoomModule,
+    ...(seedEnabled ? [SeedModule] : []),
   ],
 })
 export class AppModule {}
