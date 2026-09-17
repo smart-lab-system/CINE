@@ -185,7 +185,8 @@ describe('Vòng đời grading_result (e2e)', () => {
     await app.get(GradingService).markUngradable(row0.submission_id, 'HTTP 503 overloaded_error');
 
     const [row] = await dataSource.query(
-      `SELECT status, flag_for_review, confidence FROM examcollect.grading_result WHERE id = $1`,
+      `SELECT status, flag_for_review, confidence, ungradable_reason
+         FROM examcollect.grading_result WHERE id = $1`,
       [id],
     );
     expect(row.status).toBe('flagged_for_review');
@@ -193,6 +194,11 @@ describe('Vòng đời grading_result (e2e)', () => {
     // 0 điểm tin cậy, KHÔNG phải 0 điểm bài: không chấm được là sự thật về
     // hệ thống, không phải phán xét về bài làm.
     expect(Number(row.confidence)).toBe(0);
+    // Trước cột này: lý do chỉ nằm trong log terminal của lần chạy đó.
+    // Sự cố thật 2026-09-17 (tài khoản Anthropic hết credit) mất cả buổi
+    // điều tra vì không có cách nào truy lại nó từ DB sau khi log xoay
+    // vòng — đây là cột bịt đúng lỗ đó.
+    expect(row.ungradable_reason).toBe('HTTP 503 overloaded_error');
     const [scored] = await dataSource.query(
       `SELECT ai_total_score FROM examcollect.grading_result WHERE id = $1`,
       [id],

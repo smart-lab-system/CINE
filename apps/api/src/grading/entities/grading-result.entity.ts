@@ -107,6 +107,22 @@ export class GradingResultEntity extends BaseEntity {
   @Column({ name: 'flag_for_review', type: 'boolean', default: false })
   flagForReview!: boolean;
 
+  /**
+   * Vì sao AI KHÔNG chấm được bài này — chỉ khác `null` khi
+   * `GradingService.markUngradable` chạy.
+   *
+   * `NULL` với MỌI dòng khác, kể cả dòng chấm bình thường: không suy ra
+   * được "không có lỗi" từ một trường rỗng nếu trường đó cũng có thể có
+   * nghĩa "chưa từng chạy tới nhánh này" — hai ý khác nhau, và cột này
+   * chỉ mang MỘT ý.
+   *
+   * Nội dung đã qua `describeError()` ở `grading.processor.ts` trước
+   * khi tới đây — KHÔNG bao giờ chứa bài làm của sinh viên hay khoá API
+   * gốc, an toàn hiển thị thẳng cho giảng viên.
+   */
+  @Column({ name: 'ungradable_reason', type: 'text', nullable: true })
+  ungradableReason!: string | null;
+
   @Column({ name: 'grading_triggered_by', type: 'uuid' })
   gradingTriggeredBy!: string;
 

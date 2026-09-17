@@ -167,6 +167,7 @@ export class GradingService {
       status: 'flagged_for_review',
       flagForReview: true,
       confidence: '0',
+      ungradableReason: reason,
     });
     this.logger.error(`submission ${submissionId}: AI không chấm được — ${reason}`);
   }
