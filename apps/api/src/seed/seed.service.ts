@@ -2,20 +2,29 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditLogService } from '../admin/audit-log.service';
+import { CourseService } from '../course/course.service';
+import { ClassService } from '../course/class.service';
+import { RosterService } from '../course/roster.service';
 import { SemesterService } from '../course/semester.service';
+import { ClassEntity } from '../course/entities/class.entity';
+import { CourseEntity } from '../course/entities/course.entity';
 import { SemesterEntity } from '../course/entities/semester.entity';
 import { AccountEntity, AccountRole } from '../identity/entities/account.entity';
 import { RoomEntity } from '../room/entities/room.entity';
 import { RoomService } from '../room/room.service';
 import { BootstrapAdminDto } from './dto/bootstrap-admin.dto';
 import { EnsureAccountDto } from './dto/ensure-account.dto';
+import { EnsureClassDto } from './dto/ensure-class.dto';
+import { EnsureCourseDto } from './dto/ensure-course.dto';
 import { EnsureRoomDto } from './dto/ensure-room.dto';
+import { EnsureRosterDto } from './dto/ensure-roster.dto';
 import { EnsureSemesterDto } from './dto/ensure-semester.dto';
 import { SeedErrorCode, SeedEnsureResult } from './seed.types';
 
@@ -37,12 +46,37 @@ export type SeedRoomView = SeedEnsureResult<{
   capacity: number | null;
 }>;
 
+export type SeedCourseView = SeedEnsureResult<{
+  code: string;
+  name: string;
+  semesterId: string;
+  departmentHeadId: string | null;
+  claimed?: boolean;
+}>;
+
+export type SeedClassView = SeedEnsureResult<{
+  name: string;
+  courseId: string;
+  teacherId: string;
+}>;
+
+export type SeedRosterView = SeedEnsureResult<{
+  classId: string;
+  added: number;
+  updated: number;
+  unchanged: number;
+  removed: number;
+}>;
+
 @Injectable()
 export class SeedService {
   constructor(
     private readonly accountsService: AccountsService,
     private readonly semesterService: SemesterService,
     private readonly roomService: RoomService,
+    private readonly courseService: CourseService,
+    private readonly classService: ClassService,
+    private readonly rosterService: RosterService,
     private readonly auditLog: AuditLogService,
     @InjectRepository(AccountEntity)
     private readonly accounts: Repository<AccountEntity>,
@@ -50,6 +84,10 @@ export class SeedService {
     private readonly semesters: Repository<SemesterEntity>,
     @InjectRepository(RoomEntity)
     private readonly rooms: Repository<RoomEntity>,
+    @InjectRepository(CourseEntity)
+    private readonly courses: Repository<CourseEntity>,
+    @InjectRepository(ClassEntity)
+    private readonly classes: Repository<ClassEntity>,
   ) {}
 
   /**
@@ -260,6 +298,293 @@ export class SeedService {
       created: false,
       name: existing.name,
       capacity: existing.capacity,
+    };
+  }
+
+  /**
+   * Ensure course by (semesterName, code); claim unowned migration rows
+   * (spec §6.5 / §11.3). Owner is always the resolved head — never admin.
+   */
+  async ensureCourse(
+    dto: EnsureCourseDto,
+    actorId: string,
+  ): Promise<SeedCourseView> {
+    const semester = await this.semesters.findOne({
+      where: { name: dto.semesterName },
+    });
+    if (!semester) {
+      throw new NotFoundException({
+        code: SeedErrorCode.SEMESTER_NOT_FOUND,
+        message: `Semester "${dto.semesterName}" not found`,
+      });
+    }
+
+    const head = await this.accounts.findOne({
+      where: { email: dto.departmentHeadEmail },
+    });
+    if (!head) {
+      throw new NotFoundException({
+        code: SeedErrorCode.ACCOUNT_NOT_FOUND,
+        message: `Account "${dto.departmentHeadEmail}" not found`,
+      });
+    }
+    if (head.role !== 'department_admin') {
+      throw new BadRequestException({
+        code: SeedErrorCode.ACCOUNT_ROLE_INVALID,
+        message: 'departmentHeadEmail must be a department_admin account',
+      });
+    }
+
+    const existing = await this.courses.findOne({
+      where: { semesterId: semester.id, code: dto.code },
+    });
+
+    if (!existing) {
+      const created = await this.courseService.createForHead(head.id, {
+        code: dto.code,
+        name: dto.name,
+        semesterId: semester.id,
+      });
+
+      await this.auditLog.recordUserAction({
+        actorId,
+        action: 'seed.ensure_course',
+        targetType: 'course',
+        targetId: created.id,
+        newValue: {
+          code: created.code,
+          name: created.name,
+          semesterId: created.semesterId,
+          departmentHeadId: created.departmentHeadId,
+        },
+      });
+
+      return {
+        id: created.id,
+        created: true,
+        code: created.code,
+        name: created.name,
+        semesterId: created.semesterId,
+        departmentHeadId: created.departmentHeadId,
+      };
+    }
+
+    if (existing.departmentHeadId === null) {
+      const claimed = await this.courseService.assignOwner(
+        existing.id,
+        head.id,
+        actorId,
+      );
+      return {
+        id: claimed.id,
+        created: false,
+        claimed: true,
+        code: claimed.code,
+        name: claimed.name,
+        semesterId: claimed.semesterId,
+        departmentHeadId: claimed.departmentHeadId,
+      };
+    }
+
+    if (existing.departmentHeadId === head.id) {
+      return {
+        id: existing.id,
+        created: false,
+        code: existing.code,
+        name: existing.name,
+        semesterId: existing.semesterId,
+        departmentHeadId: existing.departmentHeadId,
+      };
+    }
+
+    throw new ConflictException({
+      code: SeedErrorCode.COURSE_OWNED_BY_OTHER,
+      message: 'Course is owned by a different department head',
+    });
+  }
+
+  /** Ensure class by (course + name) (spec §6.6). */
+  async ensureClass(
+    dto: EnsureClassDto,
+    actorId: string,
+  ): Promise<SeedClassView> {
+    const semester = await this.semesters.findOne({
+      where: { name: dto.semesterName },
+    });
+    if (!semester) {
+      throw new NotFoundException({
+        code: SeedErrorCode.SEMESTER_NOT_FOUND,
+        message: `Semester "${dto.semesterName}" not found`,
+      });
+    }
+
+    const course = await this.courses.findOne({
+      where: { semesterId: semester.id, code: dto.courseCode },
+    });
+    if (!course) {
+      throw new NotFoundException({
+        code: SeedErrorCode.COURSE_NOT_FOUND,
+        message: `Course "${dto.courseCode}" not found in that semester`,
+      });
+    }
+    if (!course.departmentHeadId) {
+      throw new BadRequestException({
+        code: SeedErrorCode.COURSE_NOT_FOUND,
+        message: 'Course has no department head; ensure course first',
+      });
+    }
+
+    const teacher = await this.accounts.findOne({
+      where: { email: dto.teacherEmail },
+    });
+    if (!teacher) {
+      throw new NotFoundException({
+        code: SeedErrorCode.ACCOUNT_NOT_FOUND,
+        message: `Account "${dto.teacherEmail}" not found`,
+      });
+    }
+    if (teacher.role !== 'teacher') {
+      throw new BadRequestException({
+        code: SeedErrorCode.ACCOUNT_ROLE_INVALID,
+        message: 'teacherEmail must be a teacher account',
+      });
+    }
+
+    const existing = await this.classes.findOne({
+      where: { courseId: course.id, name: dto.name },
+    });
+
+    if (!existing) {
+      const created = await this.classService.createForHead(
+        course.departmentHeadId,
+        {
+          courseId: course.id,
+          name: dto.name,
+          teacherId: teacher.id,
+        },
+      );
+
+      await this.auditLog.recordUserAction({
+        actorId,
+        action: 'seed.ensure_class',
+        targetType: 'class',
+        targetId: created.id,
+        newValue: {
+          name: created.name,
+          courseId: created.courseId,
+          teacherId: created.teacherId,
+        },
+      });
+
+      return {
+        id: created.id,
+        created: true,
+        name: created.name,
+        courseId: created.courseId,
+        teacherId: created.teacherId,
+      };
+    }
+
+    if (existing.teacherId === teacher.id) {
+      return {
+        id: existing.id,
+        created: false,
+        name: existing.name,
+        courseId: existing.courseId,
+        teacherId: existing.teacherId,
+      };
+    }
+
+    if (dto.reassignTeacher !== true) {
+      throw new ConflictException({
+        code: SeedErrorCode.CLASS_TEACHER_MISMATCH,
+        message: 'Class exists with a different teacher',
+      });
+    }
+
+    const updated = await this.classService.updateForHead(
+      existing.id,
+      course.departmentHeadId,
+      { teacherId: teacher.id },
+    );
+
+    return {
+      id: updated.id,
+      created: false,
+      name: updated.name,
+      courseId: updated.courseId,
+      teacherId: updated.teacherId,
+    };
+  }
+
+  /**
+   * Ensure roster via RosterService.importForClass (spec §6.7). Admin path —
+   * does not go through findTaughtBy.
+   */
+  async ensureRoster(
+    dto: EnsureRosterDto,
+    actorId: string,
+  ): Promise<SeedRosterView> {
+    const semester = await this.semesters.findOne({
+      where: { name: dto.semesterName },
+    });
+    if (!semester) {
+      throw new NotFoundException({
+        code: SeedErrorCode.SEMESTER_NOT_FOUND,
+        message: `Semester "${dto.semesterName}" not found`,
+      });
+    }
+
+    const course = await this.courses.findOne({
+      where: { semesterId: semester.id, code: dto.courseCode },
+    });
+    if (!course) {
+      throw new NotFoundException({
+        code: SeedErrorCode.COURSE_NOT_FOUND,
+        message: `Course "${dto.courseCode}" not found in that semester`,
+      });
+    }
+
+    const klass = await this.classes.findOne({
+      where: { courseId: course.id, name: dto.className },
+    });
+    if (!klass) {
+      throw new NotFoundException({
+        code: SeedErrorCode.CLASS_NOT_FOUND,
+        message: `Class "${dto.className}" not found for that course`,
+      });
+    }
+
+    const result = await this.rosterService.importForClass(klass, {
+      students: dto.students,
+      removeMissing: dto.removeMissing ?? false,
+    });
+
+    const changed =
+      result.added > 0 || result.updated > 0 || result.removed > 0;
+    if (changed) {
+      await this.auditLog.recordUserAction({
+        actorId,
+        action: 'seed.ensure_roster',
+        targetType: 'class',
+        targetId: klass.id,
+        newValue: {
+          added: result.added,
+          updated: result.updated,
+          unchanged: result.unchanged,
+          removed: result.removed,
+        },
+      });
+    }
+
+    return {
+      id: klass.id,
+      classId: klass.id,
+      created: result.added > 0,
+      added: result.added,
+      updated: result.updated,
+      unchanged: result.unchanged,
+      removed: result.removed,
     };
   }
 }

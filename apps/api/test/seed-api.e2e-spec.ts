@@ -225,4 +225,378 @@ describe('Seed API (e2e)', () => {
       expect(room2.body.id).toBe(room1.body.id);
     });
   });
+
+  describe('POST /admin/seed/courses', () => {
+    const migrationSemester = 'Học kỳ 1 2026-2027';
+    const headEmail = `seed_head_${stamp}@example.com`;
+    const headPassword = 'Demo123456!';
+
+    beforeAll(async () => {
+      await request(app.getHttpServer())
+        .post('/admin/seed/accounts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Demo Head',
+          email: headEmail,
+          password: headPassword,
+          role: 'department_admin',
+        });
+
+      // Prior e2e runs may have claimed migration courses; restore unowned
+      // so the claim path is still exercised on a shared DB.
+      await dataSource.query(
+        `UPDATE examcollect.course SET department_head_id = NULL
+         WHERE code IN ('CS101', 'CS201')`,
+      );
+    });
+
+    it('claims unowned CS101 and is idempotent on re-ensure', async () => {
+      const first = await request(app.getHttpServer())
+        .post('/admin/seed/courses')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          code: 'CS101',
+          name: 'Nhập môn lập trình',
+          semesterName: migrationSemester,
+          departmentHeadEmail: headEmail,
+        });
+
+      expect(first.status).toBe(200);
+      expect(first.body.created).toBe(false);
+      expect(first.body.claimed).toBe(true);
+      expect(first.body.departmentHeadId).toBeDefined();
+      expect(first.body.code.toLowerCase()).toBe('cs101');
+
+      const second = await request(app.getHttpServer())
+        .post('/admin/seed/courses')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          code: 'CS101',
+          name: 'Nhập môn lập trình',
+          semesterName: migrationSemester,
+          departmentHeadEmail: headEmail,
+        });
+
+      expect(second.status).toBe(200);
+      expect(second.body.created).toBe(false);
+      expect(second.body.id).toBe(first.body.id);
+      expect(second.body.claimed).toBeUndefined();
+    });
+
+    it('creates a new course code with created: true', async () => {
+      const code = `SEED${String(stamp).slice(-4)}`;
+      const response = await request(app.getHttpServer())
+        .post('/admin/seed/courses')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          code,
+          name: 'Seed Course',
+          semesterName: migrationSemester,
+          departmentHeadEmail: headEmail,
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.created).toBe(true);
+      expect(response.body.code.toLowerCase()).toBe(code.toLowerCase());
+      expect(response.body.departmentHeadId).toBeDefined();
+    });
+  });
+
+  describe('POST /admin/seed/classes', () => {
+    const migrationSemester = 'Học kỳ 1 2026-2027';
+    const headEmail = `seed_head_cls_${stamp}@example.com`;
+    const teacherA = `seed_teacher_a_${stamp}@example.com`;
+    const teacherB = `seed_teacher_b_${stamp}@example.com`;
+    const password = 'Demo123456!';
+    const className = `Nhóm Seed ${stamp}`;
+
+    beforeAll(async () => {
+      for (const [email, role, name] of [
+        [headEmail, 'department_admin', 'Head Cls'],
+        [teacherA, 'teacher', 'Teacher A'],
+        [teacherB, 'teacher', 'Teacher B'],
+      ] as const) {
+        await request(app.getHttpServer())
+          .post('/admin/seed/accounts')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ name, email, password, role });
+      }
+
+      await request(app.getHttpServer())
+        .post('/admin/seed/courses')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          code: 'CS201',
+          name: 'Cấu trúc dữ liệu',
+          semesterName: migrationSemester,
+          departmentHeadEmail: headEmail,
+        });
+    });
+
+    it('ensures class idempotently and rejects teacher mismatch', async () => {
+      const first = await request(app.getHttpServer())
+        .post('/admin/seed/classes')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          courseCode: 'CS201',
+          semesterName: migrationSemester,
+          name: className,
+          teacherEmail: teacherA,
+        });
+      expect(first.status).toBe(201);
+      expect(first.body.created).toBe(true);
+
+      const second = await request(app.getHttpServer())
+        .post('/admin/seed/classes')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          courseCode: 'CS201',
+          semesterName: migrationSemester,
+          name: className,
+          teacherEmail: teacherA,
+        });
+      expect(second.status).toBe(200);
+      expect(second.body.created).toBe(false);
+      expect(second.body.id).toBe(first.body.id);
+
+      const mismatch = await request(app.getHttpServer())
+        .post('/admin/seed/classes')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          courseCode: 'CS201',
+          semesterName: migrationSemester,
+          name: className,
+          teacherEmail: teacherB,
+        });
+      expect(mismatch.status).toBe(409);
+      expect(mismatch.body).toMatchObject({
+        code: SeedErrorCode.CLASS_TEACHER_MISMATCH,
+      });
+    });
+  });
+
+  describe('POST /admin/seed/classes/roster', () => {
+    const migrationSemester = 'Học kỳ 1 2026-2027';
+    const headEmail = `seed_head_roster_${stamp}@example.com`;
+    const teacherEmail = `seed_teacher_roster_${stamp}@example.com`;
+    const password = 'Demo123456!';
+    const className = `Nhóm Roster ${stamp}`;
+    const courseCode = `SR${String(stamp).slice(-4)}`;
+    let classId: string;
+    let teacherToken: string;
+
+    beforeAll(async () => {
+      await request(app.getHttpServer())
+        .post('/admin/seed/accounts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Head Roster',
+          email: headEmail,
+          password,
+          role: 'department_admin',
+        });
+      await request(app.getHttpServer())
+        .post('/admin/seed/accounts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Teacher Roster',
+          email: teacherEmail,
+          password,
+          role: 'teacher',
+        });
+
+      await request(app.getHttpServer())
+        .post('/admin/seed/courses')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          code: courseCode,
+          name: 'Seed Roster Course',
+          semesterName: migrationSemester,
+          departmentHeadEmail: headEmail,
+        });
+
+      const klass = await request(app.getHttpServer())
+        .post('/admin/seed/classes')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          courseCode,
+          semesterName: migrationSemester,
+          name: className,
+          teacherEmail,
+        });
+      classId = klass.body.id;
+
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: teacherEmail, password });
+      teacherToken = login.body.accessToken;
+    });
+
+    it('imports roster and is idempotent on re-ensure', async () => {
+      const students = [
+        { mssv: '24000318', name: 'Nguyễn Hoàng Minh' },
+        { mssv: '24000319', name: 'Trần Văn A' },
+      ];
+
+      const first = await request(app.getHttpServer())
+        .post('/admin/seed/classes/roster')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          courseCode,
+          semesterName: migrationSemester,
+          className,
+          students,
+        });
+      expect(first.status).toBe(201);
+      expect(first.body.added).toBe(2);
+      expect(first.body.classId).toBe(classId);
+
+      const roster = await request(app.getHttpServer())
+        .get(`/classes/${classId}/roster`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+      expect(roster.status).toBe(200);
+      expect(roster.body).toHaveLength(2);
+
+      const second = await request(app.getHttpServer())
+        .post('/admin/seed/classes/roster')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          courseCode,
+          semesterName: migrationSemester,
+          className,
+          students,
+        });
+      expect(second.status).toBe(200);
+      expect(second.body.added).toBe(0);
+      expect(second.body.unchanged).toBe(2);
+
+      const roster2 = await request(app.getHttpServer())
+        .get(`/classes/${classId}/roster`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+      expect(roster2.body).toHaveLength(2);
+    });
+
+    it('rejects invalid MSSV with 400 and writes nothing', async () => {
+      const before = await request(app.getHttpServer())
+        .get(`/classes/${classId}/roster`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+
+      const response = await request(app.getHttpServer())
+        .post('/admin/seed/classes/roster')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          courseCode,
+          semesterName: migrationSemester,
+          className,
+          students: [{ mssv: 'bad mssv!', name: 'Invalid' }],
+        });
+      expect(response.status).toBe(400);
+
+      const after = await request(app.getHttpServer())
+        .get(`/classes/${classId}/roster`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+      expect(after.body).toHaveLength(before.body.length);
+    });
+  });
+
+  describe('demo-ready ensure graph', () => {
+    it('builds head + teacher + semester + room + course + class + roster', async () => {
+      const demoStamp = `${stamp}_demo`;
+      const password = 'Demo123456!';
+      const headEmail = `demo_head_${demoStamp}@example.com`;
+      const teacherEmail = `demo_teacher_${demoStamp}@example.com`;
+      const semesterName = `Demo HK ${demoStamp}`;
+      const roomName = `Demo Room ${demoStamp}`;
+      const courseCode = `DM${String(stamp).slice(-4)}`;
+      const className = 'Nhóm 01';
+
+      await request(app.getHttpServer())
+        .post('/admin/seed/accounts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Demo Head',
+          email: headEmail,
+          password,
+          role: 'department_admin',
+        });
+      await request(app.getHttpServer())
+        .post('/admin/seed/accounts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Demo Teacher',
+          email: teacherEmail,
+          password,
+          role: 'teacher',
+        });
+
+      await request(app.getHttpServer())
+        .post('/admin/seed/semesters')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: semesterName,
+          startDate: '2026-09-01',
+          endDate: '2027-01-15',
+        });
+      await request(app.getHttpServer())
+        .post('/admin/seed/rooms')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: roomName, capacity: 40 });
+
+      const course = await request(app.getHttpServer())
+        .post('/admin/seed/courses')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          code: courseCode,
+          name: 'Demo Course',
+          semesterName,
+          departmentHeadEmail: headEmail,
+        });
+      expect(course.status).toBe(201);
+
+      const klass = await request(app.getHttpServer())
+        .post('/admin/seed/classes')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          courseCode,
+          semesterName,
+          name: className,
+          teacherEmail,
+        });
+      expect(klass.status).toBe(201);
+
+      const roster = await request(app.getHttpServer())
+        .post('/admin/seed/classes/roster')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          courseCode,
+          semesterName,
+          className,
+          students: [
+            { mssv: '24001001', name: 'SV Demo 1' },
+            { mssv: '24001002', name: 'SV Demo 2' },
+          ],
+        });
+      expect(roster.status).toBe(201);
+      expect(roster.body.added).toBe(2);
+
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: teacherEmail, password });
+      expect(login.status).toBe(200);
+
+      const teaching = await request(app.getHttpServer())
+        .get('/classes/teaching')
+        .set('Authorization', `Bearer ${login.body.accessToken}`);
+      expect(teaching.status).toBe(200);
+      expect(
+        teaching.body.some((row: { id: string }) => row.id === klass.body.id),
+      ).toBe(true);
+
+      const list = await request(app.getHttpServer())
+        .get(`/classes/${klass.body.id}/roster`)
+        .set('Authorization', `Bearer ${login.body.accessToken}`);
+      expect(list.status).toBe(200);
+      expect(list.body).toHaveLength(2);
+    });
+  });
 });

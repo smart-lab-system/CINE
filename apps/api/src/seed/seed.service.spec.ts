@@ -23,8 +23,13 @@ function createHarness(accountCount: number) {
     accountsService as unknown as AccountsService,
     {} as never,
     {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
     auditLog as unknown as AuditLogService,
     accountsRepo as unknown as Repository<AccountEntity>,
+    {} as never,
+    {} as never,
     {} as never,
     {} as never,
   );
