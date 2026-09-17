@@ -223,9 +223,10 @@ describe('Seed API (e2e)', () => {
   });
 
   describe('POST /admin/seed/courses', () => {
-    const migrationSemester = 'Học kỳ 1 2026-2027';
+    const semesterName = `Seed Course HK ${stamp}`;
     const headEmail = `seed_head_${stamp}@example.com`;
     const headPassword = 'Demo123456!';
+    const courseCode = `SC${String(stamp).slice(-6)}`;
 
     beforeAll(async () => {
       await request(app.getHttpServer())
@@ -238,38 +239,39 @@ describe('Seed API (e2e)', () => {
           role: 'department_admin',
         });
 
-      // Prior e2e runs may have claimed migration courses; restore unowned
-      // so the claim path is still exercised on a shared DB.
-      await dataSource.query(
-        `UPDATE examcollect.course SET department_head_id = NULL
-         WHERE code IN ('CS101', 'CS201')`,
-      );
+      await request(app.getHttpServer())
+        .post('/admin/seed/semesters')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: semesterName,
+          startDate: '2026-09-01',
+          endDate: '2027-01-15',
+        });
     });
 
-    it('claims unowned CS101 and is idempotent on re-ensure', async () => {
+    it('creates a new course then is idempotent on re-ensure', async () => {
       const first = await request(app.getHttpServer())
         .post('/admin/seed/courses')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          code: 'CS101',
-          name: 'Nhập môn lập trình',
-          semesterName: migrationSemester,
+          code: courseCode,
+          name: 'Seed Course',
+          semesterName,
           departmentHeadEmail: headEmail,
         });
 
-      expect(first.status).toBe(200);
-      expect(first.body.created).toBe(false);
-      expect(first.body.claimed).toBe(true);
+      expect(first.status).toBe(201);
+      expect(first.body.created).toBe(true);
+      expect(first.body.code.toLowerCase()).toBe(courseCode.toLowerCase());
       expect(first.body.departmentHeadId).toBeDefined();
-      expect(first.body.code.toLowerCase()).toBe('cs101');
 
       const second = await request(app.getHttpServer())
         .post('/admin/seed/courses')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          code: 'CS101',
-          name: 'Nhập môn lập trình',
-          semesterName: migrationSemester,
+          code: courseCode,
+          name: 'Seed Course',
+          semesterName,
           departmentHeadEmail: headEmail,
         });
 
@@ -279,32 +281,46 @@ describe('Seed API (e2e)', () => {
       expect(second.body.claimed).toBeUndefined();
     });
 
-    it('creates a new course code with created: true', async () => {
-      const code = `SEED${String(stamp).slice(-4)}`;
-      const response = await request(app.getHttpServer())
+    it('claims an unowned course inserted in-test', async () => {
+      const unownedCode = `UO${String(stamp).slice(-6)}`;
+      const semester = await dataSource.query(
+        `SELECT id FROM examcollect.semester WHERE name = $1 LIMIT 1`,
+        [semesterName],
+      );
+      expect(semester[0]?.id).toBeDefined();
+
+      await dataSource.query(
+        `INSERT INTO examcollect.course (code, name, semester_id, department_head_id)
+         VALUES ($1, $2, $3::uuid, NULL)`,
+        [unownedCode, 'Unowned Claim Course', semester[0].id],
+      );
+
+      const claimed = await request(app.getHttpServer())
         .post('/admin/seed/courses')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          code,
-          name: 'Seed Course',
-          semesterName: migrationSemester,
+          code: unownedCode,
+          name: 'Unowned Claim Course',
+          semesterName,
           departmentHeadEmail: headEmail,
         });
 
-      expect(response.status).toBe(201);
-      expect(response.body.created).toBe(true);
-      expect(response.body.code.toLowerCase()).toBe(code.toLowerCase());
-      expect(response.body.departmentHeadId).toBeDefined();
+      expect(claimed.status).toBe(200);
+      expect(claimed.body.created).toBe(false);
+      expect(claimed.body.claimed).toBe(true);
+      expect(claimed.body.departmentHeadId).toBeDefined();
+      expect(claimed.body.code.toLowerCase()).toBe(unownedCode.toLowerCase());
     });
   });
 
   describe('POST /admin/seed/classes', () => {
-    const migrationSemester = 'Học kỳ 1 2026-2027';
+    const semesterName = `Seed Class HK ${stamp}`;
     const headEmail = `seed_head_cls_${stamp}@example.com`;
     const teacherA = `seed_teacher_a_${stamp}@example.com`;
     const teacherB = `seed_teacher_b_${stamp}@example.com`;
     const password = 'Demo123456!';
     const className = `Nhóm Seed ${stamp}`;
+    const courseCode = `CL${String(stamp).slice(-6)}`;
 
     beforeAll(async () => {
       for (const [email, role, name] of [
@@ -319,12 +335,21 @@ describe('Seed API (e2e)', () => {
       }
 
       await request(app.getHttpServer())
+        .post('/admin/seed/semesters')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: semesterName,
+          startDate: '2026-09-01',
+          endDate: '2027-01-15',
+        });
+
+      await request(app.getHttpServer())
         .post('/admin/seed/courses')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          code: 'CS201',
+          code: courseCode,
           name: 'Cấu trúc dữ liệu',
-          semesterName: migrationSemester,
+          semesterName,
           departmentHeadEmail: headEmail,
         });
     });
@@ -334,8 +359,8 @@ describe('Seed API (e2e)', () => {
         .post('/admin/seed/classes')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          courseCode: 'CS201',
-          semesterName: migrationSemester,
+          courseCode,
+          semesterName,
           name: className,
           teacherEmail: teacherA,
         });
@@ -346,8 +371,8 @@ describe('Seed API (e2e)', () => {
         .post('/admin/seed/classes')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          courseCode: 'CS201',
-          semesterName: migrationSemester,
+          courseCode,
+          semesterName,
           name: className,
           teacherEmail: teacherA,
         });
@@ -359,8 +384,8 @@ describe('Seed API (e2e)', () => {
         .post('/admin/seed/classes')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          courseCode: 'CS201',
-          semesterName: migrationSemester,
+          courseCode,
+          semesterName,
           name: className,
           teacherEmail: teacherB,
         });
@@ -372,12 +397,12 @@ describe('Seed API (e2e)', () => {
   });
 
   describe('POST /admin/seed/classes/roster', () => {
-    const migrationSemester = 'Học kỳ 1 2026-2027';
+    const semesterName = `Seed Roster HK ${stamp}`;
     const headEmail = `seed_head_roster_${stamp}@example.com`;
     const teacherEmail = `seed_teacher_roster_${stamp}@example.com`;
     const password = 'Demo123456!';
     const className = `Nhóm Roster ${stamp}`;
-    const courseCode = `SR${String(stamp).slice(-4)}`;
+    const courseCode = `SR${String(stamp).slice(-6)}`;
     let classId: string;
     let teacherToken: string;
 
@@ -402,12 +427,21 @@ describe('Seed API (e2e)', () => {
         });
 
       await request(app.getHttpServer())
+        .post('/admin/seed/semesters')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: semesterName,
+          startDate: '2026-09-01',
+          endDate: '2027-01-15',
+        });
+
+      await request(app.getHttpServer())
         .post('/admin/seed/courses')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           code: courseCode,
           name: 'Seed Roster Course',
-          semesterName: migrationSemester,
+          semesterName,
           departmentHeadEmail: headEmail,
         });
 
@@ -416,7 +450,7 @@ describe('Seed API (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           courseCode,
-          semesterName: migrationSemester,
+          semesterName,
           name: className,
           teacherEmail,
         });
@@ -439,7 +473,7 @@ describe('Seed API (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           courseCode,
-          semesterName: migrationSemester,
+          semesterName,
           className,
           students,
         });
@@ -458,7 +492,7 @@ describe('Seed API (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           courseCode,
-          semesterName: migrationSemester,
+          semesterName,
           className,
           students,
         });
@@ -482,7 +516,7 @@ describe('Seed API (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           courseCode,
-          semesterName: migrationSemester,
+          semesterName,
           className,
           students: [{ mssv: 'bad mssv!', name: 'Invalid' }],
         });
