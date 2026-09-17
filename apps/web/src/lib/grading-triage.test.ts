@@ -33,6 +33,7 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
     aiTotalScore: 4,
     confidence: 0.9,
     flagForReview: false,
+    ungradableReason: null,
     criterionResults: [criterion()],
     advocateOpinion: null,
     contextUsedQuestion: null,

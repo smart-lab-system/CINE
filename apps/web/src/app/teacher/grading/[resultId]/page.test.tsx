@@ -49,6 +49,7 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
     aiTotalScore: 0,
     confidence: 0.42,
     flagForReview: true,
+    ungradableReason: null,
     criterionResults: [
       {
         criterionId: 'c1',
@@ -168,5 +169,49 @@ describe('GradingDetailPage', () => {
     resultsData = [];
     await page();
     expect(await screen.findByText(/Không tìm thấy bài này/)).toBeInTheDocument();
+  });
+
+  it('AI không chấm được thì nói rõ lý do, không phải im lặng', async () => {
+    resultsData = [
+      result({
+        ungradableReason:
+          'HTTP 400 invalid_request_error (nội dung lỗi bị cắt — có thể chứa bài làm)',
+        criterionResults: [],
+        aiTotalScore: null,
+      }),
+    ];
+    await page();
+
+    expect(await screen.findByText(/AI không chấm được bài này/)).toBeInTheDocument();
+    // Không phải một câu chung chung — đúng lý do đã lưu, để giảng viên/
+    // quản trị viên biết cần làm gì (ở đây: nạp lại quota).
+    expect(screen.getByText(/nội dung lỗi bị cắt/)).toBeInTheDocument();
+  });
+
+  it('AI không chấm được → chấm tay được, Lưu duyệt gửi đủ tiêu chí từ rubric', async () => {
+    resultsData = [
+      result({
+        ungradableReason:
+          'HTTP 400 invalid_request_error (nội dung lỗi bị cắt — có thể chứa bài làm)',
+        criterionResults: [],
+        aiTotalScore: null,
+      }),
+    ];
+    await page();
+
+    // Rubric của test có đúng một tiêu chí, maxPoints 4 (xem fixture
+    // `rubric` ở đầu file) — nó phải hiện được dù `criterionResults` rỗng.
+    await screen.findByText('Xử lý nhất quán dữ liệu');
+    expect(screen.getByText(/AI chưa chấm tiêu chí này/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '4' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Lưu duyệt$/ }));
+
+    expect(submitMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        criteria: [{ criterionId: 'c1', verdict: 'met', points: 4 }],
+      }),
+      expect.anything(),
+    );
   });
 });

@@ -167,6 +167,7 @@ export class GradingService {
       status: 'flagged_for_review',
       flagForReview: true,
       confidence: '0',
+      ungradableReason: reason,
     });
     this.logger.error(`submission ${submissionId}: AI không chấm được — ${reason}`);
   }
@@ -610,6 +611,7 @@ export class GradingService {
         aiTotalScore: entity.aiTotalScore === null ? null : Number(entity.aiTotalScore),
         confidence: entity.confidence === null ? null : Number(entity.confidence),
         flagForReview: entity.flagForReview,
+        ungradableReason: entity.ungradableReason,
         criterionResults: entity.criterionResults,
         // Đầu ra của lượt phản biện. Backend đã ghi ba cột này từ Plan 2;
         // cho tới đây không đường nào đọc chúng ra, nên tính năng hoàn
@@ -648,6 +650,11 @@ export interface GradingResultView {
   aiTotalScore: number | null;
   confidence: number | null;
   flagForReview: boolean;
+  /**
+   * Vì sao AI KHÔNG chấm được — `null` với mọi dòng chấm bình thường.
+   * Xem docblock của cột cùng tên ở `grading-result.entity.ts`.
+   */
+  ungradableReason: string | null;
   criterionResults: unknown[];
   /**
    * Ý kiến lượt phản biện.

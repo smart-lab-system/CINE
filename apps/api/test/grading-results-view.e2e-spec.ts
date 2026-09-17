@@ -267,4 +267,45 @@ describe('GradingResultView — advocate và ngữ cảnh (e2e)', () => {
     expect(res.body[0].advocateOpinion).toBeNull();
     expect(res.body[0].contextUsedQuestion).toBeNull();
   });
+
+  it('không chấm được thì trả lý do, không phải để trống', async () => {
+    // `gradedResult()` seed một dòng chấm THÀNH CÔNG — ca hỏng cần seed
+    // riêng vì nó đi qua `markUngradable`, không qua `gradeOne`.
+    const { sessionId, submissionId } = await sessionWithCollectedSubmission();
+    const [result] = await dataSource.query(
+      `INSERT INTO examcollect.grading_result
+         (submission_id, rubric_id_version, grading_triggered_by, status)
+       VALUES ($1, $2, $3, 'ai_grading') RETURNING id`,
+      [submissionId, rubricId, idA],
+    );
+    await dataSource.query(
+      `UPDATE examcollect.grading_result
+          SET status = 'flagged_for_review', flag_for_review = true, confidence = 0,
+              ungradable_reason = $2
+        WHERE id = $1`,
+      [
+        result.id,
+        'HTTP 400 invalid_request_error (nội dung lỗi bị cắt — có thể chứa bài làm)',
+      ],
+    );
+
+    const res = await listResults(sessionId).expect(200);
+    expect(res.body[0].ungradableReason).toBe(
+      'HTTP 400 invalid_request_error (nội dung lỗi bị cắt — có thể chứa bài làm)',
+    );
+  });
+
+  it('dòng chấm bình thường trả ungradableReason là null, không phải undefined', async () => {
+    // Một trường bị BỎ QUÊN trong mapping của `listForSession` sẽ khiến
+    // JSON không có key này — `undefined` ở client — khác `null` ở mọi
+    // chỗ khác đọc "chưa chấm hỏng". Khẳng định rõ ràng đây LÀ `null`.
+    const { sessionId } = await gradedResult({
+      advocate: null,
+      contextQuestion: null,
+      contextModelAnswer: null,
+    });
+
+    const res = await listResults(sessionId).expect(200);
+    expect(res.body[0].ungradableReason).toBeNull();
+  });
 });
