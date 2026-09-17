@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -11,6 +11,7 @@ import { SubmissionModule } from './submission/submission.module';
 import { GradingModule } from './grading/grading.module';
 import { CourseModule } from './course/course.module';
 import { RoomModule } from './room/room.module';
+import { buildRedisConnection } from './shared/redis-connection';
 import { dataSourceOptions } from './database/data-source';
 
 @Module({
@@ -23,20 +24,24 @@ import { dataSourceOptions } from './database/data-source';
      * có sự thật nào chỉ tồn tại ở đây. Tiến độ chấm đọc từ
      * `grading_result` trong Postgres, chính vì lý do đó.
      *
-     * `getOrThrow` cho host/port: cấu hình thiếu phải nổ lúc khởi động,
-     * không phải lúc giảng viên bấm chấm và nhận 500. Mật khẩu và db thì
-     * optional — dev không cần, nhưng có đường cấu hình sẵn nên chuyển
-     * sang Redis có auth không phải sửa code.
+     * Thông số kết nối do `buildRedisConnection` dựng từ env — xem
+     * shared/redis-connection.ts. Nó throw khi cấu hình thiếu/sai, và throw
+     * trong useFactory làm Nest dừng bootstrap: cấu hình hỏng phải nổ lúc
+     * khởi động, không phải lúc giảng viên bấm chấm và nhận 500.
      */
     BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          host: config.getOrThrow<string>('REDIS_HOST'),
-          port: Number(config.getOrThrow<string>('REDIS_PORT')),
-          password: config.get<string>('REDIS_PASSWORD') || undefined,
-          db: Number(config.get<string>('REDIS_DB') ?? 0),
-        },
+      useFactory: () => ({
+        /**
+         * Ưu tiên REDIS_URL (một URI từ Aiven/Upstash/…), rơi về
+         * REDIS_HOST/PORT/… cho Redis trong docker-compose. Quy tắc và các
+         * cạm bẫy (username rỗng, rediss vs redis, db != 0) nằm trong
+         * shared/redis-connection.ts cùng test của nó — ở đây chỉ gọi.
+         *
+         * Cấu hình sai phải nổ LÚC KHỞI ĐỘNG, không phải lúc giảng viên bấm
+         * chấm và nhận 500: buildRedisConnection throw, và throw trong
+         * useFactory làm Nest dừng bootstrap.
+         */
+        connection: buildRedisConnection(process.env),
         /**
          * Không gian khoá RIÊNG cho test. `'bull'` là mặc định của BullMQ,
          * nên ngoài test không có gì đổi.
