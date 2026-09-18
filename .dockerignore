@@ -1,0 +1,47 @@
+# Build context cho cả apps/api/Dockerfile lẫn apps/web/Dockerfile.
+#
+# Thứ nguy hiểm nhất ở đây là mục .env. Dockerfile làm `COPY apps/api ./apps/api`,
+# tức là mọi file trong thư mục đó đi vào image — kể cả `.env` với password
+# Supabase, password Aiven, secret S3 và khoá API. Một image có secret nướng sẵn
+# bên trong không rút lại được: nó nằm trong layer, `docker history` đọc ra, và
+# nếu đã push lên registry thì coi như đã lộ.
+#
+# Biến môi trường phải được TIÊM lúc chạy (Railway variables, docker-compose
+# `environment:`), không bao giờ nằm trong image.
+# `**/` là bắt buộc: một pattern trần như `.env` CHỈ khớp file ở gốc context,
+# không khớp `apps/api/.env` — đã kiểm bằng cách build thật rồi `ls` trong image.
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.test
+
+# Worktree của Claude Code — 31 bản sao gần đủ của chính repo này. Không có dòng
+# này, build context phình lên hàng GB và upload lên Railway lâu hơn cả build.
+.claude/
+.superpowers/
+.gitnexus/
+
+# Dependency và output: image tự cài và tự build lại. Copy vào chỉ làm chậm,
+# và node_modules của Windows còn có thể chứa binary sai nền tảng.
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.next/
+**/.next/
+out/
+**/out/
+release/
+**/release/
+.turbo/
+**/.turbo/
+*.tsbuildinfo
+
+.git/
+.github/
+docs/
+*.log
+exam-workspace/
+__pycache__/
+*.py[cod]
+.venv/
