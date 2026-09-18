@@ -13,7 +13,7 @@ import { validate } from 'class-validator';
 import { Server, Socket } from 'socket.io';
 import { AccessTokenPayload } from '../auth/types';
 import { teacherRoom } from '../common/exam-live-rooms';
-import { extractAccessTokenFromCookie, isPlainObject } from '../common/exam-live-socket';
+import { extractAccessToken, isPlainObject } from '../common/exam-live-socket';
 import { AuditLogService } from '../admin/audit-log.service';
 import { CourseService } from '../course/course.service';
 import { EnrollmentService } from '../course/enrollment.service';
@@ -264,7 +264,7 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
   }
 
   private async authenticate(client: Socket): Promise<AccessTokenPayload | null> {
-    const token = extractAccessTokenFromCookie(client.handshake.headers.cookie);
+    const token = extractAccessToken(client.handshake);
     if (!token) {
       return null;
     }

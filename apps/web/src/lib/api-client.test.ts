@@ -25,6 +25,19 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+/**
+ * onRequest giờ lấy access token từ /api/auth/token trước KHI gửi request
+ * đầu tiên (bộ nhớ trống sau mỗi lần nạp module, y như sau một lần F5).
+ * Mọi mock fetch trong file này phải trả lời nó, nếu không stub sẽ ném ở
+ * một chỗ trông chẳng liên quan gì tới thứ đang được kiểm.
+ */
+const BOOTSTRAP_TOKEN = 'jwt-cu';
+const REFRESHED_TOKEN = 'jwt-moi';
+
+function authHeaderOf(input: RequestInfo | URL): string | null {
+  return input instanceof Request ? input.headers.get('Authorization') : null;
+}
+
 async function freshApiClient() {
   vi.resetModules();
   const mod = await import('./api-client');
@@ -44,8 +57,11 @@ describe('apiClient — silent refresh on 401', () => {
     let healthCalls = 0;
     (fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input);
+      if (url.includes('/api/auth/token')) {
+        return Promise.resolve(jsonResponse({ accessToken: BOOTSTRAP_TOKEN }));
+      }
       if (url.includes('/api/auth/refresh')) {
-        return Promise.resolve(jsonResponse({ account: { role: 'teacher' } }));
+        return Promise.resolve(jsonResponse({ account: { role: 'teacher' }, accessToken: REFRESHED_TOKEN }));
       }
       if (url.includes('/health')) {
         healthCalls++;
@@ -73,6 +89,9 @@ describe('apiClient — silent refresh on 401', () => {
   it('surfaces the original 401 once the refresh token has also expired, without looping', async () => {
     (fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input);
+      if (url.includes('/api/auth/token')) {
+        return Promise.resolve(jsonResponse({ accessToken: BOOTSTRAP_TOKEN }));
+      }
       if (url.includes('/api/auth/refresh')) {
         return Promise.resolve(jsonResponse({ message: 'Invalid refresh token' }, 401));
       }
@@ -101,9 +120,12 @@ describe('apiClient — silent refresh on 401', () => {
     let healthCalls = 0;
     (fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input);
+      if (url.includes('/api/auth/token')) {
+        return Promise.resolve(jsonResponse({ accessToken: BOOTSTRAP_TOKEN }));
+      }
       if (url.includes('/api/auth/refresh')) {
         refreshCalls++;
-        return Promise.resolve(jsonResponse({ account: { role: 'teacher' } }));
+        return Promise.resolve(jsonResponse({ account: { role: 'teacher' }, accessToken: REFRESHED_TOKEN }));
       }
       if (url.includes('/health')) {
         healthCalls++;
@@ -136,8 +158,11 @@ describe('apiClient — silent refresh on 401', () => {
 
     (fetch as ReturnType<typeof vi.fn>).mockImplementation(async (input: RequestInfo | URL) => {
       const url = urlOf(input);
+      if (url.includes('/api/auth/token')) {
+        return jsonResponse({ accessToken: BOOTSTRAP_TOKEN });
+      }
       if (url.includes('/api/auth/refresh')) {
-        return jsonResponse({ account: { role: 'teacher' } });
+        return jsonResponse({ account: { role: 'teacher' }, accessToken: REFRESHED_TOKEN });
       }
       if (url.includes('/accounts')) {
         accountCalls++;
@@ -168,5 +193,118 @@ describe('apiClient — silent refresh on 401', () => {
     expect(bodiesSeen).toHaveLength(2);
     expect(bodiesSeen[1]).toBe(bodiesSeen[0]);
     expect(JSON.parse(bodiesSeen[1]).email).toBe('a@example.com');
+  });
+
+  /**
+   * Từ khi frontend và API ở hai domain khác nhau, cookie không còn tới được
+   * API — token phải đi trong header. Test này kiểm chính cái nối đó, không
+   * phải kiểm việc api-client "có gửi header" một cách trừu tượng.
+   */
+  it('đính Authorization: Bearer lấy từ /api/auth/token', async () => {
+    const authSeen: (string | null)[] = [];
+    (fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes('/api/auth/token')) {
+        return Promise.resolve(jsonResponse({ accessToken: BOOTSTRAP_TOKEN }));
+      }
+      if (url.includes('/health')) {
+        authSeen.push(authHeaderOf(input));
+        return Promise.resolve(jsonResponse({ status: 'ok' }));
+      }
+      throw new Error(`unexpected fetch to ${url}`);
+    });
+
+    const apiClient = await freshApiClient();
+    await apiClient.GET('/health');
+
+    expect(authSeen).toEqual([`Bearer ${BOOTSTRAP_TOKEN}`]);
+  });
+
+  it('nhiều request song song chỉ bootstrap token MỘT lần', async () => {
+    let tokenCalls = 0;
+    (fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes('/api/auth/token')) {
+        tokenCalls++;
+        return Promise.resolve(jsonResponse({ accessToken: BOOTSTRAP_TOKEN }));
+      }
+      if (url.includes('/health')) {
+        return Promise.resolve(jsonResponse({ status: 'ok' }));
+      }
+      throw new Error(`unexpected fetch to ${url}`);
+    });
+
+    const apiClient = await freshApiClient();
+    await Promise.all([apiClient.GET('/health'), apiClient.GET('/health'), apiClient.GET('/health')]);
+
+    expect(tokenCalls).toBe(1);
+  });
+
+  /**
+   * CÁI BẪY CHÍNH của việc chuyển sang Bearer.
+   *
+   * Bản clone dùng để thử lại được chụp trong onRequest, nên nó mang header
+   * Authorization của token CŨ — đúng cái vừa bị từ chối. Gửi lại nguyên xi
+   * là 401 lần hai một cách chắc chắn, và triệu chứng sẽ là "refresh chạy
+   * nhưng vẫn out" — trông y hệt lỗi backend.
+   *
+   * Thời cookie thì vấn đề này không tồn tại: trình duyệt tự gắn cookie mới
+   * nhất vào mọi request, bản clone không mang theo bản sao nào cả.
+   */
+  it('thử lại sau refresh dùng token MỚI, không phải token vừa bị từ chối', async () => {
+    const authSeen: (string | null)[] = [];
+    let healthCalls = 0;
+    (fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes('/api/auth/token')) {
+        return Promise.resolve(jsonResponse({ accessToken: BOOTSTRAP_TOKEN }));
+      }
+      if (url.includes('/api/auth/refresh')) {
+        return Promise.resolve(jsonResponse({ account: { role: 'teacher' }, accessToken: REFRESHED_TOKEN }));
+      }
+      if (url.includes('/health')) {
+        healthCalls++;
+        authSeen.push(authHeaderOf(input));
+        return healthCalls === 1
+          ? Promise.resolve(jsonResponse({ message: 'Unauthorized' }, 401))
+          : Promise.resolve(jsonResponse({ status: 'ok' }));
+      }
+      throw new Error(`unexpected fetch to ${url}`);
+    });
+
+    const apiClient = await freshApiClient();
+    const result = await apiClient.GET('/health');
+
+    expect(result.response.status).toBe(200);
+    expect(authSeen).toEqual([`Bearer ${BOOTSTRAP_TOKEN}`, `Bearer ${REFRESHED_TOKEN}`]);
+  });
+
+  /**
+   * Chưa đăng nhập là trạng thái BÌNH THƯỜNG (màn login). Request vẫn phải
+   * đi, không header, và 401 từ API là câu trả lời đúng — chặn tại client sẽ
+   * biến một phiên còn cứu được thành lỗi ngay lập tức.
+   */
+  it('không có token thì vẫn gửi request, chỉ là không có header', async () => {
+    const authSeen: (string | null)[] = [];
+    (fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes('/api/auth/token')) {
+        return Promise.resolve(jsonResponse({ message: 'No access token' }, 401));
+      }
+      if (url.includes('/api/auth/refresh')) {
+        return Promise.resolve(jsonResponse({ message: 'No refresh token' }, 401));
+      }
+      if (url.includes('/health')) {
+        authSeen.push(authHeaderOf(input));
+        return Promise.resolve(jsonResponse({ message: 'Unauthorized' }, 401));
+      }
+      throw new Error(`unexpected fetch to ${url}`);
+    });
+
+    const apiClient = await freshApiClient();
+    const result = await apiClient.GET('/health');
+
+    expect(authSeen).toEqual([null]);
+    expect(result.response.status).toBe(401);
   });
 });

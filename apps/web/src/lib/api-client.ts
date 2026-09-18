@@ -1,25 +1,31 @@
 'use client';
 
 import { createApiClient } from '@cine/shared';
+import { getAccessToken, peekAccessToken, setAccessToken } from './auth-token';
 
-// The browser calls the Nest API directly for data (not through a Next
-// Route Handler) — the access_token cookie is httpOnly, so it can't be
-// read here; requests rely on the cookie being sent automatically because
-// both apps share the same top-level domain in production, and in local
-// dev the Nest API's CORS config allows credentials from localhost:3000.
+/**
+ * Trình duyệt gọi thẳng Nest API (không qua Route Handler của Next) để lấy
+ * dữ liệu, và xác thực bằng header `Authorization: Bearer`.
+ *
+ * Trước đây chỗ này dựa vào cookie `access_token` tự được gửi kèm, với giả
+ * định "cả hai app dùng chung top-level domain trong production". Giả định đó
+ * sụp khi frontend lên Vercel còn API lên Railway: cookie thuộc về host đã ĐẶT
+ * nó, nên cookie của origin frontend không bao giờ tới được API ở domain khác
+ * — và không có giá trị `SameSite` nào đổi được điều đó.
+ *
+ * `JwtStrategy` phía Nest vốn đã chấp nhận Bearer làm nguồn thứ hai sau
+ * cookie, nên backend không phải đổi gì cho REST.
+ */
 export const apiClient = createApiClient(
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000',
 );
 
-// `fetch`'s default credentials mode is "same-origin", which never attaches
-// cookies to this client's requests: localhost:3000 (this app) and
-// localhost:4000 (the Nest API) are different origins even in local dev.
-// CORS `credentials: true` on the server only permits a credentialed
-// request to be *received* — the browser still won't send one unless the
-// request itself opts in with `credentials: 'include'`. Requests are
-// immutable once constructed, so a Request is rebuilt here with the mode
-// forced, once, instead of repeating `credentials: 'include'` on every
-// GET/POST call site.
+function withBearer(headers: Headers, token: string): Headers {
+  const next = new Headers(headers);
+  next.set('Authorization', `Bearer ${token}`);
+  return next;
+}
+
 // A Request's body can be read exactly ONCE, and openapi-fetch's own
 // outgoing `fetch(request, requestInitExt)` consumes it while sending the
 // first attempt. By the time a 401 comes back there is nothing left to
@@ -33,30 +39,34 @@ export const apiClient = createApiClient(
 const replayable = new WeakMap<Request, Request>();
 
 apiClient.use({
-  onRequest({ request }) {
-    const credentialed = new Request(request, { credentials: 'include' });
-    replayable.set(credentialed, credentialed.clone());
-    return credentialed;
+  async onRequest({ request }) {
+    // `await`: sau khi F5 thì bộ nhớ trống và token phải được lấy lại từ
+    // cookie httpOnly qua /api/auth/token. getAccessToken() gộp mọi lời gọi
+    // đồng thời thành MỘT request, nên một trang bắn 5 lời gọi song song vẫn
+    // chỉ bootstrap một lần.
+    const token = await getAccessToken();
+
+    // Không token vẫn gửi đi: chưa đăng nhập thì 401 từ API là câu trả lời
+    // đúng, và đường 401-retry bên dưới sẽ thử cứu. Chặn tại đây sẽ biến một
+    // phiên còn cứu được thành lỗi ngay lập tức.
+    const outgoing = token
+      ? new Request(request, { headers: withBearer(request.headers, token) })
+      : request;
+
+    replayable.set(outgoing, outgoing.clone());
+    return outgoing;
   },
 });
 
-// Exported because the exam-live socket needs the same refresh (see
-// lib/socket-recovery.ts): when a lobby tab's XHR and its socket both
-// discover the expired token in the same instant, sharing this promise is
-// what makes that ONE call to /api/auth/refresh instead of two racing ones
-// that would rotate the refresh token out from under each other.
-//
-// In-flight refresh, shared across every request that hits this at once —
-// without it, a page that fires N requests the moment `access_token`
-// expires (ACCESS_TOKEN_TTL=15m; a teacher watching a live lobby for
-// longer than that is the exact case this was reported against) would
-// fire N separate refresh calls instead of one. Module-scoped, not per
-// request: that's what lets concurrent 401s share it.
 let refreshInFlight: Promise<boolean> | null = null;
 
 /**
- * Mints a fresh cookie pair, resolving `false` when the refresh token is
- * dead too.
+ * Đổi refresh token lấy cặp mới, trả `false` khi refresh token cũng đã chết.
+ *
+ * Gọi `/api/auth/refresh` — một Route Handler CÙNG ORIGIN với trang, nên
+ * cookie httpOnly `refresh_token` tới được nó. Đây là lý do refresh token
+ * không cần nằm trong JS: chỉ có access token mới phải vượt biên sang domain
+ * của API.
  *
  * CONCURRENT CALLS SHARE ONE REQUEST. lib/socket-recovery.ts depends on that:
  * when a lobby tab discovers the expired token through an XHR 401 and through
@@ -67,8 +77,25 @@ let refreshInFlight: Promise<boolean> | null = null;
  */
 export function refreshSession(): Promise<boolean> {
   if (!refreshInFlight) {
-    refreshInFlight = fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
-      .then((res) => res.ok)
+    refreshInFlight = fetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin' })
+      .then(async (res) => {
+        if (!res.ok) {
+          return false;
+        }
+        // Ghi token mới vào bộ nhớ NGAY tại đây, không để caller tự lo: mọi
+        // đường refresh đều đi qua hàm này, nên đây là chỗ duy nhất bộ nhớ có
+        // thể lệch khỏi cookie. Bỏ sót sẽ khiến lần thử lại gửi lại đúng cái
+        // token vừa hết hạn và 401 lần nữa.
+        const body: unknown = await res.json().catch(() => null);
+        const next =
+          typeof body === 'object' && body !== null
+            ? (body as { accessToken?: unknown }).accessToken
+            : null;
+        if (typeof next === 'string' && next !== '') {
+          setAccessToken(next);
+        }
+        return true;
+      })
       .catch(() => false)
       .finally(() => {
         refreshInFlight = null;
@@ -118,8 +145,21 @@ apiClient.use({
     if (!replay) {
       return undefined;
     }
+
+    // Bản clone mang header Authorization của token CŨ — chính cái vừa bị từ
+    // chối. Gửi lại nguyên xi là 401 lần hai một cách chắc chắn. Dựng lại
+    // header bằng token mà refreshSession() vừa ghi.
+    //
+    // `peek` chứ không `await get`: refreshSession() vừa chạy xong nên bộ nhớ
+    // đã có giá trị mới, và một lần bootstrap nữa ở đây chỉ thêm một round
+    // trip cho thứ đã nằm sẵn trong tay.
+    const token = peekAccessToken();
+    const retried = token
+      ? new Request(replay, { headers: withBearer(replay.headers, token) })
+      : replay;
+
     try {
-      return await fetch(replay);
+      return await fetch(retried);
     } catch {
       // The network died between the refresh and the replay.
       return undefined;
