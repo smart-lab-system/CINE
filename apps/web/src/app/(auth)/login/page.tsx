@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FormField } from '@/components/ui/form-field';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
+import { setAccessToken } from '@/lib/auth-token';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -85,6 +86,14 @@ export default function LoginPage() {
     // re-checks role from the JWT on every navigation regardless of what
     // this push() targets.
     const body = await response.json().catch(() => null);
+
+    // Đưa access token vào bộ nhớ NGAY, trước khi điều hướng. Trang đích
+    // bắn request đầu tiên gần như tức thì; không có bước này thì lời gọi
+    // đó phải bootstrap lại qua /api/auth/token cho một giá trị vừa nằm
+    // sẵn trong tay — một round trip thừa trên chính màn hình mà người
+    // dùng cảm nhận độ trễ rõ nhất.
+    setAccessToken(typeof body?.accessToken === 'string' ? body.accessToken : null);
+
     const role = body?.account?.role;
     router.push(role === 'teacher' ? '/teacher/dashboard' : '/admin/dashboard');
   }

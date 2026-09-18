@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { clearAccessToken } from '@/lib/auth-token';
 
 export function LogoutButton() {
   const router = useRouter();
@@ -17,6 +18,12 @@ export function LogoutButton() {
     // locally; redirect either way rather than trapping the user on a page
     // they no longer have a token for.
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+
+    // Cookie do Route Handler xoá, nhưng access token còn một bản trong bộ
+    // nhớ tab (lib/auth-token.ts). Bỏ qua bước này thì sau khi "đăng xuất",
+    // JS vẫn cầm một token còn hiệu lực tới 15 phút và mọi lời gọi API vẫn
+    // đi lọt — đăng xuất chỉ là ảo giác trên giao diện.
+    clearAccessToken();
     router.push('/login');
   }
 

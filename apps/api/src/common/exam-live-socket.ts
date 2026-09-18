@@ -48,6 +48,46 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
 }
 
 /**
+ * Hình dạng tối thiểu của `socket.handshake` mà việc xác thực cần tới.
+ * Khai riêng thay vì nhận cả `Socket`: hàm này là thuần, và một test không
+ * nên phải dựng một socket.io Socket giả chỉ để kiểm hai trường.
+ */
+export interface AuthenticatableHandshake {
+  auth?: unknown;
+  headers: { cookie?: string };
+}
+
+/**
+ * Điểm vào DUY NHẤT để lấy access token của một socket.
+ *
+ * Ưu tiên `handshake.auth.token`, rơi về cookie.
+ *
+ * Vì sao cần đường `auth`: frontend chạy trên một origin khác API (Vercel vs
+ * Railway), và cookie thuộc về host đã ĐẶT nó — trình duyệt không bao giờ gửi
+ * cookie của origin frontend sang API, bất kể SameSite. Nên token phải do
+ * client đính kèm, và socket.io có sẵn chỗ cho việc đó.
+ *
+ * Vì sao GIỮ đường cookie: bộ e2e nối socket bằng `extraHeaders: { cookie }`,
+ * và dev local chạy cùng registrable domain nên cookie vẫn tới nơi. Bỏ nó đi
+ * là bắt cả hai phải sửa mà không đổi lại được gì.
+ *
+ * Vì sao `auth` THẮNG cookie: một tab vừa refresh có token mới trong auth
+ * trong khi cookie cũ còn nằm trong jar cho tới khi Set-Cookie tới nơi. Ưu
+ * tiên cookie sẽ xác thực bằng token CŨ và từ chối một phiên hợp lệ.
+ */
+export function extractAccessToken(handshake: AuthenticatableHandshake): string | null {
+  // `handshake.auth` là dữ liệu CLIENT gửi lên — có thể là bất cứ thứ gì.
+  // Một số hay object lọt xuống jwtService.verify sẽ ném lỗi ở một nơi xa hơn
+  // nhiều so với chỗ nó được nhận vào, nên kiểm kiểu ngay tại đây.
+  if (isPlainObject(handshake.auth)) {
+    const token = handshake.auth.token;
+    if (typeof token === 'string' && token.trim() !== '') {
+      return token;
+    }
+  }
+  return extractAccessTokenFromCookie(handshake.headers.cookie);
+}
+/**
  * Pulls `access_token` out of a raw Cookie header.
  *
  * The token is httpOnly, so a browser attaches it to the socket.io handshake

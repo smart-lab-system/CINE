@@ -48,7 +48,9 @@ export async function POST(request: NextRequest) {
   // Options live in lib/auth-cookies.ts, shared with login/route.ts and
   // middleware.ts — a token minted here must expire on the same schedule as
   // one minted at login, and be exactly as reachable.
-  return setSessionCookies(NextResponse.json({ account }), {
+  // accessToken ra body cùng lý do như login/route.ts: trình duyệt cần giá
+  // trị này để đính vào header Authorization khi gọi API ở domain khác.
+  return setSessionCookies(NextResponse.json({ account, accessToken }), {
     accessToken,
     // Rotated: the value AuthService.refresh just handed back, not the one
     // this request came in with.

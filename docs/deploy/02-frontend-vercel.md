@@ -58,40 +58,40 @@ Backend đang chạy local thì phải mở ra ngoài bằng một tunnel có HT
 (`cloudflared tunnel`, `ngrok http 4000`). Dùng hostname cố định, vì mỗi lần
 hostname đổi là phải build lại frontend (xem bảng trên).
 
-### 2. Cookie phiên sẽ không được gửi tới API
+### 2. Xác thực dùng Bearer token, không dùng cookie — ĐÃ XỬ LÝ
 
-Đây là thứ khó thấy nhất và chắc chắn xảy ra.
+Mục này từng là thứ chặn nặng nhất. Nó đã được giải quyết; giữ lại phần giải
+thích vì nó quyết định cách phần auth hoạt động và sẽ khó hiểu nếu chỉ đọc code.
 
-`lib/auth-cookies.ts` đặt cookie với `sameSite: 'lax'` và **không có thuộc
-tính `domain`**. Nghĩa là cookie là *host-only* của chính origin Vercel. Nhưng
-`lib/api-client.ts` cho trình duyệt gọi **thẳng** sang API bằng
-`credentials: 'include'`. Hai điều kiện phải đúng cùng lúc thì cookie mới đi
-kèm, và hiện tại cả hai đều sai:
+**Vấn đề.** Cookie thuộc về host đã ĐẶT nó. Một cookie do `xxx.vercel.app`
+đặt sẽ không bao giờ được gửi tới `yyy.up.railway.app` — đó là ràng buộc
+domain, không phải `SameSite`, nên không giá trị `SameSite` nào đổi được. Và
+`*.vercel.app` nằm trong Public Suffix List, nên ngay cả hai project Vercel
+cũng là hai site khác nhau.
 
-- **Cùng site**: `*.vercel.app` nằm trong Public Suffix List, nên
-  `a.vercel.app` và `b.vercel.app` đã là hai site khác nhau — càng không cùng
-  site với một domain tunnel. `SameSite=Lax` chặn thẳng.
-- **Đúng domain**: cookie host-only chỉ được gửi tới đúng host đã đặt nó.
+**Cách xử lý.** Access token đi trong header `Authorization: Bearer` cho REST
+và trong `handshake.auth.token` cho WebSocket, thay vì dựa vào cookie.
 
-Triệu chứng: đăng nhập báo thành công, rồi mọi lời gọi API trả 401, và
-WebSocket lobby không kết nối được.
+| Thứ | Ở đâu | Vì sao |
+| --- | --- | --- |
+| `refresh_token` | cookie httpOnly trên origin Next.js | JS không đọc được. Nó chỉ cần tới `/api/auth/refresh`, vốn CÙNG origin |
+| `access_token` | cookie httpOnly **và** bộ nhớ JS | Cookie cho `middleware.ts` định tuyến theo vai trò; bộ nhớ để đính vào header gửi sang API |
 
-Cách xử lý duy nhất chạy được với cả WebSocket: **một domain riêng, hai
-subdomain**.
+`GET /api/auth/token` là cây cầu: JS không đọc được cookie httpOnly, nên sau
+mỗi lần F5 nó hỏi server hộ. Endpoint này chỉ ĐỌC, không xoay — dùng
+`/api/auth/refresh` cho việc bootstrap sẽ xoay refresh token mỗi lần tải
+trang, và hai tab mở gần nhau sẽ đăng xuất lẫn nhau.
 
-```
-app.<domain>.vn   -> Vercel
-api.<domain>.vn   -> backend (tunnel, hoặc host thật sau này)
-```
+**Đánh đổi, nói rõ:** access token đọc được bằng JS. Đó là cái giá của hướng
+này. Giới hạn thiệt hại: nó sống 15 phút, và refresh token (7 ngày) không bao
+giờ rời httpOnly — một lỗ XSS lấy được 15 phút, không phải 7 ngày.
 
-Rồi `lib/auth-cookies.ts` phải thêm `domain: '.<domain>.vn'`. Đây là **thay
-đổi code chưa làm** — nêu ra ở đây để nó không bị phát hiện lúc đang demo.
+**Đường cookie vẫn còn ở gateway** làm dự phòng, nên bộ e2e (nối socket bằng
+`extraHeaders: { cookie }`) và dev local cùng origin không phải sửa gì.
 
-Vì sao không proxy API qua Next.js rewrites cho cookie thành first-party:
-làm được cho HTTP, nhưng Vercel không proxy được WebSocket, mà
-`lib/socket.ts` cần kết nối thẳng tới gateway `/exam-live` kèm cookie. Nửa
-giải pháp ở đây tệ hơn không có, vì nó khiến phần hỏng còn lại khó truy hơn.
-
+**Hệ quả: không cần domain riêng.** Frontend ở `*.vercel.app` và API ở
+`*.up.railway.app` chạy được với nhau. Mua domain vẫn tốt cho buổi bảo vệ,
+nhưng không còn là điều kiện kỹ thuật.
 ### 3. `apps/api` không bao giờ lên Vercel được
 
 Chỉ `apps/web` deploy lên đây. Backend có 4 Socket.IO gateway, một BullMQ

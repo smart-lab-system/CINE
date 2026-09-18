@@ -24,7 +24,15 @@ export async function POST(request: NextRequest) {
   // used for no auth decision whatsoever (middleware decodes the real
   // access_token JWT for that, see lib/jwt.ts) — it only lets client
   // components (AppShell's Topbar) show who is logged in without a fetch.
-  return setSessionCookies(NextResponse.json({ account }), {
+  // `accessToken` ĐI RA BODY, ngoài việc vẫn được set thành cookie httpOnly.
+  //
+  // Cookie vẫn cần: middleware.ts giải mã nó để định tuyến theo vai trò, và
+  // /api/auth/token đọc nó để khôi phục phiên sau khi F5.
+  //
+  // Body cũng cần: trình duyệt gọi thẳng API ở domain khác, nơi cookie của
+  // origin này không bao giờ tới được. Client giữ giá trị này trong bộ nhớ
+  // (lib/auth-token.ts) và đính vào header Authorization.
+  return setSessionCookies(NextResponse.json({ account, accessToken }), {
     accessToken,
     refreshToken,
     account,

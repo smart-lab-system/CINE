@@ -20,7 +20,7 @@ import { Server, Socket } from 'socket.io';
 import { Subscription } from 'rxjs';
 import { AccessTokenPayload } from '../auth/types';
 import { agentRoom, teacherRoom } from '../common/exam-live-rooms';
-import { extractAccessTokenFromCookie, isPlainObject } from '../common/exam-live-socket';
+import { extractAccessToken, isPlainObject } from '../common/exam-live-socket';
 import { AgentJoinDto } from './dto/agent-join.dto';
 import { TeacherSubscribeDto } from './dto/teacher-subscribe.dto';
 import { ExamSessionService } from './exam-session.service';
@@ -581,14 +581,17 @@ export class ExamSessionGateway
   }
 
   /**
-   * Frontend teacher -> Server. Requires a valid `access_token` cookie
-   * (httpOnly — the browser attaches it automatically on the handshake
-   * when the client is created with `withCredentials: true`; there is no
-   * JS-readable token store to put in `socket.handshake.auth.token`) AND
-   * ownership of the target session. Any failure emits
+   * Frontend teacher -> Server. Requires một access token hợp lệ VÀ quyền sở
+   * hữu phiên thi. Any failure emits
    * `teacher:subscribe:error` (added to the contract after Task 3 — see
    * plan commit 86fdd7d) instead of failing silently; the socket stays
    * connected either way.
+   *
+   * Token đến từ `handshake.auth.token`, hoặc từ cookie `access_token` nếu
+   * không có — xem `extractAccessToken`. Trước đây chỉ có đường cookie, và
+   * comment ở đây từng nói "there is no JS-readable token store"; điều đó
+   * không còn đúng từ khi frontend chuyển sang Bearer, vì cookie của origin
+   * frontend không bao giờ tới được API nằm ở domain khác.
    */
   @SubscribeMessage('teacher:subscribe')
   async handleTeacherSubscribe(
@@ -618,9 +621,9 @@ export class ExamSessionGateway
       return;
     }
 
-    const token = extractAccessTokenFromCookie(client.handshake.headers.cookie);
+    const token = extractAccessToken(client.handshake);
     if (!token) {
-      this.logger.warn(`teacher:subscribe rejected: no access_token cookie from ${client.id}`);
+      this.logger.warn(`teacher:subscribe rejected: no access token (handshake.auth hoặc cookie) from ${client.id}`);
       this.emitSubscribeError(client, 'UNAUTHORIZED', 'Missing or invalid access token.');
       return;
     }
