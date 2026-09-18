@@ -358,7 +358,7 @@ export class SessionController extends EventEmitter {
   private connectSocket(): void {
     this.patch({ connection: 'connecting' });
     // No cookie/JWT — agents are public/unauthenticated by design, unlike
-    // the teacher lobby (which authenticates via an httpOnly cookie).
+    // the teacher lobby (which authenticates via a Bearer token in handshake.auth).
     const socket = io(`${this.backendUrl}/exam-live`, { reconnection: true });
     this.socket = socket;
 
