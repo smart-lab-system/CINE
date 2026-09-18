@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   Inbox,
   ListChecks,
+  FileSpreadsheet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -49,6 +50,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Cấu hình AI', href: '/admin/ai-config', icon: Bot },
   { label: 'Chi phí', href: '/admin/cost', icon: Wallet },
   { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
+  { label: 'Biểu mẫu', href: '/admin/forms', icon: FileSpreadsheet },
 ];
 
 // Trưởng khoa owns the academic structure an exam session is built from:
@@ -61,6 +63,7 @@ export const DEPARTMENT_NAV: NavItem[] = [
   // Read-only — who is currently teaching in this head's department. The
   // account itself stays admin's to manage (see /admin/accounts).
   { label: 'Giảng viên', href: '/department/teachers', icon: Users },
+  { label: 'Biểu mẫu', href: '/department/forms', icon: FileSpreadsheet },
 ];
 
 export const TEACHER_NAV: NavItem[] = [
@@ -72,4 +75,5 @@ export const TEACHER_NAV: NavItem[] = [
   // trước khi tạo phiên thi, và phiên thi phải ghim rubric trước khi chấm.
   { label: 'Rubric', href: '/teacher/rubrics', icon: ListChecks },
   { label: 'Chấm điểm', href: '/teacher/grading', icon: ClipboardCheck },
+  { label: 'Biểu mẫu', href: '/teacher/forms', icon: FileSpreadsheet },
 ];
