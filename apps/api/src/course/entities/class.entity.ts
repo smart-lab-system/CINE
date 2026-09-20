@@ -17,6 +17,20 @@ export class ClassEntity extends BaseEntity {
   @JoinColumn({ name: 'course_id' })
   course!: CourseEntity;
 
+  /**
+   * Tên môn học dạng VĂN BẢN, thay cho khoá ngoại tới bảng `course`.
+   *
+   * Hệ thống không quản lý dữ liệu nền của trường nữa — nó chỉ ghi lại thứ
+   * giảng viên khai. Đổi lại: hai giảng viên gõ "CTDL&GT" và "Cấu trúc dữ
+   * liệu" là hai môn độc lập, và không gom thống kê theo môn được nữa. Đánh
+   * đổi có ý thức, ghi ở spec thu hẹp master data §7.
+   *
+   * Trong giai đoạn expand/contract, cột này sống CẠNH `course_id`. Khoá
+   * ngoại kia biến mất ở `ContractMasterData`.
+   */
+  @Column({ name: 'course_name', type: 'varchar', length: 200 })
+  courseName!: string;
+
   @Column({ type: 'varchar', length: 100 })
   name!: string;
 

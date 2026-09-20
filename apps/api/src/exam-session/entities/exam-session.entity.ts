@@ -109,6 +109,21 @@ export class ExamSessionEntity extends BaseEntity {
   // constraint backfilled every pre-existing NULL row to a seeded course
   // before altering the column, since e2e-test-created sessions already
   // existed with no course_id — see AddCourseRoomExamType's `up()`.
+  /**
+   * Môn học và phòng thi dạng VĂN BẢN — giảng viên tự điền lúc tạo phiên.
+   *
+   * Hệ thống thôi quản lý dữ liệu nền của trường. Giá phải trả, ghi rõ ở
+   * spec §3.4: `ex_exam_session_room_overlap` vẫn chạy trên cột văn bản
+   * (GiST cộng btree_gist làm việc với `text` y như với `uuid`), nhưng nó
+   * SUY GIẢM từ bảo đảm xuống nỗ lực tốt nhất — "P.A101" và "P A101" là
+   * hai phòng khác nhau với Postgres.
+   */
+  @Column({ name: 'course_name', type: 'varchar', length: 200 })
+  courseName!: string;
+
+  @Column({ name: 'room_name', type: 'varchar', length: 150 })
+  roomName!: string;
+
   @Column({ name: 'course_id', type: 'uuid' })
   courseId!: string;
 
@@ -116,23 +131,25 @@ export class ExamSessionEntity extends BaseEntity {
   @JoinColumn({ name: 'course_id' })
   course!: CourseEntity;
 
-  // WHICH CLASS WAS EXPECTED — never who is allowed in. Authentication
-  // stays at course level via Enrollment (Security rule 1), which is what
-  // makes a make-up exam work: a student enrolled in the course may sit
-  // this session even though their home class is a different one. This
-  // column only answers 'who should have been here', so the lobby can tell
-  // an expected student from a make-up one and count 45 against 46.
+  // LỚP CỦA PHIÊN THI — và từ đợt thu hẹp master data, nó cũng là CƠ SỞ
+  // XÁC THỰC.
   //
-  // Nullable for the sessions created before this column existed: they
-  // have no expected roster, and the lobby degrades to what it showed
-  // then — connected students, no headcount. Every session created through
-  // the form carries one.
-  @Column({ name: 'class_id', type: 'uuid', nullable: true })
-  classId!: string | null;
+  // Trước đây xác thực chạy ở MỨC MÔN HỌC qua `Enrollment`, cố ý, để sinh
+  // viên thi bù từ lớp khác cùng môn vào thẳng được. Bảng `course` biến
+  // mất nên chỗ neo đó không còn; xác thực rơi xuống mức lớp, và sinh viên
+  // lớp khác đi qua luồng XIN PHÉP KÈM LÝ DO đã chạy sẵn. Đó là hành vi đã
+  // chọn, không phải hỏng — xem spec thu hẹp master data §6.
+  //
+  // BẮT BUỘC từ `ExpandMasterDataToText`, và nó vá một lỗ thật:
+  // `ex_exam_session_class_overlap` là exclusion constraint trên cột này,
+  // mà Postgres BỎ QUA dòng có khoá NULL — nên tới lúc đó, mọi phiên không
+  // gắn lớp đều thoát khỏi phép chống trùng lịch lớp.
+  @Column({ name: 'class_id', type: 'uuid' })
+  classId!: string;
 
-  @ManyToOne(() => ClassEntity, { onDelete: 'RESTRICT', nullable: true })
+  @ManyToOne(() => ClassEntity, { onDelete: 'RESTRICT', nullable: false })
   @JoinColumn({ name: 'class_id' })
-  class!: ClassEntity | null;
+  class!: ClassEntity;
 
   // Which physical computer lab this session happens in — pure logistics
   // metadata, NEVER part of the join/auth path (see RoomEntity's comment).
