@@ -26,7 +26,7 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
   let teacherId: string;
   let otherTeacherToken: string;
   let otherTeacherId: string;
-  let courseId: string;
+  let courseName: string;
 
   const PASSWORD = 'correct-horse-battery';
 
@@ -42,9 +42,9 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
   /** Lớp thuộc về `ownerId`, chèn thẳng — không đi qua route đang được test. */
   async function seedClassOwnedBy(ownerId: string): Promise<string> {
     const [row] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `L${Date.now()}${Math.random().toString(36).slice(2, 5)}`, ownerId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `L${Date.now()}${Math.random().toString(36).slice(2, 5)}`, ownerId],
     );
     return row.id;
   }
@@ -65,17 +65,8 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
     otherTeacherId = o.id;
 
     const suffix = `${Date.now()}`.slice(-9);
-    const [sem] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [`HK-CRUD-${suffix}`, '2026-09-01', '2027-01-15'],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [`TCRUD${suffix}`, 'Cấu trúc dữ liệu và Giải thuật', sem.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Cấu trúc dữ liệu và Giải thuật' };
+    courseName = course.name;
   });
 
   afterAll(async () => {
@@ -86,7 +77,7 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/classes')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({ name: `CTDL-${Date.now()}`, courseId, teacherId })
+      .send({ name: `CTDL-${Date.now()}`, courseName, teacherId })
       .expect(201);
 
     expect(res.body.teacherId).toBe(teacherId);
@@ -99,7 +90,7 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/classes')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({ name: `CTDL-mao-${Date.now()}`, courseId, teacherId: otherTeacherId })
+      .send({ name: `CTDL-mao-${Date.now()}`, courseName, teacherId: otherTeacherId })
       .expect(201);
 
     expect(res.body.teacherId).toBe(teacherId);
@@ -167,7 +158,7 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
   it('không phải giảng viên thì không vào được', async () => {
     await request(app.getHttpServer())
       .post('/classes')
-      .send({ name: 'vo danh', courseId, teacherId })
+      .send({ name: 'vo danh', courseName, teacherId })
       .expect(401);
 
     // Và một giảng viên khác vẫn tạo được lớp của CHÍNH HỌ — 403 ở trên là
@@ -175,7 +166,7 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
     await request(app.getHttpServer())
       .post('/classes')
       .set('Authorization', `Bearer ${otherTeacherToken}`)
-      .send({ name: `CTDL-khac-${Date.now()}`, courseId, teacherId: otherTeacherId })
+      .send({ name: `CTDL-khac-${Date.now()}`, courseName, teacherId: otherTeacherId })
       .expect(201);
   });
 });

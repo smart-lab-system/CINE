@@ -6,7 +6,8 @@ import type { AdvocateOpinion, GradingResult, Rubric } from '@/lib/api/grading';
 
 const rubric: Rubric = {
   id: 'rub-1',
-  courseId: 'c-1',
+  teacherId: 'gv-1',
+  name: 'Rubric CTDL',
   version: 3,
   isActive: true,
   totalPoints: 4,

@@ -65,32 +65,20 @@ describe('Submission collection (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     const token: string = login.body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Submission Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Submission Course', $2) RETURNING id`,
-      [`SB${stamp}`, semester.id],
-    );
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Submission Room ${stamp}`],
-    );
+    const course = { name: 'Submission Course' };
+    const room = { name: `Submission Room ${stamp}` };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N02', $2) RETURNING id`,
-      [course.id, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, 'N02', $2) RETURNING id`,
+      [course.name, teacherId],
     );
     classId = klass.id;
 
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [MSSV, STUDENT_NAME, course.id, classId, teacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [MSSV, STUDENT_NAME, classId, teacherId],
     );
 
     const created = await request(app.getHttpServer())
@@ -99,7 +87,8 @@ describe('Submission collection (e2e)', () => {
       .send({
         name: `Submission Session ${stamp}`,
         classId,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),

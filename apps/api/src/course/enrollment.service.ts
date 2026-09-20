@@ -54,7 +54,6 @@ export class EnrollmentService {
    * approving the same student produce one row, not a unique violation.
    */
   async addManually(input: {
-    courseId: string;
     studentMssv: string;
     studentName: string;
     homeClassId: string;
@@ -64,7 +63,6 @@ export class EnrollmentService {
       .createQueryBuilder()
       .insert()
       .values({
-        courseId: input.courseId,
         studentMssv: input.studentMssv,
         studentName: input.studentName,
         homeClassId: input.homeClassId,

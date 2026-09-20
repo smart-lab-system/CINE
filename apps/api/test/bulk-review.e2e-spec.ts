@@ -22,9 +22,9 @@ describe('Duyệt hàng loạt (e2e)', () => {
   const stamp = Date.now();
   let token: string;
   let teacherId: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
-  let roomId: string;
+  let roomName: string;
   let rubricId: string;
   /** Tiêu chí ĐẦU TIÊN của rubric fixture — dùng cho mọi luật `criterion_*`. */
   let criterionId: string;
@@ -60,7 +60,8 @@ describe('Duyệt hàng loạt (e2e)', () => {
       .send({
         name: `Phiên bulk ${stamp}-${dayCursor}`,
         classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         rubricId,
         requiredFilenames: ['Cau1.txt'],
@@ -78,9 +79,9 @@ describe('Duyệt hàng loạt (e2e)', () => {
       const mssv = `SVB${stamp}${studentCursor}`.slice(0, 20);
       await dataSource.query(
         `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [mssv, `SV Bulk ${studentCursor}`, courseId, classId, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+        [mssv, `SV Bulk ${studentCursor}`, classId, teacherId],
       );
 
       const [submission] = await dataSource.query(
@@ -220,26 +221,14 @@ describe('Duyệt hàng loạt (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     token = login.body.accessToken as string;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Bulk Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn duyệt hàng loạt', $2) RETURNING id`,
-      [`BULK${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 60) RETURNING id`,
-      [`Phòng bulk ${stamp}`],
-    );
-    roomId = room.id;
+    const course = { name: 'Môn duyệt hàng loạt' };
+    courseName = course.name;
+    const room = { name: `Phòng bulk ${stamp}` };
+    roomName = room.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Nhóm bulk ${stamp}`, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Nhóm bulk ${stamp}`, teacherId],
     );
     classId = klass.id;
 

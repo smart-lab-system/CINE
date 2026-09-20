@@ -1,9 +1,7 @@
 import { Check, Column, Entity, Exclusion, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
-import { CourseEntity } from '../../course/entities/course.entity';
 import { ClassEntity } from '../../course/entities/class.entity';
-import { RoomEntity } from '../../room/entities/room.entity';
 import { RubricEntity } from '../../grading/entities/rubric.entity';
 
 // draft (being set up) -> scheduled (waiting for start_time) -> active
@@ -78,7 +76,7 @@ export type ExamType = 'TK' | 'GK' | 'CK';
 // `exam-schedule-conflict.e2e-spec.ts` pins this.
 @Exclusion(
   'ex_exam_session_room_overlap',
-  `USING gist ("room_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'collecting' AND "status" <> 'completed' AND "status" <> 'cancelled')`,
+  `USING gist ("room_name" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'collecting' AND "status" <> 'completed' AND "status" <> 'cancelled')`,
 )
 @Exclusion(
   'ex_exam_session_class_overlap',
@@ -103,12 +101,6 @@ export class ExamSessionEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 20 })
   code!: string;
 
-  // Required as of the frontend rebuild's Phase 2 (Course is now a real,
-  // populated module — the earlier "Course module doesn't exist yet"
-  // nullable exception no longer applies). The migration that added this
-  // constraint backfilled every pre-existing NULL row to a seeded course
-  // before altering the column, since e2e-test-created sessions already
-  // existed with no course_id — see AddCourseRoomExamType's `up()`.
   /**
    * Môn học và phòng thi dạng VĂN BẢN — giảng viên tự điền lúc tạo phiên.
    *
@@ -123,13 +115,6 @@ export class ExamSessionEntity extends BaseEntity {
 
   @Column({ name: 'room_name', type: 'varchar', length: 150 })
   roomName!: string;
-
-  @Column({ name: 'course_id', type: 'uuid' })
-  courseId!: string;
-
-  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: false })
-  @JoinColumn({ name: 'course_id' })
-  course!: CourseEntity;
 
   // LỚP CỦA PHIÊN THI — và từ đợt thu hẹp master data, nó cũng là CƠ SỞ
   // XÁC THỰC.
@@ -150,20 +135,6 @@ export class ExamSessionEntity extends BaseEntity {
   @ManyToOne(() => ClassEntity, { onDelete: 'RESTRICT', nullable: false })
   @JoinColumn({ name: 'class_id' })
   class!: ClassEntity;
-
-  // Which physical computer lab this session happens in — pure logistics
-  // metadata, NEVER part of the join/auth path (see RoomEntity's comment).
-  // Required + RESTRICT is a PROVISIONAL constraint scoped to this
-  // capstone's actual deployment (a physical lab) — not an architectural
-  // invariant the way course-level auth independence is. A future
-  // direction supporting exams with no fixed physical room would need to
-  // revisit this nullability, not the auth design.
-  @Column({ name: 'room_id', type: 'uuid' })
-  roomId!: string;
-
-  @ManyToOne(() => RoomEntity, { onDelete: 'RESTRICT', nullable: false })
-  @JoinColumn({ name: 'room_id' })
-  room!: RoomEntity;
 
   @Column({
     name: 'exam_type',

@@ -202,7 +202,6 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
     }
 
     await this.enrollments.addManually({
-      courseId: session.courseId,
       studentMssv: request.studentId,
       studentName: request.fullName,
       homeClassId: homeClass.id,

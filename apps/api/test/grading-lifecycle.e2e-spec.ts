@@ -4,6 +4,10 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { GradingService } from '../src/grading/grading.service';
 
+// Tên rubric phải duy nhất theo LƯỢT CHẠY: uq_rubric_teacher_name_version
+// sống qua nhiều lượt, còn tên môn trong bộ fixture này là hằng chuỗi.
+const RUBRIC_STAMP = Date.now().toString(36);
+
 /**
  * Vòng đời `grading_result` ở tầng DB.
  *
@@ -19,7 +23,7 @@ describe('Vòng đời grading_result (e2e)', () => {
   let dataSource: DataSource;
   let teacherId: string;
   let classId: string;
-  let courseId: string;
+  let courseName: string;
   let sessionId: string;
   let deliverableId: string;
   let rubricVersionCursor = 0;
@@ -39,38 +43,25 @@ describe('Vòng đời grading_result (e2e)', () => {
     );
     teacherId = teacher.id;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`HK Lifecycle ${suffix}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn vòng đời', $2) RETURNING id`,
-      [`LC${suffix}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Môn vòng đời' };
+    courseName = course.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N01', $2) RETURNING id`,
-      [courseId, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, 'N01', $2) RETURNING id`,
+      [courseName, teacherId],
     );
     classId = klass.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`P Lifecycle ${suffix}`],
-    );
+    const room = { name: `P Lifecycle ${suffix}` };
     const [session] = await dataSource.query(
       `INSERT INTO examcollect.exam_session
-         (name, code, class_id, course_id, teacher_id, room_id, exam_type,
+         (name, code, class_id, teacher_id, exam_type,
           start_time, end_time, status, semester_name,
           course_name, room_name)
-       VALUES ('Phiên vòng đời', $1, $2, $3, $4, $5, 'CK',
+       VALUES ('Phiên vòng đời', $1, $2, $4, 'CK',
                now() - interval '1 hour', now() + interval '1 hour', 'active', $6,
-               (SELECT name FROM examcollect.course WHERE id = $3),
-               (SELECT name FROM examcollect.room   WHERE id = $5))
+               $3, $5)
        RETURNING id`,
-      [`LCC${suffix}`.slice(0, 20), classId, courseId, teacherId, room.id, `HK Lifecycle ${suffix}`],
+      [`LCC${suffix}`.slice(0, 20), classId, courseName, teacherId, room.name, `HK Lifecycle ${suffix}`],
     );
     sessionId = session.id;
     const [deliverable] = await dataSource.query(
@@ -115,9 +106,9 @@ describe('Vòng đời grading_result (e2e)', () => {
 
     rubricVersionCursor += 1;
     const [rubric] = await dataSource.query(
-      `INSERT INTO examcollect.rubric (course_id, version, teacher_id, name)
-       VALUES ($1, $2, (SELECT teacher_id FROM examcollect.class WHERE course_id = $1 ORDER BY created_at LIMIT 1), (SELECT name FROM examcollect.course WHERE id = $1)) RETURNING id`,
-      [courseId, rubricVersionCursor],
+      `INSERT INTO examcollect.rubric (version, teacher_id, name)
+       VALUES ($2, $3, $1) RETURNING id`,
+      [`${courseName} ${RUBRIC_STAMP}`, rubricVersionCursor, teacherId],
     );
 
     const [result] = await dataSource.query(

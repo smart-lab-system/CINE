@@ -23,10 +23,8 @@ export interface TeachingClass {
  * nên bộ lọc chỉ hẹp tầm nhìn, không bao giờ mở rộng ra lớp của người
  * khác (CLAUDE.md §7.2.3).
  */
-export async function listTeachingClasses(semesterId?: string): Promise<TeachingClass[]> {
-  const { data, error, response } = await apiClient.GET('/classes/teaching', {
-    params: { query: semesterId ? { semesterId } : {} },
-  });
+export async function listTeachingClasses(): Promise<TeachingClass[]> {
+  const { data, error, response } = await apiClient.GET('/classes/teaching');
   if (error || !response.ok) {
     throw error ?? new Error(`Yêu cầu thất bại (HTTP ${response.status})`);
   }

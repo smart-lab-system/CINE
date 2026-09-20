@@ -2,7 +2,7 @@ import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { AccountRole } from '../../identity/entities/account.entity';
 
-const ACCOUNT_ROLES: AccountRole[] = ['admin', 'teacher', 'super_admin', 'department_admin'];
+const ACCOUNT_ROLES: AccountRole[] = ['admin', 'teacher'];
 
 export class SearchAccountsDto {
   @IsOptional()

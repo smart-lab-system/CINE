@@ -1,19 +1,17 @@
 import type { BadgeProps } from '@/components/ui/badge';
 
-// The three roles the system actually implements. `department_admin` joins
-// the list now that it has an area (/department), routes that accept it, and
-// resources to own — before that, creating one produced an account that could
-// log in and do nothing.
+// HAI vai trò, và đó là toàn bộ danh sách.
 //
-// `super_admin` is still absent, and deliberately so: no API handler accepts
-// it. An account carrying it is sent to /unassigned-role, which says as much,
-// rather than to a screen where every request 403s in silence.
-export const ACCOUNT_ROLE_OPTIONS = ['admin', 'department_admin', 'teacher'] as const;
+// `department_admin` từng ở đây vì nó có khu vực riêng (/department), có
+// route chấp nhận nó và có tài nguyên để sở hữu. Đợt thu hẹp master data bỏ
+// cả ba: không còn môn học, phòng hay học kỳ để quản. `super_admin` chưa bao
+// giờ được handler nào chấp nhận. Cả hai đã bị rút khỏi enum của Postgres ở
+// `ContractMasterData`, nên chúng không còn xuất hiện trong bất kỳ JWT nào.
+export const ACCOUNT_ROLE_OPTIONS = ['admin', 'teacher'] as const;
 export type AccountRoleOption = (typeof ACCOUNT_ROLE_OPTIONS)[number];
 
 export const ACCOUNT_ROLE_LABELS: Record<AccountRoleOption, string> = {
   admin: 'Quản trị',
-  department_admin: 'Trưởng khoa',
   teacher: 'Giảng viên',
 };
 
@@ -26,20 +24,16 @@ export const ACCOUNT_ROLE_BADGE_VARIANT: Record<
   'primary' | 'accent' | 'info'
 > = {
   admin: 'primary',
-  // Its own colour, not a shade of admin: a Trưởng khoa is a different job,
-  // and a table where two roles look alike is a table that gets misread.
-  department_admin: 'info',
   teacher: 'accent',
 };
 
-// Every role the JWT can actually carry, including the two not creatable
-// from this UI — the topbar has to render whatever the logged-in account
-// says it is, not just the two options the create form offers.
+// Mọi vai trò mà JWT có thể mang. Giờ đúng bằng hai lựa chọn của form tạo
+// tài khoản — nhưng `getRoleDisplay` vẫn nhận string và vẫn có nhánh lùi,
+// vì một token cũ phát trước đợt thu hẹp master data còn hạn tới lúc hết
+// hạn, và nó mang một vai trò không còn tồn tại.
 const ROLE_DISPLAY: Record<string, { label: string; variant: NonNullable<BadgeProps['variant']> }> =
   {
     admin: { label: 'Quản trị', variant: 'primary' },
-    super_admin: { label: 'Super Admin', variant: 'primary' },
-    department_admin: { label: 'Trưởng khoa', variant: 'info' },
     teacher: { label: 'Giảng viên', variant: 'accent' },
   };
 

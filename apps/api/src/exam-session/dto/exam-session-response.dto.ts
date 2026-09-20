@@ -66,8 +66,10 @@ export class ExamSessionListItemDto {
   name!: string;
   code!: string;
   courseName!: string;
-  className!: string | null;
+  className!: string;
   roomName!: string;
+  /** Bản chụp lúc tạo phiên — nguồn cho bộ lọc kỳ và cho gợi ý ở biểu mẫu. */
+  semesterName!: string;
   examType!: ExamType;
   startTime!: Date;
   endTime!: Date;

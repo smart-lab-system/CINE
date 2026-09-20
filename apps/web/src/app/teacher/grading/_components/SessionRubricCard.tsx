@@ -23,16 +23,14 @@ import { useRubrics, useSetSessionRubric } from '@/hooks/useGrading';
  */
 export function SessionRubricCard({
   sessionId,
-  courseId,
   rubricVersion,
   hasResults,
 }: {
   sessionId: string;
-  courseId: string | undefined;
   rubricVersion: number | null;
   hasResults: boolean;
 }) {
-  const rubrics = useRubrics(courseId);
+  const rubrics = useRubrics();
   const setRubric = useSetSessionRubric(sessionId);
   const options = rubrics.data ?? [];
 

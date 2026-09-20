@@ -1,7 +1,7 @@
 import { IsEmail, IsIn, IsOptional, IsString, Length } from 'class-validator';
 import { AccountRole } from '../../identity/entities/account.entity';
 
-const ACCOUNT_ROLES: AccountRole[] = ['admin', 'teacher', 'super_admin', 'department_admin'];
+const ACCOUNT_ROLES: AccountRole[] = ['admin', 'teacher'];
 
 export class UpdateAccountDto {
   @IsOptional()

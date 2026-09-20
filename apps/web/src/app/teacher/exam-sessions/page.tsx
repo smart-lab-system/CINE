@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { CalendarClock, Copy, DoorOpen, Plus } from 'lucide-react';
@@ -24,7 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EXAM_TYPE_LABELS, getDisplaySessionStatus } from '@/lib/exam-session-display';
-import { useSemesterFilter } from '@/hooks/useSemesterFilter';
+import { semesterOptions, useSemesterFilter } from '@/hooks/useSemesterFilter';
 import { SemesterFilter } from '@/components/layout/semester-filter';
 import type { ExamSessionStatusFilter, ExamType } from '@/lib/api/exam-session';
 
@@ -91,8 +91,22 @@ export default function ExamSessionsListPage() {
     examType: examType === 'all' ? undefined : examType,
     // `?? undefined`: null nghĩa là "tất cả kỳ", và cách nói điều đó với
     // API là KHÔNG gửi tham số — xem doc của SearchExamSessionsParams.
-    semesterId: semesterFilter.semesterId ?? undefined,
+    semesterName: semesterFilter.semesterName ?? undefined,
   });
+
+  // Lựa chọn lấy từ chính các phiên đã tải. Giữ lại giá trị đang lọc: khi
+  // bộ lọc thu hẹp kết quả xuống một kỳ, danh sách nguồn cũng chỉ còn kỳ
+  // đó — không giữ thì dropdown tự xoá mọi lựa chọn khác ngay sau cú chọn
+  // đầu tiên, và người dùng không còn đường quay lại.
+  const [seenSemesters, setSeenSemesters] = useState<string[]>([]);
+  useEffect(() => {
+    const fromPage = (data?.items ?? []).map((item) => item.semesterName);
+    setSeenSemesters((previous) => semesterOptions([...previous, ...fromPage]));
+  }, [data]);
+  const semesterChoices = semesterOptions([
+    ...seenSemesters,
+    semesterFilter.semesterName,
+  ]);
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -114,7 +128,7 @@ export default function ExamSessionsListPage() {
   }
 
   function handleSemesterChange(value: string | null) {
-    semesterFilter.setSemesterId(value);
+    semesterFilter.setSemesterName(value);
     // Đang ở trang 3 của kỳ này mà đổi kỳ thì trang 3 của kỳ kia có thể
     // không tồn tại, và bảng hiện ra rỗng như thể kỳ đó không có phiên nào.
     setPage(1);
@@ -144,12 +158,9 @@ export default function ExamSessionsListPage() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <SemesterFilter
-          value={semesterFilter.semesterId}
+          value={semesterFilter.semesterName}
           onChange={handleSemesterChange}
-          semesters={semesterFilter.semesters}
-          current={semesterFilter.current}
-          isStale={semesterFilter.isStale}
-          staleDays={semesterFilter.staleDays}
+          semesters={semesterChoices}
         />
         <Input
           value={search}
@@ -222,7 +233,7 @@ export default function ExamSessionsListPage() {
                   </Button>
                 }
               />
-            ) : semesterFilter.semesterId !== null ? (
+            ) : semesterFilter.semesterName !== null ? (
               <EmptyState
                 icon={CalendarClock}
                 title="Không có phiên thi nào trong học kỳ này"

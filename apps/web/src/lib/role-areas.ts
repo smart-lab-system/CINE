@@ -6,17 +6,18 @@
  * than into an area whose APIs will refuse it.
  *
  * That rule exists because the alternative already bit us twice. `middleware`
- * used to sort roles into "admin family" and "everyone else", which put both
- * `department_admin` and `super_admin` into `/admin/*` — where every call
- * returns 403, because the API's only `@Roles` values are `'admin'` and
- * `'teacher'`. A logged-in user landed on a page where nothing worked and
- * nothing said why. Naming the two roles individually would have left the
- * same trap armed for the next value someone adds to the enum, so the
- * failure is made structural instead: unmapped means visibly unmapped.
+ * used to sort roles into "admin family" and "everyone else", which put every
+ * admin-ish role into `/admin/*` — where the calls 403, because the API only
+ * accepts the roles it names. A logged-in user landed on a page where nothing
+ * worked and nothing said why.
+ *
+ * Vẫn giữ nguyên hình dạng này sau khi enum rút còn hai giá trị, và lý do
+ * còn mạnh hơn trước: một token phát TRƯỚC `ContractMasterData` vẫn mang
+ * `department_admin` cho tới khi hết hạn, và nó phải rơi vào trang 'chưa
+ * được gán vai trò' thay vì vào một khu vực không còn tồn tại.
  */
 export const ROLE_AREAS = {
   admin: '/admin',
-  department_admin: '/department',
   teacher: '/teacher',
 } as const;
 
@@ -39,7 +40,7 @@ export function areaForRole(role: string | null): string | null {
 
 /**
  * Where to send this role when they land somewhere that is not theirs.
- * `super_admin` has no area today; it resolves here, which is the point.
+ * Một vai trò đã rút không có khu vực nào; nó rơi về đây, và đó là điểm.
  */
 export function homeForRole(role: string | null): string {
   const area = areaForRole(role);

@@ -10,7 +10,6 @@ import { ExamSessionModule } from './exam-session/exam-session.module';
 import { SubmissionModule } from './submission/submission.module';
 import { GradingModule } from './grading/grading.module';
 import { CourseModule } from './course/course.module';
-import { RoomModule } from './room/room.module';
 import { buildRedisConnection } from './shared/redis-connection';
 import { dataSourceOptions } from './database/data-source';
 
@@ -79,7 +78,6 @@ import { dataSourceOptions } from './database/data-source';
     SubmissionModule,
     GradingModule,
     CourseModule,
-    RoomModule,
   ],
 })
 export class AppModule {}

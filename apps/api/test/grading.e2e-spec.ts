@@ -24,7 +24,7 @@ describe('Grading (e2e)', () => {
   let token: string;
   let otherToken: string;
   let teacherId: string;
-  let courseId: string;
+  let courseName: string;
   let sessionId: string;
   let deliverableId: string;
   const stamp = Date.now().toString(36);
@@ -64,14 +64,14 @@ describe('Grading (e2e)', () => {
           home_class_id, home_teacher_id, storage_key, checksum, file_size,
           submitted_via, status)
        VALUES ($1, $2, $3, $4,
-         (SELECT id FROM examcollect.class WHERE course_id = $5 LIMIT 1), $6, $7,
+         (SELECT id FROM examcollect.class WHERE course_name = $5 LIMIT 1), $6, $7,
          $8, $9, 'normal', 'received')
        RETURNING id`,
       [
         // The real key, with no extension — that is what a submission key
         // looks like, and the reason extraction is told the DECLARED
         // filename separately rather than reading the key.
-        sessionId, deliverableId, mssv, `Sinh viên ${mssv}`, courseId, teacherId,
+        sessionId, deliverableId, mssv, `Sinh viên ${mssv}`, courseName, teacherId,
         key, 'a'.repeat(64), body.length,
       ],
     );
@@ -140,31 +140,19 @@ describe('Grading (e2e)', () => {
     });
     otherToken = await login(otherEmail);
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Grading Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn được chấm', $2) RETURNING id`,
-      [`GR${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Môn được chấm' };
+    courseName = course.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Nhóm chấm ${stamp}`, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Nhóm chấm ${stamp}`, teacherId],
     );
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Grading Room ${stamp}`],
-    );
+    const room = { name: `Grading Room ${stamp}` };
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [MSSV, 'Sinh viên được chấm', courseId, klass.id, teacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [MSSV, 'Sinh viên được chấm', klass.id, teacherId],
     );
 
     const created = await request(app.getHttpServer())
@@ -173,7 +161,8 @@ describe('Grading (e2e)', () => {
       .send({
         name: `Grading Session ${stamp}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'CK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -443,15 +432,10 @@ describe('Grading (e2e)', () => {
   });
 
   it('says so instead of grading when the SESSION has no rubric', async () => {
-    const [otherCourse] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn chưa có rubric',
-               (SELECT semester_id FROM examcollect.course WHERE id = $2)) RETURNING id`,
-      [`NR${stamp}`.slice(0, 20), courseId],
-    );
+    const otherCourse = { id: `Môn chưa có rubric ${stamp}` };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
       [otherCourse.id, `Nhóm chưa rubric ${stamp}`, teacherId],
     );
     // Its own room, not `SELECT ... LIMIT 1`. Sharing a room with another
@@ -460,17 +444,15 @@ describe('Grading (e2e)', () => {
     // which used to make this test pass for the wrong reason, since the
     // undefined id produced a 400 from ParseUUIDPipe rather than the 400
     // this test is actually about.
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`No Rubric Room ${stamp}`],
-    );
+    const room = { name: `No Rubric Room ${stamp}` };
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: `No Rubric Session ${stamp}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'CK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),

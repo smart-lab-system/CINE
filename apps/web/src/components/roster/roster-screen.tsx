@@ -35,7 +35,7 @@ import {
   useImportRoster,
   useRemoveRosterStudent,
   useRoster,
-} from '@/hooks/useDepartment';
+} from '@/hooks/useRoster';
 import { readWorkbook, type SheetData } from '@/lib/read-workbook';
 import {
   diffRoster,

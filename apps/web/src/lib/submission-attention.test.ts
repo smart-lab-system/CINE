@@ -17,7 +17,6 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     id: 'session-1',
     name: 'Giữa kỳ #2',
     code: 'GK2',
-    courseId: 'course-1',
     courseName: 'Nhập môn CSDL',
     classId: 'class-1',
     className: 'CINE',
@@ -37,7 +36,6 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     satElsewhereCount: 0,
     invalidFileCount: 0,
     matchedStudents: null,
-    semesterId: 'sem-1',
     semesterName: 'Học kỳ 1 2026-2027',
     rubricId: null,
     rubricVersion: null,
@@ -290,7 +288,6 @@ describe('groupByCourseClass', () => {
         id: 'c',
         courseName: 'CTDL',
         className: 'N05',
-        courseId: 'course-2',
         classId: 'class-2',
       }),
     ];
@@ -307,7 +304,7 @@ describe('groupByCourseClass', () => {
 
   it('phiên không gắn lớp vào nhóm riêng của môn đó', () => {
     const groups = groupByCourseClass(
-      [make({ id: 'a', className: null, classId: null, rosterKnown: false })],
+      [make({ id: 'a', className: null, classId: 'k-none', rosterKnown: false })],
       NOW,
     );
     expect(groups).toHaveLength(1);

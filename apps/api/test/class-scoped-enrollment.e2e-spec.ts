@@ -27,7 +27,7 @@ describe('Enrollment khoá theo lớp (e2e)', () => {
 
   let token: string;
   let teacherId: string;
-  let courseId: string;
+  let courseName: string;
   let classAId: string;
   let classBId: string;
   let sessionId: string;
@@ -62,9 +62,9 @@ describe('Enrollment khoá theo lớp (e2e)', () => {
   async function enroll(mssv: string, name: string, homeClassId: string) {
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [mssv, name, courseId, homeClassId, teacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [mssv, name, homeClassId, teacherId],
     );
   }
 
@@ -88,34 +88,22 @@ describe('Enrollment khoá theo lớp (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     token = login.body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Class Scope Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Mon khoa theo lop', $2) RETURNING id`,
-      [`CS${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Class Scope Room ${stamp}`],
-    );
+    const course = { name: 'Mon khoa theo lop' };
+    courseName = course.name;
+    const room = { name: `Class Scope Room ${stamp}` };
 
     // Hai lớp CÙNG MỘT MÔN. Đó là toàn bộ điểm của bộ test: dưới luật cũ
     // hai lớp này không phân biệt được với nhau ở cổng vào.
     const [classA] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Nhom A ${stamp}`, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Nhom A ${stamp}`, teacherId],
     );
     classAId = classA.id;
     const [classB] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Nhom B ${stamp}`, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Nhom B ${stamp}`, teacherId],
     );
     classBId = classB.id;
 
@@ -128,7 +116,8 @@ describe('Enrollment khoá theo lớp (e2e)', () => {
       .send({
         name: `Phien khoa theo lop ${stamp}`,
         classId: classAId,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),

@@ -1,6 +1,5 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
-import { CourseEntity } from '../../course/entities/course.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 
 // Versioned — editing mid-stream must create a new version (`version`
@@ -10,7 +9,7 @@ import { AccountEntity } from '../../identity/entities/account.entity';
 // the guard trigger added in the hand-written migration (not expressible
 // as an entity decorator).
 @Entity({ name: 'rubric' })
-@Index('uq_rubric_course_version', ['courseId', 'version'], { unique: true })
+@Index('uq_rubric_teacher_name_version', ['teacherId', 'name', 'version'], { unique: true })
 export class RubricEntity extends BaseEntity {
   /**
    * CHỦ SỞ HỮU LÀ GIẢNG VIÊN, không phải môn học. Đây là mục đích thật của
@@ -32,21 +31,6 @@ export class RubricEntity extends BaseEntity {
    * mà `course_id` từng giữ. */
   @Column({ type: 'varchar', length: 200 })
   name!: string;
-
-  /**
-   * Chủ sở hữu CŨ, đang trên đường ra.
-   *
-   * Nới thành nullable ở `RelaxRubricCourseId` để đường ghi chuyển sang
-   * `teacher_id` mà không phải bịa ra một môn học. Không còn ai ĐỌC nó —
-   * cột ở lại chỉ để lượt triển khai này quay ngược được, và biến mất ở
-   * `ContractMasterData`. Đừng viết caller mới dựa vào nó.
-   */
-  @Column({ name: 'course_id', type: 'uuid', nullable: true })
-  courseId!: string | null;
-
-  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: true })
-  @JoinColumn({ name: 'course_id' })
-  course!: CourseEntity | null;
 
   @Column({ type: 'int', default: 1 })
   version!: number;

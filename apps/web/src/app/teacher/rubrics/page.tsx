@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTeachingClasses } from '@/hooks/useTeaching';
+import { useRubrics } from '@/hooks/useGrading';
 import { RubricEditor } from './_components/RubricEditor';
 
 /**
@@ -17,41 +18,37 @@ import { RubricEditor } from './_components/RubricEditor';
  */
 export default function RubricsPage() {
   const classes = useTeachingClasses();
+  const rubrics = useRubrics();
 
-  // Hai lớp cùng môn dùng CHUNG một rubric — gộp lại. Hiện hai dòng là nói
-  // dối: sửa dòng này thì dòng kia đổi theo, và không có gì báo cho giảng
-  // viên biết điều đó.
-  const courses = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const klass of classes.data ?? []) {
-      if (!seen.has(klass.courseId)) seen.set(klass.courseId, klass.courseName);
-    }
-    return [...seen].map(([courseId, courseName]) => ({ courseId, courseName }));
-  }, [classes.data]);
+  // Mỗi MÔN mà giảng viên đang dạy được đề nghị một rubric cùng tên, cộng
+  // với mọi rubric họ đã đặt tên khác. Gộp theo tên vì tên chính là định
+  // danh của rubric từ đợt thu hẹp master data: lưu lại cùng một tên là tạo
+  // bản kế tiếp, không phải một rubric thứ hai.
+  const names = useMemo(() => {
+    const fromClasses = (classes.data ?? []).map((klass) => klass.courseName);
+    const fromRubrics = (rubrics.data ?? []).map((rubric) => rubric.name);
+    return [...new Set([...fromClasses, ...fromRubrics])].sort((a, b) => a.localeCompare(b));
+  }, [classes.data, rubrics.data]);
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Rubric"
-        description="Tiêu chí chấm của từng môn bạn dạy. Mỗi lần lưu tạo một phiên bản mới; phiên thi đã gắn phiên bản cũ vẫn giữ nguyên bản đó."
+        description="Tiêu chí chấm của riêng bạn. Mỗi lần lưu tạo một phiên bản mới; phiên thi đã gắn phiên bản cũ vẫn giữ nguyên bản đó."
       />
 
       {classes.isLoading && <Skeleton className="h-40 w-full" />}
 
-      {!classes.isLoading && courses.length === 0 && (
+      {!classes.isLoading && names.length === 0 && (
         <Alert variant="info">
           <AlertDescription>
-            Bạn chưa dạy lớp nào, nên chưa có môn nào để soạn rubric.
+            Bạn chưa có lớp nào, nên chưa có môn nào để soạn rubric sẵn.
           </AlertDescription>
         </Alert>
       )}
 
-      {courses.map((course) => (
-        <RubricEditor
-          key={course.courseId}
-          courseId={course.courseId}
-          courseName={course.courseName}
-        />
+      {names.map((name) => (
+        <RubricEditor key={name} name={name} />
       ))}
     </div>
   );

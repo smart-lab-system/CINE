@@ -20,21 +20,29 @@ import {
   type ReviewCriterion,
 } from '@/lib/api/grading';
 
-export function useRubrics(courseId: string | undefined) {
+/**
+ * Rubric của CHÍNH người đang đăng nhập.
+ *
+ * Trước đợt thu hẹp master data, khoá truy vấn là một môn học và hook nhận
+ * `courseId`. Rubric giờ thuộc về giảng viên, nên không còn tham số nào —
+ * và không còn trạng thái "chưa chọn môn nên chưa tải được".
+ */
+export function useRubrics() {
   return useQuery({
-    queryKey: ['courses', courseId, 'rubrics'],
-    queryFn: () => listRubrics(courseId!),
-    enabled: Boolean(courseId),
+    queryKey: ['rubrics'],
+    queryFn: () => listRubrics(),
   });
 }
 
-export function useSaveRubric(courseId: string | undefined) {
+export function useSaveRubric() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (criteria: { description: string; maxPoints: number }[]) =>
-      saveRubric(courseId!, criteria),
+    mutationFn: (input: {
+      name: string;
+      criteria: { description: string; maxPoints: number }[];
+    }) => saveRubric(input.name, input.criteria),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['courses', courseId, 'rubrics'] });
+      void queryClient.invalidateQueries({ queryKey: ['rubrics'] });
     },
   });
 }

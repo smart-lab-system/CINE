@@ -2,8 +2,6 @@ import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { AccountEntity } from '../identity/entities/account.entity';
-import { SemesterEntity } from '../course/entities/semester.entity';
-import { CourseEntity } from '../course/entities/course.entity';
 import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
@@ -12,7 +10,6 @@ import { GradingReferenceEntity } from '../grading/entities/grading-reference.en
 import { GradingAnchorSnapshotEntity } from '../grading/entities/grading-anchor-snapshot.entity';
 import { RequiredDeliverableEntity } from '../exam-session/entities/required-deliverable.entity';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
-import { RoomEntity } from '../room/entities/room.entity';
 import { AgentConnectionEventEntity } from '../agent-connection/entities/agent-connection-event.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { RubricEntity } from '../grading/entities/rubric.entity';
@@ -81,11 +78,8 @@ export const dataSourceOptions: DataSourceOptions = {
   ssl: sslOptions(),
   entities: [
     AccountEntity,
-    SemesterEntity,
-    CourseEntity,
     ClassEntity,
     EnrollmentEntity,
-    RoomEntity,
     ExamSessionEntity,
     SessionRosterEntity,
     RequiredDeliverableEntity,

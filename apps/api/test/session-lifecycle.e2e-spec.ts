@@ -51,23 +51,11 @@ describe('Session lifecycle (e2e)', () => {
     otherToken = (await request(app.getHttpServer()).post('/auth/login')
       .send({ email: otherEmail, password: 'correct-horse-battery' })).body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO ${schema}.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Lifecycle Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO ${schema}.course (code, name, semester_id)
-       VALUES ($1, 'Lifecycle Course', $2) RETURNING id`,
-      [`LC${stamp}`.slice(0, 20), semester.id],
-    );
-    const [room] = await dataSource.query(
-      `INSERT INTO ${schema}.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Lifecycle Room ${stamp}`],
-    );
+    const course = { name: 'Lifecycle Course' };
+    const room = { name: `Lifecycle Room ${stamp}` };
     const [klass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N01', $2) RETURNING id`,
-      [course.id, teacherId],
+      `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
+      [course.name, teacherId],
     );
 
     const created = await request(app.getHttpServer())
@@ -76,7 +64,8 @@ describe('Session lifecycle (e2e)', () => {
       .send({
         name: `Lifecycle ${stamp}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         // CreateExamSessionDto từ chối startTime lùi quá MAX_BACKDATE_MINUTES (30).
         // Cửa sổ thời gian không liên quan gì tới archive/attention-close, nên chỉ

@@ -29,10 +29,10 @@ describe('Attendance (e2e)', () => {
   let teacherToken: string;
   let teacherId: string;
   let otherToken: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
   let siblingClassId: string;
-  let roomId: string;
+  let roomName: string;
 
   const sockets: Socket[] = [];
   const stamp = Date.now().toString(36);
@@ -99,7 +99,8 @@ describe('Attendance (e2e)', () => {
       .send({
         name: `${name} ${Date.now()}`,
         classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() + startOffsetMs).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -154,37 +155,25 @@ describe('Attendance (e2e)', () => {
     });
     otherToken = await login(otherEmail);
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Attendance Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn điểm danh', $2) RETURNING id`,
-      [`AT${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Môn điểm danh' };
+    courseName = course.name;
 
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Nhóm chính ${stamp}`, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Nhóm chính ${stamp}`, teacherId],
     );
     classId = klass.id;
 
     const [sibling] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Nhóm N05 ${stamp}`, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Nhóm N05 ${stamp}`, teacherId],
     );
     siblingClassId = sibling.id;
 
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Attendance Room ${stamp}`],
-    );
-    roomId = room.id;
+    const room = { name: `Attendance Room ${stamp}` };
+    roomName = room.name;
 
     // Ba sinh viên của lớp này, cộng một em có lớp gốc KHÁC — ca thi bù.
     // Trước đợt thu hẹp master data, em thứ tư vào thẳng được vì xác thực
@@ -199,9 +188,9 @@ describe('Attendance (e2e)', () => {
     ] as const) {
       await dataSource.query(
         `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [mssv, name, courseId, home, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+        [mssv, name, home, teacherId],
       );
     }
   });
@@ -217,8 +206,8 @@ describe('Attendance (e2e)', () => {
   afterEach(async () => {
     await dataSource.query(
       `UPDATE examcollect.exam_session SET status = 'completed'
-       WHERE room_id = $1 AND status <> 'completed'`,
-      [roomId],
+       WHERE room_name = $1 AND status <> 'completed'`,
+      [roomName],
     );
   });
 
@@ -266,7 +255,8 @@ describe('Attendance (e2e)', () => {
       .send({
         name: `Chưa mở ${Date.now()}`,
         classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),

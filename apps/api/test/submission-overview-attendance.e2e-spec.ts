@@ -19,9 +19,9 @@ describe('Submission overview — attendance tiers (e2e)', () => {
   const stamp = Date.now();
   let token: string;
   let teacherId: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
-  let roomId: string;
+  let roomName: string;
 
   const ROSTER = ['A', 'B', 'C', 'D'].map((s) => `AT${stamp}${s}`.slice(0, 20));
 
@@ -52,7 +52,11 @@ describe('Submission overview — attendance tiers (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/exam-sessions').set('Authorization', `Bearer ${token}`)
       .send({
-        name, classId, roomId, examType: 'TK',
+        name,
+        classId,
+        roomName,
+        semesterName: `Attend Semester ${stamp}`,
+        examType: 'TK',
         ...nextWindow(),
         requiredFilenames: filenames,
       });
@@ -111,34 +115,22 @@ describe('Submission overview — attendance tiers (e2e)', () => {
     token = (await request(app.getHttpServer()).post('/auth/login')
       .send({ email, password: 'correct-horse-battery' })).body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO ${schema}.semester (name, start_date, end_date)
-       VALUES ($1, '2026-09-01', '2027-01-15') RETURNING id`,
-      [`Attend Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO ${schema}.course (code, name, semester_id)
-       VALUES ($1, 'Attend Course', $2) RETURNING id`,
-      [`AT${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO ${schema}.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`Attend Room ${stamp}`],
-    );
-    roomId = room.id;
+    const course = { name: 'Attend Course' };
+    courseName = course.name;
+    const room = { name: `Attend Room ${stamp}` };
+    roomName = room.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N01', $2) RETURNING id`,
-      [courseId, teacherId],
+      `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
+      [courseName, teacherId],
     );
     classId = klass.id;
 
     for (const mssv of ROSTER) {
       await dataSource.query(
         `INSERT INTO ${schema}.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [mssv, `SV ${mssv}`, courseId, classId, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+         VALUES ($1,$2,$3,$4)`,
+        [mssv, `SV ${mssv}`, classId, teacherId],
       );
     }
   }, 60_000);

@@ -107,7 +107,7 @@ export function AnswerPane({
               onPin(selected);
             }
           }}
-          className="max-h-[70vh] overflow-y-auto rounded-md bg-surface px-1 text-body leading-[1.8] [scroll-padding-top:0.75rem]"
+          className="max-h-[80vh] overflow-y-auto rounded-md bg-surface px-1 text-body leading-[1.8] [scroll-padding-top:0.75rem]"
         >
           {text.paragraphs.map((paragraph, index) => (
             <p key={index} data-testid={`paragraph-${index}`} className="mt-3.5 first:mt-0">

@@ -1,15 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useForm, FormProvider, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { ArrowLeft, CircleAlert, CircleCheckBig, Copy, TriangleAlert } from 'lucide-react';
-import { useCreateExamSession } from '@/hooks/useExamSession';
+import { useCreateExamSession, useExamSessions } from '@/hooks/useExamSession';
 import { useTeachingClasses } from '@/hooks/useTeaching';
-import { useRooms } from '@/hooks/useRooms';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
@@ -31,19 +30,25 @@ import {
 const EMPTY_FORM: CreateExamSessionFormValues = {
   name: '',
   classId: '',
-  roomId: '',
-  // Empty-string sentinel for "not yet chosen" (same as classId/roomId
-  // above), even though it's outside the Zod enum's real output type — the
+  roomName: '',
+  semesterName: '',
+  // Empty-string sentinel for "not yet chosen" (same as classId above),
+  // even though it's outside the Zod enum's real output type — the
   // resolver still rejects submit until the user consciously picks one;
   // this cast only tells RHF what shape the default *starts* as.
   examType: '' as CreateExamSessionFormValues['examType'],
   startTime: '',
   endTime: '',
-  // Cùng kiểu sentinel chuỗi rỗng như classId/roomId — schema quy nó về
+  // Cùng kiểu sentinel chuỗi rỗng như classId — schema quy nó về
   // undefined, vì "chưa chọn rubric" là hợp lệ chứ không phải uuid hỏng.
   rubricId: '',
   requiredFilenames: [{ value: '' }],
 };
+
+/** Các giá trị đã dùng, mỗi cách viết một lần, giữ nguyên thứ tự mới trước. */
+function distinct(values: (string | undefined | null)[]): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
 
 async function copySessionCode(code: string) {
   try {
@@ -57,13 +62,17 @@ async function copySessionCode(code: string) {
   }
 }
 
-// Moved from app/(exam-live)/exam-sessions/new (Phase 0 route rename). P3
-// fields (Course/Room/Exam-type) added in Phase 2 once GET /courses and
-// GET /rooms existed.
+// Moved from app/(exam-live)/exam-sessions/new (Phase 0 route rename).
+//
+// Phòng và học kỳ từng là hai danh sách thả xuống, nguồn GET /rooms và
+// GET /semesters. Đợt thu hẹp master data bỏ cả hai bảng: giảng viên gõ
+// thẳng, và ô nhập gợi ý lại chính những giá trị họ đã dùng.
 export default function NewExamSessionPage() {
   const createExamSession = useCreateExamSession();
   const classes = useTeachingClasses();
-  const rooms = useRooms();
+  // Chỉ để gợi ý. Một trang là đủ: cái cần là các cách viết GẦN ĐÂY của
+  // chính giảng viên này, không phải toàn bộ lịch sử.
+  const previous = useExamSessions({ page: 1, pageSize: 50 });
   const [created, setCreated] = useState<{ id: string; code: string } | null>(null);
 
   const form = useForm<CreateExamSessionFormValues>({
@@ -72,19 +81,19 @@ export default function NewExamSessionPage() {
   });
 
   const selectedClass = classes.data?.find((c) => c.id === form.watch('classId'));
-  const selectedRoom = rooms.data?.find((r) => r.id === form.watch('roomId'));
-  // Non-blocking on purpose (see RoomEntity.capacity's own comment) —
-  // teachers may have valid reasons for a mismatch (partial attendance,
-  // overflow handled elsewhere). Counted against the CLASS now, not the
-  // course: a course's enrollment spans every class in it, so comparing it
-  // to one lab's machine count was warning about nothing real.
-  const capacityWarning =
-    selectedClass &&
-    selectedRoom &&
-    selectedRoom.capacity !== null &&
-    selectedRoom.capacity < selectedClass.studentCount
-      ? `Phòng "${selectedRoom.name}" có ${selectedRoom.capacity} máy nhưng lớp "${selectedClass.name}" có ${selectedClass.studentCount} sinh viên.`
-      : null;
+
+  // Đây là thứ bù lại phần lớn những gì mất khi phòng thành văn bản tự do:
+  // phép chống trùng lịch phòng so khớp chuỗi CHÍNH XÁC, nên gõ lại đúng
+  // cách viết cũ là điều duy nhất làm nó còn tác dụng. Cảnh báo sức chứa
+  // thì biến mất cùng bảng `room` — không còn ai biết phòng có bao nhiêu máy.
+  const previousRooms = useMemo(
+    () => distinct((previous.data?.items ?? []).map((item) => item.roomName)),
+    [previous.data],
+  );
+  const previousSemesters = useMemo(
+    () => distinct((previous.data?.items ?? []).map((item) => item.semesterName)),
+    [previous.data],
+  );
 
   // Not an error: a session can be created and run without a roster. But
   // nobody will get in — agent:join requires an enrollment — and finding
@@ -96,7 +105,8 @@ export default function NewExamSessionPage() {
       {
         name: values.name,
         classId: values.classId,
-        roomId: values.roomId,
+        roomName: values.roomName,
+        semesterName: values.semesterName,
         examType: values.examType,
         startTime: new Date(values.startTime).toISOString(),
         endTime: new Date(values.endTime).toISOString(),
@@ -230,7 +240,7 @@ export default function NewExamSessionPage() {
                       <SelectContent>
                         {classes.data?.map((klass) => (
                           <SelectItem key={klass.id} value={klass.id}>
-                            {klass.courseCode} — {klass.name} ({klass.studentCount} SV)
+                            {klass.courseName} — {klass.name} ({klass.studentCount} SV)
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -258,8 +268,11 @@ export default function NewExamSessionPage() {
               {!classes.isLoading && !classes.isError && classes.data?.length === 0 && (
                 <Alert variant="info">
                   <AlertDescription>
-                    Bạn chưa được giao lớp nào. Trưởng khoa là người tạo lớp và phân công
-                    giảng viên — hãy liên hệ trước khi tạo phiên thi.
+                    Bạn chưa có lớp nào.{' '}
+                    <Link href="/teacher/classes" className="font-semibold underline">
+                      Tạo lớp
+                    </Link>{' '}
+                    rồi quay lại — một phiên thi luôn thuộc về một lớp.
                   </AlertDescription>
                 </Alert>
               )}
@@ -270,7 +283,7 @@ export default function NewExamSessionPage() {
                   <AlertDescription>
                     Lớp {selectedClass?.name} chưa có danh sách sinh viên. Bạn vẫn tạo được
                     phiên thi, nhưng chưa nhập danh sách thì không sinh viên nào vào được —
-                    hãy nhờ Trưởng khoa nhập danh sách lớp trước.
+                    hãy nhập danh sách lớp trước.
                   </AlertDescription>
                 </Alert>
               )}
@@ -278,62 +291,45 @@ export default function NewExamSessionPage() {
               <FormField
                 id="exam-session-room"
                 label="Phòng thi"
-                error={rooms.isError ? undefined : form.formState.errors.roomId?.message}
+                hint="Gõ đúng như những lần trước: phép chống trùng lịch phòng so khớp chính xác từng ký tự."
+                error={form.formState.errors.roomName?.message}
               >
-                <Controller
-                  control={form.control}
-                  name="roomId"
-                  render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      disabled={rooms.isLoading || rooms.isError}
-                    >
-                      <SelectTrigger id="exam-session-room">
-                        <SelectValue
-                          placeholder={rooms.isLoading ? 'Đang tải…' : 'Chọn phòng thi'}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rooms.data?.map((room) => (
-                          <SelectItem key={room.id} value={room.id}>
-                            {room.name}
-                            {room.capacity !== null ? ` (${room.capacity} máy)` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                <Input
+                  id="exam-session-room"
+                  list="exam-session-room-options"
+                  placeholder="P.A101"
+                  {...form.register('roomName')}
                 />
-                {rooms.isError && (
-                  <p
-                    role="alert"
-                    className="flex items-center gap-1.5 text-small font-medium text-danger-strong"
-                  >
-                    <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    Không tải được danh sách phòng thi.
-                    <button
-                      type="button"
-                      onClick={() => rooms.refetch()}
-                      className="rounded-sm underline underline-offset-2 hover:no-underline"
-                    >
-                      Thử lại
-                    </button>
-                  </p>
-                )}
+                <datalist id="exam-session-room-options">
+                  {previousRooms.map((room) => (
+                    <option key={room} value={room} />
+                  ))}
+                </datalist>
               </FormField>
 
-              {capacityWarning && (
-                <Alert variant="warning">
-                  <TriangleAlert />
-                  <AlertDescription>{capacityWarning}</AlertDescription>
-                </Alert>
-              )}
+              <FormField
+                id="exam-session-semester"
+                label="Học kỳ"
+                hint="Chụp lại vào phiên thi và không đổi về sau — bảng điểm lọc theo đúng chuỗi này."
+                error={form.formState.errors.semesterName?.message}
+              >
+                <Input
+                  id="exam-session-semester"
+                  list="exam-session-semester-options"
+                  placeholder="HK1 2026-2027"
+                  {...form.register('semesterName')}
+                />
+                <datalist id="exam-session-semester-options">
+                  {previousSemesters.map((semester) => (
+                    <option key={semester} value={semester} />
+                  ))}
+                </datalist>
+              </FormField>
 
-              {/* Sau phòng thi, vì nó phụ thuộc lớp đã chọn (rubric thuộc
-                  MÔN, và môn suy ra từ lớp) — đặt trước thì nó rỗng suốt
-                  cho tới khi người dùng quay lại. */}
-              <RubricPicker courseId={selectedClass?.courseId} />
+
+              {/* Rubric thuộc về GIẢNG VIÊN từ đợt thu hẹp master data, nên
+                  danh sách không còn phụ thuộc lớp đã chọn. */}
+              <RubricPicker />
 
 
               <FormField

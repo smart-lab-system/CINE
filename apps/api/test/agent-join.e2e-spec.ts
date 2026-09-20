@@ -24,12 +24,12 @@ describe('agent:join enrollment enforcement (e2e)', () => {
   let baseUrl: string;
   let sessionCode: string;
   let templatedCode: string;
-  let courseId: string;
+  let courseName: string;
   // Hoisted so the filename tests can build their own sessions from the
   // same fixtures instead of a second set that could drift from these.
   let token: string;
   let classId: string;
-  let roomId: string;
+  let sessionRoomName: string;
   let roomName: string;
 
   const ENROLLED_MSSV = 'SV20120001';
@@ -87,28 +87,16 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     token = login.body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Agent Join Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Agent Join Course', $2) RETURNING id`,
-      [`AJ${stamp}`, semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Agent Join Room ${stamp}`],
-    );
-    roomId = room.id;
+    const course = { name: 'Agent Join Course' };
+    courseName = course.name;
+    const room = { name: `Agent Join Room ${stamp}` };
+    sessionRoomName = room.name;
     // What {PHONG} renders to: separators dropped, each word capitalised.
     roomName = `AgentJoinRoom${stamp}`;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N01', $2) RETURNING id`,
-      [courseId, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, 'N01', $2) RETURNING id`,
+      [courseName, teacherId],
     );
     classId = klass.id;
 
@@ -122,14 +110,11 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     // thứ hai KHÔNG còn vô hại: sinh viên phải có enrollment ở đúng lớp
     // của phiên. Cả hai phiên dưới đây vì thế cùng ghi danh một sinh viên
     // vào lớp của chính nó.
-    const [plainRoom] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Agent Join Plain Room ${stamp}`],
-    );
+    const plainRoom = { name: `Agent Join Plain Room ${stamp}` };
     const [plainClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N02', $2) RETURNING id`,
-      [courseId, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, 'N02', $2) RETURNING id`,
+      [courseName, teacherId],
     );
 
     // ENROLLED_MSSV thuộc N02, lớp của phiên "plain". Phiên "templated"
@@ -141,18 +126,18 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     // enrollment cho mỗi môn.
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [ENROLLED_MSSV, ENROLLED_NAME, courseId, plainClass.id, teacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [ENROLLED_MSSV, ENROLLED_NAME, plainClass.id, teacherId],
     );
 
     // N01 cũng cần một sinh viên, nếu không `freeze()` từ chối mở phiên
     // "templated" vì lớp rỗng.
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [`N01${stamp}`.slice(0, 20), 'Sinh viên lớp N01', courseId, klass.id, teacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [`N01${stamp}`.slice(0, 20), 'Sinh viên lớp N01', klass.id, teacherId],
     );
 
     const created = await request(app.getHttpServer())
@@ -164,7 +149,8 @@ describe('agent:join enrollment enforcement (e2e)', () => {
         // same class out of enrollment — no course sits between them any
         // more. That directness is what these tests are about.
         classId: plainClass.id,
-        roomId: plainRoom.id,
+        roomName: plainRoom.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -184,7 +170,8 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       .send({
         name: `Agent Join Templated ${stamp}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -296,7 +283,8 @@ describe('agent:join enrollment enforcement (e2e)', () => {
         .send({
           name: `Bad Token ${fixtureStamp}`,
           classId,
-          roomId,
+          roomName: sessionRoomName,
+          semesterName: 'HK kiểm thử',
           examType: 'TK',
           startTime: new Date(Date.now() - 60_000).toISOString(),
           endTime: new Date(Date.now() + 3_600_000).toISOString(),

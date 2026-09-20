@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EMPTY_FILTERS, applyFilters, buildFacets, detectRoomFailure, resolveDefaultSemester,
+  EMPTY_FILTERS, applyFilters, buildFacets, detectRoomFailure,
 } from './submission-filters';
 import type { SessionOverviewItem } from './api/submissions';
 
@@ -10,12 +10,12 @@ const HOUR = 3_600_000;
 function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
   return {
     id: 's1', name: 'Phiên', code: 'P1',
-    courseId: 'c1', courseName: 'CSDL', classId: 'k1', className: 'N01',
+    courseName: 'CSDL', classId: 'k1', className: 'N01',
     roomName: 'A3-01', examType: 'GK',
     startTime: new Date(NOW - 4 * HOUR).toISOString(),
     endTime: new Date(NOW - 2 * HOUR).toISOString(),
     status: 'completed',
-    semesterId: 'sem-1', semesterName: 'Học kỳ 1 2026-2027',
+    semesterName: 'Học kỳ 1 2026-2027',
     requiredDeliverableCount: 2, expectedCount: 10, rosterKnown: true,
     fullySubmittedCount: 10, partialCount: 0,
     attendedNoSubmissionCount: 0, neverAttendedCount: 0, satElsewhereCount: 0,
@@ -26,51 +26,6 @@ function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
     ...o,
   };
 }
-
-describe('resolveDefaultSemester', () => {
-  it('dùng kỳ hiện tại của hệ thống khi giảng viên CÓ phiên trong kỳ đó', () => {
-    // Điểm của hàm này: câu trả lời đến TỪ BÊN NGOÀI (useCurrentSemester),
-    // không tự suy lại từ mốc thời gian của các phiên.
-    const items = [
-      make({ id: 'a', semesterId: 'cu', startTime: new Date(NOW - 200 * 24 * HOUR).toISOString() }),
-      make({ id: 'b', semesterId: 'nay' }),
-    ];
-    expect(resolveDefaultSemester(items, 'nay')).toBe('nay');
-  });
-
-  it('kỳ hiện tại được tôn trọng kể cả khi phiên MỚI NHẤT thuộc kỳ khác', () => {
-    // Ca phân biệt hai công thức: bản cũ suy từ phiên nên sẽ trả 'tuong-lai'.
-    const items = [
-      make({ id: 'a', semesterId: 'nay' }),
-      make({ id: 'b', semesterId: 'tuong-lai',
-             startTime: new Date(NOW + 60 * 24 * HOUR).toISOString(),
-             endTime: new Date(NOW + 61 * 24 * HOUR).toISOString() }),
-    ];
-    expect(resolveDefaultSemester(items, 'nay')).toBe('nay');
-  });
-
-  it('kỳ hiện tại mà giảng viên không có phiên nào → lùi về kỳ có phiên mới nhất', () => {
-    // Không lùi thì mở trang ra là bảng rỗng, và giảng viên vừa dạy xong
-    // kỳ trước sẽ đọc thành "mất dữ liệu".
-    const items = [
-      make({ id: 'a', semesterId: 'cu-hon', startTime: new Date(NOW - 400 * 24 * HOUR).toISOString() }),
-      make({ id: 'b', semesterId: 'gan-hon', startTime: new Date(NOW - 100 * 24 * HOUR).toISOString() }),
-    ];
-    expect(resolveDefaultSemester(items, 'ky-nay-khong-co-phien')).toBe('gan-hon');
-  });
-
-  it('chưa biết kỳ hiện tại (GET /semesters còn đang tải hoặc lỗi) → kỳ có phiên mới nhất', () => {
-    const items = [
-      make({ id: 'a', semesterId: 'cu-hon', startTime: new Date(NOW - 400 * 24 * HOUR).toISOString() }),
-      make({ id: 'b', semesterId: 'gan-hon', startTime: new Date(NOW - 100 * 24 * HOUR).toISOString() }),
-    ];
-    expect(resolveDefaultSemester(items, null)).toBe('gan-hon');
-  });
-
-  it('rỗng → null', () => {
-    expect(resolveDefaultSemester([], 'nay')).toBeNull();
-  });
-});
 
 describe('applyFilters', () => {
   const base = [
@@ -153,8 +108,8 @@ describe('buildFacets', () => {
 });
 
 describe('detectRoomFailure', () => {
-  const red = (id: string, room: string, courseId: string) =>
-    make({ id, roomName: room, courseId, attendedNoSubmissionCount: 2, fullySubmittedCount: 8 });
+  const red = (id: string, room: string, courseName: string) =>
+    make({ id, roomName: room, courseName, attendedNoSubmissionCount: 2, fullySubmittedCount: 8 });
 
   it('2 phiên đỏ cùng phòng, khác môn → cảnh báo', () => {
     const r = detectRoomFailure([red('a', 'A3-01', 'c1'), red('b', 'A3-01', 'c2')], NOW);

@@ -27,11 +27,11 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
   const stamp = Date.now();
   let token: string;
   let teacherId: string;
-  let courseId: string;
-  let otherCourseId: string;
+  let courseName: string;
+  let otherCourseName: string;
   let classN01: string;
   let classN02: string;
-  let roomId: string;
+  let roomName: string;
 
   // N01 là lớp "gốc" đang xét; N02 là lớp mà sinh viên thi bù ngồi nhờ.
   const HOME = `MK${stamp}H`.slice(0, 20);
@@ -61,7 +61,8 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
       .send({
         name: opts.name,
         classId: opts.classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: opts.examType ?? 'TK',
         ...nextWindow(),
         requiredFilenames: ['Cau1.docx'],
@@ -139,37 +140,21 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
         .send({ email, password: 'correct-horse-battery' })
     ).body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO ${schema}.semester (name, start_date, end_date)
-       VALUES ($1, '2026-09-01', '2027-01-15') RETURNING id`,
-      [`Makeup Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO ${schema}.course (code, name, semester_id)
-       VALUES ($1, 'Makeup Course', $2) RETURNING id`,
-      [`MK${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [otherCourse] = await dataSource.query(
-      `INSERT INTO ${schema}.course (code, name, semester_id)
-       VALUES ($1, 'Unrelated Course', $2) RETURNING id`,
-      [`MX${stamp}`.slice(0, 20), semester.id],
-    );
-    otherCourseId = otherCourse.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO ${schema}.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`Makeup Room ${stamp}`],
-    );
-    roomId = room.id;
+    const course = { name: 'Makeup Course' };
+    courseName = course.name;
+    const otherCourse = { name: 'Unrelated Course' };
+    otherCourseName = otherCourse.name;
+    const room = { name: `Makeup Room ${stamp}` };
+    roomName = room.name;
 
     const [n01] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N01', $2) RETURNING id`,
-      [courseId, teacherId],
+      `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
+      [courseName, teacherId],
     );
     classN01 = n01.id;
     const [n02] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N02', $2) RETURNING id`,
-      [courseId, teacherId],
+      `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'N02', $2) RETURNING id`,
+      [courseName, teacherId],
     );
     classN02 = n02.id;
 
@@ -181,9 +166,9 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
     ] as const) {
       await dataSource.query(
         `INSERT INTO ${schema}.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [mssv, name, courseId, klass, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+         VALUES ($1,$2,$3,$4)`,
+        [mssv, name, klass, teacherId],
       );
     }
   }, 60_000);
@@ -247,14 +232,14 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
 
     it('KHÔNG gắn cờ vì có mặt ở một MÔN khác', async () => {
       const [otherClass] = await dataSource.query(
-        `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'X01', $2) RETURNING id`,
-        [otherCourseId, teacherId],
+        `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'X01', $2) RETURNING id`,
+        [otherCourseName, teacherId],
       );
       await dataSource.query(
         `INSERT INTO ${schema}.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [STAYER, 'Lê Ở Lại', otherCourseId, otherClass.id, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+         VALUES ($1,$2,$3,$4)`,
+        [STAYER, 'Lê Ở Lại', otherClass.id, teacherId],
       );
       const foreign = await createSession({ name: `Foreign ${stamp}`, classId: otherClass.id });
       await connect(foreign.id, STAYER);

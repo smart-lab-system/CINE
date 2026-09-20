@@ -47,15 +47,11 @@ export class RosterService {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(EnrollmentEntity);
 
-      // Scoped to the COURSE, not to this class: the unique key is
-      // (course_id, student_mssv), so a student sitting in a sibling class
-      // is the row an insert here would collide with. Locked for the
-      // transaction so two heads importing two classes of the same course
-      // cannot both decide the same student is theirs.
-      const existing = await repo.find({
-        where: { courseId: klass.courseId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      // Phạm vi là MÔN, không phải lớp này — xem `siblingEnrollments`:
+      // khoá duy nhất giờ là (home_class_id, student_mssv), nhưng ca đáng
+      // chặn vẫn là "em đã ở một lớp khác CÙNG MÔN". Khoá trong suốt giao
+      // dịch để hai lượt import song song không cùng nhận một sinh viên.
+      const existing = await this.siblingEnrollments(manager, klass);
       const byMssv = new Map(
         existing.map((row) => [row.studentMssv.toLowerCase(), row]),
       );
@@ -71,7 +67,6 @@ export class RosterService {
 
         if (!current) {
           await repo.insert({
-            courseId: klass.courseId,
             studentMssv: student.mssv,
             studentName: student.name,
             homeClassId: klass.id,
@@ -146,10 +141,7 @@ export class RosterService {
   async addStudent(klass: ClassEntity, student: RosterStudentDto): Promise<RosterEntry> {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(EnrollmentEntity);
-      const existing = await repo.find({
-        where: { courseId: klass.courseId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const existing = await this.siblingEnrollments(manager, klass);
       const byMssv = new Map(
         existing.map((row) => [row.studentMssv.toLowerCase(), row]),
       );
@@ -167,7 +159,6 @@ export class RosterService {
         });
       } else {
         await repo.insert({
-          courseId: klass.courseId,
           studentMssv: student.mssv,
           studentName: student.name,
           homeClassId: klass.id,
@@ -190,7 +181,7 @@ export class RosterService {
   async removeStudent(klass: ClassEntity, studentMssv: string): Promise<void> {
     const repo = this.dataSource.getRepository(EnrollmentEntity);
     const enrollment = await repo.findOne({
-      where: { courseId: klass.courseId, studentMssv, homeClassId: klass.id },
+      where: { studentMssv, homeClassId: klass.id },
     });
     if (!enrollment) {
       throw new NotFoundException('Sinh viên này không có trong danh sách lớp.');
@@ -208,6 +199,30 @@ export class RosterService {
    * in. A transfer between classes is a decision; the path is to remove them
    * from the old class's roster first, which takes the explicit tick.
    */
+  /**
+   * Mọi enrollment của các lớp CÙNG MÔN với lớp này, khoá ghi trong giao
+   * dịch.
+   *
+   * Từng là một câu `WHERE course_id = ?`. Bảng `course` không còn, nên
+   * "cùng môn" là hai chuỗi `class.course_name` bằng nhau — và đây là chỗ
+   * sự suy giảm ở spec §3.4 chạm vào một quy tắc nghiệp vụ: gõ lệch tên môn
+   * một ký tự và hai lớp thôi là anh em của nhau, nên phép chặn chuyển lớp
+   * bên dưới không nhìn thấy nhau nữa. Nó BỎ SÓT chứ không chặn nhầm.
+   */
+  private async siblingEnrollments(
+    manager: EntityManager,
+    klass: ClassEntity,
+  ): Promise<EnrollmentEntity[]> {
+    const siblings = await manager.getRepository(ClassEntity).find({
+      where: { courseName: klass.courseName },
+      select: { id: true },
+    });
+    return manager.getRepository(EnrollmentEntity).find({
+      where: { homeClassId: In(siblings.map((row) => row.id)) },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
   private async assertNoCrossClassMove(
     manager: EntityManager,
     klass: ClassEntity,

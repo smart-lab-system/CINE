@@ -95,21 +95,20 @@ export class UpdateRoomDto {
 }
 
 export class CreateClassDto {
-  @IsUUID()
-  courseId!: string;
+  /**
+   * Tên môn, dạng VĂN BẢN. Không có bảng nào để đối chiếu, và đó là điểm
+   * của đợt thu hẹp master data: hệ thống ghi lại thứ giảng viên khai.
+   *
+   * Hệ quả nhìn thấy được: gõ "CTDL&GT" ở lớp này và "CTDL & GT" ở lớp kia
+   * tạo ra hai môn độc lập với mọi phép gom nhóm phía sau.
+   */
+  @IsString()
+  @Length(1, 200)
+  courseName!: string;
 
   @IsString()
   @Length(1, 100)
   name!: string;
-
-  /**
-   * Must be an account with the `teacher` role — checked in the service, not
-   * just here. `class.teacher_id` is what scopes a lecturer to their own
-   * classes, so pointing it at a head or an admin would create a class
-   * nobody can run.
-   */
-  @IsUUID()
-  teacherId!: string;
 }
 
 export class UpdateClassDto {
@@ -119,6 +118,7 @@ export class UpdateClassDto {
   name?: string;
 
   @IsOptional()
-  @IsUUID()
-  teacherId?: string;
+  @IsString()
+  @Length(1, 200)
+  courseName?: string;
 }

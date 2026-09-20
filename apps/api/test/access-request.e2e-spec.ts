@@ -24,7 +24,7 @@ describe('Access request (e2e)', () => {
 
   let sessionId: string;
   let sessionCode: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
   let teacherId: string;
   let accessCookie: string;
@@ -91,25 +91,13 @@ describe('Access request (e2e)', () => {
     const token: string = login.body.accessToken;
     accessCookie = `access_token=${token}`;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Access Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Access Course', $2) RETURNING id`,
-      [`AC${stamp}`, semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Access Room ${stamp}`],
-    );
+    const course = { name: 'Access Course' };
+    courseName = course.name;
+    const room = { name: `Access Room ${stamp}` };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N03', $2) RETURNING id`,
-      [courseId, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, 'N03', $2) RETURNING id`,
+      [courseName, teacherId],
     );
     classId = klass.id;
 
@@ -120,9 +108,9 @@ describe('Access request (e2e)', () => {
     // không phải "lớp chưa có ai".
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [`AR${Date.now() % 100000}`, 'Sinh viên có trong roster', courseId, classId, teacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [`AR${Date.now() % 100000}`, 'Sinh viên có trong roster', classId, teacherId],
     );
 
     const created = await request(app.getHttpServer())
@@ -131,7 +119,8 @@ describe('Access request (e2e)', () => {
       .send({
         name: `Access Session ${stamp}`,
         classId,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -215,8 +204,8 @@ describe('Access request (e2e)', () => {
     // time would be exactly the guessing this design forbids.
     const [enrollment] = await dataSource.query(
       `SELECT student_name, home_class_id, home_teacher_id
-         FROM examcollect.enrollment WHERE course_id = $1 AND student_mssv = $2`,
-      [courseId, STRANGER_MSSV],
+         FROM examcollect.enrollment WHERE home_class_id = $1 AND student_mssv = $2`,
+      [classId, STRANGER_MSSV],
     );
     expect(enrollment).toBeDefined();
     expect(enrollment.student_name).toBe(STRANGER_NAME);
@@ -307,8 +296,8 @@ describe('Access request (e2e)', () => {
 
     // A refusal must not quietly add anybody to the roster.
     const rows = await dataSource.query(
-      `SELECT 1 FROM examcollect.enrollment WHERE course_id = $1 AND student_mssv = $2`,
-      [courseId, 'SV20128888'],
+      `SELECT 1 FROM examcollect.enrollment WHERE home_class_id = $1 AND student_mssv = $2`,
+      [classId, 'SV20128888'],
     );
     expect(rows).toHaveLength(0);
   });

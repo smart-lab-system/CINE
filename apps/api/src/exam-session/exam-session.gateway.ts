@@ -459,7 +459,7 @@ export class ExamSessionGateway
       // student. A name they typed is not identity and must not end up in a
       // filename either.
       studentName: enrollment.studentName,
-      roomName: session.room?.name ?? '',
+      roomName: session.roomName,
       machineName: dto.machineName ?? null,
     };
     const resolved = deliverables.map((deliverable) => ({

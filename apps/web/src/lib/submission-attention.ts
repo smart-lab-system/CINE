@@ -213,7 +213,9 @@ export function groupByCourseClass(
   const groups = new Map<string, SessionGroup>();
 
   for (const item of items) {
-    const key = `${item.courseId}::${item.classId ?? 'no-class'}`;
+    // Gộp theo TÊN môn: khoá ngoại tới bảng `course` không còn, và tên là
+    // thứ duy nhất còn lại để nhận ra hai phiên cùng một môn.
+    const key = `${item.courseName}::${item.classId}`;
     let group = groups.get(key);
     if (!group) {
       group = {

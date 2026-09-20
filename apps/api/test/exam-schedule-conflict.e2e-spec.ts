@@ -23,12 +23,11 @@ describe('ExamSession schedule conflicts (e2e)', () => {
   let dataSource: DataSource;
   let ownerToken: string;
   let ownerId: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
   let otherClassId: string;
-  let roomId: string;
   let roomName: string;
-  let otherRoomId: string;
+  let otherRoomName: string;
 
   /**
    * Every test gets its own day, so a session one test leaves behind can
@@ -58,6 +57,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         examType: 'TK',
+        semesterName: 'HK kiểm thử',
         requiredFilenames: ['Cau1.docx'],
         ...body,
       });
@@ -89,43 +89,26 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       .send({ email: ownerEmail, password: 'correct-horse-battery' });
     ownerToken = login.body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Schedule Conflict Semester ${Date.now()}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Schedule Conflict Course', $2) RETURNING id`,
-      [`SC${Date.now()}`, semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Schedule Conflict Course' };
+    courseName = course.name;
 
     roomName = `Phòng trùng lịch ${Date.now()}`;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [roomName],
-    );
-    roomId = room.id;
-    const [otherRoom] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Phòng khác ${Date.now()}`],
-    );
-    otherRoomId = otherRoom.id;
+    const otherRoom = { name: `Phòng khác ${Date.now()}` };
+    otherRoomName = otherRoom.name;
 
     // Two classes, both taught by the owner: the room rule and the class
     // rule have to be separable, and that needs a second class the same
     // lecturer is allowed to create sessions for.
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Lớp A ${Date.now()}`, ownerId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Lớp A ${Date.now()}`, ownerId],
     );
     classId = klass.id;
     const [otherClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Lớp B ${Date.now()}`, ownerId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Lớp B ${Date.now()}`, ownerId],
     );
     otherClassId = otherClass.id;
   });
@@ -136,9 +119,9 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     // impossible to (re)create on this database afterwards — a migration
     // run after an un-cleaned test run fails to build the index. Scoped to
     // this spec's own rooms, so nothing else's data is touched.
-    const rooms = [roomId, otherRoomId];
+    const rooms = [roomName, otherRoomName];
     const sessions = await dataSource.query(
-      `SELECT id FROM examcollect.exam_session WHERE room_id = ANY($1)`,
+      `SELECT id FROM examcollect.exam_session WHERE room_name = ANY($1)`,
       [rooms],
     );
     const ids = sessions.map((row: { id: string }) => row.id);
@@ -175,7 +158,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Ca sáng',
       classId,
-      roomId,
+      roomName,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -183,7 +166,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Ca chồng lấn',
       classId: otherClassId,
-      roomId,
+      roomName,
       ...windowAt(day, 9, 11),
     });
 
@@ -202,7 +185,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Ca liền trước',
       classId,
-      roomId,
+      roomName,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -212,7 +195,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Ca liền sau',
       classId: otherClassId,
-      roomId,
+      roomName,
       ...windowAt(day, 10, 12),
     });
 
@@ -225,7 +208,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Thi môn sáng',
       classId,
-      roomId,
+      roomName,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -233,7 +216,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Thi chồng giờ',
       classId,
-      roomId: otherRoomId,
+      roomName: otherRoomName,
       ...windowAt(day, 9, 11),
     });
 
@@ -247,7 +230,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Phòng 1',
       classId,
-      roomId,
+      roomName,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -255,7 +238,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Phòng 2',
       classId: otherClassId,
-      roomId: otherRoomId,
+      roomName: otherRoomName,
       ...windowAt(day, 8, 10),
     });
 
@@ -268,7 +251,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Kết thúc sớm',
       classId,
-      roomId,
+      roomName,
       ...windowAt(day, 8, 12),
     });
     expect(first.status).toBe(201);
@@ -283,7 +266,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Dùng lại phòng',
       classId: otherClassId,
-      roomId,
+      roomName,
       ...windowAt(day, 9, 11),
     });
 
@@ -296,7 +279,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Sẽ bị huỷ',
       classId,
-      roomId,
+      roomName,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -312,7 +295,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Thế chỗ',
       classId: otherClassId,
-      roomId,
+      roomName,
       ...windowAt(day, 8, 10),
     });
 
@@ -325,7 +308,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Giữ phòng',
       classId,
-      roomId,
+      roomName,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -340,19 +323,18 @@ describe('ExamSession schedule conflicts (e2e)', () => {
         // không INSERT chết ở 23502 trước khi chạm ràng buộc GiST mà ca
         // này sinh ra để kiểm — một test xanh-vì-sai-lý-do đảo ngược.
         `INSERT INTO examcollect.exam_session
-           (name, code, teacher_id, class_id, course_id, room_id, exam_type,
+           (name, code, teacher_id, class_id, exam_type,
             start_time, end_time, submission_rule, status, semester_name,
             course_name, room_name)
-         VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, '{}'::jsonb, 'active', 'HK kiểm thử',
-                 (SELECT name FROM examcollect.course WHERE id = $5),
-                 (SELECT name FROM examcollect.room   WHERE id = $6))`,
+         VALUES ($1, $2, $3, $4, 'TK', $7, $8, '{}'::jsonb, 'active', 'HK kiểm thử',
+                 $5, $6)`,
         [
           'Chèn thẳng DB',
           `RAW${Date.now() % 1000}`,
           ownerId,
           otherClassId,
-          courseId,
-          roomId,
+          courseName,
+          roomName,
           startTime,
           endTime,
         ],
@@ -365,8 +347,8 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const window = windowAt(day, 8, 10);
 
     const [a, b] = await Promise.all([
-      createSession({ name: 'Đua A', classId, roomId, ...window }),
-      createSession({ name: 'Đua B', classId: otherClassId, roomId, ...window }),
+      createSession({ name: 'Đua A', classId, roomName, ...window }),
+      createSession({ name: 'Đua B', classId: otherClassId, roomName, ...window }),
     ]);
 
     const statuses = [a.status, b.status].sort();
@@ -383,7 +365,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const response = await createSession({
       name: 'Khai muộn 10 phút',
       classId,
-      roomId: otherRoomId,
+      roomName: otherRoomName,
       startTime,
       endTime,
     });
@@ -398,7 +380,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const response = await createSession({
       name: 'Khai muộn 45 phút',
       classId,
-      roomId: otherRoomId,
+      roomName: otherRoomName,
       startTime,
       endTime,
     });
@@ -419,7 +401,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     // được lý do từ một stack trace.
     const response = await createSession({
       name: `Khong gan lop ${Date.now()}`,
-      roomId,
+      roomName,
       ...windowAt(freshDay(), 8, 10),
     });
 

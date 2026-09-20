@@ -5,9 +5,8 @@ export interface SessionOverviewItem {
   id: string;
   name: string;
   code: string;
-  courseId: string;
   courseName: string;
-  classId: string | null;
+  classId: string;
   className: string | null;
   roomName: string;
   examType: 'TK' | 'GK' | 'CK';
@@ -45,7 +44,6 @@ export interface SessionOverviewItem {
   matchedStudents: { mssv: string; name: string }[] | null;
 
   invalidFileCount: number;
-  semesterId: string;
   semesterName: string;
   archivedAt: string | null;
   attentionClosedAt: string | null;

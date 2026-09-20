@@ -1,22 +1,18 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
-import { CourseEntity } from './course.entity';
 
 // "Lớp môn học" (course section) — not in CLAUDE.md's original schema sketch,
 // which only had a loose `home_class_id` string on ClassRoster/Enrollment/
 // Submission with no table behind it. Added here as the FK target those
 // columns need to be a valid schema.
 @Entity({ name: 'class' })
-@Index('uq_class_course_name', ['courseId', 'name'], { unique: true })
+// Khoá duy nhất viết lại quanh chủ sở hữu mới. Trước đây là
+// (course_id, name) — một môn không có hai lớp trùng tên. Giờ một giảng
+// viên không có hai lớp trùng tên trong cùng một môn, còn hai giảng viên
+// thì không đụng nhau: họ khai môn của riêng mình.
+@Index('uq_class_teacher_course_name', ['teacherId', 'courseName', 'name'], { unique: true })
 export class ClassEntity extends BaseEntity {
-  @Column({ name: 'course_id', type: 'uuid' })
-  courseId!: string;
-
-  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: false })
-  @JoinColumn({ name: 'course_id' })
-  course!: CourseEntity;
-
   /**
    * Tên môn học dạng VĂN BẢN, thay cho khoá ngoại tới bảng `course`.
    *
@@ -25,8 +21,8 @@ export class ClassEntity extends BaseEntity {
    * liệu" là hai môn độc lập, và không gom thống kê theo môn được nữa. Đánh
    * đổi có ý thức, ghi ở spec thu hẹp master data §7.
    *
-   * Trong giai đoạn expand/contract, cột này sống CẠNH `course_id`. Khoá
-   * ngoại kia biến mất ở `ContractMasterData`.
+   * Khoá ngoại `course_id` đã biến mất ở `ContractMasterData`; đây là tất
+   * cả những gì còn lại của "môn học" trên một lớp.
    */
   @Column({ name: 'course_name', type: 'varchar', length: 200 })
   courseName!: string;

@@ -1,12 +1,14 @@
 import { Check, Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 
-// `super_admin`/`department_admin` are accepted values but have no tiering
-// logic behind them yet — CLAUDE.md marks tiered Department/Super-Admin as
-// out of scope for the MVP. They're here so the column doesn't need a
-// migration when that's built later; nothing in the app currently branches
-// on them beyond `admin`-equivalence.
-export type AccountRole = 'admin' | 'teacher' | 'super_admin' | 'department_admin';
+// HAI vai trò, và đó là toàn bộ danh sách.
+//
+// `department_admin` và `super_admin` từng nằm ở đây, chờ một tầng phân
+// quyền theo khoa chưa bao giờ được xây. Đợt thu hẹp master data bỏ hẳn tầng
+// khoa — không còn môn học để sở hữu, không còn phòng và học kỳ để quản — nên
+// hai vai trò ấy không còn thứ gì để canh. `ContractMasterData` chuyển mọi
+// tài khoản mang chúng sang `teacher` và thu enum của Postgres cho khớp.
+export type AccountRole = 'admin' | 'teacher';
 
 // Single table for both Teacher and Admin: same organization, same login
 // flow, no business reason to keep them apart — merging also removes the
@@ -29,7 +31,7 @@ export class AccountEntity extends BaseEntity {
 
   @Column({
     type: 'enum',
-    enum: ['admin', 'teacher', 'super_admin', 'department_admin'],
+    enum: ['admin', 'teacher'],
     enumName: 'account_role',
   })
   role!: AccountRole;

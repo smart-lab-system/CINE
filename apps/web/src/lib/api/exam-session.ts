@@ -16,7 +16,9 @@ export interface CreateExamSessionInput {
    * choice they make and the thing that can be checked against them.
    */
   classId: string;
-  roomId: string;
+  /** Phòng và học kỳ là VĂN BẢN: không còn bảng nào để chọn ra. */
+  roomName: string;
+  semesterName: string;
   /**
    * Rubric để chấm phiên này, ghim ngay lúc tạo. Bỏ trống là hợp lệ: phiên
    * không chấm bằng AI vẫn thi và thu bài bình thường, và rubric gắn được
@@ -73,8 +75,9 @@ export interface ExamSessionListItem {
   name: string;
   code: string;
   courseName: string;
-  className: string | null;
+  className: string;
   roomName: string;
+  semesterName: string;
   examType: ExamType;
   startTime: string;
   endTime: string;
@@ -125,12 +128,12 @@ export interface SearchExamSessionsParams {
   status?: ExamSessionStatusFilter;
   examType?: ExamType;
   /**
-   * Học kỳ của môn mà phiên thuộc về. Bỏ trống = tất cả học kỳ.
+   * Học kỳ mà phiên tự khai. Bỏ trống = tất cả học kỳ.
    *
    * `undefined`, KHÔNG phải `null`: openapi-fetch serialize null thành
-   * `?semesterId=` và @IsUUID ở backend sẽ trả 400 cho chuỗi rỗng đó.
+   * `?semesterName=` và @Length ở backend sẽ trả 400 cho chuỗi rỗng đó.
    */
-  semesterId?: string;
+  semesterName?: string;
 }
 
 async function throwIfFailed(error: unknown, response: Response) {

@@ -81,7 +81,7 @@ describe('FilterRail', () => {
     render(
       <FilterRail
         facets={{ ...facets, semesters: [facets.semesters[0]] }}
-        filters={{ ...EMPTY_FILTERS, semesterId: 'sem-1' }}
+        filters={{ ...EMPTY_FILTERS, semesterName: 'sem-1' }}
         onChange={onChange}
         attentionTotal={6}
       />,
@@ -89,18 +89,18 @@ describe('FilterRail', () => {
     expect(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' })).toBeInTheDocument();
   });
 
-  it('chọn "Tất cả học kỳ" trả semesterId về null', () => {
+  it('chọn "Tất cả học kỳ" trả semesterName về null', () => {
     render(
       <FilterRail
         facets={facets}
-        filters={{ ...EMPTY_FILTERS, semesterId: 'sem-1' }}
+        filters={{ ...EMPTY_FILTERS, semesterName: 'sem-1' }}
         onChange={onChange}
         attentionTotal={6}
       />,
     );
     fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
     fireEvent.click(screen.getByRole('option', { name: 'Tất cả học kỳ' }));
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ semesterId: null }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ semesterName: null }));
   });
 
   it('link xoá bộ lọc chỉ hiện khi có bộ lọc đang bật', () => {

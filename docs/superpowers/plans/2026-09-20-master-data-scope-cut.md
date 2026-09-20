@@ -27,11 +27,56 @@
 |---|---|
 | 1 — chuyển quyền lớp sang giảng viên | ✅ commit `3c3dc31` |
 | 2 — giao diện lớp cho giảng viên | ⏸ **hoãn có chủ ý** — xem dưới |
-| 3 — EXPAND | ✅ migration đã áp local, chờ commit |
-| 4 — viết lại 10 file | ⬜ **bắt đầu từ đây** |
-| 5 — CONTRACT | ⬜ điểm không quay lại được |
-| 6 — CLAUDE.md + client | ⬜ |
+| 3 — EXPAND | ✅ commit `4136726` |
+| 4 — viết lại 10 file | ✅ commit `69573fa` |
+| 5 — CONTRACT | ✅ đã áp migration, mã đã sửa — xem mục dưới |
+| 6 — CLAUDE.md + client | 🟡 client ĐÃ sinh lại (bắt buộc cho Task 5); CLAUDE.md mới chỉ gắn cảnh báo, chưa viết lại |
 | 7 — đánh dấu thi bù | ⬜ |
+
+### Những gì plan thiếu, phát hiện lúc chạy Task 4-5
+
+1. **Bước MỞ RỘNG thiếu một thứ và không tự chạy được.** `ExpandMasterDataToText`
+   để `rubric.course_id` NOT NULL, nên `saveNewVersion` không thôi điền nó
+   được — mọi lượt tạo rubric nổ NOT NULL. Đã thêm
+   `1789325000000-RelaxRubricCourseId`. Contract vẫn là `1789330000000`.
+2. **Task 3 chưa bao giờ xanh.** Entity khai cột NOT NULL mới nhưng KHÔNG
+   đường ghi nào điền chúng: 125 ca e2e đỏ. Phải sửa bốn service và 59 câu
+   INSERT trong 34 file fixture.
+3. **Khoá theo LỚP làm hỏng ca thi bù.** Duyệt một yêu cầu xin phép ghi
+   enrollment ở lớp GỐC của sinh viên, nên `agent:join` hỏi "có enrollment ở
+   lớp của phiên không" sẽ từ chối chính người giám thị vừa cho vào. Đổi
+   sang hỏi **ảnh chốt của phiên** (`session_roster`), thứ đã tính cả hai
+   đường.
+4. **`grading_pipeline_config` cũng trỏ tới `course`** — plan không nêu. Bảng
+   rỗng; đã thu phạm vi về `global` và bỏ khoá ngoại.
+5. **`POST /classes/import` phải xoá, không chỉ hoãn.** Nó gắn
+   `@Roles('department_admin')` và tạo môn dưới quyền sở hữu khoa; cả hai
+   không còn. Đã xoá route, service, DTO và bộ e2e của nó. Thiết kế lại sau.
+6. **Bộ lọc học kỳ trên web: chọn LỌC THEO CHUỖI `semester_name`** (plan cho
+   hai lựa chọn ở Task 5 Step 7). Kèm theo đó, khái niệm "kỳ hiện tại" biến
+   mất — nó tính từ `start_date`/`end_date` của bảng `semester` — nên trang
+   mở ra ở **tất cả học kỳ** và badge kỳ trên topbar bị xoá. Danh sách lựa
+   chọn dựng từ chính các phiên đã tải.
+7. **Tên hằng trong fixture là một cái bẫy xuyên lượt chạy.** Sau khi môn
+   thành chuỗi, `WHERE course_name = 'Rate Limit Course'` khớp lớp của một
+   lượt chạy TRƯỚC, do giảng viên khác dạy. Mọi tên môn/rubric trong fixture
+   phải mang dấu thời gian.
+
+### Còn lại sau Task 5
+
+- **Không còn ca nào đỏ.** `advocate-end-to-end` từng đỏ ba lượt liên tiếp với
+  `context_used_question = false`, và nguyên nhân KHÔNG nằm trong đợt này: có
+  tiến trình jest/nest cũ còn sống, và worker BullMQ của chúng tranh job chấm
+  qua Redis rồi chạy bằng mã cũ. Giết sạch tiến trình node rồi chạy lại thì
+  xanh, cả trong lượt đầy đủ lẫn chạy riêng.
+
+  **Bài học cho lượt e2e sau:** trước khi tin một kết quả, kiểm
+  `Get-CimInstance Win32_Process -Filter "Name='node.exe'"` xem còn jest nào
+  đang chạy không. Hàng đợi nằm ở Redis và sống lâu hơn tiến trình tạo ra nó.
+- **Task 6 mới xong một nửa:** client đã sinh lại (Task 5 không compile nếu
+  không có nó), còn mục "Academic Structure & Ownership Model" trong
+  `CLAUDE.md` mới chỉ được gắn cảnh báo ở đầu, chưa viết lại.
+- **Task 2 và Task 7** chưa chạy.
 
 **Task 2 hoãn xuống sau Task 5, không phải bỏ.** Form tạo lớp cần một
 dropdown chọn môn học, mà Task 3 đổi `class.course_id` thành `course_name`

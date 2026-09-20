@@ -47,7 +47,6 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     id: 'session-1',
     name: 'Thường kỳ #1',
     code: 'TK1',
-    courseId: 'course-1',
     courseName: 'Nhập môn CSDL',
     classId: 'class-1',
     className: 'N01',
@@ -68,7 +67,6 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     satElsewhereCount: 0,
     matchedStudents: null,
     invalidFileCount: 0,
-    semesterId: 'sem-1',
     semesterName: 'Học kỳ 1 2026-2027',
     archivedAt: null,
     attentionClosedAt: null,
@@ -147,9 +145,9 @@ describe('SubmissionsPage — bố cục mới', () => {
   it('hiện dải cảnh báo phòng khi mọi phiên đỏ cùng một phòng, khác môn', () => {
     useSessionOverviewMock.mockReturnValue({
       data: [
-        make({ id: 'a', courseId: 'c1', roomName: 'A3-01',
+        make({ id: 'a', roomName: 'A3-01',
                attendedNoSubmissionCount: 2, fullySubmittedCount: 38 }),
-        make({ id: 'b', courseId: 'c2', courseName: 'CTDL', classId: 'k2', className: 'N05',
+        make({ id: 'b', courseName: 'CTDL', classId: 'k2', className: 'N05',
                roomName: 'A3-01', attendedNoSubmissionCount: 3, fullySubmittedCount: 37 }),
       ],
       isLoading: false, error: null, refetch: vi.fn(),
@@ -208,7 +206,6 @@ describe('SubmissionsPage — search theo sinh viên', () => {
                 id: 's2',
                 name: 'Cuối kỳ',
                 courseName: 'CTDL',
-                courseId: 'course-2',
                 matchedStudents: [{ mssv: '21520123', name: 'Nguyễn Văn A' }],
               }),
             ],
@@ -219,7 +216,7 @@ describe('SubmissionsPage — search theo sinh viên', () => {
         : {
             data: [
               make({ id: 's1', name: 'Giữa kỳ #2' }),
-              make({ id: 's2', name: 'Cuối kỳ', courseName: 'CTDL', courseId: 'course-2' }),
+              make({ id: 's2', name: 'Cuối kỳ', courseName: 'CTDL' }),
             ],
             isLoading: false,
             error: null,

@@ -16,40 +16,28 @@ vi.mock('@/hooks/useExamSession', () => ({
   useExamSessions: (...args: unknown[]) => useExamSessionsMock(...args),
 }));
 
-// Bộ lọc học kỳ (thêm 2026-09-15) đọc `useSemesterFilter`, thứ tự nó gọi
-// GET /semesters. Mock ở mức hook như trên — trạng thái gieo-một-lần của
-// nó đã có test riêng ở useSemesterFilter.test.ts, nên ở đây chỉ cần điều
-// khiển được kỳ đang chọn.
+// Bộ lọc học kỳ đọc `useSemesterFilter`. Hook đó không còn gọi API nào —
+// học kỳ là một chuỗi trên chính phiên thi từ đợt thu hẹp master data — nên
+// mock chỉ cần điều khiển kỳ đang chọn. Danh sách lựa chọn thì trang tự
+// dựng từ các phiên đã tải, nên nó đến từ `session()` bên dưới.
 const useSemesterFilterMock = vi.fn();
-const setSemesterId = vi.fn();
+const setSemesterName = vi.fn();
 
-vi.mock('@/hooks/useSemesterFilter', () => ({
-  useSemesterFilter: (...args: unknown[]) => useSemesterFilterMock(...args),
-}));
-
-const CURRENT_SEMESTER = {
-  id: 'sem-now',
-  name: 'Học kỳ 1 2026-2027',
-  startDate: '2026-08-01',
-  endDate: '2026-12-31',
-};
-const OLD_SEMESTER = {
-  id: 'sem-old',
-  name: 'Học kỳ 2 2025-2026',
-  startDate: '2026-01-01',
-  endDate: '2026-06-01',
-};
-
-function semesterState(semesterId: string | null) {
+vi.mock('@/hooks/useSemesterFilter', async () => {
+  const actual = await vi.importActual<typeof import('@/hooks/useSemesterFilter')>(
+    '@/hooks/useSemesterFilter',
+  );
   return {
-    semesterId,
-    setSemesterId,
-    current: CURRENT_SEMESTER,
-    semesters: [CURRENT_SEMESTER, OLD_SEMESTER],
-    isLoading: false,
-    isStale: false,
-    staleDays: 0,
+    ...actual,
+    useSemesterFilter: (...args: unknown[]) => useSemesterFilterMock(...args),
   };
+});
+
+const CURRENT_SEMESTER = 'Học kỳ 1 2026-2027';
+const OLD_SEMESTER = 'Học kỳ 2 2025-2026';
+
+function semesterState(semesterName: string | null) {
+  return { semesterName, setSemesterName };
 }
 
 function session(overrides: Record<string, unknown> = {}) {
@@ -64,14 +52,15 @@ function session(overrides: Record<string, unknown> = {}) {
     startTime: new Date(Date.now() - 60_000).toISOString(),
     endTime: new Date(Date.now() + 3_600_000).toISOString(),
     status: 'active',
+    semesterName: CURRENT_SEMESTER,
     ...overrides,
   };
 }
 
 beforeEach(() => {
-  setSemesterId.mockReset();
+  setSemesterName.mockReset();
   useSemesterFilterMock.mockReset();
-  useSemesterFilterMock.mockReturnValue(semesterState(CURRENT_SEMESTER.id));
+  useSemesterFilterMock.mockReturnValue(semesterState(CURRENT_SEMESTER));
   useExamSessionsMock.mockReset();
   useExamSessionsMock.mockReturnValue({
     data: { items: [session()], total: 1 },
@@ -154,26 +143,37 @@ describe('ExamSessionsListPage — filters', () => {
   it('sends the selected semester to the API, and omits it for "tất cả học kỳ"', () => {
     render(<ExamSessionsListPage />);
     expect(useExamSessionsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ semesterId: 'sem-now' }),
+      expect.objectContaining({ semesterName: CURRENT_SEMESTER }),
     );
 
     // `null` phải đi ra ngoài thành `undefined`, không phải chuỗi "null":
-    // query param rỗng là "không lọc", và một `semesterId=null` gửi lên
-    // sẽ bị @IsUUID từ chối bằng 400.
+    // query param rỗng là "không lọc", và một `semesterName=` gửi lên sẽ bị
+    // @Length từ chối bằng 400.
     useSemesterFilterMock.mockReturnValue(semesterState(null));
     render(<ExamSessionsListPage />);
     expect(useExamSessionsMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ semesterId: undefined }),
+      expect.objectContaining({ semesterName: undefined }),
     );
   });
 
   it('chọn học kỳ khác thì đổi kỳ và quay về trang 1', () => {
+    // Danh sách kỳ trong dropdown dựng TỪ các phiên đã tải — không còn bảng
+    // `semester` nào để liệt kê — nên kỳ cũ phải có mặt trong dữ liệu.
+    useExamSessionsMock.mockReturnValue({
+      data: {
+        items: [session(), session({ id: 's2', semesterName: OLD_SEMESTER })],
+        total: 2,
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
     render(<ExamSessionsListPage />);
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
     fireEvent.click(screen.getByRole('option', { name: 'Học kỳ 2 2025-2026' }));
 
-    expect(setSemesterId).toHaveBeenCalledWith('sem-old');
+    expect(setSemesterName).toHaveBeenCalledWith(OLD_SEMESTER);
     // Trang phải reset: đang ở trang 3 của kỳ này rồi đổi kỳ sẽ rơi vào
     // một trang 3 không tồn tại của kỳ kia, và bảng hiện ra rỗng.
     expect(useExamSessionsMock).toHaveBeenLastCalledWith(
@@ -197,7 +197,7 @@ describe('ExamSessionsListPage — filters', () => {
     expect(screen.queryByText('Chưa có phiên thi nào')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Xem tất cả học kỳ' }));
-    expect(setSemesterId).toHaveBeenCalledWith(null);
+    expect(setSemesterName).toHaveBeenCalledWith(null);
   });
 
   it('"Xoá bộ lọc" resets every filter back to its default', () => {
@@ -224,6 +224,6 @@ describe('ExamSessionsListPage — filters', () => {
     // Học kỳ là PHẠM VI đang xem, không phải một filter trong phạm vi đó —
     // "Xoá bộ lọc" cố ý không đụng tới nó, giống nút cùng tên ở FilterRail
     // của trang Bài thu. Lối ra khỏi một học kỳ là chính dropdown đó.
-    expect(setSemesterId).not.toHaveBeenCalled();
+    expect(setSemesterName).not.toHaveBeenCalled();
   });
 });

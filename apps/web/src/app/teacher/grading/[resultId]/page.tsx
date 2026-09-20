@@ -49,7 +49,7 @@ export default function GradingDetailPage({
   const text = useSubmissionText(resultId);
   const overview = useSessionOverview();
   const session = (overview.data ?? []).find((item) => item.id === sessionId);
-  const rubrics = useRubrics(session?.courseId);
+  const rubrics = useRubrics();
   const rubric = rubrics.data?.find((item) => item.version === session?.rubricVersion);
 
   const submit = useSubmitReview(sessionId || undefined);
@@ -109,6 +109,20 @@ export default function GradingDetailPage({
 
   if (results.isLoading || text.isLoading) {
     return <Skeleton className="h-64 w-full" />;
+  }
+
+  // Phải kiểm TRƯỚC `!result`: React Query giữ nguyên `data` thành công gần
+  // nhất khi một refetch lỗi, nên nếu chỉ kiểm `!result` thì một lỗi mạng
+  // thoáng qua đọc y hệt "bài này không tồn tại" — sai thông báo cho giảng
+  // viên đi tìm nhầm hướng.
+  if (results.isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>
+          Không tải được kết quả chấm — {results.error.message}. Thử tải lại trang.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   if (!result) {
@@ -216,7 +230,7 @@ export default function GradingDetailPage({
             )}
           </CardHeader>
 
-          <CardContent className="flex max-h-[64vh] flex-col gap-3 overflow-y-auto p-4 [scroll-padding-top:0.75rem]">
+          <CardContent className="flex max-h-[80vh] flex-col gap-3 overflow-y-auto p-4 [scroll-padding-top:0.75rem]">
             {aiFailedToGrade
               ? rows.map((row) => {
                   const spec = rubric?.criteria.find((item) => item.id === row.criterionId);

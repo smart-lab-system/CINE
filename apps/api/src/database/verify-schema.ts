@@ -3,11 +3,8 @@ import { Client } from 'pg';
 
 const EXPECTED_TABLES = [
   'account',
-  'semester',
-  'course',
   'class',
   'enrollment',
-  'room',
   'rubric',
   'rubric_criterion',
   'exam_session',

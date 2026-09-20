@@ -16,7 +16,8 @@ let readinessData: unknown = { level: 'with_question', warning: null, hasQuestio
 
 const rubric: Rubric = {
   id: 'rub-1',
-  courseId: 'course-1',
+  teacherId: 'gv-1',
+  name: 'Rubric CTDL',
   version: 3,
   isActive: true,
   totalPoints: 4,
@@ -33,7 +34,7 @@ vi.mock('@/hooks/useGrading', () => ({
 
 vi.mock('@/hooks/useSubmissionOverview', () => ({
   useSessionOverview: () => ({
-    data: [{ id: 'e1', name: 'Cuối kỳ', courseId: 'course-1', rubricVersion: 3 }],
+    data: [{ id: 'e1', name: 'Cuối kỳ', rubricVersion: 3 }],
     isLoading: false,
   }),
 }));

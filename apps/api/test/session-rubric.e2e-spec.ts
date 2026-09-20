@@ -20,10 +20,10 @@ describe('Session-pinned rubric (e2e)', () => {
   let tokenA: string;
   let idA: string;
   let tokenB: string;
-  let courseId: string;
+  let courseName: string;
   let classAId: string;
-  let otherCourseId: string;
-  let roomId: string;
+  let otherCourseName: string;
+  let roomName: string;
 
   // Mỗi phiên một ngày riêng: hai phiên chưa kết thúc không được trùng phòng
   // (ex_exam_session_room_overlap). Ngày thay vì giờ, để ExamSessionScheduler
@@ -45,7 +45,8 @@ describe('Session-pinned rubric (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: `Phiên ${stamp}`,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         requiredFilenames: ['Cau1.docx'],
         ...freshWindow(),
@@ -89,45 +90,29 @@ describe('Session-pinned rubric (e2e)', () => {
     tokenA = a.token;
     tokenB = b.token;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Pinned Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn ghim rubric', $2) RETURNING id`,
-      [`PIN${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [otherCourse] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn khác', $2) RETURNING id`,
-      [`OTH${stamp}`.slice(0, 20), semester.id],
-    );
-    otherCourseId = otherCourse.id;
+    const course = { name: 'Môn ghim rubric' };
+    courseName = course.name;
+    const otherCourse = { name: 'Môn khác' };
+    otherCourseName = otherCourse.name;
 
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Phòng ghim ${stamp}`],
-    );
-    roomId = room.id;
+    const room = { name: `Phòng ghim ${stamp}` };
+    roomName = room.name;
 
-    // A và B cùng dạy `courseId` (hai lớp khác nhau) — nền cho §3.2.1.
+    // A và B cùng dạy `courseName` (hai lớp khác nhau) — nền cho §3.2.1.
     const [classA] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Nhóm A ${stamp}`, a.id],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Nhóm A ${stamp}`, a.id],
     );
     classAId = classA.id;
     await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3)`,
-      [courseId, `Nhóm B ${stamp}`, b.id],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, $2, $3)`,
+      [courseName, `Nhóm B ${stamp}`, b.id],
     );
     // A cũng dạy môn khác, để dựng case "rubric khác môn".
     await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3)`,
-      [otherCourseId, `Nhóm môn khác ${stamp}`, a.id],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, $2, $3)`,
+      [otherCourseName, `Nhóm môn khác ${stamp}`, a.id],
     );
   });
 
@@ -136,8 +121,8 @@ describe('Session-pinned rubric (e2e)', () => {
     // constraint trùng lịch sẽ chặn lần chạy sau và migration dựng lại
     // constraint sẽ fail.
     const sessions = await dataSource.query(
-      `SELECT id FROM examcollect.exam_session WHERE room_id = $1`,
-      [roomId],
+      `SELECT id FROM examcollect.exam_session WHERE room_name = $1`,
+      [roomName],
     );
     const ids = sessions.map((row: { id: string }) => row.id);
     if (ids.length > 0) {

@@ -84,7 +84,6 @@ function GradingPageContent() {
   );
 
   const session = gradable.find((item) => item.id === sessionId);
-  const courseId = session?.courseId;
 
   const results = useGradingResults(sessionId || undefined);
   const start = useStartGrading(sessionId || undefined);
@@ -97,7 +96,7 @@ function GradingPageContent() {
 
   const readiness = useGradingReadiness(sessionId || undefined);
   const regrade = useRegradeStuck(sessionId || undefined);
-  const rubrics = useRubrics(courseId);
+  const rubrics = useRubrics();
   const [configuring, setConfiguring] = useState(false);
   const [bucket, setBucket] = useState<Bucket>('flagged');
 
@@ -147,7 +146,17 @@ function GradingPageContent() {
           <CardTitle className="text-h3">Chọn phiên thi</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          <Select value={sessionId} onValueChange={setSessionId}>
+          <Select
+            value={sessionId}
+            onValueChange={(value) => {
+              setSessionId(value);
+              // Mutation state (banner "Đã chấm X bài...", "Đã xếp lại...") sống
+              // theo COMPONENT, không theo phiên — không reset thì banner của
+              // phiên vừa rời khỏi vẫn hiện dưới bảng kết quả của phiên mới chọn.
+              start.reset();
+              regrade.reset();
+            }}
+          >
             <SelectTrigger id="grading-session" className="max-w-xl">
               <SelectValue
                 placeholder={overview.isLoading ? 'Đang tải…' : 'Chọn một phiên thi'}
@@ -182,7 +191,6 @@ function GradingPageContent() {
         <>
           <SessionRubricCard
             sessionId={session.id}
-            courseId={courseId}
             rubricVersion={session.rubricVersion}
             hasResults={hasResults}
           />
@@ -274,6 +282,19 @@ function GradingPageContent() {
             </CardHeader>
 
             <CardContent className="flex flex-col gap-4 p-6">
+              {/* Mặc định của React Query: một lượt refetch lỗi giữ nguyên
+                  `data` thành công gần nhất — không có dòng này, bảng dưới
+                  vẫn hiện y như cũ và giảng viên không biết đang xem dữ liệu
+                  cũ, có thể đã lệch với thực tế. */}
+              {results.isError && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    Không tải được kết quả chấm mới nhất — {results.error.message}. Bảng dưới
+                    đây (nếu có) là dữ liệu cũ, có thể không còn đúng. Thử tải lại trang.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {start.isError && (
                 <Alert variant="destructive">
                   <AlertDescription>{start.error.message}</AlertDescription>

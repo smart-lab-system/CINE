@@ -21,9 +21,9 @@ describe('GradingResultView — advocate và ngữ cảnh (e2e)', () => {
   const stamp = Date.now();
   let tokenA: string;
   let idA: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
-  let roomId: string;
+  let roomName: string;
   let rubricId: string;
   let criterionIds: string[];
 
@@ -49,7 +49,8 @@ describe('GradingResultView — advocate và ngữ cảnh (e2e)', () => {
       .send({
         name: `Phiên view ${stamp}-${dayCursor}`,
         classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         rubricId,
         requiredFilenames: ['Cau1.txt'],
@@ -159,35 +160,23 @@ describe('GradingResultView — advocate và ngữ cảnh (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     tokenA = login.body.accessToken as string;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`View Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn xem kết quả', $2) RETURNING id`,
-      [`VIEW${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Phòng view ${stamp}`],
-    );
-    roomId = room.id;
+    const course = { name: 'Môn xem kết quả' };
+    courseName = course.name;
+    const room = { name: `Phòng view ${stamp}` };
+    roomName = room.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
-      [courseId, `Nhóm view ${stamp}`, idA],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Nhóm view ${stamp}`, idA],
     );
     classId = klass.id;
 
     for (let i = 1; i <= 6; i += 1) {
       await dataSource.query(
         `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [`SVV${stamp}${i}`.slice(0, 20), 'SV View', courseId, classId, idA],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+        [`SVV${stamp}${i}`.slice(0, 20), 'SV View', classId, idA],
       );
     }
 

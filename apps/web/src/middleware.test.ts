@@ -88,39 +88,12 @@ describe('middleware', () => {
     );
     expect(response.status).not.toBe(307);
   });
-  // Three roles, three areas. Before this, everything that was not a
-  // teacher was treated as "admin family" and sent to /admin — where the
-  // API's only @Roles values ('admin', 'teacher') refuse it, so the page
-  // loaded and every request on it returned 403 with no explanation.
-  it('sends a department admin to their own area, not the admin one', async () => {
-    const response = await middleware(
-      makeRequest('/department/courses', fakeToken({ role: 'department_admin' })),
-    );
-    expect(response.status).toBe(200);
-  });
-
-  it('redirects a department admin away from /admin/*', async () => {
-    const response = await middleware(
-      makeRequest('/admin/accounts', fakeToken({ role: 'department_admin' })),
-    );
-    expect(response.status).toBe(307);
-    expect(new URL(response.headers.get('location')!).pathname).toBe(
-      '/department/dashboard',
-    );
-  });
-
-  it('redirects an admin away from /department/*', async () => {
-    const response = await middleware(
-      makeRequest('/department/courses', fakeToken({ role: 'admin' })),
-    );
-    expect(response.status).toBe(307);
-    expect(new URL(response.headers.get('location')!).pathname).toBe('/admin/dashboard');
-  });
-
-  // super_admin exists in the DB enum and is accepted by no API handler.
-  // Sending it anywhere real produces a page where nothing works; sending
-  // it to a page that says so is the honest outcome, and it holds for the
-  // next enum value someone adds without anyone remembering this.
+  // HAI vai trò, hai khu vực. `department_admin` từng có khu vực riêng
+  // (/department) và ba ca test ở đây ghim điều đó. Đợt thu hẹp master data
+  // rút vai trò và xoá cả khu vực; ca duy nhất còn ý nghĩa là ca ngay dưới,
+  // và nó BAO luôn trường hợp cũ: một token phát trước đợt này vẫn mang
+  // `department_admin` cho tới khi hết hạn, và nó phải rơi về trang "chưa
+  // được gán vai trò".
   it('sends a role with no area to the unassigned-role page', async () => {
     const response = await middleware(
       makeRequest('/admin/dashboard', fakeToken({ role: 'super_admin' })),

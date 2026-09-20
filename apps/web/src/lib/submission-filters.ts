@@ -4,7 +4,7 @@ import { EXAM_TYPE_LABELS } from './exam-session-display';
 
 export interface FilterState {
   /** null = tất cả học kỳ. */
-  semesterId: string | null;
+  semesterName: string | null;
   kinds: AttentionKind[];
   /** Lọc "đã đủ" — phiên ended không lý do nào. */
   complete: boolean;
@@ -15,48 +15,11 @@ export interface FilterState {
 }
 
 export const EMPTY_FILTERS: FilterState = {
-  semesterId: null, kinds: [], complete: false,
+  semesterName: null, kinds: [], complete: false,
   examTypes: [], rooms: [], showArchived: false, showClosed: true,
 };
 
 export interface FacetOption { value: string; label: string; count: number }
-
-/**
- * Học kỳ mặc định của trang — lấy từ ĐỊNH NGHĨA DÙNG CHUNG của "kỳ hiện
- * tại" (`useSemesterFilter.pickDefaultSemester`, tính từ start_date của
- * bảng `semester`), không tự suy lại.
- *
- * Trước 2026-09-15 file này có công thức RIÊNG, suy kỳ mặc định từ
- * start/end của CÁC PHIÊN THI. Nó trả lời lệch với badge học kỳ trên
- * topbar và với bộ lọc của "Lớp của tôi" — hai chỗ cùng đọc định nghĩa
- * dùng chung. Doc comment của định nghĩa đó đã nói trước: "Hai công thức
- * song song là cách chúng lệch nhau."
- *
- * `items` chỉ còn dùng cho bước LÙI, và chỉ khi câu trả lời dùng chung
- * không chỉ tới dữ liệu nào: giảng viên chưa có phiên nào trong kỳ hiện
- * tại mà mở trang ra thấy bảng rỗng sẽ đọc thành "mất dữ liệu", nên khi
- * đó lấy kỳ của phiên MỚI NHẤT họ thực sự có. Đây không phải định nghĩa
- * thứ hai của "kỳ hiện tại" — nó không bao giờ ghi đè câu trả lời dùng
- * chung, chỉ điền vào chỗ trống.
- */
-export function resolveDefaultSemester(
-  items: SessionOverviewItem[],
-  currentSemesterId: string | null,
-): string | null {
-  if (items.length === 0) return null;
-
-  if (currentSemesterId !== null && items.some((i) => i.semesterId === currentSemesterId)) {
-    return currentSemesterId;
-  }
-
-  // Tự tìm phiên mới nhất thay vì tin vào thứ tự server trả về: endpoint
-  // hiện sắp theo start_time DESC, nhưng đó là chi tiết của câu SQL chứ
-  // không phải hợp đồng nào mà file này đọc được.
-  const newest = items.reduce((a, b) =>
-    new Date(b.startTime).getTime() > new Date(a.startTime).getTime() ? b : a,
-  );
-  return newest.semesterId;
-}
 
 /** Ẩn/hiện theo vòng đời. `archived` thắng `closed` — spec §4.3. */
 function passesLifecycle(item: SessionOverviewItem, f: FilterState): boolean {
@@ -72,7 +35,7 @@ function passesGroups(
   now: number,
   skip?: 'kinds' | 'examTypes' | 'rooms',
 ): boolean {
-  if (f.semesterId !== null && item.semesterId !== f.semesterId) return false;
+  if (f.semesterName !== null && item.semesterName !== f.semesterName) return false;
 
   if (skip !== 'examTypes' && f.examTypes.length > 0 && !f.examTypes.includes(item.examType)) {
     return false;
@@ -147,7 +110,7 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
     (i) => EXAM_TYPE_LABELS[i.examType] ?? i.examType,
   );
   const rooms = countBy(forRooms, (i) => i.roomName, (i) => i.roomName);
-  const semesters = countBy(items, (i) => i.semesterId, (i) => i.semesterName);
+  const semesters = countBy(items, (i) => i.semesterName, (i) => i.semesterName);
 
   // Một nhóm lọc chỉ có một lựa chọn là nhiễu — UI không render nó. Spec §4.3.
   const meaningful = (o: FacetOption[]) => (o.length > 1 ? o : []);
@@ -179,7 +142,7 @@ export function detectRoomFailure(
   const rooms = new Set(red.map((i) => i.roomName));
   if (rooms.size !== 1) return null;
 
-  const courses = new Set(red.map((i) => i.courseId));
+  const courses = new Set(red.map((i) => i.courseName));
   if (courses.size < 2) return null;
 
   return { room: red[0].roomName, sessionCount: red.length, courseCount: courses.size };

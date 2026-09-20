@@ -27,7 +27,7 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
   let activeSessionId = '';
   let pendingSessionCode: string;
   let pendingSessionId: string;
-  let courseId: string;
+  let courseName: string;
 
   const sockets: Socket[] = [];
   const fixtureStamp = Date.now();
@@ -63,10 +63,10 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
     const mssv = `RL${String(fixtureStamp).slice(-8)}${suffix}`;
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       SELECT $1, $2, $3, c.id, c.teacher_id
-       FROM examcollect.class c WHERE c.course_id = $3 LIMIT 1`,
-      [mssv, `Rate Limit Student ${suffix}`, courseId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       SELECT $1, $2, c.id, c.teacher_id
+       FROM examcollect.class c WHERE c.course_name = $3 LIMIT 1`,
+      [mssv, `Rate Limit Student ${suffix}`, courseName],
     );
 
     // Ảnh chốt của phiên đóng băng MỘT LẦN, lúc mở phiên, và
@@ -125,25 +125,16 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     token = login.body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Rate Limit Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Rate Limit Course', $2) RETURNING id`,
-      [`RL${stamp}`, semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Rate Limit Room ${stamp}`],
-    );
+    // Tên môn phải duy nhất theo LƯỢT CHẠY: lớp được tra bằng chính tên
+    // này, và một hằng chuỗi sẽ khớp lớp của một lượt chạy trước — do
+    // một giảng viên khác dạy, nên tạo phiên trả về 403.
+    const course = { name: `Rate Limit Course ${stamp}` };
+    courseName = course.name;
+    const room = { name: `Rate Limit Room ${stamp}` };
     await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
-       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N01', $2) RETURNING id`,
-      [courseId, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, 'N01', $2) RETURNING id`,
+      [courseName, teacherId],
     );
 
     const active = await request(app.getHttpServer())
@@ -152,9 +143,10 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
       .send({
         name: `Rate Limit Active ${stamp}`,
         classId: (
-          await dataSource.query(`SELECT id FROM examcollect.class WHERE course_id = $1 LIMIT 1`, [courseId])
+          await dataSource.query(`SELECT id FROM examcollect.class WHERE course_name = $1 LIMIT 1`, [courseName])
         )[0].id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -177,9 +169,10 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
       .send({
         name: `Rate Limit Pending ${stamp}`,
         classId: (
-          await dataSource.query(`SELECT id FROM examcollect.class WHERE course_id = $1 LIMIT 1`, [courseId])
+          await dataSource.query(`SELECT id FROM examcollect.class WHERE course_name = $1 LIMIT 1`, [courseName])
         )[0].id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() + 3_600_000).toISOString(),
         endTime: new Date(Date.now() + 7_200_000).toISOString(),
