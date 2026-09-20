@@ -62,7 +62,7 @@ nó cần một lớp để định tuyến về.
 | `exam_session.class_id` → **NOT NULL** | Quyết định của chủ đồ án; đồng thời vá một lỗ thật (§3.4) |
 | Xoá vai trò `department_admin`, `super_admin` | Không có logic phân tầng thật phía sau |
 | Đánh dấu sinh viên thi bù ở màn bài nộp + màn chấm | Yêu cầu mới; **không cần cột mới** (§6) |
-| **Viết lại 9 file đang join vào ba bảng bị xoá** | §4.4. Phần lớn nhất và dễ bỏ sót nhất của cả đợt |
+| **Viết lại 10 file đang join vào ba bảng bị xoá** | §4.4. Phần lớn nhất và dễ bỏ sót nhất của cả đợt |
 | Sửa `CLAUDE.md` cho khớp mô hình mới | §4.6. Không sửa thì người sau code theo tài liệu sai |
 
 ### 1.2 Cố ý KHÔNG trong phạm vi
@@ -240,7 +240,7 @@ tạo, sửa, xoá, nhập từ tệp, xem lớp mình dạy, và bốn route qu
 ### 4.4 Code phải VIẾT LẠI, không chỉ xoá route
 
 > Đây là phần bản nháp đầu của spec này bỏ sót hoàn toàn, và là phần nguy hiểm
-> nhất. **Tám service và một controller đọc `session.courseId` hoặc join thẳng
+> nhất. **Chín service và một controller đọc `session.courseId` hoặc join thẳng
 > vào ba bảng sắp bị xoá.** Người nào implement theo bản nháp cũ sẽ đẩy lên một
 > hệ thống mà trang bài nộp, đóng băng roster, và xác thực agent đều hỏng.
 >
@@ -257,6 +257,14 @@ tạo, sửa, xoá, nhập từ tệp, xem lớp mình dạy, và bốn route qu
 | `exam-session/exam-session.service.ts` | — | Tạo/sửa phiên nhận `courseId`, `roomId` | Nhận `courseName`, `roomName` dạng văn bản; `classId` thành bắt buộc |
 | `grading/rubric.service.ts` | 54, 62-178 | `assertTeachesCourse()` + mọi truy vấn theo `courseId` | Viết lại theo `teacherId` (§3.1) |
 | `grading/grading.controller.ts` | **55, 66** | `@Get/@Post('courses/:courseId/rubrics')` — **hai route này sống sót khi xoá `course.controller.ts`** nhưng vẫn nhận `courseId` và gọi `listForCourse()` | Đổi đường dẫn thành `rubrics` (không tham số môn học), lọc theo `req.user.sub` |
+| `exam-session/schedule-conflict.service.ts` | 67-73, 96, 101 | `ClashTarget` hardcode `{ column: 'room_id', table: 'room' }` và nhận `roomId` dạng UUID, để **dựng câu báo lỗi đọc được** khi trùng lịch | Đổi sang `room_name` dạng văn bản. Bản thân exclusion constraint vẫn bắn đúng; chỉ lớp bọc thông báo hỏng. Mức nhẹ, nhưng để nguyên thì trùng lịch phòng báo lỗi bằng exception thô |
+
+**Bốn file trong `course/` cố ý không có trong bảng trên:** `class.service.ts`,
+`class-import.service.ts`, `roster.service.ts`, `enrollment.service.ts`. Chúng
+cũng hỏng khi migration chạy, nhưng chúng **là** phần hiện thực của bốn route
+được chuyển ở §4.1, nên không ai làm được bước 1 và 2 mà không viết lại chúng.
+Khác với mười file ở bảng trên, chúng hỏng ngay lúc biên dịch chứ không im lặng
+hỏng lúc chạy, nên rủi ro bỏ sót gần bằng không.
 
 Hai route rubric ở dòng 55 và 66 là cái bẫy tệ nhất trong danh sách: chúng nằm
 trong `grading.controller.ts` chứ không nằm trong `course.controller.ts`, nên xoá
@@ -381,8 +389,8 @@ Thứ tự này không tuỳ ý — mỗi bước là điều kiện của bư�
 2. **Thêm UI tạo/sửa/nhập lớp vào `teacher/classes`**, dời hộp thoại nhập tệp.
    Kiểm bằng tay: một giảng viên tạo được lớp và nhập được roster mà không cần
    trưởng khoa.
-3. **Migration + viết lại 9 file ở §4.4 + xoá route + xoá trang + rút vai trò —
-   TRONG CÙNG MỘT LẦN.** Không tách được. Migration bỏ ba bảng mà chín file kia
+3. **Migration + viết lại 10 file ở §4.4 + xoá route + xoá trang + rút vai trò —
+   TRONG CÙNG MỘT LẦN.** Không tách được. Migration bỏ ba bảng mà mười file kia
    vẫn đang join vào; tách ra là có một commit ở giữa nơi hệ thống không chạy.
    Đây là bước lớn nhất của cả đợt và nên là một PR riêng.
 4. **Sửa `CLAUDE.md`** theo §4.6, cùng PR với bước 3.
@@ -417,7 +425,7 @@ lại được.
 | **T-RW-4** | `recollect` nối đúng bài nộp với sinh viên sau khi đổi khoá | e2e |
 | **T-RW-5** | Hai route rubric cũ (`courses/:courseId/rubrics`) không còn tồn tại | e2e |
 
-Năm ca `T-RW-*` phủ đúng chín file ở §4.4. Không có chúng thì mọi thứ vẫn biên
+Năm ca `T-RW-*` phủ đúng mười file ở §4.4. Không có chúng thì mọi thứ vẫn biên
 dịch được và vẫn hỏng lúc chạy — đó chính là hình dạng của lỗi mà §4.4 tồn tại
 để chặn.
 
