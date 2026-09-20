@@ -10,7 +10,8 @@ thống, chuyển quyền sở hữu lớp học sang giảng viên, và gỡ ru
 ## 0. Vì sao cần cái này
 
 Hệ thống tự nhận là hệ thống chấm điểm, nhưng **26 trên 73 route API** và **10
-trên 27 trang web** là quản trị dữ liệu nền: môn học, học kỳ, phòng thi, khoa, và
+trên 27 trang web** là quản trị dữ liệu nền, trong đó **8 trang bị xoá hẳn** còn
+2 trang lớp học ở lại và đổi chủ: môn học, học kỳ, phòng thi, khoa, và
 hai vai trò tồn tại chỉ để quản lý chúng. Không phần nào phục vụ việc chấm điểm.
 Chúng còn ở đây vì thiết kế ban đầu thừa kế từ hướng "quản lý phòng máy" đã bị
 bỏ (xem `docs/ke-hoach-tong-the-do-an.md` §1).
@@ -61,6 +62,8 @@ nó cần một lớp để định tuyến về.
 | `exam_session.class_id` → **NOT NULL** | Quyết định của chủ đồ án; đồng thời vá một lỗ thật (§3.4) |
 | Xoá vai trò `department_admin`, `super_admin` | Không có logic phân tầng thật phía sau |
 | Đánh dấu sinh viên thi bù ở màn bài nộp + màn chấm | Yêu cầu mới; **không cần cột mới** (§6) |
+| **Viết lại 9 file đang join vào ba bảng bị xoá** | §4.4. Phần lớn nhất và dễ bỏ sót nhất của cả đợt |
+| Sửa `CLAUDE.md` cho khớp mô hình mới | §4.6. Không sửa thì người sau code theo tài liệu sai |
 
 ### 1.2 Cố ý KHÔNG trong phạm vi
 
@@ -137,16 +140,20 @@ viên gõ "CTDL&GT" và "Cấu trúc dữ liệu" phải là hai thứ độc l�
 
 ```
 - course_id       uuid NOT NULL FK -> course
-- home_teacher_id uuid NOT NULL FK -> account
-  home_class_id   uuid NOT NULL FK -> class   (giữ)
+  home_class_id   uuid NOT NULL FK -> class     (giữ)
+  home_teacher_id uuid NOT NULL FK -> account   (GIỮ — xem dưới)
 
 - unique(course_id, student_mssv)
 + unique(home_class_id, student_mssv)
 ```
 
-`home_teacher_id` bỏ vì suy được từ `class.teacher_id`. **Phải rà `attendance.service.ts`
-và `access-request.gateway.ts` trước khi bỏ** — cả hai đang đọc cột này; nếu chi
-phí join lớn hơn lợi ích thì giữ lại cột và ghi lý do, đừng bỏ rồi join bù ở 5 chỗ.
+> **`home_teacher_id` GIỮ NGUYÊN.** Bản nháp đầu của spec này đề xuất bỏ nó vì
+> "suy được từ `class.teacher_id`". Sai, vì hai lý do. Thứ nhất, nó là FK tới
+> `account`, **không** tới bảng nào bị xoá, nên nó không buộc phải đi. Thứ hai,
+> cùng một cột nằm trên **ba** bảng — `enrollment`, `session_roster:57`,
+> `submission:105` — và định danh trên socket exam-live khai nó là trường **bắt
+> buộc** kèm kiểm tra null. Bỏ ở một bảng tạo ra ba bề mặt lệch nhau để đổi lấy
+> một phép join. Không đáng.
 
 ### 3.4 `exam_session` — lớp bắt buộc, phòng thành văn bản
 
@@ -229,6 +236,50 @@ lớp của người khác.**
 
 Chín route master data còn lại đều là `class`, và tất cả đều thuộc giảng viên:
 tạo, sửa, xoá, nhập từ tệp, xem lớp mình dạy, và bốn route quản lý roster.
+
+### 4.4 Code phải VIẾT LẠI, không chỉ xoá route
+
+> Đây là phần bản nháp đầu của spec này bỏ sót hoàn toàn, và là phần nguy hiểm
+> nhất. **Tám service và một controller đọc `session.courseId` hoặc join thẳng
+> vào ba bảng sắp bị xoá.** Người nào implement theo bản nháp cũ sẽ đẩy lên một
+> hệ thống mà trang bài nộp, đóng băng roster, và xác thực agent đều hỏng.
+>
+> Bảng dưới là danh sách đầy đủ, đã đối chiếu từng dòng với code.
+
+| File | Dòng | Đang làm gì | Phải đổi thành |
+|---|---|---|---|
+| `submission/submission-overview.service.ts` | 75, 211, 225-227 | SQL thô `JOIN course`, `JOIN semester`, `JOIN room`, và `ON e.course_id = s.course_id` | Bỏ ba JOIN, đọc thẳng `course_name`/`semester_name`/`room_name` từ `exam_session`; nối enrollment qua `home_class_id = es.class_id` |
+| `exam-session/session-roster.service.ts` | 70, 160 | `where: { courseId: session.courseId, … }` trong `freeze()` và tra cứu sinh viên | `where: { homeClassId: session.classId }` |
+| `exam-session/exam-session.gateway.ts` | 427, 430 | `enrollments.findForCourse(session.courseId, …)` — **xác thực agent join** | `findForClass(session.classId, …)`; log cũng đổi theo |
+| `exam-session/recollect.service.ts` | 67 | SQL thô `ON e.course_id = s.course_id` | Nối qua `e.home_class_id = s.class_id` |
+| `exam-session/access-request.gateway.ts` | 112, 196 | `findForCourse`, `findClassForCourse` khi duyệt xin phép | Tra theo lớp; `homeClassId` vẫn do giám thị chọn, **không** suy luận |
+| `agent-connection/attendance.service.ts` | 131 | `enrollments.find({ where: { courseId: session.courseId } })` dựng roster | `{ where: { homeClassId: session.classId } }` |
+| `exam-session/exam-session.service.ts` | — | Tạo/sửa phiên nhận `courseId`, `roomId` | Nhận `courseName`, `roomName` dạng văn bản; `classId` thành bắt buộc |
+| `grading/rubric.service.ts` | 54, 62-178 | `assertTeachesCourse()` + mọi truy vấn theo `courseId` | Viết lại theo `teacherId` (§3.1) |
+| `grading/grading.controller.ts` | **55, 66** | `@Get/@Post('courses/:courseId/rubrics')` — **hai route này sống sót khi xoá `course.controller.ts`** nhưng vẫn nhận `courseId` và gọi `listForCourse()` | Đổi đường dẫn thành `rubrics` (không tham số môn học), lọc theo `req.user.sub` |
+
+Hai route rubric ở dòng 55 và 66 là cái bẫy tệ nhất trong danh sách: chúng nằm
+trong `grading.controller.ts` chứ không nằm trong `course.controller.ts`, nên xoá
+cả file controller môn học vẫn để chúng lại, và chúng vẫn biên dịch được cho tới
+lúc chạy thật.
+
+### 4.5 Web: bộ lọc theo học kỳ
+
+`useSemesterFilter`, `FilterRail`, `submission-filters.ts` và năm trang trở lên
+đang lọc theo `semesterId`. Đây **không phải** việc xoá: trang bài nộp của giảng
+viên cần giữ khả năng lọc. Đổi sang lọc theo `semester_name` dạng văn bản, hoặc
+bỏ bộ lọc học kỳ và giữ bộ lọc theo lớp. Quyết định lúc làm bước 2, và ghi lại
+đã chọn gì.
+
+### 4.6 `CLAUDE.md` phải sửa trong cùng đợt
+
+Hai chỗ trở thành sai sau đợt này:
+
+- Bảng tầng **Tham chiếu** liệt kê `Semester` / `Room` / `Course` / `Class` /
+  `Account` / `Enrollment`. Còn lại `Class` / `Account` / `Enrollment`.
+- Quy tắc xác thực agent join ở **mức môn học** đổi thành **mức lớp**. Để nguyên
+  thì người implement sẽ giữ lại code xác thực theo môn vì tài liệu bảo thế.
+- Mục `assignOwner` cho `Course` mồ côi thuộc `admin` — xoá hẳn.
 
 ---
 
@@ -330,8 +381,11 @@ Thứ tự này không tuỳ ý — mỗi bước là điều kiện của bư�
 2. **Thêm UI tạo/sửa/nhập lớp vào `teacher/classes`**, dời hộp thoại nhập tệp.
    Kiểm bằng tay: một giảng viên tạo được lớp và nhập được roster mà không cần
    trưởng khoa.
-3. **Migration.** Theo đúng thứ tự §3.1 → §3.6.
-4. **Xoá route, xoá trang, rút vai trò.**
+3. **Migration + viết lại 9 file ở §4.4 + xoá route + xoá trang + rút vai trò —
+   TRONG CÙNG MỘT LẦN.** Không tách được. Migration bỏ ba bảng mà chín file kia
+   vẫn đang join vào; tách ra là có một commit ở giữa nơi hệ thống không chạy.
+   Đây là bước lớn nhất của cả đợt và nên là một PR riêng.
+4. **Sửa `CLAUDE.md`** theo §4.6, cùng PR với bước 3.
 5. **Regenerate `packages/shared/src/api/schema.d.ts`** từ API đang chạy. Bỏ bước
    này thì `apps/web` fail typecheck ở đúng dòng gọi route vừa xoá.
 6. **Đánh dấu sinh viên thi bù** ở hai màn hình (§6.2).
@@ -357,6 +411,15 @@ lại được.
 | **T-MU-1** | Sinh viên lớp khác `agent:join` → `NOT_ENROLLED` → xin phép được | e2e |
 | **T-MU-2** | Bài nộp có `home_class_id` khác lớp phiên → gắn nhãn thi bù ở cả hai màn | unit |
 | **T-ROLE-1** | Không còn route nào chấp nhận `department_admin` | e2e |
+| **T-RW-1** | Trang tổng quan bài nộp trả đúng dữ liệu sau khi bỏ ba JOIN | e2e |
+| **T-RW-2** | `session-roster.freeze()` đóng băng đúng roster theo lớp | e2e |
+| **T-RW-3** | `agent:join` vẫn cho sinh viên đúng lớp vào, từ chối lớp khác | e2e |
+| **T-RW-4** | `recollect` nối đúng bài nộp với sinh viên sau khi đổi khoá | e2e |
+| **T-RW-5** | Hai route rubric cũ (`courses/:courseId/rubrics`) không còn tồn tại | e2e |
+
+Năm ca `T-RW-*` phủ đúng chín file ở §4.4. Không có chúng thì mọi thứ vẫn biên
+dịch được và vẫn hỏng lúc chạy — đó chính là hình dạng của lỗi mà §4.4 tồn tại
+để chặn.
 
 T-ROOM-1 là ca dễ bị viết cho xanh nhất. Nó phải khẳng định **cả hai vế**, gồm cả
 vế hệ thống *không* chặn được, nếu không thì sự suy giảm ở §3.4 sẽ bị quên.
