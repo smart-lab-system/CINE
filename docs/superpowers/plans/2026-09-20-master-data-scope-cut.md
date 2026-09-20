@@ -126,7 +126,6 @@ Trong `apps/api/src/course/class.controller.ts`, đổi **chỉ bốn route này
 
 | Dòng | Route | Trước | Sau |
 |---|---|---|---|
-| 88 | `@Post('import')` | `@Roles('department_admin')` | `@Roles('teacher')` |
 | 95 | `@Post()` | `@Roles('department_admin')` | `@Roles('teacher')` |
 | 101 | `@Patch(':id')` | `@Roles('department_admin')` | `@Roles('teacher')` |
 | 111 | `@Delete(':id')` | `@Roles('department_admin')` | `@Roles('teacher')` |
@@ -134,6 +133,18 @@ Trong `apps/api/src/course/class.controller.ts`, đổi **chỉ bốn route này
 Và đổi thân hàm gọi sang bản `*ForTeacher`, truyền `req.user!.sub` thay cho `headId`.
 
 **Không đụng** `@Get('mine')`, `@Get('teachers')` ở dòng 41 và 56 — chúng bị xoá ở Task 5, không phải bây giờ.
+
+> **`@Post('import')` KHÔNG chuyển ở task này — phát hiện lúc thực thi.**
+> Bản đầu của plan xếp nó chung với ba route CRUD, coi như một lần đổi guard.
+> Sai. `importForHead` nhận **email giảng viên theo từng dòng**, **tạo môn học**
+> dưới quyền sở hữu của khoa (`course.departmentHeadId`), và **kiểm phạm vi liên
+> khoa** trước khi dùng lại một môn đã có. Ba thứ đó không có nghĩa gì với một
+> giảng viên tự nhập lớp của chính mình, và đổi guard ở đây là cho một giảng
+> viên tạo môn rồi gán lớp cho người khác.
+>
+> Nó được thiết kế lại **sau Task 3**, khi `course` thành văn bản: lúc đó mỗi
+> dòng chỉ còn tên lớp cộng danh sách sinh viên, chủ sở hữu là người bấm, và cả
+> ba vấn đề trên tự biến mất. Task 2 vì thế **chưa dời** hộp thoại nhập tệp.
 
 - [ ] **Step 5: Chạy test, phải XANH**
 

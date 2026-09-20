@@ -291,6 +291,85 @@ export class ClassService {
   }
 
   /**
+   * Bản cho giảng viên của `createForHead`.
+   *
+   * Hai khác biệt, cả hai có chủ ý:
+   *
+   * 1. **Chủ sở hữu là chính người gọi.** `dto.teacherId` bị bỏ qua hoàn
+   *    toàn — một giảng viên không gán lớp cho người khác được. Trưởng khoa
+   *    thì gán được, và đó là lý do `createForHead` có `assertIsTeacher`.
+   *
+   * 2. **Không kiểm sở hữu môn học.** `createForHead` đòi trưởng khoa sở
+   *    hữu môn, nhưng giảng viên không sở hữu môn nào cả — khái niệm đó
+   *    thuộc về tầng khoa, thứ sắp bị cắt. Khoá ngoại vẫn ép môn phải tồn
+   *    tại, nên đây là nới lỏng có kiểm soát, không phải bỏ ngỏ.
+   *
+   *    **Đây là trạng thái TẠM.** Khi `class.course_id` thành `course_name`
+   *    dạng văn bản (spec thu hẹp master data §3.2), câu hỏi "giảng viên
+   *    được tạo lớp cho môn nào" biến mất cùng bảng `course`.
+   */
+  async createForTeacher(teacherId: string, dto: CreateClassDto): Promise<ClassEntity> {
+    return this.classes.save(
+      this.classes.create({ ...dto, teacherId }),
+    );
+  }
+
+  /**
+   * Bản cho giảng viên của `updateForHead`, và nó ĐƠN GIẢN HƠN HẲN.
+   *
+   * `updateForHead` có cả một giao dịch để đồng bộ `enrollment.home_teacher_id`
+   * khi lớp đổi giảng viên. Ở đây nhánh đó **không tồn tại được**: giảng
+   * viên không đổi được chủ sở hữu, nên roster không bao giờ lệch.
+   *
+   * Cho phép đổi `teacherId` ở bản này nghĩa là một giảng viên đẩy lớp của
+   * mình sang người khác rồi mất quyền, hoặc kéo lớp người khác về. Cả hai
+   * đều không có ca dùng, và cả hai đều không hoàn tác được từ giao diện.
+   */
+  async updateForTeacher(
+    id: string,
+    teacherId: string,
+    dto: UpdateClassDto,
+  ): Promise<ClassEntity> {
+    const klass = await this.findOwnedByTeacher(id, teacherId);
+    // CHO PHÉP CÓ CHỌN LỌC, không phải loại trừ. `Object.assign(klass, dto)`
+    // trừ đi một trường sẽ để một trường MỚI thêm vào DTO sau này âm thầm
+    // lọt qua — và nếu trường đó là `teacherId` phiên bản khác tên thì lỗ
+    // hổng quay lại mà không ai sửa gì ở đây.
+    if (dto.name !== undefined) {
+      klass.name = dto.name;
+    }
+    return this.classes.save(klass);
+  }
+
+  async removeForTeacher(id: string, teacherId: string): Promise<void> {
+    const klass = await this.findOwnedByTeacher(id, teacherId);
+    // `enrollment.home_class_id` là ON DELETE RESTRICT, nên lớp còn sinh
+    // viên thì từ chối đi — một 409, không bao giờ là một roster mồ côi
+    // trong im lặng.
+    await this.classes.remove(klass);
+  }
+
+  /**
+   * Vị từ quyền dùng chung cho ba hàm `*ForTeacher` — một chỗ để sửa, một
+   * chỗ để test.
+   *
+   * 404 khi không tồn tại, 403 khi tồn tại nhưng của người khác. Trưởng
+   * khoa trước đây thấy mọi lớp trong khoa nên `findOwnedByHead` đi qua
+   * `assertOwnsCourse`; giảng viên thì so thẳng chủ sở hữu, và **bỏ sót
+   * chỗ này là một giảng viên sửa được lớp của người khác**.
+   */
+  async findOwnedByTeacher(id: string, teacherId: string): Promise<ClassEntity> {
+    const klass = await this.classes.findOne({ where: { id } });
+    if (!klass) {
+      throw new NotFoundException('Class not found');
+    }
+    if (klass.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not teach this class');
+    }
+    return klass;
+  }
+
+  /**
    * The class, if it belongs to a course this head owns — 404 when it does
    * not exist at all, 403 when it exists but is someone else's. Public
    * because the roster endpoints hang off a class and must answer ownership

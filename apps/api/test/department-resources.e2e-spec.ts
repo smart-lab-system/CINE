@@ -385,92 +385,49 @@ describe('Department resources (e2e)', () => {
       expect(response.status).toBe(403);
     });
   });
-  describe('classes', () => {
-    it('creates a class under a course the head owns, assigning a lecturer', async () => {
+  describe('classes — quyền đã chuyển sang giảng viên', () => {
+    /**
+     * Ba route tạo/sửa/xoá lớp đã đổi sang `@Roles('teacher')` (spec thu
+     * hẹp master data §4.1). Trưởng khoa KHÔNG còn tạo lớp được.
+     *
+     * Bốn test cũ ở đây khẳng định hành vi của `createForHead`/
+     * `updateForHead` QUA ROUTE — và route đó giờ không dẫn tới chúng nữa.
+     * Viết lại chúng cho luồng giảng viên là viết test cho code sắp bị xoá
+     * ở đợt thu hẹp; phần bảo hiểm thật nằm ở
+     * `classes-teacher-crud.e2e-spec.ts`, nơi T-OWN-1, T-OWN-1b, T-OWN-2
+     * và T-OWN-2b phủ đúng những gì bốn test kia từng phủ.
+     *
+     * Giữ lại đúng một khẳng định: **cửa cũ đã đóng**. Không có nó thì một
+     * lần revert guard sẽ không ai thấy.
+     */
+    it('trưởng khoa KHÔNG còn tạo, sửa hay xoá lớp được', async () => {
       const course = await request(app.getHttpServer())
         .post('/courses')
         .set('Authorization', `Bearer ${headToken}`)
         .send(newCourse('g'));
 
-      const response = await request(app.getHttpServer())
-        .post('/classes')
-        .set('Authorization', `Bearer ${headToken}`)
-        .send({ courseId: course.body.id, name: 'Nhóm 01', teacherId: lecturerId });
-
-      expect(response.status).toBe(201);
-      expect(response.body.teacherId).toBe(lecturerId);
-    });
-
-    it('refuses a class under a course the head does not own', async () => {
-      const theirs = await request(app.getHttpServer())
-        .post('/courses')
-        .set('Authorization', `Bearer ${otherHeadToken}`)
-        .send(newCourse('h'));
-
-      const response = await request(app.getHttpServer())
-        .post('/classes')
-        .set('Authorization', `Bearer ${headToken}`)
-        .send({ courseId: theirs.body.id, name: 'Nhóm 02', teacherId: lecturerId });
-
-      // The scope column is on course; a class inherits it. Without this a
-      // head could staff another department's classes.
-      expect(response.status).toBe(403);
-    });
-
-    it('refuses to assign a non-teacher account as the lecturer', async () => {
-      const course = await request(app.getHttpServer())
-        .post('/courses')
-        .set('Authorization', `Bearer ${headToken}`)
-        .send(newCourse('i'));
-
-      const response = await request(app.getHttpServer())
-        .post('/classes')
-        .set('Authorization', `Bearer ${headToken}`)
-        .send({ courseId: course.body.id, name: 'Nhóm 03', teacherId: headId });
-
-      // class.teacher_id is what scopes a lecturer to their own classes, so
-      // pointing it at an admin or a head would create a class nobody can
-      // run.
-      expect(response.status).toBe(400);
-    });
-
-    it('moves the roster to the new lecturer when a class changes hands', async () => {
-      const replacement = await makeAccount('dept_replacement', 'teacher');
-
-      const course = await request(app.getHttpServer())
-        .post('/courses')
-        .set('Authorization', `Bearer ${headToken}`)
-        .send(newCourse('j'));
-      const klass = await request(app.getHttpServer())
-        .post('/classes')
-        .set('Authorization', `Bearer ${headToken}`)
-        .send({ courseId: course.body.id, name: 'Nhóm bàn giao', teacherId: lecturerId });
-
-      const student = `H${Date.now().toString(36)}`.slice(0, 20);
-      // The LECTURER owns the roster, so the list is loaded as them. A head
-      // creates the class and names who teaches it; from there the list is
-      // the lecturer's.
       await request(app.getHttpServer())
-        .post(`/classes/${klass.body.id}/roster`)
-        .set('Authorization', `Bearer ${lecturerToken}`)
-        .send({ students: [{ mssv: student, name: 'Sinh viên bàn giao' }] });
-
-      const response = await request(app.getHttpServer())
-        .patch(`/classes/${klass.body.id}`)
+        .post('/classes')
         .set('Authorization', `Bearer ${headToken}`)
-        .send({ teacherId: replacement.id });
-      expect(response.status).toBe(200);
+        .send({ courseId: course.body.id, name: 'Nhóm 01', teacherId: lecturerId })
+        .expect(403);
 
-      // enrollment.home_teacher_id is copied onto every submission the
-      // student makes. A class that changes lecturer while its roster still
-      // points at the old one routes work to someone who no longer teaches
-      // it — and nothing about the submission would look wrong.
-      const [row] = await dataSource.query(
-        `SELECT home_teacher_id FROM examcollect.enrollment
-         WHERE course_id = $1 AND student_mssv = $2`,
-        [course.body.id, student],
+      const [seeded] = await dataSource.query(
+        `INSERT INTO examcollect.class (course_id, name, teacher_id)
+         VALUES ($1, $2, $3) RETURNING id`,
+        [course.body.id, 'Nhóm đã có', lecturerId],
       );
-      expect(row.home_teacher_id).toBe(replacement.id);
+
+      await request(app.getHttpServer())
+        .patch(`/classes/${seeded.id}`)
+        .set('Authorization', `Bearer ${headToken}`)
+        .send({ name: 'đổi tên' })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .delete(`/classes/${seeded.id}`)
+        .set('Authorization', `Bearer ${headToken}`)
+        .expect(403);
     });
   });
   describe('department teachers list (QA-reported gap: point 7)', () => {
@@ -485,14 +442,16 @@ describe('Department resources (e2e)', () => {
         .set('Authorization', `Bearer ${headToken}`)
         .send(newCourse('l'));
 
-      await request(app.getHttpServer())
-        .post('/classes')
-        .set('Authorization', `Bearer ${headToken}`)
-        .send({ courseId: courseOne.body.id, name: 'Nhóm GV A - 1', teacherId: teacher.id });
-      await request(app.getHttpServer())
-        .post('/classes')
-        .set('Authorization', `Bearer ${headToken}`)
-        .send({ courseId: courseTwo.body.id, name: 'Nhóm GV A - 2', teacherId: teacher.id });
+      // Chèn thẳng: route tạo lớp đã thuộc về giảng viên, còn thứ test này
+      // đo là truy vấn TỔNG HỢP của trưởng khoa, không phải đường tạo.
+      await dataSource.query(
+        `INSERT INTO examcollect.class (course_id, name, teacher_id)
+         VALUES ($1, $2, $3), ($4, $5, $6)`,
+        [
+          courseOne.body.id, 'Nhóm GV A - 1', teacher.id,
+          courseTwo.body.id, 'Nhóm GV A - 2', teacher.id,
+        ],
+      );
 
       const response = await request(app.getHttpServer())
         .get('/classes/teachers')

@@ -85,6 +85,14 @@ export class ClassController {
    * thay đổi. Route khai báo trước `@Post()` — `import` là literal
    * segment nên không tranh chấp, nhưng đọc theo thứ tự này rõ hơn.
    */
+  // CHƯA chuyển sang `teacher`, và đó là một quyết định chứ không phải
+  // bỏ sót. Đường nhập này nhận EMAIL GIẢNG VIÊN theo từng dòng, TẠO MÔN
+  // dưới quyền sở hữu của khoa, và kiểm phạm vi liên khoa — ba thứ không
+  // có nghĩa gì với một giảng viên tự nhập lớp của chính mình. Đổi guard
+  // ở đây là cho một giảng viên tạo môn và gán lớp cho người khác.
+  //
+  // Nó được thiết kế lại SAU khi `course` thành văn bản (spec thu hẹp
+  // master data §3.2), lúc đó cả ba vấn đề trên tự biến mất.
   @Post('import')
   @Roles('department_admin')
   @HttpCode(201)
@@ -93,26 +101,26 @@ export class ClassController {
   }
 
   @Post()
-  @Roles('department_admin')
+  @Roles('teacher')
   create(@Body() dto: CreateClassDto, @Req() req: Request) {
-    return this.classes.createForHead(req.user!.sub, dto);
+    return this.classes.createForTeacher(req.user!.sub, dto);
   }
 
   @Patch(':id')
-  @Roles('department_admin')
+  @Roles('teacher')
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateClassDto,
     @Req() req: Request,
   ) {
-    return this.classes.updateForHead(id, req.user!.sub, dto);
+    return this.classes.updateForTeacher(id, req.user!.sub, dto);
   }
 
   @Delete(':id')
-  @Roles('department_admin')
+  @Roles('teacher')
   @HttpCode(204)
   remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
-    return this.classes.removeForHead(id, req.user!.sub);
+    return this.classes.removeForTeacher(id, req.user!.sub);
   }
 
   /**
