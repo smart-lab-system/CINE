@@ -114,6 +114,47 @@ trên **đúng hai ngôn ngữ** để chứng minh tính khái quát.
 > mà **không** giảm thiên lệch chung — đúng thứ cần giảm. §6 sửa bằng cách bắt
 > nó phán quyết trên **bằng chứng khác**.
 
+### 2.1 Chính sách chấm đọc từ đâu, khi không được hỏi giảng viên
+
+**Rubric là một bản nén mất mát.** "Cài đặt đúng thuật toán sắp xếp — 3 điểm" không
+nói: dùng `sort()` của thư viện có tính không, sai ở mảng rỗng trừ bao nhiêu, chạy
+đúng nhưng O(n²) thì sao. Giảng viên biết cả ba, nhưng đó là tri thức ẩn và họ
+chưa từng phải viết ra.
+
+Chủ đồ án đã bác bỏ dứt khoát mọi cách **hỏi** để lấy phần thiếu đó. Nên hệ thống
+phải đọc nó từ **những gì giảng viên đã tạo ra sẵn**:
+
+| Nguồn | Nói lên điều gì | Trạng thái |
+|---|---|---|
+| `rubric_criterion.test_group` + gói test | Giảng viên gom test thành nhóm có tên và buộc tiêu chí vào nhóm. Đây **chính là** lời khai "tiêu chí này đo bằng cái này" | Đã có ở nhánh autograder |
+| Đề bài (`grading_reference`) | Ràng buộc tường minh: yêu cầu độ phức tạp, cấm dùng thư viện có sẵn | Đã có, 3 mức readiness |
+| Đáp án mẫu | Chuẩn tham chiếu để đối chiếu **hành vi** — chạy cả hai trên cùng input rồi so, không chỉ so văn bản | Đã có |
+| `teacher_review.edited_criteria` | Tiêu chí nào giảng viên sửa nhiều = chỗ hệ thống đọc sai chính sách | Đã có, anchor đang đọc |
+| **`teacher_review.private_note`** | **Giảng viên TỰ VIẾT vì sao họ trừ điểm.** Nguồn chính sách giàu nhất trong cả hệ thống | **Đang bị vứt** |
+
+> **`private_note` và `student_feedback` chỉ được GHI VÀO, không bao giờ đọc lại.**
+> `anchor.service.ts` chỉ `SELECT ... tr.edited_criteria`. Nghĩa là mỗi lần giảng
+> viên gõ "trừ 1 điểm vì dùng sort có sẵn thay vì tự cài", hệ thống lưu câu đó rồi
+> quên nó. Đưa hai trường này vào tập anchor là **thay đổi rẻ nhất có tỉ lệ
+> lợi-ích trên công-sức cao nhất** của cả spec: một cột thêm vào một câu `SELECT`
+> đã tồn tại.
+
+**Mỗi tiêu chí được neo vào bằng chứng kiểm được, thay vì để agent tự diễn giải.**
+"Đúng thuật toán" trở thành ba điều kiện máy kiểm được: nhóm test tương ứng qua,
+độ phức tạp đo được không tệ hơn yêu cầu trong đề, và truy vấn cấu trúc không
+thấy gọi hàm sắp xếp của thư viện. Cái neo đó **suy ra** từ bảng trên, không hỏi.
+
+**Giới hạn phải nói thẳng, không giấu:** không hỏi thì phiên thi **đầu tiên** của
+một giảng viên mới chỉ có rubric, đề bài và gói test — không có tín hiệu riêng nào
+của người đó. Chính sách riêng chỉ hình thành sau vài phiên, khi đã có `edited_criteria`
+và `private_note` tích lại. Đây là đánh đổi có ý thức: **đổi độ chính xác ở phiên
+đầu để lấy việc không làm phiền giảng viên lần nào.** Báo cáo phải ghi rõ điều này
+chứ không trình bày hệ thống như thể nó hiểu giảng viên ngay từ bài đầu tiên.
+
+**Anchor hiện `GRADING_ANCHORS_ENABLED` mặc định TẮT** vì chưa ai đo được nó giúp
+hay làm loãng chú ý của model. Hướng này biến nó thành đường học chính, nên phải
+**bật và đo**, không bật theo trực giác.
+
 ---
 
 ## 3. Bảy công cụ
@@ -328,6 +369,9 @@ Bước 1 là rủi ro hạ tầng lớn nhất và nên làm trước mọi th�
 | **T-ADV-3** | Ba lớp chặn điểm của agent phản biện vẫn còn nguyên | e2e |
 | **T-IMM-1** | `investigation` nằm trong trigger bất biến, không sửa được sau khi chấm | e2e |
 | **T-SBX-1** | Sandbox chết → `unavailable`, **không** thành "bài làm sai" | unit |
+| **T-POL-1** | `private_note` của giảng viên đi vào tập anchor, không bị vứt | unit |
+| **T-POL-2** | Phiên đầu của giảng viên chưa có lịch sử → vẫn chấm được, confidence thấp hơn | e2e |
+| **T-POL-3** | Tiêu chí có `test_group` → verdict lấy từ test, **không** hỏi model | unit |
 
 T-SRC-1 và T-SRC-2 là cặp đi ngược chiều nhau. Chỉ có T-SRC-1 thì một lần refactor
 bỏ trần cho mọi nguồn gốc vẫn xanh, và điều đó cho một model chưa hiệu chỉnh
