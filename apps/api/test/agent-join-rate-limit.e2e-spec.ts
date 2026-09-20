@@ -24,6 +24,7 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
   let baseUrl: string;
   let token: string;
   let activeSessionCode: string;
+  let activeSessionId = '';
   let pendingSessionCode: string;
   let pendingSessionId: string;
   let courseId: string;
@@ -67,6 +68,24 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
        FROM examcollect.class c WHERE c.course_id = $3 LIMIT 1`,
       [mssv, `Rate Limit Student ${suffix}`, courseId],
     );
+
+    // Ảnh chốt của phiên đóng băng MỘT LẦN, lúc mở phiên, và
+    // `agent:join` hỏi ảnh chốt chứ không hỏi enrollment. Sinh viên tạo
+    // sau thời điểm đó phải được thêm tay, nếu không mọi ca "join thành
+    // công" ở dưới đỏ vì NOT_ENROLLED — một lý do chẳng liên quan gì tới
+    // thứ bộ test này đo, là giới hạn tần suất.
+    //
+    // Em SEED được tạo TRƯỚC khi mở phiên (chính em làm cho lớp không
+    // rỗng để `freeze()` chạy được), nên lúc đó chưa có phiên nào để
+    // thêm vào — và cũng không cần: `freeze()` sẽ chụp em.
+    if (activeSessionId) {
+      const added = await request(app.getHttpServer())
+        .post(`/exam-sessions/${activeSessionId}/roster/students`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ mssv, name: `Rate Limit Student ${suffix}` });
+      expect(added.status).toBe(201);
+    }
+
     return mssv;
   }
 
@@ -122,8 +141,8 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
       [`Rate Limit Room ${stamp}`],
     );
     await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N01', $2) RETURNING id`,
       [courseId, teacherId],
     );
 
@@ -147,6 +166,7 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
     // không tham gia khẳng định nào, mọi ca dưới đây dùng MSSV riêng.
     await enrollFreshStudent('SEED');
     await openSession(app, token, active.body.id);
+    activeSessionId = active.body.id;
     activeSessionCode = active.body.code;
 
     // Not yet started — status is 'active' but the window hasn't opened,

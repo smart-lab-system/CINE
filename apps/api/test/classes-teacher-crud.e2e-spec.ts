@@ -42,8 +42,8 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
   /** Lớp thuộc về `ownerId`, chèn thẳng — không đi qua route đang được test. */
   async function seedClassOwnedBy(ownerId: string): Promise<string> {
     const [row] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `L${Date.now()}${Math.random().toString(36).slice(2, 5)}`, ownerId],
     );
     return row.id;

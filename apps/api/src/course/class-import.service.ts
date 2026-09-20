@@ -132,7 +132,16 @@ export class ClassImportService {
 
         if (!existingClass) {
           await classRepo.save(
-            classRepo.create({ courseId, name: row.className, teacherId: teacher.id }),
+            // `course_name` là bản chụp văn bản sống cạnh `course_id` trong
+            // giai đoạn mở rộng. Lấy thẳng từ dòng Excel, không tra ngược
+            // bảng `course`: cả hai là cùng một chuỗi, và dòng này là thứ
+            // giảng viên thực sự gõ.
+            classRepo.create({
+              courseId,
+              courseName: row.courseName,
+              name: row.className,
+              teacherId: teacher.id,
+            }),
           );
           result.classesCreated++;
           return;

@@ -99,8 +99,8 @@ describe('Roster import (e2e)', () => {
     courseId = course.id;
 
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm chính ${Date.now()}`, lecturerId],
     );
     classId = klass.id;
@@ -108,8 +108,8 @@ describe('Roster import (e2e)', () => {
     // A second class under the SAME course — the cross-class case the
     // unique key (course_id, student_mssv) makes possible.
     const [sibling] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm phụ ${Date.now()}`, lecturerId],
     );
     siblingClassId = sibling.id;
@@ -122,8 +122,8 @@ describe('Roster import (e2e)', () => {
   /** A fresh class per test, so one test's roster is never another's fixture. */
   async function freshClass(): Promise<string> {
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [
         courseId,
         `Nhóm ${Date.now()}${Math.random().toString(36).slice(2, 6)}`,

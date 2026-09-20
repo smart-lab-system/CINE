@@ -33,13 +33,13 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
       [`Queue Room ${suffix}`],
     );
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm ${suffix}`, teacherId],
     );
 
     const rubric = await request(app.getHttpServer())
-      .post(`/courses/${courseId}/rubrics`)
+      .post('/rubrics')
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: `Rubric ${suffix}`,
@@ -282,8 +282,9 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
     // từ chối, và nó từ chối ĐÚNG (Security rule 6). Việc test phải lách
     // một ràng buộc an toàn là dấu hiệu test đang dựng sai tình huống.
     const [rubric] = await dataSource.query(
-      `INSERT INTO examcollect.rubric (course_id, version)
-       SELECT course_id, 9000 + $2 FROM examcollect.exam_session WHERE id = $1
+      `INSERT INTO examcollect.rubric (course_id, version, teacher_id, name)
+       SELECT es.course_id, 9000 + $2, es.teacher_id, es.course_name
+         FROM examcollect.exam_session es WHERE es.id = $1
        RETURNING id`,
       [sessionId, seedCursor],
     );

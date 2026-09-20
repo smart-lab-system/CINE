@@ -163,12 +163,12 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
     roomId = room.id;
 
     const [n01] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
+      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N01', $2) RETURNING id`,
       [courseId, teacherId],
     );
     classN01 = n01.id;
     const [n02] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, name, teacher_id) VALUES ($1, 'N02', $2) RETURNING id`,
+      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N02', $2) RETURNING id`,
       [courseId, teacherId],
     );
     classN02 = n02.id;
@@ -247,7 +247,7 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
 
     it('KHÔNG gắn cờ vì có mặt ở một MÔN khác', async () => {
       const [otherClass] = await dataSource.query(
-        `INSERT INTO ${schema}.class (course_id, name, teacher_id) VALUES ($1, 'X01', $2) RETURNING id`,
+        `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'X01', $2) RETURNING id`,
         [otherCourseId, teacherId],
       );
       await dataSource.query(

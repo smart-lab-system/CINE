@@ -42,8 +42,8 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm ${suffix}`, teacherId],
     );
     const [room] = await dataSource.query(
@@ -56,9 +56,12 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     const [session] = await dataSource.query(
       `INSERT INTO examcollect.exam_session
          (name, code, class_id, course_id, teacher_id, room_id, exam_type,
-          start_time, end_time, status, semester_name)
+          start_time, end_time, status, semester_name,
+          course_name, room_name)
        VALUES ($1, $2, $3, $4, $5, $6, 'CK',
-               now() - interval '1 hour', now() + interval '1 hour', 'active', 'HK Ref')
+               now() - interval '1 hour', now() + interval '1 hour', 'active', 'HK Ref',
+               (SELECT name FROM examcollect.course WHERE id = $4),
+               (SELECT name FROM examcollect.room   WHERE id = $6))
        RETURNING *`,
       [`Phiên ${suffix}`, `REF${suffix}`.slice(0, 20), klass.id, courseId, teacherId, room.id],
     );
@@ -102,7 +105,8 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     }
     rubricVersionCursor += 1;
     const [rubric] = await dataSource.query(
-      `INSERT INTO examcollect.rubric (course_id, version) VALUES ($1, $2) RETURNING id`,
+      `INSERT INTO examcollect.rubric (course_id, version, teacher_id, name)
+       VALUES ($1, $2, (SELECT teacher_id FROM examcollect.class WHERE course_id = $1 ORDER BY created_at LIMIT 1), (SELECT name FROM examcollect.course WHERE id = $1)) RETURNING id`,
       [courseId, rubricVersionCursor],
     );
     await dataSource.query(

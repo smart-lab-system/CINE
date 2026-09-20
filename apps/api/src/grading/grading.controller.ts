@@ -52,10 +52,25 @@ export class GradingController {
     private readonly bulkReviews: BulkReviewService,
   ) {}
 
-  @Get('courses/:courseId/rubrics')
+  /**
+   * Rubric của CHÍNH người gọi, không còn của một môn học.
+   *
+   * Đường dẫn cũ là `courses/:courseId/rubrics`, và nó là cái bẫy tệ nhất
+   * của đợt thu hẹp master data: hai route rubric nằm trong controller
+   * CHẤM ĐIỂM chứ không nằm trong `course.controller.ts`, nên xoá cả
+   * controller môn học vẫn để chúng lại — và chúng vẫn biên dịch được cho
+   * tới lúc chạy thật.
+   */
+  @Get('rubrics')
   @Roles('teacher')
-  listRubrics(@Param('courseId', ParseUUIDPipe) courseId: string, @Req() req: Request) {
-    return this.rubrics.listForCourse(courseId, req.user!.sub);
+  listRubrics(@Req() req: Request) {
+    return this.rubrics.listForTeacher(req.user!.sub);
+  }
+
+  @Get('rubrics/:id')
+  @Roles('teacher')
+  getRubric(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    return this.rubrics.findOneForTeacher(id, req.user!.sub);
   }
 
   /**
@@ -63,14 +78,10 @@ export class GradingController {
    * Editing criteria a result already points at is what Security rule 7
    * forbids, so "edit" and "new version" are the same act.
    */
-  @Post('courses/:courseId/rubrics')
+  @Post('rubrics')
   @Roles('teacher')
-  saveRubric(
-    @Param('courseId', ParseUUIDPipe) courseId: string,
-    @Body() dto: SaveRubricDto,
-    @Req() req: Request,
-  ) {
-    return this.rubrics.saveNewVersion(courseId, req.user!.sub, dto);
+  saveRubric(@Body() dto: SaveRubricDto, @Req() req: Request) {
+    return this.rubrics.saveNewVersion(req.user!.sub, dto);
   }
 
   /**

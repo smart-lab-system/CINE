@@ -103,8 +103,8 @@ describe('Exam materials (e2e)', () => {
       [`MT${stamp}`.slice(0, 20), semester.id],
     );
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [course.id, `Nhóm đề thi ${stamp}`, teacherId],
     );
     const [room] = await dataSource.query(
@@ -332,8 +332,8 @@ describe('Exam materials (e2e)', () => {
       [`LM${lateStamp}`.slice(0, 20), semester.id],
     );
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [course.id, `Nhóm đề thi trễ ${lateStamp}`, teacherId],
     );
     const [room] = await dataSource.query(

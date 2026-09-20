@@ -37,11 +37,14 @@ describe('Grading (e2e)', () => {
     return response.body.accessToken;
   }
 
+  const RUBRIC_NAME = `Rubric chấm ${stamp}`;
+
   function saveRubric(descriptions: string[], asToken = token) {
     return request(app.getHttpServer())
-      .post(`/courses/${courseId}/rubrics`)
+      .post('/rubrics')
       .set('Authorization', `Bearer ${asToken}`)
       .send({
+        name: RUBRIC_NAME,
         criteria: descriptions.map((description) => ({ description, maxPoints: 5 })),
       });
   }
@@ -149,8 +152,8 @@ describe('Grading (e2e)', () => {
     );
     courseId = course.id;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm chấm ${stamp}`, teacherId],
     );
     const [room] = await dataSource.query(
@@ -203,7 +206,7 @@ describe('Grading (e2e)', () => {
       expect(second.body.version).toBe(2);
 
       const listed = await request(app.getHttpServer())
-        .get(`/courses/${courseId}/rubrics`)
+        .get('/rubrics')
         .set('Authorization', `Bearer ${token}`);
 
       // Version 1 is still there, unchanged. Results that cite it must keep
@@ -215,10 +218,40 @@ describe('Grading (e2e)', () => {
       expect(versions.find((r: { version: number }) => r.version === 1).criteria).toHaveLength(1);
     });
 
-    it('refuses a lecturer who teaches no class of the course', async () => {
-      const response = await saveRubric(['Không phải môn của tôi'], otherToken);
+    it('T-OWN-3: rubric của giảng viên khác không lọt vào danh sách của mình', async () => {
+      // Đợt thu hẹp master data ĐẢO quy tắc ở đây. Trước: rubric thuộc MÔN,
+      // nên một giảng viên không dạy môn đó bị chặn bằng 403 lúc soạn. Sau:
+      // rubric thuộc NGƯỜI, nên ai cũng soạn được rubric của mình — cái
+      // không được phép là NHÌN THẤY của người khác.
+      // Tên RIÊNG, không dùng RUBRIC_NAME: phiên bản đánh số theo
+      // (giảng viên, tên), nên mượn tên của khối versioning phía trên sẽ
+      // đẩy số bản của nó lên và làm ba ca khác đỏ ở một khẳng định không
+      // liên quan gì tới quyền sở hữu.
+      const isolated = `Rubric riêng ${stamp}`;
+      const post = (asToken: string, description: string) =>
+        request(app.getHttpServer())
+          .post('/rubrics')
+          .set('Authorization', `Bearer ${asToken}`)
+          .send({ name: isolated, criteria: [{ description, maxPoints: 5 }] });
 
-      expect(response.status).toBe(403);
+      const mine = await post(token, 'Của tôi');
+      expect(mine.status).toBe(201);
+
+      const theirs = await post(otherToken, 'Của người khác');
+      expect(theirs.status).toBe(201);
+      expect(theirs.body.teacherId).not.toBe(mine.body.teacherId);
+
+      const listed = await request(app.getHttpServer())
+        .get('/rubrics')
+        .set('Authorization', `Bearer ${otherToken}`);
+      const ids = listed.body.map((r: { id: string }) => r.id);
+      expect(ids).toContain(theirs.body.id);
+      expect(ids).not.toContain(mine.body.id);
+
+      const peek = await request(app.getHttpServer())
+        .get(`/rubrics/${mine.body.id}`)
+        .set('Authorization', `Bearer ${otherToken}`);
+      expect(peek.status).toBe(403);
     });
   });
 
@@ -230,7 +263,7 @@ describe('Grading (e2e)', () => {
     // a teacher uses.
     beforeAll(async () => {
       const rubrics = await request(app.getHttpServer())
-        .get(`/courses/${courseId}/rubrics`)
+        .get('/rubrics')
         .set('Authorization', `Bearer ${token}`);
       const active = rubrics.body.find((rubric: { isActive: boolean }) => rubric.isActive);
       expect(active).toBeDefined();
@@ -389,9 +422,11 @@ describe('Grading (e2e)', () => {
         `SELECT id FROM examcollect.submission WHERE exam_session_id = $1 LIMIT 1`,
         [sessionId],
       );
+      // Tra theo (giảng viên, tên) chứ không theo môn: rubric đổi chủ ở đợt
+      // thu hẹp master data, và `course_id` không còn được ghi.
       const [rubric] = await dataSource.query(
-        `SELECT id FROM examcollect.rubric WHERE course_id = $1 AND version = 1`,
-        [courseId],
+        `SELECT id FROM examcollect.rubric WHERE name = $1 AND version = 1`,
+        [RUBRIC_NAME],
       );
 
       // A row that is auto_approved without ever having been ai_grading is
@@ -415,8 +450,8 @@ describe('Grading (e2e)', () => {
       [`NR${stamp}`.slice(0, 20), courseId],
     );
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [otherCourse.id, `Nhóm chưa rubric ${stamp}`, teacherId],
     );
     // Its own room, not `SELECT ... LIMIT 1`. Sharing a room with another

@@ -13,9 +13,16 @@ export class ExamSessionResponseDto {
   code!: string;
   teacherId!: string;
   courseId!: string;
-  // Null only for the sessions created before a session named a class.
-  classId!: string | null;
+  classId!: string;
   roomId!: string;
+  /**
+   * Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên.
+   *
+   * Sống cạnh `courseId`/`roomId` trong giai đoạn mở rộng; hai khoá ngoại
+   * kia biến mất ở `ContractMasterData` và hai trường này là thứ còn lại.
+   */
+  courseName!: string;
+  roomName!: string;
   examType!: ExamType;
   /** Tên học kỳ chụp lúc tạo phiên — xem ExamSessionEntity.semesterName.
    *  KHÔNG đổi theo khi học kỳ bị đổi tên sau đó. */

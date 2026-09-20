@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AgentConnectionEventEntity } from './entities/agent-connection-event.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ClassEntity } from '../course/entities/class.entity';
@@ -125,17 +125,19 @@ export class AttendanceService {
     const events = await this.loadEvents(session.id);
     const seen = this.fold(events);
 
-    // Course-scoped, not class-scoped: a make-up student IS enrolled here,
-    // just through a different class, and resolving their name and home
-    // class is the entire point of showing them separately.
-    const enrolled = await this.enrollments.find({ where: { courseId: session.courseId } });
+    // Lớp của phiên CỘNG mọi lớp mà ảnh chốt đã kéo vào: sinh viên thi bù
+    // được duyệt qua luồng xin phép mang lớp GỐC của họ, và hiện họ ra kèm
+    // đúng lớp đó là toàn bộ lý do nhóm này tồn tại. Lọc thẳng theo
+    // `session.classId` sẽ làm họ biến mất khỏi sảnh.
+    const enrolled = await this.enrollments.find({
+      where: { homeClassId: In(await this.relevantClassIds(session)) },
+    });
     const byMssv = new Map(enrolled.map((row) => [row.studentMssv.toLowerCase(), row]));
 
     const classNames = new Map(
-      (await this.classes.find({ where: { courseId: session.courseId } })).map((row) => [
-        row.id,
-        row.name,
-      ]),
+      (
+        await this.classes.find({ where: { id: In(await this.relevantClassIds(session)) } })
+      ).map((row) => [row.id, row.name]),
     );
 
     const confirmedAt = session.attendanceConfirmedAt;
@@ -189,6 +191,26 @@ export class AttendanceService {
       makeup: makeup.sort(byName),
       discrepancy: await this.buildDiscrepancy(session, seen, byMssv, classNames),
     };
+  }
+
+  /**
+   * Lớp của phiên, cộng mọi lớp gốc mà ảnh chốt đã kéo vào.
+   *
+   * Cần vế thứ hai vì nhóm "thi bù" của sảnh chính là những người có lớp
+   * gốc KHÁC lớp phiên. Trước đợt thu hẹp master data, họ được tìm thấy vì
+   * enrollment tra theo môn và họ cùng môn. Giờ enrollment tra theo lớp,
+   * nên nếu chỉ hỏi `session.classId` thì họ biến mất khỏi sảnh đúng lúc
+   * giám thị cần thấy họ nhất.
+   *
+   * Nguồn là `session_roster`: sinh viên thi bù chỉ vào được sau khi một
+   * giám thị duyệt, và lượt duyệt ghi lớp gốc của họ vào ảnh chốt.
+   */
+  private async relevantClassIds(session: ExamSessionEntity): Promise<string[]> {
+    const rows = await this.sessionRoster.find({
+      where: { examSessionId: session.id },
+      select: { homeClassId: true },
+    });
+    return [...new Set([session.classId, ...rows.map((row) => row.homeClassId)])];
   }
 
   /**

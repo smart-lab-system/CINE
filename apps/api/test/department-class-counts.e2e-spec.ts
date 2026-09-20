@@ -74,8 +74,8 @@ describe('Department class counts (e2e)', () => {
 
   async function seedClass(courseId: string, name: string, ownerId: string) {
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, name, ownerId],
     );
     return klass.id as string;
@@ -177,8 +177,8 @@ describe('Department class counts (e2e)', () => {
     // cùng test, nên version phải khác nhau mỗi lần gọi.
     rubricVersionCursor += 1;
     const [rubric] = await dataSource.query(
-      `INSERT INTO examcollect.rubric (course_id, version)
-       VALUES ($1, $2) RETURNING id`,
+      `INSERT INTO examcollect.rubric (course_id, version, teacher_id, name)
+       VALUES ($1, $2, (SELECT teacher_id FROM examcollect.class WHERE course_id = $1 ORDER BY created_at LIMIT 1), (SELECT name FROM examcollect.course WHERE id = $1)) RETURNING id`,
       [klass.course_id, rubricVersionCursor],
     );
 

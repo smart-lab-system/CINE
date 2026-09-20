@@ -207,8 +207,8 @@ describe('Lượt phản biện chạy thật (e2e)', () => {
     );
     roomId = room.id;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm phản biện ${stamp}`, teacherId],
     );
     classId = klass.id;
@@ -222,9 +222,10 @@ describe('Lượt phản biện chạy thật (e2e)', () => {
     }
 
     const rubric = await request(app.getHttpServer())
-      .post(`/courses/${courseId}/rubrics`)
+      .post('/rubrics')
       .set('Authorization', `Bearer ${token}`)
       .send({
+        name: `Rubric phản biện ${stamp}`,
         criteria: [
           { description: 'Nêu được mẫu thiết kế Saga hoặc Outbox', maxPoints: 4 },
         ],

@@ -106,8 +106,8 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     // What {PHONG} renders to: separators dropped, each word capitalised.
     roomName = `AgentJoinRoom${stamp}`;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N01', $2) RETURNING id`,
       [courseId, teacherId],
     );
     classId = klass.id;
@@ -116,37 +116,43 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     // share a room or a class (ex_exam_session_room_overlap /
     // ex_exam_session_class_overlap). The templated session keeps the room
     // above, because `roomName` is what its {PHONG} assertion expects; the
-    // plain session gets these. Join authentication is at COURSE level, so
-    // a second class in the same course changes nothing these tests are
-    // about — the enrolled student still gets in.
+    // plain session gets these.
+    //
+    // Xác thực vào thi chạy ở mức LỚP từ đợt thu hẹp master data, nên lớp
+    // thứ hai KHÔNG còn vô hại: sinh viên phải có enrollment ở đúng lớp
+    // của phiên. Cả hai phiên dưới đây vì thế cùng ghi danh một sinh viên
+    // vào lớp của chính nó.
     const [plainRoom] = await dataSource.query(
       `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
       [`Agent Join Plain Room ${stamp}`],
     );
     const [plainClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, 'N02', $2) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N02', $2) RETURNING id`,
       [courseId, teacherId],
     );
 
-    // Lớp N02 cũng cần ÍT NHẤT một sinh viên, từ 2026-09-11: mở phiên
-    // là đóng băng danh sách dự thi của LỚP phiên đó, và một lớp rỗng
-    // thì không có gì để chụp. Em này không xuất hiện trong khẳng định
-    // nào — xác thực vào thi vẫn ở cấp MÔN, đúng như các test dưới đây
-    // kiểm.
+    // ENROLLED_MSSV thuộc N02, lớp của phiên "plain". Phiên "templated"
+    // chạy trên N01 và em được thêm vào ảnh chốt của nó bằng route thêm
+    // tay ở dưới — cùng đường mà giám thị dùng cho một em thi bù.
+    //
+    // Vì sao không ghi danh em ở cả hai lớp: `uq_enrollment_course_student`
+    // vẫn còn tới `ContractMasterData`, nên một sinh viên chỉ có ĐÚNG MỘT
+    // enrollment cho mỗi môn.
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
          (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
        VALUES ($1, $2, $3, $4, $5)`,
-      [`N02${stamp}`.slice(0, 20), 'Sinh viên lớp N02', courseId, plainClass.id, teacherId],
+      [ENROLLED_MSSV, ENROLLED_NAME, courseId, plainClass.id, teacherId],
     );
 
-    // One student on the roster, one deliberately absent from it.
+    // N01 cũng cần một sinh viên, nếu không `freeze()` từ chối mở phiên
+    // "templated" vì lớp rỗng.
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
          (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
        VALUES ($1, $2, $3, $4, $5)`,
-      [ENROLLED_MSSV, ENROLLED_NAME, courseId, klass.id, teacherId],
+      [`N01${stamp}`.slice(0, 20), 'Sinh viên lớp N01', courseId, klass.id, teacherId],
     );
 
     const created = await request(app.getHttpServer())
@@ -154,9 +160,9 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: `Agent Join Session ${stamp}`,
-        // The session names its CLASS; the course is derived from it. Join
-        // authentication still happens at course level via enrollment —
-        // that separation is what these tests are about.
+        // The session names its CLASS, and join authentication reads that
+        // same class out of enrollment — no course sits between them any
+        // more. That directness is what these tests are about.
         classId: plainClass.id,
         roomId: plainRoom.id,
         examType: 'TK',
@@ -188,6 +194,14 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
     // dự thi. Xem test/helpers/open-session.ts.
     await openSession(app, token, templated.body.id);
+    // Ảnh chốt của N01 không có ENROLLED_MSSV — em thuộc N02. Thêm tay,
+    // đúng route giám thị dùng, để các ca {PHONG}/{MSSV} dưới đây vẫn nói
+    // về cùng một sinh viên như các ca ở phiên "plain".
+    const added = await request(app.getHttpServer())
+      .post(`/exam-sessions/${templated.body.id}/roster/students`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ mssv: ENROLLED_MSSV, name: ENROLLED_NAME });
+    expect(added.status).toBe(201);
     templatedCode = templated.body.code;
   });
 
@@ -203,7 +217,7 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     await app.close();
   });
 
-  it('refuses a student with no enrollment for the session course', async () => {
+  it('refuses a student with no enrollment for the session class', async () => {
     const reply = await join(connect(), {
       fullName: 'Người Lạ',
       studentId: STRANGER_MSSV,

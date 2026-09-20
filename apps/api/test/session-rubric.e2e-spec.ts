@@ -53,11 +53,11 @@ describe('Session-pinned rubric (e2e)', () => {
       });
   }
 
-  async function saveRubric(token: string, forCourseId: string, label: string) {
+  async function saveRubric(token: string, label: string) {
     const response = await request(app.getHttpServer())
-      .post(`/courses/${forCourseId}/rubrics`)
+      .post('/rubrics')
       .set('Authorization', `Bearer ${token}`)
-      .send({ criteria: [{ description: label, maxPoints: 10 }] });
+      .send({ name: label, criteria: [{ description: label, maxPoints: 10 }] });
     expect(response.status).toBe(201);
     return response.body as { id: string; version: number };
   }
@@ -115,18 +115,18 @@ describe('Session-pinned rubric (e2e)', () => {
 
     // A và B cùng dạy `courseId` (hai lớp khác nhau) — nền cho §3.2.1.
     const [classA] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm A ${stamp}`, a.id],
     );
     classAId = classA.id;
     await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id) VALUES ($1, $2, $3)`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3)`,
       [courseId, `Nhóm B ${stamp}`, b.id],
     );
     // A cũng dạy môn khác, để dựng case "rubric khác môn".
     await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id) VALUES ($1, $2, $3)`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3)`,
       [otherCourseId, `Nhóm môn khác ${stamp}`, a.id],
     );
   });
@@ -166,7 +166,7 @@ describe('Session-pinned rubric (e2e)', () => {
   });
 
   it('ghim rubric vào phiên và trả lại đúng phiên bản đã ghim', async () => {
-    const rubric = await saveRubric(tokenA, courseId, 'Tiêu chí v1');
+    const rubric = await saveRubric(tokenA, 'Tiêu chí v1');
 
     const created = await createSession(tokenA, { classId: classAId, rubricId: rubric.id });
 
@@ -183,8 +183,8 @@ describe('Session-pinned rubric (e2e)', () => {
     expect(created.body.rubricVersion).toBeNull();
   });
 
-  it('từ chối rubric của môn khác với 400', async () => {
-    const foreign = await saveRubric(tokenA, otherCourseId, 'Rubric môn khác');
+  it('từ chối rubric của giảng viên khác với 400', async () => {
+    const foreign = await saveRubric(tokenB, 'Rubric của B');
 
     const created = await createSession(tokenA, {
       classId: classAId,
@@ -194,19 +194,21 @@ describe('Session-pinned rubric (e2e)', () => {
     expect(created.status).toBe(400);
   });
 
-  it('CHẤP NHẬN rubric do đồng nghiệp cùng môn soạn — rubric không có chủ (§3.2.1)', async () => {
-    // B soạn, A dùng. Không phải lỗ hổng: rubric thuộc MÔN, và cả hai đều dạy
-    // môn này. Test này tồn tại để không ai "sửa" nó thành 403.
-    const byB = await saveRubric(tokenB, courseId, 'Do B soạn');
+  it('TỪ CHỐI rubric do đồng nghiệp soạn — rubric giờ CÓ CHỦ', async () => {
+    // Ca này từng khẳng định điều NGƯỢC LẠI, và cố ý: rubric thuộc MÔN, A và
+    // B cùng dạy môn đó nên A dùng được bản của B. Đợt thu hẹp master data
+    // gỡ môn ra khỏi quyền sở hữu, nên câu trả lời đổi chiều. Giữ lại ca test
+    // thay vì xoá, vì nó là chỗ ghi lại rằng chiều cũ là một lựa chọn chứ
+    // không phải một thiếu sót.
+    const byB = await saveRubric(tokenB, 'Do B soạn');
 
     const created = await createSession(tokenA, { classId: classAId, rubricId: byB.id });
 
-    expect(created.status).toBe(201);
-    expect(created.body.rubricId).toBe(byB.id);
+    expect(created.status).toBe(400);
   });
 
   it('CHỐT: chấm theo rubric ĐÃ GHIM, không theo bản active mới nhất (§8.1)', async () => {
-    const v1 = await saveRubric(tokenA, courseId, 'Tiêu chí bản 1');
+    const v1 = await saveRubric(tokenA, 'Rubric hai bản');
     const created = await createSession(tokenA, {
       classId: classAId,
       rubricId: v1.id,
@@ -215,7 +217,7 @@ describe('Session-pinned rubric (e2e)', () => {
 
     // Bản 2 ra đời SAU khi phiên đã ghim v1, và trở thành bản active của môn.
     // Dưới findActive() cũ, lượt chấm dưới đây sẽ dùng v2 — đó là bug.
-    const v2 = await saveRubric(tokenA, courseId, 'Tiêu chí bản 2');
+    const v2 = await saveRubric(tokenA, 'Rubric hai bản');
     expect(v2.version).toBeGreaterThan(v1.version);
 
     // Một bài đã thu, để có cái mà chấm. Trigger validate_submission_lifecycle
@@ -311,7 +313,7 @@ describe('Session-pinned rubric (e2e)', () => {
 
     it('gắn rubric cho phiên chưa chấm', async () => {
       const created = await createSession(tokenA, { classId: classAId });
-      const rubric = await saveRubric(tokenA, courseId, 'Gắn sau');
+      const rubric = await saveRubric(tokenA, 'Gắn sau');
 
       const patched = await setRubric(tokenA, created.body.id, rubric.id);
 
@@ -321,7 +323,7 @@ describe('Session-pinned rubric (e2e)', () => {
     });
 
     it('gỡ rubric bằng null', async () => {
-      const rubric = await saveRubric(tokenA, courseId, 'Sẽ gỡ');
+      const rubric = await saveRubric(tokenA, 'Sẽ gỡ');
       const created = await createSession(tokenA, {
         classId: classAId,
         rubricId: rubric.id,
@@ -334,9 +336,9 @@ describe('Session-pinned rubric (e2e)', () => {
       expect(patched.body.rubricVersion).toBeNull();
     });
 
-    it('từ chối rubric khác môn với 400', async () => {
+    it('từ chối rubric của giảng viên khác với 400', async () => {
       const created = await createSession(tokenA, { classId: classAId });
-      const foreign = await saveRubric(tokenA, otherCourseId, 'Khác môn');
+      const foreign = await saveRubric(tokenB, 'Khác chủ');
 
       const patched = await setRubric(tokenA, created.body.id, foreign.id);
 
@@ -345,7 +347,7 @@ describe('Session-pinned rubric (e2e)', () => {
 
     it('từ chối người không sở hữu phiên với 403', async () => {
       const created = await createSession(tokenA, { classId: classAId });
-      const rubric = await saveRubric(tokenA, courseId, 'Của A');
+      const rubric = await saveRubric(tokenA, 'Của A');
 
       const patched = await setRubric(tokenB, created.body.id, rubric.id);
 
@@ -353,7 +355,7 @@ describe('Session-pinned rubric (e2e)', () => {
     });
 
     it('từ chối với 409 khi phiên đã có kết quả chấm', async () => {
-      const rubric = await saveRubric(tokenA, courseId, 'Đã chấm');
+      const rubric = await saveRubric(tokenA, 'Đã chấm');
       const created = await createSession(tokenA, {
         classId: classAId,
         rubricId: rubric.id,
@@ -364,7 +366,7 @@ describe('Session-pinned rubric (e2e)', () => {
         rubric.id,
       );
 
-      const other = await saveRubric(tokenA, courseId, 'Đổi sau khi chấm');
+      const other = await saveRubric(tokenA, 'Đổi sau khi chấm');
       const patched = await setRubric(tokenA, created.body.id, other.id);
 
       expect(patched.status).toBe(409);

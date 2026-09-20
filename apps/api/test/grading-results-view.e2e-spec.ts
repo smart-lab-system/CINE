@@ -176,8 +176,8 @@ describe('GradingResultView — advocate và ngữ cảnh (e2e)', () => {
     );
     roomId = room.id;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm view ${stamp}`, idA],
     );
     classId = klass.id;
@@ -192,9 +192,10 @@ describe('GradingResultView — advocate và ngữ cảnh (e2e)', () => {
     }
 
     const rubric = await request(app.getHttpServer())
-      .post(`/courses/${courseId}/rubrics`)
+      .post('/rubrics')
       .set('Authorization', `Bearer ${tokenA}`)
       .send({
+        name: `Rubric kết quả ${stamp}`,
         criteria: [{ description: 'Nêu được ưu và nhược điểm', maxPoints: 4 }],
       });
     expect(rubric.status).toBe(201);

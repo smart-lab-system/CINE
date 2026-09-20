@@ -117,14 +117,14 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     // rule have to be separable, and that needs a second class the same
     // lecturer is allowed to create sessions for.
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Lớp A ${Date.now()}`, ownerId],
     );
     classId = klass.id;
     const [otherClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Lớp B ${Date.now()}`, ownerId],
     );
     otherClassId = otherClass.id;
@@ -341,8 +341,11 @@ describe('ExamSession schedule conflicts (e2e)', () => {
         // này sinh ra để kiểm — một test xanh-vì-sai-lý-do đảo ngược.
         `INSERT INTO examcollect.exam_session
            (name, code, teacher_id, class_id, course_id, room_id, exam_type,
-            start_time, end_time, submission_rule, status, semester_name)
-         VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, '{}'::jsonb, 'active', 'HK kiểm thử')`,
+            start_time, end_time, submission_rule, status, semester_name,
+            course_name, room_name)
+         VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, '{}'::jsonb, 'active', 'HK kiểm thử',
+                 (SELECT name FROM examcollect.course WHERE id = $5),
+                 (SELECT name FROM examcollect.room   WHERE id = $6))`,
         [
           'Chèn thẳng DB',
           `RAW${Date.now() % 1000}`,
@@ -401,5 +404,28 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     });
 
     expect(response.status).toBe(400);
+  });
+
+  it('T-CLS-1: phiên thi KHÔNG gắn lớp bị từ chối sạch sẽ', async () => {
+    // `ex_exam_session_class_overlap` là exclusion constraint trên
+    // `class_id`, mà Postgres BỎ QUA dòng có khoá NULL. Nên trước
+    // `ExpandMasterDataToText`, mọi phiên không gắn lớp thoát hoàn toàn
+    // khỏi phép chống trùng lịch lớp — cột nullable làm chính ràng buộc
+    // ngay trên vô hiệu với một phần dữ liệu.
+    //
+    // Test ở tầng HTTP chứ không ở tầng SQL, vì thứ cần khoá là "API từ
+    // chối SẠCH", không phải "DB nổ". Một 500 cũng chặn được dòng xấu,
+    // nhưng nó chặn bằng cách làm hỏng request — và người dùng không đọc
+    // được lý do từ một stack trace.
+    const response = await createSession({
+      name: `Khong gan lop ${Date.now()}`,
+      roomId,
+      ...windowAt(freshDay(), 8, 10),
+    });
+
+    expect(response.status).toBe(400);
+    // Nói rõ thiếu trường nào. Một 400 chung chung vẫn chặn được dòng xấu
+    // nhưng để giảng viên tự đoán mình gõ sai ở đâu.
+    expect(JSON.stringify(response.body)).toContain('classId');
   });
 });

@@ -204,8 +204,8 @@ describe('Submission overview (e2e)', () => {
     );
     roomId = room.id;
     const [klass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
+      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N01', $2) RETURNING id`,
       [courseId, teacherId],
     );
     classId = klass.id;
@@ -305,8 +305,8 @@ describe('Submission overview (e2e)', () => {
     // SV thi ghép: enrolled cùng course nhưng home_class_id là lớp KHÁC ->
     // không thuộc roster, nhưng có bài nộp -> phải nằm trong expectedCount.
     const [otherClass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, name, teacher_id)
-       VALUES ($1, 'N02', $2) RETURNING id`,
+      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N02', $2) RETURNING id`,
       [courseId, teacherId],
     );
     const makeupMssv = `OVM${stamp}`.slice(0, 20);
@@ -356,22 +356,22 @@ describe('Submission overview (e2e)', () => {
     ).toBe(item.expectedCount);
   }, 30_000);
 
-  it('phiên không gắn lớp: rosterKnown false, neverAttendedCount 0', async () => {
+  it('không còn dựng được phiên không gắn lớp — class_id là NOT NULL', async () => {
+    // Ca này TỪNG kiểm hành vi suy giảm của một phiên thiếu lớp. Hành vi ấy
+    // không còn tồn tại: `ExpandMasterDataToText` đặt `exam_session.class_id`
+    // thành NOT NULL, và đó không chỉ là dọn dẹp —
+    // `ex_exam_session_class_overlap` là exclusion constraint trên cột này,
+    // mà Postgres BỎ QUA dòng có khoá NULL, nên tới lúc đó mọi phiên không
+    // gắn lớp đều thoát khỏi phép chống trùng lịch lớp.
+    //
+    // Giữ lại ca test như một hàng rào: nếu ai đó nới cột về nullable, chỗ
+    // này đỏ và nói rõ vì sao không được làm thế.
     const session = await createSession(`NoClass ${stamp}`, ['Cau1.docx'], {
       startOffsetMs: -7_200_000,
       endOffsetMs: -3_600_000,
     });
-    // Submission phải ghi TRƯỚC khi gỡ lớp: home_class_id là NOT NULL và
-    // phải trỏ tới một class có thật.
-    await insertSubmission(session.id, session.deliverableIds[0], ROSTER[5], 'collected');
-    await detachClass(session.id);
 
-    const item = bySessionId(await fetchOverview(), session.id);
-
-    expect(item.rosterKnown).toBe(false);
-    expect(item.neverAttendedCount + item.satElsewhereCount).toBe(0);
-    expect(item.expectedCount).toBe(1);
-    expect(item.fullySubmittedCount).toBe(1);
+    await expect(detachClass(session.id)).rejects.toThrow(/class_id/);
   }, 30_000);
 
   it('phiên có bài thu mà CHƯA gắn rubric vẫn nằm trong overview, rubricId null', async () => {
@@ -404,8 +404,8 @@ describe('Submission overview (e2e)', () => {
       [`OVF${stamp}`.slice(0, 20), courseId],
     );
     const [foreignClass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
+      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N01', $2) RETURNING id`,
       [foreignCourse.id, otherTeacherId],
     );
     const otherLogin = await request(app.getHttpServer())

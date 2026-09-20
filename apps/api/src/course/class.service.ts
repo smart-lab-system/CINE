@@ -243,10 +243,48 @@ export class ClassService {
       : this.findTaughtBy(id, accountId);
   }
 
+  /**
+   * Chụp tên môn vào `class.course_name` ngay lúc tạo lớp.
+   *
+   * Giai đoạn MỞ RỘNG của expand/contract: cột văn bản sống CẠNH khoá
+   * ngoại, nên mọi đường ghi phải điền cả hai — bỏ sót thì ràng buộc NOT
+   * NULL chặn đứng mọi lượt tạo lớp. Khoá ngoại biến mất ở
+   * `ContractMasterData`, và từ đó tên môn đến thẳng từ giảng viên.
+   *
+   * Ném NotFound chứ không chụp chuỗi rỗng: một lớp mang tên môn rỗng vẫn
+   * lưu được, và sẽ không có gì báo cho ai biết.
+   */
+  private async resolveCourseName(courseId: string): Promise<string> {
+    const course = await this.courses.findOne({ where: { id: courseId } });
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+    return course.name;
+  }
+
+  /**
+   * Một lớp, giới hạn trong cùng MÔN với phiên thi.
+   *
+   * Thay `CourseService.findClassForCourse`, và giữ nguyên lý do nó tồn
+   * tại: duyệt một yêu cầu xin phép không được gắn sinh viên vào lớp của
+   * một môn khác, vì bài nộp của em sẽ được định tuyến về một giảng viên
+   * chưa từng dạy em.
+   *
+   * So sánh theo TÊN môn dạng văn bản, không còn theo khoá ngoại. Đây là
+   * chỗ sự suy giảm ở spec §3.4 chạm vào quyền: "CTDL&GT" và "CTDL & GT"
+   * là hai môn khác nhau, nên một lớp gõ lệch tên sẽ bị từ chối. Từ chối
+   * là phía an toàn của sai sót này.
+   */
+  async findByIdAndCourseName(id: string, courseName: string): Promise<ClassEntity | null> {
+    return this.classes.findOne({ where: { id, courseName } });
+  }
+
   async createForHead(headId: string, dto: CreateClassDto): Promise<ClassEntity> {
     await this.assertOwnsCourse(dto.courseId, headId);
     await this.assertIsTeacher(dto.teacherId);
-    return this.classes.save(this.classes.create(dto));
+    return this.classes.save(
+      this.classes.create({ ...dto, courseName: await this.resolveCourseName(dto.courseId) }),
+    );
   }
 
   async updateForHead(
@@ -310,7 +348,11 @@ export class ClassService {
    */
   async createForTeacher(teacherId: string, dto: CreateClassDto): Promise<ClassEntity> {
     return this.classes.save(
-      this.classes.create({ ...dto, teacherId }),
+      this.classes.create({
+        ...dto,
+        teacherId,
+        courseName: await this.resolveCourseName(dto.courseId),
+      }),
     );
   }
 

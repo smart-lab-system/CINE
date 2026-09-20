@@ -171,8 +171,8 @@ describe('Accounts (e2e)', () => {
       [`RF${Date.now()}`.slice(0, 32), 'Referenced Test Course', semesterId],
     );
     const [{ id: classId }] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, 'Referenced Test Class', accountId],
     );
     await dataSource.query(

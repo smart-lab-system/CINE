@@ -128,7 +128,7 @@ describe('Submission overview — attendance tiers (e2e)', () => {
     );
     roomId = room.id;
     const [klass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
+      `INSERT INTO ${schema}.class (course_id, course_name, name, teacher_id) VALUES ($1, (SELECT name FROM ${schema}.course WHERE id = $1), 'N01', $2) RETURNING id`,
       [courseId, teacherId],
     );
     classId = klass.id;
@@ -228,8 +228,10 @@ describe('Submission overview — attendance tiers (e2e)', () => {
     const s = await createSession(`Meta ${stamp}`, ['Cau1.docx']);
 
     let item = await overview(s.id);
+    // Chỉ còn TÊN. `semesterId` biến mất cùng bảng `semester`; bộ lọc
+    // phạm vi chạy trên chính chuỗi này từ đợt thu hẹp master data.
     expect(item.semesterName).toBe(`Attend Semester ${stamp}`);
-    expect(item.semesterId).toEqual(expect.any(String));
+    expect(item.semesterId).toBeUndefined();
     expect(item.archivedAt).toBeNull();
     expect(item.attentionClosedAt).toBeNull();
     expect(item.notSubmittedCount).toBeUndefined();

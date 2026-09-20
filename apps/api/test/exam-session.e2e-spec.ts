@@ -128,8 +128,8 @@ describe('ExamSession (e2e)', () => {
     roomId = room.id;
 
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm của tôi ${Date.now()}`, ownerId],
     );
     classId = klass.id;
@@ -137,8 +137,8 @@ describe('ExamSession (e2e)', () => {
     // A class of the SAME course taught by someone else — the scope check
     // has to be about who teaches the class, not about the course existing.
     const [foreign] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm của người khác ${Date.now()}`, otherId],
     );
     foreignClassId = foreign.id;
@@ -158,8 +158,8 @@ describe('ExamSession (e2e)', () => {
       [`ES2${Date.now()}`, otherSemesterId],
     );
     const [otherKlass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [otherCourse.id, `Nhóm kỳ sau ${Date.now()}`, ownerId],
     );
     otherSemesterClassId = otherKlass.id;

@@ -16,6 +16,7 @@ import {
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { RubricEntity } from '../grading/entities/rubric.entity';
+import { RoomEntity } from '../room/entities/room.entity';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import {
@@ -86,17 +87,27 @@ export class ExamSessionService {
       course: { semester: true },
     });
 
+    // Tên phòng, chụp một lần tại đây. Giai đoạn MỞ RỘNG: `room_name` sống
+    // cạnh `room_id` và cả hai phải được ghi, nếu không NOT NULL chặn mọi
+    // lượt tạo phiên. Tra tường minh chứ không phó mặc cho khoá ngoại: một
+    // phòng không tồn tại là lỗi NHẬP LIỆU (404), còn khoá ngoại nổ ra 500.
+    const room = await this.dataSource
+      .getRepository(RoomEntity)
+      .findOne({ where: { id: dto.roomId } });
+    if (!room) {
+      throw new NotFoundException('Room not found');
+    }
+
     // The rubric this session will be graded against, decided here rather
-    // than resolved at grading time. Editing the course's rubric after this
-    // point must not change how this session is graded.
+    // than resolved at grading time. Editing the rubric after this point
+    // must not change how this session is graded.
     //
-    // ONE check, not two. A rubric has no owner — the table has no column
-    // pointing at an account, and two lecturers teaching one course share
-    // its rubric on purpose. `findTaughtBy` above already proved this
-    // lecturer teaches this class, hence this course; if the rubric belongs
-    // to the same course they already have every right to it. Checking
-    // "does this teacher own the rubric" would be checking a thing that
-    // does not exist.
+    // RUBRIC GIỜ CÓ CHỦ, và chủ là một giảng viên. Trước đợt thu hẹp master
+    // data, kiểm tra ở đây là "rubric có cùng môn với lớp không", vì rubric
+    // thuộc về môn và hai giảng viên cùng môn cố ý dùng chung. Sau đợt này
+    // môn không còn là một hàng trong bảng, nên phép so sánh duy nhất còn
+    // ý nghĩa là chủ sở hữu — và nó chặt hơn hẳn: không ai ghim được rubric
+    // của đồng nghiệp vào phiên của mình.
     //
     // Before assertNone: this is bad input (400), a clashing booking is a
     // conflict with existing state (409), and the input error is the one
@@ -105,9 +116,9 @@ export class ExamSessionService {
     let rubric: RubricEntity | null = null;
     if (dto.rubricId) {
       rubric = await this.rubrics.findOne({ where: { id: dto.rubricId } });
-      if (!rubric || rubric.courseId !== klass.courseId) {
+      if (!rubric || rubric.teacherId !== teacherId) {
         throw new BadRequestException(
-          'Rubric không thuộc môn học của lớp này — hãy chọn rubric của đúng môn.',
+          'Rubric này không thuộc về bạn — hãy chọn một rubric bạn đã soạn.',
         );
       }
     }
@@ -121,7 +132,7 @@ export class ExamSessionService {
     // change. Without it they get "This request conflicts with an existing
     // record" from PostgresExceptionFilter and no way to act on it.
     await this.scheduleConflicts.assertNone(
-      dto.roomId,
+      room.name,
       klass.id,
       new Date(dto.startTime),
       new Date(dto.endTime),
@@ -142,6 +153,10 @@ export class ExamSessionService {
               // not match its class would make every enrollment check after
               // it ask about the wrong course.
               courseId: klass.courseId,
+              // Bản chụp văn bản cạnh hai khoá ngoại trên. Chúng là thứ
+              // DUY NHẤT còn lại sau `ContractMasterData`.
+              courseName: klass.course.name,
+              roomName: room.name,
               // Chụp MỘT LẦN, tại đây, và không bao giờ đọc lại từ quan
               // hệ nữa (§7.1.5). Cột mang `update: false` nên một
               // `save()` về sau không ghi đè được.
@@ -197,8 +212,8 @@ export class ExamSessionService {
    * controller because the second one belongs to the grading module, and
    * pulling it in here would invert the module dependency.
    *
-   * Same single check as create(): the rubric must belong to this session's
-   * course. There is no rubric ownership to check — see create().
+   * Same single check as create(): the rubric must belong to the lecturer
+   * who owns this session.
    */
   async setRubric(
     session: ExamSessionEntity,
@@ -207,9 +222,9 @@ export class ExamSessionService {
     let rubric: RubricEntity | null = null;
     if (rubricId) {
       rubric = await this.rubrics.findOne({ where: { id: rubricId } });
-      if (!rubric || rubric.courseId !== session.courseId) {
+      if (!rubric || rubric.teacherId !== session.teacherId) {
         throw new BadRequestException(
-          'Rubric không thuộc môn học của phiên thi này.',
+          'Rubric này không thuộc về chủ phiên thi.',
         );
       }
     }
@@ -581,6 +596,8 @@ export class ExamSessionService {
     dto.courseId = session.courseId;
     dto.classId = session.classId;
     dto.roomId = session.roomId;
+    dto.courseName = session.courseName;
+    dto.roomName = session.roomName;
     dto.examType = session.examType;
     dto.semesterName = session.semesterName;
     dto.startTime = session.startTime;

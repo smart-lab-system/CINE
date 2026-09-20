@@ -112,6 +112,23 @@ describe('Attendance (e2e)', () => {
     return { id: created.body.id, code: created.body.code };
   }
 
+  /**
+   * Đưa em thi bù vào ảnh chốt của MỘT phiên, đúng route giám thị bấm.
+   *
+   * Từ đợt thu hẹp master data, `agent:join` hỏi ảnh chốt của phiên chứ
+   * không hỏi enrollment của môn. Em lớp N05 vì thế không tự vào được nữa —
+   * và đó là hành vi đã chọn: một người phải mở cửa, và lượt mở để lại dấu.
+   * Ảnh chốt giữ nguyên lớp GỐC của em, nên nhóm "thi bù" của sảnh vẫn nói
+   * được em đến từ đâu.
+   */
+  async function addMakeupToRoster(sessionId: string): Promise<void> {
+    const added = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/roster/students`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ mssv: MAKEUP, name: 'Phạm Thi Bù' });
+    expect(added.status).toBe(201);
+  }
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -150,15 +167,15 @@ describe('Attendance (e2e)', () => {
     courseId = course.id;
 
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm chính ${stamp}`, teacherId],
     );
     classId = klass.id;
 
     const [sibling] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm N05 ${stamp}`, teacherId],
     );
     siblingClassId = sibling.id;
@@ -169,8 +186,11 @@ describe('Attendance (e2e)', () => {
     );
     roomId = room.id;
 
-    // Three students in this class, one enrolled in the course through a
-    // different class — the make-up case the course-level auth exists for.
+    // Ba sinh viên của lớp này, cộng một em có lớp gốc KHÁC — ca thi bù.
+    // Trước đợt thu hẹp master data, em thứ tư vào thẳng được vì xác thực
+    // chạy ở cấp môn. Giờ em phải được đưa vào ẢNH CHỐT của phiên trước,
+    // đúng như giám thị làm khi duyệt một yêu cầu xin phép; xem lời gọi
+    // `addMakeupToRoster` trong từng ca cần em.
     for (const [mssv, name, home] of [
       [IN_CLASS_A, 'Nguyễn Văn A', classId],
       [IN_CLASS_B, 'Trần Thị B', classId],
@@ -271,6 +291,7 @@ describe('Attendance (e2e)', () => {
 
   it('splits the room into in-class, missing, and make-up', async () => {
     const session = await createSession('Three Groups');
+    await addMakeupToRoster(session.id);
     await joinAgent(session.code, IN_CLASS_A);
     await joinAgent(session.code, MAKEUP);
 

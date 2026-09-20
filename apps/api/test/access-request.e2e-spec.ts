@@ -107,8 +107,8 @@ describe('Access request (e2e)', () => {
       [`Access Room ${stamp}`],
     );
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, 'N03', $2) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), 'N03', $2) RETURNING id`,
       [courseId, teacherId],
     );
     classId = klass.id;

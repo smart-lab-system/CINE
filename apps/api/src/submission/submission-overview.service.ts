@@ -7,9 +7,8 @@ interface OverviewRawRow {
   id: string;
   name: string;
   code: string;
-  course_id: string;
   course_name: string;
-  class_id: string | null;
+  class_id: string;
   class_name: string | null;
   room_name: string;
   exam_type: string;
@@ -26,7 +25,6 @@ interface OverviewRawRow {
   sat_elsewhere: string | null;
   matched_students: MatchedStudent[] | null;
   invalid_file_count: string | null;
-  semester_id: string;
   semester_name: string;
   archived_at: Date | null;
   rubric_id: string | null;
@@ -67,13 +65,14 @@ export class SubmissionOverviewService {
         GROUP BY exam_session_id
       ),
       roster_students AS (
-        -- Khớp AttendanceService.buildView: enrollment khoá theo
-        -- (course_id, home_class_id). class_id IS NULL -> roster rỗng.
+        -- Enrollment khoá theo LỚP từ đợt thu hẹp master data, nên chân
+        -- course_id của phép nối biến mất. exam_session.class_id là NOT
+        -- NULL từ ExpandMasterDataToText, nên không còn phiên nào cho ra
+        -- roster rỗng vì thiếu lớp.
         SELECT s.id AS exam_session_id, e.student_mssv, e.student_name
         FROM ${schema}.exam_session s
         JOIN ${schema}.enrollment e
-          ON e.course_id = s.course_id
-         AND e.home_class_id = s.class_id
+          ON e.home_class_id = s.class_id
         WHERE s.teacher_id = $1
       ),
       attended AS (
@@ -130,9 +129,9 @@ export class SubmissionOverviewService {
         -- đúng thứ CTE này sinh ra để thấy.
         -- Không cần DISTINCT ở tầng này: UNION bên trong (không phải UNION
         -- ALL) đã khử trùng (exam_session_id, student_mssv), và exam_session_id
-        -- xác định luôn course_id/exam_type — thêm DISTINCT chỉ là một bước
-        -- sort không gộp thêm được dòng nào.
-        SELECT es.course_id, es.exam_type,
+        -- xác định luôn course_name/exam_type — thêm DISTINCT chỉ là một
+        -- bước sort không gộp thêm được dòng nào.
+        SELECT es.course_name, es.exam_type,
                es.id AS exam_session_id, ps.student_mssv
         FROM (
           SELECT exam_session_id, student_mssv FROM ${schema}.submission
@@ -144,12 +143,18 @@ export class SubmissionOverviewService {
       sat_elsewhere AS (
         -- Cùng môn VÀ cùng loại kỳ thi, phiên khác. Bỏ điều kiện exam_type
         -- thì sinh viên dự GK rồi bỏ CK sẽ hiện thành "thi bù" ở phiên CK.
+        --
+        -- "Cùng môn" giờ là hai chuỗi bằng nhau, không còn là hai khoá ngoại
+        -- bằng nhau. Cùng sự suy giảm như phép chống trùng lịch phòng
+        -- (spec §3.4): hai giảng viên gõ tên môn khác nhau thì phép đối
+        -- chiếu này không bắt được nhau. Nó chỉ làm cột "ngồi phiên khác"
+        -- BỎ SÓT, không bao giờ báo nhầm.
         SELECT DISTINCT u.exam_session_id, u.student_mssv
         FROM universe u
         JOIN ${schema}.exam_session s ON s.id = u.exam_session_id
         JOIN presence p
           ON p.student_mssv     = u.student_mssv
-         AND p.course_id        = s.course_id
+         AND p.course_name      = s.course_name
          AND p.exam_type        = s.exam_type
          AND p.exam_session_id <> u.exam_session_id
       ),
@@ -208,13 +213,17 @@ export class SubmissionOverviewService {
         GROUP BY exam_session_id
       )
       SELECT s.id, s.name, s.code,
-             s.course_id, c.name AS course_name,
+             -- Ba cột này từng đến từ ba phép JOIN sang course/semester/room.
+             -- Giờ chúng nằm ngay trên hàng, chụp lúc tạo phiên: ba bảng kia
+             -- sắp không còn tồn tại, và một bảng điểm không được đổi nghĩa
+             -- vì ai đó đổi tên phòng sáu tháng sau.
+             s.course_name,
+             s.room_name,
+             s.semester_name,
              s.class_id,  cl.name AS class_name,
-             rm.name AS room_name,
              s.exam_type, s.start_time, s.end_time, s.status,
              s.archived_at, s.attention_closed_at,
              s.rubric_id, rb.version AS rubric_version,
-             sem.id AS semester_id, sem.name AS semester_name,
              d.required_count,
              rs.roster_size,
              ps.expected_count, ps.fully_submitted, ps.partial,
@@ -222,14 +231,10 @@ export class SubmissionOverviewService {
              ps.invalid_file_count,
              m.matched_students
       FROM ${schema}.exam_session s
-      JOIN      ${schema}.course c  ON c.id  = s.course_id
-      -- course.semester_id là NOT NULL, nên JOIN thường không bỏ sót phiên nào.
-      JOIN      ${schema}.semester sem ON sem.id = c.semester_id
-      LEFT JOIN ${schema}.class  cl ON cl.id = s.class_id
+      JOIN      ${schema}.class  cl ON cl.id = s.class_id
       -- LEFT, không phải JOIN: phiên chưa gắn rubric PHẢI còn trong kết quả.
       -- Đổi thành JOIN thường là âm thầm giấu mất bài thi thật (§5.3).
       LEFT JOIN ${schema}.rubric rb ON rb.id = s.rubric_id
-      JOIN      ${schema}.room   rm ON rm.id = s.room_id
       LEFT JOIN deliv       d  ON d.exam_session_id  = s.id
       LEFT JOIN per_session ps ON ps.exam_session_id = s.id
       LEFT JOIN roster_size rs ON rs.exam_session_id = s.id
@@ -246,7 +251,6 @@ export class SubmissionOverviewService {
       id: row.id,
       name: row.name,
       code: row.code,
-      courseId: row.course_id,
       courseName: row.course_name,
       classId: row.class_id,
       className: row.class_name,
@@ -269,7 +273,6 @@ export class SubmissionOverviewService {
       satElsewhereCount: toCount(row.sat_elsewhere),
       matchedStudents: row.matched_students ?? null,
       invalidFileCount: toCount(row.invalid_file_count),
-      semesterId: row.semester_id,
       semesterName: row.semester_name,
       archivedAt: row.archived_at ? new Date(row.archived_at).toISOString() : null,
       attentionClosedAt: row.attention_closed_at

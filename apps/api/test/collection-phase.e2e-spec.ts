@@ -69,8 +69,8 @@ describe('Collection phase (e2e)', () => {
       [`Collect Room ${suffix}`],
     );
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm ${suffix}`, teacherId],
     );
 
@@ -387,8 +387,8 @@ describe('Collection phase (e2e)', () => {
       [`Collect Room old ${Date.now()}`],
     );
     const [oldClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm quá hạn ${Date.now()}`, teacherId],
     );
     const [old] = await dataSource.query(
@@ -397,8 +397,11 @@ describe('Collection phase (e2e)', () => {
       // không kiểm học kỳ.
       `INSERT INTO examcollect.exam_session
          (name, code, course_id, class_id, room_id, teacher_id, exam_type,
-          start_time, end_time, status, semester_name)
-       VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, 'collecting', 'HK kiểm thử') RETURNING id`,
+          start_time, end_time, status, semester_name,
+          course_name, room_name)
+       VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, 'collecting', 'HK kiểm thử',
+               (SELECT name FROM examcollect.course WHERE id = $3),
+               (SELECT name FROM examcollect.room   WHERE id = $5)) RETURNING id`,
       [
         `Phiên quá hạn ${Date.now()}`,
         `OLD${Date.now()}`.slice(0, 20),

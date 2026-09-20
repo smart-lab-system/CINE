@@ -57,8 +57,8 @@ describe('ExamSession teacher reassignment (e2e)', () => {
   /** Một phiên thi thật, do `teacher` sở hữu, dưới một lớp họ dạy. */
   async function seedSessionOwnedBy(teacherId: string, teacherToken: string) {
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+       VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
       [courseId, `Nhóm ${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, teacherId],
     );
 

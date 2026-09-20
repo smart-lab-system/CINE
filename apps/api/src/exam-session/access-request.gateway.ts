@@ -15,7 +15,7 @@ import { AccessTokenPayload } from '../auth/types';
 import { teacherRoom } from '../common/exam-live-rooms';
 import { extractAccessToken, isPlainObject } from '../common/exam-live-socket';
 import { AuditLogService } from '../admin/audit-log.service';
-import { CourseService } from '../course/course.service';
+import { ClassService } from '../course/class.service';
 import { EnrollmentService } from '../course/enrollment.service';
 import { SessionRosterService } from './session-roster.service';
 import { ExamSessionService } from './exam-session.service';
@@ -76,7 +76,7 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
 
   constructor(
     private readonly examSessions: ExamSessionService,
-    private readonly courses: CourseService,
+    private readonly classes: ClassService,
     private readonly enrollments: EnrollmentService,
     private readonly sessionRoster: SessionRosterService,
     private readonly auditLog: AuditLogService,
@@ -109,7 +109,7 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
     // Nothing to approve if the roster already has them — they should just
     // join. Saying so is more useful than queueing a request the invigilator
     // would approve into a no-op.
-    const existing = await this.enrollments.findForCourse(session.courseId, dto.studentId);
+    const existing = await this.enrollments.findForClass(session.classId, dto.studentId);
     if (existing) {
       return fail('ALREADY_ENROLLED', 'Bạn đã có trong danh sách — hãy thử tham gia lại.');
     }
@@ -193,7 +193,10 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
       return fail('CLASS_REQUIRED', 'Hãy chọn lớp cho sinh viên này trước khi duyệt.');
     }
 
-    const homeClass = await this.courses.findClassForCourse(session.courseId, dto.homeClassId);
+    const homeClass = await this.classes.findByIdAndCourseName(
+      dto.homeClassId,
+      session.courseName,
+    );
     if (!homeClass) {
       return fail('CLASS_REQUIRED', 'Lớp được chọn không thuộc môn thi này.');
     }

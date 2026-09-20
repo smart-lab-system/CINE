@@ -413,8 +413,8 @@ describe('Department resources (e2e)', () => {
         .expect(403);
 
       const [seeded] = await dataSource.query(
-        `INSERT INTO examcollect.class (course_id, name, teacher_id)
-         VALUES ($1, $2, $3) RETURNING id`,
+        `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+         VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3) RETURNING id`,
         [course.body.id, 'Nhóm đã có', lecturerId],
       );
 
@@ -445,8 +445,9 @@ describe('Department resources (e2e)', () => {
       // Chèn thẳng: route tạo lớp đã thuộc về giảng viên, còn thứ test này
       // đo là truy vấn TỔNG HỢP của trưởng khoa, không phải đường tạo.
       await dataSource.query(
-        `INSERT INTO examcollect.class (course_id, name, teacher_id)
-         VALUES ($1, $2, $3), ($4, $5, $6)`,
+        `INSERT INTO examcollect.class (course_id, course_name, name, teacher_id)
+         VALUES ($1, (SELECT name FROM examcollect.course WHERE id = $1), $2, $3),
+                ($4, (SELECT name FROM examcollect.course WHERE id = $4), $5, $6)`,
         [
           courseOne.body.id, 'Nhóm GV A - 1', teacher.id,
           courseTwo.body.id, 'Nhóm GV A - 2', teacher.id,
