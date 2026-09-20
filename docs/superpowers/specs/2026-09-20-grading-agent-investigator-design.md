@@ -45,7 +45,7 @@ thống tự quyết là chính đáng chứ không liều.
 
 `grading.service.ts:495`: `finalConfidence = min(guard, trần của bậc model)`.
 Trần các bậc dự phòng là 0,5, ngưỡng tự duyệt là 0,85. **Không có Claude thì
-không bài nào tự duyệt được**, kể cả bài mà 100% rubric do test case quyết.
+không bài nào tự duyệt được**, kể cả bài mà toàn bộ mức trừ do test case quyết.
 
 Đây là lỗi mô hình, không phải lỗi cấu hình: độ tin của một verdict đến từ **test
 chạy thật** không hề bắt nguồn từ model, nên nó không có lý do gì chịu trần của
@@ -62,8 +62,8 @@ model. §4 sửa đúng chỗ này, và nó là điều kiện cần của mọi
 | Vòng lặp agent có công cụ, thay lượt gọi một-phát | Lõi của cả spec |
 | Bảy công cụ điều tra (§3) | Chạy trong sandbox, không mạng |
 | Đo **độ phức tạp thực nghiệm** | Năng lực không công cụ nào khác trong repo có |
-| Hồ sơ chẩn đoán thay cho `criterion_results` phẳng | §5 |
-| Nguồn gốc điểm theo từng tiêu chí, và confidence theo nguồn gốc | §4 — gỡ chặn §0.2 |
+| Hồ sơ chẩn đoán + bảng lỗi, thay `criterion_results` phẳng | §5 |
+| Nguồn gốc theo từng LỖI, và confidence theo nguồn gốc | §4 — gỡ chặn §0.2 |
 | Agent phản biện phán quyết bằng **bằng chứng khác** | §6 |
 | Trần cứng cho vòng lặp | §7 |
 
@@ -74,10 +74,11 @@ trên **đúng hai ngôn ngữ** để chứng minh tính khái quát.
 
 ### 1.2 Cố ý KHÔNG trong phạm vi
 
-- **Hỏi giảng viên bất cứ điều gì.** Chủ đồ án đã bác bỏ dứt khoát: không so sánh
-  cặp, không phỏng vấn, không buổi chấm mẫu. Chính sách chấm chỉ được rút từ
-  rubric, đề bài, đáp án, gói test, và **điểm giảng viên đã nhập trong lúc dùng
-  bình thường** (cơ chế anchor, thụ động, đã có sẵn).
+- **Hỏi giảng viên bất cứ điều gì.** Không so sánh cặp, không phỏng vấn, không
+  buổi chấm mẫu. Hệ thống **bày ra** chỗ nó chưa chắc tại trang kiến thức, và
+  giảng viên chủ động sửa khi họ muốn — khác hẳn với việc hệ thống chất vấn họ.
+- **Suy ngược luật từ điểm giảng viên đã sửa.** Kiến thức được nhập thẳng ở dạng
+  luật, không hồi quy ra từ hành vi. Xem hộp cảnh báo ở §2.1.
 - **Tự train model chấm.** Fine-tune cần 10.000–100.000 mẫu; một môn một kỳ cho
   40–200 bài. Lệch 2–3 bậc độ lớn. Chiều sâu đến từ **bộ công cụ**, không từ
   trọng số. Chỗ train hợp lý duy nhất là bộ hiệu chỉnh ở §8, và nó không chấm.
@@ -98,7 +99,7 @@ trên **đúng hai ngôn ngữ** để chứng minh tính khái quát.
 | `TierChain` + circuit breaker + phân loại lỗi ba rổ | **Giữ nguyên** |
 | `enforceScoring()` — server tính điểm từ verdict | **Giữ nguyên.** Model vẫn không bao giờ chạm con số |
 | `applyGuards()` G1/G2/G3 | **Giữ**, mở rộng cho bằng chứng dạng đo (§4.2) |
-| `evidence-check.ts` (đối chiếu trích dẫn nguyên văn) | **Giữ** cho tiêu chí do LLM quyết |
+| `evidence-check.ts` (đối chiếu trích dẫn nguyên văn) | **Giữ** cho lỗi do LLM kết luận |
 | `ContentResolverRegistry`, `CodeProjectResolver` | **Giữ** — đã dựng ở nhánh autograder |
 | `archive/` (inspector, rules, declaration-check) | **Giữ** — đã dựng |
 | `sandbox.types.ts` | **Giữ hợp đồng**, phải implement thật |
@@ -114,46 +115,82 @@ trên **đúng hai ngôn ngữ** để chứng minh tính khái quát.
 > mà **không** giảm thiên lệch chung — đúng thứ cần giảm. §6 sửa bằng cách bắt
 > nó phán quyết trên **bằng chứng khác**.
 
-### 2.1 Chính sách chấm đọc từ đâu, khi không được hỏi giảng viên
+### 2.1 Chấm bằng bảng lỗi, không bằng danh sách tiêu chí
 
 **Rubric là một bản nén mất mát.** "Cài đặt đúng thuật toán sắp xếp — 3 điểm" không
-nói: dùng `sort()` của thư viện có tính không, sai ở mảng rỗng trừ bao nhiêu, chạy
-đúng nhưng O(n²) thì sao. Giảng viên biết cả ba, nhưng đó là tri thức ẩn và họ
-chưa từng phải viết ra.
+nói: dùng `sort()` của thư viện có tính không, sai ở mảng rỗng trừ bao nhiêu, thiếu
+một bước trừ bao nhiêu, chạy đúng nhưng O(n²) thì sao. Giảng viên biết cả bốn,
+nhưng đó là tri thức ẩn và họ chưa từng phải viết ra.
 
-Chủ đồ án đã bác bỏ dứt khoát mọi cách **hỏi** để lấy phần thiếu đó. Nên hệ thống
-phải đọc nó từ **những gì giảng viên đã tạo ra sẵn**:
+**Đơn vị chấm đổi từ TIÊU CHÍ sang LỖI.** Nghiên cứu về rubric nói thẳng: năng lực
+không phải tổng của các thành phần đơn giản, nên duyệt từng ô rồi cộng lại không
+phải cách chuyên gia chấm. Thứ giảng viên thật sự tích luỹ sau nhiều năm là một
+**bảng lỗi kèm mức trừ**, mọc lên trong lúc chấm chứ không viết ra trước.
 
-| Nguồn | Nói lên điều gì | Trạng thái |
-|---|---|---|
-| `rubric_criterion.test_group` + gói test | Giảng viên gom test thành nhóm có tên và buộc tiêu chí vào nhóm. Đây **chính là** lời khai "tiêu chí này đo bằng cái này" | Đã có ở nhánh autograder |
-| Đề bài (`grading_reference`) | Ràng buộc tường minh: yêu cầu độ phức tạp, cấm dùng thư viện có sẵn | Đã có, 3 mức readiness |
-| Đáp án mẫu | Chuẩn tham chiếu để đối chiếu **hành vi** — chạy cả hai trên cùng input rồi so, không chỉ so văn bản | Đã có |
-| `teacher_review.edited_criteria` | Tiêu chí nào giảng viên sửa nhiều = chỗ hệ thống đọc sai chính sách | Đã có, anchor đang đọc |
-| **`teacher_review.private_note`** | **Giảng viên TỰ VIẾT vì sao họ trừ điểm.** Nguồn chính sách giàu nhất trong cả hệ thống | **Đang bị vứt** |
+Kéo theo một đảo ngược: hệ thống hôm nay **chấm cộng**, mỗi tiêu chí kiếm điểm từ
+0 đi lên. Đổi sang **chấm trừ**:
 
-> **`private_note` và `student_feedback` chỉ được GHI VÀO, không bao giờ đọc lại.**
-> `anchor.service.ts` chỉ `SELECT ... tr.edited_criteria`. Nghĩa là mỗi lần giảng
-> viên gõ "trừ 1 điểm vì dùng sort có sẵn thay vì tự cài", hệ thống lưu câu đó rồi
-> quên nó. Đưa hai trường này vào tập anchor là **thay đổi rẻ nhất có tỉ lệ
-> lợi-ích trên công-sức cao nhất** của cả spec: một cột thêm vào một câu `SELECT`
-> đã tồn tại.
+```
+điểm = điểm tối đa − Σ mức trừ của các lỗi chẩn đoán được
+```
 
-**Mỗi tiêu chí được neo vào bằng chứng kiểm được, thay vì để agent tự diễn giải.**
-"Đúng thuật toán" trở thành ba điều kiện máy kiểm được: nhóm test tương ứng qua,
-độ phức tạp đo được không tệ hơn yêu cầu trong đề, và truy vấn cấu trúc không
-thấy gọi hàm sắp xếp của thư viện. Cái neo đó **suy ra** từ bảng trên, không hỏi.
+Rubric, nếu còn, tụt xuống thành **trần điểm và bộ từ vựng mồi**. Nó không còn là
+máy tính điểm.
 
-**Giới hạn phải nói thẳng, không giấu:** không hỏi thì phiên thi **đầu tiên** của
-một giảng viên mới chỉ có rubric, đề bài và gói test — không có tín hiệu riêng nào
-của người đó. Chính sách riêng chỉ hình thành sau vài phiên, khi đã có `edited_criteria`
-và `private_note` tích lại. Đây là đánh đổi có ý thức: **đổi độ chính xác ở phiên
-đầu để lấy việc không làm phiền giảng viên lần nào.** Báo cáo phải ghi rõ điều này
-chứ không trình bày hệ thống như thể nó hiểu giảng viên ngay từ bài đầu tiên.
+#### Agent rút chuẩn từ đâu, không hỏi ai
 
-**Anchor hiện `GRADING_ANCHORS_ENABLED` mặc định TẮT** vì chưa ai đo được nó giúp
-hay làm loãng chú ý của model. Hướng này biến nó thành đường học chính, nên phải
-**bật và đo**, không bật theo trực giác.
+Agent **điều tra tài liệu của phiên thi bằng chính bộ công cụ ở §3** mà nó dùng để
+điều tra bài nộp.
+
+| Nguồn | Cho ra cái gì |
+|---|---|
+| **Đáp án mẫu, đem CHẠY THẬT** | Hành vi chuẩn, độ phức tạp chuẩn, cấu trúc chuẩn. Bài sinh viên lệch khỏi chuẩn nào thì đó là một lỗi ứng viên |
+| Đề bài | Ràng buộc tường minh: cấm dùng thư viện, đòi đạt O(n log n) |
+| Gói test | Cái gì được coi trọng, qua tên nhóm và số ca mỗi nhóm |
+| Gom cụm cả lô | Kiểu lệch lặp lại ở nhiều bài mà bảng lỗi chưa có |
+| Bảng lỗi của giảng viên khác cùng môn | Giá khởi đầu cho người mới |
+
+> **Đáp án mẫu hiện chỉ được nhét vào prompt làm văn bản tham chiếu. Nhưng nó là
+> một CHƯƠNG TRÌNH.** Chạy nó qua sandbox thì mọi tính chất của nó thành một chuẩn
+> ngầm, và mỗi kiểu lệch đo được khỏi chuẩn đó là một lỗi. Giảng viên không phải
+> khai gì — họ đã khai bằng chính bài giải của mình. Đây là nguồn mạnh nhất trong
+> cả hệ thống và đang bị bỏ phí hoàn toàn.
+
+#### Giảng viên can thiệp ở tầng LUẬT, không ở tầng điểm
+
+- Mặc định giảng viên **không làm gì**. Agent chấm rồi xuất điểm thẳng vào bảng
+  điểm qua `GradeExport`.
+- Mở lịch sử một bài thì thấy: agent chẩn đoán gì, luật nào đã áp, ra điểm bao nhiêu.
+- Thấy vô lý thì họ sửa **luật đó**, tại trang kiến thức. **Không** sửa điểm bài đó.
+- Hệ thống **áp lại luật mới ngay** cho mọi bài dính luật đó, trong lô hiện tại và
+  mọi kỳ sau.
+
+Đây là chỗ tiết kiệm thật, và nó không nằm ở tốc độ chấm: **sửa một dòng luật thì
+N bài cập nhật theo.** Nó cũng khớp với cách giảng viên nghĩ — họ không nghĩ "bài
+này đáng 6", họ nghĩ "dùng sort có sẵn không đáng trừ 3 điểm vì đề có cấm đâu".
+
+> **KHÔNG suy ngược từ điểm đã sửa.** Một bản nháp của spec này từng đề xuất để
+> giảng viên sửa điểm rồi hồi quy ra mức trừ từng lỗi. Đã bị bác bỏ, và bác đúng:
+> một lần sửa điểm là **một con số** trong khi chẩn đoán là **một tập lỗi**, nên
+> phép quy công vốn không xác định được khi hai lỗi luôn đi cùng nhau. Kiến thức
+> phải được nhập thẳng ở dạng luật, không đoán ra từ hành vi.
+
+#### Cái agent KHÔNG tự suy ra được
+
+Agent rút ra được **lỗi là gì** gần như hoàn toàn tự động. Nó **không** rút ra được
+**lỗi đó đáng trừ bao nhiêu** — mức nặng nhẹ là phán đoán sư phạm, không nằm trong
+bất cứ tài liệu nào của phiên thi.
+
+- Luật **chưa có giá chắc chắn** thì **không được tự quyết**. Bài dính luật đó bị
+  gắn cờ, và trang kiến thức nêu rõ luật nào đang thiếu.
+- Giảng viên điền giá **một lần, tại một trang**, thay vì sửa bốn mươi bài. Xong thì
+  kiến thức thành vĩnh viễn, kỳ sau đề khác vẫn dùng lại được.
+- Trước khi lưu một giá, giao diện **phải hiện rõ luật này đang ảnh hưởng bao nhiêu
+  bài**. Một giá sai lan ra cả khoá là rủi ro nghiêm trọng nhất của hướng này.
+
+**Giới hạn phải ghi vào báo cáo, không giấu:** khoá đầu tiên của một đề mới có bảng
+lỗi gần rỗng, nên gắn cờ nhiều và giảng viên làm nhiều hơn. Lãi bắt đầu từ khoá
+thứ hai. Đừng trình bày hệ thống như thể nó hiểu giảng viên ngay từ bài đầu tiên.
 
 ---
 
@@ -182,7 +219,7 @@ O(n log n). Bộ test không thấy vì kết quả vẫn đúng. LLM đọc tĩ
 
 Tiền lệ học thuật: CASET (arXiv 2410.15419) phân loại bài nộp vào "rổ độ phức
 tạp" bằng vết thực thi. Ta đi xa hơn một bước: **đưa kết quả đo vào làm bằng
-chứng cho một tiêu chí rubric**, không chỉ để phân loại.
+chứng cho một lỗi trong bảng**, không chỉ để phân loại.
 
 > **Bẫy đo lường, phải xử lý chứ không bỏ qua:** thời gian chạy nhiễu vì máy chủ
 > chia sẻ CPU. Đo **nhiều lần lấy trung vị**, và khi hai lớp độ phức tạp kề nhau
@@ -202,16 +239,28 @@ là việc giảng viên làm trong đầu và tốn mười phút mỗi bài.
 
 ## 4. Nguồn gốc điểm, và confidence theo nguồn gốc
 
-### 4.1 Mỗi tiêu chí mang nguồn gốc của nó
+### 4.1 Mỗi LỖI chẩn đoán được mang nguồn gốc của nó
 
-`CriterionResult` thêm một trường:
+Đơn vị ở đây là **lỗi** theo §2.1, không phải tiêu chí. Mỗi lỗi agent kết luận là
+có mặt trong bài đều mang theo nguồn gốc của kết luận đó:
 
 ```ts
+interface DiagnosedError {
+  ruleId: string;          // trỏ tới một dòng trong bảng lỗi
+  deduction: number;       // mức trừ, lấy TỪ BẢNG, không do model đặt
+  source: VerdictSource;
+  toolCallIds: string[];   // bằng chứng, xem §5
+}
+
 type VerdictSource =
   | 'deterministic'   // test case, biên dịch, đo độ phức tạp — máy quyết
   | 'llm_with_tools'  // LLM kết luận, có trích dẫn lời gọi công cụ
   | 'llm_only';       // LLM đọc và phán đoán, không công cụ nào chống lưng
 ```
+
+**Model không bao giờ đặt `deduction`.** Nó chỉ kết luận lỗi có mặt hay không; mức
+trừ đọc từ bảng lỗi. Đây là cùng một nguyên tắc với `enforceScoring()` hôm nay
+(model phán đoán, code đếm), chỉ đổi thứ được đếm từ tiêu chí sang lỗi.
 
 ### 4.2 Trần confidence theo nguồn gốc, KHÔNG theo bậc model
 
@@ -223,21 +272,29 @@ Thay `min(guard, trần bậc)` bằng:
 | `llm_with_tools` | 0,85 | Model kết luận, nhưng mọi khẳng định trỏ tới lời gọi công cụ chạy lại được |
 | `llm_only` | **trần của bậc model** (như hôm nay) | Không có gì chống lưng ngoài chính model |
 
-Confidence của **cả bài** là trung bình có trọng số theo điểm tối đa của từng
-tiêu chí, không phải giá trị nhỏ nhất. Một bài 8 điểm do test quyết cộng 2 điểm
-do LLM phán đoán không đáng bị kéo xuống mức của vế 2 điểm.
+Confidence của **cả bài** là trung bình có trọng số **theo mức trừ của từng lỗi**,
+không phải giá trị nhỏ nhất. Một bài bị trừ 3 điểm do test quyết cộng 0,5 điểm do
+LLM phán đoán không đáng bị kéo xuống mức của vế 0,5 điểm.
 
-> **Đây là thay đổi làm cho mục tiêu giảm tải khả thi về mặt số học.** Nếu 70%
-> điểm của một môn do test quyết thì phần lớn bài vượt ngưỡng tự duyệt mà không
-> cần model mạnh nào. Con số "bao nhiêu phần trăm điểm do máy quyết" là **thuộc
-> tính của rubric cộng gói test, đo được TRƯỚC khi chấm bài nào**, và nên là con
-> số tiêu đề của cả đồ án.
+Thêm một điều kiện độc lập với nguồn gốc: **luật chưa có giá chắc chắn thì bài
+dính nó không được tự duyệt**, dù nguồn gốc là `deterministic` (§2.1). Biết chắc
+lỗi có mặt mà không biết nó đáng trừ bao nhiêu thì vẫn chưa chấm được.
+
+> **Đây là thay đổi làm cho mục tiêu giảm tải khả thi về mặt số học.** Nếu phần
+> lớn mức trừ của một môn do máy quyết thì đa số bài vượt ngưỡng tự duyệt mà không
+> cần model mạnh nào. Tỉ lệ "bao nhiêu phần trăm mức trừ do máy quyết" đo được
+> **ngay sau khi bảng lỗi có giá**, trước khi chấm bài nào, và nên là con số tiêu
+> đề của cả đồ án.
 
 ### 4.3 Luật chống mâu thuẫn — giữ nguyên tinh thần spec autograder
 
-Mọi nhóm test `passed === 0` mà LLM vẫn cho `met` ở ≥50% tiêu chí còn lại →
-`flagged_for_review`, trần 0,5, kèm lý do. **Không tự động cho 0 điểm** — rubric
-là của giảng viên, việc của hệ thống là đặt mâu thuẫn trước mắt người chấm.
+Mọi nhóm test `passed === 0`, tức bài không chạy ra được gì, mà agent chỉ chẩn
+đoán vài lỗi nhỏ vì **đọc** mã nguồn thấy có vẻ đúng → `flagged_for_review`, trần
+0,5, kèm lý do.
+
+**Không tự động cho 0 điểm.** Mức trừ là của giảng viên, nằm trong bảng lỗi; việc
+của hệ thống là đặt mâu thuẫn trước mắt người chấm, không tự phân xử. Một bài
+không chạy được vẫn có thể đạt những phần mà giảng viên tính điểm cho ý tưởng.
 
 ---
 
@@ -267,7 +324,7 @@ interface Investigation {
 verdict phải trỏ tới một `toolCall.id`, và lời gọi đó phải **chạy lại ra cùng kết
 quả**. Guard chọn ngẫu nhiên một lời gọi mỗi bài và chạy lại để đối chiếu; lệch
 thì hạ confidence và gắn cờ. Đối chiếu trích dẫn nguyên văn hiện tại vẫn giữ,
-nhưng chỉ còn áp cho tiêu chí `llm_only`.
+nhưng chỉ còn áp cho lỗi `llm_only`.
 
 Màn hình lịch sử của giảng viên đọc thẳng từ đây: xem được agent đã chạy gì, thấy
 gì, và vì sao kết luận vậy.
@@ -278,7 +335,7 @@ gì, và vì sao kết luận vậy.
 
 Thay `runAdvocate()` hiện tại. Ba ràng buộc, mỗi cái vá một lỗi thật:
 
-1. **Không thấy lập luận của agent chấm.** Chỉ nhận đề bài, rubric, và **các
+1. **Không thấy lập luận của agent chấm.** Chỉ nhận đề bài, bảng lỗi, và **các
    toolCall thô**. Cho nó đọc văn bản lập luận là mời nó đồng ý.
 2. **Được gọi công cụ của chính nó**, kể cả `probe` với input tự chọn. Đây là vế
    "bằng chứng khác" — không có nó thì đây lại là ý kiến thứ hai trên cùng dữ
@@ -286,8 +343,8 @@ Thay `runAdvocate()` hiện tại. Ba ràng buộc, mỗi cái vá một lỗi t
 3. **Không bao giờ chạm vào điểm.** Giữ nguyên ba lớp chặn đang có: kiểu dữ liệu
    không có trường điểm, JSON schema không có, và trigger DB.
 
-**Khi bất đồng:** gắn cờ **đúng tiêu chí đó**, không gắn cờ cả bài. Một bài 6
-tiêu chí mà lệch 1 thì giảng viên chỉ cần nhìn 1.
+**Khi bất đồng:** gắn cờ **đúng lỗi đó**, không gắn cờ cả bài. Một bài có 6
+lỗi mà lệch ở 1 thì giảng viên chỉ cần nhìn 1.
 
 > Hai agent cùng dòng model đồng ý với nhau **không** phải bằng chứng. Nếu hai
 > bậc trong `TierChain` là hai model cùng họ, phải ghi rõ trong báo cáo rằng phép
@@ -319,15 +376,22 @@ một bài không có gì.
 
 ## 8. Chỗ "train" hợp lý duy nhất
 
-Không train model chấm. Train một model nhỏ **trên đặc trưng** để dự đoán *"giảng
-viên sẽ sửa điểm này không"*:
+Không train model chấm. Train một model nhỏ **trên đặc trưng** để dự đoán *"bài
+này hệ thống có nên tự quyết không"*:
 
 - Đầu vào: tỉ lệ test qua, độ lệch giữa độ phức tạp đo được và yêu cầu, số bước
-  điều tra đã dùng, mức bất đồng với agent phản biện, tỉ lệ tiêu chí `llm_only`.
-- Nhãn: giảng viên có tạo `teacher_review` sửa điểm hay không. **Thu được miễn
-  phí từ việc dùng bình thường.**
+  điều tra đã dùng, mức bất đồng với agent phản biện, tỉ lệ lỗi `llm_only`, số
+  luật chưa chắc giá đã áp.
+- Nhãn: sau khi xem bài này, giảng viên **có can thiệp không** — sửa luật, hoặc
+  đánh dấu ngoại lệ. Thu được miễn phí từ việc dùng bình thường.
 - Mô hình: hồi quy logistic hoặc gradient boosting. Chạy tốt với ~200 mẫu.
 - Dùng để: quyết ngưỡng tự duyệt theo từng giảng viên, thay một hằng số 0,85 chung.
+
+> **Đây KHÔNG phải là suy ngược luật từ hành vi, và ranh giới đó phải giữ chặt.**
+> Model này không bao giờ đặt, sửa, hay đề xuất **mức trừ** của bất kỳ luật nào —
+> mức trừ chỉ đến từ bảng lỗi mà giảng viên nhập (§2.1). Nó chỉ trả lời một câu
+> hỏi khác hẳn: *lần này có nên im lặng hay nên gắn cờ*. Lẫn hai việc đó là quay
+> lại đúng thứ đã bị bác bỏ.
 
 Đây là thành phần học máy thật, huấn luyện được bằng dữ liệu thật sự có, và nó
 **không chấm** — nó chỉ quyết khi nào hệ thống được im lặng.
@@ -365,13 +429,16 @@ Bước 1 là rủi ro hạ tầng lớn nhất và nên làm trước mọi th�
 | **T-CX-2** | Hai lớp độ phức tạp kề nhau không tách được → `inconclusive`, không đoán | unit |
 | **T-PB-1** | Bài sai **chỉ** khi có phần tử trùng → ca lỗi nhỏ nhất đúng | integration |
 | **T-ADV-1** | Agent phản biện **không** nhận được lập luận của agent chấm | unit |
-| **T-ADV-2** | Bất đồng gắn cờ **đúng tiêu chí đó**, không gắn cờ cả bài | unit |
+| **T-ADV-2** | Bất đồng gắn cờ **đúng lỗi đó**, không gắn cờ cả bài | unit |
 | **T-ADV-3** | Ba lớp chặn điểm của agent phản biện vẫn còn nguyên | e2e |
 | **T-IMM-1** | `investigation` nằm trong trigger bất biến, không sửa được sau khi chấm | e2e |
 | **T-SBX-1** | Sandbox chết → `unavailable`, **không** thành "bài làm sai" | unit |
-| **T-POL-1** | `private_note` của giảng viên đi vào tập anchor, không bị vứt | unit |
-| **T-POL-2** | Phiên đầu của giảng viên chưa có lịch sử → vẫn chấm được, confidence thấp hơn | e2e |
-| **T-POL-3** | Tiêu chí có `test_group` → verdict lấy từ test, **không** hỏi model | unit |
+| **T-POL-1** | Sửa **một** luật → mọi bài trong lô dính luật đó được tính lại ngay | e2e |
+| **T-POL-2** | Luật chưa có giá chắc chắn → bài dính nó **không** tự duyệt, bị gắn cờ | unit |
+| **T-POL-4** | Chuẩn rút từ đáp án mẫu **chạy thật**, không từ đọc văn bản của nó | integration |
+| **T-POL-5** | Trước khi lưu một giá, trả về đúng số bài mà luật đó đang ảnh hưởng | unit |
+| **T-POL-6** | Sửa điểm một bài lẻ được đánh dấu ngoại lệ và **không** sinh ra luật nào | e2e |
+| **T-POL-3** | Lỗi phát hiện được bằng test → verdict lấy từ test, **không** hỏi model | unit |
 
 T-SRC-1 và T-SRC-2 là cặp đi ngược chiều nhau. Chỉ có T-SRC-1 thì một lần refactor
 bỏ trần cho mọi nguồn gốc vẫn xanh, và điều đó cho một model chưa hiệu chỉnh
