@@ -192,6 +192,48 @@ bất cứ tài liệu nào của phiên thi.
 lỗi gần rỗng, nên gắn cờ nhiều và giảng viên làm nhiều hơn. Lãi bắt đầu từ khoá
 thứ hai. Đừng trình bày hệ thống như thể nó hiểu giảng viên ngay từ bài đầu tiên.
 
+#### Bảng lỗi ghi thành FILE trong workspace, không nhét vào prompt
+
+Bản nháp trước của spec này định tiêm cả bảng lỗi vào system prompt. **Sai, vì hai
+lý do đã đo được trong chính repo này.**
+
+- **Phá prompt caching.** Cache là khớp **tiền tố**, và ngưỡng tối thiểu để nó
+  kích hoạt là **1024 token** (§15.0 của spec Plan 1). Bảng lỗi khác nhau theo
+  từng giảng viên và lớn dần theo học kỳ, nên đặt nó trong tiền tố là trả giá đầy
+  đủ cho **mọi** bài của **mọi** phiên.
+- **Có trần, bảng thì không.** Bảng lỗi chỉ lớn lên. Prompt thì không.
+
+Thay vào đó: **ghi bảng lỗi thành file trong workspace sandbox**, và agent đọc nó
+bằng `read_file` như đọc bài nộp. Tiền tố prompt đứng yên, cache vẫn chạy, bảng
+lớn bao nhiêu cũng được, và việc tra cứu trở thành **hành vi của agent** được dẫn
+dắt bởi thứ nó vừa tìm thấy.
+
+Hai nguồn, phân giải khác nhau nhưng cùng một định dạng file:
+
+| Nguồn | Phân giải | Nội dung |
+|---|---|---|
+| Luật mồi | file đóng gói sẵn theo ngôn ngữ | Vốn từ ban đầu, dùng chung mọi giảng viên |
+| Luật của giảng viên | dòng DB → ghi ra file lúc dựng workspace | Bảng lỗi riêng, có giá |
+
+Nếu bảng vượt ngưỡng đọc hết được thì **truy hồi theo liên quan**, không đổ hết:
+lọc theo những gì phép dò đã chạm tới, xếp theo độ cụ thể rồi tới độ mới, và
+**cắt còn khoảng năm luật** — quá số đó thì phần thêm vào thôi được đọc.
+
+> **Luật chưa chắc giá vẫn nằm trong file, nhưng đánh dấu rõ là chưa chắc.** Tồn
+> tại để agent nhận ra lỗi và để giảng viên thấy nó ở trang kiến thức, **không**
+> để tự quyết điểm. Đây là cùng một phân biệt với `unverified` ở §6.2.
+
+#### Bảng lỗi khoá theo GIẢNG VIÊN, không bao giờ theo tên môn
+
+Sau đợt cắt master data, **tên môn là văn bản tự do**. Hai giảng viên cùng gõ
+"CTDL&GT" sẽ ra cùng một chuỗi, nên khoá bảng lỗi theo tên môn là để luật của
+người này áp vào bài của người kia.
+
+Khoá đúng: `unique(teacher_id, course_name, rule_key)` — cùng hình dạng với
+`unique(teacher_id, name, version)` mà spec cắt master data đã chốt cho `rubric`.
+Một hệ thống cùng công ty đã dính đúng lỗi này với cache khoá theo mã dự án trần,
+và nó rò dữ liệu suy từ danh sách nhân sự giữa hai khách hàng không liên quan.
+
 ---
 
 ## 3. Bảy công cụ
@@ -209,6 +251,15 @@ giới hạn cứng CPU / RAM / thời gian / số tiến trình.
 | `ast_query(q)` | Có thật sự dùng đệ quy, hay gọi thư viện có sẵn để né |
 | `probe(spec)` | Sai toàn diện hay chỉ sai ở biên; **ca lỗi nhỏ nhất** là gì |
 | `compare_peers()` | Chép bài, và nhóm sinh viên cùng hiểu sai một chỗ |
+
+> **Bảy là con số có lý do, và bảy phải là bảy thật.** Độ chính xác chọn công cụ
+> của model tụt mạnh khi vượt khoảng **8 công cụ** — một hệ thống cùng công ty gọi
+> đó là "vách đá 8 tool" và thiết kế mọi agent quanh nó. Hệ thống đó cũng cho một
+> bài học ngược: bộ công cụ ghi trong tài liệu **không phải** phạm vi thật lúc
+> chạy, vì một tập "thiết yếu" được hợp vào phía sau, nên agent được khai 7 công
+> cụ thật ra thấy khoảng 40. **Không dựng cơ chế nào hợp thêm công cụ vào sau
+> lưng.** Thêm công cụ thứ tám là một quyết định thiết kế, phải đo lại, không phải
+> một dòng thêm vào mảng.
 
 ### 3.1 `run_scaled` — năng lực không thể thay bằng LLM hay unit test
 
@@ -329,9 +380,35 @@ nhưng chỉ còn áp cho lỗi `llm_only`.
 Màn hình lịch sử của giảng viên đọc thẳng từ đây: xem được agent đã chạy gì, thấy
 gì, và vì sao kết luận vậy.
 
+### 5.1 Phần tóm tắt do HARNESS render, không do model viết
+
+Model chỉ sinh **verdict có cấu trúc**. Đoạn văn mà giảng viên đọc ở màn lịch sử
+được **code render từ `toolCalls` thật**, không bao giờ là văn bản model tự mô tả
+việc mình đã làm.
+
+Không có ranh giới này thì model vẫn nói dối được về chính thứ công cụ đã trả về,
+và mọi lớp chống bịa ở trên đều vô hiệu — vì chúng kiểm *verdict*, không kiểm
+*lời kể*. Đây là bài học mượn từ một hệ thống khác trong công ty, nơi một agent
+khẳng định "đã thêm 13 khoá vào cả 5 file" trong khi thay đổi thật chỉ thêm 11.
+
+### 5.2 Đọc verdict — hai luật chống phán quyết ma
+
+Lượt phản biện đo được **893 trên 1073 token đầu ra là reasoning**, nên đường trả
+lời bị cắt cụt là chuyện sẽ xảy ra, không phải giả định.
+
+1. **Thẻ suy luận không có thẻ đóng phải bị cắt tới hết chuỗi.** Một phản hồi bị
+   cắt giữa chừng để lại phán quyết **nháp** trong phần suy luận, và bộ đọc chỉ
+   biết tìm thẻ đóng sẽ trích nó ra như thật. Kết quả là một điểm bịa **không kèm
+   tín hiệu lỗi nào** — lớp hỏng tệ nhất, vì không có gì để báo động.
+2. **Nhiều phán quyết mâu thuẫn trong cùng một phản hồi → trả rỗng**, không bao
+   giờ chọn lấy một cái. Chọn một là đoán, và đoán ở đây cho ra điểm của sinh viên.
+
+Cả hai đi cùng `bad_output` đã có trong `provider-failure.ts`: rơi bậc ngay, vì
+bậc đó *sống* nhưng *không dùng được*.
+
 ---
 
-## 6. Agent phản biện — phải dùng bằng chứng khác
+## 6. Phản biện — nhiều lăng kính, ba trạng thái
 
 Thay `runAdvocate()` hiện tại. Ba ràng buộc, mỗi cái vá một lỗi thật:
 
@@ -343,12 +420,58 @@ Thay `runAdvocate()` hiện tại. Ba ràng buộc, mỗi cái vá một lỗi t
 3. **Không bao giờ chạm vào điểm.** Giữ nguyên ba lớp chặn đang có: kiểu dữ liệu
    không có trường điểm, JSON schema không có, và trigger DB.
 
-**Khi bất đồng:** gắn cờ **đúng lỗi đó**, không gắn cờ cả bài. Một bài có 6
-lỗi mà lệch ở 1 thì giảng viên chỉ cần nhìn 1.
+### 6.1 Bốn lăng kính thay một lượt hỏi chung chung
+
+Một câu hỏi rộng kiểu "em ấy có đúng không" cho ra ý kiến rộng. Thay bằng bốn lượt
+hẹp, **mỗi lượt săn một lớp khiếm khuyết**, chạy độc lập:
+
+| Lăng kính | Câu hỏi nó phải trả lời |
+|---|---|
+| Tính đúng | Lỗi đã chẩn đoán có thật không, chứng minh bằng một lần chạy |
+| Bỏ sót | Có lỗi nào agent chấm **không thấy** mà phép dò khác lộ ra không |
+| Gian lận | Kết quả đúng có đến từ hard-code hay dò theo bộ test không |
+| Quá tay | Mức trừ đã áp có nặng hơn bằng chứng thật sự cho phép không |
+
+Mở đầu mỗi lăng kính là cùng một khung: *bạn đang xem một bài bạn không chấm và
+không có lợi ích gì trong việc kết luận kia đúng; việc của bạn là **bác bỏ** nó,
+không phải chấm điểm nó; một khẳng định mà lẽ ra bạn kiểm được bằng cách chạy mà
+không chạy thì không được tính.*
+
+### 6.2 Ba trạng thái — im lặng KHÔNG phải đồng ý
+
+| Trạng thái | Khi nào | Xử lý |
+|---|---|---|
+| `refuted` | Một lăng kính bác bỏ được kết luận | Bỏ lỗi đó khỏi bảng điểm |
+| `confirmed` | Lăng kính kiểm và xác nhận | Giữ nguyên |
+| **`unverified`** | **Không lăng kính nào trả lời được** | Giữ lỗi, **hạ confidence**, gắn cờ |
+
+**Ngữ nghĩa lỗi bất đối xứng, cố ý:** một lăng kính trả lời không đọc được thì coi
+như **không có phát hiện** (thà im lặng còn hơn bịa ra một khiếm khuyết). Nhưng
+một lượt phản biện trả lời không đọc được thì rơi vào **`unverified`**, **không
+bao giờ** là `refuted` — chấm nó "đã bác bỏ" là âm thầm chôn một lỗi có thật.
+
+Gộp `unverified` vào `confirmed` thì công bố kết luận chưa kiểm. Gộp vào `refuted`
+thì giấu khiếm khuyết. Cả hai đều là cách một lượt phản biện hỏng biến thành điểm
+sai mà không ai thấy.
+
+### 6.3 Khuyến nghị, không chặn
+
+Khoảng **một phần năm** phát hiện thô không sống sót qua phản biện, đo được trên
+một hệ thống cùng công ty. Một cổng chặn có tỉ lệ báo động giả như vậy sẽ bị tắt
+đi, và lúc đó nó bảo vệ được 0%.
+
+**Khi bất đồng:** gắn cờ **đúng lỗi đó**, không gắn cờ cả bài. Một bài có 6 lỗi mà
+lệch ở 1 thì giảng viên chỉ cần nhìn 1.
 
 > Hai agent cùng dòng model đồng ý với nhau **không** phải bằng chứng. Nếu hai
 > bậc trong `TierChain` là hai model cùng họ, phải ghi rõ trong báo cáo rằng phép
 > phản biện ở cấu hình đó chỉ đo nhiễu, không đo thiên lệch.
+
+> ⚠️ **Lăng kính phải chạy trên MỌI đường chấm, không riêng đường agent.** Một hệ
+> thống cùng công ty có lớp chống ảo giác chỉ gắn vào một nhánh định tuyến, nên
+> đúng nhánh ghi dữ liệu lại không có lớp kiểm nào. Và mỗi lăng kính phải có test
+> khoá lại: hệ thống đó cũng có một hàm bảo vệ chống leo thang đặc quyền **chưa
+> bao giờ được gọi**, chỉ tồn tại trong file spec của chính nó.
 
 ---
 
@@ -371,6 +494,52 @@ một bài không có gì.
 > tiêu chí mất **45,8 giây**, một lượt phản biện mất **61,4 giây**. Vòng điều tra
 > có công cụ sẽ **tốn hơn nhiều**. Phải đo lại trần và chi phí thật trước khi
 > trích bất cứ con số nào vào báo cáo.
+
+### 7.1 Chống trùng theo TÊN CỘNG THAM SỐ, không theo tên
+
+Agent điều tra **sẽ** chạy lại cùng một phép dò. Khoá chống trùng là
+`{tên}::{chữ ký tham số đã sắp đệ quy}`, nên `{n:100,lang:'py'}` và
+`{lang:'py',n:100}` là một.
+
+**Khoá chỉ theo tên là sai và đã có tiền lệ đo được** ở một hệ thống cùng công ty:
+nó chặn mất truy vấn hàng loạt hợp lệ, và model sau đó báo cáo phần bị chặn là
+"không tìm thấy" — tức một cơ chế tiết kiệm biến thành một nguồn dữ liệu sai.
+
+Hạn mức phân tầng, vì các công cụ không cùng bản chất:
+
+| Nhóm | Số lần cùng chữ ký | Lý do |
+|---|---|---|
+| `run_scaled` | 12 | Đo độ phức tạp **phải** chạy nhiều n, đó là cách nó hoạt động |
+| `probe`, `run` | 8 | Thu hẹp dần về ca lỗi nhỏ nhất cần nhiều lượt |
+| `read_file`, `ast_query` | 4 | |
+| Còn lại | 2 | |
+
+Chạm hạn mức trả về một chuỗi nói rõ đã bị chặn, **không** ném lỗi. Nếu agent bị
+chặn ≥3 lần liên tiếp thì huỷ vòng lặp: nó đang kẹt, không đang đào sâu.
+
+### 7.2 Ngắt sớm khi treo, tách khỏi trần thời gian
+
+Trần 300 giây bắt được bài chạy lâu. Nó **không** phân biệt được chậm với chết.
+
+Dấu hiệu chết: **đã qua 2 vòng, chưa gọi công cụ nào, và đã trôi quá 60 giây.**
+Một agent điều tra thật sự thì gọi công cụ ngay vòng đầu; hai vòng im lặng nghĩa
+là model đang kẹt chứ không đang suy nghĩ. Ngắt, chấm với dữ liệu đã có, ghi lý
+do vào `investigation.budget`.
+
+### 7.3 Xoay model ở tầng VÒNG LẶP, không ở tầng provider
+
+`TierChain` hiện xoay bậc **bên trong một lời gọi** `provider.grade()`. Đủ cho
+lượt chấm một phát, **không đủ cho vòng điều tra**: một bậc chết ở lời gọi thứ
+mười sẽ mất toàn bộ lịch sử công cụ đã chạy, và chấm lại từ đầu là trả tiền hai
+lần cho cùng một bài.
+
+Vòng lặp phải bắt được lỗi bậc, chọn bậc khác qua pool kèm danh sách loại trừ,
+rồi **chạy tiếp với nguyên lịch sử `toolCalls`**. Lý do đặt ở tầng này chứ không
+tầng provider: **vòng lặp mới là nơi giữ trạng thái**, provider thì không biết gì
+về những gì đã chạy. Lượt xoay bậc **không** tiêu một lần trong trần số vòng lặp.
+
+Giữ nguyên `TierChain`, phân loại lỗi ba rổ và circuit breaker — đây là một lớp
+**thêm vào bên trên**, không thay thế.
 
 ---
 
@@ -438,6 +607,17 @@ Bước 1 là rủi ro hạ tầng lớn nhất và nên làm trước mọi th�
 | **T-POL-4** | Chuẩn rút từ đáp án mẫu **chạy thật**, không từ đọc văn bản của nó | integration |
 | **T-POL-5** | Trước khi lưu một giá, trả về đúng số bài mà luật đó đang ảnh hưởng | unit |
 | **T-POL-6** | Sửa điểm một bài lẻ được đánh dấu ngoại lệ và **không** sinh ra luật nào | e2e |
+| **T-AG-4** | Chống trùng khoá theo tên **cộng tham số**: cùng tên khác tham số **không** bị chặn | unit |
+| **T-AG-5** | Bị chặn trùng 3 lần liên tiếp → huỷ vòng lặp, không chạy tiếp | unit |
+| **T-AG-6** | 2 vòng, 0 lời gọi công cụ, quá 60s → ngắt sớm, vẫn chấm với dữ liệu đã có | unit |
+| **T-AG-7** | Bậc model chết giữa vòng → xoay bậc, **giữ nguyên lịch sử toolCalls**, không tiêu một vòng lặp | unit |
+| **T-AG-8** | Đoạn tóm tắt ở màn lịch sử do harness render; văn bản model **không** đi thẳng ra | unit |
+| **T-PARSE-1** | Thẻ suy luận **không có thẻ đóng** → cắt tới hết chuỗi, không trích phán quyết nháp | unit |
+| **T-PARSE-2** | Hai phán quyết mâu thuẫn trong một phản hồi → trả rỗng, **không** chọn một cái | unit |
+| **T-ADV-4** | Lăng kính trả lời không đọc được → **không có phát hiện** | unit |
+| **T-ADV-5** | Lượt phản biện trả lời không đọc được → **`unverified`**, tuyệt đối không `refuted` | unit |
+| **T-POL-7** | Hai giảng viên khác nhau, cùng bảng lỗi khác nhau → **tiền tố prompt giống hệt** (cache còn sống) | integration |
+| **T-POL-8** | Hai giảng viên cùng gõ một tên môn → luật của người này **không** áp vào bài người kia | e2e |
 | **T-POL-3** | Lỗi phát hiện được bằng test → verdict lấy từ test, **không** hỏi model | unit |
 
 T-SRC-1 và T-SRC-2 là cặp đi ngược chiều nhau. Chỉ có T-SRC-1 thì một lần refactor
