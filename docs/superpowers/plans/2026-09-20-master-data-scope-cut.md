@@ -18,10 +18,73 @@
 > làm: gộp thành một khối thì không ai review nổi, và điểm không-quay-lại-được bị
 > đẩy vào giữa một PR khổng lồ thay vì đứng riêng một task.
 
+## Trạng thái thực thi (cập nhật 2026-09-20)
+
+> **Đọc mục này TRƯỚC khi chạy bất cứ task nào.** Nó ghi những gì đã xảy ra
+> thật, gồm cả mấy thứ plan gốc đoán sai.
+
+| Task | Trạng thái |
+|---|---|
+| 1 — chuyển quyền lớp sang giảng viên | ✅ commit `3c3dc31` |
+| 2 — giao diện lớp cho giảng viên | ⏸ **hoãn có chủ ý** — xem dưới |
+| 3 — EXPAND | ✅ migration đã áp local, chờ commit |
+| 4 — viết lại 10 file | ⬜ **bắt đầu từ đây** |
+| 5 — CONTRACT | ⬜ điểm không quay lại được |
+| 6 — CLAUDE.md + client | ⬜ |
+| 7 — đánh dấu thi bù | ⬜ |
+
+**Task 2 hoãn xuống sau Task 5, không phải bỏ.** Form tạo lớp cần một
+dropdown chọn môn học, mà Task 3 đổi `class.course_id` thành `course_name`
+dạng văn bản — dropdown dựng bây giờ bị Task 5 xoá và thay bằng ô nhập chữ.
+Dựng giao diện MỘT LẦN trên hình dạng cuối.
+
+### Môi trường — ba cái bẫy đã mất thời gian thật
+
+1. **`apps/api/.env` trỏ vào SUPABASE, không phải local.** `pnpm migration:run`
+   trần sẽ chạy migration chưa ai review lên DB hosted. Mọi lệnh phải ép biến
+   môi trường, và biến shell thắng `.env` vì `dotenv` không ghi đè:
+   ```bash
+   export DATABASE_URL=$(grep -E "^DATABASE_URL=" .env.test | cut -d= -f2-)
+   [ "${DATABASE_URL#*localhost}" != "$DATABASE_URL" ] && echo "OK: localhost"
+   ```
+2. **Docker Desktop hay tự tắt.** `docker ps` báo `open //./pipe/dockerDesktopLinuxEngine`
+   thì mở lại `C:\Program Files\Docker\Docker\Docker Desktop.exe`, rồi
+   `docker compose up -d postgres minio redis`. Container không tự start lại.
+3. **DB local đi TRƯỚC nhánh này.** Nó có `AddCodeGradingSchema1789300000000`
+   từ nhánh `feature/code-autograder-plan-1`, gồm cả cột `test_run`. Đừng
+   ngạc nhiên khi thấy bảng và cột không có trên nhánh hiện tại.
+
+### Những gì plan gốc đoán sai
+
+- **`POST /classes/import` không chuyển được bằng cách đổi guard.** Nó nhận
+  email giảng viên theo từng dòng, tạo môn dưới quyền sở hữu khoa, và kiểm
+  phạm vi liên khoa. Thiết kế lại sau Task 5.
+- **T-CLS-1 như plan mô tả đã tồn tại** và vẫn xanh. Ca migration thật sự vá
+  là `class_id` rỗng khiến exclusion constraint bị Postgres bỏ qua — test mới
+  nằm ở `exam-schedule-conflict.e2e-spec.ts`, đặt ở tầng HTTP.
+- **Migration trigger phải TỰ HỢP danh sách cột**, không ghi cứng. Nhánh
+  autograder cùng sửa `guard_grading_result_ai_immutable`, hai file khác nhau
+  nên git không báo xung đột và cái chạy sau gỡ cột của cái chạy trước. Xem
+  `1789310000000-AddAdvocateOutcome.ts` để lấy khuôn.
+
+### Dọn dẹp đã làm trên DB local
+
+- Sao lưu: `~/examcollect-backups/before-contract-*.sql` (26MB).
+- Xoá **92 phiên thi** có `class_id IS NULL` cùng chuỗi phụ thuộc. Cả 92 đều
+  `completed`, mỗi phiên đúng 1 bài nộp — dữ liệu e2e. **Trên Supabase phải
+  đếm và quyết lại**, migration có guard dừng kèm số lượng.
+
+### Ghi chú cho Task 5
+
+`exam-schedule-conflict.e2e-spec.ts` dọn dẹp trong `afterAll` bằng cách xoá
+theo `room_id`. Task 5 bỏ cột đó ⇒ phần dọn dẹp vỡ, phải sửa cùng lúc.
+
+---
+
 ## Global Constraints
 
 - Schema Postgres là `examcollect`. SQL thô phải ghi rõ tiền tố.
-- Migration **viết tay**, timestamp tăng dần, lớn hơn `1789300000000` nếu plan advocate đã chạy trước.
+- Migration **viết tay**, timestamp tăng dần, lớn hơn `1789310000000` (advocate đã dùng số đó); expand = `1789320000000`, contract = `1789330000000`.
 - **Không** dùng `migration:generate` cho các bước bỏ cột/bỏ bảng — generator không biết thứ tự an toàn và sẽ bỏ bảng trước khi khoá ngoại biến mất.
 - Sao lưu DB dev **trước Task 5**. Task 5 là điểm không quay lại được.
 - Khuôn kiểm sở hữu đã có, dùng lại nguyên văn: `if (x.teacherId !== teacherId) throw new ForbiddenException(...)` — xem `class.service.ts:222`.
@@ -264,7 +327,7 @@ git commit -m "feat(web): giảng viên tạo và nhập lớp ngay trên trang 
 ### Task 3: EXPAND — thêm cột mới, chưa bỏ gì
 
 **Files:**
-- Create: `apps/api/src/database/migrations/1789310000000-ExpandMasterDataToText.ts`
+- Create: `apps/api/src/database/migrations/1789320000000-ExpandMasterDataToText.ts`
 - Modify: `apps/api/src/course/entities/class.entity.ts`
 - Modify: `apps/api/src/exam-session/entities/exam-session.entity.ts`
 - Modify: `apps/api/src/grading/entities/rubric.entity.ts`
@@ -286,7 +349,7 @@ Ghi lại con số. **Nếu > 0 thì dừng và hỏi chủ đồ án** gán l�
 
 - [ ] **Step 2: Viết migration mở rộng**
 
-Tạo `1789310000000-ExpandMasterDataToText.ts`:
+Tạo `1789320000000-ExpandMasterDataToText.ts`:
 
 ```ts
 import { MigrationInterface, QueryRunner } from 'typeorm';
@@ -297,8 +360,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * đường đọc. Nửa THU HẸP nằm ở migration sau, chạy sau khi mười file đã
  * chuyển sang đọc cột mới.
  */
-export class ExpandMasterDataToText1789310000000 implements MigrationInterface {
-  name = 'ExpandMasterDataToText1789310000000';
+export class ExpandMasterDataToText1789320000000 implements MigrationInterface {
+  name = 'ExpandMasterDataToText1789320000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // --- class.course_name ---
@@ -483,7 +546,7 @@ Expected: verify-schema báo đủ bảng, mọi test PASS. Hệ thống **vẫn
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/api/src/database/migrations/1789310000000-ExpandMasterDataToText.ts \
+git add apps/api/src/database/migrations/1789320000000-ExpandMasterDataToText.ts \
         apps/api/src/course/entities/ apps/api/src/exam-session/entities/ \
         apps/api/src/grading/entities/rubric.entity.ts
 git commit -m "feat(schema): thêm cột văn bản và chủ sở hữu rubric, chưa bỏ gì"
@@ -666,7 +729,7 @@ git commit -m "refactor(api): mười đường đọc chuyển sang cột văn 
 > `docker exec cine-postgres-1 pg_dump -U examcollect_admin examcollect > ~/examcollect-before-contract.sql`
 
 **Files:**
-- Create: `apps/api/src/database/migrations/1789320000000-ContractMasterData.ts`
+- Create: `apps/api/src/database/migrations/1789330000000-ContractMasterData.ts`
 - Delete: `apps/api/src/course/course.controller.ts`, `course.service.ts`, `semester.controller.ts`, `semester.service.ts`, `apps/api/src/room/` (cả module)
 - Delete: `apps/web/src/app/department/` (cả thư mục), `apps/web/src/app/admin/rooms/`, `admin/semesters/`, `admin/unowned-courses/`
 - Modify: `apps/api/src/identity/entities/account.entity.ts` (rút `AccountRole`), `apps/web/src/middleware.ts`
