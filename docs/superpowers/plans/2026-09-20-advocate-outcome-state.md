@@ -13,8 +13,10 @@
 ## Global Constraints
 
 - Schema Postgres là `examcollect`. Mọi SQL thô phải ghi rõ tiền tố `"examcollect"."grading_result"`.
-- Migration **viết tay**, không `migration:generate`. Tên class theo khuôn `<Tên><timestamp>`, timestamp lớn hơn `1789290000000`.
+- Migration **viết tay**, không `migration:generate`. Tên class theo khuôn `<Tên><timestamp>`, timestamp **lớn hơn `1789300000000`** — con số đó đã bị `AddCodeGradingSchema` của nhánh `feature/code-autograder-plan-1` chiếm.
+- **Mọi lệnh migration chỉ chạy vào DB LOCAL.** `apps/api/.env` trỏ thẳng vào Supabase; `.env.test` mới trỏ local. Dùng `DATABASE_URL` của `.env.test` cho mọi bước dưới đây. Áp lên Supabase là cổng riêng, sau khi test xanh và có người review — cùng quy ước mà nhánh autograder đã chốt ở commit `5a69cdf`.
 - Cột mới là output của AI ⇒ **phải** vào danh sách của `guard_grading_result_ai_immutable()` trong **cùng migration**. Quên bước này thì cột sửa được sau khi chấm, phá Security rule 6.
+- **Danh sách cột trong hàm trigger phải TỰ HỢP, không ghi cứng.** Hai nhánh đang song song cùng sửa hàm này: nhánh autograder thêm `test_run`, nhánh này thêm `advocate_outcome`. Hai migration ở hai file khác nhau nên git **không** báo xung đột, và cái chạy sau sẽ ghi đè cái chạy trước, **âm thầm gỡ một cột khỏi danh sách đóng băng**. Cách chặn: dựng thân hàm từ một **siêu tập ghi cứng, lọc theo cột thực sự tồn tại**. Khi đó chạy thứ tự nào cũng ra hợp của hai bên.
 - Trong `down()`: **khôi phục hàm trigger TRƯỚC, bỏ cột SAU**. Ngược lại thì có một khoảnh khắc hàm tham chiếu cột không còn tồn tại và mọi `UPDATE` lên bảng nổ với lỗi không liên quan.
 - Dòng đã chấm trước migration để `NULL`. **Không backfill, không `DEFAULT`.**
 - Không đổi hành vi nuốt lỗi ở `catch` trong `runAdvocate`.
@@ -70,7 +72,18 @@ Thêm cột ngay dưới `advocateOpinion`:
 
 - [ ] **Step 2: Viết migration**
 
-Tạo `apps/api/src/database/migrations/1789300000000-AddAdvocateOutcome.ts`:
+Tạo `apps/api/src/database/migrations/1789310000000-AddAdvocateOutcome.ts`.
+
+> **Vì sao hàm trigger dựng động chứ không ghi cứng như bốn migration trước.**
+> Nhánh `feature/code-autograder-plan-1` có `AddCodeGradingSchema1789300000000`
+> thêm cột `test_run` **và** thêm nó vào hàm này. Nhánh đó chưa merge, nên nhánh
+> hiện tại **không thấy** `test_run`. Nếu migration này ghi cứng danh sách của
+> riêng nó, thì trên bất kỳ DB nào đã có cả hai, cái chạy sau sẽ gỡ cột của cái
+> chạy trước khỏi danh sách đóng băng — **git không báo xung đột vì hai file khác
+> nhau**, và không test nào của nhánh nào bắt được.
+>
+> Dựng từ **siêu tập ghi cứng, lọc theo cột thực sự tồn tại** thì chạy thứ tự nào
+> cũng cho ra hợp của hai bên, và siêu tập vẫn đọc được như một danh sách.
 
 ```ts
 import { MigrationInterface, QueryRunner } from 'typeorm';

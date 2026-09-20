@@ -315,6 +315,41 @@ describe('Vòng đời grading_result (e2e)', () => {
     ).rejects.toThrow(/immutable/i);
   });
 
+  it('T-ADVO-5: advocate_outcome bất biến sau khi đã chốt điểm', async () => {
+    // Cùng lập luận với `context_used_*` ngay trên: cột này nói lượt phản
+    // biện ĐÃ XẢY RA CHUYỆN GÌ, và `export.py` đọc nó để suy nhánh
+    // A/B/C/D. Sửa được sau khi chốt nghĩa là đổi được một lượt phản biện
+    // hỏng thành một lượt phản biện thành công bằng một câu UPDATE.
+    const id = await seedGradingResultAtAiGrading();
+    await dataSource.query(
+      `UPDATE examcollect.grading_result
+          SET status = 'ai_graded', ai_total_score = 7.5, confidence = 0.3,
+              advocate_outcome = 'failed'
+        WHERE id = $1`,
+      [id],
+    );
+
+    await expect(
+      dataSource.query(
+        `UPDATE examcollect.grading_result SET advocate_outcome = 'completed' WHERE id = $1`,
+        [id],
+      ),
+    ).rejects.toThrow(/immutable/i);
+  });
+
+  it('T-ADVO-5b: dòng chưa chốt điểm vẫn ghi advocate_outcome được', async () => {
+    // Vế ngược lại, và nó cần thiết: guard chỉ được chặn khi
+    // `ai_total_score IS NOT NULL`. Nếu nó chặn sớm hơn thế thì đường ghi
+    // bình thường của `gradeOne` sẽ chết, và chỉ test này bắt được.
+    const id = await seedGradingResultAtAiGrading();
+    await expect(
+      dataSource.query(
+        `UPDATE examcollect.grading_result SET advocate_outcome = 'not_needed' WHERE id = $1`,
+        [id],
+      ),
+    ).resolves.not.toThrow();
+  });
+
   it('đường cũ ai_grading → ai_graded vẫn đi được', async () => {
     const id = await seedGradingResultAtAiGrading();
 
