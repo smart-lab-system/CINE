@@ -15,6 +15,7 @@ const EXPECTED_TABLES = [
   'grading_result',
   'teacher_review',
   'grade_export',
+  'ai_usage',
   'calibration_run',
   'audit_log',
   'rubric_template',
