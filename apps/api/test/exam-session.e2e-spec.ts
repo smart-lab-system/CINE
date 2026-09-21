@@ -775,6 +775,108 @@ describe('ExamSession (e2e)', () => {
     });
   });
 
+  /**
+   * Bộ lọc theo LỚP, thêm 2026-09-21.
+   *
+   * Khác ba bộ lọc trên ở một điểm quyết định: lớp là KHOÁ NGOẠI, không
+   * phải chuỗi giảng viên gõ. Sau khi môn học trở thành hằng số, đây là
+   * trục học vụ có cấu trúc duy nhất còn lại — nên nó phải chịu đúng hai
+   * phép thử mà bộ lọc kỳ đã chịu: nó có thật sự cắt không, và nó có AND
+   * vào phạm vi chủ sở hữu thay vì nới nó ra không.
+   */
+  describe('GET /exam-sessions — class filter', () => {
+    const stamp = Date.now().toString(36);
+
+    async function createForClass(
+      classIdForSession: string,
+      nameSuffix: string,
+      token: string,
+    ): Promise<string> {
+      const { startTime, endTime } = futureWindow();
+      const response = await request(app.getHttpServer())
+        .post('/exam-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: `Cls${stamp} ${nameSuffix}`,
+          classId: classIdForSession,
+          roomName,
+          semesterName: FIRST_SEMESTER,
+          examType: 'TK',
+          startTime,
+          endTime,
+          requiredFilenames: ['Cau1.docx'],
+        });
+      expect(response.status).toBe(201);
+      return response.body.id as string;
+    }
+
+    it('thu hẹp về đúng một lớp — phiên lớp khác của CHÍNH giảng viên đó rơi ra', async () => {
+      const inA = await createForClass(classId, 'Lớp A', ownerToken);
+      const inB = await createForClass(otherSemesterClassId, 'Lớp B', ownerToken);
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `Cls${stamp} Lớp`, classId })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      expect(ids).toContain(inA);
+      expect(ids).not.toContain(inB);
+      // Cả hai đều khớp `search`, nên total = 1 chứng minh chính bộ lọc lớp
+      // đã cắt — không phải search làm hộ nó.
+      expect(response.body.total).toBe(1);
+    });
+
+    it('AND vào phạm vi chủ sở hữu — lọc theo lớp của người khác trả về rỗng, không phải phiên của họ', async () => {
+      const theirs = await createForClass(foreignClassId, 'Của người khác', otherToken);
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ classId: foreignClassId })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      // Đây là ca quan trọng nhất của bộ này: `classId` đến thẳng từ URL,
+      // nên một `orWhere` đặt nhầm biến bộ lọc tiện lợi thành đường đọc
+      // trộm phiên của giảng viên khác — và kết quả vẫn trông "có dữ liệu"
+      // nên không ai nghi ngờ.
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      expect(ids).not.toContain(theirs);
+      expect(response.body.total).toBe(0);
+    });
+
+    it('classId không phải uuid bị từ chối 400, không bị lặng lẽ bỏ qua', async () => {
+      // Cùng lý do với ca status không hợp lệ: lặng lẽ bỏ qua một bộ lọc
+      // hỏng sẽ trả về NHIỀU HƠN thứ người dùng xin, và họ tin đó là đã lọc.
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ classId: 'khong-phai-uuid' })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('semesterNames liệt kê MỌI kỳ của giảng viên, không chỉ kỳ có trên trang đang xem', async () => {
+      // Dropdown học kỳ đọc trường này. Trước đây giao diện tự gom danh
+      // sách từ các trang đã tải, nên một kỳ chỉ có ở trang sau thì không
+      // chọn được — trong khi phép lọc lại chạy trên toàn bộ dữ liệu.
+      // pageSize: 1 là cách chứng minh nó KHÔNG suy ra từ trang.
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ page: 1, pageSize: 1 })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.items).toHaveLength(1);
+      expect(response.body.semesterNames).toEqual(
+        expect.arrayContaining([FIRST_SEMESTER, OTHER_SEMESTER]),
+      );
+      // Không rò kỳ của giảng viên khác vào dropdown của người này.
+      expect(response.body.semesterNames.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
   describe('POST /exam-sessions/:id/finalize', () => {
     // Every session here uses a FUTURE window on purpose: the scheduled
     // sweep (ExamSessionScheduler, running for real inside this app

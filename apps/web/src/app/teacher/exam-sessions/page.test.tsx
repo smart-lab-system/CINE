@@ -16,10 +16,20 @@ vi.mock('@/hooks/useExamSession', () => ({
   useExamSessions: (...args: unknown[]) => useExamSessionsMock(...args),
 }));
 
+// Bộ lọc LỚP đọc danh sách lớp của giảng viên, không đọc các phiên đã
+// tải: một lớp chưa từng có phiên thi nào vẫn phải chọn được, nếu không
+// thì bộ lọc chỉ trả lời được câu hỏi mà người dùng đã biết đáp án.
+const useTeachingClassesMock = vi.fn();
+
+vi.mock('@/hooks/useTeaching', () => ({
+  useTeachingClasses: () => useTeachingClassesMock(),
+}));
+
 // Bộ lọc học kỳ đọc `useSemesterFilter`. Hook đó không còn gọi API nào —
 // học kỳ là một chuỗi trên chính phiên thi từ đợt thu hẹp master data — nên
-// mock chỉ cần điều khiển kỳ đang chọn. Danh sách lựa chọn thì trang tự
-// dựng từ các phiên đã tải, nên nó đến từ `session()` bên dưới.
+// mock chỉ cần điều khiển kỳ đang chọn. Danh sách lựa chọn đến từ
+// `semesterNames` mà API trả về, KHÔNG suy từ các phiên trên trang: một kỳ
+// chỉ có ở trang sau thì vẫn phải chọn được.
 const useSemesterFilterMock = vi.fn();
 const setSemesterName = vi.fn();
 
@@ -61,9 +71,14 @@ beforeEach(() => {
   setSemesterName.mockReset();
   useSemesterFilterMock.mockReset();
   useSemesterFilterMock.mockReturnValue(semesterState(CURRENT_SEMESTER));
+  useTeachingClassesMock.mockReset();
+  // Một lớp là mặc định: ô lọc lớp bị ẩn, nên mọi test cũ không đổi hành vi.
+  useTeachingClassesMock.mockReturnValue({
+    data: [{ id: 'k1', name: 'Nhóm 01', courseName: 'CTDL&GT', studentCount: 30 }],
+  });
   useExamSessionsMock.mockReset();
   useExamSessionsMock.mockReturnValue({
-    data: { items: [session()], total: 1 },
+    data: { items: [session()], total: 1, semesterNames: [CURRENT_SEMESTER] },
     error: null,
     isLoading: false,
     refetch: vi.fn(),
@@ -157,12 +172,15 @@ describe('ExamSessionsListPage — filters', () => {
   });
 
   it('chọn học kỳ khác thì đổi kỳ và quay về trang 1', () => {
-    // Danh sách kỳ trong dropdown dựng TỪ các phiên đã tải — không còn bảng
-    // `semester` nào để liệt kê — nên kỳ cũ phải có mặt trong dữ liệu.
+    // Danh sách kỳ đến từ `semesterNames` — server tính trên TOÀN BỘ phiên
+    // của giảng viên. Ở đây cố ý chỉ để MỘT phiên trong `items` mà vẫn khai
+    // hai kỳ: đúng tình huống bản cũ làm sai, khi nó suy danh sách từ trang
+    // đang xem nên kỳ cũ biến mất khỏi dropdown.
     useExamSessionsMock.mockReturnValue({
       data: {
-        items: [session(), session({ id: 's2', semesterName: OLD_SEMESTER })],
+        items: [session()],
         total: 2,
+        semesterNames: [CURRENT_SEMESTER, OLD_SEMESTER],
       },
       isLoading: false,
       error: null,
@@ -198,6 +216,51 @@ describe('ExamSessionsListPage — filters', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Xem tất cả học kỳ' }));
     expect(setSemesterName).toHaveBeenCalledWith(null);
+  });
+
+  it('một lớp thì KHÔNG hiện ô lọc lớp', () => {
+    // Cùng luật với Phòng và Loại kỳ thi ở màn Bài thu: một lựa chọn là
+    // nhiễu. Học kỳ cố ý KHÔNG theo luật này — nó là chiều thời gian mà
+    // giảng viên đang đứng trong đó, và ô ấy là chỗ duy nhất nói ra rằng
+    // trang đang bị hẹp về một kỳ.
+    render(<ExamSessionsListPage />);
+
+    expect(screen.queryByRole('combobox', { name: 'Lọc theo lớp' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' })).toBeInTheDocument();
+  });
+
+  it('từ hai lớp trở lên thì lọc được, gửi classId lên API và quay về trang 1', () => {
+    useTeachingClassesMock.mockReturnValue({
+      data: [
+        { id: 'k1', name: 'Nhóm 01', courseName: 'CTDL&GT', studentCount: 30 },
+        { id: 'k2', name: 'Nhóm 02', courseName: 'CTDL&GT', studentCount: 28 },
+      ],
+    });
+    render(<ExamSessionsListPage />);
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo lớp' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Nhóm 02' }));
+
+    // ID chứ không phải tên: hai lớp trùng tên hiển thị vẫn là hai lớp.
+    expect(useExamSessionsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ classId: 'k2', page: 1 }),
+    );
+  });
+
+  it('"tất cả lớp" gửi undefined, không gửi chuỗi rỗng', () => {
+    useTeachingClassesMock.mockReturnValue({
+      data: [
+        { id: 'k1', name: 'Nhóm 01', courseName: 'CTDL&GT', studentCount: 30 },
+        { id: 'k2', name: 'Nhóm 02', courseName: 'CTDL&GT', studentCount: 28 },
+      ],
+    });
+    render(<ExamSessionsListPage />);
+
+    // Cùng lý do với semesterName: openapi-fetch serialize chuỗi rỗng thành
+    // `?classId=` và @IsUUID ở backend sẽ trả 400 cho nó.
+    expect(useExamSessionsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ classId: undefined }),
+    );
   });
 
   it('"Xoá bộ lọc" resets every filter back to its default', () => {

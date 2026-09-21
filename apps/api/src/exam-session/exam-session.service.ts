@@ -290,7 +290,11 @@ export class ExamSessionService {
   async findAllForOwner(
     teacherId: string,
     query: SearchExamSessionsDto,
-  ): Promise<{ items: ExamSessionListItemDto[]; total: number }> {
+  ): Promise<{
+    items: ExamSessionListItemDto[];
+    total: number;
+    semesterNames: string[];
+  }> {
     const qb = this.sessions
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.class', 'class')
@@ -320,6 +324,12 @@ export class ExamSessionService {
     if (query.semesterName) {
       qb.andWhere('s.semesterName = :semesterName', { semesterName: query.semesterName });
     }
+    // Lớp: khoá ngoại, nên so bằng id chứ không so chuỗi. Cùng lý do AND
+    // như bộ lọc kỳ ngay trên — nó chỉ hẹp tầm nhìn trong phạm vi giảng
+    // viên vốn đã được phép thấy.
+    if (query.classId) {
+      qb.andWhere('s.classId = :classId', { classId: query.classId });
+    }
 
     const [rows, total] = await qb
       .orderBy('s.startTime', 'DESC')
@@ -343,7 +353,29 @@ export class ExamSessionService {
       return item;
     });
 
-    return { items, total };
+    // Danh sách kỳ để dựng dropdown — tính TỪ TOÀN BỘ phiên của giảng
+    // viên, cố ý không chịu ảnh hưởng của các bộ lọc đang bật.
+    //
+    // Trước đây giao diện tự gom danh sách này từ những trang nó đã tải,
+    // nên một kỳ chỉ xuất hiện ở trang 3 thì không chọn được cho tới khi
+    // người dùng lật tới trang 3 — mà chính bộ lọc lại chạy trên toàn bộ
+    // dữ liệu. Dropdown hẹp hơn thứ nó điều khiển là một lời nói dối.
+    const semesterRows: Array<{ semesterName: string }> = await this.sessions
+      .createQueryBuilder('s')
+      .select('s.semesterName', 'semesterName')
+      .distinct(true)
+      .where('s.teacherId = :teacherId', { teacherId })
+      .getRawMany();
+
+    // Giảm dần: với cách đặt tên thông thường ("HK1 2026-2027") thì sắp
+    // chuỗi giảm dần cũng là sắp theo thời gian. Không phải lúc nào cũng
+    // đúng, và đó là cái giá của việc bỏ cột ngày cùng bảng `semester`.
+    const semesterNames = semesterRows
+      .map((row) => row.semesterName)
+      .filter((name): name is string => Boolean(name))
+      .sort((a, b) => b.localeCompare(a));
+
+    return { items, total, semesterNames };
   }
 
   /**

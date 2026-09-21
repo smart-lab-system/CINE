@@ -138,6 +138,13 @@ export interface SearchExamSessionsParams {
    * `?semesterName=` và @Length ở backend sẽ trả 400 cho chuỗi rỗng đó.
    */
   semesterName?: string;
+  /**
+   * Lớp của phiên. Bỏ trống = mọi lớp.
+   *
+   * Phải đi lên SERVER, không lọc ở client: danh sách phân trang ở server,
+   * nên lọc trên trang đang xem chỉ cắt 20 dòng và nói dối về tổng số.
+   */
+  classId?: string;
 }
 
 async function throwIfFailed(error: unknown, response: Response) {
@@ -169,14 +176,25 @@ export async function createExamSession(
   return data as unknown as ExamSessionResponse;
 }
 
-export async function listExamSessions(
-  params: SearchExamSessionsParams,
-): Promise<{ items: ExamSessionListItem[]; total: number }> {
+export async function listExamSessions(params: SearchExamSessionsParams): Promise<{
+  items: ExamSessionListItem[];
+  total: number;
+  /**
+   * MỌI học kỳ của giảng viên này, không chỉ các kỳ có trên trang đang
+   * xem và không chịu ảnh hưởng của bộ lọc đang bật — đây là nguồn cho
+   * dropdown. Một dropdown hẹp hơn thứ nó điều khiển là một lời nói dối.
+   */
+  semesterNames: string[];
+}> {
   const { data, error, response } = await apiClient.GET('/exam-sessions', {
     params: { query: params },
   });
   await throwIfFailed(error, response);
-  return data as unknown as { items: ExamSessionListItem[]; total: number };
+  return data as unknown as {
+    items: ExamSessionListItem[];
+    total: number;
+    semesterNames: string[];
+  };
 }
 
 /**

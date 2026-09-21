@@ -169,12 +169,11 @@ export default function SubmissionsPage() {
     </>
   );
 
-  // Chờ CẢ /semesters, không chỉ danh sách phiên: hai query chạy song song,
-  // và nếu danh sách phiên về trước thì trang vẽ một lượt với semesterName =
-  // null — tức TẤT CẢ các kỳ — rồi mới co lại về kỳ hiện tại khi seed chạy.
-  // Một khung hình sai vẫn là một khung hình sai, và nó nhấp nháy đúng vào
-  // con số "phiên cần chú ý". /semesters lỗi thì isLoading vẫn về false, nên
-  // đây không phải một đường treo vô hạn.
+  // Chỉ còn MỘT query để chờ. Đoạn này từng chờ cả endpoint /semesters:
+  // bộ lọc khi ấy tự gieo "kỳ hiện tại", nên vẽ trước khi biết kỳ nào sẽ
+  // cho một khung hình sai, nhấp nháy đúng vào con số "phiên cần chú ý".
+  // Cả endpoint lẫn phép gieo đều biến mất cùng bảng `semester` — mặc định
+  // giờ là TẤT CẢ các kỳ, và "tất cả" thì không cần đợi ai xác nhận.
   if (isLoading) {
     return (
       <div className="flex flex-col gap-8">

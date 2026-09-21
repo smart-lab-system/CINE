@@ -10,13 +10,18 @@ export interface FilterState {
   complete: boolean;
   examTypes: string[];
   rooms: string[];
+  /**
+   * `classId` chứ không phải tên lớp: tên chỉ để hiện ra, còn khoá ngoại
+   * mới là thứ phân biệt. Hai lớp trùng tên hiển thị vẫn phải lọc tách nhau.
+   */
+  classIds: string[];
   showArchived: boolean;
   showClosed: boolean;
 }
 
 export const EMPTY_FILTERS: FilterState = {
   semesterName: null, kinds: [], complete: false,
-  examTypes: [], rooms: [], showArchived: false, showClosed: true,
+  examTypes: [], rooms: [], classIds: [], showArchived: false, showClosed: true,
 };
 
 export interface FacetOption { value: string; label: string; count: number }
@@ -33,7 +38,7 @@ function passesGroups(
   item: SessionOverviewItem,
   f: FilterState,
   now: number,
-  skip?: 'kinds' | 'examTypes' | 'rooms',
+  skip?: 'kinds' | 'examTypes' | 'rooms' | 'classIds',
 ): boolean {
   if (f.semesterName !== null && item.semesterName !== f.semesterName) return false;
 
@@ -41,6 +46,9 @@ function passesGroups(
     return false;
   }
   if (skip !== 'rooms' && f.rooms.length > 0 && !f.rooms.includes(item.roomName)) {
+    return false;
+  }
+  if (skip !== 'classIds' && f.classIds.length > 0 && !f.classIds.includes(item.classId)) {
     return false;
   }
   if (skip !== 'kinds' && (f.kinds.length > 0 || f.complete)) {
@@ -86,6 +94,7 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
   const forKinds = live.filter((i) => passesGroups(i, f, now, 'kinds'));
   const forTypes = live.filter((i) => passesGroups(i, f, now, 'examTypes'));
   const forRooms = live.filter((i) => passesGroups(i, f, now, 'rooms'));
+  const forClasses = live.filter((i) => passesGroups(i, f, now, 'classIds'));
 
   const KIND_LABELS: Record<AttentionKind, string> = {
     'attended-no-submission': 'Nghi mất bài',
@@ -110,16 +119,27 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
     (i) => EXAM_TYPE_LABELS[i.examType] ?? i.examType,
   );
   const rooms = countBy(forRooms, (i) => i.roomName, (i) => i.roomName);
+  // Khoá theo id, nhãn theo tên. Phiên không gắn lớp không tồn tại nữa
+  // (`exam_session.class_id` là NOT NULL), nhưng tên thì vẫn có thể rỗng.
+  const classes = countBy(
+    forClasses,
+    (i) => i.classId,
+    (i) => i.className ?? 'Không gắn lớp',
+  );
   const semesters = countBy(items, (i) => i.semesterName, (i) => i.semesterName);
 
   // Một nhóm lọc chỉ có một lựa chọn là nhiễu — UI không render nó. Spec §4.3.
   const meaningful = (o: FacetOption[]) => (o.length > 1 ? o : []);
 
   return {
+    // `semesters` KHÔNG qua `meaningful` — ngoại lệ có chủ đích, xem chú
+    // thích ở FilterRail. Lớp thì qua, vì nó là một thuộc tính của phiên
+    // đúng như phòng và loại kỳ thi, không phải chiều thời gian.
     semesters,
     kinds,
     examTypes: meaningful(examTypes),
     rooms: meaningful(rooms),
+    classes: meaningful(classes),
     archivedCount: items.filter((i) => i.archivedAt !== null).length,
     closedCount: items.filter((i) => i.archivedAt === null && i.attentionClosedAt !== null).length,
   };

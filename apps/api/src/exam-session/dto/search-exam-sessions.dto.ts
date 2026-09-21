@@ -72,4 +72,22 @@ export class SearchExamSessionsDto {
   @IsString()
   @Length(1, 150)
   semesterName?: string;
+
+  /**
+   * Lớp của phiên (`exam_session.class_id`).
+   *
+   * Khác mọi bộ lọc trên ở một điểm quyết định: đây là KHOÁ NGOẠI, không
+   * phải chuỗi giảng viên gõ. Sau khi môn học trở thành hằng số, lớp là
+   * trục học vụ có cấu trúc duy nhất còn lại — không gõ lệch được, không
+   * phân mảnh được, và là cách giảng viên thật sự nghĩ về phiên của mình.
+   *
+   * Phải nằm ở SERVER chứ không lọc phía client: danh sách này phân trang
+   * ở server, nên lọc trên trang hiện tại sẽ chỉ cắt 20 dòng đang xem và
+   * nói dối về tổng số.
+   *
+   * `@IsOptional` như các bộ lọc khác: vắng nghĩa là mọi lớp.
+   */
+  @IsOptional()
+  @IsUUID()
+  classId?: string;
 }

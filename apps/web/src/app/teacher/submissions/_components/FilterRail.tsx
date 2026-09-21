@@ -60,6 +60,7 @@ interface FilterRailProps {
     kinds: FacetOption[];
     examTypes: FacetOption[];
     rooms: FacetOption[];
+    classes: FacetOption[];
     archivedCount: number;
     closedCount: number;
   };
@@ -77,6 +78,7 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
   const hasActive =
     filters.kinds.length > 0 || filters.complete ||
     filters.examTypes.length > 0 || filters.rooms.length > 0 ||
+    filters.classIds.length > 0 ||
     filters.showArchived || !filters.showClosed;
 
   return (
@@ -130,6 +132,20 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
           />
         ))}
       </Section>
+
+      {facets.classes.length > 0 && (
+        <Section title="Lớp">
+          {facets.classes.map((k) => (
+            <FacetRow
+              key={k.value}
+              label={k.label}
+              count={k.count}
+              active={filters.classIds.includes(k.value)}
+              onClick={() => onChange({ ...filters, classIds: toggle(filters.classIds, k.value) })}
+            />
+          ))}
+        </Section>
+      )}
 
       {facets.examTypes.length > 0 && (
         <Section title="Loại kỳ thi">

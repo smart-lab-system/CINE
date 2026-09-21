@@ -1228,6 +1228,7 @@ export interface operations {
                 status?: "draft" | "scheduled" | "active" | "collecting" | "completed" | "cancelled";
                 examType?: "TK" | "GK" | "CK";
                 semesterName?: string;
+                classId?: string;
             };
             header?: never;
             path?: never;
