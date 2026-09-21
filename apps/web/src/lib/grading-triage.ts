@@ -204,3 +204,26 @@ export function deltaGroupOf(
   if (delta === 0) return 'zero';
   return delta <= DELTA_SMALL_MAX ? 'small' : 'large';
 }
+
+/**
+ * Bài này có phải của một sinh viên THI BÙ không?
+ *
+ * Phép so sánh, không phải một cột mới: `submission.home_class_id` là lớp
+ * GỐC của sinh viên, còn `exam_session.class_id` là lớp của phiên. Khác
+ * nhau nghĩa là em ngồi ở phiên của lớp khác — đúng định nghĩa thi bù, và
+ * cùng phép so sánh mà sảnh thi đã dùng để tách nhóm (`attendance.service.ts`).
+ *
+ * `exam_session.class_id` thành NOT NULL ở `ExpandMasterDataToText` làm phép
+ * so sánh này ĐÁNG TIN HƠN trước: không còn vế rỗng để phải đoán.
+ *
+ * **Đừng suy ra "thi bù" từ `joined_late`.** Vào muộn và thi bù là hai
+ * chuyện khác nhau: một sinh viên của đúng lớp vào muộn mười phút không
+ * phải thi bù, và một em thi bù có thể vào đúng giờ.
+ */
+export function isMakeupSubmission(
+  submissionHomeClassId: string | null,
+  sessionClassId: string | null,
+): boolean {
+  if (!submissionHomeClassId || !sessionClassId) return false;
+  return submissionHomeClassId !== sessionClassId;
+}

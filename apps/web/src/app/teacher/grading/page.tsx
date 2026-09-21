@@ -368,7 +368,11 @@ function GradingPageContent() {
                       Không có bài nào trong nhóm đang lọc. Chọn một ô khác ở trên.
                     </p>
                   ) : (
-                    <ReviewWorkspace examSessionId={sessionId} results={shown} />
+                    <ReviewWorkspace
+                    examSessionId={sessionId}
+                    results={shown}
+                    sessionClassId={session?.classId ?? null}
+                  />
                   )}
 
                   <div className="flex flex-wrap items-center gap-3">

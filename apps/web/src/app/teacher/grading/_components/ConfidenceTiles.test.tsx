@@ -10,6 +10,8 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
     submissionId: 's1',
     studentMssv: '2151010023',
     studentName: 'Nguyễn Minh Anh',
+    homeClassId: 'class-a',
+    homeClassName: 'N01',
     status: 'flagged_for_review',
     modelUsed: 'keyword-match@1',
     aiTotalScore: 4,

@@ -26,12 +26,12 @@
 | Task | Trạng thái |
 |---|---|
 | 1 — chuyển quyền lớp sang giảng viên | ✅ commit `3c3dc31` |
-| 2 — giao diện lớp cho giảng viên | ⏸ **hoãn có chủ ý** — xem dưới |
+| 2 — giao diện lớp cho giảng viên | ✅ commit `b7d880a` (sau Task 5, đúng như hoãn) |
 | 3 — EXPAND | ✅ commit `4136726` |
 | 4 — viết lại 10 file | ✅ commit `69573fa` |
 | 5 — CONTRACT | ✅ đã áp migration, mã đã sửa — xem mục dưới |
-| 6 — CLAUDE.md + client | 🟡 client ĐÃ sinh lại (bắt buộc cho Task 5); CLAUDE.md mới chỉ gắn cảnh báo, chưa viết lại |
-| 7 — đánh dấu thi bù | ⬜ |
+| 6 — CLAUDE.md + client | ✅ client sinh lại ở Task 5; CLAUDE.md viết lại thành rev 5 |
+| 7 — đánh dấu thi bù | ✅ |
 
 ### Những gì plan thiếu, phát hiện lúc chạy Task 4-5
 
@@ -73,10 +73,15 @@
   **Bài học cho lượt e2e sau:** trước khi tin một kết quả, kiểm
   `Get-CimInstance Win32_Process -Filter "Name='node.exe'"` xem còn jest nào
   đang chạy không. Hàng đợi nằm ở Redis và sống lâu hơn tiến trình tạo ra nó.
-- **Task 6 mới xong một nửa:** client đã sinh lại (Task 5 không compile nếu
-  không có nó), còn mục "Academic Structure & Ownership Model" trong
-  `CLAUDE.md` mới chỉ được gắn cảnh báo ở đầu, chưa viết lại.
-- **Task 2 và Task 7** chưa chạy.
+- **Task 6:** client sinh lại ở Task 5 (không có nó thì `apps/web` không biên
+  dịch được). `CLAUDE.md` viết lại thành rev 5 — mục học vụ ngắn lại còn
+  ~230 dòng, thêm §0 nói thẳng ba bảng đã bỏ, và Security rule 1 đổi từ
+  "xác thực ở cấp MÔN" sang "hỏi ẢNH CHỐT của phiên".
+- **Task 2:** làm sau Task 5 đúng như hoãn. KHÔNG dời hộp thoại nhập lớp từ
+  tệp như Step 1 mô tả — cả nó lẫn `POST /classes/import` đã bị xoá ở Task 5.
+- **Task 7:** nhãn "Thi bù — <lớp gốc>" ở màn bài nộp và màn chấm.
+  `SubmissionStatusView` và `GradingResultView` thêm `homeClassId` +
+  `homeClassName` (một LEFT JOIN sang `class`, không cột mới nào).
 
 **Task 2 hoãn xuống sau Task 5, không phải bỏ.** Form tạo lớp cần một
 dropdown chọn môn học, mà Task 3 đổi `class.course_id` thành `course_name`

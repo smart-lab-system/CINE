@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
+import { isMakeupSubmission } from '@/lib/grading-triage';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -26,9 +28,12 @@ import type { GradingResult } from '@/lib/api/grading';
 export function ReviewWorkspace({
   examSessionId,
   results,
+  sessionClassId,
 }: {
   examSessionId: string;
   results: GradingResult[];
+  /** Lớp của phiên. So với lớp gốc của từng bài để biết ai thi bù. */
+  sessionClassId: string | null;
 }) {
   const grouped = useMemo(() => {
     const map = new Map<ReviewGroup, GradingResult[]>();
@@ -65,7 +70,17 @@ export function ReviewWorkspace({
                     href={`/teacher/grading/${result.id}?sessionId=${examSessionId}`}
                     className="flex items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-small hover:bg-surface-2"
                   >
-                    <span className="truncate">{result.studentName}</span>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate">{result.studentName}</span>
+                      {/* Cùng phép so sánh với màn bài nộp, cùng nhãn: một
+                          khái niệm hiện ra hai kiểu là hai khái niệm với
+                          người đọc. */}
+                      {isMakeupSubmission(result.homeClassId, sessionClassId) && (
+                        <Badge variant="info" className="shrink-0">
+                          Thi bù — {result.homeClassName ?? result.homeClassId}
+                        </Badge>
+                      )}
+                    </span>
                     <span className="tabular-nums text-muted-foreground">
                       {/* Điểm cuối cùng thắng điểm AI — đó là cả điểm của việc
                           duyệt. `?? aiTotalScore` chứ không phải `|| `: điểm 0

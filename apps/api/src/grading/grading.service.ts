@@ -596,10 +596,22 @@ export class GradingService {
     const rows = await this.results
       .createQueryBuilder('g')
       .innerJoin('submission', 's', 's.id = g.submission_id')
-      .addSelect(['s.student_mssv AS "studentMssv"', 's.student_name_input AS "studentName"'])
+      // Lớp gốc của bài, kèm tên: khác lớp của phiên nghĩa là THI BÙ.
+      .leftJoin('class', 'hc', 'hc.id = s.home_class_id')
+      .addSelect([
+        's.student_mssv AS "studentMssv"',
+        's.student_name_input AS "studentName"',
+        's.home_class_id AS "homeClassId"',
+        'hc.name AS "homeClassName"',
+      ])
       .where('s.exam_session_id = :id', { id: examSessionId })
       .orderBy('s.student_mssv', 'ASC')
-      .getRawAndEntities<{ studentMssv: string; studentName: string }>();
+      .getRawAndEntities<{
+        studentMssv: string;
+        studentName: string;
+        homeClassId: string;
+        homeClassName: string | null;
+      }>();
 
     // The newest review of each result, in ONE query for the whole list.
     //
@@ -634,6 +646,8 @@ export class GradingService {
         submissionId: entity.submissionId,
         studentMssv: rows.raw[index].studentMssv,
         studentName: rows.raw[index].studentName,
+        homeClassId: rows.raw[index].homeClassId,
+        homeClassName: rows.raw[index].homeClassName ?? null,
         status: entity.status,
         modelUsed: entity.modelUsed,
         aiTotalScore: entity.aiTotalScore === null ? null : Number(entity.aiTotalScore),
@@ -673,6 +687,9 @@ export interface GradingResultView {
   submissionId: string;
   studentMssv: string;
   studentName: string;
+  /** Lớp GỐC của bài. Khác `exam_session.class_id` nghĩa là thi bù. */
+  homeClassId: string;
+  homeClassName: string | null;
   status: string;
   modelUsed: string | null;
   aiTotalScore: number | null;

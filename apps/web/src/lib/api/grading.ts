@@ -87,6 +87,9 @@ export interface GradingResult {
   submissionId: string;
   studentMssv: string;
   studentName: string;
+  /** Lớp GỐC của bài. Khác lớp của phiên nghĩa là THI BÙ. */
+  homeClassId: string;
+  homeClassName: string | null;
   status: string;
   modelUsed: string | null;
   aiTotalScore: number | null;

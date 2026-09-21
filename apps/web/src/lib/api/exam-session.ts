@@ -104,6 +104,9 @@ export interface SubmissionStatusItem {
   submittedAt: string | null;
   fileSize: string | null;
   downloadUrl: string | null;
+  /** Lớp GỐC của sinh viên. Khác lớp của phiên nghĩa là THI BÙ. */
+  homeClassId: string;
+  homeClassName: string | null;
 }
 
 /**

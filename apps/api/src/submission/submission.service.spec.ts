@@ -90,12 +90,20 @@ function createHarness(
     objectExists: overrides.objectExists ?? jest.fn().mockResolvedValue(true),
   };
   // `listForSession` dùng QueryBuilder chứ không `find()`, vì nó cần
-  // `NULLS LAST` tường minh (xem lý do ở service). Mock giữ cả hai:
-  // `find` cho những đường còn dùng nó, builder cho đường danh sách.
+  // `NULLS LAST` tường minh VÀ một LEFT JOIN sang `class` để lấy tên lớp
+  // gốc (nhãn thi bù). Mock giữ cả hai: `find` cho những đường còn dùng
+  // nó, builder cho đường danh sách.
   const listBuilder: Record<string, jest.Mock> = {};
   listBuilder.where = jest.fn(() => listBuilder);
   listBuilder.orderBy = jest.fn(() => listBuilder);
-  listBuilder.getMany = jest.fn().mockResolvedValue(overrides.submissions ?? []);
+  listBuilder.leftJoin = jest.fn(() => listBuilder);
+  listBuilder.addSelect = jest.fn(() => listBuilder);
+  listBuilder.getRawAndEntities = jest.fn().mockResolvedValue({
+    entities: overrides.submissions ?? [],
+    // Tên lớp gốc không phải thứ bộ test này đo; một mảng rỗng đủ để
+    // `rows.raw[index]` trả undefined và service quy về null.
+    raw: [],
+  });
   const submissions = {
     find: jest.fn().mockResolvedValue(overrides.submissions ?? []),
     createQueryBuilder: jest.fn(() => listBuilder),
@@ -264,6 +272,7 @@ describe('SubmissionService.listForSession', () => {
           submittedAt: new Date('2026-08-29T04:00:00.000Z'),
           fileSize: '128',
           storageKey: EXPECTED_KEY,
+          homeClassId: 'class-a',
         },
       ],
     });
@@ -293,6 +302,10 @@ describe('SubmissionService.listForSession', () => {
         submittedAt: new Date('2026-08-29T04:00:00.000Z'),
         fileSize: '128',
         downloadUrl: 'http://storage/view',
+        homeClassId: 'class-a',
+        // Tên lớp gốc đến từ hàng RAW của JOIN, và harness không giả lập
+        // nó — bộ test này đo URL tải file, không đo nhãn thi bù.
+        homeClassName: null,
       },
     ]);
   });
@@ -313,6 +326,7 @@ describe('SubmissionService.listForSession', () => {
           submittedAt: new Date('2026-08-29T04:00:00.000Z'),
           fileSize: '128',
           storageKey: EXPECTED_KEY,
+          homeClassId: 'class-a',
         },
       ],
     });

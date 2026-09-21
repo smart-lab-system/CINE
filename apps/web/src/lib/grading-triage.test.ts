@@ -5,6 +5,7 @@ import {
   bucketOf,
   countBuckets,
   findAnomalies,
+  isMakeupSubmission,
   pointsForVerdict,
 } from './grading-triage';
 import type { AdvocateOpinion, GradingResult } from '@/lib/api/grading';
@@ -28,6 +29,8 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
     submissionId: 's1',
     studentMssv: '2151010023',
     studentName: 'Nguyễn Minh Anh',
+    homeClassId: 'class-a',
+    homeClassName: 'N01',
     status: 'auto_approved',
     modelUsed: 'keyword-match@1',
     aiTotalScore: 4,
@@ -243,5 +246,20 @@ describe('deltaGroupOf', () => {
 
   it('lệch trên 1,5 → large', () => {
     expect(deltaGroupOf(withAdvocate(0, 'met'), max)).toBe('large');
+  });
+});
+
+describe('isMakeupSubmission', () => {
+  it('T-MU-2: bài có lớp gốc khác lớp phiên → thi bù', () => {
+    expect(isMakeupSubmission('class-b', 'class-a')).toBe(true);
+    expect(isMakeupSubmission('class-a', 'class-a')).toBe(false);
+  });
+
+  it('thiếu một vế thì KHÔNG đoán là thi bù', () => {
+    // Dữ liệu cũ trước khi `exam_session.class_id` thành NOT NULL vẫn còn
+    // trong DB. Gắn nhãn "thi bù" cho một bài chỉ vì thiếu dữ liệu là bịa
+    // ra một sự kiện chưa chắc đã xảy ra — im lặng là câu trả lời đúng.
+    expect(isMakeupSubmission(null, 'class-a')).toBe(false);
+    expect(isMakeupSubmission('class-b', null)).toBe(false);
   });
 });

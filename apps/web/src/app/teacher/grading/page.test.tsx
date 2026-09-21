@@ -258,6 +258,8 @@ describe('GradingPage', () => {
         submissionId: 'sub-1',
         studentMssv: '2151010023',
         studentName: 'Nguyễn Minh Anh',
+        homeClassId: 'class-a',
+        homeClassName: 'N01',
         status: 'flagged_for_review',
         modelUsed: 'keyword-match@1',
         aiTotalScore: 4,
