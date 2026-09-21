@@ -165,7 +165,8 @@ function GradingPageContent() {
             <SelectContent>
               {gradable.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
-                  {item.name} — {item.courseName}
+                  {item.name}
+                  {item.className ? ` — ${item.className}` : ''}
                   {/* Nhìn thấy được TRƯỚC khi chọn. Danh sách là một
                       <Select>, badge không đặt được trong option, nên hậu
                       tố văn bản là cách duy nhất. */}

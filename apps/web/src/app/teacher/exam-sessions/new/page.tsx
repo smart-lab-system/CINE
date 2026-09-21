@@ -240,7 +240,7 @@ export default function NewExamSessionPage() {
                       <SelectContent>
                         {classes.data?.map((klass) => (
                           <SelectItem key={klass.id} value={klass.id}>
-                            {klass.courseName} — {klass.name} ({klass.studentCount} SV)
+                            {klass.name} ({klass.studentCount} SV)
                           </SelectItem>
                         ))}
                       </SelectContent>

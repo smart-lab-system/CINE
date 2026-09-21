@@ -76,7 +76,7 @@ export function SessionRubricCard({
             </div>
           ) : (
             <p className="text-small text-muted-foreground">
-              Môn này chưa có rubric nào.{' '}
+              Chưa có rubric nào.{' '}
               <Link
                 href="/teacher/rubrics"
                 className="font-semibold underline underline-offset-2"

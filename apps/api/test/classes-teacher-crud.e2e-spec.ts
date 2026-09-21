@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { COURSE_NAME } from '../src/common/course-name';
 
 /**
  * Giảng viên tự tạo, sửa, xoá lớp của mình (spec thu hẹp master data §4.1).
@@ -64,7 +65,6 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
     otherTeacherToken = o.token;
     otherTeacherId = o.id;
 
-    const suffix = `${Date.now()}`.slice(-9);
     const course = { name: 'Cấu trúc dữ liệu và Giải thuật' };
     courseName = course.name;
   });
@@ -95,6 +95,27 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
 
     expect(res.body.teacherId).toBe(teacherId);
     expect(res.body.teacherId).not.toBe(otherTeacherId);
+  });
+
+  it('T-OWN-1c: môn là HẰNG SỐ của server, body không đặt được', async () => {
+    // Cùng lý do với `teacherId` ở T-OWN-1b: giá trị này không phải của
+    // người gọi quyết định. Hệ thống phục vụ đúng một môn, nên ô nhập đã bị
+    // bỏ khỏi biểu mẫu — nhưng một client cũ, hay một lời gọi API thẳng, vẫn
+    // gửi kèm được. Nếu nó lọt thì lớp ấy rơi khỏi mọi phép tra "cùng môn",
+    // và phép gãy đầu tiên là đường định tuyến bài thi bù: lặng lẽ, không
+    // lỗi, chỉ là bài của sinh viên về tay giảng viên không dạy em.
+    const res = await request(app.getHttpServer())
+      .post('/classes')
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ name: `CTDL-hs-${Date.now()}`, courseName: 'Môn Bịa Đặt' })
+      .expect(201);
+
+    const rows = await dataSource.query(
+      `SELECT course_name FROM examcollect.class WHERE id = $1`,
+      [res.body.id],
+    );
+    expect(rows[0].course_name).toBe(COURSE_NAME);
+    expect(rows[0].course_name).not.toBe('Môn Bịa Đặt');
   });
 
   it('T-OWN-2: giảng viên KHÔNG sửa hay xoá được lớp của người khác', async () => {

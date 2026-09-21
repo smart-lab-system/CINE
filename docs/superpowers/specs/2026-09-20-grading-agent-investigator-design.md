@@ -234,6 +234,32 @@ Khoá đúng: `unique(teacher_id, course_name, rule_key)` — cùng hình dạng
 Một hệ thống cùng công ty đã dính đúng lỗi này với cache khoá theo mã dự án trần,
 và nó rò dữ liệu suy từ danh sách nhân sự giữa hai khách hàng không liên quan.
 
+#### Nợ mang sang từ đợt chốt MỘT MÔN (2026-09-21)
+
+Ràng buộc **một môn duy nhất** đã được xác nhận là ràng buộc của hệ thống, không
+phải phạm vi của bản demo: hệ thống đi sâu vào CTDL&GT. Đợt dọn ngày 2026-09-21
+đã bỏ "môn" khỏi mọi trang còn lại, nhưng **cố ý chừa `/teacher/rubrics`** cho
+spec này, vì chính spec này định nghĩa lại rubric LÀ GÌ (§2.1: tụt xuống thành
+trần điểm và bộ từ vựng mồi). Thiết kế lại trang đó hai lần là phí.
+
+Hai việc phải quyết khi làm spec này:
+
+1. **Trang `/teacher/rubrics` đang gợi ý mỗi MÔN một rubric** — nó dựng danh
+   sách tên từ `classes.map((k) => k.courseName)`. Một môn thì nó gợi ý đúng
+   một cái tên, mà cái tên đó là hằng số của cả hệ thống, nên gợi ý không mang
+   tin gì. Cơ sở gợi ý mới nên là **loại kỳ thi** (Giữa kỳ / Cuối kỳ), hay bỏ
+   hẳn gợi ý và chỉ còn nút tạo? Và trang này có còn tồn tại không, một khi
+   rubric không còn là máy tính điểm?
+
+2. **Khoá `unique(teacher_id, course_name, rule_key)` ở tiểu mục ngay trên.**
+   Lập luận của nó vẫn đúng nguyên: `teacher_id` là ranh giới cách ly thật.
+   Nhưng `course_name` giờ mang **cùng một chuỗi ở mọi dòng**, nên nó không
+   phân biệt được gì — khoá thực tế là `unique(teacher_id, rule_key)`. Giữ
+   `course_name` trong khoá chỉ có nghĩa nếu ràng buộc một môn được nới ra sau
+   này, và lúc đó phải nới cùng lúc cả `class.course_name` lẫn
+   `exam_session.course_name`, vì đợt 2026-09-21 đã chuẩn hoá toàn bộ dữ liệu
+   cũ về một chuỗi.
+
 ---
 
 ## 3. Bảy công cụ

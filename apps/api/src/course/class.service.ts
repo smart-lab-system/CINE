@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ClassEntity } from './entities/class.entity';
 import { CreateClassDto, UpdateClassDto } from './dto/course.dto';
+import { COURSE_NAME } from '../common/course-name';
 import { TeachingClassView } from './course.types';
 
 /**
@@ -91,12 +92,15 @@ export class ClassService {
    * khác được. Trưởng khoa từng làm được điều đó, và cùng với vai trò ấy
    * thì khả năng này cũng biến mất.
    *
-   * Môn học là một CHUỖI người dùng gõ vào. Không có gì kiểm nó, và đó là
-   * đánh đổi đã chọn: hệ thống không quản lý dữ liệu nền của trường, nó chỉ
-   * ghi lại thứ giảng viên khai.
+   * Môn KHÔNG đến từ `dto`. Hệ thống phục vụ đúng một môn, nên giá trị ấy
+   * là hằng số — hỏi lại ở mỗi lần tạo lớp chỉ thêm một cơ hội gõ lệch, mà
+   * gõ lệch ở đây không báo lỗi: nó lặng lẽ tách lớp này khỏi mọi phép tra
+   * "cùng môn", và phép đầu tiên gãy là đường định tuyến bài thi bù.
    */
   async createForTeacher(teacherId: string, dto: CreateClassDto): Promise<ClassEntity> {
-    return this.classes.save(this.classes.create({ ...dto, teacherId }));
+    return this.classes.save(
+      this.classes.create({ ...dto, teacherId, courseName: COURSE_NAME }),
+    );
   }
 
   /**
@@ -115,9 +119,6 @@ export class ClassService {
     const klass = await this.findOwnedByTeacher(id, teacherId);
     if (dto.name !== undefined) {
       klass.name = dto.name;
-    }
-    if (dto.courseName !== undefined) {
-      klass.courseName = dto.courseName;
     }
     return this.classes.save(klass);
   }

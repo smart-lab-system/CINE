@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
-import { groupByCourseClass } from '@/lib/submission-attention';
+import { groupByClass } from '@/lib/submission-attention';
 import { SessionTable } from './SessionTable';
 
 const NOW = Date.now();
@@ -34,7 +34,7 @@ beforeEach(() => { onArchive.mockReset(); onClose.mockReset(); });
 function renderTable(items: SessionOverviewItem[]) {
   return render(
     <SessionTable
-      groups={groupByCourseClass(items, NOW)}
+      groups={groupByClass(items, NOW)}
       now={NOW}
       onArchive={onArchive}
       onCloseAttention={onClose}

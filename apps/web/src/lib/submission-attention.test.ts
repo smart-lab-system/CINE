@@ -4,7 +4,7 @@ import {
   compareSessions,
   getAttentionReasons,
   getSessionPhase,
-  groupByCourseClass,
+  groupByClass,
   hasRatio,
 } from './submission-attention';
 import type { SessionOverviewItem } from './api/submissions';
@@ -269,41 +269,46 @@ describe('compareSessions', () => {
   });
 });
 
-describe('groupByCourseClass', () => {
-  it('gom theo môn + lớp, và ĐẾM cả phiên cần chú ý trong nhóm', () => {
+describe('groupByClass', () => {
+  it('gom theo LỚP, và ĐẾM cả phiên cần chú ý trong nhóm', () => {
     const items = [
       make({
         id: 'a',
-        courseName: 'CSDL',
         className: 'N01',
         attendedNoSubmissionCount: 1,
         fullySubmittedCount: 39,
       }),
-      make({ id: 'b', courseName: 'CSDL', className: 'N01' }),
-      // courseId/classId phải đổi theo courseName/className: nhóm khoá theo
-      // ID (khớp implementation, và đúng ngữ nghĩa — 2 môn trùng tên hiển thị
-      // không được gộp), brief gốc quên đổi hai field này nên 3 phiên vẫn
-      // cùng khoá 'course-1::class-1' và test sai (chỉ ra 1 nhóm, không phải 2).
-      make({
-        id: 'c',
-        courseName: 'CTDL',
-        className: 'N05',
-        classId: 'class-2',
-      }),
+      make({ id: 'b', className: 'N01' }),
+      // Khoá là `classId`, KHÔNG phải tên lớp: hai lớp trùng tên hiển thị
+      // vẫn phải là hai nhóm, nếu không thì hai lớp khác nhau bị trộn bài.
+      make({ id: 'c', className: 'N05', classId: 'class-2' }),
     ];
 
-    const groups = groupByCourseClass(items, NOW);
+    const groups = groupByClass(items, NOW);
 
     expect(groups).toHaveLength(2);
-    const csdl = groups.find((g) => g.courseName === 'CSDL')!;
+    const n01 = groups.find((g) => g.className === 'N01')!;
     // Phiên cần chú ý VẪN nằm trong nhóm gốc — spec §4.4, cố ý lặp.
-    expect(csdl.sessions.map((s) => s.id)).toEqual(['a', 'b']);
-    expect(csdl.attentionCount).toBe(1);
-    expect(groups.find((g) => g.courseName === 'CTDL')!.attentionCount).toBe(0);
+    expect(n01.sessions.map((s) => s.id)).toEqual(['a', 'b']);
+    expect(n01.attentionCount).toBe(1);
+    expect(groups.find((g) => g.className === 'N05')!.attentionCount).toBe(0);
   });
 
-  it('phiên không gắn lớp vào nhóm riêng của môn đó', () => {
-    const groups = groupByCourseClass(
+  it('hai lớp KHÁC tên nhưng cùng môn vẫn là hai nhóm', () => {
+    // Tầng "môn" đã bỏ khỏi khoá gộp. Test này khoá lại điều đó: nếu ai đó
+    // đưa `courseName` trở lại khoá thì hai lớp cùng môn sẽ dính làm một.
+    const groups = groupByClass(
+      [
+        make({ id: 'a', className: 'N01', classId: 'class-1' }),
+        make({ id: 'b', className: 'N02', classId: 'class-2' }),
+      ],
+      NOW,
+    );
+    expect(groups).toHaveLength(2);
+  });
+
+  it('phiên không gắn lớp vào nhóm riêng', () => {
+    const groups = groupByClass(
       [make({ id: 'a', className: null, classId: 'k-none', rosterKnown: false })],
       NOW,
     );

@@ -48,33 +48,34 @@ describe('TeacherClassesPage', () => {
     expect(screen.getByRole('button', { name: /tạo lớp/i })).toBeInTheDocument();
   });
 
-  it('gửi môn và tên lớp lên API khi tạo', () => {
+  it('KHÔNG hỏi môn học — hệ thống chỉ có một môn', () => {
     render(<TeacherClassesPage />);
-
     fireEvent.click(screen.getByRole('button', { name: /tạo lớp/i }));
-    fireEvent.change(screen.getByLabelText('Môn học'), {
-      target: { value: '  Giải tích  ' },
-    });
-    fireEvent.change(screen.getByLabelText('Tên lớp'), { target: { value: 'N05' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Tạo lớp' }));
 
-    // Cắt khoảng trắng ở client: môn học là chuỗi tự do và là khoá để hai lớp
-    // nhận ra nhau là cùng môn, nên một dấu cách thừa tạo ra một môn thứ hai.
-    expect(createMutate).toHaveBeenCalledWith(
-      { courseName: 'Giải tích', name: 'N05' },
-      expect.anything(),
-    );
+    // Một câu hỏi chỉ có đúng một đáp án, lại không được kiểm: trả lời lệch
+    // một ký tự thì lớp này rơi khỏi mọi phép tra "cùng môn", và phép gãy
+    // đầu tiên là đường định tuyến bài thi bù. Server điền hằng số.
+    expect(screen.queryByLabelText('Môn học')).not.toBeInTheDocument();
   });
 
-  it('không gửi gì khi thiếu tên môn hoặc tên lớp', () => {
+  it('gửi tên lớp lên API khi tạo, đã cắt khoảng trắng', () => {
     render(<TeacherClassesPage />);
 
     fireEvent.click(screen.getByRole('button', { name: /tạo lớp/i }));
-    fireEvent.change(screen.getByLabelText('Tên lớp'), { target: { value: 'N05' } });
+    fireEvent.change(screen.getByLabelText('Tên lớp'), { target: { value: '  N05  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo lớp' }));
+
+    expect(createMutate).toHaveBeenCalledWith({ name: 'N05' }, expect.anything());
+  });
+
+  it('không gửi gì khi thiếu tên lớp', () => {
+    render(<TeacherClassesPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /tạo lớp/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Tạo lớp' }));
 
     expect(createMutate).not.toHaveBeenCalled();
-    expect(screen.getByText(/nhập cả tên môn và tên lớp/i)).toBeInTheDocument();
+    expect(screen.getByText(/nhập tên lớp/i)).toBeInTheDocument();
   });
 
   it('mở form sửa với dữ liệu của đúng lớp đó', () => {
@@ -82,7 +83,6 @@ describe('TeacherClassesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Sửa lớp N01' }));
 
-    expect(screen.getByLabelText('Môn học')).toHaveValue('CTDL&GT');
     expect(screen.getByLabelText('Tên lớp')).toHaveValue('N01');
   });
 

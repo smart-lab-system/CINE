@@ -25,28 +25,26 @@ import type { TeachingClass } from '@/lib/api/teaching';
  * server lấy từ token và bỏ qua mọi `teacherId` trong body. Trưởng khoa
  * từng gán lớp cho người khác; vai trò đó không còn.
  *
- * MÔN HỌC LÀ Ô NHẬP CHỮ, không phải danh sách thả xuống. Bảng `course` đã
- * biến mất ở đợt thu hẹp master data, nên không có gì để chọn ra. Gợi ý
- * lấy từ chính các lớp giảng viên đã tạo: gõ lại đúng cách viết cũ là điều
- * duy nhất giữ cho các lớp cùng môn còn nhận ra nhau.
+ * KHÔNG có ô môn học. Hệ thống phục vụ đúng MỘT môn, nên tên môn là hằng số
+ * server tự điền. Bản trước có ô nhập chữ kèm gợi ý, và đó là tổ hợp tệ
+ * nhất có thể: một câu hỏi chỉ có đúng một đáp án, không được kiểm, mà trả
+ * lời lệch một ký tự thì lớp này rơi khỏi mọi phép tra "cùng môn" — hỏng
+ * đầu tiên là đường định tuyến bài thi bù, và hỏng trong im lặng.
  */
 export function ClassFormDialog({
   open,
   onOpenChange,
   editing,
-  courseSuggestions,
 }: {
   open: boolean;
   onOpenChange: (next: boolean) => void;
   /** `null` = tạo mới. */
   editing: TeachingClass | null;
-  courseSuggestions: string[];
 }) {
   const create = useCreateClass();
   const update = useUpdateClass();
   const pending = create.isPending || update.isPending;
 
-  const [courseName, setCourseName] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -54,16 +52,15 @@ export function ClassFormDialog({
   // người dùng mở lại để sửa một lớp khác là cách hiện nhầm tên lớp.
   useEffect(() => {
     if (!open) return;
-    setCourseName(editing?.courseName ?? '');
     setName(editing?.name ?? '');
     setError(null);
   }, [open, editing]);
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    const body = { courseName: courseName.trim(), name: name.trim() };
-    if (!body.courseName || !body.name) {
-      setError('Nhập cả tên môn và tên lớp.');
+    const body = { name: name.trim() };
+    if (!body.name) {
+      setError('Nhập tên lớp.');
       return;
     }
 
@@ -72,9 +69,10 @@ export function ClassFormDialog({
         toast.success(editing ? 'Đã lưu thay đổi.' : `Đã tạo lớp ${body.name}.`);
         onOpenChange(false);
       },
-      // Thông điệp của SERVER, không phải một câu chung chung: lỗi hay gặp
-      // nhất ở đây là trùng (giảng viên, môn, tên lớp), và chỉ server mới
-      // nói được là trùng với lớp nào.
+      // Thông điệp của SERVER nguyên văn. Lỗi hay gặp nhất ở đây là trùng
+      // tên lớp với một lớp khác của chính mình (khoá duy nhất theo giảng
+      // viên + tên), và hôm nay server chỉ trả một câu 409 chung chung —
+      // hiện nguyên văn vẫn hơn là bịa ra một câu đoán sai nguyên nhân.
       onError: (e: Error) => setError(e.message),
     };
 
@@ -101,25 +99,6 @@ export function ClassFormDialog({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-
-          <FormField
-            id="class-course-name"
-            label="Môn học"
-            hint="Gõ đúng như những lớp trước của cùng môn — hệ thống không có danh mục môn để đối chiếu."
-          >
-            <Input
-              id="class-course-name"
-              list="class-course-options"
-              placeholder="CTDL&GT"
-              value={courseName}
-              onChange={(e) => setCourseName(e.target.value)}
-            />
-            <datalist id="class-course-options">
-              {courseSuggestions.map((course) => (
-                <option key={course} value={course} />
-              ))}
-            </datalist>
-          </FormField>
 
           <FormField id="class-name" label="Tên lớp">
             <Input

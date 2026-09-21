@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { GraduationCap, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
@@ -35,6 +35,9 @@ import { DeleteClassDialog } from './_components/delete-class-dialog';
  * vẫn tích tụ theo năm, và khi nó dài tới mức khó đọc thì thứ cần thêm là
  * ô tìm kiếm, không phải một bộ lọc theo thứ dữ liệu không mang.
  *
+ * KHÔNG còn cột "Môn". Hệ thống phục vụ đúng một môn, nên cột đó lặp lại
+ * cùng một chuỗi ở mọi dòng — nó chiếm chỗ mà không phân biệt được gì.
+ *
  * KHÔNG còn nhập lớp hàng loạt từ tệp. `POST /classes/import` nhận email
  * giảng viên theo từng dòng và tạo môn dưới quyền sở hữu khoa — cả hai khái
  * niệm đã biến mất, nên route và hộp thoại của nó bị xoá cùng đợt. Thiết kế
@@ -45,14 +48,6 @@ export default function TeacherClassesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<TeachingClass | null>(null);
   const [deleting, setDeleting] = useState<TeachingClass | null>(null);
-
-  // Gợi ý tên môn lấy từ chính các lớp đã có. Đây là thứ bù lại phần lớn
-  // những gì mất khi môn thành văn bản tự do: hai lớp chỉ còn nhận ra nhau
-  // là "cùng môn" khi chuỗi khớp chính xác.
-  const courseSuggestions = useMemo(
-    () => [...new Set((classes.data ?? []).map((k) => k.courseName))].sort(),
-    [classes.data],
-  );
 
   function openCreate() {
     setEditing(null);
@@ -108,7 +103,6 @@ export default function TeacherClassesPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead scope="col">Môn</TableHead>
                     <TableHead scope="col">Lớp</TableHead>
                     <TableHead scope="col">Sĩ số</TableHead>
                     <TableHead scope="col" className="text-right">
@@ -119,8 +113,7 @@ export default function TeacherClassesPage() {
                 <TableBody>
                   {classes.data!.map((klass) => (
                     <TableRow key={klass.id}>
-                      <TableCell className="font-medium">{klass.courseName}</TableCell>
-                      <TableCell>{klass.name}</TableCell>
+                      <TableCell className="font-medium">{klass.name}</TableCell>
                       <TableCell className="whitespace-nowrap tabular-nums">
                         {klass.studentCount === 0 ? (
                           // Not an empty cell: a class with no roster admits
@@ -166,12 +159,7 @@ export default function TeacherClassesPage() {
         </CardContent>
       </Card>
 
-      <ClassFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        editing={editing}
-        courseSuggestions={courseSuggestions}
-      />
+      <ClassFormDialog open={formOpen} onOpenChange={setFormOpen} editing={editing} />
       <DeleteClassDialog
         target={deleting}
         onOpenChange={(next) => {

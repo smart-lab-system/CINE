@@ -150,17 +150,12 @@ export default function ExamSessionLobbyPage() {
   // trigger a render on its own.
   const knownAccessRequestIds = useRef<Set<string>>(new Set());
   const teachingClasses = useTeachingClasses();
-  // So theo TÊN môn: khoá ngoại tới bảng `course` biến mất ở đợt thu hẹp
-  // master data, và tên là thứ duy nhất còn lại để nhận ra hai lớp cùng môn.
-  // Gõ lệch một ký tự thì lớp đó không hiện ra trong danh sách chọn lớp gốc
-  // — giám thị vẫn duyệt được, chỉ là phải tìm đúng cách viết.
-  const classesForThisCourse = useMemo(
-    () =>
-      (teachingClasses.data ?? []).filter(
-        (k) => k.courseName === sessionDetail.data?.courseName,
-      ),
-    [teachingClasses.data, sessionDetail.data?.courseName],
-  );
+  // MỌI lớp của giảng viên, không lọc. Trước đây danh sách này lọc theo tên
+  // môn, và vì tên môn là chuỗi tự do nên gõ lệch một ký tự là lớp biến mất
+  // khỏi ô chọn — ngay trên đường duyệt thi bù, nơi chọn đúng lớp gốc quyết
+  // định bài của em về tay ai. Hệ thống phục vụ một môn, nên phép lọc đó chỉ
+  // còn khả năng giấu lớp chứ không còn khả năng lọc.
+  const classesForThisCourse = teachingClasses.data ?? [];
 
   /**
    * A room of forty agents joins in a burst, and each join is one event. A

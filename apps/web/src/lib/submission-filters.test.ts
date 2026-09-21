@@ -108,24 +108,30 @@ describe('buildFacets', () => {
 });
 
 describe('detectRoomFailure', () => {
-  const red = (id: string, room: string, courseName: string) =>
-    make({ id, roomName: room, courseName, attendedNoSubmissionCount: 2, fullySubmittedCount: 8 });
+  // Mẫu số là LỚP, không còn là môn. Bản cũ dựng hai `courseName` khác nhau
+  // để làm cảnh báo nổ — một trạng thái dữ liệu không còn tồn tại được từ
+  // khi hệ thống chốt phục vụ một môn, nên test cũ xanh trong khi hàm thật
+  // luôn trả `null` và banner không bao giờ hiện.
+  const red = (id: string, room: string, classId: string) =>
+    make({ id, roomName: room, classId, attendedNoSubmissionCount: 2, fullySubmittedCount: 8 });
 
-  it('2 phiên đỏ cùng phòng, khác môn → cảnh báo', () => {
-    const r = detectRoomFailure([red('a', 'A3-01', 'c1'), red('b', 'A3-01', 'c2')], NOW);
-    expect(r).toEqual({ room: 'A3-01', sessionCount: 2, courseCount: 2 });
+  it('2 phiên đỏ cùng phòng, khác LỚP → cảnh báo', () => {
+    const r = detectRoomFailure([red('a', 'A3-01', 'k1'), red('b', 'A3-01', 'k2')], NOW);
+    expect(r).toEqual({ room: 'A3-01', sessionCount: 2, classCount: 2 });
   });
 
   it('chỉ 1 phiên đỏ → KHÔNG cảnh báo', () => {
-    expect(detectRoomFailure([red('a', 'A3-01', 'c1')], NOW)).toBeNull();
+    expect(detectRoomFailure([red('a', 'A3-01', 'k1')], NOW)).toBeNull();
   });
 
-  it('2 phiên đỏ cùng phòng nhưng CÙNG môn → KHÔNG cảnh báo', () => {
-    expect(detectRoomFailure([red('a', 'A3-01', 'c1'), red('b', 'A3-01', 'c1')], NOW)).toBeNull();
+  it('2 phiên đỏ cùng phòng nhưng CÙNG lớp → KHÔNG cảnh báo', () => {
+    // Một lớp thi nhiều ca ở phòng cố định của nó: thứ chung là cái lớp,
+    // không phải cái phòng.
+    expect(detectRoomFailure([red('a', 'A3-01', 'k1'), red('b', 'A3-01', 'k1')], NOW)).toBeNull();
   });
 
   it('phiên đỏ ở hai phòng khác nhau → KHÔNG cảnh báo', () => {
-    expect(detectRoomFailure([red('a', 'A3-01', 'c1'), red('b', 'B1-05', 'c2')], NOW)).toBeNull();
+    expect(detectRoomFailure([red('a', 'A3-01', 'k1'), red('b', 'B1-05', 'k2')], NOW)).toBeNull();
   });
 });
 

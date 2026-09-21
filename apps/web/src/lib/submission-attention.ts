@@ -194,7 +194,6 @@ export function compareSessions(
 
 export interface SessionGroup {
   key: string;
-  courseName: string;
   className: string | null;
   sessions: SessionOverviewItem[];
   /** Bao nhiêu phiên trong nhóm này cần chú ý — hiện ở header nhóm, §4.4. */
@@ -202,25 +201,25 @@ export interface SessionGroup {
 }
 
 /**
- * Nhóm theo Môn → Lớp. Phiên cần chú ý VẪN Ở LẠI nhóm gốc dù nó cũng hiện ở
- * dải ghim trên: nhóm phải là danh sách đầy đủ của môn đó, nếu lọc bớt thì
- * GV duyệt theo môn sẽ tưởng phiên đã bị xoá — spec §4.4.
+ * Nhóm theo LỚP. Phiên cần chú ý VẪN Ở LẠI nhóm gốc dù nó cũng hiện ở dải
+ * ghim trên: nhóm phải là danh sách đầy đủ của lớp đó, nếu lọc bớt thì GV
+ * duyệt theo lớp sẽ tưởng phiên đã bị xoá — spec §4.4.
+ *
+ * Tầng "Môn" đã bỏ: hệ thống phục vụ một môn, nên nó là một mức lồng nhau
+ * chỉ có đúng một nhánh.
  */
-export function groupByCourseClass(
+export function groupByClass(
   items: SessionOverviewItem[],
   now: number,
 ): SessionGroup[] {
   const groups = new Map<string, SessionGroup>();
 
   for (const item of items) {
-    // Gộp theo TÊN môn: khoá ngoại tới bảng `course` không còn, và tên là
-    // thứ duy nhất còn lại để nhận ra hai phiên cùng một môn.
-    const key = `${item.courseName}::${item.classId}`;
+    const key = item.classId;
     let group = groups.get(key);
     if (!group) {
       group = {
         key,
-        courseName: item.courseName,
         className: item.className,
         sessions: [],
         attentionCount: 0,

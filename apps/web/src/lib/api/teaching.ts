@@ -8,8 +8,10 @@ import { apiClient } from '@/lib/api-client';
  * Trưởng khoa tạo và phân công. Server vẫn giới hạn theo
  * `class.teacher_id`, nên lớp của người khác không bao giờ xuất hiện.
  *
- * `courseId`/`courseCode` đã biến mất cùng bảng `course`: môn học chỉ còn
- * là một chuỗi giảng viên gõ vào.
+ * `courseName` vẫn được API trả về, nhưng hệ thống phục vụ đúng MỘT môn
+ * nên nó mang cùng một chuỗi ở mọi dòng. Không màn hình nào còn hiển thị nó
+ * như một cột — làm thế chỉ là lặp lại một hằng số khắp giao diện. Trang
+ * `/teacher/rubrics` là chỗ đọc cuối cùng, và nó chờ spec agent điều tra.
  */
 export interface TeachingClass {
   id: string;
@@ -19,9 +21,14 @@ export interface TeachingClass {
   studentCount: number;
 }
 
-/** Chủ sở hữu luôn là người gọi, nên body không mang `teacherId`. */
+/**
+ * Body tạo/sửa lớp.
+ *
+ * Không mang `teacherId` (server lấy từ token) và không mang `courseName`
+ * (một môn duy nhất, server điền hằng số). Cả hai đều bị
+ * `ValidationPipe({ whitelist: true })` cắt nếu client cũ còn gửi kèm.
+ */
 export interface ClassInput {
-  courseName: string;
   name: string;
 }
 

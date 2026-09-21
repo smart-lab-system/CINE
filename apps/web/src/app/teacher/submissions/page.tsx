@@ -14,7 +14,7 @@ import {
   PHASE_VARIANTS,
   getAttentionReasons,
   getSessionPhase,
-  groupByCourseClass,
+  groupByClass,
 } from '@/lib/submission-attention';
 import {
   EMPTY_FILTERS,
@@ -78,8 +78,7 @@ function SearchResultRow({ item, now }: { item: SessionOverviewItem; now: number
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-muted-foreground">
         <span className="text-foreground">
-          {item.courseName}
-          {item.className ? ` — ${item.className}` : ''}
+          {item.className ?? 'Không gắn lớp'}
         </span>
         <span>{formatDateTime(item.startTime)}</span>
         <span>{item.roomName}</span>
@@ -142,7 +141,7 @@ export default function SubmissionsPage() {
 
   const facets = useMemo(() => buildFacets(items, filters, now), [items, filters, now]);
   const visible = useMemo(() => applyFilters(items, filters, now), [items, filters, now]);
-  const groups = useMemo(() => groupByCourseClass(visible, now), [visible, now]);
+  const groups = useMemo(() => groupByClass(visible, now), [visible, now]);
   const roomFailure = useMemo(() => detectRoomFailure(visible, now), [visible, now]);
   const attentionTotal = useMemo(
     () => visible.filter((i) => getAttentionReasons(i, now).length > 0).length,

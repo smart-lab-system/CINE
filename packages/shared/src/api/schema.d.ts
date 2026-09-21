@@ -917,12 +917,10 @@ export interface components {
             updatedAt: string;
         };
         CreateClassDto: {
-            courseName: string;
             name: string;
         };
         UpdateClassDto: {
             name?: string;
-            courseName?: string;
         };
         ImportRosterDto: {
             students: components["schemas"]["RosterStudentDto"][];

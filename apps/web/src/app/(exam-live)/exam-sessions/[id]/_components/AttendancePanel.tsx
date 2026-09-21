@@ -221,7 +221,7 @@ export function AttendancePanel({
         {attendance.makeup.length > 0 && (
           <Group
             title="Thi bù (lớp khác)"
-            description="Đang thi ở đây nhưng thuộc lớp khác của cùng môn — kiểm tra giấy phép thi bù."
+            description="Đang thi ở đây nhưng thuộc lớp khác — kiểm tra giấy phép thi bù."
             students={attendance.makeup}
             empty=""
             showHomeClass

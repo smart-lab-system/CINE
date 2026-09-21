@@ -127,13 +127,19 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
 
 /**
  * Cảnh báo hỏng-theo-phòng: mọi phiên đỏ đang xem cùng một phòng, >=2 phiên,
- * trải >=2 môn. Điều kiện >=2 môn để không kêu oan khi một môn thi nhiều ca ở
- * phòng cố định của nó. Spec §5.5.
+ * trải >=2 LỚP. Điều kiện thứ hai để không kêu oan khi một lớp thi nhiều ca ở
+ * phòng cố định của nó — lúc đó thứ chung là cái lớp, không phải cái phòng.
+ * Spec §5.5.
+ *
+ * Mẫu số từng là "môn", và từ lúc hệ thống chốt phục vụ một môn thì
+ * `courses.size` luôn bằng 1: hàm này LUÔN trả `null` và cái banner không bao
+ * giờ hiện ra nữa. Test cũ không bắt được vì nó tự dựng hai môn khác nhau,
+ * một trạng thái dữ liệu không còn tồn tại được.
  */
 export function detectRoomFailure(
   items: SessionOverviewItem[],
   now: number,
-): { room: string; sessionCount: number; courseCount: number } | null {
+): { room: string; sessionCount: number; classCount: number } | null {
   const red = items.filter((i) =>
     getAttentionReasons(i, now).some((r) => r.kind === 'attended-no-submission'),
   );
@@ -142,8 +148,8 @@ export function detectRoomFailure(
   const rooms = new Set(red.map((i) => i.roomName));
   if (rooms.size !== 1) return null;
 
-  const courses = new Set(red.map((i) => i.courseName));
-  if (courses.size < 2) return null;
+  const classes = new Set(red.map((i) => i.classId));
+  if (classes.size < 2) return null;
 
-  return { room: red[0].roomName, sessionCount: red.length, courseCount: courses.size };
+  return { room: red[0].roomName, sessionCount: red.length, classCount: classes.size };
 }

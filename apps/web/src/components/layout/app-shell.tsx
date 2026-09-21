@@ -12,7 +12,7 @@ import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { UserChip } from '@/components/layout/user-chip';
 import { PageTransition } from '@/components/motion/page-transition';
 import { useCurrentAccount } from '@/hooks/useCurrentAccount';
-import { ADMIN_NAV, DEPARTMENT_NAV, TEACHER_NAV } from '@/lib/nav-config';
+import { ADMIN_NAV, TEACHER_NAV } from '@/lib/nav-config';
 import { cn } from '@/lib/utils';
 
 /** Remembers the rail state across navigations and sessions — a teacher who
@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 const NAV_COLLAPSED_KEY = 'examcollect.nav-collapsed';
 
 interface AppShellProps {
-  role: 'admin' | 'department' | 'teacher';
+  role: 'admin' | 'teacher';
   children: ReactNode;
 }
 
@@ -40,11 +40,14 @@ interface AppShellProps {
  * passed directly to Client Components").
  */
 export function AppShell({ role, children }: AppShellProps) {
-  // One lookup per area rather than nested ternaries — a fourth area is a
+  // One lookup per area rather than nested ternaries — a third area is a
   // row here, not another branch to get wrong.
+  //
+  // Khu vực "Khoa" đã bỏ ngày 2026-09-21: vai trò Trưởng khoa không còn, và
+  // `app/department` đã bị xoá, nên nhánh này trỏ vào một trang không tồn
+  // tại. Kiểu `role` thu lại còn hai giá trị để không ai gọi lại được nó.
   const AREA = {
     admin: { nav: ADMIN_NAV, home: '/admin/dashboard', label: 'Quản trị' },
-    department: { nav: DEPARTMENT_NAV, home: '/department/dashboard', label: 'Khoa' },
     teacher: { nav: TEACHER_NAV, home: '/teacher/dashboard', label: 'Giảng dạy' },
   } as const;
   const { nav, home: homeHref, label: navLabel } = AREA[role];
