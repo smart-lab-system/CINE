@@ -144,11 +144,10 @@ export class SubmissionOverviewService {
         -- Cùng môn VÀ cùng loại kỳ thi, phiên khác. Bỏ điều kiện exam_type
         -- thì sinh viên dự GK rồi bỏ CK sẽ hiện thành "thi bù" ở phiên CK.
         --
-        -- "Cùng môn" giờ là hai chuỗi bằng nhau, không còn là hai khoá ngoại
-        -- bằng nhau. Cùng sự suy giảm như phép chống trùng lịch phòng
-        -- (spec §3.4): hai giảng viên gõ tên môn khác nhau thì phép đối
-        -- chiếu này không bắt được nhau. Nó chỉ làm cột "ngồi phiên khác"
-        -- BỎ SÓT, không bao giờ báo nhầm.
+        -- "Cùng môn" giờ là hai chuỗi bằng nhau, và chuỗi ấy là HẰNG SỐ ở
+        -- mọi phiên, nên vế này luôn đúng: thứ thật sự lọc là exam_type.
+        -- Bản văn bản tự do trước đây BỎ SÓT khi hai giảng viên gõ tên môn
+        -- khác nhau; sau khi chuẩn hoá dữ liệu thì không còn bỏ sót nữa.
         SELECT DISTINCT u.exam_session_id, u.student_mssv
         FROM universe u
         JOIN ${schema}.exam_session s ON s.id = u.exam_session_id

@@ -204,10 +204,10 @@ export class RosterService {
    * dịch.
    *
    * Từng là một câu `WHERE course_id = ?`. Bảng `course` không còn, nên
-   * "cùng môn" là hai chuỗi `class.course_name` bằng nhau — và đây là chỗ
-   * sự suy giảm ở spec §3.4 chạm vào một quy tắc nghiệp vụ: gõ lệch tên môn
-   * một ký tự và hai lớp thôi là anh em của nhau, nên phép chặn chuyển lớp
-   * bên dưới không nhìn thấy nhau nữa. Nó BỎ SÓT chứ không chặn nhầm.
+   * "cùng môn" là hai chuỗi `class.course_name` bằng nhau. Chuỗi ấy là hằng
+   * số ở mọi dòng, nên trên thực tế tập anh em = MỌI lớp — đúng thứ phép
+   * chặn chuyển lớp cần, và không còn khả năng bỏ sót vì gõ lệch tên như
+   * bản văn bản tự do trước đây.
    */
   private async siblingEnrollments(
     manager: EntityManager,

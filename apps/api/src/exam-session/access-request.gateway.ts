@@ -198,12 +198,20 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
       return fail('CLASS_REQUIRED', 'Hãy chọn lớp cho sinh viên này trước khi duyệt.');
     }
 
+    // Vế "cùng môn" hiện LUÔN đúng — `course_name` là hằng số ở mọi dòng
+    // (common/course-name.ts), nên phép tra này trên thực tế chỉ còn kiểm
+    // id có tồn tại không. Giữ nguyên: nó vẫn chặn được một id lớp bịa ra,
+    // và nếu ràng buộc một môn có ngày được nới thì nó tự có nghĩa trở lại.
+    //
+    // Câu báo lỗi vì thế nói về một lý do không thể xảy ra nữa. Đọc nó
+    // trong lúc sự cố mà tưởng "sai môn" là đi nhầm hướng: nguyên nhân
+    // thật sẽ là id lớp không tồn tại.
     const homeClass = await this.classes.findByIdAndCourseName(
       dto.homeClassId,
       session.courseName,
     );
     if (!homeClass) {
-      return fail('CLASS_REQUIRED', 'Lớp được chọn không thuộc môn thi này.');
+      return fail('CLASS_REQUIRED', 'Không tìm thấy lớp được chọn.');
     }
 
     await this.enrollments.addManually({

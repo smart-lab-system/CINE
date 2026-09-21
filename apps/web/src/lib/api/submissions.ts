@@ -5,6 +5,12 @@ export interface SessionOverviewItem {
   id: string;
   name: string;
   code: string;
+  /**
+   * HẰNG SỐ ở mọi phiên — hệ thống phục vụ đúng một môn. ĐỪNG đưa trường
+   * này vào khoá gộp nhóm hay vào một bộ lọc: nó không tách được gì, và
+   * `detectRoomFailure` từng chết âm thầm vì đúng lỗi đó (nó đòi ">=2 môn
+   * khác nhau" nên không bao giờ kêu). Muốn phân biệt thì dùng `classId`.
+   */
   courseName: string;
   classId: string;
   className: string | null;

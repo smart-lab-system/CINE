@@ -42,8 +42,10 @@ export class ClassService {
       .addSelect('COUNT(e.id)', 'studentCount')
       .where('k.teacherId = :teacherId', { teacherId })
       .groupBy('k.id')
-      .orderBy('k.courseName', 'ASC')
-      .addOrderBy('k.name', 'ASC')
+      // Theo TÊN LỚP. Từng sắp theo môn trước, tên sau — nhưng môn là hằng
+      // số nên khoá ấy không tách được gì, chỉ còn nói sai rằng danh sách
+      // có nhóm theo môn.
+      .orderBy('k.name', 'ASC')
       .getRawAndEntities<{ studentCount: string }>();
 
     return entities.map((klass, index) => ({
@@ -76,10 +78,10 @@ export class ClassService {
    * một môn khác, vì bài nộp của em sẽ được định tuyến về một giảng viên
    * chưa từng dạy em.
    *
-   * So sánh theo TÊN môn dạng văn bản, không còn theo khoá ngoại. Đây là
-   * chỗ sự suy giảm ở spec §3.4 chạm vào quyền: "CTDL&GT" và "CTDL & GT"
-   * là hai môn khác nhau, nên một lớp gõ lệch tên sẽ bị từ chối. Từ chối
-   * là phía an toàn của sai sót này.
+   * Phép so giờ luôn đúng: `course_name` là hằng số ở mọi dòng. Giữ lại
+   * như một lưới an toàn — nếu ràng buộc một môn có ngày được nới ra, đây
+   * là chỗ chặn việc gắn sinh viên vào lớp của môn khác, và phía hỏng của
+   * nó là TỪ CHỐI chứ không phải định tuyến nhầm.
    */
   async findByIdAndCourseName(id: string, courseName: string): Promise<ClassEntity | null> {
     return this.classes.findOne({ where: { id, courseName } });

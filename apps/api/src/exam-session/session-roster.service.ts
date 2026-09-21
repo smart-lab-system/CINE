@@ -191,6 +191,10 @@ export class SessionRosterService {
       // giảng viên chưa từng dạy môn này. Trước đợt thu hẹp master data
       // phép tra này khoá theo `course_id`; bản dịch đúng là khoá theo TÊN
       // môn, qua các lớp anh em.
+      //
+      // Tên môn nay là hằng số, nên vế này khớp mọi lớp và thứ thật sự chọn
+      // ra một dòng là ORDER BY bên dưới. Giữ vế lọc: nó vô hại, và nó là
+      // chỗ duy nhất ghi lại rằng phép tra này CÓ phạm vi theo môn.
       const enrollment = await manager
         .getRepository(EnrollmentEntity)
         .createQueryBuilder('e')
