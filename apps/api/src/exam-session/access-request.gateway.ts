@@ -109,8 +109,13 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
     // Nothing to approve if the roster already has them — they should just
     // join. Saying so is more useful than queueing a request the invigilator
     // would approve into a no-op.
-    const existing = await this.enrollments.findForClass(session.classId, dto.studentId);
-    if (existing) {
+    //
+    // Hỏi ẢNH CHỐT, đúng thứ `agent:join` hỏi. Hỏi enrollment của LỚP
+    // PHIÊN thì bỏ sót đúng người hay gửi lại nhất: một em đã được duyệt
+    // trước đó có enrollment ở lớp GỐC của em, không phải ở lớp của phiên,
+    // nên guard không bắt và giám thị thấy lại một yêu cầu đã xử lý.
+    const onRoster = await this.sessionRoster.findEntry(session.id, dto.studentId);
+    if (onRoster) {
       return fail('ALREADY_ENROLLED', 'Bạn đã có trong danh sách — hãy thử tham gia lại.');
     }
 

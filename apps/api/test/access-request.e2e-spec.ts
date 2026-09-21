@@ -239,6 +239,24 @@ describe('Access request (e2e)', () => {
     });
     expect(ackBody.studentName).toBe(STRANGER_NAME);
 
+    // Và một yêu cầu THỨ HAI của cùng em phải bị chặn ngay, không xếp thêm
+    // một dòng vào hàng chờ của giám thị.
+    //
+    // Guard này hỏi ẢNH CHỐT chứ không hỏi enrollment của lớp phiên, và đó là
+    // khác biệt có thật: lượt duyệt ở trên ghi enrollment vào lớp GỐC của em.
+    // Với ca thi bù — lớp gốc KHÁC lớp phiên — hỏi enrollment theo lớp phiên
+    // sẽ không bắt được, và giám thị thấy lại một yêu cầu đã xử lý xong.
+    const again = open();
+    await connected(again);
+    const repeat = await ack<{ ok: boolean; code?: string }>(again, 'agent:request-access', {
+      sessionCode,
+      studentId: STRANGER_MSSV,
+      fullName: STRANGER_NAME,
+      reason: REASON,
+    });
+    expect(repeat.ok).toBe(false);
+    expect(repeat.code).toBe('ALREADY_ENROLLED');
+
     // Và em phải có CHỖ NGỒI, không chỉ có quyền vào.
     //
     // Đây là nửa còn lại của §7.1.2, đi qua một cửa khác. `enrollment`

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
+import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
@@ -179,13 +180,24 @@ export class SessionRosterService {
         );
       }
 
-      // Lớp GỐC của em, nếu em đã có enrollment ở một lớp nào đó. Không
-      // khoá vào `session.classId`: sinh viên thi bù có enrollment ở lớp
-      // khác, và giữ đúng lớp gốc là toàn bộ điểm của phép định tuyến ở
-      // §3.3. Không tìm thấy thì em thuộc lớp của phiên này.
-      const enrollment = await manager.getRepository(EnrollmentEntity).findOne({
-        where: { studentMssv: student.mssv },
-      });
+      // Lớp GỐC của em, trong phạm vi MÔN của phiên này.
+      //
+      // Không khoá vào `session.classId`: sinh viên thi bù có enrollment ở
+      // lớp khác, và giữ đúng lớp gốc là toàn bộ điểm của phép định tuyến ở
+      // §3.3. Nhưng cũng không được hỏi trống: khoá duy nhất giờ là
+      // (home_class_id, student_mssv), nên một sinh viên có NHIỀU dòng
+      // enrollment ở nhiều môn, và một câu `findOne` không phạm vi sẽ trả
+      // về dòng nào tuỳ thứ tự DB — bài của em bị định tuyến sang một
+      // giảng viên chưa từng dạy môn này. Trước đợt thu hẹp master data
+      // phép tra này khoá theo `course_id`; bản dịch đúng là khoá theo TÊN
+      // môn, qua các lớp anh em.
+      const enrollment = await manager
+        .getRepository(EnrollmentEntity)
+        .createQueryBuilder('e')
+        .innerJoin(ClassEntity, 'c', 'c.id = e.home_class_id')
+        .where('e.student_mssv = :mssv', { mssv: student.mssv })
+        .andWhere('c.course_name = :courseName', { courseName: session.courseName })
+        .getOne();
 
       // Em có enrollment (thi bù lớp khác) thì giữ lớp/GV GỐC của họ —
       // định tuyến ở §3.3. Không có enrollment nào thì họ thuộc lớp của

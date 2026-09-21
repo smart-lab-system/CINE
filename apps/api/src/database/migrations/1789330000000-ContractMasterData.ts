@@ -46,12 +46,16 @@ export class ContractMasterData1789330000000 implements MigrationInterface {
     // "P A101" là hai phòng khác nhau với Postgres. Ràng buộc tụt từ BẢO
     // ĐẢM xuống NỖ LỰC TỐT NHẤT, và nó chỉ BỎ SÓT chứ không bao giờ báo
     // nhầm.
+    //
+    // MỘT câu lệnh, không phải hai. `data-source.ts` đặt
+    // `migrationsTransactionMode: 'none'`, nên một cặp DROP rồi ADD sẽ để
+    // hở một khoảnh khắc KHÔNG CÓ ràng buộc nào — và đó đúng là lúc
+    // migration đang giữ khoá trên bảng, tức là lúc mọi request đặt phòng
+    // đang xếp hàng chờ. Gộp vào một `ALTER TABLE` thì Postgres áp cả hai
+    // nguyên tử trong cùng một lần lấy khoá.
     await queryRunner.query(`
       ALTER TABLE "examcollect"."exam_session"
-        DROP CONSTRAINT IF EXISTS "ex_exam_session_room_overlap"
-    `);
-    await queryRunner.query(`
-      ALTER TABLE "examcollect"."exam_session"
+        DROP CONSTRAINT IF EXISTS "ex_exam_session_room_overlap",
         ADD CONSTRAINT "ex_exam_session_room_overlap"
         EXCLUDE USING gist (
           "room_name" WITH =,

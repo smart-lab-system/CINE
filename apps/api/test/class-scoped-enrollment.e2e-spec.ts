@@ -195,4 +195,49 @@ describe('Enrollment khoá theo lớp (e2e)', () => {
     expect(mssvs).toContain(IN_CLASS);
     expect(mssvs).not.toContain(OTHER_CLASS);
   });
+
+  it('thêm tay lấy lớp gốc trong ĐÚNG MÔN của phiên, không lấy môn khác', async () => {
+    // Khoá duy nhất của enrollment giờ là (home_class_id, student_mssv), nên
+    // một sinh viên có NHIỀU dòng — mỗi lớp một dòng, kể cả khác môn. Câu tra
+    // "lớp gốc của em" mà không giới hạn theo môn sẽ trả về dòng nào tuỳ thứ
+    // tự DB, và bài của em bị định tuyến về một giảng viên chưa từng dạy môn
+    // này. Trước đợt thu hẹp master data phép tra đó khoá theo `course_id`.
+    const [otherTeacherEmail, otherCourse] = [
+      `class_scope_other_${stamp}@example.com`,
+      `Mon hoan toan khac ${stamp}`,
+    ];
+    const otherTeacherId = await createTestAccount(dataSource, {
+      email: otherTeacherEmail,
+      password: 'correct-horse-battery',
+      role: 'teacher',
+    });
+    const [foreignClass] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [otherCourse, `Nhom mon khac ${stamp}`, otherTeacherId],
+    );
+
+    // Em này thuộc lớp B (cùng môn với phiên) VÀ một lớp của môn khác.
+    await dataSource.query(
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [OTHER_CLASS, 'Sinh vien lop B', foreignClass.id, otherTeacherId],
+    );
+
+    const added = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/roster/students`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ mssv: OTHER_CLASS, name: 'Sinh vien lop B' });
+    expect(added.status).toBe(201);
+
+    const [row] = await dataSource.query(
+      `SELECT home_class_id, home_teacher_id FROM examcollect.session_roster
+        WHERE exam_session_id = $1 AND student_mssv = $2`,
+      [sessionId, OTHER_CLASS],
+    );
+    // Lớp B — cùng môn với phiên — chứ KHÔNG phải lớp của môn kia.
+    expect(row.home_class_id).toBe(classBId);
+    expect(row.home_teacher_id).toBe(teacherId);
+  });
 });
