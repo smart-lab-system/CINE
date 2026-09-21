@@ -29,6 +29,8 @@ export function result(over: Partial<GradingResult> = {}): GradingResult {
     submissionId: 's1',
     studentMssv: '2151010023',
     studentName: 'Nguyễn Minh Anh',
+    homeClassId: 'class-a',
+    homeClassName: 'N01',
     status: 'flagged_for_review',
     modelUsed: 'keyword-match@1',
     aiTotalScore: 1.5,
@@ -64,6 +66,8 @@ export const noAdvocate = result({ id: 'r2', studentName: 'Trần Gia Bảo', st
 export const agreed = result({
   id: 'r3',
   studentName: 'Lê Thanh Hà',
+  homeClassId: 'class-a',
+  homeClassName: 'N01',
   studentMssv: '2151010025',
   advocateOpinion: opinion({
     suggestedVerdicts: [{ criterionId: 'c1', suggestedVerdict: 'not_met', why: 'Chưa đạt.' }],
@@ -74,6 +78,8 @@ export const agreed = result({
 export const stillGrading = result({
   id: 'r4',
   studentName: 'Võ Hoàng Nam',
+  homeClassId: 'class-a',
+  homeClassName: 'N01',
   studentMssv: '2151010026',
   status: 'ai_grading',
   aiTotalScore: null,

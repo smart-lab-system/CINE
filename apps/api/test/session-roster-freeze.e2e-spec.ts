@@ -44,7 +44,7 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
     id: string;
     code: string;
     classId: string;
-    courseId: string;
+    courseName: string;
     endTime: Date;
     deliverableIds: string[];
     students: string[];
@@ -54,25 +54,13 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
   async function seedSession(options: { students: number; deliverables?: string[] } = { students: 2 }): Promise<Seeded> {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`HK Freeze ${suffix}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Freeze Course', $2) RETURNING id`,
-      [`FZ${suffix}`.slice(0, 20), semester.id],
-    );
+    const course = { name: 'Freeze Course' };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [course.id, `Nhóm ${suffix}`, teacherId],
+      [course.name, `Nhóm ${suffix}`, teacherId],
     );
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`Freeze Room ${suffix}`],
-    );
+    const room = { name: `Freeze Room ${suffix}` };
 
     const students: string[] = [];
     for (let i = 1; i <= options.students; i++) {
@@ -80,9 +68,9 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
       students.push(mssv);
       await dataSource.query(
         `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [mssv, `Sinh viên ${i} của ${suffix}`, course.id, klass.id, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+        [mssv, `Sinh viên ${i} của ${suffix}`, klass.id, teacherId],
       );
     }
 
@@ -92,7 +80,8 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
       .send({
         name: `Phiên đóng băng ${suffix}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -104,7 +93,7 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
       id: created.body.id as string,
       code: created.body.code as string,
       classId: klass.id as string,
-      courseId: course.id as string,
+      courseName: course.name as string,
       endTime: new Date(created.body.endTime as string),
       deliverableIds: (created.body.requiredDeliverables as Array<{ id: string }>).map((d) => d.id),
       students,
@@ -259,9 +248,9 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
 
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [`FZLATE${Date.now() % 100000}`, 'Nguyễn Văn Muộn', session.courseId, session.classId, teacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [`FZLATE${Date.now() % 100000}`, 'Nguyễn Văn Muộn', session.classId, teacherId],
     );
 
     // 2, KHÔNG phải 3. Đây là toàn bộ lý do bảng này tồn tại.

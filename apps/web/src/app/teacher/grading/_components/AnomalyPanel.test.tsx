@@ -6,7 +6,8 @@ import type { AdvocateOpinion, GradingResult, Rubric } from '@/lib/api/grading';
 
 const rubric: Rubric = {
   id: 'rub-1',
-  courseId: 'c-1',
+  teacherId: 'gv-1',
+  name: 'Rubric CTDL',
   version: 3,
   isActive: true,
   totalPoints: 4,
@@ -19,6 +20,8 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
     submissionId: 's1',
     studentMssv: '2151010023',
     studentName: 'Nguyễn Minh Anh',
+    homeClassId: 'class-a',
+    homeClassName: 'N01',
     status: 'flagged_for_review',
     modelUsed: 'keyword-match@1',
     aiTotalScore: 0,

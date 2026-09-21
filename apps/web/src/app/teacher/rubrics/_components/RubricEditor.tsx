@@ -9,21 +9,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRubrics, useSaveRubric } from '@/hooks/useGrading';
 /**
- * Rubric của MỘT môn học. Lưu luôn tạo một phiên bản MỚI — không có
- * đường update ở API, vì sửa tiêu chí mà kết quả đã trỏ tới là đúng thứ
- * Security rule 7 cấm. Thẻ này nói rõ điều đó, để số phiên bản tăng dần
- * lúc soạn đọc ra là có chủ đích chứ không phải lỗi.
+ * MỘT rubric, qua mọi phiên bản của nó. Lưu luôn tạo một phiên bản MỚI —
+ * không có đường update ở API, vì sửa tiêu chí mà kết quả đã trỏ tới là
+ * đúng thứ Security rule 7 cấm. Thẻ này nói rõ điều đó, để số phiên bản
+ * tăng dần lúc soạn đọc ra là có chủ đích chứ không phải lỗi.
+ *
+ * Định danh là TÊN, không còn là môn học: rubric thuộc về giảng viên từ
+ * đợt thu hẹp master data, và lưu lại cùng một tên là tạo bản kế tiếp
+ * của cùng một rubric.
  */
-export function RubricEditor({
-  courseId,
-  courseName,
-}: {
-  courseId: string;
-  courseName: string;
-}) {
-  const rubrics = useRubrics(courseId);
-  const save = useSaveRubric(courseId);
-  const active = rubrics.data?.find((rubric) => rubric.isActive);
+export function RubricEditor({ name }: { name: string }) {
+  const rubrics = useRubrics();
+  const save = useSaveRubric();
+  const versions = (rubrics.data ?? []).filter((rubric) => rubric.name === name);
+  const active = versions.find((rubric) => rubric.isActive);
+  // Đếm bản của CHÍNH rubric này. Danh sách trả về mọi rubric của giảng
+  // viên, nên đếm cả mảng sẽ nói "12 phiên bản" cho một rubric có một bản.
+  const versionCount = versions.length;
   const [draft, setDraft] = useState<{ description: string; maxPoints: string }[] | null>(
     null,
   );
@@ -44,7 +46,7 @@ export function RubricEditor({
     <Card>
       <CardHeader className="flex-row flex-wrap items-center justify-between gap-4">
         <CardTitle className="text-h3">
-          {courseName}
+          {name}
           {active && (
             <span className="ml-2 font-normal text-muted-foreground">
               phiên bản {active.version} · {active.totalPoints} điểm
@@ -58,12 +60,15 @@ export function RubricEditor({
           loading={save.isPending}
           onClick={() =>
             save.mutate(
-              rows
-                .filter((row) => row.description.trim() !== '')
-                .map((row) => ({
-                  description: row.description.trim(),
-                  maxPoints: Number(row.maxPoints) || 0,
-                })),
+              {
+                name,
+                criteria: rows
+                  .filter((row) => row.description.trim() !== '')
+                  .map((row) => ({
+                    description: row.description.trim(),
+                    maxPoints: Number(row.maxPoints) || 0,
+                  })),
+              },
               { onSuccess: () => setDraft(null) },
             )
           }
@@ -146,10 +151,10 @@ export function RubricEditor({
           Thêm tiêu chí
         </Button>
 
-        {rubrics.data && rubrics.data.length > 1 && (
+        {versionCount > 1 && (
           <p className="flex items-center gap-2 text-caption text-muted-foreground">
             <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />
-            Đã có {rubrics.data.length} phiên bản. Các phiên bản cũ được giữ lại để đối chiếu
+            Đã có {versionCount} phiên bản. Các phiên bản cũ được giữ lại để đối chiếu
             với những bài đã chấm theo chúng.
           </p>
         )}

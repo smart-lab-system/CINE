@@ -21,12 +21,10 @@ describe('Roster import (e2e)', () => {
   let app: INestApplication;
   let dataSource: DataSource;
 
-  let headToken: string;
-  let otherHeadToken: string;
   let teacherToken: string;
   let otherTeacherToken: string;
   let lecturerId: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
   let siblingClassId: string;
 
@@ -37,7 +35,7 @@ describe('Roster import (e2e)', () => {
     return response.body.accessToken;
   }
 
-  async function makeAccount(prefix: string, role: 'department_admin' | 'teacher') {
+  async function makeAccount(prefix: string, role: 'admin' | 'teacher') {
     const email = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}@example.com`;
     const id = await createTestAccount(dataSource, {
       email,
@@ -77,40 +75,26 @@ describe('Roster import (e2e)', () => {
     await app.init();
     dataSource = app.get(DataSource);
 
-    const head = await makeAccount('roster_head', 'department_admin');
-    headToken = head.token;
-    otherHeadToken = (await makeAccount('roster_other', 'department_admin')).token;
-
     const lecturer = await makeAccount('roster_lecturer', 'teacher');
     lecturerId = lecturer.id;
     teacherToken = lecturer.token;
     otherTeacherToken = (await makeAccount('roster_other_teacher', 'teacher')).token;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Roster Semester ${Date.now()}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id, department_head_id)
-       VALUES ($1, 'Môn có danh sách', $2, $3) RETURNING id`,
-      [`RS${Date.now()}`.slice(0, 20), semester.id, head.id],
-    );
-    courseId = course.id;
+    courseName = 'Môn có danh sách';
 
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm chính ${Date.now()}`, lecturerId],
+      [courseName, `Nhóm chính ${Date.now()}`, lecturerId],
     );
     classId = klass.id;
 
     // A second class under the SAME course — the cross-class case the
     // unique key (course_id, student_mssv) makes possible.
     const [sibling] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm phụ ${Date.now()}`, lecturerId],
+      [courseName, `Nhóm phụ ${Date.now()}`, lecturerId],
     );
     siblingClassId = sibling.id;
   });
@@ -122,10 +106,10 @@ describe('Roster import (e2e)', () => {
   /** A fresh class per test, so one test's roster is never another's fixture. */
   async function freshClass(): Promise<string> {
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
       [
-        courseId,
+        courseName,
         `Nhóm ${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
         lecturerId,
       ],
@@ -322,34 +306,6 @@ describe('Roster import (e2e)', () => {
 
     // class.teacher_id is the whole of a lecturer's scope. It is the only
     // thing standing between them and rewriting a colleague's class list.
-    expect(response.status).toBe(403);
-  });
-
-  it('refuses a Trưởng khoa writing the list, while letting them read it', async () => {
-    const id = await freshClass();
-    await importRoster(id, teacherToken, {
-      students: [{ mssv: mssv('q'), name: 'Do giảng viên nhập' }],
-    });
-
-    // Read: a head needs their department's headcounts.
-    const read = await readRoster(id, headToken);
-    expect(read).toHaveLength(1);
-
-    // Write: exactly ONE writer per list. Two roles maintaining the same
-    // roster means two people who can disagree about who maintains it.
-    const written = await importRoster(id, headToken, {
-      students: [{ mssv: mssv('r'), name: 'Trưởng khoa sửa' }],
-    });
-    expect(written.status).toBe(403);
-  });
-
-  it('refuses a head reading a class outside their own courses', async () => {
-    const id = await freshClass();
-
-    const response = await request(app.getHttpServer())
-      .get(`/classes/${id}/roster`)
-      .set('Authorization', `Bearer ${otherHeadToken}`);
-
     expect(response.status).toBe(403);
   });
 

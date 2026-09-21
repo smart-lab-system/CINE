@@ -97,6 +97,32 @@ ta *tin* là đã chạy thay vì thứ đã chạy thật.
 (`context_used_* IS NULL`). **Đừng gộp vào A** — gộp là bịa ra một sự thật
 lịch sử, và làm bẩn đúng cái nhánh cơ sở mà mọi so sánh dựa vào.
 
+### Lượt phản biện HỎNG không phải nhánh B
+
+Trước 2026-09-20, nhánh được suy từ `advocate_opinion IS NOT NULL`. Cột đó
+là `null` cho **ba** ca khác hẳn nhau: không cần phản biện, cố ý bỏ qua vì
+phiên thiếu đề bài, và **đã chạy và hỏng** (lỗi bị nuốt có chủ đích trong
+`grading.service.ts`). Ca thứ ba vì thế bị đếm vào nhánh B — nên nhánh C
+thiếu đúng những bài mà phản biện gặp khó nhất, nhánh B lẫn những bài đáng
+lẽ thuộc C, và phép so sánh "phản biện có giúp không" chạy trên hai tập đã
+nhiễm nhau.
+
+Giờ nhánh suy từ `advocate_outcome = 'completed'`, và cột `advocate_outcome`
+thô đi kèm trong `results.csv` để tách được `failed` khỏi `not_needed`.
+
+| Giá trị | Nghĩa | Nhánh |
+|---|---|---|
+| `completed` | Đã chạy, có ý kiến | B hoặc C tuỳ ngữ cảnh |
+| `not_needed` | Bài sạch, cổng không mở | không phải C |
+| `skipped` | Phiên thiếu đề bài | không phải C |
+| `failed` | **Đã cố và hỏng** | **không phải B** — đọc mục dưới |
+| `NULL` | Chấm trước 2026-09-20 | `?` |
+
+**`failed` là tín hiệu về HẠ TẦNG, không phải về phương pháp.** Tỉ lệ
+`failed` cao nghĩa là nhánh C đang thiếu dữ liệu, **không** phải phản biện
+không giúp được gì. Đọc bảng 5 của `free-metrics.sql` **trước** khi kết
+luận bất cứ điều gì về nhánh C.
+
 ---
 
 ## Báo cáo hai lớp — §11.3

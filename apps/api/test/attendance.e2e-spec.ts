@@ -29,10 +29,10 @@ describe('Attendance (e2e)', () => {
   let teacherToken: string;
   let teacherId: string;
   let otherToken: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
   let siblingClassId: string;
-  let roomId: string;
+  let roomName: string;
 
   const sockets: Socket[] = [];
   const stamp = Date.now().toString(36);
@@ -99,7 +99,8 @@ describe('Attendance (e2e)', () => {
       .send({
         name: `${name} ${Date.now()}`,
         classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() + startOffsetMs).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -110,6 +111,23 @@ describe('Attendance (e2e)', () => {
     // dự thi. Roster của lớp này đã nhập ở beforeAll.
     await openSession(app, teacherToken, created.body.id);
     return { id: created.body.id, code: created.body.code };
+  }
+
+  /**
+   * Đưa em thi bù vào ảnh chốt của MỘT phiên, đúng route giám thị bấm.
+   *
+   * Từ đợt thu hẹp master data, `agent:join` hỏi ảnh chốt của phiên chứ
+   * không hỏi enrollment của môn. Em lớp N05 vì thế không tự vào được nữa —
+   * và đó là hành vi đã chọn: một người phải mở cửa, và lượt mở để lại dấu.
+   * Ảnh chốt giữ nguyên lớp GỐC của em, nên nhóm "thi bù" của sảnh vẫn nói
+   * được em đến từ đâu.
+   */
+  async function addMakeupToRoster(sessionId: string): Promise<void> {
+    const added = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/roster/students`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ mssv: MAKEUP, name: 'Phạm Thi Bù' });
+    expect(added.status).toBe(201);
   }
 
   beforeAll(async () => {
@@ -137,40 +155,31 @@ describe('Attendance (e2e)', () => {
     });
     otherToken = await login(otherEmail);
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Attendance Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn điểm danh', $2) RETURNING id`,
-      [`AT${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Môn điểm danh' };
+    courseName = course.name;
 
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm chính ${stamp}`, teacherId],
+      [courseName, `Nhóm chính ${stamp}`, teacherId],
     );
     classId = klass.id;
 
     const [sibling] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm N05 ${stamp}`, teacherId],
+      [courseName, `Nhóm N05 ${stamp}`, teacherId],
     );
     siblingClassId = sibling.id;
 
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Attendance Room ${stamp}`],
-    );
-    roomId = room.id;
+    const room = { name: `Attendance Room ${stamp}` };
+    roomName = room.name;
 
-    // Three students in this class, one enrolled in the course through a
-    // different class — the make-up case the course-level auth exists for.
+    // Ba sinh viên của lớp này, cộng một em có lớp gốc KHÁC — ca thi bù.
+    // Trước đợt thu hẹp master data, em thứ tư vào thẳng được vì xác thực
+    // chạy ở cấp môn. Giờ em phải được đưa vào ẢNH CHỐT của phiên trước,
+    // đúng như giám thị làm khi duyệt một yêu cầu xin phép; xem lời gọi
+    // `addMakeupToRoster` trong từng ca cần em.
     for (const [mssv, name, home] of [
       [IN_CLASS_A, 'Nguyễn Văn A', classId],
       [IN_CLASS_B, 'Trần Thị B', classId],
@@ -179,9 +188,9 @@ describe('Attendance (e2e)', () => {
     ] as const) {
       await dataSource.query(
         `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [mssv, name, courseId, home, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+        [mssv, name, home, teacherId],
       );
     }
   });
@@ -197,8 +206,8 @@ describe('Attendance (e2e)', () => {
   afterEach(async () => {
     await dataSource.query(
       `UPDATE examcollect.exam_session SET status = 'completed'
-       WHERE room_id = $1 AND status <> 'completed'`,
-      [roomId],
+       WHERE room_name = $1 AND status <> 'completed'`,
+      [roomName],
     );
   });
 
@@ -246,7 +255,8 @@ describe('Attendance (e2e)', () => {
       .send({
         name: `Chưa mở ${Date.now()}`,
         classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -271,6 +281,7 @@ describe('Attendance (e2e)', () => {
 
   it('splits the room into in-class, missing, and make-up', async () => {
     const session = await createSession('Three Groups');
+    await addMakeupToRoster(session.id);
     await joinAgent(session.code, IN_CLASS_A);
     await joinAgent(session.code, MAKEUP);
 

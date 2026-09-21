@@ -6,7 +6,9 @@ export interface AccountView {
   id: string;
   name: string;
   email: string;
-  role: AccountRoleOption | 'super_admin' | 'department_admin';
+  /** Vai trò trên token. Một token cũ còn hạn vẫn có thể mang giá trị đã
+   *  rút, nên kiểu ở đây rộng hơn danh sách tạo được. */
+  role: AccountRoleOption | (string & {});
   /** `false` = bị vô hiệu hoá: không đăng nhập được, nhưng dữ liệu còn nguyên. */
   isActive: boolean;
   createdAt: string;

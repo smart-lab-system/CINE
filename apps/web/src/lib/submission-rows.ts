@@ -1,5 +1,6 @@
 import type { Attendance } from './api/attendance';
 import type { SubmissionStatusItem } from './api/exam-session';
+import { isMakeupSubmission } from './grading-triage';
 
 /**
  * Shared between the lobby page (live, one exam session) and the
@@ -14,6 +15,14 @@ export interface SubmissionRowStudent {
   studentMssv: string;
   /** Whatever the student typed into the agent; falls back to the MSSV. */
   fullName: string;
+  /**
+   * Lớp gốc của em, CHỈ khi nó khác lớp của phiên — tức em thi bù.
+   * `undefined` với sinh viên của chính lớp này.
+   *
+   * Tên chứ không phải cờ boolean: biết "thi bù" mà không biết "từ lớp
+   * nào" thì giảng viên vẫn phải đi tra.
+   */
+  makeupFromClass?: string;
   /** Keyed by requiredDeliverableId. A missing key means "chưa nộp". */
   byDeliverable: Record<
     string,
@@ -68,6 +77,13 @@ export function buildSubmissionRows(
 
   for (const item of submissions ?? []) {
     const row = ensure(item.studentMssv, item.studentNameInput || item.studentMssv);
+
+    // THI BÙ: lớp gốc của bài khác lớp của phiên. Đọc từ chính bài nộp
+    // chứ không từ nhóm `makeup` của sảnh thi — nhóm đó chỉ gồm người
+    // ĐANG kết nối, nên một em thi bù đã nộp rồi tắt máy sẽ rơi khỏi nó.
+    if (isMakeupSubmission(item.homeClassId, attendance?.classId ?? null)) {
+      row.makeupFromClass = item.homeClassName ?? item.homeClassId;
+    }
     // `received`/`validated` tồn tại vài mili giây trong một transaction
     // phía server — không phải thứ giảng viên hành động được, nên không
     // hiện. `not_submitted` cũng không: nó rơi về "Chưa nộp", đúng bằng

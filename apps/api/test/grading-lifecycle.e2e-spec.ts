@@ -4,6 +4,10 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { GradingService } from '../src/grading/grading.service';
 
+// Tên rubric phải duy nhất theo LƯỢT CHẠY: uq_rubric_teacher_name_version
+// sống qua nhiều lượt, còn tên môn trong bộ fixture này là hằng chuỗi.
+const RUBRIC_STAMP = Date.now().toString(36);
+
 /**
  * Vòng đời `grading_result` ở tầng DB.
  *
@@ -19,7 +23,7 @@ describe('Vòng đời grading_result (e2e)', () => {
   let dataSource: DataSource;
   let teacherId: string;
   let classId: string;
-  let courseId: string;
+  let courseName: string;
   let sessionId: string;
   let deliverableId: string;
   let rubricVersionCursor = 0;
@@ -39,35 +43,25 @@ describe('Vòng đời grading_result (e2e)', () => {
     );
     teacherId = teacher.id;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`HK Lifecycle ${suffix}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn vòng đời', $2) RETURNING id`,
-      [`LC${suffix}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Môn vòng đời' };
+    courseName = course.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseId, teacherId],
+      [courseName, teacherId],
     );
     classId = klass.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`P Lifecycle ${suffix}`],
-    );
+    const room = { name: `P Lifecycle ${suffix}` };
     const [session] = await dataSource.query(
       `INSERT INTO examcollect.exam_session
-         (name, code, class_id, course_id, teacher_id, room_id, exam_type,
-          start_time, end_time, status, semester_name)
-       VALUES ('Phiên vòng đời', $1, $2, $3, $4, $5, 'CK',
-               now() - interval '1 hour', now() + interval '1 hour', 'active', $6)
+         (name, code, class_id, teacher_id, exam_type,
+          start_time, end_time, status, semester_name,
+          course_name, room_name)
+       VALUES ('Phiên vòng đời', $1, $2, $4, 'CK',
+               now() - interval '1 hour', now() + interval '1 hour', 'active', $6,
+               $3, $5)
        RETURNING id`,
-      [`LCC${suffix}`.slice(0, 20), classId, courseId, teacherId, room.id, `HK Lifecycle ${suffix}`],
+      [`LCC${suffix}`.slice(0, 20), classId, courseName, teacherId, room.name, `HK Lifecycle ${suffix}`],
     );
     sessionId = session.id;
     const [deliverable] = await dataSource.query(
@@ -112,8 +106,9 @@ describe('Vòng đời grading_result (e2e)', () => {
 
     rubricVersionCursor += 1;
     const [rubric] = await dataSource.query(
-      `INSERT INTO examcollect.rubric (course_id, version) VALUES ($1, $2) RETURNING id`,
-      [courseId, rubricVersionCursor],
+      `INSERT INTO examcollect.rubric (version, teacher_id, name)
+       VALUES ($2, $3, $1) RETURNING id`,
+      [`${courseName} ${RUBRIC_STAMP}`, rubricVersionCursor, teacherId],
     );
 
     const [result] = await dataSource.query(
@@ -313,6 +308,41 @@ describe('Vòng đời grading_result (e2e)', () => {
         [id],
       ),
     ).rejects.toThrow(/immutable/i);
+  });
+
+  it('T-ADVO-5: advocate_outcome bất biến sau khi đã chốt điểm', async () => {
+    // Cùng lập luận với `context_used_*` ngay trên: cột này nói lượt phản
+    // biện ĐÃ XẢY RA CHUYỆN GÌ, và `export.py` đọc nó để suy nhánh
+    // A/B/C/D. Sửa được sau khi chốt nghĩa là đổi được một lượt phản biện
+    // hỏng thành một lượt phản biện thành công bằng một câu UPDATE.
+    const id = await seedGradingResultAtAiGrading();
+    await dataSource.query(
+      `UPDATE examcollect.grading_result
+          SET status = 'ai_graded', ai_total_score = 7.5, confidence = 0.3,
+              advocate_outcome = 'failed'
+        WHERE id = $1`,
+      [id],
+    );
+
+    await expect(
+      dataSource.query(
+        `UPDATE examcollect.grading_result SET advocate_outcome = 'completed' WHERE id = $1`,
+        [id],
+      ),
+    ).rejects.toThrow(/immutable/i);
+  });
+
+  it('T-ADVO-5b: dòng chưa chốt điểm vẫn ghi advocate_outcome được', async () => {
+    // Vế ngược lại, và nó cần thiết: guard chỉ được chặn khi
+    // `ai_total_score IS NOT NULL`. Nếu nó chặn sớm hơn thế thì đường ghi
+    // bình thường của `gradeOne` sẽ chết, và chỉ test này bắt được.
+    const id = await seedGradingResultAtAiGrading();
+    await expect(
+      dataSource.query(
+        `UPDATE examcollect.grading_result SET advocate_outcome = 'not_needed' WHERE id = $1`,
+        [id],
+      ),
+    ).resolves.not.toThrow();
   });
 
   it('đường cũ ai_grading → ai_graded vẫn đi được', async () => {

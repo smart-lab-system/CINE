@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { CalendarClock, Copy, DoorOpen, Plus } from 'lucide-react';
@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useTeachingClasses } from '@/hooks/useTeaching';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -24,7 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EXAM_TYPE_LABELS, getDisplaySessionStatus } from '@/lib/exam-session-display';
-import { useSemesterFilter } from '@/hooks/useSemesterFilter';
+import { semesterOptions, useSemesterFilter } from '@/hooks/useSemesterFilter';
 import { SemesterFilter } from '@/components/layout/semester-filter';
 import type { ExamSessionStatusFilter, ExamType } from '@/lib/api/exam-session';
 
@@ -76,7 +77,13 @@ function formatDateTime(iso: string): string {
  * một thao tác).
  */
 export default function ExamSessionsListPage() {
+  const teachingClasses = useTeachingClasses();
+  // MỌI lớp của giảng viên, không chỉ những lớp có phiên trên trang đang
+  // xem — cùng lý do với danh sách học kỳ bên dưới.
+  const classChoices = teachingClasses.data ?? [];
+
   const [page, setPage] = useState(1);
+  const [classId, setClassId] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<ExamSessionStatusFilter | 'all'>('all');
   const [examType, setExamType] = useState<ExamType | 'all'>('all');
@@ -91,12 +98,35 @@ export default function ExamSessionsListPage() {
     examType: examType === 'all' ? undefined : examType,
     // `?? undefined`: null nghĩa là "tất cả kỳ", và cách nói điều đó với
     // API là KHÔNG gửi tham số — xem doc của SearchExamSessionsParams.
-    semesterId: semesterFilter.semesterId ?? undefined,
+    semesterName: semesterFilter.semesterName ?? undefined,
+    classId: classId === 'all' ? undefined : classId,
   });
+
+  // Danh sách kỳ đến từ SERVER, tính trên toàn bộ phiên của giảng viên và
+  // cố ý không chịu ảnh hưởng của bộ lọc đang bật.
+  //
+  // Bản trước tự gom danh sách này từ những trang đã tải, nên một kỳ chỉ
+  // xuất hiện ở trang 3 thì không chọn được cho tới khi người dùng lật tới
+  // trang 3 — trong khi phép lọc lại chạy trên TOÀN BỘ dữ liệu.
+  //
+  // Vẫn giữ lại danh sách cũ trong lúc tải: mỗi lần đổi bộ lọc là một
+  // queryKey mới nên `data` về `undefined`, và dropdown sẽ chớp mất hết lựa
+  // chọn giữa hai lần fetch.
+  const [knownSemesters, setKnownSemesters] = useState<string[]>([]);
+  useEffect(() => {
+    if (data?.semesterNames) {
+      setKnownSemesters(data.semesterNames);
+    }
+  }, [data]);
+  const semesterChoices = semesterOptions([
+    ...knownSemesters,
+    semesterFilter.semesterName,
+  ]);
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const hasActiveFilters = search.trim() !== '' || status !== 'all' || examType !== 'all';
+  const hasActiveFilters =
+    search.trim() !== '' || status !== 'all' || examType !== 'all' || classId !== 'all';
 
   function handleSearchChange(value: string) {
     setSearch(value);
@@ -113,8 +143,15 @@ export default function ExamSessionsListPage() {
     setPage(1);
   }
 
+  function handleClassChange(value: string) {
+    setClassId(value);
+    // Cùng lý do với đổi học kỳ: trang 3 của lớp này có thể không tồn tại
+    // ở lớp kia, và bảng hiện ra rỗng như thể lớp đó chưa từng thi.
+    setPage(1);
+  }
+
   function handleSemesterChange(value: string | null) {
-    semesterFilter.setSemesterId(value);
+    semesterFilter.setSemesterName(value);
     // Đang ở trang 3 của kỳ này mà đổi kỳ thì trang 3 của kỳ kia có thể
     // không tồn tại, và bảng hiện ra rỗng như thể kỳ đó không có phiên nào.
     setPage(1);
@@ -124,6 +161,7 @@ export default function ExamSessionsListPage() {
     setSearch('');
     setStatus('all');
     setExamType('all');
+    setClassId('all');
     setPage(1);
   }
 
@@ -144,13 +182,27 @@ export default function ExamSessionsListPage() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <SemesterFilter
-          value={semesterFilter.semesterId}
+          value={semesterFilter.semesterName}
           onChange={handleSemesterChange}
-          semesters={semesterFilter.semesters}
-          current={semesterFilter.current}
-          isStale={semesterFilter.isStale}
-          staleDays={semesterFilter.staleDays}
+          semesters={semesterChoices}
         />
+        {/* Chỉ một lớp thì ô này là nhiễu — cùng luật với Phòng và Loại
+            kỳ thi ở màn Bài thu. Học kỳ thì cố ý KHÔNG theo luật đó. */}
+        {classChoices.length > 1 && (
+          <Select value={classId} onValueChange={handleClassChange}>
+            <SelectTrigger className="sm:w-56" aria-label="Lọc theo lớp">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả lớp</SelectItem>
+              {classChoices.map((klass) => (
+                <SelectItem key={klass.id} value={klass.id}>
+                  {klass.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Input
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
@@ -222,7 +274,7 @@ export default function ExamSessionsListPage() {
                   </Button>
                 }
               />
-            ) : semesterFilter.semesterId !== null ? (
+            ) : semesterFilter.semesterName !== null ? (
               <EmptyState
                 icon={CalendarClock}
                 title="Không có phiên thi nào trong học kỳ này"
@@ -262,7 +314,6 @@ export default function ExamSessionsListPage() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead>Tên phiên thi</TableHead>
                     <TableHead>Mã phiên thi</TableHead>
-                    <TableHead>Môn thi</TableHead>
                     <TableHead>Lớp</TableHead>
                     <TableHead>Phòng</TableHead>
                     <TableHead>Loại</TableHead>
@@ -299,7 +350,6 @@ export default function ExamSessionsListPage() {
                             />
                           </button>
                         </TableCell>
-                        <TableCell>{session.courseName}</TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground">{session.className ?? String.fromCharCode(8212)}</TableCell>
                         <TableCell className="whitespace-nowrap">{session.roomName}</TableCell>
                         <TableCell className="whitespace-nowrap">

@@ -24,7 +24,7 @@ describe('Grading (e2e)', () => {
   let token: string;
   let otherToken: string;
   let teacherId: string;
-  let courseId: string;
+  let courseName: string;
   let sessionId: string;
   let deliverableId: string;
   const stamp = Date.now().toString(36);
@@ -37,11 +37,14 @@ describe('Grading (e2e)', () => {
     return response.body.accessToken;
   }
 
+  const RUBRIC_NAME = `Rubric chấm ${stamp}`;
+
   function saveRubric(descriptions: string[], asToken = token) {
     return request(app.getHttpServer())
-      .post(`/courses/${courseId}/rubrics`)
+      .post('/rubrics')
       .set('Authorization', `Bearer ${asToken}`)
       .send({
+        name: RUBRIC_NAME,
         criteria: descriptions.map((description) => ({ description, maxPoints: 5 })),
       });
   }
@@ -61,14 +64,14 @@ describe('Grading (e2e)', () => {
           home_class_id, home_teacher_id, storage_key, checksum, file_size,
           submitted_via, status)
        VALUES ($1, $2, $3, $4,
-         (SELECT id FROM examcollect.class WHERE course_id = $5 LIMIT 1), $6, $7,
+         (SELECT id FROM examcollect.class WHERE course_name = $5 LIMIT 1), $6, $7,
          $8, $9, 'normal', 'received')
        RETURNING id`,
       [
         // The real key, with no extension — that is what a submission key
         // looks like, and the reason extraction is told the DECLARED
         // filename separately rather than reading the key.
-        sessionId, deliverableId, mssv, `Sinh viên ${mssv}`, courseId, teacherId,
+        sessionId, deliverableId, mssv, `Sinh viên ${mssv}`, courseName, teacherId,
         key, 'a'.repeat(64), body.length,
       ],
     );
@@ -137,31 +140,19 @@ describe('Grading (e2e)', () => {
     });
     otherToken = await login(otherEmail);
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Grading Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn được chấm', $2) RETURNING id`,
-      [`GR${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Môn được chấm' };
+    courseName = course.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm chấm ${stamp}`, teacherId],
+      [courseName, `Nhóm chấm ${stamp}`, teacherId],
     );
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Grading Room ${stamp}`],
-    );
+    const room = { name: `Grading Room ${stamp}` };
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [MSSV, 'Sinh viên được chấm', courseId, klass.id, teacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [MSSV, 'Sinh viên được chấm', klass.id, teacherId],
     );
 
     const created = await request(app.getHttpServer())
@@ -170,7 +161,8 @@ describe('Grading (e2e)', () => {
       .send({
         name: `Grading Session ${stamp}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'CK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -203,7 +195,7 @@ describe('Grading (e2e)', () => {
       expect(second.body.version).toBe(2);
 
       const listed = await request(app.getHttpServer())
-        .get(`/courses/${courseId}/rubrics`)
+        .get('/rubrics')
         .set('Authorization', `Bearer ${token}`);
 
       // Version 1 is still there, unchanged. Results that cite it must keep
@@ -215,10 +207,40 @@ describe('Grading (e2e)', () => {
       expect(versions.find((r: { version: number }) => r.version === 1).criteria).toHaveLength(1);
     });
 
-    it('refuses a lecturer who teaches no class of the course', async () => {
-      const response = await saveRubric(['Không phải môn của tôi'], otherToken);
+    it('T-OWN-3: rubric của giảng viên khác không lọt vào danh sách của mình', async () => {
+      // Đợt thu hẹp master data ĐẢO quy tắc ở đây. Trước: rubric thuộc MÔN,
+      // nên một giảng viên không dạy môn đó bị chặn bằng 403 lúc soạn. Sau:
+      // rubric thuộc NGƯỜI, nên ai cũng soạn được rubric của mình — cái
+      // không được phép là NHÌN THẤY của người khác.
+      // Tên RIÊNG, không dùng RUBRIC_NAME: phiên bản đánh số theo
+      // (giảng viên, tên), nên mượn tên của khối versioning phía trên sẽ
+      // đẩy số bản của nó lên và làm ba ca khác đỏ ở một khẳng định không
+      // liên quan gì tới quyền sở hữu.
+      const isolated = `Rubric riêng ${stamp}`;
+      const post = (asToken: string, description: string) =>
+        request(app.getHttpServer())
+          .post('/rubrics')
+          .set('Authorization', `Bearer ${asToken}`)
+          .send({ name: isolated, criteria: [{ description, maxPoints: 5 }] });
 
-      expect(response.status).toBe(403);
+      const mine = await post(token, 'Của tôi');
+      expect(mine.status).toBe(201);
+
+      const theirs = await post(otherToken, 'Của người khác');
+      expect(theirs.status).toBe(201);
+      expect(theirs.body.teacherId).not.toBe(mine.body.teacherId);
+
+      const listed = await request(app.getHttpServer())
+        .get('/rubrics')
+        .set('Authorization', `Bearer ${otherToken}`);
+      const ids = listed.body.map((r: { id: string }) => r.id);
+      expect(ids).toContain(theirs.body.id);
+      expect(ids).not.toContain(mine.body.id);
+
+      const peek = await request(app.getHttpServer())
+        .get(`/rubrics/${mine.body.id}`)
+        .set('Authorization', `Bearer ${otherToken}`);
+      expect(peek.status).toBe(403);
     });
   });
 
@@ -230,7 +252,7 @@ describe('Grading (e2e)', () => {
     // a teacher uses.
     beforeAll(async () => {
       const rubrics = await request(app.getHttpServer())
-        .get(`/courses/${courseId}/rubrics`)
+        .get('/rubrics')
         .set('Authorization', `Bearer ${token}`);
       const active = rubrics.body.find((rubric: { isActive: boolean }) => rubric.isActive);
       expect(active).toBeDefined();
@@ -389,9 +411,11 @@ describe('Grading (e2e)', () => {
         `SELECT id FROM examcollect.submission WHERE exam_session_id = $1 LIMIT 1`,
         [sessionId],
       );
+      // Tra theo (giảng viên, tên) chứ không theo môn: rubric đổi chủ ở đợt
+      // thu hẹp master data, và `course_id` không còn được ghi.
       const [rubric] = await dataSource.query(
-        `SELECT id FROM examcollect.rubric WHERE course_id = $1 AND version = 1`,
-        [courseId],
+        `SELECT id FROM examcollect.rubric WHERE name = $1 AND version = 1`,
+        [RUBRIC_NAME],
       );
 
       // A row that is auto_approved without ever having been ai_grading is
@@ -408,14 +432,9 @@ describe('Grading (e2e)', () => {
   });
 
   it('says so instead of grading when the SESSION has no rubric', async () => {
-    const [otherCourse] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn chưa có rubric',
-               (SELECT semester_id FROM examcollect.course WHERE id = $2)) RETURNING id`,
-      [`NR${stamp}`.slice(0, 20), courseId],
-    );
+    const otherCourse = { id: `Môn chưa có rubric ${stamp}` };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
       [otherCourse.id, `Nhóm chưa rubric ${stamp}`, teacherId],
     );
@@ -425,17 +444,15 @@ describe('Grading (e2e)', () => {
     // which used to make this test pass for the wrong reason, since the
     // undefined id produced a 400 from ParseUUIDPipe rather than the 400
     // this test is actually about.
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`No Rubric Room ${stamp}`],
-    );
+    const room = { name: `No Rubric Room ${stamp}` };
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: `No Rubric Session ${stamp}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'CK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),

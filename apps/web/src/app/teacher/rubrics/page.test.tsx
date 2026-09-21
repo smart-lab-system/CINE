@@ -26,15 +26,15 @@ describe('RubricsPage', () => {
     });
   });
 
-  it('gộp hai lớp cùng môn thành MỘT môn', () => {
-    // Rubric thuộc MÔN, không thuộc lớp — hai lớp cùng môn dùng chung một
-    // rubric. Hiện hai dòng nghĩa là nói dối: sửa ở dòng này thì dòng kia
-    // đổi theo, và giảng viên không có cách nào biết.
+  it('gộp hai lớp cùng môn thành MỘT rubric', () => {
+    // Rubric được gộp theo TÊN, và tên chính là định danh của nó từ đợt thu
+    // hẹp master data. Hai lớp cùng môn thì đề nghị đúng một rubric: hiện
+    // hai thẻ nghĩa là nói dối, vì lưu ở thẻ này thì thẻ kia đổi theo.
     useTeachingClassesMock.mockReturnValue({
       data: [
-        { id: 'c1', courseId: 'course-1', courseName: 'Lập trình Web', name: 'N01' },
-        { id: 'c2', courseId: 'course-1', courseName: 'Lập trình Web', name: 'N02' },
-        { id: 'c3', courseId: 'course-2', courseName: 'Cơ sở dữ liệu', name: 'N01' },
+        { id: 'c1', courseName: 'Lập trình Web', name: 'N01' },
+        { id: 'c2', courseName: 'Lập trình Web', name: 'N02' },
+        { id: 'c3', courseName: 'Cơ sở dữ liệu', name: 'N01' },
       ],
       isLoading: false,
     });
@@ -45,11 +45,11 @@ describe('RubricsPage', () => {
     expect(screen.getByText('Cơ sở dữ liệu')).toBeInTheDocument();
   });
 
-  it('nói rõ khi giảng viên chưa dạy lớp nào', () => {
+  it('nói rõ khi giảng viên chưa có lớp nào', () => {
     useTeachingClassesMock.mockReturnValue({ data: [], isLoading: false });
 
     render(<RubricsPage />);
 
-    expect(screen.getByText(/chưa dạy lớp nào/i)).toBeInTheDocument();
+    expect(screen.getByText(/chưa có lớp nào/i)).toBeInTheDocument();
   });
 });

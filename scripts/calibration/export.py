@@ -60,7 +60,18 @@ SELECT
     gr.status,
     gr.context_used_question,
     gr.context_used_model_answer,
-    (gr.advocate_opinion IS NOT NULL) AS co_advocate,
+    -- `= 'completed'`, KHÔNG phải `IS NOT NULL`.
+    --
+    -- `advocate_outcome` phân biệt bốn ca mà `advocate_opinion` gộp làm
+    -- một: `not_needed`, `skipped`, `failed`, `completed`. Chỉ ca cuối mới
+    -- là "nhánh này đã thực sự chạy". Xếp `failed` vào nhánh B là bịa ra
+    -- một sự thật lịch sử — đúng cái mà cảnh báo về nhánh `?` trong README
+    -- tồn tại để chặn.
+    --
+    -- `NULL` = chấm trước 2026-09-20, khi hệ thống chưa biết ghi lại điều
+    -- này. Nó rơi vào nhánh `?`, không phải B.
+    (gr.advocate_outcome = 'completed') AS co_advocate,
+    gr.advocate_outcome,
     tr.final_score,
     tr.reviewed_at
 FROM examcollect.grading_result gr
@@ -118,11 +129,12 @@ def derive_branch(row: dict) -> str:
 
     if row["co_advocate"]:
         # Nhánh C là "B + Advocate", nên nó BAO HÀM việc có ngữ cảnh. Hôm
-        # nay `runAdvocate` trả `null` khi `loadedLevel === 'rubric_only'`
-        # nên ca này không xảy ra được — nhưng nó là một BẤT BIẾN Ở FILE
-        # KHÁC, và bất biến do người khác giữ thì phải kiểm chứ không tin.
-        # Nếu nó vỡ, dòng đó phải thành `?` để người đọc thấy có gì lạ,
-        # chứ không lặng lẽ được xếp vào C và làm bẩn so sánh B→C.
+        # nay `runAdvocate` trả `outcome = 'skipped'` khi
+        # `loadedLevel === 'rubric_only'`, nên `co_advocate` là false và ca
+        # này không xảy ra được — nhưng nó là một BẤT BIẾN Ở FILE KHÁC, và
+        # bất biến do người khác giữ thì phải kiểm chứ không tin. Nếu nó
+        # vỡ, dòng đó phải thành `?` để người đọc thấy có gì lạ, chứ không
+        # lặng lẽ được xếp vào C và làm bẩn so sánh B→C.
         return "C" if has_context else "?"
 
     return "B" if has_context else "A"
@@ -145,6 +157,12 @@ def export_results(cur, out_dir: Path) -> int:
                 "rubric_id_version",
                 "model_used",
                 "branch",
+                # Cột thô đi kèm `branch`, không thay nó. `branch` trả lời
+                # "nhánh nào đã chạy"; cột này trả lời "vì sao nó KHÔNG
+                # chạy" — và `failed` là tín hiệu về hạ tầng, không phải
+                # về phương pháp. Không có nó thì một đợt hỏng gateway
+                # đọc ra y hệt một đợt phản biện không được bật.
+                "advocate_outcome",
                 "ai_total_score",
                 "confidence",
                 "final_score",
@@ -165,6 +183,7 @@ def export_results(cur, out_dir: Path) -> int:
                     row["rubric_id_version"],
                     row["model_used"] or "",
                     derive_branch(row),
+                    row["advocate_outcome"] or "",
                     row["ai_total_score"],
                     row["confidence"],
                     row["final_score"] if row["final_score"] is not None else "",

@@ -15,7 +15,7 @@ import { AccessTokenPayload } from '../auth/types';
 import { teacherRoom } from '../common/exam-live-rooms';
 import { extractAccessToken, isPlainObject } from '../common/exam-live-socket';
 import { AuditLogService } from '../admin/audit-log.service';
-import { CourseService } from '../course/course.service';
+import { ClassService } from '../course/class.service';
 import { EnrollmentService } from '../course/enrollment.service';
 import { SessionRosterService } from './session-roster.service';
 import { ExamSessionService } from './exam-session.service';
@@ -76,7 +76,7 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
 
   constructor(
     private readonly examSessions: ExamSessionService,
-    private readonly courses: CourseService,
+    private readonly classes: ClassService,
     private readonly enrollments: EnrollmentService,
     private readonly sessionRoster: SessionRosterService,
     private readonly auditLog: AuditLogService,
@@ -109,8 +109,13 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
     // Nothing to approve if the roster already has them — they should just
     // join. Saying so is more useful than queueing a request the invigilator
     // would approve into a no-op.
-    const existing = await this.enrollments.findForCourse(session.courseId, dto.studentId);
-    if (existing) {
+    //
+    // Hỏi ẢNH CHỐT, đúng thứ `agent:join` hỏi. Hỏi enrollment của LỚP
+    // PHIÊN thì bỏ sót đúng người hay gửi lại nhất: một em đã được duyệt
+    // trước đó có enrollment ở lớp GỐC của em, không phải ở lớp của phiên,
+    // nên guard không bắt và giám thị thấy lại một yêu cầu đã xử lý.
+    const onRoster = await this.sessionRoster.findEntry(session.id, dto.studentId);
+    if (onRoster) {
       return fail('ALREADY_ENROLLED', 'Bạn đã có trong danh sách — hãy thử tham gia lại.');
     }
 
@@ -193,13 +198,23 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
       return fail('CLASS_REQUIRED', 'Hãy chọn lớp cho sinh viên này trước khi duyệt.');
     }
 
-    const homeClass = await this.courses.findClassForCourse(session.courseId, dto.homeClassId);
+    // Vế "cùng môn" hiện LUÔN đúng — `course_name` là hằng số ở mọi dòng
+    // (common/course-name.ts), nên phép tra này trên thực tế chỉ còn kiểm
+    // id có tồn tại không. Giữ nguyên: nó vẫn chặn được một id lớp bịa ra,
+    // và nếu ràng buộc một môn có ngày được nới thì nó tự có nghĩa trở lại.
+    //
+    // Câu báo lỗi vì thế nói về một lý do không thể xảy ra nữa. Đọc nó
+    // trong lúc sự cố mà tưởng "sai môn" là đi nhầm hướng: nguyên nhân
+    // thật sẽ là id lớp không tồn tại.
+    const homeClass = await this.classes.findByIdAndCourseName(
+      dto.homeClassId,
+      session.courseName,
+    );
     if (!homeClass) {
-      return fail('CLASS_REQUIRED', 'Lớp được chọn không thuộc môn thi này.');
+      return fail('CLASS_REQUIRED', 'Không tìm thấy lớp được chọn.');
     }
 
     await this.enrollments.addManually({
-      courseId: session.courseId,
       studentMssv: request.studentId,
       studentName: request.fullName,
       homeClassId: homeClass.id,

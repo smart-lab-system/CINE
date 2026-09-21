@@ -28,6 +28,19 @@ import { GradingReferenceService, LoadedGradingReference } from './grading-refer
 import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
 import { AUTO_APPROVE_CONFIDENCE, GRADING_ANCHORS_ENABLED } from './grading.types';
 import { AnchorService } from './anchor.service';
+import type { AdvocateOutcome } from './entities/grading-result.entity';
+
+/**
+ * Kết quả một lượt phản biện: chuyện gì đã xảy ra, và ý kiến nếu có.
+ *
+ * Hai trường tách rời vì chúng trả lời hai câu hỏi khác nhau, và trước
+ * 2026-09-20 chỉ có câu thứ hai được lưu — khiến "chưa bật", "cố ý bỏ qua"
+ * và "đã chạy và hỏng" cùng đọc ra một `null` duy nhất.
+ */
+export interface AdvocateRun {
+  outcome: AdvocateOutcome;
+  opinion: AdvocateOpinion | null;
+}
 
 /**
  * Chấm MỘT bài: đọc file, gọi model, ghi kết quả.
@@ -65,9 +78,15 @@ export class GradingService {
   /**
    * Lượt phản biện, và ba lý do nó có thể KHÔNG chạy.
    *
-   * Trả `null` ở cả ba, vì `advocate_opinion = NULL` mang đúng nghĩa
+   * `opinion = null` ở cả ba, vì `advocate_opinion = NULL` mang đúng nghĩa
    * "không có ý kiến thứ hai cho bài này" — khác `{}` là "đã chạy và
    * không kiến nghị gì".
+   *
+   * Nhưng `outcome` thì PHÂN BIỆT cả ba, và đó là lý do hàm này trả về một
+   * cặp chứ không trả về một `AdvocateOpinion | null`:
+   * `scripts/calibration/export.py` suy nhánh A/B/C/D từ chỗ này, nên gộp
+   * "chưa bật" với "đã chạy và hỏng" làm một sẽ xếp mọi lượt phản biện
+   * crash vào nhánh B và làm bẩn đúng tập dữ liệu so sánh các nhánh.
    *
    * 1. Cổng `needsAdvocate` không mở. Cổng này cố ý RỘNG (spec §7.1): nó
    *    đọc `verdict`, một trường BẮT BUỘC, chứ không đọc `uncoveredContent`
@@ -92,16 +111,16 @@ export class GradingService {
     studentText: string,
     needsAdvocate: boolean,
     reference: LoadedGradingReference,
-  ): Promise<AdvocateOpinion | null> {
+  ): Promise<AdvocateRun> {
     if (!needsAdvocate || !this.advocate) {
-      return null;
+      return { outcome: 'not_needed', opinion: null };
     }
     if (reference.loadedLevel === 'rubric_only') {
       this.logger.log(
         `submission ${submission.id}: bỏ qua lượt phản biện — phiên không có đề bài ` +
           'để đối chiếu (mức suy giảm 1)',
       );
-      return null;
+      return { outcome: 'skipped', opinion: null };
     }
 
     try {
@@ -131,7 +150,10 @@ export class GradingService {
             `${opinion.evidence.length} dẫn chứng KHÔNG định vị được trong bài`,
         );
       }
-      return { ...opinion, unverifiedEvidence: unverified };
+      return {
+        outcome: 'completed',
+        opinion: { ...opinion, unverifiedEvidence: unverified },
+      };
     } catch (error) {
       // Nuốt có chủ ý, và đây là một trong rất ít chỗ được phép nuốt: giá
       // trị của Advocate là phụ trợ, còn giá trị của lượt chấm là chính.
@@ -139,7 +161,7 @@ export class GradingService {
         `submission ${submission.id}: lượt phản biện hỏng, bài vẫn được chấm — ` +
           (error instanceof Error ? error.message : String(error)),
       );
-      return null;
+      return { outcome: 'failed', opinion: null };
     }
   }
 
@@ -412,7 +434,12 @@ export class GradingService {
     // `applyGuards` trả `needsAdvocate` từ Plan 1 và tới giờ CHƯA AI ĐỌC
     // nó — giống hệt ca `markUngradable` ở Task 1: một cánh cửa mở mà
     // không ai đi qua. Đây là chỗ đi qua nó.
-    const advocate = await this.runAdvocate(submission, content, guards.needsAdvocate, reference);
+    const advocateRun = await this.runAdvocate(
+      submission,
+      content,
+      guards.needsAdvocate,
+      reference,
+    );
 
     // Guard chỉ được HẠ tin cậy, không được NÂNG quá trần mà cơ chế của
     // provider biện minh nổi. Mọi phép đo cơ học sạch cũng không biến
@@ -484,7 +511,8 @@ export class GradingService {
       // `trg_grading_result_guard_ai_immutable` đóng băng cột này ngay khi
       // `ai_total_score` được ghi, nên ghi thành hai lần sẽ bị DB từ chối.
       // Ba test ở `grading-lifecycle.e2e-spec.ts` khoá đúng ràng buộc đó.
-      advocateOpinion: advocate,
+      advocateOpinion: advocateRun.opinion,
+      advocateOutcome: advocateRun.outcome,
     });
 
     // Trạng thái cuối cũng do guard quyết. `AUTO_APPROVE_CONFIDENCE` vẫn
@@ -568,10 +596,22 @@ export class GradingService {
     const rows = await this.results
       .createQueryBuilder('g')
       .innerJoin('submission', 's', 's.id = g.submission_id')
-      .addSelect(['s.student_mssv AS "studentMssv"', 's.student_name_input AS "studentName"'])
+      // Lớp gốc của bài, kèm tên: khác lớp của phiên nghĩa là THI BÙ.
+      .leftJoin('class', 'hc', 'hc.id = s.home_class_id')
+      .addSelect([
+        's.student_mssv AS "studentMssv"',
+        's.student_name_input AS "studentName"',
+        's.home_class_id AS "homeClassId"',
+        'hc.name AS "homeClassName"',
+      ])
       .where('s.exam_session_id = :id', { id: examSessionId })
       .orderBy('s.student_mssv', 'ASC')
-      .getRawAndEntities<{ studentMssv: string; studentName: string }>();
+      .getRawAndEntities<{
+        studentMssv: string;
+        studentName: string;
+        homeClassId: string;
+        homeClassName: string | null;
+      }>();
 
     // The newest review of each result, in ONE query for the whole list.
     //
@@ -606,6 +646,8 @@ export class GradingService {
         submissionId: entity.submissionId,
         studentMssv: rows.raw[index].studentMssv,
         studentName: rows.raw[index].studentName,
+        homeClassId: rows.raw[index].homeClassId,
+        homeClassName: rows.raw[index].homeClassName ?? null,
         status: entity.status,
         modelUsed: entity.modelUsed,
         aiTotalScore: entity.aiTotalScore === null ? null : Number(entity.aiTotalScore),
@@ -645,6 +687,9 @@ export interface GradingResultView {
   submissionId: string;
   studentMssv: string;
   studentName: string;
+  /** Lớp GỐC của bài. Khác `exam_session.class_id` nghĩa là thi bù. */
+  homeClassId: string;
+  homeClassName: string | null;
   status: string;
   modelUsed: string | null;
   aiTotalScore: number | null;

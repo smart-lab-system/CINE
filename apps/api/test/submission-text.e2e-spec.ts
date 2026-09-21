@@ -23,9 +23,9 @@ describe('SubmissionText (e2e)', () => {
   let tokenA: string;
   let tokenB: string;
   let idA: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
-  let roomId: string;
+  let roomName: string;
   let rubricId: string;
   let criterionIds: string[];
 
@@ -55,7 +55,8 @@ describe('SubmissionText (e2e)', () => {
       .send({
         name: `Phiên text ${stamp}-${dayCursor}`,
         classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         rubricId,
         // `.txt` để `extractText` đọc thẳng, không cần dựng một file docx thật.
@@ -153,41 +154,30 @@ describe('SubmissionText (e2e)', () => {
     tokenA = a.token;
     tokenB = b.token;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Text Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn xem bài làm', $2) RETURNING id`,
-      [`TXT${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Phòng text ${stamp}`],
-    );
-    roomId = room.id;
+    const course = { name: 'Môn xem bài làm' };
+    courseName = course.name;
+    const room = { name: `Phòng text ${stamp}` };
+    roomName = room.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm text ${stamp}`, idA],
+      [courseName, `Nhóm text ${stamp}`, idA],
     );
     classId = klass.id;
     for (let i = 1; i <= 6; i += 1) {
       await dataSource.query(
         `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [`SVT${stamp}${i}`.slice(0, 20), 'SV Text', courseId, classId, idA],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+        [`SVT${stamp}${i}`.slice(0, 20), 'SV Text', classId, idA],
       );
     }
 
     const rubric = await request(app.getHttpServer())
-      .post(`/courses/${courseId}/rubrics`)
+      .post('/rubrics')
       .set('Authorization', `Bearer ${tokenA}`)
       .send({
+        name: `Rubric trích văn bản ${stamp}`,
         criteria: [
           { description: 'Nêu được ưu điểm', maxPoints: 4 },
           { description: 'Nêu được nhược điểm', maxPoints: 4 },

@@ -115,8 +115,29 @@ export class CreateExamSessionDto {
   @IsUUID()
   classId!: string;
 
-  @IsUUID()
-  roomId!: string;
+  /**
+   * Phòng thi, dạng VĂN BẢN. Giảng viên gõ, không chọn từ danh sách.
+   *
+   * GIÁ PHẢI TRẢ, ghi ở spec §3.4: `ex_exam_session_room_overlap` vẫn chạy
+   * (GiST cộng btree_gist làm việc với text y như với uuid), nhưng nó SUY
+   * GIẢM từ bảo đảm xuống nỗ lực tốt nhất — "P.A101" và "P A101" là hai
+   * phòng khác nhau với Postgres, nên gõ lệch một ký tự là đặt trùng phòng
+   * mà không gì bắt được.
+   */
+  @IsString()
+  @Length(1, 150)
+  roomName!: string;
+
+  /**
+   * Học kỳ, dạng VĂN BẢN, chụp một lần lúc tạo phiên (§7.1.5).
+   *
+   * Trước đây suy ra từ `course.semester_id`. Cả hai bảng đã biến mất, và
+   * bảng điểm lọc thẳng trên chuỗi này — nên nó không đổi theo khi ai đó
+   * gõ tên học kỳ khác ở một phiên sau.
+   */
+  @IsString()
+  @Length(1, 150)
+  semesterName!: string;
 
   /**
    * Rubric dùng để chấm phiên này — quyết định lúc ra đề, không tra lại lúc

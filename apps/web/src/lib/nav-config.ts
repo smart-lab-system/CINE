@@ -1,9 +1,6 @@
 import {
   LayoutDashboard,
-  BookOpen,
   GraduationCap,
-  DoorOpen,
-  CalendarRange,
   Users,
   Bot,
   Wallet,
@@ -36,32 +33,18 @@ export interface NavItem {
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Quản lý tài khoản', href: '/admin/accounts', icon: Users },
-  // Học kỳ và phòng thi là tài nguyên cấp trường: không ai sở hữu, nên
-  // không ownership check nào chặn được một khoa sửa dữ liệu của khoa
-  // khác. Quyền ghi vì thế ở đây, không ở /department (CLAUDE.md §1.4).
-  // Mọi role vẫn ĐỌC được hai danh sách này — bộ lọc học kỳ và form tạo
-  // phiên thi phụ thuộc vào chúng.
-  { label: 'Học kỳ', href: '/admin/semesters', icon: CalendarRange },
-  { label: 'Phòng thi', href: '/admin/rooms', icon: DoorOpen },
-  // A course with no owner is invisible to every Trưởng khoa, which makes it
-  // unassignable by them too — so admin needs somewhere to see and fix it.
-  { label: 'Môn chưa có chủ', href: '/admin/unowned-courses', icon: BookOpen },
+  // Học kỳ, Phòng thi và "Môn chưa có chủ" đã bỏ khỏi đây ngày 2026-09-21:
+  // ba trang ấy bị xoá cùng đợt thu hẹp master data, nhưng ba mục menu thì
+  // ở lại, nên quản trị viên bấm vào là ra 404. Đúng thứ đoạn chú thích
+  // trên đầu file này cấm — "never a missing/dead nav entry".
   { label: 'Cấu hình AI', href: '/admin/ai-config', icon: Bot },
   { label: 'Chi phí', href: '/admin/cost', icon: Wallet },
   { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
 ];
 
-// Trưởng khoa owns the academic structure an exam session is built from:
-// courses and classes, scoped to the head who owns the course. Học kỳ và
-// phòng thi KHÔNG nằm ở đây — xem ADMIN_NAV.
-export const DEPARTMENT_NAV: NavItem[] = [
-  { label: 'Dashboard', href: '/department/dashboard', icon: LayoutDashboard },
-  { label: 'Môn học', href: '/department/courses', icon: BookOpen },
-  { label: 'Lớp học', href: '/department/classes', icon: GraduationCap },
-  // Read-only — who is currently teaching in this head's department. The
-  // account itself stays admin's to manage (see /admin/accounts).
-  { label: 'Giảng viên', href: '/department/teachers', icon: Users },
-];
+// DEPARTMENT_NAV đã bỏ ngày 2026-09-21. Vai trò Trưởng khoa biến mất ở đợt
+// thu hẹp master data cùng ba bảng nó quản, và cả thư mục `app/department`
+// đã bị xoá — nhưng menu của nó thì còn, trỏ vào bốn trang không tồn tại.
 
 export const TEACHER_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/teacher/dashboard', icon: LayoutDashboard },

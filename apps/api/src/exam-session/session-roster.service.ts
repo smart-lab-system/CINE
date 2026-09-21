@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
+import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
@@ -45,6 +46,29 @@ export class SessionRosterService {
     return count > 0;
   }
 
+  /**
+   * Một dòng của ảnh chốt, hoặc null — câu hỏi "em này có được ngồi phiên
+   * NÀY không".
+   *
+   * `agent:join` hỏi ảnh chốt chứ không hỏi `enrollment`, và khác biệt đó
+   * quan trọng đúng ở ca thi bù. Duyệt một yêu cầu xin phép ghi enrollment
+   * theo lớp GỐC của sinh viên (để định tuyến bài nộp đúng người dạy), nên
+   * hỏi "em có enrollment ở lớp của phiên không" sẽ từ chối chính người
+   * giám thị vừa cho vào. Ảnh chốt là danh sách đã tính cả hai đường: lúc
+   * mở phiên nó chụp enrollment của lớp, và mỗi lượt duyệt thêm một dòng.
+   *
+   * `student_mssv` là `citext`, nên phép so khớp không phân biệt hoa
+   * thường — điều đó do KIỂU CỘT quyết định, không phải do code ở đây.
+   */
+  async findEntry(
+    examSessionId: string,
+    studentMssv: string,
+  ): Promise<SessionRosterEntity | null> {
+    return this.dataSource
+      .getRepository(SessionRosterEntity)
+      .findOne({ where: { examSessionId, studentMssv } });
+  }
+
   async freeze(session: ExamSessionEntity): Promise<FreezeResult> {
     if (!session.classId) {
       // Phiên tạo trước khi `class_id` tồn tại (nullable vì lý do lịch
@@ -67,7 +91,7 @@ export class SessionRosterService {
       }
 
       const enrolled = await manager.getRepository(EnrollmentEntity).find({
-        where: { courseId: session.courseId, homeClassId: session.classId! },
+        where: { homeClassId: session.classId },
       });
       if (enrolled.length === 0) {
         // Vế thứ hai không thừa. Guard này đúng cho ca thường (mở phiên
@@ -156,14 +180,40 @@ export class SessionRosterService {
         );
       }
 
-      const enrollment = await manager.getRepository(EnrollmentEntity).findOne({
-        where: { courseId: session.courseId, studentMssv: student.mssv },
-      });
+      // Lớp GỐC của em, trong phạm vi MÔN của phiên này.
+      //
+      // Không khoá vào `session.classId`: sinh viên thi bù có enrollment ở
+      // lớp khác, và giữ đúng lớp gốc là toàn bộ điểm của phép định tuyến ở
+      // §3.3. Nhưng cũng không được hỏi trống: khoá duy nhất giờ là
+      // (home_class_id, student_mssv), nên một sinh viên có NHIỀU dòng
+      // enrollment ở nhiều môn, và một câu `findOne` không phạm vi sẽ trả
+      // về dòng nào tuỳ thứ tự DB — bài của em bị định tuyến sang một
+      // giảng viên chưa từng dạy môn này. Trước đợt thu hẹp master data
+      // phép tra này khoá theo `course_id`; bản dịch đúng là khoá theo TÊN
+      // môn, qua các lớp anh em.
+      //
+      // Tên môn nay là hằng số, nên vế này khớp mọi lớp và thứ thật sự chọn
+      // ra một dòng là ORDER BY bên dưới. Giữ vế lọc: nó vô hại, và nó là
+      // chỗ duy nhất ghi lại rằng phép tra này CÓ phạm vi theo môn.
+      const enrollment = await manager
+        .getRepository(EnrollmentEntity)
+        .createQueryBuilder('e')
+        .innerJoin(ClassEntity, 'c', 'c.id = e.home_class_id')
+        .where('e.student_mssv = :mssv', { mssv: student.mssv })
+        .andWhere('c.course_name = :courseName', { courseName: session.courseName })
+        // Một sinh viên VẪN có thể có nhiều dòng trong cùng một môn — khoá
+        // duy nhất là (home_class_id, student_mssv), nên chuyển lớp giữa kỳ
+        // để lại hai dòng. Không có ORDER BY thì Postgres trả dòng nào là
+        // tuỳ, và có thể ĐỔI sau một lần VACUUM: cùng một thao tác cho hai
+        // kết quả khác nhau ở hai thời điểm. Lấy dòng MỚI NHẤT — lần ghi
+        // danh gần đây nhất là câu trả lời đúng cho 'em đang ở lớp nào'.
+        .orderBy('e.created_at', 'DESC')
+        .getOne();
 
       // Em có enrollment (thi bù lớp khác) thì giữ lớp/GV GỐC của họ —
       // định tuyến ở §3.3. Không có enrollment nào thì họ thuộc lớp của
       // phiên này.
-      const homeClassId = enrollment?.homeClassId ?? session.classId!;
+      const homeClassId = enrollment?.homeClassId ?? session.classId;
       const homeTeacherId = enrollment?.homeTeacherId ?? session.teacherId;
 
       const saved = await rosterRepo.save(

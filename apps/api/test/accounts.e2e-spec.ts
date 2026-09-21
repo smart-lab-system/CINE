@@ -160,26 +160,17 @@ describe('Accounts (e2e)', () => {
     expect(createResponse.status).toBe(201);
     const accountId: string = createResponse.body.id;
 
-    const [{ id: semesterId }] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [`Referenced Test Semester ${Date.now()}`, '2026-01-01', '2026-06-01'],
-    );
-    const [{ id: courseId }] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [`RF${Date.now()}`.slice(0, 32), 'Referenced Test Course', semesterId],
-    );
+    const courseName = 'Referenced Test Course';
     const [{ id: classId }] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, 'Referenced Test Class', accountId],
+      [courseName, 'Referenced Test Class', accountId],
     );
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [`SV${Date.now()}`.slice(0, 20), 'Referenced Test Student', courseId, classId, accountId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [`SV${Date.now()}`.slice(0, 20), 'Referenced Test Student', classId, accountId],
     );
 
     const deleteResponse = await request(app.getHttpServer())

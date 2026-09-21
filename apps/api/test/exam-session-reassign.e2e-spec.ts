@@ -24,9 +24,9 @@ describe('ExamSession teacher reassignment (e2e)', () => {
   let dataSource: DataSource;
 
   let adminToken: string;
-  let headToken: string;
-  let roomId: string;
-  let courseId: string;
+  let bystanderToken: string;
+  let roomName: string;
+  let courseName: string;
 
   const PASSWORD = 'correct-horse-battery';
 
@@ -45,7 +45,7 @@ describe('ExamSession teacher reassignment (e2e)', () => {
     return { startTime: start.toISOString(), endTime: end.toISOString() };
   }
 
-  async function makeAccount(prefix: string, role: 'admin' | 'teacher' | 'department_admin') {
+  async function makeAccount(prefix: string, role: 'admin' | 'teacher') {
     const email = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}@example.com`;
     const id = await createTestAccount(dataSource, { email, password: PASSWORD, role });
     const login = await request(app.getHttpServer())
@@ -57,9 +57,9 @@ describe('ExamSession teacher reassignment (e2e)', () => {
   /** Một phiên thi thật, do `teacher` sở hữu, dưới một lớp họ dạy. */
   async function seedSessionOwnedBy(teacherId: string, teacherToken: string) {
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm ${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, teacherId],
+      [courseName, `Nhóm ${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, teacherId],
     );
 
     const { startTime, endTime } = futureWindow();
@@ -69,7 +69,8 @@ describe('ExamSession teacher reassignment (e2e)', () => {
       .send({
         name: `Phiên chuyển chủ ${Date.now()}`,
         classId: klass.id,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime,
         endTime,
@@ -98,25 +99,14 @@ describe('ExamSession teacher reassignment (e2e)', () => {
     dataSource = app.get(DataSource);
 
     adminToken = (await makeAccount('reassign_admin', 'admin')).token;
-    headToken = (await makeAccount('reassign_head', 'department_admin')).token;
+    // Một giảng viên KHÔNG liên quan tới phiên. Ca dưới đây trước dùng một
+    // Trưởng khoa; vai trò đó không còn, và điều thật sự được kiểm là 'người
+    // không phải admin thì không chuyển phiên của ai được'.
+    bystanderToken = (await makeAccount('reassign_bystander', 'teacher')).token;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Reassign Semester ${Date.now()}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Reassign Test Course', $2) RETURNING id`,
-      [`RA${Date.now()}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity)
-       VALUES ($1, 30) RETURNING id`,
-      [`Reassign Room ${Date.now()}`],
-    );
-    roomId = room.id;
+    const course = { name: 'Reassign Test Course' };
+    courseName = course.name;
+    roomName = `Reassign Room ${Date.now()}`;
   });
 
   afterAll(async () => {
@@ -173,14 +163,14 @@ describe('ExamSession teacher reassignment (e2e)', () => {
     expect(transfer.actor_id).toBe(admin.id);
   });
 
-  it('refuses reassignment to a department_admin', async () => {
+  it('refuses a caller who is not an admin', async () => {
     const oldTeacher = await makeAccount('reassign_403_old', 'teacher');
     const newTeacher = await makeAccount('reassign_403_new', 'teacher');
     const session = await seedSessionOwnedBy(oldTeacher.id, oldTeacher.token);
 
     const response = await request(app.getHttpServer())
       .patch(`/exam-sessions/${session.id}/teacher`)
-      .set('Authorization', `Bearer ${headToken}`)
+      .set('Authorization', `Bearer ${bystanderToken}`)
       .send({ teacherId: newTeacher.id });
 
     expect(response.status).toBe(403);
@@ -203,7 +193,7 @@ describe('ExamSession teacher reassignment (e2e)', () => {
 
   it('rejects a target account that is not a teacher', async () => {
     const oldTeacher = await makeAccount('reassign_notgv_old', 'teacher');
-    const head = await makeAccount('reassign_notgv_head', 'department_admin');
+    const head = await makeAccount('reassign_notgv_admin', 'admin');
     const session = await seedSessionOwnedBy(oldTeacher.id, oldTeacher.token);
 
     const response = await request(app.getHttpServer())
@@ -212,7 +202,7 @@ describe('ExamSession teacher reassignment (e2e)', () => {
       .send({ teacherId: head.id });
 
     // Mọi UI của giảng viên lọc theo `teacher_id`; trỏ cột này vào một
-    // Trưởng khoa tạo ra phiên thi không màn hình nào chạm tới được.
+    // tài khoản admin tạo ra phiên thi không màn hình nào chạm tới được.
     expect(response.status).toBe(400);
   });
 

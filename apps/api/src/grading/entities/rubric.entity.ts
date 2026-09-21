@@ -1,6 +1,6 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
-import { CourseEntity } from '../../course/entities/course.entity';
+import { AccountEntity } from '../../identity/entities/account.entity';
 
 // Versioned — editing mid-stream must create a new version (`version`
 // increments); existing GradingResult rows keep the exact version they
@@ -9,14 +9,28 @@ import { CourseEntity } from '../../course/entities/course.entity';
 // the guard trigger added in the hand-written migration (not expressible
 // as an entity decorator).
 @Entity({ name: 'rubric' })
-@Index('uq_rubric_course_version', ['courseId', 'version'], { unique: true })
+@Index('uq_rubric_teacher_name_version', ['teacherId', 'name', 'version'], { unique: true })
 export class RubricEntity extends BaseEntity {
-  @Column({ name: 'course_id', type: 'uuid' })
-  courseId!: string;
+  /**
+   * CHỦ SỞ HỮU LÀ GIẢNG VIÊN, không phải môn học. Đây là mục đích thật của
+   * cả đợt thu hẹp master data.
+   *
+   * Trước đây quyền động vào rubric được suy ra bằng cách ĐẾM DÒNG TRONG
+   * BẢNG `class` (`rubric.service.ts` `assertTeachesCourse`), tức hiện vật
+   * trung tâm của phần chấm điểm bị dữ liệu nền giam. Giờ quyền là một
+   * phép so sánh: `rubric.teacherId === req.user.sub`.
+   */
+  @Column({ name: 'teacher_id', type: 'uuid' })
+  teacherId!: string;
 
-  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: false })
-  @JoinColumn({ name: 'course_id' })
-  course!: CourseEntity;
+  @ManyToOne(() => AccountEntity, { onDelete: 'RESTRICT', nullable: false })
+  @JoinColumn({ name: 'teacher_id' })
+  teacher!: AccountEntity;
+
+  /** Tên do giảng viên đặt, ví dụ "Giữa kỳ CTDL". Thay vai trò định danh
+   * mà `course_id` từng giữ. */
+  @Column({ type: 'varchar', length: 200 })
+  name!: string;
 
   @Column({ type: 'int', default: 1 })
   version!: number;

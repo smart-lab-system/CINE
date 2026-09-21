@@ -8,6 +8,10 @@ import { createTestAccount } from './helpers/create-account';
 import { ExamMaterialService } from '../src/exam-session/exam-material.service';
 import { ExamSessionEntity } from '../src/exam-session/entities/exam-session.entity';
 
+// Tên rubric phải duy nhất theo LƯỢT CHẠY: uq_rubric_teacher_name_version
+// sống qua nhiều lượt, còn tên môn trong bộ fixture này là hằng chuỗi.
+const RUBRIC_STAMP = Date.now().toString(36);
+
 /**
  * Tài liệu tham chiếu để chấm (spec §3).
  *
@@ -24,7 +28,7 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
   let teacherToken: string;
   let teacherId: string;
   let otherTeacherToken: string;
-  let courseId: string;
+  let courseName: string;
 
   const PASSWORD = 'correct-horse-battery';
   let seedCursor = 0;
@@ -42,25 +46,24 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm ${suffix}`, teacherId],
+      [courseName, `Nhóm ${suffix}`, teacherId],
     );
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`P Ref ${suffix}`],
-    );
+    const room = { name: `P Ref ${suffix}` };
     // `start_time` ở QUÁ KHỨ: `listForAgent` chỉ phát tài liệu sau mốc đó,
     // nên muốn chứng minh đáp án không lọt thì phải kiểm ở trạng thái ĐÃ
     // PHÁT, không phải ở trạng thái còn khoá.
     const [session] = await dataSource.query(
       `INSERT INTO examcollect.exam_session
-         (name, code, class_id, course_id, teacher_id, room_id, exam_type,
-          start_time, end_time, status, semester_name)
-       VALUES ($1, $2, $3, $4, $5, $6, 'CK',
-               now() - interval '1 hour', now() + interval '1 hour', 'active', 'HK Ref')
+         (name, code, class_id, teacher_id, exam_type,
+          start_time, end_time, status, semester_name,
+          course_name, room_name)
+       VALUES ($1, $2, $3, $5, 'CK',
+               now() - interval '1 hour', now() + interval '1 hour', 'active', 'HK Ref',
+               $4, $6)
        RETURNING *`,
-      [`Phiên ${suffix}`, `REF${suffix}`.slice(0, 20), klass.id, courseId, teacherId, room.id],
+      [`Phiên ${suffix}`, `REF${suffix}`.slice(0, 20), klass.id, courseName, teacherId, room.name],
     );
     const [deliverable] = await dataSource.query(
       `INSERT INTO examcollect.required_deliverable
@@ -102,8 +105,9 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     }
     rubricVersionCursor += 1;
     const [rubric] = await dataSource.query(
-      `INSERT INTO examcollect.rubric (course_id, version) VALUES ($1, $2) RETURNING id`,
-      [courseId, rubricVersionCursor],
+      `INSERT INTO examcollect.rubric (version, teacher_id, name)
+       VALUES ($2, $3, $1) RETURNING id`,
+      [`${courseName} ${RUBRIC_STAMP}`, rubricVersionCursor, teacherId],
     );
     await dataSource.query(
       `INSERT INTO examcollect.grading_result
@@ -154,17 +158,8 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
         .send({ email: otherEmail, password: PASSWORD })
     ).body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`HK Ref ${Date.now()}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn tài liệu', $2) RETURNING id`,
-      [`RC${Date.now()}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Môn tài liệu' };
+    courseName = course.name;
   });
 
   afterAll(async () => {

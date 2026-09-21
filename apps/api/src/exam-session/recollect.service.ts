@@ -64,7 +64,7 @@ export class RecollectService {
          FROM attended a
          JOIN examcollect.exam_session s ON s.id = $1
          JOIN examcollect.enrollment e
-           ON e.course_id = s.course_id AND e.student_mssv = a.student_mssv
+           ON e.home_class_id = s.class_id AND e.student_mssv = a.student_mssv
          LEFT JOIN collected c ON c.student_mssv = a.student_mssv
         WHERE COALESCE(c.n, 0) < (SELECT n FROM required)
         ORDER BY e.student_name`,

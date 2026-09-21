@@ -1,16 +1,17 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
-import { CourseEntity } from './course.entity';
 import { ClassEntity } from './class.entity';
 
-// The authoritative join-session auth source, INDEPENDENT of which
-// room/class a student physically sits in — this is what resolves the
-// make-up-exam-in-a-different-class case. A leaked session code alone must
-// never grant access; the API must always check the student has a valid
-// Enrollment for the exact course_id (CLAUDE.md Security rule 1).
+// Ai thuộc lớp nào, và qua ảnh chốt của phiên, ai được ngồi buổi thi nào.
+//
+// Trước đợt thu hẹp master data bảng này khoá theo MÔN, cố ý: một mã phiên
+// bị lộ không được cấp quyền, và một sinh viên thi bù ở lớp khác cùng môn
+// vẫn vào được mà không cần ca đặc biệt (CLAUDE.md Security rule 1). Bảng
+// `course` không còn, nên khoá tụt xuống LỚP — và ca thi bù chuyển sang
+// luồng xin phép, nơi một giám thị ghi lý do và lớp gốc của em.
 @Entity({ name: 'enrollment' })
-@Index('uq_enrollment_course_student', ['courseId', 'studentMssv'], {
+@Index('uq_enrollment_class_student', ['homeClassId', 'studentMssv'], {
   unique: true,
 })
 @Check('ck_enrollment_mssv', "student_mssv ~ '^[A-Za-z0-9]{4,20}$'")
@@ -26,13 +27,6 @@ export class EnrollmentEntity extends BaseEntity {
   // reconcile against this one.
   @Column({ name: 'student_name', type: 'varchar', length: 150 })
   studentName!: string;
-
-  @Column({ name: 'course_id', type: 'uuid' })
-  courseId!: string;
-
-  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: false })
-  @JoinColumn({ name: 'course_id' })
-  course!: CourseEntity;
 
   @Column({ name: 'home_class_id', type: 'uuid' })
   homeClassId!: string;

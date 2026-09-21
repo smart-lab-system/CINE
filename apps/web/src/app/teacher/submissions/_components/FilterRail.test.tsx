@@ -23,6 +23,10 @@ const facets = {
     { value: 'A3-01', label: 'A3-01', count: 5 },
     { value: 'A3-02', label: 'A3-02', count: 2 },
   ],
+  classes: [
+    { value: 'k-1', label: 'N01', count: 4 },
+    { value: 'k-2', label: 'N02', count: 3 },
+  ],
   archivedCount: 4,
   closedCount: 1,
 };
@@ -31,6 +35,28 @@ const onChange = vi.fn();
 beforeEach(() => onChange.mockReset());
 
 describe('FilterRail', () => {
+  it('lọc theo LỚP gửi lên classId, không gửi tên lớp', () => {
+    // Nhãn là tên để đọc, nhưng khoá phải là id: hai lớp trùng tên hiển
+    // thị vẫn là hai lớp khác nhau, và lọc theo tên sẽ trộn bài của chúng.
+    render(<FilterRail facets={facets} filters={EMPTY_FILTERS} onChange={onChange} attentionTotal={6} />);
+    fireEvent.click(screen.getByRole('button', { name: /N01/ }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ classIds: ['k-1'] }));
+  });
+
+  it('chỉ một lớp thì KHÔNG hiện nhóm lọc lớp', () => {
+    // Cùng luật với Phòng và Loại kỳ thi: một lựa chọn là nhiễu. Học kỳ cố
+    // ý KHÔNG theo luật này — xem chú thích trong FilterRail.
+    render(
+      <FilterRail
+        facets={{ ...facets, classes: [] }}
+        filters={EMPTY_FILTERS}
+        onChange={onChange}
+        attentionTotal={6}
+      />,
+    );
+    expect(screen.queryByText('Lớp')).not.toBeInTheDocument();
+  });
+
   it('hiện tổng số phiên cần chú ý', () => {
     render(<FilterRail facets={facets} filters={EMPTY_FILTERS} onChange={onChange} attentionTotal={6} />);
     // Không dùng getByText('6') trần: một facet count cũng có thể bằng 6.
@@ -81,7 +107,7 @@ describe('FilterRail', () => {
     render(
       <FilterRail
         facets={{ ...facets, semesters: [facets.semesters[0]] }}
-        filters={{ ...EMPTY_FILTERS, semesterId: 'sem-1' }}
+        filters={{ ...EMPTY_FILTERS, semesterName: 'sem-1' }}
         onChange={onChange}
         attentionTotal={6}
       />,
@@ -89,18 +115,18 @@ describe('FilterRail', () => {
     expect(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' })).toBeInTheDocument();
   });
 
-  it('chọn "Tất cả học kỳ" trả semesterId về null', () => {
+  it('chọn "Tất cả học kỳ" trả semesterName về null', () => {
     render(
       <FilterRail
         facets={facets}
-        filters={{ ...EMPTY_FILTERS, semesterId: 'sem-1' }}
+        filters={{ ...EMPTY_FILTERS, semesterName: 'sem-1' }}
         onChange={onChange}
         attentionTotal={6}
       />,
     );
     fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
     fireEvent.click(screen.getByRole('option', { name: 'Tất cả học kỳ' }));
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ semesterId: null }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ semesterName: null }));
   });
 
   it('link xoá bộ lọc chỉ hiện khi có bộ lọc đang bật', () => {

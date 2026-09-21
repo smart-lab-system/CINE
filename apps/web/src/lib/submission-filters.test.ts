@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EMPTY_FILTERS, applyFilters, buildFacets, detectRoomFailure, resolveDefaultSemester,
+  EMPTY_FILTERS, applyFilters, buildFacets, detectRoomFailure,
 } from './submission-filters';
 import type { SessionOverviewItem } from './api/submissions';
 
@@ -10,12 +10,12 @@ const HOUR = 3_600_000;
 function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
   return {
     id: 's1', name: 'Phiên', code: 'P1',
-    courseId: 'c1', courseName: 'CSDL', classId: 'k1', className: 'N01',
+    courseName: 'CSDL', classId: 'k1', className: 'N01',
     roomName: 'A3-01', examType: 'GK',
     startTime: new Date(NOW - 4 * HOUR).toISOString(),
     endTime: new Date(NOW - 2 * HOUR).toISOString(),
     status: 'completed',
-    semesterId: 'sem-1', semesterName: 'Học kỳ 1 2026-2027',
+    semesterName: 'Học kỳ 1 2026-2027',
     requiredDeliverableCount: 2, expectedCount: 10, rosterKnown: true,
     fullySubmittedCount: 10, partialCount: 0,
     attendedNoSubmissionCount: 0, neverAttendedCount: 0, satElsewhereCount: 0,
@@ -26,51 +26,6 @@ function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
     ...o,
   };
 }
-
-describe('resolveDefaultSemester', () => {
-  it('dùng kỳ hiện tại của hệ thống khi giảng viên CÓ phiên trong kỳ đó', () => {
-    // Điểm của hàm này: câu trả lời đến TỪ BÊN NGOÀI (useCurrentSemester),
-    // không tự suy lại từ mốc thời gian của các phiên.
-    const items = [
-      make({ id: 'a', semesterId: 'cu', startTime: new Date(NOW - 200 * 24 * HOUR).toISOString() }),
-      make({ id: 'b', semesterId: 'nay' }),
-    ];
-    expect(resolveDefaultSemester(items, 'nay')).toBe('nay');
-  });
-
-  it('kỳ hiện tại được tôn trọng kể cả khi phiên MỚI NHẤT thuộc kỳ khác', () => {
-    // Ca phân biệt hai công thức: bản cũ suy từ phiên nên sẽ trả 'tuong-lai'.
-    const items = [
-      make({ id: 'a', semesterId: 'nay' }),
-      make({ id: 'b', semesterId: 'tuong-lai',
-             startTime: new Date(NOW + 60 * 24 * HOUR).toISOString(),
-             endTime: new Date(NOW + 61 * 24 * HOUR).toISOString() }),
-    ];
-    expect(resolveDefaultSemester(items, 'nay')).toBe('nay');
-  });
-
-  it('kỳ hiện tại mà giảng viên không có phiên nào → lùi về kỳ có phiên mới nhất', () => {
-    // Không lùi thì mở trang ra là bảng rỗng, và giảng viên vừa dạy xong
-    // kỳ trước sẽ đọc thành "mất dữ liệu".
-    const items = [
-      make({ id: 'a', semesterId: 'cu-hon', startTime: new Date(NOW - 400 * 24 * HOUR).toISOString() }),
-      make({ id: 'b', semesterId: 'gan-hon', startTime: new Date(NOW - 100 * 24 * HOUR).toISOString() }),
-    ];
-    expect(resolveDefaultSemester(items, 'ky-nay-khong-co-phien')).toBe('gan-hon');
-  });
-
-  it('chưa biết kỳ hiện tại (GET /semesters còn đang tải hoặc lỗi) → kỳ có phiên mới nhất', () => {
-    const items = [
-      make({ id: 'a', semesterId: 'cu-hon', startTime: new Date(NOW - 400 * 24 * HOUR).toISOString() }),
-      make({ id: 'b', semesterId: 'gan-hon', startTime: new Date(NOW - 100 * 24 * HOUR).toISOString() }),
-    ];
-    expect(resolveDefaultSemester(items, null)).toBe('gan-hon');
-  });
-
-  it('rỗng → null', () => {
-    expect(resolveDefaultSemester([], 'nay')).toBeNull();
-  });
-});
 
 describe('applyFilters', () => {
   const base = [
@@ -152,25 +107,95 @@ describe('buildFacets', () => {
   });
 });
 
-describe('detectRoomFailure', () => {
-  const red = (id: string, room: string, courseId: string) =>
-    make({ id, roomName: room, courseId, attendedNoSubmissionCount: 2, fullySubmittedCount: 8 });
+describe('lọc theo LỚP', () => {
+  // Fixture riêng: mọi item trong `base` đều dùng chung `classId: 'k1'`,
+  // nên nó không tách được gì để thử.
+  const byClass = [
+    make({ id: 'a', classId: 'k1', className: 'N01' }),
+    make({ id: 'b', classId: 'k2', className: 'N02' }),
+    make({ id: 'c', classId: 'k2', className: 'N02' }),
+  ];
 
-  it('2 phiên đỏ cùng phòng, khác môn → cảnh báo', () => {
-    const r = detectRoomFailure([red('a', 'A3-01', 'c1'), red('b', 'A3-01', 'c2')], NOW);
-    expect(r).toEqual({ room: 'A3-01', sessionCount: 2, courseCount: 2 });
+  it('chọn một lớp thì phiên của lớp khác rơi ra', () => {
+    const ids = applyFilters(byClass, { ...EMPTY_FILTERS, classIds: ['k2'] }, NOW)
+      .map((i) => i.id);
+    expect(ids.sort()).toEqual(['b', 'c']);
+  });
+
+  it('trong một nhóm là OR: hai lớp cùng lúc', () => {
+    const ids = applyFilters(byClass, { ...EMPTY_FILTERS, classIds: ['k1', 'k2'] }, NOW)
+      .map((i) => i.id);
+    expect(ids.sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('lọc theo ID chứ không theo TÊN: hai lớp TRÙNG TÊN vẫn tách nhau', () => {
+    // Đây là lý do nhóm này khoá theo `classId`. Nếu ai đó đổi sang khoá
+    // theo `className` cho "dễ đọc", hai lớp khác nhau sẽ bị trộn bài.
+    const sameName = [
+      make({ id: 'x', classId: 'k1', className: 'N01' }),
+      make({ id: 'y', classId: 'k9', className: 'N01' }),
+    ];
+    const ids = applyFilters(sameName, { ...EMPTY_FILTERS, classIds: ['k1'] }, NOW)
+      .map((i) => i.id);
+    expect(ids).toEqual(['x']);
+  });
+
+  it('giữa các nhóm là AND: lớp k2 VÀ phòng A3-02', () => {
+    const mixed = [
+      make({ id: 'a', classId: 'k2', roomName: 'A3-01' }),
+      make({ id: 'b', classId: 'k2', roomName: 'A3-02' }),
+      make({ id: 'c', classId: 'k1', roomName: 'A3-02' }),
+    ];
+    const ids = applyFilters(
+      mixed,
+      { ...EMPTY_FILTERS, classIds: ['k2'], rooms: ['A3-02'] },
+      NOW,
+    ).map((i) => i.id);
+    expect(ids).toEqual(['b']);
+  });
+
+  it('số đếm của chính nhóm lớp KHÔNG bị chính nó thu hẹp', () => {
+    // Nếu không, bật N01 sẽ làm N02 về 0 và không bao giờ chọn thêm được.
+    const facets = buildFacets(byClass, { ...EMPTY_FILTERS, classIds: ['k1'] }, NOW);
+    expect(facets.classes.find((k) => k.value === 'k2')?.count).toBe(2);
+  });
+
+  it('nhãn là TÊN lớp, khoá là id', () => {
+    const facets = buildFacets(byClass, EMPTY_FILTERS, NOW);
+    expect(facets.classes.find((k) => k.value === 'k1')?.label).toBe('N01');
+  });
+
+  it('chỉ một lớp thì trả mảng rỗng để UI không render', () => {
+    const one = [make({ id: 'x', classId: 'k1' }), make({ id: 'y', classId: 'k1' })];
+    expect(buildFacets(one, EMPTY_FILTERS, NOW).classes).toEqual([]);
+  });
+});
+
+describe('detectRoomFailure', () => {
+  // Mẫu số là LỚP, không còn là môn. Bản cũ dựng hai `courseName` khác nhau
+  // để làm cảnh báo nổ — một trạng thái dữ liệu không còn tồn tại được từ
+  // khi hệ thống chốt phục vụ một môn, nên test cũ xanh trong khi hàm thật
+  // luôn trả `null` và banner không bao giờ hiện.
+  const red = (id: string, room: string, classId: string) =>
+    make({ id, roomName: room, classId, attendedNoSubmissionCount: 2, fullySubmittedCount: 8 });
+
+  it('2 phiên đỏ cùng phòng, khác LỚP → cảnh báo', () => {
+    const r = detectRoomFailure([red('a', 'A3-01', 'k1'), red('b', 'A3-01', 'k2')], NOW);
+    expect(r).toEqual({ room: 'A3-01', sessionCount: 2, classCount: 2 });
   });
 
   it('chỉ 1 phiên đỏ → KHÔNG cảnh báo', () => {
-    expect(detectRoomFailure([red('a', 'A3-01', 'c1')], NOW)).toBeNull();
+    expect(detectRoomFailure([red('a', 'A3-01', 'k1')], NOW)).toBeNull();
   });
 
-  it('2 phiên đỏ cùng phòng nhưng CÙNG môn → KHÔNG cảnh báo', () => {
-    expect(detectRoomFailure([red('a', 'A3-01', 'c1'), red('b', 'A3-01', 'c1')], NOW)).toBeNull();
+  it('2 phiên đỏ cùng phòng nhưng CÙNG lớp → KHÔNG cảnh báo', () => {
+    // Một lớp thi nhiều ca ở phòng cố định của nó: thứ chung là cái lớp,
+    // không phải cái phòng.
+    expect(detectRoomFailure([red('a', 'A3-01', 'k1'), red('b', 'A3-01', 'k1')], NOW)).toBeNull();
   });
 
   it('phiên đỏ ở hai phòng khác nhau → KHÔNG cảnh báo', () => {
-    expect(detectRoomFailure([red('a', 'A3-01', 'c1'), red('b', 'B1-05', 'c2')], NOW)).toBeNull();
+    expect(detectRoomFailure([red('a', 'A3-01', 'k1'), red('b', 'B1-05', 'k2')], NOW)).toBeNull();
   });
 });
 

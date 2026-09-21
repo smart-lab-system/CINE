@@ -61,15 +61,20 @@ interface ScheduleClash {
  * never anything a caller supplies, so interpolating them into SQL below
  * carries no injection surface — only the key and the window are bound
  * parameters, and they are the only caller-supplied values.
+ *
+ * PHÒNG giờ là một cột VĂN BẢN trên chính `exam_session`, nên nó không cần
+ * join gì cả — tên hiển thị chính là khoá. LỚP vẫn là khoá ngoại, nên nó
+ * vẫn join sang `class` để lấy tên.
  */
 interface ClashTarget {
-  /** Column on exam_session holding the resource id. */
-  column: 'room_id' | 'class_id';
-  /** Table the resource's display name comes from. */
-  table: 'room' | 'class';
+  /** Column on exam_session holding the resource key. */
+  column: 'room_name' | 'class_id';
+  /** Table the resource's display name comes from, or null when the key
+   *  already IS the display name. */
+  table: 'class' | null;
 }
 
-const ROOM: ClashTarget = { column: 'room_id', table: 'room' };
+const ROOM: ClashTarget = { column: 'room_name', table: null };
 const CLASS: ClashTarget = { column: 'class_id', table: 'class' };
 
 @Injectable()
@@ -93,12 +98,12 @@ export class ScheduleConflictService {
    * session clashing with where it already is.
    */
   async assertNone(
-    roomId: string,
+    roomName: string,
     classId: string,
     startTime: Date,
     endTime: Date,
   ): Promise<void> {
-    const roomClash = await this.findClash(ROOM, roomId, startTime, endTime);
+    const roomClash = await this.findClash(ROOM, roomName, startTime, endTime);
     if (roomClash) {
       throw new ConflictException(
         `Phòng ${roomClash.ownerName} đã có phiên thi "${roomClash.sessionName}" lúc ` +
@@ -123,12 +128,17 @@ export class ScheduleConflictService {
     startTime: Date,
     endTime: Date,
   ): Promise<ScheduleClash | undefined> {
-    const raw = await this.sessions
-      .createQueryBuilder('s')
-      .innerJoin(target.table, 'o', `o.id = s.${target.column}`)
+    const qb = this.sessions.createQueryBuilder('s');
+    if (target.table) {
+      qb.innerJoin(target.table, 'o', `o.id = s.${target.column}`);
+    }
+    const raw = await qb
       .select([
         's.name AS "sessionName"',
-        'o.name AS "ownerName"',
+        // Khoá văn bản thì chính nó là tên hiển thị — không có bảng nào để
+        // hỏi, và đó chính là thứ vừa mất: một phòng chỉ tồn tại vì có ai
+        // đó gõ tên nó ra.
+        target.table ? 'o.name AS "ownerName"' : `s.${target.column} AS "ownerName"`,
         's.start_time AS "startTime"',
         's.end_time AS "endTime"',
       ])

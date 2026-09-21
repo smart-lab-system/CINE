@@ -4,10 +4,16 @@ import { Repository } from 'typeorm';
 import { EnrollmentEntity } from './entities/enrollment.entity';
 
 /**
- * Enrollment is the answer to "may this student sit this exam", and it is
- * deliberately keyed by COURSE rather than by class — that is what lets a
- * student sit a make-up exam with another class's session without any
- * special case (CLAUDE.md Security rule 1).
+ * Enrollment is the answer to "may this student sit this exam", and from the
+ * master-data scope cut it is keyed by CLASS.
+ *
+ * It used to be keyed by COURSE, deliberately, so a student could sit a
+ * make-up exam with another class's session with no special case. The
+ * `course` table is gone, so that anchor is gone with it: a student whose
+ * home class is not the session's class is now refused at join and goes
+ * through the ACCESS-REQUEST flow instead, where an invigilator names their
+ * home class and a reason. That is a chosen behaviour change, not a
+ * regression — see the master-data scope-cut spec §6.
  */
 @Injectable()
 export class EnrollmentService {
@@ -18,18 +24,18 @@ export class EnrollmentService {
 
   /**
    * The enrollment backing an `agent:join`, or null if the student has none
-   * for this course.
+   * for this class.
    *
    * `student_mssv` is `citext`, so the comparison is case-insensitive in the
    * database — a student typing `sv20120001` is the same student as
    * `SV20120001`, and that is settled by the column type rather than by
    * anything this code does.
    */
-  async findForCourse(
-    courseId: string,
+  async findForClass(
+    homeClassId: string,
     studentMssv: string,
   ): Promise<EnrollmentEntity | null> {
-    return this.enrollments.findOne({ where: { courseId, studentMssv } });
+    return this.enrollments.findOne({ where: { homeClassId, studentMssv } });
   }
 
   /**
@@ -44,11 +50,10 @@ export class EnrollmentService {
    * The roster gaining a person is not silent — the caller writes an
    * audit_log entry naming who approved it and why.
    *
-   * Idempotent against uq_enrollment_course_student: two invigilators
+   * Idempotent against uq_enrollment_class_student: two invigilators
    * approving the same student produce one row, not a unique violation.
    */
   async addManually(input: {
-    courseId: string;
     studentMssv: string;
     studentName: string;
     homeClassId: string;
@@ -58,7 +63,6 @@ export class EnrollmentService {
       .createQueryBuilder()
       .insert()
       .values({
-        courseId: input.courseId,
         studentMssv: input.studentMssv,
         studentName: input.studentName,
         homeClassId: input.homeClassId,
@@ -67,7 +71,7 @@ export class EnrollmentService {
       .orIgnore()
       .execute();
 
-    const saved = await this.findForCourse(input.courseId, input.studentMssv);
+    const saved = await this.findForClass(input.homeClassId, input.studentMssv);
     if (!saved) {
       throw new Error(
         `enrollment for ${input.studentMssv} vanished immediately after insert`,

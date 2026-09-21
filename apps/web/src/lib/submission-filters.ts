@@ -4,59 +4,27 @@ import { EXAM_TYPE_LABELS } from './exam-session-display';
 
 export interface FilterState {
   /** null = tất cả học kỳ. */
-  semesterId: string | null;
+  semesterName: string | null;
   kinds: AttentionKind[];
   /** Lọc "đã đủ" — phiên ended không lý do nào. */
   complete: boolean;
   examTypes: string[];
   rooms: string[];
+  /**
+   * `classId` chứ không phải tên lớp: tên chỉ để hiện ra, còn khoá ngoại
+   * mới là thứ phân biệt. Hai lớp trùng tên hiển thị vẫn phải lọc tách nhau.
+   */
+  classIds: string[];
   showArchived: boolean;
   showClosed: boolean;
 }
 
 export const EMPTY_FILTERS: FilterState = {
-  semesterId: null, kinds: [], complete: false,
-  examTypes: [], rooms: [], showArchived: false, showClosed: true,
+  semesterName: null, kinds: [], complete: false,
+  examTypes: [], rooms: [], classIds: [], showArchived: false, showClosed: true,
 };
 
 export interface FacetOption { value: string; label: string; count: number }
-
-/**
- * Học kỳ mặc định của trang — lấy từ ĐỊNH NGHĨA DÙNG CHUNG của "kỳ hiện
- * tại" (`useSemesterFilter.pickDefaultSemester`, tính từ start_date của
- * bảng `semester`), không tự suy lại.
- *
- * Trước 2026-09-15 file này có công thức RIÊNG, suy kỳ mặc định từ
- * start/end của CÁC PHIÊN THI. Nó trả lời lệch với badge học kỳ trên
- * topbar và với bộ lọc của "Lớp của tôi" — hai chỗ cùng đọc định nghĩa
- * dùng chung. Doc comment của định nghĩa đó đã nói trước: "Hai công thức
- * song song là cách chúng lệch nhau."
- *
- * `items` chỉ còn dùng cho bước LÙI, và chỉ khi câu trả lời dùng chung
- * không chỉ tới dữ liệu nào: giảng viên chưa có phiên nào trong kỳ hiện
- * tại mà mở trang ra thấy bảng rỗng sẽ đọc thành "mất dữ liệu", nên khi
- * đó lấy kỳ của phiên MỚI NHẤT họ thực sự có. Đây không phải định nghĩa
- * thứ hai của "kỳ hiện tại" — nó không bao giờ ghi đè câu trả lời dùng
- * chung, chỉ điền vào chỗ trống.
- */
-export function resolveDefaultSemester(
-  items: SessionOverviewItem[],
-  currentSemesterId: string | null,
-): string | null {
-  if (items.length === 0) return null;
-
-  if (currentSemesterId !== null && items.some((i) => i.semesterId === currentSemesterId)) {
-    return currentSemesterId;
-  }
-
-  // Tự tìm phiên mới nhất thay vì tin vào thứ tự server trả về: endpoint
-  // hiện sắp theo start_time DESC, nhưng đó là chi tiết của câu SQL chứ
-  // không phải hợp đồng nào mà file này đọc được.
-  const newest = items.reduce((a, b) =>
-    new Date(b.startTime).getTime() > new Date(a.startTime).getTime() ? b : a,
-  );
-  return newest.semesterId;
-}
 
 /** Ẩn/hiện theo vòng đời. `archived` thắng `closed` — spec §4.3. */
 function passesLifecycle(item: SessionOverviewItem, f: FilterState): boolean {
@@ -70,14 +38,17 @@ function passesGroups(
   item: SessionOverviewItem,
   f: FilterState,
   now: number,
-  skip?: 'kinds' | 'examTypes' | 'rooms',
+  skip?: 'kinds' | 'examTypes' | 'rooms' | 'classIds',
 ): boolean {
-  if (f.semesterId !== null && item.semesterId !== f.semesterId) return false;
+  if (f.semesterName !== null && item.semesterName !== f.semesterName) return false;
 
   if (skip !== 'examTypes' && f.examTypes.length > 0 && !f.examTypes.includes(item.examType)) {
     return false;
   }
   if (skip !== 'rooms' && f.rooms.length > 0 && !f.rooms.includes(item.roomName)) {
+    return false;
+  }
+  if (skip !== 'classIds' && f.classIds.length > 0 && !f.classIds.includes(item.classId)) {
     return false;
   }
   if (skip !== 'kinds' && (f.kinds.length > 0 || f.complete)) {
@@ -123,6 +94,7 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
   const forKinds = live.filter((i) => passesGroups(i, f, now, 'kinds'));
   const forTypes = live.filter((i) => passesGroups(i, f, now, 'examTypes'));
   const forRooms = live.filter((i) => passesGroups(i, f, now, 'rooms'));
+  const forClasses = live.filter((i) => passesGroups(i, f, now, 'classIds'));
 
   const KIND_LABELS: Record<AttentionKind, string> = {
     'attended-no-submission': 'Nghi mất bài',
@@ -147,16 +119,27 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
     (i) => EXAM_TYPE_LABELS[i.examType] ?? i.examType,
   );
   const rooms = countBy(forRooms, (i) => i.roomName, (i) => i.roomName);
-  const semesters = countBy(items, (i) => i.semesterId, (i) => i.semesterName);
+  // Khoá theo id, nhãn theo tên. Phiên không gắn lớp không tồn tại nữa
+  // (`exam_session.class_id` là NOT NULL), nhưng tên thì vẫn có thể rỗng.
+  const classes = countBy(
+    forClasses,
+    (i) => i.classId,
+    (i) => i.className ?? 'Không gắn lớp',
+  );
+  const semesters = countBy(items, (i) => i.semesterName, (i) => i.semesterName);
 
   // Một nhóm lọc chỉ có một lựa chọn là nhiễu — UI không render nó. Spec §4.3.
   const meaningful = (o: FacetOption[]) => (o.length > 1 ? o : []);
 
   return {
+    // `semesters` KHÔNG qua `meaningful` — ngoại lệ có chủ đích, xem chú
+    // thích ở FilterRail. Lớp thì qua, vì nó là một thuộc tính của phiên
+    // đúng như phòng và loại kỳ thi, không phải chiều thời gian.
     semesters,
     kinds,
     examTypes: meaningful(examTypes),
     rooms: meaningful(rooms),
+    classes: meaningful(classes),
     archivedCount: items.filter((i) => i.archivedAt !== null).length,
     closedCount: items.filter((i) => i.archivedAt === null && i.attentionClosedAt !== null).length,
   };
@@ -164,13 +147,19 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
 
 /**
  * Cảnh báo hỏng-theo-phòng: mọi phiên đỏ đang xem cùng một phòng, >=2 phiên,
- * trải >=2 môn. Điều kiện >=2 môn để không kêu oan khi một môn thi nhiều ca ở
- * phòng cố định của nó. Spec §5.5.
+ * trải >=2 LỚP. Điều kiện thứ hai để không kêu oan khi một lớp thi nhiều ca ở
+ * phòng cố định của nó — lúc đó thứ chung là cái lớp, không phải cái phòng.
+ * Spec §5.5.
+ *
+ * Mẫu số từng là "môn", và từ lúc hệ thống chốt phục vụ một môn thì
+ * `courses.size` luôn bằng 1: hàm này LUÔN trả `null` và cái banner không bao
+ * giờ hiện ra nữa. Test cũ không bắt được vì nó tự dựng hai môn khác nhau,
+ * một trạng thái dữ liệu không còn tồn tại được.
  */
 export function detectRoomFailure(
   items: SessionOverviewItem[],
   now: number,
-): { room: string; sessionCount: number; courseCount: number } | null {
+): { room: string; sessionCount: number; classCount: number } | null {
   const red = items.filter((i) =>
     getAttentionReasons(i, now).some((r) => r.kind === 'attended-no-submission'),
   );
@@ -179,8 +168,8 @@ export function detectRoomFailure(
   const rooms = new Set(red.map((i) => i.roomName));
   if (rooms.size !== 1) return null;
 
-  const courses = new Set(red.map((i) => i.courseId));
-  if (courses.size < 2) return null;
+  const classes = new Set(red.map((i) => i.classId));
+  if (classes.size < 2) return null;
 
-  return { room: red[0].roomName, sessionCount: red.length, courseCount: courses.size };
+  return { room: red[0].roomName, sessionCount: red.length, classCount: classes.size };
 }

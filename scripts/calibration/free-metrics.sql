@@ -174,3 +174,25 @@ FROM examcollect.teacher_review tr
 JOIN examcollect.grading_result gr ON gr.id = tr.grading_result_id
 LEFT JOIN sua_that st ON st.review_id = tr.id
 WHERE gr.ai_total_score IS NOT NULL;
+
+-- 5. Lượt phản biện đã xảy ra chuyện gì
+--
+-- `failed` KHÁC `not_needed`, và sự khác biệt đó là lý do cột
+-- `advocate_outcome` tồn tại. Trước 2026-09-20 cả hai cùng ghi ra một
+-- `advocate_opinion = NULL`, nên `export.py` xếp mọi lượt phản biện crash
+-- vào nhánh B như thể nó chưa từng được bật.
+--
+-- Một tỉ lệ `failed` cao nghĩa là nhánh C đang THIẾU DỮ LIỆU, không phải
+-- phản biện không giúp được gì. Đọc bảng này TRƯỚC khi kết luận bất cứ
+-- điều gì về nhánh C.
+--
+-- `(chưa ghi lại)` = dòng chấm trước khi có cột này. Thuộc nhánh `?`,
+-- không gộp vào đâu cả.
+SELECT
+    COALESCE(advocate_outcome::text, '(chưa ghi lại)')             AS ket_cuc,
+    count(*)                                                       AS so_bai,
+    round(100.0 * count(*) / NULLIF(sum(count(*)) OVER (), 0), 1)  AS phan_tram
+FROM examcollect.grading_result
+WHERE ai_total_score IS NOT NULL
+GROUP BY 1
+ORDER BY 2 DESC;

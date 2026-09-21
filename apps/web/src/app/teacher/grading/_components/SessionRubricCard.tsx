@@ -23,16 +23,14 @@ import { useRubrics, useSetSessionRubric } from '@/hooks/useGrading';
  */
 export function SessionRubricCard({
   sessionId,
-  courseId,
   rubricVersion,
   hasResults,
 }: {
   sessionId: string;
-  courseId: string | undefined;
   rubricVersion: number | null;
   hasResults: boolean;
 }) {
-  const rubrics = useRubrics(courseId);
+  const rubrics = useRubrics();
   const setRubric = useSetSessionRubric(sessionId);
   const options = rubrics.data ?? [];
 
@@ -78,7 +76,7 @@ export function SessionRubricCard({
             </div>
           ) : (
             <p className="text-small text-muted-foreground">
-              Môn này chưa có rubric nào.{' '}
+              Chưa có rubric nào.{' '}
               <Link
                 href="/teacher/rubrics"
                 className="font-semibold underline underline-offset-2"

@@ -50,7 +50,7 @@ function MatrixPageContent() {
   const session = (overview.data ?? []).find((item) => item.id === sessionId);
 
   const results = useGradingResults(sessionId || undefined);
-  const rubrics = useRubrics(session?.courseId);
+  const rubrics = useRubrics();
   const progress = useGradingProgress(sessionId || undefined);
   const bulk = useBulkReview(sessionId || undefined);
 

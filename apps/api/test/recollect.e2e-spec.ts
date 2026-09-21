@@ -33,7 +33,7 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
   let teacherToken: string;
   let teacherId: string;
   let otherTeacherToken: string;
-  let courseId: string;
+  let courseName: string;
 
   const PASSWORD = 'correct-horse-battery';
   let seedCursor = 0;
@@ -64,14 +64,11 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
   async function seedActiveSession(requiredFilenames = ['Cau1.docx']): Promise<SeededSession> {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`Recollect Room ${suffix}`],
-    );
+    const room = { name: `Recollect Room ${suffix}` };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm ${suffix}`, teacherId],
+      [courseName, `Nhóm ${suffix}`, teacherId],
     );
 
     const created = await request(app.getHttpServer())
@@ -80,7 +77,8 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
       .send({
         name: `Phiên thu lại ${suffix}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -104,10 +102,10 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
   async function enrol(mssv: string, name: string, homeClassId: string): Promise<void> {
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT DO NOTHING`,
-      [mssv, name, courseId, homeClassId, teacherId],
+      [mssv, name, homeClassId, teacherId],
     );
   }
 
@@ -198,17 +196,8 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
     teacherToken = teacher.token;
     otherTeacherToken = (await makeAccount('recollect_gv_other')).token;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Recollect Semester ${Date.now()}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Recollect Course', $2) RETURNING id`,
-      [`RC${Date.now()}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Recollect Course' };
+    courseName = course.name;
   });
 
   afterAll(async () => {

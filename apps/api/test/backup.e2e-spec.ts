@@ -86,32 +86,20 @@ describe('Backup (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     const token = login.body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Backup Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn sao lưu', $2) RETURNING id`,
-      [`BK${stamp}`.slice(0, 20), semester.id],
-    );
+    const course = { name: 'Môn sao lưu' };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [course.id, `Nhóm sao lưu ${stamp}`, teacherId],
+      [course.name, `Nhóm sao lưu ${stamp}`, teacherId],
     );
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Backup Room ${stamp}`],
-    );
+    const room = { name: `Backup Room ${stamp}` };
 
     for (const mssv of [MSSV, OTHER_MSSV]) {
       await dataSource.query(
         `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [mssv, `Sinh viên ${mssv}`, course.id, klass.id, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+        [mssv, `Sinh viên ${mssv}`, klass.id, teacherId],
       );
     }
 
@@ -121,7 +109,8 @@ describe('Backup (e2e)', () => {
       .send({
         name: `Backup Session ${stamp}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),

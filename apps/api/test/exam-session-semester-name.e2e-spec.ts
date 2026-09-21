@@ -40,50 +40,49 @@ describe('exam_session.semester_name snapshot (e2e)', () => {
     return { id, token: login.body.accessToken as string };
   }
 
-  /** Một kỳ + môn + lớp + phòng RIÊNG cho mỗi ca, để đổi tên kỳ ở ca này
-   *  không ảnh hưởng ca khác. */
+  /** Một lớp + tên môn/phòng/kỳ RIÊNG cho mỗi ca, để hai ca không giẫm
+   *  lên nhau. Không còn bảng nào để dựng: ba cái tên chỉ là chuỗi. */
   async function seedCourseTree() {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
     const semesterName = `HK Snapshot ${suffix}`;
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [semesterName],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Snapshot Course', $2) RETURNING id`,
-      [`SN${suffix}`.slice(0, 20), semester.id],
-    );
+    const course = { name: 'Snapshot Course' };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [course.id, `Nhóm ${suffix}`, teacherId],
+      [course.name, `Nhóm ${suffix}`, teacherId],
     );
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`Snapshot Room ${suffix}`],
-    );
+    const room = { name: `Snapshot Room ${suffix}` };
     return {
-      semesterId: semester.id as string,
       semesterName,
       classId: klass.id as string,
-      roomId: room.id as string,
+      roomName: room.name as string,
     };
   }
 
-  function createSession(tree: { classId: string; roomId: string }) {
+  // Mỗi phiên một khung giờ riêng: hai phiên CÙNG LỚP chồng giờ nhau bị
+  // `ex_exam_session_class_overlap` chặn bằng 409, và ca "hai phiên khai
+  // hai học kỳ" cần đúng hai phiên cùng lớp.
+  let windowCursor = 0;
+
+  function createSession(tree: {
+    classId: string;
+    roomName: string;
+    semesterName: string;
+  }) {
+    windowCursor += 1;
+    const start = Date.now() + windowCursor * 3 * 3_600_000;
     return request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
       .send({
         name: 'Thi thử snapshot',
         classId: tree.classId,
-        roomId: tree.roomId,
+        roomName: tree.roomName,
+        semesterName: tree.semesterName,
         examType: 'CK',
-        startTime: new Date(Date.now() + 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        startTime: new Date(start).toISOString(),
+        endTime: new Date(start + 3_600_000).toISOString(),
         requiredFilenames: ['Cau1.docx'],
       });
   }
@@ -115,26 +114,24 @@ describe('exam_session.semester_name snapshot (e2e)', () => {
     expect(res.body.semesterName).toBe(tree.semesterName);
   });
 
-  it('KHÔNG đổi theo khi học kỳ bị đổi tên sau đó', async () => {
-    // Đây là lý do cột này tồn tại. Bỏ cột đi và join `course → semester`
-    // thì ca này đỏ, và bảng điểm của một kỳ đã kết thúc sẽ đổi tên kỳ
-    // theo một thao tác hành chính xảy ra hàng tháng sau.
+  it('học kỳ thuộc về PHIÊN, nên hai phiên cùng lớp khai khác nhau được', async () => {
+    // Ca này TỪNG đổi tên một hàng trong bảng `semester` rồi khẳng định
+    // bản chụp không đổi theo. Bảng đó không còn, nên ca ấy không viết
+    // được nữa — nhưng tính chất mà nó bảo vệ thì còn nguyên và quan
+    // trọng hơn trước: giá trị này KHÔNG suy ra từ đâu cả, nó là thứ
+    // giảng viên khai cho đúng phiên đó.
     const tree = await seedCourseTree();
-    const created = await createSession(tree);
-    expect(created.status).toBe(201);
+    const first = await createSession(tree);
+    expect(first.status).toBe(201);
 
-    const renamed = await request(app.getHttpServer())
-      .patch(`/semesters/${tree.semesterId}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `${tree.semesterName} (đã đổi tên)` });
-    expect(renamed.status).toBe(200);
+    const second = await createSession({
+      ...tree,
+      semesterName: `${tree.semesterName} (kỳ sau)`,
+    });
+    expect(second.status).toBe(201);
 
-    const after = await request(app.getHttpServer())
-      .get(`/exam-sessions/${created.body.id}`)
-      .set('Authorization', `Bearer ${teacherToken}`);
-
-    expect(after.status).toBe(200);
-    expect(after.body.semesterName).toBe(tree.semesterName);
+    expect(first.body.semesterName).toBe(tree.semesterName);
+    expect(second.body.semesterName).toBe(`${tree.semesterName} (kỳ sau)`);
   });
 
   it('cột không ghi đè được, kể cả khi save() mang giá trị khác', async () => {

@@ -60,6 +60,7 @@ interface FilterRailProps {
     kinds: FacetOption[];
     examTypes: FacetOption[];
     rooms: FacetOption[];
+    classes: FacetOption[];
     archivedCount: number;
     closedCount: number;
   };
@@ -77,6 +78,7 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
   const hasActive =
     filters.kinds.length > 0 || filters.complete ||
     filters.examTypes.length > 0 || filters.rooms.length > 0 ||
+    filters.classIds.length > 0 ||
     filters.showArchived || !filters.showClosed;
 
   return (
@@ -92,8 +94,8 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
       {facets.semesters.length > 0 && (
         <Section title="Học kỳ">
           <Select
-            value={filters.semesterId ?? 'all'}
-            onValueChange={(v) => onChange({ ...filters, semesterId: v === 'all' ? null : v })}
+            value={filters.semesterName ?? 'all'}
+            onValueChange={(v) => onChange({ ...filters, semesterName: v === 'all' ? null : v })}
           >
             <SelectTrigger aria-label="Lọc theo học kỳ"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -130,6 +132,20 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
           />
         ))}
       </Section>
+
+      {facets.classes.length > 0 && (
+        <Section title="Lớp">
+          {facets.classes.map((k) => (
+            <FacetRow
+              key={k.value}
+              label={k.label}
+              count={k.count}
+              active={filters.classIds.includes(k.value)}
+              onClick={() => onChange({ ...filters, classIds: toggle(filters.classIds, k.value) })}
+            />
+          ))}
+        </Section>
+      )}
 
       {facets.examTypes.length > 0 && (
         <Section title="Loại kỳ thi">
@@ -177,7 +193,7 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
       {hasActive && (
         <button
           type="button"
-          onClick={() => onChange({ ...EMPTY_FILTERS, semesterId: filters.semesterId })}
+          onClick={() => onChange({ ...EMPTY_FILTERS, semesterName: filters.semesterName })}
           className="mt-3 flex items-center gap-1 text-caption text-primary hover:underline"
         >
           <X className="h-3 w-3" aria-hidden="true" />

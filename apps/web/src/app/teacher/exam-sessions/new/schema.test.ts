@@ -13,7 +13,8 @@ describe('createExamSessionSchema — minimum duration', () => {
     return {
       name: 'Kiểm tra giữa kỳ',
       classId: VALID_UUID,
-      roomId: VALID_UUID,
+      roomName: 'P.A101',
+      semesterName: 'HK1 2026-2027',
       examType: 'GK' as const,
       startTime,
       endTime,
@@ -71,7 +72,8 @@ describe('createExamSessionSchema — backdating', () => {
     return {
       name: 'Kiểm tra giữa kỳ',
       classId: VALID_UUID,
-      roomId: VALID_UUID,
+      roomName: 'P.A101',
+      semesterName: 'HK1 2026-2027',
       examType: 'GK' as const,
       startTime,
       endTime,
@@ -120,7 +122,8 @@ describe('createExamSessionSchema — rubric', () => {
     return {
       name: 'Kiểm tra giữa kỳ',
       classId: VALID_UUID,
-      roomId: VALID_UUID,
+      roomName: 'P.A101',
+      semesterName: 'HK1 2026-2027',
       examType: 'GK' as const,
       startTime: toLocalInput(start),
       endTime: toLocalInput(end),

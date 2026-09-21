@@ -3,7 +3,9 @@ import { apiClient } from '@/lib/api-client';
 /** Mirrors RubricView (apps/api/src/grading/rubric.service.ts). */
 export interface Rubric {
   id: string;
-  courseId: string;
+  teacherId: string;
+  /** Tên do giảng viên đặt. Thay vai trò định danh mà môn học từng giữ. */
+  name: string;
   version: number;
   isActive: boolean;
   totalPoints: number;
@@ -85,6 +87,9 @@ export interface GradingResult {
   submissionId: string;
   studentMssv: string;
   studentName: string;
+  /** Lớp GỐC của bài. Khác lớp của phiên nghĩa là THI BÙ. */
+  homeClassId: string;
+  homeClassName: string | null;
   status: string;
   modelUsed: string | null;
   aiTotalScore: number | null;
@@ -151,10 +156,8 @@ function fail(error: unknown, response: Response): Error {
   return new Error(message ?? `Yêu cầu thất bại (HTTP ${response.status})`);
 }
 
-export async function listRubrics(courseId: string): Promise<Rubric[]> {
-  const { data, error, response } = await apiClient.GET('/courses/{courseId}/rubrics', {
-    params: { path: { courseId } },
-  });
+export async function listRubrics(): Promise<Rubric[]> {
+  const { data, error, response } = await apiClient.GET('/rubrics');
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as Rubric[];
 }
@@ -164,12 +167,11 @@ export async function listRubrics(courseId: string): Promise<Rubric[]> {
  * criteria that existing results cite is what Security rule 7 forbids.
  */
 export async function saveRubric(
-  courseId: string,
+  name: string,
   criteria: { description: string; maxPoints: number }[],
 ): Promise<Rubric> {
-  const { data, error, response } = await apiClient.POST('/courses/{courseId}/rubrics', {
-    params: { path: { courseId } },
-    body: { criteria },
+  const { data, error, response } = await apiClient.POST('/rubrics', {
+    body: { name, criteria },
   });
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as Rubric;

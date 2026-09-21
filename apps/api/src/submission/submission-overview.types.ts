@@ -16,9 +16,8 @@ export interface SessionOverviewItem {
   id: string;
   name: string;
   code: string;
-  courseId: string;
   courseName: string;
-  classId: string | null;
+  classId: string;
   className: string | null;
   roomName: string;
   examType: ExamType;
@@ -70,8 +69,13 @@ export interface SessionOverviewItem {
   /** Đếm theo FILE, không theo sinh viên. */
   invalidFileCount: number;
 
-  /** Học kỳ của môn — nguồn cho bộ lọc phạm vi (spec §4.3). */
-  semesterId: string;
+  /**
+   * Học kỳ, chụp lúc tạo phiên — nguồn cho bộ lọc phạm vi (spec §4.3).
+   *
+   * Từng là `semesterId`, suy ra qua `course.semester_id`. Cả hai bảng đã
+   * biến mất, nên bộ lọc chạy trên chính chuỗi này. Hệ quả nhìn thấy được:
+   * hai giảng viên gõ "HK1 2026-2027" và "HK1 26-27" tạo ra hai mục lọc.
+   */
   semesterName: string;
 
   /**

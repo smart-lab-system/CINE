@@ -558,7 +558,7 @@ describe('ExamSessionLobbyPage', () => {
           id: 'session-123',
           name: 'Kiểm tra giữa kỳ',
           status: 'collecting',
-          courseId: 'course-1',
+          courseName: 'CTDL&GT',
           startTime: new Date(Date.now() - 7_200_000).toISOString(),
           endTime: new Date(Date.now() - 60_000).toISOString(),
           completedAt: null,
@@ -722,7 +722,7 @@ describe('ExamSessionLobbyPage', () => {
         id: 'session-123',
         name: 'Kiểm tra giữa kỳ',
         status: 'active',
-        courseId: 'course-1',
+        courseName: 'CTDL&GT',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 60_000).toISOString(),
         requiredDeliverables: [
@@ -964,12 +964,17 @@ describe('ExamSessionLobbyPage', () => {
       await waitFor(() => expect(screen.queryByText('Người Lạ')).not.toBeInTheDocument());
     });
 
-    it('offers only classes belonging to this session\'s own course', async () => {
+    it('offers EVERY class the lecturer owns, even one with a stale course name', async () => {
       useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
       useTeachingClassesMock.mockReturnValue({
         data: [
-          { id: 'class-mine', name: 'Nhóm 01 (đúng môn)', courseId: 'course-1', courseCode: 'CS101', courseName: 'x', studentCount: 0 },
-          { id: 'class-other', name: 'Nhóm khác môn', courseId: 'course-2', courseCode: 'CS999', courseName: 'y', studentCount: 0 },
+          { id: 'class-mine', name: 'Nhóm 01', courseName: 'CTDL&GT', studentCount: 0 },
+          // Dòng dữ liệu cũ, tên môn viết lệch một dấu cách. Bản trước lọc ô
+          // chọn theo tên môn, nên lớp này BIẾN MẤT — ngay trên đường duyệt
+          // thi bù, nơi chọn đúng lớp gốc quyết định bài của em về tay ai.
+          // Hệ thống phục vụ một môn, nên phép lọc ấy không còn lọc được gì,
+          // chỉ còn giấu được. Thừa một dòng hơn thiếu đúng dòng cần.
+          { id: 'class-legacy', name: 'Nhóm 02 (dữ liệu cũ)', courseName: 'CTDL & GT', studentCount: 0 },
         ],
       });
       render(<ExamSessionLobbyPage />);
@@ -980,15 +985,15 @@ describe('ExamSessionLobbyPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
       fireEvent.click(await screen.findByRole('combobox'));
 
-      expect(await screen.findByText('Nhóm 01 (đúng môn)')).toBeInTheDocument();
-      expect(screen.queryByText('Nhóm khác môn')).not.toBeInTheDocument();
+      expect(await screen.findByText('Nhóm 01')).toBeInTheDocument();
+      expect(screen.getByText('Nhóm 02 (dữ liệu cũ)')).toBeInTheDocument();
     });
 
     it('removes the request from the panel once approved', async () => {
       useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
       useTeachingClassesMock.mockReturnValue({
         data: [
-          { id: 'class-mine', name: 'Nhóm 01', courseId: 'course-1', courseCode: 'CS101', courseName: 'x', studentCount: 0 },
+          { id: 'class-mine', name: 'Nhóm 01', courseName: 'CTDL&GT', studentCount: 0 },
         ],
       });
       resolveAccessRequestMock.mockResolvedValue({ ok: true });
@@ -1014,7 +1019,7 @@ describe('ExamSessionLobbyPage', () => {
       useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
       useTeachingClassesMock.mockReturnValue({
         data: [
-          { id: 'class-mine', name: 'Nhóm 01', courseId: 'course-1', courseCode: 'CS101', courseName: 'x', studentCount: 0 },
+          { id: 'class-mine', name: 'Nhóm 01', courseName: 'CTDL&GT', studentCount: 0 },
         ],
       });
       // The most likely real-world failure: approving without CLASS_REQUIRED

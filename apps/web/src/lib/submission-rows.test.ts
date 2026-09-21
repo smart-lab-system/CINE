@@ -47,6 +47,8 @@ function submission(overrides: Partial<SubmissionStatusItem> = {}): SubmissionSt
   return {
     studentMssv: 'SV20120001',
     studentNameInput: 'Nguyễn Văn A',
+    homeClassId: 'class-1',
+    homeClassName: 'CNM01',
     requiredDeliverableId: 'deliverable-1',
     status: 'collected',
     submittedAt: '2026-08-29T04:00:00.000Z',

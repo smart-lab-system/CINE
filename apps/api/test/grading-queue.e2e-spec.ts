@@ -20,7 +20,7 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
 
   let token: string;
   let teacherId: string;
-  let courseId: string;
+  let courseName: string;
 
   const PASSWORD = 'correct-horse-battery';
   let seedCursor = 0;
@@ -28,18 +28,15 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
   async function seedSessionWithSubmissions(count: number): Promise<string> {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`Queue Room ${suffix}`],
-    );
+    const room = { name: `Queue Room ${suffix}` };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm ${suffix}`, teacherId],
+      [courseName, `Nhóm ${suffix}`, teacherId],
     );
 
     const rubric = await request(app.getHttpServer())
-      .post(`/courses/${courseId}/rubrics`)
+      .post('/rubrics')
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: `Rubric ${suffix}`,
@@ -53,7 +50,8 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
       .send({
         name: `Phiên chấm ${suffix}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'CK',
         rubricId: rubric.body.id,
         startTime: new Date(Date.now() - 60_000).toISOString(),
@@ -68,9 +66,9 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
       const mssv = `QB${seedCursor}N${i}${Date.now() % 10000}`.slice(0, 20);
       await dataSource.query(
         `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
-        [mssv, `Sinh viên ${i}`, courseId, klass.id, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+         VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+        [mssv, `Sinh viên ${i}`, klass.id, teacherId],
       );
       // Bài nộp ghi thẳng: bộ test này về HÀNG ĐỢI, không về đường
       // upload — đường đó đã có bộ riêng.
@@ -143,17 +141,8 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
       .send({ email, password: PASSWORD });
     token = login.body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`HK Queue ${Date.now()}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Queue Course', $2) RETURNING id`,
-      [`QC${Date.now()}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Queue Course' };
+    courseName = course.name;
   });
 
   afterAll(async () => {
@@ -282,8 +271,9 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
     // từ chối, và nó từ chối ĐÚNG (Security rule 6). Việc test phải lách
     // một ràng buộc an toàn là dấu hiệu test đang dựng sai tình huống.
     const [rubric] = await dataSource.query(
-      `INSERT INTO examcollect.rubric (course_id, version)
-       SELECT course_id, 9000 + $2 FROM examcollect.exam_session WHERE id = $1
+      `INSERT INTO examcollect.rubric (version, teacher_id, name)
+       SELECT 9000 + $2, es.teacher_id, es.course_name
+         FROM examcollect.exam_session es WHERE es.id = $1
        RETURNING id`,
       [sessionId, seedCursor],
     );

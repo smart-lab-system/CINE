@@ -383,150 +383,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/courses": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["CourseController_findAll"];
-        put?: never;
-        post: operations["CourseController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/courses/mine": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["CourseController_findMine"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/courses/unowned": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["CourseController_findUnowned"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/courses/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["CourseController_remove"];
-        options?: never;
-        head?: never;
-        patch: operations["CourseController_update"];
-        trace?: never;
-    };
-    "/courses/{id}/owner": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["CourseController_assignOwner"];
-        trace?: never;
-    };
-    "/semesters": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["SemesterController_findAll"];
-        put?: never;
-        post: operations["SemesterController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/semesters/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["SemesterController_remove"];
-        options?: never;
-        head?: never;
-        patch: operations["SemesterController_update"];
-        trace?: never;
-    };
-    "/classes/mine": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["ClassController_findMine"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/classes/teachers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["ClassController_findTeachers"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/classes/teaching": {
         parameters: {
             query?: never;
@@ -537,22 +393,6 @@ export interface paths {
         get: operations["ClassController_findTeaching"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/classes/import": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["ClassController_importClasses"];
         delete?: never;
         options?: never;
         head?: never;
@@ -687,7 +527,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/courses/{courseId}/rubrics": {
+    "/rubrics": {
         parameters: {
             query?: never;
             header?: never;
@@ -697,6 +537,22 @@ export interface paths {
         get: operations["GradingController_listRubrics"];
         put?: never;
         post: operations["GradingController_saveRubric"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rubrics/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GradingController_getRubric"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -895,38 +751,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/rooms": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["RoomController_findAll"];
-        put?: never;
-        post: operations["RoomController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/rooms/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["RoomController_remove"];
-        options?: never;
-        head?: never;
-        patch: operations["RoomController_update"];
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -940,18 +764,19 @@ export interface components {
             email: string;
             password: string;
             /** @enum {string} */
-            role: "admin" | "teacher" | "super_admin" | "department_admin";
+            role: "admin" | "teacher";
         };
         UpdateAccountDto: {
             name?: string;
             email?: string;
             /** @enum {string} */
-            role?: "admin" | "teacher" | "super_admin" | "department_admin";
+            role?: "admin" | "teacher";
         };
         CreateExamSessionDto: {
             name: string;
             classId: string;
-            roomId: string;
+            roomName: string;
+            semesterName: string;
             rubricId?: string;
             /** @enum {string} */
             examType: "TK" | "GK" | "CK";
@@ -970,8 +795,10 @@ export interface components {
             code: string;
             teacherId: string;
             courseId: string;
-            classId: string | null;
+            classId: string;
             roomId: string;
+            courseName: string;
+            roomName: string;
             examType: Record<string, never>;
             semesterName: string;
             /** Format: date-time */
@@ -1001,32 +828,8 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        SemesterEntity: {
-            name: string;
-            startDate: string;
-            endDate: string;
-            id: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        CourseEntity: {
-            code: string;
-            name: string;
-            semesterId: string;
-            departmentHeadId: string | null;
-            departmentHead: components["schemas"]["AccountEntity"] | null;
-            semester: components["schemas"]["SemesterEntity"];
-            id: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
         ClassEntity: {
-            courseId: string;
-            course: components["schemas"]["CourseEntity"];
+            courseName: string;
             name: string;
             teacherId: string;
             teacher: components["schemas"]["AccountEntity"];
@@ -1036,18 +839,10 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        RoomEntity: {
-            name: string;
-            capacity: number | null;
-            id: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
         RubricEntity: {
-            courseId: string;
-            course: components["schemas"]["CourseEntity"];
+            teacherId: string;
+            teacher: components["schemas"]["AccountEntity"];
+            name: string;
             version: number;
             isActive: boolean;
             id: string;
@@ -1059,12 +854,10 @@ export interface components {
         ExamSessionEntity: {
             name: string;
             code: string;
-            courseId: string;
-            course: components["schemas"]["CourseEntity"];
-            classId: string | null;
-            class: components["schemas"]["ClassEntity"] | null;
-            roomId: string;
-            room: components["schemas"]["RoomEntity"];
+            courseName: string;
+            roomName: string;
+            classId: string;
+            class: components["schemas"]["ClassEntity"];
             examType: Record<string, never>;
             semesterName: string;
             teacherId: string;
@@ -1123,47 +916,11 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        CreateCourseDto: {
-            code: string;
-            name: string;
-            semesterId: string;
-        };
-        UpdateCourseDto: {
-            code?: string;
-            name?: string;
-            semesterId?: string;
-        };
-        AssignCourseOwnerDto: {
-            departmentHeadId: string;
-        };
-        CreateSemesterDto: {
-            name: string;
-            startDate: string;
-            endDate: string;
-        };
-        UpdateSemesterDto: {
-            name?: string;
-            startDate?: string;
-            endDate?: string;
-        };
-        ImportClassRowDto: {
-            courseCode: string;
-            courseName: string;
-            className: string;
-            teacherEmail: string;
-        };
-        ImportClassesDto: {
-            semesterId: string;
-            rows: components["schemas"]["ImportClassRowDto"][];
-        };
         CreateClassDto: {
-            courseId: string;
             name: string;
-            teacherId: string;
         };
         UpdateClassDto: {
             name?: string;
-            teacherId?: string;
         };
         ImportRosterDto: {
             students: components["schemas"]["RosterStudentDto"][];
@@ -1174,6 +931,7 @@ export interface components {
             maxPoints: number;
         };
         SaveRubricDto: {
+            name: string;
             criteria: components["schemas"]["RubricCriterionDto"][];
         };
         SetSessionRubricDto: {
@@ -1237,14 +995,6 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
-        };
-        CreateRoomDto: {
-            name: string;
-            capacity?: number;
-        };
-        UpdateRoomDto: {
-            name?: string;
-            capacity?: number;
         };
     };
     responses: never;
@@ -1348,7 +1098,7 @@ export interface operations {
         parameters: {
             query: {
                 search?: string;
-                role?: "admin" | "teacher" | "super_admin" | "department_admin";
+                role?: "admin" | "teacher";
                 page: number;
                 pageSize: number;
             };
@@ -1477,7 +1227,8 @@ export interface operations {
                 search?: string;
                 status?: "draft" | "scheduled" | "active" | "collecting" | "completed" | "cancelled";
                 examType?: "TK" | "GK" | "CK";
-                semesterId?: string;
+                semesterName?: string;
+                classId?: string;
             };
             header?: never;
             path?: never;
@@ -1876,284 +1627,9 @@ export interface operations {
             };
         };
     };
-    CourseController_findAll: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
-            };
-        };
-    };
-    CourseController_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateCourseDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourseEntity"];
-                };
-            };
-        };
-    };
-    CourseController_findMine: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourseEntity"][];
-                };
-            };
-        };
-    };
-    CourseController_findUnowned: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourseEntity"][];
-                };
-            };
-        };
-    };
-    CourseController_remove: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    CourseController_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateCourseDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourseEntity"];
-                };
-            };
-        };
-    };
-    CourseController_assignOwner: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AssignCourseOwnerDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourseEntity"];
-                };
-            };
-        };
-    };
-    SemesterController_findAll: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SemesterEntity"][];
-                };
-            };
-        };
-    };
-    SemesterController_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSemesterDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SemesterEntity"];
-                };
-            };
-        };
-    };
-    SemesterController_remove: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    SemesterController_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSemesterDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SemesterEntity"];
-                };
-            };
-        };
-    };
-    ClassController_findMine: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
-            };
-        };
-    };
-    ClassController_findTeachers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
-            };
-        };
-    };
     ClassController_findTeaching: {
         parameters: {
-            query?: {
-                semesterId?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -2166,29 +1642,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>[];
-                };
-            };
-        };
-    };
-    ClassController_importClasses: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ImportClassesDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -2416,9 +1869,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                courseId: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -2437,9 +1888,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                courseId: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
@@ -2449,6 +1898,27 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    GradingController_getRubric: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2718,92 +2188,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>[];
-                };
-            };
-        };
-    };
-    RoomController_findAll: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomEntity"][];
-                };
-            };
-        };
-    };
-    RoomController_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateRoomDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomEntity"];
-                };
-            };
-        };
-    };
-    RoomController_remove: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    RoomController_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateRoomDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomEntity"];
                 };
             };
         };

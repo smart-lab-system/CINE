@@ -18,9 +18,9 @@ describe('Submission overview (e2e)', () => {
   const stamp = Date.now();
   let teacherToken: string;
   let teacherId: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
-  let roomId: string;
+  let roomName: string;
 
   /** Roster 40 SV cho lớp đang xét — mẫu số của mọi assertion bên dưới. */
   const ROSTER: string[] = Array.from({ length: 40 }, (_, i) =>
@@ -29,7 +29,7 @@ describe('Submission overview (e2e)', () => {
 
   /**
    * Luôn tạo qua API với classId thật và >= 1 filename: CreateExamSessionDto
-   * bắt buộc `@IsUUID() classId` (courseId được suy ra từ class ở server) và
+   * bắt buộc `@IsUUID() classId` (courseName được suy ra từ class ở server) và
    * `@ArrayMinSize(1) requiredFilenames`. Hai kịch bản biên (không gắn lớp /
    * không có file bắt buộc) được dựng bằng cách gỡ bớt SAU khi tạo — xem
    * `detachClass` và `dropDeliverables` bên dưới. Đừng thử gửi null/[] vào
@@ -63,7 +63,8 @@ describe('Submission overview (e2e)', () => {
       .send({
         name,
         classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         // Tạo ở khung hợp lệ rồi mới dời — cùng kiểu với detachClass/
         // dropDeliverables bên dưới. DTO chặn khai giờ bắt đầu lùi quá
@@ -187,26 +188,14 @@ describe('Submission overview (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     teacherToken = login.body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO ${schema}.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Overview Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO ${schema}.course (code, name, semester_id)
-       VALUES ($1, 'Overview Course', $2) RETURNING id`,
-      [`OVC${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO ${schema}.room (name, capacity) VALUES ($1, 50) RETURNING id`,
-      [`Overview Room ${stamp}`],
-    );
-    roomId = room.id;
+    const course = { name: 'Overview Course' };
+    courseName = course.name;
+    const room = { name: `Overview Room ${stamp}` };
+    roomName = room.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, name, teacher_id)
+      `INSERT INTO ${schema}.class (course_name, name, teacher_id)
        VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseId, teacherId],
+      [courseName, teacherId],
     );
     classId = klass.id;
 
@@ -214,9 +203,9 @@ describe('Submission overview (e2e)', () => {
     for (const mssv of ROSTER) {
       await dataSource.query(
         `INSERT INTO ${schema}.enrollment
-           (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [mssv, `SV ${mssv}`, courseId, classId, teacherId],
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+        [mssv, `SV ${mssv}`, classId, teacherId],
       );
     }
   }, 60_000);
@@ -305,16 +294,16 @@ describe('Submission overview (e2e)', () => {
     // SV thi ghép: enrolled cùng course nhưng home_class_id là lớp KHÁC ->
     // không thuộc roster, nhưng có bài nộp -> phải nằm trong expectedCount.
     const [otherClass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, name, teacher_id)
+      `INSERT INTO ${schema}.class (course_name, name, teacher_id)
        VALUES ($1, 'N02', $2) RETURNING id`,
-      [courseId, teacherId],
+      [courseName, teacherId],
     );
     const makeupMssv = `OVM${stamp}`.slice(0, 20);
     await dataSource.query(
       `INSERT INTO ${schema}.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, 'SV thi ghép', $2, $3, $4)`,
-      [makeupMssv, courseId, otherClass.id, teacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, 'SV thi ghép', $2, $3)`,
+      [makeupMssv, otherClass.id, teacherId],
     );
 
     const session = await createSession(
@@ -356,22 +345,22 @@ describe('Submission overview (e2e)', () => {
     ).toBe(item.expectedCount);
   }, 30_000);
 
-  it('phiên không gắn lớp: rosterKnown false, neverAttendedCount 0', async () => {
+  it('không còn dựng được phiên không gắn lớp — class_id là NOT NULL', async () => {
+    // Ca này TỪNG kiểm hành vi suy giảm của một phiên thiếu lớp. Hành vi ấy
+    // không còn tồn tại: `ExpandMasterDataToText` đặt `exam_session.class_id`
+    // thành NOT NULL, và đó không chỉ là dọn dẹp —
+    // `ex_exam_session_class_overlap` là exclusion constraint trên cột này,
+    // mà Postgres BỎ QUA dòng có khoá NULL, nên tới lúc đó mọi phiên không
+    // gắn lớp đều thoát khỏi phép chống trùng lịch lớp.
+    //
+    // Giữ lại ca test như một hàng rào: nếu ai đó nới cột về nullable, chỗ
+    // này đỏ và nói rõ vì sao không được làm thế.
     const session = await createSession(`NoClass ${stamp}`, ['Cau1.docx'], {
       startOffsetMs: -7_200_000,
       endOffsetMs: -3_600_000,
     });
-    // Submission phải ghi TRƯỚC khi gỡ lớp: home_class_id là NOT NULL và
-    // phải trỏ tới một class có thật.
-    await insertSubmission(session.id, session.deliverableIds[0], ROSTER[5], 'collected');
-    await detachClass(session.id);
 
-    const item = bySessionId(await fetchOverview(), session.id);
-
-    expect(item.rosterKnown).toBe(false);
-    expect(item.neverAttendedCount + item.satElsewhereCount).toBe(0);
-    expect(item.expectedCount).toBe(1);
-    expect(item.fullySubmittedCount).toBe(1);
+    await expect(detachClass(session.id)).rejects.toThrow(/class_id/);
   }, 30_000);
 
   it('phiên có bài thu mà CHƯA gắn rubric vẫn nằm trong overview, rubricId null', async () => {
@@ -398,13 +387,9 @@ describe('Submission overview (e2e)', () => {
       password: 'correct-horse-battery',
       role: 'teacher',
     });
-    const [foreignCourse] = await dataSource.query(
-      `INSERT INTO ${schema}.course (code, name, semester_id)
-       SELECT $1, 'Foreign', semester_id FROM ${schema}.course WHERE id = $2 RETURNING id`,
-      [`OVF${stamp}`.slice(0, 20), courseId],
-    );
+    const foreignCourse = { id: `Foreign ${stamp}` };
     const [foreignClass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_id, name, teacher_id)
+      `INSERT INTO ${schema}.class (course_name, name, teacher_id)
        VALUES ($1, 'N01', $2) RETURNING id`,
       [foreignCourse.id, otherTeacherId],
     );
@@ -417,7 +402,8 @@ describe('Submission overview (e2e)', () => {
       .send({
         name: `Phiên lạ ${stamp}`,
         classId: foreignClass.id,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         // Khung riêng, vì phòng dùng chung với các phiên khác của spec.
         // Test này chỉ hỏi "phiên của giảng viên khác có lọt vào danh sách

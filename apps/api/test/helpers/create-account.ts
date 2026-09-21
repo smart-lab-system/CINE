@@ -1,7 +1,7 @@
 import { DataSource } from 'typeorm';
 import * as argon2 from 'argon2';
 
-export type TestAccountRole = 'admin' | 'teacher' | 'super_admin' | 'department_admin';
+export type TestAccountRole = 'admin' | 'teacher';
 
 /**
  * Inserts an account directly, bypassing the API — there's no self-serve

@@ -7,6 +7,7 @@ import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity'
 import { StorageService } from '../storage/storage.service';
 import { SubmissionEntity } from './entities/submission.entity';
 import { RequestUploadUrlDto } from './dto/request-upload-url.dto';
+import { ClassEntity } from '../course/entities/class.entity';
 import { ConfirmSubmissionDto } from './dto/confirm-submission.dto';
 import { SearchSubmissionsDto } from './dto/search-submissions.dto';
 import {
@@ -36,6 +37,18 @@ export interface SubmissionStatusView {
   submittedAt: Date | null;
   fileSize: string | null;
   downloadUrl: string | null;
+  /**
+   * Lớp GỐC của sinh viên, và tên của nó.
+   *
+   * Khác `exam_session.class_id` nghĩa là em THI BÙ — ngồi ở phiên của
+   * lớp khác. Không cần cột mới: `submission.home_class_id` đã được ghi
+   * từ lúc thu bài, chính là thứ định tuyến bài về đúng giảng viên.
+   *
+   * Kèm TÊN chứ không chỉ id: biết "thi bù" mà không biết "từ lớp nào"
+   * thì giảng viên vẫn phải đi tra.
+   */
+  homeClassId: string;
+  homeClassName: string | null;
 }
 
 /**
@@ -204,9 +217,14 @@ export class SubmissionService {
       // một lần; chỗ này viết rõ để không phải trả lần hai.
       this.submissions
         .createQueryBuilder('sub')
+        // Một JOIN, chỉ để lấy TÊN lớp gốc. Nhãn "thi bù" mà không nói
+        // từ lớp nào thì giảng viên vẫn phải đi tra, nên cái tên là
+        // phần có giá trị chứ không phải cái id.
+        .leftJoin(ClassEntity, 'hc', 'hc.id = sub.home_class_id')
+        .addSelect('hc.name', 'homeClassName')
         .where('sub.examSessionId = :examSessionId', { examSessionId })
         .orderBy('sub.submittedAt', 'ASC', 'NULLS LAST')
-        .getMany(),
+        .getRawAndEntities<{ homeClassName: string | null }>(),
       // For the download URL's filename only (see below) — still no SQL
       // JOIN, and still through ExamSessionService rather than a second
       // repository over exam-session's own table (this module's own
@@ -216,13 +234,18 @@ export class SubmissionService {
     const filenameById = new Map(deliverables.map((d) => [d.id, d.requiredFilename]));
 
     return Promise.all(
-      rows.map(async (row) => ({
+      rows.entities.map(async (row, index) => ({
         studentMssv: row.studentMssv,
         studentNameInput: row.studentNameInput,
         requiredDeliverableId: row.requiredDeliverableId,
         status: row.status,
         submittedAt: row.submittedAt,
         fileSize: row.fileSize,
+        homeClassId: row.homeClassId,
+        // `?.` chứ không `[index].`: `getRawAndEntities` trả raw song song
+        // với entities, nhưng nếu một ngày chúng lệch nhau thì thứ hỏng phải
+        // là MỘT cái nhãn, không phải cả trang bài nộp.
+        homeClassName: rows.raw[index]?.homeClassName ?? null,
         // QA-reported gap: the storage key is a bare id, no extension —
         // nothing a browser follows this URL could ever name the saved
         // file after. filename is the declared requiredFilename, the same

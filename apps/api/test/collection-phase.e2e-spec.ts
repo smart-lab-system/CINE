@@ -36,7 +36,7 @@ describe('Collection phase (e2e)', () => {
   // riêng (xem seedActiveSession), vì hai ràng buộc GiST loại trừ theo
   // khoảng thời gian và mọi phiên ở đây đều đang diễn ra. Môn học thì
   // dùng chung được — nó không nằm trong ràng buộc nào cả.
-  let courseId: string;
+  let courseName: string;
 
   const PASSWORD = 'correct-horse-battery';
   let windowCursor = 0;
@@ -64,14 +64,11 @@ describe('Collection phase (e2e)', () => {
   async function seedActiveSession(options: { requiredFilenames?: string[] } = {}) {
     windowCursor += 1;
     const suffix = `${windowCursor}_${Date.now()}`;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`Collect Room ${suffix}`],
-    );
+    const room = { name: `Collect Room ${suffix}` };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm ${suffix}`, teacherId],
+      [courseName, `Nhóm ${suffix}`, teacherId],
     );
 
     const created = await request(app.getHttpServer())
@@ -80,7 +77,8 @@ describe('Collection phase (e2e)', () => {
       .send({
         name: `Phiên thu bài ${suffix}`,
         classId: klass.id,
-        roomId: room.id,
+        roomName: room.name,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         // Bắt đầu trong quá khứ để agent join được ngay; kết thúc ở
         // tương lai để `isAcceptingUploads` còn mở theo đồng hồ thật.
@@ -95,7 +93,7 @@ describe('Collection phase (e2e)', () => {
       deliverableId: created.body.requiredDeliverables[0].id as string,
       endTime: new Date(created.body.endTime as string),
       classId: klass.id as string,
-      roomId: room.id as string,
+      roomName: room.name as string,
     };
   }
 
@@ -196,17 +194,8 @@ describe('Collection phase (e2e)', () => {
     teacherToken = teacher.token;
     otherTeacherToken = (await makeAccount('collect_gv_other', 'teacher')).token;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Collect Semester ${Date.now()}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Collect Phase Course', $2) RETURNING id`,
-      [`CP${Date.now()}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Collect Phase Course' };
+    courseName = course.name;
   });
 
   afterAll(async () => {
@@ -220,10 +209,10 @@ describe('Collection phase (e2e)', () => {
   async function enrol(mssv: string, name: string, homeClassId: string) {
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT DO NOTHING`,
-      [mssv, name, courseId, homeClassId, teacherId],
+      [mssv, name, homeClassId, teacherId],
     );
   }
 
@@ -382,29 +371,28 @@ describe('Collection phase (e2e)', () => {
     // /exam-sessions không tạo được phiên trong quá khứ.
     const longAgoStart = new Date(Date.now() - 6 * 3_600_000);
     const longAgoEnd = new Date(Date.now() - 5 * 3_600_000);
-    const [oldRoom] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`Collect Room old ${Date.now()}`],
-    );
+    const oldRoom = { name: `Collect Room old ${Date.now()}` };
     const [oldClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm quá hạn ${Date.now()}`, teacherId],
+      [courseName, `Nhóm quá hạn ${Date.now()}`, teacherId],
     );
     const [old] = await dataSource.query(
       // semester_name NOT NULL từ 2026-09-11 (§7.1.5). INSERT thô bỏ
       // qua service nên phải tự cấp — giá trị nào cũng được, ca này
       // không kiểm học kỳ.
       `INSERT INTO examcollect.exam_session
-         (name, code, course_id, class_id, room_id, teacher_id, exam_type,
-          start_time, end_time, status, semester_name)
-       VALUES ($1, $2, $3, $4, $5, $6, 'TK', $7, $8, 'collecting', 'HK kiểm thử') RETURNING id`,
+         (name, code, class_id, teacher_id, exam_type,
+          start_time, end_time, status, semester_name,
+          course_name, room_name)
+       VALUES ($1, $2, $4, $6, 'TK', $7, $8, 'collecting', 'HK kiểm thử',
+               $3, $5) RETURNING id`,
       [
         `Phiên quá hạn ${Date.now()}`,
         `OLD${Date.now()}`.slice(0, 20),
-        courseId,
+        courseName,
         oldClass.id,
-        oldRoom.id,
+        oldRoom.name,
         teacherId,
         longAgoStart.toISOString(),
         longAgoEnd.toISOString(),
@@ -456,7 +444,8 @@ describe('Collection phase (e2e)', () => {
       .send({
         name: `Phiên kế tiếp ${Date.now()}`,
         classId: session.classId,
-        roomId: session.roomId,
+        roomName: session.roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: session.endTime.toISOString(),
         endTime: new Date(session.endTime.getTime() + 3_600_000).toISOString(),

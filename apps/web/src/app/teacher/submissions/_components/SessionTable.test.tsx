@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
-import { groupByCourseClass } from '@/lib/submission-attention';
+import { groupByClass } from '@/lib/submission-attention';
 import { SessionTable } from './SessionTable';
 
 const NOW = Date.now();
@@ -11,12 +11,12 @@ const HOUR = 3_600_000;
 function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
   return {
     id: 's1', name: 'Giữa kỳ #2', code: 'GK2',
-    courseId: 'c1', courseName: 'Nhập môn lập trình', classId: 'k1', className: 'Nhóm 01',
+    courseName: 'Nhập môn lập trình', classId: 'k1', className: 'Nhóm 01',
     roomName: 'A3-01', examType: 'GK',
     startTime: new Date(NOW - 4 * HOUR).toISOString(),
     endTime: new Date(NOW - 2 * HOUR).toISOString(),
     status: 'completed',
-    semesterId: 'sem-1', semesterName: 'Học kỳ 1 2026-2027',
+    semesterName: 'Học kỳ 1 2026-2027',
     requiredDeliverableCount: 2, expectedCount: 22, rosterKnown: true,
     fullySubmittedCount: 22, partialCount: 0,
     attendedNoSubmissionCount: 0, neverAttendedCount: 0, satElsewhereCount: 0,
@@ -34,7 +34,7 @@ beforeEach(() => { onArchive.mockReset(); onClose.mockReset(); });
 function renderTable(items: SessionOverviewItem[]) {
   return render(
     <SessionTable
-      groups={groupByCourseClass(items, NOW)}
+      groups={groupByClass(items, NOW)}
       now={NOW}
       onArchive={onArchive}
       onCloseAttention={onClose}
@@ -46,7 +46,7 @@ describe('SessionTable — cấu trúc', () => {
   it('CẢ TRANG LÀ MỘT <table> — nhóm là dòng gộp cột bên trong', () => {
     const { container } = renderTable([
       make({ id: 'a' }),
-      make({ id: 'b', courseId: 'c2', courseName: 'CTDL', classId: 'k2', className: 'N05' }),
+      make({ id: 'b', courseName: 'CTDL', classId: 'k2', className: 'N05' }),
     ]);
     // Nếu mỗi nhóm là một <table> riêng thì cột lệch nhau và toàn bộ lợi thế
     // quét mắt biến mất — đó là lý do chọn bảng. Test này khoá điều đó.

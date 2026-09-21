@@ -10,6 +10,8 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
     submissionId: 's1',
     studentMssv: '20120001',
     studentName: 'Nguyễn Văn A',
+    homeClassId: 'class-a',
+    homeClassName: 'N01',
     status: 'flagged_for_review',
     modelUsed: 'keyword-match@1',
     aiTotalScore: 4,
@@ -43,6 +45,7 @@ describe('ReviewWorkspace', () => {
     render(
       <ReviewWorkspace
         examSessionId="e1"
+        sessionClassId="class-a"
         results={[
           result({ id: 'r1', status: 'flagged_for_review' }),
           result({ id: 'r2', status: 'auto_approved', studentName: 'Trần B' }),
@@ -59,6 +62,7 @@ describe('ReviewWorkspace', () => {
     render(
       <ReviewWorkspace
         examSessionId="e1"
+        sessionClassId="class-a"
         results={[
           result({
             id: 'r1',
@@ -81,7 +85,11 @@ describe('ReviewWorkspace', () => {
     // Đường dẫn trỏ thẳng vào một bài là thứ cần thật khi sinh viên phúc
     // khảo — gửi được cho đồng nghiệp mà không phải mô tả đường đi.
     render(
-      <ReviewWorkspace examSessionId="e1" results={[result({ id: 'r1' })]} />,
+      <ReviewWorkspace
+        examSessionId="e1"
+        results={[result({ id: 'r1' })]}
+        sessionClassId="class-a"
+      />,
     );
 
     expect(screen.getByRole('link', { name: /Nguyễn Văn A/ })).toHaveAttribute(
@@ -91,7 +99,30 @@ describe('ReviewWorkspace', () => {
   });
 
   it('danh sách rỗng nói rõ, không hiện khung trắng', () => {
-    render(<ReviewWorkspace examSessionId="e1" results={[]} />);
+    render(<ReviewWorkspace examSessionId="e1" results={[]} sessionClassId="class-a" />);
     expect(screen.getByText(/Chưa có bài nào để duyệt/)).toBeInTheDocument();
+  });
+
+  it('gắn nhãn thi bù KÈM TÊN LỚP GỐC, và chỉ cho bài của lớp khác', () => {
+    // Biết "thi bù" mà không biết "từ lớp nào" thì giảng viên vẫn phải đi
+    // tra — lớp gốc là thứ quyết định bài của em về tay ai.
+    render(
+      <ReviewWorkspace
+        examSessionId="e1"
+        results={[
+          result({ id: 'r1', studentName: 'Của lớp này' }),
+          result({
+            id: 'r2',
+            studentName: 'Thi bù',
+            homeClassId: 'class-b',
+            homeClassName: 'N02',
+          }),
+        ]}
+        sessionClassId="class-a"
+      />,
+    );
+
+    expect(screen.getByText('Thi bù — N02')).toBeInTheDocument();
+    expect(screen.queryByText('Thi bù — N01')).not.toBeInTheDocument();
   });
 });

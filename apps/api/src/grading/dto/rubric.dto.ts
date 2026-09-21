@@ -27,6 +27,17 @@ export class RubricCriterionDto {
 }
 
 export class SaveRubricDto {
+  /**
+   * Tên do giảng viên đặt, ví dụ "Giữa kỳ CTDL".
+   *
+   * Nó thay vai trò định danh mà `course_id` từng giữ: phiên bản được
+   * đánh số theo (giảng viên, tên), nên lưu lại cùng một tên là tạo bản
+   * kế tiếp của CÙNG một rubric, còn đổi tên là bắt đầu một rubric mới.
+   */
+  @IsString()
+  @Length(1, 200)
+  name!: string;
+
   @IsArray()
   @ArrayMinSize(1)
   // A rubric with fifty criteria is a rubric nobody reviews, and every one

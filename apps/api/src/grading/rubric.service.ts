@@ -4,12 +4,12 @@ import { DataSource, Repository } from 'typeorm';
 import { RubricEntity } from './entities/rubric.entity';
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { GradingResultEntity } from './entities/grading-result.entity';
-import { ClassEntity } from '../course/entities/class.entity';
 import { SaveRubricDto } from './dto/rubric.dto';
 
 export interface RubricView {
   id: string;
-  courseId: string;
+  teacherId: string;
+  name: string;
   version: number;
   isActive: boolean;
   totalPoints: number;
@@ -28,6 +28,13 @@ export interface RubricView {
  * The database enforces the second half of this independently — a trigger
  * makes a version's criteria immutable once a GradingResult references it —
  * so a future caller that tries to edit around this service still fails.
+ *
+ * **CHỦ SỞ HỮU LÀ GIẢNG VIÊN.** Trước đợt thu hẹp master data, quyền động
+ * vào rubric được suy ra bằng cách ĐẾM DÒNG trong bảng `class`: "bạn có dạy
+ * lớp nào của môn này không". Rubric thuộc về MÔN, nên hai giảng viên dạy
+ * hai lớp cùng môn dùng chung một rubric và sửa được của nhau. Giờ quyền là
+ * một phép so sánh — `rubric.teacherId === teacherId` — và hiện vật trung
+ * tâm của phần chấm điểm không còn bị dữ liệu nền giam.
  */
 @Injectable()
 export class RubricService {
@@ -38,49 +45,32 @@ export class RubricService {
     private readonly criteria: Repository<RubricCriterionEntity>,
     @InjectRepository(GradingResultEntity)
     private readonly results: Repository<GradingResultEntity>,
-    @InjectRepository(ClassEntity)
-    private readonly classes: Repository<ClassEntity>,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   /**
-   * A lecturer may work on the rubric of a course they teach a class in.
-   *
-   * Scope comes from `class.teacher_id`, the same column every other
-   * lecturer-facing check uses. A rubric belongs to the COURSE — two
-   * lecturers teaching two classes of one course share it, which is the
-   * point of grading them against the same criteria.
+   * Khuôn kiểm sở hữu, giống hệt `class.service.ts`: so chủ sở hữu, ném
+   * Forbidden. Một hàm chứ không phải một điều kiện lặp lại ở bốn chỗ —
+   * bỏ sót một chỗ là một giảng viên đọc được rubric của người khác.
    */
-  private async assertTeachesCourse(courseId: string, teacherId: string): Promise<void> {
-    const count = await this.classes.count({ where: { courseId, teacherId } });
-    if (count === 0) {
-      throw new ForbiddenException('You do not teach any class of this course');
+  private assertOwned(rubric: RubricEntity, teacherId: string): void {
+    if (rubric.teacherId !== teacherId) {
+      throw new ForbiddenException('Rubric này không thuộc về bạn');
     }
   }
 
-  /** Every version, newest first — the history rule 7 exists to preserve. */
-  async listForCourse(courseId: string, teacherId: string): Promise<RubricView[]> {
-    await this.assertTeachesCourse(courseId, teacherId);
+  /**
+   * Mọi rubric của một giảng viên, mọi phiên bản, mới nhất trước.
+   *
+   * Không lọc `isActive`: lịch sử phiên bản là thứ rule 7 tồn tại để giữ,
+   * và giao diện cần thấy nó để nói "phiên thi này chấm bằng bản 2".
+   */
+  async listForTeacher(teacherId: string): Promise<RubricView[]> {
     const rows = await this.rubrics.find({
-      where: { courseId },
-      order: { version: 'DESC' },
+      where: { teacherId },
+      order: { name: 'ASC', version: 'DESC' },
     });
     return Promise.all(rows.map((row) => this.toView(row)));
-  }
-
-  /**
-   * The version to offer as the default when CREATING a session — not the
-   * version a grading run will use. A grading run reads the rubric the
-   * session pinned (`exam_session.rubric_id`), decided when the paper was
-   * written.
-   *
-   * The old name was `findActive`, and it meant the second thing. Renamed
-   * rather than kept, so that meaning cannot creep back through a new
-   * caller: a rubric edited between two exams of one course must not change
-   * how the earlier exam is graded.
-   */
-  async findDefaultForCourse(courseId: string): Promise<RubricEntity | null> {
-    return this.rubrics.findOne({ where: { courseId, isActive: true } });
   }
 
   /**
@@ -88,8 +78,8 @@ export class RubricService {
    *
    * Deliberate: every caller has already established scope by other means —
    * the session was owner-checked, and `rubric_id` can only have been
-   * written by a path that already forced `rubric.courseId ===
-   * session.courseId`. Re-checking here would only obscure where the rule
+   * written by a path that already forced the rubric's owner to be the
+   * session's lecturer. Re-checking here would only obscure where the rule
    * is actually enforced.
    */
   async findById(rubricId: string): Promise<RubricEntity | null> {
@@ -108,31 +98,34 @@ export class RubricService {
    * One transaction: a version whose criteria failed to insert would be an
    * empty rubric marked active, and the next grading run would score every
    * submission zero out of zero.
+   *
+   * Phiên bản được đếm theo (giảng viên, TÊN), không còn theo môn. Lưu lại
+   * cùng một tên là tạo bản kế tiếp; đổi tên là bắt đầu một rubric mới ở
+   * bản 1. `uq_rubric_teacher_name_version` ép đúng điều đó ở tầng DB.
    */
-  async saveNewVersion(
-    courseId: string,
-    teacherId: string,
-    dto: SaveRubricDto,
-  ): Promise<RubricView> {
-    await this.assertTeachesCourse(courseId, teacherId);
-
+  async saveNewVersion(teacherId: string, dto: SaveRubricDto): Promise<RubricView> {
     return this.dataSource.transaction(async (manager) => {
       const latest = await manager
         .getRepository(RubricEntity)
-        .findOne({ where: { courseId }, order: { version: 'DESC' } });
+        .findOne({ where: { teacherId, name: dto.name }, order: { version: 'DESC' } });
       const version = (latest?.version ?? 0) + 1;
 
-      // Exactly one active version per course. `isActive` no longer decides
-      // how anything is GRADED — a session pins its own rubric — but it is
-      // still what `findDefaultForCourse` offers as the pre-selected choice
-      // when a lecturer creates a session, and two actives would make that
-      // choice a matter of row order.
+      // Exactly one active version per (teacher, name). `isActive` no
+      // longer decides how anything is GRADED — a session pins its own
+      // rubric — but it is still what the form pre-selects when a lecturer
+      // creates a session, and two actives would make that choice a matter
+      // of row order.
       await manager
         .getRepository(RubricEntity)
-        .update({ courseId, isActive: true }, { isActive: false });
+        .update({ teacherId, name: dto.name, isActive: true }, { isActive: false });
 
       const rubric = await manager.save(
-        manager.create(RubricEntity, { courseId, version, isActive: true }),
+        manager.create(RubricEntity, {
+          teacherId,
+          name: dto.name,
+          version,
+          isActive: true,
+        }),
       );
 
       await manager.save(
@@ -150,13 +143,13 @@ export class RubricService {
     });
   }
 
-  /** One version with its criteria, for a lecturer who teaches the course. */
+  /** One version with its criteria, for the lecturer who owns it. */
   async findOneForTeacher(rubricId: string, teacherId: string): Promise<RubricView> {
     const rubric = await this.rubrics.findOne({ where: { id: rubricId } });
     if (!rubric) {
       throw new NotFoundException('Rubric not found');
     }
-    await this.assertTeachesCourse(rubric.courseId, teacherId);
+    this.assertOwned(rubric, teacherId);
     return this.toView(rubric);
   }
 
@@ -175,7 +168,8 @@ export class RubricService {
     });
     return {
       id: rubric.id,
-      courseId: rubric.courseId,
+      teacherId: rubric.teacherId,
+      name: rubric.name,
       version: rubric.version,
       isActive: rubric.isActive,
       totalPoints:

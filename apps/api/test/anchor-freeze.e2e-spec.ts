@@ -19,7 +19,7 @@ describe('Đóng băng anchor (e2e)', () => {
   let anchors: AnchorService;
 
   let teacherId: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
   let sessionId: string;
   let rubricId: string;
@@ -40,41 +40,32 @@ describe('Đóng băng anchor (e2e)', () => {
     );
     teacherId = teacher.id;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`HK Anchor ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn anchor', $2) RETURNING id`,
-      [`AN${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
+    const course = { name: 'Môn anchor' };
+    courseName = course.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseId, teacherId],
+      [courseName, teacherId],
     );
     classId = klass.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 40) RETURNING id`,
-      [`P Anchor ${stamp}`],
-    );
+    const room = { name: `P Anchor ${stamp}` };
     const [session] = await dataSource.query(
       `INSERT INTO examcollect.exam_session
-         (name, code, class_id, course_id, teacher_id, room_id, exam_type,
-          start_time, end_time, status, semester_name)
-       VALUES ('Phiên anchor', $1, $2, $3, $4, $5, 'CK',
-               now() - interval '1 hour', now() + interval '1 hour', 'active', $6)
+         (name, code, class_id, teacher_id, exam_type,
+          start_time, end_time, status, semester_name,
+          course_name, room_name)
+       VALUES ('Phiên anchor', $1, $2, $4, 'CK',
+               now() - interval '1 hour', now() + interval '1 hour', 'active', $6,
+               $3, $5)
        RETURNING id`,
-      [`ANC${stamp}`.slice(0, 20), classId, courseId, teacherId, room.id, `HK Anchor ${stamp}`],
+      [`ANC${stamp}`.slice(0, 20), classId, courseName, teacherId, room.name, `HK Anchor ${stamp}`],
     );
     sessionId = session.id;
 
     const [rubric] = await dataSource.query(
-      `INSERT INTO examcollect.rubric (course_id, version) VALUES ($1, 1) RETURNING id`,
-      [courseId],
+      `INSERT INTO examcollect.rubric (version, teacher_id, name)
+       VALUES (1, $2, $1) RETURNING id`,
+      [`${courseName} ${stamp}`, teacherId],
     );
     rubricId = rubric.id;
     const [criterion] = await dataSource.query(
@@ -185,8 +176,9 @@ describe('Đóng băng anchor (e2e)', () => {
     // Anchor của v1 áp cho v3 là dạy một chuẩn đã lỗi thời — Security
     // rule 7 (rubric versioning) nối dài sang tầng prompt.
     const [other] = await dataSource.query(
-      `INSERT INTO examcollect.rubric (course_id, version) VALUES ($1, 2) RETURNING id`,
-      [courseId],
+      `INSERT INTO examcollect.rubric (version, teacher_id, name)
+       VALUES (2, $2, $1) RETURNING id`,
+      [`${courseName} ${stamp}`, teacherId],
     );
 
     expect(await anchors.buildFor(other.id)).toEqual([]);

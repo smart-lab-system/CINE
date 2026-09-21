@@ -137,8 +137,7 @@ export function SessionTable({ groups, now, onArchive, onCloseAttention }: Sessi
               <React.Fragment key={group.key}>
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={6} className="bg-surface-2/60 font-semibold text-foreground">
-                    {group.courseName}
-                    {group.className ? ` — ${group.className}` : ' — không gắn lớp'}
+                    {group.className ?? 'Không gắn lớp'}
                     <span className="ml-2 font-normal text-caption text-muted-foreground">
                       {group.sessions.length} phiên
                       {group.sessions[0] ? ` · ${group.sessions[0].expectedCount} sinh viên` : ''}

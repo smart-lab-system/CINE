@@ -112,53 +112,47 @@ describe('Teacher submissions (e2e)', () => {
       .send({ email: otherEmail, password: 'correct-horse-battery' });
     const otherToken: string = otherLogin.body.accessToken;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Teacher Submissions Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Teacher Submissions Course', $2) RETURNING id`,
-      [`TS${stamp}`, semester.id],
-    );
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Teacher Submissions Room ${stamp}`],
-    );
+    const course = { name: 'Teacher Submissions Course' };
+    const room = { name: `Teacher Submissions Room ${stamp}` };
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-      [course.id, teacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
+      [course.name, teacherId],
     );
     const classId = klass.id;
 
     // A second course/class/session belonging to the OTHER teacher — this
     // is the one that must never appear in the first teacher's list.
-    const [foreignCourse] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Foreign Course', $2) RETURNING id`,
-      [`TF${stamp}`, semester.id],
-    );
+    const foreignCourse = { name: 'Foreign Course' };
     const [foreignClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-      [foreignCourse.id, otherTeacherId],
+      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
+      [foreignCourse.name, otherTeacherId],
     );
 
     const MSSV_A = `TSA${stamp}`.slice(0, 20);
     const MSSV_B = `TSB${stamp}`.slice(0, 20);
     const MSSV_FOREIGN = `TSF${stamp}`.slice(0, 20);
 
+    // Lớp của phiên B, dựng TRƯỚC khi ghi danh: xác thực vào thi đọc ảnh
+    // chốt của phiên, mà ảnh chốt chụp từ enrollment của LỚP. Để MSSV_B ở
+    // lớp N01 rồi cho em thi ở phiên của nhóm B — cách cũ, hợp lệ khi xác
+    // thực còn ở cấp môn — giờ là một em không có tên trong phòng.
+    const [classBRow] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [course.name, `Nhóm B ${stamp}`, teacherId],
+    );
+
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, 'Sinh viên A', $2, $3, $4), ($5, 'Sinh viên B', $2, $3, $4)`,
-      [MSSV_A, course.id, classId, teacherId, MSSV_B],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, 'Sinh viên A', $2, $3), ($4, 'Sinh viên B', $5, $3)`,
+      [MSSV_A, classId, teacherId, MSSV_B, classBRow.id],
     );
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, 'Sinh viên lạ', $2, $3, $4)`,
-      [MSSV_FOREIGN, foreignCourse.id, foreignClass.id, otherTeacherId],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, 'Sinh viên lạ', $2, $3)`,
+      [MSSV_FOREIGN, foreignClass.id, otherTeacherId],
     );
 
     // All three sessions below run at the same time — every one of them
@@ -169,13 +163,10 @@ describe('Teacher submissions (e2e)', () => {
     async function freshRoomId(): Promise<string> {
       roomsHandedOut += 1;
       if (roomsHandedOut === 1) {
-        return room.id as string;
+        return room.name as string;
       }
-      const [extra] = await dataSource.query(
-        `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-        [`Phòng nộp bài ${stamp}-${roomsHandedOut}`],
-      );
-      return extra.id as string;
+      const extra = { name: `Phòng nộp bài ${stamp}-${roomsHandedOut}` };
+      return extra.name as string;
     }
 
     async function createSession(name: string, forClassId: string, token: string) {
@@ -185,7 +176,8 @@ describe('Teacher submissions (e2e)', () => {
         .send({
           name,
           classId: forClassId,
-          roomId: await freshRoomId(),
+          roomName: await freshRoomId(),
+          semesterName: 'HK kiểm thử',
           examType: 'TK',
           startTime: new Date(Date.now() - 60_000).toISOString(),
           endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -204,25 +196,9 @@ describe('Teacher submissions (e2e)', () => {
 
     const sessionA = await createSession(`Phiên A ${stamp}`, classId, teacherToken);
     sessionAId = sessionA.id;
-    // Its own class, for the same reason it needs its own room: A and B
-    // run concurrently and one class cannot sit two exams at once. Join
-    // authentication is at course level, so MSSV_B still gets in — and
-    // "every session this teacher owns" is decided by who owns the class,
-    // which is still this teacher.
-    const [classBRow] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [course.id, `Nhóm B ${stamp}`, teacherId],
-    );
-    // Nhóm B cũng cần một sinh viên để đóng băng được. MSSV_B vẫn vào
-    // thi ở phiên B qua xác thực cấp MÔN, đúng như chú thích ở trên nói —
-    // em này chỉ tồn tại để ảnh chốt của nhóm B không rỗng.
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, 'Sinh viên nhóm B', $2, $3, $4)`,
-      [`TSN${stamp}`.slice(0, 20), course.id, classBRow.id, teacherId],
-    );
+    // Lớp riêng, cùng lý do phải có phòng riêng: A và B chạy đồng thời và
+    // một lớp không thể thi hai ca cùng lúc. MSSV_B đã ghi danh ở lớp này
+    // từ đầu khối dựng, nên ảnh chốt của nó không rỗng và em vào được.
     const sessionB = await createSession(`Phiên B ${stamp}`, classBRow.id, teacherToken);
     sessionBId = sessionB.id;
     const foreignSession = await createSession(`Phiên lạ ${stamp}`, foreignClass.id, otherToken);

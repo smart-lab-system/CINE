@@ -22,9 +22,9 @@ describe('TeacherReview (e2e)', () => {
   let tokenA: string;
   let idA: string;
   let tokenB: string;
-  let courseId: string;
+  let courseName: string;
   let classId: string;
-  let roomId: string;
+  let roomName: string;
   let rubricId: string;
   let criterionIds: string[];
 
@@ -50,7 +50,8 @@ describe('TeacherReview (e2e)', () => {
       .send({
         name: `Phiên duyệt ${stamp}-${dayCursor}`,
         classId,
-        roomId,
+        roomName,
+        semesterName: 'HK kiểm thử',
         examType: 'TK',
         rubricId,
         requiredFilenames: ['Cau1.txt'],
@@ -223,39 +224,28 @@ describe('TeacherReview (e2e)', () => {
     tokenA = a.token;
     tokenB = b.token;
 
-    const [semester] = await dataSource.query(
-      `INSERT INTO examcollect.semester (name, start_date, end_date)
-       VALUES ($1, '2026-01-01', '2026-06-01') RETURNING id`,
-      [`Review Semester ${stamp}`],
-    );
-    const [course] = await dataSource.query(
-      `INSERT INTO examcollect.course (code, name, semester_id)
-       VALUES ($1, 'Môn duyệt điểm', $2) RETURNING id`,
-      [`REV${stamp}`.slice(0, 20), semester.id],
-    );
-    courseId = course.id;
-    const [room] = await dataSource.query(
-      `INSERT INTO examcollect.room (name, capacity) VALUES ($1, 30) RETURNING id`,
-      [`Phòng duyệt ${stamp}`],
-    );
-    roomId = room.id;
+    const course = { name: 'Môn duyệt điểm' };
+    courseName = course.name;
+    const room = { name: `Phòng duyệt ${stamp}` };
+    roomName = room.name;
     const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_id, name, teacher_id)
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
-      [courseId, `Nhóm duyệt ${stamp}`, idA],
+      [courseName, `Nhóm duyệt ${stamp}`, idA],
     );
     classId = klass.id;
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, course_id, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [`SVR${stamp}`.slice(0, 20), 'SV Duyệt', courseId, classId, idA],
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [`SVR${stamp}`.slice(0, 20), 'SV Duyệt', classId, idA],
     );
 
     const rubric = await request(app.getHttpServer())
-      .post(`/courses/${courseId}/rubrics`)
+      .post('/rubrics')
       .set('Authorization', `Bearer ${tokenA}`)
       .send({
+        name: `Rubric review ${stamp}`,
         criteria: [
           { description: 'Trình bày thuật toán rõ ràng', maxPoints: 5 },
           { description: 'Có kiểm thử cho trường hợp biên', maxPoints: 5 },
@@ -268,8 +258,8 @@ describe('TeacherReview (e2e)', () => {
 
   afterAll(async () => {
     const sessions = await dataSource.query(
-      `SELECT id FROM examcollect.exam_session WHERE room_id = $1`,
-      [roomId],
+      `SELECT id FROM examcollect.exam_session WHERE room_name = $1`,
+      [roomName],
     );
     const ids = sessions.map((row: { id: string }) => row.id);
     if (ids.length > 0) {

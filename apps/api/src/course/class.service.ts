@@ -1,192 +1,57 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsRelations, Repository } from 'typeorm';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ClassEntity } from './entities/class.entity';
-import { CourseEntity } from './entities/course.entity';
-import { AccountEntity } from '../identity/entities/account.entity';
-import { EnrollmentEntity } from './entities/enrollment.entity';
 import { CreateClassDto, UpdateClassDto } from './dto/course.dto';
-import {
-  ClassWithCountsView,
-  DepartmentTeacherView,
-  TeachingClassView,
-} from './course.types';
+import { COURSE_NAME } from '../common/course-name';
+import { TeachingClassView } from './course.types';
 
 /**
- * A class has no scope column of its own: it inherits the department through
- * `course_id`. Every method here therefore starts by proving the caller owns
- * the course, which is the single place that decision is made.
+ * Lớp, và quyền sở hữu của giảng viên trên chúng.
+ *
+ * Trước đợt thu hẹp master data, một lớp không có cột phạm vi của riêng nó:
+ * nó thừa hưởng khoa qua `course_id`, nên mọi hàm ở đây bắt đầu bằng việc
+ * chứng minh người gọi sở hữu MÔN. Tầng khoa đã bị cắt. Giờ `class.teacher_id`
+ * là toàn bộ phạm vi của một giảng viên, và mọi kiểm tra là một phép so sánh
+ * ở đúng một chỗ: `findOwnedByTeacher`.
  */
 @Injectable()
 export class ClassService {
   constructor(
     @InjectRepository(ClassEntity)
     private readonly classes: Repository<ClassEntity>,
-    @InjectRepository(CourseEntity)
-    private readonly courses: Repository<CourseEntity>,
-    @InjectRepository(AccountEntity)
-    private readonly accounts: Repository<AccountEntity>,
-    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   /**
-   * Every class under every course this head owns, kèm 3 cột đếm read-only
-   * (CLAUDE.md §7.2.5): sĩ số roster, số phiên thi, số bài đã chấm.
+   * Classes this lecturer teaches, shaped for the create-session form.
    *
-   * Không có ba con số này thì tầm nhìn của Trưởng khoa dừng lại đúng lúc
-   * họ tạo lớp và gán giảng viên — sau đó lớp có ai học, có thi hay không,
-   * chấm được bao nhiêu, họ không biết gì.
-   *
-   * **CHỈ ĐẾM — không bao giờ trả nội dung bài nộp hay điểm.** Đây là lần
-   * đầu `department_admin` chạm tới tầng Sở hữu (§1.1), dù chỉ qua một con
-   * số; ranh giới giữ tường minh bằng cách không `SELECT` bất kỳ cột nào
-   * của `submission`/`grading_result` ngoài `COUNT()`. Nội dung là việc
-   * của chức năng báo cáo GV→TK trong tương lai, không phải của route này.
-   *
-   * `COUNT(DISTINCT)` chứ không phải `COUNT`: ba `LEFT JOIN` song song
-   * trên cùng một hàng lớp nhân bản hàng với nhau, nên một lớp 2 sinh
-   * viên có 3 phiên thi sẽ báo sĩ số 6.
-   */
-  async findForHead(headId: string): Promise<ClassWithCountsView[]> {
-    const owned = await this.courses.find({
-      where: { departmentHeadId: headId },
-      select: { id: true },
-    });
-    if (owned.length === 0) {
-      return [];
-    }
-
-    const { entities, raw } = await this.classes
-      .createQueryBuilder('k')
-      .leftJoin('enrollment', 'e', 'e.home_class_id = k.id')
-      .leftJoin('exam_session', 'sess', 'sess.class_id = k.id')
-      // `grading_result` không có cột `exam_session_id` — nó với tới phiên
-      // thi qua `submission`. Viết thành chuỗi `LEFT JOIN` phẳng sẽ nhân
-      // hàng thêm một tầng nữa; subquery tương quan giữ nó ở một tầng.
-      .leftJoin(
-        'grading_result',
-        'g',
-        `g.submission_id IN (
-           SELECT s.id FROM examcollect.submission s
-            WHERE s.exam_session_id = sess.id
-         )
-         AND g.status IN ('auto_approved', 'flagged_for_review',
-                          'teacher_reviewed', 'finalized', 'exported')`,
-      )
-      .addSelect('COUNT(DISTINCT e.id)', 'rosterCount')
-      .addSelect('COUNT(DISTINCT sess.id)', 'examSessionCount')
-      .addSelect('COUNT(DISTINCT g.id)', 'gradedCount')
-      .where('k.courseId IN (:...courseIds)', { courseIds: owned.map((c) => c.id) })
-      .groupBy('k.id')
-      .orderBy('k.name', 'ASC')
-      .getRawAndEntities<{
-        rosterCount: string;
-        examSessionCount: string;
-        gradedCount: string;
-      }>();
-
-    return entities.map((klass, index) => ({
-      id: klass.id,
-      courseId: klass.courseId,
-      name: klass.name,
-      teacherId: klass.teacherId,
-      rosterCount: parseInt(raw[index].rosterCount, 10),
-      examSessionCount: parseInt(raw[index].examSessionCount, 10),
-      gradedCount: parseInt(raw[index].gradedCount, 10),
-    }));
-  }
-
-  /**
-   * The teachers currently assigned to at least one class under a course
-   * this head owns — QA-reported gap (point 7). There is no direct
-   * account<->department relation to query (see course.types.ts's
-   * DepartmentTeacherView doc comment): derived by the same join
-   * findForHead already does (course.department_head_id = headId), one
-   * level further down to class.teacher_id, deduped and counted.
-   */
-  async findTeachersForHead(headId: string): Promise<DepartmentTeacherView[]> {
-    const owned = await this.courses.find({
-      where: { departmentHeadId: headId },
-      select: { id: true },
-    });
-    if (owned.length === 0) {
-      return [];
-    }
-
-    const raw = await this.classes
-      .createQueryBuilder('k')
-      .innerJoin('k.teacher', 'teacher')
-      .select('teacher.id', 'teacherId')
-      .addSelect('teacher.name', 'teacherName')
-      .addSelect('teacher.email', 'teacherEmail')
-      .addSelect('COUNT(DISTINCT k.id)', 'classCount')
-      .where('k.courseId IN (:...courseIds)', { courseIds: owned.map((c) => c.id) })
-      .groupBy('teacher.id')
-      .addGroupBy('teacher.name')
-      .addGroupBy('teacher.email')
-      .orderBy('teacher.name', 'ASC')
-      .getRawMany<{
-        teacherId: string;
-        teacherName: string;
-        teacherEmail: string;
-        classCount: string;
-      }>();
-
-    return raw.map((row) => ({
-      id: row.teacherId,
-      name: row.teacherName,
-      email: row.teacherEmail,
-      classCount: parseInt(row.classCount, 10),
-    }));
-  }
-
-  /**
-   * Classes this lecturer teaches, shaped for the create-session form: the
-   * course they belong to and how many students the roster holds.
-   *
-   * One query with a JOIN and a GROUP BY, not a count per row — this list is
-   * fetched on every visit to the form, and the capacity warning needs the
-   * number for whichever class the lecturer picks, not just the first.
+   * One query with a GROUP BY, not a count per row — this list is fetched on
+   * every visit to the form, and the capacity warning needs the number for
+   * whichever class the lecturer picks, not just the first.
    *
    * A `studentCount` of 0 is meaningful rather than empty: it says nobody
    * has imported a roster for that class yet, which the form surfaces.
+   *
+   * Bộ lọc theo học kỳ biến mất cùng bảng `semester`: một lớp không mang
+   * học kỳ nào nữa, chỉ phiên thi mới chụp `semester_name`.
    */
-  async findForTeacher(
-    teacherId: string,
-    semesterId?: string,
-  ): Promise<TeachingClassView[]> {
-    const qb = this.classes
+  async findForTeacher(teacherId: string): Promise<TeachingClassView[]> {
+    const { entities, raw } = await this.classes
       .createQueryBuilder('k')
-      .innerJoinAndSelect('k.course', 'course')
       .leftJoin('enrollment', 'e', 'e.home_class_id = k.id')
       .addSelect('COUNT(e.id)', 'studentCount')
-      .where('k.teacherId = :teacherId', { teacherId });
-
-    // AND vào owner-scope, không thay thế nó: bộ lọc kỳ chỉ HẸP tầm nhìn
-    // của giảng viên trong phạm vi họ vốn đã được phép thấy. Một `orWhere`
-    // ở đây sẽ mở lớp của người khác ra.
-    if (semesterId) {
-      qb.andWhere('course.semesterId = :semesterId', { semesterId });
-    }
-
-    const { entities, raw } = await qb
+      .where('k.teacherId = :teacherId', { teacherId })
       .groupBy('k.id')
-      .addGroupBy('course.id')
-      .orderBy('course.code', 'ASC')
-      .addOrderBy('k.name', 'ASC')
+      // Theo TÊN LỚP. Từng sắp theo môn trước, tên sau — nhưng môn là hằng
+      // số nên khoá ấy không tách được gì, chỉ còn nói sai rằng danh sách
+      // có nhóm theo môn.
+      .orderBy('k.name', 'ASC')
       .getRawAndEntities<{ studentCount: string }>();
 
     return entities.map((klass, index) => ({
       id: klass.id,
       name: klass.name,
-      courseId: klass.courseId,
-      courseCode: klass.course.code,
-      courseName: klass.course.name,
+      courseName: klass.courseName,
       studentCount: parseInt(raw[index].studentCount, 10),
     }));
   }
@@ -201,21 +66,82 @@ export class ClassService {
    * for the same reason: a 403 on a class that does not exist would confirm
    * that some other lecturer's class has that id.
    */
-  async findTaughtBy(
+  async findTaughtBy(id: string, teacherId: string): Promise<ClassEntity> {
+    return this.findOwnedByTeacher(id, teacherId);
+  }
+
+  /**
+   * Một lớp, giới hạn trong cùng MÔN với phiên thi.
+   *
+   * Thay `CourseService.findClassForCourse`, và giữ nguyên lý do nó tồn
+   * tại: duyệt một yêu cầu xin phép không được gắn sinh viên vào lớp của
+   * một môn khác, vì bài nộp của em sẽ được định tuyến về một giảng viên
+   * chưa từng dạy em.
+   *
+   * Phép so giờ luôn đúng: `course_name` là hằng số ở mọi dòng. Giữ lại
+   * như một lưới an toàn — nếu ràng buộc một môn có ngày được nới ra, đây
+   * là chỗ chặn việc gắn sinh viên vào lớp của môn khác, và phía hỏng của
+   * nó là TỪ CHỐI chứ không phải định tuyến nhầm.
+   */
+  async findByIdAndCourseName(id: string, courseName: string): Promise<ClassEntity | null> {
+    return this.classes.findOne({ where: { id, courseName } });
+  }
+
+  /**
+   * Lớp mới, luôn thuộc về chính người gọi.
+   *
+   * `dto` không mang `teacherId`: một giảng viên không gán lớp cho người
+   * khác được. Trưởng khoa từng làm được điều đó, và cùng với vai trò ấy
+   * thì khả năng này cũng biến mất.
+   *
+   * Môn KHÔNG đến từ `dto`. Hệ thống phục vụ đúng một môn, nên giá trị ấy
+   * là hằng số — hỏi lại ở mỗi lần tạo lớp chỉ thêm một cơ hội gõ lệch, mà
+   * gõ lệch ở đây không báo lỗi: nó lặng lẽ tách lớp này khỏi mọi phép tra
+   * "cùng môn", và phép đầu tiên gãy là đường định tuyến bài thi bù.
+   */
+  async createForTeacher(teacherId: string, dto: CreateClassDto): Promise<ClassEntity> {
+    return this.classes.save(
+      this.classes.create({ ...dto, teacherId, courseName: COURSE_NAME }),
+    );
+  }
+
+  /**
+   * Sửa lớp của chính mình.
+   *
+   * CHO PHÉP CÓ CHỌN LỌC, không phải loại trừ. `Object.assign(klass, dto)`
+   * trừ đi một trường sẽ để một trường MỚI thêm vào DTO sau này âm thầm lọt
+   * qua — và nếu trường đó là `teacherId` phiên bản khác tên thì một giảng
+   * viên đẩy được lớp của mình sang người khác rồi mất quyền.
+   */
+  async updateForTeacher(
     id: string,
     teacherId: string,
-    /**
-     * Quan hệ cần nạp kèm. Mặc định KHÔNG nạp gì — ba người gọi cũ
-     * (importRoster, addStudent, removeStudent) chỉ cần kiểm quyền, và
-     * nạp thừa cho họ là trả tiền cho một join không ai đọc.
-     *
-     * `ExamSessionService.create` truyền `{ course: { semester: true } }`
-     * để chụp `semester_name` trong CÙNG lượt tra lớp, thay vì bắn thêm
-     * một round-trip.
-     */
-    relations?: FindOptionsRelations<ClassEntity>,
+    dto: UpdateClassDto,
   ): Promise<ClassEntity> {
-    const klass = await this.classes.findOne({ where: { id }, relations });
+    const klass = await this.findOwnedByTeacher(id, teacherId);
+    if (dto.name !== undefined) {
+      klass.name = dto.name;
+    }
+    return this.classes.save(klass);
+  }
+
+  async removeForTeacher(id: string, teacherId: string): Promise<void> {
+    const klass = await this.findOwnedByTeacher(id, teacherId);
+    // `enrollment.home_class_id` là ON DELETE RESTRICT, nên lớp còn sinh
+    // viên thì từ chối đi — một 409, không bao giờ là một roster mồ côi
+    // trong im lặng.
+    await this.classes.remove(klass);
+  }
+
+  /**
+   * Vị từ quyền dùng chung cho mọi hàm ở đây — một chỗ để sửa, một chỗ để
+   * test.
+   *
+   * 404 khi không tồn tại, 403 khi tồn tại nhưng của người khác. Bỏ sót chỗ
+   * này là một giảng viên sửa được lớp của người khác.
+   */
+  async findOwnedByTeacher(id: string, teacherId: string): Promise<ClassEntity> {
+    const klass = await this.classes.findOne({ where: { id } });
     if (!klass) {
       throw new NotFoundException('Class not found');
     }
@@ -223,105 +149,5 @@ export class ClassService {
       throw new ForbiddenException('You do not teach this class');
     }
     return klass;
-  }
-
-  /**
-   * The class, for anyone allowed to LOOK at its roster.
-   *
-   * Two roles reach the same list by two different routes — a lecturer
-   * through `class.teacher_id`, a Trưởng khoa through the course they own —
-   * and neither is allowed to see anyone else's. Writing is narrower and
-   * goes through findTaughtBy: exactly one writer per list.
-   */
-  async findReadableBy(
-    id: string,
-    accountId: string,
-    role: string,
-  ): Promise<ClassEntity> {
-    return role === 'department_admin'
-      ? this.findOwnedByHead(id, accountId)
-      : this.findTaughtBy(id, accountId);
-  }
-
-  async createForHead(headId: string, dto: CreateClassDto): Promise<ClassEntity> {
-    await this.assertOwnsCourse(dto.courseId, headId);
-    await this.assertIsTeacher(dto.teacherId);
-    return this.classes.save(this.classes.create(dto));
-  }
-
-  async updateForHead(
-    id: string,
-    headId: string,
-    dto: UpdateClassDto,
-  ): Promise<ClassEntity> {
-    const klass = await this.findOwnedByHead(id, headId);
-    if (dto.teacherId) {
-      await this.assertIsTeacher(dto.teacherId);
-    }
-
-    const lecturerChanged =
-      dto.teacherId !== undefined && dto.teacherId !== klass.teacherId;
-    Object.assign(klass, dto);
-
-    if (!lecturerChanged) {
-      return this.classes.save(klass);
-    }
-
-    // enrollment.home_teacher_id is copied onto every submission the student
-    // makes, so a class that changes lecturer while its roster still points
-    // at the previous one routes work to someone who no longer teaches it.
-    // One transaction: the class and its roster must never disagree.
-    return this.dataSource.transaction(async (manager) => {
-      const saved = await manager.save(ClassEntity, klass);
-      await manager.update(
-        EnrollmentEntity,
-        { homeClassId: saved.id },
-        { homeTeacherId: saved.teacherId },
-      );
-      return saved;
-    });
-  }
-
-  async removeForHead(id: string, headId: string): Promise<void> {
-    const klass = await this.findOwnedByHead(id, headId);
-    // enrollment.home_class_id is ON DELETE RESTRICT, so a class that still
-    // has students refuses to go — a 409, never a silent orphaning of the
-    // roster.
-    await this.classes.remove(klass);
-  }
-
-  /**
-   * The class, if it belongs to a course this head owns — 404 when it does
-   * not exist at all, 403 when it exists but is someone else's. Public
-   * because the roster endpoints hang off a class and must answer ownership
-   * the same way, in the same place, rather than re-deriving the rule.
-   */
-  async findOwnedByHead(id: string, headId: string): Promise<ClassEntity> {
-    const klass = await this.classes.findOne({ where: { id } });
-    if (!klass) {
-      throw new NotFoundException('Class not found');
-    }
-    await this.assertOwnsCourse(klass.courseId, headId);
-    return klass;
-  }
-
-  private async assertOwnsCourse(courseId: string, headId: string): Promise<void> {
-    const course = await this.courses.findOne({ where: { id: courseId } });
-    if (!course) {
-      throw new NotFoundException('Course not found');
-    }
-    if (course.departmentHeadId !== headId) {
-      throw new ForbiddenException('You do not own this course');
-    }
-  }
-
-  private async assertIsTeacher(accountId: string): Promise<void> {
-    const account = await this.accounts.findOne({ where: { id: accountId } });
-    if (!account) {
-      throw new BadRequestException('Lecturer account not found');
-    }
-    if (account.role !== 'teacher') {
-      throw new BadRequestException('A class must be assigned to a teacher account');
-    }
   }
 }

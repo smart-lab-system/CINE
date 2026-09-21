@@ -14,6 +14,12 @@ export type GradingResultStatus =
   | 'finalized'
   | 'exported';
 
+/**
+ * Bốn kết cục của lượt phản biện. Xem docblock của cột `advocateOutcome`
+ * để biết vì sao một `advocate_opinion` rỗng là chưa đủ.
+ */
+export type AdvocateOutcome = 'not_needed' | 'skipped' | 'failed' | 'completed';
+
 // Grading result — GRADING lifecycle. A new row is only created when the
 // teacher clicks "Start Grading" — never auto-chained right after
 // collection. aiTotalScore/criterionResults/modelUsed/confidence are
@@ -84,6 +90,32 @@ export class GradingResultEntity extends BaseEntity {
    */
   @Column({ name: 'advocate_opinion', type: 'jsonb', nullable: true })
   advocateOpinion!: AdvocateOpinion | null;
+
+  /**
+   * Lượt phản biện đã xảy ra chuyện gì.
+   *
+   * Tồn tại vì `advocate_opinion = null` mang BA nghĩa — không cần phản
+   * biện, cố ý bỏ qua vì phiên thiếu đề bài, và ĐÃ CHẠY VÀ HỎNG — còn
+   * `scripts/calibration/export.py` thì đọc cột kia để suy nhánh A/B/C/D.
+   * Một lượt phản biện crash vì thế bị xếp vào nhánh B như thể chưa từng
+   * được bật, làm bẩn đúng tập dữ liệu dùng để so sánh các nhánh.
+   *
+   * Cùng nguyên tắc đã ghi ở `ungradableReason` ngay dưới: không suy ra
+   * được một ý từ một trường rỗng nếu trường đó cũng mang ý khác. Cột này
+   * chỉ mang MỘT ý.
+   *
+   * `NULL` = chấm trước 2026-09-20, khi hệ thống chưa biết ghi lại điều
+   * này. Cố ý không backfill — đó là nhánh `?` của calibration, không phải
+   * một giá trị suy ra được.
+   */
+  @Column({
+    name: 'advocate_outcome',
+    type: 'enum',
+    enum: ['not_needed', 'skipped', 'failed', 'completed'],
+    enumName: 'advocate_outcome',
+    nullable: true,
+  })
+  advocateOutcome!: AdvocateOutcome | null;
 
   /**
    * Ngữ cảnh lượt chấm này THỰC SỰ đọc được — không phải ngữ cảnh đã cấu

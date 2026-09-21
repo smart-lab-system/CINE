@@ -1,22 +1,55 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { listTeachingClasses } from '@/lib/api/teaching';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  createClass,
+  deleteClass,
+  listTeachingClasses,
+  updateClass,
+  type ClassInput,
+} from '@/lib/api/teaching';
 
 /**
- * The lecturer's own classes — the create-session form's source of truth.
+ * Lớp mà giảng viên này dạy.
  *
- * `semesterId` là tuỳ chọn và nằm TRONG query key: đổi kỳ phải là một
- * query khác, không phải cùng một cache entry bị ghi đè — nếu không, quay
- * lại kỳ trước sẽ hiện dữ liệu của kỳ vừa xem trong một nhịp.
- *
- * Bỏ trống = tất cả học kỳ. Form tạo phiên thi gọi không truyền gì, và đó
- * là đúng: giảng viên chọn lớp nào cũng mở được phiên, kể cả lớp kỳ cũ
- * (thi lại, thi bù — CLAUDE.md §1.2).
+ * Không còn tham số học kỳ: một lớp không thuộc kỳ nào nữa. Bảng
+ * `semester` biến mất cùng đợt thu hẹp master data, và chỉ PHIÊN THI mới
+ * chụp lại tên kỳ mà giảng viên khai.
  */
-export function useTeachingClasses(semesterId?: string | null) {
+export function useTeachingClasses() {
   return useQuery({
-    queryKey: ['classes', 'teaching', semesterId ?? 'all'],
-    queryFn: () => listTeachingClasses(semesterId ?? undefined),
+    queryKey: ['classes', 'teaching'],
+    queryFn: () => listTeachingClasses(),
   });
+}
+
+/**
+ * Ba mutation cùng làm một việc với cache: xoá `['classes']` khỏi cache.
+ *
+ * Khoá rộng (`['classes']`, không phải `['classes','teaching']`) là có chủ
+ * ý: sĩ số lớp xuất hiện ở cả trang này lẫn form tạo phiên thi, và một
+ * trong hai chỗ hiện con số cũ là cách người dùng mất niềm tin vào cả hai.
+ */
+function useClassMutation<TArgs>(fn: (args: TArgs) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['classes'] });
+    },
+  });
+}
+
+export function useCreateClass() {
+  return useClassMutation((body: ClassInput) => createClass(body));
+}
+
+export function useUpdateClass() {
+  return useClassMutation((args: { id: string; body: Partial<ClassInput> }) =>
+    updateClass(args.id, args.body),
+  );
+}
+
+export function useDeleteClass() {
+  return useClassMutation((id: string) => deleteClass(id));
 }

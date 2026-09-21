@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { FileCheck } from 'lucide-react';
 import { EmptyState } from '@/components/layout/empty-state';
 import { Button } from '@/components/ui/button';
@@ -330,6 +331,14 @@ export function SubmissionStatusTable({
                   <span className="ml-2 font-mono text-caption text-muted-foreground">
                     {student.studentMssv}
                   </span>
+                  {/* Kèm TÊN LỚP GỐC, không chỉ chữ "thi bù": biết em thi
+                      bù mà không biết từ lớp nào thì vẫn phải đi tra, và
+                      lớp gốc là thứ quyết định bài của em về tay ai. */}
+                  {student.makeupFromClass && (
+                    <Badge variant="info" className="ml-2">
+                      Thi bù — {student.makeupFromClass}
+                    </Badge>
+                  )}
                 </TableCell>
                 {deliverables.map((deliverable) => {
                   const cell = student.byDeliverable[deliverable.id];

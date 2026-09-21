@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { GradingService } from './grading.service';
+import { AdvocateRun, GradingService } from './grading.service';
 import { AdvocateOpinion } from './ai-provider/advocate.types';
 import { AdvocateProvider } from './ai-provider/advocate-provider';
 import { LoadedGradingReference } from './grading-reference.service';
@@ -65,7 +65,7 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
     service: GradingService,
     needsAdvocate: boolean,
     reference: LoadedGradingReference,
-  ): Promise<AdvocateOpinion | null> {
+  ): Promise<AdvocateRun> {
     return (
       service as unknown as {
         runAdvocate(
@@ -73,7 +73,7 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
           text: string,
           needs: boolean,
           ref: LoadedGradingReference,
-        ): Promise<AdvocateOpinion | null>;
+        ): Promise<AdvocateRun>;
       }
     ).runAdvocate(SUBMISSION, STUDENT_TEXT, needsAdvocate, reference);
   }
@@ -84,8 +84,11 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
     // vì "không có trường" là thứ một lần sửa interface có thể phá.
     const stub: AdvocateProvider = { name: 'x', advocate: async () => opinion() };
 
-    const out = (await runAdvocate(serviceWith(stub), true, WITH_QUESTION))!;
+    const run = await runAdvocate(serviceWith(stub), true, WITH_QUESTION);
+    const out = run.opinion!;
 
+    // T-ADVO-4: chay va co y kien -> completed
+    expect(run.outcome).toBe('completed');
     expect(out.suggestedVerdicts[0].suggestedVerdict).toBe('met');
     expect(Object.keys(out)).not.toContain('points');
     expect(Object.keys(out)).not.toContain('totalScore');
@@ -107,7 +110,7 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
         }),
     };
 
-    const out = (await runAdvocate(serviceWith(stub), true, WITH_QUESTION))!;
+    const out = (await runAdvocate(serviceWith(stub), true, WITH_QUESTION)).opinion!;
 
     expect(out.unverifiedEvidence).toEqual(['em đã chứng minh bằng quy nạp toán học']);
     // Kiến nghị VẪN còn nguyên.
@@ -119,7 +122,7 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
     // đó là lý do trường này không phải `string[]` thuần.
     const stub: AdvocateProvider = { name: 'x', advocate: async () => opinion() };
 
-    const out = (await runAdvocate(serviceWith(stub), true, WITH_QUESTION))!;
+    const out = (await runAdvocate(serviceWith(stub), true, WITH_QUESTION)).opinion!;
 
     expect(out.unverifiedEvidence).toEqual([]);
   });
@@ -135,7 +138,11 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
       },
     };
 
-    expect(await runAdvocate(serviceWith(stub), false, WITH_QUESTION)).toBeNull();
+    const run = await runAdvocate(serviceWith(stub), false, WITH_QUESTION);
+
+    // T-ADVO-1: khong can phan bien -> not_needed, KHAC 'failed'
+    expect(run.outcome).toBe('not_needed');
+    expect(run.opinion).toBeNull();
     expect(called).toBe(false);
   });
 
@@ -152,14 +159,19 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
       },
     };
 
-    const out = await runAdvocate(serviceWith(stub), true, { loadedLevel: 'rubric_only' });
+    const run = await runAdvocate(serviceWith(stub), true, { loadedLevel: 'rubric_only' });
 
-    expect(out).toBeNull();
+    // T-ADVO-2: co y bo qua -> skipped, KHAC 'not_needed' va KHAC 'failed'
+    expect(run.outcome).toBe('skipped');
+    expect(run.opinion).toBeNull();
     expect(called).toBe(false);
   });
 
   it('không cấu hình bậc nào → null, không nổ', async () => {
-    expect(await runAdvocate(serviceWith(null), true, WITH_QUESTION)).toBeNull();
+    const run = await runAdvocate(serviceWith(null), true, WITH_QUESTION);
+
+    expect(run.outcome).toBe('not_needed');
+    expect(run.opinion).toBeNull();
   });
 
   it('chuỗi Advocate hỏng HẾT bậc → bài vẫn đi tiếp, không ném', async () => {
@@ -173,6 +185,13 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
       },
     };
 
-    await expect(runAdvocate(serviceWith(stub), true, WITH_QUESTION)).resolves.toBeNull();
+    const run = await runAdvocate(serviceWith(stub), true, WITH_QUESTION);
+
+    // T-ADVO-3, VE QUAN TRONG NHAT: trang thai ghi dung, VA loi van bi nuot.
+    // Khong co `rejects` o day la co y — mot luot phan bien hong khong duoc
+    // phep lam hong luot cham. Chi khoa ve dau thi mot lan refactor bien loi
+    // phan bien thanh loi cham bai se van xanh.
+    expect(run.outcome).toBe('failed');
+    expect(run.opinion).toBeNull();
   });
 });

@@ -421,13 +421,25 @@ export class ExamSessionGateway
       return;
     }
 
-    // Security rule 1. Checked at COURSE level, never at class level —
-    // that is what allows a student to sit a make-up exam with another
-    // class's session without a special case.
-    const enrollment = await this.enrollments.findForCourse(session.courseId, dto.studentId);
+    // Security rule 1, hỏi ẢNH CHỐT của phiên này.
+    //
+    // Trước đợt thu hẹp master data, câu hỏi là "em có enrollment ở MÔN của
+    // phiên không" — cố ý, để sinh viên thi bù từ lớp khác cùng môn vào
+    // thẳng được. Bảng `course` biến mất nên chỗ neo đó mất theo.
+    //
+    // Thay nó bằng LỚP thì hỏng ca thi bù theo một kiểu khó thấy: duyệt một
+    // yêu cầu xin phép ghi enrollment ở lớp GỐC của em, chứ không ở lớp của
+    // phiên, nên chính người giám thị vừa cho vào lại bị từ chối ở cổng.
+    // Ảnh chốt không có vấn đề đó — nó CHÍNH LÀ "ai được ngồi phiên này",
+    // gồm cả lớp của phiên (chụp lúc mở) lẫn từng người được duyệt thêm.
+    //
+    // Guard `isFrozen` ngay phía trên bảo đảm ảnh chốt đã tồn tại tại đây,
+    // nên một dòng rỗng nghĩa là "không thuộc phiên này", không phải "chưa
+    // kịp lập danh sách".
+    const enrollment = await this.sessionRoster.findEntry(session.id, dto.studentId);
     if (!enrollment) {
       this.logger.warn(
-        `agent:join refused: ${dto.studentId} has no enrollment for course ${session.courseId}`,
+        `agent:join refused: ${dto.studentId} is not on session ${session.id} roster`,
       );
       this.emitJoinError(
         client,
@@ -447,7 +459,7 @@ export class ExamSessionGateway
       // student. A name they typed is not identity and must not end up in a
       // filename either.
       studentName: enrollment.studentName,
-      roomName: session.room?.name ?? '',
+      roomName: session.roomName,
       machineName: dto.machineName ?? null,
     };
     const resolved = deliverables.map((deliverable) => ({

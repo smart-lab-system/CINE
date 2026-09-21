@@ -33,7 +33,7 @@ export class AccountsController {
    * as a uuid param.
    */
   @Get('teachers')
-  @Roles('admin', 'department_admin')
+  @Roles('admin')
   listTeacherOptions() {
     return this.accounts.listTeacherOptions();
   }

@@ -75,7 +75,25 @@ export const createExamSessionSchema = z
       .min(1, 'Vui lòng nhập tên phiên thi')
       .max(200, 'Tên phiên thi tối đa 200 ký tự'),
     classId: z.string().uuid('Vui lòng chọn lớp thi'),
-    roomId: z.string().uuid('Vui lòng chọn phòng thi'),
+    /**
+     * Phòng và học kỳ là VĂN BẢN TỰ DO từ đợt thu hẹp master data —
+     * không còn bảng nào để chọn ra.
+     *
+     * Cái giá, và người dùng phải biết: phép chống trùng lịch phòng so
+     * khớp chuỗi CHÍNH XÁC, nên "P.A101" và "P A101" là hai phòng khác
+     * nhau và gõ lệch một ký tự sẽ không bị bắt. Biểu mẫu gợi ý lại các
+     * giá trị giảng viên đã dùng, để đường dễ đi nhất cũng là đường đúng.
+     */
+    roomName: z
+      .string()
+      .trim()
+      .min(1, 'Vui lòng nhập phòng thi')
+      .max(150, 'Tên phòng tối đa 150 ký tự'),
+    semesterName: z
+      .string()
+      .trim()
+      .min(1, 'Vui lòng nhập học kỳ')
+      .max(150, 'Tên học kỳ tối đa 150 ký tự'),
     /**
      * Rubric dùng để chấm phiên này — quyết định ở đây, lúc ra đề, chứ
      * không tra lại lúc bấm "Bắt đầu chấm". Tuỳ chọn: phiên không chấm bằng

@@ -21,9 +21,9 @@ const EXAM_SESSION_STATUSES: ExamSessionStatus[] = [
  * X") — not exposed as a generic query builder, so nothing here can ever
  * reach past `s.teacherId = :teacherId`.
  *
- * `semesterId` là cái thứ tư, bổ sung 2026-09-15: yêu cầu QA nói "cả hai
- * trang" nhưng lần đầu chỉ ba bộ lọc trên được làm, nên một giảng viên
- * dạy qua nhiều kỳ phải lật từng trang 20 dòng mới tìm lại được phiên cũ.
+ * Học kỳ là cái thứ tư, bổ sung 2026-09-15: yêu cầu QA nói "cả hai trang"
+ * nhưng lần đầu chỉ ba bộ lọc trên được làm, nên một giảng viên dạy qua
+ * nhiều kỳ phải lật từng trang 20 dòng mới tìm lại được phiên cũ.
  */
 export class SearchExamSessionsDto {
   @IsOptional()
@@ -55,15 +55,39 @@ export class SearchExamSessionsDto {
   examType?: ExamType;
 
   /**
-   * Học kỳ của MÔN mà phiên thuộc về (`course.semester_id`).
+   * Học kỳ mà phiên tự khai (`exam_session.semester_name`).
    *
-   * `@IsOptional` là phần quan trọng: vắng `semesterId` nghĩa là "tất cả
-   * học kỳ", không phải lỗi. Học kỳ ở đây là tham số lọc, không phải điều
-   * kiện để thao tác được — CLAUDE.md §1.2: hệ thống không bao giờ từ
-   * chối một thao tác vì lý do liên quan tới học kỳ. Cùng hợp đồng với
-   * `SemesterScopeDto` mà GET /classes/teaching đã dùng.
+   * Từng là `semesterId`, một khoá ngoại tới bảng `semester`. Bảng đó
+   * biến mất ở đợt thu hẹp master data, nên bộ lọc so KHỚP CHUỖI CHÍNH
+   * XÁC trên bản chụp lúc tạo phiên. Hệ quả cho người dùng: "HK1 2026-2027"
+   * và "HK1 26-27" là hai mục lọc khác nhau — giao diện lấy danh sách từ
+   * chính các giá trị đã có, nên không ai phải gõ lại chuỗi đó.
+   *
+   * `@IsOptional` là phần quan trọng: vắng nó nghĩa là "tất cả học kỳ",
+   * không phải lỗi. Học kỳ ở đây là tham số lọc, không phải điều kiện để
+   * thao tác được — CLAUDE.md §1.2: hệ thống không bao giờ từ chối một
+   * thao tác vì lý do liên quan tới học kỳ.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 150)
+  semesterName?: string;
+
+  /**
+   * Lớp của phiên (`exam_session.class_id`).
+   *
+   * Khác mọi bộ lọc trên ở một điểm quyết định: đây là KHOÁ NGOẠI, không
+   * phải chuỗi giảng viên gõ. Sau khi môn học trở thành hằng số, lớp là
+   * trục học vụ có cấu trúc duy nhất còn lại — không gõ lệch được, không
+   * phân mảnh được, và là cách giảng viên thật sự nghĩ về phiên của mình.
+   *
+   * Phải nằm ở SERVER chứ không lọc phía client: danh sách này phân trang
+   * ở server, nên lọc trên trang hiện tại sẽ chỉ cắt 20 dòng đang xem và
+   * nói dối về tổng số.
+   *
+   * `@IsOptional` như các bộ lọc khác: vắng nghĩa là mọi lớp.
    */
   @IsOptional()
   @IsUUID()
-  semesterId?: string;
+  classId?: string;
 }

@@ -90,12 +90,21 @@ function createHarness(
     objectExists: overrides.objectExists ?? jest.fn().mockResolvedValue(true),
   };
   // `listForSession` dùng QueryBuilder chứ không `find()`, vì nó cần
-  // `NULLS LAST` tường minh (xem lý do ở service). Mock giữ cả hai:
-  // `find` cho những đường còn dùng nó, builder cho đường danh sách.
+  // `NULLS LAST` tường minh VÀ một LEFT JOIN sang `class` để lấy tên lớp
+  // gốc (nhãn thi bù). Mock giữ cả hai: `find` cho những đường còn dùng
+  // nó, builder cho đường danh sách.
   const listBuilder: Record<string, jest.Mock> = {};
   listBuilder.where = jest.fn(() => listBuilder);
   listBuilder.orderBy = jest.fn(() => listBuilder);
-  listBuilder.getMany = jest.fn().mockResolvedValue(overrides.submissions ?? []);
+  listBuilder.leftJoin = jest.fn(() => listBuilder);
+  listBuilder.addSelect = jest.fn(() => listBuilder);
+  // Hàng RAW đi song song với entities, đúng như `getRawAndEntities` trả:
+  // mock rỗng sẽ để nhánh `?? null` nuốt mọi lỗi ánh xạ, và một lần đổi tên
+  // cột về sau vẫn xanh.
+  listBuilder.getRawAndEntities = jest.fn().mockResolvedValue({
+    entities: overrides.submissions ?? [],
+    raw: (overrides.submissions ?? []).map(() => ({ homeClassName: 'N01' })),
+  });
   const submissions = {
     find: jest.fn().mockResolvedValue(overrides.submissions ?? []),
     createQueryBuilder: jest.fn(() => listBuilder),
@@ -264,6 +273,7 @@ describe('SubmissionService.listForSession', () => {
           submittedAt: new Date('2026-08-29T04:00:00.000Z'),
           fileSize: '128',
           storageKey: EXPECTED_KEY,
+          homeClassId: 'class-a',
         },
       ],
     });
@@ -293,6 +303,11 @@ describe('SubmissionService.listForSession', () => {
         submittedAt: new Date('2026-08-29T04:00:00.000Z'),
         fileSize: '128',
         downloadUrl: 'http://storage/view',
+        homeClassId: 'class-a',
+        // Tên lớp gốc đến từ hàng RAW của phép JOIN, không từ entity. Khẳng
+        // định nó ở đây là cách duy nhất bắt được một lần đổi tên cột alias
+        // — nhánh `?? null` sẽ nuốt lỗi đó trong im lặng.
+        homeClassName: 'N01',
       },
     ]);
   });
@@ -313,6 +328,7 @@ describe('SubmissionService.listForSession', () => {
           submittedAt: new Date('2026-08-29T04:00:00.000Z'),
           fileSize: '128',
           storageKey: EXPECTED_KEY,
+          homeClassId: 'class-a',
         },
       ],
     });

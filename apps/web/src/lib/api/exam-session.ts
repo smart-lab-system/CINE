@@ -16,7 +16,9 @@ export interface CreateExamSessionInput {
    * choice they make and the thing that can be checked against them.
    */
   classId: string;
-  roomId: string;
+  /** Phòng và học kỳ là VĂN BẢN: không còn bảng nào để chọn ra. */
+  roomName: string;
+  semesterName: string;
   /**
    * Rubric để chấm phiên này, ghim ngay lúc tạo. Bỏ trống là hợp lệ: phiên
    * không chấm bằng AI vẫn thi và thu bài bình thường, và rubric gắn được
@@ -44,10 +46,11 @@ export interface ExamSessionResponse {
   name: string;
   code: string;
   teacherId: string;
-  courseId: string;
-  /** Null only for sessions created before a session named a class. */
-  classId: string | null;
-  roomId: string;
+  classId: string;
+  /** Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên. `courseId`/`roomId`
+   *  biến mất cùng ba bảng dữ liệu nền ở đợt thu hẹp master data. */
+  courseName: string;
+  roomName: string;
   examType: ExamType;
   startTime: string;
   endTime: string;
@@ -73,8 +76,9 @@ export interface ExamSessionListItem {
   name: string;
   code: string;
   courseName: string;
-  className: string | null;
+  className: string;
   roomName: string;
+  semesterName: string;
   examType: ExamType;
   startTime: string;
   endTime: string;
@@ -100,6 +104,9 @@ export interface SubmissionStatusItem {
   submittedAt: string | null;
   fileSize: string | null;
   downloadUrl: string | null;
+  /** Lớp GỐC của sinh viên. Khác lớp của phiên nghĩa là THI BÙ. */
+  homeClassId: string;
+  homeClassName: string | null;
 }
 
 /**
@@ -125,12 +132,19 @@ export interface SearchExamSessionsParams {
   status?: ExamSessionStatusFilter;
   examType?: ExamType;
   /**
-   * Học kỳ của môn mà phiên thuộc về. Bỏ trống = tất cả học kỳ.
+   * Học kỳ mà phiên tự khai. Bỏ trống = tất cả học kỳ.
    *
    * `undefined`, KHÔNG phải `null`: openapi-fetch serialize null thành
-   * `?semesterId=` và @IsUUID ở backend sẽ trả 400 cho chuỗi rỗng đó.
+   * `?semesterName=` và @Length ở backend sẽ trả 400 cho chuỗi rỗng đó.
    */
-  semesterId?: string;
+  semesterName?: string;
+  /**
+   * Lớp của phiên. Bỏ trống = mọi lớp.
+   *
+   * Phải đi lên SERVER, không lọc ở client: danh sách phân trang ở server,
+   * nên lọc trên trang đang xem chỉ cắt 20 dòng và nói dối về tổng số.
+   */
+  classId?: string;
 }
 
 async function throwIfFailed(error: unknown, response: Response) {
@@ -162,14 +176,25 @@ export async function createExamSession(
   return data as unknown as ExamSessionResponse;
 }
 
-export async function listExamSessions(
-  params: SearchExamSessionsParams,
-): Promise<{ items: ExamSessionListItem[]; total: number }> {
+export async function listExamSessions(params: SearchExamSessionsParams): Promise<{
+  items: ExamSessionListItem[];
+  total: number;
+  /**
+   * MỌI học kỳ của giảng viên này, không chỉ các kỳ có trên trang đang
+   * xem và không chịu ảnh hưởng của bộ lọc đang bật — đây là nguồn cho
+   * dropdown. Một dropdown hẹp hơn thứ nó điều khiển là một lời nói dối.
+   */
+  semesterNames: string[];
+}> {
   const { data, error, response } = await apiClient.GET('/exam-sessions', {
     params: { query: params },
   });
   await throwIfFailed(error, response);
-  return data as unknown as { items: ExamSessionListItem[]; total: number };
+  return data as unknown as {
+    items: ExamSessionListItem[];
+    total: number;
+    semesterNames: string[];
+  };
 }
 
 /**
