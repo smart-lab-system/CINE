@@ -98,11 +98,12 @@ function createHarness(
   listBuilder.orderBy = jest.fn(() => listBuilder);
   listBuilder.leftJoin = jest.fn(() => listBuilder);
   listBuilder.addSelect = jest.fn(() => listBuilder);
+  // Hàng RAW đi song song với entities, đúng như `getRawAndEntities` trả:
+  // mock rỗng sẽ để nhánh `?? null` nuốt mọi lỗi ánh xạ, và một lần đổi tên
+  // cột về sau vẫn xanh.
   listBuilder.getRawAndEntities = jest.fn().mockResolvedValue({
     entities: overrides.submissions ?? [],
-    // Tên lớp gốc không phải thứ bộ test này đo; một mảng rỗng đủ để
-    // `rows.raw[index]` trả undefined và service quy về null.
-    raw: [],
+    raw: (overrides.submissions ?? []).map(() => ({ homeClassName: 'N01' })),
   });
   const submissions = {
     find: jest.fn().mockResolvedValue(overrides.submissions ?? []),
@@ -303,9 +304,10 @@ describe('SubmissionService.listForSession', () => {
         fileSize: '128',
         downloadUrl: 'http://storage/view',
         homeClassId: 'class-a',
-        // Tên lớp gốc đến từ hàng RAW của JOIN, và harness không giả lập
-        // nó — bộ test này đo URL tải file, không đo nhãn thi bù.
-        homeClassName: null,
+        // Tên lớp gốc đến từ hàng RAW của phép JOIN, không từ entity. Khẳng
+        // định nó ở đây là cách duy nhất bắt được một lần đổi tên cột alias
+        // — nhánh `?? null` sẽ nuốt lỗi đó trong im lặng.
+        homeClassName: 'N01',
       },
     ]);
   });

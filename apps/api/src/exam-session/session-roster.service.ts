@@ -197,6 +197,13 @@ export class SessionRosterService {
         .innerJoin(ClassEntity, 'c', 'c.id = e.home_class_id')
         .where('e.student_mssv = :mssv', { mssv: student.mssv })
         .andWhere('c.course_name = :courseName', { courseName: session.courseName })
+        // Một sinh viên VẪN có thể có nhiều dòng trong cùng một môn — khoá
+        // duy nhất là (home_class_id, student_mssv), nên chuyển lớp giữa kỳ
+        // để lại hai dòng. Không có ORDER BY thì Postgres trả dòng nào là
+        // tuỳ, và có thể ĐỔI sau một lần VACUUM: cùng một thao tác cho hai
+        // kết quả khác nhau ở hai thời điểm. Lấy dòng MỚI NHẤT — lần ghi
+        // danh gần đây nhất là câu trả lời đúng cho 'em đang ở lớp nào'.
+        .orderBy('e.created_at', 'DESC')
         .getOne();
 
       // Em có enrollment (thi bù lớp khác) thì giữ lớp/GV GỐC của họ —
