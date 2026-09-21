@@ -3,8 +3,21 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { CalendarClock, Copy, DoorOpen, Plus } from 'lucide-react';
-import { useExamSessions } from '@/hooks/useExamSession';
+import {
+  CalendarClock,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  DoorOpen,
+  List,
+  Plus,
+} from 'lucide-react';
+import { useExamSessions, useExamSessionsInRange } from '@/hooks/useExamSession';
+import { useSessionViewMode } from '@/hooks/useSessionViewMode';
+import { SessionCalendar } from './_components/session-calendar';
+import { addDays, shortDate, startOfWeek, weekRange } from '@/lib/exam-calendar';
+import { cn } from '@/lib/utils';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { EmptyState } from '@/components/layout/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
@@ -39,6 +52,11 @@ const STATUS_FILTER_LABELS: Record<ExamSessionStatusFilter, string> = {
 };
 const STATUS_FILTER_OPTIONS = Object.keys(STATUS_FILTER_LABELS) as ExamSessionStatusFilter[];
 const EXAM_TYPE_OPTIONS: ExamType[] = ['TK', 'GK', 'CK'];
+
+const VIEW_OPTIONS = [
+  { value: 'table' as const, label: 'Bảng', icon: List },
+  { value: 'calendar' as const, label: 'Lịch', icon: CalendarDays },
+];
 
 async function copySessionCode(code: string) {
   try {
@@ -82,6 +100,10 @@ export default function ExamSessionsListPage() {
   // xem — cùng lý do với danh sách học kỳ bên dưới.
   const classChoices = teachingClasses.data ?? [];
 
+  const [view, setView] = useSessionViewMode();
+  // Tuần đang xem, luôn là một thứ Hai. Khởi tạo bằng tuần chứa hôm nay.
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+
   const [page, setPage] = useState(1);
   const [classId, setClassId] = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -101,6 +123,24 @@ export default function ExamSessionsListPage() {
     semesterName: semesterFilter.semesterName ?? undefined,
     classId: classId === 'all' ? undefined : classId,
   });
+
+  // Lịch có truy vấn RIÊNG, và chỉ chạy khi đang ở chế độ lịch. Hai truy vấn
+  // chứ không một: trang danh sách phân trang 20 dòng, còn lưới tuần phải có
+  // ĐỦ phiên của tuần — gộp chúng lại thì một trong hai phải nói dối.
+  const calendarRange = weekRange(weekStart);
+  const calendarQuery = useExamSessionsInRange(
+    {
+      page: 1,
+      pageSize: PAGE_SIZE,
+      ...calendarRange,
+      search: debouncedSearch.trim() || undefined,
+      status: status === 'all' ? undefined : status,
+      examType: examType === 'all' ? undefined : examType,
+      semesterName: semesterFilter.semesterName ?? undefined,
+      classId: classId === 'all' ? undefined : classId,
+    },
+    { enabled: view === 'calendar' },
+  );
 
   // Danh sách kỳ đến từ SERVER, tính trên toàn bộ phiên của giảng viên và
   // cố ý không chịu ảnh hưởng của bộ lọc đang bật.
@@ -157,6 +197,10 @@ export default function ExamSessionsListPage() {
     setPage(1);
   }
 
+  function goToWeek(offsetDays: number) {
+    setWeekStart((current) => addDays(current, offsetDays));
+  }
+
   function clearFilters() {
     setSearch('');
     setStatus('all');
@@ -181,6 +225,68 @@ export default function ExamSessionsListPage() {
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div
+          role="group"
+          aria-label="Kiểu hiển thị"
+          className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5"
+        >
+          {VIEW_OPTIONS.map((option) => {
+            const Icon = option.icon;
+            const selected = view === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                // aria-pressed, không phải chỉ đổi màu: nút đang bật phải nói
+                // được ra trạng thái của mình cho trình đọc màn hình.
+                aria-pressed={selected}
+                onClick={() => setView(option.value)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-small font-semibold transition-colors duration-150',
+                  selected
+                    ? 'bg-surface text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+        {view === 'calendar' && (
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center overflow-hidden rounded-lg border border-border bg-surface">
+              <button
+                type="button"
+                aria-label="Tuần trước"
+                onClick={() => goToWeek(-7)}
+                className="px-2.5 py-2 text-foreground transition-colors hover:bg-surface-2"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <span className="border-x border-border px-3 py-1.5 text-small font-semibold tabular-nums">
+                {shortDate(weekStart)} – {shortDate(addDays(weekStart, 6))}
+              </span>
+              <button
+                type="button"
+                aria-label="Tuần sau"
+                onClick={() => goToWeek(7)}
+                className="px-2.5 py-2 text-foreground transition-colors hover:bg-surface-2"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setWeekStart(startOfWeek(new Date()))}
+            >
+              Tuần này
+            </Button>
+          </div>
+        )}
         <SemesterFilter
           value={semesterFilter.semesterName}
           onChange={handleSemesterChange}
@@ -239,7 +345,45 @@ export default function ExamSessionsListPage() {
       </div>
 
       <div data-animate className="flex flex-col gap-4">
-        {isLoading ? (
+        {view === 'calendar' ? (
+          calendarQuery.isLoading ? (
+            <Card>
+              <CardContent className="flex flex-col gap-3 p-6">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-24 w-full" />
+                ))}
+              </CardContent>
+            </Card>
+          ) : calendarQuery.error ? (
+            <Alert variant="destructive">
+              <AlertDescription className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <span>Không tải được lịch phiên thi. Hãy thử lại.</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => calendarQuery.refetch()}
+                >
+                  Thử lại
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {/* Lưới vẽ KỂ CẢ khi tuần rỗng: một tuần trống là một câu trả
+                  lời hợp lệ ("tuần này bạn không có ca nào"), và thay nó bằng
+                  một khối rỗng sẽ giấu mất chính cái lưới mà người dùng đang
+                  dùng để điều hướng sang tuần khác. */}
+              <SessionCalendar
+                sessions={calendarQuery.data?.items ?? []}
+                weekStart={weekStart}
+              />
+              <p className="text-small text-muted-foreground">
+                {calendarQuery.data?.total ?? 0} phiên thi trong tuần này.
+              </p>
+            </>
+          )
+        ) : isLoading ? (
           <Card>
             <CardContent className="flex flex-col gap-3 p-6">
               {Array.from({ length: 5 }).map((_, i) => (

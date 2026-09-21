@@ -37,6 +37,54 @@ import {
 import { ScheduleConflictService } from './schedule-conflict.service';
 import { SUBMISSION_GRACE_PERIOD_MS } from '../submission/submission.types';
 
+/**
+ * Trần độ dài khoảng ngày của chế độ lịch.
+ *
+ * 45 ngày phủ thoải mái một tháng xem theo lưới cộng phần tràn hai đầu. Trần
+ * tồn tại vì khoảng ngày là đường DUY NHẤT bỏ phân trang: không có nó, một
+ * `?from=2000-01-01&to=2100-01-01` sẽ kéo toàn bộ phiên của giảng viên về
+ * trong một request.
+ */
+export const MAX_RANGE_DAYS = 45;
+
+/**
+ * Chặn cuối cùng, tính bằng SỐ DÒNG chứ không bằng ngày.
+ *
+ * Trần ngày ở trên giả định mật độ lịch bình thường. Nếu giả định đó sai —
+ * một giảng viên có 600 phiên trong sáu tuần — thì trần ngày không cứu được
+ * gì. Hai trần đo hai đại lượng khác nhau, nên cần cả hai.
+ */
+const RANGE_HARD_CAP = 500;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Đọc cặp `from`/`to`, hoặc `null` nếu không phải chế độ lịch.
+ *
+ * Ném 400 thay vì lặng lẽ bỏ qua khi cặp bị khuyết một nửa. Bỏ qua sẽ trả về
+ * TRANG ĐẦU của toàn bộ lịch sử với HTTP 200, và giao diện lịch sẽ vẽ nó ra
+ * như thể đó là tuần đang xem — sai mà không có tín hiệu nào.
+ */
+function parseRange(query: SearchExamSessionsDto): { from: Date; to: Date } | null {
+  if (!query.from && !query.to) {
+    return null;
+  }
+  if (!query.from || !query.to) {
+    throw new BadRequestException('Khoảng ngày phải có đủ cả `from` lẫn `to`.');
+  }
+  const from = new Date(query.from);
+  const to = new Date(query.to);
+  if (!(to > from)) {
+    throw new BadRequestException('`to` phải sau `from`.');
+  }
+  if (to.getTime() - from.getTime() > MAX_RANGE_DAYS * MS_PER_DAY) {
+    throw new BadRequestException(
+      `Khoảng ngày tối đa là ${MAX_RANGE_DAYS} ngày.`,
+    );
+  }
+  return { from, to };
+}
+
 // Name of the unique index from AddExamSessionNameCode1787795324287 — used
 // to tell "the code we guessed collided, try another one" apart from any
 // other unique/check violation the transaction might raise.
@@ -118,6 +166,7 @@ export class ExamSessionService {
     await this.scheduleConflicts.assertNone(
       dto.roomName,
       klass.id,
+      teacherId,
       new Date(dto.startTime),
       new Date(dto.endTime),
     );
@@ -331,11 +380,23 @@ export class ExamSessionService {
       qb.andWhere('s.classId = :classId', { classId: query.classId });
     }
 
-    const [rows, total] = await qb
-      .orderBy('s.startTime', 'DESC')
-      .skip((query.page - 1) * query.pageSize)
-      .take(query.pageSize)
-      .getManyAndCount();
+    // Chế độ LỊCH: một khoảng ngày, không phân trang. Xem doc của `from`/`to`
+    // trong SearchExamSessionsDto để biết vì sao phân trang phải biến mất ở
+    // đây chứ không phải chỉ đặt pageSize thật to.
+    const range = parseRange(query);
+    if (range) {
+      qb.andWhere('s.startTime >= :from AND s.startTime < :to', range);
+      // Tăng dần cho lịch: mắt đọc lưới từ sớm tới muộn trong một ô ngày.
+      // Danh sách thì ngược lại (phiên mới nhất trước), nên hai chế độ cố ý
+      // sắp khác nhau.
+      qb.orderBy('s.startTime', 'ASC').take(RANGE_HARD_CAP);
+    } else {
+      qb.orderBy('s.startTime', 'DESC')
+        .skip((query.page - 1) * query.pageSize)
+        .take(query.pageSize);
+    }
+
+    const [rows, total] = await qb.getManyAndCount();
 
     const items = rows.map((session) => {
       const item = new ExamSessionListItemDto();

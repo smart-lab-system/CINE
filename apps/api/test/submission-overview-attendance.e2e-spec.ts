@@ -39,7 +39,10 @@ describe('Submission overview — attendance tiers (e2e)', () => {
    */
   let sessionIndex = 0;
   function nextWindow() {
-    const offsetMs = (5 + 20 * sessionIndex) * 60_000;
+    // Bước 50 phút — xem ghi chú cùng chỗ ở
+    // submission-overview-makeup-search.e2e-spec.ts: khe 5 phút của bước cũ
+    // vi phạm `ex_exam_session_teacher_gap` (>= 30 phút).
+    const offsetMs = (5 + 50 * sessionIndex) * 60_000;
     sessionIndex += 1;
     const start = Date.now() + offsetMs;
     return {

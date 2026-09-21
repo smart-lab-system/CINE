@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createExamSession,
   listExamSessions,
+  listExamSessionsInRange,
   getExamSession,
   finalizeExamSession,
   confirmSessionEnd,
@@ -42,6 +43,28 @@ export function useExamSessions(params: SearchExamSessionsParams) {
   return useQuery({
     queryKey: ['exam-sessions', params],
     queryFn: () => listExamSessions(params),
+  });
+}
+
+/**
+ * Một tuần phiên thi cho chế độ xem lịch.
+ *
+ * Hook RIÊNG, cố ý không phải một nhánh bên trong `useExamSessions`. Hook kia
+ * có **ba** nơi dùng — trang danh sách, dashboard giảng viên và trang tạo
+ * phiên — nên đổi chữ ký hay đổi ngữ nghĩa phân trang của nó để phục vụ cái
+ * lịch là làm vỡ hai trang không liên quan gì tới việc này.
+ *
+ * `queryKey` cũng tách hẳn: một tuần không phân trang và một trang danh sách
+ * là hai hình dạng dữ liệu khác nhau, nên chúng không được dùng chung ô cache.
+ */
+export function useExamSessionsInRange(
+  params: SearchExamSessionsParams & { from: string; to: string },
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['exam-sessions-range', params],
+    queryFn: () => listExamSessionsInRange(params),
+    enabled: options?.enabled ?? true,
   });
 }
 

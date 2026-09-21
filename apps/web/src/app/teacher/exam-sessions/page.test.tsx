@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import ExamSessionsListPage from './page';
 
@@ -11,9 +11,15 @@ import ExamSessionsListPage from './page';
 // asserted with `waitFor`'s real-timer polling rather than faking timers,
 // since nothing else in this codebase fakes timers for this hook either.
 const useExamSessionsMock = vi.fn();
+// Chế độ LỊCH có truy vấn riêng. Phải mock ở đây dù mặc định trang mở ra ở
+// chế độ Bảng: hook của React chạy ở MỌI lượt render bất kể `enabled`, nên
+// thiếu nó thì cả file đỏ với "is not a function" — không phải lỗi logic mà
+// là lỗi factory mock thiếu một export.
+const useExamSessionsInRangeMock = vi.fn();
 
 vi.mock('@/hooks/useExamSession', () => ({
   useExamSessions: (...args: unknown[]) => useExamSessionsMock(...args),
+  useExamSessionsInRange: (...args: unknown[]) => useExamSessionsInRangeMock(...args),
 }));
 
 // Bộ lọc LỚP đọc danh sách lớp của giảng viên, không đọc các phiên đã
@@ -83,6 +89,14 @@ beforeEach(() => {
     isLoading: false,
     refetch: vi.fn(),
   });
+  useExamSessionsInRangeMock.mockReset();
+  useExamSessionsInRangeMock.mockReturnValue({
+    data: { items: [], total: 0, semesterNames: [] },
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  });
+  window.localStorage.clear();
 });
 
 describe('ExamSessionsListPage — filters', () => {
@@ -319,5 +333,103 @@ describe('ExamSessionsListPage — filters', () => {
     // "Xoá bộ lọc" cố ý không đụng tới nó, giống nút cùng tên ở FilterRail
     // của trang Bài thu. Lối ra khỏi một học kỳ là chính dropdown đó.
     expect(setSemesterName).not.toHaveBeenCalled();
+  });
+});
+
+describe('ExamSessionsListPage — chế độ xem lịch', () => {
+  function switchToCalendar() {
+    render(<ExamSessionsListPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Lịch' }));
+  }
+
+  it('bật chế độ lịch thì gửi khoảng ĐÚNG MỘT TUẦN, nửa mở', async () => {
+    switchToCalendar();
+
+    await waitFor(() => {
+      const call = useExamSessionsInRangeMock.mock.calls.at(-1)?.[0];
+      expect(call.from).toBeDefined();
+      expect(call.to).toBeDefined();
+      // Bảy ngày chẵn. Sai số ở đây là lỗi lệch-một-ngày, và nó cho ra một
+      // cái lịch trông hoàn toàn bình thường nhưng thiếu hoặc thừa một ngày.
+      const span = Date.parse(call.to) - Date.parse(call.from);
+      expect(span).toBe(7 * 24 * 60 * 60 * 1000);
+    });
+  });
+
+  it('truy vấn lịch chỉ CHẠY khi đang ở chế độ lịch', () => {
+    render(<ExamSessionsListPage />);
+    // Mặc định là Bảng: hook vẫn được gọi (hook của React luôn chạy) nhưng
+    // phải bị tắt, nếu không mỗi lần mở trang danh sách là một request thừa.
+    expect(useExamSessionsInRangeMock.mock.calls.at(-1)?.[1]).toEqual({ enabled: false });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lịch' }));
+    expect(useExamSessionsInRangeMock.mock.calls.at(-1)?.[1]).toEqual({ enabled: true });
+  });
+
+  it('"Tuần sau" dời khoảng đi đúng 7 ngày', async () => {
+    switchToCalendar();
+    const before = useExamSessionsInRangeMock.mock.calls.at(-1)?.[0].from;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tuần sau' }));
+
+    await waitFor(() => {
+      const after = useExamSessionsInRangeMock.mock.calls.at(-1)?.[0].from;
+      expect(Date.parse(after) - Date.parse(before)).toBe(7 * 24 * 60 * 60 * 1000);
+    });
+  });
+
+  it('bộ lọc đang bật vẫn đi kèm truy vấn lịch', async () => {
+    render(<ExamSessionsListPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Lịch' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tìm kiếm phiên thi' }), {
+      target: { value: 'giữa kỳ' },
+    });
+
+    await waitFor(() => {
+      expect(useExamSessionsInRangeMock.mock.calls.at(-1)?.[0].search).toBe('giữa kỳ');
+    });
+  });
+
+  it('mỗi thẻ mang NHÃN CHỮ trạng thái, không chỉ dựa vào màu', async () => {
+    useExamSessionsInRangeMock.mockReturnValue({
+      data: { items: [session()], total: 1, semesterNames: [] },
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    switchToCalendar();
+
+    // Khoanh vào trong LƯỚI: chuỗi "Đang diễn ra" cũng có ở chú giải dưới
+    // chân, nên tìm trên toàn trang sẽ khớp hai chỗ và test đỏ vì lý do
+    // không liên quan tới thứ đang kiểm.
+    const grid = await screen.findByRole('table');
+    expect(within(grid).getByText('Đang diễn ra')).toBeInTheDocument();
+    expect(within(grid).getByText('Giữa kỳ Lập trình Web')).toBeInTheDocument();
+  });
+
+  it('hai phiên cách nhau dưới 30 phút được gắn cờ ngay trên thẻ', async () => {
+    const day = new Date();
+    day.setHours(8, 0, 0, 0);
+    const at = (h: number, m: number) => {
+      const d = new Date(day);
+      d.setHours(h, m, 0, 0);
+      return d.toISOString();
+    };
+    useExamSessionsInRangeMock.mockReturnValue({
+      data: {
+        items: [
+          session({ id: 'a', name: 'Ca đầu', status: 'scheduled', startTime: at(8, 0), endTime: at(10, 0) }),
+          session({ id: 'b', name: 'Ca sát nút', status: 'scheduled', startTime: at(10, 15), endTime: at(12, 0) }),
+        ],
+        total: 2,
+        semesterNames: [],
+      },
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    switchToCalendar();
+
+    expect(await screen.findByText(/Cách phiên trước 15 phút/)).toBeInTheDocument();
   });
 });

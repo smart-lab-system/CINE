@@ -145,6 +145,16 @@ export interface SearchExamSessionsParams {
    * nên lọc trên trang đang xem chỉ cắt 20 dòng và nói dối về tổng số.
    */
   classId?: string;
+  /**
+   * Khoảng ngày của chế độ LỊCH, ISO 8601, nửa mở `[from, to)`.
+   *
+   * Đi theo CẶP — gửi một mình là 400. Khi có mặt, server **bỏ phân trang**
+   * (xem SearchExamSessionsDto ở apps/api): một lưới tuần phân trang 20 dòng
+   * sẽ im lặng nuốt phiên thứ 21, và lịch thì không có nút "trang sau" để lộ
+   * ra chuyện đó.
+   */
+  from?: string;
+  to?: string;
 }
 
 async function throwIfFailed(error: unknown, response: Response) {
@@ -174,6 +184,21 @@ export async function createExamSession(
   // `Record<string, never>` for them instead of a string type — a
   // DTO-decoration gap, not a real runtime shape mismatch.
   return data as unknown as ExamSessionResponse;
+}
+
+/**
+ * Một TUẦN phiên thi, không phân trang — nguồn cho chế độ xem lịch.
+ *
+ * Là một hàm riêng chứ không phải `listExamSessions` với thêm hai tham số,
+ * dù dưới gầm cùng một endpoint. Lý do: hợp đồng khác nhau ở chỗ quan trọng
+ * nhất — cái này hứa trả về **mọi** phiên trong khoảng, còn cái kia trả về
+ * một trang. Gộp chúng lại thì `total` mang hai nghĩa tuỳ tham số, và người
+ * đọc phải tự suy ra nghĩa nào đang áp dụng.
+ */
+export async function listExamSessionsInRange(
+  params: SearchExamSessionsParams & { from: string; to: string },
+): Promise<{ items: ExamSessionListItem[]; total: number; semesterNames: string[] }> {
+  return listExamSessions(params);
 }
 
 export async function listExamSessions(params: SearchExamSessionsParams): Promise<{

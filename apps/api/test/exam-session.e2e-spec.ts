@@ -1010,4 +1010,105 @@ describe('ExamSession (e2e)', () => {
       expect(response.status).toBe(404);
     });
   });
+  /**
+   * Khoảng ngày `from`/`to` — nguồn của chế độ xem LỊCH.
+   *
+   * Khác mọi bộ lọc khác ở một điểm: khi cặp này có mặt, phân trang bị BỎ QUA.
+   * Đó là chỗ dễ hỏng nhất và cũng là chỗ hỏng im lặng nhất — một lưới tuần
+   * thiếu phiên trông y hệt một tuần rảnh.
+   */
+  describe('GET /exam-sessions — khoảng ngày cho chế độ lịch', () => {
+    const stamp = Date.now().toString(36);
+
+    async function createAt(nameSuffix: string, start: Date, end: Date): Promise<string> {
+      const response = await request(app.getHttpServer())
+        .post('/exam-sessions')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          name: `Range${stamp} ${nameSuffix}`,
+          classId,
+          roomName,
+          semesterName: FIRST_SEMESTER,
+          examType: 'TK',
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        });
+      expect(response.status).toBe(201);
+      return response.body.id as string;
+    }
+
+    function list(query: Record<string, string | number>) {
+      return request(app.getHttpServer())
+        .get('/exam-sessions')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .query(query);
+    }
+
+    it('trả về MỌI phiên trong khoảng, bỏ qua phân trang', async () => {
+      // Ba phiên, ba ngày liên tiếp — đủ xa nhau để không chạm luật 30 phút.
+      const d1 = futureWindow();
+      const d2 = futureWindow();
+      const d3 = futureWindow();
+      await createAt('A', new Date(d1.startTime), new Date(d1.endTime));
+      await createAt('B', new Date(d2.startTime), new Date(d2.endTime));
+      await createAt('C', new Date(d3.startTime), new Date(d3.endTime));
+
+      const from = new Date(d1.startTime);
+      from.setUTCHours(0, 0, 0, 0);
+      const to = new Date(d3.endTime);
+      to.setUTCDate(to.getUTCDate() + 1);
+
+      // pageSize=1 CỐ Ý: nếu phân trang còn hiệu lực thì chỉ về 1 dòng, và
+      // cái lịch sẽ vẽ ra một tuần thiếu hai phiên mà không báo gì.
+      const response = await list({
+        page: 1,
+        pageSize: 1,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+
+      expect(response.status).toBe(200);
+      const names = response.body.items.map((i: { name: string }) => i.name);
+      expect(names).toContain(`Range${stamp} A`);
+      expect(names).toContain(`Range${stamp} B`);
+      expect(names).toContain(`Range${stamp} C`);
+    });
+
+    it('nửa mở: phiên bắt đầu ĐÚNG lúc `to` bị loại', async () => {
+      const win = futureWindow();
+      await createAt('Biên', new Date(win.startTime), new Date(win.endTime));
+
+      const response = await list({
+        page: 1,
+        pageSize: 50,
+        from: new Date(Date.parse(win.startTime) - 3_600_000).toISOString(),
+        to: win.startTime,
+      });
+
+      expect(response.status).toBe(200);
+      const names = response.body.items.map((i: { name: string }) => i.name);
+      expect(names).not.toContain(`Range${stamp} Biên`);
+    });
+
+    it('thiếu một nửa của cặp là 400, KHÔNG phải im lặng trả về trang đầu', async () => {
+      const response = await list({ page: 1, pageSize: 20, from: new Date().toISOString() });
+      expect(response.status).toBe(400);
+    });
+
+    it('khoảng quá 45 ngày bị từ chối', async () => {
+      const from = new Date();
+      const to = new Date(from);
+      to.setUTCDate(to.getUTCDate() + 60);
+
+      const response = await list({
+        page: 1,
+        pageSize: 20,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+
+      expect(response.status).toBe(400);
+    });
+  });
 });

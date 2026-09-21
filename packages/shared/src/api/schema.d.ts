@@ -1229,6 +1229,8 @@ export interface operations {
                 examType?: "TK" | "GK" | "CK";
                 semesterName?: string;
                 classId?: string;
+                from?: string;
+                to?: string;
             };
             header?: never;
             path?: never;

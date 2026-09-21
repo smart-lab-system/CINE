@@ -28,6 +28,12 @@ describe('ExamSession schedule conflicts (e2e)', () => {
   let otherClassId: string;
   let roomName: string;
   let otherRoomName: string;
+  // Giảng viên THỨ HAI. Cần từ khi có `ex_exam_session_teacher_gap`: trước đó
+  // mọi ca trùng giờ đều diễn đạt được bằng một người, vì không có luật nào
+  // nhìn tới `teacher_id`. Giờ thì "hai phiên trùng giờ được phép" chỉ còn
+  // đúng khi hai người khác nhau, nên spec phải có người thứ hai để nói ra.
+  let peerToken: string;
+  let peerClassId: string;
 
   /**
    * Every test gets its own day, so a session one test leaves behind can
@@ -51,10 +57,10 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     return { startTime: startTime.toISOString(), endTime: endTime.toISOString() };
   }
 
-  function createSession(body: Record<string, unknown>) {
+  function createSession(body: Record<string, unknown>, token: string = ownerToken) {
     return request(app.getHttpServer())
       .post('/exam-sessions')
-      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({
         examType: 'TK',
         semesterName: 'HK kiểm thử',
@@ -111,6 +117,23 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       [courseName, `Lớp B ${Date.now()}`, ownerId],
     );
     otherClassId = otherClass.id;
+
+    const peerEmail = `schedule_conflict_peer_${Date.now()}@example.com`;
+    const peerId = await createTestAccount(dataSource, {
+      email: peerEmail,
+      password: 'correct-horse-battery',
+      role: 'teacher',
+    });
+    const peerLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: peerEmail, password: 'correct-horse-battery' });
+    peerToken = peerLogin.body.accessToken;
+    const [peerClass] = await dataSource.query(
+      `INSERT INTO examcollect.class (course_name, name, teacher_id)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [courseName, `Lớp C ${Date.now()}`, peerId],
+    );
+    peerClassId = peerClass.id;
   });
 
   afterAll(async () => {
@@ -179,7 +202,13 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     expect(second.body.message).toMatch(/\d{1,2}:\d{2}/);
   });
 
-  it('allows a session starting exactly when the previous one ends', async () => {
+  /**
+   * Test này TỪNG khẳng định điều ngược lại — "ca liền nhau là lịch bình
+   * thường, không phải xung đột" — và nó đúng chừng nào chỉ xét cái PHÒNG.
+   * Phòng thì liền nhau được thật. NGƯỜI thì không: chủ đồ án chốt ngày
+   * 2026-09-21 rằng một giảng viên cần >= 30 phút giữa hai ca.
+   */
+  it('refuses back-to-back sessions for the SAME teacher — the room is free, the person is not', async () => {
     const day = freshDay();
 
     const first = await createSession({
@@ -190,13 +219,45 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     });
     expect(first.status).toBe(201);
 
-    // Half-open ranges: 10:00-12:00 does not overlap 08:00-10:00. Back-to-back
-    // exams in one lab are normal scheduling, not a conflict.
     const second = await createSession({
       name: 'Ca liền sau',
       classId: otherClassId,
       roomName,
       ...windowAt(day, 10, 12),
+    });
+
+    expect(second.status).toBe(409);
+    // Phải nêu đích danh phiên kia và con số 30 — một 409 chung chung thì
+    // giảng viên không biết phải dời đi bao nhiêu.
+    expect(second.body.message).toContain('Ca liền trước');
+    expect(second.body.message).toContain('30');
+  });
+
+  it('allows the next session once the gap is exactly 30 minutes', async () => {
+    const day = freshDay();
+
+    const first = await createSession({
+      name: 'Ca sáng',
+      classId,
+      roomName,
+      ...windowAt(day, 8, 10),
+    });
+    expect(first.status).toBe(201);
+
+    // 10:00 + 30 phút = 10:30. Biên CHÍNH XÁC, không phải 10:31: nới
+    // `end_time` của mọi dòng thêm đúng 30 phút rồi so nửa mở, nên khoảng
+    // cách đúng bằng 30 lọt qua. Cặp test này khoá cả hai phía của biên —
+    // chỉ có cái ở trên thì một lần "siết cho chắc" thành 45 phút vẫn xanh.
+    const second = await createSession({
+      name: 'Ca kế tiếp',
+      classId: otherClassId,
+      roomName,
+      startTime: new Date(Date.UTC(
+        day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 10, 30,
+      )).toISOString(),
+      endTime: new Date(Date.UTC(
+        day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 12, 0,
+      )).toISOString(),
     });
 
     expect(second.status).toBe(201);
@@ -224,7 +285,16 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     expect(second.body.message).toContain('Thi môn sáng');
   });
 
-  it('allows overlapping sessions in different rooms for different classes', async () => {
+  /**
+   * ĐÂY là lỗ hổng mà test cũ khẳng định là tính năng.
+   *
+   * Bản trước của test này tên là "allows overlapping sessions in different
+   * rooms for different classes" và dùng MỘT giảng viên — hai phòng khác
+   * nhau, hai lớp khác nhau, cùng 08:00–10:00, mong đợi 201. Cả hai ràng
+   * buộc cũ đều cho qua vì không cái nào nhìn tới `teacher_id`, nên bộ test
+   * ghi lại hành vi đó như thể nó đúng. Không ai coi được hai phòng cùng lúc.
+   */
+  it('refuses two rooms at the same hour for ONE teacher — nobody is in two places', async () => {
     const day = freshDay();
 
     const first = await createSession({
@@ -241,6 +311,34 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       roomName: otherRoomName,
       ...windowAt(day, 8, 10),
     });
+
+    expect(second.status).toBe(409);
+    expect(second.body.message).toContain('Phòng 1');
+  });
+
+  it('allows the same hour in different rooms when the teachers are different', async () => {
+    const day = freshDay();
+
+    const first = await createSession({
+      name: 'Của tôi',
+      classId,
+      roomName,
+      ...windowAt(day, 8, 10),
+    });
+    expect(first.status).toBe(201);
+
+    // Cặp đi ngược chiều với test ngay trên. Thiếu nó thì một lần "siết
+    // cho chắc" thành ràng buộc toàn cục theo giờ vẫn xanh, và cả trường
+    // chỉ thi được một ca mỗi lúc.
+    const second = await createSession(
+      {
+        name: 'Của đồng nghiệp',
+        classId: peerClassId,
+        roomName: otherRoomName,
+        ...windowAt(day, 8, 10),
+      },
+      peerToken,
+    );
 
     expect(second.status).toBe(201);
   });

@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
 import { ExamType, ExamSessionStatus } from '../entities/exam-session.entity';
 
 const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
@@ -90,4 +100,29 @@ export class SearchExamSessionsDto {
   @IsOptional()
   @IsUUID()
   classId?: string;
+
+  /**
+   * Khoảng ngày cho chế độ xem LỊCH. Đi theo cặp — một mình `from` là 400.
+   *
+   * Khác mọi bộ lọc trên ở một điểm quyết định: khi cặp này có mặt, **phân
+   * trang bị bỏ qua** (xem `findAllForOwner`). Lý do không phải tiện tay —
+   * một lưới tuần phân trang 20 dòng sẽ IM LẶNG nuốt phiên thứ 21, và người
+   * dùng không có cách nào biết tuần của mình đang thiếu. Một danh sách
+   * biết mình bị cắt thì hiện nút "trang sau"; một cái lịch thì không.
+   *
+   * Lọc theo `start_time`, nên một phiên nằm ở ĐÚNG ngày nó bắt đầu — cùng
+   * quy ước với việc lưới gom phiên vào ô ca thi theo giờ bắt đầu. Phiên vắt
+   * qua nửa đêm hiện ở ngày bắt đầu, một lần, không phải hai.
+   *
+   * Độ dài khoảng bị chặn trên ở service (`MAX_RANGE_DAYS`), không ở đây:
+   * class-validator không so được hai trường với nhau mà không thêm một
+   * validator riêng, và luật này chỉ có một chỗ tiêu thụ.
+   */
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
 }
