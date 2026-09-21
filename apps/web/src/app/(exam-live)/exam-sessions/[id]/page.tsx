@@ -150,9 +150,16 @@ export default function ExamSessionLobbyPage() {
   // trigger a render on its own.
   const knownAccessRequestIds = useRef<Set<string>>(new Set());
   const teachingClasses = useTeachingClasses();
+  // So theo TÊN môn: khoá ngoại tới bảng `course` biến mất ở đợt thu hẹp
+  // master data, và tên là thứ duy nhất còn lại để nhận ra hai lớp cùng môn.
+  // Gõ lệch một ký tự thì lớp đó không hiện ra trong danh sách chọn lớp gốc
+  // — giám thị vẫn duyệt được, chỉ là phải tìm đúng cách viết.
   const classesForThisCourse = useMemo(
-    () => (teachingClasses.data ?? []).filter((k) => k.courseId === sessionDetail.data?.courseId),
-    [teachingClasses.data, sessionDetail.data?.courseId],
+    () =>
+      (teachingClasses.data ?? []).filter(
+        (k) => k.courseName === sessionDetail.data?.courseName,
+      ),
+    [teachingClasses.data, sessionDetail.data?.courseName],
   );
 
   /**

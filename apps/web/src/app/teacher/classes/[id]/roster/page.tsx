@@ -28,7 +28,7 @@ export default function TeacherRosterPage() {
         title={klass ? `Danh sách lớp — ${klass.name}` : 'Danh sách lớp'}
         description={
           klass
-            ? `${klass.courseCode} — ${klass.courseName}. Đây là danh sách quyết định ai được vào phiên thi của lớp này.`
+            ? `${klass.courseName}. Đây là danh sách quyết định ai được vào phiên thi của lớp này.`
             : 'Danh sách quyết định ai được vào phiên thi của lớp này.'
         }
         actions={

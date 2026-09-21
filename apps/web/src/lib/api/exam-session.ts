@@ -46,10 +46,11 @@ export interface ExamSessionResponse {
   name: string;
   code: string;
   teacherId: string;
-  courseId: string;
-  /** Null only for sessions created before a session named a class. */
-  classId: string | null;
-  roomId: string;
+  classId: string;
+  /** Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên. `courseId`/`roomId`
+   *  biến mất cùng ba bảng dữ liệu nền ở đợt thu hẹp master data. */
+  courseName: string;
+  roomName: string;
   examType: ExamType;
   startTime: string;
   endTime: string;
