@@ -107,6 +107,70 @@ describe('buildFacets', () => {
   });
 });
 
+describe('lọc theo LỚP', () => {
+  // Fixture riêng: mọi item trong `base` đều dùng chung `classId: 'k1'`,
+  // nên nó không tách được gì để thử.
+  const byClass = [
+    make({ id: 'a', classId: 'k1', className: 'N01' }),
+    make({ id: 'b', classId: 'k2', className: 'N02' }),
+    make({ id: 'c', classId: 'k2', className: 'N02' }),
+  ];
+
+  it('chọn một lớp thì phiên của lớp khác rơi ra', () => {
+    const ids = applyFilters(byClass, { ...EMPTY_FILTERS, classIds: ['k2'] }, NOW)
+      .map((i) => i.id);
+    expect(ids.sort()).toEqual(['b', 'c']);
+  });
+
+  it('trong một nhóm là OR: hai lớp cùng lúc', () => {
+    const ids = applyFilters(byClass, { ...EMPTY_FILTERS, classIds: ['k1', 'k2'] }, NOW)
+      .map((i) => i.id);
+    expect(ids.sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('lọc theo ID chứ không theo TÊN: hai lớp TRÙNG TÊN vẫn tách nhau', () => {
+    // Đây là lý do nhóm này khoá theo `classId`. Nếu ai đó đổi sang khoá
+    // theo `className` cho "dễ đọc", hai lớp khác nhau sẽ bị trộn bài.
+    const sameName = [
+      make({ id: 'x', classId: 'k1', className: 'N01' }),
+      make({ id: 'y', classId: 'k9', className: 'N01' }),
+    ];
+    const ids = applyFilters(sameName, { ...EMPTY_FILTERS, classIds: ['k1'] }, NOW)
+      .map((i) => i.id);
+    expect(ids).toEqual(['x']);
+  });
+
+  it('giữa các nhóm là AND: lớp k2 VÀ phòng A3-02', () => {
+    const mixed = [
+      make({ id: 'a', classId: 'k2', roomName: 'A3-01' }),
+      make({ id: 'b', classId: 'k2', roomName: 'A3-02' }),
+      make({ id: 'c', classId: 'k1', roomName: 'A3-02' }),
+    ];
+    const ids = applyFilters(
+      mixed,
+      { ...EMPTY_FILTERS, classIds: ['k2'], rooms: ['A3-02'] },
+      NOW,
+    ).map((i) => i.id);
+    expect(ids).toEqual(['b']);
+  });
+
+  it('số đếm của chính nhóm lớp KHÔNG bị chính nó thu hẹp', () => {
+    // Nếu không, bật N01 sẽ làm N02 về 0 và không bao giờ chọn thêm được.
+    const facets = buildFacets(byClass, { ...EMPTY_FILTERS, classIds: ['k1'] }, NOW);
+    expect(facets.classes.find((k) => k.value === 'k2')?.count).toBe(2);
+  });
+
+  it('nhãn là TÊN lớp, khoá là id', () => {
+    const facets = buildFacets(byClass, EMPTY_FILTERS, NOW);
+    expect(facets.classes.find((k) => k.value === 'k1')?.label).toBe('N01');
+  });
+
+  it('chỉ một lớp thì trả mảng rỗng để UI không render', () => {
+    const one = [make({ id: 'x', classId: 'k1' }), make({ id: 'y', classId: 'k1' })];
+    expect(buildFacets(one, EMPTY_FILTERS, NOW).classes).toEqual([]);
+  });
+});
+
 describe('detectRoomFailure', () => {
   // Mẫu số là LỚP, không còn là môn. Bản cũ dựng hai `courseName` khác nhau
   // để làm cảnh báo nổ — một trạng thái dữ liệu không còn tồn tại được từ

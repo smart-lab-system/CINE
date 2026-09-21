@@ -787,10 +787,16 @@ describe('ExamSession (e2e)', () => {
   describe('GET /exam-sessions — class filter', () => {
     const stamp = Date.now().toString(36);
 
+    // Một kỳ CHỈ giảng viên kia dùng. Không có nó thì phép thử cách ly ở
+    // ca cuối là vô nghĩa: hai người cùng một tên kỳ thì assert vẫn xanh
+    // dù truy vấn có rò hay không.
+    const FOREIGN_SEMESTER = `HK Người khác ${stamp}`;
+
     async function createForClass(
       classIdForSession: string,
       nameSuffix: string,
       token: string,
+      semesterName: string = FIRST_SEMESTER,
     ): Promise<string> {
       const { startTime, endTime } = futureWindow();
       const response = await request(app.getHttpServer())
@@ -800,7 +806,7 @@ describe('ExamSession (e2e)', () => {
           name: `Cls${stamp} ${nameSuffix}`,
           classId: classIdForSession,
           roomName,
-          semesterName: FIRST_SEMESTER,
+          semesterName,
           examType: 'TK',
           startTime,
           endTime,
@@ -872,8 +878,32 @@ describe('ExamSession (e2e)', () => {
       expect(response.body.semesterNames).toEqual(
         expect.arrayContaining([FIRST_SEMESTER, OTHER_SEMESTER]),
       );
-      // Không rò kỳ của giảng viên khác vào dropdown của người này.
-      expect(response.body.semesterNames.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('semesterNames KHÔNG rò học kỳ của giảng viên khác', async () => {
+      // Kỳ này chỉ tồn tại trên phiên của người kia. Bản đầu của test trên
+      // khẳng định điều này trong chú thích nhưng không chứng minh được:
+      // cả hai giảng viên khi ấy dùng chung FIRST_SEMESTER, nên assert vẫn
+      // xanh kể cả khi truy vấn quên mất vế `teacherId`.
+      await createForClass(foreignClassId, 'Kỳ riêng', otherToken, FOREIGN_SEMESTER);
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ page: 1, pageSize: 1 })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.semesterNames).not.toContain(FOREIGN_SEMESTER);
+
+      // Và người kia thì PHẢI thấy kỳ của chính họ — nếu không, test trên
+      // sẽ xanh cả khi `semesterNames` luôn trả về mảng rỗng.
+      const theirs = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ page: 1, pageSize: 1 })
+        .set('Authorization', `Bearer ${otherToken}`);
+
+      expect(theirs.status).toBe(200);
+      expect(theirs.body.semesterNames).toContain(FOREIGN_SEMESTER);
     });
   });
 

@@ -263,6 +263,37 @@ describe('ExamSessionsListPage — filters', () => {
     );
   });
 
+  it('"Xoá bộ lọc" trả cả bộ lọc LỚP về mặc định', () => {
+    // Ca "Xoá bộ lọc" bên dưới chạy với mock một lớp, nên ô lọc lớp không
+    // hề hiện ra và nó không chứng minh được gì về classId. Cần một ca
+    // riêng có đủ hai lớp, nếu không thì một lần `clearFilters()` quên
+    // `setClassId` sẽ lọt qua cả bộ test.
+    useTeachingClassesMock.mockReturnValue({
+      data: [
+        { id: 'k1', name: 'Nhóm 01', courseName: 'CTDL&GT', studentCount: 30 },
+        { id: 'k2', name: 'Nhóm 02', courseName: 'CTDL&GT', studentCount: 28 },
+      ],
+    });
+    useExamSessionsMock.mockReturnValue({
+      data: { items: [], total: 0, semesterNames: [CURRENT_SEMESTER] },
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    render(<ExamSessionsListPage />);
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo lớp' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Nhóm 02' }));
+    expect(useExamSessionsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ classId: 'k2' }),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xoá bộ lọc' }));
+    expect(useExamSessionsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ classId: undefined, page: 1 }),
+    );
+  });
+
   it('"Xoá bộ lọc" resets every filter back to its default', () => {
     useExamSessionsMock.mockReturnValue({
       data: { items: [], total: 0 },
