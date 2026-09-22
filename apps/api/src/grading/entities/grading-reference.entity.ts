@@ -71,6 +71,18 @@ export class GradingReferenceEntity extends BaseEntity {
   @Column({ name: 'model_answer_note', type: 'text', nullable: true })
   modelAnswerNote!: string | null;
 
+  /**
+   * `true` = đáp án mẫu đến từ agent soạn đề và CHƯA từng được chạy.
+   *
+   * Chuẩn để chấm được rút từ đáp án mẫu (spec chấm §2.1). Nếu nó không biên
+   * dịch nổi thì chuẩn đó là rác, và mọi bài của phiên bị đo bằng một cái
+   * thước bịa — hỏng IM LẶNG, vì bài nào cũng "lệch chuẩn" nên không có tín
+   * hiệu nào nói vấn đề nằm ở cái thước. Cột này là thứ duy nhất phân biệt
+   * được hai chuyện đó về sau.
+   */
+  @Column({ name: 'model_answer_unverified', type: 'boolean', default: false })
+  modelAnswerUnverified!: boolean;
+
   @Column({ name: 'created_by', type: 'uuid' })
   createdBy!: string;
 

@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { ExamSessionScheduler } from '../src/exam-session/exam-session.scheduler';
 import { createTestAccount } from './helpers/create-account';
+import { concurrentLiveWindow, releaseTeacherSessions } from './helpers/session-window';
 
 /**
  * Đóng băng danh sách dự thi (CLAUDE.md §7.1.1) và cho sự vắng mặt một
@@ -74,6 +75,12 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
       );
     }
 
+    // Ca thi của test trước đã kết thúc — nhả giảng viên ra, nếu không
+
+    // `ex_exam_session_teacher_gap` chặn phiên này bằng 409.
+
+    await releaseTeacherSessions(dataSource, teacherId);
+
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
@@ -83,8 +90,7 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
         roomName: room.name,
         semesterName: 'HK kiểm thử',
         examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        ...concurrentLiveWindow(),
         requiredFilenames: options.deliverables ?? ['Cau1.docx'],
       });
     expect(created.status).toBe(201);

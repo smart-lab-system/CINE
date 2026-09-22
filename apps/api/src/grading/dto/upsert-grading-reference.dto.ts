@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 /**
  * Tài liệu tham chiếu cho một lượt chấm. Mọi trường đều tuỳ chọn — ba mức
@@ -48,4 +48,15 @@ export class UpsertGradingReferenceDto {
   @IsString()
   @MaxLength(4000)
   modelAnswerNote?: string | null;
+
+  /**
+   * Đáp án mẫu này đến từ agent soạn đề và chưa từng được chạy.
+   *
+   * Giảng viên tự upload thì bỏ trống (mặc định `false`). Giao diện soạn đề
+   * gửi `true` khi `verification.status !== 'passed'`, và kèm một bước xác
+   * nhận riêng — xem `grading-reference.entity.ts`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  modelAnswerUnverified?: boolean;
 }

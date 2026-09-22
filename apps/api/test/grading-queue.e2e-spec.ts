@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { liveSessionWindow } from './helpers/session-window';
 
 /**
  * Chấm điểm trên hàng đợi (CLAUDE.md §7.1.3).
@@ -54,8 +55,7 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
         semesterName: 'HK kiểm thử',
         examType: 'CK',
         rubricId: rubric.body.id,
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        ...liveSessionWindow(),
         requiredFilenames: ['Cau1.docx'],
       });
     expect(created.status).toBe(201);

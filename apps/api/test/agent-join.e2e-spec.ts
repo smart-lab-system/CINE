@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { concurrentLiveWindow } from './helpers/session-window';
 import { openSession } from './helpers/open-session';
 
 /**
@@ -87,6 +88,24 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     token = login.body.accessToken;
 
+    // GIẢNG VIÊN THỨ HAI, sở hữu N01 và phiên "templated".
+    //
+    // Hai phiên dưới đây chạy CÙNG LÚC. Trước đây chúng chỉ cần khác phòng
+    // và khác lớp; từ `ex_exam_session_teacher_gap` (migration 1789350000000)
+    // chúng còn phải khác NGƯỜI — một giảng viên không coi được hai phòng
+    // cùng giờ, và ràng buộc đó ép đúng điều ấy. Trước khi có nó, spec này
+    // mô tả một tình huống không tồn tại ngoài đời.
+    const email2 = `agent_join_teacher2_${stamp}@example.com`;
+    const teacher2Id = await createTestAccount(dataSource, {
+      email: email2,
+      password: 'correct-horse-battery',
+      role: 'teacher',
+    });
+    const login2 = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: email2, password: 'correct-horse-battery' });
+    const token2 = login2.body.accessToken as string;
+
     const course = { name: 'Agent Join Course' };
     courseName = course.name;
     const room = { name: `Agent Join Room ${stamp}` };
@@ -96,7 +115,7 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     const [klass] = await dataSource.query(
       `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseName, teacherId],
+      [courseName, teacher2Id],
     );
     classId = klass.id;
 
@@ -137,7 +156,7 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       `INSERT INTO examcollect.enrollment
          (student_mssv, student_name, home_class_id, home_teacher_id)
        VALUES ($1, $2, $3, $4)`,
-      [`N01${stamp}`.slice(0, 20), 'Sinh viên lớp N01', klass.id, teacherId],
+      [`N01${stamp}`.slice(0, 20), 'Sinh viên lớp N01', klass.id, teacher2Id],
     );
 
     const created = await request(app.getHttpServer())
@@ -152,8 +171,7 @@ describe('agent:join enrollment enforcement (e2e)', () => {
         roomName: plainRoom.name,
         semesterName: 'HK kiểm thử',
         examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        ...concurrentLiveWindow(),
         requiredFilenames: ['Cau1.docx'],
       });
     expect(created.status).toBe(201);
@@ -166,27 +184,26 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     // class, same roster — only the filename rule differs.
     const templated = await request(app.getHttpServer())
       .post('/exam-sessions')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${token2}`)
       .send({
         name: `Agent Join Templated ${stamp}`,
         classId: klass.id,
         roomName: room.name,
         semesterName: 'HK kiểm thử',
         examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        ...concurrentLiveWindow(),
         requiredFilenames: ['{PHONG}_{MSSV}_{TEN}_{SOMAY}.docx'],
       });
     expect(templated.status).toBe(201);
     // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
     // dự thi. Xem test/helpers/open-session.ts.
-    await openSession(app, token, templated.body.id);
+    await openSession(app, token2, templated.body.id);
     // Ảnh chốt của N01 không có ENROLLED_MSSV — em thuộc N02. Thêm tay,
     // đúng route giám thị dùng, để các ca {PHONG}/{MSSV} dưới đây vẫn nói
     // về cùng một sinh viên như các ca ở phiên "plain".
     const added = await request(app.getHttpServer())
       .post(`/exam-sessions/${templated.body.id}/roster/students`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${token2}`)
       .send({ mssv: ENROLLED_MSSV, name: ENROLLED_NAME });
     expect(added.status).toBe(201);
     templatedCode = templated.body.code;
@@ -286,8 +303,7 @@ describe('agent:join enrollment enforcement (e2e)', () => {
           roomName: sessionRoomName,
           semesterName: 'HK kiểm thử',
           examType: 'TK',
-          startTime: new Date(Date.now() - 60_000).toISOString(),
-          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          ...concurrentLiveWindow(),
           requiredFilenames: ['{LOP}_Cau1.docx'],
         });
 

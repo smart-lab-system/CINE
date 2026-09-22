@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { liveSessionWindow } from './helpers/session-window';
 import { StorageService } from '../src/storage/storage.service';
 
 /**
@@ -164,8 +165,7 @@ describe('Grading (e2e)', () => {
         roomName: room.name,
         semesterName: 'HK kiểm thử',
         examType: 'CK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        ...liveSessionWindow(),
         requiredFilenames: ['Cau1.txt'],
       });
     expect(created.status).toBe(201);
@@ -454,8 +454,7 @@ describe('Grading (e2e)', () => {
         roomName: room.name,
         semesterName: 'HK kiểm thử',
         examType: 'CK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        ...liveSessionWindow(),
         requiredFilenames: ['Cau1.txt'],
       });
 
