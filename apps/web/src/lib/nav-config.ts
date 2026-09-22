@@ -1,4 +1,4 @@
-import {
+import { Sparkles,
   LayoutDashboard,
   GraduationCap,
   Users,
@@ -53,6 +53,9 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Lớp của tôi', href: '/teacher/classes', icon: GraduationCap },
   // Trước "Chấm điểm" vì đó là thứ tự thật của công việc: rubric phải có
   // trước khi tạo phiên thi, và phiên thi phải ghim rubric trước khi chấm.
+  // Đứng TRƯỚC Rubric và Chấm điểm: soạn đề là việc đầu tiên trong vòng đời
+  // một kỳ thi, và thứ tự menu nên đọc ra được vòng đời đó.
+  { label: 'Soạn đề', href: '/teacher/exam-authoring', icon: Sparkles },
   { label: 'Rubric', href: '/teacher/rubrics', icon: ListChecks },
   { label: 'Chấm điểm', href: '/teacher/grading', icon: ClipboardCheck },
 ];
