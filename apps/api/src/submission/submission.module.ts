@@ -11,6 +11,8 @@ import { SubmissionController } from './submission.controller';
 import { TeacherSubmissionsController } from './teacher-submissions.controller';
 import { SubmissionOverviewService } from './submission-overview.service';
 import { ARCHIVE_CHECK_QUEUE } from './archive-check/archive-check.constants';
+import { ArchiveCheckService } from './archive-check/archive-check.service';
+import { ArchiveCheckProcessor } from './archive-check/archive-check.processor';
 
 /**
  * Imports ExamSessionModule for its already-exported ExamSessionService
@@ -31,7 +33,14 @@ import { ARCHIVE_CHECK_QUEUE } from './archive-check/archive-check.constants';
     BullModule.registerQueue({ name: ARCHIVE_CHECK_QUEUE }),
   ],
   controllers: [SubmissionController, TeacherSubmissionsController],
-  providers: [SubmissionService, SubmissionGateway, BackupGateway, SubmissionOverviewService],
+  providers: [
+    SubmissionService,
+    SubmissionGateway,
+    BackupGateway,
+    SubmissionOverviewService,
+    ArchiveCheckService,
+    ArchiveCheckProcessor,
+  ],
   exports: [SubmissionService],
 })
 export class SubmissionModule {}

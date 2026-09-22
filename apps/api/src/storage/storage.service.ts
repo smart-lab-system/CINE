@@ -255,6 +255,36 @@ export class StorageService {
       throw error;
     }
   }
+
+  /**
+   * Kích thước THẬT của object, từ metadata của storage — dùng làm cửa
+   * chặn trước khi tải một file nén về kiểm (spec
+   * 2026-09-21-archive-content-validation-design.md §10.2).
+   *
+   * KHÔNG dùng `submission.file_size` cho việc này: cột đó lấy từ
+   * `ConfirmSubmissionDto.fileSize`, tức con số AGENT KHAI trong payload
+   * `submission:confirm`. Một cửa chặn dựng trên nó nằm trong tay đúng bên
+   * nó phải chặn — khai `fileSize: 1` rồi đẩy 5GB là qua sạch.
+   * `HeadObjectCommand.ContentLength` là sự thật duy nhất server tự đo
+   * được, không đi qua tay client.
+   */
+  async getObjectSize(key: string): Promise<number | null> {
+    try {
+      const head = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return head.ContentLength ?? null;
+    } catch (error) {
+      if (isNotFound(error)) {
+        return null;
+      }
+      this.logger.error(
+        `HeadObject failed for key ${key}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
+  }
 }
 
 /**
