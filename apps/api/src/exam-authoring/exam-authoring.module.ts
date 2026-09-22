@@ -6,6 +6,7 @@ import { RubricCriterionEntity } from '../grading/entities/rubric-criterion.enti
 import { ExamAuthoringService } from './exam-authoring.service';
 import { ExamAuthoringController } from './exam-authoring.controller';
 import { AttachExamService } from './attach-exam.service';
+import { GenerateQuotaService } from './generate-quota.service';
 import { ExamSessionModule } from '../exam-session/exam-session.module';
 import { GradingModule } from '../grading/grading.module';
 import { StorageModule } from '../storage/storage.module';
@@ -57,6 +58,7 @@ export function selectAuthoringProvider(
   providers: [
     ExamAuthoringService,
     AttachExamService,
+    GenerateQuotaService,
     ClaudeAuthoringProvider,
     StubAuthoringProvider,
     {
