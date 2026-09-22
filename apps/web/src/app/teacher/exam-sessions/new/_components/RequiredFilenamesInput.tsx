@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { CreateExamSessionFormValues } from '../schema';
+import { ArchiveEntriesField } from './ArchiveEntriesField';
 
 /**
  * What the server fills each token with, and a sample value for the
@@ -178,6 +179,7 @@ export function RequiredFilenamesInput() {
                   </p>
                 )
               )}
+              <ArchiveEntriesField index={index} />
             </div>
           );
         })}

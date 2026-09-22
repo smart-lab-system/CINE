@@ -20,6 +20,18 @@ import { z } from 'zod';
 const FILENAME_TEMPLATE_REGEX =
   /^(?!.*\.\.)(?:[A-Za-z0-9_.-]|\{(?:MSSV|TEN|PHONG|SOMAY)\})+$/;
 
+// Phải khớp ARCHIVE_EXTENSIONS/MAX_ENTRIES_PER_DELIVERABLE trong
+// apps/api/src/exam-session/dto/create-exam-session.dto.ts. Cùng cặp
+// thông điệp lỗi — spec 2026-09-21-archive-content-validation-design.md
+// §8.4/§9.1: khai file bên trong chỉ có nghĩa với deliverable .zip/.rar.
+const ARCHIVE_EXTENSIONS = ['.zip', '.rar'] as const;
+const MAX_ENTRIES_PER_DELIVERABLE = 20;
+
+function isArchiveFilename(value: string): boolean {
+  const lower = value.toLowerCase();
+  return ARCHIVE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
 export const EXAM_TYPES = ['TK', 'GK', 'CK'] as const;
 
 // Must stay in sync with MIN_EXAM_DURATION_MINUTES in
@@ -116,16 +128,66 @@ export const createExamSessionSchema = z
     endTime: z.string().min(1, 'Vui lòng chọn thời gian kết thúc'),
     requiredFilenames: z
       .array(
-        z.object({
-          value: z
-            .string()
-            .trim()
-            .min(1, 'Tên file không được để trống')
-            .regex(
-              FILENAME_TEMPLATE_REGEX,
-              'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
-            ),
-        }),
+        z
+          .object({
+            value: z
+              .string()
+              .trim()
+              .min(1, 'Tên file không được để trống')
+              .regex(
+                FILENAME_TEMPLATE_REGEX,
+                'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
+              ),
+            /**
+             * Tên các file phải nằm BÊN TRONG, nếu deliverable này là file
+             * nén — tuỳ chọn, spec §5.2/§8.4. Cùng luật path-traversal như
+             * tên file bên ngoài (khớp theo TÊN, không theo đường dẫn —
+             * spec §3.2, nên dấu "/" vẫn bị cấm ở đây).
+             */
+            entries: z
+              .array(
+                z.object({
+                  value: z
+                    .string()
+                    .trim()
+                    .min(1, 'Tên file không được để trống')
+                    .regex(
+                      FILENAME_TEMPLATE_REGEX,
+                      'Tên file bên trong chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
+                    ),
+                }),
+              )
+              .max(
+                MAX_ENTRIES_PER_DELIVERABLE,
+                `Tối đa ${MAX_ENTRIES_PER_DELIVERABLE} file bên trong một deliverable`,
+              )
+              .optional(),
+          })
+          // Chỉ cho khai entries khi bản thân filename là .zip/.rar — khai
+          // trên .docx là một hiểu lầm, và nhận im lặng rồi không kiểm gì
+          // còn tệ hơn từ chối (spec §8.4).
+          .refine(
+            (item) => !item.entries || item.entries.length === 0 || isArchiveFilename(item.value),
+            {
+              message: `Chỉ khai được file bên trong cho deliverable ${ARCHIVE_EXTENSIONS.join(' hoặc ')}`,
+              path: ['entries'],
+            },
+          )
+          // Mirror của @ArrayUnique() trên entries phía backend — trùng tên
+          // bên trong CÙNG một deliverable lọt qua mọi phép kiểm riêng lẻ
+          // rồi chết ở unique index dưới DB.
+          .refine(
+            (item) => {
+              if (!item.entries) return true;
+              const seen = new Set<string>();
+              for (const entry of item.entries) {
+                if (seen.has(entry.value)) return false;
+                seen.add(entry.value);
+              }
+              return true;
+            },
+            { message: 'Tên file bên trong bị trùng — mỗi file phải có tên khác nhau.', path: ['entries'] },
+          ),
       )
       .min(1, 'Cần khai báo ít nhất 1 file bắt buộc'),
   })
