@@ -7,6 +7,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { concurrentLiveWindow, releaseTeacherSessions } from './helpers/session-window';
 import { openSession } from './helpers/open-session';
 
 /**
@@ -169,7 +170,17 @@ describe('Teacher submissions (e2e)', () => {
       return extra.name as string;
     }
 
-    async function createSession(name: string, forClassId: string, token: string) {
+    async function createSession(
+      name: string,
+      forClassId: string,
+      token: string,
+      ownerId: string,
+    ) {
+      // Ca thi trước của CHÍNH người này đã xong — nhả họ ra, nếu không
+      // `ex_exam_session_teacher_gap` chặn phiên này bằng 409. Vì thế khối
+      // dựng bên dưới phải ĐAN XEN tạo phiên với thu bài: một phiên chỉ
+      // được đóng sau khi agent của nó đã nộp xong.
+      await releaseTeacherSessions(dataSource, ownerId);
       const response = await request(app.getHttpServer())
         .post('/exam-sessions')
         .set('Authorization', `Bearer ${token}`)
@@ -179,8 +190,7 @@ describe('Teacher submissions (e2e)', () => {
           roomName: await freshRoomId(),
           semesterName: 'HK kiểm thử',
           examType: 'TK',
-          startTime: new Date(Date.now() - 60_000).toISOString(),
-          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          ...concurrentLiveWindow(),
           requiredFilenames: ['Cau1.docx'],
         });
       expect(response.status).toBe(201);
@@ -194,18 +204,20 @@ describe('Teacher submissions (e2e)', () => {
       };
     }
 
-    const sessionA = await createSession(`Phiên A ${stamp}`, classId, teacherToken);
+    const sessionA = await createSession(`Phiên A ${stamp}`, classId, teacherToken, teacherId);
     sessionAId = sessionA.id;
-    // Lớp riêng, cùng lý do phải có phòng riêng: A và B chạy đồng thời và
-    // một lớp không thể thi hai ca cùng lúc. MSSV_B đã ghi danh ở lớp này
-    // từ đầu khối dựng, nên ảnh chốt của nó không rỗng và em vào được.
-    const sessionB = await createSession(`Phiên B ${stamp}`, classBRow.id, teacherToken);
-    sessionBId = sessionB.id;
-    const foreignSession = await createSession(`Phiên lạ ${stamp}`, foreignClass.id, otherToken);
-    foreignSessionId = foreignSession.id;
-
     await collectOne(sessionA.id, sessionA.code, sessionA.deliverableId, MSSV_A, 'bai A\n');
+
+    const sessionB = await createSession(`Phiên B ${stamp}`, classBRow.id, teacherToken, teacherId);
+    sessionBId = sessionB.id;
+    // Lớp riêng, cùng lý do phải có phòng riêng: một lớp không thể thi hai
+    // ca cùng lúc. MSSV_B đã ghi danh ở lớp này từ đầu khối dựng.
     await collectOne(sessionB.id, sessionB.code, sessionB.deliverableId, MSSV_B, 'bai B\n');
+
+    // Giảng viên KHÁC, nên phiên này không đụng luật 30 phút với A và B —
+    // và đó cũng chính là thứ ca "không rò bài của phiên người khác" kiểm.
+    const foreignSession = await createSession(`Phiên lạ ${stamp}`, foreignClass.id, otherToken, otherTeacherId);
+    foreignSessionId = foreignSession.id;
     await collectOne(
       foreignSession.id,
       foreignSession.code,

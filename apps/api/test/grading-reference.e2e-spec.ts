@@ -54,16 +54,31 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     // `start_time` ở QUÁ KHỨ: `listForAgent` chỉ phát tài liệu sau mốc đó,
     // nên muốn chứng minh đáp án không lọt thì phải kiểm ở trạng thái ĐÃ
     // PHÁT, không phải ở trạng thái còn khoá.
+    //
+    // GIÃN theo `seedCursor`, mỗi phiên lùi thêm 3 giờ: mọi phiên ở đây do
+    // CÙNG một giảng viên tạo, và `ex_exam_session_teacher_gap` (migration
+    // 1789350000000) đòi hai phiên của một người cách nhau >= 30 phút. Trước
+    // khi có ràng buộc đó, cả spec dùng chung một khung giờ và không ai để ý.
+    const hoursBack = seedCursor * 3;
     const [session] = await dataSource.query(
       `INSERT INTO examcollect.exam_session
          (name, code, class_id, teacher_id, exam_type,
           start_time, end_time, status, semester_name,
           course_name, room_name)
        VALUES ($1, $2, $3, $5, 'CK',
-               now() - interval '1 hour', now() + interval '1 hour', 'active', 'HK Ref',
-               $4, $6)
+               now() - ($7::int || ' hours')::interval,
+               now() - (($7::int - 1) || ' hours')::interval,
+               'active', 'HK Ref', $4, $6)
        RETURNING *`,
-      [`Phiên ${suffix}`, `REF${suffix}`.slice(0, 20), klass.id, courseName, teacherId, room.name],
+      [
+        `Phiên ${suffix}`,
+        `REF${suffix}`.slice(0, 20),
+        klass.id,
+        courseName,
+        teacherId,
+        room.name,
+        hoursBack,
+      ],
     );
     const [deliverable] = await dataSource.query(
       `INSERT INTO examcollect.required_deliverable
@@ -343,6 +358,73 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     expect(
       keys.every((r: { storage_key: string }) => !r.storage_key.startsWith('grading-reference/')),
     ).toBe(true);
+  });
+
+  describe('cờ đáp án CHƯA KIỂM CHỨNG (từ agent soạn đề)', () => {
+    async function flagOf(sessionId: string): Promise<boolean> {
+      const [row] = await dataSource.query(
+        `SELECT model_answer_unverified FROM examcollect.grading_reference
+         WHERE exam_session_id = $1`,
+        [sessionId],
+      );
+      return row.model_answer_unverified as boolean;
+    }
+
+    it('giảng viên tự upload thì cờ là false', async () => {
+      const session = await seedSession();
+      const res = await setReference(session.id, { modelAnswerNote: 'Chấp nhận cả quy hoạch động.' });
+      expect(res.status).toBe(200);
+      expect(await flagOf(session.id)).toBe(false);
+    });
+
+    it('gắn từ agent soạn đề thì cờ là true và LƯU LẠI được', async () => {
+      // Chuẩn để chấm rút từ đáp án mẫu. Nếu nó chưa từng chạy, phiên phải
+      // mang dấu — nếu không, mọi bài đều "lệch chuẩn" và không có tín hiệu
+      // nào nói vấn đề nằm ở cái thước.
+      const session = await seedSession();
+      const res = await setReference(session.id, {
+        modelAnswerNote: 'Đáp án do agent sinh.',
+        modelAnswerUnverified: true,
+      });
+      expect(res.status).toBe(200);
+      expect(await flagOf(session.id)).toBe(true);
+    });
+
+    it('thay bằng đáp án MỚI thì cờ được tính lại, không thừa kế bản cũ', async () => {
+      // Một giảng viên thay đáp án chưa kiểm chứng bằng đáp án họ tự kiểm tay
+      // mà vẫn thấy cảnh báo cũ thì họ sẽ học cách phớt lờ nó.
+      const session = await seedSession();
+      await setReference(session.id, { modelAnswerNote: 'agent', modelAnswerUnverified: true });
+      expect(await flagOf(session.id)).toBe(true);
+
+      const upload = await request(app.getHttpServer())
+        .post(`/exam-sessions/${session.id}/grading-reference/answer-key-upload`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+      expect(upload.status).toBe(200);
+
+      // PUT THẬT lên kho: `upsert` từ chối một khoá mà object chưa tồn tại
+      // ("chưa thấy file đáp án mẫu trên kho lưu trữ"), nên bỏ qua bước này
+      // thì lượt ghi thứ hai bị 400 và test đo nhầm — cờ vẫn true, nhưng vì
+      // bản ghi không đổi chứ không phải vì logic sai.
+      const put = await fetch(upload.body.uploadUrl as string, {
+        method: 'PUT',
+        body: 'noi dung dap an mau',
+      });
+      expect(put.ok).toBe(true);
+
+      const second = await setReference(session.id, {
+        modelAnswerStorageKey: upload.body.storageKey,
+      });
+      expect(second.status).toBe(200);
+      expect(await flagOf(session.id)).toBe(false);
+    });
+
+    it('sửa mỗi ghi chú thì cờ GIỮ NGUYÊN, không tự tắt', async () => {
+      const session = await seedSession();
+      await setReference(session.id, { modelAnswerNote: 'agent', modelAnswerUnverified: true });
+      await setReference(session.id, { modelAnswerNote: 'agent, có sửa lời' });
+      expect(await flagOf(session.id)).toBe(true);
+    });
   });
 
   it('giảng viên không phải chủ phiên nhận 403 ở cả hai route', async () => {

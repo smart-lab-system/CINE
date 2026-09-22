@@ -133,6 +133,15 @@ export class GradingReferenceService {
       modelAnswerStorageKey: keep(dto.modelAnswerStorageKey, existing?.modelAnswerStorageKey),
       modelAnswerFilename: keep(dto.modelAnswerFilename, existing?.modelAnswerFilename),
       modelAnswerNote: keep(dto.modelAnswerNote, existing?.modelAnswerNote),
+      // KHÔNG dùng `keep`: cờ này gắn với CHÍNH đáp án đang nằm ở đây, nên nó
+      // phải đi theo lượt ghi đáp án, không được thừa kế từ bản trước. Một
+      // giảng viên thay đáp án chưa kiểm chứng bằng đáp án họ tự viết và
+      // kiểm tay xong mà vẫn thấy cảnh báo cũ thì họ sẽ học cách phớt lờ nó.
+      modelAnswerUnverified:
+        dto.modelAnswerUnverified ??
+        (dto.modelAnswerStorageKey !== undefined
+          ? false
+          : (existing?.modelAnswerUnverified ?? false)),
       createdBy: existing?.createdBy ?? teacherId,
     });
     return this.references.save(row);

@@ -8,6 +8,14 @@ vi.mock('@/hooks/useExamAuthoring', () => ({
   useGenerateExam: () => useGenerateExamMock(),
 }));
 
+const attachMock = vi.fn();
+const useExamSessionsMock = vi.fn();
+vi.mock('@/hooks/useExamSession', () => ({
+  useExamSessions: () => useExamSessionsMock(),
+}));
+const pushMock = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: pushMock }) }));
+
 const downloadExamPaperMock = vi.fn();
 const downloadAnswerKeyMock = vi.fn();
 vi.mock('@/lib/api/exam-authoring', async () => {
@@ -17,6 +25,7 @@ vi.mock('@/lib/api/exam-authoring', async () => {
     ...actual,
     downloadExamPaper: (...a: unknown[]) => downloadExamPaperMock(...a),
     downloadAnswerKey: (...a: unknown[]) => downloadAnswerKeyMock(...a),
+    attachExamToSession: (...a: unknown[]) => attachMock(...a),
   };
 });
 
@@ -32,6 +41,22 @@ function question(overrides: Record<string, unknown> = {}) {
     testBundle: [],
     resemblesKnownProblem: null,
     ...overrides,
+  };
+}
+
+function session(id: string, name: string, status: string) {
+  return {
+    id,
+    name,
+    code: 'ABC123',
+    courseName: 'CTDL&GT',
+    className: 'Nhóm 01',
+    roomName: 'B2.07',
+    semesterName: 'HK1',
+    examType: 'GK',
+    startTime: new Date(Date.now() + 86_400_000).toISOString(),
+    endTime: new Date(Date.now() + 90_000_000).toISOString(),
+    status,
   };
 }
 
@@ -51,6 +76,21 @@ beforeEach(() => {
   useGenerateExamMock.mockReturnValue({ mutate, isPending: false });
   downloadExamPaperMock.mockReset();
   downloadAnswerKeyMock.mockReset();
+  attachMock.mockReset();
+  attachMock.mockResolvedValue(undefined);
+  pushMock.mockReset();
+  useExamSessionsMock.mockReset();
+  useExamSessionsMock.mockReturnValue({
+    data: {
+      items: [
+        session('s-draft', 'Cuối kỳ N03', 'draft'),
+        session('s-sched', 'Giữa kỳ N01', 'scheduled'),
+        session('s-live', 'Kiểm tra tuần 6', 'active'),
+      ],
+      total: 3,
+      semesterNames: [],
+    },
+  });
 });
 
 /** Đổ sẵn một bộ ba vào màn hình qua đường nháp — nhanh hơn diễn lại cả lượt sinh. */
@@ -158,5 +198,65 @@ describe('ExamAuthoringPage', () => {
       target: { value: 'hai câu về cây nhị phân tìm kiếm' },
     });
     expect(go).toBeEnabled();
+  });
+});
+
+describe('ExamAuthoringPage — gắn vào phiên thi', () => {
+  async function openPicker() {
+    window.localStorage.setItem(
+      'examcollect:exam-draft',
+      JSON.stringify({ savedAt: Date.now(), exam }),
+    );
+    render(<ExamAuthoringPage />);
+    await screen.findByDisplayValue('Tìm k');
+    fireEvent.click(screen.getByRole('button', { name: /gắn vào phiên thi/i }));
+  }
+
+  it('phiên ĐANG DIỄN RA hiện nhưng KHÔNG chọn được, kèm lý do', async () => {
+    await openPicker();
+
+    expect(screen.getByRole('radio', { name: /nháp/i })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: /đã lên lịch/i })).toBeEnabled();
+
+    const live = screen.getByRole('radio', { name: /đang diễn ra/i });
+    expect(live).toBeDisabled();
+    // Vẫn HIỆN, kèm lý do: ẩn hẳn thì giảng viên tưởng hệ thống quên phiên
+    // của họ rồi đi tìm ở chỗ khác.
+    expect(screen.getByText(/đã phát tài liệu cho sinh viên/i)).toBeInTheDocument();
+  });
+
+  it('chưa chọn phiên thì nút Tiếp tục bị khoá', async () => {
+    await openPicker();
+    expect(screen.getByRole('button', { name: /tiếp tục/i })).toBeDisabled();
+  });
+
+  it('bộ ba unverified thì phải qua bước cảnh báo trước khi gắn', async () => {
+    await openPicker();
+    fireEvent.click(screen.getByRole('radio', { name: /đã lên lịch/i }));
+    fireEvent.click(screen.getByRole('button', { name: /tiếp tục/i }));
+
+    expect(await screen.findByText(/chưa từng được chạy/i)).toBeInTheDocument();
+    expect(attachMock).not.toHaveBeenCalled();
+  });
+
+  it('xác nhận xong thì gắn và đi tới phòng chờ', async () => {
+    await openPicker();
+    fireEvent.click(screen.getByRole('radio', { name: /đã lên lịch/i }));
+    fireEvent.click(screen.getByRole('button', { name: /tiếp tục/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /vẫn gắn/i }));
+
+    await waitFor(() => expect(attachMock).toHaveBeenCalledWith('s-sched', exam));
+    // Việc gắn chỉ coi là xong khi giảng viên kiểm lại ở phòng chờ.
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/exam-sessions/s-sched'));
+  });
+
+  it('bấm Huỷ ở bước cảnh báo thì quay về chọn phiên, KHÔNG gắn gì', async () => {
+    await openPicker();
+    fireEvent.click(screen.getByRole('radio', { name: /đã lên lịch/i }));
+    fireEvent.click(screen.getByRole('button', { name: /tiếp tục/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^huỷ$/i }));
+
+    expect(await screen.findByRole('radio', { name: /đã lên lịch/i })).toBeInTheDocument();
+    expect(attachMock).not.toHaveBeenCalled();
   });
 });

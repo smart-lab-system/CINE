@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import { getAccessToken } from '@/lib/auth-token';
+import { uploadExamMaterial } from '@/lib/api/exam-materials';
 
 /**
  * Kiểu viết tay, soi gương backend — cùng khuôn với `lib/api/exam-session.ts`.
@@ -89,11 +90,7 @@ export async function generateExam(body: GenerateExamInput): Promise<GeneratedEx
  * hai lần cho cùng một tài liệu, và hai lần sinh có thể ra hai file khác nhau
  * nếu giảng viên vừa sửa gì đó ở giữa.
  */
-async function downloadDocx(
-  path: string,
-  exam: GeneratedExam,
-  filename: string,
-): Promise<Blob> {
+async function fetchDocx(path: string, exam: GeneratedExam): Promise<Blob> {
   const token = await getAccessToken();
   const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -112,20 +109,108 @@ async function downloadDocx(
     throw new Error(`Không xuất được file (HTTP ${res.status})`);
   }
 
-  const blob = await res.blob();
+  return res.blob();
+}
+
+/** Đẩy một blob đã có xuống máy người dùng. Tách khỏi `fetchDocx` vì luồng
+ *  GẮN VÀO PHIÊN THI cần bytes mà KHÔNG muốn mở hộp tải về. */
+function saveAs(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export const PAPER_FILENAME = 'de-thi.docx';
+export const ANSWER_KEY_FILENAME = 'dap-an-va-test.docx';
+
+export function fetchExamPaper(exam: GeneratedExam): Promise<Blob> {
+  return fetchDocx('/exam-authoring/export/paper', exam);
+}
+
+export function fetchAnswerKey(exam: GeneratedExam): Promise<Blob> {
+  return fetchDocx('/exam-authoring/export/answer-key', exam);
+}
+
+export async function downloadExamPaper(exam: GeneratedExam): Promise<Blob> {
+  const blob = await fetchExamPaper(exam);
+  saveAs(blob, PAPER_FILENAME);
   return blob;
 }
 
-export function downloadExamPaper(exam: GeneratedExam): Promise<Blob> {
-  return downloadDocx('/exam-authoring/export/paper', exam, 'de-thi.docx');
+export async function downloadAnswerKey(exam: GeneratedExam): Promise<Blob> {
+  const blob = await fetchAnswerKey(exam);
+  saveAs(blob, ANSWER_KEY_FILENAME);
+  return blob;
 }
 
-export function downloadAnswerKey(exam: GeneratedExam): Promise<Blob> {
-  return downloadDocx('/exam-authoring/export/answer-key', exam, 'dap-an-va-test.docx');
+const DOCX_MIME =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+/**
+ * Gắn bộ ba vào một phiên thi: đề thành tài liệu phát cho sinh viên, đáp án
+ * mẫu thành chuẩn để chấm.
+ *
+ * Hai đích đến KHÁC NHAU, và đó là cả vấn đề (spec soạn đề §8):
+ *
+ * - Đề vào `exam_material`, nơi `listForAgent` phát cho mọi agent sau
+ *   `start_time`.
+ * - Đáp án vào `grading_reference`, dưới prefix `grading-reference/` mà
+ *   `listForAgent` KHÔNG BAO GIỜ chạm tới. Để nhầm chỗ là gửi đáp án về máy
+ *   cả bốn mươi sinh viên.
+ *
+ * Bytes đi thẳng từ TRÌNH DUYỆT lên kho qua presigned URL — Security rule 5,
+ * file không bao giờ đi xuyên NestJS.
+ *
+ * Gói test chưa gắn được ở bản này: bảng `grading_test_bundle` nằm ở nhánh
+ * chưa merge. Nó vẫn nằm trong file Word đã xuất.
+ */
+export async function attachExamToSession(
+  sessionId: string,
+  exam: GeneratedExam,
+): Promise<void> {
+  const paper = await fetchExamPaper(exam);
+  const material = await uploadExamMaterial(
+    sessionId,
+    new File([paper], PAPER_FILENAME, { type: DOCX_MIME }),
+  );
+
+  const minted = await apiClient.POST(
+    '/exam-sessions/{id}/grading-reference/answer-key-upload',
+    { params: { path: { id: sessionId } } },
+  );
+  if (minted.error || !minted.response.ok) {
+    throw minted.error ?? new Error(`Không xin được URL upload (HTTP ${minted.response.status})`);
+  }
+  const { storageKey, uploadUrl } = minted.data as unknown as {
+    storageKey: string;
+    uploadUrl: string;
+  };
+
+  const answerKey = await fetchAnswerKey(exam);
+  const put = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: answerKey,
+    headers: { 'Content-Type': DOCX_MIME },
+  });
+  if (!put.ok) {
+    throw new Error(`Không tải được đáp án lên kho lưu trữ (HTTP ${put.status}).`);
+  }
+
+  const saved = await apiClient.PUT('/exam-sessions/{id}/grading-reference', {
+    params: { path: { id: sessionId } },
+    body: {
+      questionMaterialId: material.id,
+      modelAnswerStorageKey: storageKey,
+      modelAnswerFilename: ANSWER_KEY_FILENAME,
+      // Phiên mang dấu khi chuẩn chưa từng được chạy — xem
+      // `grading-reference.entity.ts`.
+      modelAnswerUnverified: exam.verification.status !== 'passed',
+    },
+  });
+  if (saved.error || !saved.response.ok) {
+    throw saved.error ?? new Error(`Không gắn được vào phiên (HTTP ${saved.response.status})`);
+  }
 }

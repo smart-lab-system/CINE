@@ -19,6 +19,13 @@ import {
   type GeneratedQuestion,
 } from '@/lib/api/exam-authoring';
 import { QuestionCard } from './_components/question-card';
+import { SessionPicker } from './_components/session-picker';
+import { UnverifiedWarning } from './_components/unverified-warning';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useExamSessions } from '@/hooks/useExamSession';
+import { attachExamToSession } from '@/lib/api/exam-authoring';
+import { useRouter } from 'next/navigation';
+import { Link2 } from 'lucide-react';
 
 const MAX_QUESTIONS = 10;
 
@@ -38,6 +45,17 @@ export default function ExamAuthoringPage() {
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
 
   const generate = useGenerateExam();
+  const router = useRouter();
+
+  /** `'pick'` = chọn phiên, `'warn'` = xác nhận chuẩn chưa kiểm chứng. */
+  const [attachStep, setAttachStep] = useState<'pick' | 'warn' | null>(null);
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const [attaching, setAttaching] = useState(false);
+
+  // Chỉ tải danh sách phiên khi hộp thoại mở: trang soạn đề không cần nó để
+  // làm việc chính, và một request thừa mỗi lần vào trang là một request thừa.
+  const sessions = useExamSessions({ page: 1, pageSize: 50 });
+  const picked = sessions.data?.items.find((s) => s.id === pickedId) ?? null;
 
   // Đọc nháp SAU khi mount, không phải lúc khởi tạo state: server không có
   // `localStorage`, nên đọc lúc khởi tạo cho ra hai kết quả khác nhau giữa
@@ -124,6 +142,23 @@ export default function ExamAuthoringPage() {
     }
   }
 
+  async function handleAttach() {
+    if (!exam || !picked) return;
+    setAttaching(true);
+    try {
+      await attachExamToSession(picked.id, exam);
+      setAttachStep(null);
+      toast.success('Đã gắn đề và đáp án vào phiên thi.');
+      // Sang phòng chờ để giảng viên kiểm lại tài liệu — việc gắn chỉ coi là
+      // xong khi họ xác nhận ở đó.
+      router.push(`/exam-sessions/${picked.id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Không gắn được vào phiên thi.');
+    } finally {
+      setAttaching(false);
+    }
+  }
+
   function handleClearDraft() {
     clearDraft();
     setExam(null);
@@ -178,10 +213,44 @@ export default function ExamAuthoringPage() {
           <ActionBar
             onExportPaper={() => handleExport('paper')}
             onExportKey={() => handleExport('key')}
+            onAttach={() => {
+              setPickedId(null);
+              setAttachStep('pick');
+            }}
             onClearDraft={handleClearDraft}
           />
         </div>
       )}
+
+      <Dialog
+        open={attachStep !== null}
+        onOpenChange={(open) => !open && setAttachStep(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {attachStep === 'warn' ? 'Xác nhận gắn vào phiên thi' : 'Gắn vào phiên thi nào?'}
+            </DialogTitle>
+          </DialogHeader>
+          {attachStep === 'pick' && (
+            <SessionPicker
+              sessions={sessions.data?.items ?? []}
+              selectedId={pickedId}
+              onSelect={setPickedId}
+              onCancel={() => setAttachStep(null)}
+              onConfirm={() => setAttachStep('warn')}
+            />
+          )}
+          {attachStep === 'warn' && picked && (
+            <UnverifiedWarning
+              session={picked}
+              pending={attaching}
+              onCancel={() => setAttachStep('pick')}
+              onProceed={handleAttach}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -300,10 +369,12 @@ function UnverifiedBanner() {
 function ActionBar({
   onExportPaper,
   onExportKey,
+  onAttach,
   onClearDraft,
 }: {
   onExportPaper: () => void;
   onExportKey: () => void;
+  onAttach: () => void;
   onClearDraft: () => void;
 }) {
   return (
@@ -317,6 +388,10 @@ function ActionBar({
           <Button type="button" variant="outline" onClick={onExportKey}>
             <Download className="h-4 w-4" aria-hidden="true" />
             Xuất đáp án + test (Word)
+          </Button>
+          <Button type="button" variant="outline" onClick={onAttach}>
+            <Link2 className="h-4 w-4" aria-hidden="true" />
+            Gắn vào phiên thi
           </Button>
           <div className="flex-grow" />
           <Button type="button" variant="outline" onClick={onClearDraft}>

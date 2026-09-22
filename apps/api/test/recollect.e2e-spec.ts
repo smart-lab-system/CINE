@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { ExamSessionScheduler } from '../src/exam-session/exam-session.scheduler';
 import { createTestAccount } from './helpers/create-account';
+import { concurrentLiveWindow, releaseTeacherSessions } from './helpers/session-window';
 import { openSession } from './helpers/open-session';
 
 /**
@@ -71,6 +72,12 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
       [courseName, `Nhóm ${suffix}`, teacherId],
     );
 
+    // Ca thi của test trước đã kết thúc — nhả giảng viên ra, nếu không
+
+    // `ex_exam_session_teacher_gap` chặn phiên này bằng 409.
+
+    await releaseTeacherSessions(dataSource, teacherId);
+
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
@@ -80,8 +87,7 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
         roomName: room.name,
         semesterName: 'HK kiểm thử',
         examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        ...concurrentLiveWindow(),
         requiredFilenames,
       });
     expect(created.status).toBe(201);

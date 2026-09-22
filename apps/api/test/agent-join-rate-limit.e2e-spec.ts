@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { liveSessionWindow, upcomingSessionWindow } from './helpers/session-window';
 import { openSession } from './helpers/open-session';
 
 /**
@@ -148,8 +149,7 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
         roomName: room.name,
         semesterName: 'HK kiểm thử',
         examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        ...liveSessionWindow(),
         requiredFilenames: ['Cau1.docx'],
       });
     expect(active.status).toBe(201);
@@ -174,8 +174,7 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
         roomName: room.name,
         semesterName: 'HK kiểm thử',
         examType: 'TK',
-        startTime: new Date(Date.now() + 3_600_000).toISOString(),
-        endTime: new Date(Date.now() + 7_200_000).toISOString(),
+        ...upcomingSessionWindow(),
         requiredFilenames: ['Cau1.docx'],
       });
     expect(pending.status).toBe(201);
