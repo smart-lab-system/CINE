@@ -4,6 +4,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Max,
   Min,
@@ -66,6 +67,24 @@ export class GenerateExamDto {
  * để tra, vì không có bảng nào để tra.
  */
 export class ExportExamDto {
+  @IsString()
+  @Length(1, 500_000)
+  examJson!: string;
+}
+
+/**
+ * Gắn bộ đề vừa soạn vào một phiên thi.
+ *
+ * Cùng `examJson` đi ngược lên như `ExportExamDto`, vì cùng một lý do: không
+ * có bảng nào lưu bản nháp để mà tra id. Server tự dựng lại hai file Word từ
+ * đây chứ không nhận file từ trình duyệt — file giảng viên tải về và file
+ * gắn vào phiên phải là CÙNG MỘT thứ, và cách chắc chắn nhất là dựng cả hai
+ * từ cùng một nguồn bằng cùng một đoạn mã.
+ */
+export class AttachExamDto {
+  @IsUUID()
+  examSessionId!: string;
+
   @IsString()
   @Length(1, 500_000)
   examJson!: string;

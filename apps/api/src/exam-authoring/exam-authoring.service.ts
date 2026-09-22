@@ -16,6 +16,7 @@ import {
   collectKnowledge,
 } from './knowledge/knowledge-source';
 import { GenerateExamDto } from './dto/generate-exam.dto';
+import { GenerateQuotaService } from './generate-quota.service';
 
 @Injectable()
 export class ExamAuthoringService {
@@ -27,6 +28,7 @@ export class ExamAuthoringService {
     @InjectRepository(RubricCriterionEntity)
     private readonly criteria: Repository<RubricCriterionEntity>,
     @InjectRepository(AiUsageEntity) private readonly usage: Repository<AiUsageEntity>,
+    private readonly quota: GenerateQuotaService,
   ) {}
 
   /**
@@ -40,6 +42,10 @@ export class ExamAuthoringService {
    * đúng con số sẽ đi vào báo cáo, đứng cạnh chi phí mỗi bài chấm.
    */
   async generate(teacherId: string, dto: GenerateExamDto): Promise<GeneratedExam> {
+    // TRƯỚC mọi thứ khác: một lượt bị chặn không được phép tốn dù một câu
+    // truy vấn, và càng không được chạm tới provider tính tiền.
+    await this.quota.assertWithin(teacherId);
+
     const sources: KnowledgeSource[] = [
       new RubricKnowledgeSource(this.rubrics, this.criteria),
     ];

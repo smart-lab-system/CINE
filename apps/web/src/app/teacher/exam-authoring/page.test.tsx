@@ -44,7 +44,18 @@ function question(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function session(id: string, name: string, status: string) {
+/**
+ * Giờ bắt đầu là THAM SỐ, không phải hằng số: luật gắn đề đo thời gian chứ
+ * không đọc `status` (xem `isAttachable`), nên một phiên "đang diễn ra" mà
+ * giờ bắt đầu ở ngày mai là một fixture tự mâu thuẫn — và trước đây nó làm
+ * bài test bên dưới xanh vì lý do sai.
+ */
+function session(
+  id: string,
+  name: string,
+  status: string,
+  startsInMs = 86_400_000,
+) {
   return {
     id,
     name,
@@ -54,8 +65,8 @@ function session(id: string, name: string, status: string) {
     roomName: 'B2.07',
     semesterName: 'HK1',
     examType: 'GK',
-    startTime: new Date(Date.now() + 86_400_000).toISOString(),
-    endTime: new Date(Date.now() + 90_000_000).toISOString(),
+    startTime: new Date(Date.now() + startsInMs).toISOString(),
+    endTime: new Date(Date.now() + startsInMs + 3_600_000).toISOString(),
     status,
   };
 }
@@ -85,7 +96,8 @@ beforeEach(() => {
       items: [
         session('s-draft', 'Cuối kỳ N03', 'draft'),
         session('s-sched', 'Giữa kỳ N01', 'scheduled'),
-        session('s-live', 'Kiểm tra tuần 6', 'active'),
+                // Đã bắt đầu một giờ trước — đó mới là "đang diễn ra".
+        session('s-live', 'Kiểm tra tuần 6', 'active', -3_600_000),
       ],
       total: 3,
       semesterNames: [],

@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Header,
@@ -13,7 +12,9 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ExamAuthoringService } from './exam-authoring.service';
-import { ExportExamDto, GenerateExamDto } from './dto/generate-exam.dto';
+import { AttachExamDto, ExportExamDto, GenerateExamDto } from './dto/generate-exam.dto';
+import { parseExamJson } from './dto/parse-exam';
+import { AttachExamService, AttachResult } from './attach-exam.service';
 import { GeneratedExam } from './ai-provider/exam-authoring-provider';
 import { buildExamPaperDocx } from './docx/exam-paper.docx';
 import { buildAnswerKeyDocx } from './docx/answer-key.docx';
@@ -24,7 +25,10 @@ const DOCX_MIME =
 @Controller('exam-authoring')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ExamAuthoringController {
-  constructor(private readonly authoring: ExamAuthoringService) {}
+  constructor(
+    private readonly authoring: ExamAuthoringService,
+    private readonly attachService: AttachExamService,
+  ) {}
 
   /**
    * POST chứ không GET, dù nó không ghi gì vào cơ sở dữ liệu: nó tiêu tiền
@@ -53,7 +57,7 @@ export class ExamAuthoringController {
     // tới khi hết socket timeout. Gặp thật khi viết test cho ca JSON hỏng.
     //
     // Không lưu gì: hết request là hết (spec §7).
-    return new StreamableFile(await buildExamPaperDocx(parseExam(dto)));
+    return new StreamableFile(await buildExamPaperDocx(parseExamJson(dto.examJson)));
   }
 
   /** Đáp án + gói test — tài liệu nội bộ. Xem doc của route trên. */
@@ -62,22 +66,22 @@ export class ExamAuthoringController {
   @Header('Content-Type', DOCX_MIME)
   @Header('Content-Disposition', 'attachment; filename="dap-an-va-test.docx"')
   async exportAnswerKey(@Body() dto: ExportExamDto): Promise<StreamableFile> {
-    return new StreamableFile(await buildAnswerKeyDocx(parseExam(dto)));
+    return new StreamableFile(await buildAnswerKeyDocx(parseExamJson(dto.examJson)));
+  }
+
+  /**
+   * Gắn đề + đáp án vào một phiên thi.
+   *
+   * Cửa RIÊNG cho luồng soạn đề, không dùng lại ba endpoint chung — lý do
+   * đầy đủ nằm ở doc của `AttachExamService`, gọn lại là: luật "phiên nào
+   * gắn được" chỉ đặt được ở đây mà không giết mất tính năng thêm tài liệu
+   * giữa giờ, và bốn lượt gọi rời từ trình duyệt hỏng giữa chừng thì để
+   * lại rác.
+   */
+  @Post('attach')
+  @Roles('teacher')
+  attach(@Req() req: Request, @Body() dto: AttachExamDto): Promise<AttachResult> {
+    return this.attachService.attach(req.user!.sub, dto.examSessionId, dto.examJson);
   }
 }
 
-/**
- * Bộ ba đi ngược lên từ trình duyệt dưới dạng CHUỖI JSON, không phải object.
- *
- * Vì `ValidationPipe` chạy với `whitelist: true`: một object lồng nhau không
- * có DTO khai từng trường sẽ bị lược sạch, và endpoint nhận về `{}`. Nhận
- * chuỗi rồi tự parse ở đây là cách giữ nguyên hình dạng mà không phải khai
- * lại toàn bộ cây `GeneratedExam` thành sáu lớp DTO chỉ để đi qua ống.
- */
-function parseExam(dto: ExportExamDto): GeneratedExam {
-  try {
-    return JSON.parse(dto.examJson) as GeneratedExam;
-  } catch {
-    throw new BadRequestException('examJson không phải JSON hợp lệ.');
-  }
-}
