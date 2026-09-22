@@ -4,34 +4,50 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ExamSessionListItem } from '@/lib/api/exam-session';
+// Bảng nhãn DÙNG CHUNG với các màn phiên thi khác. Bản sao cục bộ trước đây
+// trùng từng chữ với nó — hai bản sao là hai chỗ để cách gọi trạng thái lệch
+// nhau giữa các màn.
+import { EXAM_SESSION_STATUS_LABELS } from '@/lib/exam-session-display';
 
-/** Trạng thái gắn đề được. Xem doc của `isAttachable`. */
-const ATTACHABLE = new Set(['draft', 'scheduled']);
+/** Trạng thái đã đóng — không còn gì để gắn vào. */
+const CLOSED = new Set(['collecting', 'completed', 'cancelled']);
 
 /**
  * Phiên nào gắn thêm đề được.
  *
- * `active` bị loại, và đây là quyết định chứ không phải thiếu sót: Security
- * rule 2 phát tài liệu cho agent ngay khi qua `start_time`, nên gắn thêm đề
- * vào phiên đang thi nghĩa là một nửa phòng nhận đề A, nửa kia nhận A+B.
+ * Đo THỜI GIAN, không đọc `status`. Ranh giới thật là `startTime`: server
+ * phát tài liệu cho agent ngay khi qua mốc đó (Security rule 2), nên gắn
+ * thêm đề sau mốc ấy nghĩa là nửa phòng làm đề A, nửa kia làm A+B.
  *
- * `collecting`/`completed`/`cancelled` thì đã xong, không còn gì để gắn.
+ * Bản đầu viết `status ∈ {draft, scheduled}` và nó CHẶN SẠCH mọi phiên:
+ * `ExamSessionService.create()` ghi thẳng `'active'` cho mọi phiên mới, không
+ * dòng nào trong hệ thống từng mang hai trạng thái kia (đo trên DB dev:
+ * 17.942 phiên, 0 dòng). Nút gắn đề khi ấy không bao giờ bấm được, và không
+ * có thông báo nào nói vì sao.
+ *
+ * Luật thật nằm ở server (`AttachExamService.canAttachExam`); bản ở đây chỉ
+ * để UI không mời người dùng bấm một thứ chắc chắn hỏng. Hai chỗ lệch nhau
+ * thì server thắng — nó là chỗ duy nhất chặn được.
  */
-export function isAttachable(status: string): boolean {
-  return ATTACHABLE.has(status);
+export function isAttachable(
+  session: Pick<ExamSessionListItem, 'status' | 'startTime'>,
+  now: Date = new Date(),
+): boolean {
+  if (CLOSED.has(session.status)) {
+    return false;
+  }
+  return now.getTime() < new Date(session.startTime).getTime();
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Nháp',
-  scheduled: 'Đã lên lịch',
-  active: 'Đang diễn ra',
-  collecting: 'Đang thu bài',
-  completed: 'Đã hoàn thành',
-  cancelled: 'Đã huỷ',
-};
+/** Vì sao phiên này không gắn được — hiện ngay dưới tên phiên. */
+export function blockedReason(session: Pick<ExamSessionListItem, 'status'>): string {
+  if (CLOSED.has(session.status)) {
+    return CLOSED_REASON[session.status] ?? 'Phiên đã đóng';
+  }
+  return 'Đã tới giờ thi — đã phát tài liệu cho sinh viên, không gắn thêm đề được nữa';
+}
 
-const BLOCKED_REASON: Record<string, string> = {
-  active: 'Đã phát tài liệu cho sinh viên — không gắn thêm đề được nữa',
+const CLOSED_REASON: Record<string, string> = {
   collecting: 'Đang thu bài — ca thi đã qua',
   completed: 'Đã hoàn thành',
   cancelled: 'Đã huỷ',
@@ -83,7 +99,7 @@ export function SessionPicker({
           </p>
         )}
         {sessions.map((s) => {
-          const attachable = isAttachable(s.status);
+          const attachable = isAttachable(s);
           return (
             <label
               key={s.id}
@@ -102,17 +118,17 @@ export function SessionPicker({
                 disabled={!attachable}
                 checked={selectedId === s.id}
                 onChange={() => onSelect(s.id)}
-                aria-label={`${s.name} — ${STATUS_LABEL[s.status] ?? s.status}`}
+                aria-label={`${s.name} — ${EXAM_SESSION_STATUS_LABELS[s.status] ?? s.status}`}
               />
               <span className="flex-grow">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-small font-semibold text-foreground">{s.name}</span>
                   <Badge variant={attachable ? 'info' : 'default'}>
-                    {STATUS_LABEL[s.status] ?? s.status}
+                    {EXAM_SESSION_STATUS_LABELS[s.status] ?? s.status}
                   </Badge>
                 </span>
                 <span className="mt-0.5 block text-caption text-muted-foreground">
-                  {attachable ? when(s) : (BLOCKED_REASON[s.status] ?? when(s))}
+                  {attachable ? when(s) : blockedReason(s)}
                 </span>
               </span>
             </label>

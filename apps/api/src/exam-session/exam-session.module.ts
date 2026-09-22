@@ -82,6 +82,10 @@ import { StorageModule } from '../storage/storage.module';
   // Exported so a future module can inject ExamSessionService
   // (findByCode/listRequiredDeliverables) instead of writing its own
   // TypeORM queries.
-  exports: [ExamSessionService, SessionRosterService],
+  // ExamMaterialService ra ngoài cho ExamAuthoringModule: luồng gắn đề phải
+  // đi qua ĐÚNG đường ghi material này (nó dựng lại khoá từ id, hỏi kho lưu
+  // trữ xem file có thật, rồi báo cho agent đã join) chứ không tự viết một
+  // bản sao — một bản sao là một chỗ để hai luật lệch nhau.
+  exports: [ExamSessionService, SessionRosterService, ExamMaterialService],
 })
 export class ExamSessionModule {}

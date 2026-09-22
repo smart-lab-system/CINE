@@ -1,6 +1,5 @@
 import { apiClient } from '@/lib/api-client';
 import { getAccessToken } from '@/lib/auth-token';
-import { uploadExamMaterial } from '@/lib/api/exam-materials';
 
 /**
  * Kiểu viết tay, soi gương backend — cùng khuôn với `lib/api/exam-session.ts`.
@@ -146,71 +145,29 @@ export async function downloadAnswerKey(exam: GeneratedExam): Promise<Blob> {
   return blob;
 }
 
-const DOCX_MIME =
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-
 /**
- * Gắn bộ ba vào một phiên thi: đề thành tài liệu phát cho sinh viên, đáp án
- * mẫu thành chuẩn để chấm.
+ * Gắn bộ ba vào một phiên thi — MỘT lượt gọi, server làm trọn.
  *
- * Hai đích đến KHÁC NHAU, và đó là cả vấn đề (spec soạn đề §8):
+ * Bản trước xâu bốn lượt từ đây: xuất đề → tạo material → xin URL đáp án →
+ * PUT đáp án → ghi grading reference. Bỏ đi vì hai lý do, và cả hai đều
+ * không sửa được ở phía trình duyệt:
  *
- * - Đề vào `exam_material`, nơi `listForAgent` phát cho mọi agent sau
- *   `start_time`.
- * - Đáp án vào `grading_reference`, dưới prefix `grading-reference/` mà
- *   `listForAgent` KHÔNG BAO GIỜ chạm tới. Để nhầm chỗ là gửi đáp án về máy
- *   cả bốn mươi sinh viên.
+ * - luật "phiên nào gắn được" khi ấy chỉ sống trong một cái radio bị
+ *   disabled, nên một request đi thẳng vào API là qua sạch;
+ * - hỏng ở lượt cuối để lại một `exam_material` mồ côi cùng file trên kho,
+ *   giảng viên phải tự dọn.
  *
- * Bytes đi thẳng từ TRÌNH DUYỆT lên kho qua presigned URL — Security rule 5,
- * file không bao giờ đi xuyên NestJS.
- *
- * Gói test chưa gắn được ở bản này: bảng `grading_test_bundle` nằm ở nhánh
- * chưa merge. Nó vẫn nằm trong file Word đã xuất.
+ * Server dựng lại hai file Word từ chính `examJson` này, nên thứ gắn vào
+ * phiên và thứ giảng viên tải về là cùng một mã sinh ra.
  */
 export async function attachExamToSession(
   sessionId: string,
   exam: GeneratedExam,
 ): Promise<void> {
-  const paper = await fetchExamPaper(exam);
-  const material = await uploadExamMaterial(
-    sessionId,
-    new File([paper], PAPER_FILENAME, { type: DOCX_MIME }),
-  );
-
-  const minted = await apiClient.POST(
-    '/exam-sessions/{id}/grading-reference/answer-key-upload',
-    { params: { path: { id: sessionId } } },
-  );
-  if (minted.error || !minted.response.ok) {
-    throw minted.error ?? new Error(`Không xin được URL upload (HTTP ${minted.response.status})`);
-  }
-  const { storageKey, uploadUrl } = minted.data as unknown as {
-    storageKey: string;
-    uploadUrl: string;
-  };
-
-  const answerKey = await fetchAnswerKey(exam);
-  const put = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: answerKey,
-    headers: { 'Content-Type': DOCX_MIME },
+  const res = await apiClient.POST('/exam-authoring/attach', {
+    body: { examSessionId: sessionId, examJson: JSON.stringify(exam) },
   });
-  if (!put.ok) {
-    throw new Error(`Không tải được đáp án lên kho lưu trữ (HTTP ${put.status}).`);
-  }
-
-  const saved = await apiClient.PUT('/exam-sessions/{id}/grading-reference', {
-    params: { path: { id: sessionId } },
-    body: {
-      questionMaterialId: material.id,
-      modelAnswerStorageKey: storageKey,
-      modelAnswerFilename: ANSWER_KEY_FILENAME,
-      // Phiên mang dấu khi chuẩn chưa từng được chạy — xem
-      // `grading-reference.entity.ts`.
-      modelAnswerUnverified: exam.verification.status !== 'passed',
-    },
-  });
-  if (saved.error || !saved.response.ok) {
-    throw saved.error ?? new Error(`Không gắn được vào phiên (HTTP ${saved.response.status})`);
+  if (res.error || !res.response.ok) {
+    throw res.error ?? new Error(`Không gắn được vào phiên (HTTP ${res.response.status})`);
   }
 }

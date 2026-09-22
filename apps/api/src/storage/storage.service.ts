@@ -255,6 +255,32 @@ export class StorageService {
       throw error;
     }
   }
+
+  /**
+   * Ghi bytes thẳng từ tiến trình này lên kho.
+   *
+   * KHÔNG phải lỗ hổng của Security rule 5, cùng lý lẽ với `getObject`: rule
+   * đó nói về file NGƯỜI DÙNG đẩy lên — một phòng thi cùng nộp một lúc mà đi
+   * qua API là biến API thành nút thắt, và đã có presigned URL cho đúng việc
+   * ấy. Ở đây file do CHÍNH SERVER sinh ra (đề và đáp án dựng từ `examJson`
+   * ngay trong tiến trình): bytes đã nằm sẵn trong bộ nhớ, không có chuyến
+   * đi nào để tiết kiệm. Ký một URL rồi tự PUT vào URL của chính mình chỉ
+   * thêm hai chặng mạng và một cách hỏng mới.
+   *
+   * Một lượt gắn đề là một lần bấm nút của một giảng viên, không phải 40
+   * agent cùng lúc.
+   */
+  async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        ContentLength: body.length,
+      }),
+    );
+  }
 }
 
 /**

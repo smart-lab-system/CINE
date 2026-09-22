@@ -5,6 +5,10 @@ import { RubricEntity } from '../grading/entities/rubric.entity';
 import { RubricCriterionEntity } from '../grading/entities/rubric-criterion.entity';
 import { ExamAuthoringService } from './exam-authoring.service';
 import { ExamAuthoringController } from './exam-authoring.controller';
+import { AttachExamService } from './attach-exam.service';
+import { ExamSessionModule } from '../exam-session/exam-session.module';
+import { GradingModule } from '../grading/grading.module';
+import { StorageModule } from '../storage/storage.module';
 import {
   EXAM_AUTHORING_PROVIDER,
   ExamAuthoringProvider,
@@ -41,10 +45,18 @@ export function selectAuthoringProvider(
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsageEntity, RubricEntity, RubricCriterionEntity])],
+  imports: [
+    TypeOrmModule.forFeature([AiUsageEntity, RubricEntity, RubricCriterionEntity]),
+    // Không sinh vòng: GradingModule đã import ExamSessionModule từ trước, và
+    // không module nào trong hai cái đó biết tới ExamAuthoringModule.
+    ExamSessionModule,
+    GradingModule,
+    StorageModule,
+  ],
   controllers: [ExamAuthoringController],
   providers: [
     ExamAuthoringService,
+    AttachExamService,
     ClaudeAuthoringProvider,
     StubAuthoringProvider,
     {
