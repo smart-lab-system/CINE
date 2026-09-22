@@ -125,6 +125,17 @@ export interface SubmissionStatusItem {
   /** Lớp GỐC của sinh viên. Khác lớp của phiên nghĩa là THI BÙ. */
   homeClassId: string;
   homeClassName: string | null;
+  /**
+   * Kết quả kiểm nội dung file nén — spec
+   * 2026-09-21-archive-content-validation-design.md §4.2/§7. Mirror
+   * `ArchiveCheckStatus` (apps/api/src/submission/entities/submission.entity.ts).
+   * `not_applicable` với mọi deliverable không khai file bên trong.
+   */
+  archiveCheckStatus: 'not_applicable' | 'pending' | 'passed' | 'failed' | 'unreadable';
+  /** Chỉ khác `null` khi `archiveCheckStatus === 'failed'`. */
+  archiveMissingEntries: string[] | null;
+  /** Chỉ khác `null` khi `archiveCheckStatus === 'unreadable'`. */
+  archiveCheckError: string | null;
 }
 
 /**
@@ -340,6 +351,25 @@ export async function recollectSubmissions(id: string): Promise<RecollectResult>
   });
   await throwIfFailed(error, response);
   return data as unknown as RecollectResult;
+}
+
+export interface ArchiveRecheckResult {
+  /** Bao nhiêu dòng được xếp lại vào hàng đợi — không phải số đã xong. */
+  requeued: number;
+}
+
+/**
+ * "Kiểm lại" — xếp lại các bài `failed`/`unreadable`/`pending` mồ côi vào
+ * hàng đợi kiểm file nén, KHÔNG đụng file đã lưu. Bấm bao nhiêu lần cũng
+ * được, cùng tính chất đọc-rồi-xếp-hàng như `recollectSubmissions`. Xem
+ * ArchiveRecheckService (apps/api).
+ */
+export async function archiveRecheck(examSessionId: string): Promise<ArchiveRecheckResult> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/archive-recheck', {
+    params: { path: { id: examSessionId } },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as ArchiveRecheckResult;
 }
 
 /**

@@ -11,10 +11,12 @@ import {
   openSession,
   recollectSubmissions,
   listSubmissions,
+  archiveRecheck,
   type CreateExamSessionInput,
   type ExamSessionResponse,
   type OpenSessionResult,
   type RecollectResult,
+  type ArchiveRecheckResult,
   type SearchExamSessionsParams,
 } from '@/lib/api/exam-session';
 import { confirmAttendance, getAttendance } from '@/lib/api/attendance';
@@ -153,6 +155,26 @@ export function useSubmissions(examSessionId: string | undefined) {
     queryKey: ['exam-session-submissions', examSessionId],
     queryFn: () => listSubmissions(examSessionId!),
     enabled: !!examSessionId,
+  });
+}
+
+/**
+ * "Kiểm lại" file nén. KHÁC `useRecollect`: trang dùng hook này (Màn bài
+ * nộp, post-hoc) không có socket sống để tự nhận kết quả, nên phải tự
+ * invalidate — `useRecollect` cố ý không làm vậy vì trang lobby của nó CÓ
+ * `lobby:submission_status`. `archive_check_status` đã đổi thành `pending`
+ * ngay trong transaction của request (ArchiveRecheckService.requeue), nên
+ * refetch ngay sau khi thành công là đọc đúng, không đọc sớm.
+ */
+export function useArchiveRecheck(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation<ArchiveRecheckResult, Error, void>({
+    mutationFn: () => archiveRecheck(examSessionId!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['exam-session-submissions', examSessionId],
+      });
+    },
   });
 }
 

@@ -31,6 +31,15 @@ export interface SubmissionRowStudent {
       submittedAt?: string | null;
       downloadUrl?: string | null;
       fileSize?: string | null;
+      /**
+       * Kết quả kiểm nội dung file nén — trực giao với `state`, không thay
+       * thế nó (spec §8.3: `collected` vẫn nghĩa "đã đi hết đường thu bài",
+       * bên trong thiếu gì là câu hỏi khác). `undefined` khi nguồn dữ liệu
+       * chưa mang trường này (test cũ dựng `SubmissionRowStudent` tay).
+       */
+      archiveCheckStatus?: 'not_applicable' | 'pending' | 'passed' | 'failed' | 'unreadable';
+      archiveMissingEntries?: string[] | null;
+      archiveCheckError?: string | null;
     }
   >;
 }
@@ -98,6 +107,9 @@ export function buildSubmissionRows(
         submittedAt: item.submittedAt,
         downloadUrl: item.downloadUrl,
         fileSize: item.fileSize,
+        archiveCheckStatus: item.archiveCheckStatus,
+        archiveMissingEntries: item.archiveMissingEntries,
+        archiveCheckError: item.archiveCheckError,
       };
     }
   }

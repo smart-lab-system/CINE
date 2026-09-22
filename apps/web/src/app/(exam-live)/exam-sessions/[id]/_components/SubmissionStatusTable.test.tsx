@@ -369,6 +369,108 @@ describe('SubmissionStatusTable — gradingByMssv', () => {
   });
 });
 
+// Task 10 (archive-content-validation) — bảng §7 của spec
+// 2026-09-21-archive-content-validation-design.md. Hiện THẲNG trong ô của
+// ma trận, không giấu sau cú bấm "Xem bài nộp": đó là quyết định spec §9.2
+// nêu tường minh, và test dưới đây khẳng định đúng chỗ đó — không mở dialog
+// nào cả trước khi đọc được các dòng chữ này.
+describe('SubmissionStatusTable — kiểm file nén', () => {
+  const deliverables: DeliverableColumn[] = [{ id: 'd1', requiredFilename: 'BaiThi.zip' }];
+
+  function studentWith(archive: {
+    archiveCheckStatus: 'not_applicable' | 'pending' | 'passed' | 'failed' | 'unreadable';
+    archiveMissingEntries?: string[] | null;
+    archiveCheckError?: string | null;
+  }): SubmissionRowStudent {
+    return {
+      studentMssv: 'SV001',
+      fullName: 'Nguyễn Văn A',
+      byDeliverable: {
+        d1: { state: 'collected', downloadUrl: 'https://storage.example/f', ...archive },
+      },
+    };
+  }
+
+  it('not_applicable — không hiện gì thêm về file nén', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[studentWith({ archiveCheckStatus: 'not_applicable' })]}
+      />,
+    );
+    expect(screen.queryByText(/Đang kiểm|Thiếu:|Không mở được|Đủ nội dung/)).not.toBeInTheDocument();
+  });
+
+  it('pending — hiện "Đang kiểm", không để trống', () => {
+    // Ô trống lúc chờ trông giống hệt một bài đã kiểm và đạt — spec §7.
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[studentWith({ archiveCheckStatus: 'pending' })]}
+      />,
+    );
+    expect(screen.getByText('Đang kiểm')).toBeInTheDocument();
+  });
+
+  it('passed — hiện dấu đủ', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[studentWith({ archiveCheckStatus: 'passed' })]}
+      />,
+    );
+    expect(screen.getByText('Đủ nội dung')).toBeInTheDocument();
+  });
+
+  it('failed — liệt kê thẳng tên file thiếu ngay trong ô, không cần bấm gì', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[
+          studentWith({
+            archiveCheckStatus: 'failed',
+            archiveMissingEntries: ['Main.java', 'BaoCao.docx'],
+          }),
+        ]}
+      />,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText(/Main\.java/)).toBeInTheDocument();
+    expect(screen.getByText(/BaoCao\.docx/)).toBeInTheDocument();
+  });
+
+  it('unreadable — hiện lý do thật, không chỉ chữ "hỏng"', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[
+          studentWith({
+            archiveCheckStatus: 'unreadable',
+            archiveCheckError: 'File quá lớn để mở ra kiểm (300000000 byte, trần 209715200).',
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText(/quá lớn để mở ra kiểm/)).toBeInTheDocument();
+  });
+
+  it('không có trường archiveCheckStatus (dữ liệu cũ/test khác) thì không vỡ, không hiện gì', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={deliverables}
+        students={[
+          {
+            studentMssv: 'SV002',
+            fullName: 'Trần Thị B',
+            byDeliverable: { d1: { state: 'collected' } },
+          },
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/Đang kiểm|Thiếu:|Không mở được|Đủ nội dung/)).not.toBeInTheDocument();
+  });
+});
+
 /**
  * Bố cục: bảng này từng nằm trong HAI div `overflow-x-auto` lồng nhau —
  * một do component tự bọc, một do primitive `Table` luôn bọc. Hai

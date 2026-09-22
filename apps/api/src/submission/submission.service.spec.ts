@@ -280,6 +280,9 @@ describe('SubmissionService.listForSession', () => {
           fileSize: '128',
           storageKey: EXPECTED_KEY,
           homeClassId: 'class-a',
+          archiveCheckStatus: 'failed',
+          archiveMissingEntries: ['Main.java'],
+          archiveCheckError: null,
         },
       ],
     });
@@ -314,6 +317,11 @@ describe('SubmissionService.listForSession', () => {
         // định nó ở đây là cách duy nhất bắt được một lần đổi tên cột alias
         // — nhánh `?? null` sẽ nuốt lỗi đó trong im lặng.
         homeClassName: 'N01',
+        // Ba cột kiểm file nén (Task 10) đi thẳng qua, không suy diễn gì
+        // thêm — trang "Màn bài nộp" đọc nguyên các cột này.
+        archiveCheckStatus: 'failed',
+        archiveMissingEntries: ['Main.java'],
+        archiveCheckError: null,
       },
     ]);
   });

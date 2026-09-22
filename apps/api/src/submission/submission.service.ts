@@ -55,6 +55,10 @@ export interface SubmissionStatusView {
    */
   homeClassId: string;
   homeClassName: string | null;
+  /** Xem doc comment trên `SubmissionEntity.archiveCheckStatus`. */
+  archiveCheckStatus: SubmissionEntity['archiveCheckStatus'];
+  archiveMissingEntries: string[] | null;
+  archiveCheckError: string | null;
 }
 
 /**
@@ -274,6 +278,9 @@ export class SubmissionService {
         submittedAt: row.submittedAt,
         fileSize: row.fileSize,
         homeClassId: row.homeClassId,
+        archiveCheckStatus: row.archiveCheckStatus,
+        archiveMissingEntries: row.archiveMissingEntries,
+        archiveCheckError: row.archiveCheckError,
         // `?.` chứ không `[index].`: `getRawAndEntities` trả raw song song
         // với entities, nhưng nếu một ngày chúng lệch nhau thì thứ hỏng phải
         // là MỘT cái nhãn, không phải cả trang bài nộp.
