@@ -161,6 +161,62 @@ describe('Exam authoring (e2e)', () => {
     expect(res.status).toBe(403);
   });
 
+  describe('xuất Word — luật HAI FILE', () => {
+    function exportPaper(examJson: string, token = teacherToken) {
+      return request(app.getHttpServer())
+        .post('/exam-authoring/export/paper')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ examJson });
+    }
+
+    function exportKey(examJson: string, token = teacherToken) {
+      return request(app.getHttpServer())
+        .post('/exam-authoring/export/answer-key')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ examJson });
+    }
+
+    it('đề và đáp án là HAI endpoint, HAI file khác nhau', async () => {
+      const gen = await generate({
+        prompt: 'sắp xếp mảng số nguyên',
+        questionCount: 1,
+        language: 'python',
+      });
+      const examJson = JSON.stringify(gen.body);
+
+      const paper = await exportPaper(examJson);
+      expect(paper.status).toBe(201);
+      expect(paper.headers['content-disposition']).toContain('de-thi.docx');
+
+      const key = await exportKey(examJson);
+      expect(key.status).toBe(201);
+      expect(key.headers['content-disposition']).toContain('dap-an-va-test.docx');
+
+      // So bằng `content-length` chứ không bằng `body`: supertest không có
+      // parser cho MIME của docx nên `body` về là `{}`, và `Buffer.from({})`
+      // ném — một test đỏ vì lý do không liên quan gì tới thứ đang kiểm.
+      const paperSize = Number(paper.headers['content-length']);
+      const keySize = Number(key.headers['content-length']);
+      expect(paperSize).toBeGreaterThan(0);
+      // Đáp án dài hơn đề: nó mang thêm mã nguồn và bảng ca test. Nếu ai đó
+      // gộp hai tài liệu lại thì hai số này bằng nhau và dòng dưới đỏ.
+      expect(keySize).toBeGreaterThan(paperSize);
+    });
+
+    it('examJson hỏng thì 400, không trả về một file Word rỗng', async () => {
+      expect((await exportPaper('{ khong phai json')).status).toBe(400);
+    });
+
+    it('admin KHÔNG xuất được đề — 403', async () => {
+      const gen = await generate({
+        prompt: 'sắp xếp mảng số nguyên',
+        questionCount: 1,
+        language: 'python',
+      });
+      expect((await exportPaper(JSON.stringify(gen.body), adminToken)).status).toBe(403);
+    });
+  });
+
   it('không có token thì 401', async () => {
     const res = await request(app.getHttpServer())
       .post('/exam-authoring/generate')
