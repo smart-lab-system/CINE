@@ -50,6 +50,14 @@ export interface SessionOverviewItem {
   matchedStudents: { mssv: string; name: string }[] | null;
 
   invalidFileCount: number;
+  /**
+   * Số bài mà file nén đã về tới nơi nhưng kiểm nội dung bên trong ra
+   * failed/unreadable — spec
+   * 2026-09-21-archive-content-validation-design.md §8.3. KHÔNG gộp vào
+   * `invalidFileCount`: hai khái niệm khác nhau (xem ghi chú "nghỉ hưu"
+   * ở submission-attention.ts).
+   */
+  archiveIssueCount: number;
   semesterName: string;
   archivedAt: string | null;
   attentionClosedAt: string | null;

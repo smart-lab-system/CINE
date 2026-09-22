@@ -572,11 +572,17 @@ export class SubmissionService {
       return (await repo.findOneByOrFail({ id: created.id })) as SubmissionEntity;
     }
 
-    // TODO: nothing produces 'invalid' yet. When a flow does (a required
-    // file still missing at the deadline, say), decide deliberately whether
-    // a later successful upload should clear it — the DB trigger allows no
-    // transition OUT of 'invalid', so that would need a schema change, not
-    // just a branch here.
+    // NGHỈ HƯU, không phải việc còn dở: 'invalid' sẽ KHÔNG BAO GIỜ có một
+    // luồng sinh ra nó nữa — quyết định 2026-09-22, spec
+    // 2026-09-21-archive-content-validation-design.md §8.2. Kết quả kiểm
+    // nội dung file nén (bao gồm cả ca "thiếu file lúc hết giờ" mà TODO cũ
+    // ở đây nhắm tới) đi qua archive_check_status trên chính dòng này,
+    // KHÔNG qua status='invalid' — đó là toàn bộ lý do spec §3.3 chọn
+    // "kết quả là dữ liệu, không phải trạng thái": trigger vòng đời không
+    // có đường ra khỏi 'invalid', nên đi qua nó sẽ tái tạo đúng cái bẫy
+    // TODO cũ đã cảnh báo. Đừng viết một nhánh sinh 'invalid' ở đây — đọc
+    // archiveExpectedEntries/archiveCheckStatus trên submission-overview
+    // và submission-attention.ts (web) thay vào đó.
     if (existing.status === 'collected' || existing.status === 'invalid') {
       await repo.update(existing.id, fileFields);
     } else {

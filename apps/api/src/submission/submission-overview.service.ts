@@ -25,6 +25,7 @@ interface OverviewRawRow {
   sat_elsewhere: string | null;
   matched_students: MatchedStudent[] | null;
   invalid_file_count: string | null;
+  archive_issue_count: string | null;
   semester_name: string;
   archived_at: Date | null;
   rubric_id: string | null;
@@ -96,7 +97,15 @@ export class SubmissionOverviewService {
                COUNT(DISTINCT sub.required_deliverable_id)
                  FILTER (WHERE sub.status = 'collected') AS collected_files,
                COUNT(DISTINCT sub.id)
-                 FILTER (WHERE sub.status = 'invalid')   AS invalid_files
+                 FILTER (WHERE sub.status = 'invalid')   AS invalid_files,
+               -- Đếm theo FILE, cùng khuôn invalid_files — spec
+               -- 2026-09-21-archive-content-validation-design.md §8.3. Bài
+               -- về tới nơi (status='collected') nhưng kiểm nội dung bên
+               -- trong ra failed/unreadable KHÔNG đi qua status='invalid':
+               -- đây là cột riêng, không gộp.
+               COUNT(DISTINCT sub.id)
+                 FILTER (WHERE sub.archive_check_status IN ('failed', 'unreadable'))
+                 AS archive_issues
         FROM ${schema}.submission sub
         JOIN ${schema}.exam_session s ON s.id = sub.exam_session_id
         WHERE s.teacher_id = $1
@@ -109,6 +118,7 @@ export class SubmissionOverviewService {
                COALESCE(r.student_name, p.student_name)      AS student_name,
                COALESCE(p.collected_files, 0)                AS collected_files,
                COALESCE(p.invalid_files, 0)                   AS invalid_files,
+               COALESCE(p.archive_issues, 0)                  AS archive_issues,
                -- attended đã DISTINCT theo (phiên, SV), nên LEFT JOIN này khớp
                -- tối đa MỘT dòng: cùng grain, không nhân dòng.
                (att.student_mssv IS NOT NULL)                 AS ever_attended
@@ -196,7 +206,8 @@ export class SubmissionOverviewService {
                    AND NOT u.ever_attended
                    AND se.student_mssv IS NULL
                ) AS never_attended,
-               SUM(u.invalid_files) AS invalid_file_count
+               SUM(u.invalid_files) AS invalid_file_count,
+               SUM(u.archive_issues) AS archive_issue_count
         FROM universe u
         LEFT JOIN deliv d ON d.exam_session_id = u.exam_session_id
         -- sat_elsewhere đã DISTINCT trên đúng hai khoá của universe, nên
@@ -228,6 +239,7 @@ export class SubmissionOverviewService {
              ps.expected_count, ps.fully_submitted, ps.partial,
              ps.attended_no_submission, ps.never_attended, ps.sat_elsewhere,
              ps.invalid_file_count,
+             ps.archive_issue_count,
              m.matched_students
       FROM ${schema}.exam_session s
       JOIN      ${schema}.class  cl ON cl.id = s.class_id
@@ -272,6 +284,7 @@ export class SubmissionOverviewService {
       satElsewhereCount: toCount(row.sat_elsewhere),
       matchedStudents: row.matched_students ?? null,
       invalidFileCount: toCount(row.invalid_file_count),
+      archiveIssueCount: toCount(row.archive_issue_count),
       semesterName: row.semester_name,
       archivedAt: row.archived_at ? new Date(row.archived_at).toISOString() : null,
       attentionClosedAt: row.attention_closed_at

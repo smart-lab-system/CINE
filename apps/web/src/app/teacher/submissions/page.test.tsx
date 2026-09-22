@@ -67,6 +67,7 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     satElsewhereCount: 0,
     matchedStudents: null,
     invalidFileCount: 0,
+    archiveIssueCount: 0,
     semesterName: 'Học kỳ 1 2026-2027',
     archivedAt: null,
     attentionClosedAt: null,
