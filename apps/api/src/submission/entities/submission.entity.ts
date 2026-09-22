@@ -8,6 +8,22 @@ import { RequiredDeliverableEntity } from '../../exam-session/entities/required-
 export type SubmissionVia = 'normal' | 'backup' | 'manual_pull';
 
 /**
+ * Kết quả kiểm nội dung file nén — spec
+ * `2026-09-21-archive-content-validation-design.md` §4.2.
+ *
+ * Năm nhãn chứ không phải một cờ boolean, vì bốn câu hỏi khác nhau phải
+ * phân biệt được: không phải kiểm / chưa kiểm xong / mở không ra / đã kiểm.
+ * Gộp chúng vào một cột nullable là lặp lại đúng lỗi mà
+ * `AddAdvocateOutcome1789310000000` sinh ra để sửa.
+ */
+export type ArchiveCheckStatus =
+  | 'not_applicable'
+  | 'pending'
+  | 'passed'
+  | 'failed'
+  | 'unreadable';
+
+/**
  * `not_submitted` và `absent` là HAI giá trị, không phải một — quyết
  * định 2026-09-11, xem spec collecting §8.1 và CLAUDE.md §7.1.2.
  *
@@ -146,4 +162,51 @@ export class SubmissionEntity extends BaseEntity {
     default: 'received',
   })
   status!: SubmissionStatus;
+
+  /**
+   * Kết quả kiểm nội dung file nén. KHÔNG phải `status`, và đó là một quyết
+   * định chứ không phải một chỗ chưa làm tới — spec
+   * `2026-09-21-archive-content-validation-design.md` §3.3.
+   *
+   * `collected` ở trên vẫn nghĩa là "đã đi hết đường thu bài": một file nén
+   * về tới nơi nguyên vẹn thì ĐÃ đi hết đường đó. Bên trong nó thiếu gì là
+   * câu hỏi khác, trả lời bằng cột này.
+   *
+   * `not_applicable` là mặc định vì phần lớn deliverable không khai file bên
+   * trong, và im lặng là câu trả lời đúng cho chúng.
+   */
+  @Column({
+    name: 'archive_check_status',
+    type: 'enum',
+    enum: ['not_applicable', 'pending', 'passed', 'failed', 'unreadable'],
+    enumName: 'archive_check_status',
+    default: 'not_applicable',
+  })
+  archiveCheckStatus!: ArchiveCheckStatus;
+
+  /**
+   * BẢN CHỤP danh sách kỳ vọng, đã render token, tại thời điểm em nộp.
+   *
+   * Chụp chứ không tra lại: `machineName` chỉ sống trong socket và không
+   * được ghi xuống đâu cả, nên `{SOMAY}` không render lại được sau khi agent
+   * ngắt — render với null cho ra 'UNKNOWN' và đánh trượt oan (spec §5.2).
+   *
+   * `ck_submission_archive_snapshot` ép cột này có giá trị mọi lúc
+   * `archive_check_status = 'pending'`.
+   */
+  @Column({ name: 'archive_expected_entries', type: 'text', array: true, nullable: true })
+  archiveExpectedEntries!: string[] | null;
+
+  /** Phần thiếu, giữ nguyên thứ tự giảng viên khai. `[]` khi đã kiểm và đủ. */
+  @Column({ name: 'archive_missing_entries', type: 'text', array: true, nullable: true })
+  archiveMissingEntries!: string[] | null;
+
+  /**
+   * Chỉ đặt khi `unreadable`. Chuỗi đã qua xử lý, an toàn hiển thị — cùng
+   * luật mà `grading_result.ungradable_reason` đang theo, và cùng lý do:
+   * không ghi lại vì sao thì lần điều tra sau chỉ còn log terminal của đúng
+   * lần chạy đó.
+   */
+  @Column({ name: 'archive_check_error', type: 'text', nullable: true })
+  archiveCheckError!: string | null;
 }
