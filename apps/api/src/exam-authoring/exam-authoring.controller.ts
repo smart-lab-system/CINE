@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Header,
@@ -14,6 +13,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ExamAuthoringService } from './exam-authoring.service';
 import { ExportExamDto, GenerateExamDto } from './dto/generate-exam.dto';
+import { parseExamJson } from './dto/parse-exam';
 import { GeneratedExam } from './ai-provider/exam-authoring-provider';
 import { buildExamPaperDocx } from './docx/exam-paper.docx';
 import { buildAnswerKeyDocx } from './docx/answer-key.docx';
@@ -53,7 +53,7 @@ export class ExamAuthoringController {
     // tới khi hết socket timeout. Gặp thật khi viết test cho ca JSON hỏng.
     //
     // Không lưu gì: hết request là hết (spec §7).
-    return new StreamableFile(await buildExamPaperDocx(parseExam(dto)));
+    return new StreamableFile(await buildExamPaperDocx(parseExamJson(dto.examJson)));
   }
 
   /** Đáp án + gói test — tài liệu nội bộ. Xem doc của route trên. */
@@ -62,22 +62,7 @@ export class ExamAuthoringController {
   @Header('Content-Type', DOCX_MIME)
   @Header('Content-Disposition', 'attachment; filename="dap-an-va-test.docx"')
   async exportAnswerKey(@Body() dto: ExportExamDto): Promise<StreamableFile> {
-    return new StreamableFile(await buildAnswerKeyDocx(parseExam(dto)));
+    return new StreamableFile(await buildAnswerKeyDocx(parseExamJson(dto.examJson)));
   }
 }
 
-/**
- * Bộ ba đi ngược lên từ trình duyệt dưới dạng CHUỖI JSON, không phải object.
- *
- * Vì `ValidationPipe` chạy với `whitelist: true`: một object lồng nhau không
- * có DTO khai từng trường sẽ bị lược sạch, và endpoint nhận về `{}`. Nhận
- * chuỗi rồi tự parse ở đây là cách giữ nguyên hình dạng mà không phải khai
- * lại toàn bộ cây `GeneratedExam` thành sáu lớp DTO chỉ để đi qua ống.
- */
-function parseExam(dto: ExportExamDto): GeneratedExam {
-  try {
-    return JSON.parse(dto.examJson) as GeneratedExam;
-  } catch {
-    throw new BadRequestException('examJson không phải JSON hợp lệ.');
-  }
-}
