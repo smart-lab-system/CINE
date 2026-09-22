@@ -5,6 +5,7 @@ import { CourseModule } from '../course/course.module';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { ExamMaterialEntity } from './entities/exam-material.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
+import { RequiredDeliverableEntryEntity } from './entities/required-deliverable-entry.entity';
 import { ExamSessionService } from './exam-session.service';
 import { ExamSessionReassignService } from './exam-session-reassign.service';
 import { CollectionPhaseService } from './collection-phase.service';
@@ -33,6 +34,7 @@ import { StorageModule } from '../storage/storage.module';
       ExamSessionEntity,
       SessionRosterEntity,
       RequiredDeliverableEntity,
+      RequiredDeliverableEntryEntity,
       ExamMaterialEntity,
       // Only so ExamSessionService can check a rubric belongs to the
       // session's course. Deliberately the entity and not GradingModule:

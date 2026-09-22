@@ -820,6 +820,10 @@ export interface components {
             /** @enum {string} */
             role?: "admin" | "teacher";
         };
+        RequiredFilenameDto: {
+            filename: string;
+            entries?: string[];
+        };
         CreateExamSessionDto: {
             name: string;
             classId: string;
@@ -830,12 +834,13 @@ export interface components {
             examType: "TK" | "GK" | "CK";
             startTime: string;
             endTime: string;
-            requiredFilenames: string[];
+            requiredFilenames: components["schemas"]["RequiredFilenameDto"][];
         };
         RequiredDeliverableResponseDto: {
             id: string;
             requiredFilename: string;
             deliverableType: Record<string, never>;
+            entries: string[];
         };
         ExamSessionResponseDto: {
             id: string;
@@ -1013,6 +1018,7 @@ export interface components {
             modelAnswerStorageKey?: string | null;
             modelAnswerFilename?: string | null;
             modelAnswerNote?: string | null;
+            modelAnswerUnverified?: boolean;
         };
         ExamMaterialEntity: {
             examSessionId: string;
@@ -1036,6 +1042,7 @@ export interface components {
             modelAnswerStorageKey: string | null;
             modelAnswerFilename: string | null;
             modelAnswerNote: string | null;
+            modelAnswerUnverified: boolean;
             createdBy: string;
             createdByAccount?: components["schemas"]["AccountEntity"];
             id: string;

@@ -3,6 +3,7 @@ import { ExamSessionService } from './exam-session.service';
 import { ExamSessionEvents } from './exam-session.events';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
+import { RequiredDeliverableEntryEntity } from './entities/required-deliverable-entry.entity';
 import { ClassService } from '../course/class.service';
 import { AttendanceService } from '../agent-connection/attendance.service';
 import { ScheduleConflictService } from './schedule-conflict.service';
@@ -50,6 +51,9 @@ function createHarness(affected: number) {
     {} as DataSource,
     sessions as unknown as Repository<ExamSessionEntity>,
     deliverables as unknown as Repository<RequiredDeliverableEntity>,
+    // Only create()/setRubric()/findByIdForOwner() read this, and every
+    // test here is about finalize.
+    {} as Repository<RequiredDeliverableEntryEntity>,
     // Same reasoning as ClassService below: only create() reads a rubric,
     // and every test here is about finalize.
     {} as Repository<RubricEntity>,

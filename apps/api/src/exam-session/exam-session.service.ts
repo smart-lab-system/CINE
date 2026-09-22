@@ -9,12 +9,15 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
+  EntityManager,
   FindOptionsRelations,
+  In,
   QueryFailedError,
   Repository,
 } from 'typeorm';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
+import { RequiredDeliverableEntryEntity } from './entities/required-deliverable-entry.entity';
 import { RubricEntity } from '../grading/entities/rubric.entity';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
@@ -100,6 +103,8 @@ export class ExamSessionService {
     private readonly sessions: Repository<ExamSessionEntity>,
     @InjectRepository(RequiredDeliverableEntity)
     private readonly deliverables: Repository<RequiredDeliverableEntity>,
+    @InjectRepository(RequiredDeliverableEntryEntity)
+    private readonly deliverableEntries: Repository<RequiredDeliverableEntryEntity>,
     // The repository, not RubricService. GradingModule already imports
     // ExamSessionModule; depending on RubricService here would invert that
     // and force forwardRef. One `findOne` is not worth bending the module
@@ -207,16 +212,42 @@ export class ExamSessionService {
 
           const savedDeliverables = await manager.save(
             RequiredDeliverableEntity,
-            dto.requiredFilenames.map((requiredFilename) =>
+            dto.requiredFilenames.map((item) =>
               manager.create(RequiredDeliverableEntity, {
                 examSessionId: session.id,
-                requiredFilename,
+                requiredFilename: item.filename,
                 deliverableType: DEFAULT_DELIVERABLE_TYPE,
               }),
             ),
           );
 
-          return this.toResponseDto(session, savedDeliverables, rubric?.version ?? null);
+          // Cùng giao dịch với deliverable: một deliverable có mặt mà danh
+          // sách bên trong của nó chưa có là một phiên thi kiểm sai. Dựa
+          // trên INDEX chứ không trên tên: `savedDeliverables` giữ đúng thứ
+          // tự của mảng đưa vào `manager.save` ở trên, và `dto.requiredFilenames`
+          // là mảng nguồn của chính lệnh save đó.
+          const entryRows = savedDeliverables.flatMap((deliverable, index) =>
+            (dto.requiredFilenames[index].entries ?? []).map((entryName) =>
+              manager.create(RequiredDeliverableEntryEntity, {
+                requiredDeliverableId: deliverable.id,
+                entryName,
+              }),
+            ),
+          );
+          if (entryRows.length > 0) {
+            await manager.save(RequiredDeliverableEntryEntity, entryRows);
+          }
+
+          const entriesByDeliverable = await this.loadEntriesByDeliverable(
+            savedDeliverables.map((d) => d.id),
+            manager,
+          );
+          return this.toResponseDto(
+            session,
+            savedDeliverables,
+            rubric?.version ?? null,
+            entriesByDeliverable,
+          );
         });
       } catch (error) {
         const isLastAttempt = attempt >= EXAM_SESSION_CODE_MAX_ATTEMPTS;
@@ -260,10 +291,14 @@ export class ExamSessionService {
 
     await this.sessions.update(session.id, { rubricId: rubric?.id ?? null });
     const deliverables = await this.listRequiredDeliverables(session.id);
+    const entriesByDeliverable = await this.loadEntriesByDeliverable(
+      deliverables.map((d) => d.id),
+    );
     return this.toResponseDto(
       { ...session, rubricId: rubric?.id ?? null },
       deliverables,
       rubric?.version ?? null,
+      entriesByDeliverable,
     );
   }
 
@@ -328,7 +363,15 @@ export class ExamSessionService {
   ): Promise<ExamSessionResponseDto> {
     const session = await this.findOwnedBy(id, teacherId, { rubric: true });
     const deliverables = await this.listRequiredDeliverables(session.id);
-    return this.toResponseDto(session, deliverables, session.rubric?.version ?? null);
+    const entriesByDeliverable = await this.loadEntriesByDeliverable(
+      deliverables.map((d) => d.id),
+    );
+    return this.toResponseDto(
+      session,
+      deliverables,
+      session.rubric?.version ?? null,
+      entriesByDeliverable,
+    );
   }
 
   /**
@@ -648,14 +691,53 @@ export class ExamSessionService {
   }
 
   /**
+   * Một dòng cho mỗi `required_deliverable_id`, tên đã render theo thứ tự
+   * khai. Không dùng quan hệ `OneToMany` trên `RequiredDeliverableEntity` —
+   * mọi entity khác trong module này đều được nạp bằng truy vấn tường
+   * minh, không qua relation TypeORM (`listRequiredDeliverables` chính là
+   * ví dụ), nên đây giữ đúng khuôn đã có thay vì thêm một cách nạp mới.
+   *
+   * `manager` tuỳ chọn: truyền vào khi đang ở TRONG một giao dịch (create())
+   * để đọc thấy chính những dòng vừa insert — dùng repo đã inject ở đó sẽ
+   * đọc qua một kết nối khác, không thấy dữ liệu chưa commit.
+   */
+  private async loadEntriesByDeliverable(
+    deliverableIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    if (deliverableIds.length === 0) {
+      return map;
+    }
+    const repo = manager
+      ? manager.getRepository(RequiredDeliverableEntryEntity)
+      : this.deliverableEntries;
+    const rows = await repo.find({
+      where: { requiredDeliverableId: In(deliverableIds) },
+      order: { createdAt: 'ASC' },
+    });
+    for (const row of rows) {
+      const list = map.get(row.requiredDeliverableId) ?? [];
+      list.push(row.entryName);
+      map.set(row.requiredDeliverableId, list);
+    }
+    return map;
+  }
+
+  /**
    * @param rubricVersion phiên bản của rubric đã ghim. Truyền vào thay vì tra
    * ở đây: cả hai người gọi đều đã cầm sẵn entity rubric (create vừa kiểm nó,
    * findByIdForOwner nạp kèm quan hệ), nên tra lại là một truy vấn thừa.
+   * @param entriesByDeliverable danh sách file bên trong của từng
+   * deliverable, đã nạp trước bởi người gọi (xem `loadEntriesByDeliverable`).
+   * Deliverable không có trong map (hoặc map rỗng) = không khai file bên
+   * trong, hiện mảng rỗng.
    */
   private toResponseDto(
     session: ExamSessionEntity,
     deliverables: RequiredDeliverableEntity[],
     rubricVersion: number | null = null,
+    entriesByDeliverable: Map<string, string[]> = new Map(),
   ): ExamSessionResponseDto {
     const dto = new ExamSessionResponseDto();
     dto.id = session.id;
@@ -679,6 +761,7 @@ export class ExamSessionService {
       view.id = deliverable.id;
       view.requiredFilename = deliverable.requiredFilename;
       view.deliverableType = deliverable.deliverableType;
+      view.entries = entriesByDeliverable.get(deliverable.id) ?? [];
       return view;
     });
     return dto;

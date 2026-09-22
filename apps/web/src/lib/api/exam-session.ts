@@ -30,13 +30,31 @@ export interface CreateExamSessionInput {
   startTime: string;
   /** ISO 8601, must be after `startTime`. */
   endTime: string;
-  requiredFilenames: string[];
+  /**
+   * Backend chấp nhận cả chuỗi trần lẫn object (tương thích ngược — spec
+   * `2026-09-21-archive-content-validation-design.md` §8.4), nhưng bề mặt
+   * OpenAPI do `@nestjs/swagger` sinh ra chỉ phản ánh KIỂU TĨNH khai trên
+   * DTO (`RequiredFilenameDto[]`) — nó không biết `@Transform` còn nhận
+   * thêm chuỗi trần lúc chạy, vì đó là hành vi runtime chứ không phải một
+   * phần của type. `packages/shared/src/api/schema.d.ts` vì vậy chỉ chấp
+   * nhận dạng object, và type ở đây khớp đúng cái đó — không phải một cắt
+   * giảm tính năng.
+   *
+   * Biểu mẫu hiện tại (`new/page.tsx`) chỉ gửi `{ filename }`, chưa gửi
+   * `entries` — khối "Kiểm file bên trong" là việc của một task riêng.
+   */
+  requiredFilenames: { filename: string; entries?: string[] }[];
 }
 
 export interface RequiredDeliverableResponse {
   id: string;
   requiredFilename: string;
   deliverableType: string;
+  /**
+   * Tên các file phải nằm BÊN TRONG, nếu deliverable này là file nén và
+   * giảng viên đã khai. Mảng rỗng = không khai file bên trong.
+   */
+  entries: string[];
 }
 
 // Mirrors ExamSessionResponseDto
