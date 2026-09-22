@@ -557,4 +557,140 @@ describe('Archive content check — snapshot + processor (e2e)', () => {
     // bytes rar4 đã có test ở archive-reader.spec.ts bằng byte dựng tay;
     // đường "đọc danh sách từ rar4 thật qua hàng đợi" thì chưa được đo.
   });
+
+  /**
+   * Task 7 — POST :id/archive-recheck. `@HttpCode(200)` chứ không mặc định
+   * 201 của Nest: đây không tạo tài nguyên mới, cùng lý do `recollect`
+   * (POST :id/recollect) cũng dùng 200 — xem doc comment của
+   * ArchiveRecheckController. `@Roles('teacher')` một mình, không
+   * 'admin': CLAUDE.md §2 nói admin "không xem bài nộp", và đường này
+   * đụng thẳng vào submission.
+   */
+  describe('POST :id/archive-recheck (Task 7)', () => {
+    it(
+      'xếp hàng lại bài failed/unreadable/pending, KHÔNG đụng bytes bài nộp',
+      async () => {
+        const mssv = 'SV20120110';
+        const studentSocket = await joinAsStudent(mssv, 'Sinh Vien Kiem Lai');
+        // Zip THIẾU file — kết cục xác định là 'failed', ổn định để so
+        // trước/sau (không như các test 'unreadable' race ở trên).
+        const zip = await makeZip({ 'Main.java': 'code' });
+        await uploadAndConfirmAs(studentSocket, mssv, archiveDeliverableId, zip);
+        const before = await waitForArchiveStatus(archiveDeliverableId, mssv);
+        expect(before.archive_check_status).toBe('failed');
+
+        const beforeRow = await dataSource.getRepository(SubmissionEntity).findOneByOrFail({
+          examSessionId: sessionId,
+          studentMssv: mssv,
+          requiredDeliverableId: archiveDeliverableId,
+        });
+
+        const res = await request(app.getHttpServer())
+          .post(`/exam-sessions/${sessionId}/archive-recheck`)
+          .set('Authorization', `Bearer ${teacherToken}`);
+        expect(res.status).toBe(200);
+        expect(res.body.requeued).toBeGreaterThanOrEqual(1);
+
+        // Đúng NGAY sau khi request trả về — service ghi 'pending' bằng
+        // UPDATE trước khi enqueue, nên không có cuộc đua ở bước này (khác
+        // với chờ processor kết luận, việc đó test ở dưới).
+        const rightAfter = await dataSource.getRepository(SubmissionEntity).findOneByOrFail({
+          id: beforeRow.id,
+        });
+        expect(rightAfter.archiveCheckStatus).toBe('pending');
+        expect(rightAfter.storageKey).toBe(beforeRow.storageKey);
+        expect(rightAfter.checksum).toBe(beforeRow.checksum);
+        expect(rightAfter.submittedAt).toEqual(beforeRow.submittedAt);
+        // Bản chụp GIỮ NGUYÊN — không render lại (spec §5.3.2).
+        expect(rightAfter.archiveExpectedEntries).toEqual(beforeRow.archiveExpectedEntries);
+
+        // Và job thật sự chạy lại: lần này nộp đủ trước khi processor kịp
+        // xử lý là không cần thiết — chỉ cần xác nhận nó rời 'pending' và
+        // (vì zip vẫn thiếu file y nguyên trong storage) quay lại 'failed'
+        // với đúng danh sách thiếu, không phải một trạng thái ngẫu nhiên.
+        const after = await waitForArchiveStatus(archiveDeliverableId, mssv);
+        expect(after.archive_check_status).toBe('failed');
+        expect(after.archive_missing_entries).toEqual([`BaoCao_${mssv}.docx`]);
+      },
+      20_000,
+    );
+
+    it('không đụng bài not_applicable', async () => {
+      // MSSV (sinh viên chính, beforeAll) đã có một dòng not_applicable
+      // từ test Task 5 "deliverable không khai entry".
+      const before = await dataSource.query(
+        `SELECT archive_check_status FROM examcollect.submission
+          WHERE exam_session_id = $1 AND student_mssv = $2 AND required_deliverable_id = $3`,
+        [sessionId, MSSV, plainDeliverableId],
+      );
+      expect(before[0].archive_check_status).toBe('not_applicable');
+
+      await request(app.getHttpServer())
+        .post(`/exam-sessions/${sessionId}/archive-recheck`)
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .expect(200);
+
+      const after = await dataSource.query(
+        `SELECT archive_check_status FROM examcollect.submission
+          WHERE exam_session_id = $1 AND student_mssv = $2 AND required_deliverable_id = $3`,
+        [sessionId, MSSV, plainDeliverableId],
+      );
+      expect(after[0].archive_check_status).toBe('not_applicable');
+    });
+
+    // KHÔNG assert `requeued: 0` tuyệt đối trên toàn phiên: phiên này dùng
+    // CHUNG cho mọi test trong file (giảm chi phí dựng session), nên tại
+    // thời điểm test này chạy có thể còn dòng failed/unreadable/pending từ
+    // các test khác — dọn sạch bằng UPDATE trực tiếp từng đua với chính
+    // background worker đang xử lý job của TEST TRƯỚC (đã đo được: test
+    // này từng nhận `requeued: 2` vì "không đụng bài not_applicable" ở
+    // trên gọi archive-recheck và enqueue lại một dòng mà không chờ nó
+    // chạy xong). Thay vào đó, chỉ khẳng định đúng điều test này SỞ HỮU:
+    // một dòng đã 'passed' của CHÍNH NÓ không bị requeue-recheck đụng vào.
+    it('bỏ qua bài đã passed — không requeue dòng đã có kết luận đạt', async () => {
+      const mssv = 'SV20120111';
+      const studentSocket = await joinAsStudent(mssv, 'Sinh Vien Da Passed');
+      const zip = await makeZip({ [`BaoCao_${mssv}.docx`]: 'noi dung', 'Main.java': 'code' });
+      await uploadAndConfirmAs(studentSocket, mssv, archiveDeliverableId, zip);
+      const settled = await waitForArchiveStatus(archiveDeliverableId, mssv);
+      expect(settled.archive_check_status).toBe('passed');
+
+      await request(app.getHttpServer())
+        .post(`/exam-sessions/${sessionId}/archive-recheck`)
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .expect(200);
+
+      const row = await dataSource.getRepository(SubmissionEntity).findOneByOrFail({
+        examSessionId: sessionId,
+        studentMssv: mssv,
+        requiredDeliverableId: archiveDeliverableId,
+      });
+      expect(row.archiveCheckStatus).toBe('passed');
+    });
+
+    it('phiên của giảng viên khác -> 403', async () => {
+      const stamp = Date.now();
+      const otherEmail = `archive_recheck_other_${stamp}@example.com`;
+      await createTestAccount(dataSource, {
+        email: otherEmail,
+        password: 'correct-horse-battery',
+        role: 'teacher',
+      });
+      const otherLogin = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: otherEmail, password: 'correct-horse-battery' });
+      const otherToken: string = otherLogin.body.accessToken;
+
+      await request(app.getHttpServer())
+        .post(`/exam-sessions/${sessionId}/archive-recheck`)
+        .set('Authorization', `Bearer ${otherToken}`)
+        .expect(403);
+    });
+
+    it('không token -> 401', async () => {
+      await request(app.getHttpServer())
+        .post(`/exam-sessions/${sessionId}/archive-recheck`)
+        .expect(401);
+    });
+  });
 });

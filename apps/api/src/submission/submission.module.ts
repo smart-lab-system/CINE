@@ -13,6 +13,8 @@ import { SubmissionOverviewService } from './submission-overview.service';
 import { ARCHIVE_CHECK_QUEUE } from './archive-check/archive-check.constants';
 import { ArchiveCheckService } from './archive-check/archive-check.service';
 import { ArchiveCheckProcessor } from './archive-check/archive-check.processor';
+import { ArchiveRecheckService } from './archive-check/archive-recheck.service';
+import { ArchiveRecheckController } from './archive-check/archive-recheck.controller';
 
 /**
  * Imports ExamSessionModule for its already-exported ExamSessionService
@@ -32,7 +34,7 @@ import { ArchiveCheckProcessor } from './archive-check/archive-check.processor';
     // hình nhịp bên này đổi ngầm hành vi bên kia.
     BullModule.registerQueue({ name: ARCHIVE_CHECK_QUEUE }),
   ],
-  controllers: [SubmissionController, TeacherSubmissionsController],
+  controllers: [SubmissionController, TeacherSubmissionsController, ArchiveRecheckController],
   providers: [
     SubmissionService,
     SubmissionGateway,
@@ -40,6 +42,7 @@ import { ArchiveCheckProcessor } from './archive-check/archive-check.processor';
     SubmissionOverviewService,
     ArchiveCheckService,
     ArchiveCheckProcessor,
+    ArchiveRecheckService,
   ],
   exports: [SubmissionService],
 })
