@@ -16,4 +16,16 @@ export interface ArchiveCheckJob {
 export const ARCHIVE_CHECK_JOB_OPTIONS: JobsOptions = {
   attempts: 3,
   backoff: { type: 'exponential', delay: 5_000 },
+  /**
+   * Cùng lý lẽ `GRADING_JOB_OPTIONS` (grading.queue.ts) đã viết cho chính
+   * nó — thiếu hai dòng này là một chỗ sót, không phải một quyết định.
+   * Giữ theo TUỔI, không theo số trần, vì việc dọn là best-effort chạy
+   * khi job kế tiếp kết thúc, không phải một timer nền. `count` thấp hơn
+   * hàng chấm điểm (5 000) vì một job kiểm file nén rẻ hơn để suy lại —
+   * không tốn token, dữ liệu cũng nhỏ hơn nhiều.
+   */
+  removeOnComplete: { age: 24 * 3600, count: 1_000 },
+  /** Job lỗi ở lại để điều tra — "biến mất" là câu trả lời tệ nhất cho
+   *  vì sao một bài nén không có kết luận kiểm. */
+  removeOnFail: false,
 };
