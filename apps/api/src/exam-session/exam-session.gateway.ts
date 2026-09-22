@@ -483,6 +483,13 @@ export class ExamSessionGateway
     // Carried so collection never has to look the enrollment up again.
     client.data.homeClassId = enrollment.homeClassId;
     client.data.homeTeacherId = enrollment.homeTeacherId;
+    // Đọc lại ở submission:confirm để render bản chụp entry bên trong file
+    // nén — spec 2026-09-21-archive-content-validation-design.md §5.2.
+    // `machineName` KHÔNG được ghi xuống DB ở đâu cả, nên nếu không giữ ở
+    // đây thì `{SOMAY}` trong tên file bên trong không render lại được sau
+    // khi socket đóng — và render với null cho ra 'UNKNOWN', đánh trượt
+    // oan đúng nhóm em đã gặp sự cố máy móc.
+    client.data.machineName = dto.machineName ?? null;
 
     // Joined AFTER all validation passed, and only to the agents room —
     // never teacherRoom (see its comment: that would leak every

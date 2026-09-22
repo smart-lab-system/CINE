@@ -1,5 +1,7 @@
 import { DataSource, Repository } from 'typeorm';
+import { Queue } from 'bullmq';
 import { SubmissionService } from './submission.service';
+import { ArchiveCheckJob } from './archive-check/archive-check.types';
 import { SubmissionEntity } from './entities/submission.entity';
 import { ExamSessionService } from '../exam-session/exam-session.service';
 import { ExamSessionEntity, ExamSessionStatus } from '../exam-session/entities/exam-session.entity';
@@ -33,6 +35,7 @@ const identity: AgentSocketIdentity = {
   fullName: 'Nguyen Van A',
   homeClassId: HOME_CLASS_ID,
   homeTeacherId: HOME_TEACHER_ID,
+  machineName: null,
 };
 
 const confirmDto = {
@@ -57,6 +60,7 @@ function session(overrides: Partial<ExamSessionEntity> = {}): ExamSessionEntity 
     status: 'active' as ExamSessionStatus,
     startTime: new Date(now - 60_000),
     endTime: new Date(now + 60_000),
+    roomName: 'Phòng test',
     ...overrides,
   } as ExamSessionEntity;
 }
@@ -110,13 +114,15 @@ function createHarness(
     createQueryBuilder: jest.fn(() => listBuilder),
   };
   const transaction = jest.fn();
+  const archiveCheckQueue = { add: jest.fn().mockResolvedValue(undefined) };
   const service = new SubmissionService(
     { transaction } as unknown as DataSource,
     submissions as unknown as Repository<SubmissionEntity>,
     examSessions as unknown as ExamSessionService,
     storage as unknown as StorageService,
+    archiveCheckQueue as unknown as Queue<ArchiveCheckJob>,
   );
-  return { service, examSessions, storage, submissions, listBuilder, transaction };
+  return { service, examSessions, storage, submissions, listBuilder, transaction, archiveCheckQueue };
 }
 
 describe('SubmissionService — preconditions', () => {
@@ -381,6 +387,7 @@ describe('SubmissionService.listForTeacher', () => {
       submissions as unknown as Repository<SubmissionEntity>,
       {} as ExamSessionService,
       storage as unknown as StorageService,
+      {} as Queue<ArchiveCheckJob>,
     );
     return { service, submissions, builder, storage };
   }
