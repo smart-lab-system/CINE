@@ -2,6 +2,11 @@
 
 **Ngày:** 2026-09-21 · **Baseline:** `feature/master-data-scope-cut` = `9f06dc6` · **Trạng thái:** spec, chưa implement
 **Liên quan:** `2026-09-20-grading-agent-investigator-design.md` (nửa dưới của cùng một vòng)
+**Sửa đổi:** 2026-09-23 — §8 ghi lại cách gắn đề đã ship (một route riêng; server tự ghi
+file do chính nó sinh); thêm §8.1 (chấm lại bài không chấm được, và chỗ nó đụng luật đóng
+băng tài liệu)
+**Sửa đổi:** 2026-09-23, lần 2 — thêm §3.1 (chế độ sinh đáp án mẫu và gói test từ một đề
+có sẵn, cho spec chấm §2.1)
 
 Agent sinh **đề + đáp án mẫu + gói test**, giảng viên sửa, xuất Word, gắn vào phiên
 thi nếu muốn. Không lưu gì vào cơ sở dữ liệu.
@@ -184,6 +189,22 @@ Ba điều đáng nói về hình dạng này:
    được tự thêm tiêu chí vào rubric: rubric có version và có trigger bất biến
    (Security rule 7), và sinh đề không phải lý do chính đáng để đụng vào.
 
+### 3.1 Chế độ thứ hai — từ một đề CÓ SẴN (thêm 2026-09-23)
+
+Spec chấm §2.1 (*Khi giảng viên chỉ có đề*) dùng lại agent này khi giảng viên chỉ có đề
+bài. Cùng seam, cùng `TierChain`, cùng hình dạng đầu ra, khác ba chỗ:
+
+1. **Đầu vào là văn bản đề đã có**, đọc từ tài liệu của phiên. `statement` giữ nguyên văn:
+   agent **không được sửa đề** — sinh viên đã làm đúng đề đó rồi.
+2. **Mỗi `TestCase` thêm `constraintQuote: string`** — câu trong đề mà ca đó kiểm, trích
+   nguyên văn. Ca không trích được thì bị bỏ trước khi đến tay giảng viên.
+3. **Không đi qua `localStorage` hay Word.** Kết quả ghi thẳng vào `grading_reference` (cờ
+   `model_answer_unverified` bật) và `grading_test_bundle` (`origin = 'generated'`), rồi chờ
+   giảng viên duyệt trên màn chuẩn bị chấm.
+
+Hạn mức (`GenerateQuotaService`) và ghi usage (§9.1) áp y như chế độ soạn đề: đây vẫn là
+một lượt gọi model tốn tiền thật.
+
 ---
 
 ## 4. `verification` — ba trạng thái, và một cái bẫy chết người
@@ -357,6 +378,21 @@ Không phải một file `.docx` mẫu do giảng viên cung cấp — cái đó
 
 ## 8. Gắn vào phiên thi — dùng nguyên đường đã có
 
+> **Đã đổi khi implement (commit `de779e8`, ghi lại 2026-09-23).** Bảng dưới là thiết kế
+> ban đầu: ba mảnh đi ba đường, trình duyệt xâu chuỗi bốn lượt gọi. Bản ship là **một**
+> route, `POST /exam-authoring/attach`: trình duyệt gửi JSON đề (không gửi file), server
+> dựng hai file `.docx`, tự ghi lên kho, tạo `exam_material` rồi `grading_reference` trong
+> cùng một lượt gọi, và gỡ tài liệu vừa tạo nếu bước sau hỏng. Lý do nằm ở docblock của
+> `attach-exam.service.ts`: luật *"phiên nào gắn được"* trước đó chỉ sống trong một nút bị
+> tắt ở giao diện, còn ba endpoint dùng chung thì không đọc luật đó, và không nên đọc. Luật
+> ship đo **giờ thi** (`now < start_time`, phiên chưa đóng) chứ không đọc `status`, vì phiên
+> nào cũng `active` ngay từ lúc tạo.
+>
+> Security rule 5 vẫn giữ: luật đó cấm **tải file lên** đi xuyên NestJS, còn ở đây không có
+> file nào được tải lên — byte nào lên kho cũng do chính server sinh. T-ATT-3 đọc lại theo
+> nghĩa đó. Gói test (dòng thứ ba của bảng) chưa được ghi đi đâu: `grading_test_bundle` vẫn
+> nằm trên nhánh autograder chưa merge.
+
 Không endpoint upload mới nào. Ba mảnh đi ba đường **đã tồn tại**:
 
 | Mảnh | Đường | Ghi chú |
@@ -374,6 +410,40 @@ không cầm file lần nào.
 > băng khi phiên đã có kết quả chấm. Nên "gắn vào phiên thi" phải xử lý trường hợp phiên
 > **đã có** reference: hỏi ghi đè, và **từ chối** nếu phiên đã chấm bài nào. Không tự
 > quyết thay giảng viên.
+
+### 8.1 Ghi chú 2026-09-23 — chấm lại bài "không chấm được", và chỗ nó đụng luật đóng băng ở trên
+
+**Chưa quyết.** Ghi ở đây vì luật đóng băng của §8 là một nửa của vấn đề.
+
+Hôm nay một bài thành *không chấm được* theo hai đường, và **cả hai đều cụt**:
+
+| Đường | Khi nào | Chấm lại được không |
+|---|---|---|
+| Hết lượt thử | Dịch vụ AI lỗi, quá 300 giây, hoặc lỗi không thử lại được → `markUngradable` ghi `flagged_for_review` kèm `ungradable_reason` | **Không.** `regrade-stuck` chỉ nhặt dòng còn ở `ai_grading` |
+| Sàn bằng chứng (spec chấm §4.4, chưa có code) | Gói test chưa từng chạy; 0 lời gọi công cụ thành công | **Không**, cùng lý do |
+
+Ba lượt thử cách nhau 5, 10 rồi 20 giây, nên một sự cố dịch vụ AI kéo dài chừng một phút
+đủ biến cả loạt bài đang chạy thành *không chấm được*, và không nút nào đưa chúng về.
+
+**Chỗ đụng vào spec này.** `assertNotGradedYet` đếm **mọi** dòng `grading_result`, kể cả
+dòng không có điểm. Nên một phiên có 40/40 bài *không chấm được* vẫn bị coi là *đã chấm*:
+không thay được đáp án mẫu (T-ATT-2 từ chối), và cũng không chấm lại được. Ghép với §4.1
+thì ra ca tệ nhất: đáp án mẫu **chưa kiểm chứng** từ Soạn đề bị hỏng → khi sandbox về, bài
+nào cũng rơi dưới sàn → giảng viên sửa đáp án thì bị chặn vì phiên "đã chấm" → phiên kẹt
+vĩnh viễn.
+
+**Đề xuất, chờ chốt — một ngoại lệ hẹp, hai vế:**
+
+1. **Chấm lại chỉ cho bài chưa có điểm nào** (`ai_total_score IS NULL`), do giảng viên
+   bấm, mỗi lượt để lại dấu vết ai bấm. Lý do chặn chấm lại — bất biến của điểm, công bằng
+   trong một phiên — không áp cho một bài chưa từng được đo.
+2. **Luật đóng băng tài liệu đếm bài CÓ ĐIỂM, không đếm mọi dòng.** Phiên chưa có bài nào
+   mang điểm thì chưa bài nào bị đo bằng cái thước cũ, nên thay thước không đẻ ra hai kỳ
+   thi. Chỉ cần một bài mang điểm là luật giữ nguyên như hôm nay. Luật đóng băng rubric
+   (`setSessionRubric`) dùng chung ý này, nên đổi thì đổi cả hai.
+
+Cho tới khi chốt, mọi nút *chấm lại* trên giao diện mang nhãn *cần backend* (spec UI
+2026-09-23, mục 3.8 và mục 5.1).
 
 ---
 
@@ -446,7 +516,7 @@ kín** ở §0. Trước nó, đây là một tiện ích; sau nó, đây là m�
 | **T-DOC-3** | Câu có `requiredComplexity = null` → dòng đó **vắng mặt**, không in "null" | unit |
 | **T-ATT-1** | Gắn bộ ba `unverified` → **bắt buộc** qua bước xác nhận, và ghi cờ `model_answer_unverified` | e2e |
 | **T-ATT-2** | Phiên **đã có** kết quả chấm → từ chối ghi đè `grading_reference` | e2e |
-| **T-ATT-3** | File `.docx` đi lên storage bằng presigned từ TRÌNH DUYỆT; không byte nào qua NestJS | e2e |
+| **T-ATT-3** | Trình duyệt không gửi byte file nào lên NestJS: `POST /exam-authoring/attach` nhận JSON đề, file `.docx` do server sinh rồi tự ghi (đổi 2026-09-23, xem ghi chú đầu §8) | e2e |
 | **T-ATT-4** | Đáp án mẫu nằm dưới prefix `grading-reference/`, **không** lọt vào `listForAgent` | e2e |
 | **T-COST-1** | Sinh đề xong → có một dòng usage với `cost_usd`, và **không** có dòng nào chứa nội dung đề | integration |
 | **T-DRAFT-1** | Bản nháp quá 24 giờ → tự xoá khỏi `localStorage` | unit |

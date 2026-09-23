@@ -1,5 +1,9 @@
 # Giao diện chấm điểm — thiết kế
 
+> **Bị thay một phần bởi `2026-09-23-grading-ui-rebuild-design.md`** (2026-09-23): ba màn ở
+> mục 4, 5, 6 và dòng đầu của mục 8 không còn hiệu lực. Mục 3, 3.2, 3.3 và 5.2 vẫn giữ —
+> xem mục 0.2 của spec mới.
+
 **Ngày:** 2026-09-16 · **rev 2** (sau phản biện — xem §13)
 **Trạng thái:** chờ duyệt
 **Nhánh nền:** `feature/grading-pipeline-hardening` (HEAD `209930f`)
