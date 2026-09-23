@@ -208,7 +208,9 @@ describe('StorageService', () => {
       sendMock.mockRejectedValue(s3Error('InternalError', 500));
 
       await expect(service.getObjectSize('submissions/x/y/z')).rejects.toThrow();
-  
+    });
+  });
+
   describe('configuration', () => {
     it('fails at construction when a storage credential is missing', () => {
       delete process.env.STORAGE_BUCKET;
