@@ -7,6 +7,7 @@
     "dev": "nest start --watch",
     "start": "node dist/src/main.js",
     "test": "jest --passWithNoTests",
+    "eval:check": "node -r ts-node/register -r tsconfig-paths/register src/eval/check-cli.ts",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "lint": "eslint .",
     "migration:run": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
