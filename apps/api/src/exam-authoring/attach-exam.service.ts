@@ -136,11 +136,9 @@ export class AttachExamService {
     // mạng và một cách hỏng mới.
     const { storageKey: answerKeyKey } =
       await this.references.requestAnswerKeyUpload(session);
-    await this.storage.putObject(answerKeyKey, answerKey, DOCX_MIME);
 
     const examMaterialId = randomUUID();
     const paperKey = this.storage.buildMaterialKey(session.id, examMaterialId);
-    await this.storage.putObject(paperKey, paper, DOCX_MIME);
 
     const material = await this.materials.create(session, {
       examMaterialId,
