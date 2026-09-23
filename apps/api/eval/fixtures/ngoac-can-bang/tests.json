@@ -1,0 +1,18 @@
+[
+  { "key": "cb1", "group": "co_ban", "input": "()\n", "expected": "YES\n" },
+  { "key": "cb2", "group": "co_ban", "input": "()[]{}\n", "expected": "YES\n" },
+  { "key": "cb3", "group": "co_ban", "input": "{[()]}\n", "expected": "YES\n" },
+  { "key": "cb4", "group": "co_ban", "input": "([]{})\n", "expected": "YES\n" },
+  { "key": "r1", "group": "rong", "input": "\n", "expected": "YES\n" },
+  { "key": "tm1", "group": "thieu_mo", "input": ")(\n", "expected": "NO\n" },
+  { "key": "tm2", "group": "thieu_mo", "input": "())\n", "expected": "NO\n" },
+  { "key": "tm3", "group": "thieu_mo", "input": "]\n", "expected": "NO\n" },
+  { "key": "td1", "group": "thua_mo", "input": "((\n", "expected": "NO\n" },
+  { "key": "td2", "group": "thua_mo", "input": "(()\n", "expected": "NO\n" },
+  { "key": "td3", "group": "thua_mo", "input": "{[]\n", "expected": "NO\n" },
+  { "key": "sl1", "group": "sai_loai", "input": "(]\n", "expected": "NO\n" },
+  { "key": "sl2", "group": "sai_loai", "input": "{)\n", "expected": "NO\n" },
+  { "key": "sl3", "group": "sai_loai", "input": "[(])\n", "expected": "NO\n" },
+  { "key": "d1", "group": "dai", "generate": { "kind": "nested", "open": "(", "close": ")", "depth": 100000 } },
+  { "key": "d2", "group": "dai", "generate": { "kind": "repeat", "unit": "()", "times": 100000 } }
+]
