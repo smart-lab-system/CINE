@@ -15,7 +15,7 @@ import { buildAuthoringPrompt, parseAuthoringResponse } from './authoring-prompt
  * việc rộng hơn hẳn. Nhánh chấm nâng bậc khi nào là quyết định riêng của nó —
  * hai con số này không phải cùng một quyết định, nên không dùng chung hằng số.
  */
-export const AUTHORING_MODEL = 'claude-sonnet-5';
+export const AUTHORING_MODEL = process.env.CLAUDE_AUTHORING_MODEL ?? 'occ/claude-sonnet-5';
 
 /**
  * Trần token đầu ra. Một đề 10 câu, mỗi câu kèm mã nguồn và gói test, là một

@@ -18,7 +18,7 @@ import { badOutputError } from './provider-failure';
  */
 // Cùng lý do với GRADER_MODEL (xem claude-grading.provider.ts): khoá
 // gateway chưa đăng ký opus-5.
-export const ADVOCATE_MODEL = 'claude-sonnet-4-6';
+export const ADVOCATE_MODEL = process.env.CLAUDE_ADVOCATE_MODEL ?? 'occ/claude-opus-5';
 
 /**
  * Lượt hỏi thứ hai: "bỏ qua rubric, em ấy có đúng không?"

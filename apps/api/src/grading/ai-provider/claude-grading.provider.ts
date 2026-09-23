@@ -30,7 +30,7 @@ import { badOutputError } from './provider-failure';
 //
 // Gateway có thể tự định tuyến sang model khác — `modelUsed` vì thế đọc
 // `response.model`, không đọc hằng số này.
-export const GRADER_MODEL = 'claude-sonnet-4-6';
+export const GRADER_MODEL = process.env.CLAUDE_GRADER_MODEL ?? 'occ/claude-sonnet-4-6';
 
 /**
  * Schema output. KHÔNG có `points`, KHÔNG có `totalScore`, KHÔNG có
