@@ -16,11 +16,21 @@ vi.mock('next/navigation', () => ({
 const useExamSessionDetailMock = vi.fn();
 const useAttendanceMock = vi.fn();
 const useSubmissionsMock = vi.fn();
+const useArchiveRecheckMock = vi.fn();
 vi.mock('@/hooks/useExamSession', () => ({
   useExamSessionDetail: (...args: unknown[]) => useExamSessionDetailMock(...args),
   useAttendance: (...args: unknown[]) => useAttendanceMock(...args),
   useSubmissions: (...args: unknown[]) => useSubmissionsMock(...args),
+  useArchiveRecheck: (...args: unknown[]) => useArchiveRecheckMock(...args),
 }));
+
+// `vi.mock` factories run before any top-level `const` in this file
+// (hoisted above every import, including `./page`'s own chain, which pulls
+// in 'sonner' immediately) — `toastMock` has to be created through
+// `vi.hoisted` so it exists by the time the factory below runs, or this
+// throws "Cannot access 'toastMock' before initialization".
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('sonner', () => ({ toast: toastMock }));
 
 const useGradingResultsMock = vi.fn();
 vi.mock('@/hooks/useGrading', () => ({
@@ -63,6 +73,10 @@ beforeEach(() => {
   useSubmissionsMock.mockReset();
   useGradingResultsMock.mockReset();
   useGradingResultsMock.mockReturnValue({ data: undefined });
+  useArchiveRecheckMock.mockReset();
+  useArchiveRecheckMock.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  toastMock.success.mockReset();
+  toastMock.error.mockReset();
 
   useExamSessionDetailMock.mockReturnValue({
     data: {
@@ -220,5 +234,58 @@ describe('SubmissionSessionDetailPage — gradingByMssv', () => {
     expect(submissionStatusTableProps.gradingByMssv).toEqual({
       A1: { score: 0, status: 'finalized' },
     });
+  });
+});
+
+// Task 10 — nút "Kiểm lại" (POST /exam-sessions/:id/archive-recheck).
+// KHÁC "Thu lại" của trang lobby: trang này không đụng gì tới bài nộp,
+// chỉ xếp lại các dòng failed/unreadable/pending mồ côi vào hàng đợi kiểm.
+describe('SubmissionSessionDetailPage — Kiểm lại', () => {
+  it('bấm thì gọi mutate, và thành công thì báo đúng số đã xếp lại', () => {
+    const mutate = vi.fn((_arg, opts?: { onSuccess?: (r: { requeued: number }) => void }) => {
+      opts?.onSuccess?.({ requeued: 3 });
+    });
+    useArchiveRecheckMock.mockReturnValue({ mutate, isPending: false });
+
+    render(<SubmissionSessionDetailPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Kiểm lại' }));
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(toastMock.success).toHaveBeenCalledWith(
+      expect.stringContaining('3'),
+    );
+  });
+
+  it('không có gì để kiểm lại thì vẫn báo thành công, không phải lỗi', () => {
+    const mutate = vi.fn((_arg, opts?: { onSuccess?: (r: { requeued: number }) => void }) => {
+      opts?.onSuccess?.({ requeued: 0 });
+    });
+    useArchiveRecheckMock.mockReturnValue({ mutate, isPending: false });
+
+    render(<SubmissionSessionDetailPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Kiểm lại' }));
+
+    expect(toastMock.success).toHaveBeenCalled();
+    expect(toastMock.error).not.toHaveBeenCalled();
+  });
+
+  it('lỗi thì báo lỗi, không im lặng', () => {
+    const mutate = vi.fn((_arg, opts?: { onError?: () => void }) => {
+      opts?.onError?.();
+    });
+    useArchiveRecheckMock.mockReturnValue({ mutate, isPending: false });
+
+    render(<SubmissionSessionDetailPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Kiểm lại' }));
+
+    expect(toastMock.error).toHaveBeenCalled();
+  });
+
+  it('đang xếp hàng thì nút bị khoá, không cho bấm chồng', () => {
+    useArchiveRecheckMock.mockReturnValue({ mutate: vi.fn(), isPending: true });
+
+    render(<SubmissionSessionDetailPage />);
+
+    expect(screen.getByRole('button', { name: 'Kiểm lại' })).toBeDisabled();
   });
 });

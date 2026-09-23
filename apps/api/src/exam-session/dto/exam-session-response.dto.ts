@@ -5,6 +5,12 @@ export class RequiredDeliverableResponseDto {
   id!: string;
   requiredFilename!: string;
   deliverableType!: DeliverableType;
+  /**
+   * Tên các file phải nằm BÊN TRONG, nếu deliverable này là một file nén và
+   * giảng viên đã khai — spec 2026-09-21-archive-content-validation-design.md
+   * §8.4. Mảng rỗng = không khai file bên trong, KHÔNG phải "chưa nạp xong".
+   */
+  entries!: string[];
 }
 
 export class ExamSessionResponseDto {

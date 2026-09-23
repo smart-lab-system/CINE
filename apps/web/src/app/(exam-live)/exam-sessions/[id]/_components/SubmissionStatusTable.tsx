@@ -176,6 +176,39 @@ function formatFileExtension(requiredFilename: string): string | null {
   return requiredFilename.slice(dot + 1).toUpperCase();
 }
 
+/**
+ * Bảng §7 của spec 2026-09-21-archive-content-validation-design.md. Trả
+ * `null` cho `not_applicable`/`undefined` — phần lớn deliverable không khai
+ * file bên trong, và im lặng là câu trả lời đúng cho chúng (cùng lý do
+ * `archive_check_status` mặc định `not_applicable` ở entity).
+ *
+ * `pending` PHẢI có chữ, không phải một chuỗi rỗng: một ô trống lúc đang
+ * chờ trông giống hệt một bài đã kiểm và đạt — kiểu nói dối im lặng tệ nhất
+ * (spec §7).
+ */
+function describeArchiveCheck(cell: {
+  archiveCheckStatus?: 'not_applicable' | 'pending' | 'passed' | 'failed' | 'unreadable';
+  archiveMissingEntries?: string[] | null;
+  archiveCheckError?: string | null;
+}): { text: string; tone: string } | null {
+  switch (cell.archiveCheckStatus) {
+    case 'pending':
+      return { text: 'Đang kiểm', tone: 'text-muted-foreground' };
+    case 'passed':
+      return { text: 'Đủ nội dung', tone: 'text-success-strong' };
+    case 'failed':
+      return {
+        text: `Thiếu: ${(cell.archiveMissingEntries ?? []).join(', ')}`,
+        tone: 'text-danger-strong',
+      };
+    case 'unreadable':
+      return { text: `Không mở được: ${cell.archiveCheckError ?? ''}`, tone: 'text-danger-strong' };
+    case 'not_applicable':
+    case undefined:
+      return null;
+  }
+}
+
 function formatFileSize(value: string | null | undefined): string | null {
   if (!value) {
     return null;
@@ -345,6 +378,7 @@ export function SubmissionStatusTable({
                   const state: DeliverableState = cell?.state ?? 'pending';
                   const presentation = STATE_PRESENTATION[state];
                   const time = formatTime(cell?.submittedAt);
+                  const archiveCheck = cell ? describeArchiveCheck(cell) : null;
                   return (
                     <TableCell key={deliverable.id} className="whitespace-nowrap">
                       <span
@@ -364,6 +398,17 @@ export function SubmissionStatusTable({
                         <span className="ml-2 tabular-nums text-caption text-muted-foreground">
                           {time}
                         </span>
+                      )}
+                      {/* Ngay trong ô, không giấu sau "Xem bài nộp" — spec
+                          §9.2: con số giảng viên cần là "thiếu cái gì", và
+                          giấu nó sau một cú bấm làm chậm đúng việc họ đang
+                          làm. `whitespace-normal` cục bộ vì "Thiếu: ..." có
+                          thể dài hơn một dòng, khác với dòng trạng thái phía
+                          trên vốn luôn ngắn. */}
+                      {archiveCheck && (
+                        <p className={cn('mt-1 whitespace-normal text-caption', archiveCheck.tone)}>
+                          {archiveCheck.text}
+                        </p>
                       )}
                     </TableCell>
                   );
@@ -441,6 +486,7 @@ export function SubmissionStatusTable({
                 const fileFormat = cell?.downloadUrl
                   ? formatFileExtension(deliverable.requiredFilename)
                   : null;
+                const archiveCheck = cell ? describeArchiveCheck(cell) : null;
 
                 return (
                   <div
@@ -463,6 +509,9 @@ export function SubmissionStatusTable({
                       )}
                       {fileFormat && (
                         <p className="text-caption text-muted-foreground">Định dạng: {fileFormat}</p>
+                      )}
+                      {archiveCheck && (
+                        <p className={cn('text-caption', archiveCheck.tone)}>{archiveCheck.text}</p>
                       )}
                     </div>
 

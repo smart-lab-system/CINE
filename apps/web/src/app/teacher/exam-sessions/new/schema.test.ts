@@ -163,6 +163,99 @@ describe('createExamSessionSchema — rubric', () => {
   });
 });
 
+describe('createExamSessionSchema — file bên trong (đợt archive-content-validation, Task 9)', () => {
+  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
+
+  function baseValues(requiredFilenames: unknown) {
+    const start = futureStart();
+    const end = new Date(start.getTime() + 60 * 60_000);
+    return {
+      name: 'Kiểm tra giữa kỳ',
+      classId: VALID_UUID,
+      roomName: 'P.A101',
+      semesterName: 'HK1 2026-2027',
+      examType: 'GK' as const,
+      startTime: toLocalInput(start),
+      endTime: toLocalInput(end),
+      requiredFilenames,
+    };
+  }
+
+  it('cho khai entries khi tên file là .zip', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'a.zip', entries: [{ value: 'Main.java' }] }]),
+    );
+    expect(r.success).toBe(true);
+  });
+
+  it('TỪ CHỐI entries khi tên file là .docx — phải khớp DTO backend', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'a.docx', entries: [{ value: 'Main.java' }] }]),
+    );
+    expect(r.success).toBe(false);
+  });
+
+  it('TỪ CHỐI entry có dấu "/" — khớp theo tên nên đường dẫn là vô nghĩa', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'a.zip', entries: [{ value: 'src/Main.java' }] }]),
+    );
+    expect(r.success).toBe(false);
+  });
+
+  it('TỪ CHỐI quá 20 entry', () => {
+    const entries = Array.from({ length: 21 }, (_, i) => ({ value: `f${i}.java` }));
+    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'a.zip', entries }]));
+    expect(r.success).toBe(false);
+  });
+
+  it('CHO ĐÚNG 20 entry', () => {
+    const entries = Array.from({ length: 20 }, (_, i) => ({ value: `f${i}.java` }));
+    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'a.zip', entries }]));
+    expect(r.success).toBe(true);
+  });
+
+  it('.ZIP viết hoa vẫn được khai entries', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'BaiThi.ZIP', entries: [{ value: 'Main.java' }] }]),
+    );
+    expect(r.success).toBe(true);
+  });
+
+  it('.rar cũng được khai entries', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'BaiThi.rar', entries: [{ value: 'Main.java' }] }]),
+    );
+    expect(r.success).toBe(true);
+  });
+
+  it('không khai entries vẫn hợp lệ trên .zip — tuỳ chọn, không bắt buộc', () => {
+    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'a.zip' }]));
+    expect(r.success).toBe(true);
+  });
+
+  it('entries rỗng thì như không khai gì cả', () => {
+    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'a.zip', entries: [] }]));
+    expect(r.success).toBe(true);
+  });
+
+  it('TỪ CHỐI entry trùng tên trong cùng một deliverable', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'a.zip', entries: [{ value: 'M.java' }, { value: 'M.java' }] }]),
+    );
+    expect(r.success).toBe(false);
+  });
+
+  it('trộn deliverable có entries và không có entries trong cùng danh sách', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([
+        { value: 'Cau1.docx' },
+        { value: 'BaiThi.zip', entries: [{ value: 'Main.java' }] },
+      ]),
+    );
+    expect(r.success).toBe(true);
+  });
+});
+
 describe('describeCreateError', () => {
   it('shows the server’s own explanation when there is one', () => {
     // A room clash names the room and the session holding it. Replacing

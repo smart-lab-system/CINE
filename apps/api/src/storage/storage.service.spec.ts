@@ -181,6 +181,34 @@ describe('StorageService', () => {
     });
   });
 
+  describe('getObjectSize', () => {
+    it('returns ContentLength when HeadObject succeeds', async () => {
+      sendMock.mockResolvedValue({ ContentLength: 12_345 });
+
+      expect(await service.getObjectSize('submissions/x/y/z')).toBe(12_345);
+      expect(sendMock.mock.calls[0][0].input).toEqual({
+        Bucket: 'test-bucket',
+        Key: 'submissions/x/y/z',
+      });
+    });
+
+    it('returns null on a 404, without throwing', async () => {
+      sendMock.mockRejectedValue(s3Error('NotFound', 404));
+
+      expect(await service.getObjectSize('submissions/x/y/z')).toBeNull();
+    });
+
+    it('returns null when the head response carries no ContentLength', async () => {
+      sendMock.mockResolvedValue({});
+
+      expect(await service.getObjectSize('submissions/x/y/z')).toBeNull();
+    });
+
+    it('rethrows a storage outage instead of reporting a fake size', async () => {
+      sendMock.mockRejectedValue(s3Error('InternalError', 500));
+
+      await expect(service.getObjectSize('submissions/x/y/z')).rejects.toThrow();
+  
   describe('putObject', () => {
     it('gửi đúng bucket, key, body và content-type', async () => {
       sendMock.mockResolvedValue({});
@@ -201,7 +229,6 @@ describe('StorageService', () => {
     // được đi tiếp rồi ghi một dòng DB trỏ vào object không tồn tại.
     it('ném khi kho lưu trữ từ chối', async () => {
       sendMock.mockRejectedValue(s3Error('InternalError', 500));
-
       await expect(service.putObject('materials/s/m', Buffer.from('x'), 'text/plain')).rejects.toThrow();
     });
   });

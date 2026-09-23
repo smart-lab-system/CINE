@@ -20,7 +20,7 @@ function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
     requiredDeliverableCount: 2, expectedCount: 22, rosterKnown: true,
     fullySubmittedCount: 22, partialCount: 0,
     attendedNoSubmissionCount: 0, neverAttendedCount: 0, satElsewhereCount: 0,
-    invalidFileCount: 0, matchedStudents: null,
+    invalidFileCount: 0, archiveIssueCount: 0, matchedStudents: null,
     archivedAt: null, attentionClosedAt: null,
     rubricId: null, rubricVersion: null,
     ...o,

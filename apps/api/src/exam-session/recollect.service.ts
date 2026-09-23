@@ -57,7 +57,14 @@ export class RecollectService {
        collected AS (
          SELECT student_mssv, COUNT(*)::int AS n
            FROM examcollect.submission
-          WHERE exam_session_id = $1 AND status = 'collected'
+          WHERE exam_session_id = $1
+            AND status = 'collected'
+            -- Một bài về tới nơi nhưng bên trong (file nén) thiếu nội dung
+            -- thì CHƯA xong — spec 2026-09-21-archive-content-validation
+            -- §8.1. 'pending' KHÔNG tính là thiếu: chưa có kết luận thì
+            -- chưa kết luận, và đếm nó vào đây sẽ giục giảng viên "Thu
+            -- lại" một bài mà job kiểm chỉ còn vài giây nữa là xong.
+            AND archive_check_status NOT IN ('failed', 'unreadable')
           GROUP BY student_mssv
        )
        SELECT e.student_mssv AS mssv, e.student_name AS name

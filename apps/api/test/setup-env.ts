@@ -69,4 +69,20 @@ if (process.env.E2E_ALLOW_REMOTE_INFRA !== 'true') {
     throw new Error('[e2e] REDIS_HOST chưa được đặt trong .env.test.');
   }
   assertLocal(redisHost, 'REDIS_HOST', redisHost);
+
+  // `buildRedisConnection` ƯU TIÊN REDIS_URL khi nó có mặt — nên kiểm
+  // REDIS_HOST một mình là không đủ. Phát hiện 2026-09-22: `.env.test` từng
+  // không khai REDIS_URL, dotenv coi nó là "chưa có" và điền thẳng giá trị
+  // cloud từ `.env` vào lúc `data-source.ts` nạp sau — kết quả là MỌI job
+  // BullMQ của e2e (archive-check lẫn grading) âm thầm chạy trên Redis từ
+  // xa hàng trăm lần trước khi bị phát hiện. `.env.test` giờ khai
+  // `REDIS_URL=` (rỗng) để đóng lỗ đó tại nguồn; guard này là lớp thứ hai —
+  // nổ ngay nếu dòng đó biến mất hoặc bị gán một giá trị không phải local.
+  if (process.env.REDIS_URL) {
+    assertLocal(
+      hostnameOf(process.env.REDIS_URL, 'REDIS_URL'),
+      'REDIS_URL',
+      String(process.env.REDIS_URL).replace(/\/\/[^@]*@/, '//***@'),
+    );
+  }
 }

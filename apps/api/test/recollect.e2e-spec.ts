@@ -4,7 +4,10 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { io, Socket } from 'socket.io-client';
 import { DataSource } from 'typeorm';
+import { getQueueToken } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import { AppModule } from '../src/app.module';
+import { ARCHIVE_CHECK_QUEUE } from '../src/submission/archive-check/archive-check.constants';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { ExamSessionScheduler } from '../src/exam-session/exam-session.scheduler';
 import { createTestAccount } from './helpers/create-account';
@@ -62,7 +65,9 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
    * vẫn nằm trong cửa sổ nhận bài, nên upload trong `collecting` không
    * phải chống lại `isAcceptingUploads`.
    */
-  async function seedActiveSession(requiredFilenames = ['Cau1.docx']): Promise<SeededSession> {
+  async function seedActiveSession(
+    requiredFilenames: (string | { filename: string; entries?: string[] })[] = ['Cau1.docx'],
+  ): Promise<SeededSession> {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
     const room = { name: `Recollect Room ${suffix}` };
@@ -258,6 +263,82 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
 
     expect(got).toBe(true);
     expect(res.body).toMatchObject({ missing: 1, acknowledged: 1 });
+  });
+
+  /**
+   * Task 8 của kế hoạch archive-content-validation §8.1: file nén về tới
+   * nơi (đủ SỐ LƯỢNG deliverable, `status='collected'`) nhưng bên trong
+   * thiếu nội dung thì CHƯA xong — phải nằm trong danh sách thu lại y hệt
+   * em trắng tay, vì hành động giảng viên cần làm là như nhau: nhắc em
+   * nén lại rồi bấm "Thu lại".
+   */
+  it('em nộp đủ file nhưng zip thiếu nội dung VẪN nằm trong danh sách thu lại', async () => {
+    const session = await seedActiveSession([
+      { filename: 'BaiThi.zip', entries: ['Main.java'] },
+    ]);
+    await enrol('SVRC030', 'Em zip thieu noi dung', session.classId);
+    const agent = await joinAgent(session, 'SVRC030');
+    await advanceToCollecting(session);
+    // Submit thành công ở tầng "có file hay không" — collected thật sự.
+    await submitOne(agent, session, 'SVRC030', session.deliverableIds[0]);
+    // Giả lập kết luận của processor: zip về tới nơi nhưng thiếu Main.java.
+    await dataSource.query(
+      `UPDATE examcollect.submission
+          SET archive_check_status = 'failed', archive_missing_entries = ARRAY['Main.java']
+        WHERE exam_session_id = $1 AND student_mssv = $2`,
+      [session.id, 'SVRC030'],
+    );
+
+    let got = false;
+    answerRecollect(agent, () => {
+      got = true;
+    });
+
+    const res = await recollect(session.id);
+
+    expect(got).toBe(true);
+    expect(res.body).toMatchObject({ missing: 1, acknowledged: 1 });
+  });
+
+  it('pending KHÔNG tính là thiếu — chưa có kết luận thì chưa kết luận', async () => {
+    const session = await seedActiveSession([
+      { filename: 'BaiThi.zip', entries: ['Main.java'] },
+    ]);
+    await enrol('SVRC031', 'Em dang cho ket luan', session.classId);
+    const agent = await joinAgent(session, 'SVRC031');
+    await advanceToCollecting(session);
+    // Tạm dừng hàng đợi TRƯỚC KHI nộp — processor thật (Task 6, sống
+    // trong app test này) sẽ chạy nếu không chặn, và nội dung `submitOne`
+    // tải lên là một chuỗi bất kỳ (không phải zip hợp lệ) nên nó sẽ kết
+    // luận 'unreadable' trong vài trăm mili giây, làm dòng RỜI 'pending'
+    // trước khi test kịp gọi recollect — một cuộc đua y hệt đã gặp ở
+    // archive-check.e2e-spec.ts. `pause()` là cách chặn TẤT ĐỊNH, không
+    // dựa vào việc đọc kịp trước worker.
+    const archiveCheckQueue = app.get<Queue>(getQueueToken(ARCHIVE_CHECK_QUEUE));
+    await archiveCheckQueue.pause();
+    try {
+      await submitOne(agent, session, 'SVRC031', session.deliverableIds[0]);
+      const [row] = await dataSource.query(
+        `SELECT archive_check_status FROM examcollect.submission
+          WHERE exam_session_id = $1 AND student_mssv = $2`,
+        [session.id, 'SVRC031'],
+      );
+      expect(row.archive_check_status).toBe('pending');
+
+      let got = false;
+      answerRecollect(agent, () => {
+        got = true;
+      });
+
+      const res = await recollect(session.id);
+
+      expect(got).toBe(false);
+      expect(res.body).toMatchObject({ missing: 0 });
+    } finally {
+      // Trả lại vòng cho các test khác — pause() là toàn cục theo TÊN
+      // hàng đợi, không phải theo test.
+      await archiveCheckQueue.resume();
+    }
   });
 
   it('MSSV lệch hoa thường vẫn nhắm trúng', async () => {

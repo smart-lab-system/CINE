@@ -257,29 +257,33 @@ export class StorageService {
   }
 
   /**
-   * Ghi bytes thẳng từ tiến trình này lên kho.
+   * Kích thước THẬT của object, từ metadata của storage — dùng làm cửa
+   * chặn trước khi tải một file nén về kiểm (spec
+   * 2026-09-21-archive-content-validation-design.md §10.2).
    *
-   * KHÔNG phải lỗ hổng của Security rule 5, cùng lý lẽ với `getObject`: rule
-   * đó nói về file NGƯỜI DÙNG đẩy lên — một phòng thi cùng nộp một lúc mà đi
-   * qua API là biến API thành nút thắt, và đã có presigned URL cho đúng việc
-   * ấy. Ở đây file do CHÍNH SERVER sinh ra (đề và đáp án dựng từ `examJson`
-   * ngay trong tiến trình): bytes đã nằm sẵn trong bộ nhớ, không có chuyến
-   * đi nào để tiết kiệm. Ký một URL rồi tự PUT vào URL của chính mình chỉ
-   * thêm hai chặng mạng và một cách hỏng mới.
-   *
-   * Một lượt gắn đề là một lần bấm nút của một giảng viên, không phải 40
-   * agent cùng lúc.
+   * KHÔNG dùng `submission.file_size` cho việc này: cột đó lấy từ
+   * `ConfirmSubmissionDto.fileSize`, tức con số AGENT KHAI trong payload
+   * `submission:confirm`. Một cửa chặn dựng trên nó nằm trong tay đúng bên
+   * nó phải chặn — khai `fileSize: 1` rồi đẩy 5GB là qua sạch.
+   * `HeadObjectCommand.ContentLength` là sự thật duy nhất server tự đo
+   * được, không đi qua tay client.
    */
-  async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: body,
-        ContentType: contentType,
-        ContentLength: body.length,
-      }),
-    );
+  async getObjectSize(key: string): Promise<number | null> {
+    try {
+      const head = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return head.ContentLength ?? null;
+    } catch (error) {
+      if (isNotFound(error)) {
+        return null;
+      }
+      this.logger.error(
+        `HeadObject failed for key ${key}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
   }
 }
 

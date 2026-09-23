@@ -70,6 +70,17 @@ export interface SessionOverviewItem {
   invalidFileCount: number;
 
   /**
+   * Số bài mà file nén đã về tới nơi nhưng kiểm nội dung bên trong ra
+   * `failed` hoặc `unreadable` — spec
+   * 2026-09-21-archive-content-validation-design.md §8.3.
+   *
+   * KHÔNG gộp vào `invalidFileCount`: nó đếm một khái niệm khác (`invalidFileCount`
+   * chưa có luồng nào sinh ra — xem submission-attention.ts), và trộn hai
+   * thứ vào một số là làm cả hai không đọc được.
+   */
+  archiveIssueCount: number;
+
+  /**
    * Học kỳ, chụp lúc tạo phiên — nguồn cho bộ lọc phạm vi (spec §4.3).
    *
    * Từng là `semesterId`, suy ra qua `course.semester_id`. Cả hai bảng đã

@@ -39,6 +39,12 @@ export const PHASE_VARIANTS: Record<SessionPhase, NonNullable<BadgeProps['varian
 export type AttentionKind =
   | 'attended-no-submission'
   | 'partial'
+  /**
+   * File nén đã về tới nơi (không phải 'partial' — đủ SỐ LƯỢNG deliverable)
+   * nhưng kiểm nội dung bên trong ra failed/unreadable — spec
+   * 2026-09-21-archive-content-validation-design.md §8.3.
+   */
+  | 'archive-issue'
   | 'never-attended'
   /** Có mặt ở một phiên khác cùng môn + cùng loại kỳ thi. Không phải lỗi. */
   | 'sat-elsewhere';
@@ -118,9 +124,12 @@ export function hasRatio(item: SessionOverviewItem): boolean {
  *  3. hasRatio         — không biết roster hoặc chưa khai file bắt buộc thì
  *                        không thể nói ai thiếu
  *
- * `invalidFileCount` KHÔNG sinh lý do: chưa luồng production nào tạo ra
- * status 'invalid' (TODO ở submission.service.ts). Đừng để giảng viên tin hệ
- * thống đang canh một thứ nó không canh — spec §4.4.
+ * `invalidFileCount` KHÔNG sinh lý do, và từ 2026-09-22 đây là một QUYẾT
+ * ĐỊNH, không phải việc còn dở: `submission_status = 'invalid'` đã NGHỈ HƯU
+ * (spec 2026-09-21-archive-content-validation-design.md §8.2). Mọi kết luận
+ * về nội dung bài nộp đi qua `archiveIssueCount` ngay bên dưới. Đừng
+ * implement nhánh `'invalid'` — nó sẽ là tín hiệu thứ hai cho cùng một mối
+ * lo, đúng loại hai-nguồn-sự-thật mà dự án này đã hai lần phải đi dọn.
  */
 export function getAttentionReasons(
   item: SessionOverviewItem,
@@ -145,6 +154,18 @@ export function getAttentionReasons(
       kind: 'partial',
       count: item.partialCount,
       label: `${item.partialCount} sinh viên nộp thiếu file`,
+      tone: 'warning',
+      priority: 2,
+    });
+  }
+  // Cùng bậc với 'partial' (priority 2, tone 'warning'): cả hai đều nghĩa
+  // là "trông như đã nộp xong nhưng chưa thật sự đủ", và cả hai đòi cùng
+  // một hành động của giảng viên — nhắc em nộp lại rồi bấm "Thu lại".
+  if (item.archiveIssueCount > 0) {
+    reasons.push({
+      kind: 'archive-issue',
+      count: item.archiveIssueCount,
+      label: `${item.archiveIssueCount} bài nén thiếu nội dung bên trong`,
       tone: 'warning',
       priority: 2,
     });

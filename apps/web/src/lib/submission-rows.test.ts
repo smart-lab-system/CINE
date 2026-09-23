@@ -54,6 +54,9 @@ function submission(overrides: Partial<SubmissionStatusItem> = {}): SubmissionSt
     submittedAt: '2026-08-29T04:00:00.000Z',
     fileSize: '2048',
     downloadUrl: 'https://storage.example/signed',
+    archiveCheckStatus: 'not_applicable',
+    archiveMissingEntries: null,
+    archiveCheckError: null,
     ...overrides,
   };
 }
@@ -83,10 +86,31 @@ describe('buildSubmissionRows', () => {
             submittedAt: '2026-08-29T04:00:00.000Z',
             downloadUrl: 'https://storage.example/signed',
             fileSize: '2048',
+            archiveCheckStatus: 'not_applicable',
+            archiveMissingEntries: null,
+            archiveCheckError: null,
           },
         },
       },
     ]);
+  });
+
+  it('mang theo ba cột kiểm file nén vào cell, không suy diễn gì thêm', () => {
+    // Task 10 — trực giao với `state`: một deliverable `collected` vẫn có
+    // thể `archiveCheckStatus: 'failed'` (spec §8.3).
+    const rows = buildSubmissionRows(attendance(), [
+      submission({
+        archiveCheckStatus: 'failed',
+        archiveMissingEntries: ['Main.java', 'BaoCao.docx'],
+        archiveCheckError: null,
+      }),
+    ]);
+
+    expect(rows[0].byDeliverable['deliverable-1']).toMatchObject({
+      state: 'collected',
+      archiveCheckStatus: 'failed',
+      archiveMissingEntries: ['Main.java', 'BaoCao.docx'],
+    });
   });
 
   it('merges a submission into the same row as the matching attendance record', () => {

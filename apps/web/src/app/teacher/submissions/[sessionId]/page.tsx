@@ -3,8 +3,14 @@
 import { Suspense, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardCheck, Inbox } from 'lucide-react';
-import { useAttendance, useExamSessionDetail, useSubmissions } from '@/hooks/useExamSession';
+import { toast } from 'sonner';
+import { ClipboardCheck, Inbox, Loader2, RefreshCw } from 'lucide-react';
+import {
+  useArchiveRecheck,
+  useAttendance,
+  useExamSessionDetail,
+  useSubmissions,
+} from '@/hooks/useExamSession';
 import { useGradingResults } from '@/hooks/useGrading';
 import { buildSubmissionRows, countFullySubmitted } from '@/lib/submission-rows';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
@@ -13,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { SubmissionStatusTable } from '@/app/(exam-live)/exam-sessions/[id]/_components/SubmissionStatusTable';
 
 /**
@@ -45,6 +52,27 @@ function SubmissionSessionDetailContent() {
   const attendance = useAttendance(sessionId);
   const submissions = useSubmissions(sessionId);
   const gradingResults = useGradingResults(sessionId);
+  const archiveRecheck = useArchiveRecheck(sessionId);
+
+  /**
+   * "Kiểm lại" — đọc-rồi-xếp-hàng, không đụng bài nộp (xem doc comment
+   * trên `useArchiveRecheck`). Toast thay vì Alert cạnh bảng: trang này
+   * không có socket để dòng thời gian trôi qua tự nhiên như trang lobby,
+   * nên một thông báo tức thời rồi biến mất là đủ — cùng quy ước
+   * admin/accounts/page.tsx đã dùng cho mọi mutation của nó.
+   */
+  function handleArchiveRecheck() {
+    archiveRecheck.mutate(undefined, {
+      onSuccess: (result) => {
+        toast.success(
+          result.requeued > 0
+            ? `Đã xếp lại ${result.requeued} bài vào hàng đợi kiểm file nén.`
+            : 'Không có bài nào cần kiểm lại.',
+        );
+      },
+      onError: () => toast.error('Không kiểm lại được. Vui lòng thử lại.'),
+    });
+  }
 
   /**
    * Chỉ-đọc. Nguồn là GET /exam-sessions/:id/grading-results, đã có sẵn —
@@ -133,6 +161,29 @@ function SubmissionSessionDetailContent() {
         </div>
         <div className="flex shrink-0 items-center gap-3 self-start">
           {displayStatus && <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>}
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={archiveRecheck.isPending}
+                  onClick={handleArchiveRecheck}
+                >
+                  {archiveRecheck.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  Kiểm lại
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Chạy lại phép kiểm file nén cho các bài lỗi — không đụng bài nộp, không cần sinh
+                viên nộp lại.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Button asChild size="sm">
             <Link href={`/teacher/grading?sessionId=${sessionId}`}>
               <ClipboardCheck className="h-4 w-4" aria-hidden="true" />

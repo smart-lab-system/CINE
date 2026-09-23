@@ -9,6 +9,7 @@ import { SessionRosterEntity } from '../exam-session/entities/session-roster.ent
 import { GradingReferenceEntity } from '../grading/entities/grading-reference.entity';
 import { GradingAnchorSnapshotEntity } from '../grading/entities/grading-anchor-snapshot.entity';
 import { RequiredDeliverableEntity } from '../exam-session/entities/required-deliverable.entity';
+import { RequiredDeliverableEntryEntity } from '../exam-session/entities/required-deliverable-entry.entity';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { AgentConnectionEventEntity } from '../agent-connection/entities/agent-connection-event.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
@@ -84,6 +85,7 @@ export const dataSourceOptions: DataSourceOptions = {
     ExamSessionEntity,
     SessionRosterEntity,
     RequiredDeliverableEntity,
+    RequiredDeliverableEntryEntity,
     ExamMaterialEntity,
     AgentConnectionEventEntity,
     SubmissionEntity,

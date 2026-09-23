@@ -114,7 +114,15 @@ export default function NewExamSessionPage() {
         // ra ngoài dây dưới dạng field vắng mặt — đúng cái DTO @IsOptional
         // của server chờ đợi.
         rubricId: values.rubricId,
-        requiredFilenames: values.requiredFilenames.map((filename) => filename.value),
+        // Chỉ gửi `entries` khi khối "Kiểm file bên trong" thực sự có dòng
+        // nào — bỏ hẳn key thay vì gửi mảng rỗng, khớp đúng luật DTO backend
+        // "mảng rỗng/vắng mặt = không khai file bên trong" (spec §4.1).
+        requiredFilenames: values.requiredFilenames.map((filename) => ({
+          filename: filename.value,
+          ...(filename.entries && filename.entries.length > 0
+            ? { entries: filename.entries.map((entry) => entry.value) }
+            : {}),
+        })),
       },
       {
         onSuccess: (session) => setCreated({ id: session.id, code: session.code }),

@@ -187,6 +187,55 @@ describe('ExamSession (e2e)', () => {
     expect(second.body.code).not.toBe(response.body.code);
   });
 
+  // Đợt archive-content-validation (2026-09-21/22). Kiểm cả hai đường
+  // toResponseDto() đọc entries: create() (đọc TRONG giao dịch, dùng
+  // manager) và findByIdForOwner() (đọc SAU, dùng repo đã inject) — hai
+  // đường lấy dữ liệu khác nhau, cả hai phải ra cùng một kết quả.
+  it('lưu và trả về danh sách file bên trong một deliverable dạng .zip', async () => {
+    const { startTime, endTime } = futureWindow();
+
+    const created = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Archive Entries Session',
+        classId,
+        roomName,
+        semesterName: 'HK kiểm thử',
+        examType: 'TK',
+        startTime,
+        endTime,
+        requiredFilenames: [
+          'BaoCao.docx',
+          { filename: 'BaiThi.zip', entries: ['Main.java', 'BaoCao.docx'] },
+        ],
+      });
+
+    expect(created.status).toBe(201);
+    const plain = created.body.requiredDeliverables.find(
+      (d: { requiredFilename: string }) => d.requiredFilename === 'BaoCao.docx',
+    );
+    const archived = created.body.requiredDeliverables.find(
+      (d: { requiredFilename: string }) => d.requiredFilename === 'BaiThi.zip',
+    );
+    // Deliverable không khai entries: mảng RỖNG, không phải null/undefined
+    // — §4.1 của spec, "không có cờ bật/tắt riêng, mảng rỗng = không kiểm".
+    expect(plain.entries).toEqual([]);
+    expect(archived.entries).toEqual(['Main.java', 'BaoCao.docx']);
+
+    // Đường thứ hai: GET /exam-sessions/:id đi qua findByIdForOwner(), một
+    // hàm hoàn toàn khác create() — phải đọc lại được đúng như vậy sau khi
+    // giao dịch tạo phiên đã commit từ lâu.
+    const fetched = await request(app.getHttpServer())
+      .get(`/exam-sessions/${created.body.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+    expect(fetched.status).toBe(200);
+    const archivedAgain = fetched.body.requiredDeliverables.find(
+      (d: { requiredFilename: string }) => d.requiredFilename === 'BaiThi.zip',
+    );
+    expect(archivedAgain.entries).toEqual(['Main.java', 'BaoCao.docx']);
+  });
+
   it('derives the course from the class instead of taking it from the body', async () => {
     const { startTime, endTime } = futureWindow();
 

@@ -23,6 +23,17 @@ export interface AgentSocketIdentity {
    */
   homeClassId: string;
   homeTeacherId: string;
+  /**
+   * Tên máy trạm, như agent báo lúc join — hoặc `null` nếu không báo.
+   *
+   * KHÔNG đưa vào phép kiểm falsy bên dưới cùng bốn trường kia:
+   * `null` là một giá trị HỢP LỆ ("không có tên máy"), không phải dấu hiệu
+   * identity chưa đọc được. Gộp chung sẽ từ chối oan mọi phiên không dùng
+   * token `{SOMAY}` — điều mà spec
+   * 2026-09-21-archive-content-validation-design.md §5.2 gọi là đúng cái
+   * bẫy cần tránh, chỉ khác chỗ nổ ra.
+   */
+  machineName: string | null;
 }
 
 export function readAgentIdentity(client: Socket): AgentSocketIdentity | null {
@@ -34,7 +45,8 @@ export function readAgentIdentity(client: Socket): AgentSocketIdentity | null {
   if (!examSessionId || !studentId || !fullName || !homeClassId || !homeTeacherId) {
     return null;
   }
-  return { examSessionId, studentId, fullName, homeClassId, homeTeacherId };
+  const machineName = (client.data?.machineName as string | null | undefined) ?? null;
+  return { examSessionId, studentId, fullName, homeClassId, homeTeacherId, machineName };
 }
 
 /**

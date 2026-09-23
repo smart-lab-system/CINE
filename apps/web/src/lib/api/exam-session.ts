@@ -30,13 +30,31 @@ export interface CreateExamSessionInput {
   startTime: string;
   /** ISO 8601, must be after `startTime`. */
   endTime: string;
-  requiredFilenames: string[];
+  /**
+   * Backend chấp nhận cả chuỗi trần lẫn object (tương thích ngược — spec
+   * `2026-09-21-archive-content-validation-design.md` §8.4), nhưng bề mặt
+   * OpenAPI do `@nestjs/swagger` sinh ra chỉ phản ánh KIỂU TĨNH khai trên
+   * DTO (`RequiredFilenameDto[]`) — nó không biết `@Transform` còn nhận
+   * thêm chuỗi trần lúc chạy, vì đó là hành vi runtime chứ không phải một
+   * phần của type. `packages/shared/src/api/schema.d.ts` vì vậy chỉ chấp
+   * nhận dạng object, và type ở đây khớp đúng cái đó — không phải một cắt
+   * giảm tính năng.
+   *
+   * Biểu mẫu hiện tại (`new/page.tsx`) chỉ gửi `{ filename }`, chưa gửi
+   * `entries` — khối "Kiểm file bên trong" là việc của một task riêng.
+   */
+  requiredFilenames: { filename: string; entries?: string[] }[];
 }
 
 export interface RequiredDeliverableResponse {
   id: string;
   requiredFilename: string;
   deliverableType: string;
+  /**
+   * Tên các file phải nằm BÊN TRONG, nếu deliverable này là file nén và
+   * giảng viên đã khai. Mảng rỗng = không khai file bên trong.
+   */
+  entries: string[];
 }
 
 // Mirrors ExamSessionResponseDto
@@ -107,6 +125,17 @@ export interface SubmissionStatusItem {
   /** Lớp GỐC của sinh viên. Khác lớp của phiên nghĩa là THI BÙ. */
   homeClassId: string;
   homeClassName: string | null;
+  /**
+   * Kết quả kiểm nội dung file nén — spec
+   * 2026-09-21-archive-content-validation-design.md §4.2/§7. Mirror
+   * `ArchiveCheckStatus` (apps/api/src/submission/entities/submission.entity.ts).
+   * `not_applicable` với mọi deliverable không khai file bên trong.
+   */
+  archiveCheckStatus: 'not_applicable' | 'pending' | 'passed' | 'failed' | 'unreadable';
+  /** Chỉ khác `null` khi `archiveCheckStatus === 'failed'`. */
+  archiveMissingEntries: string[] | null;
+  /** Chỉ khác `null` khi `archiveCheckStatus === 'unreadable'`. */
+  archiveCheckError: string | null;
 }
 
 /**
@@ -322,6 +351,25 @@ export async function recollectSubmissions(id: string): Promise<RecollectResult>
   });
   await throwIfFailed(error, response);
   return data as unknown as RecollectResult;
+}
+
+export interface ArchiveRecheckResult {
+  /** Bao nhiêu dòng được xếp lại vào hàng đợi — không phải số đã xong. */
+  requeued: number;
+}
+
+/**
+ * "Kiểm lại" — xếp lại các bài `failed`/`unreadable`/`pending` mồ côi vào
+ * hàng đợi kiểm file nén, KHÔNG đụng file đã lưu. Bấm bao nhiêu lần cũng
+ * được, cùng tính chất đọc-rồi-xếp-hàng như `recollectSubmissions`. Xem
+ * ArchiveRecheckService (apps/api).
+ */
+export async function archiveRecheck(examSessionId: string): Promise<ArchiveRecheckResult> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/archive-recheck', {
+    params: { path: { id: examSessionId } },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as ArchiveRecheckResult;
 }
 
 /**

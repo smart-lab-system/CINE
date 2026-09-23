@@ -31,6 +31,7 @@ function joinedSocket(
     fullName: string;
     homeClassId: string;
     homeTeacherId: string;
+    machineName: string | null;
   }> = {},
 ): Socket {
   return {
@@ -41,6 +42,7 @@ function joinedSocket(
       fullName: 'Nguyen Van A',
       homeClassId: '44444444-4444-4444-8444-444444444444',
       homeTeacherId: '55555555-5555-4555-8555-555555555555',
+      machineName: null,
       ...data,
     },
   } as unknown as Socket;
@@ -130,6 +132,7 @@ describe('SubmissionGateway — identity', () => {
       fullName: 'Nguyen Van A',
       homeClassId: '44444444-4444-4444-8444-444444444444',
       homeTeacherId: '55555555-5555-4555-8555-555555555555',
+      machineName: null,
     });
   });
 

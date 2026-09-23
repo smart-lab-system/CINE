@@ -35,6 +35,7 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     neverAttendedCount: 0,
     satElsewhereCount: 0,
     invalidFileCount: 0,
+    archiveIssueCount: 0,
     matchedStudents: null,
     semesterName: 'Học kỳ 1 2026-2027',
     rubricId: null,
@@ -235,9 +236,22 @@ describe('getAttentionReasons', () => {
     expect(getAttentionReasons(make({ status: 'cancelled', ...shape }), NOW)).toEqual([]);
   });
 
-  it('invalidFileCount KHÔNG sinh lý do — nó đang ngủ', () => {
+  it('invalidFileCount KHÔNG sinh lý do — NGHỈ HƯU (spec §8.2), không phải việc còn dở', () => {
     const item = make({ invalidFileCount: 7, fullySubmittedCount: 40 });
     expect(getAttentionReasons(item, NOW)).toEqual([]);
+  });
+
+  it('archiveIssueCount SINH lý do — kết luận về nội dung file nén đi qua đây, không qua invalidFileCount', () => {
+    const item = make({ archiveIssueCount: 3, fullySubmittedCount: 40 });
+    expect(getAttentionReasons(item, NOW)).toEqual([
+      {
+        kind: 'archive-issue',
+        count: 3,
+        label: '3 bài nén thiếu nội dung bên trong',
+        tone: 'warning',
+        priority: 2,
+      },
+    ]);
   });
 });
 

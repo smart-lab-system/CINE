@@ -99,6 +99,7 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
   const KIND_LABELS: Record<AttentionKind, string> = {
     'attended-no-submission': 'Nghi mất bài',
     partial: 'Thiếu file',
+    'archive-issue': 'File nén thiếu nội dung',
     'never-attended': 'Vắng thi',
     'sat-elsewhere': 'Thi bù ở phiên khác',
   };

@@ -527,6 +527,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/archive-recheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ArchiveRecheckController_archiveRecheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rubrics": {
         parameters: {
             query?: never;
@@ -836,6 +852,10 @@ export interface components {
             /** @enum {string} */
             role?: "admin" | "teacher";
         };
+        RequiredFilenameDto: {
+            filename: string;
+            entries?: string[];
+        };
         CreateExamSessionDto: {
             name: string;
             classId: string;
@@ -846,12 +866,13 @@ export interface components {
             examType: "TK" | "GK" | "CK";
             startTime: string;
             endTime: string;
-            requiredFilenames: string[];
+            requiredFilenames: components["schemas"]["RequiredFilenameDto"][];
         };
         RequiredDeliverableResponseDto: {
             id: string;
             requiredFilename: string;
             deliverableType: Record<string, never>;
+            entries: string[];
         };
         ExamSessionResponseDto: {
             id: string;
@@ -1937,6 +1958,25 @@ export interface operations {
             };
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ArchiveRecheckController_archiveRecheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;

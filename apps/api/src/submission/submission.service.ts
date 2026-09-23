@@ -1,9 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm';
 import { AgentSocketIdentity } from '../common/exam-live-socket';
 import { ExamSessionService } from '../exam-session/exam-session.service';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
+import { RequiredDeliverableEntryEntity } from '../exam-session/entities/required-deliverable-entry.entity';
+import { renderFilename, FilenameContext } from '../exam-session/filename-template';
 import { StorageService } from '../storage/storage.service';
 import { SubmissionEntity } from './entities/submission.entity';
 import { RequestUploadUrlDto } from './dto/request-upload-url.dto';
@@ -19,6 +23,8 @@ import {
   SUBMISSION_GRACE_PERIOD_MS,
 } from './submission.types';
 import { isCollectionOpen } from '../exam-session/exam-session.types';
+import { ARCHIVE_CHECK_QUEUE } from './archive-check/archive-check.constants';
+import { ArchiveCheckJob, ARCHIVE_CHECK_JOB_OPTIONS } from './archive-check/archive-check.types';
 
 /** Postgres unique_violation. */
 const UNIQUE_VIOLATION = '23505';
@@ -49,6 +55,10 @@ export interface SubmissionStatusView {
    */
   homeClassId: string;
   homeClassName: string | null;
+  /** Xem doc comment trên `SubmissionEntity.archiveCheckStatus`. */
+  archiveCheckStatus: SubmissionEntity['archiveCheckStatus'];
+  archiveMissingEntries: string[] | null;
+  archiveCheckError: string | null;
 }
 
 /**
@@ -87,6 +97,8 @@ export class SubmissionService {
     private readonly submissions: Repository<SubmissionEntity>,
     private readonly examSessions: ExamSessionService,
     private readonly storage: StorageService,
+    @InjectQueue(ARCHIVE_CHECK_QUEUE)
+    private readonly archiveCheckQueue: Queue<ArchiveCheckJob>,
   ) {}
 
   /**
@@ -181,12 +193,36 @@ export class SubmissionService {
       };
     }
 
-    const saved = await this.upsertCollected(identity, dto, expectedKey);
+    const saved = await this.upsertCollected(identity, dto, expectedKey, guard.session.roomName);
     // Không thể null ở đây: `upsertCollected` vừa ghi `submittedAt` trên
     // MỌI nhánh của nó. Vế `??` là để trình biên dịch không phải tin lời
     // tôi — nếu một nhánh tương lai quên ghi, ack sẽ nói giờ hiện tại
     // thay vì nổ ở giữa một lượt nộp bài đang diễn ra.
     const submittedAt = (saved.submittedAt ?? new Date()).toISOString();
+
+    // NGOÀI giao dịch, có chủ ý — `upsertCollected` đã commit trước khi
+    // Promise của nó resolve. Enqueue TRONG giao dịch để worker nhấc job
+    // lên và đọc dòng TRƯỚC KHI commit — thấy dòng chưa có bản chụp, hoặc
+    // chưa tồn tại (spec §5.3.1).
+    //
+    // Cái giá: enqueue hỏng ở đúng khe này (Redis rớt) để lại một dòng
+    // `pending` không có job. Không có timeout nào tự vớt — đó là việc
+    // của POST :id/archive-recheck (Task 7).
+    if (saved.archiveCheckStatus === 'pending') {
+      try {
+        await this.archiveCheckQueue.add(
+          'check',
+          { submissionId: saved.id },
+          ARCHIVE_CHECK_JOB_OPTIONS,
+        );
+      } catch (enqueueError) {
+        this.logger.error(
+          `Không đẩy được job kiểm file nén cho submission ${saved.id} — ` +
+            `dùng "Kiểm lại" để chạy tay`,
+          enqueueError instanceof Error ? enqueueError.stack : String(enqueueError),
+        );
+      }
+    }
 
     return {
       ack: { ok: true, status: saved.status, submittedAt },
@@ -242,6 +278,9 @@ export class SubmissionService {
         submittedAt: row.submittedAt,
         fileSize: row.fileSize,
         homeClassId: row.homeClassId,
+        archiveCheckStatus: row.archiveCheckStatus,
+        archiveMissingEntries: row.archiveMissingEntries,
+        archiveCheckError: row.archiveCheckError,
         // `?.` chứ không `[index].`: `getRawAndEntities` trả raw song song
         // với entities, nhưng nếu một ngày chúng lệch nhau thì thứ hỏng phải
         // là MỘT cái nhãn, không phải cả trang bài nộp.
@@ -342,7 +381,10 @@ export class SubmissionService {
   private async resolveTarget(
     identity: AgentSocketIdentity,
     requiredDeliverableId: string,
-  ): Promise<{ ok: true } | { ok: false; error: SubmissionAckError }> {
+  ): Promise<
+    | { ok: true; session: ExamSessionEntity }
+    | { ok: false; error: SubmissionAckError }
+  > {
     const session = await this.examSessions.findById(identity.examSessionId);
     if (!session) {
       // The socket joined this session, so it existed moments ago. Report it
@@ -378,7 +420,7 @@ export class SubmissionService {
       };
     }
 
-    return { ok: true };
+    return { ok: true, session };
   }
 
   /**
@@ -398,11 +440,12 @@ export class SubmissionService {
     identity: AgentSocketIdentity,
     dto: ConfirmSubmissionDto,
     storageKey: string,
+    roomName: string,
     attempt = 1,
   ): Promise<SubmissionEntity> {
     try {
       return await this.dataSource.transaction((manager) =>
-        this.writeCollected(manager, identity, dto, storageKey),
+        this.writeCollected(manager, identity, dto, storageKey, roomName),
       );
     } catch (caught) {
       // Two agents (or one agent retrying) confirming the same deliverable
@@ -413,10 +456,69 @@ export class SubmissionService {
         this.logger.debug(
           `submission:confirm hit uq_submission_identity for ${identity.studentId}; retrying as update`,
         );
-        return this.upsertCollected(identity, dto, storageKey, attempt + 1);
+        return this.upsertCollected(identity, dto, storageKey, roomName, attempt + 1);
       }
       throw caught;
     }
+  }
+
+  /**
+   * Chụp danh sách kỳ vọng bên trong một deliverable dạng nén — spec
+   * `2026-09-21-archive-content-validation-design.md` §5.2.
+   *
+   * BẮT BUỘC chụp ở đây, TRONG cùng giao dịch với lượt `collected`, không
+   * render lại trong job archive-check: `identity.machineName` chỉ sống
+   * trong `client.data` của socket (xem `AgentSocketIdentity`), và job chạy
+   * sau khi socket có thể đã đóng từ lâu. Render với `null` sẽ cho ra
+   * `{SOMAY}` -> `'UNKNOWN'` và đánh trượt oan đúng nhóm em dùng token đó.
+   *
+   * Không phải deliverable nào cũng có entry — trả `false` khi không, để
+   * gọi ngoài (writeCollected) biết KHÔNG cần enqueue.
+   */
+  private async snapshotArchiveExpectations(
+    manager: EntityManager,
+    submissionId: string,
+    requiredDeliverableId: string,
+    identity: AgentSocketIdentity,
+    roomName: string,
+  ): Promise<void> {
+    const entries = await manager.getRepository(RequiredDeliverableEntryEntity).find({
+      where: { requiredDeliverableId },
+      order: { createdAt: 'ASC' },
+    });
+    const submissionRepo = manager.getRepository(SubmissionEntity);
+
+    if (entries.length === 0) {
+      // Vô hại khi gọi lại nhiều lần (nộp lại một deliverable không khai
+      // entry): luôn ghi lại đúng cùng một kết luận.
+      await submissionRepo.update(submissionId, {
+        archiveCheckStatus: 'not_applicable',
+        archiveExpectedEntries: null,
+        archiveMissingEntries: null,
+        archiveCheckError: null,
+      });
+      return;
+    }
+
+    const context: FilenameContext = {
+      studentMssv: identity.studentId,
+      studentName: identity.fullName,
+      roomName,
+      machineName: identity.machineName,
+    };
+    const expected = entries.map((entry) => renderFilename(entry.entryName, context));
+
+    // MỘT câu UPDATE, hai cột — `ck_submission_archive_snapshot` đòi
+    // `archive_expected_entries` có mặt CÙNG LÚC với `archive_check_status
+    // = 'pending'`; tách thành hai lệnh sẽ có một khoảnh khắc vi phạm nó.
+    await submissionRepo.update(submissionId, {
+      archiveCheckStatus: 'pending',
+      archiveExpectedEntries: expected,
+      // Xoá kết quả lần trước — nộp lại thì tính lại, không kẹt kết luận cũ
+      // (spec §5.4, thứ mà việc không dùng 'invalid' mua được).
+      archiveMissingEntries: null,
+      archiveCheckError: null,
+    });
   }
 
   private async writeCollected(
@@ -424,6 +526,7 @@ export class SubmissionService {
     identity: AgentSocketIdentity,
     dto: ConfirmSubmissionDto,
     storageKey: string,
+    roomName: string,
   ): Promise<SubmissionEntity> {
     const repo = manager.getRepository(SubmissionEntity);
     const submittedAt = new Date();
@@ -466,14 +569,27 @@ export class SubmissionService {
       // statement, so this is the declared path walked one step at a time.
       await repo.update(created.id, { status: 'validated' });
       await repo.update(created.id, { status: 'collected' });
+      await this.snapshotArchiveExpectations(
+        manager,
+        created.id,
+        dto.requiredDeliverableId,
+        identity,
+        roomName,
+      );
       return (await repo.findOneByOrFail({ id: created.id })) as SubmissionEntity;
     }
 
-    // TODO: nothing produces 'invalid' yet. When a flow does (a required
-    // file still missing at the deadline, say), decide deliberately whether
-    // a later successful upload should clear it — the DB trigger allows no
-    // transition OUT of 'invalid', so that would need a schema change, not
-    // just a branch here.
+    // NGHỈ HƯU, không phải việc còn dở: 'invalid' sẽ KHÔNG BAO GIỜ có một
+    // luồng sinh ra nó nữa — quyết định 2026-09-22, spec
+    // 2026-09-21-archive-content-validation-design.md §8.2. Kết quả kiểm
+    // nội dung file nén (bao gồm cả ca "thiếu file lúc hết giờ" mà TODO cũ
+    // ở đây nhắm tới) đi qua archive_check_status trên chính dòng này,
+    // KHÔNG qua status='invalid' — đó là toàn bộ lý do spec §3.3 chọn
+    // "kết quả là dữ liệu, không phải trạng thái": trigger vòng đời không
+    // có đường ra khỏi 'invalid', nên đi qua nó sẽ tái tạo đúng cái bẫy
+    // TODO cũ đã cảnh báo. Đừng viết một nhánh sinh 'invalid' ở đây — đọc
+    // archiveExpectedEntries/archiveCheckStatus trên submission-overview
+    // và submission-attention.ts (web) thay vào đó.
     if (existing.status === 'collected' || existing.status === 'invalid') {
       await repo.update(existing.id, fileFields);
     } else {
@@ -494,6 +610,18 @@ export class SubmissionService {
       }
       await repo.update(existing.id, { ...fileFields, status: 'collected' });
     }
+
+    // Nộp lại thì tính lại (spec §5.4): chụp lại kỳ vọng, về `pending`, xoá
+    // kết quả cũ — đây đúng là thứ quyết định "không dùng 'invalid'" mua
+    // được. Áp dụng cho cả lần đầu (existing seeded lúc đóng băng) lẫn tái
+    // nộp sau khi đã `collected`.
+    await this.snapshotArchiveExpectations(
+      manager,
+      existing.id,
+      dto.requiredDeliverableId,
+      identity,
+      roomName,
+    );
 
     return (await repo.findOneByOrFail({ id: existing.id })) as SubmissionEntity;
   }
