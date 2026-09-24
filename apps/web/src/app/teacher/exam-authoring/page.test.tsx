@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { toast } from 'sonner';
 import ExamAuthoringPage from './page';
 
 const useGenerateExamMock = vi.fn();
@@ -29,7 +30,9 @@ vi.mock('@/lib/api/exam-authoring', async () => {
   };
 });
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}));
 
 function question(overrides: Record<string, unknown> = {}) {
   return {
@@ -90,6 +93,13 @@ beforeEach(() => {
   attachMock.mockReset();
   attachMock.mockResolvedValue(undefined);
   pushMock.mockReset();
+  // Sonner: reset để một test kiểm "KHÔNG gọi" không thừa hưởng lượt gọi
+  // của test chạy trước nó — lỗ hổng lộ ra ngay khi test `toast.warning`
+  // đầu tiên kiểm `not.toHaveBeenCalled()` (chưa test nào của `success`/
+  // `error` từng kiểm điều đó, nên lỗ hổng nằm im tới giờ).
+  vi.mocked(toast.success).mockClear();
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.warning).mockClear();
   useExamSessionsMock.mockReset();
   useExamSessionsMock.mockReturnValue({
     data: {
@@ -105,11 +115,21 @@ beforeEach(() => {
   });
 });
 
-/** Đổ sẵn một bộ ba vào màn hình qua đường nháp — nhanh hơn diễn lại cả lượt sinh. */
+const DRAFT_PROMPT = 'hai câu về cây nhị phân tìm kiếm, mức giữa kỳ';
+
+/** Đổ sẵn một bộ ba vào màn hình qua đường nháp — nhanh hơn diễn lại cả lượt
+ *  sinh. Bốn trường, không chỉ `exam`: xem doc của `ExamDraft`
+ *  (`lib/exam-draft.ts`) — thiếu `prompt` là chính bug 2026-09-24. */
 function renderWithDraft() {
   window.localStorage.setItem(
     'examcollect:exam-draft',
-    JSON.stringify({ savedAt: Date.now(), exam }),
+    JSON.stringify({
+      savedAt: Date.now(),
+      exam,
+      prompt: DRAFT_PROMPT,
+      questionCount: 2,
+      language: 'python',
+    }),
   );
   render(<ExamAuthoringPage />);
 }
@@ -171,6 +191,75 @@ describe('ExamAuthoringPage', () => {
     );
   });
 
+  /**
+   * Bug thật 2026-09-24: mở trang qua đường nháp (tải lại trang, không phải
+   * gõ prompt rồi bấm Sinh đề trong CÙNG một lượt) rồi bấm "Sinh lại riêng
+   * câu này" ngay — request gửi `prompt: ""`, bị API từ chối 400 vì
+   * `GenerateExamDto.prompt` đòi tối thiểu 10 ký tự. Root cause: nháp trước
+   * đây chỉ nhớ `exam`, không nhớ `prompt`. Test này KHÔNG gõ lại prompt —
+   * đúng kịch bản gây lỗi — và kiểm `prompt` gửi lên khớp prompt đã lưu
+   * trong nháp, không phải chuỗi rỗng.
+   */
+  it('mở qua đường nháp rồi sinh lại MỘT câu vẫn gửi đúng prompt gốc, không rỗng', async () => {
+    renderWithDraft();
+    await screen.findByDisplayValue('Tìm k');
+    fireEvent.click(screen.getByRole('button', { name: /sinh lại riêng câu này/i }));
+    fireEvent.change(screen.getByLabelText(/cần đổi gì ở câu 2/i), {
+      target: { value: 'khó hơn' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^sinh lại câu 2$/i }));
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: DRAFT_PROMPT }),
+      expect.anything(),
+    );
+  });
+
+  /**
+   * Bug thật 2026-09-24 (lần 2): bản vá trước cắt `resemblesKnownProblem` ở
+   * PHÍA API, lúc đọc đầu ra MỚI của model — không cứu được đề ĐÃ NẰM SẴN
+   * trên máy giảng viên từ trước khi bản vá có hiệu lực (nháp cũ, hoặc câu
+   * đã sinh trong cùng phiên trước khi API kịp cập nhật). Field này vẫn là
+   * văn bản tự do, không ai đảm bảo mọi nguồn tương lai đều đi qua đúng chỗ
+   * đã cắt. Test này KHÔNG chạm gì tới API — dựng thẳng một nháp với
+   * `resemblesKnownProblem` dài hơn 200 ký tự, và kiểm `avoid` gửi lên VẪN
+   * trong hạn, bất kể state đang giữ gì.
+   */
+  it('resemblesKnownProblem dài (đề cũ, sinh trước khi API biết cắt) vẫn gửi avoid trong hạn 200 ký tự', async () => {
+    const long =
+      'Không khớp hoàn toàn bất kỳ mục nào trong danh mục liệt kê. Phần tìm độ dài đường đi ' +
+      'ngắn nhất trên lưới có chướng ngại vật dùng kỹ thuật nền tảng giống \'Shortest Path in ' +
+      'Binary Matrix\', nhưng yêu cầu bổ sung đếm số lượng đường đi ngắn nhất bằng DP kết hợp ' +
+      'BFS theo tầng (tương tự tinh thần bài kinh điển \'Number of Ways to Arrive at ' +
+      'Destination\', vốn áp dụng cho đồ thị có trọng số bằng Dijkstra, ở đây được biến đổi ' +
+      'sang lưới ô vuông không trọng số bằng BFS thuần).';
+    expect(long.length).toBeGreaterThan(200); // giả định của test phải đúng
+
+    window.localStorage.setItem(
+      'examcollect:exam-draft',
+      JSON.stringify({
+        savedAt: Date.now(),
+        exam: {
+          ...exam,
+          questions: [question(), question({ statement: 'Câu dài', resemblesKnownProblem: long })],
+        },
+        prompt: DRAFT_PROMPT,
+        questionCount: 2,
+        language: 'python',
+      }),
+    );
+    render(<ExamAuthoringPage />);
+    await screen.findByDisplayValue('Câu dài');
+    fireEvent.click(screen.getByRole('button', { name: /sinh lại riêng câu này/i }));
+    fireEvent.change(screen.getByLabelText(/cần đổi gì ở câu 2/i), {
+      target: { value: 'Nâng độ khó' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^sinh lại câu 2$/i }));
+
+    const call = mutate.mock.calls[0][0] as { avoid?: string[] };
+    expect(call.avoid?.[0].length).toBeLessThanOrEqual(200);
+  });
+
   it('hai nút xuất file là HAI nút riêng biệt', async () => {
     renderWithDraft();
     await screen.findByDisplayValue('Tìm k');
@@ -211,13 +300,52 @@ describe('ExamAuthoringPage', () => {
     });
     expect(go).toBeEnabled();
   });
+
+  /**
+   * `failedCount` chỉ xuất hiện khi API fan-out có worker hỏng (xem
+   * `apps/api/.../claude-authoring.provider.ts`). Giảng viên phải BIẾT đề
+   * đang thiếu câu — im lặng bớt câu là cách một đề 10 câu phát ra chỉ còn
+   * 8 mà không ai để ý tới lúc in.
+   */
+  it('sinh đề mà thiếu vài câu thì báo rõ số câu lỗi, không im lặng bớt câu', () => {
+    render(<ExamAuthoringPage />);
+    fireEvent.change(screen.getByLabelText(/yêu cầu của bạn/i), {
+      target: { value: 'ba câu về cây nhị phân tìm kiếm' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /sinh đề/i }));
+
+    const onSuccess = mutate.mock.calls[0][1].onSuccess as (r: unknown) => void;
+    onSuccess({ ...exam, questions: [question()], failedCount: 2 });
+
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect((toast.warning as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatch(/2/);
+  });
+
+  it('sinh đủ đề thì KHÔNG hiện cảnh báo thiếu câu', () => {
+    render(<ExamAuthoringPage />);
+    fireEvent.change(screen.getByLabelText(/yêu cầu của bạn/i), {
+      target: { value: 'ba câu về cây nhị phân tìm kiếm' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /sinh đề/i }));
+
+    const onSuccess = mutate.mock.calls[0][1].onSuccess as (r: unknown) => void;
+    onSuccess(exam);
+
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
 });
 
 describe('ExamAuthoringPage — gắn vào phiên thi', () => {
   async function openPicker() {
     window.localStorage.setItem(
       'examcollect:exam-draft',
-      JSON.stringify({ savedAt: Date.now(), exam }),
+      JSON.stringify({
+        savedAt: Date.now(),
+        exam,
+        prompt: DRAFT_PROMPT,
+        questionCount: 2,
+        language: 'python',
+      }),
     );
     render(<ExamAuthoringPage />);
     await screen.findByDisplayValue('Tìm k');

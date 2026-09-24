@@ -16,17 +16,16 @@ import {
   AI_GRADING_PROVIDER,
   AIGradingProvider,
   GradingRequest,
-  enforceScoring,
 } from './ai-provider/ai-grading-provider';
 import { GradingInputTooLargeError } from './extract-text';
-import { applyGuards } from './harness/grading-guards';
+import { gradeOneShot } from './one-shot-grade';
 import { verifyEvidence } from './harness/evidence-check';
 import { AdvocateOpinion } from './ai-provider/advocate.types';
 import { ADVOCATE_PROVIDER, AdvocateProvider } from './ai-provider/advocate-provider';
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
 import { GradingReferenceService, LoadedGradingReference } from './grading-reference.service';
 import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
-import { AUTO_APPROVE_CONFIDENCE, GRADING_ANCHORS_ENABLED } from './grading.types';
+import { GRADING_ANCHORS_ENABLED } from './grading.types';
 import { AnchorService } from './anchor.service';
 import type { AdvocateOutcome } from './entities/grading-result.entity';
 
@@ -378,38 +377,26 @@ export class GradingService {
 
 
     // Chấm, kiểm bằng guard, và CHẤM LẠI ĐÚNG MỘT LẦN nếu lượt đầu không
-    // tin được (spec §6.4).
+    // tin được (spec §6.4) — toàn bộ chuỗi đó nằm ở `gradeOneShot`, hàm thuần
+    // mà runner eval cũng gọi (spec 2026-09-20 §9 bước 0), để baseline đo
+    // đúng đường này.
     //
-    // Vì sao đúng một lần: chấm lại vô hạn thì tốn tiền và có thể trượt
-    // tiếp; đẩy thẳng cho giảng viên thì trung thực nhưng nếu model hay
-    // trượt thì họ ngập bài flag. Một lần là điểm cân bằng, và số lần
-    // trượt được ghi log để có dữ liệu THẬT về tần suất — con số đó là
-    // thứ nói cho ta biết guard có đang báo động giả hay không, và nó đi
+    // Số lần trượt được ghi log để có dữ liệu THẬT về tần suất — con số đó
+    // là thứ nói cho ta biết guard có đang báo động giả hay không, và nó đi
     // thẳng vào báo cáo calibration.
-    let outcome = await this.provider.grade(request);
-    let guards = applyGuards({
-      studentText: content,
-      criteria: rubricCriteria,
-      criterionResults: outcome.criterionResults,
-    });
-
-    if (guards.runUntrustworthy) {
+    const run = await gradeOneShot(this.provider, request);
+    if (run.retried) {
       this.logger.warn(
-        `submission ${submission.id}: lượt chấm không tin được (${guards.reason}) — ` +
-          'chấm lại một lần',
+        `submission ${submission.id}: lượt chấm không tin được (${run.firstGuardsReason}) — ` +
+          'đã chấm lại một lần',
       );
-      outcome = await this.provider.grade(request);
-      guards = applyGuards({
-        studentText: content,
-        criteria: rubricCriteria,
-        criterionResults: outcome.criterionResults,
-      });
-      if (guards.runUntrustworthy) {
+      if (run.guards.runUntrustworthy) {
         this.logger.error(
           `submission ${submission.id}: chấm lại vẫn không tin được — chuyển giảng viên`,
         );
       }
     }
+    const { outcome, guards } = run;
     // Kích thước nội dung, không phải nội dung. `chars` là thứ dự đoán
     // chi phí token, nên nó thuộc về dòng này.
     // Token đi vào log Ở ĐÂY, ngay cạnh thời gian. Module admin sẽ quyết
@@ -442,9 +429,8 @@ export class GradingService {
     );
 
     // Guard chỉ được HẠ tin cậy, không được NÂNG quá trần mà cơ chế của
-    // provider biện minh nổi. Mọi phép đo cơ học sạch cũng không biến
-    // việc đếm từ thành việc hiểu bài.
-    const finalConfidence = Math.min(guards.confidence, outcome.confidenceCeiling);
+    // provider biện minh nổi (tính trong `gradeOneShot`).
+    const { finalConfidence } = run;
 
     // ĐIỂM DO SERVER TÍNH. Provider chỉ được phép phán đoán (`verdict` +
     // `evidence`); mọi con số đều tính lại ở đây. Xem `enforceScoring` để
@@ -455,7 +441,7 @@ export class GradingService {
     // khác — một sai lệch không bao giờ lộ ra trong log.
     const checkByCriterion = new Map(guards.perCriterion.map((r) => [r.criterionId, r.check]));
 
-    const scored = enforceScoring(outcome.criterionResults, rubricCriteria);
+    const { scored } = run;
     if (scored.unknownCriterionIds.length > 0) {
       // Cho 0 điểm là hướng an toàn, nhưng an-toàn-và-im-lặng vẫn là lỗi.
       // Guard coverage (G3) sẽ xử lý chính thức; tới lúc đó ít nhất nó
@@ -519,8 +505,7 @@ export class GradingService {
     // là lớp chặn thứ hai: guard có thể trả `auto_approved` với một
     // confidence dưới ngưỡng nếu ai đó chỉnh số ở `grading-guards.ts` mà
     // quên chỗ này.
-    const confident =
-      guards.status === 'auto_approved' && finalConfidence >= AUTO_APPROVE_CONFIDENCE;
+    const { confident } = run;
     await this.results.update(result.id, {
       status: confident ? 'auto_approved' : 'flagged_for_review',
       flagForReview: !confident,

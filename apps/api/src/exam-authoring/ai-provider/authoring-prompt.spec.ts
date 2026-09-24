@@ -1,5 +1,5 @@
 import { buildAuthoringPrompt, parseAuthoringResponse } from './authoring-prompt';
-import { AuthoringRequest } from './exam-authoring-provider';
+import { AuthoringRequest, MAX_CLASSIC_PROBLEM_LENGTH } from './exam-authoring-provider';
 
 const base: AuthoringRequest = {
   prompt: 'cây nhị phân tìm kiếm',
@@ -25,6 +25,17 @@ describe('buildAuthoringPrompt', () => {
 
   it('bắt model tự khai bài kinh điển nó thấy giống', () => {
     expect(buildAuthoringPrompt(base)).toContain('resemblesKnownProblem');
+  });
+
+  // Lỗi thật 2026-09-24: "topic"/"requiredComplexity" không có hướng dẫn độ
+  // dài, model viết cả câu vào đó (badge UI không tự cắt — xem
+  // question-card.test.tsx), dải tiêu đề gập lại phình gần bằng lúc mở ra.
+  // Dặn NGẮN ở prompt là lớp phòng thủ đầu, badge tự cắt (frontend) là lớp
+  // thứ hai — dặn không đảm bảo model nghe, nên không thay được lớp kia.
+  it('dặn "topic" là nhãn ngắn và "requiredComplexity" là Big-O ngắn, không phải câu mô tả', () => {
+    const text = buildAuthoringPrompt(base);
+    expect(text).toMatch(/nhãn ngắn/i);
+    expect(text).toMatch(/không phải câu (mô tả|liệt kê)/i);
   });
 
   it('lượt SINH LẠI mang đủ ba vế: tránh gì, đổi gì, và các câu đang giữ', () => {
@@ -53,6 +64,57 @@ describe('buildAuthoringPrompt', () => {
     expect(buildAuthoringPrompt({ ...base, avoid: ['', '   '] })).not.toContain(
       'KHÔNG được ra lại',
     );
+  });
+
+  // Vấn đề: model chỉ khai "resemblesKnownProblem" theo trí nhớ tự do — không
+  // có mạng để đối chiếu, nên một bài kinh điển ngoài 5 ví dụ cũ (two-sum,
+  // Kadane, LRU cache, ba lô 0/1, đảo danh sách liên kết) dễ lọt qua mà model
+  // không tự nhận ra. Danh mục có cấu trúc là chỗ model RÀ LẠI thay vì chỉ nhớ.
+  it('danh mục bài kinh điển luôn có mặt, kể cả lượt sinh ĐẦU TIÊN, để model đối chiếu thay vì chỉ nhớ tự do', () => {
+    const text = buildAuthoringPrompt(base);
+    expect(text).toContain('Two Sum');
+    expect(text).toContain("Kadane");
+    expect(text).toContain('Reverse Linked List');
+  });
+
+  it('danh mục phủ đủ các chủ đề CTDL&GT, không chỉ mảng/chuỗi', () => {
+    const text = buildAuthoringPrompt(base);
+    expect(text).toContain('Đồ thị');
+    expect(text).toContain('Quy hoạch động');
+    expect(text).toContain('BST');
+  });
+
+  it('lượt SINH LẠI vẫn giữ danh mục — tránh bài kinh điển không phải chuyện chỉ lo ở lượt đầu', () => {
+    const text = buildAuthoringPrompt({ ...base, questionCount: 1, refineNote: 'đổi hướng khác' });
+    expect(text).toContain('Two Sum');
+  });
+
+  // Fan-out: mỗi worker chỉ thấy MỘT câu của chính nó, không thấy N-1 câu
+  // anh em — khác cơ chế "existingStatements" (đó là CÂU ĐÃ SINH XONG, còn
+  // đây là các worker chạy song song, chưa ai xong trước ai). Khối nhắc nhẹ
+  // này là giảm nhẹ rủi ro trùng ý, không phải giải pháp triệt để.
+  it('có batchIndex/batchSize thì nói rõ đây là một câu trong nhiều câu đang sinh song song', () => {
+    const text = buildAuthoringPrompt({ ...base, questionCount: 1, batchIndex: 2, batchSize: 5 });
+    expect(text).toContain('2/5');
+    expect(text).toMatch(/song song/i);
+  });
+
+  it('không có batchIndex/batchSize thì prompt giữ nguyên như cũ — không phình vô cớ', () => {
+    const text = buildAuthoringPrompt(base);
+    expect(text).not.toMatch(/song song/i);
+  });
+
+  it('batchSize=1 thì KHÔNG thêm khối song song dù có batchIndex — N=1 không có gì để fan-out', () => {
+    const text = buildAuthoringPrompt({ ...base, questionCount: 1, batchIndex: 1, batchSize: 1 });
+    expect(text).not.toMatch(/song song/i);
+  });
+
+  it('khối song song nằm SAU danh mục bài kinh điển — không chen vào tiền tố đang được gateway tự cache', () => {
+    const text = buildAuthoringPrompt({ ...base, questionCount: 1, batchIndex: 1, batchSize: 3 });
+    const catalogAt = text.indexOf('Two Sum');
+    const batchAt = text.indexOf('1/3');
+    expect(catalogAt).toBeGreaterThan(-1);
+    expect(batchAt).toBeGreaterThan(catalogAt);
   });
 });
 
@@ -112,5 +174,63 @@ describe('parseAuthoringResponse', () => {
 
   it('gỡ được rào ```json quanh JSON', () => {
     expect(parseAuthoringResponse('```json\n' + valid + '\n```').questions).toHaveLength(1);
+  });
+
+  // Lỗi THẬT 2026-09-24: "resemblesKnownProblem" là văn bản TỰ DO của model,
+  // không giới hạn độ dài ở đâu cả. Frontend gửi nó NGUYÊN VĂN lên làm
+  // `avoid` ở lượt sinh lại (`handleRegenerate`, page.tsx), và
+  // `GenerateExamDto.avoid` giới hạn mỗi phần tử 200 ký tự — model viết dài
+  // hơn 200 ký tự (đã xảy ra thật, model càng hay giải thích thêm sau khi có
+  // danh mục bài kinh điển) làm lượt SINH LẠI kế tiếp bị 400 ngay từ vòng
+  // validate, trước khi chạm tới bất kỳ logic nào. Cắt ở ĐÂY — nơi model trả
+  // lời — để lượt sinh lại kế tiếp không bao giờ lặp lại lỗi này, bất kể
+  // model viết dài bao nhiêu.
+  it('resemblesKnownProblem dài quá 200 ký tự bị CẮT — lượt sinh lại kế tiếp gửi nó làm "avoid" không được vượt trần', () => {
+    const long = JSON.parse(valid);
+    long.questions[0].resemblesKnownProblem =
+      'Biến thể mở rộng của bài toán kinh điển "Valid Parentheses" (LeetCode 20), ' +
+      'có thêm ràng buộc kiểm tra toán tử và nội dung không rỗng bên trong ngoặc, ' +
+      'và còn phải đếm số lần mở ngoặc lồng nhau sâu nhất trong toàn bộ chuỗi đưa vào.';
+    const exam = parseAuthoringResponse(JSON.stringify(long));
+    expect(exam.questions[0].resemblesKnownProblem?.length).toBeLessThanOrEqual(
+      MAX_CLASSIC_PROBLEM_LENGTH,
+    );
+  });
+
+  it('resemblesKnownProblem trong hạn thì giữ nguyên, không cắt oan', () => {
+    expect(parseAuthoringResponse(valid).questions[0].resemblesKnownProblem).toBeNull();
+    const withProblem = JSON.parse(valid);
+    withProblem.questions[0].resemblesKnownProblem = 'Two Sum';
+    expect(
+      parseAuthoringResponse(JSON.stringify(withProblem)).questions[0].resemblesKnownProblem,
+    ).toBe('Two Sum');
+  });
+
+  // ĐO THẬT 2026-09-24, occ/claude-sonnet-5, lượt 5 câu: model đóng rào rồi
+  // viết tiếp một đoạn ghi chú. Rào đóng khi ấy không còn nằm ở CUỐI chuỗi,
+  // và bản cũ chỉ gỡ rào ở cuối — JSON.parse gặp "```" rồi nổ.
+  it('đọc được khi model viết thêm ghi chú SAU rào đóng', () => {
+    const text =
+      '```json\n' +
+      valid +
+      '\n```\n\n**Lưu ý cho giảng viên:** cả 5 câu đều là các bài "kinh điển" có lời giải tra được ngay trên mạng.';
+    expect(parseAuthoringResponse(text).questions).toHaveLength(1);
+  });
+
+  it('đọc được khi model mở đầu bằng một câu dẫn TRƯỚC rào', () => {
+    const text = 'Dưới đây là đề thi theo yêu cầu:\n\n```json\n' + valid + '\n```';
+    expect(parseAuthoringResponse(text).questions).toHaveLength(1);
+  });
+
+  it('ngoặc nhọn trong mã nguồn và trong ghi chú không làm lệch chỗ cắt JSON', () => {
+    const withBraces = JSON.parse(valid);
+    withBraces.questions[0].modelAnswer = 'def solve(xs):\n    seen = {}\n    return {k: 1 for k in xs}\n';
+    const text = JSON.stringify(withBraces) + '\n\nGhi chú: dùng dict {} để đếm.';
+    expect(parseAuthoringResponse(text).questions[0].modelAnswer).toContain('seen = {}');
+  });
+
+  it('JSON bị cắt giữa chừng vẫn ném, không đoán phần thiếu', () => {
+    const truncated = '```json\n' + valid.slice(0, valid.length - 20);
+    expect(() => parseAuthoringResponse(truncated)).toThrow(/không đọc được/i);
   });
 });

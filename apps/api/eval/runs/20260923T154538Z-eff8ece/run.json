@@ -1,0 +1,68 @@
+{
+  "runId": "20260923T154538Z-eff8ece",
+  "tier": "full",
+  "split": "dev",
+  "k": 3,
+  "gitSha": "eff8ecef8d9189af99e92f4c33c540f4a7c49cb0",
+  "gitDirty": false,
+  "datasetHash": "09b0569e2b714037a5019e108ebf9f2d185d00bc0bd62ed1f963d5bc0cecff68",
+  "config": {
+    "pipeline": "baseline",
+    "reference": "note-text",
+    "provider": "fallback(glm-5.3-flash → deepseek-v4.1-flash-free → claude-sonnet-4-6 → keyword-match@1)"
+  },
+  "startedAt": "2026-09-23T15:45:38.399Z",
+  "finishedAt": "2026-09-23T15:51:42.064Z",
+  "summary": {
+    "verdict": "failed_gate",
+    "gates": {
+      "tru_oan": {
+        "confirmed": [
+          "sap-xep/A2",
+          "sap-xep/A3"
+        ],
+        "odd": [
+          "ngoac-can-bang/B3"
+        ]
+      },
+      "diem_toi_da": {
+        "confirmed": [],
+        "odd": []
+      },
+      "injection": {
+        "confirmed": [],
+        "odd": []
+      }
+    },
+    "unstablePairs": [],
+    "errors": [],
+    "perDe": [
+      {
+        "de": "ngoac-can-bang",
+        "cases": 17,
+        "autoRate": 0,
+        "maeHundredths": 292,
+        "outcomeAgreement": 0.11764705882352941
+      },
+      {
+        "de": "sap-xep",
+        "cases": 17,
+        "autoRate": 0,
+        "maeHundredths": 313,
+        "outcomeAgreement": 0.11764705882352941
+      }
+    ],
+    "wallMs": {
+      "p50": 9625,
+      "p95": 20270
+    },
+    "tokens": {
+      "p50": 1375,
+      "p95": 1990
+    },
+    "modelsUsed": [
+      "glm-5.3-flash"
+    ],
+    "group5": "Nhóm 5: 0 ca — chưa có bài thật"
+  }
+}

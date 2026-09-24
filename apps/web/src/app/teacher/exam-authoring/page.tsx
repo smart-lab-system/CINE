@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, Download, Sparkles, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
+import { AutoTextarea } from '@/components/ui/auto-textarea';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,6 +13,7 @@ import { useGenerateExam } from '@/hooks/useExamAuthoring';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/exam-draft';
 import {
   AUTHORING_LANGUAGES,
+  MAX_CLASSIC_PROBLEM_LENGTH,
   downloadAnswerKey,
   downloadExamPaper,
   type AuthoringLanguage,
@@ -60,16 +62,25 @@ export default function ExamAuthoringPage() {
   // Đọc nháp SAU khi mount, không phải lúc khởi tạo state: server không có
   // `localStorage`, nên đọc lúc khởi tạo cho ra hai kết quả khác nhau giữa
   // server và client và React báo hydration mismatch.
+  //
+  // Khôi phục CẢ BỐN trường, không chỉ `exam`: thiếu `prompt` là bug thật đã
+  // gặp — "Sinh lại riêng câu này" gửi `prompt` từ STATE, và nếu nháp không
+  // mang nó theo thì sau một lượt tải lại trang, state đó vẫn là `''` (giá
+  // trị khởi tạo), và request bị 400 vì `prompt` dưới 10 ký tự. Xem doc của
+  // `ExamDraft`.
   useEffect(() => {
     const draft = loadDraft();
     if (draft) {
-      setExam(draft);
+      setExam(draft.exam);
+      setPrompt(draft.prompt);
+      setQuestionCount(draft.questionCount);
+      setLanguage(draft.language);
     }
   }, []);
 
   function updateExam(next: GeneratedExam) {
     setExam(next);
-    saveDraft(next);
+    saveDraft(next, prompt, questionCount, language);
   }
 
   function handleGenerate() {
@@ -77,7 +88,20 @@ export default function ExamAuthoringPage() {
     generate.mutate(
       { prompt, questionCount, language },
       {
-        onSuccess: (result) => updateExam(result),
+        onSuccess: (result) => {
+          updateExam(result);
+          // `failedCount` = API fan-out song song có worker hỏng (mất mạng,
+          // model từ chối, hết trần token, JSON hỏng). KHÔNG im lặng bớt câu:
+          // một đề 10 câu phát ra chỉ còn 8 mà không ai để ý tới lúc in là
+          // đúng thứ giảng viên cần biết TRƯỚC, không phải TRONG LÚC in đề.
+          // Lối thoát: bấm "Sinh lại cả đề" — rẻ, nhờ chính lượt fan-out này.
+          if ((result.failedCount ?? 0) > 0) {
+            toast.warning(
+              `Sinh được ${result.questions.length}/${result.questions.length + result.failedCount!} câu — ` +
+                `${result.failedCount} câu lỗi khi gọi model. Bấm "Sinh lại cả đề" để thử lại.`,
+            );
+          }
+        },
         onError: (e) => toast.error(e.message || 'Không sinh được đề. Hãy thử lại.'),
       },
     );
@@ -100,7 +124,13 @@ export default function ExamAuthoringPage() {
         prompt,
         questionCount: 1,
         language,
-        avoid: target.resemblesKnownProblem ? [target.resemblesKnownProblem] : undefined,
+        // Cắt về MAX_CLASSIC_PROBLEM_LENGTH TRƯỚC khi gửi, không tin
+        // `resemblesKnownProblem` trong state đã đúng hạn sẵn — nó có thể
+        // đến từ một đề sinh TRƯỚC khi API biết cắt (nháp cũ, hoặc cùng
+        // phiên trước khi bản vá kịp áp dụng). Xem doc của hằng số này.
+        avoid: target.resemblesKnownProblem
+          ? [target.resemblesKnownProblem.slice(0, MAX_CLASSIC_PROBLEM_LENGTH)]
+          : undefined,
         refineNote: note,
         existingStatements: exam.questions
           .filter((_, i) => i !== index)
@@ -283,13 +313,12 @@ function ExamForm({
           <label htmlFor="prompt" className="mb-1.5 block text-small font-semibold">
             Yêu cầu của bạn
           </label>
-          <textarea
+          <AutoTextarea
             id="prompt"
             rows={3}
             value={prompt}
             onChange={(e) => onPrompt(e.target.value)}
             placeholder="Ví dụ: hai câu về cây nhị phân tìm kiếm, mức cuối kỳ, một câu phải đạt O(log n), cấm dùng thư viện có sẵn."
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-small leading-relaxed text-foreground"
           />
           <p className="mt-1.5 text-caption text-muted-foreground">
             Càng nói rõ ràng buộc (cấm thư viện nào, đạt độ phức tạp nào) thì đề sinh ra càng

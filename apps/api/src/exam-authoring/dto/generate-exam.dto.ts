@@ -9,7 +9,10 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { MAX_QUESTIONS_PER_RUN } from '../ai-provider/exam-authoring-provider';
+import {
+  MAX_CLASSIC_PROBLEM_LENGTH,
+  MAX_QUESTIONS_PER_RUN,
+} from '../ai-provider/exam-authoring-provider';
 
 /**
  * Ngôn ngữ mở nhưng KHÔNG tự do.
@@ -40,11 +43,18 @@ export class GenerateExamDto {
    * `avoid` do FRONTEND điền từ `resemblesKnownProblem` của câu đang bị thay,
    * không phải giảng viên gõ: hệ thống đã biết model tự khai gì, bắt người
    * dùng gõ lại là bắt họ làm việc của máy.
+   *
+   * Trần `MAX_CLASSIC_PROBLEM_LENGTH`, KHÔNG phải số viết tay: cùng hằng số
+   * mà `parseAuthoringResponse` (authoring-prompt.ts) dùng để CẮT
+   * `resemblesKnownProblem` khi đọc đầu ra của model. Hai số viết tay ở hai
+   * chỗ từng lệch nhau (một bên không giới hạn, một bên 200) và đó chính là
+   * lỗi thật 2026-09-24 — model viết dài hơn 200 ký tự, lượt sinh lại kế
+   * tiếp gửi nó lên `avoid` và bị chặn ngay ở đây.
    */
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @Length(1, 200, { each: true })
+  @Length(1, MAX_CLASSIC_PROBLEM_LENGTH, { each: true })
   avoid?: string[];
 
   @IsOptional()

@@ -25,3 +25,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+
+# Eval (spec 2026-09-20 §12.7) — lượt chạy ra file; lượt nào trích vào báo cáo thì commit có chủ đích (git add -f)
+apps/api/eval/runs/*
+!apps/api/eval/runs/.gitkeep

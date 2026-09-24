@@ -35,7 +35,29 @@ export interface GeneratedExam {
   language: string;
   questions: GeneratedQuestion[];
   verification: Verification;
+  /**
+   * Số câu KHÔNG sinh được — chỉ có khi API sinh song song (fan-out) có
+   * worker hỏng. Vắng mặt hoặc `0` = không câu nào lỗi; `questions` khi đó
+   * NGẮN HƠN số câu đã yêu cầu, không phải một mảng đủ chỗ trống.
+   */
+  failedCount?: number;
 }
+
+/**
+ * Trần độ dài của `resemblesKnownProblem` khi dùng làm phần tử `avoid` ở
+ * lượt sinh lại — PHẢI khớp `MAX_CLASSIC_PROBLEM_LENGTH` phía API
+ * (`exam-authoring-provider.ts`), nơi API tự cắt field này khi đọc đầu ra
+ * MỚI của model.
+ *
+ * Không tin API đã cắt SẴN: bug thật 2026-09-24 — API chỉ cắt ở lúc PARSE
+ * response mới, không cứu được đề ĐÃ NẰM SẴN trên máy giảng viên từ trước
+ * khi bản vá đó có hiệu lực (nháp cũ trong `localStorage`, hoặc câu đã sinh
+ * trong cùng phiên trước khi API kịp cập nhật). `resemblesKnownProblem` vẫn
+ * là văn bản tự do của model — không có gì đảm bảo MỌI nguồn dữ liệu tương
+ * lai đều đi qua đúng chỗ API cắt. Cắt lại Ở ĐÂY, ngay trước khi gửi lên,
+ * đóng vòng cho chắc — không phụ thuộc thời điểm dữ liệu này sinh ra.
+ */
+export const MAX_CLASSIC_PROBLEM_LENGTH = 200;
 
 /**
  * Bốn ngôn ngữ, không phải `string`.

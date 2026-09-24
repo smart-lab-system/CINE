@@ -57,6 +57,20 @@ export interface GeneratedExam {
   language: string;
   questions: GeneratedQuestion[];
   verification: Verification;
+  /**
+   * Số câu KHÔNG sinh được trong lượt fan-out song song (mất mạng, model từ
+   * chối, hết trần token, hoặc JSON hỏng ở một trong các lời gọi song song).
+   *
+   * Vắng mặt hoặc `0` = không câu nào lỗi — kể cả ở lượt `questionCount <= 1`
+   * KHÔNG bao giờ đặt trường này (không có gì để fan-out với N=1), nên phía
+   * đọc phải kiểm `(exam.failedCount ?? 0) > 0`, không phải chỉ kiểm trường
+   * này có mặt hay không.
+   *
+   * `questions` khi đó NGẮN HƠN số câu giảng viên yêu cầu — không phải một
+   * mảng đủ chỗ trống, vì không có gì để lấp vào chỗ một câu chưa từng sinh
+   * ra được.
+   */
+  failedCount?: number;
 }
 
 export interface AuthoringRequest {
@@ -85,6 +99,21 @@ export interface AuthoringRequest {
   refineNote?: string;
   /** Đề của các câu đang giữ lại, để câu mới không trùng ý với chúng. */
   existingStatements?: string[];
+
+  /**
+   * Hai trường dưới đây chỉ có ở lượt FAN-OUT SONG SONG (`questionCount` gốc
+   * > 1). CHỈ provider tự đặt cho từng worker — DTO và `ExamAuthoringService`
+   * không bao giờ gửi hai trường này lên, và `questionCount` trên request đã
+   * bị provider ép về 1 trước khi gắn chúng (mỗi worker vẫn chỉ xin ĐÚNG một
+   * câu, đúng khuôn `parseAuthoringResponse` đã có).
+   *
+   * Cả hai chỉ để dựng MỘT dòng nhắc nhẹ trong prompt ("đây là câu mấy trong
+   * mấy câu đang sinh song song") — không phải cơ chế chống trùng ý thật sự.
+   * Các worker chạy độc lập, không thấy nội dung của nhau, nên đây chỉ là
+   * giảm nhẹ rủi ro trùng ý, không phải giải pháp triệt để.
+   */
+  batchIndex?: number;
+  batchSize?: number;
 }
 
 export interface AuthoringUsage {
@@ -112,3 +141,21 @@ export const EXAM_AUTHORING_PROVIDER = Symbol('EXAM_AUTHORING_PROVIDER');
  * không ai đọc thì tệ hơn không có đề, vì nó mang vẻ đã được kiểm.
  */
 export const MAX_QUESTIONS_PER_RUN = 10;
+
+/**
+ * Trần độ dài của `resemblesKnownProblem` — MỘT hằng số, dùng ở CẢ HAI đầu
+ * của một vòng round-trip, và đó chính là lý do nó phải sống ở đây.
+ *
+ * Lỗi thật 2026-09-24: `resemblesKnownProblem` là văn bản TỰ DO của model,
+ * không giới hạn độ dài ở phía sinh ra nó (`parseAuthoringResponse`). Nhưng
+ * frontend gửi nó NGUYÊN VĂN lên làm phần tử của `avoid` ở lượt sinh lại
+ * (`handleRegenerate`), và `GenerateExamDto.avoid` giới hạn mỗi phần tử
+ * `@Length(1, 200)`. Hai giới hạn KHÔNG khớp nhau (một cái không tồn tại,
+ * một cái là 200) là cách một model viết dài hơn 200 ký tự — đã xảy ra thật
+ * — làm chính lượt SINH LẠI KẾ TIẾP của câu đó bị 400 ngay từ vòng validate.
+ *
+ * Import hằng số này ở CẢ HAI đầu (`authoring-prompt.ts` để cắt khi parse,
+ * `generate-exam.dto.ts` để validate) thay vì hai số `200` viết tay ở hai
+ * chỗ: nếu chỉ đổi một chỗ, đúng lỗi này lặp lại — chỉ đổi chỗ nào bị cắt.
+ */
+export const MAX_CLASSIC_PROBLEM_LENGTH = 200;
