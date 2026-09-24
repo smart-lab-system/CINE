@@ -115,11 +115,21 @@ beforeEach(() => {
   });
 });
 
-/** Đổ sẵn một bộ ba vào màn hình qua đường nháp — nhanh hơn diễn lại cả lượt sinh. */
+const DRAFT_PROMPT = 'hai câu về cây nhị phân tìm kiếm, mức giữa kỳ';
+
+/** Đổ sẵn một bộ ba vào màn hình qua đường nháp — nhanh hơn diễn lại cả lượt
+ *  sinh. Bốn trường, không chỉ `exam`: xem doc của `ExamDraft`
+ *  (`lib/exam-draft.ts`) — thiếu `prompt` là chính bug 2026-09-24. */
 function renderWithDraft() {
   window.localStorage.setItem(
     'examcollect:exam-draft',
-    JSON.stringify({ savedAt: Date.now(), exam }),
+    JSON.stringify({
+      savedAt: Date.now(),
+      exam,
+      prompt: DRAFT_PROMPT,
+      questionCount: 2,
+      language: 'python',
+    }),
   );
   render(<ExamAuthoringPage />);
 }
@@ -177,6 +187,30 @@ describe('ExamAuthoringPage', () => {
         refineNote: 'khó hơn',
         existingStatements: ['Sắp xếp mảng tăng dần'],
       }),
+      expect.anything(),
+    );
+  });
+
+  /**
+   * Bug thật 2026-09-24: mở trang qua đường nháp (tải lại trang, không phải
+   * gõ prompt rồi bấm Sinh đề trong CÙNG một lượt) rồi bấm "Sinh lại riêng
+   * câu này" ngay — request gửi `prompt: ""`, bị API từ chối 400 vì
+   * `GenerateExamDto.prompt` đòi tối thiểu 10 ký tự. Root cause: nháp trước
+   * đây chỉ nhớ `exam`, không nhớ `prompt`. Test này KHÔNG gõ lại prompt —
+   * đúng kịch bản gây lỗi — và kiểm `prompt` gửi lên khớp prompt đã lưu
+   * trong nháp, không phải chuỗi rỗng.
+   */
+  it('mở qua đường nháp rồi sinh lại MỘT câu vẫn gửi đúng prompt gốc, không rỗng', async () => {
+    renderWithDraft();
+    await screen.findByDisplayValue('Tìm k');
+    fireEvent.click(screen.getByRole('button', { name: /sinh lại riêng câu này/i }));
+    fireEvent.change(screen.getByLabelText(/cần đổi gì ở câu 2/i), {
+      target: { value: 'khó hơn' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^sinh lại câu 2$/i }));
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: DRAFT_PROMPT }),
       expect.anything(),
     );
   });
@@ -260,7 +294,13 @@ describe('ExamAuthoringPage — gắn vào phiên thi', () => {
   async function openPicker() {
     window.localStorage.setItem(
       'examcollect:exam-draft',
-      JSON.stringify({ savedAt: Date.now(), exam }),
+      JSON.stringify({
+        savedAt: Date.now(),
+        exam,
+        prompt: DRAFT_PROMPT,
+        questionCount: 2,
+        language: 'python',
+      }),
     );
     render(<ExamAuthoringPage />);
     await screen.findByDisplayValue('Tìm k');

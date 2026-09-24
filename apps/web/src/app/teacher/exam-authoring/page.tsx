@@ -61,16 +61,25 @@ export default function ExamAuthoringPage() {
   // Đọc nháp SAU khi mount, không phải lúc khởi tạo state: server không có
   // `localStorage`, nên đọc lúc khởi tạo cho ra hai kết quả khác nhau giữa
   // server và client và React báo hydration mismatch.
+  //
+  // Khôi phục CẢ BỐN trường, không chỉ `exam`: thiếu `prompt` là bug thật đã
+  // gặp — "Sinh lại riêng câu này" gửi `prompt` từ STATE, và nếu nháp không
+  // mang nó theo thì sau một lượt tải lại trang, state đó vẫn là `''` (giá
+  // trị khởi tạo), và request bị 400 vì `prompt` dưới 10 ký tự. Xem doc của
+  // `ExamDraft`.
   useEffect(() => {
     const draft = loadDraft();
     if (draft) {
-      setExam(draft);
+      setExam(draft.exam);
+      setPrompt(draft.prompt);
+      setQuestionCount(draft.questionCount);
+      setLanguage(draft.language);
     }
   }, []);
 
   function updateExam(next: GeneratedExam) {
     setExam(next);
-    saveDraft(next);
+    saveDraft(next, prompt, questionCount, language);
   }
 
   function handleGenerate() {
