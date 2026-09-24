@@ -54,6 +54,29 @@ describe('buildAuthoringPrompt', () => {
       'KHÔNG được ra lại',
     );
   });
+
+  // Vấn đề: model chỉ khai "resemblesKnownProblem" theo trí nhớ tự do — không
+  // có mạng để đối chiếu, nên một bài kinh điển ngoài 5 ví dụ cũ (two-sum,
+  // Kadane, LRU cache, ba lô 0/1, đảo danh sách liên kết) dễ lọt qua mà model
+  // không tự nhận ra. Danh mục có cấu trúc là chỗ model RÀ LẠI thay vì chỉ nhớ.
+  it('danh mục bài kinh điển luôn có mặt, kể cả lượt sinh ĐẦU TIÊN, để model đối chiếu thay vì chỉ nhớ tự do', () => {
+    const text = buildAuthoringPrompt(base);
+    expect(text).toContain('Two Sum');
+    expect(text).toContain("Kadane");
+    expect(text).toContain('Reverse Linked List');
+  });
+
+  it('danh mục phủ đủ các chủ đề CTDL&GT, không chỉ mảng/chuỗi', () => {
+    const text = buildAuthoringPrompt(base);
+    expect(text).toContain('Đồ thị');
+    expect(text).toContain('Quy hoạch động');
+    expect(text).toContain('BST');
+  });
+
+  it('lượt SINH LẠI vẫn giữ danh mục — tránh bài kinh điển không phải chuyện chỉ lo ở lượt đầu', () => {
+    const text = buildAuthoringPrompt({ ...base, questionCount: 1, refineNote: 'đổi hướng khác' });
+    expect(text).toContain('Two Sum');
+  });
 });
 
 const valid = JSON.stringify({
