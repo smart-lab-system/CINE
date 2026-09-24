@@ -1,4 +1,5 @@
-import { decide, logLogSlope, median, std, Summary, summarize } from './stats';
+import { MeasureResult } from '../sandbox/contract';
+import { decide, logLogSlope, median, sessionOf, std, Summary, summarize } from './stats';
 
 describe('thống kê buổi thử', () => {
   it('median, std mẫu', () => {
@@ -21,6 +22,38 @@ describe('thống kê buổi thử', () => {
     ]);
     expect(s).toMatchObject({ sessions: 2, failed: 1 });
     expect(s.slopeMean).toBeCloseTo(1.05, 6);
+  });
+});
+
+describe('sessionOf — §3.1 chốt 1 (lượt thử 2026-09-24 trên Docker Desktop)', () => {
+  // Lượt thử cho thấy: bấm giờ cả tiến trình có hằng số ~5–8 ms ở n nhỏ, và độ dốc
+  // tính trên cả dải bị kéo từ ~2 xuống 0,83. Luật của spec: chỉ khớp trên t ≥ 20 × c.
+  const result = (ts: number[], cNs: number) =>
+    ({
+      unavailable: null,
+      aborted: null,
+      baseline: [{ program: 'submission', innerNs: cNs, outerNs: cNs }],
+      samples: ts.map((t, i) => ({
+        program: 'submission', n: 2 ** (10 + i), repeat: 0, status: 'ok', innerNs: t, outerNs: t, checksum: null,
+      })),
+    }) as unknown as MeasureResult;
+  const ms = 1_000_000;
+
+  it('bỏ các n có t < 20 × c; khớp trên phần còn lại', () => {
+    const s = sessionOf(result([5 * ms, 8 * ms, 10 * ms, 25 * ms, 40 * ms, 160 * ms], ms), 'innerNs');
+    expect([...s!.perN.keys()]).toEqual([2 ** 13, 2 ** 14, 2 ** 15]);
+  });
+
+  it('còn dưới 3 điểm đạt t ≥ 20 × c → lượt không dùng được (null), không khớp bừa', () => {
+    expect(sessionOf(result([5 * ms, 8 * ms, 10 * ms, 12 * ms, 40 * ms, 160 * ms], ms), 'innerNs')).toBeNull();
+  });
+});
+
+describe('summarize — độ tản cần ít nhất 2 lượt', () => {
+  it('dưới 2 lượt dùng được → độ lệch chuẩn và CV là Infinity, không phải 0', () => {
+    const s = summarize([{ perN: new Map([[1, 10], [2, 20]]), slope: 1 }, null]);
+    expect(s.slopeStd).toBe(Infinity);
+    expect(s.meanCv).toBe(Infinity);
   });
 });
 
@@ -52,6 +85,15 @@ describe('decide — luật D1–D4, chốt trước khi đo', () => {
     const d = decide(input(base(), { runc: facts } as never));
     expect(d.runtime).toBe('runc');
     expect(d.reasons.join(' ')).toMatch(/runsc/);
+  });
+
+  it('runsc không đo được lượt nào (độ tản Infinity) → không bao giờ qua D2', () => {
+    const m = base();
+    for (const k of ['runc|in_process|1|p', 'runc|process|1|p', 'runsc|in_process|1|p', 'runsc|process|1|p']) {
+      m.set(k, S(Infinity, Infinity));
+    }
+    // Infinity ≤ 1,2 × Infinity là true trong JS — D2 phải đòi số hữu hạn.
+    expect(decide(input(m)).runtime).toBe('runc');
   });
 
   it('D4: độ tản quá 0,10 ở cấu hình đã chọn → usable false', () => {

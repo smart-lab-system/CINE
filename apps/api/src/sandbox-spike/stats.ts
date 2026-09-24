@@ -28,9 +28,18 @@ export interface Session {
   slope: number;
 }
 
+/** §3.1 chốt 1: chỉ khớp trên các n có t(n) ≥ 20 × c. */
+export const MIN_FACTOR = 20;
+/** Dưới số điểm này thì độ dốc không nói lên gì. */
+export const MIN_POINTS = 3;
+
 /**
  * Một job đo → một lượt: trung vị theo từng n của BÀI, trừ hằng số `c`
  * (trung vị baseline). Lượt bị dừng, hỏng, hay có mẫu không `ok` → null.
+ *
+ * Chỉ giữ các n có t ≥ 20 × c (§3.1 chốt 1), và cần ít nhất 3 điểm. Lượt thử
+ * 2026-09-24 cho thấy vì sao: bấm giờ cả tiến trình có hằng số 5–8 ms ở n nhỏ,
+ * và độ dốc tính trên cả dải bị kéo từ ~2 xuống 0,83.
  */
 export function sessionOf(r: MeasureResult, field: 'innerNs' | 'outerNs'): Session | null {
   if (r.unavailable || r.aborted) return null;
@@ -40,8 +49,11 @@ export function sessionOf(r: MeasureResult, field: 'innerNs' | 'outerNs'): Sessi
   const c = base.length ? median(base) : 0;
   const perN = new Map<number, number>();
   for (const n of [...new Set(mine.map((s) => s.n))].sort((a, b) => a - b)) {
-    perN.set(n, Math.max(1, median(mine.filter((s) => s.n === n).map((s) => s[field] as number)) - c));
+    const t = median(mine.filter((s) => s.n === n).map((s) => s[field] as number));
+    if (t < MIN_FACTOR * c) continue;
+    perN.set(n, Math.max(1, t - c));
   }
+  if (perN.size < MIN_POINTS) return null;
   return { perN, slope: logLogSlope([...perN].map(([n, t]) => ({ n, t }))) };
 }
 
@@ -53,21 +65,31 @@ export interface Summary {
   meanCv: number;
 }
 
+/**
+ * Độ tản cần ít nhất 2 lượt dùng được: với 0 hay 1 lượt thì độ lệch chuẩn là
+ * Infinity (không ước lượng được), KHÔNG phải 0 — một lượt đơn lẻ từng cho
+ * "D4: dùng được" mà không có phép đo nào đứng sau.
+ */
 export function summarize(sessions: (Session | null)[]): Summary {
   const ok = sessions.filter((s): s is Session => s !== null);
-  const ns = ok.length ? [...ok[0].perN.keys()] : [];
+  // Chỉ các n mà MỌI lượt đều giữ lại (luật 20 × c có thể giữ khác nhau).
+  const ns = ok.length ? [...ok[0].perN.keys()].filter((n) => ok.every((s) => s.perN.has(n))) : [];
   const cvs = ns.map((n) => {
-    const ts = ok.map((s) => s.perN.get(n)!).filter((t) => t !== undefined);
+    const ts = ok.map((s) => s.perN.get(n)!);
     return std(ts) / mean(ts);
   });
+  const enough = ok.length >= 2;
   return {
     sessions: ok.length,
     failed: sessions.length - ok.length,
     slopeMean: ok.length ? mean(ok.map((s) => s.slope)) : NaN,
-    slopeStd: std(ok.map((s) => s.slope)),
-    meanCv: cvs.length ? mean(cvs) : NaN,
+    slopeStd: enough ? std(ok.map((s) => s.slope)) : Infinity,
+    meanCv: enough && cvs.length ? mean(cvs) : Infinity,
   };
 }
+
+const finite = (s: Summary | undefined): s is Summary =>
+  s !== undefined && Number.isFinite(s.slopeStd) && Number.isFinite(s.meanCv);
 
 export interface RuntimeFacts {
   isoPassed: boolean;
@@ -119,7 +141,8 @@ export function decide(input: {
       ...programs.map((p): [boolean, string] => {
         const a = get('runsc', mode, 1, p);
         const b = get('runc', mode, 1, p);
-        const ok = !!a && !!b && a.slopeStd <= 1.2 * b.slopeStd && a.meanCv <= 1.2 * b.meanCv;
+        // Infinity ≤ 1,2 × Infinity là true trong JS — phải đòi số hữu hạn.
+        const ok = finite(a) && finite(b) && a.slopeStd <= 1.2 * b.slopeStd && a.meanCv <= 1.2 * b.meanCv;
         return [ok, `${p}: độ tản trong 1,2× runc`];
       }),
     ];
@@ -135,7 +158,7 @@ export function decide(input: {
     const ok = programs.every((p) => {
       const a = get(runtime, mode, candidate, p);
       const b = get(runtime, mode, 1, p);
-      return !!a && !!b && a.slopeStd <= 1.1 * b.slopeStd && a.meanCv <= 1.1 * b.meanCv;
+      return finite(a) && finite(b) && a.slopeStd <= 1.1 * b.slopeStd && a.meanCv <= 1.1 * b.meanCv;
     });
     if (!ok) break;
     k = candidate;
