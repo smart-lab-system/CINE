@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, Download, Sparkles, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
+import { AutoTextarea } from '@/components/ui/auto-textarea';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -283,13 +284,12 @@ function ExamForm({
           <label htmlFor="prompt" className="mb-1.5 block text-small font-semibold">
             Yêu cầu của bạn
           </label>
-          <textarea
+          <AutoTextarea
             id="prompt"
             rows={3}
             value={prompt}
             onChange={(e) => onPrompt(e.target.value)}
             placeholder="Ví dụ: hai câu về cây nhị phân tìm kiếm, mức cuối kỳ, một câu phải đạt O(log n), cấm dùng thư viện có sẵn."
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-small leading-relaxed text-foreground"
           />
           <p className="mt-1.5 text-caption text-muted-foreground">
             Càng nói rõ ràng buộc (cấm thư viện nào, đạt độ phức tạp nào) thì đề sinh ra càng

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, RefreshCw, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AutoTextarea } from '@/components/ui/auto-textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { GeneratedQuestion } from '@/lib/api/exam-authoring';
@@ -94,12 +95,11 @@ export function QuestionCard({
           >
             Đề bài câu {number}
           </label>
-          <textarea
+          <AutoTextarea
             id={`de-${number}`}
             rows={3}
             value={question.statement}
             onChange={(e) => onChange({ ...question, statement: e.target.value })}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-small leading-relaxed text-foreground"
           />
         </div>
 
@@ -110,12 +110,12 @@ export function QuestionCard({
           >
             Đáp án mẫu câu {number} (mã nguồn)
           </label>
-          <textarea
+          <AutoTextarea
             id={`dapan-${number}`}
             rows={8}
             value={question.modelAnswer}
             onChange={(e) => onChange({ ...question, modelAnswer: e.target.value })}
-            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 font-mono text-caption leading-relaxed text-foreground"
+            className="bg-surface-2 font-mono text-caption"
           />
         </div>
 
@@ -220,7 +220,7 @@ function ClassicProblemPanel({
       {!open ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-warning/40 pt-3">
           <Button type="button" size="sm" onClick={onOpen}>
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            <RefreshCw className="h-3.5 w-3.5 text-white" aria-hidden="true" />
             Sinh lại riêng câu này
           </Button>
           <span className="text-caption text-muted-foreground">
@@ -235,13 +235,13 @@ function ClassicProblemPanel({
           >
             Cần đổi gì ở câu {number}?
           </label>
-          <textarea
+          <AutoTextarea
             id={`ghichu-${number}`}
             rows={2}
             value={note}
             onChange={(e) => onNote(e.target.value)}
             placeholder="Ví dụ: đổi sang yêu cầu đếm số lần so sánh, và cho mảng xoay vòng."
-            className="w-full rounded-lg border border-warning/40 bg-surface px-3 py-2 text-small leading-relaxed text-foreground"
+            className="border-warning/40"
           />
 
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
