@@ -115,6 +115,8 @@ export const execJob = z
       .max(200),
     comparator: comparator.default({ kind: 'exact' }),
     limits: limits.default({}),
+    /** Ngân sách của cả job (§3.1 chốt 4): hết thì worker dừng và trả phần đã chạy, `aborted: 'budget'`. */
+    budgetMs: z.number().int().min(1_000).max(3_600_000).default(120_000),
   })
   .refine((j) => pythonNeedsEntry(j.language, j.program), PY_ENTRY);
 export type ExecJob = z.infer<typeof execJob>;
@@ -134,6 +136,8 @@ export const measureJob = z
     points: z.array(z.object({ n: z.number().int().positive(), stdin: fileRef })).min(1).max(12),
     repeats: z.number().int().min(1).max(9).default(5),
     limits: limits.default({}),
+    /** Ngân sách con của phép đo (§3.1 chốt 4): hết thì trả các mẫu đã đo, `aborted: 'budget'`. */
+    budgetMs: z.number().int().min(1_000).max(3_600_000).default(240_000),
   })
   .refine((j) => pythonNeedsEntry(j.language, j.submission), PY_ENTRY)
   .refine((j) => j.reference === null || pythonNeedsEntry(j.language, j.reference), PY_ENTRY);
@@ -200,6 +204,12 @@ export const execResult = z
       }),
     ),
     totalMs: z.number().int().nonnegative(),
+    /**
+     * `budget`: hết `budgetMs` — `cases` chỉ gồm các ca đã chạy. `.default(null)`
+     * để một kết quả dựng tay (test, worker cũ) thiếu trường này vẫn hợp lệ —
+     * vắng mặt và "không bị hủy" là cùng một ý.
+     */
+    aborted: z.enum(['budget']).nullable().default(null),
     unavailable: z.string().max(1_000).nullable(),
   })
   .refine(hostWhenAvailable, HOST_MSG);
@@ -237,7 +247,7 @@ export const measureResult = z
       }),
     ),
     samples: z.array(measureSample),
-    aborted: z.enum(['interference', 'compile_error']).nullable(),
+    aborted: z.enum(['interference', 'compile_error', 'budget']).nullable(),
     startedAt: z.string(),
     finishedAt: z.string(),
     unavailable: z.string().max(1_000).nullable(),
@@ -254,6 +264,7 @@ export function unavailableExec(id: string, reason: string, host: HostFingerprin
     compile: null,
     cases: [],
     totalMs: 0,
+    aborted: null,
     unavailable: reason.slice(0, 1_000),
   };
 }

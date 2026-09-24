@@ -13,8 +13,10 @@ export function normalizeLines(s: string): string[] {
   return lines;
 }
 
+// Cắt SAU khi escape: 200 ký tự điều khiển thành ~1200 ký tự `\uXXXX`, và một `diff`
+// dài hơn 1024 làm cả kết quả sai schema (review I2).
 const clip = (s: string | undefined) =>
-  s === undefined ? '(không có dòng)' : JSON.stringify(s.length > 200 ? `${s.slice(0, 200)}…` : s);
+  s === undefined ? '(không có dòng)' : JSON.stringify(s.length > 200 ? `${s.slice(0, 200)}…` : s).slice(0, 300);
 
 function firstLineDiff(expected: string[], got: string[]): string | null {
   const n = Math.max(expected.length, got.length);
@@ -57,7 +59,7 @@ export function compareOutput(expected: string, got: string, c: Comparator): { e
       const i = a.findIndex((tok, k) => !numbersClose(tok, b[k], c.eps));
       return i === -1
         ? { equal: true, diff: null }
-        : { equal: false, diff: `token ${i + 1}: mong đợi ${clip(a[i])}, nhận ${clip(b[i])}` };
+        : { equal: false, diff: `token ${i + 1}: mong đợi ${clip(a[i])}, nhận ${clip(b[i])}`.slice(0, 1_024) };
     }
     case 'checker':
       throw new CheckerUnavailableError(c.name);

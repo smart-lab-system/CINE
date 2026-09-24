@@ -27,6 +27,11 @@ describe('execJob', () => {
     expect(job.limits).toEqual({ wallMsPerCase: 2000, memoryMb: 512, pids: 64, outputBytes: 4 * 1024 * 1024 });
   });
 
+  it('review I3 — ngân sách thời gian của job: mặc định 120 s, có trần', () => {
+    expect(execJob.parse(base).budgetMs).toBe(120_000);
+    expect(execJob.safeParse({ ...base, budgetMs: 10 }).success).toBe(false);
+  });
+
   it('từ chối đường dẫn thoát thư mục, tên dành riêng, và đường tuyệt đối', () => {
     for (const path of ['../x.cpp', 'a/../../x.cpp', '/etc/passwd', '__cine_driver.cpp', '-rf.cpp', '.hidden.cpp']) {
       const job = { ...base, program: { ...base.program, files: [{ path, ref: inline('') }] } };
@@ -62,6 +67,7 @@ describe('measureJob', () => {
       points: [{ n: 10, stdin: { kind: 'generate', generator: 'int_array', n: 10, lo: 0, hi: 9, seed: 1 } }],
     });
     expect(job.repeats).toBe(5);
+    expect(job.budgetMs).toBe(240_000);
   });
 });
 
@@ -79,5 +85,6 @@ describe('execResult', () => {
     const r = unavailableExec(JOB_ID, 'docker không chạy');
     expect(execResult.parse(r).unavailable).toBe('docker không chạy');
     expect(r.cases).toEqual([]);
+    expect(r.aborted).toBeNull();
   });
 });

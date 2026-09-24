@@ -24,6 +24,15 @@ describe('compareOutput', () => {
     expect(compareOutput('YES 1.0\n', 'NO 1.0\n', c).equal).toBe(false);
   });
 
+  it('review I2 — token dài toàn ký tự điều khiển: diff vẫn ≤ 1024 (kết quả không sai schema)', () => {
+    const evil = '\x01'.repeat(5000);
+    const f = compareOutput('1.0\n', `${evil}\n`, { kind: 'float_tolerance', eps: 1e-6 });
+    expect(f.equal).toBe(false);
+    expect(f.diff!.length).toBeLessThanOrEqual(1024);
+    const e = compareOutput('a\n', `${evil}\n`, { kind: 'exact' });
+    expect(e.diff!.length).toBeLessThanOrEqual(1024);
+  });
+
   it('checker → CheckerUnavailableError, để worker trả unavailable (Review Focus 2)', () => {
     expect(() => compareOutput('', '', { kind: 'checker', name: 'duong_di' })).toThrow(CheckerUnavailableError);
   });

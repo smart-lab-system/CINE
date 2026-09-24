@@ -16,6 +16,8 @@ export interface WorkerDeps {
   runner: RunnerEnv;
   host: HostFingerprint;
   workRoot: string;
+  /** Đồng hồ cho ngân sách thời gian — thay được trong test. */
+  now?: () => number;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,7 +48,8 @@ export async function handleExec(raw: unknown, deps: WorkerDeps, cpuset: string 
     return unavailableExec(job.jobId, `checker "${job.comparator.name}" chưa được cài ở worker`, deps.host);
   }
 
-  const started = Date.now();
+  const now = deps.now ?? Date.now;
+  const started = now();
   const dir = await mkdtemp(join(deps.workRoot, 'exec-'));
   try {
     // mkdtemp tạo 0700 — uid 1000 trong container không vào được (Review Focus 5).
@@ -64,10 +67,16 @@ export async function handleExec(raw: unknown, deps: WorkerDeps, cpuset: string 
       compile: compiled,
       unavailable: null,
     };
-    if (!compiled.ok) return { ...base, cases: [], totalMs: Date.now() - started };
+    if (!compiled.ok) return { ...base, cases: [], totalMs: now() - started, aborted: null };
 
     const cases: ExecResult['cases'] = [];
+    let aborted: 'budget' | null = null;
     for (const c of job.cases) {
+      // Hết ngân sách thì dừng và trả phần đã chạy (§3.1 chốt 4).
+      if (now() - started > job.budgetMs) {
+        aborted = 'budget';
+        break;
+      }
       const r = await runCase(deps.runner, {
         language: job.language,
         workDir: job.language === 'cpp' ? bin : src,
@@ -94,7 +103,7 @@ export async function handleExec(raw: unknown, deps: WorkerDeps, cpuset: string 
       }
       cases.push({ name: c.name, group: c.group, status, ms: r.ms, stdout, diff, limitsHit: r.limitsHit });
     }
-    return { ...base, cases, totalMs: Date.now() - started };
+    return { ...base, cases, totalMs: now() - started, aborted };
   } catch (error) {
     return unavailableExec(job.jobId, describeError(error), deps.host);
   } finally {

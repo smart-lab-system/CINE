@@ -139,6 +139,52 @@ describe('handleExec', () => {
     expect(modes).toEqual({ out: 0o777, job: 0o755, src: 0o755 });
   });
 
+  it('review I1 — bài tự in lời của daemon rồi thoát 125 → runtime_crash, không unavailable', async () => {
+    const docker = new FakeDocker([
+      (c) => (isCase(c) ? { code: 125, stderr: 'docker: Error response from daemon: giả' } : undefined),
+      // Container ĐÃ chạy, không có lỗi của runtime, và mã thoát là của chính nó.
+      (c) => (c.args[0] === 'inspect' ? { stdout: Buffer.from('false|2026-09-24T10:00:00.1Z|125|\n') } : undefined),
+    ]);
+    const r = await handleExec(job(), testDeps(docker, workRoot()), null);
+    expect(r.unavailable).toBeNull();
+    expect(r.cases.map((c) => c.status)).toEqual(['runtime_crash', 'runtime_crash', 'runtime_crash']);
+  });
+
+  it('review I3 — hết ngân sách thời gian giữa chừng → dừng, trả các ca đã chạy, aborted budget', async () => {
+    let t = 0;
+    const deps = { ...testDeps(new FakeDocker([doubler]), workRoot()), now: () => (t += 400) };
+    const r = await handleExec(job({ budgetMs: 1_000 }), deps, null);
+    expect(r.unavailable).toBeNull();
+    expect(r.aborted).toBe('budget');
+    expect(r.cases.length).toBeGreaterThan(0);
+    expect(r.cases.length).toBeLessThan(3);
+  });
+
+  posix('review I9 — quyền file bài nộp không phụ thuộc umask của worker', async () => {
+    const old = process.umask(0o077);
+    try {
+      const modes: Record<string, number> = {};
+      const docker = new FakeDocker([
+        (c) => {
+          if (!isCompile(c)) return undefined;
+          const src = mountSource(c, '/src')!;
+          modes.file = statSync(join(src, 'sub', 'a.cpp')).mode & 0o777;
+          modes.sub = statSync(join(src, 'sub')).mode & 0o777;
+          return undefined;
+        },
+        doubler,
+      ]);
+      await handleExec(
+        job({ program: { files: [{ path: 'sub/a.cpp', ref: inline('int f(int x) { return 2 * x; }') }], driver: inline('int main() {}'), entry: null } }),
+        testDeps(docker, workRoot()),
+        null,
+      );
+      expect(modes).toEqual({ file: 0o644, sub: 0o755 });
+    } finally {
+      process.umask(old);
+    }
+  });
+
   it('dọn thư mục job và mọi container, kể cả khi lỗi', async () => {
     const root = workRoot();
     const docker = new FakeDocker([(c) => (isCase(c) ? { code: 125, stderr: 'docker: Error response from daemon: x' } : undefined)]);

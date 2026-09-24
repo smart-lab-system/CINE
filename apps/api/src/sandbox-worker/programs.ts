@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { CompileInfo, LimitHit, Limits, ProgramSpec, SandboxLanguage } from '../sandbox/contract';
 import { classifyExit, isDockerFailure, RunOutcome } from './classify';
 import { Mount, Runtime, runArgs, timeoutCommand } from './docker-args';
@@ -40,9 +40,26 @@ export async function removeContainer(docker: DockerCli, name: string): Promise<
   await docker.run(['rm', '-f', name], { maxStdoutBytes: 1_024, wallMs: 30_000 }).catch(() => undefined);
 }
 
-async function oomKilled(docker: DockerCli, name: string): Promise<boolean> {
-  const r = await docker.run(['inspect', '--format', '{{.State.OOMKilled}}', name], { maxStdoutBytes: 64, wallMs: 30_000 });
-  return r.code === 0 && r.stdout.toString('utf8').trim() === 'true';
+interface ContainerState {
+  oomKilled: boolean;
+  /** Container đã thật sự chạy (StartedAt khác mốc 0001-01-01 của Docker). */
+  started: boolean;
+  exitCode: number | null;
+  error: string;
+}
+
+async function inspectState(docker: DockerCli, name: string): Promise<ContainerState> {
+  const r = await docker.run(
+    ['inspect', '--format', '{{.State.OOMKilled}}|{{.State.StartedAt}}|{{.State.ExitCode}}|{{.State.Error}}', name],
+    { maxStdoutBytes: 4_096, wallMs: 30_000 },
+  );
+  const [oom = '', startedAt = '', exit = '', ...rest] = r.code === 0 ? r.stdout.toString('utf8').trim().split('|') : [];
+  return {
+    oomKilled: oom === 'true',
+    started: startedAt !== '' && !startedAt.startsWith('0001-'),
+    exitCode: exit === '' ? null : Number(exit),
+    error: rest.join('|'),
+  };
 }
 
 /**
@@ -57,13 +74,29 @@ export async function writeProgram(
 ): Promise<{ entry: string }> {
   await mkdir(dir, { recursive: true });
   await chmod(dir, 0o755);
+  // chmod TƯỜNG MINH sau mỗi lần tạo: `mode` của mkdir/writeFile bị umask cắt, và
+  // worker chạy dưới umask 077 thì uid của bài không đọc được file nào — mọi
+  // bài ra compile_error "Permission denied" (review I9).
+  const ensureDir = async (target: string) => {
+    const parts = relative(dir, target).split(sep).filter(Boolean);
+    let cur = dir;
+    for (const part of parts) {
+      cur = join(cur, part);
+      await mkdir(cur, { recursive: true });
+      await chmod(cur, 0o755);
+    }
+  };
+  const put = async (target: string, bytes: Buffer) => {
+    await writeFile(target, bytes);
+    await chmod(target, 0o644);
+  };
   for (const file of program.files) {
     const target = join(dir, ...file.path.split('/'));
-    await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, await materialize(file.ref, policy), { mode: 0o644 });
+    await ensureDir(dirname(target));
+    await put(target, await materialize(file.ref, policy));
   }
   if (program.driver) {
-    await writeFile(join(dir, DRIVER_FILE[language]), await materialize(program.driver, policy), { mode: 0o644 });
+    await put(join(dir, DRIVER_FILE[language]), await materialize(program.driver, policy));
   }
   if (language === 'cpp') return { entry: 'a.out' };
   if (program.driver) return { entry: DRIVER_FILE.python };
@@ -160,11 +193,18 @@ export async function runCase(
       onStdoutCap: () => void env.docker.run(['kill', name], { maxStdoutBytes: 64, wallMs: 30_000 }).catch(() => undefined),
     });
     if (r.wallTimedOut) throw new InfraError('docker không trả lời trong hạn của ca');
-    if (isDockerFailure(r.code, r.stderr)) throw new InfraError(`docker lỗi: ${r.stderr.slice(0, 300)}`);
+    const state = await inspectState(env.docker, name);
+    // stderr lẫn stderr của bài: bài tự in "Error response from daemon" rồi thoát
+    // 125 thì vẫn là mã của BÀI nếu container đã chạy, runtime không báo lỗi, và mã
+    // thoát khớp (review I1). Không có bằng chứng đó mới là lỗi hạ tầng.
+    const bySubmission = state.started && state.error === '' && state.exitCode === r.code;
+    if (isDockerFailure(r.code, r.stderr) && !bySubmission) {
+      throw new InfraError(`docker lỗi: ${r.stderr.slice(0, 300)}`);
+    }
     const ms = Number(r.ns / 1_000_000n);
     const c = classifyExit({
       exitCode: r.code,
-      oomKilled: await oomKilled(env.docker, name),
+      oomKilled: state.oomKilled,
       outputTruncated: r.stdoutTruncated,
       language: p.language,
       elapsedMs: ms,
