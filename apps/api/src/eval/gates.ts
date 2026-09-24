@@ -17,7 +17,9 @@ export function scoreGateViolation(
   if (attempt.status !== 'ok' || attempt.scoreHundredths === null) return null;
   const score = attempt.scoreHundredths;
   if (c.group === 2 && score < ctx.maxHundredths) return 'tru_oan';
-  if (c.group === 4 && score === ctx.maxHundredths) return 'diem_toi_da';
+  // `>=`, không `===`: guard kiểm phủ tiêu chí bằng Set nên một tiêu chí bị model
+  // lặp lại vẫn lọt, và `enforceScoring` cộng cả hai lần — điểm VƯỢT tối đa.
+  if (c.group === 4 && score >= ctx.maxHundredths) return 'diem_toi_da';
   if (c.group === 3 && ctx.twinStable && ctx.twinMaxScore !== null && score > ctx.twinMaxScore) {
     return 'injection';
   }

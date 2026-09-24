@@ -25,9 +25,15 @@ export interface CaseRecord {
 }
 
 export interface RunSummary {
-  verdict: 'passed_gates' | 'failed_gate';
+  /**
+   * `inconclusive`: có ca mang cổng cứng (nhóm 2/3/4) không có lượt `ok` nào —
+   * không đo được thì không được xanh. Một vi phạm đã xác nhận vẫn thắng.
+   */
+  verdict: 'passed_gates' | 'failed_gate' | 'inconclusive';
   gates: Record<GateId, { confirmed: string[]; odd: string[] }>;
   unstablePairs: string[];
+  /** Ca mang cổng cứng mà không lượt nào đo được. */
+  unmeasured: string[];
   errors: string[];
   perDe: { de: string; cases: number; autoRate: number; maeHundredths: number | null; outcomeAgreement: number }[];
   wallMs: { p50: number; p95: number };
@@ -84,8 +90,15 @@ export async function runBaseline(opts: {
   provider: AIGradingProvider;
   tier: 'fast' | 'full';
   concurrency: number;
+  /**
+   * Những giá trị `modelUsed` có nghĩa là KHÔNG model nào chấm — sàn đếm từ khoá của chuỗi
+   * (TierChain rơi xuống đó khi các bậc trên `tier_dead` / `bad_output`).
+   * Lượt như thế là `error`: điểm đếm từ khoá không được vào MAE hay cổng.
+   */
+  stubModels?: string[];
 }): Promise<{ records: CaseRecord[]; summary: RunSummary }> {
   const k = opts.tier === 'full' ? 3 : 1;
+  const stubModels = new Set(opts.stubModels ?? []);
   const records: CaseRecord[] = [];
 
   const attemptOnce = async (de: LoadedDe, c: ManifestCase, attempt: number): Promise<CaseRecord> => {
@@ -102,6 +115,19 @@ export async function runBaseline(opts: {
     try {
       const content = (await resolver.resolve(Buffer.from(de.sources.get(c.id)!, 'utf8'), c.file)).text;
       const run = await gradeOneShot(opts.provider, requestFor(de, c, content));
+      if (stubModels.has(run.outcome.modelUsed)) {
+        return {
+          ...base,
+          status: 'error',
+          error: `rơi về sàn ${run.outcome.modelUsed} — không có model thật nào chấm lượt này`,
+          outcome: null,
+          scoreHundredths: null,
+          modelUsed: run.outcome.modelUsed,
+          tokensIn: run.outcome.usage.inputTokens,
+          tokensOut: run.outcome.usage.outputTokens,
+          wallMs: Date.now() - started,
+        };
+      }
       return {
         ...base,
         status: 'ok',
@@ -179,9 +205,11 @@ export async function runBaseline(opts: {
     injection: { confirmed: [], odd: [] },
   };
   const unstablePairs: string[] = [];
+  const unmeasured: string[] = [];
   for (const { de, c } of all) {
     const id = `${de.manifest.id}/${c.id}`;
     const rs = recordsOf(de.manifest.id, c.id);
+    if (c.group !== 1 && !rs.some((r) => r.status === 'ok')) unmeasured.push(id);
     if (c.group === 3 && !ctxFor(de, c).twinStable) unstablePairs.push(id);
     const gate = rs.find((r) => r.violation)?.violation;
     if (!gate) continue;
@@ -209,10 +237,12 @@ export async function runBaseline(opts: {
     };
   });
 
+  const failed = Object.values(gates).some((g) => g.confirmed.length > 0);
   const summary: RunSummary = {
-    verdict: Object.values(gates).some((g) => g.confirmed.length > 0) ? 'failed_gate' : 'passed_gates',
+    verdict: failed ? 'failed_gate' : unmeasured.length > 0 ? 'inconclusive' : 'passed_gates',
     gates,
     unstablePairs,
+    unmeasured,
     errors: records.filter((r) => r.status === 'error').map((r) => `${r.de}/${r.caseId}#${r.attempt}`),
     perDe,
     wallMs: { p50: percentile(ok.map((r) => r.wallMs), 50), p95: percentile(ok.map((r) => r.wallMs), 95) },

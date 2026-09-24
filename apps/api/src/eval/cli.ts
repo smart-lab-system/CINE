@@ -4,6 +4,7 @@ import { KeywordGradingProvider } from '../grading/ai-provider/keyword-grading.p
 import { selectGradingProvider } from '../grading/ai-provider/select-grading-provider';
 import { formatHundredths } from '../grading/scoring/hundredths';
 import { runBaseline } from './baseline-runner';
+import { parseEvalArgs } from './cli-args';
 import { loadDataset } from './load-dataset';
 import { refuseReason } from './refuse';
 import { gitState, makeRunId, writeRun } from './run-writer';
@@ -14,15 +15,13 @@ import { gitState, makeRunId, writeRun } from './run-writer';
  * Runner riêng, KHÔNG phải một file jest (spec 2026-09-20 §12.5 luật 1): gọi
  * model thật, tốn tiền, không mở DB. Kết quả ra `apps/api/eval/runs/<mã>/`.
  */
-function arg(name: string, fallback: string): string {
-  return process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback;
-}
-
 async function main() {
-  const tier = arg('tier', 'fast') as 'fast' | 'full';
-  const split = arg('split', 'dev') as 'dev' | 'test';
-  const concurrency = Number(arg('concurrency', '3'));
-  const only = process.argv.find((a) => a.startsWith('--de='))?.slice(5);
+  const parsed = parseEvalArgs(process.argv.slice(2));
+  if (!parsed.ok) {
+    console.error(`Từ chối chạy eval: ${parsed.error}`);
+    process.exit(2);
+  }
+  const { tier, split, concurrency, only } = parsed.args;
 
   const keyword = new KeywordGradingProvider();
   const provider = selectGradingProvider(new ClaudeGradingProvider(), keyword);
@@ -40,7 +39,13 @@ async function main() {
   }
   const git = gitState(apiRoot);
   const startedAt = new Date();
-  const { records, summary } = await runBaseline({ dataset, provider, tier, concurrency });
+  const { records, summary } = await runBaseline({
+    dataset,
+    provider,
+    tier,
+    concurrency,
+    stubModels: [keyword.name],
+  });
   const dir = await writeRun(
     join(apiRoot, 'eval', 'runs'),
     {
@@ -66,6 +71,9 @@ async function main() {
     console.log(`  ${gate}: xác nhận ${g.confirmed.length} [${g.confirmed.join(', ')}] · lượt lẻ ${g.odd.length}`);
   }
   if (summary.unstablePairs.length) console.log(`  Cặp injection không ổn định: ${summary.unstablePairs.join(', ')}`);
+  if (summary.unmeasured.length) {
+    console.log(`  ⚠ Ca mang cổng cứng KHÔNG đo được lượt nào: ${summary.unmeasured.join(', ')}`);
+  }
   for (const d of summary.perDe) {
     console.log(
       `  ${d.de}: ${d.cases} ca · tự duyệt ${(d.autoRate * 100).toFixed(0)}% · ` +
@@ -76,6 +84,9 @@ async function main() {
   console.log(`  Thời gian mỗi lượt p50 ${summary.wallMs.p50} ms · p95 ${summary.wallMs.p95} ms`);
   console.log(`  Token mỗi lượt p50 ${summary.tokens.p50} · p95 ${summary.tokens.p95}`);
   console.log(`  Model đã trả lời: ${summary.modelsUsed.join(', ') || '—'}`);
+  if (summary.modelsUsed.length > 1) {
+    console.log('  ⚠ Nhiều model cùng trả lời một lượt chạy — số liệu trộn hai bậc, đọc kèm cases.jsonl');
+  }
   console.log(`  Lượt lỗi: ${summary.errors.length}${summary.errors.length ? ` [${summary.errors.join(', ')}]` : ''}`);
   console.log(`  ${summary.group5}`);
 }

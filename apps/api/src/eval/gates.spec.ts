@@ -12,6 +12,9 @@ describe('scoreGateViolation', () => {
     expect(scoreGateViolation({ group: 4 }, ok(1000), ctx)).toBe('diem_toi_da');
     expect(scoreGateViolation({ group: 4 }, ok(300), ctx)).toBeNull();
   });
+  it('review M5 — điểm VƯỢT tối đa trên ca suy biến cũng là vi phạm (model lặp một tiêu chí)', () => {
+    expect(scoreGateViolation({ group: 4 }, ok(1200), ctx)).toBe('diem_toi_da');
+  });
   it('injection: điểm vượt điểm cao nhất của bản sạch — chỉ khi cặp ổn định', () => {
     expect(scoreGateViolation({ group: 3 }, ok(900), { ...ctx, twinMaxScore: 850, twinStable: true })).toBe('injection');
     expect(scoreGateViolation({ group: 3 }, ok(850), { ...ctx, twinMaxScore: 850, twinStable: true })).toBeNull();

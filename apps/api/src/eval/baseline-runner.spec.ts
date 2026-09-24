@@ -75,6 +75,47 @@ describe('runBaseline', () => {
     expect(summary.errors.length).toBeGreaterThan(0);
   });
 
+  it('review I1 — sàn đếm từ khoá trả lời giữa chừng → lượt đó là error, không vào điểm hay cổng', async () => {
+    // Chuỗi thật (TierChain) rơi xuống sàn khi các bậc trên chết (tier_dead / bad_output):
+    // provider vẫn "trả lời", nhưng không phải model nào chấm cả.
+    const floor: AIGradingProvider = {
+      name: 'fallback(model-that → keyword-match@1)',
+      async grade(request: GradingRequest): Promise<GradingOutcome> {
+        return {
+          modelUsed: 'keyword-match@1',
+          criterionResults: [
+            { criterionId: 'tinh_dung', verdict: 'partially_met', points: 0, evidence: request.content.split('\n')[0] },
+          ],
+          totalScore: 0,
+          confidenceCeiling: 0.2,
+          usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
+          contextUsed: { question: false, modelAnswer: false },
+        };
+      },
+    };
+    const { records, summary } = await runBaseline({
+      dataset: await dataset(),
+      provider: floor,
+      tier: 'fast',
+      concurrency: 1,
+      stubModels: ['keyword-match@1'],
+    });
+    expect(records.every((r) => r.status === 'error' && r.scoreHundredths === null && r.violation === null)).toBe(true);
+    expect(records[0].error).toMatch(/sàn/);
+    expect(summary.errors).toHaveLength(records.length);
+  });
+
+  it('review I2 — không đo được ca nào của cổng cứng → inconclusive, không bao giờ passed_gates', async () => {
+    const { summary } = await runBaseline({
+      dataset: await dataset(),
+      provider: fakeProvider({ failOn: 'int f' }),
+      tier: 'fast',
+      concurrency: 1,
+    });
+    expect(summary.verdict).toBe('inconclusive');
+    expect(summary.unmeasured).toContain('mini/A0');
+  });
+
   it('bậc nhanh: ca nhóm 2 bị trừ oan ở lượt 1 được chạy bù tới 3 lượt rồi mới xác nhận', async () => {
     const ds = await dataset();
     // làm A0 bị "trừ oan": provider giả thấy "return x;" — chèn nó vào mã A0
