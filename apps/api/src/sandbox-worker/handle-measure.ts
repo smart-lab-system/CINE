@@ -111,7 +111,9 @@ async function ensureSlotFree(runner: RunnerEnv, slot: string | null): Promise<v
   };
   const stale = await list();
   if (stale.length === 0) return;
-  for (const id of stale) await removeContainer({ docker: runner.docker }, id);
+  // Qua `runner` để rm hỏng cũng báo rò: khe bị cách ly thay vì mọi job sau cứ
+  // thử lại rồi ra unavailable trên cùng một khe bẩn (re-review).
+  for (const id of stale) await removeContainer(runner, id);
   const still = await list();
   if (still.length > 0) {
     throw new InfraError(`khe ${slotLabel(slot)} còn container sót (${still.join(', ')}) — không đo trên một khe bẩn`);

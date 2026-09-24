@@ -248,6 +248,17 @@ describe('handleMeasure', () => {
     expect(stuck.calls.some(isDetachedRun)).toBe(false);
   });
 
+  it('re-review — container sót của khe không xoá được → báo rò để khe bị cách ly, không thử lại mãi trên khe bẩn', async () => {
+    const leaked: string[] = [];
+    const docker = new FakeDocker([
+      (c) => (isPs(c) ? { stdout: Buffer.from('deadbeef0001\n') } : undefined),
+      (c) => (c.args[0] === 'rm' ? { code: 1, stderr: 'Error response from daemon: busy' } : undefined),
+    ]);
+    const r = await handleMeasure(job(), { ...testDeps(docker, workRoot()), onLeak: (n: string[]) => leaked.push(...n) }, '2');
+    expect(r.unavailable).toMatch(/khe/);
+    expect(leaked).toEqual(['deadbeef0001']);
+  });
+
   it('review I4 — xoá container hỏng → báo rò cho main (để không trả khe), kể cả container biên dịch', async () => {
     const leaked: string[] = [];
     const docker = new FakeDocker([
