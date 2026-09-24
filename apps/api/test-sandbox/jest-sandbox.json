@@ -1,0 +1,8 @@
+{
+  "rootDir": "..",
+  "testRegex": "test-sandbox/.*\\.sandbox-spec\\.ts$",
+  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "testEnvironment": "node",
+  "globalSetup": "<rootDir>/test-sandbox/global-setup.ts",
+  "testTimeout": 180000
+}
