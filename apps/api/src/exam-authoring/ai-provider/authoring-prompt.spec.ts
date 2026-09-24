@@ -27,6 +27,17 @@ describe('buildAuthoringPrompt', () => {
     expect(buildAuthoringPrompt(base)).toContain('resemblesKnownProblem');
   });
 
+  // Lỗi thật 2026-09-24: "topic"/"requiredComplexity" không có hướng dẫn độ
+  // dài, model viết cả câu vào đó (badge UI không tự cắt — xem
+  // question-card.test.tsx), dải tiêu đề gập lại phình gần bằng lúc mở ra.
+  // Dặn NGẮN ở prompt là lớp phòng thủ đầu, badge tự cắt (frontend) là lớp
+  // thứ hai — dặn không đảm bảo model nghe, nên không thay được lớp kia.
+  it('dặn "topic" là nhãn ngắn và "requiredComplexity" là Big-O ngắn, không phải câu mô tả', () => {
+    const text = buildAuthoringPrompt(base);
+    expect(text).toMatch(/nhãn ngắn/i);
+    expect(text).toMatch(/không phải câu (mô tả|liệt kê)/i);
+  });
+
   it('lượt SINH LẠI mang đủ ba vế: tránh gì, đổi gì, và các câu đang giữ', () => {
     // Thiếu vế nào cũng hỏng: không `avoid` thì model ra lại đúng bài cũ;
     // không `refineNote` thì nó không biết đi hướng nào; không

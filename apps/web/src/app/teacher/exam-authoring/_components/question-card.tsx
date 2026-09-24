@@ -52,9 +52,33 @@ export function QuestionCard({
       <div className="flex flex-wrap items-center gap-2 px-4 py-3">
         <span className="text-body font-bold">Câu {number}</span>
         <Badge variant="default">{question.points} điểm</Badge>
-        <Badge variant="info">{question.topic}</Badge>
+        {/*
+         * Lỗi thật 2026-09-24: `topic`/`requiredComplexity` là văn bản TỰ DO
+         * của model, không giới hạn độ dài ở đâu cả — model đã thật sự viết
+         * cả một câu vào đây (vd "O(M*N log(M*N)) thời gian, O(M*N) bộ nhớ;
+         * cấm đệ quy..."). `Badge` không tự cắt, nên dải tiêu đề GẬP LẠI
+         * phình gần bằng lúc MỞ RA — gập "không có tác dụng gì".
+         *
+         * Cắt bằng CSS (`max-w` + `truncate`) CHỈ khi gập (`!open`), giống
+         * hệt cách `statement` xem trước đã làm bên dưới — mở ra thì vẫn cần
+         * đọc trọn, vì đó đúng lúc giảng viên đang xem chi tiết. `title` giữ
+         * nguyên văn để hiện khi di chuột — cắt hình chứ không cắt chữ.
+         */}
+        <Badge
+          variant="info"
+          className={cn(!open && 'max-w-[180px] truncate')}
+          title={!open ? question.topic : undefined}
+        >
+          {question.topic}
+        </Badge>
         {question.requiredComplexity ? (
-          <Badge variant="success">{question.requiredComplexity}</Badge>
+          <Badge
+            variant="success"
+            className={cn(!open && 'max-w-[220px] truncate')}
+            title={!open ? question.requiredComplexity : undefined}
+          >
+            {question.requiredComplexity}
+          </Badge>
         ) : (
           <Badge variant="default">không ràng buộc độ phức tạp</Badge>
         )}

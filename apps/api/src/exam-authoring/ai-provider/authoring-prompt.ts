@@ -176,6 +176,11 @@ KHÔNG tự khai trường "verification": bạn chưa chạy gì cả.
 Yêu cầu của giảng viên lần này:
 ${request.prompt}${refineBlock}${avoidBlock}${keepBlock}${knowledgeBlock}${batchBlock}
 
+"topic" là một NHÃN NGẮN (2-5 từ, ví dụ "đồ thị - Dijkstra", "quy hoạch động"),
+không phải câu mô tả. "requiredComplexity" là ký hiệu Big-O ngắn gọn (ví dụ
+"O(n log n)"), kèm tối đa một ràng buộc phụ nếu thật sự cần — không phải một
+câu liệt kê nhiều ràng buộc.
+
 Trả về DUY NHẤT một object JSON:
 {
   "title": string,

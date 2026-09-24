@@ -215,6 +215,51 @@ describe('ExamAuthoringPage', () => {
     );
   });
 
+  /**
+   * Bug thật 2026-09-24 (lần 2): bản vá trước cắt `resemblesKnownProblem` ở
+   * PHÍA API, lúc đọc đầu ra MỚI của model — không cứu được đề ĐÃ NẰM SẴN
+   * trên máy giảng viên từ trước khi bản vá có hiệu lực (nháp cũ, hoặc câu
+   * đã sinh trong cùng phiên trước khi API kịp cập nhật). Field này vẫn là
+   * văn bản tự do, không ai đảm bảo mọi nguồn tương lai đều đi qua đúng chỗ
+   * đã cắt. Test này KHÔNG chạm gì tới API — dựng thẳng một nháp với
+   * `resemblesKnownProblem` dài hơn 200 ký tự, và kiểm `avoid` gửi lên VẪN
+   * trong hạn, bất kể state đang giữ gì.
+   */
+  it('resemblesKnownProblem dài (đề cũ, sinh trước khi API biết cắt) vẫn gửi avoid trong hạn 200 ký tự', async () => {
+    const long =
+      'Không khớp hoàn toàn bất kỳ mục nào trong danh mục liệt kê. Phần tìm độ dài đường đi ' +
+      'ngắn nhất trên lưới có chướng ngại vật dùng kỹ thuật nền tảng giống \'Shortest Path in ' +
+      'Binary Matrix\', nhưng yêu cầu bổ sung đếm số lượng đường đi ngắn nhất bằng DP kết hợp ' +
+      'BFS theo tầng (tương tự tinh thần bài kinh điển \'Number of Ways to Arrive at ' +
+      'Destination\', vốn áp dụng cho đồ thị có trọng số bằng Dijkstra, ở đây được biến đổi ' +
+      'sang lưới ô vuông không trọng số bằng BFS thuần).';
+    expect(long.length).toBeGreaterThan(200); // giả định của test phải đúng
+
+    window.localStorage.setItem(
+      'examcollect:exam-draft',
+      JSON.stringify({
+        savedAt: Date.now(),
+        exam: {
+          ...exam,
+          questions: [question(), question({ statement: 'Câu dài', resemblesKnownProblem: long })],
+        },
+        prompt: DRAFT_PROMPT,
+        questionCount: 2,
+        language: 'python',
+      }),
+    );
+    render(<ExamAuthoringPage />);
+    await screen.findByDisplayValue('Câu dài');
+    fireEvent.click(screen.getByRole('button', { name: /sinh lại riêng câu này/i }));
+    fireEvent.change(screen.getByLabelText(/cần đổi gì ở câu 2/i), {
+      target: { value: 'Nâng độ khó' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^sinh lại câu 2$/i }));
+
+    const call = mutate.mock.calls[0][0] as { avoid?: string[] };
+    expect(call.avoid?.[0].length).toBeLessThanOrEqual(200);
+  });
+
   it('hai nút xuất file là HAI nút riêng biệt', async () => {
     renderWithDraft();
     await screen.findByDisplayValue('Tìm k');

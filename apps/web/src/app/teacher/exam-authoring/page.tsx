@@ -13,6 +13,7 @@ import { useGenerateExam } from '@/hooks/useExamAuthoring';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/exam-draft';
 import {
   AUTHORING_LANGUAGES,
+  MAX_CLASSIC_PROBLEM_LENGTH,
   downloadAnswerKey,
   downloadExamPaper,
   type AuthoringLanguage,
@@ -123,7 +124,13 @@ export default function ExamAuthoringPage() {
         prompt,
         questionCount: 1,
         language,
-        avoid: target.resemblesKnownProblem ? [target.resemblesKnownProblem] : undefined,
+        // Cắt về MAX_CLASSIC_PROBLEM_LENGTH TRƯỚC khi gửi, không tin
+        // `resemblesKnownProblem` trong state đã đúng hạn sẵn — nó có thể
+        // đến từ một đề sinh TRƯỚC khi API biết cắt (nháp cũ, hoặc cùng
+        // phiên trước khi bản vá kịp áp dụng). Xem doc của hằng số này.
+        avoid: target.resemblesKnownProblem
+          ? [target.resemblesKnownProblem.slice(0, MAX_CLASSIC_PROBLEM_LENGTH)]
+          : undefined,
         refineNote: note,
         existingStatements: exam.questions
           .filter((_, i) => i !== index)
