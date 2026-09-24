@@ -71,7 +71,9 @@ export function hardenedFlags(h: Hardening): string[] {
     ...Object.entries(h.labels ?? {}).flatMap(([k, v]) => ['--label', `${k}=${v}`]),
   ];
   if (h.cpuset) flags.push('--cpuset-cpus', h.cpuset);
-  if (h.runtime === 'runsc') flags.push('--runtime', 'runsc');
+  // Tường minh cả runc: daemon có `default-runtime` khác thì dấu vân tay (T-ISO-5)
+  // nói runc trong khi container chạy thứ khác (review M2).
+  flags.push('--runtime', h.runtime);
   return flags;
 }
 
@@ -90,6 +92,8 @@ export function runArgs(p: {
     ...(p.interactive ? ['-i'] : []),
     ...(p.detach ? ['-d'] : []),
     '--name', p.name,
+    // Không bao giờ kéo image: chạy đúng image đã ghi trong dấu vân tay (review M2).
+    '--pull', 'never',
     ...hardenedFlags(p.hardening),
     ...p.mounts.flatMap((m) => [
       '--mount',

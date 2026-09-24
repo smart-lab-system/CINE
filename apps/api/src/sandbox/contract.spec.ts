@@ -71,6 +71,23 @@ describe('measureJob', () => {
   });
 });
 
+describe('fileRef generate — review M3', () => {
+  const pt = (n: number, lo: number, hi: number) => ({ n, stdin: { kind: 'generate', generator: 'int_array', n, lo, hi, seed: 1 } });
+  const mj = (points: unknown[]) => ({
+    contract: SANDBOX_CONTRACT_VERSION, kind: 'measure', jobId: JOB_ID, language: 'cpp', timingMode: 'in_process',
+    submission: { files: [{ path: 'main.cpp', ref: inline('') }], driver: inline(''), entry: null },
+    reference: null, points,
+  });
+  it('lo > hi bị từ chối (từng sinh NaN vào input — lỗi của gói chấm đổ lên bài)', () => {
+    expect(measureJob.safeParse(mj([pt(10, 0, 9)])).success).toBe(true);
+    expect(measureJob.safeParse(mj([pt(10, 9, 0)])).success).toBe(false);
+  });
+  it('điểm n phải khớp n của bộ sinh', () => {
+    const p = pt(10, 0, 9);
+    expect(measureJob.safeParse(mj([{ ...p, n: 20 }])).success).toBe(false);
+  });
+});
+
 describe('execResult', () => {
   it('T-ISO-5 — kết quả thật (không unavailable) phải mang dấu vân tay máy', () => {
     const ok = {

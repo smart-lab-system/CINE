@@ -55,7 +55,7 @@ afterAll(async () => {
 });
 
 const clientFor = (prefix: string) => {
-  const c = createSandboxClient({ redisUrl: REDIS_URL, prefix, timeoutMs: { exec: 60_000, measure: 300_000 } });
+  const c = createSandboxClient({ redisUrl: REDIS_URL, prefix, queueWaitMs: { exec: 60_000, measure: 60_000 } });
   clients.push(c);
   return c.client;
 };

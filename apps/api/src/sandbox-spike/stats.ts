@@ -119,14 +119,20 @@ export function decide(input: {
   const get = (r: string, m: string, k: number, p: string) => S.get(key(r, m, k, p));
   const reasons: string[] = [];
 
-  // D1
-  const inProcessWins = programs.every((p) => {
+  // D1 — đòi số hữu hạn như D2/D3: `Infinity <= Infinity` là true (review M9).
+  const measured = programs.every((p) => {
     const a = get('runc', 'in_process', 1, p);
     const b = get('runc', 'process', 1, p);
-    return a !== undefined && b !== undefined && a.slopeStd <= b.slopeStd;
+    return a !== undefined && b !== undefined && Number.isFinite(a.slopeStd) && Number.isFinite(b.slopeStd);
   });
+  const inProcessWins =
+    measured && programs.every((p) => get('runc', 'in_process', 1, p)!.slopeStd <= get('runc', 'process', 1, p)!.slopeStd);
   const mode = inProcessWins ? 'in_process' : 'process';
-  reasons.push(`D1: ${mode} (${inProcessWins ? 'ổn định ít nhất bằng' : 'kém ổn định hơn'} bấm giờ cả tiến trình trên runc)`);
+  reasons.push(
+    measured
+      ? `D1: ${mode} (${inProcessWins ? 'ổn định ít nhất bằng' : 'kém ổn định hơn'} bấm giờ cả tiến trình trên runc)`
+      : 'D1: process — không đủ lượt đo trên runc để so hai cách bấm giờ',
+  );
 
   // D2
   let runtime: 'runc' | 'runsc' = 'runc';

@@ -37,7 +37,9 @@ export async function startWorker(
     runner: {
       docker,
       runtime: cfg.runtime,
-      images: cfg.images,
+      // Chạy theo Id đã ghi trong dấu vân tay, không theo tag: dựng lại image giữa
+      // chừng thì dấu vân tay vẫn nói đúng image đang chạy (review M2, T-ISO-5).
+      images: { cpp: host.images.cpp, python: host.images.python },
       fetchPolicy: { allowedHosts: cfg.allowedDownloadHosts, allowHttp: cfg.allowHttpDownloads, maxBytes: 64 * MiB },
     },
     host,

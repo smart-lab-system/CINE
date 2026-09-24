@@ -47,7 +47,7 @@ describe('ACL Redis của sandbox — §3.5 luật 2', () => {
       workRoot: join(tmpdir(), 'cine-sandbox-test'), allowedDownloadHosts: [], allowHttpDownloads: false,
       version: 'test', warnings: [],
     });
-    client = createSandboxClient({ redisUrl: url, prefix, timeoutMs: { exec: 60_000, measure: 60_000 } });
+    client = createSandboxClient({ redisUrl: url, prefix, queueWaitMs: { exec: 60_000, measure: 60_000 } });
     const r = await client.client.exec({
       language: 'cpp',
       program: { files: [{ path: 'main.cpp', ref: inline('#include <cstdio>\nint main(){std::puts("ok");}\n') }], driver: null, entry: null },

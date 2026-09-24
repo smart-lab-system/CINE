@@ -55,6 +55,20 @@ int main() {
     expect(r.cases[0].status).toBe('pass');
   });
 
+  it('review M5 — bài Python tự sys.exit(86) → runtime_crash, KHÔNG giả được recursion_limit', async () => {
+    const r = await handleExec(
+      execJobOf({
+        language: 'python',
+        program: { files: [{ path: 'bai.py', ref: inline('import sys\nsys.exit(86)\n') }], driver: null, entry: 'bai.py' },
+        cases: [{ name: 'gia', group: null, stdin: inline(''), expected: inline('') }],
+      }),
+      deps,
+      null,
+    );
+    expect(r.unavailable).toBeNull();
+    expect(r.cases[0].status).toBe('runtime_crash');
+  });
+
   it('T-LANG-3 — Python đệ quy đúng, sâu 10^5: chạy được ở cả kiểm lẫn đo, không RecursionError, không segfault', async () => {
     const mod = `def tong(xs, i=0):
     return 0 if i == len(xs) else xs[i] + tong(xs, i + 1)

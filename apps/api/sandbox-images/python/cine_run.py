@@ -6,7 +6,10 @@ có threading.stack_size lớn thì qua cả hai. run_tests và run_scaled dùng
 file này: khác cấu hình thì một bài qua test nhưng sập lúc đo.
 
 RecursionError còn sót thoát bằng mã 86 để worker xếp riêng (recursion_limit),
-không lẫn vào luật về tính đúng.
+không lẫn vào luật về tính đúng. Bài tự `sys.exit(86)` bị đổi thành 1 để không
+giả được lớp đó (review M5). `os._exit(86)` và `raise RecursionError` thì KHÔNG
+chặn được — lớp này do bài điều khiển được, nên bước 3 không được xử nó nhẹ
+hơn "sập lúc chạy".
 """
 import os
 import runpy
@@ -34,7 +37,8 @@ def main() -> None:
             runpy.run_path(target, run_name="__main__")
         except SystemExit as exc:
             code = exc.code
-            outcome["code"] = code if isinstance(code, int) else (0 if code is None else 1)
+            code = code if isinstance(code, int) else (0 if code is None else 1)
+            outcome["code"] = 1 if code == RECURSION_EXIT else code
         except RecursionError:
             traceback.print_exc()
             outcome["code"] = RECURSION_EXIT

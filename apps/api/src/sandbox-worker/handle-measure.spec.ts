@@ -262,6 +262,23 @@ describe('handleMeasure', () => {
     expect([...leaked].sort()).toEqual([...started].sort());
   });
 
+  it('review I3 — hết ngân sách giữa chừng → dừng, trả các mẫu đã đo, aborted budget', async () => {
+    let t = 0;
+    const docker = new FakeDocker([
+      // Mỗi mẫu có input "tốn" 1 giây trên đồng hồ giả.
+      (c) => {
+        if (isExec(c) && c.stdin) t += 1_000;
+        return undefined;
+      },
+      timed,
+      topClean,
+    ]);
+    const r = await handleMeasure(job({ budgetMs: 2_500 }), { ...testDeps(docker, workRoot()), now: () => t }, '2');
+    expect(r.unavailable).toBeNull();
+    expect(r.aborted).toBe('budget');
+    expect(r.samples).toHaveLength(3);
+  });
+
   it('mọi container đo bị xoá, kể cả khi lỗi giữa chừng', async () => {
     const docker = new FakeDocker([(c) => (isExec(c) && c.stdin ? { code: 125, stderr: 'docker: Error response from daemon: boom' } : undefined), topClean]);
     await handleMeasure(job(), testDeps(docker, workRoot()), '2');

@@ -16,19 +16,27 @@ const resultFor = (jobId: string) => ({
   totalMs: 9, unavailable: null,
 });
 
-function channel(answer: (payload: { jobId: string }) => unknown | Promise<unknown>): Channel & { sent: { jobId: string }[]; removed: number } {
+function channel(
+  answer: (payload: { jobId: string }) => unknown | Promise<unknown>,
+  opts: { removeHangs?: boolean } = {},
+): Channel & { sent: { jobId: string }[]; removed: number; ttls: (number | undefined)[] } {
   const ch = {
     sent: [] as { jobId: string }[],
     removed: 0,
+    ttls: [] as (number | undefined)[],
     events: {},
     queue: {
       add: async (_name: string, data: unknown): Promise<WaitableJob> => {
         const payload = data as { jobId: string };
         ch.sent.push(payload);
         return {
-          waitUntilFinished: async () => answer(payload),
+          waitUntilFinished: async (_events: unknown, ttl?: number) => {
+            ch.ttls.push(ttl);
+            return answer(payload);
+          },
           remove: async () => {
             ch.removed++;
+            if (opts.removeHangs) await new Promise(() => undefined);
           },
         };
       },
@@ -36,8 +44,10 @@ function channel(answer: (payload: { jobId: string }) => unknown | Promise<unkno
   };
   return ch;
 }
-const client = (exec: Channel, measure: Channel = channel(() => null), timeout = 1_000) =>
-  new SandboxClient({ exec, measure, timeoutMs: { exec: timeout, measure: timeout } });
+const client = (exec: Channel, measure: Channel = channel(() => null), queueWait = 1_000) =>
+  new SandboxClient({ exec, measure, queueWaitMs: { exec: queueWait, measure: queueWait } });
+/** Ngân sách nhỏ nhất hợp đồng cho — để các test hết hạn chạy nhanh. */
+const quick = { ...request, budgetMs: 1_000 };
 
 describe('SandboxClient', () => {
   it('kết quả đúng schema, đúng jobId → trả nguyên', async () => {
@@ -73,17 +83,40 @@ describe('SandboxClient', () => {
 
   it('T-DOWN-1 — worker không trả lời trong hạn → unavailable, và job bị gỡ khỏi hàng đợi', async () => {
     const ch = channel(() => new Promise(() => undefined));
-    const r = await client(ch, undefined, 50).exec(request);
+    const r = await client(ch, undefined, 50).exec(quick);
     expect(r.unavailable).toMatch(/sandbox không trả lời/);
     expect(ch.removed).toBe(1);
+  });
+
+  it('review I3 — hạn chờ = ngân sách của job + thời gian xếp hàng, không phải một hằng số', async () => {
+    const ch = channel((p) => resultFor(p.jobId));
+    await client(ch, undefined, 7_000).exec({ ...request, budgetMs: 5_000 });
+    expect(ch.ttls).toEqual([12_000]);
+  });
+
+  it('review M6 — gỡ job treo (Redis mất) vẫn không giữ lời gọi quá hạn', async () => {
+    const ch = channel(() => new Promise(() => undefined), { removeHangs: true });
+    const started = Date.now();
+    const r = await client(ch, undefined, 50).exec(quick);
+    expect(r.unavailable).toMatch(/sandbox không trả lời/);
+    expect(Date.now() - started).toBeLessThan(4_500);
+  });
+
+  it('review M13 — request không đè được jobId, contract hay kind', async () => {
+    const ch = channel((p) => resultFor(p.jobId));
+    const evil = { ...request, jobId: '6f1c2a4e-9d7b-4c1a-8e3f-2b5d7a9c0e11', kind: 'measure' } as typeof request;
+    const r = await client(ch).exec(evil);
+    expect(ch.sent[0].jobId).not.toBe('6f1c2a4e-9d7b-4c1a-8e3f-2b5d7a9c0e11');
+    expect(ch.sent[0]).toMatchObject({ kind: 'exec' });
+    expect(r.unavailable).toBeNull();
   });
 
   it('T-DOWN-1 — add treo (Redis mất kết nối giữa chừng) → vẫn unavailable đúng hạn', async () => {
     const hang: Channel = { events: {}, queue: { add: () => new Promise(() => undefined) } };
     const started = Date.now();
-    const r = await client(hang, undefined, 50).exec(request);
+    const r = await client(hang, undefined, 50).exec(quick);
     expect(r.unavailable).toMatch(/sandbox không trả lời/);
-    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(Date.now() - started).toBeLessThan(3_000);
   });
 
   it('job do API dựng sai schema → ném NGAY, không gửi gì', async () => {

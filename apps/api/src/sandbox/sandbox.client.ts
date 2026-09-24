@@ -64,17 +64,22 @@ export class SandboxClient {
     private readonly o: {
       exec: Channel;
       measure: Channel;
-      timeoutMs: { exec: number; measure: number };
+      /**
+       * Thời gian chờ THÊM ngoài `budgetMs` của job: xếp hàng chờ khe hay lượt,
+       * và độ trễ của worker. Hạn chờ = `budgetMs` + số này (review I3): worker
+       * tự dừng ở `budgetMs` và trả phần đã chạy, nên client không vứt mẫu nào.
+       */
+      queueWaitMs: { exec: number; measure: number };
       warn?: (message: string) => void;
     },
   ) {}
 
   exec(request: ExecRequest): Promise<ExecResult> {
-    return this.submit('exec', request, execJob, execResult, unavailableExec, this.o.exec, this.o.timeoutMs.exec);
+    return this.submit('exec', request, execJob, execResult, unavailableExec, this.o.exec, this.o.queueWaitMs.exec);
   }
 
   measure(request: MeasureRequest): Promise<MeasureResult> {
-    return this.submit('measure', request, measureJob, measureResult, unavailableMeasure, this.o.measure, this.o.timeoutMs.measure);
+    return this.submit('measure', request, measureJob, measureResult, unavailableMeasure, this.o.measure, this.o.queueWaitMs.measure);
   }
 
   private async submit<R extends { jobId: string }>(
@@ -84,12 +89,14 @@ export class SandboxClient {
     resultSchema: ZodType<R, ZodTypeDef, unknown>,
     unavailable: (jobId: string, reason: string) => R,
     channel: Channel,
-    timeoutMs: number,
+    queueWaitMs: number,
   ): Promise<R> {
     const jobId = randomUUID();
     // Job API dựng mà sai schema là lỗi của API: nổ ở đây, không thành một
-    // lượt `unavailable` bí ẩn bên worker.
-    const payload = jobSchema.parse({ contract: SANDBOX_CONTRACT_VERSION, kind, jobId, ...request });
+    // lượt `unavailable` bí ẩn bên worker. `...request` ĐẦU TIÊN: lúc chạy nó
+    // không đè được jobId, contract hay kind (review M13).
+    const payload = jobSchema.parse({ ...request, contract: SANDBOX_CONTRACT_VERSION, kind, jobId });
+    const timeoutMs = (payload as { budgetMs: number }).budgetMs + queueWaitMs;
 
     let job: WaitableJob | undefined;
     let raw: unknown;
@@ -104,11 +111,12 @@ export class SandboxClient {
           });
           return job.waitUntilFinished(channel.events, timeoutMs);
         })(),
-        timeoutMs + Math.min(5_000, timeoutMs),
+        timeoutMs + 1_000,
       );
     } catch (error) {
       // Chưa ai lấy thì gỡ, để một worker sống lại không chạy job không ai chờ.
-      await job?.remove().catch(() => undefined);
+      // Có trần: Redis mất thì remove() treo tới khi ioredis hết retry (review M6).
+      if (job) await withTimeout(job.remove(), 2_000).catch(() => undefined);
       return unavailable(jobId, `sandbox không trả lời: ${error instanceof Error ? error.message : String(error)}`);
     }
 
@@ -128,7 +136,7 @@ export class SandboxClient {
 export function createSandboxClient(o: {
   redisUrl: string;
   prefix?: string;
-  timeoutMs?: { exec: number; measure: number };
+  queueWaitMs?: { exec: number; measure: number };
 }): { client: SandboxClient; close(): Promise<void> } {
   // skipVersionCheck: user ACL của sandbox (Task 12) không có INFO — cùng lý do với worker.
   const opts = { connection: buildRedisConnection({ REDIS_URL: o.redisUrl }), prefix: o.prefix ?? SANDBOX_PREFIX_DEFAULT, skipVersionCheck: true };
@@ -139,8 +147,9 @@ export function createSandboxClient(o: {
   const client = new SandboxClient({
     exec: { queue: execQueue, events: execEvents },
     measure: { queue: measureQueue, events: measureEvents },
-    // Job đo có thể xếp hàng chờ khe (§3.5) — hạn của nó gồm cả thời gian chờ.
-    timeoutMs: o.timeoutMs ?? { exec: 120_000, measure: 600_000 },
+    // Job đo có thể xếp hàng chờ khe (§3.5). Mặc định: job đo 240 s + 60 s chờ =
+    // đúng trần 300 s mỗi bài của §7; bước 2 truyền budgetMs từ phần còn lại.
+    queueWaitMs: o.queueWaitMs ?? { exec: 30_000, measure: 60_000 },
   });
   return {
     client,

@@ -243,6 +243,8 @@ export async function handleMeasure(raw: unknown, deps: WorkerDeps, slot: string
     return unavailableMeasure(jobIdOf(raw), `job sai schema: ${parsed.error.issues[0]?.message ?? 'không rõ'}`, deps.host);
   }
   const job = parsed.data;
+  const now = deps.now ?? Date.now;
+  const t0 = now();
   const startedAt = new Date().toISOString();
   const base = {
     contract: SANDBOX_CONTRACT_VERSION,
@@ -299,20 +301,32 @@ export async function handleMeasure(raw: unknown, deps: WorkerDeps, slot: string
 
     const inputs = await Promise.all(job.points.map((pt) => materialize(pt.stdin, deps.runner.fetchPolicy)));
 
+    // Hết ngân sách con thì trả các mẫu đã đo, `aborted: 'budget'` (§3.1 chốt 4):
+    // bước 4 kết luận inconclusive thay vì client bỏ cuộc và vứt hết mẫu (review I3).
+    const overBudget = () => now() - t0 > job.budgetMs;
+    let aborted: 'interference' | 'budget' | null = null;
+
     const baseline: MeasureResult['baseline'] = [];
-    for (const p of running) {
+    warmup: for (const p of running) {
       for (let i = 0; i < BASELINE_RUNS; i++) {
+        if (overBudget()) {
+          aborted = 'budget';
+          break warmup;
+        }
         const s = await sample(deps, job, p, null);
         baseline.push({ program: p.who, innerNs: s.innerNs, outerNs: s.outerNs });
       }
     }
 
     const samples: MeasureSample[] = [];
-    let aborted: 'interference' | null = null;
-    measuring: for (let r = 0; r < job.repeats; r++) {
+    measuring: for (let r = 0; r < job.repeats && aborted === null; r++) {
       for (const [i, point] of job.points.entries()) {
         const order = r % 2 === 0 ? running : [...running].reverse();
         for (const p of order) {
+          if (overBudget()) {
+            aborted = 'budget';
+            break measuring;
+          }
           let s: Awaited<ReturnType<typeof sample>>;
           try {
             s = await sample(deps, job, p, inputs[i]);

@@ -96,6 +96,17 @@ describe('decide — luật D1–D4, chốt trước khi đo', () => {
     expect(decide(input(m)).runtime).toBe('runc');
   });
 
+  it('review M9 — D1 không đo được lượt nào (Infinity) → không tuyên bố in_process ổn định hơn', () => {
+    const m = base();
+    m.set('runc|in_process|1|p', S(Infinity, Infinity));
+    m.set('runc|process|1|p', S(Infinity, Infinity));
+    const d = decide(input(m));
+    // Infinity ≤ Infinity là true trong JS — D1 phải đòi số hữu hạn như D2/D3.
+    expect(d.mode).toBe('process');
+    expect(d.reasons.join(' ')).toMatch(/D1: .*không đủ/);
+    expect(d.usable).toBe(false);
+  });
+
   it('D4: độ tản quá 0,10 ở cấu hình đã chọn → usable false', () => {
     const m = base();
     m.set('runc|in_process|1|p', S(0.2, 0.3));

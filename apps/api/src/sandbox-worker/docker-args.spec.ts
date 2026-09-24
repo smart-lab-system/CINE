@@ -27,11 +27,6 @@ describe('hardenedFlags', () => {
     expect(flags).toMatch(/--tmpfs \/tmp:rw,nosuid,nodev,size=64m/);
   });
 
-  it('runsc thêm --runtime runsc; runc không thêm gì', () => {
-    expect(hardenedFlags({ ...h, runtime: 'runsc' }).join(' ')).toContain('--runtime runsc');
-    expect(flags).not.toContain('--runtime');
-  });
-
   it('khe đo ghim cpuset', () => {
     expect(hardenedFlags({ ...h, cpuset: '2-3' }).join(' ')).toContain('--cpuset-cpus 2-3');
   });
@@ -49,6 +44,11 @@ describe('hardenedFlags', () => {
     expect(f).not.toContain('--user 64000:64000');
   });
 
+  it('review M2 — runtime luôn tường minh: daemon có default-runtime khác thì dấu vân tay vẫn đúng', () => {
+    expect(hardenedFlags(h).join(' ')).toContain('--runtime runc');
+    expect(hardenedFlags({ ...h, runtime: 'runsc' }).join(' ')).toContain('--runtime runsc');
+  });
+
   it('review I4 — nhãn thêm vào được, để dọn và kiểm khe theo nhãn', () => {
     expect(hardenedFlags({ ...h, labels: { 'cine.slot': '2' } }).join(' ')).toContain('--label cine.slot=2');
   });
@@ -62,6 +62,8 @@ describe('runArgs', () => {
       command: ['/work/a.out'],
     });
     expect(args.slice(0, 4)).toEqual(['run', '-i', '--name', 'c1']);
+    // review M2: không bao giờ kéo image — chạy đúng cái đã ghi trong dấu vân tay.
+    expect(args.join(' ')).toContain('--pull never');
     expect(args).toContain('type=bind,source=/j/bin,target=/work,readonly');
     expect(args).toContain('type=bind,source=/j/out,target=/out');
     expect(args.slice(-2)).toEqual(['img', '/work/a.out']);

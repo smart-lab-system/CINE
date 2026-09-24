@@ -56,7 +56,10 @@ export const fileRef = z.discriminatedUnion('kind', [
     hi: z.number().int().max(2 ** 53 - 1),
     seed: z.number().int(),
   }),
-]);
+]).refine((r) => r.kind !== 'generate' || r.lo <= r.hi, {
+  // lo > hi từng sinh NaN vào input: bài bị gán runtime_crash vì lỗi của gói chấm (review M3).
+  message: 'generate: lo phải ≤ hi',
+});
 export type FileRef = z.infer<typeof fileRef>;
 
 export const programSpec = z.object({
@@ -140,7 +143,10 @@ export const measureJob = z
     budgetMs: z.number().int().min(1_000).max(3_600_000).default(240_000),
   })
   .refine((j) => pythonNeedsEntry(j.language, j.submission), PY_ENTRY)
-  .refine((j) => j.reference === null || pythonNeedsEntry(j.language, j.reference), PY_ENTRY);
+  .refine((j) => j.reference === null || pythonNeedsEntry(j.language, j.reference), PY_ENTRY)
+  .refine((j) => j.points.every((p) => p.stdin.kind !== 'generate' || p.stdin.n === p.n), {
+    message: 'điểm n phải khớp n của bộ sinh',
+  });
 export type MeasureJob = z.infer<typeof measureJob>;
 export type MeasureJobInput = z.input<typeof measureJob>;
 
