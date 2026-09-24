@@ -118,6 +118,15 @@ describe('decide — luật D1–D4, chốt trước khi đo', () => {
     expect(d.reasons.join(' ')).toMatch(/process không đo được/);
   });
 
+  it('D1 — cả hai đo được, process ổn định hơn ở một chương trình → process', () => {
+    const m = base();
+    m.set('runc|in_process|1|p', S(0.05, 0.08));
+    m.set('runc|process|1|p', S(0.02, 0.05));
+    const d = decide(input(m));
+    expect(d.mode).toBe('process');
+    expect(d.reasons.join(' ')).toMatch(/D1: process \(kém ổn định hơn/);
+  });
+
   it('D4: độ tản quá 0,10 ở cấu hình đã chọn → usable false', () => {
     const m = base();
     m.set('runc|in_process|1|p', S(0.2, 0.3));
