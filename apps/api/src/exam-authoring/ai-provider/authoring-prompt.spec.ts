@@ -113,4 +113,32 @@ describe('parseAuthoringResponse', () => {
   it('gỡ được rào ```json quanh JSON', () => {
     expect(parseAuthoringResponse('```json\n' + valid + '\n```').questions).toHaveLength(1);
   });
+
+  // ĐO THẬT 2026-09-24, occ/claude-sonnet-5, lượt 5 câu: model đóng rào rồi
+  // viết tiếp một đoạn ghi chú. Rào đóng khi ấy không còn nằm ở CUỐI chuỗi,
+  // và bản cũ chỉ gỡ rào ở cuối — JSON.parse gặp "```" rồi nổ.
+  it('đọc được khi model viết thêm ghi chú SAU rào đóng', () => {
+    const text =
+      '```json\n' +
+      valid +
+      '\n```\n\n**Lưu ý cho giảng viên:** cả 5 câu đều là các bài "kinh điển" có lời giải tra được ngay trên mạng.';
+    expect(parseAuthoringResponse(text).questions).toHaveLength(1);
+  });
+
+  it('đọc được khi model mở đầu bằng một câu dẫn TRƯỚC rào', () => {
+    const text = 'Dưới đây là đề thi theo yêu cầu:\n\n```json\n' + valid + '\n```';
+    expect(parseAuthoringResponse(text).questions).toHaveLength(1);
+  });
+
+  it('ngoặc nhọn trong mã nguồn và trong ghi chú không làm lệch chỗ cắt JSON', () => {
+    const withBraces = JSON.parse(valid);
+    withBraces.questions[0].modelAnswer = 'def solve(xs):\n    seen = {}\n    return {k: 1 for k in xs}\n';
+    const text = JSON.stringify(withBraces) + '\n\nGhi chú: dùng dict {} để đếm.';
+    expect(parseAuthoringResponse(text).questions[0].modelAnswer).toContain('seen = {}');
+  });
+
+  it('JSON bị cắt giữa chừng vẫn ném, không đoán phần thiếu', () => {
+    const truncated = '```json\n' + valid.slice(0, valid.length - 20);
+    expect(() => parseAuthoringResponse(truncated)).toThrow(/không đọc được/i);
+  });
 });

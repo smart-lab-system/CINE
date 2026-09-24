@@ -84,6 +84,52 @@ function requireString(value: unknown, field: string): string {
 }
 
 /**
+ * Cắt ra object JSON đầu tiên trong đầu ra, bỏ mọi chữ bao quanh nó.
+ *
+ * Prompt đã dặn "trả về DUY NHẤT một object JSON", nhưng model không luôn
+ * nghe: đo thật 2026-09-24 (occ/claude-sonnet-5, lượt 5 câu), nó đóng rào
+ * ```json rồi viết tiếp một đoạn "Lưu ý cho giảng viên". Và không trông vào
+ * `output_config.format` được — gateway nhận tham số đó mà không thực thi
+ * (xem claude-grading.provider.ts, đo 2026-09-17).
+ *
+ * Hai bước:
+ * 1. Có rào thì lấy phần TRONG rào. An toàn vì JSON không cho phép ký tự
+ *    xuống dòng thô trong chuỗi — code trong `modelAnswer` đi dưới dạng
+ *    `\n` hai ký tự — nên một dòng mở đầu bằng ``` chỉ có thể là rào.
+ * 2. Quét ngoặc có phân biệt chuỗi từ dấu `{` đầu tiên: dấu `{}` nằm trong
+ *    code hay trong ghi chú đều không làm lệch chỗ cắt.
+ *
+ * Trả `null` khi ngoặc không khép — tức đầu ra bị cắt giữa chừng. Không
+ * đoán phần thiếu: một đề bị vá là một đề sai mà trông như đúng.
+ */
+function extractJsonObject(text: string): string | null {
+  const fenced = /```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*```/i.exec(text);
+  const source = fenced ? fenced[1] : text;
+
+  const start = source.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      inString = true;
+    } else if (ch === '{') {
+      depth++;
+    } else if (ch === '}' && --depth === 0) {
+      return source.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+/**
  * Đọc đầu ra thành `GeneratedExam`. Hai luật, cả hai đều là "thà nổ còn hơn
  * trả một thứ trông hợp lệ":
  *
@@ -96,14 +142,12 @@ function requireString(value: unknown, field: string): string {
  *    một `grading_reference` rác — đúng cái bẫy spec §4.1 mô tả.
  */
 export function parseAuthoringResponse(text: string): GeneratedExam {
-  const cleaned = text
-    .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/```\s*$/, '');
+  const json = extractJsonObject(text);
 
   let raw: Record<string, unknown>;
   try {
-    raw = JSON.parse(cleaned) as Record<string, unknown>;
+    if (json === null) throw new Error('không có object JSON trọn vẹn');
+    raw = JSON.parse(json) as Record<string, unknown>;
   } catch {
     throw new Error('Không đọc được đầu ra của model: JSON hỏng');
   }
