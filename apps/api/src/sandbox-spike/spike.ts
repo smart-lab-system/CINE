@@ -58,6 +58,32 @@ async function caseP95(deps: WorkerDeps, runs: number): Promise<number> {
 
 async function main() {
   const out = arg('out') ?? join(process.cwd(), 'spike-out');
+  if (arg('phase') === 'roundtrip') {
+    mkdirSync(out, { recursive: true });
+    const { createSandboxClient } = await import('../sandbox/sandbox.client');
+    const redisUrl = arg('redis');
+    if (!redisUrl) throw new Error('--redis bắt buộc cho pha roundtrip');
+    const { client, close } = createSandboxClient({ redisUrl, prefix: arg('prefix') });
+    const wall: number[] = [];
+    const caseMs: number[] = [];
+    for (let i = 0; i < Number(arg('jobs') ?? 50); i++) {
+      const started = Date.now();
+      const r = await client.exec({
+        language: 'cpp',
+        program: { files: [{ path: 'main.cpp', ref: { kind: 'inline', content: '#include <cstdio>\nint main(){std::puts("ok");}\n' } }], driver: null, entry: null },
+        cases: [{ name: 'a', group: null, stdin: { kind: 'inline', content: '' }, expected: { kind: 'inline', content: 'ok\n' } }],
+      });
+      if (r.unavailable) throw new Error(`vòng ${i}: ${r.unavailable}`);
+      wall.push(Date.now() - started);
+      caseMs.push(r.cases[0].ms);
+    }
+    await close();
+    const p = (xs: number[], q: number) => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(q * xs.length))];
+    const line = `vòng job (Redis → biên dịch → 1 ca → Redis): p50 ${p(wall, 0.5)} ms · p95 ${p(wall, 0.95)} ms; riêng một ca: p50 ${p(caseMs, 0.5)} ms · p95 ${p(caseMs, 0.95)} ms`;
+    writeFileSync(join(out, 'roundtrip.txt'), `${line}\n`);
+    console.log(line);
+    return;
+  }
   const cpusets = (arg('cpusets') ?? '').split('|').filter(Boolean);
   if (cpusets.length === 0) throw new Error('--cpusets bắt buộc, ví dụ --cpusets="2|3|4|5" — buổi thử phải ghim lõi');
   const sessions = Number(arg('sessions') ?? 8);
