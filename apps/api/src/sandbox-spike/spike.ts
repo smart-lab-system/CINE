@@ -84,10 +84,13 @@ async function main() {
     console.log(line);
     return;
   }
-  const cpusets = (arg('cpusets') ?? '').split('|').filter(Boolean);
-  if (cpusets.length === 0) throw new Error('--cpusets bắt buộc, ví dụ --cpusets="2|3|4|5" — buổi thử phải ghim lõi');
-  const sessions = Number(arg('sessions') ?? 8);
   const phase = arg('phase') ?? 'a';
+  if (!['a', 'b', 'report'].includes(phase)) throw new Error(`--phase phải là a, b, report hoặc roundtrip, đang là ${phase}`);
+  const cpusets = (arg('cpusets') ?? '').split('|').filter(Boolean);
+  if (phase !== 'report' && cpusets.length === 0) {
+    throw new Error('--cpusets bắt buộc, ví dụ --cpusets="2|3|4|5" — buổi thử phải ghim lõi');
+  }
+  const sessions = Number(arg('sessions') ?? 8);
   const workRoot = join(out, 'work');
   mkdirSync(workRoot, { recursive: true });
   const log = join(out, 'samples.jsonl');
@@ -126,6 +129,19 @@ async function main() {
             console.log(`${runtime} ${mode} K=1 ${p.id} #${s}: ${result.unavailable ?? result.aborted ?? 'ok'}`);
           }
         }
+      }
+    }
+  } else if (phase === 'report') {
+    // Chỉ tổng hợp samples.jsonl đã có — không đo gì. Dùng khi một pha bị dừng
+    // trước bước sinh báo cáo: dữ liệu vẫn đủ, không phải đo lại hàng giờ.
+    const seen = new Set(
+      readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l).runtime as Runtime),
+    );
+    for (const runtime of seen) {
+      try {
+        hosts[runtime] = (await depsFor(runtime, workRoot)).host;
+      } catch (error) {
+        console.log(`không đọc được dấu vân tay ${runtime}: ${error instanceof Error ? error.message : error}`);
       }
     }
   } else {

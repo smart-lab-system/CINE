@@ -119,20 +119,25 @@ export function decide(input: {
   const get = (r: string, m: string, k: number, p: string) => S.get(key(r, m, k, p));
   const reasons: string[] = [];
 
-  // D1 — đòi số hữu hạn như D2/D3: `Infinity <= Infinity` là true (review M9).
-  const measured = programs.every((p) => {
-    const a = get('runc', 'in_process', 1, p);
-    const b = get('runc', 'process', 1, p);
-    return a !== undefined && b !== undefined && Number.isFinite(a.slopeStd) && Number.isFinite(b.slopeStd);
-  });
+  // D1 — in_process phải ĐO ĐƯỢC (số hữu hạn): `Infinity <= Infinity` là true (review
+  // M9). process không đo được ở một chương trình thì in_process thắng ở chương trình đó —
+  // đúng nghĩa "≤" của luật; đo thật 2026-09-24: c của process ≈ 1,5 ms, luật t ≥ 20c loại
+  // gần hết điểm ở n của buổi thử.
+  const inProcessMeasured = programs.every((p) => finite(get('runc', 'in_process', 1, p)));
+  const processLost = programs.filter((p) => !finite(get('runc', 'process', 1, p)));
   const inProcessWins =
-    measured && programs.every((p) => get('runc', 'in_process', 1, p)!.slopeStd <= get('runc', 'process', 1, p)!.slopeStd);
+    inProcessMeasured &&
+    programs.every((p) => {
+      const b = get('runc', 'process', 1, p);
+      return !finite(b) || get('runc', 'in_process', 1, p)!.slopeStd <= b.slopeStd;
+    });
   const mode = inProcessWins ? 'in_process' : 'process';
-  reasons.push(
-    measured
-      ? `D1: ${mode} (${inProcessWins ? 'ổn định ít nhất bằng' : 'kém ổn định hơn'} bấm giờ cả tiến trình trên runc)`
-      : 'D1: process — không đủ lượt đo trên runc để so hai cách bấm giờ',
-  );
+  if (!inProcessMeasured) {
+    reasons.push('D1: process — không đủ lượt đo in_process trên runc để so hai cách bấm giờ');
+  } else {
+    const lost = processLost.length > 0 ? `; process không đo được ở ${processLost.join(', ')}` : '';
+    reasons.push(`D1: ${mode} (${inProcessWins ? 'ổn định ít nhất bằng' : 'kém ổn định hơn'} bấm giờ cả tiến trình trên runc${lost})`);
+  }
 
   // D2
   let runtime: 'runc' | 'runsc' = 'runc';

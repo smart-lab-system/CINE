@@ -107,6 +107,17 @@ describe('decide — luật D1–D4, chốt trước khi đo', () => {
     expect(d.usable).toBe(false);
   });
 
+  it('D1 — in_process đo được, process KHÔNG đo được ở n của buổi thử (Infinity) → in_process thắng', () => {
+    // Đo thật trên máy sandbox 2026-09-24: c của process ≈ 1,5 ms nên luật t ≥ 20c chỉ
+    // còn 2 điểm cho cpp-nlogn — không đo được; in_process thì độ tản 0,003.
+    const m = base();
+    m.set('runc|process|1|p', S(Infinity, Infinity));
+    const d = decide(input(m));
+    expect(d.mode).toBe('in_process');
+    expect(d.reasons.join(' ')).toMatch(/D1: in_process/);
+    expect(d.reasons.join(' ')).toMatch(/process không đo được/);
+  });
+
   it('D4: độ tản quá 0,10 ở cấu hình đã chọn → usable false', () => {
     const m = base();
     m.set('runc|in_process|1|p', S(0.2, 0.3));
