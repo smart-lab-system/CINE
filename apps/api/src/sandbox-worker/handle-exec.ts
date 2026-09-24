@@ -18,6 +18,8 @@ export interface WorkerDeps {
   workRoot: string;
   /** Đồng hồ cho ngân sách thời gian — thay được trong test. */
   now?: () => number;
+  /** Container job này không xoá được — main cách ly khe (review I4). Gọi tối đa một lần mỗi job. */
+  onLeak?: (names: string[]) => void;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -50,15 +52,17 @@ export async function handleExec(raw: unknown, deps: WorkerDeps, cpuset: string 
 
   const now = deps.now ?? Date.now;
   const started = now();
+  const leaked: string[] = [];
+  const runner: RunnerEnv = { ...deps.runner, onLeak: (name) => leaked.push(name) };
   const dir = await mkdtemp(join(deps.workRoot, 'exec-'));
   try {
-    // mkdtemp tạo 0700 — uid 1000 trong container không vào được (Review Focus 5).
+    // mkdtemp tạo 0700 — uid của bài trong container không vào được (Review Focus 5).
     await chmod(dir, 0o755);
     const src = join(dir, 'src');
     const bin = join(dir, 'bin');
     const { entry } = await writeProgram(src, job.language, job.program, deps.runner.fetchPolicy);
     const sanitize = job.language === 'cpp' && job.sanitize;
-    const compiled = await compile(deps.runner, { language: job.language, srcDir: src, outDir: bin, sanitize, cpuset });
+    const compiled = await compile(runner, { language: job.language, srcDir: src, outDir: bin, sanitize, cpuset });
     const base = {
       contract: SANDBOX_CONTRACT_VERSION,
       kind: 'exec' as const,
@@ -77,7 +81,7 @@ export async function handleExec(raw: unknown, deps: WorkerDeps, cpuset: string 
         aborted = 'budget';
         break;
       }
-      const r = await runCase(deps.runner, {
+      const r = await runCase(runner, {
         language: job.language,
         workDir: job.language === 'cpp' ? bin : src,
         entry,
@@ -108,5 +112,6 @@ export async function handleExec(raw: unknown, deps: WorkerDeps, cpuset: string 
     return unavailableExec(job.jobId, describeError(error), deps.host);
   } finally {
     await rm(dir, { recursive: true, force: true });
+    if (leaked.length > 0) deps.onLeak?.(leaked);
   }
 }

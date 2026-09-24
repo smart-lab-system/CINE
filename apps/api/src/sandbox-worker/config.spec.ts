@@ -30,10 +30,13 @@ describe('readWorkerConfig', () => {
   });
 
   it('đọc khe đo, lõi chung, và nguồn eval', () => {
-    const cfg = readWorkerConfig({
+    const cfg = readWorkerConfig(
+      {
       ...base, SANDBOX_TIMING_CPUSETS: '2|3', SANDBOX_GENERAL_CPUSET: '0-1',
       SANDBOX_EVAL_REDIS_URL: 'rediss://eval:pw@eval.example:6380', SANDBOX_RUNTIME: 'runsc',
-    });
+      },
+      { nproc: 8 },
+    );
     expect(cfg.timingCpusets).toEqual(['2', '3']);
     expect(cfg.execConcurrency).toBe(2);
     expect(cfg.runtime).toBe('runsc');
@@ -46,6 +49,23 @@ describe('readWorkerConfig', () => {
 
   it('eval dùng CHUNG Redis và prefix với hàng đợi thật → nổ (§3.5)', () => {
     expect(() => readWorkerConfig({ ...base, SANDBOX_EVAL_REDIS_URL: base.SANDBOX_REDIS_URL })).toThrow(/Redis riêng/);
+  });
+
+  it('review I5 — có khe đo mà không đặt lõi chung → lõi chung là phần bù, không để job kiểm chạy lên lõi đo', () => {
+    const cfg = readWorkerConfig({ ...base, SANDBOX_TIMING_CPUSETS: '2|3' }, { nproc: 6 });
+    expect(cfg.generalCpuset).toBe('0,1,4,5');
+    expect(cfg.execConcurrency).toBe(4);
+    expect(cfg.warnings.join(' ')).toMatch(/SANDBOX_GENERAL_CPUSET/);
+  });
+
+  it('review I5 — khe đo chiếm hết lõi, không còn lõi cho job kiểm → nổ', () => {
+    expect(() => readWorkerConfig({ ...base, SANDBOX_TIMING_CPUSETS: '0-1|2-3' }, { nproc: 4 })).toThrow(/không còn lõi/);
+  });
+
+  it('review I5 — chỉ số lõi vượt số lõi của máy → nổ lúc khởi động, không để mọi job đo ra unavailable', () => {
+    expect(() =>
+      readWorkerConfig({ ...base, SANDBOX_TIMING_CPUSETS: '2|7', SANDBOX_GENERAL_CPUSET: '0-1' }, { nproc: 4 }),
+    ).toThrow(/lõi 7.*4 lõi/);
   });
 
   it('runtime lạ → nổ', () => {

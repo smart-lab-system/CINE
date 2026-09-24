@@ -1,6 +1,30 @@
-import { SlotPool } from './slots';
+import { SlotPool, withSlot } from './slots';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+describe('withSlot — review I4', () => {
+  it('job báo rò container → khe bị cách ly (không trả lại pool), có ghi log', async () => {
+    const pool = new SlotPool(['2']);
+    const logs: string[] = [];
+    const r = await withSlot(pool, async (_slot, onLeak) => {
+      onLeak(['cine-abc']);
+      return 'kết quả';
+    }, (l) => logs.push(l));
+    expect(r).toBe('kết quả');
+    expect(logs.join(' ')).toMatch(/cách ly.*cine-abc/);
+    let got = false;
+    void pool.acquire().then(() => (got = true));
+    await sleep(20);
+    expect(got).toBe(false);
+  });
+
+  it('không rò → trả khe, kể cả khi job ném lỗi', async () => {
+    const pool = new SlotPool(['2']);
+    await expect(withSlot(pool, async () => { throw new Error('x'); }, () => undefined)).rejects.toThrow('x');
+    const lease = await pool.acquire();
+    expect(lease.item).toBe('2');
+  });
+});
 
 describe('SlotPool', () => {
   it('trao khe theo thứ tự đến, không bao giờ hai người cùng giữ một khe', async () => {

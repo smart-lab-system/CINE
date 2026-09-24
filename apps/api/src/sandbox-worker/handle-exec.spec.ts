@@ -185,6 +185,18 @@ describe('handleExec', () => {
     }
   });
 
+  it('review I4 — xoá container hỏng → báo rò cho main, gồm cả container biên dịch lẫn container ca', async () => {
+    const leaked: string[] = [];
+    const docker = new FakeDocker([
+      (c) => (c.args[0] === 'rm' ? { code: 1, stderr: 'Error response from daemon: busy' } : undefined),
+      doubler,
+    ]);
+    const r = await handleExec(job(), { ...testDeps(docker, workRoot()), onLeak: (n: string[]) => leaked.push(...n) }, null);
+    expect(r.unavailable).toBeNull();
+    const started = docker.calls.filter((c) => c.args[0] === 'run').map((c) => c.args[c.args.indexOf('--name') + 1]);
+    expect([...leaked].sort()).toEqual([...started].sort());
+  });
+
   it('dọn thư mục job và mọi container, kể cả khi lỗi', async () => {
     const root = workRoot();
     const docker = new FakeDocker([(c) => (isCase(c) ? { code: 125, stderr: 'docker: Error response from daemon: x' } : undefined)]);

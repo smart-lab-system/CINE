@@ -13,10 +13,10 @@ import {
   unavailableMeasure,
 } from '../sandbox/contract';
 import { classifyExit, isDockerFailure } from './classify';
-import { execArgs, runArgs, timeoutCommand } from './docker-args';
+import { execArgs, GUARD_UID, runArgs, SANDBOX_UID, timeoutCommand } from './docker-args';
 import { materialize } from './fetch-files';
 import { describeError, jobIdOf, WorkerDeps } from './handle-exec';
-import { compile, containerName, DOCKER_SLACK_MS, InfraError, removeContainer, writeProgram } from './programs';
+import { compile, containerName, DOCKER_SLACK_MS, InfraError, removeContainer, RunnerEnv, writeProgram } from './programs';
 import { cpusetSize } from './slots';
 
 const MiB = 1024 * 1024;
@@ -24,6 +24,37 @@ export const BASELINE_RUNS = 5;
 /** docker-init (PID 1, do `--init`) + `sleep infinity`. Hơn thế là tiến trình nền của bài. */
 export const EXPECTED_PROCESSES = 2;
 const MAX_TIMED_STDOUT = 64 * 1024;
+const GUARD_USER = `${GUARD_UID}:${GUARD_UID}`;
+const SANDBOX_USER = `${SANDBOX_UID}:${SANDBOX_UID}`;
+
+/**
+ * Đối tượng IPC sống qua các lần `docker exec` trong cùng một container, kể cả
+ * khi đã `--read-only`, bỏ `/tmp` và `--ipc none`: SysV shm/msg/sem (kernel giữ
+ * theo namespace IPC) và hàng đợi POSIX ở `/dev/mqueue` (Docker luôn mount, 1777).
+ * Đã thử trên Docker 26 + runc: `ipcmk -M` và `touch /dev/mqueue/q` ở lượt exec
+ * này vẫn thấy ở lượt sau (review C1). Chạy bằng uid canh; `|| exit` để một file
+ * thiếu không bị che bởi mã thoát của lệnh cuối.
+ */
+const IPC_CHECK = [
+  '/bin/sh',
+  '-c',
+  'cat /proc/sysvipc/shm /proc/sysvipc/msg /proc/sysvipc/sem || exit 3; echo @@; ls -A /dev/mqueue || exit 4',
+];
+
+/**
+ * Đọc đầu ra của `IPC_CHECK`. Phải thấy đủ ba dòng tiêu đề mới kết luận: thiếu
+ * một là không kiểm được (vd runtime không có /proc/sysvipc) — `unknown`, và
+ * người gọi KHÔNG được coi là sạch.
+ */
+export function ipcState(out: string): 'clean' | 'dirty' | 'unknown' {
+  const at = out.indexOf('@@');
+  if (at < 0) return 'unknown';
+  const lines = (s: string) => s.split('\n').map((l) => l.trim()).filter(Boolean);
+  const sysv = lines(out.slice(0, at));
+  const heads = sysv.filter((l) => /^key\s+(shmid|msqid|semid)\b/.test(l));
+  if (heads.length !== 3) return 'unknown';
+  return sysv.length > heads.length || lines(out.slice(at + 2)).length > 0 ? 'dirty' : 'clean';
+}
 
 type Who = 'submission' | 'reference';
 interface Running {
@@ -61,17 +92,59 @@ export function timedCommand(language: SandboxLanguage, mode: 'in_process' | 'pr
   return mode === 'process' ? ['/opt/cine/cine-time', ...target] : target;
 }
 
-async function startContainer(deps: WorkerDeps, job: MeasureJob, name: string, workDir: string, slot: string | null) {
+/** Nhãn khe của mọi container một job đo tạo ra — để kiểm và dọn theo khe (review I4). */
+const slotLabel = (slot: string | null) => slot ?? 'unpinned';
+
+/**
+ * Trước khi đo: không còn container nào của khe này (job trước rò, worker
+ * chết giữa job). SlotPool bảo đảm mỗi khe một job, và máy chỉ có một tiến
+ * trình worker (§3.5), nên container nào mang nhãn khe lúc này cũng là rác.
+ */
+async function ensureSlotFree(runner: RunnerEnv, slot: string | null): Promise<void> {
+  const list = async () => {
+    const r = await runner.docker.run(['ps', '-aq', '--filter', `label=cine.slot=${slotLabel(slot)}`], {
+      maxStdoutBytes: 64 * 1024,
+      wallMs: 30_000,
+    });
+    if (r.code !== 0) throw new InfraError(`docker ps lỗi: ${r.stderr.slice(0, 300)}`);
+    return r.stdout.toString('utf8').split('\n').map((s) => s.trim()).filter(Boolean);
+  };
+  const stale = await list();
+  if (stale.length === 0) return;
+  for (const id of stale) await removeContainer({ docker: runner.docker }, id);
+  const still = await list();
+  if (still.length > 0) {
+    throw new InfraError(`khe ${slotLabel(slot)} còn container sót (${still.join(', ')}) — không đo trên một khe bẩn`);
+  }
+}
+
+/**
+ * Container giữ suốt job, nên KHÔNG được giữ trạng thái giữa các mẫu (review
+ * C1): không `/tmp` ghi được, không `/dev/shm`; init và `sleep` chạy bằng uid
+ * canh, mẫu đo bằng uid của bài — bài không kill, không ptrace được chúng. IPC
+ * còn lại (SysV, mqueue) thì `isClean` kiểm sau mỗi mẫu.
+ */
+async function startContainer(
+  runner: RunnerEnv,
+  job: MeasureJob,
+  name: string,
+  workDir: string,
+  slot: string | null,
+) {
   const args = runArgs({
     name,
-    image: deps.runner.images[job.language],
+    image: runner.images[job.language],
     hardening: {
-      runtime: deps.runner.runtime,
+      runtime: runner.runtime,
       cpuset: slot,
       cpus: slot ? cpusetSize(slot) : 1,
       memoryMb: job.limits.memoryMb,
       pids: job.limits.pids,
       fsizeBytes: 64 * MiB,
+      user: GUARD_USER,
+      tmpfs: false,
+      ipcNone: true,
+      labels: { 'cine.slot': slotLabel(slot) },
     },
     mounts: [{ source: workDir, target: '/work', readonly: true }],
     env: {},
@@ -79,7 +152,7 @@ async function startContainer(deps: WorkerDeps, job: MeasureJob, name: string, w
     detach: true,
     command: ['sleep', 'infinity'],
   });
-  const r = await deps.runner.docker.run(args, { maxStdoutBytes: 4_096, wallMs: 60_000 });
+  const r = await runner.docker.run(args, { maxStdoutBytes: 4_096, wallMs: 60_000 });
   if (r.code !== 0) throw new InfraError(`không khởi động được container đo: ${r.stderr.slice(0, 300)}`);
 }
 
@@ -94,7 +167,10 @@ async function isRunning(deps: WorkerDeps, container: string): Promise<boolean> 
   return r.code === 0 && r.stdout.toString('utf8').trim() === 'true';
 }
 
-/** Container còn sạch: còn chạy, và chỉ có docker-init + sleep. */
+/**
+ * Container còn sạch: còn chạy, chỉ có docker-init + sleep, và không còn đối
+ * tượng IPC nào — thứ duy nhất mẫu trước còn để lại được cho mẫu sau (review C1).
+ */
 async function isClean(deps: WorkerDeps, container: string): Promise<boolean> {
   const r = await deps.runner.docker.run(['top', container], { maxStdoutBytes: 64 * 1024, wallMs: 30_000 });
   if (r.code !== 0) {
@@ -102,7 +178,19 @@ async function isClean(deps: WorkerDeps, container: string): Promise<boolean> {
     return false;
   }
   const rows = r.stdout.toString('utf8').split('\n').filter((l) => l.trim() !== '');
-  return rows.length - 1 <= EXPECTED_PROCESSES;
+  if (rows.length - 1 > EXPECTED_PROCESSES) return false;
+
+  const ipc = await deps.runner.docker.run(['exec', '--user', GUARD_USER, container, ...IPC_CHECK], {
+    maxStdoutBytes: 64 * 1024,
+    wallMs: 30_000,
+  });
+  if (ipc.code !== 0) {
+    if (!(await isRunning(deps, container))) return false;
+    throw new InfraError(`không kiểm được trạng thái IPC của container đo: ${ipc.stderr.slice(0, 300)}`);
+  }
+  const state = ipcState(ipc.stdout.toString('utf8'));
+  if (state === 'unknown') throw new InfraError('không đọc được trạng thái IPC của container đo — không coi là sạch');
+  return state === 'clean';
 }
 
 async function sample(
@@ -115,13 +203,16 @@ async function sample(
   const command = timeoutCommand(job.limits.wallMsPerCase, timedCommand(job.language, job.timingMode, stdin === null ? null : p.entry));
   const r = await deps.runner.docker.run(
     // Chỉ mã của mẫu: lượt đo không có sanitizer (§3.5), nên không cần ASAN_OPTIONS.
-    execArgs({ container: p.container, env: { CINE_TIMING_NONCE: nonce }, command }),
+    execArgs({ container: p.container, env: { CINE_TIMING_NONCE: nonce }, user: SANDBOX_USER, command }),
     { stdin: stdin ?? undefined, maxStdoutBytes: MAX_TIMED_STDOUT, wallMs: job.limits.wallMsPerCase + DOCKER_SLACK_MS },
   );
   if (r.wallTimedOut) throw new InfraError('docker exec không trả lời trong hạn');
   if (isDockerFailure(r.code, r.stderr)) {
     if (!(await isRunning(deps, p.container))) throw new ContainerGone();
-    throw new InfraError(`docker exec lỗi: ${r.stderr.slice(0, 300)}`);
+    // stderr lẫn stderr của bài (review I1): bài tự in lời của daemon rồi thoát
+    // 125 thì một lệnh thử vẫn chạy được — mã đó là của bài, không của docker.
+    const probe = await deps.runner.docker.run(['exec', p.container, 'true'], { maxStdoutBytes: 1_024, wallMs: 30_000 });
+    if (probe.code !== 0) throw new InfraError(`docker exec lỗi: ${r.stderr.slice(0, 300)}`);
   }
   const c = classifyExit({
     exitCode: r.code,
@@ -162,10 +253,13 @@ export async function handleMeasure(raw: unknown, deps: WorkerDeps, slot: string
     timingMode: job.timingMode,
     startedAt,
   };
+  const leaked: string[] = [];
+  const runner: RunnerEnv = { ...deps.runner, onLeak: (name) => leaked.push(name) };
   const dir = await mkdtemp(join(deps.workRoot, 'measure-'));
   const containers: string[] = [];
   try {
     await chmod(dir, 0o755);
+    await ensureSlotFree(runner, slot);
     const programs: { who: Who; spec: ProgramSpec }[] = [
       { who: 'submission', spec: job.submission },
       ...(job.reference ? [{ who: 'reference' as const, spec: job.reference }] : []),
@@ -176,7 +270,14 @@ export async function handleMeasure(raw: unknown, deps: WorkerDeps, slot: string
       const src = join(dir, `${p.who}-src`);
       const bin = join(dir, `${p.who}-bin`);
       const { entry } = await writeProgram(src, job.language, p.spec, deps.runner.fetchPolicy);
-      const info = await compile(deps.runner, { language: job.language, srcDir: src, outDir: bin, sanitize: false, cpuset: slot });
+      const info = await compile(runner, {
+        language: job.language,
+        srcDir: src,
+        outDir: bin,
+        sanitize: false,
+        cpuset: slot,
+        labels: { 'cine.slot': slotLabel(slot) },
+      });
       compiled[p.who] = info;
       if (!info.ok) {
         if (p.who === 'reference') throw new InfraError('đáp án mẫu không biên dịch được — lỗi của gói chấm, không phải của bài');
@@ -192,7 +293,7 @@ export async function handleMeasure(raw: unknown, deps: WorkerDeps, slot: string
       }
       const name = containerName();
       containers.push(name);
-      await startContainer(deps, job, name, job.language === 'cpp' ? bin : src, slot);
+      await startContainer(runner, job, name, job.language === 'cpp' ? bin : src, slot);
       running.push({ who: p.who, container: name, entry });
     }
 
@@ -244,7 +345,8 @@ export async function handleMeasure(raw: unknown, deps: WorkerDeps, slot: string
   } catch (error) {
     return { ...unavailableMeasure(job.jobId, describeError(error), deps.host), slot, timingMode: job.timingMode, startedAt };
   } finally {
-    for (const c of containers) await removeContainer(deps.runner.docker, c);
+    for (const c of containers) await removeContainer(runner, c);
     await rm(dir, { recursive: true, force: true });
+    if (leaked.length > 0) deps.onLeak?.(leaked);
   }
 }

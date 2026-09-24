@@ -49,6 +49,91 @@ unsigned long long work(const std::vector<long long>& a) {
     expect(r.aborted).toBe('interference');
   });
 
+  // Review C1: container đo sống suốt job và mọi lượt lặp của một n dùng CÙNG
+  // input — bài nhớ đệm được thì 4/5 lượt chạy nhanh thật, trung vị ra O(n) cho
+  // một bài O(n²), checksum vẫn đúng. `work` trả 7 khi thấy lượt trước để lại gì.
+  it('review C1 — cache qua file (/tmp, /dev/shm, thư mục làm việc) không ghi được: không lượt nào trúng cache', async () => {
+    const fileCache = `#include <cstdio>
+#include <vector>
+static const char* paths[] = {"/tmp/cine-cache", "/dev/shm/cine-cache", "cine-cache", "/work/cine-cache"};
+unsigned long long work(const std::vector<long long>& a) {
+  for (const char* p : paths) if (FILE* f = std::fopen(p, "r")) { std::fclose(f); return 7; }
+  for (const char* p : paths) if (FILE* f = std::fopen(p, "w")) { std::fputs("x", f); std::fclose(f); }
+  return a.size() > 0 ? 0 : 1;
+}
+`;
+    const r = await measure(fileCache);
+    expect(r.unavailable).toBeNull();
+    expect(r.aborted).toBeNull();
+    expect(r.samples).toHaveLength(3);
+    expect(r.samples.every((s) => s.status === 'ok' && s.checksum === '0')).toBe(true);
+  });
+
+  it('review C1 — cache qua đoạn nhớ SysV (shmget) → aborted interference ngay sau mẫu đầu, không lượt nào trúng', async () => {
+    const shmCache = `#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <vector>
+unsigned long long work(const std::vector<long long>& a) {
+  if (shmget(0x43494e45, 4096, 0600) >= 0) return 7;
+  shmget(0x43494e45, 4096, IPC_CREAT | 0600);
+  return a.size() > 0 ? 0 : 1;
+}
+`;
+    const r = await measure(shmCache);
+    expect(r.unavailable).toBeNull();
+    expect(r.aborted).toBe('interference');
+    expect(r.samples).toHaveLength(1);
+    expect(r.samples.some((s) => s.checksum === '7')).toBe(false);
+  });
+
+  it('review C1 — cache qua hàng đợi POSIX (/dev/mqueue) → aborted interference', async () => {
+    const mqCache = `#include <fcntl.h>
+#include <mqueue.h>
+#include <vector>
+unsigned long long work(const std::vector<long long>& a) {
+  if (mq_open("/cine-cache", O_RDONLY) != (mqd_t)-1) return 7;
+  mq_open("/cine-cache", O_CREAT | O_RDONLY, 0600, nullptr);
+  return a.size() > 0 ? 0 : 1;
+}
+`;
+    const r = await measure(mqCache);
+    expect(r.unavailable).toBeNull();
+    expect(r.aborted).toBe('interference');
+    expect(r.samples.some((s) => s.checksum === '7')).toBe(false);
+  });
+
+  it('review C1 — bài tìm và kill sleep/docker-init của container đo: bị từ chối (uid canh), phép đo không bị phá', async () => {
+    const killer = `#include <dirent.h>
+#include <signal.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <vector>
+unsigned long long work(const std::vector<long long>& a) {
+  unsigned long long refused = 0;
+  if (DIR* d = opendir("/proc")) {
+    while (dirent* e = readdir(d)) {
+      int pid = std::atoi(e->d_name);
+      if (pid <= 0) continue;
+      char path[64], comm[64] = {0};
+      std::snprintf(path, sizeof path, "/proc/%d/comm", pid);
+      if (FILE* f = std::fopen(path, "r")) { if (!std::fgets(comm, sizeof comm, f)) comm[0] = 0; std::fclose(f); }
+      if (!std::strncmp(comm, "sleep", 5) || !std::strncmp(comm, "docker-init", 11)) {
+        if (kill(pid, SIGKILL) != 0) refused++;
+      }
+    }
+    closedir(d);
+  }
+  return refused + (a.size() > 0 ? 0 : 100);
+}
+`;
+    const r = await measure(killer);
+    expect(r.unavailable).toBeNull();
+    expect(r.aborted).toBeNull();
+    expect(r.samples).toHaveLength(3);
+    expect(r.samples.every((s) => s.status === 'ok' && s.checksum === '2')).toBe(true);
+  });
+
   it('bấm giờ cả tiến trình: có số đo trong từ cine-time, checksum từ stdout', async () => {
     const plainDriver = `#include <cstdio>
 #include <vector>

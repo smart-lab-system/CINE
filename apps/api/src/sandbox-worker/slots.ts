@@ -15,6 +15,33 @@ export function cpusetSize(set: string): number {
   return cpusetCores(set).length;
 }
 
+/**
+ * Giữ một khe suốt một job. Job báo container rò (`docker rm -f` hỏng) thì khe
+ * bị CÁCH LY — không trả lại pool — vì container đó có thể còn chạy trên đúng
+ * các lõi này, và job sau sẽ đo trên một khe bẩn (review I4). Khởi động lại
+ * worker thì `cleanupLeftovers` dọn và mọi khe về lại.
+ */
+export async function withSlot<T, R>(
+  pool: SlotPool<T>,
+  run: (slot: T, onLeak: (names: string[]) => void) => Promise<R>,
+  log: (line: string) => void,
+): Promise<R> {
+  const lease = await pool.acquire();
+  const leaked: string[] = [];
+  try {
+    return await run(lease.item, (names) => leaked.push(...names));
+  } finally {
+    if (leaked.length === 0) {
+      lease.release();
+    } else {
+      log(
+        `CẢNH BÁO: khe ${String(lease.item ?? '(không ghim)')} bị cách ly — không xoá được container ` +
+          `${leaked.join(', ')}; xem tay rồi khởi động lại worker (lúc khởi động worker dọn container sót)`,
+      );
+    }
+  }
+}
+
 export interface Lease<T> {
   item: T;
   release(): void;

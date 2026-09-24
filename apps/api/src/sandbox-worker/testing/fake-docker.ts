@@ -35,7 +35,20 @@ export function mountSource(c: FakeCall, target: string): string | null {
   return null;
 }
 
-/** Docker giả: ghi lại mọi lời gọi, trả lời theo luật đầu tiên khớp. Không luật nào khớp → mã 0, rỗng. */
+/**
+ * Đầu ra thật của lệnh kiểm trạng thái IPC trên một container sạch (đo trên
+ * Docker 26, runc): ba dòng tiêu đề của /proc/sysvipc, rồi `@@`, rồi /dev/mqueue rỗng.
+ */
+export const CLEAN_IPC =
+  '       key      shmid perms                  size  cpid  lpid nattch   uid   gid  cuid  cgid      atime      dtime      ctime                   rss                  swap\n' +
+  '       key      msqid perms      cbytes       qnum lspid lrpid   uid   gid  cuid  cgid      stime      rtime      ctime\n' +
+  '       key      semid perms      nsems   uid   gid  cuid  cgid      otime      ctime\n' +
+  '@@\n';
+
+/**
+ * Docker giả: ghi lại mọi lời gọi, trả lời theo luật đầu tiên khớp. Không luật
+ * nào khớp → mã 0, rỗng; riêng lệnh kiểm IPC thì trả `CLEAN_IPC`.
+ */
 export class FakeDocker implements DockerCli {
   readonly calls: FakeCall[] = [];
   constructor(
@@ -62,7 +75,8 @@ export class FakeDocker implements DockerCli {
         return { code: 0, stdout: Buffer.alloc(0), stderr: '', stdoutTruncated: false, wallTimedOut: false, ns: 1_000_000n, ...r };
       }
     }
-    return { code: 0, stdout: Buffer.alloc(0), stderr: '', stdoutTruncated: false, wallTimedOut: false, ns: 1_000_000n };
+    const stdout = isStateCheck(call) ? Buffer.from(CLEAN_IPC) : Buffer.alloc(0);
+    return { code: 0, stdout, stderr: '', stdoutTruncated: false, wallTimedOut: false, ns: 1_000_000n };
   }
 }
 
@@ -70,7 +84,13 @@ const text = (c: FakeCall) => c.args.join(' ');
 export const isCompile = (c: FakeCall) => c.args[0] === 'run' && /g\+\+ |check_syntax\.py/.test(text(c));
 export const isCase = (c: FakeCall) => c.args[0] === 'run' && c.args.includes('-i');
 export const isDetachedRun = (c: FakeCall) => c.args[0] === 'run' && c.args.includes('-d');
-export const isExec = (c: FakeCall) => c.args[0] === 'exec';
+/** Lệnh của worker kiểm trạng thái IPC còn sót trong container đo (review C1). */
+export const isStateCheck = (c: FakeCall) => c.args[0] === 'exec' && text(c).includes('/proc/sysvipc/');
+/** Lệnh thử `docker exec <c> true` khi nghi docker lỗi (review I1). */
+export const isProbe = (c: FakeCall) => c.args[0] === 'exec' && c.args[c.args.length - 1] === 'true';
+/** Một lượt chạy mẫu đo (baseline hoặc có input) — không gồm lệnh kiểm hay lệnh thử của worker. */
+export const isExec = (c: FakeCall) => c.args[0] === 'exec' && !isStateCheck(c) && !isProbe(c);
+export const isPs = (c: FakeCall) => c.args[0] === 'ps';
 export const isTop = (c: FakeCall) => c.args[0] === 'top';
 
 export function envOf(c: FakeCall, key: string): string | null {

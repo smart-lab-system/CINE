@@ -7,7 +7,8 @@ import { DockerCli, spawnCli } from './docker-cli';
 import { readFingerprint } from './fingerprint';
 import { handleExec, WorkerDeps } from './handle-exec';
 import { handleMeasure } from './handle-measure';
-import { SlotPool } from './slots';
+import { cleanupLeftovers } from './programs';
+import { SlotPool, withSlot } from './slots';
 
 const MiB = 1024 * 1024;
 
@@ -29,6 +30,8 @@ export async function startWorker(
   const docker = opts.docker ?? spawnCli();
   const host = await readFingerprint(docker, cfg);
   await mkdir(cfg.workRoot, { recursive: true });
+  // Trước khi nhận job: container và thư mục job sót của lần chạy trước (review I4).
+  await cleanupLeftovers(docker, cfg.workRoot, log);
 
   const deps: WorkerDeps = {
     runner: {
@@ -55,26 +58,12 @@ export async function startWorker(
     workers.push(
       new Worker(
         QUEUE_EXEC,
-        async (job) => {
-          const lease = await general.acquire();
-          try {
-            return await handleExec(job.data, deps, lease.item);
-          } finally {
-            lease.release();
-          }
-        },
+        (job) => withSlot(general, (slot, onLeak) => handleExec(job.data, { ...deps, onLeak }, slot), log),
         { ...common, concurrency: cfg.execConcurrency },
       ),
       new Worker(
         QUEUE_MEASURE,
-        async (job) => {
-          const lease = await timing.acquire();
-          try {
-            return await handleMeasure(job.data, deps, lease.item);
-          } finally {
-            lease.release();
-          }
-        },
+        (job) => withSlot(timing, (slot, onLeak) => handleMeasure(job.data, { ...deps, onLeak }, slot), log),
         { ...common, concurrency: timing.size },
       ),
     );

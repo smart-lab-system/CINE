@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { CompileInfo, LimitHit, Limits, ProgramSpec, SandboxLanguage } from '../sandbox/contract';
 import { classifyExit, isDockerFailure, RunOutcome } from './classify';
@@ -25,6 +25,8 @@ export interface RunnerEnv {
   runtime: Runtime;
   images: Record<SandboxLanguage, string>;
   fetchPolicy: FetchPolicy;
+  /** Gọi khi `docker rm -f` hỏng: container có thể còn chạy trên lõi của khe (review I4). */
+  onLeak?: (name: string) => void;
 }
 
 export const DRIVER_FILE: Record<SandboxLanguage, string> = {
@@ -36,8 +38,37 @@ export function containerName(): string {
   return `cine-${randomBytes(6).toString('hex')}`;
 }
 
-export async function removeContainer(docker: DockerCli, name: string): Promise<void> {
-  await docker.run(['rm', '-f', name], { maxStdoutBytes: 1_024, wallMs: 30_000 }).catch(() => undefined);
+/**
+ * `docker rm -f` trả 0 cả khi container không còn — nên mã khác 0 (hay docker
+ * treo) là container có thể CÒN, và người gọi phải biết (review I4).
+ */
+export async function removeContainer(env: Pick<RunnerEnv, 'docker' | 'onLeak'>, name: string): Promise<void> {
+  const r = await env.docker.run(['rm', '-f', name], { maxStdoutBytes: 1_024, wallMs: 30_000 }).catch(() => null);
+  if (!r || r.code !== 0) env.onLeak?.(name);
+}
+
+/** Tiền tố `mkdtemp` của thư mục job — chỉ những thư mục này bị dọn lúc khởi động. */
+const JOB_DIR = /^(exec|measure)-/;
+
+/**
+ * Lúc khởi động: xoá container sót của lần chạy trước (crash, systemd giết giữa
+ * job, `rm` hỏng) và thư mục job cũ. Container đo sót chạy `sleep infinity` trên
+ * đúng cpuset của khe, có khi kèm tiến trình nền đốt CPU (review I4). Không xoá
+ * được thì cảnh báo, không nổ: job đo tự kiểm khe của nó trước khi đo.
+ */
+export async function cleanupLeftovers(docker: DockerCli, workRoot: string, log: (line: string) => void): Promise<void> {
+  const r = await docker.run(['ps', '-aq', '--filter', 'label=cine.sandbox=1'], { maxStdoutBytes: 1_024 * 1_024, wallMs: 30_000 });
+  if (r.code !== 0) {
+    log(`CẢNH BÁO: không liệt kê được container sót: ${r.stderr.slice(0, 300)}`);
+  } else {
+    const ids = r.stdout.toString('utf8').split('\n').map((s) => s.trim()).filter(Boolean);
+    const failed: string[] = [];
+    for (const id of ids) await removeContainer({ docker, onLeak: (n) => failed.push(n) }, id);
+    if (ids.length > 0) log(`dọn ${ids.length - failed.length}/${ids.length} container sót từ lần chạy trước`);
+    if (failed.length > 0) log(`CẢNH BÁO: không xoá được container sót ${failed.join(', ')} — job đo tự kiểm khe trước khi đo`);
+  }
+  const names = await readdir(workRoot).catch(() => [] as string[]);
+  for (const name of names.filter((n) => JOB_DIR.test(n))) await rm(join(workRoot, name), { recursive: true, force: true });
 }
 
 interface ContainerState {
@@ -116,7 +147,14 @@ export async function writeProgram(
  */
 export async function compile(
   env: RunnerEnv,
-  p: { language: SandboxLanguage; srcDir: string; outDir: string; sanitize: boolean; cpuset: string | null },
+  p: {
+    language: SandboxLanguage;
+    srcDir: string;
+    outDir: string;
+    sanitize: boolean;
+    cpuset: string | null;
+    labels?: Record<string, string>;
+  },
 ): Promise<CompileInfo> {
   const started = Date.now();
   const name = containerName();
@@ -124,7 +162,7 @@ export async function compile(
   const mounts: Mount[] = [{ source: p.srcDir, target: '/src', readonly: true }];
   if (p.language === 'cpp') {
     await mkdir(p.outDir, { recursive: true });
-    // uid 1000 trong container phải ghi được a.out vào đây (Review Focus 5).
+    // uid của bài trong container phải ghi được a.out vào đây (Review Focus 5).
     await chmod(p.outDir, 0o777);
     mounts.push({ source: p.outDir, target: '/out', readonly: false });
     const flags = ['-std=c++17', '-O2', ...(p.sanitize ? ['-fsanitize=address,undefined', '-fno-sanitize-recover=all'] : [])];
@@ -135,7 +173,15 @@ export async function compile(
   const args = runArgs({
     name,
     image: env.images[p.language],
-    hardening: { runtime: env.runtime, cpuset: p.cpuset, cpus: 1, memoryMb: 1_536, pids: 128, fsizeBytes: 256 * MiB },
+    hardening: {
+      runtime: env.runtime,
+      cpuset: p.cpuset,
+      cpus: 1,
+      memoryMb: 1_536,
+      pids: 128,
+      fsizeBytes: 256 * MiB,
+      labels: p.labels,
+    },
     mounts,
     env: {},
     interactive: false,
@@ -149,7 +195,7 @@ export async function compile(
     const log = r.code === 124 ? 'biên dịch quá 60 giây' : `${r.stdout.toString('utf8')}${r.stderr}`;
     return { ok: r.code === 0, log: log.slice(0, 16_384), ms: Date.now() - started };
   } finally {
-    await removeContainer(env.docker, name);
+    await removeContainer(env, name);
   }
 }
 
@@ -212,6 +258,6 @@ export async function runCase(
     });
     return { ...c, stdout: r.stdout, ms };
   } finally {
-    await removeContainer(env.docker, name);
+    await removeContainer(env, name);
   }
 }

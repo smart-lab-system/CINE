@@ -50,7 +50,8 @@ export interface WorkerConfig {
   warnings: string[];
 }
 
-export function readWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
+export function readWorkerConfig(env: NodeJS.ProcessEnv, opts: { nproc?: number } = {}): WorkerConfig {
+  const nproc = opts.nproc ?? cpus().length;
   const problems: string[] = [];
   const warnings: string[] = [];
   const get = (key: string) => env[key]?.trim() || undefined;
@@ -75,7 +76,7 @@ export function readWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
   const timingRaw = get('SANDBOX_TIMING_CPUSETS');
   if (timingRaw) timingCpusets = timingRaw.split('|').map((s) => s.trim());
   else warnings.push('SANDBOX_TIMING_CPUSETS chưa đặt — job đo KHÔNG ghim lõi; số đo chỉ để thử, không dùng cho chấm thật (§3.5)');
-  const generalCpuset = get('SANDBOX_GENERAL_CPUSET') ?? null;
+  let generalCpuset = get('SANDBOX_GENERAL_CPUSET') ?? null;
 
   const owner = new Map<number, string>();
   let generalSize = 0;
@@ -85,12 +86,28 @@ export function readWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
       const cores = cpusetCores(set);
       if (set === generalCpuset) generalSize = cores.length;
       for (const core of cores) {
+        // Lõi không có thì docker từ chối mọi container của khe — mọi job đo ra
+        // unavailable, lặng lẽ, suốt đời máy (review I5). Nổ ngay lúc khởi động.
+        if (core >= nproc) problems.push(`lõi ${core} trong "${set}" không có — máy có ${nproc} lõi (0–${nproc - 1})`);
         const prev = owner.get(core);
         if (prev !== undefined) problems.push(`lõi ${core} nằm ở cả "${prev}" lẫn "${set}" — mỗi khe đo phải có lõi riêng`);
         owner.set(core, set);
       }
     } catch (error) {
       problems.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  // Có khe đo mà job kiểm không ghim thì container biên dịch và container ca
+  // chạy lên cả lõi đo — §3.5: "không job nào khác chạy trên đó" (review I5).
+  if (timingRaw && generalCpuset === null && problems.length === 0) {
+    const rest = Array.from({ length: nproc }, (_, i) => i).filter((c) => !owner.has(c));
+    if (rest.length === 0) {
+      problems.push('khe đo chiếm hết lõi — không còn lõi cho job kiểm; đặt SANDBOX_GENERAL_CPUSET hoặc bớt khe đo');
+    } else {
+      generalCpuset = rest.join(',');
+      generalSize = rest.length;
+      warnings.push(`SANDBOX_GENERAL_CPUSET chưa đặt — job kiểm ghim vào phần lõi còn lại: ${generalCpuset}`);
     }
   }
 
