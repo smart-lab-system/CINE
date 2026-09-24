@@ -1,4 +1,9 @@
-import { AuthoringRequest, GeneratedExam, GeneratedQuestion } from './exam-authoring-provider';
+import {
+  AuthoringRequest,
+  GeneratedExam,
+  GeneratedQuestion,
+  MAX_CLASSIC_PROBLEM_LENGTH,
+} from './exam-authoring-provider';
 
 /**
  * Title mặc định khi không có gì để đặt tên đề — model bỏ trống `title`
@@ -163,7 +168,8 @@ ${CLASSIC_PROBLEMS_CATALOG}
 kinh điển phổ biến khác không có trong danh mục, thì NÓI RA TÊN NÓ — đừng chỉ
 dựa vào trí nhớ tự do khi danh mục đã liệt kê sẵn để đối chiếu. Sinh viên tra
 mạng ra lời giải trong ba mươi giây, và giảng viên cần biết điều đó trước khi
-in đề. Không giống bài nào thì để null.
+in đề. Không giống bài nào thì để null. CHỈ TÊN BÀI, không kèm giải thích
+biến thể khác chỗ nào — tối đa một câu ngắn.
 
 KHÔNG tự khai trường "verification": bạn chưa chạy gì cả.
 
@@ -191,6 +197,25 @@ function requireString(value: unknown, field: string): string {
     throw new Error(`Không đọc được đầu ra của model: thiếu hoặc sai kiểu ở "${field}"`);
   }
   return value;
+}
+
+/**
+ * Cắt `resemblesKnownProblem` về trong hạn `MAX_CLASSIC_PROBLEM_LENGTH`.
+ *
+ * Lỗi thật 2026-09-24: field này KHÔNG có giới hạn độ dài ở đây (văn bản tự
+ * do của model), nhưng frontend gửi nó nguyên văn lên làm `avoid` ở lượt
+ * sinh lại kế tiếp, và `GenerateExamDto.avoid` có trần. Prompt đã dặn model
+ * viết ngắn (xem chỉ dẫn "CHỈ TÊN BÀI" ở trên), nhưng dặn không phải chặn —
+ * CẮT ở ĐÂY để lượt sinh lại kế tiếp không bao giờ lặp lại lỗi này, bất kể
+ * model có nghe lời hay không.
+ *
+ * Cắt chứ không bỏ hẳn (không trả `null`): một cảnh báo "gần giống bài kinh
+ * điển" bị CẮT NGẮN vẫn còn hữu ích cho giảng viên; bỏ hẳn thì giảng viên mất
+ * luôn tín hiệu rủi ro chỉ vì model viết dài dòng.
+ */
+function truncateClassicProblem(value: string): string {
+  if (value.length <= MAX_CLASSIC_PROBLEM_LENGTH) return value;
+  return value.slice(0, MAX_CLASSIC_PROBLEM_LENGTH - 1) + '…';
 }
 
 /**
@@ -287,7 +312,9 @@ export function parseAuthoringResponse(text: string): GeneratedExam {
         };
       }),
       resemblesKnownProblem:
-        typeof row.resemblesKnownProblem === 'string' ? row.resemblesKnownProblem : null,
+        typeof row.resemblesKnownProblem === 'string'
+          ? truncateClassicProblem(row.resemblesKnownProblem)
+          : null,
     };
   });
 

@@ -1,5 +1,5 @@
 import { buildAuthoringPrompt, parseAuthoringResponse } from './authoring-prompt';
-import { AuthoringRequest } from './exam-authoring-provider';
+import { AuthoringRequest, MAX_CLASSIC_PROBLEM_LENGTH } from './exam-authoring-provider';
 
 const base: AuthoringRequest = {
   prompt: 'cây nhị phân tìm kiếm',
@@ -163,6 +163,36 @@ describe('parseAuthoringResponse', () => {
 
   it('gỡ được rào ```json quanh JSON', () => {
     expect(parseAuthoringResponse('```json\n' + valid + '\n```').questions).toHaveLength(1);
+  });
+
+  // Lỗi THẬT 2026-09-24: "resemblesKnownProblem" là văn bản TỰ DO của model,
+  // không giới hạn độ dài ở đâu cả. Frontend gửi nó NGUYÊN VĂN lên làm
+  // `avoid` ở lượt sinh lại (`handleRegenerate`, page.tsx), và
+  // `GenerateExamDto.avoid` giới hạn mỗi phần tử 200 ký tự — model viết dài
+  // hơn 200 ký tự (đã xảy ra thật, model càng hay giải thích thêm sau khi có
+  // danh mục bài kinh điển) làm lượt SINH LẠI kế tiếp bị 400 ngay từ vòng
+  // validate, trước khi chạm tới bất kỳ logic nào. Cắt ở ĐÂY — nơi model trả
+  // lời — để lượt sinh lại kế tiếp không bao giờ lặp lại lỗi này, bất kể
+  // model viết dài bao nhiêu.
+  it('resemblesKnownProblem dài quá 200 ký tự bị CẮT — lượt sinh lại kế tiếp gửi nó làm "avoid" không được vượt trần', () => {
+    const long = JSON.parse(valid);
+    long.questions[0].resemblesKnownProblem =
+      'Biến thể mở rộng của bài toán kinh điển "Valid Parentheses" (LeetCode 20), ' +
+      'có thêm ràng buộc kiểm tra toán tử và nội dung không rỗng bên trong ngoặc, ' +
+      'và còn phải đếm số lần mở ngoặc lồng nhau sâu nhất trong toàn bộ chuỗi đưa vào.';
+    const exam = parseAuthoringResponse(JSON.stringify(long));
+    expect(exam.questions[0].resemblesKnownProblem?.length).toBeLessThanOrEqual(
+      MAX_CLASSIC_PROBLEM_LENGTH,
+    );
+  });
+
+  it('resemblesKnownProblem trong hạn thì giữ nguyên, không cắt oan', () => {
+    expect(parseAuthoringResponse(valid).questions[0].resemblesKnownProblem).toBeNull();
+    const withProblem = JSON.parse(valid);
+    withProblem.questions[0].resemblesKnownProblem = 'Two Sum';
+    expect(
+      parseAuthoringResponse(JSON.stringify(withProblem)).questions[0].resemblesKnownProblem,
+    ).toBe('Two Sum');
   });
 
   // ĐO THẬT 2026-09-24, occ/claude-sonnet-5, lượt 5 câu: model đóng rào rồi
