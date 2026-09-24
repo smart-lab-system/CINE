@@ -94,6 +94,11 @@ describe("Exam authoring (e2e)", () => {
       status: "unverified",
       reason: "sandbox_unavailable",
     });
+    // `failedCount` chỉ xuất hiện khi fan-out (ClaudeAuthoringProvider) có
+    // worker hỏng — bảo vệ luật "vắng mặt = không câu nào lỗi" từ đầu đến
+    // cuối, dù e2e này đi qua StubAuthoringProvider (NODE_ENV=test), nơi
+    // không mô phỏng lỗi fan-out.
+    expect(res.body.failedCount).toBeUndefined();
   });
 
   it("ghi ĐÚNG MỘT dòng ai_usage, và dòng đó KHÔNG chứa nội dung đề", async () => {

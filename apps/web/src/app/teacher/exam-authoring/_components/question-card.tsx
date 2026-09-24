@@ -219,7 +219,7 @@ function ClassicProblemPanel({
 
       {!open ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-warning/40 pt-3">
-          <Button type="button" size="sm" onClick={onOpen}>
+          <Button type="button" size="sm" onClick={onOpen} className='text-white'>
             <RefreshCw className="h-3.5 w-3.5 text-white" aria-hidden="true" />
             Sinh lại riêng câu này
           </Button>

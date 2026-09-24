@@ -57,6 +57,20 @@ export interface GeneratedExam {
   language: string;
   questions: GeneratedQuestion[];
   verification: Verification;
+  /**
+   * Số câu KHÔNG sinh được trong lượt fan-out song song (mất mạng, model từ
+   * chối, hết trần token, hoặc JSON hỏng ở một trong các lời gọi song song).
+   *
+   * Vắng mặt hoặc `0` = không câu nào lỗi — kể cả ở lượt `questionCount <= 1`
+   * KHÔNG bao giờ đặt trường này (không có gì để fan-out với N=1), nên phía
+   * đọc phải kiểm `(exam.failedCount ?? 0) > 0`, không phải chỉ kiểm trường
+   * này có mặt hay không.
+   *
+   * `questions` khi đó NGẮN HƠN số câu giảng viên yêu cầu — không phải một
+   * mảng đủ chỗ trống, vì không có gì để lấp vào chỗ một câu chưa từng sinh
+   * ra được.
+   */
+  failedCount?: number;
 }
 
 export interface AuthoringRequest {
@@ -85,6 +99,21 @@ export interface AuthoringRequest {
   refineNote?: string;
   /** Đề của các câu đang giữ lại, để câu mới không trùng ý với chúng. */
   existingStatements?: string[];
+
+  /**
+   * Hai trường dưới đây chỉ có ở lượt FAN-OUT SONG SONG (`questionCount` gốc
+   * > 1). CHỈ provider tự đặt cho từng worker — DTO và `ExamAuthoringService`
+   * không bao giờ gửi hai trường này lên, và `questionCount` trên request đã
+   * bị provider ép về 1 trước khi gắn chúng (mỗi worker vẫn chỉ xin ĐÚNG một
+   * câu, đúng khuôn `parseAuthoringResponse` đã có).
+   *
+   * Cả hai chỉ để dựng MỘT dòng nhắc nhẹ trong prompt ("đây là câu mấy trong
+   * mấy câu đang sinh song song") — không phải cơ chế chống trùng ý thật sự.
+   * Các worker chạy độc lập, không thấy nội dung của nhau, nên đây chỉ là
+   * giảm nhẹ rủi ro trùng ý, không phải giải pháp triệt để.
+   */
+  batchIndex?: number;
+  batchSize?: number;
 }
 
 export interface AuthoringUsage {

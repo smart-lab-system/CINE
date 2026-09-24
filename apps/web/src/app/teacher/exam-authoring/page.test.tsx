@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { toast } from 'sonner';
 import ExamAuthoringPage from './page';
 
 const useGenerateExamMock = vi.fn();
@@ -29,7 +30,9 @@ vi.mock('@/lib/api/exam-authoring', async () => {
   };
 });
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}));
 
 function question(overrides: Record<string, unknown> = {}) {
   return {
@@ -90,6 +93,13 @@ beforeEach(() => {
   attachMock.mockReset();
   attachMock.mockResolvedValue(undefined);
   pushMock.mockReset();
+  // Sonner: reset để một test kiểm "KHÔNG gọi" không thừa hưởng lượt gọi
+  // của test chạy trước nó — lỗ hổng lộ ra ngay khi test `toast.warning`
+  // đầu tiên kiểm `not.toHaveBeenCalled()` (chưa test nào của `success`/
+  // `error` từng kiểm điều đó, nên lỗ hổng nằm im tới giờ).
+  vi.mocked(toast.success).mockClear();
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.warning).mockClear();
   useExamSessionsMock.mockReset();
   useExamSessionsMock.mockReturnValue({
     data: {
@@ -210,6 +220,39 @@ describe('ExamAuthoringPage', () => {
       target: { value: 'hai câu về cây nhị phân tìm kiếm' },
     });
     expect(go).toBeEnabled();
+  });
+
+  /**
+   * `failedCount` chỉ xuất hiện khi API fan-out có worker hỏng (xem
+   * `apps/api/.../claude-authoring.provider.ts`). Giảng viên phải BIẾT đề
+   * đang thiếu câu — im lặng bớt câu là cách một đề 10 câu phát ra chỉ còn
+   * 8 mà không ai để ý tới lúc in.
+   */
+  it('sinh đề mà thiếu vài câu thì báo rõ số câu lỗi, không im lặng bớt câu', () => {
+    render(<ExamAuthoringPage />);
+    fireEvent.change(screen.getByLabelText(/yêu cầu của bạn/i), {
+      target: { value: 'ba câu về cây nhị phân tìm kiếm' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /sinh đề/i }));
+
+    const onSuccess = mutate.mock.calls[0][1].onSuccess as (r: unknown) => void;
+    onSuccess({ ...exam, questions: [question()], failedCount: 2 });
+
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect((toast.warning as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatch(/2/);
+  });
+
+  it('sinh đủ đề thì KHÔNG hiện cảnh báo thiếu câu', () => {
+    render(<ExamAuthoringPage />);
+    fireEvent.change(screen.getByLabelText(/yêu cầu của bạn/i), {
+      target: { value: 'ba câu về cây nhị phân tìm kiếm' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /sinh đề/i }));
+
+    const onSuccess = mutate.mock.calls[0][1].onSuccess as (r: unknown) => void;
+    onSuccess(exam);
+
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 });
 

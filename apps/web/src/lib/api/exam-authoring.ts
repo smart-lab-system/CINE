@@ -35,6 +35,12 @@ export interface GeneratedExam {
   language: string;
   questions: GeneratedQuestion[];
   verification: Verification;
+  /**
+   * Số câu KHÔNG sinh được — chỉ có khi API sinh song song (fan-out) có
+   * worker hỏng. Vắng mặt hoặc `0` = không câu nào lỗi; `questions` khi đó
+   * NGẮN HƠN số câu đã yêu cầu, không phải một mảng đủ chỗ trống.
+   */
+  failedCount?: number;
 }
 
 /**

@@ -1,6 +1,14 @@
 import { AuthoringRequest, GeneratedExam, GeneratedQuestion } from './exam-authoring-provider';
 
 /**
+ * Title mặc định khi không có gì để đặt tên đề — model bỏ trống `title`
+ * (đây), hoặc fan-out không có worker nào ở `batchIndex: 1` thành công để
+ * mượn title của nó (`claude-authoring.provider.ts`). MỘT hằng số, dùng ở
+ * cả hai chỗ, để đổi tên mặc định không phải sửa hai nơi.
+ */
+export const DEFAULT_EXAM_TITLE = 'Đề thi CTDL&GT';
+
+/**
  * Danh mục bài kinh điển — để MODEL ĐỐI CHIẾU khi khai "resemblesKnownProblem",
  * không chỉ dựa vào trí nhớ tự do.
  *
@@ -122,6 +130,23 @@ export function buildAuthoringPrompt(request: AuthoringRequest): string {
         keep.map((s, i) => `${i + 1}. ${s}`).join('\n')
       : '';
 
+  // Chỉ có mặt khi PROVIDER tự fan-out N câu thành N lời gọi song song
+  // (`AuthoringRequest.batchIndex`/`batchSize`, xem doc ở đó). KHÁC hẳn
+  // `keepBlock`: đó là các câu ĐÃ SINH XONG, còn đây là các worker chạy
+  // song song, chưa ai xong trước ai — không worker nào thấy nội dung của
+  // worker khác. Chỉ là một dòng nhắc giảm nhẹ rủi ro trùng ý, không phải
+  // cơ chế chống trùng ý thật sự.
+  //
+  // `batchSize > 1` mới thêm: N=1 (một lời gọi lẻ, không phải fan-out) thì
+  // không có gì để "song song" cùng.
+  const batchBlock =
+    request.batchIndex && request.batchSize && request.batchSize > 1
+      ? `\n\nĐây là câu ${request.batchIndex}/${request.batchSize} đang được sinh SONG SONG bởi ` +
+        `các bản sao độc lập của bạn — không thấy nội dung của nhau. Nếu đây không phải câu ` +
+        `đầu tiên, hãy chọn một khía cạnh/chủ đề con khác trong phạm vi yêu cầu của giảng viên, ` +
+        `tránh phương án hiển nhiên nhất.`
+      : '';
+
   return `Bạn soạn đề thi môn Cấu trúc dữ liệu và Giải thuật.
 
 Sinh ${request.questionCount} câu bằng ngôn ngữ ${request.language}.
@@ -143,7 +168,7 @@ in đề. Không giống bài nào thì để null.
 KHÔNG tự khai trường "verification": bạn chưa chạy gì cả.
 
 Yêu cầu của giảng viên lần này:
-${request.prompt}${refineBlock}${avoidBlock}${keepBlock}${knowledgeBlock}
+${request.prompt}${refineBlock}${avoidBlock}${keepBlock}${knowledgeBlock}${batchBlock}
 
 Trả về DUY NHẤT một object JSON:
 {
@@ -267,7 +292,7 @@ export function parseAuthoringResponse(text: string): GeneratedExam {
   });
 
   return {
-    title: typeof raw.title === 'string' ? raw.title : 'Đề thi CTDL&GT',
+    title: typeof raw.title === 'string' ? raw.title : DEFAULT_EXAM_TITLE,
     language: typeof raw.language === 'string' ? raw.language : 'python',
     questions,
     // Gắn ở ĐÂY, bất kể model nói gì. Xem luật 1 ở doc trên.

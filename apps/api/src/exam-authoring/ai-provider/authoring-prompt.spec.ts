@@ -77,6 +77,34 @@ describe('buildAuthoringPrompt', () => {
     const text = buildAuthoringPrompt({ ...base, questionCount: 1, refineNote: 'đổi hướng khác' });
     expect(text).toContain('Two Sum');
   });
+
+  // Fan-out: mỗi worker chỉ thấy MỘT câu của chính nó, không thấy N-1 câu
+  // anh em — khác cơ chế "existingStatements" (đó là CÂU ĐÃ SINH XONG, còn
+  // đây là các worker chạy song song, chưa ai xong trước ai). Khối nhắc nhẹ
+  // này là giảm nhẹ rủi ro trùng ý, không phải giải pháp triệt để.
+  it('có batchIndex/batchSize thì nói rõ đây là một câu trong nhiều câu đang sinh song song', () => {
+    const text = buildAuthoringPrompt({ ...base, questionCount: 1, batchIndex: 2, batchSize: 5 });
+    expect(text).toContain('2/5');
+    expect(text).toMatch(/song song/i);
+  });
+
+  it('không có batchIndex/batchSize thì prompt giữ nguyên như cũ — không phình vô cớ', () => {
+    const text = buildAuthoringPrompt(base);
+    expect(text).not.toMatch(/song song/i);
+  });
+
+  it('batchSize=1 thì KHÔNG thêm khối song song dù có batchIndex — N=1 không có gì để fan-out', () => {
+    const text = buildAuthoringPrompt({ ...base, questionCount: 1, batchIndex: 1, batchSize: 1 });
+    expect(text).not.toMatch(/song song/i);
+  });
+
+  it('khối song song nằm SAU danh mục bài kinh điển — không chen vào tiền tố đang được gateway tự cache', () => {
+    const text = buildAuthoringPrompt({ ...base, questionCount: 1, batchIndex: 1, batchSize: 3 });
+    const catalogAt = text.indexOf('Two Sum');
+    const batchAt = text.indexOf('1/3');
+    expect(catalogAt).toBeGreaterThan(-1);
+    expect(batchAt).toBeGreaterThan(catalogAt);
+  });
 });
 
 const valid = JSON.stringify({

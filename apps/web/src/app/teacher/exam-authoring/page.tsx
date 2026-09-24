@@ -78,7 +78,20 @@ export default function ExamAuthoringPage() {
     generate.mutate(
       { prompt, questionCount, language },
       {
-        onSuccess: (result) => updateExam(result),
+        onSuccess: (result) => {
+          updateExam(result);
+          // `failedCount` = API fan-out song song có worker hỏng (mất mạng,
+          // model từ chối, hết trần token, JSON hỏng). KHÔNG im lặng bớt câu:
+          // một đề 10 câu phát ra chỉ còn 8 mà không ai để ý tới lúc in là
+          // đúng thứ giảng viên cần biết TRƯỚC, không phải TRONG LÚC in đề.
+          // Lối thoát: bấm "Sinh lại cả đề" — rẻ, nhờ chính lượt fan-out này.
+          if ((result.failedCount ?? 0) > 0) {
+            toast.warning(
+              `Sinh được ${result.questions.length}/${result.questions.length + result.failedCount!} câu — ` +
+                `${result.failedCount} câu lỗi khi gọi model. Bấm "Sinh lại cả đề" để thử lại.`,
+            );
+          }
+        },
         onError: (e) => toast.error(e.message || 'Không sinh được đề. Hãy thử lại.'),
       },
     );
