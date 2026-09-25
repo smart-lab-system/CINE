@@ -9,6 +9,8 @@ export interface ModelTier {
   label: string;
   /** Id model thật — thứ ghi vào `modelsUsed` (§8.2: phải nói được AI NÀO). */
   model: string;
+  /** Trần tin cậy của bậc (GRADING_TIERn_CEILING) — chỉ kéo được nguồn `llm_only` xuống (§4.2). */
+  ceiling: number;
   call(request: ChatTextRequest): Promise<{ content: string; usage: ChatUsage }>;
 }
 
@@ -167,6 +169,7 @@ export function buildInvestigatorTiers(): ModelTier[] {
     tiers.push({
       label: config.tier,
       model: config.model,
+      ceiling: config.ceiling,
       call: (request) => postChatText(config, request),
     });
   }

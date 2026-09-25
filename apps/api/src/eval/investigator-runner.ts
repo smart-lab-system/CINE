@@ -1,26 +1,14 @@
+import { decide } from '../grading/decision/decide';
 import { ALL_COMPONENTS, investigate, InvestigateComponents, InvestigateDeps } from '../grading/investigator/investigate';
 import { InvestigationBudget, InvestigationContext, InvestigationResult } from '../grading/investigator/types';
-import { computeDeductionScore } from '../grading/scoring/deduction-score';
 import { parseHundredths } from '../grading/scoring/hundredths';
 import { HostFingerprint } from '../sandbox/contract';
-import { contextFor } from './context-from-fixture';
+import { contextFor, errorRulesOf } from './context-from-fixture';
 import { GateId } from './gates';
 import { stripForGroup5 } from './group5';
-import { expectedScoreHundredths, LoadedDataset, LoadedDe } from './load-dataset';
+import { expectedScoreHundredths, LoadedDataset } from './load-dataset';
 import { CaseRecord, runCases, RunSummary } from './runner-core';
 import { FrozenBundle } from './test-bundle';
-
-function scoreOf(de: LoadedDe, ruleKeys: string[]): number {
-  return computeDeductionScore(
-    de.manifest.rubric.map((r) => ({ key: r.key, maxHundredths: parseHundredths(r.maxPoints) })),
-    de.manifest.rules.map((r) => ({
-      ruleKey: r.ruleKey,
-      criterionKey: r.criterionKey,
-      deductionHundredths: r.deduction === null ? null : parseHundredths(r.deduction),
-    })),
-    ruleKeys,
-  ).scoreHundredths;
-}
 
 function hostOf(result: InvestigationResult): HostFingerprint | null {
   for (const s of Object.values(result.investigation.structuredResults)) if (s.host) return s.host;
@@ -38,6 +26,10 @@ export async function runInvestigator(opts: {
   tier: 'fast' | 'full';
   concurrency: number;
   budget: InvestigationBudget;
+  /** θ của công thức tự quyết (§4.2) — người gọi đọc bằng `readAutoThreshold`. */
+  theta: number;
+  /** model → trần tin cậy của bậc; chỉ kéo được `llm_only` xuống (§4.2). */
+  ceilings: Map<string, number>;
   deps: InvestigateDeps;
   components?: InvestigateComponents;
   /** Chỉ để test thay; mặc định là `investigate` thật. */
@@ -64,25 +56,38 @@ export async function runInvestigator(opts: {
         const result = await run(contextFor(de, c, bundle, opts.budget), opts.deps, components);
         sandboxHost ??= hostOf(result);
         const exhausted = result.kind === 'ungradable' && result.investigation.budget.stopReason === 'models_exhausted';
-        const found = result.kind === 'verdict' ? result.verdict!.errors.map((e) => e.ruleKey) : null;
+        // 3a: kết cục và điểm là của decide() — sàn, §4.3, giá, nguồn gốc, MỘT công thức tự quyết.
+        const decision = decide({
+          pipeline: 'investigator',
+          result,
+          bundle,
+          rubric: de.manifest.rubric.map((r) => ({ key: r.key, maxHundredths: parseHundredths(r.maxPoints) })),
+          rules: errorRulesOf(de),
+          waivedCriteria: de.manifest.waivedCriteria,
+          modelCeiling: Math.min(1, ...result.investigation.modelsUsed.map((m) => opts.ceilings.get(m) ?? 0.5)),
+          theta: opts.theta,
+        });
+        const bySource = { deterministic: 0, llm_with_tools: 0, llm_only: 0 };
+        for (const e of decision.errors) bySource[e.source] += e.deductionHundredths ?? 0;
         return stripForGroup5({
           ...base,
           status: exhausted ? 'error' : 'ok',
           // Lý do của vòng lặp đã nói "mọi bậc model đều hỏng" kèm lý do từng bậc (review M2).
           error: exhausted ? (result.ungradable?.reason ?? 'mọi bậc model đều hỏng').slice(0, 500) : null,
-          outcome: exhausted ? null : result.kind === 'ungradable' ? 'ungradable' : 'flagged',
-          scoreHundredths: found ? scoreOf(de, found) : null,
-          foundRuleIds: found,
+          outcome: exhausted ? null : decision.outcome === 'auto' ? 'graded' : decision.outcome,
+          scoreHundredths: decision.scoreHundredths,
+          foundRuleIds: decision.outcome === 'ungradable' ? null : decision.errors.map((e) => e.ruleKey),
           modelUsed: result.investigation.modelsUsed.join('+') || null,
           tokensIn: result.usage.inputTokens,
           tokensOut: result.usage.outputTokens,
           wallMs: Date.now() - started,
           toolCalls: result.investigation.budget.toolCalls,
           stopReason: result.investigation.budget.stopReason,
-          flags: result.flags,
+          flags: [...result.flags, ...decision.caseFlags.map((f) => f.code), ...decision.errorFlags.map((f) => `${f.code}:${f.ruleKey}`)],
+          deductionBySource: decision.outcome === 'ungradable' ? null : bySource,
           // Lỗi bị loại (luật, lý do) đi kèm hồ sơ: evidence_rejected vô hại (luật không có trong bảng)
           // hay làm điểm cao oan (luật thật mất bằng chứng) chỉ đo được khi cases.jsonl mang nó.
-          investigation: { ...result.investigation, rejected: result.rejected },
+          investigation: { ...result.investigation, rejected: result.rejected, decision },
           summaryText: result.summary,
         });
       } catch (error) {
@@ -90,6 +95,7 @@ export async function runInvestigator(opts: {
           ...base, status: 'error', error: error instanceof Error ? error.message.slice(0, 300) : String(error),
           outcome: null, scoreHundredths: null, foundRuleIds: null, modelUsed: null, tokensIn: 0, tokensOut: 0,
           wallMs: Date.now() - started, toolCalls: null, stopReason: null, flags: [], investigation: null, summaryText: null,
+          deductionBySource: null,
         });
       }
     },

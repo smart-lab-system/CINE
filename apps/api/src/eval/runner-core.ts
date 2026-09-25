@@ -27,6 +27,8 @@ export interface CaseRecord {
   flags: string[];
   /** Hồ sơ đầy đủ cho nhóm 1–4 (§12.7), để báo cáo mở lại được đường điều tra. */
   investigation: unknown | null;
+  /** Σ mức trừ theo nguồn gốc (§4.1). Baseline: null — nó không có nguồn gốc lỗi. */
+  deductionBySource: { deterministic: number; llm_with_tools: number; llm_only: number } | null;
   summaryText: string | null;
 }
 
@@ -69,6 +71,14 @@ export interface RunSummary {
   ruleMetrics: RuleMetrics | null;
   toolCallsPerCase: { p50: number; p95: number } | null;
   stopReasons: Record<string, number>;
+  /**
+   * Tự quyết (§15.2): số lượt `graded`, tỉ lệ trên lượt ok, và PRECISION của nhóm tự quyết — trong
+   * các lượt tự quyết, tỉ lệ khớp CẢ luật lẫn kết cục mong đợi. Chỉ số tiêu đề (§12.3). null khi
+   * không có lượt tự quyết nào, hay pipeline không có ruleId (baseline).
+   */
+  autoDecision: { count: number; rate: number; precision: number | null };
+  /** Tỉ lệ mức trừ do máy quyết (§4.2 — con số tiêu đề). null khi không có mức trừ nào. */
+  machineDeductionShare: number | null;
 }
 
 export type AttemptFn = (de: LoadedDe, c: ManifestCase, attempt: number) => Promise<CaseRecord>;
@@ -226,6 +236,19 @@ export async function runCases(opts: {
   const withCalls = ok.filter((r) => r.toolCalls !== null).map((r) => r.toolCalls!);
   const stopReasons: Record<string, number> = {};
   for (const r of ok) if (r.stopReason) stopReasons[r.stopReason] = (stopReasons[r.stopReason] ?? 0) + 1;
+  const graded = ok.filter((r) => r.outcome === 'graded');
+  const sameRules = (a: string[] | null, b: string[]) => a !== null && [...a].sort().join('|') === [...b].sort().join('|');
+  const autoDecision = {
+    count: graded.length,
+    rate: ok.length ? graded.length / ok.length : 0,
+    precision:
+      graded.length && graded.every((r) => r.foundRuleIds !== null)
+        ? graded.filter((r) => sameRules(r.foundRuleIds, r.expectedRuleIds) && r.outcome === r.expectedOutcome).length / graded.length
+        : null,
+  };
+  const bySource = ok.map((r) => r.deductionBySource).filter((x): x is NonNullable<CaseRecord['deductionBySource']> => x !== null);
+  const totalDeduction = bySource.reduce((s, x) => s + x.deterministic + x.llm_with_tools + x.llm_only, 0);
+  const machineDeductionShare = totalDeduction > 0 ? bySource.reduce((s, x) => s + x.deterministic, 0) / totalDeduction : null;
   const summary: RunSummary = {
     verdict: failed ? 'failed_gate' : unmeasured.length > 0 ? 'inconclusive' : 'passed_gates',
     gates,
@@ -248,6 +271,8 @@ export async function runCases(opts: {
     ruleMetrics: ruleMetrics(records),
     toolCallsPerCase: withCalls.length ? { p50: percentile(withCalls, 50), p95: percentile(withCalls, 95) } : null,
     stopReasons,
+    autoDecision,
+    machineDeductionShare,
   };
   return { records, summary };
 }

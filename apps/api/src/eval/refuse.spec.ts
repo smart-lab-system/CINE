@@ -20,6 +20,7 @@ describe('refuseInvestigator', () => {
   const tier = {
     label: 't',
     model: 'm',
+    ceiling: 0.5,
     call: async () => ({ content: '', usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 } }),
   };
   const sandbox = { ok: true as const, config: { redisUrl: 'redis://localhost:6390', prefix: 'cine-sbx-eval' } };

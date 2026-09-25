@@ -1,9 +1,9 @@
 import { CaseRecord } from './runner-core';
 
 /**
- * `outcome_agreement` — khớp "tự quyết hay không" với mong đợi. Chỉ so được giữa hai pipeline
- * CÓ tự quyết: investigator của bước 2 không bao giờ ra `graded` (Q4), nên chỉ số này của nó
- * thấp theo cấu trúc (review I4).
+ * `outcome_agreement` — khớp "tự quyết hay không" với mong đợi. Bước 2 investigator không bao giờ
+ * ra `graded` (Q4) nên chỉ số này thấp theo cấu trúc; từ bước 3a `decide()` tự quyết, và chỉ số
+ * so được giữa mọi pipeline.
  * `gradable_agreement` — khớp "chấm được hay không chấm được" với mong đợi; so được giữa mọi
  * pipeline.
  */

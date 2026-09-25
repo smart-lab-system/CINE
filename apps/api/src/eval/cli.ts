@@ -7,6 +7,7 @@ import { runBaseline } from './baseline-runner';
 import { parseEvalArgs } from './cli-args';
 import { loadDataset } from './load-dataset';
 import { ALL_COMPONENTS } from '../grading/investigator/investigate';
+import { readAutoThreshold } from '../grading/decision/threshold';
 import { readInvestigationBudget } from '../grading/investigator/budget';
 import { buildInvestigatorTiers } from '../grading/investigator/model-pool';
 import { HostFingerprint } from '../sandbox/contract';
@@ -84,6 +85,9 @@ async function main() {
       process.exit(2);
     }
     const { budget, warnings } = readInvestigationBudget(process.env);
+    // θ của công thức tự quyết (§4.2) — một chỗ đọc, truyền xuống decide().
+    const { theta, warning: thetaWarning } = readAutoThreshold(process.env);
+    if (thetaWarning) console.warn(`⚠ ${thetaWarning}`);
     for (const w of warnings) console.warn(`⚠ ${w}`);
     // Duyệt Q5 lớp 1: sinh output mong đợi bằng ĐÚNG image của worker.
     const generatorImageId = await dockerImageId(BUNDLE_GENERATOR_IMAGE);
@@ -121,15 +125,21 @@ async function main() {
       // Duyệt Q8: bài thật chỉ chạy trên máy sandbox riêng.
       const gate = group5Gate(host, process.env);
       const { dataset: runDataset, dropped } = gate.allowed ? { dataset, dropped: 0 } : withoutGroup5(dataset);
-      const out = await runInvestigator({ dataset: runDataset, bundles, tier, concurrency, budget, components, deps: { models: tiers, sandbox: client } });
+      const out = await runInvestigator({
+        dataset: runDataset, bundles, tier, concurrency, budget, components, theta,
+        ceilings: new Map(tiers.map((t) => [t.model, t.ceiling])),
+        deps: { models: tiers, sandbox: client },
+      });
       records = out.records;
       summary = out.summary;
       if (!gate.allowed && dropped > 0) summary.group5 = `Nhóm 5: ${dropped} ca bị bỏ — ${gate.reason}`;
       config = {
         pipeline: 'investigator',
-        // Duyệt Q3: bước 2 thiếu CẢ BỐN thành phần của §12.6, không riêng khớp luật bằng code.
-        // Chỉ ghi `−predicate` là đọc nhầm lượt này thành "full trừ predicate".
-        ablation: ['−run_scaled', '−probe', '−advocate', '−predicate'],
+        // Bước 3a: code quyết luật `test_group_failed`; `complexity`, `calls_function`, `no_recursion`
+        // chưa đo được (bước 4–5), nên `predicates` ghi đúng mẫu đã có, không ghi "đủ".
+        ablation: ['−run_scaled', '−probe', '−advocate'],
+        predicates: 'test_group_failed',
+        theta,
         models: tiers.map((t) => t.label),
         components,
         budget,
@@ -146,17 +156,13 @@ async function main() {
   if (baseRun) {
     const models = modelConfound(baseRun.records, records);
     sameModels = models.same;
-    // Review I4: "khớp kết cục" chỉ so được khi CẢ HAI lượt có tự quyết. Investigator của bước 2
-    // luôn `flagged` (Q4) — so nó là thoái lui theo cấu trúc, không phải theo chất lượng.
-    const bothDecide = baseRun.meta.config.pipeline === 'baseline' && pipeline === 'baseline';
+    // Từ 3a cả hai pipeline đều tự quyết (Q4 hết hiệu lực), nên "khớp kết cục" so được giữa mọi lượt.
     comparison = {
       against: compareTo,
       againstPipeline: baseRun.meta.config.pipeline,
       absScoreError: compareRuns(baseRun.records, records, 'abs_score_error'),
       gradableAgreement: compareRuns(baseRun.records, records, 'gradable_agreement'),
-      outcomeAgreement: bothDecide
-        ? compareRuns(baseRun.records, records, 'outcome_agreement')
-        : 'n/a — pipeline investigator chưa tự quyết (Q4), khớp kết cục thấp theo cấu trúc',
+      outcomeAgreement: compareRuns(baseRun.records, records, 'outcome_agreement'),
       // Duyệt Q10: khác bộ model thì Δ không phải hiệu ứng của kiến trúc.
       models,
     };
@@ -187,13 +193,11 @@ async function main() {
   }
   const pctOf = (v: number) => `${(v * 100).toFixed(0)}%`;
   for (const d of summary.perDe) {
-    // Review I4: investigator chưa tự quyết (Q4) — tự duyệt và khớp kết cục của nó không mang nghĩa.
-    const decides = pipeline === 'baseline';
     console.log(
-      `  ${d.de}: ${d.cases} ca · tự duyệt ${decides ? pctOf(d.autoRate) : 'n/a (Q4)'} · ` +
+      `  ${d.de}: ${d.cases} ca · tự duyệt ${pctOf(d.autoRate)} · ` +
         `MAE ${d.maeHundredths === null ? '—' : formatHundredths(d.maeHundredths)} điểm` +
         `${d.maeExcluded ? ` (bỏ ${d.maeExcluded} lượt không có điểm)` : ''} · ` +
-        `khớp kết cục ${decides ? pctOf(d.outcomeAgreement) : 'n/a (Q4)'} · khớp chấm-được ${pctOf(d.gradableAgreement)}`,
+        `khớp kết cục ${pctOf(d.outcomeAgreement)} · khớp chấm-được ${pctOf(d.gradableAgreement)}`,
     );
   }
   console.log(`  Thời gian mỗi lượt p50 ${summary.wallMs.p50} ms · p95 ${summary.wallMs.p95} ms`);
@@ -209,6 +213,12 @@ async function main() {
     const pct = (v: number | null) => (v === null ? '—' : v.toFixed(2));
     console.log(`  Luật (nhóm 1): precision ${pct(m.precision)} · recall ${pct(m.recall)} (tp ${m.tp}, fp ${m.fp}, fn ${m.fn}) — ước lượng điểm, chưa có khoảng tin cậy`);
   }
+  const share = summary.machineDeductionShare;
+  console.log(
+    `  Tự quyết: ${summary.autoDecision.count} lượt (${pctOf(summary.autoDecision.rate)}) · precision nhóm tự quyết ` +
+      `${summary.autoDecision.precision === null ? '—' : summary.autoDecision.precision.toFixed(2)} · ` +
+      `mức trừ do máy quyết ${share === null ? '—' : pctOf(share)} — ước lượng điểm, chưa có khoảng tin cậy`,
+  );
   if (summary.toolCallsPerCase) console.log(`  Lời gọi công cụ mỗi lượt p50 ${summary.toolCallsPerCase.p50} · p95 ${summary.toolCallsPerCase.p95}`);
   if (Object.keys(summary.stopReasons).length) console.log(`  Lý do dừng: ${JSON.stringify(summary.stopReasons)}`);
   if (comparison) {

@@ -131,7 +131,7 @@ describe('giao thức một lượt', () => {
 
   it('model cứ chép nguyên mẫu kết luận → bậc bị loại vì output hỏng; KHÔNG thành điểm tối đa', async () => {
     const model = {
-      label: 'A', model: 'A',
+      label: 'A', model: 'A', ceiling: 0.5,
       calls: 0,
       async call() {
         return { content: this.calls++ === 0 ? EXAMPLE_CALL_REPLY : EXAMPLE_FINAL_REPLY, usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreationTokens: 0 } };

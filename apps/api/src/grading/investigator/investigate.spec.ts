@@ -17,7 +17,7 @@ const final = (errors: object[] = [], injection = false) =>
 function scripted(label: string, script: (string | Error)[], onCall?: (req: ChatTextRequest) => void): ModelTier & { requests: ChatTextRequest[] } {
   const requests: ChatTextRequest[] = [];
   return {
-    label, model: `${label}-m`, requests,
+    label, model: `${label}-m`, ceiling: 0.5, requests,
     async call(req) {
       requests.push(req);
       onCall?.(req);
@@ -163,6 +163,7 @@ describe('investigate()', () => {
     const hang = (label: string): ModelTier => ({
       label,
       model: label,
+      ceiling: 0.5,
       async call(req) {
         t += req.timeoutMs!;
         throw httpProviderError(504, undefined, 'treo');
