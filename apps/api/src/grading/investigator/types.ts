@@ -95,7 +95,10 @@ export interface RuleEntry {
   title: string;
   criterionKey: string;
   priced: boolean;
-  hasPredicate: boolean;
+  /** `machine`: code quyết từ kết quả công cụ, model KHÔNG đề xuất (§4.1 luật 2). */
+  checkedBy: 'machine' | 'model';
+  /** Máy kiểm bằng gì, hay vì sao chưa kiểm được (Q1) — model đọc dòng này. */
+  machineNote: string | null;
 }
 
 export interface BundleCase {
