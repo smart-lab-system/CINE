@@ -88,7 +88,14 @@ export function DetailView({ state }: { state: AgentState }) {
                   fits on one line — wrapping keeps the full name readable
                   instead of forcing a horizontal scrollbar at any width. */}
               <span className="min-w-0 break-all font-mono text-caption">{file.filename}</span>
-              {!file.created && <span className="text-caption text-muted-foreground">— chưa tạo được</span>}
+              {!file.created && (
+                <span className="text-caption text-muted-foreground">
+                  {/* `.rar` không có cách nào tạo trước được (xem
+                      workspace-files.ts) — `note` nói rõ vì sao, thay vì
+                      để sinh viên tưởng đây là một lỗi tạm thời sẽ tự hết. */}
+                  — {file.note ?? 'chưa tạo được'}
+                </span>
+              )}
             </div>
           ))}
         </div>

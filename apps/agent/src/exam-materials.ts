@@ -152,8 +152,23 @@ export interface InstructionsInput {
   studentName: string | null;
   studentId: string;
   endTime: string;
-  requiredFiles: string[];
+  /**
+   * Thay `requiredFiles: string[]` cũ — giữ cả hai là đúng kiểu "hai sự
+   * thật có thể lệch nhau" mà chính module này đang cố tránh (xem
+   * `RequiredDeliverableEntryEntity`/`filename-template.ts` phía backend,
+   * cùng lý lẽ). `entries` rỗng = không kiểm bên trong.
+   */
+  requiredDeliverables: { filename: string; entries: string[] }[];
   materialFileNames: string[];
+}
+
+/** Suy ra "đây là file nén" từ đuôi tên — cùng idiom `workspace-files.ts`
+ *  (backend) đã dùng, không phải cờ riêng. */
+function archiveKindOf(filename: string): 'zip' | 'rar' | null {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.zip')) return 'zip';
+  if (lower.endsWith('.rar')) return 'rar';
+  return null;
 }
 
 /**
@@ -189,8 +204,26 @@ export function renderInstructions(input: InstructionsInput): string {
     '',
   ];
 
-  for (const file of input.requiredFiles) {
-    lines.push(`  * ${file}`);
+  for (const { filename, entries } of input.requiredDeliverables) {
+    lines.push(`  * ${filename}`);
+
+    // `.rar`: sự thật TĨNH về đuôi file — tự kiểm ở đây, không nhận qua
+    // tham số. Không có cách nào hợp lệ tạo trước một RAR rỗng (xem
+    // workspace-files.ts) — sinh viên PHẢI biết trước, không phải lúc
+    // đang bối rối nhìn một file không mở ra được.
+    if (archiveKindOf(filename) === 'rar') {
+      lines.push(
+        '      - Hệ thống KHÔNG tạo trước được file .rar này (không có công cụ',
+        '        nén .rar cài sẵn) — tự nén bằng WinRAR, đặt đúng tên như trên.',
+      );
+    }
+
+    if (entries.length > 0) {
+      lines.push('      - Bên trong PHẢI có (tên file, không cần đúng thư mục):');
+      for (const entry of entries) {
+        lines.push(`          . ${entry}`);
+      }
+    }
   }
 
   lines.push(

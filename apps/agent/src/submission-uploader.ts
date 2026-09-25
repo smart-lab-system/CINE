@@ -26,6 +26,9 @@ export interface RequiredDeliverable {
   id: string;
   requiredFilename: string;
   deliverableType: string;
+  /** Tên file PHẢI CÓ bên trong (nếu deliverable là .zip/.rar và giảng
+   *  viên có khai), ĐÃ RENDER theo đúng sinh viên này. */
+  entries?: string[];
 }
 
 /** Server -> agents, broadcast when a session is finalized. */

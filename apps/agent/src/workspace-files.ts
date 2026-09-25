@@ -105,21 +105,73 @@ export function isErrnoException(error: unknown): error is NodeJS.ErrnoException
   return error instanceof Error && 'code' in error;
 }
 
+/**
+ * 22 byte "End Of Central Directory" của một file ZIP 0 mục — file nén RỖNG
+ * nhưng HỢP LỆ, không phải file 0 byte.
+ *
+ * Lỗi thật 2026-09-25: bản trước tạo MỌI file bắt buộc — kể cả `.zip`/`.rar`
+ * — thành file 0 byte. Với `.docx`/`.py` thì rỗng là điểm bắt đầu hợp lý;
+ * với file nén thì 0 byte KHÔNG PHẢI một file nén rỗng hợp lệ ở bất kỳ định
+ * dạng nào — Explorer không mở duyệt được, không kéo-thả nội dung vào được.
+ * Sinh viên có một "file nén sẵn có" nhưng nó đã hỏng từ lúc phòng thi mở ra
+ * — đúng khớp "The archive is either in an unknown format or damaged" khi
+ * mở bằng WinRAR.
+ *
+ * `archive-reader.ts` (phía backend) đã nhận đúng byte này là magic hợp lệ
+ * (`// end of central directory (archive rỗng)`) — không phải hằng số tự
+ * bịa, test đối chiếu byte-for-byte với JSZip thật.
+ */
+const EMPTY_ZIP_EOCD = Buffer.from([
+  0x50, 0x4b, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+]);
+
+/**
+ * Suy ra "đây là file nén" từ ĐUÔI TÊN, không phải cờ riêng — cùng cách
+ * `apps/web/.../schema.ts` và `create-exam-session.dto.ts` (backend) đã
+ * làm, và đúng nguyên tắc `filename-template.ts` đã phát biểu: một cờ là
+ * một sự thật thứ hai có thể lệch khỏi cái tên. `deliverableType` KHÔNG
+ * dùng được ở đây — nó chỉ có `'document' | 'code_project' | 'image'`,
+ * không có giá trị nào cho "file nén" cả.
+ */
+function archiveKindOf(filename: string): 'zip' | 'rar' | null {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.zip')) return 'zip';
+  if (lower.endsWith('.rar')) return 'rar';
+  return null;
+}
+
 export interface CreateSubmissionFilesResult {
   createdCount: number;
   /** Per-file outcome, in `requiredFiles` order — this is the checklist
    *  the detail window renders. `created: true` covers both "wrote a new
    *  empty file" and "already existed" (EEXIST) — both mean the file is
    *  there and the student can find it, which is the property this
-   *  function is responsible for. */
-  files: { filename: string; created: boolean }[];
+   *  function is responsible for.
+   *
+   *  `note`: chỉ có khi `created === false`, và phân biệt HAI trạng thái
+   *  khác nhau đằng sau cùng một `false` — tên không an toàn (giữ nguyên
+   *  từ trước), hoặc `.rar` không có cách nào tạo trước được (mới, KHÔNG
+   *  phải lỗi). `session-controller.ts`'s `RequiredFileStatus` khai RIÊNG
+   *  interface này (không import từ đây) — thêm `note` ở CẢ HAI chỗ, thiếu
+   *  một bên thì TypeScript cho qua nhưng `note` rớt lặng lẽ ở render. */
+  files: { filename: string; created: boolean; note?: string }[];
 }
 
 /**
- * Creates `workspaceDir` and, for each entry in `requiredFiles`, an empty
+ * Creates `workspaceDir` and, for each entry in `requiredFiles`, a starting
  * file inside it — after independently re-validating the filename. Invalid
  * entries are skipped (reported via `files[].created === false`), never
  * written, and never throw.
+ *
+ * "Starting file" khác nhau theo đuôi tên, xem `archiveKindOf`:
+ * - `.zip`  → `EMPTY_ZIP_EOCD` (file nén rỗng HỢP LỆ).
+ * - `.rar`  → KHÔNG ghi gì cả — không có cách hợp pháp tạo RAR rỗng hợp lệ
+ *   mà không có bộ mã hoá độc quyền của WinRAR (`node-unrar-js`, dùng ở
+ *   backend, CHỈ ĐỌC). Vẫn kiểm file đã tồn tại chưa — sinh viên có thể đã
+ *   tự nén thật trước một lần kết nối lại, và lúc đó phải báo `created:
+ *   true`, không phải ghi đè hay báo sai.
+ * - đuôi khác → `''`, y nguyên hành vi cũ.
  *
  * Uses the `wx` flag (`O_CREAT | O_EXCL`) rather than the default `w`:
  * socket.io reconnects (a network blip, not a fresh exam attempt) re-emit
@@ -140,7 +192,7 @@ export function createSubmissionFiles(
     return { createdCount: 0, files: [] };
   }
 
-  const files: { filename: string; created: boolean }[] = [];
+  const files: { filename: string; created: boolean; note?: string }[] = [];
   let createdCount = 0;
   for (const filename of requiredFiles) {
     const result = validateFilename(workspaceDir, filename);
@@ -149,8 +201,23 @@ export function createSubmissionFiles(
       files.push({ filename: String(filename), created: false });
       continue;
     }
+
+    if (archiveKindOf(filename) === 'rar') {
+      const already = fs.existsSync(result.resolvedPath!);
+      files.push({
+        filename,
+        created: already,
+        note: already
+          ? undefined
+          : 'Hệ thống không tạo trước được — tự nén bằng WinRAR, đặt đúng tên này.',
+      });
+      if (already) createdCount++;
+      continue;
+    }
+
+    const content = archiveKindOf(filename) === 'zip' ? EMPTY_ZIP_EOCD : '';
     try {
-      fs.writeFileSync(result.resolvedPath!, '', { flag: 'wx' });
+      fs.writeFileSync(result.resolvedPath!, content, { flag: 'wx' });
       createdCount++;
       files.push({ filename, created: true });
     } catch (error) {

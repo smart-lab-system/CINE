@@ -58,6 +58,19 @@ interface AgentJoinAckDeliverable {
    */
   requiredFilename: string;
   deliverableType: string;
+  /**
+   * Tên các file PHẢI CÓ bên trong deliverable này, nếu nó là `.zip`/`.rar`
+   * và giảng viên có khai (`RequiredDeliverableEntryEntity`) — vắng mặt
+   * hoặc rỗng = không kiểm bên trong.
+   *
+   * ĐÃ RENDER theo đúng `filenameContext` của sinh viên này, giống hệt
+   * `requiredFilename` ở trên — KHÔNG BAO GIỜ gửi `entryName` thô (nó là
+   * một MẪU, xem `RequiredDeliverableEntryEntity`). Agent chỉ IN RA những
+   * gì nhận được (tờ hướng dẫn — `apps/agent/src/exam-materials.ts`); gửi
+   * mẫu thô xuống thì sinh viên đọc thấy `{MSSV}_...` y nguyên, đọc như hệ
+   * thống đang hỏng — tệ hơn hẳn không in gì (lỗi thật 2026-09-25).
+   */
+  entries?: string[];
 }
 
 interface AgentJoinAck {
@@ -449,7 +462,9 @@ export class ExamSessionGateway
       return;
     }
 
-    const deliverables = await this.examSessions.listRequiredDeliverables(session.id);
+    const deliverablesWithEntries = await this.examSessions.listRequiredDeliverablesWithEntries(
+      session.id,
+    );
 
     // Rendered once, here, and used for both fields of the ack — the agent
     // must never see two different names for the same deliverable.
@@ -462,10 +477,13 @@ export class ExamSessionGateway
       roomName: session.roomName,
       machineName: dto.machineName ?? null,
     };
-    const resolved = deliverables.map((deliverable) => ({
+    const resolved = deliverablesWithEntries.map(({ deliverable, entries }) => ({
       id: deliverable.id,
       requiredFilename: renderFilename(deliverable.requiredFilename, filenameContext),
       deliverableType: deliverable.deliverableType,
+      // Cùng `filenameContext` như trên, cùng lý do: một entry cũng là một
+      // MẪU, và agent không bao giờ được thấy nó chưa render.
+      entries: entries.length > 0 ? entries.map((e) => renderFilename(e, filenameContext)) : undefined,
     }));
 
     // Stashed on the socket for handleDisconnect — a disconnecting socket

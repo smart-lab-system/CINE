@@ -353,6 +353,31 @@ export class ExamSessionService {
   }
 
   /**
+   * `listRequiredDeliverables` cộng `entryName` bên trong từng deliverable
+   * dạng nén — ghép hai hàm đã có (`listRequiredDeliverables` +
+   * `loadEntriesByDeliverable`, cái sau vốn `private`, đã dùng ở
+   * `findByIdForOwner`), KHÔNG viết truy vấn mới.
+   *
+   * Người gọi cho `agent:join:ack` (`exam-session.gateway.ts`) — nơi
+   * `entryName` (một MẪU, xem `RequiredDeliverableEntryEntity`) được RENDER
+   * bằng `filenameContext` của đúng sinh viên đó trước khi gửi xuống agent.
+   * Hàm này KHÔNG render — nó không có ngữ cảnh của một sinh viên cụ thể,
+   * và render sai chỗ là cách một mẫu `{MSSV}` lọt ra ngoài thành chữ.
+   */
+  async listRequiredDeliverablesWithEntries(
+    examSessionId: string,
+  ): Promise<{ deliverable: RequiredDeliverableEntity; entries: string[] }[]> {
+    const deliverables = await this.listRequiredDeliverables(examSessionId);
+    const entriesByDeliverable = await this.loadEntriesByDeliverable(
+      deliverables.map((d) => d.id),
+    );
+    return deliverables.map((deliverable) => ({
+      deliverable,
+      entries: entriesByDeliverable.get(deliverable.id) ?? [],
+    }));
+  }
+
+  /**
    * Owner-checked fetch used by `GET /exam-sessions/:id`: 404 if the
    * session doesn't exist at all, 403 if it exists but `teacherId` isn't
    * the owner (`exam_session.teacher_id`).

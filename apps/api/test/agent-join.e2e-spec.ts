@@ -293,6 +293,80 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       expect(ack.requiredFiles[0]).toContain('_UNKNOWN.docx');
     });
 
+    // Lỗi thật 2026-09-25: `entryName` là một MẪU (`RequiredDeliverableEntryEntity`
+    // doc comment), và tờ hướng dẫn sinh viên đọc được PHẢI in ra tên đã
+    // RENDER — in ra mẫu thô (`{MSSV}_...`) đọc như hệ thống đang hỏng, tệ
+    // hơn hẳn không in gì. Test này khoá đúng hành vi RENDER, không phải chỉ
+    // "trường entries có mặt".
+    //
+    // Giảng viên + lớp + phòng RIÊNG, không tái dùng fixture ở `beforeAll`:
+    // phiên này chạy CÙNG khung giờ với hai phiên kia (`concurrentLiveWindow`
+    // là khung cố định, chỉ an toàn giữa các giảng viên KHÁC NHAU —
+    // `ex_exam_session_teacher_gap`), và cùng lớp/phòng với một phiên đang
+    // sống sẽ đụng `ex_exam_session_room_overlap`/`_class_overlap`.
+    it('entries bên trong một archive được RENDER theo đúng sinh viên, không phải mẫu thô', async () => {
+      const stamp = fixtureStamp;
+      const email3 = `agent_join_teacher3_${stamp}@example.com`;
+      const teacher3Id = await createTestAccount(dataSource, {
+        email: email3,
+        password: 'correct-horse-battery',
+        role: 'teacher',
+      });
+      const login3 = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: email3, password: 'correct-horse-battery' });
+      const token3 = login3.body.accessToken as string;
+
+      const [archiveClass] = await dataSource.query(
+        `INSERT INTO examcollect.class (course_name, name, teacher_id)
+         VALUES ($1, 'N03', $2) RETURNING id`,
+        [courseName, teacher3Id],
+      );
+      await dataSource.query(
+        `INSERT INTO examcollect.enrollment
+           (student_mssv, student_name, home_class_id, home_teacher_id)
+         VALUES ($1, $2, $3, $4)`,
+        [ENROLLED_MSSV, ENROLLED_NAME, archiveClass.id, teacher3Id],
+      );
+
+      const archive = await request(app.getHttpServer())
+        .post('/exam-sessions')
+        .set('Authorization', `Bearer ${token3}`)
+        .send({
+          name: `Archive Entries ${stamp}`,
+          classId: archiveClass.id,
+          roomName: `Archive Entries Room ${stamp}`,
+          semesterName: 'HK kiểm thử',
+          examType: 'TK',
+          ...concurrentLiveWindow(),
+          requiredFilenames: [
+            {
+              filename: '{MSSV}_BaiThi.zip',
+              entries: ['Main.java', '{MSSV}_BaoCao.docx'],
+            },
+          ],
+        });
+      expect(archive.status).toBe(201);
+      // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
+      // dự thi. Xem test/helpers/open-session.ts.
+      await openSession(app, token3, archive.body.id);
+
+      const reply = await join(connect(), {
+        studentId: ENROLLED_MSSV,
+        sessionCode: archive.body.code,
+        machineName: 'MAY07',
+      });
+
+      expect(reply.event).toBe('ack');
+      const ack = reply.body as unknown as {
+        requiredDeliverables: { requiredFilename: string; entries?: string[] }[];
+      };
+      expect(ack.requiredDeliverables[0].entries).toEqual([
+        'Main.java',
+        `${ENROLLED_MSSV}_BaoCao.docx`,
+      ]);
+    });
+
     it('rejects a pattern with a token nobody defined', async () => {
       const response = await request(app.getHttpServer())
         .post('/exam-sessions')

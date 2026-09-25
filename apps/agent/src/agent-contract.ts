@@ -38,6 +38,10 @@ export interface AgentJoinAck {
     id: string;
     requiredFilename: string;
     deliverableType: string;
+    /** Tên các file PHẢI CÓ bên trong, nếu deliverable là `.zip`/`.rar` và
+     *  giảng viên có khai — ĐÃ RENDER theo đúng sinh viên này, không phải
+     *  mẫu thô (xem `exam-session.gateway.ts`, cùng bên gửi). */
+    entries?: string[];
   }[];
   // The roster spelling of this student's name, from the server. The name
   // typed into the join screen is not used for identity and is not what

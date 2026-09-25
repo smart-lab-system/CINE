@@ -82,6 +82,13 @@ export interface JoinErrorState {
 export interface RequiredFileStatus {
   filename: string;
   created: boolean;
+  /** Khớp `CreateSubmissionFilesResult['files'][number].note` ở
+   *  `workspace-files.ts` — khai RIÊNG, không import, nên phải thêm trường
+   *  này ở CẢ HAI chỗ. Thiếu một bên thì TypeScript vẫn biên dịch qua (hai
+   *  interface cùng hình dạng thừa), nhưng `note` bị rớt lặng lẽ ở chỗ gán
+   *  `this.patch({ requiredFiles: created.files })` — `DetailView.tsx` đọc
+   *  theo interface hẹp hơn và không bao giờ thấy nó. */
+  note?: string;
 }
 
 export interface BackupState {
@@ -572,7 +579,7 @@ export class SessionController extends EventEmitter {
       studentName: this.state.studentName,
       studentId,
       endTime: this.state.endTime ?? '(không rõ)',
-      requiredFiles: Array.isArray(ack.requiredFiles) ? ack.requiredFiles : [],
+      requiredDeliverables: this.instructionsDeliverables(),
       materialFileNames: materialNames,
     });
 
@@ -592,6 +599,20 @@ export class SessionController extends EventEmitter {
         // earlier timestamp back to null would read as "never backed up".
       });
     }
+  }
+
+  /**
+   * `this.requiredDeliverables` (đã lưu ở `agent:join:ack`, xem trên) rút
+   * gọn về đúng hình dạng `InstructionsInput` cần — dùng chung cho cả hai
+   * lần gọi `writeInstructions` (`doHandleJoinAck` lúc mới vào, và
+   * `handleMaterialsUpdated` khi giảng viên thêm đề giữa giờ), để hai lần
+   * không lệch cách đọc `entries`.
+   */
+  private instructionsDeliverables(): { filename: string; entries: string[] }[] {
+    return this.requiredDeliverables.map((d) => ({
+      filename: d.requiredFilename,
+      entries: d.entries ?? [],
+    }));
   }
 
   /**
@@ -659,7 +680,7 @@ export class SessionController extends EventEmitter {
         studentName: this.state.studentName,
         studentId: this.state.studentId ?? '',
         endTime: this.state.endTime ?? '(không rõ)',
-        requiredFiles: this.state.requiredFiles.map((f) => f.filename),
+        requiredDeliverables: this.instructionsDeliverables(),
         materialFileNames: fileNames,
       });
     } catch (error) {
