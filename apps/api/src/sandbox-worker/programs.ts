@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
-import { CompileInfo, LimitHit, Limits, ProgramSpec, SandboxLanguage } from '../sandbox/contract';
+import { CompileInfo, cppCompileFlags, LimitHit, Limits, ProgramSpec, SandboxLanguage } from '../sandbox/contract';
 import { classifyExit, isDockerFailure, RunOutcome } from './classify';
 import { Mount, Runtime, runArgs, timeoutCommand } from './docker-args';
 import { DockerCli } from './docker-cli';
@@ -165,7 +165,7 @@ export async function compile(
     // uid của bài trong container phải ghi được a.out vào đây (Review Focus 5).
     await chmod(p.outDir, 0o777);
     mounts.push({ source: p.outDir, target: '/out', readonly: false });
-    const flags = ['-std=c++17', '-O2', ...(p.sanitize ? ['-fsanitize=address,undefined', '-fno-sanitize-recover=all'] : [])];
+    const flags = cppCompileFlags(p.sanitize);
     script = `g++ ${flags.join(' ')} -I/src -o /out/a.out $(find /src -name '*.cpp' | sort)`;
   } else {
     script = "find /src -name '*.py' | sort | xargs -r python3 /opt/cine/check_syntax.py";
