@@ -15,18 +15,22 @@ const predicate = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('no_recursion'), functionName: z.string().optional() }),
 ]);
 
-const manifestCase = z.object({
-  id: z.string().regex(/^[A-Za-z0-9_-]+$/),
-  group: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
-  file: z.string().min(1),
-  behavior: z.enum(['dynamic', 'static']),
-  expectedRuleIds: z.array(z.string()),
-  expectedOutcome: z.enum(['graded', 'ungradable', 'flagged']),
-  expectedScore: money.nullable(),
-  expectedComplexity: z.string().nullable(),
-  cleanTwin: z.string().nullable(),
-  note: z.string(),
-});
+const manifestCase = z
+  .object({
+    id: z.string().regex(/^[A-Za-z0-9_-]+$/),
+    group: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+    file: z.string().min(1),
+    /** Nhóm 5: băm của bài thật — commit được, bài thì không (§12.7). */
+    sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+    behavior: z.enum(['dynamic', 'static']),
+    expectedRuleIds: z.array(z.string()),
+    expectedOutcome: z.enum(['graded', 'ungradable', 'flagged']),
+    expectedScore: money.nullable(),
+    expectedComplexity: z.string().nullable(),
+    cleanTwin: z.string().nullable(),
+    note: z.string(),
+  })
+  .refine((c) => c.group !== 5 || c.sha256 !== undefined, { message: 'ca nhóm 5 phải có sha256 của bài' });
 
 export const manifestSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/),
@@ -62,8 +66,8 @@ const generate = z.discriminatedUnion('kind', [
 export const testsSchema = z.array(
   z
     .object({
-      key: z.string().regex(/^[A-Za-z0-9_-]+$/),
-      group: z.string().min(1),
+      key: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, 'key chỉ gồm chữ, số, "_", "-" và tối đa 64 ký tự (tên ca của hợp đồng sandbox)'),
+      group: z.string().min(1).max(100),
       input: z.string().optional(),
       expected: z.string().optional(),
       generate: generate.optional(),
@@ -74,6 +78,14 @@ export const testsSchema = z.array(
     .refine((t) => t.generate === undefined || t.expected === undefined, {
       message: 'ca sinh tự động lấy output mong đợi từ đáp án mẫu, không ghi tay',
     }),
-);
+).superRefine((tests, ctx) => {
+  // Review M5: key là tên ca trong gói test — trùng thì output sinh ra gán nhầm ca, và sàn
+  // T-FLOOR-3 đếm độ phủ nhầm. Key phải duy nhất trên CẢ gói, không chỉ trong một nhóm.
+  const seen = new Set<string>();
+  for (const [i, t] of tests.entries()) {
+    if (seen.has(t.key)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [i, 'key'], message: `trùng key: ${t.key}` });
+    seen.add(t.key);
+  }
+});
 export type TestCaseSpec = z.infer<typeof testsSchema>[number];
-export const probesSchema = z.array(z.object({ key: z.string().regex(/^[A-Za-z0-9_-]+$/), input: z.string() }));
+export const probesSchema = z.array(z.object({ key: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, 'key chỉ gồm chữ, số, "_", "-" và tối đa 64 ký tự (tên ca của hợp đồng sandbox)'), input: z.string() }));

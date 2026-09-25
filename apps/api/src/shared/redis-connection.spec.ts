@@ -1,4 +1,4 @@
-import { buildRedisConnection } from './redis-connection';
+import { buildRedisConnection, throttledErrorLog } from './redis-connection';
 
 /**
  * Một hàm thuần trên một object env — không mock ConfigService, vì thứ đang
@@ -109,5 +109,73 @@ describe('buildRedisConnection', () => {
     it('REDIS_PORT không phải số thì nổ, không âm thầm thành NaN', () => {
       expect(() => buildRedisConnection({ REDIS_HOST: 'h', REDIS_PORT: 'abc' })).toThrow(/REDIS_PORT/);
     });
+  });
+});
+
+describe('throttledErrorLog — lỗi kết nối của hàng đợi', () => {
+  const setup = () => {
+    let t = 0;
+    const lines: string[] = [];
+    const report = throttledErrorLog((l) => lines.push(l), { windowMs: 60_000, now: () => t });
+    return { lines, report, advance: (ms: number) => void (t += ms) };
+  };
+
+  it('ghi lần đầu kèm ngữ cảnh; lặp lại trong khung 60 s thì im, rồi báo số lần đã gộp', () => {
+    const { lines, report, advance } = setup();
+    report('exec (eval)', new Error('connect ECONNREFUSED 127.0.0.1:6390'));
+    for (let i = 0; i < 30; i++) {
+      advance(1_000);
+      report('exec (eval)', new Error('connect ECONNREFUSED 127.0.0.1:6390'));
+    }
+    expect(lines).toEqual(['exec (eval): connect ECONNREFUSED 127.0.0.1:6390']);
+    advance(31_000);
+    report('exec (eval)', new Error('connect ECONNREFUSED 127.0.0.1:6390'));
+    expect(lines[1]).toBe('exec (eval): connect ECONNREFUSED 127.0.0.1:6390 (thêm 30 lần gộp)');
+  });
+
+  it('thông điệp khác hay ngữ cảnh khác thì ghi riêng', () => {
+    const { lines, report } = setup();
+    report('exec', new Error('a'));
+    report('exec', new Error('b'));
+    report('measure', new Error('a'));
+    expect(lines).toHaveLength(3);
+  });
+
+  it('không bao giờ in mật khẩu: URL mang user:pass bị che; dòng có trần, không xuống dòng', () => {
+    const { lines, report } = setup();
+    report('x', new Error(`lỗi với rediss://default:s3cret@host:1/0\n${'y'.repeat(1_000)}`));
+    expect(lines[0]).not.toMatch(/s3cret/);
+    expect(lines[0]).toMatch(/rediss:\/\/\*\*\*@host/);
+    expect(lines[0]).not.toMatch(/\n/);
+    expect(lines[0].length).toBeLessThan(400);
+  });
+
+  it('review lần 2 I1 — `localhost` bị từ chối cả IPv6 lẫn IPv4: AggregateError có message RỖNG vẫn ra lý do', () => {
+    const { lines, report } = setup();
+    const aggregate = Object.assign(
+      new AggregateError([new Error('connect ECONNREFUSED ::1:6390'), new Error('connect ECONNREFUSED 127.0.0.1:6390')], ''),
+      { code: 'ECONNREFUSED' },
+    );
+    report('exec', aggregate);
+    expect(lines).toEqual(['exec: ECONNREFUSED — connect ECONNREFUSED ::1:6390; connect ECONNREFUSED 127.0.0.1:6390']);
+    report('exec', Object.assign(new Error(''), { code: 'ETIMEDOUT' }));
+    expect(lines[1]).toBe('exec: ETIMEDOUT'); // khác lý do → khác khoá gộp, không bị che
+  });
+
+  it('review lần 2 M7 — \\r không lọt (không ghi đè dòng terminal); URL không user vẫn bị che; chuỗi dài không làm regex chậm', () => {
+    const { lines, report } = setup();
+    report('x', new Error('a\rDÒNG GIẢ'));
+    report('y', new Error('lỗi rediss://:matkhau@host:1'));
+    expect(lines[0]).toBe('x: a DÒNG GIẢ');
+    expect(lines[1]).toBe('y: lỗi rediss://***@host:1');
+    const started = Date.now();
+    report('z', new Error(`//${':'.repeat(50_000)}`));
+    expect(Date.now() - started).toBeLessThan(50);
+  });
+
+  it('thứ ném ra không phải Error vẫn ghi được', () => {
+    const { lines, report } = setup();
+    report('x', 'chuỗi trần');
+    expect(lines).toEqual(['x: chuỗi trần']);
   });
 });

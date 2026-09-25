@@ -90,17 +90,6 @@ export class OpenAICompatibleAdvocateProvider implements AdvocateProvider {
       );
     }
 
-    if (request.questionPdf || request.modelAnswerPdf) {
-      // NÓI RA, không bỏ qua trong im lặng: phiên CÓ đề bài nhưng bậc này
-      // không gửi được PDF, nên ý kiến phản biện sinh ra từ ít ngữ cảnh
-      // hơn hẳn bậc Claude. Đọc log calibration mà không có dòng này thì
-      // một ý kiến nghèo nàn trông như model kém chứ không như thiếu đề.
-      this.logger.log(
-         +
-          "không gửi được document — lượt phản biện chỉ dựa trên ghi chú văn bản",
-      );
-    }
-
     const user = [
       note ? `<teacher_note>\n${note}\n</teacher_note>` : '<teacher_note/>',
       envelope.wrapped,

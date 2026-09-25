@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { Queue, QueueEvents } from 'bullmq';
 import { ZodType, ZodTypeAny, ZodTypeDef } from 'zod';
-import { buildRedisConnection } from '../shared/redis-connection';
+import { buildRedisConnection, throttledErrorLog } from '../shared/redis-connection';
 import {
   execJob,
   ExecJobInput,
@@ -137,19 +138,37 @@ export function createSandboxClient(o: {
   redisUrl: string;
   prefix?: string;
   queueWaitMs?: { exec: number; measure: number };
+  /**
+   * Nơi ghi lỗi kết nối và kết quả bị từ chối. Mặc định `console.warn` — không bao giờ im: một
+   * Redis chết mà không ai thấy thì mọi lời gọi chỉ còn là "sandbox không trả lời".
+   */
+  log?: (line: string) => void;
 }): { client: SandboxClient; close(): Promise<void> } {
+  const log = o.log ?? ((line: string) => console.warn(line));
+  const prefix = o.prefix ?? SANDBOX_PREFIX_DEFAULT;
   // skipVersionCheck: user ACL của sandbox (Task 12) không có INFO — cùng lý do với worker.
-  const opts = { connection: buildRedisConnection({ REDIS_URL: o.redisUrl }), prefix: o.prefix ?? SANDBOX_PREFIX_DEFAULT, skipVersionCheck: true };
+  const opts = { connection: buildRedisConnection({ REDIS_URL: o.redisUrl }), prefix, skipVersionCheck: true };
   const execQueue = new Queue(QUEUE_EXEC, opts);
   const execEvents = new QueueEvents(QUEUE_EXEC, opts);
   const measureQueue = new Queue(QUEUE_MEASURE, opts);
   const measureEvents = new QueueEvents(QUEUE_MEASURE, opts);
+  const report = throttledErrorLog(log);
+  const emitters: [string, EventEmitter][] = [
+    [`${QUEUE_EXEC}/hàng đợi`, execQueue],
+    [`${QUEUE_EXEC}/sự kiện`, execEvents],
+    [`${QUEUE_MEASURE}/hàng đợi`, measureQueue],
+    [`${QUEUE_MEASURE}/sự kiện`, measureEvents],
+  ];
+  for (const [name, emitter] of emitters) {
+    emitter.on('error', (error: unknown) => report(`sandbox: lỗi kết nối ${name} (${prefix})`, error));
+  }
   const client = new SandboxClient({
     exec: { queue: execQueue, events: execEvents },
     measure: { queue: measureQueue, events: measureEvents },
     // Job đo có thể xếp hàng chờ khe (§3.5). Mặc định: job đo 240 s + 60 s chờ =
     // đúng trần 300 s mỗi bài của §7; bước 2 truyền budgetMs từ phần còn lại.
     queueWaitMs: o.queueWaitMs ?? { exec: 30_000, measure: 60_000 },
+    warn: log,
   });
   return {
     client,

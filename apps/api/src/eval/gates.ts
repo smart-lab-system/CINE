@@ -10,7 +10,7 @@ export interface Attempt {
  * giờ là vi phạm: không có điểm thì không có gì để so.
  */
 export function scoreGateViolation(
-  c: { group: 1 | 2 | 3 | 4 },
+  c: { group: 1 | 2 | 3 | 4 | 5 },
   attempt: Attempt,
   ctx: { maxHundredths: number; twinMaxScore: number | null; twinStable: boolean },
 ): GateId | null {

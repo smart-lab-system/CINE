@@ -14,6 +14,8 @@ export interface LoadedDe {
   probes: { key: string; input: string }[];
   sources: Map<string, string>;
   maxHundredths: number;
+  /** Nhóm 5: ca khai trong manifest mà bài thật chưa có ở `eval/private/` (§12.7). */
+  missingPrivate: string[];
 }
 export interface LoadedDataset {
   des: LoadedDe[];
@@ -103,10 +105,30 @@ export async function loadDataset(
       input: lf(p.input),
     }));
     const sources = new Map<string, string>();
-    for (const c of manifest.cases) sources.set(c.id, await readText(dir, c.file));
+    const missingPrivate: string[] = [];
+    const privateDir = join(root, '..', 'private', manifest.id);
+    for (const c of manifest.cases) {
+      if (c.group !== 5) {
+        sources.set(c.id, await readText(dir, c.file));
+        continue;
+      }
+      // Nhóm 5: bài nằm NGOÀI git (§12.7). Chưa có thì bỏ ca và kể ra — không phải lỗi.
+      let body: string;
+      try {
+        body = lf(await readFile(join(privateDir, c.file), 'utf8'));
+      } catch {
+        missingPrivate.push(c.id);
+        continue;
+      }
+      if (createHash('sha256').update(body).digest('hex') !== c.sha256) {
+        throw new Error(`${manifest.id}/${c.id}: bài nhóm 5 không khớp sha256 trong manifest`);
+      }
+      sources.set(c.id, body);
+    }
+    const present = { ...manifest, cases: manifest.cases.filter((c) => !missingPrivate.includes(c.id)) };
 
     des.push({
-      manifest,
+      manifest: present,
       dir,
       driverSource: await readText(dir, manifest.driver),
       modelSource: await readText(dir, manifest.modelAnswer),
@@ -114,6 +136,7 @@ export async function loadDataset(
       probes,
       sources,
       maxHundredths: manifest.rubric.reduce((s, c) => s + parseHundredths(c.maxPoints), 0),
+      missingPrivate,
     });
 
     for (const file of (await listFiles(dir)).sort()) {

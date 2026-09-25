@@ -3,6 +3,10 @@ export interface EvalArgs {
   split: 'dev' | 'test';
   concurrency: number;
   only: string | undefined;
+  pipeline: 'baseline' | 'investigator';
+  /** Mã một lượt chạy cũ để so ghép cặp (§12.4). */
+  compareTo: string | undefined;
+  replayCheck: boolean;
 }
 
 /**
@@ -26,5 +30,21 @@ export function parseEvalArgs(argv: string[]): { ok: true; args: EvalArgs } | { 
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     return { ok: false, error: `--concurrency phải là số nguyên ≥ 1, đang là ${JSON.stringify(rawConcurrency)}` };
   }
-  return { ok: true, args: { tier, split, concurrency, only: get('de') } };
+  const pipeline = get('pipeline') ?? 'baseline';
+  if (pipeline !== 'baseline' && pipeline !== 'investigator') {
+    return { ok: false, error: `--pipeline phải là baseline hoặc investigator, đang là ${JSON.stringify(pipeline)}` };
+  }
+  const compareTo = get('compare-to');
+  // Đúng hình dạng của makeRunId (+ hậu tố -2, -3… khi trùng): không thể là một đường dẫn.
+  if (compareTo !== undefined && !/^\d{8}T\d{6}Z-[0-9a-f]{7}(-\d+)?$/.test(compareTo)) {
+    return { ok: false, error: `--compare-to phải là một mã lượt chạy, đang là ${JSON.stringify(compareTo)}` };
+  }
+  const rawReplay = get('replay-check') ?? 'on';
+  if (rawReplay !== 'on' && rawReplay !== 'off') {
+    return { ok: false, error: `--replay-check phải là on hoặc off, đang là ${JSON.stringify(rawReplay)}` };
+  }
+  return {
+    ok: true,
+    args: { tier, split, concurrency, only: get('de'), pipeline, compareTo, replayCheck: rawReplay === 'on' },
+  };
 }

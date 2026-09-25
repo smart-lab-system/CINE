@@ -1,3 +1,4 @@
+import { cppCompileFlags } from '../sandbox/contract';
 import {
   buildRunScript,
   DockerProgramRunner,
@@ -39,6 +40,9 @@ describe('buildRunScript', () => {
   });
   it('dùng LF, không CRLF — sh trong container không hiểu \\r', () => {
     expect(script).not.toContain('\r');
+  });
+  it('biên dịch với ĐÚNG cờ của worker — một hằng số chung, không hai bản chép tay (duyệt Q5)', () => {
+    expect(script).toContain(`g++ ${cppCompileFlags(true).join(' ')} `);
   });
 });
 

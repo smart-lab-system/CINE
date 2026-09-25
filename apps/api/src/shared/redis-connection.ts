@@ -35,6 +35,61 @@ function requirePort(raw: string, varName: string): number {
   return port;
 }
 
+/**
+ * Che `user:pass@` của mọi URL trong một thông điệp — log không bao giờ mang credential. Phần
+ * user không chứa `:` để regex không quay lui bậc hai trên một chuỗi toàn dấu hai chấm.
+ */
+function redact(message: string): string {
+  return message.replace(/\/\/[^\s/@:]*:[^\s/@]*@/g, '//***@');
+}
+
+/**
+ * Lý do đọc được của một lỗi. Node 20+ nối `localhost` bằng CẢ `::1` lẫn `127.0.0.1`; hỏng cả
+ * hai thì ra `AggregateError` có `message` RỖNG — lý do thật nằm ở `code` và `errors[]`.
+ */
+function describeError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const code = (error as { code?: unknown }).code;
+  const head = error.message || (typeof code === 'string' ? code : '') || error.name;
+  if (error instanceof AggregateError && error.errors.length > 0) {
+    return `${head} — ${error.errors.map((e: unknown) => (e instanceof Error ? e.message || e.name : String(e))).join('; ')}`;
+  }
+  return head;
+}
+
+/**
+ * Lỗi kết nối của hàng đợi BullMQ, cho log. Không gắn listener `error` thì BullMQ tự
+ * `console.error` lỗi thô, không nói hàng đợi nào; gắn mà ghi hết thì ngập log, vì ioredis bắn
+ * `error` MỖI lần thử nối lại (~mỗi giây khi Redis chết). Nên: ghi lần đầu của mỗi (ngữ cảnh,
+ * thông điệp), im trong `windowMs`, rồi ghi lại kèm số lần đã gộp. Một dòng, có trần, đã che
+ * credential.
+ */
+export function throttledErrorLog(
+  log: (line: string) => void,
+  opts: { windowMs?: number; now?: () => number } = {},
+): (context: string, error: unknown) => void {
+  const windowMs = opts.windowMs ?? 60_000;
+  const now = opts.now ?? Date.now;
+  const seen = new Map<string, { at: number; suppressed: number }>();
+  return (context, error) => {
+    // Cắt thô ở 4 KB TRƯỚC khi che (regex chạy trên chuỗi có trần), cắt 300 SAU khi che: cắt
+    // trước ở 300 có thể chặt một URL trước dấu `@` và để lộ nửa mật khẩu.
+    const raw = describeError(error).slice(0, 4_096);
+    const message = redact(raw).replace(/\s+/g, ' ').trim().slice(0, 300);
+    const key = `${context}\u0000${message}`;
+    const t = now();
+    const last = seen.get(key);
+    if (last && t - last.at < windowMs) {
+      last.suppressed++;
+      return;
+    }
+    // Có trần: thông điệp mang cổng hay id thay đổi không được làm map phình mãi.
+    if (seen.size >= 100) seen.clear();
+    seen.set(key, { at: t, suppressed: 0 });
+    log(`${context}: ${message}${last && last.suppressed > 0 ? ` (thêm ${last.suppressed} lần gộp)` : ''}`);
+  };
+}
+
 export function buildRedisConnection(env: Record<string, string | undefined>): RedisConnectionOptions {
   const url = env.REDIS_URL?.trim();
 

@@ -275,6 +275,15 @@ export function unavailableExec(id: string, reason: string, host: HostFingerprin
   };
 }
 
+/**
+ * Cờ biên dịch C++ — MỘT bản cho cả worker lẫn bộ sinh output mong đợi của eval. Hai bên biên
+ * dịch khác nhau là output mong đợi có thể khác output của một bài đúng, và bài đúng bị chấm
+ * trượt (duyệt Q5, 2026-09-24).
+ */
+export function cppCompileFlags(sanitize: boolean): string[] {
+  return ['-std=c++17', '-O2', ...(sanitize ? ['-fsanitize=address,undefined', '-fno-sanitize-recover=all'] : [])];
+}
+
 export function unavailableMeasure(id: string, reason: string, host: HostFingerprint | null = null): MeasureResult {
   const now = new Date().toISOString();
   return {

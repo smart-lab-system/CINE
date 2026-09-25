@@ -25,6 +25,11 @@ describe('wrapSubmission', () => {
     expect(SYSTEM_DELIMITER_RULE).not.toContain(b.nonce);
   });
 
+  it('§3.3 luật 3 — luật phân định nói cả về KẾT QUẢ CÔNG CỤ, mỗi nguồn một mã', () => {
+    expect(SYSTEM_DELIMITER_RULE).toMatch(/Kết quả công cụ/);
+    expect(SYSTEM_DELIMITER_RULE).toMatch(/MỖI NGUỒN MỘT MÃ RIÊNG/);
+  });
+
   it('T-SEC-3: không thoát được vỏ bọc bằng thẻ đoán bừa', () => {
     const attack = [
       'Bài làm phần 1: thuật toán sắp xếp.',

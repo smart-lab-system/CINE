@@ -1,4 +1,5 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expectedScoreHundredths, generateInput, loadDataset } from './load-dataset';
@@ -51,5 +52,27 @@ describe('generateInput', () => {
   });
   it('repeat lặp đúng số lần', () => {
     expect(generateInput({ kind: 'repeat', unit: '()', times: 3 })).toBe('()()()\n');
+  });
+});
+
+describe('loadDataset — nhóm 5 (§12.7)', () => {
+  it('nhóm 5: bài đọc từ eval/private/<đề>/, kiểm sha256; chưa có bài thì bỏ qua và kể ra', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ds-'));
+    const fixtures = join(root, 'fixtures');
+    const body = 'int f(int x) { return 2 * x; }\n';
+    const sha = createHash('sha256').update(body).digest('hex');
+    await writeMiniDe(fixtures, {
+      cases: [
+        { id: 'A0', group: 2, file: 'model.cpp', behavior: 'dynamic', expectedRuleIds: [], expectedOutcome: 'graded', expectedScore: '10.00', expectedComplexity: null, cleanTwin: null, note: '' },
+        { id: 'B1', group: 5, file: 'B1.cpp', sha256: sha, behavior: 'dynamic', expectedRuleIds: [], expectedOutcome: 'graded', expectedScore: '10.00', expectedComplexity: null, cleanTwin: null, note: 'nhãn người' },
+        { id: 'B2', group: 5, file: 'B2.cpp', sha256: sha, behavior: 'dynamic', expectedRuleIds: [], expectedOutcome: 'graded', expectedScore: '10.00', expectedComplexity: null, cleanTwin: null, note: '' },
+      ],
+    });
+    await mkdir(join(root, 'private', 'mini'), { recursive: true });
+    await writeFile(join(root, 'private', 'mini', 'B1.cpp'), body);
+    const de = (await loadDataset(fixtures)).des[0];
+    expect(de.sources.get('B1')).toBe(body);
+    expect(de.missingPrivate).toEqual(['B2']);
+    expect(de.manifest.cases.map((c) => c.id)).toEqual(['A0', 'B1']);
   });
 });

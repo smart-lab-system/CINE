@@ -54,16 +54,27 @@ export interface ChatJsonRequest {
   timeoutMs?: number;
 }
 
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface ChatCall {
+  messages: ChatMessage[];
+  schemaName: string;
+  schema: Record<string, unknown>;
+  maxTokens: number;
+  timeoutMs?: number;
+}
+
 /**
- * Gọi và trả về JSON đã parse (CHƯA validate) + usage.
- *
- * Validate bằng zod là việc của người gọi: mỗi agent có schema riêng, và
- * đây là chỗ duy nhất bắt được lúc schema JSON và schema zod lệch nhau.
+ * Phần DÙNG CHUNG của mọi lời gọi: gửi, phân loại lỗi, bắt cắt cụt. Một bản duy nhất —
+ * xem ghi chú đầu file về vì sao hai bản sao của đoạn này là nguy hiểm.
  */
-export async function postChatJson(
+async function postChat(
   config: OpenAITierConfig,
-  request: ChatJsonRequest,
-): Promise<{ raw: unknown; usage: ChatUsage }> {
+  call: ChatCall,
+): Promise<{ content: string; usage: ChatUsage }> {
   const response = await fetch(`${config.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -72,18 +83,15 @@ export async function postChatJson(
     },
     body: JSON.stringify({
       model: config.model,
-      max_tokens: request.maxTokens,
+      max_tokens: call.maxTokens,
       stream: false,
       response_format: {
         type: 'json_schema',
-        json_schema: { name: request.schemaName, strict: true, schema: request.schema },
+        json_schema: { name: call.schemaName, strict: true, schema: call.schema },
       },
-      messages: [
-        { role: 'system', content: request.system },
-        { role: 'user', content: request.user },
-      ],
+      messages: call.messages,
     }),
-    signal: AbortSignal.timeout(request.timeoutMs ?? 90_000),
+    signal: AbortSignal.timeout(call.timeoutMs ?? 90_000),
   });
 
   const text = await response.text();
@@ -123,20 +131,54 @@ export async function postChatJson(
   }
 
   const choice = parsed.choices?.[0];
+  const raw = parsed.usage ?? {};
+  const usage: ChatUsage = {
+    inputTokens: raw.prompt_tokens ?? 0,
+    outputTokens: raw.completion_tokens ?? 0,
+    // Endpoint này báo cache ở `prompt_tokens_details.cached_tokens`.
+    // Đo được hiện tại là 0 — không có prompt caching — nhưng đọc nó
+    // vẫn đúng hơn là ghi cứng 0 và không bao giờ biết khi nào có.
+    cacheReadTokens: raw.prompt_tokens_details?.cached_tokens ?? 0,
+    cacheCreationTokens: 0,
+  };
+  // Lượt hỏng vẫn đã tiêu token (review M1): gắn usage vào lỗi để người gọi cộng được.
+  const spentError = (message: string) => Object.assign(badOutputError(message), { usage });
 
   // CẮT CỤT — bắt TRƯỚC khi parse nội dung, vì nếu parse trước thì một
   // JSON cụt đọc ra y hệt một JSON hỏng, và hai thứ đó cần hai cách xử lý
   // khác nhau (thử lại cùng bậc vs. nghi ngờ cả bậc).
   if (choice?.finish_reason === 'length') {
-    throw badOutputError(
-      `${config.tier}: output bị cắt cụt (finish_reason=length) — ngân sách token không đủ`,
-    );
+    throw spentError(`${config.tier}: output bị cắt cụt (finish_reason=length) — ngân sách token không đủ`);
   }
 
   const content = choice?.message?.content;
   if (!content) {
-    throw badOutputError(`${config.tier}: model không trả về nội dung nào`);
+    throw spentError(`${config.tier}: model không trả về nội dung nào`);
   }
+
+  return { content, usage };
+}
+
+/**
+ * Gọi và trả về JSON đã parse (CHƯA validate) + usage.
+ *
+ * Validate bằng zod là việc của người gọi: mỗi agent có schema riêng, và
+ * đây là chỗ duy nhất bắt được lúc schema JSON và schema zod lệch nhau.
+ */
+export async function postChatJson(
+  config: OpenAITierConfig,
+  request: ChatJsonRequest,
+): Promise<{ raw: unknown; usage: ChatUsage }> {
+  const { content, usage } = await postChat(config, {
+    messages: [
+      { role: 'system', content: request.system },
+      { role: 'user', content: request.user },
+    ],
+    schemaName: request.schemaName,
+    schema: request.schema,
+    maxTokens: request.maxTokens,
+    timeoutMs: request.timeoutMs,
+  });
 
   let raw: unknown;
   try {
@@ -146,18 +188,32 @@ export async function postChatJson(
     // sinh viên, và message này đi vào `failedReason` trong Redis.
     throw badOutputError(`${config.tier}: output không phải JSON hợp lệ`);
   }
+  return { raw, usage };
+}
 
-  const usage = parsed.usage ?? {};
-  return {
-    raw,
-    usage: {
-      inputTokens: usage.prompt_tokens ?? 0,
-      outputTokens: usage.completion_tokens ?? 0,
-      // Endpoint này báo cache ở `prompt_tokens_details.cached_tokens`.
-      // Đo được hiện tại là 0 — không có prompt caching — nhưng đọc nó
-      // vẫn đúng hơn là ghi cứng 0 và không bao giờ biết khi nào có.
-      cacheReadTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
-      cacheCreationTokens: 0,
-    },
-  };
+export interface ChatTextRequest {
+  system: string;
+  messages: { role: 'user' | 'assistant'; content: string }[];
+  schemaName: string;
+  schema: Record<string, unknown>;
+  maxTokens: number;
+  timeoutMs?: number;
+}
+
+/**
+ * Nhiều lượt, trả VĂN BẢN THÔ. Vòng điều tra tự đọc bằng `readSingleJson`: nó phải cắt
+ * thẻ suy luận và từ chối nhiều phán quyết (§5.2) — `JSON.parse` thẳng làm sai cả hai việc
+ * đó.
+ */
+export async function postChatText(
+  config: OpenAITierConfig,
+  request: ChatTextRequest,
+): Promise<{ content: string; usage: ChatUsage }> {
+  return postChat(config, {
+    messages: [{ role: 'system', content: request.system }, ...request.messages],
+    schemaName: request.schemaName,
+    schema: request.schema,
+    maxTokens: request.maxTokens,
+    timeoutMs: request.timeoutMs,
+  });
 }

@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { cppCompileFlags } from '../sandbox/contract';
 
 export type RunStatus = 'ok' | 'timeout' | 'runtime_crash' | 'output_limit';
 export interface CaseRun {
@@ -52,7 +53,9 @@ export function buildRunScript(wallSecondsPerCase = 2): string {
     '#!/bin/sh',
     'set -u',
     'cd /w',
-    'if ! g++ -std=c++17 -O2 -fsanitize=address,undefined -fno-sanitize-recover=all \\',
+    // Cùng MỘT hằng số cờ với worker sandbox (duyệt Q5): output mong đợi sinh ở đây phải khớp
+    // output mà worker thấy từ một bài đúng.
+    `if ! g++ ${cppCompileFlags(true).join(' ')} \\`,
     '     -o /tmp/a src/driver.cpp src/main.cpp 2> out/compile.err; then',
     '  echo compile_error > out/status',
     '  exit 0',
@@ -80,6 +83,16 @@ function exec(bin: string, args: string[]): Promise<{ code: number; stdout: stri
     child.on('error', reject);
     child.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr }));
   });
+}
+
+/** Id (sha256:…) của một image local; null khi không có hoặc Docker không chạy. */
+export async function dockerImageId(image: string, dockerBin = 'docker'): Promise<string | null> {
+  try {
+    const r = await exec(dockerBin, ['image', 'inspect', image, '--format', '{{.Id}}']);
+    return r.code === 0 ? r.stdout.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -114,6 +127,9 @@ export class DockerProgramRunner implements ProgramRunner {
     await this.assertDocker();
     const dir = await mkdtemp(join(tmpdir(), 'cine-eval-'));
     try {
+      // `mkdtemp` tạo thư mục 0700. Image `cine-sandbox-cpp:1` chạy bằng uid 64000 chứ không phải
+      // root như `gcc:13`, nên phải đọc được thư mục làm việc (duyệt Q5: sinh bằng image của worker).
+      await chmod(dir, 0o755);
       await mkdir(join(dir, 'src'));
       await mkdir(join(dir, 'in'));
       await mkdir(join(dir, 'out'));

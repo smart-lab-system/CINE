@@ -8,6 +8,7 @@ import { readFingerprint } from './fingerprint';
 import { handleExec, WorkerDeps } from './handle-exec';
 import { handleMeasure } from './handle-measure';
 import { cleanupLeftovers } from './programs';
+import { logWorkerEvents } from './queue-log';
 import { SlotPool, withSlot } from './slots';
 
 const MiB = 1024 * 1024;
@@ -26,7 +27,9 @@ export async function startWorker(
   cfg: WorkerConfig,
   opts: { docker?: DockerCli; log?: (line: string) => void } = {},
 ): Promise<RunningWorker> {
-  const log = opts.log ?? (() => undefined);
+  // Review lần 2 M8: mặc định KHÔNG im — có listener lỗi rồi thì BullMQ thôi tự console.error,
+  // và một log rỗng sẽ nuốt mất lỗi của test-sandbox.
+  const log = opts.log ?? ((line: string) => console.log(line));
   const docker = opts.docker ?? spawnCli();
   const host = await readFingerprint(docker, cfg);
   await mkdir(cfg.workRoot, { recursive: true });
@@ -57,18 +60,19 @@ export async function startWorker(
       // bằng một quyền rộng hơn trên máy dễ bị tấn công nhất.
       skipVersionCheck: true,
     };
-    workers.push(
-      new Worker(
-        QUEUE_EXEC,
-        (job) => withSlot(general, (slot, onLeak) => handleExec(job.data, { ...deps, onLeak }, slot), log),
-        { ...common, concurrency: cfg.execConcurrency },
-      ),
-      new Worker(
-        QUEUE_MEASURE,
-        (job) => withSlot(timing, (slot, onLeak) => handleMeasure(job.data, { ...deps, onLeak }, slot), log),
-        { ...common, concurrency: timing.size },
-      ),
+    const exec = new Worker(
+      QUEUE_EXEC,
+      (job) => withSlot(general, (slot, onLeak) => handleExec(job.data, { ...deps, onLeak }, slot), log),
+      { ...common, concurrency: cfg.execConcurrency },
     );
+    const measure = new Worker(
+      QUEUE_MEASURE,
+      (job) => withSlot(timing, (slot, onLeak) => handleMeasure(job.data, { ...deps, onLeak }, slot), log),
+      { ...common, concurrency: timing.size },
+    );
+    logWorkerEvents(exec, `${QUEUE_EXEC} (${source.name})`, log);
+    logWorkerEvents(measure, `${QUEUE_MEASURE} (${source.name})`, log);
+    workers.push(exec, measure);
   }
 
   for (const w of cfg.warnings) log(`CẢNH BÁO: ${w}`);

@@ -133,6 +133,22 @@ function renderRubric(criteria: GradingRubricCriterion[]): string {
   ].join('\n');
 }
 
+/**
+ * Khuôn output, nói NGAY trong prompt. `response_format: json_schema` không được mọi route của
+ * gateway ép: đo 2026-09-25, route `cnb/…` và `spd/…` nhận tham số rồi bỏ qua, model tự đặt
+ * `{criteria|grading|rubricIdVerdicts, quote, …}` và mọi lượt trượt zod. Prompt tự nói đủ khuôn
+ * thì không còn phụ thuộc gateway; zod vẫn là người gác cổng. Test giữ prompt khớp `jsonSchema()`.
+ */
+export const GRADER_PLACEHOLDERS = ['<id của một tiêu chí>', '<id của tiêu chí khác>', '<trích nguyên văn từ bài làm>'] as const;
+const [ID_A, ID_B, QUOTE] = GRADER_PLACEHOLDERS;
+/**
+ * Hai phần tử, một `met` có trích dẫn và một `not_met` với evidence rỗng: mẫu một phần tử `met`
+ * nghiêng model về điểm tối đa, và làm mờ quy ước "không đề cập → chuỗi rỗng".
+ */
+export const GRADER_OUTPUT_EXAMPLE =
+  `{"criterionResults":[{"criterionId":"${ID_A}","verdict":"met","evidence":"${QUOTE}"},` +
+  `{"criterionId":"${ID_B}","verdict":"not_met","evidence":""}]}`;
+
 const SYSTEM_RULES = [
   'Bạn chấm bài thi theo rubric của giảng viên.',
   '',
@@ -144,6 +160,13 @@ const SYSTEM_RULES = [
   '  một đoạn không có trong bài — dẫn chứng bịa bị phát hiện bằng máy.',
   '',
   'KHÔNG cho điểm số. Không tính tổng. Hệ thống tự tính điểm từ verdict.',
+  '',
+  'ĐỊNH DẠNG TRẢ LỜI — đúng MỘT đối tượng JSON, đúng tên trường, không đổi tên, không bọc trong trường khác:',
+  GRADER_OUTPUT_EXAMPLE,
+  '- "criterionResults": mỗi tiêu chí trong <rubric> đúng một phần tử.',
+  '- "criterionId": chép đúng thuộc tính id của thẻ <criterion>.',
+  '- "verdict": một trong met, partially_met, not_met.',
+  '- "evidence": trích nguyên văn từ bài làm; chuỗi rỗng nếu sinh viên không đề cập.',
   '',
   SYSTEM_DELIMITER_RULE,
 ].join('\n');
@@ -185,6 +208,12 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
     if (!validation.success) {
       const paths = validation.error.issues.map((i) => i.path.join('.')).join(', ');
       throw badOutputError(`${this.config.tier}: output không khớp schema ở: ${paths}`);
+    }
+    // Chép nguyên chỗ giữ chỗ của mẫu: qua được zod, nhưng id lạ thành 0 điểm (trừ oan giả) và
+    // trích dẫn giả vẫn cộng điểm. Output hỏng → thử lại / sang bậc, không thành một lượt chấm.
+    const placeholders: readonly string[] = GRADER_PLACEHOLDERS;
+    if (validation.data.criterionResults.some((r) => placeholders.includes(r.criterionId) || placeholders.includes(r.evidence))) {
+      throw badOutputError(`${this.config.tier}: model chép nguyên chỗ giữ chỗ của mẫu`);
     }
 
     if (envelope.injectionSuspected) {
