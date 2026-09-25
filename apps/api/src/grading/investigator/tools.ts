@@ -1,10 +1,10 @@
-import { createHash } from 'node:crypto';
-import { ExecResult, programSpec } from '../../sandbox/contract';
+import { createHash, randomUUID } from 'node:crypto';
+import { execJob, ExecResult, SANDBOX_CONTRACT_VERSION } from '../../sandbox/contract';
 import { ExecRequest } from '../../sandbox/sandbox.client';
 import { wrapSubmission } from '../harness/submission-envelope';
 import { TOOL_OUTPUT_MAX_BYTES, truncateOutput } from './truncate';
 import { InvestigationContext, StructuredResult, ToolCall, ToolCallStatus, ToolName } from './types';
-import { Workspace } from './workspace';
+import { renderListing, Workspace } from './workspace';
 
 /** Cổng tới sandbox. Bản thật là `SandboxClient` của bước 1; test dùng bản giả. */
 export interface SandboxPort {
@@ -96,33 +96,54 @@ export function programOf(ctx: InvestigationContext): ExecRequest['program'] {
   };
 }
 
-/** Chuỗi do sinh viên đặt, đưa vào một dòng lý do: một dòng, có trần, không mang ký tự xuống dòng. */
+/**
+ * Chuỗi do sinh viên đặt, đưa vào một dòng lý do cho giảng viên đọc: một dòng, có trần; không
+ * mang ký tự xuống dòng (JSON đã thoát phần < 0x20) hay ký tự đảo chiều hiển thị — tên
+ * `a<U+202E>ppc.exe` hiện ra như `aexe.cpp`.
+ */
 function quoted(raw: string): string {
-  return JSON.stringify(raw.slice(0, 80)).replace(/[\u2028\u2029]/g, '?');
+  return JSON.stringify(raw.slice(0, 80)).replace(/[\u0085\u2028\u2029\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '?');
 }
 
 /**
- * Review M4: bài mà hợp đồng sandbox từ chối (tên file có dấu cách hay dấu tiếng Việt, không có
- * file nào, file quá lớn) thì MỌI job đều nổ lúc dựng — và lỗi đó sẽ bị ghi nhầm thành "sandbox
- * không phản hồi", tiêu model tới khi treo. Kiểm một lần, trước lời gọi model đầu tiên. Tên file
- * lạ cũng vì thế không bao giờ tới model (nó nằm NGOÀI vỏ bọc). null = gửi được.
+ * Review M4 + lần 2 M5: bài mà hợp đồng sandbox từ chối — tên file có dấu cách hay dấu tiếng
+ * Việt, file quá lớn, Python không có entry, tên ca test quá dài — thì MỌI job đều nổ lúc dựng,
+ * bị ghi nhầm thành "sandbox không phản hồi", và tiêu model tới khi treo. Kiểm một lần, bằng
+ * CHÍNH schema của job, trước lời gọi model đầu tiên. null = gửi được.
  *
- * Lớp: không có file nào là lỗi của BÀI (T-EMPTY-1: `submission`); còn lại là giới hạn của
- * harness, bài không sai gì — `system`, về giảng viên.
+ * Lớp: bài không có dòng mã nào là lỗi của BÀI (T-EMPTY-1: `submission`); còn lại là giới hạn
+ * của harness hay của gói test, bài không sai gì — `system`, về giảng viên.
  */
 export function programProblem(ctx: InvestigationContext): { class: 'system' | 'submission'; reason: string } | null {
-  if (ctx.submission.files.length === 0) return { class: 'submission', reason: 'bài nộp không có file nào' };
-  const parsed = programSpec.safeParse(programOf(ctx));
-  if (parsed.success) return null;
-  const issue = parsed.error.issues[0];
-  const [where, index, field] = issue.path;
-  const file = where === 'files' && typeof index === 'number' ? ctx.submission.files[index] : undefined;
-  const system = (reason: string) => ({ class: 'system' as const, reason: `bài nộp không gửi được sang sandbox: ${reason}` });
-  if (file && field === 'path') {
-    return system(`tên file ${quoted(file.path)} không hợp lệ — chỉ nhận chữ Latin không dấu, số, "_", ".", "-" và "/"`);
+  if (ctx.submission.files.length === 0) return { class: 'submission', reason: 'bài nộp không có file nào (T-EMPTY-1)' };
+  if (ctx.submission.files.every((f) => f.content.trim() === '')) {
+    return { class: 'submission', reason: 'bài nộp không có dòng mã nào (T-EMPTY-1)' };
   }
-  if (file) return system(`file ${quoted(file.path)}: ${issue.message}`);
-  return system(`${issue.path.join('.') || 'chương trình'}: ${issue.message}`);
+  const system = (reason: string) => ({ class: 'system' as const, reason: `bài nộp không gửi được sang sandbox: ${reason}` });
+  const program = programOf(ctx);
+  const all = ctx.testBundle.cases.map((c) => ({ name: c.name, group: c.group, stdin: inline(c.input), expected: inline(c.expected) }));
+  // Gói rỗng vẫn phải kiểm được chương trình — một ca `run` là đủ. `run_tests` chia job theo 200 ca.
+  const chunks: { name: string; group: string | null; stdin: ReturnType<typeof inline>; expected: ReturnType<typeof inline> | null }[][] =
+    all.length === 0 ? [[{ name: 'run', group: null, stdin: inline(''), expected: null }]] : [];
+  for (let i = 0; i < all.length; i += MAX_CASES_PER_JOB) chunks.push(all.slice(i, i + MAX_CASES_PER_JOB));
+  for (const cases of chunks) {
+    const parsed = execJob.safeParse({
+      contract: SANDBOX_CONTRACT_VERSION, kind: 'exec', jobId: randomUUID(), language: ctx.language, program, cases,
+    });
+    if (parsed.success) continue;
+    const issue = parsed.error.issues[0];
+    const [where, index, field] = issue.path;
+    if (where === 'program' && index === 'files' && typeof field === 'number') {
+      const file = ctx.submission.files[field];
+      if (issue.path[3] === 'path') {
+        return system(`tên file ${quoted(file.path)} không hợp lệ — chỉ nhận chữ Latin không dấu, số, "_", ".", "-" và "/"`);
+      }
+      return system(`file ${quoted(file.path)}: ${issue.message}`);
+    }
+    if (where === 'cases' && typeof index === 'number') return system(`ca test ${quoted(cases[index].name)}: ${issue.message}`);
+    return system(`${issue.path.join('.') || 'chương trình'}: ${issue.message}`);
+  }
+  return null;
 }
 
 /**
@@ -192,8 +213,8 @@ export class ToolRunner {
   }
 
   private listFiles(): Dispatched {
-    const lines = this.workspace.list().map((f) => `- ${f.path} (${f.bytes} byte)`);
-    return { status: 'ok', text: lines.join('\n'), suspected: false, structured: null };
+    const listing = renderListing(this.workspace.list());
+    return { status: 'ok', text: listing.text, suspected: listing.suspected, structured: null };
   }
 
   private readFile(path: unknown, fromLine: unknown, toLine: unknown): Dispatched {
@@ -202,12 +223,18 @@ export class ToolRunner {
     if (!file) return fail(`không có file ${JSON.stringify(path)} trong workspace — xem list_files()`);
     const range = sliceLines(file.content, fromLine, toLine);
     if ('error' in range) return fail(range.error);
-    const header =
-      `${file.path} — dòng ${range.from}–${range.to} trên tổng ${range.total} dòng` +
-      (range.to < range.total ? ` · còn tiếp: read_file("${file.path}", fromLine=${range.to + 1})` : '');
+    const rest = range.to < range.total;
     if (file.source === 'system') {
+      const header =
+        `${file.path} — dòng ${range.from}–${range.to} trên tổng ${range.total} dòng` +
+        (rest ? ` · còn tiếp: read_file("${file.path}", fromLine=${range.to + 1})` : '');
       return { status: 'ok', text: `${header}\n${range.text}`, suspected: false, structured: null };
     }
+    // Review lần 2 I3: tên file bài nộp là chữ của sinh viên — không nhắc lại nó ngoài vỏ bọc.
+    // Model biết mình vừa đọc path nào: chính nó viết path đó trong lời gọi.
+    const header =
+      `File bài nộp — dòng ${range.from}–${range.to} trên tổng ${range.total} dòng` +
+      (rest ? ` · còn tiếp: read_file(<cùng path>, fromLine=${range.to + 1})` : '');
     const wrapped = wrapStudent(range.text);
     return { status: 'ok', text: `${header}\n${wrapped.text}`, suspected: wrapped.suspected, structured: null };
   }

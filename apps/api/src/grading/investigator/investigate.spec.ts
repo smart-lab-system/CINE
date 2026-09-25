@@ -355,7 +355,60 @@ describe('investigate()', () => {
     const r = await investigate(CTX, deps([model], sandbox));
     expect(r.replay).toEqual({ toolCallId: 'tc-2', matched: null });
     expect(r.flags).not.toContain('replay_mismatch');
+    // Không đối chiếu được thì phải NÓI ra — trần 1 không được đọc là "đã kiểm".
+    expect(r.flags).toContain('replay_unverified');
     expect(r.confidenceCap).toBe(1);
+  });
+
+  it('review lần 2 M1 — lượt chạy lại bị cắt vì hết ngân sách job (aborted) → không đối chiếu được, không phải lệch', async () => {
+    const sandbox = fakeSandbox((req, n) =>
+      n === 2
+        ? execResult([{ name: req.cases[0].name, group: req.cases[0].group, status: 'pass' }], { aborted: 'budget' })
+        : passAllResult(req),
+    );
+    const model = scripted('A', [turn(call('run_tests')), final([{ ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'], note: null }])]);
+    const r = await investigate(CTX, deps([model], sandbox));
+    expect(r.replay).toEqual({ toolCallId: 'tc-1', matched: null });
+    expect(r.flags).toEqual(expect.arrayContaining(['replay_unverified']));
+    expect(r.flags).not.toContain('replay_mismatch');
+  });
+
+  it('review lần 2 I2 — bậc cuối chết khi gói test CHƯA chạy đủ: lý do nói bậc chết, không nói "chưa chạy đủ"', async () => {
+    const a = scripted('A', [turn(call('list_files')), httpProviderError(403, undefined, 'hết tiền')]);
+    const r = await investigate(CTX, deps([a]));
+    expect(r.investigation.budget.stopReason).toBe('models_exhausted');
+    expect(r.ungradable?.reason).toMatch(/A: tier_dead/);
+    expect(r.ungradable?.reason).not.toMatch(/gói test chưa chạy đủ/);
+  });
+
+  it('review lần 2 M3 — mọi bậc chết ở lượt xin kết luận cưỡng bức → lý do dừng là models_exhausted, không phải trần', async () => {
+    const ctx = { ...CTX, budget: { ...CTX.budget, maxToolCalls: 1 } };
+    const a = scripted('A', [turn(call('run_tests')), httpProviderError(403, undefined, 'hết tiền')]);
+    const r = await investigate(ctx, deps([a]));
+    expect(r.kind).toBe('ungradable');
+    expect(r.investigation.budget.stopReason).toBe('models_exhausted');
+    expect(r.ungradable?.reason).toMatch(/A: tier_dead/);
+  });
+
+  it('review lần 2 M5 — luật cấp JOB của hợp đồng cũng kiểm trước: Python thiếu entry, tên ca test quá 64 ký tự', async () => {
+    const model = scripted('A', [final([])]);
+    const py = await investigate({ ...CTX, language: 'python', driver: null, entry: null }, deps([model]));
+    expect(py.investigation.budget.stopReason).toBe('invalid_program');
+    expect(py.ungradable).toEqual({ class: 'system', reason: expect.stringMatching(/entry/) });
+    const long = { ...CTX, testBundle: { id: 'x@0', cases: [{ name: 'a'.repeat(65), group: 'co_ban', input: '1\n', expected: '1\n' }] } };
+    const r = await investigate(long, deps([model]));
+    expect(r.investigation.budget.stopReason).toBe('invalid_program');
+    expect(r.ungradable?.reason).toMatch(/ca test/);
+    expect(model.requests).toHaveLength(0);
+  });
+
+  it('review lần 2 M6 — T-EMPTY-1: bài chỉ có khoảng trắng → ungradable lớp submission; tên file mang ký tự bidi không lọt vào lý do', async () => {
+    const model = scripted('A', [final([])]);
+    const blank = await investigate({ ...CTX, submission: { files: [{ path: 'main.cpp', content: ' \n\t\n' }] } }, deps([model]));
+    expect(blank.ungradable).toEqual({ class: 'submission', reason: expect.stringMatching(/không có dòng mã nào/) });
+    const bidi = await investigate({ ...CTX, submission: { files: [{ path: 'a\u202Eppc.exe', content: 'x' }] } }, deps([model]));
+    expect(bidi.ungradable?.reason).not.toMatch(/[\u202A-\u202E\u2066-\u2069\u0085]/);
+    expect(model.requests).toHaveLength(0);
   });
 
   it('review M8 — số lời gọi chạm trần đúng cuối một lượt → xin kết luận NGAY, không phí một lượt model', async () => {

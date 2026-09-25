@@ -147,7 +147,8 @@ export interface Investigation {
 }
 
 export type RejectReason = 'unknown_rule' | 'fabricated_tool_call' | 'no_valid_tool_call';
-export type InvestigationFlag = 'replay_mismatch' | 'budget_exhausted' | 'injection_suspected';
+/** `replay_unverified`: lượt chạy lại không chạy được hay bị cắt — không đối chiếu được (T-AG-3). */
+export type InvestigationFlag = 'replay_mismatch' | 'replay_unverified' | 'budget_exhausted' | 'injection_suspected';
 
 export interface InvestigationResult {
   kind: 'verdict' | 'ungradable';

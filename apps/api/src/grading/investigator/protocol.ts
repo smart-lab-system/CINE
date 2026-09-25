@@ -3,6 +3,7 @@ import { SYSTEM_DELIMITER_RULE } from '../harness/submission-envelope';
 import { truncateOutput } from './truncate';
 import { InvestigationContext, TOOL_NAMES, ToolCall } from './types';
 import { readSingleJson } from './verdict-reader';
+import { renderListing, WorkspaceEntry } from './workspace';
 
 export const MAX_CALLS_PER_ROUND = 5;
 /**
@@ -167,12 +168,12 @@ export const INVESTIGATOR_SYSTEM_PROMPT = [
   SYSTEM_DELIMITER_RULE,
 ].join('\n');
 
-export function initialUserMessage(ctx: InvestigationContext, files: { path: string; bytes: number }[]): string {
+export function initialUserMessage(ctx: InvestigationContext, files: WorkspaceEntry[]): string {
   return [
     `Ngôn ngữ: ${ctx.language} · Độ phức tạp đề đòi: ${ctx.requiredComplexity ?? 'không nêu'}`,
     `Ngân sách: tối đa ${ctx.budget.maxToolCalls} lời gọi công cụ, ${ctx.budget.maxRounds} lượt.`,
     'Workspace:',
-    ...files.map((f) => `- ${f.path} (${f.bytes} byte)`),
+    renderListing(files).text,
     '',
     'Bắt đầu điều tra.',
   ].join('\n');

@@ -263,7 +263,10 @@ export async function investigate(
       forcedFinal = true;
       if (reply.action === 'final') verdict = reply.verdict;
     } catch (error) {
-      if (!(error instanceof ModelsExhaustedError || error instanceof DeadlineExceededError)) throw error;
+      // Review lần 2 M3: mọi bậc chết ở chính lượt này thì cuộc điều tra dừng VÌ MODEL, không vì
+      // trần — eval tính nó là lượt lỗi, không phải một kết cục của agent.
+      if (error instanceof ModelsExhaustedError) stopReason = 'models_exhausted';
+      else if (!(error instanceof DeadlineExceededError)) throw error;
     }
   }
   const stop: StopReason = stopReason ?? 'verdict';
@@ -293,8 +296,10 @@ export async function investigate(
     };
   }
 
-  // Sàn của bước 2 (Q4), theo thứ tự: 0 lời gọi thành công → gói test chưa chạy đủ (T-FLOOR-3)
-  // → không có kết luận đọc được. Cả ba đều ungradable. Phần còn lại của sàn §4.4 là bước 3.
+  // Sàn của bước 2 (Q4), theo thứ tự: 0 lời gọi thành công → mọi bậc model chết → gói test rỗng
+  // hay chưa chạy đủ (T-FLOOR-3) → không có kết luận đọc được. Tất cả đều ungradable. Bậc chết
+  // đứng TRƯỚC sàn độ phủ (review lần 2 I2): gói chưa chạy đủ chỉ là hệ quả, lý do là model.
+  // Phần còn lại của sàn §4.4 là bước 3.
   let kind: InvestigationResult['kind'] = 'verdict';
   let ungradable: InvestigationResult['ungradable'] = null;
   const missing = uncoveredCases(ctx, toolCalls, structured);
@@ -305,6 +310,9 @@ export async function investigate(
       class: 'system',
       reason: (ZERO_CALL_REASON[stop] ?? '0 lời gọi công cụ thành công — cuộc điều tra chưa bắt đầu (§4.4)') + why,
     };
+  } else if (stop === 'models_exhausted') {
+    kind = 'ungradable';
+    ungradable = { class: 'system', reason: `dừng vì models_exhausted trước khi có kết luận đọc được${why}` };
   } else if (ctx.testBundle.cases.length === 0) {
     // Dòng đầu bảng §4.4: gói rỗng thì `uncoveredCases` cũng rỗng — "chạy đủ" một cách vô nghĩa.
     kind = 'ungradable';
@@ -341,9 +349,13 @@ export async function investigate(
       const pick = candidates[Math.min(candidates.length - 1, Math.floor(random() * candidates.length))];
       const again = await runner.execute(`${pick.id}-replay`, { tool: pick.tool, args: pick.args });
       const before = replayKey(structured[pick.id]);
-      // Review M7: sandbox không chạy được lượt lại là sự cố hạ tầng, không phải bằng chứng lệch.
-      const matched = again.toolCall.status !== 'ok' ? null : before !== null && before === replayKey(again.structured);
+      // Review M7 + lần 2 M1: sandbox không chạy được lượt lại, hay cắt nó giữa chừng vì hết ngân
+      // sách job, là sự cố hạ tầng — không phải bằng chứng lệch. Nhưng cũng KHÔNG phải "đã kiểm":
+      // cờ `replay_unverified` nói ra, để bước 3 không đọc trần 1 thành đã đối chiếu.
+      const cut = again.structured?.kind === 'run_tests' && again.structured.aborted;
+      const matched = again.toolCall.status !== 'ok' || cut ? null : before !== null && before === replayKey(again.structured);
       replay = { toolCallId: pick.id, matched };
+      if (matched === null) flags.push('replay_unverified');
       if (matched === false) {
         flags.push('replay_mismatch');
         confidenceCap = REPLAY_CONFIDENCE_CAP;
