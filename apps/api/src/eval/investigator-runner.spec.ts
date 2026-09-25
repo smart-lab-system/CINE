@@ -63,4 +63,17 @@ describe('runInvestigator', () => {
     expect(records.find((r) => r.caseId === 'M1')).toMatchObject({ status: 'ok', outcome: 'ungradable', scoreHundredths: null, violation: null });
     expect(records.find((r) => r.caseId === 'A0')).toMatchObject({ status: 'error' });
   });
+
+  it('T-EVAL-6 — lượt của ca nhóm 5 không mang investigation hay tóm tắt', async () => {
+    const { dataset, bundles } = await setup();
+    dataset.des[0].manifest.cases[0] = { ...dataset.des[0].manifest.cases[0], group: 5, sha256: 'a'.repeat(64) };
+    const { records } = await runInvestigator({
+      dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET,
+      deps: { models: [], sandbox: { exec: async () => { throw new Error('x'); } } },
+      investigateFn: async () => result({}),
+    });
+    const g5 = records.find((r) => r.group === 5)!;
+    expect(g5.investigation).toBeNull();
+    expect(g5.summaryText).toBeNull();
+  });
 });

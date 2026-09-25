@@ -3,6 +3,7 @@ import { DocumentResolver } from '../grading/content-resolver/document-resolver'
 import { gradeOneShot } from '../grading/one-shot-grade';
 import { parseHundredths } from '../grading/scoring/hundredths';
 import { GateId } from './gates';
+import { stripForGroup5 } from './group5';
 import { expectedScoreHundredths, LoadedDataset, LoadedDe } from './load-dataset';
 import { ManifestCase } from './manifest.schema';
 import { CaseRecord, runCases, RunSummary } from './runner-core';
@@ -118,5 +119,11 @@ export async function runBaseline(opts: {
     }
   };
 
-  return runCases({ dataset: opts.dataset, tier: opts.tier, concurrency: opts.concurrency, attemptOnce });
+  return runCases({
+    dataset: opts.dataset,
+    tier: opts.tier,
+    concurrency: opts.concurrency,
+    // Nhóm 5 là bài thật: dòng kết quả không mang mã hay lời lỗi tự do (§12.7, T-EVAL-6).
+    attemptOnce: async (de, c, attempt) => stripForGroup5(await attemptOnce(de, c, attempt)),
+  });
 }

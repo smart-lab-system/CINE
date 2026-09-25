@@ -15,18 +15,22 @@ const predicate = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('no_recursion'), functionName: z.string().optional() }),
 ]);
 
-const manifestCase = z.object({
-  id: z.string().regex(/^[A-Za-z0-9_-]+$/),
-  group: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
-  file: z.string().min(1),
-  behavior: z.enum(['dynamic', 'static']),
-  expectedRuleIds: z.array(z.string()),
-  expectedOutcome: z.enum(['graded', 'ungradable', 'flagged']),
-  expectedScore: money.nullable(),
-  expectedComplexity: z.string().nullable(),
-  cleanTwin: z.string().nullable(),
-  note: z.string(),
-});
+const manifestCase = z
+  .object({
+    id: z.string().regex(/^[A-Za-z0-9_-]+$/),
+    group: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+    file: z.string().min(1),
+    /** Nhóm 5: băm của bài thật — commit được, bài thì không (§12.7). */
+    sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+    behavior: z.enum(['dynamic', 'static']),
+    expectedRuleIds: z.array(z.string()),
+    expectedOutcome: z.enum(['graded', 'ungradable', 'flagged']),
+    expectedScore: money.nullable(),
+    expectedComplexity: z.string().nullable(),
+    cleanTwin: z.string().nullable(),
+    note: z.string(),
+  })
+  .refine((c) => c.group !== 5 || c.sha256 !== undefined, { message: 'ca nhóm 5 phải có sha256 của bài' });
 
 export const manifestSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/),

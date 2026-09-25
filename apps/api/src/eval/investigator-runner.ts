@@ -5,6 +5,7 @@ import { parseHundredths } from '../grading/scoring/hundredths';
 import { HostFingerprint } from '../sandbox/contract';
 import { contextFor } from './context-from-fixture';
 import { GateId } from './gates';
+import { stripForGroup5 } from './group5';
 import { expectedScoreHundredths, LoadedDataset, LoadedDe } from './load-dataset';
 import { CaseRecord, runCases, RunSummary } from './runner-core';
 import { FrozenBundle } from './test-bundle';
@@ -64,7 +65,7 @@ export async function runInvestigator(opts: {
         sandboxHost ??= hostOf(result);
         const exhausted = result.kind === 'ungradable' && result.investigation.budget.stopReason === 'models_exhausted';
         const found = result.kind === 'verdict' ? result.verdict!.errors.map((e) => e.ruleKey) : null;
-        return {
+        return stripForGroup5({
           ...base,
           status: exhausted ? 'error' : 'ok',
           error: exhausted ? `mọi bậc model đều hỏng: ${result.ungradable?.reason ?? ''}`.slice(0, 300) : null,
@@ -80,13 +81,13 @@ export async function runInvestigator(opts: {
           flags: result.flags,
           investigation: result.investigation,
           summaryText: result.summary,
-        };
+        });
       } catch (error) {
-        return {
+        return stripForGroup5({
           ...base, status: 'error', error: error instanceof Error ? error.message.slice(0, 300) : String(error),
           outcome: null, scoreHundredths: null, foundRuleIds: null, modelUsed: null, tokensIn: 0, tokensOut: 0,
           wallMs: Date.now() - started, toolCalls: null, stopReason: null, flags: [], investigation: null, summaryText: null,
-        };
+        });
       }
     },
   });

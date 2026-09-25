@@ -52,4 +52,10 @@ describe('confirmCase', () => {
   it('chưa đủ 3 lượt thì một vi phạm vẫn chỉ là odd', () => {
     expect(confirmCase([true])).toBe('odd');
   });
+
+  it('nhóm 5 không có cổng cứng nào — điểm bao nhiêu cũng không phải vi phạm', () => {
+    const ctx = { maxHundredths: 1000, twinMaxScore: null, twinStable: false };
+    expect(scoreGateViolation({ group: 5 }, { status: 'ok', scoreHundredths: 0 }, ctx)).toBeNull();
+    expect(scoreGateViolation({ group: 5 }, { status: 'ok', scoreHundredths: 1000 }, ctx)).toBeNull();
+  });
 });

@@ -29,3 +29,5 @@ __pycache__/
 # Eval (spec 2026-09-20 §12.7) — lượt chạy ra file; lượt nào trích vào báo cáo thì commit có chủ đích (git add -f)
 apps/api/eval/runs/*
 !apps/api/eval/runs/.gitkeep
+# Nhóm 5 (§12.7) — bài của sinh viên thật, KHÔNG BAO GIỜ vào git; manifest chỉ giữ sha256
+apps/api/eval/private/

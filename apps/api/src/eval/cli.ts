@@ -12,6 +12,7 @@ import { buildInvestigatorTiers } from '../grading/investigator/model-pool';
 import { HostFingerprint } from '../sandbox/contract';
 import { createSandboxClient } from '../sandbox/sandbox.client';
 import { compareRuns, modelConfound } from './compare';
+import { group5Gate, trackedPrivateFiles, withoutGroup5 } from './group5';
 import { runInvestigator } from './investigator-runner';
 import { DockerProgramRunner, dockerImageId } from './program-runner';
 import { refuseInvestigator, refuseReason } from './refuse';
@@ -54,6 +55,11 @@ async function main() {
     }
   }
   const git = gitState(apiRoot);
+  const leaked = trackedPrivateFiles(apiRoot);
+  if (leaked.length > 0) {
+    console.error(`Từ chối chạy eval: bài nhóm 5 đang bị git theo dõi — ${leaked.join(', ')} (T-EVAL-6). Gỡ khỏi git trước.`);
+    process.exit(2);
+  }
   const startedAt = new Date();
 
   let records: CaseRecord[];
@@ -109,9 +115,13 @@ async function main() {
       if (host && host.images.cpp !== generatorImageId) {
         console.warn(`⚠ Image của bộ sinh (${generatorImageId}) khác image của worker (${host.images.cpp}). Phép kiểm tự nhất quán đã đạt; ghi lại để truy.`);
       }
-      const out = await runInvestigator({ dataset, bundles, tier, concurrency, budget, components, deps: { models: tiers, sandbox: client } });
+      // Duyệt Q8: bài thật chỉ chạy trên máy sandbox riêng.
+      const gate = group5Gate(host, process.env);
+      const { dataset: runDataset, dropped } = gate.allowed ? { dataset, dropped: 0 } : withoutGroup5(dataset);
+      const out = await runInvestigator({ dataset: runDataset, bundles, tier, concurrency, budget, components, deps: { models: tiers, sandbox: client } });
       records = out.records;
       summary = out.summary;
+      if (!gate.allowed && dropped > 0) summary.group5 = `Nhóm 5: ${dropped} ca bị bỏ — ${gate.reason}`;
       config = {
         pipeline: 'investigator',
         // Duyệt Q3: bước 2 thiếu CẢ BỐN thành phần của §12.6, không riêng khớp luật bằng code.

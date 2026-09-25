@@ -5,7 +5,7 @@ import { ManifestCase } from './manifest.schema';
 export interface CaseRecord {
   de: string;
   caseId: string;
-  group: 1 | 2 | 3 | 4;
+  group: 1 | 2 | 3 | 4 | 5;
   attempt: number;
   pipeline: 'baseline' | 'investigator';
   status: 'ok' | 'error';
@@ -169,7 +169,8 @@ export async function runCases(opts: {
   for (const { de, c } of all) {
     const id = `${de.manifest.id}/${c.id}`;
     const rs = recordsOf(de.manifest.id, c.id);
-    if (c.group !== 1 && !rs.some((r) => r.status === 'ok')) unmeasured.push(id);
+    // Chỉ nhóm 2–4 mang cổng cứng (§12.4); nhóm 1 và nhóm 5 không có gì để "không đo được".
+    if (c.group >= 2 && c.group <= 4 && !rs.some((r) => r.status === 'ok')) unmeasured.push(id);
     if (c.group === 3 && !ctxFor(de, c).twinStable) unstablePairs.push(id);
     const gate = rs.find((r) => r.violation)?.violation;
     if (!gate) continue;
@@ -211,7 +212,11 @@ export async function runCases(opts: {
       p95: percentile(ok.map((r) => r.tokensIn + r.tokensOut), 95),
     },
     modelsUsed: [...new Set(ok.map((r) => r.modelUsed).filter((m): m is string => Boolean(m)))],
-    group5: 'Nhóm 5: 0 ca — chưa có bài thật',
+    group5: (() => {
+      const n = new Set(records.filter((r) => r.group === 5).map((r) => `${r.de}/${r.caseId}`)).size;
+      const missing = opts.dataset.des.reduce((s, d) => s + d.missingPrivate.length, 0);
+      return n === 0 ? `Nhóm 5: 0 ca — chưa có bài thật${missing ? ` (${missing} ca khai trong manifest, bài chưa có)` : ''}` : `Nhóm 5: ${n} ca`;
+    })(),
     ruleMetrics: ruleMetrics(records),
     toolCallsPerCase: withCalls.length ? { p50: percentile(withCalls, 50), p95: percentile(withCalls, 95) } : null,
     stopReasons,
