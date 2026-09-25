@@ -45,6 +45,9 @@ describe('runInvestigator', () => {
     expect(records.find((r) => r.caseId === 'A0')!.scoreHundredths).toBe(1000);
     expect(summary.ruleMetrics).toMatchObject({ tp: 1, fp: 0, fn: 0, precision: 1, recall: 1 });
     expect(summary.verdict).toBe('passed_gates');
+    // Review I4: investigator không tự quyết (Q4), nên "khớp kết cục" thấp theo cấu trúc; chỉ số
+    // so được là "chấm được hay không". Hai ca flagged, mong đợi graded → chấm được cả hai.
+    expect(summary.perDe[0].gradableAgreement).toBe(1);
   });
 
   it('ungradable → không có điểm, không phải vi phạm; mọi bậc model hỏng → lượt lỗi (error)', async () => {

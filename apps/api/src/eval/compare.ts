@@ -1,10 +1,21 @@
 import { CaseRecord } from './runner-core';
 
-export type Metric = 'abs_score_error' | 'outcome_agreement';
+/**
+ * `outcome_agreement` — khớp "tự quyết hay không" với mong đợi. Chỉ so được giữa hai pipeline
+ * CÓ tự quyết: investigator của bước 2 không bao giờ ra `graded` (Q4), nên chỉ số này của nó
+ * thấp theo cấu trúc (review I4).
+ * `gradable_agreement` — khớp "chấm được hay không chấm được" với mong đợi; so được giữa mọi
+ * pipeline.
+ */
+export type Metric = 'abs_score_error' | 'outcome_agreement' | 'gradable_agreement';
 
 export interface Comparison {
   metric: Metric;
+  /** Số ca có giá trị ở CẢ hai lượt — đơn vị của phép so. */
   cases: number;
+  /** Ca chỉ lượt gốc / chỉ lượt mới có giá trị — ví dụ ca `ungradable` không có điểm (review I4). */
+  onlyBase: number;
+  onlyCandidate: number;
   /** candidate − base, trung bình trên các ca chung. */
   delta: number;
   lo: number;
@@ -18,6 +29,9 @@ function valueOf(r: CaseRecord, metric: Metric): number | null {
     return r.expectedScoreHundredths !== null && r.scoreHundredths !== null
       ? Math.abs(r.scoreHundredths - r.expectedScoreHundredths)
       : null;
+  }
+  if (metric === 'gradable_agreement') {
+    return (r.expectedOutcome !== 'ungradable') === (r.outcome !== 'ungradable') ? 1 : 0;
   }
   return (r.expectedOutcome === 'graded') === (r.outcome === 'graded') ? 1 : 0;
 }
@@ -84,7 +98,17 @@ export function compareRuns(base: CaseRecord[], cand: CaseRecord[], metric: Metr
   const lowerIsBetter = metric === 'abs_score_error';
   const worse = lowerIsBetter ? lo > 0 : hi < 0;
   const better = lowerIsBetter ? hi < 0 : lo > 0;
-  return { metric, cases: keys.length, delta: mean, lo, hi, verdict: worse ? 'regression' : better ? 'improvement' : 'no_change', lowerIsBetter };
+  return {
+    metric,
+    cases: keys.length,
+    onlyBase: [...a.keys()].filter((k) => !b.has(k)).length,
+    onlyCandidate: [...b.keys()].filter((k) => !a.has(k)).length,
+    delta: mean,
+    lo,
+    hi,
+    verdict: worse ? 'regression' : better ? 'improvement' : 'no_change',
+    lowerIsBetter,
+  };
 }
 
 /** Model thật đã trả lời một lượt chạy. Investigator ghi `a+b` khi xoay bậc. Lượt lỗi không tính. */

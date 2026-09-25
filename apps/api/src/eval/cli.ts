@@ -145,11 +145,17 @@ async function main() {
   if (baseRun) {
     const models = modelConfound(baseRun.records, records);
     sameModels = models.same;
+    // Review I4: "khớp kết cục" chỉ so được khi CẢ HAI lượt có tự quyết. Investigator của bước 2
+    // luôn `flagged` (Q4) — so nó là thoái lui theo cấu trúc, không phải theo chất lượng.
+    const bothDecide = baseRun.meta.config.pipeline === 'baseline' && pipeline === 'baseline';
     comparison = {
       against: compareTo,
       againstPipeline: baseRun.meta.config.pipeline,
       absScoreError: compareRuns(baseRun.records, records, 'abs_score_error'),
-      outcomeAgreement: compareRuns(baseRun.records, records, 'outcome_agreement'),
+      gradableAgreement: compareRuns(baseRun.records, records, 'gradable_agreement'),
+      outcomeAgreement: bothDecide
+        ? compareRuns(baseRun.records, records, 'outcome_agreement')
+        : 'n/a — pipeline investigator chưa tự quyết (Q4), khớp kết cục thấp theo cấu trúc',
       // Duyệt Q10: khác bộ model thì Δ không phải hiệu ứng của kiến trúc.
       models,
     };
@@ -178,11 +184,15 @@ async function main() {
   if (summary.unmeasured.length) {
     console.log(`  ⚠ Ca mang cổng cứng KHÔNG đo được lượt nào: ${summary.unmeasured.join(', ')}`);
   }
+  const pctOf = (v: number) => `${(v * 100).toFixed(0)}%`;
   for (const d of summary.perDe) {
+    // Review I4: investigator chưa tự quyết (Q4) — tự duyệt và khớp kết cục của nó không mang nghĩa.
+    const decides = pipeline === 'baseline';
     console.log(
-      `  ${d.de}: ${d.cases} ca · tự duyệt ${(d.autoRate * 100).toFixed(0)}% · ` +
-        `MAE ${d.maeHundredths === null ? '—' : formatHundredths(d.maeHundredths)} điểm · ` +
-        `khớp kết cục ${(d.outcomeAgreement * 100).toFixed(0)}%`,
+      `  ${d.de}: ${d.cases} ca · tự duyệt ${decides ? pctOf(d.autoRate) : 'n/a (Q4)'} · ` +
+        `MAE ${d.maeHundredths === null ? '—' : formatHundredths(d.maeHundredths)} điểm` +
+        `${d.maeExcluded ? ` (bỏ ${d.maeExcluded} lượt không có điểm)` : ''} · ` +
+        `khớp kết cục ${decides ? pctOf(d.outcomeAgreement) : 'n/a (Q4)'} · khớp chấm-được ${pctOf(d.gradableAgreement)}`,
     );
   }
   console.log(`  Thời gian mỗi lượt p50 ${summary.wallMs.p50} ms · p95 ${summary.wallMs.p95} ms`);
@@ -200,7 +210,13 @@ async function main() {
   if (summary.toolCallsPerCase) console.log(`  Lời gọi công cụ mỗi lượt p50 ${summary.toolCallsPerCase.p50} · p95 ${summary.toolCallsPerCase.p95}`);
   if (Object.keys(summary.stopReasons).length) console.log(`  Lý do dừng: ${JSON.stringify(summary.stopReasons)}`);
   if (comparison) {
-    console.log(`  So với ${compareTo}: ${JSON.stringify({ sai_so_diem: comparison.absScoreError, ket_cuc: comparison.outcomeAgreement })}`);
+    console.log(
+      `  So với ${compareTo}: ${JSON.stringify({
+        sai_so_diem: comparison.absScoreError,
+        cham_duoc: comparison.gradableAgreement,
+        ket_cuc: comparison.outcomeAgreement,
+      })}`,
+    );
     if (!sameModels) {
       console.log(
         `  ⚠ Hai lượt chấm bằng HAI BỘ MODEL khác nhau ${JSON.stringify(comparison.models)} — ` +

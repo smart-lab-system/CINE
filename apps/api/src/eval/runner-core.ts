@@ -50,7 +50,15 @@ export interface RunSummary {
   /** Ca mang cổng cứng mà không lượt nào đo được. */
   unmeasured: string[];
   errors: string[];
-  perDe: { de: string; cases: number; autoRate: number; maeHundredths: number | null; outcomeAgreement: number }[];
+  perDe: {
+    de: string;
+    cases: number;
+    autoRate: number;
+    maeHundredths: number | null;
+    maeExcluded: number;
+    outcomeAgreement: number;
+    gradableAgreement: number;
+  }[];
   wallMs: { p50: number; p95: number };
   tokens: { p50: number; p95: number };
   modelsUsed: string[];
@@ -184,6 +192,7 @@ export async function runCases(opts: {
     const rs = ok.filter((r) => r.de === de.manifest.id);
     const scored = rs.filter((r) => r.expectedScoreHundredths !== null && r.scoreHundredths !== null);
     const agree = rs.filter((r) => (r.expectedOutcome === 'graded') === (r.outcome === 'graded')).length;
+    const gradable = rs.filter((r) => (r.expectedOutcome !== 'ungradable') === (r.outcome !== 'ungradable')).length;
     return {
       de: de.manifest.id,
       cases: de.manifest.cases.length,
@@ -191,7 +200,10 @@ export async function runCases(opts: {
       maeHundredths: scored.length
         ? Math.round(scored.reduce((s, r) => s + Math.abs(r.scoreHundredths! - r.expectedScoreHundredths!), 0) / scored.length)
         : null,
+      // Lượt có điểm mong đợi mà không có điểm (vd. ungradable) — MAE bỏ chúng, nên phải nói ra (review I4).
+      maeExcluded: rs.filter((r) => r.expectedScoreHundredths !== null && r.scoreHundredths === null).length,
       outcomeAgreement: rs.length ? agree / rs.length : 0,
+      gradableAgreement: rs.length ? gradable / rs.length : 0,
     };
   });
 
