@@ -83,6 +83,18 @@ describe('runInvestigator', () => {
     expect(summary.errorReasons).toEqual([{ reason: expect.stringMatching(/t1: tier_dead: HTTP 403/), count: n }]);
   });
 
+  it('review — hồ sơ ghi lỗi bị loại (luật, lý do): đo được evidence_rejected vô hại hay làm điểm cao oan', async () => {
+    const { dataset, bundles } = await setup();
+    const { records } = await runInvestigator({
+      dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET,
+      deps: { models: [], sandbox: { exec: async () => { throw new Error('x'); } } },
+      investigateFn: async () => result({ rejected: [{ ruleKey: 'sai_co_ban', reason: 'fabricated_tool_call' }], flags: ['evidence_rejected'] }),
+    });
+    const r = records.find((x) => x.group !== 5)!;
+    expect(r.flags).toContain('evidence_rejected');
+    expect((r.investigation as { rejected: unknown }).rejected).toEqual([{ ruleKey: 'sai_co_ban', reason: 'fabricated_tool_call' }]);
+  });
+
   it('T-EVAL-6 — lượt của ca nhóm 5 không mang investigation hay tóm tắt', async () => {
     const { dataset, bundles } = await setup();
     dataset.des[0].manifest.cases[0] = { ...dataset.des[0].manifest.cases[0], group: 5, sha256: 'a'.repeat(64) };

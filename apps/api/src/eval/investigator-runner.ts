@@ -80,7 +80,9 @@ export async function runInvestigator(opts: {
           toolCalls: result.investigation.budget.toolCalls,
           stopReason: result.investigation.budget.stopReason,
           flags: result.flags,
-          investigation: result.investigation,
+          // Lỗi bị loại (luật, lý do) đi kèm hồ sơ: evidence_rejected vô hại (luật không có trong bảng)
+          // hay làm điểm cao oan (luật thật mất bằng chứng) chỉ đo được khi cases.jsonl mang nó.
+          investigation: { ...result.investigation, rejected: result.rejected },
           summaryText: result.summary,
         });
       } catch (error) {

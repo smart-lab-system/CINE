@@ -90,29 +90,51 @@ export const REPLY_JSON_SCHEMA: Record<string, unknown> = {
 };
 
 /**
- * Trường không dùng mà VẮNG MẶT cùng nghĩa với null. Model qua route không ép json_schema hay bỏ
- * hẳn trường thay vì ghi null (đo 2026-09-25, spd/…) — vứt cả lượt vì thế là phạt nhầm. Kiểu sai
- * vẫn là output hỏng; schema gửi đi vẫn đòi đủ sáu trường.
+ * Trường công cụ KHÔNG dùng mà vắng mặt cùng nghĩa với null: model qua route không ép json_schema
+ * hay bỏ hẳn trường thay vì ghi null (đo 2026-09-25, spd/…), và vứt cả lượt vì thế là phạt nhầm.
+ * Nhưng trường công cụ CẦN mà vắng (`path` của read_file, `input` của run) là KHUÔN lời gọi hỏng —
+ * vd. kiểu function-call `{"tool":…,"arguments":{…}}` — nên vẫn là output hỏng, để pool sang bậc
+ * sau thay vì đốt ngân sách công cụ vào những lời gọi lỗi. null TƯỜNG MINH vẫn chạy và báo lỗi có
+ * lời giải thích như cũ. Kiểu sai luôn là output hỏng; schema gửi đi vẫn đòi đủ sáu trường.
  */
-const absentIsNull = <T extends z.ZodTypeAny>(t: T) => t.nullish().transform((v): z.infer<T> | null => v ?? null);
-const callSchema = z.object({
-  tool: z.enum(TOOL_NAMES),
-  input: absentIsNull(z.string()),
-  group: absentIsNull(z.string()),
-  path: absentIsNull(z.string()),
-  // Số nguyên bất kỳ: khoảng dòng vô lý (0, âm, ngược) là một lời gọi `error` có lời giải thích
-  // ở `tools.ts`, không phải cả lượt bị vứt thành bad_output.
-  fromLine: absentIsNull(z.number().int()),
-  toLine: absentIsNull(z.number().int()),
-});
+const NEEDED_FIELD: Partial<Record<ModelCallTool, 'input' | 'path'>> = { run: 'input', read_file: 'path' };
+type ModelCallTool = (typeof TOOL_NAMES)[number];
+const callSchema = z
+  .object({
+    tool: z.enum(TOOL_NAMES),
+    input: z.string().nullish(),
+    group: z.string().nullish(),
+    path: z.string().nullish(),
+    // Số nguyên bất kỳ: khoảng dòng vô lý (0, âm, ngược) là một lời gọi `error` có lời giải thích
+    // ở `tools.ts`, không phải cả lượt bị vứt thành bad_output.
+    fromLine: z.number().int().nullish(),
+    toLine: z.number().int().nullish(),
+  })
+  .superRefine((c, ctx) => {
+    const field = NEEDED_FIELD[c.tool];
+    if (field && c[field] === undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${c.tool} thiếu trường ${field}` });
+    }
+  })
+  .transform((c) => ({
+    tool: c.tool,
+    input: c.input ?? null,
+    group: c.group ?? null,
+    path: c.path ?? null,
+    fromLine: c.fromLine ?? null,
+    toLine: c.toLine ?? null,
+  }));
 const COPIED = 'chép nguyên chỗ giữ chỗ của mẫu';
-const toolCallIds = z.array(z.string().max(32).refine((id) => id !== TOOL_CALL_ID_PLACEHOLDER, COPIED)).max(25);
+// Chặn chỗ giữ chỗ CHỈ ở errors — nơi nó quyết điểm. missingRules không vào điểm, và prompt dạy
+// đúng khuôn `["tc-N"]` ở đó; mã không có thật đã bị lọc bỏ ở investigate().
+const errorToolCallIds = z.array(z.string().max(32).refine((id) => id !== TOOL_CALL_ID_PLACEHOLDER, COPIED)).max(25);
+const toolCallIds = z.array(z.string().max(32)).max(25);
 const verdictSchema = z.object({
   errors: z
     .array(
       z.object({
         ruleKey: z.string().min(1).max(64).refine((k) => k !== RULE_KEY_PLACEHOLDER, COPIED),
-        toolCallIds,
+        toolCallIds: errorToolCallIds,
         note: z.string().max(500).nullable(),
       }),
     )

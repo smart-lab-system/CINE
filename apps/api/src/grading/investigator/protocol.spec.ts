@@ -85,6 +85,21 @@ describe('giao thức một lượt', () => {
     expect(parseReply('{"action":"call","calls":[{"tool":"run","input":5}],"verdict":null}')).toBeNull();
   });
 
+  it('review — chỉ trường công cụ KHÔNG dùng mới được vắng: read_file thiếu path, run thiếu input → output hỏng (sang bậc sau)', () => {
+    expect(parseReply('{"action":"call","calls":[{"tool":"read_file","arguments":{"path":"bai-nop/main.cpp"}}],"verdict":null}')).toBeNull();
+    expect(parseReply('{"action":"call","calls":[{"tool":"run"}],"verdict":null}')).toBeNull();
+    // null TƯỜNG MINH vẫn như cũ: lời gọi chạy và báo lỗi có lời giải thích cho model.
+    expect(parseReply('{"action":"call","calls":[{"tool":"read_file","path":null}],"verdict":null}')?.action).toBe('call');
+  });
+
+  it('review — missingRules trích tc-N (đúng như prompt dạy) KHÔNG làm hỏng cả lượt; chỉ errors mới bị chặn chỗ giữ chỗ', () => {
+    const reply = parseReply(
+      '{"action":"final","calls":[],"verdict":{"errors":[{"ruleKey":"sai_ca_co_ban","toolCallIds":["tc-1"],"note":null}],' +
+        '"missingRules":[{"description":"thiếu luật","toolCallIds":["tc-N"]}],"injectionAttempt":{"detected":false,"excerpt":null}}}',
+    );
+    expect(reply?.action).toBe('final');
+  });
+
   it('review — chép placeholder của mẫu (nguyên văn hay một nửa) → bad_output: không thành một kết luận "không lỗi" hay một lỗi bị loại', () => {
     expect(parseReply(EXAMPLE_FINAL_REPLY)).toBeNull();
     expect(parseReply(EXAMPLE_FINAL_REPLY.replace(RULE_KEY_PLACEHOLDER, 'sai_ca_co_ban'))).toBeNull();
