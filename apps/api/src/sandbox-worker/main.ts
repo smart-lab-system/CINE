@@ -27,7 +27,9 @@ export async function startWorker(
   cfg: WorkerConfig,
   opts: { docker?: DockerCli; log?: (line: string) => void } = {},
 ): Promise<RunningWorker> {
-  const log = opts.log ?? (() => undefined);
+  // Review lần 2 M8: mặc định KHÔNG im — có listener lỗi rồi thì BullMQ thôi tự console.error,
+  // và một log rỗng sẽ nuốt mất lỗi của test-sandbox.
+  const log = opts.log ?? ((line: string) => console.log(line));
   const docker = opts.docker ?? spawnCli();
   const host = await readFingerprint(docker, cfg);
   await mkdir(cfg.workRoot, { recursive: true });

@@ -150,6 +150,29 @@ describe('throttledErrorLog — lỗi kết nối của hàng đợi', () => {
     expect(lines[0].length).toBeLessThan(400);
   });
 
+  it('review lần 2 I1 — `localhost` bị từ chối cả IPv6 lẫn IPv4: AggregateError có message RỖNG vẫn ra lý do', () => {
+    const { lines, report } = setup();
+    const aggregate = Object.assign(
+      new AggregateError([new Error('connect ECONNREFUSED ::1:6390'), new Error('connect ECONNREFUSED 127.0.0.1:6390')], ''),
+      { code: 'ECONNREFUSED' },
+    );
+    report('exec', aggregate);
+    expect(lines).toEqual(['exec: ECONNREFUSED — connect ECONNREFUSED ::1:6390; connect ECONNREFUSED 127.0.0.1:6390']);
+    report('exec', Object.assign(new Error(''), { code: 'ETIMEDOUT' }));
+    expect(lines[1]).toBe('exec: ETIMEDOUT'); // khác lý do → khác khoá gộp, không bị che
+  });
+
+  it('review lần 2 M7 — \\r không lọt (không ghi đè dòng terminal); URL không user vẫn bị che; chuỗi dài không làm regex chậm', () => {
+    const { lines, report } = setup();
+    report('x', new Error('a\rDÒNG GIẢ'));
+    report('y', new Error('lỗi rediss://:matkhau@host:1'));
+    expect(lines[0]).toBe('x: a DÒNG GIẢ');
+    expect(lines[1]).toBe('y: lỗi rediss://***@host:1');
+    const started = Date.now();
+    report('z', new Error(`//${':'.repeat(50_000)}`));
+    expect(Date.now() - started).toBeLessThan(50);
+  });
+
   it('thứ ném ra không phải Error vẫn ghi được', () => {
     const { lines, report } = setup();
     report('x', 'chuỗi trần');

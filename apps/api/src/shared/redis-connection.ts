@@ -35,9 +35,26 @@ function requirePort(raw: string, varName: string): number {
   return port;
 }
 
-/** Che `user:pass@` của mọi URL trong một thông điệp — log không bao giờ mang credential. */
+/**
+ * Che `user:pass@` của mọi URL trong một thông điệp — log không bao giờ mang credential. Phần
+ * user không chứa `:` để regex không quay lui bậc hai trên một chuỗi toàn dấu hai chấm.
+ */
 function redact(message: string): string {
-  return message.replace(/\/\/[^\s/@]*:[^\s/@]*@/g, '//***@');
+  return message.replace(/\/\/[^\s/@:]*:[^\s/@]*@/g, '//***@');
+}
+
+/**
+ * Lý do đọc được của một lỗi. Node 20+ nối `localhost` bằng CẢ `::1` lẫn `127.0.0.1`; hỏng cả
+ * hai thì ra `AggregateError` có `message` RỖNG — lý do thật nằm ở `code` và `errors[]`.
+ */
+function describeError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const code = (error as { code?: unknown }).code;
+  const head = error.message || (typeof code === 'string' ? code : '') || error.name;
+  if (error instanceof AggregateError && error.errors.length > 0) {
+    return `${head} — ${error.errors.map((e: unknown) => (e instanceof Error ? e.message || e.name : String(e))).join('; ')}`;
+  }
+  return head;
 }
 
 /**
@@ -55,8 +72,10 @@ export function throttledErrorLog(
   const now = opts.now ?? Date.now;
   const seen = new Map<string, { at: number; suppressed: number }>();
   return (context, error) => {
-    const raw = error instanceof Error ? error.message : String(error);
-    const message = redact(raw).replace(/\s*\n\s*/g, ' ').slice(0, 300);
+    // Cắt thô ở 4 KB TRƯỚC khi che (regex chạy trên chuỗi có trần), cắt 300 SAU khi che: cắt
+    // trước ở 300 có thể chặt một URL trước dấu `@` và để lộ nửa mật khẩu.
+    const raw = describeError(error).slice(0, 4_096);
+    const message = redact(raw).replace(/\s+/g, ' ').trim().slice(0, 300);
     const key = `${context}\u0000${message}`;
     const t = now();
     const last = seen.get(key);
