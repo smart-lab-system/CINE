@@ -133,8 +133,13 @@ const EMPTY_ZIP_EOCD = Buffer.from([
  * một sự thật thứ hai có thể lệch khỏi cái tên. `deliverableType` KHÔNG
  * dùng được ở đây — nó chỉ có `'document' | 'code_project' | 'image'`,
  * không có giá trị nào cho "file nén" cả.
+ *
+ * Exported vì `exam-materials.ts` cần đúng phép suy luận này để quyết định
+ * có chèn câu giải thích ".rar không tạo trước được" vào tờ hướng dẫn hay
+ * không — khai lại hàm này ở đó sẽ tái tạo đúng thứ nguyên tắc trên đang
+ * cấm: hai nơi có thể lệch nhau nếu danh sách đuôi file mở rộng sau này.
  */
-function archiveKindOf(filename: string): 'zip' | 'rar' | null {
+export function archiveKindOf(filename: string): 'zip' | 'rar' | null {
   const lower = filename.toLowerCase();
   if (lower.endsWith('.zip')) return 'zip';
   if (lower.endsWith('.rar')) return 'rar';

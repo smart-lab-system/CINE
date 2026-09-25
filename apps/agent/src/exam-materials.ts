@@ -14,6 +14,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Socket } from 'socket.io-client';
+import { archiveKindOf } from './workspace-files';
 
 /** Where materials land, inside the student's own workspace. */
 export const MATERIALS_DIRNAME = 'de-thi';
@@ -160,15 +161,6 @@ export interface InstructionsInput {
    */
   requiredDeliverables: { filename: string; entries: string[] }[];
   materialFileNames: string[];
-}
-
-/** Suy ra "đây là file nén" từ đuôi tên — cùng idiom `workspace-files.ts`
- *  (backend) đã dùng, không phải cờ riêng. */
-function archiveKindOf(filename: string): 'zip' | 'rar' | null {
-  const lower = filename.toLowerCase();
-  if (lower.endsWith('.zip')) return 'zip';
-  if (lower.endsWith('.rar')) return 'rar';
-  return null;
 }
 
 /**
