@@ -77,6 +77,16 @@ describe('investigate()', () => {
     ]);
   });
 
+  it('review — có lỗi bị loại (T-AG-2) → cờ evidence_rejected: lỗi bị loại có thể là lỗi thật mất bằng chứng, điểm có thể cao oan', async () => {
+    const model = scripted('A', [turn(call('run_tests')), final([{ ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-9'], note: null }])]);
+    const r = await investigate(CTX, deps([model]), { ...ALL_COMPONENTS, replayCheck: false });
+    expect(r.kind).toBe('verdict');
+    expect(r.verdict?.errors).toEqual([]);
+    expect(r.flags).toContain('evidence_rejected');
+    const clean = await investigate(CTX, deps([scripted('A', [turn(call('run_tests')), final([])])]), { ...ALL_COMPONENTS, replayCheck: false });
+    expect(clean.flags).not.toContain('evidence_rejected');
+  });
+
   it('T-AG-3 — chạy lại một lời gọi, lệch kết quả → gắn cờ và hạ trần confidence', async () => {
     let n = 0;
     const flaky = fakeSandbox((req) =>

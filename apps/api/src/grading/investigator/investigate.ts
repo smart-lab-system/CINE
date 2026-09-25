@@ -333,6 +333,7 @@ export async function investigate(
 
   const flags: InvestigationFlag[] = [];
   if (kind === 'verdict' && stop !== 'verdict') flags.push('budget_exhausted');
+  if (rejected.length > 0) flags.push('evidence_rejected');
   if (submissionSuspected || toolCalls.some((t) => t.injectionSuspected) || accepted?.injectionAttempt.detected) {
     flags.push('injection_suspected');
   }

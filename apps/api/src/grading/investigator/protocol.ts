@@ -15,6 +15,14 @@ export const MODEL_VIEW_BYTES = 2_048;
 
 // Nullable viết bằng anyOf, KHÔNG bằng kiểu hợp `type: [x, 'null']`: route cnb/… của gateway trả
 // HTTP 400 cho kiểu hợp (đo 2026-09-25), còn anyOf thì nhận. Hai cách cùng nghĩa với JSON Schema.
+/**
+ * Chỗ giữ chỗ của mẫu kết luận. Model chép nguyên chúng thì cả lượt là output hỏng (bad_output):
+ * pool hỏi lại cùng bậc rồi sang bậc sau. Để chúng qua được zod thì một bản chép nguyên thành
+ * "không lỗi" → điểm tối đa, và một bản chép một nửa (luật thật + tc-N) thành một lỗi thật bị loại.
+ */
+export const RULE_KEY_PLACEHOLDER = '<rule_key trong bang-loi.md>';
+export const TOOL_CALL_ID_PLACEHOLDER = 'tc-N';
+
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 const nullableInteger = { anyOf: [{ type: 'integer' }, { type: 'null' }] };
 const idList = { type: 'array', items: { type: 'string' } };
@@ -81,29 +89,35 @@ export const REPLY_JSON_SCHEMA: Record<string, unknown> = {
   },
 };
 
+/**
+ * Trường không dùng mà VẮNG MẶT cùng nghĩa với null. Model qua route không ép json_schema hay bỏ
+ * hẳn trường thay vì ghi null (đo 2026-09-25, spd/…) — vứt cả lượt vì thế là phạt nhầm. Kiểu sai
+ * vẫn là output hỏng; schema gửi đi vẫn đòi đủ sáu trường.
+ */
+const absentIsNull = <T extends z.ZodTypeAny>(t: T) => t.nullish().transform((v): z.infer<T> | null => v ?? null);
 const callSchema = z.object({
   tool: z.enum(TOOL_NAMES),
-  input: z.string().nullable(),
-  group: z.string().nullable(),
-  path: z.string().nullable(),
+  input: absentIsNull(z.string()),
+  group: absentIsNull(z.string()),
+  path: absentIsNull(z.string()),
   // Số nguyên bất kỳ: khoảng dòng vô lý (0, âm, ngược) là một lời gọi `error` có lời giải thích
   // ở `tools.ts`, không phải cả lượt bị vứt thành bad_output.
-  fromLine: z.number().int().nullable(),
-  toLine: z.number().int().nullable(),
+  fromLine: absentIsNull(z.number().int()),
+  toLine: absentIsNull(z.number().int()),
 });
+const COPIED = 'chép nguyên chỗ giữ chỗ của mẫu';
+const toolCallIds = z.array(z.string().max(32).refine((id) => id !== TOOL_CALL_ID_PLACEHOLDER, COPIED)).max(25);
 const verdictSchema = z.object({
   errors: z
     .array(
       z.object({
-        ruleKey: z.string().min(1).max(64),
-        toolCallIds: z.array(z.string().max(32)).max(25),
+        ruleKey: z.string().min(1).max(64).refine((k) => k !== RULE_KEY_PLACEHOLDER, COPIED),
+        toolCallIds,
         note: z.string().max(500).nullable(),
       }),
     )
     .max(50),
-  missingRules: z
-    .array(z.object({ description: z.string().min(1).max(500), toolCallIds: z.array(z.string().max(32)).max(25) }))
-    .max(20),
+  missingRules: z.array(z.object({ description: z.string().min(1).max(500), toolCallIds })).max(20),
   injectionAttempt: z.object({ detected: z.boolean(), excerpt: z.string().max(500).nullable() }),
 });
 const replySchema = z.discriminatedUnion('action', [
@@ -145,8 +159,8 @@ export const EXAMPLE_CALL_REPLY =
   '{"action":"call","calls":[{"tool":"run_tests","input":null,"group":null,"path":null,"fromLine":null,"toLine":null}],"verdict":null}';
 export const EXAMPLE_FINAL_REPLY =
   // `tc-N`, KHÔNG phải `tc-1`: mẫu mà trích một mã có thật thì model chép nguyên sẽ ra một bằng
-  // chứng không liên quan mà T-AG-2 vẫn nhận. `tc-N` không bao giờ tồn tại → bị loại là bịa.
-  '{"action":"final","calls":[],"verdict":{"errors":[{"ruleKey":"<rule_key trong bang-loi.md>","toolCallIds":["tc-N"],"note":null}],' +
+  // chứng không liên quan mà T-AG-2 vẫn nhận. Cả hai chỗ giữ chỗ bị parseReply từ chối.
+  `{"action":"final","calls":[],"verdict":{"errors":[{"ruleKey":"${RULE_KEY_PLACEHOLDER}","toolCallIds":["${TOOL_CALL_ID_PLACEHOLDER}"],"note":null}],` +
   '"missingRules":[],"injectionAttempt":{"detected":false,"excerpt":null}}}';
 
 /** Lớp cache ①: KHÔNG chứa gì của một bài, một đề hay một giảng viên cụ thể. */
@@ -171,6 +185,8 @@ export const INVESTIGATOR_SYSTEM_PROMPT = [
   '  "tool" là một trong "list_files", "read_file", "run", "run_tests".',
   '- Kết luận khi đã đủ bằng chứng. Ví dụ:',
   `  ${EXAMPLE_FINAL_REPLY}`,
+  '  "errors": [] khi không tìm thấy lỗi nào — bài đúng thì mảng rỗng là kết luận đúng. Thay chỗ',
+  '  giữ chỗ bằng rule_key và mã tc-N thật; chép nguyên chỗ giữ chỗ thì cả lượt bị bỏ.',
   '  "missingRules" là mảng các {"description": "…", "toolCallIds": ["tc-N"]}; không có thì [].',
   '  "injectionAttempt" là {"detected": true hoặc false, "excerpt": đoạn trích hoặc null}.',
   '',

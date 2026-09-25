@@ -1,5 +1,6 @@
 import {
   GRADER_OUTPUT_EXAMPLE,
+  GRADER_PLACEHOLDERS,
   OpenAICompatibleProvider,
   OpenAICompatibleConfig,
   maxTokensFor,
@@ -104,10 +105,26 @@ describe('OpenAICompatibleProvider', () => {
     expect(system).toContain(GRADER_OUTPUT_EXAMPLE);
   });
 
-  it('mẫu JSON trong prompt là một output HỢP LỆ — model chép đúng mẫu thì qua được zod', async () => {
-    fetchMock.mockResolvedValue(ok({ choices: [{ finish_reason: 'stop', message: { content: GRADER_OUTPUT_EXAMPLE } }], usage: {} }));
+  it('mẫu có khung hợp lệ, gồm cả một tiêu chí not_met với evidence rỗng — không nghiêng về "met"', async () => {
+    let filled = GRADER_OUTPUT_EXAMPLE;
+    for (const p of GRADER_PLACEHOLDERS) filled = filled.split(p).join('c1');
+    fetchMock.mockResolvedValue(ok({ choices: [{ finish_reason: 'stop', message: { content: filled } }], usage: {} }));
     const outcome = await new OpenAICompatibleProvider(CONFIG).grade(REQUEST);
-    expect(outcome.criterionResults).toHaveLength(1);
+    expect(outcome.criterionResults.map((r) => r.verdict)).toEqual(['met', 'not_met']);
+    expect(GRADER_OUTPUT_EXAMPLE).toContain('"verdict":"not_met","evidence":""');
+  });
+
+  it('review — chép placeholder của mẫu → output hỏng (thử lại / sang bậc), KHÔNG thành một lượt 0 điểm hay điểm cao oan', async () => {
+    for (const content of [
+      GRADER_OUTPUT_EXAMPLE,
+      JSON.stringify({ criterionResults: [{ criterionId: 'c1', verdict: 'met', evidence: GRADER_PLACEHOLDERS[GRADER_PLACEHOLDERS.length - 1] }] }),
+      JSON.stringify({ criterionResults: [{ criterionId: GRADER_PLACEHOLDERS[0], verdict: 'met', evidence: 'so sánh' }] }),
+    ]) {
+      fetchMock.mockResolvedValue(ok({ choices: [{ finish_reason: 'stop', message: { content } }], usage: {} }));
+      const error = await new OpenAICompatibleProvider(CONFIG).grade(REQUEST).catch((e: unknown) => e);
+      expect(classifyProviderFailure(error)).toBe('bad_output');
+      expect(String((error as Error).message)).toMatch(/chép nguyên chỗ giữ chỗ/);
+    }
   });
 
   it('schema KHÔNG cho model trả về bất kỳ con số nào', async () => {

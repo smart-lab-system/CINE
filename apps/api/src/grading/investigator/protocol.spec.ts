@@ -9,6 +9,8 @@ import {
   parseReply,
   REPLY_JSON_SCHEMA,
   renderToolResults,
+  RULE_KEY_PLACEHOLDER,
+  TOOL_CALL_ID_PLACEHOLDER,
 } from './protocol';
 import { investigate } from './investigate';
 import { CTX } from './testing/context';
@@ -61,7 +63,32 @@ describe('giao thức một lượt', () => {
     expect(INVESTIGATOR_SYSTEM_PROMPT).toContain(EXAMPLE_CALL_REPLY);
     expect(INVESTIGATOR_SYSTEM_PROMPT).toContain(EXAMPLE_FINAL_REPLY);
     expect(parseReply(EXAMPLE_CALL_REPLY)).toMatchObject({ action: 'call' });
-    expect(parseReply(EXAMPLE_FINAL_REPLY)).toMatchObject({ action: 'final' });
+    // Khung của mẫu kết luận đúng: thay placeholder bằng giá trị thật thì qua.
+    const filled = EXAMPLE_FINAL_REPLY.replace(RULE_KEY_PLACEHOLDER, 'sai_ca_co_ban').replace(TOOL_CALL_ID_PLACEHOLDER, 'tc-1');
+    expect(parseReply(filled)).toMatchObject({ action: 'final' });
+    // Review: mẫu có lỗi thì nghiêng về báo lỗi — bài đúng phải được nói là kết luận đúng.
+    expect(INVESTIGATOR_SYSTEM_PROMPT).toMatch(/"errors": \[\] khi không tìm thấy lỗi nào/);
+  });
+
+  it('lời gọi BỎ trường không dùng (thay vì ghi null) vẫn đọc được — vắng mặt cùng nghĩa với null (đo 2026-09-25, spd/…)', () => {
+    const reply = parseReply('{"action":"call","calls":[{"tool":"read_file","path":"bai-nop/main.cpp","fromLine":null,"toLine":null},{"tool":"run_tests"}],"verdict":null}');
+    expect(reply).toEqual({
+      action: 'call',
+      verdict: null,
+      calls: [
+        { tool: 'read_file', input: null, group: null, path: 'bai-nop/main.cpp', fromLine: null, toLine: null },
+        { tool: 'run_tests', input: null, group: null, path: null, fromLine: null, toLine: null },
+      ],
+    });
+    // Nhưng tên công cụ vẫn bắt buộc, và kiểu sai vẫn là output hỏng.
+    expect(parseReply('{"action":"call","calls":[{"path":"x"}],"verdict":null}')).toBeNull();
+    expect(parseReply('{"action":"call","calls":[{"tool":"run","input":5}],"verdict":null}')).toBeNull();
+  });
+
+  it('review — chép placeholder của mẫu (nguyên văn hay một nửa) → bad_output: không thành một kết luận "không lỗi" hay một lỗi bị loại', () => {
+    expect(parseReply(EXAMPLE_FINAL_REPLY)).toBeNull();
+    expect(parseReply(EXAMPLE_FINAL_REPLY.replace(RULE_KEY_PLACEHOLDER, 'sai_ca_co_ban'))).toBeNull();
+    expect(parseReply(EXAMPLE_FINAL_REPLY.replace(TOOL_CALL_ID_PLACEHOLDER, 'tc-1'))).toBeNull();
   });
 
   it('schema KHÔNG dùng kiểu hợp `type: [x, "null"]` — route cnb/… trả HTTP 400 (đo 2026-09-25); nullable viết bằng anyOf', () => {
@@ -79,7 +106,7 @@ describe('giao thức một lượt', () => {
     expect(parseReply(EXAMPLE_CALL_REPLY)?.action).toBe('call');
   });
 
-  it('mẫu kết luận chép nguyên văn → KHÔNG thành một lỗi được nhận: luật lạ, bằng chứng không tồn tại', async () => {
+  it('model cứ chép nguyên mẫu kết luận → bậc bị loại vì output hỏng; KHÔNG thành điểm tối đa', async () => {
     const model = {
       label: 'A', model: 'A',
       calls: 0,
@@ -89,8 +116,9 @@ describe('giao thức một lượt', () => {
     };
     const sandbox = fakeSandbox((req) => execResult(req.cases.map((c) => ({ name: c.name, group: c.group, status: 'pass' }))));
     const r = await investigate(CTX, { models: [model], sandbox, sleep: async () => undefined, random: () => 0 });
-    expect(r.verdict?.errors ?? []).toEqual([]);
-    expect(r.rejected.map((x) => x.reason)).toEqual(['unknown_rule']);
+    expect(r.kind).toBe('ungradable');
+    expect(r.investigation.budget.stopReason).toBe('models_exhausted');
+    expect(r.verdict).toBeNull();
   });
 
   it('review I3 — tin nhắn đầu: tên file bài nộp nằm TRONG vỏ bọc, file hệ thống ở ngoài', () => {
