@@ -67,6 +67,22 @@ describe('runInvestigator', () => {
     expect(records.find((r) => r.caseId === 'A0')).toMatchObject({ status: 'error' });
   });
 
+  it('review M2 — tóm tắt gom lượt lỗi THEO LÝ DO: đọc được bậc nào chết, vì sao, mà không mở cases.jsonl', async () => {
+    const { dataset, bundles } = await setup();
+    const dead = result({
+      kind: 'ungradable', verdict: null, ungradable: { class: 'system', reason: 'mọi bậc model đều hỏng — t1: tier_dead: HTTP 403' },
+      investigation: { ...result({}).investigation, budget: { ...result({}).investigation.budget, stopReason: 'models_exhausted' } },
+    });
+    const { summary } = await runInvestigator({
+      dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET,
+      deps: { models: [], sandbox: { exec: async () => { throw new Error('x'); } } },
+      investigateFn: async () => dead,
+    });
+    const n = dataset.des[0].manifest.cases.length;
+    expect(summary.errors).toHaveLength(n);
+    expect(summary.errorReasons).toEqual([{ reason: expect.stringMatching(/t1: tier_dead: HTTP 403/), count: n }]);
+  });
+
   it('T-EVAL-6 — lượt của ca nhóm 5 không mang investigation hay tóm tắt', async () => {
     const { dataset, bundles } = await setup();
     dataset.des[0].manifest.cases[0] = { ...dataset.des[0].manifest.cases[0], group: 5, sha256: 'a'.repeat(64) };

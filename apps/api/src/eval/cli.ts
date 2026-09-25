@@ -100,6 +100,7 @@ async function main() {
       // Hạn chờ của client = budgetMs của job + số này. Job của vòng điều tra đã mang budgetMs theo
       // phần thời gian còn lại (review I1), nên đây là chỗ duy nhất còn vượt được trần §7 — giữ nhỏ.
       queueWaitMs: { exec: 30_000, measure: 60_000 },
+      log: (line) => console.warn(`⚠ ${line}`),
     });
     const components = { ...ALL_COMPONENTS, replayCheck };
     try {
@@ -202,6 +203,7 @@ async function main() {
     console.log('  ⚠ Nhiều model cùng trả lời một lượt chạy — số liệu trộn hai bậc, đọc kèm cases.jsonl');
   }
   console.log(`  Lượt lỗi: ${summary.errors.length}${summary.errors.length ? ` [${summary.errors.join(', ')}]` : ''}`);
+  for (const e of summary.errorReasons) console.log(`    ×${e.count} ${e.reason}`);
   if (summary.ruleMetrics) {
     const m = summary.ruleMetrics;
     const pct = (v: number | null) => (v === null ? '—' : v.toFixed(2));

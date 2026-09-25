@@ -78,6 +78,14 @@ export const testsSchema = z.array(
     .refine((t) => t.generate === undefined || t.expected === undefined, {
       message: 'ca sinh tự động lấy output mong đợi từ đáp án mẫu, không ghi tay',
     }),
-);
+).superRefine((tests, ctx) => {
+  // Review M5: key là tên ca trong gói test — trùng thì output sinh ra gán nhầm ca, và sàn
+  // T-FLOOR-3 đếm độ phủ nhầm. Key phải duy nhất trên CẢ gói, không chỉ trong một nhóm.
+  const seen = new Set<string>();
+  for (const [i, t] of tests.entries()) {
+    if (seen.has(t.key)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [i, 'key'], message: `trùng key: ${t.key}` });
+    seen.add(t.key);
+  }
+});
 export type TestCaseSpec = z.infer<typeof testsSchema>[number];
 export const probesSchema = z.array(z.object({ key: z.string().regex(/^[A-Za-z0-9_-]+$/), input: z.string() }));

@@ -50,6 +50,8 @@ export interface RunSummary {
   /** Ca mang cổng cứng mà không lượt nào đo được. */
   unmeasured: string[];
   errors: string[];
+  /** Lượt lỗi gom theo lý do, nhiều nhất trước, tối đa 5 (review M2) — `errors` chỉ có mã lượt. */
+  errorReasons: { reason: string; count: number }[];
   perDe: {
     de: string;
     cases: number;
@@ -83,6 +85,19 @@ export function percentile(values: number[], p: number): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
+}
+
+export function errorReasons(records: CaseRecord[]): { reason: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const r of records) {
+    if (r.status !== 'error') continue;
+    const reason = r.error ?? '(không có lý do)';
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count || (a.reason < b.reason ? -1 : 1))
+    .slice(0, 5);
 }
 
 /** Micro precision/recall theo ruleId trên nhóm 1 (§12.3) — mỗi lượt là một lần quan sát. */
@@ -217,6 +232,7 @@ export async function runCases(opts: {
     unstablePairs,
     unmeasured,
     errors: records.filter((r) => r.status === 'error').map((r) => `${r.de}/${r.caseId}#${r.attempt}`),
+    errorReasons: errorReasons(records),
     perDe,
     wallMs: { p50: percentile(ok.map((r) => r.wallMs), 50), p95: percentile(ok.map((r) => r.wallMs), 95) },
     tokens: {

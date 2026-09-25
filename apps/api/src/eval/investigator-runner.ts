@@ -68,7 +68,8 @@ export async function runInvestigator(opts: {
         return stripForGroup5({
           ...base,
           status: exhausted ? 'error' : 'ok',
-          error: exhausted ? `mọi bậc model đều hỏng: ${result.ungradable?.reason ?? ''}`.slice(0, 300) : null,
+          // Lý do của vòng lặp đã nói "mọi bậc model đều hỏng" kèm lý do từng bậc (review M2).
+          error: exhausted ? (result.ungradable?.reason ?? 'mọi bậc model đều hỏng').slice(0, 500) : null,
           outcome: exhausted ? null : result.kind === 'ungradable' ? 'ungradable' : 'flagged',
           scoreHundredths: found ? scoreOf(de, found) : null,
           foundRuleIds: found,

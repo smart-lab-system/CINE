@@ -44,6 +44,15 @@ describe('buildTestBundle — Q5', () => {
       buildTestBundle(de, { run: async (i) => ({ compiled: true, cases: i.cases.map((c) => ({ key: c.key, status: 'timeout' as const, stdout: '' })) }) }),
     ).rejects.toThrow(/timeout/);
   });
+
+  it('review M5 — hai ca trùng key (kể cả khác nhóm) → bộ dữ liệu bị từ chối lúc nạp, không thành một thước sai', async () => {
+    await expect(
+      mini([
+        { key: 'a', group: 'co_ban', input: '1\n', expected: '1\n' },
+        { key: 'a', group: 'trung_lap', input: '2\n', expected: '2\n' },
+      ]),
+    ).rejects.toThrow(/trùng key: a/);
+  });
 });
 
 describe('checkBundleOnWorker — đáp án mẫu phải đạt 100% gói của chính nó trên worker thật (duyệt Q5)', () => {
