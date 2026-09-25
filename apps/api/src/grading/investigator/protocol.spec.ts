@@ -92,6 +92,14 @@ describe('giao thức một lượt', () => {
     expect(parseReply('{"action":"call","calls":[{"tool":"read_file","path":null}],"verdict":null}')?.action).toBe('call');
   });
 
+  it('lượt kết luận kèm calls thừa SAI KHUÔN vẫn đọc được — calls của lượt kết luận không ai dùng', () => {
+    const reply = parseReply(
+      '{"action":"final","calls":[{"tool":"run"}],"verdict":{"errors":[],"missingRules":[],' +
+        '"injectionAttempt":{"detected":false,"excerpt":null}}}',
+    );
+    expect(reply?.action).toBe('final');
+  });
+
   it('review — missingRules trích tc-N (đúng như prompt dạy) KHÔNG làm hỏng cả lượt; chỉ errors mới bị chặn chỗ giữ chỗ', () => {
     const reply = parseReply(
       '{"action":"final","calls":[],"verdict":{"errors":[{"ruleKey":"sai_ca_co_ban","toolCallIds":["tc-1"],"note":null}],' +
