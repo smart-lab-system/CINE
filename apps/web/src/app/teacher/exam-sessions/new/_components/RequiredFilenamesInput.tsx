@@ -1,7 +1,8 @@
 'use client';
 
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
-import { CircleAlert, Plus, Trash2 } from 'lucide-react';
+import { CircleAlert, Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +35,18 @@ function preview(pattern: string): string {
 
 function isTemplated(pattern: string): boolean {
   return TOKENS.some(({ token }) => pattern.includes(token));
+}
+
+/**
+ * `.zip` được tạo trước tự động (EOCD rỗng hợp lệ, xem
+ * apps/agent/src/workspace-files.ts); `.rar` thì KHÔNG có cách nào hợp
+ * pháp tạo trước — sinh viên phải tự nén bằng WinRAR đã cài sẵn trên máy.
+ * Giảng viên cần biết điều này LÚC KHAI BÁO, không phải sau khi phòng thi
+ * đã mở (tờ hướng dẫn agent đã nói với sinh viên, nhưng đến lúc đó giảng
+ * viên không còn cơ hội đổi sang .zip nữa).
+ */
+function isRarFilename(value: string): boolean {
+  return value.toLowerCase().endsWith('.rar');
 }
 
 /**
@@ -178,6 +191,20 @@ export function RequiredFilenamesInput() {
                     </code>
                   </p>
                 )
+              )}
+              {isRarFilename(values?.[index]?.value ?? '') && (
+                // Độc lập với fieldError/preview ở trên — chủ đề khác (công
+                // cụ trên máy thi, không phải cú pháp tên file), nên hiện
+                // bất kể tên file có đang hợp lệ hay không.
+                <Alert variant="warning" className="py-2">
+                  <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+                  <AlertDescription className="text-caption">
+                    File .rar không tự tạo trước được — máy sinh viên PHẢI có WinRAR cài sẵn
+                    mới tự nén được. Cân nhắc đổi sang{' '}
+                    <code className="font-mono">.zip</code> (máy Windows nào cũng nén được),
+                    hoặc xác nhận phòng máy thi đã cài WinRAR trước khi thi.
+                  </AlertDescription>
+                </Alert>
               )}
               <ArchiveEntriesField index={index} />
             </div>
