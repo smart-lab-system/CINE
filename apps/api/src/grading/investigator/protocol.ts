@@ -181,9 +181,13 @@ export function initialUserMessage(ctx: InvestigationContext, files: WorkspaceEn
 
 function formatArgs(args: Record<string, unknown>): string {
   return Object.entries(args)
-    .map(([k, v]) =>
-      k === 'input' && typeof v === 'string' ? `input=${Buffer.byteLength(v, 'utf8')} byte` : `${k}=${JSON.stringify(v)}`,
-    )
+    .map(([k, v]) => {
+      if (k === 'input' && typeof v === 'string') return `input=${Buffer.byteLength(v, 'utf8')} byte`;
+      // Review lần 3 I3: path trỏ vào bài nộp là tên do sinh viên đặt — harness không nhắc lại nó
+      // ngoài vỏ bọc. Model nối kết quả với lời gọi của chính nó qua mã tc-N.
+      if (k === 'path' && typeof v === 'string' && v.includes('bai-nop')) return 'path=<file bài nộp>';
+      return `${k}=${JSON.stringify(v)}`;
+    })
     .join(', ');
 }
 

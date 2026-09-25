@@ -86,7 +86,9 @@ export type StopReason =
   | 'blocked_repeatedly'
   | 'models_exhausted'
   /** Bài nộp không dựng được thành một job sandbox hợp lệ — dừng trước lời gọi model đầu tiên. */
-  | 'invalid_program';
+  | 'invalid_program'
+  /** Bài không có dòng mã nào (T-EMPTY-1) — dừng trước lời gọi model đầu tiên. */
+  | 'empty_submission';
 
 export interface RuleEntry {
   ruleKey: string;

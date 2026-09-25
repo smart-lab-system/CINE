@@ -98,11 +98,11 @@ export function programOf(ctx: InvestigationContext): ExecRequest['program'] {
 
 /**
  * Chuỗi do sinh viên đặt, đưa vào một dòng lý do cho giảng viên đọc: một dòng, có trần; không
- * mang ký tự xuống dòng (JSON đã thoát phần < 0x20) hay ký tự đảo chiều hiển thị — tên
- * `a<U+202E>ppc.exe` hiện ra như `aexe.cpp`.
+ * mang ký tự xuống dòng (JSON đã thoát phần < 0x20), ký tự đảo chiều hiển thị hay ký tự vô hình
+ * — tên `a<U+202E>ppc.exe` hiện ra như `aexe.cpp`.
  */
 function quoted(raw: string): string {
-  return JSON.stringify(raw.slice(0, 80)).replace(/[\u0085\u2028\u2029\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '?');
+  return JSON.stringify(raw.slice(0, 80)).replace(/[\u0085\u061C\u200B-\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069\uFEFF]/g, '?');
 }
 
 /**
@@ -120,6 +120,20 @@ export function programProblem(ctx: InvestigationContext): { class: 'system' | '
     return { class: 'submission', reason: 'bài nộp không có dòng mã nào (T-EMPTY-1)' };
   }
   const system = (reason: string) => ({ class: 'system' as const, reason: `bài nộp không gửi được sang sandbox: ${reason}` });
+  // Lỗi của GÓI TEST, không phải của bài — lời lẽ phải nói đúng thế (lớp vẫn là system).
+  const bundle = (reason: string) => ({ class: 'system' as const, reason: `gói test không gửi được sang sandbox: ${reason}` });
+  // `run_tests` chạy theo nhóm, tối đa 200 ca một job: một nhóm lớn hơn thế không bao giờ chạy
+  // đủ, và sàn T-FLOOR-3 sẽ chỉ ra điều đó SAU KHI đã tiêu hết ngân sách model.
+  const sizes = new Map<string, number>();
+  for (const c of ctx.testBundle.cases) sizes.set(c.group, (sizes.get(c.group) ?? 0) + 1);
+  for (const [group, n] of sizes) {
+    if (n > MAX_CASES_PER_JOB) {
+      return {
+        class: 'system' as const,
+        reason: `gói test không chạy đủ được: nhóm ${quoted(group)} có ${n} ca, vượt trần ${MAX_CASES_PER_JOB} ca một lần chạy`,
+      };
+    }
+  }
   const program = programOf(ctx);
   const all = ctx.testBundle.cases.map((c) => ({ name: c.name, group: c.group, stdin: inline(c.input), expected: inline(c.expected) }));
   // Gói rỗng vẫn phải kiểm được chương trình — một ca `run` là đủ. `run_tests` chia job theo 200 ca.
@@ -140,7 +154,7 @@ export function programProblem(ctx: InvestigationContext): { class: 'system' | '
       }
       return system(`file ${quoted(file.path)}: ${issue.message}`);
     }
-    if (where === 'cases' && typeof index === 'number') return system(`ca test ${quoted(cases[index].name)}: ${issue.message}`);
+    if (where === 'cases' && typeof index === 'number') return bundle(`ca test ${quoted(cases[index].name)}: ${issue.message}`);
     return system(`${issue.path.join('.') || 'chương trình'}: ${issue.message}`);
   }
   return null;

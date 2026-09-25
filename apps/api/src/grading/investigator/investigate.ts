@@ -97,7 +97,7 @@ function invalidProgram(
   ungradable: NonNullable<InvestigationResult['ungradable']>,
   suspected: boolean,
 ): InvestigationResult {
-  const stopReason: StopReason = 'invalid_program';
+  const stopReason: StopReason = ungradable.class === 'submission' ? 'empty_submission' : 'invalid_program';
   return {
     kind: 'ungradable',
     verdict: null,
@@ -340,7 +340,10 @@ export async function investigate(
   // T-AG-3: chạy lại MỘT lời gọi sandbox, ưu tiên lời gọi được verdict trích.
   let replay: InvestigationResult['replay'] = null;
   let confidenceCap = 1;
-  if (components.replayCheck && kind === 'verdict' && accepted && deadline - now() >= MIN_REPLAY_MS) {
+  if (components.replayCheck && kind === 'verdict' && accepted && deadline - now() < MIN_REPLAY_MS) {
+    // Review lần 3 M2: bỏ chạy lại vì hết giờ là CHƯA đối chiếu — trần 1 không có nghĩa "đã kiểm".
+    flags.push('replay_unverified');
+  } else if (components.replayCheck && kind === 'verdict' && accepted) {
     const cited = new Set(accepted.errors.flatMap((e) => e.toolCallIds));
     const sandboxCalls = toolCalls.filter((t) => t.status === 'ok' && (t.tool === 'run' || t.tool === 'run_tests'));
     const preferred = sandboxCalls.filter((t) => cited.has(t.id));
@@ -352,7 +355,9 @@ export async function investigate(
       // Review M7 + lần 2 M1: sandbox không chạy được lượt lại, hay cắt nó giữa chừng vì hết ngân
       // sách job, là sự cố hạ tầng — không phải bằng chứng lệch. Nhưng cũng KHÔNG phải "đã kiểm":
       // cờ `replay_unverified` nói ra, để bước 3 không đọc trần 1 thành đã đối chiếu.
-      const cut = again.structured?.kind === 'run_tests' && again.structured.aborted;
+      // Lượt GỐC bị cắt mà lượt lại chạy đủ thì danh sách ca khác nhau vì ngân sách, không vì bài.
+      const aborted = (s: StructuredResult | null | undefined) => s?.kind === 'run_tests' && s.aborted;
+      const cut = aborted(again.structured) || aborted(structured[pick.id]);
       const matched = again.toolCall.status !== 'ok' || cut ? null : before !== null && before === replayKey(again.structured);
       replay = { toolCallId: pick.id, matched };
       if (matched === null) flags.push('replay_unverified');
