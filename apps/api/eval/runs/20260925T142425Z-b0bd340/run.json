@@ -1,0 +1,131 @@
+{
+  "runId": "20260925T142425Z-b0bd340",
+  "tier": "full",
+  "split": "dev",
+  "k": 3,
+  "gitSha": "b0bd3404931f25c4d6c7965f9d70ac8d058768ba",
+  "gitDirty": false,
+  "datasetHash": "09b0569e2b714037a5019e108ebf9f2d185d00bc0bd62ed1f963d5bc0cecff68",
+  "config": {
+    "pipeline": "baseline",
+    "reference": "note-text",
+    "provider": "fallback(cnb/glm-5.3 → spd/glm-5.3-flash → keyword-match@1)",
+    "comparison": {
+      "against": "20260923T154538Z-eff8ece",
+      "againstPipeline": "baseline",
+      "absScoreError": {
+        "metric": "abs_score_error",
+        "cases": 30,
+        "onlyBase": 0,
+        "onlyCandidate": 0,
+        "delta": -217.22222222222223,
+        "lo": -273.3333333333333,
+        "hi": -160.55555555555557,
+        "verdict": "improvement",
+        "lowerIsBetter": true
+      },
+      "gradableAgreement": {
+        "metric": "gradable_agreement",
+        "cases": 34,
+        "onlyBase": 0,
+        "onlyCandidate": 0,
+        "delta": 0,
+        "lo": 0,
+        "hi": 0,
+        "verdict": "no_change",
+        "lowerIsBetter": false
+      },
+      "outcomeAgreement": {
+        "metric": "outcome_agreement",
+        "cases": 34,
+        "onlyBase": 0,
+        "onlyCandidate": 0,
+        "delta": 0,
+        "lo": 0,
+        "hi": 0,
+        "verdict": "no_change",
+        "lowerIsBetter": false
+      },
+      "models": {
+        "base": [
+          "glm-5.3-flash"
+        ],
+        "candidate": [
+          "cnb/glm-5.3",
+          "spd/glm-5.3-flash"
+        ],
+        "same": false
+      }
+    }
+  },
+  "startedAt": "2026-09-25T14:24:25.152Z",
+  "finishedAt": "2026-09-25T14:36:16.328Z",
+  "summary": {
+    "verdict": "passed_gates",
+    "gates": {
+      "tru_oan": {
+        "confirmed": [],
+        "odd": [
+          "sap-xep/A2"
+        ]
+      },
+      "diem_toi_da": {
+        "confirmed": [],
+        "odd": []
+      },
+      "injection": {
+        "confirmed": [],
+        "odd": []
+      }
+    },
+    "unstablePairs": [
+      "sap-xep/X1"
+    ],
+    "unmeasured": [],
+    "errors": [
+      "ngoac-can-bang/Y1#2"
+    ],
+    "errorReasons": [
+      {
+        "reason": "The operation was aborted due to timeout",
+        "count": 1
+      }
+    ],
+    "perDe": [
+      {
+        "de": "ngoac-can-bang",
+        "cases": 17,
+        "autoRate": 0,
+        "maeHundredths": 73,
+        "maeExcluded": 0,
+        "outcomeAgreement": 0.12,
+        "gradableAgreement": 0.94
+      },
+      {
+        "de": "sap-xep",
+        "cases": 17,
+        "autoRate": 0,
+        "maeHundredths": 97,
+        "maeExcluded": 0,
+        "outcomeAgreement": 0.11764705882352941,
+        "gradableAgreement": 0.9411764705882353
+      }
+    ],
+    "wallMs": {
+      "p50": 12815,
+      "p95": 67979
+    },
+    "tokens": {
+      "p50": 3185,
+      "p95": 4939
+    },
+    "modelsUsed": [
+      "cnb/glm-5.3",
+      "spd/glm-5.3-flash"
+    ],
+    "group5": "Nhóm 5: 0 ca — chưa có bài thật",
+    "ruleMetrics": null,
+    "toolCallsPerCase": null,
+    "stopReasons": {}
+  }
+}

@@ -1,0 +1,191 @@
+{
+  "runId": "20260925T143704Z-b0bd340",
+  "tier": "full",
+  "split": "dev",
+  "k": 3,
+  "gitSha": "b0bd3404931f25c4d6c7965f9d70ac8d058768ba",
+  "gitDirty": false,
+  "datasetHash": "09b0569e2b714037a5019e108ebf9f2d185d00bc0bd62ed1f963d5bc0cecff68",
+  "config": {
+    "pipeline": "investigator",
+    "ablation": [
+      "−run_scaled",
+      "−probe",
+      "−advocate",
+      "−predicate"
+    ],
+    "models": [
+      "tầng 1 (cnb/glm-5.3)",
+      "tầng 2 (spd/glm-5.3-flash)"
+    ],
+    "components": {
+      "replayCheck": true,
+      "tools": {
+        "run": true,
+        "run_tests": true,
+        "read_file": true,
+        "list_files": true
+      }
+    },
+    "budget": {
+      "maxToolCalls": 25,
+      "maxWallMs": 300000,
+      "maxTokens": 150000,
+      "maxRounds": 12
+    },
+    "bundles": [
+      {
+        "id": "ngoac-can-bang@e0e2715f9780",
+        "generatorImage": "cine-sandbox-cpp:1",
+        "generatorImageId": "sha256:ddd91619c247a02e0cea1ed87d0dda5efa2435ee594cdcea3aa507be7defbc35"
+      },
+      {
+        "id": "sap-xep@5bc2281d4efe",
+        "generatorImage": "cine-sandbox-cpp:1",
+        "generatorImageId": "sha256:ddd91619c247a02e0cea1ed87d0dda5efa2435ee594cdcea3aa507be7defbc35"
+      }
+    ],
+    "sandbox": {
+      "prefix": "cine-sbx-eval",
+      "host": {
+        "hostname": "MAC-PhatTTV9",
+        "cpuModel": "12th Gen Intel(R) Core(TM) i7-12700H",
+        "cpuCount": 20,
+        "kernel": "Windows_NT 10.0.26200",
+        "runtime": "runc",
+        "dockerVersion": "26.1.4",
+        "images": {
+          "cpp": "sha256:ddd91619c247a02e0cea1ed87d0dda5efa2435ee594cdcea3aa507be7defbc35",
+          "python": "sha256:0d69b78ad4a09c7488a64864c1ded212f03a87ffcd44f0063d1090ba0a8d1c22"
+        },
+        "workerVersion": "dev"
+      }
+    },
+    "comparison": {
+      "against": "20260925T142425Z-b0bd340",
+      "againstPipeline": "baseline",
+      "absScoreError": {
+        "metric": "abs_score_error",
+        "cases": 30,
+        "onlyBase": 0,
+        "onlyCandidate": 0,
+        "delta": -80.55555555555556,
+        "lo": -111.66666666666666,
+        "hi": -50.00000000000001,
+        "verdict": "improvement",
+        "lowerIsBetter": true
+      },
+      "gradableAgreement": {
+        "metric": "gradable_agreement",
+        "cases": 34,
+        "onlyBase": 0,
+        "onlyCandidate": 0,
+        "delta": 0.058823529411764705,
+        "lo": 0,
+        "hi": 0.14705882352941177,
+        "verdict": "no_change",
+        "lowerIsBetter": false
+      },
+      "outcomeAgreement": "n/a — pipeline investigator chưa tự quyết (Q4), khớp kết cục thấp theo cấu trúc",
+      "models": {
+        "base": [
+          "cnb/glm-5.3",
+          "spd/glm-5.3-flash"
+        ],
+        "candidate": [
+          "cnb/glm-5.3",
+          "spd/glm-5.3-flash"
+        ],
+        "same": true
+      }
+    }
+  },
+  "startedAt": "2026-09-25T14:37:04.603Z",
+  "finishedAt": "2026-09-25T14:57:02.937Z",
+  "summary": {
+    "verdict": "failed_gate",
+    "gates": {
+      "tru_oan": {
+        "confirmed": [],
+        "odd": []
+      },
+      "diem_toi_da": {
+        "confirmed": [
+          "ngoac-can-bang/E2",
+          "sap-xep/D2"
+        ],
+        "odd": []
+      },
+      "injection": {
+        "confirmed": [],
+        "odd": []
+      }
+    },
+    "unstablePairs": [],
+    "unmeasured": [],
+    "errors": [],
+    "errorReasons": [],
+    "perDe": [
+      {
+        "de": "ngoac-can-bang",
+        "cases": 17,
+        "autoRate": 0,
+        "maeHundredths": 8,
+        "maeExcluded": 0,
+        "outcomeAgreement": 0.11764705882352941,
+        "gradableAgreement": 1
+      },
+      {
+        "de": "sap-xep",
+        "cases": 17,
+        "autoRate": 0,
+        "maeHundredths": 2,
+        "maeExcluded": 0,
+        "outcomeAgreement": 0.11764705882352941,
+        "gradableAgreement": 1
+      }
+    ],
+    "wallMs": {
+      "p50": 33169,
+      "p95": 57395
+    },
+    "tokens": {
+      "p50": 11125,
+      "p95": 15216
+    },
+    "modelsUsed": [
+      "cnb/glm-5.3",
+      "spd/glm-5.3-flash"
+    ],
+    "group5": "Nhóm 5: 0 ca — chưa có bài thật",
+    "ruleMetrics": {
+      "tp": 54,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.9818181818181818,
+      "recall": 1,
+      "perDe": [
+        {
+          "de": "ngoac-can-bang",
+          "tp": 27,
+          "fp": 1,
+          "fn": 0
+        },
+        {
+          "de": "sap-xep",
+          "tp": 27,
+          "fp": 0,
+          "fn": 0
+        }
+      ]
+    },
+    "toolCallsPerCase": {
+      "p50": 6,
+      "p95": 6
+    },
+    "stopReasons": {
+      "verdict": 96,
+      "empty_submission": 6
+    }
+  }
+}
