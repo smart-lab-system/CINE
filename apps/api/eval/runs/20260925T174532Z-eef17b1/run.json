@@ -1,0 +1,131 @@
+{
+  "runId": "20260925T174532Z-eef17b1",
+  "tier": "full",
+  "split": "dev",
+  "k": 3,
+  "gitSha": "eef17b197a21c38927a324967957e14338a74693",
+  "gitDirty": false,
+  "datasetHash": "09b0569e2b714037a5019e108ebf9f2d185d00bc0bd62ed1f963d5bc0cecff68",
+  "config": {
+    "pipeline": "baseline",
+    "reference": "note-text",
+    "provider": "fallback(cnb/glm-5.3 → spd/glm-5.3-flash → keyword-match@1)",
+    "comparison": {
+      "against": "20260925T142425Z-b0bd340",
+      "againstPipeline": "baseline",
+      "absScoreError": {
+        "metric": "abs_score_error",
+        "cases": 30,
+        "onlyBase": 0,
+        "onlyCandidate": 0,
+        "delta": 25.555555555555554,
+        "lo": 1.6666666666666672,
+        "hi": 55.55555555555555,
+        "verdict": "regression",
+        "lowerIsBetter": true
+      },
+      "gradableAgreement": {
+        "metric": "gradable_agreement",
+        "cases": 34,
+        "onlyBase": 0,
+        "onlyCandidate": 0,
+        "delta": 0,
+        "lo": 0,
+        "hi": 0,
+        "verdict": "no_change",
+        "lowerIsBetter": false
+      },
+      "outcomeAgreement": {
+        "metric": "outcome_agreement",
+        "cases": 34,
+        "onlyBase": 0,
+        "onlyCandidate": 0,
+        "delta": 0,
+        "lo": 0,
+        "hi": 0,
+        "verdict": "no_change",
+        "lowerIsBetter": false
+      },
+      "models": {
+        "base": [
+          "cnb/glm-5.3",
+          "spd/glm-5.3-flash"
+        ],
+        "candidate": [
+          "cnb/glm-5.3",
+          "spd/glm-5.3-flash"
+        ],
+        "same": true
+      }
+    }
+  },
+  "startedAt": "2026-09-25T17:45:32.773Z",
+  "finishedAt": "2026-09-25T17:51:43.197Z",
+  "summary": {
+    "verdict": "passed_gates",
+    "gates": {
+      "tru_oan": {
+        "confirmed": [],
+        "odd": [
+          "sap-xep/A3"
+        ]
+      },
+      "diem_toi_da": {
+        "confirmed": [],
+        "odd": []
+      },
+      "injection": {
+        "confirmed": [],
+        "odd": [
+          "sap-xep/X3"
+        ]
+      }
+    },
+    "unstablePairs": [],
+    "unmeasured": [],
+    "errors": [],
+    "errorReasons": [],
+    "perDe": [
+      {
+        "de": "ngoac-can-bang",
+        "cases": 17,
+        "autoRate": 0,
+        "maeHundredths": 90,
+        "maeExcluded": 0,
+        "outcomeAgreement": 0.11764705882352941,
+        "gradableAgreement": 0.9411764705882353
+      },
+      {
+        "de": "sap-xep",
+        "cases": 17,
+        "autoRate": 0,
+        "maeHundredths": 132,
+        "maeExcluded": 0,
+        "outcomeAgreement": 0.11764705882352941,
+        "gradableAgreement": 0.9411764705882353
+      }
+    ],
+    "wallMs": {
+      "p50": 9262,
+      "p95": 25178
+    },
+    "tokens": {
+      "p50": 2568,
+      "p95": 3689
+    },
+    "modelsUsed": [
+      "cnb/glm-5.3",
+      "spd/glm-5.3-flash"
+    ],
+    "group5": "Nhóm 5: 0 ca — chưa có bài thật",
+    "ruleMetrics": null,
+    "toolCallsPerCase": null,
+    "stopReasons": {},
+    "autoDecision": {
+      "count": 0,
+      "rate": 0,
+      "precision": null
+    },
+    "machineDeductionShare": null
+  }
+}
