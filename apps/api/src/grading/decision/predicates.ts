@@ -35,6 +35,7 @@ export function evaluatePredicate(
   if (expected.length === 0) return unmeasured(`nhóm "${p.group}" không có trong gói test`);
 
   const compileFailed: string[] = [];
+  let compiledSomewhere = false;
   /** tên ca → mọi kết cục đã thấy, và lời gọi đã thấy nó fail */
   const seen = new Map<string, { statuses: Set<CaseStatus>; failedIn: Set<string> }>();
   for (const t of toolCalls) {
@@ -47,6 +48,7 @@ export function evaluatePredicate(
       if (scope === null || scope === p.group) compileFailed.push(t.id);
       continue;
     }
+    compiledSomewhere = true;
     for (const c of s.cases) {
       if (c.group !== p.group) continue;
       const e = seen.get(c.name) ?? { statuses: new Set<CaseStatus>(), failedIn: new Set<string>() };
@@ -55,6 +57,10 @@ export function evaluatePredicate(
       seen.set(c.name, e);
     }
   }
+  // Review I1: biên dịch là của CẢ chương trình. Một lời gọi hỏng biên dịch mà một lời gọi khác
+  // biên dịch được là hạ tầng chập chờn (quá giờ biên dịch, …), không phải bằng chứng về bài
+  // (§4.5, T-DOWN-1). Chỉ khi MỌI lời gọi đều hỏng biên dịch mới là T-COMPILE-1.
+  if (compileFailed.length > 0 && compiledSomewhere) return unmeasured('kết quả không ổn định giữa các lần chạy — biên dịch lúc được lúc không');
   if (compileFailed.length > 0) return { state: 'present', toolCallIds: compileFailed, reason: 'bài không biên dịch' };
 
   const solid = [...seen.values()].filter((e) => e.failedIn.size > 0 && !e.statuses.has('pass'));

@@ -1,4 +1,5 @@
 import { computeDeductionScore } from '../scoring/deduction-score';
+import { uncoveredCases } from '../investigator/coverage';
 import { StopReason } from '../investigator/types';
 import { caseConfidence } from './confidence';
 import { diagnose } from './diagnose';
@@ -16,7 +17,9 @@ const CONTRADICTION_CAP = 0.5;
  *
  * Thứ tự là luật: sàn đứng TRƯỚC trần (§4.4) — dưới sàn thì không có con số nào để hạ
  * confidence. Thuần: không DB, không model, không sandbox — gọi lại được trên hồ sơ đã lưu khi
- * bảng lỗi đổi (T-TIER-1/2). Điều kiện phản biện (§6.2) chưa có hiệu lực tới bước 6.
+ * bảng lỗi đổi (T-TIER-1/2) — luật máy kiểm mới đo lại trên kết quả đã lưu; luật lời mới thì
+ * tiêu chí của nó chưa chạm tới (`rulesSeen`, review I3). Điều kiện phản biện (§6.2) chưa có
+ * hiệu lực tới bước 6.
  */
 export function decide(input: DecisionInput): Decision {
   const { result, rubric, rules } = input;
@@ -26,6 +29,21 @@ export function decide(input: DecisionInput): Decision {
   // Sàn — phần của cuộc điều tra (bước 2): chưa bắt đầu, gói test chưa chạy đủ, bài rỗng, …
   if (result.kind === 'ungradable') {
     return { outcome: 'ungradable', ungradable: result.ungradable ?? { class: 'system', reason: 'không có kết luận' }, ...none };
+  }
+
+  // Review I2: sàn của gói test — tự kiểm, không dựa vào việc investigate() đã chặn. decide() được
+  // gọi lại trên hồ sơ đã lưu (T-TIER-1/2) và từ pipeline thật (3d).
+  if (input.bundle.cases.length === 0) {
+    return { outcome: 'ungradable', ungradable: { class: 'system', reason: 'gói test rỗng — không có thước nào để chạy (§4.4)' }, ...none };
+  }
+  const missing = uncoveredCases(input.bundle.cases, result.investigation.toolCalls, result.investigation.structuredResults);
+  if (missing.length > 0) {
+    const groups = [...new Set(missing.map((c) => c.group))].join(', ');
+    return {
+      outcome: 'ungradable',
+      ungradable: { class: 'system', reason: `gói test chưa chạy đủ: ${missing.length}/${input.bundle.cases.length} ca chưa có kết quả (nhóm ${groups}) (§4.4)` },
+      ...none,
+    };
   }
 
   const diagnosis = diagnose({ rules, bundle: input.bundle, result });
@@ -52,6 +70,7 @@ export function decide(input: DecisionInput): Decision {
     (t) => t.tool === 'read_file' && t.status === 'ok' && typeof t.args.path === 'string' && t.args.path.startsWith('bai-nop/'),
   );
   const waived = new Set(input.waivedCriteria);
+  const seen = new Map(input.rulesSeen.map((r) => [r.ruleKey, r.checkedBy]));
   for (const c of rubric) {
     if (c.maxHundredths <= 0) continue; // Review Focus 4: tiêu chí trần 0 không có gì để trừ
     const own = rules.filter((r) => r.criterionKey === c.key);
@@ -66,6 +85,11 @@ export function decide(input: DecisionInput): Decision {
       if (r.predicate) {
         const m = diagnosis.measurements.find((x) => x.ruleKey === r.ruleKey);
         if (!m || m.outcome.state === 'unmeasured') gaps.push(`${r.ruleKey}: ${m?.outcome.reason ?? 'chưa đo'}`);
+      } else if (!seen.has(r.ruleKey)) {
+        // Review I3: luật lời có sau cuộc điều tra — model chưa từng xét nó.
+        gaps.push(`${r.ruleKey}: chưa xét — luật có sau cuộc điều tra`);
+      } else if (seen.get(r.ruleKey) === 'machine') {
+        gaps.push(`${r.ruleKey}: lúc điều tra model được dặn KHÔNG đề xuất luật này (máy kiểm)`);
       } else if (!readSubmission) {
         gaps.push(`${r.ruleKey}: agent chưa đọc file bài nộp nào`);
       }

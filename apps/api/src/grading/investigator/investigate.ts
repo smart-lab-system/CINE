@@ -12,6 +12,7 @@ import {
   BundleCase, InvestigationContext, InvestigationFlag, InvestigationResult, StopReason, StructuredResult, ToolCall,
   ToolCallStatus, ToolName, Verdict,
 } from './types';
+import { uncoveredCases } from './coverage';
 import { Workspace } from './workspace';
 
 export interface InvestigateDeps {
@@ -50,38 +51,6 @@ const ZERO_CALL_REASON: Partial<Record<StopReason, string>> = {
 
 function syntheticCall(id: string, tool: ToolName, args: Record<string, unknown>, status: ToolCallStatus, message: string, now: () => number): ToolCall {
   return { id, tool, args, status, output: message, structuredRef: null, startedAt: new Date(now()).toISOString(), wallMs: 0, injectionSuspected: false };
-}
-
-/**
- * Sàn T-FLOOR-3 (§4.4 dòng đầu): mọi ca của gói test phải có kết quả trong ít nhất một lời gọi
- * `run_tests` thành công. "Chạy ĐỦ", không phải "có chạy": T-FLOOR-2 chỉ cho điểm tối đa khi bài
- * "đã chạy đủ test và đều pass", và một lần `list_files` — hay một nhóm test — không phải thước.
- * Lời gọi mà bài không biên dịch được tính là đã chạy mọi ca nó yêu cầu: thước đã đo, kết quả
- * là "không chạy được". Lời gọi bị dừng giữa chừng chỉ tính các ca đã có kết quả.
- *
- * Tách khỏi luật treo §7.2 có chủ đích: luật treo đo SỰ SỐNG của agent và đếm mọi lời gọi thành
- * công — đếm riêng lời gọi sandbox ở đó sẽ ngắt oan một model chậm đang đọc file hai vòng đầu.
- */
-export function uncoveredCases(
-  ctx: InvestigationContext,
-  toolCalls: ToolCall[],
-  structured: Record<string, StructuredResult>,
-): BundleCase[] {
-  // Theo (nhóm, tên), không theo tên: hai ca trùng tên ở hai nhóm không được che nhau (review M5).
-  const key = (c: { group: string | null; name: string }) => JSON.stringify([c.group, c.name]);
-  const covered = new Set<string>();
-  for (const t of toolCalls) {
-    if (t.tool !== 'run_tests' || t.status !== 'ok' || !t.structuredRef) continue;
-    const s = structured[t.structuredRef];
-    if (s?.kind !== 'run_tests') continue;
-    if (s.compile && !s.compile.ok) {
-      const group = typeof t.args.group === 'string' ? t.args.group : null;
-      for (const c of ctx.testBundle.cases) if (group === null || c.group === group) covered.add(key(c));
-    } else {
-      for (const c of s.cases) covered.add(key(c));
-    }
-  }
-  return ctx.testBundle.cases.filter((c) => !covered.has(key(c)));
 }
 
 /** Thứ phải trùng khi chạy lại cùng một lời gọi — không gồm đoạn văn có mã bọc ngẫu nhiên. */
@@ -302,7 +271,7 @@ export async function investigate(
   // Phần còn lại của sàn §4.4 là bước 3.
   let kind: InvestigationResult['kind'] = 'verdict';
   let ungradable: InvestigationResult['ungradable'] = null;
-  const missing = uncoveredCases(ctx, toolCalls, structured);
+  const missing = uncoveredCases(ctx.testBundle.cases, toolCalls, structured);
   const why = poolFailure && stop === 'models_exhausted' ? ` — ${poolFailure}`.slice(0, 500) : '';
   if (okCount() === 0) {
     kind = 'ungradable';

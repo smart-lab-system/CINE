@@ -47,6 +47,27 @@ describe('evaluatePredicate — test_group_failed (T-POL-3: lỗi phát hiện �
     expect(evalOn(P, other).state).toBe('unmeasured');
   });
 
+  it('review I1 — biên dịch lần này hỏng, lần sau qua và mọi ca pass → unmeasured "không ổn định", KHÔNG phải present', () => {
+    const r = run(
+      runTestsCall('tc-1', null, [], { compileOk: false }),
+      runTestsCall('tc-2', null, [
+        { name: 'cb1', group: 'co_ban', status: 'pass' }, { name: 'cb2', group: 'co_ban', status: 'pass' },
+        { name: 'tl1', group: 'trung_lap', status: 'pass' },
+      ]),
+    );
+    const out = evalOn(P, r);
+    expect(out.state).toBe('unmeasured');
+    expect(out.reason).toMatch(/không ổn định/);
+  });
+
+  it('review I1 — hỏng biên dịch ở lời gọi của nhóm này, nhưng lời gọi của nhóm khác biên dịch được → unmeasured', () => {
+    const r = run(
+      runTestsCall('tc-1', 'trung_lap', [{ name: 'tl1', group: 'trung_lap', status: 'pass' }]),
+      runTestsCall('tc-2', 'co_ban', [], { compileOk: false }),
+    );
+    expect(evalOn(P, r).state).toBe('unmeasured');
+  });
+
   it('Review Focus 1 — nhóm không có trong gói test → unmeasured nêu lý do, KHÔNG phải absent', () => {
     const r = run(runTestsCall('tc-1', null, [{ name: 'cb1', group: 'co_ban', status: 'pass' }]));
     const out = evalOn({ kind: 'test_group_failed', group: 'co-ban' }, r);

@@ -75,6 +75,12 @@ export interface DecisionInput {
   bundle: { cases: { name: string; group: string }[] };
   rubric: { key: string; maxHundredths: number }[];
   rules: ErrorRule[];
+  /**
+   * Bảng lỗi model ĐÃ ĐƯỢC XEM lúc điều tra (review I3): quyết lại trên hồ sơ cũ với một bảng lỗi
+   * mới thì luật lời model chưa từng thấy — hay luật model được dặn KHÔNG đề xuất — không được
+   * trông như "đã xét và đạt" (§2.2).
+   */
+  rulesSeen: { ruleKey: string; checkedBy: 'machine' | 'model' }[];
   /** Tiêu chí giảng viên đánh dấu *"không có luật trừ"* (§4.2, T-FLOOR-6). */
   waivedCriteria: string[];
   /** Trần thấp nhất của các bậc model đã trả lời — chỉ kéo được `llm_only` xuống (§4.2). */

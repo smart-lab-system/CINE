@@ -1,4 +1,5 @@
 import { decide } from './decide';
+import { isMachineChecked } from './predicates';
 import { readFileCall, resultWith, runTestsCall } from './testing/result';
 import { DecisionInput, ErrorRule } from './types';
 
@@ -12,9 +13,11 @@ const RULES: ErrorRule[] = [
 const allPass = runTestsCall('tc-1', null, [{ name: 'cb1', group: 'co_ban', status: 'pass' }, { name: 'tl1', group: 'trung_lap', status: 'pass' }]);
 const failCoBan = runTestsCall('tc-1', null, [{ name: 'cb1', group: 'co_ban', status: 'fail' }, { name: 'tl1', group: 'trung_lap', status: 'pass' }]);
 const read = readFileCall('tc-2', 'bai-nop/main.cpp');
+/** Bảng lỗi model đã được xem lúc điều tra — mặc định là chính RULES. */
+const SEEN = RULES.map((r) => ({ ruleKey: r.ruleKey, checkedBy: isMachineChecked(r.predicate) ? ('machine' as const) : ('model' as const) }));
 const input = (over: Partial<DecisionInput> = {}): DecisionInput => ({
   pipeline: 'investigator', result: resultWith({ calls: [allPass, read] }), bundle: BUNDLE, rubric: RUBRIC, rules: RULES,
-  waivedCriteria: [], modelCeiling: 0.5, theta: 0.85, ...over,
+  rulesSeen: SEEN, waivedCriteria: [], modelCeiling: 0.5, theta: 0.85, ...over,
 });
 
 describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
@@ -132,6 +135,44 @@ describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
     const before = decide(input({ result: stored }));
     const after = decide(input({ result: stored, rules: RULES.map((r) => (r.ruleKey === 'sai_ca_co_ban' ? { ...r, deductionHundredths: 100 } : r)) }));
     expect([before.scoreHundredths, after.scoreHundredths]).toEqual([700, 900]);
+  });
+
+  it('review I1 — biên dịch chập chờn (hỏng rồi qua, mọi ca pass) → KHÔNG tự quyết trừ điểm; không lỗi máy quyết, gắn cờ', () => {
+    const r = resultWith({ calls: [runTestsCall('tc-3', null, [], { compileOk: false }), allPass, read] });
+    const d = decide(input({ result: r }));
+    expect(d.errors).toEqual([]);
+    expect(d.outcome).toBe('flagged');
+    expect(d.caseFlags.map((f) => f.code)).toContain('criterion_untouched');
+  });
+
+  it('review I2 — decide() tự kiểm độ phủ gói test: không run_tests nào → ungradable, KHÔNG phải điểm tối đa', () => {
+    const rules: ErrorRule[] = [{ ruleKey: 'chu_thich_sai', criterionKey: 'trinh_bay', deductionHundredths: 50, predicate: null }];
+    const d = decide(input({ rules, rubric: [{ key: 'trinh_bay', maxHundredths: 1000 }], rulesSeen: [{ ruleKey: 'chu_thich_sai', checkedBy: 'model' }], result: resultWith({ calls: [read] }) }));
+    expect(d).toMatchObject({ outcome: 'ungradable', scoreHundredths: null, ungradable: { class: 'system', reason: expect.stringMatching(/chưa chạy đủ/) } });
+  });
+
+  it('review I2 — chỉ chạy một nửa gói → ungradable, nêu nhóm còn thiếu', () => {
+    const half = runTestsCall('tc-1', 'co_ban', [{ name: 'cb1', group: 'co_ban', status: 'pass' }]);
+    const d = decide(input({ result: resultWith({ calls: [half, read] }) }));
+    expect(d.outcome).toBe('ungradable');
+    expect(d.ungradable?.reason).toMatch(/trung_lap/);
+  });
+
+  it('review I2 — gói test rỗng → ungradable (§4.4 dòng đầu)', () => {
+    expect(decide(input({ bundle: { cases: [] } })).outcome).toBe('ungradable');
+  });
+
+  it('review I3 — luật lời thêm SAU cuộc điều tra (model chưa từng thấy) → tiêu chí chưa xét theo luật đó, không tự quyết', () => {
+    const rules: ErrorRule[] = [...RULES, { ruleKey: 'dat_ten_vo_nghia', criterionKey: 'trinh_bay', deductionHundredths: 50, predicate: null }];
+    const d = decide(input({ rules }));
+    expect(d.outcome).toBe('flagged');
+    expect(d.caseFlags).toEqual([{ code: 'criterion_untouched', detail: expect.stringMatching(/dat_ten_vo_nghia.*chưa xét/) }]);
+  });
+
+  it('review I3 — luật model được dặn KHÔNG đề xuất (máy kiểm) nay mất predicate → không coi là model đã xét', () => {
+    const rules = RULES.map((r) => (r.ruleKey === 'sai_ca_co_ban' ? { ...r, predicate: null } : r));
+    const d = decide(input({ rules }));
+    expect(d.caseFlags).toEqual([{ code: 'criterion_untouched', detail: expect.stringMatching(/sai_ca_co_ban.*KHÔNG đề xuất/) }]);
   });
 
   it('T-TIER-2 — luật máy kiểm MỚI, đánh giá được trên kết quả đã lưu → áp ngay', () => {

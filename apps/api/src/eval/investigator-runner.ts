@@ -53,7 +53,8 @@ export async function runInvestigator(opts: {
       try {
         const bundle = opts.bundles.get(de.manifest.id);
         if (!bundle) throw new Error(`không có gói test cho đề ${de.manifest.id}`);
-        const result = await run(contextFor(de, c, bundle, opts.budget), opts.deps, components);
+        const ctx = contextFor(de, c, bundle, opts.budget);
+        const result = await run(ctx, opts.deps, components);
         sandboxHost ??= hostOf(result);
         const exhausted = result.kind === 'ungradable' && result.investigation.budget.stopReason === 'models_exhausted';
         // 3a: kết cục và điểm là của decide() — sàn, §4.3, giá, nguồn gốc, MỘT công thức tự quyết.
@@ -63,6 +64,7 @@ export async function runInvestigator(opts: {
           bundle,
           rubric: de.manifest.rubric.map((r) => ({ key: r.key, maxHundredths: parseHundredths(r.maxPoints) })),
           rules: errorRulesOf(de),
+          rulesSeen: ctx.rules.map((r) => ({ ruleKey: r.ruleKey, checkedBy: r.checkedBy })),
           waivedCriteria: de.manifest.waivedCriteria,
           modelCeiling: Math.min(1, ...result.investigation.modelsUsed.map((m) => opts.ceilings.get(m) ?? 0.5)),
           theta: opts.theta,
