@@ -1,8 +1,26 @@
 import {
+  GRADER_OUTPUT_EXAMPLE,
   OpenAICompatibleProvider,
   OpenAICompatibleConfig,
   maxTokensFor,
 } from './openai-compatible.provider';
+
+/** Mọi tên trường của một JSON schema, đi qua properties / items / anyOf. */
+function propertyNames(schema: unknown): string[] {
+  const out = new Set<string>();
+  const walk = (s: unknown) => {
+    if (!s || typeof s !== 'object') return;
+    const o = s as { properties?: Record<string, unknown>; items?: unknown; anyOf?: unknown[] };
+    for (const [k, v] of Object.entries(o.properties ?? {})) {
+      out.add(k);
+      walk(v);
+    }
+    walk(o.items);
+    for (const a of o.anyOf ?? []) walk(a);
+  };
+  walk(schema);
+  return [...out];
+}
 import { GradingRequest } from './ai-grading-provider';
 import { classifyProviderFailure } from './provider-failure';
 
@@ -72,6 +90,24 @@ describe('OpenAICompatibleProvider', () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.strict).toBe(true);
+  });
+
+  it('khuôn JSON nằm NGAY trong system prompt — gateway không ép json_schema cho mọi route (đo 2026-09-25)', async () => {
+    // Route cnb/… và spd/… nhận response_format rồi bỏ qua: model tự đặt {criteria|grading|…}.
+    // Prompt phải tự nói đủ khuôn; zod vẫn là người gác cổng.
+    fetchMock.mockResolvedValue(okGrading());
+    await new OpenAICompatibleProvider(CONFIG).grade(REQUEST);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const system: string = body.messages[0].content;
+    for (const name of propertyNames(body.response_format.json_schema.schema)) expect(system).toContain(`"${name}"`);
+    for (const verdict of ['met', 'partially_met', 'not_met']) expect(system).toContain(verdict);
+    expect(system).toContain(GRADER_OUTPUT_EXAMPLE);
+  });
+
+  it('mẫu JSON trong prompt là một output HỢP LỆ — model chép đúng mẫu thì qua được zod', async () => {
+    fetchMock.mockResolvedValue(ok({ choices: [{ finish_reason: 'stop', message: { content: GRADER_OUTPUT_EXAMPLE } }], usage: {} }));
+    const outcome = await new OpenAICompatibleProvider(CONFIG).grade(REQUEST);
+    expect(outcome.criterionResults).toHaveLength(1);
   });
 
   it('schema KHÔNG cho model trả về bất kỳ con số nào', async () => {

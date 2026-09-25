@@ -13,8 +13,10 @@ export const MAX_CALLS_PER_ROUND = 5;
  */
 export const MODEL_VIEW_BYTES = 2_048;
 
-const nullableString = { type: ['string', 'null'] };
-const nullableInteger = { type: ['integer', 'null'] };
+// Nullable viết bằng anyOf, KHÔNG bằng kiểu hợp `type: [x, 'null']`: route cnb/… của gateway trả
+// HTTP 400 cho kiểu hợp (đo 2026-09-25), còn anyOf thì nhận. Hai cách cùng nghĩa với JSON Schema.
+const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
+const nullableInteger = { anyOf: [{ type: 'integer' }, { type: 'null' }] };
 const idList = { type: 'array', items: { type: 'string' } };
 
 /** Hình dạng MỘT lượt, cho `response_format: json_schema` strict (Q2). */
@@ -134,6 +136,19 @@ export function argsFor(call: ModelCall): Record<string, unknown> {
   }
 }
 
+/**
+ * Hai mẫu một lượt, đặt NGAY trong prompt. `response_format: json_schema` không được mọi route
+ * của gateway ép (đo 2026-09-25: model tự đặt cấu trúc khác) — prompt phải tự nói đủ khuôn. Test
+ * giữ hai mẫu qua được `parseReply`, và mọi tên trường của REPLY_JSON_SCHEMA có trong prompt.
+ */
+export const EXAMPLE_CALL_REPLY =
+  '{"action":"call","calls":[{"tool":"run_tests","input":null,"group":null,"path":null,"fromLine":null,"toLine":null}],"verdict":null}';
+export const EXAMPLE_FINAL_REPLY =
+  // `tc-N`, KHÔNG phải `tc-1`: mẫu mà trích một mã có thật thì model chép nguyên sẽ ra một bằng
+  // chứng không liên quan mà T-AG-2 vẫn nhận. `tc-N` không bao giờ tồn tại → bị loại là bịa.
+  '{"action":"final","calls":[],"verdict":{"errors":[{"ruleKey":"<rule_key trong bang-loi.md>","toolCallIds":["tc-N"],"note":null}],' +
+  '"missingRules":[],"injectionAttempt":{"detected":false,"excerpt":null}}}';
+
 /** Lớp cache ①: KHÔNG chứa gì của một bài, một đề hay một giảng viên cụ thể. */
 export const INVESTIGATOR_SYSTEM_PROMPT = [
   'Bạn là agent ĐIỀU TRA một bài lập trình môn Cấu trúc dữ liệu và Giải thuật. Bạn không cho',
@@ -149,10 +164,15 @@ export const INVESTIGATOR_SYSTEM_PROMPT = [
   '- run_tests(group): chạy bộ test của đề; group là tên nhóm trong goi-test.md, hoặc null để',
   '  chạy tất cả. Trả kết quả từng ca.',
   '',
-  'Mỗi lượt, trả ĐÚNG MỘT đối tượng JSON:',
-  `- {"action":"call","calls":[…],"verdict":null} để gọi công cụ, tối đa ${MAX_CALLS_PER_ROUND} lời gọi một lượt;`,
-  '  mỗi lời gọi ghi đủ sáu trường tool, input, group, path, fromLine, toLine — không dùng thì null.',
-  '- {"action":"final","calls":[],"verdict":{…}} khi đã đủ bằng chứng.',
+  'Mỗi lượt, trả ĐÚNG MỘT đối tượng JSON, đúng tên trường — không đổi tên, không bọc trong trường khác.',
+  `- Gọi công cụ, tối đa ${MAX_CALLS_PER_ROUND} lời gọi một lượt. Ví dụ:`,
+  `  ${EXAMPLE_CALL_REPLY}`,
+  '  Mỗi lời gọi ghi đủ sáu trường "tool", "input", "group", "path", "fromLine", "toLine" — không dùng thì null.',
+  '  "tool" là một trong "list_files", "read_file", "run", "run_tests".',
+  '- Kết luận khi đã đủ bằng chứng. Ví dụ:',
+  `  ${EXAMPLE_FINAL_REPLY}`,
+  '  "missingRules" là mảng các {"description": "…", "toolCallIds": ["tc-N"]}; không có thì [].',
+  '  "injectionAttempt" là {"detected": true hoặc false, "excerpt": đoạn trích hoặc null}.',
   '',
   'Luật của verdict:',
   '1. errors[].ruleKey PHẢI là một rule_key có trong bang-loi.md, chép đúng từng ký tự. Lỗi',

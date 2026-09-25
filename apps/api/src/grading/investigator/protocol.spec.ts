@@ -1,6 +1,8 @@
 import { SYSTEM_DELIMITER_RULE } from '../harness/submission-envelope';
 import {
   argsFor,
+  EXAMPLE_CALL_REPLY,
+  EXAMPLE_FINAL_REPLY,
   initialUserMessage,
   INVESTIGATOR_SYSTEM_PROMPT,
   MAX_CALLS_PER_ROUND,
@@ -8,7 +10,9 @@ import {
   REPLY_JSON_SCHEMA,
   renderToolResults,
 } from './protocol';
+import { investigate } from './investigate';
 import { CTX } from './testing/context';
+import { execResult, fakeSandbox } from './testing/fake-sandbox';
 import { ToolCall } from './types';
 
 const call = (tool: string, extra: Record<string, unknown> = {}) => ({
@@ -33,7 +37,62 @@ const tc = (over: Partial<ToolCall>): ToolCall => ({
   ...over,
 });
 
+/** Mọi tên trường của một JSON schema, đi qua properties / items / anyOf. */
+function propertyNames(schema: unknown): string[] {
+  const out = new Set<string>();
+  const walk = (s: unknown) => {
+    if (!s || typeof s !== 'object') return;
+    const o = s as { properties?: Record<string, unknown>; items?: unknown; anyOf?: unknown[] };
+    for (const [k, v] of Object.entries(o.properties ?? {})) {
+      out.add(k);
+      walk(v);
+    }
+    walk(o.items);
+    for (const a of o.anyOf ?? []) walk(a);
+  };
+  walk(schema);
+  return [...out];
+}
+
 describe('giao thức một lượt', () => {
+  it('khuôn JSON nằm NGAY trong system prompt (gateway không ép json_schema, đo 2026-09-25); hai mẫu trong prompt qua được parseReply', () => {
+    for (const name of propertyNames(REPLY_JSON_SCHEMA)) expect(INVESTIGATOR_SYSTEM_PROMPT).toContain(`"${name}"`);
+    for (const tool of ['list_files', 'read_file', 'run', 'run_tests']) expect(INVESTIGATOR_SYSTEM_PROMPT).toContain(`"${tool}"`);
+    expect(INVESTIGATOR_SYSTEM_PROMPT).toContain(EXAMPLE_CALL_REPLY);
+    expect(INVESTIGATOR_SYSTEM_PROMPT).toContain(EXAMPLE_FINAL_REPLY);
+    expect(parseReply(EXAMPLE_CALL_REPLY)).toMatchObject({ action: 'call' });
+    expect(parseReply(EXAMPLE_FINAL_REPLY)).toMatchObject({ action: 'final' });
+  });
+
+  it('schema KHÔNG dùng kiểu hợp `type: [x, "null"]` — route cnb/… trả HTTP 400 (đo 2026-09-25); nullable viết bằng anyOf', () => {
+    const unions: string[] = [];
+    const walk = (s: unknown, at: string) => {
+      if (!s || typeof s !== 'object') return;
+      for (const [k, v] of Object.entries(s as Record<string, unknown>)) {
+        if (k === 'type' && Array.isArray(v)) unions.push(at);
+        walk(v, `${at}.${k}`);
+      }
+    };
+    walk(REPLY_JSON_SCHEMA, '$');
+    expect(unions).toEqual([]);
+    // Ngữ nghĩa giữ nguyên: null vẫn hợp lệ ở mọi trường nullable, và parseReply vẫn nhận nó.
+    expect(parseReply(EXAMPLE_CALL_REPLY)?.action).toBe('call');
+  });
+
+  it('mẫu kết luận chép nguyên văn → KHÔNG thành một lỗi được nhận: luật lạ, bằng chứng không tồn tại', async () => {
+    const model = {
+      label: 'A', model: 'A',
+      calls: 0,
+      async call() {
+        return { content: this.calls++ === 0 ? EXAMPLE_CALL_REPLY : EXAMPLE_FINAL_REPLY, usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreationTokens: 0 } };
+      },
+    };
+    const sandbox = fakeSandbox((req) => execResult(req.cases.map((c) => ({ name: c.name, group: c.group, status: 'pass' }))));
+    const r = await investigate(CTX, { models: [model], sandbox, sleep: async () => undefined, random: () => 0 });
+    expect(r.verdict?.errors ?? []).toEqual([]);
+    expect(r.rejected.map((x) => x.reason)).toEqual(['unknown_rule']);
+  });
+
   it('review I3 — tin nhắn đầu: tên file bài nộp nằm TRONG vỏ bọc, file hệ thống ở ngoài', () => {
     const text = initialUserMessage(CTX, [
       { path: 'de-bai.md', bytes: 10, source: 'system' },
