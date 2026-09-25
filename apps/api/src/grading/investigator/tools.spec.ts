@@ -165,6 +165,19 @@ describe('bốn công cụ', () => {
     expect(structured.cases.every((c) => c.diff === 'd'.repeat(500))).toBe(true);
   });
 
+  it('review I1 — job sandbox mang budgetMs theo phần còn lại; không đủ giờ thì không gửi job', async () => {
+    let t = 0;
+    const sandbox = fakeSandbox(() => execResult([{ name: 'run', status: 'ran', stdout: '' }]));
+    const r = new ToolRunner(CTX, Workspace.fromContext(CTX), sandbox, () => t, 50_000);
+    await r.execute('tc-1', { tool: 'run', args: { input: '' } });
+    expect(sandbox.requests[0].budgetMs).toBeLessThanOrEqual(50_000);
+    t = 48_000;
+    const late = await r.execute('tc-2', { tool: 'run_tests', args: { group: null } });
+    expect(late.toolCall.status).toBe('error');
+    expect(late.toolCall.output).toMatch(/không đủ thời gian/);
+    expect(sandbox.requests).toHaveLength(1);
+  });
+
   it('Review Focus 3 — stdout có NUL, surrogate lẻ, dài 4 MB → ≤ 8 KB và JSON hoá được', async () => {
     const nasty = `\u0000\ud800${'x'.repeat(4 * 1024 * 1024)}\udfff`;
     const sandbox = fakeSandbox(() => execResult([{ name: 'run', status: 'ran', stdout: nasty }]));

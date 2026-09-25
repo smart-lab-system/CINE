@@ -31,6 +31,11 @@ interface Dispatched {
 const MAX_RUN_INPUT_BYTES = 1024 * 1024;
 /** `execJob.cases.max(200)` trong `sandbox/contract.ts`. */
 const MAX_CASES_PER_JOB = 200;
+/** Ngân sách mặc định của job exec trong hợp đồng — không xin nhiều hơn chỉ vì còn giờ. */
+const MAX_EXEC_BUDGET_MS = 120_000;
+/** Còn ít hơn thế thì một job sandbox chỉ có thể bị cắt giữa chừng. */
+const MIN_SANDBOX_MS = 3_000;
+const LATE = 'không đủ thời gian còn lại của cuộc điều tra để chạy sandbox (§7)';
 const inline = (content: string) => ({ kind: 'inline' as const, content });
 
 /** Mỗi lần gọi một mã MỚI — mỗi nguồn một mã riêng (§3.3 luật 1). */
@@ -103,7 +108,21 @@ export class ToolRunner {
     private readonly workspace: Workspace,
     private readonly sandbox: SandboxPort,
     private readonly now: () => number = Date.now,
+    /** Hạn chót của cả cuộc điều tra (cùng đồng hồ với `now`); null = không giới hạn. */
+    private readonly deadline: number | null = null,
   ) {}
+
+  /**
+   * Review I1: job sandbox không được chạy quá phần thời gian còn lại của cuộc điều tra. Worker
+   * dừng ở `budgetMs` và trả phần đã chạy (§3.1 chốt 4). Còn quá ít thì không gửi job.
+   * `'late'` = không đủ giờ; `undefined` = không có hạn chót, dùng mặc định của hợp đồng.
+   */
+  private sandboxBudget(): number | 'late' | undefined {
+    if (this.deadline === null) return undefined;
+    const left = this.deadline - this.now();
+    if (left < MIN_SANDBOX_MS) return 'late';
+    return Math.min(MAX_EXEC_BUDGET_MS, Math.max(1_000, Math.floor(left)));
+  }
 
   async execute(id: string, call: ToolInvocation): Promise<ToolOutcome> {
     const startedMs = this.now();
@@ -167,10 +186,13 @@ export class ToolRunner {
   private async run(input: unknown): Promise<Dispatched> {
     if (typeof input !== 'string') return fail('run cần input là chuỗi (stdin của chương trình)');
     if (Buffer.byteLength(input, 'utf8') > MAX_RUN_INPUT_BYTES) return fail('input của run vượt 1 MB');
+    const budgetMs = this.sandboxBudget();
+    if (budgetMs === 'late') return fail(LATE);
     const r = await this.sandbox.exec({
       language: this.ctx.language,
       program: programOf(this.ctx),
       cases: [{ name: 'run', group: null, stdin: inline(input), expected: null }],
+      ...(budgetMs === undefined ? {} : { budgetMs }),
     });
     if (r.unavailable !== null) return unavailable(r.unavailable);
     if (r.compile && !r.compile.ok) {
@@ -212,10 +234,13 @@ export class ToolRunner {
     if (cases.length > MAX_CASES_PER_JOB) {
       return fail(`${cases.length} ca vượt trần ${MAX_CASES_PER_JOB} ca một lần chạy — chạy theo từng nhóm`);
     }
+    const budgetMs = this.sandboxBudget();
+    if (budgetMs === 'late') return fail(LATE);
     const r = await this.sandbox.exec({
       language: this.ctx.language,
       program: programOf(this.ctx),
       cases: cases.map((c) => ({ name: c.name, group: c.group, stdin: inline(c.input), expected: inline(c.expected) })),
+      ...(budgetMs === undefined ? {} : { budgetMs }),
     });
     if (r.unavailable !== null) return unavailable(r.unavailable);
 

@@ -1,6 +1,6 @@
 import { ChatTextRequest } from '../ai-provider/openai-chat';
 import { badOutputError, httpProviderError } from '../ai-provider/provider-failure';
-import { buildInvestigatorTiers, ModelPool, ModelsExhaustedError, ModelTier } from './model-pool';
+import { buildInvestigatorTiers, DeadlineExceededError, ModelPool, ModelsExhaustedError, ModelTier } from './model-pool';
 
 const REQ: ChatTextRequest = { system: 's', messages: [{ role: 'user', content: 'u' }], schemaName: 'x', schema: {}, maxTokens: 1 };
 const USAGE = { inputTokens: 5, outputTokens: 3, cacheReadTokens: 0, cacheCreationTokens: 0 };
@@ -84,6 +84,27 @@ describe('ModelPool — xoay bậc ở tầng vòng lặp (§7.3)', () => {
       .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ModelsExhaustedError);
     expect((error as ModelsExhaustedError).usage.inputTokens).toBe(10);
+  });
+
+  it('review I1 — hạn chót là CỨNG: thử lại và xoay bậc không kéo quá deadline; mỗi lần thử ≤ phần còn lại', async () => {
+    let t = 0;
+    const timeouts: number[] = [];
+    const hang = (label: string): ModelTier => ({
+      label,
+      model: label,
+      async call(req) {
+        timeouts.push(req.timeoutMs!);
+        t += req.timeoutMs!;
+        throw httpProviderError(504, undefined, 'treo');
+      },
+    });
+    const pool = new ModelPool([hang('A'), hang('B')], { sleep: async (ms) => void (t += ms) });
+    const error = await pool
+      .ask({ ...REQ, timeoutMs: 90_000 }, parse, { deadline: 20_000, now: () => t })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DeadlineExceededError);
+    expect(t).toBeLessThanOrEqual(20_000);
+    expect(timeouts.every((ms) => ms <= 20_000)).toBe(true);
   });
 
   it('NODE_ENV=test → không có bậc nào (test không bao giờ gọi API tính tiền)', () => {

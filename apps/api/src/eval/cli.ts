@@ -97,7 +97,9 @@ async function main() {
     const { client, close } = createSandboxClient({
       redisUrl: sandboxCfg.config.redisUrl,
       prefix: sandboxCfg.config.prefix,
-      queueWaitMs: { exec: 120_000, measure: 60_000 },
+      // Hạn chờ của client = budgetMs của job + số này. Job của vòng điều tra đã mang budgetMs theo
+      // phần thời gian còn lại (review I1), nên đây là chỗ duy nhất còn vượt được trần §7 — giữ nhỏ.
+      queueWaitMs: { exec: 30_000, measure: 60_000 },
     });
     const components = { ...ALL_COMPONENTS, replayCheck };
     try {

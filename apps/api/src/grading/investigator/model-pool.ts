@@ -23,6 +23,19 @@ export class ModelsExhaustedError extends Error {
   }
 }
 
+/** Hết thời gian của cuộc điều tra trước khi có một phản hồi dùng được (review I1). */
+export class DeadlineExceededError extends Error {
+  constructor(readonly usage: ChatUsage) {
+    super('hết thời gian của cuộc điều tra trước khi có phản hồi dùng được');
+    this.name = 'DeadlineExceededError';
+  }
+}
+
+/** Dưới mức này không đáng gửi một lời gọi model: nó chỉ có thể hết giờ. */
+export const MIN_ATTEMPT_MS = 1_000;
+/** Trần mặc định của MỘT lời gọi khi người gọi không đặt — cùng số với `postChat`. */
+const DEFAULT_TIMEOUT_MS = 90_000;
+
 /** Usage mà `postChatText` gắn lên lỗi của một lượt đã tiêu token (bad_output). */
 function usageOf(error: unknown): ChatUsage | null {
   const u = (error as { usage?: ChatUsage } | null)?.usage;
@@ -65,9 +78,20 @@ export class ModelPool {
     private readonly opts: { transientRetries?: number; sleep?: (ms: number) => Promise<void> } = {},
   ) {}
 
-  async ask<T>(request: ChatTextRequest, parse: (content: string) => T | null): Promise<PoolReply<T>> {
+  /**
+   * `deadline` (mốc thời gian tuyệt đối, cùng đồng hồ với `now`) là CỨNG (review I1): mỗi lần
+   * thử chỉ được `min(timeoutMs, phần còn lại)`, và khi phần còn lại dưới `MIN_ATTEMPT_MS` thì
+   * không thử, không ngủ chờ thử lại, không xoay bậc nữa — ném `DeadlineExceededError`.
+   */
+  async ask<T>(
+    request: ChatTextRequest,
+    parse: (content: string) => T | null,
+    limit: { deadline?: number; now?: () => number } = {},
+  ): Promise<PoolReply<T>> {
     const sleep = this.opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
     const transientRetries = this.opts.transientRetries ?? 2;
+    const now = limit.now ?? Date.now;
+    const left = () => (limit.deadline === undefined ? Infinity : limit.deadline - now());
     const rotations: { from: string; reason: string }[] = [];
     const reasons: string[] = [];
     let spent = ZERO;
@@ -77,8 +101,10 @@ export class ModelPool {
       let badOutputs = 0;
       let transients = 0;
       for (;;) {
+        if (left() < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent);
+        const attempt = { ...request, timeoutMs: Math.min(request.timeoutMs ?? DEFAULT_TIMEOUT_MS, left()) };
         try {
-          const { content, usage } = await tier.call(request);
+          const { content, usage } = await tier.call(attempt);
           spent = addUsage(spent, usage);
           const value = parse(content);
           if (value !== null) return { value, usage: spent, model: tier.model, rotations };
@@ -93,7 +119,9 @@ export class ModelPool {
           if (kind === 'bad_output' && ++badOutputs < 2) continue;
           if (kind === 'transient' && transients < transientRetries) {
             transients++;
-            await sleep(1_000 * transients);
+            const wait = 1_000 * transients;
+            if (left() - wait < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent);
+            await sleep(wait);
             continue;
           }
           this.exclude(tier, `${kind}: ${describeError(error)}`, rotations, reasons);

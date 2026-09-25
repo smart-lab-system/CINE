@@ -1,6 +1,6 @@
 import { ChatTextRequest } from '../ai-provider/openai-chat';
 import { DuplicateGuard } from './dedup';
-import { ModelPool, ModelsExhaustedError, ModelTier, PoolReply } from './model-pool';
+import { DeadlineExceededError, ModelPool, ModelsExhaustedError, ModelTier, PoolReply } from './model-pool';
 import {
   argsFor, FORCE_FINAL_MESSAGE, initialUserMessage, INVESTIGATOR_SYSTEM_PROMPT, MAX_CALLS_PER_ROUND,
   ModelReply, parseReply, renderToolResults, REPLY_JSON_SCHEMA,
@@ -38,7 +38,8 @@ export const ALL_COMPONENTS: InvestigateComponents = {
 export const STALL_AFTER_ROUNDS = 2;
 export const STALL_AFTER_MS = 60_000;
 const MODEL_CALL_TIMEOUT_MS = 90_000;
-const MIN_MODEL_CALL_TIMEOUT_MS = 5_000;
+/** Chạy lại đối chiếu là thêm một job sandbox: còn ít hơn thế thì bỏ, không kéo quá trần §7. */
+const MIN_REPLAY_MS = 5_000;
 const REPLAY_CONFIDENCE_CAP = 0.5;
 
 const ZERO_CALL_REASON: Partial<Record<StopReason, string>> = {
@@ -100,9 +101,11 @@ export async function investigate(
   const now = deps.now ?? Date.now;
   const random = deps.random ?? Math.random;
   const started = now();
+  // Trần §7 là CỨNG (review I1): model, thử lại, xoay bậc, sandbox và chạy lại đều tính theo mốc này.
+  const deadline = started + ctx.budget.maxWallMs;
   const elapsed = () => now() - started;
   const workspace = Workspace.fromContext(ctx);
-  const runner = new ToolRunner(ctx, workspace, deps.sandbox, now);
+  const runner = new ToolRunner(ctx, workspace, deps.sandbox, now, deadline);
   const pool = new ModelPool(deps.models, { sleep: deps.sleep });
   const guard = new DuplicateGuard();
 
@@ -119,7 +122,6 @@ export async function investigate(
   const okCount = () => toolCalls.filter((t) => t.status === 'ok').length;
 
   const ask = async (): Promise<ModelReply> => {
-    const remaining = ctx.budget.maxWallMs - elapsed();
     let reply: PoolReply<ModelReply>;
     try {
       reply = await pool.ask(
@@ -131,14 +133,15 @@ export async function investigate(
           schemaName: 'investigator_turn',
           schema: REPLY_JSON_SCHEMA,
           maxTokens: deps.replyMaxTokens ?? 4_096,
-          // Review Focus 5: một lời gọi model không được kéo cả bài vượt trần §7.
-          timeoutMs: Math.max(MIN_MODEL_CALL_TIMEOUT_MS, Math.min(MODEL_CALL_TIMEOUT_MS, remaining)),
+          // Review Focus 5 + review I1: pool cắt mỗi lần thử về phần còn lại tới `deadline`.
+          timeoutMs: MODEL_CALL_TIMEOUT_MS,
         },
         parseReply,
+        { deadline, now },
       );
     } catch (error) {
       // Token của các lượt hỏng vẫn là token đã tiêu (review M1).
-      if (error instanceof ModelsExhaustedError) {
+      if (error instanceof ModelsExhaustedError || error instanceof DeadlineExceededError) {
         inputTokens += error.usage.inputTokens;
         outputTokens += error.usage.outputTokens;
       }
@@ -163,6 +166,7 @@ export async function investigate(
       reply = await ask();
     } catch (error) {
       if (error instanceof ModelsExhaustedError) { stopReason = 'models_exhausted'; break; }
+      if (error instanceof DeadlineExceededError) { stopReason = 'max_wall'; break; }
       throw error;
     }
     rounds++; // lượt xoay bậc nằm TRONG ask() và không tính vòng (T-AG-7)
@@ -215,7 +219,7 @@ export async function investigate(
       forcedFinal = true;
       if (reply.action === 'final') verdict = reply.verdict;
     } catch (error) {
-      if (!(error instanceof ModelsExhaustedError)) throw error;
+      if (!(error instanceof ModelsExhaustedError || error instanceof DeadlineExceededError)) throw error;
     }
   }
   const stop: StopReason = stopReason ?? 'verdict';
@@ -278,7 +282,7 @@ export async function investigate(
   // T-AG-3: chạy lại MỘT lời gọi sandbox, ưu tiên lời gọi được verdict trích.
   let replay: InvestigationResult['replay'] = null;
   let confidenceCap = 1;
-  if (components.replayCheck && kind === 'verdict' && accepted) {
+  if (components.replayCheck && kind === 'verdict' && accepted && deadline - now() >= MIN_REPLAY_MS) {
     const cited = new Set(accepted.errors.flatMap((e) => e.toolCallIds));
     const sandboxCalls = toolCalls.filter((t) => t.status === 'ok' && (t.tool === 'run' || t.tool === 'run_tests'));
     const preferred = sandboxCalls.filter((t) => cited.has(t.id));

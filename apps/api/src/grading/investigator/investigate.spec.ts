@@ -148,6 +148,38 @@ describe('investigate()', () => {
     expect(r.investigation.budget.tokens).toBe(240);
   });
 
+  it('review I1 — hai bậc treo: cả cuộc điều tra dừng ở trần 300 s (max_wall), không kéo quá', async () => {
+    let t = 0;
+    const hang = (label: string): ModelTier => ({
+      label,
+      model: label,
+      async call(req) {
+        t += req.timeoutMs!;
+        throw httpProviderError(504, undefined, 'treo');
+      },
+    });
+    const r = await investigate(CTX, {
+      models: [hang('A'), hang('B')],
+      sandbox: passAll(),
+      now: () => t,
+      sleep: async (ms: number) => void (t += ms),
+      random: () => 0,
+    });
+    expect(r.investigation.budget.stopReason).toBe('max_wall');
+    expect(t).toBeLessThanOrEqual(CTX.budget.maxWallMs);
+    expect(r.kind).toBe('ungradable');
+  });
+
+  it('review I1 — sắp hết giờ thì KHÔNG chạy lại đối chiếu (thêm một job sandbox là vượt trần)', async () => {
+    let t = 0;
+    const model = scripted('A', [turn(call('run_tests')), final([])], () => (t += 149_000));
+    const sandbox = passAll();
+    const r = await investigate(CTX, deps([model], sandbox, { now: () => t }));
+    expect(r.kind).toBe('verdict');
+    expect(r.replay).toBeNull();
+    expect(sandbox.requests).toHaveLength(1);
+  });
+
   it('mọi bậc hỏng trước lời gọi nào → ungradable lớp system', async () => {
     const r = await investigate(CTX, deps([scripted('A', [httpProviderError(401, undefined, 'x')])]));
     expect(r.kind).toBe('ungradable');
