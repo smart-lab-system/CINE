@@ -86,7 +86,10 @@ export function ruleMetrics(records: CaseRecord[]): RuleMetrics | null {
     const found = new Set(r.foundRuleIds);
     const expected = new Set(r.expectedRuleIds);
     const e = perDe.get(r.de) ?? { tp: 0, fp: 0, fn: 0 };
-    for (const k of found) (expected.has(k) ? e.tp++ : e.fp++);
+    for (const k of found) {
+      if (expected.has(k)) e.tp++;
+      else e.fp++;
+    }
     for (const k of expected) if (!found.has(k)) e.fn++;
     perDe.set(r.de, e);
   }

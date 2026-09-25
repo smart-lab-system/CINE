@@ -1,8 +1,8 @@
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { makeRunId, RunMeta, writeRun } from './run-writer';
-import { RunSummary } from './baseline-runner';
+import { basename, join } from 'node:path';
+import { makeRunId, readRun, readRunRecords, RunMeta, writeRun } from './run-writer';
+import { RunSummary } from './runner-core';
 
 const summary = { verdict: 'passed_gates' } as unknown as RunSummary;
 const meta = (over: Partial<RunMeta> = {}): RunMeta => ({
@@ -37,5 +37,15 @@ describe('run-writer', () => {
     const a = await writeRun(root, meta({ runId: 'R3' }), summary, []);
     const b = await writeRun(root, meta({ runId: 'R3' }), summary, []);
     expect(a).not.toBe(b);
+  });
+
+  it('đọc lại một lượt đã ghi — cases.jsonl và datasetHash của run.json — để so ghép cặp', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'runs-'));
+    const records = [{ de: 'd', caseId: 'A0' }, { de: 'd', caseId: 'M1' }] as never[];
+    const dir = await writeRun(root, meta({ runId: 'R4', datasetHash: 'h-cu' }), summary, records);
+    expect(await readRunRecords(root, basename(dir))).toEqual(records);
+    const run = await readRun(root, basename(dir));
+    expect(run.meta.datasetHash).toBe('h-cu');
+    expect(run.records).toEqual(records);
   });
 });

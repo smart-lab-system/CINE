@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { CaseRecord, RunSummary } from './baseline-runner';
+import { CaseRecord, RunSummary } from './runner-core';
 
 export interface RunMeta {
   runId: string;
@@ -12,7 +12,8 @@ export interface RunMeta {
   gitSha: string;
   gitDirty: boolean;
   datasetHash: string;
-  config: { pipeline: 'baseline'; reference: 'note-text'; provider: string };
+  /** Cấu hình của lượt chạy (§12.6): pipeline, model, thành phần, ngân sách, gói test… */
+  config: Record<string, unknown> & { pipeline: 'baseline' | 'investigator' };
   startedAt: string;
   finishedAt: string;
 }
@@ -47,4 +48,23 @@ export async function writeRun(
   await writeFile(join(dir, 'run.json'), JSON.stringify({ ...meta, summary }, null, 2) + '\n');
   await writeFile(join(dir, 'cases.jsonl'), records.map((r) => JSON.stringify(r)).join('\n') + '\n');
   return dir;
+}
+
+/** Đọc lại cases.jsonl của một lượt đã ghi — để so ghép cặp (§12.4). */
+export async function readRunRecords(runsRoot: string, runId: string): Promise<CaseRecord[]> {
+  const text = await readFile(join(runsRoot, runId, 'cases.jsonl'), 'utf8');
+  return text
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => JSON.parse(l) as CaseRecord);
+}
+
+/**
+ * Cả run.json lẫn cases.jsonl — người gọi phải kiểm `datasetHash` trước khi so. Lượt của bước 0
+ * thiếu các trường mới của `CaseRecord` (pipeline, foundRuleIds…); phép so chỉ đọc các trường
+ * đã có từ bước 0.
+ */
+export async function readRun(runsRoot: string, runId: string): Promise<{ meta: RunMeta; records: CaseRecord[] }> {
+  const meta = JSON.parse(await readFile(join(runsRoot, runId, 'run.json'), 'utf8')) as RunMeta;
+  return { meta, records: await readRunRecords(runsRoot, runId) };
 }
