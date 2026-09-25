@@ -15,7 +15,7 @@ import 'reflect-metadata';
 // `data-source.ts` (and its own `dotenv/config`) only *after* it reaches
 // `ExamSessionModule`/the gateway — too late to help here.
 import 'dotenv/config';
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import cookieParser from 'cookie-parser';
@@ -27,7 +27,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalFilters(new PostgresExceptionFilter());
+  // Manually instantiated (`new`), so Nest's DI never runs property
+  // injection on it — PostgresExceptionFilter's inherited
+  // `httpAdapterHost` would stay undefined without this, and its fallback
+  // path (`super.catch()`, for an unmapped Postgres error code) would
+  // itself crash on a missing `applicationRef`. This is the same pattern
+  // NestJS's own docs use for a manually-registered "catch everything"
+  // filter.
+  const { httpAdapter } = app.get(HttpAdapterHost);
+  app.useGlobalFilters(new PostgresExceptionFilter(httpAdapter));
   // Nest's ApplicationConfig has no default WebSocket adapter (it's `null`
   // until set here) — without this, ExamSessionGateway ("/exam-live")
   // throws at connection time (WebSocketsController calls
