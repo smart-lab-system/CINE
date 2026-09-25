@@ -71,3 +71,60 @@ describe('QuestionCard — dải tiêu đề khi gập lại', () => {
     expect(complexityBadge).toHaveAttribute('title', LONG_COMPLEXITY);
   });
 });
+
+describe('QuestionCard — sinh lại câu KHÔNG bị gắn cờ trùng bài kinh điển', () => {
+  // Yêu cầu 2026-09-25: model có thể ra một câu tốt, không trùng bài kinh
+  // điển — nhưng giảng viên vẫn có thể muốn đổi test case hoặc nâng độ khó.
+  // Trước đây "Sinh lại riêng câu này" CHỈ hiện khi `isClassic`, nên câu tốt
+  // không có lối nào để sinh lại ngoài "Sinh lại cả đề" (mất luôn các câu
+  // khác đang giữ).
+  it('vẫn có nút "Sinh lại câu này", dù không phải bài kinh điển', () => {
+    render(
+      <QuestionCard
+        index={0}
+        question={question({ resemblesKnownProblem: null })}
+        onChange={noop}
+        onRegenerate={noop}
+        regenerating={false}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /^sinh lại câu này$/i })).toBeInTheDocument();
+  });
+
+  it('bấm nút thì mở form, khoá nút gửi tới khi có ghi chú — cùng luật với câu bị gắn cờ', () => {
+    render(
+      <QuestionCard
+        index={0}
+        question={question({ resemblesKnownProblem: null })}
+        onChange={noop}
+        onRegenerate={noop}
+        regenerating={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^sinh lại câu này$/i }));
+
+    const submit = screen.getByRole('button', { name: /^sinh lại câu 1$/i });
+    expect(submit).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/cần đổi gì ở câu 1/i), {
+      target: { value: 'Nâng độ khó, thêm ca test biên' },
+    });
+    expect(submit).toBeEnabled();
+  });
+
+  it('gửi đúng ghi chú lên, và KHÔNG có dòng "Không được ra lại bài..." — không có gì để tránh', () => {
+    render(
+      <QuestionCard
+        index={0}
+        question={question({ resemblesKnownProblem: null })}
+        onChange={noop}
+        onRegenerate={noop}
+        regenerating={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^sinh lại câu này$/i }));
+
+    expect(screen.queryByText(/không được ra lại bài/i)).toBeNull();
+    expect(screen.getByText(/đề của các câu đang giữ/i)).toBeInTheDocument();
+  });
+});

@@ -171,10 +171,28 @@ export function QuestionCard({
           </div>
         )}
 
-        {isClassic && (
+        {/*
+         * Yêu cầu 2026-09-25: một câu KHÔNG bị gắn cờ vẫn cần lối sinh lại —
+         * model ra tốt không có nghĩa giảng viên không muốn đổi test case
+         * hoặc nâng độ khó. Trước đây `{isClassic && ...}` bỏ hẳn nhánh còn
+         * lại: câu tốt không có cách nào sinh lại RIÊNG nó, chỉ còn "Sinh
+         * lại cả đề" — mất luôn mọi câu khác đang giữ.
+         */}
+        {isClassic ? (
           <ClassicProblemPanel
             number={number}
             problem={question.resemblesKnownProblem!}
+            open={regenOpen}
+            note={note}
+            regenerating={regenerating}
+            onOpen={() => setRegenOpen(true)}
+            onClose={() => setRegenOpen(false)}
+            onNote={setNote}
+            onSubmit={() => onRegenerate(note)}
+          />
+        ) : (
+          <RegenerateQuestionPanel
+            number={number}
             open={regenOpen}
             note={note}
             regenerating={regenerating}
@@ -252,73 +270,188 @@ function ClassicProblemPanel({
           </span>
         </div>
       ) : (
-        <div className="mt-3 border-t border-warning/40 pt-3">
-          <label
-            htmlFor={`ghichu-${number}`}
-            className="mb-1.5 block text-small font-semibold text-warning-strong"
-          >
-            Cần đổi gì ở câu {number}?
-          </label>
-          <AutoTextarea
-            id={`ghichu-${number}`}
-            rows={2}
-            value={note}
-            onChange={(e) => onNote(e.target.value)}
-            placeholder="Ví dụ: đổi sang yêu cầu đếm số lần so sánh, và cho mảng xoay vòng."
-            className="border-warning/40"
-          />
-
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <span className="text-caption font-semibold text-muted-foreground">Gợi ý nhanh:</span>
-            {QUICK_NOTES.map((q) => (
-              <button
-                key={q}
-                type="button"
-                onClick={() => onNote(note ? `${note}; ${q.toLowerCase()}` : q)}
-                className="rounded-full border border-warning/40 bg-surface px-2.5 py-0.5 text-caption font-semibold text-warning-strong transition-colors hover:bg-warning-subtle"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-2.5 rounded-lg border border-dashed border-warning/40 bg-surface/60 p-2.5 text-caption leading-relaxed text-muted-foreground">
-            Hệ thống tự thêm vào yêu cầu, bạn không phải gõ lại:
-            <span className="mt-0.5 block">
-              &bull; <em>&ldquo;Không được ra lại bài {problem}.&rdquo;</em>
-            </span>
-            <span className="block">
-              &bull; Đề của các câu đang giữ, để câu mới không trùng ý với chúng.
-            </span>
-          </div>
-
-          <div className="mt-3 flex items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              /* Khoá tới khi có ghi chú: sinh lại mà không nói đổi gì thì model
-                 rơi lại đúng chỗ cũ — nó chọn bài kinh điển vì đó là chỗ trũng
-                 nhất của phân phối, và prompt không đổi thì phân phối không đổi. */
-              disabled={note.trim().length === 0 || regenerating}
-              onClick={onSubmit}
-            >
-              <RefreshCw
-                className={cn('h-3.5 w-3.5', regenerating && 'animate-spin')}
-                aria-hidden="true"
-              />
-              Sinh lại câu {number}
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={onClose}>
-              Huỷ
-            </Button>
-            {note.trim().length === 0 && (
-              <span className="text-caption text-muted-foreground">
-                Nói rõ cần đổi gì, nếu không model sẽ ra lại đúng loại đề này.
-              </span>
-            )}
-          </div>
-        </div>
+        <RegenerateForm
+          number={number}
+          problem={problem}
+          note={note}
+          regenerating={regenerating}
+          tone="warning"
+          onNote={onNote}
+          onSubmit={onSubmit}
+          onCancel={onClose}
+        />
       )}
+    </div>
+  );
+}
+
+/**
+ * Lối vào sinh lại cho câu KHÔNG bị gắn cờ trùng bài kinh điển.
+ *
+ * Yêu cầu 2026-09-25: model ra một câu tốt không có nghĩa giảng viên không
+ * muốn đổi gì — vẫn có thể muốn test case khác, hoặc nâng độ khó. Nhẹ hơn
+ * `ClassicProblemPanel` CÓ CHỦ Ý: không có rủi ro nào để báo ở đây, nên
+ * không phải một hộp cảnh báo, chỉ là một lối tắt — một dòng chữ, không màu
+ * cảnh báo, không đoạn giải thích "Hệ quả".
+ */
+function RegenerateQuestionPanel({
+  number,
+  open,
+  note,
+  regenerating,
+  onOpen,
+  onClose,
+  onNote,
+  onSubmit,
+}: {
+  number: number;
+  open: boolean;
+  note: string;
+  regenerating: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  onNote: (v: string) => void;
+  onSubmit: () => void;
+}) {
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="inline-flex w-fit items-center gap-1.5 text-caption font-semibold text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+        Sinh lại câu này
+      </button>
+    );
+  }
+  return (
+    <RegenerateForm
+      number={number}
+      problem={null}
+      note={note}
+      regenerating={regenerating}
+      onNote={onNote}
+      onSubmit={onSubmit}
+      onCancel={onClose}
+    />
+  );
+}
+
+/**
+ * Form ghi chú + gợi ý nhanh + nút gửi — DÙNG CHUNG giữa hai lối vào sinh
+ * lại (`ClassicProblemPanel` và `RegenerateQuestionPanel`).
+ *
+ * `problem`: bài kinh điển phải tránh, hoặc `null` khi không phải lượt tránh
+ * bài kinh điển — dòng "Không được ra lại bài X" trong hộp tự thêm chỉ hiện
+ * khi có `problem`, vì không có gì để tránh thì không có gì để nói.
+ *
+ * `tone`: chỉ đổi MÀU (viền/chữ cảnh báo hay trung tính) để khớp bối cảnh
+ * bao quanh — `ClassicProblemPanel` nằm trong hộp cảnh báo nên giữ tông màu
+ * đó xuyên suốt; `RegenerateQuestionPanel` không có gì để cảnh báo. Luật
+ * khoá nút gửi tới khi có ghi chú là MỘT, không đổi theo `tone`: sinh lại mà
+ * không nói đổi gì thì model rơi lại đúng chỗ cũ — nó chọn bài kinh điển vì
+ * đó là chỗ trũng nhất của phân phối, và prompt không đổi thì phân phối
+ * không đổi. Lý do này không riêng gì bài kinh điển, nên luật áp cho cả hai.
+ */
+function RegenerateForm({
+  number,
+  problem,
+  note,
+  regenerating,
+  tone = 'neutral',
+  onNote,
+  onSubmit,
+  onCancel,
+}: {
+  number: number;
+  problem: string | null;
+  note: string;
+  regenerating: boolean;
+  tone?: 'warning' | 'neutral';
+  onNote: (v: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  const isWarning = tone === 'warning';
+  return (
+    <div className={cn('mt-3 border-t pt-3', isWarning ? 'border-warning/40' : 'border-border')}>
+      <label
+        htmlFor={`ghichu-${number}`}
+        className={cn(
+          'mb-1.5 block text-small font-semibold',
+          isWarning ? 'text-warning-strong' : 'text-foreground',
+        )}
+      >
+        Cần đổi gì ở câu {number}?
+      </label>
+      <AutoTextarea
+        id={`ghichu-${number}`}
+        rows={2}
+        value={note}
+        onChange={(e) => onNote(e.target.value)}
+        placeholder="Ví dụ: đổi sang yêu cầu đếm số lần so sánh, và cho mảng xoay vòng."
+        className={isWarning ? 'border-warning/40' : undefined}
+      />
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-caption font-semibold text-muted-foreground">Gợi ý nhanh:</span>
+        {QUICK_NOTES.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={() => onNote(note ? `${note}; ${q.toLowerCase()}` : q)}
+            className={cn(
+              'rounded-full border bg-surface px-2.5 py-0.5 text-caption font-semibold transition-colors',
+              isWarning
+                ? 'border-warning/40 text-warning-strong hover:bg-warning-subtle'
+                : 'border-border text-muted-foreground hover:bg-surface-2',
+            )}
+          >
+            {q}
+          </button>
+        ))}
+      </div>
+
+      <div
+        className={cn(
+          'mt-2.5 rounded-lg border border-dashed bg-surface/60 p-2.5 text-caption leading-relaxed text-muted-foreground',
+          isWarning ? 'border-warning/40' : 'border-border',
+        )}
+      >
+        Hệ thống tự thêm vào yêu cầu, bạn không phải gõ lại:
+        {problem && (
+          <span className="mt-0.5 block">
+            &bull; <em>&ldquo;Không được ra lại bài {problem}.&rdquo;</em>
+          </span>
+        )}
+        <span className="block">
+          &bull; Đề của các câu đang giữ, để câu mới không trùng ý với chúng.
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          disabled={note.trim().length === 0 || regenerating}
+          onClick={onSubmit}
+        >
+          <RefreshCw
+            className={cn('h-3.5 w-3.5', regenerating && 'animate-spin')}
+            aria-hidden="true"
+          />
+          Sinh lại câu {number}
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          Huỷ
+        </Button>
+        {note.trim().length === 0 && (
+          <span className="text-caption text-muted-foreground">
+            Nói rõ cần đổi gì, nếu không model sẽ ra lại đúng loại đề này.
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -192,6 +192,34 @@ describe('ExamAuthoringPage', () => {
   });
 
   /**
+   * Yêu cầu 2026-09-25: câu 1 trong fixture KHÔNG bị gắn cờ
+   * (`resemblesKnownProblem: null`) — trước đây không có nút sinh lại nào
+   * cho nó, chỉ "Sinh lại cả đề" (mất luôn câu 2 đang giữ). Test này đi qua
+   * đúng nút MỚI ("Sinh lại câu này", khác chữ với "Sinh lại riêng câu này"
+   * của câu bị gắn cờ) và kiểm request KHÔNG mang `avoid` — không có bài
+   * kinh điển nào để tránh.
+   */
+  it('câu KHÔNG bị gắn cờ vẫn sinh lại được RIÊNG nó, không avoid, vẫn giữ câu 2', async () => {
+    renderWithDraft();
+    await screen.findByDisplayValue('Sắp xếp mảng tăng dần');
+    fireEvent.click(screen.getByRole('button', { name: /^sinh lại câu này$/i }));
+    fireEvent.change(screen.getByLabelText(/cần đổi gì ở câu 1/i), {
+      target: { value: 'thêm ca test biên' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^sinh lại câu 1$/i }));
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        questionCount: 1,
+        avoid: undefined,
+        refineNote: 'thêm ca test biên',
+        existingStatements: ['Tìm k'],
+      }),
+      expect.anything(),
+    );
+  });
+
+  /**
    * Bug thật 2026-09-24: mở trang qua đường nháp (tải lại trang, không phải
    * gõ prompt rồi bấm Sinh đề trong CÙNG một lượt) rồi bấm "Sinh lại riêng
    * câu này" ngay — request gửi `prompt: ""`, bị API từ chối 400 vì
