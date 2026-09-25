@@ -1,0 +1,66 @@
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DEFAULT_BUDGET } from '../grading/investigator/budget';
+import { InvestigationResult } from '../grading/investigator/types';
+import { runInvestigator } from './investigator-runner';
+import { loadDataset } from './load-dataset';
+import { writeMiniDe } from './testing/mini-de';
+
+function result(over: Partial<InvestigationResult>): InvestigationResult {
+  return {
+    kind: 'verdict', verdict: { errors: [], missingRules: [], injectionAttempt: { detected: false, excerpt: null } },
+    rejected: [], ungradable: null, flags: [], confidenceCap: 1, replay: null, summary: 'tóm tắt',
+    investigation: {
+      toolCalls: [], structuredResults: {}, complexity: null, minimalFailingCase: null, approach: null, peerCluster: null,
+      budget: { toolCalls: 3, wallMs: 10, tokens: 500, rounds: 2, forcedFinal: false, stopReason: 'verdict', limits: DEFAULT_BUDGET },
+      modelsUsed: ['m-1'], tierRotations: [],
+    },
+    usage: { inputTokens: 400, outputTokens: 100 },
+    ...over,
+  };
+}
+
+async function setup() {
+  const root = await mkdtemp(join(tmpdir(), 'inv-'));
+  await writeMiniDe(root);
+  const dataset = await loadDataset(root);
+  const bundles = new Map([['mini', { id: 'mini@x', cases: [{ name: 'cb1', group: 'co_ban', input: '2\n', expected: '4\n' }] }]]);
+  return { dataset, bundles };
+}
+
+describe('runInvestigator', () => {
+  it('điểm tính từ luật tìm thấy trên bảng ĐÓNG BĂNG; chỉ số precision/recall theo ruleId ở nhóm 1', async () => {
+    const { dataset, bundles } = await setup();
+    const { records, summary } = await runInvestigator({
+      dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET,
+      deps: { models: [], sandbox: { exec: async () => { throw new Error('không dùng'); } } },
+      investigateFn: async (ctx) =>
+        ctx.submission.files[0].content.includes('return x;')
+          ? result({ verdict: { errors: [{ ruleKey: 'sai_co_ban', toolCallIds: ['tc-1'], note: null }], missingRules: [], injectionAttempt: { detected: false, excerpt: null } } })
+          : result({}),
+    });
+    const m1 = records.find((r) => r.caseId === 'M1')!;
+    expect(m1).toMatchObject({ pipeline: 'investigator', status: 'ok', outcome: 'flagged', scoreHundredths: 600, foundRuleIds: ['sai_co_ban'], toolCalls: 3 });
+    expect(records.find((r) => r.caseId === 'A0')!.scoreHundredths).toBe(1000);
+    expect(summary.ruleMetrics).toMatchObject({ tp: 1, fp: 0, fn: 0, precision: 1, recall: 1 });
+    expect(summary.verdict).toBe('passed_gates');
+  });
+
+  it('ungradable → không có điểm, không phải vi phạm; mọi bậc model hỏng → lượt lỗi (error)', async () => {
+    const { dataset, bundles } = await setup();
+    const { records } = await runInvestigator({
+      dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET,
+      deps: { models: [], sandbox: { exec: async () => { throw new Error('x'); } } },
+      investigateFn: async (ctx) =>
+        ctx.submission.files[0].content.includes('return x;')
+          ? result({ kind: 'ungradable', verdict: null, ungradable: { class: 'system', reason: 'treo' } })
+          : result({
+              kind: 'ungradable', verdict: null, ungradable: { class: 'system', reason: 'hỏng' },
+              investigation: { ...result({}).investigation, budget: { ...result({}).investigation.budget, stopReason: 'models_exhausted' } },
+            }),
+    });
+    expect(records.find((r) => r.caseId === 'M1')).toMatchObject({ status: 'ok', outcome: 'ungradable', scoreHundredths: null, violation: null });
+    expect(records.find((r) => r.caseId === 'A0')).toMatchObject({ status: 'error' });
+  });
+});
