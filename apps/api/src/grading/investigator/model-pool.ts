@@ -12,11 +12,18 @@ export interface ModelTier {
   call(request: ChatTextRequest): Promise<{ content: string; usage: ChatUsage }>;
 }
 
+export interface TierRotation {
+  from: string;
+  reason: string;
+}
+
 export class ModelsExhaustedError extends Error {
   constructor(
     readonly reasons: string[],
     /** Token đã tiêu cho các lượt hỏng của lần hỏi này (review M1). */
     readonly usage: ChatUsage,
+    /** Lượt xoay của lần hỏi này — không có nó, hồ sơ không nói được bậc nào chết, vì sao (review M2). */
+    readonly rotations: TierRotation[] = [],
   ) {
     super(`mọi bậc model đều hỏng: ${reasons.join('; ')}`);
     this.name = 'ModelsExhaustedError';
@@ -25,7 +32,10 @@ export class ModelsExhaustedError extends Error {
 
 /** Hết thời gian của cuộc điều tra trước khi có một phản hồi dùng được (review I1). */
 export class DeadlineExceededError extends Error {
-  constructor(readonly usage: ChatUsage) {
+  constructor(
+    readonly usage: ChatUsage,
+    readonly rotations: TierRotation[] = [],
+  ) {
     super('hết thời gian của cuộc điều tra trước khi có phản hồi dùng được');
     this.name = 'DeadlineExceededError';
   }
@@ -46,7 +56,7 @@ export interface PoolReply<T> {
   value: T;
   usage: ChatUsage;
   model: string;
-  rotations: { from: string; reason: string }[];
+  rotations: TierRotation[];
 }
 
 const addUsage = (a: ChatUsage, b: ChatUsage): ChatUsage => ({
@@ -92,7 +102,7 @@ export class ModelPool {
     const transientRetries = this.opts.transientRetries ?? 2;
     const now = limit.now ?? Date.now;
     const left = () => (limit.deadline === undefined ? Infinity : limit.deadline - now());
-    const rotations: { from: string; reason: string }[] = [];
+    const rotations: TierRotation[] = [];
     const reasons: string[] = [];
     let spent = ZERO;
 
@@ -101,7 +111,7 @@ export class ModelPool {
       let badOutputs = 0;
       let transients = 0;
       for (;;) {
-        if (left() < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent);
+        if (left() < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent, rotations);
         const attempt = { ...request, timeoutMs: Math.min(request.timeoutMs ?? DEFAULT_TIMEOUT_MS, left()) };
         try {
           const { content, usage } = await tier.call(attempt);
@@ -120,7 +130,7 @@ export class ModelPool {
           if (kind === 'transient' && transients < transientRetries) {
             transients++;
             const wait = 1_000 * transients;
-            if (left() - wait < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent);
+            if (left() - wait < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent, rotations);
             await sleep(wait);
             continue;
           }
@@ -129,13 +139,13 @@ export class ModelPool {
         }
       }
     }
-    throw new ModelsExhaustedError(reasons, spent);
+    throw new ModelsExhaustedError(reasons, spent, rotations);
   }
 
   private exclude(
     tier: ModelTier,
     reason: string,
-    rotations: { from: string; reason: string }[],
+    rotations: TierRotation[],
     reasons: string[],
   ): void {
     this.excluded.add(tier.label);

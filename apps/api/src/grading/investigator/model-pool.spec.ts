@@ -68,6 +68,25 @@ describe('ModelPool — xoay bậc ở tầng vòng lặp (§7.3)', () => {
     await expect(pool.ask(REQ, parse)).rejects.toBeInstanceOf(ModelsExhaustedError);
   });
 
+  it('review M2 — lỗi mang cả lượt xoay của lần hỏi đó: vòng lặp ghi được bậc nào chết, vì sao', async () => {
+    const pool = new ModelPool([tier('A', [httpProviderError(401, undefined, 'x')]), tier('B', ['rác'])], { sleep: noSleep });
+    const error = (await pool.ask(REQ, parse).catch((e: unknown) => e)) as ModelsExhaustedError;
+    expect(error.rotations).toEqual([
+      { from: 'A', reason: expect.stringMatching(/tier_dead/) },
+      { from: 'B', reason: expect.stringMatching(/bad_output/) },
+    ]);
+  });
+
+  it('review M2 — hết giờ giữa lúc xoay bậc: DeadlineExceededError cũng mang lượt xoay đã có', async () => {
+    let t = 0;
+    const dead: ModelTier = { label: 'A', model: 'A', async call() { t += 5_000; throw httpProviderError(403, undefined, 'x'); } };
+    const error = (await new ModelPool([dead, tier('B', ['OK'])], { sleep: noSleep })
+      .ask(REQ, parse, { deadline: 5_500, now: () => t })
+      .catch((e: unknown) => e)) as DeadlineExceededError;
+    expect(error).toBeInstanceOf(DeadlineExceededError);
+    expect(error.rotations).toEqual([{ from: 'A', reason: expect.stringMatching(/tier_dead/) }]);
+  });
+
   it('usage của phản hồi rác vẫn được cộng — token đã tiêu là đã tiêu', async () => {
     const a = tier('A', ['rác', 'OK a']);
     const r = await new ModelPool([a], { sleep: noSleep }).ask(REQ, parse);

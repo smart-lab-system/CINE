@@ -27,9 +27,11 @@ export function readInvestigationBudget(env: NodeJS.ProcessEnv): {
   const budget = { ...DEFAULT_BUDGET };
   const warnings: string[] = [];
   for (const key of Object.keys(ENV_KEYS) as (keyof InvestigationBudget)[]) {
-    const raw = env[ENV_KEYS[key]]?.trim();
-    if (!raw) continue;
-    const value = Number(raw);
+    const set = env[ENV_KEYS[key]];
+    if (set === undefined) continue;
+    // Review M9: `KEY=` trong .env là CÓ đặt — ai đó định đặt mà quên số; im lặng là giấu lỗi đó.
+    const raw = set.trim();
+    const value = raw === '' ? NaN : Number(raw);
     if (Number.isInteger(value) && value > 0) {
       budget[key] = value;
     } else {

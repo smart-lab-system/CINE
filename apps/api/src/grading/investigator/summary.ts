@@ -9,6 +9,7 @@ const STOP_LABEL: Record<StopReason, string> = {
   stalled: 'agent treo (2 vòng, 0 lời gọi công cụ thành công)',
   blocked_repeatedly: 'bị chặn trùng 3 lần liên tiếp',
   models_exhausted: 'mọi bậc model đều hỏng',
+  invalid_program: 'bài nộp không gửi được sang sandbox',
 };
 
 function describeRunTests(t: ToolCall, s: Extract<StructuredResult, { kind: 'run_tests' }>): string {

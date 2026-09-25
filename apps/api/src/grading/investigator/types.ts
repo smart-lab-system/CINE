@@ -84,7 +84,9 @@ export type StopReason =
   | 'max_rounds'
   | 'stalled'
   | 'blocked_repeatedly'
-  | 'models_exhausted';
+  | 'models_exhausted'
+  /** Bài nộp không dựng được thành một job sandbox hợp lệ — dừng trước lời gọi model đầu tiên. */
+  | 'invalid_program';
 
 export interface RuleEntry {
   ruleKey: string;
@@ -156,7 +158,8 @@ export interface InvestigationResult {
   flags: InvestigationFlag[];
   /** Trần confidence mà cuộc điều tra này biện minh được; bước 3 lấy min với công thức §4.2. */
   confidenceCap: number;
-  replay: { toolCallId: string; matched: boolean } | null;
+  /** `matched: null` = lượt chạy lại không chạy được (sandbox) — không đối chiếu được, không phải lệch (review M7). */
+  replay: { toolCallId: string; matched: boolean | null } | null;
   /** Do HARNESS render từ toolCalls thật (§5.1). */
   summary: string;
   investigation: Investigation;

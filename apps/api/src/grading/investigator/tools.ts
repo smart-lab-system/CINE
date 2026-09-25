@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { ExecResult } from '../../sandbox/contract';
+import { ExecResult, programSpec } from '../../sandbox/contract';
 import { ExecRequest } from '../../sandbox/sandbox.client';
 import { wrapSubmission } from '../harness/submission-envelope';
 import { TOOL_OUTPUT_MAX_BYTES, truncateOutput } from './truncate';
@@ -94,6 +94,35 @@ export function programOf(ctx: InvestigationContext): ExecRequest['program'] {
     driver: ctx.driver === null ? null : inline(ctx.driver),
     entry: ctx.entry,
   };
+}
+
+/** Chuỗi do sinh viên đặt, đưa vào một dòng lý do: một dòng, có trần, không mang ký tự xuống dòng. */
+function quoted(raw: string): string {
+  return JSON.stringify(raw.slice(0, 80)).replace(/[\u2028\u2029]/g, '?');
+}
+
+/**
+ * Review M4: bài mà hợp đồng sandbox từ chối (tên file có dấu cách hay dấu tiếng Việt, không có
+ * file nào, file quá lớn) thì MỌI job đều nổ lúc dựng — và lỗi đó sẽ bị ghi nhầm thành "sandbox
+ * không phản hồi", tiêu model tới khi treo. Kiểm một lần, trước lời gọi model đầu tiên. Tên file
+ * lạ cũng vì thế không bao giờ tới model (nó nằm NGOÀI vỏ bọc). null = gửi được.
+ *
+ * Lớp: không có file nào là lỗi của BÀI (T-EMPTY-1: `submission`); còn lại là giới hạn của
+ * harness, bài không sai gì — `system`, về giảng viên.
+ */
+export function programProblem(ctx: InvestigationContext): { class: 'system' | 'submission'; reason: string } | null {
+  if (ctx.submission.files.length === 0) return { class: 'submission', reason: 'bài nộp không có file nào' };
+  const parsed = programSpec.safeParse(programOf(ctx));
+  if (parsed.success) return null;
+  const issue = parsed.error.issues[0];
+  const [where, index, field] = issue.path;
+  const file = where === 'files' && typeof index === 'number' ? ctx.submission.files[index] : undefined;
+  const system = (reason: string) => ({ class: 'system' as const, reason: `bài nộp không gửi được sang sandbox: ${reason}` });
+  if (file && field === 'path') {
+    return system(`tên file ${quoted(file.path)} không hợp lệ — chỉ nhận chữ Latin không dấu, số, "_", ".", "-" và "/"`);
+  }
+  if (file) return system(`file ${quoted(file.path)}: ${issue.message}`);
+  return system(`${issue.path.join('.') || 'chương trình'}: ${issue.message}`);
 }
 
 /**

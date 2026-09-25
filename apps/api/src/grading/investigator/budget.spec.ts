@@ -27,7 +27,13 @@ describe('readInvestigationBudget — trần §7', () => {
       INVESTIGATE_MAX_ROUNDS: '   ',
     });
     expect(budget).toEqual(DEFAULT_BUDGET);
-    expect(warnings).toHaveLength(3); // chuỗi toàn khoảng trắng coi như không đặt
+    expect(warnings).toHaveLength(4);
     expect(warnings.join(' ')).toMatch(/INVESTIGATE_MAX_TOOL_CALLS/);
+  });
+
+  it('review M9 — biến CÓ đặt mà rỗng (`KEY=` trong .env) → mặc định kèm cảnh báo; không đặt thì im', () => {
+    const { budget, warnings } = readInvestigationBudget({ INVESTIGATE_MAX_WALL_MS: '' });
+    expect(budget).toEqual(DEFAULT_BUDGET);
+    expect(warnings).toEqual([expect.stringMatching(/INVESTIGATE_MAX_WALL_MS="" .*mặc định 300000/)]);
   });
 });
