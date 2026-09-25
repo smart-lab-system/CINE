@@ -35,6 +35,42 @@ function requirePort(raw: string, varName: string): number {
   return port;
 }
 
+/** Che `user:pass@` của mọi URL trong một thông điệp — log không bao giờ mang credential. */
+function redact(message: string): string {
+  return message.replace(/\/\/[^\s/@]*:[^\s/@]*@/g, '//***@');
+}
+
+/**
+ * Lỗi kết nối của hàng đợi BullMQ, cho log. Không gắn listener `error` thì BullMQ tự
+ * `console.error` lỗi thô, không nói hàng đợi nào; gắn mà ghi hết thì ngập log, vì ioredis bắn
+ * `error` MỖI lần thử nối lại (~mỗi giây khi Redis chết). Nên: ghi lần đầu của mỗi (ngữ cảnh,
+ * thông điệp), im trong `windowMs`, rồi ghi lại kèm số lần đã gộp. Một dòng, có trần, đã che
+ * credential.
+ */
+export function throttledErrorLog(
+  log: (line: string) => void,
+  opts: { windowMs?: number; now?: () => number } = {},
+): (context: string, error: unknown) => void {
+  const windowMs = opts.windowMs ?? 60_000;
+  const now = opts.now ?? Date.now;
+  const seen = new Map<string, { at: number; suppressed: number }>();
+  return (context, error) => {
+    const raw = error instanceof Error ? error.message : String(error);
+    const message = redact(raw).replace(/\s*\n\s*/g, ' ').slice(0, 300);
+    const key = `${context}\u0000${message}`;
+    const t = now();
+    const last = seen.get(key);
+    if (last && t - last.at < windowMs) {
+      last.suppressed++;
+      return;
+    }
+    // Có trần: thông điệp mang cổng hay id thay đổi không được làm map phình mãi.
+    if (seen.size >= 100) seen.clear();
+    seen.set(key, { at: t, suppressed: 0 });
+    log(`${context}: ${message}${last && last.suppressed > 0 ? ` (thêm ${last.suppressed} lần gộp)` : ''}`);
+  };
+}
+
 export function buildRedisConnection(env: Record<string, string | undefined>): RedisConnectionOptions {
   const url = env.REDIS_URL?.trim();
 

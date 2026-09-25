@@ -1,4 +1,4 @@
-import { buildRedisConnection } from './redis-connection';
+import { buildRedisConnection, throttledErrorLog } from './redis-connection';
 
 /**
  * Một hàm thuần trên một object env — không mock ConfigService, vì thứ đang
@@ -109,5 +109,50 @@ describe('buildRedisConnection', () => {
     it('REDIS_PORT không phải số thì nổ, không âm thầm thành NaN', () => {
       expect(() => buildRedisConnection({ REDIS_HOST: 'h', REDIS_PORT: 'abc' })).toThrow(/REDIS_PORT/);
     });
+  });
+});
+
+describe('throttledErrorLog — lỗi kết nối của hàng đợi', () => {
+  const setup = () => {
+    let t = 0;
+    const lines: string[] = [];
+    const report = throttledErrorLog((l) => lines.push(l), { windowMs: 60_000, now: () => t });
+    return { lines, report, advance: (ms: number) => void (t += ms) };
+  };
+
+  it('ghi lần đầu kèm ngữ cảnh; lặp lại trong khung 60 s thì im, rồi báo số lần đã gộp', () => {
+    const { lines, report, advance } = setup();
+    report('exec (eval)', new Error('connect ECONNREFUSED 127.0.0.1:6390'));
+    for (let i = 0; i < 30; i++) {
+      advance(1_000);
+      report('exec (eval)', new Error('connect ECONNREFUSED 127.0.0.1:6390'));
+    }
+    expect(lines).toEqual(['exec (eval): connect ECONNREFUSED 127.0.0.1:6390']);
+    advance(31_000);
+    report('exec (eval)', new Error('connect ECONNREFUSED 127.0.0.1:6390'));
+    expect(lines[1]).toBe('exec (eval): connect ECONNREFUSED 127.0.0.1:6390 (thêm 30 lần gộp)');
+  });
+
+  it('thông điệp khác hay ngữ cảnh khác thì ghi riêng', () => {
+    const { lines, report } = setup();
+    report('exec', new Error('a'));
+    report('exec', new Error('b'));
+    report('measure', new Error('a'));
+    expect(lines).toHaveLength(3);
+  });
+
+  it('không bao giờ in mật khẩu: URL mang user:pass bị che; dòng có trần, không xuống dòng', () => {
+    const { lines, report } = setup();
+    report('x', new Error(`lỗi với rediss://default:s3cret@host:1/0\n${'y'.repeat(1_000)}`));
+    expect(lines[0]).not.toMatch(/s3cret/);
+    expect(lines[0]).toMatch(/rediss:\/\/\*\*\*@host/);
+    expect(lines[0]).not.toMatch(/\n/);
+    expect(lines[0].length).toBeLessThan(400);
+  });
+
+  it('thứ ném ra không phải Error vẫn ghi được', () => {
+    const { lines, report } = setup();
+    report('x', 'chuỗi trần');
+    expect(lines).toEqual(['x: chuỗi trần']);
   });
 });

@@ -8,6 +8,7 @@ import { readFingerprint } from './fingerprint';
 import { handleExec, WorkerDeps } from './handle-exec';
 import { handleMeasure } from './handle-measure';
 import { cleanupLeftovers } from './programs';
+import { logWorkerEvents } from './queue-log';
 import { SlotPool, withSlot } from './slots';
 
 const MiB = 1024 * 1024;
@@ -57,18 +58,19 @@ export async function startWorker(
       // bằng một quyền rộng hơn trên máy dễ bị tấn công nhất.
       skipVersionCheck: true,
     };
-    workers.push(
-      new Worker(
-        QUEUE_EXEC,
-        (job) => withSlot(general, (slot, onLeak) => handleExec(job.data, { ...deps, onLeak }, slot), log),
-        { ...common, concurrency: cfg.execConcurrency },
-      ),
-      new Worker(
-        QUEUE_MEASURE,
-        (job) => withSlot(timing, (slot, onLeak) => handleMeasure(job.data, { ...deps, onLeak }, slot), log),
-        { ...common, concurrency: timing.size },
-      ),
+    const exec = new Worker(
+      QUEUE_EXEC,
+      (job) => withSlot(general, (slot, onLeak) => handleExec(job.data, { ...deps, onLeak }, slot), log),
+      { ...common, concurrency: cfg.execConcurrency },
     );
+    const measure = new Worker(
+      QUEUE_MEASURE,
+      (job) => withSlot(timing, (slot, onLeak) => handleMeasure(job.data, { ...deps, onLeak }, slot), log),
+      { ...common, concurrency: timing.size },
+    );
+    logWorkerEvents(exec, `${QUEUE_EXEC} (${source.name})`, log);
+    logWorkerEvents(measure, `${QUEUE_MEASURE} (${source.name})`, log);
+    workers.push(exec, measure);
   }
 
   for (const w of cfg.warnings) log(`CẢNH BÁO: ${w}`);
