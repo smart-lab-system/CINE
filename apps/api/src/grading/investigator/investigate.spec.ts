@@ -151,6 +151,14 @@ describe('investigate()', () => {
     expect(r.kind).toBe('ungradable');
   });
 
+  it('review I2 — gói test RỖNG: list_files rồi kết luận "không lỗi" → ungradable, không phải điểm tối đa', async () => {
+    const empty = { ...CTX, testBundle: { id: 'rong@0', cases: [] } };
+    const model = scripted('A', [turn(call('list_files')), final([])]);
+    const r = await investigate(empty, deps([model]));
+    expect(r.kind).toBe('ungradable');
+    expect(r.ungradable).toEqual({ class: 'system', reason: expect.stringMatching(/gói test rỗng/) });
+  });
+
   it('T-FLOOR-3 — chỉ list_files / read_file rồi kết luận "không lỗi" → ungradable, KHÔNG phải điểm tối đa', async () => {
     const model = scripted('A', [turn(call('list_files'), call('read_file', { path: 'bai-nop/main.cpp' })), final([])]);
     const r = await investigate(CTX, deps([model]));

@@ -243,6 +243,10 @@ export async function investigate(
   if (okCount() === 0) {
     kind = 'ungradable';
     ungradable = { class: 'system', reason: ZERO_CALL_REASON[stop] ?? '0 lời gọi công cụ thành công — cuộc điều tra chưa bắt đầu (§4.4)' };
+  } else if (ctx.testBundle.cases.length === 0) {
+    // Dòng đầu bảng §4.4: gói rỗng thì `uncoveredCases` cũng rỗng — "chạy đủ" một cách vô nghĩa.
+    kind = 'ungradable';
+    ungradable = { class: 'system', reason: 'gói test rỗng — không có thước nào để chạy (§4.4)' };
   } else if (missing.length > 0) {
     kind = 'ungradable';
     const groups = [...new Set(missing.map((c) => c.group))].join(', ');
