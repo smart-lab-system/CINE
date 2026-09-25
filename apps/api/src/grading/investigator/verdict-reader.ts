@@ -1,19 +1,53 @@
 import { canonicalStringify } from './canonical-json';
 
-const TAG = '(?:think|thinking|reasoning)';
-const CLOSED_BLOCK = new RegExp(`<(${TAG})\\b[^>]*>[\\s\\S]*?</\\1\\s*>`, 'gi');
-const OPEN_TAG = new RegExp(`<${TAG}\\b[^>]*>`, 'i');
+/** Thẻ mở của một khối suy luận, khớp đúng tại một vị trí (cờ `y`). */
+const OPEN_TAG_AT = /<(think|thinking|reasoning)\b[^>]*>/iy;
 
 /**
  * T-PARSE-1 (§5.2 luật 1): khối suy luận có thẻ đóng bị xoá; thẻ mở KHÔNG có thẻ đóng thì
  * cắt từ đó tới hết chuỗi. Một phản hồi bị cắt cụt để lại phán quyết NHÁP trong phần suy
  * luận, và bộ đọc chỉ tìm thẻ đóng sẽ trích nó ra như thật — một điểm bịa không kèm tín
  * hiệu lỗi nào.
+ *
+ * Chỉ thẻ nằm NGOÀI đối tượng JSON mới là suy luận (review I3). Thẻ trong một chuỗi JSON là
+ * nội dung — thường là model trích chú thích của bài vào `excerpt` hay `note`, đúng như prompt
+ * đòi. Cắt ở đó là để một dòng `/* <think> *\/` trong bài làm hỏng phản hồi của MỌI bậc model,
+ * và bài không bao giờ chấm được.
  */
 export function stripReasoning(content: string): string {
-  const closedRemoved = content.replace(CLOSED_BLOCK, '');
-  const open = OPEN_TAG.exec(closedRemoved);
-  return open ? closedRemoved.slice(0, open.index) : closedRemoved;
+  let out = '';
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < content.length; ) {
+    const ch = content[i];
+    if (inString) {
+      out += ch;
+      i++;
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '<' && depth === 0) {
+      OPEN_TAG_AT.lastIndex = i;
+      const open = OPEN_TAG_AT.exec(content);
+      if (open) {
+        const after = i + open[0].length;
+        const close = new RegExp(`</${open[1]}\\s*>`, 'i').exec(content.slice(after));
+        if (!close) return out; // thẻ mở không có thẻ đóng → cắt tới hết chuỗi
+        i = after + close.index + close[0].length;
+        continue;
+      }
+    }
+    // Dấu nháy ở văn xuôi NGOÀI đối tượng không mở chuỗi — cùng luật với `topLevelObjects`.
+    if (ch === '"' && depth > 0) inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}' && depth > 0) depth--;
+    out += ch;
+    i++;
+  }
+  return out;
 }
 
 /** Các đối tượng JSON cấp ngoài cùng — đếm ngoặc, biết chuỗi và escape bên trong đối tượng. */
