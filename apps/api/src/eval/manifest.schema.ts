@@ -66,8 +66,8 @@ const generate = z.discriminatedUnion('kind', [
 export const testsSchema = z.array(
   z
     .object({
-      key: z.string().regex(/^[A-Za-z0-9_-]+$/),
-      group: z.string().min(1),
+      key: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, 'key chỉ gồm chữ, số, "_", "-" và tối đa 64 ký tự (tên ca của hợp đồng sandbox)'),
+      group: z.string().min(1).max(100),
       input: z.string().optional(),
       expected: z.string().optional(),
       generate: generate.optional(),
@@ -88,4 +88,4 @@ export const testsSchema = z.array(
   }
 });
 export type TestCaseSpec = z.infer<typeof testsSchema>[number];
-export const probesSchema = z.array(z.object({ key: z.string().regex(/^[A-Za-z0-9_-]+$/), input: z.string() }));
+export const probesSchema = z.array(z.object({ key: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, 'key chỉ gồm chữ, số, "_", "-" và tối đa 64 ký tự (tên ca của hợp đồng sandbox)'), input: z.string() }));

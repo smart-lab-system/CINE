@@ -53,6 +53,11 @@ describe('buildTestBundle — Q5', () => {
       ]),
     ).rejects.toThrow(/trùng key: a/);
   });
+
+  it('review lần 2 M5 — key quá 64 ký tự (hợp đồng sandbox không nhận tên ca đó) → từ chối lúc nạp', async () => {
+    await expect(mini([{ key: 'k'.repeat(65), group: 'co_ban', input: '1\n', expected: '1\n' }])).rejects.toThrow();
+    await expect(mini([{ key: 'k'.repeat(64), group: 'co_ban', input: '1\n', expected: '1\n' }])).resolves.toBeDefined();
+  });
 });
 
 describe('checkBundleOnWorker — đáp án mẫu phải đạt 100% gói của chính nó trên worker thật (duyệt Q5)', () => {
