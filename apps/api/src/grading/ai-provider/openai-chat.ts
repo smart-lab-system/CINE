@@ -131,34 +131,32 @@ async function postChat(
   }
 
   const choice = parsed.choices?.[0];
+  const raw = parsed.usage ?? {};
+  const usage: ChatUsage = {
+    inputTokens: raw.prompt_tokens ?? 0,
+    outputTokens: raw.completion_tokens ?? 0,
+    // Endpoint này báo cache ở `prompt_tokens_details.cached_tokens`.
+    // Đo được hiện tại là 0 — không có prompt caching — nhưng đọc nó
+    // vẫn đúng hơn là ghi cứng 0 và không bao giờ biết khi nào có.
+    cacheReadTokens: raw.prompt_tokens_details?.cached_tokens ?? 0,
+    cacheCreationTokens: 0,
+  };
+  // Lượt hỏng vẫn đã tiêu token (review M1): gắn usage vào lỗi để người gọi cộng được.
+  const spentError = (message: string) => Object.assign(badOutputError(message), { usage });
 
   // CẮT CỤT — bắt TRƯỚC khi parse nội dung, vì nếu parse trước thì một
   // JSON cụt đọc ra y hệt một JSON hỏng, và hai thứ đó cần hai cách xử lý
   // khác nhau (thử lại cùng bậc vs. nghi ngờ cả bậc).
   if (choice?.finish_reason === 'length') {
-    throw badOutputError(
-      `${config.tier}: output bị cắt cụt (finish_reason=length) — ngân sách token không đủ`,
-    );
+    throw spentError(`${config.tier}: output bị cắt cụt (finish_reason=length) — ngân sách token không đủ`);
   }
 
   const content = choice?.message?.content;
   if (!content) {
-    throw badOutputError(`${config.tier}: model không trả về nội dung nào`);
+    throw spentError(`${config.tier}: model không trả về nội dung nào`);
   }
 
-  const usage = parsed.usage ?? {};
-  return {
-    content,
-    usage: {
-      inputTokens: usage.prompt_tokens ?? 0,
-      outputTokens: usage.completion_tokens ?? 0,
-      // Endpoint này báo cache ở `prompt_tokens_details.cached_tokens`.
-      // Đo được hiện tại là 0 — không có prompt caching — nhưng đọc nó
-      // vẫn đúng hơn là ghi cứng 0 và không bao giờ biết khi nào có.
-      cacheReadTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
-      cacheCreationTokens: 0,
-    },
-  };
+  return { content, usage };
 }
 
 /**

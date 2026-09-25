@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ExecRequest } from '../../sandbox/sandbox.client';
 import { ChatTextRequest } from '../ai-provider/openai-chat';
-import { httpProviderError } from '../ai-provider/provider-failure';
+import { badOutputError, httpProviderError } from '../ai-provider/provider-failure';
 import { ALL_COMPONENTS, investigate } from './investigate';
 import { ModelTier } from './model-pool';
 import { execResult, fakeSandbox } from './testing/fake-sandbox';
@@ -138,6 +138,14 @@ describe('investigate()', () => {
     expect(r.investigation.tierRotations).toEqual([{ round: 2, from: 'A', reason: expect.stringMatching(/tier_dead/) }]);
     expect(r.investigation.modelsUsed).toEqual(['A-m', 'B-m']);
     expect(b.requests[0].messages.map((m) => m.content).join('\n')).toContain('[tc-1] list_files');
+  });
+
+  it('review M1 — mọi bậc hỏng vì bad_output: token đã tiêu vẫn vào usage của cuộc điều tra', async () => {
+    const withUsage = () => Object.assign(badOutputError('cắt cụt'), { usage: USAGE });
+    const r = await investigate(CTX, deps([scripted('A', [withUsage(), withUsage()])]));
+    expect(r.investigation.budget.stopReason).toBe('models_exhausted');
+    expect(r.usage.inputTokens).toBe(200);
+    expect(r.investigation.budget.tokens).toBe(240);
   });
 
   it('mọi bậc hỏng trước lời gọi nào → ungradable lớp system', async () => {

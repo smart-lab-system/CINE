@@ -1,6 +1,6 @@
 import { ChatTextRequest } from '../ai-provider/openai-chat';
 import { DuplicateGuard } from './dedup';
-import { ModelPool, ModelsExhaustedError, ModelTier } from './model-pool';
+import { ModelPool, ModelsExhaustedError, ModelTier, PoolReply } from './model-pool';
 import {
   argsFor, FORCE_FINAL_MESSAGE, initialUserMessage, INVESTIGATOR_SYSTEM_PROMPT, MAX_CALLS_PER_ROUND,
   ModelReply, parseReply, renderToolResults, REPLY_JSON_SCHEMA,
@@ -120,20 +120,30 @@ export async function investigate(
 
   const ask = async (): Promise<ModelReply> => {
     const remaining = ctx.budget.maxWallMs - elapsed();
-    const reply = await pool.ask(
-      {
-        system: INVESTIGATOR_SYSTEM_PROMPT,
-        // Bản CHỤP: vòng lặp còn đẩy tiếp vào `messages`, và một provider (hay một test) giữ
-        // tham chiếu tới request thì không được thấy lịch sử đổi dưới chân nó.
-        messages: messages.slice(),
-        schemaName: 'investigator_turn',
-        schema: REPLY_JSON_SCHEMA,
-        maxTokens: deps.replyMaxTokens ?? 4_096,
-        // Review Focus 5: một lời gọi model không được kéo cả bài vượt trần §7.
-        timeoutMs: Math.max(MIN_MODEL_CALL_TIMEOUT_MS, Math.min(MODEL_CALL_TIMEOUT_MS, remaining)),
-      },
-      parseReply,
-    );
+    let reply: PoolReply<ModelReply>;
+    try {
+      reply = await pool.ask(
+        {
+          system: INVESTIGATOR_SYSTEM_PROMPT,
+          // Bản CHỤP: vòng lặp còn đẩy tiếp vào `messages`, và một provider (hay một test) giữ
+          // tham chiếu tới request thì không được thấy lịch sử đổi dưới chân nó.
+          messages: messages.slice(),
+          schemaName: 'investigator_turn',
+          schema: REPLY_JSON_SCHEMA,
+          maxTokens: deps.replyMaxTokens ?? 4_096,
+          // Review Focus 5: một lời gọi model không được kéo cả bài vượt trần §7.
+          timeoutMs: Math.max(MIN_MODEL_CALL_TIMEOUT_MS, Math.min(MODEL_CALL_TIMEOUT_MS, remaining)),
+        },
+        parseReply,
+      );
+    } catch (error) {
+      // Token của các lượt hỏng vẫn là token đã tiêu (review M1).
+      if (error instanceof ModelsExhaustedError) {
+        inputTokens += error.usage.inputTokens;
+        outputTokens += error.usage.outputTokens;
+      }
+      throw error;
+    }
     inputTokens += reply.usage.inputTokens;
     outputTokens += reply.usage.outputTokens;
     if (!modelsUsed.includes(reply.model)) modelsUsed.push(reply.model);

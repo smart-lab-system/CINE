@@ -13,10 +13,20 @@ export interface ModelTier {
 }
 
 export class ModelsExhaustedError extends Error {
-  constructor(readonly reasons: string[]) {
+  constructor(
+    readonly reasons: string[],
+    /** Token đã tiêu cho các lượt hỏng của lần hỏi này (review M1). */
+    readonly usage: ChatUsage,
+  ) {
     super(`mọi bậc model đều hỏng: ${reasons.join('; ')}`);
     this.name = 'ModelsExhaustedError';
   }
+}
+
+/** Usage mà `postChatText` gắn lên lỗi của một lượt đã tiêu token (bad_output). */
+function usageOf(error: unknown): ChatUsage | null {
+  const u = (error as { usage?: ChatUsage } | null)?.usage;
+  return u && typeof u.inputTokens === 'number' ? u : null;
 }
 
 export interface PoolReply<T> {
@@ -77,6 +87,8 @@ export class ModelPool {
             break;
           }
         } catch (error) {
+          const lost = usageOf(error);
+          if (lost) spent = addUsage(spent, lost);
           const kind = classifyProviderFailure(error);
           if (kind === 'bad_output' && ++badOutputs < 2) continue;
           if (kind === 'transient' && transients < transientRetries) {
@@ -89,7 +101,7 @@ export class ModelPool {
         }
       }
     }
-    throw new ModelsExhaustedError(reasons);
+    throw new ModelsExhaustedError(reasons, spent);
   }
 
   private exclude(

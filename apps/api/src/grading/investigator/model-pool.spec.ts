@@ -74,6 +74,18 @@ describe('ModelPool — xoay bậc ở tầng vòng lặp (§7.3)', () => {
     expect(r.usage.inputTokens).toBe(10);
   });
 
+  it('review M1 — usage gắn trên lỗi bad_output được cộng; hết bậc thì lỗi mang tổng usage', async () => {
+    const withUsage = () => Object.assign(badOutputError('cắt cụt'), { usage: USAGE });
+    const a = tier('A', [withUsage(), withUsage()]);
+    const r = await new ModelPool([a, tier('B', ['OK b'])], { sleep: noSleep }).ask(REQ, parse);
+    expect(r.usage.inputTokens).toBe(15); // 2 lượt hỏng của A + 1 lượt của B
+    const error = await new ModelPool([tier('C', [withUsage(), withUsage()])], { sleep: noSleep })
+      .ask(REQ, parse)
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ModelsExhaustedError);
+    expect((error as ModelsExhaustedError).usage.inputTokens).toBe(10);
+  });
+
   it('NODE_ENV=test → không có bậc nào (test không bao giờ gọi API tính tiền)', () => {
     expect(process.env.NODE_ENV).toBe('test');
     expect(buildInvestigatorTiers()).toEqual([]);

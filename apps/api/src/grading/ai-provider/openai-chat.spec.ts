@@ -51,6 +51,14 @@ describe('postChatText', () => {
     await expect(postChatText(CONFIG, request)).rejects.toMatchObject({ badOutput: true });
   });
 
+  it('review M1 — lượt hỏng vì cắt cụt vẫn mang usage: token đã tiêu là đã tiêu', async () => {
+    fetchMock.mockResolvedValue(reply('{"a"', 'length'));
+    await expect(postChatText(CONFIG, request)).rejects.toMatchObject({
+      badOutput: true,
+      usage: { inputTokens: 11, outputTokens: 7 },
+    });
+  });
+
   it('HTTP 403 → phân loại tier_dead', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 403, text: async () => '{}' });
     const error = await postChatText(CONFIG, request).catch((e) => e);
