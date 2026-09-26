@@ -78,6 +78,7 @@ describe('OpenAICompatibleAdvocateProvider — khuôn output trên route không 
     fetchMock.mockReset();
     global.fetch = fetchMock as unknown as typeof fetch;
   });
+  afterEach(() => jest.restoreAllMocks());
   afterAll(() => {
     global.fetch = realFetch;
   });

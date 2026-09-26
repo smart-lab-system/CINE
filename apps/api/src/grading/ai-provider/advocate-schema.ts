@@ -130,6 +130,8 @@ const [CORRECTNESS, REASONING, QUOTE] = ADVOCATE_PLACEHOLDERS;
  * `isCorrect` là chỗ giữ chỗ, không phải một giá trị thật: mẫu `"yes"` nghiêng model về bênh
  * vực, `"no"` thì ngược lại. Chép nguyên thì trượt enum — output hỏng, không phải một ý kiến.
  * `suggestedVerdicts` rỗng là CHỦ Ý: Advocate mù rubric nên không biết mã tiêu chí (spec §2.1).
+ * `injectionAttempt` để giá trị thật `false`/`""`: boolean không có chỗ giữ chỗ nào còn là JSON
+ * hợp lệ, và mẫu `true` sẽ đẩy model tố giác oan; ca có tấn công được tả ở dòng luật ngay dưới.
  */
 export const ADVOCATE_OUTPUT_EXAMPLE =
   `{"isCorrect":"${CORRECTNESS}","reasoning":"${REASONING}","evidence":["${QUOTE}"],` +
