@@ -284,7 +284,7 @@ export class GradingService {
       where: { rubricId: job.rubricId },
       // Cùng thứ tự với `RubricService.toView`: `created_at` bằng nhau trong một lần lưu, nên
       // chỉ nó thì thứ tự rubric trong prompt đổi theo index Postgres chọn — và tiền tố cache đổi theo.
-      order: { sortOrder: 'ASC', createdAt: 'ASC', id: 'ASC' },
+      order: { sortOrder: 'ASC', createdAt: 'ASC', key: 'ASC' },
     });
 
     await this.gradeOne(

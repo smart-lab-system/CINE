@@ -16,14 +16,22 @@ export class CriterionKeyAndAnswerOrigin1789435000000 implements MigrationInterf
     await q.startTransaction();
     try {
       await q.query(`ALTER TABLE "examcollect"."rubric_criterion" DISABLE TRIGGER "trg_rubric_criterion_guard_immutable"`);
-      // Thứ tự của tiêu chí: `sort_order`, rồi thời điểm tạo, rồi id — cùng thứ tự rubric hiện ra.
+      // Và trigger `updated_at`: §14.4 cho điền key bằng cách "chỉ đụng cột mới".
+      await q.query(`ALTER TABLE "examcollect"."rubric_criterion" DISABLE TRIGGER "trg_rubric_criterion_updated_at"`);
+      // THỨ TỰ GIẢNG VIÊN NHẬP, và đây là lần DUY NHẤT còn đọc được nó. Mọi tiêu chí của một lần
+      // lưu chèn trong MỘT câu lệnh: `sort_order = 0` và cùng `created_at`, nên thứ tự chỉ còn nằm
+      // ở vị trí vật lý (`ctid`) — đúng thứ tự chèn với dòng chưa từng bị UPDATE, mà tiêu chí thì
+      // không bao giờ bị sửa. Chính câu UPDATE này ghi lại mọi dòng và xoá dấu vết đó, nên key đánh
+      // số theo `ctid`, đệm ba chữ số, và code phá hoà bằng `key` (`RubricService.toView`).
       await q.query(`
         UPDATE "examcollect"."rubric_criterion" rc
            SET key = k.key
-          FROM (SELECT id, 'tieu_chi_' || row_number() OVER (PARTITION BY rubric_id ORDER BY sort_order, created_at, id) AS key
+          FROM (SELECT id,
+                       'tieu_chi_' || lpad(row_number() OVER (PARTITION BY rubric_id ORDER BY sort_order, created_at, ctid)::text, 3, '0') AS key
                   FROM "examcollect"."rubric_criterion") k
          WHERE rc.id = k.id AND rc.key IS NULL
       `);
+      await q.query(`ALTER TABLE "examcollect"."rubric_criterion" ENABLE TRIGGER "trg_rubric_criterion_updated_at"`);
       await q.query(`ALTER TABLE "examcollect"."rubric_criterion" ENABLE TRIGGER "trg_rubric_criterion_guard_immutable"`);
       await q.commitTransaction();
     } catch (error) {

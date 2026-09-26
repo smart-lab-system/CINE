@@ -27,12 +27,25 @@ export class GradingResultReviewSessionColumns1789430000000 implements Migration
     // §2.3 luật 7 — dữ liệu cũ. Hôm nay chỉ `markUngradable` sinh ra dòng như vậy, và nó chỉ chạy
     // khi job hết lượt thử: lỗi phía hệ thống. Không điền thì chính các phiên đang kẹt vẫn kẹt,
     // vì chấm lại đòi `ungradable_class` khác null. Lượt số 1 chép lý do cũ thêm ở `1789450000000`.
-    await q.query(`
-      UPDATE "examcollect"."grading_result"
-         SET ungradable_class = 'system'
-       WHERE status = 'flagged_for_review' AND ai_total_score IS NULL
-         AND ungradable_reason IS NOT NULL AND ungradable_class IS NULL
-    `);
+    //
+    // Tắt `trg_grading_result_updated_at` trong CÙNG transaction: `updated_at` của các dòng này là
+    // lúc `markUngradable` chạy, và `1789450000000` đọc nó làm `finished_at` của lượt số 1 — một
+    // dòng bất biến ngay khi ghi. Để trigger bắn thì mọi lượt số 1 "kết thúc" lúc migration chạy.
+    await q.startTransaction();
+    try {
+      await q.query(`ALTER TABLE "examcollect"."grading_result" DISABLE TRIGGER "trg_grading_result_updated_at"`);
+      await q.query(`
+        UPDATE "examcollect"."grading_result"
+           SET ungradable_class = 'system'
+         WHERE status = 'flagged_for_review' AND ai_total_score IS NULL
+           AND ungradable_reason IS NOT NULL AND ungradable_class IS NULL
+      `);
+      await q.query(`ALTER TABLE "examcollect"."grading_result" ENABLE TRIGGER "trg_grading_result_updated_at"`);
+      await q.commitTransaction();
+    } catch (error) {
+      await q.rollbackTransaction();
+      throw error;
+    }
 
     await q.query(`
       ALTER TABLE "examcollect"."grading_result"

@@ -181,8 +181,9 @@ export class RubricService {
       // `sort_order` trước: mọi tiêu chí của một lần lưu chèn trong CÙNG một câu lệnh nên cùng
       // `created_at`, và khi bằng nhau thì Postgres đọc theo index nó chọn — với
       // `uq_rubric_criterion_key` là theo thứ tự key, không phải thứ tự giảng viên nhập. Rubric
-      // cũ (mọi `sort_order` = 0) rơi về `created_at`, rồi `id`: ít nhất là xác định.
-      order: { sortOrder: 'ASC', createdAt: 'ASC', id: 'ASC' },
+      // cũ (mọi `sort_order` = 0) phá hoà bằng `key`: migration `1789435000000` đánh số key theo
+      // thứ tự chèn (`tieu_chi_001`, …). KHÔNG phá hoà bằng `id` — uuid v4 là thứ tự ngẫu nhiên.
+      order: { sortOrder: 'ASC', createdAt: 'ASC', key: 'ASC' },
     });
     return {
       id: rubric.id,
