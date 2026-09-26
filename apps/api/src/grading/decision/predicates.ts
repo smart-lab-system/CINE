@@ -57,16 +57,18 @@ export function evaluatePredicate(
       seen.set(c.name, e);
     }
   }
+  // `seen` chỉ có ca của lời gọi ĐÃ biên dịch và chạy thật, nên ca fail mà không lần nào pass là
+  // bằng chứng về bài dù có lời gọi khác hỏng biên dịch — nó đứng trước mọi phán "không ổn định".
+  const solid = [...seen.values()].filter((e) => e.failedIn.size > 0 && !e.statuses.has('pass'));
+  if (solid.length > 0) {
+    return { state: 'present', toolCallIds: [...new Set(solid.flatMap((e) => [...e.failedIn]))].sort(), reason: null };
+  }
   // Review I1: biên dịch là của CẢ chương trình. Một lời gọi hỏng biên dịch mà một lời gọi khác
   // biên dịch được là hạ tầng chập chờn (quá giờ biên dịch, …), không phải bằng chứng về bài
   // (§4.5, T-DOWN-1). Chỉ khi MỌI lời gọi đều hỏng biên dịch mới là T-COMPILE-1.
   if (compileFailed.length > 0 && compiledSomewhere) return unmeasured('kết quả không ổn định giữa các lần chạy — biên dịch lúc được lúc không');
   if (compileFailed.length > 0) return { state: 'present', toolCallIds: compileFailed, reason: 'bài không biên dịch' };
 
-  const solid = [...seen.values()].filter((e) => e.failedIn.size > 0 && !e.statuses.has('pass'));
-  if (solid.length > 0) {
-    return { state: 'present', toolCallIds: [...new Set(solid.flatMap((e) => [...e.failedIn]))].sort(), reason: null };
-  }
   if ([...seen.values()].some((e) => e.failedIn.size > 0 && e.statuses.has('pass'))) {
     return unmeasured('kết quả không ổn định giữa các lần chạy');
   }

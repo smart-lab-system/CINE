@@ -65,7 +65,18 @@ describe('evaluatePredicate — test_group_failed (T-POL-3: lỗi phát hiện �
       runTestsCall('tc-1', 'trung_lap', [{ name: 'tl1', group: 'trung_lap', status: 'pass' }]),
       runTestsCall('tc-2', 'co_ban', [], { compileOk: false }),
     );
-    expect(evalOn(P, r).state).toBe('unmeasured');
+    expect(evalOn(P, r)).toMatchObject({ state: 'unmeasured', reason: expect.stringMatching(/biên dịch lúc được lúc không/) });
+  });
+
+  it('review eef17b1 I-1 — biên dịch chập chờn KHÔNG xoá ca fail thật của lần đã biên dịch → present, bằng chứng là lần đó', () => {
+    const r = run(
+      runTestsCall('tc-1', null, [], { compileOk: false }),
+      runTestsCall('tc-2', null, [
+        { name: 'cb1', group: 'co_ban', status: 'fail' }, { name: 'cb2', group: 'co_ban', status: 'pass' },
+        { name: 'tl1', group: 'trung_lap', status: 'pass' },
+      ]),
+    );
+    expect(evalOn(P, r)).toEqual({ state: 'present', toolCallIds: ['tc-2'], reason: null });
   });
 
   it('Review Focus 1 — nhóm không có trong gói test → unmeasured nêu lý do, KHÔNG phải absent', () => {

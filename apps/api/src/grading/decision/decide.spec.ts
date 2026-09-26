@@ -145,6 +145,22 @@ describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
     expect(d.caseFlags.map((f) => f.code)).toContain('criterion_untouched');
   });
 
+  it('review eef17b1 I-1 — biên dịch chập chờn + lần đã biên dịch fail cả nhóm → vẫn trừ điểm; cạn ngân sách không thành "0 phát hiện"', () => {
+    const flaky = runTestsCall('tc-3', null, [], { compileOk: false });
+    const d = decide(input({ result: resultWith({ calls: [flaky, failCoBan, read] }) }));
+    expect(d.errors.map((e) => [e.ruleKey, e.source, e.toolCallIds])).toEqual([['sai_ca_co_ban', 'deterministic', ['tc-1']]]);
+    expect(d).toMatchObject({ outcome: 'flagged', scoreHundredths: 700 });
+    expect(d.caseFlags.map((f) => f.code)).toEqual(['criterion_untouched']); // khong_xu_ly_trung: chưa ổn định
+    const budget = decide(input({ result: resultWith({ calls: [flaky, failCoBan, read], stopReason: 'max_rounds', flags: ['budget_exhausted'] }) }));
+    expect(budget).toMatchObject({ outcome: 'flagged', scoreHundredths: 700 });
+  });
+
+  it('review eef17b1 M5 — bài tự luận không có gói test: gắn cờ not_code_pipeline, KHÔNG rơi vào sàn gói test', () => {
+    const d = decide(input({ pipeline: 'one_shot', bundle: { cases: [] }, result: resultWith({ calls: [] }) }));
+    expect(d.outcome).toBe('flagged');
+    expect(d.caseFlags.map((f) => f.code)).toContain('not_code_pipeline');
+  });
+
   it('review I2 — decide() tự kiểm độ phủ gói test: không run_tests nào → ungradable, KHÔNG phải điểm tối đa', () => {
     const rules: ErrorRule[] = [{ ruleKey: 'chu_thich_sai', criterionKey: 'trinh_bay', deductionHundredths: 50, predicate: null }];
     const d = decide(input({ rules, rubric: [{ key: 'trinh_bay', maxHundredths: 1000 }], rulesSeen: [{ ruleKey: 'chu_thich_sai', checkedBy: 'model' }], result: resultWith({ calls: [read] }) }));

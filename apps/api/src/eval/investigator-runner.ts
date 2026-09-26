@@ -57,6 +57,7 @@ export async function runInvestigator(opts: {
         const result = await run(ctx, opts.deps, components);
         sandboxHost ??= hostOf(result);
         const exhausted = result.kind === 'ungradable' && result.investigation.budget.stopReason === 'models_exhausted';
+        const rulesSeen = ctx.rules.map((r) => ({ ruleKey: r.ruleKey, checkedBy: r.checkedBy }));
         // 3a: kết cục và điểm là của decide() — sàn, §4.3, giá, nguồn gốc, MỘT công thức tự quyết.
         const decision = decide({
           pipeline: 'investigator',
@@ -64,7 +65,7 @@ export async function runInvestigator(opts: {
           bundle,
           rubric: de.manifest.rubric.map((r) => ({ key: r.key, maxHundredths: parseHundredths(r.maxPoints) })),
           rules: errorRulesOf(de),
-          rulesSeen: ctx.rules.map((r) => ({ ruleKey: r.ruleKey, checkedBy: r.checkedBy })),
+          rulesSeen,
           waivedCriteria: de.manifest.waivedCriteria,
           modelCeiling: Math.min(1, ...result.investigation.modelsUsed.map((m) => opts.ceilings.get(m) ?? 0.5)),
           theta: opts.theta,
@@ -89,7 +90,9 @@ export async function runInvestigator(opts: {
           deductionBySource: decision.outcome === 'ungradable' ? null : bySource,
           // Lỗi bị loại (luật, lý do) đi kèm hồ sơ: evidence_rejected vô hại (luật không có trong bảng)
           // hay làm điểm cao oan (luật thật mất bằng chứng) chỉ đo được khi cases.jsonl mang nó.
-          investigation: { ...result.investigation, rejected: result.rejected, decision },
+          // `rulesSeen` đi kèm để quyết lại trên hồ sơ này (T-TIER) không phải dựng lại nó từ bảng lỗi
+          // HIỆN TẠI — dựng lại như vậy là mở lại lỗ review I3.
+          investigation: { ...result.investigation, rejected: result.rejected, rulesSeen, decision },
           summaryText: result.summary,
         });
       } catch (error) {

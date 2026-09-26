@@ -9,7 +9,10 @@ import { join } from 'node:path';
 describe('decision/ — phạm vi import', () => {
   it('không với tới sandbox client, model, provider, DB, Nest', () => {
     const dir = __dirname;
-    const forbidden = /sandbox\.client|model-pool|ai-provider|typeorm|@nestjs|\.entity|investigate'/;
+    const forbidden = /sandbox\.client|model-pool|ai-provider|typeorm|@nestjs|\.entity|investigator\/investigate$/;
+    // Mẫu được thử trên đường dẫn đã bỏ dấu nháy — phải bắt được đúng import vòng lặp điều tra.
+    expect(forbidden.test('../investigator/investigate')).toBe(true);
+    expect(forbidden.test('../investigator/coverage')).toBe(false);
     const offenders: string[] = [];
     for (const f of readdirSync(dir).filter((n) => n.endsWith('.ts') && !n.endsWith('.spec.ts'))) {
       const src = readFileSync(join(dir, f), 'utf8');

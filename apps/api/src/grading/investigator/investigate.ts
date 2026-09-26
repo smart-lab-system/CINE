@@ -9,7 +9,7 @@ import {
 import { renderSummary } from './summary';
 import { programProblem, SandboxPort, ToolRunner } from './tools';
 import {
-  BundleCase, InvestigationContext, InvestigationFlag, InvestigationResult, StopReason, StructuredResult, ToolCall,
+  InvestigationContext, InvestigationFlag, InvestigationResult, StopReason, StructuredResult, ToolCall,
   ToolCallStatus, ToolName, Verdict,
 } from './types';
 import { uncoveredCases } from './coverage';

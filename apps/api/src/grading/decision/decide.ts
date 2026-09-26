@@ -32,18 +32,26 @@ export function decide(input: DecisionInput): Decision {
   }
 
   // Review I2: sàn của gói test — tự kiểm, không dựa vào việc investigate() đã chặn. decide() được
-  // gọi lại trên hồ sơ đã lưu (T-TIER-1/2) và từ pipeline thật (3d).
-  if (input.bundle.cases.length === 0) {
-    return { outcome: 'ungradable', ungradable: { class: 'system', reason: 'gói test rỗng — không có thước nào để chạy (§4.4)' }, ...none };
-  }
-  const missing = uncoveredCases(input.bundle.cases, result.investigation.toolCalls, result.investigation.structuredResults);
-  if (missing.length > 0) {
-    const groups = [...new Set(missing.map((c) => c.group))].join(', ');
-    return {
-      outcome: 'ungradable',
-      ungradable: { class: 'system', reason: `gói test chưa chạy đủ: ${missing.length}/${input.bundle.cases.length} ca chưa có kết quả (nhóm ${groups}) (§4.4)` },
-      ...none,
-    };
+  // gọi lại trên hồ sơ đã lưu (T-TIER-1/2) và từ pipeline thật (3d). Bài tự luận không có gói
+  // test: nó luôn về giảng viên (`not_code_pipeline`), không rơi xuống sàn này.
+  if (input.pipeline === 'investigator') {
+    if (input.bundle.cases.length === 0) {
+      return { outcome: 'ungradable', ungradable: { class: 'system', reason: 'gói test rỗng — không có thước nào để chạy (§4.4)' }, ...none };
+    }
+    const missing = uncoveredCases(input.bundle.cases, result.investigation.toolCalls, result.investigation.structuredResults);
+    if (missing.length > 0) {
+      const groups = [...new Set(missing.map((c) => c.group))].join(', ');
+      return {
+        outcome: 'ungradable',
+        ungradable: {
+          class: 'system',
+          reason:
+            `gói test chưa chạy đủ: ${missing.length}/${input.bundle.cases.length} ca chưa có kết quả (nhóm ${groups}) — ` +
+            '"không có gì để trừ" không phải "không có gì sai" (§4.4)',
+        },
+        ...none,
+      };
+    }
   }
 
   const diagnosis = diagnose({ rules, bundle: input.bundle, result });
