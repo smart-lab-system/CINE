@@ -2,7 +2,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_BUDGET } from '../grading/investigator/budget';
-import { InvestigationResult } from '../grading/investigator/types';
+import { InvestigationContext, InvestigationResult } from '../grading/investigator/types';
 import { runInvestigator } from './investigator-runner';
 import { loadDataset } from './load-dataset';
 import { writeMiniDe } from './testing/mini-de';
@@ -104,14 +104,22 @@ describe('runInvestigator', () => {
 
   it('review — hồ sơ ghi lỗi bị loại (luật, lý do): đo được evidence_rejected vô hại hay làm điểm cao oan', async () => {
     const { dataset, bundles } = await setup();
+    let rules: InvestigationContext['rules'] = [];
     const { records } = await runInvestigator({
       dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET, ...opts3a,
       deps: { models: [], sandbox: { exec: async () => { throw new Error('x'); } } },
-      investigateFn: async () => result({ rejected: [{ ruleKey: 'sai_co_ban', reason: 'fabricated_tool_call' }], flags: ['evidence_rejected'] }),
+      investigateFn: async (ctx) => {
+        rules = ctx.rules;
+        return result({ rejected: [{ ruleKey: 'sai_co_ban', reason: 'fabricated_tool_call' }], flags: ['evidence_rejected'] });
+      },
     });
     const r = records.find((x) => x.group !== 5)!;
     expect(r.flags).toContain('evidence_rejected');
     expect((r.investigation as { rejected: unknown }).rejected).toEqual([{ ruleKey: 'sai_co_ban', reason: 'fabricated_tool_call' }]);
+    // Review 4d5b60b: bảng lỗi model đã xem đi kèm hồ sơ — quyết lại (T-TIER) không được dựng lại nó
+    // từ bảng lỗi hiện tại (review I3).
+    expect(rules.length).toBeGreaterThan(0);
+    expect((r.investigation as { rulesSeen: unknown }).rulesSeen).toEqual(rules.map((x) => ({ ruleKey: x.ruleKey, checkedBy: x.checkedBy })));
   });
 
   it('T-EVAL-6 — lượt của ca nhóm 5 không mang investigation hay tóm tắt', async () => {
