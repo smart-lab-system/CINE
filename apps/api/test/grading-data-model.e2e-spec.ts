@@ -203,6 +203,152 @@ describe('Mô hình dữ liệu §14 (e2e)', () => {
     });
   });
 
+  describe('lượt chấm (grading_attempt)', () => {
+    async function attempt(resultId: string, teacherId: string, no = 1) {
+      const [a] = await ds.query(
+        `INSERT INTO examcollect.grading_attempt (grading_result_id, attempt_no, triggered_by, investigation)
+         VALUES ($1, $2, $3, '{"toolCalls":[]}') RETURNING id`,
+        [resultId, no, teacherId],
+      );
+      return a.id as string;
+    }
+
+    it('lượt đang chạy thì còn ghi được', async () => {
+      const ctx = await seedSession(ds, 'att-open');
+      const { resultId } = await seedResult(ds, ctx);
+      const id = await attempt(resultId, ctx.teacherId);
+      await ds.query(`UPDATE examcollect.grading_attempt SET investigation = '{"toolCalls":[1]}' WHERE id = $1`, [id]);
+    });
+
+    it('T-IMM-1: lượt đã ghi kết cục → investigation không sửa được, KỂ CẢ khi bài chưa có điểm', async () => {
+      const ctx = await seedSession(ds, 'att-imm');
+      const { resultId } = await seedResult(ds, ctx);
+      const id = await attempt(resultId, ctx.teacherId);
+      await ds.query(
+        `UPDATE examcollect.grading_attempt
+            SET outcome = 'ungradable', ungradable_class = 'system', ungradable_reason = 'sandbox chết', finished_at = now()
+          WHERE id = $1`,
+        [id],
+      );
+      await expect(ds.query(`UPDATE examcollect.grading_attempt SET investigation = '{}' WHERE id = $1`, [id])).rejects.toThrow(/bất biến/);
+      await expect(ds.query(`DELETE FROM examcollect.grading_attempt WHERE id = $1`, [id])).rejects.toThrow(/không xoá/);
+    });
+
+    it('kết cục và thời điểm kết thúc đi cùng nhau; ungradable phải có lớp và lời kể', async () => {
+      const ctx = await seedSession(ds, 'att-ck');
+      const { resultId } = await seedResult(ds, ctx);
+      const id = await attempt(resultId, ctx.teacherId);
+      await expect(ds.query(`UPDATE examcollect.grading_attempt SET outcome = 'graded' WHERE id = $1`, [id])).rejects.toThrow(/ck_grading_attempt_outcome_finished/);
+      await expect(ds.query(`UPDATE examcollect.grading_attempt SET outcome = 'ungradable', finished_at = now() WHERE id = $1`, [id]))
+        .rejects.toThrow(/ck_grading_attempt_ungradable/);
+    });
+
+    it('lượt hiện hành của một kết quả phải là lượt CỦA kết quả đó', async () => {
+      const ctx = await seedSession(ds, 'att-cur');
+      const a = await seedResult(ds, ctx);
+      const b = await seedResult(ds, ctx);
+      const other = await attempt(b.resultId, ctx.teacherId);
+      await expect(ds.query(`UPDATE examcollect.grading_result SET current_attempt_id = $2 WHERE id = $1`, [a.resultId, other]))
+        .rejects.toThrow(/fk_grading_result_current_attempt/);
+    });
+  });
+
+  describe('gói test, lượt tính điểm, đánh dấu tiêu chí, kiểm mẫu', () => {
+    async function bundle(ctx: { sessionId: string; teacherId: string }, version = 1) {
+      const [b] = await ds.query(
+        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
+         VALUES ($1, $2, 'teacher', $3) RETURNING id`,
+        [ctx.sessionId, version, ctx.teacherId],
+      );
+      return b.id as string;
+    }
+
+    it('một phiên có nhiều phiên bản gói test, không trùng số phiên bản', async () => {
+      const ctx = await seedSession(ds, 'bundle-v');
+      await bundle(ctx, 1);
+      await bundle(ctx, 2);
+      await expect(bundle(ctx, 2)).rejects.toThrow(/uq_grading_test_bundle_version/);
+    });
+
+    it('ca test là chỉ-thêm; bỏ ca là phiên bản gói mới', async () => {
+      const ctx = await seedSession(ds, 'bundle-case');
+      const b = await bundle(ctx);
+      const [c] = await ds.query(
+        `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output)
+         VALUES ($1, 'c1', 'co_ban', '1', '1') RETURNING id`,
+        [b],
+      );
+      await expect(ds.query(`UPDATE examcollect.grading_test_case SET expected_output = '2' WHERE id = $1`, [c.id])).rejects.toThrow(/chỉ thêm/);
+    });
+
+    it('duyệt gói: chỉ ghi được MỘT lần, và nội dung gói không đổi sau khi tạo', async () => {
+      const ctx = await seedSession(ds, 'bundle-approve');
+      const b = await bundle(ctx);
+      await ds.query(`UPDATE examcollect.grading_test_bundle SET approved_by = $2, approved_at = now() WHERE id = $1`, [b, ctx.teacherId]);
+      await expect(ds.query(`UPDATE examcollect.grading_test_bundle SET approved_at = now() WHERE id = $1`, [b])).rejects.toThrow(/Gói test/);
+      await expect(ds.query(`UPDATE examcollect.grading_test_bundle SET origin = 'generated' WHERE id = $1`, [b])).rejects.toThrow(/Gói test/);
+    });
+
+    it('phiên chỉ ghim được gói test của chính nó', async () => {
+      const a = await seedSession(ds, 'bundle-pin-a');
+      const b = await seedSession(ds, 'bundle-pin-b');
+      const foreign = await bundle(b);
+      await expect(ds.query(`UPDATE examcollect.exam_session SET test_bundle_id = $2 WHERE id = $1`, [a.sessionId, foreign]))
+        .rejects.toThrow(/fk_exam_session_test_bundle/);
+    });
+
+    it('lượt tính điểm là chỉ-thêm, và phải trỏ một lượt chấm của CHÍNH kết quả đó', async () => {
+      const ctx = await seedSession(ds, 'score');
+      const { resultId } = await seedResult(ds, ctx);
+      const other = await seedResult(ds, ctx);
+      const [att] = await ds.query(
+        `INSERT INTO examcollect.grading_attempt (grading_result_id, attempt_no, triggered_by) VALUES ($1, 1, $2) RETURNING id`,
+        [other.resultId, ctx.teacherId],
+      );
+      await expect(ds.query(
+        `INSERT INTO examcollect.score_computation (grading_result_id, attempt_id, rubric_id_version, reason, score, breakdown)
+         VALUES ($1, $2, $3, 'initial', 7, '{}')`,
+        [resultId, att.id, ctx.rubricId],
+      )).rejects.toThrow(/fk_score_computation_attempt/);
+
+      const [own] = await ds.query(
+        `INSERT INTO examcollect.grading_attempt (grading_result_id, attempt_no, triggered_by) VALUES ($1, 1, $2) RETURNING id`,
+        [resultId, ctx.teacherId],
+      );
+      const [sc] = await ds.query(
+        `INSERT INTO examcollect.score_computation (grading_result_id, attempt_id, rubric_id_version, reason, score, breakdown)
+         VALUES ($1, $2, $3, 'initial', 7, '{}') RETURNING id`,
+        [resultId, own.id, ctx.rubricId],
+      );
+      await expect(ds.query(`UPDATE examcollect.score_computation SET score = 9 WHERE id = $1`, [sc.id])).rejects.toThrow(/chỉ thêm/);
+    });
+
+    it('T-WAIVER-1 (phần DB): đánh dấu "không có luật trừ" khi rubric đã có kết quả chấm — ghi được, không đụng trigger đóng băng tiêu chí', async () => {
+      const ctx = await seedSession(ds, 'waiver');
+      await seedCriterion(ds, ctx.rubricId, 'hieu_nang');
+      await seedResult(ds, ctx); // rubric này giờ đã được một kết quả trỏ tới
+      await ds.query(
+        `INSERT INTO examcollect.criterion_waiver (rubric_id, criterion_key, set_by) VALUES ($1, 'hieu_nang', $2)`,
+        [ctx.rubricId, ctx.teacherId],
+      );
+      await expect(ds.query(
+        `INSERT INTO examcollect.criterion_waiver (rubric_id, criterion_key, set_by) VALUES ($1, 'hieu_nang', $2)`,
+        [ctx.rubricId, ctx.teacherId],
+      )).rejects.toThrow(/uq_criterion_waiver_active/);
+      await expect(ds.query(
+        `INSERT INTO examcollect.criterion_waiver (rubric_id, criterion_key, set_by) VALUES ($1, 'khong_co', $2)`,
+        [ctx.rubricId, ctx.teacherId],
+      )).rejects.toThrow(/fk_criterion_waiver_criterion/);
+    });
+
+    it('nhận xét kiểm mẫu ghi rồi thì khoá (§8.1)', async () => {
+      const ctx = await seedSession(ds, 'audit');
+      const { resultId } = await seedResult(ds, ctx);
+      await ds.query(`INSERT INTO examcollect.audit_sample_review (grading_result_id, teacher_id) VALUES ($1, $2)`, [resultId, ctx.teacherId]);
+      await expect(ds.query(`UPDATE examcollect.audit_sample_review SET extra_errors = '{x}' WHERE grading_result_id = $1`, [resultId])).rejects.toThrow(/chỉ thêm/);
+    });
+  });
+
   it('exam_session: mỗi phiên có grading_seed riêng từ lúc tạo (§8.1)', async () => {
     const a = await seedSession(ds, 'dm-seed-a');
     const b = await seedSession(ds, 'dm-seed-b');

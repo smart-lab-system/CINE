@@ -24,3 +24,13 @@ export const ERROR_RULE_STATES = ['proposed', 'active', 'dismissed', 'retired'] 
 export type ErrorRuleState = (typeof ERROR_RULE_STATES)[number];
 export const ERROR_RULE_ORIGINS = ['teacher', 'seed', 'agent_reported'] as const;
 export type ErrorRuleOrigin = (typeof ERROR_RULE_ORIGINS)[number];
+
+export const ATTEMPT_OUTCOMES = ['graded', 'ungradable'] as const;
+export type AttemptOutcome = (typeof ATTEMPT_OUTCOMES)[number];
+export const TEST_BUNDLE_ORIGINS = ['teacher', 'from_model_answer', 'generated'] as const;
+export type TestBundleOrigin = (typeof TEST_BUNDLE_ORIGINS)[number];
+export const SCORE_COMPUTATION_REASONS = [
+  'initial', 'price_change', 'rule_revision', 'tier2_rule', 'tier3_rule',
+  'case_dropped', 'error_exception', 'finalized_reapply',
+] as const;
+export type ScoreComputationReason = (typeof SCORE_COMPUTATION_REASONS)[number];
