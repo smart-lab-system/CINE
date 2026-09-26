@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { RubricService } from '../src/grading/rubric.service';
 import { scoreResult, seedCriterion, seedResult, seedSession, seedTeacher } from './helpers/grading-seed';
 
 /** Mô hình dữ liệu §14.1 ở tầng DB: cột, ràng buộc, dữ liệu cũ. Bảng mới thêm ở task sau. */
@@ -107,6 +108,21 @@ describe('Mô hình dữ liệu §14 (e2e)', () => {
         `SELECT tgenabled FROM pg_trigger WHERE tgname = 'trg_rubric_criterion_guard_immutable'`,
       );
       expect(row.tgenabled).toBe('O');
+    });
+
+    it('rubric trả tiêu chí ĐÚNG thứ tự giảng viên nhập — không theo thứ tự key hay thứ tự đọc của DB', async () => {
+      // Mọi tiêu chí của một lần lưu chèn trong CÙNG một câu lệnh, nên cùng `created_at`: sắp theo
+      // đó là thứ tự không xác định, và index `uq_rubric_criterion_key` làm Postgres đọc theo key.
+      const teacherId = await seedTeacher(ds, 'rubric-order');
+      const view = await app.get(RubricService).saveNewVersion(teacherId, {
+        name: `Thứ tự ${Date.now().toString(36)}`,
+        criteria: [
+          { description: 'Mô tả cơ chế bù trừ', maxPoints: 4 },
+          { description: 'Dẫn ví dụ cụ thể', maxPoints: 3 },
+          { description: 'Trình bày', maxPoints: 2 },
+        ],
+      });
+      expect(view.criteria.map((c) => c.maxPoints)).toEqual([4, 3, 2]);
     });
 
     it('key trùng trong một rubric bị từ chối', async () => {

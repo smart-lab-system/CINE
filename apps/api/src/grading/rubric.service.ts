@@ -178,7 +178,11 @@ export class RubricService {
   ): Promise<RubricView> {
     const criteria = await repo.find({
       where: { rubricId: rubric.id },
-      order: { createdAt: 'ASC' },
+      // `sort_order` trước: mọi tiêu chí của một lần lưu chèn trong CÙNG một câu lệnh nên cùng
+      // `created_at`, và khi bằng nhau thì Postgres đọc theo index nó chọn — với
+      // `uq_rubric_criterion_key` là theo thứ tự key, không phải thứ tự giảng viên nhập. Rubric
+      // cũ (mọi `sort_order` = 0) rơi về `created_at`, rồi `id`: ít nhất là xác định.
+      order: { sortOrder: 'ASC', createdAt: 'ASC', id: 'ASC' },
     });
     return {
       id: rubric.id,

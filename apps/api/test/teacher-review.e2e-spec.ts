@@ -137,9 +137,9 @@ describe('TeacherReview (e2e)', () => {
   /**
    * Một kết quả chấm ở đúng trạng thái muốn có, dựng bằng đường HỢP PHÁP.
    *
-   * `validate_grading_result_lifecycle` từ chối MỌI transition đi ngược
-   * ("Invalid grading result status transition: flagged_for_review ->
-   * ai_grading"), nên không thể lùi một kết quả đã chấm về trạng thái sớm hơn.
+   * `validate_grading_result_lifecycle` từ chối transition đi ngược
+   * ("Invalid grading result status transition: teacher_reviewed ->
+   * ai_graded"), nên không thể lùi một kết quả đã chấm về trạng thái sớm hơn.
    * Cách đúng là INSERT mới — trigger cho phép đúng một giá trị lúc INSERT là
    * `ai_grading` — rồi đi tiến từng bước theo đúng bản đồ:
    *
