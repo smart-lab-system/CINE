@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { forceStatus } from './helpers/grading-seed';
 import { ExamMaterialService } from '../src/exam-session/exam-material.service';
 import { ExamSessionEntity } from '../src/exam-session/entities/exam-session.entity';
 
@@ -102,8 +103,8 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     };
   }
 
-  /** Một dòng `grading_result` để kích hoạt luật đóng băng. */
-  async function seedGradingResult(session: Seeded): Promise<void> {
+  /** Một dòng `grading_result` ở `ai_grading` — đang chấm, nên kích hoạt luật đóng băng. */
+  async function seedGradingResult(session: Seeded): Promise<string> {
     const mssv = `REF${seedCursor}${Date.now() % 100000}`.slice(0, 20);
     const [submission] = await dataSource.query(
       `INSERT INTO examcollect.submission
@@ -124,12 +125,13 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
        VALUES ($2, $3, $1) RETURNING id`,
       [`${courseName} ${RUBRIC_STAMP}`, rubricVersionCursor, teacherId],
     );
-    await dataSource.query(
+    const [result] = await dataSource.query(
       `INSERT INTO examcollect.grading_result
          (submission_id, rubric_id_version, grading_triggered_by, status)
-       VALUES ($1, $2, $3, 'ai_grading')`,
+       VALUES ($1, $2, $3, 'ai_grading') RETURNING id`,
       [submission.id, rubric.id, teacherId],
     );
+    return result.id;
   }
 
   function setReference(sessionId: string, body: object, token = teacherToken) {
@@ -205,9 +207,11 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     expect(blob).toContain('DeThi.pdf');
   });
 
-  it('T-FREEZE-1: sửa tài liệu sau khi đã chấm trả 409', async () => {
+  it('T-FREEZE-1: phiên có bài đang chấm → sửa tài liệu trả 409 (§2.3 luật 6)', async () => {
     // Cùng luật với `setSessionRubric`: 20 bài đầu chấm có đáp án mẫu, 20
     // bài sau chấm với đáp án đã sửa, là hai kỳ thi khác nhau đội lốt một.
+    // Một bài ĐANG CHẤM đã là khoá: lô đang chạy mà chưa bài nào ra điểm thì
+    // sửa thước vẫn là hai thước trong một phiên.
     const session = await seedSession();
     await setReference(session.id, { modelAnswerNote: 'ghi chú ban đầu' }).expect(200);
 
@@ -215,7 +219,21 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
 
     const res = await setReference(session.id, { modelAnswerNote: 'đổi giữa chừng' });
     expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/đã có kết quả chấm/i);
+    expect(res.body.message).toMatch(/mang điểm hoặc đang chấm/i);
+  });
+
+  it('T-FREEZE-3 (qua route): phiên chỉ có bài không chấm được → sửa tài liệu ĐƯỢC', async () => {
+    // Luật cũ (*"có một dòng kết quả là khoá"*) làm một lần sandbox sập kẹt cả phiên: bài không
+    // chấm được chưa bị đo bằng thước nào, nên sửa thước lúc này không đẻ ra hai kỳ thi.
+    const session = await seedSession();
+    await setReference(session.id, { modelAnswerNote: 'ghi chú ban đầu' }).expect(200);
+
+    const resultId = await seedGradingResult(session);
+    await forceStatus(dataSource, resultId, 'flagged_for_review', {
+      ungradable_class: 'system', ungradable_reason: 'sandbox chết', confidence: 0,
+    });
+
+    await setReference(session.id, { modelAnswerNote: 'sửa thước sau lượt hỏng' }).expect(200);
   });
 
   it('T-DEGRADE-1: chưa có tài liệu thì readiness trả mức 1, KÈM cảnh báo', async () => {

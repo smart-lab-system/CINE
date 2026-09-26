@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { GradeSubmissionJob } from './grading.queue';
 import { GradingResultEntity } from './entities/grading-result.entity';
 import { GradingAttemptEntity } from './entities/grading-attempt.entity';
+import { isGradingLocked } from './grading-lock';
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { StorageService } from '../storage/storage.service';
@@ -586,7 +587,7 @@ export class GradingService {
   }
 
   /**
-   * Has anything in this session been graded yet.
+   * Luật đóng băng của phiên (§2.3 luật 6) — định nghĩa ở `grading-lock.ts`, một chỗ.
    *
    * Deliberately NOT `RubricService.hasResults(rubricId)` — that counts
    * results for a rubric VERSION across the whole system, and the question
@@ -594,16 +595,12 @@ export class GradingService {
    * the wrong one answer true.
    *
    * This is what closes the window on changing a session's rubric: once a
-   * result cites a version, swapping the rubric rewrites grading history.
+   * result carries a score, or is being graded, swapping the rubric rewrites
+   * grading history. A session whose every result is an ungradable one that
+   * has stopped has no score to rewrite, so it opens again.
    */
-  async hasResultsForSession(examSessionId: string): Promise<boolean> {
-    const count = await this.results
-      .createQueryBuilder('g')
-      .innerJoin('submission', 's', 's.id = g.submission_id')
-      .where('s.exam_session_id = :id', { id: examSessionId })
-      .limit(1)
-      .getCount();
-    return count > 0;
+  async isGradingLocked(examSessionId: string): Promise<boolean> {
+    return isGradingLocked(this.results.manager, examSessionId);
   }
 
   /**

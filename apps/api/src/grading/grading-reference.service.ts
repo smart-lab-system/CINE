@@ -8,6 +8,7 @@ import { GradingReferenceEntity } from './entities/grading-reference.entity';
 import { GradingResultEntity } from './entities/grading-result.entity';
 import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
 import type { ModelAnswerOrigin } from './grading-model.types';
+import { GRADING_LOCKED_MESSAGE, isGradingLocked } from './grading-lock';
 
 /**
  * Ba mức ngữ cảnh mà hệ thống có thể chấm với.
@@ -156,33 +157,26 @@ export class GradingReferenceService {
   }
 
   /**
-   * Đóng băng khi đã chấm — cùng luật với `setSessionRubric`.
+   * Đóng băng khi đã chấm — cùng luật với `setSessionRubric`, spec §2.3 luật 6.
    *
    * 20 bài đầu chấm có đáp án mẫu, 20 bài sau chấm với đáp án đã sửa, là
-   * hai kỳ thi khác nhau đội lốt một. Tái dùng `hasResultsForSession` thay
-   * vì dựng một cột version: không có version thì không có gì để lệch.
+   * hai kỳ thi khác nhau đội lốt một. Khoá khi phiên có bài MANG ĐIỂM hoặc
+   * ĐANG CHẤM; phiên mà mọi kết quả là bài không chấm được đã dừng thì mở
+   * lại, vì chưa bài nào bị đo bằng thước cũ — trước luật này, có một dòng
+   * kết quả là khoá, và một lần sandbox sập làm cả phiên kẹt vĩnh viễn.
    */
   private async assertNotGradedYet(session: ExamSessionEntity): Promise<void> {
-    // Hỏi thẳng DB thay vì gọi `GradingService.hasResultsForSession`.
-    //
-    // Không phải vì trùng lặp không quan trọng, mà vì chiều ngược lại đã
-    // tồn tại: `GradingService.gradeOne` gọi `loadForGrading` của file
-    // này. Hai service cùng module import nhau là phụ thuộc vòng, thứ
-    // CLAUDE.md cấm thẳng — và dưới CommonJS nó không nổ, nó chỉ cho ra
-    // `undefined` ở một chỗ không ai ngờ.
+    // Gọi `isGradingLocked` (hàm tự do) thay vì `GradingService`: chiều ngược lại đã
+    // tồn tại — `GradingService.gradeOne` gọi `loadForGrading` của file này. Hai
+    // service cùng module import nhau là phụ thuộc vòng, thứ CLAUDE.md cấm thẳng —
+    // và dưới CommonJS nó không nổ, nó chỉ cho ra `undefined` ở một chỗ không ai ngờ.
     //
     // Đặt guard ở SERVICE chứ không ở controller, dù controller có tiền
     // lệ (`setSessionRubric`): guard ở controller là guard mà đường gọi
     // tương lai đi vòng qua được.
-    const graded = await this.results
-      .createQueryBuilder('g')
-      .innerJoin('submission', 's', 's.id = g.submission_id')
-      .where('s.exam_session_id = :id', { id: session.id })
-      .limit(1)
-      .getCount();
-    if (graded > 0) {
+    if (await isGradingLocked(this.results.manager, session.id)) {
       throw new ConflictException(
-        'Phiên thi này đã có kết quả chấm — không đổi được tài liệu tham chiếu nữa.',
+        `${GRADING_LOCKED_MESSAGE} — không đổi được tài liệu tham chiếu nữa.`,
       );
     }
   }

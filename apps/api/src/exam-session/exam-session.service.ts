@@ -267,8 +267,8 @@ export class ExamSessionService {
    * Writes a rubric onto an already-created session.
    *
    * The caller has already proved two things this method does not re-check:
-   * that they own the session (findEntityForOwner) and that nothing has been
-   * graded yet (GradingService.hasResultsForSession). Both live in the
+   * that they own the session (findEntityForOwner) and that grading has not
+   * locked it (GradingService.isGradingLocked, spec §2.3 luật 6). Both live in the
    * controller because the second one belongs to the grading module, and
    * pulling it in here would invert the module dependency.
    *
