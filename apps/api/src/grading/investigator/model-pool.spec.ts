@@ -10,6 +10,7 @@ function tier(label: string, script: (string | Error)[]): ModelTier & { calls: n
   return {
     label,
     model: `${label}-model`,
+    ceiling: 0.5,
     calls: 0,
     async call() {
       const next = script[Math.min(this.calls++, script.length - 1)];
@@ -79,7 +80,7 @@ describe('ModelPool — xoay bậc ở tầng vòng lặp (§7.3)', () => {
 
   it('review M2 — hết giờ giữa lúc xoay bậc: DeadlineExceededError cũng mang lượt xoay đã có', async () => {
     let t = 0;
-    const dead: ModelTier = { label: 'A', model: 'A', async call() { t += 5_000; throw httpProviderError(403, undefined, 'x'); } };
+    const dead: ModelTier = { label: 'A', model: 'A', ceiling: 0.5, async call() { t += 5_000; throw httpProviderError(403, undefined, 'x'); } };
     const error = (await new ModelPool([dead, tier('B', ['OK'])], { sleep: noSleep })
       .ask(REQ, parse, { deadline: 5_500, now: () => t })
       .catch((e: unknown) => e)) as DeadlineExceededError;
@@ -111,6 +112,7 @@ describe('ModelPool — xoay bậc ở tầng vòng lặp (§7.3)', () => {
     const hang = (label: string): ModelTier => ({
       label,
       model: label,
+      ceiling: 0.5,
       async call(req) {
         timeouts.push(req.timeoutMs!);
         t += req.timeoutMs!;

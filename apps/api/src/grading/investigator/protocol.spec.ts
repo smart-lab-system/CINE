@@ -92,6 +92,14 @@ describe('giao thức một lượt', () => {
     expect(parseReply('{"action":"call","calls":[{"tool":"read_file","path":null}],"verdict":null}')?.action).toBe('call');
   });
 
+  it('lượt kết luận kèm calls thừa SAI KHUÔN vẫn đọc được — calls của lượt kết luận không ai dùng', () => {
+    const reply = parseReply(
+      '{"action":"final","calls":[{"tool":"run"}],"verdict":{"errors":[],"missingRules":[],' +
+        '"injectionAttempt":{"detected":false,"excerpt":null}}}',
+    );
+    expect(reply?.action).toBe('final');
+  });
+
   it('review — missingRules trích tc-N (đúng như prompt dạy) KHÔNG làm hỏng cả lượt; chỉ errors mới bị chặn chỗ giữ chỗ', () => {
     const reply = parseReply(
       '{"action":"final","calls":[],"verdict":{"errors":[{"ruleKey":"sai_ca_co_ban","toolCallIds":["tc-1"],"note":null}],' +
@@ -123,7 +131,7 @@ describe('giao thức một lượt', () => {
 
   it('model cứ chép nguyên mẫu kết luận → bậc bị loại vì output hỏng; KHÔNG thành điểm tối đa', async () => {
     const model = {
-      label: 'A', model: 'A',
+      label: 'A', model: 'A', ceiling: 0.5,
       calls: 0,
       async call() {
         return { content: this.calls++ === 0 ? EXAMPLE_CALL_REPLY : EXAMPLE_FINAL_REPLY, usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreationTokens: 0 } };

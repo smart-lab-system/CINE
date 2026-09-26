@@ -53,6 +53,8 @@ export const manifestSchema = z.object({
     }),
   ),
   cases: z.array(manifestCase).min(1),
+  /** Tiêu chí giảng viên đánh dấu *"không có luật trừ"* (§4.2, T-FLOOR-6). Mặc định rỗng. */
+  waivedCriteria: z.array(z.string()).default([]),
 });
 export type Manifest = z.infer<typeof manifestSchema>;
 export type ManifestCase = z.infer<typeof manifestCase>;

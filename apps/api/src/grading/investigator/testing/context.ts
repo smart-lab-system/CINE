@@ -19,8 +19,8 @@ export const CTX: InvestigationContext = {
   },
   modelAnswerAvailable: true,
   rules: [
-    { ruleKey: 'sai_ca_co_ban', title: 'Sai ca cơ bản', criterionKey: 'tinh_dung', priced: true, hasPredicate: true },
-    { ruleKey: 'chu_thich_sai', title: 'Chú thích sai', criterionKey: 'trinh_bay', priced: false, hasPredicate: false },
+    { ruleKey: 'sai_ca_co_ban', title: 'Sai ca cơ bản', criterionKey: 'tinh_dung', priced: true, checkedBy: 'machine', machineNote: 'nhóm test co_ban' },
+    { ruleKey: 'chu_thich_sai', title: 'Chú thích sai', criterionKey: 'trinh_bay', priced: false, checkedBy: 'model', machineNote: null },
   ],
   budget: DEFAULT_BUDGET,
 };

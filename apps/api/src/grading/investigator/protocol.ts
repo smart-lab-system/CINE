@@ -144,8 +144,9 @@ const verdictSchema = z.object({
 });
 const replySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), verdict: z.null() }),
-  // `calls` của lượt kết luận bị bỏ qua — model hay trả kèm một mảng thừa.
-  z.object({ action: z.literal('final'), calls: z.array(callSchema), verdict: verdictSchema }),
+  // `calls` của lượt kết luận bị bỏ qua — model hay trả kèm một mảng thừa, và một phần tử sai
+  // khuôn trong mảng thừa đó không được vứt một verdict hợp lệ (review b0bd340).
+  z.object({ action: z.literal('final'), calls: z.array(z.unknown()), verdict: verdictSchema }),
 ]);
 export type ModelReply = z.infer<typeof replySchema>;
 export type ModelCall = z.infer<typeof callSchema>;

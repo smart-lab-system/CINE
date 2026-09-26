@@ -36,3 +36,19 @@ describe('workspace ảo — §2.1 (bảng lỗi là FILE, không nhét vào pro
     expect(Workspace.fromContext(CTX).read('../bang-loi.md')).toBeNull();
   });
 });
+
+describe('bang-loi.md — §4.1 luật 2', () => {
+  it('luật máy kiểm ở mục riêng "KHÔNG đề xuất"; luật model phán đoán ở mục thường; luật chưa đo được có ghi chú', () => {
+    const text = renderRulesFile([
+      { ruleKey: 'sai_ca_co_ban', title: 'Sai ca cơ bản', criterionKey: 'tinh_dung', priced: true, checkedBy: 'machine', machineNote: 'nhóm test co_ban' },
+      { ruleKey: 'do_phuc_tap', title: 'Độ phức tạp vượt yêu cầu', criterionKey: 'hieu_nang', priced: true, checkedBy: 'model', machineNote: 'máy chưa đo được — bạn phán đoán' },
+      { ruleKey: 'chu_thich_sai', title: 'Chú thích sai', criterionKey: 'trinh_bay', priced: false, checkedBy: 'model', machineNote: null },
+    ]);
+    const [modelPart, machinePart] = text.split('# Luật máy kiểm');
+    expect(machinePart).toMatch(/KHÔNG đề xuất/);
+    expect(machinePart).toContain('sai_ca_co_ban');
+    expect(modelPart).not.toContain('sai_ca_co_ban');
+    expect(modelPart).toMatch(/do_phuc_tap .*máy chưa đo được/);
+    expect(modelPart).toMatch(/chu_thich_sai .*\[chưa có giá\]/);
+  });
+});

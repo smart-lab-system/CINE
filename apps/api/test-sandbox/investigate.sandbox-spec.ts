@@ -22,7 +22,7 @@ const sandbox: SandboxPort = {
 const USAGE = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreationTokens: 0 };
 const scripted = (replies: object[]): ModelTier => {
   let i = 0;
-  return { label: 'kịch bản', model: 'kịch-bản', call: async () => ({ content: JSON.stringify(replies[Math.min(i++, replies.length - 1)]), usage: USAGE }) };
+  return { label: 'kịch bản', model: 'kịch-bản', ceiling: 0.5, call: async () => ({ content: JSON.stringify(replies[Math.min(i++, replies.length - 1)]), usage: USAGE }) };
 };
 const runTests = { action: 'call', calls: [{ tool: 'run_tests', input: null, group: null, path: null, fromLine: null, toLine: null }], verdict: null };
 const final = (ruleKeys: string[], injection = false) => ({

@@ -6,7 +6,7 @@ function rec(caseId: string, attempt: number, over: Partial<CaseRecord>): CaseRe
     de: 'd', caseId, group: 1, attempt, pipeline: 'investigator', status: 'ok', error: null, outcome: 'graded',
     scoreHundredths: 900, expectedOutcome: 'graded', expectedScoreHundredths: 900, expectedRuleIds: [], foundRuleIds: [],
     violation: null, modelUsed: 'm', tokensIn: 0, tokensOut: 0, wallMs: 0, toolCalls: 0, stopReason: 'verdict', flags: [],
-    investigation: null, summaryText: null, ...over,
+    investigation: null, summaryText: null, deductionBySource: null, ...over,
   };
 }
 const cases = (n: number, over: (i: number) => Partial<CaseRecord>) => Array.from({ length: n }, (_, i) => rec(`c${i}`, 1, over(i)));

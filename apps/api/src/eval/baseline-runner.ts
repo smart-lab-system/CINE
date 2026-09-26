@@ -73,6 +73,7 @@ export async function runBaseline(opts: {
       flags: [],
       investigation: null,
       summaryText: null,
+      deductionBySource: null,
     };
     const started = Date.now();
     try {

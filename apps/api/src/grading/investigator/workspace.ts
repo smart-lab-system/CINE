@@ -20,15 +20,22 @@ export function normalizePath(raw: string): string | null {
 /**
  * Bảng lỗi thành FILE (§2.1): tiền tố prompt đứng yên, cache vẫn chạy, bảng lớn bao nhiêu
  * cũng được. Model thấy `rule_key`, không bao giờ thấy uuid (§2.1, bước 3 mới có uuid).
+ * Luật máy kiểm được đứng ở mục riêng, kèm lời dặn KHÔNG đề xuất (§4.1 luật 2): code quyết
+ * chúng từ `run_tests`, và đề xuất của model cho chúng bị bỏ qua.
  */
 export function renderRulesFile(rules: RuleEntry[]): string {
+  const line = (r: RuleEntry) =>
+    `- ${r.ruleKey} — ${r.title} (tiêu chí: ${r.criterionKey})${r.priced ? '' : ' [chưa có giá]'}${r.machineNote ? ` — ${r.machineNote}` : ''}`;
+  const model = rules.filter((r) => r.checkedBy === 'model');
+  const machine = rules.filter((r) => r.checkedBy === 'machine');
   return [
     '# Bảng lỗi',
     'Mỗi dòng: rule_key — mô tả (tiêu chí). Luật "chưa có giá" vẫn là lỗi thật; chỉ mức trừ chưa có.',
     '',
-    ...rules.map(
-      (r) => `- ${r.ruleKey} — ${r.title} (tiêu chí: ${r.criterionKey})${r.priced ? '' : ' [chưa có giá]'}`,
-    ),
+    ...model.map(line),
+    ...(machine.length > 0
+      ? ['', '# Luật máy kiểm', 'KHÔNG đề xuất các luật dưới: hệ thống tự quyết chúng từ kết quả run_tests. Đề xuất sẽ bị bỏ qua.', '', ...machine.map(line)]
+      : []),
   ].join('\n');
 }
 
