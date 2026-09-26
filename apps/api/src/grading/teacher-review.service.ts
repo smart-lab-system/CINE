@@ -149,6 +149,7 @@ export class TeacherReviewService {
         privateNote: dto.privateNote ?? null,
         studentFeedback: dto.studentFeedback ?? null,
         appliedRule,
+        kind: appliedRule ? 'bulk_accept' : 'review',
       }),
     );
 
@@ -257,6 +258,8 @@ export class TeacherReviewService {
                 string,
                 unknown
               >,
+              // Chấp nhận nguyên đề xuất của AI, hàng loạt, bởi người bấm chốt.
+              kind: 'bulk_accept',
             }),
           );
           if (
@@ -324,16 +327,23 @@ export class TeacherReviewService {
     return (updated.affected ?? 0) > 0;
   }
 
-  /** A result's current score: the newest review row, or the AI's own. */
+  /**
+   * A result's current score on the `one_shot` path: the newest review row that CARRIES a score,
+   * or the AI's own. `error_exception` rows carry none (§14.1); skipping them here is the
+   * `one_shot` half of §14.2 — the `investigator` half reads `score_computation` (step 3c).
+   */
   async currentFinalScore(
     result: GradingResultEntity,
     manager: EntityManager = this.reviews.manager,
   ): Promise<number | null> {
-    const latest = await manager.getRepository(TeacherReviewEntity).findOne({
-      where: { gradingResultId: result.id },
-      order: { reviewedAt: 'DESC' },
-    });
-    if (latest) {
+    const latest = await manager
+      .getRepository(TeacherReviewEntity)
+      .createQueryBuilder('r')
+      .where('r.grading_result_id = :id', { id: result.id })
+      .andWhere('r.final_score IS NOT NULL')
+      .orderBy('r.reviewed_at', 'DESC')
+      .getOne();
+    if (latest?.finalScore != null) {
       return Number(latest.finalScore);
     }
     return result.aiTotalScore === null ? null : Number(result.aiTotalScore);

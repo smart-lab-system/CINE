@@ -4,11 +4,13 @@ import { AccountEntity } from '../../identity/entities/account.entity';
 import { SubmissionEntity } from '../../submission/entities/submission.entity';
 import { RubricEntity } from './rubric.entity';
 import type { AdvocateOpinion } from '../ai-provider/advocate.types';
+import { GRADING_PIPELINES, GradingPipeline, UNGRADABLE_CLASSES, UngradableClass } from '../grading-model.types';
 
 export type GradingResultStatus =
   | 'ai_grading'
   | 'ai_graded'
   | 'auto_approved'
+  | 'audit_pending'
   | 'flagged_for_review'
   | 'teacher_reviewed'
   | 'finalized'
@@ -155,6 +157,35 @@ export class GradingResultEntity extends BaseEntity {
   @Column({ name: 'ungradable_reason', type: 'text', nullable: true })
   ungradableReason!: string | null;
 
+  /** Gán lúc `startGrading` tạo dòng, từ bài nộp, và không bao giờ đổi — trigger vòng đời chặn đổi (§14.1). */
+  @Column({ type: 'enum', enum: GRADING_PIPELINES, enumName: 'grading_pipeline', default: 'one_shot' })
+  pipeline!: GradingPipeline;
+
+  /** Null khi kết quả chưa có lượt chấm nào ghi lại — dòng `one_shot` chấm xong trước bước 3d. */
+  @Column({ name: 'current_attempt_id', type: 'uuid', nullable: true })
+  currentAttemptId!: string | null;
+
+  /** Null khi có điểm. `ungradableReason` giữ làm lời kể cho người đọc (§4.4). */
+  @Column({ name: 'ungradable_class', type: 'enum', enum: UNGRADABLE_CLASSES, enumName: 'ungradable_class', nullable: true })
+  ungradableClass!: UngradableClass | null;
+
+  @Column({ name: 'audit_sampled', type: 'boolean', default: false })
+  auditSampled!: boolean;
+
+  @Column({ name: 'audit_sampled_at', type: 'timestamptz', nullable: true })
+  auditSampledAt!: Date | null;
+
+  /** Điểm đã công bố của đường `investigator` — bước 3c ghi. */
+  @Column({ name: 'finalized_computation_id', type: 'uuid', nullable: true })
+  finalizedComputationId!: string | null;
+
+  /** Người ký tên lên điểm đã công bố; trigger vòng đời đòi nó khi sang `finalized` (§14.4). */
+  @Column({ name: 'finalized_by', type: 'uuid', nullable: true })
+  finalizedBy!: string | null;
+
+  @Column({ name: 'finalized_at', type: 'timestamptz', nullable: true })
+  finalizedAt!: Date | null;
+
   @Column({ name: 'grading_triggered_by', type: 'uuid' })
   gradingTriggeredBy!: string;
 
@@ -175,6 +206,7 @@ export class GradingResultEntity extends BaseEntity {
       'ai_grading',
       'ai_graded',
       'auto_approved',
+      'audit_pending',
       'flagged_for_review',
       'teacher_reviewed',
       'finalized',

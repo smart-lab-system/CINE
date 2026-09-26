@@ -619,6 +619,8 @@ export class GradingService {
              FROM examcollect.teacher_review tr
              JOIN examcollect.account a ON a.id = tr.teacher_id
              WHERE tr.grading_result_id = ANY($1)
+               -- Dòng ngoại lệ cấp lỗi không mang điểm (§14.1): điểm hiện tại là dòng MANG điểm.
+               AND tr.final_score IS NOT NULL
              ORDER BY tr.grading_result_id, tr.reviewed_at DESC`,
             [ids],
           );
