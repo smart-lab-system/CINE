@@ -19,3 +19,8 @@ export type ExceptionDirection = (typeof EXCEPTION_DIRECTIONS)[number];
 
 export const MODEL_ANSWER_ORIGINS = ['teacher', 'authoring', 'generated'] as const;
 export type ModelAnswerOrigin = (typeof MODEL_ANSWER_ORIGINS)[number];
+
+export const ERROR_RULE_STATES = ['proposed', 'active', 'dismissed', 'retired'] as const;
+export type ErrorRuleState = (typeof ERROR_RULE_STATES)[number];
+export const ERROR_RULE_ORIGINS = ['teacher', 'seed', 'agent_reported'] as const;
+export type ErrorRuleOrigin = (typeof ERROR_RULE_ORIGINS)[number];

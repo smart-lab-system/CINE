@@ -24,6 +24,10 @@ import { AuditLogEntity } from '../admin/entities/audit-log.entity';
 import { RubricTemplateEntity } from '../admin/entities/rubric-template.entity';
 import { CostBudgetEntity } from '../admin/entities/cost-budget.entity';
 import { GradingPipelineConfigEntity } from '../admin/entities/grading-pipeline-config.entity';
+import { ErrorRuleEntity } from '../grading/entities/error-rule.entity';
+import { ErrorRuleRevisionEntity } from '../grading/entities/error-rule-revision.entity';
+import { PriceTableVersionEntity } from '../grading/entities/price-table-version.entity';
+import { RulePriceEntity } from '../grading/entities/rule-price.entity';
 
 /**
  * TLS for the Postgres connection, decided by env so one build runs
@@ -102,6 +106,10 @@ export const dataSourceOptions: DataSourceOptions = {
     RubricTemplateEntity,
     CostBudgetEntity,
     GradingPipelineConfigEntity,
+    ErrorRuleEntity,
+    ErrorRuleRevisionEntity,
+    PriceTableVersionEntity,
+    RulePriceEntity,
   ],
   migrations: [__dirname + '/migrations/*.{js,ts}'],
   // The initial migration's SQL file already wraps itself in BEGIN/COMMIT

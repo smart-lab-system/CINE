@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { scoreResult, seedCriterion, seedResult, seedSession } from './helpers/grading-seed';
+import { scoreResult, seedCriterion, seedResult, seedSession, seedTeacher } from './helpers/grading-seed';
 
 /** Mô hình dữ liệu §14.1 ở tầng DB: cột, ràng buộc, dữ liệu cũ. Bảng mới thêm ở task sau. */
 describe('Mô hình dữ liệu §14 (e2e)', () => {
@@ -113,6 +113,93 @@ describe('Mô hình dữ liệu §14 (e2e)', () => {
       const ctx = await seedSession(ds, 'dm-key');
       await seedCriterion(ds, ctx.rubricId, 'tinh_dung');
       await expect(seedCriterion(ds, ctx.rubricId, 'tinh_dung')).rejects.toThrow(/uq_rubric_criterion_key/);
+    });
+  });
+
+  describe('bảng lỗi và bảng giá', () => {
+    let keyCursor = 0;
+    async function rule(teacherId: string, key = `r_${Date.now().toString(36)}_${keyCursor++}`) {
+      const [r] = await ds.query(
+        `INSERT INTO examcollect.error_rule (teacher_id, rule_key, origin, state) VALUES ($1, $2, 'teacher', 'active') RETURNING id`,
+        [teacherId, key],
+      );
+      const [rev] = await ds.query(
+        `INSERT INTO examcollect.error_rule_revision (error_rule_id, revision, name, description, criterion_key, created_by)
+         VALUES ($1, 1, 'Sai ca biên', 'mô tả', 'tinh_dung', $2) RETURNING id`,
+        [r.id, teacherId],
+      );
+      await ds.query(`UPDATE examcollect.error_rule SET current_revision_id = $2 WHERE id = $1`, [r.id, rev.id]);
+      return { ruleId: r.id as string, revisionId: rev.id as string };
+    }
+
+    it('một giảng viên không có hai luật cùng rule_key; hai giảng viên thì được (T-POL-8)', async () => {
+      const a = await seedTeacher(ds, 'rule-a');
+      const b = await seedTeacher(ds, 'rule-b');
+      await rule(a, 'sai_ca_bien');
+      await rule(b, 'sai_ca_bien');
+      await expect(rule(a, 'sai_ca_bien')).rejects.toThrow(/uq_error_rule_teacher_key/);
+    });
+
+    it('bản sửa luật là chỉ-thêm: sửa hay xoá đều bị từ chối', async () => {
+      const t = await seedTeacher(ds, 'rev');
+      const { revisionId } = await rule(t);
+      await expect(ds.query(`UPDATE examcollect.error_rule_revision SET name = 'khác' WHERE id = $1`, [revisionId])).rejects.toThrow(/chỉ thêm/);
+      await expect(ds.query(`DELETE FROM examcollect.error_rule_revision WHERE id = $1`, [revisionId])).rejects.toThrow(/chỉ thêm/);
+    });
+
+    it('bản sửa hiện hành phải thuộc chính luật đó', async () => {
+      const t = await seedTeacher(ds, 'rev-own');
+      const x = await rule(t);
+      const y = await rule(t);
+      await expect(ds.query(`UPDATE examcollect.error_rule SET current_revision_id = $2 WHERE id = $1`, [x.ruleId, y.revisionId]))
+        .rejects.toThrow(/fk_error_rule_current_revision/);
+    });
+
+    it('luật không bao giờ bị xoá — hồ sơ trỏ vào nó vĩnh viễn', async () => {
+      const t = await seedTeacher(ds, 'rule-del');
+      const { ruleId } = await rule(t);
+      await expect(ds.query(`DELETE FROM examcollect.error_rule WHERE id = $1`, [ruleId])).rejects.toThrow(/không xoá/);
+    });
+
+    it('giá: chỉ-thêm, và không trỏ được luật của giảng viên khác', async () => {
+      const a = await seedTeacher(ds, 'price-a');
+      const b = await seedTeacher(ds, 'price-b');
+      const { ruleId } = await rule(b);
+      const [v] = await ds.query(
+        `INSERT INTO examcollect.price_table_version (teacher_id, version, created_by) VALUES ($1, 1, $1) RETURNING id`,
+        [a],
+      );
+      await expect(ds.query(
+        `INSERT INTO examcollect.rule_price (price_table_version_id, error_rule_id, teacher_id, deduction) VALUES ($1, $2, $3, 1.5)`,
+        [v.id, ruleId, a],
+      )).rejects.toThrow(/fk_rule_price_rule_teacher/);
+
+      const own = await rule(a);
+      await ds.query(
+        `INSERT INTO examcollect.rule_price (price_table_version_id, error_rule_id, teacher_id, deduction) VALUES ($1, $2, $3, 1.5)`,
+        [v.id, own.ruleId, a],
+      );
+      await expect(ds.query(`UPDATE examcollect.rule_price SET deduction = 2 WHERE price_table_version_id = $1`, [v.id])).rejects.toThrow(/chỉ thêm/);
+      await expect(ds.query(`UPDATE examcollect.price_table_version SET version = 9 WHERE id = $1`, [v.id])).rejects.toThrow(/chỉ thêm/);
+    });
+
+    it('luật chưa có giá là giá null, không phải 0 (§2.1)', async () => {
+      const a = await seedTeacher(ds, 'price-null');
+      const { ruleId } = await rule(a);
+      const [v] = await ds.query(`INSERT INTO examcollect.price_table_version (teacher_id, version, created_by) VALUES ($1, 1, $1) RETURNING id`, [a]);
+      const [p] = await ds.query(
+        `INSERT INTO examcollect.rule_price (price_table_version_id, error_rule_id, teacher_id, deduction) VALUES ($1, $2, $3, NULL) RETURNING deduction`,
+        [v.id, ruleId, a],
+      );
+      expect(p.deduction).toBeNull();
+    });
+
+    it('phiên ghim bảng giá của chính giảng viên phiên đó', async () => {
+      const ctx = await seedSession(ds, 'pin');
+      const other = await seedTeacher(ds, 'pin-other');
+      const [v] = await ds.query(`INSERT INTO examcollect.price_table_version (teacher_id, version, created_by) VALUES ($1, 1, $1) RETURNING id`, [other]);
+      await expect(ds.query(`UPDATE examcollect.exam_session SET pinned_price_version_id = $2 WHERE id = $1`, [ctx.sessionId, v.id]))
+        .rejects.toThrow(/fk_exam_session_pinned_price/);
     });
   });
 
