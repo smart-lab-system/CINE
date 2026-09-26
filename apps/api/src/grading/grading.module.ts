@@ -17,6 +17,7 @@ import { GradingReferenceService } from './grading-reference.service';
 import { SubmissionTextService } from './submission-text.service';
 import { GradingReferenceEntity } from './entities/grading-reference.entity';
 import { GradingAnchorSnapshotEntity } from './entities/grading-anchor-snapshot.entity';
+import { GradingAttemptEntity } from './entities/grading-attempt.entity';
 import { AnchorService } from './anchor.service';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
@@ -110,6 +111,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
       GradingReferenceEntity,
       GradingAnchorSnapshotEntity,
       ExamMaterialEntity,
+      GradingAttemptEntity,
     ]),
     StorageModule,
     ExamSessionModule,

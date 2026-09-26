@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GradeSubmissionJob } from './grading.queue';
 import { GradingResultEntity } from './entities/grading-result.entity';
+import { GradingAttemptEntity } from './entities/grading-attempt.entity';
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { StorageService } from '../storage/storage.service';
@@ -72,6 +73,9 @@ export class GradingService {
     // thường. Kiểu dữ liệu nói ra điều đó để không ai phải đoán.
     @Inject(ADVOCATE_PROVIDER) private readonly advocate: AdvocateProvider | null,
     private readonly anchors: AnchorService,
+    // Tham số CUỐI để các chỗ dựng service bằng constructor thật chỉ thêm một đối số.
+    @InjectRepository(GradingAttemptEntity)
+    private readonly attempts: Repository<GradingAttemptEntity>,
   ) {}
 
   /**
@@ -177,20 +181,56 @@ export class GradingService {
    * thống, không phải phán xét về bài làm.
    */
   async markUngradable(submissionId: string, reason: string): Promise<void> {
-    const result = await this.results.findOne({ where: { submissionId } });
-    if (!result || result.status !== 'ai_grading') {
-      // Đã đi tiếp rồi (chấm xong, hoặc một lần gọi trước đã đánh dấu).
-      // Im lặng bỏ qua: hàm này được gọi từ một event handler có thể bắn
-      // nhiều lần.
-      return;
-    }
-    await this.results.update(result.id, {
-      status: 'flagged_for_review',
-      flagForReview: true,
-      confidence: '0',
-      ungradableReason: reason,
+    const marked = await this.results.manager.transaction(async (manager) => {
+      // UPDATE CÓ ĐIỀU KIỆN (§14.3): chỉ bài còn ở `ai_grading`. Không đổi dòng nào nghĩa là bài
+      // đã đi tiếp — chấm xong, hoặc một lần gọi trước đã đánh dấu — và hàm này được gọi từ một
+      // event handler có thể bắn nhiều lần. Đọc-rồi-ghi như trước để hở đúng khe `gradeOne` vừa
+      // ghi điểm giữa hai bước.
+      const updated = await manager
+        .createQueryBuilder()
+        .update(GradingResultEntity)
+        .set({
+          status: 'flagged_for_review',
+          flagForReview: true,
+          confidence: '0',
+          ungradableReason: reason,
+          // Hàm này chỉ chạy khi job hết lượt thử: lỗi phía hệ thống (§4.4, §2.3 luật 4).
+          ungradableClass: 'system',
+        })
+        .where('submission_id = :submissionId', { submissionId })
+        .andWhere("status = 'ai_grading'")
+        .execute();
+      if ((updated.affected ?? 0) === 0) return false;
+      // Đọc lại TRONG transaction: dòng đã bị khoá bởi UPDATE ở trên, nên không ai đổi được nó
+      // giữa hai câu lệnh.
+      const row = await manager.findOneOrFail(GradingResultEntity, { where: { submissionId } });
+
+      // Lượt chấm chép lý do (§2.3 luật 2): chấm lại sẽ là lượt kế tiếp, lý do lần này không mất.
+      // `started_at` = lúc xếp hàng — cho tới bước 3d, không ai ghi lúc job bắt đầu.
+      const attempts = manager.getRepository(GradingAttemptEntity);
+      const last = await attempts
+        .createQueryBuilder('a')
+        .select('MAX(a.attempt_no)', 'max')
+        .where('a.grading_result_id = :id', { id: row.id })
+        .getRawOne<{ max: number | null }>();
+      const attempt = await attempts.save(
+        attempts.create({
+          gradingResultId: row.id,
+          attemptNo: (last?.max ?? 0) + 1,
+          outcome: 'ungradable',
+          ungradableClass: 'system',
+          ungradableReason: reason,
+          triggeredBy: row.gradingTriggeredBy,
+          startedAt: row.gradingTriggeredAt,
+          finishedAt: new Date(),
+        }),
+      );
+      await manager.update(GradingResultEntity, row.id, { currentAttemptId: attempt.id });
+      return true;
     });
-    this.logger.error(`submission ${submissionId}: AI không chấm được — ${reason}`);
+    if (marked) {
+      this.logger.error(`submission ${submissionId}: AI không chấm được — ${reason}`);
+    }
   }
 
   /**
@@ -461,57 +501,75 @@ export class GradingService {
     // The AI's own output, written once. A teacher's later edit creates a
     // TeacherReview row instead of touching any of this — Security rule 6,
     // enforced by trg_grading_result_guard_ai_immutable as well as here.
-    await this.results.update(result.id, {
-      status: 'ai_graded',
-      modelUsed: outcome.modelUsed,
-      // GHÉP KẾT QUẢ KIỂM DẪN CHỨNG vào từng tiêu chí trước khi lưu.
-      //
-      // `applyGuards` tính `check` ('ok' | 'empty' | 'unverified') cho mọi
-      // tiêu chí của MỌI bài, miễn phí, rồi trước 2026-09-15 vứt đi — chỉ
-      // `confidence` tổng hợp sống sót. Spec §11.5 lại tuyên bố hai chỉ số
-      // "tỉ lệ unverified" và "tỉ lệ phủ tiêu chí" đã chạy sẵn trên 100%
-      // số bài; điều đó chỉ đúng nếu con số được GHI LẠI.
-      //
-      // Tính lại offline là bất khả trên thực tế: `verifyEvidence` cần bài
-      // làm nguyên văn (nằm ở object storage, không ở DB) và một bản
-      // `TYPOGRAPHIC_FOLD` + tách elision viết lại bằng Python — hai bản
-      // cài đặt cho cùng một phép đo, chắc chắn lệch nhau theo thời gian.
-      //
-      // `jsonb` nên thêm trường không cần migration. Ghi CÙNG lượt update
-      // này vì trigger bất biến đóng băng cột ngay sau đó.
-      criterionResults: scored.criterionResults.map((row) => ({
-        ...row,
-        check: checkByCriterion.get(row.criterionId) ?? null,
-      })),
-      aiTotalScore: String(scored.totalScore),
-      // confidence từ GUARD, không phải từ provider. Model tự chấm độ
-      // tin cậy của chính nó là tín hiệu hiệu chỉnh kém nhất có thể — và
-      // đặt ngưỡng auto-approve lên con số đó là cho model quyền tự kết
-      // thúc việc chấm một sinh viên dựa trên cảm giác của nó.
-      confidence: String(finalConfidence),
-      // Ngữ cảnh THẬT SỰ đã dùng, lấy từ bậc đã trả lời trong chuỗi dự
-      // phòng — không phải từ cấu hình của phiên. Ghi CÙNG lượt update
-      // này vì trigger bất biến đóng băng chúng ngay khi `ai_total_score`
-      // được ghi.
-      contextUsedQuestion: outcome.contextUsed.question,
-      contextUsedModelAnswer: outcome.contextUsed.modelAnswer,
-      // CÙNG một `update` với `aiTotalScore`, bắt buộc:
-      // `trg_grading_result_guard_ai_immutable` đóng băng cột này ngay khi
-      // `ai_total_score` được ghi, nên ghi thành hai lần sẽ bị DB từ chối.
-      // Ba test ở `grading-lifecycle.e2e-spec.ts` khoá đúng ràng buộc đó.
-      advocateOpinion: advocateRun.opinion,
-      advocateOutcome: advocateRun.outcome,
-    });
+    const wrote = await this.results
+      .createQueryBuilder()
+      .update(GradingResultEntity)
+      .set({
+        status: 'ai_graded',
+        modelUsed: outcome.modelUsed,
+        // GHÉP KẾT QUẢ KIỂM DẪN CHỨNG vào từng tiêu chí trước khi lưu.
+        //
+        // `applyGuards` tính `check` ('ok' | 'empty' | 'unverified') cho mọi
+        // tiêu chí của MỌI bài, miễn phí, rồi trước 2026-09-15 vứt đi — chỉ
+        // `confidence` tổng hợp sống sót. Spec §11.5 lại tuyên bố hai chỉ số
+        // "tỉ lệ unverified" và "tỉ lệ phủ tiêu chí" đã chạy sẵn trên 100%
+        // số bài; điều đó chỉ đúng nếu con số được GHI LẠI.
+        //
+        // Tính lại offline là bất khả trên thực tế: `verifyEvidence` cần bài
+        // làm nguyên văn (nằm ở object storage, không ở DB) và một bản
+        // `TYPOGRAPHIC_FOLD` + tách elision viết lại bằng Python — hai bản
+        // cài đặt cho cùng một phép đo, chắc chắn lệch nhau theo thời gian.
+        //
+        // `jsonb` nên thêm trường không cần migration. Ghi CÙNG lượt update
+        // này vì trigger bất biến đóng băng cột ngay sau đó.
+        criterionResults: scored.criterionResults.map((row) => ({
+          ...row,
+          check: checkByCriterion.get(row.criterionId) ?? null,
+        })),
+        aiTotalScore: String(scored.totalScore),
+        // confidence từ GUARD, không phải từ provider. Model tự chấm độ
+        // tin cậy của chính nó là tín hiệu hiệu chỉnh kém nhất có thể — và
+        // đặt ngưỡng auto-approve lên con số đó là cho model quyền tự kết
+        // thúc việc chấm một sinh viên dựa trên cảm giác của nó.
+        confidence: String(finalConfidence),
+        // Ngữ cảnh THẬT SỰ đã dùng, lấy từ bậc đã trả lời trong chuỗi dự
+        // phòng — không phải từ cấu hình của phiên. Ghi CÙNG lượt update
+        // này vì trigger bất biến đóng băng chúng ngay khi `ai_total_score`
+        // được ghi.
+        contextUsedQuestion: outcome.contextUsed.question,
+        contextUsedModelAnswer: outcome.contextUsed.modelAnswer,
+        // CÙNG một `update` với `aiTotalScore`, bắt buộc:
+        // `trg_grading_result_guard_ai_immutable` đóng băng cột này ngay khi
+        // `ai_total_score` được ghi, nên ghi thành hai lần sẽ bị DB từ chối.
+        // Ba test ở `grading-lifecycle.e2e-spec.ts` khoá đúng ràng buộc đó.
+        advocateOpinion: advocateRun.opinion,
+        advocateOutcome: advocateRun.outcome,
+      })
+      .where('id = :id', { id: result.id })
+      .andWhere("status = 'ai_grading'")
+      .execute();
+    if ((wrote.affected ?? 0) === 0) {
+      // Bài đã rời `ai_grading` trong lúc model chạy — `markUngradable` của một lần thử trước,
+      // hoặc một job trùng. Không ghi đè: người gọi dừng (§14.3).
+      this.logger.warn(`submission ${submission.id}: bài đã rời ai_grading trong lúc chấm — bỏ kết quả lượt này`);
+      return;
+    }
 
     // Trạng thái cuối cũng do guard quyết. `AUTO_APPROVE_CONFIDENCE` vẫn
     // là lớp chặn thứ hai: guard có thể trả `auto_approved` với một
     // confidence dưới ngưỡng nếu ai đó chỉnh số ở `grading-guards.ts` mà
     // quên chỗ này.
     const { confident } = run;
-    await this.results.update(result.id, {
-      status: confident ? 'auto_approved' : 'flagged_for_review',
-      flagForReview: !confident,
-    });
+    await this.results
+      .createQueryBuilder()
+      .update(GradingResultEntity)
+      .set({
+        status: confident ? 'auto_approved' : 'flagged_for_review',
+        flagForReview: !confident,
+      })
+      .where('id = :id', { id: result.id })
+      .andWhere("status = 'ai_graded'")
+      .execute();
     if (!confident && guards.reason) {
       this.logger.log(`submission ${submission.id}: chuyển giảng viên — ${guards.reason}`);
     }
