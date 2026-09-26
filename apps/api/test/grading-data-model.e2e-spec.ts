@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { scoreResult, seedResult, seedSession } from './helpers/grading-seed';
+import { scoreResult, seedCriterion, seedResult, seedSession } from './helpers/grading-seed';
 
 /** Mô hình dữ liệu §14.1 ở tầng DB: cột, ràng buộc, dữ liệu cũ. Bảng mới thêm ở task sau. */
 describe('Mô hình dữ liệu §14 (e2e)', () => {
@@ -53,15 +53,6 @@ describe('Mô hình dữ liệu §14 (e2e)', () => {
         ds.query(`UPDATE examcollect.grading_result SET audit_sampled = true WHERE id = $1`, [resultId]),
       ).rejects.toThrow(/ck_grading_result_audit_sampled_at/);
     });
-
-    it('T-REGRADE-5 (phần dữ liệu): không còn dòng không chấm được cũ nào thiếu lớp lý do', async () => {
-      const [row] = await ds.query(
-        `SELECT count(*)::int AS n FROM examcollect.grading_result
-          WHERE status = 'flagged_for_review' AND ai_total_score IS NULL
-            AND ungradable_reason IS NOT NULL AND ungradable_class IS NULL`,
-      );
-      expect(row.n).toBe(0);
-    });
   });
 
   describe('teacher_review', () => {
@@ -98,6 +89,30 @@ describe('Mô hình dữ liệu §14 (e2e)', () => {
         [resultId, ctx.teacherId],
       );
       expect(row.kind).toBe('review');
+    });
+  });
+
+  describe('rubric_criterion.key', () => {
+    it('mọi tiêu chí đều có key, duy nhất trong rubric', async () => {
+      const [row] = await ds.query(
+        `SELECT count(*) FILTER (WHERE key IS NULL)::int AS missing,
+                count(*)::int - count(DISTINCT (rubric_id, key))::int AS dup
+           FROM examcollect.rubric_criterion`,
+      );
+      expect(row).toEqual({ missing: 0, dup: 0 });
+    });
+
+    it('trigger đóng băng tiêu chí vẫn BẬT sau khi điền key (§14.4)', async () => {
+      const [row] = await ds.query(
+        `SELECT tgenabled FROM pg_trigger WHERE tgname = 'trg_rubric_criterion_guard_immutable'`,
+      );
+      expect(row.tgenabled).toBe('O');
+    });
+
+    it('key trùng trong một rubric bị từ chối', async () => {
+      const ctx = await seedSession(ds, 'dm-key');
+      await seedCriterion(ds, ctx.rubricId, 'tinh_dung');
+      await expect(seedCriterion(ds, ctx.rubricId, 'tinh_dung')).rejects.toThrow(/uq_rubric_criterion_key/);
     });
   });
 

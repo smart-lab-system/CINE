@@ -7,6 +7,7 @@ import { StorageService } from '../storage/storage.service';
 import { GradingReferenceEntity } from './entities/grading-reference.entity';
 import { GradingResultEntity } from './entities/grading-result.entity';
 import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
+import type { ModelAnswerOrigin } from './grading-model.types';
 
 /**
  * Ba mức ngữ cảnh mà hệ thống có thể chấm với.
@@ -83,6 +84,8 @@ export class GradingReferenceService {
     session: ExamSessionEntity,
     dto: UpsertGradingReferenceDto,
     teacherId: string,
+    /** Ai đưa đáp án của LƯỢT GHI này (§14.1). Route của giảng viên để mặc định. */
+    origin: ModelAnswerOrigin = 'teacher',
   ): Promise<GradingReferenceEntity> {
     await this.assertNotGradedYet(session);
 
@@ -144,6 +147,11 @@ export class GradingReferenceService {
           : (existing?.modelAnswerUnverified ?? false)),
       createdBy: existing?.createdBy ?? teacherId,
     });
+    // Nguồn gốc đi theo LƯỢT GHI ĐÁP ÁN, cùng lý do với `modelAnswerUnverified` ở trên: lượt
+    // này gửi đáp án thì nguồn là người gửi; không gửi thì giữ nguồn cũ; không còn đáp án thì null.
+    const answerSent = dto.modelAnswerStorageKey !== undefined || dto.modelAnswerNote !== undefined;
+    const hasAnswer = Boolean(row.modelAnswerStorageKey || row.modelAnswerNote);
+    row.modelAnswerOrigin = !hasAnswer ? null : answerSent ? origin : (existing?.modelAnswerOrigin ?? origin);
     return this.references.save(row);
   }
 

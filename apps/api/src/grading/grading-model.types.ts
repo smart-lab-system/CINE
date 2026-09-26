@@ -16,3 +16,6 @@ export type TeacherReviewKind = (typeof TEACHER_REVIEW_KINDS)[number];
 /** `exclude` = bỏ lỗi này cho riêng bài này (cũng dùng cho *đồng ý bác bỏ*); `include` = giữ lỗi này. */
 export const EXCEPTION_DIRECTIONS = ['exclude', 'include'] as const;
 export type ExceptionDirection = (typeof EXCEPTION_DIRECTIONS)[number];
+
+export const MODEL_ANSWER_ORIGINS = ['teacher', 'authoring', 'generated'] as const;
+export type ModelAnswerOrigin = (typeof MODEL_ANSWER_ORIGINS)[number];

@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { assignCriterionKeys, DuplicateCriterionKeyError } from './criterion-key';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { RubricEntity } from './entities/rubric.entity';
@@ -13,7 +14,7 @@ export interface RubricView {
   version: number;
   isActive: boolean;
   totalPoints: number;
-  criteria: { id: string; description: string; maxPoints: number }[];
+  criteria: { id: string; key: string; description: string; maxPoints: number }[];
 }
 
 /**
@@ -128,13 +129,26 @@ export class RubricService {
         }),
       );
 
+      let keys: string[];
+      try {
+        keys = assignCriterionKeys(dto.criteria);
+      } catch (error) {
+        if (error instanceof DuplicateCriterionKeyError) {
+          throw new BadRequestException(`Hai tiêu chí cùng khai key "${error.key}".`);
+        }
+        throw error;
+      }
+
       await manager.save(
         RubricCriterionEntity,
-        dto.criteria.map((criterion) =>
+        dto.criteria.map((criterion, index) =>
           manager.create(RubricCriterionEntity, {
             rubricId: rubric.id,
             description: criterion.description,
             maxPoints: String(criterion.maxPoints),
+            // Hôm nay mọi tiêu chí đều `sort_order = 0`, nên thứ tự chỉ còn do thời điểm tạo.
+            sortOrder: index,
+            key: keys[index],
           }),
         ),
       );
@@ -176,6 +190,7 @@ export class RubricService {
         Math.round(criteria.reduce((sum, c) => sum + Number(c.maxPoints), 0) * 100) / 100,
       criteria: criteria.map((c) => ({
         id: c.id,
+        key: c.key,
         description: c.description,
         maxPoints: Number(c.maxPoints),
       })),

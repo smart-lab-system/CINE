@@ -83,6 +83,15 @@ export async function seedResult(
   return { resultId: res.id, submissionId: sub.id };
 }
 
+export async function seedCriterion(ds: DataSource, rubricId: string, key: string, maxPoints = 10): Promise<string> {
+  const [row] = await ds.query(
+    `INSERT INTO examcollect.rubric_criterion (rubric_id, description, max_points, key)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [rubricId, `Tiêu chí ${key}`, maxPoints, key],
+  );
+  return row.id;
+}
+
 /** Ghi output AI và sang `ai_graded` trong MỘT UPDATE — như `gradeOne`. */
 export async function scoreResult(ds: DataSource, resultId: string, score = '7.00'): Promise<void> {
   await ds.query(
