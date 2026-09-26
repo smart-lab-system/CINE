@@ -110,6 +110,8 @@ export class GradingService {
     studentText: string,
     needsAdvocate: boolean,
     reference: LoadedGradingReference,
+    /** Mã tiêu chí của rubric — chỉ để lọc kiến nghị, KHÔNG đi vào prompt (Advocate mù rubric). */
+    criterionIds: ReadonlySet<string>,
   ): Promise<AdvocateRun> {
     if (!needsAdvocate || !this.advocate) {
       return { outcome: 'not_needed', opinion: null };
@@ -149,9 +151,21 @@ export class GradingService {
             `${opinion.evidence.length} dẫn chứng KHÔNG định vị được trong bài`,
         );
       }
+      // Advocate MÙ RUBRIC (spec §2.1) nên không biết mã tiêu chí. Màn hình và nút "áp ý kiến
+      // phản biện" khớp kiến nghị theo `criterionId`: một mã lạ lưu vào `advocate_opinion` thì
+      // lặng lẽ không khớp gì, và giảng viên không biết ý kiến đó từng có. Bỏ, và nói ra — lý lẽ
+      // và phán đoán `isCorrect` vẫn giữ nguyên.
+      const suggestedVerdicts = opinion.suggestedVerdicts.filter((s) => criterionIds.has(s.criterionId));
+      const dropped = opinion.suggestedVerdicts.length - suggestedVerdicts.length;
+      if (dropped > 0) {
+        this.logger.warn(
+          `submission ${submission.id}: bỏ ${dropped}/${opinion.suggestedVerdicts.length} kiến nghị ` +
+            'của Advocate có mã tiêu chí không thuộc rubric',
+        );
+      }
       return {
         outcome: 'completed',
-        opinion: { ...opinion, unverifiedEvidence: unverified },
+        opinion: { ...opinion, suggestedVerdicts, unverifiedEvidence: unverified },
       };
     } catch (error) {
       // Nuốt có chủ ý, và đây là một trong rất ít chỗ được phép nuốt: giá
@@ -426,6 +440,7 @@ export class GradingService {
       content,
       guards.needsAdvocate,
       reference,
+      new Set(criteria.map((c) => c.id)),
     );
 
     // Guard chỉ được HẠ tin cậy, không được NÂNG quá trần mà cơ chế của
