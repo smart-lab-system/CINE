@@ -24,6 +24,16 @@ import { AuditLogEntity } from '../admin/entities/audit-log.entity';
 import { RubricTemplateEntity } from '../admin/entities/rubric-template.entity';
 import { CostBudgetEntity } from '../admin/entities/cost-budget.entity';
 import { GradingPipelineConfigEntity } from '../admin/entities/grading-pipeline-config.entity';
+import { ErrorRuleEntity } from '../grading/entities/error-rule.entity';
+import { ErrorRuleRevisionEntity } from '../grading/entities/error-rule-revision.entity';
+import { PriceTableVersionEntity } from '../grading/entities/price-table-version.entity';
+import { RulePriceEntity } from '../grading/entities/rule-price.entity';
+import { GradingTestBundleEntity } from '../grading/entities/grading-test-bundle.entity';
+import { GradingTestCaseEntity } from '../grading/entities/grading-test-case.entity';
+import { GradingAttemptEntity } from '../grading/entities/grading-attempt.entity';
+import { ScoreComputationEntity } from '../grading/entities/score-computation.entity';
+import { CriterionWaiverEntity } from '../grading/entities/criterion-waiver.entity';
+import { AuditSampleReviewEntity } from '../grading/entities/audit-sample-review.entity';
 
 /**
  * TLS for the Postgres connection, decided by env so one build runs
@@ -102,6 +112,16 @@ export const dataSourceOptions: DataSourceOptions = {
     RubricTemplateEntity,
     CostBudgetEntity,
     GradingPipelineConfigEntity,
+    ErrorRuleEntity,
+    ErrorRuleRevisionEntity,
+    PriceTableVersionEntity,
+    RulePriceEntity,
+    GradingTestBundleEntity,
+    GradingTestCaseEntity,
+    GradingAttemptEntity,
+    ScoreComputationEntity,
+    CriterionWaiverEntity,
+    AuditSampleReviewEntity,
   ],
   migrations: [__dirname + '/migrations/*.{js,ts}'],
   // The initial migration's SQL file already wraps itself in BEGIN/COMMIT

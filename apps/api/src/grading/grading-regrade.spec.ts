@@ -1,6 +1,7 @@
 import { Repository } from 'typeorm';
 import { GradingService } from './grading.service';
 import { GradingResultEntity } from './entities/grading-result.entity';
+import { GradingAttemptEntity } from './entities/grading-attempt.entity';
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { StorageService } from '../storage/storage.service';
@@ -94,18 +95,30 @@ function outcome(rows: CriterionResult[]): GradingOutcome {
 
 describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)', () => {
   let grade: jest.Mock<Promise<GradingOutcome>, [unknown]>;
-  let update: jest.Mock;
+  let sets: Record<string, unknown>[];
   let service: GradingService;
 
   beforeEach(() => {
     grade = jest.fn();
-    update = jest.fn().mockResolvedValue(undefined);
+    // Hai bước chuyển của `gradeOne` là UPDATE CÓ ĐIỀU KIỆN qua query builder (§14.3): mock
+    // ghi lại từng `.set()` theo thứ tự — ai_graded (kèm output AI), rồi trạng thái cuối.
+    sets = [];
+    const qb = {
+      update: () => qb,
+      set: (values: Record<string, unknown>) => {
+        sets.push(values);
+        return qb;
+      },
+      where: () => qb,
+      andWhere: () => qb,
+      execute: async () => ({ affected: 1 }),
+    };
 
     const results = {
       // `aiTotalScore: null` là điều kiện để job KHÔNG bị coi là lặp và
       // bỏ qua ngay ở đầu `gradeOneById`.
-      findOne: jest.fn().mockResolvedValue({ id: 'g1', aiTotalScore: null }),
-      update,
+      findOne: jest.fn().mockResolvedValue({ id: 'g1', aiTotalScore: null, pipeline: 'one_shot' }),
+      createQueryBuilder: jest.fn(() => qb),
     } as unknown as Repository<GradingResultEntity>;
 
     const submissions = {
@@ -157,6 +170,7 @@ describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)
       references,
       null,
       anchors,
+      {} as Repository<GradingAttemptEntity>,
     );
   });
 
@@ -172,10 +186,10 @@ describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)
 
     // Và lượt chấm lại hỏng KHÔNG được âm thầm trở thành điểm: confidence
     // về 0 và bài sang tay người.
-    const [, saved] = update.mock.calls[0] as [string, Record<string, unknown>];
+    const saved = sets[0];
     expect(saved.confidence).toBe('0');
 
-    const [, final] = update.mock.calls[1] as [string, Record<string, unknown>];
+    const final = sets[1];
     expect(final.status).toBe('flagged_for_review');
     expect(final.flagForReview).toBe(true);
   });
@@ -204,7 +218,19 @@ describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)
     expect(grade).toHaveBeenCalledTimes(2);
 
     // 10 + 10 từ lượt THỨ HAI. Lượt đầu (`not_met` cả hai) cho 0.
-    const [, saved] = update.mock.calls[0] as [string, Record<string, unknown>];
+    const saved = sets[0];
     expect(saved.aiTotalScore).toBe('20');
+  });
+
+  it('bài đã gán đường điều tra → KHÔNG chấm một-phát, đánh dấu không chấm được (T-PIPE-1)', async () => {
+    const results = (service as unknown as { results: { findOne: jest.Mock } }).results;
+    results.findOne.mockResolvedValue({ id: 'g1', aiTotalScore: null, pipeline: 'investigator' });
+    const mark = jest.spyOn(service, 'markUngradable').mockResolvedValue(undefined);
+
+    await service.gradeOneById(JOB);
+
+    expect(mark).toHaveBeenCalledTimes(1);
+    expect(mark.mock.calls[0][0]).toBe(JOB.submissionId);
+    expect(grade).not.toHaveBeenCalled();
   });
 });

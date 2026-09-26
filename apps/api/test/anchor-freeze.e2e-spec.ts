@@ -69,8 +69,8 @@ describe('Đóng băng anchor (e2e)', () => {
     );
     rubricId = rubric.id;
     const [criterion] = await dataSource.query(
-      `INSERT INTO examcollect.rubric_criterion (rubric_id, description, max_points)
-       VALUES ($1, 'Trình bày thuật toán', 10) RETURNING id`,
+      `INSERT INTO examcollect.rubric_criterion (rubric_id, description, max_points, key)
+       VALUES ($1, 'Trình bày thuật toán', 10, 'trinh_bay_thuat_toan') RETURNING id`,
       [rubricId],
     );
     criterionId = criterion.id;

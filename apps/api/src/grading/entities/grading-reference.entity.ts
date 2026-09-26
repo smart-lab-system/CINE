@@ -3,6 +3,7 @@ import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { ExamSessionEntity } from '../../exam-session/entities/exam-session.entity';
 import { ExamMaterialEntity } from '../../exam-session/entities/exam-material.entity';
+import { MODEL_ANSWER_ORIGINS, ModelAnswerOrigin } from '../grading-model.types';
 
 /**
  * Đề bài và đáp án mẫu của MỘT phiên thi — ngữ cảnh mà model cần để phán
@@ -82,6 +83,10 @@ export class GradingReferenceEntity extends BaseEntity {
    */
   @Column({ name: 'model_answer_unverified', type: 'boolean', default: false })
   modelAnswerUnverified!: boolean;
+
+  /** Ai đưa đáp án mẫu (§14.1). Null khi phiên chưa có đáp án. */
+  @Column({ name: 'model_answer_origin', type: 'enum', enum: MODEL_ANSWER_ORIGINS, enumName: 'model_answer_origin', nullable: true })
+  modelAnswerOrigin!: ModelAnswerOrigin | null;
 
   @Column({ name: 'created_by', type: 'uuid' })
   createdBy!: string;

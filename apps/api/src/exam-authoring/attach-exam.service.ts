@@ -159,6 +159,7 @@ export class AttachExamService {
           modelAnswerUnverified: exam.verification.status !== "passed",
         },
         teacherId,
+        "authoring",
       );
     } catch (error) {
       // Gỡ đúng thứ vừa tạo. Không đụng tới object đáp án: khoá của nó là

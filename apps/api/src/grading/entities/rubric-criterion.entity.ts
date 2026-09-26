@@ -9,6 +9,7 @@ import { RubricEntity } from './rubric.entity';
 // table only defines what's being graded.
 @Entity({ name: 'rubric_criterion' })
 @Check('ck_rubric_criterion_max_points', 'max_points > 0')
+@Index('uq_rubric_criterion_key', ['rubricId', 'key'], { unique: true })
 export class RubricCriterionEntity extends BaseEntity {
   // Every read of this table filters on rubric_id and nothing else, and
   // Postgres does not index a foreign key's referencing side — see
@@ -30,4 +31,11 @@ export class RubricCriterionEntity extends BaseEntity {
 
   @Column({ name: 'sort_order', type: 'smallint', default: 0 })
   sortOrder!: number;
+
+  /**
+   * Đặt lúc tạo tiêu chí, không bao giờ sửa (§14.1). Luật lỗi trỏ tiêu chí bằng key, vì luật dùng
+   * lại qua nhiều đề còn tiêu chí thuộc một phiên bản rubric bất biến.
+   */
+  @Column({ type: 'text' })
+  key!: string;
 }
