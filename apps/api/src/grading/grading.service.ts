@@ -262,6 +262,16 @@ export class GradingService {
       this.logger.log(`submission ${job.submissionId} đã có điểm AI — bỏ qua job lặp`);
       return;
     }
+    if (result.pipeline === 'investigator') {
+      // Đường điều tra chưa nối vào đường chấm thật — bước 3d. Chấm một-phát một bài đã gán
+      // `investigator` là ghi một điểm của đường này dưới nhãn của đường kia. Hôm nay không route
+      // nào khai được ngôn ngữ, nên nhánh này chỉ là chốt chặn.
+      await this.markUngradable(
+        job.submissionId,
+        'Bài thuộc đường chấm điều tra, đường này chưa nối vào hệ thống — chưa chấm',
+      );
+      return;
+    }
 
     const submission = await this.submissions.findOne({ where: { id: job.submissionId } });
     if (!submission) {

@@ -221,4 +221,16 @@ describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)
     const saved = sets[0];
     expect(saved.aiTotalScore).toBe('20');
   });
+
+  it('bài đã gán đường điều tra → KHÔNG chấm một-phát, đánh dấu không chấm được (T-PIPE-1)', async () => {
+    const results = (service as unknown as { results: { findOne: jest.Mock } }).results;
+    results.findOne.mockResolvedValue({ id: 'g1', aiTotalScore: null, pipeline: 'investigator' });
+    const mark = jest.spyOn(service, 'markUngradable').mockResolvedValue(undefined);
+
+    await service.gradeOneById(JOB);
+
+    expect(mark).toHaveBeenCalledTimes(1);
+    expect(mark.mock.calls[0][0]).toBe(JOB.submissionId);
+    expect(grade).not.toHaveBeenCalled();
+  });
 });

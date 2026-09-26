@@ -16,6 +16,7 @@ import { RequiredDeliverableEntity } from '../exam-session/entities/required-del
 import { RubricService } from './rubric.service';
 import { AnchorService } from './anchor.service';
 import { GRADING_ANCHORS_ENABLED } from './grading.types';
+import { pipelineFor } from './pipeline';
 
 export interface StartGradingResult {
   rubricId: string;
@@ -197,6 +198,7 @@ export class GradingRunService {
           {
             requiredFilename: deliverable.requiredFilename,
             deliverableType: deliverable.deliverableType,
+            language: deliverable.language,
           },
         ],
       ),
@@ -239,6 +241,11 @@ export class GradingRunService {
             rubricIdVersion: rubric.id,
             gradingTriggeredBy: teacherId,
             status: 'ai_grading',
+            // Gán MỘT lần, từ bài nộp (§14.1). Không có dòng khai báo — không nên xảy ra — thì
+            // coi như bài tự luận: đường an toàn là đường không tự quyết.
+            pipeline: pipelineFor(
+              deliverables.get(submission.requiredDeliverableId) ?? { deliverableType: 'document', language: null },
+            ),
           }),
         ),
       );
