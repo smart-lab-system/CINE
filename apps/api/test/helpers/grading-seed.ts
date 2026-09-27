@@ -76,13 +76,15 @@ export async function seedResult(
   ctx: SeedSession,
   // Gán lúc INSERT: trigger vòng đời chặn đổi `pipeline` về sau (§14.1).
   pipeline: 'one_shot' | 'investigator' = 'one_shot',
+  /** Object trong kho lưu trữ mang byte bài nộp — cho e2e cần đọc bài thật. */
+  storageKey: string | null = null,
 ): Promise<{ resultId: string; submissionId: string }> {
   const [sub] = await ds.query(
     `INSERT INTO examcollect.submission
        (exam_session_id, required_deliverable_id, student_mssv, student_name_input,
-        home_class_id, home_teacher_id, status)
-     VALUES ($1, $2, $3, 'Sinh viên seed', $4, $5, 'received') RETURNING id`,
-    [ctx.sessionId, ctx.deliverableId, `M${stamp()}`.slice(0, 20), ctx.classId, ctx.teacherId],
+        home_class_id, home_teacher_id, status, storage_key)
+     VALUES ($1, $2, $3, 'Sinh viên seed', $4, $5, 'received', $6) RETURNING id`,
+    [ctx.sessionId, ctx.deliverableId, `M${stamp()}`.slice(0, 20), ctx.classId, ctx.teacherId, storageKey],
   );
   for (const next of ['validated', 'collected']) {
     await ds.query(`UPDATE examcollect.submission SET status = $1 WHERE id = $2`, [next, sub.id]);

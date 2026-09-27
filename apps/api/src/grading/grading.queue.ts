@@ -1,6 +1,6 @@
 import { JobsOptions } from 'bullmq';
 import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
-import { envPositiveInt } from './env';
+import { readInvestigationBudget } from './investigator/budget';
 
 export const GRADING_QUEUE = 'grading';
 
@@ -57,7 +57,26 @@ export interface GradeSubmissionJob {
  * Cái giá phải biết: một job treo giữ chỗ lâu hơn hẳn. Với `concurrency`
  * 5 thì tệ nhất là 5 chỗ bị giữ 5 phút, chấp nhận được ở quy mô này.
  */
-export const GRADE_JOB_TIMEOUT_MS = envPositiveInt('GRADE_JOB_TIMEOUT_MS', 300_000);
+export const GRADE_JOB_TIMEOUT_MS = gradeJobTimeoutMs(process.env);
+
+/**
+ * Mặc định = trần giờ của CUỘC ĐIỀU TRA (`INVESTIGATE_MAX_WALL_MS`, §7) + 60 s (3d). Trần job bằng
+ * đúng trần điều tra thì job bị giết đúng lúc `investigate()` đang tự dừng có trật tự và ghi kết
+ * luận dở — thứ §7 hứa giữ lại. 60 s cho phần còn lại: dựng ngữ cảnh, ghi lượt chấm, tính điểm.
+ * Đường một-phát vẫn dưới trần này (cũ: 300 s).
+ */
+export function gradeJobTimeoutMs(env: NodeJS.ProcessEnv): number {
+  const raw = env.GRADE_JOB_TIMEOUT_MS;
+  if (raw !== undefined && raw.trim() !== '') {
+    // Cùng luật với `envPositiveInt`: đặt mà sai thì từ chối khởi động, không lặng lẽ dùng mặc định.
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 1) {
+      throw new Error(`GRADE_JOB_TIMEOUT_MS="${raw}" không phải số nguyên dương — từ chối khởi động với một hàng đợi chấm điểm hỏng.`);
+    }
+    return Math.trunc(value);
+  }
+  return readInvestigationBudget(env).budget.maxWallMs + 60_000;
+}
 
 /**
  * Tuỳ chọn cho mỗi job. Khai ở đây, không rải trong `startGrading`, vì

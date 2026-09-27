@@ -8,6 +8,7 @@ import { StorageService } from '../storage/storage.service';
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
 import { GradingReferenceService } from './grading-reference.service';
 import { AnchorService } from './anchor.service';
+import { InvestigatorRunService } from './pipeline/investigator-run.service';
 import { GradeSubmissionJob } from './grading.queue';
 import {
   AIGradingProvider,
@@ -171,6 +172,7 @@ describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)
       null,
       anchors,
       {} as Repository<GradingAttemptEntity>,
+      {} as InvestigatorRunService,
     );
   });
 
@@ -205,6 +207,16 @@ describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)
     expect(grade).toHaveBeenCalledTimes(1);
   });
 
+  it('T-ESSAY-1: bài một-phát chấm tự tin, dẫn chứng thật → VẪN về giảng viên, không bao giờ tự quyết (§0.3, §14.3)', async () => {
+    grade.mockResolvedValue(outcome([real('c1'), real('c2')]));
+
+    await service.gradeOneById(JOB);
+
+    expect(sets[1].status).toBe('flagged_for_review');
+    // Cờ confidence giữ nghĩa cũ: màn phân loại hôm nay vẫn tách bài tự tin với bài đáng ngờ.
+    expect(sets[1].flagForReview).toBe(false);
+  });
+
   it('lượt chấm lại là lượt được LƯU, không phải lượt đầu', async () => {
     // Chấm lại mà vẫn ghi kết quả lượt đầu thì vòng lặp kia chỉ là một
     // lời gọi API tốn tiền không đổi lấy gì — và triệu chứng duy nhất là
@@ -222,15 +234,17 @@ describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)
     expect(saved.aiTotalScore).toBe('20');
   });
 
-  it('bài đã gán đường điều tra → KHÔNG chấm một-phát, đánh dấu không chấm được (T-PIPE-1)', async () => {
+  it('bài đã gán đường điều tra → giao cho đường điều tra, KHÔNG chấm một-phát (T-PIPE-1, 3d)', async () => {
     const results = (service as unknown as { results: { findOne: jest.Mock } }).results;
     results.findOne.mockResolvedValue({ id: 'g1', aiTotalScore: null, pipeline: 'investigator' });
+    const run = jest.fn(async () => undefined);
+    (service as unknown as { investigatorRun: { run: jest.Mock } }).investigatorRun = { run };
     const mark = jest.spyOn(service, 'markUngradable').mockResolvedValue(undefined);
 
     await service.gradeOneById(JOB);
 
-    expect(mark).toHaveBeenCalledTimes(1);
-    expect(mark.mock.calls[0][0]).toBe(JOB.submissionId);
+    expect(run).toHaveBeenCalledWith('g1');
+    expect(mark).not.toHaveBeenCalled();
     expect(grade).not.toHaveBeenCalled();
   });
 });
