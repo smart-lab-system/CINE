@@ -236,6 +236,50 @@ describe('ExamSession (e2e)', () => {
     expect(archivedAgain.entries).toEqual(['Main.java', 'BaoCao.docx']);
   });
 
+  it('tạo phiên với deliverable code_project kèm language — 201, cột được lưu đúng (3d2)', async () => {
+    const { startTime, endTime } = futureWindow();
+    const res = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Bài thực hành CTDL',
+        classId,
+        roomName,
+        semesterName: 'HK kiểm thử',
+        examType: 'GK',
+        startTime,
+        endTime,
+        requiredFilenames: [{ filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }],
+      });
+
+    expect(res.status).toBe(201);
+    const row = await dataSource.query(
+      `SELECT deliverable_type, language FROM examcollect.required_deliverable WHERE exam_session_id = $1`,
+      [res.body.id],
+    );
+    expect(row[0].deliverable_type).toBe('code_project');
+    expect(row[0].language).toBe('cpp');
+  });
+
+  it('language trên deliverable document → 400 (3d2)', async () => {
+    const { startTime, endTime } = futureWindow();
+    const res = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Bài tự luận',
+        classId,
+        roomName,
+        semesterName: 'HK kiểm thử',
+        examType: 'GK',
+        startTime,
+        endTime,
+        requiredFilenames: [{ filename: 'bai1.docx', deliverableType: 'document', language: 'cpp' }],
+      });
+
+    expect(res.status).toBe(400);
+  });
+
   it('derives the course from the class instead of taking it from the body', async () => {
     const { startTime, endTime } = futureWindow();
 

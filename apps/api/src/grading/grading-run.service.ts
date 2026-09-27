@@ -204,6 +204,23 @@ export class GradingRunService {
       ),
     );
 
+    // §14.3 — một phiên có bài đường điều tra mà chưa ghim gói test là
+    // chưa đủ điều kiện bắt đầu chấm: InvestigationContextService sẽ trả
+    // `ungradable/system` cho MỌI bài đó (§4.4), và phát hiện việc này SAU
+    // khi đã xếp hàng chỉ khiến giảng viên đọc ra từng bài một thay vì một
+    // thông báo rõ nghĩa trước khi bấm. Kiểm TRƯỚC khi ghi dòng nào.
+    if (!session.testBundleId) {
+      const needsBundle = todo.some((submission) => {
+        const info = deliverables.get(submission.requiredDeliverableId);
+        return info !== undefined && pipelineFor(info) === 'investigator';
+      });
+      if (needsBundle) {
+        throw new BadRequestException(
+          'Phiên này có bài chấm bằng đường điều tra (code) nhưng chưa ghim gói test — hãy tạo, duyệt và ghim một gói test trước khi bắt đầu chấm (§14.3).',
+        );
+      }
+    }
+
     // MỌI dòng `grading_result` được tạo NGAY ĐÂY, đồng bộ, trước khi
     // job nào chạy — và đó là phần quan trọng nhất của việc chuyển sang
     // hàng đợi, không phải một chi tiết tối ưu.

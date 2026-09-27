@@ -216,7 +216,8 @@ export class ExamSessionService {
               manager.create(RequiredDeliverableEntity, {
                 examSessionId: session.id,
                 requiredFilename: item.filename,
-                deliverableType: DEFAULT_DELIVERABLE_TYPE,
+                deliverableType: item.deliverableType ?? DEFAULT_DELIVERABLE_TYPE,
+                language: item.language ?? null,
               }),
             ),
           );
