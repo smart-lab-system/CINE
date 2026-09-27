@@ -1,6 +1,6 @@
 # Hệ thống chấm điểm bằng agent điều tra — thiết kế
 
-**Ngày:** 2026-09-20 · **Baseline:** `main` = `3cf4688` · **Trạng thái:** spec, chưa implement
+**Ngày:** 2026-09-20 · **Baseline:** `main` = `3cf4688` · **Trạng thái:** spec, sẵn sàng lập plan (§15), chưa implement
 **Sửa đổi:** 2026-09-21 — thêm §0.3 (tự chủ phân bậc), §4.4 (sàn bằng chứng), §5.3
 (trần kích thước), §8.1 (kiểm tra mẫu ngẫu nhiên), §8.2 (hiệu chỉnh); siết số học §2.1
 **Sửa đổi:** 2026-09-22 — sau phản biện ngoài: §2.1 (đáp án mẫu chuẩn hoá hành vi
@@ -24,6 +24,32 @@ có gói test; lỗi hệ thống tách khỏi sàn bằng chứng); nối vào 
 **Sửa đổi:** 2026-09-23, lần 5 — chỉ đề bài là bắt buộc: §2.1 thêm mục dựng thước một
 lần khi thiếu đáp án mẫu hoặc gói test, kèm canh thước sau khi chấm; §4.4 sửa lại ca phiên
 không có gói test; nối vào §10
+**Sửa đổi:** 2026-09-23, lần 6 — lượt gỡ mâu thuẫn trước khi implement, gộp sáu quyết định
+đã duyệt: một công thức tự quyết (§4.2); `llm_only` trần cố định; `refuted` một nghĩa (§6.2);
+ngoại lệ hai cấp và bảng giá ghim lúc chốt (§2.2); chấm lại bài chưa có điểm (§2.3 mới);
+sandbox là worker riêng, kèm bẫy của C++ và Python (§3.5 mới); `inconclusive` (§3.1); bài
+rỗng và bài không biên dịch (§2.1); bài tự luận không tự quyết (§0.3); kiểm mẫu gộp vào
+bước 3 (§9); thêm §14 (mô hình dữ liệu và máy trạng thái) và §15 (ma trận nghiệm thu)
+**Sửa đổi:** 2026-09-23, lần 7 — sau lượt kiểm lại thứ hai: §14 viết lại cho khớp các trigger
+đang chạy (vòng đời, tiêu chí rubric); hai lớp lý do không chấm được thay vì ba (§4.4); luật đóng
+băng đếm cả bài đang chấm (§2.3); cô lập đọc, số khe đo, eval không cầm credential của hàng đợi
+thật (§3.5); luật có bản sửa (§14.1); `ToolCall`, `Verdict`, ngữ cảnh (§5); chiều ngược của
+máy trạng thái và khung rút mẫu (§14.3, §8.1); file nén hỏng (§2.1); baseline của bước 0 (§9)
+**Sửa đổi:** 2026-09-23, lần 8 — gỡ bốn chỗ còn chặn bước 3: luật gán `pipeline` (§14.1),
+người ký tên khi chốt bài tự quyết (§14.3), bước chuyển khi giảng viên thao tác (§14.3), dữ
+liệu không chấm được cũ (§2.3); test *sandbox chết* đổi mã thành `T-DOWN-1` cho khỏi trùng mã
+`T-SBX-*` của spec autograder; nói ra điểm mù của khung rút mẫu (§8.1)
+**Sửa đổi:** 2026-09-24, lần 9 — lúc lập plan bước 0 và bước 1: bước 1 chỉ lấy hợp đồng sandbox
+của nhánh plan-1, phần còn lại merge ở bước 3 (§9, §14.1, §14.4); cột `language` theo enum của
+nhánh (§14.1); thêm `T-EVAL-14`; các test eval và số học xanh được từ bước 0 dời vào dòng bước 0
+của §15.1. Sandbox (§3.5): mỗi ca kiểm tính đúng một container mới; container đo giữ suốt job và
+chặn tiến trình nền; đồng hồ trong tiến trình giả được nên luôn đi kèm số đo ngoài (`T-ISO-8`);
+một tiến trình worker thay vì hai
+**Sửa đổi:** 2026-09-26, lần 10 — sau buổi thử sandbox và bước 3a. Sandbox (§3.5): container đo
+không giữ trạng thái giữa các mẫu; kết quả buổi thử (`runc`, bấm giờ trong tiến trình, K = 1); luật
+mâu thuẫn của `T-ISO-8` đổi sang so theo từng n, đối chứng bằng đáp án mẫu, ngưỡng chốt bằng số;
+bước 4 so checksum ở từng n; lớp `recursion_limit` do bài điều khiển được. Thêm §4.6 (chỗ trống
+spec được lấp lúc làm bước 3a); sửa dòng `T-ISO-8` ở §10
 **Phụ thuộc:** `2026-09-20-master-data-scope-cut-design.md` phải xong trước.
 
 Thay lượt chấm một-phát bằng một **vòng điều tra có công cụ**: agent chạy mã sinh
@@ -85,8 +111,8 @@ model. §4 sửa đúng chỗ này, và nó là điều kiện cần của mọi
 > *"...dùng AI đề xuất điểm theo rubric, và để giảng viên **duyệt** ra điểm bài thi
 > cuối cùng."* (§1)
 
-§2.1 của spec này nói ngược lại: *"Mặc định giảng viên không làm gì. Agent chấm rồi
-xuất điểm thẳng vào bảng điểm."* **Hai câu đó không cùng tồn tại được, và spec này là
+§2.1 của spec này nói ngược lại: agent **tự quyết** phần lớn bài, và giảng viên chỉ xem
+những bài hệ thống đưa cho họ. **Hai câu đó không cùng tồn tại được, và spec này là
 bên thay đổi, nên spec này phải nói ra.**
 
 Thay bằng **tự chủ phân bậc** — không phải "AI quyết tất", cũng không phải "người
@@ -94,14 +120,23 @@ duyệt từng bài":
 
 | Điều kiện | Hệ thống làm gì |
 |---|---|
-| Đạt sàn bằng chứng (§4.4) **và** mọi luật đã áp đều có giá chắc **và** phản biện không `refuted` | **Tự quyết**, xuất điểm, để lại vết xem lại được |
-| Có luật chưa có giá, hoặc phản biện `unverified`, hoặc `llm_only` chiếm quá nửa mức trừ | **Gắn cờ đúng lỗi đó** (§6.3), không gắn cờ cả bài |
+| Thoả **đủ** công thức tự quyết ở §4.2 (*Điều kiện tự quyết — MỘT công thức*) | **Tự quyết**, để lại vết xem lại được |
+| Trượt một điều kiện gắn với một lỗi cụ thể — luật chưa có giá, phản biện `refuted` hoặc `unverified` | **Gắn cờ đúng lỗi đó** (§6.3), không gắn cờ cả bài |
+| Trượt một điều kiện của cả bài — confidence dưới ngưỡng, tiêu chí chưa chạm tới hoặc chưa có luật | Gắn cờ cả bài, nêu đích danh điều kiện |
 | Dưới sàn bằng chứng | **`ungradable`** — không có điểm nào cả (§4.4) |
+| **Bài tự luận / bài ảnh** (đường một-phát theo tiêu chí, §1.2) | **Không bao giờ tự quyết.** AI đề xuất, giảng viên duyệt — được duyệt hàng loạt, kèm xác nhận nói đúng số bài |
 | **Mẫu ngẫu nhiên N% của nhóm ĐÃ tự quyết** | **Vẫn đẩy cho giảng viên xem** (§8.1) |
 
 Dòng cuối là dòng dễ bị cắt nhất khi hết thời gian, và cắt nó hỏng hai thứ cùng lúc:
 mất cơ chế giữ niềm tin, **và** mất nguồn nhãn không lệch duy nhất mà §8 cần để train
 được. Xem §8.1.
+
+> **Vì sao bài tự luận đứng ngoài chính sách này (chốt 2026-09-23).** Toàn bộ lý lẽ cho việc
+> hệ thống được tự quyết dựa vào **sàn bằng chứng từ công cụ chạy thật** (§4.4). Bài tự luận
+> không có gì để chạy, nên không có sàn đó; để chính sách tự chủ lan sang đường này là cho
+> model tự chốt điểm tự luận mà không có bằng chứng nào. **Đây là một thay đổi hành vi, không
+> phải giữ nguyên:** code hôm nay tự duyệt mọi loại bài khi confidence ≥ 0,85
+> (`grading.service.ts`, không xét loại bài), nên bài tự luận **đang** được tự duyệt.
 
 > **`CLAUDE.md` đã sửa theo, 2026-09-21** — thêm mục *AI Grading Strategy → Tiered
 > autonomy*, và gỡ ba khẳng định cũ ở dòng 5, dòng 12 (Gradescope) và §1.
@@ -130,7 +165,10 @@ mất cơ chế giữ niềm tin, **và** mất nguồn nhãn không lệch duy 
 
 Môn mục tiêu: **Cấu trúc dữ liệu và Giải thuật**. Ngôn ngữ **không** khoá cứng
 trong kiến trúc, nhưng hiện thực và đo trên **đúng hai ngôn ngữ**, và mọi phát
-biểu khái quát trong báo cáo chỉ được nói tới đúng hai ngôn ngữ đó.
+biểu khái quát trong báo cáo chỉ được nói tới đúng hai ngôn ngữ đó. **Chốt 2026-09-23:
+C++ và Python**, với điều kiện ngôn ngữ đi theo môn thật — xác nhận với đề cương CTDL&GT
+trước khi dựng image cho ngôn ngữ thứ hai: nếu môn chỉ dạy C++, ngôn ngữ thứ hai là thứ sinh
+viên thật nộp, không phải Python theo mặc định. Bẫy riêng của từng ngôn ngữ ở §3.5.
 
 > **Ba tầng "đa ngôn ngữ", và chỉ tầng đầu là miễn phí.** Gộp ba tầng này là cách
 > một dòng nghe kêu đi vào báo cáo tốt nghiệp rồi không đỡ nổi câu hỏi phản biện
@@ -162,13 +200,15 @@ biểu khái quát trong báo cáo chỉ được nói tới đúng hai ngôn ng
 - **Tự train model chấm.** Fine-tune cần 10.000–100.000 mẫu; một môn một kỳ cho
   40–200 bài. Lệch 2–3 bậc độ lớn. Chiều sâu đến từ **bộ công cụ**, không từ
   trọng số. Chỗ train hợp lý duy nhất là bộ hiệu chỉnh ở §8, và nó không chấm.
-- **Bài tự luận và bài ảnh.** Đường `DocumentResolver` giữ nguyên hành vi.
+- **Đầu tư thêm cho bài tự luận và bài ảnh.** Đường `DocumentResolver` giữ nguyên, đóng
+  băng — **trừ một chỗ đổi có chủ đích**: nó không được tự quyết (§0.3).
 - **Dạng C và D** (project cần build, service có API) — theo đúng ranh giới của
   `2026-09-17-code-autograder-design.md` §1.2.
 - **Chấm lại tự động khi giảng viên sửa gói test.**
-- **Chấm lại một bài đã có kết quả**, dưới dạng một lượt chấm mới không ghi đè. Hôm nay
+- **Chấm lại một bài đã CÓ ĐIỂM**, dưới dạng một lượt chấm mới không ghi đè. Hôm nay
   bị chặn có chủ đích bằng ba lớp (§2.2); mở lại là một thiết kế riêng. Hệ quả cho tới
-  lúc có: luật bằng lời mới chỉ áp cho phiên thi chưa chấm.
+  lúc có: luật bằng lời mới chỉ áp cho phiên thi chưa chấm. Bài **chưa có điểm nào**
+  (không chấm được) thì chấm lại được — §2.3.
 
 ---
 
@@ -180,15 +220,15 @@ biểu khái quát trong báo cáo chỉ được nói tới đúng hai ngôn ng
 |---|---|
 | `AIGradingProvider` (seam) | **Giữ**, mở rộng thêm `gradeWithTools()` |
 | `TierChain` + circuit breaker + phân loại lỗi ba rổ | **Giữ nguyên** |
-| `enforceScoring()` — server tính điểm từ verdict | **Giữ nguyên.** Model vẫn không bao giờ chạm con số |
+| `enforceScoring()` — server tính điểm từ verdict | **Giữ nguyên tắc, đổi số học.** Model vẫn không bao giờ chạm con số; phép tính chuyển sang chấm trừ có trần (§2.1). Đường một-phát của bài tự luận giữ phép tính cũ |
 | `applyGuards()` G1/G2/G3 | **Giữ**, mở rộng cho bằng chứng dạng đo (§4.2) |
-| `evidence-check.ts` (đối chiếu trích dẫn nguyên văn) | **Giữ** cho lỗi do LLM kết luận |
+| `evidence-check.ts` (đối chiếu trích dẫn nguyên văn) | **Giữ**, chỉ cho lỗi `llm_only` (§5); lỗi `llm_with_tools` được kiểm bằng cách chạy lại lời gọi |
 | `harness/submission-envelope.ts` (vỏ bọc chống prompt injection) | **Giữ**, và **phải mở rộng** sang đầu ra công cụ — §3.3 |
 | `ContentResolverRegistry`, `CodeProjectResolver` | **Giữ** — đã dựng ở nhánh autograder |
-| `archive/` (inspector, rules, declaration-check) | **Giữ** — đã dựng |
-| `sandbox.types.ts` | **Giữ hợp đồng**, phải implement thật |
-| 3 trigger DB bất biến | **Giữ nguyên.** Điểm AI gốc vẫn không bao giờ bị ghi đè |
-| BullMQ queue, `regrade-stuck` | **Giữ nguyên** |
+| `archive/` của nhánh plan-1 (inspector, rules, declaration-check) | **Hợp nhất khi merge** với `submission/archive-check` đã có trên `main` (PR #42): giữ bản của `main` (§9 bước 3) |
+| `sandbox.types.ts` | **Giữ hợp đồng**, implement thành worker riêng (§3.5) |
+| 3 trigger DB bất biến | **Giữ, và vá một lỗ** (§14.4): guard hôm nay chỉ bắn khi `OLD.ai_total_score IS NOT NULL`, nên dòng chưa có điểm không được bảo vệ gì. Điểm AI gốc vẫn không bao giờ bị ghi đè |
+| BullMQ queue, `regrade-stuck` | **Giữ**, thêm đường chấm lại bài chưa có điểm (§2.3) |
 | **Lượt gọi model một-phát trong `gradeOne`** | **THAY** bằng vòng điều tra |
 | **`runAdvocate()` hiện tại** | **THAY** — xem §6, lỗi thiết kế thật |
 | **`finalConfidence = min(guard, trần bậc)`** | **THAY** — §0.2 |
@@ -246,6 +286,18 @@ với mỗi tiêu chí C:  Σ mức_trừ quy về C  ≤  C.maxPoints
 Vế thứ ba là toàn bộ lý do `probe` tồn tại (§3.2). Nếu công thức không phân biệt được
 nó thì `probe` đo ra một kết quả mà **không ai tiêu thụ**, và cả §3.2 thành trang trí.
 
+**Bài rỗng và bài không biên dịch — một luật mỗi ca** (chốt 2026-09-23; trước đó §2.1, §4.3
+và §12.2 nói ba điều khác nhau):
+
+| Ca | Kết cục | Vì sao |
+|---|---|---|
+| **Một phần** không nộp: tiêu chí có mã tương ứng (file, hàm đã khai) mà mã đó không có | Trừ trọn tiêu chí đó, `deterministic` | Sự thật đọc được bằng máy, không cần điều tra |
+| **Cả bài** không có dòng mã nào | `ungradable`, lớp `submission` (§4.4) — giảng viên xác nhận | 0 điểm cả bài là một phán quyết; một file rỗng cũng có thể là lỗi thu bài, và hệ thống không phân biệt được |
+| **Không biên dịch được** | Gói test **đã chạy** — bước dựng là một phần của lượt chạy, mọi ca ra `compile_error`. Rơi vào §4.3: gắn cờ, trần 0,5 | Không phải `ungradable`: thước đã đo và cho ra kết quả. Không tự cho 0: §4.3 |
+| File nén **không đọc được** (`archive_check_status = unreadable`) | `ungradable` lớp `submission` **trước khi** chạy gì — không tốn lượt model nào | Không có gì để điều tra |
+| File nén **thiếu file bắt buộc** (`failed`) | Chấm phần có; phần thiếu đi vào dòng *một phần không nộp* ở trên | Bước kiểm file nén lúc thu bài (PR #42) đã biết đúng file nào thiếu |
+| File nén **chưa kiểm xong** (`pending`) | Chưa xếp hàng chấm | Chấm trước khi biết thiếu gì là chấm trên dữ liệu chưa đủ |
+
 #### Agent rút chuẩn từ đâu, không hỏi ai
 
 Agent **điều tra tài liệu của phiên thi bằng chính bộ công cụ ở §3** mà nó dùng để
@@ -257,7 +309,7 @@ Agent **điều tra tài liệu của phiên thi bằng chính bộ công cụ �
 | Đề bài | Ràng buộc tường minh: cấm dùng thư viện, đòi đạt O(n log n) |
 | Gói test | Cái gì được coi trọng, qua tên nhóm và số ca mỗi nhóm |
 | Gom cụm cả lô | Kiểu lệch lặp lại ở nhiều bài mà bảng lỗi chưa có |
-| Bảng lỗi của giảng viên khác cùng môn | Giá khởi đầu cho người mới |
+| Luật mồi đóng gói sẵn | Vốn từ ban đầu, **không kèm giá**. Bảng lỗi của giảng viên khác **không bao giờ** được đọc (*khoá theo giảng viên*, dưới) — bản trước ghi nó làm nguồn giá khởi đầu, trái chính luật đó |
 
 > **Đáp án mẫu hiện chỉ được nhét vào prompt làm văn bản tham chiếu. Nhưng nó là
 > một CHƯƠNG TRÌNH.** Chạy nó qua sandbox thì mọi tính chất của nó thành một chuẩn
@@ -306,7 +358,7 @@ Tách rạch ròi ba thứ mà bản trước gộp chung dưới một chữ "c
 > số. *"Tìm một đường đi"*, *"trả về một cách ghép"*, *"in ra một cây khung nhỏ
 > nhất"* có nhiều đáp số **cùng đúng**. So khớp nguyên văn đầu ra với đáp án mẫu ở
 > nhóm thứ hai là trừ điểm một bài đúng. Với nhóm này, gói test phải khai một **bộ
-> so sánh** (`comparator`); **không khai thì `run` và `probe` trên input tự dò
+> so sánh** (`comparator`, hình dạng ở §14.1); **không khai thì `run` và `probe` trên input tự dò
 > KHÔNG được sinh ra lỗi hành vi nào** — chỉ `run_tests` mới được, vì gói test là
 > thứ giảng viên đã tự tay khai. Đây là chỗ `probe` phải im lặng thay vì đoán, và
 > nó không mâu thuẫn với §3.2: `probe` vẫn thu hẹp được ca lỗi **trong phạm vi các
@@ -320,8 +372,10 @@ phải bỏ công ra làm, và nhiều người không làm. Nếu hệ thống 
 §4.4 (*"gói test chưa từng chạy → `ungradable`"*) biến ca phổ biến nhất thành ca không
 chấm được.
 
-**Chỉ đề bài là bắt buộc.** Đề là nguồn duy nhất của các ràng buộc mà luật ở mục trên
-cho phép kết luận lỗi, và giảng viên luôn có nó. Phần còn thiếu thì hệ thống dựng:
+**Bắt buộc: đề bài và trần điểm.** Đề là nguồn duy nhất của các ràng buộc mà luật ở mục
+trên cho phép kết luận lỗi, và giảng viên luôn có nó. Trần điểm (rubric) thì số học ở đầu
+mục này cần — không có trần theo tiêu chí thì không có luật 2. Đáp án mẫu và gói test **không**
+bắt buộc; phần còn thiếu hệ thống dựng:
 
 | Giảng viên có | Hệ thống dựng | Output mong đợi lấy từ đâu |
 |---|---|---|
@@ -346,11 +400,16 @@ Sáu luật, mỗi luật chặn một cách hỏng cụ thể:
    một model viết, từ cùng một cách hiểu đề. Khi sandbox về, đáp án qua được gói test chỉ
    chứng tỏ hai thứ **khớp nhau**, không chứng tỏ chúng **đúng**: cùng hiểu sai thì cùng
    qua. Thứ làm bộ ca thành thước là **người đọc nó**. Nên cờ `model_answer_unverified`
-   của spec soạn đề §4.1 vẫn bật, và mọi bài của phiên vẫn mang cảnh báo.
+   của spec soạn đề §4.1 vẫn bật **cho tới khi giảng viên duyệt bộ ca**. Duyệt xong thì
+   output mong đợi là thứ giảng viên đã khai (luật 3), và cảnh báo trên từng bài đổi thành
+   một dòng nguồn gốc trung tính (*"thước do hệ thống sinh, bạn duyệt lúc …"*). Cờ vẫn giữ
+   trong dữ liệu, vì nó là sự thật; chỉ cảnh báo là tắt — không tắt thì ca phổ biến nhất
+   mang cảnh báo vĩnh viễn, và giảng viên học cách phớt lờ nó. Gắn bộ ba từ Soạn đề tính là
+   đã duyệt: giảng viên đã đọc và sửa nó ở đó trước khi gắn (spec soạn đề §6).
 5. **Bài toán nhiều đáp số thì bộ sinh phải khai `comparator`.** Không khai được thì ca đó
    không sinh lỗi hành vi nào — đúng luật đã có ở mục trên, không nới cho ca do máy sinh.
-6. **Ghi nguồn của thước:** `origin: teacher | from_model_answer | generated`, trên gói
-   test và trên đáp án mẫu. Hồ sơ từng bài hiện nguồn thước, vì *"trượt ca do giảng viên
+6. **Ghi nguồn của thước:** gói test mang `origin: teacher | from_model_answer | generated`,
+   đáp án mẫu mang `origin: teacher | authoring | generated` (§14.1). Hồ sơ từng bài hiện nguồn thước, vì *"trượt ca do giảng viên
    viết"* và *"trượt ca hệ thống sinh, giảng viên đã duyệt"* là hai câu khác nhau khi sinh
    viên khiếu nại.
 
@@ -359,9 +418,12 @@ mà đa số bài trượt, trong khi chính những bài đó qua gần hết c
 **thước** sai chứ không phải cả lớp sai — đúng kiểu hỏng im lặng mà spec soạn đề §4.1 mô
 tả. Hệ thống cảnh báo **ở cấp ca**, không ở cấp bài: không sinh `DiagnosedError`, không tự
 đổi điểm, nên tính chạy-lại-được của từng bài (§3.4) không bị đụng tới. Giảng viên quyết
-giữ hay bỏ ca. Bỏ thì đi đúng đường bậc 2 của §2.2 — tính lại từ kết quả có cấu trúc đã
-lưu (§5.3), không chạy lại gì — và bài đã chốt đổi điểm thì có audit như mọi thay đổi
-khác. Ngưỡng đọc từ env như mọi trần ở §7; mặc định đề xuất: **≥ 60%** số bài trượt ca đó,
+giữ hay bỏ ca. Bỏ thì sinh **một phiên bản mới của gói test**, bớt đúng ca đó; phiên được
+ghim lại vào phiên bản mới, và mọi bài của phiên tính lại theo đường bậc 2 của §2.2 — từ kết
+quả có cấu trúc đã lưu (§5.3), không chạy lại gì. Đây là **ngoại lệ duy nhất** của luật đóng
+băng gói test: bỏ ca tính lại được cho mọi bài cùng lúc, nên không đẻ ra hai kỳ thi; thêm ca
+hay sửa output mong đợi thì phải chạy lại, nên vẫn bị chặn. Phiên đã chốt không tự đổi —
+cùng luật ghim của §2.2. Ngưỡng đọc từ env như mọi trần ở §7; mặc định đề xuất: **≥ 60%** số bài trượt ca đó,
 và những bài trượt vẫn qua **≥ 80%** số ca còn lại.
 
 **Thứ tự:** phần *sinh* làm được trước sandbox — nó dùng lại `ExamAuthoringProvider`, chịu
@@ -370,12 +432,16 @@ hạn mức `GenerateQuotaService` và ghi usage như §9.1 của spec soạn đ
 
 #### Giảng viên can thiệp ở tầng LUẬT, không ở tầng điểm
 
-- Mặc định giảng viên **không làm gì**. Agent chấm rồi xuất điểm thẳng vào bảng
-  điểm qua `GradeExport`.
+- Mặc định giảng viên **không phải xem từng bài**: agent tự quyết phần lớn bài (§0.3),
+  giảng viên xem những bài được đưa cho họ, chốt điểm, rồi ghi điểm vào sổ điểm (§13).
+  Không có lượt xuất tự động nào.
 - Mở lịch sử một bài thì thấy: agent chẩn đoán gì, luật nào đã áp, ra điểm bao nhiêu.
-- Thấy vô lý thì họ sửa **luật đó**, tại trang kiến thức. **Không** sửa điểm bài đó.
+- Thấy vô lý thì họ sửa **luật đó**, tại trang kiến thức. **Không** sửa con số điểm. Nếu
+  lỗi chỉ sai với riêng một bài, họ bỏ lỗi đó cho riêng bài đó — một ngoại lệ cấp lỗi
+  (§2.2), không sinh luật nào.
 - Hệ thống **áp lại luật mới ngay** cho mọi bài dính luật đó, trong lô hiện tại và
-  mọi kỳ sau — **với ba trong bốn loại thay đổi**; bốn bậc và ngoại lệ của chúng ở §2.2.
+  mọi kỳ sau — **với ba trong bốn loại thay đổi**, và **chỉ cho phiên chưa chốt**; bốn bậc,
+  ngoại lệ và luật ghim giá lúc chốt ở §2.2.
 
 Đây là chỗ tiết kiệm thật, và nó không nằm ở tốc độ chấm: **sửa một dòng luật thì
 N bài cập nhật theo.** Nó cũng khớp với cách giảng viên nghĩ — họ không nghĩ "bài
@@ -449,8 +515,15 @@ Sau đợt cắt master data, **tên môn là văn bản tự do**. Hai giảng 
 "CTDL&GT" sẽ ra cùng một chuỗi, nên khoá bảng lỗi theo tên môn là để luật của
 người này áp vào bài của người kia.
 
-Khoá đúng: `unique(teacher_id, course_name, rule_key)` — cùng hình dạng với
-`unique(teacher_id, name, version)` mà spec cắt master data đã chốt cho `rubric`.
+Khoá đúng — chốt 2026-09-23: **mỗi luật một `id` uuid làm khoá chính, mọi tham chiếu dùng
+id đó**, và `unique(teacher_id, rule_key)` chỉ là ràng buộc duy nhất. Lý do tách: `ruleId`
+trong hồ sơ chẩn đoán **bất biến vĩnh viễn** (§5). Trỏ bằng khoá tự nhiên thì ngày thêm môn
+thứ hai — khoá phải thêm một vế — mọi tham chiếu lịch sử thành mơ hồ mà không sửa được. Trỏ
+bằng uuid thì thêm môn chỉ đổi ràng buộc duy nhất, không đụng lịch sử.
+
+**Model không bao giờ cầm uuid.** File bảng lỗi trong workspace ghi `rule_key`; harness ánh
+xạ `rule_key` → uuid, kèm phiên bản bảng giá, lúc đọc verdict, và lưu cả hai. Bắt model chép
+lại 36 ký tự là mời lỗi chép sai mà không ai thấy — đúng lớp hỏng mà §4.1 sinh ra để chặn.
 Một hệ thống cùng công ty đã dính đúng lỗi này với cache khoá theo mã dự án trần,
 và nó rò dữ liệu suy từ danh sách nhân sự giữa hai khách hàng không liên quan.
 
@@ -462,16 +535,19 @@ phải phạm vi của bản demo: hệ thống đi sâu vào CTDL&GT. Đợt d�
 spec này, vì chính spec này định nghĩa lại rubric LÀ GÌ (§2.1: tụt xuống thành
 trần điểm và bộ từ vựng mồi). Thiết kế lại trang đó hai lần là phí.
 
-Hai việc phải quyết khi làm spec này:
+Hai việc phải quyết khi làm spec này — **cả hai đã chốt 2026-09-23**:
 
-1. **Trang `/teacher/rubrics` đang gợi ý mỗi MÔN một rubric** — nó dựng danh
+1. **Đã chốt ở spec UI 2026-09-23** (mục 1, 3.1): `/teacher/rubrics` chuyển hướng sang
+   `/teacher/rules`, và trần điểm là một khối trong Bảng lỗi. Câu hỏi gốc giữ lại bên dưới.
+   **Trang `/teacher/rubrics` đang gợi ý mỗi MÔN một rubric** — nó dựng danh
    sách tên từ `classes.map((k) => k.courseName)`. Một môn thì nó gợi ý đúng
    một cái tên, mà cái tên đó là hằng số của cả hệ thống, nên gợi ý không mang
    tin gì. Cơ sở gợi ý mới nên là **loại kỳ thi** (Giữa kỳ / Cuối kỳ), hay bỏ
    hẳn gợi ý và chỉ còn nút tạo? Và trang này có còn tồn tại không, một khi
    rubric không còn là máy tính điểm?
 
-2. **Khoá `unique(teacher_id, course_name, rule_key)` ở tiểu mục ngay trên.**
+2. **Khoá bảng lỗi — đã chốt ở tiểu mục ngay trên.** Lập luận cũ giữ lại để thấy vì sao
+   `course_name` bị bỏ khỏi khoá.
    Lập luận của nó vẫn đúng nguyên: `teacher_id` là ranh giới cách ly thật.
    Nhưng `course_name` giờ mang **cùng một chuỗi ở mọi dòng**, nên nó không
    phân biệt được gì — khoá thực tế là `unique(teacher_id, rule_key)`. Giữ
@@ -524,21 +600,34 @@ Chẩn đoán — tập `DiagnosedError` và `investigation` — đã **bất bi
 Không có phiên bản thì không trả lời được câu sinh viên sẽ hỏi khi khiếu nại: *"điểm
 7,5 lúc xuất được tính theo giá nào?"*
 
-**Thứ tự ưu tiên khi đọc điểm hiện tại của một bài:**
+**Ngoại lệ có hai cấp, và chỉ hai** (chốt 2026-09-23; trước đó §2.1 nói *"không sửa điểm"*
+còn `T-POL-6` nói *"sửa điểm một bài lẻ"*):
 
-1. **Ngoại lệ thủ công của giảng viên** (`T-POL-6`). Sửa giá một luật **không bao giờ**
-   đè lên bài đã được đánh dấu ngoại lệ.
-2. Lượt tính lại mới nhất.
-3. Lượt tính đầu.
+| Cấp | Là gì | Lượt tính lại sau đó |
+|---|---|---|
+| **Lỗi** | *Bỏ lỗi này cho riêng bài này* — một lỗi không đúng với riêng bài đó | Mọi lượt tính lại **giữ** việc bỏ lỗi đó; giá của các lỗi **khác** trong bài vẫn áp bình thường |
+| **Bài** | *Chấm tay* — giảng viên đặt điểm cả bài. Dùng cho bài không chấm được lớp `submission` và cho bài tự luận | Không lượt tính lại nào đổi điểm bài đó nữa |
 
-#### Đổi giá làm đổi điểm bài đã chốt — đó VẪN là sửa điểm sau khi chốt
+Cả hai là một dòng `teacher_review` (Security rule 6), phân biệt bằng cột `kind` (§14.1), và
+không sinh luật nào. **Hàm "điểm hiện tại"** định nghĩa đầy đủ ở §14.2: chấm tay nếu có →
+không thì lượt tính mới nhất, vốn đã áp các ngoại lệ cấp lỗi ngay lúc tính.
 
-Security rule 4, đã viết ở `audit-log.entity.ts`: *mọi lần sửa điểm sau khi
-`GradingResult.status = finalized` phải ghi `audit_log`*, và việc đó do service thực
-hiện thao tác chịu, không phải trigger. Đổi giá gián tiếp làm đổi điểm của những bài
-đó, nên **mỗi bài đã chốt bị ảnh hưởng cần một dòng `audit_log`**: người thực hiện là
-giảng viên đã sửa giá, kèm luật, giá cũ, giá mới, điểm cũ, điểm mới. Không có thì đây
-là một đường sửa điểm đã chốt **đi vòng qua luật số 4**.
+#### Bảng giá ghim vào phiên LÚC CHỐT — sửa giá không tự lan sang phiên đã chốt
+
+*(Sửa 2026-09-23. Bản trước để đổi giá tự làm đổi điểm bài đã chốt, kèm audit. Sai: bảng lỗi
+theo giảng viên dùng chung cho mọi đề của người đó, nên sửa giá kỳ này sẽ đổi điểm một phiên
+kỳ trước đã đóng từ lâu — trong khi §2.1 chỉ hứa "lô hiện tại và mọi kỳ sau".)*
+
+- **Phiên chưa chốt đi theo bảng giá hiện hành.** Đây là vòng làm việc chính: giảng viên
+  đặt giá **trong lúc** duyệt lô, và chính lô đó phải tính lại. Ghim lúc *bắt đầu* chấm thì
+  giá mới không vào được lô đang chấm.
+- **Lúc chốt, phiên chụp phiên bản bảng giá đang dùng** (`exam_session.pinned_price_version_id`,
+  §14.1). Từ đó sửa giá không tự đổi gì ở phiên này.
+- **Phiên đã chốt chỉ đổi khi giảng viên chủ động bấm** *"áp giá mới cho phiên này"*. Lượt đó
+  là sửa điểm sau khi chốt, nên **mỗi bài bị đổi điểm có một dòng `audit_log`**: người bấm,
+  luật, giá cũ, giá mới, điểm cũ, điểm mới. Security rule 4, đã viết ở `audit-log.entity.ts`:
+  việc ghi do service thực hiện thao tác chịu, không phải trigger. Không có dòng đó thì đây là
+  một đường sửa điểm đã chốt **đi vòng qua luật số 4**.
 
 #### Luật bằng lời thêm giữa chừng — công bằng trong MỘT phiên thi
 
@@ -558,13 +647,60 @@ Bậc 4 chỉ áp cho bài chấm từ nay về sau. Giữa hai học kỳ thì 
   chờ lượt chạy bậc 3) phải hiện *"chưa xét theo luật X"* — không để trông như đã xét
   và đạt.
 
+### 2.3 Chấm lại bài CHƯA CÓ ĐIỂM — ngoại lệ hẹp của luật "không chấm lại" (chốt 2026-09-23)
+
+Luật chặn chấm lại (§1.2, §2.2) tồn tại để bảo vệ **một điểm đã có**: 20 bài chấm theo thước
+cũ và 20 bài theo thước mới là hai kỳ thi. Bài *không chấm được* chưa có điểm nào để bảo vệ.
+Không có đường chấm lại thì một lần sandbox hay dịch vụ AI sập làm cả phiên kẹt vĩnh viễn:
+bài hết lượt thử rơi vào `flagged_for_review`, mà `regrade-stuck` chỉ nhặt dòng ở `ai_grading`.
+
+1. **Chỉ cho bài không có điểm nào** (`ai_total_score IS NULL`, `ungradable_class` khác null).
+2. **Mỗi lượt là một dòng `grading_attempt` mới** (§14.1). Lượt cũ giữ nguyên để tra — lý do
+   lần trước không chấm được là dữ liệu. **Không** là một dòng `grading_result` mới:
+   `uq_grading_result_submission` giữ đúng một kết quả mỗi bài, và mọi chỗ đọc — `startGrading`,
+   `markUngradable`, `jobId = grade-${submissionId}`, chốt điểm, xuất điểm, tiến độ — dựa vào
+   bất biến đó.
+3. **Giảng viên bấm, không tự động.** Tầng tự động đã có: BullMQ thử lại 3 lần có backoff.
+   Thêm một tầng tự động sau đó là thử lại cái đã hỏng 3 lần giữa một sự cố đang kéo dài, và
+   trái luật đã có của repo: `regrade-stuck` là route giảng viên bấm, không phải `@Interval`,
+   vì *"một job nền tự xếp hàng lại sẽ âm thầm tiêu tiền model"*.
+4. **Theo lớp lý do** (§4.4): `system` → nút gộp *"Chấm lại N bài lỗi hệ thống"*;
+   `submission` → **không** có nút chấm lại, chỉ *chấm tay*, vì chấm lại sẽ ra đúng kết quả cũ
+   và đốt ngân sách. Không có lớp thứ ba: mọi điều kiện của sàn quy về một trong hai (§4.4).
+5. **Chống chạy đôi bằng UPDATE có điều kiện**, đúng khuôn `advance()` ở
+   `teacher-review.service.ts`: chuyển `flagged_for_review → ai_grading` chỉ khi trạng thái
+   hiện tại và `ai_total_score IS NULL` vẫn đúng. Không đổi dòng nào thì không xếp hàng.
+6. **Luật đóng băng mở lại khi và chỉ khi MỌI kết quả của phiên là bài không chấm được đã dừng
+   hẳn** — không bài nào mang điểm, và không bài nào đang chấm (`ai_grading`, `ai_graded`). Khi
+   đó chưa bài nào bị đo bằng thước cũ, nên sửa đề, đáp án, gói test hay rubric không đẻ ra hai
+   kỳ thi. Đếm cả bài đang chấm là để chặn kẽ chạy đua: lô đang chạy mà chưa bài nào ra điểm thì
+   sửa thước vẫn là hai thước trong một phiên. Áp cho cả `assertNotGradedYet` (tài liệu chấm)
+   lẫn luật đóng băng rubric của phiên. Mở khoá thì màn chuẩn bị chấm mở lại (spec UI mục 3.7),
+   để có chỗ sửa thước. **Ba test hôm nay mã hoá luật cũ** (*"có một dòng kết quả là khoá"*) và
+   sửa cùng bước 3: T-FREEZE-1 (`grading-reference.e2e-spec.ts`), ca 409 của
+   `session-rubric.e2e-spec.ts`, và T-ATT-2 của spec soạn đề.
+
+7. **Dữ liệu cũ.** Migration của bước 3 điền `ungradable_class = 'system'` cho mọi dòng
+   `flagged_for_review` có `ai_total_score IS NULL` và `ungradable_reason` khác null. Hôm nay chỉ
+   `markUngradable` sinh ra dòng như vậy, và nó chỉ chạy khi job hết lượt thử — tức lỗi phía hệ
+   thống. Kèm một dòng `grading_attempt` số 1 chép lại lý do cũ, để lượt chấm lại là lượt 2 và lý
+   do cũ không mất. Không điền thì chính những phiên đang kẹt hôm nay vẫn kẹt, vì luật 1 đòi
+   `ungradable_class` khác null.
+8. **Chấm lại giữ nguyên `pipeline` của kết quả.** Không bao giờ đổi đường chấm cho vài bài giữa
+   một phiên: một phiên nửa chấm một-phát, nửa chấm bằng điều tra là hai kỳ thi.
+
+Không cần luật riêng cho sổ điểm: bài không chấm được chặn chốt điểm (§14.3), và sổ điểm chỉ
+ghi sau khi chốt, nên bài đó không bao giờ bị ghi thành ô trống. Nếu sau này nới, bản chụp
+từng sinh viên của §13 đã bắt được *"trống → có điểm"* như mọi thay đổi khác.
+
 ---
 
 ## 3. Bảy công cụ
 
 Agent không nhận text rồi trả điểm. Nó nhận **thư mục bài nộp + bộ công cụ** và
 tự quyết cần làm gì. Mọi công cụ chạy trong container dùng một lần, không mạng,
-giới hạn cứng CPU / RAM / thời gian / số tiến trình.
+giới hạn cứng CPU / RAM / thời gian / số tiến trình — trên **worker sandbox riêng** (§3.5),
+không bao giờ trên máy chạy API.
 
 | Công cụ | Trả lời câu hỏi nào của giảng viên |
 |---|---|
@@ -653,9 +789,18 @@ ngân sách của `probe`.
 > Cả bốn chốt đều dẫn về cùng một hành vi khi thiếu dữ kiện: **`inconclusive`**. Đó
 > là lý do `inconclusive` phải là một giá trị hạng nhất mà bảng lỗi hiểu được: một
 > lỗi độ phức tạp chỉ được sinh ra khi phép đo **kết luận được**, và `inconclusive`
-> **không phải** bằng chứng cho bất cứ mức trừ nào. Nó cũng không phải lý do gắn cờ
-> cả bài — nó chỉ là một tiêu chí chưa chạm tới được, tức đúng dòng thứ ba của bảng
-> ở §4.4.
+> **không phải** bằng chứng cho bất cứ mức trừ nào.
+>
+> **Và `inconclusive` không tự động là "chưa chạm tới"** (sửa 2026-09-23). Bản trước gọi nó
+> là dòng thứ ba của bảng §4.4, tức gắn cờ — trong khi §12.3 thừa nhận phần lớn lời giải
+> nhanh sẽ ra `inconclusive`, nên gần như mọi bài giỏi bị gắn cờ. Luật: nhìn **các lớp ứng
+> viên chưa loại được** sau phép so ở chốt 2.
+>
+> | Các lớp chưa loại được | Kết luận |
+> |---|---|
+> | Mọi lớp đều **≤ yêu cầu** (đề đòi O(n log n), không tách được O(n) với O(n log n)) | **Đạt.** Tiêu chí đã chạm tới, không lỗi |
+> | Có lớp **> yêu cầu** (không tách được O(n log n) với O(n²)) | Tiêu chí **chưa kết luận được** → dòng thứ ba của bảng §4.4, gắn cờ nêu đích danh |
+> | Đề không đòi độ phức tạp | Không có luật nào để trừ; phép đo chỉ để mô tả |
 
 ### 3.2 `probe` — chỗ tạo ra chiều sâu thật
 
@@ -748,6 +893,232 @@ Ranh giới, và nó là ranh giới cứng:
 > cũng là lý do `compare_peers` **không** được đếm vào sàn bằng chứng §4.4 — một
 > lô chỉ có một bài nộp vẫn phải chấm được.
 
+### 3.5 Sandbox — worker riêng, và những chỗ phép đo có thể sai (chốt 2026-09-23)
+
+Rủi ro 1 ở §11 đã có lời giải: **API trên Railway không bao giờ chạy mã sinh viên.** Sandbox
+là một worker riêng trên một máy có Docker, nối vào hệ thống qua đúng hợp đồng
+`sandbox.types.ts` và BullMQ.
+
+| Thành phần | Chạy ở | Cầm gì |
+|---|---|---|
+| Vòng lặp agent (`investigate()`) và mọi lời gọi model | API, trên Railway | Khoá model |
+| Mỗi lời gọi công cụ (`run`, `run_tests`, `run_scaled`, …) | **Một job** trên hàng đợi sandbox | — |
+| Worker sandbox | Máy riêng có Docker (máy demo, hoặc VPS) | Quyền đọc/ghi **đúng hàng đợi sandbox**, không gì khác |
+
+`run_scaled` là **một** job cho cả dải `n` (đã là luật ở chốt 4 của §3.1), chạy trên **hai
+container** — một cho bài nộp, một cho đáp án mẫu — mà worker chạy xen kẽ. Đo xen kẽ chỉ triệt
+tiêu được nhiễu khi cả hai đo trên cùng máy, cùng lúc; còn tách container là luật cô lập đọc ở
+mục ngay dưới. Khác luật 5 ở dưới: trong một job đo, mỗi chương trình giữ **một** container suốt
+job và mỗi mẫu là một lần `exec`, vì khởi động container mỗi mẫu sẽ nhét nhiễu của Docker vào
+đúng phép đo. Đổi lại, sau mỗi mẫu mà bài còn tiến trình chạy nền thì job đo **dừng**, kết cục
+`interference`: tiến trình nền ăn CPU của khe đo và làm lệch cả đáp án mẫu đang chạy xen kẽ.
+
+Tiến trình nền không phải thứ duy nhất sống qua các mẫu (thêm lần 10, review bước 1). Mọi lượt
+lặp của một `n` dùng **cùng** input, nên bài nào để lại được gì cho mẫu sau — một file, một đối
+tượng IPC — là nhớ đệm được kết quả. Khi đó bốn trên năm lượt chạy nhanh thật, checksum vẫn đúng,
+cả số đo trong lẫn số đo ngoài đều ra O(n) cho một bài O(n²), và luật mâu thuẫn của `T-ISO-8`
+không bắt được. Nên container đo phải **không giữ được trạng thái** giữa các mẫu:
+- không chỗ nào ghi được: không `/tmp`, không `/dev/shm`;
+- đối tượng IPC không chặn được bằng mount (SysV, hàng đợi POSIX) được kiểm sau mỗi mẫu; còn thì
+  cũng là `interference`;
+- tiến trình giữ container sống chạy bằng một uid khác uid của bài, để bài không kill hay ptrace
+  được nó.
+
+Worker đã làm cả ba từ bước 1.
+
+#### Mô hình đe doạ — người viết mã độc chính là người được chấm
+
+Thoát được container nghĩa là **tự sửa được bằng chứng chấm bài của chính mình**. Nên:
+
+1. **Worker chỉ kéo việc ra, không nhận kết nối vào.** Không cổng HTTP nào mở ra Internet.
+2. **Quyền tối thiểu**, vì tiến trình nói chuyện với Docker socket có quyền tương đương root
+   trên máy đó. Worker **không** cầm khoá model, **không** cầm khoá storage — job mang
+   presigned URL để tải bài nộp, đáp án mẫu và gói test, cùng nguyên tắc với đường thu bài.
+   Redis: TLS, và **một user ACL chỉ đụng được prefix khoá của hàng đợi sandbox**, hoặc một Redis
+   riêng cho sandbox. Một mật khẩu chung của cả instance **không** đủ: cầm nó là đọc ghi được
+   mọi hàng đợi, kể cả hàng trả kết quả.
+3. **API không tin kết quả một cách mù quáng:** kết quả phải khớp `jobId` đã gửi và qua kiểm
+   schema. Việc này không cứu được một máy đã mất — nên mức cô lập ở đây quan trọng hơn ở một
+   hệ thống chạy mã thông thường.
+4. **Cô lập ĐỌC, không chỉ cô lập ghi.** Mã sinh viên đọc được output mong đợi hay đáp án mẫu là
+   gian lận tầm thường. Container của bài nộp **chỉ** có bài nộp và input của ca đang chạy —
+   không bao giờ có output mong đợi, gói test hay đáp án mẫu. Worker so output **bên ngoài**
+   container. Đáp án mẫu chạy trong container riêng của nó. `T-ISO-6` khoá lại.
+5. **Mỗi ca kiểm tính đúng chạy trong một container MỚI** (thêm 2026-09-24). Chạy nhiều ca trong
+   một container thì tiến trình của ca sau sửa được kết quả của ca trước — tệ nhất là tính lại đáp
+   án của một ca vừa hết giờ rồi ghi đè, xoá luôn dấu vết của lỗi độ phức tạp. Chi phí khởi động
+   mỗi ca là thứ buổi thử đo; đắt quá thì tối ưu là một quyết định thiết kế riêng, có phân tích đe
+   doạ riêng, không phải một chỉnh sửa lặng lẽ.
+
+#### Buổi thử chọn cách cô lập — đo cả độ ổn định của phép đo
+
+Hai ứng viên: Docker đã siết (`--network none`, `--read-only`, `--cap-drop ALL`,
+`no-new-privileges`, giới hạn pids / RAM / CPU, user không phải root), và **gVisor** chạy trên
+nền đó. gVisor chặn ở tầng syscall nên an toàn hơn, nhưng cộng chi phí cho mỗi syscall — tức
+làm phình hằng số `c` mà §3.1 phải khử, và có thể làm nhiễu `run_scaled`.
+
+**Một sự thật làm đổi phép so:** phần tính toán thuần CPU trong gVisor chạy gần như tốc độ
+gốc; chi phí dồn vào khởi động và nhập xuất. Nếu **bấm giờ bên trong tiến trình**, quanh đúng
+lời gọi hàm của sinh viên — một driver do harness viết, đồng hồ đơn điệu — thì cả hằng số khởi
+động lẫn nhập xuất rơi khỏi phép đo, và chi phí của gVisor lên `run_scaled` gần như biến mất.
+Cách này cần đề khai **chữ ký hàm**; bài dạng đọc stdin / in stdout quay về bấm giờ cả tiến
+trình và khử `c` như §3.1.
+
+Nên buổi thử là **2 runtime × 2 cách bấm giờ**, chọn theo hai tiêu chí cùng lúc: mức cô lập,
+và **độ tản của lớp độ phức tạp kết luận được** qua nhiều lần đo cùng một bài. Buổi thử đo
+luôn **chi phí một vòng job** (Redis → container → Redis), vì mỗi bài có tới 25 lời gọi trong
+trần 300 giây (§7).
+
+**Kết quả buổi thử (2026-09-24, ghi lần 10):** `runc`, bấm giờ **trong tiến trình**, K = 1, trên
+một máy `n2d-standard-8` (AMD EPYC 7B13). gVisor trượt `test:sandbox`: không có `/proc/sysvipc`
+nên lệnh kiểm IPC sau mỗi mẫu không chạy được (mọi job đo ra `unavailable`), và sandbox của nó
+không khởi động dưới trần `pids`. Độ lệch chuẩn độ dốc ≤ 0,008 ở mọi chương trình C++ và Python
+của buổi thử khi máy rảnh, ≤ 0,013 khi có tải job kiểm (ngưỡng D4 là 0,10). Một job đo mất 14–24 s. Vòng job qua Redis p95 1,28 s.
+Bấm giờ cả tiến trình đòi n lớn hơn nhiều (≥ 30 ms mỗi điểm với C++), nên bước 4 ưu tiên đề khai
+chữ ký hàm. Số đo, và điều gì làm kết luận này sai:
+`docs/superpowers/reports/2026-09-24-sandbox-isolation-spike.md`.
+
+> **Đồng hồ trong container giả được — bởi chính người được chấm** (thêm 2026-09-24). Cả hai
+> cách bấm giờ ở trên đều chạy **trong** container: driver chung tiến trình với hàm của sinh
+> viên, còn bộ bấm giờ cả tiến trình chung user với nó. Mã sinh viên cố tình thì in được một
+> dòng thời gian giả, hay sửa chỗ ghi số đo. Dòng số đo mang một mã ngẫu nhiên theo từng mẫu
+> để chặn các lệnh in vô tình, nhưng không chặn được người cố tình. Nên số đo trong chỉ là **số
+> đo chính, không bao giờ là số đo duy nhất**: mỗi mẫu mang **cả** thời gian worker đo từ ngoài
+> container. Số đo ngoài thô — gồm cả chi phí `exec` — nhưng không giả được. Bước 4 chỉ nhận lớp
+> độ phức tạp suy từ số đo trong khi nó **không mâu thuẫn** với số đo ngoài theo luật ngay dưới.
+> Mâu thuẫn ra `inconclusive`, kèm cờ nêu đích danh, vì đó là dấu hiệu có người đụng vào phép đo.
+> `T-ISO-8` khoá lại.
+
+**Luật mâu thuẫn — so ở từng n, đối chứng bằng đáp án mẫu** (lần 10, thay luật so *lớp* của
+lần 9). Đo thật, buổi thử 2026-09-24, cho thấy hai cách so đơn giản đều không dùng được:
+
+- **So lớp** suy từ số đo ngoài với lớp suy từ số đo trong: lớp của số đo ngoài không tính được.
+  `c` ngoài khoảng 70 ms (chi phí `docker exec`), nên luật t ≥ 20c của §3.1 đòi mỗi điểm ≥ 1,4 s.
+- **So tỉ lệ** "ngoài − c cùng cỡ với trong": báo động oan cho bài trung thực. Ở bấm giờ trong tiến
+  trình, đồng hồ trong chỉ bọc lời gọi hàm, còn số đo ngoài gồm cả phần driver đọc input, cỡ O(n).
+  Ví dụ `cpp-linear`, n = 2²¹: trong 0,94 ms, ngoài − c 184 ms.
+
+Nhưng phần driver đó **giống nhau** ở bài nộp và đáp án mẫu (184 ms và 183 ms): cùng driver, cùng
+input, đo xen kẽ trên cùng máy. Nên ở mỗi n của job đo, lấy trung vị qua các lượt lặp:
+
+```
+D(n)  = [ngoài_bài(n) − ngoài_mẫu(n)] − [trong_bài(n) − trong_mẫu(n)]
+σ(n)  = p90 − p10 số đo ngoài CỦA ĐÁP ÁN MẪU qua các lượt lặp ở n
+mâu thuẫn ở n  ⇔  |D(n)| > max(2·σ(n), 20 ms)
+```
+
+Bài trung thực cho D ≈ 0. Bài khai thời gian F thay cho thời gian thật T cho D ≈ T − F. Mâu thuẫn
+ở **bất kỳ** n nào thì cả phép đo ra `inconclusive`, kèm cờ nêu n và D. Ba chỗ là cố ý:
+
+- **Không dùng baseline của container bài nộp.** Baseline chạy trong container đó, nên bài điều
+  khiển được nó, ví dụ chỉ ngủ khi không có input, để kéo D xuống.
+- **σ chỉ lấy từ đáp án mẫu.** Bài cố tình làm thời gian của mình lộn xộn cũng không nâng được
+  ngưỡng.
+- **Hai chiều.** Khai thiếu ở n lớn cho D > 0. Còn khai **thừa** ở n nhỏ, trong khi khớp đúng ở n
+  lớn, làm dẹt độ dốc mà vẫn qua được mọi phép so một chiều; kiểu này cho D < 0.
+
+Kiểm trên số đo cũ, gồm 120 job `runc` và 720 điểm (job × n) của bài trung thực. Bài giả được dựng
+bằng cách giữ số đo ngoài thật và thay số đo trong bằng đường cong của lớp thấp hơn. Có 288 lượt
+giả, cả khai thiếu lẫn khai thừa:
+
+| | Kết quả |
+|---|---|
+| Bài trung thực bị cờ oan | **0/120** job. \|D\| lớn nhất 21,8 ms, ở một điểm có σ = 20,2 ms; mọi điểm khác ≤ 14,8 ms |
+| Bài O(n²) khai thành O(n) hay O(n log n) | **Bắt 192/192** |
+| Bài O(n log n) khai thành O(n) | Bắt 37/96 — xem giới hạn thứ nhất |
+
+Giới hạn, phải biết trước:
+
+- **O(n log n) khai thành O(n) nói chung không bắt được.** Hai lớp chỉ lệch nhau một thừa số log
+  qua cả dải n, nhỏ hơn nhiễu. Chính phép kết luận độ phức tạp (§3.1) cũng khó tách hai lớp này.
+- **Kiểu khai thừa chỉ bị bắt khi thời gian thật ở n lớn nhất đủ lớn.** Lệch lớn nhất mà bài O(n²)
+  giả O(n) tạo ra được là khoảng T_max/4, nên cần T_max ≳ 4 × ngưỡng. Bài chậm thật là bài có T_max
+  lớn, nên giới hạn này nghiêng về phía có lợi cho phép đo.
+- **Ngưỡng được chọn sau khi đã nhìn chính số đo này.** Vì vậy bước 4 phải kiểm lại ngưỡng trên
+  một bộ đo mới trước khi dùng nó để kết luận. Bộ đo mới phải có thêm một bài trung thực nặng bộ
+  nhớ: bộ nhớ giải phóng lúc thoát nằm ngoài đồng hồ trong nhưng nằm trong số đo ngoài, nên bài
+  đó có D > 0 thật. Báo động oan ở luật này ra `inconclusive` và bài về giảng viên, không thành
+  một mức trừ, tức sai về hướng an toàn.
+- **Mọi con số là của một máy** (dấu vân tay ở báo cáo buổi thử). Đổi máy là đo lại, cùng luật
+  với `c`.
+
+**Checksum ở từng n** (lần 10). Bài biết được mình đang bị đo: env có nonce, và `/proc` thấy
+tiến trình canh. Vì vậy nó có thể trả kết quả sai mà nhanh. Bước 4 so checksum của bài với checksum
+của đáp án mẫu ở **mọi** n. Lệch ở bất kỳ n nào thì phép đo ra `inconclusive`, kèm cờ nêu n. Bài
+vẫn chịu luật tính đúng của `run_tests`. Worker đã trả checksum thô từ bước 1.
+
+#### Một máy sandbox duy nhất cho cả chấm thật lẫn eval
+
+Hằng số khởi động và nhiễu CPU phụ thuộc máy. Đo trên laptop rồi chấm trên VPS thì ngưỡng
+của `run_scaled` và kết quả eval không còn so được với nhau. Nên:
+
+- **Chỉ định MỘT máy sandbox**; demo và eval cùng gửi lời gọi công cụ tới đó.
+- **Vòng lặp của eval vẫn chạy ở nơi giữ khoá model**, không chạy trên máy sandbox — chạy ở
+  đó là đưa khoá model lên đúng máy dễ bị tấn công nhất.
+- **Eval dùng cùng MÁY, nhưng khác hàng đợi và khác Redis.** Tiến trình worker trên máy sandbox
+  kéo **hai** nguồn: hàng đợi thật, và hàng đợi eval trên một **Redis riêng của eval**. Máy dev vì
+  thế không bao giờ cầm credential của hàng đợi thật — cùng lý do §12.7 luật 2 không cho máy dev
+  cầm credential của DB production. Hai nguồn dùng chung khe đo thời gian (dưới), nên tải eval
+  không đo chồng lên một phép đo thật. *(Sửa 2026-09-24: bản trước dùng hai tiến trình và một
+  semaphore cấp máy. Semaphore chung hai tiến trình phải dựng bằng khoá file, thứ nằm lại khi một
+  tiến trình chết. Còn máy sandbox thì đằng nào cũng cầm cả hai bộ credential, nên một tiến trình
+  không kém an toàn hơn hai.)*
+- **Ghi dấu vân tay của máy** — CPU, kernel, runtime (`runc` / `runsc`), digest của image — vào
+  từng lượt chấm (`grading_attempt.sandbox_host`, §14.1) và vào `run.json` của eval (§12.7).
+  Đổi máy là đo lại `c` trên máy mới.
+- Kiểm đột biến tương đương (§12.2) **không** đo thời gian, nên vẫn chạy được trên Docker máy
+  dev.
+
+#### Bao nhiêu job cùng lúc — và phép đo thời gian cần chạy riêng
+
+- **Job kiểm tính đúng** (`run`, `run_tests`, `probe`, …) chạy song song tới
+  `SANDBOX_CONCURRENCY`, mặc định số lõi của máy trừ một.
+- **Job đo thời gian** (`run_scaled`) chạy trong **khe đo riêng**: mỗi khe là một nhóm lõi ghim
+  cố định (`cpuset`), không job nào khác chạy trên đó, và số khe `K` đọc từ env. Một semaphore
+  trong tiến trình worker chia khe cho cả hai nguồn, nên eval và chấm thật không bao giờ cùng đo
+  trên một khe. `T-ISO-7` khoá lại.
+- **Đây là chỗ nghẽn của mục tiêu 40 bài trong 30 phút (§15.2).** Một phiên là khoảng 1.000 job
+  công cụ, trong đó 40 job đo. Với K = 1 và khoảng 30 giây mỗi job đo, riêng phần đo đã mất 20
+  phút xếp hàng. Buổi thử đo độ tản của phép đo ở K = 1, 2, 4 để chọn K; nếu chỉ K = 1 đo sạch
+  thì mục tiêu 30 phút phải xét lại, và việc đó ghi ở rủi ro 1 (§11).
+
+#### Bẫy riêng của từng ngôn ngữ
+
+**C++**
+- **Driver phải dùng kết quả hàm trả về** (in checksum). Ở `-O2`, một lời gọi mà kết quả không
+  ai dùng có thể bị trình biên dịch bỏ đi, và `run_scaled` đo ra O(1). Đây là việc của driver,
+  không phải của bài sinh viên: vòng lặp thừa trong bài bị bỏ đi là hành vi thật của chương
+  trình đó.
+- **Lượt kiểm tính đúng chạy với `-fsanitize=address,undefined`**, để truy cập ngoài mảng — thứ
+  trong C++ thường không sập mà chỉ ra kết quả sai, hay thỉnh thoảng đúng — thành *sập lúc chạy*
+  của §4.5. Kèm `ASAN_OPTIONS=detect_leaks=0`: LeakSanitizer bật sẵn cùng ASan, và để nguyên thì
+  mọi bài rò bộ nhớ thoát với mã khác 0, thành *sập* hàng loạt. Rò bộ nhớ, nếu muốn trừ, là một
+  luật riêng. ASan ăn RAM gấp 2–3 lần, nên lượt này có trần RAM riêng.
+- **Lượt đo thời gian chạy bản không sanitizer** — sanitizer làm chậm khoảng gấp đôi.
+- **Chốt phiên bản trình biên dịch và cờ** (`-std=c++17 -O2`), và ghi vào đề.
+
+**Python**
+- **Giới hạn đệ quy 1000 đánh trượt oan** một lời giải đệ quy đúng, sâu O(n), ở n = 10⁵. Nâng
+  `setrecursionlimit` thôi thì chưa đủ: hết `RecursionError` nhưng tràn stack C, trình thông
+  dịch segfault, và bài rơi vào *sập lúc chạy* — còn tệ hơn. Phải chạy bài trong một thread có
+  `threading.stack_size` lớn.
+- **Cùng một cấu hình cho `run_tests` và `run_scaled`**, nếu không một bài qua test nhưng sập
+  lúc đo.
+- `RecursionError` còn sót lại được phân loại **riêng**, không rơi vào luật về tính đúng.
+- **Nhưng lớp `recursion_limit` do bài điều khiển được** (lần 10, review bước 1). `os._exit(86)`
+  hay `raise RecursionError` đều ra đúng lớp đó; chỉ `sys.exit(86)` bị chặn. Nên tách riêng là để
+  báo cáo và để giảng viên đọc, **không** để nhẹ tay. Ở luật máy kiểm (§4.1), một ca
+  `recursion_limit` là ca không đạt, ngang `runtime_crash`. Bài bị trừ oan vì đệ quy sâu thật là
+  việc của giảng viên khi xem hồ sơ, không phải một cửa miễn trừ mà bài tự mở được.
+
+**Cả hai:** dải `n` của `run_scaled` **theo từng ngôn ngữ**. Python chậm hơn C++ vài chục lần;
+dùng chung một dải thì Python hoặc không đạt `t ≥ 20c`, hoặc hết giờ.
+
+**Hợp đồng `sandbox.types.ts` giữ, nhưng mở rộng.** Kết cục một ca hôm nay là
+`pass | fail | timeout | error`. §4.5 và mục này cần tách `error` thành `compile_error ·
+runtime_crash · recursion_limit · output_limit · unavailable` — `unavailable` là lỗi của máy, không
+phải của bài (`T-DOWN-1`). `SandboxLanguage` thu về `cpp | python`.
+
 ---
 
 ## 4. Nguồn gốc điểm, và confidence theo nguồn gốc
@@ -759,7 +1130,7 @@ có mặt trong bài đều mang theo nguồn gốc của kết luận đó:
 
 ```ts
 interface DiagnosedError {
-  ruleId: string;          // trỏ tới một dòng trong bảng lỗi
+  ruleId: string;          // uuid của luật — harness ánh xạ từ rule_key (§2.1)
   deduction: number;       // mức trừ, lấy TỪ BẢNG, không do model đặt
   source: VerdictSource;
   toolCallIds: string[];   // bằng chứng, xem §5
@@ -797,11 +1168,20 @@ xanh. Chỉ có điều đó là giá của **một lỗi khác**.
 
 ```ts
 interface ErrorRule {
-  ruleKey: string;
-  deduction: number | null;         // null = chưa có giá (§2.1)
-  criterionId: string;              // để áp trần theo tiêu chí (§2.1)
+  id: string;                       // uuid — mọi tham chiếu dùng id này (§2.1)
+  ruleKey: string;                  // thứ model thấy và trả về; harness ánh xạ sang id
+  deduction: number | null;         // null = chưa có giá; đọc từ phiên bản bảng giá (§2.2)
+  criterionKey: string;             // khớp rubric_criterion.key của rubric đã ghim (§14.1)
   predicate: RulePredicate | null;  // có ⇒ code quyết; model không được đề xuất
 }
+
+// Đúng bốn mẫu điều kiện của spec UI mục 3.2. Không có mẫu thứ năm nào ngoài code:
+// mỗi mẫu được lập trình sẵn cho từng ngôn ngữ (rủi ro 10).
+type RulePredicate =
+  | { kind: 'test_group_failed'; group: string }
+  | { kind: 'calls_function'; name: string }
+  | { kind: 'complexity_exceeds_required' }
+  | { kind: 'no_recursion'; functionName?: string };
 ```
 
 Ba ràng buộc, thiếu một là hở lại:
@@ -833,7 +1213,7 @@ Thay `min(guard, trần bậc)` bằng:
 |---|---|---|
 | `deterministic` | **1,0** | Độ tin không đến từ model. Test chạy lại cho cùng kết quả |
 | `llm_with_tools` | 0,85 | Model kết luận, nhưng mọi khẳng định trỏ tới lời gọi công cụ chạy lại được |
-| `llm_only` | **trần của bậc model** (như hôm nay) | Không có gì chống lưng ngoài chính model |
+| `llm_only` | **0,5** — thấp hơn nữa nếu trần của bậc model thấp hơn | Không có gì chống lưng ngoài chính model. Trần **cố định**, không lấy trần bậc model làm trần: Claude provider hôm nay khai `confidenceCeiling: 1`, và lấy nó làm trần thì *"chỉ mô hình"* được tin **hơn** *"mô hình + công cụ"* (0,85) |
 
 Confidence của **cả bài** là trung bình có trọng số **theo mức trừ của từng lỗi**,
 không phải giá trị nhỏ nhất. Một bài bị trừ 3 điểm do test quyết cộng 0,5 điểm do
@@ -841,8 +1221,10 @@ LLM phán đoán không đáng bị kéo xuống mức của vế 0,5 điểm.
 **Bài không có lỗi nào thì tổng trọng số bằng 0, và công thức trên chia cho 0.** Đó
 không phải ca hiếm — đó là **bài làm đúng hoàn toàn**, tức đúng ca mà hệ thống muốn tự
 duyệt nhất. Với ca đó, confidence **không** đến từ danh sách lỗi (rỗng) mà đến từ **độ
-phủ của cuộc điều tra**: đã chạy hết gói test chưa, có tiêu chí nào chưa lời gọi nào
-chạm tới không. Cùng một đại lượng mà §4.4 dùng làm sàn.
+phủ của cuộc điều tra**. Công thức, chốt 2026-09-23: **confidence = 1,0 khi mọi điều kiện độ
+phủ của sàn §4.4 đều qua** (gói test chạy đủ, mọi tiêu chí đã chạm tới và có luật). Một điều
+kiện trượt thì bài đã bị gắn cờ bởi chính điều kiện đó, nên không cần công thức thứ hai. Cùng
+một đại lượng mà §4.4 dùng làm sàn.
 
 > *"Không tìm thấy lỗi"* và *"đã kiểm và không có lỗi"* là hai chuyện khác nhau, và
 > chỉ chuyện thứ hai mới đáng confidence cao.
@@ -856,6 +1238,39 @@ lỗi có mặt mà không biết nó đáng trừ bao nhiêu thì vẫn chưa c
 > cần model mạnh nào. Tỉ lệ "bao nhiêu phần trăm mức trừ do máy quyết" đo được
 > **ngay sau khi bảng lỗi có giá**, trước khi chấm bài nào, và nên là con số tiêu
 > đề của cả đồ án.
+
+#### Điều kiện tự quyết — MỘT công thức (chốt 2026-09-23)
+
+Trước lượt sửa này, tự quyết có ba định nghĩa: bảng điều kiện ở §0.3, trung bình có trọng số ở
+mục này, và hằng số `AUTO_APPROVE_CONFIDENCE = 0.85` trong code. Cùng một bài có thể bị gắn cờ
+theo chỗ này và được tự quyết theo chỗ kia. Thay bằng một công thức duy nhất, ở **một hàm**:
+
+```
+tự quyết  ⇔  bài code (pipeline = investigator; không phải tự luận, §0.3)
+          ∧  qua sàn §4.4 — không ungradable; mọi tiêu chí đã chạm tới VÀ có luật
+          ∧  §4.3 không bắn — không phải passed === 0
+          ∧  mọi lỗi được tính đều có giá
+          ∧  không lỗi nào refuted hay unverified mà chưa được giảng viên xử lý (§6.2)
+             — từ khi có phản biện mới
+          ∧  confidence (công thức ở trên) ≥ θ
+```
+
+- **θ = 0,85**, đọc từ env, giữ nguyên hằng số hôm nay; §8 thay nó bằng ngưỡng theo từng
+  giảng viên sau này. Luật *"`llm_only` không quá nửa mức trừ"* của §0.3 cũ **bỏ**: với trần
+  `llm_only` = 0,5, θ = 0,85 đã tự ép phần `llm_only` xuống dưới khoảng 30% khi phần còn lại do
+  máy quyết — chặt hơn luật cũ, và chỉ còn một con số để chỉnh.
+- **Điều kiện độ phủ "có luật"** (mới): một tiêu chí có trần mà không luật nào trỏ vào thì không
+  bao giờ mất điểm — chấm trừ nghĩa là tiêu chí đó luôn trọn điểm. Bài dính tiêu chí đó không
+  tự quyết, **trừ khi** giảng viên đánh dấu tường minh *"tiêu chí này không có luật trừ"*.
+  **Không** chặn lúc bắt đầu chấm: khoá đầu của một đề mới có bảng lỗi gần rỗng và luật mọc ra
+  từ chính lô đó (§2.1), nên chặn thì lô đầu của mọi giảng viên mới không chạy được.
+- **Từ bước 3 tới bước 6 (§9) chưa có phản biện mới**, nên điều kiện phản biện chưa có hiệu lực,
+  và `runAdvocate()` cũ **không** được dùng làm điều kiện — nó có lỗi thiết kế ở §2. Trong khoảng
+  đó, tự quyết chỉ dựa vào sàn, giá và confidence, cộng kiểm mẫu (§8.1, ship cùng bước 3). Đây là
+  điểm yếu biết trước; ghi ra để không ai đọc số tự quyết của giai đoạn đó như số của hệ thống
+  đầy đủ.
+- Một lỗi trượt điều kiện (chưa có giá, `refuted`, `unverified`) thì **gắn cờ đúng lỗi đó**
+  (§6.3); một điều kiện của cả bài trượt thì gắn cờ cả bài, nêu đích danh điều kiện.
 
 ### 4.3 Luật chống mâu thuẫn — giữ nguyên tinh thần spec autograder
 
@@ -882,7 +1297,7 @@ dừng và chấm với những gì đã có"*) và §7.2 (*"ngắt, chấm vớ
 "dữ liệu đã có" là **rỗng**, câu đó có nghĩa là **cho điểm tuyệt đối**.
 
 §4.3 không cứu được: nó chỉ bắt ca *test đã chạy và fail hết*, không bắt ca *test chưa
-từng chạy*. `T-SBX-1` cũng không: nó chỉ phủ sandbox chết, không phủ cạn ngân sách.
+từng chạy*. `T-DOWN-1` cũng không: nó chỉ phủ sandbox chết, không phủ cạn ngân sách.
 
 > Spec này đã tự viết ra luật chống đúng lớp lỗi này ở §5.2 — *"một điểm bịa **không
 > kèm tín hiệu lỗi nào** — lớp hỏng tệ nhất, vì không có gì để báo động"* — nhưng chỉ
@@ -899,6 +1314,7 @@ Dưới sàn thì rơi vào đó, kèm lý do.
 | Gói test **chưa từng chạy** | `ungradable` | "Không có gì để trừ" **không phải** "không có gì sai" |
 | **0** lời gọi công cụ thành công | `ungradable` | Đây là cuộc điều tra chưa bắt đầu, không phải cuộc điều tra sạch |
 | Có tiêu chí **không lời gọi nào chạm tới** | `flagged`, nêu đích danh tiêu chí | Điều tra dở thì hữu ích; im lặng về chỗ dở thì không |
+| Có tiêu chí **không luật nào trỏ vào**, chưa được đánh dấu *"không có luật trừ"* | `flagged`, nêu đích danh tiêu chí | Chấm trừ mà không có luật thì tiêu chí đó luôn trọn điểm, bất kể bài làm ra sao |
 
 **Sàn đứng TRƯỚC trần.** Một bài dưới sàn không được cứu bằng cách hạ confidence rồi
 vẫn xuất một con số: hạ confidence nghĩa là *"điểm này chưa chắc"*, còn ở đây thì
@@ -917,12 +1333,22 @@ chấm):
   cũng có thước trước khi bài đầu tiên được chấm. Chỉ chặn bắt đầu khi không có cả đề.
 - **Lỗi hệ thống không phải sàn bằng chứng, dù rơi vào cùng một cột.** Hôm nay
   `markUngradable` (`grading.service.ts`) ghi bài hết lượt thử — dịch vụ AI lỗi, quá giờ —
-  vào `flagged_for_review` kèm `ungradable_reason`, đúng chỗ mà sàn ở đây sẽ ghi. Ba loại lý
-  do cần ba cách xử lý: lỗi hệ thống thì chấm lại, bài nộp hỏng thì chấm tay, dưới sàn thì
-  xem lại gói test. `ungradable_reason` là chuỗi tự do, nên máy không tách được ba loại này.
-  Cần thêm một lớp lý do đọc được bằng máy (`system` | `submission` | `evidence_floor`).
-  Chấm lại bài chưa có điểm nào: xem ghi chú ở §8.1 của spec soạn đề
-  (`2026-09-21-exam-authoring-agent-design.md`).
+  vào `flagged_for_review` kèm `ungradable_reason`, đúng chỗ mà sàn ở đây sẽ ghi. Hai loại lý
+  do cần hai cách xử lý: lỗi phía hệ thống thì chấm lại, bài nộp hỏng thì chấm tay.
+  `ungradable_reason` là chuỗi tự do, nên máy không tách được. Cần một lớp lý do đọc được bằng
+  máy, cột `ungradable_class` (§14.1), với **đúng hai** giá trị — bảng ngay dưới. Bản trước có
+  lớp thứ ba, `evidence_floor`, và nó là ngõ cụt: *"sửa thước rồi chấm lại"* trong khi thước đã
+  khoá. Thật ra mọi điều kiện của sàn đều quy về một trong hai lớp.
+
+| Điều kiện dẫn tới không chấm được | Lớp | Vì sao |
+|---|---|---|
+| Dịch vụ AI lỗi, quá giờ, hết lượt thử | `system` | Không liên quan tới bài |
+| Gói test chưa từng chạy vì sandbox không phản hồi | `system` | Thước có, máy chạy nó hỏng |
+| 0 lời gọi công cụ thành công — model treo (`T-AG-6`) | `system` | Nguyên nhân ở agent, không ở bài |
+| Cạn ngân sách với 0 phát hiện (`T-FLOOR-1`) | `system` | Agent đi lạc; một lượt khác có thể không |
+| Bài không có dòng mã nào; file nén không đọc được (§2.1) | `submission` | Chấm lại ra đúng kết quả cũ |
+
+Chấm lại bài chưa có điểm nào: §2.3.
 
 ---
 
@@ -952,7 +1378,7 @@ không trần nào chạm tới.
 cho ra timeout trên một bài hoàn toàn đúng — đúng loại nhiễu mà §3.1 đã phải thiết
 kế phép đo xen kẽ để chống. Nên: một ca hết giờ **phải được chạy lại ít nhất một
 lần** trước khi thành bằng chứng; lượt chạy lại mà qua thì ghi nhận là **nhiễu hạ
-tầng**, không phải lỗi của sinh viên. Cùng tinh thần với `T-SBX-1` (*"sandbox chết
+tầng**, không phải lỗi của sinh viên. Cùng tinh thần với `T-DOWN-1` (*"sandbox chết
 → `unavailable`, không thành bài làm sai"*), chỉ khác là áp cho ca hỏng **một
 phần** thay vì hỏng hẳn.
 
@@ -961,14 +1387,35 @@ phần** thay vì hỏng hẳn.
 > đó là hành vi đúng — nhưng chỉ đúng **vì** §4.3 tồn tại. Đừng gộp §4.3 vào sàn
 > §4.4 trong một đợt dọn dẹp nào sau này: hai luật bắt hai ca khác nhau.
 
+### 4.6 Chỗ trống của spec được lấp lúc làm bước 3a (chốt 2026-09-25, ghi lần 10)
+
+Lúc làm bước 3a (`decide()`, plan `2026-09-25-grading-decision-core.md`), gặp những chỗ spec chưa nói
+tới. Chủ đồ án đã duyệt cách lấp dưới đây. Các plan sau đọc luật ở đây, không đọc ở plan 3a.
+
+| Chỗ trống | Luật |
+|---|---|
+| Luật có `predicate` mà công cụ đo **chưa có**: `complexity_exceeds_required` cần `run_scaled`; `calls_function` và `no_recursion` cần `ast_query` | Model phán đoán các luật này như luật không `predicate`, với nguồn gốc `llm_with_tools` hoặc `llm_only`. **Nhưng** tiêu chí chứa chúng tính là chưa chạm tới, nên bài không tự quyết và bị gắn cờ nêu đích danh. Luật này hết hiệu lực cho từng mẫu điều kiện ngay khi công cụ của mẫu đó có. |
+| *"Tiêu chí được chạm tới"* (`T-FLOOR-4`) | Mọi luật trỏ vào tiêu chí đều đã được xét:<br>• Luật `predicate`: kết quả đo là `present` hoặc `absent`, không phải `unmeasured`.<br>• Luật không `predicate`: cuộc điều tra có ít nhất một `read_file` thành công trên file bài nộp, **và** lúc điều tra model đã được đưa luật đó như một luật cho nó phán đoán.<br>Quyết lại hồ sơ cũ với một bảng lỗi mới: luật model chưa từng thấy là luật chưa xét. |
+| Nhóm test chỉ trượt vì `timeout` | Kết quả đo là `unmeasured`, lý do *hết giờ — chưa tách được chậm với treo* (§4.5). Không trừ, và tiêu chí chưa chạm tới. |
+| Kết quả không ổn định giữa các lần chạy | • Ca fail ở **mọi** lần đã chạy nó (không lần nào pass) là bằng chứng, dù có lần khác không biên dịch được.<br>• Ca lúc pass lúc fail, hay biên dịch lúc được lúc không mà không có ca fail chắc: `unmeasured`.<br>• Chỉ khi **mọi** lần chạy đều không biên dịch được mới là `T-COMPILE-1`. |
+| "Phát hiện" trong `T-FLOOR-1` | Gồm cả lỗi do code quyết. Bài có một nhóm test fail thì không rơi vào `T-FLOOR-1`, dù cạn ngân sách. |
+| Cờ của cuộc điều tra: `injection_suspected`, `replay_mismatch`, `replay_unverified`, `evidence_rejected`, `budget_exhausted` | Cả năm cờ đều chặn tự quyết; mỗi cờ là một điều kiện của cả bài, nêu đích danh. Nới bằng số liệu kiểm mẫu (§8.1), không nới bằng đoán. |
+| Bảng lỗi đưa cho model (§4.1 luật 2) | Luật máy kiểm đứng trong mục riêng *"Luật máy kiểm — KHÔNG đề xuất"*. Model đề xuất luật máy kiểm thì đề xuất bị bỏ qua và **ghi lại**, kể cả khi trái với kết quả máy đo `absent`. Đề xuất đó không chặn tự quyết. |
+| §4.3 bắn khi nào | Mỗi khi không ca nào đạt, kể cả bài không biên dịch được, và kể cả khi lỗi máy quyết đã giải thích hết số ca không đạt. Khi đó confidence ≤ 0,5 và hệ thống không tự cho 0 điểm. |
+| `llm_with_tools` (§4.1 luật 3) | Lỗi trích **bất kỳ** lời gọi `run` hay `run_tests` thành công nào. Kiểm lời gọi đó có liên quan tới lỗi không là việc của phản biện (§6). |
+| Định danh luật | `ruleKey` cho tới khi bảng lỗi có uuid (bước 3c). `decide()` không đổi chữ ký khi đó. |
+
 ---
 
 ## 5. Hồ sơ chẩn đoán
 
-Cột mới `grading_result.investigation` (jsonb), ghi trong **cùng một `update()`**
-với `ai_total_score` và **phải thêm vào danh sách của `guard_grading_result_ai_immutable`
-trong cùng migration** — nếu không, cột mới sửa được sau khi chấm, phá Security
-rule 6 mà không ai thấy.
+Cột `investigation` (jsonb) nằm trên **`grading_attempt`** — mỗi lượt chấm một dòng (§2.3,
+§14.1) — chứ không trên `grading_result` như bản trước viết. Dòng lượt chấm **bất biến từ lúc
+ghi kết cục**, bằng trigger riêng (§14.4). Lý do đổi: bài chưa có điểm được chấm lại, và hồ sơ
+của lượt hỏng phải còn nguyên để tra; một cột trên `grading_result` thì hoặc bị ghi đè, hoặc
+chặn luôn lượt chấm lại. Và trigger bất biến hôm nay chỉ bắn khi `OLD.ai_total_score IS NOT
+NULL`, nên một cột như thế trên dòng chưa có điểm **không được bảo vệ gì** — đúng ca của bài
+không chấm được.
 
 ```ts
 interface Investigation {
@@ -980,8 +1427,39 @@ interface Investigation {
   } | null;
   minimalFailingCase: { input: string; expected: string; got: string } | null;
   approach: string | null;      // họ thuật toán nhận ra qua AST
-  peerCluster: string | null;   // mã cụm, cho cả chép bài lẫn nhóm cùng sai
+  peerCluster: string | null;   // mã cụm ẩn danh, CHỈ để gom kiểu hiểu sai (§3.4) — không dùng cho nghi vấn chép bài
   budget: { toolCalls: number; wallMs: number; tokens: number };
+}
+
+/** Một lời gọi công cụ. `id` do harness sinh, không bao giờ do model. */
+interface ToolCall {
+  id: string;
+  tool: 'run' | 'run_tests' | 'run_scaled' | 'read_file' | 'list_files'
+      | 'ast_query' | 'probe' | 'compare_peers';
+  args: Record<string, unknown>;   // đã chuẩn hoá — cũng là khoá chống trùng (§7.1)
+  status: 'ok' | 'error' | 'blocked_duplicate' | 'unavailable';
+  output: string;                  // văn bản thô, trần 8 KB (§5.3)
+  structuredRef: string | null;    // khoá vào grading_attempt.structured_results
+  startedAt: string;
+  wallMs: number;
+}
+
+/** Thứ model trả về. Harness ánh xạ, lọc và gán nguồn gốc để ra DiagnosedError. */
+interface Verdict {
+  errors: { ruleKey: string; toolCallIds: string[]; note: string | null }[];
+  missingRules: { description: string; toolCallIds: string[] }[];   // luật còn thiếu (§4.1)
+  injectionAttempt: { detected: boolean; excerpt: string | null };  // §3.3
+}
+
+/** Đầu vào thuần của investigate() — không có gì đọc từ DB bên trong hàm (§12.5). */
+interface InvestigationContext {
+  language: 'cpp' | 'python';
+  problemStatement: string;
+  requiredComplexity: string | null;
+  testBundleId: string;
+  modelAnswerAvailable: boolean;
+  rules: { ruleKey: string; hasPredicate: boolean; priced: boolean }[];  // ghi thành file (§2.1)
+  budget: { maxToolCalls: number; maxWallMs: number; maxTokens: number; maxRounds: number };
 }
 ```
 
@@ -1075,7 +1553,7 @@ không chạy thì không được tính.*
 
 | Trạng thái | Khi nào | Xử lý |
 |---|---|---|
-| `refuted` | Một lăng kính bác bỏ được kết luận | Bỏ lỗi đó khỏi bảng điểm |
+| `refuted` | Một lăng kính bác bỏ được kết luận, **bằng một lần chạy** | Lỗi **không tính** vào điểm tạm, và **gắn cờ đúng lỗi đó**; bài không tự quyết. Không xoá — lỗi vẫn nằm trong hồ sơ, gạch ngang |
 | `confirmed` | Lăng kính kiểm và xác nhận | Giữ nguyên |
 | **`unverified`** | **Không lăng kính nào trả lời được** | Giữ lỗi, **hạ confidence**, gắn cờ |
 
@@ -1088,7 +1566,12 @@ Gộp `unverified` vào `confirmed` thì công bố kết luận chưa kiểm. G
 thì giấu khiếm khuyết. Cả hai đều là cách một lượt phản biện hỏng biến thành điểm
 sai mà không ai thấy.
 
-### 6.3 Khuyến nghị, không chặn
+> **`refuted` vẫn gắn cờ, dù lỗi đã không tính** (chốt 2026-09-23; trước đó §0.3, §6.2, §6.3
+> và spec UI nói bốn điều khác nhau). Bác bỏ là một **bất đồng** giữa hai agent, và §6.3 đã
+> chốt bất đồng thì gắn cờ lỗi đó. Không gắn cờ thì một phản biện bác nhầm một lỗi có thật sẽ
+> âm thầm cho sinh viên điểm không đáng được — đúng chiều hỏng mà không ai nhìn thấy.
+
+### 6.3 Gắn cờ đúng lỗi, không chặn việc chấm
 
 Khoảng **một phần năm** phát hiện thô không sống sót qua phản biện, đo được trên
 một hệ thống cùng công ty. Một cổng chặn có tỉ lệ báo động giả như vậy sẽ bị tắt
@@ -1096,6 +1579,13 @@ một hệ thống cùng công ty. Một cổng chặn có tỉ lệ báo độn
 
 **Khi bất đồng:** gắn cờ **đúng lỗi đó**, không gắn cờ cả bài. Một bài có 6 lỗi mà
 lệch ở 1 thì giảng viên chỉ cần nhìn 1.
+
+> **"Không chặn" nghĩa là gì, cho khớp với §4.2** (chốt 2026-09-23): phản biện không bao giờ
+> tự xoá hay tự thêm một mức trừ, và không chặn việc chấm. Nó **gắn cờ đúng lỗi nó bất đồng** —
+> nên bài có lỗi bị bất đồng không tự quyết (§4.2), và giảng viên chỉ nhìn đúng lỗi đó. Cái giá
+> nằm ở tỉ lệ tự quyết: nếu một phần năm phát hiện bị bác, bật phản biện có thể làm tỉ lệ đó
+> tụt đáng kể. §15.1 bước 6 đo con số này trước khi bật. Kết quả phản biện lưu ở
+> `grading_attempt.challenge` (§14.1).
 
 > Hai agent cùng dòng model đồng ý với nhau **không** phải bằng chứng. Nếu hai
 > bậc trong `TierChain` là hai model cùng họ, phải ghi rõ trong báo cáo rằng phép
@@ -1166,8 +1656,8 @@ Trần 300 giây bắt được bài chạy lâu. Nó **không** phân biệt đ
 
 Dấu hiệu chết: **đã qua 2 vòng, chưa gọi công cụ nào, và đã trôi quá 60 giây.**
 Một agent điều tra thật sự thì gọi công cụ ngay vòng đầu; hai vòng im lặng nghĩa
-là model đang kẹt chứ không đang suy nghĩ. Ngắt, chấm với dữ liệu đã có, ghi lý
-do vào `investigation.budget`.
+là model đang kẹt chứ không đang suy nghĩ. Ngắt, ghi lý do vào `investigation.budget`,
+và để sàn §4.4 quyết kết cục.
 
 Ngắt ở đây theo đúng định nghĩa là **0 lời gọi công cụ**, nên nó rơi thẳng vào sàn
 §4.4: kết quả là `ungradable`, **không** phải một bài điểm cao kèm confidence thấp.
@@ -1265,6 +1755,20 @@ người bận luôn bỏ qua, và N thực tế về 0 — đúng thứ đoạn
 xem bài gần như là chấm lại từ đầu, nên một bài kiểm mẫu tốn công hơn một bài cần xem. Ở
 N = 20% và 40 bài, đó là khoảng 5 bài mỗi phiên. Giao diện: spec UI 2026-09-23, mục 3.9.
 
+**Rút mẫu ở từng bài, lúc bài đó thành tự quyết** (chốt 2026-09-23): bài được rút khi
+`hash(seed của phiên, id kết quả) < N` — chỉ phụ thuộc seed với id, không phụ thuộc điểm.
+**Khung rút chỉ gồm bài có quyết định ĐẦU TIÊN là tự quyết** (`ai_graded → auto_approved`).
+Bài thành tự quyết sau khi đã bị gắn cờ — ví dụ sau khi giảng viên đặt giá — **không** vào
+khung: lúc nó còn gắn cờ, giảng viên có thể đã mở hồ sơ và thấy kết luận của hệ thống, nên giao
+thức xem-bài-trước ở trên không còn giữ được, và nhãn của nó lệch. Khung này cũng là đúng thứ
+§8.1 muốn kiểm: những bài hệ thống tự tin ngay từ đầu.
+
+**Cái giá của khung này, nói ra:** bài thành tự quyết nhờ giảng viên đặt giá — kể cả bài không ai
+mở — không bao giờ được kiểm mẫu. Nhãn của §8.1 vì thế chỉ nói về *bài tự tin ngay từ đầu*, và bộ
+hiệu chỉnh (§8) không được đem nó suy rộng cho nhóm kia. Báo cáo ghi **tỉ lệ bài tự quyết nằm
+ngoài khung rút**; nhóm đó do eval (§12) đo, không do kiểm mẫu. **Kiểm mẫu ship CÙNG bước bật tự quyết** (bước 3 của §9): không có kiểm mẫu
+thì không có tự quyết. Để ở bước 7 như bản trước thì N = 0 suốt từ bước 3 tới bước 7.
+
 ### 8.2 Hiệu chỉnh — các con số PHẢI báo cáo, và cái bảng đang chết
 
 §0.1 là móng của cả spec: bar không phải "tuyệt đối đúng" mà là *"nhất quán hơn cái
@@ -1346,12 +1850,25 @@ lượt hiệu chỉnh có người: eval phát hiện nhanh và rẻ, hiệu ch
 > **Trước cả bước 1, và chạy được ngay hôm nay: bộ dữ liệu eval + baseline (§12.2,
 > §12.6).** Không cần sandbox production — đột biến được kiểm bằng Docker trên máy dev,
 > và baseline là đường chấm một-phát đang chạy. Làm sớm để bước 3 có số cũ mà so.
+>
+> **Baseline chạy bằng gì** (chốt 2026-09-23): runner không-DB đầy đủ tới bước 2 mới có, còn
+> đường một-phát hôm nay gắn với DB qua `gradeOne`. Nên bước 0 dựng một runner **tối thiểu**:
+> đọc fixture, dựng request, gọi thẳng `AIGradingProvider.grade()`, ghi kết quả ra thư mục lượt
+> chạy (§12.7). Việc đầu tiên của bước 0 là tách phần dựng request ra khỏi `gradeOne` — hôm nay
+> nó dựng `request` ngay trong hàm rồi mới gọi `provider.grade(request)` — thành một hàm thuần mà
+> cả `gradeOne` lẫn runner cùng gọi, để baseline đo đúng đường đang chạy. Runner của bước 2 mở
+> rộng runner này, không viết lại.
 
-1. **Sandbox chạy thật.** Implement `sandbox.types.ts` đã khai — hôm nay nó là hợp
-   đồng kiểu, không có implement, và nằm trên nhánh **chưa merge**
-   `feature/code-autograder-plan-1`. Không có nó thì sáu trong bảy công cụ vô nghĩa.
-   Câu phải chốt **không** phải "deploy ở đâu" — `railway.toml` đã chốt rồi — mà là
-   sandbox chạy ở đâu khi API không tạo được container con. Xem rủi ro 1 ở §11.
+1. **Sandbox chạy thật, thành worker riêng** (§3.5). Implement `sandbox.types.ts` đã khai —
+   hôm nay nó là hợp đồng kiểu, không có implement, và nằm trên nhánh **chưa merge**
+   `feature/code-autograder-plan-1`. Không có nó thì sáu trong bảy công cụ vô nghĩa. Mở đầu
+   bằng buổi thử cách cô lập (§3.5).
+   **Bước này chỉ lấy HỢP ĐỒNG sandbox của nhánh plan-1** (`sandbox.types.ts`, mở rộng theo
+   §3.5). Phần còn lại của nhánh — resolver bài code, `grading/archive/`, schema, cột
+   `language`, form tạo phiên — **merge ở bước 3**, cùng mô hình dữ liệu §14. *(Sửa 2026-09-24:
+   bản trước merge cả nhánh ở bước này. Sandbox không cần gì của nhánh ngoài hợp đồng, còn mọi
+   thay đổi schema của nhánh đều phải viết lại theo §14 và chạm đúng các trigger bước 3 viết
+   lại — merge sớm là viết lại migration hai lần.)*
 2. **Ba công cụ đầu** (`run`, `run_tests`, `read_file`) + vòng lặp có trần.
    Cùng bước này: **tách `investigate()` khỏi `gradeOne()`**, và `investigate()` **không**
    tự gọi phản biện bên trong; dựng runner eval, runner **không kết nối DB** (§12.5). Từ
@@ -1361,13 +1878,30 @@ lượt hiệu chỉnh có người: eval phát hiện nhanh và rẻ, hiệu ch
    §0.2. Từ đây đã đo được mức giảm tải thật. **Sàn phải đi CÙNG bước này, không để
    sau:** ngay khi công thức lật sang chấm trừ là đã mở ra đường cho một cuộc điều
    tra hỏng đi thẳng ra điểm tối đa.
+   **Cùng bước này, vì cùng lý do — thiếu chúng thì bước 3 hoặc không an toàn, hoặc không
+   dùng được:** kiểm mẫu (§8.1, trước đây bước 7); chấm lại bài chưa có điểm (§2.3); dựng
+   thước khi thiếu gói test (§2.1); bảng lỗi có uuid, bảng giá có phiên bản và ghim lúc chốt
+   (§2.1, §2.2); mô hình dữ liệu §14. UI của bước này: bảng lỗi, chuẩn bị chấm, đang chấm,
+   danh sách bài, hồ sơ một bài, kiểm mẫu, chốt điểm (spec UI 2026-09-23).
+   **Merge phần còn lại của nhánh plan-1 là một việc riêng của bước này, có viết lại
+   migration** (chuyển từ bước 1, 2026-09-24).
+   `1789300000000-AddCodeGradingSchema` ghi đè hàm trigger bất biến bằng một danh sách cột
+   **viết cứng, thiếu `advocate_outcome`**. Trên DB đã chạy `1789310000000`, TypeORM vẫn chạy
+   migration cũ hơn này — nó chưa có trong bảng migration — **sau** migration mới, và gỡ
+   `advocate_outcome` khỏi danh sách bất biến. Đổi sang timestamp mới hơn mọi migration trên
+   `main`, và dựng danh sách cột theo khuôn động của `1789310000000`. `T-MERGE-1` khoá lại.
+   Bốn việc khác của lượt merge: bỏ `uq_grading_test_bundle_session` (một phiên một bộ), thay
+   bằng `unique(exam_session_id, version)` (§14.1); **không** thêm cột `grading_result.test_run`
+   — `grading_attempt.structured_results` thay nó; hợp nhất `grading/archive/` của plan-1 với
+   `submission/archive-check` đã có trên `main` (PR #42): giữ bản của `main`, bỏ phần trùng; và
+   nới `ck_required_deliverable_language` của nhánh (§14.1).
 4. **`run_scaled` + đo độ phức tạp.** Phần độc đáo nhất của đồ án.
 5. **`probe`, `ast_query`, `compare_peers`.**
 6. **Agent phản biện mới** (§6), thay cái cũ.
    Dựng thành `challenge(verdict, ngữ_cảnh) → kết_luận`, gọi được trên một verdict
    **tự dựng** — điều kiện để đo phản biện bằng lỗi giả tiêm vào (§12.3, §12.5).
-7. **Kiểm tra mẫu ngẫu nhiên** (§8.1). Phải chạy **trước** §8, vì nó là nguồn nhãn.
-   Giao diện ở spec UI 2026-09-23, mục 3.9.
+7. **Đã gộp vào bước 3** (2026-09-23): kiểm mẫu phải ship cùng lúc với tự quyết. Giữ số
+   bước để các tham chiếu *"bước 7"* cũ vẫn trỏ được về đây.
 8. **Bộ hiệu chỉnh** (§8), sau khi có đủ dữ liệu một học kỳ.
 9. **Lượt hiệu chỉnh** (§8.2). **Không phụ thuộc bước nào ở trên** — chạy được ngay
    khi có 40 bài đã chấm, kể cả bằng đường chấm hôm nay, và nên chạy sớm để mỗi
@@ -1377,6 +1911,8 @@ Bước 1 là rủi ro hạ tầng lớn nhất và nên làm trước mọi th�
 tiên cho ra con số trình được. **Bước 9 là bước duy nhất trả lời được câu "làm sao
 biết chấm đúng", và nó rẻ nhất trong cả danh sách** — đừng để nó rơi xuống cuối chỉ
 vì nó mang số 9.
+
+**Mỗi bước xong khi nào** — test nào phải xanh, cổng eval nào, ngân sách nào — nằm ở **§15**.
 
 **Bộ eval (§12) không thay bước 9, và bước 9 không thay bộ eval.** Eval trả lời
 *"tốt hơn hay tệ hơn lần trước"* trên sự thật dựng sẵn; bước 9 trả lời *"đồng thuận
@@ -1388,27 +1924,27 @@ với người thật tới đâu"*. Lịch đầy đủ của eval ở §12.9.
 
 | Mã | Ca | Mức |
 |---|---|---|
-| **T-AG-1** | Chạm trần lời gọi → chấm với dữ liệu đã có, không ném lỗi | unit |
+| **T-AG-1** | Chạm trần lời gọi, đã qua sàn §4.4 → chấm với dữ liệu đã có, không ném lỗi | unit |
 | **T-AG-2** | Mọi khẳng định trong verdict trỏ tới một `toolCall.id` có thật | unit |
 | **T-AG-3** | Chạy lại một lời gọi ngẫu nhiên lệch kết quả → hạ confidence + gắn cờ | unit |
 | **T-SRC-1** | Tiêu chí `deterministic` **không** bị trần bậc model kéo xuống | unit |
-| **T-SRC-2** | Tiêu chí `llm_only` **vẫn** chịu trần bậc model | unit |
+| **T-SRC-2** | Lỗi `llm_only` chịu trần **0,5** — kể cả khi bậc model khai `confidenceCeiling: 1` | unit |
 | **T-CX-1** | Bài O(n²) qua sạch test nhưng đề đòi O(n log n) → bắt được | integration |
 | **T-CX-2** | Hai lớp độ phức tạp kề nhau không tách được → `inconclusive`, không đoán | unit |
 | **T-PB-1** | Bài sai **chỉ** khi có phần tử trùng → ca lỗi nhỏ nhất đúng | integration |
 | **T-ADV-1** | Agent phản biện **không** nhận được lập luận của agent chấm | unit |
 | **T-ADV-2** | Bất đồng gắn cờ **đúng lỗi đó**, không gắn cờ cả bài | unit |
 | **T-ADV-3** | Ba lớp chặn điểm của agent phản biện vẫn còn nguyên | e2e |
-| **T-IMM-1** | `investigation` nằm trong trigger bất biến, không sửa được sau khi chấm | e2e |
-| **T-SBX-1** | Sandbox chết → `unavailable`, **không** thành "bài làm sai" | unit |
-| **T-POL-1** | Sửa **một** luật → mọi bài trong lô dính luật đó được tính lại ngay | e2e |
+| **T-IMM-1** | Dòng `grading_attempt` đã ghi kết cục → `investigation` không sửa được, **kể cả khi bài chưa có điểm** | e2e |
+| **T-DOWN-1** | Sandbox chết → `unavailable`, **không** thành "bài làm sai" | unit |
+| **T-POL-1** | Sửa giá **một** luật → mọi bài của phiên **chưa chốt** dính luật đó được tính lại ngay; phiên đã chốt không đổi | e2e |
 | **T-POL-2** | Luật chưa có giá chắc chắn → bài dính nó **không** tự duyệt, bị gắn cờ | unit |
 | **T-POL-4** | Chuẩn rút từ đáp án mẫu **chạy thật**, không từ đọc văn bản của nó | integration |
 | **T-POL-5** | Trước khi lưu một giá, trả về đúng số bài mà luật đó đang ảnh hưởng | unit |
-| **T-POL-6** | Sửa điểm một bài lẻ được đánh dấu ngoại lệ và **không** sinh ra luật nào | e2e |
+| **T-POL-6** | Bỏ một lỗi cho riêng một bài, hoặc chấm tay một bài → một dòng `teacher_review` đúng `kind`, **không** sinh ra luật nào | e2e |
 | **T-AG-4** | Chống trùng khoá theo tên **cộng tham số**: cùng tên khác tham số **không** bị chặn | unit |
 | **T-AG-5** | Bị chặn trùng 3 lần liên tiếp → huỷ vòng lặp, không chạy tiếp | unit |
-| **T-AG-6** | 2 vòng, 0 lời gọi công cụ, quá 60s → ngắt sớm, vẫn chấm với dữ liệu đã có | unit |
+| **T-AG-6** | 2 vòng, 0 lời gọi công cụ, quá 60s → ngắt sớm, kết cục `ungradable` (sàn §4.4), **không** phải một con số | unit |
 | **T-AG-7** | Bậc model chết giữa vòng → xoay bậc, **giữ nguyên lịch sử toolCalls**, không tiêu một vòng lặp | unit |
 | **T-AG-8** | Đoạn tóm tắt ở màn lịch sử do harness render; văn bản model **không** đi thẳng ra | unit |
 | **T-PARSE-1** | Thẻ suy luận **không có thẻ đóng** → cắt tới hết chuỗi, không trích phán quyết nháp | unit |
@@ -1422,7 +1958,7 @@ với người thật tới đâu"*. Lịch đầy đủ của eval ở §12.9.
 | **T-FLOOR-2** | Bài **đúng hoàn toàn**, đã chạy đủ test và đều pass → **vẫn ra điểm tối đa** | integration |
 | **T-FLOOR-3** | Gói test **chưa từng chạy** → `ungradable`, không phải một con số nào cả | unit |
 | **T-FLOOR-4** | Tiêu chí không lời gọi nào chạm tới → `flagged`, nêu **đích danh** tiêu chí đó | unit |
-| **T-FLOOR-5** | Bài hết lượt thử vì dịch vụ AI lỗi → lớp lý do `system`, **không** trùng lớp với bài dưới sàn (`evidence_floor`) | unit |
+| **T-FLOOR-5** | Bài hết lượt thử vì dịch vụ AI lỗi → lớp `system`; bài rỗng → lớp `submission`; không có lớp thứ ba | unit |
 | **T-RULER-1** | Phiên chỉ có đề → dựng được đáp án mẫu + gói test; bắt đầu chấm bị chặn cho tới khi giảng viên duyệt | e2e |
 | **T-RULER-2** | Ca sinh ra không trỏ được về câu nào trong đề (đề ghi `1 ≤ n`, ca là danh sách rỗng) → bị bỏ trước khi hiện cho giảng viên | unit |
 | **T-RULER-3** | Bộ ca đóng băng lúc bắt đầu: mọi bài của phiên chạy trên đúng một bộ, cùng một phiên bản | integration |
@@ -1471,8 +2007,8 @@ với người thật tới đâu"*. Lịch đầy đủ của eval ở §12.9.
 | **T-FAIR-1** | Luật bằng lời thêm sau khi phiên đã chấm → **không** áp cho phiên đó; phiên hiện *"không xét trong phiên này"* | e2e |
 | **T-VER-1** | Sửa giá → một phiên bản bảng giá mới và một dòng tính lại mới; dòng cũ **không đổi** | integration |
 | **T-VER-2** | Hỏi *"điểm đã xuất tính theo giá nào"* cho một bài → trả đúng phiên bản bảng giá của lượt tính đã được xuất | integration |
-| **T-EXC-1** | Bài đã đánh dấu ngoại lệ → sửa giá luật **không** đổi điểm hiện tại của bài đó | unit |
-| **T-FIN-1** | Sửa giá làm đổi điểm N bài đã chốt → đúng **N** dòng `audit_log`, người thực hiện là giảng viên đã sửa giá | e2e |
+| **T-EXC-1** | Lỗi đã bỏ cho riêng một bài → sửa giá **luật đó** không đổi điểm bài đó; sửa giá **luật khác** trong bài vẫn áp. Bài chấm tay → không lượt tính nào đổi điểm | unit |
+| **T-FIN-1** | *Áp giá mới cho phiên đã chốt* làm đổi điểm N bài → đúng **N** dòng `audit_log`, người thực hiện là giảng viên đã bấm | e2e |
 | **T-STRUCT-1** | Đầu ra văn bản của một lời gọi vượt 8 KB → stdout bị cắt, phần có cấu trúc (từng ca test, mẫu đo, kết quả `ast_query`) lưu **đủ** | unit |
 | **T-EXP-1** | Tiêu đề cột ghi rõ "MSSV" → hệ thống **không** chọn sẵn cột nào | unit |
 | **T-EXP-2** | Làm tròn 0,5: 7,10 → 7,20 **không** bật cờ "đã đổi"; 7,24 → 7,26 **có** | unit |
@@ -1485,6 +2021,47 @@ với người thật tới đâu"*. Lịch đầy đủ của eval ở §12.9.
 | **T-SAMP-2** | Nhận xét bước xem bài đã ghi thì không sửa được, và vẫn là nhãn dù bước sau chọn gì | e2e |
 | **T-SAMP-3** | Rút mẫu không phụ thuộc điểm: cố định seed, đổi điểm các bài → tập bài được rút không đổi | unit |
 | **T-SAMP-4** | Còn bài kiểm mẫu chưa kiểm → chốt điểm bị từ chối | e2e |
+| **T-PIN-1** | Phiên A đã chốt, phiên B chưa; sửa giá một luật cả hai cùng dùng → B tính lại, A **không** đổi, không dòng `audit_log` nào | e2e |
+| **T-AUTO-1** | Bài 60% mức trừ máy quyết + 40% `llm_only` → confidence 0,80 < θ → **gắn cờ**; chỉ **một** hàm quyết tự quyết, không chỗ nào đọc thẳng hằng số | unit |
+| **T-REFUTE-1** | Lỗi bị `refuted` → không tính vào điểm tạm, **gắn cờ** lỗi đó, bài không tự quyết | unit |
+| **T-FLOOR-6** | Tiêu chí có trần mà không luật nào trỏ vào → bài **không** tự quyết; đánh dấu *"không có luật trừ"* → hết chặn | unit |
+| **T-CX-6** | `inconclusive` giữa O(n) và O(n log n), đề đòi O(n log n) → **đạt**, không gắn cờ; `inconclusive` giữa O(n log n) và O(n²) → gắn cờ tiêu chí đó | unit |
+| **T-EMPTY-1** | Bài không có dòng mã nào → `ungradable` lớp `submission`, **không** phải 0 điểm tự quyết | unit |
+| **T-COMPILE-1** | Bài không biên dịch → gói test tính là **đã chạy**, mọi ca `compile_error`, gắn cờ theo §4.3, **không** `ungradable` | unit |
+| **T-REGRADE-1** | Bài không chấm được lớp `system` → chấm lại tạo **một dòng `grading_attempt` mới**; lượt cũ còn nguyên; vẫn đúng một `grading_result` | e2e |
+| **T-REGRADE-2** | Bài đã có điểm → route chấm lại từ chối, không xếp hàng gì | e2e |
+| **T-REGRADE-3** | Hai lượt bấm chấm lại cùng lúc → đúng **một** job được xếp (UPDATE có điều kiện) | integration |
+| **T-REGRADE-4** | Bài lớp `submission` → không có đường chấm lại, chỉ chấm tay | unit |
+| **T-FREEZE-3** | Phiên có 40 bài đều không chấm được, 0 bài mang điểm → thay đáp án mẫu **được**; có 1 bài mang điểm → **409** | e2e |
+| **T-RULER-7** | Giảng viên duyệt bộ ca sinh ra → cảnh báo đáp án chưa kiểm chứng tắt trên mọi bài; cờ trong dữ liệu **vẫn** còn | unit |
+| **T-KEY-1** | Model trả `rule_key` → harness ánh xạ sang uuid kèm phiên bản giá; `rule_key` không có trong bảng → luật còn thiếu (`T-RULE-1`) | unit |
+| **T-ESSAY-1** | Bài tự luận confidence 0,95 → **không** tự quyết; duyệt hàng loạt đòi xác nhận nói đúng số bài | unit |
+| **T-LEGACY-1** | Kết quả đường một-phát, không có lượt điều tra → hồ sơ theo tiêu chí, chỉ đọc với bài code, nhãn *"chấm bằng đọc mã, không chạy"* | unit |
+| **T-ISO-1** | Mã sinh viên mở kết nối mạng → thất bại, không byte nào ra ngoài | integration |
+| **T-ISO-2** | Fork bomb, cấp phát vô hạn → chạm trần pids / RAM; kết cục *sập* hoặc *hết giờ* của **đúng** ca đó, ca sau của cùng job chạy bình thường, worker vẫn sống | integration |
+| **T-ISO-3** | Mã sinh viên ghi ra ngoài thư mục làm việc → thất bại (hệ thống file chỉ đọc) | integration |
+| **T-ISO-4** | Kết quả từ worker không khớp `jobId` hoặc sai schema → API từ chối, không ghi gì | unit |
+| **T-ISO-5** | Mọi lượt chấm ghi dấu vân tay máy sandbox (CPU, kernel, runtime, digest image) | unit |
+| **T-LANG-1** | C++ `-O2`, hàm O(n) → driver dùng kết quả (checksum), `run_scaled` **không** ra O(1) | integration |
+| **T-LANG-2** | C++ đúng nhưng rò bộ nhớ → lượt sanitizer **không** tính là sập (`detect_leaks=0`) | integration |
+| **T-LANG-3** | Python đệ quy đúng, sâu 10⁵ → chạy được ở cả `run_tests` lẫn `run_scaled`, không `RecursionError`, không segfault | integration |
+| **T-MERGE-1** | Sau khi merge migration của nhánh plan-1, `advocate_outcome` **vẫn** nằm trong danh sách bất biến | e2e |
+| **T-ISO-6** | Mã sinh viên tìm đọc output mong đợi, gói test hay đáp án mẫu → không có trong container của nó | integration |
+| **T-ISO-7** | Một job đo của eval và một job đo thật cùng xếp hàng → không bao giờ chạy cùng lúc trên một khe đo | integration |
+| **T-ISO-8** | Bài O(n²) in thời gian giả, hay sửa số đo trong tiến trình, để trông như lớp thấp hơn. Có hai kiểu: khai thiếu ở n lớn, hoặc khai thừa ở n nhỏ. Cả hai → `inconclusive` kèm cờ, theo luật so ở từng n của §3.5 (`\|D(n)\| > max(2·σ_mẫu, 20 ms)`). Checksum lệch đáp án mẫu ở một n → `inconclusive`. Bước 1 khoá phần của sandbox: mỗi mẫu mang cả số đo trong lẫn số đo ngoài, và dòng không mang mã của mẫu bị bỏ qua. Bước 4 kiểm lại ngưỡng trên một bộ đo mới trước khi dùng | integration |
+| **T-LIFE-1** | Mọi bước chuyển ở bảng §14.3 được trigger vòng đời chấp nhận; mọi bước chuyển khác bị từ chối | e2e |
+| **T-RULEREV-1** | Sửa điều kiện hay tiêu chí của một luật → một bản sửa mới; hồ sơ cũ vẫn trỏ về bản sửa cũ | integration |
+| **T-EXC-2** | *Giữ lỗi này* cho một lỗi bị bác bỏ → lỗi được tính lại vào điểm; dòng `teacher_review` kind `error_exception` không mang điểm, dòng các kind khác thì bắt buộc mang | unit |
+| **T-SAMP-5** | Bài thành tự quyết sau khi đã bị gắn cờ → **không** vào khung rút mẫu | unit |
+| **T-DEMOTE-1** | Lượt tính lại làm một bài tự quyết (hay đang kiểm mẫu) trượt công thức → về `flagged_for_review`; bài kiểm mẫu bị huỷ khỏi mẫu | unit |
+| **T-ARCH-1** | File nén không đọc được → không chấm được lớp `submission`, **không** lời gọi model nào; file nén thiếu file → chấm phần có, phần thiếu trừ trọn tiêu chí | integration |
+| **T-WAIVER-1** | Đánh dấu *"không có luật trừ"* giữa lô, khi rubric đã có kết quả chấm → ghi được, và không đụng `guard_rubric_criteria_immutable` | e2e |
+| **T-EVAL-13** | Cấu hình của runner eval không chứa credential nào của hàng đợi sandbox thật | unit |
+| **T-EVAL-14** | Một đột biến có luật `test_group_failed` trong `expectedRuleIds` nhưng khi chạy thật lại trượt nhóm test khác (hoặc thêm nhóm) → dựng bộ dữ liệu **thất bại**, nêu nhãn và nhóm trượt thật | unit |
+| **T-FIN-2** | Chốt phiên → mọi bài `finalized` có `finalized_by` là người bấm; một UPDATE sang `finalized` thiếu `finalized_by` bị trigger từ chối | e2e |
+| **T-PIPE-1** | Bài `code_project` khai `cpp` → `investigator`; chưa khai ngôn ngữ, hay bài tự luận → `one_shot`; chấm lại **không** đổi `pipeline` | unit |
+| **T-REVIEW-1** | Giảng viên bỏ một lỗi trên bài gắn cờ, lượt tính lại sau đó thoả công thức → bài sang `teacher_reviewed`, **không** sang `auto_approved` | unit |
+| **T-REGRADE-5** | Dòng không chấm được có từ trước migration → sau migration mang lớp `system` và một lượt số 1 chép lý do cũ; chấm lại được | e2e |
 
 T-SRC-1 và T-SRC-2 là cặp đi ngược chiều nhau. Chỉ có T-SRC-1 thì một lần refactor
 bỏ trần cho mọi nguồn gốc vẫn xanh, và điều đó cho một model chưa hiệu chỉnh
@@ -1511,18 +2088,22 @@ số lần chạy trên một hệ thống khá tốt (§12.4), và làm ngườ
 để nó xanh là tính lại **mọi** bài dính luật — kể cả bài giảng viên đã đánh dấu ngoại
 lệ, tức âm thầm xoá một quyết định của con người bằng một lượt máy.
 
+**T-REGRADE-2 và T-FREEZE-3 cũng là một cặp đi ngược chiều.** Chỉ có T-FREEZE-3 thì cách dễ
+nhất để nó xanh là nới luật đóng băng cho mọi phiên — tức mở lại đúng đường 20 bài thước cũ,
+20 bài thước mới mà §2.2 chặn. T-REGRADE-2 giữ ranh giới: bài đã mang điểm thì không chấm lại.
+
 ---
 
 ## 11. Rủi ro đã biết
 
-1. **Sandbox cần một Docker daemon — và câu hỏi hẹp hơn bản trước của spec nói.**
-   `railway.toml` đã chốt: `apps/api` deploy bằng **Dockerfile trên Railway**
-   (`builder = "DOCKERFILE"`). Nên câu hỏi **không** còn là "deploy ở đâu" mà là:
-   **container của API có tạo được container con không** — Railway không cho
-   Docker-in-Docker. Phương án khả dĩ nhất là **tách sandbox thành worker riêng**,
-   và đường nối đã có sẵn: BullMQ + Redis đang chạy cho hàng đợi chấm. Từ "rủi ro
-   chặn toàn bộ" tụt xuống "một quyết định hạ tầng có 2–3 phương án" — nhưng vẫn
-   phải chốt trước bước 1.
+1. **Sandbox cần một Docker daemon — ĐÃ CHỐT 2026-09-23: worker riêng** (§3.5). API trên
+   Railway không bao giờ chạy mã sinh viên; worker kéo job từ hàng đợi sandbox trên một máy có
+   Docker. Rủi ro còn lại không còn là *"chạy ở đâu"* mà là ba thứ: (a) buổi thử cô lập có thể
+   cho thấy gVisor làm nhiễu phép đo quá mức, và phải chọn giữa an toàn với độ ổn định; (b) chi
+   phí một vòng job nhân 25 lời gọi có thể ăn quá nhiều của trần 300 giây; (c) máy sandbox là
+   **một** máy — nó sập thì mọi bài của mọi phiên dừng, và rơi vào lớp `system` của §2.3; (d) phép
+   đo thời gian cần khe riêng (§3.5), nên nếu chỉ một khe đo sạch thì riêng phần `run_scaled` của
+   40 bài đã có thể vượt mục tiêu 30 phút (§15.2).
 2. **Chi phí mỗi bài tăng đáng kể** so với một lượt gọi. Trần ở §7 chặn trường
    hợp tệ nhất, nhưng chi phí trung bình phải đo trước khi hứa gì.
 3. **Đo thời gian chạy nhiễu** trên máy chủ chia sẻ (§3.1).
@@ -1552,7 +2133,9 @@ lệ, tức âm thầm xoá một quyết định của con người bằng mộ
 10. **`predicate` ở §4.1 là công việc thật, không phải một trường thêm vào.** Mỗi
     luật máy kiểm được cần một vị từ viết tay, và §1.1 đã nói vì sao chúng **không**
     dùng chung được giữa hai ngôn ngữ. Đây là chi phí tuyến tính theo số luật cứng
-    × số ngôn ngữ, và nó là lý do thực tế nhất để giữ đúng hai ngôn ngữ.
+    × số ngôn ngữ, và nó là lý do thực tế nhất để giữ đúng hai ngôn ngữ. Và predicate cho
+    C++ đắt hơn Python đáng kể: template, lambda, con trỏ hàm, macro đều làm câu *"có đệ quy
+    thật không"* khó trả lời hơn.
 11. **Bộ eval đo lỗi CẤY, không đo lỗi THẬT.** Đột biến là lỗi một điểm, cố ý, gọn;
     lỗi thật của sinh viên thường là nhiều lỗi chồng lên nhau hoặc hiểu sai khái niệm.
     Recall trên nhóm 1 (§12.2) vì thế gần như chắc chắn **cao hơn** recall trên bài
@@ -1569,9 +2152,12 @@ lệ, tức âm thầm xoá một quyết định của con người bằng mộ
     Tập test 2–3 đề cho ra con số **mô tả đúng những đề đó**, chưa khái quát cho đề
     khác. Đây là giới hạn phải nói trong báo cáo, không phải chỗ để thống kê lấp.
 14. **Điểm có phiên bản thì "điểm hiện tại" không còn là một cột** (§2.2). Mọi chỗ đọc
-    điểm phải đi qua **đúng một hàm** áp thứ tự ưu tiên: ngoại lệ → lượt tính mới nhất →
-    lượt tính đầu. Chỉ một màn hình đọc thẳng `ai_total_score` để hiển thị là một màn
+    điểm phải đi qua **đúng một hàm**, định nghĩa ở §14.2. Chỉ một màn hình đọc thẳng `ai_total_score` để hiển thị là một màn
     hiện điểm cũ mà không ai thấy — và bảng điểm xuất ra từ đó sai theo đúng kiểu đó.
+15. **Hai đường chấm sống song song** — đường điều tra cho bài code, đường một-phát theo tiêu
+    chí cho bài tự luận và cho dữ liệu cũ. Luật của đường này dễ vô tình lan sang đường kia;
+    cột `pipeline` (§14.1) là chỗ duy nhất phân biệt, và mọi chỗ quyết tự quyết, điểm hiện tại
+    hay chốt điểm phải rẽ theo nó. `T-ESSAY-1` khoá chiều nguy hiểm nhất.
 
 ---
 
@@ -1647,7 +2233,7 @@ chỉ để so với baseline, vốn không có khái niệm `ruleId` (§12.6).
 | **Đột biến có lỗi cấy** | Đo khả năng phát hiện | Tự biết, vì tự cấy | Không | Có |
 | **Lời giải đúng khác lối** | Đo tỉ lệ **trừ oan** — rủi ro 9 | Biết chắc: 0 lỗi | Không | Có |
 | **Đối kháng** (injection, hard-code) | Đo độ chống thao túng | Biết chắc: verdict không đổi | Không | Có |
-| **Suy biến** (rỗng, không biên dịch, output khổng lồ) | Đo sàn §4.4, trần §5.3 | Biết chắc: `ungradable`, không phải điểm tối đa | Không | Có |
+| **Suy biến** (rỗng, không biên dịch, output khổng lồ) | Đo sàn §4.4, §4.3, trần §5.3 | Biết chắc kết cục theo bảng *bài rỗng và bài không biên dịch* ở §2.1: rỗng → `ungradable`; không biên dịch → gắn cờ (§4.3); output khổng lồ → ca đó sập, trần 8 KB giữ. Cổng chung: **không bao giờ ra điểm tối đa** | Không | Có |
 | **Bài thật ẩn danh có nhãn người** | Đo phần `llm_with_tools` / `llm_only` | Nhãn người, cỡ nhỏ | Có | **Không — chưa có bài thật** |
 
 Nhóm 5 **trống** cho tới khi có bộ bài thật (đây vẫn là việc lâu nhất của cả đồ án,
@@ -1732,7 +2318,7 @@ thời bịa một lỗi trừ 2 điểm, ra đúng điểm. Nên phép so **ch�
 
 | Thành phần | Chỉ số | Mục tiêu | Chấm bằng |
 |---|---|---|---|
-| Phát hiện lỗi | Precision / recall **theo từng `ruleId`**, trên nhóm 1 | Recall cao, precision rất cao | Code |
+| Phát hiện lỗi | Precision / recall **theo từng `ruleId`**, trên nhóm 1 | Precision ≥ 0,95, recall ≥ 0,80 (§15.2) | Code |
 | **Trừ oan** | Số `DiagnosedError` sinh ra trên nhóm 2 | **Cổng cứng** (§12.4) | Code |
 | Độ phức tạp | So với `expectedComplexity`: đúng · `inconclusive` · sai — và **sai tách theo hướng** | Sai ≈ 0; `inconclusive` chấp nhận được | Code |
 | `probe` | Ca lỗi nhỏ nhất **chạy lại có fail thật không**, và **thu nhỏ thêm được nữa không** | Fail thật 100%; không thu nhỏ thêm được | Code — chạy lại, và thử bỏ từng phần tử |
@@ -1741,9 +2327,9 @@ thời bịa một lỗi trừ 2 điểm, ra đúng điểm. Nên phép so **ch�
 | **Sàn bằng chứng** | Số lần ra **điểm tối đa** trên nhóm 4 | **Cổng cứng** (§12.4) | Code |
 | **Injection** | Số verdict **bị đổi** bởi chú thích thao túng, trên nhóm 3 | **Cổng cứng** (§12.4) | Code |
 | Nguồn gốc so với trần | Precision thật của từng `VerdictSource` so với trần của nó ở §4.2 | Xem hộp dưới | Code |
-| **Tự chủ** | Precision của nhóm **được tự duyệt** | **Chỉ số tiêu đề** | Code |
+| **Tự chủ** | Precision của nhóm **được tự duyệt** | **Chỉ số tiêu đề** — ≥ 0,95 (§15.2) | Code |
 | Ổn định | Độ lệch chuẩn của điểm khi chấm cùng ca k lần | Thấp | Code |
-| Chi phí | Token, số lời gọi công cụ, thời gian thực — p50 và p95 | Theo xu hướng, không có ngưỡng | Code |
+| Chi phí | Token, số lời gọi công cụ, thời gian thực — p50 và p95 | Ngân sách ở §15.2; chốt lại bằng số đo của bản chạy mỏng | Code |
 
 > **Độ phức tạp phải so với sự thật RIÊNG của nó, không suy ra từ luật.** Một lời giải
 > O(n) mà agent đo ra O(n log n), trong khi đề đòi O(n log n), không kích hoạt luật
@@ -1769,8 +2355,8 @@ ta biết chắc lỗi tiêm vào là giả. Nó cũng đòi phản biện gọi
 chấm — yêu cầu thiết kế ở §12.5.
 
 > **Hiệu chỉnh confidence: đo theo NGUỒN GỐC trước, ECE sau — vì confidence ở spec
-> này gần như RỜI RẠC.** §4.2 dựng confidence từ ba trần cố định (1,0 · 0,85 · trần
-> bậc model), rồi lấy trung bình có trọng số theo mức trừ. Phần lớn giá trị sẽ dồn
+> này gần như RỜI RẠC.** §4.2 dựng confidence từ ba trần cố định (1,0 · 0,85 · 0,5),
+> rồi lấy trung bình có trọng số theo mức trừ. Phần lớn giá trị sẽ dồn
 > vào đúng mấy mốc đó. Một biểu đồ độ tin cậy 10 ngăn trên dữ liệu như vậy chỉ có
 > hai, ba ngăn có điểm; ECE tính trên đó là một con số trông khoa học mà không mang
 > tin.
@@ -1895,6 +2481,11 @@ cùng mã, bỏ chú thích thao túng:
 **Eval là công cụ PHÁT TRIỂN, chạy trên máy dev.** Nó đo **code**, không đo dữ liệu
 chấm thật, nên không có lý do gì phải chạy trên hạ tầng production hay ghi vào DB của
 sản phẩm (§12.7).
+
+**Nhưng lời gọi sandbox của eval đi tới đúng máy sandbox chấm thật** (§3.5), qua một hàng đợi
+riêng trên một Redis riêng của eval: phép đo thời gian chỉ so được khi cùng máy, còn máy dev
+không cầm credential nào của hàng đợi thật. Vòng lặp eval và khoá model vẫn ở máy dev; máy
+sandbox không cầm khoá model nào.
 
 **Repo không có CI.** `main` không có `.github/workflows` nào. Nên *"cổng hồi quy mỗi
 PR"* không thể là một job tự động — nó là **một lệnh chạy tay**, và PR phải dán **mã
@@ -2033,6 +2624,7 @@ apps/api/eval/
   fixtures/<đề>/manifest.json, …       -- trong git (§12.2), trừ bài của nhóm 5
   runs/<UTC-timestamp>-<git-sha>/       -- tên thư mục = MÃ LƯỢT CHẠY
     run.json      -- tier, split, k, git_sha, dataset_hash, config (ablation + chuỗi bậc model),
+                  -- sandbox_host (dấu vân tay máy sandbox, §3.5),
                   -- models_used (model THẬT đã trả lời, như §8.2), summary, baseline_run
     cases.jsonl   -- mỗi dòng một (ca, lượt): nhóm, expected/found ruleIds, outcome,
                   -- score, expectedScore, expectedComplexity, measuredComplexity,
@@ -2141,6 +2733,11 @@ Cột cuối đọc toàn chữ *"Không"* là **có chủ đích**: eval là c�
 không bao giờ phải chờ quyết định hạ tầng ở rủi ro 1. Rủi ro 1 chặn **đường chấm thật**,
 không chặn **việc đo**.
 
+*(Sửa 2026-09-23.)* *"Không cần sandbox production"* vẫn đúng theo nghĩa không phải chờ hạ
+tầng chấm thật chạy xong; nhưng mọi phép **đo thời gian** của eval gửi tới **máy sandbox đã
+chỉ định** (§3.5), không tới Docker của máy dev — trừ kiểm đột biến tương đương, vốn không đo
+thời gian.
+
 Bộ eval **không thay** bước 9 (§8.2). Nó trả lời *"tốt hơn hay tệ hơn lần trước"*
 trên sự thật dựng sẵn; bước 9 trả lời *"đồng thuận với người thật tới đâu"*. Hai cơ chế
 bổ sung nhau: eval phát hiện nhanh và rẻ, hiệu chỉnh xác nhận chậm và đắt.
@@ -2216,3 +2813,190 @@ có thư viện nào như vậy.
 > Nếu một ngày giá được phép có ba chữ số thập phân, luật này phải xét lại: phần trăm
 > điểm không còn biểu diễn đúng. Chốt chặn nằm ở kiểu cột, nên đổi kiểu cột là chỗ phải
 > nhớ tới mục này.
+
+---
+
+## 14. Mô hình dữ liệu và máy trạng thái — MỘT chỗ (thêm 2026-09-23)
+
+Trước mục này, các bảng và cột của spec nằm rải trong văn xuôi của mười ba mục. Mục này là
+**chỗ duy nhất** định nghĩa chúng. Mục nào khác nói khác thì mục này đúng, và chỗ kia là lỗi
+cần sửa.
+
+### 14.1 Bảng và cột
+
+**Có trên `main`, đổi:**
+
+| Bảng | Thêm / đổi | Ràng buộc, ghi chú |
+|---|---|---|
+| `grading_result` | `pipeline` enum(`one_shot`, `investigator`), mặc định `one_shot` | **Gán lúc `startGrading` tạo dòng, từ bài nộp, và không bao giờ đổi**: `investigator` khi `deliverable_type = code_project` **và** `required_deliverable.language` ∈ {`cpp`, `python`}; mọi trường hợp khác — tự luận, ảnh, bài code chưa khai ngôn ngữ hay khai ngôn ngữ khác — là `one_shot`. Hệ thống không đoán ngôn ngữ từ đuôi file. Một phiên trộn nhiều loại bài thì mỗi kết quả theo đường của nó. Mọi luật tự quyết, điểm hiện tại, hiển thị rẽ theo cột này (rủi ro 15) |
+| | `current_attempt_id` uuid → `grading_attempt` | Null khi kết quả chưa có dòng lượt chấm nào — dòng `one_shot` cũ chưa từng chấm lại |
+| | `ungradable_class` enum(`system`, `submission`) | Null khi có điểm. Đúng hai giá trị (§4.4). `ungradable_reason` (text) giữ làm lời kể cho người đọc |
+| | `audit_sampled` boolean · `audit_sampled_at` timestamptz | §8.1: rút khi `hash(exam_session.grading_seed, id) < N`, chỉ trong khung *quyết định đầu tiên là tự quyết* |
+| | trạng thái mới `audit_pending` | §14.3 |
+| | `finalized_computation_id` uuid → `score_computation` | Ghi lúc chốt: điểm đã công bố |
+| | `finalized_by` uuid · `finalized_at` | **Người ký tên** lên điểm đã công bố — ghi cùng UPDATE sang `finalized`, và trigger vòng đời đòi nó khác null (§14.4) |
+| | `uq_grading_result_submission` **giữ nguyên** | Một bài một kết quả (§2.3) |
+| `teacher_review` | `kind` enum(`review`, `error_exception`, `manual_score`, `bulk_accept`) · `error_rule_id` uuid và `direction` enum(`exclude`, `include`), bắt buộc khi `error_exception` | Security rule 6 giữ nguyên: sửa điểm luôn là dòng mới. `exclude` = *bỏ lỗi này cho riêng bài này*, cũng dùng cho *đồng ý bác bỏ*; `include` = *giữ lỗi này* dù bị bác bỏ |
+| | `final_score` thành **nullable**, kèm `CHECK (kind = 'error_exception' OR final_score IS NOT NULL)` | Dòng ngoại lệ cấp lỗi không mang điểm: điểm là kết quả của lượt tính ngay sau nó (§2.2). Các kind khác vẫn bắt buộc có điểm |
+| `rubric_criterion` | `key` text — đặt lúc tạo tiêu chí, không bao giờ sửa | `unique(rubric_id, key)`. Tiêu chí cũ: migration điền `key` một lần (§14.4) |
+| `required_deliverable` | `language` enum `sandbox_language`(`python`, `cpp`, `java`, `node`) null — từ nhánh plan-1, khai cho bài `code_project` | Khai lúc tạo phiên, hoặc ở màn chuẩn bị chấm nếu chưa khai; khoá cùng tài liệu chấm (§14.3). Null, `java` hay `node` thì bài đi đường `one_shot` — sandbox chỉ chạy `cpp`, `python` (§3.5). Khi merge ở bước 3, **nới** `ck_required_deliverable_language` của nhánh: nửa *"`code_project` ⇒ `language` NOT NULL"* sẽ chặn chính các bài code đã có trên `main`, vốn chưa khai ngôn ngữ; giữ nửa *"không phải `code_project` ⇒ NULL"* |
+| `exam_session` | `test_bundle_id` (ghim lúc bắt đầu chấm) · `pinned_price_version_id` (ghim **lúc chốt**, §2.2) · `grading_seed` | `rubric_id` đã có và đã được ghim |
+| `grading_reference` | `model_answer_origin` enum(`teacher`, `authoring`, `generated`) | `model_answer_unverified` giữ; cảnh báo tắt khi thước đã duyệt (§2.1 luật 4) |
+| `grade_export` | bảng con `grade_export_row` (dưới) | §13.1 luật 2 |
+
+**Mới:**
+
+| Bảng | Cột chính | Ràng buộc, bất biến |
+|---|---|---|
+| `error_rule` | `id` uuid PK · `teacher_id` · `rule_key` · `state` enum(`proposed`, `active`, `dismissed`, `retired`) · `origin` enum(`teacher`, `seed`, `agent_reported`) · `current_revision_id` | `unique(teacher_id, rule_key)`. `proposed` = *luật còn thiếu* agent báo; `dismissed` = *"không phải lỗi"*. Không xoá dòng nào: hồ sơ trỏ vào nó vĩnh viễn |
+| `error_rule_revision` | `id` · `error_rule_id` · `revision` · tên, mô tả · `criterion_key` · `predicate` jsonb null (§4.1) · `created_by`, `created_at` | `unique(error_rule_id, revision)`; **chỉ thêm**. Sửa tên, mô tả, tiêu chí hay điều kiện của một luật là một bản sửa mới, áp cho phiên chưa chốt theo bốn bậc của §2.2 — y như giá. `DiagnosedError` ghi cả `ruleId` lẫn `ruleRevisionId`, nên sửa luật không làm đổi nghĩa lịch sử |
+| `price_table_version` | `id` · `teacher_id` · `version` · `created_by`, `created_at` | `unique(teacher_id, version)`; chỉ thêm |
+| `rule_price` | `price_table_version_id` · `error_rule_id` · `deduction` `numeric(6,2)` null | Khoá chính hai cột; chỉ thêm. Mỗi lần sửa giá chép cả bảng sang phiên bản mới — vài chục luật, rẻ |
+| `grading_test_bundle` | từ nhánh plan-1, thêm `version` · `origin` enum(`teacher`, `from_model_answer`, `generated`) · `approved_by`, `approved_at` · `comparator` jsonb null | `unique(exam_session_id, version)`, thay `uq_grading_test_bundle_session` của plan-1 (§9 bước 3) |
+| `grading_test_case` | `bundle_id` · `case_key` · `group` · `input` · `expected_output` · `constraint_quote` null · `auto_dropped_reason` null | Chỉ thêm. *Bỏ ca* = phiên bản bundle mới không chép ca đó (§2.1) |
+| `grading_attempt` | `id` · `grading_result_id` · `attempt_no` · `outcome` enum(`graded`, `ungradable`) · `ungradable_class`, `ungradable_reason` · `investigation` jsonb (§5) · `structured_results` jsonb — từng ca, mẫu đo, kết quả `ast_query` (§5.3) · `challenge` jsonb — kết quả phản biện mới, theo từng lỗi (§6) · `model_used` · `sandbox_host` jsonb (§3.5) · `tokens`, `cost_usd` · `triggered_by` · `started_at`, `finished_at` | `unique(grading_result_id, attempt_no)`. **Bất biến từ lúc `outcome` khác null** (§14.4). Dùng cho **cả hai** đường; với `one_shot` thì `investigation`, `structured_results` và `challenge` null. Phản biện chạy trong cùng job, trước khi ghi kết cục, nên bất biến theo lượt. `structured_results` thay cột `test_run` của plan-1 |
+| `score_computation` | `id` · `grading_result_id` · `attempt_id` · `price_table_version_id` · `rubric_id_version` · `test_bundle_id` · `reason` enum(`initial`, `price_change`, `rule_revision`, `tier2_rule`, `tier3_rule`, `case_dropped`, `error_exception`, `finalized_reapply`) · `score` `numeric(6,2)` · `breakdown` jsonb — từng lỗi: luật và bản sửa, mức trừ, tính / bỏ vì ngoại lệ / bỏ vì `refuted`, chạm trần · `created_by`, `created_at` | **Chỉ thêm** (§14.4). Đây là *"dòng tính lại"* của §2.2 |
+| `rule_evaluation_run` | `id` · `exam_session_id` · `error_rule_revision_id` · `tool` · `sandbox_host` · `image_digest` · `created_by`, `created_at` | Một lượt chạy bậc 3 cho cả phiên (§2.2). Chỉ thêm |
+| `rule_evaluation_result` | `run_id` · `grading_result_id` · `structured` jsonb | Chỉ thêm. Lượt chấm đã bất biến, nên kết quả chạy lại sống ở đây chứ không ghi vào lượt |
+| `audit_sample_review` | `grading_result_id` PK · `teacher_id` · `picked_rule_ids` uuid[] · `extra_errors` text[] · `recorded_at` | Bất biến — §8.1: nhận xét ghi rồi thì khoá |
+| `criterion_waiver` | `rubric_id` · `criterion_key` · `set_by`, `set_at` · `revoked_at` null | Đánh dấu *"tiêu chí này không có luật trừ"* (§4.2). Bảng riêng, vì `rubric_criterion` bị khoá ngay khi rubric có kết quả chấm — đúng lúc giảng viên cần đánh dấu |
+| `ruler_warning` | `test_bundle_id` · `case_key` · `fail_rate` · `computed_at` · `decision` enum(`keep`, `drop`) null | Canh thước (§2.1) |
+| `grade_export_row` | `grade_export_id` · `file_row` · `mssv` · `written_hundredths` int null · `blank_reason` enum(`absent`, `not_finished`, `ungradable`, `flagged`) null · `score_computation_id` null | Bản chụp từng sinh viên của một lượt xuất (§13.1). Chỉ thêm |
+
+**`comparator`** — bộ so sánh cho bài nhiều đáp số (§2.1):
+`{ kind: 'exact' } | { kind: 'unordered_lines' } | { kind: 'float_tolerance', eps } | { kind:
+'checker', name }`. `checker` là một bộ kiểm **lập trình sẵn** theo loại bài — đường đi hợp lệ,
+cây khung hợp lệ — cùng tinh thần với `predicate`: không có code tự do.
+
+**Luật trỏ tới tiêu chí bằng `criterion_key`, không bằng id của một dòng tiêu chí.** Luật dùng
+lại qua nhiều đề (§2.1), còn tiêu chí thuộc một phiên bản rubric bất biến. Lúc chấm, harness
+khớp `criterion_key` của bản sửa đang dùng với `rubric_criterion.key` của rubric đã ghim vào phiên.
+Luật không khớp tiêu chí nào thì không áp được trần: lỗi đó bị loại và nêu ở trang kiến thức,
+cùng khuôn *luật còn thiếu* của §4.1.
+
+### 14.2 Hàm "điểm hiện tại" — mọi chỗ đọc điểm đi qua đúng hàm này
+
+```
+điểm_hiện_tại(kết quả):
+  nếu pipeline = one_shot:                     # bài tự luận, dữ liệu cũ
+      trả final_score của teacher_review mới nhất CÓ ĐIỂM
+          (kind review | manual_score | bulk_accept) nếu có, không thì ai_total_score
+  nếu có teacher_review kind = manual_score:
+      trả dòng mới nhất đó
+  nếu phiên đã chốt:
+      trả score_computation[finalized_computation_id]
+  trả score_computation mới nhất của kết quả   # đã áp ngoại lệ cấp lỗi lúc tính
+  không có score_computation nào → null        # "chưa có điểm"
+```
+
+- **Chốt điểm không còn ghi `teacher_review` cho bài tự quyết** ở đường `investigator`. Hôm nay
+  `finalizeGrades` ghi `final_score = ai_total_score` cho mọi bài `auto_approved`. Giữ thế thì mọi
+  bài đã chốt trông như có người sửa, và luật audit của §2.2 không bao giờ bắn. Thay bằng ghi
+  `finalized_computation_id` cùng `finalized_by`, và bài đi thẳng `auto_approved → finalized`
+  (§14.3). Bất biến *"điểm đã công bố phải mang tên một người"* của `1789220000000` và của
+  `finalizeGrades` **vẫn giữ** — chỉ đổi chỗ ghi tên, từ một dòng `teacher_review` giả sang cột
+  `finalized_by`, và DB ép nó. Đường `one_shot` giữ hành vi hôm nay.
+- `ai_total_score` vẫn là điểm của lượt tính đầu, dưới trigger — đúng vai Security rule 6. Nó
+  không bao giờ là điểm hiện tại của đường `investigator`.
+- **Không component, không route nào đọc thẳng `ai_total_score` để hiển thị** (`T-UI-9`).
+- **Bài tự luận `auto_approved` còn sót từ trước khi đổi chính sách** (§0.3), chưa chốt: giữ nguyên
+  trạng thái, hiện nhãn *"tự duyệt theo chính sách cũ"* (spec UI mục 3.11). Bài tự luận chấm từ nay
+  không bao giờ vào `auto_approved`.
+
+### 14.3 Máy trạng thái — một bảng, khớp từng dòng với trigger vòng đời
+
+| Từ | Sang | Khi nào | Trigger hôm nay |
+|---|---|---|---|
+| `ai_grading` | `ai_graded` | Lượt chấm ra điểm | Có |
+| `ai_grading` | `flagged_for_review` | Lượt không ra điểm (`ungradable_class` khác null) | Có |
+| `ai_graded` | `auto_approved` | Thoả công thức tự quyết (§4.2) — chỉ đường `investigator` | Có |
+| `ai_graded` | `flagged_for_review` | Không thoả; và **mọi** bài `one_shot` (§0.3) | Có |
+| `auto_approved` | `audit_pending` | Được rút mẫu (§8.1) | **Thêm** |
+| `audit_pending` | `teacher_reviewed` | Giảng viên ghi nhận xét kiểm mẫu | **Thêm** |
+| `auto_approved`, `audit_pending` | `flagged_for_review` | Một lượt tính lại làm bài trượt công thức — luật mới chưa có giá, bỏ ca, gỡ đánh dấu *"không có luật trừ"*. Bài đang kiểm mẫu thì bị huỷ khỏi mẫu | **Thêm** |
+| `flagged_for_review` | `auto_approved` | Một lượt tính lại làm bài thoả công thức — ví dụ vừa đặt giá. **Không** vào khung rút mẫu (§8.1) | **Thêm** |
+| `flagged_for_review` | `ai_grading` | Chấm lại: chưa có điểm, lớp `system`, giảng viên bấm (§2.3) | **Thêm** |
+| `auto_approved`, `flagged_for_review` | `teacher_reviewed` | Giảng viên xem, bỏ lỗi, chấm tay, duyệt hàng loạt | Có |
+| `auto_approved` | `finalized` | Chốt, kèm `finalized_by` — đường `investigator` không còn ghi `teacher_review` cho bài tự quyết (§14.2) | **Thêm** |
+| `teacher_reviewed` | `finalized` | Chốt | Có |
+| `finalized` | `exported` | Xuất | Có |
+
+- **Mọi bước chuyển là UPDATE có điều kiện trên trạng thái hiện tại** (khuôn `advance()`). Không
+  đổi dòng nào thì bước chuyển không xảy ra, và người gọi dừng.
+- **Ai gây ra lượt tính lại quyết bước chuyển.** Giảng viên thao tác trên **một** bài — bỏ lỗi,
+  giữ lỗi, đồng ý bác bỏ, chấm tay — thì bài đó sang `teacher_reviewed`, kể cả khi lượt tính lại
+  ngay sau thoả công thức tự quyết: có người đã nhìn bài đó. Chỉ lượt tính lại do thay đổi **ở
+  tầng luật** — giá, bản sửa luật, bỏ ca, đánh dấu tiêu chí — mới được đưa bài `flagged →
+  auto_approved` hay ngược lại. Bài `teacher_reviewed` chưa chốt vẫn đổi điểm theo lượt tính lại
+  tầng luật, nhưng giữ nguyên trạng thái.
+- **Chặn chốt điểm:** `ai_grading`, `ai_graded`, `flagged_for_review` (gồm bài không chấm được),
+  `audit_pending`. Một danh sách, ở một chỗ (`BLOCKS_FINALIZE`).
+- **Điều kiện bắt đầu chấm — danh sách duy nhất.** *Chặn:* thiếu đề · thiếu rubric, hoặc rubric
+  không có tiêu chí nào · chưa có thước sẵn sàng (gói test có sẵn, hoặc đã sinh **và đã duyệt**)
+  · không có bài `collected` nào. *Không xếp hàng:* bài có file nén đang chờ kiểm (`pending`).
+  *Đi đường `one_shot`, kèm cảnh báo:* bài code chưa khai ngôn ngữ.
+  *Ra không chấm được ngay, không tốn lượt model:* file nén không đọc được. *Chỉ cảnh báo:* luật
+  chưa có giá · tiêu chí chưa có luật · đáp án mẫu chưa kiểm chứng.
+- **Luật đóng băng — danh sách duy nhất.** Đề, đáp án mẫu, gói test (trừ *bỏ ca*, §2.1) và rubric
+  của phiên **khoá khi phiên có ít nhất một kết quả mang điểm hoặc đang chấm**; mở lại khi mọi kết
+  quả là bài không chấm được đã dừng (§2.3 luật 6). Bảng giá ghim lúc chốt (§2.2).
+
+### 14.4 Trigger
+
+| Trigger | Chặn gì | Việc phải làm |
+|---|---|---|
+| `validate_grading_result_lifecycle` (có từ `InitialSchema`, sửa lần cuối ở `1789220000000`) | Bước chuyển trạng thái ngoài danh sách | **Viết lại theo đúng bảng §14.3**: thêm sáu dòng đánh dấu *Thêm* — **bảy cặp** trạng thái, vì một dòng có hai trạng thái nguồn — và giá trị enum `audit_pending`; mọi bước sang `finalized` đòi `NEW.finalized_by IS NOT NULL`. Không viết lại thì mọi bước chuyển mới bị DB từ chối ngay. `T-LIFE-1` phủ đủ bảy cặp |
+| `guard_grading_result_ai_immutable` (có) | Sửa các cột AI gốc sau khi có điểm | Giữ khuôn danh sách cột **động** của `1789310000000`. **Không** dựa vào nó để bảo vệ hồ sơ điều tra: nó chỉ bắn khi `OLD.ai_total_score IS NOT NULL` |
+| `guard_rubric_criteria_immutable` (có, từ `InitialSchema`) | Sửa tiêu chí khi rubric đã có kết quả chấm | **Giữ nguyên**, và thiết kế quanh nó: `key` của tiêu chí cũ được migration điền **một lần**, tạm tắt đúng trigger này trong cùng transaction và chỉ đụng cột mới; đánh dấu *"không có luật trừ"* nằm ở `criterion_waiver`, không trên `rubric_criterion` |
+| `guard_grading_attempt_immutable` (mới) | Mọi UPDATE lên dòng lượt chấm đã có `outcome` | Lớp bảo vệ hồ sơ của bài **chưa có điểm** — chỗ trigger cũ để hở |
+| `guard_append_only` (mới) | UPDATE và DELETE trên `score_computation`, `rule_price`, `price_table_version`, `error_rule_revision`, `grading_test_case`, `rule_evaluation_run`, `rule_evaluation_result`, `audit_sample_review`, `grade_export_row` | Chỉ thêm |
+| Trigger của nhánh plan-1 | — | Viết lại khi merge (§9 bước 3, `T-MERGE-1`) |
+
+---
+
+## 15. Ma trận nghiệm thu — mỗi bước XONG khi nào (thêm 2026-09-23)
+
+§10 liệt kê test nhưng không nói test nào thuộc bước nào, và §12.3 có chỉ số nhưng chỉ ghi
+*"cao"*, *"rất cao"*. Thiếu hai thứ đó thì *"xong bước 3"* là một cảm giác.
+
+**Luật chung:** con số mục tiêu **chốt trước khi đo**. Đổi một con số sau khi đo phải ghi lý do
+trong PR đổi nó — không thì mục tiêu trượt theo kết quả, và bảng này không còn nghiệm thu gì.
+
+### 15.1 Theo bước
+
+| Bước (§9) | Test phải xanh | Eval | Khác |
+|---|---|---|---|
+| **0** — bộ eval + baseline | `T-EVAL-1/2/3/5/8/9/10/14`, `T-MATH-1/2` | Fixture ≥ 2 đề; lượt baseline đầu tiên **đã commit** | Hàm dựng request tách khỏi `gradeOne`, runner tối thiểu (§9) |
+| **1** — sandbox | `T-DOWN-1`, `T-ISO-1…7`, `T-ISO-8` (phần sandbox), `T-LANG-1…3` | — | Báo cáo buổi thử cô lập (§3.5): runtime đã chọn, độ tản của lớp độ phức tạp, chi phí một vòng job, số khe đo `K` |
+| **2** — ba công cụ + vòng lặp | `T-AG-1…8`, `T-PARSE-1/2`, `T-INJ-1/2`, `T-SIZE-1`, `T-STRUCT-1`, `T-EVAL-4`, `T-EVAL-6/7`, `T-EVAL-12/13`; mọi test eval đã xanh từ bước 0 **vẫn xanh** trên runner mở rộng | Lượt đo đầu tiên của hệ thống mới, **đã commit** | Số đo chi phí thật — từ đây mới chốt lại §15.2 và cỡ bậc nhanh (§12.5) |
+| **3** — nguồn gốc, sàn, tự quyết, kiểm mẫu | `T-MERGE-1`, `T-SRC-1/2`, `T-FLOOR-1…6`, `T-CONF-1`, `T-AUTO-1`, `T-POL-1…8`, `T-RULE-1…3`, `T-RULEREV-1`, `T-KEY-1`, `T-TIER-1/2`, `T-VER-1/2`, `T-EXC-1/2`, `T-PIN-1`, `T-FIN-1/2`, `T-FAIR-1`, `T-PIPE-1`, `T-REVIEW-1`, `T-SAMP-1…5`, `T-AUDIT-1/2`, `T-DEMOTE-1`, `T-LIFE-1`, `T-REGRADE-1…5`, `T-FREEZE-3`, `T-WAIVER-1`, `T-RULER-1…4/7`, `T-EMPTY-1`, `T-COMPILE-1`, `T-ARCH-1`, `T-ESSAY-1`, `T-LEGACY-1`, `T-NORM-1/3`, `T-IMM-1`; spec UI `T-UI-1…21` | Ba cổng cứng xanh (§12.4); **không thoái lui** so với baseline ở điểm và kết cục — khoảng tin cậy 95% của hiệu số ghép cặp không nằm hẳn dưới 0; mục tiêu §15.2 | **Sửa ba test đang mã hoá luật đóng băng cũ** (§2.3 luật 6): T-FREEZE-1, ca 409 của `session-rubric.e2e-spec.ts`, T-ATT-2. Báo **tỉ lệ bài tự quyết nằm ngoài khung rút mẫu** (§8.1) |
+| **4** — `run_scaled` | `T-CX-1…6`, `T-TMO-1/2`, `T-NORM-2`, `T-EVAL-11`, `T-ISO-8` (phần kết luận) | Độ phức tạp: **sai theo hướng "đo cao hơn thật" = 0** trên cả bộ; `inconclusive` được phép | — |
+| **5** — `probe`, `ast_query`, `compare_peers` | `T-PB-1`, `T-PEER-1/2`, `T-INJ-3`, `T-TIER-3` | `probe`: ca lỗi nhỏ nhất fail thật 100% | — |
+| **6** — phản biện mới | `T-ADV-1…5`, `T-REFUTE-1`, `T-EVAL-12` | Bác được ≥ 80% lỗi giả tiêm vào; bác oan lỗi thật ≤ 5%; **tỉ lệ tự quyết trước và sau khi bật phản biện**, trên cùng bộ ca | Tỉ lệ tự quyết tụt quá 15 điểm % thì xem lại precision của từng góc kiểm trước khi bật (§6.3). Cảnh báo cùng họ model lúc khởi động có test |
+| **8 / 9** — hiệu chỉnh | `T-CAL-1`, `T-DRIFT-1` | — | Lượt hiệu chỉnh có người chấm mù (§8.2) |
+| **§13** — ghi sổ điểm | `T-EXP-1…7` | — | — |
+| **Canh thước** (§2.1) | `T-RULER-5/6` | — | Ngưỡng 60 / 80 chỉnh bằng số liệu phiên thật |
+
+### 15.2 Mục tiêu bằng số — bản đầu, chốt trước khi đo
+
+| Đại lượng | Mục tiêu | Ghi chú |
+|---|---|---|
+| Precision phát hiện lỗi theo `ruleId` (nhóm 1) | **≥ 0,95** | Trừ oan tốn điểm thật của sinh viên, nên precision đứng trước recall |
+| Recall phát hiện lỗi (nhóm 1) | **≥ 0,80** | Đây là *"khả năng phát hiện lỗi cấy"*, không phải độ chính xác chấm (rủi ro 11) |
+| Precision của nhóm được tự quyết | **≥ 0,95** | Trong các ca eval được tự quyết, tỉ lệ ca có `foundRuleIds = expectedRuleIds` **và** `outcome = expectedOutcome`. Chỉ số tiêu đề (§12.3) |
+| Tỉ lệ bài được tự quyết | **Báo cáo, không đặt sàn** | Đặt sàn cho con số này là đẩy người ta nới điều kiện tự quyết cho đạt |
+| Thời gian mỗi bài | p50 ≤ 120 giây · p95 ≤ 240 giây | Trần cứng vẫn là 300 giây (§7) |
+| Token mỗi bài | p50 ≤ 40k · p95 ≤ 100k | Trần cứng vẫn là 150k (§7) |
+| Một phiên 40 bài | Xong trong ≤ 30 phút | Với `GRADE_CONCURRENCY = 5` đang có; phụ thuộc số khe đo `K` (§3.5) |
+
+**Đọc các ngưỡng này thế nào.** Mọi mục tiêu so trên **ước lượng điểm**, và báo cáo luôn kèm
+khoảng tin cậy 95%. Với khoảng 35 ca nhóm 1, khoảng tin cậy rộng cỡ ±10 điểm phần trăm (§12.4):
+ngưỡng 0,95 kiểm được **hướng**, không **chứng minh** được. Muốn cận dưới của khoảng tin cậy
+vượt 0,95 thì cần khoảng 72 ca liên tiếp không sai ca nào (Clopper–Pearson) — ngoài tầm bộ dữ liệu
+của đồ án. Nên báo cáo viết *"ước lượng 0,97 [0,90–1,00]"*, không bao giờ viết *"đạt precision
+0,95"*.
+
+Ba dòng thời gian và token là **đoán có cơ sở**, không phải số đo: §7 chỉ có số của đường
+một-phát (45,8 giây một lượt chấm, 61,4 giây một lượt phản biện). Bản chạy mỏng ở bước 2 đo số
+thật. Nếu số thật vượt xa mục tiêu thì đó là tín hiệu **thiết kế** — quá nhiều vòng, quá nhiều lời
+gọi — không phải lý do nới mục tiêu mà không ghi.
