@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { AdvocateOpinion } from './advocate.types';
-import { ADVOCATE_JSON_SCHEMA, AdvocateOutputSchema } from './advocate-schema';
+import { ADVOCATE_JSON_SCHEMA, AdvocateOutputSchema, copiedAdvocatePlaceholder } from './advocate-schema';
 import { buildAdvocatePrompt } from './advocate-prompt';
 import { AdvocateProvider, AdvocateRequest } from './advocate-provider';
 import { badOutputError } from './provider-failure';
@@ -103,6 +103,9 @@ export class ClaudeAdvocateProvider implements AdvocateProvider {
       throw badOutputError(`Output của Advocate không khớp schema ở: ${paths}`);
     }
     const parsed = validation.data;
+    if (copiedAdvocatePlaceholder(parsed)) {
+      throw badOutputError('Advocate chép nguyên chỗ giữ chỗ của mẫu');
+    }
 
     if (prompt.injectionSuspected || parsed.injectionAttempt.detected) {
       // Hai nguồn, cố ý — cùng lập luận với Grader: phát hiện cơ học ở

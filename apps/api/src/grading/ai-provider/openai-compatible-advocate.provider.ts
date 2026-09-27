@@ -1,6 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { AdvocateOpinion } from './advocate.types';
-import { ADVOCATE_JSON_SCHEMA, AdvocateOutputSchema } from './advocate-schema';
+import {
+  ADVOCATE_JSON_SCHEMA,
+  ADVOCATE_OUTPUT_RULES,
+  AdvocateOutputSchema,
+  copiedAdvocatePlaceholder,
+} from './advocate-schema';
 import { AdvocateProvider, AdvocateRequest } from './advocate-provider';
 import { OpenAITierConfig, postChatJson } from './openai-chat';
 import { badOutputError } from './provider-failure';
@@ -51,6 +56,8 @@ const SYSTEM_RULES = [
   '',
   'Nếu em ấy làm sai thì nói sai. Bênh vực một bài sai là làm hỏng chính',
   'thứ khiến ý kiến của bạn đáng đọc.',
+  '',
+  ADVOCATE_OUTPUT_RULES,
   '',
   SYSTEM_DELIMITER_RULE,
 ].join('\n');
@@ -110,6 +117,9 @@ export class OpenAICompatibleAdvocateProvider implements AdvocateProvider {
       throw badOutputError(`${this.config.tier}: output Advocate không khớp schema ở: ${paths}`);
     }
     const parsed = validation.data;
+    if (copiedAdvocatePlaceholder(parsed)) {
+      throw badOutputError(`${this.config.tier}: Advocate chép nguyên chỗ giữ chỗ của mẫu`);
+    }
 
     if (envelope.injectionSuspected || parsed.injectionAttempt.detected) {
       this.logger.warn(

@@ -65,6 +65,7 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
     service: GradingService,
     needsAdvocate: boolean,
     reference: LoadedGradingReference,
+    criterionIds: ReadonlySet<string> = new Set(['c1']),
   ): Promise<AdvocateRun> {
     return (
       service as unknown as {
@@ -73,9 +74,10 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
           text: string,
           needs: boolean,
           ref: LoadedGradingReference,
+          ids: ReadonlySet<string>,
         ): Promise<AdvocateRun>;
       }
-    ).runAdvocate(SUBMISSION, STUDENT_TEXT, needsAdvocate, reference);
+    ).runAdvocate(SUBMISSION, STUDENT_TEXT, needsAdvocate, reference, criterionIds);
   }
 
   it('T-ADV-1: kiến nghị của Advocate KHÔNG mang theo con số nào', async () => {
@@ -172,6 +174,31 @@ describe('GradingService.runAdvocate (T-ADV-1)', () => {
 
     expect(run.outcome).toBe('not_needed');
     expect(run.opinion).toBeNull();
+  });
+
+  it('kiến nghị có mã tiêu chí KHÔNG thuộc rubric bị bỏ, và nói ra — Advocate mù rubric nên mã đó không trỏ vào đâu', async () => {
+    // Màn hình và nút "áp ý kiến phản biện" khớp kiến nghị theo `criterionId`. Mã lạ lưu vào
+    // `advocate_opinion` thì lặng lẽ không khớp gì: giảng viên không biết ý kiến đã từng có.
+    const warns: unknown[] = [];
+    const service = serviceWith({
+      name: 'x',
+      advocate: async () =>
+        opinion({
+          suggestedVerdicts: [
+            { criterionId: 'c1', suggestedVerdict: 'met', why: 'đúng theo hướng khác' },
+            { criterionId: 'Độ phức tạp', suggestedVerdict: 'met', why: 'bịa mã' },
+          ],
+        }),
+    });
+    jest.spyOn((service as unknown as { logger: Logger }).logger, 'warn').mockImplementation((m: unknown) => void warns.push(m));
+
+    const out = (await runAdvocate(service, true, WITH_QUESTION, new Set(['c1', 'c2']))).opinion!;
+
+    expect(out.suggestedVerdicts.map((s) => s.criterionId)).toEqual(['c1']);
+    expect(warns.map(String).join(' | ')).toMatch(/sub-1: bỏ 1\/2 kiến nghị của Advocate có mã tiêu chí không thuộc rubric/);
+    // Lý lẽ và phán đoán thì còn nguyên — chỉ phần không trỏ được vào tiêu chí nào bị bỏ.
+    expect(out.isCorrect).toBe('yes');
+    expect(out.reasoning).toMatch(/giải đúng/);
   });
 
   it('chuỗi Advocate hỏng HẾT bậc → bài vẫn đi tiếp, không ném', async () => {

@@ -1,5 +1,6 @@
 import { PromptBlock } from './grader-prompt';
 import { SYSTEM_DELIMITER_RULE, wrapSubmission } from '../harness/submission-envelope';
+import { ADVOCATE_OUTPUT_RULES } from './advocate-schema';
 
 /**
  * Ghép context cho Advocate — lượt hỏi thứ hai, MÙ RUBRIC.
@@ -76,6 +77,8 @@ const SYSTEM_RULES = [
   '',
   'Nếu em ấy làm sai thì nói sai. Bênh vực một bài sai là làm hỏng chính',
   'thứ khiến ý kiến của bạn đáng đọc.',
+  '',
+  ADVOCATE_OUTPUT_RULES,
   '',
   SYSTEM_DELIMITER_RULE,
 ].join('\n');

@@ -9,6 +9,7 @@ jest.mock('@anthropic-ai/sdk', () => {
 
 import { ADVOCATE_MODEL, ClaudeAdvocateProvider } from './advocate.provider';
 import { AdvocateRequest } from './advocate-provider';
+import { ADVOCATE_OUTPUT_RULES, ADVOCATE_PLACEHOLDERS } from './advocate-schema';
 
 const REQUEST: AdvocateRequest = {
   studentMssv: '2011060001',
@@ -294,5 +295,36 @@ describe('ClaudeAdvocateProvider', () => {
 
     const content = JSON.stringify(createMock.mock.calls[0][0].messages[0].content);
     expect(content).toContain('BEGIN SUBMISSION');
+  });
+
+  it('khuôn JSON trong system prompt — CÙNG khối với bậc tương thích OpenAI (hai bậc, một câu hỏi)', async () => {
+    // Gateway không ép json_schema cho mọi route (đo 2026-09-25); bậc Claude đi qua cùng gateway.
+    createMock.mockResolvedValue(okResponse());
+    await new ClaudeAdvocateProvider().advocate(REQUEST);
+    expect(createMock.mock.calls[0][0].system[0].text).toContain(ADVOCATE_OUTPUT_RULES);
+  });
+
+  it('chép nguyên chỗ giữ chỗ của mẫu → ném lỗi output hỏng, không trả một ý kiến kèm dẫn chứng giả', async () => {
+    createMock.mockResolvedValue(
+      okResponse({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              isCorrect: 'yes',
+              reasoning: 'Đúng.',
+              evidence: [ADVOCATE_PLACEHOLDERS[2]],
+              suggestedVerdicts: [],
+              injectionAttempt: { detected: false, quote: '' },
+            }),
+          },
+        ],
+      }),
+    );
+    const caught = (await new ClaudeAdvocateProvider()
+      .advocate(REQUEST)
+      .catch((e: unknown) => e)) as Error & { status?: number };
+    expect(caught.status).toBe(422);
+    expect(caught.message).toMatch(/chỗ giữ chỗ/);
   });
 });
