@@ -63,11 +63,15 @@ export async function seedPrices(ds: DataSource, teacherId: string, prices: Reco
   return v.id;
 }
 
-/** Hồ sơ: nhóm `bien` fail (hay pass), model báo các lỗi `modelErrors`, đã đọc file bài nộp. */
+/**
+ * Hồ sơ: nhóm `bien` fail (hay pass), model báo các lỗi `modelErrors`, đã đọc file bài nộp.
+ * `ruleTable` mặc định = `rulesSeen` (chưa có phép truy hồi §2.1 cắt bớt luật).
+ */
 export function storedWith(
   rulesSeen: StoredInvestigation['rulesSeen'],
   modelErrors: string[] = [],
   bienFails = true,
+  ruleTable: StoredInvestigation['ruleTable'] = rulesSeen,
 ): StoredInvestigation {
   return {
     version: 1,
@@ -82,6 +86,7 @@ export function storedWith(
       errors: modelErrors.map((ruleKey) => ({ ruleKey, toolCallIds: ['r1'] })),
     }),
     rulesSeen,
+    ruleTable,
     modelCeiling: 1,
   };
 }

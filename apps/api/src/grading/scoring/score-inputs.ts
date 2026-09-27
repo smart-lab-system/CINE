@@ -87,25 +87,32 @@ export async function loadRuleSnapshots(
 }
 
 /**
- * `rule_key` mà MỌI lượt chấm hiện hành (`graded`) của phiên đã thấy dưới dạng `model` — §2.2
- * *"tất cả hoặc không"*: một luật lời thêm giữa lô thì bài chấm trước không thấy nó, nên không bài
- * nào của phiên xét nó. Chấm lại một bài (3d) sau khi thêm luật cũng không kéo luật đó vào phiên.
+ * `rule_key` là luật `model` trong BẢNG LỖI (`ruleTable`) của MỌI lượt chấm hiện hành (`graded`)
+ * của phiên — §2.2 *"tất cả hoặc không"*: một luật lời thêm giữa lô thì bài bắt đầu trước không có
+ * nó trong bảng, nên không bài nào của phiên xét nó. Đọc bảng lỗi, KHÔNG đọc `rulesSeen`: phép truy
+ * hồi §2.1 cho mỗi bài xem một phần khác nhau của cùng một bảng (review 3c I1).
+ * `exceptResultId`: tập của phiên khi CHƯA có bài đó — để phát hiện một bài vừa làm tập thu hẹp.
  */
-export async function loadSessionModelRules(m: EntityManager, sessionId: string): Promise<Set<string>> {
+export async function loadSessionModelRules(
+  m: EntityManager,
+  sessionId: string,
+  exceptResultId: string | null = null,
+): Promise<Set<string>> {
   const rows: { rule_key: string }[] = await m.query(
     `WITH att AS (
        SELECT a.id, a.investigation
          FROM examcollect.grading_result g
          JOIN examcollect.submission s ON s.id = g.submission_id
          JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id AND a.outcome = 'graded'
-        WHERE s.exam_session_id = $1 AND g.pipeline = 'investigator')
+        WHERE s.exam_session_id = $1 AND g.pipeline = 'investigator'
+          AND ($2::uuid IS NULL OR g.id <> $2))
      SELECT r ->> 'ruleKey' AS rule_key
-       FROM att CROSS JOIN LATERAL jsonb_array_elements(att.investigation -> 'rulesSeen') r
+       FROM att CROSS JOIN LATERAL jsonb_array_elements(att.investigation -> 'ruleTable') r
       WHERE r ->> 'checkedBy' = 'model'
       GROUP BY 1
      HAVING count(DISTINCT att.id) = (SELECT count(*) FROM att)
       ORDER BY 1`,
-    [sessionId],
+    [sessionId, exceptResultId],
   );
   return new Set(rows.map((r) => r.rule_key));
 }

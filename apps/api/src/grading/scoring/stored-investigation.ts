@@ -9,8 +9,15 @@ import type { InvestigationResult } from '../investigator/types';
 export interface StoredInvestigation {
   version: 1;
   result: InvestigationResult;
-  /** Bảng lỗi model đã thấy lúc điều tra (review I3 của 3a; T-FAIR-1). */
+  /** Phần bảng lỗi model ĐÃ ĐƯỢC XEM lúc điều tra (review I3 của 3a) — sau phép truy hồi §2.1. */
   rulesSeen: { ruleKey: string; checkedBy: 'machine' | 'model' }[];
+  /**
+   * TOÀN BỘ bảng lỗi đang dùng của giảng viên lúc cuộc điều tra BẮT ĐẦU — không phụ thuộc phép truy
+   * hồi (§2.1 cắt còn ~5 luật khi bảng lớn), nên `rulesSeen ⊆ ruleTable`. Công bằng trong một phiên
+   * (§2.2 *"tất cả hoặc không"*) đọc từ đây: một luật lời "có" với một bài khi nó nằm trong bảng lúc
+   * bài đó bắt đầu, dù model có được xem nó hay không (review 3c I1).
+   */
+  ruleTable: { ruleKey: string; checkedBy: 'machine' | 'model' }[];
   /** Trần thấp nhất của các bậc model đã trả lời (§4.2). */
   modelCeiling: number;
 }
@@ -25,6 +32,7 @@ export function readStoredInvestigation(json: unknown): StoredInvestigation {
     typeof o.result === 'object' &&
     (o.result.kind === 'verdict' || o.result.kind === 'ungradable') &&
     Array.isArray(o.rulesSeen) &&
+    Array.isArray(o.ruleTable) &&
     typeof o.modelCeiling === 'number';
   if (!ok) throw new Error('hồ sơ lượt chấm không đúng khuôn StoredInvestigation v1');
   return o as StoredInvestigation;

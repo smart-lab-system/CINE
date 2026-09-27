@@ -35,6 +35,10 @@ function stored(over: Partial<StoredInvestigation> = {}): StoredInvestigation {
       { ruleKey: 'sai_bien', checkedBy: 'machine' },
       { ruleKey: 'ten_bien', checkedBy: 'model' },
     ],
+    ruleTable: [
+      { ruleKey: 'sai_bien', checkedBy: 'machine' },
+      { ruleKey: 'ten_bien', checkedBy: 'model' },
+    ],
     modelCeiling: 1,
     ...over,
   };

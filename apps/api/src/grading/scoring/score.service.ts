@@ -110,6 +110,17 @@ export class ScoreService {
       if ((wrote.affected ?? 0) === 0) throw new Error(`kết quả ${resultId} đã rời ai_grading`);
       const to = out.outcome === 'auto' ? 'auto_approved' : 'flagged_for_review';
       await advanceStatus(m, resultId, ['ai_graded'], to, { flagForReview: to === 'flagged_for_review' });
+
+      // §2.2 "tất cả hoặc không" (review I1): bài này bắt đầu trước khi có một luật lời mà các bài
+      // đã tính của phiên đều có → luật đó thôi được xét cho CẢ phiên, nên các bài kia tính lại ngay.
+      const before = await loadSessionModelRules(m, ctx.sessionId, resultId);
+      const after = await loadSessionModelRules(m, ctx.sessionId);
+      if ([...before].some((k) => !after.has(k))) {
+        await this.recomputeForTeacher(m, ctx.teacherId, 'session_rule_set', null, {
+          sessionId: ctx.sessionId,
+          exceptResultId: resultId,
+        });
+      }
       return { outcome: out.outcome, computationId, scoreHundredths: out.scoreHundredths };
     });
   }
@@ -124,7 +135,7 @@ export class ScoreService {
     teacherId: string,
     reason: ScoreComputationReason,
     actorId: string | null,
-    scope: { ruleId?: string; rubricId?: string } = {},
+    scope: { ruleId?: string; rubricId?: string; sessionId?: string; exceptResultId?: string } = {},
   ): Promise<RecomputeSummary> {
     await lockTeacherScoring(m, teacherId);
     const ids: { id: string }[] = await m.query(
@@ -139,13 +150,15 @@ export class ScoreService {
           AND NOT EXISTS (SELECT 1 FROM examcollect.teacher_review t
                            WHERE t.grading_result_id = g.id AND t.kind = 'manual_score')
           AND ($2::uuid IS NULL OR g.rubric_id_version = $2)
+          AND ($4::uuid IS NULL OR s.exam_session_id = $4)
+          AND ($5::uuid IS NULL OR g.id <> $5)
           AND ($3::uuid IS NULL OR EXISTS (
                 SELECT 1 FROM (SELECT c.breakdown FROM examcollect.score_computation c
                                 WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) last
                  WHERE last.breakdown -> 'errors' @> jsonb_build_array(jsonb_build_object('ruleId', $3::text))))
         ORDER BY g.id
         FOR UPDATE OF g`,
-      [teacherId, scope.rubricId ?? null, scope.ruleId ?? null],
+      [teacherId, scope.rubricId ?? null, scope.ruleId ?? null, scope.sessionId ?? null, scope.exceptResultId ?? null],
     );
     const sum: RecomputeSummary = { recomputed: 0, promoted: 0, demoted: 0, belowFloor: 0 };
     for (const { id } of ids) {

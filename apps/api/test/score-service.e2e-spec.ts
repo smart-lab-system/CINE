@@ -152,6 +152,27 @@ describe('ScoreService (e2e)', () => {
     }
   });
 
+  it('review I1: bài chấm SAU mà bảng lỗi thiếu một luật lời → tập của phiên thu hẹp → bài đã tính trước được tính lại, luật đó không xét cho cả phiên', async () => {
+    const { ctx, bien, ten } = await world('sc-shrink');
+    const chu = await seedRule(ds, ctx.teacherId, 'chu_thich_sai', 'trinh_bay');
+    await seedPrices(ds, ctx.teacherId, { [bien.ruleId]: '1.50', [ten.ruleId]: '0.50', [chu.ruleId]: '0.25' });
+    const withChu = [...SEEN, { ruleKey: 'chu_thich_sai', checkedBy: 'model' as const }];
+    // A bắt đầu SAU khi có `chu_thich_sai` và xong TRƯỚC; B bắt đầu trước khi có nó, xong sau.
+    const a = await seedInvestigatorResult(ds, ctx, storedWith(withChu, ['chu_thich_sai']));
+    expect(await scores.computeInitial(a.resultId)).toMatchObject({ scoreHundredths: 1000 - 150 - 25 });
+    const b = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
+    await scores.computeInitial(b.resultId);
+    const latestA = await latestComputationRow(ds.manager, a.resultId);
+    const [reason] = await ds.query(
+      `SELECT reason FROM examcollect.score_computation WHERE id = $1`,
+      [latestA!.id],
+    );
+    expect(reason.reason).toBe('session_rule_set');
+    expect(latestA).toMatchObject({ score: '8.50' });
+    expect(latestA!.breakdown.notConsidered.map((r) => r.ruleKey)).toEqual(['chu_thich_sai']);
+    expect(await computations(b.resultId)).toHaveLength(1);
+  });
+
   it('review I2: lượt tính lại ra dưới sàn → một dòng KHÔNG điểm; điểm hiện tại "chưa có"; bài teacher_reviewed không chốt được', async () => {
     const { ctx, bien } = await world('sc-floor-re');
     // Cạn ngân sách, phát hiện duy nhất là lỗi máy quyết `sai_bien` (T-FLOOR-1: thu hồi luật đó → 0 phát hiện).
