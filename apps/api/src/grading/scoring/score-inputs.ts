@@ -118,6 +118,31 @@ export async function loadSessionModelRules(
   return new Set(rows.map((r) => r.rule_key));
 }
 
+/**
+ * Tập luật lời của phiên KHI thêm bài đang chấm: tập của các bài khác (`graded`) giao với luật
+ * `model` trong bảng lỗi của bài này. Phiên chưa có bài `graded` nào khác → chính bảng của bài này.
+ * Cho lượt tính đầu, khi lượt chấm chưa ghi kết cục nên `loadSessionModelRules` chưa thấy nó.
+ */
+export async function sessionModelRulesWith(
+  m: EntityManager,
+  sessionId: string,
+  resultId: string,
+  ruleTable: StoredInvestigation['ruleTable'],
+): Promise<Set<string>> {
+  const own = new Set(ruleTable.filter((r) => r.checkedBy === 'model').map((r) => r.ruleKey));
+  const [{ n }] = await m.query(
+    `SELECT count(*)::int AS n
+       FROM examcollect.grading_result g
+       JOIN examcollect.submission s ON s.id = g.submission_id
+       JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id AND a.outcome = 'graded'
+      WHERE s.exam_session_id = $1 AND g.pipeline = 'investigator' AND g.id <> $2`,
+    [sessionId, resultId],
+  );
+  if (n === 0) return own;
+  const others = await loadSessionModelRules(m, sessionId, resultId);
+  return new Set([...own].filter((k) => others.has(k)));
+}
+
 /** Điểm hiện tại §14.2 của MỘT bài — cùng hàm `currentScore()` mà danh sách kết quả dùng. */
 export async function loadCurrentScore(m: EntityManager, resultId: string): Promise<CurrentScore> {
   const [r] = await m.query(
@@ -168,7 +193,15 @@ export interface ScoreContext {
   hasManualScore: boolean;
 }
 
-export async function loadScoreContext(m: EntityManager, resultId: string): Promise<ScoreContext> {
+/**
+ * `storedOverride`: hồ sơ của lượt chấm ĐANG CHẠY (chưa có kết cục trong DB) — lượt tính đầu quyết
+ * kết cục trên hồ sơ này TRƯỚC khi ghi nó, vì lượt chấm bất biến từ lúc có kết cục (§14.4).
+ */
+export async function loadScoreContext(
+  m: EntityManager,
+  resultId: string,
+  storedOverride?: StoredInvestigation,
+): Promise<ScoreContext> {
   const [row] = await m.query(
     `SELECT g.pipeline, g.status, g.ungradable_class, g.rubric_id_version, g.current_attempt_id,
             s.exam_session_id, es.teacher_id, es.test_bundle_id,
@@ -217,7 +250,7 @@ export async function loadScoreContext(m: EntityManager, resultId: string): Prom
     ungradableClass: row.ungradable_class,
     rubricId: row.rubric_id_version,
     attemptId: row.current_attempt_id,
-    stored: row.attempt_outcome === 'graded' ? readStoredInvestigation(row.investigation) : null,
+    stored: storedOverride ?? (row.attempt_outcome === 'graded' ? readStoredInvestigation(row.investigation) : null),
     bundleId: row.test_bundle_id,
     bundleCases: cases.map((c) => ({ name: c.case_key, group: c.group })),
     rubric: rubric.map((c) => ({ key: c.key, maxHundredths: parseHundredths(c.max_points) })),

@@ -16,8 +16,23 @@ import {
   loadSessionModelRules,
   lockTeacherScoring,
   ScoreContext,
+  sessionModelRulesWith,
   teacherOfResult,
 } from './score-inputs';
+import { recordMissingRules } from '../rules/missing-rules';
+import type { StoredInvestigation } from './stored-investigation';
+
+/** Phần đo đạc của một lượt chấm, ghi vào dòng `grading_attempt` cùng lúc với kết cục. */
+export interface AttemptMeta {
+  modelUsed: string | null;
+  tokensIn: number;
+  tokensOut: number;
+  sandboxHost: object | null;
+}
+
+export type FinishOutcome =
+  | { kind: 'scored'; outcome: 'auto' | 'flagged'; scoreHundredths: number; computationId: string }
+  | { kind: 'ungradable'; class: 'system' | 'submission'; reason: string };
 
 export interface RecomputeSummary {
   recomputed: number;
@@ -102,39 +117,151 @@ export class ScoreService {
           `lượt tính đầu của ${resultId} ra dưới sàn (${out.ungradable?.reason}) — người gọi phải quyết kết cục lượt chấm trước`,
         );
       }
-      const computationId = await this.insertComputation(m, ctx, 'initial', null, out);
-      // `ai_total_score` = điểm của lượt tính đầu, dưới trigger bất biến (§14.2): ghi CÙNG UPDATE
-      // với các cột AI khác, vì guard đóng băng chúng ngay khi `ai_total_score` có.
-      // `criterion_results` giữ `[]`: khuôn cột đó là của one_shot và calibration đọc nó; khung trừ
-      // điểm của đường điều tra nằm ở `breakdown`.
-      const wrote = await m
-        .createQueryBuilder()
-        .update(GradingResultEntity)
-        .set({
-          status: 'ai_graded',
-          aiTotalScore: formatHundredths(out.scoreHundredths),
-          confidence: out.breakdown.confidence === null ? null : out.breakdown.confidence.toFixed(3),
-          modelUsed: ctx.stored.result.investigation.modelsUsed.join('+').slice(0, 100) || null,
-        })
-        .where('id = :id', { id: resultId })
-        .andWhere("status = 'ai_grading'")
-        .execute();
-      if ((wrote.affected ?? 0) === 0) throw new Error(`kết quả ${resultId} đã rời ai_grading`);
-      const to = out.outcome === 'auto' ? 'auto_approved' : 'flagged_for_review';
-      await advanceStatus(m, resultId, ['ai_graded'], to, { flagForReview: to === 'flagged_for_review' });
-
-      // §2.2 "tất cả hoặc không" (review I1): bài này bắt đầu trước khi có một luật lời mà các bài
-      // đã tính của phiên đều có → luật đó thôi được xét cho CẢ phiên, nên các bài kia tính lại ngay.
-      const before = await loadSessionModelRules(m, ctx.sessionId, resultId);
-      const after = await loadSessionModelRules(m, ctx.sessionId);
-      if ([...before].some((k) => !after.has(k))) {
-        await this.recomputeForTeacher(m, ctx.teacherId, 'session_rule_set', null, {
-          sessionId: ctx.sessionId,
-          exceptResultId: resultId,
-        });
-      }
-      return { outcome: out.outcome, computationId, scoreHundredths: out.scoreHundredths };
+      return this.writeInitial(m, ctx, ctx.stored, { ...out, scoreHundredths: out.scoreHundredths });
     });
+  }
+
+  /**
+   * Kết thúc MỘT lượt chấm điều tra đang chạy (3d), trong MỘT transaction: quyết kết cục bằng đúng
+   * lõi `computeScore()` trên hồ sơ vừa có, RỒI mới ghi — lượt chấm bất biến từ lúc có kết cục
+   * (§14.4), nên không có đường "ghi graded rồi phát hiện dưới sàn". Ra điểm → lượt `graded` + lượt
+   * tính đầu; không chấm được → lượt `ungradable` + bài gắn cờ đúng lớp (§4.4). Luật còn thiếu agent
+   * báo thành dòng `proposed` ở cả hai nhánh (§2.1).
+   */
+  async finishAttempt(resultId: string, attemptId: string, stored: StoredInvestigation, meta: AttemptMeta): Promise<FinishOutcome> {
+    return this.ds.transaction(async (m) => {
+      const ctx = await this.lockRunning(m, resultId, attemptId, stored);
+      if (stored.result.verdict?.missingRules?.length) {
+        await recordMissingRules(m, ctx.teacherId, stored.result.verdict.missingRules);
+      }
+      let ungradable: { class: 'system' | 'submission'; reason: string } | null = null;
+      let out: Computed | null = null;
+      if (stored.result.kind === 'ungradable') {
+        ungradable = stored.result.ungradable ?? { class: 'system', reason: 'cuộc điều tra không có kết luận' };
+      } else {
+        out = await this.compute(m, ctx, undefined, await sessionModelRulesWith(m, ctx.sessionId, resultId, stored.ruleTable));
+        if (out.outcome === 'ungradable' || out.scoreHundredths === null) {
+          ungradable = out.ungradable ?? { class: 'system', reason: 'lượt tính ra dưới sàn' };
+        }
+      }
+      if (ungradable) {
+        await this.closeUngradable(m, resultId, attemptId, ungradable, stored, meta);
+        return { kind: 'ungradable', ...ungradable };
+      }
+      await m.query(
+        `UPDATE examcollect.grading_attempt
+            SET outcome = 'graded', investigation = $2, model_used = $3, tokens_in = $4, tokens_out = $5,
+                sandbox_host = $6, finished_at = clock_timestamp()
+          WHERE id = $1 AND outcome IS NULL`,
+        [attemptId, JSON.stringify(stored), meta.modelUsed, meta.tokensIn, meta.tokensOut, meta.sandboxHost === null ? null : JSON.stringify(meta.sandboxHost)],
+      );
+      const scored = await this.writeInitial(m, ctx, stored, { ...out!, scoreHundredths: out!.scoreHundredths! });
+      return { kind: 'scored', ...scored };
+    });
+  }
+
+  /** Hỏng TRƯỚC khi điều tra (thiếu thước, thiếu đề chữ, bài nộp không đọc được, chưa cấu hình): đóng lượt đang chạy. */
+  async finishUngradable(resultId: string, attemptId: string, u: { class: 'system' | 'submission'; reason: string }): Promise<void> {
+    await this.ds.transaction(async (m) => {
+      await this.lockRunning(m, resultId, attemptId);
+      await this.closeUngradable(m, resultId, attemptId, u, null, null);
+    });
+  }
+
+  /** Khoá giảng viên rồi dòng kết quả; đòi đúng lượt đang chạy là lượt hiện hành — không thì job cũ. */
+  private async lockRunning(m: EntityManager, resultId: string, attemptId: string, stored?: StoredInvestigation): Promise<ScoreContext> {
+    await lockTeacherScoring(m, await teacherOfResult(m, resultId));
+    const [row] = await m.query(
+      `SELECT g.pipeline, g.status, g.current_attempt_id, a.outcome
+         FROM examcollect.grading_result g
+         LEFT JOIN examcollect.grading_attempt a ON a.id = $2
+        WHERE g.id = $1
+        FOR UPDATE OF g`,
+      [resultId, attemptId],
+    );
+    if (!row || row.pipeline !== 'investigator' || row.status !== 'ai_grading' || row.current_attempt_id !== attemptId || row.outcome !== null) {
+      throw new Error(`lượt chấm ${attemptId} của kết quả ${resultId} không còn là lượt đang chạy — bỏ`);
+    }
+    return loadScoreContext(m, resultId, stored);
+  }
+
+  private async closeUngradable(
+    m: EntityManager,
+    resultId: string,
+    attemptId: string,
+    u: { class: 'system' | 'submission'; reason: string },
+    stored: StoredInvestigation | null,
+    meta: AttemptMeta | null,
+  ): Promise<void> {
+    await m.query(
+      `UPDATE examcollect.grading_attempt
+          SET outcome = 'ungradable', ungradable_class = $2, ungradable_reason = $3, investigation = $4,
+              model_used = $5, tokens_in = $6, tokens_out = $7, sandbox_host = $8, finished_at = clock_timestamp()
+        WHERE id = $1 AND outcome IS NULL`,
+      [
+        attemptId,
+        u.class,
+        u.reason,
+        stored === null ? null : JSON.stringify(stored),
+        meta?.modelUsed ?? null,
+        meta?.tokensIn ?? null,
+        meta?.tokensOut ?? null,
+        meta?.sandboxHost == null ? null : JSON.stringify(meta.sandboxHost),
+      ],
+    );
+    const updated = await m
+      .createQueryBuilder()
+      .update(GradingResultEntity)
+      .set({ status: 'flagged_for_review', flagForReview: true, confidence: '0', ungradableClass: u.class, ungradableReason: u.reason })
+      .where('id = :id', { id: resultId })
+      .andWhere("status = 'ai_grading'")
+      .execute();
+    if ((updated.affected ?? 0) === 0) throw new Error(`kết quả ${resultId} đã rời ai_grading`);
+  }
+
+  /** Nửa sau chung của lượt tính đầu: dòng `initial`, cột AI, bước chuyển, và tập luật lời của phiên. */
+  private async writeInitial(
+    m: EntityManager,
+    ctx: ScoreContext,
+    stored: StoredInvestigation,
+    out: Computed & { scoreHundredths: number },
+  ): Promise<{ outcome: 'auto' | 'flagged'; computationId: string; scoreHundredths: number }> {
+    const computationId = await this.insertComputation(m, ctx, 'initial', null, out);
+    // `ai_total_score` = điểm của lượt tính đầu, dưới trigger bất biến (§14.2): ghi CÙNG UPDATE
+    // với các cột AI khác, vì guard đóng băng chúng ngay khi `ai_total_score` có.
+    // `criterion_results` giữ `[]`: khuôn cột đó là của one_shot và calibration đọc nó; khung trừ
+    // điểm của đường điều tra nằm ở `breakdown`. Lớp lý do xoá: bài được chấm lại (§2.3) giờ đã có
+    // điểm, và `ck_grading_result_ungradable` cấm mang cả hai.
+    const wrote = await m
+      .createQueryBuilder()
+      .update(GradingResultEntity)
+      .set({
+        status: 'ai_graded',
+        aiTotalScore: formatHundredths(out.scoreHundredths),
+        confidence: out.breakdown.confidence === null ? null : out.breakdown.confidence.toFixed(3),
+        modelUsed: stored.result.investigation.modelsUsed.join('+').slice(0, 100) || null,
+        ungradableClass: null,
+        ungradableReason: null,
+      })
+      .where('id = :id', { id: ctx.resultId })
+      .andWhere("status = 'ai_grading'")
+      .execute();
+    if ((wrote.affected ?? 0) === 0) throw new Error(`kết quả ${ctx.resultId} đã rời ai_grading`);
+    const outcome = out.outcome === 'auto' ? 'auto' : 'flagged';
+    const to = outcome === 'auto' ? 'auto_approved' : 'flagged_for_review';
+    await advanceStatus(m, ctx.resultId, ['ai_graded'], to, { flagForReview: to === 'flagged_for_review' });
+
+    // §2.2 "tất cả hoặc không" (review I1): bài này bắt đầu trước khi có một luật lời mà các bài
+    // đã tính của phiên đều có → luật đó thôi được xét cho CẢ phiên, nên các bài kia tính lại ngay.
+    const before = await loadSessionModelRules(m, ctx.sessionId, ctx.resultId);
+    const after = await loadSessionModelRules(m, ctx.sessionId);
+    if ([...before].some((k) => !after.has(k))) {
+      await this.recomputeForTeacher(m, ctx.teacherId, 'session_rule_set', null, {
+        sessionId: ctx.sessionId,
+        exceptResultId: ctx.resultId,
+      });
+    }
+    return { outcome, computationId, scoreHundredths: out.scoreHundredths };
   }
 
   /**
@@ -341,6 +468,8 @@ export class ScoreService {
     m: EntityManager,
     ctx: ScoreContext,
     transform?: (rules: RuleSnapshot[]) => RuleSnapshot[],
+    /** Lượt tính đầu: lượt chấm chưa ghi kết cục nên phải đưa tập của phiên kèm bài này vào tay. */
+    sessionRules?: ReadonlySet<string>,
   ): Promise<Computed> {
     if (!ctx.stored) throw new Error(`kết quả ${ctx.resultId} không có lượt chấm graded`);
     const price = await currentPriceVersion(m, ctx.teacherId);
@@ -350,7 +479,7 @@ export class ScoreService {
       bundleCases: ctx.bundleCases,
       rubric: ctx.rubric,
       rules: transform ? transform(rules) : rules,
-      sessionModelRules: await loadSessionModelRules(m, ctx.sessionId),
+      sessionModelRules: sessionRules ?? (await loadSessionModelRules(m, ctx.sessionId)),
       waivedCriteria: ctx.waivedCriteria,
       exceptions: ctx.exceptions,
       theta: this.theta,
