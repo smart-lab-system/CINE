@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import {
   Table,
@@ -84,6 +85,7 @@ export function MatrixTable({
               <TableHead className="text-right">Lệch</TableHead>
               <TableHead>Lý do giữ lại</TableHead>
               <TableHead>Tóm tắt lượt phản biện</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -126,6 +128,18 @@ export function MatrixTable({
                   </TableCell>
                   <TableCell className="max-w-[26rem] text-small text-muted-foreground">
                     {summarize(row.advocateOpinion?.reasoning)}
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      href={
+                        row.pipeline === 'investigator'
+                          ? `/teacher/grading/investigation/${row.id}`
+                          : `/teacher/grading/${row.id}`
+                      }
+                      className="text-small font-medium text-primary underline-offset-2 hover:underline"
+                    >
+                      Xem
+                    </Link>
                   </TableCell>
                 </TableRow>
               );
