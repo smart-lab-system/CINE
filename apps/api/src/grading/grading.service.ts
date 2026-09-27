@@ -30,6 +30,8 @@ import { DeliverableType } from '../exam-session/entities/required-deliverable.e
 import { GRADING_ANCHORS_ENABLED } from './grading.types';
 import { AnchorService } from './anchor.service';
 import type { AdvocateOutcome } from './entities/grading-result.entity';
+import type { GradingPipeline, TeacherReviewKind } from './grading-model.types';
+import { currentScore, CurrentScore } from './scoring/current-score';
 
 /**
  * Kết quả một lượt phản biện: chuyện gì đã xảy ra, và ý kiến nếu có.
@@ -682,6 +684,7 @@ export class GradingService {
                     tr.final_score       AS "finalScore",
                     tr.reviewed_at       AS "reviewedAt",
                     tr.edited_criteria   AS "editedCriteria",
+                    tr.kind              AS "kind",
                     a.name               AS "reviewedByName"
              FROM examcollect.teacher_review tr
              JOIN examcollect.account a ON a.id = tr.teacher_id
@@ -693,8 +696,37 @@ export class GradingService {
           );
     const reviewByResult = new Map(latest.map((row) => [row.resultId, row]));
 
+    // Đầu vào của hàm *điểm hiện tại* §14.2 cho đường điều tra — một truy vấn cho cả danh sách.
+    const scoreRows: ScoreSourceRow[] =
+      ids.length === 0
+        ? []
+        : await this.results.manager.query(
+            `SELECT g.id AS "resultId",
+                    (SELECT c.score FROM examcollect.score_computation c
+                      WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC LIMIT 1) AS "latestComputationScore",
+                    fc.score AS "finalizedComputationScore",
+                    (SELECT t.final_score FROM examcollect.teacher_review t
+                      WHERE t.grading_result_id = g.id AND t.kind = 'manual_score'
+                      ORDER BY t.reviewed_at DESC LIMIT 1) AS "latestManualScore"
+               FROM examcollect.grading_result g
+               LEFT JOIN examcollect.score_computation fc ON fc.id = g.finalized_computation_id
+              WHERE g.id = ANY($1)`,
+            [ids],
+          );
+    const scoreSourceByResult = new Map(scoreRows.map((row) => [row.resultId, row]));
+
     return rows.entities.map((entity, index) => {
       const review = reviewByResult.get(entity.id);
+      const source = scoreSourceByResult.get(entity.id);
+      const current = currentScore({
+        pipeline: entity.pipeline,
+        aiTotalScore: entity.aiTotalScore,
+        latestScoredReview: review ? { kind: review.kind, finalScore: review.finalScore } : null,
+        latestManualScore: source?.latestManualScore ?? null,
+        finalized: entity.status === 'finalized' || entity.status === 'exported',
+        finalizedComputationScore: source?.finalizedComputationScore ?? null,
+        latestComputationScore: source?.latestComputationScore ?? null,
+      });
       return {
         id: entity.id,
         submissionId: entity.submissionId,
@@ -721,9 +753,20 @@ export class GradingService {
         reviewedAt: review ? new Date(review.reviewedAt).toISOString() : null,
         reviewedByName: review ? review.reviewedByName : null,
         editedCriteria: review ? review.editedCriteria : null,
+        pipeline: entity.pipeline,
+        currentScore: current.value,
+        currentScoreSource: current.source,
       };
     });
   }
+}
+
+/** Nguồn của điểm hiện tại cho đường điều tra — numeric(6,2) về dạng chuỗi. */
+interface ScoreSourceRow {
+  resultId: string;
+  latestComputationScore: string | null;
+  finalizedComputationScore: string | null;
+  latestManualScore: string | null;
 }
 
 /** One row of the DISTINCT ON lookup above. */
@@ -733,6 +776,7 @@ interface LatestReviewRow {
   finalScore: string;
   reviewedAt: Date;
   editedCriteria: unknown[];
+  kind: TeacherReviewKind;
   reviewedByName: string;
 }
 
@@ -776,4 +820,11 @@ export interface GradingResultView {
    *  ai-làm-gì thuộc về audit_log chứ không phải payload hiển thị. */
   reviewedByName: string | null;
   editedCriteria: unknown[] | null;
+  pipeline: GradingPipeline;
+  /**
+   * Điểm hiện tại theo §14.2 — MỌI màn đọc điểm từ đây. `aiTotalScore` chỉ là điểm của lượt tính
+   * đầu; với đường điều tra nó không bao giờ là điểm hiện tại (T-UI-9).
+   */
+  currentScore: number | null;
+  currentScoreSource: CurrentScore['source'];
 }
