@@ -11,6 +11,7 @@ import { SubmitReviewDto } from './dto/submit-review.dto';
 import type { BulkRule } from './bulk-rules';
 import { AuditLogService } from '../admin/audit-log.service';
 import { BLOCKS_FINALIZE } from './lifecycle/grading-transitions';
+import { advanceStatus } from './lifecycle/advance';
 
 /**
  * The statuses a result CAN be reviewed in.
@@ -322,14 +323,7 @@ export class TeacherReviewService {
     // bước chuyển thiếu nó (§14.2, §14.4).
     extra: FinalizeStamp | Record<string, never> = {},
   ): Promise<boolean> {
-    const updated = await manager
-      .createQueryBuilder()
-      .update(GradingResultEntity)
-      .set({ status: to, ...extra })
-      .where('id = :id', { id: resultId })
-      .andWhere('status IN (:...from)', { from })
-      .execute();
-    return (updated.affected ?? 0) > 0;
+    return advanceStatus(manager, resultId, from, to, extra);
   }
 
   /**
