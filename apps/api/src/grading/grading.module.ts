@@ -33,6 +33,7 @@ import { ScoreService } from './scoring/score.service';
 import { ErrorRuleService } from './rules/error-rule.service';
 import { PriceService } from './rules/price.service';
 import { ErrorExceptionService } from './review/error-exception.service';
+import { CriterionWaiverService } from './rules/criterion-waiver.service';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { AdminModule } from '../admin/admin.module';
 import { GradingController } from './grading.controller';
@@ -149,6 +150,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     ErrorRuleService,
     PriceService,
     ErrorExceptionService,
+    CriterionWaiverService,
     AnchorService,
     ClaudeGradingProvider,
     KeywordGradingProvider,
