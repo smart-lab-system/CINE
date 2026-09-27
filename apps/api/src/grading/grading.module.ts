@@ -30,6 +30,8 @@ import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { BulkReviewService } from './bulk-review.service';
 import { ScoreService } from './scoring/score.service';
+import { ErrorRuleService } from './rules/error-rule.service';
+import { PriceService } from './rules/price.service';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { AdminModule } from '../admin/admin.module';
 import { GradingController } from './grading.controller';
@@ -143,6 +145,8 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     BulkReviewService,
     // Chỗ DUY NHẤT ghi `score_computation` (§2.2) — giá, luật, ngoại lệ, chốt đều gọi vào đây.
     ScoreService,
+    ErrorRuleService,
+    PriceService,
     AnchorService,
     ClaudeGradingProvider,
     KeywordGradingProvider,
