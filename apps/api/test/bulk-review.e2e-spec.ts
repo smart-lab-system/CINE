@@ -177,9 +177,10 @@ describe('Duyệt hàng loạt (e2e)', () => {
         `UPDATE examcollect.grading_result SET status = 'teacher_reviewed' WHERE id = $1`,
         [id],
       );
+      // Sang `finalized` phải mang người ký tên (trigger vòng đời, §14.2).
       await dataSource.query(
-        `UPDATE examcollect.grading_result SET status = 'finalized' WHERE id = $1`,
-        [id],
+        `UPDATE examcollect.grading_result SET status = 'finalized', finalized_by = $2, finalized_at = now() WHERE id = $1`,
+        [id, teacherId],
       );
     }
     return { sessionId, resultIds };

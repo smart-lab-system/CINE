@@ -29,6 +29,7 @@ import { SetSessionRubricDto } from './dto/set-session-rubric.dto';
 import { SubmitReviewDto } from './dto/submit-review.dto';
 import { BulkReviewDto } from './dto/bulk-review.dto';
 import { BulkReviewService } from './bulk-review.service';
+import { GRADING_LOCKED_MESSAGE } from './grading-lock';
 
 /**
  * The grading side of the API.
@@ -119,10 +120,8 @@ export class GradingController {
     @Req() req: Request,
   ) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
-    if (await this.grading.hasResultsForSession(session.id)) {
-      throw new ConflictException(
-        'Phiên thi này đã có kết quả chấm — không đổi được rubric nữa.',
-      );
+    if (await this.grading.isGradingLocked(session.id)) {
+      throw new ConflictException(`${GRADING_LOCKED_MESSAGE} — không đổi được rubric nữa.`);
     }
     return this.examSessions.setRubric(session, dto.rubricId);
   }

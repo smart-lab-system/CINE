@@ -4,8 +4,10 @@ import {
   ArrayMinSize,
   IsArray,
   IsNumber,
+  IsOptional,
   IsString,
   Length,
+  Matches,
   Max,
   Min,
   ValidateNested,
@@ -24,6 +26,11 @@ export class RubricCriterionDto {
   @Min(0.25)
   @Max(100)
   maxPoints!: number;
+
+  /** Tuỳ chọn: không khai thì server sinh từ mô tả (`assignCriterionKeys`). */
+  @IsOptional()
+  @Matches(/^[a-z0-9_]{1,64}$/, { message: 'key chỉ gồm chữ thường không dấu, số, "_" và tối đa 64 ký tự' })
+  key?: string;
 }
 
 export class SaveRubricDto {

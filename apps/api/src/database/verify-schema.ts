@@ -21,6 +21,17 @@ const EXPECTED_TABLES = [
   'rubric_template',
   'cost_budget',
   'grading_pipeline_config',
+  // Mô hình dữ liệu §14 của spec chấm bằng agent điều tra (bước 3b).
+  'error_rule',
+  'error_rule_revision',
+  'price_table_version',
+  'rule_price',
+  'grading_test_bundle',
+  'grading_test_case',
+  'grading_attempt',
+  'score_computation',
+  'criterion_waiver',
+  'audit_sample_review',
 ];
 
 async function main() {

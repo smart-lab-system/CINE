@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { forceStatus } from './helpers/grading-seed';
 
 /**
  * Rubric được ghim vào phiên thi lúc ra đề, không tra lại lúc chấm.
@@ -273,7 +274,11 @@ describe('Session-pinned rubric (e2e)', () => {
      * Một GradingResult là đủ để khoá — không cần bài nộp hợp lệ. Trigger
      * validate_submission_lifecycle cho INSERT thẳng ở 'invalid'.
      */
-    async function attachOneGradingResult(sessionId: string, deliverableId: string, rubricId: string) {
+    async function attachOneGradingResult(
+      sessionId: string,
+      deliverableId: string,
+      rubricId: string,
+    ): Promise<string> {
       const [submission] = await dataSource.query(
         `INSERT INTO examcollect.submission
            (exam_session_id, required_deliverable_id, student_mssv,
@@ -282,18 +287,20 @@ describe('Session-pinned rubric (e2e)', () => {
         [
           sessionId,
           deliverableId,
-          `SVL${stamp}`.slice(0, 20),
+          // Hai ca cùng lượt chạy gọi hàm này: `stamp` là hằng của file, nên thêm phần ngẫu nhiên.
+          `SVL${stamp}${Math.random().toString(36).slice(2, 6)}`.slice(0, 20),
           'SV Khoá',
           classAId,
           idA,
         ],
       );
-      await dataSource.query(
+      const [result] = await dataSource.query(
         `INSERT INTO examcollect.grading_result
            (submission_id, rubric_id_version, grading_triggered_by, status)
-         VALUES ($1, $2, $3, 'ai_grading')`,
+         VALUES ($1, $2, $3, 'ai_grading') RETURNING id`,
         [submission.id, rubricId, idA],
       );
+      return result.id;
     }
 
     it('gắn rubric cho phiên chưa chấm', async () => {
@@ -339,7 +346,7 @@ describe('Session-pinned rubric (e2e)', () => {
       expect(patched.status).toBe(403);
     });
 
-    it('từ chối với 409 khi phiên đã có kết quả chấm', async () => {
+    it('từ chối với 409 khi phiên có bài đang chấm (§2.3 luật 6)', async () => {
       const rubric = await saveRubric(tokenA, 'Đã chấm');
       const created = await createSession(tokenA, {
         classId: classAId,
@@ -355,6 +362,26 @@ describe('Session-pinned rubric (e2e)', () => {
       const patched = await setRubric(tokenA, created.body.id, other.id);
 
       expect(patched.status).toBe(409);
+    });
+
+    it('đổi được rubric khi mọi kết quả của phiên đều là bài không chấm được (§2.3 luật 6)', async () => {
+      const rubric = await saveRubric(tokenA, 'Chỉ có bài hỏng');
+      const created = await createSession(tokenA, { classId: classAId, rubricId: rubric.id });
+      const resultId = await attachOneGradingResult(
+        created.body.id,
+        created.body.requiredDeliverables[0].id,
+        rubric.id,
+      );
+      await forceStatus(dataSource, resultId, 'flagged_for_review', {
+        ungradable_class: 'system',
+        ungradable_reason: 'sandbox chết',
+        confidence: 0,
+      });
+
+      const other = await saveRubric(tokenA, 'Sửa thước sau lượt hỏng');
+      const patched = await setRubric(tokenA, created.body.id, other.id);
+
+      expect(patched.status).toBe(200);
     });
   });
 });

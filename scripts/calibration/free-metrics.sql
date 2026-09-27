@@ -156,6 +156,8 @@ WITH cap_verdict AS (
     -- Bỏ qua dòng `edited_criteria` không phải mảng: entity mặc định `{}`,
     -- và `jsonb_array_elements` trên object sẽ NỔ chứ không trả rỗng.
     AND jsonb_typeof(tr.edited_criteria) = 'array'
+    -- Chỉ dòng MANG điểm là một lượt duyệt; dòng `error_exception` không mang điểm.
+    AND tr.final_score IS NOT NULL
 ),
 sua_that AS (
   SELECT review_id
@@ -173,7 +175,9 @@ SELECT
 FROM examcollect.teacher_review tr
 JOIN examcollect.grading_result gr ON gr.id = tr.grading_result_id
 LEFT JOIN sua_that st ON st.review_id = tr.id
-WHERE gr.ai_total_score IS NOT NULL;
+WHERE gr.ai_total_score IS NOT NULL
+  -- `so_lan_duyet` đếm lượt duyệt MANG điểm; dòng `error_exception` không phải một lượt duyệt.
+  AND tr.final_score IS NOT NULL;
 
 -- 5. Lượt phản biện đã xảy ra chuyện gì
 --

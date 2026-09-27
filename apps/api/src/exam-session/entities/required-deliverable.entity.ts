@@ -1,6 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { ExamSessionEntity } from './exam-session.entity';
+import { DECLARED_LANGUAGES, DeclaredLanguage } from '../declared-language';
 
 export type DeliverableType = 'document' | 'code_project' | 'image';
 
@@ -31,4 +32,11 @@ export class RequiredDeliverableEntity extends BaseEntity {
     enumName: 'deliverable_type',
   })
   deliverableType!: DeliverableType;
+
+  /**
+   * Null = chưa khai → bài đi đường `one_shot` (§14.1). Hệ thống không đoán ngôn ngữ từ đuôi
+   * file. Ràng buộc `ck_required_deliverable_language`: chỉ bài `code_project` mang ngôn ngữ.
+   */
+  @Column({ type: 'enum', enum: DECLARED_LANGUAGES, enumName: 'sandbox_language', nullable: true })
+  language!: DeclaredLanguage | null;
 }

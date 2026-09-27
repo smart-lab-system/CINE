@@ -221,6 +221,40 @@ describe('Vòng đời grading_result (e2e)', () => {
     expect(row.status).toBe('flagged_for_review');
   });
 
+  it('markUngradable ghi lớp system và một lượt chấm chép lý do (§2.3 luật 1, 2)', async () => {
+    const id = await seedGradingResultAtAiGrading();
+    const [{ submission_id }] = await dataSource.query(`SELECT submission_id FROM examcollect.grading_result WHERE id = $1`, [id]);
+    await app.get(GradingService).markUngradable(submission_id, 'sandbox không phản hồi');
+
+    const [row] = await dataSource.query(
+      `SELECT g.status, g.ungradable_class, a.attempt_no, a.outcome, a.ungradable_class AS attempt_class, a.ungradable_reason
+         FROM examcollect.grading_result g JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id
+        WHERE g.id = $1`,
+      [id],
+    );
+    expect(row).toEqual({
+      status: 'flagged_for_review', ungradable_class: 'system', attempt_no: 1, outcome: 'ungradable',
+      attempt_class: 'system', ungradable_reason: 'sandbox không phản hồi',
+    });
+  });
+
+  it('markUngradable đến SAU khi bài đã có điểm → không đụng gì, không sinh lượt chấm', async () => {
+    const id = await seedGradingResultAtAiGrading();
+    await dataSource.query(
+      `UPDATE examcollect.grading_result SET status = 'ai_graded', ai_total_score = 8, confidence = 0.9, criterion_results = '[]' WHERE id = $1`,
+      [id],
+    );
+    const [{ submission_id }] = await dataSource.query(`SELECT submission_id FROM examcollect.grading_result WHERE id = $1`, [id]);
+    await app.get(GradingService).markUngradable(submission_id, 'job hết lượt thử');
+
+    const [row] = await dataSource.query(
+      `SELECT status, ungradable_class, (SELECT count(*)::int FROM examcollect.grading_attempt WHERE grading_result_id = $1) AS attempts
+         FROM examcollect.grading_result WHERE id = $1`,
+      [id],
+    );
+    expect(row).toEqual({ status: 'ai_graded', ungradable_class: null, attempts: 0 });
+  });
+
   /**
    * `advocate_opinion` bất biến cùng luật với output của Grader.
    *

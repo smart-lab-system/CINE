@@ -3,6 +3,7 @@ import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { GradingResultEntity } from './grading-result.entity';
 import type { BulkRule } from '../bulk-rules';
+import { EXCEPTION_DIRECTIONS, ExceptionDirection, TEACHER_REVIEW_KINDS, TeacherReviewKind } from '../grading-model.types';
 
 // Edits always create a new row here — the original AI output in
 // GradingResult is never overwritten (see the guard trigger there).
@@ -32,8 +33,19 @@ export class TeacherReviewEntity extends BaseEntity {
   @JoinColumn({ name: 'teacher_id' })
   teacher!: AccountEntity;
 
-  @Column({ name: 'final_score', type: 'numeric', precision: 6, scale: 2 })
-  finalScore!: string;
+  /** Null chỉ ở dòng `error_exception` (`ck_teacher_review_score_by_kind`, §14.1). */
+  @Column({ name: 'final_score', type: 'numeric', precision: 6, scale: 2, nullable: true })
+  finalScore!: string | null;
+
+  @Column({ type: 'enum', enum: TEACHER_REVIEW_KINDS, enumName: 'teacher_review_kind', default: 'review' })
+  kind!: TeacherReviewKind;
+
+  /** Chỉ dòng `error_exception` mang luật và chiều (`ck_teacher_review_exception_target`). */
+  @Column({ name: 'error_rule_id', type: 'uuid', nullable: true })
+  errorRuleId!: string | null;
+
+  @Column({ type: 'enum', enum: EXCEPTION_DIRECTIONS, enumName: 'error_exception_direction', nullable: true })
+  direction!: ExceptionDirection | null;
 
   @Column({ name: 'edited_criteria', type: 'jsonb', default: {} })
   editedCriteria!: Record<string, unknown>;

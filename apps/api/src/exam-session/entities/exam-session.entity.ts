@@ -245,4 +245,16 @@ export class ExamSessionEntity extends BaseEntity {
   @ManyToOne(() => RubricEntity, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'rubric_id' })
   rubric!: RubricEntity | null;
+
+  /** Hạt giống rút mẫu kiểm tra (§8.1) — cố định từ lúc tạo phiên, không phụ thuộc điểm. */
+  @Column({ name: 'grading_seed', type: 'uuid', default: () => 'uuid_generate_v4()' })
+  gradingSeed!: string;
+
+  /** Gói test ghim lúc bắt đầu chấm (§14.1). */
+  @Column({ name: 'test_bundle_id', type: 'uuid', nullable: true })
+  testBundleId!: string | null;
+
+  /** Bảng giá ghim LÚC CHỐT (§2.2). */
+  @Column({ name: 'pinned_price_version_id', type: 'uuid', nullable: true })
+  pinnedPriceVersionId!: string | null;
 }

@@ -81,6 +81,10 @@ LEFT JOIN LATERAL (
     SELECT t.final_score, t.reviewed_at
     FROM examcollect.teacher_review t
     WHERE t.grading_result_id = gr.id
+      -- Dòng MANG điểm mới nhất (spec chấm-điều-tra §14.2). Dòng `error_exception` — bỏ một
+      -- lỗi cho riêng một bài — không mang điểm; lấy nó thì bài xuất ra với điểm rỗng và
+      -- `analyze.py` gạt bài đó khỏi nhóm "đã duyệt".
+      AND t.final_score IS NOT NULL
     ORDER BY t.reviewed_at DESC
     LIMIT 1
 ) tr ON true
@@ -103,6 +107,9 @@ LEFT JOIN LATERAL (
     SELECT t.edited_criteria
     FROM examcollect.teacher_review t
     WHERE t.grading_result_id = gr.id
+      -- Cùng lý do với RESULTS_SQL: dòng `error_exception` không mang điểm, và
+      -- `edited_criteria` của nó là `{}` mặc định — ghép vào là so verdict với hư không.
+      AND t.final_score IS NOT NULL
     ORDER BY t.reviewed_at DESC
     LIMIT 1
 ) tr ON true

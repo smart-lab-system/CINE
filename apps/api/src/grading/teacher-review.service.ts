@@ -10,6 +10,7 @@ import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { SubmitReviewDto } from './dto/submit-review.dto';
 import type { BulkRule } from './bulk-rules';
 import { AuditLogService } from '../admin/audit-log.service';
+import { BLOCKS_FINALIZE } from './lifecycle/grading-transitions';
 
 /**
  * The statuses a result CAN be reviewed in.
@@ -40,12 +41,11 @@ const REVIEWABLE: GradingResultStatus[] = [
  */
 const PUBLISHED: GradingResultStatus[] = ['finalized', 'exported'];
 
-/** Statuses that block finalising: the AI is still working, or it said it was unsure. */
-const BLOCKS_FINALIZE: GradingResultStatus[] = [
-  'ai_grading',
-  'ai_graded',
-  'flagged_for_review',
-];
+/** Người ký tên lên điểm đã công bố — ghi CÙNG UPDATE sang `finalized` (§14.2, trigger đòi). */
+export interface FinalizeStamp {
+  finalizedBy: string;
+  finalizedAt: Date;
+}
 
 export interface ReviewOutcome {
   finalScore: number;
@@ -149,6 +149,7 @@ export class TeacherReviewService {
         privateNote: dto.privateNote ?? null,
         studentFeedback: dto.studentFeedback ?? null,
         appliedRule,
+        kind: appliedRule ? 'bulk_accept' : 'review',
       }),
     );
 
@@ -228,7 +229,7 @@ export class TeacherReviewService {
         );
       }
 
-      const blocking = all.filter((result) => BLOCKS_FINALIZE.includes(result.status));
+      const blocking = all.filter((result) => BLOCKS_FINALIZE.has(result.status));
       if (blocking.length > 0) {
         throw new ConflictException(
           `Còn ${blocking.length} bài chưa duyệt xong — hãy duyệt hết trước khi chốt điểm.`,
@@ -240,6 +241,8 @@ export class TeacherReviewService {
       // and commit outside the open transaction, so a rollback would leave
       // exactly the half-finalised session the transaction exists to prevent.
       const reviews = manager.getRepository(TeacherReviewEntity);
+      // Một thời điểm cho cả lượt chốt: mọi bài của phiên được công bố CÙNG lúc, bởi CÙNG người.
+      const stamp: FinalizeStamp = { finalizedBy: teacherId, finalizedAt: new Date() };
       let reviewedByHand = 0;
       let acceptedAsProposed = 0;
 
@@ -257,6 +260,8 @@ export class TeacherReviewService {
                 string,
                 unknown
               >,
+              // Chấp nhận nguyên đề xuất của AI, hàng loạt, bởi người bấm chốt.
+              kind: 'bulk_accept',
             }),
           );
           if (
@@ -281,7 +286,7 @@ export class TeacherReviewService {
         }
 
         if (
-          !(await this.advance(result.id, ['teacher_reviewed'], 'finalized', manager))
+          !(await this.advance(result.id, ['teacher_reviewed'], 'finalized', manager, stamp))
         ) {
           throw new ConflictException(
             'Một bài vừa đổi trạng thái — hãy tải lại và chốt lại.',
@@ -298,10 +303,10 @@ export class TeacherReviewService {
    *
    * Mirrors `ExamSessionService.finalizeExamSession`: an optimistic
    * `WHERE status IN (...)`, where `affected === 0` means the row was not in
-   * the expected state. It deliberately does NOT restate the transition map
-   * from `validate_grading_result_lifecycle` — restating it is how the
-   * `findClash` / `EXCLUDE` pair had to be handled, with an exact mirror and a
-   * comment explaining why. The trigger stays the place the map is DEFINED.
+   * the expected state. The transition map has a CODE copy in
+   * `lifecycle/grading-transitions.ts` — for tests and screens — and an e2e
+   * walks every pair so the two cannot drift; `advance` itself still does not
+   * check the map. The trigger is where it is ENFORCED.
    */
   async advance(
     resultId: string,
@@ -313,27 +318,37 @@ export class TeacherReviewService {
     // them. The default is for a caller that genuinely needs no transaction,
     // and there is none today.
     manager: EntityManager = this.results.manager,
+    // Sang `finalized` phải mang người ký tên trong CÙNG UPDATE — trigger vòng đời từ chối
+    // bước chuyển thiếu nó (§14.2, §14.4).
+    extra: FinalizeStamp | Record<string, never> = {},
   ): Promise<boolean> {
     const updated = await manager
       .createQueryBuilder()
       .update(GradingResultEntity)
-      .set({ status: to })
+      .set({ status: to, ...extra })
       .where('id = :id', { id: resultId })
       .andWhere('status IN (:...from)', { from })
       .execute();
     return (updated.affected ?? 0) > 0;
   }
 
-  /** A result's current score: the newest review row, or the AI's own. */
+  /**
+   * A result's current score on the `one_shot` path: the newest review row that CARRIES a score,
+   * or the AI's own. `error_exception` rows carry none (§14.1); skipping them here is the
+   * `one_shot` half of §14.2 — the `investigator` half reads `score_computation` (step 3c).
+   */
   async currentFinalScore(
     result: GradingResultEntity,
     manager: EntityManager = this.reviews.manager,
   ): Promise<number | null> {
-    const latest = await manager.getRepository(TeacherReviewEntity).findOne({
-      where: { gradingResultId: result.id },
-      order: { reviewedAt: 'DESC' },
-    });
-    if (latest) {
+    const latest = await manager
+      .getRepository(TeacherReviewEntity)
+      .createQueryBuilder('r')
+      .where('r.grading_result_id = :id', { id: result.id })
+      .andWhere('r.final_score IS NOT NULL')
+      .orderBy('r.reviewed_at', 'DESC')
+      .getOne();
+    if (latest?.finalScore != null) {
       return Number(latest.finalScore);
     }
     return result.aiTotalScore === null ? null : Number(result.aiTotalScore);

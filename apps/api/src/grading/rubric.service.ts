@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { assignCriterionKeys, DuplicateCriterionKeyError } from './criterion-key';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { RubricEntity } from './entities/rubric.entity';
@@ -13,7 +14,7 @@ export interface RubricView {
   version: number;
   isActive: boolean;
   totalPoints: number;
-  criteria: { id: string; description: string; maxPoints: number }[];
+  criteria: { id: string; key: string; description: string; maxPoints: number }[];
 }
 
 /**
@@ -128,13 +129,26 @@ export class RubricService {
         }),
       );
 
+      let keys: string[];
+      try {
+        keys = assignCriterionKeys(dto.criteria);
+      } catch (error) {
+        if (error instanceof DuplicateCriterionKeyError) {
+          throw new BadRequestException(`Hai tiêu chí cùng khai key "${error.key}".`);
+        }
+        throw error;
+      }
+
       await manager.save(
         RubricCriterionEntity,
-        dto.criteria.map((criterion) =>
+        dto.criteria.map((criterion, index) =>
           manager.create(RubricCriterionEntity, {
             rubricId: rubric.id,
             description: criterion.description,
             maxPoints: String(criterion.maxPoints),
+            // Hôm nay mọi tiêu chí đều `sort_order = 0`, nên thứ tự chỉ còn do thời điểm tạo.
+            sortOrder: index,
+            key: keys[index],
           }),
         ),
       );
@@ -164,7 +178,12 @@ export class RubricService {
   ): Promise<RubricView> {
     const criteria = await repo.find({
       where: { rubricId: rubric.id },
-      order: { createdAt: 'ASC' },
+      // `sort_order` trước: mọi tiêu chí của một lần lưu chèn trong CÙNG một câu lệnh nên cùng
+      // `created_at`, và khi bằng nhau thì Postgres đọc theo index nó chọn — với
+      // `uq_rubric_criterion_key` là theo thứ tự key, không phải thứ tự giảng viên nhập. Rubric
+      // cũ (mọi `sort_order` = 0) phá hoà bằng `key`: migration `1789435000000` đánh số key theo
+      // thứ tự chèn (`tieu_chi_001`, …). KHÔNG phá hoà bằng `id` — uuid v4 là thứ tự ngẫu nhiên.
+      order: { sortOrder: 'ASC', createdAt: 'ASC', key: 'ASC' },
     });
     return {
       id: rubric.id,
@@ -176,6 +195,7 @@ export class RubricService {
         Math.round(criteria.reduce((sum, c) => sum + Number(c.maxPoints), 0) * 100) / 100,
       criteria: criteria.map((c) => ({
         id: c.id,
+        key: c.key,
         description: c.description,
         maxPoints: Number(c.maxPoints),
       })),
