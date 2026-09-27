@@ -522,7 +522,7 @@ describe('TeacherReview (e2e)', () => {
       const response = await finalize(tokenA, sessionId);
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ reviewedByHand: 0, acceptedAsProposed: 1 });
+      expect(response.body).toEqual({ reviewedByHand: 0, acceptedAsProposed: 1, finalizedDirectly: 0 });
       expect(await statusesOf(sessionId)).toEqual(['finalized']);
 
       const [row] = await dataSource.query(
@@ -543,7 +543,7 @@ describe('TeacherReview (e2e)', () => {
       const response = await finalize(tokenA, sessionId);
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ reviewedByHand: 1, acceptedAsProposed: 0 });
+      expect(response.body).toEqual({ reviewedByHand: 1, acceptedAsProposed: 0, finalizedDirectly: 0 });
       expect(await statusesOf(sessionId)).toEqual(['finalized']);
     });
 
@@ -556,7 +556,7 @@ describe('TeacherReview (e2e)', () => {
       const second = await finalize(tokenA, sessionId);
 
       expect(second.status).toBe(200);
-      expect(second.body).toEqual({ reviewedByHand: 0, acceptedAsProposed: 0 });
+      expect(second.body).toEqual({ reviewedByHand: 0, acceptedAsProposed: 0, finalizedDirectly: 0 });
       expect(await countReviews(resultId)).toBe(before);
     });
 

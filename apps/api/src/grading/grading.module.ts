@@ -29,6 +29,12 @@ import {
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { BulkReviewService } from './bulk-review.service';
+import { ScoreService } from './scoring/score.service';
+import { ErrorRuleService } from './rules/error-rule.service';
+import { PriceService } from './rules/price.service';
+import { ErrorExceptionService } from './review/error-exception.service';
+import { CriterionWaiverService } from './rules/criterion-waiver.service';
+import { RulesController } from './rules/rules.controller';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { AdminModule } from '../admin/admin.module';
 import { GradingController } from './grading.controller';
@@ -120,7 +126,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     // Chấm điểm chạy trên hàng đợi: một job một bài (CLAUDE.md §7.1.3).
     BullModule.registerQueue({ name: GRADING_QUEUE }),
   ],
-  controllers: [GradingController],
+  controllers: [GradingController, RulesController],
   providers: [
     GradingService,
     GradingRunService,
@@ -140,6 +146,12 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     RubricService,
     TeacherReviewService,
     BulkReviewService,
+    // Chỗ DUY NHẤT ghi `score_computation` (§2.2) — giá, luật, ngoại lệ, chốt đều gọi vào đây.
+    ScoreService,
+    ErrorRuleService,
+    PriceService,
+    ErrorExceptionService,
+    CriterionWaiverService,
     AnchorService,
     ClaudeGradingProvider,
     KeywordGradingProvider,
@@ -160,6 +172,6 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
       inject: [ClaudeGradingProvider, KeywordGradingProvider],
     },
   ],
-  exports: [GradingService, GradingRunService, GradingReferenceService, RubricService],
+  exports: [GradingService, GradingRunService, GradingReferenceService, RubricService, ScoreService],
 })
 export class GradingModule {}

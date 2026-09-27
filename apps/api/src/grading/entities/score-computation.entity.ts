@@ -29,8 +29,9 @@ export class ScoreComputationEntity {
   @Column({ type: 'enum', enum: SCORE_COMPUTATION_REASONS, enumName: 'score_computation_reason' })
   reason!: ScoreComputationReason;
 
-  @Column({ type: 'numeric', precision: 6, scale: 2 })
-  score!: string;
+  /** Null = lượt tính ra dưới sàn (§4.4) — lý do ở `breakdown.ungradable` (`ck_score_computation_below_floor`). */
+  @Column({ type: 'numeric', precision: 6, scale: 2, nullable: true })
+  score!: string | null;
 
   /** Từng lỗi: luật và bản sửa, mức trừ, tính / bỏ vì ngoại lệ / bỏ vì `refuted`, chạm trần. */
   @Column({ type: 'jsonb' })

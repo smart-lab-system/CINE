@@ -32,10 +32,16 @@ export async function seedTeacher(ds: DataSource, label: string): Promise<string
 export async function seedSession(
   ds: DataSource,
   label: string,
-  opts: { deliverableType?: 'document' | 'code_project'; language?: string | null } = {},
+  opts: {
+    deliverableType?: 'document' | 'code_project';
+    language?: string | null;
+    /** Phiên thứ hai của CÙNG giảng viên. Kèm `startHoursAgo` để không vướng luật cách ≥ 30 phút giữa hai phiên. */
+    teacherId?: string;
+    startHoursAgo?: number;
+  } = {},
 ): Promise<SeedSession> {
   const s = stamp();
-  const teacherId = await seedTeacher(ds, label);
+  const teacherId = opts.teacherId ?? (await seedTeacher(ds, label));
   const [klass] = await ds.query(
     `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
     [`Môn ${label}`, teacherId],
@@ -44,10 +50,14 @@ export async function seedSession(
     `INSERT INTO examcollect.exam_session
        (name, code, class_id, teacher_id, exam_type, start_time, end_time, status,
         semester_name, course_name, room_name)
-     VALUES ($1, $2, $3, $4, 'CK', now() - interval '1 hour', now() + interval '1 hour', 'active',
+     VALUES ($1, $2, $3, $4, 'CK', now() - make_interval(hours => $8::int),
+             now() - make_interval(hours => $8::int) + interval '2 hours', 'active',
              $5, $6, $7)
      RETURNING id`,
-    [`Phiên ${label}`, `S${s}`.slice(0, 20), klass.id, teacherId, `HK ${label} ${s}`, `Môn ${label}`, `P ${label} ${s}`],
+    [
+      `Phiên ${label}`, `S${s}`.slice(0, 20), klass.id, teacherId, `HK ${label} ${s}`, `Môn ${label}`, `P ${label} ${s}`,
+      opts.startHoursAgo ?? 1,
+    ],
   );
   const [deliverable] = await ds.query(
     `INSERT INTO examcollect.required_deliverable (exam_session_id, required_filename, deliverable_type, language)
@@ -64,6 +74,8 @@ export async function seedSession(
 export async function seedResult(
   ds: DataSource,
   ctx: SeedSession,
+  // Gán lúc INSERT: trigger vòng đời chặn đổi `pipeline` về sau (§14.1).
+  pipeline: 'one_shot' | 'investigator' = 'one_shot',
 ): Promise<{ resultId: string; submissionId: string }> {
   const [sub] = await ds.query(
     `INSERT INTO examcollect.submission
@@ -76,9 +88,9 @@ export async function seedResult(
     await ds.query(`UPDATE examcollect.submission SET status = $1 WHERE id = $2`, [next, sub.id]);
   }
   const [res] = await ds.query(
-    `INSERT INTO examcollect.grading_result (submission_id, rubric_id_version, grading_triggered_by, status)
-     VALUES ($1, $2, $3, 'ai_grading') RETURNING id`,
-    [sub.id, ctx.rubricId, ctx.teacherId],
+    `INSERT INTO examcollect.grading_result (submission_id, rubric_id_version, grading_triggered_by, status, pipeline)
+     VALUES ($1, $2, $3, 'ai_grading', $4) RETURNING id`,
+    [sub.id, ctx.rubricId, ctx.teacherId, pipeline],
   );
   return { resultId: res.id, submissionId: sub.id };
 }
