@@ -141,6 +141,16 @@ export interface GradingResult {
   reviewedAt: string | null;
   reviewedByName: string | null;
   editedCriteria: ReviewCriterion[] | null;
+  /**
+   * Đường chấm của bài — gán một lần lúc bắt đầu chấm (§14.1).
+   *
+   * Tuỳ chọn để không phá vỡ mọi fixture của màn chấm cũ (đường `one_shot`,
+   * chưa từng cần biết trường này) — server LUÔN trả nó thật.
+   */
+  pipeline?: 'one_shot' | 'investigator';
+  /** Điểm hiện tại theo §14.2 — MỌI màn đọc điểm từ đây, không phải `aiTotalScore`. */
+  currentScore?: number | null;
+  currentScoreSource?: string;
 }
 
 export interface StartGradingResult {
@@ -413,4 +423,60 @@ export async function bulkReview(
   });
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as BulkReviewOutcome;
+}
+
+/** Mirrors ResultDetailError (apps/api/src/grading/scoring/result-detail.ts). */
+export interface ResultDetailError {
+  ruleId: string;
+  ruleKey: string;
+  ruleName: string;
+  criterionKey: string;
+  source: 'deterministic' | 'llm_with_tools' | 'llm_only';
+  toolCallIds: string[];
+  deductionHundredths: number | null;
+  counted: 'counted' | 'excluded' | 'unpriced';
+}
+
+export interface ToolCallView {
+  id: string;
+  tool: string;
+  args: Record<string, unknown>;
+  status: string;
+  output: string;
+  startedAt: string;
+  wallMs: number;
+  injectionSuspected: boolean;
+}
+
+/** Mirrors ResultDetail (apps/api/src/grading/scoring/result-detail.ts). */
+export interface ResultDetail {
+  pipeline: 'one_shot' | 'investigator';
+  currentScore: number | null;
+  currentScoreSource: string;
+  status: string;
+  ungradableClass: string | null;
+  ungradableReason: string | null;
+  breakdown: {
+    errors: ResultDetailError[];
+    perCriterion: { key: string; maxHundredths: number; deductedHundredths: number; capped: boolean }[];
+    errorFlags: { ruleKey: string; code: string }[];
+    confidence: number | null;
+    mismatchedRules: { ruleId: string; ruleKey: string; criterionKey: string }[];
+    notConsidered: { ruleId: string; ruleKey: string }[];
+  } | null;
+  investigation: {
+    kind: 'verdict' | 'ungradable';
+    summary: string;
+    flags: string[];
+    investigation: { toolCalls: ToolCallView[] };
+  } | null;
+}
+
+/** Chi tiết một lượt tính điểm + đường điều tra — Hồ sơ một bài (§5). */
+export async function getResultInvestigation(gradingResultId: string): Promise<ResultDetail> {
+  const { data, error, response } = await apiClient.GET('/grading-results/{id}/investigation', {
+    params: { path: { id: gradingResultId } },
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as ResultDetail;
 }
