@@ -8,7 +8,8 @@ import { GradingService } from '../grading.service';
 import { advanceStatus } from '../lifecycle/advance';
 import { ErrorRuleService } from '../rules/error-rule.service';
 import { formatHundredths, parseHundredths } from '../scoring/hundredths';
-import { latestComputationRow, lockTeacherScoring } from '../scoring/score-inputs';
+import { AuditLogService } from '../../admin/audit-log.service';
+import { latestComputationRow, loadCurrentScore, lockTeacherScoring } from '../scoring/score-inputs';
 import { ScoreService } from '../scoring/score.service';
 
 /**
@@ -16,6 +17,13 @@ import { ScoreService } from '../scoring/score.service';
  * đường nhận xét kiểm mẫu (§8.1 — xem bài trước, xem kết luận sau), không đi đường sửa điểm.
  */
 const EDITABLE: GradingResultStatus[] = ['auto_approved', 'flagged_for_review', 'teacher_reviewed'];
+
+/**
+ * Điểm đã công bố. CHẤM TAY vẫn được trên đó — đường sửa một bài lẻ sau khi chốt (khiếu nại, spec
+ * UI 3.10), có nhật ký (review 3c I4). Bỏ / giữ lỗi thì không: nó cần một lượt tính lại, mà điểm
+ * công bố của phiên đã chốt chỉ đổi qua *"áp giá mới cho phiên này"* (§2.2).
+ */
+const PUBLISHED: GradingResultStatus[] = ['finalized', 'exported'];
 
 /**
  * Ngoại lệ hai cấp của §2.2 — cả hai là MỘT dòng `teacher_review` (Security rule 6), không sinh
@@ -29,6 +37,7 @@ export class ErrorExceptionService {
     private readonly grading: GradingService,
     private readonly rules: ErrorRuleService,
     private readonly scores: ScoreService,
+    private readonly audit: AuditLogService,
   ) {}
 
   /** *Bỏ lỗi này cho riêng bài này* (`exclude`) hay gỡ việc đó (`include`). Mọi lượt tính lại giữ nó. */
@@ -75,7 +84,7 @@ export class ErrorExceptionService {
     const hundredths = readScore(score);
     await this.grading.findResultForOwner(resultId, teacherId);
     return this.ds.transaction(async (m) => {
-      const row = await this.lockEditable(m, teacherId, resultId);
+      const row = await this.lockEditable(m, teacherId, resultId, PUBLISHED);
       const [{ max }] = await m.query(
         `SELECT COALESCE(sum(max_points), 0)::text AS max FROM examcollect.rubric_criterion WHERE rubric_id = $1`,
         [row.rubric_id_version],
@@ -84,6 +93,10 @@ export class ErrorExceptionService {
         throw new BadRequestException(`Điểm vượt trần của rubric (${formatHundredths(parseHundredths(max))})`);
       }
       const formatted = formatHundredths(hundredths);
+      // Điểm đã công bố đổi → nhật ký, CÙNG transaction (Security rule 4; spec UI 3.10). Đọc điểm
+      // cũ TRƯỚC khi ghi dòng mới, không thì "điểm cũ" là chính điểm vừa ghi.
+      const published = PUBLISHED.includes(row.status);
+      const before = published ? await loadCurrentScore(m, resultId) : null;
       await this.writeReview(m, {
         gradingResultId: resultId,
         teacherId,
@@ -92,6 +105,20 @@ export class ErrorExceptionService {
         errorRuleId: null,
         direction: null,
       });
+      if (published) {
+        await this.audit.recordUserAction(
+          {
+            actorId: teacherId,
+            action: 'grading_result.manual_score_after_finalize',
+            targetType: 'grading_result',
+            targetId: resultId,
+            oldValue: { score: before?.value == null ? null : formatHundredths(Math.round(before.value * 100)) },
+            newValue: { score: formatted },
+          },
+          m,
+        );
+        return { score: formatted, status: row.status };
+      }
       await advanceStatus(m, resultId, ['auto_approved', 'flagged_for_review'], 'teacher_reviewed', { flagForReview: false });
       return { score: formatted, status: 'teacher_reviewed' };
     });
@@ -102,13 +129,14 @@ export class ErrorExceptionService {
     m: EntityManager,
     teacherId: string,
     resultId: string,
+    alsoAllowed: GradingResultStatus[] = [],
   ): Promise<{ pipeline: string; status: GradingResultStatus; rubric_id_version: string }> {
     await lockTeacherScoring(m, teacherId);
     const [row] = await m.query(
       `SELECT pipeline, status, rubric_id_version FROM examcollect.grading_result WHERE id = $1 FOR UPDATE`,
       [resultId],
     );
-    if (!EDITABLE.includes(row.status)) {
+    if (!EDITABLE.includes(row.status) && !alsoAllowed.includes(row.status)) {
       throw new ConflictException(
         row.status === 'audit_pending'
           ? 'Bài đang trong mẫu kiểm — hãy ghi nhận xét kiểm mẫu trước'

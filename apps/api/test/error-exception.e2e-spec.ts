@@ -113,15 +113,30 @@ describe('Ngoại lệ cấp lỗi và chấm tay (e2e)', () => {
     expect(await scoresOf(id)).toEqual(['8.50']);
   });
 
-  it('bài đã chốt hay đang kiểm mẫu → 409', async () => {
+  it('bỏ lỗi trên bài đã chốt → 409; bài đang kiểm mẫu: cả bỏ lỗi lẫn chấm tay → 409', async () => {
     const { ctx, bien } = await world('ex-state');
     const done = await graded(ctx);
     await forceStatus(ds, done, 'finalized', { finalized_by: ctx.teacherId, finalized_at: new Date() });
     await expect(exceptions.setErrorException(ctx.teacherId, done, bien.ruleId, 'exclude')).rejects.toBeInstanceOf(ConflictException);
-    await expect(exceptions.setManualScore(ctx.teacherId, done, '5.00')).rejects.toBeInstanceOf(ConflictException);
     const sampled = await graded(ctx);
     await forceStatus(ds, sampled, 'audit_pending', { audit_sampled: true, audit_sampled_at: new Date() });
     await expect(exceptions.setErrorException(ctx.teacherId, sampled, bien.ruleId, 'exclude')).rejects.toBeInstanceOf(ConflictException);
+    await expect(exceptions.setManualScore(ctx.teacherId, sampled, '5.00')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('review I4: chấm tay MỘT bài đã chốt (khiếu nại) → được, bài giữ finalized, một dòng audit_log mang tên người sửa, điểm cũ, điểm mới', async () => {
+    const { ctx } = await world('ex-after-final');
+    const id = await graded(ctx);
+    await app.get(TeacherReviewService).finalizeGrades(ctx.sessionId, ctx.teacherId);
+    expect(await exceptions.setManualScore(ctx.teacherId, id, '6.00')).toEqual({ score: '6.00', status: 'finalized' });
+    expect(await statusOf(id)).toBe('finalized');
+    const view = await app.get(GradingService).listForSession(ctx.sessionId);
+    expect(view.find((v) => v.id === id)).toMatchObject({ currentScore: 6, currentScoreSource: 'manual' });
+    const logs = await ds.query(
+      `SELECT actor_id, old_value, new_value FROM examcollect.audit_log WHERE action = 'grading_result.manual_score_after_finalize' AND target_id = $1`,
+      [id],
+    );
+    expect(logs).toEqual([{ actor_id: ctx.teacherId, old_value: { score: '8.50' }, new_value: { score: '6.00' } }]);
   });
 
   it('luật của giảng viên khác → 404; luật không có trong lượt tính mới nhất → 400; chấm tay vượt trần rubric → 400', async () => {

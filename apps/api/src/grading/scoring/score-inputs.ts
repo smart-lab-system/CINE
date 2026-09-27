@@ -1,5 +1,6 @@
 import { EntityManager } from 'typeorm';
 import type { RulePredicate } from '../decision/types';
+import { currentScore, CurrentScore } from './current-score';
 import { parseHundredths } from './hundredths';
 import type { RuleSnapshot, ScoreBreakdown } from './score-core';
 import { readStoredInvestigation, StoredInvestigation } from './stored-investigation';
@@ -115,6 +116,38 @@ export async function loadSessionModelRules(
     [sessionId, exceptResultId],
   );
   return new Set(rows.map((r) => r.rule_key));
+}
+
+/** Điểm hiện tại §14.2 của MỘT bài — cùng hàm `currentScore()` mà danh sách kết quả dùng. */
+export async function loadCurrentScore(m: EntityManager, resultId: string): Promise<CurrentScore> {
+  const [r] = await m.query(
+    `SELECT g.pipeline, g.status, g.ai_total_score,
+            rv.kind AS review_kind, rv.final_score AS review_score,
+            (SELECT t.final_score FROM examcollect.teacher_review t
+              WHERE t.grading_result_id = g.id AND t.kind = 'manual_score'
+              ORDER BY t.reviewed_at DESC, t.id DESC LIMIT 1) AS manual_score,
+            fc.score AS finalized_score,
+            (SELECT c.score FROM examcollect.score_computation c
+              WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) AS latest_score
+       FROM examcollect.grading_result g
+       LEFT JOIN examcollect.score_computation fc ON fc.id = g.finalized_computation_id
+       LEFT JOIN LATERAL (
+         SELECT t.kind, t.final_score FROM examcollect.teacher_review t
+          WHERE t.grading_result_id = g.id AND t.final_score IS NOT NULL
+          ORDER BY t.reviewed_at DESC, t.id DESC LIMIT 1) rv ON true
+      WHERE g.id = $1`,
+    [resultId],
+  );
+  if (!r) throw new Error(`không có kết quả chấm ${resultId}`);
+  return currentScore({
+    pipeline: r.pipeline,
+    aiTotalScore: r.ai_total_score,
+    latestScoredReview: r.review_kind ? { kind: r.review_kind, finalScore: r.review_score } : null,
+    latestManualScore: r.manual_score,
+    finalized: r.status === 'finalized' || r.status === 'exported',
+    finalizedComputationScore: r.finalized_score,
+    latestComputationScore: r.latest_score,
+  });
 }
 
 export interface ScoreContext {
