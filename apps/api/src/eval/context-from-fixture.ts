@@ -1,17 +1,11 @@
 import { isMachineChecked } from '../grading/decision/predicates';
+import { machineNoteOf } from '../grading/investigator/rule-note';
 import { ErrorRule } from '../grading/decision/types';
 import { InvestigationBudget, InvestigationContext } from '../grading/investigator/types';
 import { parseHundredths } from '../grading/scoring/hundredths';
 import { LoadedDe } from './load-dataset';
 import { ManifestCase } from './manifest.schema';
 import { FrozenBundle } from './test-bundle';
-
-/** Model đọc dòng này ở bang-loi.md: máy kiểm bằng gì, hay vì sao chưa kiểm được (Q1). */
-function noteOf(p: LoadedDe['manifest']['rules'][number]['predicate']): string | null {
-  if (!p) return null;
-  if (p.kind === 'test_group_failed') return `nhóm test ${p.group}`;
-  return 'máy chưa đo được — bạn phán đoán';
-}
 
 /**
  * Ngữ cảnh của một ca, dựng HOÀN TOÀN từ fixture đã đóng băng (§12.2, T-EVAL-7): bảng lỗi,
@@ -39,7 +33,7 @@ export function contextFor(
       criterionKey: r.criterionKey,
       priced: r.deduction !== null,
       checkedBy: isMachineChecked(r.predicate) ? 'machine' : 'model',
-      machineNote: noteOf(r.predicate),
+      machineNote: machineNoteOf(r.predicate),
     })),
     budget,
   };
