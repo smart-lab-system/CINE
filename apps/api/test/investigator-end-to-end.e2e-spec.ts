@@ -58,7 +58,7 @@ describe('Đường điều tra chạy thật — từ tạo phiên qua API tớ
   let app: INestApplication;
   let ds: DataSource;
   let storage: StorageService;
-  const deps: InvestigatorDeps = { models: [], sandbox: null, ceilingOf: () => 1, close: async () => undefined };
+  const deps: InvestigatorDeps = { models: [], sandbox: null, challengers: [], caseLenses: [], ceilingOf: () => 1, close: async () => undefined };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
