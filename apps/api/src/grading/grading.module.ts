@@ -35,6 +35,7 @@ import { PriceService } from './rules/price.service';
 import { ErrorExceptionService } from './review/error-exception.service';
 import { CriterionWaiverService } from './rules/criterion-waiver.service';
 import { RulesController } from './rules/rules.controller';
+import { InvestigationContextService } from './pipeline/investigation-context.service';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { AdminModule } from '../admin/admin.module';
 import { GradingController } from './grading.controller';
@@ -152,6 +153,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     PriceService,
     ErrorExceptionService,
     CriterionWaiverService,
+    InvestigationContextService,
     AnchorService,
     ClaudeGradingProvider,
     KeywordGradingProvider,
