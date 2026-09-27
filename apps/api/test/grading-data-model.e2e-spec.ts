@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { SCORE_COMPUTATION_REASONS } from '../src/grading/grading-model.types';
 import { RubricService } from '../src/grading/rubric.service';
 import { scoreResult, seedCriterion, seedResult, seedSession, seedTeacher } from './helpers/grading-seed';
 
@@ -278,6 +279,18 @@ describe('Mô hình dữ liệu §14 (e2e)', () => {
       );
       return b.id as string;
     }
+
+    it('mọi lý do tính lại trong code có trong enum score_computation_reason của DB (§14.3: có cả criterion_waiver)', async () => {
+      const rows: { label: string }[] = await ds.query(
+        `SELECT e.enumlabel AS label FROM pg_enum e
+           JOIN pg_type t ON t.oid = e.enumtypid
+           JOIN pg_namespace n ON n.oid = t.typnamespace
+          WHERE n.nspname = 'examcollect' AND t.typname = 'score_computation_reason'`,
+      );
+      const inDb = new Set(rows.map((r) => r.label));
+      expect(SCORE_COMPUTATION_REASONS.filter((r) => !inDb.has(r))).toEqual([]);
+      expect(SCORE_COMPUTATION_REASONS).toContain('criterion_waiver');
+    });
 
     it('một phiên có nhiều phiên bản gói test, không trùng số phiên bản', async () => {
       const ctx = await seedSession(ds, 'bundle-v');
