@@ -4,6 +4,7 @@ import { DataSource, EntityManager, IsNull } from 'typeorm';
 import { CriterionWaiverEntity } from '../entities/criterion-waiver.entity';
 import { RubricCriterionEntity } from '../entities/rubric-criterion.entity';
 import { RubricEntity } from '../entities/rubric.entity';
+import { lockTeacherScoring } from '../scoring/score-inputs';
 import { RecomputeSummary, ScoreService } from '../scoring/score.service';
 
 /**
@@ -24,6 +25,8 @@ export class CriterionWaiverService {
     criterionKey: string,
   ): Promise<{ waiverId: string; recompute: RecomputeSummary | null }> {
     return this.ds.transaction(async (m) => {
+      // Khoá TRƯỚC mọi thứ khác: số phiên bản giá, bản sửa luật và mọi lượt tính lại xếp hàng theo giảng viên.
+      await lockTeacherScoring(m, teacherId);
       await this.ownedRubric(m, teacherId, rubricId);
       const criterion = await m.getRepository(RubricCriterionEntity).findOne({ where: { rubricId, key: criterionKey } });
       if (!criterion) throw new BadRequestException(`Tiêu chí "${criterionKey}" không có trong rubric này`);
@@ -39,6 +42,8 @@ export class CriterionWaiverService {
 
   async revoke(teacherId: string, waiverId: string): Promise<{ recompute: RecomputeSummary }> {
     return this.ds.transaction(async (m) => {
+      // Khoá TRƯỚC mọi thứ khác: số phiên bản giá, bản sửa luật và mọi lượt tính lại xếp hàng theo giảng viên.
+      await lockTeacherScoring(m, teacherId);
       const waiver = await m.getRepository(CriterionWaiverEntity).findOne({ where: { id: waiverId } });
       if (!waiver) throw new NotFoundException('Không tìm thấy đánh dấu');
       await this.ownedRubric(m, teacherId, waiver.rubricId, 'Không tìm thấy đánh dấu');

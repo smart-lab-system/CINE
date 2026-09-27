@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { parseHundredths } from '../scoring/hundredths';
+import { lockTeacherScoring } from '../scoring/score-inputs';
 import { RecomputeSummary, ScoreService } from '../scoring/score.service';
 import { ErrorRuleService } from './error-rule.service';
 
@@ -32,6 +33,8 @@ export class PriceService {
     actorId: string,
   ): Promise<{ versionId: string; recompute: RecomputeSummary }> {
     return this.ds.transaction(async (m) => {
+      // Khoá TRƯỚC mọi thứ khác: số phiên bản giá, bản sửa luật và mọi lượt tính lại xếp hàng theo giảng viên.
+      await lockTeacherScoring(m, teacherId);
       await this.rules.owned(m, teacherId, ruleId);
       const [{ next }] = await m.query(
         `SELECT COALESCE(MAX(version), 0) + 1 AS next FROM examcollect.price_table_version WHERE teacher_id = $1`,
@@ -71,7 +74,7 @@ export class PriceService {
           AND NOT EXISTS (SELECT 1 FROM examcollect.teacher_review t
                            WHERE t.grading_result_id = g.id AND t.kind = 'manual_score')
           AND EXISTS (SELECT 1 FROM (SELECT c.breakdown FROM examcollect.score_computation c
-                                      WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC LIMIT 1) last
+                                      WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) last
                        WHERE last.breakdown -> 'errors' @> jsonb_build_array(jsonb_build_object('ruleId', $2::text)))
         ORDER BY es.name, g.id`,
       [teacherId, ruleId],

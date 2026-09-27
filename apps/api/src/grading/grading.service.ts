@@ -703,11 +703,11 @@ export class GradingService {
         : await this.results.manager.query(
             `SELECT g.id AS "resultId",
                     (SELECT c.score FROM examcollect.score_computation c
-                      WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC LIMIT 1) AS "latestComputationScore",
+                      WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) AS "latestComputationScore",
                     fc.score AS "finalizedComputationScore",
                     (SELECT t.final_score FROM examcollect.teacher_review t
                       WHERE t.grading_result_id = g.id AND t.kind = 'manual_score'
-                      ORDER BY t.reviewed_at DESC LIMIT 1) AS "latestManualScore"
+                      ORDER BY t.reviewed_at DESC, t.id DESC LIMIT 1) AS "latestManualScore"
                FROM examcollect.grading_result g
                LEFT JOIN examcollect.score_computation fc ON fc.id = g.finalized_computation_id
               WHERE g.id = ANY($1)`,

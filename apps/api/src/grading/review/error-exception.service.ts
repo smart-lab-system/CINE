@@ -122,9 +122,15 @@ export class ErrorExceptionService {
     m: EntityManager,
     row: Pick<TeacherReviewEntity, 'gradingResultId' | 'teacherId' | 'kind' | 'finalScore' | 'errorRuleId' | 'direction'>,
   ): Promise<void> {
-    const repo = m.getRepository(TeacherReviewEntity);
     // `edited_criteria = []`: dòng này không sửa verdict tiêu chí nào — calibration chỉ đọc mảng.
-    await repo.save(repo.create({ ...row, editedCriteria: [] as unknown as Record<string, unknown> }));
+    // `reviewed_at = clock_timestamp()`: "ngoại lệ MỚI NHẤT thắng" phải theo thứ tự khoá, không
+    // theo lúc transaction bắt đầu (`now()`, review C1).
+    await m.query(
+      `INSERT INTO examcollect.teacher_review
+         (grading_result_id, teacher_id, final_score, kind, error_rule_id, direction, edited_criteria, reviewed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, '[]'::jsonb, clock_timestamp())`,
+      [row.gradingResultId, row.teacherId, row.finalScore, row.kind, row.errorRuleId, row.direction],
+    );
   }
 }
 

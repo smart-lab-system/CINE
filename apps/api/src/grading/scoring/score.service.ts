@@ -4,7 +4,6 @@ import { DataSource, EntityManager } from 'typeorm';
 import { AuditLogService } from '../../admin/audit-log.service';
 import { readAutoThreshold } from '../decision/threshold';
 import { GradingResultEntity } from '../entities/grading-result.entity';
-import { ScoreComputationEntity } from '../entities/score-computation.entity';
 import type { ScoreComputationReason } from '../grading-model.types';
 import { advanceStatus } from '../lifecycle/advance';
 import { formatHundredths, parseHundredths } from './hundredths';
@@ -142,7 +141,7 @@ export class ScoreService {
           AND ($2::uuid IS NULL OR g.rubric_id_version = $2)
           AND ($3::uuid IS NULL OR EXISTS (
                 SELECT 1 FROM (SELECT c.breakdown FROM examcollect.score_computation c
-                                WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC LIMIT 1) last
+                                WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) last
                  WHERE last.breakdown -> 'errors' @> jsonb_build_array(jsonb_build_object('ruleId', $3::text))))
         ORDER BY g.id
         FOR UPDATE OF g`,
@@ -277,21 +276,29 @@ export class ScoreService {
     actorId: string | null,
     out: Computed,
   ): Promise<string> {
-    const repo = m.getRepository(ScoreComputationEntity);
-    const row = await repo.save(
-      repo.create({
-        gradingResultId: ctx.resultId,
-        attemptId: ctx.attemptId!,
-        priceTableVersionId: out.priceVersionId,
-        rubricIdVersion: ctx.rubricId,
-        testBundleId: ctx.bundleId,
+    // `created_at = clock_timestamp()`, KHÔNG mặc định `now()`: `now()` là lúc transaction BẮT
+    // ĐẦU, nên một lượt sửa giá mở trước nhưng tính lại sau (review C1) sẽ ghi dòng "cũ hơn" dòng
+    // nó vừa thay. Mọi dòng ở đây ghi SAU khoá theo giảng viên, nên đồng hồ thật tăng đúng theo thứ
+    // tự khoá — và "lượt tính mới nhất" là lượt tính sau cùng.
+    const [row] = await m.query(
+      `INSERT INTO examcollect.score_computation
+         (grading_result_id, attempt_id, price_table_version_id, rubric_id_version, test_bundle_id,
+          reason, score, breakdown, created_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, clock_timestamp())
+       RETURNING id`,
+      [
+        ctx.resultId,
+        ctx.attemptId!,
+        out.priceVersionId,
+        ctx.rubricId,
+        ctx.bundleId,
         reason,
-        score: formatHundredths(out.scoreHundredths!),
-        breakdown: out.breakdown as unknown as Record<string, unknown>,
-        createdBy: actorId,
-      }),
+        formatHundredths(out.scoreHundredths!),
+        JSON.stringify(out.breakdown),
+        actorId,
+      ],
     );
-    return row.id;
+    return row.id as string;
   }
 
   /** §14.3 — chỉ lượt tính TẦNG LUẬT mới được đưa bài flagged ⇄ auto_approved. */

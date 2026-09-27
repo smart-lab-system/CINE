@@ -8,6 +8,10 @@ import { readStoredInvestigation, StoredInvestigation } from './stored-investiga
  * Mọi lượt tính của MỘT giảng viên xếp hàng qua khoá này, tới hết transaction. Không có nó, một
  * lượt tính đầu đọc bảng giá cũ trong lúc một lượt sửa giá chưa commit và bị lượt đó bỏ qua (bài
  * còn `ai_grading`) — bài giữ điểm theo giá cũ mãi.
+ *
+ * THỨ TỰ KHOÁ là luật: khoá này TRƯỚC mọi khoá hàng. Người ghi nào của 3d/3e đụng dòng
+ * `grading_result` đường điều tra (ghi lượt chấm, rút mẫu, chấm lại) phải xin khoá này trước khi
+ * `FOR UPDATE` một dòng, không thì ôm chết với một lượt tính lại đang giữ khoá này và chờ dòng đó.
  */
 export async function lockTeacherScoring(m: EntityManager, teacherId: string): Promise<void> {
   await m.query(`SELECT pg_advisory_xact_lock(hashtextextended('score_computation:' || $1::text, 0))`, [teacherId]);
@@ -42,7 +46,7 @@ export async function latestComputationRow(
 ): Promise<{ id: string; score: string; priceTableVersionId: string | null; breakdown: ScoreBreakdown } | null> {
   const [row] = await m.query(
     `SELECT id, score, price_table_version_id, breakdown FROM examcollect.score_computation
-      WHERE grading_result_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      WHERE grading_result_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,
     [resultId],
   );
   return row
@@ -157,7 +161,7 @@ export async function loadScoreContext(m: EntityManager, resultId: string): Prom
     `SELECT DISTINCT ON (error_rule_id) error_rule_id, direction
        FROM examcollect.teacher_review
       WHERE grading_result_id = $1 AND kind = 'error_exception'
-      ORDER BY error_rule_id, reviewed_at DESC, created_at DESC`,
+      ORDER BY error_rule_id, reviewed_at DESC, created_at DESC, id DESC`,
     [resultId],
   );
   const [manual] = await m.query(

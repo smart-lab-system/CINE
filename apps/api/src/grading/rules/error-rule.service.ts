@@ -7,6 +7,7 @@ import { ErrorRuleEntity } from '../entities/error-rule.entity';
 import { ErrorRuleRevisionEntity } from '../entities/error-rule-revision.entity';
 import { formatHundredths, parseHundredths } from '../scoring/hundredths';
 import type { RuleSnapshot } from '../scoring/score-core';
+import { lockTeacherScoring } from '../scoring/score-inputs';
 import { RecomputeSummary, ScoreService } from '../scoring/score.service';
 import { RuleChanges, RuleInput } from './rule-input';
 
@@ -53,6 +54,8 @@ export class ErrorRuleService {
     input: RuleInput,
   ): Promise<{ ruleId: string; revisionId: string; recompute: RecomputeSummary | null }> {
     return this.ds.transaction(async (m) => {
+      // Khoá TRƯỚC mọi thứ khác: số phiên bản giá, bản sửa luật và mọi lượt tính lại xếp hàng theo giảng viên.
+      await lockTeacherScoring(m, teacherId);
       const repo = m.getRepository(ErrorRuleEntity);
       if (await repo.findOne({ where: { teacherId, ruleKey: input.ruleKey } })) {
         throw new ConflictException(`Luật "${input.ruleKey}" đã có trong bảng lỗi của bạn`);
@@ -77,6 +80,8 @@ export class ErrorRuleService {
     changes: RuleChanges,
   ): Promise<{ revisionId: string; recompute: RecomputeSummary | null }> {
     return this.ds.transaction(async (m) => {
+      // Khoá TRƯỚC mọi thứ khác: số phiên bản giá, bản sửa luật và mọi lượt tính lại xếp hàng theo giảng viên.
+      await lockTeacherScoring(m, teacherId);
       const rule = await this.owned(m, teacherId, ruleId);
       const current = await m.getRepository(ErrorRuleRevisionEntity).findOneByOrFail({ id: rule.currentRevisionId! });
       const next = {
@@ -105,6 +110,8 @@ export class ErrorRuleService {
     state: 'active' | 'dismissed' | 'retired',
   ): Promise<{ recompute: RecomputeSummary }> {
     return this.ds.transaction(async (m) => {
+      // Khoá TRƯỚC mọi thứ khác: số phiên bản giá, bản sửa luật và mọi lượt tính lại xếp hàng theo giảng viên.
+      await lockTeacherScoring(m, teacherId);
       await this.owned(m, teacherId, ruleId);
       await m.update(ErrorRuleEntity, ruleId, { state });
       return { recompute: await this.scores.recomputeForTeacher(m, teacherId, 'rule_revision', teacherId) };
@@ -203,7 +210,7 @@ export class ErrorRuleService {
            JOIN examcollect.submission s ON s.id = g.submission_id
            JOIN examcollect.exam_session es ON es.id = s.exam_session_id
           WHERE es.teacher_id = $1
-          ORDER BY c.grading_result_id, c.created_at DESC),
+          ORDER BY c.grading_result_id, c.created_at DESC, c.id DESC),
        applied AS (
          SELECT e ->> 'ruleId' AS rule_id, l.grading_result_id, l.exam_session_id
            FROM latest l CROSS JOIN LATERAL jsonb_array_elements(l.breakdown -> 'errors') e

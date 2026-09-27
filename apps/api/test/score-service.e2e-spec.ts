@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { latestComputationRow } from '../src/grading/scoring/score-inputs';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { forceStatus, seedSession } from './helpers/grading-seed';
 import { seedInvestigatorResult, seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
@@ -146,6 +147,35 @@ describe('ScoreService (e2e)', () => {
         [id],
       );
       expect(last.breakdown.notConsidered.map((r: { ruleKey: string }) => r.ruleKey)).toEqual(['chu_thich_sai']);
+    }
+  });
+
+  it('review C1: lượt sửa giá BẮT ĐẦU trước nhưng tính lại SAU lượt tính đầu → lượt tính mới nhất là lượt theo giá mới', async () => {
+    const { ctx, bien, ten } = await world('sc-order');
+    const a = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
+    const runner = ds.createQueryRunner();
+    await runner.connect();
+    await runner.startTransaction();
+    try {
+      // Transaction của lượt sửa giá mở TRƯỚC (now() của nó cũ hơn), nhưng chưa xin khoá.
+      await runner.query(`SELECT 1`);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(await scores.computeInitial(a.resultId)).toMatchObject({ scoreHundredths: 850 });
+      const [v] = await runner.query(
+        `INSERT INTO examcollect.price_table_version (teacher_id, version, created_by) VALUES ($1, 2, $1) RETURNING id`,
+        [ctx.teacherId],
+      );
+      await runner.query(
+        `INSERT INTO examcollect.rule_price (price_table_version_id, error_rule_id, teacher_id, deduction)
+         VALUES ($1, $2, $4, '3.00'), ($1, $3, $4, '0.50')`,
+        [v.id, bien.ruleId, ten.ruleId, ctx.teacherId],
+      );
+      await scores.recomputeForTeacher(runner.manager, ctx.teacherId, 'price_change', ctx.teacherId, { ruleId: bien.ruleId });
+      await runner.commitTransaction();
+      expect(await latestComputationRow(ds.manager, a.resultId)).toMatchObject({ priceTableVersionId: v.id, score: '7.00' });
+    } finally {
+      if (runner.isTransactionActive) await runner.rollbackTransaction();
+      await runner.release();
     }
   });
 
