@@ -2,7 +2,9 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { GradingService } from '../src/grading/grading.service';
 import { latestComputationRow } from '../src/grading/scoring/score-inputs';
+import { TeacherReviewService } from '../src/grading/teacher-review.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { forceStatus, seedSession } from './helpers/grading-seed';
 import { seedInvestigatorResult, seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
@@ -148,6 +150,27 @@ describe('ScoreService (e2e)', () => {
       );
       expect(last.breakdown.notConsidered.map((r: { ruleKey: string }) => r.ruleKey)).toEqual(['chu_thich_sai']);
     }
+  });
+
+  it('review I2: lượt tính lại ra dưới sàn → một dòng KHÔNG điểm; điểm hiện tại "chưa có"; bài teacher_reviewed không chốt được', async () => {
+    const { ctx, bien } = await world('sc-floor-re');
+    // Cạn ngân sách, phát hiện duy nhất là lỗi máy quyết `sai_bien` (T-FLOOR-1: thu hồi luật đó → 0 phát hiện).
+    const stored = storedWith(SEEN);
+    stored.result.investigation.budget.stopReason = 'max_tool_calls';
+    const a = await seedInvestigatorResult(ds, ctx, stored);
+    expect(await scores.computeInitial(a.resultId)).toMatchObject({ scoreHundredths: 850 });
+    await forceStatus(ds, a.resultId, 'teacher_reviewed');
+
+    await ds.query(`UPDATE examcollect.error_rule SET state = 'retired' WHERE id = $1`, [bien.ruleId]);
+    const sum = await recompute(ctx.teacherId, 'rule_revision');
+    expect(sum).toMatchObject({ recomputed: 1, belowFloor: 1 });
+    const latest = await latestComputationRow(ds.manager, a.resultId);
+    expect(latest).toMatchObject({ score: null });
+    expect(latest!.breakdown.ungradable?.reason).toMatch(/cạn ngân sách/);
+    const view = await app.get(GradingService).listForSession(ctx.sessionId);
+    expect(view.find((v) => v.id === a.resultId)).toMatchObject({ currentScore: null, currentScoreSource: 'none' });
+    await expect(app.get(TeacherReviewService).finalizeGrades(ctx.sessionId, ctx.teacherId)).rejects.toThrow(/chấm tay/);
+    expect((await status(a.resultId)).status).toBe('teacher_reviewed');
   });
 
   it('review C1: lượt sửa giá BẮT ĐẦU trước nhưng tính lại SAU lượt tính đầu → lượt tính mới nhất là lượt theo giá mới', async () => {

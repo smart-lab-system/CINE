@@ -254,6 +254,29 @@ export class TeacherReviewService {
         );
       }
 
+      // Đường điều tra: điểm công bố là lượt tính mới nhất — nên bài chưa chấm tay mà lượt tính mới
+      // nhất KHÔNG mang điểm (dưới sàn theo bảng lỗi hiện hành, review I2) thì không có gì để công
+      // bố. Kiểm cả phiên TRƯỚC khi ghi gì, để lời báo đếm đủ.
+      const latestById = new Map<string, Awaited<ReturnType<typeof latestComputationRow>>>();
+      let withoutScore = 0;
+      for (const result of all) {
+        if (result.pipeline !== 'investigator') continue;
+        if (result.status !== 'auto_approved' && result.status !== 'teacher_reviewed') continue;
+        const latest = await latestComputationRow(manager, result.id);
+        latestById.set(result.id, latest);
+        if (latest?.score != null) continue;
+        const [manual] = await manager.query(
+          `SELECT 1 FROM examcollect.teacher_review WHERE grading_result_id = $1 AND kind = 'manual_score' LIMIT 1`,
+          [result.id],
+        );
+        if (!manual) withoutScore++;
+      }
+      if (withoutScore > 0) {
+        throw new ConflictException(
+          `${withoutScore} bài không còn điểm theo bảng lỗi hiện hành (dưới sàn) — hãy chấm tay trước khi chốt điểm.`,
+        );
+      }
+
       // Every write below goes through THIS manager. A `this.reviews` or a
       // bare `this.advance` here would take its own connection from the pool
       // and commit outside the open transaction, so a rollback would leave
@@ -270,13 +293,11 @@ export class TeacherReviewService {
           // §14.2: đường điều tra không ghi `teacher_review` cho bài tự quyết — chữ ký ở
           // `finalized_by`, điểm công bố là lượt tính mới nhất, ghi vào `finalized_computation_id`.
           if (result.status !== 'auto_approved' && result.status !== 'teacher_reviewed') continue;
-          const latest = await latestComputationRow(manager, result.id);
-          if (result.status === 'auto_approved' && !latest) {
-            throw new ConflictException('Một bài tự quyết không có lượt tính điểm nào — không chốt được.');
-          }
+          const latest = latestById.get(result.id) ?? null;
           const moved = await this.advance(result.id, [result.status], 'finalized', manager, {
             ...stamp,
-            finalizedComputationId: latest?.id ?? null,
+            // Chỉ trỏ lượt tính MANG điểm; bài chấm tay mà lượt tính dưới sàn thì điểm công bố là điểm tay.
+            finalizedComputationId: latest?.score != null ? latest.id : null,
           });
           if (!moved) {
             throw new ConflictException('Một bài vừa đổi trạng thái — hãy tải lại và chốt lại.');

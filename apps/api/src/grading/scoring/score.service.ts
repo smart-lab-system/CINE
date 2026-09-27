@@ -168,7 +168,9 @@ export class ScoreService {
   ): Promise<ScoreCoreOutput> {
     const ctx = await loadScoreContext(m, resultId);
     const out = await this.compute(m, ctx);
-    if (out.scoreHundredths !== null) await this.insertComputation(m, ctx, reason, actorId, out);
+    // Dưới sàn cũng là một dòng (điểm null, review I2): không có nó thì lượt tính cũ — theo bảng lỗi
+    // đã đổi — vẫn là điểm hiện tại và bị chốt.
+    await this.insertComputation(m, ctx, reason, actorId, out);
     return out;
   }
 
@@ -293,7 +295,7 @@ export class ScoreService {
         ctx.rubricId,
         ctx.bundleId,
         reason,
-        formatHundredths(out.scoreHundredths!),
+        out.scoreHundredths === null ? null : formatHundredths(out.scoreHundredths),
         JSON.stringify(out.breakdown),
         actorId,
       ],

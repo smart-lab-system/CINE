@@ -49,6 +49,8 @@ export interface ScoreBreakdown {
   mismatchedRules: { ruleId: string; ruleKey: string; criterionKey: string }[];
   /** Luật model phải phán mà không phải mọi bài của phiên đều đã thấy — không xét (§2.2, T-FAIR-1). */
   notConsidered: { ruleId: string; ruleKey: string }[];
+  /** Khác null = lượt tính ra DƯỚI SÀN (§4.4): dòng tính lại không mang điểm, lý do nằm ở đây. */
+  ungradable: Decision['ungradable'];
 }
 
 export interface ScoreCoreOutput {
@@ -99,6 +101,7 @@ export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
     confidence: decision.confidence,
     mismatchedRules: mismatched.map((r) => ({ ruleId: r.ruleId, ruleKey: r.ruleKey, criterionKey: r.criterionKey })),
     notConsidered: notConsidered.map((r) => ({ ruleId: r.ruleId, ruleKey: r.ruleKey })),
+    ungradable: decision.outcome === 'ungradable' ? decision.ungradable : null,
   };
   if (decision.outcome === 'ungradable') {
     return {
