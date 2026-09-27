@@ -48,8 +48,17 @@ vi.mock('@/hooks/useGrading', () => ({
 }));
 
 // Dialog cấu hình đọc danh sách tài liệu qua hook riêng của phiên thi.
+const useExamSessionDetailMock = vi.fn();
 vi.mock('@/hooks/useExamSession', () => ({
   useExamMaterials: () => ({ data: [], isLoading: false }),
+  useExamSessionDetail: (...args: unknown[]) => useExamSessionDetailMock(...args),
+}));
+
+vi.mock('@/hooks/useTestBundle', () => ({
+  useTestBundles: () => ({ data: [], isLoading: false }),
+  useCreateTestBundle: () => ({ mutate: vi.fn(), isPending: false }),
+  useApproveTestBundle: () => ({ mutate: vi.fn(), isPending: false }),
+  usePinTestBundle: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 beforeEach(() => {
@@ -71,6 +80,12 @@ beforeEach(() => {
   useGradingReadinessMock.mockReturnValue({ data: undefined, isLoading: false });
   useRegradeStuckMock.mockReset();
   useRegradeStuckMock.mockReturnValue({ mutate: vi.fn(), isPending: false, isSuccess: false });
+  // Mặc định: phiên không có deliverable code_project — thẻ "Gói test" ẩn.
+  useExamSessionDetailMock.mockReset();
+  useExamSessionDetailMock.mockReturnValue({
+    data: { requiredDeliverables: [], testBundleId: null },
+    isLoading: false,
+  });
 
   useSessionOverviewMock.mockReturnValue({
     data: [
@@ -115,6 +130,27 @@ describe('GradingPage', () => {
     render(<GradingPage />);
 
     expect(screen.getByText('Kết quả chấm')).toBeInTheDocument();
+  });
+
+  it('phiên KHÔNG có deliverable code_project → ẩn thẻ "Gói test"', () => {
+    searchParams = new URLSearchParams('sessionId=session-2');
+    render(<GradingPage />);
+    expect(screen.queryByText('Gói test')).not.toBeInTheDocument();
+  });
+
+  it('phiên CÓ deliverable code_project → hiện thẻ "Gói test" (§14.3)', () => {
+    searchParams = new URLSearchParams('sessionId=session-2');
+    useExamSessionDetailMock.mockReturnValue({
+      data: {
+        requiredDeliverables: [{ id: 'd1', requiredFilename: 'bai1.zip', deliverableType: 'code_project', entries: [] }],
+        testBundleId: null,
+      },
+      isLoading: false,
+    });
+
+    render(<GradingPage />);
+
+    expect(screen.getByText('Gói test')).toBeInTheDocument();
   });
 
   it('KHÔNG ẩn phiên có bài thu mà chưa gắn rubric (spec §5.3)', () => {

@@ -90,6 +90,8 @@ export interface ExamSessionResponse {
    */
   completedAt: string | null;
   completedBy: string | null;
+  /** Gói test đã ghim cho đường điều tra (§14.1) — null nếu chưa ghim. */
+  testBundleId: string | null;
   requiredDeliverables: RequiredDeliverableResponse[];
 }
 
