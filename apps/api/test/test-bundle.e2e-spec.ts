@@ -83,6 +83,42 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
     expect(detail.body.testBundleId).toBe(bundleId);
   });
 
+  it('GET list/chi tiết trả camelCase, không lộ tên cột SQL (case_count, approved_at...)', async () => {
+    const owner = await login('c1');
+    const session = await seedSession(ds, 'bundle-c1', {
+      teacherId: owner.id,
+      deliverableType: 'code_project',
+      language: 'cpp',
+    });
+
+    const created = await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.sessionId}/test-bundles`)
+      .set(as(owner.token))
+      .send({ cases: [{ caseKey: 'ca1', group: 'public', input: '1\n', expectedOutput: '1\n' }] });
+    const bundleId = created.body.id as string;
+
+    const list = await request(app.getHttpServer())
+      .get(`/exam-sessions/${session.sessionId}/test-bundles`)
+      .set(as(owner.token));
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual([
+      { id: bundleId, version: 1, approvedAt: null, caseCount: 1 },
+    ]);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/exam-sessions/${session.sessionId}/test-bundles/${bundleId}`)
+      .set(as(owner.token));
+    expect(detail.status).toBe(200);
+    expect(detail.body).toEqual({
+      id: bundleId,
+      version: 1,
+      approvedAt: null,
+      cases: [
+        { caseKey: 'ca1', group: 'public', input: '1\n', expectedOutput: '1\n', autoDroppedReason: null },
+      ],
+    });
+  });
+
   it('ghim gói thuộc phiên KHÁC → 404 (Review Focus #3)', async () => {
     const owner = await login('a2');
     const sessionA = await seedSession(ds, 'bundle-a2a', {
