@@ -30,6 +30,10 @@ import { SubmitReviewDto } from './dto/submit-review.dto';
 import { BulkReviewDto } from './dto/bulk-review.dto';
 import { BulkReviewService } from './bulk-review.service';
 import { GRADING_LOCKED_MESSAGE } from './grading-lock';
+import { ErrorExceptionDto } from './review/dto/error-exception.dto';
+import { ManualScoreDto } from './review/dto/manual-score.dto';
+import { ErrorExceptionService } from './review/error-exception.service';
+import { ScoreService } from './scoring/score.service';
 
 /**
  * The grading side of the API.
@@ -51,6 +55,8 @@ export class GradingController {
     private readonly references: GradingReferenceService,
     private readonly submissionText: SubmissionTextService,
     private readonly bulkReviews: BulkReviewService,
+    private readonly errorExceptions: ErrorExceptionService,
+    private readonly scores: ScoreService,
   ) {}
 
   /**
@@ -195,6 +201,32 @@ export class GradingController {
   async finalizeGrades(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.teacherReviews.finalizeGrades(session.id, req.user!.sub);
+  }
+
+  /**
+   * *"Áp giá mới cho phiên đã chốt"* (§2.2) — đường duy nhất đổi điểm đã công bố theo bảng giá
+   * hiện hành; mỗi bài bị đổi có một dòng audit_log.
+   */
+  @Post('exam-sessions/:id/reapply-prices')
+  @Roles('teacher')
+  @HttpCode(200)
+  async reapplyPrices(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.scores.reapplyFinalizedSession(session.id, req.user!.sub);
+  }
+
+  /** *Bỏ lỗi này cho riêng bài này* / gỡ việc đó — một dòng teacher_review, không sinh luật (§2.2). */
+  @Post('grading-results/:id/error-exceptions')
+  @Roles('teacher')
+  setErrorException(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request, @Body() dto: ErrorExceptionDto) {
+    return this.errorExceptions.setErrorException(req.user!.sub, id, dto.ruleId, dto.direction);
+  }
+
+  /** *Chấm tay* cả bài — từ đó không lượt tính lại nào đổi điểm bài này (§2.2). */
+  @Post('grading-results/:id/manual-score')
+  @Roles('teacher')
+  setManualScore(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request, @Body() dto: ManualScoreDto) {
+    return this.errorExceptions.setManualScore(req.user!.sub, id, dto.score);
   }
 
   /**
