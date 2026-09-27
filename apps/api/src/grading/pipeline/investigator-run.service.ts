@@ -1,8 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { runCaseLens } from '../investigator/case-lens';
+import { challenge } from '../investigator/challenge';
+import type { StoredChallenge } from '../investigator/challenge';
 import { investigate } from '../investigator/investigate';
-import type { InvestigationResult } from '../investigator/types';
+import type { InvestigationContext, InvestigationResult } from '../investigator/types';
 import { lockTeacherScoring, teacherOfResult } from '../scoring/score-inputs';
 import { ScoreService } from '../scoring/score.service';
 import type { StoredInvestigation } from '../scoring/stored-investigation';
@@ -54,6 +57,7 @@ export class InvestigatorRunService {
     }
 
     const result = await investigate(built.ctx, { models: this.deps.models, sandbox: this.deps.sandbox! });
+    const challengeResult = await this.runChallenge(result, built.ctx);
     const stored: StoredInvestigation = {
       version: 1,
       result,
@@ -61,6 +65,7 @@ export class InvestigatorRunService {
       rulesSeen: built.ruleTable,
       ruleTable: built.ruleTable,
       modelCeiling: Math.min(1, ...result.investigation.modelsUsed.map((m) => this.deps.ceilingOf(m))),
+      challenge: challengeResult,
     };
     const out = await this.scores.finishAttempt(resultId, attemptId, stored, {
       modelUsed: result.investigation.modelsUsed.join('+').slice(0, 200) || null,
@@ -99,5 +104,21 @@ export class InvestigatorRunService {
       await m.query(`UPDATE examcollect.grading_result SET current_attempt_id = $2 WHERE id = $1`, [resultId, a.id]);
       return a.id as string;
     });
+  }
+
+  /**
+   * Bốn lăng kính (§6) — chạy SONG SONG, một lăng kính hỏng không được làm hỏng cả lượt chấm
+   * (cùng triết lý Advocate cũ: "không có ý kiến nào tốt hơn một ý kiến bịa ra"). `challenge()`
+   * đã tự bọc lỗi của TỪNG Challenger thành `unverified`; `runCaseLens()` tự bọc thành
+   * `suspected:false` — nên `Promise.all` ở đây không cần try/catch riêng cho từng lăng kính.
+   */
+  private async runChallenge(result: InvestigationResult, ctx: InvestigationContext): Promise<StoredChallenge | null> {
+    if (!result.verdict || this.deps.challengers.length === 0) return null;
+    const toolCalls = result.investigation.toolCalls;
+    const [perError, caseNotes] = await Promise.all([
+      Promise.all(this.deps.challengers.map((c) => challenge(result.verdict!, ctx, toolCalls, c))),
+      Promise.all(this.deps.caseLenses.map((l) => runCaseLens(ctx, result.verdict!, toolCalls, l))),
+    ]);
+    return { perError, caseNotes };
   }
 }
