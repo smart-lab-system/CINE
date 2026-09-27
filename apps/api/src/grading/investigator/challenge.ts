@@ -51,3 +51,24 @@ export async function challenge(
   }
   return { challenger: challenger.name, perError };
 }
+
+/** Ghi chú của một lăng kính CẤP BÀI (Bỏ sót, Gian lận) — không gắn với một ruleKey. */
+export interface CaseLensNote {
+  lens: string;
+  suspected: boolean;
+  note: string;
+}
+
+/**
+ * Toàn bộ kết quả phản biện của MỘT lượt chấm, lưu trong `StoredInvestigation.challenge`
+ * (§6, bước 6) — chưa dùng cột `grading_attempt.challenge` riêng (đã có từ migration
+ * `1789450000000-AttemptsBundlesScores`): gộp vào `investigation` cho đơn giản, dùng lại
+ * đúng cơ chế "tolerant khi đọc bản ghi cũ" đã có ở `readStoredInvestigation()`, thay vì mở
+ * thêm một đường đọc/ghi DB riêng chỉ để có một cột không dùng tới.
+ */
+export interface StoredChallenge {
+  /** Một entry cho MỖI lăng kính per-error (Tính đúng, Quá tay) — chưa gộp theo ruleKey. */
+  perError: ChallengeConclusion[];
+  /** Bỏ sót, Gian lận. */
+  caseNotes: CaseLensNote[];
+}
