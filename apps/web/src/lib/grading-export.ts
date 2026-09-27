@@ -10,8 +10,18 @@ import { groupOf, GROUP_LABELS } from './grading-groups';
  */
 const HEADER = ['MSSV', 'Họ tên', 'Lớp', 'Trạng thái', 'Điểm', 'Ghi chú'] as const;
 
+/**
+ * Excel/Sheets đọc một ô BẮT ĐẦU bằng `=`, `+`, `-`, `@` như một công thức,
+ * không phải văn bản — và tên sinh viên hay lý do không chấm được là dữ liệu
+ * người dùng nhập, không phải hằng số hệ thống kiểm soát (CWE-1236). Thêm
+ * một dấu `'` phía trước buộc Excel hiểu là văn bản; Excel tự bỏ dấu đó khi
+ * hiện ô, nên người đọc không thấy gì khác thường.
+ */
+const FORMULA_LEADING = /^[=+\-@\t\r]/;
+
 function csvField(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  const safe = FORMULA_LEADING.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 function scoreCell(result: GradingResult): string {
@@ -51,6 +61,9 @@ export function gradingCsvFilename(sessionName: string, sessionCode: string, now
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase();
-  const date = now.toISOString().slice(0, 10);
+  // Giờ ĐỊA PHƯƠNG, không phải UTC: `toISOString()` lùi ngày cho người dùng
+  // Việt Nam (UTC+7) xuất file trong khoảng 0h–7h sáng.
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   return `diem-${slug || sessionCode.toLowerCase()}-${date}.csv`;
 }

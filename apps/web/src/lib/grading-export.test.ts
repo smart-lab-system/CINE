@@ -70,6 +70,32 @@ describe('gradingResultsToCsv', () => {
     expect(dataLine).toContain('"Trần ""Bảo"", Gia"');
   });
 
+  it('currentScore = 0 xuất ra "0", không phải ô trống', () => {
+    // `??` chứ không `||` — 0 là một điểm thật, khác "chưa có ý kiến" (null).
+    const csv = gradingResultsToCsv([result({ currentScore: 0 })]);
+    const cols = csv.split('\r\n')[1].split(',');
+    expect(cols[4]).toBe('0');
+  });
+
+  it('tên bắt đầu bằng "=" không bị Excel/Sheets hiểu thành công thức (CWE-1236)', () => {
+    const csv = gradingResultsToCsv([
+      result({ studentName: '=HYPERLINK("http://evil","click")' }),
+    ]);
+    const dataLine = csv.split('\r\n')[1];
+    // Dấu `'` đứng trước buộc trình đọc hiểu là văn bản — Excel tự bỏ dấu
+    // đó khi hiện ô, không hiện nguyên văn cho người đọc.
+    expect(dataLine).toContain("'=HYPERLINK");
+    expect(dataLine).not.toMatch(/,=HYPERLINK/);
+  });
+
+  it('lý do không chấm được cũng được chặn công thức, không chỉ tên', () => {
+    const csv = gradingResultsToCsv([
+      result({ ungradableReason: '@SUM(1+1)', currentScore: null }),
+    ]);
+    const dataLine = csv.split('\r\n')[1];
+    expect(dataLine).toContain("'@SUM(1+1)");
+  });
+
   it('lý do không chấm được đi vào cột Ghi chú', () => {
     const csv = gradingResultsToCsv([
       result({ ungradableReason: 'file nén không đọc được', currentScore: null }),
@@ -93,7 +119,10 @@ describe('gradingResultsToCsv', () => {
 });
 
 describe('gradingCsvFilename', () => {
-  const now = new Date('2026-09-29T10:00:00.000Z');
+  // Giờ ĐỊA PHƯƠNG (không phải chuỗi ISO/UTC): hàm đọc ngày bằng
+  // getFullYear/getMonth/getDate, nên test phải dựng Date theo cách đó —
+  // dùng chuỗi ISO UTC sẽ cho ngày khác nhau tuỳ múi giờ máy chạy test.
+  const now = new Date(2026, 8, 29, 10, 0, 0);
 
   it('bỏ dấu tiếng Việt và khoảng trắng khỏi tên phiên', () => {
     expect(gradingCsvFilename('Kiểm tra giữa kỳ Đại số', 'ABCDEF', now)).toBe(
