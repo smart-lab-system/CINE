@@ -43,13 +43,20 @@ export interface CreateExamSessionInput {
    * Biểu mẫu hiện tại (`new/page.tsx`) chỉ gửi `{ filename }`, chưa gửi
    * `entries` — khối "Kiểm file bên trong" là việc của một task riêng.
    */
-  requiredFilenames: { filename: string; entries?: string[] }[];
+  requiredFilenames: {
+    filename: string;
+    /** Mặc định `document` phía server khi bỏ trống (§14.1). */
+    deliverableType?: 'document' | 'code_project' | 'image';
+    /** Chỉ có ý nghĩa khi `deliverableType === 'code_project'`. */
+    language?: 'python' | 'cpp' | 'java' | 'node';
+    entries?: string[];
+  }[];
 }
 
 export interface RequiredDeliverableResponse {
   id: string;
   requiredFilename: string;
-  deliverableType: string;
+  deliverableType: 'document' | 'code_project' | 'image';
   /**
    * Tên các file phải nằm BÊN TRONG, nếu deliverable này là file nén và
    * giảng viên đã khai. Mảng rỗng = không khai file bên trong.
@@ -83,6 +90,8 @@ export interface ExamSessionResponse {
    */
   completedAt: string | null;
   completedBy: string | null;
+  /** Gói test đã ghim cho đường điều tra (§14.1) — null nếu chưa ghim. */
+  testBundleId: string | null;
   requiredDeliverables: RequiredDeliverableResponse[];
 }
 

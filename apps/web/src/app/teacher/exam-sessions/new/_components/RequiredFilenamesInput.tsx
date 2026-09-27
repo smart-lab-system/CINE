@@ -9,6 +9,27 @@ import { Label } from '@/components/ui/label';
 import type { CreateExamSessionFormValues } from '../schema';
 import { ArchiveEntriesField } from './ArchiveEntriesField';
 
+const DELIVERABLE_TYPE_LABELS = {
+  document: 'Tài liệu',
+  code_project: 'Mã nguồn',
+  image: 'Ảnh chụp',
+} as const;
+
+/**
+ * Chỉ hai giá trị sandbox thật chạy được (`INVESTIGATOR_LANGUAGES`,
+ * `apps/api/src/grading/pipeline.ts`) — không cho chọn java/node dù backend
+ * chấp nhận, vì chọn chúng chỉ âm thầm rơi về đường one_shot mà giảng viên
+ * không biết mình vừa chọn nhầm.
+ */
+const LANGUAGE_LABELS = {
+  cpp: 'C++',
+  python: 'Python',
+} as const;
+
+/** Class chung cho hai <select> gốc — cùng hình dạng với Input, không dùng Select (Radix) vì đây là control nhỏ trong một hàng lặp. */
+const SELECT_CLASS =
+  'h-10 rounded-md border border-input bg-surface px-2 text-small text-foreground shadow-sm focus:border-accent focus:outline-none';
+
 /**
  * What the server fills each token with, and a sample value for the
  * preview.
@@ -152,6 +173,38 @@ export function RequiredFilenamesInput() {
                   invalid={Boolean(fieldError)}
                   {...register(`requiredFilenames.${index}.value` as const)}
                 />
+                <Label htmlFor={`required-deliverable-type-${index}`} className="sr-only">
+                  {`Loại bài nộp số ${index + 1}`}
+                </Label>
+                <select
+                  id={`required-deliverable-type-${index}`}
+                  className={SELECT_CLASS}
+                  {...register(`requiredFilenames.${index}.deliverableType` as const)}
+                >
+                  {Object.entries(DELIVERABLE_TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                {values?.[index]?.deliverableType === 'code_project' && (
+                  <>
+                    <Label htmlFor={`required-language-${index}`} className="sr-only">
+                      {`Ngôn ngữ số ${index + 1}`}
+                    </Label>
+                    <select
+                      id={`required-language-${index}`}
+                      className={SELECT_CLASS}
+                      {...register(`requiredFilenames.${index}.language` as const)}
+                    >
+                      {Object.entries(LANGUAGE_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
@@ -222,7 +275,13 @@ export function RequiredFilenamesInput() {
         </p>
       )}
 
-      <Button type="button" variant="outline" size="sm" onClick={() => append({ value: '' })} className="self-start">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => append({ value: '', deliverableType: 'document' })}
+        className="self-start"
+      >
         <Plus className="h-4 w-4" aria-hidden="true" />
         Thêm file
       </Button>

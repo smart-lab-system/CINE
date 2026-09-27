@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
+import { useExamSessionDetail } from '@/hooks/useExamSession';
 import { ReviewWorkspace } from './_components/ReviewWorkspace';
 import { FinalizeGradesButton } from './_components/FinalizeGradesButton';
 import { SessionRubricCard } from './_components/SessionRubricCard';
@@ -25,6 +26,7 @@ import { GradingReferenceDialog } from './_components/GradingReferenceDialog';
 import { ConfidenceTiles } from './_components/ConfidenceTiles';
 import { AnomalyPanel } from './_components/AnomalyPanel';
 import { NotBuiltYetPanel } from './_components/NotBuiltYetPanel';
+import { TestBundleCard } from './_components/TestBundleCard';
 import { bucketOf, type Bucket } from '@/lib/grading-triage';
 import {
   useGradingResults,
@@ -93,6 +95,13 @@ function GradingPageContent() {
   // vài trăm mili giây, còn lượt chấm thì chạy tiếp nhiều phút.
   const grading = (progress.data?.pending ?? 0) > 0;
   const hasResults = (results.data?.length ?? 0) > 0;
+
+  // Chi tiết phiên — nguồn của requiredDeliverables (biết phiên có bài
+  // code_project hay không) và testBundleId đang ghim (§14.1/§14.3).
+  const sessionDetail = useExamSessionDetail(sessionId || undefined);
+  const needsTestBundle = sessionDetail.data?.requiredDeliverables.some(
+    (d) => d.deliverableType === 'code_project',
+  );
 
   const readiness = useGradingReadiness(sessionId || undefined);
   const regrade = useRegradeStuck(sessionId || undefined);
@@ -230,6 +239,10 @@ function GradingPageContent() {
               }
             }
           />
+
+          {needsTestBundle && (
+            <TestBundleCard sessionId={session.id} pinnedBundleId={sessionDetail.data?.testBundleId ?? null} />
+          )}
 
           {hasResults && (
             <>

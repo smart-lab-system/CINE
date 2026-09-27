@@ -68,7 +68,7 @@ export class TestBundleService {
   }
 
   async list(examSessionId: string) {
-    return this.ds.query(
+    const rows: { id: string; version: number; approved_at: string | null; case_count: number }[] = await this.ds.query(
       `SELECT b.id, b.version, b.approved_at, COUNT(c.id)::int AS case_count
          FROM examcollect.grading_test_bundle b
          LEFT JOIN examcollect.grading_test_case c ON c.bundle_id = b.id AND c.auto_dropped_reason IS NULL
@@ -76,16 +76,29 @@ export class TestBundleService {
         GROUP BY b.id ORDER BY b.version DESC`,
       [examSessionId],
     );
+    return rows.map((r) => ({ id: r.id, version: r.version, approvedAt: r.approved_at, caseCount: r.case_count }));
   }
 
   async get(examSessionId: string, bundleId: string) {
     const bundle = await this.findOwnedBundle(examSessionId, bundleId);
-    const cases = await this.ds.query(
-      `SELECT case_key, "group", input, expected_output, auto_dropped_reason
-         FROM examcollect.grading_test_case WHERE bundle_id = $1 ORDER BY case_key`,
-      [bundleId],
-    );
-    return { id: bundle.id, version: bundle.version, approvedAt: bundle.approved_at, cases };
+    const rows: { case_key: string; group: string; input: string; expected_output: string; auto_dropped_reason: string | null }[] =
+      await this.ds.query(
+        `SELECT case_key, "group", input, expected_output, auto_dropped_reason
+           FROM examcollect.grading_test_case WHERE bundle_id = $1 ORDER BY case_key`,
+        [bundleId],
+      );
+    return {
+      id: bundle.id,
+      version: bundle.version,
+      approvedAt: bundle.approved_at,
+      cases: rows.map((r) => ({
+        caseKey: r.case_key,
+        group: r.group,
+        input: r.input,
+        expectedOutput: r.expected_output,
+        autoDroppedReason: r.auto_dropped_reason,
+      })),
+    };
   }
 
   /** Gói phải thuộc ĐÚNG phiên được truyền vào (Review Focus #3). */

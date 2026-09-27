@@ -991,6 +991,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/test-bundles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TestBundleController_list"];
+        put?: never;
+        post: operations["TestBundleController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/test-bundles/{bundleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TestBundleController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/test-bundles/{bundleId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestBundleController_approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/test-bundles/{bundleId}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestBundleController_pin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-authoring/generate": {
         parameters: {
             query?: never;
@@ -1078,6 +1142,10 @@ export interface components {
         };
         RequiredFilenameDto: {
             filename: string;
+            /** @enum {string} */
+            deliverableType?: "document" | "code_project" | "image";
+            /** @enum {string} */
+            language?: "python" | "cpp" | "java" | "node";
             entries?: string[];
         };
         CreateExamSessionDto: {
@@ -1351,6 +1419,16 @@ export interface components {
         };
         CriterionWaiverDto: {
             criterionKey: string;
+        };
+        TestCaseDto: {
+            caseKey: string;
+            group: string;
+            input: string;
+            expectedOutput: string;
+            constraintQuote?: string;
+        };
+        CreateTestBundleDto: {
+            cases: components["schemas"]["TestCaseDto"][];
         };
         GenerateExamDto: {
             prompt: string;
@@ -2922,6 +3000,110 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestBundleController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    TestBundleController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTestBundleDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestBundleController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                bundleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestBundleController_approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                bundleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestBundleController_pin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                bundleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

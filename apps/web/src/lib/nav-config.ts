@@ -9,6 +9,7 @@ import { Sparkles,
   ClipboardCheck,
   Inbox,
   ListChecks,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -58,4 +59,7 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Soạn đề', href: '/teacher/exam-authoring', icon: Sparkles },
   { label: 'Rubric', href: '/teacher/rubrics', icon: ListChecks },
   { label: 'Chấm điểm', href: '/teacher/grading', icon: ClipboardCheck },
+  // Sau "Chấm điểm": bảng lỗi/giá là thứ giảng viên xem lại và chỉnh SAU
+  // khi đã thấy agent chẩn đoán gì — đường điều tra (§2.1).
+  { label: 'Trang kiến thức', href: '/teacher/rules', icon: BookOpen },
 ];

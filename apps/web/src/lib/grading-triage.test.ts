@@ -98,6 +98,25 @@ describe('bucketOf', () => {
     expect(bucketOf(result({ status: 'flagged_for_review', confidence: 0.99 }), 0)).toBe('flagged');
   });
 
+  it('bài investigator auto_approved → "high", DÙ criterionResults rỗng (không phải khuôn one_shot)', () => {
+    // criterionResults luôn [] ở đường điều tra — every([]) vốn vacuously
+    // true, nên logic one_shot (đọc criterionResults) sẽ tình cờ ra đúng
+    // bucket 'high' ở đây, nhưng vì SAI LÝ DO — bug thật nằm ở nhãn hiển thị
+    // (MatrixTable.test.tsx), test này chỉ ghim bucket không đổi khi sửa.
+    const row = result({ pipeline: 'investigator', status: 'auto_approved', criterionResults: [], confidence: null });
+    expect(bucketOf(row, 0)).toBe('high');
+  });
+
+  it('bài investigator flagged_for_review vẫn vào nhóm "flagged" như one_shot', () => {
+    const row = result({ pipeline: 'investigator', status: 'flagged_for_review' });
+    expect(bucketOf(row, 0)).toBe('flagged');
+  });
+
+  it('bài investigator KHÔNG phải auto_approved (vd teacher_reviewed) → "low", không suy từ criterionResults rỗng', () => {
+    const row = result({ pipeline: 'investigator', status: 'teacher_reviewed', criterionResults: [], confidence: null });
+    expect(bucketOf(row, 0)).toBe('low');
+  });
+
   it('countBuckets cộng đủ, không bỏ sót bài nào', () => {
     const results = [
       result({ confidence: 0.9 }),

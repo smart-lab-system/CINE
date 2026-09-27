@@ -48,6 +48,15 @@ export function bucketOf(result: GradingResult, queueActive: number): Bucket {
     return 'flagged';
   }
 
+  // Đường điều tra không có criterionResults/đối chiếu trích dẫn kiểu
+  // one_shot — `criterionResults` LUÔN rỗng cho pipeline này, và
+  // `every([])` vacuously true sẽ coi mọi bài là "đã đối chiếu" nếu dùng
+  // chung nhánh dưới. `status === 'auto_approved'` TỰ nó đã mang nghĩa "hệ
+  // thống tự quyết, đạt sàn bằng chứng" (§0.3) — không cần đọc gì thêm.
+  if (result.pipeline === 'investigator') {
+    return result.status === 'auto_approved' ? 'high' : 'low';
+  }
+
   // `check == null` nghĩa là bài được chấm TRƯỚC khi hệ thống ghi lại phép
   // đối chiếu. Coi nó là `'ok'` sẽ làm mọi bài cũ trông như đã được kiểm.
   const allVerified = result.criterionResults.every((criterion) => criterion.check === 'ok');

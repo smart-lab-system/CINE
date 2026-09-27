@@ -58,6 +58,8 @@ export class ExamSessionResponseDto {
   rubricId!: string | null;
   /** Phiên bản của rubric đã ghim — để UI nói "phiên bản N" mà không gọi thêm API. */
   rubricVersion!: number | null;
+  /** Gói test đã ghim cho đường điều tra (§14.1) — null nếu chưa ghim. */
+  testBundleId!: string | null;
   requiredDeliverables!: RequiredDeliverableResponseDto[];
 }
 
