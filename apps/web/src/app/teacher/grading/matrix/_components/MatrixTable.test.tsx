@@ -77,4 +77,14 @@ describe('MatrixTable', () => {
       `/teacher/grading/${withAdvocate.id}`,
     );
   });
+
+  it('bài investigator ở bucket "high" hiện nhãn ĐÚNG, không phải "Trích dẫn đã đối chiếu" (chưa từng đối chiếu gì)', () => {
+    show([{ ...withAdvocate, pipeline: 'investigator', status: 'auto_approved', criterionResults: [], confidence: null }]);
+    expect(screen.queryByText(/trích dẫn đã đối chiếu/i)).not.toBeInTheDocument();
+  });
+
+  it('bài one_shot ở bucket "high" vẫn hiện đúng nhãn cũ — không hồi quy', () => {
+    show([{ ...withAdvocate, status: 'auto_approved', confidence: 0.9, criterionResults: [] }]);
+    expect(screen.getByText(/trích dẫn đã đối chiếu/i)).toBeInTheDocument();
+  });
 });

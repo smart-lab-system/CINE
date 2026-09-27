@@ -14,13 +14,23 @@ import {
 import { advocateScore, bucketOf, type Bucket } from '@/lib/grading-triage';
 import type { GradingResult, Rubric } from '@/lib/api/grading';
 
-/** Lý do một bài còn nằm lại, bằng ngôn ngữ khảo thí. */
-const HELD_FOR: Record<Bucket, { label: string; variant: BadgeProps['variant'] }> = {
-  flagged: { label: 'Chờ bạn duyệt', variant: 'warning' },
-  low: { label: 'Đang chấm', variant: 'info' },
-  high: { label: 'Trích dẫn đã đối chiếu', variant: 'success' },
-  stuck: { label: 'Quá hạn xử lý', variant: 'destructive' },
-};
+/**
+ * Lý do một bài còn nằm lại, bằng ngôn ngữ khảo thí.
+ *
+ * Nhãn của bucket `high` phải theo PIPELINE: "Trích dẫn đã đối chiếu" nói
+ * về evidence-check của đường one_shot — đường điều tra không có bước đó,
+ * nên gắn nhãn này cho một bài `investigator` là nói một phép kiểm chưa
+ * từng chạy (bug thật đứng sau `bucketOf` từng đọc `criterionResults`
+ * rỗng của đường điều tra như thể "đã kiểm mọi trích dẫn").
+ */
+function heldFor(bucket: Bucket, pipeline: GradingResult['pipeline']): { label: string; variant: BadgeProps['variant'] } {
+  if (bucket === 'flagged') return { label: 'Chờ bạn duyệt', variant: 'warning' };
+  if (bucket === 'low') return { label: 'Đang chấm', variant: 'info' };
+  if (bucket === 'stuck') return { label: 'Quá hạn xử lý', variant: 'destructive' };
+  return pipeline === 'investigator'
+    ? { label: 'Đạt sàn bằng chứng, tự quyết', variant: 'success' }
+    : { label: 'Trích dẫn đã đối chiếu', variant: 'success' };
+}
 
 /** Câu đầu của lập luận phản biện, cắt cho vừa một dòng bảng. */
 function summarize(reasoning: string | undefined): string {
@@ -95,7 +105,7 @@ export function MatrixTable({
                 advocate === null || row.aiTotalScore === null
                   ? null
                   : Math.abs(advocate - row.aiTotalScore);
-              const held = HELD_FOR[bucketOf(row, queueActive)];
+              const held = heldFor(bucketOf(row, queueActive), row.pipeline);
 
               return (
                 <TableRow key={row.id}>
