@@ -19,6 +19,8 @@ import {
 } from 'class-validator';
 import { plainToInstance, Transform } from 'class-transformer';
 import { ExamType } from '../entities/exam-session.entity';
+import { DeliverableType } from '../entities/required-deliverable.entity';
+import { DECLARED_LANGUAGES, DeclaredLanguage } from '../declared-language';
 // Cả hai regex tên file đều lấy từ đây. SAFE_FILENAME_REGEX từng được
 // khai ngay trong file này và filename-template.ts import ngược lại —
 // một vòng lặp mà CommonJS gỡ theo thứ tự nạp, và khi gỡ sai thì
@@ -170,6 +172,27 @@ class UniqueFilenamesConstraint implements ValidatorConstraintInterface {
 }
 
 /**
+ * Mirror của ràng buộc DB `ck_required_deliverable_language`
+ * (`deliverable_type = 'code_project' OR language IS NULL`) — không siết
+ * chặt hơn: `code_project` KHÔNG bắt buộc phải có `language` (thiếu thì đi
+ * `one_shot`, xem `pipelineFor`).
+ */
+@ValidatorConstraint({ name: 'LanguageOnlyOnCodeProject', async: false })
+class LanguageOnlyOnCodeProjectConstraint implements ValidatorConstraintInterface {
+  validate(language: string | undefined, args: ValidationArguments): boolean {
+    if (language === undefined) {
+      return true;
+    }
+    const { deliverableType } = args.object as RequiredFilenameDto;
+    return deliverableType === 'code_project';
+  }
+
+  defaultMessage(): string {
+    return 'language chỉ khai được khi deliverableType là code_project';
+  }
+}
+
+/**
  * Một tên file bắt buộc, cộng theo tuỳ chọn danh sách file phải nằm bên
  * trong nếu bản thân nó là một file nén — spec
  * `2026-09-21-archive-content-validation-design.md` §8.4.
@@ -196,6 +219,25 @@ export class RequiredFilenameDto {
   // mapping for (falls through to a bare 500 instead of 400).
   @MaxLength(255)
   filename!: string;
+
+  /**
+   * Loại bài nộp (§14.1). Mặc định `document` khi bỏ trống — giữ tương
+   * thích ngược cho mọi phiên KHÔNG chấm code.
+   */
+  @IsOptional()
+  @IsIn(['document', 'code_project', 'image'])
+  deliverableType?: DeliverableType;
+
+  /**
+   * Ngôn ngữ giảng viên khai cho bài `code_project` (§14.1). Chỉ bốn giá
+   * trị `DECLARED_LANGUAGES`; đường điều tra (worker chạy) chỉ nhận
+   * `cpp`/`python` trong đó (`INVESTIGATOR_LANGUAGES`, `pipeline.ts`) —
+   * `java`/`node` hợp lệ ở tầng khai báo nhưng rơi về `one_shot`.
+   */
+  @IsOptional()
+  @IsIn(DECLARED_LANGUAGES)
+  @Validate(LanguageOnlyOnCodeProjectConstraint)
+  language?: DeclaredLanguage;
 
   /**
    * Tên các file phải nằm BÊN TRONG, mỗi cái là một MẪU y hệt `filename` —

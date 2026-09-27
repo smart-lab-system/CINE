@@ -130,3 +130,33 @@ describe('CreateExamSessionDto.requiredFilenames — file bên trong (đợt arc
     ).toHaveLength(0);
   });
 });
+
+describe('CreateExamSessionDto.requiredFilenames — deliverableType/language (3d2)', () => {
+  it('nhận deliverableType=code_project kèm language hợp lệ', () => {
+    expect(
+      validateFilenames([{ filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }]),
+    ).toHaveLength(0);
+  });
+
+  it('TỪ CHỐI language trên deliverable KHÔNG phải code_project', () => {
+    expect(
+      validateFilenames([{ filename: 'bai1.docx', deliverableType: 'document', language: 'cpp' }]),
+    ).not.toHaveLength(0);
+  });
+
+  it('TỪ CHỐI language không nằm trong bốn giá trị đã khai', () => {
+    expect(
+      validateFilenames([{ filename: 'bai1.zip', deliverableType: 'code_project', language: 'rust' }]),
+    ).not.toHaveLength(0);
+  });
+
+  it('deliverableType/language đều tuỳ chọn — thiếu cả hai vẫn hợp lệ (tương thích ngược)', () => {
+    expect(validateFilenames(['bai1.docx'])).toHaveLength(0);
+  });
+
+  it('code_project không khai language vẫn hợp lệ — không bắt buộc, thiếu thì đi one_shot', () => {
+    expect(
+      validateFilenames([{ filename: 'bai1.zip', deliverableType: 'code_project' }]),
+    ).toHaveLength(0);
+  });
+});
