@@ -587,16 +587,14 @@ export class GradingService {
       return;
     }
 
-    // Trạng thái cuối cũng do guard quyết. `AUTO_APPROVE_CONFIDENCE` vẫn
-    // là lớp chặn thứ hai: guard có thể trả `auto_approved` với một
-    // confidence dưới ngưỡng nếu ai đó chỉnh số ở `grading-guards.ts` mà
-    // quên chỗ này.
+    // T-ESSAY-1 (§0.3, §14.3): bài một-phát KHÔNG BAO GIỜ tự quyết — chỉ đường điều tra mới có
+    // công thức tự quyết. `flagForReview` giữ nghĩa cũ (confidence thấp) cho màn phân loại hôm nay.
     const { confident } = run;
     await this.results
       .createQueryBuilder()
       .update(GradingResultEntity)
       .set({
-        status: confident ? 'auto_approved' : 'flagged_for_review',
+        status: 'flagged_for_review',
         flagForReview: !confident,
       })
       .where('id = :id', { id: result.id })

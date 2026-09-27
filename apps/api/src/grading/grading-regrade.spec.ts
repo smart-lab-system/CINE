@@ -207,6 +207,16 @@ describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)
     expect(grade).toHaveBeenCalledTimes(1);
   });
 
+  it('T-ESSAY-1: bài một-phát chấm tự tin, dẫn chứng thật → VẪN về giảng viên, không bao giờ tự quyết (§0.3, §14.3)', async () => {
+    grade.mockResolvedValue(outcome([real('c1'), real('c2')]));
+
+    await service.gradeOneById(JOB);
+
+    expect(sets[1].status).toBe('flagged_for_review');
+    // Cờ confidence giữ nghĩa cũ: màn phân loại hôm nay vẫn tách bài tự tin với bài đáng ngờ.
+    expect(sets[1].flagForReview).toBe(false);
+  });
+
   it('lượt chấm lại là lượt được LƯU, không phải lượt đầu', async () => {
     // Chấm lại mà vẫn ghi kết quả lượt đầu thì vòng lặp kia chỉ là một
     // lời gọi API tốn tiền không đổi lấy gì — và triệu chứng duy nhất là
