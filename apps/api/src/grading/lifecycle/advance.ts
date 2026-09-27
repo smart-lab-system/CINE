@@ -1,7 +1,7 @@
 import { EntityManager } from 'typeorm';
 import { GradingResultEntity, GradingResultStatus } from '../entities/grading-result.entity';
 
-type AdvanceExtra = Partial<
+export type AdvanceExtra = Partial<
   Pick<
     GradingResultEntity,
     'finalizedBy' | 'finalizedAt' | 'finalizedComputationId' | 'auditSampled' | 'auditSampledAt' | 'flagForReview'

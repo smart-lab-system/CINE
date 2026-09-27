@@ -1,13 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
+import { AuditLogService } from '../../admin/audit-log.service';
 import { readAutoThreshold } from '../decision/threshold';
 import { GradingResultEntity } from '../entities/grading-result.entity';
 import { ScoreComputationEntity } from '../entities/score-computation.entity';
 import type { ScoreComputationReason } from '../grading-model.types';
 import { advanceStatus } from '../lifecycle/advance';
-import { formatHundredths } from './hundredths';
-import { computeScore, RuleSnapshot, ScoreCoreOutput } from './score-core';
+import { formatHundredths, parseHundredths } from './hundredths';
+import { computeScore, RuleSnapshot, ScoreBreakdown, ScoreCoreOutput } from './score-core';
 import {
   currentPriceVersion,
   latestComputationRow,
@@ -29,6 +30,27 @@ export interface RecomputeSummary {
 
 type Computed = ScoreCoreOutput & { priceVersionId: string | null };
 
+/** Luật mà mức trừ (hay việc được tính) đổi giữa lượt tính đã chốt và lượt tính mới — cho audit. */
+function changedRules(
+  before: ScoreBreakdown | null,
+  after: ScoreBreakdown,
+): { ruleId: string; ruleKey: string; oldDeduction: string | null; newDeduction: string | null }[] {
+  const fmt = (n: number | null | undefined) => (n === null || n === undefined ? null : formatHundredths(n));
+  const old = new Map((before?.errors ?? []).map((e) => [e.ruleId, e]));
+  const next = new Map(after.errors.map((e) => [e.ruleId, e]));
+  const out: { ruleId: string; ruleKey: string; oldDeduction: string | null; newDeduction: string | null }[] = [];
+  for (const e of after.errors) {
+    const o = old.get(e.ruleId);
+    if (!o || o.deductionHundredths !== e.deductionHundredths || o.counted !== e.counted) {
+      out.push({ ruleId: e.ruleId, ruleKey: e.ruleKey, oldDeduction: fmt(o?.deductionHundredths), newDeduction: fmt(e.deductionHundredths) });
+    }
+  }
+  for (const o of before?.errors ?? []) {
+    if (!next.has(o.ruleId)) out.push({ ruleId: o.ruleId, ruleKey: o.ruleKey, oldDeduction: fmt(o.deductionHundredths), newDeduction: null });
+  }
+  return out;
+}
+
 /**
  * Chỗ DUY NHẤT ghi `score_computation` (§2.2 *"dòng tính lại"*) và dời trạng thái sau một lượt
  * tính. Mọi dịch vụ khác — giá, luật, ngoại lệ, đánh dấu, chốt — gọi vào đây, trong transaction
@@ -38,7 +60,11 @@ type Computed = ScoreCoreOutput & { priceVersionId: string | null };
 export class ScoreService {
   private readonly theta = readAutoThreshold(process.env).theta;
 
-  constructor(@InjectDataSource() private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly ds: DataSource,
+    // Sửa điểm đã công bố phải để lại dấu vết — Security rule 4, do service chịu (không trigger).
+    private readonly audit: AuditLogService,
+  ) {}
 
   readonly latestComputation = latestComputationRow;
 
@@ -145,6 +171,75 @@ export class ScoreService {
     const out = await this.compute(m, ctx);
     if (out.scoreHundredths !== null) await this.insertComputation(m, ctx, reason, actorId, out);
     return out;
+  }
+
+  /**
+   * *"Áp giá mới cho phiên này"* — đường DUY NHẤT đổi điểm của phiên đã chốt theo bảng giá hiện
+   * hành (§2.2). Mỗi bài bị đổi điểm có một dòng `audit_log`: người bấm, luật, giá cũ, giá mới,
+   * điểm cũ, điểm mới. Rồi phiên ghim bản giá hiện hành. Bấm lại khi không còn gì khác → 0.
+   */
+  async reapplyFinalizedSession(sessionId: string, teacherId: string): Promise<{ changed: number }> {
+    return this.ds.transaction(async (m) => {
+      const [session] = await m.query(`SELECT teacher_id FROM examcollect.exam_session WHERE id = $1`, [sessionId]);
+      if (!session || session.teacher_id !== teacherId) throw new NotFoundException('Không tìm thấy phiên thi');
+      await lockTeacherScoring(m, teacherId);
+      const [state] = await m.query(
+        `SELECT count(*)::int AS total,
+                count(*) FILTER (WHERE g.status IN ('finalized', 'exported'))::int AS published
+           FROM examcollect.grading_result g
+           JOIN examcollect.submission s ON s.id = g.submission_id
+          WHERE s.exam_session_id = $1`,
+        [sessionId],
+      );
+      if (state.total === 0 || state.published !== state.total) {
+        throw new ConflictException('Phiên chưa chốt — giá mới đã tự áp cho phiên chưa chốt');
+      }
+      const rows: { id: string; score: string | null; computation_id: string | null; price_id: string | null; breakdown: ScoreBreakdown | null }[] =
+        await m.query(
+          `SELECT g.id, fc.score, fc.id AS computation_id, fc.price_table_version_id AS price_id, fc.breakdown
+             FROM examcollect.grading_result g
+             JOIN examcollect.submission s ON s.id = g.submission_id
+             JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id AND a.outcome = 'graded'
+             LEFT JOIN examcollect.score_computation fc ON fc.id = g.finalized_computation_id
+            WHERE s.exam_session_id = $1 AND g.pipeline = 'investigator'
+              AND NOT EXISTS (SELECT 1 FROM examcollect.teacher_review t
+                               WHERE t.grading_result_id = g.id AND t.kind = 'manual_score')
+            ORDER BY g.id
+            FOR UPDATE OF g`,
+          [sessionId],
+        );
+      let changed = 0;
+      for (const r of rows) {
+        const ctx = await loadScoreContext(m, r.id);
+        const out = await this.compute(m, ctx);
+        // Dưới sàn thì không có điểm mới nào để công bố — giữ điểm đã chốt.
+        if (out.scoreHundredths === null) continue;
+        const score = formatHundredths(out.scoreHundredths);
+        if (r.score !== null && formatHundredths(parseHundredths(r.score)) === score) continue;
+        const computationId = await this.insertComputation(m, ctx, 'finalized_reapply', teacherId, out);
+        await m.update(GradingResultEntity, r.id, { finalizedComputationId: computationId });
+        await this.audit.recordUserAction(
+          {
+            actorId: teacherId,
+            action: 'grading_result.score_reapplied_after_finalize',
+            targetType: 'grading_result',
+            targetId: r.id,
+            oldValue: { score: r.score, priceTableVersionId: r.price_id, computationId: r.computation_id },
+            newValue: {
+              score,
+              priceTableVersionId: out.priceVersionId,
+              computationId,
+              changedRules: changedRules(r.breakdown, out.breakdown),
+            },
+          },
+          m,
+        );
+        changed++;
+      }
+      const price = await currentPriceVersion(m, teacherId);
+      await m.query(`UPDATE examcollect.exam_session SET pinned_price_version_id = $2 WHERE id = $1`, [sessionId, price?.id ?? null]);
+      return { changed };
+    });
   }
 
   /** Như lượt tính, KHÔNG ghi — xem trước tác động của một giá hay một luật (T-POL-5). */

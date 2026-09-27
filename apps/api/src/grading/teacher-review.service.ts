@@ -11,7 +11,8 @@ import { SubmitReviewDto } from './dto/submit-review.dto';
 import type { BulkRule } from './bulk-rules';
 import { AuditLogService } from '../admin/audit-log.service';
 import { BLOCKS_FINALIZE } from './lifecycle/grading-transitions';
-import { advanceStatus } from './lifecycle/advance';
+import { AdvanceExtra, advanceStatus } from './lifecycle/advance';
+import { currentPriceVersion, latestComputationRow, lockTeacherScoring } from './scoring/score-inputs';
 
 /**
  * The statuses a result CAN be reviewed in.
@@ -55,6 +56,8 @@ export interface ReviewOutcome {
 export interface FinalizeGradesOutcome {
   reviewedByHand: number;
   acceptedAsProposed: number;
+  /** Bài đường điều tra tự quyết, chốt thẳng không qua `teacher_review` (§14.2). */
+  finalizedDirectly: number;
 }
 
 @Injectable()
@@ -221,6 +224,12 @@ export class TeacherReviewService {
     teacherId: string,
   ): Promise<FinalizeGradesOutcome> {
     return this.dataSource.transaction(async (manager) => {
+      // Khoá lượt tính của giảng viên phiên TRƯỚC khi đọc: không lượt tính lại tầng luật nào chen
+      // giữa lúc đọc trạng thái / lượt tính và lúc chốt.
+      const [session] = await manager.query(`SELECT teacher_id FROM examcollect.exam_session WHERE id = $1`, [
+        examSessionId,
+      ]);
+      if (session) await lockTeacherScoring(manager, session.teacher_id);
       const all = await manager
         .createQueryBuilder(GradingResultEntity, 'g')
         .innerJoin('submission', 's', 's.id = g.submission_id')
@@ -254,8 +263,28 @@ export class TeacherReviewService {
       const stamp: FinalizeStamp = { finalizedBy: teacherId, finalizedAt: new Date() };
       let reviewedByHand = 0;
       let acceptedAsProposed = 0;
+      let finalizedDirectly = 0;
 
       for (const result of all) {
+        if (result.pipeline === 'investigator') {
+          // §14.2: đường điều tra không ghi `teacher_review` cho bài tự quyết — chữ ký ở
+          // `finalized_by`, điểm công bố là lượt tính mới nhất, ghi vào `finalized_computation_id`.
+          if (result.status !== 'auto_approved' && result.status !== 'teacher_reviewed') continue;
+          const latest = await latestComputationRow(manager, result.id);
+          if (result.status === 'auto_approved' && !latest) {
+            throw new ConflictException('Một bài tự quyết không có lượt tính điểm nào — không chốt được.');
+          }
+          const moved = await this.advance(result.id, [result.status], 'finalized', manager, {
+            ...stamp,
+            finalizedComputationId: latest?.id ?? null,
+          });
+          if (!moved) {
+            throw new ConflictException('Một bài vừa đổi trạng thái — hãy tải lại và chốt lại.');
+          }
+          if (result.status === 'auto_approved') finalizedDirectly++;
+          else reviewedByHand++;
+          continue;
+        }
         if (result.status === 'auto_approved') {
           // A bulk-accepted result still gets a REAL review row carrying the
           // name of whoever pressed the button. Jumping straight to finalized
@@ -303,7 +332,17 @@ export class TeacherReviewService {
         }
       }
 
-      return { reviewedByHand, acceptedAsProposed };
+      // §2.2: lúc chốt, phiên chụp phiên bản bảng giá đang dùng — từ đó sửa giá không tự đổi gì ở
+      // phiên này. Chỉ khi lượt này THỰC SỰ chốt: bấm lại trên phiên đã chốt không được dời ghim.
+      if (session && reviewedByHand + acceptedAsProposed + finalizedDirectly > 0) {
+        const price = await currentPriceVersion(manager, session.teacher_id);
+        await manager.query(`UPDATE examcollect.exam_session SET pinned_price_version_id = $2 WHERE id = $1`, [
+          examSessionId,
+          price?.id ?? null,
+        ]);
+      }
+
+      return { reviewedByHand, acceptedAsProposed, finalizedDirectly };
     });
   }
 
@@ -329,7 +368,7 @@ export class TeacherReviewService {
     manager: EntityManager = this.results.manager,
     // Sang `finalized` phải mang người ký tên trong CÙNG UPDATE — trigger vòng đời từ chối
     // bước chuyển thiếu nó (§14.2, §14.4).
-    extra: FinalizeStamp | Record<string, never> = {},
+    extra: AdvanceExtra = {},
   ): Promise<boolean> {
     return advanceStatus(manager, resultId, from, to, extra);
   }
