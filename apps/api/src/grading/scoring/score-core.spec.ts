@@ -140,6 +140,23 @@ describe('computeScore', () => {
     expect(out.outcome).toBe('ungradable');
     expect(out.scoreHundredths).toBeNull();
   });
+
+  it('lỗi bị phản biện bác bỏ → counted="refuted", KHÔNG trừ điểm, vẫn còn trong breakdown.errors (§6.2)', () => {
+    const out = computeScore(
+      input({
+        stored: stored({
+          challenge: {
+            perError: [{ challenger: 'lens', perError: [{ ruleKey: 'sai_bien', status: 'refuted', toolCallIds: [] }] }],
+            caseNotes: [],
+          },
+        }),
+      }),
+    );
+    const err = out.breakdown.errors.find((e) => e.ruleKey === 'sai_bien');
+    expect(err?.counted).toBe('refuted');
+    expect(out.scoreHundredths).toBe(1000 - 50); // chỉ còn trừ ten_bien (50) — sai_bien (150) không tính
+    expect(out.breakdown.errorFlags).toContainEqual({ ruleKey: 'sai_bien', code: 'refuted' });
+  });
 });
 
 describe('repriceBreakdown — "áp giá mới cho phiên đã chốt" chỉ đổi GIÁ (§2.2, review I3)', () => {
@@ -171,6 +188,22 @@ describe('repriceBreakdown — "áp giá mới cho phiên đã chốt" chỉ đ�
     const out = repriceBreakdown(excluded, RUBRIC, new Map([['id-sai_bien', 500], ['id-ten_bien', 50]]));
     expect(out.scoreHundredths).toBe(1000 - 50);
     expect(out.breakdown.errors.find((e) => e.ruleKey === 'sai_bien')?.counted).toBe('excluded');
+  });
+
+  it('T-REFUTE — KHÔNG được biến refuted trở lại counted khi áp giá mới (gotcha thật, §6.2)', () => {
+    const before: import('./score-core').ScoreBreakdown = {
+      errors: [{ ruleId: 'id-sai_bien', revisionId: 'rev-sai_bien', ruleKey: 'sai_bien', criterionKey: 'tinh_dung', source: 'llm_with_tools', toolCallIds: [], deductionHundredths: 100, counted: 'refuted' }],
+      perCriterion: [],
+      caseFlags: [],
+      errorFlags: [{ ruleKey: 'sai_bien', code: 'refuted' }],
+      confidence: 1,
+      mismatchedRules: [],
+      notConsidered: [],
+      ungradable: null,
+    };
+    const out = repriceBreakdown(before, RUBRIC, new Map([['id-sai_bien', 150]]));
+    expect(out.breakdown.errors[0].counted).toBe('refuted'); // KHÔNG được thành 'counted' chỉ vì có giá mới
+    expect(out.breakdown.errorFlags).toContainEqual({ ruleKey: 'sai_bien', code: 'refuted' }); // cờ không mất sau áp giá lại
   });
 });
 

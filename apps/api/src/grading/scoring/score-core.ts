@@ -35,8 +35,9 @@ export interface BreakdownError {
   source: VerdictSource;
   toolCallIds: string[];
   deductionHundredths: number | null;
-  /** `excluded`: giảng viên bỏ lỗi này cho riêng bài này; `unpriced`: luật chưa có giá. */
-  counted: 'counted' | 'excluded' | 'unpriced';
+  /** `excluded`: giảng viên bỏ lỗi này cho riêng bài này; `unpriced`: luật chưa có giá;
+   *  `refuted`: phản biện bác bỏ (§6.2) — KHÔNG xoá khỏi hồ sơ, chỉ loại khỏi điểm. */
+  counted: 'counted' | 'excluded' | 'unpriced' | 'refuted';
 }
 
 export interface ScoreBreakdown {
@@ -92,9 +93,11 @@ export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
     waivedCriteria: input.waivedCriteria,
     modelCeiling: input.stored.modelCeiling,
     theta: input.theta,
+    challenge: input.stored.challenge ?? null,
   });
 
   const excludedKeys = new Set(used.filter((r) => input.exceptions.get(r.ruleId) === 'exclude').map((r) => r.ruleKey));
+  const refutedKeys = new Set(decision.errorFlags.filter((f) => f.code === 'refuted').map((f) => f.ruleKey));
   const common = {
     caseFlags: decision.caseFlags,
     errorFlags: decision.errorFlags.filter((f) => !excludedKeys.has(f.ruleKey)),
@@ -114,6 +117,13 @@ export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
 
   const errors: BreakdownError[] = decision.errors.map((e) => {
     const r = byKey.get(e.ruleKey)!;
+    const counted: BreakdownError['counted'] = refutedKeys.has(r.ruleKey)
+      ? 'refuted'
+      : excludedKeys.has(r.ruleKey)
+        ? 'excluded'
+        : r.deductionHundredths === null
+          ? 'unpriced'
+          : 'counted';
     return {
       ruleId: r.ruleId,
       revisionId: r.revisionId,
@@ -122,13 +132,13 @@ export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
       source: e.source,
       toolCallIds: e.toolCallIds,
       deductionHundredths: r.deductionHundredths,
-      counted: excludedKeys.has(r.ruleKey) ? 'excluded' : r.deductionHundredths === null ? 'unpriced' : 'counted',
+      counted,
     };
   });
   const score = computeDeductionScore(
     input.rubric,
     used.map((r) => ({ ruleKey: r.ruleKey, criterionKey: r.criterionKey, deductionHundredths: r.deductionHundredths })),
-    errors.filter((e) => e.counted !== 'excluded').map((e) => e.ruleKey),
+    errors.filter((e) => e.counted !== 'excluded' && e.counted !== 'refuted').map((e) => e.ruleKey),
   );
   return {
     outcome: decision.outcome,
@@ -151,9 +161,12 @@ export function repriceBreakdown(
   prices: ReadonlyMap<string, number | null>,
 ): { scoreHundredths: number; breakdown: ScoreBreakdown; newlyUnpriced: { ruleId: string; ruleKey: string }[] } {
   const errors: BreakdownError[] = before.errors.map((e) => {
+    // 'refuted' và 'excluded' đứng TRƯỚC giá mới: áp giá không phục hồi một lỗi phản biện đã
+    // bác, cũng như không phục hồi một lỗi giảng viên đã loại — cả hai đều là quyết định của
+    // một LƯỢT KHÁC (phản biện lúc chấm, hay giảng viên lúc duyệt), không phải của bảng giá.
+    if (e.counted === 'excluded' || e.counted === 'refuted') return e;
     const deductionHundredths = prices.get(e.ruleId) ?? null;
-    const counted: BreakdownError['counted'] =
-      e.counted === 'excluded' ? 'excluded' : deductionHundredths === null ? 'unpriced' : 'counted';
+    const counted: BreakdownError['counted'] = deductionHundredths === null ? 'unpriced' : 'counted';
     return { ...e, deductionHundredths, counted };
   });
   const newlyUnpriced = errors
@@ -162,7 +175,7 @@ export function repriceBreakdown(
   const score = computeDeductionScore(
     rubric,
     errors.map((e) => ({ ruleKey: e.ruleKey, criterionKey: e.criterionKey, deductionHundredths: e.deductionHundredths })),
-    errors.filter((e) => e.counted !== 'excluded').map((e) => e.ruleKey),
+    errors.filter((e) => e.counted !== 'excluded' && e.counted !== 'refuted').map((e) => e.ruleKey),
   );
   return {
     scoreHundredths: score.scoreHundredths,
@@ -170,7 +183,13 @@ export function repriceBreakdown(
       ...before,
       errors,
       perCriterion: score.perCriterion,
-      errorFlags: errors.filter((e) => e.counted === 'unpriced').map((e) => ({ ruleKey: e.ruleKey, code: 'unpriced' as const })),
+      // 'unpriced' tính lại từ giá mới; 'refuted'/'unverified' KHÔNG tính lại được ở đây (không có
+      // kết luận phản biện trong tay), nên giữ nguyên cờ đã có từ lượt tính trước — mất chúng ở
+      // đây là một lượt áp giá làm biến mất bằng chứng phản biện đã ghi.
+      errorFlags: [
+        ...errors.filter((e) => e.counted === 'unpriced').map((e) => ({ ruleKey: e.ruleKey, code: 'unpriced' as const })),
+        ...before.errorFlags.filter((f) => f.code === 'refuted' || f.code === 'unverified'),
+      ],
     },
     newlyUnpriced,
   };
