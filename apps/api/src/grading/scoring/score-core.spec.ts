@@ -1,5 +1,5 @@
 import { readFileCall, resultWith, runTestsCall } from '../decision/testing/result';
-import { computeScore, RuleSnapshot, ScoreCoreInput } from './score-core';
+import { computeScore, repriceBreakdown, RuleSnapshot, ScoreCoreInput } from './score-core';
 import { readStoredInvestigation, StoredInvestigation } from './stored-investigation';
 
 const CASES = [
@@ -139,6 +139,38 @@ describe('computeScore', () => {
     const out = computeScore(input({ bundleCases: [] }));
     expect(out.outcome).toBe('ungradable');
     expect(out.scoreHundredths).toBeNull();
+  });
+});
+
+describe('repriceBreakdown — "áp giá mới cho phiên đã chốt" chỉ đổi GIÁ (§2.2, review I3)', () => {
+  const finalized = computeScore(input({ stored: stored({ result: resultWith({ calls: CALLS, errors: [{ ruleKey: 'ten_bien', toolCallIds: ['r1'] }] }) }) })).breakdown;
+
+  it('giá mới của luật đã có trong lượt tính đã chốt → điểm theo giá mới, cùng tập lỗi', () => {
+    const out = repriceBreakdown(finalized, RUBRIC, new Map([['id-sai_bien', 200], ['id-ten_bien', 50]]));
+    expect(out.scoreHundredths).toBe(1000 - 200 - 50);
+    expect(out.breakdown.errors.map((e) => [e.ruleKey, e.deductionHundredths, e.counted])).toEqual([
+      ['sai_bien', 200, 'counted'],
+      ['ten_bien', 50, 'counted'],
+    ]);
+    expect(out.newlyUnpriced).toEqual([]);
+  });
+
+  it('luật KHÔNG có trong lượt tính đã chốt không bao giờ lọt vào, dù đã có giá', () => {
+    const out = repriceBreakdown(finalized, RUBRIC, new Map([['id-sai_bien', 150], ['id-ten_bien', 50], ['id-moi', 300]]));
+    expect(out.scoreHundredths).toBe(800);
+    expect(out.breakdown.errors.map((e) => e.ruleKey)).toEqual(['sai_bien', 'ten_bien']);
+  });
+
+  it('luật đã có giá lúc chốt nay về chưa giá → nêu ra, không lặng lẽ thành lỗi miễn phí', () => {
+    const out = repriceBreakdown(finalized, RUBRIC, new Map([['id-ten_bien', 50]]));
+    expect(out.newlyUnpriced).toEqual([{ ruleId: 'id-sai_bien', ruleKey: 'sai_bien' }]);
+  });
+
+  it('lỗi đã bỏ cho riêng bài vẫn bỏ; giá của nó không đổi điểm (T-EXC-1)', () => {
+    const excluded = computeScore(input({ exceptions: new Map([['id-sai_bien', 'exclude']]) })).breakdown;
+    const out = repriceBreakdown(excluded, RUBRIC, new Map([['id-sai_bien', 500], ['id-ten_bien', 50]]));
+    expect(out.scoreHundredths).toBe(1000 - 50);
+    expect(out.breakdown.errors.find((e) => e.ruleKey === 'sai_bien')?.counted).toBe('excluded');
   });
 });
 

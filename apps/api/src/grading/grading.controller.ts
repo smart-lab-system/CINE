@@ -215,6 +215,15 @@ export class GradingController {
     return this.scores.reapplyFinalizedSession(session.id, req.user!.sub);
   }
 
+  /** Xem trước lượt áp giá mới cho phiên đã chốt: bài nào đổi điểm, bài nào không áp được — KHÔNG ghi. */
+  @Post('exam-sessions/:id/reapply-prices/preview')
+  @Roles('teacher')
+  @HttpCode(200)
+  async previewReapplyPrices(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.scores.previewReapply(session.id, req.user!.sub);
+  }
+
   /** *Bỏ lỗi này cho riêng bài này* / gỡ việc đó — một dòng teacher_review, không sinh luật (§2.2). */
   @Post('grading-results/:id/error-exceptions')
   @Roles('teacher')

@@ -142,5 +142,75 @@ describe('Chốt điểm đường điều tra và ghim giá (e2e)', () => {
 
   it('phiên chưa chốt → 409', async () => {
     await expect(scores.reapplyFinalizedSession(B.sessionId, teacherId)).rejects.toBeInstanceOf(ConflictException);
+    await expect(scores.previewReapply(B.sessionId, teacherId)).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+/** Review I3: "áp giá mới cho phiên này" đổi GIÁ, không kéo luật mới hay luật về chưa-giá vào phiên đã đóng. */
+describe('Áp giá mới cho phiên đã chốt — chỉ giá (e2e)', () => {
+  let app: INestApplication;
+  let ds: DataSource;
+  let scores: ScoreService;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    await app.init();
+    ds = app.get(DataSource);
+    scores = app.get(ScoreService);
+  });
+  afterAll(async () => app.close());
+
+  /** Một phiên đã chốt, hai bài tự quyết 8,50 theo bảng giá v1 (sai_bien 1,50, ten_bien 0,50). */
+  async function closedSession(label: string) {
+    const ctx = await seedSession(ds, label);
+    await seedInvestigatorSession(ds, ctx);
+    const bien = await seedRule(ds, ctx.teacherId, 'sai_bien', 'tinh_dung', { kind: 'test_group_failed', group: 'bien' });
+    const ten = await seedRule(ds, ctx.teacherId, 'ten_bien', 'trinh_bay');
+    await seedPrices(ds, ctx.teacherId, { [bien.ruleId]: '1.50', [ten.ruleId]: '0.50' });
+    const ids: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const { resultId } = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
+      await scores.computeInitial(resultId);
+      ids.push(resultId);
+    }
+    await app.get(TeacherReviewService).finalizeGrades(ctx.sessionId, ctx.teacherId);
+    return { ctx, bien, ten, ids };
+  }
+  const audits = (ids: string[]) =>
+    ds.query(`SELECT 1 FROM examcollect.audit_log WHERE action = $1 AND target_id = ANY($2)`, [REAPPLY, ids]);
+
+  it('luật máy kiểm MỚI có giá, khớp bài của phiên đã chốt → không đổi điểm nào, không dòng audit nào', async () => {
+    const { ctx, bien, ten, ids } = await closedSession('ra-newrule');
+    const moi = await seedRule(ds, ctx.teacherId, 'bien_moi', 'trinh_bay', { kind: 'test_group_failed', group: 'bien' });
+    await seedPrices(ds, ctx.teacherId, { [bien.ruleId]: '1.50', [ten.ruleId]: '0.50', [moi.ruleId]: '0.30' });
+    expect(await scores.previewReapply(ctx.sessionId, ctx.teacherId)).toEqual({ changes: [], skipped: [] });
+    expect(await scores.reapplyFinalizedSession(ctx.sessionId, ctx.teacherId)).toEqual({ changed: 0 });
+    expect(await audits(ids)).toHaveLength(0);
+  });
+
+  it('luật lúc chốt có giá nay về chưa giá → xem trước nêu ra; áp thật TỪ CHỐI cả lượt, không công bố lỗi miễn phí', async () => {
+    const { ctx, bien, ten, ids } = await closedSession('ra-unpriced');
+    await seedPrices(ds, ctx.teacherId, { [bien.ruleId]: null, [ten.ruleId]: '0.50' });
+    const skipped = [...ids].sort().map((resultId) => ({ resultId, reason: 'unpriced', ruleKeys: ['sai_bien'] }));
+    expect(await scores.previewReapply(ctx.sessionId, ctx.teacherId)).toEqual({ changes: [], skipped });
+    await expect(scores.reapplyFinalizedSession(ctx.sessionId, ctx.teacherId)).rejects.toBeInstanceOf(ConflictException);
+    expect(await audits(ids)).toHaveLength(0);
+  });
+
+  it('xem trước trả đúng điểm cũ / mới từng bài và KHÔNG ghi gì', async () => {
+    const { ctx, bien, ten, ids } = await closedSession('ra-preview');
+    await seedPrices(ds, ctx.teacherId, { [bien.ruleId]: '2.00', [ten.ruleId]: '0.50' });
+    const [{ n: before }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.score_computation`);
+    const preview = await scores.previewReapply(ctx.sessionId, ctx.teacherId);
+    expect(preview.skipped).toEqual([]);
+    expect(preview.changes.map((c) => [c.oldScore, c.newScore])).toEqual([
+      ['8.50', '8.00'],
+      ['8.50', '8.00'],
+    ]);
+    expect(preview.changes.map((c) => c.resultId)).toEqual([...ids].sort());
+    const [{ n: after }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.score_computation`);
+    expect(after).toBe(before);
+    expect(await audits(ids)).toHaveLength(0);
   });
 });

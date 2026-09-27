@@ -138,6 +138,44 @@ export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
   };
 }
 
+/**
+ * *"Áp giá mới cho phiên đã chốt"* (§2.2) đổi GIÁ, không đổi gì khác (review I3): cùng tập lỗi của
+ * lượt tính đã chốt, cùng tính / bỏ, chỉ mức trừ theo bảng giá hiện hành. Luật mới, bản sửa luật,
+ * đánh dấu tiêu chí có sau lúc chốt không lọt vào phiên đã đóng — đó là việc của luật ghim.
+ * `newlyUnpriced`: luật lúc chốt có giá mà nay không — người gọi KHÔNG được công bố bài đó như một
+ * lỗi miễn phí (§2.1: lỗi chưa giá không được quyết điểm).
+ */
+export function repriceBreakdown(
+  before: ScoreBreakdown,
+  rubric: { key: string; maxHundredths: number }[],
+  prices: ReadonlyMap<string, number | null>,
+): { scoreHundredths: number; breakdown: ScoreBreakdown; newlyUnpriced: { ruleId: string; ruleKey: string }[] } {
+  const errors: BreakdownError[] = before.errors.map((e) => {
+    const deductionHundredths = prices.get(e.ruleId) ?? null;
+    const counted: BreakdownError['counted'] =
+      e.counted === 'excluded' ? 'excluded' : deductionHundredths === null ? 'unpriced' : 'counted';
+    return { ...e, deductionHundredths, counted };
+  });
+  const newlyUnpriced = errors
+    .filter((e, i) => e.counted === 'unpriced' && before.errors[i].counted !== 'unpriced')
+    .map((e) => ({ ruleId: e.ruleId, ruleKey: e.ruleKey }));
+  const score = computeDeductionScore(
+    rubric,
+    errors.map((e) => ({ ruleKey: e.ruleKey, criterionKey: e.criterionKey, deductionHundredths: e.deductionHundredths })),
+    errors.filter((e) => e.counted !== 'excluded').map((e) => e.ruleKey),
+  );
+  return {
+    scoreHundredths: score.scoreHundredths,
+    breakdown: {
+      ...before,
+      errors,
+      perCriterion: score.perCriterion,
+      errorFlags: errors.filter((e) => e.counted === 'unpriced').map((e) => ({ ruleKey: e.ruleKey, code: 'unpriced' as const })),
+    },
+    newlyUnpriced,
+  };
+}
+
 function toErrorRule(r: RuleSnapshot): ErrorRule {
   return { ruleKey: r.ruleKey, criterionKey: r.criterionKey, deductionHundredths: r.deductionHundredths, predicate: r.predicate };
 }

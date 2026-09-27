@@ -109,6 +109,10 @@ describe('Route bảng lỗi và bảng giá (e2e)', () => {
     expect(exception.status).toBe(400);
     const reapply = await request(app.getHttpServer()).post(`/exam-sessions/${ctx.sessionId}/reapply-prices`).set(as(tokenA));
     expect(reapply.status).toBe(409);
+    const preview = await request(app.getHttpServer())
+      .post(`/exam-sessions/${ctx.sessionId}/reapply-prices/preview`)
+      .set(as(tokenA));
+    expect(preview.status).toBe(409);
     // Cùng quy ước với mọi route phiên thi khác (`findEntityForOwner`): phiên của người khác → 403.
     expect((await request(app.getHttpServer()).post(`/exam-sessions/${ctx.sessionId}/reapply-prices`).set(as(tokenB))).status).toBe(403);
   });
