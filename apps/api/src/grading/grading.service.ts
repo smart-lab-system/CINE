@@ -32,6 +32,8 @@ import { AnchorService } from './anchor.service';
 import type { AdvocateOutcome } from './entities/grading-result.entity';
 import type { GradingPipeline, TeacherReviewKind } from './grading-model.types';
 import { currentScore, CurrentScore } from './scoring/current-score';
+import { InvestigatorRunService } from './pipeline/investigator-run.service';
+import { lockTeacherScoring } from './scoring/score-inputs';
 
 /**
  * Kết quả một lượt phản biện: chuyện gì đã xảy ra, và ý kiến nếu có.
@@ -79,6 +81,7 @@ export class GradingService {
     // Tham số CUỐI để các chỗ dựng service bằng constructor thật chỉ thêm một đối số.
     @InjectRepository(GradingAttemptEntity)
     private readonly attempts: Repository<GradingAttemptEntity>,
+    private readonly investigatorRun: InvestigatorRunService,
   ) {}
 
   /**
@@ -185,6 +188,13 @@ export class GradingService {
    */
   async markUngradable(submissionId: string, reason: string): Promise<void> {
     const marked = await this.results.manager.transaction(async (manager) => {
+      // Thứ tự khoá của 3c: khoá lượt tính của giảng viên TRƯỚC khoá hàng.
+      const [owner] = await manager.query(
+        `SELECT es.teacher_id FROM examcollect.submission s
+           JOIN examcollect.exam_session es ON es.id = s.exam_session_id WHERE s.id = $1`,
+        [submissionId],
+      );
+      if (owner) await lockTeacherScoring(manager, owner.teacher_id);
       // UPDATE CÓ ĐIỀU KIỆN (§14.3): chỉ bài còn ở `ai_grading`. Không đổi dòng nào nghĩa là bài
       // đã đi tiếp — chấm xong, hoặc một lần gọi trước đã đánh dấu — và hàm này được gọi từ một
       // event handler có thể bắn nhiều lần. Đọc-rồi-ghi như trước để hở đúng khe `gradeOne` vừa
@@ -208,8 +218,22 @@ export class GradingService {
       // giữa hai câu lệnh.
       const row = await manager.findOneOrFail(GradingResultEntity, { where: { submissionId } });
 
+      // Đường điều tra đã mở một lượt lúc job bắt đầu (3d): hết lượt thử thì ĐÓNG đúng lượt đó, không
+      // mở thêm một lượt rỗng — một lần chạy là một dòng (§2.3 luật 2).
+      if (row.currentAttemptId) {
+        const closed = await manager.query(
+          `UPDATE examcollect.grading_attempt
+              SET outcome = 'ungradable', ungradable_class = 'system', ungradable_reason = $2, finished_at = clock_timestamp()
+            WHERE id = $1 AND outcome IS NULL
+            RETURNING id`,
+          [row.currentAttemptId, reason],
+        );
+        // Driver Postgres của TypeORM trả `[rows, rowCount]` cho UPDATE … RETURNING.
+        const closedRows: unknown[] = Array.isArray(closed[0]) ? closed[0] : closed;
+        if (closedRows.length > 0) return true;
+      }
       // Lượt chấm chép lý do (§2.3 luật 2): chấm lại sẽ là lượt kế tiếp, lý do lần này không mất.
-      // `started_at` = lúc xếp hàng — cho tới bước 3d, không ai ghi lúc job bắt đầu.
+      // `started_at` = lúc xếp hàng — đường một-phát không ghi lúc job bắt đầu.
       const attempts = manager.getRepository(GradingAttemptEntity);
       const last = await attempts
         .createQueryBuilder('a')
@@ -266,13 +290,8 @@ export class GradingService {
       return;
     }
     if (result.pipeline === 'investigator') {
-      // Đường điều tra chưa nối vào đường chấm thật — bước 3d. Chấm một-phát một bài đã gán
-      // `investigator` là ghi một điểm của đường này dưới nhãn của đường kia. Hôm nay không route
-      // nào khai được ngôn ngữ, nên nhánh này chỉ là chốt chặn.
-      await this.markUngradable(
-        job.submissionId,
-        'Bài thuộc đường chấm điều tra, đường này chưa nối vào hệ thống — chưa chấm',
-      );
+      // Đường điều tra (3d): lượt chấm, ngữ cảnh, điều tra, kết cục — `InvestigatorRunService`.
+      await this.investigatorRun.run(result.id);
       return;
     }
 

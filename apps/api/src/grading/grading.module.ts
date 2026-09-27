@@ -37,6 +37,7 @@ import { CriterionWaiverService } from './rules/criterion-waiver.service';
 import { RulesController } from './rules/rules.controller';
 import { InvestigationContextService } from './pipeline/investigation-context.service';
 import { buildInvestigatorDeps, INVESTIGATOR_DEPS, InvestigatorDepsLifecycle } from './pipeline/investigator-deps';
+import { InvestigatorRunService } from './pipeline/investigator-run.service';
 import { TeacherReviewEntity } from './entities/teacher-review.entity';
 import { AdminModule } from '../admin/admin.module';
 import { GradingController } from './grading.controller';
@@ -158,6 +159,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     // Bậc model + cổng sandbox của đường điều tra — e2e thay provider này bằng model kịch bản.
     { provide: INVESTIGATOR_DEPS, useFactory: () => buildInvestigatorDeps(process.env) },
     InvestigatorDepsLifecycle,
+    InvestigatorRunService,
     AnchorService,
     ClaudeGradingProvider,
     KeywordGradingProvider,
