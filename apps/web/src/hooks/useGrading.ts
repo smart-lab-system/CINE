@@ -7,6 +7,7 @@ import {
   finalizeGrades,
   getGradingProgress,
   getGradingReadiness,
+  getResultInvestigation,
   getSubmissionText,
   listGradingResults,
   listRubrics,
@@ -300,6 +301,15 @@ export function useSubmissionText(gradingResultId: string | undefined) {
  * Invalidate danh sách kết quả — điểm và trạng thái của mọi bài vừa áp đều
  * nằm trong đó, và màn Ma trận đọc chính danh sách ấy.
  */
+/** Chi tiết một lượt tính điểm — Hồ sơ một bài, đường điều tra (§5). */
+export function useResultInvestigation(gradingResultId: string | undefined) {
+  return useQuery({
+    queryKey: ['grading-results', gradingResultId, 'investigation'],
+    queryFn: () => getResultInvestigation(gradingResultId!),
+    enabled: Boolean(gradingResultId),
+  });
+}
+
 export function useBulkReview(examSessionId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({

@@ -61,4 +61,20 @@ describe('MatrixTable', () => {
     const { container } = show();
     expect(container.textContent).not.toMatch(/Advocate|Grader|flagged_for_review|keep_ai/i);
   });
+
+  it('bài pipeline=investigator trỏ tới Hồ sơ một bài, không phải màn chấm cũ', () => {
+    show([{ ...withAdvocate, pipeline: 'investigator' }]);
+    expect(screen.getByRole('link', { name: 'Xem' })).toHaveAttribute(
+      'href',
+      `/teacher/grading/investigation/${withAdvocate.id}`,
+    );
+  });
+
+  it('bài pipeline=one_shot (hoặc thiếu) trỏ tới màn chấm cũ', () => {
+    show([withAdvocate]);
+    expect(screen.getByRole('link', { name: 'Xem' })).toHaveAttribute(
+      'href',
+      `/teacher/grading/${withAdvocate.id}`,
+    );
+  });
 });
