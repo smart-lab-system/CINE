@@ -79,6 +79,13 @@ export class TeacherReviewService {
     teacherId: string,
     dto: SubmitReviewDto,
   ): Promise<ReviewOutcome> {
+    // Đường này tính điểm từ verdict từng tiêu chí của `criterion_results` — khuôn one_shot, bài
+    // đường điều tra không có — và dòng `review` không phải điểm hiện tại của đường đó (§14.2).
+    if (result.pipeline === 'investigator') {
+      throw new ConflictException(
+        'Bài chấm theo bảng lỗi — sửa điểm bằng bỏ lỗi hoặc chấm tay, không bằng sửa tiêu chí',
+      );
+    }
     if (!this.isReviewable(result)) {
       throw new ConflictException(
         'Bài này chưa chấm xong — chưa duyệt được. Hãy đợi AI chấm xong.',
@@ -106,7 +113,8 @@ export class TeacherReviewService {
    * nằm ngoài `reviewWithin`, không nằm trong.
    */
   isReviewable(result: GradingResultEntity): boolean {
-    return REVIEWABLE.includes(result.status);
+    // Bài đường điều tra sửa điểm qua ngoại lệ cấp lỗi / chấm tay; duyệt hàng loạt bỏ qua nó.
+    return result.pipeline !== 'investigator' && REVIEWABLE.includes(result.status);
   }
 
   /**
