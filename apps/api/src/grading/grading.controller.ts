@@ -13,6 +13,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -34,6 +36,7 @@ import { ErrorExceptionDto } from './review/dto/error-exception.dto';
 import { ManualScoreDto } from './review/dto/manual-score.dto';
 import { ErrorExceptionService } from './review/error-exception.service';
 import { ScoreService } from './scoring/score.service';
+import { loadResultDetail } from './scoring/result-detail';
 
 /**
  * The grading side of the API.
@@ -57,6 +60,7 @@ export class GradingController {
     private readonly bulkReviews: BulkReviewService,
     private readonly errorExceptions: ErrorExceptionService,
     private readonly scores: ScoreService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -189,6 +193,17 @@ export class GradingController {
   ) {
     const result = await this.grading.findResultForOwner(id, req.user!.sub);
     return this.submissionText.forResult(result);
+  }
+
+  /**
+   * Chi tiết một lượt tính điểm + đường điều tra (Hồ sơ một bài, §5). `grading-results`
+   * (danh sách) chỉ trả `currentScore` — không route nào trả `breakdown`/`investigation` trước đây.
+   */
+  @Get('grading-results/:id/investigation')
+  @Roles('teacher')
+  async resultInvestigation(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const result = await this.grading.findResultForOwner(id, req.user!.sub);
+    return loadResultDetail(this.dataSource, result);
   }
 
   /**
