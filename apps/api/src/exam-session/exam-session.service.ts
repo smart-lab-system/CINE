@@ -782,6 +782,7 @@ export class ExamSessionService {
     dto.completedBy = session.completedBy ?? null;
     dto.rubricId = session.rubricId;
     dto.rubricVersion = rubricVersion;
+    dto.testBundleId = session.testBundleId;
     dto.requiredDeliverables = deliverables.map((deliverable) => {
       const view = new RequiredDeliverableResponseDto();
       view.id = deliverable.id;

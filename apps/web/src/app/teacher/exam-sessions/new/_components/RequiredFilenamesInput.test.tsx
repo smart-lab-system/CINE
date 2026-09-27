@@ -68,3 +68,40 @@ describe('RequiredFilenamesInput — cảnh báo .rar cần WinRAR', () => {
     expect(screen.queryByText(/winrar/i)).not.toBeInTheDocument();
   });
 });
+
+describe('RequiredFilenamesInput — deliverableType/language (3d2, khai qua form)', () => {
+  it('mặc định là "Tài liệu", không hiện ô chọn ngôn ngữ', () => {
+    render(<Harness />);
+    expect(screen.getByLabelText(/loại bài nộp số 1/i)).toHaveValue('document');
+    expect(screen.queryByLabelText(/ngôn ngữ số 1/i)).not.toBeInTheDocument();
+  });
+
+  it('chọn "Mã nguồn" thì hiện thêm ô chọn ngôn ngữ', () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+      target: { value: 'code_project' },
+    });
+    expect(screen.getByLabelText(/ngôn ngữ số 1/i)).toBeInTheDocument();
+  });
+
+  it('đổi lại về "Tài liệu" thì ô ngôn ngữ biến mất', () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+      target: { value: 'code_project' },
+    });
+    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+      target: { value: 'document' },
+    });
+    expect(screen.queryByLabelText(/ngôn ngữ số 1/i)).not.toBeInTheDocument();
+  });
+
+  it('chỉ hiện C++ và Python — không hiện Java/Node dù backend chấp nhận', () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+      target: { value: 'code_project' },
+    });
+    const options = screen.getByLabelText(/ngôn ngữ số 1/i).querySelectorAll('option');
+    const values = Array.from(options).map((o) => (o as HTMLOptionElement).value);
+    expect(values).toEqual(['cpp', 'python']);
+  });
+});

@@ -74,6 +74,13 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
       session.sessionId,
     ]);
     expect(row.test_bundle_id).toBe(bundleId);
+
+    // Route đọc phiên phải lộ ra cột này — UI (thẻ "Gói test") đọc từ đây,
+    // không tự query DB.
+    const detail = await request(app.getHttpServer())
+      .get(`/exam-sessions/${session.sessionId}`)
+      .set(as(owner.token));
+    expect(detail.body.testBundleId).toBe(bundleId);
   });
 
   it('ghim gói thuộc phiên KHÁC → 404 (Review Focus #3)', async () => {

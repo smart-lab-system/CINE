@@ -256,6 +256,65 @@ describe('createExamSessionSchema — file bên trong (đợt archive-content-va
   });
 });
 
+describe('createExamSessionSchema — deliverableType/language (3d2, khai qua form)', () => {
+  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
+
+  function baseValues(requiredFilenames: unknown) {
+    const start = futureStart();
+    const end = new Date(start.getTime() + 60 * 60_000);
+    return {
+      name: 'Kiểm tra giữa kỳ',
+      classId: VALID_UUID,
+      roomName: 'P.A101',
+      semesterName: 'HK1 2026-2027',
+      examType: 'GK' as const,
+      startTime: toLocalInput(start),
+      endTime: toLocalInput(end),
+      requiredFilenames,
+    };
+  }
+
+  it('mặc định deliverableType là document khi không khai', () => {
+    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'Cau1.docx' }]));
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.requiredFilenames[0].deliverableType).toBe('document');
+    }
+  });
+
+  it('nhận code_project kèm language hợp lệ', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }]),
+    );
+    expect(r.success).toBe(true);
+  });
+
+  it('TỪ CHỐI language trên deliverable KHÔNG phải code_project', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'Cau1.docx', deliverableType: 'document', language: 'cpp' }]),
+    );
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      const issue = r.error.issues.find((i) => i.path.join('.').includes('language'));
+      expect(issue?.message).toBe('Chỉ khai ngôn ngữ khi loại bài nộp là "Mã nguồn"');
+    }
+  });
+
+  it('code_project không khai language vẫn hợp lệ — không bắt buộc', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'bai1.zip', deliverableType: 'code_project' }]),
+    );
+    expect(r.success).toBe(true);
+  });
+
+  it('TỪ CHỐI ngôn ngữ ngoài cpp/python — java/node không hiện trong form', () => {
+    const r = createExamSessionSchema.safeParse(
+      baseValues([{ value: 'bai1.zip', deliverableType: 'code_project', language: 'java' }]),
+    );
+    expect(r.success).toBe(false);
+  });
+});
+
 describe('describeCreateError', () => {
   it('shows the server’s own explanation when there is one', () => {
     // A room clash names the room and the session holding it. Replacing

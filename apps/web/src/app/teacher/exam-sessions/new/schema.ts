@@ -139,6 +139,19 @@ export const createExamSessionSchema = z
                 'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
               ),
             /**
+             * Loại bài nộp (§14.1) — mặc định `document`, giữ tương thích
+             * ngược cho mọi phiên không chấm code.
+             */
+            deliverableType: z.enum(['document', 'code_project', 'image']).default('document'),
+            /**
+             * Ngôn ngữ cho bài `code_project`. Chỉ hai giá trị sandbox thật
+             * sự chạy được (`cpp`/`python`, xem `INVESTIGATOR_LANGUAGES` ở
+             * `apps/api/src/grading/pipeline.ts`) — không cho chọn
+             * `java`/`node` dù backend chấp nhận, vì chọn chúng chỉ âm
+             * thầm rơi về đường `one_shot` mà giảng viên không biết.
+             */
+            language: z.enum(['python', 'cpp']).optional(),
+            /**
              * Tên các file phải nằm BÊN TRONG, nếu deliverable này là file
              * nén — tuỳ chọn, spec §5.2/§8.4. Cùng luật path-traversal như
              * tên file bên ngoài (khớp theo TÊN, không theo đường dẫn —
@@ -187,7 +200,13 @@ export const createExamSessionSchema = z
               return true;
             },
             { message: 'Tên file bên trong bị trùng — mỗi file phải có tên khác nhau.', path: ['entries'] },
-          ),
+          )
+          // Mirror của ck_required_deliverable_language phía backend:
+          // language chỉ khai được khi deliverableType là code_project.
+          .refine((item) => item.deliverableType === 'code_project' || item.language === undefined, {
+            message: 'Chỉ khai ngôn ngữ khi loại bài nộp là "Mã nguồn"',
+            path: ['language'],
+          }),
       )
       .min(1, 'Cần khai báo ít nhất 1 file bắt buộc'),
   })

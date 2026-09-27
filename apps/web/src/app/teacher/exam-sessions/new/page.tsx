@@ -42,7 +42,7 @@ const EMPTY_FORM: CreateExamSessionFormValues = {
   // Cùng kiểu sentinel chuỗi rỗng như classId — schema quy nó về
   // undefined, vì "chưa chọn rubric" là hợp lệ chứ không phải uuid hỏng.
   rubricId: '',
-  requiredFilenames: [{ value: '' }],
+  requiredFilenames: [{ value: '', deliverableType: 'document' }],
 };
 
 /** Các giá trị đã dùng, mỗi cách viết một lần, giữ nguyên thứ tự mới trước. */
@@ -119,6 +119,10 @@ export default function NewExamSessionPage() {
         // "mảng rỗng/vắng mặt = không khai file bên trong" (spec §4.1).
         requiredFilenames: values.requiredFilenames.map((filename) => ({
           filename: filename.value,
+          // Chỉ gửi khi khác mặc định — giữ tương thích ngược cho ca phổ
+          // biến nhất (tài liệu, không ngôn ngữ) thay vì gửi field thừa.
+          ...(filename.deliverableType !== 'document' ? { deliverableType: filename.deliverableType } : {}),
+          ...(filename.language ? { language: filename.language } : {}),
           ...(filename.entries && filename.entries.length > 0
             ? { entries: filename.entries.map((entry) => entry.value) }
             : {}),
