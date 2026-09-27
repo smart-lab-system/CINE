@@ -27,6 +27,7 @@ import { ConfidenceTiles } from './_components/ConfidenceTiles';
 import { AnomalyPanel } from './_components/AnomalyPanel';
 import { NotBuiltYetPanel } from './_components/NotBuiltYetPanel';
 import { TestBundleCard } from './_components/TestBundleCard';
+import { ExportCsvButton } from './_components/ExportCsvButton';
 import { bucketOf, type Bucket } from '@/lib/grading-triage';
 import {
   useGradingResults,
@@ -269,30 +270,37 @@ function GradingPageContent() {
           <Card className="overflow-hidden">
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-4 border-b border-border bg-surface-2/60">
               <CardTitle className="text-h3">Kết quả chấm</CardTitle>
-              <Button
-                type="button"
-                size="sm"
-                loading={start.isPending}
-                // Theo rubric ĐÃ GHIM của phiên, không theo bản `isActive`
-                // của môn. Bản active có thể đã là v5 trong khi phiên này
-                // ghim v3 — và v3 mới là thứ nó sẽ được chấm bằng.
-                //
-                // Cũng chặn khi lượt chấm trước còn đang chạy: bấm lại lúc
-                // đó không tạo thêm gì (jobId trùng bị bỏ qua), nhưng nút
-                // bấm được trong khi không có gì xảy ra là một lời nói dối.
-                disabled={!session.rubricId || grading}
-                title={
-                  session.rubricId
-                    ? grading
-                      ? 'Đang chấm — chờ lượt hiện tại xong đã.'
-                      : undefined
-                    : 'Phiên thi này chưa gắn rubric — gắn rubric ở trên trước khi chấm.'
-                }
-                onClick={() => start.mutate()}
-              >
-                <Play className="h-4 w-4" aria-hidden="true" />
-                Bắt đầu chấm
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <ExportCsvButton
+                  sessionName={session.name}
+                  sessionCode={session.code}
+                  results={results.data ?? []}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  loading={start.isPending}
+                  // Theo rubric ĐÃ GHIM của phiên, không theo bản `isActive`
+                  // của môn. Bản active có thể đã là v5 trong khi phiên này
+                  // ghim v3 — và v3 mới là thứ nó sẽ được chấm bằng.
+                  //
+                  // Cũng chặn khi lượt chấm trước còn đang chạy: bấm lại lúc
+                  // đó không tạo thêm gì (jobId trùng bị bỏ qua), nhưng nút
+                  // bấm được trong khi không có gì xảy ra là một lời nói dối.
+                  disabled={!session.rubricId || grading}
+                  title={
+                    session.rubricId
+                      ? grading
+                        ? 'Đang chấm — chờ lượt hiện tại xong đã.'
+                        : undefined
+                      : 'Phiên thi này chưa gắn rubric — gắn rubric ở trên trước khi chấm.'
+                  }
+                  onClick={() => start.mutate()}
+                >
+                  <Play className="h-4 w-4" aria-hidden="true" />
+                  Bắt đầu chấm
+                </Button>
+              </div>
             </CardHeader>
 
             <CardContent className="flex flex-col gap-4 p-6">
