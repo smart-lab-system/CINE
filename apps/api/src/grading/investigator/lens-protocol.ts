@@ -87,7 +87,10 @@ const perErrorConclusion = z.object({
   toolCallIds: z.array(z.string().max(32)).max(25),
 });
 const perErrorReplySchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), conclusion: z.null() }),
+  // `conclusion` không dùng ở lượt "call" — chấp cả `null` lẫn vắng mặt (đo 2026-09-28:
+  // occ/claude-sonnet-5 thường bỏ hẳn khoá này thay vì gửi `null` tường minh, dù prompt có yêu
+  // cầu; đòi đúng `null` biến một lượt gọi công cụ hợp lệ thành bad_output).
+  z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), conclusion: z.null().optional() }),
   z.object({ action: z.literal('final'), calls: z.array(z.unknown()), conclusion: perErrorConclusion }),
 ]);
 export type PerErrorReply = z.infer<typeof perErrorReplySchema>;
@@ -130,7 +133,8 @@ export function clampNote(note: string): string {
 
 const caseLensConclusion = z.object({ suspected: z.boolean(), note: z.string().transform(clampNote) });
 const caseLensReplySchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), conclusion: z.null() }),
+  // Xem chú thích cùng chỗ ở perErrorReplySchema — `conclusion` vắng mặt vẫn là một lượt "call" hợp lệ.
+  z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), conclusion: z.null().optional() }),
   z.object({ action: z.literal('final'), calls: z.array(z.unknown()), conclusion: caseLensConclusion }),
 ]);
 export type CaseLensReply = z.infer<typeof caseLensReplySchema>;
@@ -189,7 +193,8 @@ const omissionConclusion = z.object({
   note: z.string().transform(clampNote),
 });
 const omissionReplySchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), conclusion: z.null() }),
+  // Xem chú thích cùng chỗ ở perErrorReplySchema — `conclusion` vắng mặt vẫn là một lượt "call" hợp lệ.
+  z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), conclusion: z.null().optional() }),
   z.object({ action: z.literal('final'), calls: z.array(z.unknown()), conclusion: omissionConclusion }),
 ]);
 export type OmissionReply = z.infer<typeof omissionReplySchema>;

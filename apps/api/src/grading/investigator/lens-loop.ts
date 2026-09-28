@@ -76,7 +76,7 @@ function describeEnd(end: Exclude<LensEnd, 'final'>, detail: string | null): str
  * đánh số `tc-1, tc-2, …` từ đầu, và không có tiền tố thì log/hồ sơ không phân biệt được lời
  * gọi nào của lăng kính nào khi đọc lại.
  */
-export async function runLensLoop<TReply extends { action: 'call' | 'final'; calls: unknown[]; conclusion: unknown }, TConclusion>(
+export async function runLensLoop<TReply extends { action: 'call' | 'final'; calls: unknown[]; conclusion?: unknown }, TConclusion>(
   ctx: InvestigationContext,
   label: string,
   systemPrompt: string,

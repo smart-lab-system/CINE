@@ -143,7 +143,10 @@ const verdictSchema = z.object({
   injectionAttempt: z.object({ detected: z.boolean(), excerpt: z.string().max(500).nullable() }),
 });
 const replySchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), verdict: z.null() }),
+  // `verdict` không dùng ở lượt "call" — chấp cả `null` lẫn vắng mặt (đo 2026-09-28:
+  // occ/claude-sonnet-5 hay bỏ hẳn khoá này; đòi đúng `null` biến một lượt gọi công cụ hợp lệ
+  // thành bad_output, cùng lỗi đã thấy ở lens-protocol.ts).
+  z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), verdict: z.null().optional() }),
   // `calls` của lượt kết luận bị bỏ qua — model hay trả kèm một mảng thừa, và một phần tử sai
   // khuôn trong mảng thừa đó không được vứt một verdict hợp lệ (review b0bd340).
   z.object({ action: z.literal('final'), calls: z.array(z.unknown()), verdict: verdictSchema }),

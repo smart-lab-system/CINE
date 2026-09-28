@@ -92,6 +92,11 @@ describe('giao thức một lượt', () => {
     expect(parseReply('{"action":"call","calls":[{"tool":"read_file","path":null}],"verdict":null}')?.action).toBe('call');
   });
 
+  it('diễn tập 2026-09-28 (occ/claude-sonnet-5) — lượt "call" THIẾU hẳn khoá "verdict" → vẫn đọc được', () => {
+    const reply = parseReply('{"action":"call","calls":[{"tool":"list_files","input":null,"group":null,"path":null,"fromLine":null,"toLine":null}]}');
+    expect(reply?.action).toBe('call');
+  });
+
   it('lượt kết luận kèm calls thừa SAI KHUÔN vẫn đọc được — calls của lượt kết luận không ai dùng', () => {
     const reply = parseReply(
       '{"action":"final","calls":[{"tool":"run"}],"verdict":{"errors":[],"missingRules":[],' +

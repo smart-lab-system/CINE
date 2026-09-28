@@ -1,7 +1,8 @@
-import { CASE_NOTE_MAX, clampNote, parseCaseLensReply, parsePerErrorReply } from './lens-protocol';
+import { CASE_NOTE_MAX, clampNote, parseCaseLensReply, parseOmissionReply, parsePerErrorReply } from './lens-protocol';
 
 const PER_ERROR_FINAL = { action: 'final', calls: [], conclusion: { status: 'confirmed', toolCallIds: [] } };
 const CASE_LENS_FINAL = { action: 'final', calls: [], conclusion: { suspected: false, note: 'ok' } };
+const CALL_TURN = { tool: 'list_files', input: null, group: null, path: null, fromLine: null, toLine: null };
 
 describe('parsePerErrorReply() — W2: qua bộ đọc §5.2 thật (readSingleJson), không phải bộ cắt vỏ tự chế', () => {
   it('JSON gọn, không rào → đọc được', () => {
@@ -22,6 +23,13 @@ describe('parsePerErrorReply() — W2: qua bộ đọc §5.2 thật (readSingleJ
     expect(parsePerErrorReply('')).toBeNull();
     expect(parsePerErrorReply('không phải JSON gì cả')).toBeNull();
   });
+
+  it('diễn tập 2026-09-28 (occ/claude-sonnet-5) — lượt "call" THIẾU hẳn khoá "conclusion" → vẫn đọc được (schema không được đòi khoá không dùng tới)', () => {
+    const noConclusionKey = { action: 'call', calls: [CALL_TURN] };
+    const r = parsePerErrorReply(JSON.stringify(noConclusionKey));
+    expect(r).not.toBeNull();
+    expect(r!.action).toBe('call');
+  });
 });
 
 describe('parseCaseLensReply() — cùng bộ đọc §5.2', () => {
@@ -37,6 +45,25 @@ describe('parseCaseLensReply() — cùng bộ đọc §5.2', () => {
     const note = r!.action === 'final' ? r!.conclusion.note : '';
     expect(note.length).toBe(CASE_NOTE_MAX);
     expect(note.endsWith('…')).toBe(true);
+  });
+
+  it('lượt "call" thiếu khoá "conclusion" → vẫn đọc được', () => {
+    const r = parseCaseLensReply(JSON.stringify({ action: 'call', calls: [CALL_TURN] }));
+    expect(r).not.toBeNull();
+    expect(r!.action).toBe('call');
+  });
+});
+
+describe('parseOmissionReply() — cùng bộ đọc §5.2', () => {
+  it('lượt "call" thiếu khoá "conclusion" → vẫn đọc được (diễn tập 2026-09-28)', () => {
+    const r = parseOmissionReply(JSON.stringify({ action: 'call', calls: [CALL_TURN] }));
+    expect(r).not.toBeNull();
+    expect(r!.action).toBe('call');
+  });
+
+  it('lượt kết luận vẫn đọc đúng như trước', () => {
+    const final = { action: 'final', calls: [], conclusion: { rules: [{ ruleKey: 'x', verdict: 'ok' }], note: 'ok' } };
+    expect(parseOmissionReply(JSON.stringify(final))).toEqual({ ...final, conclusion: { ...final.conclusion, missedRuleKeys: [] } });
   });
 });
 
