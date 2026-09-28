@@ -2,6 +2,7 @@ import { decide } from './decide';
 import { isMachineChecked } from './predicates';
 import { readFileCall, resultWith, runTestsCall } from './testing/result';
 import { DecisionInput, ErrorRule } from './types';
+import type { StoredChallenge } from '../investigator/challenge';
 
 const BUNDLE = { cases: [{ name: 'cb1', group: 'co_ban' }, { name: 'tl1', group: 'trung_lap' }] };
 const RUBRIC = [{ key: 'tinh_dung', maxHundredths: 700 }, { key: 'trinh_bay', maxHundredths: 300 }];
@@ -17,8 +18,19 @@ const read = readFileCall('tc-2', 'bai-nop/main.cpp');
 const SEEN = RULES.map((r) => ({ ruleKey: r.ruleKey, checkedBy: isMachineChecked(r.predicate) ? ('machine' as const) : ('model' as const) }));
 const input = (over: Partial<DecisionInput> = {}): DecisionInput => ({
   pipeline: 'investigator', result: resultWith({ calls: [allPass, read] }), bundle: BUNDLE, rubric: RUBRIC, rules: RULES,
-  rulesSeen: SEEN, waivedCriteria: [], modelCeiling: 0.5, theta: 0.85, ...over,
+  rulesSeen: SEEN, waivedCriteria: [], modelCeiling: 0.5, theta: 0.85, challenge: null, ...over,
 });
+
+/** Một kết luận phản biện tự dựng — một lăng kính gộp mọi ruleKey cho gọn test. */
+function challengeOf(
+  perError: { ruleKey: string; status: 'confirmed' | 'refuted' | 'unverified' }[],
+  caseNotes: StoredChallenge['caseNotes'] = [],
+): StoredChallenge {
+  return {
+    perError: [{ challenger: 'lens', perError: perError.map((e) => ({ ...e, toolCallIds: [] })) }],
+    caseNotes,
+  };
+}
 
 describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
   it('T-FLOOR-2 — bài đúng, đủ test và đều pass, đã đọc code → điểm TỐI ĐA, tự quyết, confidence 1', () => {
@@ -195,5 +207,73 @@ describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
     const stored = resultWith({ calls: [failCoBan, read] });
     const rules: ErrorRule[] = [...RULES, { ruleKey: 'sai_co_ban_moi', criterionKey: 'trinh_bay', deductionHundredths: 50, predicate: { kind: 'test_group_failed', group: 'co_ban' } }];
     expect(decide(input({ result: stored, rules })).errors.map((e) => e.ruleKey)).toContain('sai_co_ban_moi');
+  });
+});
+
+describe('decide() — §6.2 phản biện', () => {
+  const withError = { result: resultWith({ calls: [failCoBan, read] }) };
+  // sai_ca_co_ban (deterministic, từ failCoBan) — dùng để kiểm C2 (lỗi máy quyết MIỄN NHIỄM
+  // với phản biện). chu_thich_sai (predicate null → luật LỜI) là lỗi bị lăng kính xét ở các test
+  // §6.2 khác — sau review cuối (finding C2): lăng kính KHÔNG được phép bác/unverify một lỗi
+  // MÁY QUYẾT (§4.1 "Code đánh giá predicate. Model không tham gia"), nên các test §6.2 phải
+  // xét một lỗi model, không phải sai_ca_co_ban.
+  const withModelError = { result: resultWith({ calls: [failCoBan, read], errors: [{ ruleKey: 'chu_thich_sai', toolCallIds: ['tc-2'] }] }) };
+
+  it('lỗi bị refuted → KHÔNG trừ điểm, NHƯNG vẫn nằm trong errors và có errorFlag refuted', () => {
+    const withRefute = decide(input({ ...withModelError, challenge: challengeOf([{ ruleKey: 'chu_thich_sai', status: 'refuted' }]) }));
+    const withoutChallenge = decide(input(withModelError));
+    expect(withRefute.errors.map((e) => e.ruleKey)).toContain('chu_thich_sai');
+    expect(withRefute.errorFlags).toContainEqual({ ruleKey: 'chu_thich_sai', code: 'refuted' });
+    expect(withRefute.scoreHundredths).toBe(700); // 1000 - 300 (sai_ca_co_ban) - 0 (chu_thich_sai bị bác)
+    expect(withoutChallenge.scoreHundredths).toBe(650); // 1000 - 300 - 50
+  });
+
+  it('lỗi bị unverified → GIỮ trong điểm, gắn errorFlag unverified, hạ confidence', () => {
+    const d = decide(input({ ...withModelError, challenge: challengeOf([{ ruleKey: 'chu_thich_sai', status: 'unverified' }]) }));
+    expect(d.errorFlags).toContainEqual({ ruleKey: 'chu_thich_sai', code: 'unverified' });
+    expect(d.scoreHundredths).toBe(650);
+    expect(d.confidence).toBeLessThanOrEqual(0.5);
+  });
+
+  it('lỗi confirmed → không thêm errorFlag nào, hành vi y hệt không bật phản biện', () => {
+    const withConfirmed = decide(input({ ...withModelError, challenge: challengeOf([{ ruleKey: 'chu_thich_sai', status: 'confirmed' }]) }));
+    const withoutChallenge = decide(input({ ...withModelError, challenge: null }));
+    expect(withConfirmed.errorFlags).toEqual(withoutChallenge.errorFlags);
+    expect(withConfirmed.scoreHundredths).toEqual(withoutChallenge.scoreHundredths);
+  });
+
+  it('challenge: null (chưa bật, hay hồ sơ cũ) → hành vi y hệt hôm nay, KHÔNG tự gắn unverified cho ai (Review Focus 3)', () => {
+    const d = decide(input({ ...withModelError, challenge: null }));
+    expect(d.errorFlags.some((f) => f.code === 'refuted' || f.code === 'unverified')).toBe(false);
+  });
+
+  it('C2 — lỗi MÁY QUYẾT (deterministic) MIỄN NHIỄM với phản biện, dù có kết luận challenge trỏ đúng ruleKey của nó (§4.1)', () => {
+    const d = decide(input({ ...withError, challenge: challengeOf([{ ruleKey: 'sai_ca_co_ban', status: 'refuted' }]) }));
+    expect(d.errorFlags.some((f) => f.ruleKey === 'sai_ca_co_ban')).toBe(false);
+    expect(d.scoreHundredths).toBe(700); // KHÔNG phải 1000 — bị bác không có tác dụng gì trên lỗi máy quyết
+  });
+
+  it('caseNote suspected=true (Bỏ sót/Gian lận) → caseFlag challenge_suspected, chặn tự quyết', () => {
+    const d = decide(input({ challenge: challengeOf([], [{ lens: 'gian_lan', suspected: true, note: 'nghi hard-code' }]) }));
+    expect(d.caseFlags).toContainEqual({ code: 'challenge_suspected', detail: expect.stringContaining('gian_lan') });
+    expect(d.outcome).not.toBe('auto');
+  });
+
+  it('unverified hạ confidence NHƯNG không tự đẩy outcome xuống ungradable (Review Focus 4)', () => {
+    const d = decide(input({ ...withModelError, challenge: challengeOf([{ ruleKey: 'chu_thich_sai', status: 'unverified' }]) }));
+    expect(d.outcome).not.toBe('ungradable');
+  });
+
+  it('W5 — MỘT lăng kính xác nhận (đã tự chạy), lăng kính KIA không trả lời được → gộp thành confirmed, không phải unverified (im lặng của một lăng kính không kéo tụt lăng kính đã xác nhận)', () => {
+    const mixed: StoredChallenge = {
+      perError: [
+        { challenger: 'tinh_dung', perError: [{ ruleKey: 'chu_thich_sai', status: 'confirmed', toolCallIds: [] }] },
+        { challenger: 'qua_tay', perError: [{ ruleKey: 'chu_thich_sai', status: 'unverified', toolCallIds: [] }] },
+      ],
+      caseNotes: [],
+    };
+    const d = decide(input({ ...withModelError, challenge: mixed }));
+    expect(d.errorFlags.some((f) => f.ruleKey === 'chu_thich_sai')).toBe(false);
+    expect(d.scoreHundredths).toBe(650); // tính như confirmed, không hạ confidence như unverified
   });
 });

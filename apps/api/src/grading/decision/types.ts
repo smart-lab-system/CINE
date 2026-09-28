@@ -1,4 +1,5 @@
 import { InvestigationResult } from '../investigator/types';
+import { StoredChallenge } from '../investigator/challenge';
 
 /**
  * Đúng bốn mẫu điều kiện của spec UI mục 3.2 (§4.1). Không có mẫu thứ năm nào ngoài code:
@@ -56,7 +57,8 @@ export type CaseFlagCode =
   | 'nothing_passed'
   | 'investigation_flag'
   | 'low_confidence'
-  | 'not_code_pipeline';
+  | 'not_code_pipeline'
+  | 'challenge_suspected';
 
 export interface CaseFlag {
   code: CaseFlagCode;
@@ -66,7 +68,7 @@ export interface CaseFlag {
 /** Điều kiện gắn với MỘT lỗi trượt → gắn cờ đúng lỗi đó (§0.3, §6.3). */
 export interface ErrorFlag {
   ruleKey: string;
-  code: 'unpriced';
+  code: 'unpriced' | 'refuted' | 'unverified';
 }
 
 export interface DecisionInput {
@@ -86,6 +88,8 @@ export interface DecisionInput {
   /** Trần thấp nhất của các bậc model đã trả lời — chỉ kéo được `llm_only` xuống (§4.2). */
   modelCeiling: number;
   theta: number;
+  /** Bước 6 (§6.2) — `null` = phản biện chưa chạy (hồ sơ cũ, hay pipeline one_shot). */
+  challenge: StoredChallenge | null;
 }
 
 export interface Decision {

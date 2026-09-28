@@ -1,5 +1,12 @@
 import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { createSandboxClient } from '../../sandbox/sandbox.client';
+import { CaseLens } from '../investigator/case-lens';
+import { Challenger } from '../investigator/challenge';
+import { CheatingLens } from '../investigator/lenses/cheating-lens';
+import { CorrectnessLens } from '../investigator/lenses/correctness-lens';
+import { OmissionLens } from '../investigator/lenses/omission-lens';
+import { SeverityLens } from '../investigator/lenses/severity-lens';
+import { warnIfSameFamily } from '../investigator/model-family';
 import { buildInvestigatorTiers, ModelTier } from '../investigator/model-pool';
 import type { SandboxPort } from '../investigator/tools';
 
@@ -9,6 +16,10 @@ export interface InvestigatorDeps {
   models: ModelTier[];
   /** null = máy chạy API chưa khai hàng đợi sandbox — bài ra không chấm được lớp system. */
   sandbox: SandboxPort | null;
+  /** Bốn lăng kính (§6) — Tính đúng/Quá tay, nối §6.2 vào điểm. Rỗng CHỈ KHI `sandbox` cũng null. */
+  challengers: Challenger[];
+  /** Bỏ sót/Gian lận — chỉ gắn caseFlag, không đổi điểm. */
+  caseLenses: CaseLens[];
   /** Trần tin cậy của bậc model đã trả lời (§4.2) — chỉ kéo được `llm_only` xuống. */
   ceilingOf(model: string): number;
   close(): Promise<void>;
@@ -35,9 +46,25 @@ export function buildInvestigatorDeps(
   const ceilings = new Map(models.map((m) => [m.model, m.ceiling]));
   const url = env.SANDBOX_REDIS_URL?.trim();
   const built = url ? factories.sandbox({ redisUrl: url, prefix: env.SANDBOX_PREFIX?.trim() || undefined, log }) : null;
+  const sandbox = built?.client ?? null;
+
+  // Lăng kính TÁI DÙNG chính bậc model của đường chấm (cùng lý do Advocate cũ đã làm ở
+  // `grading.module.ts`: một họ model thứ hai chỉ để phản biện là một `.env` khác, một cảnh
+  // báo cùng họ khác — không đáng cho một demo). Warning §6.3 CHỦ ĐỘNG bắt đúng ca này.
+  warnIfSameFamily(models.map((m) => m.model), models.map((m) => m.model), log);
+  const lensDeps = { models, sandbox: sandbox as never };
+  const challengers: Challenger[] = sandbox
+    ? [new CorrectnessLens(lensDeps), new SeverityLens(lensDeps)]
+    : [];
+  const caseLenses: CaseLens[] = sandbox
+    ? [new OmissionLens(lensDeps), new CheatingLens(lensDeps)]
+    : [];
+
   return {
     models,
-    sandbox: built?.client ?? null,
+    sandbox,
+    challengers,
+    caseLenses,
     ceilingOf: (model) => ceilings.get(model) ?? UNKNOWN_MODEL_CEILING,
     close: async () => {
       await built?.close();

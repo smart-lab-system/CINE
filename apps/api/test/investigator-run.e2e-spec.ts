@@ -47,7 +47,7 @@ describe('Nhánh investigator của worker (e2e)', () => {
   let storage: StorageService;
   let grading: GradingService;
   // Provider thay bằng một object đổi được giữa các ca — service đọc nó lúc chạy.
-  const deps: InvestigatorDeps = { models: [], sandbox: null, ceilingOf: () => 1, close: async () => undefined };
+  const deps: InvestigatorDeps = { models: [], sandbox: null, challengers: [], caseLenses: [], ceilingOf: () => 1, close: async () => undefined };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(INVESTIGATOR_DEPS).useValue(deps).compile();

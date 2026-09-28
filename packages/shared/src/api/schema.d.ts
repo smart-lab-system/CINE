@@ -1188,6 +1188,7 @@ export interface components {
             completedBy: string | null;
             rubricId: string | null;
             rubricVersion: number | null;
+            testBundleId: string | null;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
         };
         ReassignTeacherDto: {
@@ -3022,9 +3023,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
         };
     };

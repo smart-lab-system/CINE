@@ -69,6 +69,10 @@ export async function runInvestigator(opts: {
           waivedCriteria: de.manifest.waivedCriteria,
           modelCeiling: Math.min(1, ...result.investigation.modelsUsed.map((m) => opts.ceilings.get(m) ?? 0.5)),
           theta: opts.theta,
+          // Bộ eval nhóm 6 (đo tỉ lệ bác đúng/bác oan của phản biện) ngoài phạm vi bước 6 —
+          // xem plan 2026-09-27-investigator-challenge-lenses.md. Runner này không gọi
+          // challenge(), nên luôn null; §6.2 không có hiệu lực trên lượt eval.
+          challenge: null,
         });
         const bySource = { deterministic: 0, llm_with_tools: 0, llm_only: 0 };
         for (const e of decision.errors) bySource[e.source] += e.deductionHundredths ?? 0;

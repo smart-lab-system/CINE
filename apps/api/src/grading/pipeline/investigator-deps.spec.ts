@@ -42,4 +42,24 @@ describe('buildInvestigatorDeps — bậc model và cổng sandbox của đườ
     expect(deps.ceilingOf('m-b')).toBe(0.7);
     expect(deps.ceilingOf('la')).toBe(0.5);
   });
+
+  it('luôn dựng đủ 2 Challenger + 2 CaseLens, kể cả khi GRADING_TIER* trống (models rỗng)', () => {
+    const sandbox = jest.fn(() => ({ client: { exec: jest.fn() }, close: async () => undefined }));
+    const deps = buildInvestigatorDeps({ SANDBOX_REDIS_URL: 'redis://x' }, { tiers: () => [], sandbox: sandbox as never });
+    expect(deps.challengers).toHaveLength(2);
+    expect(deps.caseLenses).toHaveLength(2);
+    expect(deps.challengers.map((c) => c.name)).toEqual(['tinh_dung', 'qua_tay']);
+    expect(deps.caseLenses.map((c) => c.name)).toEqual(['bo_sot', 'gian_lan']);
+  });
+
+  it('bậc chấm và bậc phản biện cùng một danh sách model (tái dùng GRADING_TIER*) → cảnh báo cùng họ nếu trùng', () => {
+    const sandbox = jest.fn(() => ({ client: { exec: jest.fn() }, close: async () => undefined }));
+    const log = jest.fn();
+    buildInvestigatorDeps(
+      { SANDBOX_REDIS_URL: 'redis://x' },
+      { tiers: () => [{ label: 'A', model: 'cnb/glm-5.3', ceiling: 1, call: jest.fn() }], sandbox: sandbox as never },
+      log,
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('cùng họ'));
+  });
 });

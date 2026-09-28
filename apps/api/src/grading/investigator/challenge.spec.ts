@@ -39,4 +39,31 @@ describe('challenge() — ranh giới §12.5', () => {
     const r = await challenge(PLANTED, CTX, [EVIDENCE], broken);
     expect(r.perError[0].status).toBe('unverified');
   });
+
+  it('C1 — nhiều lỗi được xét SONG SONG, không tuần tự (thời gian tổng không nhân theo số lỗi)', async () => {
+    const DELAY_MS = 80;
+    const many: Verdict = {
+      errors: [
+        { ruleKey: 'a', toolCallIds: [], note: null },
+        { ruleKey: 'b', toolCallIds: [], note: null },
+        { ruleKey: 'c', toolCallIds: [], note: null },
+      ],
+      missingRules: [],
+      injectionAttempt: { detected: false, excerpt: null },
+    };
+    const slow: Challenger = {
+      name: 'slow',
+      async review() {
+        await new Promise((r) => setTimeout(r, DELAY_MS));
+        return { status: 'confirmed', toolCallIds: [] };
+      },
+    };
+    const started = Date.now();
+    const r = await challenge(many, CTX, [], slow);
+    const elapsed = Date.now() - started;
+    // Tuần tự sẽ mất ~3×DELAY_MS; song song mất ~1×DELAY_MS. Ngưỡng 2.5× chừa dư cho nhiễu máy
+    // (nhiều test suite chạy song song cùng lúc) mà vẫn cách xa hẳn mốc tuần tự (3×).
+    expect(elapsed).toBeLessThan(DELAY_MS * 2.5);
+    expect(r.perError.map((e) => e.ruleKey)).toEqual(['a', 'b', 'c']); // giữ đúng thứ tự dù chạy song song
+  });
 });

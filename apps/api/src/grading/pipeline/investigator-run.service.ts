@@ -1,8 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { runCaseLens } from '../investigator/case-lens';
+import { challenge } from '../investigator/challenge';
+import type { StoredChallenge } from '../investigator/challenge';
 import { investigate } from '../investigator/investigate';
-import type { InvestigationResult } from '../investigator/types';
+import type { InvestigationContext, InvestigationResult, Verdict } from '../investigator/types';
 import { lockTeacherScoring, teacherOfResult } from '../scoring/score-inputs';
 import { ScoreService } from '../scoring/score.service';
 import type { StoredInvestigation } from '../scoring/stored-investigation';
@@ -54,6 +57,7 @@ export class InvestigatorRunService {
     }
 
     const result = await investigate(built.ctx, { models: this.deps.models, sandbox: this.deps.sandbox! });
+    const challengeResult = await this.runChallenge(result, built.ctx);
     const stored: StoredInvestigation = {
       version: 1,
       result,
@@ -61,6 +65,7 @@ export class InvestigatorRunService {
       rulesSeen: built.ruleTable,
       ruleTable: built.ruleTable,
       modelCeiling: Math.min(1, ...result.investigation.modelsUsed.map((m) => this.deps.ceilingOf(m))),
+      challenge: challengeResult,
     };
     const out = await this.scores.finishAttempt(resultId, attemptId, stored, {
       modelUsed: result.investigation.modelsUsed.join('+').slice(0, 200) || null,
@@ -99,5 +104,31 @@ export class InvestigatorRunService {
       await m.query(`UPDATE examcollect.grading_result SET current_attempt_id = $2 WHERE id = $1`, [resultId, a.id]);
       return a.id as string;
     });
+  }
+
+  /**
+   * Bốn lăng kính (§6) — chạy SONG SONG, một lăng kính hỏng không được làm hỏng cả lượt chấm
+   * (cùng triết lý Advocate cũ: "không có ý kiến nào tốt hơn một ý kiến bịa ra"). `challenge()`
+   * đã tự bọc lỗi của TỪNG Challenger thành `unverified`; `runCaseLens()` tự bọc thành
+   * `suspected:false` — nên `Promise.all` ở đây không cần try/catch riêng cho từng lăng kính.
+   *
+   * Lỗi luật MÁY QUYẾT (`checkedBy: 'machine'`) không được gửi cho Challenger — sửa sau review
+   * cuối (finding C2, §4.1: "Code đánh giá predicate. Model không tham gia"). Một lỗi máy quyết
+   * là SỰ THẬT đo được từ kết quả chạy thật, không phải một ý kiến để lăng kính LLM tranh luận;
+   * gửi nó đi vẫn có thể làm mất một mức trừ có bằng chứng máy đo, chỉ vì một lăng kính LLM nói
+   * "refuted" mà không hề hiểu nó đang bác cái gì. CaseLens (Bỏ sót, Gian lận) không đổi điểm nên
+   * vẫn nhận verdict ĐẦY ĐỦ, không lọc — chúng cần thấy MỌI lỗi đã tìm để đánh giá cả bài.
+   */
+  private async runChallenge(result: InvestigationResult, ctx: InvestigationContext): Promise<StoredChallenge | null> {
+    if (!result.verdict || this.deps.challengers.length === 0) return null;
+    const verdict = result.verdict;
+    const toolCalls = result.investigation.toolCalls;
+    const machineRuleKeys = new Set(ctx.rules.filter((r) => r.checkedBy === 'machine').map((r) => r.ruleKey));
+    const challengeableVerdict: Verdict = { ...verdict, errors: verdict.errors.filter((e) => !machineRuleKeys.has(e.ruleKey)) };
+    const [perError, caseNotes] = await Promise.all([
+      Promise.all(this.deps.challengers.map((c) => challenge(challengeableVerdict, ctx, toolCalls, c))),
+      Promise.all(this.deps.caseLenses.map((l) => runCaseLens(ctx, verdict, toolCalls, l))),
+    ]);
+    return { perError, caseNotes };
   }
 }

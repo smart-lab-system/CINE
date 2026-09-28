@@ -1,4 +1,5 @@
 import type { InvestigationResult } from '../investigator/types';
+import type { StoredChallenge } from '../investigator/challenge';
 
 /**
  * Hợp đồng của cột `grading_attempt.investigation` với đường `investigator` — 3d ghi, 3c đọc.
@@ -20,6 +21,8 @@ export interface StoredInvestigation {
   ruleTable: { ruleKey: string; checkedBy: 'machine' | 'model' }[];
   /** Trần thấp nhất của các bậc model đã trả lời (§4.2). */
   modelCeiling: number;
+  /** Bước 6 (§6) — `null`/vắng mặt cho hồ sơ chấm TRƯỚC bước 6 và cho pipeline one_shot. */
+  challenge?: StoredChallenge | null;
 }
 
 export function readStoredInvestigation(json: unknown): StoredInvestigation {
