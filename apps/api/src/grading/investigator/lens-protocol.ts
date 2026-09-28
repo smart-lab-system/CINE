@@ -143,9 +143,11 @@ export function parseCaseLensReply(content: string): CaseLensReply | null {
 }
 
 /**
- * Bỏ sót khai DANH SÁCH luật nó cho là bị bỏ sót, không tự khai cờ `suspected`: diễn tập
- * 2026-09-28 có hai lần model đặt suspected=true trong khi chính ghi chú của nó nói lỗi đó
- * đã được kết luận, hay là luật máy kiểm. Code đối chiếu danh sách với bảng lỗi rồi mới quyết cờ.
+ * Bỏ sót trả một BẢNG KIỂM — mỗi luật bằng lời chưa được kết luận một dòng violated/ok/unsure —
+ * chứ không tự khai cờ `suspected`, cũng không chỉ liệt kê những gì nó nhớ ra. Diễn tập
+ * 2026-09-28: r2 model đặt suspected=true trong khi ghi chú nói lỗi đã được kết luận; r3 model
+ * tả đúng lỗi rò rỉ trong ghi chú nhưng không đưa vào danh sách, nên bài bị tự duyệt với điểm sai.
+ * `missedRuleKeys` (khuôn trước) vẫn đọc được. Code đối chiếu với bảng lỗi rồi mới quyết cờ.
  */
 export const OMISSION_JSON_SCHEMA: Record<string, unknown> = {
   type: 'object',
@@ -159,8 +161,19 @@ export const OMISSION_JSON_SCHEMA: Record<string, unknown> = {
         {
           type: 'object',
           additionalProperties: false,
-          required: ['missedRuleKeys', 'note'],
-          properties: { missedRuleKeys: { type: 'array', items: { type: 'string' } }, note: { type: 'string' } },
+          required: ['rules', 'note'],
+          properties: {
+            rules: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['ruleKey', 'verdict'],
+                properties: { ruleKey: { type: 'string' }, verdict: { type: 'string', enum: ['violated', 'ok', 'unsure'] } },
+              },
+            },
+            note: { type: 'string' },
+          },
         },
       ],
     },
@@ -168,6 +181,10 @@ export const OMISSION_JSON_SCHEMA: Record<string, unknown> = {
 };
 
 const omissionConclusion = z.object({
+  rules: z
+    .array(z.object({ ruleKey: z.string().max(64), verdict: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() : v), z.enum(['violated', 'ok', 'unsure'])) }))
+    .max(60)
+    .default([]),
   missedRuleKeys: z.array(z.string().max(64)).max(30).default([]),
   note: z.string().transform(clampNote),
 });
