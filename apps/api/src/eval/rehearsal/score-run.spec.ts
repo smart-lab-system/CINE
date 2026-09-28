@@ -33,7 +33,7 @@ const note = (lens: string, suspected: boolean, text = 'ok') => ({ lens, suspect
 const err = (ruleKey: string, counted = 'counted', source = 'llm_only') => ({ ruleKey, source, counted });
 
 function actual(over: Partial<ActualSubmission> & { mssv: string }): ActualSubmission {
-  return { status: 'auto_approved', score: 10, confidence: 1, errors: [], verdicts: [], caseNotes: [], caseFlags: [], finishedAtSec: 60, ...over };
+  return { status: 'auto_approved', score: 10, confidence: 1, model: 'glm-5.3-flash', errors: [], verdicts: [], caseNotes: [], caseFlags: [], finishedAtSec: 60, ...over };
 }
 
 describe('evaluateRun() — chấm một lượt diễn tập theo kỳ vọng của kịch bản', () => {
@@ -115,6 +115,16 @@ describe('evaluateRun() — chấm một lượt diễn tập theo kỳ vọng c
     expect(run.summary.wrongAuto).toBe(2);
   });
 
+  it('ghi model ĐÃ chấm của cả lượt (khác nhau, sắp xếp) — để so lượt flash với lượt model khác', () => {
+    const run = evaluateRun(SCENARIO, [actual({ mssv: 'S1', model: 'glm-5.3' }), actual({ mssv: 'S2', model: 'glm-5.3-flash' }), actual({ mssv: 'S3', model: 'glm-5.3' })]);
+    expect(run.summary.models).toEqual(['glm-5.3', 'glm-5.3-flash']);
+  });
+
+  it('bản ghi cũ chưa có model → models rỗng, không lỗi', () => {
+    const run = evaluateRun(SCENARIO, [actual({ mssv: 'S1', model: undefined as unknown as null })]);
+    expect(run.summary.models).toEqual([]);
+  });
+
   it('bài chưa có kết quả (vẫn ai_grading khi hết giờ chờ) → quyết định "pending", sai', () => {
     const run = evaluateRun(SCENARIO, [actual({ mssv: 'S1', status: 'ai_grading', score: null, finishedAtSec: null })]);
     expect(run.checks[0]).toMatchObject({ actualDecision: 'pending', decisionOk: false, scoreOk: false });
@@ -130,7 +140,7 @@ describe('evaluateRun() — chấm một lượt diễn tập theo kỳ vọng c
       submissions: 3, scoreOk: 2, decisionOk: 2, autoApproved: 1, expectedAuto: 2, wrongAuto: 0,
       // S3: agent sót thieu_chu_thich (luật bằng lời) mà bo_sot không nghi → 1 cờ bỏ lỡ.
       errorsExpected: 3, errorsCaught: 2, extraErrors: 0, falseFlags: 1, missedFlags: 1, lensFailures: 0,
-      maxSubmissionSec: 87,
+      maxSubmissionSec: 87, models: ['glm-5.3-flash'],
     });
   });
 });
@@ -152,7 +162,7 @@ describe('renderIndex() — bảng so sánh mọi lượt, cũ trước mới sa
   const base = (id: string, startedAt: string): RunRecord => ({
     id, startedAt, scenario: 'ngan-xep-v1', deploy: 'abc1234', note: 'ghi chú', wallSec: 94.2, backfilled: false,
     checks: [],
-    summary: { submissions: 5, scoreOk: 4, decisionOk: 2, autoApproved: 1, expectedAuto: 3, wrongAuto: 1, errorsExpected: 8, errorsCaught: 7, extraErrors: 0, falseFlags: 3, missedFlags: 0, lensFailures: 0, maxSubmissionSec: 94.2 },
+    summary: { submissions: 5, scoreOk: 4, decisionOk: 2, autoApproved: 1, expectedAuto: 3, wrongAuto: 1, errorsExpected: 8, errorsCaught: 7, extraErrors: 0, falseFlags: 3, missedFlags: 0, lensFailures: 0, maxSubmissionSec: 94.2, models: ['glm-5.3-flash'] },
   });
 
   it('một dòng mỗi lượt, sắp theo thời điểm, có đủ cột so sánh', () => {
@@ -164,5 +174,7 @@ describe('renderIndex() — bảng so sánh mọi lượt, cũ trước mới sa
     expect(rows[0]).toContain('1/3');
     expect(md).toContain('Cờ oan');
     expect(md).toContain('Tự duyệt SAI');
+    expect(md).toContain('| Model |');
+    expect(rows[0]).toContain('glm-5.3-flash');
   });
 });

@@ -191,7 +191,10 @@ async function collect(scenario: RehearsalScenario, sessionId: string, doneAt: M
     console.error(`Từ chối ghi: phiên "${session.name}" không phải phiên diễn tập (tên phải bắt đầu bằng "TEST ") — bản ghi được commit vào git.`);
     process.exit(2);
   }
-  const rows = scenarioRows(scenario, itemsOf<{ id: string; studentMssv: string }>(await api('GET', `/exam-sessions/${sessionId}/grading-results`)));
+  const rows = scenarioRows(
+    scenario,
+    itemsOf<{ id: string; studentMssv: string; modelUsed: string | null }>(await api('GET', `/exam-sessions/${sessionId}/grading-results`)),
+  );
   const out: ActualSubmission[] = [];
   for (const row of rows) {
     const d = await api<DetailResponse>('GET', `/grading-results/${row.id}/investigation`);
@@ -200,6 +203,7 @@ async function collect(scenario: RehearsalScenario, sessionId: string, doneAt: M
       status: d.status,
       score: d.currentScore ?? null,
       confidence: d.breakdown?.confidence ?? null,
+      model: row.modelUsed ?? null,
       errors: (d.breakdown?.errors ?? []).map((e) => ({ ruleKey: e.ruleKey, source: e.source, counted: e.counted })),
       verdicts: d.challengeVerdicts ?? [],
       caseNotes: d.challengeNotes ?? [],
