@@ -41,6 +41,11 @@ describe('SeverityLens', () => {
     await expect(lens.review({ error: { ruleKey: 'chu_thich_sai', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] })).rejects.toThrow();
   });
 
+  it('không kết luận được → lỗi ném ra MANG lý do thật của vòng lăng kính (vd bad_output)', async () => {
+    const lens = new SeverityLens({ models: [scripted(['không phải JSON'])], sandbox: passAll() });
+    await expect(lens.review({ error: { ruleKey: 'chu_thich_sai', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] })).rejects.toThrow(/bad_output/);
+  });
+
   it('C3 — "refuted" ngay lượt đầu, không tự chạy thử lần nào → ném lỗi, không được tin suông', async () => {
     const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'refuted', toolCallIds: [] } })]);
     const lens = new SeverityLens({ models: [model], sandbox: passAll() });

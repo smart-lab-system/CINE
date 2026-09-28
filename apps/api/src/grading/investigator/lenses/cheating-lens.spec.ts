@@ -30,6 +30,13 @@ describe('CheatingLens', () => {
     expect(r.suspected).toBe(false);
   });
 
+  it('không kết luận được → ghi chú nêu lý do thật của bậc model (không còn một câu cố định)', async () => {
+    const lens = new CheatingLens({ models: [scripted(['không phải JSON'])], sandbox: passRun() });
+    const r = await lens.review(CTX, VERDICT, []);
+    expect(r.suspected).toBe(false);
+    expect(r.note).toContain('bad_output');
+  });
+
   it('W4 — "suspected:true" mà KHÔNG hề tự chạy "run" nào → hạ về false, không được tin suông', async () => {
     const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: true, note: 'nghi hard-code' } })]);
     const lens = new CheatingLens({ models: [model], sandbox: passRun() });

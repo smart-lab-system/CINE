@@ -1,9 +1,9 @@
 import { CaseLens } from '../case-lens';
 import { CaseLensNote } from '../challenge';
 import { LensDeps, runLensLoop } from '../lens-loop';
-import { CASE_LENS_JSON_SCHEMA, lensArgsFor, parseCaseLensReply } from '../lens-protocol';
+import { CASE_LENS_JSON_SCHEMA, clampNote, lensArgsFor, parseCaseLensReply } from '../lens-protocol';
 import { InvestigationContext, ToolCall, Verdict } from '../types';
-import { CHALLENGER_FRAME, LENS_PROTOCOL_HELP } from './frame';
+import { CASE_NOTE_RULE, CHALLENGER_FRAME, LENS_PROTOCOL_HELP } from './frame';
 
 const SYSTEM_PROMPT = [
   'Bạn là lăng kính "Gian lận" của một hệ thống phản biện việc chấm bài lập trình.',
@@ -17,6 +17,7 @@ const SYSTEM_PROMPT = [
   LENS_PROTOCOL_HELP,
   '',
   'Kết luận: {"action":"final","calls":[],"conclusion":{"suspected":true|false,"note":"…"}}.',
+  CASE_NOTE_RULE,
   'suspected=true CHỈ khi bạn đã TỰ CHẠY run() với input tự chọn và thấy bằng chứng cụ thể của',
   'việc hard-code. Một kết luận suspected=true không kèm ít nhất một lần run() THÀNH CÔNG của',
   'chính bạn sẽ bị hệ thống hạ về false — đây là buộc tội gian lận, không được phép là cảm giác.',
@@ -43,11 +44,11 @@ export class CheatingLens implements CaseLens {
       (reply) => (reply.action === 'final' ? reply.conclusion : null),
       this.deps,
     );
-    if (!r.conclusion) return { lens: this.name, suspected: false, note: 'không kết luận được (hết bậc model hoặc cạn ngân sách)' };
+    if (!r.conclusion) return { lens: this.name, suspected: false, note: clampNote(`không kết luận được — ${r.failure}`) };
     // W4 (review cuối): buộc tội gian lận mà không có lấy một lần `run()` thành công của chính
     // lăng kính này là một cáo buộc không thể kiểm chứng — hạ về false, giữ ghi chú lại.
     if (r.conclusion.suspected && !r.toolCalls.some((t) => t.status === 'ok' && t.tool === 'run')) {
-      return { lens: this.name, suspected: false, note: `(chưa tự chạy được để kiểm) ${r.conclusion.note}` };
+      return { lens: this.name, suspected: false, note: clampNote(`(chưa tự chạy được để kiểm) ${r.conclusion.note}`) };
     }
     return { lens: this.name, ...r.conclusion };
   }

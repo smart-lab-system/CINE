@@ -36,4 +36,45 @@ describe('OmissionLens', () => {
     const r = await lens.review(CTX, VERDICT, []);
     expect(r.suspected).toBe(false);
   });
+
+  it('diễn tập 2026-09-28 — kết luận hợp lệ nhưng note dài 800 ký tự → GIỮ kết luận (note cắt về 500), không thành "không kết luận được"', async () => {
+    const model = scripted([
+      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
+      JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: true, note: `ca n=0 chưa được chạy. ${'chi tiết '.repeat(90)}` } }),
+    ]);
+    const lens = new OmissionLens({ models: [model], sandbox: passAll() });
+    const r = await lens.review(CTX, VERDICT, []);
+    expect(r.suspected).toBe(true);
+    expect(r.note.startsWith('ca n=0 chưa được chạy.')).toBe(true);
+    expect(r.note.length).toBeLessThanOrEqual(500);
+  });
+
+  it('không kết luận được → ghi chú NÊU LÝ DO (vd hết bậc model), không chỉ "không kết luận được"', async () => {
+    const lens = new OmissionLens({ models: [scripted(['không phải JSON'])], sandbox: passAll() });
+    const r = await lens.review(CTX, VERDICT, []);
+    expect(r.suspected).toBe(false);
+    expect(r.note).toContain('không kết luận được');
+    expect(r.note).toContain('bad_output');
+  });
+
+  it('hạ "suspected" về false vì chưa tự kiểm + note đã dài sẵn → note sau khi thêm tiền tố vẫn ≤ 500', async () => {
+    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: true, note: 'n'.repeat(500) } })]);
+    const lens = new OmissionLens({ models: [model], sandbox: fakeSandbox(() => execResult([])) });
+    const r = await lens.review(CTX, VERDICT, []);
+    expect(r.suspected).toBe(false);
+    expect(r.note.length).toBeLessThanOrEqual(500);
+  });
+
+  it('prompt nói rõ giới hạn 500 ký tự của note (gateway không ép json_schema, model chỉ biết qua lời)', async () => {
+    const seen: string[] = [];
+    const model: ModelTier = {
+      label: 'A', model: 'A-m', ceiling: 0.5,
+      async call(req) {
+        seen.push(req.system);
+        return { content: JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: false, note: 'ok' } }), usage: USAGE };
+      },
+    };
+    await new OmissionLens({ models: [model], sandbox: passAll() }).review(CTX, VERDICT, []);
+    expect(seen[0]).toContain('500 ký tự');
+  });
 });

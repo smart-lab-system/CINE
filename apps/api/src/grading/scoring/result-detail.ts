@@ -5,7 +5,15 @@ import { CurrentScore, currentScore } from './current-score';
 import { latestComputationRow } from './score-inputs';
 import type { ScoreBreakdown } from './score-core';
 import type { StoredInvestigation } from './stored-investigation';
-import type { CaseLensNote } from '../investigator/challenge';
+import type { CaseLensNote, ChallengeStatus } from '../investigator/challenge';
+
+/** Một kết luận của MỘT lăng kính per-error (Tính đúng, Quá tay) về MỘT lỗi. */
+export interface ChallengeVerdictDetail {
+  lens: string;
+  ruleKey: string;
+  status: ChallengeStatus;
+  reason: string | null;
+}
 
 export interface ResultDetailError {
   ruleId: string;
@@ -29,6 +37,8 @@ export interface ResultDetail {
   investigation: StoredInvestigation['result'] | null;
   /** Bước 6 — ghi chú của Bỏ sót/Gian lận. Rỗng khi chưa bật phản biện hay hồ sơ cũ. */
   challengeNotes: CaseLensNote[];
+  /** Bước 6 — kết luận từng lăng kính per-error, kể cả khi xác nhận (khi đó không cờ nào hiện). */
+  challengeVerdicts: ChallengeVerdictDetail[];
 }
 
 interface ScoreSourceRow {
@@ -54,6 +64,9 @@ export async function loadResultDetail(ds: DataSource, result: GradingResultEnti
     : [null];
   const stored = attempt?.investigation as StoredInvestigation | undefined;
   const challengeNotes = stored?.challenge?.caseNotes ?? [];
+  const challengeVerdicts: ChallengeVerdictDetail[] = (stored?.challenge?.perError ?? []).flatMap((c) =>
+    c.perError.map((e) => ({ lens: c.challenger, ruleKey: e.ruleKey, status: e.status, reason: e.reason ?? null })),
+  );
 
   let breakdown: ResultDetail['breakdown'] = null;
   if (computation) {
@@ -117,5 +130,6 @@ export async function loadResultDetail(ds: DataSource, result: GradingResultEnti
     breakdown,
     investigation: stored?.result ?? null,
     challengeNotes,
+    challengeVerdicts,
   };
 }

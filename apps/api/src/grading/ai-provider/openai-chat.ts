@@ -7,6 +7,8 @@ import { badOutputError, httpProviderError } from './provider-failure';
  * NHẠY CẢM — nó quyết định cái gì lọt vào `failedReason` trong Redis, và
  * `failedReason` là nơi bài làm của sinh viên có thể rò ra. Hai bản sao
  * của đoạn này là hai chỗ để một bản được vá còn bản kia thì không.
+ * Thông điệp lỗi ở đây giờ còn tới cả UI giảng viên (lý do "chưa xác minh"
+ * của lăng kính phản biện) — tuyệt đối không echo output model / body HTTP.
  *
  * KHÔNG dùng SDK `openai`: ta chỉ cần đúng một endpoint, và buộc phải tự
  * phân loại `error.code` nên lợi ích chính của SDK không dùng tới — trong

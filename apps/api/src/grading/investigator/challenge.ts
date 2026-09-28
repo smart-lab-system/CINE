@@ -17,8 +17,11 @@ export interface Challenger {
 
 export interface ChallengeConclusion {
   challenger: string;
-  perError: { ruleKey: string; status: ChallengeStatus; toolCallIds: string[] }[];
+  /** `reason` chỉ có ở `unverified`: vì sao lăng kính không kết luận được. */
+  perError: { ruleKey: string; status: ChallengeStatus; toolCallIds: string[]; reason?: string }[];
 }
+
+const REASON_MAX = 300;
 
 /**
  * Phản biện là khâu GHÉP BÊN NGOÀI `investigate()` (§12.5 yêu cầu 2): gọi được trên một
@@ -48,10 +51,12 @@ export async function challenge(
       try {
         const r = await challenger.review(input);
         return { ruleKey: e.ruleKey, status: r.status, toolCallIds: r.toolCallIds };
-      } catch {
+      } catch (error) {
         // Không đọc được → `unverified`, KHÔNG BAO GIỜ `refuted`: chấm nó "đã bác bỏ" là âm
         // thầm chôn một lỗi có thật (§6.2).
-        return { ruleKey: e.ruleKey, status: 'unverified', toolCallIds: [] };
+        const message = error instanceof Error ? error.message : String(error);
+        const reason = message.length > REASON_MAX ? `${message.slice(0, REASON_MAX - 1)}…` : message;
+        return { ruleKey: e.ruleKey, status: 'unverified', toolCallIds: [], reason };
       }
     }),
   );

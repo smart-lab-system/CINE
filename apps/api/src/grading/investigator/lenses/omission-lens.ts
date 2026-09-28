@@ -1,9 +1,9 @@
 import { CaseLens } from '../case-lens';
 import { CaseLensNote } from '../challenge';
 import { LensDeps, runLensLoop } from '../lens-loop';
-import { CASE_LENS_JSON_SCHEMA, lensArgsFor, parseCaseLensReply } from '../lens-protocol';
+import { CASE_LENS_JSON_SCHEMA, clampNote, lensArgsFor, parseCaseLensReply } from '../lens-protocol';
 import { InvestigationContext, ToolCall, Verdict } from '../types';
-import { CHALLENGER_FRAME, LENS_PROTOCOL_HELP } from './frame';
+import { CASE_NOTE_RULE, CHALLENGER_FRAME, LENS_PROTOCOL_HELP } from './frame';
 
 const SYSTEM_PROMPT = [
   'Bạn là lăng kính "Bỏ sót" của một hệ thống phản biện việc chấm bài lập trình.',
@@ -17,6 +17,7 @@ const SYSTEM_PROMPT = [
   LENS_PROTOCOL_HELP,
   '',
   'Kết luận: {"action":"final","calls":[],"conclusion":{"suspected":true|false,"note":"…"}}.',
+  CASE_NOTE_RULE,
   'suspected=true CHỈ khi bạn đã tự chạy và thấy bằng chứng cụ thể — không phải cảm giác',
   '"có thể còn thiếu". Một kết luận suspected=true không kèm ít nhất một lời gọi công cụ THÀNH',
   'CÔNG của chính bạn sẽ bị hệ thống hạ về false.',
@@ -43,12 +44,12 @@ export class OmissionLens implements CaseLens {
       (reply) => (reply.action === 'final' ? reply.conclusion : null),
       this.deps,
     );
-    if (!r.conclusion) return { lens: this.name, suspected: false, note: 'không kết luận được (hết bậc model hoặc cạn ngân sách)' };
+    if (!r.conclusion) return { lens: this.name, suspected: false, note: clampNote(`không kết luận được — ${r.failure}`) };
     // W4 (review cuối): "suspected:true" không có lấy một lời gọi công cụ thành công của chính
     // lăng kính này là một cảm giác, không phải một phát hiện — hạ về false, giữ ghi chú lại để
     // giảng viên vẫn đọc được LÝ DO model đưa ra, dù không được tin.
     if (r.conclusion.suspected && !r.toolCalls.some((t) => t.status === 'ok')) {
-      return { lens: this.name, suspected: false, note: `(chưa tự kiểm được) ${r.conclusion.note}` };
+      return { lens: this.name, suspected: false, note: clampNote(`(chưa tự kiểm được) ${r.conclusion.note}`) };
     }
     return { lens: this.name, ...r.conclusion };
   }

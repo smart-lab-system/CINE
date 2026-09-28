@@ -51,7 +51,7 @@ export class CorrectnessLens implements Challenger {
       (reply) => (reply.action === 'final' ? reply.conclusion : null),
       this.deps,
     );
-    if (!r.conclusion) throw new Error('lăng kính Tính đúng không kết luận được (hết bậc model hoặc cạn ngân sách)');
+    if (!r.conclusion) throw new Error(`lăng kính Tính đúng không kết luận được — ${r.failure}`);
     const okIds = new Set(r.toolCalls.filter((t) => t.status === 'ok').map((t) => t.id));
     const toolCallIds = r.conclusion.toolCallIds.filter((id) => okIds.has(id));
     // §6.1: việc của lăng kính này LUÔN LÀ "chứng minh bằng một lần chạy" — áp cho CẢ HAI chiều

@@ -88,3 +88,29 @@ describe('runLensLoop()', () => {
     expect(CHALLENGE_PHASE_BUDGET_MS).toBeGreaterThanOrEqual(LENS_BUDGET.maxWallMs);
   });
 });
+
+describe('runLensLoop() — vì sao dừng (end/failure), để một lăng kính không kết luận được không còn im lặng', () => {
+  it('có kết luận → end="final", failure=null', async () => {
+    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'confirmed' } })]);
+    const r = await runLensLoop(CTX, 'tinh_dung', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [model], sandbox: passAll() });
+    expect(r.end).toBe('final');
+    expect(r.failure).toBeNull();
+  });
+
+  it('model trả JSON không đọc được ở mọi bậc → end="models_exhausted", failure nêu lý do của bậc', async () => {
+    const garbage = scripted(['không phải JSON']);
+    const r = await runLensLoop(CTX, 'bo_sot', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [garbage], sandbox: passAll() });
+    expect(r.conclusion).toBeNull();
+    expect(r.end).toBe('models_exhausted');
+    expect(r.failure).toContain('hết bậc model');
+    expect(r.failure).toContain('bad_output');
+  });
+
+  it('chạm trần vòng không có lời gọi thành công → end="max_rounds", failure nêu trần', async () => {
+    const model = scripted([JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null })]);
+    const failAll = fakeSandbox(() => { throw new Error('sandbox lỗi'); });
+    const r = await runLensLoop(CTX, 'tinh_dung', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [model], sandbox: failAll });
+    expect(r.end).toBe('max_rounds');
+    expect(r.failure).toContain(`${LENS_BUDGET.maxRounds} lượt`);
+  });
+});

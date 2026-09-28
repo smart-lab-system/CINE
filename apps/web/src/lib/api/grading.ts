@@ -444,6 +444,14 @@ export interface ChallengeNote {
   note: string;
 }
 
+/** Mirrors ChallengeVerdictDetail (apps/api/src/grading/scoring/result-detail.ts) — bước 6. */
+export interface ChallengeVerdict {
+  lens: string;
+  ruleKey: string;
+  status: 'confirmed' | 'refuted' | 'unverified';
+  reason: string | null;
+}
+
 export interface ToolCallView {
   id: string;
   tool: string;
@@ -479,6 +487,8 @@ export interface ResultDetail {
   } | null;
   /** Bước 6 — ghi chú của lăng kính Bỏ sót/Gian lận. Rỗng khi chưa bật phản biện hay hồ sơ cũ. */
   challengeNotes: ChallengeNote[];
+  /** Bước 6 — kết luận từng lăng kính per-error (Tính đúng, Quá tay), kể cả khi xác nhận. */
+  challengeVerdicts: ChallengeVerdict[];
 }
 
 /** Chi tiết một lượt tính điểm + đường điều tra — Hồ sơ một bài (§5). */

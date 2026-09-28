@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { DuplicateGuard } from './dedup';
 import { ModelPool, ModelsExhaustedError, DeadlineExceededError, ModelTier } from './model-pool';
 import { SandboxPort, ToolRunner } from './tools';
@@ -37,13 +38,31 @@ function syntheticCall(id: string, tool: ToolCall['tool'], args: Record<string, 
   return { id, tool, args, status, output: message, structuredRef: null, startedAt: new Date(now()).toISOString(), wallMs: 0, injectionSuspected: false };
 }
 
+export type LensEnd = 'final' | 'max_rounds' | 'max_wall' | 'max_tool_calls' | 'models_exhausted' | 'deadline';
+
 export interface LensRunResult<TConclusion> {
   /** null = mọi bậc model hỏng, hay cạn ngân sách trước khi có kết luận. */
   conclusion: TConclusion | null;
   toolCalls: ToolCall[];
+  end: LensEnd;
+  /** Câu cho người đọc (ghi chú, log): vì sao không có kết luận. null khi `end === 'final'`. */
+  failure: string | null;
 }
 
 type LensStop = 'max_rounds' | 'max_wall' | 'max_tool_calls';
+
+const logger = new Logger('LensLoop');
+
+function describeEnd(end: Exclude<LensEnd, 'final'>, detail: string | null): string {
+  const base = {
+    models_exhausted: `hết bậc model (${detail ?? 'không rõ lý do'})`,
+    deadline: `hết giờ (${LENS_BUDGET.maxWallMs / 1000}s) khi đang chờ model trả lời`,
+    max_wall: `hết giờ (${LENS_BUDGET.maxWallMs / 1000}s) mà chưa kết luận`,
+    max_rounds: `hết ${LENS_BUDGET.maxRounds} lượt mà chưa kết luận`,
+    max_tool_calls: `hết ${LENS_BUDGET.maxToolCalls} lời gọi công cụ mà chưa kết luận`,
+  }[end];
+  return end !== 'models_exhausted' && detail ? `${base} — ${detail}` : base;
+}
 
 /**
  * Vòng lặp CHUNG cho cả `Challenger` (per-error) lẫn `CaseLens` (cấp bài) — hai hình dạng chỉ
@@ -79,7 +98,14 @@ export async function runLensLoop<TReply extends { action: 'call' | 'final'; cal
   const toolCalls: ToolCall[] = [];
   const messages: { role: 'user' | 'assistant'; content: string }[] = [{ role: 'user', content: userMessage }];
   let rounds = 0;
-  let stop: LensStop | null = null;
+  let stop: LensStop = 'max_rounds';
+
+  const done = (reply: TReply): LensRunResult<TConclusion> => ({ conclusion: extractConclusion(reply), toolCalls, end: 'final', failure: null });
+  const failed = (end: Exclude<LensEnd, 'final'>, detail: string | null = null): LensRunResult<TConclusion> => {
+    const failure = describeEnd(end, detail);
+    logger.warn(`lăng kính ${label}: không kết luận được — ${failure}`);
+    return { conclusion: null, toolCalls, end, failure };
+  };
 
   const ask = () =>
     pool.ask(
@@ -97,13 +123,14 @@ export async function runLensLoop<TReply extends { action: 'call' | 'final'; cal
     try {
       reply = (await ask()).value;
     } catch (error) {
-      if (error instanceof ModelsExhaustedError || error instanceof DeadlineExceededError) return { conclusion: null, toolCalls };
+      if (error instanceof ModelsExhaustedError) return failed('models_exhausted', error.reasons.join('; '));
+      if (error instanceof DeadlineExceededError) return failed('deadline');
       throw error;
     }
     rounds++;
     messages.push({ role: 'assistant', content: JSON.stringify(reply) });
 
-    if (reply.action === 'final') return { conclusion: extractConclusion(reply), toolCalls };
+    if (reply.action === 'final') return done(reply);
 
     const results: ToolCall[] = [];
     for (const call of reply.calls as never[]) {
@@ -135,10 +162,14 @@ export async function runLensLoop<TReply extends { action: 'call' | 'final'; cal
     else messages.push({ role: 'user', content: FORCE_FINAL_MESSAGE });
     try {
       const reply = (await ask()).value;
-      if (reply.action === 'final') return { conclusion: extractConclusion(reply), toolCalls };
-    } catch {
-      // Hết bậc hay hết giờ ngay ở lượt ép cuối — rơi xuống return null bên dưới.
+      if (reply.action === 'final') return done(reply);
+      return failed(stop, 'lượt ép kết luận vẫn chỉ xin gọi thêm công cụ');
+    } catch (error) {
+      const why = error instanceof ModelsExhaustedError
+        ? `lượt ép kết luận: hết bậc model (${error.reasons.join('; ')})`
+        : 'lượt ép kết luận cũng không có phản hồi dùng được';
+      return failed(stop, why);
     }
   }
-  return { conclusion: null, toolCalls };
+  return failed(stop);
 }
