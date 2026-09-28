@@ -73,6 +73,21 @@ describe('DiagnosedErrorList', () => {
     expect(screen.getByText(/chưa xác minh/i)).toBeInTheDocument();
   });
 
+  it('W9 — MỘT lỗi vừa có cờ "unpriced" vừa có cờ "unverified" → hiện CẢ HAI badge, không mất cái nào', () => {
+    render(
+      <DiagnosedErrorList
+        breakdown={breakdown({
+          errorFlags: [
+            { ruleKey: 'sai_ca_co_ban', code: 'unpriced' },
+            { ruleKey: 'sai_ca_co_ban', code: 'unverified' },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText(/chưa có giá/i)).toBeInTheDocument();
+    expect(screen.getByText(/chưa xác minh/i)).toBeInTheDocument();
+  });
+
   it('mismatchedRules > 0 → hiện ghi chú trỏ về Trang kiến thức', () => {
     render(
       <DiagnosedErrorList

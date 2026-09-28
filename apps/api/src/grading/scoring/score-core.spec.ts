@@ -142,6 +142,24 @@ describe('computeScore', () => {
   });
 
   it('lỗi bị phản biện bác bỏ → counted="refuted", KHÔNG trừ điểm, vẫn còn trong breakdown.errors (§6.2)', () => {
+    // ten_bien là luật MODEL — chỉ lỗi loại này mới cho lăng kính LLM phán "refuted" (§4.1).
+    const out = computeScore(
+      input({
+        stored: stored({
+          challenge: {
+            perError: [{ challenger: 'lens', perError: [{ ruleKey: 'ten_bien', status: 'refuted', toolCallIds: [] }] }],
+            caseNotes: [],
+          },
+        }),
+      }),
+    );
+    const err = out.breakdown.errors.find((e) => e.ruleKey === 'ten_bien');
+    expect(err?.counted).toBe('refuted');
+    expect(out.scoreHundredths).toBe(1000 - 150); // chỉ còn trừ sai_bien (150) — ten_bien (50) không tính
+    expect(out.breakdown.errorFlags).toContainEqual({ ruleKey: 'ten_bien', code: 'refuted' });
+  });
+
+  it('C2 — lỗi luật MÁY QUYẾT MIỄN NHIỄM với phản biện dù lăng kính nói "refuted" (§4.1: model không tham gia phán máy quyết)', () => {
     const out = computeScore(
       input({
         stored: stored({
@@ -153,9 +171,9 @@ describe('computeScore', () => {
       }),
     );
     const err = out.breakdown.errors.find((e) => e.ruleKey === 'sai_bien');
-    expect(err?.counted).toBe('refuted');
-    expect(out.scoreHundredths).toBe(1000 - 50); // chỉ còn trừ ten_bien (50) — sai_bien (150) không tính
-    expect(out.breakdown.errorFlags).toContainEqual({ ruleKey: 'sai_bien', code: 'refuted' });
+    expect(err?.counted).toBe('counted');
+    expect(out.scoreHundredths).toBe(1000 - 150 - 50); // không đổi so với không có phản biện nào
+    expect(out.breakdown.errorFlags).not.toContainEqual({ ruleKey: 'sai_bien', code: 'refuted' });
   });
 });
 

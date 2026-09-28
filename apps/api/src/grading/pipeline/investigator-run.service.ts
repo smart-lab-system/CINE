@@ -5,7 +5,7 @@ import { runCaseLens } from '../investigator/case-lens';
 import { challenge } from '../investigator/challenge';
 import type { StoredChallenge } from '../investigator/challenge';
 import { investigate } from '../investigator/investigate';
-import type { InvestigationContext, InvestigationResult } from '../investigator/types';
+import type { InvestigationContext, InvestigationResult, Verdict } from '../investigator/types';
 import { lockTeacherScoring, teacherOfResult } from '../scoring/score-inputs';
 import { ScoreService } from '../scoring/score.service';
 import type { StoredInvestigation } from '../scoring/stored-investigation';
@@ -111,13 +111,23 @@ export class InvestigatorRunService {
    * (cùng triết lý Advocate cũ: "không có ý kiến nào tốt hơn một ý kiến bịa ra"). `challenge()`
    * đã tự bọc lỗi của TỪNG Challenger thành `unverified`; `runCaseLens()` tự bọc thành
    * `suspected:false` — nên `Promise.all` ở đây không cần try/catch riêng cho từng lăng kính.
+   *
+   * Lỗi luật MÁY QUYẾT (`checkedBy: 'machine'`) không được gửi cho Challenger — sửa sau review
+   * cuối (finding C2, §4.1: "Code đánh giá predicate. Model không tham gia"). Một lỗi máy quyết
+   * là SỰ THẬT đo được từ kết quả chạy thật, không phải một ý kiến để lăng kính LLM tranh luận;
+   * gửi nó đi vẫn có thể làm mất một mức trừ có bằng chứng máy đo, chỉ vì một lăng kính LLM nói
+   * "refuted" mà không hề hiểu nó đang bác cái gì. CaseLens (Bỏ sót, Gian lận) không đổi điểm nên
+   * vẫn nhận verdict ĐẦY ĐỦ, không lọc — chúng cần thấy MỌI lỗi đã tìm để đánh giá cả bài.
    */
   private async runChallenge(result: InvestigationResult, ctx: InvestigationContext): Promise<StoredChallenge | null> {
     if (!result.verdict || this.deps.challengers.length === 0) return null;
+    const verdict = result.verdict;
     const toolCalls = result.investigation.toolCalls;
+    const machineRuleKeys = new Set(ctx.rules.filter((r) => r.checkedBy === 'machine').map((r) => r.ruleKey));
+    const challengeableVerdict: Verdict = { ...verdict, errors: verdict.errors.filter((e) => !machineRuleKeys.has(e.ruleKey)) };
     const [perError, caseNotes] = await Promise.all([
-      Promise.all(this.deps.challengers.map((c) => challenge(result.verdict!, ctx, toolCalls, c))),
-      Promise.all(this.deps.caseLenses.map((l) => runCaseLens(ctx, result.verdict!, toolCalls, l))),
+      Promise.all(this.deps.challengers.map((c) => challenge(challengeableVerdict, ctx, toolCalls, c))),
+      Promise.all(this.deps.caseLenses.map((l) => runCaseLens(ctx, verdict, toolCalls, l))),
     ]);
     return { perError, caseNotes };
   }

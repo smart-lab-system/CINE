@@ -10,7 +10,12 @@ const SOURCE_LABEL: Record<ResultDetailError['source'], { label: string; variant
 };
 
 export function DiagnosedErrorList({ breakdown }: { breakdown: NonNullable<ResultDetail['breakdown']> }) {
-  const flagsByRule = new Map(breakdown.errorFlags.map((f) => [f.ruleKey, f.code]));
+  const flagsByRule = new Map<string, Set<string>>();
+  for (const f of breakdown.errorFlags) {
+    const codes = flagsByRule.get(f.ruleKey) ?? new Set<string>();
+    codes.add(f.code);
+    flagsByRule.set(f.ruleKey, codes);
+  }
   return (
     <section className="flex flex-col gap-2">
       <h3 className="section-label">Lỗi chẩn đoán ({breakdown.errors.length})</h3>
@@ -26,8 +31,8 @@ export function DiagnosedErrorList({ breakdown }: { breakdown: NonNullable<Resul
               <Badge variant={SOURCE_LABEL[error.source].variant}>{SOURCE_LABEL[error.source].label}</Badge>
               {error.counted === 'excluded' && <Badge variant="outline">Đã bỏ cho bài này</Badge>}
               {error.counted === 'refuted' && <Badge variant="destructive">Bị bác bỏ (phản biện)</Badge>}
-              {flagsByRule.get(error.ruleKey) === 'unpriced' && <Badge variant="warning">chưa có giá</Badge>}
-              {flagsByRule.get(error.ruleKey) === 'unverified' && <Badge variant="warning">Chưa xác minh</Badge>}
+              {flagsByRule.get(error.ruleKey)?.has('unpriced') && <Badge variant="warning">chưa có giá</Badge>}
+              {flagsByRule.get(error.ruleKey)?.has('unverified') && <Badge variant="warning">Chưa xác minh</Badge>}
             </div>
             <p className="mt-1 text-caption text-muted-foreground">
               Tiêu chí {error.criterionKey}

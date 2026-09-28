@@ -33,4 +33,22 @@ describe('CorrectnessLens', () => {
     const r = await lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] });
     expect(r.toolCallIds).not.toContain('tc-1');
   });
+
+  it('C3 — "refuted" mà KHÔNG có lời gọi run/run_tests thành công nào của chính lăng kính → ném lỗi, không được tin suông (§6, "bằng một lần chạy")', async () => {
+    // Kết luận NGAY ở lượt đầu, không hề gọi công cụ nào — "refuted" ở đây là ý kiến suông.
+    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'refuted', toolCallIds: [] } })]);
+    const lens = new CorrectnessLens({ models: [model], sandbox: passNone() });
+    await expect(lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] })).rejects.toThrow();
+  });
+
+  it('C3 — "refuted" CÓ một lời gọi run_tests thành công của chính lăng kính → được tin', async () => {
+    const model = scripted([
+      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
+      JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'refuted', toolCallIds: ['tinh_dung-tc-1'] } }),
+    ]);
+    const passAll = fakeSandbox((req) => execResult(req.cases.map((c) => ({ name: c.name, group: c.group, status: 'pass' }))));
+    const lens = new CorrectnessLens({ models: [model], sandbox: passAll });
+    const r = await lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] });
+    expect(r.status).toBe('refuted');
+  });
 });

@@ -12,14 +12,20 @@ const CONTRADICTION_CAP = 0.5;
 /** Đủ thấp để một bài có lỗi chưa xác minh không bao giờ tự quyết qua θ mặc định (§6.2). */
 const UNVERIFIED_CONFIDENCE_CAP = 0.5;
 
-/** Bất đối xứng §6.2, gộp NHIỀU lăng kính per-error cho MỘT ruleKey: một lăng kính bác bỏ được
- *  là đủ để refuted, dù lăng kính khác xác nhận — im lặng không phải đồng ý theo chiều ngược
- *  lại cũng đúng: mọi lăng kính xác nhận thì confirmed; còn lại là unverified. */
+/**
+ * Bất đối xứng §6.2, gộp NHIỀU lăng kính per-error cho MỘT ruleKey: một lăng kính bác bỏ được
+ * là đủ để refuted, dù lăng kính khác xác nhận. Ngược lại: MỘT lăng kính xác nhận (bằng lời có
+ * bằng chứng chạy thật) là đủ để confirmed, MIỄN LÀ không có lăng kính nào bác bỏ — một lăng kính
+ * không trả lời được không được kéo tụt một lăng kính khác ĐÃ xác nhận thành công (sửa sau review
+ * cuối, finding W5: bản đầu đòi TẤT CẢ xác nhận mới là confirmed, khắt khe hơn spec và kéo tỉ lệ
+ * tự quyết xuống oan vì một lăng kính timeout). `unverified` chỉ còn lại cho đúng nghĩa spec:
+ * KHÔNG lăng kính nào trả lời được.
+ */
 function mergedStatusOf(ruleKey: string, perError: ChallengeConclusion[]): ChallengeStatus | null {
   const statuses = perError.flatMap((c) => c.perError.filter((e) => e.ruleKey === ruleKey).map((e) => e.status));
   if (statuses.length === 0) return null;
   if (statuses.some((s) => s === 'refuted')) return 'refuted';
-  if (statuses.every((s) => s === 'confirmed')) return 'confirmed';
+  if (statuses.some((s) => s === 'confirmed')) return 'confirmed';
   return 'unverified';
 }
 
@@ -88,6 +94,11 @@ export function decide(input: DecisionInput): Decision {
   const unverifiedKeys = new Set<string>();
   if (input.challenge) {
     for (const e of errors) {
+      // C2 (review cuối): lỗi MÁY QUYẾT miễn nhiễm với phản biện, dù dữ liệu challenge có sẵn
+      // một kết luận trỏ đúng ruleKey của nó — phòng thủ SONG SONG với việc
+      // `InvestigatorRunService.runChallenge()` đã không gửi lỗi máy quyết cho lăng kính ngay từ
+      // đầu; lớp này giữ đúng luôn ĐÚNG dù hồ sơ cũ hay một đường gọi khác quên lọc.
+      if (e.source === 'deterministic') continue;
       const status = mergedStatusOf(e.ruleKey, input.challenge.perError);
       if (status === 'refuted') refutedKeys.add(e.ruleKey);
       else if (status === 'unverified') unverifiedKeys.add(e.ruleKey);

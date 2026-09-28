@@ -1,7 +1,7 @@
 import { ChallengeInput, Challenger } from '../challenge';
 import { LensDeps, runLensLoop } from '../lens-loop';
-import { lensArgsFor, parsePerErrorReply } from '../lens-protocol';
-import { CHALLENGER_FRAME } from './frame';
+import { lensArgsFor, parsePerErrorReply, PER_ERROR_JSON_SCHEMA } from '../lens-protocol';
+import { CHALLENGER_FRAME, LENS_PROTOCOL_HELP } from './frame';
 
 const SYSTEM_PROMPT = [
   'Bạn là lăng kính "Tính đúng" của một hệ thống phản biện việc chấm bài lập trình.',
@@ -11,19 +11,23 @@ const SYSTEM_PROMPT = [
   'workspace — nhưng KHÔNG nhận lý lẽ agent chấm đã dùng. Việc của bạn: tự gọi lại công cụ',
   '(run, run_tests, read_file, list_files) để kiểm xem lỗi đó CÓ THẬT không.',
   '',
-  'Trả JSON: {"action":"call","calls":[...],"conclusion":null} khi cần gọi thêm công cụ, hoặc',
-  '{"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["lens-tc-N"]}}',
-  'khi đã đủ căn cứ. "refuted" nghĩa là bạn CHẠY THỬ và thấy lỗi đó không đúng như mô tả —',
-  'không phải "tôi nghĩ có thể sai". toolCallIds phải là mã lens-tc-N của LƯỢT NÀY.',
+  LENS_PROTOCOL_HELP,
+  '',
+  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["lens-tc-N"]}}.',
+  '"refuted" nghĩa là bạn CHẠY THỬ (run hoặc run_tests) và thấy lỗi đó không đúng như mô tả —',
+  'không phải "tôi nghĩ có thể sai". Một kết luận "refuted" không kèm ít nhất một lần run/run_tests',
+  'THÀNH CÔNG của chính bạn sẽ bị hệ thống bỏ qua, dù bạn viết gì trong toolCallIds.',
 ].join('\n');
 
 /**
  * "Tính đúng" (§6.1): lỗi đã chẩn đoán có thật không, chứng minh bằng một lần chạy.
  *
- * `review()` NÉM lỗi khi không kết luận được (hết bậc model, cạn ngân sách) — kiểu của
- * `Challenger.review()` chỉ cho phép `'confirmed' | 'refuted'`, nên "không kết luận được"
- * không có chỗ để trả về trực tiếp; `challenge()` (đã có, bước 2) tự bọc MỌI lỗi ném ra từ
- * `challenger.review()` thành `unverified` (§6.2, khoá bởi `challenge.spec.ts`).
+ * `review()` NÉM lỗi khi không kết luận được (hết bậc model, cạn ngân sách, HAY khi "refuted"
+ * không có bằng chứng chạy thật của chính lăng kính — sửa sau review cuối, finding C3: một kết
+ * luận suông không được phép xoá một mức trừ thật). Kiểu của `Challenger.review()` chỉ cho phép
+ * `'confirmed' | 'refuted'`, nên "không kết luận được"/"không đủ bằng chứng" không có chỗ để trả
+ * về trực tiếp; `challenge()` (đã có, bước 2) tự bọc MỌI lỗi ném ra từ `challenger.review()`
+ * thành `unverified` (§6.2, khoá bởi `challenge.spec.ts`).
  */
 export class CorrectnessLens implements Challenger {
   readonly name = 'tinh_dung';
@@ -37,8 +41,10 @@ export class CorrectnessLens implements Challenger {
     ].join('\n');
     const r = await runLensLoop(
       input.ctx,
+      this.name,
       SYSTEM_PROMPT,
       userMessage,
+      PER_ERROR_JSON_SCHEMA,
       parsePerErrorReply,
       lensArgsFor as never,
       (reply) => (reply.action === 'final' ? reply.conclusion : null),
@@ -46,6 +52,13 @@ export class CorrectnessLens implements Challenger {
     );
     if (!r.conclusion) throw new Error('lăng kính Tính đúng không kết luận được (hết bậc model hoặc cạn ngân sách)');
     const okIds = new Set(r.toolCalls.filter((t) => t.status === 'ok').map((t) => t.id));
-    return { status: r.conclusion.status, toolCallIds: r.conclusion.toolCallIds.filter((id) => okIds.has(id)) };
+    const toolCallIds = r.conclusion.toolCallIds.filter((id) => okIds.has(id));
+    if (r.conclusion.status === 'refuted') {
+      const ranSomething = r.toolCalls.some((t) => t.status === 'ok' && (t.tool === 'run' || t.tool === 'run_tests'));
+      if (!ranSomething) {
+        throw new Error('lăng kính Tính đúng kết luận "refuted" mà không tự chạy thử lần nào — không được tin (§6)');
+      }
+    }
+    return { status: r.conclusion.status, toolCallIds };
   }
 }

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { SYSTEM_DELIMITER_RULE } from '../harness/submission-envelope';
 import { TOOL_NAMES } from './types';
+import { readSingleJson } from './verdict-reader';
 
 /** Cùng bốn công cụ của đường điều tra lớn (§6 ràng buộc 2) — lăng kính không có công cụ riêng
  *  NGOÀI bốn cái này (probe/ast_query/compare_peers là bước 5, chưa tồn tại). */
@@ -92,9 +93,11 @@ const perErrorReplySchema = z.discriminatedUnion('action', [
 ]);
 export type PerErrorReply = z.infer<typeof perErrorReplySchema>;
 
-/** Qua bộ đọc §5.2 rồi zod — cùng khuôn `parseReply()` của protocol.ts, bản cho lens. */
+/** Qua bộ đọc §5.2 (`readSingleJson`) rồi zod — cùng khuôn `parseReply()` của protocol.ts, bản cho lens. */
 export function parsePerErrorReply(content: string): PerErrorReply | null {
-  const parsed = perErrorReplySchema.safeParse(safeJson(content));
+  const read = readSingleJson(content);
+  if (!read.ok) return null;
+  const parsed = perErrorReplySchema.safeParse(read.value);
   return parsed.success ? parsed.data : null;
 }
 
@@ -127,18 +130,10 @@ const caseLensReplySchema = z.discriminatedUnion('action', [
 export type CaseLensReply = z.infer<typeof caseLensReplySchema>;
 
 export function parseCaseLensReply(content: string): CaseLensReply | null {
-  const parsed = caseLensReplySchema.safeParse(safeJson(content));
+  const read = readSingleJson(content);
+  if (!read.ok) return null;
+  const parsed = caseLensReplySchema.safeParse(read.value);
   return parsed.success ? parsed.data : null;
-}
-
-/** Model đôi khi bọc JSON trong ```json …``` dù được dặn không làm vậy — cắt vỏ trước khi parse. */
-function safeJson(content: string): unknown {
-  const trimmed = content.trim().replace(/^```json\s*/i, '').replace(/```$/, '');
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return null;
-  }
 }
 
 export const LENS_SYSTEM_DELIMITER = SYSTEM_DELIMITER_RULE;

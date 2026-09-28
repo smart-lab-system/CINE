@@ -25,6 +25,11 @@ export interface ChallengeConclusion {
  * verdict TỰ DỰNG, nên eval tiêm được lỗi giả vào giữa (§12.3), và ablation `−advocate` chỉ là
  * không ghép khâu này. Bước 2 chốt RANH GIỚI; bốn lăng kính và công cụ riêng của phản biện là
  * bước 6 (Q6).
+ *
+ * Xét các lỗi SONG SONG (bước 6, sửa sau review cuối) — không phải tuần tự: một bài có N lỗi
+ * chẩn đoán tuần tự sẽ mất N lần thời gian của MỘT lượt lăng kính (có thể ~60-90s mỗi lượt, xem
+ * `LENS_BUDGET`), dễ vượt trần thời gian của cả job chấm. Song song thì trần thời gian của cả
+ * hàm này bị chặn bởi lượt CHẬM NHẤT, không phải tổng của mọi lượt.
  */
 export async function challenge(
   verdict: Verdict,
@@ -33,22 +38,23 @@ export async function challenge(
   challenger: Challenger,
 ): Promise<ChallengeConclusion> {
   const byId = new Map(toolCalls.map((t) => [t.id, t]));
-  const perError: ChallengeConclusion['perError'] = [];
-  for (const e of verdict.errors) {
-    const input: ChallengeInput = {
-      error: { ruleKey: e.ruleKey, toolCallIds: e.toolCallIds },
-      ctx,
-      evidence: e.toolCallIds.map((id) => byId.get(id)).filter((t): t is ToolCall => t !== undefined),
-    };
-    try {
-      const r = await challenger.review(input);
-      perError.push({ ruleKey: e.ruleKey, status: r.status, toolCallIds: r.toolCallIds });
-    } catch {
-      // Không đọc được → `unverified`, KHÔNG BAO GIỜ `refuted`: chấm nó "đã bác bỏ" là âm
-      // thầm chôn một lỗi có thật (§6.2).
-      perError.push({ ruleKey: e.ruleKey, status: 'unverified', toolCallIds: [] });
-    }
-  }
+  const perError = await Promise.all(
+    verdict.errors.map(async (e): Promise<ChallengeConclusion['perError'][number]> => {
+      const input: ChallengeInput = {
+        error: { ruleKey: e.ruleKey, toolCallIds: e.toolCallIds },
+        ctx,
+        evidence: e.toolCallIds.map((id) => byId.get(id)).filter((t): t is ToolCall => t !== undefined),
+      };
+      try {
+        const r = await challenger.review(input);
+        return { ruleKey: e.ruleKey, status: r.status, toolCallIds: r.toolCallIds };
+      } catch {
+        // Không đọc được → `unverified`, KHÔNG BAO GIỜ `refuted`: chấm nó "đã bác bỏ" là âm
+        // thầm chôn một lỗi có thật (§6.2).
+        return { ruleKey: e.ruleKey, status: 'unverified', toolCallIds: [] };
+      }
+    }),
+  );
   return { challenger: challenger.name, perError };
 }
 

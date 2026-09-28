@@ -1,6 +1,7 @@
 import { JobsOptions } from 'bullmq';
 import { DeliverableType } from '../exam-session/entities/required-deliverable.entity';
 import { readInvestigationBudget } from './investigator/budget';
+import { CHALLENGE_PHASE_BUDGET_MS } from './investigator/lens-loop';
 
 export const GRADING_QUEUE = 'grading';
 
@@ -60,10 +61,13 @@ export interface GradeSubmissionJob {
 export const GRADE_JOB_TIMEOUT_MS = gradeJobTimeoutMs(process.env);
 
 /**
- * Mặc định = trần giờ của CUỘC ĐIỀU TRA (`INVESTIGATE_MAX_WALL_MS`, §7) + 60 s (3d). Trần job bằng
- * đúng trần điều tra thì job bị giết đúng lúc `investigate()` đang tự dừng có trật tự và ghi kết
- * luận dở — thứ §7 hứa giữ lại. 60 s cho phần còn lại: dựng ngữ cảnh, ghi lượt chấm, tính điểm.
- * Đường một-phát vẫn dưới trần này (cũ: 300 s).
+ * Mặc định = trần giờ của CUỘC ĐIỀU TRA (`INVESTIGATE_MAX_WALL_MS`, §7) + 60 s (3d) + ngân sách
+ * pha phản biện (`CHALLENGE_PHASE_BUDGET_MS`, bước 6 — thêm sau review cuối, finding C1). Trần
+ * job bằng đúng trần điều tra thì job bị giết đúng lúc `investigate()` đang tự dừng có trật tự và
+ * ghi kết luận dở — thứ §7 hứa giữ lại. 60 s cho phần còn lại: dựng ngữ cảnh, ghi lượt chấm, tính
+ * điểm. Bốn lăng kính chạy SAU `investigate()`, TRƯỚC khi ghi điểm — không cộng phần của chúng
+ * vào đây thì job bị giết đúng lúc pha phản biện đang chạy, và ý kiến phản biện mất trắng, giống
+ * hệt lý do 60s ở trên tồn tại cho `investigate()`. Đường một-phát vẫn dưới trần này (cũ: 300 s).
  */
 export function gradeJobTimeoutMs(env: NodeJS.ProcessEnv): number {
   const raw = env.GRADE_JOB_TIMEOUT_MS;
@@ -75,7 +79,7 @@ export function gradeJobTimeoutMs(env: NodeJS.ProcessEnv): number {
     }
     return Math.trunc(value);
   }
-  return readInvestigationBudget(env).budget.maxWallMs + 60_000;
+  return readInvestigationBudget(env).budget.maxWallMs + 60_000 + CHALLENGE_PHASE_BUDGET_MS;
 }
 
 /**
