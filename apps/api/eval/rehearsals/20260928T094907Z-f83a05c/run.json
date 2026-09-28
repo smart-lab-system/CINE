@@ -1,0 +1,130 @@
+{
+  "id": "20260928T094907Z-f83a05c",
+  "startedAt": "2026-09-28T09:49:07.281Z",
+  "scenario": "ngan-xep-v1",
+  "deploy": "f83a05c",
+  "note": "lượt B: sau PR #62, lặp lại để kiểm tra ổn định",
+  "wallSec": 140.3,
+  "backfilled": false,
+  "sessionId": "ec6cede5-02b3-4ab2-afcc-c4fccbdf0ee0",
+  "checks": [
+    {
+      "mssv": "HS2410018",
+      "label": "int tràn + tên vô nghĩa + không chú thích + rò rỉ",
+      "expectedScore": 6.5,
+      "actualScore": 6.5,
+      "scoreOk": true,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "review",
+      "actualDecision": "review",
+      "decisionOk": true,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [
+        "tinh_dung:ro_ri_bo_nho",
+        "tinh_dung:thieu_chu_thich"
+      ],
+      "finishedAtSec": 133.9
+    },
+    {
+      "mssv": "HS2410019",
+      "label": "đúng hoàn toàn",
+      "expectedScore": 10,
+      "actualScore": 10,
+      "scoreOk": true,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "auto",
+      "decisionOk": true,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [
+        "gian_lan"
+      ],
+      "finishedAtSec": 120.8
+    },
+    {
+      "mssv": "HS2410020",
+      "label": "in theo thứ tự hàng đợi — chỉ lỗi máy quyết",
+      "expectedScore": 5.5,
+      "actualScore": 5.5,
+      "scoreOk": true,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "auto",
+      "decisionOk": true,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [],
+      "finishedAtSec": 80.3
+    },
+    {
+      "mssv": "HS2410021",
+      "label": "hard-code theo bộ test (đạt đủ test)",
+      "expectedScore": 9.5,
+      "actualScore": 9.5,
+      "scoreOk": true,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "review",
+      "actualDecision": "review",
+      "decisionOk": true,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [
+        "gian_lan"
+      ],
+      "lensFailures": [
+        "gian_lan",
+        "tinh_dung:thieu_chu_thich"
+      ],
+      "finishedAtSec": 140.3
+    },
+    {
+      "mssv": "HS2410022",
+      "label": "đúng, có chú thích, chỉ rò rỉ bộ nhớ",
+      "expectedScore": 9,
+      "actualScore": 9,
+      "scoreOk": true,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [],
+      "finishedAtSec": 87.1
+    }
+  ],
+  "summary": {
+    "submissions": 5,
+    "scoreOk": 5,
+    "decisionOk": 4,
+    "autoApproved": 2,
+    "expectedAuto": 3,
+    "wrongAuto": 0,
+    "errorsExpected": 8,
+    "errorsCaught": 8,
+    "extraErrors": 0,
+    "falseFlags": 0,
+    "missedFlags": 1,
+    "lensFailures": 5,
+    "maxSubmissionSec": 140.3,
+    "models": [
+      "occ/claude-sonnet-5"
+    ]
+  }
+}
