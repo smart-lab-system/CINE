@@ -43,6 +43,8 @@ export interface ActualSubmission {
   status: string;
   score: number | null;
   confidence: number | null;
+  /** `grading_result.modelUsed` — model đã chấm bài này (bậc model có thể xoay giữa chừng). */
+  model: string | null;
   errors: { ruleKey: string; source: string; counted: string }[];
   verdicts: { lens: string; ruleKey: string; status: string; reason: string | null }[];
   caseNotes: { lens: string; suspected: boolean; note: string }[];
@@ -87,6 +89,7 @@ export interface RunSummary {
   missedFlags: number;
   lensFailures: number;
   maxSubmissionSec: number | null;
+  models: string[];
 }
 
 export interface RunRecord {
@@ -203,6 +206,7 @@ export function evaluateRun(scenario: RehearsalScenario, actuals: ActualSubmissi
       missedFlags: sum((c) => c.missedFlags.length),
       lensFailures: sum((c) => c.lensFailures.length),
       maxSubmissionSec: times.length > 0 ? Math.max(...times) : null,
+      models: [...new Set(checks.map((c) => byMssv.get(c.mssv)?.model).filter((m): m is string => !!m))].sort(),
     },
   };
 }
@@ -211,8 +215,8 @@ export function evaluateRun(scenario: RehearsalScenario, actuals: ActualSubmissi
 export function renderIndex(runs: RunRecord[]): string {
   const sorted = [...runs].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   const header = [
-    '| Lượt | Thời điểm (UTC) | Bản chạy | Kịch bản | Tự duyệt SAI | Điểm đúng | Lỗi bắt được | Lỗi thừa | Quyết định đúng | Tự duyệt (thực/kỳ vọng) | Cờ oan | Cờ bỏ lỡ | Lăng kính hỏng | Chấm (s) | Ghi chú |',
-    '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
+    '| Lượt | Thời điểm (UTC) | Bản chạy | Model | Kịch bản | Tự duyệt SAI | Điểm đúng | Lỗi bắt được | Lỗi thừa | Quyết định đúng | Tự duyệt (thực/kỳ vọng) | Cờ oan | Cờ bỏ lỡ | Lăng kính hỏng | Chấm (s) | Ghi chú |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
   ];
   const rows = sorted.map((r) => {
     const s = r.summary;
@@ -220,6 +224,7 @@ export function renderIndex(runs: RunRecord[]): string {
       r.id,
       r.startedAt.slice(0, 16).replace('T', ' '),
       r.deploy,
+      s.models?.length ? s.models.join(', ') : '—',
       r.scenario,
       s.wrongAuto,
       `${s.scoreOk}/${s.submissions}`,

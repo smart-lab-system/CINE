@@ -119,6 +119,9 @@
     "falseFlags": 3,
     "missedFlags": 0,
     "lensFailures": 0,
-    "maxSubmissionSec": null
+    "maxSubmissionSec": null,
+    "models": [
+      "glm-5.3-flash"
+    ]
   }
 }
