@@ -1,55 +1,90 @@
 import { OmissionLens } from './omission-lens';
 import { ModelTier } from '../model-pool';
+import { ChatTextRequest } from '../../ai-provider/openai-chat';
 import { execResult, fakeSandbox } from '../testing/fake-sandbox';
 import { CTX } from '../testing/context';
+import { Verdict } from '../types';
 
 const USAGE = { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheCreationTokens: 0 };
-const VERDICT = { errors: [], missingRules: [], injectionAttempt: { detected: false, excerpt: null } };
+const VERDICT: Verdict = { errors: [], missingRules: [], injectionAttempt: { detected: false, excerpt: null } };
+// CTX.rules: sai_ca_co_ban = luật MÁY (nhóm test co_ban), chu_thich_sai = luật MODEL.
+const CALL = JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null });
+const final = (missedRuleKeys: string[], note: string) =>
+  JSON.stringify({ action: 'final', calls: [], conclusion: { missedRuleKeys, note } });
 
-function scripted(script: string[]): ModelTier {
+function scripted(script: string[], onCall?: (req: ChatTextRequest) => void): ModelTier {
   let i = 0;
-  return { label: 'A', model: 'A-m', ceiling: 0.5, async call() { const c = script[Math.min(i, script.length - 1)]; i++; return { content: c, usage: USAGE }; } };
+  return {
+    label: 'A', model: 'A-m', ceiling: 0.5,
+    async call(req) { onCall?.(req); const c = script[Math.min(i, script.length - 1)]; i++; return { content: c, usage: USAGE }; },
+  };
 }
 const passAll = () => fakeSandbox((req) => execResult(req.cases.map((c) => ({ name: c.name, group: c.group, status: 'pass' }))));
 
 describe('OmissionLens', () => {
-  it('phát hiện khả năng thiếu ca biên agent chấm chưa xét (CÓ tự dò bằng công cụ) → suspected true, có ghi chú', async () => {
-    const model = scripted([
-      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
-      JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: true, note: 'chưa thấy ca n=0 được chạy' } }),
-    ]);
-    const lens = new OmissionLens({ models: [model], sandbox: passAll() });
-    const r = await lens.review(CTX, VERDICT, []);
-    expect(r).toEqual({ lens: 'bo_sot', suspected: true, note: 'chưa thấy ca n=0 được chạy' });
-  });
-
-  it('không thấy gì bất thường → suspected false', async () => {
-    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: false, note: 'đã chạy đủ, không thấy thiếu' } })]);
-    const lens = new OmissionLens({ models: [model], sandbox: fakeSandbox(() => execResult([])) });
-    const r = await lens.review(CTX, VERDICT, []);
-    expect(r.suspected).toBe(false);
-  });
-
-  it('W4 — "suspected:true" mà KHÔNG hề gọi công cụ nào → hạ về false, không được tin suông', async () => {
-    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: true, note: 'có thể còn thiếu' } })]);
-    const lens = new OmissionLens({ models: [model], sandbox: fakeSandbox(() => execResult([])) });
-    const r = await lens.review(CTX, VERDICT, []);
-    expect(r.suspected).toBe(false);
-  });
-
-  it('diễn tập 2026-09-28 — kết luận hợp lệ nhưng note dài 800 ký tự → GIỮ kết luận (note cắt về 500), không thành "không kết luận được"', async () => {
-    const model = scripted([
-      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
-      JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: true, note: `ca n=0 chưa được chạy. ${'chi tiết '.repeat(90)}` } }),
-    ]);
-    const lens = new OmissionLens({ models: [model], sandbox: passAll() });
+  it('luật MODEL bài vi phạm mà agent chưa kết luận, CÓ tự dò bằng công cụ → suspected true, ghi chú nêu tên luật', async () => {
+    const lens = new OmissionLens({ models: [scripted([CALL, final(['chu_thich_sai'], 'chú thích dòng 3 mô tả sai thuật toán')])], sandbox: passAll() });
     const r = await lens.review(CTX, VERDICT, []);
     expect(r.suspected).toBe(true);
-    expect(r.note.startsWith('ca n=0 chưa được chạy.')).toBe(true);
+    expect(r.note).toContain('chu_thich_sai');
+    expect(r.note).toContain('chú thích dòng 3 mô tả sai thuật toán');
+  });
+
+  it('diễn tập 2026-09-28 (HS2410020) — "bỏ sót" một luật MÁY KIỂM → không tính: hệ thống tự áp từ run_tests', async () => {
+    const lens = new OmissionLens({ models: [scripted([CALL, final(['sai_ca_co_ban'], 'agent chấm bỏ sót sai_ca_co_ban')])], sandbox: passAll() });
+    const r = await lens.review(CTX, VERDICT, []);
+    expect(r.suspected).toBe(false);
+    expect(r.note).not.toContain('không kết luận được');
+  });
+
+  it('diễn tập 2026-09-28 (HS2410022) — "bỏ sót" một luật agent ĐÃ kết luận → không tính', async () => {
+    const concluded: Verdict = { ...VERDICT, errors: [{ ruleKey: 'chu_thich_sai', toolCallIds: [], note: null }] };
+    const lens = new OmissionLens({ models: [scripted([CALL, final(['chu_thich_sai'], 'không thấy lỗi mới ngoài lỗi đã kết luận')])], sandbox: passAll() });
+    const r = await lens.review(CTX, concluded, []);
+    expect(r.suspected).toBe(false);
+    expect(r.note).not.toContain('không kết luận được');
+  });
+
+  it('rule_key không có trong bảng lỗi → không tính (vấn đề ngoài bảng chỉ nằm trong note)', async () => {
+    const lens = new OmissionLens({ models: [scripted([CALL, final(['khong_dung_linked_list'], 'không dùng danh sách liên kết')])], sandbox: passAll() });
+    const r = await lens.review(CTX, VERDICT, []);
+    expect(r.suspected).toBe(false);
+    expect(r.note).toContain('không dùng danh sách liên kết');
+  });
+
+  it('model vẫn trả khuôn cũ {suspected:true} không có missedRuleKeys → đọc được, suspected false (không tin cờ tự khai)', async () => {
+    const old = JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: true, note: 'có thể còn thiếu' } });
+    const lens = new OmissionLens({ models: [scripted([CALL, old])], sandbox: passAll() });
+    const r = await lens.review(CTX, VERDICT, []);
+    expect(r.suspected).toBe(false);
+    expect(r.note).toBe('có thể còn thiếu');
+  });
+
+  it('W4 — bỏ sót thật nhưng KHÔNG hề gọi công cụ nào → hạ về false, không được tin suông', async () => {
+    const lens = new OmissionLens({ models: [scripted([final(['chu_thich_sai'], 'có thể còn thiếu')])], sandbox: fakeSandbox(() => execResult([])) });
+    const r = await lens.review(CTX, VERDICT, []);
+    expect(r.suspected).toBe(false);
+    expect(r.note).toContain('chưa tự kiểm được');
+  });
+
+  it('tin nhắn cho model tách rõ lỗi đã kết luận với luật MÁY KIỂM tự áp (không bao giờ tính là bỏ sót)', async () => {
+    const seen: ChatTextRequest[] = [];
+    const lens = new OmissionLens({ models: [scripted([final([], 'ok')], (req) => seen.push(req))], sandbox: passAll() });
+    await lens.review(CTX, { ...VERDICT, errors: [{ ruleKey: 'chu_thich_sai', toolCallIds: [], note: null }] }, []);
+    const user = seen[0].messages[0].content;
+    expect(user).toContain('chu_thich_sai');
+    expect(user).toMatch(/máy kiểm[^\n]*sai_ca_co_ban/i);
+    expect(seen[0].system).toContain('missedRuleKeys');
+  });
+
+  it('kết luận hợp lệ nhưng note dài 800 ký tự → giữ kết luận, note ≤ 500', async () => {
+    const lens = new OmissionLens({ models: [scripted([CALL, final(['chu_thich_sai'], `chú thích sai. ${'chi tiết '.repeat(90)}`)])], sandbox: passAll() });
+    const r = await lens.review(CTX, VERDICT, []);
+    expect(r.suspected).toBe(true);
     expect(r.note.length).toBeLessThanOrEqual(500);
   });
 
-  it('không kết luận được → ghi chú NÊU LÝ DO (vd hết bậc model), không chỉ "không kết luận được"', async () => {
+  it('không kết luận được → ghi chú NÊU LÝ DO thật của bậc model', async () => {
     const lens = new OmissionLens({ models: [scripted(['không phải JSON'])], sandbox: passAll() });
     const r = await lens.review(CTX, VERDICT, []);
     expect(r.suspected).toBe(false);
@@ -57,24 +92,9 @@ describe('OmissionLens', () => {
     expect(r.note).toContain('bad_output');
   });
 
-  it('hạ "suspected" về false vì chưa tự kiểm + note đã dài sẵn → note sau khi thêm tiền tố vẫn ≤ 500', async () => {
-    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: true, note: 'n'.repeat(500) } })]);
-    const lens = new OmissionLens({ models: [model], sandbox: fakeSandbox(() => execResult([])) });
-    const r = await lens.review(CTX, VERDICT, []);
-    expect(r.suspected).toBe(false);
-    expect(r.note.length).toBeLessThanOrEqual(500);
-  });
-
-  it('prompt nói rõ giới hạn 500 ký tự của note (gateway không ép json_schema, model chỉ biết qua lời)', async () => {
-    const seen: string[] = [];
-    const model: ModelTier = {
-      label: 'A', model: 'A-m', ceiling: 0.5,
-      async call(req) {
-        seen.push(req.system);
-        return { content: JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: false, note: 'ok' } }), usage: USAGE };
-      },
-    };
-    await new OmissionLens({ models: [model], sandbox: passAll() }).review(CTX, VERDICT, []);
-    expect(seen[0]).toContain('500 ký tự');
+  it('prompt nói rõ giới hạn 500 ký tự của note', async () => {
+    const seen: ChatTextRequest[] = [];
+    await new OmissionLens({ models: [scripted([final([], 'ok')], (req) => seen.push(req))], sandbox: passAll() }).review(CTX, VERDICT, []);
+    expect(seen[0].system).toContain('500 ký tự');
   });
 });

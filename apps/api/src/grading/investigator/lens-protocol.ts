@@ -141,3 +141,45 @@ export function parseCaseLensReply(content: string): CaseLensReply | null {
   const parsed = caseLensReplySchema.safeParse(read.value);
   return parsed.success ? parsed.data : null;
 }
+
+/**
+ * Bỏ sót khai DANH SÁCH luật nó cho là bị bỏ sót, không tự khai cờ `suspected`: diễn tập
+ * 2026-09-28 có hai lần model đặt suspected=true trong khi chính ghi chú của nó nói lỗi đó
+ * đã được kết luận, hay là luật máy kiểm. Code đối chiếu danh sách với bảng lỗi rồi mới quyết cờ.
+ */
+export const OMISSION_JSON_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['action', 'calls', 'conclusion'],
+  properties: {
+    ...REVIEW_JSON_SCHEMA_BASE,
+    conclusion: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['missedRuleKeys', 'note'],
+          properties: { missedRuleKeys: { type: 'array', items: { type: 'string' } }, note: { type: 'string' } },
+        },
+      ],
+    },
+  },
+};
+
+const omissionConclusion = z.object({
+  missedRuleKeys: z.array(z.string().max(64)).max(30).default([]),
+  note: z.string().transform(clampNote),
+});
+const omissionReplySchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), conclusion: z.null() }),
+  z.object({ action: z.literal('final'), calls: z.array(z.unknown()), conclusion: omissionConclusion }),
+]);
+export type OmissionReply = z.infer<typeof omissionReplySchema>;
+
+export function parseOmissionReply(content: string): OmissionReply | null {
+  const read = readSingleJson(content);
+  if (!read.ok) return null;
+  const parsed = omissionReplySchema.safeParse(read.value);
+  return parsed.success ? parsed.data : null;
+}
