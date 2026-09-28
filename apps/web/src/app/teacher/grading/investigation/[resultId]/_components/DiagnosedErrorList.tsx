@@ -60,9 +60,17 @@ export function DiagnosedErrorList({
               <span className="text-caption text-muted-foreground">{error.ruleName}</span>
               <Badge variant={SOURCE_LABEL[error.source].variant}>{SOURCE_LABEL[error.source].label}</Badge>
               {error.counted === 'excluded' && <Badge variant="outline">Đã bỏ cho bài này</Badge>}
-              {error.counted === 'refuted' && <Badge variant="destructive">Bị bác bỏ (phản biện)</Badge>}
+              {error.counted === 'refuted' && (
+                <Badge variant="destructive" title="Chỉ cần một lăng kính bác bỏ (có tự chạy thử) là lỗi bị loại khỏi điểm, dù lăng kính khác xác nhận. Lỗi vẫn giữ trong hồ sơ.">
+                  Bị bác bỏ (phản biện)
+                </Badge>
+              )}
               {flagsByRule.get(error.ruleKey)?.has('unpriced') && <Badge variant="warning">chưa có giá</Badge>}
-              {flagsByRule.get(error.ruleKey)?.has('unverified') && <Badge variant="warning">Chưa xác minh</Badge>}
+              {flagsByRule.get(error.ruleKey)?.has('unverified') && (
+                <Badge variant="warning" title="Không lăng kính nào kết luận được về lỗi này. Lỗi vẫn bị trừ, nhưng bài không được tự duyệt.">
+                  Chưa xác minh
+                </Badge>
+              )}
             </div>
             <p className="mt-1 text-caption text-muted-foreground">
               Tiêu chí {error.criterionKey}

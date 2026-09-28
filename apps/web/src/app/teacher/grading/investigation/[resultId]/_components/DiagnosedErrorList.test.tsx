@@ -122,6 +122,19 @@ describe('DiagnosedErrorList', () => {
     expect(screen.getByText(/không đưa phản biện/i)).toBeInTheDocument();
   });
 
+  it('badge gộp giải thích luật gộp — "bác bỏ" thắng dù lăng kính khác xác nhận, để hai badge không trông mâu thuẫn', () => {
+    render(
+      <DiagnosedErrorList
+        breakdown={breakdown({
+          errors: [error({ counted: 'refuted' }), error({ ruleId: 'r2', ruleKey: 'ten_bien' })],
+          errorFlags: [{ ruleKey: 'ten_bien', code: 'unverified' }],
+        })}
+      />,
+    );
+    expect(screen.getByText('Bị bác bỏ (phản biện)')).toHaveAttribute('title', expect.stringMatching(/một lăng kính bác bỏ/i));
+    expect(screen.getByText('Chưa xác minh')).toHaveAttribute('title', expect.stringMatching(/không lăng kính nào/i));
+  });
+
   it('hồ sơ cũ, không có kết luận phản biện nào → không hiện dòng lăng kính nào', () => {
     render(<DiagnosedErrorList breakdown={breakdown({ errors: [error({ source: 'deterministic' })] })} verdicts={[]} />);
     expect(screen.queryByText(/không đưa phản biện/i)).not.toBeInTheDocument();
