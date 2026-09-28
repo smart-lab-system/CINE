@@ -1,0 +1,48 @@
+{
+  "id": "20260928T075534Z-f8319cd",
+  "startedAt": "2026-09-28T07:55:34.470Z",
+  "scenario": "ngan-xep-v1",
+  "deploy": "f8319cd",
+  "note": "kiểm nhanh model mới trước khi chạy đủ",
+  "wallSec": 59.4,
+  "backfilled": false,
+  "sessionId": "76765596-28f8-4bbb-bde6-da1bf90a4368",
+  "checks": [
+    {
+      "mssv": "HS2410019",
+      "label": "đúng hoàn toàn",
+      "expectedScore": 10,
+      "actualScore": 10,
+      "scoreOk": true,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [],
+      "finishedAtSec": 59.4
+    }
+  ],
+  "summary": {
+    "submissions": 1,
+    "scoreOk": 1,
+    "decisionOk": 0,
+    "autoApproved": 0,
+    "expectedAuto": 1,
+    "wrongAuto": 0,
+    "errorsExpected": 0,
+    "errorsCaught": 0,
+    "extraErrors": 0,
+    "falseFlags": 0,
+    "missedFlags": 0,
+    "lensFailures": 0,
+    "maxSubmissionSec": 59.4,
+    "models": [
+      "occ/claude-sonnet-5"
+    ]
+  }
+}
