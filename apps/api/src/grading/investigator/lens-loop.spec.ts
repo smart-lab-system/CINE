@@ -46,11 +46,8 @@ describe('runLensLoop()', () => {
 
   it('chạm trần lời gọi/vòng mà chưa kết luận, ĐÃ có lời gọi thành công → xin thêm MỘT lượt ép kết luận (forced-final)', async () => {
     const model = scripted([
-      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
-      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
-      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
-      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
-      // Lượt ép cuối, sau khi chạm trần maxRounds=4:
+      // Đúng LENS_BUDGET.maxRounds lượt "call" để chạm trần vòng, rồi lượt ép cuối.
+      ...Array.from({ length: LENS_BUDGET.maxRounds }, () => JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null })),
       JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'confirmed' } }),
     ]);
     const r = await runLensLoop(CTX, 'tinh_dung', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [model], sandbox: passAll() });
@@ -86,6 +83,12 @@ describe('runLensLoop()', () => {
 
   it('CHALLENGE_PHASE_BUDGET_MS ≥ LENS_BUDGET.maxWallMs (đủ cho lượt chậm nhất)', () => {
     expect(CHALLENGE_PHASE_BUDGET_MS).toBeGreaterThanOrEqual(LENS_BUDGET.maxWallMs);
+  });
+
+  it('diễn tập 2026-09-28 (occ/claude-sonnet-5) — ngân sách đủ rộng cho model chậm hơn flash: ≥100s, ≥6 vòng, ≥8 lời gọi', () => {
+    expect(LENS_BUDGET.maxWallMs).toBeGreaterThanOrEqual(100_000);
+    expect(LENS_BUDGET.maxRounds).toBeGreaterThanOrEqual(6);
+    expect(LENS_BUDGET.maxToolCalls).toBeGreaterThanOrEqual(8);
   });
 });
 

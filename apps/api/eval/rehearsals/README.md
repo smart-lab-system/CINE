@@ -20,3 +20,5 @@ Bảng này sinh lại từ mọi `run.json` sau mỗi lượt — đừng sửa
 | 20260928T075909Z-f8319cd | 2026-09-28 07:59 | f8319cd | occ/claude-sonnet-5 | ngan-xep-v1 | 0 | 5/5 | 8/8 | 0 | 4/5 | 2/3 | 0 | 0 | 7 | 78.7 | lượt 1/3 trên occ/claude-sonnet-5 (tier1) + cnb/glm-5.3 (tier2) |
 | 20260928T080843Z-f8319cd | 2026-09-28 08:08 | f8319cd | occ/claude-sonnet-5 | ngan-xep-v1 | 0 | 5/5 | 8/8 | 0 | 4/5 | 2/3 | 0 | 0 | 5 | 113.1 | lượt 2/3 trên occ/claude-sonnet-5 (tier1) + cnb/glm-5.3 (tier2) — sau khi user sửa quyền key tier2 |
 | 20260928T081243Z-f8319cd | 2026-09-28 08:12 | f8319cd | occ/claude-sonnet-5, occ/claude-sonnet-5+cnb/glm-5.3 | ngan-xep-v1 | 0 | 5/5 | 8/8 | 0 | 3/5 | 1/3 | 0 | 0 | 7 | 130.8 | lượt 3/3 trên occ/claude-sonnet-5 (tier1) + cnb/glm-5.3 (tier2) |
+| 20260928T094445Z-f83a05c | 2026-09-28 09:44 | f83a05c | occ/claude-sonnet-5 | ngan-xep-v1 | 0 | 4/5 | 7/8 | 0 | 3/5 | 1/3 | 0 | 1 | 2 | 148.3 | lượt A: sau PR #62 (khoan dung JSON thiếu khoá + no-prose) |
+| 20260928T094907Z-f83a05c | 2026-09-28 09:49 | f83a05c | occ/claude-sonnet-5 | ngan-xep-v1 | 0 | 5/5 | 8/8 | 0 | 4/5 | 2/3 | 0 | 1 | 5 | 140.3 | lượt B: sau PR #62, lặp lại để kiểm tra ổn định |
