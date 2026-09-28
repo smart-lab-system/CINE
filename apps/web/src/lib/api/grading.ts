@@ -434,7 +434,14 @@ export interface ResultDetailError {
   source: 'deterministic' | 'llm_with_tools' | 'llm_only';
   toolCallIds: string[];
   deductionHundredths: number | null;
-  counted: 'counted' | 'excluded' | 'unpriced';
+  counted: 'counted' | 'excluded' | 'unpriced' | 'refuted';
+}
+
+/** Mirrors CaseLensNote (apps/api/src/grading/investigator/challenge.ts) — bước 6. */
+export interface ChallengeNote {
+  lens: string;
+  suspected: boolean;
+  note: string;
 }
 
 export interface ToolCallView {
@@ -470,6 +477,8 @@ export interface ResultDetail {
     flags: string[];
     investigation: { toolCalls: ToolCallView[] };
   } | null;
+  /** Bước 6 — ghi chú của lăng kính Bỏ sót/Gian lận. Rỗng khi chưa bật phản biện hay hồ sơ cũ. */
+  challengeNotes: ChallengeNote[];
 }
 
 /** Chi tiết một lượt tính điểm + đường điều tra — Hồ sơ một bài (§5). */

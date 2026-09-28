@@ -16,13 +16,18 @@ export function DiagnosedErrorList({ breakdown }: { breakdown: NonNullable<Resul
       <h3 className="section-label">Lỗi chẩn đoán ({breakdown.errors.length})</h3>
       <ul className="flex flex-col gap-2">
         {breakdown.errors.map((error) => (
-          <li key={error.ruleId} className="rounded-md border border-border bg-surface p-3">
+          <li
+            key={error.ruleId}
+            className={`rounded-md border border-border bg-surface p-3 ${error.counted === 'refuted' ? 'opacity-60' : ''}`}
+          >
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{error.ruleKey}</span>
+              <span className={`font-medium ${error.counted === 'refuted' ? 'line-through' : ''}`}>{error.ruleKey}</span>
               <span className="text-caption text-muted-foreground">{error.ruleName}</span>
               <Badge variant={SOURCE_LABEL[error.source].variant}>{SOURCE_LABEL[error.source].label}</Badge>
               {error.counted === 'excluded' && <Badge variant="outline">Đã bỏ cho bài này</Badge>}
+              {error.counted === 'refuted' && <Badge variant="destructive">Bị bác bỏ (phản biện)</Badge>}
               {flagsByRule.get(error.ruleKey) === 'unpriced' && <Badge variant="warning">chưa có giá</Badge>}
+              {flagsByRule.get(error.ruleKey) === 'unverified' && <Badge variant="warning">Chưa xác minh</Badge>}
             </div>
             <p className="mt-1 text-caption text-muted-foreground">
               Tiêu chí {error.criterionKey}

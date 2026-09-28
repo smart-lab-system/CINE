@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useResultInvestigation } from '@/hooks/useGrading';
 import { ScoreSummary } from './_components/ScoreSummary';
 import { DiagnosedErrorList } from './_components/DiagnosedErrorList';
+import { ChallengeNotes } from './_components/ChallengeNotes';
 import { InvestigationTrail } from './_components/InvestigationTrail';
 
 export default function ResultInvestigationPage() {
@@ -17,6 +18,7 @@ export default function ResultInvestigationPage() {
       <h1 className="text-large font-semibold">Hồ sơ một bài</h1>
       <ScoreSummary detail={data} />
       {data.breakdown && <DiagnosedErrorList breakdown={data.breakdown} />}
+      <ChallengeNotes notes={data.challengeNotes} />
       {data.investigation && <InvestigationTrail investigation={data.investigation} />}
     </div>
   );
