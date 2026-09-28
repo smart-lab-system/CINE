@@ -5,6 +5,7 @@ import { CurrentScore, currentScore } from './current-score';
 import { latestComputationRow } from './score-inputs';
 import type { ScoreBreakdown } from './score-core';
 import type { StoredInvestigation } from './stored-investigation';
+import type { CaseLensNote } from '../investigator/challenge';
 
 export interface ResultDetailError {
   ruleId: string;
@@ -26,6 +27,8 @@ export interface ResultDetail {
   ungradableReason: string | null;
   breakdown: (Omit<ScoreBreakdown, 'errors'> & { errors: ResultDetailError[] }) | null;
   investigation: StoredInvestigation['result'] | null;
+  /** Bước 6 — ghi chú của Bỏ sót/Gian lận. Rỗng khi chưa bật phản biện hay hồ sơ cũ. */
+  challengeNotes: CaseLensNote[];
 }
 
 interface ScoreSourceRow {
@@ -50,6 +53,7 @@ export async function loadResultDetail(ds: DataSource, result: GradingResultEnti
     ? await ds.query(`SELECT investigation FROM examcollect.grading_attempt WHERE id = $1`, [result.currentAttemptId])
     : [null];
   const stored = attempt?.investigation as StoredInvestigation | undefined;
+  const challengeNotes = stored?.challenge?.caseNotes ?? [];
 
   let breakdown: ResultDetail['breakdown'] = null;
   if (computation) {
@@ -112,5 +116,6 @@ export async function loadResultDetail(ds: DataSource, result: GradingResultEnti
     ungradableReason: result.ungradableReason,
     breakdown,
     investigation: stored?.result ?? null,
+    challengeNotes,
   };
 }
