@@ -1,5 +1,6 @@
 import { SYSTEM_DELIMITER_RULE } from '../../harness/submission-envelope';
 import { CASE_NOTE_MAX } from '../lens-protocol';
+import type { InvestigationContext, Verdict } from '../types';
 
 /** Khung mở đầu chung cho BỐN lăng kính (§6.1) — giữ một chỗ, sửa một lần. */
 export const CHALLENGER_FRAME = [
@@ -31,6 +32,23 @@ export const LENS_PROTOCOL_HELP = [
   '',
   SYSTEM_DELIMITER_RULE,
 ].join('\n');
+
+/**
+ * Hai dòng mở đầu tin nhắn cho lăng kính cấp bài. Lỗi luật máy kiểm do `diagnose()` tự áp từ kết
+ * quả run_tests, không nằm trong verdict của model — thiếu dòng thứ hai, Bỏ sót "tìm ra" chính
+ * những lỗi hệ thống đã trừ và gắn cờ oan (diễn tập 2026-09-28).
+ */
+export function caseLensContext(ctx: InvestigationContext, verdict: Verdict, whenNone: string): string {
+  const machine = ctx.rules.filter((r) => r.checkedBy === 'machine');
+  const machineKeys = new Set(machine.map((r) => r.ruleKey));
+  const concluded = [...new Set(verdict.errors.map((e) => e.ruleKey))].filter((k) => !machineKeys.has(k));
+  return [
+    `Lỗi luật bằng lời agent chấm đã kết luận: ${concluded.join(', ') || whenNone}`,
+    `Luật máy kiểm — hệ thống TỰ ÁP khi nhóm test tương ứng trượt, KHÔNG BAO GIỜ tính là bỏ sót: ${
+      machine.map((r) => `${r.ruleKey} (${r.machineNote ?? r.title})`).join(', ') || '(không có)'
+    }`,
+  ].join('\n');
+}
 
 /** Chỉ cho hai lăng kính cấp bài. Gateway không ép `json_schema`, nên giới hạn phải nói bằng lời. */
 export const CASE_NOTE_RULE = `"note" tối đa ${CASE_NOTE_MAX} ký tự: viết gọn, nêu bằng chứng chính (mã lời gọi, input đã thử); phần dài hơn sẽ bị cắt.`;

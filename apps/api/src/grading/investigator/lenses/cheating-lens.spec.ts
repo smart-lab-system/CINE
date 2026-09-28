@@ -37,6 +37,20 @@ describe('CheatingLens', () => {
     expect(r.note).toContain('bad_output');
   });
 
+  it('diễn tập 2026-09-28 (HS2410020) — prompt nói rõ: chương trình SAI không phải gian lận; tin nhắn liệt kê luật máy kiểm đã tự áp', async () => {
+    const seen: { system: string; user: string }[] = [];
+    const model: ModelTier = {
+      label: 'A', model: 'A-m', ceiling: 0.5,
+      async call(req) {
+        seen.push({ system: req.system, user: req.messages[0].content });
+        return { content: JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: false, note: 'ok' } }), usage: USAGE };
+      },
+    };
+    await new CheatingLens({ models: [model], sandbox: passRun() }).review(CTX, VERDICT, []);
+    expect(seen[0].system).toMatch(/SAI[^\n]*KHÔNG phải gian lận/);
+    expect(seen[0].user).toMatch(/máy kiểm[^\n]*sai_ca_co_ban/i);
+  });
+
   it('W4 — "suspected:true" mà KHÔNG hề tự chạy "run" nào → hạ về false, không được tin suông', async () => {
     const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { suspected: true, note: 'nghi hard-code' } })]);
     const lens = new CheatingLens({ models: [model], sandbox: passRun() });

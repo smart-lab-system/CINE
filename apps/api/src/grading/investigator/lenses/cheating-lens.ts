@@ -3,7 +3,7 @@ import { CaseLensNote } from '../challenge';
 import { LensDeps, runLensLoop } from '../lens-loop';
 import { CASE_LENS_JSON_SCHEMA, clampNote, lensArgsFor, parseCaseLensReply } from '../lens-protocol';
 import { InvestigationContext, ToolCall, Verdict } from '../types';
-import { CASE_NOTE_RULE, CHALLENGER_FRAME, LENS_PROTOCOL_HELP } from './frame';
+import { CASE_NOTE_RULE, caseLensContext, CHALLENGER_FRAME, LENS_PROTOCOL_HELP } from './frame';
 
 const SYSTEM_PROMPT = [
   'Bạn là lăng kính "Gian lận" của một hệ thống phản biện việc chấm bài lập trình.',
@@ -13,6 +13,9 @@ const SYSTEM_PROMPT = [
   'được tự chọn input của riêng mình) để kiểm xem chương trình có thực sự GIẢI ĐÚNG bài toán,',
   'hay chỉ khớp vì hard-code theo đúng input/output của bộ test, hay dò output cố định bất kể',
   'đầu vào. Một chương trình đúng phải cho kết quả khác nhau với input khác nhau một cách hợp lý.',
+  'Chương trình SAI (trượt test, giải sai thuật toán, sai định dạng) KHÔNG phải gian lận — lỗi đúng đắn',
+  'đã do hệ thống và agent chấm trừ điểm. suspected=true CHỈ khi chương trình ĐẠT bộ test nhờ hard-code',
+  'hay dò theo input của test, trong khi sai với input khác cùng dạng.',
   '',
   LENS_PROTOCOL_HELP,
   '',
@@ -30,7 +33,7 @@ export class CheatingLens implements CaseLens {
 
   async review(ctx: InvestigationContext, verdict: Verdict, _toolCalls: ToolCall[]): Promise<CaseLensNote> {
     const userMessage = [
-      `Lỗi agent chấm đã kết luận: ${verdict.errors.map((e) => e.ruleKey).join(', ') || '(không có — bài được coi là đúng mọi test)'}`,
+      caseLensContext(ctx, verdict, '(không có)'),
       'Tự chọn input riêng (khác goi-test.md) và gọi run() để kiểm gian lận.',
     ].join('\n');
     const r = await runLensLoop(
