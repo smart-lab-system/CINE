@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { io, Socket } from 'socket.io-client';
 import { makeRunId } from '../run-writer';
-import { ActualSubmission, evaluateRun, RehearsalScenario, renderIndex, RunRecord } from './score-run';
+import { ActualSubmission, evaluateRun, isRehearsalSession, RehearsalScenario, renderIndex, RunRecord, scenarioRows } from './score-run';
 import { NGAN_XEP_V1 } from './scenarios/ngan-xep-v1';
 
 /**
@@ -185,8 +185,13 @@ async function runSession(s: RehearsalScenario, subs: RehearsalScenario['submiss
   return { sessionId: session.id, doneAt, wallSec: times.length === subs.length ? Math.max(...times) : null };
 }
 
-async function collect(sessionId: string, doneAt: Map<string, number>): Promise<ActualSubmission[]> {
-  const rows = itemsOf<{ id: string; studentMssv: string }>(await api('GET', `/exam-sessions/${sessionId}/grading-results`));
+async function collect(scenario: RehearsalScenario, sessionId: string, doneAt: Map<string, number>): Promise<ActualSubmission[]> {
+  const session = await api<{ name: string }>('GET', `/exam-sessions/${sessionId}`);
+  if (!isRehearsalSession(session.name)) {
+    console.error(`Từ chối ghi: phiên "${session.name}" không phải phiên diễn tập (tên phải bắt đầu bằng "TEST ") — bản ghi được commit vào git.`);
+    process.exit(2);
+  }
+  const rows = scenarioRows(scenario, itemsOf<{ id: string; studentMssv: string }>(await api('GET', `/exam-sessions/${sessionId}/grading-results`)));
   const out: ActualSubmission[] = [];
   for (const row of rows) {
     const d = await api<DetailResponse>('GET', `/grading-results/${row.id}/investigation`);
@@ -282,7 +287,7 @@ async function main() {
   } else {
     ({ sessionId, doneAt, wallSec } = await runSession(scenario, subs, env('REHEARSAL_CLASS_ID'), args.timeoutMin));
   }
-  const actuals = await collect(sessionId, doneAt);
+  const actuals = await collect(scenario, sessionId, doneAt);
   const { checks, summary } = evaluateRun(scenario, actuals);
   const record: RunRecord = {
     id: makeRunId(startedAt, args.deploy),

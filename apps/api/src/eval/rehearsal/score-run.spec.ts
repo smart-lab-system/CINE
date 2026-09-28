@@ -1,4 +1,4 @@
-import { ActualSubmission, evaluateRun, renderIndex, RehearsalScenario, RunRecord } from './score-run';
+import { ActualSubmission, evaluateRun, isRehearsalSession, renderIndex, RehearsalScenario, RunRecord, scenarioRows } from './score-run';
 
 const SCENARIO: RehearsalScenario = {
   id: 'ngan-xep-v1',
@@ -132,6 +132,19 @@ describe('evaluateRun() — chấm một lượt diễn tập theo kỳ vọng c
       errorsExpected: 3, errorsCaught: 2, extraErrors: 0, falseFlags: 1, missedFlags: 1, lensFailures: 0,
       maxSubmissionSec: 87,
     });
+  });
+});
+
+describe('chặn dữ liệu sinh viên thật lọt vào bản ghi (bản ghi được commit vào git)', () => {
+  it('chỉ phiên tên bắt đầu bằng "TEST " mới được ghi', () => {
+    expect(isRehearsalSession('TEST dien tap ngan-xep-v1 - xoa sau 1790577267138')).toBe(true);
+    expect(isRehearsalSession('Giữa kỳ CTDL — lớp DHKTPM18ATT')).toBe(false);
+    expect(isRehearsalSession('test viết thường')).toBe(false);
+  });
+
+  it('chỉ giữ dòng của sinh viên CÓ trong kịch bản — sinh viên khác trong phiên bị bỏ', () => {
+    const rows = [{ studentMssv: 'S1' }, { studentMssv: 'NGUOI_THAT' }, { studentMssv: 'S3' }];
+    expect(scenarioRows(SCENARIO, rows).map((r) => r.studentMssv)).toEqual(['S1', 'S3']);
   });
 });
 

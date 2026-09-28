@@ -168,6 +168,17 @@ function checkOne(scenario: RehearsalScenario, sub: ScenarioSubmission, act: Act
   };
 }
 
+/** Bản ghi được commit vào git: chỉ phiên diễn tập (tên "TEST …") mới được ghi, không bao giờ phiên thật. */
+export function isRehearsalSession(name: string): boolean {
+  return name.startsWith('TEST ');
+}
+
+/** Chỉ giữ bài của sinh viên CÓ trong kịch bản — không ghi bài của ai khác lỡ nằm trong phiên. */
+export function scenarioRows<T extends { studentMssv: string }>(scenario: RehearsalScenario, rows: T[]): T[] {
+  const mssv = new Set(scenario.submissions.map((s) => s.mssv));
+  return rows.filter((r) => mssv.has(r.studentMssv));
+}
+
 /** Chấm một lượt diễn tập theo kỳ vọng của kịch bản — thuần, không gọi mạng. */
 export function evaluateRun(scenario: RehearsalScenario, actuals: ActualSubmission[]): { checks: SubmissionCheck[]; summary: RunSummary } {
   const byMssv = new Map(actuals.map((a) => [a.mssv, a]));
