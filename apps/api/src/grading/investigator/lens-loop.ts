@@ -18,8 +18,13 @@ export interface LensDeps {
  * (hay một câu hỏi cấp bài), không cần khám phá lại toàn bộ đề như agent chấm. Không đọc từ
  * env trong bản này (đơn giản hoá có chủ đích, ghi trong plan) — hằng số, chỉnh trực tiếp nếu
  * cần sau demo.
+ *
+ * Nâng lên 60s/4 vòng → 100s/6 vòng/8 lời gọi sau diễn tập 2026-09-28 đổi bậc chấm sang
+ * occ/claude-sonnet-5 + cnb/glm-5.3: hai lượt liên tiếp đều thấy lăng kính hết vòng hay hết
+ * giờ TRƯỚC khi kết luận — Sonnet suy luận lâu hơn hẳn glm-5.3-flash mà số cũ chỉnh cho. Job
+ * chấm còn rất nhiều dư (bài chậm nhất đo được 148s trên trần 450s), nên nới ở đây an toàn.
  */
-export const LENS_BUDGET = { maxRounds: 4, maxToolCalls: 6, maxWallMs: 60_000, maxTokens: 30_000 };
+export const LENS_BUDGET = { maxRounds: 6, maxToolCalls: 8, maxWallMs: 100_000, maxTokens: 30_000 };
 
 /**
  * Ngân sách CẢ pha phản biện (bốn lăng kính) cộng vào trần job chấm (`gradeJobTimeoutMs()`) —
