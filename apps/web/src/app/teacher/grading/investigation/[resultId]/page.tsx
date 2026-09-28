@@ -17,7 +17,7 @@ export default function ResultInvestigationPage() {
     <div className="flex flex-col gap-4 p-6">
       <h1 className="text-large font-semibold">Hồ sơ một bài</h1>
       <ScoreSummary detail={data} />
-      {data.breakdown && <DiagnosedErrorList breakdown={data.breakdown} />}
+      {data.breakdown && <DiagnosedErrorList breakdown={data.breakdown} verdicts={data.challengeVerdicts} />}
       <ChallengeNotes notes={data.challengeNotes} />
       {data.investigation && <InvestigationTrail investigation={data.investigation} />}
     </div>

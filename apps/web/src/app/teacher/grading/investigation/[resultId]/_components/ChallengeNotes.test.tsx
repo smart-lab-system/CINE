@@ -9,14 +9,17 @@ describe('ChallengeNotes', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('có ghi chú nghi ngờ → hiện tên lăng kính và nội dung, đánh dấu rõ là NGHI NGỜ', () => {
+  it('có ghi chú nghi ngờ → hiện tên lăng kính (tên đọc được) và nội dung, đánh dấu rõ là NGHI NGỜ', () => {
     render(<ChallengeNotes notes={[{ lens: 'gian_lan', suspected: true, note: 'đổi input vẫn ra cùng kết quả' }]} />);
-    expect(screen.getByText(/gian_lan/i)).toBeInTheDocument();
+    expect(screen.getByText('Gian lận')).toBeInTheDocument();
     expect(screen.getByText(/đổi input vẫn ra cùng kết quả/)).toBeInTheDocument();
+    expect(screen.getByText(/lăng kính phản biện nghi ngờ/i)).toBeInTheDocument();
   });
 
-  it('ghi chú không nghi ngờ (suspected:false) → KHÔNG hiện (chỉ hiện cái đáng chú ý)', () => {
+  it('ghi chú không nghi ngờ → KHÔNG nổi thành cảnh báo, nhưng vẫn đọc được trong mục thu gọn', () => {
     render(<ChallengeNotes notes={[{ lens: 'bo_sot', suspected: false, note: 'đã chạy đủ' }]} />);
-    expect(screen.queryByText(/bo_sot/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/lăng kính phản biện nghi ngờ/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/không thấy vấn đề \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/đã chạy đủ/)).toBeInTheDocument();
   });
 });

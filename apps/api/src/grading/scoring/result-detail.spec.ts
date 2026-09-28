@@ -46,7 +46,7 @@ describe('loadResultDetail() — challengeNotes (bước 6)', () => {
     expect(detail.challengeNotes).toEqual([{ lens: 'gian_lan', suspected: true, note: 'x' }]);
   });
 
-  it('hồ sơ trước bước 6 (không có field challenge) → challengeNotes rỗng, không lỗi', async () => {
+  it('hồ sơ trước bước 6 (không có field challenge) → challengeNotes và challengeVerdicts rỗng, không lỗi', async () => {
     const ds = fakeDataSource();
     mockQueries(ds, {
       version: 1,
@@ -57,6 +57,37 @@ describe('loadResultDetail() — challengeNotes (bước 6)', () => {
     });
     const detail = await loadResultDetail(ds, resultEntity());
     expect(detail.challengeNotes).toEqual([]);
+    expect(detail.challengeVerdicts).toEqual([]);
+  });
+
+  it('challengeVerdicts: mỗi (lăng kính per-error, lỗi) một dòng, kèm lý do khi unverified — kể cả khi lăng kính XÁC NHẬN', async () => {
+    const ds = fakeDataSource();
+    mockQueries(ds, {
+      version: 1,
+      result: { kind: 'ungradable', ungradable: { class: 'system', reason: 'x' } },
+      rulesSeen: [],
+      ruleTable: [],
+      modelCeiling: 1,
+      challenge: {
+        perError: [
+          {
+            challenger: 'tinh_dung',
+            perError: [
+              { ruleKey: 'thieu_chu_thich', status: 'unverified', toolCallIds: [], reason: 'hết 4 lượt mà chưa kết luận' },
+              { ruleKey: 'ro_ri_bo_nho', status: 'confirmed', toolCallIds: ['tinh_dung-tc-2'] },
+            ],
+          },
+          { challenger: 'qua_tay', perError: [{ ruleKey: 'thieu_chu_thich', status: 'confirmed', toolCallIds: [] }] },
+        ],
+        caseNotes: [],
+      },
+    });
+    const detail = await loadResultDetail(ds, resultEntity());
+    expect(detail.challengeVerdicts).toEqual([
+      { lens: 'tinh_dung', ruleKey: 'thieu_chu_thich', status: 'unverified', reason: 'hết 4 lượt mà chưa kết luận' },
+      { lens: 'tinh_dung', ruleKey: 'ro_ri_bo_nho', status: 'confirmed', reason: null },
+      { lens: 'qua_tay', ruleKey: 'thieu_chu_thich', status: 'confirmed', reason: null },
+    ]);
   });
 
   it('bài chưa từng có lượt chấm nào (currentAttemptId null) → challengeNotes rỗng, không lỗi', async () => {

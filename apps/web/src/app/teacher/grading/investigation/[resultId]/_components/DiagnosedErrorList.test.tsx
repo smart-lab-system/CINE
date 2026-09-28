@@ -88,6 +88,46 @@ describe('DiagnosedErrorList', () => {
     expect(screen.getByText(/chưa xác minh/i)).toBeInTheDocument();
   });
 
+  it('kết luận từng lăng kính per-error hiện thành badge có chữ, KỂ CẢ khi xác nhận', () => {
+    render(
+      <DiagnosedErrorList
+        breakdown={breakdown()}
+        verdicts={[
+          { lens: 'tinh_dung', ruleKey: 'sai_ca_co_ban', status: 'confirmed', reason: null },
+          { lens: 'qua_tay', ruleKey: 'sai_ca_co_ban', status: 'refuted', reason: null },
+        ]}
+      />,
+    );
+    expect(screen.getByText('Tính đúng: xác nhận')).toBeInTheDocument();
+    expect(screen.getByText('Quá tay: bác bỏ')).toBeInTheDocument();
+  });
+
+  it('lăng kính chưa xác minh → badge nêu rõ, lý do nằm trong title (rê chuột xem được)', () => {
+    render(
+      <DiagnosedErrorList
+        breakdown={breakdown()}
+        verdicts={[{ lens: 'tinh_dung', ruleKey: 'sai_ca_co_ban', status: 'unverified', reason: 'hết 4 lượt mà chưa kết luận' }]}
+      />,
+    );
+    expect(screen.getByText('Tính đúng: chưa xác minh')).toHaveAttribute('title', 'hết 4 lượt mà chưa kết luận');
+  });
+
+  it('lỗi MÁY QUYẾT, khi phản biện có chạy → ghi rõ "không đưa phản biện" (§4.1), không để trống gây hiểu nhầm', () => {
+    render(
+      <DiagnosedErrorList
+        breakdown={breakdown({ errors: [error({ source: 'deterministic' }), error({ ruleId: 'r2', ruleKey: 'ten_bien' })] })}
+        verdicts={[{ lens: 'tinh_dung', ruleKey: 'ten_bien', status: 'confirmed', reason: null }]}
+      />,
+    );
+    expect(screen.getByText(/không đưa phản biện/i)).toBeInTheDocument();
+  });
+
+  it('hồ sơ cũ, không có kết luận phản biện nào → không hiện dòng lăng kính nào', () => {
+    render(<DiagnosedErrorList breakdown={breakdown({ errors: [error({ source: 'deterministic' })] })} verdicts={[]} />);
+    expect(screen.queryByText(/không đưa phản biện/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tính đúng:/)).not.toBeInTheDocument();
+  });
+
   it('mismatchedRules > 0 → hiện ghi chú trỏ về Trang kiến thức', () => {
     render(
       <DiagnosedErrorList

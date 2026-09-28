@@ -8,7 +8,12 @@ vi.mock('@/hooks/useGrading', () => ({
   useResultInvestigation: () => useResultInvestigationMock(),
 }));
 
-function baseData(over: { challengeNotes?: { lens: string; suspected: boolean; note: string }[] } = {}) {
+function baseData(
+  over: {
+    challengeNotes?: { lens: string; suspected: boolean; note: string }[];
+    challengeVerdicts?: { lens: string; ruleKey: string; status: string; reason: string | null }[];
+  } = {},
+) {
   return {
     pipeline: 'investigator',
     currentScore: 8.5,
@@ -65,6 +70,7 @@ function baseData(over: { challengeNotes?: { lens: string; suspected: boolean; n
       },
     },
     challengeNotes: over.challengeNotes ?? [],
+    challengeVerdicts: over.challengeVerdicts ?? [],
   };
 }
 
@@ -87,7 +93,16 @@ describe('Hồ sơ một bài', () => {
       data: baseData({ challengeNotes: [{ lens: 'gian_lan', suspected: true, note: 'đổi input vẫn ra cùng kết quả' }] }),
     });
     render(<ResultInvestigationPage />);
-    expect(screen.getByText(/gian_lan/i)).toBeInTheDocument();
+    expect(screen.getByText('Gian lận')).toBeInTheDocument();
     expect(screen.getByText(/lăng kính phản biện nghi ngờ/i)).toBeInTheDocument();
+  });
+
+  it('kết luận per-error của lăng kính (bước 6) đi từ dữ liệu API xuống danh sách lỗi', () => {
+    useResultInvestigationMock = () => ({
+      isLoading: false,
+      data: baseData({ challengeVerdicts: [{ lens: 'qua_tay', ruleKey: 'ten_bien', status: 'confirmed', reason: null }] }),
+    });
+    render(<ResultInvestigationPage />);
+    expect(screen.getByText('Quá tay: xác nhận')).toBeInTheDocument();
   });
 });
