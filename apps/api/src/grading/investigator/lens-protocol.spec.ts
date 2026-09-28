@@ -1,4 +1,4 @@
-import { parseCaseLensReply, parsePerErrorReply } from './lens-protocol';
+import { CASE_NOTE_MAX, clampNote, parseCaseLensReply, parsePerErrorReply } from './lens-protocol';
 
 const PER_ERROR_FINAL = { action: 'final', calls: [], conclusion: { status: 'confirmed', toolCallIds: [] } };
 const CASE_LENS_FINAL = { action: 'final', calls: [], conclusion: { suspected: false, note: 'ok' } };
@@ -28,5 +28,24 @@ describe('parseCaseLensReply() — cùng bộ đọc §5.2', () => {
   it('bọc trong khối ```json … ``` → vẫn đọc được', () => {
     const wrapped = `\`\`\`json\n${JSON.stringify(CASE_LENS_FINAL)}\n\`\`\``;
     expect(parseCaseLensReply(wrapped)).toEqual(CASE_LENS_FINAL);
+  });
+
+  it('note dài hơn 500 ký tự → vẫn đọc được, note bị cắt về 500 (không vứt cả kết luận vì model viết dài)', () => {
+    const long = { action: 'final', calls: [], conclusion: { suspected: true, note: 'x'.repeat(700) } };
+    const r = parseCaseLensReply(JSON.stringify(long));
+    expect(r).not.toBeNull();
+    const note = r!.action === 'final' ? r!.conclusion.note : '';
+    expect(note.length).toBe(CASE_NOTE_MAX);
+    expect(note.endsWith('…')).toBe(true);
+  });
+});
+
+describe('clampNote()', () => {
+  it('note ngắn giữ nguyên; note dài cắt về đúng CASE_NOTE_MAX, kết thúc bằng "…"', () => {
+    expect(clampNote('ngắn')).toBe('ngắn');
+    expect(clampNote('y'.repeat(CASE_NOTE_MAX))).toBe('y'.repeat(CASE_NOTE_MAX));
+    const cut = clampNote(`(chưa tự kiểm được) ${'z'.repeat(CASE_NOTE_MAX)}`);
+    expect(cut.length).toBe(CASE_NOTE_MAX);
+    expect(cut.endsWith('…')).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import { SYSTEM_DELIMITER_RULE } from '../../harness/submission-envelope';
+import { CASE_NOTE_MAX } from '../lens-protocol';
 
 /** Khung mở đầu chung cho BỐN lăng kính (§6.1) — giữ một chỗ, sửa một lần. */
 export const CHALLENGER_FRAME = [
@@ -30,3 +31,6 @@ export const LENS_PROTOCOL_HELP = [
   '',
   SYSTEM_DELIMITER_RULE,
 ].join('\n');
+
+/** Chỉ cho hai lăng kính cấp bài. Gateway không ép `json_schema`, nên giới hạn phải nói bằng lời. */
+export const CASE_NOTE_RULE = `"note" tối đa ${CASE_NOTE_MAX} ký tự: viết gọn, nêu bằng chứng chính (mã lời gọi, input đã thử); phần dài hơn sẽ bị cắt.`;

@@ -56,7 +56,7 @@ export class SeverityLens implements Challenger {
       (reply) => (reply.action === 'final' ? reply.conclusion : null),
       this.deps,
     );
-    if (!r.conclusion) throw new Error('lăng kính Quá tay không kết luận được (hết bậc model hoặc cạn ngân sách)');
+    if (!r.conclusion) throw new Error(`lăng kính Quá tay không kết luận được — ${r.failure}`);
     const okIds = new Set(r.toolCalls.filter((t) => t.status === 'ok').map((t) => t.id));
     const toolCallIds = r.conclusion.toolCallIds.filter((id) => okIds.has(id));
     if (r.conclusion.status === 'refuted') {

@@ -40,6 +40,19 @@ describe('challenge() — ranh giới §12.5', () => {
     expect(r.perError[0].status).toBe('unverified');
   });
 
+  it('unverified GIỮ lý do (thông điệp lỗi của lăng kính) để hồ sơ nói được vì sao; kết luận có được thì không có reason', async () => {
+    const broken: Challenger = { name: 'hỏng', async review() { throw new Error('hết 4 lượt mà chưa kết luận'); } };
+    const ok: Challenger = { name: 'ok', async review() { return { status: 'confirmed', toolCallIds: [] }; } };
+    expect((await challenge(PLANTED, CTX, [EVIDENCE], broken)).perError[0].reason).toBe('hết 4 lượt mà chưa kết luận');
+    expect((await challenge(PLANTED, CTX, [EVIDENCE], ok)).perError[0].reason).toBeUndefined();
+  });
+
+  it('lý do rất dài → cắt về tối đa 300 ký tự (hồ sơ lưu JSONB, không phình vô hạn)', async () => {
+    const broken: Challenger = { name: 'hỏng', async review() { throw new Error('r'.repeat(2000)); } };
+    const r = await challenge(PLANTED, CTX, [EVIDENCE], broken);
+    expect(r.perError[0].reason!.length).toBeLessThanOrEqual(300);
+  });
+
   it('C1 — nhiều lỗi được xét SONG SONG, không tuần tự (thời gian tổng không nhân theo số lỗi)', async () => {
     const DELAY_MS = 80;
     const many: Verdict = {

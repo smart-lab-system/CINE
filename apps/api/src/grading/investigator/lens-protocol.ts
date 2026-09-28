@@ -121,7 +121,14 @@ export const CASE_LENS_JSON_SCHEMA: Record<string, unknown> = {
   },
 };
 
-const caseLensConclusion = z.object({ suspected: z.boolean(), note: z.string().max(500) });
+export const CASE_NOTE_MAX = 500;
+
+/** Cắt chứ không từ chối: một kết luận hợp lệ không được mất trắng chỉ vì model viết dài. */
+export function clampNote(note: string): string {
+  return note.length <= CASE_NOTE_MAX ? note : `${note.slice(0, CASE_NOTE_MAX - 1)}…`;
+}
+
+const caseLensConclusion = z.object({ suspected: z.boolean(), note: z.string().transform(clampNote) });
 const caseLensReplySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('call'), calls: z.array(callSchema).min(1), conclusion: z.null() }),
   z.object({ action: z.literal('final'), calls: z.array(z.unknown()), conclusion: caseLensConclusion }),

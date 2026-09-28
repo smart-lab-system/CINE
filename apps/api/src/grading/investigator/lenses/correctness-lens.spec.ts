@@ -30,6 +30,11 @@ describe('CorrectnessLens', () => {
     await expect(lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] })).rejects.toThrow();
   });
 
+  it('không kết luận được → lỗi ném ra MANG lý do thật của vòng lăng kính (vd bad_output), để challenge() ghi lại', async () => {
+    const lens = new CorrectnessLens({ models: [scripted(['không phải JSON'])], sandbox: passNone() });
+    await expect(lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] })).rejects.toThrow(/bad_output/);
+  });
+
   it('toolCallIds trả về chỉ gồm mã CỦA LƯỢT REVIEW này, không phải mã tc-1 của agent chấm', async () => {
     const model = scripted([
       JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
