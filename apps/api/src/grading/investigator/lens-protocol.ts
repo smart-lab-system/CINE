@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { SYSTEM_DELIMITER_RULE } from '../harness/submission-envelope';
 import { TOOL_NAMES } from './types';
 import { readSingleJson } from './verdict-reader';
 
@@ -135,5 +134,3 @@ export function parseCaseLensReply(content: string): CaseLensReply | null {
   const parsed = caseLensReplySchema.safeParse(read.value);
   return parsed.success ? parsed.data : null;
 }
-
-export const LENS_SYSTEM_DELIMITER = SYSTEM_DELIMITER_RULE;

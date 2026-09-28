@@ -14,12 +14,19 @@ const UNVERIFIED_CONFIDENCE_CAP = 0.5;
 
 /**
  * Bất đối xứng §6.2, gộp NHIỀU lăng kính per-error cho MỘT ruleKey: một lăng kính bác bỏ được
- * là đủ để refuted, dù lăng kính khác xác nhận. Ngược lại: MỘT lăng kính xác nhận (bằng lời có
- * bằng chứng chạy thật) là đủ để confirmed, MIỄN LÀ không có lăng kính nào bác bỏ — một lăng kính
- * không trả lời được không được kéo tụt một lăng kính khác ĐÃ xác nhận thành công (sửa sau review
- * cuối, finding W5: bản đầu đòi TẤT CẢ xác nhận mới là confirmed, khắt khe hơn spec và kéo tỉ lệ
- * tự quyết xuống oan vì một lăng kính timeout). `unverified` chỉ còn lại cho đúng nghĩa spec:
- * KHÔNG lăng kính nào trả lời được.
+ * là đủ để refuted, dù lăng kính khác xác nhận. Ngược lại: MỘT lăng kính xác nhận là đủ để
+ * confirmed, MIỄN LÀ không có lăng kính nào bác bỏ — một lăng kính không trả lời được không được
+ * kéo tụt một lăng kính khác ĐÃ xác nhận thành công (sửa sau review cuối, finding W5: bản đầu đòi
+ * TẤT CẢ xác nhận mới là confirmed, khắt khe hơn spec và kéo tỉ lệ tự quyết xuống oan vì một
+ * lăng kính timeout). `unverified` chỉ còn lại cho đúng nghĩa spec: KHÔNG lăng kính nào trả lời
+ * được.
+ *
+ * Lưu ý (finding W-B, cùng review): "xác nhận" ở đây có mức "chắc" khác nhau theo TỪNG Challenger
+ * — Tính đúng (`CorrectnessLens`) bắt buộc mọi kết luận, kể cả "confirmed", phải kèm một lần
+ * run/run_tests thật của chính nó (§6.1: "chứng minh bằng một lần chạy"); Quá tay (`SeverityLens`)
+ * là một phán đoán ĐỌC (mô tả luật + bằng chứng agent chấm đã trích), không bắt buộc tự chạy để
+ * "confirmed". Hàm này gộp theo `status` phẳng, không phân biệt lăng kính nào đứng sau nó — mức
+ * "chắc" đã được ép ở tầng `Challenger.review()` của từng lớp trước khi tới đây.
  */
 function mergedStatusOf(ruleKey: string, perError: ChallengeConclusion[]): ChallengeStatus | null {
   const statuses = perError.flatMap((c) => c.perError.filter((e) => e.ruleKey === ruleKey).map((e) => e.status));

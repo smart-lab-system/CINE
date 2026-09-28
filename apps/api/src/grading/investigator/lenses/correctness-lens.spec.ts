@@ -15,7 +15,10 @@ const passNone = () => fakeSandbox((req) => execResult(req.cases.map((c) => ({ n
 
 describe('CorrectnessLens', () => {
   it('tự chạy lại và xác nhận lỗi có thật → confirmed, kèm bằng chứng CỦA CHÍNH NÓ', async () => {
-    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'confirmed', toolCallIds: ['lens-tc-1'] } })]);
+    const model = scripted([
+      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
+      JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'confirmed', toolCallIds: ['tinh_dung-tc-1'] } }),
+    ]);
     const lens = new CorrectnessLens({ models: [model], sandbox: passNone() });
     const r = await lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] });
     expect(r.status).toBe('confirmed');
@@ -28,7 +31,10 @@ describe('CorrectnessLens', () => {
   });
 
   it('toolCallIds trả về chỉ gồm mã CỦA LƯỢT REVIEW này, không phải mã tc-1 của agent chấm', async () => {
-    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'confirmed', toolCallIds: ['tc-1', 'lens-tc-1'] } })]);
+    const model = scripted([
+      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
+      JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'confirmed', toolCallIds: ['tc-1', 'tinh_dung-tc-1'] } }),
+    ]);
     const lens = new CorrectnessLens({ models: [model], sandbox: passNone() });
     const r = await lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] });
     expect(r.toolCallIds).not.toContain('tc-1');
@@ -37,6 +43,12 @@ describe('CorrectnessLens', () => {
   it('C3 — "refuted" mà KHÔNG có lời gọi run/run_tests thành công nào của chính lăng kính → ném lỗi, không được tin suông (§6, "bằng một lần chạy")', async () => {
     // Kết luận NGAY ở lượt đầu, không hề gọi công cụ nào — "refuted" ở đây là ý kiến suông.
     const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'refuted', toolCallIds: [] } })]);
+    const lens = new CorrectnessLens({ models: [model], sandbox: passNone() });
+    await expect(lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] })).rejects.toThrow();
+  });
+
+  it('W-B — "confirmed" mà KHÔNG có lời gọi run/run_tests thành công nào của chính lăng kính → ném lỗi (§6.1: "chứng minh bằng một lần chạy" áp cho cả hai chiều)', async () => {
+    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'confirmed', toolCallIds: [] } })]);
     const lens = new CorrectnessLens({ models: [model], sandbox: passNone() });
     await expect(lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] })).rejects.toThrow();
   });

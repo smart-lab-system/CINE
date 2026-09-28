@@ -13,10 +13,11 @@ const SYSTEM_PROMPT = [
   '',
   LENS_PROTOCOL_HELP,
   '',
-  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["lens-tc-N"]}}.',
+  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["tinh_dung-tc-N"]}}.',
   '"refuted" nghĩa là bạn CHẠY THỬ (run hoặc run_tests) và thấy lỗi đó không đúng như mô tả —',
-  'không phải "tôi nghĩ có thể sai". Một kết luận "refuted" không kèm ít nhất một lần run/run_tests',
-  'THÀNH CÔNG của chính bạn sẽ bị hệ thống bỏ qua, dù bạn viết gì trong toolCallIds.',
+  'không phải "tôi nghĩ có thể sai". Việc của lăng kính này LUÔN LÀ chứng minh bằng một lần chạy',
+  '(§6.1) — dù kết luận "confirmed" hay "refuted", nếu không kèm ít nhất một lần run/run_tests',
+  'THÀNH CÔNG của chính bạn, hệ thống sẽ bỏ qua kết luận đó, dù bạn viết gì trong toolCallIds.',
 ].join('\n');
 
 /**
@@ -53,11 +54,12 @@ export class CorrectnessLens implements Challenger {
     if (!r.conclusion) throw new Error('lăng kính Tính đúng không kết luận được (hết bậc model hoặc cạn ngân sách)');
     const okIds = new Set(r.toolCalls.filter((t) => t.status === 'ok').map((t) => t.id));
     const toolCallIds = r.conclusion.toolCallIds.filter((id) => okIds.has(id));
-    if (r.conclusion.status === 'refuted') {
-      const ranSomething = r.toolCalls.some((t) => t.status === 'ok' && (t.tool === 'run' || t.tool === 'run_tests'));
-      if (!ranSomething) {
-        throw new Error('lăng kính Tính đúng kết luận "refuted" mà không tự chạy thử lần nào — không được tin (§6)');
-      }
+    // §6.1: việc của lăng kính này LUÔN LÀ "chứng minh bằng một lần chạy" — áp cho CẢ HAI chiều
+    // kết luận, không chỉ "refuted". Một "confirmed" suông (chưa tự chạy gì) cũng không được tin
+    // hơn một "refuted" suông (finding W-B, review cuối).
+    const ranSomething = r.toolCalls.some((t) => t.status === 'ok' && (t.tool === 'run' || t.tool === 'run_tests'));
+    if (!ranSomething) {
+      throw new Error(`lăng kính Tính đúng kết luận "${r.conclusion.status}" mà không tự chạy thử lần nào — không được tin (§6.1)`);
     }
     return { status: r.conclusion.status, toolCallIds };
   }

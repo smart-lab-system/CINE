@@ -1,6 +1,7 @@
 import { ChallengeInput, Challenger } from '../challenge';
 import { LensDeps, runLensLoop } from '../lens-loop';
 import { lensArgsFor, parsePerErrorReply, PER_ERROR_JSON_SCHEMA } from '../lens-protocol';
+import { truncateOutput } from '../truncate';
 import { CHALLENGER_FRAME, LENS_PROTOCOL_HELP } from './frame';
 
 const SYSTEM_PROMPT = [
@@ -15,17 +16,19 @@ const SYSTEM_PROMPT = [
   '',
   LENS_PROTOCOL_HELP,
   '',
-  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["lens-tc-N"]}}.',
+  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["qua_tay-tc-N"]}}.',
   'Một kết luận "refuted" không kèm ít nhất một lần run/run_tests THÀNH CÔNG của chính bạn sẽ bị',
   'hệ thống bỏ qua, dù bạn viết gì trong toolCallIds.',
 ].join('\n');
 
 /** Bằng chứng gốc mà agent chấm đã trích — sửa sau review cuối (finding C3): bản đầu chỉ đưa mã
  *  tc-N, không đưa NỘI DUNG, nên lăng kính này không thể đánh giá mức độ của một thứ nó chưa
- *  từng thấy. Cắt ở 2000 ký tự mỗi mục — đủ cho một đoạn code/log, không phình prompt vô hạn. */
+ *  từng thấy. Cắt bằng `truncateOutput` (giữ CẢ đầu lẫn đuôi) — sửa sau review cuối (finding
+ *  W-A): `.slice(0, N)` chỉ giữ đầu, có thể cắt mất dòng END của phong bì nộp bài
+ *  (`SYSTEM_DELIMITER_RULE`), khiến phần sau đó lẫn vào như thể vẫn còn là dữ liệu bài nộp. */
 function renderEvidence(evidence: ChallengeInput['evidence']): string {
   if (evidence.length === 0) return '(không có bằng chứng gốc nào được trích)';
-  return evidence.map((t) => `[${t.id}] ${t.tool} → ${t.status}\n${t.output.slice(0, 2000)}`).join('\n\n');
+  return evidence.map((t) => `[${t.id}] ${t.tool} → ${t.status}\n${truncateOutput(t.output, 2000)}`).join('\n\n');
 }
 
 /** "Quá tay" (§6.1): mức trừ đã áp có nặng hơn bằng chứng thật sự cho phép không — đo bằng

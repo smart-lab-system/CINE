@@ -58,4 +58,17 @@ describe('SeverityLens', () => {
     const firstUserMessage = seen[0].messages[0].content;
     expect(firstUserMessage).toContain(EVIDENCE.output);
   });
+
+  it('W-A — bằng chứng dài (>2000 ký tự) vẫn giữ ĐUÔI (dòng END của phong bì nộp bài), không chỉ đầu', async () => {
+    const seen: ChatTextRequest[] = [];
+    const longEvidence: ToolCall = { ...EVIDENCE, output: 'a'.repeat(3000) + '===END SUBMISSION nonce123===' };
+    const model = scripted(
+      [JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'confirmed', toolCallIds: [] } })],
+      (req) => seen.push(req),
+    );
+    const lens = new SeverityLens({ models: [model], sandbox: passAll() });
+    await lens.review({ error: { ruleKey: 'chu_thich_sai', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [longEvidence] });
+    const firstUserMessage = seen[0].messages[0].content;
+    expect(firstUserMessage).toContain('===END SUBMISSION nonce123===');
+  });
 });
