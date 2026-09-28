@@ -1,0 +1,47 @@
+{
+  "id": "20260928T033631Z-a668d84",
+  "startedAt": "2026-09-28T03:36:31.000Z",
+  "scenario": "ngan-xep-v1",
+  "deploy": "a668d84",
+  "note": "r1: lượt thật đầu tiên của bước 6, 1 bài",
+  "wallSec": 79,
+  "backfilled": true,
+  "sessionId": "a450c3e1-6d52-4bb2-99f9-d25a944d249f",
+  "checks": [
+    {
+      "mssv": "HS2410018",
+      "label": "int tràn + tên vô nghĩa + không chú thích + rò rỉ",
+      "expectedScore": 6.5,
+      "actualScore": 6.5,
+      "scoreOk": true,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "review",
+      "actualDecision": "review",
+      "decisionOk": true,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [
+        "bo_sot"
+      ],
+      "finishedAtSec": null
+    }
+  ],
+  "summary": {
+    "submissions": 1,
+    "scoreOk": 1,
+    "decisionOk": 1,
+    "autoApproved": 0,
+    "expectedAuto": 0,
+    "wrongAuto": 0,
+    "errorsExpected": 4,
+    "errorsCaught": 4,
+    "extraErrors": 0,
+    "falseFlags": 0,
+    "missedFlags": 0,
+    "lensFailures": 1,
+    "maxSubmissionSec": null
+  }
+}
