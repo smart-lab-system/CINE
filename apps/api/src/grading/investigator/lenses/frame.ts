@@ -16,6 +16,12 @@ export const CHALLENGER_FRAME = [
  * của một lời gọi công cụ — vòng điều tra chính phải mô tả đủ sáu trường vì `response_format:
  * json_schema` không được mọi route của gateway ép (đo 2026-09-25); lăng kính dùng cùng gateway
  * nên chịu cùng giới hạn, và bản đầu đã bỏ sót điều đó.
+ *
+ * "TRẢ NGAY, không văn xuôi" — thêm sau diễn tập 2026-09-28 đổi bậc model sang
+ * occ/claude-sonnet-5 + cnb/glm-5.3: cnb/glm-5.3 nhiều lần mở đầu bằng một câu kế hoạch
+ * ("I'll start by exploring the workspace...") thay vì đối tượng JSON — không có JSON nào để
+ * đọc, khác hẳn lỗi thiếu khoá "conclusion" mà schema đã khoan dung được (readSingleJson/zod).
+ * Chưa xác nhận được câu này có sửa hẳn hành vi đó không (chưa gọi lại được gateway thật để đo).
  */
 export const LENS_PROTOCOL_HELP = [
   'Công cụ — hệ thống gán cho mỗi lời gọi một mã riêng:',
@@ -24,7 +30,8 @@ export const LENS_PROTOCOL_HELP = [
   '- run(input): biên dịch bài cùng driver của đề, chạy với stdin = input, trả kết cục và stdout.',
   '- run_tests(group): chạy bộ test của đề; group là tên nhóm, hoặc null để chạy tất cả.',
   '',
-  'Mỗi lượt, trả ĐÚNG MỘT đối tượng JSON:',
+  'Mỗi lượt, trả NGAY đối tượng JSON làm ký tự ĐẦU TIÊN — không viết văn xuôi, không kèm lời dẫn',
+  'hay giải thích kế hoạch trước JSON.',
   '- Gọi công cụ: {"action":"call","calls":[{"tool":"…","input":null,"group":null,"path":null,"fromLine":null,"toLine":null}],"conclusion":null}.',
   '  Mỗi lời gọi ghi đủ sáu trường "tool","input","group","path","fromLine","toLine" — không dùng thì null.',
   '  "tool" là một trong "list_files","read_file","run","run_tests".',
