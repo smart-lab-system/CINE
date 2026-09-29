@@ -3,7 +3,6 @@ import {
   DEFAULT_VIEW,
   EMPTY_LIST_FILTERS,
   bulkPlan,
-  buildRows,
   facetOptions,
   foldText,
   formatSessionDate,
