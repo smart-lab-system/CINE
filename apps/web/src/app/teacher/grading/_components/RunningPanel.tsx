@@ -50,7 +50,7 @@ export function RunningPanel({
     if (!progress) return;
     setSamples((prev) => addSample(prev, { t: Date.now(), done: progress.done }));
     // Mỗi lần ĐỌC được thêm một mẫu, kể cả khi số không đổi — không có nó thì không đo được khoảng thời gian.
-  }, [progress?.done, lastReadAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [progress?.done, lastReadAt]);
 
   if (!progress) {
     return (
