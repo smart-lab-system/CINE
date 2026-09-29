@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { NeedsBackend } from '@/components/needs-backend';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
+import { BackToListLink } from './BackToListLink';
 
 /**
  * "32/40 bài nộp" — bài đã thu trên số sinh viên dự kiến. Chưa biết danh sách lớp thì KHÔNG bịa mẫu số.
@@ -35,14 +36,12 @@ export function SessionHeader({
       <div className="flex flex-col gap-1.5">
         <h1 className="text-h1 text-foreground">{session.name}</h1>
         <p className="text-small text-muted-foreground">
-          {[session.className, session.roomName ? `Phòng ${session.roomName}` : null].filter(Boolean).join(' · ')}
+          {[session.className, session.roomName].filter(Boolean).join(' · ')}
         </p>
         <p className="text-small font-medium tabular-nums">{submittedLabel(session)}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button asChild variant="outline">
-          <Link href="/teacher/grading">Đổi phiên</Link>
-        </Button>
+        <BackToListLink />
         {resultCount > 0 ? (
           <Button asChild>
             <Link href={`/teacher/grading/finalize?sessionId=${sessionId}`}>Chốt điểm phiên</Link>

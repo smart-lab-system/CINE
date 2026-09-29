@@ -22,7 +22,7 @@ import { PreparePanel } from './_components/PreparePanel';
 import { ResultsTable, type ResultsFilter } from './_components/ResultsTable';
 import { RunningPanel } from './_components/RunningPanel';
 import { SessionHeader } from './_components/SessionHeader';
-import { SessionPicker } from './_components/SessionPicker';
+import { SessionList } from './_components/session-list/SessionList';
 
 /**
  * Chấm điểm — MỘT route, ba trạng thái (spec §1): chuẩn bị chấm → đang chấm → danh sách bài. Trang tự chọn màn theo
@@ -46,7 +46,7 @@ function GradingPageContent() {
   const overview = useSessionOverview();
 
   if (!sessionId) {
-    return <SessionPicker sessions={overview.data ?? []} loading={overview.isLoading} error={overview.isError ? overview.error : null} />;
+    return <SessionList sessions={overview.data ?? []} loading={overview.isLoading} error={overview.isError ? overview.error : null} />;
   }
 
   const session = overview.data?.find((s) => s.id === sessionId);

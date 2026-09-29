@@ -6,10 +6,15 @@ import type { GradingProgress, GradingResult, ResultDetail } from '@/lib/api/gra
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 
 let search = '';
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(search) }));
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(search),
+  useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => '/teacher/grading',
+}));
 
 const h = vi.hoisted(() => ({
   overview: { data: [] as unknown[], isLoading: false, isError: false, error: null as Error | null },
+  summaries: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null },
   results: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null, refetch: vi.fn() },
   progress: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null, dataUpdatedAt: 0, refetch: vi.fn() },
   details: { byId: new Map<string, unknown>(), loading: 0, failed: 0 },
@@ -22,6 +27,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/hooks/useSubmissionOverview', () => ({ useSessionOverview: () => h.overview }));
 vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: () => h.results,
+  useGradingSessionSummaries: () => h.summaries,
   useGradingProgress: () => h.progress,
   useResultDetails: () => h.details,
   useRegradeStuck: () => ({ mutate: h.regradeMutate, isPending: false, isError: false, error: null, data: undefined }),
@@ -46,6 +52,7 @@ vi.mock('./_components/BulkAcceptEssays', () => ({ BulkAcceptEssays: () => <div 
 const session = (over: Partial<SessionOverviewItem> = {}) =>
   ({
     id: 's1', name: 'Giữa kỳ N01', code: 'GK-N01', classId: 'c1', className: 'N01', roomName: 'B2.07', status: 'completed',
+    examType: 'GK', startTime: '2026-09-28T00:30:00.000Z', semesterName: 'HK1',
     rubricId: 'ru-1', rubricVersion: 2, expectedCount: 40, rosterKnown: true,
     fullySubmittedCount: 30, partialCount: 2, attendedNoSubmissionCount: 0, neverAttendedCount: 0, ...over,
   }) as SessionOverviewItem;
@@ -72,6 +79,7 @@ const dossier = (errorFlags: { ruleKey: string; code: string }[]): ResultDetail 
 beforeEach(() => {
   search = 'sessionId=s1';
   h.overview = { data: [session()], isLoading: false, isError: false, error: null };
+  h.summaries = { data: [], isLoading: false, isError: false, error: null };
   h.results = { data: [result()], isLoading: false, isError: false, error: null, refetch: vi.fn() };
   h.progress = { data: progress(), isLoading: false, isError: false, error: null, dataUpdatedAt: 1, refetch: vi.fn() };
   h.details = { byId: new Map(), loading: 0, failed: 0 };
@@ -94,22 +102,25 @@ describe('/teacher/grading — without a session: the picker', () => {
     };
   });
 
-  it('lists the sessions that have collected work, each a link that keeps the session in the URL', () => {
+  it('lists the sessions that have collected work, each name a link that keeps the session in the URL', () => {
     render(<GradingPage />);
-    expect(screen.getByRole('link', { name: /Giữa kỳ N01/ })).toHaveAttribute('href', '/teacher/grading?sessionId=a');
-    expect(screen.getByRole('link', { name: /Cuối kỳ N02/ })).toHaveAttribute('href', '/teacher/grading?sessionId=b');
+    expect(screen.getByRole('link', { name: 'Giữa kỳ N01' })).toHaveAttribute('href', '/teacher/grading?sessionId=a');
+    expect(screen.getByRole('link', { name: 'Cuối kỳ N02' })).toHaveAttribute('href', '/teacher/grading?sessionId=b');
     expect(screen.queryByText('Phiên chưa thu bài')).not.toBeInTheDocument();
   });
 
-  it('says what a session card is missing — a session with no rubric is still listed, flagged', () => {
+  it('a session with no rubric is still listed, and the row says what is missing', () => {
+    h.summaries = { data: [{ examSessionId: 'a', byStatus: {}, ungradable: 0, hasQuestion: true }, { examSessionId: 'b', byStatus: {}, ungradable: 0, hasQuestion: true }], isLoading: false, isError: false, error: null };
     render(<GradingPage />);
-    expect(within(screen.getByRole('link', { name: /Cuối kỳ N02/ })).getByText('Chưa gắn rubric')).toBeInTheDocument();
-    expect(within(screen.getByRole('link', { name: /Giữa kỳ N01/ })).queryByText('Chưa gắn rubric')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('link', { name: 'Cuối kỳ N02' }).closest('tr') as HTMLElement).getByText('Thiếu rubric')).toBeInTheDocument();
+    expect(within(screen.getByRole('link', { name: 'Giữa kỳ N01' }).closest('tr') as HTMLElement).queryByText('Thiếu rubric')).not.toBeInTheDocument();
   });
 
   it('shows how many results were collected out of how many are expected', () => {
     render(<GradingPage />);
-    expect(within(screen.getByRole('link', { name: /Giữa kỳ N01/ })).getByText('32/40 bài nộp')).toBeInTheDocument();
+    const row = screen.getByRole('link', { name: 'Giữa kỳ N01' }).closest('tr') as HTMLElement;
+    expect(within(row).getByText('32')).toBeInTheDocument();
+    expect(within(row).getByText('/40')).toBeInTheDocument();
   });
 
   it('says so, and why, when there is nothing to grade yet', () => {
@@ -215,7 +226,8 @@ describe('session header (spec §3.3)', () => {
   it('names the session, class, room and how many results were collected out of how many expected', () => {
     render(<GradingPage />);
     expect(screen.getByRole('heading', { level: 1, name: 'Giữa kỳ N01' })).toBeInTheDocument();
-    expect(screen.getByText(/N01 · Phòng B2\.07/)).toBeInTheDocument();
+    // Tên phòng đúng như giảng viên đã nhập — không thêm chữ "Phòng" (spec 2026-09-29 mục 0, lỗi 7).
+    expect(screen.getByText(/N01 · B2\.07/)).toBeInTheDocument();
     expect(screen.getByText('32/40 bài nộp')).toBeInTheDocument();
   });
 
@@ -223,6 +235,20 @@ describe('session header (spec §3.3)', () => {
     h.overview = { ...h.overview, data: [session({ rosterKnown: false, expectedCount: 0 })] };
     render(<GradingPage />);
     expect(screen.getByText('32 bài nộp')).toBeInTheDocument();
+  });
+
+  it('"Đổi phiên" goes back to the list the teacher had filtered', () => {
+    sessionStorage.setItem('grading.list.query', 'status=attention&cls=c1');
+    render(<GradingPage />);
+    expect(screen.getByRole('link', { name: 'Đổi phiên' })).toHaveAttribute('href', '/teacher/grading?status=attention&cls=c1');
+    sessionStorage.clear();
+  });
+
+  it('never shows "Phòng Phòng" for a room whose name already says Phòng', () => {
+    h.overview = { data: [session({ roomName: 'Phòng máy B1' })], isLoading: false, isError: false, error: null };
+    render(<GradingPage />);
+    expect(screen.queryByText(/Phòng Phòng/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Phòng máy B1/)).toBeInTheDocument();
   });
 
   it('"Đổi phiên" goes back to the picker', () => {
