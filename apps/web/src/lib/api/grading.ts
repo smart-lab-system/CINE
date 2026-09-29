@@ -13,6 +13,8 @@ export interface Rubric {
    * `key` là định danh ỔN ĐỊNH của tiêu chí — luật trỏ vào nó (`criterionKey`). Lưu rubric mà bỏ `key`
    * thì server sinh lại từ mô tả, và sửa một mô tả có thể âm thầm cắt liên kết luật → tiêu chí.
    */
+  /** Thời điểm tạo bản này (ISO). Server luôn trả; tuỳ chọn để không phá fixture. */
+  createdAt?: string;
   criteria: { id: string; key: string; description: string; maxPoints: number }[];
 }
 
@@ -86,6 +88,13 @@ export interface GradingReadiness {
 }
 
 /** Mirrors GradingResultView (apps/api/src/grading/grading.service.ts). */
+/** Mirrors ResultTriage (apps/api/src/grading/scoring/result-triage.ts) — tóm tắt bảng lỗi trên mỗi dòng danh sách. */
+export interface ResultTriage {
+  caseFlags: { code: string; detail: string }[];
+  errorFlags: { ruleKey: string; code: string }[];
+  counts: { counted: number; unpriced: number; refuted: number; excluded: number };
+}
+
 export interface GradingResult {
   id: string;
   submissionId: string;
@@ -155,6 +164,12 @@ export interface GradingResult {
   /** Điểm hiện tại theo §14.2 — MỌI màn đọc điểm từ đây, không phải `aiTotalScore`. */
   currentScore?: number | null;
   currentScoreSource?: string;
+  /** Loại yêu cầu nộp của bài. Server LUÔN trả nó; tuỳ chọn chỉ để không phá fixture cũ. */
+  deliverableType?: 'document' | 'code_project' | 'image' | null;
+  /** Ngôn ngữ đã khai. `code_project` + `pipeline: 'one_shot'` = chấm bằng đọc mã, không chạy. */
+  deliverableLanguage?: 'python' | 'cpp' | 'java' | 'node' | null;
+  /** Tóm tắt bảng lỗi (G1 §2). `null`/thiếu = không có bảng lỗi để tóm tắt — KHÔNG phải "không lỗi nào". */
+  triage?: ResultTriage | null;
 }
 
 export interface StartGradingResult {
