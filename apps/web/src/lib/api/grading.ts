@@ -278,13 +278,13 @@ export async function submitReview(
  */
 export async function finalizeGrades(
   examSessionId: string,
-): Promise<{ reviewedByHand: number; acceptedAsProposed: number }> {
+): Promise<{ reviewedByHand: number; acceptedAsProposed: number; finalizedDirectly: number }> {
   const { data, error, response } = await apiClient.POST(
     '/exam-sessions/{id}/finalize-grades',
     { params: { path: { id: examSessionId } } },
   );
   if (error || !response.ok) throw fail(error, response);
-  return data as unknown as { reviewedByHand: number; acceptedAsProposed: number };
+  return data as unknown as { reviewedByHand: number; acceptedAsProposed: number; finalizedDirectly: number };
 }
 
 export async function listGradingResults(examSessionId: string): Promise<GradingResult[]> {

@@ -136,6 +136,10 @@ export function reasonOf(result: GradingResult, detail: ResultDetail | undefined
  *
  * KHÔNG nói gì (`null`) chừng nào còn một hồ sơ chưa tải — một lời khẳng định dựng trên dữ liệu thiếu là lời
  * khẳng định sai. Bài tự luận tính vào T nhưng không bao giờ "chỉ chờ giá" (nó luôn do người duyệt).
+ *
+ * "Chỉ chờ giá" ở đây nghĩa là: lý do DUY NHẤT đang hiện ra là giá. Nó KHÔNG hứa rằng đặt giá là đủ — `decide()`
+ * giấu cờ `low_confidence` khi còn cờ khác (decide.ts:188), nên sau khi đặt giá, lý do đó có thể lộ ra (đã kiểm
+ * trên API thật). Lời hiển thị vì vậy nói "đang chờ", không nói "chỉ chờ".
  */
 export function leverageOf(
   needsYou: GradingResult[],

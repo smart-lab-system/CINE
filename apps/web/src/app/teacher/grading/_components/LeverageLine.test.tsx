@@ -9,9 +9,19 @@ describe('LeverageLine (spec §3.3 — one action at the rule layer clears many 
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('states how many need-attention results only wait for prices, and for how many rules', () => {
+  it('states how many need-attention results are waiting on prices, and for how many rules', () => {
     render(<LeverageLine leverage={{ waiting: 8, total: 9, ruleKeys: ['ten_bien', 'sai_bien', 'rong'] }} />);
-    expect(screen.getByRole('status')).toHaveTextContent('8 trong 9 bài cần xem chỉ chờ bạn đặt giá cho 3 luật');
+    expect(screen.getByRole('status')).toHaveTextContent('8 trong 9 bài cần xem đang chờ bạn đặt giá cho 3 luật');
+  });
+
+  // Verified on the live API: pricing the only unpriced rule removed the "unpriced" flag but EXPOSED a
+  // low_confidence flag that decide() hides while other flags exist (decide.ts:188) — the result stayed flagged.
+  // So the line must not promise that prices are all that stands between a result and an automatic decision.
+  it('never promises pricing is enough — it says pricing clears THIS reason and another may appear', () => {
+    render(<LeverageLine leverage={{ waiting: 2, total: 2, ruleKeys: ['x'] }} />);
+    expect(screen.getByRole('status')).not.toHaveTextContent(/chỉ chờ/);
+    expect(screen.getByRole('status')).toHaveTextContent('Đặt giá gỡ lý do này');
+    expect(screen.getByRole('status')).toHaveTextContent('còn lý do khác');
   });
 
   it('names the rules, in mono, so the teacher knows which ones', () => {

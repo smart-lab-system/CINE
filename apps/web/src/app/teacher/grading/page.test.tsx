@@ -279,7 +279,7 @@ describe('list view — filter and the leverage line', () => {
     h.results = { ...h.results, data: needsYou };
     h.details = { byId: new Map([['a', dossier([{ ruleKey: 'ten_bien', code: 'unpriced' }])], ['b', dossier([{ ruleKey: 'ten_bien', code: 'unpriced' }])]]), loading: 0, failed: 0 };
     render(<GradingPage />);
-    expect(screen.getByRole('status')).toHaveTextContent('2 trong 2 bài cần xem chỉ chờ bạn đặt giá cho 1 luật');
+    expect(screen.getByRole('status')).toHaveTextContent('2 trong 2 bài cần xem đang chờ bạn đặt giá cho 1 luật');
   });
 
   it('says nothing while a dossier is missing — no claim from partial data', () => {

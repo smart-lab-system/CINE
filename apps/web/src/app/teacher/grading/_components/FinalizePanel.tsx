@@ -40,7 +40,7 @@ export function FinalizePanel({
 }) {
   const finalize = useFinalizeGrades(sessionId);
   const [confirming, setConfirming] = useState(false);
-  const [done, setDone] = useState<{ reviewedByHand: number; acceptedAsProposed: number } | null>(null);
+  const [done, setDone] = useState<{ reviewedByHand: number; acceptedAsProposed: number; finalizedDirectly: number } | null>(null);
 
   const list = `/teacher/grading?sessionId=${sessionId}`;
   const claim = (
@@ -82,7 +82,8 @@ export function FinalizePanel({
       {done && (
         <Alert variant="success" role="status">
           <AlertDescription>
-            Đã chốt: {done.acceptedAsProposed} bài theo điểm hệ thống, {done.reviewedByHand} bài bạn đã xem.
+            Đã chốt: {done.acceptedAsProposed + done.finalizedDirectly} bài theo điểm hệ thống, {done.reviewedByHand} bài bạn đã
+            xem.
           </AlertDescription>
         </Alert>
       )}

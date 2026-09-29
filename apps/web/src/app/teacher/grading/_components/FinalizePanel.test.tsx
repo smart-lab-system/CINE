@@ -111,9 +111,13 @@ describe('FinalizePanel — ready (T-UI-16: the two numbers add up to the sessio
     expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('dưới sàn');
   });
 
-  it('reads the outcome back after a successful finalise', () => {
-    mutate.mockImplementation((_v: void, opts: { onSuccess: (d: { reviewedByHand: number; acceptedAsProposed: number }) => void }) =>
-      opts.onSuccess({ reviewedByHand: 1, acceptedAsProposed: 3 }),
+  // Verified on the live API: finalize-grades answers {reviewedByHand: 3, acceptedAsProposed: 0, finalizedDirectly: 1}
+  // for a session with one auto-decided code result — the auto-decided investigator results are counted in
+  // `finalizedDirectly`, NOT in `acceptedAsProposed`. Reading only the first two under-reported the session.
+  it('reads the outcome back after a successful finalise — counting results the system decided, incl. those finalised directly', () => {
+    mutate.mockImplementation(
+      (_v: void, opts: { onSuccess: (d: { reviewedByHand: number; acceptedAsProposed: number; finalizedDirectly: number }) => void }) =>
+        opts.onSuccess({ reviewedByHand: 1, acceptedAsProposed: 1, finalizedDirectly: 2 }),
     );
     renderPanel(ready());
     fireEvent.click(finalizeButton());
