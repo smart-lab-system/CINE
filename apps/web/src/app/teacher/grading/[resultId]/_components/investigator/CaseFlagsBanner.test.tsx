@@ -39,6 +39,21 @@ describe('CaseFlagsBanner', () => {
     expect(onManualScore).toHaveBeenCalled();
   });
 
+  // Review minor: `<Link><Button>` renders <a><button>, invalid nesting (two tab stops); the app's own
+  // convention is `<Button asChild><Link>`.
+  it('renders links as links — no button nested inside an anchor', () => {
+    const { container } = render(
+      <CaseFlagsBanner
+        caseFlags={[{ code: 'criterion_without_rules', detail: 'x' }]}
+        errorFlags={[{ ruleKey: 'ten_bien', code: 'unpriced' }]}
+        onManualScore={vi.fn()}
+      />,
+    );
+    expect(container.querySelectorAll('a').length).toBe(2);
+    expect(container.querySelector('a button')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Tạo luật cho tiêu chí này' })).toHaveAttribute('href', '/teacher/rules');
+  });
+
   it('renders nothing when there is nothing to show', () => {
     const { container } = render(<CaseFlagsBanner caseFlags={[]} errorFlags={[]} onManualScore={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();

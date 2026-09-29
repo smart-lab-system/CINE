@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { toolActionLabel } from '@/lib/grading-vocab';
+import { toolActionLabel, toolCallStatusLabel } from '@/lib/grading-vocab';
 import type { ResultDetail } from '@/lib/api/grading';
 
 export function InvestigationTrail({ investigation }: { investigation: NonNullable<ResultDetail['investigation']> }) {
@@ -36,6 +36,9 @@ export function InvestigationTrail({ investigation }: { investigation: NonNullab
                 ) : (
                   <XCircle className="h-4 w-4 text-danger-strong" aria-hidden="true" />
                 )}
+                <span className={`text-caption font-medium ${ok ? 'text-success-strong' : 'text-danger-strong'}`}>
+                  {toolCallStatusLabel(call.status)}
+                </span>
                 <span className="w-14 text-right text-caption text-muted-foreground">{call.wallMs}ms</span>
               </button>
               {open && (

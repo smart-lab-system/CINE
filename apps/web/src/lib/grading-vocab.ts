@@ -24,14 +24,18 @@ export const VERDICT_LABEL: Record<
   unverified: { label: 'Chưa kiểm được', variant: 'warning', tintClass: 'bg-warning-subtle' },
 };
 
-/** Thứ tự tệ dần — dùng để tô một dòng lỗi khi nhiều góc kiểm kết luận khác nhau (Review Focus #5). */
-const VERDICT_SEVERITY: Record<'confirmed' | 'refuted' | 'unverified', number> = {
-  confirmed: 0,
-  unverified: 1,
-  refuted: 2,
-};
-export function worstVerdict(statuses: Array<'confirmed' | 'refuted' | 'unverified'>) {
-  return statuses.reduce((worst, s) => (VERDICT_SEVERITY[s] > VERDICT_SEVERITY[worst] ? s : worst), statuses[0]);
+type Verdict = 'confirmed' | 'refuted' | 'unverified';
+
+/**
+ * Gộp kết luận của nhiều góc kiểm cho MỘT lỗi — đúng luật của backend (mergedStatusOf, decision/decide.ts,
+ * finding W5): một góc bác bỏ là đủ để bác bỏ; một góc xác nhận là đủ để xác nhận miễn là không ai bác bỏ;
+ * "chưa kiểm được" chỉ khi KHÔNG góc nào trả lời được. Không dùng "tệ nhất thắng": nó tô vàng một dòng mà nút
+ * hành động (theo cờ backend) đối xử như đã xác nhận (Review Focus #5).
+ */
+export function mergedVerdict(statuses: Verdict[]): Verdict {
+  if (statuses.includes('refuted')) return 'refuted';
+  if (statuses.includes('confirmed')) return 'confirmed';
+  return 'unverified';
 }
 
 const LENS_LABEL: Record<string, string> = {
@@ -56,6 +60,17 @@ const TOOL_ACTION_LABEL: Record<string, string> = {
 };
 export function toolActionLabel(tool: string): string {
   return TOOL_ACTION_LABEL[tool] ?? tool;
+}
+
+/** Kết quả một lời gọi công cụ bằng CHỮ (spec §2.1 luật 1) — bốn trạng thái của ToolCallStatus ở backend. */
+const TOOL_CALL_STATUS_LABEL: Record<string, string> = {
+  ok: 'Xong',
+  error: 'Lỗi',
+  blocked_duplicate: 'Bị chặn — trùng lời gọi trước',
+  unavailable: 'Không dùng được',
+};
+export function toolCallStatusLabel(status: string): string {
+  return TOOL_CALL_STATUS_LABEL[status] ?? status;
 }
 
 const CASE_FLAG_LABEL: Record<string, string> = {

@@ -47,14 +47,18 @@ export default function GradingDetailPage({
 
   const results = useGradingResults(sessionId || undefined);
   const readiness = useGradingReadiness(sessionId || undefined);
-  const text = useSubmissionText(resultId);
+  const result = results.data?.find((item) => item.id === resultId);
+  // Bài đi đường điều tra là code_project — chưa có bộ đọc nội dung cho nó, nên hỏi chỉ khiến backend đọc kho
+  // file rồi ghi cảnh báo mỗi lần mở trang (review I4).
+  const text = useSubmissionText(result?.pipeline === 'investigator' ? undefined : resultId);
   const overview = useSessionOverview();
   const session = (overview.data ?? []).find((item) => item.id === sessionId);
   const rubrics = useRubrics();
-  const rubric = rubrics.data?.find((item) => item.version === session?.rubricVersion);
+  // Theo id của rubric ghim cho phiên: `version` chỉ duy nhất trong một bộ (giảng viên, tên), mà rubric nào
+  // cũng bắt đầu ở v1 — tra theo nó có thể đưa nhầm tiêu chí của rubric khác vào form duyệt (review I6).
+  const rubric = session?.rubricId ? rubrics.data?.find((item) => item.id === session.rubricId) : undefined;
 
   const submit = useSubmitReview(sessionId || undefined);
-  const result = results.data?.find((item) => item.id === resultId);
 
   const [draft, setDraft] = useState<ReviewCriterion[] | null>(null);
   const [activeCriterionId, setActive] = useState<string | null>(null);

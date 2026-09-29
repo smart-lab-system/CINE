@@ -27,6 +27,28 @@ describe('CoverageSection', () => {
     expect(screen.getByText(/chưa chạy lại được|không xác định/i)).toBeInTheDocument();
   });
 
+  // Review minor: every run_tests call was counted, including ones that errored or were blocked as duplicates
+  // — inflating "what was checked", the one number this section exists to keep honest.
+  it('counts only the test runs that actually ran, and says how many did not', () => {
+    const call = (id: string, status: string) => ({ id, tool: 'run_tests', args: {}, status, output: '', startedAt: '', wallMs: 1, injectionSuspected: false });
+    render(
+      <CoverageSection
+        investigation={{
+          ...investigation,
+          investigation: { toolCalls: [call('a', 'ok'), call('b', 'error'), call('c', 'blocked_duplicate'), call('d', 'ok')] },
+        } as never}
+      />,
+    );
+    expect(screen.getByText('Đã chạy 2 lượt gói test.')).toBeInTheDocument();
+    expect(screen.getByText('2 lượt khác không chạy được (lỗi hoặc bị chặn) — không tính là đã kiểm.')).toBeInTheDocument();
+  });
+
+  it('says nothing about failed runs when there were none', () => {
+    render(<CoverageSection investigation={investigation as never} />);
+    expect(screen.getByText('Đã chạy 1 lượt gói test.')).toBeInTheDocument();
+    expect(screen.queryByText(/không chạy được/)).not.toBeInTheDocument();
+  });
+
   it('marks complexity analysis as not built — never fakes a chart (step 4 of the grading spec is not done)', () => {
     render(<CoverageSection investigation={investigation as never} />);
     expect(screen.getByText(/chưa có/i)).toBeInTheDocument();

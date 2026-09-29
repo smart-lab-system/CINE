@@ -32,11 +32,9 @@ export function CaseFlagsBanner({
             <span>
               Luật <span className="font-mono">{f.ruleKey}</span> chưa có giá
             </span>
-            <Link href="/teacher/rules">
-              <Button size="sm" variant="outline">
-                Đặt giá
-              </Button>
-            </Link>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/teacher/rules">Đặt giá</Link>
+            </Button>
           </li>
         ))}
         {caseFlags.map((flag, i) => (
@@ -44,11 +42,9 @@ export function CaseFlagsBanner({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span>{caseFlagLabel(flag.code, flag.detail)}</span>
               {RULE_FIXABLE.has(flag.code) ? (
-                <Link href="/teacher/rules">
-                  <Button size="sm" variant="outline">
-                    Tạo luật cho tiêu chí này
-                  </Button>
-                </Link>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/teacher/rules">Tạo luật cho tiêu chí này</Link>
+                </Button>
               ) : (
                 <Button size="sm" variant="outline" onClick={onManualScore}>
                   Chấm tay bài này

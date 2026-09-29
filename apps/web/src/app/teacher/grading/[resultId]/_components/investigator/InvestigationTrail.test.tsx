@@ -19,6 +19,20 @@ describe('InvestigationTrail', () => {
     expect(screen.getByText('run_tests')).toHaveClass('font-mono');
   });
 
+  // Spec §2.1 rule 1: icon + words. An icon-only result is invisible to a screen reader, and "blocked as a
+  // duplicate" looked identical to "failed".
+  it('says each call result in words, and tells a blocked duplicate apart from an error', () => {
+    const call = (id: string, status: string) => ({ id, tool: 'run_tests', args: {}, status, output: '', startedAt: '', wallMs: 1, injectionSuspected: false });
+    const many = {
+      summary: 's',
+      investigation: { toolCalls: [call('tc-1', 'ok'), call('tc-2', 'error'), call('tc-3', 'blocked_duplicate')] },
+    } as never;
+    render(<InvestigationTrail investigation={many} />);
+    expect(screen.getByText('Xong')).toBeInTheDocument();
+    expect(screen.getByText('Lỗi')).toBeInTheDocument();
+    expect(screen.getByText('Bị chặn — trùng lời gọi trước')).toBeInTheDocument();
+  });
+
   it('expands a row to show its real output', () => {
     render(<InvestigationTrail investigation={investigation} />);
     fireEvent.click(screen.getByRole('button', { name: /Chạy gói test/ }));

@@ -14,6 +14,8 @@ let resultsData: GradingResult[] = [];
 let textData: SubmissionText | undefined;
 let readinessData: unknown = { level: 'with_question', warning: null, hasQuestion: true, hasModelAnswer: false };
 let investigationData: unknown;
+let rubricsData: Rubric[];
+const textArgs: (string | undefined)[] = [];
 
 const rubric: Rubric = {
   id: 'rub-1',
@@ -22,14 +24,17 @@ const rubric: Rubric = {
   version: 3,
   isActive: true,
   totalPoints: 4,
-  criteria: [{ id: 'c1', description: 'Xử lý nhất quán dữ liệu', maxPoints: 4 }],
+  criteria: [{ id: 'c1', key: 'nhat_quan', description: 'Xử lý nhất quán dữ liệu', maxPoints: 4 }],
 };
 
 vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: () => ({ data: resultsData, isLoading: false }),
   useGradingReadiness: () => ({ data: readinessData, isLoading: false }),
-  useSubmissionText: () => ({ data: textData, isLoading: false }),
-  useRubrics: () => ({ data: [rubric], isLoading: false }),
+  useSubmissionText: (resultId?: string) => {
+    textArgs.push(resultId);
+    return { data: textData, isLoading: false };
+  },
+  useRubrics: () => ({ data: rubricsData, isLoading: false }),
   useSubmitReview: () => ({ mutate: submitMock, isPending: false, isError: false, error: null }),
   useResultInvestigation: () => ({ data: investigationData, isLoading: false }),
   useSetManualScore: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
@@ -38,7 +43,7 @@ vi.mock('@/hooks/useGrading', () => ({
 
 vi.mock('@/hooks/useSubmissionOverview', () => ({
   useSessionOverview: () => ({
-    data: [{ id: 'e1', name: 'Cuối kỳ', rubricVersion: 3 }],
+    data: [{ id: 'e1', name: 'Cuối kỳ', rubricId: 'rub-1', rubricVersion: 3 }],
     isLoading: false,
   }),
 }));
@@ -95,6 +100,8 @@ describe('GradingDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     investigationData = undefined;
+    rubricsData = [rubric];
+    textArgs.length = 0;
     resultsData = [result()];
     readinessData = {
       level: 'with_question',
@@ -221,6 +228,35 @@ describe('GradingDetailPage', () => {
       }),
       expect.anything(),
     );
+  });
+
+  // Review I6 (the one_shot twin): `version` is only unique per (teacher, name) and every rubric starts at v1,
+  // so `find(version === session.rubricVersion)` could hand the review form ANOTHER rubric's criteria.
+  it('lấy tiêu chí từ rubric ghim cho phiên (theo id), không phải rubric đầu tiên cùng số phiên bản', async () => {
+    rubricsData = [
+      { ...rubric, id: 'rub-0', name: 'Rubric khác', criteria: [{ id: 'c1', key: 'khac', description: 'Tiêu chí của rubric khác', maxPoints: 4 }] },
+      rubric,
+    ];
+    await page();
+
+    expect(await screen.findByText('Xử lý nhất quán dữ liệu')).toBeInTheDocument();
+    expect(screen.queryByText('Tiêu chí của rubric khác')).not.toBeInTheDocument();
+  });
+
+  // Review I4: an investigator result is a code_project and has no document text — reading it only made the
+  // backend hit object storage and log a warning on every page open.
+  it('không tải nội dung bài nộp cho bài đi đường điều tra', async () => {
+    resultsData = [result({ pipeline: 'investigator', currentScore: 8.5, currentScoreSource: 'computation', criterionResults: [], aiTotalScore: 8.5 })];
+    investigationData = undefined;
+    await page();
+
+    expect(textArgs.at(-1)).toBeUndefined();
+  });
+
+  it('vẫn tải nội dung bài nộp cho bài chấm theo tiêu chí', async () => {
+    await page();
+    await screen.findByText('Xử lý nhất quán dữ liệu');
+    expect(textArgs.at(-1)).toBe('r1');
   });
 
   it('bài pipeline=investigator → hồ sơ điều tra, không phải form chấm theo tiêu chí', async () => {

@@ -15,8 +15,8 @@ const rubricV5 = {
   id: 'rub-2',
   version: 5,
   criteria: [
-    { id: 'c1-v5', description: 'Mô tả cơ chế bù trừ', maxPoints: 4 },
-    { id: 'c2-v5', description: 'Dẫn ví dụ cụ thể', maxPoints: 3 },
+    { id: 'c1-v5', key: 'co_che', description: 'Mô tả cơ chế bù trừ', maxPoints: 4 },
+    { id: 'c2-v5', key: 'vi_du', description: 'Dẫn ví dụ cụ thể', maxPoints: 3 },
   ],
 };
 

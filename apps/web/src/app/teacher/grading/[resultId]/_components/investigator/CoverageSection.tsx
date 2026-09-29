@@ -2,6 +2,10 @@ import type { ResultDetail } from '@/lib/api/grading';
 
 export function CoverageSection({ investigation }: { investigation: NonNullable<ResultDetail['investigation']> }) {
   const runTestsCalls = investigation.investigation.toolCalls.filter((c) => c.tool === 'run_tests');
+  // Chỉ lượt chạy THẬT là độ phủ: lượt lỗi hay bị chặn vì trùng không kiểm được gì, đếm vào là thổi phồng
+  // đúng con số mà mục này sinh ra để giữ cho trung thực.
+  const ran = runTestsCalls.filter((c) => c.status === 'ok').length;
+  const notRun = runTestsCalls.length - ran;
   const replay = investigation.replay;
 
   return (
@@ -11,7 +15,8 @@ export function CoverageSection({ investigation }: { investigation: NonNullable<
         "Không tìm thấy lỗi" và "đã kiểm và không có lỗi" là hai chuyện khác nhau. Đây là phần đã kiểm.
       </p>
       <ul className="flex flex-col gap-1 text-small">
-        <li>Đã chạy {runTestsCalls.length} lượt gói test.</li>
+        <li>Đã chạy {ran} lượt gói test.</li>
+        {notRun > 0 && <li>{notRun} lượt khác không chạy được (lỗi hoặc bị chặn) — không tính là đã kiểm.</li>}
         {replay && (
           <li>
             Chạy lại ngẫu nhiên lời gọi #{replay.toolCallId} →{' '}

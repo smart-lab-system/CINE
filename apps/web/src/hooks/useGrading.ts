@@ -327,7 +327,9 @@ export function useSetErrorException(examSessionId: string | undefined) {
   return useMutation({
     mutationFn: ({ resultId, ruleId, direction }: { resultId: string; ruleId: string; direction: ExceptionDirection }) =>
       setErrorException(resultId, ruleId, direction),
-    onSuccess: (_data, { resultId }) => {
+    // `onSettled`, not `onSuccess`: a 400 ("không có trong lượt tính mới nhất") means the page is stale, and
+    // the refetch is what removes the row that caused it.
+    onSettled: (_data, _error, { resultId }) => {
       void queryClient.invalidateQueries({ queryKey: investigationQueryKey(resultId) });
       void queryClient.invalidateQueries({ queryKey: ['exam-sessions', examSessionId, 'grading-results'] });
     },
@@ -339,7 +341,7 @@ export function useSetManualScore(examSessionId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ resultId, score }: { resultId: string; score: string }) => setManualScore(resultId, score),
-    onSuccess: (_data, { resultId }) => {
+    onSettled: (_data, _error, { resultId }) => {
       void queryClient.invalidateQueries({ queryKey: investigationQueryKey(resultId) });
       void queryClient.invalidateQueries({ queryKey: ['exam-sessions', examSessionId, 'grading-results'] });
     },

@@ -9,7 +9,11 @@ export interface Rubric {
   version: number;
   isActive: boolean;
   totalPoints: number;
-  criteria: { id: string; description: string; maxPoints: number }[];
+  /**
+   * `key` là định danh ỔN ĐỊNH của tiêu chí — luật trỏ vào nó (`criterionKey`). Lưu rubric mà bỏ `key`
+   * thì server sinh lại từ mô tả, và sửa một mô tả có thể âm thầm cắt liên kết luật → tiêu chí.
+   */
+  criteria: { id: string; key: string; description: string; maxPoints: number }[];
 }
 
 /** Một tiêu chí trong một lần duyệt của giảng viên. */
@@ -178,7 +182,7 @@ export async function listRubrics(): Promise<Rubric[]> {
  */
 export async function saveRubric(
   name: string,
-  criteria: { description: string; maxPoints: number }[],
+  criteria: { description: string; maxPoints: number; key?: string }[],
 ): Promise<Rubric> {
   const { data, error, response } = await apiClient.POST('/rubrics', {
     body: { name, criteria },

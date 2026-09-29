@@ -1,9 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { createElement, type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as gradingApi from '@/lib/api/grading';
 import {
   PROGRESS_FAST_WINDOW_MS,
   PROGRESS_POLL_FAST_MS,
   PROGRESS_POLL_SLOW_MS,
   progressPollIntervalMs,
+  useSetErrorException,
+  useSetManualScore,
 } from './useGrading';
 
 vi.mock('@/lib/api/grading', async (importOriginal) => {
@@ -52,5 +58,57 @@ describe('investigationQueryKey', () => {
   it('is stable for the same resultId', async () => {
     const { investigationQueryKey } = await import('./useGrading');
     expect(investigationQueryKey('r1')).toEqual(['grading-results', 'r1', 'investigation']);
+  });
+});
+
+/**
+ * Review (minor): both write hooks invalidated only in `onSuccess`. After a 400 such as "Lỗi này không có
+ * trong lượt tính mới nhất của bài" the row that caused it stayed on screen, clickable again — the page was
+ * stale precisely when the server had just said so. A failed write must refetch too.
+ */
+describe.each([
+  {
+    name: 'useSetErrorException',
+    api: () => vi.mocked(gradingApi.setErrorException),
+    run: (r: { current: ReturnType<typeof useSetErrorException> }) =>
+      r.current.mutate({ resultId: 'r1', ruleId: 'rule-1', direction: 'exclude' }),
+    hook: () => useSetErrorException('s1'),
+  },
+  {
+    name: 'useSetManualScore',
+    api: () => vi.mocked(gradingApi.setManualScore),
+    run: (r: { current: ReturnType<typeof useSetManualScore> }) => r.current.mutate({ resultId: 'r1', score: '7.5' }),
+    hook: () => useSetManualScore('s1'),
+  },
+])('$name refetches the investigation and the session list', ({ api, run, hook }) => {
+  function setup() {
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+    return { spy, wrapper };
+  }
+  const expectRefetched = (spy: ReturnType<typeof setup>['spy']) => {
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['grading-results', 'r1', 'investigation'] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['exam-sessions', 's1', 'grading-results'] });
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('after a successful write', async () => {
+    api().mockResolvedValueOnce(undefined as never);
+    const { spy, wrapper } = setup();
+    const { result } = renderHook(hook as never, { wrapper });
+    await act(async () => run(result as never));
+    await waitFor(() => expect((result.current as { isSuccess: boolean }).isSuccess).toBe(true));
+    expectRefetched(spy);
+  });
+
+  it('after a FAILED write too', async () => {
+    api().mockRejectedValueOnce(new Error('Lỗi này không có trong lượt tính mới nhất của bài'));
+    const { spy, wrapper } = setup();
+    const { result } = renderHook(hook as never, { wrapper });
+    await act(async () => run(result as never));
+    await waitFor(() => expect((result.current as { isError: boolean }).isError).toBe(true));
+    expectRefetched(spy);
   });
 });

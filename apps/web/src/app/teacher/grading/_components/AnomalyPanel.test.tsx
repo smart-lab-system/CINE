@@ -11,7 +11,7 @@ const rubric: Rubric = {
   version: 3,
   isActive: true,
   totalPoints: 4,
-  criteria: [{ id: 'c2', description: 'Xử lý nhất quán dữ liệu', maxPoints: 4 }],
+  criteria: [{ id: 'c2', key: 'nhat_quan', description: 'Xử lý nhất quán dữ liệu', maxPoints: 4 }],
 };
 
 function result(over: Partial<GradingResult> = {}): GradingResult {

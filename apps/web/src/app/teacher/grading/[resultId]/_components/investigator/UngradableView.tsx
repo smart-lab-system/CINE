@@ -2,6 +2,7 @@
 
 import { CircleMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { NeedsBackend } from '@/components/needs-backend';
 import { InvestigationTrail } from './InvestigationTrail';
 import type { ResultDetail } from '@/lib/api/grading';
 
@@ -45,15 +46,11 @@ export function UngradableView({
               <>
                 <Button disabled>
                   Chấm lại bài này
-                  <span className="ml-2 rounded-md border border-dashed border-muted-foreground px-1.5 py-px text-caption font-semibold text-muted-foreground">
-                    cần backend
-                  </span>
+                  <NeedsBackend className="ml-2" />
                 </Button>
                 <Button variant="outline" disabled>
                   Chấm lại cả các bài cùng lý do
-                  <span className="ml-2 rounded-md border border-dashed border-muted-foreground px-1.5 py-px text-caption font-semibold text-muted-foreground">
-                    cần backend
-                  </span>
+                  <NeedsBackend className="ml-2" />
                 </Button>
               </>
             )}

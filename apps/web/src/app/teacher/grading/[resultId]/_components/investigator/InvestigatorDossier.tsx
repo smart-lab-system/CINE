@@ -29,8 +29,10 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
   const overview = useSessionOverview();
   const session = (overview.data ?? []).find((item) => item.id === sessionId);
   const rubrics = useRubrics();
-  const rubric = rubrics.data?.find((r) => r.version === session?.rubricVersion);
-  const maxTotal = rubric?.totalPoints ?? 10;
+  // Trần điểm của RUBRIC GHIM CHO PHIÊN, tìm theo id — `version` chỉ duy nhất trong một bộ (giảng viên, tên), mà
+  // rubric nào cũng bắt đầu ở v1 (review I6). Chưa biết thì để null: server kiểm trần, client không bịa.
+  const rubric = session?.rubricId ? rubrics.data?.find((r) => r.id === session.rubricId) : undefined;
+  const maxTotal = rubric?.totalPoints ?? null;
 
   const result = results.data?.find((r) => r.id === resultId);
 
@@ -40,6 +42,16 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
     return (
       <Alert variant="destructive">
         <AlertDescription>Không tải được kết quả chấm — {results.error.message}. Thử tải lại trang.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Lỗi tải chi tiết KHÔNG được rơi xuống nhánh "AI đang chấm": nhánh đó bảo giảng viên chờ một thứ sẽ không
+  // bao giờ tới (review I5).
+  if (detail.isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>Không tải được hồ sơ bài này — {detail.error?.message}. Thử tải lại trang.</AlertDescription>
       </Alert>
     );
   }
@@ -60,7 +72,6 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
 
   const header = (status: string, ungradableReason: string | null) => (
     <DossierHeader
-      resultId={resultId}
       sessionId={sessionId}
       sessionName={session?.name ?? '—'}
       roomName={session?.roomName ?? null}
@@ -71,12 +82,13 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
       onOpenManualScore={() => setOpenManual(true)}
     />
   );
-  const dialog = (currentScore: number | null) => (
+  const dialog = (currentScore: number | null, status: string) => (
     <ManualScoreDialog
       resultId={resultId}
       sessionId={sessionId}
       currentScore={currentScore}
       maxTotal={maxTotal}
+      status={status}
       open={openManual}
       onOpenChange={setOpenManual}
     />
@@ -92,12 +104,16 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
         <Alert variant="info">
           <AlertDescription>AI đang chấm bài này — chưa có dữ liệu để hiện. Tải lại sau ít phút.</AlertDescription>
         </Alert>
-        {dialog(null)}
+        {dialog(null, result.status)}
       </div>
     );
   }
 
-  if (d.ungradableClass) {
+  // Không chấm được VÀ chưa ai chấm tay → màn "không chấm được". Đã chấm tay thì bài CÓ điểm: setManualScore
+  // không xoá ungradable_class, nên nếu chỉ nhìn cột đó, trang sẽ vẫn nói "chưa có điểm nào" ngay dưới nhãn
+  // "Đã duyệt" (review I2). Bài đó đi tiếp xuống bố cục thường, kèm một dòng nhắc vì sao hệ thống không tự chấm.
+  const handGraded = d.ungradableClass !== null && d.currentScoreSource === 'manual';
+  if (d.ungradableClass && !handGraded) {
     return (
       <div className="flex flex-col gap-4">
         {header(d.status, d.ungradableReason)}
@@ -107,7 +123,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
           investigation={d.investigation}
           onOpenManualScore={() => setOpenManual(true)}
         />
-        {dialog(null)}
+        {dialog(null, d.status)}
       </div>
     );
   }
@@ -115,6 +131,13 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
   return (
     <div className="flex flex-col gap-4">
       {header(d.status, d.ungradableReason)}
+      {handGraded && (
+        <Alert variant="info">
+          <AlertDescription>
+            Hệ thống không tự chấm được bài này ({d.ungradableReason}). Điểm bên dưới do bạn chấm tay.
+          </AlertDescription>
+        </Alert>
+      )}
       {d.breakdown && (
         <CaseFlagsBanner
           caseFlags={d.breakdown.caseFlags}
@@ -144,7 +167,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
           {d.investigation && <CoverageSection investigation={d.investigation} />}
         </div>
       </div>
-      {dialog(d.currentScore)}
+      {dialog(d.currentScore, d.status)}
     </div>
   );
 }

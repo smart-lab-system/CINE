@@ -3,12 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 import { DossierHeader } from './DossierHeader';
 
-vi.mock('@/hooks/useGrading', () => ({
-  useSubmissionText: () => ({ data: undefined, isLoading: true }),
-}));
-
 const baseProps = {
-  resultId: 'r1',
   sessionId: 's1',
   sessionName: 'Giữa kỳ N01',
   roomName: 'B2.07',
@@ -29,10 +24,16 @@ describe('DossierHeader', () => {
     expect(screen.getByText(/B2\.07/)).toBeInTheDocument();
   });
 
-  it('opens the submission dialog from "Mở bài nộp"', () => {
-    render(<DossierHeader {...baseProps} onOpenManualScore={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Mở bài nộp' }));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  // Review I4: an investigator result is a code_project, and the only registered content resolver handles
+  // 'document' — so "Mở bài nộp" could only ever show "Hệ thống chưa đọc được nội dung… Tải file gốc về",
+  // with no download link. A working-looking button that cannot work is worse than a labelled gap.
+  it('marks "Mở bài nộp" as not built yet (disabled, "cần backend") instead of opening an empty pane', () => {
+    render(<DossierHeader {...baseProps} />);
+    const open = screen.getByRole('button', { name: /Mở bài nộp/ });
+    expect(open).toBeDisabled();
+    expect(screen.getByText('cần backend')).toBeInTheDocument();
+    fireEvent.click(open);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('keeps "Chấm tay bài này" enabled on a finalized result (Review Focus #2) and calls the handler, not a local dialog', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { caseFlagLabel, lensLabel, toolActionLabel, SOURCE_LABEL, VERDICT_LABEL } from './grading-vocab';
+import { caseFlagLabel, lensLabel, mergedVerdict, toolActionLabel, toolCallStatusLabel, SOURCE_LABEL, VERDICT_LABEL } from './grading-vocab';
 
 describe('SOURCE_LABEL', () => {
   it('uses the spec §2.2 Vietnamese labels, not the old "Model" wording', () => {
@@ -42,5 +42,39 @@ describe('lensLabel', () => {
   it('maps the four known lenses', () => {
     expect(lensLabel('tinh_dung')).toBe('Tính đúng');
     expect(lensLabel('gian_lan')).toBe('Gian lận');
+  });
+});
+
+/**
+ * Gộp kết luận của nhiều góc kiểm cho MỘT lỗi — phải trùng mergedStatusOf ở backend (decision/decide.ts,
+ * finding W5), không thì màu dòng lỗi nói một đằng còn nút hành động (dựa trên cờ backend) đi một nẻo.
+ */
+describe('mergedVerdict', () => {
+  it('một góc kiểm bác bỏ là đủ để bác bỏ, dù góc khác xác nhận', () => {
+    expect(mergedVerdict(['confirmed', 'refuted'])).toBe('refuted');
+    expect(mergedVerdict(['unverified', 'refuted', 'confirmed'])).toBe('refuted');
+  });
+  it('một góc kiểm xác nhận là đủ để xác nhận, miễn là không ai bác bỏ — góc không trả lời được không kéo tụt nó', () => {
+    expect(mergedVerdict(['confirmed', 'unverified'])).toBe('confirmed');
+    expect(mergedVerdict(['unverified', 'confirmed'])).toBe('confirmed');
+  });
+  it('chỉ "chưa kiểm được" khi KHÔNG góc kiểm nào trả lời được', () => {
+    expect(mergedVerdict(['unverified'])).toBe('unverified');
+    expect(mergedVerdict(['unverified', 'unverified'])).toBe('unverified');
+  });
+  it('một góc kiểm thì giữ nguyên', () => {
+    expect(mergedVerdict(['confirmed'])).toBe('confirmed');
+  });
+});
+
+describe('toolCallStatusLabel', () => {
+  it('nói bằng chữ cả bốn trạng thái của backend (ToolCallStatus), không chỉ bằng biểu tượng', () => {
+    expect(toolCallStatusLabel('ok')).toBe('Xong');
+    expect(toolCallStatusLabel('error')).toBe('Lỗi');
+    expect(toolCallStatusLabel('blocked_duplicate')).toBe('Bị chặn — trùng lời gọi trước');
+    expect(toolCallStatusLabel('unavailable')).toBe('Không dùng được');
+  });
+  it('trạng thái lạ vẫn hiện nguyên mã, không bỏ trống', () => {
+    expect(toolCallStatusLabel('brand_new')).toBe('brand_new');
   });
 });
