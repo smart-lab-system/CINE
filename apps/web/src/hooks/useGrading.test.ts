@@ -1,10 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   PROGRESS_FAST_WINDOW_MS,
   PROGRESS_POLL_FAST_MS,
   PROGRESS_POLL_SLOW_MS,
   progressPollIntervalMs,
 } from './useGrading';
+
+vi.mock('@/lib/api/grading', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api/grading')>();
+  return { ...actual, setErrorException: vi.fn(), setManualScore: vi.fn() };
+});
 
 /**
  * Nhịp hỏi tiến độ.
@@ -40,5 +45,12 @@ describe('progressPollIntervalMs', () => {
     // một lượt vừa xong trong phút đầu vẫn trả về 2 giây và không bao
     // giờ dừng.
     expect(progressPollIntervalMs(0, 1)).toBe(false);
+  });
+});
+
+describe('investigationQueryKey', () => {
+  it('is stable for the same resultId', async () => {
+    const { investigationQueryKey } = await import('./useGrading');
+    expect(investigationQueryKey('r1')).toEqual(['grading-results', 'r1', 'investigation']);
   });
 });

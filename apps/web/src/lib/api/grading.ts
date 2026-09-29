@@ -474,15 +474,20 @@ export interface ResultDetail {
   breakdown: {
     errors: ResultDetailError[];
     perCriterion: { key: string; maxHundredths: number; deductedHundredths: number; capped: boolean }[];
+    caseFlags: { code: string; detail: string }[];
     errorFlags: { ruleKey: string; code: string }[];
     confidence: number | null;
     mismatchedRules: { ruleId: string; ruleKey: string; criterionKey: string }[];
     notConsidered: { ruleId: string; ruleKey: string }[];
+    /** Khác null = lượt tính ra DƯỚI SÀN (§4.4): dòng tính lại không mang điểm, lý do nằm ở đây. */
+    ungradable: { class: 'system' | 'submission'; reason: string } | null;
   } | null;
   investigation: {
     kind: 'verdict' | 'ungradable';
     summary: string;
     flags: string[];
+    verdict: { errors: { ruleKey: string; toolCallIds: string[]; note: string | null }[] } | null;
+    replay: { toolCallId: string; matched: boolean | null } | null;
     investigation: { toolCalls: ToolCallView[] };
   } | null;
   /** Bước 6 — ghi chú của lăng kính Bỏ sót/Gian lận. Rỗng khi chưa bật phản biện hay hồ sơ cũ. */
@@ -498,4 +503,37 @@ export async function getResultInvestigation(gradingResultId: string): Promise<R
   });
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as ResultDetail;
+}
+
+export type ExceptionDirection = 'exclude' | 'include';
+
+/** Bỏ hoặc giữ một lỗi cho riêng bài này (§2.2 spec chấm; POST /grading-results/:id/error-exceptions). */
+export async function setErrorException(
+  gradingResultId: string,
+  ruleId: string,
+  direction: ExceptionDirection,
+): Promise<{ scoreHundredths: number | null; status: string }> {
+  const { data, error, response } = await apiClient.POST('/grading-results/{id}/error-exceptions', {
+    params: { path: { id: gradingResultId } },
+    body: { ruleId, direction } as never,
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { scoreHundredths: number | null; status: string };
+}
+
+/**
+ * Chấm tay bài này — điểm không đổi theo luật hay giá nữa (§2.2 spec chấm;
+ * POST /grading-results/:id/manual-score). `score` PHẢI là chuỗi thập phân
+ * ("7", "7.5", "7.25"), không phải số — server 400 nếu gửi number.
+ */
+export async function setManualScore(
+  gradingResultId: string,
+  score: string,
+): Promise<{ score: string; status: string }> {
+  const { data, error, response } = await apiClient.POST('/grading-results/{id}/manual-score', {
+    params: { path: { id: gradingResultId } },
+    body: { score } as never,
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { score: string; status: string };
 }

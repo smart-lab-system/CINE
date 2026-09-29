@@ -22,10 +22,12 @@ function breakdown(over: Partial<NonNullable<ResultDetail['breakdown']>> = {}): 
   return {
     errors: [error()],
     perCriterion: [],
+    caseFlags: [],
     errorFlags: [],
     confidence: 0.9,
     mismatchedRules: [],
     notConsidered: [],
+    ungradable: null,
     ...over,
   };
 }
