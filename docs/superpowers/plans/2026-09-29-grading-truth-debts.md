@@ -2107,10 +2107,13 @@ Stop the API afterwards (`TaskStop`). Any surprise becomes a `Ruling:` and, if i
 
 Update the ledger with the final state. Update memory `grading-ui-rebuild-2026-09-29.md` (and the `MEMORY.md` line) to say G1 is implemented on `feat/grading-gaps-g1-g5`, listing anything the smoke found.
 
-- [ ] **Step 5: Code review — required before reporting done (CLAUDE.md HANDOFF rule)**
+- [ ] **Step 5: Code review — DEFERRED by the user (2026-09-29): skip here; one review for G1→G5 at the end**
 
-Dispatch the `code-reviewer` agent on the whole branch diff against `feat/grading-ui-rebuild` (`git diff feat/grading-ui-rebuild...HEAD`), giving it the spec, this plan and the ledger. Fix every Critical/Important finding, re-run the affected tests, and re-review until the **VERDICT is PASS**. Do not report "done" without it.
+The user chose Native execution and asked to **skip the `code-reviewer` pass for now**, to be done **once, as a general review across G1 → G5** after the last gói. Consequences, all to be stated in the final report rather than hidden:
+- G1 ships with **no independent VERDICT** — CLAUDE.md's HANDOFF rule is waived for this gói by the user, explicitly and only for this gói.
+- The deferred review must cover the whole `feat/grading-gaps-g1-g5` diff against `feat/grading-ui-rebuild`, with this plan's **Review Focus** section and the ledger's `Ruling:` lines as inputs (the ledger is git-ignored — copy it into the review package before the workspace is deleted).
+- Do **not** delete `.superpowers/sdd/2026-09-29-grading-truth-debts/` and do **not** run `finishing-a-development-branch` after G1; the workspace and branch live on until G5's review.
 
 - [ ] **Step 6: Report**
 
-Tell the user, in Vietnamese: what changed, the smoke results, the reviewer's VERDICT, and that nothing was pushed. Ask whether to push and open a PR stacked on `feat/grading-ui-rebuild`. Then hand back for G3's brainstorming.
+Tell the user, in Vietnamese: what changed, the smoke results, that **no code-review VERDICT exists yet (deferred at their request to a G1→G5 review)**, and that nothing was pushed. Ask whether to push and open a PR stacked on `feat/grading-ui-rebuild`. Then hand back for G3's brainstorming.
