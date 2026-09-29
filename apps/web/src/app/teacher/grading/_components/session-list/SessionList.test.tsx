@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { session, summary } from '@/lib/session-list.fixtures';
 import { SessionList } from './SessionList';
@@ -153,6 +153,66 @@ describe('SessionList', () => {
     expect(screen.getByText(/Đã chọn 2 phiên/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Đã chốt/ })); // status=done → chỉ còn phiên "c"
     view.rerender(<SessionList sessions={sessions} loading={false} error={null} />);
+    expect(screen.queryByText(/Đã chọn/)).not.toBeInTheDocument();
+  });
+});
+
+vi.mock('./BulkDialog', () => ({
+  BulkDialog: (p: { request: { kind: string; rows: unknown[]; skipped: number } }) => (
+    <div data-testid="bulk-dialog" data-kind={p.request.kind} data-rows={p.request.rows.length} data-skipped={p.request.skipped} />
+  ),
+}));
+
+describe('SessionList — bulk bar', () => {
+  const pick = (name: RegExp) => fireEvent.click(screen.getByRole('checkbox', { name }));
+
+  it('offers "Bắt đầu chấm" for sessions that are not graded and have rubric + question, counted', () => {
+    renderList();
+    pick(/Chọn phiên Kiểm tra giữa kỳ/); // attention
+    pick(/Chọn phiên Thực hành đồ thị/); // todo, no rubric
+    const bar = within(screen.getByRole('region', { name: /Thao tác trên phiên đã chọn/ }));
+    expect(bar.getByRole('button', { name: /Bắt đầu chấm/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(bar.getByRole('button', { name: /Gắn rubric/ })).toHaveTextContent('1');
+  });
+
+  it('opens the confirm dialog with the eligible rows and how many selected sessions were left out', () => {
+    h.summaries = { data: [summary('a'), summary('b'), summary('c', { finalized: 38 })], isLoading: false, isError: false, error: null };
+    renderList();
+    pick(/Chọn phiên Kiểm tra giữa kỳ/); // todo, has rubric+question → eligible
+    pick(/Chọn phiên Kiểm tra cuối kỳ/); // done → not eligible
+    // Trong thanh: hàng "a" cũng có nút "Bắt đầu chấm" riêng.
+    fireEvent.click(within(screen.getByRole('region', { name: /Thao tác trên phiên đã chọn/ })).getByRole('button', { name: /Bắt đầu chấm/ }));
+    const dialog = screen.getByTestId('bulk-dialog');
+    expect(dialog).toHaveAttribute('data-kind', 'start');
+    expect(dialog).toHaveAttribute('data-rows', '1');
+    expect(dialog).toHaveAttribute('data-skipped', '1');
+  });
+
+  it('there is no bulk finalize and no bulk export', () => {
+    renderList();
+    pick(/Chọn phiên Kiểm tra giữa kỳ/);
+    expect(screen.queryByRole('button', { name: /Chốt điểm/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Xuất/ })).not.toBeInTheDocument();
+  });
+
+  it('while statuses are unknown there is no bulk bar at all', () => {
+    h.summaries = { data: undefined, isLoading: true, isError: false, error: null };
+    renderList();
+    pick(/Chọn phiên Kiểm tra giữa kỳ/);
+    expect(screen.queryByRole('button', { name: /Bắt đầu chấm/ })).not.toBeInTheDocument();
+  });
+
+  it('the row "Bắt đầu chấm" button opens the same dialog for that single session', () => {
+    h.summaries = { data: [summary('a'), summary('b'), summary('c')], isLoading: false, isError: false, error: null };
+    renderList();
+    fireEvent.click(within(screen.getByRole('link', { name: 'Kiểm tra giữa kỳ' }).closest('tr') as HTMLElement).getByRole('button', { name: /Bắt đầu chấm/ }));
+    expect(screen.getByTestId('bulk-dialog')).toHaveAttribute('data-rows', '1');
+  });
+
+  it('"Bỏ chọn" clears the selection', () => {
+    renderList();
+    pick(/Chọn phiên Kiểm tra giữa kỳ/);
+    fireEvent.click(screen.getByRole('button', { name: /Bỏ chọn/ }));
     expect(screen.queryByText(/Đã chọn/)).not.toBeInTheDocument();
   });
 });

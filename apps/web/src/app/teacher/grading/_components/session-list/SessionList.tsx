@@ -19,6 +19,8 @@ import {
   type SortKey,
 } from '@/lib/session-list';
 import { FilterBar } from './FilterBar';
+import { BulkBar } from './BulkBar';
+import { BulkDialog, type BulkRequest } from './BulkDialog';
 import { SessionTable } from './SessionTable';
 import { StatusTabs } from './StatusTabs';
 import { useSessionListState } from './useSessionListState';
@@ -66,6 +68,7 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
   const [density, setDensity] = useDensity();
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [bulk, setBulk] = useState<BulkRequest | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   // Một mốc thời gian, làm mới khi dữ liệu đổi — bộ lọc thời gian không nên chớp mỗi lần gõ.
   const [now, setNow] = useState(() => Date.now());
@@ -74,6 +77,7 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
   const rows = useMemo(() => buildRows(sessions, summaries.data), [sessions, summaries.data]);
   const visible = useMemo(() => sortRows(rows.filter((r) => matchesFilters(r, filters, now)), view), [rows, filters, view, now]);
   const groups = useMemo(() => groupRows(visible, view.group), [visible, view.group]);
+  const selectedRows = useMemo(() => visible.filter((r) => selected.has(r.session.id)), [visible, selected]);
   const options = useMemo(() => facetOptions(rows, filters, now), [rows, filters, now]);
   const counts = useMemo(() => (summaries.data ? statusCounts(rows, filters, now) : null), [rows, filters, now, summaries.data]);
   const noRubricCount = useMemo(() => rows.filter((r) => r.session.rubricId === null && matchesFilters(r, { ...filters, noRubric: false }, now)).length, [rows, filters, now]);
@@ -219,18 +223,28 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
               onToggleRows={toggleRows}
               collapsed={collapsed}
               onToggleGroup={toggleGroup}
-              onStart={() => undefined /* Task 9 nối hộp xác nhận vào đây */}
+              onStart={(row) => setBulk({ kind: 'start', rows: [row], skipped: 0 })}
               density={density}
               now={now}
             />
           )}
 
-          {selected.size > 0 && (
-            <div role="status" className="sticky bottom-4 z-30 self-center rounded-xl bg-primary px-5 py-3 text-small font-semibold text-primary-foreground shadow-lg">
-              Đã chọn {selected.size} phiên
-            </div>
+          {/* `counts !== null` cũng là "đã biết trạng thái": chưa biết thì không có thao tác hàng loạt. */}
+          {selectedRows.length > 0 && counts !== null && (
+            <BulkBar selected={selectedRows} onRequest={setBulk} onClear={() => setSelected(new Set())} />
           )}
         </>
+      )}
+
+      {bulk && (
+        <BulkDialog
+          request={bulk}
+          onClose={() => setBulk(null)}
+          onFinished={() => {
+            setBulk(null);
+            setSelected(new Set());
+          }}
+        />
       )}
     </div>
   );
