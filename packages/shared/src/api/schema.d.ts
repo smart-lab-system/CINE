@@ -607,6 +607,22 @@ export interface paths {
         patch: operations["GradingController_setSessionRubric"];
         trace?: never;
     };
+    "/exam-sessions/{id}/deliverables/{deliverableId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["GradingController_declareDeliverableLanguage"];
+        trace?: never;
+    };
     "/grading-results/{id}/review": {
         parameters: {
             query?: never;
@@ -1164,6 +1180,8 @@ export interface components {
             id: string;
             requiredFilename: string;
             deliverableType: Record<string, never>;
+            language: Record<string, never> | null;
+            pipeline: Record<string, never>;
             entries: string[];
         };
         ExamSessionResponseDto: {
@@ -1318,6 +1336,10 @@ export interface components {
         };
         SetSessionRubricDto: {
             rubricId: string | null;
+        };
+        DeclareLanguageDto: {
+            /** @enum {string} */
+            language: "python" | "cpp" | "java" | "node";
         };
         ReviewCriterionDto: {
             criterionId: string;
@@ -2442,6 +2464,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    GradingController_declareDeliverableLanguage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                deliverableId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeclareLanguageDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };
