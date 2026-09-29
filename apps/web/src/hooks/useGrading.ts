@@ -43,7 +43,8 @@ export function useSaveRubric() {
   return useMutation({
     mutationFn: (input: {
       name: string;
-      criteria: { description: string; maxPoints: number }[];
+      // `key` của tiêu chí CÓ SẴN phải đi kèm — bỏ nó thì server sinh lại từ mô tả (xem lib/rubric-form).
+      criteria: { description: string; maxPoints: number; key?: string }[];
     }) => saveRubric(input.name, input.criteria),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['rubrics'] });

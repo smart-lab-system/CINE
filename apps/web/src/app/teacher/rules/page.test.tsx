@@ -4,9 +4,16 @@ import '@testing-library/jest-dom/vitest';
 import RulesPage from './page';
 import { rule } from './_components/fixtures';
 import type { Rule } from '@/lib/api/rules';
+import type { Rubric } from '@/lib/api/grading';
 
 let rulesState: { data: Rule[] | undefined; isLoading: boolean; isError: boolean; error: Error | null };
 let missingData: Rule[] | undefined;
+
+let rubricsData: Rubric[];
+
+vi.mock('@/hooks/useGrading', () => ({ useRubrics: () => ({ data: rubricsData, isLoading: false }) }));
+// The card has its own tests; here only its place on the page matters.
+vi.mock('./_components/CeilingCard', () => ({ CeilingCard: () => <aside data-testid="ceiling-card" /> }));
 
 vi.mock('@/hooks/useRules', () => ({
   useRules: () => rulesState,
@@ -20,6 +27,12 @@ const priced = rule({ id: 'r1', ruleKey: 'sai_bien' });
 const unpriced = rule({ id: 'r2', ruleKey: 'chua_gia', deduction: null, revision: { name: 'Đặt tên biến' }, mismatchedIn: 1 });
 
 beforeEach(() => {
+  rubricsData = [
+    {
+      id: 'ru-1', teacherId: 't', name: 'CTDL', version: 1, isActive: true, totalPoints: 10,
+      criteria: [{ id: 'c1', key: 'tinh_dung', description: 'Tính đúng', maxPoints: 6 }],
+    },
+  ];
   rulesState = { data: [priced, unpriced], isLoading: false, isError: false, error: null };
   missingData = [];
 });
@@ -94,6 +107,24 @@ describe('Bảng lỗi (trang)', () => {
     render(<RulesPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Sửa giá' }));
     expect((screen.getByLabelText('Mức trừ (điểm)') as HTMLInputElement).value).toBe('1,5');
+  });
+
+  it('đặt khối "Trần điểm theo tiêu chí" cạnh bảng luật', () => {
+    render(<RulesPage />);
+    expect(screen.getByTestId('ceiling-card')).toBeInTheDocument();
+  });
+
+  it('bảng đặt giá nói trần của tiêu chí mà luật đó trỏ vào', () => {
+    render(<RulesPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa giá' }));
+    expect(screen.getByText(/Trần tiêu chí Tính đúng: 6,0 điểm/)).toBeInTheDocument();
+  });
+
+  it('không bịa trần khi tiêu chí của luật không còn trong rubric nào', () => {
+    rubricsData = [];
+    render(<RulesPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa giá' }));
+    expect(screen.queryByText(/Trần tiêu chí/)).not.toBeInTheDocument();
   });
 
   it('bấm "Đặt giá" ở luật chưa có giá mở bảng với ô trống', () => {

@@ -27,8 +27,8 @@ import {
   type RuleTemplate,
   type SaveProgress,
 } from '@/lib/rule-form';
+import { activeCriteria } from '@/lib/rubric-form';
 import { describeRecompute } from '@/lib/rules-vocab';
-import type { Rubric } from '@/lib/api/grading';
 import type { Rule } from '@/lib/api/rules';
 import { ApplyPreview, type PreviewState } from './ApplyPreview';
 
@@ -36,18 +36,6 @@ import { ApplyPreview, type PreviewState } from './ApplyPreview';
 export const PREVIEW_DEBOUNCE_MS = 500;
 
 const TEMPLATES = Object.keys(TEMPLATE_META) as RuleTemplate[];
-
-/** Tiêu chí của các bản rubric ĐANG DÙNG, mỗi khoá một lần (cùng khoá ở hai rubric thì lấy bản gặp trước). */
-function criteriaOf(rubrics: Rubric[] | undefined): { key: string; description: string; max: number }[] {
-  const seen = new Map<string, { key: string; description: string; max: number }>();
-  for (const rubric of rubrics ?? []) {
-    if (!rubric.isActive) continue;
-    for (const c of rubric.criteria) {
-      if (!seen.has(c.key)) seen.set(c.key, { key: c.key, description: c.description, max: c.maxPoints });
-    }
-  }
-  return [...seen.values()];
-}
 
 function initialForm(rule: Rule | undefined): RuleFormState {
   if (!rule) return EMPTY_FORM;
@@ -79,7 +67,7 @@ export function RuleForm({ rule }: { rule?: Rule }) {
   const [summaries, setSummaries] = useState<{ label: string; text: string }[] | null>(null);
 
   const rubrics = useRubrics();
-  const criteria = useMemo(() => criteriaOf(rubrics.data), [rubrics.data]);
+  const criteria = useMemo(() => activeCriteria(rubrics.data), [rubrics.data]);
   const create = useCreateRule();
   const revise = useReviseRule();
   const setState = useSetRuleState();
