@@ -37,9 +37,12 @@ export function stateOf(result: Pick<GradingResult, 'status' | 'ungradableReason
       return 'finalised';
     case 'flagged_for_review':
       return result.ungradableReason !== null ? 'ungradable' : 'needsYou';
+    case 'ai_grading':
+    case 'ai_graded':
+      return 'grading';
     default:
-      // ai_grading, ai_graded và mọi giá trị thêm về sau: vẫn HIỆN và vẫn CHẶN chốt — cái giá của việc giấu
-      // một bài lớn hơn hẳn việc xếp nó nhầm nhóm.
+      // Mọi giá trị thêm về sau: vẫn HIỆN và vẫn CHẶN chốt — cái giá của việc giấu một bài lớn hơn hẳn việc xếp
+      // nó nhầm nhóm.
       return 'grading';
   }
 }
