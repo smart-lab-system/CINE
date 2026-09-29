@@ -9,7 +9,11 @@ export interface Rubric {
   version: number;
   isActive: boolean;
   totalPoints: number;
-  criteria: { id: string; description: string; maxPoints: number }[];
+  /**
+   * `key` là định danh ỔN ĐỊNH của tiêu chí — luật trỏ vào nó (`criterionKey`). Lưu rubric mà bỏ `key`
+   * thì server sinh lại từ mô tả, và sửa một mô tả có thể âm thầm cắt liên kết luật → tiêu chí.
+   */
+  criteria: { id: string; key: string; description: string; maxPoints: number }[];
 }
 
 /** Một tiêu chí trong một lần duyệt của giảng viên. */
@@ -178,7 +182,7 @@ export async function listRubrics(): Promise<Rubric[]> {
  */
 export async function saveRubric(
   name: string,
-  criteria: { description: string; maxPoints: number }[],
+  criteria: { description: string; maxPoints: number; key?: string }[],
 ): Promise<Rubric> {
   const { data, error, response } = await apiClient.POST('/rubrics', {
     body: { name, criteria },
@@ -274,13 +278,13 @@ export async function submitReview(
  */
 export async function finalizeGrades(
   examSessionId: string,
-): Promise<{ reviewedByHand: number; acceptedAsProposed: number }> {
+): Promise<{ reviewedByHand: number; acceptedAsProposed: number; finalizedDirectly: number }> {
   const { data, error, response } = await apiClient.POST(
     '/exam-sessions/{id}/finalize-grades',
     { params: { path: { id: examSessionId } } },
   );
   if (error || !response.ok) throw fail(error, response);
-  return data as unknown as { reviewedByHand: number; acceptedAsProposed: number };
+  return data as unknown as { reviewedByHand: number; acceptedAsProposed: number; finalizedDirectly: number };
 }
 
 export async function listGradingResults(examSessionId: string): Promise<GradingResult[]> {
@@ -474,15 +478,20 @@ export interface ResultDetail {
   breakdown: {
     errors: ResultDetailError[];
     perCriterion: { key: string; maxHundredths: number; deductedHundredths: number; capped: boolean }[];
+    caseFlags: { code: string; detail: string }[];
     errorFlags: { ruleKey: string; code: string }[];
     confidence: number | null;
     mismatchedRules: { ruleId: string; ruleKey: string; criterionKey: string }[];
     notConsidered: { ruleId: string; ruleKey: string }[];
+    /** Khác null = lượt tính ra DƯỚI SÀN (§4.4): dòng tính lại không mang điểm, lý do nằm ở đây. */
+    ungradable: { class: 'system' | 'submission'; reason: string } | null;
   } | null;
   investigation: {
     kind: 'verdict' | 'ungradable';
     summary: string;
     flags: string[];
+    verdict: { errors: { ruleKey: string; toolCallIds: string[]; note: string | null }[] } | null;
+    replay: { toolCallId: string; matched: boolean | null } | null;
     investigation: { toolCalls: ToolCallView[] };
   } | null;
   /** Bước 6 — ghi chú của lăng kính Bỏ sót/Gian lận. Rỗng khi chưa bật phản biện hay hồ sơ cũ. */
@@ -498,4 +507,71 @@ export async function getResultInvestigation(gradingResultId: string): Promise<R
   });
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as ResultDetail;
+}
+
+export type ExceptionDirection = 'exclude' | 'include';
+
+/** Bỏ hoặc giữ một lỗi cho riêng bài này (§2.2 spec chấm; POST /grading-results/:id/error-exceptions). */
+export async function setErrorException(
+  gradingResultId: string,
+  ruleId: string,
+  direction: ExceptionDirection,
+): Promise<{ scoreHundredths: number | null; status: string }> {
+  const { data, error, response } = await apiClient.POST('/grading-results/{id}/error-exceptions', {
+    params: { path: { id: gradingResultId } },
+    body: { ruleId, direction } as never,
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { scoreHundredths: number | null; status: string };
+}
+
+/**
+ * Chấm tay bài này — điểm không đổi theo luật hay giá nữa (§2.2 spec chấm;
+ * POST /grading-results/:id/manual-score). `score` PHẢI là chuỗi thập phân
+ * ("7", "7.5", "7.25"), không phải số — server 400 nếu gửi number.
+ */
+export async function setManualScore(
+  gradingResultId: string,
+  score: string,
+): Promise<{ score: string; status: string }> {
+  const { data, error, response } = await apiClient.POST('/grading-results/{id}/manual-score', {
+    params: { path: { id: gradingResultId } },
+    body: { score } as never,
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { score: string; status: string };
+}
+
+/** Mirrors ReapplyPlan (apps/api/src/grading/scoring/score.service.ts). */
+export interface ReapplyPlan {
+  changes: {
+    resultId: string;
+    /** Chuỗi thập phân theo ĐIỂM ("8.50"), không phải phần trăm điểm. */
+    oldScore: string;
+    newScore: string;
+    changedRules: { ruleId: string; ruleKey: string; oldDeduction: string | null; newDeduction: string | null }[];
+  }[];
+  /** Bài không áp được: luật lúc chốt có giá nay chưa có — lượt áp thật từ chối khi danh sách này khác rỗng. */
+  skipped: { resultId: string; reason: 'unpriced'; ruleKeys: string[] }[];
+}
+
+/** Xem trước "áp giá mới cho phiên đã chốt" — KHÔNG ghi gì. 409 khi phiên chưa chốt hết. */
+export async function previewReapplyPrices(examSessionId: string): Promise<ReapplyPlan> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/reapply-prices/preview', {
+    params: { path: { id: examSessionId } },
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as ReapplyPlan;
+}
+
+/**
+ * Đường DUY NHẤT đổi điểm bài đã công bố theo bảng giá hiện hành; mỗi bài đổi có một dòng nhật ký. 409 khi
+ * phiên chưa chốt hết, hoặc còn bài dính luật lúc chốt có giá mà nay chưa có giá (từ chối cả lượt).
+ */
+export async function reapplyPrices(examSessionId: string): Promise<{ changed: number }> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/reapply-prices', {
+    params: { path: { id: examSessionId } },
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { changed: number };
 }

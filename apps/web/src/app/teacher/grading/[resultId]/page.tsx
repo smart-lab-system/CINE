@@ -23,6 +23,7 @@ import { AnswerPane } from './_components/AnswerPane';
 import { CriterionCard } from './_components/CriterionCard';
 import { ManualCriterionCard } from './_components/ManualCriterionCard';
 import { AdvocatePanel } from './_components/AdvocatePanel';
+import { InvestigatorDossier } from './_components/investigator/InvestigatorDossier';
 
 /** AI còn đang làm việc — chưa duyệt được. */
 const IN_PROGRESS = ['ai_grading', 'ai_graded'];
@@ -46,14 +47,18 @@ export default function GradingDetailPage({
 
   const results = useGradingResults(sessionId || undefined);
   const readiness = useGradingReadiness(sessionId || undefined);
-  const text = useSubmissionText(resultId);
+  const result = results.data?.find((item) => item.id === resultId);
+  // Bài đi đường điều tra là code_project — chưa có bộ đọc nội dung cho nó, nên hỏi chỉ khiến backend đọc kho
+  // file rồi ghi cảnh báo mỗi lần mở trang (review I4).
+  const text = useSubmissionText(result?.pipeline === 'investigator' ? undefined : resultId);
   const overview = useSessionOverview();
   const session = (overview.data ?? []).find((item) => item.id === sessionId);
   const rubrics = useRubrics();
-  const rubric = rubrics.data?.find((item) => item.version === session?.rubricVersion);
+  // Theo id của rubric ghim cho phiên: `version` chỉ duy nhất trong một bộ (giảng viên, tên), mà rubric nào
+  // cũng bắt đầu ở v1 — tra theo nó có thể đưa nhầm tiêu chí của rubric khác vào form duyệt (review I6).
+  const rubric = session?.rubricId ? rubrics.data?.find((item) => item.id === session.rubricId) : undefined;
 
   const submit = useSubmitReview(sessionId || undefined);
-  const result = results.data?.find((item) => item.id === resultId);
 
   const [draft, setDraft] = useState<ReviewCriterion[] | null>(null);
   const [activeCriterionId, setActive] = useState<string | null>(null);
@@ -105,6 +110,13 @@ export default function GradingDetailPage({
   function pinEvidence(selected: string) {
     if (!activeCriterionId) return;
     update(activeCriterionId, { pinnedEvidence: selected });
+  }
+
+  // Bài chấm theo đường điều tra (§3.11 spec UI): hồ sơ riêng, không đi qua bàn chấm theo tiêu chí.
+  // Đặt SAU mọi hook (không vi phạm luật hook) và TRƯỚC chỗ chờ `text.isLoading` — hồ sơ điều tra
+  // không cần văn bản bài làm để hiện, nên không bắt nó đợi.
+  if (result?.pipeline === 'investigator') {
+    return <InvestigatorDossier resultId={resultId} sessionId={sessionId} />;
   }
 
   if (results.isLoading || text.isLoading) {

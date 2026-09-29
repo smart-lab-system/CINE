@@ -9,7 +9,6 @@ import { Sparkles,
   ClipboardCheck,
   Inbox,
   ListChecks,
-  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -52,14 +51,11 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Quản lý kỳ thi', href: '/teacher/exam-sessions', icon: CalendarClock },
   { label: 'Quản lý bài thu', href: '/teacher/submissions', icon: Inbox },
   { label: 'Lớp của tôi', href: '/teacher/classes', icon: GraduationCap },
-  // Trước "Chấm điểm" vì đó là thứ tự thật của công việc: rubric phải có
-  // trước khi tạo phiên thi, và phiên thi phải ghim rubric trước khi chấm.
-  // Đứng TRƯỚC Rubric và Chấm điểm: soạn đề là việc đầu tiên trong vòng đời
+  // Đứng TRƯỚC "Bảng lỗi" và "Chấm điểm": soạn đề là việc đầu tiên trong vòng đời
   // một kỳ thi, và thứ tự menu nên đọc ra được vòng đời đó.
   { label: 'Soạn đề', href: '/teacher/exam-authoring', icon: Sparkles },
-  { label: 'Rubric', href: '/teacher/rubrics', icon: ListChecks },
+  // Bảng lỗi thay mục "Rubric" cũ ở đúng vị trí đó (spec UI §1): bảng luật + mức trừ + trần điểm
+  // theo tiêu chí phải có trước khi chấm. Trang `/teacher/rubrics` chuyển hướng về đây.
+  { label: 'Bảng lỗi', href: '/teacher/rules', icon: ListChecks },
   { label: 'Chấm điểm', href: '/teacher/grading', icon: ClipboardCheck },
-  // Sau "Chấm điểm": bảng lỗi/giá là thứ giảng viên xem lại và chỉnh SAU
-  // khi đã thấy agent chẩn đoán gì — đường điều tra (§2.1).
-  { label: 'Trang kiến thức', href: '/teacher/rules', icon: BookOpen },
 ];

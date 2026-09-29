@@ -7,6 +7,9 @@ file do chính nó sinh); thêm §8.1 (chấm lại bài không chấm được,
 băng tài liệu)
 **Sửa đổi:** 2026-09-23, lần 2 — thêm §3.1 (chế độ sinh đáp án mẫu và gói test từ một đề
 có sẵn, cho spec chấm §2.1)
+**Sửa đổi:** 2026-09-23, lần 3 — §8.1 đã chốt, thiết kế đầy đủ ở spec chấm §2.3; cảnh báo lớp 3
+của §4.1 đổi thành dòng nguồn gốc khi thước đã duyệt
+**Sửa đổi:** 2026-09-23, lần 4 — luật đóng băng ở §8 và T-ATT-2 đọc theo spec chấm §2.3 luật 6
 
 Agent sinh **đề + đáp án mẫu + gói test**, giảng viên sửa, xuất Word, gắn vào phiên
 thi nếu muốn. Không lưu gì vào cơ sở dữ liệu.
@@ -245,7 +248,10 @@ Cụ thể ba lớp:
 1. Nút "gắn vào phiên thi" **mở hộp thoại cảnh báo** khi chưa `passed`, nêu đúng hậu
    quả ở trên — không phải một dòng "bạn có chắc không?" chung chung.
 2. Ghi cờ `model_answer_unverified` lên `grading_reference` (cột mới, boolean).
-3. Màn chấm điểm đọc cờ đó và **hiện cảnh báo trên mọi bài của phiên ấy**.
+3. Màn chấm điểm đọc cờ đó và **hiện cảnh báo trên mọi bài của phiên ấy**. *(Sửa
+   2026-09-23: khi thước đã được duyệt, cảnh báo này đổi thành một dòng nguồn gốc trung tính —
+   spec chấm §2.1 luật 4. Chấm chỉ bắt đầu được khi thước đã duyệt (spec chấm §14.3), và gắn
+   bộ ba từ đây tính là đã duyệt, nên trên thực tế đó luôn là dòng nguồn gốc.)*
 
 > Cùng một đường suy nghĩ với `GradeExport` (Security rule 9): hệ thống **không đoán**
 > cột MSSV dù header ghi rành rành, vì đoán sai thì hỏng âm thầm. Ở đây cũng vậy —
@@ -410,10 +416,15 @@ không cầm file lần nào.
 > băng khi phiên đã có kết quả chấm. Nên "gắn vào phiên thi" phải xử lý trường hợp phiên
 > **đã có** reference: hỏi ghi đè, và **từ chối** nếu phiên đã chấm bài nào. Không tự
 > quyết thay giảng viên.
+>
+> *(Sửa 2026-09-23: "đã chấm bài nào" nay đọc theo luật đóng băng của spec chấm §2.3 luật 6 —
+> khoá khi phiên có bài mang điểm **hoặc đang chấm**; mở lại khi mọi kết quả là bài không chấm
+> được đã dừng. Trên thực tế luật đo giờ thi ở ghi chú đầu mục chặn sớm hơn nhiều.)*
 
 ### 8.1 Ghi chú 2026-09-23 — chấm lại bài "không chấm được", và chỗ nó đụng luật đóng băng ở trên
 
-**Chưa quyết.** Ghi ở đây vì luật đóng băng của §8 là một nửa của vấn đề.
+**Đã chốt 2026-09-23 — thiết kế đầy đủ ở spec chấm §2.3.** Ghi chú dưới giữ lại, vì luật đóng
+băng của §8 là một nửa của vấn đề.
 
 Hôm nay một bài thành *không chấm được* theo hai đường, và **cả hai đều cụt**:
 
@@ -432,7 +443,9 @@ thì ra ca tệ nhất: đáp án mẫu **chưa kiểm chứng** từ Soạn đ�
 nào cũng rơi dưới sàn → giảng viên sửa đáp án thì bị chặn vì phiên "đã chấm" → phiên kẹt
 vĩnh viễn.
 
-**Đề xuất, chờ chốt — một ngoại lệ hẹp, hai vế:**
+**Đã chốt — một ngoại lệ hẹp, hai vế.** Spec chấm §2.3 thêm ba điều: mỗi lượt chấm lại là một
+dòng `grading_attempt` mới; giảng viên bấm chứ không tự động; và chỉ lớp lỗi `system` có nút
+chấm lại.
 
 1. **Chấm lại chỉ cho bài chưa có điểm nào** (`ai_total_score IS NULL`), do giảng viên
    bấm, mỗi lượt để lại dấu vết ai bấm. Lý do chặn chấm lại — bất biến của điểm, công bằng
@@ -440,9 +453,10 @@ vĩnh viễn.
 2. **Luật đóng băng tài liệu đếm bài CÓ ĐIỂM, không đếm mọi dòng.** Phiên chưa có bài nào
    mang điểm thì chưa bài nào bị đo bằng cái thước cũ, nên thay thước không đẻ ra hai kỳ
    thi. Chỉ cần một bài mang điểm là luật giữ nguyên như hôm nay. Luật đóng băng rubric
-   (`setSessionRubric`) dùng chung ý này, nên đổi thì đổi cả hai.
+   (`setSessionRubric`) dùng chung ý này, nên đổi thì đổi cả hai. Bản chốt ở spec chấm §2.3
+   luật 6 đếm thêm **bài đang chấm**, để chặn kẽ chạy đua lúc lô đang chạy.
 
-Cho tới khi chốt, mọi nút *chấm lại* trên giao diện mang nhãn *cần backend* (spec UI
+Cho tới khi có route, mọi nút *chấm lại* trên giao diện mang nhãn *cần backend* (spec UI
 2026-09-23, mục 3.8 và mục 5.1).
 
 ---
@@ -515,7 +529,7 @@ kín** ở §0. Trước nó, đây là một tiện ích; sau nó, đây là m�
 | **T-DOC-2** | Hai endpoint xuất file là hai endpoint tách rời; không có đường nào ra một file gộp | unit |
 | **T-DOC-3** | Câu có `requiredComplexity = null` → dòng đó **vắng mặt**, không in "null" | unit |
 | **T-ATT-1** | Gắn bộ ba `unverified` → **bắt buộc** qua bước xác nhận, và ghi cờ `model_answer_unverified` | e2e |
-| **T-ATT-2** | Phiên **đã có** kết quả chấm → từ chối ghi đè `grading_reference` | e2e |
+| **T-ATT-2** | Phiên có kết quả **mang điểm hoặc đang chấm** → từ chối ghi đè `grading_reference`; phiên chỉ có bài không chấm được đã dừng → cho ghi đè (spec chấm §2.3) | e2e |
 | **T-ATT-3** | Trình duyệt không gửi byte file nào lên NestJS: `POST /exam-authoring/attach` nhận JSON đề, file `.docx` do server sinh rồi tự ghi (đổi 2026-09-23, xem ghi chú đầu §8) | e2e |
 | **T-ATT-4** | Đáp án mẫu nằm dưới prefix `grading-reference/`, **không** lọt vào `listForAgent` | e2e |
 | **T-COST-1** | Sinh đề xong → có một dòng usage với `cost_usd`, và **không** có dòng nào chứa nội dung đề | integration |

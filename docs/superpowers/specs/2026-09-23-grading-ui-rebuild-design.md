@@ -1,12 +1,26 @@
 # Giao diện chấm điểm theo bảng lỗi — thiết kế
 
-**Ngày:** 2026-09-23 · **Trạng thái:** spec · mockup mục 3.1–3.6 đã duyệt, mục 3.7–3.10
-chờ duyệt · chưa implement
+**Ngày:** 2026-09-23 · **Trạng thái:** spec · mockup mục 3.1–3.10 đã duyệt (2026-09-23) · chưa
+implement
 **Sửa đổi:** 2026-09-23, lần 1 — thêm bốn màn: chuẩn bị chấm (mục 3.7), đang chấm và sự
 cố giữa chừng (3.8), kiểm mẫu (3.9), chốt điểm (3.10); đóng bốn câu hỏi cũ, mở bốn câu
 mới (mục 5)
 **Sửa đổi:** 2026-09-23, lần 2 — chỉ đề bài là bắt buộc: mục 3.7 dựng gói test thay vì
 chặn; đóng mọi câu hỏi ở mục 5.2 cũ
+**Sửa đổi:** 2026-09-23, lần 3 — theo lượt gỡ mâu thuẫn của spec chấm điểm (lần 6): bác bỏ vẫn
+gắn cờ (mục 3.5); ngoại lệ hai cấp (3.4); bảng giá ghim lúc chốt (3.1, 3.2); chấm lại theo lớp
+lý do (3.4, 3.8); kiểm mẫu thuộc bước 3 (3.9); bắt buộc cả trần điểm (3.7); thêm mục 3.11 (bài
+tự luận và dữ liệu cũ); sửa bảng xoá ở mục 4
+**Sửa đổi:** 2026-09-23, lần 4 — theo lần 7 của spec chấm: hai lớp lý do không chấm được
+(mục 3.4); màn chuẩn bị chấm mở lại khi phiên mở khoá (mục 1, 3.7); khung rút mẫu (3.9); bài
+code chấm theo đường cũ duyệt được tới khi chốt (3.11); khối trần điểm tạo phiên bản rubric mới,
+sửa luật tạo bản sửa mới (3.1, 3.2); kiểu ngoại lệ của khối phản biện (3.5)
+**Sửa đổi:** 2026-09-23, lần 5 — khai ngôn ngữ cho bài code (mục 3.7); chốt ghi tên người bấm
+(mục 3.10)
+**Sửa đổi:** 2026-09-28, lần 6 — theo rev 10 của spec chấm và hợp đồng API đang chạy: mẫu điều
+kiện máy chưa đo (mục 3.2, §4.6); đánh dấu *"tiêu chí này không có luật trừ"* (mục 3.1, 3.7,
+§4.2); cờ cấp bài trong dải *cần bạn xem*, và lối gỡ khi không có route *xem và giữ nguyên* (mục
+3.4, §14.3); thêm dòng vào bảng quy đổi (mục 2.2); thêm T-UI-22 tới T-UI-25
 **Phụ thuộc:** `2026-09-20-grading-agent-investigator-design.md` — spec này là mặt
 giao diện của spec đó, và dùng lại số mục của nó.
 **Quy ước:** ký hiệu **§** luôn trỏ vào spec chấm điểm (§2.2, §4.4, §13…); mục của chính spec
@@ -66,7 +80,8 @@ trong cùng một PR**. Không màn nào chạy hai đường dữ liệu cùng 
 | Danh sách bài của phiên | `/teacher/grading?session=…` | `/teacher/grading` · `/teacher/grading/matrix` | 3–4 |
 | Hồ sơ một bài | `/teacher/grading/[resultId]` (giữ URL cũ) | `/teacher/grading/[resultId]` | 3 |
 | Khối phản biện trên hồ sơ | — | `AdvocatePanel` | 6 |
-| Kiểm mẫu một bài | `/teacher/grading/[resultId]`, trạng thái riêng (mục 3.9) | — | 7 |
+| Kiểm mẫu một bài | `/teacher/grading/[resultId]`, trạng thái riêng (mục 3.9) | — | 3 |
+| Hồ sơ theo tiêu chí — bài tự luận, dữ liệu cũ | `/teacher/grading/[resultId]` khi `pipeline = one_shot` (mục 3.11) | giữ `CriterionCard`, `ManualCriterionCard` | 3 |
 | Chốt điểm phiên | `/teacher/grading/finalize?session=…` (mục 3.10) | `FinalizeGradesButton` | 3–4 |
 | Ghi điểm vào sổ điểm | `/teacher/grading/export?session=…` | — | dự kiến (§13 spec chấm điểm) |
 
@@ -74,8 +89,8 @@ Giữ URL `/teacher/grading/[resultId]` để link cũ không gãy. Mục điề
 đổi thành "Bảng lỗi"; `/teacher/rubrics` chuyển hướng sang `/teacher/rules`.
 
 **Một route, ba trạng thái.** `/teacher/grading?session=…` tự chọn màn theo dữ liệu, nên
-giảng viên không phải nhớ mình đang ở bước nào: chưa có dòng `grading_result` nào →
-chuẩn bị chấm; còn dòng ở `ai_grading` → đang chấm, kèm lối sang các bài đã xong; hết →
+giảng viên không phải nhớ mình đang ở bước nào: chưa có dòng `grading_result` nào, **hoặc**
+phiên đã mở khoá vì mọi kết quả là bài không chấm được đã dừng (§14.3) → chuẩn bị chấm; còn dòng ở `ai_grading` → đang chấm, kèm lối sang các bài đã xong; hết →
 danh sách bài. Trên canvas, bốn màn mới nằm ở hai hàng dưới cùng, nhưng theo luồng thì
 chuẩn bị chấm và đang chấm đứng **trước** danh sách bài.
 
@@ -109,10 +124,21 @@ chuẩn bị chấm và đang chấm đứng **trước** danh sách bài.
 | `deterministic` | **Máy quyết** |
 | `llm_with_tools` | **Mô hình + công cụ** |
 | `llm_only` | **Chỉ mô hình** |
-| `predicate` / luật có `predicate` | **máy kiểm được** |
+| `checkedBy = 'machine'` — luật có `predicate` mà máy đo được ở bản này (hôm nay chỉ mẫu *nhóm test trượt*) | **máy kiểm được** |
+| luật có `predicate` mà máy chưa đo (`checkedBy = 'model'`, §4.6) | **máy chưa đo được — mô hình phán đoán** |
 | luật không `predicate` | **mô tả bằng lời** |
 | `deduction = null` | **chưa có giá** |
 | `ungradable` | **không chấm được** |
+| `unmeasured` | **chưa đo được** |
+| `criterion_waiver` | **tiêu chí này không có luật trừ** |
+| `mismatchedRules` | **luật lệch tiêu chí** |
+| cờ cấp bài `criterion_without_rules` | **tiêu chí chưa có luật nào** |
+| `criterion_untouched` | **tiêu chí chưa được kiểm tới** |
+| `nothing_passed` | **không ca test nào đạt — hệ thống không tự cho điểm** |
+| `investigation_flag` | **cuộc điều tra cần xem lại**, kèm tên cờ: `injection_suspected` *bài nộp có câu lệnh nhắm vào AI chấm* · `replay_mismatch` *chạy lại để đối chiếu ra kết quả khác* · `replay_unverified` *chưa chạy lại để đối chiếu được* · `evidence_rejected` *bằng chứng không khớp lời gọi thật* · `budget_exhausted` *hết lượt điều tra trước khi xong* |
+| `challenge_suspected` | **góc kiểm gian lận nêu nghi vấn** |
+| `low_confidence` | **độ tin dưới ngưỡng tự quyết** |
+| `not_code_pipeline` | **bài tự luận — luôn do bạn duyệt** |
 | `refuted` · `confirmed` · `unverified` | **bác bỏ** · **xác nhận** · **chưa kiểm được** |
 | lăng kính (§6.1) | **góc kiểm** |
 | sandbox | **môi trường chạy bài** |
@@ -120,7 +146,9 @@ chuẩn bị chấm và đang chấm đứng **trước** danh sách bài.
 | phiên bản bảng giá | **bảng giá ngày …** |
 
 Tên công cụ **vẫn được hiện**, nhưng chỉ ở dòng phụ dạng mono trong đường điều tra —
-cho người muốn kiểm lại — không bao giờ làm tiêu đề.
+cho người muốn kiểm lại — không bao giờ làm tiêu đề. `detail` của một cờ cấp bài theo đúng luật
+đó: nó là chữ của hệ thống (vd. *confidence 0.72 < θ 0.85*), nên chỉ đứng ở dòng phụ mono; dòng
+chính đọc theo mã cờ ở bảng trên.
 
 > **Mockup còn phạm luật này ở mấy chỗ**, cần sửa lời khi implement: nhãn nguồn gốc
 > "Model + công cụ" và "Chỉ model"; chữ "sandbox" ở màn không chấm được; tên công cụ
@@ -138,26 +166,48 @@ ra được bài gắn cờ.
 
 - **Bốn ô tổng quan:** luật đã có giá (x / y) · **chưa có giá — đang chặn** (số luật, số
   bài chờ) · luật còn thiếu · **mức trừ do máy quyết** (con số tiêu đề của §4.2).
-- **Bộ lọc:** tất cả · chưa có giá · máy kiểm được · mô tả bằng lời; kèm ô tìm.
+- **Bộ lọc:** tất cả · chưa có giá · máy kiểm được · mô tả bằng lời; kèm ô tìm. *Máy kiểm
+  được* lọc theo `checkedBy = 'machine'` của API, không theo việc luật có `predicate`: luật dùng
+  mẫu điều kiện máy chưa đo (mục 3.2) chỉ hiện ở *tất cả*, cột cách khớp ghi *máy chưa đo được*.
 - **Bảng luật:** tên lỗi (+ `ruleKey` và nguồn: của bạn / luật mồi) · tiêu chí · cách
   khớp · mức trừ hoặc nhãn *chưa có giá* · đang áp vào (số bài · số phiên) · nút *Đặt
   giá* (luật chưa có giá) hoặc *Sửa giá*.
+- **Cột cảnh báo:** *N bài lệch tiêu chí* (`mismatchedIn`, §14.1) — luật trỏ vào tiêu chí không
+  có trong rubric của bài đó bị loại khỏi điểm bài đó. Nói kèm lối: *Sửa luật này*.
 - **Trần điểm theo tiêu chí:** khối bên phải. Đây là chỗ duy nhất rubric cũ còn lại —
-  không có trang rubric riêng nữa.
+  không có trang rubric riêng nữa. Khối này sửa được **mọi** trường rubric mà bài tự luận vẫn
+  cần: mô tả tiêu chí, trần, và `key` lúc tạo tiêu chí. Mỗi lần lưu sinh **một phiên bản rubric
+  mới** (Security rule 7), không sửa tại chỗ; phiên nào đã ghim bản cũ vẫn dùng bản cũ. Mockup
+  chỉ vẽ phần trần.
+- **Tiêu chí không có luật trừ** (§4.2, `criterion_waiver`). Tiêu chí có trần mà không luật nào
+  trỏ vào hiện nhãn *chưa có luật nào* và một ô *Tiêu chí này không có luật trừ*. Chưa đánh dấu
+  thì mọi bài chấm theo rubric đó không tự quyết, nêu đích danh tiêu chí (T-FLOOR-6); đánh dấu
+  thì tiêu chí đó luôn trọn điểm — câu này đứng ngay cạnh ô. Ghi được cả khi rubric đã có kết quả
+  chấm (T-WAIVER-1), vì đánh dấu nằm ở bảng riêng, không đụng tiêu chí đã khoá. Đánh dấu và gỡ
+  đều tính lại các phiên chưa chốt. API **chưa có** route xem trước cho thao tác này, nên ở bản
+  này luật 4 chạy bằng: hộp xác nhận nói hệ quả bằng lời, và sau khi lưu hiện kết quả tính lại
+  (`recomputed` · `promoted` · `demoted` · `belowFloor` của API, đọc bằng lời). Phần xem trước con
+  số mang nhãn *cần backend*.
 - **Luật còn thiếu:** lỗi agent gặp mà không luật nào khớp (`T-RULE-1`). Mỗi thẻ nói rõ
   lỗi đó **đã bị loại khỏi điểm**, kèm *Tạo luật từ đây* / *Không phải lỗi*.
 
 **Bảng đặt giá** (mở bên phải, không rời trang): ô mức trừ + trần của tiêu chí; khối
-*"Lưu thì điều gì xảy ra"* — số bài theo từng phiên, bài nào đủ điều kiện tự quyết sau
-khi lưu, bài nào vẫn chờ vì còn dính luật chưa có giá khác; và nếu có **bài đã chốt**
-bị đổi điểm thì nói số bài đó và nói rằng mỗi bài sẽ có một dòng nhật ký (§2.2).
+*"Lưu thì điều gì xảy ra"* — số bài theo từng phiên **chưa chốt**, bài nào đủ điều kiện tự
+quyết sau khi lưu, bài nào vẫn chờ vì còn dính luật chưa có giá khác. Nếu có **phiên đã chốt**
+dùng luật này thì nói rằng chúng **không đổi theo** — bảng giá đã ghim lúc chốt (§2.2) — kèm
+lối riêng *"Áp giá mới cho phiên đã chốt"*: chỉ thao tác đó mới đổi điểm bài đã chốt, và mỗi
+bài bị đổi có một dòng nhật ký. Ô `[CẦN CHỐT]` của mockup ở đúng chỗ này đã được trả lời theo
+luật đó.
 
 - Giá **cao hơn trần tiêu chí vẫn lưu được**, bài chỉ bị trừ tới trần — đúng số học §2.1.
   Gợi ý dưới ô nói điều này.
 - Lưu một giá **sinh một phiên bản bảng giá mới** (§2.2), không sửa tại chỗ.
 
 **Cần từ API:** danh sách luật kèm số bài và số phiên đang áp · xem trước tác động của
-một giá (không ghi) · lưu giá · danh sách luật còn thiếu.
+một giá (không ghi) · lưu giá · danh sách luật còn thiếu · *Không phải lỗi* (`POST
+/rules/:id/state`) · đánh dấu và gỡ *không có luật trừ* · áp giá mới cho phiên đã chốt, kèm xem
+trước (`/exam-sessions/:id/reapply-prices`, `/preview`) — **đều đã có**. Chưa có: xem trước tác
+động của việc đánh dấu tiêu chí.
 
 ### 3.2 Tạo / sửa một luật — `/teacher/rules/new`, `/teacher/rules/[ruleId]`
 
@@ -171,10 +221,19 @@ nhận ra bằng cách nào · mức trừ.** Mở từ *Luật còn thiếu* th
 - **Máy kiểm được** chọn từ **mẫu điều kiện có sẵn** (nhóm test trượt · mã gọi một hàm ·
   độ phức tạp vượt yêu cầu · không dùng đệ quy), có tham số. **Không viết code tự do**:
   mỗi mẫu được lập trình sẵn cho từng ngôn ngữ (rủi ro 10 spec chấm điểm).
+- **Ở bản này chỉ mẫu *nhóm test trượt* đo được bằng máy** (§4.6). Ba mẫu kia — *mã gọi một
+  hàm* và *không dùng đệ quy* (cần công cụ đọc cấu trúc mã, bước 5), *độ phức tạp vượt yêu cầu*
+  (cần công cụ đo độ phức tạp, bước 4) — vẫn chọn được, nhưng mang nhãn *máy chưa đo được* và nói
+  hệ quả thật: mô hình phán đoán luật này (nguồn gốc Mô hình + công cụ hoặc Chỉ mô hình), và tiêu
+  chí chứa nó tính là **chưa được kiểm tới**, nên bài dính tiêu chí đó không tự quyết. Không hứa
+  *Máy quyết* hay độ tin 1,0 cho ba mẫu này. Nhãn tự mất cho từng mẫu khi API trả `checkedBy =
+  'machine'` cho nó — màn này không tự giữ danh sách mẫu nào đo được.
 - **Mức trừ để trống** = luật tồn tại, agent vẫn nhận ra lỗi, nhưng bài dính nó không tự
   quyết được.
-- **Phạm vi** nói thẳng: mọi bài của giảng viên này, phiên đang chấm và các kỳ sau,
-  không bao giờ áp sang bài của giảng viên khác.
+- **Sửa một luật đã có** — tên, tiêu chí, cách nhận ra — sinh **một bản sửa mới** (§14.1). Hồ sơ
+  đã chẩn đoán vẫn trỏ về bản cũ; bản mới áp cho phiên chưa chốt theo đúng bốn bậc ở dưới.
+- **Phạm vi** nói thẳng: mọi bài của giảng viên này, phiên đang chấm và các kỳ sau — **trừ
+  phiên đã chốt** (§2.2) — và không bao giờ áp sang bài của giảng viên khác.
 
 **Khối "Lưu thì áp vào đâu"** hiện **bốn bậc** của §2.2, tô bậc của luật đang soạn, rồi
 nội dung riêng cho bậc đó:
@@ -189,7 +248,13 @@ nội dung riêng cho bậc đó:
 bậc 3), và khối này đổi theo ngay. Nút lưu nói đúng hệ quả: *"Lưu và áp cho 3 bài"* /
 *"Lưu và chạy lại cho 58 bài"* / *"Lưu luật — áp từ phiên chưa chấm"*.
 
-**Cần từ API:** tạo / sửa luật · xem trước (bậc, bài khớp, ước lượng) · chạy lượt bậc 3.
+**Bậc 3 ở bản này.** Hôm nay bậc 3 chỉ gặp ở ba mẫu máy chưa đo, và API trả **lý do** (`{ tier:
+3, reason }`) chứ không trả kế hoạch chạy lại; lưu luật cũng không tính lại bài nào — cùng hành vi
+với luật mô tả bằng lời. Nên khối bậc 3 hiện đúng lý do đó, nút lưu là *"Lưu luật — áp từ phiên
+chưa chấm"*, còn phần *lời gọi sẽ chạy lại · ước lượng thời gian* mang nhãn *cần backend*.
+
+**Cần từ API:** tạo / sửa luật · xem trước (bậc, bài khớp) — **đã có**. Chưa có: ước lượng và
+chạy lượt bậc 3.
 
 ### 3.3 Danh sách bài của phiên — `/teacher/grading?session=…`
 
@@ -197,7 +262,7 @@ Thay cho cả `/teacher/grading` lẫn `/teacher/grading/matrix`.
 
 - **Đầu trang:** tên phiên + nút *Đổi phiên* · phòng, số bài nộp trên số sinh viên, giờ
   chấm xong · *Chốt điểm phiên* (mục 3.10) · *Chấm lại N bài lỗi hệ thống*, mang nhãn
-  *cần backend* (mục 5.1, dòng 2). Không còn nút *Xuất điểm* ở đây: ghi điểm vào sổ
+  *cần backend* (§2.3). Không còn nút *Xuất điểm* ở đây: ghi điểm vào sổ
   điểm chỉ mở ra sau khi chốt (mục 3.10).
 - **Thanh tổng quan:** một dải tỉ lệ kèm năm con số có biểu tượng — tự quyết · kiểm mẫu ·
   cần bạn xem · không chấm được · đang chấm.
@@ -217,15 +282,30 @@ Thay cho cả `/teacher/grading` lẫn `/teacher/grading/matrix`.
 
 - **Đầu trang:** MSSV + tên · nhãn trạng thái · phiên, phòng, giờ nộp, giờ chấm · mô hình
   đã chấm, kèm nhãn **"khác mô hình của lượt hiệu chỉnh gần nhất"** khi đúng (§8.2) · *Mở
-  bài nộp* · *Đánh dấu ngoại lệ*.
+  bài nộp* · *Chấm tay bài này* (ngoại lệ cấp bài, §2.2).
 - **Dải "cần bạn xem"** (chỉ khi có): nói lỗi nào chặn tự quyết, và **điểm còn có thể đổi
   tối đa bao nhiêu** (phần còn lại của tiêu chí đó).
+  - Dải nói **cả điều kiện cấp bài** (`breakdown.caseFlags`, §0.3): mỗi cờ một dòng bằng chữ theo
+    bảng mục 2.2, `detail` ở dòng phụ mono. Không cờ nào bị bỏ im lặng: mã cờ lạ vẫn hiện một dòng
+    *"điều kiện chưa có tên hiển thị"* kèm mã.
+  - Cờ có lối gỡ ở tầng luật thì đưa lối ngay trong dòng: *tiêu chí chưa có luật nào* → *Đánh dấu
+    không có luật trừ* hoặc *Tạo luật cho tiêu chí này* (sang Bảng lỗi); lỗi *chưa có giá* →
+    *Đặt giá*.
+  - Cờ không gỡ được bằng luật — cờ của cuộc điều tra, độ tin thấp, góc kiểm nghi vấn, tiêu chí
+    chưa được kiểm tới — thì lối là *Chấm tay bài này*, ô điểm điền sẵn điểm hệ thống, kèm câu
+    *"chấm tay thì điểm bài này không đổi theo luật hay giá nữa"* (§2.2). §14.3 có bước *giảng
+    viên xem → `teacher_reviewed`*, nhưng API chưa có route đó cho bài đường điều tra (`POST
+    /grading-results/:id/review` trả 409 với bài này). Nút *Xem và giữ nguyên chẩn đoán* hiện,
+    mang nhãn *cần backend*, không bấm được.
+- **Nhóm test chỉ trượt vì hết giờ** hiện *chưa đo được — hết giờ, chưa tách được chậm với treo*
+  (§4.5, §4.6), không phải lỗi, không bị trừ.
 - **Ô điểm:** con số + nhãn *tạm tính* / *đã xuất* + **phép tính đầy đủ**
   (`10,0 − 1,5 − 1,0 − 1,0 − 0,5 = 6,0`) + một câu: mức trừ lấy từ Bảng lỗi, mô hình
   không đặt con số nào.
 - **Lỗi chẩn đoán được:** mỗi lỗi có tên, tiêu chí, nhãn nguồn gốc, **bằng chứng trỏ tới
   lời gọi cụ thể**, ghi chú *chạm trần* khi có, và hai hành động: *Sửa luật này* (sang
-  Bảng lỗi) · *Bỏ lỗi này cho riêng bài này* (= ngoại lệ, thắng mọi lượt tính lại, §2.2).
+  Bảng lỗi) · *Bỏ lỗi này cho riêng bài này* (= ngoại lệ cấp lỗi: mọi lượt tính lại giữ việc bỏ lỗi này,
+  còn giá của các lỗi khác vẫn áp — §2.2).
 - **Theo tiêu chí:** trần · bị trừ · còn, dòng chạm trần được đánh dấu bằng chữ.
 - **Độ phủ điều tra:** gói test chạy mấy nhóm, mấy tiêu chí có lời gọi chạm tới, lời gọi
   chạy lại để đối chiếu có khớp không.
@@ -237,19 +317,20 @@ Thay cho cả `/teacher/grading` lẫn `/teacher/grading/matrix`.
 
 **Biến thể "không chấm được":** điểm hiện **"—"**, không bao giờ 0 hay điểm tối đa. Nói lý
 do, nói **vì sao không cho điểm tạm** (chấm trừ + điều tra rỗng = điểm tối đa), nói đây là
-lỗi phía hệ thống hay phía bài, và đưa lối đi tiếp: chấm lại bài này · chấm lại cả N bài
-cùng lý do · chấm tay. Cột phải liệt kê những gì đã chạy, và nói rõ đọc được danh sách
+lỗi phía hệ thống hay phía bài, và đưa lối đi tiếp **theo lớp lý do** (§2.3): lỗi hệ thống →
+*chấm lại bài này* · *chấm lại cả N bài cùng lý do*; bài nộp hỏng → chỉ *chấm tay*, vì chấm lại
+sẽ ra đúng kết quả cũ. Chỉ có hai lớp (§4.4). Cột phải liệt kê những gì đã chạy, và nói rõ đọc được danh sách
 file **không phải** là đã kiểm bài.
 
 ### 3.5 Khối lỗi khi có phản biện — bước 6
 
-Cùng khối "Lỗi chẩn đoán được" ở §3.4, thêm cho mỗi lỗi một ô kết luận: **góc kiểm nào**
+Cùng khối "Lỗi chẩn đoán được" ở mục 3.4, thêm cho mỗi lỗi một ô kết luận: **góc kiểm nào**
 kết luận, kết luận gì, và **bằng chứng riêng của góc kiểm đó** (nó tự chạy công cụ, §6).
 
 | Kết luận | Lỗi | Điểm | Giảng viên làm được |
 |---|---|---|---|
 | Xác nhận | Giữ | Trừ | Sửa luật |
-| Bác bỏ | Gạch ngang | **Không trừ** | *Giữ lỗi này cho riêng bài này* (ngoại lệ) |
+| Bác bỏ | Gạch ngang | **Không trừ**, nhưng **gắn cờ riêng lỗi đó** — bài không tự quyết (§6.2) | *Đồng ý bác bỏ* (ngoại lệ cấp lỗi, chiều `exclude`) · *Giữ lỗi này cho riêng bài này* (chiều `include`, §14.1) |
 | Chưa kiểm được | Giữ | Trừ, **gắn cờ riêng lỗi đó** | Xem lời gọi · giữ · bỏ cho riêng bài này |
 
 - *"Im lặng không phải là đồng ý"* (§6.2) được nói ngay trong ô *chưa kiểm được*.
@@ -288,9 +369,11 @@ Thay `GradingReferenceDialog` và nút bắt đầu chấm cũ. Mockup có năm 
 đề* · *có đáp án, thiếu gói test* · *bộ ca hệ thống sinh, chờ duyệt* · *lấy từ Soạn đề* ·
 *đã khoá*.
 
-**Chỉ đề bài là bắt buộc** (chốt 2026-09-23, §2.1 *Khi giảng viên chỉ có đề*). Thiếu đáp
-án mẫu hay gói test thì hệ thống dựng giúp một lần, giảng viên duyệt, và cả phiên được đo
-bằng cùng một bộ đó.
+**Bắt buộc: đề bài và trần điểm** (chốt 2026-09-23, §2.1 *Khi giảng viên chỉ có đề*). Thiếu
+đáp án mẫu hay gói test thì hệ thống dựng giúp một lần, giảng viên duyệt, và cả phiên được đo
+bằng cùng một bộ đó. Tiêu chí chưa có luật nào **không** chặn bắt đầu; nó hiện thành cảnh báo
+ở cột *Trước khi bắt đầu*, và bài dính tiêu chí đó không tự quyết (§4.2). Cảnh báo đi kèm lối
+*Đánh dấu không có luật trừ* (mục 3.1).
 
 **Luồng hiện tại vẫn đi qua bước này, bằng hai cửa**, và cả hai ghi vào cùng một dòng
 `grading_reference` (một phiên một bản, `uq_grading_reference_session`):
@@ -308,10 +391,10 @@ Soạn đề lúc 08:05"*), không chỉ nói có hay không.
 - **Đề bài không chọn sẵn file nào**, kể cả khi tên file trông hiển nhiên — giữ nguyên
   luật của dialog cũ.
 - **Đáp án mẫu mang cờ `model_answer_unverified`** → băng vàng nói đúng hậu quả (mục 4.1
-  của spec soạn đề), và nút *Chạy thử đáp án mẫu với gói test* mang nhãn *cần backend*
-  (cần sandbox). Không chặn bắt đầu, nhưng phải tích một ô xác nhận rằng mọi bài của
-  phiên sẽ mang cảnh báo này. Lần nhắc thứ hai — lần đầu ở lúc gắn đề — là có chủ đích:
-  bắt đầu chấm là lúc tài liệu khoá lại, nên là lần cuối còn sửa được.
+  của spec soạn đề) **cho tới khi thước được duyệt**; duyệt xong, băng đổi thành một dòng
+  nguồn gốc trung tính (§2.1 luật 4). Gắn bộ ba từ Soạn đề tính là đã duyệt — giảng viên đã
+  đọc và sửa nó ở đó — nên ô xác nhận ở tình huống *lấy từ Soạn đề* **bỏ**. Nút *Chạy thử
+  đáp án mẫu với gói test* vẫn mang nhãn *cần backend* (cần sandbox).
 - **Thiếu gói test thì màn này dựng giúp, không chặn cụt.** Khối *Gói test* đưa ra đúng
   một hành động chính, tuỳ giảng viên có gì: *Sinh đáp án mẫu và gói test từ đề*, hoặc
   *Sinh gói test từ đáp án của bạn*. Tải gói test lên vẫn là lối phụ. Cả ba mang nhãn *cần
@@ -327,16 +410,25 @@ Soạn đề lúc 08:05"*), không chỉ nói có hay không.
   báo ở cấp ca, kèm *giữ* / *bỏ ca này*. Mockup chưa vẽ khối này.
 - **Cột *Trước khi bắt đầu*:** trần điểm · đề · đáp án · gói test · bảng lỗi (luật chưa
   có giá **không** chặn, chỉ báo trước rằng bài dính luật đó sẽ vào nhóm cần xem) · số bài
-  sẽ chấm (bài `invalid` không được chấm, và nói ra con số).
+  sẽ chấm (chỉ bài đã thu, `collected`, được chấm; bài vắng hay chưa nộp thì không, và nói ra
+  con số). Bài có file nén không đọc được ra *không chấm được* ngay, không tốn lượt model; bài
+  có file nén đang chờ kiểm thì chưa xếp hàng (§2.1).
+- **Bài code phải khai ngôn ngữ** (`required_deliverable.language`, §14.1) để đi đường điều tra.
+  Chưa khai lúc tạo phiên thì khai ở đây; vẫn chưa khai thì bài đó chấm theo đường cũ — đọc mã,
+  không chạy — và cột *Trước khi bắt đầu* nói ra số bài đó. Hệ thống không đoán ngôn ngữ từ đuôi
+  file.
+- **Màn này mở lại được** khi phiên mở khoá — mọi kết quả là bài không chấm được đã dừng
+  (§14.3) — để giảng viên sửa thước rồi chấm lại.
 - **Nút bắt đầu nói con số** (*"Bắt đầu chấm 40 bài"*); dòng dưới nói hậu quả: tài liệu
   chấm và trần điểm khoá lại, đóng trang không dừng việc chấm.
 - **Đã khoá:** mọi dòng chỉ xem; băng nói giờ khoá và lý do — cùng lý do mà
   `assertNotGradedYet` ghi trong code.
 - Giữ luật **chỉ gửi trường đã đổi** của dialog cũ: DTO phân biệt *không gửi* (giữ),
   `null` (xoá) và giá trị (đặt).
-- Mục 4.1, lớp 3 của spec soạn đề: phiên mang cờ `model_answer_unverified` thì **mọi**
-  dòng ở danh sách bài và **mọi** hồ sơ một bài đều hiện cảnh báo. Mockup của hai màn đó
-  chưa vẽ dòng này.
+- Mục 4.1, lớp 3 của spec soạn đề giờ là **một dòng nguồn gốc**, không phải cảnh báo, trên
+  mọi dòng ở danh sách bài và mọi hồ sơ (*"thước do hệ thống sinh, bạn duyệt lúc …"*): thước
+  chưa duyệt thì chưa bắt đầu chấm được (§14.3), nên không bài nào được chấm bằng một thước
+  chưa ai đọc. Mockup của hai màn đó chưa vẽ dòng này.
 
 ### 3.8 Đang chấm và sự cố giữa chừng — cùng route, khi còn bài đang chấm
 
@@ -368,7 +460,7 @@ lỗi"*.
 | Bình thường | `grading-progress` trả về đều | Tiến độ, tốc độ, ước tính | — |
 | Máy giảng viên mất mạng | `navigator.onLine = false`, hoặc request hỏng ở tầng mạng | Việc chấm vẫn chạy trên máy chủ, không bài nào bị ảnh hưởng; số liệu mờ đi, kèm giờ của lần đọc cuối | Không có — không có gì để bấm |
 | Máy chủ không trả lời | Mạng còn, nhưng request trả 5xx hoặc hết giờ nhiều lần liền | Không biết việc chấm có chạy tiếp không. Máy chủ về thì số liệu đếm lại từ DB; bài dở dang hiện ở dòng *bài bị treo* | *Thử lại ngay* |
-| Dịch vụ AI lỗi | Nhiều bài hết lượt thử với cùng lớp lý do `system` trong một khoảng ngắn | Gom thành một băng: N bài dừng, mỗi bài đã thử 3 lần, lỗi hệ thống chứ không phải bài làm, chưa bài nào có điểm | *Chấm lại N bài* — **cần backend** (mục 8.1 của spec soạn đề) |
+| Dịch vụ AI lỗi | Nhiều bài hết lượt thử với cùng lớp lý do `system` trong một khoảng ngắn | Gom thành một băng: N bài dừng, mỗi bài đã thử 3 lần, lỗi hệ thống chứ không phải bài làm, chưa bài nào có điểm | *Chấm lại N bài* — **cần backend**; thiết kế đã chốt ở §2.3 |
 | Bài bị treo | Còn dòng ở `ai_grading` mà hàng đợi không còn job sống cho nó | N bài không còn ai chấm; tiến độ đã đứng yên bao lâu | *Chấm tiếp N bài treo* — **đã có** (`regrade-stuck`) |
 
 **Bài dừng vì lỗi hệ thống không được đếm vào *đã có kết quả*.** Nó chưa có điểm nào. Hôm
@@ -376,7 +468,7 @@ nay `markUngradable` ghi nó vào `flagged_for_review`, cùng trạng thái vớ
 cờ thật, nên `progress()` đang đếm nó là *xong*. Cần một lớp lý do đọc được bằng máy trên
 `ungradable_reason` (§4.4 ghi vì sao). **Cần backend.**
 
-### 3.9 Kiểm mẫu một bài — bước 7 (§8.1)
+### 3.9 Kiểm mẫu một bài — bước 3 (§8.1; trước đây bước 7)
 
 Mockup có hai bước: *bạn xem bài* · *so với hệ thống*. Luồng này hôm nay chưa có dòng code
 nào.
@@ -393,7 +485,9 @@ biết đây là bài kiểm mẫu không. Hai lối cực đoan đều hỏng:
 viên ghi nhận xét.**
 
 - **Rút mẫu:** N% số bài tự quyết (§8.1: 20% lúc đầu, sàn 5%), ngẫu nhiên, không dựa vào
-  điểm, có ghi giờ rút. Giảng viên **không đổi được bài**: được chọn thì người ta chọn
+  điểm, có ghi giờ rút (`audit_sampled_at`, §14.1). **Chỉ bài được tự quyết ngay từ đầu** mới
+  vào khung rút; bài thành tự quyết sau khi đã bị gắn cờ thì không (§8.1). Giảng viên
+  **không đổi được bài**: được chọn thì người ta chọn
   bài dễ.
 - **Danh sách bài:** nhóm riêng *Kiểm mẫu*; cột điểm hiện *ẩn* — ẩn ở tầng API (response
   không chứa điểm), không chỉ ẩn bằng CSS. Không thì con số đã lọt ra trước khi mở hồ sơ.
@@ -416,6 +510,8 @@ Thay `FinalizeGradesButton`. Mockup có ba tình huống: *còn bài chưa xong*
 *đã chốt*. Đã duyệt: chốt là **một thao tác riêng**, không gộp vào lượt ghi file.
 
 - **Chốt là mốc công bố** — nói ngay ở đầu màn, cùng câu *"chốt không ghi file nào"*.
+- **Chốt ghi tên người bấm lên từng bài** (`finalized_by`, §14.1): điểm đã công bố luôn mang tên
+  một người, kể cả bài tự quyết mà không ai mở.
 - **Chưa chốt được:** liệt kê từng nhóm đang chặn, mỗi nhóm một con số và một lối đi —
   cần bạn xem · kiểm mẫu chưa kiểm · không chấm được · đang chấm. Hôm nay
   `BLOCKS_FINALIZE` đã chặn `ai_grading`, `ai_graded`, `flagged_for_review`; bài không
@@ -423,10 +519,33 @@ Thay `FinalizeGradesButton`. Mockup có ba tình huống: *còn bài chưa xong*
   backend).
 - **Hộp xác nhận nói đúng hai con số**, giữ ý của nút cũ: *N bài theo điểm hệ thống tự
   quyết mà bạn chưa mở* · *M bài bạn đã xem*. Kèm hậu quả: từ lúc chốt, mọi thay đổi điểm
-  đều vào nhật ký, kể cả khi đổi giá một luật làm điểm bài đã chốt đổi theo (§2.2).
+  đều vào nhật ký — khi giảng viên sửa tay, và khi giảng viên chủ động *áp giá mới cho phiên đã
+  chốt*. Đổi giá ở Bảng lỗi **không** tự đổi điểm phiên đã chốt (§2.2).
 - **Ghi điểm vào sổ điểm chỉ mở sau khi chốt** (mục 5.1, dòng 7): ghi file trước khi chốt
   là đưa ra ngoài một con số chưa công bố, và cờ *đổi sau lần ghi trước* của §13 sẽ báo cả
   những thay đổi bình thường trong lúc duyệt.
+
+### 3.11 Bài tự luận, bài ảnh, và bài chấm theo đường cũ — `pipeline = one_shot`
+
+Chốt 2026-09-23: đường chấm theo tiêu chí **giữ lại, đóng băng** — không đầu tư thêm. Đề cương
+gốc có ba loại bài, và đường này đã chạy. Nó mang hai loại dữ liệu:
+
+| Dữ liệu | Hồ sơ | Hành động |
+|---|---|---|
+| Bài tự luận, bài ảnh | Hồ sơ theo tiêu chí — `CriterionCard`, `ManualCriterionCard` giữ nguyên | Duyệt, sửa theo tiêu chí như hôm nay |
+| Bài code đã chấm bằng đường cũ, trước khi có đường điều tra | Hồ sơ theo tiêu chí, nhãn *"chấm bằng đọc mã, không chạy"* | Duyệt và sửa như bài tự luận **cho tới khi chốt**; chỉ đọc sau khi chốt. Không thế thì bài đang gắn cờ chặn chốt điểm mà không có lối nào gỡ |
+
+- **Bài tự luận không bao giờ tự quyết** (§0.3). Đây là thay đổi hành vi: hôm nay mọi loại bài
+  tự duyệt khi confidence ≥ 0,85. Để giảng viên không phải bấm từng bài, danh sách bài có
+  **duyệt hàng loạt**, kèm hộp xác nhận nói đúng số bài theo khuôn hộp chốt điểm (mục 3.10).
+  Mỗi bài được duyệt hàng loạt là một dòng `teacher_review` kind `bulk_accept`.
+- **Bài tự luận `auto_approved` còn sót từ trước khi đổi chính sách**, chưa chốt: giữ nguyên, hiện
+  nhãn *"tự duyệt theo chính sách cũ"* (§14.2). Bài tự luận chấm từ nay không bao giờ tự quyết.
+- **Danh sách bài (mục 3.3) hiện cả hai loại** trong một bảng, kèm nhãn loại bài. Điểm của
+  bài `one_shot` cũng đi qua hàm *điểm hiện tại* (§14.2).
+- **`/teacher/grading/[resultId]` rẽ theo `pipeline`**: `investigator` → hồ sơ mục 3.4,
+  `one_shot` → hồ sơ theo tiêu chí. Không màn nào đọc cả hai kiểu dữ liệu cùng lúc.
+- Không mockup mới: hồ sơ theo tiêu chí là màn đang chạy, cộng một nhãn.
 
 ---
 
@@ -437,8 +556,9 @@ xoá khi nó chưa thoả là để lại một khoảng trống chức năng.
 
 | File cũ (dưới `apps/web/src/app/teacher/`) | Bước | Trước khi xoá |
 |---|---|---|
-| `rubrics/page.tsx`, `rubrics/_components/RubricEditor.tsx` | 3 | Bảng lỗi có khối trần điểm; `/teacher/rubrics` chuyển hướng |
-| `grading/[resultId]/page.tsx`, `_components/CriterionCard.tsx`, `_components/ManualCriterionCard.tsx` | 3 | Hồ sơ một bài chạy trên chẩn đoán |
+| `rubrics/page.tsx`, `rubrics/_components/RubricEditor.tsx` | 3 | Khối trần điểm của Bảng lỗi sửa được **mọi** trường rubric mà bài tự luận vẫn cần — mô tả tiêu chí, trần, và `key` mới (§14.1); `/teacher/rubrics` chuyển hướng |
+| `grading/[resultId]/page.tsx` | 3 | **Không xoá — viết lại thành chỗ rẽ nhánh** theo `pipeline` (mục 3.11) |
+| `grading/[resultId]/_components/CriterionCard.tsx`, `ManualCriterionCard.tsx` | — | **Giữ.** Hồ sơ của bài tự luận và của dữ liệu cũ (mục 3.11) |
 | `grading/[resultId]/_components/AnswerPane.tsx` | 3 | **Rà trước khi xoá**: nếu nó chỉ là trình xem bài nộp kèm tô sáng dẫn chứng (mục 5.2 của spec 2026-09-16), dùng lại cho *Mở bài nộp* |
 | `grading/[resultId]/_components/AdvocatePanel.tsx` | 6 | Khối phản biện mới |
 | `grading/page.tsx`, `_components/ConfidenceTiles.tsx`, `ReadinessStrip.tsx`, `AnomalyPanel.tsx`, `ReviewWorkspace.tsx`, `SessionRubricCard.tsx`, `NotBuiltYetPanel.tsx` | 3–4 | Danh sách bài của phiên |
@@ -459,13 +579,14 @@ file; xoá theo việc còn ai import.
 | # | Câu hỏi | Kết quả |
 |---|---|---|
 | 1 | Giảng viên có được biết một bài là bài kiểm mẫu không | **Có**, nhưng kết luận của hệ thống ẩn cho tới khi họ ghi nhận xét — mục 3.9, §8.1 |
-| 2 | Nút *chấm lại* ở màn không chấm được chưa có đường chạy | **Ghi chú, chưa quyết:** mục 8.1 của spec soạn đề. Nút mang nhãn *cần backend* cho tới khi chốt |
+| 2 | Nút *chấm lại* ở màn không chấm được chưa có đường chạy | **Đã chốt** (§2.3): chấm lại chỉ cho bài chưa có điểm, theo lớp lý do, giảng viên bấm. Nút vẫn mang nhãn *cần backend* cho tới khi có route |
 | 3 | Màn khai tài liệu chấm chưa có mockup | Mục 3.7. Luồng hiện tại **vẫn** đi qua bước này, bằng hai cửa |
 | 4 | Chốt điểm nằm ở đâu | **Riêng**, không gộp vào lượt ghi file — mục 3.10 |
-| 5 | Phiên không có gói test: chặn bắt đầu chấm? | **Không chặn.** Chỉ đề là bắt buộc; hệ thống dựng gói test, giảng viên duyệt — mục 3.7, §2.1. Đề xuất chặn ban đầu bị bác vì thực tế nhiều giảng viên chỉ có đề |
+| 5 | Phiên không có gói test: chặn bắt đầu chấm? | **Không chặn.** Bắt buộc đề và trần điểm; hệ thống dựng gói test, giảng viên duyệt — mục 3.7, §2.1. Đề xuất chặn ban đầu bị bác vì thực tế nhiều giảng viên chỉ có đề |
 | 6 | Kiểm mẫu có chặn chốt điểm không | **Có** — mục 3.9. Không chặn thì người bận luôn bỏ qua, và N thực tế về 0. Cái giá: khoảng 5 bài cho một phiên 40 bài, mỗi bài tốn công hơn một bài cần xem |
 | 7 | Ghi điểm vào sổ điểm chỉ mở sau khi chốt | **Có** — mục 3.10 |
 | 8 | Backend cho màn đang chấm | **Làm**: tiến độ từng bài qua `job.updateProgress`, lớp lý do máy đọc được trên `ungradable_reason` — mục 3.8. Thiếu hai thứ này thì màn đó vẫn chạy được thanh tiến độ và các tình huống *mất mạng*, *máy chủ không trả lời*, *bài bị treo* |
+| 9 | Bài tự luận và dữ liệu cũ hiện ở đâu | Hồ sơ theo tiêu chí giữ lại, rẽ theo `pipeline` — mục 3.11 |
 
 ### 5.2 Còn mở
 
@@ -495,5 +616,12 @@ file; xoá theo việc còn ai import.
 | **T-UI-14** | Bài kiểm mẫu chưa kiểm: response API **không chứa** điểm lẫn lỗi của hệ thống — không chỉ ẩn ở giao diện | e2e |
 | **T-UI-15** | Nhận xét bước 1 của kiểm mẫu đã ghi thì không sửa được, và vẫn được lưu dù bước 2 chọn gì | e2e |
 | **T-UI-16** | Hộp xác nhận chốt điểm nói đúng hai con số, và hai con số cộng lại bằng số bài của phiên | unit |
-| **T-UI-17** | Phiên có cờ `model_answer_unverified` → mọi dòng ở danh sách bài và mọi hồ sơ đều hiện cảnh báo | unit |
+| **T-UI-17** | Phiên có thước do hệ thống sinh → mọi dòng ở danh sách bài và mọi hồ sơ hiện dòng nguồn gốc kèm giờ duyệt, **không** hiện cảnh báo | unit |
 | **T-UI-18** | Bảng bộ ca sinh ra: ca nào cũng hiện câu đề nó kiểm; ca tự bỏ hiện gạch ngang kèm lý do, và không được tính vào số ca của nút duyệt | unit |
+| **T-UI-19** | Bài `one_shot` mở hồ sơ theo tiêu chí; bài code chấm theo đường cũ có nhãn *"chấm bằng đọc mã, không chạy"* và, **sau khi chốt**, không có nút sửa nào | unit |
+| **T-UI-20** | Duyệt hàng loạt bài tự luận: hộp xác nhận nói đúng số bài; không bài tự luận nào hiện nhãn *tự quyết* | unit |
+| **T-UI-21** | Lưu giá khi có phiên đã chốt dùng luật đó → bảng tác động nói phiên đó **không đổi**; *áp giá mới cho phiên đã chốt* là một thao tác riêng | unit |
+| **T-UI-22** | Luật dùng mẫu *mã gọi một hàm*, *không dùng đệ quy* hay *độ phức tạp vượt yêu cầu* → nhãn *máy chưa đo được*, không hiện *Máy quyết*; xem trước bậc 3 hiện lý do API trả, nút lưu là *"Lưu luật — áp từ phiên chưa chấm"* | unit |
+| **T-UI-23** | Bài có `caseFlags` → dải *cần bạn xem* hiện mỗi cờ một dòng bằng chữ theo mục 2.2; mã cờ và `detail` chỉ ở dòng phụ; mã cờ lạ vẫn hiện một dòng | unit |
+| **T-UI-24** | Đánh dấu *tiêu chí này không có luật trừ* → hộp xác nhận nói tiêu chí đó sẽ luôn trọn điểm; sau khi lưu hiện kết quả tính lại của API | unit |
+| **T-UI-25** | Bài đường điều tra bị cờ không gỡ được bằng luật → *Chấm tay bài này* điền sẵn điểm hệ thống; *Xem và giữ nguyên chẩn đoán* mang nhãn *cần backend* và không gửi request nào | unit |

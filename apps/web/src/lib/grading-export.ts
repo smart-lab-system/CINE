@@ -1,5 +1,5 @@
 import type { GradingResult } from '@/lib/api/grading';
-import { groupOf, GROUP_LABELS } from './grading-groups';
+import { STATE_LABEL, stateOf } from './session-triage';
 
 /**
  * "Giảng viên chỉ cần export điểm về danh sách" — đúng một hàm thuần, không
@@ -42,7 +42,7 @@ export function gradingResultsToCsv(results: GradingResult[]): string {
     r.studentMssv,
     r.studentName,
     r.homeClassName ?? '',
-    GROUP_LABELS[groupOf(r.status)],
+    STATE_LABEL[stateOf(r)],
     scoreCell(r),
     r.ungradableReason ?? '',
   ]);
