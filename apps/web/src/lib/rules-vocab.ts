@@ -1,3 +1,4 @@
+import type { RecomputeSummary } from './api/rules';
 import { formatVnPoints } from './format';
 
 /**
@@ -67,4 +68,19 @@ export function slugifyRuleKey(name: string): string {
     .slice(0, 64)
     .replace(/_+$/g, '');
   return slug === '' ? 'luat_moi' : slug;
+}
+
+/**
+ * Kết quả tính lại đọc bằng lời (spec §3.1: "sau khi lưu hiện kết quả tính lại … đọc bằng lời").
+ * `null` = luật bằng lời không áp ngược cho bài đã chấm (T-FAIR-1) — nói ra, không im lặng.
+ */
+export function describeRecompute(r: RecomputeSummary | null): string {
+  if (r === null) return 'Luật này không tính lại bài nào đã chấm — chỉ áp cho phiên chấm sau.';
+  if (r.recomputed === 0) return 'Không có bài nào bị ảnh hưởng.';
+  const parts: string[] = [];
+  if (r.promoted > 0) parts.push(`${r.promoted} bài đủ điều kiện tự quyết`);
+  if (r.demoted > 0) parts.push(`${r.demoted} bài chuyển về "Cần bạn xem"`);
+  if (r.belowFloor > 0) parts.push(`${r.belowFloor} bài chưa cho điểm được (dưới sàn)`);
+  if (parts.length === 0) return `Đã tính lại ${r.recomputed} bài, không bài nào đổi nhóm.`;
+  return `Đã tính lại ${r.recomputed} bài: ${parts.join('; ')}.`;
 }

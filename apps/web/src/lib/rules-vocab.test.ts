@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MATCH_KIND_LABEL,
+  describeRecompute,
   formatDeductionString,
   matchKindOf,
   originLabel,
@@ -92,5 +93,29 @@ describe('slugifyRuleKey (server: /^[a-z0-9_]{1,64}$/)', () => {
   });
   it('không còn ký tự hợp lệ nào → khoá dự phòng', () => {
     expect(slugifyRuleKey('???')).toBe('luat_moi');
+  });
+});
+
+describe('describeRecompute (kết quả tính lại đọc bằng lời — spec §3.1)', () => {
+  it('không bài nào bị ảnh hưởng', () => {
+    expect(describeRecompute({ recomputed: 0, promoted: 0, demoted: 0, belowFloor: 0 })).toBe(
+      'Không có bài nào bị ảnh hưởng.',
+    );
+  });
+
+  it('nói đủ từng phần: lên tự quyết, về "Cần bạn xem", dưới sàn', () => {
+    expect(describeRecompute({ recomputed: 7, promoted: 5, demoted: 1, belowFloor: 2 })).toBe(
+      'Đã tính lại 7 bài: 5 bài đủ điều kiện tự quyết; 1 bài chuyển về "Cần bạn xem"; 2 bài chưa cho điểm được (dưới sàn).',
+    );
+  });
+
+  it('tính lại nhưng không bài nào đổi nhóm', () => {
+    expect(describeRecompute({ recomputed: 3, promoted: 0, demoted: 0, belowFloor: 0 })).toBe(
+      'Đã tính lại 3 bài, không bài nào đổi nhóm.',
+    );
+  });
+
+  it('null (luật bằng lời không áp ngược) → nói đúng như vậy, không im lặng', () => {
+    expect(describeRecompute(null)).toBe('Luật này không tính lại bài nào đã chấm — chỉ áp cho phiên chấm sau.');
   });
 });

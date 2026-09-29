@@ -13,6 +13,7 @@ vi.mock('@/hooks/useRules', () => ({
   useMissingRules: () => ({ data: missingData, isLoading: false }),
   usePreviewPrice: () => ({ mutate: vi.fn(), data: undefined, isPending: false, reset: vi.fn() }),
   useSetPrice: () => ({ mutate: vi.fn(), isPending: false }),
+  useSetRuleState: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
 
 const priced = rule({ id: 'r1', ruleKey: 'sai_bien' });
@@ -77,6 +78,16 @@ describe('Bảng lỗi (trang)', () => {
     render(<RulesPage />);
     expect(screen.getByText(/Không tải được Bảng lỗi — Máy chủ không trả lời/)).toBeInTheDocument();
     expect(screen.queryByText(/Chưa có luật nào trong bảng/)).not.toBeInTheDocument();
+  });
+
+  it('có luật còn thiếu → hiện khối "Luật còn thiếu" ngay dưới bảng, và ô tổng quan đếm đúng', () => {
+    missingData = [
+      rule({ id: 'p1', state: 'proposed', origin: 'agent_reported', deduction: null, revision: { description: 'In kết quả trung gian' } }),
+    ];
+    render(<RulesPage />);
+    expect(screen.getByRole('heading', { name: 'Luật còn thiếu' })).toBeInTheDocument();
+    expect(screen.getByText('In kết quả trung gian')).toBeInTheDocument();
+    expect(screen.getByText('1 lỗi chưa có luật')).toBeInTheDocument();
   });
 
   it('mở bảng đặt giá bên phải khi bấm "Sửa giá", điền sẵn giá hiện tại', () => {

@@ -39,6 +39,18 @@ export type RulePreview =
   | { tier: 3; reason: string }
   | { tier: 4; sessions: { sessionId: string; name: string; graded: boolean }[] };
 
+/**
+ * Kết quả tính lại tầng luật mà server trả sau mỗi thao tác đổi luật/giá/đánh dấu — mirrors
+ * `RecomputeSummary` (apps/api/src/grading/scoring/score.service.ts). Bỏ nó đi là để giảng viên bấm xong
+ * mà không biết điều gì vừa xảy ra với các bài (spec §2.1 luật 4).
+ */
+export interface RecomputeSummary {
+  recomputed: number;
+  promoted: number;
+  demoted: number;
+  belowFloor: number;
+}
+
 /** Mirrors PricePreview (apps/api/src/grading/rules/price.service.ts). */
 export interface PricePreview {
   openSessions: { sessionId: string; name: string; affected: number; autoAfter: number; blockedByOtherUnpriced: number }[];
@@ -80,19 +92,24 @@ export interface RuleInput {
   predicate?: unknown;
 }
 
-export async function createRule(input: RuleInput): Promise<{ ruleId: string; revisionId: string }> {
+export async function createRule(
+  input: RuleInput,
+): Promise<{ ruleId: string; revisionId: string; recompute: RecomputeSummary | null }> {
   const { data, error, response } = await apiClient.POST('/rules', { body: input as never });
   if (error || !response.ok) throw fail(error, response);
-  return data as unknown as { ruleId: string; revisionId: string };
+  return data as unknown as { ruleId: string; revisionId: string; recompute: RecomputeSummary | null };
 }
 
-export async function reviseRule(ruleId: string, changes: RuleInput): Promise<{ revisionId: string }> {
+export async function reviseRule(
+  ruleId: string,
+  changes: RuleInput,
+): Promise<{ revisionId: string; recompute: RecomputeSummary | null }> {
   const { data, error, response } = await apiClient.PATCH('/rules/{id}', {
     params: { path: { id: ruleId } },
     body: changes as never,
   });
   if (error || !response.ok) throw fail(error, response);
-  return data as unknown as { revisionId: string };
+  return data as unknown as { revisionId: string; recompute: RecomputeSummary | null };
 }
 
 export async function previewRule(
@@ -103,12 +120,16 @@ export async function previewRule(
   return data as unknown as RulePreview;
 }
 
-export async function setRuleState(ruleId: string, state: 'active' | 'dismissed' | 'retired'): Promise<void> {
-  const { error, response } = await apiClient.POST('/rules/{id}/state', {
+export async function setRuleState(
+  ruleId: string,
+  state: 'active' | 'dismissed' | 'retired',
+): Promise<{ recompute: RecomputeSummary }> {
+  const { data, error, response } = await apiClient.POST('/rules/{id}/state', {
     params: { path: { id: ruleId } },
     body: { state },
   });
   if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { recompute: RecomputeSummary };
 }
 
 /** "Lưu thì ảnh hưởng bao nhiêu bài" (spec UI 3.1, T-POL-5) — gọi TRƯỚC setPrice. */
@@ -124,12 +145,16 @@ export async function previewPrice(ruleId: string, deduction: string | null): Pr
   return data as unknown as PricePreview;
 }
 
-export async function setPrice(ruleId: string, deduction: string | null): Promise<void> {
-  const { error, response } = await apiClient.PUT('/rules/{id}/price', {
+export async function setPrice(
+  ruleId: string,
+  deduction: string | null,
+): Promise<{ versionId: string; recompute: RecomputeSummary }> {
+  const { data, error, response } = await apiClient.PUT('/rules/{id}/price', {
     params: { path: { id: ruleId } },
     body: { deduction } as never,
   });
   if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { versionId: string; recompute: RecomputeSummary };
 }
 
 export async function listWaivers(rubricId: string): Promise<CriterionWaiver[]> {
@@ -140,17 +165,22 @@ export async function listWaivers(rubricId: string): Promise<CriterionWaiver[]> 
   return data as unknown as CriterionWaiver[];
 }
 
-export async function setWaiver(rubricId: string, criterionKey: string): Promise<void> {
-  const { error, response } = await apiClient.POST('/rubrics/{id}/criterion-waivers', {
+export async function setWaiver(
+  rubricId: string,
+  criterionKey: string,
+): Promise<{ waiverId: string; recompute: RecomputeSummary | null }> {
+  const { data, error, response } = await apiClient.POST('/rubrics/{id}/criterion-waivers', {
     params: { path: { id: rubricId } },
     body: { criterionKey },
   });
   if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { waiverId: string; recompute: RecomputeSummary | null };
 }
 
-export async function revokeWaiver(waiverId: string): Promise<void> {
-  const { error, response } = await apiClient.POST('/criterion-waivers/{id}/revoke', {
+export async function revokeWaiver(waiverId: string): Promise<{ recompute: RecomputeSummary }> {
+  const { data, error, response } = await apiClient.POST('/criterion-waivers/{id}/revoke', {
     params: { path: { id: waiverId } },
   });
   if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { recompute: RecomputeSummary };
 }
