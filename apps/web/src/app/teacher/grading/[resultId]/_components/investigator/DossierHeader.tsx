@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NeedsBackend } from '@/components/needs-backend';
-import { StatusPill } from './StatusPill';
+import { StatusPill } from '@/components/status-pill';
 
 export function DossierHeader({
   sessionId,
