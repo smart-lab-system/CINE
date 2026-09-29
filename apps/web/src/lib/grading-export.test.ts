@@ -104,10 +104,19 @@ describe('gradingResultsToCsv', () => {
     expect(dataLine).toContain('file nén không đọc được');
   });
 
-  it('trạng thái quy ra đúng nhãn tiếng Việt của groupOf', () => {
-    const csv = gradingResultsToCsv([result({ status: 'flagged_for_review' })]);
+  // Cùng một từ với danh sách bài và hồ sơ (STATE_LABEL của session-triage): file CSV không được nói khác màn hình.
+  it.each([
+    ['flagged_for_review', null, 'Cần bạn xem'],
+    ['flagged_for_review', 'file nén không đọc được', 'Không chấm được'],
+    ['auto_approved', null, 'Tự quyết'],
+    ['audit_pending', null, 'Kiểm mẫu'],
+    ['teacher_reviewed', null, 'Đã duyệt'],
+    ['finalized', null, 'Đã chốt'],
+    ['ai_grading', null, 'Đang chấm'],
+  ])('trạng thái %s (lý do: %s) ra nhãn "%s"', (status, ungradableReason, label) => {
+    const csv = gradingResultsToCsv([result({ status, ungradableReason, currentScore: ungradableReason ? null : 8 })]);
     const dataLine = csv.split('\r\n')[1];
-    expect(dataLine).toContain('Cần xem');
+    expect(dataLine.split(',')[3]).toBe(label);
   });
 
   it('danh sách rỗng vẫn ra đúng dòng tiêu đề, không lỗi', () => {
