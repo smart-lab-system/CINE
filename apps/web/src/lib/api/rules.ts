@@ -1,5 +1,15 @@
 import { apiClient } from '@/lib/api-client';
 
+/**
+ * Bốn mẫu điều kiện có sẵn, hoặc `null` (luật bằng lời) — mirrors `RulePredicate`
+ * (apps/api/src/grading/decision/types.ts). Không có mẫu thứ năm: không viết code tự do (spec §3.2).
+ */
+export type RulePredicate =
+  | { kind: 'test_group_failed'; group: string }
+  | { kind: 'calls_function'; name: string }
+  | { kind: 'complexity_exceeds_required' }
+  | { kind: 'no_recursion'; functionName?: string };
+
 /** Mirrors RuleListItem (apps/api/src/grading/rules/error-rule.service.ts). */
 export interface Rule {
   id: string;
@@ -12,7 +22,7 @@ export interface Rule {
     name: string;
     description: string;
     criterionKey: string;
-    predicate: unknown | null;
+    predicate: RulePredicate | null;
   };
   checkedBy: 'machine' | 'model';
   deduction: string | null;
