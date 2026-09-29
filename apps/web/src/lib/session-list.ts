@@ -28,7 +28,17 @@ export const LIST_STATUS_LABEL: Record<ListStatus, string> = {
 };
 
 /** Hai điều kiện bắt đầu chấm mà DANH SÁCH biết được; phần còn lại của `preflightOf` chỉ hiện ở màn chuẩn bị. */
-export type Blocker = 'no-rubric' | 'no-question';
+export type Blocker = 'no-rubric' | 'no-question' | 'in-progress';
+
+/**
+ * Giờ làm bài chưa hết. So với `endTime`, KHÔNG đọc `status`: status của phiên không đáng tin (hầu hết phiên
+ * sinh ra là 'active', memory cine-session-status-is-always-active) — thời gian mới là ranh giới. Ngày
+ * không đọc được thì coi như đã hết: chặn nhầm một phiên đã xong đắt hơn cho bắt đầu sớm một phiên hỏng ngày.
+ */
+function examStillRunning(session: SessionOverviewItem, now: number): boolean {
+  const end = Date.parse(session.endTime);
+  return Number.isFinite(end) && end > now;
+}
 
 export interface SessionRow {
   session: SessionOverviewItem;
@@ -66,7 +76,11 @@ export function submittedCount(session: SessionOverviewItem): number {
  * Chỉ phiên CÓ bài đã thu (như `SessionPicker` cũ) — nhưng KHÔNG lọc theo rubric hay lưu trữ: phiên thiếu
  * rubric phải hiện ra kèm dấu, vì bài thi thật của sinh viên nằm trong đó.
  */
-export function buildRows(sessions: SessionOverviewItem[], summaries: GradingSessionSummary[] | undefined): SessionRow[] {
+export function buildRows(
+  sessions: SessionOverviewItem[],
+  summaries: GradingSessionSummary[] | undefined,
+  now: number = Date.now(),
+): SessionRow[] {
   const byId = summaries ? new Map(summaries.map((s) => [s.examSessionId, s])) : null;
   return sessions
     .filter((s) => submittedCount(s) > 0)
@@ -81,6 +95,8 @@ export function buildRows(sessions: SessionOverviewItem[], summaries: GradingSes
         if (session.rubricId === null) blocker = 'no-rubric';
         // Thiếu cả tóm tắt của phiên → không biết đã có đề bài chưa → coi như chưa (an toàn: không cho bắt đầu).
         else if (!summary?.hasQuestion) blocker = 'no-question';
+        // Bắt đầu chấm khi sinh viên còn đang nộp là chấm trên một tập bài thiếu, và khoá rubric + tài liệu chấm.
+        else if (examStillRunning(session, now)) blocker = 'in-progress';
       }
       return { session, status, counts, graded, blocker };
     });
@@ -171,7 +187,9 @@ export function matchesFilters(row: SessionRow, f: ListFilters, now: number, ski
     if (age > Number(f.time) * DAY_MS) return false;
   }
   if (f.noRubric && s.rubricId !== null) return false;
-  if (skip !== 'status' && f.status !== 'all' && row.status !== f.status) return false;
+  // Trạng thái chưa biết (bảng tóm tắt đang tải hoặc lỗi) không phải "trạng thái khác": bộ lọc trạng thái từ
+  // URL chưa có gì để so, và giấu mọi hàng vì thế biến một chỗ chưa biết thành một danh sách trống.
+  if (skip !== 'status' && f.status !== 'all' && row.status !== null && row.status !== f.status) return false;
   return true;
 }
 
@@ -328,6 +346,7 @@ export function rowNote(row: SessionRow, now: number): { text: string; tone: 'wa
   if (row.status === 'todo') {
     if (row.blocker === 'no-rubric') return { text: 'Thiếu rubric', tone: 'warn' };
     if (row.blocker === 'no-question') return { text: 'Thiếu đề bài', tone: 'warn' };
+    if (row.blocker === 'in-progress') return { text: 'Phiên chưa kết thúc', tone: 'warn' };
     return { text: 'Sẵn sàng chấm', tone: 'ok' };
   }
   const stale = staleDays(row, now);

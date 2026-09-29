@@ -46,7 +46,9 @@ còn lại                                     → ready     "Sẵn sàng chốt
 
 `attention` thắng `running`: bài cần xem đã mở được khi lượt chấm còn chạy (trang phiên hiện bảng trong lúc chạy, `page.tsx`). Chú thích tiến độ nói cả hai ("11 cần xem · 4 đang chấm").
 
-Phiên `todo` có thể mang **lý do chặn** để giảng viên biết vì sao chưa bắt đầu được: `no-rubric` (phiên chưa gắn rubric) hoặc `no-question` (chưa chỉ định đề bài). Đây là hai điều kiện danh sách *biết được*; các điều kiện khác của `preflightOf` chỉ hiện ở màn chuẩn bị.
+Phiên `todo` có thể mang **lý do chặn** để giảng viên biết vì sao chưa bắt đầu được: `no-rubric` (phiên chưa gắn rubric), `no-question` (chưa chỉ định đề bài) hoặc `in-progress` (giờ làm bài chưa hết: `endTime > now`, so thời gian chứ KHÔNG đọc `status` của phiên vì nó không đáng tin). Đây là các điều kiện danh sách *biết được*; các điều kiện khác của `preflightOf` chỉ hiện ở màn chuẩn bị. Thứ tự ưu tiên khi có nhiều lý do: rubric, đề bài, rồi chưa kết thúc. Phiên `in-progress` không vào "Bắt đầu chấm" hàng loạt nhưng vẫn vào "Gắn rubric" được.
+
+Bộ lọc trạng thái không bao giờ loại một hàng có `status = null` (trạng thái chưa biết không phải trạng thái khác).
 
 Khi bảng tóm tắt chưa tải hoặc lỗi, mọi phiên có `status = null`: bảng vẫn tìm, lọc theo thuộc tính, sắp xếp theo ngày/tên/số bài, chọn nhiều — nhưng không có tab trạng thái, không thanh tiến độ, và **không thao tác hàng loạt**. Có một `Alert` nói rõ lý do.
 
@@ -76,7 +78,7 @@ Một mục cho **mọi phiên của người gọi** (kể cả phiên chưa c�
 - **Bộ lọc** nhiều lựa chọn (trong nhóm OR, giữa nhóm AND): Học kỳ, Lớp (theo `classId`, hiện tên), Loại kỳ thi, Phòng; một lựa chọn Thời gian (tất cả / 7 ngày / 30 ngày); công tắc "Thiếu rubric". Mỗi lựa chọn có số phiên tính theo các bộ lọc *khác*.
 - **Sắp xếp** theo cột Phiên thi / Ngày thi / Bài nộp / Trạng thái, và ô chọn 5 kiểu. **Nhóm theo** Không / Lớp / Học kỳ (nhóm thu gọn được, chọn cả nhóm được).
 - **Mật độ** Rộng / Gọn, nhớ trong `localStorage`.
-- **Trạng thái nằm trên URL**: `q`, `status`, `sem`, `cls`, `type`, `room` (lặp tham số), `time`, `norubric=1`, `sort=khoá:chiều`, `group`. Giá trị lạ bị bỏ, không làm hỏng trang. Bộ lọc cuối cùng được nhớ trong `sessionStorage`; nút **Đổi phiên** trên trang một phiên quay về đúng danh sách đã lọc.
+- **Trạng thái nằm trên URL** (state cục bộ là nguồn sự thật, URL là bản sao ghi ra; tiếng vọng của chính mình bị bỏ qua, URL lạ được nhận vào): `q`, `status`, `sem`, `cls`, `type`, `room` (lặp tham số), `time`, `norubric=1`, `sort=khoá:chiều`, `group`. Giá trị lạ bị bỏ, không làm hỏng trang. Bộ lọc cuối cùng được nhớ trong `sessionStorage`; nút **Đổi phiên** trên trang một phiên quay về đúng danh sách đã lọc.
 - **Hàng**: tên (dòng trên; tối đa hai dòng thay vì cắt đuôi) + lớp · phòng (dòng dưới); ngày & giờ; loại; `bài nộp`; pill trạng thái (+ dòng chú thích: lý do chặn, hoặc "Thi cách đây N ngày" khi `attention`/`ready` quá 14 ngày); thanh tiến độ + chú thích; một nút hành động theo trạng thái.
 - **Thanh tiến độ** dùng đúng màu và biểu tượng của `OverviewBar` (cần xem = warning, đang chấm = info có sọc, chờ chốt = success, đã chốt = primary/60); màu chỉ để nhìn nhanh, mỗi đoạn còn có chữ.
 - **Nút cuối hàng**: `attention` → *Xem xét* (mở phiên, lọc sẵn trạng thái cần xem); `ready` → *Chốt điểm* (trang chốt); `todo` bị chặn → *Chuẩn bị*; `todo` đủ điều kiện → *Bắt đầu chấm* (mở hộp xác nhận, mục 5); `running` → *Xem tiến độ*; `done` → *Mở kết quả*.

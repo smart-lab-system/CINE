@@ -48,5 +48,5 @@ export function summary(
 
 /** Dựng hàng như trang làm: mỗi phiên kèm tóm tắt cùng id (hoặc không có tóm tắt nào). */
 export function rowsOf(sessions: SessionOverviewItem[], summaries: GradingSessionSummary[] | undefined) {
-  return buildRows(sessions, summaries);
+  return buildRows(sessions, summaries, NOW);
 }

@@ -3,6 +3,7 @@ import {
   DEFAULT_VIEW,
   EMPTY_LIST_FILTERS,
   bulkPlan,
+  buildRows,
   facetOptions,
   foldText,
   formatSessionDate,
@@ -305,5 +306,58 @@ describe('formatSessionDate', () => {
   });
   it('an unparseable value gives dashes, not "NaN"', () => {
     expect(formatSessionDate('???')).toEqual({ date: '—', time: '' });
+  });
+});
+
+describe('review fixes — I1: a status filter never hides a row whose status is still unknown', () => {
+  it('unknown status is not "a different status"', () => {
+    const [unknown] = rowsOf([session()], undefined);
+    expect(unknown.status).toBeNull();
+    expect(matchesFilters(unknown, f({ status: 'attention' }), NOW)).toBe(true);
+  });
+
+  it('a known status is still filtered as before', () => {
+    const [done] = rowsOf([session({ id: 'a' })], [summary('a', { finalized: 1 })]);
+    expect(matchesFilters(done, f({ status: 'attention' }), NOW)).toBe(false);
+    expect(matchesFilters(done, f({ status: 'done' }), NOW)).toBe(true);
+  });
+});
+
+describe('review fixes — I6: an exam that has not ended is not "ready to grade"', () => {
+  const ends = (msFromNow: number) => new Date(NOW + msFromNow).toISOString();
+
+  it('end time in the future -> todo with the in-progress blocker, even with rubric and question', () => {
+    const [row] = buildRows([session({ id: 'live', endTime: ends(3_600_000) })], [summary('live')], NOW);
+    expect(row.status).toBe('todo');
+    expect(row.blocker).toBe('in-progress');
+  });
+
+  it('ended, or an end time nobody can read, is not blocked', () => {
+    const [ended] = buildRows([session({ id: 'a', endTime: ends(-60_000) })], [summary('a')], NOW);
+    const [garbled] = buildRows([session({ id: 'b', endTime: 'không phải ngày' })], [summary('b')], NOW);
+    expect(ended.blocker).toBeNull();
+    expect(garbled.blocker).toBeNull();
+  });
+
+  it('rubric and question problems are reported before it (they are what the teacher can fix now)', () => {
+    const [noRubric] = buildRows([session({ id: 'a', rubricId: null, endTime: ends(3_600_000) })], [summary('a')], NOW);
+    expect(noRubric.blocker).toBe('no-rubric');
+  });
+
+  it('it does not enter the bulk start list, but a session without rubric can still be given one', () => {
+    const rows = buildRows(
+      [session({ id: 'live', endTime: ends(3_600_000) }), session({ id: 'live-no-rubric', rubricId: null, endTime: ends(3_600_000) })],
+      [summary('live'), summary('live-no-rubric')],
+      NOW,
+    );
+    const plan = bulkPlan(rows);
+    expect(plan.start).toEqual([]);
+    expect(plan.assignRubric.map((r) => r.session.id)).toEqual(['live-no-rubric']);
+  });
+
+  it('the row says so, and its action is "Chuẩn bị", not a start button', () => {
+    const [row] = buildRows([session({ id: 'live', endTime: ends(3_600_000) })], [summary('live')], NOW);
+    expect(rowNote(row, NOW)).toEqual({ text: 'Phiên chưa kết thúc', tone: 'warn' });
+    expect(rowActionOf(row)).toMatchObject({ kind: 'link', label: 'Chuẩn bị' });
   });
 });

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SESSION_SUMMARIES_KEY, useRubrics } from '@/hooks/useGrading';
 import { setSessionRubric, startGrading } from '@/lib/api/grading';
-import { submittedCount, type SessionRow } from '@/lib/session-list';
+import { formatSessionDate, submittedCount, type SessionRow } from '@/lib/session-list';
 import { runSequentially, type BulkOutcome } from '@/lib/session-list-bulk';
 
 export interface BulkRequest {
@@ -56,14 +56,32 @@ export function BulkDialog({ request, onClose, onFinished }: { request: BulkRequ
 
   const { kind, rows, skipped } = request;
   const totalPapers = rows.reduce((sum, r) => sum + submittedCount(r.session), 0);
-  const nameOf = (id: string) => rows.find((r) => r.session.id === id)?.session.name ?? id;
+  const rowOf = (id: string) => rows.find((r) => r.session.id === id);
+  const nameOf = (id: string) => rowOf(id)?.session.name ?? id;
+  // Tên phiên hay giống nhau giữa các lớp (spec mục 0, lỗi 3): kết quả phải nói rõ phiên NÀO bị từ chối.
+  const whereOf = (id: string) => {
+    const s = rowOf(id)?.session;
+    return s ? [s.className, s.roomName, formatSessionDate(s.startTime).date].filter(Boolean).join(' · ') : '';
+  };
+  // Máy chủ trả 200 với `queued: 0` khi phiên không có bài `collected` nào (hoặc bài đã được chấm rồi): đó không
+  // phải "đã bắt đầu", và một dấu tích xanh cho nó là báo sai.
+  const startOne = async (id: string) => {
+    const started = await startGrading(id);
+    if (started.queued === 0) {
+      throw new Error(
+        started.alreadyGraded > 0
+          ? `Không có bài nào được xếp hàng chấm: ${started.alreadyGraded} bài đã được chấm từ trước.`
+          : 'Không có bài nào được xếp hàng chấm: phiên chưa có bài đã thu hợp lệ.',
+      );
+    }
+  };
   const ok = outcomes.filter((o) => o.ok).length;
   const failed = outcomes.length - ok;
 
   async function run() {
     setPhase('running');
     const ids = rows.map((r) => r.session.id);
-    const result = await runSequentially(ids, kind === 'start' ? (id) => startGrading(id) : (id) => setSessionRubric(id, rubricId));
+    const result = await runSequentially(ids, kind === 'start' ? startOne : (id) => setSessionRubric(id, rubricId));
     setOutcomes(result);
     setPhase('done');
     // Trạng thái và rubric của các phiên vừa đổi: đọc lại cả hai nguồn của danh sách.
@@ -113,6 +131,7 @@ export function BulkDialog({ request, onClose, onFinished }: { request: BulkRequ
                 {o.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-strong" aria-label="Thành công" /> : <CircleX className="mt-0.5 h-4 w-4 shrink-0 text-danger-strong" aria-label="Bị từ chối" />}
                 <span className="min-w-0">
                   <span className="block font-semibold [overflow-wrap:anywhere]">{nameOf(o.sessionId)}</span>
+                  <span className="block text-caption text-muted-foreground">{whereOf(o.sessionId)}</span>
                   {!o.ok && <span className="block text-muted-foreground">{o.message}</span>}
                 </span>
               </li>

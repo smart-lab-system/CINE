@@ -216,3 +216,30 @@ describe('SessionList — bulk bar', () => {
     expect(screen.queryByText(/Đã chọn/)).not.toBeInTheDocument();
   });
 });
+
+describe('SessionList — review fixes', () => {
+  it('I1: a status from the URL while the summary is still loading hides nothing', () => {
+    search = 'status=attention';
+    h.summaries = { data: undefined, isLoading: true, isError: false, error: null };
+    renderList();
+    expect(names()).toHaveLength(3);
+    expect(screen.queryByText(/Không có phiên nào khớp/)).not.toBeInTheDocument();
+  });
+
+  it('I1: with the summary failed, an empty result does not point at a status tab that is not there', () => {
+    search = 'status=attention&q=khong-co-phien-nay';
+    h.summaries = { data: undefined, isLoading: false, isError: true, error: new Error('Hết giờ') };
+    renderList();
+    expect(screen.getByText(/Không có phiên nào khớp/)).toBeInTheDocument();
+    expect(screen.queryByText(/“Tất cả”/)).not.toBeInTheDocument();
+  });
+
+  it('I4: rows inside a collapsed group are no longer part of the selection', () => {
+    search = 'group=class';
+    renderList();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Chọn cả nhóm DHKTPM18ATT/ }));
+    expect(screen.getByText(/Đã chọn 2 phiên/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /DHKTPM18ATT/ })); // thu gọn nhóm
+    expect(screen.queryByText(/Đã chọn/)).not.toBeInTheDocument();
+  });
+});

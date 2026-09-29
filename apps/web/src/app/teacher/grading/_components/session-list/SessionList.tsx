@@ -74,10 +74,13 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => setNow(Date.now()), [sessions]);
 
-  const rows = useMemo(() => buildRows(sessions, summaries.data), [sessions, summaries.data]);
+  const rows = useMemo(() => buildRows(sessions, summaries.data, now), [sessions, summaries.data, now]);
   const visible = useMemo(() => sortRows(rows.filter((r) => matchesFilters(r, filters, now)), view), [rows, filters, view, now]);
   const groups = useMemo(() => groupRows(visible, view.group), [visible, view.group]);
-  const selectedRows = useMemo(() => visible.filter((r) => selected.has(r.session.id)), [visible, selected]);
+  // "Đang hiện" là hàng giảng viên NHÌN THẤY: hàng trong nhóm đã thu gọn vẫn được tick nhưng không tính vào thanh
+  // thao tác (spec mục 5) — thao tác hàng loạt lên thứ không thấy là thao tác mù.
+  const shownRows = useMemo(() => groups.flatMap((g) => (g.key !== null && collapsed.has(g.key) ? [] : g.rows)), [groups, collapsed]);
+  const selectedRows = useMemo(() => shownRows.filter((r) => selected.has(r.session.id)), [shownRows, selected]);
   const options = useMemo(() => facetOptions(rows, filters, now), [rows, filters, now]);
   const counts = useMemo(() => (summaries.data ? statusCounts(rows, filters, now) : null), [rows, filters, now, summaries.data]);
   const noRubricCount = useMemo(() => rows.filter((r) => r.session.rubricId === null && matchesFilters(r, { ...filters, noRubric: false }, now)).length, [rows, filters, now]);
@@ -209,7 +212,10 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
           {visible.length === 0 ? (
             <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-surface px-4 py-12 text-center">
               <strong className="text-body">Không có phiên nào khớp</strong>
-              <p className="max-w-[46ch] text-small text-muted-foreground">Thử bỏ bớt bộ lọc, chọn tab “Tất cả”, hoặc tìm bằng tên lớp hay phòng.</p>
+              <p className="max-w-[46ch] text-small text-muted-foreground">
+                {/* Không chỉ vào một tab không được vẽ: chưa có tóm tắt thì không có tab. */}
+                {counts !== null ? 'Thử bỏ bớt bộ lọc, chọn tab “Tất cả”, hoặc tìm bằng tên lớp hay phòng.' : 'Thử bỏ bớt bộ lọc, hoặc tìm bằng tên lớp hay phòng.'}
+              </p>
               <Button type="button" variant="outline" size="sm" onClick={() => setFilters(EMPTY_LIST_FILTERS)}>
                 Xoá bộ lọc
               </Button>

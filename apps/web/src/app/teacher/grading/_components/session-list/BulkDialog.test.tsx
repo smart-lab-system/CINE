@@ -73,6 +73,7 @@ describe('BulkDialog — start grading', () => {
   it('a session the server refuses is reported with the server\'s words; the others still ran', async () => {
     h.startGrading.mockImplementation(async (id: string) => {
       if (id === 'b') throw new Error('Phiên có bài code nhưng chưa ghim gói test.');
+      return { queued: 1 };
     });
     open(request());
     fireEvent.click(screen.getByRole('button', { name: /Bắt đầu chấm 3 phiên/ }));
@@ -129,5 +130,36 @@ describe('BulkDialog — assign rubric', () => {
     fireEvent.click(screen.getByRole('button', { name: /Gắn cho 2 phiên/ }));
     await screen.findByText(/1 phiên bị từ chối/);
     expect(within(screen.getByText('Phiên A').closest('li') as HTMLElement).getByText(/không đổi được rubric/)).toBeInTheDocument();
+  });
+});
+
+describe('BulkDialog — review fixes', () => {
+  it('I2: the result list tells same-named sessions apart by class', async () => {
+    const twins = rowsOf(
+      [
+        session({ id: 'x', name: 'Kiểm tra giữa kỳ', className: 'LỚP-A' }),
+        session({ id: 'y', name: 'Kiểm tra giữa kỳ', className: 'LỚP-B' }),
+      ],
+      [summary('x'), summary('y')],
+    );
+    h.startGrading.mockImplementation(async (id: string) => {
+      if (id === 'y') throw new Error('Thiếu gói test.');
+      return { queued: 1 };
+    });
+    open({ kind: 'start', rows: twins, skipped: 0 });
+    fireEvent.click(screen.getByRole('button', { name: /Bắt đầu chấm 2 phiên/ }));
+    await screen.findByText(/1 phiên bị từ chối/);
+    const failed = screen.getByText('Thiếu gói test.').closest('li') as HTMLElement;
+    expect(within(failed).getByText(/LỚP-B/)).toBeInTheDocument();
+    expect(within(failed).queryByText(/LỚP-A/)).not.toBeInTheDocument();
+  });
+
+  it('I3: a start that queued nothing is not reported as started', async () => {
+    h.startGrading.mockResolvedValue({ rubricId: 'r', rubricVersion: 1, queued: 0, alreadyGraded: 0 });
+    open({ kind: 'start', rows: rows.slice(0, 1), skipped: 0 });
+    fireEvent.click(screen.getByRole('button', { name: /Bắt đầu chấm 1 phiên/ }));
+    await screen.findByText(/1 phiên bị từ chối/);
+    expect(screen.getByText(/Không có bài nào được xếp hàng chấm/)).toBeInTheDocument();
+    expect(screen.queryByText(/Đã bắt đầu 1 phiên/)).not.toBeInTheDocument();
   });
 });
