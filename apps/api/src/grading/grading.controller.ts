@@ -28,6 +28,8 @@ import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { SaveRubricDto } from './dto/rubric.dto';
 import { SetSessionRubricDto } from './dto/set-session-rubric.dto';
+import { DeclareLanguageDto } from './dto/declare-language.dto';
+import { DeliverableLanguageService } from './deliverable-language.service';
 import { SubmitReviewDto } from './dto/submit-review.dto';
 import { BulkReviewDto } from './dto/bulk-review.dto';
 import { BulkReviewService } from './bulk-review.service';
@@ -60,6 +62,7 @@ export class GradingController {
     private readonly bulkReviews: BulkReviewService,
     private readonly errorExceptions: ErrorExceptionService,
     private readonly scores: ScoreService,
+    private readonly deliverableLanguage: DeliverableLanguageService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -134,6 +137,22 @@ export class GradingController {
       throw new ConflictException(`${GRADING_LOCKED_MESSAGE} — không đổi được rubric nữa.`);
     }
     return this.examSessions.setRubric(session, dto.rubricId);
+  }
+
+  /**
+   * Khai ngôn ngữ của MỘT yêu cầu nộp code (G1 §3). Ở controller chấm điểm, cùng chỗ với `PATCH …/rubric`, vì cần
+   * luật khoá của module này. Trả `{ id, language, pipeline }` — `pipeline` do backend tính (`pipelineFor`).
+   */
+  @Patch('exam-sessions/:id/deliverables/:deliverableId')
+  @Roles('teacher')
+  async declareDeliverableLanguage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('deliverableId', ParseUUIDPipe) deliverableId: string,
+    @Body() dto: DeclareLanguageDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.deliverableLanguage.declare(session, deliverableId, dto.language);
   }
 
   /**

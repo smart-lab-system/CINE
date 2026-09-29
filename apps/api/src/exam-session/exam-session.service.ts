@@ -19,6 +19,7 @@ import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { RequiredDeliverableEntryEntity } from './entities/required-deliverable-entry.entity';
 import { RubricEntity } from '../grading/entities/rubric.entity';
+import { pipelineFor } from '../grading/pipeline';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import {
@@ -788,6 +789,8 @@ export class ExamSessionService {
       view.id = deliverable.id;
       view.requiredFilename = deliverable.requiredFilename;
       view.deliverableType = deliverable.deliverableType;
+      view.language = deliverable.language;
+      view.pipeline = pipelineFor(deliverable);
       view.entries = entriesByDeliverable.get(deliverable.id) ?? [];
       return view;
     });
