@@ -32,6 +32,9 @@ import { AnchorService } from './anchor.service';
 import type { AdvocateOutcome } from './entities/grading-result.entity';
 import type { GradingPipeline, TeacherReviewKind } from './grading-model.types';
 import { currentScore, CurrentScore } from './scoring/current-score';
+import type { ScoreBreakdown } from './scoring/score-core';
+import { ResultTriage, triageOf } from './scoring/result-triage';
+import type { DeclaredLanguage } from '../exam-session/declared-language';
 import { InvestigatorRunService } from './pipeline/investigator-run.service';
 import { lockTeacherScoring } from './scoring/score-inputs';
 
@@ -684,11 +687,15 @@ export class GradingService {
       .innerJoin('submission', 's', 's.id = g.submission_id')
       // Lớp gốc của bài, kèm tên: khác lớp của phiên nghĩa là THI BÙ.
       .leftJoin('class', 'hc', 'hc.id = s.home_class_id')
+      // Loại bài nộp và ngôn ngữ đã khai — để danh sách nói được bài code nào chấm bằng đọc mã (G1 §4).
+      .leftJoin('required_deliverable', 'rd', 'rd.id = s.required_deliverable_id')
       .addSelect([
         's.student_mssv AS "studentMssv"',
         's.student_name_input AS "studentName"',
         's.home_class_id AS "homeClassId"',
         'hc.name AS "homeClassName"',
+        'rd.deliverable_type AS "deliverableType"',
+        'rd.language AS "deliverableLanguage"',
       ])
       .where('s.exam_session_id = :id', { id: examSessionId })
       .orderBy('s.student_mssv', 'ASC')
@@ -697,6 +704,8 @@ export class GradingService {
         studentName: string;
         homeClassId: string;
         homeClassName: string | null;
+        deliverableType: DeliverableType | null;
+        deliverableLanguage: DeclaredLanguage | null;
       }>();
 
     // The newest review of each result, in ONE query for the whole list.
@@ -737,6 +746,8 @@ export class GradingService {
                     (SELECT c.score FROM examcollect.score_computation c
                       WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) AS "latestComputationScore",
                     fc.score AS "finalizedComputationScore",
+                    (SELECT c.breakdown FROM examcollect.score_computation c
+                      WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) AS "latestBreakdown",
                     (SELECT t.final_score FROM examcollect.teacher_review t
                       WHERE t.grading_result_id = g.id AND t.kind = 'manual_score'
                       ORDER BY t.reviewed_at DESC, t.id DESC LIMIT 1) AS "latestManualScore"
@@ -788,6 +799,13 @@ export class GradingService {
         pipeline: entity.pipeline,
         currentScore: current.value,
         currentScoreSource: current.source,
+        deliverableType: rows.raw[index].deliverableType ?? null,
+        deliverableLanguage: rows.raw[index].deliverableLanguage ?? null,
+        triage: triageOf({
+          pipeline: entity.pipeline,
+          ungradableClass: entity.ungradableClass,
+          breakdown: source?.latestBreakdown ?? null,
+        }),
       };
     });
   }
@@ -798,6 +816,8 @@ interface ScoreSourceRow {
   resultId: string;
   latestComputationScore: string | null;
   finalizedComputationScore: string | null;
+  /** Breakdown của lượt tính mới nhất (jsonb) — nguồn của `triage` (G1 §2). */
+  latestBreakdown: ScoreBreakdown | null;
   latestManualScore: string | null;
 }
 
@@ -859,4 +879,10 @@ export interface GradingResultView {
    */
   currentScore: number | null;
   currentScoreSource: CurrentScore['source'];
+  /** Loại yêu cầu nộp của bài — `null` chỉ khi dòng khai báo không còn (FK RESTRICT nên không xảy ra). */
+  deliverableType: DeliverableType | null;
+  /** Ngôn ngữ giảng viên đã khai. `deliverableType === 'code_project'` và `pipeline === 'one_shot'` = chấm bằng đọc mã. */
+  deliverableLanguage: DeclaredLanguage | null;
+  /** Tóm tắt bảng lỗi cho danh sách bài (G1 §2). `null` = không có bảng lỗi để tóm tắt. */
+  triage: ResultTriage | null;
 }
