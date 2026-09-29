@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
   bulkReview,
   finalizeGrades,
@@ -11,6 +11,8 @@ import {
   getSubmissionText,
   listGradingResults,
   listRubrics,
+  previewReapplyPrices,
+  reapplyPrices,
   regradeStuck,
   saveRubric,
   setErrorException,
@@ -21,6 +23,7 @@ import {
   submitReview,
   type ExceptionDirection,
   type GradingReferenceInput,
+  type ResultDetail,
   type ReviewCriterion,
 } from '@/lib/api/grading';
 
@@ -357,6 +360,61 @@ export function useBulkReview(examSessionId: string | undefined) {
       void queryClient.invalidateQueries({
         queryKey: ['exam-sessions', examSessionId, 'grading-results'],
       });
+    },
+  });
+}
+
+/**
+ * Hồ sơ của NHIỀU bài cùng lúc — cho danh sách bài (spec §3.3): danh sách chỉ mang trạng thái, còn "vì sao cần
+ * bạn", số lỗi chờ giá và dòng nhắc đòn bẩy nằm trong hồ sơ từng bài. Cùng khoá với trang hồ sơ, nên mở một
+ * bài sau đó là tức thì.
+ *
+ * `loading` và `failed` tách nhau: một hồ sơ lỗi KHÔNG phải "đã tải" — người gọi không được suy ra kết luận
+ * từ một tập còn thiếu.
+ */
+export function useResultDetails(ids: string[]) {
+  const key = ids.join('|');
+  const stable = useMemo(() => (key === '' ? [] : key.split('|')), [key]);
+  const combine = useCallback(
+    (results: UseQueryResult<ResultDetail>[]) => {
+      const byId = new Map<string, ResultDetail>();
+      let loading = 0;
+      let failed = 0;
+      results.forEach((r, i) => {
+        if (r.data) byId.set(stable[i], r.data);
+        else if (r.isError) failed += 1;
+        else loading += 1;
+      });
+      return { byId, loading, failed };
+    },
+    [stable],
+  );
+  return useQueries({
+    queries: stable.map((id) => ({
+      queryKey: investigationQueryKey(id),
+      queryFn: () => getResultInvestigation(id),
+      staleTime: 30_000,
+    })),
+    combine,
+  });
+}
+
+/** Xem trước "áp giá mới cho phiên đã chốt" — không cache, không làm mới gì: nó không ghi gì cả. */
+export function useReapplyPreview(examSessionId: string | undefined) {
+  return useMutation({ mutationFn: () => previewReapplyPrices(examSessionId!) });
+}
+
+/**
+ * Áp giá mới cho phiên đã chốt. `onSettled`: một lượt bị từ chối (409) cũng làm mới — trang không được giữ một
+ * bản xem trước mà server vừa phản bác.
+ */
+export function useReapplyPrices(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => reapplyPrices(examSessionId!),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-sessions', examSessionId, 'grading-results'] });
+      void queryClient.invalidateQueries({ queryKey: ['grading-results'] });
     },
   });
 }

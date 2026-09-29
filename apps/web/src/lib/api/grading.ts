@@ -541,3 +541,37 @@ export async function setManualScore(
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as { score: string; status: string };
 }
+
+/** Mirrors ReapplyPlan (apps/api/src/grading/scoring/score.service.ts). */
+export interface ReapplyPlan {
+  changes: {
+    resultId: string;
+    /** Chuỗi thập phân theo ĐIỂM ("8.50"), không phải phần trăm điểm. */
+    oldScore: string;
+    newScore: string;
+    changedRules: { ruleId: string; ruleKey: string; oldDeduction: string | null; newDeduction: string | null }[];
+  }[];
+  /** Bài không áp được: luật lúc chốt có giá nay chưa có — lượt áp thật từ chối khi danh sách này khác rỗng. */
+  skipped: { resultId: string; reason: 'unpriced'; ruleKeys: string[] }[];
+}
+
+/** Xem trước "áp giá mới cho phiên đã chốt" — KHÔNG ghi gì. 409 khi phiên chưa chốt hết. */
+export async function previewReapplyPrices(examSessionId: string): Promise<ReapplyPlan> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/reapply-prices/preview', {
+    params: { path: { id: examSessionId } },
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as ReapplyPlan;
+}
+
+/**
+ * Đường DUY NHẤT đổi điểm bài đã công bố theo bảng giá hiện hành; mỗi bài đổi có một dòng nhật ký. 409 khi
+ * phiên chưa chốt hết, hoặc còn bài dính luật lúc chốt có giá mà nay chưa có giá (từ chối cả lượt).
+ */
+export async function reapplyPrices(examSessionId: string): Promise<{ changed: number }> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/reapply-prices', {
+    params: { path: { id: examSessionId } },
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { changed: number };
+}
