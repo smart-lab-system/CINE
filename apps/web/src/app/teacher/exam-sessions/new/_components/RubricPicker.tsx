@@ -70,8 +70,8 @@ export function RubricPicker() {
         <Alert variant="info">
           <AlertDescription>
             Bạn chưa soạn rubric nào.{' '}
-            <Link href="/teacher/rubrics" className="font-semibold underline">
-              Soạn rubric
+            <Link href="/teacher/rules" className="font-semibold underline">
+              Soạn rubric ở Bảng lỗi
             </Link>{' '}
             rồi quay lại — hoặc cứ tạo phiên thi và gắn sau.
           </AlertDescription>

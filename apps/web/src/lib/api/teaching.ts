@@ -11,7 +11,8 @@ import { apiClient } from '@/lib/api-client';
  * `courseName` vẫn được API trả về, nhưng hệ thống phục vụ đúng MỘT môn
  * nên nó mang cùng một chuỗi ở mọi dòng. Không màn hình nào còn hiển thị nó
  * như một cột — làm thế chỉ là lặp lại một hằng số khắp giao diện. Trang
- * `/teacher/rubrics` là chỗ đọc cuối cùng, và nó chờ spec agent điều tra.
+ * Rubric từng là chỗ đọc cuối cùng; nó đã bỏ (trần điểm nằm ở Bảng lỗi), nên
+ * không còn nơi nào đọc `courseName`.
  */
 export interface TeachingClass {
   id: string;
