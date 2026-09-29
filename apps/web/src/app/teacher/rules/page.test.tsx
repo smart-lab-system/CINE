@@ -79,9 +79,16 @@ describe('Bảng lỗi (trang)', () => {
     expect(screen.queryByText(/Chưa có luật nào trong bảng/)).not.toBeInTheDocument();
   });
 
-  it('mở bảng đặt giá khi bấm "Sửa giá"', () => {
+  it('mở bảng đặt giá bên phải khi bấm "Sửa giá", điền sẵn giá hiện tại', () => {
     render(<RulesPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Sửa giá' }));
-    expect(screen.getByText(/Giá của sai_bien/i)).toBeInTheDocument();
+    expect((screen.getByLabelText('Mức trừ (điểm)') as HTMLInputElement).value).toBe('1,5');
+  });
+
+  it('bấm "Đặt giá" ở luật chưa có giá mở bảng với ô trống', () => {
+    render(<RulesPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Đặt giá' }));
+    expect(screen.getByText('Đặt giá lần đầu')).toBeInTheDocument();
+    expect((screen.getByLabelText('Mức trừ (điểm)') as HTMLInputElement).value).toBe('');
   });
 });

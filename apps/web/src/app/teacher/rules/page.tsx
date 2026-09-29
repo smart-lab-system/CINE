@@ -11,7 +11,7 @@ import { useMissingRules, useRules } from '@/hooks/useRules';
 import { countByFilter, filterRules, type RuleFilter } from '@/lib/rules-filter';
 import type { Rule } from '@/lib/api/rules';
 import { MissingRulesPanel } from './_components/MissingRulesPanel';
-import { PriceEditDialog } from './_components/PriceEditDialog';
+import { PriceSheet } from './_components/PriceSheet';
 import { RuleSummary } from './_components/RuleSummary';
 import { RuleTable } from './_components/RuleTable';
 import { RuleToolbar } from './_components/RuleToolbar';
@@ -75,7 +75,7 @@ export default function RulesPage() {
         {missing.data && <MissingRulesPanel rules={missing.data} />}
       </section>
 
-      <PriceEditDialog rule={editing} onClose={() => setEditing(null)} />
+      <PriceSheet rule={editing} onClose={() => setEditing(null)} />
     </div>
   );
 }
