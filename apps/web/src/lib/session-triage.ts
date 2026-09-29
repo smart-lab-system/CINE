@@ -1,4 +1,4 @@
-import type { GradingResult, ResultDetail } from './api/grading';
+import type { GradingResult, ResultTriage } from './api/grading';
 import { formatVnPoints } from './format';
 import { caseFlagLabel } from './grading-vocab';
 
@@ -95,70 +95,77 @@ export function finalizeCounts(results: GradingResult[]) {
   return { acceptedUnopened: c.auto, reviewed: c.reviewed, alreadyFinal: c.finalised };
 }
 
-export function errorCounts(detail: ResultDetail | undefined): { counted: number; unpriced: number; refuted: number; unverified: number } | null {
-  const breakdown = detail?.breakdown;
-  if (!breakdown) return null;
-  const count = (counted: string) => breakdown.errors.filter((e) => e.counted === counted).length;
-  return {
-    counted: count('counted'),
-    unpriced: count('unpriced'),
-    refuted: count('refuted'),
-    unverified: new Set(breakdown.errorFlags.filter((f) => f.code === 'unverified').map((f) => f.ruleKey)).size,
-  };
+/**
+ * Bài code chấm bằng đọc mã, không chạy (spec T-UI-19): đường `one_shot` cho một yêu cầu nộp `code_project` —
+ * bài code cũ chưa khai ngôn ngữ, hoặc khai `java`/`node` mà môi trường chạy bài không chạy được.
+ */
+export function isReadingCode(result: Pick<GradingResult, 'pipeline' | 'deliverableType'>): boolean {
+  return result.pipeline === 'one_shot' && result.deliverableType === 'code_project';
 }
 
 const distinct = (flags: { ruleKey: string; code: string }[], code: string) =>
   new Set(flags.filter((f) => f.code === code).map((f) => f.ruleKey)).size;
 
+export function errorCounts(
+  triage: ResultTriage | null | undefined,
+): { counted: number; unpriced: number; refuted: number; unverified: number } | null {
+  if (!triage) return null;
+  return {
+    counted: triage.counts.counted,
+    unpriced: triage.counts.unpriced,
+    refuted: triage.counts.refuted,
+    unverified: distinct(triage.errorFlags, 'unverified'),
+  };
+}
+
 /**
- * "Vì sao cần bạn" — MỘT câu, ghép từ dữ liệu thật của hồ sơ. `null` = chưa biết (hồ sơ chưa tải); màn hình nói
- * "đang xem hồ sơ", không đoán.
+ * "Vì sao cần bạn" — MỘT câu, ghép từ `triage` mà danh sách đã mang sẵn. `null` = chưa biết; màn hình chỉ đường mở
+ * hồ sơ, không đoán.
  */
-export function reasonOf(result: GradingResult, detail: ResultDetail | undefined): string | null {
+export function reasonOf(result: GradingResult): string | null {
   const state = stateOf(result);
   if (state === 'ungradable') return result.ungradableReason;
   if (state !== 'needsYou') return null;
-  if (result.pipeline === 'one_shot') return 'Bài tự luận — luôn do bạn duyệt';
+  if (result.pipeline === 'one_shot') {
+    return isReadingCode(result) ? 'Bài code chấm bằng đọc mã — luôn do bạn duyệt' : 'Bài tự luận — luôn do bạn duyệt';
+  }
 
-  const breakdown = detail?.breakdown;
-  if (!breakdown) return null;
+  const triage = result.triage;
+  if (!triage) return null;
 
-  const parts: string[] = breakdown.caseFlags.map((f) => caseFlagLabel(f.code, f.detail));
-  const unpriced = distinct(breakdown.errorFlags, 'unpriced');
+  const parts: string[] = triage.caseFlags.map((f) => caseFlagLabel(f.code, f.detail));
+  const unpriced = distinct(triage.errorFlags, 'unpriced');
   if (unpriced > 0) parts.push(`${unpriced} luật chưa có giá`);
-  const unverified = distinct(breakdown.errorFlags, 'unverified');
+  const unverified = distinct(triage.errorFlags, 'unverified');
   if (unverified > 0) parts.push(`${unverified} lỗi chưa kiểm được`);
-  const refuted = distinct(breakdown.errorFlags, 'refuted');
+  const refuted = distinct(triage.errorFlags, 'refuted');
   if (refuted > 0) parts.push(`${refuted} lỗi bị bác bỏ`);
 
   return parts.length > 0 ? parts.join(' · ') : 'Hồ sơ không nêu lý do cụ thể — mở hồ sơ để xem.';
 }
 
 /**
- * Dòng nhắc đòn bẩy (spec §3.3): "W trong T bài cần xem chỉ chờ bạn đặt giá cho R luật".
+ * Dòng nhắc đòn bẩy (spec §3.3): "W trong T bài cần xem đang chờ bạn đặt giá cho R luật".
  *
- * KHÔNG nói gì (`null`) chừng nào còn một hồ sơ chưa tải — một lời khẳng định dựng trên dữ liệu thiếu là lời
- * khẳng định sai. Bài tự luận tính vào T nhưng không bao giờ "chỉ chờ giá" (nó luôn do người duyệt).
+ * KHÔNG nói gì (`null`) chừng nào còn một bài đường điều tra chưa có `triage` — một lời khẳng định dựng trên dữ liệu
+ * thiếu là lời khẳng định sai. Bài tự luận tính vào T nhưng không bao giờ "chờ giá" (nó luôn do người duyệt).
  *
- * "Chỉ chờ giá" ở đây nghĩa là: lý do DUY NHẤT đang hiện ra là giá. Nó KHÔNG hứa rằng đặt giá là đủ — `decide()`
- * giấu cờ `low_confidence` khi còn cờ khác (decide.ts:188), nên sau khi đặt giá, lý do đó có thể lộ ra (đã kiểm
- * trên API thật). Lời hiển thị vì vậy nói "đang chờ", không nói "chỉ chờ".
+ * "Chờ giá" ở đây nghĩa là: lý do DUY NHẤT đang hiện ra là giá. Nó KHÔNG hứa rằng đặt giá là đủ — `decide()` giấu cờ
+ * `low_confidence` khi còn cờ khác (decide.ts:188), nên sau khi đặt giá, lý do đó có thể lộ ra (đã kiểm trên API
+ * thật). Lời hiển thị vì vậy nói "đang chờ", không nói "chỉ chờ".
  */
-export function leverageOf(
-  needsYou: GradingResult[],
-  detailsById: Map<string, ResultDetail>,
-): { waiting: number; total: number; ruleKeys: string[] } | null {
+export function leverageOf(needsYou: GradingResult[]): { waiting: number; total: number; ruleKeys: string[] } | null {
   const investigators = needsYou.filter((r) => r.pipeline !== 'one_shot');
-  if (investigators.some((r) => !detailsById.has(r.id))) return null;
+  if (investigators.some((r) => !r.triage)) return null;
 
   const ruleKeys = new Set<string>();
   let waiting = 0;
   for (const r of investigators) {
-    const breakdown = detailsById.get(r.id)?.breakdown;
-    if (!breakdown) continue;
-    const unpriced = breakdown.errorFlags.filter((f) => f.code === 'unpriced');
+    const triage = r.triage;
+    if (!triage) continue;
+    const unpriced = triage.errorFlags.filter((f) => f.code === 'unpriced');
     const onlyPrices =
-      unpriced.length > 0 && breakdown.caseFlags.length === 0 && breakdown.errorFlags.every((f) => f.code === 'unpriced');
+      unpriced.length > 0 && triage.caseFlags.length === 0 && triage.errorFlags.every((f) => f.code === 'unpriced');
     if (!onlyPrices) continue;
     waiting += 1;
     for (const f of unpriced) ruleKeys.add(f.ruleKey);

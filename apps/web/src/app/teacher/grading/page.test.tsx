@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import GradingPage from './page';
-import type { GradingProgress, GradingResult, ResultDetail } from '@/lib/api/grading';
+import type { GradingProgress, GradingResult, ResultTriage } from '@/lib/api/grading';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 
 let search = '';
@@ -12,7 +12,6 @@ const h = vi.hoisted(() => ({
   overview: { data: [] as unknown[], isLoading: false, isError: false, error: null as Error | null },
   results: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null, refetch: vi.fn() },
   progress: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null, dataUpdatedAt: 0, refetch: vi.fn() },
-  details: { byId: new Map<string, unknown>(), loading: 0, failed: 0 },
   regradeMutate: vi.fn(),
   online: true,
   prepareProps: [] as unknown[],
@@ -23,7 +22,6 @@ vi.mock('@/hooks/useSubmissionOverview', () => ({ useSessionOverview: () => h.ov
 vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: () => h.results,
   useGradingProgress: () => h.progress,
-  useResultDetails: () => h.details,
   useRegradeStuck: () => ({ mutate: h.regradeMutate, isPending: false, isError: false, error: null, data: undefined }),
 }));
 vi.mock('@/hooks/useOnlineStatus', () => ({ useOnlineStatus: () => h.online }));
@@ -62,11 +60,10 @@ const progress = (over: Partial<GradingProgress> = {}): GradingProgress => ({
   total: 3, pending: 0, done: 3, byStatus: {}, queue: { waiting: 0, active: 0, failed: 0 }, ...over,
 });
 
-const dossier = (errorFlags: { ruleKey: string; code: string }[]): ResultDetail => ({
-  pipeline: 'investigator', currentScore: 8, currentScoreSource: 'computation', status: 'flagged_for_review',
-  ungradableClass: null, ungradableReason: null,
-  breakdown: { errors: [], perCriterion: [], caseFlags: [], errorFlags, confidence: 1, mismatchedRules: [], notConsidered: [], ungradable: null },
-  investigation: null, challengeNotes: [], challengeVerdicts: [],
+const priced = (...keys: string[]): ResultTriage => ({
+  caseFlags: [],
+  errorFlags: keys.map((ruleKey) => ({ ruleKey, code: 'unpriced' })),
+  counts: { counted: 0, unpriced: keys.length, refuted: 0, excluded: 0 },
 });
 
 beforeEach(() => {
@@ -74,7 +71,6 @@ beforeEach(() => {
   h.overview = { data: [session()], isLoading: false, isError: false, error: null };
   h.results = { data: [result()], isLoading: false, isError: false, error: null, refetch: vi.fn() };
   h.progress = { data: progress(), isLoading: false, isError: false, error: null, dataUpdatedAt: 1, refetch: vi.fn() };
-  h.details = { byId: new Map(), loading: 0, failed: 0 };
   h.regradeMutate.mockReset();
   h.online = true;
   h.prepareProps.length = 0;
@@ -275,16 +271,14 @@ describe('list view — filter and the leverage line', () => {
     expect(screen.getByRole('button', { name: 'Tất cả · 2' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('shows the leverage line once every needs-you dossier is loaded and they only wait for prices', () => {
-    h.results = { ...h.results, data: needsYou };
-    h.details = { byId: new Map([['a', dossier([{ ruleKey: 'ten_bien', code: 'unpriced' }])], ['b', dossier([{ ruleKey: 'ten_bien', code: 'unpriced' }])]]), loading: 0, failed: 0 };
+  it('shows the leverage line when every needs-you code result carries its triage and they only wait for prices', () => {
+    h.results = { ...h.results, data: needsYou.map((r) => ({ ...r, triage: priced('ten_bien') })) };
     render(<GradingPage />);
     expect(screen.getByRole('status')).toHaveTextContent('2 trong 2 bài cần xem đang chờ bạn đặt giá cho 1 luật');
   });
 
-  it('says nothing while a dossier is missing — no claim from partial data', () => {
-    h.results = { ...h.results, data: needsYou };
-    h.details = { byId: new Map([['a', dossier([{ ruleKey: 'ten_bien', code: 'unpriced' }])]]), loading: 1, failed: 0 };
+  it('says nothing while a result has no triage — no claim from partial data', () => {
+    h.results = { ...h.results, data: [{ ...needsYou[0], triage: priced('ten_bien') }, { ...needsYou[1], triage: null }] };
     render(<GradingPage />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });

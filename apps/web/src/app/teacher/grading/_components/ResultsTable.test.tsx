@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { ResultsTable } from './ResultsTable';
-import type { GradingResult, ResultDetail } from '@/lib/api/grading';
+import type { GradingResult } from '@/lib/api/grading';
 
 const result = (over: Partial<GradingResult> = {}): GradingResult => ({
   id: 'r1', submissionId: 's1', studentMssv: '20120001', studentName: 'Nguyễn Văn A', homeClassId: 'c1', homeClassName: 'N01',
@@ -10,13 +10,6 @@ const result = (over: Partial<GradingResult> = {}): GradingResult => ({
   criterionResults: [], advocateOpinion: null, contextUsedQuestion: null, contextUsedModelAnswer: null, finalScore: null,
   reviewedAt: null, reviewedByName: null, editedCriteria: null, pipeline: 'investigator', currentScore: 8.5, currentScoreSource: 'computation',
   ...over,
-});
-
-const detail = (breakdown: Partial<NonNullable<ResultDetail['breakdown']>>): ResultDetail => ({
-  pipeline: 'investigator', currentScore: 8.5, currentScoreSource: 'computation', status: 'flagged_for_review',
-  ungradableClass: null, ungradableReason: null,
-  breakdown: { errors: [], perCriterion: [], caseFlags: [], errorFlags: [], confidence: 1, mismatchedRules: [], notConsidered: [], ungradable: null, ...breakdown },
-  investigation: null, challengeNotes: [], challengeVerdicts: [],
 });
 
 const list = [
@@ -27,7 +20,7 @@ const list = [
 
 type Props = React.ComponentProps<typeof ResultsTable>;
 const props = (over: Partial<Props> = {}): Props => ({
-  sessionId: 's1', sessionClassId: 'c1', results: list, details: new Map(), detailsSettled: true, filter: 'all', onFilterChange: vi.fn(), ...over,
+  sessionId: 's1', sessionClassId: 'c1', results: list, filter: 'all', onFilterChange: vi.fn(), ...over,
 });
 const rows = () => screen.getAllByRole('row').slice(1);
 
@@ -62,29 +55,43 @@ describe('ResultsTable (spec §3.3)', () => {
     expect(within(rows()[1]).getByText('Môi trường chạy bài hết giờ')).toBeInTheDocument();
   });
 
-  it('a needs-you result reads its reason and error counts from the dossier', () => {
-    const details = new Map([
-      ['b', detail({
-        errorFlags: [{ ruleKey: 'x', code: 'unpriced' }],
-        errors: [
-          { ruleId: '1', ruleKey: 'a', ruleName: 'A', criterionKey: 'k', source: 'deterministic', toolCallIds: [], deductionHundredths: 100, counted: 'counted' },
-          { ruleId: '2', ruleKey: 'x', ruleName: 'X', criterionKey: 'k', source: 'deterministic', toolCallIds: [], deductionHundredths: null, counted: 'unpriced' },
-        ],
-      })],
-    ]);
-    render(<ResultsTable {...props({ details })} />);
-    expect(within(rows()[0]).getByText('1 luật chưa có giá')).toBeInTheDocument();
-    expect(within(rows()[0]).getByText('1 đã trừ · 1 chờ giá')).toBeInTheDocument();
+  it('a needs-you result reads its reason and error counts from its own triage — no dossier request', () => {
+    const triage = {
+      caseFlags: [], errorFlags: [{ ruleKey: 'x', code: 'unpriced' }],
+      counts: { counted: 1, unpriced: 1, refuted: 0, excluded: 0 },
+    };
+    render(<ResultsTable {...props({ results: [result({ id: 'b', status: 'flagged_for_review', triage })] })} />);
+    expect(screen.getByText('1 luật chưa có giá')).toBeInTheDocument();
+    expect(screen.getByText('1 đã trừ · 1 chờ giá')).toBeInTheDocument();
   });
 
-  it('says it is reading the dossier while it loads — and does not guess', () => {
-    render(<ResultsTable {...props({ detailsSettled: false })} />);
-    expect(within(rows()[0]).getByText('Đang xem hồ sơ…')).toBeInTheDocument();
-  });
-
-  it('once everything has settled without a dossier, points the teacher at it instead of spinning forever', () => {
-    render(<ResultsTable {...props({ detailsSettled: true })} />);
+  // Review Focus 4: a code result with no triage is never guessed at — and never left spinning.
+  it('a needs-you code result without triage points the teacher at the dossier', () => {
+    render(<ResultsTable {...props()} />);
     expect(within(rows()[0]).getByText('Mở hồ sơ để xem lý do.')).toBeInTheDocument();
+    expect(screen.queryByText('Đang xem hồ sơ…')).not.toBeInTheDocument();
+  });
+
+  it('the errors cell is "—" without triage, and "Không lỗi nào" with an empty one (not the same thing)', () => {
+    const empty = { caseFlags: [], errorFlags: [], counts: { counted: 0, unpriced: 0, refuted: 0, excluded: 0 } };
+    render(
+      <ResultsTable
+        {...props({ results: [result({ id: 'p', studentMssv: '1', triage: null }), result({ id: 'q', studentMssv: '2', triage: empty })] })}
+      />,
+    );
+    expect(within(rows()[0]).getByText('—', { selector: 'td.tabular-nums' })).toBeInTheDocument();
+    expect(within(rows()[1]).getByText('Không lỗi nào')).toBeInTheDocument();
+  });
+
+  it('labels a code result graded by reading — never as an essay — and says why it needs the teacher (T-UI-19)', () => {
+    render(
+      <ResultsTable
+        {...props({ results: [result({ pipeline: 'one_shot', deliverableType: 'code_project', deliverableLanguage: 'java', status: 'flagged_for_review' })] })}
+      />,
+    );
+    expect(screen.getByText('Chấm bằng đọc mã, không chạy')).toBeInTheDocument();
+    expect(screen.queryByText('Bài tự luận')).not.toBeInTheDocument();
+    expect(screen.getByText('Bài code chấm bằng đọc mã — luôn do bạn duyệt')).toBeInTheDocument();
   });
 
   it('flags a makeup student with the same label as the submissions screen', () => {
@@ -100,7 +107,7 @@ describe('ResultsTable (spec §3.3)', () => {
   });
 
   it('an essay that needs review says why without any dossier', () => {
-    render(<ResultsTable {...props({ results: [result({ pipeline: 'one_shot', status: 'flagged_for_review' })], detailsSettled: false })} />);
+    render(<ResultsTable {...props({ results: [result({ pipeline: 'one_shot', status: 'flagged_for_review' })] })} />);
     expect(screen.getByText('Bài tự luận — luôn do bạn duyệt')).toBeInTheDocument();
   });
 

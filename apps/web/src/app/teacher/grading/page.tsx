@@ -9,7 +9,6 @@ import {
   useGradingProgress,
   useGradingResults,
   useRegradeStuck,
-  useResultDetails,
 } from '@/hooks/useGrading';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
@@ -88,8 +87,6 @@ function SessionScreen({
   const list = results.data ?? [];
   const counts = countStates(list);
   const needsYou = list.filter((r) => stateOf(r) === 'needsYou');
-  // Chỉ bài đường điều tra có hồ sơ chứa lý do/số lỗi; bài tự luận tự nói lý do của nó.
-  const details = useResultDetails(needsYou.filter((r) => r.pipeline !== 'one_shot').map((r) => r.id));
 
   const running = (progress.data?.pending ?? 0) > 0;
   const allUngradable = list.length > 0 && counts.ungradable === list.length;
@@ -107,8 +104,6 @@ function SessionScreen({
       sessionId={sessionId}
       sessionClassId={session.classId}
       results={list}
-      details={details.byId}
-      detailsSettled={details.loading === 0}
       filter={filter}
       onFilterChange={setFilter}
     />
@@ -156,7 +151,7 @@ function SessionScreen({
       ) : (
         <>
           <OverviewBar counts={counts} />
-          <LeverageLine leverage={leverageOf(needsYou, details.byId)} />
+          <LeverageLine leverage={leverageOf(needsYou)} />
           <BulkAcceptEssays sessionId={sessionId} results={list} />
           {table}
         </>

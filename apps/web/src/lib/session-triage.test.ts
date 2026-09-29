@@ -6,6 +6,7 @@ import {
   countStates,
   errorCounts,
   finalizeCounts,
+  isReadingCode,
   leverageOf,
   reasonOf,
   scoreCell,
@@ -13,7 +14,7 @@ import {
   stateOf,
   type SessionState,
 } from './session-triage';
-import type { GradingResult, ResultDetail } from './api/grading';
+import type { GradingResult, ResultTriage } from './api/grading';
 
 const result = (over: Partial<GradingResult> = {}): GradingResult => ({
   id: 'r1',
@@ -42,20 +43,8 @@ const result = (over: Partial<GradingResult> = {}): GradingResult => ({
   ...over,
 });
 
-const detail = (breakdown: Partial<NonNullable<ResultDetail['breakdown']>> | null): ResultDetail => ({
-  pipeline: 'investigator',
-  currentScore: 8.5,
-  currentScoreSource: 'computation',
-  status: 'flagged_for_review',
-  ungradableClass: null,
-  ungradableReason: null,
-  breakdown:
-    breakdown === null
-      ? null
-      : { errors: [], perCriterion: [], caseFlags: [], errorFlags: [], confidence: 1, mismatchedRules: [], notConsidered: [], ungradable: null, ...breakdown },
-  investigation: null,
-  challengeNotes: [],
-  challengeVerdicts: [],
+const triage = (over: Partial<ResultTriage> = {}): ResultTriage => ({
+  caseFlags: [], errorFlags: [], counts: { counted: 0, unpriced: 0, refuted: 0, excluded: 0 }, ...over,
 });
 
 describe('stateOf', () => {
@@ -169,103 +158,107 @@ describe('finalizeCounts (T-UI-16: the two numbers add up to the session)', () =
   });
 });
 
-describe('errorCounts', () => {
-  it('counts deducted, unpriced, refuted errors and distinct unverified flags', () => {
-    const d = detail({
-      errors: [
-        { ruleId: 'a', ruleKey: 'a', ruleName: 'A', criterionKey: 'k', source: 'deterministic', toolCallIds: [], deductionHundredths: 100, counted: 'counted' },
-        { ruleId: 'b', ruleKey: 'b', ruleName: 'B', criterionKey: 'k', source: 'deterministic', toolCallIds: [], deductionHundredths: null, counted: 'unpriced' },
-        { ruleId: 'c', ruleKey: 'c', ruleName: 'C', criterionKey: 'k', source: 'llm_only', toolCallIds: [], deductionHundredths: 50, counted: 'refuted' },
-        { ruleId: 'd', ruleKey: 'd', ruleName: 'D', criterionKey: 'k', source: 'deterministic', toolCallIds: [], deductionHundredths: 50, counted: 'excluded' },
-      ],
-      errorFlags: [
-        { ruleKey: 'b', code: 'unpriced' },
-        { ruleKey: 'e', code: 'unverified' },
-        { ruleKey: 'e', code: 'unverified' },
-      ],
-    });
-    expect(errorCounts(d)).toEqual({ counted: 1, unpriced: 1, refuted: 1, unverified: 1 });
+describe('isReadingCode (T-UI-19)', () => {
+  it('a code deliverable on the legacy path is graded by reading, not running', () => {
+    expect(isReadingCode({ pipeline: 'one_shot', deliverableType: 'code_project' })).toBe(true);
   });
-  it('a dossier without a breakdown has no counts (null, not zeros)', () => {
-    expect(errorCounts(detail(null))).toBeNull();
+  it('an essay, an image, and a code result on the investigator path are not', () => {
+    expect(isReadingCode({ pipeline: 'one_shot', deliverableType: 'document' })).toBe(false);
+    expect(isReadingCode({ pipeline: 'one_shot', deliverableType: 'image' })).toBe(false);
+    expect(isReadingCode({ pipeline: 'investigator', deliverableType: 'code_project' })).toBe(false);
+  });
+  it('an unknown deliverable type is not claimed to be code', () => {
+    expect(isReadingCode({ pipeline: 'one_shot' })).toBe(false);
+    expect(isReadingCode({ pipeline: 'one_shot', deliverableType: null })).toBe(false);
+  });
+});
+
+describe('errorCounts', () => {
+  it('reads the counts and the distinct unverified flags', () => {
+    const t = triage({
+      counts: { counted: 1, unpriced: 1, refuted: 1, excluded: 1 },
+      errorFlags: [{ ruleKey: 'b', code: 'unpriced' }, { ruleKey: 'e', code: 'unverified' }, { ruleKey: 'e', code: 'unverified' }],
+    });
+    expect(errorCounts(t)).toEqual({ counted: 1, unpriced: 1, refuted: 1, unverified: 1 });
+  });
+  it('no triage → null, not zeros', () => {
+    expect(errorCounts(null)).toBeNull();
     expect(errorCounts(undefined)).toBeNull();
+  });
+  it('a triage with no errors is zeros — "no errors" is not "unknown"', () => {
+    expect(errorCounts(triage())).toEqual({ counted: 0, unpriced: 0, refuted: 0, unverified: 0 });
   });
 });
 
 describe('reasonOf', () => {
+  const flagged = (over: Partial<GradingResult> = {}) => result({ status: 'flagged_for_review', ...over });
+
   it('an ungradable result shows the system reason verbatim', () => {
-    expect(reasonOf(result({ status: 'flagged_for_review', ungradableReason: 'Hết giờ chạy bài' }), undefined)).toBe('Hết giờ chạy bài');
+    expect(reasonOf(flagged({ ungradableReason: 'Hết giờ chạy bài' }))).toBe('Hết giờ chạy bài');
   });
-  it('an essay always needs the teacher, and says so without needing a dossier', () => {
-    expect(reasonOf(result({ status: 'flagged_for_review', pipeline: 'one_shot' }), undefined)).toBe('Bài tự luận — luôn do bạn duyệt');
+  it('an essay always needs the teacher', () => {
+    expect(reasonOf(flagged({ pipeline: 'one_shot', deliverableType: 'document' }))).toBe('Bài tự luận — luôn do bạn duyệt');
   });
-  it('a flagged code result with no dossier yet has no reason (the UI says it is loading)', () => {
-    expect(reasonOf(result({ status: 'flagged_for_review' }), undefined)).toBeNull();
+  it('a code result graded by reading says so instead of calling itself an essay', () => {
+    expect(reasonOf(flagged({ pipeline: 'one_shot', deliverableType: 'code_project' }))).toBe('Bài code chấm bằng đọc mã — luôn do bạn duyệt');
+  });
+  it('a flagged code result without triage has no reason (the UI points at the dossier)', () => {
+    expect(reasonOf(flagged())).toBeNull();
+    expect(reasonOf(flagged({ triage: null }))).toBeNull();
   });
   it('builds the sentence from case flags and error flags', () => {
-    const d = detail({
+    const t = triage({
       caseFlags: [{ code: 'criterion_without_rules', detail: 'x' }],
       errorFlags: [
-        { ruleKey: 'a', code: 'unpriced' },
-        { ruleKey: 'b', code: 'unpriced' },
-        { ruleKey: 'c', code: 'unverified' },
-        { ruleKey: 'd', code: 'refuted' },
+        { ruleKey: 'a', code: 'unpriced' }, { ruleKey: 'b', code: 'unpriced' },
+        { ruleKey: 'c', code: 'unverified' }, { ruleKey: 'd', code: 'refuted' },
       ],
     });
-    expect(reasonOf(result({ status: 'flagged_for_review' }), d)).toBe(
+    expect(reasonOf(flagged({ triage: t }))).toBe(
       'Tiêu chí chưa có luật nào · 2 luật chưa có giá · 1 lỗi chưa kiểm được · 1 lỗi bị bác bỏ',
     );
   });
   it('singular and plural stay natural for unpriced rules', () => {
-    const d = detail({ errorFlags: [{ ruleKey: 'a', code: 'unpriced' }] });
-    expect(reasonOf(result({ status: 'flagged_for_review' }), d)).toBe('1 luật chưa có giá');
+    expect(reasonOf(flagged({ triage: triage({ errorFlags: [{ ruleKey: 'a', code: 'unpriced' }] }) }))).toBe('1 luật chưa có giá');
   });
-  it('a dossier that names no blocker says so instead of inventing one', () => {
-    expect(reasonOf(result({ status: 'flagged_for_review' }), detail({}))).toBe('Hồ sơ không nêu lý do cụ thể — mở hồ sơ để xem.');
+  it('a triage that names no blocker says so instead of inventing one', () => {
+    expect(reasonOf(flagged({ triage: triage() }))).toBe('Hồ sơ không nêu lý do cụ thể — mở hồ sơ để xem.');
   });
   it('is null for a result nobody needs to look at', () => {
-    expect(reasonOf(result({ status: 'auto_approved' }), detail({}))).toBeNull();
+    expect(reasonOf(result({ status: 'auto_approved', triage: triage() }))).toBeNull();
   });
 });
 
 describe('leverageOf (Review Focus 4: no claim from partial data)', () => {
   const flagged = (id: string, over: Partial<GradingResult> = {}) => result({ id, status: 'flagged_for_review', ...over });
-  const waitingOnPrice = (...keys: string[]) => detail({ errorFlags: keys.map((ruleKey) => ({ ruleKey, code: 'unpriced' })) });
+  const waitingOnPrice = (...keys: string[]) => triage({ errorFlags: keys.map((ruleKey) => ({ ruleKey, code: 'unpriced' })) });
 
-  it('says nothing while any dossier is still missing', () => {
-    const needs = [flagged('a'), flagged('b')];
-    expect(leverageOf(needs, new Map([['a', waitingOnPrice('x')]]))).toBeNull();
+  it('says nothing while any code result has no triage', () => {
+    expect(leverageOf([flagged('a', { triage: waitingOnPrice('x') }), flagged('b')])).toBeNull();
+    expect(leverageOf([flagged('a', { triage: waitingOnPrice('x') }), flagged('b', { triage: null })])).toBeNull();
   });
 
   it('counts the results whose ONLY blocker is unpriced rules, and the distinct rules', () => {
-    const needs = [flagged('a'), flagged('b'), flagged('c')];
-    const details = new Map([
-      ['a', waitingOnPrice('x', 'y')],
-      ['b', waitingOnPrice('x')],
-      ['c', detail({ caseFlags: [{ code: 'low_confidence', detail: 'θ' }], errorFlags: [{ ruleKey: 'z', code: 'unpriced' }] })],
-    ]);
-    expect(leverageOf(needs, details)).toEqual({ waiting: 2, total: 3, ruleKeys: ['x', 'y'] });
+    const needs = [
+      flagged('a', { triage: waitingOnPrice('x', 'y') }),
+      flagged('b', { triage: waitingOnPrice('x') }),
+      flagged('c', { triage: triage({ caseFlags: [{ code: 'low_confidence', detail: 'θ' }], errorFlags: [{ ruleKey: 'z', code: 'unpriced' }] }) }),
+    ];
+    expect(leverageOf(needs)).toEqual({ waiting: 2, total: 3, ruleKeys: ['x', 'y'] });
   });
 
   it('an unverified or refuted flag means prices alone would not clear the result', () => {
-    const needs = [flagged('a')];
-    const details = new Map([['a', detail({ errorFlags: [{ ruleKey: 'x', code: 'unpriced' }, { ruleKey: 'y', code: 'unverified' }] })]]);
-    expect(leverageOf(needs, details)).toBeNull();
+    const t = triage({ errorFlags: [{ ruleKey: 'x', code: 'unpriced' }, { ruleKey: 'y', code: 'unverified' }] });
+    expect(leverageOf([flagged('a', { triage: t })])).toBeNull();
   });
 
-  it('an essay is counted in the total but can never be "waiting for prices" (and needs no dossier)', () => {
-    const needs = [flagged('a'), flagged('e', { pipeline: 'one_shot' })];
-    expect(leverageOf(needs, new Map([['a', waitingOnPrice('x')]]))).toEqual({ waiting: 1, total: 2, ruleKeys: ['x'] });
+  it('an essay counts in the total but can never be "waiting for prices" (and needs no triage)', () => {
+    const needs = [flagged('a', { triage: waitingOnPrice('x') }), flagged('e', { pipeline: 'one_shot' })];
+    expect(leverageOf(needs)).toEqual({ waiting: 1, total: 2, ruleKeys: ['x'] });
   });
 
   it('is null when nothing is waiting on a price', () => {
-    expect(leverageOf([flagged('a')], new Map([['a', detail({})]]))).toBeNull();
-    expect(leverageOf([], new Map())).toBeNull();
-  });
-
-  it('a loaded dossier with no breakdown is loaded but cannot be "waiting"', () => {
-    const needs = [flagged('a'), flagged('b')];
-    const details = new Map([['a', detail(null)], ['b', waitingOnPrice('x')]]);
-    expect(leverageOf(needs, details)).toEqual({ waiting: 1, total: 2, ruleKeys: ['x'] });
+    expect(leverageOf([flagged('a', { triage: triage() })])).toBeNull();
+    expect(leverageOf([])).toBeNull();
   });
 });
