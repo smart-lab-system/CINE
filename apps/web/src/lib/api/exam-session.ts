@@ -281,6 +281,23 @@ export async function getExamSession(id: string): Promise<ExamSessionResponse> {
 }
 
 /**
+ * Khai ngôn ngữ của MỘT yêu cầu nộp code sau khi phiên đã tạo (G1 §3). 409 nếu phiên đã khoá chấm hoặc bài đã có
+ * kết quả — câu của server hiện nguyên văn. `pipeline` trong kết quả do BACKEND tính.
+ */
+export async function declareDeliverableLanguage(
+  examSessionId: string,
+  deliverableId: string,
+  language: DeclaredLanguage,
+): Promise<{ id: string; language: DeclaredLanguage; pipeline: 'investigator' | 'one_shot' }> {
+  const { data, error, response } = await apiClient.PATCH('/exam-sessions/{id}/deliverables/{deliverableId}', {
+    params: { path: { id: examSessionId, deliverableId } },
+    body: { language },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as { id: string; language: DeclaredLanguage; pipeline: 'investigator' | 'one_shot' };
+}
+
+/**
  * Manual "Chốt bài ngay". Shares ExamSessionService.finalizeExamSession
  * with the scheduled sweep server-side, so the two can never diverge.
  *
