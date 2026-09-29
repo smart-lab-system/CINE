@@ -132,6 +132,7 @@ tất cả về.
 
 ```ts
 // Trên GradingResultView, luôn có mặt (khoá `triage`); giá trị null nghĩa là "không có bảng lỗi".
+// Cùng thay đổi này thêm hai khoá `deliverableType` và `deliverableLanguage` (§4).
 triage: {
   caseFlags: { code: string; detail: string }[];
   errorFlags: { ruleKey: string; code: string }[];
@@ -226,7 +227,8 @@ Cùng thay đổi đó, mỗi phần tử `requiredDeliverables` của response 
   để gán đường cho kết quả ([pipeline.ts](apps/api/src/grading/pipeline.ts)).
 
 Trường thứ hai là điểm mấu chốt: FE **không tự cài lại** luật *"code + python/cpp ⇒ điều tra"*, nên
-UI không thể lệch server (chặn oan hoặc để lọt). Route `PATCH` ở §3.2 trả về đúng phần tử đó đã cập nhật.
+UI không thể lệch server (chặn oan hoặc để lọt). Route `PATCH` ở §3.2 trả `{ id, language, pipeline }` của yêu
+cầu nộp vừa cập nhật (không kèm `entries`); giao diện làm mới chi tiết phiên sau đó thay vì tự vá cache.
 
 ### 3.4 **Ruling: khai muộn không đổi được đường chấm, nên phải từ chối**
 
@@ -275,7 +277,8 @@ của `startGrading`. Vì FE đọc chứ không tự tính, hai bên khớp **t
 
 ## 4. Nhãn *"chấm bằng đọc mã, không chạy"* (T-UI-19)
 
-`listResults` trả thêm `deliverableType` (join ở §2.3) và `language`. Giao diện:
+`listResults` trả thêm `deliverableType` và `deliverableLanguage` (join ở §2.3) trên mỗi dòng; bài code chấm
+bằng đọc mã là `deliverableType === 'code_project'` **và** `pipeline === 'one_shot'`. Giao diện:
 
 - **Danh sách bài:** badge ở dòng của bài `code_project` đi đường cũ. Bài `one_shot` tự luận
   không có badge.
