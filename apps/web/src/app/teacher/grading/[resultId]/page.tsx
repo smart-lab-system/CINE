@@ -19,6 +19,7 @@ import {
 } from '@/hooks/useGrading';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import type { ReviewCriterion } from '@/lib/api/grading';
+import { isReadingCode } from '@/lib/session-triage';
 import { AnswerPane } from './_components/AnswerPane';
 import { CriterionCard } from './_components/CriterionCard';
 import { ManualCriterionCard } from './_components/ManualCriterionCard';
@@ -153,6 +154,10 @@ export default function GradingDetailPage({
 
   const readOnly = IN_PROGRESS.includes(result.status);
   const published = PUBLISHED.includes(result.status);
+  const readsCode = isReadingCode(result);
+  // Bài code chấm bằng đọc mã, đã chốt: không có bằng chứng chạy nào để sửa theo (T-UI-19) — không nút sửa nào.
+  // Bài tự luận đã chốt thì KHÁC: sửa sau chốt là đường khiếu nại và có nhật ký.
+  const frozen = readOnly || (published && readsCode);
   // AI hỏng hẳn — khác `readOnly` (đang chấm, hai trạng thái không bao
   // giờ cùng đúng: markUngradable đưa thẳng ai_grading → flagged_for_
   // review, bỏ qua ai_graded). `criterionResults` rỗng VĨNH VIỄN ở ca
@@ -176,6 +181,7 @@ export default function GradingDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {readsCode && <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>}
           {readiness.data && (
             <Badge variant={readiness.data.hasQuestion ? 'accent' : 'warning'}>
               {readiness.data.hasQuestion ? 'Mức 2 — có đề bài' : 'Mức 1 — chỉ có thang chấm'}
@@ -194,6 +200,15 @@ export default function GradingDetailPage({
         <Alert variant="info">
           <AlertDescription>
             AI đang chấm bài này — chưa duyệt được. Tải lại sau ít phút.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {readsCode && (
+        <Alert variant="info">
+          <AlertDescription>
+            Bài code này chấm bằng đọc mã, không chạy: không có độ phủ hay bằng chứng lời gọi công cụ.
+            {published && ' Điểm đã chốt — hồ sơ chỉ để xem, không sửa được.'}
           </AlertDescription>
         </Alert>
       )}
@@ -219,12 +234,12 @@ export default function GradingDetailPage({
                 criterionIndexOf={criterionIndexOf}
                 activeCriterionId={activeCriterionId}
                 onSelectCriterion={setActive}
-                onPin={readOnly ? undefined : pinEvidence}
+                onPin={frozen ? undefined : pinEvidence}
               />
             ) : (
               <p className="text-small text-muted-foreground">Chưa tải được nội dung bài làm.</p>
             )}
-            {!readOnly && (
+            {!frozen && (
               <p className="mt-3 border-l-2 border-border pl-2.5 text-caption text-muted-foreground">
                 Bôi đen một đoạn trong bài làm để gán nó làm minh chứng cho tiêu chí đang chọn.
               </p>
@@ -290,7 +305,7 @@ export default function GradingDetailPage({
                 })}
           </CardContent>
 
-          {!readOnly && (
+          {!frozen && (
             <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-5 py-3.5">
               <div>
                 <span className="text-h1 tabular-nums">{total}</span>
@@ -317,7 +332,7 @@ export default function GradingDetailPage({
         </Card>
       </div>
 
-      {published && (
+      {published && !frozen && (
         <Alert variant="warning">
           <AlertDescription>
             Điểm đã chốt — thay đổi này sẽ được ghi vào nhật ký.
@@ -331,7 +346,7 @@ export default function GradingDetailPage({
         </Alert>
       )}
 
-      {!readOnly && (
+      {!frozen && (
         <Card>
           <CardHeader>
             <CardTitle className="text-h3">Ghi chú</CardTitle>

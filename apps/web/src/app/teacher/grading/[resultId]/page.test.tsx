@@ -133,6 +133,37 @@ describe('GradingDetailPage', () => {
     expect(screen.getByRole('button', { name: /Lưu và ghi nhật ký/ })).toBeInTheDocument();
   });
 
+  // T-UI-19 / Review Focus 5. A code result on the legacy path has no run evidence to correct against; an essay does
+  // (appeal path with an audit log). Only the first loses its edit button after finalizing.
+  const codeByReading = (over: Partial<GradingResult> = {}) =>
+    result({ pipeline: 'one_shot', deliverableType: 'code_project', deliverableLanguage: 'java', ...over });
+
+  it('bài code chấm bằng đọc mã: có nhãn, và chưa chốt thì vẫn duyệt được', async () => {
+    resultsData = [codeByReading()];
+    await page();
+
+    expect(screen.getByText('Chấm bằng đọc mã, không chạy')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lưu duyệt' })).toBeInTheDocument();
+  });
+
+  it('bài code chấm bằng đọc mã đã chốt: KHÔNG còn nút sửa nào và nói vì sao', async () => {
+    resultsData = [codeByReading({ status: 'finalized', finalScore: 4 })];
+    await page();
+
+    expect(screen.queryByRole('button', { name: /Lưu/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/không sửa được/)).toBeInTheDocument();
+    // The "changes will be logged" warning would contradict the missing button.
+    expect(screen.queryByText(/sẽ được ghi vào nhật ký/)).not.toBeInTheDocument();
+  });
+
+  it('bài tự luận đã chốt vẫn sửa được và ghi nhật ký (không đổi)', async () => {
+    resultsData = [result({ status: 'finalized', finalScore: 4, deliverableType: 'document' })];
+    await page();
+
+    expect(screen.getByRole('button', { name: /Lưu và ghi nhật ký/ })).toBeInTheDocument();
+    expect(screen.queryByText('Chấm bằng đọc mã, không chạy')).not.toBeInTheDocument();
+  });
+
   it('gửi ĐỦ mọi tiêu chí kèm ghi chú khi lưu', async () => {
     await page();
     await screen.findByText('Xử lý nhất quán dữ liệu');
