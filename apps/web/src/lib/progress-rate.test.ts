@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RATE_MIN_SPAN_MS, RATE_WINDOW_MS, addSample, describeRate, estimate } from './progress-rate';
+import { RATE_MIN_SPAN_MS, RATE_WINDOW_MS, addSample, describeRate, describeStall, estimate, stalledSeconds } from './progress-rate';
 
 const s = (seconds: number, done: number) => ({ t: seconds * 1000, done });
 
@@ -70,5 +70,29 @@ describe('describeRate', () => {
   });
   it('nothing left is not an estimate of time', () => {
     expect(describeRate({ perMinute: 6, minutesLeft: 0, spanSeconds: 60 })).not.toContain('còn khoảng');
+  });
+});
+
+describe('stalledSeconds — how long has the count stood still (spec §3.8 "tiến độ đã đứng yên bao lâu")', () => {
+  it('unknown with fewer than two samples', () => {
+    expect(stalledSeconds([], 0)).toBeNull();
+    expect(stalledSeconds([s(0, 3)], 60_000)).toBeNull();
+  });
+  it('never changed: since the first sample', () => {
+    expect(stalledSeconds([s(0, 3), s(30, 3), s(60, 3)], 120_000)).toBe(120);
+  });
+  it('counts from the LAST change, not the first sample', () => {
+    expect(stalledSeconds([s(0, 3), s(30, 4), s(60, 4)], 90_000)).toBe(60);
+  });
+  it('zero right after a change', () => {
+    expect(stalledSeconds([s(0, 3), s(30, 4)], 30_000)).toBe(0);
+  });
+});
+
+describe('describeStall', () => {
+  it('seconds under a minute, minutes after', () => {
+    expect(describeStall(45)).toBe('45 giây');
+    expect(describeStall(60)).toBe('1 phút');
+    expect(describeStall(150)).toBe('3 phút');
   });
 });

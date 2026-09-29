@@ -324,6 +324,12 @@
       linear-gradient(90deg, hsl(var(--border) / 0.55) 1px, transparent 1px);
     background-size: 44px 44px;
   }
+
+  /* Sọc chéo phủ lên một đoạn tô màu: phân biệt hai phần "chưa xong" của thanh tiến độ bằng HÌNH, không chỉ
+     bằng màu (spec UI §2.1 luật 1, §3.8). */
+  .bg-stripes {
+    background-image: repeating-linear-gradient(135deg, hsl(var(--background) / 0.6) 0 4px, transparent 4px 8px);
+  }
 }
 
 /* Accessibility floor: honour the OS "reduce motion" setting everywhere.

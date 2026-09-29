@@ -47,3 +47,21 @@ export function describeRate(e: RateEstimate | null): string {
     e.minutesLeft <= 0 ? '' : e.minutesLeft < 1 ? ', còn dưới 1 phút' : `, còn khoảng ${Math.ceil(e.minutesLeft)} phút`;
   return `Ước tính: khoảng ${vn(e.perMinute)} bài/phút${left} — đo trong ${e.spanSeconds} giây vừa qua.`;
 }
+
+/**
+ * Số bài đã xong đứng yên bao lâu (giây), tính từ LẦN ĐỔI cuối cùng giữa các mẫu — hoặc từ mẫu đầu nếu chưa
+ * từng đổi. Cho băng "bài bị treo": nói "tiến độ đã đứng yên bao lâu" thay vì chỉ "có bài treo". `null` khi
+ * chưa đủ hai mẫu để nói.
+ */
+export function stalledSeconds(samples: RateSample[], now: number): number | null {
+  if (samples.length < 2) return null;
+  let lastChange = samples[0].t;
+  for (let i = 1; i < samples.length; i += 1) {
+    if (samples[i].done !== samples[i - 1].done) lastChange = samples[i].t;
+  }
+  return Math.round((now - lastChange) / 1000);
+}
+
+export function describeStall(seconds: number): string {
+  return seconds < 60 ? `${seconds} giây` : `${Math.round(seconds / 60)} phút`;
+}
