@@ -23,6 +23,7 @@ import { AnswerPane } from './_components/AnswerPane';
 import { CriterionCard } from './_components/CriterionCard';
 import { ManualCriterionCard } from './_components/ManualCriterionCard';
 import { AdvocatePanel } from './_components/AdvocatePanel';
+import { InvestigatorDossier } from './_components/investigator/InvestigatorDossier';
 
 /** AI còn đang làm việc — chưa duyệt được. */
 const IN_PROGRESS = ['ai_grading', 'ai_graded'];
@@ -105,6 +106,13 @@ export default function GradingDetailPage({
   function pinEvidence(selected: string) {
     if (!activeCriterionId) return;
     update(activeCriterionId, { pinnedEvidence: selected });
+  }
+
+  // Bài chấm theo đường điều tra (§3.11 spec UI): hồ sơ riêng, không đi qua bàn chấm theo tiêu chí.
+  // Đặt SAU mọi hook (không vi phạm luật hook) và TRƯỚC chỗ chờ `text.isLoading` — hồ sơ điều tra
+  // không cần văn bản bài làm để hiện, nên không bắt nó đợi.
+  if (result?.pipeline === 'investigator') {
+    return <InvestigatorDossier resultId={resultId} sessionId={sessionId} />;
   }
 
   if (results.isLoading || text.isLoading) {

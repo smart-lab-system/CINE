@@ -120,6 +120,7 @@ function MatrixPageContent() {
         results={visible}
         rubric={rubric}
         queueActive={progress.data?.queue.active ?? 0}
+        sessionId={sessionId}
         selectedIds={selectedIds}
         onToggle={(resultId, checked) =>
           setSelectedIds((prev) =>

@@ -13,6 +13,7 @@ const submitMock = vi.fn();
 let resultsData: GradingResult[] = [];
 let textData: SubmissionText | undefined;
 let readinessData: unknown = { level: 'with_question', warning: null, hasQuestion: true, hasModelAnswer: false };
+let investigationData: unknown;
 
 const rubric: Rubric = {
   id: 'rub-1',
@@ -30,6 +31,9 @@ vi.mock('@/hooks/useGrading', () => ({
   useSubmissionText: () => ({ data: textData, isLoading: false }),
   useRubrics: () => ({ data: [rubric], isLoading: false }),
   useSubmitReview: () => ({ mutate: submitMock, isPending: false, isError: false, error: null }),
+  useResultInvestigation: () => ({ data: investigationData, isLoading: false }),
+  useSetManualScore: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
+  useSetErrorException: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
 
 vi.mock('@/hooks/useSubmissionOverview', () => ({
@@ -90,6 +94,7 @@ async function page() {
 describe('GradingDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    investigationData = undefined;
     resultsData = [result()];
     readinessData = {
       level: 'with_question',
@@ -216,5 +221,44 @@ describe('GradingDetailPage', () => {
       }),
       expect.anything(),
     );
+  });
+
+  it('bài pipeline=investigator → hồ sơ điều tra, không phải form chấm theo tiêu chí', async () => {
+    resultsData = [
+      result({
+        pipeline: 'investigator',
+        currentScore: 8.5,
+        currentScoreSource: 'computation',
+        criterionResults: [],
+        aiTotalScore: 8.5,
+      }),
+    ];
+    investigationData = {
+      pipeline: 'investigator',
+      currentScore: 8.5,
+      currentScoreSource: 'computation',
+      status: 'flagged_for_review',
+      ungradableClass: null,
+      ungradableReason: null,
+      breakdown: {
+        errors: [
+          {
+            ruleId: 'rule-1', ruleKey: 'sai_bien', ruleName: 'Sai biên', criterionKey: 'c1',
+            source: 'deterministic', toolCallIds: [], deductionHundredths: 150, counted: 'counted',
+          },
+        ],
+        perCriterion: [{ key: 'c1', maxHundredths: 1000, deductedHundredths: 150, capped: false }],
+        caseFlags: [], errorFlags: [], confidence: 1, mismatchedRules: [], notConsidered: [], ungradable: null,
+      },
+      investigation: { kind: 'verdict', summary: 's', flags: [], verdict: { errors: [] }, replay: null, investigation: { toolCalls: [] } },
+      challengeNotes: [],
+      challengeVerdicts: [],
+    };
+    await page();
+
+    expect(await screen.findByText('Lỗi chẩn đoán được')).toBeInTheDocument();
+    // Không có bàn chấm theo tiêu chí của đường one_shot.
+    expect(screen.queryByRole('button', { name: /Lưu duyệt/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Thang chấm & giải trình')).not.toBeInTheDocument();
   });
 });

@@ -57,6 +57,7 @@ export function MatrixTable({
   results,
   rubric,
   queueActive,
+  sessionId,
   selectedIds,
   onToggle,
   onToggleAll,
@@ -64,6 +65,8 @@ export function MatrixTable({
   results: GradingResult[];
   rubric: Rubric | undefined;
   queueActive: number;
+  /** Hồ sơ một bài tìm bài theo `sessionId` — thiếu nó, `/teacher/grading/[resultId]` báo "Không tìm thấy bài này". */
+  sessionId: string;
   selectedIds: string[];
   onToggle: (resultId: string, checked: boolean) => void;
   onToggleAll: (checked: boolean) => void;
@@ -141,11 +144,7 @@ export function MatrixTable({
                   </TableCell>
                   <TableCell>
                     <Link
-                      href={
-                        row.pipeline === 'investigator'
-                          ? `/teacher/grading/investigation/${row.id}`
-                          : `/teacher/grading/${row.id}`
-                      }
+                      href={`/teacher/grading/${row.id}?sessionId=${sessionId}`}
                       className="text-small font-medium text-primary underline-offset-2 hover:underline"
                     >
                       Xem

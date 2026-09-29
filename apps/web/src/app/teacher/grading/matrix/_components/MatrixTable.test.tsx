@@ -10,6 +10,7 @@ function show(results = [withAdvocate], queueActive = 2) {
       results={results}
       rubric={rubric}
       queueActive={queueActive}
+      sessionId="e1"
       selectedIds={[]}
       onToggle={vi.fn()}
       onToggleAll={vi.fn()}
@@ -48,6 +49,7 @@ describe('MatrixTable', () => {
         results={[withAdvocate, noAdvocate]}
         rubric={rubric}
         queueActive={0}
+        sessionId="e1"
         selectedIds={[]}
         onToggle={vi.fn()}
         onToggleAll={onToggleAll}
@@ -62,19 +64,19 @@ describe('MatrixTable', () => {
     expect(container.textContent).not.toMatch(/Advocate|Grader|flagged_for_review|keep_ai/i);
   });
 
-  it('bài pipeline=investigator trỏ tới Hồ sơ một bài, không phải màn chấm cũ', () => {
+  it('bài pipeline=investigator trỏ tới /teacher/grading/[resultId] kèm sessionId — route con investigation/ đã bị gộp vào đó', () => {
     show([{ ...withAdvocate, pipeline: 'investigator' }]);
     expect(screen.getByRole('link', { name: 'Xem' })).toHaveAttribute(
       'href',
-      `/teacher/grading/investigation/${withAdvocate.id}`,
+      `/teacher/grading/${withAdvocate.id}?sessionId=e1`,
     );
   });
 
-  it('bài pipeline=one_shot (hoặc thiếu) trỏ tới màn chấm cũ', () => {
+  it('bài pipeline=one_shot (hoặc thiếu) cũng kèm sessionId — thiếu nó thì [resultId] báo "Không tìm thấy bài này"', () => {
     show([withAdvocate]);
     expect(screen.getByRole('link', { name: 'Xem' })).toHaveAttribute(
       'href',
-      `/teacher/grading/${withAdvocate.id}`,
+      `/teacher/grading/${withAdvocate.id}?sessionId=e1`,
     );
   });
 
