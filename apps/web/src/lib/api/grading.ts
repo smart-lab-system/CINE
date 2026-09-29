@@ -243,6 +243,24 @@ export async function getGradingProgress(examSessionId: string): Promise<Grading
   return data as unknown as GradingProgress;
 }
 
+/** Mirrors GradingSessionSummary (apps/api/src/grading/grading-summary.service.ts). */
+export interface GradingSessionSummary {
+  examSessionId: string;
+  /** Số bài theo `status`; chỉ chứa trạng thái có ít nhất một dòng. */
+  byStatus: Record<string, number>;
+  /** Trong `flagged_for_review`: số bài có lý do "không chấm được". */
+  ungradable: number;
+  /** Đã chỉ định đề bài. */
+  hasQuestion: boolean;
+}
+
+/** Tóm tắt chấm điểm của mọi phiên của giảng viên, một lần gọi. Phiên chưa có kết quả vẫn có mục. */
+export async function listGradingSessionSummaries(): Promise<GradingSessionSummary[]> {
+  const { data, error, response } = await apiClient.GET('/grading/sessions-summary');
+  if (error || !response.ok) throw fail(error, response);
+  return (data as unknown as { items: GradingSessionSummary[] }).items;
+}
+
 /**
  * Một lần duyệt bài. Server tự tính tổng — client KHÔNG gửi `finalScore`.
  *

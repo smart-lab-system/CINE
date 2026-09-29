@@ -10,6 +10,7 @@ import {
   getResultInvestigation,
   getSubmissionText,
   listGradingResults,
+  listGradingSessionSummaries,
   listRubrics,
   previewReapplyPrices,
   reapplyPrices,
@@ -168,6 +169,21 @@ export function progressPollIntervalMs(pending: number, elapsedMs: number): numb
     return false;
   }
   return elapsedMs < PROGRESS_FAST_WINDOW_MS ? PROGRESS_POLL_FAST_MS : PROGRESS_POLL_SLOW_MS;
+}
+
+export const SESSION_SUMMARIES_KEY = ['grading', 'sessions-summary'] as const;
+
+/**
+ * Tóm tắt chấm điểm mọi phiên — trang danh sách phiên đọc nó cạnh `useSessionOverview`.
+ * Luôn đọc lại khi mở trang: trạng thái đổi ở các trang khác (bắt đầu chấm, chốt điểm), và một
+ * danh sách nói "Chưa chấm" về phiên đang chạy là lời nói dối tệ hơn việc chờ thêm một request.
+ */
+export function useGradingSessionSummaries() {
+  return useQuery({
+    queryKey: SESSION_SUMMARIES_KEY,
+    queryFn: listGradingSessionSummaries,
+    refetchOnMount: 'always',
+  });
 }
 
 /**

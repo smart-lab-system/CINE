@@ -21,6 +21,7 @@ import { Roles } from '../auth/roles.decorator';
 import { ExamSessionService } from '../exam-session/exam-session.service';
 import { GradingService } from './grading.service';
 import { GradingRunService } from './grading-run.service';
+import { GradingSummaryService } from './grading-summary.service';
 import { GradingReferenceService } from './grading-reference.service';
 import { SubmissionTextService } from './submission-text.service';
 import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
@@ -60,6 +61,7 @@ export class GradingController {
     private readonly bulkReviews: BulkReviewService,
     private readonly errorExceptions: ErrorExceptionService,
     private readonly scores: ScoreService,
+    private readonly summaries: GradingSummaryService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -82,6 +84,19 @@ export class GradingController {
   @Roles('teacher')
   getRubric(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.rubrics.findOneForTeacher(id, req.user!.sub);
+  }
+
+  /**
+   * Tóm tắt chấm điểm của MỌI phiên của người gọi — nguồn của trang danh sách phiên chấm.
+   *
+   * Đường dẫn cố ý là `grading/sessions-summary`, không phải `exam-sessions/sessions-summary`:
+   * `GET exam-sessions/:id` của ExamSessionController sẽ bắt chuỗi đó như một `:id` rồi
+   * `ParseUUIDPipe` trả 400.
+   */
+  @Get('grading/sessions-summary')
+  @Roles('teacher')
+  async sessionsSummary(@Req() req: Request) {
+    return { items: await this.summaries.summarizeForTeacher(req.user!.sub) };
   }
 
   /**
