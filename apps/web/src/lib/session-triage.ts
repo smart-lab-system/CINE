@@ -1,4 +1,4 @@
-import type { GradingResult, ResultDetail } from './api/grading';
+import type { GradingResult, GradingSessionSummary, ResultDetail } from './api/grading';
 import { formatVnPoints } from './format';
 import { caseFlagLabel } from './grading-vocab';
 
@@ -50,6 +50,43 @@ export function stateOf(result: Pick<GradingResult, 'status' | 'ungradableReason
 export function countStates(results: GradingResult[]): Record<SessionState, number> {
   const counts = Object.fromEntries(STATE_ORDER.map((s) => [s, 0])) as Record<SessionState, number>;
   for (const r of results) counts[stateOf(r)] += 1;
+  return counts;
+}
+
+/**
+ * Bảy con số của một phiên, từ bảng tóm tắt của server — cùng phép phân loại với `stateOf`, đếm theo
+ * số lượng thay vì theo từng bài. Hai bản phải khớp nhau: bài test đối chiếu chúng trên mọi trạng thái.
+ * Trạng thái lạ rơi vào `grading` (giống nhánh mặc định của `stateOf`): giấu một bài đắt hơn xếp nhầm nhóm.
+ */
+export function countsFromSummary(
+  summary: Pick<GradingSessionSummary, 'byStatus' | 'ungradable'>,
+): Record<SessionState, number> {
+  const counts = Object.fromEntries(STATE_ORDER.map((s) => [s, 0])) as Record<SessionState, number>;
+  for (const [status, n] of Object.entries(summary.byStatus)) {
+    switch (status) {
+      case 'auto_approved':
+        counts.auto += n;
+        break;
+      case 'audit_pending':
+        counts.audit += n;
+        break;
+      case 'teacher_reviewed':
+        counts.reviewed += n;
+        break;
+      case 'finalized':
+      case 'exported':
+        counts.finalised += n;
+        break;
+      case 'flagged_for_review': {
+        const stopped = Math.min(summary.ungradable, n);
+        counts.ungradable += stopped;
+        counts.needsYou += n - stopped;
+        break;
+      }
+      default:
+        counts.grading += n;
+    }
+  }
   return counts;
 }
 

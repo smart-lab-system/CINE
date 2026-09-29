@@ -4,6 +4,7 @@ import {
   STATE_ORDER,
   blockers,
   countStates,
+  countsFromSummary,
   errorCounts,
   finalizeCounts,
   leverageOf,
@@ -267,5 +268,38 @@ describe('leverageOf (Review Focus 4: no claim from partial data)', () => {
     const needs = [flagged('a'), flagged('b')];
     const details = new Map([['a', detail(null)], ['b', waitingOnPrice('x')]]);
     expect(leverageOf(needs, details)).toEqual({ waiting: 1, total: 2, ruleKeys: ['x'] });
+  });
+});
+
+describe('countsFromSummary — agrees with stateOf', () => {
+  const summaryOf = (results: GradingResult[]) => {
+    const byStatus: Record<string, number> = {};
+    let ungradable = 0;
+    for (const r of results) {
+      byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+      if (r.status === 'flagged_for_review' && r.ungradableReason !== null) ungradable += 1;
+    }
+    return { byStatus, ungradable };
+  };
+  const make = (status: string, reason: string | null, times: number): GradingResult[] =>
+    Array.from({ length: times }, () => ({ status, ungradableReason: reason }) as unknown as GradingResult);
+
+  it('gives the same seven counts as counting each result with stateOf, for every status', () => {
+    const statuses = ['ai_grading', 'ai_graded', 'auto_approved', 'audit_pending', 'flagged_for_review', 'teacher_reviewed', 'finalized', 'exported'];
+    const results = [
+      ...statuses.flatMap((s) => make(s, null, 2)),
+      ...make('flagged_for_review', 'sandbox chết', 3),
+      ...make('a_status_from_the_future', null, 1),
+    ];
+    expect(countsFromSummary(summaryOf(results))).toEqual(countStates(results));
+  });
+
+  it('never returns a negative needs-you count if the server sends ungradable > flagged', () => {
+    const counts = countsFromSummary({ byStatus: { flagged_for_review: 1 }, ungradable: 3 });
+    expect(counts.needsYou).toBe(0);
+  });
+
+  it('is all zeros for a session with no results', () => {
+    expect(Object.values(countsFromSummary({ byStatus: {}, ungradable: 0 })).every((n) => n === 0)).toBe(true);
   });
 });
