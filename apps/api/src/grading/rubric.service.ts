@@ -14,6 +14,8 @@ export interface RubricView {
   version: number;
   isActive: boolean;
   totalPoints: number;
+  /** Thời điểm tạo bản này (ISO 8601) — để suy ra "bản tạo gần nhất" giữa các bộ rubric khác tên (G1 §5). */
+  createdAt: string;
   criteria: { id: string; key: string; description: string; maxPoints: number }[];
 }
 
@@ -191,6 +193,7 @@ export class RubricService {
       name: rubric.name,
       version: rubric.version,
       isActive: rubric.isActive,
+      createdAt: rubric.createdAt.toISOString(),
       totalPoints:
         Math.round(criteria.reduce((sum, c) => sum + Number(c.maxPoints), 0) * 100) / 100,
       criteria: criteria.map((c) => ({
