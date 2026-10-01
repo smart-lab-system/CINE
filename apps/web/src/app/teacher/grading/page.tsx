@@ -18,6 +18,7 @@ import { BulkAcceptEssays } from './_components/BulkAcceptEssays';
 import { LeverageLine } from './_components/LeverageLine';
 import { OverviewBar } from './_components/OverviewBar';
 import { PreparePanel } from './_components/PreparePanel';
+import { RulerOriginNote } from './_components/RulerOriginNote';
 import { ResultsTable, type ResultsFilter } from './_components/ResultsTable';
 import { RunningPanel } from './_components/RunningPanel';
 import { SessionHeader } from './_components/SessionHeader';
@@ -112,6 +113,7 @@ function SessionScreen({
   return (
     <div className="flex flex-col gap-6">
       <SessionHeader session={session} sessionId={sessionId} resultCount={list.length} systemFailed={counts.ungradable} />
+      <RulerOriginNote sessionId={sessionId} />
 
       {results.isError && (
         <Alert variant="destructive">
