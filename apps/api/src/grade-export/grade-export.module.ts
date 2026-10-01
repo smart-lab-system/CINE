@@ -4,6 +4,7 @@ import { StorageModule } from '../storage/storage.module';
 import { GradeExportController } from './grade-export.controller';
 import { GradeExportDataService } from './grade-export.data';
 import { GradeExportFileStore } from './grade-export-file-store';
+import { GradeExportPlanService } from './grade-export-plan.service';
 import { GradeExportService } from './grade-export.service';
 
 /**
@@ -13,7 +14,7 @@ import { GradeExportService } from './grade-export.service';
 @Module({
   imports: [StorageModule, ExamSessionModule],
   controllers: [GradeExportController],
-  providers: [GradeExportService, GradeExportDataService, GradeExportFileStore],
-  exports: [GradeExportDataService],
+  providers: [GradeExportService, GradeExportDataService, GradeExportFileStore, GradeExportPlanService],
+  exports: [GradeExportDataService, GradeExportPlanService],
 })
 export class GradeExportModule {}

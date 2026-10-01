@@ -5,6 +5,8 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { ExamSessionService } from '../exam-session/exam-session.service';
 import { InspectDto } from './dto/inspect.dto';
+import { PlanDto } from './dto/plan.dto';
+import { GradeExportPlanService } from './grade-export-plan.service';
 import { TemplateUploadDto } from './dto/template-upload.dto';
 import { GradeExportService } from './grade-export.service';
 
@@ -17,6 +19,7 @@ import { GradeExportService } from './grade-export.service';
 export class GradeExportController {
   constructor(
     private readonly exports: GradeExportService,
+    private readonly plans: GradeExportPlanService,
     private readonly sessions: ExamSessionService,
   ) {}
 
@@ -33,5 +36,13 @@ export class GradeExportController {
   async inspect(@Param('id', ParseUUIDPipe) id: string, @Body() dto: InspectDto, @Req() req: Request) {
     const session = await this.sessions.findEntityForOwner(id, req.user!.sub);
     return this.exports.inspect(session.id, dto);
+  }
+
+  @Post('exam-sessions/:id/grade-exports/preview')
+  @Roles('teacher')
+  @HttpCode(200)
+  async preview(@Param('id', ParseUUIDPipe) id: string, @Body() dto: PlanDto, @Req() req: Request) {
+    const session = await this.sessions.findEntityForOwner(id, req.user!.sub);
+    return this.plans.preview(session.id, dto);
   }
 }
