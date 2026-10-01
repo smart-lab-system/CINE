@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -8,6 +8,7 @@ import { InspectDto } from './dto/inspect.dto';
 import { PlanDto } from './dto/plan.dto';
 import { WriteDto } from './dto/write.dto';
 import { GradeExportPlanService } from './grade-export-plan.service';
+import { GradeExportQueryService } from './grade-export-query.service';
 import { GradeExportWriteService } from './grade-export-write.service';
 import { TemplateUploadDto } from './dto/template-upload.dto';
 import { GradeExportService } from './grade-export.service';
@@ -23,6 +24,7 @@ export class GradeExportController {
     private readonly exports: GradeExportService,
     private readonly plans: GradeExportPlanService,
     private readonly writes: GradeExportWriteService,
+    private readonly queries: GradeExportQueryService,
     private readonly sessions: ExamSessionService,
   ) {}
 
@@ -55,5 +57,18 @@ export class GradeExportController {
   async write(@Param('id', ParseUUIDPipe) id: string, @Body() dto: WriteDto, @Req() req: Request) {
     const session = await this.sessions.findEntityForOwner(id, req.user!.sub);
     return this.writes.write(session.id, req.user!.sub, dto);
+  }
+
+  @Get('exam-sessions/:id/grade-exports')
+  @Roles('teacher')
+  async list(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.sessions.findEntityForOwner(id, req.user!.sub);
+    return this.queries.list(session.id);
+  }
+
+  @Get('grade-exports/:id/download')
+  @Roles('teacher')
+  async download(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    return this.queries.download(id, req.user!.sub);
   }
 }
