@@ -14,6 +14,7 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { STATE_ORDER, countStates, leverageOf, stateOf, type SessionState } from '@/lib/session-triage';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
+import { countSystemUngradable } from '@/lib/regrade-triage';
 import { BulkAcceptEssays } from './_components/BulkAcceptEssays';
 import { LeverageLine } from './_components/LeverageLine';
 import { OverviewBar } from './_components/OverviewBar';
@@ -111,7 +112,7 @@ function SessionScreen({
 
   return (
     <div className="flex flex-col gap-6">
-      <SessionHeader session={session} sessionId={sessionId} resultCount={list.length} systemFailed={counts.ungradable} />
+      <SessionHeader session={session} sessionId={sessionId} resultCount={list.length} systemFailed={countSystemUngradable(list)} />
 
       {results.isError && (
         <Alert variant="destructive">

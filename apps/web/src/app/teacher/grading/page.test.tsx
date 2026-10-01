@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import GradingPage from './page';
 import type { GradingProgress, GradingResult, ResultTriage } from '@/lib/api/grading';
@@ -40,6 +40,13 @@ vi.mock('./_components/RunningPanel', () => ({
   },
 }));
 vi.mock('./_components/BulkAcceptEssays', () => ({ BulkAcceptEssays: () => <div data-testid="bulk-essays" /> }));
+vi.mock('./_components/RegradeButton', () => ({
+  RegradeButton: ({ scope, label }: { scope: unknown; label: string }) => (
+    <button type="button" data-scope={JSON.stringify(scope)}>
+      {label}
+    </button>
+  ),
+}));
 
 const session = (over: Partial<SessionOverviewItem> = {}) =>
   ({
@@ -238,13 +245,29 @@ describe('session header (spec §3.3)', () => {
     expect(screen.getByRole('button', { name: 'Chốt điểm phiên' })).toBeDisabled();
   });
 
-  it('"Chấm lại N bài lỗi hệ thống" is disabled + "cần backend" and sends nothing', () => {
-    h.results = { ...h.results, data: [result({ id: 'a' }), result({ id: 'b', status: 'flagged_for_review', ungradableReason: 'x', currentScore: null })] };
+  it('"Chấm lại N bài lỗi hệ thống" is a real button that counts only SYSTEM-class results', () => {
+    h.results = {
+      ...h.results,
+      data: [
+        result({ id: 'a' }),
+        result({ id: 'b', status: 'flagged_for_review', ungradableReason: 'x', ungradableClass: 'system', currentScore: null }),
+        result({ id: 'c', status: 'flagged_for_review', ungradableReason: 'y', ungradableClass: 'submission', currentScore: null }),
+      ],
+    };
     render(<GradingPage />);
-    const button = screen.getByRole('button', { name: /Chấm lại 1 bài lỗi hệ thống/ });
-    expect(button).toBeDisabled();
-    fireEvent.click(button);
-    expect(h.regradeMutate).not.toHaveBeenCalled();
+    const button = screen.getByRole('button', { name: 'Chấm lại 1 bài lỗi hệ thống' });
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute('data-scope', JSON.stringify({ kind: 'session', sessionId: 's1', reason: null, count: 1 }));
+  });
+
+  // Review Focus #5: an old API sends no class. A number that may be wrong is worse than no button.
+  it('offers no regrade for a stopped result whose class the API did not send', () => {
+    h.results = {
+      ...h.results,
+      data: [result({ id: 'a' }), result({ id: 'b', status: 'flagged_for_review', ungradableReason: 'x', currentScore: null })],
+    };
+    render(<GradingPage />);
+    expect(screen.queryByRole('button', { name: /lỗi hệ thống/ })).not.toBeInTheDocument();
   });
 
   it('does not offer that regrade when nothing failed', () => {
