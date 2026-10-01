@@ -1,5 +1,12 @@
-import type { GradingResultStatus } from './entities/grading-result.entity';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { Queue } from 'bullmq';
+import { DataSource } from 'typeorm';
+import { GradingResultEntity, type GradingResultStatus } from './entities/grading-result.entity';
 import type { UngradableClass } from './grading-model.types';
+import { GRADE_JOB_OPTIONS, GRADING_QUEUE, type GradeSubmissionJob } from './grading.queue';
+import { lockTeacherScoring } from './scoring/score-inputs';
 
 /**
  * Chấm lại bài KHÔNG CHẤM ĐƯỢC do lỗi hệ thống (spec §2.3).
@@ -58,4 +65,107 @@ export function regradeRefusal(row: {
     return { code: 'not_ungradable', status: 400, message: REGRADE_MESSAGES.not_ungradable };
   }
   return null;
+}
+
+/** Dòng cần để quyết định và để xếp job — một câu SQL, ba bảng. */
+export const REGRADE_ROW_SQL = `
+  SELECT g.id, g.status, g.ai_total_score, g.ungradable_class, g.ungradable_reason,
+         g.submission_id, g.rubric_id_version, rd.required_filename, rd.deliverable_type
+    FROM examcollect.grading_result g
+    JOIN examcollect.submission s ON s.id = g.submission_id
+    JOIN examcollect.required_deliverable rd ON rd.id = s.required_deliverable_id`;
+
+interface RegradeRow {
+  id: string;
+  status: GradingResultStatus;
+  aiTotalScore: string | null;
+  ungradableClass: UngradableClass | null;
+  submissionId: string;
+  rubricId: string;
+  requiredFilename: string;
+  deliverableType: GradeSubmissionJob['deliverableType'];
+}
+
+function toRow(raw: Record<string, unknown>): RegradeRow {
+  return {
+    id: raw.id as string,
+    status: raw.status as GradingResultStatus,
+    aiTotalScore: (raw.ai_total_score as string | null) ?? null,
+    ungradableClass: (raw.ungradable_class as UngradableClass | null) ?? null,
+    submissionId: raw.submission_id as string,
+    rubricId: raw.rubric_id_version as string,
+    requiredFilename: raw.required_filename as string,
+    deliverableType: raw.deliverable_type as GradeSubmissionJob['deliverableType'],
+  };
+}
+
+const SKIP_MOVED_ON = 'Bài đã đi tiếp — có lượt khác vừa xử lý nó.';
+
+@Injectable()
+export class RegradeService {
+  constructor(
+    @InjectDataSource() private readonly ds: DataSource,
+    @InjectQueue(GRADING_QUEUE) private readonly queue: Queue<GradeSubmissionJob>,
+  ) {}
+
+  /** Quyền sở hữu do controller kiểm TRƯỚC (`findResultForOwner`); ở đây chỉ quyết được-hay-không. */
+  async regradeOne(teacherId: string, resultId: string): Promise<RegradeOutcome> {
+    const [raw] = await this.ds.query(`${REGRADE_ROW_SQL} WHERE g.id = $1`, [resultId]);
+    if (!raw) throw new NotFoundException('Grading result not found');
+    const row = toRow(raw);
+
+    const refusal = regradeRefusal(row);
+    if (refusal) {
+      throw refusal.status === 409
+        ? new ConflictException(refusal.message)
+        : new BadRequestException(refusal.message);
+    }
+    return this.requeue(teacherId, row);
+  }
+
+  /**
+   * Đưa MỘT bài về `ai_grading` rồi xếp job.
+   *
+   * UPDATE có điều kiện trong một transaction, dưới khoá chấm điểm của giảng viên (cùng thứ tự khoá với
+   * `markUngradable` và `startAttempt`). Lớp và lý do bị xoá Ở CHÍNH CÂU LỆNH NÀY: `ck_grading_result_ungradable`
+   * cấm một lớp đi kèm điểm, mà `gradeOneShot` không bao giờ xoá nó — giữ lại thì lần ghi điểm đầu tiên nổ.
+   * Không dùng `advanceStatus`: `AdvanceExtra` không cho đặt các cột này.
+   *
+   * Đổi trạng thái TRƯỚC, xếp job SAU: `lockRunning` của đường điều tra đòi bài đang ở `ai_grading`.
+   */
+  private async requeue(teacherId: string, row: RegradeRow): Promise<RegradeOutcome> {
+    const moved = await this.ds.transaction(async (m) => {
+      await lockTeacherScoring(m, teacherId);
+      const updated = await m
+        .createQueryBuilder()
+        .update(GradingResultEntity)
+        .set({
+          status: 'ai_grading',
+          ungradableClass: null,
+          ungradableReason: null,
+          flagForReview: false,
+          confidence: null,
+        })
+        .where('id = :id', { id: row.id })
+        .andWhere("status = 'flagged_for_review'")
+        .andWhere("ungradable_class = 'system'")
+        .andWhere('ai_total_score IS NULL')
+        .execute();
+      return (updated.affected ?? 0) > 0;
+    });
+    if (!moved) return { requeued: 0, skipped: [{ resultId: row.id, reason: SKIP_MOVED_ON }] };
+
+    await this.queue.add(
+      'grade-submission',
+      {
+        submissionId: row.submissionId,
+        requiredFilename: row.requiredFilename,
+        deliverableType: row.deliverableType,
+        rubricId: row.rubricId,
+        teacherId,
+      } satisfies GradeSubmissionJob,
+      { ...GRADE_JOB_OPTIONS, jobId: `grade-${row.submissionId}` },
+    );
+    return { requeued: 1, skipped: [] };
+  }
 }
