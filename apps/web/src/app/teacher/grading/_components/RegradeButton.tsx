@@ -59,9 +59,14 @@ export function RegradeButton({
     const lines = [...groupSkipped(data)].map(([reason, n]) => `${n} bài bỏ qua — ${reason}`);
     toast.success(`Đã xếp lại ${data.requeued} bài`, { description: lines.length > 0 ? lines.join('; ') : undefined });
   };
+  // Lời từ chối của server cũng ra toast: 409 "đang được chấm" nghĩa là bài đã đi tiếp, nên lần tải lại ngay sau đó
+  // đổi màn hình và gỡ cả nút lẫn hộp thoại đang giữ Alert đỏ — câu nguyên văn sẽ không bao giờ kịp được đọc.
+  const failed = (error: Error) => {
+    toast.error(error.message);
+  };
   const confirm = () => {
-    if (scope.kind === 'result') one.mutate(scope.resultId, { onSuccess: done });
-    else many.mutate(scope.reason, { onSuccess: done });
+    if (scope.kind === 'result') one.mutate(scope.resultId, { onSuccess: done, onError: failed });
+    else many.mutate(scope.reason, { onSuccess: done, onError: failed });
   };
 
   const skippedByReason = groupSkipped(outcome);

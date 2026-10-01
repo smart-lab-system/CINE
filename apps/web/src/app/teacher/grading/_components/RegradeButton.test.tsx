@@ -6,7 +6,7 @@ import { RegradeButton, type RegradeScope } from './RegradeButton';
 const fresh = () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null as Error | null });
 const h = vi.hoisted(() => ({ one: null as unknown as ReturnType<typeof fresh>, many: null as unknown as ReturnType<typeof fresh> }));
 vi.mock('@/hooks/useRegrade', () => ({ useRegradeResult: () => h.one, useRegradeUngradable: () => h.many }));
-const toastSpy = vi.hoisted(() => ({ success: vi.fn() }));
+const toastSpy = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock('sonner', () => ({ toast: toastSpy }));
 
 const session = (over: Partial<Extract<RegradeScope, { kind: 'session' }>> = {}): RegradeScope => ({
@@ -16,6 +16,7 @@ const single: RegradeScope = { kind: 'result', sessionId: 's1', resultId: 'r1' }
 
 beforeEach(() => {
   toastSpy.success.mockReset();
+  toastSpy.error.mockReset();
   h.one = fresh();
   h.many = fresh();
 });
@@ -121,6 +122,18 @@ describe('RegradeButton (G3 §4.4, D10)', () => {
     expect(toastSpy.success).toHaveBeenCalledWith('Đã xếp lại 2 bài', {
       description: '1 bài bỏ qua — Bài đã đi tiếp — có lượt khác vừa xử lý nó.',
     });
+  });
+
+  // Browser pass (G3, S4): a 409 "đang được chấm" means the result moved on, so the refetch that follows swaps the view and
+  // unmounts the button together with the dialog that held the destructive Alert — the verbatim refusal was never readable.
+  it('also raises the server refusal as a toast, because the dialog can unmount before it is read', () => {
+    h.one.mutate = vi.fn((_id: unknown, options: { onError: (e: Error) => void }) =>
+      options.onError(new Error('Bài này đang được chấm — chưa cần chấm lại.')),
+    );
+    render(<RegradeButton scope={single} label="Chấm lại bài này" />);
+    open('Chấm lại bài này');
+    confirm();
+    expect(toastSpy.error).toHaveBeenCalledWith('Bài này đang được chấm — chưa cần chấm lại.');
   });
 
   it('the toast has no description when nothing was skipped', () => {
