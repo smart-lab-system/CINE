@@ -6,7 +6,9 @@ import { RolesGuard } from '../auth/roles.guard';
 import { ExamSessionService } from '../exam-session/exam-session.service';
 import { InspectDto } from './dto/inspect.dto';
 import { PlanDto } from './dto/plan.dto';
+import { WriteDto } from './dto/write.dto';
 import { GradeExportPlanService } from './grade-export-plan.service';
+import { GradeExportWriteService } from './grade-export-write.service';
 import { TemplateUploadDto } from './dto/template-upload.dto';
 import { GradeExportService } from './grade-export.service';
 
@@ -20,6 +22,7 @@ export class GradeExportController {
   constructor(
     private readonly exports: GradeExportService,
     private readonly plans: GradeExportPlanService,
+    private readonly writes: GradeExportWriteService,
     private readonly sessions: ExamSessionService,
   ) {}
 
@@ -44,5 +47,13 @@ export class GradeExportController {
   async preview(@Param('id', ParseUUIDPipe) id: string, @Body() dto: PlanDto, @Req() req: Request) {
     const session = await this.sessions.findEntityForOwner(id, req.user!.sub);
     return this.plans.preview(session.id, dto);
+  }
+
+  @Post('exam-sessions/:id/grade-exports')
+  @Roles('teacher')
+  @HttpCode(201)
+  async write(@Param('id', ParseUUIDPipe) id: string, @Body() dto: WriteDto, @Req() req: Request) {
+    const session = await this.sessions.findEntityForOwner(id, req.user!.sub);
+    return this.writes.write(session.id, req.user!.sub, dto);
   }
 }
