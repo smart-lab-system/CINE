@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button, type ButtonProps } from '@/components/ui/button';
 import {
@@ -13,6 +14,13 @@ import {
 } from '@/components/ui/dialog';
 import { useRegradeResult, useRegradeUngradable } from '@/hooks/useRegrade';
 import type { RegradeOutcome } from '@/lib/api/regrade';
+
+/** Số bài bị bỏ qua, gộp theo câu lý do của server. */
+function groupSkipped(outcome: RegradeOutcome | null): Map<string, number> {
+  const byReason = new Map<string, number>();
+  for (const skip of outcome?.skipped ?? []) byReason.set(skip.reason, (byReason.get(skip.reason) ?? 0) + 1);
+  return byReason;
+}
 
 export type RegradeScope =
   | { kind: 'result'; sessionId: string; resultId: string }
@@ -45,16 +53,18 @@ export function RegradeButton({
   const done = (data: RegradeOutcome) => {
     setOutcome(data);
     setOpen(false);
+    // Thông báo ngay trong trang chết cùng cái nút: danh sách tải lại không còn đếm các bài vừa xếp lại (UPDATE đã
+    // xoá lớp lý do của chúng), nên nút ở đầu phiên / băng / khối đang chấm biến mất vài trăm mili-giây sau khi xác
+    // nhận — kéo theo dòng "bỏ qua" mà giảng viên cần đọc. Toast thì sống qua việc đó (phát hiện ở browser pass).
+    const lines = [...groupSkipped(data)].map(([reason, n]) => `${n} bài bỏ qua — ${reason}`);
+    toast.success(`Đã xếp lại ${data.requeued} bài`, { description: lines.length > 0 ? lines.join('; ') : undefined });
   };
   const confirm = () => {
     if (scope.kind === 'result') one.mutate(scope.resultId, { onSuccess: done });
     else many.mutate(scope.reason, { onSuccess: done });
   };
 
-  const skippedByReason = new Map<string, number>();
-  for (const skip of outcome?.skipped ?? []) {
-    skippedByReason.set(skip.reason, (skippedByReason.get(skip.reason) ?? 0) + 1);
-  }
+  const skippedByReason = groupSkipped(outcome);
 
   return (
     <>

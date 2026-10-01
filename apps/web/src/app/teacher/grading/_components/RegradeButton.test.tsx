@@ -6,6 +6,8 @@ import { RegradeButton, type RegradeScope } from './RegradeButton';
 const fresh = () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null as Error | null });
 const h = vi.hoisted(() => ({ one: null as unknown as ReturnType<typeof fresh>, many: null as unknown as ReturnType<typeof fresh> }));
 vi.mock('@/hooks/useRegrade', () => ({ useRegradeResult: () => h.one, useRegradeUngradable: () => h.many }));
+const toastSpy = vi.hoisted(() => ({ success: vi.fn() }));
+vi.mock('sonner', () => ({ toast: toastSpy }));
 
 const session = (over: Partial<Extract<RegradeScope, { kind: 'session' }>> = {}): RegradeScope => ({
   kind: 'session', sessionId: 's1', reason: null, count: 2, ...over,
@@ -13,6 +15,7 @@ const session = (over: Partial<Extract<RegradeScope, { kind: 'session' }>> = {})
 const single: RegradeScope = { kind: 'result', sessionId: 's1', resultId: 'r1' };
 
 beforeEach(() => {
+  toastSpy.success.mockReset();
   h.one = fresh();
   h.many = fresh();
 });
@@ -92,5 +95,34 @@ describe('RegradeButton (G3 §4.4, D10)', () => {
     const status = screen.getByRole('status');
     expect(status).toHaveTextContent('Đã xếp lại 2 bài');
     expect(status).toHaveTextContent('2 bài bỏ qua — Bài đã đi tiếp — có lượt khác vừa xử lý nó.');
+  });
+
+  // Browser pass (G3): the refreshed list no longer counts the re-queued results (the UPDATE clears their class), so the
+  // header / band / panel button — and the inline notice it owns — unmounts a few hundred ms after confirming. The
+  // outcome, and above all the "bỏ qua" lines, must survive that: a toast does.
+  it('also raises a toast on success, because the inline notice dies with the unmounting button', () => {
+    h.many.mutate = vi.fn((_reason: unknown, options: { onSuccess: (o: unknown) => void }) =>
+      options.onSuccess({
+        requeued: 2,
+        skipped: [{ resultId: 'a', reason: 'Bài đã đi tiếp — có lượt khác vừa xử lý nó.' }],
+      }),
+    );
+    render(<RegradeButton scope={session()} label="Chấm lại" />);
+    open('Chấm lại');
+    confirm();
+    expect(toastSpy.success).toHaveBeenCalledTimes(1);
+    expect(toastSpy.success).toHaveBeenCalledWith('Đã xếp lại 2 bài', {
+      description: '1 bài bỏ qua — Bài đã đi tiếp — có lượt khác vừa xử lý nó.',
+    });
+  });
+
+  it('the toast has no description when nothing was skipped', () => {
+    h.one.mutate = vi.fn((_id: unknown, options: { onSuccess: (o: unknown) => void }) =>
+      options.onSuccess({ requeued: 1, skipped: [] }),
+    );
+    render(<RegradeButton scope={single} label="Chấm lại bài này" />);
+    open('Chấm lại bài này');
+    confirm();
+    expect(toastSpy.success).toHaveBeenCalledWith('Đã xếp lại 1 bài', { description: undefined });
   });
 });
