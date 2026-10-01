@@ -132,22 +132,33 @@ export class AttachExamService {
     // `requestAnswerKeyUpload` để lấy khoá thay vì tự ghép chuỗi: cách ghép
     // khoá đó là cơ chế giữ đáp án khỏi tay sinh viên, và nó phải có đúng
     // một chỗ định nghĩa. URL ký kèm theo thì bỏ — bytes đã nằm trong bộ nhớ
-    // tiến trình này rồi, tự PUT vào URL của chính mình chỉ thêm hai chặng
-    // mạng và một cách hỏng mới.
+    // tiến trình này rồi (xem `StorageService.putObject`).
     const { storageKey: answerKeyKey } =
       await this.references.requestAnswerKeyUpload(session);
 
     const examMaterialId = randomUUID();
     const paperKey = this.storage.buildMaterialKey(session.id, examMaterialId);
 
-    const material = await this.materials.create(session, {
-      examMaterialId,
-      storageKey: paperKey,
-      fileName: PAPER_FILENAME,
-      fileSize: paper.length,
-    });
-
+    // Chặng đã qua quyết định cách dọn khi hỏng — xem `catch`.
+    let createdMaterialId: string | null = null;
     try {
+      // Cả `materials.create` lẫn `references.upsert` đều HEAD-check storage,
+      // nên phải có byte thật TRƯỚC khi gọi bất kỳ cái nào. Trước đây không
+      // có lệnh ghi nào ở đây: mọi lượt gắn đề dừng ở 400 "Chưa thấy file
+      // trên kho lưu trữ".
+      await Promise.all([
+        this.storage.putObject(paperKey, paper, DOCX_MIME),
+        this.storage.putObject(answerKeyKey, answerKey, DOCX_MIME),
+      ]);
+
+      const material = await this.materials.create(session, {
+        examMaterialId,
+        storageKey: paperKey,
+        fileName: PAPER_FILENAME,
+        fileSize: paper.length,
+      });
+      createdMaterialId = material.id;
+
       await this.references.upsert(
         session,
         {
@@ -161,27 +172,33 @@ export class AttachExamService {
         teacherId,
         "authoring",
       );
+
+      return {
+        examMaterialId: material.id,
+        paperFilename: PAPER_FILENAME,
+        answerKeyFilename: ANSWER_KEY_FILENAME,
+      };
     } catch (error) {
-      // Gỡ đúng thứ vừa tạo. Không đụng tới object đáp án: khoá của nó là
-      // khoá CỐ ĐỊNH của phiên, nên xoá đi là xoá luôn đáp án của lần gắn
-      // trước nếu có.
-      await this.materials
-        .remove(session, material.id)
-        .catch((cleanupError: unknown) => {
-          this.logger.error(
-            `Gắn đề hỏng và dọn material ${material.id} cũng hỏng — còn lại một dòng mồ côi`,
-            cleanupError instanceof Error
-              ? cleanupError.stack
-              : String(cleanupError),
-          );
-        });
+      // KHÔNG BAO GIỜ đụng object đáp án: khoá của nó là khoá CỐ ĐỊNH của
+      // phiên, nên xoá nó là xoá luôn đáp án của lần gắn trước.
+      //
+      // - Đã có dòng `exam_material`: `materials.remove` xoá CẢ dòng lẫn object.
+      //   Chỉ `deleteObject` thì để lại một dòng trỏ vào object đã xoá, và
+      //   `listForAgent` sẽ phát URL chết cho sinh viên.
+      // - Chưa có dòng nào: chỉ có object đề vừa ghi, xoá đúng nó.
+      const cleanup: Promise<void> =
+        createdMaterialId !== null
+          ? this.materials.remove(session, createdMaterialId)
+          : this.storage.deleteObject(paperKey);
+      await cleanup.catch((cleanupError: unknown) => {
+        this.logger.error(
+          `Gắn đề hỏng và dọn ${createdMaterialId ?? paperKey} cũng hỏng — còn lại một mục mồ côi`,
+          cleanupError instanceof Error
+            ? cleanupError.stack
+            : String(cleanupError),
+        );
+      });
       throw error;
     }
-
-    return {
-      examMaterialId: material.id,
-      paperFilename: PAPER_FILENAME,
-      answerKeyFilename: ANSWER_KEY_FILENAME,
-    };
   }
 }

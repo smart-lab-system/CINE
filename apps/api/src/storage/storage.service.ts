@@ -22,12 +22,15 @@ import {
  * Thin wrapper over the S3 API — MinIO in dev, real S3 later. Nothing else
  * in the codebase touches the SDK.
  *
- * CLAUDE.md Security rule 5: submission files NEVER pass through this
- * server. Everything here mints a scoped, expiring URL or asks storage a
- * yes/no question about an object — no method reads or writes bytes, and
- * none should ever be added. `generateDownloadUrl` is not an exception to
- * that rule: the signature lets the AGENT fetch the object directly, which
- * is the rule being obeyed rather than bent.
+ * CLAUDE.md Security rule 5: files a USER uploads NEVER pass through this
+ * server. Almost everything here mints a scoped, expiring URL or asks
+ * storage a yes/no question about an object. Two methods do handle bytes
+ * inside this process, and each says at its definition why it is not an
+ * upload path: `getObject` (grading reads a submission after the exam) and
+ * `putObject` (the server writes a file it generated itself). No method may
+ * accept bytes that a client sent. `generateDownloadUrl` is not an
+ * exception to the rule: the signature lets the AGENT fetch the object
+ * directly, which is the rule being obeyed rather than bent.
  */
 @Injectable()
 export class StorageService {
@@ -284,6 +287,32 @@ export class StorageService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Ghi bytes thẳng từ tiến trình này lên kho.
+   *
+   * KHÔNG phải lỗ hổng của Security rule 5, cùng lý lẽ với `getObject`: rule
+   * đó nói về file NGƯỜI DÙNG đẩy lên — một phòng thi cùng nộp một lúc mà đi
+   * qua API là biến API thành nút thắt, và đã có presigned URL cho đúng việc
+   * ấy. Ở đây file do CHÍNH SERVER sinh ra (đề và đáp án dựng từ `examJson`
+   * ngay trong tiến trình): bytes đã nằm sẵn trong bộ nhớ, không có chuyến
+   * đi nào để tiết kiệm. Ký một URL rồi tự PUT vào URL của chính mình chỉ
+   * thêm hai chặng mạng và một cách hỏng mới.
+   *
+   * Một lượt gắn đề là một lần bấm nút của một giảng viên, không phải 40
+   * agent cùng lúc.
+   */
+  async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        ContentLength: body.length,
+      }),
+    );
   }
 }
 

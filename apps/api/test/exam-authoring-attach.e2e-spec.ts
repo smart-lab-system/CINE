@@ -4,6 +4,9 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
+import { ExamMaterialService } from '../src/exam-session/exam-material.service';
+import { GradingReferenceService } from '../src/grading/grading-reference.service';
+import { StorageService } from '../src/storage/storage.service';
 import { createTestAccount } from './helpers/create-account';
 import { upcomingSessionWindow } from './helpers/session-window';
 
@@ -25,6 +28,7 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
   let teacherToken: string;
   let teacherId: string;
   let otherToken: string;
+  let storage: StorageService;
   let classId: string;
   let examJson: string;
 
@@ -90,6 +94,7 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
     dataSource = app.get(DataSource);
+    storage = app.get(StorageService);
 
     const teacher = await makeTeacher('attach_gv');
     teacherId = teacher.id;
@@ -194,6 +199,80 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     const res = await attach(sessionId, JSON.stringify({ title: 'thiếu questions' }));
 
     expect(res.status).toBe(400);
+    expect(await materialsOf(sessionId)).toHaveLength(0);
+  });
+
+  // Ca "phiên chưa tới giờ thi" chỉ kiểm DÒNG DB nên xanh cả khi bucket rỗng.
+  // Ca này kiểm BYTE: `.docx` là một file zip nên mọi file đều mở đầu bằng "PK".
+  it('gắn đề xong thì cả hai object thật sự nằm trên kho lưu trữ', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+
+    const res = await attach(sessionId, examJson);
+    expect(res.status).toBe(201);
+    const paperKey = `materials/${sessionId}/${res.body.examMaterialId as string}`;
+    const answerKey = `grading-reference/${sessionId}/answer-key`;
+
+    expect(await storage.objectExists(paperKey)).toBe(true);
+    expect(await storage.objectExists(answerKey)).toBe(true);
+    const paper = await storage.getObject(paperKey);
+    const answer = await storage.getObject(answerKey);
+    expect(paper.subarray(0, 2).toString()).toBe('PK');
+    expect(answer.subarray(0, 2).toString()).toBe('PK');
+  });
+
+  // Khoá đáp án là khoá CỐ ĐỊNH theo phiên nên lần sau GHI ĐÈ — chủ ý.
+  it('gắn đề lần thứ hai trên cùng phiên vẫn còn đáp án trên kho', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+
+    expect((await attach(sessionId, examJson)).status).toBe(201);
+    expect((await attach(sessionId, examJson)).status).toBe(201);
+
+    const answer = await storage.getObject(`grading-reference/${sessionId}/answer-key`);
+    expect(answer.subarray(0, 2).toString()).toBe('PK');
+  });
+
+  // Review Focus #1. `upsert` hỏng SAU khi `materials.create` đã xong: dòng
+  // `exam_material` phải biến mất cùng object, nếu không `listForAgent` phát
+  // một URL chết cho sinh viên.
+  it('upsert hỏng -> dọn cả dòng lẫn object của lần gắn hỏng, không đụng lần trước', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+    const first = await attach(sessionId, examJson);
+    expect(first.status).toBe(201);
+    const firstId = first.body.examMaterialId as string;
+
+    const spy = jest
+      .spyOn(app.get(GradingReferenceService), 'upsert')
+      .mockRejectedValueOnce(new Error('hỏng giả lập ở upsert'));
+    try {
+      expect((await attach(sessionId, examJson)).status).toBe(500);
+    } finally {
+      spy.mockRestore();
+    }
+
+    const rows = await materialsOf(sessionId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(firstId);
+    expect(await storage.objectExists(`materials/${sessionId}/${firstId}`)).toBe(true);
+  });
+
+  // `materials.create` hỏng thì CHƯA có dòng nào, chỉ có object đề vừa ghi.
+  it('create hỏng -> object đề vừa ghi bị xoá, không có dòng nào', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+
+    const create = jest
+      .spyOn(app.get(ExamMaterialService), 'create')
+      .mockRejectedValueOnce(new Error('hỏng giả lập ở create'));
+    const del = jest.spyOn(storage, 'deleteObject');
+    try {
+      expect((await attach(sessionId, examJson)).status).toBe(500);
+      expect(del).toHaveBeenCalledTimes(1);
+      const key = del.mock.calls[0][0];
+      expect(key.startsWith(`materials/${sessionId}/`)).toBe(true);
+      expect(await storage.objectExists(key)).toBe(false);
+    } finally {
+      create.mockRestore();
+      del.mockRestore();
+    }
     expect(await materialsOf(sessionId)).toHaveLength(0);
   });
 });
