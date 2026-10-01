@@ -164,7 +164,7 @@ export class ErrorRuleService {
          JOIN examcollect.exam_session es ON es.id = s.exam_session_id
          JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id AND a.outcome = 'graded'
         WHERE es.teacher_id = $1 AND g.pipeline = 'investigator'
-          AND g.status IN ('auto_approved', 'audit_pending', 'flagged_for_review', 'teacher_reviewed')
+          AND g.status IN ('auto_approved', 'flagged_for_review', 'teacher_reviewed')
           AND NOT EXISTS (SELECT 1 FROM examcollect.teacher_review t
                            WHERE t.grading_result_id = g.id AND t.kind = 'manual_score')
         ORDER BY g.id`,
@@ -210,6 +210,8 @@ export class ErrorRuleService {
            JOIN examcollect.submission s ON s.id = g.submission_id
            JOIN examcollect.exam_session es ON es.id = s.exam_session_id
           WHERE es.teacher_id = $1
+            -- Bài kiểm mẫu chưa kiểm không được tính vào số đếm luật: trừ số đếm ra là suy được tập lỗi của nó.
+            AND g.status <> 'audit_pending'
           ORDER BY c.grading_result_id, c.created_at DESC, c.id DESC),
        applied AS (
          SELECT e ->> 'ruleId' AS rule_id, l.grading_result_id, l.exam_session_id
