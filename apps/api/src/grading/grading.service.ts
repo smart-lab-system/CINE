@@ -783,6 +783,7 @@ export class GradingService {
         confidence: entity.confidence === null ? null : Number(entity.confidence),
         flagForReview: entity.flagForReview,
         ungradableReason: entity.ungradableReason,
+        ungradableClass: entity.ungradableClass ?? null,
         criterionResults: entity.criterionResults,
         // Đầu ra của lượt phản biện. Backend đã ghi ba cột này từ Plan 2;
         // cho tới đây không đường nào đọc chúng ra, nên tính năng hoàn
@@ -850,6 +851,11 @@ export interface GradingResultView {
    * Xem docblock của cột cùng tên ở `grading-result.entity.ts`.
    */
   ungradableReason: string | null;
+  /**
+   * Lớp lý do không chấm được (§4.4): `system` chấm lại được, `submission` thì không. `null` khi bài không
+   * dừng. Đặt ngay sau `ungradableReason` — G3 là gói DUY NHẤT thêm trường vào view này.
+   */
+  ungradableClass: 'system' | 'submission' | null;
   criterionResults: unknown[];
   /**
    * Ý kiến lượt phản biện.
