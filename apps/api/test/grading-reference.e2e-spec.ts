@@ -504,4 +504,48 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
 
     expect((await referenceRow(session.id)).model_answer_set_at).toBeNull();
   });
+
+  it('sources: phiên chưa có tài liệu -> cả hai đều không có mặt', async () => {
+    const session = await seedSession();
+
+    const res = await readiness(session.id).expect(200);
+
+    expect(res.body.sources.question).toEqual({ present: false, kind: 'teacher_upload', fileName: null, setAt: null });
+    expect(res.body.sources.modelAnswer).toEqual({
+      present: false,
+      kind: 'teacher_upload',
+      fileName: null,
+      setAt: null,
+      unverified: false,
+    });
+  });
+
+  it('sources: đề giảng viên tải lên -> tên file và mốc tải lên', async () => {
+    const session = await seedSession();
+    await setReference(session.id, { questionMaterialId: session.materialId }).expect(200);
+
+    const res = await readiness(session.id).expect(200);
+
+    expect(res.body.sources.question).toEqual({
+      present: true,
+      kind: 'teacher_upload',
+      fileName: 'DeThi.pdf',
+      setAt: expect.any(String),
+    });
+  });
+
+  it('sources: đáp án ghi tay -> tự khai, không có tên file, không mang cờ chưa kiểm chứng', async () => {
+    const session = await seedSession();
+    await setReference(session.id, { modelAnswerNote: 'chấp nhận cả quy hoạch động' }).expect(200);
+
+    const res = await readiness(session.id).expect(200);
+
+    expect(res.body.sources.modelAnswer).toEqual({
+      present: true,
+      kind: 'teacher_upload',
+      fileName: null,
+      setAt: expect.any(String),
+      unverified: false,
+    });
+  });
 });

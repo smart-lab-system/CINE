@@ -19,12 +19,33 @@ import { GRADING_LOCKED_MESSAGE, isGradingLocked } from './grading-lock';
  */
 export type GradingReadinessLevel = 'rubric_only' | 'with_question' | 'with_model_answer';
 
+/**
+ * Một tài liệu chấm và nó đến từ đâu. `present: false` thì UI bỏ cả dòng —
+ * không có tài liệu thì không có nguồn để nói.
+ */
+export interface GradingSourceInfo {
+  present: boolean;
+  /**
+   * `teacher_upload` = giảng viên tự đưa vào (kể cả một câu ghi chú).
+   * `authoring` = do luồng soạn đề sinh ra rồi gắn vào (cả `origin='generated'`:
+   * mô hình viết, không phải tay giảng viên — đó là điều màn này cần nói).
+   */
+  kind: 'teacher_upload' | 'authoring';
+  fileName: string | null;
+  /** ISO-8601, hoặc `null` khi không đo được. */
+  setAt: string | null;
+}
+
 export interface GradingReadiness {
   level: GradingReadinessLevel;
   /** `null` khi đủ tài liệu. Chuỗi này để UI hiện nguyên văn. */
   warning: string | null;
   hasQuestion: boolean;
   hasModelAnswer: boolean;
+  sources: {
+    question: GradingSourceInfo;
+    modelAnswer: GradingSourceInfo & { unverified: boolean };
+  };
 }
 
 /** Tài liệu đã nạp sẵn, dạng dùng được cho prompt. */
@@ -184,15 +205,40 @@ export class GradingReferenceService {
   }
 
   async readiness(examSessionId: string): Promise<GradingReadiness> {
-    const row = await this.references.findOne({ where: { examSessionId } });
+    // `relations`: dòng nguồn của ĐỀ cần tên file và lúc tải lên, mà cả hai nằm ở `exam_material`.
+    const row = await this.references.findOne({
+      where: { examSessionId },
+      relations: { questionMaterial: true },
+    });
     const hasQuestion = Boolean(row?.questionMaterialId);
     const hasModelAnswer = Boolean(row?.modelAnswerStorageKey || row?.modelAnswerNote);
+    const sources: GradingReadiness['sources'] = {
+      question: {
+        present: hasQuestion,
+        // Đề luôn do giảng viên tự tải lên: `ExamMaterialService.requestUpload` là đường duy nhất tạo `exam_material`.
+        kind: 'teacher_upload',
+        fileName: row?.questionMaterial?.fileName ?? null,
+        setAt: row?.questionMaterial?.uploadedAt?.toISOString() ?? null,
+      },
+      modelAnswer: {
+        present: hasModelAnswer,
+        // `'generated'` cũng là "không phải tay giảng viên" — chưa có đường nào đặt nó, nhưng khi có thì đọc vẫn đúng.
+        kind:
+          row?.modelAnswerOrigin === 'authoring' || row?.modelAnswerOrigin === 'generated'
+            ? 'authoring'
+            : 'teacher_upload',
+        fileName: row?.modelAnswerFilename ?? null,
+        setAt: row?.modelAnswerSetAt?.toISOString() ?? null,
+        unverified: row?.modelAnswerUnverified ?? false,
+      },
+    };
 
     if (!hasQuestion) {
       return {
         level: 'rubric_only',
         hasQuestion,
         hasModelAnswer,
+        sources,
         warning:
           'Chưa chọn đề bài — AI chỉ đối chiếu rubric và KHÔNG phát hiện được ' +
           'bài làm đúng theo hướng khác.',
@@ -203,10 +249,11 @@ export class GradingReferenceService {
         level: 'with_question',
         hasQuestion,
         hasModelAnswer,
+        sources,
         warning: 'Chưa có đáp án mẫu — AI đánh giá theo đề, chưa biết cách chấm của thầy.',
       };
     }
-    return { level: 'with_model_answer', hasQuestion, hasModelAnswer, warning: null };
+    return { level: 'with_model_answer', hasQuestion, hasModelAnswer, sources, warning: null };
   }
 
   /**

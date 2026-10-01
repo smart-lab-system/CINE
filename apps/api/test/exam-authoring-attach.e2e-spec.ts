@@ -412,4 +412,23 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     expect(await referenceOf(sessionId)).toBeDefined();
     expect(await bundlesOf(sessionId)).toHaveLength(0);
   });
+
+  it('sau khi gắn từ Soạn đề, readiness nói nguồn là Soạn đề và đáp án chưa kiểm chứng', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+    expect((await attach(sessionId, examJson)).status).toBe(201);
+
+    const res = await request(app.getHttpServer())
+      .get(`/exam-sessions/${sessionId}/grading-readiness`)
+      .set('Authorization', `Bearer ${teacherToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.sources.modelAnswer).toEqual({
+      present: true,
+      kind: 'authoring',
+      fileName: 'dap-an-va-test.docx',
+      setAt: expect.any(String),
+      unverified: true,
+    });
+    expect(res.body.sources.question.fileName).toBe('de-thi.docx');
+  });
 });
