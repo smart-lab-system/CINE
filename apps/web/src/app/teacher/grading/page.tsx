@@ -135,6 +135,7 @@ function SessionScreen({
             results={list}
             online={online}
             onRegradeStuck={() => regrade.mutate()}
+            sessionId={sessionId}
             regrade={{
               isPending: regrade.isPending,
               isError: regrade.isError,
