@@ -263,4 +263,90 @@ describe('Chấm lại bài không chấm được (e2e, hàng đợi bị spy)'
     expect(gone.remove).not.toHaveBeenCalled();
     expect(add).toHaveBeenCalledTimes(1);
   });
+
+  describe('cả phiên — POST /exam-sessions/:id/regrade-ungradable', () => {
+    const R1 = 'Dịch vụ AI không phản hồi.';
+    const R2 = 'Môi trường chạy bài hết giờ.';
+    const regradeSession = (token: string, sessionId: string, body: object = {}) =>
+      request(app.getHttpServer()).post(`/exam-sessions/${sessionId}/regrade-ungradable`).set(as(token)).send(body);
+
+    /** Hai bài system cùng lý do R1, một bài system lý do R2, một bài LỚP submission mang CÙNG chữ R1, một bài đã có điểm. */
+    async function world(label: string) {
+      const owner = await login(label);
+      const ctx = await seedSession(ds, `regrade-${label}`, { teacherId: owner.id });
+      const a1 = await ungradable(ctx, 'system', R1);
+      const a2 = await ungradable(ctx, 'system', R1);
+      const b = await ungradable(ctx, 'system', R2);
+      const sub = await ungradable(ctx, 'submission', R1);
+      const done = await seedResult(ds, ctx, 'one_shot');
+      await scoreResult(ds, done.resultId, '7.00');
+      return { owner, ctx, a1, a2, b, sub, done };
+    }
+
+    it('không lọc → mọi bài lớp system; bài lớp submission và bài đã có điểm đứng yên', async () => {
+      const w = await world('s1');
+
+      const res = await regradeSession(w.owner.token, w.ctx.sessionId);
+
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual({ requeued: 3, skipped: [] });
+      for (const made of [w.a1, w.a2, w.b]) expect((await rowOf(made.resultId)).status).toBe('ai_grading');
+      expect(await rowOf(w.sub.resultId)).toMatchObject({ status: 'flagged_for_review', ungradable_class: 'submission' });
+      expect(await rowOf(w.done.resultId)).toMatchObject({ status: 'ai_graded', ai_total_score: '7.00' });
+      expect(add).toHaveBeenCalledTimes(3);
+    });
+
+    // Review Focus #4: lọc theo lý do so NGUYÊN VĂN — và bài lớp submission mang cùng chữ R1 không được kéo vào.
+    it('lọc theo lý do R1 → chỉ hai bài system cùng lý do, không kéo bài submission cùng chữ', async () => {
+      const w = await world('s2');
+
+      const res = await regradeSession(w.owner.token, w.ctx.sessionId, { reason: R1 });
+
+      expect(res.body).toEqual({ requeued: 2, skipped: [] });
+      expect((await rowOf(w.a1.resultId)).status).toBe('ai_grading');
+      expect((await rowOf(w.a2.resultId)).status).toBe('ai_grading');
+      expect(await rowOf(w.b.resultId)).toMatchObject({ status: 'flagged_for_review', ungradable_reason: R2 });
+      expect(await rowOf(w.sub.resultId)).toMatchObject({ status: 'flagged_for_review', ungradable_class: 'submission' });
+      expect(add).toHaveBeenCalledTimes(2);
+    });
+
+    it('reason: null gửi rõ ràng giống hệt không gửi', async () => {
+      const w = await world('s3');
+      const res = await regradeSession(w.owner.token, w.ctx.sessionId, { reason: null });
+      expect(res.body).toEqual({ requeued: 3, skipped: [] });
+    });
+
+    it('không có gì để chấm lại → 201 với requeued 0, không phải lỗi', async () => {
+      const owner = await login('s4');
+      const ctx = await seedSession(ds, 'regrade-s4', { teacherId: owner.id });
+      const done = await seedResult(ds, ctx, 'one_shot');
+      await scoreResult(ds, done.resultId, '7.00');
+
+      const res = await regradeSession(owner.token, ctx.sessionId);
+
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual({ requeued: 0, skipped: [] });
+      expect(add).not.toHaveBeenCalled();
+    });
+
+    it('bấm hai lần liên tiếp → lần hai không còn gì để làm', async () => {
+      const w = await world('s5');
+      await regradeSession(w.owner.token, w.ctx.sessionId).expect(201);
+
+      const second = await regradeSession(w.owner.token, w.ctx.sessionId);
+
+      expect(second.body).toEqual({ requeued: 0, skipped: [] });
+      expect(add).toHaveBeenCalledTimes(3);
+    });
+
+    it('giảng viên khác → 403; phiên không tồn tại → 404; reason sai kiểu → 400', async () => {
+      const w = await world('s6');
+      const stranger = await login('s6-khac');
+
+      expect((await regradeSession(stranger.token, w.ctx.sessionId)).status).toBe(403);
+      expect((await regradeSession(w.owner.token, randomUUID())).status).toBe(404);
+      expect((await regradeSession(w.owner.token, w.ctx.sessionId, { reason: 123 })).status).toBe(400);
+      expect((await rowOf(w.a1.resultId)).status).toBe('flagged_for_review');
+    });
+  });
 });

@@ -124,6 +124,36 @@ export class RegradeService {
   }
 
   /**
+   * Chấm lại MỌI bài lớp system của một phiên — tuỳ chọn chỉ những bài cùng `ungradable_reason`.
+   *
+   * Một `SELECT` lấy ứng viên rồi gọi `requeue` TUẦN TỰ từng bài, không `UPDATE … WHERE id IN (…)` hàng loạt:
+   * mỗi dòng phải qua đúng một UPDATE có điều kiện (hai lượt bấm song song không tạo hai lượt chấm), và
+   * `skipped` phải nói được bài NÀO bị bỏ vì sao — một mảng id trần nói không được.
+   *
+   * Lớp `submission` và bài đã có điểm không bao giờ lọt vào `SELECT`, nên cũng không bao giờ lọt vào lọc theo
+   * lý do dù có trùng chữ.
+   */
+  async regradeUngradable(teacherId: string, examSessionId: string, reason: string | null): Promise<RegradeOutcome> {
+    const rows: Record<string, unknown>[] = await this.ds.query(
+      `${REGRADE_ROW_SQL}
+        WHERE s.exam_session_id = $1
+          AND g.status = 'flagged_for_review'
+          AND g.ungradable_class = 'system'
+          AND g.ai_total_score IS NULL
+          AND ($2::text IS NULL OR g.ungradable_reason = $2)
+        ORDER BY g.id`,
+      [examSessionId, reason],
+    );
+    const outcome: RegradeOutcome = { requeued: 0, skipped: [] };
+    for (const raw of rows) {
+      const one = await this.requeue(teacherId, toRow(raw));
+      outcome.requeued += one.requeued;
+      outcome.skipped.push(...one.skipped);
+    }
+    return outcome;
+  }
+
+  /**
    * Đưa MỘT bài về `ai_grading` rồi xếp job.
    *
    * UPDATE có điều kiện trong một transaction, dưới khoá chấm điểm của giảng viên (cùng thứ tự khoá với
