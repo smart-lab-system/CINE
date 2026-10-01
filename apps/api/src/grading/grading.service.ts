@@ -34,6 +34,7 @@ import type { GradingPipeline, TeacherReviewKind } from './grading-model.types';
 import { currentScore, CurrentScore } from './scoring/current-score';
 import type { ScoreBreakdown } from './scoring/score-core';
 import { ResultTriage, triageOf } from './scoring/result-triage';
+import { blindAuditRow } from './audit-blind';
 import type { DeclaredLanguage } from '../exam-session/declared-language';
 import { InvestigatorRunService } from './pipeline/investigator-run.service';
 import { lockTeacherScoring } from './scoring/score-inputs';
@@ -770,7 +771,8 @@ export class GradingService {
         finalizedComputationScore: source?.finalizedComputationScore ?? null,
         latestComputationScore: source?.latestComputationScore ?? null,
       });
-      return {
+      // MỘT chỗ giấu điểm/lỗi của bài kiểm mẫu chưa kiểm — `blindAuditRow` bọc ở cuối (§8.1 luật 2).
+      const view: GradingResultView = {
         id: entity.id,
         submissionId: entity.submissionId,
         studentMssv: rows.raw[index].studentMssv,
@@ -807,6 +809,7 @@ export class GradingService {
           breakdown: source?.latestBreakdown ?? null,
         }),
       };
+      return blindAuditRow(view);
     });
   }
 }

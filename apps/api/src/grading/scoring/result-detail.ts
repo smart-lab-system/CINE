@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 import { GradingResultEntity } from '../entities/grading-result.entity';
 import { GradingPipeline } from '../grading-model.types';
+import { blindResultDetail } from '../audit-blind';
 import { CurrentScore, currentScore } from './current-score';
 import { latestComputationRow } from './score-inputs';
 import type { ScoreBreakdown } from './score-core';
@@ -58,6 +59,9 @@ interface LatestReviewRow {
  * `computeScore`/`ScoreService` đã tính và lưu từ trước.
  */
 export async function loadResultDetail(ds: DataSource, result: GradingResultEntity): Promise<ResultDetail> {
+  // Bài kiểm mẫu chưa kiểm: trả bản mù NGAY, trước khi đọc bất kỳ dòng tính điểm hay lượt chấm nào (§8.1 luật 2).
+  if (result.status === 'audit_pending') return blindResultDetail(result);
+
   const computation = await latestComputationRow(ds.manager, result.id);
   const [attempt] = result.currentAttemptId
     ? await ds.query(`SELECT investigation FROM examcollect.grading_attempt WHERE id = $1`, [result.currentAttemptId])
