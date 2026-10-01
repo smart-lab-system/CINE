@@ -98,7 +98,7 @@ describe('flattenAuthoringCases', () => {
   // được regex của DB, không phải mấy tên mình chọn.
   it('mọi tên rác đều cho khoá hợp lệ và không trùng', () => {
     const junk = [
-      '', '   ', '!!!', 'Câu 1: cân bằng BST', 'a/b\c', 'null', '0', '-', '_',
+      '', '   ', '!!!', 'Câu 1: cân bằng BST', 'a/b\\c', 'null', '0', '-', '_',
       'Đề thi giữa kỳ — phần 2', 'case\u0000with\u0000nulls', '🎉', 'x'.repeat(300),
       'Case 1', 'case 1', 'CASE 1',
     ];
