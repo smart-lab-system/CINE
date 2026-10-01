@@ -102,7 +102,7 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
       .set(as(owner.token));
     expect(list.status).toBe(200);
     expect(list.body).toEqual([
-      { id: bundleId, version: 1, approvedAt: null, caseCount: 1 },
+      { id: bundleId, version: 1, approvedAt: null, origin: 'teacher', caseCount: 1 },
     ]);
 
     const detail = await request(app.getHttpServer())

@@ -7,9 +7,11 @@ import {
   ExamSessionStatus,
 } from "../exam-session/entities/exam-session.entity";
 import { GradingReferenceService } from "../grading/grading-reference.service";
+import { TestBundleService } from "../grading/test-bundle/test-bundle.service";
 import { StorageService } from "../storage/storage.service";
 import { buildExamPaperDocx } from "./docx/exam-paper.docx";
 import { buildAnswerKeyDocx } from "./docx/answer-key.docx";
+import { flattenAuthoringCases } from "./authoring-bundle";
 import { parseExamJson } from "./dto/parse-exam";
 
 export const PAPER_FILENAME = "de-thi.docx";
@@ -62,6 +64,18 @@ export interface AttachResult {
   examMaterialId: string;
   paperFilename: string;
   answerKeyFilename: string;
+  /**
+   * Gói test lấy từ chính đề vừa soạn; `null` khi đề không sinh ca nào.
+   * `grading-run.service.ts` chặn bắt đầu chấm khi phiên có bài code mà chưa
+   * ghim gói test — nên đây là điều kiện để phiên đó chấm được, không phải
+   * tiện lợi.
+   */
+  testBundle: {
+    id: string;
+    version: number;
+    approvedAt: string | null;
+    pinned: boolean;
+  } | null;
 }
 
 /**
@@ -96,6 +110,7 @@ export class AttachExamService {
     private readonly materials: ExamMaterialService,
     private readonly references: GradingReferenceService,
     private readonly storage: StorageService,
+    private readonly bundles: TestBundleService,
   ) {}
 
   async attach(
@@ -141,6 +156,7 @@ export class AttachExamService {
 
     // Chặng đã qua quyết định cách dọn khi hỏng — xem `catch`.
     let createdMaterialId: string | null = null;
+    let referenceWritten = false;
     try {
       // Cả `materials.create` lẫn `references.upsert` đều HEAD-check storage,
       // nên phải có byte thật TRƯỚC khi gọi bất kỳ cái nào. Trước đây không
@@ -172,13 +188,39 @@ export class AttachExamService {
         teacherId,
         "authoring",
       );
+      referenceWritten = true;
+
+      // Gói test là bước CUỐI, có chủ ý: đặt trước `upsert` thì một lần gắn
+      // hỏng ở `upsert` vẫn để lại gói đã GHIM — phiên bị đóng dấu bằng thước
+      // của một lượt gắn thất bại, tệ hơn một đề thiếu thước.
+      const authoredCases = flattenAuthoringCases(exam.questions);
+      const testBundle =
+        authoredCases.length > 0
+          ? await this.bundles.adoptFromAuthoring(
+              session.id,
+              teacherId,
+              authoredCases,
+              session.testBundleId !== null,
+            )
+          : null;
 
       return {
         examMaterialId: material.id,
         paperFilename: PAPER_FILENAME,
         answerKeyFilename: ANSWER_KEY_FILENAME,
+        testBundle,
       };
     } catch (error) {
+      if (referenceWritten) {
+        // Đề và đáp án đã ghi hợp lệ, và `grading_reference` đang giữ
+        // material bằng FK RESTRICT nên `materials.remove` sẽ từ chối. Chỉ
+        // gói test thiếu — nói thẳng thay vì dọn dở.
+        this.logger.error(
+          `Gắn đề vào phiên ${session.id}: đề và đáp án đã ghi nhưng gói test hỏng — phiên chưa có thước từ đề này`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        throw error;
+      }
       // KHÔNG BAO GIỜ đụng object đáp án: khoá của nó là khoá CỐ ĐỊNH của
       // phiên, nên xoá nó là xoá luôn đáp án của lần gắn trước.
       //

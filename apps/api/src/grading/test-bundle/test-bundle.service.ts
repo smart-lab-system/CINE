@@ -1,7 +1,20 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
+
+/**
+ * Một ca sẵn sàng ghi. Kiểu CẤU TRÚC, không import từ `exam-authoring`:
+ * `grading` không được biết `exam-authoring` (module kia import module này,
+ * không có chiều ngược lại).
+ */
+export interface BundleCaseInput {
+  caseKey: string;
+  group: string;
+  input: string;
+  expectedOutput: string;
+  constraintQuote?: string | null;
+}
 
 /**
  * Gói test có phiên bản của MỘT phiên (§14.1). Raw SQL qua `DataSource`,
@@ -17,24 +30,71 @@ export class TestBundleService {
 
   async create(examSessionId: string, teacherId: string, dto: CreateTestBundleDto) {
     return this.ds.transaction(async (manager) => {
-      const [{ next_version }] = await manager.query(
-        `SELECT COALESCE(MAX(version), 0) + 1 AS next_version
-           FROM examcollect.grading_test_bundle WHERE exam_session_id = $1`,
-        [examSessionId],
-      );
+      const version = await this.nextVersion(manager, examSessionId);
       const [bundle] = await manager.query(
         `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
          VALUES ($1, $2, 'teacher', $3) RETURNING id, version`,
-        [examSessionId, next_version, teacherId],
+        [examSessionId, version, teacherId],
       );
-      for (const c of dto.cases) {
-        await manager.query(
-          `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output, constraint_quote)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [bundle.id, c.caseKey, c.group, c.input, c.expectedOutput, c.constraintQuote ?? null],
-        );
-      }
+      await this.insertCases(manager, bundle.id, dto.cases);
       return { id: bundle.id as string, version: bundle.version as number };
+    });
+  }
+
+  /**
+   * Nhận gói test mà luồng soạn đề ĐÃ sinh sẵn, vào đúng gói của phiên này.
+   *
+   * `origin='generated'` vì các ca do MÔ HÌNH viết, không phải giảng viên —
+   * dù chính giảng viên đã đọc nó ở màn soạn đề. Cột `origin` trả lời "ai
+   * viết ca", không phải "ai bấm nút".
+   *
+   * `sessionAlreadyPinned` là điều kiện DUY NHẤT quyết định có tự duyệt và
+   * tự ghim không. Nó đọc `exam_session.test_bundle_id` chứ không đọc
+   * `origin`, nên một gói giảng viên tự tay duyệt rồi ghim cũng chặn đúng —
+   * đè lên nó là xoá mất lựa chọn họ đã cố ý làm.
+   */
+  async adoptFromAuthoring(
+    examSessionId: string,
+    teacherId: string,
+    cases: BundleCaseInput[],
+    sessionAlreadyPinned: boolean,
+  ): Promise<{ id: string; version: number; approvedAt: string | null; pinned: boolean }> {
+    return this.ds.transaction(async (manager) => {
+      const version = await this.nextVersion(manager, examSessionId);
+      const [bundle] = await manager.query(
+        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
+         VALUES ($1, $2, 'generated', $3) RETURNING id, version`,
+        [examSessionId, version, teacherId],
+      );
+      await this.insertCases(manager, bundle.id, cases);
+
+      if (sessionAlreadyPinned) {
+        return { id: bundle.id as string, version: bundle.version as number, approvedAt: null, pinned: false };
+      }
+
+      // Duyệt rồi ghim trong CÙNG transaction: ghim gói chưa duyệt thì
+      // `pin` từ chối, và duyệt xong mà rollback thì để lại một gói đã
+      // duyệt không ai dùng.
+      await manager.query(
+        `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now() WHERE id = $2`,
+        [teacherId, bundle.id],
+      );
+      await manager.query(`UPDATE examcollect.exam_session SET test_bundle_id = $1 WHERE id = $2`, [
+        bundle.id,
+        examSessionId,
+      ]);
+      // SELECT chứ không `UPDATE … RETURNING`: TypeORM trả `[rows, rowCount]` cho UPDATE/DELETE
+      // (không phải mảng hàng), nên `const [row] = …` ra nguyên mảng `rows` và `row.approved_at` là undefined.
+      const [approved] = await manager.query(
+        `SELECT approved_at FROM examcollect.grading_test_bundle WHERE id = $1`,
+        [bundle.id],
+      );
+      return {
+        id: bundle.id as string,
+        version: bundle.version as number,
+        approvedAt: new Date(approved.approved_at).toISOString(),
+        pinned: true,
+      };
     });
   }
 
@@ -68,15 +128,22 @@ export class TestBundleService {
   }
 
   async list(examSessionId: string) {
-    const rows: { id: string; version: number; approved_at: string | null; case_count: number }[] = await this.ds.query(
-      `SELECT b.id, b.version, b.approved_at, COUNT(c.id)::int AS case_count
-         FROM examcollect.grading_test_bundle b
-         LEFT JOIN examcollect.grading_test_case c ON c.bundle_id = b.id AND c.auto_dropped_reason IS NULL
-        WHERE b.exam_session_id = $1
-        GROUP BY b.id ORDER BY b.version DESC`,
-      [examSessionId],
-    );
-    return rows.map((r) => ({ id: r.id, version: r.version, approvedAt: r.approved_at, caseCount: r.case_count }));
+    const rows: { id: string; version: number; approved_at: string | null; origin: string; case_count: number }[] =
+      await this.ds.query(
+        `SELECT b.id, b.version, b.approved_at, b.origin, COUNT(c.id)::int AS case_count
+           FROM examcollect.grading_test_bundle b
+           LEFT JOIN examcollect.grading_test_case c ON c.bundle_id = b.id AND c.auto_dropped_reason IS NULL
+          WHERE b.exam_session_id = $1
+          GROUP BY b.id, b.version, b.approved_at, b.origin ORDER BY b.version DESC`,
+        [examSessionId],
+      );
+    return rows.map((r) => ({
+      id: r.id,
+      version: r.version,
+      approvedAt: r.approved_at,
+      origin: r.origin,
+      caseCount: r.case_count,
+    }));
   }
 
   async get(examSessionId: string, bundleId: string) {
@@ -99,6 +166,31 @@ export class TestBundleService {
         autoDroppedReason: r.auto_dropped_reason,
       })),
     };
+  }
+
+  /**
+   * Số phiên bản kế tiếp, đọc BÊN TRONG transaction cùng lúc với `INSERT`:
+   * `uq_grading_test_bundle_version` là UNIQUE nên hai lần tạo song song
+   * (bấm hai lần) sẽ đụng nhau nếu đọc `MAX(version)` bên ngoài.
+   */
+  private async nextVersion(manager: EntityManager, examSessionId: string): Promise<number> {
+    const [{ next_version }] = await manager.query(
+      `SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+         FROM examcollect.grading_test_bundle WHERE exam_session_id = $1`,
+      [examSessionId],
+    );
+    return next_version as number;
+  }
+
+  /** `constraint_quote` vắng khi tạo tay và khi nhận từ Soạn đề (đề sinh không kèm trích dẫn). */
+  private async insertCases(manager: EntityManager, bundleId: string, cases: BundleCaseInput[]): Promise<void> {
+    for (const c of cases) {
+      await manager.query(
+        `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output, constraint_quote)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [bundleId, c.caseKey, c.group, c.input, c.expectedOutput, c.constraintQuote ?? null],
+      );
+    }
   }
 
   /** Gói phải thuộc ĐÚNG phiên được truyền vào (Review Focus #3). */

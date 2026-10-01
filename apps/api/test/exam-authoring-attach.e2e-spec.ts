@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { ExamMaterialService } from '../src/exam-session/exam-material.service';
 import { GradingReferenceService } from '../src/grading/grading-reference.service';
+import { TestBundleService } from '../src/grading/test-bundle/test-bundle.service';
 import { StorageService } from '../src/storage/storage.service';
 import { createTestAccount } from './helpers/create-account';
 import { upcomingSessionWindow } from './helpers/session-window';
@@ -85,6 +86,43 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
       [sessionId],
     );
     return row;
+  }
+
+  async function bundlesOf(sessionId: string) {
+    return dataSource.query(
+      `SELECT id, version, origin, approved_by, approved_at
+         FROM examcollect.grading_test_bundle WHERE exam_session_id = $1 ORDER BY version`,
+      [sessionId],
+    );
+  }
+
+  async function caseKeysOf(bundleId: string): Promise<string[]> {
+    const rows: { case_key: string }[] = await dataSource.query(
+      `SELECT case_key FROM examcollect.grading_test_case WHERE bundle_id = $1 ORDER BY case_key`,
+      [bundleId],
+    );
+    return rows.map((r) => r.case_key);
+  }
+
+  function authoredCaseCount(json: string): number {
+    const exam = JSON.parse(json) as { questions: { testBundle: unknown[] }[] };
+    return exam.questions.reduce((n, q) => n + q.testBundle.length, 0);
+  }
+
+  /** Một đề tuỳ chỉnh — `parseExamJson` chấp nhận, nên dựng được tên ca mà stub không sinh. */
+  function customExam(questions: { cases: { name: string; group: string }[] }[]): string {
+    return JSON.stringify({
+      title: 'Đề tuỳ chỉnh',
+      language: 'python',
+      verification: { status: 'unverified', reason: 'sandbox_unavailable' },
+      questions: questions.map((q) => ({
+        statement: 'Câu hỏi',
+        modelAnswer: 'print(1)',
+        topic: 'thử',
+        points: 1,
+        testBundle: q.cases.map((c) => ({ ...c, input: '1', expectedOutput: '1' })),
+      })),
+    });
   }
 
   beforeAll(async () => {
@@ -274,5 +312,104 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
       del.mockRestore();
     }
     expect(await materialsOf(sessionId)).toHaveLength(0);
+  });
+
+  it('gắn đề sinh ra gói test đã duyệt và đã ghim, đúng số ca của đề', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+
+    const res = await attach(sessionId, examJson);
+    expect(res.status).toBe(201);
+    expect(authoredCaseCount(examJson)).toBe(3);
+
+    const bundles = await bundlesOf(sessionId);
+    expect(bundles).toHaveLength(1);
+    expect(bundles[0].origin).toBe('generated');
+    expect(bundles[0].approved_by).toBe(teacherId);
+    expect(bundles[0].approved_at).not.toBeNull();
+    expect(await caseKeysOf(bundles[0].id)).toEqual(['q1-co-ban', 'q1-mot-phan-tu', 'q1-rong']);
+
+    const [pinned] = await dataSource.query(
+      `SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(pinned.test_bundle_id).toBe(bundles[0].id);
+    expect(res.body.testBundle).toEqual({
+      id: bundles[0].id,
+      version: 1,
+      approvedAt: expect.any(String),
+      pinned: true,
+    });
+  });
+
+  // Review Focus #4. Lần gắn thứ hai KHÔNG được đè gói giảng viên đã chọn;
+  // gói mới vẫn được tạo (lịch sử không mất) nhưng chưa duyệt.
+  it('gắn lần hai không đè gói đã ghim, và gói mới chưa duyệt', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+
+    const first = await attach(sessionId, examJson);
+    expect(first.status).toBe(201);
+    const second = await attach(sessionId, examJson);
+    expect(second.status).toBe(201);
+
+    const bundles = await bundlesOf(sessionId);
+    expect(bundles).toHaveLength(2);
+    expect(bundles[1].approved_at).toBeNull();
+    expect(second.body.testBundle.pinned).toBe(false);
+    expect(second.body.testBundle.approvedAt).toBeNull();
+
+    const [row] = await dataSource.query(
+      `SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(row.test_bundle_id).toBe(first.body.testBundle.id);
+  });
+
+  // Review Focus #2 + #3, đầu-cuối: tên có dấu/dấu câu và tên trùng trong một
+  // câu phải cho ra khoá hợp lệ DUY NHẤT, không phải một lỗi 500 từ DB.
+  it('tên ca có dấu và tên trùng -> vẫn gắn được, khoá hợp lệ và duy nhất', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+    const json = customExam([
+      {
+        cases: [
+          { name: 'Ca 1: cân bằng!', group: 'co-ban' },
+          { name: 'x', group: 'co-ban' },
+          { name: 'x', group: 'co-ban' },
+        ],
+      },
+    ]);
+
+    const res = await attach(sessionId, json);
+    expect(res.status).toBe(201);
+    expect(await caseKeysOf(res.body.testBundle.id)).toEqual(['q1-ca-1-can-bang', 'q1-x', 'q1-x-2']);
+  });
+
+  it('đề không sinh ca nào -> không tạo gói rỗng', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+
+    const res = await attach(sessionId, customExam([{ cases: [] }]));
+
+    expect(res.status).toBe(201);
+    expect(res.body.testBundle).toBeNull();
+    expect(await bundlesOf(sessionId)).toHaveLength(0);
+  });
+
+  // Ghi nhận HÀNH VI ĐÃ CHỌN (Decisions to veto #3), không phải hành vi lý
+  // tưởng: gói test là bước CUỐI, nên khi nó hỏng thì đề và đáp án — đã ghi
+  // hợp lệ và đang được `grading_reference` giữ bằng FK RESTRICT — ở lại.
+  it('gói test hỏng sau khi đề và đáp án đã ghi -> 500, đề và đáp án vẫn nằm đó', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+
+    const spy = jest
+      .spyOn(app.get(TestBundleService), 'adoptFromAuthoring')
+      .mockRejectedValueOnce(new Error('hỏng giả lập ở gói test'));
+    try {
+      expect((await attach(sessionId, examJson)).status).toBe(500);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(await materialsOf(sessionId)).toHaveLength(1);
+    expect(await referenceOf(sessionId)).toBeDefined();
+    expect(await bundlesOf(sessionId)).toHaveLength(0);
   });
 });
