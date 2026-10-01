@@ -431,4 +431,26 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     });
     expect(res.body.sources.question.fileName).toBe('de-thi.docx');
   });
+
+  // `dropCase` chép origin và created_by của gói gốc. Ca có sẵn ở test-bundle.e2e chỉ dùng gói 'teacher'
+  // nên không bắt được việc origin bị gán cứng; gói 'generated' chưa duyệt (lần gắn thứ hai) bắt được.
+  it('bỏ ca khỏi gói generated chưa duyệt -> phiên bản mới vẫn là generated, chưa duyệt', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+    expect((await attach(sessionId, examJson)).status).toBe(201);
+    const second = await attach(sessionId, examJson);
+    expect(second.status).toBe(201);
+    const unapprovedId = second.body.testBundle.id as string;
+
+    const dropped = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/test-bundles/${unapprovedId}/drop-case`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ caseKey: 'q1-rong' });
+
+    expect(dropped.status).toBe(201);
+    const bundles = await bundlesOf(sessionId);
+    expect(bundles).toHaveLength(3);
+    expect(bundles[2].origin).toBe('generated');
+    expect(bundles[2].approved_at).toBeNull();
+    expect(await caseKeysOf(dropped.body.id)).toEqual(['q1-co-ban', 'q1-mot-phan-tu']);
+  });
 });

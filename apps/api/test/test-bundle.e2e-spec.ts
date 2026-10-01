@@ -114,7 +114,7 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
       version: 1,
       approvedAt: null,
       cases: [
-        { caseKey: 'ca1', group: 'public', input: '1\n', expectedOutput: '1\n', autoDroppedReason: null },
+        { caseKey: 'ca1', group: 'public', input: '1\n', expectedOutput: '1\n', constraintQuote: null, autoDroppedReason: null },
       ],
     });
   });
@@ -181,5 +181,117 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
         ],
       });
     expect(res.status).toBe(409);
+  });
+
+  async function makeBundle(token: string, sessionId: string, cases: object[]) {
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/test-bundles`)
+      .set(as(token))
+      .send({ cases });
+    expect(res.status).toBe(201);
+    return res.body as { id: string; version: number };
+  }
+  const two = [
+    { caseKey: 'ca1', group: 'public', input: '1\n', expectedOutput: '1\n', constraintQuote: 'Cho 1 ≤ n ≤ 100' },
+    { caseKey: 'ca2', group: 'public', input: '2\n', expectedOutput: '2\n' },
+  ];
+
+  it('get trả constraintQuote khi giảng viên đã trích, và null khi không', async () => {
+    const owner = await login('d1');
+    const session = await seedSession(ds, 'bundle-d1', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+    const bundle = await makeBundle(owner.token, session.sessionId, two);
+
+    const res = await request(app.getHttpServer())
+      .get(`/exam-sessions/${session.sessionId}/test-bundles/${bundle.id}`)
+      .set(as(owner.token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.cases.map((c: { caseKey: string; constraintQuote: string | null }) => [c.caseKey, c.constraintQuote])).toEqual([
+      ['ca1', 'Cho 1 ≤ n ≤ 100'],
+      ['ca2', null],
+    ]);
+  });
+
+  it('bỏ ca khỏi gói chưa duyệt -> sinh phiên bản mới, đủ ca trừ một, giữ nguyên origin', async () => {
+    const owner = await login('d2');
+    const session = await seedSession(ds, 'bundle-d2', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+    const bundle = await makeBundle(owner.token, session.sessionId, two);
+
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.sessionId}/test-bundles/${bundle.id}/drop-case`)
+      .set(as(owner.token))
+      .send({ caseKey: 'ca2' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.version).toBe(bundle.version + 1);
+    const detail = await request(app.getHttpServer())
+      .get(`/exam-sessions/${session.sessionId}/test-bundles/${res.body.id}`)
+      .set(as(owner.token));
+    expect(detail.body.cases.map((c: { caseKey: string }) => c.caseKey)).toEqual(['ca1']);
+    expect(detail.body.approvedAt).toBeNull();
+    // Gói cũ còn nguyên: bảng là append-only, "bỏ" là phiên bản mới.
+    const list = await request(app.getHttpServer())
+      .get(`/exam-sessions/${session.sessionId}/test-bundles`)
+      .set(as(owner.token));
+    expect(list.body.map((b: { id: string; origin: string }) => [b.id, b.origin]).sort()).toEqual(
+      [[bundle.id, 'teacher'], [res.body.id, 'teacher']].sort(),
+    );
+  });
+
+  // Review Focus #6: duyệt là lúc giảng viên đứng ra bảo lưng nội dung gói.
+  it('bỏ ca khỏi gói ĐÃ duyệt -> 409, không sinh phiên bản', async () => {
+    const owner = await login('d3');
+    const session = await seedSession(ds, 'bundle-d3', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+    const bundle = await makeBundle(owner.token, session.sessionId, two);
+    await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.sessionId}/test-bundles/${bundle.id}/approve`)
+      .set(as(owner.token))
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.sessionId}/test-bundles/${bundle.id}/drop-case`)
+      .set(as(owner.token))
+      .send({ caseKey: 'ca1' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('đã được duyệt');
+    const list = await request(app.getHttpServer())
+      .get(`/exam-sessions/${session.sessionId}/test-bundles`)
+      .set(as(owner.token));
+    expect(list.body).toHaveLength(1);
+  });
+
+  it('bỏ một ca không thuộc gói -> 404', async () => {
+    const owner = await login('d4');
+    const session = await seedSession(ds, 'bundle-d4', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+    const bundle = await makeBundle(owner.token, session.sessionId, two);
+
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.sessionId}/test-bundles/${bundle.id}/drop-case`)
+      .set(as(owner.token))
+      .send({ caseKey: 'khong_ton_tai' });
+
+    expect(res.status).toBe(404);
+    // Phân biệt với "không có route" (cũng 404): câu này chỉ có khi service tìm ca rồi không thấy.
+    expect(res.body.message).toContain('khong_ton_tai');
+  });
+
+  it('bỏ ca của gói thuộc phiên KHÁC -> 404, và caseKey sai khuôn -> 400', async () => {
+    const owner = await login('d5');
+    const sessionA = await seedSession(ds, 'bundle-d5a', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+    const sessionB = await seedSession(ds, 'bundle-d5b', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp', startHoursAgo: 10 });
+    const bundle = await makeBundle(owner.token, sessionA.sessionId, two);
+
+    const other = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionB.sessionId}/test-bundles/${bundle.id}/drop-case`)
+      .set(as(owner.token))
+      .send({ caseKey: 'ca1' });
+    expect(other.status).toBe(404);
+
+    const bad = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionA.sessionId}/test-bundles/${bundle.id}/drop-case`)
+      .set(as(owner.token))
+      .send({ caseKey: 'có dấu cách' });
+    expect(bad.status).toBe(400);
   });
 });

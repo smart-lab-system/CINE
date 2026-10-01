@@ -127,6 +127,59 @@ export class TestBundleService {
     return { testBundleId: bundleId };
   }
 
+  /**
+   * Bỏ một ca khỏi gói — bằng cách tạo PHIÊN BẢN MỚI không chép ca đó.
+   *
+   * Không có đường nào khác: `grading_test_case` mang `guard_append_only` trên
+   * UPDATE **và** DELETE, và đó là chủ ý — một `score_computation` đã ghi
+   * `test_bundle_id` phải đọc lại được đúng những ca nó đã đo.
+   *
+   * Gói đã duyệt thì từ chối: duyệt là lúc giảng viên bảo lưng nội dung, và
+   * đổi nó sau đó là đổi thước dưới chân những bài đã chấm.
+   */
+  async dropCase(examSessionId: string, bundleId: string, caseKey: string) {
+    const bundle = await this.findOwnedBundle(examSessionId, bundleId);
+    if (bundle.approved_at) {
+      throw new ConflictException(
+        `Gói test ${bundleId} đã được duyệt lúc ${bundle.approved_at} — không bỏ ca được nữa. ` +
+          'Hãy tạo một gói mới chỉ với những ca bạn còn giữ.',
+      );
+    }
+
+    return this.ds.transaction(async (manager) => {
+      const rows: { case_key: string; group: string; input: string; expected_output: string; constraint_quote: string | null }[] =
+        await manager.query(
+          `SELECT case_key, "group", input, expected_output, constraint_quote
+             FROM examcollect.grading_test_case WHERE bundle_id = $1 ORDER BY case_key`,
+          [bundleId],
+        );
+      const kept = rows.filter((r) => r.case_key !== caseKey);
+      if (kept.length === rows.length) {
+        // "Không có ca đó" khác "bỏ được rồi": giảng viên cần biết là cái nào.
+        throw new NotFoundException(`Gói test ${bundleId} không có ca nào tên "${caseKey}".`);
+      }
+
+      const version = await this.nextVersion(manager, examSessionId);
+      const [next] = await manager.query(
+        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
+         VALUES ($1, $2, $3, $4) RETURNING id, version`,
+        [examSessionId, version, bundle.origin, bundle.created_by],
+      );
+      await this.insertCases(
+        manager,
+        next.id,
+        kept.map((r) => ({
+          caseKey: r.case_key,
+          group: r.group,
+          input: r.input,
+          expectedOutput: r.expected_output,
+          constraintQuote: r.constraint_quote,
+        })),
+      );
+      return { id: next.id as string, version: next.version as number };
+    });
+  }
+
   async list(examSessionId: string) {
     const rows: { id: string; version: number; approved_at: string | null; origin: string; case_count: number }[] =
       await this.ds.query(
@@ -148,9 +201,16 @@ export class TestBundleService {
 
   async get(examSessionId: string, bundleId: string) {
     const bundle = await this.findOwnedBundle(examSessionId, bundleId);
-    const rows: { case_key: string; group: string; input: string; expected_output: string; auto_dropped_reason: string | null }[] =
+    const rows: {
+      case_key: string;
+      group: string;
+      input: string;
+      expected_output: string;
+      constraint_quote: string | null;
+      auto_dropped_reason: string | null;
+    }[] =
       await this.ds.query(
-        `SELECT case_key, "group", input, expected_output, auto_dropped_reason
+        `SELECT case_key, "group", input, expected_output, constraint_quote, auto_dropped_reason
            FROM examcollect.grading_test_case WHERE bundle_id = $1 ORDER BY case_key`,
         [bundleId],
       );
@@ -163,6 +223,7 @@ export class TestBundleService {
         group: r.group,
         input: r.input,
         expectedOutput: r.expected_output,
+        constraintQuote: r.constraint_quote,
         autoDroppedReason: r.auto_dropped_reason,
       })),
     };
@@ -196,7 +257,7 @@ export class TestBundleService {
   /** Gói phải thuộc ĐÚNG phiên được truyền vào (Review Focus #3). */
   private async findOwnedBundle(examSessionId: string, bundleId: string) {
     const [bundle] = await this.ds.query(
-      `SELECT id, version, approved_at FROM examcollect.grading_test_bundle
+      `SELECT id, version, origin, created_by, approved_at FROM examcollect.grading_test_bundle
         WHERE id = $1 AND exam_session_id = $2`,
       [bundleId, examSessionId],
     );
