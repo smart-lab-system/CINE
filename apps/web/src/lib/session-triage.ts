@@ -62,13 +62,16 @@ export function sortByState(results: GradingResult[]): GradingResult[] {
   );
 }
 
-export type ScoreTag = 'tạm tính' | 'chấm tay' | 'đã chốt' | 'chưa có điểm';
+export type ScoreTag = 'tạm tính' | 'chấm tay' | 'đã chốt' | 'chưa có điểm' | 'chờ nhận xét của bạn';
 
 /**
  * Ô điểm. MỌI điểm đọc từ `currentScore` (§14.2) — không `aiTotalScore`, không `finalScore`. `null` là "—",
  * không bao giờ 0: "chưa có điểm" và "điểm 0" là hai chuyện khác nhau.
  */
 export function scoreCell(result: Pick<GradingResult, 'currentScore' | 'currentScoreSource'>, state: SessionState): { text: string; tag: ScoreTag } {
+  // Bài kiểm mẫu chưa kiểm: điểm hệ thống bị ẩn tới khi giảng viên ghi nhận xét (parent spec §8.1 luật 2). API đã bỏ
+  // điểm khỏi payload — dòng này là khoá thứ hai, để một cache cũ hay một lỗi sau này cũng không lộ con số.
+  if (state === 'audit') return { text: 'ẩn', tag: 'chờ nhận xét của bạn' };
   const score = result.currentScore ?? null;
   if (score === null) return { text: '—', tag: 'chưa có điểm' };
   const text = formatVnPoints(score);
@@ -125,6 +128,7 @@ export function errorCounts(
 export function reasonOf(result: GradingResult): string | null {
   const state = stateOf(result);
   if (state === 'ungradable') return result.ungradableReason;
+  if (state === 'audit') return 'Kiểm mẫu ngẫu nhiên — ghi nhận xét của bạn trước, điểm hệ thống hiện sau.';
   if (state !== 'needsYou') return null;
   if (result.pipeline === 'one_shot') {
     return isReadingCode(result) ? 'Bài code chấm bằng đọc mã — luôn do bạn duyệt' : 'Bài tự luận — luôn do bạn duyệt';

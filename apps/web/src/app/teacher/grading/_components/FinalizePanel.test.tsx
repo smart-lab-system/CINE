@@ -59,9 +59,14 @@ describe('FinalizePanel — blocked: each blocking group, its count, and a way t
     expect(screen.getByText('1 bài không chấm được')).toBeInTheDocument();
   });
 
-  it('the sampling audit step is "cần backend" — the teacher cannot clear it from here', () => {
+  it('the sampling audit step is a real blocker the teacher clears in the list — no "cần backend" badge', () => {
     renderPanel(blocked());
-    expect(within(screen.getByText('1 bài kiểm mẫu chưa kiểm').closest('li')!).getByText('cần backend')).toBeInTheDocument();
+    const item = screen.getByText('1 bài kiểm mẫu chưa kiểm').closest('li')!;
+    expect(within(item).queryByText('cần backend')).not.toBeInTheDocument();
+    expect(within(item).getByRole('link', { name: /Xem 1 bài kiểm mẫu chưa kiểm/ })).toHaveAttribute(
+      'href',
+      '/teacher/grading?sessionId=s1&state=audit',
+    );
   });
 
   it('the button is disabled, the reason is written next to it, and nothing is sent', () => {

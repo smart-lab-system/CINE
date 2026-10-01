@@ -70,7 +70,7 @@ export function FinalizePanel({
 
   const groups = [
     { key: 'needsYou', n: block.needsYou, label: `${block.needsYou} bài cần bạn xem`, state: 'needsYou' },
-    { key: 'audit', n: block.audit, label: `${block.audit} bài kiểm mẫu chưa kiểm`, state: 'audit', needsBackend: true },
+    { key: 'audit', n: block.audit, label: `${block.audit} bài kiểm mẫu chưa kiểm`, state: 'audit' },
     { key: 'ungradable', n: block.ungradable, label: `${block.ungradable} bài không chấm được`, state: 'ungradable' },
     { key: 'grading', n: block.grading, label: `${block.grading} bài đang chấm`, state: 'grading' },
   ].filter((g) => g.n > 0);
@@ -116,10 +116,7 @@ export function FinalizePanel({
           <ul aria-label="Đang chặn việc chốt" className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
             {groups.map((g) => (
               <li key={g.key} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                <span className="flex flex-wrap items-center gap-2 text-small font-medium">
-                  <span>{g.label}</span>
-                  {g.needsBackend && <NeedsBackend />}
-                </span>
+                <span className="text-small font-medium">{g.label}</span>
                 <Link
                   href={`${list}&state=${g.state}`}
                   className="text-small font-semibold text-accent-strong hover:underline"

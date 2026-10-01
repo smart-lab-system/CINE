@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { StatusPill } from '@/components/status-pill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -117,6 +118,7 @@ export function ResultsTable({
                       <StatusPill status={r.status} ungradableReason={r.ungradableReason} pipeline={r.pipeline} />
                     </TableCell>
                     <TableCell data-cell="score" className="text-right">
+                      {state === 'audit' && <EyeOff className="mr-1 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
                       <span className="font-semibold tabular-nums">{score.text}</span>{' '}
                       <span className="text-caption text-muted-foreground">{score.tag}</span>
                     </TableCell>

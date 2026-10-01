@@ -120,6 +120,13 @@ describe('scoreCell (every score is currentScore; null is "—", never 0)', () =
   it('never reads aiTotalScore or finalScore', () => {
     expect(scoreCell(result({ currentScore: null, aiTotalScore: 9, finalScore: 9 }), 'needsYou').text).toBe('—');
   });
+  it('an audit-pending result shows "ẩn", never a number — even if the payload carried one (T-SAMP-1, second lock)', () => {
+    expect(scoreCell(result({ currentScore: 8.63 }), 'audit')).toEqual({ text: 'ẩn', tag: 'chờ nhận xét của bạn' });
+    expect(scoreCell(result({ currentScore: 0 }), 'audit')).toEqual({ text: 'ẩn', tag: 'chờ nhận xét của bạn' });
+  });
+  it('an audit-pending result without a score is still "ẩn", not "chưa có điểm" (those are different claims)', () => {
+    expect(scoreCell(result({ currentScore: null }), 'audit')).toEqual({ text: 'ẩn', tag: 'chờ nhận xét của bạn' });
+  });
 });
 
 describe('blockers (exactly what BLOCKS_FINALIZE blocks)', () => {
@@ -226,6 +233,14 @@ describe('reasonOf', () => {
   });
   it('is null for a result nobody needs to look at', () => {
     expect(reasonOf(result({ status: 'auto_approved', triage: triage() }))).toBeNull();
+  });
+  it('an audit-pending result says why its score is hidden', () => {
+    expect(reasonOf(result({ status: 'audit_pending', triage: null }))).toBe(
+      'Kiểm mẫu ngẫu nhiên — ghi nhận xét của bạn trước, điểm hệ thống hiện sau.',
+    );
+  });
+  it('a result in any other state is unaffected by the audit sentence', () => {
+    expect(reasonOf(result({ status: 'teacher_reviewed', triage: triage() }))).toBeNull();
   });
 });
 

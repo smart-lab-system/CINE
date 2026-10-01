@@ -111,6 +111,17 @@ describe('ResultsTable (spec §3.3)', () => {
     expect(screen.getByText('Bài tự luận — luôn do bạn duyệt')).toBeInTheDocument();
   });
 
+  it('an audit-pending row hides the score behind "ẩn", says why, and still opens the dossier (T-SAMP-1)', () => {
+    render(<ResultsTable {...props({ results: [result({ id: 'q', studentMssv: '20120099', status: 'audit_pending', currentScore: 8.63, triage: null })] })} />);
+    const row = rows()[0];
+    expect(within(row).getByText('ẩn')).toBeInTheDocument();
+    expect(within(row).getByText('chờ nhận xét của bạn')).toBeInTheDocument();
+    expect(row).not.toHaveTextContent('8,6');
+    expect(row).not.toHaveTextContent('8.63');
+    expect(within(row).getByText('Kiểm mẫu ngẫu nhiên — ghi nhận xét của bạn trước, điểm hệ thống hiện sau.')).toBeInTheDocument();
+    expect(within(row).getByRole('link', { name: '20120099' })).toHaveAttribute('href', '/teacher/grading/q?sessionId=s1');
+  });
+
   describe('filter', () => {
     it('offers "Tất cả" and only the states that exist, each with its count, as toggles', () => {
       render(<ResultsTable {...props({ filter: 'needsYou' })} />);
