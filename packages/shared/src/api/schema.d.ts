@@ -1071,6 +1071,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/test-bundles/{bundleId}/drop-case": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestBundleController_dropCase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-authoring/generate": {
         parameters: {
             query?: never;
@@ -1403,6 +1419,8 @@ export interface components {
             modelAnswerNote: string | null;
             modelAnswerUnverified: boolean;
             modelAnswerOrigin: Record<string, never> | null;
+            /** Format: date-time */
+            modelAnswerSetAt: string | null;
             createdBy: string;
             createdByAccount?: components["schemas"]["AccountEntity"];
             id: string;
@@ -1452,6 +1470,9 @@ export interface components {
         };
         CreateTestBundleDto: {
             cases: components["schemas"]["TestCaseDto"][];
+        };
+        DropTestCaseDto: {
+            caseKey: string;
         };
         GenerateExamDto: {
             prompt: string;
@@ -3149,6 +3170,30 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestBundleController_dropCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                bundleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DropTestCaseDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
