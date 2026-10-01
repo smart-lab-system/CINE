@@ -153,6 +153,8 @@ export class GradingReferenceService {
     const answerSent = dto.modelAnswerStorageKey !== undefined || dto.modelAnswerNote !== undefined;
     const hasAnswer = Boolean(row.modelAnswerStorageKey || row.modelAnswerNote);
     row.modelAnswerOrigin = !hasAnswer ? null : answerSent ? origin : (existing?.modelAnswerOrigin ?? origin);
+    // Dấu thời gian đi CÙNG nhịp với nguồn gốc: cả hai trả lời "đáp án của bản ghi này đến từ đâu, từ lúc nào".
+    row.modelAnswerSetAt = !hasAnswer ? null : answerSent ? new Date() : (existing?.modelAnswerSetAt ?? new Date());
     return this.references.save(row);
   }
 
