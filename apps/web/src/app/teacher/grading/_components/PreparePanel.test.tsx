@@ -28,8 +28,8 @@ vi.mock('@/hooks/useTestBundle', () => ({ useTestBundles: () => h.bundles }));
 
 // Their own tests cover them; here only how the panel wires them matters.
 vi.mock('./ReferenceForm', () => ({
-  ReferenceForm: ({ onDirtyChange }: { onDirtyChange: (d: boolean) => void }) => (
-    <button type="button" onClick={() => onDirtyChange(true)}>
+  ReferenceForm: ({ onDirtyChange, hasPinnedBundle }: { onDirtyChange: (d: boolean) => void; hasPinnedBundle: boolean }) => (
+    <button type="button" data-pinned={String(hasPinnedBundle)} onClick={() => onDirtyChange(true)}>
       mô phỏng thay đổi chưa lưu
     </button>
   ),
@@ -75,6 +75,16 @@ describe('PreparePanel — start button (spec §3.7)', () => {
     expect(startButton()).toBeEnabled();
     fireEvent.click(startButton());
     expect(h.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells ReferenceForm whether the session already has a pinned test bundle', () => {
+    const { unmount } = renderPanel();
+    expect(screen.getByRole('button', { name: 'mô phỏng thay đổi chưa lưu' })).toHaveAttribute('data-pinned', 'false');
+    unmount();
+
+    h.detail = detail({ testBundleId: 'b1' });
+    renderPanel();
+    expect(screen.getByRole('button', { name: 'mô phỏng thay đổi chưa lưu' })).toHaveAttribute('data-pinned', 'true');
   });
 
   it('says the consequence right under it: documents and ceilings lock, closing the page does not stop grading', () => {
