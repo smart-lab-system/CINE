@@ -36,6 +36,13 @@ describe('RegradeButton (G3 §4.4, D10)', () => {
     expect(h.one.mutate).not.toHaveBeenCalled();
   });
 
+  // Browser pass (G3, screenshot s2-01): inside the "Dịch vụ AI lỗi" alert the button was stretched to the full width of
+  // the band, because its wrapper is a flex column whose default alignment is stretch.
+  it('the button keeps its own width — it is not stretched by its column wrapper', () => {
+    render(<RegradeButton scope={session()} label="Chấm lại" />);
+    expect(screen.getByRole('button', { name: 'Chấm lại' }).parentElement).toHaveClass('items-start');
+  });
+
   it('a session scope sends the reason (null = every system-class result) only after confirming', () => {
     render(<RegradeButton scope={session({ reason: null })} label="Chấm lại" />);
     open('Chấm lại');

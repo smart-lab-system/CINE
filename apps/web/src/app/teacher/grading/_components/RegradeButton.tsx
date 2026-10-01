@@ -68,7 +68,7 @@ export function RegradeButton({
 
   return (
     <>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col items-start gap-2">
         <Button
           type="button"
           variant={variant}
@@ -82,7 +82,7 @@ export function RegradeButton({
           {label}
         </Button>
         {outcome && (
-          <Alert variant="success" role="status">
+          <Alert variant="success" role="status" className="w-full">
             <AlertDescription>
               <span className="block">
                 Đã xếp lại <strong>{outcome.requeued} bài</strong>.
