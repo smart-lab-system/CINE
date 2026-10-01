@@ -4,6 +4,8 @@ import { apiClient } from '@/lib/api-client';
 export type BlankReason = 'absent' | 'not_finished' | 'ungradable' | 'flagged';
 export type RowAction = 'write' | 'blank' | 'kept' | 'unmatched' | 'duplicate' | 'skipped_formula' | 'skipped_merged';
 export type Direction = 'up' | 'down' | 'same' | 'new';
+/** Bốn bước làm tròn mà server chấp nhận (phần trăm điểm) — OpenAPI sinh đúng bốn giá trị này. */
+export type RoundingStep = 1 | 10 | 25 | 50;
 export type Cause =
   | { kind: 'rule'; ruleKey: string; ruleName: string | null; delta: number }
   | { kind: 'manual_score' }
@@ -47,7 +49,7 @@ export interface PlanRequest {
   scoreColumn: string;
   reasonColumn?: string;
   deliverableId?: string;
-  roundingStepHundredths: number;
+  roundingStepHundredths: RoundingStep;
 }
 export interface WriteRequest extends PlanRequest {
   expectedDigest: string;
