@@ -276,6 +276,27 @@ describe('session header (spec §3.3)', () => {
   });
 });
 
+describe('AI service band (G3 D12)', () => {
+  const stopped = (id: string, over: Partial<GradingResult> = {}) =>
+    result({ id, status: 'flagged_for_review', ungradableReason: 'Dịch vụ AI không phản hồi.', ungradableClass: 'system', currentScore: null, ...over });
+
+  it('is mounted on the session screen and offers to regrade exactly the shared-reason group', () => {
+    h.results = { ...h.results, data: [stopped('a'), stopped('b'), result({ id: 'c' })] };
+    render(<GradingPage />);
+    const band = screen.getByText(/Dịch vụ AI lỗi — 2 bài không chấm được cùng một lý do/).closest('[role="alert"]') as HTMLElement;
+    expect(within(band).getByRole('button', { name: 'Chấm lại 2 bài này' })).toHaveAttribute(
+      'data-scope',
+      JSON.stringify({ kind: 'session', sessionId: 's1', reason: 'Dịch vụ AI không phản hồi.', count: 2 }),
+    );
+  });
+
+  it('is absent when only one result stopped', () => {
+    h.results = { ...h.results, data: [stopped('a'), result({ id: 'c' })] };
+    render(<GradingPage />);
+    expect(screen.queryByText(/Dịch vụ AI lỗi —/)).not.toBeInTheDocument();
+  });
+});
+
 describe('list view — filter and the leverage line', () => {
   const needsYou = [result({ id: 'a', studentMssv: '1', status: 'flagged_for_review' }), result({ id: 'b', studentMssv: '2', status: 'flagged_for_review' })];
 

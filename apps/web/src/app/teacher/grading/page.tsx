@@ -15,6 +15,7 @@ import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { STATE_ORDER, countStates, leverageOf, stateOf, type SessionState } from '@/lib/session-triage';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 import { countSystemUngradable } from '@/lib/regrade-triage';
+import { AiServiceBand } from './_components/AiServiceBand';
 import { BulkAcceptEssays } from './_components/BulkAcceptEssays';
 import { LeverageLine } from './_components/LeverageLine';
 import { OverviewBar } from './_components/OverviewBar';
@@ -122,6 +123,8 @@ function SessionScreen({
           </AlertDescription>
         </Alert>
       )}
+
+      <AiServiceBand sessionId={sessionId} results={list} />
 
       {loading ? (
         <Skeleton className="h-64 w-full" />
