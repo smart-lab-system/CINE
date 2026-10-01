@@ -38,6 +38,8 @@ import { CriterionWaiverService } from './rules/criterion-waiver.service';
 import { RulesController } from './rules/rules.controller';
 import { TestBundleController } from './test-bundle/test-bundle.controller';
 import { TestBundleService } from './test-bundle/test-bundle.service';
+import { AuditReviewController } from './audit/audit-review.controller';
+import { AuditReviewService } from './audit/audit-review.service';
 import { InvestigationContextService } from './pipeline/investigation-context.service';
 import { buildInvestigatorDeps, INVESTIGATOR_DEPS, InvestigatorDepsLifecycle } from './pipeline/investigator-deps';
 import { InvestigatorRunService } from './pipeline/investigator-run.service';
@@ -132,10 +134,11 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     // Chấm điểm chạy trên hàng đợi: một job một bài (CLAUDE.md §7.1.3).
     BullModule.registerQueue({ name: GRADING_QUEUE }),
   ],
-  controllers: [GradingController, RulesController, TestBundleController],
+  controllers: [GradingController, RulesController, TestBundleController, AuditReviewController],
   providers: [
     GradingService,
     TestBundleService,
+    AuditReviewService,
     GradingRunService,
     DeliverableLanguageService,
     GradingReferenceService,
