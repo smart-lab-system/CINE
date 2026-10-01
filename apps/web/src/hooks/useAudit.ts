@@ -21,6 +21,9 @@ export function useSubmissionDownload(resultId: string) {
     queryFn: () => getSubmissionDownload(resultId),
     // URL ký có hạn; không giữ lâu.
     staleTime: 60_000,
+    // Từ chối của máy chủ ở đây là xác định (404 chưa có file, 403 không phải bài của bạn) — thử lại chỉ làm khung xám
+    // kéo dài ≈7 giây trước khi giảng viên đọc được lý do. Muốn thử lại thì tải lại trang.
+    retry: false,
   });
 }
 
