@@ -32,6 +32,7 @@ const EXPECTED_TABLES = [
   'score_computation',
   'criterion_waiver',
   'audit_sample_review',
+  'grade_export_row',
 ];
 
 async function main() {
