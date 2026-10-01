@@ -209,4 +209,58 @@ describe('Chấm lại bài không chấm được (e2e, hàng đợi bị spy)'
     expect(add).not.toHaveBeenCalled();
     expect((await rowOf(made.resultId)).ai_total_score).toBe('7.00');
   });
+
+  const fakeJob = (state: string) => ({
+    getState: jest.fn().mockResolvedValue(state),
+    remove: jest.fn().mockResolvedValue(undefined),
+  });
+
+  // Review Focus #3 — job hoàn tất nằm lại trong Redis 24 giờ (`removeOnComplete.age`). `queue.add` cùng
+  // jobId với nó bị BullMQ bỏ qua im lặng: DB đã sang ai_grading, không job nào chạy, bài kẹt.
+  it.each(['completed', 'failed'])('job %s cùng jobId còn trong Redis → bị xoá TRƯỚC khi thêm lại', async (state) => {
+    const owner = await login(`b-${state}`);
+    const ctx = await seedSession(ds, `regrade-b-${state}`, { teacherId: owner.id });
+    const made = await ungradable(ctx, 'system');
+    const ghost = fakeJob(state);
+    getJob.mockResolvedValue(ghost as never);
+
+    const res = await regrade(owner.token, made.resultId);
+
+    expect(res.body).toEqual({ requeued: 1, skipped: [] });
+    expect(getJob).toHaveBeenCalledWith(`grade-${made.submissionId}`);
+    expect(ghost.remove).toHaveBeenCalledTimes(1);
+    expect(add).toHaveBeenCalledTimes(1);
+    expect(ghost.remove.mock.invocationCallOrder[0]).toBeLessThan(add.mock.invocationCallOrder[0]);
+  });
+
+  // Một job đang sống sẽ đọc DB MỚI (đọc `result.pipeline`) và chấm bài này; thêm hay xoá nó là làm hỏng.
+  it.each(['active', 'waiting', 'delayed', 'prioritized', 'waiting-children'])(
+    'job %s → không xoá, không thêm, vẫn tính là đã xếp lại',
+    async (state) => {
+      const owner = await login(`c-${state}`);
+      const ctx = await seedSession(ds, `regrade-c-${state}`, { teacherId: owner.id });
+      const made = await ungradable(ctx, 'system');
+      const live = fakeJob(state);
+      getJob.mockResolvedValue(live as never);
+
+      const res = await regrade(owner.token, made.resultId);
+
+      expect(res.body).toEqual({ requeued: 1, skipped: [] });
+      expect(live.remove).not.toHaveBeenCalled();
+      expect(add).not.toHaveBeenCalled();
+    },
+  );
+
+  it('job biến mất giữa hai lời gọi (state unknown) → thêm như chưa có', async () => {
+    const owner = await login('d-unknown');
+    const ctx = await seedSession(ds, 'regrade-d-unknown', { teacherId: owner.id });
+    const made = await ungradable(ctx, 'system');
+    const gone = fakeJob('unknown');
+    getJob.mockResolvedValue(gone as never);
+
+    await regrade(owner.token, made.resultId).expect(201);
+
+    expect(gone.remove).not.toHaveBeenCalled();
+    expect(add).toHaveBeenCalledTimes(1);
+  });
 });

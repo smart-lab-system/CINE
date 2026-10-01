@@ -155,6 +155,32 @@ export class RegradeService {
     });
     if (!moved) return { requeued: 0, skipped: [{ resultId: row.id, reason: SKIP_MOVED_ON }] };
 
+    await this.enqueue(teacherId, row);
+    return { requeued: 1, skipped: [] };
+  }
+
+  /**
+   * Xếp job cho một bài vừa được đưa về `ai_grading`.
+   *
+   * `jobId` cố định (`grade-<submissionId>`) là cách loại trùng — nhưng cũng là cái bẫy: BullMQ giữ job hoàn tất
+   * 24 giờ (`removeOnComplete.age`) và job hỏng mãi mãi (`removeOnFail: false`), và `queue.add` cùng `jobId` với
+   * một job ĐANG TỒN TẠI bị bỏ qua IM LẶNG. Một lượt "không chấm được" kết thúc bình thường (`finishUngradable`
+   * không ném) nên job của nó là `completed`; không xoá nó thì bài kẹt ở `ai_grading` không job nào, và
+   * `regradeStuck` cũng không cứu (nó bỏ qua mọi job không `failed`).
+   *
+   * Job SỐNG thì để yên: nó đọc DB lúc chạy và chấm đúng bài này.
+   */
+  private async enqueue(teacherId: string, row: RegradeRow): Promise<void> {
+    const jobId = `grade-${row.submissionId}`;
+    const existing = await this.queue.getJob(jobId);
+    if (existing) {
+      const state = await existing.getState();
+      if (state === 'completed' || state === 'failed') {
+        await existing.remove();
+      } else if (state !== 'unknown') {
+        return; // active / waiting / delayed / prioritized / waiting-children: đã có việc sắp chạy
+      }
+    }
     await this.queue.add(
       'grade-submission',
       {
@@ -164,8 +190,7 @@ export class RegradeService {
         rubricId: row.rubricId,
         teacherId,
       } satisfies GradeSubmissionJob,
-      { ...GRADE_JOB_OPTIONS, jobId: `grade-${row.submissionId}` },
+      { ...GRADE_JOB_OPTIONS, jobId },
     );
-    return { requeued: 1, skipped: [] };
   }
 }
