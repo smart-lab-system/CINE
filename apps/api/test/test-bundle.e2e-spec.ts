@@ -294,4 +294,41 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
       .send({ caseKey: 'có dấu cách' });
     expect(bad.status).toBe(400);
   });
+
+  // Phát hiện ở lượt browser pass: `dropCase` chép các ca nhưng bỏ cột auto_dropped_reason, nên một ca hệ thống đã
+  // tự bỏ sống lại thành ca THẬT ở phiên bản mới — và số ca của gói tăng lên sau khi giảng viên bỏ bớt một ca.
+  it('bỏ một ca không làm sống lại ca hệ thống đã tự bỏ ở phiên bản mới', async () => {
+    const owner = await login('d6');
+    const session = await seedSession(ds, 'bundle-d6', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+    const [bundle] = await ds.query(
+      `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
+       VALUES ($1, 1, 'teacher', $2) RETURNING id`,
+      [session.sessionId, owner.id],
+    );
+    await ds.query(
+      `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output, auto_dropped_reason)
+       VALUES ($1, 'k1', 'public', '1', '1', NULL), ($1, 'k2', 'public', '2', '2', NULL),
+              ($1, 'tu-bo', 'public', '3', '3', 'đề không ràng buộc n = 3')`,
+      [bundle.id],
+    );
+
+    const res = await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.sessionId}/test-bundles/${bundle.id}/drop-case`)
+      .set(as(owner.token))
+      .send({ caseKey: 'k2' });
+    expect(res.status).toBe(201);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/exam-sessions/${session.sessionId}/test-bundles/${res.body.id}`)
+      .set(as(owner.token));
+    expect(detail.body.cases.map((c: { caseKey: string; autoDroppedReason: string | null }) => [c.caseKey, c.autoDroppedReason])).toEqual([
+      ['k1', null],
+      ['tu-bo', 'đề không ràng buộc n = 3'],
+    ]);
+    const list = await request(app.getHttpServer())
+      .get(`/exam-sessions/${session.sessionId}/test-bundles`)
+      .set(as(owner.token));
+    const next = list.body.find((b: { id: string }) => b.id === res.body.id);
+    expect(next.caseCount).toBe(1);
+  });
 });

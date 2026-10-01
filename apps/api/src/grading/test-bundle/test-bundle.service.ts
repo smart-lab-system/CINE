@@ -14,6 +14,8 @@ export interface BundleCaseInput {
   input: string;
   expectedOutput: string;
   constraintQuote?: string | null;
+  /** Lý do hệ thống tự bỏ ca này. Phải đi theo ca khi chép sang phiên bản mới: mất nó là ca bị bỏ sống lại thành ca thật. */
+  autoDroppedReason?: string | null;
 }
 
 /**
@@ -147,9 +149,16 @@ export class TestBundleService {
     }
 
     return this.ds.transaction(async (manager) => {
-      const rows: { case_key: string; group: string; input: string; expected_output: string; constraint_quote: string | null }[] =
+      const rows: {
+        case_key: string;
+        group: string;
+        input: string;
+        expected_output: string;
+        constraint_quote: string | null;
+        auto_dropped_reason: string | null;
+      }[] =
         await manager.query(
-          `SELECT case_key, "group", input, expected_output, constraint_quote
+          `SELECT case_key, "group", input, expected_output, constraint_quote, auto_dropped_reason
              FROM examcollect.grading_test_case WHERE bundle_id = $1 ORDER BY case_key`,
           [bundleId],
         );
@@ -174,6 +183,7 @@ export class TestBundleService {
           input: r.input,
           expectedOutput: r.expected_output,
           constraintQuote: r.constraint_quote,
+          autoDroppedReason: r.auto_dropped_reason,
         })),
       );
       return { id: next.id as string, version: next.version as number };
@@ -247,9 +257,9 @@ export class TestBundleService {
   private async insertCases(manager: EntityManager, bundleId: string, cases: BundleCaseInput[]): Promise<void> {
     for (const c of cases) {
       await manager.query(
-        `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output, constraint_quote)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [bundleId, c.caseKey, c.group, c.input, c.expectedOutput, c.constraintQuote ?? null],
+        `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output, constraint_quote, auto_dropped_reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [bundleId, c.caseKey, c.group, c.input, c.expectedOutput, c.constraintQuote ?? null, c.autoDroppedReason ?? null],
       );
     }
   }
