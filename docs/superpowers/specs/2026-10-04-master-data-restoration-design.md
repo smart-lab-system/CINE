@@ -153,10 +153,11 @@ administrative_class_id uuid NOT NULL FK -> administrative_class ON DELETE RESTR
 group_name   varchar(50) NOT NULL DEFAULT ''     -- vd "Nhóm 1"; '' khi không tách nhóm
 teacher_id   uuid NOT NULL FK -> account         ON DELETE RESTRICT   (giữ)
 
-unique(semester_id, administrative_class_id, group_name)
+unique(semester_id, administrative_class_id, group_name)    -- uq_class_semester_admin_group
 
 - name        varchar(100)     -- bỏ; thay bằng nhãn tính ra (§2.5)
-- unique(teacher_id, course_name, name)
+- unique index uq_class_teacher_course_name (teacher_id, course_name, name)
+  -- phải DROP tường minh trước khi tạo chỉ mục thay thế
 ```
 
 `group_name` mặc định là chuỗi rỗng, **không phải NULL**: Postgres coi mọi NULL là khác
@@ -188,7 +189,13 @@ exam_session:
   + room_id uuid NOT NULL FK -> room ON DELETE RESTRICT
     room_name / semester_name / course_name: giữ làm BẢN CHỤP, server điền, update:false
   ex_exam_session_room_overlap:  gist(room_name ...)  ->  gist(room_id ...)
+  ex_exam_session_class_overlap, ex_exam_session_teacher_gap: GIỮ NGUYÊN
 ```
+
+Cả hai ràng buộc `ex_exam_session_*_overlap` chỉ áp cho phiên **chưa kết thúc**: predicate loại
+`collecting`, `completed` và `cancelled`. `ex_exam_session_teacher_gap` (khoảng cách ≥ 30 phút giữa
+hai phiên của một giảng viên, migration `1789350000000`) không dính cột nào đổi trong đợt này;
+migration thu hẹp **không được tạo lại hay làm mất** nó.
 
 - `is_active = false` nghĩa là **không chọn được cho phiên mới**; phiên cũ vẫn trỏ được. Kiểm
   ở service (không phải ràng buộc DB, vì lịch sử phải tham chiếu được phòng đã ngừng).
@@ -229,11 +236,16 @@ enrollment:  - student_name
              unique(home_class_id, student_mssv)                    (giữ)
 ```
 
-- Tên sinh viên nằm **một chỗ duy nhất**. Bốn nơi đang đọc hoặc ghi `enrollment.studentName`
-  (`attendance.service` đọc, `session-roster.service` đọc lúc đóng băng, `roster.service`
-  đọc và ghi, `enrollment.service` ghi) chuyển sang đọc/ghi qua `student`.
-- `session_roster.student_name` **giữ nguyên** — là ảnh chụp tên lúc thi. Agent join và bài
-  nộp đọc từ đó, nên không bị ảnh hưởng.
+- Tên sinh viên nằm **một chỗ duy nhất**. **Sáu file** đang đọc hoặc ghi bảng `enrollment` kèm
+  tên sinh viên và phải chuyển sang đọc/ghi qua `student`:
+  `attendance.service` (đọc), `session-roster.service` (đọc lúc đóng băng), `roster.service`
+  (đọc và ghi), `enrollment.service` (ghi), và **hai nơi dùng SQL thô** —
+  `recollect.service.ts` (`e.student_name`, dòng ~70) và `submission-overview.service.ts`
+  (`e.student_name`, dòng ~73). Hai nơi SQL thô **hỏng lúc chạy chứ không lúc biên dịch** sau khi
+  migration thu hẹp bỏ cột, nên có test riêng (T-RW-1, T-RW-2).
+- `session_roster.student_name` **giữ nguyên** — là ảnh chụp tên lúc thi. Agent join
+  (`exam-session.gateway.ts` đọc qua `sessionRoster.findEntry`, biến tên `enrollment` ở đó thực
+  ra là `SessionRosterEntity`) và bài nộp đọc từ đó, nên **không bị ảnh hưởng**.
 - **Khi nhập tay một MSSV đã có:** tên được điền sẵn và **khoá**; giảng viên không sửa
   được tên qua ô này. MSSV chưa có thì bắt buộc nhập tên.
 - **Khi file Excel ghi tên khác tên đã lưu:** file mới nhất thắng, và kết quả import **liệt
@@ -243,7 +255,8 @@ enrollment:  - student_name
   bằng tên gõ; MSSV chưa có → tạo `student` bằng tên gõ.
 - **Tra tên:** `GET /students/:mssv` trả `{ mssv, fullName }` hoặc 404, **chỉ theo đúng một
   MSSV**. Không có route liệt kê sinh viên cho giảng viên (không ai dò được danh sách người khác).
-  Có giới hạn tốc độ theo người gọi; mức do plan chốt.
+  **Bắt buộc** có giới hạn tốc độ theo người gọi (mức do plan chốt) — nếu không, một giảng
+  viên có thể quét toàn bộ MSSV để lấy tên.
 - `student` không bao giờ bị xoá tự động; sinh viên nối qua nhiều kỳ.
 
 ---
@@ -474,13 +487,15 @@ Lớp này là một lớp đặt theo tên môn cũ, có 9 sinh viên đều đ
 
 Hai điểm phải nói thẳng:
 - **6 cặp phiên trùng giờ** giữa hai lớp (đo không lọc trạng thái). Việc gộp **không thể**
-  làm hỏng `ex_exam_session_class_overlap` vì ràng buộc đó bỏ qua phiên `completed`, mà cả 29
-  phiên đều `completed` — nhưng lịch sử của `DHKTPM18ATT` sau gộp sẽ có các phiên chồng giờ.
+  làm hỏng `ex_exam_session_class_overlap` vì ràng buộc đó chỉ áp cho phiên chưa kết thúc
+  (predicate loại `collecting`, `completed`, `cancelled`), mà cả 29 phiên đều `completed` —
+  nhưng lịch sử của `DHKTPM18ATT` sau gộp sẽ có các phiên chồng giờ.
   (Một lần đo trước đó trong cuộc brainstorm báo "0 cặp" là **vô nghĩa** vì lọc theo trạng
   thái loại bỏ mọi phiên; số đúng là 6.)
-- **Chưa kiểm:** trigger nào trên `submission`/`session_roster` có chặn ghi lại `home_class_id`
-  không. Không thấy trigger nào nhắc tới cột này trong migration, nhưng bằng chứng là lượt
-  diễn tập trên bản sao (§8.5).
+- **Đã kiểm (04/10):** không trigger nào chặn việc ghi lại `home_class_id`. Trên `submission`
+  chỉ có `trg_submission_lifecycle`, và hàm `validate_submission_lifecycle` chỉ kiểm chuyển trạng
+  thái khi `status` đổi; trên `session_roster` chỉ có `trg_session_roster_updated_at`. Lượt
+  diễn tập trên bản sao (§8.5) vẫn là bằng chứng cuối.
 
 Phương án khác: giữ lớp riêng và bỏ quy tắc "mỗi sinh viên một lớp mỗi kỳ" — nhưng như vậy một
 lớp đặt theo tên môn vẫn nằm trong master data. Spec chọn gộp.
@@ -521,15 +536,22 @@ Cùng script đối chiếu chạy lại trên Supabase ở bước 4 như **đi
 ### 8.6 Quan hệ với nhánh G1–G5
 
 Bốn nhánh G2–G5 song song, mỗi nhánh hơn `main` 30–35 commit (đo ngày 04/10). G2 thêm migration
-`1789500000000`, G5 thêm `1789530000000`. **TypeORM từ chối một migration mới nếu timestamp cũ
-hơn migration đã chạy trên DB.** Nên nếu migration phục hồi chạy lên Supabase trước, hai
-migration của G2 và G5 sẽ bị từ chối.
+`1789500000000` (cột trên `grading_reference`), G5 thêm `1789530000000` (bảng `grade_export_row`).
 
-- **Song song được ngay:** spec, plan và code khôi phục trên nhánh riêng.
-- **Phải chờ G1–G5 vào `main` và chạy migration của chúng:** việc merge và việc chạy migration
-  khôi phục lên Supabase.
-- Chờ cũng có lợi: mỗi nhánh G sửa 7–11 file e2e. Khôi phục sửa cách các test dựng lớp/phiên
-  một lần trên `main` thống nhất thay vì buộc 5 nhánh rebase.
+**Không có ràng buộc kỹ thuật bắt chờ**, và bản nháp đầu của spec này từng nói ngược lại một cách
+sai: TypeORM 0.3.31 (bản đang cài) đã **comment out** kiểm tra "migration mới không được cũ hơn
+migration đã chạy" (`MigrationExecutor.js:160-161`), nên thứ tự timestamp không chặn gì. Đã kiểm
+thêm: không nhánh G nào đọc `enrollment.student_name`, `class.name`, `room_name` hay
+`semester_name` (G5 chỉ đọc bản chụp `session_roster`).
+
+Vẫn **khuyến nghị** để G1–G5 vào `main` trước, vì hai lý do còn lại là thật:
+- **Chi phí merge:** mỗi nhánh G sửa 7–11 file e2e. Refactor helper seed (§10 bước 1) chạm 34 bộ;
+  làm trước thì buộc 5 nhánh rebase; làm sau thì sửa một lần trên `main` thống nhất.
+- **Một cửa sổ bảo trì:** cutover (§8.4) kéo theo một lần deploy Railway + Vercel; gộp được với
+  lần deploy của G1–G5 thì chỉ một lần gián đoạn.
+
+Timestamp của migration phục hồi vẫn đặt **sau mọi migration của G1–G5** để lịch sử tuyến tính,
+dù TypeORM không đòi. **Song song được ngay:** spec, plan và code khôi phục trên nhánh riêng.
 
 ---
 
@@ -561,10 +583,11 @@ hệ thống đã không còn; ghi chú đầu `2026-09-20-master-data-scope-cut
 
 Mỗi bước là điều kiện của bước sau.
 
-0. **Điều kiện:** G1–G5 đã vào `main`, migration của chúng đã chạy; ghi đường cơ sở (số test
-   unit + e2e).
-1. **Refactor e2e, chưa đổi schema:** gom các câu `INSERT` SQL dựng lớp/phiên rải trong 33/62
-   bộ e2e vào một helper seed duy nhất (đã có nửa chừng: `grading-seed.ts`, `open-session.ts`,
+0. **Khuyến nghị (không phải ràng buộc kỹ thuật, xem §8.6):** G1–G5 đã vào `main`, migration
+   của chúng đã chạy; ghi đường cơ sở (số test unit + e2e).
+1. **Refactor e2e, chưa đổi schema:** gom các câu `INSERT` SQL dựng lớp/phiên/enrollment rải
+   trong **34/62** bộ e2e (đếm bằng `INSERT INTO examcollect.(class|exam_session|enrollment)`,
+   cộng 1 file helper) vào một helper seed duy nhất (đã có nửa chừng: `grading-seed.ts`, `open-session.ts`,
    `code-session-seed.ts`). Không đổi hành vi; e2e xanh trước và sau. Seed là SQL thô nên hỏng
    lúc **chạy**, không lúc biên dịch — kết luận "xong" phải dựa trên chạy trọn bộ e2e, không dựa
    vào `tsc`.
@@ -589,6 +612,9 @@ Mỗi bước là điều kiện của bước sau.
 | **T-MD-5** | Không đổi được `semester_id` của lớp đã có phiên; lớp chưa có phiên thì đổi được | e2e |
 | **T-MD-6** | Không đổi được `year`/`term` của học kỳ đã có lớp; đổi ngày thì được | e2e |
 | **T-MD-7** | Hai học kỳ chồng ngày → DB từ chối | e2e |
+| **T-MD-9** | `semester_name` bản chụp trên phiên không đổi khi admin sửa ngày của học kỳ, và `save()` không ghi đè được (`update:false`) | e2e |
+| **T-RW-1** | `submission-overview` (SQL thô) vẫn trả đúng tên sinh viên sau khi bỏ `enrollment.student_name` | e2e |
+| **T-RW-2** | `recollect` (SQL thô) vẫn liệt kê đúng sinh viên thiếu bài kèm tên sau khi bỏ cột | e2e |
 | **T-MD-8** | Không xoá được học kỳ còn lớp, phòng đã có phiên, mã còn lớp — báo lý do cụ thể | e2e |
 | **T-ROOM-1** | Hai phiên chưa kết thúc cùng `room_id`, giờ chồng → chặn (ràng buộc đã trở lại bảo đảm) | e2e |
 | **T-ROOM-2** | Phòng `is_active = false` không chọn được cho phiên mới; phiên cũ vẫn tham chiếu được | e2e |
@@ -638,7 +664,8 @@ tạo riêng "Phòng diễn tập" chỉ bật khi diễn tập — không dùng
 4. **Lịch sử của `DHKTPM18ATT` có phiên chồng giờ** sau gộp lớp MongoDB (§8.3). Không hỏng
    ràng buộc nào, nhưng nhìn thấy được.
 5. **Bước thu hẹp không đảo ngược được.** Đường lùi duy nhất là bản dump + deploy lại tag.
-6. **Phải chờ G1–G5** trước khi chạy migration lên Supabase (§8.6).
+6. **Nên chờ G1–G5** vào `main` trước khi chạy migration lên Supabase để giảm chi phí rebase và gộp
+   một cửa sổ bảo trì; không có ràng buộc kỹ thuật (§8.6).
 7. **Admin có thêm việc trước mỗi kỳ:** tạo học kỳ, tạo lớp và giao giảng viên. Import giảm
    gánh nặng nhưng không bỏ.
 8. **Ngày học kỳ tạm** (§8.2) có thể sai cho tới khi admin sửa. Không ảnh hưởng dữ liệu nào
@@ -648,10 +675,11 @@ tạo riêng "Phòng diễn tập" chỉ bật khi diễn tập — không dùng
 
 ## 13. Điểm mở — kiểm khi viết plan
 
-1. Trigger trên `submission`/`session_roster` có cho ghi lại `home_class_id` không (§8.3).
+1. ~~Trigger trên `submission`/`session_roster` có cho ghi lại `home_class_id` không~~ — **đã
+   kiểm, không có** (§8.3); chỉ còn xác nhận lại bằng diễn tập §8.5.
 2. Cơ chế ép "không đổi kỳ của lớp đã có phiên" và "không đổi `year`/`term` khi đã có lớp":
    trigger hay khoá ngoại ghép.
-3. Giới hạn tốc độ cho `GET /students/:mssv`.
+3. **Mức** giới hạn tốc độ cho `GET /students/:mssv` (bản thân việc có giới hạn là bắt buộc, §2.6).
 4. Hành vi `enrollments.addManually` (luồng xin phép) với quy tắc "một sinh viên một lớp mỗi kỳ".
 5. Agent Electron hiển thị gì từ ack (`JoinScreen`, `DetailView`): giao thức không đổi, nhưng
    kiểm xem nhãn lớp nào đi qua.
