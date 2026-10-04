@@ -2,6 +2,13 @@
 
 **Ngày:** 2026-09-20 · **Baseline:** `main` = `3cf4688` · **Trạng thái:** spec, chưa implement
 
+> **Đã bị thay thế một phần ngày 2026-10-04** bởi
+> `2026-10-04-master-data-restoration-design.md`. Học kỳ, phòng và lớp trở lại thành
+> thực thể có khoá ngoại, do admin quản lý; giảng viên không còn tự tạo lớp. Phần **còn
+> hiệu lực** của spec này: rubric thuộc giảng viên (§3.1), enrollment khoá theo lớp (§3.3),
+> `exam_session.class_id NOT NULL` (§3.4), hai role (§3.6). Đọc spec mới trước khi dựa vào
+> các mục §2, §3.2, §3.5, §4.1–4.2 và §5 dưới đây.
+
 Cắt toàn bộ phần quản trị dữ liệu nền (môn học, học kỳ, phòng, khoa) ra khỏi hệ
 thống, chuyển quyền sở hữu lớp học sang giảng viên, và gỡ rubric khỏi môn học.
 
