@@ -632,12 +632,18 @@ export const TEST_YEAR_FLOOR = 2200;
 
 let yearCursor = 0;
 
-/** Năm học >= 2200 chưa có học kỳ nào và chưa cấp trong tiến trình này. */
+/**
+ * Năm học > 2200 chưa có học kỳ nào và chưa cấp trong tiến trình này.
+ *
+ * Năm `TEST_YEAR_FLOOR` (2200) KHÔNG bao giờ được cấp ở đây: nó dành cho các học kỳ MẶC ĐỊNH dùng chung (kỳ 1, 2, 3 của
+ * năm 2200 — xem `ensureTestSemester`, plan D1), tạo một lần rồi dùng lại giữa mọi file test và mọi lần chạy. Cấp cả năm
+ * 2200 ở đây thì một test có thể chiếm mất (2200, 1) trước khi helper kia tạo nó.
+ */
 export async function freshTestYear(db: Queryable): Promise<number> {
   const [row] = await db.query(
     `SELECT COALESCE(MAX(academic_year_start), 0)::int AS max FROM examcollect.semester WHERE academic_year_start >= ${TEST_YEAR_FLOOR}`,
   );
-  const year = Math.max(row.max + 1, TEST_YEAR_FLOOR, yearCursor + 1);
+  const year = Math.max(row.max + 1, TEST_YEAR_FLOOR + 1, yearCursor + 1);
   yearCursor = year;
   return year;
 }
