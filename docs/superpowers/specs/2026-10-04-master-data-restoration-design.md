@@ -508,6 +508,18 @@ gian đều chạy được.
 0. **Sao lưu.** `pg_dump` DB Supabase (vài trăm dòng, vài giây) + tag git
    `pre-master-data-restore` vào `4cb6bca`. Bước cuối **không đảo ngược được** (`down()` ném
    lỗi, như `ContractMasterData`, dòng 137). Đường lùi duy nhất: khôi phục bản dump + deploy tag.
+0b. **Đối soát lịch sử migration TRƯỚC khi chạy bất kỳ migration nào** (phát hiện 05/10, sau
+   khi spec được review). Repo có 48 file migration nhưng bảng `examcollect.migrations` trên
+   Supabase chỉ có **46** dòng: `1789360000000-AddAiUsage` và `1789400000000-AddArchiveContentCheck`
+   **không có dòng**, dù bảng `ai_usage`, bảng `required_deliverable_entry` và kiểu
+   `archive_check_status` đã tồn tại (được áp bằng đường khác). Cả hai migration dùng
+   `CREATE TABLE`/`CREATE TYPE`/`ADD COLUMN` trần, không `IF NOT EXISTS`, nên `pnpm migration:run`
+   sẽ coi chúng là chưa áp và **dừng ở `AddAiUsage` với lỗi "đã tồn tại"**, chặn mọi migration
+   sau đó, kể cả migration của spec này và của G2, G5 (suy luận từ nội dung file và trạng thái DB;
+   chưa chạy, vì chạy sẽ ghi vào DB dùng chung). Xử lý: sau khi `pg_dump`, xác nhận từng đối tượng
+   khớp với nội dung migration (cột, kiểu, ràng buộc, chỉ mục), rồi thêm hai dòng vào
+   `migrations` (tương đương `--fake`) và chạy `migration:run` lên một **bản sao** DB để kiểm
+   trước khi chạy lên Supabase. Đưa thao tác này vào script đối chiếu của §8.5.
 1. **Migration mở rộng (chỉ thêm):** 4 bảng mới; cột `class.semester_id`,
    `class.administrative_class_id`, `class.group_name`, `exam_session.room_id` cho phép NULL.
    Code cũ vẫn chạy.
@@ -686,6 +698,10 @@ tạo riêng "Phòng diễn tập" chỉ bật khi diễn tập — không dùng
 6. Cách `readWorkbook` trả ô ngày Excel (§6.3).
 7. `GET /accounts/teachers` đã đủ cho combobox giảng viên của admin chưa (dòng 28 của
    controller còn comment cũ nhắc "Trưởng khoa" — stale, sửa kèm).
+8. **Lịch sử migration lệch DB thật** (§8.4 bước 0b): kiểm trên bản sao DB rằng sau khi thêm hai
+   dòng `migrations`, `migration:run` chạy sạch; kiểm xem nguyên nhân hai migration được áp ngoài
+   đường TypeORM (chạy tay trong SQL Editor?) để các môi trường khác (máy dev, Railway) không
+   lặp lại.
 
 ---
 
