@@ -4,7 +4,9 @@
 > chủ đồ án: (1) chống nhầm phòng chỉ bằng cảnh báo "gần giống", không thêm cột mã ngoài; (2) Danh
 > mục lớp danh nghĩa nhập trước, form lớp chỉ chọn (§2.2); (3) kênh "yêu cầu admin" để sau (§1.2);
 > (4) **sửa và huỷ phiên thi vào đợt này** (§4.1), cùng trang đọc audit log (§4.2) và chữ màn trống
-> (§5.2). Hai quyết định mở còn lại ở §13 mục 9 và 12.
+> (§5.2). **Chốt 05/10 (chiều):** cửa sổ sửa phiên là **phương án A** — chỉ trước giờ bắt đầu (§4.1,
+> §13 mục 9). Ngưỡng "gần giống" đã đo trên dữ liệu thật và đổi so với bản đầu (§6.2 nguyên tắc 4,
+> §13 mục 12).
 
 **Ngày:** 2026-10-04 · **Baseline:** `main` = `4cb6bca` · **Trạng thái:** spec, chưa implement
 **Thay thế một phần:** `2026-09-20-master-data-scope-cut-design.md`. **Đảo ngược:** việc biến học kỳ/phòng/môn thành chuỗi (§3.2, phần phòng của §3.4, §3.5), việc chuyển quyền tạo lớp sang giảng viên (§4.1, §5.3), và các trang quản trị bị xoá (§5.1). **Giữ:** rubric thuộc giảng viên (§3.1), enrollment khoá theo lớp (§3.3), `class_id NOT NULL` (§3.4), hai role (§3.6)
@@ -164,9 +166,13 @@ Quy tắc (cập nhật 05/10, thay cho bản "tạo mã ngay trong form lớp")
   theo, kể cả lớp của kỳ cũ (nhãn lớp là biểu thức, không phải bản chụp, §2.5; không bảng nào
   lưu sẵn nhãn lớp). Đó là mục đích của việc sửa lỗi gõ.
 - **Cảnh báo gõ gần giống** khi thêm tay hoặc import một mã mới so với mã đã có và so với
-  chính các dòng khác trong file (chuẩn hoá bỏ khoảng trắng, dấu chấm, gạch ngang rồi so;
-  hoặc khoảng cách chỉnh sửa ≤ 2). Danh mục chỉ vài chục dòng nên so trên trình duyệt và lặp lại
-  ở server, không thêm hạ tầng.
+  chính các dòng khác trong file. Luật so (một hàm dùng chung, §6.2 nguyên tắc 4): bằng nhau sau
+  chuẩn hoá (bỏ dấu tiếng Việt, hoa-thường, mọi ký tự không phải chữ/số), **hoặc** hơn kém đúng một
+  ký tự chèn/xoá, **hoặc** hai ký tự liền kề đổi chỗ. **Không** cảnh báo khi chỉ khác một ký tự
+  thay thế: trên dữ liệu thật `DHKTPM18ATT`/`DHKTPM18CTT` và `Phòng máy A1`/`Phòng máy B1` là các
+  thực thể khác nhau ở khoảng cách chỉnh sửa 1, nên ngưỡng "≤ 2" trong bản đầu của spec sẽ cảnh
+  báo nhầm đúng chúng. Danh mục chỉ vài chục dòng nên so trên trình duyệt và lặp lại ở server,
+  không thêm hạ tầng.
 
 > **Giới hạn nói thẳng:** hệ thống vẫn không biết trường thực sự có những mã lớp nào. Danh mục
 > đúng đến mức file hoặc danh sách admin lấy từ cổng đào tạo đúng. Cái được: lỗi gõ chuyển
@@ -247,10 +253,12 @@ DHKTPM18A – Nhóm 1        -- có nhóm
 + " · HK1 2026-2027"      -- khi cần phân biệt kỳ
 ```
 
-9 file hiện đọc tên lớp (`attendance.service`, `attendance.types`, `class.service`,
+11 file hiện đọc tên lớp (`attendance.service`, `attendance.types`, `class.service`,
 `exam-session-response.dto`, `exam-session.service`, `grading.service:691`,
-`submission.service`, `submission-overview.service`, `submission-overview.types`) chuyển
-sang đọc view/biểu thức này. **Không giữ cột `name` song song** — đó lại là dữ liệu trùng
+`submission.service`, `submission-overview.service`, `submission-overview.types`, và hai file bản
+đầu của spec bỏ sót, phát hiện lúc viết plan 05/10: `roster.service` — câu báo "đang ở lớp …" ở
+`assertNoCrossClassMove` — và `schedule-conflict.service` — câu báo "Lớp … đã có phiên thi" qua
+`o.name`) chuyển sang đọc view/biểu thức này. **Không giữ cột `name` song song** — đó lại là dữ liệu trùng
 lặp có thể lệch nhau. Giảng viên chỉ thấy **một nhãn** ở mọi nơi; không có trang, route
 hay bộ lọc riêng cho lớp danh nghĩa.
 
@@ -411,10 +419,11 @@ Trang `/teacher/exam-sessions/[id]/edit` dùng lại form tạo, khoá các ô l
 phiên" mở hộp thoại xác nhận nêu hậu quả ("Phiên sẽ không khôi phục được; sinh viên không vào
 được nữa").
 
-**Quyết định mở (cần chủ đồ án xác nhận).** Spec chọn cửa sổ **trước giờ bắt đầu** vì đó là cách
-duy nhất tránh được lỗi `{PHONG}` ở trên mà không thêm logic. Phương án B: cho đổi **chỉ phòng**
-sau khi bắt đầu nếu không file bắt buộc nào dùng `{PHONG}` trong tên hoặc trong mục bên trong.
-B phục vụ "đổi phòng giữa giờ" nhưng thêm một nhánh kiểm tra và một tập test; chưa chọn.
+**Đã chốt (chủ đồ án, 05/10): phương án A — chỉ trước giờ bắt đầu.** Đó là cách duy nhất tránh
+được lỗi `{PHONG}` ở trên mà không thêm logic. Phương án B (đổi **chỉ phòng** sau khi bắt đầu nếu
+không file bắt buộc nào dùng `{PHONG}` trong tên hoặc trong mục bên trong) **không làm**: nó phục vụ
+"đổi phòng giữa giờ" nhưng thêm một nhánh kiểm tra và một tập test. Nếu sau này cần, B là một thay
+đổi cục bộ ở `ExamSessionService.updateForOwner` (§4.1), không đụng schema.
 
 ### 4.2 Trang đọc `audit_log`
 
@@ -533,8 +542,9 @@ Phụ thuộc: Danh mục lớp danh nghĩa và học kỳ → lớp; phòng đ�
    dòng lỗi vì khoa có nhiều dòng; với 10–50 dòng lý do đó không còn nặng.)
 4. **Mục "mới" luôn hiện riêng ở bản xem trước, kèm cảnh báo "gần giống".** Áp dụng cho **phòng
    mới** và **mã lớp danh nghĩa mới** (không áp cho học kỳ, vì khoá năm học + kỳ rất hẹp). Mỗi
-   mục mới được so với mục có sẵn **và** với các dòng khác trong file, sau khi chuẩn hoá (bỏ khoảng
-   trắng, dấu chấm, gạch ngang, hoa-thường) hoặc khoảng cách chỉnh sửa ≤ 2; mục gần giống hiện
+   mục mới được so với mục có sẵn **và** với các dòng khác trong file theo luật ở §2.2 (bằng nhau
+   sau chuẩn hoá, hoặc hơn kém một ký tự chèn/xoá, hoặc hai ký tự liền kề đổi chỗ; **không** tính
+   một ký tự thay thế vì sẽ cảnh báo nhầm `A1`/`B1`, `ATT`/`CTT`); mục gần giống hiện
    bên cạnh mục có sẵn để so ("Phòng H3.03 (mới) gần giống H3.03 (đã có)"). Nút xác nhận chỉ bật
    khi admin **tick xác nhận** cho nhóm mục gần giống. Đây là câu trả lời cho rủi ro "đổi tên
    phòng bằng file sẽ thành phòng mới": hệ thống **không ngăn** được (không biết đó là một phòng),
@@ -885,9 +895,9 @@ tạo riêng "Phòng diễn tập" chỉ bật khi diễn tập — không dùng
 10. **Đổi tên phòng bằng file tạo ra một phòng mới** vì khoá là tên (§6.1). Cảnh báo "gần giống"
     giảm rủi ro, không loại bỏ: hai `room_id` cho một phòng vật lý thì chống trùng phòng theo
     `room_id` không bắt được đặt trùng giữa hai id. Đổi tên một phòng nên làm thủ công.
-11. **Sửa phiên chỉ trước giờ bắt đầu** (§4.1). Phiên đã bắt đầu mà cần đổi phòng thì vẫn chỉ có
-    lối vòng "Chốt bài ngay, tạo phiên mới" (sinh viên đã vào phải vào lại). Phương án B (đổi
-    riêng phòng khi không có `{PHONG}`) chưa chọn.
+11. **Sửa phiên chỉ trước giờ bắt đầu** (§4.1, chủ đồ án chọn phương án A ngày 05/10). Phiên đã
+    bắt đầu mà cần đổi phòng thì vẫn chỉ có lối vòng "Chốt bài ngay, tạo phiên mới" (sinh viên đã
+    vào phải vào lại). Phương án B (đổi riêng phòng khi không có `{PHONG}`) đã cân nhắc và không làm.
 12. **Trang đọc audit không phải đối trọng quyền lực** khi chỉ có một admin (§4.2): nó phục vụ
     điều tra sự cố, không phải kiểm soát.
 
@@ -910,16 +920,18 @@ tạo riêng "Phòng diễn tập" chỉ bật khi diễn tập — không dùng
    dòng `migrations`, `migration:run` chạy sạch; kiểm xem nguyên nhân hai migration được áp ngoài
    đường TypeORM (chạy tay trong SQL Editor?) để các môi trường khác (máy dev, Railway) không
    lặp lại.
-9. **Quyết định mở (§4.1): cửa sổ sửa phiên.** Spec chọn "trước giờ bắt đầu". Phương án B: cho đổi
-   **riêng phòng** sau khi bắt đầu nếu không file bắt buộc nào dùng `{PHONG}`. Cần chủ đồ án chọn.
+9. ~~Quyết định mở (§4.1): cửa sổ sửa phiên~~ — **đã chốt phương án A** (trước giờ bắt đầu), chủ
+   đồ án 05/10. Phương án B (đổi riêng phòng sau giờ bắt đầu) không làm.
 10. Cách ép "chặn sửa sau giờ bắt đầu" và "chặn huỷ khi đã có người vào": kiểm ở service (đủ, vì
     `agent:join` đã chặn trước `start_time`), hay thêm trigger DB. Khuyến nghị service; chỉ thêm
     trigger nếu plan tìm ra đường ghi khác vào `exam_session`.
 11. `GET /audit-log` chỉ theo khoảng ngày không có chỉ mục riêng (§4.2): bảng hiện 2 dòng và phân vùng
     chỉ có phần mặc định; thêm chỉ mục `(occurred_at DESC)` nếu bảng lớn lên, không làm trước.
-12. Chuẩn hoá để so "gần giống" (§6.2 nguyên tắc 4): chốt hàm (bỏ khoảng trắng, dấu chấm, gạch ngang,
-    hoa-thường, có thể bỏ dấu tiếng Việt cho tên phòng) và ngưỡng khoảng cách chỉnh sửa trên dữ liệu
-    thật (3 phòng, 2 mã) trước khi viết test T-ADM-3 và T-IMP-8.
+12. ~~Chuẩn hoá để so "gần giống"~~ — **đã đo và chốt (05/10)** trên dữ liệu thật (3 phòng, 2 mã):
+    chuẩn hoá = bỏ dấu tiếng Việt, hoa-thường, bỏ ký tự không phải chữ/số; thêm hai luật mờ (một ký
+    tự chèn/xoá, hai ký tự liền kề đổi chỗ) chỉ áp khi cả hai chuỗi đã chuẩn hoá dài ≥ 5. Không
+    dùng "khoảng cách chỉnh sửa ≤ 2" vì nó cảnh báo nhầm `A1`/`B1` và `ATT`/`CTT` (§2.2). Hàm và
+    bảng ca kiểm nằm ở plan C (`near-duplicate.ts`).
 13. `eval/rehearsal/cli.ts` và `test/helpers` cần mã danh nghĩa có trong Danh mục khi dựng lớp: helper
     seed (§10 bước 1) phải tạo mã trước.
 
