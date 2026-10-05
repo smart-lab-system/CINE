@@ -1557,7 +1557,7 @@ git commit -m "feat(master-data): điểm danh, kết quả chấm, bài nộp �
 
 - [ ] **Step 1: Cả bộ unit và e2e, so với baseline** — đúng quy trình Task 7 Step 3 của plan D1 (đổi tên file kết quả thành `after-d2`). Expected: suite mới của plan D2 (`class-admin`, `class-label-readers`) xuất hiện (`=>`); `classes-teacher-crud` biến mất (`<=`, đúng — nó đã bị xoá có chủ ý); **không** suite nào khác đổi số test hay đỏ.
 
-- [ ] **Step 2: Sinh lại client OpenAPI** — Task 3 của plan B. Diff thêm `GET /classes`, đổi `POST/PATCH/DELETE /classes` (DTO mới), đổi phản hồi `GET /classes/teaching`. Hunk không liên quan ⇒ tách commit riêng.
+- [ ] **Step 2: Sinh lại client OpenAPI** *(hoãn được tới plan G1 Task 1 — xem roadmap, mục "Sinh lại client")* — Task 3 của plan B. Diff thêm `GET /classes`, đổi `POST/PATCH/DELETE /classes` (DTO mới), đổi phản hồi `GET /classes/teaching`. Hunk không liên quan ⇒ tách commit riêng.
 
 - [ ] **Step 3: Commit**
 

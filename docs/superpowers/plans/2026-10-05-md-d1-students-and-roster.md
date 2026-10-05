@@ -2043,7 +2043,7 @@ Compare-Object $base $after
 
 Expected: `Compare-Object` chỉ thấy (a) các suite **mới** của plan A–D1 (`=>`), (b) các suite D1 đổi số test: `roster-import` (tăng, vì có ca mới) và `access-request` (tăng 1). **Không** dòng `<=` nào cho suite khác, và không `failed > 0`. Nếu một suite cũ đỏ vì "người ghi sau thắng" (một MSSV hai tên), đổi test sang hai MSSV khác nhau.
 
-- [ ] **Step 3: Sinh lại client OpenAPI**
+- [ ] **Step 3: Sinh lại client OpenAPI** *(hoãn được tới plan G1 Task 1 — xem roadmap, mục "Sinh lại client")*
 
 Làm đúng Task 3 của plan B. Diff phải thêm `GET /students/{mssv}` và đổi `RosterImportResult`/phản hồi roster (nếu plugin sinh được). Hunk không liên quan ⇒ tách commit riêng như plan B.
 

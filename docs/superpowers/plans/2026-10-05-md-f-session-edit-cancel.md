@@ -1284,7 +1284,7 @@ Compare-Object $base $after
 
 Expected: `tsc` sạch, không `failed > 0`, `Compare-Object` chỉ khác ở các suite mới/đã đổi của plan A–F (suite `exam-session-edit` mới). Hai suite sẵn có phải **giữ nguyên số test**: `exam-schedule-conflict` (D3 đã thêm hai ca `excludeSessionId`; F không thêm gì ở đó) và `exam-authoring-attach` (ca phiên `cancelled` vẫn xanh: chứng tỏ hành vi sẵn có không đổi).
 
-- [ ] **Step 2: Sinh lại client OpenAPI**
+- [ ] **Step 2: Sinh lại client OpenAPI** *(hoãn được tới plan G1 Task 1 — xem roadmap, mục "Sinh lại client")*
 
 Làm đúng Task 3 của plan B. Diff phải thêm đúng `PATCH /exam-sessions/{id}` (thân `UpdateExamSessionDto`) và `POST /exam-sessions/{id}/cancel` (thân `CancelExamSessionDto`); hunk không liên quan ⇒ tách commit riêng.
 

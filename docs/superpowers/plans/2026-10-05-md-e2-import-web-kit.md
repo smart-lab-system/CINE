@@ -2368,7 +2368,7 @@ git commit -m "feat(web): bước ghép cột và ImportWizard (xem trước = d
 
 ```ts
 // master-data-keys.ts — khoá truy vấn dùng chung giữa hook import và các hook đọc ở plan G1/G2
-export const MASTER_DATA_KEYS: { semesters: 'semesters'; rooms: 'rooms'; administrativeClasses: 'administrative-classes'; classes: 'admin-classes'; teachingClasses: 'teaching-classes' };
+export const MASTER_DATA_KEYS: { semesters: 'semesters'; rooms: 'rooms'; administrativeClasses: 'administrative-classes'; classes: 'classes' };
 // useMasterDataImport.ts
 export function useImportRunner(kind: ImportKindId): RunImport;   // tham chiếu ổn định; làm mới truy vấn sau lần ghi thật
 ```
@@ -2457,14 +2457,14 @@ describe('useImportRunner', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: [MASTER_DATA_KEYS.rooms] });
   });
 
-  it('import lớp làm mới cả danh sách của admin lẫn "Lớp của tôi"', async () => {
+  it('import lớp làm mới khoá GỐC `classes` — phủ cả trang quản trị lẫn "Lớp của tôi"', async () => {
     klass.mockResolvedValue(RESULT());
     const { result, invalidate } = setup('class');
 
     await result.current({ rows: [], dryRun: false });
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [MASTER_DATA_KEYS.classes] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [MASTER_DATA_KEYS.teachingClasses] });
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['classes'] });
   });
 
   it('ghi thật nhưng không có gì để ghi (applied=false): không làm mới', async () => {
@@ -2558,10 +2558,12 @@ export const MASTER_DATA_KEYS = {
   semesters: 'semesters',
   rooms: 'rooms',
   administrativeClasses: 'administrative-classes',
-  /** Danh sách lớp của admin (`GET /classes`). */
-  classes: 'admin-classes',
-  /** "Lớp của tôi" của giảng viên (`GET /classes/teaching`). */
-  teachingClasses: 'teaching-classes',
+  /**
+   * GỐC của mọi truy vấn lớp: `['classes', 'teaching', …]` ("Lớp của tôi", đã có từ trước) và `['classes', 'admin', …]` (trang
+   * quản trị, plan G2). Khoá RỘNG có chủ ý — cùng lý do `useTeaching.ts` đã nêu: sĩ số lớp hiện ở nhiều chỗ, và một chỗ hiện
+   * con số cũ là cách người dùng mất niềm tin vào tất cả.
+   */
+  classes: 'classes',
 } as const;
 ```
 
@@ -2577,12 +2579,12 @@ import type { ImportKindId } from '@/lib/import/columns';
 import type { RunImport } from '@/lib/import/import-types';
 import { MASTER_DATA_KEYS } from './master-data-keys';
 
-/** Danh sách nào đổi khi một loại được nhập xong. Import lớp đổi cả "Lớp của tôi" của giảng viên (cùng máy, cùng tab). */
+/** Danh sách nào đổi khi một loại được nhập xong. Khoá `classes` là gốc nên phủ cả trang quản trị lẫn "Lớp của tôi". */
 const AFFECTED: Record<ImportKindId, readonly string[]> = {
   semester: [MASTER_DATA_KEYS.semesters],
   room: [MASTER_DATA_KEYS.rooms],
   'administrative-class': [MASTER_DATA_KEYS.administrativeClasses],
-  class: [MASTER_DATA_KEYS.classes, MASTER_DATA_KEYS.teachingClasses],
+  class: [MASTER_DATA_KEYS.classes],
 };
 
 /**

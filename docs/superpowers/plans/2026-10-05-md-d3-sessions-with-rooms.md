@@ -1376,7 +1376,7 @@ Compare-Object $base $after
 
 Expected: `tsc` sạch; không `failed > 0`. `Compare-Object` chỉ liệt kê: suite **mới** của plan A–D3 (`=>`); suite D3 đổi số test có chủ ý (`exam-session` — bớt hai ca `semesterNames`, thêm ca mới; `exam-schedule-conflict` +2; `exam-session-semester-name` biến mất `<=`, `exam-session-snapshots` xuất hiện `=>`; `submission-overview` +1) và suite cũ khác phải **giống hệt** baseline (Review Focus 7). Một suite cũ tự nhiên đổi số test hay đỏ nghĩa là helper mới làm lệch tình huống của nó: so với bản trước bằng `git diff` rồi sửa test (không nới helper).
 
-- [ ] **Step 7: Sinh lại client OpenAPI**
+- [ ] **Step 7: Sinh lại client OpenAPI** *(hoãn được tới plan G1 Task 1 — xem roadmap, mục "Sinh lại client")*
 
 Làm đúng Task 3 của plan B. Diff phải đổi `POST /exam-sessions` (`roomId`), `GET /exam-sessions` (tham số + phản hồi), và thêm trường vào phản hồi chi tiết. Hunk không liên quan ⇒ tách commit riêng.
 

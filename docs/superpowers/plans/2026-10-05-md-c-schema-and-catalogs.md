@@ -3901,7 +3901,7 @@ git commit -m "feat(master-data): Danh mục lớp danh nghĩa của admin (chu�
 **Files:**
 - Modify: `packages/shared/src/api/schema.d.ts`
 
-- [ ] **Step 1: Sinh lại client OpenAPI**
+- [ ] **Step 1: Sinh lại client OpenAPI** *(hoãn được tới plan G1 Task 1 — xem roadmap, mục "Sinh lại client")*
 
 Làm đúng Task 3 của plan B (build API, chạy với `DOTENV_CONFIG_PATH=.env.test`, `pnpm generate:api-client`, kiểm diff, tắt đúng PID). Diff phải **chỉ thêm** các đường `/semesters`, `/semesters/{id}`, `/rooms`, `/rooms/{id}`, `/administrative-classes`, `/administrative-classes/{id}` và các kiểu DTO của chúng (nếu plan B đã được merge thì cả `/audit-log` đã nằm sẵn). Hunk không liên quan ⇒ dừng và tách commit `chore(shared): đồng bộ schema.d.ts` trước.
 
