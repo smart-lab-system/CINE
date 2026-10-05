@@ -22,6 +22,7 @@
 - **Bản xem trước phải đủ để quyết định** (nguyên tắc 2, 3, 4): dòng lỗi kèm **số dòng**; dòng cập nhật kèm **từ → đến** ("Giảng viên: A → B"); mục mới **gần giống** hiện cạnh mục bị so ("X" (mới) gần giống "Y" (đã có) / (dòng N trong file)) kèm lý do bằng chữ; nút xác nhận **tắt** khi còn lỗi, khi không có gì để ghi, và khi còn mục gần giống mà chưa tick xác nhận. `confirmSimilar: true` chỉ được gửi khi đã tick.
 - File mẫu: `.xlsx` sinh trong trình duyệt, **đúng tên cột chính thức**, một dòng ví dụ, ô định dạng chữ (để Excel không tự đổi `2026-09-01` thành ngày hay `1` thành số); thêm một sheet "Huong dan" giải thích từng cột. File mẫu phải **tự nhận diện được** bằng chính bộ nhận diện (kiểm bằng vòng khứ hồi thật).
 - Giao diện không có chỗ ghi **số liệu hay dữ liệu thật của người dùng** vào `localStorage`/URL; mọi trạng thái nằm trong React state và mất khi đóng hộp thoại (Radix gỡ nội dung khi đóng).
+- **Phân lớp gọi API** (CLAUDE.md: trang và component gọi **hook**, không gọi `lib/api` trực tiếp): `ImportDialog` lấy bộ chạy từ `useImportRunner`; hook đó bọc `lib/api/master-data-import.ts` và **làm mới danh sách** sau lần ghi thật đã áp dụng, nên không trang nào phải nhớ gọi `refetch` sau khi nhập. Khoá truy vấn lấy từ `hooks/master-data-keys.ts`, dùng chung với các hook đọc của plan G1/G2.
 - Chỉ dùng thành phần UI có sẵn (`components/ui/*`); không thêm thư viện. Lint (`eslint .`), `tsc` và `next build` phải sạch; không có bước e2e trình duyệt trong plan này (đã có lượt browser pass riêng ở plan H).
 
 ## Review Focus
@@ -49,7 +50,9 @@
 | `apps/web/src/components/import/import-preview.tsx` (+ test) | **Mới.** |
 | `apps/web/src/components/import/import-column-mapper.tsx` | **Mới.** |
 | `apps/web/src/components/import/import-wizard.tsx` (+ test) | **Mới.** |
-| `apps/web/src/components/import/import-dialog.tsx` (+ test) | **Mới.** |
+| `apps/web/src/components/import/import-dialog.tsx` (+ test) | **Mới.** Nút + hộp thoại; lấy bộ chạy từ `useImportRunner`. |
+| `apps/web/src/hooks/master-data-keys.ts` | **Mới.** Khoá truy vấn dữ liệu nền dùng chung với plan G1/G2. |
+| `apps/web/src/hooks/useMasterDataImport.ts` (+ test) | **Mới.** `useImportRunner`: bọc `IMPORT_RUNNERS`, làm mới danh sách sau lần ghi thật. |
 
 ---
 
@@ -2353,25 +2356,145 @@ git commit -m "feat(web): bước ghép cột và ImportWizard (xem trước = d
 
 ---
 
-### Task 7: `ImportDialog`, chạy cả bộ, lint, build
+### Task 7: Hook chạy import, `ImportDialog`, chạy cả bộ, lint, build
 
 **Files:**
-- Create: `apps/web/src/components/import/import-dialog.tsx`
-- Test: `apps/web/src/components/import/import-dialog.test.tsx`
+- Create: `apps/web/src/hooks/master-data-keys.ts`, `apps/web/src/hooks/useMasterDataImport.ts`, `apps/web/src/components/import/import-dialog.tsx`
+- Test: `apps/web/src/hooks/useMasterDataImport.test.tsx`, `apps/web/src/components/import/import-dialog.test.tsx`
 
 **Interfaces:**
-- Consumes: `ImportWizard`, `IMPORT_RUNNERS`, `ImportKind`.
+- Consumes: `ImportWizard`, `IMPORT_RUNNERS`, `ImportKind`, `ImportKindId`, `RunImport`.
 - Produces:
+
+```ts
+// master-data-keys.ts — khoá truy vấn dùng chung giữa hook import và các hook đọc ở plan G1/G2
+export const MASTER_DATA_KEYS: { semesters: 'semesters'; rooms: 'rooms'; administrativeClasses: 'administrative-classes'; classes: 'admin-classes'; teachingClasses: 'teaching-classes' };
+// useMasterDataImport.ts
+export function useImportRunner(kind: ImportKindId): RunImport;   // tham chiếu ổn định; làm mới truy vấn sau lần ghi thật
+```
 
 ```tsx
 export function ImportDialog(props: {
   kind: ImportKind;
-  onImported?: (result: ImportResult) => void;
+  onImported?: (result: ImportResult) => void;   // tuỳ chọn: danh sách đã tự làm mới qua useImportRunner
   triggerLabel?: string;   // mặc định "Nhập từ file"
 }): JSX.Element;
 ```
 
-- [ ] **Step 1: Viết test (đỏ)**
+Phân lớp gọi API (CLAUDE.md: trang/component gọi **hook**, không gọi `lib/api` trực tiếp): `ImportDialog` lấy bộ chạy từ `useImportRunner`, và hook đó bọc `IMPORT_RUNNERS` — nên việc **làm mới danh sách sau khi ghi** nằm đúng một chỗ thay vì mỗi trang tự nhớ gọi `refetch`.
+
+- [ ] **Step 1: Viết test hook (đỏ)**
+
+Create `apps/web/src/hooks/useMasterDataImport.test.tsx`:
+
+```tsx
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import type { ImportResult } from '@/lib/import/import-types';
+
+const room = vi.fn();
+const klass = vi.fn();
+vi.mock('@/lib/api/master-data-import', () => ({
+  IMPORT_RUNNERS: { semester: vi.fn(), room, 'administrative-class': vi.fn(), class: klass },
+}));
+
+import { MASTER_DATA_KEYS } from './master-data-keys';
+import { useImportRunner } from './useMasterDataImport';
+
+const RESULT = (overrides: Partial<ImportResult> = {}): ImportResult => ({
+  dryRun: false,
+  applied: true,
+  counts: { added: 1, updated: 0, unchanged: 0, errors: 0 },
+  rows: [],
+  needsSimilarConfirmation: false,
+  ...overrides,
+});
+
+function setup(kind: Parameters<typeof useImportRunner>[0]) {
+  const client = new QueryClient();
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result, rerender } = renderHook(() => useImportRunner(kind), { wrapper });
+  return { result, rerender, invalidate };
+}
+
+describe('useImportRunner', () => {
+  beforeEach(() => {
+    room.mockReset();
+    klass.mockReset();
+  });
+
+  it('chuyển yêu cầu và trả kết quả của đúng bộ chạy theo loại', async () => {
+    room.mockResolvedValue(RESULT());
+    const { result } = setup('room');
+    const request = { rows: [{ line: 2, name: 'H3.03', capacity: '' }], dryRun: true };
+
+    await expect(result.current(request)).resolves.toEqual(RESULT());
+
+    expect(room).toHaveBeenCalledWith(request);
+    expect(klass).not.toHaveBeenCalled();
+  });
+
+  it('dryRun KHÔNG làm mới truy vấn nào: chưa có gì đổi', async () => {
+    room.mockResolvedValue(RESULT({ dryRun: true, applied: false }));
+    const { result, invalidate } = setup('room');
+
+    await result.current({ rows: [], dryRun: true });
+
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('ghi thật đã áp dụng: làm mới danh sách của loại đó', async () => {
+    room.mockResolvedValue(RESULT());
+    const { result, invalidate } = setup('room');
+
+    await result.current({ rows: [], dryRun: false });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [MASTER_DATA_KEYS.rooms] });
+  });
+
+  it('import lớp làm mới cả danh sách của admin lẫn "Lớp của tôi"', async () => {
+    klass.mockResolvedValue(RESULT());
+    const { result, invalidate } = setup('class');
+
+    await result.current({ rows: [], dryRun: false });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [MASTER_DATA_KEYS.classes] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [MASTER_DATA_KEYS.teachingClasses] });
+  });
+
+  it('ghi thật nhưng không có gì để ghi (applied=false): không làm mới', async () => {
+    room.mockResolvedValue(RESULT({ applied: false }));
+    const { result, invalidate } = setup('room');
+
+    await result.current({ rows: [], dryRun: false });
+
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('lỗi của server được ném lại nguyên vẹn và không làm mới gì', async () => {
+    room.mockRejectedValue(new Error('Máy chủ từ chối'));
+    const { result, invalidate } = setup('room');
+
+    await expect(result.current({ rows: [], dryRun: false })).rejects.toThrow('Máy chủ từ chối');
+
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('tham chiếu ổn định qua các lần render — nếu không, ImportWizard gọi dryRun lại ở mỗi lần cha render', () => {
+    const { result, rerender } = setup('room');
+    const first = result.current;
+    rerender();
+    expect(result.current).toBe(first);
+  });
+});
+```
+
+- [ ] **Step 2: Viết test `ImportDialog` (đỏ)**
 
 Create `apps/web/src/components/import/import-dialog.test.tsx`:
 
@@ -2381,14 +2504,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { ADMINISTRATIVE_CLASS_KIND, ROOM_KIND } from '@/lib/import/columns';
 
-vi.mock('@/lib/api/master-data-import', () => ({
-  IMPORT_RUNNERS: {
-    semester: vi.fn(),
-    room: vi.fn(),
-    'administrative-class': vi.fn(),
-    class: vi.fn(),
-  },
-}));
+vi.mock('@/hooks/useMasterDataImport', () => ({ useImportRunner: () => vi.fn() }));
 vi.mock('@/lib/import/template', () => ({ downloadTemplate: vi.fn() }));
 
 import { ImportDialog } from './import-dialog';
@@ -2423,12 +2539,78 @@ describe('ImportDialog', () => {
 });
 ```
 
-- [ ] **Step 2: Chạy để thấy đỏ**
+- [ ] **Step 3: Chạy để thấy đỏ**
 
-Run: `cd apps/web && npx vitest run src/components/import/import-dialog.test.tsx`
-Expected: FAIL — không import được `./import-dialog`.
+Run: `cd apps/web && npx vitest run src/hooks/useMasterDataImport.test.tsx src/components/import/import-dialog.test.tsx`
+Expected: FAIL — không import được `./master-data-keys`, `./useMasterDataImport`, `./import-dialog`.
 
-- [ ] **Step 3: Viết `ImportDialog`**
+- [ ] **Step 4: Viết khoá truy vấn và hook**
+
+Create `apps/web/src/hooks/master-data-keys.ts`:
+
+```ts
+/**
+ * Khoá truy vấn của dữ liệu nền — MỘT nơi, dùng chung giữa hook import (làm mới sau khi ghi) và các hook đọc của trang admin
+ * (plan G1) và giảng viên (plan G2). Hai bên gõ tay cùng một chuỗi là hai chỗ để lệch nhau, và lệch ở đây thì danh sách không
+ * làm mới sau khi nhập xong mà không có lỗi nào báo.
+ */
+export const MASTER_DATA_KEYS = {
+  semesters: 'semesters',
+  rooms: 'rooms',
+  administrativeClasses: 'administrative-classes',
+  /** Danh sách lớp của admin (`GET /classes`). */
+  classes: 'admin-classes',
+  /** "Lớp của tôi" của giảng viên (`GET /classes/teaching`). */
+  teachingClasses: 'teaching-classes',
+} as const;
+```
+
+Create `apps/web/src/hooks/useMasterDataImport.ts`:
+
+```ts
+'use client';
+
+import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { IMPORT_RUNNERS } from '@/lib/api/master-data-import';
+import type { ImportKindId } from '@/lib/import/columns';
+import type { RunImport } from '@/lib/import/import-types';
+import { MASTER_DATA_KEYS } from './master-data-keys';
+
+/** Danh sách nào đổi khi một loại được nhập xong. Import lớp đổi cả "Lớp của tôi" của giảng viên (cùng máy, cùng tab). */
+const AFFECTED: Record<ImportKindId, readonly string[]> = {
+  semester: [MASTER_DATA_KEYS.semesters],
+  room: [MASTER_DATA_KEYS.rooms],
+  'administrative-class': [MASTER_DATA_KEYS.administrativeClasses],
+  class: [MASTER_DATA_KEYS.classes, MASTER_DATA_KEYS.teachingClasses],
+};
+
+/**
+ * Bộ chạy import cho một loại, bọc `IMPORT_RUNNERS` để việc LÀM MỚI danh sách sau khi ghi nằm đúng một chỗ: trang thêm nút
+ * "Nhập từ file" mà quên làm mới sẽ cho admin thấy danh sách cũ ngay sau khi nhập xong và tưởng không có gì xảy ra.
+ *
+ * Chỉ làm mới khi lần ghi THẬT đã áp dụng (`applied`): `dryRun` không đổi gì, và lần ghi không có gì để ghi cũng vậy.
+ * Trả về tham chiếu ỔN ĐỊNH (`useCallback`) — `ImportWizard` gọi `dryRun` lại mỗi khi dòng đổi, nên một hàm mới ở mỗi lần cha
+ * render sẽ là một lần gọi máy chủ thừa mỗi lần.
+ */
+export function useImportRunner(kind: ImportKindId): RunImport {
+  const queryClient = useQueryClient();
+  return useCallback<RunImport>(
+    async (request) => {
+      const result = await IMPORT_RUNNERS[kind](request);
+      if (!request.dryRun && result.applied) {
+        await Promise.all(
+          AFFECTED[kind].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+        );
+      }
+      return result;
+    },
+    [kind, queryClient],
+  );
+}
+```
+
+- [ ] **Step 5: Viết `ImportDialog`**
 
 Create `apps/web/src/components/import/import-dialog.tsx`:
 
@@ -2446,26 +2628,30 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ImportWizard } from '@/components/import/import-wizard';
-import { IMPORT_RUNNERS } from '@/lib/api/master-data-import';
+import { useImportRunner } from '@/hooks/useMasterDataImport';
 import type { ImportKind } from '@/lib/import/columns';
 import type { ImportResult } from '@/lib/import/import-types';
 
 interface ImportDialogProps {
   kind: ImportKind;
-  /** Gọi sau khi một lần nhập ĐÃ ghi (hoặc không có gì để ghi): trang dùng nó để làm mới danh sách. */
+  /**
+   * Tuỳ chọn. Danh sách đã tự làm mới (qua `useImportRunner`) nên trang KHÔNG cần gọi `refetch`; callback này chỉ cho việc
+   * khác, vd đóng một bảng phụ hay hiện thông báo.
+   */
   onImported?: (result: ImportResult) => void;
   triggerLabel?: string;
 }
 
 /**
- * Nút + hộp thoại "Nhập từ file" cho một loại dữ liệu nền — chỗ DUY NHẤT trang admin chạm vào bộ import (plan G):
- * `<ImportDialog kind={ROOM_KIND} onImported={() => refetch()} />`. Keo dán: chọn bộ chạy theo loại và bọc `ImportWizard`.
+ * Nút + hộp thoại "Nhập từ file" cho một loại dữ liệu nền — chỗ DUY NHẤT trang admin chạm vào bộ import (plan G1):
+ * `<ImportDialog kind={ROOM_KIND} />`. Keo dán: lấy bộ chạy theo loại từ hook và bọc `ImportWizard`.
  *
  * Radix gỡ nội dung khi đóng, nên đóng hộp thoại là bỏ file, cột đã chọn và bản xem trước — không có trạng thái nào sống
  * sót để lần mở sau hiện nhầm bản xem trước của lần trước.
  */
 export function ImportDialog({ kind, onImported, triggerLabel = 'Nhập từ file' }: ImportDialogProps) {
   const [open, setOpen] = useState(false);
+  const run = useImportRunner(kind.id);
 
   return (
     <>
@@ -2481,7 +2667,7 @@ export function ImportDialog({ kind, onImported, triggerLabel = 'Nhập từ fil
               Chỉ thêm và sửa — không bao giờ xoá. Muốn xoá thì làm thủ công.
             </DialogDescription>
           </DialogHeader>
-          <ImportWizard kind={kind} run={IMPORT_RUNNERS[kind.id]} onImported={onImported} />
+          <ImportWizard kind={kind} run={run} onImported={onImported} />
         </DialogContent>
       </Dialog>
     </>
@@ -2489,23 +2675,23 @@ export function ImportDialog({ kind, onImported, triggerLabel = 'Nhập từ fil
 }
 ```
 
-- [ ] **Step 4: Chạy cả bộ web, lint, kiểu, build**
+- [ ] **Step 6: Chạy cả bộ web, lint, kiểu, build**
 
 ```powershell
 cd apps/web
 npx vitest run
-npx eslint src/lib/import src/lib/api/master-data-import.ts src/lib/api/master-data-import.test.ts src/lib/read-workbook.ts src/components/import
+npx eslint src/lib/import src/lib/api/master-data-import.ts src/lib/api/master-data-import.test.ts src/lib/read-workbook.ts src/components/import src/hooks/master-data-keys.ts src/hooks/useMasterDataImport.ts src/hooks/useMasterDataImport.test.tsx
 npx tsc --noEmit
 pnpm build
 ```
 
 Expected: toàn bộ vitest xanh (cùng số suite cũ, cộng các suite mới của plan này); ESLint, `tsc` sạch; `next build` thành công. Ba chỗ hay vỡ ở bước này: (1) `react/no-unescaped-entities` với dấu `"` trong JSX — dùng `{'…'}` hoặc `&quot;`; (2) `react-hooks/exhaustive-deps` ở effect của `ImportWizard` — `runRef` đã được dùng để `run` không nằm trong mảng phụ thuộc, nên không cần `eslint-disable`; nếu quy tắc vẫn kêu về `extracted`, đó là đúng và phụ thuộc đã đủ; (3) `tsc` kêu `Alert variant="warning"` — xem ghi chú ở Task 6 Step 4.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/web/src/components/import apps/web/src/lib
-git commit -m "feat(web): ImportDialog — nút và hộp thoại nhập từ file cho dữ liệu nền"
+git add apps/web/src/components/import apps/web/src/hooks apps/web/src/lib
+git commit -m "feat(web): useImportRunner (làm mới danh sách sau khi ghi) và ImportDialog cho dữ liệu nền"
 ```
 
 ---
