@@ -3,17 +3,22 @@
 import Link from 'next/link';
 import { CalendarClock, Inbox, Plus } from 'lucide-react';
 import { useExamSessions } from '@/hooks/useExamSession';
+import { useSemesterYearFilter } from '@/hooks/useSemesterYearFilter';
 import { PageHeader } from '@/components/layout/page-header';
+import { SemesterYearFilter } from '@/components/layout/semester-year-filter';
 import { StatCard } from '@/components/layout/stat-card';
 import { Button } from '@/components/ui/button';
+import { isFiltering } from '@/lib/semester-filter';
 
 // "Bài chờ chấm" needs the submission/grading modules, which are entirely
 // out of this rebuild's scope — stays a placeholder (see the design spec's
 // out-of-scope section).
 export default function TeacherDashboardPage() {
+  // Tổng số phiên THEO BỘ LỌC (spec §7.2). Mặc định "Tất cả": con số này không được lọc sẵn một kỳ người dùng không chọn.
+  const filter = useSemesterYearFilter('teacher-dashboard');
   // pageSize: 1 — only `total` is read here; the list itself is what
   // /teacher/exam-sessions renders.
-  const { data, isLoading, isError } = useExamSessions({ page: 1, pageSize: 1 });
+  const { data, isLoading, isError } = useExamSessions({ page: 1, pageSize: 1, ...filter.params });
 
   return (
     <div className="flex flex-col gap-8">
@@ -30,13 +35,24 @@ export default function TeacherDashboardPage() {
         }
       />
 
+      <SemesterYearFilter
+        semesters={filter.semesters}
+        selection={filter.selection}
+        onYearChange={filter.setYear}
+        onSemesterChange={filter.setSemester}
+      />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           icon={CalendarClock}
           label="Phiên thi đã tạo"
           value={isLoading ? null : (data?.total ?? '—')}
           variant="accent"
-          hint="Tổng số phiên thi bạn đã tạo"
+          hint={
+            isFiltering(filter.selection)
+              ? 'Số phiên thi trong bộ lọc đang chọn'
+              : 'Tổng số phiên thi bạn đã tạo'
+          }
           isError={isError}
         />
         <StatCard
