@@ -909,24 +909,32 @@ tạo riêng "Phòng diễn tập" chỉ bật khi diễn tập — không dùng
    kiểm, không có** (§8.3); chỉ còn xác nhận lại bằng diễn tập §8.5.
 2. Cơ chế ép "không đổi kỳ của lớp đã có phiên" và "không đổi `year`/`term` khi đã có lớp":
    trigger hay khoá ngoại ghép.
+   **→ Đã giải quyết ở plan:** C Task 3 — **trigger** (`trg_class_semester_guard`, `trg_semester_key_guard`), vì nó cho phép gán lần đầu NULL → giá trị mà backfill cần và không buộc `exam_session` mang thêm cột `semester_id`.
 3. **Mức** giới hạn tốc độ cho `GET /students/:mssv` (bản thân việc có giới hạn là bắt buộc, §2.6).
+   **→ Đã giải quyết ở plan:** D1 Task 4 — **30 lần/phút/giảng viên, trong bộ nhớ**.
 4. Hành vi `enrollments.addManually` (luồng xin phép) với quy tắc "một sinh viên một lớp mỗi kỳ".
+   **→ Đã giải quyết ở plan:** D1 — `EnrollmentService.addManually` **không** áp luật "một sinh viên một lớp mỗi kỳ" (chỉ đổi chính sách tên); luật chéo lớp sống ở đường nhập danh sách (`RosterService`).
 5. Agent Electron hiển thị gì từ ack (`JoinScreen`, `DetailView`): giao thức không đổi, nhưng
    kiểm xem nhãn lớp nào đi qua.
 6. Cách `readWorkbook` trả ô ngày Excel (§6.3).
+   **→ Đã giải quyết ở plan:** E2 Task 1 — **đã đo** (exceljs 4.4.0: ô ngày → `Date` nửa đêm UTC kể cả khi không có `numFmt` ngày; ô công thức ra ngày → `{formula, result: Date}`); `readWorkbook` sửa tại nguồn bằng getter UTC → `yyyy-mm-dd`.
 7. `GET /accounts/teachers` đã đủ cho combobox giảng viên của admin chưa (dòng 28 của
    controller còn comment cũ nhắc "Trưởng khoa" — stale, sửa kèm).
+   **→ Đã giải quyết ở plan:** D2 — đủ (trả `{id, name}`); chỉ sửa chú thích cũ nhắc "Trưởng khoa". Lưu ý (G1): route cũng liệt kê giảng viên đã vô hiệu hoá.
 8. **Lịch sử migration lệch DB thật** (§8.4 bước 0b): kiểm trên bản sao DB rằng sau khi thêm hai
    dòng `migrations`, `migration:run` chạy sạch; kiểm xem nguyên nhân hai migration được áp ngoài
    đường TypeORM (chạy tay trong SQL Editor?) để các môi trường khác (máy dev, Railway) không
    lặp lại.
+   **→ Đã giải quyết ở plan:** H — runbook `docs/runbooks/master-data-cutover.md` mục 2.2 (đối soát + thêm hai dòng `migrations` trên bản sao trước, ghi lại nguyên nhân).
 9. ~~Quyết định mở (§4.1): cửa sổ sửa phiên~~ — **đã chốt phương án A** (trước giờ bắt đầu), chủ
    đồ án 05/10. Phương án B (đổi riêng phòng sau giờ bắt đầu) không làm.
 10. Cách ép "chặn sửa sau giờ bắt đầu" và "chặn huỷ khi đã có người vào": kiểm ở service (đủ, vì
     `agent:join` đã chặn trước `start_time`), hay thêm trigger DB. Khuyến nghị service; chỉ thêm
     trigger nếu plan tìm ra đường ghi khác vào `exam_session`.
+   **→ Đã giải quyết ở plan:** F — **service** (`ExamSessionEditService`), bằng một câu `UPDATE … WHERE status = 'active' AND start_time > now()` rồi kiểm số dòng; không thêm trigger.
 11. `GET /audit-log` chỉ theo khoảng ngày không có chỉ mục riêng (§4.2): bảng hiện 2 dòng và phân vùng
     chỉ có phần mặc định; thêm chỉ mục `(occurred_at DESC)` nếu bảng lớn lên, không làm trước.
+   **→ Đã giải quyết ở plan:** B — **không thêm chỉ mục** (đúng khuyến nghị của spec).
 12. ~~Chuẩn hoá để so "gần giống"~~ — **đã đo và chốt (05/10)** trên dữ liệu thật (3 phòng, 2 mã):
     chuẩn hoá = bỏ dấu tiếng Việt, hoa-thường, bỏ ký tự không phải chữ/số; thêm hai luật mờ (một ký
     tự chèn/xoá, hai ký tự liền kề đổi chỗ) chỉ áp khi cả hai chuỗi đã chuẩn hoá dài ≥ 5. Không
@@ -934,6 +942,7 @@ tạo riêng "Phòng diễn tập" chỉ bật khi diễn tập — không dùng
     bảng ca kiểm nằm ở plan C (`near-duplicate.ts`).
 13. `eval/rehearsal/cli.ts` và `test/helpers` cần mã danh nghĩa có trong Danh mục khi dựng lớp: helper
     seed (§10 bước 1) phải tạo mã trước.
+   **→ Đã giải quyết ở plan:** A (`seedClass` nói bằng `code`/`groupName`) và D1/D3 (tạo hàng `administrative_class`, phòng, học kỳ bên trong helper); CLI diễn tập đổi sang `roomId`/`classId` ở D3.
 
 ---
 
