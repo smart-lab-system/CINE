@@ -20,6 +20,8 @@ import {
   CreateAdministrativeClassDto,
   UpdateAdministrativeClassDto,
 } from './dto/administrative-class.dto';
+import { ImportAdministrativeClassesDto } from './dto/import.dto';
+import { MasterDataImportService } from './master-data-import.service';
 
 /**
  * Danh mục lớp danh nghĩa — TOÀN BỘ chỉ admin, kể cả đọc. Giảng viên không có
@@ -30,11 +32,21 @@ import {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
 export class AdministrativeClassController {
-  constructor(private readonly classes: AdministrativeClassService) {}
+  constructor(
+    private readonly classes: AdministrativeClassService,
+    private readonly imports: MasterDataImportService,
+  ) {}
 
   @Get()
   list() {
     return this.classes.list();
+  }
+
+  /** Nhập từ file (spec §6). `dryRun` bắt buộc; 200 cho cả hai chế độ vì không tạo một tài nguyên duy nhất. */
+  @Post('import')
+  @HttpCode(200)
+  importFromFile(@Body() dto: ImportAdministrativeClassesDto, @Req() req: Request) {
+    return this.imports.importAdministrativeClasses(req.user!.sub, dto);
   }
 
   @Post()

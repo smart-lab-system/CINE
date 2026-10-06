@@ -22,6 +22,7 @@ import { ClassLabelService } from './class-label.service';
 import { StudentService } from './student.service';
 import { StudentController } from './student.controller';
 import { StudentLookupLimiter } from './student-lookup.limiter';
+import { MasterDataImportService } from './master-data-import.service';
 
 /**
  * Dữ liệu nền có phân tầng: HỌC KỲ, PHÒNG THI, LỚP DANH NGHĨA, SINH VIÊN, LỚP và
@@ -65,6 +66,7 @@ import { StudentLookupLimiter } from './student-lookup.limiter';
     ClassLabelService,
     StudentService,
     StudentLookupLimiter,
+    MasterDataImportService,
   ],
   // ClassService is exported for ExamSessionService: creating a session
   // needs the lecturer's own scope on a class, and that scope is decided in

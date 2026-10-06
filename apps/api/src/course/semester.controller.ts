@@ -17,6 +17,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { SemesterService } from './semester.service';
 import { CreateSemesterDto, UpdateSemesterDto } from './dto/semester.dto';
+import { ImportSemestersDto } from './dto/import.dto';
+import { MasterDataImportService } from './master-data-import.service';
 
 /**
  * Học kỳ. `@Roles('admin')` ở MỨC CLASS: một route bỏ sót `@Roles` sẽ là 403 chứ
@@ -27,13 +29,23 @@ import { CreateSemesterDto, UpdateSemesterDto } from './dto/semester.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
 export class SemesterController {
-  constructor(private readonly semesters: SemesterService) {}
+  constructor(
+    private readonly semesters: SemesterService,
+    private readonly imports: MasterDataImportService,
+  ) {}
 
   @Get()
   @Roles('admin', 'teacher')
   list(@Req() req: Request) {
     // Số lớp là thông tin tổng hợp về lớp của NGƯỜI KHÁC: chỉ admin nhận nó.
     return this.semesters.list(req.user!.role === 'admin');
+  }
+
+  /** Nhập từ file (spec §6). `dryRun` bắt buộc; 200 cho cả hai chế độ vì không tạo một tài nguyên duy nhất. */
+  @Post('import')
+  @HttpCode(200)
+  importFromFile(@Body() dto: ImportSemestersDto, @Req() req: Request) {
+    return this.imports.importSemesters(req.user!.sub, dto);
   }
 
   @Post()
