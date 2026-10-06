@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { seedClass, seedExamSession } from './seed';
 
 /**
  * Dựng dữ liệu chấm bằng SQL thô cho e2e tầng DB (trigger, ràng buộc).
@@ -42,23 +43,23 @@ export async function seedSession(
 ): Promise<SeedSession> {
   const s = stamp();
   const teacherId = opts.teacherId ?? (await seedTeacher(ds, label));
-  const [klass] = await ds.query(
-    `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-    [`Môn ${label}`, teacherId],
-  );
-  const [session] = await ds.query(
-    `INSERT INTO examcollect.exam_session
-       (name, code, class_id, teacher_id, exam_type, start_time, end_time, status,
-        semester_name, course_name, room_name)
-     VALUES ($1, $2, $3, $4, 'CK', now() - make_interval(hours => $8::int),
-             now() - make_interval(hours => $8::int) + interval '2 hours', 'active',
-             $5, $6, $7)
-     RETURNING id`,
-    [
-      `Phiên ${label}`, `S${s}`.slice(0, 20), klass.id, teacherId, `HK ${label} ${s}`, `Môn ${label}`, `P ${label} ${s}`,
-      opts.startHoursAgo ?? 1,
-    ],
-  );
+  const klass = await seedClass(ds, {
+    teacherId,
+    courseName: `Môn ${label}`,
+  });
+  const startMs = Date.now() - (opts.startHoursAgo ?? 1) * 3_600_000;
+  const session = await seedExamSession(ds, {
+    teacherId,
+    classId: klass.id,
+    name: `Phiên ${label}`,
+    code: `S${s}`,
+    examType: 'CK',
+    startTime: new Date(startMs),
+    endTime: new Date(startMs + 2 * 3_600_000),
+    semesterName: `HK ${label} ${s}`,
+    courseName: `Môn ${label}`,
+    roomName: `P ${label} ${s}`,
+  });
   const [deliverable] = await ds.query(
     `INSERT INTO examcollect.required_deliverable (exam_session_id, required_filename, deliverable_type, language)
      VALUES ($1, 'Cau1.docx', $2, $3) RETURNING id`,

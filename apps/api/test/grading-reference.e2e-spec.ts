@@ -8,6 +8,7 @@ import { createTestAccount } from './helpers/create-account';
 import { forceStatus } from './helpers/grading-seed';
 import { ExamMaterialService } from '../src/exam-session/exam-material.service';
 import { ExamSessionEntity } from '../src/exam-session/entities/exam-session.entity';
+import { seedClass, seedExamSession } from './helpers/seed';
 
 // Tên rubric phải duy nhất theo LƯỢT CHẠY: uq_rubric_teacher_name_version
 // sống qua nhiều lượt, còn tên môn trong bộ fixture này là hằng chuỗi.
@@ -46,11 +47,11 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
   async function seedSession(): Promise<Seeded> {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm ${suffix}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhóm ${suffix}`,
+    });
     const room = { name: `P Ref ${suffix}` };
     // `start_time` ở QUÁ KHỨ: `listForAgent` chỉ phát tài liệu sau mốc đó,
     // nên muốn chứng minh đáp án không lọt thì phải kiểm ở trạng thái ĐÃ
@@ -61,26 +62,18 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     // 1789350000000) đòi hai phiên của một người cách nhau >= 30 phút. Trước
     // khi có ràng buộc đó, cả spec dùng chung một khung giờ và không ai để ý.
     const hoursBack = seedCursor * 3;
-    const [session] = await dataSource.query(
-      `INSERT INTO examcollect.exam_session
-         (name, code, class_id, teacher_id, exam_type,
-          start_time, end_time, status, semester_name,
-          course_name, room_name)
-       VALUES ($1, $2, $3, $5, 'CK',
-               now() - ($7::int || ' hours')::interval,
-               now() - (($7::int - 1) || ' hours')::interval,
-               'active', 'HK Ref', $4, $6)
-       RETURNING *`,
-      [
-        `Phiên ${suffix}`,
-        `REF${suffix}`.slice(0, 20),
-        klass.id,
-        courseName,
-        teacherId,
-        room.name,
-        hoursBack,
-      ],
-    );
+    const session = await seedExamSession(dataSource, {
+      teacherId,
+      classId: klass.id,
+      name: `Phiên ${suffix}`,
+      code: `REF${suffix}`,
+      examType: 'CK',
+      startTime: new Date(Date.now() - hoursBack * 3_600_000),
+      endTime: new Date(Date.now() - (hoursBack - 1) * 3_600_000),
+      semesterName: 'HK Ref',
+      courseName,
+      roomName: room.name,
+    });
     const [deliverable] = await dataSource.query(
       `INSERT INTO examcollect.required_deliverable
          (exam_session_id, required_filename, deliverable_type)

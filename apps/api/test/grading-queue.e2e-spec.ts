@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { liveSessionWindow } from './helpers/session-window';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * Chấm điểm trên hàng đợi (CLAUDE.md §7.1.3).
@@ -30,11 +31,11 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
     const room = { name: `Queue Room ${suffix}` };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm ${suffix}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhóm ${suffix}`,
+    });
 
     const rubric = await request(app.getHttpServer())
       .post('/rubrics')
@@ -48,28 +49,29 @@ describe('Chấm điểm trên hàng đợi (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Phiên chấm ${suffix}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        rubricId: rubric.body.id,
-        ...liveSessionWindow(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên chấm ${suffix}`,
+          classId: klass.id,
+          roomName: room.name,
+          examType: 'CK',
+          rubricId: rubric.body.id,
+          ...liveSessionWindow(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     const sessionId = created.body.id as string;
     const deliverableId = created.body.requiredDeliverables[0].id as string;
 
     for (let i = 1; i <= count; i++) {
       const mssv = `QB${seedCursor}N${i}${Date.now() % 10000}`.slice(0, 20);
-      await dataSource.query(
-        `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-        [mssv, `Sinh viên ${i}`, klass.id, teacherId],
-      );
+      await seedEnrollment(dataSource, {
+        mssv,
+        name: `Sinh viên ${i}`,
+        classId: klass.id,
+        teacherId,
+      });
       // Bài nộp ghi thẳng: bộ test này về HÀNG ĐỢI, không về đường
       // upload — đường đó đã có bộ riêng.
       const [row] = await dataSource.query(

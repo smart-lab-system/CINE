@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { liveSessionWindow } from './helpers/session-window';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * §14.3 — bắt đầu chấm bị chặn khi phiên có bài đường điều tra mà chưa ghim
@@ -46,11 +47,7 @@ describe('start-grading — chặn khi thiếu gói test cho bài điều tra (e
     label: string,
   ) {
     const mssv = `SG${label}${Date.now() % 100000}`.slice(0, 20);
-    await ds.query(
-      `INSERT INTO examcollect.enrollment (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-      [mssv, `Sinh viên ${label}`, classId, teacherId],
-    );
+    await seedEnrollment(ds, { mssv, name: `Sinh viên ${label}`, classId, teacherId });
     const [row] = await ds.query(
       `INSERT INTO examcollect.submission
          (exam_session_id, required_deliverable_id, student_mssv, student_name_input,
@@ -72,10 +69,11 @@ describe('start-grading — chặn khi thiếu gói test cho bài điều tra (e
   }
 
   async function createRubricAndClass(token: string, teacherId: string, label: string) {
-    const [klass] = await ds.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, $2, $3) RETURNING id`,
-      [`Môn ${label}`, `Nhóm ${label}`, teacherId],
-    );
+    const klass = await seedClass(ds, {
+      teacherId,
+      courseName: `Môn ${label}`,
+      groupName: `Nhóm ${label}`,
+    });
     const rubric = await request(app.getHttpServer())
       .post('/rubrics')
       .set(as(token))
@@ -90,16 +88,17 @@ describe('start-grading — chặn khi thiếu gói test cho bài điều tra (e
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set(as(owner.token))
-      .send({
-        name: 'Phiên code b1',
-        classId,
-        roomName: `Phòng b1 ${stamp}`,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        rubricId,
-        ...liveSessionWindow(),
-        requiredFilenames: [{ filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }],
-      });
+      .send(
+        await sessionBody(ds, {
+          name: 'Phiên code b1',
+          classId,
+          roomName: `Phòng b1 ${stamp}`,
+          examType: 'CK',
+          rubricId,
+          ...liveSessionWindow(),
+          requiredFilenames: [{ filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }],
+        }),
+      );
     expect(created.status).toBe(201);
     const sessionId = created.body.id as string;
     const deliverableId = created.body.requiredDeliverables[0].id as string;
@@ -117,16 +116,17 @@ describe('start-grading — chặn khi thiếu gói test cho bài điều tra (e
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set(as(owner.token))
-      .send({
-        name: 'Phiên code b2',
-        classId,
-        roomName: `Phòng b2 ${stamp}`,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        rubricId,
-        ...liveSessionWindow(),
-        requiredFilenames: [{ filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }],
-      });
+      .send(
+        await sessionBody(ds, {
+          name: 'Phiên code b2',
+          classId,
+          roomName: `Phòng b2 ${stamp}`,
+          examType: 'CK',
+          rubricId,
+          ...liveSessionWindow(),
+          requiredFilenames: [{ filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }],
+        }),
+      );
     const sessionId = created.body.id as string;
     const deliverableId = created.body.requiredDeliverables[0].id as string;
     await seedCollectedSubmission(sessionId, deliverableId, owner.id, classId, 'b2');
@@ -161,19 +161,20 @@ describe('start-grading — chặn khi thiếu gói test cho bài điều tra (e
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set(as(owner.token))
-      .send({
-        name: 'Phiên trộn b3',
-        classId,
-        roomName: `Phòng b3 ${stamp}`,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        rubricId,
-        ...liveSessionWindow(),
-        requiredFilenames: [
-          { filename: 'baocao.docx', deliverableType: 'document' },
-          { filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' },
-        ],
-      });
+      .send(
+        await sessionBody(ds, {
+          name: 'Phiên trộn b3',
+          classId,
+          roomName: `Phòng b3 ${stamp}`,
+          examType: 'CK',
+          rubricId,
+          ...liveSessionWindow(),
+          requiredFilenames: [
+            { filename: 'baocao.docx', deliverableType: 'document' },
+            { filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' },
+          ],
+        }),
+      );
     expect(created.status).toBe(201);
     const sessionId = created.body.id as string;
     const codeDeliverable = created.body.requiredDeliverables.find(
@@ -193,16 +194,17 @@ describe('start-grading — chặn khi thiếu gói test cho bài điều tra (e
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set(as(owner.token))
-      .send({
-        name: 'Phiên tự luận b4',
-        classId,
-        roomName: `Phòng b4 ${stamp}`,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        rubricId,
-        ...liveSessionWindow(),
-        requiredFilenames: ['baocao.docx'],
-      });
+      .send(
+        await sessionBody(ds, {
+          name: 'Phiên tự luận b4',
+          classId,
+          roomName: `Phòng b4 ${stamp}`,
+          examType: 'CK',
+          rubricId,
+          ...liveSessionWindow(),
+          requiredFilenames: ['baocao.docx'],
+        }),
+      );
     const sessionId = created.body.id as string;
     const deliverableId = created.body.requiredDeliverables[0].id as string;
     await seedCollectedSubmission(sessionId, deliverableId, owner.id, classId, 'b4');

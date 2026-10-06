@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { GradingService } from '../src/grading/grading.service';
+import { seedClass, seedExamSession } from './helpers/seed';
 
 // Tên rubric phải duy nhất theo LƯỢT CHẠY: uq_rubric_teacher_name_version
 // sống qua nhiều lượt, còn tên môn trong bộ fixture này là hằng chuỗi.
@@ -45,24 +46,21 @@ describe('Vòng đời grading_result (e2e)', () => {
 
     const course = { name: 'Môn vòng đời' };
     courseName = course.name;
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseName, teacherId],
-    );
+    const klass = await seedClass(dataSource, { teacherId, courseName });
     classId = klass.id;
     const room = { name: `P Lifecycle ${suffix}` };
-    const [session] = await dataSource.query(
-      `INSERT INTO examcollect.exam_session
-         (name, code, class_id, teacher_id, exam_type,
-          start_time, end_time, status, semester_name,
-          course_name, room_name)
-       VALUES ('Phiên vòng đời', $1, $2, $4, 'CK',
-               now() - interval '1 hour', now() + interval '1 hour', 'active', $6,
-               $3, $5)
-       RETURNING id`,
-      [`LCC${suffix}`.slice(0, 20), classId, courseName, teacherId, room.name, `HK Lifecycle ${suffix}`],
-    );
+    const session = await seedExamSession(dataSource, {
+      teacherId,
+      classId,
+      name: 'Phiên vòng đời',
+      code: `LCC${suffix}`,
+      examType: 'CK',
+      startTime: new Date(Date.now() - 3_600_000),
+      endTime: new Date(Date.now() + 3_600_000),
+      semesterName: `HK Lifecycle ${suffix}`,
+      courseName,
+      roomName: room.name,
+    });
     sessionId = session.id;
     const [deliverable] = await dataSource.query(
       `INSERT INTO examcollect.required_deliverable

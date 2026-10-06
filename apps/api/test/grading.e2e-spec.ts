@@ -7,6 +7,7 @@ import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter
 import { createTestAccount } from './helpers/create-account';
 import { liveSessionWindow } from './helpers/session-window';
 import { StorageService } from '../src/storage/storage.service';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * The grading pipeline, and the boundary in front of it.
@@ -143,31 +144,32 @@ describe('Grading (e2e)', () => {
 
     const course = { name: 'Môn được chấm' };
     courseName = course.name;
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm chấm ${stamp}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhóm chấm ${stamp}`,
+    });
     const room = { name: `Grading Room ${stamp}` };
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [MSSV, 'Sinh viên được chấm', klass.id, teacherId],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: MSSV,
+      name: 'Sinh viên được chấm',
+      classId: klass.id,
+      teacherId,
+    });
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Grading Session ${stamp}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        ...liveSessionWindow(),
-        requiredFilenames: ['Cau1.txt'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Grading Session ${stamp}`,
+          classId: klass.id,
+          roomName: room.name,
+          examType: 'CK',
+          ...liveSessionWindow(),
+          requiredFilenames: ['Cau1.txt'],
+        }),
+      );
     expect(created.status).toBe(201);
     sessionId = created.body.id;
     deliverableId = created.body.requiredDeliverables[0].id;
@@ -433,11 +435,11 @@ describe('Grading (e2e)', () => {
 
   it('says so instead of grading when the SESSION has no rubric', async () => {
     const otherCourse = { id: `Môn chưa có rubric ${stamp}` };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [otherCourse.id, `Nhóm chưa rubric ${stamp}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName: otherCourse.id,
+      groupName: `Nhóm chưa rubric ${stamp}`,
+    });
     // Its own room, not `SELECT ... LIMIT 1`. Sharing a room with another
     // session running at the same time is refused by
     // ex_exam_session_room_overlap, and the session creation then fails —
@@ -448,15 +450,16 @@ describe('Grading (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `No Rubric Session ${stamp}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        ...liveSessionWindow(),
-        requiredFilenames: ['Cau1.txt'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `No Rubric Session ${stamp}`,
+          classId: klass.id,
+          roomName: room.name,
+          examType: 'CK',
+          ...liveSessionWindow(),
+          requiredFilenames: ['Cau1.txt'],
+        }),
+      );
 
     const response = await request(app.getHttpServer())
       .post(`/exam-sessions/${created.body.id}/start-grading`)

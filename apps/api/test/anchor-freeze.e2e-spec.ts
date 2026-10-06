@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { AnchorService } from '../src/grading/anchor.service';
+import { seedClass, seedExamSession } from './helpers/seed';
 
 /**
  * T-ANCHOR-1 — tập anchor ĐÓNG BĂNG một lần cho cả lượt chấm (spec A3).
@@ -42,24 +43,21 @@ describe('Đóng băng anchor (e2e)', () => {
 
     const course = { name: 'Môn anchor' };
     courseName = course.name;
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseName, teacherId],
-    );
+    const klass = await seedClass(dataSource, { teacherId, courseName });
     classId = klass.id;
     const room = { name: `P Anchor ${stamp}` };
-    const [session] = await dataSource.query(
-      `INSERT INTO examcollect.exam_session
-         (name, code, class_id, teacher_id, exam_type,
-          start_time, end_time, status, semester_name,
-          course_name, room_name)
-       VALUES ('Phiên anchor', $1, $2, $4, 'CK',
-               now() - interval '1 hour', now() + interval '1 hour', 'active', $6,
-               $3, $5)
-       RETURNING id`,
-      [`ANC${stamp}`.slice(0, 20), classId, courseName, teacherId, room.name, `HK Anchor ${stamp}`],
-    );
+    const session = await seedExamSession(dataSource, {
+      teacherId,
+      classId,
+      name: 'Phiên anchor',
+      code: `ANC${stamp}`,
+      examType: 'CK',
+      startTime: new Date(Date.now() - 3_600_000),
+      endTime: new Date(Date.now() + 3_600_000),
+      semesterName: `HK Anchor ${stamp}`,
+      courseName,
+      roomName: room.name,
+    });
     sessionId = session.id;
 
     const [rubric] = await dataSource.query(

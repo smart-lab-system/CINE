@@ -15,6 +15,7 @@ import { createTestAccount } from './helpers/create-account';
 import { seedCriterion } from './helpers/grading-seed';
 import { seedPrices, seedRule } from './helpers/investigator-seed';
 import { putObject, QUESTION, SOURCE } from './helpers/code-session-seed';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 const USAGE = { inputTokens: 100, outputTokens: 20, cacheReadTokens: 0, cacheCreationTokens: 0 };
 const call = (tool: string, extra: Record<string, unknown> = {}) => ({ tool, input: null, group: null, path: null, fromLine: null, toLine: null, ...extra });
@@ -106,10 +107,7 @@ describe('Đường điều tra chạy thật — từ tạo phiên qua API tớ
     const owner = await login('t4');
 
     // 1. Rubric + lớp — dựng thẳng (không phải trọng tâm plan này, 3f đã có route riêng cho rubric).
-    const [klass] = await ds.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-      ['CTDL&GT', owner.id],
-    );
+    const klass = await seedClass(ds, { teacherId: owner.id });
     const [rubric] = await ds.query(
       `INSERT INTO examcollect.rubric (version, teacher_id, name) VALUES (1, $1, 'Rubric 3d2') RETURNING id`,
       [owner.id],
@@ -123,17 +121,18 @@ describe('Đường điều tra chạy thật — từ tạo phiên qua API tớ
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set(as(owner.token))
-      .send({
-        name: 'Phiên 3d2 đóng plan',
-        classId: klass.id,
-        roomName: `Phòng 3d2 ${Date.now()}`,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        rubricId: rubric.id,
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
-        requiredFilenames: [{ filename: 'bai1.cpp', deliverableType: 'code_project', language: 'cpp' }],
-      });
+      .send(
+        await sessionBody(ds, {
+          name: 'Phiên 3d2 đóng plan',
+          classId: klass.id,
+          roomName: `Phòng 3d2 ${Date.now()}`,
+          examType: 'CK',
+          rubricId: rubric.id,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          requiredFilenames: [{ filename: 'bai1.cpp', deliverableType: 'code_project', language: 'cpp' }],
+        }),
+      );
     expect(created.status).toBe(201);
     const sessionId = created.body.id as string;
     const deliverableId = created.body.requiredDeliverables[0].id as string;
@@ -159,11 +158,7 @@ describe('Đường điều tra chạy thật — từ tạo phiên qua API tớ
     const submissionKey = `e2e/3d2/${randomUUID()}/submission`;
     await putObject(storage, submissionKey, SOURCE);
     const mssv = `SG3D2${Date.now() % 100000}`.slice(0, 20);
-    await ds.query(
-      `INSERT INTO examcollect.enrollment (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-      [mssv, 'Sinh viên 3d2', klass.id, owner.id],
-    );
+    await seedEnrollment(ds, { mssv, name: 'Sinh viên 3d2', classId: klass.id, teacherId: owner.id });
     const [sub] = await ds.query(
       `INSERT INTO examcollect.submission
          (exam_session_id, required_deliverable_id, student_mssv, student_name_input,
