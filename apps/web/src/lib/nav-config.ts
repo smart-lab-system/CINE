@@ -6,7 +6,9 @@ import { Sparkles,
   Wallet,
   ScrollText,
   CalendarClock,
+  CalendarRange,
   ClipboardCheck,
+  DoorOpen,
   Inbox,
   ListChecks,
   type LucideIcon,
@@ -33,10 +35,15 @@ export interface NavItem {
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Quản lý tài khoản', href: '/admin/accounts', icon: Users },
-  // Học kỳ, Phòng thi và "Môn chưa có chủ" đã bỏ khỏi đây ngày 2026-09-21:
-  // ba trang ấy bị xoá cùng đợt thu hẹp master data, nhưng ba mục menu thì
-  // ở lại, nên quản trị viên bấm vào là ra 404. Đúng thứ đoạn chú thích
-  // trên đầu file này cấm — "never a missing/dead nav entry".
+  // Dữ liệu nền do admin quản lý (khôi phục 2026-10, spec master-data-restoration): học kỳ, phòng thi và lớp. Bị xoá ngày 2026-09-21 cùng
+  // đợt thu hẹp master data — lần đó ba mục menu ở lại trỏ vào ba trang không còn, và admin bấm vào là ra 404. Lần này mục menu và trang
+  // đi CÙNG commit, và một test duyệt mọi `href` kiểm `page.tsx` có thật.
+  //
+  // "Danh mục lớp danh nghĩa" KHÔNG phải một mục menu: nó là hộp thoại mở từ trang Lớp, để giảng viên và các màn hình khác không bao giờ
+  // thấy "hai thứ" (mã danh nghĩa và lớp học phần).
+  { label: 'Học kỳ', href: '/admin/semesters', icon: CalendarRange },
+  { label: 'Phòng thi', href: '/admin/rooms', icon: DoorOpen },
+  { label: 'Lớp', href: '/admin/classes', icon: GraduationCap },
   { label: 'Cấu hình AI', href: '/admin/ai-config', icon: Bot },
   { label: 'Chi phí', href: '/admin/cost', icon: Wallet },
   { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
