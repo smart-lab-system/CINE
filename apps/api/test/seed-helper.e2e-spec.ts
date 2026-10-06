@@ -13,6 +13,7 @@ import {
   seedExamSession,
   sessionBody,
 } from './helpers/seed';
+import { freshTestYear, randomTag, semesterDates } from './helpers/master-data';
 
 describe('seed helper (e2e)', () => {
   let app: INestApplication;
@@ -166,5 +167,51 @@ describe('seed helper (e2e)', () => {
       examType: 'TK',
       requiredFilenames: ['A.docx', { filename: 'B.zip', entries: ['x.txt'] }],
     });
+  });
+
+  it('seedClass ghi học kỳ, lớp danh nghĩa và nhóm khi được cho', async () => {
+    const year = await freshTestYear(dataSource);
+    const { startDate, endDate } = semesterDates(year, 1);
+    const [sem] = await dataSource.query(
+      `INSERT INTO examcollect.semester (academic_year_start, term, start_date, end_date) VALUES ($1, 1, $2, $3) RETURNING id`,
+      [year, startDate, endDate],
+    );
+    const [adm] = await dataSource.query(
+      `INSERT INTO examcollect.administrative_class (code) VALUES ($1) RETURNING id`,
+      [`ZZ${randomTag()}`],
+    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      semesterId: sem.id,
+      administrativeClassId: adm.id,
+      groupName: 'Nhóm 3',
+    });
+    const [row] = await dataSource.query(
+      `SELECT semester_id, administrative_class_id, group_name FROM examcollect.class WHERE id = $1`,
+      [klass.id],
+    );
+    expect(row).toEqual({ semester_id: sem.id, administrative_class_id: adm.id, group_name: 'Nhóm 3' });
+    await dataSource.query(`DELETE FROM examcollect.class WHERE id = $1`, [klass.id]);
+    await dataSource.query(`DELETE FROM examcollect.semester WHERE id = $1`, [sem.id]);
+    await dataSource.query(`DELETE FROM examcollect.administrative_class WHERE id = $1`, [adm.id]);
+  });
+
+  it('seedExamSession ghi room_id khi được cho', async () => {
+    const klass = await seedClass(dataSource, { teacherId });
+    const [room] = await dataSource.query(
+      `INSERT INTO examcollect.room (name) VALUES ($1) RETURNING id`,
+      [`Phong ZZ${randomTag()}`],
+    );
+    const start = new Date(Date.now() - 5 * 24 * 3_600_000);
+    const session = await seedExamSession(dataSource, {
+      teacherId,
+      classId: klass.id,
+      startTime: start,
+      endTime: new Date(start.getTime() + 3_600_000),
+      status: 'completed',
+      roomId: room.id,
+    });
+    const [row] = await dataSource.query(`SELECT room_id FROM examcollect.exam_session WHERE id = $1`, [session.id]);
+    expect(row.room_id).toBe(room.id);
   });
 });
