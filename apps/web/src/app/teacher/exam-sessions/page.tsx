@@ -16,6 +16,9 @@ import {
 import { useExamSessions, useExamSessionsInRange } from '@/hooks/useExamSession';
 import { useSessionViewMode } from '@/hooks/useSessionViewMode';
 import { SessionCalendar } from './_components/session-calendar';
+import { CancelSessionDialog } from './_components/cancel-session-dialog';
+import { SessionRowActions } from './_components/session-row-actions';
+import { useNow } from '@/hooks/useNow';
 import { addDays, shortDate, startOfWeek, weekRange } from '@/lib/exam-calendar';
 import { cn } from '@/lib/utils';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -41,7 +44,7 @@ import { EXAM_TYPE_LABELS, getDisplaySessionStatus } from '@/lib/exam-session-di
 import { useSemesterYearFilter } from '@/hooks/useSemesterYearFilter';
 import { SemesterYearFilter } from '@/components/layout/semester-year-filter';
 import { isFiltering } from '@/lib/semester-filter';
-import type { ExamSessionStatusFilter, ExamType } from '@/lib/api/exam-session';
+import type { ExamSessionListItem, ExamSessionStatusFilter, ExamType } from '@/lib/api/exam-session';
 
 const STATUS_FILTER_LABELS: Record<ExamSessionStatusFilter, string> = {
   draft: 'Nháp',
@@ -108,6 +111,9 @@ export default function ExamSessionsListPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<ExamSessionStatusFilter | 'all'>('all');
   const [examType, setExamType] = useState<ExamType | 'all'>('all');
+  // Phiên đang được hỏi "huỷ không?" (null = hộp thoại đóng). Đồng hồ làm mới mỗi 30 giây để nút Sửa tự tắt khi phiên tới giờ bắt đầu.
+  const [cancelling, setCancelling] = useState<ExamSessionListItem | null>(null);
+  const now = useNow();
   const debouncedSearch = useDebouncedValue(search, 300);
   const semesterFilter = useSemesterYearFilter('teacher-exam-sessions');
 
@@ -494,12 +500,15 @@ export default function ExamSessionsListPage() {
                           <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/exam-sessions/${session.id}`}>
-                              <DoorOpen className="h-4 w-4" aria-hidden="true" />
-                              Phòng chờ
-                            </Link>
-                          </Button>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/exam-sessions/${session.id}`}>
+                                <DoorOpen className="h-4 w-4" aria-hidden="true" />
+                                Phòng chờ
+                              </Link>
+                            </Button>
+                            <SessionRowActions session={session} now={now} onCancel={setCancelling} />
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -536,6 +545,8 @@ export default function ExamSessionsListPage() {
           </>
         )}
       </div>
+
+      <CancelSessionDialog session={cancelling} onClose={() => setCancelling(null)} />
     </div>
   );
 }

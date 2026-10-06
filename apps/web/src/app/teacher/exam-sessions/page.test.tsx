@@ -16,10 +16,16 @@ const useExamSessionsMock = vi.fn();
 // thiếu nó thì cả file đỏ với "is not a function" — không phải lỗi logic mà
 // là lỗi factory mock thiếu một export.
 const useExamSessionsInRangeMock = vi.fn();
+// Hộp thoại huỷ phiên gọi mutate này (T-SES-11). `reset` phải là MỘT hàm ổn định qua các lượt render, như `reset` thật của TanStack (bind một lần
+// trong MutationObserver): hộp thoại xoá lý do trong effect phụ thuộc `reset`, nên một `vi.fn()` mới mỗi lượt sẽ xoá lý do ngay sau mỗi lần gõ.
+const cancelMutate = vi.fn();
+const cancelReset = vi.fn();
 
 vi.mock('@/hooks/useExamSession', () => ({
   useExamSessions: (...args: unknown[]) => useExamSessionsMock(...args),
   useExamSessionsInRange: (...args: unknown[]) => useExamSessionsInRangeMock(...args),
+  // Hộp thoại huỷ phiên (render ở cuối trang) đọc hook này ngay cả khi đóng.
+  useCancelExamSession: () => ({ mutate: cancelMutate, reset: cancelReset, isPending: false, isError: false, error: null }),
 }));
 
 // Bộ lọc LỚP đọc danh sách lớp của giảng viên, không đọc các phiên đã
@@ -89,6 +95,8 @@ function session(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  cancelMutate.mockReset();
+  cancelReset.mockReset();
   setYear.mockReset();
   setSemester.mockReset();
   clearSemester.mockReset();
@@ -532,5 +540,55 @@ describe('ExamSessionsListPage — chế độ xem lịch', () => {
     switchToCalendar();
 
     expect(await screen.findByText(/Cách phiên trước 15 phút/)).toBeInTheDocument();
+  });
+});
+
+describe('ExamSessionsListPage — Sửa và Huỷ phiên (T-SES-11)', () => {
+  const NAME = 'Giữa kỳ Lập trình Web';
+  const upcoming = (over: Record<string, unknown> = {}) =>
+    session({
+      startTime: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+      endTime: new Date(Date.now() + 4 * 3_600_000).toISOString(),
+      ...over,
+    });
+  const show = (item: Record<string, unknown>) =>
+    useExamSessionsMock.mockReturnValue({ data: { items: [item], total: 1 }, error: null, isLoading: false, refetch: vi.fn() });
+
+  it('phiên chưa bắt đầu: "Sửa" dẫn tới trang sửa; "Huỷ phiên" mở hộp thoại, "Giữ phiên" đóng lại mà không huỷ gì', () => {
+    show(upcoming());
+    render(<ExamSessionsListPage />);
+    expect(screen.getByRole('link', { name: `Sửa phiên ${NAME}` })).toHaveAttribute('href', '/teacher/exam-sessions/s1/edit');
+    fireEvent.click(screen.getByRole('button', { name: `Huỷ phiên ${NAME}` }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Huỷ phiên thi?')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Giữ phiên' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(cancelMutate).not.toHaveBeenCalled();
+  });
+
+  it('Review Focus 5: phiên đã bắt đầu (mặc định của fixture) — "Sửa" không bấm được và nói vì sao, "Huỷ phiên" vẫn bật', () => {
+    render(<ExamSessionsListPage />);
+    const edit = screen.getByRole('button', { name: `Sửa phiên ${NAME}` });
+    expect(edit).toHaveAttribute('aria-disabled', 'true');
+    expect(edit).toHaveAccessibleDescription('Phiên đã bắt đầu, không sửa được. Nếu chưa ai vào phòng bạn vẫn huỷ được.');
+    expect(screen.queryByRole('link', { name: `Sửa phiên ${NAME}` })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `Huỷ phiên ${NAME}` })).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('phiên đã huỷ hay đã kết thúc: cả hai nút bị chặn', () => {
+    show(upcoming({ status: 'cancelled' }));
+    render(<ExamSessionsListPage />);
+    expect(screen.getByRole('button', { name: `Sửa phiên ${NAME}` })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: `Huỷ phiên ${NAME}` })).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('xác nhận huỷ gọi API với id phiên và lý do đã nhập', () => {
+    show(upcoming());
+    render(<ExamSessionsListPage />);
+    fireEvent.click(screen.getByRole('button', { name: `Huỷ phiên ${NAME}` }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/Lý do/), { target: { value: 'Nhầm phòng' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Huỷ phiên' }));
+    expect(cancelMutate).toHaveBeenCalledWith({ id: 's1', reason: 'Nhầm phòng' }, expect.any(Object));
   });
 });
