@@ -4,99 +4,136 @@ import '@testing-library/jest-dom/vitest';
 import TeacherClassesPage from './page';
 
 const useTeachingClassesMock = vi.fn();
-const createMutate = vi.fn();
-const updateMutate = vi.fn();
-const deleteMutate = vi.fn();
+const useFilterMock = vi.fn();
 
-vi.mock('@/hooks/useTeaching', () => ({
-  useTeachingClasses: () => useTeachingClassesMock(),
-  useCreateClass: () => ({ mutate: createMutate, isPending: false }),
-  useUpdateClass: () => ({ mutate: updateMutate, isPending: false }),
-  useDeleteClass: () => ({ mutate: deleteMutate, isPending: false }),
-}));
+vi.mock('@/hooks/useTeaching', () => ({ useTeachingClasses: (...args: unknown[]) => useTeachingClassesMock(...args) }));
+vi.mock('@/hooks/useSemesterYearFilter', () => ({ useSemesterYearFilter: (...args: unknown[]) => useFilterMock(...args) }));
 
-const CLASS = {
+const filterState = (overrides: Record<string, unknown> = {}) => ({
+  semesters: [
+    { id: 's2', academicYearStart: 2026, term: 2, label: 'HK2 2026-2027' },
+    { id: 's1', academicYearStart: 2026, term: 1, label: 'HK1 2026-2027' },
+  ],
+  isLoading: false,
+  selection: { academicYear: null, semesterId: null },
+  setYear: vi.fn(),
+  setSemester: vi.fn(),
+  clear: vi.fn(),
+  params: {},
+  matches: () => true,
+  ...overrides,
+});
+
+const klass = (overrides: Record<string, unknown> = {}) => ({
   id: 'k1',
-  name: 'N01',
+  label: 'DHKTPM18A – Nhóm 1',
+  labelWithSemester: 'DHKTPM18A – Nhóm 1 · HK1 2026-2027',
   courseName: 'CTDL&GT',
+  semesterId: 's1',
+  academicYear: 2026,
+  term: 1,
   studentCount: 40,
-};
+  ...overrides,
+});
 
 /**
- * Trang "Lớp của tôi", sau khi lớp về tay giảng viên.
+ * Trang "Lớp của tôi" sau khi lớp về tay ADMIN (spec §2.3, §5.2).
  *
- * Bộ test này khoá lại một thay đổi QUYỀN, không chỉ một thay đổi giao diện:
- * trước đợt thu hẹp master data, bốn route lớp gắn `@Roles('department_admin')`
- * và trang này chỉ đọc. Vai trò đó không còn — nếu trang quay lại chỉ-đọc thì
- * không ai tạo được lớp nữa, tức là không ai tạo được phiên thi.
+ * Bộ test này khoá lại một thay đổi QUYỀN, giống hệt chiều ngược lại của lần trước (21/09, khi lớp về tay giảng viên): lần này
+ * giảng viên KHÔNG tạo, sửa hay xoá lớp được nữa — route ghi là `@Roles('admin')` và trả 403 cho họ — nên bất kỳ nút ghi nào còn sót
+ * trên trang này là một nút bấm ra 403.
  */
 describe('TeacherClassesPage', () => {
   beforeEach(() => {
-    createMutate.mockReset();
-    updateMutate.mockReset();
-    deleteMutate.mockReset();
+    useTeachingClassesMock.mockReset().mockReturnValue({ data: [klass()], isLoading: false, isError: false });
+    useFilterMock.mockReset().mockReturnValue(filterState());
+  });
+
+  it('hiện nhãn lớp, học kỳ và sĩ số, kèm đường vào danh sách sinh viên', () => {
+    render(<TeacherClassesPage />);
+
+    const row = screen.getByRole('row', { name: /DHKTPM18A – Nhóm 1/ });
+    expect(row).toHaveTextContent('HK1 2026-2027');
+    expect(row).toHaveTextContent('40 sinh viên');
+    expect(within(row).getByRole('link', { name: /danh sách sv/i })).toHaveAttribute('href', '/teacher/classes/k1/roster');
+  });
+
+  it('Review Focus 1: KHÔNG có nút tạo, sửa hay xoá lớp nào', () => {
+    render(<TeacherClassesPage />);
+
+    expect(screen.queryByRole('button', { name: /tạo lớp/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sửa lớp/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /xoá lớp/i })).not.toBeInTheDocument();
+  });
+
+  it('lớp chưa có sinh viên cảnh báo ngay trên bảng (không đợi tới ngày thi)', () => {
+    useTeachingClassesMock.mockReturnValue({ data: [klass({ studentCount: 0 })], isLoading: false, isError: false });
+    render(<TeacherClassesPage />);
+    expect(screen.getByText('chưa có danh sách')).toBeInTheDocument();
+  });
+
+  it('lớp cũ chưa có học kỳ hiện "Chưa gán học kỳ", không hiện "HK null"', () => {
     useTeachingClassesMock.mockReturnValue({
-      data: [CLASS],
+      data: [klass({ semesterId: null, academicYear: null, term: null })],
       isLoading: false,
       isError: false,
     });
+    render(<TeacherClassesPage />);
+    expect(screen.getByText('Chưa gán học kỳ')).toBeInTheDocument();
   });
 
-  it('hiện nút tạo lớp cho giảng viên', () => {
-    render(<TeacherClassesPage />);
+  describe('màn trống (Review Focus 2)', () => {
+    it('chưa được giao lớp nào: chữ nguyên văn spec §5.2, không có nút tạo lớp', () => {
+      useTeachingClassesMock.mockReturnValue({ data: [], isLoading: false, isError: false });
+      render(<TeacherClassesPage />);
 
-    expect(screen.getByRole('button', { name: /tạo lớp/i })).toBeInTheDocument();
+      expect(screen.getByText('Chưa có lớp nào được giao cho bạn')).toBeInTheDocument();
+      expect(screen.getByText('Lớp do quản trị viên tạo và giao cho bạn. Khi có lớp mới, nó sẽ hiện ở đây.')).toBeInTheDocument();
+      expect(screen.queryByRole('button')).not.toBeInTheDocument(); // không nút nào, kể cả "liên hệ admin" (spec §1.2)
+      expect(screen.queryByText(/bạn chưa có lớp nào/i)).not.toBeInTheDocument(); // chữ cũ mời TẠO lớp
+    });
+
+    it('rỗng vì đang lọc: nói khác, và cho xoá bộ lọc (Review Focus 7)', () => {
+      const clear = vi.fn();
+      useFilterMock.mockReturnValue(
+        filterState({ selection: { academicYear: 2025, semesterId: null }, params: { academicYear: 2025 }, clear }),
+      );
+      useTeachingClassesMock.mockReturnValue({ data: [], isLoading: false, isError: false });
+      render(<TeacherClassesPage />);
+
+      expect(screen.getByText('Không có lớp nào trong bộ lọc này')).toBeInTheDocument();
+      expect(screen.queryByText('Chưa có lớp nào được giao cho bạn')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Xem tất cả học kỳ' }));
+      expect(clear).toHaveBeenCalled();
+    });
   });
 
-  it('KHÔNG hỏi môn học — hệ thống chỉ có một môn', () => {
-    render(<TeacherClassesPage />);
-    fireEvent.click(screen.getByRole('button', { name: /tạo lớp/i }));
+  describe('bộ lọc năm học → học kỳ', () => {
+    it('mặc định không lọc gì; tham số của bộ lọc đi vào truy vấn', () => {
+      render(<TeacherClassesPage />);
+      expect(useTeachingClassesMock).toHaveBeenLastCalledWith({});
 
-    // Một câu hỏi chỉ có đúng một đáp án, lại không được kiểm: trả lời lệch
-    // một ký tự thì lớp này rơi khỏi mọi phép tra "cùng môn", và phép gãy
-    // đầu tiên là đường định tuyến bài thi bù. Server điền hằng số.
-    expect(screen.queryByLabelText('Môn học')).not.toBeInTheDocument();
+      useFilterMock.mockReturnValue(filterState({ params: { semesterId: 's1' } }));
+      render(<TeacherClassesPage />);
+      expect(useTeachingClassesMock).toHaveBeenLastCalledWith({ semesterId: 's1' });
+    });
+
+    it('hai ô lọc có mặt và dùng đúng scopeKey của màn hình', () => {
+      render(<TeacherClassesPage />);
+      expect(screen.getByRole('combobox', { name: 'Lọc theo năm học' })).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' })).toBeInTheDocument();
+      expect(useFilterMock).toHaveBeenCalledWith('teacher-classes');
+    });
   });
 
-  it('gửi tên lớp lên API khi tạo, đã cắt khoảng trắng', () => {
+  it('đang tải và lỗi tải', () => {
+    useTeachingClassesMock.mockReturnValue({ data: undefined, isLoading: true, isError: false });
+    const { unmount } = render(<TeacherClassesPage />);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    unmount();
+
+    useTeachingClassesMock.mockReturnValue({ data: undefined, isLoading: false, isError: true, error: new Error('Không tải được lớp') });
     render(<TeacherClassesPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: /tạo lớp/i }));
-    fireEvent.change(screen.getByLabelText('Tên lớp'), { target: { value: '  N05  ' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Tạo lớp' }));
-
-    expect(createMutate).toHaveBeenCalledWith({ name: 'N05' }, expect.anything());
-  });
-
-  it('không gửi gì khi thiếu tên lớp', () => {
-    render(<TeacherClassesPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: /tạo lớp/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Tạo lớp' }));
-
-    expect(createMutate).not.toHaveBeenCalled();
-    expect(screen.getByText(/nhập tên lớp/i)).toBeInTheDocument();
-  });
-
-  it('mở form sửa với dữ liệu của đúng lớp đó', () => {
-    render(<TeacherClassesPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa lớp N01' }));
-
-    expect(screen.getByLabelText('Tên lớp')).toHaveValue('N01');
-  });
-
-  it('cảnh báo sĩ số trước khi xoá, và xoá đúng lớp', () => {
-    render(<TeacherClassesPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Xoá lớp N01' }));
-    // Trong HỘP THOẠI, không phải trong bảng: con số ở bảng là thông tin,
-    // con số ở đây là lời cảnh báo trước một thao tác server sẽ từ chối
-    // (ON DELETE RESTRICT). Hai chỗ khác nhau về mục đích.
-    const dialog = within(screen.getByRole('dialog'));
-    expect(dialog.getByText(/40 sinh viên/)).toBeInTheDocument();
-
-    fireEvent.click(dialog.getByRole('button', { name: 'Xoá lớp' }));
-    expect(deleteMutate).toHaveBeenCalledWith('k1', expect.anything());
+    expect(screen.getByText('Không tải được lớp')).toBeInTheDocument();
   });
 });

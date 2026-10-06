@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { GraduationCap, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { GraduationCap, Users } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/layout/empty-state';
+import { SemesterYearFilter } from '@/components/layout/semester-year-filter';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,59 +17,38 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useSemesterYearFilter } from '@/hooks/useSemesterYearFilter';
 import { useTeachingClasses } from '@/hooks/useTeaching';
-import type { TeachingClass } from '@/lib/api/teaching';
-import { ClassFormDialog } from './_components/class-form-dialog';
-import { DeleteClassDialog } from './_components/delete-class-dialog';
+import { semesterTextOf } from '@/lib/master-data-forms';
+import { isFiltering } from '@/lib/semester-filter';
 
 /**
- * The lecturer's classes, and the way in to each one's roster.
+ * Các lớp bạn được giao, và đường vào danh sách sinh viên của từng lớp.
  *
- * Lớp là của chính giảng viên từ đợt thu hẹp master data: họ TẠO, SỬA và
- * XOÁ lớp của mình ngay tại đây. Trước đây Trưởng khoa tạo lớp rồi phân
- * công; vai trò đó không còn, và nếu trang này chỉ đọc thì không ai tạo
- * được lớp nữa — tức là không ai tạo được phiên thi.
+ * CHỈ ĐỌC. Lớp do quản trị viên tạo và giao (spec §2.3, §5.2) — đảo lại thay đổi 21/09, khi giảng viên tự tạo lớp của mình. Route ghi lớp
+ * là `@Roles('admin')` nên một nút "Tạo lớp" còn sót ở đây là một nút bấm ra 403. Thứ giảng viên vẫn tự làm là DANH SÁCH SINH VIÊN của
+ * lớp (tải file hoặc thêm tay), vì họ là người biết ai thật sự học.
  *
- * KHÔNG còn bộ lọc học kỳ. Một lớp không thuộc kỳ nào nữa — bảng `semester`
- * biến mất cùng đợt này, và chỉ PHIÊN THI mới chụp tên kỳ. Danh sách lớp
- * vẫn tích tụ theo năm, và khi nó dài tới mức khó đọc thì thứ cần thêm là
- * ô tìm kiếm, không phải một bộ lọc theo thứ dữ liệu không mang.
- *
- * KHÔNG còn cột "Môn". Hệ thống phục vụ đúng một môn, nên cột đó lặp lại
- * cùng một chuỗi ở mọi dòng — nó chiếm chỗ mà không phân biệt được gì.
- *
- * KHÔNG còn nhập lớp hàng loạt từ tệp. `POST /classes/import` nhận email
- * giảng viên theo từng dòng và tạo môn dưới quyền sở hữu khoa — cả hai khái
- * niệm đã biến mất, nên route và hộp thoại của nó bị xoá cùng đợt. Thiết kế
- * lại khi có nhu cầu thật.
+ * Bộ lọc Năm học → Học kỳ mặc định "Tất cả": một giảng viên dạy qua nhiều kỳ không được mất lớp của kỳ cũ chỉ vì bộ lọc chọn sẵn một kỳ
+ * khác. Bộ lọc chỉ hẹp tầm nhìn, không bao giờ chặn thao tác (CLAUDE.md §1.2).
  */
 export default function TeacherClassesPage() {
-  const classes = useTeachingClasses();
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<TeachingClass | null>(null);
-  const [deleting, setDeleting] = useState<TeachingClass | null>(null);
-
-  function openCreate() {
-    setEditing(null);
-    setFormOpen(true);
-  }
-
-  function openEdit(klass: TeachingClass) {
-    setEditing(klass);
-    setFormOpen(true);
-  }
+  const filter = useSemesterYearFilter('teacher-classes');
+  const classes = useTeachingClasses(filter.params);
+  const filtering = isFiltering(filter.selection);
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Lớp của tôi"
-        description="Các lớp bạn dạy. Mỗi lớp có một danh sách sinh viên — đó là thứ quyết định ai vào được phiên thi."
-        actions={
-          <Button type="button" onClick={openCreate}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Tạo lớp
-          </Button>
-        }
+        description="Các lớp bạn được giao. Mỗi lớp có một danh sách sinh viên — đó là thứ quyết định ai vào được phiên thi."
+      />
+
+      <SemesterYearFilter
+        semesters={filter.semesters}
+        selection={filter.selection}
+        onYearChange={filter.setYear}
+        onSemesterChange={filter.setSemester}
       />
 
       <Card className="overflow-hidden">
@@ -86,24 +65,35 @@ export default function TeacherClassesPage() {
               </Alert>
             </div>
           ) : (classes.data?.length ?? 0) === 0 ? (
-            <EmptyState
-              icon={GraduationCap}
-              title="Bạn chưa có lớp nào"
-              description="Tạo lớp và nhập danh sách sinh viên — chưa có lớp thì chưa tạo được phiên thi."
-              tone="muted"
-              action={
-                <Button type="button" onClick={openCreate}>
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  Tạo lớp
-                </Button>
-              }
-            />
+            // Hai câu chuyện khác nhau, không được nói chung một câu: "bạn chưa được giao lớp nào" (không có việc gì để làm — chờ admin)
+            // và "bộ lọc này không có lớp nào" (nới bộ lọc). Chữ cũ mời giảng viên TẠO lớp — giờ là một lời mời sai.
+            filtering ? (
+              <EmptyState
+                icon={GraduationCap}
+                title="Không có lớp nào trong bộ lọc này"
+                description="Thử chọn học kỳ khác, hoặc xem tất cả lớp bạn được giao."
+                tone="muted"
+                action={
+                  <Button type="button" variant="outline" onClick={filter.clear}>
+                    Xem tất cả học kỳ
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={GraduationCap}
+                title="Chưa có lớp nào được giao cho bạn"
+                description="Lớp do quản trị viên tạo và giao cho bạn. Khi có lớp mới, nó sẽ hiện ở đây."
+                tone="muted"
+              />
+            )
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead scope="col">Lớp</TableHead>
+                    <TableHead scope="col">Học kỳ</TableHead>
                     <TableHead scope="col">Sĩ số</TableHead>
                     <TableHead scope="col" className="text-right">
                       <span className="sr-only">Hành động</span>
@@ -113,12 +103,14 @@ export default function TeacherClassesPage() {
                 <TableBody>
                   {classes.data!.map((klass) => (
                     <TableRow key={klass.id}>
-                      <TableCell className="font-medium">{klass.name}</TableCell>
+                      <TableCell className="font-medium">{klass.label}</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {semesterTextOf(klass)}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap tabular-nums">
                         {klass.studentCount === 0 ? (
-                          // Not an empty cell: a class with no roster admits
-                          // nobody, and the lecturer should see that here
-                          // rather than at the start of the exam.
+                          // Không phải ô trống: một lớp chưa có danh sách thì không sinh viên nào vào được phiên thi, và giảng viên
+                          // nên thấy điều đó ở đây chứ không phải vào hôm thi.
                           <span className="text-warning-strong">chưa có danh sách</span>
                         ) : (
                           `${klass.studentCount} sinh viên`
@@ -131,24 +123,6 @@ export default function TeacherClassesPage() {
                             Danh sách SV
                           </Link>
                         </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEdit(klass)}
-                          aria-label={`Sửa lớp ${klass.name}`}
-                        >
-                          <Pencil className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleting(klass)}
-                          aria-label={`Xoá lớp ${klass.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -158,14 +132,6 @@ export default function TeacherClassesPage() {
           )}
         </CardContent>
       </Card>
-
-      <ClassFormDialog open={formOpen} onOpenChange={setFormOpen} editing={editing} />
-      <DeleteClassDialog
-        target={deleting}
-        onOpenChange={(next) => {
-          if (!next) setDeleting(null);
-        }}
-      />
     </div>
   );
 }
