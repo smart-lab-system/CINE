@@ -1,3 +1,8 @@
+import type { RenamedStudent } from './student.service';
+
+// Một khai báo duy nhất, ở `student.service.ts`; re-export để người dùng kiểu này không phải biết nó nằm đâu.
+export type { RenamedStudent };
+
 /** One student on a class list, as both the import and the readback speak it. */
 export interface RosterEntry {
   mssv: string;
@@ -11,6 +16,11 @@ export interface RosterEntry {
  * the database's answer, which is the one worth reporting back. `missing` is
  * present whether or not `removeMissing` was set — naming who is on the list
  * but not in the file is the whole point of reporting it.
+ *
+ * `updated` đếm dòng danh sách ĐÃ CÓ mà có gì đó đổi (giảng viên của lớp, hoặc tên sinh
+ * viên bị file đổi); `renamed` liệt kê MỌI sinh viên trong file bị đổi tên — kể cả em vừa vào
+ * lớp này nhưng đã có tên khác ở lớp khác. Chỉ có MỘT tên cho một sinh viên, nên đổi tên ở đây
+ * áp dụng cho mọi lớp (spec §2.6, §12 mục 3): giảng viên phải thấy ai bị đổi.
  */
 export interface RosterImportResult {
   added: number;
@@ -18,6 +28,7 @@ export interface RosterImportResult {
   unchanged: number;
   removed: number;
   missing: RosterEntry[];
+  renamed: RenamedStudent[];
 }
 
 /**

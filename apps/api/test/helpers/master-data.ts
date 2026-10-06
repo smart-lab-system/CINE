@@ -56,3 +56,39 @@ export async function purgeTestSemesters(db: Queryable): Promise<void> {
         AND NOT EXISTS (SELECT 1 FROM examcollect.class c WHERE c.semester_id = s.id)`,
   );
 }
+
+const sharedSemesters = new Map<number, Promise<string>>();
+
+/** Năm của các học kỳ MẶC ĐỊNH dùng chung — cố định, đầu vùng tên test (xem `freshTestYear`: không bao giờ cấp năm này). */
+export const DEFAULT_TEST_YEAR = TEST_YEAR_FLOOR;
+
+/**
+ * Học kỳ MẶC ĐỊNH dùng chung: (2200, term). Tạo một lần (get-or-create) rồi dùng lại giữa MỌI file test và MỌI lần chạy.
+ *
+ * Cần cho mọi test về PHẠM VI THEO HỌC KỲ (hai lớp "cùng học kỳ" phải trỏ cùng một hàng) và cho `seedClass` mặc định
+ * (plan D3). CỐ ĐỊNH chứ không sinh mới mỗi file: một học kỳ đã có lớp thì không xoá được (FK RESTRICT) nên
+ * `purgeTestSemesters` bỏ qua nó, và nếu mỗi file test tạo một cái thì cả bộ e2e ăn dần vùng năm 2200–2999 — hết chỗ
+ * sau vài lần chạy.
+ *
+ * `term` 1/2/3 cho ba kỳ không chồng ngày của năm 2200 (`semesterDates`).
+ */
+export function ensureTestSemester(db: Queryable, term: 1 | 2 | 3 = 1): Promise<string> {
+  const cached = sharedSemesters.get(term);
+  if (cached) return cached;
+  const created = (async () => {
+    const { startDate, endDate } = semesterDates(DEFAULT_TEST_YEAR, term);
+    await db.query(
+      `INSERT INTO examcollect.semester (academic_year_start, term, start_date, end_date)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (academic_year_start, term) DO NOTHING`,
+      [DEFAULT_TEST_YEAR, term, startDate, endDate],
+    );
+    const [row] = await db.query(
+      `SELECT id FROM examcollect.semester WHERE academic_year_start = $1 AND term = $2`,
+      [DEFAULT_TEST_YEAR, term],
+    );
+    return row.id as string;
+  })();
+  sharedSemesters.set(term, created);
+  return created;
+}

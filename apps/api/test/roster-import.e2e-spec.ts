@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { seedClass } from './helpers/seed';
+import { ensureTestSemester } from './helpers/master-data';
 
 /**
  * The roster import is what makes a headcount mean anything: until a class
@@ -28,6 +29,8 @@ describe('Roster import (e2e)', () => {
   let courseName: string;
   let classId: string;
   let siblingClassId: string;
+  let siblingLabel: string;
+  let semesterId: string;
 
   async function login(email: string): Promise<string> {
     const response = await request(app.getHttpServer())
@@ -82,10 +85,13 @@ describe('Roster import (e2e)', () => {
     otherTeacherToken = (await makeAccount('roster_other_teacher', 'teacher')).token;
 
     courseName = 'Môn có danh sách';
+    // Phạm vi "đã ở lớp khác" là HỌC KỲ (spec §2.3 mục 3): mọi lớp của spec này cùng một học kỳ.
+    semesterId = await ensureTestSemester(dataSource);
 
     const klass = await seedClass(dataSource, {
       teacherId: lecturerId,
       courseName,
+      semesterId,
       groupName: `Nhóm chính ${Date.now()}`,
     });
     classId = klass.id;
@@ -95,9 +101,11 @@ describe('Roster import (e2e)', () => {
     const sibling = await seedClass(dataSource, {
       teacherId: lecturerId,
       courseName,
+      semesterId,
       groupName: `Nhóm phụ ${Date.now()}`,
     });
     siblingClassId = sibling.id;
+    siblingLabel = sibling.label;
   });
 
   afterAll(async () => {
@@ -109,6 +117,7 @@ describe('Roster import (e2e)', () => {
     const klass = await seedClass(dataSource, {
       teacherId: lecturerId,
       courseName,
+      semesterId,
       groupName: `Nhóm ${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
     });
     return klass.id;
@@ -222,6 +231,7 @@ describe('Roster import (e2e)', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ added: 0, updated: 1, unchanged: 1 });
+    expect(response.body.renamed).toEqual([{ mssv: changed, from: 'Nguyen Van I', to: 'Nguyễn Văn I' }]);
     expect(await readRoster(id)).toContain(`${changed}|Nguyễn Văn I`);
   });
 
@@ -273,7 +283,7 @@ describe('Roster import (e2e)', () => {
     expect(await readRoster(id)).toEqual([`${kept}|Ở lại`]);
   });
 
-  it('refuses a student who already belongs to another class of the course', async () => {
+  it('refuses a student who already belongs to another class of the SEMESTER', async () => {
     const shared = mssv('o');
     await importRoster(siblingClassId, teacherToken, {
       students: [{ mssv: shared, name: 'Đã ở nhóm phụ' }],
@@ -291,7 +301,68 @@ describe('Roster import (e2e)', () => {
     // effect of a file someone dragged in.
     expect(response.status).toBe(409);
     expect(response.body.message).toContain(shared);
-    expect(response.body.message).toContain('Nhóm phụ');
+    expect(response.body.message).toContain(siblingLabel);
+  });
+
+  it('T-STU-3: file ghi tên khác tên đã lưu thì FILE THẮNG, và kết quả liệt kê ai bị đổi tên — kể cả ở lớp khác', async () => {
+    const idA = await freshClass();
+    const shared = mssv('q');
+    await importRoster(idA, teacherToken, { students: [{ mssv: shared, name: 'Tên cũ ở lớp A' }] });
+
+    // Lớp B ở KỲ KHÁC nên em nhập được vào đó (T-STU-4); file của B mang tên mới.
+    const otherSemester = await ensureTestSemester(dataSource, 2);
+    const klassB = await seedClass(dataSource, { teacherId: lecturerId, semesterId: otherSemester });
+    const response = await importRoster(klassB.id, teacherToken, {
+      students: [{ mssv: shared, name: 'Tên mới theo file' }],
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.renamed).toEqual([{ mssv: shared, from: 'Tên cũ ở lớp A', to: 'Tên mới theo file' }]);
+    // Chỉ có MỘT tên: lớp A cũng đọc ra tên mới.
+    expect(await readRoster(idA)).toContain(`${shared}|Tên mới theo file`);
+  });
+
+  it('T-STU-4: sinh viên học lại ở kỳ sau được nhập vào lớp của kỳ mới (Review Focus 5)', async () => {
+    const shared = mssv('r');
+    await importRoster(classId, teacherToken, { students: [{ mssv: shared, name: 'Học lại' }] });
+
+    const nextSemester = await ensureTestSemester(dataSource, 3);
+    const nextTerm = await seedClass(dataSource, { teacherId: lecturerId, semesterId: nextSemester });
+    const response = await importRoster(nextTerm.id, teacherToken, {
+      students: [{ mssv: shared, name: 'Học lại' }],
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ added: 1, updated: 0, unchanged: 0 });
+    // Và ở kỳ cũ em vẫn còn nguyên.
+    expect(await readRoster(classId)).toContain(`${shared}|Học lại`);
+  });
+
+  it('cùng kỳ thì vẫn bị chặn — cùng một sinh viên ở hai lớp một kỳ làm bài nộp định tuyến sai', async () => {
+    const shared = mssv('s2');
+    await importRoster(siblingClassId, teacherToken, { students: [{ mssv: shared, name: 'Cùng kỳ' }] });
+    const response = await importRoster(classId, teacherToken, { students: [{ mssv: shared, name: 'Cùng kỳ' }] });
+    expect(response.status).toBe(409);
+  });
+
+  it('lớp chưa có học kỳ (dữ liệu cũ chưa backfill) chỉ so với chính nó, không chặn nhầm', async () => {
+    const legacy = await seedClass(dataSource, { teacherId: lecturerId }); // semester_id NULL
+    const shared = mssv('s3');
+    await importRoster(siblingClassId, teacherToken, { students: [{ mssv: shared, name: 'Ở lớp có kỳ' }] });
+    const response = await importRoster(legacy.id, teacherToken, { students: [{ mssv: shared, name: 'Ở lớp có kỳ' }] });
+    expect(response.status).toBe(200);
+  });
+
+  it('MSSV gõ khác hoa-thường là CÙNG MỘT sinh viên: không sinh thêm hàng student (Review Focus 2)', async () => {
+    const person = mssv('s4');
+    const nextSemester = await ensureTestSemester(dataSource, 2);
+    const first = await freshClass();
+    await importRoster(first, teacherToken, { students: [{ mssv: person, name: 'Một Người' }] });
+    const other = await seedClass(dataSource, { teacherId: lecturerId, semesterId: nextSemester });
+    await importRoster(other.id, teacherToken, { students: [{ mssv: person.toLowerCase(), name: 'Một Người' }] });
+
+    const rows = await dataSource.query(`SELECT count(*)::int AS n FROM examcollect.student WHERE mssv = $1`, [person]);
+    expect(rows[0].n).toBe(1);
   });
 
   it('refuses a lecturer importing into a class they do not teach', async () => {
@@ -337,7 +408,7 @@ describe('Roster import (e2e)', () => {
       expect(await readRoster(id)).toEqual([]);
     });
 
-    it('refuses a student who already sits in a sibling class', async () => {
+    it('refuses a student who already sits in a sibling class of the semester', async () => {
       const shared = mssv('u');
       await importRoster(siblingClassId, teacherToken, {
         students: [{ mssv: shared, name: 'Đã ở nhóm phụ' }],
@@ -351,6 +422,37 @@ describe('Roster import (e2e)', () => {
       // Same rule as the import: moving a student changes where their
       // submission is routed, and it is not a side effect of typing a name.
       expect(response.status).toBe(409);
+    });
+
+    it('T-STU-2: nhập tay MSSV đã có thì GIỮ tên đã lưu, không ghi đè bằng tên gõ (Review Focus 3)', async () => {
+      const id = await freshClass();
+      const known = mssv('s5');
+      // Tên đã lưu từ một lớp trước, ở KỲ KHÁC (không bị chặn thành "ở lớp khác").
+      const earlier = await seedClass(dataSource, { teacherId: lecturerId, semesterId: await ensureTestSemester(dataSource, 3) });
+      await importRoster(earlier.id, teacherToken, { students: [{ mssv: known, name: 'Tên đã lưu đúng' }] });
+
+      const response = await request(app.getHttpServer())
+        .post(`/classes/${id}/roster/students`)
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({ mssv: known, name: 'Tên gõ lệch' });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({ mssv: known, name: 'Tên đã lưu đúng' });
+      expect(await readRoster(id)).toContain(`${known}|Tên đã lưu đúng`);
+      const [stored] = await dataSource.query(`SELECT full_name FROM examcollect.student WHERE mssv = $1`, [known]);
+      expect(stored.full_name).toBe('Tên đã lưu đúng');
+    });
+
+    it('MSSV chưa có thì tạo sinh viên bằng tên gõ', async () => {
+      const id = await freshClass();
+      const fresh = mssv('s6');
+      const response = await request(app.getHttpServer())
+        .post(`/classes/${id}/roster/students`)
+        .set('Authorization', `Bearer ${teacherToken}`)
+        .send({ mssv: fresh, name: 'Sinh viên mới tinh' });
+      expect(response.status).toBe(201);
+      const [stored] = await dataSource.query(`SELECT full_name FROM examcollect.student WHERE mssv = $1`, [fresh]);
+      expect(stored.full_name).toBe('Sinh viên mới tinh');
     });
 
     it('removes one student — the undo for a mistyped MSSV', async () => {
