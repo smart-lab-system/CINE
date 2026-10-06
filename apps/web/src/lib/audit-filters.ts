@@ -73,6 +73,19 @@ export function dayRangeToIso(fromDay: string, toDay: string): { from?: string; 
   return out;
 }
 
+/**
+ * Lỗi của khoảng ngày người dùng chọn, hoặc `null` nếu dùng được. `to` gửi đi là 00:00 của NGÀY SAU ngày kết thúc, nên chỉ cần
+ * "Đến ngày" nhỏ hơn "Từ ngày" là server trả 400 (`to` phải sau `from`) — và 400 đó, nếu để lọt tới server, bị thử lại ba lần rồi hiện
+ * thành "Không tải được nhật ký", như thể hệ thống hỏng chứ không phải hai ô ngày đang ngược nhau. Cùng một ngày ở hai đầu là hợp lệ.
+ * Câu dùng NHÃN trên màn hình, không dùng tên trường của API.
+ */
+export function dayRangeProblem(fromDay: string, toDay: string): string | null {
+  const from = localMidnight(fromDay);
+  const to = localMidnight(toDay);
+  if (!from || !to) return null;
+  return to < from ? '«Đến ngày» phải từ «Từ ngày» trở đi.' : null;
+}
+
 export function toSearchParams(
   state: AuditFilterState,
   page: number,

@@ -9,11 +9,14 @@ import { searchAuditLog, type SearchAuditLogParams } from '@/lib/api/audit-log';
  * `keepPreviousData`: khi chuyển trang hay đổi bộ lọc, bảng giữ nguyên dòng cũ
  * cho tới khi dòng mới về, thay vì nháy sang khung xương mỗi lần bấm — nhật
  * ký là thứ người ta lật qua lại liên tục.
+ *
+ * `enabled = false` khi bộ lọc đang sai (khoảng ngày ngược): không gửi yêu cầu nào thay vì gửi một yêu cầu chắc chắn bị 400.
  */
-export function useAuditLog(params: SearchAuditLogParams) {
+export function useAuditLog(params: SearchAuditLogParams, enabled = true) {
   return useQuery({
     queryKey: ['audit-log', params],
     queryFn: () => searchAuditLog(params),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }

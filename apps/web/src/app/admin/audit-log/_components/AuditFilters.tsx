@@ -77,6 +77,7 @@ export function AuditFilters({ value, onChange, onClear, actors }: AuditFiltersP
           type="date"
           aria-label="Từ ngày"
           value={value.fromDay}
+          max={value.toDay || undefined}
           onChange={(event) => onChange({ ...value, fromDay: event.target.value })}
           className="lg:w-44"
         />
@@ -87,6 +88,7 @@ export function AuditFilters({ value, onChange, onClear, actors }: AuditFiltersP
           type="date"
           aria-label="Đến ngày"
           value={value.toDay}
+          min={value.fromDay || undefined}
           onChange={(event) => onChange({ ...value, toDay: event.target.value })}
           className="lg:w-44"
         />

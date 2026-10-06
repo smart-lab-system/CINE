@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AUDIT_GROUP_PREFIXES,
   EMPTY_AUDIT_FILTERS,
+  dayRangeProblem,
   dayRangeToIso,
   hasActiveFilters,
   toSearchParams,
@@ -69,6 +70,34 @@ describe('toSearchParams', () => {
     expect(params.actorId).toBe('abc');
     expect(params.from).toBeDefined();
     expect(params.to).toBeDefined();
+  });
+});
+
+describe('dayRangeProblem (review B+G1 I3)', () => {
+  it('Đến ngày trước Từ ngày: nêu lỗi bằng NHÃN trên màn hình, không bằng tên trường API', () => {
+    // `to` gửi đi là 00:00 của ngày SAU ngày kết thúc, nên 05/10 → 03/10 và 05/10 → 04/10 đều làm `to <= from` ở server (400).
+    expect(dayRangeProblem('2026-10-05', '2026-10-03')).toBe('«Đến ngày» phải từ «Từ ngày» trở đi.');
+    expect(dayRangeProblem('2026-10-05', '2026-10-04')).toBe('«Đến ngày» phải từ «Từ ngày» trở đi.');
+  });
+
+  it('cùng một ngày ở hai đầu là hợp lệ (chọn trọn ngày đó)', () => {
+    expect(dayRangeProblem('2026-10-05', '2026-10-05')).toBeNull();
+    // và đúng là server nhận được: `to` > `from`.
+    const { from, to } = dayRangeToIso('2026-10-05', '2026-10-05');
+    expect(new Date(to!) > new Date(from!)).toBe(true);
+  });
+
+  it('thứ tự đúng, hoặc thiếu một đầu, hoặc sai định dạng thì không có lỗi', () => {
+    expect(dayRangeProblem('2026-10-01', '2026-10-31')).toBeNull();
+    expect(dayRangeProblem('2026-10-05', '')).toBeNull();
+    expect(dayRangeProblem('', '2026-10-03')).toBeNull();
+    expect(dayRangeProblem('', '')).toBeNull();
+    expect(dayRangeProblem('2026-13-45', '2026-10-03')).toBeNull();
+  });
+
+  it('qua ranh giới tháng và năm', () => {
+    expect(dayRangeProblem('2027-01-02', '2026-12-31')).not.toBeNull();
+    expect(dayRangeProblem('2026-12-31', '2027-01-01')).toBeNull();
   });
 });
 

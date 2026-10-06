@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   EMPTY_AUDIT_FILTERS,
+  dayRangeProblem,
   toSearchParams,
   type AuditFilterState,
 } from '@/lib/audit-filters';
@@ -40,7 +41,12 @@ export default function AuditLogPage() {
     role: account.role,
   }));
 
-  const { data, error, isLoading, refetch } = useAuditLog(toSearchParams(filters, page, PAGE_SIZE));
+  // Khoảng ngày ngược không được tới server: nó chắc chắn bị 400 và hiện ra như một lỗi tải mà "Thử lại" không bao giờ sửa được.
+  const rangeProblem = dayRangeProblem(filters.fromDay, filters.toDay);
+  const { data, error, isLoading, refetch } = useAuditLog(
+    toSearchParams(filters, page, PAGE_SIZE),
+    rangeProblem === null,
+  );
 
   function changeFilters(next: AuditFilterState) {
     setFilters(next);
@@ -67,7 +73,12 @@ export default function AuditLogPage() {
           actors={actors}
         />
 
-        {isLoading ? (
+        {rangeProblem ? (
+          // Đứng TRƯỚC mọi nhánh khác: `keepPreviousData` vẫn giữ dòng của bộ lọc trước, và một bảng cũ nằm dưới bộ lọc đang sai là nói dối.
+          <Alert variant="warning">
+            <AlertDescription>{rangeProblem}</AlertDescription>
+          </Alert>
+        ) : isLoading ? (
           <Card>
             <CardContent className="flex flex-col gap-3 p-6">
               {Array.from({ length: 6 }).map((_, i) => (

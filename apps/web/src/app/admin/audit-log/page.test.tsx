@@ -67,6 +67,56 @@ describe('AuditLogPage trạng thái tải', () => {
   });
 });
 
+describe('AuditLogPage khoảng ngày ngược (review B+G1 I3)', () => {
+  function setRange(from: string, to: string) {
+    fireEvent.change(screen.getByLabelText('Từ ngày'), { target: { value: from } });
+    fireEvent.change(screen.getByLabelText('Đến ngày'), { target: { value: to } });
+  }
+
+  it('Đến ngày trước Từ ngày: nói rõ bằng nhãn trên màn hình, KHÔNG hiện bảng của bộ lọc cũ, và không gọi API với khoảng đó', () => {
+    // `keepPreviousData` vẫn đưa về dòng của bộ lọc trước: bảng đó không được nằm dưới bộ lọc mới đang sai.
+    useAuditLogMock.mockReturnValue(page([ENTRY]));
+    render(<AuditLogPage />);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+
+    setRange('2026-10-05', '2026-10-03');
+
+    expect(screen.getByText('«Đến ngày» phải từ «Từ ngày» trở đi.')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByText(/không tải được nhật ký/i)).not.toBeInTheDocument();
+    // Tham số thứ hai của hook là `enabled`: tắt thì không có yêu cầu nào (và không có ba lần thử lại của một 400).
+    expect(useAuditLogMock.mock.calls.at(-1)?.[1]).toBe(false);
+  });
+
+  it('sửa lại cho đúng thì thông báo mất, bảng trở lại và hook được bật', () => {
+    useAuditLogMock.mockReturnValue(page([ENTRY]));
+    render(<AuditLogPage />);
+    setRange('2026-10-05', '2026-10-03');
+
+    setRange('2026-10-05', '2026-10-05');
+
+    expect(screen.queryByText(/phải từ «Từ ngày» trở đi/)).not.toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(useAuditLogMock.mock.calls.at(-1)?.[1]).toBe(true);
+  });
+
+  it('hai ô ngày chặn nhau ngay ở bộ chọn: Đến ngày có min = Từ ngày, Từ ngày có max = Đến ngày', () => {
+    useAuditLogMock.mockReturnValue(page([ENTRY]));
+    render(<AuditLogPage />);
+    setRange('2026-10-01', '2026-10-31');
+
+    expect(screen.getByLabelText('Đến ngày')).toHaveAttribute('min', '2026-10-01');
+    expect(screen.getByLabelText('Từ ngày')).toHaveAttribute('max', '2026-10-31');
+  });
+
+  it('chưa chọn ngày nào thì không có min/max', () => {
+    useAuditLogMock.mockReturnValue(page([ENTRY]));
+    render(<AuditLogPage />);
+    expect(screen.getByLabelText('Đến ngày')).not.toHaveAttribute('min');
+    expect(screen.getByLabelText('Từ ngày')).not.toHaveAttribute('max');
+  });
+});
+
 describe('AuditLogPage hiển thị', () => {
   it('đọc mỗi dòng bằng một câu tiếng Việt kèm tên người thực hiện', () => {
     useAuditLogMock.mockReturnValue(page([ENTRY]));
@@ -103,7 +153,7 @@ describe('AuditLogPage bộ lọc', () => {
   it('lần gọi đầu không lọc gì, trang 1', () => {
     useAuditLogMock.mockReturnValue(page([ENTRY]));
     render(<AuditLogPage />);
-    expect(useAuditLogMock).toHaveBeenCalledWith({ page: 1, pageSize: 50 });
+    expect(useAuditLogMock).toHaveBeenCalledWith({ page: 1, pageSize: 50 }, true);
   });
 
   it('chọn nhóm "Dữ liệu nền" gửi bốn tiền tố và về trang 1', () => {
@@ -116,7 +166,7 @@ describe('AuditLogPage bộ lọc', () => {
       action: ['semester.', 'room.', 'class.', 'administrative_class.'],
       page: 1,
       pageSize: 50,
-    });
+    }, true);
   });
 
   it('chọn một người thực hiện gửi actorId', () => {
@@ -124,7 +174,7 @@ describe('AuditLogPage bộ lọc', () => {
     render(<AuditLogPage />);
     fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo người thực hiện' }));
     fireEvent.click(screen.getByRole('option', { name: /GV B/ }));
-    expect(useAuditLogMock).toHaveBeenLastCalledWith(expect.objectContaining({ actorId: 'u2', page: 1 }));
+    expect(useAuditLogMock).toHaveBeenLastCalledWith(expect.objectContaining({ actorId: 'u2', page: 1 }), true);
   });
 
   it('đặt khoảng ngày gửi from/to', () => {
@@ -143,7 +193,7 @@ describe('AuditLogPage bộ lọc', () => {
     expect(screen.queryByRole('button', { name: 'Xoá bộ lọc' })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Từ ngày'), { target: { value: '2026-10-01' } });
     fireEvent.click(screen.getByRole('button', { name: 'Xoá bộ lọc' }));
-    expect(useAuditLogMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 50 });
+    expect(useAuditLogMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 50 }, true);
   });
 });
 
@@ -159,6 +209,6 @@ describe('AuditLogPage phân trang', () => {
     useAuditLogMock.mockReturnValue(page([ENTRY], 120));
     render(<AuditLogPage />);
     fireEvent.click(screen.getByRole('button', { name: /trang sau/i }));
-    expect(useAuditLogMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
+    expect(useAuditLogMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }), true);
   });
 });
