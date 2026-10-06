@@ -89,3 +89,23 @@ describe('groupNameProblem', () => {
     expect(groupNameProblem('x'.repeat(51))).toMatch(/50/);
   });
 });
+
+describe('Unicode NFC (review cụm E, I2)', () => {
+  // Excel/Mac và vài bộ gõ tiếng Việt ra chữ có dấu ở dạng TỔ HỢP (NFD). Postgres so theo code point: không chuẩn hoá thì "Nhóm 1"
+  // tổ hợp và "Nhóm 1" dựng sẵn là HAI khoá khác nhau dù trông y hệt, và lớp/phòng trùng lọt qua mọi ràng buộc duy nhất.
+  const COMPOSED = 'Phòng máy Á 1';
+  const DECOMPOSED = COMPOSED.normalize('NFD');
+
+  it('hai dạng khác nhau thật (để test này có nghĩa)', () => {
+    expect(DECOMPOSED).not.toBe(COMPOSED);
+  });
+
+  it('tên phòng về dạng dựng sẵn', () => {
+    expect(normalizeRoomName(DECOMPOSED)).toBe(COMPOSED);
+    expect(normalizeRoomName(`  ${DECOMPOSED}  `)).toBe(COMPOSED);
+  });
+
+  it('tên nhóm về dạng dựng sẵn', () => {
+    expect(normalizeGroupName('Nhóm 1'.normalize('NFD'))).toBe('Nhóm 1');
+  });
+});

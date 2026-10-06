@@ -73,6 +73,21 @@ describe('ImportWizard', () => {
     expect(onImported).toHaveBeenCalledWith(expect.objectContaining({ applied: true }));
   });
 
+  it('Review cụm E (I3): đặt lại ô chọn file sau mỗi lần chọn, để chọn LẠI cùng file (sau khi sửa) vẫn phát `change`', async () => {
+    // Chromium/Edge không phát `change` khi chọn lại đúng đường dẫn đang có trong ô. Vòng chính của nguyên tắc 3 — xem trước báo lỗi,
+    // admin sửa file, chọn lại — hỏng nếu ô giữ giá trị cũ. `fireEvent.change` luôn phát nên test chỉ bắt được cơ chế: giá trị bị đặt về "".
+    const run = vi.fn(async () => resultOf(NEW_ROWS));
+    setup(run);
+    const input = screen.getByLabelText(/file excel/i) as HTMLInputElement;
+    const setValue = vi.fn();
+    Object.defineProperty(input, 'value', { configurable: true, get: () => '', set: setValue });
+
+    pick();
+    await screen.findByText('Thêm 2');
+
+    expect(setValue).toHaveBeenCalledWith('');
+  });
+
   it('còn dòng lỗi: hiện lỗi, KHÔNG có nút xác nhận hoạt động và không bao giờ gọi ghi thật', async () => {
     const run = vi.fn(async () =>
       resultOf([row({ line: 2, status: 'new', label: 'H3.03' }), row({ line: 3, status: 'error', label: 'Dòng 3', errors: ['Sức chứa "x" không hợp lệ.'] })]),

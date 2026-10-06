@@ -9,8 +9,15 @@ export const ADMINISTRATIVE_CODE_PATTERN = /^[A-Z0-9]{3,30}$/;
 
 const ROOM_NAME_MAX = 100;
 
+/**
+ * Chữ có dấu về dạng DỰNG SẴN (NFC). Excel/Mac và vài bộ gõ tiếng Việt ra dạng tổ hợp (NFD); Postgres (`lower()`, `citext`, chỉ mục
+ * duy nhất) so theo code point, nên hai dạng là HAI khoá khác nhau dù trông y hệt — một lớp hay phòng "mới" trùng lọt qua mọi ràng
+ * buộc duy nhất. Chuẩn hoá ở đây (một chỗ dùng chung nhập tay và import) để khoá luôn ở một dạng.
+ */
+const nfc = (text: string): string => text.normalize('NFC');
+
 export function normalizeRoomName(raw: string): string {
-  return raw.replace(/\s+/g, ' ').trim();
+  return nfc(raw).replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -59,7 +66,7 @@ export function administrativeCodeProblem(code: string): string | null {
 export const GROUP_NAME_MAX = 50;
 
 export function normalizeGroupName(raw: string | undefined): string {
-  return (raw ?? '').replace(/\s+/g, ' ').trim();
+  return nfc(raw ?? '').replace(/\s+/g, ' ').trim();
 }
 
 export function groupNameProblem(name: string): string | null {

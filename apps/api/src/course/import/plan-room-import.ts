@@ -80,7 +80,12 @@ export function planRoomImport(
 
     const current = byKey.get(name.toLowerCase());
     if (!current) {
-      results.push({ ...blankRow(row.line, name), status: 'new' });
+      const created = { ...blankRow(row.line, name), status: 'new' as const };
+      // Dòng MỚI cũng hiện giá trị đã hiểu (từ trống → giá trị): bản xem trước phải cho admin thấy thứ sẽ được ghi.
+      if (capacity !== null) {
+        created.changes.push({ field: 'capacity', label: 'Sức chứa', from: null, to: String(capacity) });
+      }
+      results.push(created);
       writes.push({ kind: 'create', name, capacity });
       newEntries.push({ index: results.length - 1, line: row.line, name });
       return;

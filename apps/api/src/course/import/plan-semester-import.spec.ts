@@ -21,6 +21,15 @@ describe('planSemesterImport', () => {
     ]);
   });
 
+  it('Review cụm E (I1): dòng MỚI hiện hai ngày ĐÃ HIỂU (dd/mm/yyyy) để lỗi hiểu ngày của Excel hiện ra ở bản xem trước', () => {
+    // Excel vùng en-US đổi chữ gõ "10/12/2026" thành 12/10: `readWorkbook` đọc ra 2026-10-12, vẫn hợp lệ — chỉ bản xem trước bắt được.
+    const plan = planSemesterImport([row(2, '2026', '3', '2027-06-01', '2027-08-31')], existing);
+    expect(plan.rows[0].changes).toEqual([
+      { field: 'startDate', label: 'Ngày bắt đầu', from: null, to: '01/06/2027' },
+      { field: 'endDate', label: 'Ngày kết thúc', from: null, to: '31/08/2027' },
+    ]);
+  });
+
   it('nhận ngày dd/mm/yyyy và "HK2" ở cột kỳ; ghi ra yyyy-mm-dd', () => {
     const plan = planSemesterImport([row(2, '2026', 'HK3', '01/06/2027', '31/08/2027')], existing);
     expect(plan.writes).toEqual([

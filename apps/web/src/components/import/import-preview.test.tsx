@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { CLASS_KIND, ROOM_KIND } from '@/lib/import/columns';
+import { CLASS_KIND, ROOM_KIND, SEMESTER_KIND } from '@/lib/import/columns';
 import type { ImportResult, ImportRowResult } from '@/lib/import/import-types';
 import { ImportPreview } from './import-preview';
 
@@ -73,6 +73,26 @@ describe('ImportPreview', () => {
 
     expect(screen.getByText('DHKTPM18A – Nhóm 1 · HK1 2026-2027')).toBeInTheDocument();
     expect(screen.getByText('Giảng viên: Giảng viên A → Giảng viên B')).toBeInTheDocument();
+  });
+
+  it('Review cụm E (I1): dòng THÊM MỚI hiện giá trị đã hiểu (hai ngày), và không có mũi tên "từ → đến"', () => {
+    const preview = result([
+      row({
+        line: 2,
+        status: 'new',
+        label: 'HK3 2026-2027',
+        changes: [
+          { field: 'startDate', label: 'Ngày bắt đầu', from: null, to: '01/06/2027' },
+          { field: 'endDate', label: 'Ngày kết thúc', from: null, to: '31/08/2027' },
+        ],
+      }),
+    ]);
+    render(<ImportPreview kind={SEMESTER_KIND} result={preview} confirmSimilar={false} onConfirmSimilarChange={noop} />);
+
+    expect(screen.getByText('HK3 2026-2027')).toBeInTheDocument();
+    expect(screen.getByText('Ngày bắt đầu: 01/06/2027')).toBeInTheDocument();
+    expect(screen.getByText('Ngày kết thúc: 31/08/2027')).toBeInTheDocument();
+    expect(screen.queryByText(/→/)).not.toBeInTheDocument();
   });
 
   it('thay đổi từ "trống" ghi rõ là trống', () => {

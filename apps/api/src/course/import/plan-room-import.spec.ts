@@ -10,10 +10,23 @@ const row = (line: number, name: string, capacity = '') => ({ line, name, capaci
 describe('planRoomImport', () => {
   it('phòng chưa có là "new": tên được chuẩn hoá, sức chứa được đọc', () => {
     const plan = planRoomImport([row(2, '  Phòng   Mới  ', '50')], existing);
+    // Dòng MỚI cũng mang giá trị đã hiểu (từ null → giá trị): bản xem trước phải cho admin thấy 50 là thứ sẽ được ghi.
     expect(plan.rows).toEqual([
-      { line: 2, status: 'new', label: 'Phòng Mới', changes: [], errors: [], similar: [] },
+      {
+        line: 2,
+        status: 'new',
+        label: 'Phòng Mới',
+        changes: [{ field: 'capacity', label: 'Sức chứa', from: null, to: '50' }],
+        errors: [],
+        similar: [],
+      },
     ]);
     expect(plan.writes).toEqual([{ kind: 'create', name: 'Phòng Mới', capacity: 50 }]);
+  });
+
+  it('phòng mới không có sức chứa thì không có gì để hiện ngoài tên', () => {
+    const plan = planRoomImport([row(2, 'Phòng Mới')], existing);
+    expect(plan.rows[0].changes).toEqual([]);
   });
 
   it('sức chứa để trống ở phòng mới là null, không phải lỗi', () => {

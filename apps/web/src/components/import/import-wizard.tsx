@@ -65,7 +65,8 @@ export function ImportWizard({ kind, run, readSheets = readWorkbook, onImported 
   const [confirmSimilar, setConfirmSimilar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<ImportResult | null>(null);
-  // Đổi `key` của ô chọn file để chọn lại CÙNG một file (sau khi sửa nó) vẫn kích hoạt `onChange`.
+  // Đổi `key` của ô chọn file sau lần ghi thành công làm ô sạch hẳn (kể cả tên file hiện bên cạnh). Việc "chọn lại cùng file" thì do
+  // `onChange` đặt `value = ''` mỗi lần chọn lo — `key` một mình không đủ vì nó chỉ đổi khi ghi thành công.
   const [inputKey, setInputKey] = useState(0);
 
   const requestId = useRef(0);
@@ -229,7 +230,13 @@ export function ImportWizard({ kind, run, readSheets = readWorkbook, onImported 
           type="file"
           accept=".xlsx"
           className="block w-full text-small file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-primary-foreground hover:file:bg-primary-strong"
-          onChange={(event) => void onPickFile(event.target.files?.[0])}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            // Đặt lại ô sau MỖI lần chọn: Chromium/Edge không phát `change` khi chọn lại đúng đường dẫn đang có trong ô, nên vòng "xem
+            // trước báo lỗi → sửa file → chọn lại" (nguyên tắc 3) sẽ im lặng giữ bản xem trước lỗi cũ nếu ô còn giữ giá trị.
+            event.target.value = '';
+            void onPickFile(file);
+          }}
         />
         {fileName && (
           <p className="flex items-center gap-1.5 text-caption text-muted-foreground">

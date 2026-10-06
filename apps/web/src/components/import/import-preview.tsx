@@ -122,7 +122,13 @@ export function ImportPreview({ kind, result, confirmSimilar, onConfirmSimilarCh
       {added.length > 0 && (
         <ChangeList
           title="Sẽ thêm"
-          items={added.map((row) => ({ key: row.line, label: row.label, lines: [] }))}
+          // Dòng MỚI mang giá trị đã hiểu (`from = null`): hiện "Nhãn: giá trị", không "từ → đến" — đó là lưới an toàn cho ngày/giảng
+          // viên bị hiểu sai (spec §6.3 "hiện ngày đã hiểu ở bản xem trước").
+          items={added.map((row) => ({
+            key: row.line,
+            label: row.label,
+            lines: row.changes.map((c) => `${c.label}: ${c.to ?? '(trống)'}`),
+          }))}
         />
       )}
     </div>

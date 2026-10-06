@@ -158,7 +158,16 @@ export function planClassImport(
 
     const current = classByKey.get(classKey(semesterId, administrativeClassId, groupName));
     if (!current) {
-      results.push({ ...blankRow(row.line, label), status: 'new' });
+      const created = { ...blankRow(row.line, label), status: 'new' as const };
+      // Hiện giảng viên đã TRA (tên + email): một email gõ nhầm hay kéo fill-handle trong Excel trúng một giảng viên khác đang hoạt động
+      // là lớp về tay người khác — người đó thấy cả danh sách sinh viên. Chỉ bản xem trước bắt được điều đó.
+      created.changes.push({
+        field: 'teacher',
+        label: 'Giảng viên',
+        from: null,
+        to: `${teacher.name} (${teacher.email})`,
+      });
+      results.push(created);
       writes.push({
         kind: 'create',
         semesterId,

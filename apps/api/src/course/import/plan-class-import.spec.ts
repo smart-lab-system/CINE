@@ -44,6 +44,13 @@ describe('planClassImport', () => {
     ]);
   });
 
+  it('Review cụm E (I1): dòng MỚI hiện giảng viên đã TRA (tên + email) — một email gõ nhầm trúng người khác phải lộ ở bản xem trước', () => {
+    const plan = planClassImport([row(2, 'HK1 2026-2027', 'DHKTPM18A', 'Nhóm 2', 'b@x.vn')], context);
+    expect(plan.rows[0].changes).toEqual([
+      { field: 'teacher', label: 'Giảng viên', from: null, to: 'Giảng viên B (b@x.vn)' },
+    ]);
+  });
+
   it('không có nhóm thì nhãn không có gạch ngang', () => {
     const plan = planClassImport([row(2, 'HK1 2026-2027', 'DHKTPM18A', '', 'a@x.vn')], context);
     expect(plan.rows[0].label).toBe('DHKTPM18A · HK1 2026-2027');
@@ -86,6 +93,15 @@ describe('planClassImport', () => {
     const plan = planClassImport([row(2, 'HK1 2026-2027', 'DHKTPM18A', 'nhóm 1', 'b@x.vn')], context);
     expect(plan.rows[0]).toMatchObject({ status: 'update', label: 'DHKTPM18A – Nhóm 1 · HK1 2026-2027' });
     expect(plan.writes).toEqual([expect.objectContaining({ kind: 'reassign', classId: 'c1' })]);
+  });
+
+  it('Review cụm E (I2): tên nhóm ở dạng tổ hợp (NFD) khớp lớp có sẵn ở dạng dựng sẵn — không thành lớp "mới" trùng', () => {
+    const plan = planClassImport(
+      [row(2, 'HK1 2026-2027', 'DHKTPM18A', 'Nhóm 1'.normalize('NFD'), 'a@x.vn')],
+      context,
+    );
+    expect(plan.rows[0]).toMatchObject({ status: 'unchanged', label: 'DHKTPM18A – Nhóm 1 · HK1 2026-2027' });
+    expect(plan.writes).toEqual([]);
   });
 
   it('hai dòng chỉ khác hoa-thường của tên nhóm là trùng khoá trong file', () => {

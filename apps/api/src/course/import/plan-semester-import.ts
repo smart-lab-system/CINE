@@ -147,6 +147,12 @@ export function planSemesterImport(
     const result = blankRow(candidate.line, candidate.label);
     result.status = candidate.kind;
     if (candidate.kind === 'new') {
+      // Dòng MỚI cũng hiện hai ngày ĐÃ HIỂU (spec §6.3). Đây là lưới an toàn duy nhất cho lỗi hiểu ngày của Excel: vùng en-US đổi chữ
+      // gõ "10/12/2026" thành 12/10, `readWorkbook` đọc ra một ngày hợp lệ, và nếu không hiện thì học kỳ được tạo với ngày sai.
+      result.changes.push(
+        { field: 'startDate', label: 'Ngày bắt đầu', from: null, to: formatDmy(candidate.input.startDate) },
+        { field: 'endDate', label: 'Ngày kết thúc', from: null, to: formatDmy(candidate.input.endDate) },
+      );
       writes.push({ kind: 'create', ...candidate.input });
     } else if (candidate.kind === 'update' && candidate.current) {
       const { current, input } = candidate;
