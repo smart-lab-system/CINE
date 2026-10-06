@@ -42,26 +42,12 @@ const RAW_SEED = /INSERT INTO (?:examcollect|\$\{schema\})\.(class|exam_session|
 const SESSION_POST_LITERAL_BODY =
   /\.post\(\s*['"`]\/exam-sessions['"`]\s*\)(?:(?!\.send\()[\s\S]){0,400}\.send\(\s*\{/;
 
-export const RAW_SEED_ALLOWLIST = new Set<string>([
-  'exam-authoring-attach.e2e-spec.ts',
-  'exam-material.e2e-spec.ts',
-  'exam-schedule-conflict.e2e-spec.ts',
-  'exam-session-reassign.e2e-spec.ts',
-  'exam-session-semester-name.e2e-spec.ts',
-  'exam-session.e2e-spec.ts',
-  'session-lifecycle.e2e-spec.ts',
-  'session-rubric.e2e-spec.ts',
-]);
+export const RAW_SEED_ALLOWLIST = new Set<string>([]);
 
 export const SESSION_BODY_ALLOWLIST = new Set<string>([
-  'exam-authoring-attach.e2e-spec.ts',
-  'exam-material.e2e-spec.ts',
   'exam-schedule-conflict.e2e-spec.ts',
-  'exam-session-reassign.e2e-spec.ts',
   'exam-session-semester-name.e2e-spec.ts',
   'exam-session.e2e-spec.ts',
-  'session-lifecycle.e2e-spec.ts',
-  'session-rubric.e2e-spec.ts',
 ]);
 
 /** Ba file kiểm chính tính năng phòng/học kỳ gõ tay — giá trị cuối của rule 2. */
@@ -123,10 +109,6 @@ describe('e2e seed hygiene (ratchet)', () => {
     const extra = [...SESSION_BODY_ALLOWLIST].filter(
       (file) => !PERMANENT_SESSION_BODY_FILES.includes(file),
     );
-    // Khẳng định này CHỦ Ý chưa bật cho tới hết Task 6: nó là đích của cả plan.
-    // Xem Step 1 của Task 6 để biết cách nó được bật.
-    if (process.env.SEED_HYGIENE_FINAL === '1') {
-      expect(extra).toEqual([]);
-    }
+    expect(extra).toEqual([]);
   });
 });

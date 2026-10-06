@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { forceStatus } from './helpers/grading-seed';
+import { seedClass, sessionBody } from './helpers/seed';
 
 /**
  * Rubric được ghim vào phiên thi lúc ra đề, không tra lại lúc chấm.
@@ -40,19 +41,19 @@ describe('Session-pinned rubric (e2e)', () => {
     return { startTime: start.toISOString(), endTime: end.toISOString() };
   }
 
-  function createSession(token: string, body: Record<string, unknown>) {
+  async function createSession(token: string, body: { classId: string; rubricId?: string }) {
     return request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Phiên ${stamp}`,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        requiredFilenames: ['Cau1.docx'],
-        ...freshWindow(),
-        ...body,
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên ${stamp}`,
+          roomName,
+          requiredFilenames: ['Cau1.docx'],
+          ...freshWindow(),
+          ...body,
+        }),
+      );
   }
 
   async function saveRubric(token: string, label: string) {
@@ -100,21 +101,23 @@ describe('Session-pinned rubric (e2e)', () => {
     roomName = room.name;
 
     // A và B cùng dạy `courseName` (hai lớp khác nhau) — nền cho §3.2.1.
-    const [classA] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm A ${stamp}`, a.id],
-    );
+    const classA = await seedClass(dataSource, {
+      teacherId: a.id,
+      courseName,
+      groupName: `Nhóm A ${stamp}`,
+    });
     classAId = classA.id;
-    await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, $2, $3)`,
-      [courseName, `Nhóm B ${stamp}`, b.id],
-    );
+    await seedClass(dataSource, {
+      teacherId: b.id,
+      courseName,
+      groupName: `Nhóm B ${stamp}`,
+    });
     // A cũng dạy môn khác, để dựng case "rubric khác môn".
-    await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, $2, $3)`,
-      [otherCourseName, `Nhóm môn khác ${stamp}`, a.id],
-    );
+    await seedClass(dataSource, {
+      teacherId: a.id,
+      courseName: otherCourseName,
+      groupName: `Nhóm môn khác ${stamp}`,
+    });
   });
 
   afterAll(async () => {

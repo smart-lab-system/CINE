@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, sessionBody } from './helpers/seed';
 
 /**
  * Escape hatch của admin để chuyển chủ một phiên thi (CLAUDE.md §7.2.6).
@@ -56,28 +57,28 @@ describe('ExamSession teacher reassignment (e2e)', () => {
 
   /** Một phiên thi thật, do `teacher` sở hữu, dưới một lớp họ dạy. */
   async function seedSessionOwnedBy(teacherId: string, teacherToken: string) {
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm ${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhóm ${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    });
 
     const { startTime, endTime } = futureWindow();
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({
-        name: `Phiên chuyển chủ ${Date.now()}`,
-        classId: klass.id,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        startTime,
-        endTime,
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên chuyển chủ ${Date.now()}`,
+          classId: klass.id,
+          roomName,
+          startTime,
+          endTime,
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
-    return { id: created.body.id as string, classId: klass.id as string };
+    return { id: created.body.id as string, classId: klass.id };
   }
 
   function auditEntriesFor(sessionId: string) {

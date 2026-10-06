@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, seedExamSession } from './helpers/seed';
 
 /**
  * Two exams cannot share a room, and one class cannot sit two exams at
@@ -105,17 +106,17 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     // Two classes, both taught by the owner: the room rule and the class
     // rule have to be separable, and that needs a second class the same
     // lecturer is allowed to create sessions for.
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Lớp A ${Date.now()}`, ownerId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId: ownerId,
+      courseName,
+      groupName: `Lớp A ${Date.now()}`,
+    });
     classId = klass.id;
-    const [otherClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Lớp B ${Date.now()}`, ownerId],
-    );
+    const otherClass = await seedClass(dataSource, {
+      teacherId: ownerId,
+      courseName,
+      groupName: `Lớp B ${Date.now()}`,
+    });
     otherClassId = otherClass.id;
 
     const peerEmail = `schedule_conflict_peer_${Date.now()}@example.com`;
@@ -128,11 +129,11 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       .post('/auth/login')
       .send({ email: peerEmail, password: 'correct-horse-battery' });
     peerToken = peerLogin.body.accessToken;
-    const [peerClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Lớp C ${Date.now()}`, peerId],
-    );
+    const peerClass = await seedClass(dataSource, {
+      teacherId: peerId,
+      courseName,
+      groupName: `Lớp C ${Date.now()}`,
+    });
     peerClassId = peerClass.id;
   });
 
@@ -416,27 +417,19 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     // property of the data rather than of one code path — a future
     // reschedule endpoint gets the same protection for free.
     await expect(
-      dataSource.query(
-        // semester_name NOT NULL từ 2026-09-11 (§7.1.5). Phải cấp, nếu
-        // không INSERT chết ở 23502 trước khi chạm ràng buộc GiST mà ca
-        // này sinh ra để kiểm — một test xanh-vì-sai-lý-do đảo ngược.
-        `INSERT INTO examcollect.exam_session
-           (name, code, teacher_id, class_id, exam_type,
-            start_time, end_time, submission_rule, status, semester_name,
-            course_name, room_name)
-         VALUES ($1, $2, $3, $4, 'TK', $7, $8, '{}'::jsonb, 'active', 'HK kiểm thử',
-                 $5, $6)`,
-        [
-          'Chèn thẳng DB',
-          `RAW${Date.now() % 1000}`,
-          ownerId,
-          otherClassId,
-          courseName,
-          roomName,
-          startTime,
-          endTime,
-        ],
-      ),
+      // `seedExamSession` cấp đủ cột NOT NULL (học kỳ, môn, phòng) nên INSERT
+      // không chết ở 23502 trước khi chạm ràng buộc GiST mà ca này sinh ra để
+      // kiểm — một test xanh-vì-sai-lý-do đảo ngược.
+      seedExamSession(dataSource, {
+        teacherId: ownerId,
+        classId: otherClassId,
+        name: 'Chèn thẳng DB',
+        code: `RAW${Date.now() % 1000}`,
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+        courseName,
+        roomName,
+      }),
     ).rejects.toMatchObject({ code: '23P01' });
   });
 

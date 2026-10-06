@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { upcomingSessionWindow } from './helpers/session-window';
+import { seedClass, sessionBody } from './helpers/seed';
 
 /**
  * `POST /exam-authoring/attach` — cửa riêng của luồng soạn đề.
@@ -45,16 +46,16 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Phiên gắn đề ${Math.random().toString(36).slice(2, 7)}`,
-        classId: ownerClassId,
-        roomName: `Phòng ${Math.random().toString(36).slice(2, 8)}`,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        startTime: window.startTime,
-        endTime: window.endTime,
-        requiredFilenames: ['BaiLam.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên gắn đề ${Math.random().toString(36).slice(2, 7)}`,
+          classId: ownerClassId,
+          roomName: `Phòng ${Math.random().toString(36).slice(2, 8)}`,
+          startTime: window.startTime,
+          endTime: window.endTime,
+          requiredFilenames: ['BaiLam.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     return created.body.id as string;
   }
@@ -96,11 +97,11 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     teacherToken = teacher.token;
     otherToken = (await makeTeacher('attach_gv_khac')).token;
 
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      ['CTDL&GT gắn đề', `Nhóm ${stamp}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName: 'CTDL&GT gắn đề',
+      groupName: `Nhóm ${stamp}`,
+    });
     classId = klass.id;
 
     const generated = await request(app.getHttpServer())

@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass } from './helpers/seed';
 
 /**
  * `exam_session.semester_name` — ảnh chụp học kỳ lúc tạo phiên
@@ -47,15 +48,15 @@ describe('exam_session.semester_name snapshot (e2e)', () => {
     const suffix = `${seedCursor}_${Date.now()}`;
     const semesterName = `HK Snapshot ${suffix}`;
     const course = { name: 'Snapshot Course' };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [course.name, `Nhóm ${suffix}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName: course.name,
+      groupName: `Nhóm ${suffix}`,
+    });
     const room = { name: `Snapshot Room ${suffix}` };
     return {
       semesterName,
-      classId: klass.id as string,
+      classId: klass.id,
       roomName: room.name as string,
     };
   }

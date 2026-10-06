@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, sessionBody } from './helpers/seed';
 
 /**
  * Archive và attention-close: hai trạng thái độc lập, cùng một chủ sở hữu,
@@ -53,27 +54,24 @@ describe('Session lifecycle (e2e)', () => {
 
     const course = { name: 'Lifecycle Course' };
     const room = { name: `Lifecycle Room ${stamp}` };
-    const [klass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-      [course.name, teacherId],
-    );
+    const klass = await seedClass(dataSource, { teacherId, courseName: course.name });
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Lifecycle ${stamp}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        // CreateExamSessionDto từ chối startTime lùi quá MAX_BACKDATE_MINUTES (30).
-        // Cửa sổ thời gian không liên quan gì tới archive/attention-close, nên chỉ
-        // cần một cửa sổ hợp lệ: bắt đầu sau 5 phút, dài 60 phút (>= 15 phút tối thiểu).
-        startTime: new Date(Date.now() + 300_000).toISOString(),
-        endTime: new Date(Date.now() + 3_900_000).toISOString(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Lifecycle ${stamp}`,
+          classId: klass.id,
+          roomName: room.name,
+          // CreateExamSessionDto từ chối startTime lùi quá MAX_BACKDATE_MINUTES (30).
+          // Cửa sổ thời gian không liên quan gì tới archive/attention-close, nên chỉ
+          // cần một cửa sổ hợp lệ: bắt đầu sau 5 phút, dài 60 phút (>= 15 phút tối thiểu).
+          startTime: new Date(Date.now() + 300_000).toISOString(),
+          endTime: new Date(Date.now() + 3_900_000).toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     sessionId = created.body.id;
   }, 60_000);

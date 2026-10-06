@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * The teacher's exam materials, end to end against real storage.
@@ -93,32 +94,33 @@ describe('Exam materials (e2e)', () => {
     otherToken = await login(otherEmail);
 
     const course = { name: 'Môn có đề thi' };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [course.name, `Nhóm đề thi ${stamp}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName: course.name,
+      groupName: `Nhóm đề thi ${stamp}`,
+    });
     const room = { name: `Material Room ${stamp}` };
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [MSSV, 'Sinh viên đề thi', klass.id, teacherId],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: MSSV,
+      name: 'Sinh viên đề thi',
+      classId: klass.id,
+      teacherId,
+    });
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Material Session ${stamp}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Material Session ${stamp}`,
+          classId: klass.id,
+          roomName: room.name,
+          examType: 'CK',
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     sessionId = created.body.id;
     // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
@@ -311,32 +313,33 @@ describe('Exam materials (e2e)', () => {
     const lateMssv = `L${lateStamp}`.slice(0, 20);
 
     const course = { name: 'Môn đề thi trễ' };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [course.name, `Nhóm đề thi trễ ${lateStamp}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName: course.name,
+      groupName: `Nhóm đề thi trễ ${lateStamp}`,
+    });
     const room = { name: `Late Material Room ${lateStamp}` };
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [lateMssv, 'Sinh viên vào sớm', klass.id, teacherId],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: lateMssv,
+      name: 'Sinh viên vào sớm',
+      classId: klass.id,
+      teacherId,
+    });
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${lateToken}`)
-      .send({
-        name: `Late Material Session ${lateStamp}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'CK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Late Material Session ${lateStamp}`,
+          classId: klass.id,
+          roomName: room.name,
+          examType: 'CK',
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     const lateSessionId = created.body.id;
     // Guard §7.1.1: agent:join từ chối phiên chưa đóng băng danh sách dự thi.

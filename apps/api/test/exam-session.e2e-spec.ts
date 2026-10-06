@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, seedEnrollment } from './helpers/seed';
 
 // Pins Task 2's own stated acceptance criteria as real, automated tests —
 // they were only manually verified when Task 2 shipped (see
@@ -112,31 +113,31 @@ describe('ExamSession (e2e)', () => {
     courseName = course.name;
     roomName = `Exam Session Test Room ${Date.now()}`;
 
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm của tôi ${Date.now()}`, ownerId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId: ownerId,
+      courseName,
+      groupName: `Nhóm của tôi ${Date.now()}`,
+    });
     classId = klass.id;
 
     // A class of the SAME course taught by someone else — the scope check
     // has to be about who teaches the class, not about the course existing.
-    const [foreign] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm của người khác ${Date.now()}`, otherId],
-    );
+    const foreign = await seedClass(dataSource, {
+      teacherId: otherId,
+      courseName,
+      groupName: `Nhóm của người khác ${Date.now()}`,
+    });
     foreignClassId = foreign.id;
 
     // Một học kỳ THỨ HAI mà CHÍNH owner cũng dạy. Bộ lọc kỳ không chứng
     // minh được gì nếu mọi phiên trong spec đều thuộc một kỳ: kết quả
     // "đúng" khi đó cũng là kết quả của việc không lọc gì cả.
     const otherCourse = { name: 'Exam Session Test Course II' };
-    const [otherKlass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [otherCourse.name, `Nhóm kỳ sau ${Date.now()}`, ownerId],
-    );
+    const otherKlass = await seedClass(dataSource, {
+      teacherId: ownerId,
+      courseName: otherCourse.name,
+      groupName: `Nhóm kỳ sau ${Date.now()}`,
+    });
     otherSemesterClassId = otherKlass.id;
   });
 
@@ -352,12 +353,12 @@ describe('ExamSession (e2e)', () => {
 
   it('lists only the classes this lecturer teaches, with their roster size', async () => {
     const student = `T${Date.now().toString(36)}`.slice(0, 20);
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [student, 'Sinh viên đếm được', classId, ownerId],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: student,
+      name: 'Sinh viên đếm được',
+      classId,
+      teacherId: ownerId,
+    });
 
     const response = await request(app.getHttpServer())
       .get('/classes/teaching')
