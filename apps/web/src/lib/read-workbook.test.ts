@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { File } from 'node:buffer';
+import { Workbook } from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { readWorkbook } from './read-workbook';
 import { extractRoster } from './roster-file';
@@ -24,11 +25,13 @@ const MAPPING = { headerRows: 2, mssvColumn: 1, nameColumn: 2 };
 
 // Node's File, not jsdom's: jsdom's implementation has no arrayBuffer(),
 // which every real browser does have and which readWorkbook uses.
-function load(name: string): File {
+type WorkbookInput = Parameters<typeof readWorkbook>[0];
+
+function load(name: string): WorkbookInput {
   const bytes = readFileSync(join(SCRIPTS, name));
   return new File([bytes], name, {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
+  }) as unknown as WorkbookInput;
 }
 
 /**
@@ -74,5 +77,63 @@ describe('readWorkbook against the demo fixtures', () => {
     ]);
     // 22 of 23 is not a partial success.
     expect(parsed.students).toEqual([]);
+  });
+});
+
+/**
+ * Ô ngày. exceljs trả giá trị `Date`, còn `cell.text` của nó là `Date.toString()` theo múi giờ máy
+ * ("Tue Sep 01 2026 07:00:00 GMT+0700 (Indochina Time)") — một chuỗi không parser nào của chúng ta nhận, và server từ chối
+ * nó có chủ ý. Bộ test này dựng một .xlsx THẬT chứ không giả `cell`, vì điều cần chứng minh là cái exceljs thật sự trả.
+ */
+async function workbookFile(fill: (sheet: import('exceljs').Worksheet) => void): Promise<WorkbookInput> {
+  const workbook = new Workbook();
+  const sheet = workbook.addWorksheet('S');
+  fill(sheet);
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new File([new Uint8Array(buffer)], 'ngay.xlsx', {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  }) as unknown as WorkbookInput;
+}
+
+describe('readWorkbook: ô ngày', () => {
+  it('ô ngày ra yyyy-mm-dd, bất kể định dạng hiển thị của ô', { timeout: PARSE_TIMEOUT_MS }, async () => {
+    const file = await workbookFile((sheet) => {
+      sheet.getCell('A1').value = new Date(Date.UTC(2026, 8, 1)); // 01/09/2026
+      sheet.getCell('A1').numFmt = 'dd/mm/yyyy';
+      sheet.getCell('A2').value = new Date(Date.UTC(2027, 0, 31));
+      sheet.getCell('A2').numFmt = 'yyyy-mm-dd';
+      sheet.getCell('A3').value = new Date(Date.UTC(2027, 1, 1));
+      sheet.getCell('A3').numFmt = 'd mmm yyyy';
+    });
+
+    const [sheet] = await readWorkbook(file);
+
+    // Không có `GMT`, không có tên thứ: đó là dấu hiệu của `Date.toString()`.
+    expect(sheet.rows.map((row) => row[0])).toEqual(['2026-09-01', '2027-01-31', '2027-02-01']);
+  });
+
+  it('ô công thức cho ra ngày cũng ra yyyy-mm-dd', { timeout: PARSE_TIMEOUT_MS }, async () => {
+    const file = await workbookFile((sheet) => {
+      sheet.getCell('A1').value = new Date(Date.UTC(2026, 8, 1));
+      sheet.getCell('B1').value = { formula: 'A1+30', result: new Date(Date.UTC(2026, 9, 1)) };
+    });
+
+    const [sheet] = await readWorkbook(file);
+
+    expect(sheet.rows[0]).toEqual(['2026-09-01', '2026-10-01']);
+  });
+
+  it('ô chữ trông như ngày, ô số, ô chữ thường giữ NGUYÊN — chỉ ô ngày thật mới được đổi', { timeout: PARSE_TIMEOUT_MS }, async () => {
+    const file = await workbookFile((sheet) => {
+      sheet.getCell('A1').value = '01/09/2026';
+      sheet.getCell('B1').value = '2026-09-01';
+      sheet.getCell('C1').value = 40;
+      sheet.getCell('D1').value = 'HK1 2026-2027';
+      sheet.getCell('E1').value = '  Phòng H3.03  ';
+    });
+
+    const [sheet] = await readWorkbook(file);
+
+    expect(sheet.rows[0]).toEqual(['01/09/2026', '2026-09-01', '40', 'HK1 2026-2027', 'Phòng H3.03']);
   });
 });

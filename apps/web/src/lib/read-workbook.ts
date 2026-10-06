@@ -76,12 +76,38 @@ export async function readWorkbook(file: File): Promise<SheetData[]> {
  * column choice against — a student id stored as a number reads back as the
  * digits they see, and a formula reads back as its result rather than its
  * source.
+ *
+ * Ngoại lệ DUY NHẤT: ô ngày. exceljs trả giá trị `Date`, và `.text` của nó là `Date.toString()` theo múi giờ máy
+ * ("Tue Sep 01 2026 07:00:00 GMT+0700 (Indochina Time)") — không ai gõ chuỗi đó và không parser nào nhận nó. Ngày được đọc
+ * từ GIÁ TRỊ bằng getter UTC: exceljs dựng `Date` ở nửa đêm UTC từ số sê-ri của Excel, nên getter địa phương sẽ cho ngày
+ * hôm trước ở mọi múi giờ phía tây Greenwich. Kết quả là `yyyy-mm-dd`, một trong hai dạng không mơ hồ mà server nhận.
  */
 function cellText(cell: { text?: string; value?: unknown }): string {
+  const date = dateOf(cell.value);
+  if (date) {
+    return isoDate(date);
+  }
   const text = cell.text;
   if (typeof text === 'string') {
     return text.trim();
   }
   const value = cell.value;
   return value === null || value === undefined ? '' : String(value).trim();
+}
+
+/** Giá trị là `Date`, hoặc là ô công thức mà kết quả là `Date`. */
+function dateOf(value: unknown): Date | null {
+  const candidate =
+    value instanceof Date
+      ? value
+      : typeof value === 'object' && value !== null && 'result' in value
+        ? (value as { result: unknown }).result
+        : null;
+  return candidate instanceof Date && !Number.isNaN(candidate.getTime()) ? candidate : null;
+}
+
+function isoDate(date: Date): string {
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${String(date.getUTCFullYear()).padStart(4, '0')}-${month}-${day}`;
 }
