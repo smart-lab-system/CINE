@@ -19,7 +19,7 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     code: 'GK2',
     courseName: 'Nhập môn CSDL',
     classId: 'class-1',
-    className: 'CINE',
+    classLabel: 'CINE',
     roomName: 'A3-01',
     examType: 'GK',
     // Mặc định: đã kết thúc từ 2 tiếng trước, ngoài grace.
@@ -37,7 +37,7 @@ function make(overrides: Partial<SessionOverviewItem> = {}): SessionOverviewItem
     invalidFileCount: 0,
     archiveIssueCount: 0,
     matchedStudents: null,
-    semesterName: 'Học kỳ 1 2026-2027',
+    semesterName: 'Học kỳ 1 2026-2027',    semesterId: 'sem-1', academicYear: 2026, term: 1,
     rubricId: null,
     rubricVersion: null,
     archivedAt: null,
@@ -288,24 +288,24 @@ describe('groupByClass', () => {
     const items = [
       make({
         id: 'a',
-        className: 'N01',
+        classLabel: 'N01',
         attendedNoSubmissionCount: 1,
         fullySubmittedCount: 39,
       }),
-      make({ id: 'b', className: 'N01' }),
+      make({ id: 'b', classLabel: 'N01' }),
       // Khoá là `classId`, KHÔNG phải tên lớp: hai lớp trùng tên hiển thị
       // vẫn phải là hai nhóm, nếu không thì hai lớp khác nhau bị trộn bài.
-      make({ id: 'c', className: 'N05', classId: 'class-2' }),
+      make({ id: 'c', classLabel: 'N05', classId: 'class-2' }),
     ];
 
     const groups = groupByClass(items, NOW);
 
     expect(groups).toHaveLength(2);
-    const n01 = groups.find((g) => g.className === 'N01')!;
+    const n01 = groups.find((g) => g.classLabel === 'N01')!;
     // Phiên cần chú ý VẪN nằm trong nhóm gốc — spec §4.4, cố ý lặp.
     expect(n01.sessions.map((s) => s.id)).toEqual(['a', 'b']);
     expect(n01.attentionCount).toBe(1);
-    expect(groups.find((g) => g.className === 'N05')!.attentionCount).toBe(0);
+    expect(groups.find((g) => g.classLabel === 'N05')!.attentionCount).toBe(0);
   });
 
   it('hai lớp KHÁC tên nhưng cùng môn vẫn là hai nhóm', () => {
@@ -313,8 +313,8 @@ describe('groupByClass', () => {
     // đưa `courseName` trở lại khoá thì hai lớp cùng môn sẽ dính làm một.
     const groups = groupByClass(
       [
-        make({ id: 'a', className: 'N01', classId: 'class-1' }),
-        make({ id: 'b', className: 'N02', classId: 'class-2' }),
+        make({ id: 'a', classLabel: 'N01', classId: 'class-1' }),
+        make({ id: 'b', classLabel: 'N02', classId: 'class-2' }),
       ],
       NOW,
     );
@@ -323,11 +323,11 @@ describe('groupByClass', () => {
 
   it('phiên không gắn lớp vào nhóm riêng', () => {
     const groups = groupByClass(
-      [make({ id: 'a', className: null, classId: 'k-none', rosterKnown: false })],
+      [make({ id: 'a', classLabel: null, classId: 'k-none', rosterKnown: false })],
       NOW,
     );
     expect(groups).toHaveLength(1);
-    expect(groups[0].className).toBeNull();
+    expect(groups[0].classLabel).toBeNull();
   });
 });
 

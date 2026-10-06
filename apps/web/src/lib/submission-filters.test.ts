@@ -3,6 +3,7 @@ import {
   EMPTY_FILTERS, applyFilters, buildFacets, detectRoomFailure,
 } from './submission-filters';
 import type { SessionOverviewItem } from './api/submissions';
+import { ALL_SEMESTERS } from './semester-filter';
 
 const NOW = new Date('2026-09-05T10:00:00Z').getTime();
 const HOUR = 3_600_000;
@@ -10,12 +11,12 @@ const HOUR = 3_600_000;
 function make(o: Partial<SessionOverviewItem> = {}): SessionOverviewItem {
   return {
     id: 's1', name: 'Phiên', code: 'P1',
-    courseName: 'CSDL', classId: 'k1', className: 'N01',
+    courseName: 'CSDL', classId: 'k1', classLabel: 'N01',
     roomName: 'A3-01', examType: 'GK',
     startTime: new Date(NOW - 4 * HOUR).toISOString(),
     endTime: new Date(NOW - 2 * HOUR).toISOString(),
     status: 'completed',
-    semesterName: 'Học kỳ 1 2026-2027',
+    semesterName: 'Học kỳ 1 2026-2027',    semesterId: 'sem-1', academicYear: 2026, term: 1,
     requiredDeliverableCount: 2, expectedCount: 10, rosterKnown: true,
     fullySubmittedCount: 10, partialCount: 0,
     attendedNoSubmissionCount: 0, neverAttendedCount: 0, satElsewhereCount: 0,
@@ -111,9 +112,9 @@ describe('lọc theo LỚP', () => {
   // Fixture riêng: mọi item trong `base` đều dùng chung `classId: 'k1'`,
   // nên nó không tách được gì để thử.
   const byClass = [
-    make({ id: 'a', classId: 'k1', className: 'N01' }),
-    make({ id: 'b', classId: 'k2', className: 'N02' }),
-    make({ id: 'c', classId: 'k2', className: 'N02' }),
+    make({ id: 'a', classId: 'k1', classLabel: 'N01' }),
+    make({ id: 'b', classId: 'k2', classLabel: 'N02' }),
+    make({ id: 'c', classId: 'k2', classLabel: 'N02' }),
   ];
 
   it('chọn một lớp thì phiên của lớp khác rơi ra', () => {
@@ -130,10 +131,10 @@ describe('lọc theo LỚP', () => {
 
   it('lọc theo ID chứ không theo TÊN: hai lớp TRÙNG TÊN vẫn tách nhau', () => {
     // Đây là lý do nhóm này khoá theo `classId`. Nếu ai đó đổi sang khoá
-    // theo `className` cho "dễ đọc", hai lớp khác nhau sẽ bị trộn bài.
+    // theo `classLabel` cho "dễ đọc", hai lớp khác nhau sẽ bị trộn bài.
     const sameName = [
-      make({ id: 'x', classId: 'k1', className: 'N01' }),
-      make({ id: 'y', classId: 'k9', className: 'N01' }),
+      make({ id: 'x', classId: 'k1', classLabel: 'N01' }),
+      make({ id: 'y', classId: 'k9', classLabel: 'N01' }),
     ];
     const ids = applyFilters(sameName, { ...EMPTY_FILTERS, classIds: ['k1'] }, NOW)
       .map((i) => i.id);
@@ -211,5 +212,55 @@ describe('lọc theo "thi bù ở phiên khác"', () => {
     const ids = applyFilters(items, { ...EMPTY_FILTERS, kinds: ['sat-elsewhere'] }, NOW)
       .map((i) => i.id);
     expect(ids).toEqual(['a']);
+  });
+});
+
+describe('lọc theo HỌC KỲ — bằng khoá, không bằng chuỗi (Review Focus 1, 2)', () => {
+  // Hai phiên CÙNG học kỳ nhưng bản chụp tên viết khác nhau (gõ tay thời trước): bộ lọc theo chuỗi coi là hai mục, bộ lọc theo khoá thì không.
+  const bySemester = [
+    make({ id: 'a', semesterId: 'sem-1', academicYear: 2026, term: 1, semesterName: 'HK1 2026-2027' }),
+    make({ id: 'b', semesterId: 'sem-1', academicYear: 2026, term: 1, semesterName: 'Học kỳ 1 2026-2027' }),
+    make({ id: 'c', semesterId: 'sem-2', academicYear: 2026, term: 2, semesterName: 'HK2 2026-2027' }),
+    make({ id: 'd', semesterId: 'old', academicYear: 2025, term: 2, semesterName: 'HK2 2025-2026' }),
+    make({ id: 'legacy', semesterId: null, academicYear: null, term: null, semesterName: 'Học kỳ lạ' }),
+  ];
+  const ids = (f: Partial<typeof EMPTY_FILTERS>) =>
+    applyFilters(bySemester, { ...EMPTY_FILTERS, ...f }, NOW).map((i) => i.id).sort();
+
+  it('mặc định là TẤT CẢ: mọi phiên, kể cả phiên của lớp chưa có học kỳ', () => {
+    expect(EMPTY_FILTERS.semester).toEqual(ALL_SEMESTERS);
+    expect(ids({})).toEqual(['a', 'b', 'c', 'd', 'legacy']);
+  });
+
+  it('chọn một kỳ: so bằng semesterId — hai cách viết tên của cùng một kỳ đều khớp', () => {
+    expect(ids({ semester: { academicYear: 2026, semesterId: 'sem-1' } })).toEqual(['a', 'b']);
+  });
+
+  it('chọn một NĂM (không chọn kỳ): cả các kỳ của năm đó', () => {
+    expect(ids({ semester: { academicYear: 2026, semesterId: null } })).toEqual(['a', 'b', 'c']);
+    expect(ids({ semester: { academicYear: 2025, semesterId: null } })).toEqual(['d']);
+  });
+
+  it('Review Focus 2: phiên của lớp chưa có học kỳ KHÔNG khớp khi đang lọc, và không làm nổ', () => {
+    expect(ids({ semester: { academicYear: 2026, semesterId: 'sem-1' } })).not.toContain('legacy');
+    expect(ids({ semester: { academicYear: 2099, semesterId: null } })).toEqual([]);
+  });
+
+  it('giữa các nhóm là AND: kỳ VÀ phòng', () => {
+    const mixed = [
+      make({ id: 'x', semesterId: 'sem-1', academicYear: 2026, term: 1, roomName: 'A3-01' }),
+      make({ id: 'y', semesterId: 'sem-1', academicYear: 2026, term: 1, roomName: 'A3-02' }),
+      make({ id: 'z', semesterId: 'sem-2', academicYear: 2026, term: 2, roomName: 'A3-01' }),
+    ];
+    const result = applyFilters(
+      mixed,
+      { ...EMPTY_FILTERS, semester: { academicYear: 2026, semesterId: 'sem-1' }, rooms: ['A3-01'] },
+      NOW,
+    ).map((i) => i.id);
+    expect(result).toEqual(['x']);
+  });
+
+  it('buildFacets KHÔNG còn nhóm `semesters` — lựa chọn học kỳ đến từ bảng học kỳ, không từ các dòng đã tải', () => {
+    expect(buildFacets(bySemester, EMPTY_FILTERS, NOW)).not.toHaveProperty('semesters');
   });
 });

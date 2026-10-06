@@ -1,10 +1,14 @@
 import type { SessionOverviewItem } from './api/submissions';
 import { getAttentionReasons, type AttentionKind } from './submission-attention';
 import { EXAM_TYPE_LABELS } from './exam-session-display';
+import { ALL_SEMESTERS, matchesSemester, type SemesterSelection } from './semester-filter';
 
 export interface FilterState {
-  /** null = tất cả học kỳ. */
-  semesterName: string | null;
+  /**
+   * Học kỳ/năm học đang xem, so bằng KHOÁ (`semesterId`/`academicYear` trên từng dòng) — không bằng chữ. `ALL_SEMESTERS` = tất cả: mặc định ở mọi màn
+   * hình, vì một bộ lọc mặc định đã che mất việc tồn đọng của kỳ cũ.
+   */
+  semester: SemesterSelection;
   kinds: AttentionKind[];
   /** Lọc "đã đủ" — phiên ended không lý do nào. */
   complete: boolean;
@@ -20,7 +24,7 @@ export interface FilterState {
 }
 
 export const EMPTY_FILTERS: FilterState = {
-  semesterName: null, kinds: [], complete: false,
+  semester: ALL_SEMESTERS, kinds: [], complete: false,
   examTypes: [], rooms: [], classIds: [], showArchived: false, showClosed: true,
 };
 
@@ -40,7 +44,8 @@ function passesGroups(
   now: number,
   skip?: 'kinds' | 'examTypes' | 'rooms' | 'classIds',
 ): boolean {
-  if (f.semesterName !== null && item.semesterName !== f.semesterName) return false;
+  // Dòng chưa có học kỳ (lớp cũ chưa backfill) KHÔNG khớp khi đang lọc, và khớp khi không lọc — không bao giờ nổ vì `null`.
+  if (!matchesSemester(f.semester, item)) return false;
 
   if (skip !== 'examTypes' && f.examTypes.length > 0 && !f.examTypes.includes(item.examType)) {
     return false;
@@ -125,18 +130,14 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
   const classes = countBy(
     forClasses,
     (i) => i.classId,
-    (i) => i.className ?? 'Không gắn lớp',
+    (i) => i.classLabel ?? 'Không gắn lớp',
   );
-  const semesters = countBy(items, (i) => i.semesterName, (i) => i.semesterName);
 
   // Một nhóm lọc chỉ có một lựa chọn là nhiễu — UI không render nó. Spec §4.3.
   const meaningful = (o: FacetOption[]) => (o.length > 1 ? o : []);
 
   return {
-    // `semesters` KHÔNG qua `meaningful` — ngoại lệ có chủ đích, xem chú
-    // thích ở FilterRail. Lớp thì qua, vì nó là một thuộc tính của phiên
-    // đúng như phòng và loại kỳ thi, không phải chiều thời gian.
-    semesters,
+    // Không còn nhóm `semesters`: lựa chọn học kỳ đến từ bảng học kỳ (`useSemesters`), không từ các dòng đã tải.
     kinds,
     examTypes: meaningful(examTypes),
     rooms: meaningful(rooms),

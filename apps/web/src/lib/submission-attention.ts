@@ -215,7 +215,7 @@ export function compareSessions(
 
 export interface SessionGroup {
   key: string;
-  className: string | null;
+  classLabel: string | null;
   sessions: SessionOverviewItem[];
   /** Bao nhiêu phiên trong nhóm này cần chú ý — hiện ở header nhóm, §4.4. */
   attentionCount: number;
@@ -241,7 +241,7 @@ export function groupByClass(
     if (!group) {
       group = {
         key,
-        className: item.className,
+        classLabel: item.classLabel,
         sessions: [],
         attentionCount: 0,
       };

@@ -13,7 +13,10 @@ export interface SessionOverviewItem {
    */
   courseName: string;
   classId: string;
-  className: string | null;
+  /**
+   * Nhãn gộp của lớp, `DHKTPM18A – Nhóm 1` (view `class_label` ở server). Từng là `className`. `null` chỉ với phiên không gắn lớp.
+   */
+  classLabel: string | null;
   roomName: string;
   examType: 'TK' | 'GK' | 'CK';
   startTime: string;
@@ -58,6 +61,13 @@ export interface SessionOverviewItem {
    * ở submission-attention.ts).
    */
   archiveIssueCount: number;
+  /**
+   * Học kỳ HIỆN TẠI của lớp — khoá để LỌC (spec §7.2). `null` chỉ với lớp cũ chưa backfill. Khác `semesterName` bên dưới: cái đó là chữ đã
+   * CHỤP lúc tạo phiên (bảng điểm in chữ này), không dùng để lọc.
+   */
+  semesterId: string | null;
+  academicYear: number | null;
+  term: number | null;
   semesterName: string;
   archivedAt: string | null;
   attentionClosedAt: string | null;
