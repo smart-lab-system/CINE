@@ -112,11 +112,10 @@ export async function seedEnrollment(db: Queryable, o: SeedEnrollmentOptions): P
      ON CONFLICT (mssv) DO UPDATE SET full_name = EXCLUDED.full_name, updated_at = now()`,
     [o.mssv, name],
   );
-  // TẠM ghi kép: cột cũ còn được đọc ở những nơi chưa chuyển (Task 3 Step 4–7). Task 7 bỏ nửa này.
   await db.query(
-    `INSERT INTO examcollect.enrollment (student_mssv, student_name, home_class_id, home_teacher_id)
-     VALUES ($1, $2, $3, $4)`,
-    [o.mssv, name, o.classId, o.teacherId],
+    `INSERT INTO examcollect.enrollment (student_mssv, home_class_id, home_teacher_id)
+     VALUES ($1, $2, $3)`,
+    [o.mssv, o.classId, o.teacherId],
   );
 }
 

@@ -83,7 +83,7 @@ describe('seed helper (e2e)', () => {
     }
   });
 
-  it('seedEnrollment ghi đúng bốn cột và đặt tên mặc định khi không cho', async () => {
+  it('seedEnrollment ghi tên vào `student` (một chỗ) và enrollment KHÔNG kèm tên; đặt tên mặc định khi không cho', async () => {
     const klass = await seedClass(dataSource, { teacherId });
     const mssv = `SH${Date.now().toString(36)}`.toUpperCase().slice(0, 12);
     await seedEnrollment(dataSource, { classId: klass.id, teacherId, mssv });
@@ -95,10 +95,26 @@ describe('seed helper (e2e)', () => {
     );
     expect(row).toMatchObject({
       student_mssv: mssv,
-      student_name: `Sinh viên ${mssv}`,
+      student_name: null,
       home_class_id: klass.id,
       home_teacher_id: teacherId,
     });
+    const [student] = await dataSource.query(`SELECT full_name FROM examcollect.student WHERE mssv = $1`, [mssv]);
+    expect(student.full_name).toBe(`Sinh viên ${mssv}`);
+  });
+
+  it('seedEnrollment với legacyName dựng hình dạng TRƯỚC backfill: có tên cũ ở enrollment, không có hàng student', async () => {
+    const klass = await seedClass(dataSource, { teacherId });
+    const mssv = `SL${Date.now().toString(36)}`.toUpperCase().slice(0, 12);
+    await seedEnrollment(dataSource, { classId: klass.id, teacherId, mssv, legacyName: 'Tên cũ chưa backfill' });
+
+    const [row] = await dataSource.query(
+      `SELECT student_name FROM examcollect.enrollment WHERE home_class_id = $1`,
+      [klass.id],
+    );
+    expect(row.student_name).toBe('Tên cũ chưa backfill');
+    const students = await dataSource.query(`SELECT 1 FROM examcollect.student WHERE mssv = $1`, [mssv]);
+    expect(students).toHaveLength(0);
   });
 
   it('seedExamSession chèn thẳng một phiên mà service sẽ từ chối, và trả đủ định danh', async () => {
