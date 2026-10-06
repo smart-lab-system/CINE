@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createExamSession,
+  updateExamSession,
+  cancelExamSession,
   listExamSessions,
   listExamSessionsInRange,
   getExamSession,
@@ -13,6 +15,7 @@ import {
   listSubmissions,
   archiveRecheck,
   type CreateExamSessionInput,
+  type UpdateExamSessionInput,
   type ExamSessionResponse,
   type OpenSessionResult,
   type RecollectResult,
@@ -34,6 +37,41 @@ import {
 export function useCreateExamSession() {
   return useMutation<ExamSessionResponse, Error, CreateExamSessionInput>({
     mutationFn: createExamSession,
+  });
+}
+
+/**
+ * Mọi nơi đang hiện phiên này phải đọc lại sau khi sửa hoặc huỷ: danh sách (khoá gốc `['exam-sessions']`, nên mọi trang và bộ lọc, cả
+ * `attendance`/`materials` của chính phiên), lịch tuần, chi tiết, và tổng quan bài thu (phiên huỷ không còn là phiên thu bài).
+ */
+function useRefreshSession() {
+  const queryClient = useQueryClient();
+  return (id: string) => {
+    void queryClient.invalidateQueries({ queryKey: ['exam-sessions'] });
+    void queryClient.invalidateQueries({ queryKey: ['exam-sessions-range'] });
+    void queryClient.invalidateQueries({ queryKey: ['exam-session', id] });
+    void queryClient.invalidateQueries({ queryKey: ['submissions', 'overview'] });
+  };
+}
+
+/**
+ * Sửa phiên. `id` đi theo từng lần gọi (không theo hook) vì một danh sách dùng chung một hook cho mọi hàng. Thất bại không làm mới gì:
+ * dữ liệu chưa đổi, và lỗi 409 của server đi ra qua `error` cho giao diện hiển thị.
+ */
+export function useUpdateExamSession() {
+  const refresh = useRefreshSession();
+  return useMutation<ExamSessionResponse, Error, { id: string; body: UpdateExamSessionInput }>({
+    mutationFn: ({ id, body }) => updateExamSession(id, body),
+    onSuccess: (_session, { id }) => refresh(id),
+  });
+}
+
+/** Huỷ phiên. Cùng quy ước làm mới như `useUpdateExamSession`. */
+export function useCancelExamSession() {
+  const refresh = useRefreshSession();
+  return useMutation<ExamSessionResponse, Error, { id: string; reason?: string }>({
+    mutationFn: ({ id, reason }) => cancelExamSession(id, reason),
+    onSuccess: (_session, { id }) => refresh(id),
   });
 }
 

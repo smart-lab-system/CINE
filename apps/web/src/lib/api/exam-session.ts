@@ -16,9 +16,11 @@ export interface CreateExamSessionInput {
    * choice they make and the thing that can be checked against them.
    */
   classId: string;
-  /** Phòng và học kỳ là VĂN BẢN: không còn bảng nào để chọn ra. */
-  roomName: string;
-  semesterName: string;
+  /**
+   * Phòng, chọn từ phòng ĐANG HOẠT ĐỘNG (`GET /rooms?activeOnly=true`); server chụp tên phòng vào phiên. Không còn `roomName`/`semesterName`:
+   * phòng là một hàng trong danh mục, còn học kỳ suy từ lớp và cũng được server chụp.
+   */
+  roomId: string;
   /**
    * Rubric để chấm phiên này, ghim ngay lúc tạo. Bỏ trống là hợp lệ: phiên
    * không chấm bằng AI vẫn thi và thu bài bình thường, và rubric gắn được
@@ -72,10 +74,13 @@ export interface ExamSessionResponse {
   code: string;
   teacherId: string;
   classId: string;
-  /** Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên. `courseId`/`roomId`
-   *  biến mất cùng ba bảng dữ liệu nền ở đợt thu hẹp master data. */
+  /** Môn dạng VĂN BẢN và tên phòng, CHỤP lúc tạo (tên phòng cập nhật khi sửa phòng). */
   courseName: string;
   roomName: string;
+  /** Phòng trong danh mục. `null` chỉ với phiên tạo trước khi có danh mục phòng và chưa backfill (plan H). */
+  roomId: string | null;
+  /** Nhãn gộp của lớp (`DHKTPM18A – Nhóm 1`). */
+  classLabel: string | null;
   examType: ExamType;
   startTime: string;
   endTime: string;
@@ -234,6 +239,48 @@ export async function createExamSession(
   // `@ApiProperty({ enum: ... })`, so the Swagger CLI plugin generated
   // `Record<string, never>` for them instead of a string type — a
   // DTO-decoration gap, not a real runtime shape mismatch.
+  return data as unknown as ExamSessionResponse;
+}
+
+/**
+ * Mirrors UpdateExamSessionDto (plan F). Mọi trường tuỳ chọn và CHỈ gửi cái đổi. Lớp, danh sách file bắt buộc, rubric, học kỳ KHÔNG có ở đây
+ * một cách có chủ ý: server trả 400 nếu nhận chúng (sai lớp hay sai file bắt buộc thì huỷ phiên và tạo lại).
+ */
+export interface UpdateExamSessionInput {
+  name?: string;
+  roomId?: string;
+  examType?: ExamType;
+  startTime?: string;
+  endTime?: string;
+}
+
+/**
+ * Sửa phiên TRƯỚC giờ bắt đầu (spec §4.1, phương án A). 409 kèm câu giải thích khi cửa sổ đã đóng hoặc có va chạm phòng/lớp/giãn cách —
+ * câu đó đi ra qua lỗi được ném để giao diện hiển thị nguyên văn.
+ */
+export async function updateExamSession(
+  id: string,
+  body: UpdateExamSessionInput,
+): Promise<ExamSessionResponse> {
+  const { data, error, response } = await apiClient.PATCH('/exam-sessions/{id}', {
+    params: { path: { id } },
+    body,
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as ExamSessionResponse;
+}
+
+/**
+ * Huỷ phiên chưa có ai vào phòng (spec §4.1). Không khôi phục được. Lý do (tuỳ chọn, ≤ 200 ký tự) nằm ở `audit_log`; lý do toàn khoảng
+ * trắng coi như không có. 409 "Đã có sinh viên vào phòng…" được ném lại cho hộp thoại hiển thị.
+ */
+export async function cancelExamSession(id: string, reason?: string): Promise<ExamSessionResponse> {
+  const trimmed = reason?.trim();
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/cancel', {
+    params: { path: { id } },
+    body: trimmed ? { reason: trimmed } : {},
+  });
+  await throwIfFailed(error, response);
   return data as unknown as ExamSessionResponse;
 }
 
