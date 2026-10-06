@@ -84,6 +84,11 @@ export interface SeedClassOptions {
   semesterId?: string | null;
   /** Lớp danh nghĩa có sẵn. Mặc định: tạo/dùng lớp theo `code`. `null` = lớp cũ chưa gán. */
   administrativeClassId?: string | null;
+  /**
+   * CHỈ cho test về GIAI ĐOẠN CHUYỂN TIẾP (backfill): ghi cột cũ `class.name` như code trước khi có lớp danh nghĩa. Dùng cùng `semesterId: null`
+   * và `administrativeClassId: null` để dựng một lớp ở HÌNH DẠNG CŨ. Bị gỡ ở migration thu hẹp (plan H Task 5) cùng cột `class.name`.
+   */
+  legacyName?: string;
 }
 
 export interface SeededClass {
@@ -103,12 +108,11 @@ export async function seedClass(db: Queryable, o: SeedClassOptions): Promise<See
     o.administrativeClassId === undefined
       ? await ensureAdministrativeClass(db, o.code ?? `ADM${stamp()}`)
       : o.administrativeClassId;
-  // KHÔNG ghi `class.name` (cột cũ, bị gỡ ở plan H): tên lớp là biểu thức của mã + nhóm.
   const [row] = await db.query(
     `INSERT INTO examcollect.class
-       (course_name, teacher_id, semester_id, administrative_class_id, group_name)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [o.courseName ?? COURSE_NAME, o.teacherId, semesterId, administrativeClassId, groupName],
+       (course_name, teacher_id, semester_id, administrative_class_id, group_name, name)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [o.courseName ?? COURSE_NAME, o.teacherId, semesterId, administrativeClassId, groupName, o.legacyName ?? null],
   );
   const [meta] = await db.query(
     `SELECT cl.label, ac.code::text AS code
