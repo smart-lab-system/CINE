@@ -43,31 +43,17 @@ const SESSION_POST_LITERAL_BODY =
   /\.post\(\s*['"`]\/exam-sessions['"`]\s*\)(?:(?!\.send\()[\s\S]){0,400}\.send\(\s*\{/;
 
 export const RAW_SEED_ALLOWLIST = new Set<string>([
-  'access-request.e2e-spec.ts',
-  'accounts.e2e-spec.ts',
-  'agent-join-rate-limit.e2e-spec.ts',
-  'agent-join.e2e-spec.ts',
-  'attendance.e2e-spec.ts',
-  'class-scoped-enrollment.e2e-spec.ts',
-  'classes-teacher-crud.e2e-spec.ts',
   'exam-authoring-attach.e2e-spec.ts',
   'exam-material.e2e-spec.ts',
   'exam-schedule-conflict.e2e-spec.ts',
   'exam-session-reassign.e2e-spec.ts',
   'exam-session-semester-name.e2e-spec.ts',
   'exam-session.e2e-spec.ts',
-  'roster-import.e2e-spec.ts',
   'session-lifecycle.e2e-spec.ts',
-  'session-roster-freeze.e2e-spec.ts',
   'session-rubric.e2e-spec.ts',
 ]);
 
 export const SESSION_BODY_ALLOWLIST = new Set<string>([
-  'access-request.e2e-spec.ts',
-  'agent-join-rate-limit.e2e-spec.ts',
-  'agent-join.e2e-spec.ts',
-  'attendance.e2e-spec.ts',
-  'class-scoped-enrollment.e2e-spec.ts',
   'exam-authoring-attach.e2e-spec.ts',
   'exam-material.e2e-spec.ts',
   'exam-schedule-conflict.e2e-spec.ts',
@@ -75,7 +61,6 @@ export const SESSION_BODY_ALLOWLIST = new Set<string>([
   'exam-session-semester-name.e2e-spec.ts',
   'exam-session.e2e-spec.ts',
   'session-lifecycle.e2e-spec.ts',
-  'session-roster-freeze.e2e-spec.ts',
   'session-rubric.e2e-spec.ts',
 ]);
 

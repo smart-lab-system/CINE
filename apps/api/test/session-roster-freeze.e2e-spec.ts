@@ -8,6 +8,7 @@ import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter
 import { ExamSessionScheduler } from '../src/exam-session/exam-session.scheduler';
 import { createTestAccount } from './helpers/create-account';
 import { concurrentLiveWindow, releaseTeacherSessions } from './helpers/session-window';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * Đóng băng danh sách dự thi (CLAUDE.md §7.1.1) và cho sự vắng mặt một
@@ -56,23 +57,23 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
     const course = { name: 'Freeze Course' };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [course.name, `Nhóm ${suffix}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName: course.name,
+      groupName: `Nhóm ${suffix}`,
+    });
     const room = { name: `Freeze Room ${suffix}` };
 
     const students: string[] = [];
     for (let i = 1; i <= options.students; i++) {
       const mssv = `FZ${seedCursor}X${i}${Date.now() % 100000}`.slice(0, 20);
       students.push(mssv);
-      await dataSource.query(
-        `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-        [mssv, `Sinh viên ${i} của ${suffix}`, klass.id, teacherId],
-      );
+      await seedEnrollment(dataSource, {
+        mssv,
+        name: `Sinh viên ${i} của ${suffix}`,
+        classId: klass.id,
+        teacherId,
+      });
     }
 
     // Ca thi của test trước đã kết thúc — nhả giảng viên ra, nếu không
@@ -84,15 +85,15 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({
-        name: `Phiên đóng băng ${suffix}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        ...concurrentLiveWindow(),
-        requiredFilenames: options.deliverables ?? ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên đóng băng ${suffix}`,
+          classId: klass.id,
+          roomName: room.name,
+          ...concurrentLiveWindow(),
+          requiredFilenames: options.deliverables ?? ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
 
     return {
@@ -252,12 +253,12 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
     const session = await seedSession({ students: 2 });
     await open(session.id);
 
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [`FZLATE${Date.now() % 100000}`, 'Nguyễn Văn Muộn', session.classId, teacherId],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: `FZLATE${Date.now() % 100000}`,
+      name: 'Nguyễn Văn Muộn',
+      classId: session.classId,
+      teacherId,
+    });
 
     // 2, KHÔNG phải 3. Đây là toàn bộ lý do bảng này tồn tại.
     expect(await rosterRows(session.id)).toHaveLength(2);

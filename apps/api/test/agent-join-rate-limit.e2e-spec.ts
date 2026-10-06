@@ -8,6 +8,7 @@ import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter
 import { createTestAccount } from './helpers/create-account';
 import { liveSessionWindow, upcomingSessionWindow } from './helpers/session-window';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * Spec: docs/superpowers/specs/2026-09-01-student-agent-electron-design.md
@@ -29,6 +30,8 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
   let pendingSessionCode: string;
   let pendingSessionId: string;
   let courseName: string;
+  let classId: string;
+  let ownerId: string;
 
   const sockets: Socket[] = [];
   const fixtureStamp = Date.now();
@@ -62,13 +65,12 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
    *  MSSV and persists for the whole app instance across `it` blocks. */
   async function enrollFreshStudent(suffix: string): Promise<string> {
     const mssv = `RL${String(fixtureStamp).slice(-8)}${suffix}`;
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       SELECT $1, $2, c.id, c.teacher_id
-       FROM examcollect.class c WHERE c.course_name = $3 LIMIT 1`,
-      [mssv, `Rate Limit Student ${suffix}`, courseName],
-    );
+    await seedEnrollment(dataSource, {
+      mssv,
+      name: `Rate Limit Student ${suffix}`,
+      classId,
+      teacherId: ownerId,
+    });
 
     // Ảnh chốt của phiên đóng băng MỘT LẦN, lúc mở phiên, và
     // `agent:join` hỏi ảnh chốt chứ không hỏi enrollment. Sinh viên tạo
@@ -132,26 +134,22 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
     const course = { name: `Rate Limit Course ${stamp}` };
     courseName = course.name;
     const room = { name: `Rate Limit Room ${stamp}` };
-    await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseName, teacherId],
-    );
+    const klass = await seedClass(dataSource, { teacherId, courseName });
+    classId = klass.id;
+    ownerId = teacherId;
 
     const active = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Rate Limit Active ${stamp}`,
-        classId: (
-          await dataSource.query(`SELECT id FROM examcollect.class WHERE course_name = $1 LIMIT 1`, [courseName])
-        )[0].id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        ...liveSessionWindow(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Rate Limit Active ${stamp}`,
+          classId,
+          roomName: room.name,
+          ...liveSessionWindow(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(active.status).toBe(201);
     // Guard §7.1.1: agent:join từ chối phiên chưa đóng băng danh sách
     // dự thi. Cần ít nhất một em trong lớp để có gì mà chụp — em này
@@ -166,17 +164,15 @@ describe('agent:join rate limiting and teacher broadcast (e2e)', () => {
     const pending = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Rate Limit Pending ${stamp}`,
-        classId: (
-          await dataSource.query(`SELECT id FROM examcollect.class WHERE course_name = $1 LIMIT 1`, [courseName])
-        )[0].id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        ...upcomingSessionWindow(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Rate Limit Pending ${stamp}`,
+          classId,
+          roomName: room.name,
+          ...upcomingSessionWindow(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(pending.status).toBe(201);
     pendingSessionCode = pending.body.code;
     pendingSessionId = pending.body.id;

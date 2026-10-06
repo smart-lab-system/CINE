@@ -8,6 +8,7 @@ import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter
 import { createTestAccount } from './helpers/create-account';
 import { concurrentLiveWindow } from './helpers/session-window';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * `agent:join` is the system's only authentication boundary for students,
@@ -88,7 +89,7 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     token = login.body.accessToken;
 
-    // GIẢNG VIÊN THỨ HAI, sở hữu N01 và phiên "templated".
+    // GIẢNG VIÊN THỨ HAI, sở hữu `klass` và phiên "templated".
     //
     // Hai phiên dưới đây chạy CÙNG LÚC. Trước đây chúng chỉ cần khác phòng
     // và khác lớp; từ `ex_exam_session_teacher_gap` (migration 1789350000000)
@@ -112,11 +113,7 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     sessionRoomName = room.name;
     // What {PHONG} renders to: separators dropped, each word capitalised.
     roomName = `AgentJoinRoom${stamp}`;
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseName, teacher2Id],
-    );
+    const klass = await seedClass(dataSource, { teacherId: teacher2Id, courseName });
     classId = klass.id;
 
     // The two sessions below both run at the same time, so they cannot
@@ -130,50 +127,46 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     // của phiên. Cả hai phiên dưới đây vì thế cùng ghi danh một sinh viên
     // vào lớp của chính nó.
     const plainRoom = { name: `Agent Join Plain Room ${stamp}` };
-    const [plainClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, 'N02', $2) RETURNING id`,
-      [courseName, teacherId],
-    );
+    const plainClass = await seedClass(dataSource, { teacherId, courseName });
 
-    // ENROLLED_MSSV thuộc N02, lớp của phiên "plain". Phiên "templated"
-    // chạy trên N01 và em được thêm vào ảnh chốt của nó bằng route thêm
+    // ENROLLED_MSSV thuộc `plainClass`, lớp của phiên "plain". Phiên "templated"
+    // chạy trên `klass` và em được thêm vào ảnh chốt của nó bằng route thêm
     // tay ở dưới — cùng đường mà giám thị dùng cho một em thi bù.
     //
     // Vì sao không ghi danh em ở cả hai lớp: `uq_enrollment_course_student`
     // vẫn còn tới `ContractMasterData`, nên một sinh viên chỉ có ĐÚNG MỘT
     // enrollment cho mỗi môn.
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [ENROLLED_MSSV, ENROLLED_NAME, plainClass.id, teacherId],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: ENROLLED_MSSV,
+      name: ENROLLED_NAME,
+      classId: plainClass.id,
+      teacherId,
+    });
 
-    // N01 cũng cần một sinh viên, nếu không `freeze()` từ chối mở phiên
+    // `klass` cũng cần một sinh viên, nếu không `freeze()` từ chối mở phiên
     // "templated" vì lớp rỗng.
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [`N01${stamp}`.slice(0, 20), 'Sinh viên lớp N01', klass.id, teacher2Id],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: `N01${stamp}`.slice(0, 20),
+      name: 'Sinh viên lớp N01',
+      classId: klass.id,
+      teacherId: teacher2Id,
+    });
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Agent Join Session ${stamp}`,
-        // The session names its CLASS, and join authentication reads that
-        // same class out of enrollment — no course sits between them any
-        // more. That directness is what these tests are about.
-        classId: plainClass.id,
-        roomName: plainRoom.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        ...concurrentLiveWindow(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Agent Join Session ${stamp}`,
+          // The session names its CLASS, and join authentication reads that
+          // same class out of enrollment — no course sits between them any
+          // more. That directness is what these tests are about.
+          classId: plainClass.id,
+          roomName: plainRoom.name,
+          ...concurrentLiveWindow(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
     // dự thi. Xem test/helpers/open-session.ts.
@@ -185,20 +178,20 @@ describe('agent:join enrollment enforcement (e2e)', () => {
     const templated = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token2}`)
-      .send({
-        name: `Agent Join Templated ${stamp}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        ...concurrentLiveWindow(),
-        requiredFilenames: ['{PHONG}_{MSSV}_{TEN}_{SOMAY}.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Agent Join Templated ${stamp}`,
+          classId: klass.id,
+          roomName: room.name,
+          ...concurrentLiveWindow(),
+          requiredFilenames: ['{PHONG}_{MSSV}_{TEN}_{SOMAY}.docx'],
+        }),
+      );
     expect(templated.status).toBe(201);
     // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
     // dự thi. Xem test/helpers/open-session.ts.
     await openSession(app, token2, templated.body.id);
-    // Ảnh chốt của N01 không có ENROLLED_MSSV — em thuộc N02. Thêm tay,
+    // Ảnh chốt của `klass` không có ENROLLED_MSSV — em thuộc `plainClass`. Thêm tay,
     // đúng route giám thị dùng, để các ca {PHONG}/{MSSV} dưới đây vẫn nói
     // về cùng một sinh viên như các ca ở phiên "plain".
     const added = await request(app.getHttpServer())
@@ -317,35 +310,31 @@ describe('agent:join enrollment enforcement (e2e)', () => {
         .send({ email: email3, password: 'correct-horse-battery' });
       const token3 = login3.body.accessToken as string;
 
-      const [archiveClass] = await dataSource.query(
-        `INSERT INTO examcollect.class (course_name, name, teacher_id)
-         VALUES ($1, 'N03', $2) RETURNING id`,
-        [courseName, teacher3Id],
-      );
-      await dataSource.query(
-        `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-         VALUES ($1, $2, $3, $4)`,
-        [ENROLLED_MSSV, ENROLLED_NAME, archiveClass.id, teacher3Id],
-      );
+      const archiveClass = await seedClass(dataSource, { teacherId: teacher3Id, courseName });
+      await seedEnrollment(dataSource, {
+        mssv: ENROLLED_MSSV,
+        name: ENROLLED_NAME,
+        classId: archiveClass.id,
+        teacherId: teacher3Id,
+      });
 
       const archive = await request(app.getHttpServer())
         .post('/exam-sessions')
         .set('Authorization', `Bearer ${token3}`)
-        .send({
-          name: `Archive Entries ${stamp}`,
-          classId: archiveClass.id,
-          roomName: `Archive Entries Room ${stamp}`,
-          semesterName: 'HK kiểm thử',
-          examType: 'TK',
-          ...concurrentLiveWindow(),
-          requiredFilenames: [
-            {
-              filename: '{MSSV}_BaiThi.zip',
-              entries: ['Main.java', '{MSSV}_BaoCao.docx'],
-            },
-          ],
-        });
+        .send(
+          await sessionBody(dataSource, {
+            name: `Archive Entries ${stamp}`,
+            classId: archiveClass.id,
+            roomName: `Archive Entries Room ${stamp}`,
+            ...concurrentLiveWindow(),
+            requiredFilenames: [
+              {
+                filename: '{MSSV}_BaiThi.zip',
+                entries: ['Main.java', '{MSSV}_BaoCao.docx'],
+              },
+            ],
+          }),
+        );
       expect(archive.status).toBe(201);
       // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
       // dự thi. Xem test/helpers/open-session.ts.
@@ -371,15 +360,15 @@ describe('agent:join enrollment enforcement (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post('/exam-sessions')
         .set('Authorization', `Bearer ${token}`)
-        .send({
-          name: `Bad Token ${fixtureStamp}`,
-          classId,
-          roomName: sessionRoomName,
-          semesterName: 'HK kiểm thử',
-          examType: 'TK',
-          ...concurrentLiveWindow(),
-          requiredFilenames: ['{LOP}_Cau1.docx'],
-        });
+        .send(
+          await sessionBody(dataSource, {
+            name: `Bad Token ${fixtureStamp}`,
+            classId,
+            roomName: sessionRoomName,
+            ...concurrentLiveWindow(),
+            requiredFilenames: ['{LOP}_Cau1.docx'],
+          }),
+        );
 
       // Otherwise it reaches every agent as a literal "{LOP}" and forty
       // students submit a file the teacher never asked for.

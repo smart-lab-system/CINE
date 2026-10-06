@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * Xác thực vào thi chạy ở mức LỚP, không còn ở mức MÔN.
@@ -60,12 +61,7 @@ describe('Enrollment khoá theo lớp (e2e)', () => {
   }
 
   async function enroll(mssv: string, name: string, homeClassId: string) {
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [mssv, name, homeClassId, teacherId],
-    );
+    await seedEnrollment(dataSource, { mssv, name, classId: homeClassId, teacherId });
   }
 
   beforeAll(async () => {
@@ -94,17 +90,17 @@ describe('Enrollment khoá theo lớp (e2e)', () => {
 
     // Hai lớp CÙNG MỘT MÔN. Đó là toàn bộ điểm của bộ test: dưới luật cũ
     // hai lớp này không phân biệt được với nhau ở cổng vào.
-    const [classA] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhom A ${stamp}`, teacherId],
-    );
+    const classA = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhom A ${stamp}`,
+    });
     classAId = classA.id;
-    const [classB] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhom B ${stamp}`, teacherId],
-    );
+    const classB = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhom B ${stamp}`,
+    });
     classBId = classB.id;
 
     await enroll(IN_CLASS, 'Sinh vien lop A', classAId);
@@ -113,16 +109,16 @@ describe('Enrollment khoá theo lớp (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Phien khoa theo lop ${stamp}`,
-        classId: classAId,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phien khoa theo lop ${stamp}`,
+          classId: classAId,
+          roomName: room.name,
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     sessionId = created.body.id;
     sessionCode = created.body.code;
@@ -211,19 +207,21 @@ describe('Enrollment khoá theo lớp (e2e)', () => {
       password: 'correct-horse-battery',
       role: 'teacher',
     });
-    const [foreignClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [otherCourse, `Nhom mon khac ${stamp}`, otherTeacherId],
-    );
+    // `courseName` được GIỮ: bỏ nó biến ca này thành "lớp cùng môn" và test vẫn
+    // xanh nhưng không còn kiểm điều nó nói.
+    const foreignClass = await seedClass(dataSource, {
+      teacherId: otherTeacherId,
+      courseName: otherCourse,
+      groupName: `Nhom mon khac ${stamp}`,
+    });
 
     // Em này thuộc lớp B (cùng môn với phiên) VÀ một lớp của môn khác.
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [OTHER_CLASS, 'Sinh vien lop B', foreignClass.id, otherTeacherId],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: OTHER_CLASS,
+      name: 'Sinh vien lop B',
+      classId: foreignClass.id,
+      teacherId: otherTeacherId,
+    });
 
     const added = await request(app.getHttpServer())
       .post(`/exam-sessions/${sessionId}/roster/students`)

@@ -7,6 +7,8 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
+import type { SeededClass } from './helpers/seed';
 
 /**
  * Who is in the room, answered from the log rather than from a browser tab.
@@ -32,6 +34,7 @@ describe('Attendance (e2e)', () => {
   let courseName: string;
   let classId: string;
   let siblingClassId: string;
+  let sibling: SeededClass;
   let roomName: string;
 
   const sockets: Socket[] = [];
@@ -96,16 +99,16 @@ describe('Attendance (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({
-        name: `${name} ${Date.now()}`,
-        classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        startTime: new Date(Date.now() + startOffsetMs).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `${name} ${Date.now()}`,
+          classId,
+          roomName,
+          startTime: new Date(Date.now() + startOffsetMs).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     // Guard §7.1.1: agent:join từ chối phiên chưa đóng băng danh sách
     // dự thi. Roster của lớp này đã nhập ở beforeAll.
@@ -117,7 +120,7 @@ describe('Attendance (e2e)', () => {
    * Đưa em thi bù vào ảnh chốt của MỘT phiên, đúng route giám thị bấm.
    *
    * Từ đợt thu hẹp master data, `agent:join` hỏi ảnh chốt của phiên chứ
-   * không hỏi enrollment của môn. Em lớp N05 vì thế không tự vào được nữa —
+   * không hỏi enrollment của môn. Em của lớp anh em vì thế không tự vào được nữa —
    * và đó là hành vi đã chọn: một người phải mở cửa, và lượt mở để lại dấu.
    * Ảnh chốt giữ nguyên lớp GỐC của em, nên nhóm "thi bù" của sảnh vẫn nói
    * được em đến từ đâu.
@@ -158,18 +161,20 @@ describe('Attendance (e2e)', () => {
     const course = { name: 'Môn điểm danh' };
     courseName = course.name;
 
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm chính ${stamp}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhóm chính ${stamp}`,
+    });
     classId = klass.id;
 
-    const [sibling] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm N05 ${stamp}`, teacherId],
-    );
+    // Test ĐỌC LẠI nhãn lớp (`homeClassName`), nên mã được đặt tường minh và
+    // phép so sánh dùng `sibling.label` thay vì một chuỗi gõ tay.
+    sibling = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      code: `N05${stamp.toUpperCase()}`,
+    });
     siblingClassId = sibling.id;
 
     const room = { name: `Attendance Room ${stamp}` };
@@ -186,12 +191,7 @@ describe('Attendance (e2e)', () => {
       [IN_CLASS_C, 'Lê Văn C', classId],
       [MAKEUP, 'Phạm Thi Bù', siblingClassId],
     ] as const) {
-      await dataSource.query(
-        `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-        [mssv, name, home, teacherId],
-      );
+      await seedEnrollment(dataSource, { mssv, name, classId: home, teacherId });
     }
   });
 
@@ -252,16 +252,16 @@ describe('Attendance (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({
-        name: `Chưa mở ${Date.now()}`,
-        classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Chưa mở ${Date.now()}`,
+          classId,
+          roomName,
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
 
     // Cố ý KHÔNG gọi openSession: đây đúng là trạng thái mọi phiên đều
@@ -292,13 +292,13 @@ describe('Attendance (e2e)', () => {
     expect(response.body.absent.map((s: { mssv: string }) => s.mssv).sort()).toEqual(
       [IN_CLASS_B, IN_CLASS_C].sort(),
     );
-    // The make-up student reads as "from N05, sitting here", not as an
+    // The make-up student reads as "from the sibling class, sitting here", not as an
     // unfamiliar name among familiar ones.
     expect(response.body.makeup).toHaveLength(1);
     expect(response.body.makeup[0]).toMatchObject({
       mssv: MAKEUP,
       name: 'Phạm Thi Bù',
-      homeClassName: `Nhóm N05 ${stamp}`,
+      homeClassName: sibling.label,
     });
     // A make-up student must never be counted as missing from this class.
     expect(response.body.absent.map((s: { mssv: string }) => s.mssv)).not.toContain(MAKEUP);

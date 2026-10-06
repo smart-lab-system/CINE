@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass } from './helpers/seed';
 
 /**
  * The roster import is what makes a headcount mean anything: until a class
@@ -82,20 +83,20 @@ describe('Roster import (e2e)', () => {
 
     courseName = 'Môn có danh sách';
 
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm chính ${Date.now()}`, lecturerId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId: lecturerId,
+      courseName,
+      groupName: `Nhóm chính ${Date.now()}`,
+    });
     classId = klass.id;
 
     // A second class under the SAME course — the cross-class case the
     // unique key (course_id, student_mssv) makes possible.
-    const [sibling] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm phụ ${Date.now()}`, lecturerId],
-    );
+    const sibling = await seedClass(dataSource, {
+      teacherId: lecturerId,
+      courseName,
+      groupName: `Nhóm phụ ${Date.now()}`,
+    });
     siblingClassId = sibling.id;
   });
 
@@ -105,16 +106,12 @@ describe('Roster import (e2e)', () => {
 
   /** A fresh class per test, so one test's roster is never another's fixture. */
   async function freshClass(): Promise<string> {
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [
-        courseName,
-        `Nhóm ${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
-        lecturerId,
-      ],
-    );
-    return klass.id as string;
+    const klass = await seedClass(dataSource, {
+      teacherId: lecturerId,
+      courseName,
+      groupName: `Nhóm ${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+    });
+    return klass.id;
   }
 
   /** Unique per run: enrollment is keyed by course, and the course is shared. */

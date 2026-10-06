@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, seedEnrollment } from './helpers/seed';
 
 describe('Accounts (e2e)', () => {
   let app: INestApplication;
@@ -161,17 +162,17 @@ describe('Accounts (e2e)', () => {
     const accountId: string = createResponse.body.id;
 
     const courseName = 'Referenced Test Course';
-    const [{ id: classId }] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, 'Referenced Test Class', accountId],
-    );
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [`SV${Date.now()}`.slice(0, 20), 'Referenced Test Student', classId, accountId],
-    );
+    const { id: classId } = await seedClass(dataSource, {
+      teacherId: accountId,
+      courseName,
+      groupName: 'Referenced Test Class',
+    });
+    await seedEnrollment(dataSource, {
+      mssv: `SV${Date.now()}`.slice(0, 20),
+      name: 'Referenced Test Student',
+      classId,
+      teacherId: accountId,
+    });
 
     const deleteResponse = await request(app.getHttpServer())
       .delete(`/accounts/${accountId}`)

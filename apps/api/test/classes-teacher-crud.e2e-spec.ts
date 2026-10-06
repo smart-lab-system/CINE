@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { COURSE_NAME } from '../src/common/course-name';
+import { seedClass } from './helpers/seed';
 
 /**
  * Giảng viên tự tạo, sửa, xoá lớp của mình (spec thu hẹp master data §4.1).
@@ -42,12 +43,8 @@ describe('Giảng viên CRUD lớp của mình (e2e)', () => {
 
   /** Lớp thuộc về `ownerId`, chèn thẳng — không đi qua route đang được test. */
   async function seedClassOwnedBy(ownerId: string): Promise<string> {
-    const [row] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `L${Date.now()}${Math.random().toString(36).slice(2, 5)}`, ownerId],
-    );
-    return row.id;
+    const klass = await seedClass(dataSource, { teacherId: ownerId, courseName });
+    return klass.id;
   }
 
   beforeAll(async () => {
