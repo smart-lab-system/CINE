@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
+import { DEFAULT_TEST_YEAR, ensureTestSemester } from './helpers/master-data';
 
 /**
  * GET /submissions/overview — §3.3. Chạy trên Postgres thật vì bug cần bắt
@@ -21,6 +22,7 @@ describe('Submission overview (e2e)', () => {
   let teacherId: string;
   let courseName: string;
   let classId: string;
+  let classLabelText: string;
   let roomName: string;
 
   /** Roster 40 SV cho lớp đang xét — mẫu số của mọi assertion bên dưới. */
@@ -195,6 +197,7 @@ describe('Submission overview (e2e)', () => {
     roomName = room.name;
     const klass = await seedClass(dataSource, { teacherId, courseName });
     classId = klass.id;
+    classLabelText = klass.label;
 
     // Roster 40 người, đúng định nghĩa (course_id + home_class_id).
     for (const mssv of ROSTER) {
@@ -204,6 +207,23 @@ describe('Submission overview (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('mang nhãn lớp (từ view class_label) và học kỳ HIỆN TẠI của lớp (khoá), không còn className', async () => {
+    const session = await createSession(`Label ${stamp}`, ['Cau1.docx'], {
+      startOffsetMs: -7_200_000,
+      endOffsetMs: -3_600_000,
+    });
+
+    const item = bySessionId(await fetchOverview(), session.id);
+
+    expect(item.classLabel).toBe(classLabelText);
+    expect(item).not.toHaveProperty('className');
+    expect(item).toMatchObject({
+      semesterId: await ensureTestSemester(dataSource, 1),
+      academicYear: DEFAULT_TEST_YEAR,
+      term: 1,
+    });
   });
 
   it('fan-out ba chiều: 1 SV nộp đủ 3 file trên roster 40 không bị nhân lên', async () => {

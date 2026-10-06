@@ -27,6 +27,9 @@ import {
   RequiredDeliverableResponseDto,
 } from './dto/exam-session-response.dto';
 import { ClassService } from '../course/class.service';
+import { RoomService } from '../course/room.service';
+import { SemesterService } from '../course/semester.service';
+import { ClassLabelService } from '../course/class-label.service';
 import { AttendanceService } from '../agent-connection/attendance.service';
 import { AttendanceView } from '../agent-connection/attendance.types';
 import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
@@ -115,6 +118,9 @@ export class ExamSessionService {
     private readonly classes: ClassService,
     private readonly attendance: AttendanceService,
     private readonly scheduleConflicts: ScheduleConflictService,
+    private readonly rooms: RoomService,
+    private readonly semesters: SemesterService,
+    private readonly classLabels: ClassLabelService,
   ) {}
 
   /**
@@ -134,6 +140,14 @@ export class ExamSessionService {
     // scope, and this is the only thing standing between them and running an
     // exam for someone else's class.
     const klass = await this.classes.findTaughtBy(dto.classId, teacherId);
+
+    // Học kỳ của phiên SUY RA từ lớp và được CHỤP lúc này (spec §2.4): không có ô nào cho giảng viên gõ. Lớp chưa có
+    // học kỳ (dữ liệu cũ chưa backfill) thì chưa có gì để chụp — nói rõ cách khắc phục thay vì ghi một chuỗi rỗng.
+    if (!klass.semesterId) {
+      throw new ConflictException(
+        'Lớp này chưa thuộc học kỳ nào nên chưa tạo được phiên thi. Hãy nhờ quản trị viên gán học kỳ cho lớp.',
+      );
+    }
 
     // The rubric this session will be graded against, decided here rather
     // than resolved at grading time. Editing the rubric after this point
@@ -160,6 +174,11 @@ export class ExamSessionService {
       }
     }
 
+    // Phòng do giảng viên CHỌN: phải có thật và đang hoạt động (400 nêu tên). Rồi chụp tên phòng và nhãn học kỳ.
+    const room = await this.rooms.requireActiveForNewSession(dto.roomId);
+    const semesterName = (await this.semesters.labelOf(klass.semesterId))!;
+    const classLabel = (await this.classLabels.labelsFor([klass.id])).get(klass.id) ?? null;
+
     // Advisory, and deliberately outside the retry loop below: the
     // authority on this rule is the pair of EXCLUDE constraints on the
     // table (see AddExamSessionOverlapConstraints), which is what holds
@@ -168,13 +187,13 @@ export class ExamSessionService {
     // session already holding it, and when — so the lecturer knows what to
     // change. Without it they get "This request conflicts with an existing
     // record" from PostgresExceptionFilter and no way to act on it.
-    await this.scheduleConflicts.assertNone(
-      dto.roomName,
-      klass.id,
+    await this.scheduleConflicts.assertNone({
+      roomId: room.id,
+      classId: klass.id,
       teacherId,
-      new Date(dto.startTime),
-      new Date(dto.endTime),
-    );
+      startTime: new Date(dto.startTime),
+      endTime: new Date(dto.endTime),
+    });
 
     for (let attempt = 1; attempt <= EXAM_SESSION_CODE_MAX_ATTEMPTS; attempt++) {
       const code = this.generateCode();
@@ -189,13 +208,14 @@ export class ExamSessionService {
               classId: klass.id,
               // Môn LẤY TỪ LỚP, không lấy từ body: một phiên khai một môn
               // khác với lớp của nó sẽ làm mọi phép đối chiếu phía sau nói
-              // về nhầm môn. Phòng và học kỳ thì đến thẳng từ biểu mẫu —
-              // không còn bảng nào để tra chúng.
+              // về nhầm môn. Phòng chọn từ danh sách, học kỳ suy ra từ lớp —
+              // cả hai được CHỤP ở dưới.
               courseName: klass.courseName,
-              roomName: dto.roomName,
-              // Chụp MỘT LẦN, tại đây (§7.1.5). Cột mang `update: false`
-              // nên một `save()` về sau không ghi đè được.
-              semesterName: dto.semesterName,
+              roomId: room.id,
+              // Chụp MỘT LẦN, tại đây (CLAUDE.md §7.1.5): đổi tên phòng hay sửa ngày học kỳ về sau không đổi phiên này.
+              // `semester_name` mang `update: false` nên một `save()` về sau không ghi đè được.
+              roomName: room.name,
+              semesterName,
               examType: dto.examType,
               startTime: new Date(dto.startTime),
               endTime: new Date(dto.endTime),
@@ -248,6 +268,7 @@ export class ExamSessionService {
             savedDeliverables,
             rubric?.version ?? null,
             entriesByDeliverable,
+            classLabel,
           );
         });
       } catch (error) {
@@ -295,11 +316,13 @@ export class ExamSessionService {
     const entriesByDeliverable = await this.loadEntriesByDeliverable(
       deliverables.map((d) => d.id),
     );
+    const classLabel = (await this.classLabels.labelsFor([session.classId])).get(session.classId) ?? null;
     return this.toResponseDto(
       { ...session, rubricId: rubric?.id ?? null },
       deliverables,
       rubric?.version ?? null,
       entriesByDeliverable,
+      classLabel,
     );
   }
 
@@ -392,11 +415,13 @@ export class ExamSessionService {
     const entriesByDeliverable = await this.loadEntriesByDeliverable(
       deliverables.map((d) => d.id),
     );
+    const classLabel = (await this.classLabels.labelsFor([session.classId])).get(session.classId) ?? null;
     return this.toResponseDto(
       session,
       deliverables,
       session.rubric?.version ?? null,
       entriesByDeliverable,
+      classLabel,
     );
   }
 
@@ -408,20 +433,15 @@ export class ExamSessionService {
   async findAllForOwner(
     teacherId: string,
     query: SearchExamSessionsDto,
-  ): Promise<{
-    items: ExamSessionListItemDto[];
-    total: number;
-    semesterNames: string[];
-  }> {
+  ): Promise<{ items: ExamSessionListItemDto[]; total: number }> {
     const qb = this.sessions
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.class', 'class')
+      .leftJoinAndSelect('class.semester', 'semester')
       .where('s.teacherId = :teacherId', { teacherId });
 
     if (query.search) {
-      qb.andWhere('(s.name ILIKE :search OR s.code ILIKE :search)', {
-        search: `%${query.search}%`,
-      });
+      qb.andWhere('(s.name ILIKE :search OR s.code ILIKE :search)', { search: `%${query.search}%` });
     }
     if (query.status) {
       qb.andWhere('s.status = :status', { status: query.status });
@@ -429,35 +449,28 @@ export class ExamSessionService {
     if (query.examType) {
       qb.andWhere('s.examType = :examType', { examType: query.examType });
     }
-    // AND vào owner-scope, KHÔNG thay thế nó: bộ lọc kỳ chỉ hẹp tầm nhìn
-    // của giảng viên trong phạm vi họ vốn đã được phép thấy. Một `orWhere`
-    // ở đây sẽ kéo phiên của giảng viên khác cùng kỳ vào, và kết quả vẫn
-    // trông "có dữ liệu" nên không ai nghi ngờ — e2e ghim đúng ca đó.
+    // AND vào owner-scope, KHÔNG thay thế nó: bộ lọc kỳ chỉ hẹp tầm nhìn của giảng viên trong phạm vi họ vốn đã được phép
+    // thấy. Một `orWhere` ở đây sẽ kéo phiên của giảng viên khác cùng kỳ vào, và kết quả vẫn trông "có dữ liệu" nên không
+    // ai nghi ngờ — e2e ghim đúng ca đó.
     //
-    // Lọc trên `s.semesterName`, bản chụp lúc tạo phiên. Trước đây đọc
-    // `course.semesterId` vì dropdown gửi lên id của bảng `semester`; cả
-    // bảng lẫn dropdown đã biến mất. /submissions/overview lọc trên CÙNG
-    // cột này, nên hai trang vẫn trả lời giống nhau câu "phiên này thuộc
-    // kỳ nào".
-    if (query.semesterName) {
-      qb.andWhere('s.semesterName = :semesterName', { semesterName: query.semesterName });
+    // Lọc theo HỌC KỲ HIỆN TẠI CỦA LỚP (khoá), không theo bản chụp `semester_name`: "HK1 2026-2027" và "Học kỳ 1
+    // 2026-2027" từng là hai mục lọc. Bản chụp vẫn là thứ bảng điểm in ra, nhưng không còn là thứ ai đó phải gõ khớp.
+    if (query.semesterId) {
+      qb.andWhere('class.semesterId = :semesterId', { semesterId: query.semesterId });
     }
-    // Lớp: khoá ngoại, nên so bằng id chứ không so chuỗi. Cùng lý do AND
-    // như bộ lọc kỳ ngay trên — nó chỉ hẹp tầm nhìn trong phạm vi giảng
-    // viên vốn đã được phép thấy.
+    if (query.academicYear !== undefined) {
+      qb.andWhere('semester.academicYearStart = :academicYear', { academicYear: query.academicYear });
+    }
+    // Lớp: khoá ngoại, nên so bằng id chứ không so chuỗi. Cùng lý do AND như bộ lọc kỳ ngay trên.
     if (query.classId) {
       qb.andWhere('s.classId = :classId', { classId: query.classId });
     }
 
-    // Chế độ LỊCH: một khoảng ngày, không phân trang. Xem doc của `from`/`to`
-    // trong SearchExamSessionsDto để biết vì sao phân trang phải biến mất ở
-    // đây chứ không phải chỉ đặt pageSize thật to.
+    // Chế độ LỊCH: một khoảng ngày, không phân trang. Xem doc của `from`/`to` trong SearchExamSessionsDto.
     const range = parseRange(query);
     if (range) {
       qb.andWhere('s.startTime >= :from AND s.startTime < :to', range);
-      // Tăng dần cho lịch: mắt đọc lưới từ sớm tới muộn trong một ô ngày.
-      // Danh sách thì ngược lại (phiên mới nhất trước), nên hai chế độ cố ý
-      // sắp khác nhau.
+      // Tăng dần cho lịch: mắt đọc lưới từ sớm tới muộn trong một ô ngày. Danh sách thì ngược lại.
       qb.orderBy('s.startTime', 'ASC').take(RANGE_HARD_CAP);
     } else {
       qb.orderBy('s.startTime', 'DESC')
@@ -467,13 +480,20 @@ export class ExamSessionService {
 
     const [rows, total] = await qb.getManyAndCount();
 
+    // Nhãn lớp từ view, MỘT truy vấn cho cả trang — không join thêm vào truy vấn phân trang ở trên (join một-nhiều
+    // giữa các quan hệ làm `skip/take` của TypeORM phải bọc truy vấn con).
+    const labels = await this.classLabels.labelsFor([...new Set(rows.map((row) => row.classId))]);
+
     const items = rows.map((session) => {
       const item = new ExamSessionListItemDto();
       item.id = session.id;
       item.name = session.name;
       item.code = session.code;
       item.courseName = session.courseName;
-      item.className = session.class.name ?? '';
+      item.classLabel = labels.get(session.classId) ?? '';
+      item.semesterId = session.class.semesterId;
+      item.academicYear = session.class.semester?.academicYearStart ?? null;
+      item.term = session.class.semester?.term ?? null;
       item.roomName = session.roomName;
       item.semesterName = session.semesterName;
       item.examType = session.examType;
@@ -483,29 +503,7 @@ export class ExamSessionService {
       return item;
     });
 
-    // Danh sách kỳ để dựng dropdown — tính TỪ TOÀN BỘ phiên của giảng
-    // viên, cố ý không chịu ảnh hưởng của các bộ lọc đang bật.
-    //
-    // Trước đây giao diện tự gom danh sách này từ những trang nó đã tải,
-    // nên một kỳ chỉ xuất hiện ở trang 3 thì không chọn được cho tới khi
-    // người dùng lật tới trang 3 — mà chính bộ lọc lại chạy trên toàn bộ
-    // dữ liệu. Dropdown hẹp hơn thứ nó điều khiển là một lời nói dối.
-    const semesterRows: Array<{ semesterName: string }> = await this.sessions
-      .createQueryBuilder('s')
-      .select('s.semesterName', 'semesterName')
-      .distinct(true)
-      .where('s.teacherId = :teacherId', { teacherId })
-      .getRawMany();
-
-    // Giảm dần: với cách đặt tên thông thường ("HK1 2026-2027") thì sắp
-    // chuỗi giảm dần cũng là sắp theo thời gian. Không phải lúc nào cũng
-    // đúng, và đó là cái giá của việc bỏ cột ngày cùng bảng `semester`.
-    const semesterNames = semesterRows
-      .map((row) => row.semesterName)
-      .filter((name): name is string => Boolean(name))
-      .sort((a, b) => b.localeCompare(a));
-
-    return { items, total, semesterNames };
+    return { items, total };
   }
 
   /**
@@ -764,6 +762,7 @@ export class ExamSessionService {
     deliverables: RequiredDeliverableEntity[],
     rubricVersion: number | null = null,
     entriesByDeliverable: Map<string, string[]> = new Map(),
+    classLabel: string | null = null,
   ): ExamSessionResponseDto {
     const dto = new ExamSessionResponseDto();
     dto.id = session.id;
@@ -771,6 +770,8 @@ export class ExamSessionService {
     dto.code = session.code;
     dto.teacherId = session.teacherId;
     dto.classId = session.classId;
+    dto.classLabel = classLabel;
+    dto.roomId = session.roomId;
     dto.courseName = session.courseName;
     dto.roomName = session.roomName;
     dto.examType = session.examType;

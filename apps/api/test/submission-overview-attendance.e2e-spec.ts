@@ -6,6 +6,8 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
+import { DEFAULT_TEST_YEAR, ensureTestSemester } from './helpers/master-data';
+import { semesterLabel } from '../src/common/semester-label';
 
 /**
  * Trục mức độ mới: tách "chưa nộp" thành "đã vào phòng mà mất bài" (đỏ) và
@@ -60,7 +62,6 @@ describe('Submission overview — attendance tiers (e2e)', () => {
           name,
           classId,
           roomName,
-          semesterName: `Attend Semester ${stamp}`,
           ...nextWindow(),
           requiredFilenames: filenames,
         }),
@@ -217,10 +218,13 @@ describe('Submission overview — attendance tiers (e2e)', () => {
     const s = await createSession(`Meta ${stamp}`, ['Cau1.docx']);
 
     let item = await overview(s.id);
-    // Chỉ còn TÊN. `semesterId` biến mất cùng bảng `semester`; bộ lọc
-    // phạm vi chạy trên chính chuỗi này từ đợt thu hẹp master data.
-    expect(item.semesterName).toBe(`Attend Semester ${stamp}`);
-    expect(item.semesterId).toBeUndefined();
+    // `semesterName` là bản chụp lúc tạo phiên (nhãn học kỳ của lớp); bộ lọc dùng học kỳ HIỆN TẠI của lớp (khoá).
+    expect(item.semesterName).toBe(semesterLabel(DEFAULT_TEST_YEAR, 1));
+    expect(item).toMatchObject({
+      semesterId: await ensureTestSemester(dataSource, 1),
+      academicYear: DEFAULT_TEST_YEAR,
+      term: 1,
+    });
     expect(item.archivedAt).toBeNull();
     expect(item.attentionClosedAt).toBeNull();
     expect(item.notSubmittedCount).toBeUndefined();

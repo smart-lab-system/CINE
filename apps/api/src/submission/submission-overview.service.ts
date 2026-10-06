@@ -9,7 +9,10 @@ interface OverviewRawRow {
   code: string;
   course_name: string;
   class_id: string;
-  class_name: string | null;
+  class_label: string | null;
+  semester_id: string | null;
+  academic_year: number | null;
+  term: number | null;
   room_name: string;
   exam_type: string;
   start_time: Date;
@@ -232,7 +235,8 @@ export class SubmissionOverviewService {
              s.course_name,
              s.room_name,
              s.semester_name,
-             s.class_id,  cl.name AS class_name,
+             s.class_id,  lbl.label AS class_label,
+             k.semester_id, sem.academic_year_start AS academic_year, sem.term,
              s.exam_type, s.start_time, s.end_time, s.status,
              s.archived_at, s.attention_closed_at,
              s.rubric_id, rb.version AS rubric_version,
@@ -244,7 +248,9 @@ export class SubmissionOverviewService {
              ps.archive_issue_count,
              m.matched_students
       FROM ${schema}.exam_session s
-      JOIN      ${schema}.class  cl ON cl.id = s.class_id
+      JOIN      ${schema}.class  k   ON k.id = s.class_id
+      JOIN      ${schema}.class_label lbl ON lbl.class_id = k.id
+      LEFT JOIN ${schema}.semester sem ON sem.id = k.semester_id
       -- LEFT, không phải JOIN: phiên chưa gắn rubric PHẢI còn trong kết quả.
       -- Đổi thành JOIN thường là âm thầm giấu mất bài thi thật (§5.3).
       LEFT JOIN ${schema}.rubric rb ON rb.id = s.rubric_id
@@ -266,7 +272,10 @@ export class SubmissionOverviewService {
       code: row.code,
       courseName: row.course_name,
       classId: row.class_id,
-      className: row.class_name,
+      classLabel: row.class_label,
+      semesterId: row.semester_id,
+      academicYear: row.academic_year,
+      term: row.term,
       roomName: row.room_name,
       examType: row.exam_type as SessionOverviewItem['examType'],
       startTime: new Date(row.start_time).toISOString(),

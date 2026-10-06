@@ -65,23 +65,21 @@ export class SearchExamSessionsDto {
   examType?: ExamType;
 
   /**
-   * Học kỳ mà phiên tự khai (`exam_session.semester_name`).
-   *
-   * Từng là `semesterId`, một khoá ngoại tới bảng `semester`. Bảng đó
-   * biến mất ở đợt thu hẹp master data, nên bộ lọc so KHỚP CHUỖI CHÍNH
-   * XÁC trên bản chụp lúc tạo phiên. Hệ quả cho người dùng: "HK1 2026-2027"
-   * và "HK1 26-27" là hai mục lọc khác nhau — giao diện lấy danh sách từ
-   * chính các giá trị đã có, nên không ai phải gõ lại chuỗi đó.
-   *
-   * `@IsOptional` là phần quan trọng: vắng nó nghĩa là "tất cả học kỳ",
-   * không phải lỗi. Học kỳ ở đây là tham số lọc, không phải điều kiện để
-   * thao tác được — CLAUDE.md §1.2: hệ thống không bao giờ từ chối một
-   * thao tác vì lý do liên quan tới học kỳ.
+   * Học kỳ HIỆN TẠI của lớp (`class.semester_id`), lọc bằng KHOÁ — không bằng bản chụp `semester_name`. Từng lọc theo chuỗi
+   * nên "HK1 2026-2027" và "Học kỳ 1 2026-2027" là hai mục lọc (spec §0). Vắng mặt là "tất cả học kỳ", không phải lỗi:
+   * học kỳ ở đây là tham số lọc, không phải điều kiện để thao tác được (CLAUDE.md §1.2).
    */
   @IsOptional()
-  @IsString()
-  @Length(1, 150)
-  semesterName?: string;
+  @IsUUID()
+  semesterId?: string;
+
+  /** Năm học (2026 nghĩa là 2026-2027): cả ba kỳ của năm đó. AND với `semesterId` nếu cả hai có mặt. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2999)
+  academicYear?: number;
 
   /**
    * Lớp của phiên (`exam_session.class_id`).

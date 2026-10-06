@@ -346,7 +346,7 @@ describe('Roster import (e2e)', () => {
   });
 
   it('lớp chưa có học kỳ (dữ liệu cũ chưa backfill) chỉ so với chính nó, không chặn nhầm', async () => {
-    const legacy = await seedClass(dataSource, { teacherId: lecturerId }); // semester_id NULL
+    const legacy = await seedClass(dataSource, { teacherId: lecturerId, semesterId: null }); // semester_id NULL
     const shared = mssv('s3');
     await importRoster(siblingClassId, teacherToken, { students: [{ mssv: shared, name: 'Ở lớp có kỳ' }] });
     const response = await importRoster(legacy.id, teacherToken, { students: [{ mssv: shared, name: 'Ở lớp có kỳ' }] });

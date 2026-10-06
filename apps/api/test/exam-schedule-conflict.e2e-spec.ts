@@ -1,11 +1,12 @@
 import { Test } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConflictException, INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
-import { seedClass, seedExamSession } from './helpers/seed';
+import { ensureRoom, seedClass, seedExamSession } from './helpers/seed';
+import { ScheduleConflictService } from '../src/exam-session/schedule-conflict.service';
 
 /**
  * Two exams cannot share a room, and one class cannot sit two exams at
@@ -28,7 +29,9 @@ describe('ExamSession schedule conflicts (e2e)', () => {
   let classId: string;
   let otherClassId: string;
   let roomName: string;
+  let roomId: string;
   let otherRoomName: string;
+  let otherRoomId: string;
   // Giảng viên THỨ HAI. Cần từ khi có `ex_exam_session_teacher_gap`: trước đó
   // mọi ca trùng giờ đều diễn đạt được bằng một người, vì không có luật nào
   // nhìn tới `teacher_id`. Giờ thì "hai phiên trùng giờ được phép" chỉ còn
@@ -64,7 +67,6 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({
         examType: 'TK',
-        semesterName: 'HK kiểm thử',
         requiredFilenames: ['Cau1.docx'],
         ...body,
       });
@@ -99,9 +101,12 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const course = { name: 'Schedule Conflict Course' };
     courseName = course.name;
 
-    roomName = `Phòng trùng lịch ${Date.now()}`;
-    const otherRoom = { name: `Phòng khác ${Date.now()}` };
+    const room = await ensureRoom(dataSource, `Phòng trùng lịch ${Date.now()}`);
+    roomName = room.name;
+    roomId = room.id;
+    const otherRoom = await ensureRoom(dataSource, `Phòng khác ${Date.now()}`);
     otherRoomName = otherRoom.name;
+    otherRoomId = otherRoom.id;
 
     // Two classes, both taught by the owner: the room rule and the class
     // rule have to be separable, and that needs a second class the same
@@ -182,7 +187,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Ca sáng',
       classId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -190,7 +195,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Ca chồng lấn',
       classId: otherClassId,
-      roomName,
+      roomId,
       ...windowAt(day, 9, 11),
     });
 
@@ -215,7 +220,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Ca liền trước',
       classId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -223,7 +228,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Ca liền sau',
       classId: otherClassId,
-      roomName,
+      roomId,
       ...windowAt(day, 10, 12),
     });
 
@@ -240,7 +245,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Ca sáng',
       classId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -252,7 +257,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Ca kế tiếp',
       classId: otherClassId,
-      roomName,
+      roomId,
       startTime: new Date(Date.UTC(
         day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 10, 30,
       )).toISOString(),
@@ -270,7 +275,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Thi môn sáng',
       classId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -278,7 +283,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Thi chồng giờ',
       classId,
-      roomName: otherRoomName,
+      roomId: otherRoomId,
       ...windowAt(day, 9, 11),
     });
 
@@ -301,7 +306,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Phòng 1',
       classId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -309,7 +314,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Phòng 2',
       classId: otherClassId,
-      roomName: otherRoomName,
+      roomId: otherRoomId,
       ...windowAt(day, 8, 10),
     });
 
@@ -323,7 +328,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Của tôi',
       classId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -335,7 +340,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       {
         name: 'Của đồng nghiệp',
         classId: peerClassId,
-        roomName: otherRoomName,
+        roomId: otherRoomId,
         ...windowAt(day, 8, 10),
       },
       peerToken,
@@ -350,7 +355,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Kết thúc sớm',
       classId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 12),
     });
     expect(first.status).toBe(201);
@@ -365,7 +370,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Dùng lại phòng',
       classId: otherClassId,
-      roomName,
+      roomId,
       ...windowAt(day, 9, 11),
     });
 
@@ -378,7 +383,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Sẽ bị huỷ',
       classId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -394,7 +399,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const second = await createSession({
       name: 'Thế chỗ',
       classId: otherClassId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 10),
     });
 
@@ -407,7 +412,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const first = await createSession({
       name: 'Giữ phòng',
       classId,
-      roomName,
+      roomId,
       ...windowAt(day, 8, 10),
     });
     expect(first.status).toBe(201);
@@ -428,6 +433,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
         startTime: new Date(startTime),
         endTime: new Date(endTime),
         courseName,
+        roomId,
         roomName,
       }),
     ).rejects.toMatchObject({ code: '23P01' });
@@ -438,8 +444,8 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const window = windowAt(day, 8, 10);
 
     const [a, b] = await Promise.all([
-      createSession({ name: 'Đua A', classId, roomName, ...window }),
-      createSession({ name: 'Đua B', classId: otherClassId, roomName, ...window }),
+      createSession({ name: 'Đua A', classId, roomId, ...window }),
+      createSession({ name: 'Đua B', classId: otherClassId, roomId, ...window }),
     ]);
 
     const statuses = [a.status, b.status].sort();
@@ -456,7 +462,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const response = await createSession({
       name: 'Khai muộn 10 phút',
       classId,
-      roomName: otherRoomName,
+      roomId: otherRoomId,
       startTime,
       endTime,
     });
@@ -471,7 +477,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const response = await createSession({
       name: 'Khai muộn 45 phút',
       classId,
-      roomName: otherRoomName,
+      roomId: otherRoomId,
       startTime,
       endTime,
     });
@@ -492,7 +498,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     // được lý do từ một stack trace.
     const response = await createSession({
       name: `Khong gan lop ${Date.now()}`,
-      roomName,
+      roomId,
       ...windowAt(freshDay(), 8, 10),
     });
 
@@ -500,5 +506,73 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     // Nói rõ thiếu trường nào. Một 400 chung chung vẫn chặn được dòng xấu
     // nhưng để giảng viên tự đoán mình gõ sai ở đâu.
     expect(JSON.stringify(response.body)).toContain('classId');
+  });
+
+  it('assertNone loại trừ ĐÚNG phiên được chỉ định: một phiên không va chạm với chính nó (dùng cho sửa phiên)', async () => {
+    const day = freshDay();
+    const first = await createSession({ name: 'Ca cần sửa', classId, roomId, ...windowAt(day, 8, 10) });
+    expect(first.status).toBe(201);
+    const service = app.get(ScheduleConflictService);
+    const same = {
+      roomId,
+      classId,
+      teacherId: ownerId,
+      startTime: new Date(first.body.startTime),
+      endTime: new Date(first.body.endTime),
+    };
+
+    // Không loại trừ: phiên này tự va chạm với chính nó (ba kiểm tra đều thấy nó).
+    await expect(service.assertNone(same)).rejects.toThrow(ConflictException);
+    // Loại trừ chính nó: êm.
+    await expect(service.assertNone({ ...same, excludeSessionId: first.body.id })).resolves.toBeUndefined();
+  });
+
+  it('excludeSessionId chỉ loại phiên đó: phiên KHÁC cùng phòng vẫn bị phát hiện (Review Focus 5)', async () => {
+    const day = freshDay();
+    const mine = await createSession({ name: 'Của tôi', classId, roomId, ...windowAt(day, 8, 10) });
+    expect(mine.status).toBe(201);
+    // Phiên của đồng nghiệp ở CÙNG phòng, kế sau (không chồng): hợp lệ.
+    const theirs = await createSession(
+      { name: 'Của đồng nghiệp', classId: peerClassId, roomId, ...windowAt(day, 10, 12) },
+      peerToken,
+    );
+    expect(theirs.status).toBe(201);
+
+    const service = app.get(ScheduleConflictService);
+    // Dời phiên của tôi sang 9–11 trong cùng phòng: chồng với phiên đồng nghiệp (10–12), và loại trừ chính mình
+    // không được che mất phiên kia.
+    await expect(
+      service.assertNone({
+        roomId,
+        classId,
+        teacherId: ownerId,
+        startTime: new Date(windowAt(day, 9, 11).startTime),
+        endTime: new Date(windowAt(day, 9, 11).endTime),
+        excludeSessionId: mine.body.id,
+      }),
+    ).rejects.toThrow(/Của đồng nghiệp/);
+  });
+
+  it('thấy cả phiên KIỂU CŨ (room_id NULL) cùng tên phòng trong giai đoạn chuyển tiếp (review cụm 1, M2)', async () => {
+    const day = freshDay();
+    const { startTime, endTime } = windowAt(day, 8, 10);
+    // Phiên do code cũ tạo: chỉ có bản chụp tên phòng, room_id NULL. `ex_exam_session_room_overlap` (theo id) và
+    // `..._legacy` (theo tên, chỉ dòng NULL) KHÔNG so nó với một phiên mới chọn phòng đó — chỉ pre-check mới thấy.
+    await seedExamSession(dataSource, {
+      teacherId: ownerId,
+      classId: otherClassId,
+      name: 'Phiên kiểu cũ',
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
+      courseName,
+      roomName,
+      withoutRoom: true,
+    });
+
+    const clash = await createSession({ name: 'Phiên mới cùng phòng', classId, roomId, ...windowAt(day, 9, 11) });
+
+    expect(clash.status).toBe(409);
+    expect(clash.body.message).toContain(roomName);
+    expect(clash.body.message).toContain('Phiên kiểu cũ');
   });
 });

@@ -11,6 +11,10 @@ import { NGAN_XEP_V1 } from './scenarios/ngan-xep-v1';
  * Diễn tập chấm điểm THẬT trên một bản deploy (model + sandbox thật): dựng phiên, cho từng sinh
  * viên nộp qua socket như agent thật, bấm chấm, chờ, rồi chấm lượt đó theo kỳ vọng của kịch bản
  * và ghi vào `eval/rehearsals/<lượt>/`. `--collect <sessionId>` ghi bù một phiên đã chấm trước đó.
+ *
+ * Lớp (`REHEARSAL_CLASS_ID`) phải do ADMIN tạo và giao cho tài khoản diễn tập, và phải thuộc một học kỳ: phiên lấy nhãn
+ * học kỳ từ lớp đó (không còn chuỗi "TEST dien tap" làm học kỳ). Tên phiên vẫn bắt đầu bằng `TEST dien tap` để
+ * `isRehearsalSession` nhận ra. Phòng: xem `rehearsalRoomId`.
  */
 const SCENARIOS: Record<string, RehearsalScenario> = { [NGAN_XEP_V1.id]: NGAN_XEP_V1 };
 const ROOT = join(__dirname, '..', '..', '..', 'eval', 'rehearsals');
@@ -139,12 +143,28 @@ async function submit(sessionId: string, code: string, deliverableId: string, su
   }
 }
 
+/** Phòng riêng cho diễn tập: admin tạo và chỉ BẬT khi diễn tập — không dùng lại một phòng đã ngừng (spec §11). */
+const REHEARSAL_ROOM_NAME = 'Phòng diễn tập';
+
+async function rehearsalRoomId(): Promise<string> {
+  if (process.env.REHEARSAL_ROOM_ID) return process.env.REHEARSAL_ROOM_ID;
+  const rooms = itemsOf<{ id: string; name: string }>(await api('GET', '/rooms?active=true'));
+  const room = rooms.find((r) => r.name === REHEARSAL_ROOM_NAME);
+  if (!room) {
+    throw new Error(
+      `Chưa có phòng "${REHEARSAL_ROOM_NAME}" đang hoạt động. Nhờ quản trị viên tạo nó ở trang Phòng thi và bật hoạt động ` +
+        'trước lượt diễn tập (tắt lại sau đó), hoặc đặt REHEARSAL_ROOM_ID.',
+    );
+  }
+  return room.id;
+}
+
 async function runSession(s: RehearsalScenario, subs: RehearsalScenario['submissions'], classId: string, timeoutMin: number) {
   const rubricId = await ensureRubricAndRules(s);
   const now = Date.now();
   const session = await api<{ id: string; code: string; requiredDeliverables: { id: string }[] }>('POST', '/exam-sessions', {
     name: `TEST dien tap ${s.id} - xoa sau ${now}`,
-    classId, roomName: 'TEST-KHONG-PHONG', semesterName: 'TEST dien tap', examType: 'TK',
+    classId, roomId: await rehearsalRoomId(), examType: 'TK',
     startTime: new Date(now - 60_000).toISOString(), endTime: new Date(now + 3_600_000).toISOString(),
     rubricId, requiredFilenames: [{ filename: '{MSSV}_bai.cpp', deliverableType: 'code_project', language: 'cpp' }],
   });

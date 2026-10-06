@@ -140,6 +140,21 @@ export class RoomService {
     });
   }
 
+  /**
+   * Phòng cho một phiên MỚI: phải tồn tại và đang hoạt động. `is_active = false` nghĩa là không chọn được cho phiên
+   * mới; phiên cũ vẫn tham chiếu được, nên kiểm này chỉ ở đường TẠO (và đường ĐỔI phòng ở plan F), không ở khoá ngoại.
+   */
+  async requireActiveForNewSession(roomId: string): Promise<RoomEntity> {
+    const room = await this.dataSource.getRepository(RoomEntity).findOne({ where: { id: roomId } });
+    if (!room) {
+      throw new BadRequestException('Không tìm thấy phòng đã chọn.');
+    }
+    if (!room.isActive) {
+      throw new BadRequestException(`Phòng "${room.name}" đã ngừng hoạt động, hãy chọn phòng khác.`);
+    }
+    return room;
+  }
+
   /** Chuẩn hoá rồi kiểm — dùng chung cho nhập tay và (plan E) import. */
   prepareName(raw: string): string {
     const name = normalizeRoomName(raw);

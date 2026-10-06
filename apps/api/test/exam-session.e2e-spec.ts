@@ -4,8 +4,10 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
+import { semesterLabel } from '../src/common/semester-label';
 import { createTestAccount } from './helpers/create-account';
-import { seedClass, seedEnrollment } from './helpers/seed';
+import { ensureRoom, seedClass, seedEnrollment } from './helpers/seed';
+import { ensureTestSemester } from './helpers/master-data';
 
 // Pins Task 2's own stated acceptance criteria as real, automated tests —
 // they were only manually verified when Task 2 shipped (see
@@ -25,8 +27,8 @@ describe('ExamSession (e2e)', () => {
   let classId: string;
   let foreignClassId: string;
   let roomName: string;
-  const FIRST_SEMESTER = `HK Một ${Date.now().toString(36)}`;
-  const OTHER_SEMESTER = `HK Hai ${Date.now().toString(36)}`;
+  let roomId: string;
+  let FIRST_SEMESTER_TEXT: string;
   let otherSemesterClassId: string;
 
   /**
@@ -111,11 +113,20 @@ describe('ExamSession (e2e)', () => {
     // class the owner teaches, plus a room.
     const course = { name: 'Exam Session Test Course' };
     courseName = course.name;
-    roomName = `Exam Session Test Room ${Date.now()}`;
+    const room = await ensureRoom(dataSource, `Exam Session Test Room ${Date.now()}`);
+    roomName = room.name;
+    roomId = room.id;
+    const firstSemesterId = await ensureTestSemester(dataSource, 1);
+    const [firstSemester] = await dataSource.query(
+      `SELECT academic_year_start AS year, term FROM examcollect.semester WHERE id = $1`,
+      [firstSemesterId],
+    );
+    FIRST_SEMESTER_TEXT = semesterLabel(firstSemester.year, firstSemester.term);
 
     const klass = await seedClass(dataSource, {
       teacherId: ownerId,
       courseName,
+      semesterId: firstSemesterId,
       groupName: `Nhóm của tôi ${Date.now()}`,
     });
     classId = klass.id;
@@ -125,6 +136,7 @@ describe('ExamSession (e2e)', () => {
     const foreign = await seedClass(dataSource, {
       teacherId: otherId,
       courseName,
+      semesterId: firstSemesterId,
       groupName: `Nhóm của người khác ${Date.now()}`,
     });
     foreignClassId = foreign.id;
@@ -136,6 +148,7 @@ describe('ExamSession (e2e)', () => {
     const otherKlass = await seedClass(dataSource, {
       teacherId: ownerId,
       courseName: otherCourse.name,
+      semesterId: await ensureTestSemester(dataSource, 2),
       groupName: `Nhóm kỳ sau ${Date.now()}`,
     });
     otherSemesterClassId = otherKlass.id;
@@ -154,8 +167,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Happy Path Session',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -166,6 +178,10 @@ describe('ExamSession (e2e)', () => {
     expect(response.body.id).toBeDefined();
     expect(response.body.code).toMatch(/^[A-Z0-9]{6}$/);
     expect(response.body.requiredDeliverables).toHaveLength(2);
+    // Phòng chọn từ danh sách, học kỳ suy ra từ lớp: bản chụp do SERVER điền (spec §2.4).
+    expect(response.body.roomId).toBe(roomId);
+    expect(response.body.roomName).toBe(roomName);
+    expect(response.body.semesterName).toBe(FIRST_SEMESTER_TEXT);
 
     // A second session's code must never collide with the first — cheap
     // extra assurance the generator/retry loop actually produces distinct
@@ -178,8 +194,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Happy Path Session 2',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         ...futureWindow(),
         requiredFilenames: ['Cau1.docx'],
@@ -201,8 +216,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Archive Entries Session',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -245,8 +259,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Bài thực hành CTDL',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'GK',
         startTime,
         endTime,
@@ -270,8 +283,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Bài tự luận',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'GK',
         startTime,
         endTime,
@@ -295,8 +307,7 @@ describe('ExamSession (e2e)', () => {
         // a session name a course its class does not belong to, and every
         // enrollment check afterwards would be asking about the wrong one.
         courseName: '00000000-0000-4000-8000-000000000000',
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -317,8 +328,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Foreign Class Session',
         classId: foreignClassId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -340,8 +350,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Missing Class Session',
         classId: '00000000-0000-4000-8000-000000000000',
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -383,8 +392,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Unsafe Filename Session',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -414,8 +422,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Too Short Session',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -441,8 +448,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Exactly Fifteen Minutes Session',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -461,8 +467,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Duplicate Filename Session',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -499,8 +504,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: 'Ownership Check Session',
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -537,8 +541,7 @@ describe('ExamSession (e2e)', () => {
       .send({
         name: sessionName,
         classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
+        roomId,
         examType: 'TK',
         startTime,
         endTime,
@@ -579,8 +582,7 @@ describe('ExamSession (e2e)', () => {
         .send({
           name: `Filter${stamp} ${nameSuffix}`,
           classId,
-          roomName,
-          semesterName: FIRST_SEMESTER,
+          roomId,
           examType,
           startTime,
           endTime,
@@ -603,8 +605,7 @@ describe('ExamSession (e2e)', () => {
         .send({
           name: `Không liên quan gì cả ${stamp}`,
           classId,
-          roomName,
-          semesterName: 'HK kiểm thử',
+          roomId,
           examType: 'TK',
           ...futureWindow(),
           requiredFilenames: ['Cau1.docx'],
@@ -716,28 +717,24 @@ describe('ExamSession (e2e)', () => {
   });
 
   /**
-   * Học kỳ — bộ lọc thứ tư, thêm 2026-09-15.
-   *
-   * Ba bộ lọc trên chỉ đọc cột của chính `exam_session`. Cái này đi qua
-   * `course.semester_id`, tức qua một JOIN — nên nó là cái duy nhất trong
-   * nhóm có thể bị viết nhầm thành `orWhere` và mở phiên của giảng viên
-   * khác ra. Test thứ hai ghim đúng chuyện đó, theo cùng khuôn mà bộ lọc
-   * kỳ của "Lớp của tôi" đã ghim khi nó ra mắt.
-   *
-   * Lọc theo `course.semester_id`, KHÔNG phải `exam_session.semester_name`
-   * (bản chụp lúc tạo): dropdown trên UI mang id của bảng `semester`, và
-   * `/submissions/overview` lọc trên CÙNG cột `exam_session.semester_name` —
-   * hai trang phải trả lời giống nhau câu "phiên này thuộc kỳ nào".
+   * Bộ lọc theo HỌC KỲ — bằng KHOÁ (spec §7.2). Lọc theo học kỳ HIỆN TẠI của lớp (`class.semester_id`), không theo bản chụp
+   * `semester_name`: "HK1 2026-2027" và "Học kỳ 1 2026-2027" từng là hai mục lọc, và danh sách lựa chọn dựng từ chuỗi gõ tay.
    */
   describe('GET /exam-sessions — semester filter', () => {
     const stamp = Date.now().toString(36);
+    let firstSemesterId: string;
+    let otherSemesterId: string;
+
+    beforeAll(async () => {
+      firstSemesterId = await ensureTestSemester(dataSource, 1);
+      otherSemesterId = await ensureTestSemester(dataSource, 2);
+    });
 
     async function createIn(
       classIdForSession: string,
       nameSuffix: string,
       token: string,
       examType: 'TK' | 'GK' | 'CK' = 'TK',
-      semesterName: string = FIRST_SEMESTER,
     ): Promise<string> {
       const { startTime, endTime } = futureWindow();
       const response = await request(app.getHttpServer())
@@ -746,8 +743,7 @@ describe('ExamSession (e2e)', () => {
         .send({
           name: `Sem${stamp} ${nameSuffix}`,
           classId: classIdForSession,
-          roomName,
-          semesterName,
+          roomId,
           examType,
           startTime,
           endTime,
@@ -759,26 +755,42 @@ describe('ExamSession (e2e)', () => {
 
     it('narrows to one semester — the same teacher own sessions in the other semester drop out', async () => {
       const inFirst = await createIn(classId, 'Kỳ một', ownerToken);
-      const inSecond = await createIn(
-        otherSemesterClassId,
-        'Kỳ hai',
-        ownerToken,
-        'TK',
-        OTHER_SEMESTER,
-      );
+      const inSecond = await createIn(otherSemesterClassId, 'Kỳ hai', ownerToken);
 
       const response = await request(app.getHttpServer())
         .get('/exam-sessions')
-        .query({ search: `Sem${stamp} Kỳ`, semesterName: OTHER_SEMESTER })
+        .query({ search: `Sem${stamp} Kỳ`, semesterId: otherSemesterId })
         .set('Authorization', `Bearer ${ownerToken}`);
 
       expect(response.status).toBe(200);
       const ids = response.body.items.map((item: { id: string }) => item.id);
       expect(ids).toContain(inSecond);
       expect(ids).not.toContain(inFirst);
-      // Cả hai phiên đều khớp `search`, nên total = 1 chứng minh chính bộ
-      // lọc kỳ đã cắt — không phải search làm hộ nó.
+      // Cả hai phiên đều khớp `search`, nên total = 1 chứng minh chính bộ lọc kỳ đã cắt — không phải search làm hộ nó.
       expect(response.body.total).toBe(1);
+    });
+
+    it('lọc theo NĂM HỌC lấy cả ba kỳ của năm đó, và dòng mang semesterId/academicYear/term/classLabel', async () => {
+      const inFirst = await createIn(classId, 'Năm học một', ownerToken);
+      const inSecond = await createIn(otherSemesterClassId, 'Năm học hai', ownerToken);
+      const [{ academic_year_start: year }] = await dataSource.query(
+        `SELECT academic_year_start FROM examcollect.semester WHERE id = $1`,
+        [firstSemesterId],
+      );
+
+      const response = await request(app.getHttpServer())
+        .get('/exam-sessions')
+        .query({ search: `Sem${stamp} Năm học`, academicYear: year })
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      const ids = response.body.items.map((item: { id: string }) => item.id);
+      expect(ids).toEqual(expect.arrayContaining([inFirst, inSecond]));
+      const row = response.body.items.find((item: { id: string }) => item.id === inFirst);
+      expect(row).toMatchObject({ semesterId: firstSemesterId, academicYear: year, term: 1 });
+      expect(typeof row.classLabel).toBe('string');
+      expect(row).not.toHaveProperty('className');
+      expect(response.body).not.toHaveProperty('semesterNames');
     });
 
     it('ANDs onto the owner scope — another teacher session in the SAME semester stays invisible', async () => {
@@ -787,26 +799,22 @@ describe('ExamSession (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .get('/exam-sessions')
-        .query({ search: `Sem${stamp} Của`, semesterName: FIRST_SEMESTER })
+        .query({ search: `Sem${stamp} Của`, semesterId: firstSemesterId })
         .set('Authorization', `Bearer ${ownerToken}`);
 
       expect(response.status).toBe(200);
       const ids = response.body.items.map((item: { id: string }) => item.id);
       expect(ids).toContain(mine);
-      // `theirs` nằm ĐÚNG học kỳ đang lọc và vẫn phải vắng mặt: một
-      // `orWhere` đặt nhầm ở đây biến một tiện ích thành lỗ hổng phân
-      // quyền, và kết quả vẫn trông "có dữ liệu" nên không ai nghi ngờ.
+      // `theirs` nằm ĐÚNG học kỳ đang lọc và vẫn phải vắng mặt: một `orWhere` đặt nhầm ở đây biến một tiện ích thành lỗ
+      // hổng phân quyền, và kết quả vẫn trông "có dữ liệu" nên không ai nghi ngờ (Review Focus 6).
       expect(ids).not.toContain(theirs);
       expect(response.body.total).toBe(1);
     });
 
     it('một học kỳ không khớp phiên nào trả về danh sách rỗng, không phải 404', async () => {
-      // Kỳ "không tồn tại" là một câu trả lời hợp lệ (0 phiên), không phải
-      // một sự cố. Ghim lại để một lần refactor sau không biến nó thành
-      // 404 và làm trang danh sách nổ thay vì hiện bảng rỗng.
       const response = await request(app.getHttpServer())
         .get('/exam-sessions')
-        .query({ semesterName: 'HK không tồn tại' })
+        .query({ semesterId: '00000000-0000-4000-8000-0000000000ff' })
         .set('Authorization', `Bearer ${ownerToken}`);
 
       expect(response.status).toBe(200);
@@ -814,40 +822,25 @@ describe('ExamSession (e2e)', () => {
       expect(response.body.total).toBe(0);
     });
 
+    it('semesterId không phải uuid và academicYear ngoài 2000–2999 bị từ chối 400, không bị lặng lẽ bỏ qua', async () => {
+      await request(app.getHttpServer()).get('/exam-sessions').query({ semesterId: 'khong-phai-uuid' }).set('Authorization', `Bearer ${ownerToken}`).expect(400);
+      await request(app.getHttpServer()).get('/exam-sessions').query({ academicYear: 1999 }).set('Authorization', `Bearer ${ownerToken}`).expect(400);
+    });
+
     it('chains onto the other three filters instead of widening them', async () => {
-      // Mỗi phiên "sai" dưới đây lệch khỏi phiên đúng ĐÚNG MỘT chiều. Nếu
-      // một `andWhere` nào đó bị viết nhầm thành `orWhere`, chính phiên
-      // lệch theo chiều đó sẽ lọt vào kết quả — và chỉ luôn ra chiều hỏng.
-      const wanted = await createIn(
-        otherSemesterClassId,
-        'Gộp đúng',
-        ownerToken,
-        'CK',
-        OTHER_SEMESTER,
-      );
-      const wrongType = await createIn(
-        otherSemesterClassId,
-        'Gộp sai loại',
-        ownerToken,
-        'GK',
-        OTHER_SEMESTER,
-      );
+      // Mỗi phiên "sai" lệch khỏi phiên đúng ĐÚNG MỘT chiều; một `andWhere` viết nhầm thành `orWhere` sẽ để chính phiên lệch
+      // theo chiều đó lọt vào kết quả.
+      const wanted = await createIn(otherSemesterClassId, 'Gộp đúng', ownerToken, 'CK');
+      const wrongType = await createIn(otherSemesterClassId, 'Gộp sai loại', ownerToken, 'GK');
       const wrongSemester = await createIn(classId, 'Gộp sai kỳ', ownerToken, 'CK');
 
       const response = await request(app.getHttpServer())
         .get('/exam-sessions')
-        .query({
-          search: `Sem${stamp} Gộp`,
-          examType: 'CK',
-          status: 'active',
-          semesterName: OTHER_SEMESTER,
-        })
+        .query({ search: `Sem${stamp} Gộp`, examType: 'CK', status: 'active', semesterId: otherSemesterId })
         .set('Authorization', `Bearer ${ownerToken}`);
 
       expect(response.status).toBe(200);
       const ids = response.body.items.map((item: { id: string }) => item.id);
-      // toEqual, không phải toContain: bốn bộ lọc AND với nhau thì kết quả
-      // là đúng MỘT phiên, và đó mới là điều cần chứng minh.
       expect(ids).toEqual([wanted]);
       expect(ids).not.toContain(wrongType);
       expect(ids).not.toContain(wrongSemester);
@@ -870,28 +863,13 @@ describe('ExamSession (e2e)', () => {
   });
 
   /**
-   * Bộ lọc theo LỚP, thêm 2026-09-21.
-   *
-   * Khác ba bộ lọc trên ở một điểm quyết định: lớp là KHOÁ NGOẠI, không
-   * phải chuỗi giảng viên gõ. Sau khi môn học trở thành hằng số, đây là
-   * trục học vụ có cấu trúc duy nhất còn lại — nên nó phải chịu đúng hai
-   * phép thử mà bộ lọc kỳ đã chịu: nó có thật sự cắt không, và nó có AND
-   * vào phạm vi chủ sở hữu thay vì nới nó ra không.
+   * Bộ lọc theo LỚP: khác ba bộ lọc trên ở một điểm quyết định — lớp là KHOÁ NGOẠI, không phải chuỗi giảng viên gõ — nên nó
+   * phải chịu đúng hai phép thử mà bộ lọc kỳ chịu: nó có thật sự cắt không, và nó có AND vào phạm vi chủ sở hữu không.
    */
   describe('GET /exam-sessions — class filter', () => {
     const stamp = Date.now().toString(36);
 
-    // Một kỳ CHỈ giảng viên kia dùng. Không có nó thì phép thử cách ly ở
-    // ca cuối là vô nghĩa: hai người cùng một tên kỳ thì assert vẫn xanh
-    // dù truy vấn có rò hay không.
-    const FOREIGN_SEMESTER = `HK Người khác ${stamp}`;
-
-    async function createForClass(
-      classIdForSession: string,
-      nameSuffix: string,
-      token: string,
-      semesterName: string = FIRST_SEMESTER,
-    ): Promise<string> {
+    async function createForClass(classIdForSession: string, nameSuffix: string, token: string): Promise<string> {
       const { startTime, endTime } = futureWindow();
       const response = await request(app.getHttpServer())
         .post('/exam-sessions')
@@ -899,8 +877,7 @@ describe('ExamSession (e2e)', () => {
         .send({
           name: `Cls${stamp} ${nameSuffix}`,
           classId: classIdForSession,
-          roomName,
-          semesterName,
+          roomId,
           examType: 'TK',
           startTime,
           endTime,
@@ -923,8 +900,6 @@ describe('ExamSession (e2e)', () => {
       const ids = response.body.items.map((item: { id: string }) => item.id);
       expect(ids).toContain(inA);
       expect(ids).not.toContain(inB);
-      // Cả hai đều khớp `search`, nên total = 1 chứng minh chính bộ lọc lớp
-      // đã cắt — không phải search làm hộ nó.
       expect(response.body.total).toBe(1);
     });
 
@@ -936,10 +911,8 @@ describe('ExamSession (e2e)', () => {
         .query({ classId: foreignClassId })
         .set('Authorization', `Bearer ${ownerToken}`);
 
-      // Đây là ca quan trọng nhất của bộ này: `classId` đến thẳng từ URL,
-      // nên một `orWhere` đặt nhầm biến bộ lọc tiện lợi thành đường đọc
-      // trộm phiên của giảng viên khác — và kết quả vẫn trông "có dữ liệu"
-      // nên không ai nghi ngờ.
+      // Ca quan trọng nhất của bộ này: `classId` đến thẳng từ URL, nên một `orWhere` đặt nhầm biến bộ lọc tiện lợi thành
+      // đường đọc trộm phiên của giảng viên khác.
       expect(response.status).toBe(200);
       const ids = response.body.items.map((item: { id: string }) => item.id);
       expect(ids).not.toContain(theirs);
@@ -947,57 +920,11 @@ describe('ExamSession (e2e)', () => {
     });
 
     it('classId không phải uuid bị từ chối 400, không bị lặng lẽ bỏ qua', async () => {
-      // Cùng lý do với ca status không hợp lệ: lặng lẽ bỏ qua một bộ lọc
-      // hỏng sẽ trả về NHIỀU HƠN thứ người dùng xin, và họ tin đó là đã lọc.
       const response = await request(app.getHttpServer())
         .get('/exam-sessions')
         .query({ classId: 'khong-phai-uuid' })
         .set('Authorization', `Bearer ${ownerToken}`);
-
       expect(response.status).toBe(400);
-    });
-
-    it('semesterNames liệt kê MỌI kỳ của giảng viên, không chỉ kỳ có trên trang đang xem', async () => {
-      // Dropdown học kỳ đọc trường này. Trước đây giao diện tự gom danh
-      // sách từ các trang đã tải, nên một kỳ chỉ có ở trang sau thì không
-      // chọn được — trong khi phép lọc lại chạy trên toàn bộ dữ liệu.
-      // pageSize: 1 là cách chứng minh nó KHÔNG suy ra từ trang.
-      const response = await request(app.getHttpServer())
-        .get('/exam-sessions')
-        .query({ page: 1, pageSize: 1 })
-        .set('Authorization', `Bearer ${ownerToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.items).toHaveLength(1);
-      expect(response.body.semesterNames).toEqual(
-        expect.arrayContaining([FIRST_SEMESTER, OTHER_SEMESTER]),
-      );
-    });
-
-    it('semesterNames KHÔNG rò học kỳ của giảng viên khác', async () => {
-      // Kỳ này chỉ tồn tại trên phiên của người kia. Bản đầu của test trên
-      // khẳng định điều này trong chú thích nhưng không chứng minh được:
-      // cả hai giảng viên khi ấy dùng chung FIRST_SEMESTER, nên assert vẫn
-      // xanh kể cả khi truy vấn quên mất vế `teacherId`.
-      await createForClass(foreignClassId, 'Kỳ riêng', otherToken, FOREIGN_SEMESTER);
-
-      const response = await request(app.getHttpServer())
-        .get('/exam-sessions')
-        .query({ page: 1, pageSize: 1 })
-        .set('Authorization', `Bearer ${ownerToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.semesterNames).not.toContain(FOREIGN_SEMESTER);
-
-      // Và người kia thì PHẢI thấy kỳ của chính họ — nếu không, test trên
-      // sẽ xanh cả khi `semesterNames` luôn trả về mảng rỗng.
-      const theirs = await request(app.getHttpServer())
-        .get('/exam-sessions')
-        .query({ page: 1, pageSize: 1 })
-        .set('Authorization', `Bearer ${otherToken}`);
-
-      expect(theirs.status).toBe(200);
-      expect(theirs.body.semesterNames).toContain(FOREIGN_SEMESTER);
     });
   });
 
@@ -1014,8 +941,7 @@ describe('ExamSession (e2e)', () => {
         .send({
           name: `${name} ${Date.now()}`,
           classId,
-          roomName,
-          semesterName: 'HK kiểm thử',
+          roomId,
           examType: 'TK',
           startTime,
           endTime,
@@ -1121,8 +1047,7 @@ describe('ExamSession (e2e)', () => {
         .send({
           name: `Range${stamp} ${nameSuffix}`,
           classId,
-          roomName,
-          semesterName: FIRST_SEMESTER,
+          roomId,
           examType: 'TK',
           startTime: start.toISOString(),
           endTime: end.toISOString(),

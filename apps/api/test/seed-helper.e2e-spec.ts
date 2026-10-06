@@ -8,6 +8,7 @@ import { COURSE_NAME } from '../src/common/course-name';
 import { createTestAccount } from './helpers/create-account';
 import {
   classLabel,
+  ensureRoom,
   seedClass,
   seedEnrollment,
   seedExamSession,
@@ -55,11 +56,15 @@ describe('seed helper (e2e)', () => {
 
     expect(klass.label).toBe(`${klass.code} – Nhóm 2`);
     const [row] = await dataSource.query(
-      `SELECT course_name, name, teacher_id FROM examcollect.class WHERE id = $1`,
+      `SELECT course_name, name, teacher_id, semester_id, administrative_class_id, group_name FROM examcollect.class WHERE id = $1`,
       [klass.id],
     );
     expect(row.course_name).toBe(COURSE_NAME);
-    expect(row.name).toBe(klass.label);
+    expect(row.name).toBeNull(); // không còn ghi cột cũ
+    expect(row.semester_id).not.toBeNull();
+    expect(row.administrative_class_id).not.toBeNull();
+    expect(row.group_name).toBe('Nhóm 2');
+    expect(klass.label).toBe(`${klass.code} – Nhóm 2`);
     expect(row.teacher_id).toBe(teacherId);
   });
 
@@ -152,6 +157,7 @@ describe('seed helper (e2e)', () => {
 
     expect(response.status).toBe(201);
     expect(response.body.classId).toBe(klass.id);
+    expect(response.body.roomId).toBe(body.roomId);
     // Dọn để không giữ chỗ giảng viên này cho các ca sau.
     await dataSource.query(
       `UPDATE examcollect.exam_session SET status = 'completed' WHERE teacher_id = $1`,
@@ -168,21 +174,55 @@ describe('seed helper (e2e)', () => {
     ).rejects.toThrow(/startTime và endTime/);
   });
 
-  it('sessionBody giữ nguyên phòng, học kỳ và tên file mà test truyền vào', async () => {
+  it('sessionBody giữ nguyên phòng và tên file mà test truyền vào; gửi roomId, KHÔNG gửi roomName/semesterName', async () => {
     const body = await sessionBody(dataSource, {
       classId: 'c1',
       roomName: 'P Cố Định',
-      semesterName: 'HK Riêng',
       requiredFilenames: ['A.docx', { filename: 'B.zip', entries: ['x.txt'] }],
     });
+    const [room] = await dataSource.query(`SELECT id FROM examcollect.room WHERE name = $1`, ['P Cố Định']);
 
     expect(body).toMatchObject({
       classId: 'c1',
-      roomName: 'P Cố Định',
-      semesterName: 'HK Riêng',
+      roomId: room.id,
       examType: 'TK',
       requiredFilenames: ['A.docx', { filename: 'B.zip', entries: ['x.txt'] }],
     });
+    expect(body).not.toHaveProperty('roomName');
+    expect(body).not.toHaveProperty('semesterName');
+  });
+
+  it('sessionBody từ chối roomId và roomName cùng lúc', async () => {
+    await expect(sessionBody(dataSource, { classId: 'c1', roomId: 'x', roomName: 'y' })).rejects.toThrow(/roomId HOẶC roomName/);
+  });
+
+  it('ensureRoom idempotent: cùng tên (kể cả khác hoa-thường) cho cùng một phòng', async () => {
+    const name = `Phong ER${Date.now().toString(36)}`;
+    const a = await ensureRoom(dataSource, name);
+    const b = await ensureRoom(dataSource, name.toUpperCase());
+    expect(b.id).toBe(a.id);
+    expect(b.name).toBe(a.name);
+  });
+
+  it('seedClass với semesterId/administrativeClassId = null dựng lớp CŨ (cột NULL)', async () => {
+    const klass = await seedClass(dataSource, { teacherId, semesterId: null, administrativeClassId: null });
+    const [row] = await dataSource.query(
+      `SELECT semester_id, administrative_class_id FROM examcollect.class WHERE id = $1`,
+      [klass.id],
+    );
+    expect(row).toEqual({ semester_id: null, administrative_class_id: null });
+  });
+
+  it('seedExamSession mặc định có room_id; withoutRoom dựng dòng kiểu cũ với room_id NULL', async () => {
+    const klass = await seedClass(dataSource, { teacherId });
+    const start = new Date(Date.now() - 30 * 24 * 3_600_000);
+    const base = { teacherId, classId: klass.id, startTime: start, endTime: new Date(start.getTime() + 3_600_000), status: 'completed' as const };
+    const withRoom = await seedExamSession(dataSource, base);
+    const legacy = await seedExamSession(dataSource, { ...base, withoutRoom: true });
+    const rows = await dataSource.query(`SELECT id, room_id FROM examcollect.exam_session WHERE id = ANY($1)`, [[withRoom.id, legacy.id]]);
+    const byId = new Map(rows.map((r: { id: string; room_id: string | null }) => [r.id, r.room_id]));
+    expect(byId.get(withRoom.id)).not.toBeNull();
+    expect(byId.get(legacy.id)).toBeNull();
   });
 
   it('seedClass ghi học kỳ, lớp danh nghĩa và nhóm khi được cho', async () => {

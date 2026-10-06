@@ -18,15 +18,12 @@ export class ExamSessionResponseDto {
   name!: string;
   code!: string;
   teacherId!: string;
-  courseId!: string;
   classId!: string;
-  roomId!: string;
-  /**
-   * Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên.
-   *
-   * Sống cạnh `courseId`/`roomId` trong giai đoạn mở rộng; hai khoá ngoại
-   * kia biến mất ở `ContractMasterData` và hai trường này là thứ còn lại.
-   */
+  /** Nhãn gộp của lớp (`DHKTPM18A – Nhóm 1`), đọc từ view `class_label`. */
+  classLabel!: string | null;
+  /** Phòng thật (khoá ngoại). `roomName` dưới đây là BẢN CHỤP tên phòng lúc tạo. */
+  roomId!: string | null;
+  /** Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên. */
   courseName!: string;
   roomName!: string;
   examType!: ExamType;
@@ -74,7 +71,12 @@ export class ExamSessionListItemDto {
   name!: string;
   code!: string;
   courseName!: string;
-  className!: string;
+  /** Nhãn gộp của lớp. Từng là `className`; giá trị là nhãn, không phải `class.name`. */
+  classLabel!: string;
+  /** Học kỳ HIỆN TẠI của lớp — nguồn cho bộ lọc năm học → học kỳ. `null` chỉ với lớp cũ chưa backfill. */
+  semesterId!: string | null;
+  academicYear!: number | null;
+  term!: number | null;
   roomName!: string;
   /** Bản chụp lúc tạo phiên — nguồn cho bộ lọc kỳ và cho gợi ý ở biểu mẫu. */
   semesterName!: string;

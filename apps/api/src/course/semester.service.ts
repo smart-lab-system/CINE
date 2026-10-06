@@ -186,6 +186,15 @@ export class SemesterService {
     });
   }
 
+  /** Nhãn `HK1 2026-2027` của một học kỳ, hoặc null nếu không có. Dùng để CHỤP `semester_name` lúc tạo phiên. */
+  async labelOf(semesterId: string): Promise<string | null> {
+    const [row] = await this.dataSource.query(
+      `SELECT academic_year_start AS year, term FROM examcollect.semester WHERE id = $1`,
+      [semesterId],
+    );
+    return row ? semesterLabel(row.year, row.term) : null;
+  }
+
   private assertValid(input: SemesterInput): void {
     const problems = semesterProblems(input);
     if (problems.length > 0) throw new BadRequestException(problems.join(' '));

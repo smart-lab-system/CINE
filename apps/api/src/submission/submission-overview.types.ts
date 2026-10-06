@@ -18,7 +18,15 @@ export interface SessionOverviewItem {
   code: string;
   courseName: string;
   classId: string;
-  className: string | null;
+  /** Nhãn gộp của lớp (`DHKTPM18A – Nhóm 1`), đọc từ view `class_label`. */
+  classLabel: string | null;
+  /**
+   * Học kỳ HIỆN TẠI của lớp (khoá), nguồn cho bộ lọc phía trình duyệt. `null` chỉ với lớp cũ chưa backfill.
+   * Khác `semesterName` bên dưới: đó là bản chụp lúc tạo phiên.
+   */
+  semesterId: string | null;
+  academicYear: number | null;
+  term: number | null;
   roomName: string;
   examType: ExamType;
   startTime: string;
@@ -81,11 +89,8 @@ export interface SessionOverviewItem {
   archiveIssueCount: number;
 
   /**
-   * Học kỳ, chụp lúc tạo phiên — nguồn cho bộ lọc phạm vi (spec §4.3).
-   *
-   * Từng là `semesterId`, suy ra qua `course.semester_id`. Cả hai bảng đã
-   * biến mất, nên bộ lọc chạy trên chính chuỗi này. Hệ quả nhìn thấy được:
-   * hai giảng viên gõ "HK1 2026-2027" và "HK1 26-27" tạo ra hai mục lọc.
+   * Học kỳ, bản chụp lúc tạo phiên — giữ cho bảng điểm (nó không đổi theo khi ai đó sửa học kỳ về sau).
+   * Bộ lọc dùng `semesterId`/`academicYear`/`term` ở trên, không dùng chuỗi này.
    */
   semesterName: string;
 

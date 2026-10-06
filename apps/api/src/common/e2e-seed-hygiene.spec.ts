@@ -15,7 +15,8 @@ import { join } from 'path';
  *   - một mục không còn vi phạm mà vẫn nằm trong danh sách làm test này đỏ
  *     ("mục dư"), để danh sách không bao giờ phình lại bằng cách im lặng.
  * Kết thúc plan A: `RAW_SEED_ALLOWLIST` rỗng; `SESSION_BODY_ALLOWLIST` còn đúng
- * ba file kiểm chính tính năng phòng/học kỳ gõ tay, sẽ bị plan D viết lại.
+ * ba file kiểm hành vi tạo phiên / chống trùng lịch / bản chụp: chúng dựng thân request bằng tay có chủ ý để kiểm cả đầu vào
+ * sai (thiếu `roomId`, `roomId` rác…), nên ở lại danh sách vĩnh viễn.
  */
 const TEST_ROOT = join(__dirname, '..', '..', 'test');
 /** Chỗ duy nhất được phép chứa SQL dựng ba bảng này. */
@@ -46,14 +47,14 @@ export const RAW_SEED_ALLOWLIST = new Set<string>([]);
 
 export const SESSION_BODY_ALLOWLIST = new Set<string>([
   'exam-schedule-conflict.e2e-spec.ts',
-  'exam-session-semester-name.e2e-spec.ts',
+  'exam-session-snapshots.e2e-spec.ts',
   'exam-session.e2e-spec.ts',
 ]);
 
-/** Ba file kiểm chính tính năng phòng/học kỳ gõ tay — giá trị cuối của rule 2. */
+/** Ba file kiểm hành vi tạo phiên / chống trùng lịch / bản chụp, dựng thân tay có chủ ý — giá trị cuối của rule 2. */
 export const PERMANENT_SESSION_BODY_FILES = [
   'exam-schedule-conflict.e2e-spec.ts',
-  'exam-session-semester-name.e2e-spec.ts',
+  'exam-session-snapshots.e2e-spec.ts',
   'exam-session.e2e-spec.ts',
 ];
 
@@ -105,7 +106,7 @@ describe('e2e seed hygiene (ratchet)', () => {
     expect(stale).toEqual([]);
   });
 
-  it('danh sách rule 2 chỉ được phép co về đúng ba file kiểm tính năng phòng/học kỳ gõ tay', () => {
+  it('danh sách rule 2 chỉ được phép co về đúng ba file kiểm hành vi tạo phiên/chống trùng lịch/bản chụp', () => {
     const extra = [...SESSION_BODY_ALLOWLIST].filter(
       (file) => !PERMANENT_SESSION_BODY_FILES.includes(file),
     );

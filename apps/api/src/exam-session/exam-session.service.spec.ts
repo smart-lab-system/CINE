@@ -8,6 +8,9 @@ import { ClassService } from '../course/class.service';
 import { AttendanceService } from '../agent-connection/attendance.service';
 import { ScheduleConflictService } from './schedule-conflict.service';
 import { RubricEntity } from '../grading/entities/rubric.entity';
+import { RoomService } from '../course/room.service';
+import { SemesterService } from '../course/semester.service';
+import { ClassLabelService } from '../course/class-label.service';
 
 /**
  * Covers the exam_session state machine added in the submission phase:
@@ -67,6 +70,10 @@ function createHarness(affected: number) {
     // Same reasoning as ClassService above: only create() consults it, and
     // every test here is about finalize.
     {} as ScheduleConflictService,
+    // Ba service dưới chỉ create() dùng (chọn phòng, chụp học kỳ, nhãn lớp); mọi test ở đây về finalize.
+    {} as RoomService,
+    {} as SemesterService,
+    {} as ClassLabelService,
   );
 
   return { service, sessions, builder, published };
