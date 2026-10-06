@@ -1,0 +1,170 @@
+import { Test } from '@nestjs/testing';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import request from 'supertest';
+import { DataSource } from 'typeorm';
+import { AppModule } from '../src/app.module';
+import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
+import { COURSE_NAME } from '../src/common/course-name';
+import { createTestAccount } from './helpers/create-account';
+import {
+  classLabel,
+  seedClass,
+  seedEnrollment,
+  seedExamSession,
+  sessionBody,
+} from './helpers/seed';
+
+describe('seed helper (e2e)', () => {
+  let app: INestApplication;
+  let dataSource: DataSource;
+  let teacherId: string;
+  let teacherToken: string;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalFilters(new PostgresExceptionFilter());
+    await app.init();
+    dataSource = app.get(DataSource);
+
+    const email = `seed_helper_${Date.now()}@example.com`;
+    teacherId = await createTestAccount(dataSource, {
+      email,
+      password: 'correct-horse-battery',
+      role: 'teacher',
+    });
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password: 'correct-horse-battery' });
+    teacherToken = login.body.accessToken;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('classLabel hiện nhóm sau dấu gạch ngang, và chỉ mã khi không tách nhóm', () => {
+    expect(classLabel('DHKTPM18A', '')).toBe('DHKTPM18A');
+    expect(classLabel('DHKTPM18A', 'Nhóm 1')).toBe('DHKTPM18A – Nhóm 1');
+  });
+
+  it('seedClass dựng một lớp thật và trả nhãn', async () => {
+    const klass = await seedClass(dataSource, { teacherId, groupName: 'Nhóm 2' });
+
+    expect(klass.label).toBe(`${klass.code} – Nhóm 2`);
+    const [row] = await dataSource.query(
+      `SELECT course_name, name, teacher_id FROM examcollect.class WHERE id = $1`,
+      [klass.id],
+    );
+    expect(row.course_name).toBe(COURSE_NAME);
+    expect(row.name).toBe(klass.label);
+    expect(row.teacher_id).toBe(teacherId);
+  });
+
+  it('seedClass giữ courseName khi test cố ý dùng môn khác', async () => {
+    const klass = await seedClass(dataSource, { teacherId, courseName: 'Môn khác hẳn' });
+    const [row] = await dataSource.query(
+      `SELECT course_name FROM examcollect.class WHERE id = $1`,
+      [klass.id],
+    );
+    expect(row.course_name).toBe('Môn khác hẳn');
+  });
+
+  it('mã lớp tự sinh duy nhất, chỉ gồm chữ HOA và số, dài 3–30 ký tự', async () => {
+    const codes = new Set<string>();
+    for (let i = 0; i < 25; i++) {
+      codes.add((await seedClass(dataSource, { teacherId })).code);
+    }
+    expect(codes.size).toBe(25);
+    for (const code of codes) {
+      expect(code).toMatch(/^[A-Z0-9]{3,30}$/);
+    }
+  });
+
+  it('seedEnrollment ghi đúng bốn cột và đặt tên mặc định khi không cho', async () => {
+    const klass = await seedClass(dataSource, { teacherId });
+    const mssv = `SH${Date.now().toString(36)}`.toUpperCase().slice(0, 12);
+    await seedEnrollment(dataSource, { classId: klass.id, teacherId, mssv });
+
+    const [row] = await dataSource.query(
+      `SELECT student_mssv, student_name, home_class_id, home_teacher_id
+         FROM examcollect.enrollment WHERE home_class_id = $1`,
+      [klass.id],
+    );
+    expect(row).toMatchObject({
+      student_mssv: mssv,
+      student_name: `Sinh viên ${mssv}`,
+      home_class_id: klass.id,
+      home_teacher_id: teacherId,
+    });
+  });
+
+  it('seedExamSession chèn thẳng một phiên mà service sẽ từ chối, và trả đủ định danh', async () => {
+    const klass = await seedClass(dataSource, { teacherId });
+    const start = new Date(Date.now() - 3 * 24 * 3_600_000);
+    const session = await seedExamSession(dataSource, {
+      teacherId,
+      classId: klass.id,
+      startTime: start,
+      endTime: new Date(start.getTime() + 3_600_000),
+      status: 'completed',
+    });
+
+    expect(session.code).toMatch(/^[A-Z0-9]{1,20}$/);
+    const [row] = await dataSource.query(
+      `SELECT status, room_name, semester_name, course_name FROM examcollect.exam_session WHERE id = $1`,
+      [session.id],
+    );
+    expect(row).toMatchObject({
+      status: 'completed',
+      room_name: session.roomName,
+      semester_name: 'HK kiểm thử',
+      course_name: COURSE_NAME,
+    });
+  });
+
+  it('sessionBody mặc định đủ để POST /exam-sessions trả 201', async () => {
+    const klass = await seedClass(dataSource, { teacherId });
+    const body = await sessionBody(dataSource, { classId: klass.id });
+
+    const response = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send(body);
+
+    expect(response.status).toBe(201);
+    expect(response.body.classId).toBe(klass.id);
+    // Dọn để không giữ chỗ giảng viên này cho các ca sau.
+    await dataSource.query(
+      `UPDATE examcollect.exam_session SET status = 'completed' WHERE teacher_id = $1`,
+      [teacherId],
+    );
+  });
+
+  it('sessionBody từ chối khi chỉ truyền một đầu của khung giờ', async () => {
+    await expect(
+      sessionBody(dataSource, { classId: 'x', startTime: new Date().toISOString() }),
+    ).rejects.toThrow(/startTime và endTime/);
+    await expect(
+      sessionBody(dataSource, { classId: 'x', endTime: new Date().toISOString() }),
+    ).rejects.toThrow(/startTime và endTime/);
+  });
+
+  it('sessionBody giữ nguyên phòng, học kỳ và tên file mà test truyền vào', async () => {
+    const body = await sessionBody(dataSource, {
+      classId: 'c1',
+      roomName: 'P Cố Định',
+      semesterName: 'HK Riêng',
+      requiredFilenames: ['A.docx', { filename: 'B.zip', entries: ['x.txt'] }],
+    });
+
+    expect(body).toMatchObject({
+      classId: 'c1',
+      roomName: 'P Cố Định',
+      semesterName: 'HK Riêng',
+      examType: 'TK',
+      requiredFilenames: ['A.docx', { filename: 'B.zip', entries: ['x.txt'] }],
+    });
+  });
+});
