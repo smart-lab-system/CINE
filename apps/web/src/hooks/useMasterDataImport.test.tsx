@@ -67,14 +67,17 @@ describe('useImportRunner', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: [MASTER_DATA_KEYS.rooms] });
   });
 
-  it('import lớp làm mới khoá GỐC `classes` — phủ cả trang quản trị lẫn "Lớp của tôi"', async () => {
+  it('import lớp làm mới khoá GỐC `classes` (phủ cả trang quản trị lẫn "Lớp của tôi") và hai bộ đếm lớp: Danh mục và học kỳ', async () => {
     klass.mockResolvedValue(RESULT());
     const { result, invalidate } = setup('class');
 
     await result.current({ rows: [], dryRun: false });
 
-    expect(invalidate).toHaveBeenCalledTimes(1);
+    // Lớp mới nhập làm đổi `classCount` của mã (Danh mục) và của học kỳ — review B+G1 I2.
+    expect(invalidate).toHaveBeenCalledTimes(3);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['classes'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [MASTER_DATA_KEYS.administrativeClasses] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [MASTER_DATA_KEYS.semesters] });
   });
 
   it('ghi thật nhưng không có gì để ghi (applied=false): không làm mới', async () => {

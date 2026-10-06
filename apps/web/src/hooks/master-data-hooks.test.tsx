@@ -139,9 +139,16 @@ describe('hook ghi làm mới đúng khoá (Review Focus 4)', () => {
     // Đổi mã làm đổi NHÃN của mọi lớp dùng nó: danh sách lớp phải làm mới theo.
     { label: 'sửa mã lớp danh nghĩa', hook: () => useUpdateAdministrativeClass(), fn: 'updateAdministrativeClass', input: { id: 'a1', body: { code: 'XYZ' } }, refreshes: ['administrative-classes', 'classes'] },
     { label: 'xoá mã lớp danh nghĩa', hook: () => useDeleteAdministrativeClass(), fn: 'deleteAdministrativeClass', input: 'a1', refreshes: ['administrative-classes'] },
-    { label: 'tạo lớp', hook: () => useCreateAdminClass(), fn: 'createAdminClass', input: { semesterId: 's1' }, refreshes: ['administrative-classes', 'classes'] },
-    { label: 'sửa lớp', hook: () => useUpdateAdminClass(), fn: 'updateAdminClass', input: { id: 'c1', body: {} }, refreshes: ['classes'] },
-    { label: 'xoá lớp', hook: () => useDeleteAdminClass(), fn: 'deleteAdminClass', input: 'c1', refreshes: ['administrative-classes', 'classes'] },
+    // Một lớp thêm/xoá đổi `classCount` của MỘT mã ở Danh mục VÀ của MỘT học kỳ (trang Học kỳ dùng nó để khoá năm/kỳ và giải thích vì sao
+    // không xoá được) — review B+G1 I2.
+    { label: 'tạo lớp', hook: () => useCreateAdminClass(), fn: 'createAdminClass', input: { semesterId: 's1' }, refreshes: ['administrative-classes', 'classes', 'semesters'] },
+    { label: 'sửa lớp (chỉ giảng viên/nhóm: không đổi bộ đếm nào)', hook: () => useUpdateAdminClass(), fn: 'updateAdminClass', input: { id: 'c1', body: { teacherId: 't2', groupName: 'Nhóm 2' } }, refreshes: ['classes'] },
+    { label: 'sửa lớp (không đổi trường nào)', hook: () => useUpdateAdminClass(), fn: 'updateAdminClass', input: { id: 'c1', body: {} }, refreshes: ['classes'] },
+    // Chuyển lớp sang mã khác: `classCount` của HAI mã đổi.
+    { label: 'sửa lớp (đổi mã lớp danh nghĩa)', hook: () => useUpdateAdminClass(), fn: 'updateAdminClass', input: { id: 'c1', body: { administrativeClassId: 'a2' } }, refreshes: ['administrative-classes', 'classes'] },
+    // Chuyển lớp sang học kỳ khác: `classCount` của HAI học kỳ đổi.
+    { label: 'sửa lớp (đổi học kỳ)', hook: () => useUpdateAdminClass(), fn: 'updateAdminClass', input: { id: 'c1', body: { semesterId: 's2' } }, refreshes: ['classes', 'semesters'] },
+    { label: 'xoá lớp', hook: () => useDeleteAdminClass(), fn: 'deleteAdminClass', input: 'c1', refreshes: ['administrative-classes', 'classes', 'semesters'] },
   ];
 
   it.each(CASES)('$label', async ({ hook, fn, input, refreshes }) => {
