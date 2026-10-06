@@ -6,6 +6,13 @@ export interface RosterEntry {
   name: string;
 }
 
+/** Một sinh viên mà file đã ĐỔI TÊN (spec §2.6: một tên duy nhất, file mới nhất thắng). */
+export interface RenamedStudent {
+  mssv: string;
+  from: string;
+  to: string;
+}
+
 /** The server's own account of what an import did. */
 export interface RosterImportResult {
   added: number;
@@ -13,6 +20,11 @@ export interface RosterImportResult {
   unchanged: number;
   removed: number;
   missing: RosterEntry[];
+  /**
+   * MỌI sinh viên trong file bị đổi tên — kể cả em vừa vào lớp này nhưng đã có tên khác ở lớp khác. Tên chỉ có MỘT chỗ nên đổi áp dụng
+   * cho mọi lớp; vì vậy kết quả phải nói rõ ai bị đổi thay vì đổi âm thầm.
+   */
+  renamed: RenamedStudent[];
 }
 
 async function throwIfFailed(error: unknown, response: Response) {
