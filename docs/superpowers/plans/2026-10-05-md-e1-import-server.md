@@ -721,6 +721,12 @@ describe('planAdministrativeClassImport', () => {
     expect(plan.writes).toEqual([{ code: 'DHKTPM19A' }]);
   });
 
+  it('ô dạng Tên(mã) được đọc thành mã trong ngoặc; bản xem trước hiện mã đã hiểu (quyết định của user 06/10)', () => {
+    const plan = planAdministrativeClassImport([row(2, 'Anh văn 4(422001525805)')], existing);
+    expect(plan.rows[0]).toMatchObject({ status: 'new', label: '422001525805' });
+    expect(plan.writes).toEqual([{ code: '422001525805' }]);
+  });
+
   it('mã đã có (không phân biệt hoa-thường) là "unchanged", không ghi gì, KHÔNG sửa (chỉ thêm)', () => {
     const plan = planAdministrativeClassImport([row(2, 'dhktpm18att')], existing);
     expect(plan.rows[0]).toMatchObject({ status: 'unchanged', label: 'DHKTPM18ATT' });
@@ -1095,17 +1101,31 @@ describe('planSemesterImport', () => {
       // s1 dời vào đúng khoảng CŨ của s2, còn s2 dời đi chỗ khác. Quy tắc bảo thủ so với ngày HIỆN TẠI của s2 nên dòng 2 bị
       // chặn — nếu không, `UPDATE` s1 chạy trước s2 sẽ chồng NGAY LÚC ĐÓ ở ràng buộc EXCLUDE không hoãn được.
       const plan = planSemesterImport(
-        [row(2, '2026', '1', '2027-02-01', '2027-05-31'), row(3, '2026', '2', '2027-09-01', '2028-01-31')],
+        [row(2, '2026', '1', '2027-02-01', '2027-05-31'), row(3, '2026', '2', '2027-06-01', '2027-10-15')],
         existing,
       );
       expect(plan.rows.map((r) => r.status)).toEqual(['error', 'update']);
       expect(plan.rows[0].errors[0]).toMatch(/từng kỳ một/);
-      expect(plan.writes).toEqual([{ kind: 'update', id: 's2', startDate: '2027-09-01', endDate: '2028-01-31' }]);
+      expect(plan.writes).toEqual([{ kind: 'update', id: 's2', startDate: '2027-06-01', endDate: '2027-10-15' }]);
     });
 
     it('kéo dài một kỳ sang chỗ trống thì được', () => {
       const plan = planSemesterImport([row(2, '2026', '1', '2026-08-15', '2027-01-31')], existing);
       expect(plan.rows[0].status).toBe('update');
+    });
+  });
+
+  describe('cửa sổ ngày của năm học (quyết định của user 06/10)', () => {
+    it('ngày lệch ra ngoài 01/06 → 31/10 năm sau là lỗi dòng, nêu cửa sổ; không ghi gì', () => {
+      const plan = planSemesterImport([row(2, '2026', '3', '2028-06-01', '2028-08-31')], existing);
+      expect(plan.rows[0].status).toBe('error');
+      expect(plan.rows[0].errors.join(' ')).toMatch(/2026-2027.*01\/06\/2026.*31\/10\/2027/);
+      expect(plan.writes).toEqual([]);
+    });
+
+    it('đúng hai biên thì được', () => {
+      const plan = planSemesterImport([row(2, '2026', '3', '2027-06-01', '2027-10-31')], existing);
+      expect(plan.rows[0].status).toBe('new');
     });
   });
 

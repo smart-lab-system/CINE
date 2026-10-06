@@ -17,6 +17,8 @@
 - Cột mới trên `class`/`exam_session` **nullable** (`semester_id`, `administrative_class_id`, `room_id`); `group_name` là `NOT NULL DEFAULT ''` (không phải NULL: Postgres coi mọi NULL là khác nhau nên khoá duy nhất sẽ bị vô hiệu — spec §2.3).
 - **Không** thêm khoá ngoại `enrollment.student_mssv → student.mssv` ở đây: code cũ còn ghi enrollment cho MSSV chưa có trong `student`. Nó đến cùng migration thu hẹp (plan H).
 - `ex_exam_session_class_overlap` và `ex_exam_session_teacher_gap` **không bị đụng** (spec §2.4): migration không được tạo lại hay làm mất chúng.
+- **Ngày học kỳ nằm trong cửa sổ của năm học** (quyết định của user 06/10): cả `start_date` và `end_date` trong khoảng `01/06/{năm}` … `31/10/{năm+1}`, ép bằng `CHECK ck_semester_dates_in_year` ở DB và bằng `semesterProblems` (dùng chung cho nhập tay và import). Bắt gõ lệch năm, nhầm chữ số, lấy ngày của năm học khác — những lỗi mà "ngày có thật" và "không chồng ngày" đều cho qua. Cửa sổ rộng có chủ ý. Không có ràng buộc thứ tự giữa các kỳ trong cùng năm (cần đọc dữ liệu khác, và chồng ngày đã được chặn).
+- **Mã lớp danh nghĩa nhập dạng `Tên(mã)`** (vd `Anh văn 4(422001525805)`) được `normalizeAdministrativeCode` đọc thành mã trong ngoặc cuối nếu hợp lệ; không thì giữ nguyên để báo lỗi (quyết định của user 06/10). Không có chức năng tự sinh mã: mã do phòng đào tạo cấp.
 - Chuẩn hoá ở **tầng ghi**, ép lại ở DB: mã lớp danh nghĩa `trim().toUpperCase()` (`CHECK` từ chối chữ thường); tên phòng cắt đầu-cuối và gộp khoảng trắng liên tiếp (`CHECK` từ chối hai khoảng trắng liền nhau).
 - Một dòng audit cho mỗi thao tác ghi của admin, **cùng transaction** với thay đổi; thao tác thất bại không để lại dòng nào. Tên hành động `<loại>.<động từ>`: `semester.create|update|delete`, `room.create|update|delete`, `administrative_class.create|update|delete` (plan E thêm `…import`). Quy ước `targetLabel` (plan B, `lib/audit-describe.ts`): tên đọc được của đối tượng nằm trong `newValue` (hoặc `oldValue` khi xoá).
 - Mọi route mới `@Roles('admin')` ở **mức class**, route đọc dùng chung với giảng viên ghi đè từng handler (`@Roles('admin','teacher')`). Cách này làm "quên `@Roles`" thành 403 chứ không thành route mở (`RolesGuard` trả `true` khi không có metadata).
@@ -371,6 +373,17 @@ describe('normalizeAdministrativeCode', () => {
   it('KHÔNG bỏ khoảng trắng ở giữa: đó là lỗi để người dùng sửa, không phải để đoán', () => {
     expect(normalizeAdministrativeCode('dhk tpm18a')).toBe('DHK TPM18A');
   });
+  it('lấy mã trong ngoặc CUỐI của chuỗi dạng Tên(mã), như danh sách của trường hay xuất (quyết định của user 06/10)', () => {
+    expect(normalizeAdministrativeCode('Anh văn 4(422001525805)')).toBe('422001525805');
+    expect(normalizeAdministrativeCode(' Cấu trúc dữ liệu ( dhktpm18a ) ')).toBe('DHKTPM18A');
+    expect(normalizeAdministrativeCode('(ABC123)')).toBe('ABC123');
+  });
+  it('ngoặc không chứa một mã hợp lệ, hoặc nhiều cặp ngoặc → KHÔNG đoán: giữ nguyên chuỗi (viết hoa) để administrativeCodeProblem báo lỗi', () => {
+    expect(normalizeAdministrativeCode('Lớp A(2)')).toBe('LỚP A(2)');
+    expect(normalizeAdministrativeCode('ABC(DEF)(GHI)')).toBe('ABC(DEF)(GHI)');
+    expect(normalizeAdministrativeCode('ABC(DE F)')).toBe('ABC(DE F)');
+    expect(administrativeCodeProblem(normalizeAdministrativeCode('Lớp A(2)'))).toMatch(/chữ và số/);
+  });
 });
 
 describe('administrativeCodeProblem', () => {
@@ -444,6 +457,33 @@ describe('semesterProblems', () => {
     expect(semesterProblems({ ...GOOD, endDate: '2026-09-01' })).toEqual([]);
   });
 
+  it('cả hai ngày phải nằm trong cửa sổ của năm học: từ 01/06 năm đầu tới 31/10 năm sau (quyết định của user 06/10)', () => {
+    // Biên trong là hợp lệ.
+    expect(semesterProblems({ ...GOOD, startDate: '2026-06-01', endDate: '2027-10-31' })).toEqual([]);
+    // Lệch ra ngoài một ngày thì không.
+    expect(semesterProblems({ ...GOOD, startDate: '2026-05-31' })).toEqual([expect.stringMatching(/ngày bắt đầu.*2026-2027.*01\/06\/2026.*31\/10\/2027/i)]);
+    expect(semesterProblems({ ...GOOD, endDate: '2027-11-01' })).toEqual([expect.stringMatching(/ngày kết thúc.*2026-2027/i)]);
+  });
+
+  it('gõ lệch năm một đơn vị hoặc nhầm chữ số của năm đều bị bắt', () => {
+    // Ngày của năm học SAU: kết thúc 2028-01-31 vượt cửa sổ 2026-2027.
+    expect(semesterProblems({ ...GOOD, startDate: '2027-09-01', endDate: '2028-01-31' })).toEqual([expect.stringMatching(/ngày kết thúc/i)]);
+    // Ngày của năm học TRƯỚC.
+    expect(semesterProblems({ ...GOOD, startDate: '2025-09-01', endDate: '2026-01-31' })).toEqual([
+      expect.stringMatching(/ngày bắt đầu/i),
+      expect.stringMatching(/ngày kết thúc/i),
+    ]);
+    // Nhầm chữ số: cả hai ngày ngoài cửa sổ.
+    expect(semesterProblems({ ...GOOD, startDate: '2031-09-01', endDate: '2032-01-31' })).toEqual([
+      expect.stringMatching(/ngày bắt đầu/i),
+      expect.stringMatching(/ngày kết thúc/i),
+    ]);
+  });
+
+  it('năm học không hợp lệ thì không báo thêm lỗi cửa sổ (chỉ một lỗi, về năm)', () => {
+    expect(semesterProblems({ ...GOOD, academicYearStart: 1999 })).toEqual([expect.stringMatching(/năm học/i)]);
+  });
+
   it('gom mọi lỗi thay vì dừng ở lỗi đầu tiên', () => {
     expect(semesterProblems({ academicYearStart: 1, term: 9, startDate: 'x', endDate: 'y' }).length).toBe(4);
   });
@@ -475,8 +515,17 @@ export function normalizeRoomName(raw: string): string {
   return raw.replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Chuỗi dạng `Tên(mã)` — cách danh sách của trường hay ghi một lớp, vd `Anh văn 4(422001525805)` — được đọc thành CHÍNH cái mã trong ngoặc cuối.
+ * Chỉ khi phần ngoài ngoặc không có ngoặc nào và phần trong ngoặc là một mã hợp lệ (chữ/số, 3–30 ký tự); không thì giữ nguyên chuỗi để
+ * `administrativeCodeProblem` báo lỗi thay vì ĐOÁN. Nhập tay và import cùng đi qua hàm này, nên bản xem trước của import hiện mã đã hiểu.
+ */
+const NAME_WITH_CODE = /^[^()]*\(\s*([A-Za-z0-9]{3,30})\s*\)\s*$/;
+
 export function normalizeAdministrativeCode(raw: string): string {
-  return raw.trim().toUpperCase();
+  const trimmed = raw.trim();
+  const match = NAME_WITH_CODE.exec(trimmed);
+  return (match ? match[1] : trimmed).toUpperCase();
 }
 
 export function roomNameProblem(name: string): string | null {
@@ -521,6 +570,8 @@ export function formatDmy(isoDate: string): string {
 Create `apps/api/src/course/semester.rules.ts`:
 
 ```ts
+import { formatDmy } from '../common/semester-label';
+
 /**
  * MỘT lớp kiểm tra học kỳ cho cả hai đường nhập (spec §6.2 nguyên tắc 6): nhập
  * tay gọi nó qua `SemesterService`, và import (plan E) gọi đúng hàm này cho từng
@@ -554,7 +605,8 @@ function isRealIsoDate(value: string): boolean {
 
 export function semesterProblems(input: SemesterInput): string[] {
   const problems: string[] = [];
-  if (!Number.isInteger(input.academicYearStart) || input.academicYearStart < YEAR_MIN || input.academicYearStart > YEAR_MAX) {
+  const yearOk = Number.isInteger(input.academicYearStart) && input.academicYearStart >= YEAR_MIN && input.academicYearStart <= YEAR_MAX;
+  if (!yearOk) {
     problems.push(`Năm học phải từ ${YEAR_MIN} đến ${YEAR_MAX}.`);
   }
   if (!Number.isInteger(input.term) || input.term < 1 || input.term > 3) {
@@ -566,6 +618,17 @@ export function semesterProblems(input: SemesterInput): string[] {
   if (!endOk) problems.push('Ngày kết thúc phải là ngày có thật theo dạng yyyy-mm-dd.');
   if (startOk && endOk && input.endDate < input.startDate) {
     problems.push('Ngày kết thúc không được trước ngày bắt đầu.');
+  }
+  // Cả hai ngày phải nằm trong cửa sổ của năm học: từ 01/06 năm đầu tới 31/10 năm sau. Chặn gõ lệch năm một đơn vị, nhầm chữ số của năm, hay lấy
+  // ngày của năm học khác — những lỗi mà "ngày có thật" và "không chồng ngày" đều cho qua. Cửa sổ rộng có chủ ý (trường bắt đầu kỳ ở nhiều tháng khác nhau).
+  // Bỏ qua khi năm học đã sai: lỗi đó đã được báo, không nói thêm một lỗi hệ quả.
+  if (yearOk) {
+    const year = input.academicYearStart;
+    const low = `${year}-06-01`;
+    const high = `${year + 1}-10-31`;
+    const window = `năm học ${year}-${year + 1} là từ ${formatDmy(low)} đến ${formatDmy(high)}`;
+    if (startOk && (input.startDate < low || input.startDate > high)) problems.push(`Ngày bắt đầu phải nằm trong cửa sổ của ${window}.`);
+    if (endOk && (input.endDate < low || input.endDate > high)) problems.push(`Ngày kết thúc phải nằm trong cửa sổ của ${window}.`);
   }
   return problems;
 }
@@ -813,11 +876,13 @@ describe('Master data schema (e2e)', () => {
     it('một (năm học, kỳ) chỉ có một dòng (23505)', async () => {
       const year = await freshTestYear(ds);
       await newSemester(1, year);
+      // Ngày TRONG cửa sổ của năm học và KHÔNG chồng kỳ 1 (khoảng của kỳ 2), để chỉ còn khoá duy nhất (năm, kỳ) bị vi phạm.
+      const other = semesterDates(year, 2);
       await expectDbError(
         ds.query(
           `INSERT INTO examcollect.semester (academic_year_start, term, start_date, end_date)
-           VALUES ($1, 1, '2900-01-01', '2900-02-01')`,
-          [year],
+           VALUES ($1, 1, $2, $3)`,
+          [year, other.startDate, other.endDate],
         ),
         '23505',
       );
@@ -837,6 +902,21 @@ describe('Master data schema (e2e)', () => {
         ds.query(`INSERT INTO examcollect.semester (academic_year_start, term, start_date, end_date) VALUES (3000, 1, '2903-01-01', '2903-02-01')`),
         '23514',
       );
+    });
+
+    it('ngày của học kỳ phải nằm trong cửa sổ của năm học 01/06 → 31/10 năm sau: biên trong được, lệch năm hoặc nhầm chữ số thì 23514', async () => {
+      const year = await freshTestYear(ds);
+      const insert = (term: number, start: string, end: string) =>
+        ds.query(
+          `INSERT INTO examcollect.semester (academic_year_start, term, start_date, end_date) VALUES ($1, $2, $3, $4) RETURNING id`,
+          [year, term, start, end],
+        );
+      await expectDbError(insert(1, `${year + 5}-09-01`, `${year + 6}-01-31`), '23514'); // nhầm chữ số của năm
+      await expectDbError(insert(1, `${year - 1}-09-01`, `${year}-01-31`), '23514'); // ngày của năm học trước
+      await expectDbError(insert(1, `${year + 1}-09-01`, `${year + 2}-01-31`), '23514'); // lệch một năm: kết thúc ngoài cửa sổ
+      await expectDbError(insert(1, `${year}-05-31`, `${year}-12-31`), '23514'); // bắt đầu trước 01/06
+      await expectDbError(insert(1, `${year}-09-01`, `${year + 1}-11-01`), '23514'); // kết thúc sau 31/10
+      await insert(3, `${year}-06-01`, `${year + 1}-10-31`); // đúng hai biên
     });
 
     it('T-MD-6: không đổi được năm học hay kỳ khi đã có lớp; đổi ngày thì được', async () => {
@@ -1256,6 +1336,10 @@ export class ExpandMasterDataEntities1789600000000 implements MigrationInterface
           CONSTRAINT "ck_semester_term"  CHECK ("term" IN (1, 2, 3)),
           CONSTRAINT "ck_semester_dates" CHECK ("end_date" >= "start_date"),
           CONSTRAINT "ck_semester_year"  CHECK ("academic_year_start" BETWEEN 2000 AND 2999),
+          -- Cả hai ngày trong cửa sổ của năm học (01/06 năm đầu → 31/10 năm sau): bắt gõ lệch năm, nhầm chữ số — phản chiếu `semesterProblems`.
+          CONSTRAINT "ck_semester_dates_in_year"
+            CHECK ("start_date" >= make_date("academic_year_start", 6, 1)
+               AND "end_date"   <= make_date("academic_year_start" + 1, 10, 31)),
           CONSTRAINT "ex_semester_dates_overlap"
             EXCLUDE USING gist (daterange("start_date", "end_date", '[]') WITH &&)
         )
@@ -3979,6 +4063,8 @@ git commit -m "chore(master-data): sinh lại client OpenAPI và ghim @Roles('ad
 ---
 
 ## Tự kiểm lại plan so với spec
+
+- Hai bổ sung theo quyết định của user 06/10 (không có trong spec): (a) **cửa sổ ngày của học kỳ** — `ck_semester_dates_in_year` + `semesterProblems` + e2e biên; (b) `normalizeAdministrativeCode` đọc `Tên(mã)`. Các ngày tạm của backfill (plan H) và `semesterDates` của helper test đều nằm trong cửa sổ.
 
 - §2.1 `semester` (cột, unique, EXCLUDE không chồng ngày, không đổi năm/kỳ khi đã có lớp, tên suy ra): Task 3 (DB), 4 (entity), 6 (service). §2.2 `administrative_class` (code citext, CHECK, viết hoa/cắt ở tầng ghi, mã chỉ tạo trong Danh mục, cảnh báo gần giống, sửa mã đổi nhãn mọi nơi, xoá chỉ khi không lớp dùng, không mồ côi tự dọn): Task 3, 4, 8. §2.3 `class` (cột mới, `group_name` mặc định `''`, unique, trigger không đổi kỳ khi đã có phiên): Task 3, 4. Phần "đổi `name`/`course_name`, scope kiểm tra theo học kỳ, đổi giảng viên của lớp" thuộc **plan D**. §2.4 `room`, `exam_session.room_id`, chống trùng theo khoá: Task 3, 4, 7. Bản chụp `room_name`/`semester_name` `update:false` và việc server điền: **plan D**. §2.5 view nhãn lớp (view): Task 3; 11 chỗ đọc nó: **plan D**. §2.6 `student` (bảng): Task 3, 4; mọi hành vi (tra tên, khoá tên, rate limit): **plan D**.
 - §4 route Học kỳ / Phòng / Lớp danh nghĩa (trừ `…/import`, thuộc plan E): Task 6–8. `GET /accounts/teachers` đủ cho combobox giảng viên của admin (điểm mở §13 mục 7) — nó trả `{id, name}` cho `role: 'teacher'` và dòng chú thích cũ nhắc "Trưởng khoa" ở `accounts.controller.ts:28` chỉ cần sửa chữ: đưa vào plan D (Task sửa `ClassController`) để cùng một PR với chỗ nó được dùng.
