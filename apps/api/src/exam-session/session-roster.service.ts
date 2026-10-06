@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
+import { StudentService } from '../course/student.service';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { ExamSessionEntity } from './entities/exam-session.entity';
@@ -36,7 +37,10 @@ const INSERT_CHUNK = 100;
 export class SessionRosterService {
   private readonly logger = new Logger(SessionRosterService.name);
 
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly students: StudentService,
+  ) {}
 
   /** Ảnh chốt đã có chưa — `agent:join` hỏi câu này trước khi cho vào. */
   async isFrozen(examSessionId: string): Promise<boolean> {
@@ -108,13 +112,22 @@ export class SessionRosterService {
         );
       }
 
+      // Tên đến từ `student` (spec §2.6), rơi về cột cũ chỉ cho dòng chưa backfill, rồi về MSSV
+      // (một tên thiếu không bao giờ thành chuỗi rỗng — xem review cụm 1, I4). Ảnh chốt CHỤP tên
+      // tại đây: sửa tên ở `student` sau này không đổi bảng điểm đã có.
+      const names = await this.students.findNames(
+        manager,
+        enrolled.map((row) => row.studentMssv),
+      );
+      const nameOf = (row: EnrollmentEntity) =>
+        names.get(row.studentMssv.toLowerCase()) ?? row.studentName ?? row.studentMssv;
+
       await this.insertChunked(
         rosterRepo,
         enrolled.map((row) => ({
           examSessionId: session.id,
           studentMssv: row.studentMssv,
-          // Một tên thiếu lùi về MSSV chứ không thành '' — ảnh chụp là vĩnh viễn (reviewer cụm 1, I4).
-          studentName: row.studentName ?? row.studentMssv,
+          studentName: nameOf(row),
           homeClassId: row.homeClassId,
           homeTeacherId: row.homeTeacherId,
           source: 'frozen' as const,
@@ -126,7 +139,7 @@ export class SessionRosterService {
         session.id,
         enrolled.map((row) => ({
           mssv: row.studentMssv,
-          name: row.studentName ?? row.studentMssv,
+          name: nameOf(row),
           homeClassId: row.homeClassId,
           homeTeacherId: row.homeTeacherId,
         })),
@@ -181,6 +194,11 @@ export class SessionRosterService {
         );
       }
 
+      // Tên đã lưu thắng tên gõ ở phòng thi; không tạo `student` mới (ảnh chốt chỉ là bản chụp
+      // một buổi thi — một lỗi gõ ở đây không được thành tên vĩnh viễn tự điền ở mọi lớp).
+      const stored = await this.students.findNames(manager, [student.mssv]);
+      const name = stored.get(student.mssv.toLowerCase()) ?? student.name;
+
       // Lớp GỐC của em, trong phạm vi MÔN của phiên này.
       //
       // Không khoá vào `session.classId`: sinh viên thi bù có enrollment ở
@@ -221,7 +239,7 @@ export class SessionRosterService {
         rosterRepo.create({
           examSessionId: session.id,
           studentMssv: student.mssv,
-          studentName: student.name,
+          studentName: name,
           homeClassId,
           homeTeacherId,
           source: 'manual',
@@ -229,7 +247,7 @@ export class SessionRosterService {
       );
 
       await this.seedSeats(manager, session.id, [
-        { mssv: student.mssv, name: student.name, homeClassId, homeTeacherId },
+        { mssv: student.mssv, name, homeClassId, homeTeacherId },
       ]);
 
       return saved;

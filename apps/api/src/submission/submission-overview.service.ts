@@ -70,10 +70,12 @@ export class SubmissionOverviewService {
         -- course_id của phép nối biến mất. exam_session.class_id là NOT
         -- NULL từ ExpandMasterDataToText, nên không còn phiên nào cho ra
         -- roster rỗng vì thiếu lớp.
-        SELECT s.id AS exam_session_id, e.student_mssv, e.student_name
+        SELECT s.id AS exam_session_id, e.student_mssv,
+               COALESCE(st.full_name, e.student_name) AS student_name
         FROM ${schema}.exam_session s
         JOIN ${schema}.enrollment e
           ON e.home_class_id = s.class_id
+        LEFT JOIN ${schema}.student st ON st.mssv = e.student_mssv
         WHERE s.teacher_id = $1
       ),
       attended AS (

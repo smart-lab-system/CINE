@@ -67,14 +67,15 @@ export class RecollectService {
             AND archive_check_status NOT IN ('failed', 'unreadable')
           GROUP BY student_mssv
        )
-       SELECT e.student_mssv AS mssv, e.student_name AS name
+       SELECT e.student_mssv AS mssv, COALESCE(st.full_name, e.student_name) AS name
          FROM attended a
          JOIN examcollect.exam_session s ON s.id = $1
          JOIN examcollect.enrollment e
            ON e.home_class_id = s.class_id AND e.student_mssv = a.student_mssv
+         LEFT JOIN examcollect.student st ON st.mssv = e.student_mssv
          LEFT JOIN collected c ON c.student_mssv = a.student_mssv
         WHERE COALESCE(c.n, 0) < (SELECT n FROM required)
-        ORDER BY e.student_name`,
+        ORDER BY COALESCE(st.full_name, e.student_name)`,
       [examSessionId],
     ) as Promise<MissingStudent[]>;
   }

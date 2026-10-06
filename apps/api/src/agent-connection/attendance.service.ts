@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { AgentConnectionEventEntity } from './entities/agent-connection-event.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ClassEntity } from '../course/entities/class.entity';
+import { StudentEntity } from '../course/entities/student.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { SessionRosterEntity } from '../exam-session/entities/session-roster.entity';
@@ -47,6 +48,10 @@ export class AttendanceService {
     // được ExamSessionModule import (xem comment ở AgentConnectionModule).
     @InjectRepository(SessionRosterEntity)
     private readonly sessionRoster: Repository<SessionRosterEntity>,
+    // Tên sinh viên ở MỘT chỗ (spec §2.6). Đăng ký entity thay vì import CourseModule — xem
+    // doc của AgentConnectionModule.
+    @InjectRepository(StudentEntity)
+    private readonly students: Repository<StudentEntity>,
   ) {}
 
   /**
@@ -133,6 +138,9 @@ export class AttendanceService {
       where: { homeClassId: In(await this.relevantClassIds(session)) },
     });
     const byMssv = new Map(enrolled.map((row) => [row.studentMssv.toLowerCase(), row]));
+    const names = await this.studentNames(enrolled.map((row) => row.studentMssv));
+    const nameOf = (row: EnrollmentEntity) =>
+      names.get(row.studentMssv.toLowerCase()) ?? row.studentName ?? row.studentMssv;
 
     const classNames = new Map(
       (
@@ -148,7 +156,7 @@ export class AttendanceService {
     const makeup: AttendanceStudentView[] = [];
 
     for (const enrollment of roster) {
-      const view = this.toView(enrollment.studentMssv, enrollment.studentName ?? '', seen, confirmedAt);
+      const view = this.toView(enrollment.studentMssv, nameOf(enrollment), seen, confirmedAt);
       (view.connected ? present : absent).push(view);
     }
 
@@ -165,7 +173,7 @@ export class AttendanceService {
         continue;
       }
       makeup.push({
-        ...this.toView(enrollment.studentMssv, enrollment.studentName ?? '', seen, confirmedAt),
+        ...this.toView(enrollment.studentMssv, nameOf(enrollment), seen, confirmedAt),
         homeClassName: classNames.get(enrollment.homeClassId),
       });
     }
@@ -220,6 +228,13 @@ export class AttendanceService {
    * before the invigilator gets round to counting is not an anomaly, and
    * flagging them would train everyone to ignore the flag.
    */
+  /** MSSV (viết thường) -> họ tên từ `student`. `In()` trên cột citext so không phân biệt hoa-thường. */
+  private async studentNames(mssvs: string[]): Promise<Map<string, string>> {
+    if (mssvs.length === 0) return new Map();
+    const rows = await this.students.find({ where: { mssv: In(mssvs) } });
+    return new Map(rows.map((row) => [row.mssv.toLowerCase(), row.fullName]));
+  }
+
   private async buildDiscrepancy(
     session: ExamSessionEntity,
     seen: Map<string, StudentState>,
@@ -254,11 +269,13 @@ export class AttendanceService {
       })
       .getRawMany<{ mssv: string }>();
 
+    const names = await this.studentNames(rows.map(({ mssv }) => mssv));
     const unaccounted = rows
       .filter(({ mssv }) => !this.wasPresentAt(seen.get(mssv.toLowerCase()), confirmedAt))
       .map(({ mssv }) => {
         const enrollment = byMssv.get(mssv.toLowerCase());
-        const view = this.toView(mssv, enrollment?.studentName ?? mssv, seen, confirmedAt);
+        const name = names.get(mssv.toLowerCase()) ?? enrollment?.studentName ?? mssv;
+        const view = this.toView(mssv, name, seen, confirmedAt);
         return enrollment && enrollment.homeClassId !== session.classId
           ? { ...view, homeClassName: classNames.get(enrollment.homeClassId) }
           : view;

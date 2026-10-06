@@ -86,16 +86,37 @@ export interface SeedEnrollmentOptions {
   /** Chủ lớp: `enrollment.home_teacher_id` luôn là giảng viên của lớp. */
   teacherId: string;
   mssv: string;
-  /** Mặc định `Sinh viên <mssv>`. */
+  /** Mặc định `Sinh viên <mssv>`. Ghi vào `student` (tên ở MỘT chỗ). */
   name?: string;
+  /**
+   * Chỉ cho test về GIAI ĐOẠN CHUYỂN TIẾP: dựng một dòng ở hình dạng TRƯỚC backfill — có
+   * `enrollment.student_name`, KHÔNG có hàng trong `student`. Có cờ này thì `name` bị bỏ qua.
+   */
+  legacyName?: string;
 }
 
 export async function seedEnrollment(db: Queryable, o: SeedEnrollmentOptions): Promise<void> {
+  if (o.legacyName !== undefined) {
+    await db.query(
+      `INSERT INTO examcollect.enrollment (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [o.mssv, o.legacyName, o.classId, o.teacherId],
+    );
+    return;
+  }
+  const name = o.name ?? `Sinh viên ${o.mssv}`;
+  // Tên sinh viên ở MỘT chỗ: upsert, người ghi sau thắng — giống "file thắng" của import danh sách.
+  // Hệ quả cho test: hai lần seed cùng MỘT MSSV với HAI tên khác nhau chỉ còn tên sau.
   await db.query(
-    `INSERT INTO examcollect.enrollment
-       (student_mssv, student_name, home_class_id, home_teacher_id)
+    `INSERT INTO examcollect.student (mssv, full_name) VALUES ($1, $2)
+     ON CONFLICT (mssv) DO UPDATE SET full_name = EXCLUDED.full_name, updated_at = now()`,
+    [o.mssv, name],
+  );
+  // TẠM ghi kép: cột cũ còn được đọc ở những nơi chưa chuyển (Task 3 Step 4–7). Task 7 bỏ nửa này.
+  await db.query(
+    `INSERT INTO examcollect.enrollment (student_mssv, student_name, home_class_id, home_teacher_id)
      VALUES ($1, $2, $3, $4)`,
-    [o.mssv, o.name ?? `Sinh viên ${o.mssv}`, o.classId, o.teacherId],
+    [o.mssv, name, o.classId, o.teacherId],
   );
 }
 

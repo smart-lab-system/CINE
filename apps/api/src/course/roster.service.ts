@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In } from 'typeorm';
 import { ClassEntity } from './entities/class.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
+import { StudentService } from './student.service';
 import { ImportRosterDto, RosterStudentDto } from './dto/roster.dto';
 import { RosterEntry, RosterImportResult } from './course.types';
 
@@ -21,14 +22,26 @@ import { RosterEntry, RosterImportResult } from './course.types';
  */
 @Injectable()
 export class RosterService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly students: StudentService,
+  ) {}
 
   async listForClass(classId: string): Promise<RosterEntry[]> {
     const rows = await this.dataSource.getRepository(EnrollmentEntity).find({
       where: { homeClassId: classId },
       order: { studentMssv: 'ASC' },
     });
-    return rows.map((row) => ({ mssv: row.studentMssv, name: row.studentName ?? '' }));
+    // Tên từ `student`, rơi về cột cũ cho dòng chưa backfill (Review Focus 6). Task 5 viết lại
+    // toàn bộ service này; đây là bước tối thiểu để mọi nơi ĐỌC tên đi cùng một nguồn.
+    const names = await this.students.findNames(
+      this.dataSource,
+      rows.map((row) => row.studentMssv),
+    );
+    return rows.map((row) => ({
+      mssv: row.studentMssv,
+      name: names.get(row.studentMssv.toLowerCase()) ?? row.studentName ?? '',
+    }));
   }
 
   /**

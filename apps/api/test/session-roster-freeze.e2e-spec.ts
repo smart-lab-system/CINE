@@ -498,6 +498,9 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
   // agent:join sẽ trả tên rỗng, `{TEN}` trong tên file thành rỗng, và `student_name_input` của bài nộp cũng rỗng.
   it('enrollment không có tên: ảnh chụp và chỗ ngồi lùi về MSSV, không bao giờ là chuỗi rỗng', async () => {
     const session = await seedSession({ students: 2 });
+    // Từ D1 tên được đọc từ `student` TRƯỚC; muốn chạm nhánh "không có tên ở đâu cả" thì phải xoá cả hàng `student`
+    // (MSSV của spec này là duy nhất cho từng lần seed nên xoá không ảnh hưởng ai khác).
+    await dataSource.query(`DELETE FROM examcollect.student WHERE mssv = ANY($1::citext[])`, [session.students]);
     await dataSource.query(`UPDATE examcollect.enrollment SET student_name = NULL WHERE home_class_id = $1`, [session.classId]);
 
     await open(session.id).expect(200);
