@@ -27,6 +27,15 @@ describe('Entity khớp schema (e2e)', () => {
     const db = new Map(rows.map((r) => [`${r.table_name}.${r.column_name}`, r.is_nullable === 'YES']));
     const problems: string[] = [];
     for (const meta of ds.entityMetadatas) {
+      // View không có ràng buộc NOT NULL để so; `information_schema` ghi mọi cột view là nullable.
+      // Cột của view vẫn phải CÓ trong DB — kiểm riêng ở đây.
+      if (meta.tableType === 'view') {
+        for (const col of meta.columns) {
+          const key = `${meta.tableName}.${col.databaseName}`;
+          if (!db.has(key)) problems.push(`${key}: không có trong DB`);
+        }
+        continue;
+      }
       for (const col of meta.columns) {
         const key = `${meta.tableName}.${col.databaseName}`;
         if (!db.has(key)) problems.push(`${key}: không có trong DB`);

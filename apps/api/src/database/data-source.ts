@@ -8,6 +8,7 @@ import { SemesterEntity } from '../course/entities/semester.entity';
 import { RoomEntity } from '../course/entities/room.entity';
 import { AdministrativeClassEntity } from '../course/entities/administrative-class.entity';
 import { StudentEntity } from '../course/entities/student.entity';
+import { ClassLabelView } from '../course/entities/class-label.view';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { SessionRosterEntity } from '../exam-session/entities/session-roster.entity';
 import { GradingReferenceEntity } from '../grading/entities/grading-reference.entity';
@@ -100,6 +101,7 @@ export const dataSourceOptions: DataSourceOptions = {
     RoomEntity,
     AdministrativeClassEntity,
     StudentEntity,
+    ClassLabelView,
     ExamSessionEntity,
     SessionRosterEntity,
     RequiredDeliverableEntity,
