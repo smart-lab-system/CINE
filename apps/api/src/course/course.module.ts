@@ -24,13 +24,12 @@ import { StudentController } from './student.controller';
 import { StudentLookupLimiter } from './student-lookup.limiter';
 
 /**
- * Lớp và danh sách sinh viên — phần còn lại của "cấu trúc học vụ" sau đợt
- * thu hẹp master data.
+ * Dữ liệu nền có phân tầng: HỌC KỲ, PHÒNG THI, LỚP DANH NGHĨA, SINH VIÊN, LỚP và
+ * DANH SÁCH SINH VIÊN của lớp. Admin khai (học kỳ, phòng, lớp danh nghĩa, lớp);
+ * giảng viên chỉ chọn và chỉ nhập danh sách sinh viên của lớp mình được giao.
  *
- * Module này từng sở hữu cả `Course` và `Semester`, cùng controller cho
- * trưởng khoa quản chúng. Hệ thống thôi quản lý dữ liệu nền của trường: nó
- * chỉ ghi lại những gì giảng viên khai cho một phiên thi, nên môn học là
- * một chuỗi trên `class`/`exam_session` chứ không còn là một hàng.
+ * Môn học vẫn là một chuỗi hằng số (`COURSE_NAME`) trên `class`/`exam_session`,
+ * không phải một hàng — hệ thống phục vụ đúng một môn.
  *
  * `EnrollmentService` được export vì `SessionRosterService` phải trả lời
  * "em này thuộc lớp nào" lúc chốt danh sách dự thi, và câu hỏi đó thuộc dữ

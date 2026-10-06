@@ -92,3 +92,19 @@ export function ensureTestSemester(db: Queryable, term: 1 | 2 | 3 = 1): Promise<
   sharedSemesters.set(term, created);
   return created;
 }
+
+/**
+ * Một học kỳ có ngày THẬT trong quá khứ (2001-09-01 → 2002-01-31). Nằm NGOÀI vùng tên ≥ 2200 của test (nên
+ * `purgeTestSemesters` không đụng) và không đụng dữ liệu thật (2026 trở đi). Idempotent: chạy lại trả cùng một hàng.
+ */
+export async function ensurePastSemester(db: Queryable): Promise<string> {
+  const [existing] = await db.query(
+    `SELECT id FROM examcollect.semester WHERE academic_year_start = 2001 AND term = 1`,
+  );
+  if (existing) return existing.id as string;
+  const [row] = await db.query(
+    `INSERT INTO examcollect.semester (academic_year_start, term, start_date, end_date)
+     VALUES (2001, 1, '2001-09-01', '2002-01-31') RETURNING id`,
+  );
+  return row.id as string;
+}

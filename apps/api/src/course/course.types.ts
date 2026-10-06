@@ -32,18 +32,42 @@ export interface RosterImportResult {
 }
 
 /**
- * A class as its own lecturer sees it in the create-session form: enough to
- * pick one and to warn about a room too small, without a second round-trip
- * per row.
+ * Một lớp như CHÍNH giảng viên của nó thấy: đủ để chọn trong form tạo phiên (nhãn gộp kèm học kỳ) và
+ * để cảnh báo phòng nhỏ (`studentCount`), không cần thêm một lượt gọi mỗi dòng. Giảng viên chỉ thấy MỘT nhãn —
+ * không có trang, route hay bộ lọc riêng cho lớp danh nghĩa (spec §2.2, §5.2).
+ *
+ * `studentCount = 0` có nghĩa riêng chứ không phải rỗng: chưa ai nhập danh sách cho lớp đó.
  */
-export interface TeachingClassView {
-  id: string;
-  name: string;
-  /** Tên môn dạng văn bản. `courseId`/`courseCode` biến mất cùng bảng
-   *  `course` ở đợt thu hẹp master data. */
-  courseName: string;
-  /** Students on the imported roster — 0 means nobody has imported one yet. */
-  studentCount: number;
+export class TeachingClassView {
+  id!: string;
+  /** `DHKTPM18A` hoặc `DHKTPM18A – Nhóm 1`. */
+  label!: string;
+  /** `label` kèm ` · HK1 2026-2027`, để phân biệt hai lớp cùng nhãn ở hai kỳ. */
+  labelWithSemester!: string;
+  /** Hằng số của hệ thống (một môn). Giữ vì API vẫn trả; không màn hình nào hiện nó như một cột. */
+  courseName!: string;
+  /** `null` chỉ với lớp cũ chưa backfill. */
+  semesterId!: string | null;
+  academicYear!: number | null;
+  term!: number | null;
+  studentCount!: number;
+}
+
+/** Một lớp như admin thấy trong trang Lớp. */
+export class ClassAdminView {
+  id!: string;
+  label!: string;
+  labelWithSemester!: string;
+  semesterId!: string | null;
+  academicYear!: number | null;
+  term!: number | null;
+  administrativeClassId!: string | null;
+  administrativeClassCode!: string | null;
+  groupName!: string;
+  teacherId!: string;
+  teacherName!: string;
+  studentCount!: number;
+  sessionCount!: number;
 }
 
 /** Một học kỳ như admin và giảng viên đọc nó. `classCount` chỉ có với admin. */

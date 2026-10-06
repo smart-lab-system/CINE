@@ -25,9 +25,8 @@ export class AccountsController {
   constructor(private readonly accounts: AccountsService) {}
 
   /**
-   * Overrides the class-level @Roles('admin') for this route only: a Trưởng
-   * khoa must name a lecturer when creating a class. It returns id and name
-   * and nothing else, so widening the audience does not widen what leaks.
+   * Overrides nothing — the whole controller is admin-only. It returns id and
+   * name and nothing else, and feeds the lecturer picker of the admin Lớp page.
    *
    * Declared before any ':id' route so the literal segment cannot be parsed
    * as a uuid param.
