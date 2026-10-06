@@ -134,15 +134,23 @@ export class ExpandMasterDataEntities1789600000000 implements MigrationInterface
               REFERENCES "examcollect"."semester"("id") ON DELETE RESTRICT,
           ADD CONSTRAINT "fk_class_administrative_class" FOREIGN KEY ("administrative_class_id")
               REFERENCES "examcollect"."administrative_class"("id") ON DELETE RESTRICT,
-          ADD CONSTRAINT "ck_class_group_name" CHECK ("group_name" = btrim("group_name")),
+          -- Không khoảng trắng đầu/cuối, không hai khoảng trắng liền nhau, không ký tự điều khiển (tab, xuống dòng):
+          -- "Nhóm 1" có thêm một tab cuối nhìn như "Nhóm 1" nhưng là hai chuỗi (reviewer cụm 1, I3).
+          ADD CONSTRAINT "ck_class_group_name"
+            CHECK ("group_name" = btrim("group_name")
+               AND "group_name" !~ '\\s{2,}'
+               AND "group_name" !~ '[[:cntrl:]]'),
           ALTER COLUMN "name" DROP NOT NULL
       `);
       // `group_name` mặc định '' chứ không NULL: Postgres coi mọi NULL là khác
       // nhau, nên với NULL khoá duy nhất dưới đây bị vô hiệu — cùng lỗ hổng mà
       // spec 2026-09-20 §3.4 đã tìm thấy ở `exam_session.class_id`.
+      // `lower(group_name)`: "Nhóm 1" và "nhóm 1" là MỘT nhóm (cùng cách `code` và `name` ở
+      // các bảng khác dùng citext) — khoá theo chuỗi nguyên văn thì lách được bằng hoa-thường
+      // (reviewer cụm 1, I3), và backfill hay SQL tay không đi qua chuẩn hoá của service.
       await q.query(`
         CREATE UNIQUE INDEX "uq_class_semester_admin_group"
-          ON "examcollect"."class" ("semester_id", "administrative_class_id", "group_name")
+          ON "examcollect"."class" ("semester_id", "administrative_class_id", lower("group_name"))
       `);
 
       // ----------------------------------------------------------- enrollment

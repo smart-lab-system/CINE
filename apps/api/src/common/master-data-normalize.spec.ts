@@ -38,6 +38,13 @@ describe('normalizeAdministrativeCode', () => {
     expect(normalizeAdministrativeCode(' Cấu trúc dữ liệu ( dhktpm18a ) ')).toBe('DHKTPM18A');
     expect(normalizeAdministrativeCode('(ABC123)')).toBe('ABC123');
   });
+  it('phần NGOÀI ngoặc đã là một mã (có chữ số) thì mơ hồ: KHÔNG đoán mã trong ngoặc, giữ nguyên để báo lỗi (reviewer cụm 1, I2)', () => {
+    expect(normalizeAdministrativeCode('DHKTPM18A (CLC)')).toBe('DHKTPM18A (CLC)');
+    expect(normalizeAdministrativeCode('DHKTPM18A (N01)')).toBe('DHKTPM18A (N01)');
+    expect(administrativeCodeProblem(normalizeAdministrativeCode('DHKTPM18A (CLC)'))).toMatch(/chữ và số/);
+    // Tên không có chữ số thì vẫn đọc như thường, kể cả khi không có dấu cách: Tên(mã).
+    expect(normalizeAdministrativeCode('Toan(422001525805)')).toBe('422001525805');
+  });
   it('ngoặc không chứa một mã hợp lệ, hoặc nhiều cặp ngoặc → KHÔNG đoán: giữ nguyên chuỗi (viết hoa) để administrativeCodeProblem báo lỗi', () => {
     expect(normalizeAdministrativeCode('Lớp A(2)')).toBe('LỚP A(2)');
     expect(normalizeAdministrativeCode('ABC(DEF)(GHI)')).toBe('ABC(DEF)(GHI)');

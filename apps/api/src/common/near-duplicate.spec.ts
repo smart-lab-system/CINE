@@ -32,6 +32,31 @@ describe('nearDuplicateReason', () => {
     expect(nearDuplicateReason(b, a)).toBeNull();
   });
 
+  // Phòng và mã đánh số liên tiếp (reviewer cụm 1, I1): thêm/bớt/đổi chỗ một CHỮ SỐ là một thực thể
+  // KHÁC (phòng 1 ≠ phòng 10, H3.01 ≠ H3.10). Tiền tố "Phòng máy" làm chuỗi đủ dài để vượt ngưỡng 5,
+  // nên nếu không loại chữ số, import cả một tầng phòng (H3.01…H3.12) sẽ bật cảnh báo hàng loạt.
+  const NUMBERED_PAIRS: Array<[string, string]> = [
+    ['Phòng máy 1', 'Phòng máy 10'],
+    ['Phòng máy 2', 'Phòng máy 12'],
+    ['Phòng máy 12', 'Phòng máy 21'],
+    ['Phòng A101', 'Phòng A110'],
+    ['Phòng H3.01', 'Phòng H3.10'],
+    ['Phòng máy A1', 'Phòng máy A12'],
+    ['422001525812', '422001525821'],
+  ];
+
+  it.each(NUMBERED_PAIRS)('KHÔNG cảnh báo cặp đánh số liên tiếp: %s ~ %s', (a, b) => {
+    expect(nearDuplicateReason(a, b)).toBeNull();
+    expect(nearDuplicateReason(b, a)).toBeNull();
+  });
+
+  it('vẫn cảnh báo khi chữ CÁI thừa/đổi chỗ cạnh một dãy số', () => {
+    expect(nearDuplicateReason('Phòng máy 12A', 'Phòng máy 12AA')).toBe('insert_delete');
+    expect(nearDuplicateReason('DHKTPM18ATT', 'DHKTPM18TAT')).toBe('swap');
+    // đổi chỗ một chữ cái với một chữ số vẫn là lỗi gõ điển hình
+    expect(nearDuplicateReason('DHKTPM18ATT', 'DHKTPM1A8TT')).toBe('swap');
+  });
+
   const SHOULD_WARN: Array<[string, string, string]> = [
     ['P.A101', 'P A101', 'normalized'],
     ['P.A101', 'p-a101', 'normalized'],

@@ -290,6 +290,25 @@ describe('Master data schema (e2e)', () => {
       await newClass(teacherB, { semesterId: sem.id, administrativeClassId: adm, groupName: 'Nhóm 1' });
     });
 
+    it('T-MD-2b (reviewer cụm 1, I3): hoa-thường của tên nhóm không lách được khoá duy nhất; tên nhóm không có khoảng trắng thừa hay ký tự điều khiển', async () => {
+      const sem = await newSemester(1);
+      const adm = await newAdminClass();
+      await newClass(teacherA, { semesterId: sem.id, administrativeClassId: adm, groupName: 'Nhóm 1' });
+
+      // "Nhóm 1" và "nhóm 1" hiện ra như CÙNG MỘT nhóm: cùng (kỳ, mã) thì chỉ được một.
+      await expectDbError(
+        seedClass(ds, { teacherId: teacherB, semesterId: sem.id, administrativeClassId: adm, groupName: 'nhóm 1' }),
+        '23505',
+      );
+      const other = await newAdminClass();
+      for (const bad of ['Nhóm  1', 'Nhóm 1\t', 'Nhóm\n1', ' Nhóm 1']) {
+        await expectDbError(
+          seedClass(ds, { teacherId: teacherB, semesterId: sem.id, administrativeClassId: other, groupName: bad }),
+          '23514',
+        );
+      }
+    });
+
     it('T-MD-5: không đổi được học kỳ của lớp đã có phiên; lớp chưa có phiên thì đổi được', async () => {
       const s1 = await newSemester(1);
       const s2 = await newSemester(1);

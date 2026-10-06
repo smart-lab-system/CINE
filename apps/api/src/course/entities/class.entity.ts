@@ -19,11 +19,16 @@ import { AdministrativeClassEntity } from './administrative-class.entity';
 // ràng buộc một môn có ngày được nới ra thì không phải dựng lại.
 @Index('uq_class_teacher_course_name', ['teacherId', 'courseName', 'name'], { unique: true })
 // Khoá duy nhất MỚI: một lớp học phần là (học kỳ, lớp danh nghĩa, nhóm). `group_name`
-// là '' chứ không NULL — NULL làm khoá này mất tác dụng (xem migration).
+// là '' chứ không NULL — NULL làm khoá này mất tác dụng (xem migration). Ở DB chỉ mục nằm trên
+// `lower(group_name)` (hoa-thường của tên nhóm không tạo ra một lớp khác); TypeORM không biểu
+// diễn được chỉ mục biểu thức nên decorator chỉ nêu các cột — migration là nguồn thật.
 @Index('uq_class_semester_admin_group', ['semesterId', 'administrativeClassId', 'groupName'], {
   unique: true,
 })
-@Check('ck_class_group_name', '"group_name" = btrim("group_name")')
+@Check(
+  'ck_class_group_name',
+  `"group_name" = btrim("group_name") AND "group_name" !~ '\\s{2,}' AND "group_name" !~ '[[:cntrl:]]'`,
+)
 export class ClassEntity extends BaseEntity {
   /**
    * Tên môn học dạng VĂN BẢN, thay cho khoá ngoại tới bảng `course` đã bỏ.

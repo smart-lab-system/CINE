@@ -20,6 +20,15 @@
  * cái nó sinh ra để làm. Cái giá: lỗi gõ thay một ký tự ("ATT" -> "ATR") không
  * bị bắt, vì về hình thức nó không phân biệt được với một lớp anh em thật.
  *
+ * CHỮ SỐ không bao giờ là một "lỗi gõ" ở luật 2 và 3 (reviewer cụm 1, I1): thêm/bớt một
+ * chữ số hay đổi chỗ hai chữ số cho ra một SỐ KHÁC, tức một phòng/mã khác — "Phòng máy 1"
+ * ≠ "Phòng máy 10", "Phòng H3.01" ≠ "Phòng H3.10", "422001525812" ≠ "422001525821".
+ * Tiền tố dài ("Phòng máy") làm ngưỡng MIN_FUZZY_LENGTH vô tác dụng, nên không loại chữ số
+ * thì import cả một tầng phòng đánh số liên tiếp sẽ bật cảnh báo hàng loạt — đúng hiệu ứng
+ * "dạy người dùng bấm xác nhận mọi thứ". Cái giá: một chữ số gõ thừa ("A1" -> "A11") không
+ * bị bắt; về hình thức nó không phân biệt được với phòng thứ mười một. Đổi chỗ một chữ CÁI
+ * với một chữ SỐ ("18A" -> "1A8") vẫn tính là lỗi gõ.
+ *
  * Hàm đối xứng: nearDuplicateReason(a, b) === nearDuplicateReason(b, a).
  */
 
@@ -31,26 +40,35 @@ const MIN_FUZZY_LENGTH = 5;
 export function normalizeForCompare(value: string): string {
   return value
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[đĐ]/g, 'd')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
 }
 
-/** `longer` có đúng một ký tự thừa so với `shorter` (và bỏ nó đi thì ra `shorter`). */
-function isSingleInsertion(shorter: string, longer: string): boolean {
+const isDigit = (char: string): boolean => char >= '0' && char <= '9';
+
+/**
+ * `longer` có đúng một ký tự thừa so với `shorter` (và bỏ nó đi thì ra `shorter`):
+ * trả ký tự thừa, hoặc `null` nếu không phải một phép chèn đơn.
+ */
+function singleInsertion(shorter: string, longer: string): string | null {
   let i = 0;
   while (i < shorter.length && shorter[i] === longer[i]) i++;
-  return shorter.slice(i) === longer.slice(i + 1);
+  return shorter.slice(i) === longer.slice(i + 1) ? longer[i] : null;
 }
 
-/** Cùng độ dài, khác nhau đúng ở hai vị trí LIỀN KỀ và hai ký tự đó đổi chỗ cho nhau. */
-function isAdjacentSwap(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
+/**
+ * Cùng độ dài, khác nhau đúng ở hai vị trí LIỀN KỀ và hai ký tự đó đổi chỗ cho nhau:
+ * trả hai ký tự đó, hoặc `null` nếu không phải một phép đổi chỗ liền kề.
+ */
+function adjacentSwap(a: string, b: string): [string, string] | null {
+  if (a.length !== b.length) return null;
   let i = 0;
   while (i < a.length && a[i] === b[i]) i++;
-  if (i >= a.length - 1) return false;
-  return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
+  if (i >= a.length - 1) return null;
+  const swapped = a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
+  return swapped ? [a[i], a[i + 1]] : null;
 }
 
 export function nearDuplicateReason(a: string, b: string): NearDuplicateReason | null {
@@ -61,9 +79,11 @@ export function nearDuplicateReason(a: string, b: string): NearDuplicateReason |
   if (na.length < MIN_FUZZY_LENGTH || nb.length < MIN_FUZZY_LENGTH) return null;
   if (Math.abs(na.length - nb.length) === 1) {
     const [shorter, longer] = na.length < nb.length ? [na, nb] : [nb, na];
-    if (isSingleInsertion(shorter, longer)) return 'insert_delete';
+    const extra = singleInsertion(shorter, longer);
+    if (extra !== null) return isDigit(extra) ? null : 'insert_delete';
   }
-  if (isAdjacentSwap(na, nb)) return 'swap';
+  const swapped = adjacentSwap(na, nb);
+  if (swapped) return isDigit(swapped[0]) && isDigit(swapped[1]) ? null : 'swap';
   return null;
 }
 

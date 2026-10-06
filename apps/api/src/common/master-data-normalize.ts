@@ -18,12 +18,25 @@ export function normalizeRoomName(raw: string): string {
  * Chỉ khi phần ngoài ngoặc không có ngoặc nào và phần trong ngoặc là một mã hợp lệ (chữ/số, 3–30 ký tự); không thì giữ nguyên chuỗi để
  * `administrativeCodeProblem` báo lỗi thay vì ĐOÁN. Nhập tay và import cùng đi qua hàm này, nên bản xem trước của import hiện mã đã hiểu.
  */
-const NAME_WITH_CODE = /^[^()]*\(\s*([A-Za-z0-9]{3,30})\s*\)\s*$/;
+const NAME_WITH_CODE = /^([^()]*)\(\s*([A-Za-z0-9]{3,30})\s*\)\s*$/;
+
+/**
+ * Phần NGOÀI ngoặc tự nó đã là một mã lớp (hợp lệ và có chữ số, như `DHKTPM18A`) thì
+ * `DHKTPM18A (CLC)` là MƠ HỒ: mã là `DHKTPM18A` hay `CLC`? Không đoán — trả nguyên chuỗi để
+ * `administrativeCodeProblem` báo lỗi và người nhập tự bỏ phần ngoặc hoặc phần tên (reviewer
+ * cụm 1, I2). Tên không có chữ số (`Toan(422001525805)`) vẫn đọc như thường: một mã lớp thật
+ * hầu như luôn có chữ số, còn một cái tên thì không.
+ */
+function outerLooksLikeCode(outer: string): boolean {
+  const candidate = outer.trim().toUpperCase();
+  return ADMINISTRATIVE_CODE_PATTERN.test(candidate) && /[0-9]/.test(candidate);
+}
 
 export function normalizeAdministrativeCode(raw: string): string {
   const trimmed = raw.trim();
   const match = NAME_WITH_CODE.exec(trimmed);
-  return (match ? match[1] : trimmed).toUpperCase();
+  if (match && !outerLooksLikeCode(match[1])) return match[2].toUpperCase();
+  return trimmed.toUpperCase();
 }
 
 export function roomNameProblem(name: string): string | null {

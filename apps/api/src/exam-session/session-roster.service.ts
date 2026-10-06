@@ -113,7 +113,8 @@ export class SessionRosterService {
         enrolled.map((row) => ({
           examSessionId: session.id,
           studentMssv: row.studentMssv,
-          studentName: row.studentName ?? '',
+          // Một tên thiếu lùi về MSSV chứ không thành '' — ảnh chụp là vĩnh viễn (reviewer cụm 1, I4).
+          studentName: row.studentName ?? row.studentMssv,
           homeClassId: row.homeClassId,
           homeTeacherId: row.homeTeacherId,
           source: 'frozen' as const,
@@ -125,7 +126,7 @@ export class SessionRosterService {
         session.id,
         enrolled.map((row) => ({
           mssv: row.studentMssv,
-          name: row.studentName ?? '',
+          name: row.studentName ?? row.studentMssv,
           homeClassId: row.homeClassId,
           homeTeacherId: row.homeTeacherId,
         })),
