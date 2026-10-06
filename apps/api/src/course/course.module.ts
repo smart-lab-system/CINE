@@ -20,6 +20,8 @@ import { AdministrativeClassService } from './administrative-class.service';
 import { AdministrativeClassController } from './administrative-class.controller';
 import { ClassLabelService } from './class-label.service';
 import { StudentService } from './student.service';
+import { StudentController } from './student.controller';
+import { StudentLookupLimiter } from './student-lookup.limiter';
 
 /**
  * Lớp và danh sách sinh viên — phần còn lại của "cấu trúc học vụ" sau đợt
@@ -47,7 +49,13 @@ import { StudentService } from './student.service';
     ]),
     AdminModule,
   ],
-  controllers: [ClassController, SemesterController, RoomController, AdministrativeClassController],
+  controllers: [
+    ClassController,
+    SemesterController,
+    RoomController,
+    AdministrativeClassController,
+    StudentController,
+  ],
   providers: [
     ClassService,
     EnrollmentService,
@@ -57,6 +65,7 @@ import { StudentService } from './student.service';
     AdministrativeClassService,
     ClassLabelService,
     StudentService,
+    StudentLookupLimiter,
   ],
   // ClassService is exported for ExamSessionService: creating a session
   // needs the lecturer's own scope on a class, and that scope is decided in
