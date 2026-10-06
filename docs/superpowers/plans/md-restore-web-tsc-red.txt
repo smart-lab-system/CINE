@@ -1,13 +1,2 @@
 src/app/teacher/exam-sessions/new/page.tsx
-src/app/teacher/grading/_components/SessionHeader.tsx
-src/app/teacher/grading/_components/session-list/BulkDialog.test.tsx
-src/app/teacher/grading/_components/session-list/BulkDialog.tsx
-src/app/teacher/grading/_components/session-list/FilterBar.test.tsx
-src/app/teacher/grading/_components/session-list/SessionList.test.tsx
-src/app/teacher/grading/_components/session-list/SessionTable.test.tsx
-src/app/teacher/grading/_components/session-list/SessionTable.tsx
-src/app/teacher/grading/page.test.tsx
 src/lib/api/exam-session.ts
-src/lib/session-list.fixtures.ts
-src/lib/session-list.test.ts
-src/lib/session-list.ts
