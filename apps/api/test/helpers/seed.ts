@@ -54,6 +54,10 @@ export interface SeedClassOptions {
    * Mặc định là hằng số của hệ thống.
    */
   courseName?: string;
+  /** Học kỳ của lớp (hàng trong `semester`). Mặc định NULL — chỉ test về dữ liệu nền cần nó. */
+  semesterId?: string;
+  /** Lớp danh nghĩa (hàng trong `administrative_class`). Mặc định NULL. */
+  administrativeClassId?: string;
 }
 
 export interface SeededClass {
@@ -69,9 +73,10 @@ export async function seedClass(db: Queryable, o: SeedClassOptions): Promise<See
   const groupName = o.groupName ?? '';
   const label = classLabel(code, groupName);
   const [row] = await db.query(
-    `INSERT INTO examcollect.class (course_name, name, teacher_id)
-     VALUES ($1, $2, $3) RETURNING id`,
-    [o.courseName ?? COURSE_NAME, label, o.teacherId],
+    `INSERT INTO examcollect.class
+       (course_name, name, teacher_id, semester_id, administrative_class_id, group_name)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [o.courseName ?? COURSE_NAME, label, o.teacherId, o.semesterId ?? null, o.administrativeClassId ?? null, groupName],
   );
   return { id: row.id as string, code, groupName, label };
 }
@@ -112,6 +117,8 @@ export interface SeedExamSessionOptions {
   /** Mặc định `HK kiểm thử` — giá trị mà 57/70 chỗ dùng trong e2e. */
   semesterName?: string;
   courseName?: string;
+  /** Phòng thật (hàng trong `room`). Mặc định NULL: phiên "kiểu cũ" chỉ có bản chụp tên phòng. */
+  roomId?: string;
 }
 
 export interface SeededExamSession {
@@ -140,8 +147,8 @@ export async function seedExamSession(
   const [row] = await db.query(
     `INSERT INTO examcollect.exam_session
        (name, code, class_id, teacher_id, exam_type, start_time, end_time, status,
-        semester_name, course_name, room_name)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        semester_name, course_name, room_name, room_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      RETURNING id`,
     [
       o.name ?? `Phiên ${s}`,
@@ -155,6 +162,7 @@ export async function seedExamSession(
       semesterName,
       courseName,
       roomName,
+      o.roomId ?? null,
     ],
   );
   return { id: row.id as string, code, roomName, semesterName, courseName };

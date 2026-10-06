@@ -916,7 +916,10 @@ describe('Master data schema (e2e)', () => {
       await expectDbError(insert(1, `${year + 1}-09-01`, `${year + 2}-01-31`), '23514'); // lệch một năm: kết thúc ngoài cửa sổ
       await expectDbError(insert(1, `${year}-05-31`, `${year}-12-31`), '23514'); // bắt đầu trước 01/06
       await expectDbError(insert(1, `${year}-09-01`, `${year + 1}-11-01`), '23514'); // kết thúc sau 31/10
-      await insert(3, `${year}-06-01`, `${year + 1}-10-31`); // đúng hai biên
+      // Đúng hai biên. Xoá ngay: một học kỳ trải dài 17 tháng như thế chồng ngày với kỳ 1–2 của năm học KẾ TIẾP,
+      // và `freshTestYear` cấp đúng năm đó cho ca sau (23P01 ở một ca không liên quan).
+      const [edge] = await insert(3, `${year}-06-01`, `${year + 1}-10-31`);
+      await ds.query(`DELETE FROM examcollect.semester WHERE id = $1`, [edge.id]);
     });
 
     it('T-MD-6: không đổi được năm học hay kỳ khi đã có lớp; đổi ngày thì được', async () => {
