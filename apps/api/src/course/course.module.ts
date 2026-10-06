@@ -77,6 +77,8 @@ import { StudentLookupLimiter } from './student-lookup.limiter';
     AdministrativeClassService,
     ClassLabelService,
     StudentService,
+    // Bộ đếm tra tên là MỘT: đường thêm tay vào phiên (ExamSessionController) dùng chung với course.
+    StudentLookupLimiter,
   ],
 })
 export class CourseModule {}

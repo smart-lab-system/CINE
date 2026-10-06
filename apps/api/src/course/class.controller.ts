@@ -25,6 +25,7 @@ import {
   UpdateClassDto,
 } from './dto/class.dto';
 import { ImportRosterDto, RosterStudentDto } from './dto/roster.dto';
+import { StudentLookupLimiter } from './student-lookup.limiter';
 
 /**
  * Lớp. Từ đợt khôi phục master data (spec §4):
@@ -40,6 +41,7 @@ export class ClassController {
   constructor(
     private readonly classes: ClassService,
     private readonly roster: RosterService,
+    private readonly lookupLimiter: StudentLookupLimiter,
   ) {}
 
   /**
@@ -105,7 +107,12 @@ export class ClassController {
     return this.roster.importForClass(klass, dto);
   }
 
-  /** One student, typed in. For the late transfer and the correction — the cases where sending the whole file again would be theatre. */
+  /**
+   * One student, typed in. For the late transfer and the correction — the cases where sending the whole file again would be theatre.
+   *
+   * Trả tên ĐÃ LƯU nếu MSSV đã có, nên tốn lượt của CÙNG bộ đếm với `GET /students/:mssv` (review cụm 2, I1) —
+   * nếu không, thêm rồi xoá là cách quét tên không giới hạn.
+   */
   @Post(':id/roster/students')
   @Roles('teacher')
   async addStudent(
@@ -114,6 +121,7 @@ export class ClassController {
     @Req() req: Request,
   ) {
     const klass = await this.classes.findTaughtBy(id, req.user!.sub);
+    this.lookupLimiter.enforce(req.user!.sub);
     return this.roster.addStudent(klass, dto);
   }
 

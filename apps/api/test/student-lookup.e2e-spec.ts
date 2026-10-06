@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { randomTag } from './helpers/master-data';
+import { seedClass, seedExamSession } from './helpers/seed';
 
 describe('GET /students/:mssv (e2e)', () => {
   let app: INestApplication;
@@ -13,6 +14,7 @@ describe('GET /students/:mssv (e2e)', () => {
   let teacherToken: string;
   let adminToken: string;
   const known = `LK${randomTag(10)}`;
+  const created: { classes: string[]; sessions: string[] } = { classes: [], sessions: [] };
 
   async function login(email: string): Promise<string> {
     const response = await request(app.getHttpServer()).post('/auth/login').send({ email, password: 'correct-horse-battery' });
@@ -39,6 +41,8 @@ describe('GET /students/:mssv (e2e)', () => {
 
   afterAll(async () => {
     try {
+      await ds.query(`DELETE FROM examcollect.exam_session WHERE id = ANY($1)`, [created.sessions]).catch(() => undefined);
+      await ds.query(`DELETE FROM examcollect.class WHERE id = ANY($1)`, [created.classes]).catch(() => undefined);
       await ds.query(`DELETE FROM examcollect.student WHERE mssv = $1`, [known]).catch(() => undefined);
     } finally {
       await app.close();
@@ -81,5 +85,45 @@ describe('GET /students/:mssv (e2e)', () => {
     const blocked = await lookup(`ZZ${randomTag(10)}`, heavy).expect(429);
     expect(blocked.body.message).toMatch(/quá nhanh/);
     await lookup(known, teacherToken).expect(200);
+  });
+
+  /**
+   * Review cụm 2, I1: ba đường cùng trả họ tên ĐÃ LƯU của một MSSV — tra cứu, thêm tay vào lớp, thêm tay vào
+   * phiên. Bộ đếm riêng cho từng đường thì quét cũng chỉ chậm đi ba lần. Một giảng viên có MỘT bộ đếm.
+   */
+  it('I1: thêm tay vào lớp và vào phiên dùng CHUNG bộ đếm với tra cứu, và bị chặn trước khi ghi', async () => {
+    const email = `lookup_paths_${randomTag()}@example.com`;
+    const teacherId = await createTestAccount(ds, { email, password: 'correct-horse-battery', role: 'teacher' });
+    const token = await login(email);
+    const klass = await seedClass(ds, { teacherId });
+    created.classes.push(klass.id);
+    const session = await seedExamSession(ds, {
+      classId: klass.id,
+      teacherId,
+      startTime: new Date(Date.now() - 60_000),
+      endTime: new Date(Date.now() + 3_600_000),
+    });
+    created.sessions.push(session.id);
+
+    for (let i = 0; i < 30; i++) {
+      await lookup(`ZZ${randomTag(10)}`, token).expect(404);
+    }
+
+    // `known` ĐÃ có tên trong hệ thống: nếu hai đường dưới không bị chặn thì phản hồi trả tên ấy ra.
+    await request(app.getHttpServer())
+      .post(`/classes/${klass.id}/roster/students`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ mssv: known, name: 'Tên Người Gõ' })
+      .expect(429);
+    await request(app.getHttpServer())
+      .post(`/exam-sessions/${session.id}/roster/students`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ mssv: known, name: 'Tên Người Gõ' })
+      .expect(429);
+
+    const [{ n: enrolled }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.enrollment WHERE home_class_id = $1`, [klass.id]);
+    const [{ n: seated }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.session_roster WHERE exam_session_id = $1`, [session.id]);
+    expect(enrolled).toBe(0);
+    expect(seated).toBe(0);
   });
 });

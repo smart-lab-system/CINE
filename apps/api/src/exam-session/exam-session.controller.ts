@@ -22,6 +22,7 @@ import { CollectionPhaseService } from './collection-phase.service';
 import { RecollectService } from './recollect.service';
 import { SessionRosterService } from './session-roster.service';
 import { RosterStudentDto } from '../course/dto/roster.dto';
+import { StudentLookupLimiter } from '../course/student-lookup.limiter';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { ReassignTeacherDto } from './dto/reassign-teacher.dto';
@@ -60,6 +61,7 @@ export class ExamSessionController {
     private readonly collectionPhase: CollectionPhaseService,
     private readonly recollectService: RecollectService,
     private readonly sessionRoster: SessionRosterService,
+    private readonly lookupLimiter: StudentLookupLimiter,
   ) {}
 
   @Post()
@@ -242,6 +244,9 @@ export class ExamSessionController {
    * Dùng lại `RosterStudentDto` của module course thay vì khai một DTO
    * mới: luật hợp lệ của MSSV và tên là một, và hai bản sao là cách
    * chúng lệch nhau.
+   *
+   * Tên đã lưu thắng tên gõ, nên phản hồi lộ tên của MSSV bất kỳ: tốn lượt của CÙNG bộ đếm với
+   * `GET /students/:mssv` (review cụm 2, I1).
    */
   @Post(':id/roster/students')
   @Roles('teacher')
@@ -251,6 +256,7 @@ export class ExamSessionController {
     @Req() req: Request,
   ) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    this.lookupLimiter.enforce(req.user!.sub);
     return this.sessionRoster.addManually(session, { mssv: dto.mssv, name: dto.name });
   }
 

@@ -2,8 +2,6 @@ import {
   BadRequestException,
   Controller,
   Get,
-  HttpException,
-  HttpStatus,
   NotFoundException,
   Param,
   Req,
@@ -41,16 +39,7 @@ export class StudentController {
     if (!STUDENT_MSSV_REGEX.test(mssv)) {
       throw new BadRequestException('MSSV phải gồm 4-20 chữ cái hoặc chữ số, không có dấu cách');
     }
-    const verdict = this.limiter.consume(req.user!.sub);
-    if (!verdict.allowed) {
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.TOO_MANY_REQUESTS,
-          message: `Tra cứu quá nhanh. Hãy thử lại sau ${Math.ceil(verdict.retryAfterMs / 1000)} giây.`,
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    this.limiter.enforce(req.user!.sub);
     const found = await this.students.findByMssv(mssv);
     if (!found) throw new NotFoundException('Chưa có sinh viên này trong hệ thống.');
     return found;

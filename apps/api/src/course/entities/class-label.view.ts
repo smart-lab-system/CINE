@@ -10,11 +10,12 @@ import { ViewColumn, ViewEntity } from 'typeorm';
  * `search_path` của kết nối. `class` được `leftJoin('class', …)` an toàn chính vì
  * nó là một entity.
  *
- * KHÔNG có `expression`: view do migration `ExpandMasterDataEntities` tạo và
- * `synchronize` tắt. Nhãn lớp là BIỂU THỨC, không phải bản chụp — sửa mã lớp
+ * KHÔNG có `expression`: view do migration `ExpandMasterDataEntities` tạo, nên PHẢI khai
+ * `synchronize: false` — thiếu nó, bộ dựng schema (`pnpm migration:generate`) thấy một view
+ * chưa có trong `typeorm_metadata`, cố tạo từ `expression` rỗng và văng TypeError. Nhãn lớp là BIỂU THỨC, không phải bản chụp — sửa mã lớp
  * danh nghĩa thì mọi nơi đổi nhãn theo, kể cả lớp của kỳ cũ (spec §2.2).
  */
-@ViewEntity({ name: 'class_label' })
+@ViewEntity({ name: 'class_label', synchronize: false })
 export class ClassLabelView {
   @ViewColumn({ name: 'class_id' })
   classId!: string;

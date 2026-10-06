@@ -471,6 +471,17 @@ describe('Master data schema (e2e)', () => {
     });
   });
 
+  describe('trình dựng schema của TypeORM (đường của `pnpm migration:generate`)', () => {
+    // Review cụm 2, M6: `class_label` là ViewEntity nhưng view do MIGRATION tạo. Thiếu `synchronize: false`, bộ dựng
+    // schema thấy một view chưa có trong `typeorm_metadata`, cố tạo nó từ `expression` (không có) và văng
+    // "view.expression is not a function" — quy trình sinh migration ghi ở `data-source.ts` chết ngay từ đầu.
+    it('so entity với DB mà không văng, và không đòi tạo hay xoá view class_label', async () => {
+      const diff = await ds.driver.createSchemaBuilder().log();
+      const statements = [...diff.upQueries, ...diff.downQueries].map((q) => q.query);
+      expect(statements.filter((q) => /class_label/i.test(q))).toEqual([]);
+    });
+  });
+
   describe('nới lỏng cho code cũ', () => {
     it('class.name và enrollment.student_name cho phép NULL (code mới không ghi chúng)', async () => {
       const [cls] = await ds.query(

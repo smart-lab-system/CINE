@@ -58,7 +58,9 @@ export class RosterService {
       const repo = manager.getRepository(EnrollmentEntity);
 
       // Phạm vi là HỌC KỲ của lớp (spec §2.3 mục 3): "em đã ở một lớp khác CÙNG KỲ" là ca đáng
-      // chặn. Khoá ghi trong suốt giao dịch để hai lượt import song song không cùng nhận một sinh viên.
+      // chặn. Khoá ghi các dòng ĐÃ CÓ, nên hai lượt không cùng sửa một dòng. Nó KHÔNG chặn hai lượt cùng
+      // CHÈN một sinh viên mới vào hai lớp của một kỳ (dòng chưa tồn tại thì không có gì để khoá, và DB không
+      // có ràng buộc "một lớp mỗi kỳ"): khe hẹp đã biết, hậu quả là lần import sau ra 409 đọc được (review cụm 2, M1).
       const existing = await this.siblingEnrollments(manager, klass);
       const byMssv = new Map(existing.map((row) => [row.studentMssv.toLowerCase(), row]));
 
