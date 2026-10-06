@@ -62,10 +62,13 @@ const MAX_BACKDATE_MINUTES = 30;
  */
 const FALLBACK_CREATE_ERROR =
   'Không tạo được phiên thi. Vui lòng kiểm tra lại thông tin và thử lại.';
+const FALLBACK_UPDATE_ERROR =
+  'Không lưu được thay đổi. Vui lòng kiểm tra lại thông tin và thử lại.';
+const FALLBACK_CANCEL_ERROR = 'Không huỷ được phiên thi. Vui lòng thử lại.';
 
-export function describeCreateError(error: unknown): string {
+function describeError(error: unknown, fallback: string): string {
   if (typeof error !== 'object' || error === null || !('message' in error)) {
-    return FALLBACK_CREATE_ERROR;
+    return fallback;
   }
   const { message } = error;
   if (typeof message === 'string' && message.trim() !== '') {
@@ -74,38 +77,83 @@ export function describeCreateError(error: unknown): string {
   if (Array.isArray(message) && message.length > 0) {
     return message.join('. ');
   }
-  return FALLBACK_CREATE_ERROR;
+  return fallback;
 }
+
+export function describeCreateError(error: unknown): string {
+  return describeError(error, FALLBACK_CREATE_ERROR);
+}
+
+/** Sửa phiên: câu của server (cửa sổ sửa đã đóng, va chạm phòng/lớp/giãn cách) là câu hữu ích; dự phòng không nói "tạo". */
+export function describeUpdateError(error: unknown): string {
+  return describeError(error, FALLBACK_UPDATE_ERROR);
+}
+
+/** Huỷ phiên: câu 409 "Đã có sinh viên vào phòng, hãy Chốt bài ngay rồi Xác nhận kết thúc" là cái giảng viên cần đọc. */
+export function describeCancelError(error: unknown): string {
+  return describeError(error, FALLBACK_CANCEL_ERROR);
+}
+
+// Các trường dùng chung của form TẠO và form SỬA: cùng luật, cùng câu lỗi. Hai form lệch nhau về một luật giờ là cách người dùng thấy một giờ
+// hợp lệ ở form này và bị từ chối ở form kia.
+const nameField = z
+  .string()
+  .trim()
+  .min(1, 'Vui lòng nhập tên phiên thi')
+  .max(200, 'Tên phiên thi tối đa 200 ký tự');
+const examTypeField = z.enum(EXAM_TYPES, { message: 'Vui lòng chọn loại kỳ thi' });
+// Bound to <input type="datetime-local">, so this is the browser's
+// "YYYY-MM-DDTHH:mm" local-time string, not ISO 8601 yet — converted to
+// a real ISO string in onSubmit before it reaches the API (the backend's
+// @IsISO8601() needs a full ISO string, e.g. with seconds + offset).
+const startTimeField = z.string().min(1, 'Vui lòng chọn thời gian bắt đầu');
+const endTimeField = z.string().min(1, 'Vui lòng chọn thời gian kết thúc');
+
+type TimeFields = { startTime: string; endTime: string };
+
+const endsAfterStart = (values: TimeFields): boolean => {
+  const start = new Date(values.startTime).getTime();
+  const end = new Date(values.endTime).getTime();
+  return Number.isFinite(start) && Number.isFinite(end) && end > start;
+};
+
+// Mirrors the backend's IsNotExcessivelyBackdatedConstraint. Caught here
+// so the message lands on the field to fix rather than arriving as a 400
+// after a round trip.
+const startNotBackdated = (values: TimeFields): boolean => {
+  const start = new Date(values.startTime).getTime();
+  if (!Number.isFinite(start)) return true;
+  return start >= Date.now() - MAX_BACKDATE_MINUTES * 60_000;
+};
+
+// Mirrors the backend's HasMinimumDurationConstraint. Skips entirely when
+// end <= start — that's the ordering rule's error to report, not a
+// "too short" message stacked on top of an already-invalid ordering.
+const longEnough = (values: TimeFields): boolean => {
+  const start = new Date(values.startTime).getTime();
+  const end = new Date(values.endTime).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return true;
+  return end - start >= MIN_EXAM_DURATION_MINUTES * 60_000;
+};
+
+const END_AFTER_START_ISSUE = { message: 'Thời gian kết thúc phải sau thời gian bắt đầu', path: ['endTime'] };
+const START_NOT_BACKDATED_ISSUE = {
+  message: `Thời gian bắt đầu không được sớm hơn hiện tại quá ${MAX_BACKDATE_MINUTES} phút`,
+  path: ['startTime'],
+};
+const LONG_ENOUGH_ISSUE = { message: `Phiên thi phải kéo dài ít nhất ${MIN_EXAM_DURATION_MINUTES} phút`, path: ['endTime'] };
 
 // Exported so the rule can be unit-tested directly against the schema
 // (this form has no other test coverage yet — see page.test.tsx history).
 export const createExamSessionSchema = z
   .object({
-    name: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập tên phiên thi')
-      .max(200, 'Tên phiên thi tối đa 200 ký tự'),
+    name: nameField,
     classId: z.string().uuid('Vui lòng chọn lớp thi'),
     /**
-     * Phòng và học kỳ là VĂN BẢN TỰ DO từ đợt thu hẹp master data —
-     * không còn bảng nào để chọn ra.
-     *
-     * Cái giá, và người dùng phải biết: phép chống trùng lịch phòng so
-     * khớp chuỗi CHÍNH XÁC, nên "P.A101" và "P A101" là hai phòng khác
-     * nhau và gõ lệch một ký tự sẽ không bị bắt. Biểu mẫu gợi ý lại các
-     * giá trị giảng viên đã dùng, để đường dễ đi nhất cũng là đường đúng.
+     * Phòng CHỌN từ danh sách phòng đang hoạt động (`GET /rooms`), không còn gõ chữ: gõ lệch một ký tự từng làm phép chống trùng lịch phòng
+     * (so chuỗi chính xác) mất tác dụng — nay phép đó chạy theo `room_id`. Học kỳ không còn là trường của form: suy từ lớp ở server.
      */
-    roomName: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập phòng thi')
-      .max(150, 'Tên phòng tối đa 150 ký tự'),
-    semesterName: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập học kỳ')
-      .max(150, 'Tên học kỳ tối đa 150 ký tự'),
+    roomId: z.string().uuid('Vui lòng chọn phòng thi'),
     /**
      * Rubric dùng để chấm phiên này — quyết định ở đây, lúc ra đề, chứ
      * không tra lại lúc bấm "Bắt đầu chấm". Tuỳ chọn: phiên không chấm bằng
@@ -119,13 +167,9 @@ export const createExamSessionSchema = z
       .union([z.literal(''), z.string().uuid('Rubric không hợp lệ')])
       .optional()
       .transform((value) => (value === '' ? undefined : value)),
-    examType: z.enum(EXAM_TYPES, { message: 'Vui lòng chọn loại kỳ thi' }),
-    // Bound to <input type="datetime-local">, so this is the browser's
-    // "YYYY-MM-DDTHH:mm" local-time string, not ISO 8601 yet — converted to
-    // a real ISO string in onSubmit before it reaches the API (the backend's
-    // @IsISO8601() needs a full ISO string, e.g. with seconds + offset).
-    startTime: z.string().min(1, 'Vui lòng chọn thời gian bắt đầu'),
-    endTime: z.string().min(1, 'Vui lòng chọn thời gian kết thúc'),
+    examType: examTypeField,
+    startTime: startTimeField,
+    endTime: endTimeField,
     requiredFilenames: z
       .array(
         z
@@ -210,46 +254,9 @@ export const createExamSessionSchema = z
       )
       .min(1, 'Cần khai báo ít nhất 1 file bắt buộc'),
   })
-  .refine(
-    (values) => {
-      const start = new Date(values.startTime).getTime();
-      const end = new Date(values.endTime).getTime();
-      return Number.isFinite(start) && Number.isFinite(end) && end > start;
-    },
-    {
-      message: 'Thời gian kết thúc phải sau thời gian bắt đầu',
-      path: ['endTime'],
-    },
-  )
-  // Mirrors the backend's IsNotExcessivelyBackdatedConstraint. Caught here
-  // so the message lands on the field to fix rather than arriving as a 400
-  // after a round trip.
-  .refine(
-    (values) => {
-      const start = new Date(values.startTime).getTime();
-      if (!Number.isFinite(start)) return true;
-      return start >= Date.now() - MAX_BACKDATE_MINUTES * 60_000;
-    },
-    {
-      message: `Thời gian bắt đầu không được sớm hơn hiện tại quá ${MAX_BACKDATE_MINUTES} phút`,
-      path: ['startTime'],
-    },
-  )
-  // Mirrors the backend's HasMinimumDurationConstraint. Skips entirely when
-  // end <= start — that's the previous .refine()'s error to report, not a
-  // "too short" message stacked on top of an already-invalid ordering.
-  .refine(
-    (values) => {
-      const start = new Date(values.startTime).getTime();
-      const end = new Date(values.endTime).getTime();
-      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return true;
-      return end - start >= MIN_EXAM_DURATION_MINUTES * 60_000;
-    },
-    {
-      message: `Phiên thi phải kéo dài ít nhất ${MIN_EXAM_DURATION_MINUTES} phút`,
-      path: ['endTime'],
-    },
-  )
+  .refine(endsAfterStart, END_AFTER_START_ISSUE)
+  .refine(startNotBackdated, START_NOT_BACKDATED_ISSUE)
+  .refine(longEnough, LONG_ENOUGH_ISSUE)
   // Mirrors the backend's @ArrayUnique() on requiredFilenames (see
   // create-exam-session.dto.ts) — without this, a duplicate filename
   // (a realistic typo: retyping the same name twice) passes every
@@ -288,3 +295,26 @@ export const createExamSessionSchema = z
   );
 
 export type CreateExamSessionFormValues = z.infer<typeof createExamSessionSchema>;
+
+/**
+ * Form SỬA phiên (plan F): CHỈ năm trường server cho sửa. Lớp, danh sách file bắt buộc, rubric và học kỳ KHÔNG có mặt — `z.object` bỏ mọi
+ * khoá lạ khỏi kết quả, nên không có đường nào gửi nhầm chúng (server trả 400 nếu nhận).
+ *
+ * `roomId` cho phép '' — phiên tạo trước khi có danh mục phòng chưa gắn phòng (trước backfill, plan H): sửa tên/loại vẫn được, `editPayload`
+ * không gửi phòng; đổi giờ mà không chọn phòng thì server trả 400 nói rõ.
+ */
+export const editExamSessionSchema = z
+  .object({
+    name: nameField,
+    roomId: z
+      .string()
+      .refine((value) => value === '' || z.string().uuid().safeParse(value).success, { message: 'Phòng không hợp lệ' }),
+    examType: examTypeField,
+    startTime: startTimeField,
+    endTime: endTimeField,
+  })
+  .refine(endsAfterStart, END_AFTER_START_ISSUE)
+  .refine(startNotBackdated, START_NOT_BACKDATED_ISSUE)
+  .refine(longEnough, LONG_ENOUGH_ISSUE);
+
+export type EditExamSessionFormValues = z.infer<typeof editExamSessionSchema>;

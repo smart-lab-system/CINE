@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createExamSessionSchema, describeCreateError } from './schema';
+import { createExamSessionSchema, describeCancelError, describeCreateError, describeUpdateError, editExamSessionSchema } from './schema';
 
 // QA-reported gap: nothing stopped a teacher from creating a session a few
 // seconds long. Mirrors the backend's HasMinimumDurationConstraint (see
@@ -13,8 +13,7 @@ describe('createExamSessionSchema — minimum duration', () => {
     return {
       name: 'Kiểm tra giữa kỳ',
       classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
+      roomId: VALID_UUID,
       examType: 'GK' as const,
       startTime,
       endTime,
@@ -72,8 +71,7 @@ describe('createExamSessionSchema — backdating', () => {
     return {
       name: 'Kiểm tra giữa kỳ',
       classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
+      roomId: VALID_UUID,
       examType: 'GK' as const,
       startTime,
       endTime,
@@ -122,8 +120,7 @@ describe('createExamSessionSchema — rubric', () => {
     return {
       name: 'Kiểm tra giữa kỳ',
       classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
+      roomId: VALID_UUID,
       examType: 'GK' as const,
       startTime: toLocalInput(start),
       endTime: toLocalInput(end),
@@ -172,8 +169,7 @@ describe('createExamSessionSchema — file bên trong (đợt archive-content-va
     return {
       name: 'Kiểm tra giữa kỳ',
       classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
+      roomId: VALID_UUID,
       examType: 'GK' as const,
       startTime: toLocalInput(start),
       endTime: toLocalInput(end),
@@ -265,8 +261,7 @@ describe('createExamSessionSchema — deliverableType/language (3d2, khai qua fo
     return {
       name: 'Kiểm tra giữa kỳ',
       classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
+      roomId: VALID_UUID,
       examType: 'GK' as const,
       startTime: toLocalInput(start),
       endTime: toLocalInput(end),
@@ -358,3 +353,143 @@ function toLocalInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+describe('createExamSessionSchema — phòng chọn từ danh sách', () => {
+  const ROOM_ID = '22222222-2222-4222-8222-222222222222';
+
+  function values(extra: Record<string, unknown> = {}) {
+    const start = futureStart();
+    const end = new Date(start.getTime() + 60 * 60_000);
+    return {
+      name: 'Kiểm tra giữa kỳ',
+      classId: '11111111-1111-4111-8111-111111111111',
+      roomId: ROOM_ID,
+      examType: 'GK' as const,
+      startTime: toLocalInput(start),
+      endTime: toLocalInput(end),
+      requiredFilenames: [{ value: 'Cau1.docx' }],
+      ...extra,
+    };
+  }
+
+  it('nhận roomId là uuid', () => {
+    expect(createExamSessionSchema.safeParse(values()).success).toBe(true);
+  });
+
+  it('TỪ CHỐI thiếu phòng hoặc phòng không phải uuid, báo ngay ở ô phòng', () => {
+    for (const roomId of ['', 'P.A101']) {
+      const result = createExamSessionSchema.safeParse(values({ roomId }));
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.find((issue) => issue.path[0] === 'roomId')?.message).toBe('Vui lòng chọn phòng thi');
+      }
+    }
+  });
+
+  it('Review Focus 1: không còn phòng/học kỳ gõ tay — hai khoá cũ bị bỏ khỏi kết quả', () => {
+    const result = createExamSessionSchema.safeParse(values({ roomName: 'P.A101', semesterName: 'HK1 2026-2027' }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty('roomName');
+      expect(result.data).not.toHaveProperty('semesterName');
+    }
+  });
+});
+
+describe('editExamSessionSchema — chỉ năm trường server cho sửa', () => {
+  const ROOM_ID = '22222222-2222-4222-8222-222222222222';
+
+  function values(extra: Record<string, unknown> = {}) {
+    const start = futureStart();
+    const end = new Date(start.getTime() + 60 * 60_000);
+    return { name: 'Kiểm tra giữa kỳ', roomId: ROOM_ID, examType: 'GK' as const, startTime: toLocalInput(start), endTime: toLocalInput(end), ...extra };
+  }
+
+  it('nhận bản sao nguyên trạng của một phiên', () => {
+    expect(editExamSessionSchema.safeParse(values()).success).toBe(true);
+  });
+
+  it('Review Focus 4: roomId rỗng được phép — phiên cũ chưa có phòng trong danh mục', () => {
+    expect(editExamSessionSchema.safeParse(values({ roomId: '' })).success).toBe(true);
+  });
+
+  it('TỪ CHỐI roomId lạ (không rỗng, không phải uuid)', () => {
+    const result = editExamSessionSchema.safeParse(values({ roomId: 'P.A101' }));
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0].path).toEqual(['roomId']);
+  });
+
+  it('báo ở ô tên khi tên rỗng hoặc dài quá 200 ký tự', () => {
+    for (const name of ['   ', 'x'.repeat(201)]) {
+      const result = editExamSessionSchema.safeParse(values({ name }));
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.issues[0].path).toEqual(['name']);
+    }
+  });
+
+  it('Review Focus 2: lớp, file bắt buộc, rubric, học kỳ KHÔNG có đường vào — mọi khoá lạ bị bỏ khỏi kết quả', () => {
+    const result = editExamSessionSchema.safeParse(
+      values({ classId: 'x', requiredFilenames: [], rubricId: 'y', semesterName: 'z', roomName: 'w' }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) expect(Object.keys(result.data).sort()).toEqual(['endTime', 'examType', 'name', 'roomId', 'startTime']);
+  });
+});
+
+describe('luật về giờ — dùng CHUNG cho tạo và sửa (hai form không được lệch nhau)', () => {
+  const CLASS_ID = '11111111-1111-4111-8111-111111111111';
+  const ROOM_ID = '22222222-2222-4222-8222-222222222222';
+  const forms = {
+    tạo: (startTime: string, endTime: string) =>
+      createExamSessionSchema.safeParse({
+        name: 'Kiểm tra', classId: CLASS_ID, roomId: ROOM_ID, examType: 'GK', startTime, endTime, requiredFilenames: [{ value: 'Cau1.docx' }],
+      }),
+    sửa: (startTime: string, endTime: string) =>
+      editExamSessionSchema.safeParse({ name: 'Kiểm tra', roomId: ROOM_ID, examType: 'GK', startTime, endTime }),
+  };
+  const messagesOf = (result: { success: boolean; error?: { issues: { message: string }[] } }) =>
+    result.success ? [] : (result.error?.issues.map((issue) => issue.message) ?? []);
+
+  describe.each(Object.entries(forms))('%s', (_label, parse) => {
+    it('hợp lệ: ngày mai, kéo dài 60 phút', () => {
+      const start = futureStart();
+      expect(parse(toLocalInput(start), toLocalInput(new Date(start.getTime() + 60 * 60_000))).success).toBe(true);
+    });
+
+    it('kết thúc không sau bắt đầu → báo ở ô kết thúc', () => {
+      const start = futureStart();
+      const messages = messagesOf(parse(toLocalInput(start), toLocalInput(start)));
+      expect(messages).toContain('Thời gian kết thúc phải sau thời gian bắt đầu');
+      expect(messages).not.toContain('Phiên thi phải kéo dài ít nhất 15 phút');
+    });
+
+    it('ngắn hơn 15 phút', () => {
+      const start = futureStart();
+      expect(messagesOf(parse(toLocalInput(start), toLocalInput(new Date(start.getTime() + 14 * 60_000))))).toContain(
+        'Phiên thi phải kéo dài ít nhất 15 phút',
+      );
+    });
+
+    it('lùi giờ bắt đầu quá 30 phút so với hiện tại', () => {
+      const start = new Date(Date.now() - 31 * 60_000);
+      expect(messagesOf(parse(toLocalInput(start), toLocalInput(new Date(start.getTime() + 60 * 60_000))))).toContain(
+        'Thời gian bắt đầu không được sớm hơn hiện tại quá 30 phút',
+      );
+    });
+  });
+});
+
+describe('describeUpdateError / describeCancelError', () => {
+  it('dùng nguyên câu của server — câu 409 của cửa sổ sửa và của "đã có người vào" là câu hữu ích', () => {
+    expect(describeUpdateError({ statusCode: 409, message: 'Phiên đã bắt đầu, không sửa được.' })).toBe('Phiên đã bắt đầu, không sửa được.');
+    expect(describeCancelError({ statusCode: 409, message: ['Đã có sinh viên vào phòng', 'hãy Chốt bài ngay'] })).toBe(
+      'Đã có sinh viên vào phòng. hãy Chốt bài ngay',
+    );
+  });
+
+  it('mỗi việc có lời dự phòng riêng, không nói "tạo" khi đang sửa hay huỷ', () => {
+    expect(describeUpdateError(null)).toBe('Không lưu được thay đổi. Vui lòng kiểm tra lại thông tin và thử lại.');
+    expect(describeCancelError(undefined)).toBe('Không huỷ được phiên thi. Vui lòng thử lại.');
+    expect(describeCreateError({ message: '   ' })).toBe('Không tạo được phiên thi. Vui lòng kiểm tra lại thông tin và thử lại.');
+  });
+});
