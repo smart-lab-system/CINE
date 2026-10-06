@@ -89,9 +89,9 @@ export default function AdminClassesPage() {
     create.reset();
     update.reset();
     setEditing(null);
-    // Học kỳ chọn sẵn: đang lọc một kỳ thì đúng kỳ đó, không thì kỳ MỚI NHẤT — thứ admin gần như luôn muốn khi tạo lớp. Sửa được.
-    const preselected = semesterFilter.selection.semesterId ?? termOptions(semesters, null)[0]?.id ?? '';
-    setForm({ ...EMPTY_CLASS_FORM, semesterId: preselected });
+    // Học kỳ chọn sẵn CHỈ khi đang lọc đúng một kỳ (ý đồ rõ ràng). Không chọn sẵn "kỳ mới nhất": một năm có ba kỳ thì mới nhất là HK3 hè, và học kỳ
+    // của lớp gần như không đổi được sau khi có phiên thi — một mặc định sai bị bỏ qua ở ô bắt buộc là cái bẫy. Chưa lọc thì để trống, buộc chọn.
+    setForm({ ...EMPTY_CLASS_FORM, semesterId: semesterFilter.selection.semesterId ?? '' });
     setFormOpen(true);
   }
 

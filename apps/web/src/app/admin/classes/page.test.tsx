@@ -142,15 +142,23 @@ describe('Trang Lớp (admin)', () => {
   });
 
   describe('thêm lớp (Review Focus 3, 6)', () => {
-    it('mở với học kỳ mới nhất chọn sẵn; nút Tạo tắt cho tới khi chọn đủ lớp danh nghĩa và giảng viên', async () => {
+    it('Final I2: chưa lọc kỳ nào thì KHÔNG chọn sẵn học kỳ (admin chọn có chủ ý); nút Tạo tắt cho tới khi chọn đủ học kỳ, lớp danh nghĩa và giảng viên', async () => {
+      // Chọn sẵn kỳ "mới nhất" là cái bẫy: một năm có ba kỳ thì mới nhất là HK3 hè, và học kỳ của lớp gần như không đổi được sau khi có phiên thi
+      // (phiên chụp nhãn học kỳ lên bảng điểm). Ô bắt buộc nên buộc chọn, còn nếu đang lọc một kỳ thì kỳ đó đã là ý đồ rõ ràng (ca kế tiếp).
       render(<AdminClassesPage />);
 
       fireEvent.click(screen.getByRole('button', { name: /thêm lớp/i }));
       expect(create.reset).toHaveBeenCalled(); // Review Focus 2
       const dialog = screen.getByRole('dialog', { name: 'Thêm lớp' });
-      expect(within(dialog).getByRole('combobox', { name: 'Học kỳ' })).toHaveTextContent('HK2 2026-2027');
+      const semesterBox = within(dialog).getByRole('combobox', { name: 'Học kỳ' });
+      expect(semesterBox).toHaveTextContent('Chọn học kỳ');
+      expect(semesterBox).not.toHaveTextContent('HK2 2026-2027');
       const submit = within(dialog).getByRole('button', { name: 'Tạo' });
       expect(submit).toBeDisabled();
+
+      fireEvent.click(semesterBox);
+      fireEvent.click(screen.getByRole('option', { name: 'HK2 2026-2027' }));
+      expect(submit).toBeDisabled(); // còn thiếu lớp danh nghĩa và giảng viên
 
       fireEvent.click(within(dialog).getByRole('combobox', { name: 'Lớp danh nghĩa' }));
       fireEvent.click(screen.getByRole('option', { name: /DHKTPM18B/ }));
