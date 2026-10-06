@@ -34,3 +34,16 @@ export interface TeachingClassView {
   /** Students on the imported roster — 0 means nobody has imported one yet. */
   studentCount: number;
 }
+
+/** Một học kỳ như admin và giảng viên đọc nó. `classCount` chỉ có với admin. */
+export class SemesterView {
+  id!: string;
+  academicYearStart!: number;
+  term!: number;
+  /** `HK1 2026-2027`, suy từ (năm, kỳ). */
+  label!: string;
+  /** `yyyy-mm-dd`. */
+  startDate!: string;
+  endDate!: string;
+  classCount?: number;
+}

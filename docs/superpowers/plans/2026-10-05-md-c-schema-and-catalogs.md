@@ -2151,7 +2151,9 @@ describe('Semesters (e2e)', () => {
     it('trùng (năm, kỳ) là 409 nêu nhãn học kỳ', async () => {
       const year = await freshTestYear(ds);
       await post({ academicYearStart: year, term: 1, ...semesterDates(year, 1) }).expect(201);
-      const dup = await post({ academicYearStart: year, term: 1, startDate: `${year + 5}-01-01`, endDate: `${year + 5}-02-01` }).expect(409);
+      // Ngày của kỳ 2: TRONG cửa sổ năm học và không chồng kỳ 1, để chỉ còn khoá (năm, kỳ) bị vi phạm
+      // (ngày ngoài cửa sổ sẽ ra 400 trước khi tới bước kiểm trùng).
+      const dup = await post({ academicYearStart: year, term: 1, ...semesterDates(year, 2) }).expect(409);
       expect(dup.body.message).toContain(`HK1 ${year}-${year + 1}`);
     });
 

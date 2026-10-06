@@ -11,6 +11,9 @@ import { AccountEntity } from '../identity/entities/account.entity';
 import { EnrollmentService } from './enrollment.service';
 import { RosterService } from './roster.service';
 import { ClassController } from './class.controller';
+import { AdminModule } from '../admin/admin.module';
+import { SemesterService } from './semester.service';
+import { SemesterController } from './semester.controller';
 
 /**
  * Lớp và danh sách sinh viên — phần còn lại của "cấu trúc học vụ" sau đợt
@@ -36,12 +39,13 @@ import { ClassController } from './class.controller';
       StudentEntity,
       AccountEntity,
     ]),
+    AdminModule,
   ],
-  controllers: [ClassController],
-  providers: [ClassService, EnrollmentService, RosterService],
+  controllers: [ClassController, SemesterController],
+  providers: [ClassService, EnrollmentService, RosterService, SemesterService],
   // ClassService is exported for ExamSessionService: creating a session
   // needs the lecturer's own scope on a class, and that scope is decided in
   // one place rather than re-derived against a second set of repositories.
-  exports: [ClassService, EnrollmentService],
+  exports: [ClassService, EnrollmentService, SemesterService],
 })
 export class CourseModule {}
