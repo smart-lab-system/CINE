@@ -27,6 +27,20 @@ describe('NearDuplicateNotice', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
+  // Server cũng chặn gần giống khi SỬA TÊN (room.service.ts, administrative-class.service.ts): nút "Vẫn thêm … này" khi đang đổi tên
+  // một mục có sẵn nói sai việc sắp làm — review B+G1 M9, xử lý ở G2 vì G2 là nơi đầu tiên dùng khung này cho cả sửa.
+  it('nhãn hành động tuỳ chọn: sửa thì "Vẫn lưu phòng này"; vắng mặt thì vẫn là "thêm"', () => {
+    const { unmount } = render(
+      <NearDuplicateNotice error={error} noun="phòng" action="lưu" onConfirm={vi.fn()} confirming={false} />,
+    );
+    expect(screen.getByRole('button', { name: 'Vẫn lưu phòng này' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /vẫn thêm/i })).not.toBeInTheDocument();
+    unmount();
+
+    render(<NearDuplicateNotice error={error} noun="phòng" onConfirm={vi.fn()} confirming={false} />);
+    expect(screen.getByRole('button', { name: 'Vẫn thêm phòng này' })).toBeInTheDocument();
+  });
+
   it('đang gửi lại: nút bị khoá để không bấm hai lần', () => {
     render(<NearDuplicateNotice error={error} noun="mã lớp danh nghĩa" onConfirm={vi.fn()} confirming />);
     expect(screen.getByRole('button', { name: /vẫn thêm mã lớp danh nghĩa này/i })).toBeDisabled();

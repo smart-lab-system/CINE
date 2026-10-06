@@ -9,6 +9,11 @@ interface NearDuplicateNoticeProps {
   error: NearDuplicateError;
   /** Danh từ trong nút xác nhận: "phòng", "mã lớp danh nghĩa". */
   noun: string;
+  /**
+   * Động từ trong nút xác nhận: "thêm" (mặc định) khi đang tạo mới, "lưu" khi đang SỬA TÊN một mục có sẵn — server cũng cảnh báo gần
+   * giống lúc đổi tên, và "Vẫn thêm phòng này" khi đang đổi tên nói sai việc sắp làm.
+   */
+  action?: string;
   onConfirm: () => void;
   confirming: boolean;
 }
@@ -21,7 +26,7 @@ interface NearDuplicateNoticeProps {
  * Khác lỗi trùng CỨNG (409 thường, hiện ở `ResourceFormDialog` như mọi lỗi): trùng cứng chỉ sửa được, không có gì để xác nhận.
  * Component này đặt TRONG form, cạnh các ô nhập, để người dùng thấy lời nhắc trong khi vẫn thấy cái mình vừa gõ.
  */
-export function NearDuplicateNotice({ error, noun, onConfirm, confirming }: NearDuplicateNoticeProps) {
+export function NearDuplicateNotice({ error, noun, action = 'thêm', onConfirm, confirming }: NearDuplicateNoticeProps) {
   return (
     <Alert variant="warning">
       <TriangleAlert />
@@ -38,7 +43,7 @@ export function NearDuplicateNotice({ error, noun, onConfirm, confirming }: Near
         )}
         <div>
           <Button type="button" size="sm" variant="outline" onClick={onConfirm} disabled={confirming}>
-            Vẫn thêm {noun} này
+            Vẫn {action} {noun} này
           </Button>
         </div>
       </AlertDescription>
