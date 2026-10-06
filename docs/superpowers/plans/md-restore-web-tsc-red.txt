@@ -1,2 +1,0 @@
-src/app/teacher/exam-sessions/new/page.tsx
-src/lib/api/exam-session.ts
