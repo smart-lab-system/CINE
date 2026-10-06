@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { StorageService } from '../src/storage/storage.service';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * `GET /grading-results/:id/submission-text` — bài làm kèm VỊ TRÍ dẫn chứng.
@@ -52,17 +53,17 @@ describe('SubmissionText (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${tokenA}`)
-      .send({
-        name: `Phiên text ${stamp}-${dayCursor}`,
-        classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        rubricId,
-        // `.txt` để `extractText` đọc thẳng, không cần dựng một file docx thật.
-        requiredFilenames: ['Cau1.txt'],
-        ...freshWindow(),
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên text ${stamp}-${dayCursor}`,
+          classId,
+          roomName,
+          rubricId,
+          // `.txt` để `extractText` đọc thẳng, không cần dựng một file docx thật.
+          requiredFilenames: ['Cau1.txt'],
+          ...freshWindow(),
+        }),
+      );
     expect(created.status).toBe(201);
     const sessionId = created.body.id as string;
     const deliverableId = created.body.requiredDeliverables[0].id as string;
@@ -158,19 +159,19 @@ describe('SubmissionText (e2e)', () => {
     courseName = course.name;
     const room = { name: `Phòng text ${stamp}` };
     roomName = room.name;
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm text ${stamp}`, idA],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId: idA,
+      courseName,
+      groupName: `Nhóm text ${stamp}`,
+    });
     classId = klass.id;
     for (let i = 1; i <= 6; i += 1) {
-      await dataSource.query(
-        `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-        [`SVT${stamp}${i}`.slice(0, 20), 'SV Text', classId, idA],
-      );
+      await seedEnrollment(dataSource, {
+        mssv: `SVT${stamp}${i}`.slice(0, 20),
+        name: 'SV Text',
+        classId,
+        teacherId: idA,
+      });
     }
 
     const rubric = await request(app.getHttpServer())

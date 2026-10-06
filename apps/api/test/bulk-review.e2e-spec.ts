@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { AuditLogService } from '../src/admin/audit-log.service';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * `POST /exam-sessions/:id/bulk-review` — duyệt hàng loạt & can thiệp theo
@@ -57,16 +58,16 @@ describe('Duyệt hàng loạt (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Phiên bulk ${stamp}-${dayCursor}`,
-        classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        rubricId,
-        requiredFilenames: ['Cau1.txt'],
-        ...freshWindow(),
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên bulk ${stamp}-${dayCursor}`,
+          classId,
+          roomName,
+          rubricId,
+          requiredFilenames: ['Cau1.txt'],
+          ...freshWindow(),
+        }),
+      );
     expect(created.status).toBe(201);
 
     const sessionId = created.body.id as string;
@@ -77,12 +78,12 @@ describe('Duyệt hàng loạt (e2e)', () => {
     for (let i = 0; i < n; i += 1) {
       studentCursor += 1;
       const mssv = `SVB${stamp}${studentCursor}`.slice(0, 20);
-      await dataSource.query(
-        `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-        [mssv, `SV Bulk ${studentCursor}`, classId, teacherId],
-      );
+      await seedEnrollment(dataSource, {
+        mssv,
+        name: `SV Bulk ${studentCursor}`,
+        classId,
+        teacherId,
+      });
 
       const [submission] = await dataSource.query(
         `INSERT INTO examcollect.submission
@@ -226,11 +227,11 @@ describe('Duyệt hàng loạt (e2e)', () => {
     courseName = course.name;
     const room = { name: `Phòng bulk ${stamp}` };
     roomName = room.name;
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm bulk ${stamp}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhóm bulk ${stamp}`,
+    });
     classId = klass.id;
 
     const rubric = await request(app.getHttpServer())

@@ -15,6 +15,7 @@ import { SubmissionEntity } from '../src/submission/entities/submission.entity';
 import { ArchiveCheckService } from '../src/submission/archive-check/archive-check.service';
 import { StorageService } from '../src/storage/storage.service';
 import { ARCHIVE_CHECK_MAX_BYTES } from '../src/submission/archive-check/archive-check.constants';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 const FIXTURES = join(__dirname, 'fixtures', 'archive');
 
@@ -172,12 +173,7 @@ describe('Archive content check — snapshot + processor (e2e)', () => {
    * cho một em tới muộn.
    */
   async function joinAsStudent(mssv: string, name: string): Promise<Socket> {
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [mssv, name, classId, teacherId],
-    );
+    await seedEnrollment(dataSource, { mssv, name, classId, teacherId });
     const rosterAdd = await request(app.getHttpServer())
       .post(`/exam-sessions/${sessionId}/roster/students`)
       .set('Authorization', `Bearer ${teacherToken}`)
@@ -255,45 +251,36 @@ describe('Archive content check — snapshot + processor (e2e)', () => {
       .send({ email, password: 'correct-horse-battery' });
     teacherToken = login.body.accessToken;
 
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, 'N03', $2) RETURNING id`,
-      ['Archive Check Course', teacherId],
-    );
+    const klass = await seedClass(dataSource, { teacherId, courseName: 'Archive Check Course' });
     classId = klass.id;
 
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [MSSV, STUDENT_NAME, classId, teacherId],
-    );
+    await seedEnrollment(dataSource, { mssv: MSSV, name: STUDENT_NAME, classId, teacherId });
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({
-        name: `Archive Check Session ${stamp}`,
-        classId,
-        roomName: `Phòng ${stamp}`,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
-        requiredFilenames: [
-          'BaoCao.docx',
-          {
-            filename: 'BaiThi_{MSSV}.zip',
-            entries: ['BaoCao_{MSSV}.docx', 'Main.java'],
-          },
-          // Không token: khớp thẳng nội dung cố định của các fixture .rar
-          // (test/fixtures/archive), bất kể sinh viên nào nộp.
-          {
-            filename: 'BaiThi.rar',
-            entries: ['Main.java'],
-          },
-        ],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Archive Check Session ${stamp}`,
+          classId,
+          roomName: `Phòng ${stamp}`,
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: [
+            'BaoCao.docx',
+            {
+              filename: 'BaiThi_{MSSV}.zip',
+              entries: ['BaoCao_{MSSV}.docx', 'Main.java'],
+            },
+            // Không token: khớp thẳng nội dung cố định của các fixture .rar
+            // (test/fixtures/archive), bất kể sinh viên nào nộp.
+            {
+              filename: 'BaiThi.rar',
+              entries: ['Main.java'],
+            },
+          ],
+        }),
+      );
     expect(created.status).toBe(201);
     sessionId = created.body.id;
     sessionCode = created.body.code;

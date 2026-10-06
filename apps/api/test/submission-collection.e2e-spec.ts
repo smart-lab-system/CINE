@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * The whole collection path against the real stack — Postgres for the row,
@@ -67,33 +68,24 @@ describe('Submission collection (e2e)', () => {
 
     const course = { name: 'Submission Course' };
     const room = { name: `Submission Room ${stamp}` };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, 'N02', $2) RETURNING id`,
-      [course.name, teacherId],
-    );
+    const klass = await seedClass(dataSource, { teacherId, courseName: course.name });
     classId = klass.id;
 
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [MSSV, STUDENT_NAME, classId, teacherId],
-    );
+    await seedEnrollment(dataSource, { mssv: MSSV, name: STUDENT_NAME, classId, teacherId });
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Submission Session ${stamp}`,
-        classId,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Submission Session ${stamp}`,
+          classId,
+          roomName: room.name,
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     sessionId = created.body.id;
     // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách

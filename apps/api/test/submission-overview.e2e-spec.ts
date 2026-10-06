@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * GET /submissions/overview — §3.3. Chạy trên Postgres thật vì bug cần bắt
@@ -60,20 +61,20 @@ describe('Submission overview (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({
-        name,
-        classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        // Tạo ở khung hợp lệ rồi mới dời — cùng kiểu với detachClass/
-        // dropDeliverables bên dưới. DTO chặn khai giờ bắt đầu lùi quá
-        // MAX_BACKDATE_MINUTES (lùi hai tiếng là mô tả một kỳ thi mà agent
-        // không thể nào thu bài được), nhưng fixture ở đây đúng là những
-        // phiên đã thi xong và đã có bài.
-        ...freshFutureWindow(),
-        requiredFilenames: filenames,
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name,
+          classId,
+          roomName,
+          // Tạo ở khung hợp lệ rồi mới dời — cùng kiểu với detachClass/
+          // dropDeliverables bên dưới. DTO chặn khai giờ bắt đầu lùi quá
+          // MAX_BACKDATE_MINUTES (lùi hai tiếng là mô tả một kỳ thi mà agent
+          // không thể nào thu bài được), nhưng fixture ở đây đúng là những
+          // phiên đã thi xong và đã có bài.
+          ...freshFutureWindow(),
+          requiredFilenames: filenames,
+        }),
+      );
     expect(response.status).toBe(201);
     const id = response.body.id as string;
 
@@ -192,21 +193,12 @@ describe('Submission overview (e2e)', () => {
     courseName = course.name;
     const room = { name: `Overview Room ${stamp}` };
     roomName = room.name;
-    const [klass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_name, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseName, teacherId],
-    );
+    const klass = await seedClass(dataSource, { teacherId, courseName });
     classId = klass.id;
 
     // Roster 40 người, đúng định nghĩa (course_id + home_class_id).
     for (const mssv of ROSTER) {
-      await dataSource.query(
-        `INSERT INTO ${schema}.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-        [mssv, `SV ${mssv}`, classId, teacherId],
-      );
+      await seedEnrollment(dataSource, { mssv, name: `SV ${mssv}`, classId, teacherId });
     }
   }, 60_000);
 
@@ -293,18 +285,14 @@ describe('Submission overview (e2e)', () => {
   it('bất biến: fully + partial + neverAttended === expectedCount, kể cả khi có SV thi ghép', async () => {
     // SV thi ghép: enrolled cùng course nhưng home_class_id là lớp KHÁC ->
     // không thuộc roster, nhưng có bài nộp -> phải nằm trong expectedCount.
-    const [otherClass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_name, name, teacher_id)
-       VALUES ($1, 'N02', $2) RETURNING id`,
-      [courseName, teacherId],
-    );
+    const otherClass = await seedClass(dataSource, { teacherId, courseName });
     const makeupMssv = `OVM${stamp}`.slice(0, 20);
-    await dataSource.query(
-      `INSERT INTO ${schema}.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, 'SV thi ghép', $2, $3)`,
-      [makeupMssv, otherClass.id, teacherId],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: makeupMssv,
+      name: 'SV thi ghép',
+      classId: otherClass.id,
+      teacherId,
+    });
 
     const session = await createSession(
       `Union ${stamp}`,
@@ -388,29 +376,28 @@ describe('Submission overview (e2e)', () => {
       role: 'teacher',
     });
     const foreignCourse = { id: `Foreign ${stamp}` };
-    const [foreignClass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_name, name, teacher_id)
-       VALUES ($1, 'N01', $2) RETURNING id`,
-      [foreignCourse.id, otherTeacherId],
-    );
+    const foreignClass = await seedClass(dataSource, {
+      teacherId: otherTeacherId,
+      courseName: foreignCourse.id,
+    });
     const otherLogin = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: otherEmail, password: 'correct-horse-battery' });
     const foreign = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${otherLogin.body.accessToken}`)
-      .send({
-        name: `Phiên lạ ${stamp}`,
-        classId: foreignClass.id,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        // Khung riêng, vì phòng dùng chung với các phiên khác của spec.
-        // Test này chỉ hỏi "phiên của giảng viên khác có lọt vào danh sách
-        // của mình không", giờ giấc không liên quan.
-        ...freshFutureWindow(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên lạ ${stamp}`,
+          classId: foreignClass.id,
+          roomName,
+          // Khung riêng, vì phòng dùng chung với các phiên khác của spec.
+          // Test này chỉ hỏi "phiên của giảng viên khác có lọt vào danh sách
+          // của mình không", giờ giấc không liên quan.
+          ...freshFutureWindow(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(foreign.status).toBe(201);
 
     const items = await fetchOverview();

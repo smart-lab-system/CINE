@@ -7,6 +7,7 @@ import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter
 import { TeacherReviewService } from '../src/grading/teacher-review.service';
 import { AuditLogService } from '../src/admin/audit-log.service';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * Duyệt và chốt điểm — spec docs/superpowers/specs/2026-09-05-teacher-review-design.md.
@@ -47,16 +48,16 @@ describe('TeacherReview (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${tokenA}`)
-      .send({
-        name: `Phiên duyệt ${stamp}-${dayCursor}`,
-        classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        rubricId,
-        requiredFilenames: ['Cau1.txt'],
-        ...freshWindow(),
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên duyệt ${stamp}-${dayCursor}`,
+          classId,
+          roomName,
+          rubricId,
+          requiredFilenames: ['Cau1.txt'],
+          ...freshWindow(),
+        }),
+      );
     expect(created.status).toBe(201);
 
     const mssv = `SVR${stamp}${dayCursor}`.slice(0, 20);
@@ -228,18 +229,18 @@ describe('TeacherReview (e2e)', () => {
     courseName = course.name;
     const room = { name: `Phòng duyệt ${stamp}` };
     roomName = room.name;
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm duyệt ${stamp}`, idA],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId: idA,
+      courseName,
+      groupName: `Nhóm duyệt ${stamp}`,
+    });
     classId = klass.id;
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [`SVR${stamp}`.slice(0, 20), 'SV Duyệt', classId, idA],
-    );
+    await seedEnrollment(dataSource, {
+      mssv: `SVR${stamp}`.slice(0, 20),
+      name: 'SV Duyệt',
+      classId,
+      teacherId: idA,
+    });
 
     const rubric = await request(app.getHttpServer())
       .post('/rubrics')

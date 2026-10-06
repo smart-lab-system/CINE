@@ -21,8 +21,13 @@ const TEST_ROOT = join(__dirname, '..', '..', 'test');
 /** Chỗ duy nhất được phép chứa SQL dựng ba bảng này. */
 const SEED_HELPER = 'helpers/seed.ts';
 
-/** SQL thô dựng lớp / enrollment / phiên thi. */
-const RAW_SEED = /INSERT INTO examcollect\.(class|exam_session|enrollment)\b/;
+/**
+ * SQL thô dựng lớp / enrollment / phiên thi. Khớp CẢ `examcollect.` lẫn
+ * `${schema}.`: vài spec lấy tên schema từ `dataSource.options` rồi viết
+ * `INSERT INTO ${schema}.class`, và một regex chỉ nhìn chữ `examcollect.` bỏ
+ * sót đúng các file ấy (plan A đếm 35 file chính vì vậy).
+ */
+const RAW_SEED = /INSERT INTO (?:examcollect|\$\{schema\})\.(class|exam_session|enrollment)\b/;
 /**
  * Một lời gọi `POST /exam-sessions` mà `.send(` ĐẦU TIÊN sau nó nhận một object
  * literal viết tay (`.send({`). Thân dựng bằng `sessionBody` thì là
@@ -42,56 +47,36 @@ export const RAW_SEED_ALLOWLIST = new Set<string>([
   'accounts.e2e-spec.ts',
   'agent-join-rate-limit.e2e-spec.ts',
   'agent-join.e2e-spec.ts',
-  'archive-check.e2e-spec.ts',
   'attendance.e2e-spec.ts',
-  'backup.e2e-spec.ts',
-  'bulk-review.e2e-spec.ts',
   'class-scoped-enrollment.e2e-spec.ts',
   'classes-teacher-crud.e2e-spec.ts',
-  'collection-phase.e2e-spec.ts',
   'exam-authoring-attach.e2e-spec.ts',
   'exam-material.e2e-spec.ts',
   'exam-schedule-conflict.e2e-spec.ts',
   'exam-session-reassign.e2e-spec.ts',
   'exam-session-semester-name.e2e-spec.ts',
   'exam-session.e2e-spec.ts',
-  'recollect.e2e-spec.ts',
   'roster-import.e2e-spec.ts',
+  'session-lifecycle.e2e-spec.ts',
   'session-roster-freeze.e2e-spec.ts',
   'session-rubric.e2e-spec.ts',
-  'submission-collection.e2e-spec.ts',
-  'submission-text.e2e-spec.ts',
-  'teacher-review.e2e-spec.ts',
-  'teacher-submissions.e2e-spec.ts',
 ]);
 
 export const SESSION_BODY_ALLOWLIST = new Set<string>([
   'access-request.e2e-spec.ts',
   'agent-join-rate-limit.e2e-spec.ts',
   'agent-join.e2e-spec.ts',
-  'archive-check.e2e-spec.ts',
   'attendance.e2e-spec.ts',
-  'backup.e2e-spec.ts',
-  'bulk-review.e2e-spec.ts',
   'class-scoped-enrollment.e2e-spec.ts',
-  'collection-phase.e2e-spec.ts',
   'exam-authoring-attach.e2e-spec.ts',
   'exam-material.e2e-spec.ts',
   'exam-schedule-conflict.e2e-spec.ts',
   'exam-session-reassign.e2e-spec.ts',
   'exam-session-semester-name.e2e-spec.ts',
   'exam-session.e2e-spec.ts',
-  'recollect.e2e-spec.ts',
   'session-lifecycle.e2e-spec.ts',
   'session-roster-freeze.e2e-spec.ts',
   'session-rubric.e2e-spec.ts',
-  'submission-collection.e2e-spec.ts',
-  'submission-overview-attendance.e2e-spec.ts',
-  'submission-overview-makeup-search.e2e-spec.ts',
-  'submission-overview.e2e-spec.ts',
-  'submission-text.e2e-spec.ts',
-  'teacher-review.e2e-spec.ts',
-  'teacher-submissions.e2e-spec.ts',
 ]);
 
 /** Ba file kiểm chính tính năng phòng/học kỳ gõ tay — giá trị cuối của rule 2. */

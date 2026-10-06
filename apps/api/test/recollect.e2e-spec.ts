@@ -13,6 +13,7 @@ import { ExamSessionScheduler } from '../src/exam-session/exam-session.scheduler
 import { createTestAccount } from './helpers/create-account';
 import { concurrentLiveWindow, releaseTeacherSessions } from './helpers/session-window';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * "Thu lại" — spec
@@ -71,11 +72,11 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
     seedCursor += 1;
     const suffix = `${seedCursor}_${Date.now()}`;
     const room = { name: `Recollect Room ${suffix}` };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm ${suffix}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhóm ${suffix}`,
+    });
 
     // Ca thi của test trước đã kết thúc — nhả giảng viên ra, nếu không
 
@@ -86,15 +87,15 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({
-        name: `Phiên thu lại ${suffix}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        ...concurrentLiveWindow(),
-        requiredFilenames,
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên thu lại ${suffix}`,
+          classId: klass.id,
+          roomName: room.name,
+          ...concurrentLiveWindow(),
+          requiredFilenames,
+        }),
+      );
     expect(created.status).toBe(201);
     return {
       id: created.body.id as string,
@@ -111,13 +112,7 @@ describe('POST /exam-sessions/:id/recollect (e2e)', () => {
   }
 
   async function enrol(mssv: string, name: string, homeClassId: string): Promise<void> {
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT DO NOTHING`,
-      [mssv, name, homeClassId, teacherId],
-    );
+    await seedEnrollment(dataSource, { mssv, name, classId: homeClassId, teacherId });
   }
 
   async function joinAgent(session: SeededSession, mssv: string): Promise<Socket> {

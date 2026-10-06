@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * Hai lỗ của "Quản lý bài thu", cùng một nguồn dữ liệu (universe = roster ∪
@@ -62,15 +63,16 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
     const res = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: opts.name,
-        classId: opts.classId,
-        roomName,
-        semesterName: 'HK kiểm thử',
-        examType: opts.examType ?? 'TK',
-        ...nextWindow(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: opts.name,
+          classId: opts.classId,
+          roomName,
+          examType: opts.examType,
+          ...nextWindow(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(res.status).toBe(201);
     return {
       id: res.body.id as string,
@@ -151,15 +153,9 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
     const room = { name: `Makeup Room ${stamp}` };
     roomName = room.name;
 
-    const [n01] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseName, teacherId],
-    );
+    const n01 = await seedClass(dataSource, { teacherId, courseName });
     classN01 = n01.id;
-    const [n02] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'N02', $2) RETURNING id`,
-      [courseName, teacherId],
-    );
+    const n02 = await seedClass(dataSource, { teacherId, courseName });
     classN02 = n02.id;
 
     // HOME + STAYER thuộc N01; GUEST thuộc N02 (không liên quan tới roster N01).
@@ -168,12 +164,7 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
       [STAYER, classN01, 'Lê Ở Lại'],
       [GUEST, classN02, 'Phạm Khách'],
     ] as const) {
-      await dataSource.query(
-        `INSERT INTO ${schema}.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-         VALUES ($1,$2,$3,$4)`,
-        [mssv, name, klass, teacherId],
-      );
+      await seedEnrollment(dataSource, { mssv, name, classId: klass, teacherId });
     }
   }, 60_000);
 
@@ -235,16 +226,13 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
     }, 30_000);
 
     it('KHÔNG gắn cờ vì có mặt ở một MÔN khác', async () => {
-      const [otherClass] = await dataSource.query(
-        `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'X01', $2) RETURNING id`,
-        [otherCourseName, teacherId],
-      );
-      await dataSource.query(
-        `INSERT INTO ${schema}.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-         VALUES ($1,$2,$3,$4)`,
-        [STAYER, 'Lê Ở Lại', otherClass.id, teacherId],
-      );
+      const otherClass = await seedClass(dataSource, { teacherId, courseName: otherCourseName });
+      await seedEnrollment(dataSource, {
+        mssv: STAYER,
+        name: 'Lê Ở Lại',
+        classId: otherClass.id,
+        teacherId,
+      });
       const foreign = await createSession({ name: `Foreign ${stamp}`, classId: otherClass.id });
       await connect(foreign.id, STAYER);
 

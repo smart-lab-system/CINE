@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * Trục mức độ mới: tách "chưa nộp" thành "đã vào phòng mà mất bài" (đỏ) và
@@ -54,15 +55,16 @@ describe('Submission overview — attendance tiers (e2e)', () => {
   async function createSession(name: string, filenames: string[]) {
     const res = await request(app.getHttpServer())
       .post('/exam-sessions').set('Authorization', `Bearer ${token}`)
-      .send({
-        name,
-        classId,
-        roomName,
-        semesterName: `Attend Semester ${stamp}`,
-        examType: 'TK',
-        ...nextWindow(),
-        requiredFilenames: filenames,
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name,
+          classId,
+          roomName,
+          semesterName: `Attend Semester ${stamp}`,
+          ...nextWindow(),
+          requiredFilenames: filenames,
+        }),
+      );
     expect(res.status).toBe(201);
     return {
       id: res.body.id as string,
@@ -122,19 +124,11 @@ describe('Submission overview — attendance tiers (e2e)', () => {
     courseName = course.name;
     const room = { name: `Attend Room ${stamp}` };
     roomName = room.name;
-    const [klass] = await dataSource.query(
-      `INSERT INTO ${schema}.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-      [courseName, teacherId],
-    );
+    const klass = await seedClass(dataSource, { teacherId, courseName });
     classId = klass.id;
 
     for (const mssv of ROSTER) {
-      await dataSource.query(
-        `INSERT INTO ${schema}.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-         VALUES ($1,$2,$3,$4)`,
-        [mssv, `SV ${mssv}`, classId, teacherId],
-      );
+      await seedEnrollment(dataSource, { mssv, name: `SV ${mssv}`, classId, teacherId });
     }
   }, 60_000);
 

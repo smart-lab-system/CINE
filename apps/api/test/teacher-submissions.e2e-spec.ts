@@ -9,6 +9,7 @@ import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter
 import { createTestAccount } from './helpers/create-account';
 import { concurrentLiveWindow, releaseTeacherSessions } from './helpers/session-window';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * "Quản lý bài thu" (QA-reported gap) — GET /submissions, a real submission
@@ -115,19 +116,16 @@ describe('Teacher submissions (e2e)', () => {
 
     const course = { name: 'Teacher Submissions Course' };
     const room = { name: `Teacher Submissions Room ${stamp}` };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-      [course.name, teacherId],
-    );
+    const klass = await seedClass(dataSource, { teacherId, courseName: course.name });
     const classId = klass.id;
 
     // A second course/class/session belonging to the OTHER teacher — this
     // is the one that must never appear in the first teacher's list.
     const foreignCourse = { name: 'Foreign Course' };
-    const [foreignClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-      [foreignCourse.name, otherTeacherId],
-    );
+    const foreignClass = await seedClass(dataSource, {
+      teacherId: otherTeacherId,
+      courseName: foreignCourse.name,
+    });
 
     const MSSV_A = `TSA${stamp}`.slice(0, 20);
     const MSSV_B = `TSB${stamp}`.slice(0, 20);
@@ -137,24 +135,25 @@ describe('Teacher submissions (e2e)', () => {
     // chốt của phiên, mà ảnh chốt chụp từ enrollment của LỚP. Để MSSV_B ở
     // lớp N01 rồi cho em thi ở phiên của nhóm B — cách cũ, hợp lệ khi xác
     // thực còn ở cấp môn — giờ là một em không có tên trong phòng.
-    const [classBRow] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [course.name, `Nhóm B ${stamp}`, teacherId],
-    );
+    const classBRow = await seedClass(dataSource, {
+      teacherId,
+      courseName: course.name,
+      groupName: `Nhóm B ${stamp}`,
+    });
 
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, 'Sinh viên A', $2, $3), ($4, 'Sinh viên B', $5, $3)`,
-      [MSSV_A, classId, teacherId, MSSV_B, classBRow.id],
-    );
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, 'Sinh viên lạ', $2, $3)`,
-      [MSSV_FOREIGN, foreignClass.id, otherTeacherId],
-    );
+    await seedEnrollment(dataSource, { mssv: MSSV_A, name: 'Sinh viên A', classId, teacherId });
+    await seedEnrollment(dataSource, {
+      mssv: MSSV_B,
+      name: 'Sinh viên B',
+      classId: classBRow.id,
+      teacherId,
+    });
+    await seedEnrollment(dataSource, {
+      mssv: MSSV_FOREIGN,
+      name: 'Sinh viên lạ',
+      classId: foreignClass.id,
+      teacherId: otherTeacherId,
+    });
 
     // All three sessions below run at the same time — every one of them
     // has to be live for its agent to connect and submit. That means no
@@ -184,15 +183,15 @@ describe('Teacher submissions (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post('/exam-sessions')
         .set('Authorization', `Bearer ${token}`)
-        .send({
-          name,
-          classId: forClassId,
-          roomName: await freshRoomId(),
-          semesterName: 'HK kiểm thử',
-          examType: 'TK',
-          ...concurrentLiveWindow(),
-          requiredFilenames: ['Cau1.docx'],
-        });
+        .send(
+          await sessionBody(dataSource, {
+            name,
+            classId: forClassId,
+            roomName: await freshRoomId(),
+            ...concurrentLiveWindow(),
+            requiredFilenames: ['Cau1.docx'],
+          }),
+        );
       expect(response.status).toBe(201);
       // Guard §7.1.1: agent:join từ chối phiên chưa đóng băng danh sách
       // dự thi. Lớp truyền vào phải đã có ít nhất một sinh viên.

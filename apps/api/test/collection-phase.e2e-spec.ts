@@ -10,6 +10,7 @@ import { ExamSessionScheduler } from '../src/exam-session/exam-session.scheduler
 import { SUBMISSION_GRACE_PERIOD_MS } from '../src/submission/submission.types';
 import { createTestAccount } from './helpers/create-account';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, seedExamSession, sessionBody } from './helpers/seed';
 
 /**
  * Giai đoạn "Đang thu bài" — spec
@@ -65,27 +66,27 @@ describe('Collection phase (e2e)', () => {
     windowCursor += 1;
     const suffix = `${windowCursor}_${Date.now()}`;
     const room = { name: `Collect Room ${suffix}` };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm ${suffix}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhóm ${suffix}`,
+    });
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({
-        name: `Phiên thu bài ${suffix}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        // Bắt đầu trong quá khứ để agent join được ngay; kết thúc ở
-        // tương lai để `isAcceptingUploads` còn mở theo đồng hồ thật.
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
-        requiredFilenames: options.requiredFilenames ?? ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên thu bài ${suffix}`,
+          classId: klass.id,
+          roomName: room.name,
+          // Bắt đầu trong quá khứ để agent join được ngay; kết thúc ở
+          // tương lai để `isAcceptingUploads` còn mở theo đồng hồ thật.
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: options.requiredFilenames ?? ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     return {
       id: created.body.id as string,
@@ -207,13 +208,7 @@ describe('Collection phase (e2e)', () => {
   });
 
   async function enrol(mssv: string, name: string, homeClassId: string) {
-    await dataSource.query(
-      `INSERT INTO examcollect.enrollment
-         (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT DO NOTHING`,
-      [mssv, name, homeClassId, teacherId],
-    );
+    await seedEnrollment(dataSource, { mssv, name, classId: homeClassId, teacherId });
   }
 
   it('hết giờ thì scheduler đưa active → collecting, KHÔNG phải completed', async () => {
@@ -372,32 +367,22 @@ describe('Collection phase (e2e)', () => {
     const longAgoStart = new Date(Date.now() - 6 * 3_600_000);
     const longAgoEnd = new Date(Date.now() - 5 * 3_600_000);
     const oldRoom = { name: `Collect Room old ${Date.now()}` };
-    const [oldClass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `Nhóm quá hạn ${Date.now()}`, teacherId],
-    );
-    const [old] = await dataSource.query(
-      // semester_name NOT NULL từ 2026-09-11 (§7.1.5). INSERT thô bỏ
-      // qua service nên phải tự cấp — giá trị nào cũng được, ca này
-      // không kiểm học kỳ.
-      `INSERT INTO examcollect.exam_session
-         (name, code, class_id, teacher_id, exam_type,
-          start_time, end_time, status, semester_name,
-          course_name, room_name)
-       VALUES ($1, $2, $4, $6, 'TK', $7, $8, 'collecting', 'HK kiểm thử',
-               $3, $5) RETURNING id`,
-      [
-        `Phiên quá hạn ${Date.now()}`,
-        `OLD${Date.now()}`.slice(0, 20),
-        courseName,
-        oldClass.id,
-        oldRoom.name,
-        teacherId,
-        longAgoStart.toISOString(),
-        longAgoEnd.toISOString(),
-      ],
-    );
+    const oldClass = await seedClass(dataSource, {
+      teacherId,
+      courseName,
+      groupName: `Nhóm quá hạn ${Date.now()}`,
+    });
+    const old = await seedExamSession(dataSource, {
+      teacherId,
+      classId: oldClass.id,
+      name: `Phiên quá hạn ${Date.now()}`,
+      code: `OLD${Date.now()}`,
+      startTime: longAgoStart,
+      endTime: longAgoEnd,
+      status: 'collecting',
+      roomName: oldRoom.name,
+      courseName,
+    });
     await scheduler.sweepExpiredCollection(new Date());
     expect((await sessionRow(old.id)).status).toBe('completed');
 
@@ -441,16 +426,16 @@ describe('Collection phase (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({
-        name: `Phiên kế tiếp ${Date.now()}`,
-        classId: session.classId,
-        roomName: session.roomName,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        startTime: session.endTime.toISOString(),
-        endTime: new Date(session.endTime.getTime() + 3_600_000).toISOString(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Phiên kế tiếp ${Date.now()}`,
+          classId: session.classId,
+          roomName: session.roomName,
+          startTime: session.endTime.toISOString(),
+          endTime: new Date(session.endTime.getTime() + 3_600_000).toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
 
     expect(res.status).toBe(201);
   });

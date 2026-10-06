@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { openSession } from './helpers/open-session';
+import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 
 /**
  * The snapshot backup — the half of "reconnect" that is not free.
@@ -87,35 +88,30 @@ describe('Backup (e2e)', () => {
     const token = login.body.accessToken;
 
     const course = { name: 'Môn sao lưu' };
-    const [klass] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [course.name, `Nhóm sao lưu ${stamp}`, teacherId],
-    );
+    const klass = await seedClass(dataSource, {
+      teacherId,
+      courseName: course.name,
+      groupName: `Nhóm sao lưu ${stamp}`,
+    });
     const room = { name: `Backup Room ${stamp}` };
 
     for (const mssv of [MSSV, OTHER_MSSV]) {
-      await dataSource.query(
-        `INSERT INTO examcollect.enrollment
-           (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-        [mssv, `Sinh viên ${mssv}`, klass.id, teacherId],
-      );
+      await seedEnrollment(dataSource, { mssv, name: `Sinh viên ${mssv}`, classId: klass.id, teacherId });
     }
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: `Backup Session ${stamp}`,
-        classId: klass.id,
-        roomName: room.name,
-        semesterName: 'HK kiểm thử',
-        examType: 'TK',
-        startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
-        requiredFilenames: ['Cau1.docx'],
-      });
+      .send(
+        await sessionBody(dataSource, {
+          name: `Backup Session ${stamp}`,
+          classId: klass.id,
+          roomName: room.name,
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+          endTime: new Date(Date.now() + 3_600_000).toISOString(),
+          requiredFilenames: ['Cau1.docx'],
+        }),
+      );
     expect(created.status).toBe(201);
     sessionId = created.body.id;
     // Guard §7.1.1: `agent:join` từ chối phiên chưa đóng băng danh sách
