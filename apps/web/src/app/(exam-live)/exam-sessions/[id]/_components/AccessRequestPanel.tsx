@@ -27,9 +27,7 @@ function formatTime(iso: string): string {
 
 interface AccessRequestPanelProps {
   requests: PendingAccessRequest[];
-  /** Already filtered to this session's course — a class from a different
-   *  course would fail server-side anyway (`findClassForCourse`), so
-   *  there is no point offering it. */
+  /** Mọi lớp của giảng viên (không lọc theo môn — hệ thống phục vụ một môn). Mỗi lớp hiện bằng `labelWithSemester`. */
   classes: TeachingClass[];
   onResolved: (requestId: string) => void;
 }
@@ -162,7 +160,9 @@ function RequestRow({
             <SelectContent>
               {classes.map((klass) => (
                 <SelectItem key={klass.id} value={klass.id}>
-                  {klass.name}
+                  {/* Nhãn KÈM học kỳ: danh sách này gồm lớp của MỌI kỳ, và hai lớp cùng mã khác kỳ phải phân biệt được — lớp gốc quyết
+                      định bài của em về tay ai. */}
+                  {klass.labelWithSemester}
                 </SelectItem>
               ))}
             </SelectContent>
