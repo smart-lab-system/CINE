@@ -54,3 +54,14 @@ export function administrativeCodeProblem(code: string): string | null {
   }
   return null;
 }
+
+/** Tên nhóm (`Nhóm 1`): tối đa 50 ký tự; rỗng nghĩa là không tách nhóm. Khớp `@Length(0, 50)` ở DTO lớp. */
+export const GROUP_NAME_MAX = 50;
+
+export function normalizeGroupName(raw: string | undefined): string {
+  return (raw ?? '').replace(/\s+/g, ' ').trim();
+}
+
+export function groupNameProblem(name: string): string | null {
+  return name.length > GROUP_NAME_MAX ? `Tên nhóm tối đa ${GROUP_NAME_MAX} ký tự.` : null;
+}

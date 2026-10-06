@@ -1,6 +1,8 @@
 import {
   administrativeCodeProblem,
+  groupNameProblem,
   normalizeAdministrativeCode,
+  normalizeGroupName,
   normalizeRoomName,
   roomNameProblem,
 } from './master-data-normalize';
@@ -65,5 +67,25 @@ describe('administrativeCodeProblem', () => {
     expect(administrativeCodeProblem('DHK-TPM')).toMatch(/chữ và số/);
     expect(administrativeCodeProblem('DHK TPM')).toMatch(/chữ và số/);
     expect(administrativeCodeProblem('dhktpm18a')).toMatch(/chữ và số/);
+  });
+});
+
+describe('normalizeGroupName', () => {
+  it('gộp khoảng trắng, cắt hai đầu, giữ nguyên hoa-thường', () => {
+    expect(normalizeGroupName('  Nhóm   1 ')).toBe('Nhóm 1');
+    expect(normalizeGroupName('nhóm 2')).toBe('nhóm 2');
+  });
+
+  it('không có nhóm là chuỗi rỗng', () => {
+    expect(normalizeGroupName(undefined)).toBe('');
+    expect(normalizeGroupName('   ')).toBe('');
+  });
+});
+
+describe('groupNameProblem', () => {
+  it('chấp nhận rỗng và đủ ngắn; từ chối quá 50 ký tự', () => {
+    expect(groupNameProblem('')).toBeNull();
+    expect(groupNameProblem('x'.repeat(50))).toBeNull();
+    expect(groupNameProblem('x'.repeat(51))).toMatch(/50/);
   });
 });
