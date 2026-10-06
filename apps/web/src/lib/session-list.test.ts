@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_VIEW,
   EMPTY_LIST_FILTERS,
+  NO_SEMESTER_KEY,
   bulkPlan,
   buildRows,
   facetOptions,
@@ -19,7 +20,7 @@ import {
   statusCounts,
   type ListFilters,
 } from './session-list';
-import { NOW, rowsOf, session, summary } from './session-list.fixtures';
+import { IN_HK2_2025, NOW, SEM_HK1_2026, rowsOf, session, summary } from './session-list.fixtures';
 
 const zero = { needsYou: 0, audit: 0, ungradable: 0, grading: 0, auto: 0, reviewed: 0, finalised: 0 };
 const f = (over: Partial<ListFilters> = {}): ListFilters => ({ ...EMPTY_LIST_FILTERS, ...over });
@@ -88,8 +89,8 @@ describe('foldText', () => {
 describe('matchesFilters', () => {
   const rows = rowsOf(
     [
-      session({ id: 'a', name: 'Kiểm tra giữa kỳ', className: 'DHKTPM18ATT', classId: 'c1', roomName: 'Phòng máy A1', examType: 'GK' }),
-      session({ id: 'b', name: 'Thực hành đồ thị', className: 'DHKTPM19BTT', classId: 'c2', roomName: 'H3.03', examType: 'TK', semesterName: 'HK2 2025-2026', startTime: new Date(2026, 5, 12).toISOString(), rubricId: null }),
+      session({ id: 'a', name: 'Kiểm tra giữa kỳ', classLabel: 'DHKTPM18ATT', classId: 'c1', roomName: 'Phòng máy A1', examType: 'GK' }),
+      session({ id: 'b', name: 'Thực hành đồ thị', classLabel: 'DHKTPM19BTT', classId: 'c2', roomName: 'H3.03', examType: 'TK', ...IN_HK2_2025, startTime: new Date(2026, 5, 12).toISOString(), rubricId: null }),
     ],
     [summary('a', { flagged_for_review: 1 }), summary('b')],
   );
@@ -97,10 +98,11 @@ describe('matchesFilters', () => {
 
   it('empty filters match everything', () => expect(ids(f())).toEqual(['a', 'b']));
   it('search ignores diacritics: "giua ky" finds "giữa kỳ"', () => expect(ids(f({ q: 'giua ky' }))).toEqual(['a']));
-  it('search reaches class, room and the exam-type label', () => {
+  it('search reaches class, room, semester text and the exam-type label', () => {
     expect(ids(f({ q: 'dhktpm19' }))).toEqual(['b']);
     expect(ids(f({ q: 'h3.03' }))).toEqual(['b']);
     expect(ids(f({ q: 'thuong ky' }))).toEqual(['b']);
+    expect(ids(f({ q: '2025-2026' }))).toEqual(['b']);
   });
   it('several words must all match', () => expect(ids(f({ q: 'giua do' }))).toEqual([]));
   it('inside a facet it is OR, between facets AND', () => {
@@ -117,6 +119,30 @@ describe('matchesFilters', () => {
     const [bad] = rowsOf([session({ startTime: 'không phải ngày' })], []);
     expect(() => matchesFilters(bad, f({ time: '7' }), NOW)).not.toThrow();
   });
+
+  it('T-FLT-2: the semester filters by KEY — a whole year, or one term of it, ANDed with the other filters', () => {
+    expect(ids(f({ semester: { academicYear: 2026, semesterId: null } }))).toEqual(['a']);
+    expect(ids(f({ semester: { academicYear: 2025, semesterId: null } }))).toEqual(['b']);
+    expect(ids(f({ semester: { academicYear: 2026, semesterId: SEM_HK1_2026 } }))).toEqual(['a']);
+    expect(ids(f({ semester: { academicYear: 2026, semesterId: SEM_HK1_2026 }, classIds: ['c2'] }))).toEqual([]);
+    expect(ids(f({ semester: { academicYear: 2027, semesterId: null } }))).toEqual([]);
+  });
+
+  it('two spellings of the same semester are ONE filter (the key, not the text)', () => {
+    const spelled = rowsOf(
+      [session({ id: 'x', semesterName: 'HK1 2026-2027' }), session({ id: 'y', semesterName: 'Học kỳ 1 2026-2027' })],
+      [],
+    );
+    const hit = spelled.filter((r) => matchesFilters(r, f({ semester: { academicYear: 2026, semesterId: SEM_HK1_2026 } }), NOW));
+    expect(hit.map((r) => r.session.id)).toEqual(['x', 'y']);
+  });
+
+  it('a session whose class has no semester yet: matches when not filtering, never when filtering, never throws', () => {
+    const [legacy] = rowsOf([session({ id: 'old', semesterId: null, academicYear: null, term: null })], []);
+    expect(matchesFilters(legacy, EMPTY_LIST_FILTERS, NOW)).toBe(true);
+    expect(matchesFilters(legacy, f({ semester: { academicYear: 2026, semesterId: null } }), NOW)).toBe(false);
+    expect(matchesFilters(legacy, f({ semester: { academicYear: 2026, semesterId: SEM_HK1_2026 } }), NOW)).toBe(false);
+  });
 });
 
 describe('hasActiveFilters', () => {
@@ -126,6 +152,8 @@ describe('hasActiveFilters', () => {
     expect(hasActiveFilters(f({ status: 'done' }))).toBe(true);
     expect(hasActiveFilters(f({ rooms: ['A'] }))).toBe(true);
     expect(hasActiveFilters(f({ time: '7' }))).toBe(true);
+    expect(hasActiveFilters(f({ semester: { academicYear: 2026, semesterId: null } }))).toBe(true);
+    expect(hasActiveFilters(f({ semester: { academicYear: null, semesterId: SEM_HK1_2026 } }))).toBe(true);
     expect(hasActiveFilters(f({ noRubric: true }))).toBe(true);
   });
 });
@@ -133,39 +161,62 @@ describe('hasActiveFilters', () => {
 describe('facetOptions and statusCounts', () => {
   const rows = rowsOf(
     [
-      session({ id: 'a', classId: 'c1', className: 'DHKTPM18ATT', semesterName: 'HK1 2026-2027', examType: 'GK' }),
-      session({ id: 'b', classId: 'c2', className: 'DHKTPM19BTT', semesterName: 'HK1 2026-2027', examType: 'TK' }),
-      session({ id: 'c', classId: 'c2', className: 'DHKTPM19BTT', semesterName: 'HK2 2025-2026', examType: 'CK', startTime: new Date(2026, 5, 12).toISOString() }),
+      session({ id: 'a', classId: 'c1', classLabel: 'DHKTPM18ATT', examType: 'GK' }),
+      session({ id: 'b', classId: 'c2', classLabel: 'DHKTPM19BTT', examType: 'TK' }),
+      session({ id: 'c', classId: 'c3', classLabel: 'DHKTPM20CTT', examType: 'CK', ...IN_HK2_2025, startTime: new Date(2026, 5, 12).toISOString() }),
     ],
     [summary('a', { finalized: 1 }), summary('b', { finalized: 1 }), summary('c', { auto_approved: 1 })],
   );
 
+  it('the semester is not a facet any more — the shared year → semester pair owns it', () => {
+    expect(Object.keys(facetOptions(rows, EMPTY_LIST_FILTERS, NOW))).toEqual(['classIds', 'examTypes', 'rooms']);
+  });
+
   it("a facet's own filter does not narrow its own counts (so you can add a second choice)", () => {
     const opts = facetOptions(rows, f({ classIds: ['c1'] }), NOW);
-    expect(opts.classIds.map((o) => [o.value, o.count])).toEqual([['c1', 1], ['c2', 2]]);
+    expect(opts.classIds.map((o) => [o.value, o.count])).toEqual([['c1', 1], ['c2', 1], ['c3', 1]]);
   });
 
-  it("other filters DO narrow a facet's counts", () => {
-    const opts = facetOptions(rows, f({ classIds: ['c1'] }), NOW);
-    expect(opts.semesters.find((o) => o.value === 'HK1 2026-2027')!.count).toBe(1);
-    expect(opts.semesters.find((o) => o.value === 'HK2 2025-2026')!.count).toBe(0);
+  it("other filters DO narrow a facet's counts — the semester too", () => {
+    const byClass = facetOptions(rows, f({ classIds: ['c1'] }), NOW);
+    expect(byClass.examTypes.map((o) => [o.value, o.count])).toEqual([['TK', 0], ['GK', 1], ['CK', 0]]);
+    const bySemester = facetOptions(rows, f({ semester: { academicYear: 2026, semesterId: null } }), NOW);
+    expect(bySemester.classIds.map((o) => [o.value, o.count])).toEqual([['c1', 1], ['c2', 1], ['c3', 0]]);
   });
 
-  it('semesters newest first, exam types in TK/GK/CK order, classes by name', () => {
+  it('exam types in TK/GK/CK order, classes by label', () => {
     const opts = facetOptions(rows, EMPTY_LIST_FILTERS, NOW);
-    expect(opts.semesters.map((o) => o.value)).toEqual(['HK1 2026-2027', 'HK2 2025-2026']);
     expect(opts.examTypes.map((o) => o.value)).toEqual(['TK', 'GK', 'CK']);
-    expect(opts.classIds.map((o) => o.label)).toEqual(['DHKTPM18ATT', 'DHKTPM19BTT']);
+    expect(opts.classIds.map((o) => o.label)).toEqual(['DHKTPM18ATT', 'DHKTPM19BTT', 'DHKTPM20CTT']);
   });
 
-  it('a class with no name is labelled, not blank', () => {
-    const [r] = rowsOf([session({ className: null })], []);
+  it('a class with no label is named, not blank', () => {
+    const [r] = rowsOf([session({ classLabel: null })], []);
     expect(facetOptions([r], EMPTY_LIST_FILTERS, NOW).classIds[0].label).toBe('Không rõ lớp');
   });
 
+  it('Review Focus 4: two classes with the SAME label (one class again in another semester) are told apart by semester — and only then', () => {
+    const twins = rowsOf(
+      [
+        session({ id: 'x', classId: 'k1', classLabel: 'DHKTPM18A – Nhóm 1' }),
+        session({ id: 'y', classId: 'k2', classLabel: 'DHKTPM18A – Nhóm 1', ...IN_HK2_2025 }),
+        session({ id: 'z', classId: 'k3', classLabel: 'DHKTPM19B' }),
+      ],
+      [],
+    );
+    const opts = facetOptions(twins, EMPTY_LIST_FILTERS, NOW).classIds;
+    expect(opts.map((o) => o.label)).toEqual(['DHKTPM18A – Nhóm 1 · HK1 2026-2027', 'DHKTPM18A – Nhóm 1 · HK2 2025-2026', 'DHKTPM19B']);
+    expect(opts.map((o) => o.value)).toEqual(['k1', 'k2', 'k3']); // khoá vẫn là classId
+  });
+
   it('status counts follow every other filter but not the status filter itself', () => {
-    const counts = statusCounts(rows, f({ status: 'done', classIds: ['c2'] }), NOW);
+    const counts = statusCounts(rows, f({ status: 'done', classIds: ['c2', 'c3'] }), NOW);
     expect(counts).toEqual({ all: 2, attention: 0, ready: 1, todo: 0, running: 0, done: 1 });
+  });
+
+  it('status counts follow the semester', () => {
+    const counts = statusCounts(rows, f({ semester: { academicYear: 2025, semesterId: null } }), NOW);
+    expect(counts).toEqual({ all: 1, attention: 0, ready: 1, todo: 0, running: 0, done: 0 });
   });
 });
 
@@ -208,9 +259,10 @@ describe('sortRows', () => {
 describe('groupRows', () => {
   const rows = rowsOf(
     [
-      session({ id: 'a', classId: 'c2', className: 'B', semesterName: 'HK2 2025-2026', startTime: new Date(2026, 5, 1).toISOString() }),
-      session({ id: 'b', classId: 'c1', className: 'A', semesterName: 'HK1 2026-2027' }),
-      session({ id: 'c', classId: 'c2', className: 'B', semesterName: 'HK1 2026-2027' }),
+      session({ id: 'a', classId: 'c3', classLabel: 'C', ...IN_HK2_2025, startTime: new Date(2026, 5, 1).toISOString() }),
+      session({ id: 'b', classId: 'c1', classLabel: 'A' }),
+      session({ id: 'c', classId: 'c2', classLabel: 'B' }),
+      session({ id: 'd', classId: 'c1', classLabel: 'A' }),
     ],
     [],
   );
@@ -218,15 +270,37 @@ describe('groupRows', () => {
     const g = groupRows(rows, 'none');
     expect(g).toHaveLength(1);
     expect(g[0].label).toBeNull();
-    expect(g[0].rows.map((r) => r.session.id)).toEqual(['a', 'b', 'c']);
+    expect(g[0].rows.map((r) => r.session.id)).toEqual(['a', 'b', 'c', 'd']);
   });
-  it('class → groups ordered by class name, rows keep their order inside', () => {
+  it('class → groups ordered by label, rows keep their order inside', () => {
     const g = groupRows(rows, 'class');
-    expect(g.map((x) => x.label)).toEqual(['A', 'B']);
-    expect(g[1].rows.map((r) => r.session.id)).toEqual(['a', 'c']);
+    expect(g.map((x) => x.label)).toEqual(['A', 'B', 'C']);
+    expect(g[0].rows.map((r) => r.session.id)).toEqual(['b', 'd']);
   });
-  it('semester → newest semester first', () => {
-    expect(groupRows(rows, 'semester').map((x) => x.label)).toEqual(['HK1 2026-2027', 'HK2 2025-2026']);
+  it('Review Focus 4: two classes with the same label are two groups, told apart by semester', () => {
+    const twins = rowsOf(
+      [
+        session({ id: 'x', classId: 'k1', classLabel: 'DHKTPM18A – Nhóm 1' }),
+        session({ id: 'y', classId: 'k2', classLabel: 'DHKTPM18A – Nhóm 1', ...IN_HK2_2025 }),
+      ],
+      [],
+    );
+    const g = groupRows(twins, 'class');
+    expect(g.map((x) => x.key)).toEqual(['k1', 'k2']);
+    expect(g.map((x) => x.label)).toEqual(['DHKTPM18A – Nhóm 1 · HK1 2026-2027', 'DHKTPM18A – Nhóm 1 · HK2 2025-2026']);
+  });
+  it('semester → keyed by the semester, newest (year, term) first, labelled from the keys', () => {
+    const g = groupRows(rows, 'semester');
+    expect(g.map((x) => x.label)).toEqual(['HK1 2026-2027', 'HK2 2025-2026']);
+    expect(g.map((x) => x.key)).toEqual([SEM_HK1_2026, IN_HK2_2025.semesterId]);
+    expect(g[0].rows.map((r) => r.session.id)).toEqual(['b', 'c', 'd']);
+  });
+  it('Review Focus 5: sessions whose class has no semester yet form their own LAST group, never a blank one', () => {
+    const legacy = rowsOf([session({ id: 'old', semesterId: null, academicYear: null, term: null }), ...rows.map((r) => r.session)], []);
+    const g = groupRows(legacy, 'semester');
+    expect(g.map((x) => x.label)).toEqual(['HK1 2026-2027', 'HK2 2025-2026', 'Chưa gán học kỳ']);
+    expect(g[2].key).toBe(NO_SEMESTER_KEY);
+    expect(g[2].rows.map((r) => r.session.id)).toEqual(['old']);
   });
 });
 

@@ -1,7 +1,10 @@
 import type { GradingSessionSummary } from './api/grading';
 import type { SessionOverviewItem } from './api/submissions';
 import { EXAM_TYPE_LABELS } from './exam-session-display';
+import { semesterTextOf } from './master-data-forms';
+import { ALL_SEMESTERS, isFiltering, matchesSemester, type SemesterSelection } from './semester-filter';
 import { STATE_ORDER, countsFromSummary, type SessionState } from './session-triage';
+import { tellApart } from './tell-apart';
 
 /**
  * Logic thuần của danh sách phiên chấm (spec 2026-09-29-grading-session-list-design.md).
@@ -107,7 +110,11 @@ export function buildRows(
 export interface ListFilters {
   q: string;
   status: ListStatus | 'all';
-  semesters: string[];
+  /**
+   * Lọc bằng KHOÁ học kỳ (`semesterId`/`academicYear` trên từng phiên) — cùng cặp ô Năm học → Học kỳ với các màn hình khác (spec §7.2).
+   * Không còn là danh sách TÊN kỳ dựng từ các phiên đã tải: ở đó hai cách viết một kỳ là hai mục, và kỳ chưa có phiên nào thì không chọn được.
+   */
+  semester: SemesterSelection;
   /** `classId`, không phải tên: tên chỉ để hiện, khoá mới phân biệt hai lớp trùng tên. */
   classIds: string[];
   examTypes: string[];
@@ -119,7 +126,7 @@ export interface ListFilters {
 export const EMPTY_LIST_FILTERS: ListFilters = {
   q: '',
   status: 'all',
-  semesters: [],
+  semester: ALL_SEMESTERS,
   classIds: [],
   examTypes: [],
   rooms: [],
@@ -131,7 +138,7 @@ export function hasActiveFilters(f: ListFilters): boolean {
   return (
     f.q.trim() !== '' ||
     f.status !== 'all' ||
-    f.semesters.length > 0 ||
+    isFiltering(f.semester) ||
     f.classIds.length > 0 ||
     f.examTypes.length > 0 ||
     f.rooms.length > 0 ||
@@ -149,38 +156,42 @@ export function foldText(text: string): string {
     .replace(/đ/g, 'd');
 }
 
-export type FacetKey = 'semesters' | 'classIds' | 'examTypes' | 'rooms';
-export const FACET_KEYS: FacetKey[] = ['semesters', 'classIds', 'examTypes', 'rooms'];
+/** Học kỳ KHÔNG nằm đây: nó là cặp ô dùng chung, lọc bằng khoá, không có menu đếm theo từng kỳ. */
+export type FacetKey = 'classIds' | 'examTypes' | 'rooms';
+export const FACET_KEYS: FacetKey[] = ['classIds', 'examTypes', 'rooms'];
+
+const NO_CLASS_LABEL = 'Không rõ lớp';
 
 const FACET_VALUE: Record<FacetKey, (s: SessionOverviewItem) => string> = {
-  semesters: (s) => s.semesterName,
   classIds: (s) => s.classId,
   examTypes: (s) => s.examType,
   rooms: (s) => s.roomName,
 };
 const FACET_LABEL: Record<FacetKey, (s: SessionOverviewItem) => string> = {
-  semesters: (s) => s.semesterName,
-  classIds: (s) => s.className ?? 'Không rõ lớp',
+  classIds: (s) => s.classLabel ?? NO_CLASS_LABEL,
   examTypes: (s) => EXAM_TYPE_LABELS[s.examType] ?? s.examType,
   rooms: (s) => s.roomName,
 };
 
 /**
  * `skip` bỏ MỘT bộ lọc ra khỏi phép so — dùng để đếm số lượng của chính bộ lọc đó (đếm theo các bộ lọc KHÁC),
- * và để đếm tab trạng thái. Trong một nhóm: OR. Giữa các nhóm: AND. Nhóm rỗng = không lọc.
+ * và để đếm tab trạng thái. Trong một nhóm: OR. Giữa các nhóm: AND. Nhóm rỗng = không lọc. Học kỳ luôn được áp:
+ * không bộ lọc nào đếm theo từng kỳ, nên không có gì để bỏ qua.
  */
 export function matchesFilters(row: SessionRow, f: ListFilters, now: number, skip?: FacetKey | 'status'): boolean {
   const s = row.session;
   const words = foldText(f.q).split(/\s+/).filter(Boolean);
   if (words.length > 0) {
     const haystack = foldText(
-      [s.name, s.className ?? '', s.roomName, s.semesterName, s.code, EXAM_TYPE_LABELS[s.examType] ?? ''].join(' '),
+      [s.name, s.classLabel ?? '', s.roomName, s.semesterName, s.code, EXAM_TYPE_LABELS[s.examType] ?? ''].join(' '),
     );
     if (!words.every((w) => haystack.includes(w))) return false;
   }
   for (const key of FACET_KEYS) {
     if (key !== skip && f[key].length > 0 && !f[key].includes(FACET_VALUE[key](s))) return false;
   }
+  // Bằng KHOÁ trên từng phiên. Phiên của lớp chưa có học kỳ: khớp khi không lọc, không khớp khi đang lọc (xem `matchesSemester`).
+  if (!matchesSemester(f.semester, s)) return false;
   if (f.time !== 'all') {
     const age = now - Date.parse(s.startTime);
     // Ngày không đọc được → không loại (NaN so sánh luôn sai): giấu phiên vì một ô ngày hỏng đắt hơn hiện thừa.
@@ -203,17 +214,27 @@ export function facetOptions(rows: SessionRow[], f: ListFilters, now: number): R
   const out = {} as Record<FacetKey, FacetOption[]>;
   for (const key of FACET_KEYS) {
     const labels = new Map<string, string>();
-    const newest = new Map<string, number>();
     const counts = new Map<string, number>();
+    const semesterOf = new Map<string, string>();
     for (const r of rows) {
       const value = FACET_VALUE[key](r.session);
       labels.set(value, FACET_LABEL[key](r.session));
-      newest.set(value, Math.max(newest.get(value) ?? 0, Date.parse(r.session.startTime) || 0));
+      if (key === 'classIds') semesterOf.set(value, semesterTextOf(r.session));
       if (matchesFilters(r, f, now, key)) counts.set(value, (counts.get(value) ?? 0) + 1);
     }
     const options = [...labels].map(([value, label]) => ({ value, label, count: counts.get(value) ?? 0 }));
-    if (key === 'semesters') options.sort((a, b) => (newest.get(b.value) ?? 0) - (newest.get(a.value) ?? 0));
-    else if (key === 'examTypes') options.sort((a, b) => ['TK', 'GK', 'CK'].indexOf(a.value) - ['TK', 'GK', 'CK'].indexOf(b.value));
+    // Trước khi sắp: thứ tự theo nhãn CUỐI CÙNG, nhãn đã gắn kỳ.
+    if (key === 'classIds') {
+      tellApart(
+        options,
+        (o) => o.label,
+        (o, label) => {
+          o.label = label;
+        },
+        (o) => semesterOf.get(o.value) ?? '',
+      );
+    }
+    if (key === 'examTypes') options.sort((a, b) => ['TK', 'GK', 'CK'].indexOf(a.value) - ['TK', 'GK', 'CK'].indexOf(b.value));
     else options.sort((a, b) => a.label.localeCompare(b.label, 'vi', { numeric: true }));
     out[key] = options;
   }
@@ -265,20 +286,39 @@ export interface RowGroup {
   rows: SessionRow[];
 }
 
+/** Khoá của nhóm "chưa có học kỳ" — cố định, không trùng một uuid nào. */
+export const NO_SEMESTER_KEY = '__no-semester__';
+
 export function groupRows(rows: SessionRow[], group: ListView['group']): RowGroup[] {
   if (group === 'none') return [{ key: null, label: null, rows }];
   const map = new Map<string, RowGroup>();
   for (const r of rows) {
-    const key = group === 'class' ? r.session.classId : r.session.semesterName;
-    const label = group === 'class' ? (r.session.className ?? 'Không rõ lớp') : r.session.semesterName;
+    const s = r.session;
+    const key = group === 'class' ? s.classId : (s.semesterId ?? NO_SEMESTER_KEY);
+    const label = group === 'class' ? (s.classLabel ?? NO_CLASS_LABEL) : semesterTextOf(s);
     const entry = map.get(key) ?? { key, label, rows: [] };
     entry.rows.push(r);
     map.set(key, entry);
   }
   const groups = [...map.values()];
-  if (group === 'class') return groups.sort((a, b) => a.label!.localeCompare(b.label!, 'vi', { numeric: true }));
-  const newest = (g: RowGroup) => Math.max(...g.rows.map((r) => Date.parse(r.session.startTime) || 0));
-  return groups.sort((a, b) => newest(b) - newest(a));
+  if (group === 'class') {
+    // Hai lớp cùng nhãn là hai nhóm — phân biệt bằng học kỳ, chỉ khi trùng.
+    tellApart(
+      groups,
+      (g) => g.label,
+      (g, label) => {
+        g.label = label;
+      },
+      (g) => semesterTextOf(g.rows[0].session),
+    );
+    return groups.sort((a, b) => a.label!.localeCompare(b.label!, 'vi', { numeric: true }));
+  }
+  // Theo (năm, kỳ), không theo ngày thi mới nhất: hai kỳ có thể thi gối nhau, còn (năm, kỳ) thì ổn định. Chưa có học kỳ thì cuối.
+  const rankOf = (g: RowGroup): number => {
+    const s = g.rows[0].session;
+    return s.academicYear === null || s.term === null ? -1 : s.academicYear * 10 + s.term;
+  };
+  return groups.sort((a, b) => rankOf(b) - rankOf(a));
 }
 
 /* -------------------------------------------------------------- hàng loạt */

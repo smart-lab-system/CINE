@@ -8,6 +8,7 @@ import {
   type ListView,
   type SortKey,
 } from './session-list';
+import { type SemesterSelection } from './semester-filter';
 
 /**
  * Trạng thái danh sách ↔ query string. Giá trị lạ bị BỎ (không ném): URL do giảng viên dán, gõ tay hay
@@ -22,7 +23,21 @@ const SORT_KEYS: SortKey[] = ['priority', 'date', 'name', 'submitted'];
 const GROUPS: ListView['group'][] = ['none', 'class', 'semester'];
 const MAX_Q = 100;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const YEAR = /^2\d{3}$/; // 2000–2999, như bộ lọc `academicYear` ở server (plan D3)
+
 const many = (params: URLSearchParams, name: string): string[] => [...new Set(params.getAll(name).filter(Boolean))];
+
+/**
+ * `year` + `sem` (khoá). Giá trị lạ BỊ BỎ: URL cũ mang TÊN kỳ (`sem=HK1 2026-2027`, lặp nhiều lần), URL gõ tay, hay một id hỏng đều về "Tất cả" thay vì
+ * giữ một bộ lọc không ai thấy. Không kiểm kỳ có tồn tại ở đây (chưa có danh sách kỳ): `SessionList` dọn việc đó bằng `reconcileSelection` khi danh
+ * sách đã tải. `sem` không kèm `year` vẫn được giữ — năm được điền theo kỳ ở bước đó.
+ */
+function semesterOf(params: URLSearchParams): SemesterSelection {
+  const year = params.get('year') ?? '';
+  const sem = params.get('sem') ?? '';
+  return { academicYear: YEAR.test(year) ? Number(year) : null, semesterId: UUID.test(sem) ? sem : null };
+}
 
 export function parseListState(params: URLSearchParams): ListState {
   const status = params.get('status');
@@ -34,7 +49,7 @@ export function parseListState(params: URLSearchParams): ListState {
     filters: {
       q: (params.get('q') ?? '').slice(0, MAX_Q),
       status: LIST_STATUS_ORDER.includes(status as ListStatus) ? (status as ListStatus) : 'all',
-      semesters: many(params, 'sem'),
+      semester: semesterOf(params),
       classIds: many(params, 'cls'),
       examTypes: many(params, 'type'),
       rooms: many(params, 'room'),
@@ -54,7 +69,8 @@ export function serializeListState({ filters, view }: ListState): URLSearchParam
   const p = new URLSearchParams();
   if (filters.q.trim()) p.set('q', filters.q.slice(0, MAX_Q));
   if (filters.status !== EMPTY_LIST_FILTERS.status) p.set('status', filters.status);
-  filters.semesters.forEach((v) => p.append('sem', v));
+  if (filters.semester.academicYear !== null) p.set('year', String(filters.semester.academicYear));
+  if (filters.semester.semesterId !== null) p.set('sem', filters.semester.semesterId);
   filters.classIds.forEach((v) => p.append('cls', v));
   filters.examTypes.forEach((v) => p.append('type', v));
   filters.rooms.forEach((v) => p.append('room', v));
