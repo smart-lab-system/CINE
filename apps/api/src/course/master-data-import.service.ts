@@ -2,12 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { AuditLogService } from '../admin/audit-log.service';
+import { COURSE_NAME } from '../common/course-name';
+import { ClassService } from './class.service';
 import {
   ImportAdministrativeClassesDto,
+  ImportClassesDto,
   ImportRoomsDto,
   ImportSemestersDto,
 } from './dto/import.dto';
 import { AdministrativeClassEntity } from './entities/administrative-class.entity';
+import { ClassEntity } from './entities/class.entity';
 import { RoomEntity } from './entities/room.entity';
 import { SemesterEntity } from './entities/semester.entity';
 import { runImport } from './import/import-runner';
@@ -17,6 +21,12 @@ import {
   type AdministrativeClassWrite,
   type ExistingAdministrativeClass,
 } from './import/plan-administrative-class-import';
+import {
+  planClassImport,
+  type ClassImportContext,
+  type ClassImportRow,
+  type ClassWrite,
+} from './import/plan-class-import';
 import { planRoomImport, type ExistingRoom, type RoomWrite } from './import/plan-room-import';
 import {
   planSemesterImport,
@@ -37,6 +47,7 @@ export class MasterDataImportService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly auditLog: AuditLogService,
+    private readonly classes: ClassService,
   ) {}
 
   importSemesters(actorId: string, dto: ImportSemestersDto): Promise<ImportResult> {
@@ -115,7 +126,70 @@ export class MasterDataImportService {
     });
   }
 
+  importClasses(actorId: string, dto: ImportClassesDto): Promise<ImportResult> {
+    return runImport<ClassWrite>({
+      dataSource: this.dataSource,
+      auditLog: this.auditLog,
+      actorId,
+      dryRun: dto.dryRun,
+      confirmSimilar: dto.confirmSimilar === true,
+      lockName: 'import:class',
+      audit: { action: 'class.import', targetType: 'class', targetLabel: 'Lớp (nhập từ file)' },
+      plan: async (manager) => planClassImport(dto.rows, await this.loadClassContext(manager, dto.rows)),
+      apply: async (manager, writes) => {
+        const repo = manager.getRepository(ClassEntity);
+        for (const write of writes) {
+          if (write.kind === 'create') {
+            await repo.save(
+              repo.create({
+                courseName: COURSE_NAME,
+                semesterId: write.semesterId,
+                administrativeClassId: write.administrativeClassId,
+                groupName: write.groupName,
+                teacherId: write.teacherId,
+              }),
+            );
+          } else {
+            // CÙNG hàm với nhập tay: enrollment đi theo, phiên/ảnh chốt/bài nộp đã có giữ giảng viên cũ.
+            await this.classes.applyTeacherChange(manager, write.classId, write.toTeacherId);
+          }
+        }
+      },
+      // Đổi giảng viên là thứ duy nhất trong lô có hệ quả về QUYỀN, nên audit nêu rõ ai bị đổi (cắt ở 50 mục; tổng số luôn có).
+      auditExtra: (plan) => {
+        const reassigned = plan.writes
+          .filter((w): w is Extract<ClassWrite, { kind: 'reassign' }> => w.kind === 'reassign')
+          .map((w) => ({ label: w.label, from: w.fromTeacherName, to: w.toTeacherName }));
+        return reassigned.length === 0
+          ? {}
+          : { reassigned: reassigned.slice(0, 50), reassignedTotal: reassigned.length };
+      },
+    });
+  }
+
   // ----------------------------------------------------------------- nạp trạng thái hiện có
+
+  private async loadClassContext(manager: EntityManager, rows: readonly ClassImportRow[]): Promise<ClassImportContext> {
+    const emails = [...new Set(rows.map((row) => row.teacherEmail.trim()).filter((email) => email !== ''))];
+    const semesters = await manager.query(
+      `SELECT id, academic_year_start AS "academicYearStart", term FROM examcollect.semester`,
+    );
+    const administrativeClasses = await manager.query(`SELECT id, code::text AS code FROM examcollect.administrative_class`);
+    // `email` là citext: `ANY($1::citext[])` so không phân biệt hoa-thường. `::text[]` sẽ so phân biệt và lặng lẽ
+    // không thấy tài khoản gõ khác hoa-thường (bẫy đã gặp ở plan D1).
+    const teachers = await manager.query(
+      `SELECT id, email::text AS email, name, role::text AS role, is_active AS "isActive"
+         FROM examcollect.account WHERE email = ANY($1::citext[])`,
+      [emails],
+    );
+    const classes = await manager.query(
+      `SELECT c.id, c.semester_id AS "semesterId", c.administrative_class_id AS "administrativeClassId",
+              c.group_name AS "groupName", c.teacher_id AS "teacherId", t.name AS "teacherName"
+         FROM examcollect.class c
+         JOIN examcollect.account t ON t.id = c.teacher_id`,
+    );
+    return { semesters, administrativeClasses, teachers, classes };
+  }
 
   private loadSemesters(manager: EntityManager): Promise<ExistingSemester[]> {
     return manager.query(

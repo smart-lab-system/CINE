@@ -5,7 +5,9 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
-import { freshTestYear, purgeTestSemesters, randomTag, semesterDates } from './helpers/master-data';
+import { semesterLabel } from '../src/common/semester-label';
+import { ensureTestSemester, freshTestYear, purgeTestSemesters, randomTag, semesterDates } from './helpers/master-data';
+import { seedClass, seedEnrollment, seedExamSession } from './helpers/seed';
 
 /**
  * Import dữ liệu nền (plan E1): học kỳ, phòng, Danh mục lớp danh nghĩa. Phần lớp ở Task 6 (cùng file).
@@ -19,6 +21,9 @@ describe('Import dữ liệu nền (e2e)', () => {
   let adminToken: string;
   let adminId: string;
   let teacherToken: string;
+  // Dùng cho nhóm lớp (Task 6).
+  const teacherIds: string[] = [];
+  const mssvs: string[] = [];
 
   const RUN = `IMPT${randomTag(6)}`;
   const PASSWORD = 'correct-horse-battery';
@@ -73,6 +78,14 @@ describe('Import dữ liệu nền (e2e)', () => {
 
   afterAll(async () => {
     try {
+      if (teacherIds.length) {
+        await ds.query(`DELETE FROM examcollect.exam_session WHERE teacher_id = ANY($1::uuid[])`, [teacherIds]).catch(() => undefined);
+        await ds.query(`DELETE FROM examcollect.enrollment WHERE home_teacher_id = ANY($1::uuid[])`, [teacherIds]).catch(() => undefined);
+        await ds.query(`DELETE FROM examcollect.class WHERE teacher_id = ANY($1::uuid[])`, [teacherIds]).catch(() => undefined);
+      }
+      if (mssvs.length) {
+        await ds.query(`DELETE FROM examcollect.student WHERE mssv = ANY($1::text[])`, [mssvs]).catch(() => undefined);
+      }
       await ds.query(`DELETE FROM examcollect.room WHERE name::text LIKE $1`, [`${RUN}%`]).catch(() => undefined);
       await ds
         .query(`DELETE FROM examcollect.administrative_class WHERE code::text LIKE $1`, [`${RUN}%`])
@@ -426,6 +439,201 @@ describe('Import dữ liệu nền (e2e)', () => {
         { dryRun: true },
       ).expect(200);
       expect(response.body.rows[0].errors[0]).toMatch(/yyyy-mm-dd hoặc dd\/mm\/yyyy/);
+    });
+  });
+
+  describe('POST /classes/import', () => {
+    let semesterId: string;
+    let semesterText: string;
+    let teacherA: { id: string; email: string; name: string };
+    let teacherB: { id: string; email: string; name: string };
+    let codeOne: string;
+    let codeTwo: string;
+
+    const cls = (line: number, semester: string, code: string, groupName: string, teacherEmail: string) => ({
+      line,
+      semester,
+      administrativeClassCode: code,
+      groupName,
+      teacherEmail,
+    });
+    const count = async (table: string) =>
+      ((await ds.query(`SELECT count(*)::int AS n FROM examcollect.${table}`))[0].n as number);
+    const classesOf = async (teacherId: string) =>
+      ds.query(`SELECT id, group_name, semester_id, administrative_class_id FROM examcollect.class WHERE teacher_id = $1`, [
+        teacherId,
+      ]);
+
+    async function teacher(label: string, active = true) {
+      const email = `imp_${label}_${RUN}@example.com`.toLowerCase();
+      const id = await createTestAccount(ds, { email, password: PASSWORD, role: 'teacher', name: `GV ${label} ${RUN}` });
+      if (!active) await ds.query(`UPDATE examcollect.account SET is_active = false WHERE id = $1`, [id]);
+      teacherIds.push(id);
+      return { id, email, name: `GV ${label} ${RUN}` };
+    }
+
+    beforeAll(async () => {
+      semesterId = await ensureTestSemester(ds, 1);
+      const [row] = await ds.query(`SELECT academic_year_start AS year, term FROM examcollect.semester WHERE id = $1`, [semesterId]);
+      semesterText = semesterLabel(row.year, row.term);
+      teacherA = await teacher('a');
+      teacherB = await teacher('b');
+      codeOne = `${RUN}KLONE`;
+      codeTwo = `${RUN}KLTWO`;
+      await importTo('/administrative-classes/import', [{ line: 2, code: codeOne }, { line: 3, code: codeTwo }], { dryRun: false }).expect(200);
+    });
+
+    it('T-ADM-2: một dòng mã chưa có → ghi thật là 400, không lớp nào được ghi, không tạo mã, lỗi nêu mã và số dòng', async () => {
+      const rows = [
+        cls(2, semesterText, codeOne, 'Nhóm 1', teacherA.email),
+        cls(3, semesterText, `${RUN}ZZNONE`, 'Nhóm 1', teacherA.email),
+      ];
+      const classesBefore = await count('class');
+      const codesBefore = await count('administrative_class');
+      const semestersBefore = await count('semester');
+      const auditBefore = await auditCount('class.import');
+
+      const preview = await importTo('/classes/import', rows, { dryRun: true }).expect(200);
+      expect(preview.body.rows[1]).toMatchObject({ line: 3, status: 'error' });
+      expect(preview.body.rows[1].errors[0]).toContain(`${RUN}ZZNONE`);
+      expect(preview.body.rows[1].errors[0]).toMatch(/Danh mục lớp danh nghĩa/);
+
+      await importTo('/classes/import', rows, { dryRun: false }).expect(400);
+
+      expect(await count('class')).toBe(classesBefore);
+      expect(await count('administrative_class')).toBe(codesBefore); // KHÔNG tạo mã "tiện tay"
+      expect(await count('semester')).toBe(semestersBefore);
+      expect(await auditCount('class.import')).toBe(auditBefore);
+    });
+
+    it('học kỳ chưa có, nhãn học kỳ sai, giảng viên không có / là admin / bị vô hiệu hoá: lỗi theo dòng, không ghi gì (Review Focus 7)', async () => {
+      const inactive = await teacher('nghi', false);
+      const rows = [
+        cls(2, 'HK1 2299-2300', codeOne, 'Nhóm 1', teacherA.email),
+        cls(3, 'học kỳ một', codeOne, 'Nhóm 1', teacherA.email),
+        cls(4, semesterText, codeOne, 'Nhóm 1', `khongco_${RUN}@example.com`.toLowerCase()),
+        cls(5, semesterText, codeOne, 'Nhóm 1', `imp_admin_${RUN}@example.com`.toLowerCase()),
+        cls(6, semesterText, codeOne, 'Nhóm 1', inactive.email),
+      ];
+      const before = await count('class');
+
+      const preview = await importTo('/classes/import', rows, { dryRun: true }).expect(200);
+
+      expect(preview.body.counts.errors).toBe(5);
+      expect(preview.body.rows[0].errors[0]).toMatch(/Chưa có học kỳ HK1 2299-2300/);
+      expect(preview.body.rows[1].errors[0]).toMatch(/HK1 2026-2027/);
+      expect(preview.body.rows[2].errors[0]).toMatch(/Không có tài khoản/);
+      expect(preview.body.rows[3].errors[0]).toMatch(/không phải tài khoản giảng viên/);
+      expect(preview.body.rows[4].errors[0]).toMatch(/vô hiệu hoá/);
+      await importTo('/classes/import', rows, { dryRun: false }).expect(400);
+      expect(await count('class')).toBe(before);
+    });
+
+    it('thêm lớp: xem trước = ghi, lớp có học kỳ + lớp danh nghĩa + nhóm + giảng viên, một dòng audit; gửi lại là no-op', async () => {
+      const rows = [
+        cls(2, semesterText, codeOne, 'Nhóm 1', teacherA.email),
+        cls(3, semesterText, codeTwo, '', teacherB.email.toUpperCase()),
+      ];
+      const codesBefore = await count('administrative_class');
+      const auditBefore = await auditCount('class.import');
+
+      const preview = await importTo('/classes/import', rows, { dryRun: true }).expect(200);
+      expect(await classesOf(teacherA.id)).toHaveLength(0);
+      const real = await importTo('/classes/import', rows, { dryRun: false }).expect(200);
+
+      expect(real.body.applied).toBe(true);
+      expect(real.body.rows).toEqual(preview.body.rows);
+      expect(real.body.rows[0].label).toBe(`${codeOne} – Nhóm 1 · ${semesterText}`);
+      expect(real.body.rows[1].label).toBe(`${codeTwo} · ${semesterText}`);
+
+      const [created] = await classesOf(teacherA.id);
+      expect(created).toMatchObject({ group_name: 'Nhóm 1', semester_id: semesterId });
+      expect(await classesOf(teacherB.id)).toHaveLength(1);
+      expect(await count('administrative_class')).toBe(codesBefore);
+
+      expect(await auditCount('class.import')).toBe(auditBefore + 1);
+      expect((await lastAudit('class.import')).new_value).toMatchObject({ added: 2, updated: 0, unchanged: 0 });
+
+      const again = await importTo('/classes/import', rows, { dryRun: false }).expect(200);
+      expect(again.body).toMatchObject({ applied: false, counts: { added: 0, updated: 0, unchanged: 2 } });
+      expect(await auditCount('class.import')).toBe(auditBefore + 1);
+    });
+
+    it('T-IMP-6: đổi giảng viên qua file hiện "A → B"; ghi thật đổi enrollment, GIỮ giảng viên cũ trên phiên; một dòng audit nêu ai bị đổi', async () => {
+      const mine = await teacher('chu');
+      const heir = await teacher('ke');
+      const code = `${RUN}KLREASSIGN`;
+      await importTo('/administrative-classes/import', [{ line: 2, code }], { dryRun: false }).expect(200);
+      const klass = await seedClass(ds, { teacherId: mine.id, semesterId, administrativeClassId: (await ds.query(
+        `SELECT id FROM examcollect.administrative_class WHERE code = $1`, [code]))[0].id, groupName: 'Nhóm 7' });
+      const mssv = `IMP${randomTag(8)}`;
+      mssvs.push(mssv);
+      await seedEnrollment(ds, { classId: klass.id, teacherId: mine.id, mssv, name: 'Sinh vien doi chu' });
+      const session = await seedExamSession(ds, {
+        teacherId: mine.id,
+        classId: klass.id,
+        startTime: new Date(Date.now() + 40 * 86_400_000),
+        endTime: new Date(Date.now() + 40 * 86_400_000 + 3_600_000),
+      });
+      const rows = [cls(2, semesterText, code, 'Nhóm 7', heir.email)];
+      const auditBefore = await auditCount('class.import');
+      const reassignAuditBefore = await auditCount('class.reassign_teacher');
+
+      const preview = await importTo('/classes/import', rows, { dryRun: true }).expect(200);
+      expect(preview.body.rows[0]).toMatchObject({
+        status: 'update',
+        changes: [{ field: 'teacher', label: 'Giảng viên', from: mine.name, to: heir.name }],
+      });
+
+      await importTo('/classes/import', rows, { dryRun: false }).expect(200);
+
+      const [after] = await ds.query(`SELECT teacher_id FROM examcollect.class WHERE id = $1`, [klass.id]);
+      expect(after.teacher_id).toBe(heir.id);
+      const [enrollment] = await ds.query(`SELECT home_teacher_id FROM examcollect.enrollment WHERE home_class_id = $1`, [klass.id]);
+      expect(enrollment.home_teacher_id).toBe(heir.id);
+      // Phiên đã có giữ giảng viên cũ: không ai sửa được điểm của phiên người khác đã chấm.
+      const [sessionRow] = await ds.query(`SELECT teacher_id FROM examcollect.exam_session WHERE id = $1`, [session.id]);
+      expect(sessionRow.teacher_id).toBe(mine.id);
+
+      expect(await auditCount('class.import')).toBe(auditBefore + 1);
+      expect(await auditCount('class.reassign_teacher')).toBe(reassignAuditBefore); // một dòng cho cả lô, không thêm dòng lẻ
+      const audit = await lastAudit('class.import');
+      expect(audit.new_value).toMatchObject({ added: 0, updated: 1, reassignedTotal: 1 });
+      expect(audit.new_value.reassigned).toEqual([
+        { label: `${code} – Nhóm 7 · ${semesterText}`, from: mine.name, to: heir.name },
+      ]);
+    });
+
+    it('một dòng lỗi giữa các lớp tốt: không lớp nào được ghi (Review Focus 2)', async () => {
+      const lone = await teacher('le');
+      const rows = [
+        cls(2, semesterText, codeOne, 'Nhóm 31', lone.email),
+        cls(3, semesterText, codeOne, 'Nhóm 32', 'khong-co@example.com'),
+        cls(4, semesterText, codeTwo, 'Nhóm 33', lone.email),
+      ];
+      await importTo('/classes/import', rows, { dryRun: false }).expect(400);
+      expect(await classesOf(lone.id)).toHaveLength(0);
+    });
+
+    it('trùng khoá trong file là lỗi; cùng mã khác nhóm là hai lớp khác nhau', async () => {
+      const dup = await teacher('trung');
+      const rows = [
+        cls(2, semesterText, codeOne, 'Nhóm 41', dup.email),
+        cls(3, semesterText, codeOne, 'Nhóm 41', dup.email),
+        cls(4, semesterText, codeOne, 'Nhóm 42', dup.email),
+      ];
+      const preview = await importTo('/classes/import', rows, { dryRun: true }).expect(200);
+      expect(preview.body.rows.map((r: { status: string }) => r.status)).toEqual(['new', 'error', 'new']);
+      expect(preview.body.rows[1].errors[0]).toMatch(/dòng 2/);
+    });
+
+    // Bổ sung (Ruling Task 4): khoá lớp ở DB là lower(nhóm), nên "NHÓM 1" so với lớp "Nhóm 1" có sẵn là CÙNG lớp.
+    it('nhóm khác hoa-thường với lớp có sẵn: xem trước nói đúng "có sẵn" và ghi thật không vỡ ở khoá duy nhất', async () => {
+      const rows = [cls(2, semesterText, codeOne, 'NHÓM 1', teacherA.email)];
+      const preview = await importTo('/classes/import', rows, { dryRun: true }).expect(200);
+      expect(preview.body.rows[0]).toMatchObject({ status: 'unchanged', label: `${codeOne} – Nhóm 1 · ${semesterText}` });
+      const real = await importTo('/classes/import', rows, { dryRun: false }).expect(200);
+      expect(real.body.applied).toBe(false);
     });
   });
 });

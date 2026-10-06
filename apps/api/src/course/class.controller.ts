@@ -26,6 +26,8 @@ import {
 } from './dto/class.dto';
 import { ImportRosterDto, RosterStudentDto } from './dto/roster.dto';
 import { StudentLookupLimiter } from './student-lookup.limiter';
+import { ImportClassesDto } from './dto/import.dto';
+import { MasterDataImportService } from './master-data-import.service';
 
 /**
  * Lớp. Từ đợt khôi phục master data (spec §4):
@@ -42,6 +44,7 @@ export class ClassController {
     private readonly classes: ClassService,
     private readonly roster: RosterService,
     private readonly lookupLimiter: StudentLookupLimiter,
+    private readonly imports: MasterDataImportService,
   ) {}
 
   /**
@@ -59,6 +62,17 @@ export class ClassController {
   @Get()
   list(@Query() query: SearchClassesDto) {
     return this.classes.listForAdmin(query);
+  }
+
+  /**
+   * Nhập lớp từ file (spec §6). CHỈ tra học kỳ, mã lớp danh nghĩa và giảng viên — không tạo gì ngoài lớp. Quyền khai tường
+   * minh vì controller này trộn route của admin (lớp) và của giảng viên (roster).
+   */
+  @Post('import')
+  @Roles('admin')
+  @HttpCode(200)
+  importFromFile(@Body() dto: ImportClassesDto, @Req() req: Request) {
+    return this.imports.importClasses(req.user!.sub, dto);
   }
 
   @Post()

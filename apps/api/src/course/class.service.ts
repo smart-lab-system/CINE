@@ -12,6 +12,7 @@ import { COURSE_NAME } from '../common/course-name';
 import {
   administrativeCodeProblem,
   normalizeAdministrativeCode,
+  normalizeGroupName,
 } from '../common/master-data-normalize';
 import { ClassEntity } from './entities/class.entity';
 import {
@@ -21,11 +22,6 @@ import {
   UpdateClassDto,
 } from './dto/class.dto';
 import { ClassAdminView, TeachingClassView } from './course.types';
-
-/** Chuẩn hoá tên nhóm: gộp khoảng trắng, cắt hai đầu. `''` = không tách nhóm. */
-function normalizeGroupName(raw: string | undefined): string {
-  return (raw ?? '').replace(/\s+/g, ' ').trim();
-}
 
 /** Bọc ô tìm thành pattern ILIKE và trung hoà `%`, `_`, `\` bên trong. */
 function toLikePattern(q: string): string {
@@ -243,16 +239,10 @@ export class ClassService {
       current.semesterId = nextSemesterId;
       current.administrativeClassId = nextAdministrativeClassId;
       current.groupName = nextGroup;
-      current.teacherId = nextTeacherId;
       await repo.save(current);
 
       if (teacherChanged) {
-        // Chỉ `enrollment` đi theo (spec §2.3 mục 2). Phiên, ảnh chốt và bài nộp đã có GIỮ giảng viên cũ để
-        // không ai sửa được điểm của phiên người khác đã chấm.
-        await manager.query(`UPDATE examcollect.enrollment SET home_teacher_id = $1 WHERE home_class_id = $2`, [
-          nextTeacherId,
-          id,
-        ]);
+        await this.applyTeacherChange(manager, id, nextTeacherId);
       }
 
       const after = await this.readAdminRow(manager, id);
@@ -330,6 +320,20 @@ export class ClassService {
         manager,
       );
     });
+  }
+
+  /**
+   * Đổi giảng viên của MỘT lớp, trong transaction của người gọi (spec §2.3 mục 2): lớp và `enrollment.home_teacher_id` đổi
+   * theo; `exam_session.teacher_id`, `session_roster.home_teacher_id` và `submission.home_teacher_id` đã có GIỮ giảng viên
+   * cũ để không ai sửa được điểm của phiên người khác đã chấm. Dùng chung cho `update` (nhập tay) và import (spec §6.2
+   * nguyên tắc 6) — hai đường không được lệch nhau ở chính điểm này.
+   */
+  async applyTeacherChange(manager: EntityManager, classId: string, teacherId: string): Promise<void> {
+    await manager.getRepository(ClassEntity).update({ id: classId }, { teacherId });
+    await manager.query(`UPDATE examcollect.enrollment SET home_teacher_id = $1 WHERE home_class_id = $2`, [
+      teacherId,
+      classId,
+    ]);
   }
 
   // ------------------------------------------------------------------- nội bộ
