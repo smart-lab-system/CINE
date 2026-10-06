@@ -14,6 +14,8 @@ import { ClassController } from './class.controller';
 import { AdminModule } from '../admin/admin.module';
 import { SemesterService } from './semester.service';
 import { SemesterController } from './semester.controller';
+import { RoomService } from './room.service';
+import { RoomController } from './room.controller';
 
 /**
  * Lớp và danh sách sinh viên — phần còn lại của "cấu trúc học vụ" sau đợt
@@ -41,11 +43,11 @@ import { SemesterController } from './semester.controller';
     ]),
     AdminModule,
   ],
-  controllers: [ClassController, SemesterController],
-  providers: [ClassService, EnrollmentService, RosterService, SemesterService],
+  controllers: [ClassController, SemesterController, RoomController],
+  providers: [ClassService, EnrollmentService, RosterService, SemesterService, RoomService],
   // ClassService is exported for ExamSessionService: creating a session
   // needs the lecturer's own scope on a class, and that scope is decided in
   // one place rather than re-derived against a second set of repositories.
-  exports: [ClassService, EnrollmentService, SemesterService],
+  exports: [ClassService, EnrollmentService, SemesterService, RoomService],
 })
 export class CourseModule {}

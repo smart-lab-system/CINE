@@ -47,3 +47,12 @@ export class SemesterView {
   endDate!: string;
   classCount?: number;
 }
+
+/** Một phòng thi. `sessionCount` chỉ có với admin. */
+export class RoomView {
+  id!: string;
+  name!: string;
+  capacity!: number | null;
+  isActive!: boolean;
+  sessionCount?: number;
+}
