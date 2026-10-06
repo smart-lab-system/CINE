@@ -1,5 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 import type { AccountRoleOption } from '@/lib/account-roles';
+// Bản dùng chung giữ NGUYÊN VĂN chữ của server; `throwIfFailed` cục bộ bên dưới ném nguyên thân lỗi và là quy ước cũ của file này.
+import { throwIfFailed as throwWithServerMessage } from './http-error';
 
 // Mirrors AccountsService.AccountView (apps/api/src/accounts/accounts.service.ts).
 export interface AccountView {
@@ -98,4 +100,16 @@ export async function reactivateAccount(id: string): Promise<void> {
     params: { path: { id } },
   });
   await throwIfFailed(error, response);
+}
+
+/** Giảng viên để GIAO LỚP (admin). Chỉ `id` và `name` — route cố ý không trả gì khác. */
+export interface TeacherOption {
+  id: string;
+  name: string;
+}
+
+export async function listTeacherOptions(): Promise<TeacherOption[]> {
+  const { data, error, response } = await apiClient.GET('/accounts/teachers');
+  await throwWithServerMessage(error, response);
+  return data as unknown as TeacherOption[];
 }
