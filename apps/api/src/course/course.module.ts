@@ -19,6 +19,7 @@ import { RoomController } from './room.controller';
 import { AdministrativeClassService } from './administrative-class.service';
 import { AdministrativeClassController } from './administrative-class.controller';
 import { ClassLabelService } from './class-label.service';
+import { StudentService } from './student.service';
 
 /**
  * Lớp và danh sách sinh viên — phần còn lại của "cấu trúc học vụ" sau đợt
@@ -55,6 +56,7 @@ import { ClassLabelService } from './class-label.service';
     RoomService,
     AdministrativeClassService,
     ClassLabelService,
+    StudentService,
   ],
   // ClassService is exported for ExamSessionService: creating a session
   // needs the lecturer's own scope on a class, and that scope is decided in
@@ -66,6 +68,7 @@ import { ClassLabelService } from './class-label.service';
     RoomService,
     AdministrativeClassService,
     ClassLabelService,
+    StudentService,
   ],
 })
 export class CourseModule {}
