@@ -19,6 +19,7 @@
 - **Nhãn lớp:** hiển thị `label` (`DHKTPM18A – Nhóm 1`) ở nơi đã chọn kỳ rồi; `labelWithSemester` (`… · HK1 2026-2027`) ở nơi lớp của nhiều kỳ có thể lẫn trong cùng một danh sách (ô chọn lớp gốc khi duyệt thi bù). Không nối chuỗi mã + nhóm ở chỗ khác.
 - **Một tên sinh viên, một chỗ** (spec §2.6): ô tên ở form thêm tay **điền sẵn và khoá** khi MSSV đã có trong hệ thống (kèm câu nói cách sửa: nhập file); MSSV mới thì ô tên **bắt buộc**; lỗi tra cứu (429, mạng) **không chặn** việc thêm — server không ghi đè tên đã lưu bằng tên gõ, nên gõ tên khi tra lỗi là an toàn. Chỉ tra khi MSSV hợp lệ (server giới hạn 30 lần/phút/giảng viên).
 - **Nhập file nêu rõ ai bị đổi tên** (spec §2.6, §12 mục 3): `RosterImportResult.renamed` (plan D1) hiện thành một lời báo **riêng** liệt kê `mssv: "cũ" → "mới"`, kèm lời nói tên áp dụng cho **mọi** lớp. Không đổi tên âm thầm.
+- **Nhập danh sách: chỉ một lời nhắc TĨNH, không kiểm bằng hệ thống** (quyết định của user 06/10): bản xem trước trước khi xác nhận có một cảnh báo "kiểm tra kỹ lớp và danh sách sinh viên". **Không** đối chiếu mã lớp ghi trong file, vì có file ghi mã, có file không — hệ thống không dựa vào nội dung ngoài hai cột MSSV/tên mà giảng viên đã chọn. Lời nhắc chỉ hiện khi **có gì sắp được ghi** (thêm, đổi tên hoặc xoá), không hiện khi file khớp hoàn toàn hay khi file có dòng lỗi (không có gì để xác nhận).
 - **Bộ lọc Năm học → Học kỳ của Lớp của tôi** dùng đúng thành phần G1, mặc định "Tất cả", `scopeKey = 'teacher-classes'`.
 - Các hook gọi `useTeachingClasses()` **không đối số** (trang phòng chờ, danh sách phiên, form tạo phiên) giữ nguyên chữ ký: tham số lọc là tuỳ chọn.
 - Từ plan này, `apps/web` còn `tsc` đỏ **chỉ ở** các file của G3b/G4 (danh sách trong `md-restore-web-tsc-red.txt` bớt đi `lib/api/teaching.ts`, `hooks/useTeaching.ts`, `app/teacher/classes/**`, `AccessRequestPanel.tsx`).
@@ -32,6 +33,7 @@
 5. **Đổi tên theo file bị nuốt**: lời báo thành công chỉ đếm "cập nhật N". → `ImportResultAlert` liệt kê từng người (Task 3).
 6. **Ô chọn lớp gốc ở duyệt thi bù không phân biệt hai lớp cùng mã khác kỳ.** → dùng `labelWithSemester` (Task 4).
 7. **Bộ lọc kỳ làm giảng viên tưởng mất lớp** (lọc kỳ cũ nên danh sách rỗng). → mặc định "Tất cả"; màn trống khi lọc có nút xoá bộ lọc (Task 2).
+8. **Nhập nhầm lớp mà không ai nhắc**, hoặc lời nhắc hiện thừa khi không có gì để xác nhận (làm giảng viên quen bỏ qua). → lời nhắc hiện đúng ở bản xem trước có thay đổi, và vắng ở hai trường hợp còn lại (Task 3, Step 4b).
 
 ---
 
@@ -48,6 +50,7 @@
 | `apps/web/src/components/roster/add-student-form.tsx` (+ test) | **Mới.** |
 | `apps/web/src/components/roster/import-result-alert.tsx` (+ test) | **Mới.** |
 | `apps/web/src/components/roster/roster-screen.tsx` | Dùng hai component mới. |
+| `apps/web/src/components/roster/import-review.tsx` (+ test **mới**) | Lời nhắc kiểm tra tĩnh ở bản xem trước. |
 | `apps/web/src/app/(exam-live)/exam-sessions/[id]/_components/AccessRequestPanel.tsx`, `page.test.tsx` | Nhãn kèm học kỳ ở ô chọn lớp gốc. |
 
 ---
@@ -628,8 +631,8 @@ git commit -m "feat(web): Lớp của tôi chỉ đọc (nhãn gộp, học kỳ
 
 **Files:**
 - Create: `apps/web/src/components/roster/add-student-form.tsx`, `apps/web/src/components/roster/import-result-alert.tsx`
-- Modify: `apps/web/src/components/roster/roster-screen.tsx`
-- Test: `apps/web/src/components/roster/add-student-form.test.tsx`, `apps/web/src/components/roster/import-result-alert.test.tsx`
+- Modify: `apps/web/src/components/roster/roster-screen.tsx`, `apps/web/src/components/roster/import-review.tsx`
+- Test: `apps/web/src/components/roster/add-student-form.test.tsx`, `apps/web/src/components/roster/import-result-alert.test.tsx`, `apps/web/src/components/roster/import-review.test.tsx` (mới)
 
 **Interfaces:**
 - Consumes: `useStudentLookup` (G1), `RosterEntry`, `RosterImportResult`.
@@ -1033,10 +1036,92 @@ bằng `{result && <ImportResultAlert result={result} />}`.
 
 và đổi `CardDescription` của thẻ đó thành: "Cho trường hợp chuyển lớp muộn hoặc sửa sót — không phải gửi lại cả file. Gõ MSSV là tự hiện tên đã lưu."
 
+- [ ] **Step 4b: Lời nhắc kiểm tra trước khi xác nhận nhập danh sách**
+
+Lời nhắc nằm trong `ImportReview` (chỗ giảng viên đọc bản xem trước ngay trước khi bấm xác nhận) — là thành phần thuần trình bày nên test được không cần dựng cả màn hình. Nó **không** đọc nội dung nào của file ngoài hai cột đã chọn.
+
+Create `apps/web/src/components/roster/import-review.test.tsx`:
+
+```tsx
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
+import type { RosterDiff } from '@/lib/roster-file';
+import { ImportReview } from './import-review';
+
+const diff = (over: Partial<RosterDiff> = {}): RosterDiff => ({
+  added: [{ mssv: '20120001', name: 'Nguyễn An' }],
+  renamed: [],
+  unchanged: 3,
+  missing: [],
+  ...over,
+});
+const base = { removeMissing: false, onRemoveMissingChange: vi.fn() };
+const NOTICE = /Kiểm tra kỹ lớp và danh sách sinh viên/;
+
+describe('ImportReview — lời nhắc kiểm tra trước khi xác nhận (Review Focus 8)', () => {
+  it('có gì sắp được ghi (thêm) → nhắc kiểm tra lớp và danh sách, nêu hậu quả nhập nhầm', () => {
+    render(<ImportReview {...base} errors={[]} diff={diff()} />);
+    const notice = screen.getByText(NOTICE).closest('[role="alert"]') as HTMLElement;
+    expect(notice).toHaveTextContent(/đúng lớp/);
+    expect(notice).toHaveTextContent(/sai lớp/);
+    expect(notice).toHaveTextContent(/mọi lớp/); // tên trong file thay tên đã lưu ở mọi lớp (spec §2.6)
+  });
+
+  it('chỉ đổi tên hoặc chỉ có sinh viên không có trong file cũng là "có gì sắp được ghi"', () => {
+    const { unmount } = render(
+      <ImportReview {...base} errors={[]} diff={diff({ added: [], renamed: [{ mssv: '20120001', from: 'An', to: 'Nguyễn An' }] })} />,
+    );
+    expect(screen.getByText(NOTICE)).toBeInTheDocument();
+    unmount();
+    render(<ImportReview {...base} errors={[]} diff={diff({ added: [], missing: [{ mssv: '20120002', name: 'Bình' }] })} />);
+    expect(screen.getByText(NOTICE)).toBeInTheDocument();
+  });
+
+  it('file khớp hoàn toàn với danh sách → KHÔNG nhắc (không có gì để xác nhận)', () => {
+    render(<ImportReview {...base} errors={[]} diff={diff({ added: [] })} />);
+    expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+  });
+
+  it('file có dòng lỗi → KHÔNG nhắc (không có dòng nào được nhập)', () => {
+    render(<ImportReview {...base} errors={[{ row: 5, reason: 'MSSV sai khuôn' }]} diff={null} />);
+    expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+  });
+
+  it('chưa có bản xem trước → không có gì', () => {
+    const { container } = render(<ImportReview {...base} errors={[]} diff={null} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+```
+
+Run: `cd apps/web && npx vitest run src/components/roster/import-review.test.tsx`
+Expected: FAIL — `ImportReview` chưa có lời nhắc (ca đầu và ca "chỉ đổi tên" đỏ).
+
+Sửa `apps/web/src/components/roster/import-review.tsx`: giữ nguyên `const nothingChanges = …;`, rồi **trong** `<div className="flex flex-col gap-4">` của nhánh hiển thị bản xem trước, thêm khối sau **ngay trên** `<div className="flex flex-wrap gap-2">` (hàng các `Badge`):
+
+```tsx
+      {!nothingChanges && (
+        <Alert variant="warning">
+          <TriangleAlert />
+          <AlertDescription>
+            <strong>Kiểm tra kỹ lớp và danh sách sinh viên trước khi xác nhận.</strong> Hãy chắc rằng bạn đang nhập đúng lớp (tên lớp
+            ở đầu trang) và đúng file. Nhập nhầm lớp sẽ thêm sinh viên vào sai lớp; và nếu tên trong file khác tên đã lưu thì tên đó được đổi
+            ở mọi lớp của sinh viên.
+          </AlertDescription>
+        </Alert>
+      )}
+```
+
+(`Alert`, `AlertDescription`, `TriangleAlert` đã được import ở đầu file.) Cố ý **không** thêm ô tick "tôi đã kiểm tra": một lời nhắc bắt tick mỗi lần sẽ thành thói quen bấm qua, và việc chặn thật đã có sẵn ở bản xem trước (danh sách ai sẽ thêm, ai đổi tên, ai bị xoá).
+
+Run: `cd apps/web && npx vitest run src/components/roster/import-review.test.tsx`
+Expected: PASS cả năm ca.
+
 - [ ] **Step 5: Chạy để thấy xanh**
 
 Run: `cd apps/web && npx vitest run src/components/roster`
-Expected: PASS (hai file mới và `roster-file.test.ts` cũ). Ca "gửi tên đã lưu dù trước đó gõ tên khác" dựa vào việc `nameValue` được **dẫn xuất** từ `lookup.data` ở mỗi lần render chứ không sao chép vào state — nếu viết thành effect đồng bộ `name ← fullName` thì tên đã gõ bị mất khi MSSV quay về "mới".
+Expected: PASS (ba file mới và `roster-file.test.ts` cũ). Ca "gửi tên đã lưu dù trước đó gõ tên khác" dựa vào việc `nameValue` được **dẫn xuất** từ `lookup.data` ở mỗi lần render chứ không sao chép vào state — nếu viết thành effect đồng bộ `name ← fullName` thì tên đã gõ bị mất khi MSSV quay về "mới".
 
 - [ ] **Step 6: Commit**
 
@@ -1188,4 +1273,5 @@ git commit -m "chore(web): cập nhật danh sách tsc đỏ có chủ ý sau pl
 - §7.2 (Lớp của tôi: Năm học + học kỳ): dùng `useSemesterYearFilter('teacher-classes')`, mặc định "Tất cả", màn trống khi lọc có nút "Xem tất cả học kỳ".
 - §11: T-OWN-1 (web: không nút ghi lớp — Task 2 + Review Focus 1), T-STU-2 (ô tên khoá/mới/lỗi), T-STU-3 (phần hiển thị đổi tên), T-FLT-1 (một màn hình; các màn còn lại ở G3b).
 - Quyết định mới, nêu để user duyệt: (a) **tra cứu lỗi không chặn** việc thêm — dựa trên bất biến của server (D1: MSSV đã có thì dùng tên đã lưu, không ghi đè bằng tên gõ); nếu muốn nghiêm hơn (chặn khi không tra được) thì đổi `nameLocked`; (b) `labelWithSemester` chỉ ở ô chọn lớp gốc, còn lại dùng `label` + cột Học kỳ; (c) `RosterScreen` giữ prop `canEdit` (vai trò Trưởng khoa đã bỏ, luôn `true`) — dọn riêng nếu muốn.
+- Nhập danh sách (user 06/10): **chỉ một lời nhắc tĩnh** ở bản xem trước có thay đổi (Task 3 Step 4b); **không** đối chiếu mã lớp trong file, không ô tick bắt buộc. Phương án đối chiếu mã lớp (đọc phần đầu file, so với mã lớp đang chọn) đã cân nhắc và bỏ.
 - Placeholder scan: không có "TBD"; mọi bước có mã/lệnh; các chỗ sửa file có sẵn nêu **khối cũ → khối mới** (hoặc vị trí và nội dung thay thế) cụ thể. Kiểu nhất quán: `TeachingClass` (Task 1) khớp mọi nơi dùng ở Task 2–4 và khớp `TeachingClassView` của plan D2; `AddStudentForm.onSubmit` khớp `addStudent.mutateAsync`; `ImportResultAlert` nhận đúng `RosterImportResult` đã thêm `renamed`; `useTeachingClasses(filters?)` giữ tương thích các callers G3b/G4 không truyền đối số.
