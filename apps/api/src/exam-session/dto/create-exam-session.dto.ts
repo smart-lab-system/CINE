@@ -28,7 +28,7 @@ import { DECLARED_LANGUAGES, DeclaredLanguage } from '../declared-language';
 // SAFE_FILENAME_REGEX.
 import { FILENAME_TEMPLATE_REGEX } from '../filename-template';
 
-const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
+export const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
 
 @ValidatorConstraint({ name: 'IsAfterStartTime', async: false })
 class IsAfterStartTimeConstraint implements ValidatorConstraintInterface {

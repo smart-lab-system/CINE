@@ -22,6 +22,7 @@ import { AccessRequestGateway } from './access-request.gateway';
 import { AccessRequestStore } from './access-request.store';
 import { AgentJoinLockStore } from './agent-join-lock.store';
 import { ScheduleConflictService } from './schedule-conflict.service';
+import { ExamSessionEditService } from './exam-session-edit.service';
 import { RubricEntity } from '../grading/entities/rubric.entity';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { AdminModule } from '../admin/admin.module';
@@ -72,6 +73,7 @@ import { StorageModule } from '../storage/storage.module';
     RecollectService,
     SessionRosterService,
     ScheduleConflictService,
+    ExamSessionEditService,
     SessionLifecycleService,
     ExamMaterialService,
     ExamSessionGateway,

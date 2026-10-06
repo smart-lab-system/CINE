@@ -24,6 +24,8 @@ import { SessionRosterService } from './session-roster.service';
 import { RosterStudentDto } from '../course/dto/roster.dto';
 import { StudentLookupLimiter } from '../course/student-lookup.limiter';
 import { SessionLifecycleService } from './session-lifecycle.service';
+import { ExamSessionEditService } from './exam-session-edit.service';
+import { CancelExamSessionDto, UpdateExamSessionDto } from './dto/update-exam-session.dto';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { ReassignTeacherDto } from './dto/reassign-teacher.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
@@ -62,6 +64,7 @@ export class ExamSessionController {
     private readonly recollectService: RecollectService,
     private readonly sessionRoster: SessionRosterService,
     private readonly lookupLimiter: StudentLookupLimiter,
+    private readonly editor: ExamSessionEditService,
   ) {}
 
   @Post()
@@ -85,6 +88,27 @@ export class ExamSessionController {
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: Request) {
     return this.examSessions.findByIdForOwner(id, req.user!.sub);
+  }
+
+  /**
+   * Sửa phiên thi TRƯỚC giờ bắt đầu — tên, phòng, giờ, loại kỳ thi (spec §4.1). Chỉ chủ phiên; admin → 403 vì route chỉ cho
+   * `teacher` (admin chuyển chủ bằng `PATCH :id/teacher`). `ParseUUIDPipe`: một id sai dạng thành 22P02 mà
+   * `PostgresExceptionFilter` không ánh xạ, và route ghi mới không nên mang lỗi đó (cùng lý do với `finalize`).
+   */
+  @Patch(':id')
+  @Roles('teacher')
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateExamSessionDto, @Req() req: Request) {
+    return this.editor.update(id, req.user!.sub, dto);
+  }
+
+  /**
+   * Huỷ phiên chưa có ai vào. 200 và idempotent như `finalize`: huỷ lại một phiên đã huỷ trả về cùng trạng thái.
+   */
+  @Post(':id/cancel')
+  @Roles('teacher')
+  @HttpCode(200)
+  cancel(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CancelExamSessionDto, @Req() req: Request) {
+    return this.editor.cancel(id, req.user!.sub, dto);
   }
 
   /**
