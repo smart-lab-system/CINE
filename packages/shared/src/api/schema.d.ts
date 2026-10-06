@@ -172,6 +172,22 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        patch: operations["ExamSessionController_update"];
+        trace?: never;
+    };
+    "/exam-sessions/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -406,9 +422,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["ClassController_list"];
         put?: never;
         post: operations["ClassController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/classes/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ClassController_importFromFile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -474,6 +506,166 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["ClassController_removeStudent"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/semesters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SemesterController_list"];
+        put?: never;
+        post: operations["SemesterController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/semesters/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SemesterController_importFromFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/semesters/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["SemesterController_remove"];
+        options?: never;
+        head?: never;
+        patch: operations["SemesterController_update"];
+        trace?: never;
+    };
+    "/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["RoomController_list"];
+        put?: never;
+        post: operations["RoomController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rooms/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RoomController_importFromFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rooms/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["RoomController_remove"];
+        options?: never;
+        head?: never;
+        patch: operations["RoomController_update"];
+        trace?: never;
+    };
+    "/administrative-classes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdministrativeClassController_list"];
+        put?: never;
+        post: operations["AdministrativeClassController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/administrative-classes/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdministrativeClassController_importFromFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/administrative-classes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AdministrativeClassController_remove"];
+        options?: never;
+        head?: never;
+        patch: operations["AdministrativeClassController_update"];
+        trace?: never;
+    };
+    "/students/{mssv}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StudentController_lookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1167,8 +1359,7 @@ export interface components {
         CreateExamSessionDto: {
             name: string;
             classId: string;
-            roomName: string;
-            semesterName: string;
+            roomId: string;
             rubricId?: string;
             /** @enum {string} */
             examType: "TK" | "GK" | "CK";
@@ -1187,9 +1378,9 @@ export interface components {
             name: string;
             code: string;
             teacherId: string;
-            courseId: string;
             classId: string;
-            roomId: string;
+            classLabel: string | null;
+            roomId: string | null;
             courseName: string;
             roomName: string;
             examType: Record<string, never>;
@@ -1207,8 +1398,55 @@ export interface components {
             testBundleId: string | null;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
         };
+        UpdateExamSessionDto: {
+            name?: string;
+            roomId?: string;
+            startTime?: string;
+            endTime?: string;
+            /** @enum {string} */
+            examType?: "TK" | "GK" | "CK";
+            classId?: Record<string, never>;
+            requiredFilenames?: Record<string, never>;
+            teacherId?: Record<string, never>;
+            rubricId?: Record<string, never>;
+            semesterName?: Record<string, never>;
+            roomName?: Record<string, never>;
+            status?: Record<string, never>;
+        };
+        CancelExamSessionDto: {
+            reason?: string;
+        };
         ReassignTeacherDto: {
             teacherId: string;
+        };
+        RoomEntity: {
+            name: string;
+            capacity: number | null;
+            isActive: boolean;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SemesterEntity: {
+            academicYearStart: number;
+            term: number;
+            startDate: string;
+            endDate: string;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AdministrativeClassEntity: {
+            code: string;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         AccountEntity: {
             name: string;
@@ -1224,7 +1462,12 @@ export interface components {
         };
         ClassEntity: {
             courseName: string;
-            name: string;
+            name: string | null;
+            semesterId: string | null;
+            semester: components["schemas"]["SemesterEntity"] | null;
+            administrativeClassId: string | null;
+            administrativeClass: components["schemas"]["AdministrativeClassEntity"] | null;
+            groupName: string;
             teacherId: string;
             teacher: components["schemas"]["AccountEntity"];
             id: string;
@@ -1250,6 +1493,8 @@ export interface components {
             code: string;
             courseName: string;
             roomName: string;
+            roomId: string | null;
+            room: components["schemas"]["RoomEntity"] | null;
             classId: string;
             class: components["schemas"]["ClassEntity"];
             examType: Record<string, never>;
@@ -1313,15 +1558,103 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        TeachingClassView: Record<string, never>;
+        ClassAdminView: Record<string, never>;
+        ImportClassRowDto: {
+            semester: string;
+            administrativeClassCode: string;
+            groupName: string;
+            teacherEmail: string;
+            line: number;
+        };
+        ImportClassesDto: {
+            rows: components["schemas"]["ImportClassRowDto"][];
+            dryRun: boolean;
+            confirmSimilar?: boolean;
+        };
+        ImportResult: Record<string, never>;
         CreateClassDto: {
-            name: string;
+            semesterId: string;
+            administrativeClassId?: string;
+            administrativeClassCode?: string;
+            groupName?: string;
+            teacherId: string;
         };
         UpdateClassDto: {
-            name?: string;
+            semesterId?: string;
+            administrativeClassId?: string;
+            administrativeClassCode?: string;
+            groupName?: string;
+            teacherId?: string;
         };
         ImportRosterDto: {
             students: components["schemas"]["RosterStudentDto"][];
             removeMissing?: boolean;
+        };
+        SemesterView: Record<string, never>;
+        ImportSemesterRowDto: {
+            academicYear: string;
+            term: string;
+            startDate: string;
+            endDate: string;
+            line: number;
+        };
+        ImportSemestersDto: {
+            rows: components["schemas"]["ImportSemesterRowDto"][];
+            dryRun: boolean;
+            confirmSimilar?: boolean;
+        };
+        CreateSemesterDto: {
+            academicYearStart: number;
+            term: number;
+            startDate: string;
+            endDate: string;
+        };
+        UpdateSemesterDto: {
+            academicYearStart?: number;
+            term?: number;
+            startDate?: string;
+            endDate?: string;
+        };
+        RoomView: Record<string, never>;
+        ImportRoomRowDto: {
+            name: string;
+            capacity: string;
+            line: number;
+        };
+        ImportRoomsDto: {
+            rows: components["schemas"]["ImportRoomRowDto"][];
+            dryRun: boolean;
+            confirmSimilar?: boolean;
+        };
+        CreateRoomDto: {
+            name: string;
+            capacity?: number;
+            confirmSimilar?: boolean;
+        };
+        UpdateRoomDto: {
+            name?: string;
+            capacity?: number | null;
+            isActive?: boolean;
+            confirmSimilar?: boolean;
+        };
+        AdministrativeClassView: Record<string, never>;
+        ImportAdministrativeClassRowDto: {
+            code: string;
+            line: number;
+        };
+        ImportAdministrativeClassesDto: {
+            rows: components["schemas"]["ImportAdministrativeClassRowDto"][];
+            dryRun: boolean;
+            confirmSimilar?: boolean;
+        };
+        CreateAdministrativeClassDto: {
+            code: string;
+            confirmSimilar?: boolean;
+        };
+        UpdateAdministrativeClassDto: {
+            code?: string;
+            confirmSimilar?: boolean;
         };
         RubricCriterionDto: {
             description: string;
@@ -1694,7 +2027,8 @@ export interface operations {
                 search?: string;
                 status?: "draft" | "scheduled" | "active" | "collecting" | "completed" | "cancelled";
                 examType?: "TK" | "GK" | "CK";
-                semesterName?: string;
+                semesterId?: string;
+                academicYear?: number;
                 classId?: string;
                 from?: string;
                 to?: string;
@@ -1746,6 +2080,56 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateExamSessionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelExamSessionDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -2098,7 +2482,10 @@ export interface operations {
     };
     ClassController_findTeaching: {
         parameters: {
-            query?: never;
+            query?: {
+                semesterId?: string;
+                academicYear?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2110,7 +2497,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["TeachingClassView"][];
+                };
+            };
+        };
+    };
+    ClassController_list: {
+        parameters: {
+            query?: {
+                semesterId?: string;
+                academicYear?: number;
+                teacherId?: string;
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassAdminView"][];
                 };
             };
         };
@@ -2133,7 +2544,30 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClassEntity"];
+                    "application/json": components["schemas"]["ClassAdminView"];
+                };
+            };
+        };
+    };
+    ClassController_importFromFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportClassesDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
                 };
             };
         };
@@ -2177,7 +2611,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClassEntity"];
+                    "application/json": components["schemas"]["ClassAdminView"];
                 };
             };
         };
@@ -2270,6 +2704,356 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    SemesterController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemesterView"][];
+                };
+            };
+        };
+    };
+    SemesterController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSemesterDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemesterView"];
+                };
+            };
+        };
+    };
+    SemesterController_importFromFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportSemestersDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+        };
+    };
+    SemesterController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SemesterController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSemesterDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemesterView"];
+                };
+            };
+        };
+    };
+    RoomController_list: {
+        parameters: {
+            query?: {
+                active?: "true" | "false";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomView"][];
+                };
+            };
+        };
+    };
+    RoomController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoomDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomView"];
+                };
+            };
+        };
+    };
+    RoomController_importFromFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRoomsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+        };
+    };
+    RoomController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RoomController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRoomDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomView"];
+                };
+            };
+        };
+    };
+    AdministrativeClassController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdministrativeClassView"][];
+                };
+            };
+        };
+    };
+    AdministrativeClassController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAdministrativeClassDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdministrativeClassView"];
+                };
+            };
+        };
+    };
+    AdministrativeClassController_importFromFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportAdministrativeClassesDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+        };
+    };
+    AdministrativeClassController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdministrativeClassController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAdministrativeClassDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdministrativeClassView"];
+                };
+            };
+        };
+    };
+    StudentController_lookup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mssv: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
