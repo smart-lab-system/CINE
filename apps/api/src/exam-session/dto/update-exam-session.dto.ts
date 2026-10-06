@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsEmpty, IsIn, IsISO8601, IsOptional, IsString, IsUUID, Length, MaxLength } from 'class-validator';
+import { IsEmpty, IsIn, IsISO8601, IsOptional, IsString, IsUUID, Length, MaxLength, ValidateIf } from 'class-validator';
 import type { ExamType } from '../entities/exam-session.entity';
 import { EXAM_TYPES } from './create-exam-session.dto';
 
@@ -11,29 +11,32 @@ const CANNOT_EDIT = (what: string) =>
  * để `whitelist` lặng lẽ cắt: một client tưởng đã đổi lớp mà không nhận lỗi nào là tệ hơn một lỗi, vì giảng viên sẽ vào phòng
  * thi với phiên sai lớp. `@IsEmpty` cũng giữ trường đó trong danh sách trắng nên `ValidationPipe` thấy nó và báo.
  *
+ * Năm trường sửa được dùng `@ValidateIf(vắng mặt thì bỏ qua)` thay vì `@IsOptional`: `@IsOptional` bỏ qua cả `null`, và `roomId: null`
+ * lọt tới service sẽ thành "đổi phòng" sang khoá rỗng. Ở đây `null` là một giá trị SAI và bị validator bắt như mọi giá trị sai.
+ *
  * Giờ KHÔNG kiểm ở đây: luật "kết thúc sau bắt đầu / tối thiểu 15 phút" cần CẶP giá trị, mà một thân chỉ gửi một đầu thì phải
  * lấy đầu kia từ bản ghi — nên `exam-session-edit.rules.ts` kiểm sau khi ghép.
  */
 export class UpdateExamSessionDto {
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 200)
   name?: string;
 
   /** Phòng thi: chọn trong phòng đang hoạt động. Không gửi nghĩa là giữ phòng hiện tại (kể cả khi nó đã bị tắt). */
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsUUID()
   roomId?: string;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsISO8601()
   startTime?: string;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsISO8601()
   endTime?: string;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsIn(EXAM_TYPES)
   examType?: ExamType;
 

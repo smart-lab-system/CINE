@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
+import { RoomService } from '../src/course/room.service';
 import { createTestAccount } from './helpers/create-account';
 import { randomTag } from './helpers/master-data';
 import { openSession } from './helpers/open-session';
@@ -369,6 +370,29 @@ describe('Sửa và huỷ phiên thi (e2e)', () => {
         await patch(session.id, { roomId: 'khong-phai-uuid' }).expect(400);
         await patch(session.id, { name: '' }).expect(400);
       });
+    });
+
+    // `@IsOptional` bỏ qua cả `null`: một client gửi `roomId: null` (nghĩa "bỏ phòng"?) không được lọt tới tầng service, nơi
+    // `null !== undefined` làm nó thành "đổi phòng" sang một khoá rỗng.
+    it.each(['name', 'roomId', 'startTime', 'endTime', 'examType'])('gửi %s là null → 400, không ghi gì', async (field) => {
+      const w = windowAt(freshDay(), 8, 10);
+      const chosen = await room(`null-${field}`);
+      const session = await createSession(teacher, { roomId: chosen.id, ...w });
+      const before = await dbSession(session.id);
+
+      await patch(session.id, { [field]: null }).expect(400);
+
+      expect(await dbSession(session.id)).toEqual(before);
+      expect(await auditRows('exam_session.update', session.id)).toHaveLength(0);
+    });
+
+    // Gốc của lỗi trên: TypeORM bỏ qua `null`/`undefined` trong `where`, nên `findOne({ where: { id: null } })` trả về MỘT PHÒNG BẤT KỲ.
+    // DTO đã chặn `null`, nhưng hàm này còn được gọi từ chỗ khác (tạo phiên, plan G4) — nó tự đứng vững.
+    it('RoomService.requireActiveForNewSession từ chối id rỗng thay vì trả một phòng bất kỳ', async () => {
+      await room('dam-bao-co-phong'); // có ít nhất một phòng đang hoạt động để lỗi cũ có thứ để trả về
+      const rooms = app.get(RoomService, { strict: false });
+      await expect(rooms.requireActiveForNewSession(null as unknown as string)).rejects.toThrow(/phòng/i);
+      await expect(rooms.requireActiveForNewSession(undefined as unknown as string)).rejects.toThrow(/phòng/i);
     });
 
     describe('phiên cũ chưa có room_id (trước backfill)', () => {

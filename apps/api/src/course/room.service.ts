@@ -145,6 +145,11 @@ export class RoomService {
    * mới; phiên cũ vẫn tham chiếu được, nên kiểm này chỉ ở đường TẠO (và đường ĐỔI phòng ở plan F), không ở khoá ngoại.
    */
   async requireActiveForNewSession(roomId: string): Promise<RoomEntity> {
+    // TypeORM BỎ QUA `null`/`undefined` trong `where`: không chặn ở đây thì `findOne({ where: { id: null } })` trả về MỘT PHÒNG
+    // BẤT KỲ, và một phiên bị chuyển sang phòng đó mà không ai hay.
+    if (!roomId) {
+      throw new BadRequestException('Không tìm thấy phòng đã chọn.');
+    }
     const room = await this.dataSource.getRepository(RoomEntity).findOne({ where: { id: roomId } });
     if (!room) {
       throw new BadRequestException('Không tìm thấy phòng đã chọn.');
