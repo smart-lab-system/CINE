@@ -109,6 +109,8 @@ export class ExamSessionEditService {
         .where('id = :id', { id })
         .andWhere('status = :active', { active: 'active' })
         // Cửa sổ kiểm lại NGAY TRONG câu ghi: một phiên bắt đầu giữa lúc đọc và lúc ghi vẫn không bị sửa.
+        // (Giới hạn đã biết, review cụm F, M8: một lượt `agent:join` đọc bản CŨ ngay trước khi giao dịch này commit vẫn vào với
+        // phòng/giờ cũ. Cửa sổ chỉ bằng thời gian của giao dịch và chỉ xảy ra sát giờ bắt đầu.)
         .andWhere('start_time > now()')
         .execute();
       if ((result.affected ?? 0) === 0) {
@@ -166,9 +168,13 @@ export class ExamSessionEditService {
     if (statusProblem) throw new ConflictException(statusProblem);
 
     await this.dataSource.transaction(async (manager) => {
-      // Cả ba điều kiện nằm TRONG câu `UPDATE`: một em vào phòng giữa lúc kiểm và lúc ghi vẫn chặn được việc huỷ. (Một lượt
-      // join commit đúng giữa chừng câu lệnh có thể lọt qua dưới READ COMMITTED; cửa sổ đó cỡ mili-giây, hậu quả là một em
-      // thấy phiên bị huỷ — chấp nhận, như đã chấp nhận ở `finalizeExamSession`.)
+      // Cả ba điều kiện nằm TRONG câu `UPDATE`: một em vào phòng giữa lúc kiểm và lúc ghi vẫn chặn được việc huỷ.
+      //
+      // GIỚI HẠN ĐÃ BIẾT (review cụm F, M7): một lượt `agent:join` đã đọc `active` nhưng CHƯA ghi sự kiện kết nối vẫn lọt qua việc
+      // huỷ. Giữa hai việc đó gateway còn vài truy vấn và một lần gọi kho lưu trữ, nên cửa sổ là cỡ thời gian MỘT lượt join chứ
+      // không phải mili-giây. Hậu quả: em đó nhận ack vào một phiên đã huỷ, không có sự kiện socket nào báo, và chỉ bị từ chối
+      // khi nộp bài. Cần đúng lúc giảng viên huỷ một phiên ĐÃ bắt đầu mà chưa ai vào. Cách rẻ nhất nếu cần đóng nó: phát một sự
+      // kiện tới phòng agent của phiên sau khi commit huỷ.
       const result = await manager
         .createQueryBuilder()
         .update(ExamSessionEntity)

@@ -138,6 +138,11 @@ export class SubmissionOverviewService {
       presence AS (
         -- Mọi (phiên, MSSV) từng để lại dấu vết thật: nộp bài HOẶC kết nối.
         --
+        -- "Nộp bài" là dòng submission THẬT: not_submitted (và absent, là not_submitted đã kết luận) do "Mở phiên thi"
+        -- gieo cho MỌI sinh viên của lớp (§7.1.2) KHÔNG phải dấu vết. Đếm chúng thì một phiên đã mở — kể cả phiên bị HUỶ rồi
+        -- tạo lại, nơi các dòng ấy được giữ nguyên — làm mọi sinh viên vắng thi ở phiên cùng lớp, cùng loại kỳ thi hiện thành
+        -- "thi bù ở phiên khác" (mức trung tính, xếp cuối): sự vắng mặt bị giấu. Cùng nguyên tắc AttendanceService.
+        --
         -- Cố ý KHÔNG lọc theo teacher_id, khác mọi CTE phía trên. Phiên mà
         -- sinh viên ngồi nhờ thường do giảng viên KHÁC tạo — lọc theo giảng
         -- viên ở đây sẽ làm chính ca thi bù trở nên vô hình, tức là bỏ sót
@@ -150,6 +155,7 @@ export class SubmissionOverviewService {
                es.id AS exam_session_id, ps.student_mssv
         FROM (
           SELECT exam_session_id, student_mssv FROM ${schema}.submission
+           WHERE status NOT IN ('not_submitted', 'absent')
           UNION
           SELECT exam_session_id, student_mssv FROM ${schema}.agent_connection_event
         ) ps

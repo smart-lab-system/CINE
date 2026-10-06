@@ -59,6 +59,9 @@ export class UpdateExamSessionDto {
 
   @IsEmpty({ message: 'Phòng thi được chọn bằng roomId trong danh sách phòng, không gõ tên.' })
   roomName?: unknown;
+
+  @IsEmpty({ message: 'Trạng thái của phiên thi không sửa ở đây; muốn huỷ phiên hãy dùng POST /exam-sessions/:id/cancel.' })
+  status?: unknown;
 }
 
 /** Huỷ một phiên thi. Lý do tuỳ chọn, chỉ để ghi vào `audit_log` (spec §4.1: "ai huỷ, khi nào và lý do"). */

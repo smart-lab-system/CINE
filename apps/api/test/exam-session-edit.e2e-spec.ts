@@ -6,6 +6,8 @@ import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { RoomService } from '../src/course/room.service';
+import { AuditLogService } from '../src/admin/audit-log.service';
+import { ExamSessionService } from '../src/exam-session/exam-session.service';
 import { createTestAccount } from './helpers/create-account';
 import { randomTag } from './helpers/master-data';
 import { openSession } from './helpers/open-session';
@@ -338,6 +340,8 @@ describe('Sửa và huỷ phiên thi (e2e)', () => {
         ['teacherId', '00000000-0000-4000-8000-0000000000c2', /quản trị viên/],
         ['rubricId', '00000000-0000-4000-8000-0000000000c3', /chấm điểm/],
         ['roomName', 'Phòng gõ tay', /roomId/],
+        // Trường client REST dễ gửi nhầm nhất: một PATCH {status:'cancelled'} mà bị cắt lặng lẽ trả 200 trong khi phiên vẫn hoạt động.
+        ['status', 'cancelled', /cancel/],
       ])('gửi %s là 400 kèm lý do và cách làm đúng, không bị bỏ qua lặng lẽ', async (field, value, pattern) => {
         const session = await createSession(teacher, { roomId: (await room(`cam-${field}`)).id, ...windowAt(freshDay(), 8, 10) });
 
@@ -625,6 +629,90 @@ describe('Sửa và huỷ phiên thi (e2e)', () => {
 
       expect(reply.event).toBe('error');
       expect(reply.body.code).toBe('SESSION_NOT_ACTIVE');
+    });
+  });
+
+  /**
+   * Review cụm F, I2. Các ca ở trên không ghim được điều kiện nằm TRONG câu UPDATE: bước đọc trước (`editWindowProblem`,
+   * `cancelStatusProblem`) đã chặn mọi ca tuần tự, nên gỡ `start_time > now()` hay `status = 'active'` khỏi UPDATE thì 47/47
+   * vẫn xanh. Điều kiện đó chỉ có việc khi bản đọc ĐÃ CŨ: ở đây ta GIẢ LẬP đúng tình huống bằng cách đưa cho service bản
+   * đọc cũ (phiên còn "chưa bắt đầu / active") trong khi DB đã đổi (đã bắt đầu / đã sang thu bài).
+   */
+  describe('đua giữa lúc đọc và lúc ghi: điều kiện nằm TRONG câu UPDATE', () => {
+    let examSessions: ExamSessionService;
+    let auditLog: AuditLogService;
+    beforeAll(() => {
+      examSessions = app.get(ExamSessionService, { strict: false });
+      auditLog = app.get(AuditLogService, { strict: false });
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    async function newLiveSession(label: string) {
+      await releaseTeacherSessions(ds, live.id);
+      return createSession(live, { roomId: (await room(label)).id, ...windowAt(freshDay(), 8, 10) });
+    }
+    /** Đưa cho service bản đọc CŨ của phiên, rồi mới đổi DB — đúng thứ tự của một lần đua. */
+    async function staleReadThen(sessionId: string, change: () => Promise<unknown>) {
+      const stale = await examSessions.findEntityForOwner(sessionId, live.id);
+      await change();
+      jest.spyOn(examSessions, 'findEntityForOwner').mockResolvedValueOnce(stale);
+    }
+
+    it('sửa: phiên vừa qua giờ bắt đầu giữa lúc đọc và lúc ghi → 409, không ghi gì, không audit', async () => {
+      const session = await newLiveSession('dua-cuasoo');
+      await staleReadThen(session.id, () =>
+        ds.query(
+          `UPDATE examcollect.exam_session SET start_time = now() - interval '1 minute', end_time = now() + interval '1 hour' WHERE id = $1`,
+          [session.id],
+        ),
+      );
+
+      const response = await patch(session.id, { name: 'Đua cửa sổ' }, live.token).expect(409);
+
+      expect(response.body.message).toMatch(/đã bắt đầu/);
+      expect((await dbSession(session.id)).name).not.toBe('Đua cửa sổ');
+      expect(await auditRows('exam_session.update', session.id)).toHaveLength(0);
+    });
+
+    it('sửa: phiên vừa sang trạng thái khác active giữa lúc đọc và lúc ghi → 409, không ghi gì', async () => {
+      const session = await newLiveSession('dua-trangthai');
+      await staleReadThen(session.id, () =>
+        ds.query(`UPDATE examcollect.exam_session SET status = 'collecting' WHERE id = $1`, [session.id]),
+      );
+
+      await patch(session.id, { name: 'Đua trạng thái' }, live.token).expect(409);
+
+      expect(await dbSession(session.id)).toMatchObject({ status: 'collecting' });
+      expect((await dbSession(session.id)).name).not.toBe('Đua trạng thái');
+      expect(await auditRows('exam_session.update', session.id)).toHaveLength(0);
+    });
+
+    it('huỷ: phiên vừa sang trạng thái khác active giữa lúc đọc và lúc ghi → 409, không đổi, không audit', async () => {
+      const session = await newLiveSession('dua-huy');
+      await staleReadThen(session.id, () =>
+        ds.query(`UPDATE examcollect.exam_session SET status = 'collecting' WHERE id = $1`, [session.id]),
+      );
+
+      await cancel(session.id, {}, live.token).expect(409);
+
+      expect((await dbSession(session.id)).status).toBe('collecting');
+      expect(await auditRows('exam_session.cancel', session.id)).toHaveLength(0);
+    });
+
+    it('audit được ghi CÙNG giao dịch với thay đổi (sửa và huỷ): `recordUserAction` nhận manager đang trong giao dịch', async () => {
+      const original = auditLog.recordUserAction.bind(auditLog);
+      const inTransaction: boolean[] = [];
+      jest.spyOn(auditLog, 'recordUserAction').mockImplementation(async (input, manager) => {
+        inTransaction.push(manager?.queryRunner?.isTransactionActive === true);
+        return original(input, manager);
+      });
+      const toEdit = await createSession(teacher, { roomId: (await room('cung-gd-sua')).id, ...windowAt(freshDay(), 8, 10) });
+      const toCancel = await createSession(teacher, { roomId: (await room('cung-gd-huy')).id, ...windowAt(freshDay(), 8, 10) });
+
+      await patch(toEdit.id, { name: `Cùng giao dịch ${tag}` }).expect(200);
+      await cancel(toCancel.id).expect(200);
+
+      expect(inTransaction).toEqual([true, true]);
     });
   });
 });
