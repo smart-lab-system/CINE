@@ -1,37 +1,39 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useForm, FormProvider, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { toast } from 'sonner';
 import { ArrowLeft, CircleAlert, CircleCheckBig, Copy, TriangleAlert } from 'lucide-react';
-import { useCreateExamSession, useExamSessions } from '@/hooks/useExamSession';
+import { useCreateExamSession } from '@/hooks/useExamSession';
 import { useTeachingClasses } from '@/hooks/useTeaching';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
+import { semesterTextOf } from '@/lib/master-data-forms';
+import {
+  SessionExamTypeField,
+  SessionNameField,
+  SessionRoomField,
+  SessionSemesterReadout,
+  SessionTimeFields,
+} from '../_components/session-fields';
 import { RequiredFilenamesInput } from './_components/RequiredFilenamesInput';
 import { RubricPicker } from './_components/RubricPicker';
-
 import {
   createExamSessionSchema,
   describeCreateError,
-  EXAM_TYPES,
   type CreateExamSessionFormValues,
 } from './schema';
 
 const EMPTY_FORM: CreateExamSessionFormValues = {
   name: '',
   classId: '',
-  roomName: '',
-  semesterName: '',
+  roomId: '',
   // Empty-string sentinel for "not yet chosen" (same as classId above),
   // even though it's outside the Zod enum's real output type — the
   // resolver still rejects submit until the user consciously picks one;
@@ -44,11 +46,6 @@ const EMPTY_FORM: CreateExamSessionFormValues = {
   rubricId: '',
   requiredFilenames: [{ value: '', deliverableType: 'document' }],
 };
-
-/** Các giá trị đã dùng, mỗi cách viết một lần, giữ nguyên thứ tự mới trước. */
-function distinct(values: (string | undefined | null)[]): string[] {
-  return [...new Set(values.filter((value): value is string => Boolean(value)))];
-}
 
 async function copySessionCode(code: string) {
   try {
@@ -64,15 +61,11 @@ async function copySessionCode(code: string) {
 
 // Moved from app/(exam-live)/exam-sessions/new (Phase 0 route rename).
 //
-// Phòng và học kỳ từng là hai danh sách thả xuống, nguồn GET /rooms và
-// GET /semesters. Đợt thu hẹp master data bỏ cả hai bảng: giảng viên gõ
-// thẳng, và ô nhập gợi ý lại chính những giá trị họ đã dùng.
+// Từ đợt khôi phục master data: PHÒNG chọn từ danh sách phòng đang hoạt động (không còn gõ chữ), HỌC KỲ chỉ để xem — lấy từ lớp, server chụp
+// chữ vào phiên. Các ô chung với trang sửa nằm ở `../_components/session-fields`.
 export default function NewExamSessionPage() {
   const createExamSession = useCreateExamSession();
   const classes = useTeachingClasses();
-  // Chỉ để gợi ý. Một trang là đủ: cái cần là các cách viết GẦN ĐÂY của
-  // chính giảng viên này, không phải toàn bộ lịch sử.
-  const previous = useExamSessions({ page: 1, pageSize: 50 });
   const [created, setCreated] = useState<{ id: string; code: string } | null>(null);
 
   const form = useForm<CreateExamSessionFormValues>({
@@ -81,19 +74,6 @@ export default function NewExamSessionPage() {
   });
 
   const selectedClass = classes.data?.find((c) => c.id === form.watch('classId'));
-
-  // Đây là thứ bù lại phần lớn những gì mất khi phòng thành văn bản tự do:
-  // phép chống trùng lịch phòng so khớp chuỗi CHÍNH XÁC, nên gõ lại đúng
-  // cách viết cũ là điều duy nhất làm nó còn tác dụng. Cảnh báo sức chứa
-  // thì biến mất cùng bảng `room` — không còn ai biết phòng có bao nhiêu máy.
-  const previousRooms = useMemo(
-    () => distinct((previous.data?.items ?? []).map((item) => item.roomName)),
-    [previous.data],
-  );
-  const previousSemesters = useMemo(
-    () => distinct((previous.data?.items ?? []).map((item) => item.semesterName)),
-    [previous.data],
-  );
 
   // Not an error: a session can be created and run without a roster. But
   // nobody will get in — agent:join requires an enrollment — and finding
@@ -105,8 +85,7 @@ export default function NewExamSessionPage() {
       {
         name: values.name,
         classId: values.classId,
-        roomName: values.roomName,
-        semesterName: values.semesterName,
+        roomId: values.roomId,
         examType: values.examType,
         startTime: new Date(values.startTime).toISOString(),
         endTime: new Date(values.endTime).toISOString(),
@@ -211,29 +190,17 @@ export default function NewExamSessionPage() {
               <CardTitle>Thông tin phiên thi</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
-              <FormField
-                id="exam-session-name"
-                label="Tên phiên thi"
-                error={form.formState.errors.name?.message}
-              >
-                <Input
-                  id="exam-session-name"
-                  placeholder="vd: Thi cuối kỳ Lập trình Web — nhóm 03"
-                  invalid={Boolean(form.formState.errors.name)}
-                  {...form.register('name')}
-                />
-              </FormField>
+              <SessionNameField />
 
               {/* The lecturer picks a CLASS, not a course. The course
                   follows from it server-side, and this list only ever holds
                   classes they were assigned — a class is what they actually
-                  teach, and what the roster and the headcount hang off. */}
+                  teach, and what the roster and the headcount hang off.
+                  Nhãn gộp CÓ học kỳ: cùng một lớp học ở hai kỳ là hai lớp. */}
               <FormField
                 id="exam-session-class"
                 label="Lớp thi"
-                error={
-                  classes.isError ? undefined : form.formState.errors.classId?.message
-                }
+                error={classes.isError ? undefined : form.formState.errors.classId?.message}
               >
                 <Controller
                   control={form.control}
@@ -245,14 +212,12 @@ export default function NewExamSessionPage() {
                       disabled={classes.isLoading || classes.isError}
                     >
                       <SelectTrigger id="exam-session-class">
-                        <SelectValue
-                          placeholder={classes.isLoading ? 'Đang tải…' : 'Chọn lớp thi'}
-                        />
+                        <SelectValue placeholder={classes.isLoading ? 'Đang tải…' : 'Chọn lớp thi'} />
                       </SelectTrigger>
                       <SelectContent>
                         {classes.data?.map((klass) => (
                           <SelectItem key={klass.id} value={klass.id}>
-                            {klass.name} ({klass.studentCount} SV)
+                            {klass.labelWithSemester} ({klass.studentCount} SV)
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -260,10 +225,7 @@ export default function NewExamSessionPage() {
                   )}
                 />
                 {classes.isError && (
-                  <p
-                    role="alert"
-                    className="flex items-center gap-1.5 text-small font-medium text-danger-strong"
-                  >
+                  <p role="alert" className="flex items-center gap-1.5 text-small font-medium text-danger-strong">
                     <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     Không tải được danh sách lớp.
                     <button
@@ -280,11 +242,7 @@ export default function NewExamSessionPage() {
               {!classes.isLoading && !classes.isError && classes.data?.length === 0 && (
                 <Alert variant="info">
                   <AlertDescription>
-                    Bạn chưa có lớp nào.{' '}
-                    <Link href="/teacher/classes" className="font-semibold underline">
-                      Tạo lớp
-                    </Link>{' '}
-                    rồi quay lại — một phiên thi luôn thuộc về một lớp.
+                    Bạn chưa có lớp nào được giao nên chưa tạo được phiên thi.
                   </AlertDescription>
                 </Alert>
               )}
@@ -293,109 +251,26 @@ export default function NewExamSessionPage() {
                 <Alert variant="warning">
                   <TriangleAlert />
                   <AlertDescription>
-                    Lớp {selectedClass?.name} chưa có danh sách sinh viên. Bạn vẫn tạo được
+                    Lớp {selectedClass?.label} chưa có danh sách sinh viên. Bạn vẫn tạo được
                     phiên thi, nhưng chưa nhập danh sách thì không sinh viên nào vào được —
                     hãy nhập danh sách lớp trước.
                   </AlertDescription>
                 </Alert>
               )}
 
-              <FormField
-                id="exam-session-room"
-                label="Phòng thi"
-                hint="Gõ đúng như những lần trước: phép chống trùng lịch phòng so khớp chính xác từng ký tự."
-                error={form.formState.errors.roomName?.message}
-              >
-                <Input
-                  id="exam-session-room"
-                  list="exam-session-room-options"
-                  placeholder="P.A101"
-                  {...form.register('roomName')}
-                />
-                <datalist id="exam-session-room-options">
-                  {previousRooms.map((room) => (
-                    <option key={room} value={room} />
-                  ))}
-                </datalist>
-              </FormField>
+              <SessionSemesterReadout
+                text={selectedClass ? semesterTextOf(selectedClass) : 'Chọn lớp để xem học kỳ'}
+              />
 
-              <FormField
-                id="exam-session-semester"
-                label="Học kỳ"
-                hint="Chụp lại vào phiên thi và không đổi về sau — bảng điểm lọc theo đúng chuỗi này."
-                error={form.formState.errors.semesterName?.message}
-              >
-                <Input
-                  id="exam-session-semester"
-                  list="exam-session-semester-options"
-                  placeholder="HK1 2026-2027"
-                  {...form.register('semesterName')}
-                />
-                <datalist id="exam-session-semester-options">
-                  {previousSemesters.map((semester) => (
-                    <option key={semester} value={semester} />
-                  ))}
-                </datalist>
-              </FormField>
-
+              <SessionRoomField />
 
               {/* Rubric thuộc về GIẢNG VIÊN từ đợt thu hẹp master data, nên
                   danh sách không còn phụ thuộc lớp đã chọn. */}
               <RubricPicker />
 
+              <SessionExamTypeField />
 
-              <FormField
-                id="exam-session-type"
-                label="Loại kỳ thi"
-                error={form.formState.errors.examType?.message}
-              >
-                <Controller
-                  control={form.control}
-                  name="examType"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger id="exam-session-type">
-                        <SelectValue placeholder="Chọn loại kỳ thi" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {EXAM_TYPES.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {EXAM_TYPE_LABELS[type]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </FormField>
-
-              <div className="grid gap-5 sm:grid-cols-2">
-                <FormField
-                  id="exam-session-start-time"
-                  label="Thời gian bắt đầu"
-                  error={form.formState.errors.startTime?.message}
-                >
-                  <Input
-                    id="exam-session-start-time"
-                    type="datetime-local"
-                    invalid={Boolean(form.formState.errors.startTime)}
-                    {...form.register('startTime')}
-                  />
-                </FormField>
-
-                <FormField
-                  id="exam-session-end-time"
-                  label="Thời gian kết thúc"
-                  error={form.formState.errors.endTime?.message}
-                >
-                  <Input
-                    id="exam-session-end-time"
-                    type="datetime-local"
-                    invalid={Boolean(form.formState.errors.endTime)}
-                    {...form.register('endTime')}
-                  />
-                </FormField>
-              </div>
+              <SessionTimeFields />
 
               <RequiredFilenamesInput />
 
@@ -406,10 +281,7 @@ export default function NewExamSessionPage() {
                     {/* The server's message, not a guess at what went
                         wrong. A room or class clash names the booking
                         already holding the slot — the one thing that tells
-                        the lecturer what to change. This banner used to
-                        hardcode the duplicate-filename explanation, which
-                        sent anyone hitting a clash to inspect their
-                        filename list instead. */}
+                        the lecturer what to change. */}
                     {describeCreateError(createExamSession.error)}
                   </AlertDescription>
                 </Alert>
