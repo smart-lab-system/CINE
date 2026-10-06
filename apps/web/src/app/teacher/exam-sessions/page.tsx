@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
@@ -38,8 +38,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EXAM_TYPE_LABELS, getDisplaySessionStatus } from '@/lib/exam-session-display';
-import { semesterOptions, useSemesterFilter } from '@/hooks/useSemesterFilter';
-import { SemesterFilter } from '@/components/layout/semester-filter';
+import { useSemesterYearFilter } from '@/hooks/useSemesterYearFilter';
+import { SemesterYearFilter } from '@/components/layout/semester-year-filter';
+import { isFiltering } from '@/lib/semester-filter';
 import type { ExamSessionStatusFilter, ExamType } from '@/lib/api/exam-session';
 
 const STATUS_FILTER_LABELS: Record<ExamSessionStatusFilter, string> = {
@@ -83,11 +84,9 @@ function formatDateTime(iso: string): string {
 }
 
 /**
- * Lọc theo học kỳ, mặc định là kỳ hợp lý nhất hôm nay (tính từ ngày, xem
- * `useSemesterFilter` — cùng định nghĩa mà badge trên topbar, "Lớp của
- * tôi" và trang Bài thu đang đọc). Thêm 2026-09-15: yêu cầu QA "Tạo filter
- * cho cả trang quản lý kỳ thi và bài thu" lần đầu chỉ làm ba bộ lọc
- * tên/trạng thái/loại, nên một giảng viên dạy qua nhiều kỳ phải lật từng
+ * Lọc theo học kỳ bằng KHOÁ qua bộ lọc Năm học → Học kỳ dùng chung (`useSemesterYearFilter`), MẶC ĐỊNH "Tất cả" — một bộ lọc mặc định đã
+ * che mất việc tồn đọng của kỳ cũ (CLAUDE.md §1.2: học kỳ không bao giờ chặn một thao tác). Thêm 2026-09-15: yêu cầu QA "Tạo filter cho
+ * cả trang quản lý kỳ thi và bài thu" lần đầu chỉ làm ba bộ lọc tên/trạng thái/loại, nên một giảng viên dạy qua nhiều kỳ phải lật từng
  * trang 20 dòng mới tìm lại được phiên của kỳ cũ.
  *
  * "Tất cả học kỳ" luôn nằm trong dropdown: phiên của kỳ cũ vẫn phải mở
@@ -97,7 +96,7 @@ function formatDateTime(iso: string): string {
 export default function ExamSessionsListPage() {
   const teachingClasses = useTeachingClasses();
   // MỌI lớp của giảng viên, không chỉ những lớp có phiên trên trang đang
-  // xem — cùng lý do với danh sách học kỳ bên dưới.
+  // xem — học kỳ cũng vậy: danh sách lựa chọn đến từ bảng học kỳ.
   const classChoices = teachingClasses.data ?? [];
 
   const [view, setView] = useSessionViewMode();
@@ -110,7 +109,7 @@ export default function ExamSessionsListPage() {
   const [status, setStatus] = useState<ExamSessionStatusFilter | 'all'>('all');
   const [examType, setExamType] = useState<ExamType | 'all'>('all');
   const debouncedSearch = useDebouncedValue(search, 300);
-  const semesterFilter = useSemesterFilter('teacher-exam-sessions');
+  const semesterFilter = useSemesterYearFilter('teacher-exam-sessions');
 
   const { data, error, isLoading, refetch } = useExamSessions({
     page,
@@ -118,9 +117,8 @@ export default function ExamSessionsListPage() {
     search: debouncedSearch.trim() || undefined,
     status: status === 'all' ? undefined : status,
     examType: examType === 'all' ? undefined : examType,
-    // `?? undefined`: null nghĩa là "tất cả kỳ", và cách nói điều đó với
-    // API là KHÔNG gửi tham số — xem doc của SearchExamSessionsParams.
-    semesterName: semesterFilter.semesterName ?? undefined,
+    // "Tất cả" là KHÔNG gửi tham số (`params` rỗng) — không `undefined`-có-khoá, không chuỗi rỗng. Xem doc của SearchExamSessionsParams.
+    ...semesterFilter.params,
     classId: classId === 'all' ? undefined : classId,
   });
 
@@ -136,32 +134,11 @@ export default function ExamSessionsListPage() {
       search: debouncedSearch.trim() || undefined,
       status: status === 'all' ? undefined : status,
       examType: examType === 'all' ? undefined : examType,
-      semesterName: semesterFilter.semesterName ?? undefined,
+      ...semesterFilter.params,
       classId: classId === 'all' ? undefined : classId,
     },
     { enabled: view === 'calendar' },
   );
-
-  // Danh sách kỳ đến từ SERVER, tính trên toàn bộ phiên của giảng viên và
-  // cố ý không chịu ảnh hưởng của bộ lọc đang bật.
-  //
-  // Bản trước tự gom danh sách này từ những trang đã tải, nên một kỳ chỉ
-  // xuất hiện ở trang 3 thì không chọn được cho tới khi người dùng lật tới
-  // trang 3 — trong khi phép lọc lại chạy trên TOÀN BỘ dữ liệu.
-  //
-  // Vẫn giữ lại danh sách cũ trong lúc tải: mỗi lần đổi bộ lọc là một
-  // queryKey mới nên `data` về `undefined`, và dropdown sẽ chớp mất hết lựa
-  // chọn giữa hai lần fetch.
-  const [knownSemesters, setKnownSemesters] = useState<string[]>([]);
-  useEffect(() => {
-    if (data?.semesterNames) {
-      setKnownSemesters(data.semesterNames);
-    }
-  }, [data]);
-  const semesterChoices = semesterOptions([
-    ...knownSemesters,
-    semesterFilter.semesterName,
-  ]);
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -190,10 +167,19 @@ export default function ExamSessionsListPage() {
     setPage(1);
   }
 
-  function handleSemesterChange(value: string | null) {
-    semesterFilter.setSemesterName(value);
-    // Đang ở trang 3 của kỳ này mà đổi kỳ thì trang 3 của kỳ kia có thể
-    // không tồn tại, và bảng hiện ra rỗng như thể kỳ đó không có phiên nào.
+  function handleYearChange(year: number | null) {
+    semesterFilter.setYear(year);
+    // Đổi phạm vi thì về trang 1: trang 3 của phạm vi này có thể không tồn tại ở phạm vi kia, và bảng hiện ra rỗng như thể không có phiên nào.
+    setPage(1);
+  }
+
+  function handleSemesterChange(semesterId: string | null) {
+    semesterFilter.setSemester(semesterId);
+    setPage(1);
+  }
+
+  function showAllSemesters() {
+    semesterFilter.clear();
     setPage(1);
   }
 
@@ -287,10 +273,11 @@ export default function ExamSessionsListPage() {
             </Button>
           </div>
         )}
-        <SemesterFilter
-          value={semesterFilter.semesterName}
-          onChange={handleSemesterChange}
-          semesters={semesterChoices}
+        <SemesterYearFilter
+          semesters={semesterFilter.semesters}
+          selection={semesterFilter.selection}
+          onYearChange={handleYearChange}
+          onSemesterChange={handleSemesterChange}
         />
         {/* Chỉ một lớp thì ô này là nhiễu — cùng luật với Phòng và Loại
             kỳ thi ở màn Bài thu. Học kỳ thì cố ý KHÔNG theo luật đó. */}
@@ -303,7 +290,8 @@ export default function ExamSessionsListPage() {
               <SelectItem value="all">Tất cả lớp</SelectItem>
               {classChoices.map((klass) => (
                 <SelectItem key={klass.id} value={klass.id}>
-                  {klass.name}
+                  {/* Danh sách gồm lớp của nhiều kỳ — hai lớp cùng mã khác kỳ phải phân biệt được. */}
+                  {klass.labelWithSemester}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -418,7 +406,7 @@ export default function ExamSessionsListPage() {
                   </Button>
                 }
               />
-            ) : semesterFilter.semesterName !== null ? (
+            ) : isFiltering(semesterFilter.selection) ? (
               <EmptyState
                 icon={CalendarClock}
                 title="Không có phiên thi nào trong học kỳ này"
@@ -428,7 +416,7 @@ export default function ExamSessionsListPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => handleSemesterChange(null)}
+                    onClick={showAllSemesters}
                   >
                     Xem tất cả học kỳ
                   </Button>
@@ -494,7 +482,7 @@ export default function ExamSessionsListPage() {
                             />
                           </button>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">{session.className ?? String.fromCharCode(8212)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">{session.classLabel}</TableCell>
                         <TableCell className="whitespace-nowrap">{session.roomName}</TableCell>
                         <TableCell className="whitespace-nowrap">
                           {EXAM_TYPE_LABELS[session.examType] ?? session.examType}
