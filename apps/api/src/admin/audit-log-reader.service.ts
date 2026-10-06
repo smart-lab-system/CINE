@@ -41,6 +41,15 @@ export class AuditLogReaderService {
   async search(query: SearchAuditLogDto): Promise<AuditLogPageView> {
     const from = query.from ? new Date(query.from) : undefined;
     const to = query.to ? new Date(query.to) : undefined;
+    // `@IsISO8601()` không-nghiêm-ngặt nhận cả tuần ISO ("2026-W01"), dạng cơ bản ("20261005") và độ lệch rút gọn ("…+07"), mà
+    // `new Date` đọc thành Invalid Date. Invalid Date là giá trị "truthy": nó đi qua các `if` dưới, bị gắn làm tham số rồi Postgres từ chối
+    // (22007) — một lỗi DB mà `PostgresExceptionFilter` không ánh xạ, nên không ra 400 mà ném tiếp lên trên (500, hoặc làm chết tiến
+    // trình). Chặn ở đây, nêu ĐÚNG trường sai (so `to > from` với Invalid Date luôn sai nên cũng sẽ nói nhầm "`to` phải sau `from`").
+    for (const [name, value] of [['from', from], ['to', to]] as const) {
+      if (value && Number.isNaN(value.getTime())) {
+        throw new BadRequestException(`\`${name}\` không phải một thời điểm hợp lệ (ví dụ: 2026-10-05T00:00:00.000Z).`);
+      }
+    }
     if (from && to && !(to > from)) {
       // Không trả 200 rỗng: một khoảng ngược chiều đọc ra như "chưa ai làm gì".
       throw new BadRequestException('`to` phải sau `from`.');

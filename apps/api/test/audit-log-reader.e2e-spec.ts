@@ -245,6 +245,24 @@ describe('GET /audit-log (e2e)', () => {
     await get(`/audit-log?action=${eleven}`).expect(400);
   });
 
+  // Review B+G1 (nâng từ Minor 5): `@IsISO8601()` không-nghiêm-ngặt nhận cả tuần ISO, dạng cơ bản và độ lệch giờ rút gọn, nhưng
+  // `new Date(...)` đọc chúng thành Invalid Date; Invalid Date là giá trị "truthy", bị gắn làm tham số rồi Postgres từ chối (22007) —
+  // một lỗi DB mà bộ lọc ngoại lệ không ánh xạ nên ra 500. Cùng loại lỗi với `page` khổng lồ ở dưới.
+  it('ISO-8601 về chữ nhưng không đọc được thành thời điểm là 400 nêu ĐÚNG trường sai, không phải 500 (Review Focus 4: "rác")', async () => {
+    for (const bad of ['2026-W01', '20261005', '2026-10-05T10:00:00+07']) {
+      const field = (await get(`/audit-log?from=${encodeURIComponent(bad)}`).expect(400)).body.message as string;
+      expect(field).toContain('`from`');
+      const to = (await get(`/audit-log?to=${encodeURIComponent(bad)}`).expect(400)).body.message as string;
+      expect(to).toContain('`to`');
+    }
+    // `from` hỏng + `to` đúng: câu phải nói về `from`, không phải "`to` phải sau `from`" (so sánh với Invalid Date luôn sai).
+    const mixed = await get(
+      `/audit-log?from=${encodeURIComponent('2026-W01')}&to=2026-10-05T00:00:00.000Z`,
+    ).expect(400);
+    expect(mixed.body.message).toContain('`from`');
+    expect(mixed.body.message).not.toContain('phải sau');
+  });
+
   // Ngoài plan: một `page` khổng lồ làm OFFSET tràn bigint ở Postgres (22003) — một lỗi DB mà bộ lọc ngoại lệ không ánh xạ
   // nên ra 500. Đầu vào của người dùng phải ra 400 chứ không phải 500.
   it('page khổng lồ là 400, không để OFFSET tràn số ở Postgres thành 500', async () => {
