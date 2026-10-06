@@ -214,7 +214,7 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
       return fail('CLASS_REQUIRED', 'Không tìm thấy lớp được chọn.');
     }
 
-    await this.enrollments.addManually({
+    const { studentName } = await this.enrollments.addManually({
       studentMssv: request.studentId,
       studentName: request.fullName,
       homeClassId: homeClass.id,
@@ -224,16 +224,18 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
     // Vào ảnh chốt luôn, không chỉ vào enrollment (CLAUDE.md §7.1.1).
     // Thiếu dòng này thì em được duyệt vào thi được và nộp bài được,
     // nhưng bảng điểm — vốn đọc ảnh chốt để biết ai thuộc về nó — sẽ bỏ
-    // sót đúng em vừa được cho vào.
+    // sót đúng em vừa được cho vào. Tên là tên ĐANG LƯU, không phải tên em
+    // tự gõ — một sinh viên chỉ có một tên (spec §2.6).
     await this.sessionRoster.ensureManual(session.id, {
       mssv: request.studentId,
-      name: request.fullName,
+      name: studentName,
       homeClassId: homeClass.id,
       homeTeacherId: homeClass.teacherId,
     });
 
     // Written before the student is told, so a trace can never be missing for
-    // access that was actually granted.
+    // access that was actually granted. `typedName` chỉ có khi em gõ khác tên
+    // đã lưu: vết của việc "em đã khai gì".
     await this.auditLog.recordUserAction({
       actorId: actor.sub,
       action: 'exam_session.access_granted',
@@ -241,7 +243,8 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
       targetId: session.id,
       newValue: {
         studentMssv: request.studentId,
-        studentName: request.fullName,
+        studentName,
+        ...(studentName !== request.fullName ? { typedName: request.fullName } : {}),
         reason: request.reason,
         homeClassId: homeClass.id,
       },

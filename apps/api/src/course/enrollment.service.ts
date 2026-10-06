@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { EnrollmentEntity } from './entities/enrollment.entity';
+import { StudentService } from './student.service';
 
 /**
  * Enrollment is the answer to "may this student sit this exam", and from the
@@ -20,6 +21,8 @@ export class EnrollmentService {
   constructor(
     @InjectRepository(EnrollmentEntity)
     private readonly enrollments: Repository<EnrollmentEntity>,
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly students: StudentService,
   ) {}
 
   /**
@@ -47,6 +50,10 @@ export class EnrollmentService {
    * the guessing this project forbids. The invigilator names the class, so
    * nothing is inferred.
    *
+   * TÊN (spec §2.6): MSSV đã có trong `student` → dùng tên ĐÃ LƯU, KHÔNG ghi
+   * đè bằng tên em tự gõ; chưa có → tạo `student` bằng tên gõ. Trả về tên đang
+   * lưu, để người gọi dùng đúng tên ấy cho ảnh chốt và audit thay vì tên gõ.
+   *
    * The roster gaining a person is not silent — the caller writes an
    * audit_log entry naming who approved it and why.
    *
@@ -58,18 +65,26 @@ export class EnrollmentService {
     studentName: string;
     homeClassId: string;
     homeTeacherId: string;
-  }): Promise<EnrollmentEntity> {
-    await this.enrollments
-      .createQueryBuilder()
-      .insert()
-      .values({
-        studentMssv: input.studentMssv,
-        studentName: input.studentName,
-        homeClassId: input.homeClassId,
-        homeTeacherId: input.homeTeacherId,
-      })
-      .orIgnore()
-      .execute();
+  }): Promise<{ enrollment: EnrollmentEntity; studentName: string }> {
+    const studentName = await this.dataSource.transaction(async (manager) => {
+      const name = await this.students.ensureKeepingStoredName(
+        manager,
+        input.studentMssv,
+        input.studentName,
+      );
+      await manager
+        .getRepository(EnrollmentEntity)
+        .createQueryBuilder()
+        .insert()
+        .values({
+          studentMssv: input.studentMssv,
+          homeClassId: input.homeClassId,
+          homeTeacherId: input.homeTeacherId,
+        })
+        .orIgnore()
+        .execute();
+      return name;
+    });
 
     const saved = await this.findForClass(input.homeClassId, input.studentMssv);
     if (!saved) {
@@ -77,6 +92,6 @@ export class EnrollmentService {
         `enrollment for ${input.studentMssv} vanished immediately after insert`,
       );
     }
-    return saved;
+    return { enrollment: saved, studentName };
   }
 }

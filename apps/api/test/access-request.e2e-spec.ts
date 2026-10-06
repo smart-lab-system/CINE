@@ -8,6 +8,7 @@ import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter
 import { createTestAccount } from './helpers/create-account';
 import { openSession } from './helpers/open-session';
 import { seedClass, seedEnrollment, sessionBody } from './helpers/seed';
+import { randomTag } from './helpers/master-data';
 
 /**
  * The counterweight to enrollment enforcement.
@@ -68,6 +69,44 @@ describe('Access request (e2e)', () => {
         resolve(body);
       });
     });
+  }
+
+  /** Em `mssv` xin phép với tên tự gõ `typedName`, giảng viên duyệt, em vào lại. Trả tên trong ack lúc vào lại. */
+  async function requestAndApprove(mssv: string, typedName: string): Promise<{ ackName: string }> {
+    const teacher = open({ cookie: accessCookie });
+    await connected(teacher);
+    teacher.emit('teacher:subscribe', { examSessionId: sessionId });
+    await new Promise((r) => setTimeout(r, 300));
+
+    const agent = open();
+    await connected(agent);
+    const pending = once<{ requestId: string }>(teacher, 'lobby:access_request');
+    const requested = await ack<{ ok: boolean }>(agent, 'agent:request-access', {
+      sessionCode,
+      studentId: mssv,
+      fullName: typedName,
+      reason: REASON,
+    });
+    expect(requested.ok).toBe(true);
+    const seen = await pending;
+
+    const granted = once<{ examSessionId: string }>(agent, 'agent:access-granted');
+    const resolved = await ack<{ ok: boolean }>(teacher, 'teacher:resolve-access-request', {
+      requestId: seen.requestId,
+      approve: true,
+      homeClassId: classId,
+    });
+    expect(resolved.ok).toBe(true);
+    await granted;
+
+    const rejoined = open();
+    await connected(rejoined);
+    const ackBody = await new Promise<{ studentName: string }>((resolve, reject) => {
+      rejoined.on('agent:join:ack', resolve);
+      rejoined.on('agent:join:error', (e) => reject(new Error(JSON.stringify(e))));
+      rejoined.emit('agent:join', { fullName: 'bỏ qua', studentId: mssv, sessionCode });
+    });
+    return { ackName: ackBody.studentName };
   }
 
   beforeAll(async () => {
@@ -200,9 +239,11 @@ describe('Access request (e2e)', () => {
     // routable to a class and a teacher, and inventing that at collection
     // time would be exactly the guessing this design forbids.
     const [enrollment] = await dataSource.query(
-      `SELECT student_name, home_class_id, home_teacher_id
-         FROM examcollect.enrollment WHERE home_class_id = $1 AND student_mssv = $2`,
-      [classId, STRANGER_MSSV],
+      `SELECT s.full_name AS student_name, e.home_class_id, e.home_teacher_id
+         FROM examcollect.enrollment e
+         JOIN examcollect.student s ON s.mssv = e.student_mssv
+        WHERE e.student_mssv = $1 AND e.home_class_id = $2`,
+      [STRANGER_MSSV, classId],
     );
     expect(enrollment).toBeDefined();
     expect(enrollment.student_name).toBe(STRANGER_NAME);
@@ -283,6 +324,51 @@ describe('Access request (e2e)', () => {
     expect(seats).toHaveLength(deliverables[0].n);
     expect(seats.every((r: { status: string }) => r.status === 'not_submitted')).toBe(true);
     expect(seats.every((r: { submitted_at: Date | null }) => r.submitted_at === null)).toBe(true);
+  });
+
+  it('T-STU-5: MSSV đã có thì duyệt KHÔNG ghi đè tên đã lưu bằng tên em tự gõ (Review Focus 3)', async () => {
+    const stored = `AR${randomTag(8)}`;
+    await dataSource.query(
+      `INSERT INTO examcollect.student (mssv, full_name) VALUES ($1, 'Tên chuẩn đã lưu')`,
+      [stored],
+    );
+
+    const { ackName } = await requestAndApprove(stored, 'Em tự gõ tên khác hẳn');
+
+    // Em vào bằng tên ĐÃ LƯU: ack, ảnh chốt và `student` đều mang tên đó.
+    expect(ackName).toBe('Tên chuẩn đã lưu');
+    const [row] = await dataSource.query(`SELECT full_name FROM examcollect.student WHERE mssv = $1`, [stored]);
+    expect(row.full_name).toBe('Tên chuẩn đã lưu');
+    const [snap] = await dataSource.query(
+      `SELECT student_name FROM examcollect.session_roster WHERE exam_session_id = $1 AND student_mssv = $2`,
+      [sessionId, stored],
+    );
+    expect(snap.student_name).toBe('Tên chuẩn đã lưu');
+    // Audit giữ cả hai: đã duyệt vào bằng tên nào, và em đã gõ gì.
+    const [entry] = await dataSource.query(
+      `SELECT new_value FROM examcollect.audit_log
+        WHERE target_id = $1 AND action = 'exam_session.access_granted' AND new_value->>'studentMssv' = $2`,
+      [sessionId, stored],
+    );
+    expect(entry.new_value).toMatchObject({
+      studentName: 'Tên chuẩn đã lưu',
+      typedName: 'Em tự gõ tên khác hẳn',
+    });
+  });
+
+  it('MSSV chưa có thì tạo sinh viên bằng tên em gõ, và audit không thêm typedName khi hai tên giống nhau', async () => {
+    const fresh = `AR${randomTag(8)}`;
+    const { ackName } = await requestAndApprove(fresh, 'Em Mới Hoàn Toàn');
+
+    expect(ackName).toBe('Em Mới Hoàn Toàn');
+    const [row] = await dataSource.query(`SELECT full_name FROM examcollect.student WHERE mssv = $1`, [fresh]);
+    expect(row.full_name).toBe('Em Mới Hoàn Toàn');
+    const [entry] = await dataSource.query(
+      `SELECT new_value FROM examcollect.audit_log
+        WHERE target_id = $1 AND action = 'exam_session.access_granted' AND new_value->>'studentMssv' = $2`,
+      [sessionId, fresh],
+    );
+    expect(entry.new_value).not.toHaveProperty('typedName');
   });
 
   it('tells the student when the invigilator refuses', async () => {
