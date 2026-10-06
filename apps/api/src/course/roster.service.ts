@@ -28,7 +28,7 @@ export class RosterService {
       where: { homeClassId: classId },
       order: { studentMssv: 'ASC' },
     });
-    return rows.map((row) => ({ mssv: row.studentMssv, name: row.studentName }));
+    return rows.map((row) => ({ mssv: row.studentMssv, name: row.studentName ?? '' }));
   }
 
   /**
@@ -117,7 +117,7 @@ export class RosterService {
         // can name who left rather than only counting them.
         missing: missing.map((row) => ({
           mssv: row.studentMssv,
-          name: row.studentName,
+          name: row.studentName ?? '',
         })),
       };
     });

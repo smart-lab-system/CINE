@@ -473,7 +473,7 @@ export class ExamSessionService {
       item.name = session.name;
       item.code = session.code;
       item.courseName = session.courseName;
-      item.className = session.class.name;
+      item.className = session.class.name ?? '';
       item.roomName = session.roomName;
       item.semesterName = session.semesterName;
       item.examType = session.examType;

@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClassEntity } from './entities/class.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
+import { SemesterEntity } from './entities/semester.entity';
+import { RoomEntity } from './entities/room.entity';
+import { AdministrativeClassEntity } from './entities/administrative-class.entity';
+import { StudentEntity } from './entities/student.entity';
 import { ClassService } from './class.service';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { EnrollmentService } from './enrollment.service';
@@ -23,7 +27,15 @@ import { ClassController } from './class.controller';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ClassEntity, EnrollmentEntity, AccountEntity]),
+    TypeOrmModule.forFeature([
+      ClassEntity,
+      EnrollmentEntity,
+      SemesterEntity,
+      RoomEntity,
+      AdministrativeClassEntity,
+      StudentEntity,
+      AccountEntity,
+    ]),
   ],
   controllers: [ClassController],
   providers: [ClassService, EnrollmentService, RosterService],

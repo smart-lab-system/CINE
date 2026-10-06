@@ -19,14 +19,13 @@ export class EnrollmentEntity extends BaseEntity {
   @Column({ name: 'student_mssv', type: 'citext' })
   studentMssv!: string;
 
-  // Absorbed from class_roster, which carried the same natural key
-  // (course_id, student_mssv) over the same rows from the same Excel file
-  // and is dropped in a later phase. This is the authoritative spelling of
-  // the student's name: agent:join answers with it rather than asking the
-  // student to type their own name, so there is never a typed value to
-  // reconcile against this one.
-  @Column({ name: 'student_name', type: 'varchar', length: 150 })
-  studentName!: string;
+  /**
+   * @deprecated TÊN CŨ, đang chờ gỡ. Tên sinh viên nằm ở MỘT chỗ: bảng `student`
+   * (spec §2.6). Không đọc, không ghi cột này ở code mới; nullable từ migration
+   * `ExpandMasterDataEntities` và bị bỏ ở migration thu hẹp (plan H).
+   */
+  @Column({ name: 'student_name', type: 'varchar', length: 150, nullable: true })
+  studentName!: string | null;
 
   @Column({ name: 'home_class_id', type: 'uuid' })
   homeClassId!: string;

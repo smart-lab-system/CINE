@@ -4,6 +4,10 @@ import { DataSource, DataSourceOptions } from 'typeorm';
 import { AccountEntity } from '../identity/entities/account.entity';
 import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
+import { SemesterEntity } from '../course/entities/semester.entity';
+import { RoomEntity } from '../course/entities/room.entity';
+import { AdministrativeClassEntity } from '../course/entities/administrative-class.entity';
+import { StudentEntity } from '../course/entities/student.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { SessionRosterEntity } from '../exam-session/entities/session-roster.entity';
 import { GradingReferenceEntity } from '../grading/entities/grading-reference.entity';
@@ -92,6 +96,10 @@ export const dataSourceOptions: DataSourceOptions = {
     AccountEntity,
     ClassEntity,
     EnrollmentEntity,
+    SemesterEntity,
+    RoomEntity,
+    AdministrativeClassEntity,
+    StudentEntity,
     ExamSessionEntity,
     SessionRosterEntity,
     RequiredDeliverableEntity,

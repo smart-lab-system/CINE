@@ -113,7 +113,7 @@ export class SessionRosterService {
         enrolled.map((row) => ({
           examSessionId: session.id,
           studentMssv: row.studentMssv,
-          studentName: row.studentName,
+          studentName: row.studentName ?? '',
           homeClassId: row.homeClassId,
           homeTeacherId: row.homeTeacherId,
           source: 'frozen' as const,
@@ -125,7 +125,7 @@ export class SessionRosterService {
         session.id,
         enrolled.map((row) => ({
           mssv: row.studentMssv,
-          name: row.studentName,
+          name: row.studentName ?? '',
           homeClassId: row.homeClassId,
           homeTeacherId: row.homeTeacherId,
         })),

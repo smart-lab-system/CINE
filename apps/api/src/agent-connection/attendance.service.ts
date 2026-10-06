@@ -137,7 +137,7 @@ export class AttendanceService {
     const classNames = new Map(
       (
         await this.classes.find({ where: { id: In(await this.relevantClassIds(session)) } })
-      ).map((row) => [row.id, row.name]),
+      ).map((row) => [row.id, row.name ?? '']),
     );
 
     const confirmedAt = session.attendanceConfirmedAt;
@@ -148,7 +148,7 @@ export class AttendanceService {
     const makeup: AttendanceStudentView[] = [];
 
     for (const enrollment of roster) {
-      const view = this.toView(enrollment.studentMssv, enrollment.studentName, seen, confirmedAt);
+      const view = this.toView(enrollment.studentMssv, enrollment.studentName ?? '', seen, confirmedAt);
       (view.connected ? present : absent).push(view);
     }
 
@@ -165,7 +165,7 @@ export class AttendanceService {
         continue;
       }
       makeup.push({
-        ...this.toView(enrollment.studentMssv, enrollment.studentName, seen, confirmedAt),
+        ...this.toView(enrollment.studentMssv, enrollment.studentName ?? '', seen, confirmedAt),
         homeClassName: classNames.get(enrollment.homeClassId),
       });
     }

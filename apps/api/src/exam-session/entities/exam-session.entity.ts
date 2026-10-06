@@ -2,6 +2,7 @@ import { Check, Column, Entity, Exclusion, Index, JoinColumn, ManyToOne } from '
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { ClassEntity } from '../../course/entities/class.entity';
+import { RoomEntity } from '../../course/entities/room.entity';
 import { RubricEntity } from '../../grading/entities/rubric.entity';
 
 // draft (being set up) -> scheduled (waiting for start_time) -> active
@@ -76,7 +77,14 @@ export type ExamType = 'TK' | 'GK' | 'CK';
 // `exam-schedule-conflict.e2e-spec.ts` pins this.
 @Exclusion(
   'ex_exam_session_room_overlap',
-  `USING gist ("room_name" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'collecting' AND "status" <> 'completed' AND "status" <> 'cancelled')`,
+  `USING gist ("room_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'collecting' AND "status" <> 'completed' AND "status" <> 'cancelled')`,
+)
+// BẢN CŨ theo tên phòng, thu hẹp thành dòng CHƯA có room_id. Giữ trong giai đoạn
+// chuyển tiếp để code cũ (không ghi room_id) vẫn không đặt trùng phòng được;
+// migration thu hẹp (plan H) bỏ nó.
+@Exclusion(
+  'ex_exam_session_room_overlap_legacy',
+  `USING gist ("room_name" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'collecting' AND "status" <> 'completed' AND "status" <> 'cancelled' AND "room_id" IS NULL)`,
 )
 @Exclusion(
   'ex_exam_session_class_overlap',
@@ -115,6 +123,18 @@ export class ExamSessionEntity extends BaseEntity {
 
   @Column({ name: 'room_name', type: 'varchar', length: 150 })
   roomName!: string;
+
+  /**
+   * Phòng thi thật (khoá ngoại). `room_name` ở trên là BẢN CHỤP của tên phòng lúc
+   * tạo phiên, giữ để bảng điểm, tên file `{PHONG}` và các đường đọc cũ không đổi
+   * theo khi admin đổi tên phòng. NOT NULL từ migration thu hẹp.
+   */
+  @Column({ name: 'room_id', type: 'uuid', nullable: true })
+  roomId!: string | null;
+
+  @ManyToOne(() => RoomEntity, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'room_id' })
+  room!: RoomEntity | null;
 
   // LỚP CỦA PHIÊN THI — và từ đợt thu hẹp master data, nó cũng là CƠ SỞ
   // XÁC THỰC.

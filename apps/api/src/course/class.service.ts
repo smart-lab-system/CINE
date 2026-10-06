@@ -50,7 +50,7 @@ export class ClassService {
 
     return entities.map((klass, index) => ({
       id: klass.id,
-      name: klass.name,
+      name: klass.name ?? '',
       courseName: klass.courseName,
       studentCount: parseInt(raw[index].studentCount, 10),
     }));
