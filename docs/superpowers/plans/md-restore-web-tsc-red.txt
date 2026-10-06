@@ -1,2 +1,3 @@
+src/app/teacher/exam-sessions/new/page.tsx
+src/app/teacher/exam-sessions/page.tsx
 src/lib/api/exam-session.ts
-src/lib/api/teaching.ts
