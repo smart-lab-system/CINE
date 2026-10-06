@@ -34,6 +34,7 @@ import type { GradingPipeline, TeacherReviewKind } from './grading-model.types';
 import { currentScore, CurrentScore } from './scoring/current-score';
 import { InvestigatorRunService } from './pipeline/investigator-run.service';
 import { lockTeacherScoring } from './scoring/score-inputs';
+import { ClassLabelView } from '../course/entities/class-label.view';
 
 /**
  * Kết quả một lượt phản biện: chuyện gì đã xảy ra, và ý kiến nếu có.
@@ -683,12 +684,12 @@ export class GradingService {
       .createQueryBuilder('g')
       .innerJoin('submission', 's', 's.id = g.submission_id')
       // Lớp gốc của bài, kèm tên: khác lớp của phiên nghĩa là THI BÙ.
-      .leftJoin('class', 'hc', 'hc.id = s.home_class_id')
+      .leftJoin(ClassLabelView, 'hl', 'hl.classId = s.home_class_id')
       .addSelect([
         's.student_mssv AS "studentMssv"',
         's.student_name_input AS "studentName"',
         's.home_class_id AS "homeClassId"',
-        'hc.name AS "homeClassName"',
+        'hl.label AS "homeClassName"',
       ])
       .where('s.exam_session_id = :id', { id: examSessionId })
       .orderBy('s.student_mssv', 'ASC')

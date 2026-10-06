@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { AgentConnectionEventEntity } from './entities/agent-connection-event.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
-import { ClassEntity } from '../course/entities/class.entity';
+import { ClassLabelView } from '../course/entities/class-label.view';
 import { StudentEntity } from '../course/entities/student.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
@@ -39,8 +39,9 @@ export class AttendanceService {
     private readonly events: Repository<AgentConnectionEventEntity>,
     @InjectRepository(EnrollmentEntity)
     private readonly enrollments: Repository<EnrollmentEntity>,
-    @InjectRepository(ClassEntity)
-    private readonly classes: Repository<ClassEntity>,
+    // Nhãn lớp đọc từ view `class_label`, không từ `class.name` (cột cũ, bị gỡ ở plan H) — spec §2.5.
+    @InjectRepository(ClassLabelView)
+    private readonly labels: Repository<ClassLabelView>,
     @InjectRepository(SubmissionEntity)
     private readonly submissions: Repository<SubmissionEntity>,
     // Đọc thẳng bảng thay vì gọi SessionRosterService.isFrozen: lấy
@@ -144,8 +145,8 @@ export class AttendanceService {
 
     const classNames = new Map(
       (
-        await this.classes.find({ where: { id: In(await this.relevantClassIds(session)) } })
-      ).map((row) => [row.id, row.name ?? '']),
+        await this.labels.find({ where: { classId: In(await this.relevantClassIds(session)) } })
+      ).map((row) => [row.classId, row.label]),
     );
 
     const confirmedAt = session.attendanceConfirmedAt;

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentConnectionEventEntity } from './entities/agent-connection-event.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ClassEntity } from '../course/entities/class.entity';
+import { ClassLabelView } from '../course/entities/class-label.view';
 import { StudentEntity } from '../course/entities/student.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { SessionRosterEntity } from '../exam-session/entities/session-roster.entity';
@@ -24,6 +25,7 @@ import { AttendanceService } from './attendance.service';
       AgentConnectionEventEntity,
       EnrollmentEntity,
       ClassEntity,
+      ClassLabelView,
       StudentEntity,
       SubmissionEntity,
       SessionRosterEntity,

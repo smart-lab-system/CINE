@@ -11,7 +11,7 @@ import { renderFilename, FilenameContext } from '../exam-session/filename-templa
 import { StorageService } from '../storage/storage.service';
 import { SubmissionEntity } from './entities/submission.entity';
 import { RequestUploadUrlDto } from './dto/request-upload-url.dto';
-import { ClassEntity } from '../course/entities/class.entity';
+import { ClassLabelView } from '../course/entities/class-label.view';
 import { ConfirmSubmissionDto } from './dto/confirm-submission.dto';
 import { SearchSubmissionsDto } from './dto/search-submissions.dto';
 import {
@@ -256,8 +256,8 @@ export class SubmissionService {
         // Một JOIN, chỉ để lấy TÊN lớp gốc. Nhãn "thi bù" mà không nói
         // từ lớp nào thì giảng viên vẫn phải đi tra, nên cái tên là
         // phần có giá trị chứ không phải cái id.
-        .leftJoin(ClassEntity, 'hc', 'hc.id = sub.home_class_id')
-        .addSelect('hc.name', 'homeClassName')
+        .leftJoin(ClassLabelView, 'hl', 'hl.classId = sub.home_class_id')
+        .addSelect('hl.label', 'homeClassName')
         .where('sub.examSessionId = :examSessionId', { examSessionId })
         .orderBy('sub.submittedAt', 'ASC', 'NULLS LAST')
         .getRawAndEntities<{ homeClassName: string | null }>(),
