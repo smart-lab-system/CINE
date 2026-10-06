@@ -174,7 +174,8 @@ describe('useStudentLookup', () => {
   it('MSSV hợp lệ thì tra; kết quả null nghĩa là MSSV mới', async () => {
     api.lookupStudent.mockResolvedValue(null);
     const { result } = setup(() => useStudentLookup('SV20120001'));
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // Hook chờ giảng viên ngừng gõ (LOOKUP_SETTLE_MS) trước khi gọi: nới thời gian chờ của waitFor cho vừa.
+    await waitFor(() => expect(result.current.isSuccess).toBe(true), { timeout: 3000 });
     expect(result.current.data).toBeNull();
     expect(api.lookupStudent).toHaveBeenCalledWith('SV20120001');
   });
@@ -187,6 +188,6 @@ describe('useStudentLookup', () => {
   it('cắt khoảng trắng trước khi tra', async () => {
     api.lookupStudent.mockResolvedValue({ mssv: 'SV20120001', fullName: 'A' });
     setup(() => useStudentLookup('  SV20120001 '));
-    await waitFor(() => expect(api.lookupStudent).toHaveBeenCalledWith('SV20120001'));
+    await waitFor(() => expect(api.lookupStudent).toHaveBeenCalledWith('SV20120001'), { timeout: 3000 });
   });
 });
