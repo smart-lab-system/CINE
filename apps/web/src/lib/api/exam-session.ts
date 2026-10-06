@@ -103,8 +103,20 @@ export interface ExamSessionListItem {
   name: string;
   code: string;
   courseName: string;
-  className: string;
+  /**
+   * Nhãn gộp của lớp, `DHKTPM18A – Nhóm 1` (view `class_label` ở server). Từng là `className` — tên lớp là một cột, nay là biểu thức của
+   * mã lớp danh nghĩa + nhóm, nên đổi mã một lần là mọi nơi đổi theo.
+   */
+  classLabel: string;
+  /**
+   * Học kỳ HIỆN TẠI của lớp (`class.semester_id`), nguồn của bộ lọc Năm học → Học kỳ. `null` chỉ với lớp cũ chưa backfill. KHÁC
+   * `semesterName` bên dưới: cái này là khoá để LỌC, cái kia là chữ đã chụp để IN.
+   */
+  semesterId: string | null;
+  academicYear: number | null;
+  term: number | null;
   roomName: string;
+  /** Nhãn học kỳ CHỤP lúc tạo phiên (CLAUDE.md §7.1.5) — bảng điểm in chữ này; không đổi khi admin sửa học kỳ. */
   semesterName: string;
   examType: ExamType;
   startTime: string;
@@ -170,12 +182,13 @@ export interface SearchExamSessionsParams {
   status?: ExamSessionStatusFilter;
   examType?: ExamType;
   /**
-   * Học kỳ mà phiên tự khai. Bỏ trống = tất cả học kỳ.
+   * Học kỳ của LỚP (khoá), không phải chữ đã chụp trên phiên. Bỏ trống = tất cả học kỳ.
    *
-   * `undefined`, KHÔNG phải `null`: openapi-fetch serialize null thành
-   * `?semesterName=` và @Length ở backend sẽ trả 400 cho chuỗi rỗng đó.
+   * `undefined`, KHÔNG phải `null`: openapi-fetch serialize null thành `?semesterId=` và `@IsUUID` ở backend sẽ trả 400 cho chuỗi rỗng đó.
    */
-  semesterName?: string;
+  semesterId?: string;
+  /** Năm học (2026 nghĩa là 2026-2027): cả ba kỳ của năm đó. AND với `semesterId` nếu cả hai có mặt. */
+  academicYear?: number;
   /**
    * Lớp của phiên. Bỏ trống = mọi lớp.
    *
@@ -235,29 +248,18 @@ export async function createExamSession(
  */
 export async function listExamSessionsInRange(
   params: SearchExamSessionsParams & { from: string; to: string },
-): Promise<{ items: ExamSessionListItem[]; total: number; semesterNames: string[] }> {
+): Promise<{ items: ExamSessionListItem[]; total: number }> {
   return listExamSessions(params);
 }
 
-export async function listExamSessions(params: SearchExamSessionsParams): Promise<{
-  items: ExamSessionListItem[];
-  total: number;
-  /**
-   * MỌI học kỳ của giảng viên này, không chỉ các kỳ có trên trang đang
-   * xem và không chịu ảnh hưởng của bộ lọc đang bật — đây là nguồn cho
-   * dropdown. Một dropdown hẹp hơn thứ nó điều khiển là một lời nói dối.
-   */
-  semesterNames: string[];
-}> {
+export async function listExamSessions(
+  params: SearchExamSessionsParams,
+): Promise<{ items: ExamSessionListItem[]; total: number }> {
   const { data, error, response } = await apiClient.GET('/exam-sessions', {
     params: { query: params },
   });
   await throwIfFailed(error, response);
-  return data as unknown as {
-    items: ExamSessionListItem[];
-    total: number;
-    semesterNames: string[];
-  };
+  return data as unknown as { items: ExamSessionListItem[]; total: number };
 }
 
 /**
