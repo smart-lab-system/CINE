@@ -61,6 +61,17 @@ export function ImportReview({
 
   return (
     <div className="flex flex-col gap-4">
+      {!nothingChanges && (
+        <Alert variant="warning">
+          <TriangleAlert />
+          <AlertDescription>
+            <strong>Kiểm tra kỹ lớp và danh sách sinh viên trước khi xác nhận.</strong> Hãy chắc rằng bạn đang nhập đúng lớp (tên lớp
+            ở đầu trang) và đúng file. Nhập nhầm lớp sẽ thêm sinh viên vào sai lớp; và nếu tên trong file khác tên đã lưu thì tên đó được đổi
+            ở mọi lớp của sinh viên.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Badge variant="success">
           <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />

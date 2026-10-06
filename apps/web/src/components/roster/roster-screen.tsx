@@ -1,10 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CircleCheckBig, FileSpreadsheet, Trash2, Upload, UserPlus, Users } from 'lucide-react';
+import { FileSpreadsheet, Trash2, Upload, UserPlus, Users } from 'lucide-react';
 import { EmptyState } from '@/components/layout/empty-state';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -46,6 +45,8 @@ import {
 import type { RosterImportResult } from '@/lib/api/roster';
 import { ColumnMapper } from '@/components/roster/column-mapper';
 import { ImportReview } from '@/components/roster/import-review';
+import { AddStudentForm } from '@/components/roster/add-student-form';
+import { ImportResultAlert } from '@/components/roster/import-result-alert';
 
 const DEFAULT_MAPPING: ColumnMapping = { headerRows: 1, mssvColumn: 0, nameColumn: 1 };
 
@@ -84,7 +85,6 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
   const [mapping, setMapping] = useState<ColumnMapping>(DEFAULT_MAPPING);
   const [removeMissing, setRemoveMissing] = useState(false);
   const [result, setResult] = useState<RosterImportResult | null>(null);
-  const [manual, setManual] = useState({ mssv: '', name: '' });
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
 
   const rows = sheets?.[sheetIndex]?.rows ?? null;
@@ -144,16 +144,7 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
 
   return (
     <>
-      {result && (
-        <Alert variant="success">
-          <CircleCheckBig />
-          <AlertDescription>
-            Đã nhập xong: thêm {result.added}, cập nhật {result.updated}, giữ nguyên{' '}
-            {result.unchanged}
-            {result.removed > 0 ? `, xoá ${result.removed}` : ''}.
-          </AlertDescription>
-        </Alert>
-      )}
+      {result && <ImportResultAlert result={result} />}
 
       {canEdit && (
         <Card>
@@ -256,50 +247,15 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
               Thêm thủ công một sinh viên
             </CardTitle>
             <CardDescription>
-              Cho trường hợp chuyển lớp muộn hoặc sửa sót — không phải gửi lại cả file.
+              Cho trường hợp chuyển lớp muộn hoặc sửa sót — không phải gửi lại cả file. Gõ MSSV là tự hiện tên đã lưu.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {addStudent.isError && (
-              <Alert variant="destructive">
-                <AlertDescription>{addStudent.error.message}</AlertDescription>
-              </Alert>
-            )}
-            <form
-              className="flex flex-col gap-3 sm:flex-row sm:items-end"
-              onSubmit={(event) => {
-                event.preventDefault();
-                addStudent.mutate(
-                  { mssv: manual.mssv.trim(), name: manual.name.trim() },
-                  { onSuccess: () => setManual({ mssv: '', name: '' }) },
-                );
-              }}
-            >
-              <div className="flex w-full flex-col gap-1.5 sm:w-52">
-                <Label htmlFor="manual-mssv">MSSV</Label>
-                <Input
-                  id="manual-mssv"
-                  required
-                  className="font-mono"
-                  placeholder="vd: SV20120001"
-                  value={manual.mssv}
-                  onChange={(event) => setManual({ ...manual, mssv: event.target.value })}
-                />
-              </div>
-              <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor="manual-name">Họ và tên</Label>
-                <Input
-                  id="manual-name"
-                  required
-                  placeholder="vd: Nguyễn Văn A"
-                  value={manual.name}
-                  onChange={(event) => setManual({ ...manual, name: event.target.value })}
-                />
-              </div>
-              <Button type="submit" loading={addStudent.isPending} className="shrink-0">
-                Thêm
-              </Button>
-            </form>
+          <CardContent>
+            <AddStudentForm
+              submitting={addStudent.isPending}
+              error={addStudent.isError ? addStudent.error : null}
+              onSubmit={(student) => addStudent.mutateAsync(student)}
+            />
           </CardContent>
         </Card>
       )}
