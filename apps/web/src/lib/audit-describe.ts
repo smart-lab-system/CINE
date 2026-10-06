@@ -21,6 +21,12 @@ export interface DescribableEntry {
   /** `null` khi giá trị vượt 4 KB và bị cắt ở API. */
   oldValue: Record<string, unknown> | null;
   newValue: Record<string, unknown> | null;
+  /**
+   * Cờ của API: `true` nghĩa là `null` ở vế tương ứng là "bị cắt", KHÔNG phải "không có giá trị". Tuỳ chọn để nơi gọi không có cờ
+   * (test, nơi khác) vẫn dùng được; thiếu cờ thì coi là không bị cắt.
+   */
+  oldValueTruncated?: boolean;
+  newValueTruncated?: boolean;
 }
 
 type Describer = (entry: DescribableEntry) => string;
@@ -229,7 +235,17 @@ function fallback(entry: DescribableEntry): string {
   return changes ? `${head}: ${changes}` : head;
 }
 
+/**
+ * Khi một vế bị cắt, câu của hành động không dựng được: nó đọc `null` thành "—" và nói sai sự thật ("thêm —, cập nhật —", "6,00 → —").
+ * Nói thẳng là nội dung quá lớn, kèm hành động và đối tượng để vẫn biết dòng này là gì. Chi tiết vẫn không có ở bất cứ đâu trên
+ * giao diện (cái trần là của API, spec T-AUD-4); riêng lô import lớp thì phía ghi đã chặn danh sách theo byte nên hiếm khi tới đây.
+ */
+function truncatedSentence(entry: DescribableEntry): string {
+  return `${entry.action} · ${entry.targetType} ${targetOf(entry)} — nội dung vượt 4 KB nên không hiện được`;
+}
+
 export function describeAuditEntry(entry: DescribableEntry): string {
+  if (entry.oldValueTruncated || entry.newValueTruncated) return truncatedSentence(entry);
   const describer = DESCRIBERS[entry.action];
   return describer ? describer(entry) : fallback(entry);
 }

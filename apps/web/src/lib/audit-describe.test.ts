@@ -367,3 +367,38 @@ describe('describeAuditEntry — dữ liệu nền', () => {
     expect(describeAuditEntry(entry('room.update', null, null))).toBe('Sửa phòng 9f8e7d6c…');
   });
 });
+
+describe('describeAuditEntry — giá trị bị cắt ở API (review B+G1 I4)', () => {
+  // API trả `null` kèm cờ khi một giá trị vượt 4 KB (spec T-AUD-4). Câu mô tả đọc `null` thành "—" — mà "—" nghĩa là "không có giá trị",
+  // không phải "giá trị quá lớn để hiện": "Nhập lớp từ file: thêm —, cập nhật —" và "Sửa điểm …: 6,00 → —" nói sai sự thật.
+  const SENTENCE_TAIL = ' — nội dung vượt 4 KB nên không hiện được';
+
+  it('vế mới bị cắt: nói thẳng là quá lớn thay vì in "—" như thể giá trị rỗng', () => {
+    const truncated = { ...entry('class.import', null, null), newValueTruncated: true };
+    expect(describeAuditEntry(truncated)).toBe(`class.import · class 9f8e7d6c…${SENTENCE_TAIL}`);
+  });
+
+  it('vế cũ bị cắt cũng vậy, dù vế mới còn nguyên', () => {
+    const truncated = {
+      ...entry('room.update', null, { targetLabel: 'H3.03', capacity: 45 }),
+      oldValueTruncated: true,
+    };
+    expect(describeAuditEntry(truncated)).toBe(`room.update · room H3.03${SENTENCE_TAIL}`);
+  });
+
+  it('điểm sửa sau công bố có ghi chú riêng rất dài: không in "6,00 → —" và vẫn không lộ ghi chú', () => {
+    const truncated = {
+      ...entry('grading_result.score_edited_after_finalize', { finalScore: 6 }, null),
+      newValueTruncated: true,
+    };
+    const text = describeAuditEntry(truncated);
+    expect(text).toContain('nội dung vượt 4 KB');
+    expect(text).not.toContain('→ —');
+  });
+
+  it('không có cờ (hoặc cờ false): câu của hành động giữ nguyên', () => {
+    const plain = entry('room.delete', { targetLabel: 'H3.03', capacity: 40 }, null);
+    expect(describeAuditEntry(plain)).toBe('Xoá phòng H3.03');
+    expect(describeAuditEntry({ ...plain, oldValueTruncated: false, newValueTruncated: false })).toBe('Xoá phòng H3.03');
+  });
+});

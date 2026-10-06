@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { AUDIT_VALUE_CAP_BYTES } from '../src/admin/audit-log-query';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { semesterLabel } from '../src/common/semester-label';
@@ -602,6 +603,37 @@ describe('Import dữ liệu nền (e2e)', () => {
       expect(audit.new_value.reassigned).toEqual([
         { label: `${code} – Nhóm 7 · ${semesterText}`, from: mine.name, to: heir.name },
       ]);
+    });
+
+    it('review B+G1 I4: lô lớn đổi giảng viên để lại dòng audit DƯỚI trần 4 KB của trang audit (vượt thì trang trả null và câu mô tả mất số đếm); tổng số vẫn đủ', async () => {
+      const from = await teacher('locu');
+      const to = await teacher('lomoi');
+      const code = `${RUN}KLBULK`;
+      await importTo('/administrative-classes/import', [{ line: 2, code }], { dryRun: false }).expect(200);
+      const [{ id: administrativeClassId }] = await ds.query(
+        `SELECT id FROM examcollect.administrative_class WHERE code = $1`,
+        [code],
+      );
+      // 40 lớp: danh sách KHÔNG cắt sẽ vượt 4096 B (35 mục cỡ thường là đủ — đo ở Postgres), và vẫn dưới trần 50 mục cũ.
+      const total = 40;
+      const rows = [];
+      for (let n = 1; n <= total; n++) {
+        await seedClass(ds, { teacherId: from.id, semesterId, administrativeClassId, groupName: `Nhóm ${n}` });
+        rows.push(cls(n + 1, semesterText, code, `Nhóm ${n}`, to.email));
+      }
+
+      await importTo('/classes/import', rows, { dryRun: false }).expect(200);
+
+      const [row] = await ds.query(
+        `SELECT new_value, octet_length(new_value::text) AS bytes FROM examcollect.audit_log
+          WHERE action = 'class.import' AND actor_id = $1 ORDER BY occurred_at DESC LIMIT 1`,
+        [adminId],
+      );
+      expect(row.new_value).toMatchObject({ added: 0, updated: total, reassignedTotal: total });
+      expect(row.new_value.reassigned.length).toBeGreaterThanOrEqual(15); // vẫn đủ chi tiết để điều tra
+      expect(row.new_value.reassigned.length).toBeLessThan(total); // và đã được cắt
+      // Đo bằng cách Postgres IN jsonb (có khoảng trắng sau dấu `:` và `,`) — cũng là cách trang audit đo để quyết định cắt.
+      expect(Number(row.bytes)).toBeLessThan(AUDIT_VALUE_CAP_BYTES);
     });
 
     it('một dòng lỗi giữa các lớp tốt: không lớp nào được ghi (Review Focus 2)', async () => {

@@ -16,6 +16,7 @@ import { RoomEntity } from './entities/room.entity';
 import { SemesterEntity } from './entities/semester.entity';
 import { runImport } from './import/import-runner';
 import type { ImportResult } from './import/import.types';
+import { reassignedAuditExtra } from './import/reassigned-audit';
 import {
   planAdministrativeClassImport,
   type AdministrativeClassWrite,
@@ -155,15 +156,14 @@ export class MasterDataImportService {
           }
         }
       },
-      // Đổi giảng viên là thứ duy nhất trong lô có hệ quả về QUYỀN, nên audit nêu rõ ai bị đổi (cắt ở 50 mục; tổng số luôn có).
-      auditExtra: (plan) => {
-        const reassigned = plan.writes
-          .filter((w): w is Extract<ClassWrite, { kind: 'reassign' }> => w.kind === 'reassign')
-          .map((w) => ({ label: w.label, from: w.fromTeacherName, to: w.toTeacherName }));
-        return reassigned.length === 0
-          ? {}
-          : { reassigned: reassigned.slice(0, 50), reassignedTotal: reassigned.length };
-      },
+      // Đổi giảng viên là thứ duy nhất trong lô có hệ quả về QUYỀN, nên audit nêu rõ ai bị đổi (cắt theo BYTE để cả dòng còn dưới trần
+      // 4 KB của trang audit; tổng số luôn có) — xem `reassignedAuditExtra`.
+      auditExtra: (plan) =>
+        reassignedAuditExtra(
+          plan.writes
+            .filter((w): w is Extract<ClassWrite, { kind: 'reassign' }> => w.kind === 'reassign')
+            .map((w) => ({ label: w.label, from: w.fromTeacherName, to: w.toTeacherName })),
+        ),
     });
   }
 

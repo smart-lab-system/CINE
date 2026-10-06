@@ -147,6 +147,16 @@ describe('AuditLogPage hiển thị', () => {
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết/i }));
     expect(screen.getByText(/quá lớn/i)).toBeInTheDocument();
   });
+
+  it('dòng có giá trị bị cắt: CÂU ở danh sách cũng nói là quá lớn, không in "—" (cờ chảy từ bảng vào câu mô tả; review B+G1 I4)', () => {
+    useAuditLogMock.mockReturnValue(
+      page([{ ...ENTRY, action: 'class.import', targetType: 'class', oldValue: null, newValue: null, newValueTruncated: true }]),
+    );
+    render(<AuditLogPage />);
+    const row = screen.getByRole('row', { name: /Admin A/ });
+    expect(within(row).getByText(/nội dung vượt 4 KB nên không hiện được/)).toBeInTheDocument();
+    expect(within(row).queryByText(/thêm —/)).not.toBeInTheDocument();
+  });
 });
 
 describe('AuditLogPage bộ lọc', () => {
