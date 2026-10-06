@@ -118,10 +118,13 @@ describe('ImportWizard', () => {
     setup(run);
     pick();
 
-    const confirm = await screen.findByRole('button', { name: /xác nhận nhập/i });
+    // Nút "Xác nhận nhập" đã có (đang tắt) TRƯỚC khi bản xem trước kèm mục gần giống được dựng, nên chờ nút rồi lấy ô tick đồng bộ là một cuộc đua: trượt
+    // khi máy tải nặng (chạy cả bộ). Chờ chính ô tick — nó chỉ xuất hiện cùng bản xem trước — rồi mới lấy nút.
+    const similarAck = await screen.findByRole('checkbox', { name: /đúng là những phòng khác nhau/i });
+    const confirm = screen.getByRole('button', { name: /xác nhận nhập/i });
     expect(confirm).toBeDisabled();
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /đúng là những phòng khác nhau/i }));
+    fireEvent.click(similarAck);
     expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
 
