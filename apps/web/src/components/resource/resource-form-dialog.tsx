@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { NearDuplicateError } from '@/lib/api/http-error';
 
 interface ResourceFormDialogProps {
   open: boolean;
@@ -21,6 +22,11 @@ interface ResourceFormDialogProps {
   error: Error | null;
   onSubmit: () => Promise<unknown>;
   children: ReactNode;
+  /**
+   * `false` tắt nút gửi — cho biểu mẫu có ô CHỌN không dùng được thuộc tính `required` của trình duyệt (Radix Select). Mặc định
+   * `true`: người gọi cũ giữ nguyên hành vi.
+   */
+  canSubmit?: boolean;
 }
 
 /**
@@ -45,6 +51,7 @@ export function ResourceFormDialog({
   error,
   onSubmit,
   children,
+  canSubmit = true,
 }: ResourceFormDialogProps) {
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -63,7 +70,9 @@ export function ResourceFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {error && (
+          {/* `NearDuplicateError` là LỜI NHẮC chứ không phải lỗi: trang vẽ `NearDuplicateNotice` trong nội dung biểu mẫu. Vẽ thêm
+              một Alert đỏ ở đây là cho người dùng thấy cùng một việc hai lần với hai mức độ nghiêm trọng khác nhau. */}
+          {error && !(error instanceof NearDuplicateError) && (
             <Alert variant="destructive">
               <AlertDescription>{error.message}</AlertDescription>
             </Alert>
@@ -80,7 +89,7 @@ export function ResourceFormDialog({
             >
               Huỷ
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || !canSubmit}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               {submitLabel}
             </Button>

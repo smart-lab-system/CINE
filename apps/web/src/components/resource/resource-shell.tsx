@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { Pencil, Plus, Trash2, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,6 +53,18 @@ interface ResourceShellProps<T> {
    * that needs one.
    */
   headerActions?: ReactNode;
+  /**
+   * Ô tìm và bộ lọc, giữa tiêu đề và bảng. Luôn vẽ — kể cả khi danh sách rỗng: nếu bộ lọc biến mất cùng các hàng thì một bộ lọc
+   * quá chặt là ngõ cụt, chính cái ô để nới nó lại không còn.
+   */
+  filters?: ReactNode;
+  /**
+   * Gom các hàng LIỀN NHAU có cùng khoá dưới một dòng tiêu đề nhóm (vd học kỳ theo năm học). Khung KHÔNG sắp xếp: hàng phải đã nằm
+   * theo nhóm, nếu không một nhóm bị tách làm hai và tiêu đề của nó hiện hai lần.
+   */
+  groupBy?: { key: (row: T) => string; label: (key: string) => string };
+  /** Tô riêng từng hàng — vd mờ đi một phòng đã ngừng hoạt động. */
+  rowClassName?: (row: T) => string | undefined;
 }
 
 /**
@@ -83,6 +95,9 @@ export function ResourceShell<T>({
   children,
   rowActions,
   headerActions,
+  filters,
+  groupBy,
+  rowClassName,
 }: ResourceShellProps<T>) {
   return (
     <div className="flex flex-col gap-6">
@@ -105,6 +120,8 @@ export function ResourceShell<T>({
           <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       )}
+
+      {filters}
 
       <Card className="overflow-hidden">
         <CardHeader className="border-b border-border bg-surface-2/60">
@@ -142,37 +159,54 @@ export function ResourceShell<T>({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={rowKey(row)}>
-                      {columns.map((column) => (
-                        <TableCell
-                          key={column.label}
-                          className={column.tight ? 'whitespace-nowrap' : undefined}
-                        >
-                          {column.render(row)}
-                        </TableCell>
-                      ))}
-                      <TableCell className="whitespace-nowrap text-right">
-                        {rowActions?.(row)}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onEdit(row)}
-                          aria-label="Sửa"
-                        >
-                          <Pencil className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onDelete(row)}
-                          aria-label="Xoá"
-                        >
-                          <Trash2 className="h-4 w-4 text-danger-strong" aria-hidden="true" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {rows.map((row, index) => {
+                    const key = groupBy ? groupBy.key(row) : null;
+                    const startsGroup =
+                      groupBy !== undefined && (index === 0 || groupBy.key(rows[index - 1]) !== key);
+                    return (
+                      <Fragment key={rowKey(row)}>
+                        {startsGroup && groupBy && key !== null && (
+                          <TableRow className="bg-surface-2/60 hover:bg-surface-2/60">
+                            <TableCell
+                              colSpan={columns.length + 1}
+                              className="py-2 text-caption font-semibold uppercase tracking-wide text-muted-foreground"
+                            >
+                              {groupBy.label(key)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        <TableRow className={rowClassName?.(row)}>
+                          {columns.map((column) => (
+                            <TableCell
+                              key={column.label}
+                              className={column.tight ? 'whitespace-nowrap' : undefined}
+                            >
+                              {column.render(row)}
+                            </TableCell>
+                          ))}
+                          <TableCell className="whitespace-nowrap text-right">
+                            {rowActions?.(row)}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onEdit(row)}
+                              aria-label="Sửa"
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onDelete(row)}
+                              aria-label="Xoá"
+                            >
+                              <Trash2 className="h-4 w-4 text-danger-strong" aria-hidden="true" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
