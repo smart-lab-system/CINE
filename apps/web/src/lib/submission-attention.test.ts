@@ -308,6 +308,51 @@ describe('groupByClass', () => {
     expect(groups.find((g) => g.classLabel === 'N05')!.attentionCount).toBe(0);
   });
 
+  // Cùng lớp danh nghĩa + nhóm học ở hai học kỳ là hai LỚP (hai classId) cùng nhãn — kỳ nào cũng có. Bộ lọc mặc định là "Tất cả học kỳ"
+  // nên cả hai nhóm cùng hiện, và hai tiêu đề y hệt nhau không cho giảng viên biết nhóm nào là kỳ nào (điểm chưa đồng nhất đã biết của
+  // roadmap §8, vá ở G3c bằng cùng luật `tellApart` của G3d).
+  describe('hai lớp CÙNG nhãn ở hai học kỳ (tellApart)', () => {
+    const twoTerms = () => [
+      make({ id: 'a', classId: 'k-2025', classLabel: 'DHKTPM18A – Nhóm 1', semesterId: 's-2025', academicYear: 2025, term: 1 }),
+      make({ id: 'b', classId: 'k-2026', classLabel: 'DHKTPM18A – Nhóm 1', semesterId: 's-2026', academicYear: 2026, term: 1 }),
+      make({ id: 'c', classId: 'k-other', classLabel: 'DHKTPM18B – Nhóm 1', semesterId: 's-2026', academicYear: 2026, term: 1 }),
+    ];
+
+    it('vẫn là hai nhóm (khoá classId) và tiêu đề gắn học kỳ để phân biệt; nhãn KHÔNG trùng thì giữ gọn', () => {
+      const groups = groupByClass(twoTerms(), NOW);
+
+      expect(groups.map((g) => g.key).sort()).toEqual(['k-2025', 'k-2026', 'k-other']);
+      expect(groups.map((g) => g.classLabel).sort()).toEqual([
+        'DHKTPM18A – Nhóm 1 · HK1 2025-2026',
+        'DHKTPM18A – Nhóm 1 · HK1 2026-2027',
+        'DHKTPM18B – Nhóm 1',
+      ]);
+    });
+
+    it('một lớp trùng nhãn mà chưa có học kỳ (lớp cũ) vẫn được phân biệt, không nổ', () => {
+      const groups = groupByClass(
+        [
+          make({ id: 'a', classId: 'k-old', classLabel: 'N01', semesterId: null, academicYear: null, term: null }),
+          make({ id: 'b', classId: 'k-new', classLabel: 'N01', semesterId: 's-2026', academicYear: 2026, term: 1 }),
+        ],
+        NOW,
+      );
+      expect(groups.map((g) => g.classLabel).sort()).toEqual(['N01 · Chưa gán học kỳ', 'N01 · HK1 2026-2027']);
+    });
+
+    it('hai phiên CÙNG lớp (cùng classId) không làm nhãn bị coi là trùng', () => {
+      const groups = groupByClass(
+        [
+          make({ id: 'a', classId: 'k-1', classLabel: 'N01', semesterId: 's-2026', academicYear: 2026, term: 1 }),
+          make({ id: 'b', classId: 'k-1', classLabel: 'N01', semesterId: 's-2026', academicYear: 2026, term: 1 }),
+        ],
+        NOW,
+      );
+      expect(groups).toHaveLength(1);
+      expect(groups[0].classLabel).toBe('N01');
+    });
+  });
+
   it('hai lớp KHÁC tên nhưng cùng môn vẫn là hai nhóm', () => {
     // Tầng "môn" đã bỏ khỏi khoá gộp. Test này khoá lại điều đó: nếu ai đó
     // đưa `courseName` trở lại khoá thì hai lớp cùng môn sẽ dính làm một.

@@ -19,6 +19,8 @@ interface SemesterYearFilterProps {
   selection: SemesterSelection;
   onYearChange: (year: number | null) => void;
   onSemesterChange: (semesterId: string | null) => void;
+  /** Xếp dọc, ô rộng hết bề ngang — cho cột lọc hẹp. Mặc định: hai ô cạnh nhau từ màn hình sm trở lên. */
+  stacked?: boolean;
 }
 
 /**
@@ -36,17 +38,18 @@ export function SemesterYearFilter({
   selection,
   onYearChange,
   onSemesterChange,
+  stacked = false,
 }: SemesterYearFilterProps) {
   const years = academicYearOptions(semesters);
   const terms = termOptions(semesters, selection.academicYear);
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row">
+    <div className={stacked ? 'flex flex-col gap-2' : 'flex flex-col gap-2 sm:flex-row'}>
       <Select
         value={selection.academicYear === null ? 'all' : String(selection.academicYear)}
         onValueChange={(value) => onYearChange(value === 'all' ? null : Number(value))}
       >
-        <SelectTrigger className="sm:w-44" aria-label="Lọc theo năm học">
+        <SelectTrigger className={stacked ? 'w-full' : 'sm:w-44'} aria-label="Lọc theo năm học">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -63,7 +66,7 @@ export function SemesterYearFilter({
         value={selection.semesterId ?? 'all'}
         onValueChange={(value) => onSemesterChange(value === 'all' ? null : value)}
       >
-        <SelectTrigger className="sm:w-52" aria-label="Lọc theo học kỳ">
+        <SelectTrigger className={stacked ? 'w-full' : 'sm:w-52'} aria-label="Lọc theo học kỳ">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

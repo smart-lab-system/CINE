@@ -91,4 +91,18 @@ describe('SemesterYearFilter', () => {
     fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo năm học' }));
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Tất cả năm học']);
   });
+
+  it('stacked: hai ô xếp dọc và rộng hết bề ngang (cho cột lọc hẹp), mặc định giữ nguyên bố cục ngang', () => {
+    const { container, rerender } = render(
+      <SemesterYearFilter semesters={SEMESTERS} selection={ALL_SEMESTERS} onYearChange={vi.fn()} onSemesterChange={vi.fn()} />,
+    );
+    expect(container.firstElementChild).toHaveClass('sm:flex-row');
+
+    rerender(
+      <SemesterYearFilter semesters={SEMESTERS} selection={ALL_SEMESTERS} onYearChange={vi.fn()} onSemesterChange={vi.fn()} stacked />,
+    );
+    expect(container.firstElementChild).not.toHaveClass('sm:flex-row');
+    expect(screen.getByRole('combobox', { name: 'Lọc theo năm học' })).toHaveClass('w-full');
+    expect(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' })).toHaveClass('w-full');
+  });
 });

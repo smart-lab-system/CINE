@@ -264,3 +264,32 @@ describe('lọc theo HỌC KỲ — bằng khoá, không bằng chuỗi (Review 
     expect(buildFacets(bySemester, EMPTY_FILTERS, NOW)).not.toHaveProperty('semesters');
   });
 });
+
+describe('buildFacets — danh sách LỚP khi hai lớp cùng nhãn ở hai học kỳ (tellApart)', () => {
+  const items = [
+    make({ id: 'a', classId: 'k-2025', classLabel: 'DHKTPM18A – Nhóm 1', semesterId: 's-2025', academicYear: 2025, term: 1 }),
+    make({ id: 'b', classId: 'k-2026', classLabel: 'DHKTPM18A – Nhóm 1', semesterId: 's-2026', academicYear: 2026, term: 1 }),
+    make({ id: 'c', classId: 'k-other', classLabel: 'DHKTPM18B – Nhóm 1', semesterId: 's-2026', academicYear: 2026, term: 1 }),
+  ];
+
+  it('hai lựa chọn cùng nhãn được gắn học kỳ để phân biệt; khoá vẫn là classId; nhãn không trùng giữ gọn', () => {
+    const { classes } = buildFacets(items, EMPTY_FILTERS, NOW);
+
+    expect(classes.map((o) => [o.value, o.label])).toEqual([
+      ['k-2025', 'DHKTPM18A – Nhóm 1 · HK1 2025-2026'],
+      ['k-2026', 'DHKTPM18A – Nhóm 1 · HK1 2026-2027'],
+      ['k-other', 'DHKTPM18B – Nhóm 1'],
+    ]);
+  });
+
+  it('sắp lại theo nhãn MỚI: kỳ cũ trước kỳ mới dù dòng của kỳ mới đến trước', () => {
+    // `countBy` sắp theo nhãn GỐC (hai lớp trùng nhãn nên giữ thứ tự dòng đến); sau khi gắn học kỳ, thứ tự phải đọc theo nhãn mới.
+    const { classes } = buildFacets([items[1], items[0], items[2]], EMPTY_FILTERS, NOW);
+    expect(classes.map((o) => o.value)).toEqual(['k-2025', 'k-2026', 'k-other']);
+  });
+
+  it('không có nhãn trùng thì KHÔNG gắn học kỳ vào đâu cả', () => {
+    const { classes } = buildFacets([items[0], items[2]], EMPTY_FILTERS, NOW);
+    expect(classes.map((o) => o.label)).toEqual(['DHKTPM18A – Nhóm 1', 'DHKTPM18B – Nhóm 1']);
+  });
+});

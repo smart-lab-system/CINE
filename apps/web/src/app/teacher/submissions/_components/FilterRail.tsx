@@ -5,7 +5,8 @@ import { X } from 'lucide-react';
 import type { AttentionKind } from '@/lib/submission-attention';
 import type { FacetOption, FilterState } from '@/lib/submission-filters';
 import { EMPTY_FILTERS } from '@/lib/submission-filters';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SemesterYearFilter } from '@/components/layout/semester-year-filter';
+import { selectSemester, selectYear, type SemesterRef } from '@/lib/semester-filter';
 import { cn } from '@/lib/utils';
 
 const KIND_DOT: Record<string, string> = {
@@ -55,8 +56,9 @@ function FacetRow({
 }
 
 interface FilterRailProps {
+  /** Từ bảng học kỳ (`useSemesters`), KHÔNG từ các dòng đã tải. */
+  semesters: readonly SemesterRef[];
   facets: {
-    semesters: FacetOption[];
     kinds: FacetOption[];
     examTypes: FacetOption[];
     rooms: FacetOption[];
@@ -74,7 +76,7 @@ interface FilterRailProps {
  * biệt so với bản trước — dải "Cần chú ý" cũ lặp lại chính những phiên nằm
  * trong nhóm bên dưới, và giảng viên đọc thành "đếm hai lần". Spec §5.1.
  */
-export function FilterRail({ facets, filters, onChange, attentionTotal }: FilterRailProps) {
+export function FilterRail({ semesters, facets, filters, onChange, attentionTotal }: FilterRailProps) {
   const hasActive =
     filters.kinds.length > 0 || filters.complete ||
     filters.examTypes.length > 0 || filters.rooms.length > 0 ||
@@ -83,30 +85,22 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
 
   return (
     <aside className="flex flex-col gap-1 rounded-xl border border-border bg-surface-1 p-3 lg:sticky lg:top-4">
-      {/* Ngưỡng là > 0, KHÔNG phải > 1 như `rooms`/`examTypes`. Quy tắc
-          "một lựa chọn là nhiễu" đúng cho một thuộc tính của phiên, nhưng
-          học kỳ là chiều THỜI GIAN mà giảng viên đang đứng trong đó: ẩn ô
-          này khi họ mới dạy một kỳ khiến họ đọc thành "chức năng lọc theo
-          học kỳ đã bị gỡ" — chính phản hồi đã dẫn tới thay đổi này
-          (2026-09-15). Ô cũng là chỗ duy nhất nói ra rằng trang đang bị
-          hẹp về một kỳ, vì học kỳ cố ý không tính vào `hasActive` bên
-          dưới và nút "Xoá tất cả bộ lọc" cố ý giữ nó lại. */}
-      {facets.semesters.length > 0 && (
-        <Section title="Học kỳ">
-          <Select
-            value={filters.semesterName ?? 'all'}
-            onValueChange={(v) => onChange({ ...filters, semesterName: v === 'all' ? null : v })}
-          >
-            <SelectTrigger aria-label="Lọc theo học kỳ"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả học kỳ</SelectItem>
-              {facets.semesters.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Section>
-      )}
+      {/* LUÔN hiện, không theo luật "một lựa chọn là nhiễu" của `rooms`/`examTypes`: học kỳ là chiều THỜI GIAN mà giảng viên đang đứng trong
+          đó, và ô này là chỗ duy nhất nói ra rằng trang đang hẹp về một kỳ (học kỳ cố ý không tính vào `hasActive` bên dưới và nút "Xoá tất
+          cả bộ lọc" cố ý giữ nó lại). Lựa chọn lấy từ BẢNG học kỳ, nên một kỳ chưa có phiên nào vẫn chọn được. */}
+      <Section title="Học kỳ">
+        <SemesterYearFilter
+          stacked
+          semesters={semesters}
+          selection={filters.semester}
+          onYearChange={(year) =>
+            onChange({ ...filters, semester: selectYear(filters.semester, year, semesters) })
+          }
+          onSemesterChange={(id) =>
+            onChange({ ...filters, semester: selectSemester(id, filters.semester, semesters) })
+          }
+        />
+      </Section>
 
       <Section title="Cần chú ý">
         <p className="mb-2 flex items-baseline gap-2">
@@ -193,7 +187,7 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
       {hasActive && (
         <button
           type="button"
-          onClick={() => onChange({ ...EMPTY_FILTERS, semesterName: filters.semesterName })}
+          onClick={() => onChange({ ...EMPTY_FILTERS, semester: filters.semester })}
           className="mt-3 flex items-center gap-1 text-caption text-primary hover:underline"
         >
           <X className="h-3 w-3" aria-hidden="true" />

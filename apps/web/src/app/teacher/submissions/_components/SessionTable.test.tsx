@@ -43,6 +43,21 @@ function renderTable(items: SessionOverviewItem[]) {
 }
 
 describe('SessionTable — cấu trúc', () => {
+  it('hai lớp CÙNG nhãn ở hai học kỳ: hai tiêu đề nhóm đọc ra khác nhau (gắn học kỳ), không phải hai dòng y hệt', () => {
+    renderTable([
+      make({ id: 'a', classId: 'k-2025', classLabel: 'DHKTPM18A – Nhóm 1', semesterId: 's-2025', academicYear: 2025, term: 1 }),
+      make({ id: 'b', classId: 'k-2026', classLabel: 'DHKTPM18A – Nhóm 1', semesterId: 's-2026', academicYear: 2026, term: 1 }),
+    ]);
+    expect(screen.getByText('DHKTPM18A – Nhóm 1 · HK1 2025-2026')).toBeInTheDocument();
+    expect(screen.getByText('DHKTPM18A – Nhóm 1 · HK1 2026-2027')).toBeInTheDocument();
+  });
+
+  it('tiêu đề nhóm hiện nhãn lớp gộp, hoặc "Không gắn lớp" khi không có', () => {
+    renderTable([make({ id: 'a', classLabel: 'DHKTPM18A – Nhóm 1' }), make({ id: 'b', classId: 'k-none', classLabel: null })]);
+    expect(screen.getByText('DHKTPM18A – Nhóm 1')).toBeInTheDocument();
+    expect(screen.getByText('Không gắn lớp')).toBeInTheDocument();
+  });
+
   it('CẢ TRANG LÀ MỘT <table> — nhóm là dòng gộp cột bên trong', () => {
     const { container } = renderTable([
       make({ id: 'a' }),

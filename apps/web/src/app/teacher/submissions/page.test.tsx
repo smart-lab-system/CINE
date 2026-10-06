@@ -14,15 +14,12 @@ vi.mock('@/hooks/useSubmissionOverview', () => ({
   useCloseAttention: () => ({ mutate: closeMutate }),
 }));
 
-// Kỳ mặc định của trang giờ đến từ `useCurrentSemester` (GET /semesters)
-// thay vì tự suy từ các phiên. Mock ở mức hook, giống `useSessionOverview`
-// ngay trên — không mock thì nó gọi useQuery thật và nổ vì không có
-// QueryClientProvider. Mặc định trả kỳ của fixture bên dưới, nên hành vi
-// của mọi test cũ giữ nguyên.
-const useCurrentSemesterMock = vi.fn();
+// Danh sách học kỳ của bộ lọc đến từ BẢNG học kỳ qua `useSemesters` (không từ các dòng đã tải). Mock ở mức hook, giống `useSessionOverview`
+// ngay trên — không mock thì nó gọi useQuery thật và nổ vì không có QueryClientProvider.
+const useSemestersMock = vi.fn();
 
-vi.mock('@/hooks/useSemesterFilter', () => ({
-  useCurrentSemester: () => useCurrentSemesterMock(),
+vi.mock('@/hooks/useSemesters', () => ({
+  useSemesters: () => useSemestersMock(),
 }));
 
 vi.mock('next/link', () => ({
@@ -33,12 +30,10 @@ vi.mock('next/link', () => ({
 
 import SubmissionsPage from './page';
 
-const CURRENT_SEMESTER = {
-  id: 'sem-1',
-  name: 'Học kỳ 1 2026-2027',
-  startDate: '2026-08-01',
-  endDate: '2026-12-31',
-};
+const SEMESTERS = [
+  { id: 'sem-2', academicYearStart: 2026, term: 2, label: 'HK2 2026-2027', startDate: '', endDate: '' },
+  { id: 'sem-1', academicYearStart: 2026, term: 1, label: 'HK1 2026-2027', startDate: '', endDate: '' },
+];
 
 const HOUR = 3_600_000;
 
@@ -83,14 +78,8 @@ beforeEach(() => {
     error: null,
     refetch: vi.fn(),
   });
-  useCurrentSemesterMock.mockReset();
-  useCurrentSemesterMock.mockReturnValue({
-    current: CURRENT_SEMESTER,
-    semesters: [CURRENT_SEMESTER],
-    isLoading: false,
-    isStale: false,
-    staleDays: 0,
-  });
+  useSemestersMock.mockReset();
+  useSemestersMock.mockReturnValue({ data: SEMESTERS, isLoading: false, isSuccess: true });
 });
 
 describe('SubmissionsPage — trạng thái tải', () => {
@@ -297,5 +286,75 @@ describe('SubmissionsPage — search theo sinh viên', () => {
     expect(
       screen.queryByText(/Sinh viên chưa nộp gì sẽ không xuất hiện ở đây/),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('SubmissionsPage — bộ lọc học kỳ theo khoá', () => {
+  function twoSemesters() {
+    useSessionOverviewMock.mockReturnValue({
+      data: [
+        make({ id: 'k1', name: 'Phiên kỳ 1', semesterId: 'sem-1', academicYear: 2026, term: 1 }),
+        make({ id: 'k2', name: 'Phiên kỳ 2', semesterId: 'sem-2', academicYear: 2026, term: 2, classId: 'class-2', classLabel: 'N02' }),
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+  }
+
+  it('Review Focus 1: mặc định TẤT CẢ — hiện phiên của cả hai kỳ; chọn một kỳ thì phiên kỳ kia rơi ra', () => {
+    twoSemesters();
+    render(<SubmissionsPage />);
+    expect(screen.getByText('Phiên kỳ 1')).toBeInTheDocument();
+    expect(screen.getByText('Phiên kỳ 2')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
+    fireEvent.click(screen.getByRole('option', { name: 'HK2 2026-2027' }));
+
+    expect(screen.queryByText('Phiên kỳ 1')).not.toBeInTheDocument();
+    expect(screen.getByText('Phiên kỳ 2')).toBeInTheDocument();
+  });
+
+  it('Review Focus 4: kỳ KHÔNG có phiên nào trong danh sách vẫn chọn được (lựa chọn từ bảng học kỳ)', () => {
+    render(<SubmissionsPage />); // chỉ có phiên của sem-1; sem-2 không có dòng nào
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
+    expect(screen.getByRole('option', { name: 'HK2 2026-2027' })).toBeInTheDocument();
+  });
+
+  it('Review Focus 5: học kỳ vừa bị xoá thì lựa chọn tự về "Tất cả" thay vì cho ra danh sách rỗng', () => {
+    twoSemesters();
+    const view = render(<SubmissionsPage />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
+    fireEvent.click(screen.getByRole('option', { name: 'HK2 2026-2027' }));
+    expect(screen.queryByText('Phiên kỳ 1')).not.toBeInTheDocument();
+
+    useSemestersMock.mockReturnValue({ data: [SEMESTERS[1]], isLoading: false, isSuccess: true }); // sem-2 biến mất
+    view.rerender(<SubmissionsPage />);
+
+    expect(screen.getByText('Phiên kỳ 1')).toBeInTheDocument();
+    expect(screen.getByText('Phiên kỳ 2')).toBeInTheDocument();
+  });
+
+  it('danh sách học kỳ đang tải: KHÔNG dọn lựa chọn (rỗng vì chưa tải không phải bằng chứng kỳ đã xoá)', () => {
+    twoSemesters();
+    const view = render(<SubmissionsPage />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
+    fireEvent.click(screen.getByRole('option', { name: 'HK2 2026-2027' }));
+
+    useSemestersMock.mockReturnValue({ data: undefined, isLoading: true, isSuccess: false });
+    view.rerender(<SubmissionsPage />);
+
+    expect(screen.queryByText('Phiên kỳ 1')).not.toBeInTheDocument();
+  });
+
+  it('nhóm theo lớp hiện NHÃN GỘP', () => {
+    useSessionOverviewMock.mockReturnValue({
+      data: [make({ classLabel: 'DHKTPM18A – Nhóm 1' })],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    render(<SubmissionsPage />);
+    expect(screen.getByText('DHKTPM18A – Nhóm 1')).toBeInTheDocument();
   });
 });

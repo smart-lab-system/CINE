@@ -1,5 +1,6 @@
 import type { SessionOverviewItem } from './api/submissions';
-import { getAttentionReasons, type AttentionKind } from './submission-attention';
+import { getAttentionReasons, tellApart, type AttentionKind } from './submission-attention';
+import { semesterTextOf } from './master-data-forms';
 import { EXAM_TYPE_LABELS } from './exam-session-display';
 import { ALL_SEMESTERS, matchesSemester, type SemesterSelection } from './semester-filter';
 
@@ -132,6 +133,17 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
     (i) => i.classId,
     (i) => i.classLabel ?? 'Không gắn lớp',
   );
+  // Hai lớp cùng nhãn ở hai học kỳ là hai lựa chọn khác nhau (khoá classId) — gắn học kỳ vào nhãn khi trùng. Sắp lại sau khi đổi nhãn.
+  const semesterOfClass = new Map(forClasses.map((i) => [i.classId, i] as const));
+  tellApart(
+    classes,
+    (o) => o.label,
+    (o, label) => {
+      o.label = label;
+    },
+    (o) => semesterTextOf(semesterOfClass.get(o.value)!),
+  );
+  classes.sort((a, b) => a.label.localeCompare(b.label));
 
   // Một nhóm lọc chỉ có một lựa chọn là nhiễu — UI không render nó. Spec §4.3.
   const meaningful = (o: FacetOption[]) => (o.length > 1 ? o : []);

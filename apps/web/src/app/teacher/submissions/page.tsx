@@ -33,6 +33,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useSemesters } from '@/hooks/useSemesters';
+import { reconcileSelection } from '@/lib/semester-filter';
 import { FilterRail } from './_components/FilterRail';
 import { RoomFailureBanner } from './_components/RoomFailureBanner';
 import { SessionTable } from './_components/SessionTable';
@@ -78,7 +80,7 @@ function SearchResultRow({ item, now }: { item: SessionOverviewItem; now: number
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-muted-foreground">
         <span className="text-foreground">
-          {item.className ?? 'Không gắn lớp'}
+          {item.classLabel ?? 'Không gắn lớp'}
         </span>
         <span>{formatDateTime(item.startTime)}</span>
         <span>{item.roomName}</span>
@@ -133,14 +135,23 @@ export default function SubmissionsPage() {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const items = useMemo(() => data ?? [], [data]);
 
-  // KHÔNG gieo học kỳ mặc định nữa, và đó là một thay đổi hành vi thấy
-  // được: trang mở ra hiện TẤT CẢ các kỳ. Kỳ mặc định cũ tính từ
-  // `start_date`/`end_date` của bảng `semester`; bảng đó biến mất cùng đợt
-  // thu hẹp master data, và suy lại từ chính các phiên thi sẽ là đúng cái
-  // công thức song song mà chú thích cũ đã cảnh báo.
+  // Mặc định "Tất cả" ở mọi màn hình (spec §7.2): một bộ lọc mặc định đã che mất việc tồn đọng của kỳ cũ.
+  //
+  // Lựa chọn học kỳ lấy từ BẢNG học kỳ, không từ các dòng đã tải: một kỳ chưa có phiên nào vẫn phải chọn được. `reconcileSelection` là phép dẫn
+  // xuất (không phải effect ghi ngược): học kỳ vừa bị admin xoá tự về "Tất cả", và chỉ dọn khi danh sách ĐÃ tải — rỗng vì chưa tải không phải
+  // bằng chứng kỳ đã xoá.
+  const semesterQuery = useSemesters();
+  const semesterList = useMemo(() => semesterQuery.data ?? [], [semesterQuery.data]);
+  const effectiveFilters = useMemo<FilterState>(
+    () =>
+      semesterQuery.isSuccess
+        ? { ...filters, semester: reconcileSelection(filters.semester, semesterList) }
+        : filters,
+    [filters, semesterList, semesterQuery.isSuccess],
+  );
 
-  const facets = useMemo(() => buildFacets(items, filters, now), [items, filters, now]);
-  const visible = useMemo(() => applyFilters(items, filters, now), [items, filters, now]);
+  const facets = useMemo(() => buildFacets(items, effectiveFilters, now), [items, effectiveFilters, now]);
+  const visible = useMemo(() => applyFilters(items, effectiveFilters, now), [items, effectiveFilters, now]);
   const groups = useMemo(() => groupByClass(visible, now), [visible, now]);
   const roomFailure = useMemo(() => detectRoomFailure(visible, now), [visible, now]);
   const attentionTotal = useMemo(
@@ -250,8 +261,9 @@ export default function SubmissionsPage() {
         <div data-animate className="flex flex-col gap-4 lg:flex-row lg:items-start">
           <div className="lg:w-[205px] lg:shrink-0">
             <FilterRail
+              semesters={semesterList}
               facets={facets}
-              filters={filters}
+              filters={effectiveFilters}
               onChange={setFilters}
               attentionTotal={attentionTotal}
             />
