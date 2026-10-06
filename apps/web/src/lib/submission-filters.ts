@@ -1,5 +1,6 @@
 import type { SessionOverviewItem } from './api/submissions';
-import { getAttentionReasons, tellApart, type AttentionKind } from './submission-attention';
+import { getAttentionReasons, type AttentionKind } from './submission-attention';
+import { tellApart } from './tell-apart';
 import { semesterTextOf } from './master-data-forms';
 import { EXAM_TYPE_LABELS } from './exam-session-display';
 import { ALL_SEMESTERS, matchesSemester, type SemesterSelection } from './semester-filter';
