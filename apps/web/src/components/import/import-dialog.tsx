@@ -38,7 +38,8 @@ export function ImportDialog({ kind, onImported, triggerLabel = 'Nhập từ fil
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      {/* `type="button"`: Danh mục lớp danh nghĩa đặt nút này TRONG form thêm mã; không có `type` thì nó là nút gửi và bấm vào sẽ gửi luôn mã đang gõ dở. */}
+      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
         <Upload className="h-4 w-4" aria-hidden="true" />
         {triggerLabel}
       </Button>
