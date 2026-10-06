@@ -1,79 +1,51 @@
--- Resets the DEV database back to exactly what a fresh setup produces:
--- the seed rows created by migration AddCourseRoomExamType, plus the two
--- demo accounts DEMO-RUNBOOK.md tells you to create.
+-- Đưa DB DEV (cả DB e2e local) về trạng thái "vừa dựng xong": giữ các tài khoản demo, xoá MỌI thứ còn lại — lớp, phiên thi, bài nộp, kết quả chấm,
+-- rubric, và dữ liệu nền (học kỳ, phòng, lớp danh nghĩa, sinh viên).
 --
--- Everything else is residue. The e2e suites create a semester, course,
--- class, enrollment and several accounts per file per run and never clean
--- up (they cannot: each run needs unique values, and unpicking them
--- afterwards would make a failing test destroy the next run's fixtures).
--- Manual verification runs leave exam sessions and submissions behind the
--- same way. After a few weeks of that, the account list and the exam
--- session list are almost entirely noise — which matters now that resource
--- management is getting real screens.
+-- Vì sao cần: các bộ e2e dựng học kỳ, phòng, lớp danh nghĩa, lớp, sinh viên, phiên thi và tài khoản MỖI LẦN CHẠY mà không bao giờ dọn (không thể: mỗi lần cần
+-- giá trị riêng, và dọn sau một lần chạy hỏng sẽ phá fixture của lần sau). Sau vài tuần, danh sách chỉ còn rác — và, từ khi có migration thu hẹp
+-- (`ContractMasterDataEntities`), rác ở HÌNH DẠNG CŨ (lớp không học kỳ, phiên không phòng) làm migration đó dừng ở tiền điều kiện.
 --
---   docker exec -i cine-postgres-1 psql -U examcollect_admin -d examcollect \
---     < scripts/reset-dev-data.sql
+--   docker exec -i cine-postgres-1 psql -U examcollect_admin -d examcollect < scripts/reset-dev-data.sql
 --
--- SAFE TO RE-RUN. Never point this at anything but a dev database: it is a
--- whitelist, so anything not listed below is deleted.
+-- AN TOÀN KHI CHẠY LẠI. CHỈ dùng cho DB dev: nó xoá theo "gốc rồi lan theo khoá ngoại" (TRUNCATE … CASCADE), nên mọi bảng phụ thuộc cũng sạch. ĐỌC các dòng
+-- NOTICE nó in ra — đó là danh sách bảng đã bị xoá sạch.
 --
--- Deletion order follows the FK graph (every FK is ON DELETE RESTRICT, so
--- a wrong order fails loudly rather than cascading).
+-- `audit_log` KHÔNG nằm trong danh sách và không có khoá ngoại tới các bảng dưới đây: trigger append-only của nó từ chối DELETE (Security rule 4), nên nó không
+-- bao giờ reset được bằng script này; muốn rỗng thì dựng lại DB.
 --
--- audit_log is deliberately absent: its append-only trigger refuses DELETE
--- (Security rule 4), so it can never be reset this way. It is empty today;
--- once entries exist, resetting means recreating the database.
+-- Cấu hình AI/chi phí của admin (`grading_pipeline_config`, `cost_budget`) và tài khoản giữ nguyên.
 
 BEGIN;
 
--- ---- Exam + collection data: none of it is seeded, all of it goes ------
-DELETE FROM examcollect.teacher_review;
-DELETE FROM examcollect.grading_result;
-DELETE FROM examcollect.grade_export;
-DELETE FROM examcollect.submission;
-DELETE FROM examcollect.required_deliverable;
-DELETE FROM examcollect.exam_material;
-DELETE FROM examcollect.agent_connection_event;
-DELETE FROM examcollect.exam_session;
+-- ---- Gốc dữ liệu thi + chấm + nền: mọi bảng phụ thuộc (bài nộp, điểm, danh sách dự thi, enrollment, deliverable …) bị cuốn theo ---------
+TRUNCATE
+  examcollect.exam_session,
+  examcollect.class,
+  examcollect.student,
+  examcollect.semester,
+  examcollect.room,
+  examcollect.administrative_class,
+  examcollect.rubric,
+  examcollect.calibration_run
+RESTART IDENTITY CASCADE;
 
--- ---- Academic structure: keep only the migration's seed ---------------
-DELETE FROM examcollect.enrollment;
-DELETE FROM examcollect.class;
-
-DELETE FROM examcollect.rubric_criterion;
-DELETE FROM examcollect.rubric;
-DELETE FROM examcollect.calibration_run;
-
-DELETE FROM examcollect.course
-WHERE code NOT IN ('CS101', 'CS201');
-
-DELETE FROM examcollect.semester
-WHERE name <> 'Học kỳ 1 2026-2027';
-
-DELETE FROM examcollect.room
-WHERE name NOT IN ('Phòng máy A1', 'Phòng máy A2', 'Phòng máy B1');
-
--- ---- Accounts: keep the three the runbook documents -------------------
--- demo-admin is kept on purpose, not just for symmetry: verifying the
--- teacher-only guard on POST /exam-sessions needs a real admin login.
--- demo-head is the Trưởng khoa the runbook's step 5b needs: since Phase 3
--- the class and its roster are created through that account, so a reset
--- that removed it would leave the demo with no way back to a working state.
-DELETE FROM examcollect.cost_budget;
+-- ---- Tài khoản: giữ hai tài khoản demo DEMO-RUNBOOK.md nhắc tới --------
+-- demo-admin giữ có chủ ý: kiểm route chỉ-cho-giảng-viên cần một đăng nhập admin thật, và từ đợt khôi phục master data, admin là người tạo học kỳ, phòng,
+-- lớp và giao lớp cho giảng viên — reset mà mất nó thì không còn cách dựng lại dữ liệu nền.
 DELETE FROM examcollect.account
 WHERE email NOT IN (
   'demo-teacher@example.com',
-  'demo-admin@example.com',
-  'demo-head@example.com'
+  'demo-admin@example.com'
 );
 
 COMMIT;
 
 SELECT 'account' AS t, count(*) FROM examcollect.account
 UNION ALL SELECT 'semester', count(*) FROM examcollect.semester
-UNION ALL SELECT 'course',   count(*) FROM examcollect.course
-UNION ALL SELECT 'room',     count(*) FROM examcollect.room
-UNION ALL SELECT 'class',    count(*) FROM examcollect.class
+UNION ALL SELECT 'room', count(*) FROM examcollect.room
+UNION ALL SELECT 'administrative_class', count(*) FROM examcollect.administrative_class
+UNION ALL SELECT 'class', count(*) FROM examcollect.class
+UNION ALL SELECT 'student', count(*) FROM examcollect.student
 UNION ALL SELECT 'enrollment', count(*) FROM examcollect.enrollment
 UNION ALL SELECT 'exam_session', count(*) FROM examcollect.exam_session
 UNION ALL SELECT 'submission', count(*) FROM examcollect.submission
