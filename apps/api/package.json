@@ -14,6 +14,7 @@
     "eval:check": "node -r ts-node/register -r tsconfig-paths/register src/eval/check-cli.ts",
     "eval": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register src/eval/cli.ts",
     "rehearsal": "node -r ts-node/register -r tsconfig-paths/register src/eval/rehearsal/cli.ts",
+    "master-data": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register src/database/master-data/cli.ts",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "lint": "eslint .",
     "migration:run": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
