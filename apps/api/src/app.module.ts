@@ -11,6 +11,7 @@ import { SubmissionModule } from './submission/submission.module';
 import { GradingModule } from './grading/grading.module';
 import { ExamAuthoringModule } from './exam-authoring/exam-authoring.module';
 import { CourseModule } from './course/course.module';
+import { AdminModule } from './admin/admin.module';
 import { buildRedisConnection } from './shared/redis-connection';
 import { dataSourceOptions } from './database/data-source';
 
@@ -80,6 +81,8 @@ import { dataSourceOptions } from './database/data-source';
     GradingModule,
     ExamAuthoringModule,
     CourseModule,
+    // Nối tường minh để route GET /audit-log không phụ thuộc vào việc một module khác còn import nó.
+    AdminModule,
   ],
 })
 export class AppModule {}
