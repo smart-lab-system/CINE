@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-04-master-data-restoration-design.md` §5.3 (sinh lại client), §7 (bộ lọc năm học + học kỳ: §7.1 hiện trạng, §7.2 thiết kế, §7.3 không bao giờ chặn thao tác), §6.2 nguyên tắc 4 và §2.2 (cảnh báo gần giống khi nhập tay), §4.2 (câu tiếng Việt cho từng hành động, quy ước `targetLabel`), §2.6 (tra tên theo MSSV), §11: T-FLT-1, T-FLT-2, T-AUD-5.
 
-**Phụ thuộc:** plan A–F (toàn bộ API) đã xong; plan B (`lib/audit-describe.ts`, trang audit) đã xong; plan E2 (`hooks/master-data-keys.ts`, `ImportDialog`).
+**Phụ thuộc:** plan A–F (toàn bộ API) và E1 đã xong; plan B (`lib/audit-describe.ts`, trang audit) đã xong. **Task 1 (sinh lại client) làm NGAY SAU E1 và TRƯỚC E2** — E2 cần client có bốn route `…/import` để biên dịch; **Task 2–6 cần E2 đã xong** (`hooks/master-data-keys.ts`, `ImportDialog`).
 
 ## Global Constraints
 

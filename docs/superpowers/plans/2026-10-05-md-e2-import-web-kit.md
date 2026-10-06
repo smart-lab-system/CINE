@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-04-master-data-restoration-design.md` §6.1 (cột trong file), §6.2 nguyên tắc 3, 4, 5, 8, §6.3 (bộ dùng chung, giới hạn 5MB/2.000 dòng/40 cột, trần dòng, ô ngày), §5.1 (nút "Nhập từ file"), §11: T-IMP-1, T-IMP-4, T-IMP-5, T-IMP-6 (phần hiển thị), T-IMP-8 (phần hiển thị).
 
-**Phụ thuộc:** plan E1 đã xong (bốn route `…/import`, hình dạng `ImportResult`) **và đã sinh lại** `packages/shared/src/api/schema.d.ts` (E1 Task 7).
+**Phụ thuộc:** plan E1 đã xong (bốn route `…/import`, hình dạng `ImportResult`) **và client OpenAPI đã được sinh lại** — làm **G1 Task 1 ngay sau E1 và trước plan này** (roadmap mục 4): `packages/shared/src/api/schema.d.ts` phải chứa bốn đường dẫn `…/import`. Từ đó `tsc` của `apps/web` **đỏ có chủ ý** ở các file trong `docs/superpowers/plans/md-restore-web-tsc-red.txt` (trang cũ còn gọi hợp đồng cũ); plan này chỉ **thêm** file mới nên **không được** làm xuất hiện lỗi ngoài danh sách đó.
 
 ## Global Constraints
 
@@ -23,7 +23,7 @@
 - File mẫu: `.xlsx` sinh trong trình duyệt, **đúng tên cột chính thức**, một dòng ví dụ, ô định dạng chữ (để Excel không tự đổi `2026-09-01` thành ngày hay `1` thành số); thêm một sheet "Huong dan" giải thích từng cột. File mẫu phải **tự nhận diện được** bằng chính bộ nhận diện (kiểm bằng vòng khứ hồi thật).
 - Giao diện không có chỗ ghi **số liệu hay dữ liệu thật của người dùng** vào `localStorage`/URL; mọi trạng thái nằm trong React state và mất khi đóng hộp thoại (Radix gỡ nội dung khi đóng).
 - **Phân lớp gọi API** (CLAUDE.md: trang và component gọi **hook**, không gọi `lib/api` trực tiếp): `ImportDialog` lấy bộ chạy từ `useImportRunner`; hook đó bọc `lib/api/master-data-import.ts` và **làm mới danh sách** sau lần ghi thật đã áp dụng, nên không trang nào phải nhớ gọi `refetch` sau khi nhập. Khoá truy vấn lấy từ `hooks/master-data-keys.ts`, dùng chung với các hook đọc của plan G1/G2.
-- Chỉ dùng thành phần UI có sẵn (`components/ui/*`); không thêm thư viện. Lint (`eslint .`), `tsc` và `next build` phải sạch; không có bước e2e trình duyệt trong plan này (đã có lượt browser pass riêng ở plan H).
+- Chỉ dùng thành phần UI có sẵn (`components/ui/*`); không thêm thư viện. Lint sạch; `tsc` **không có lỗi ngoài danh sách đỏ** `md-restore-web-tsc-red.txt` (mọi file mới của plan này phải sạch); `next build` **không** chạy ở plan này — nó đỏ ở `tsc` của các trang sẽ sửa ở G2–G4 và chỉ chạy được sau G4; không có bước e2e trình duyệt (lượt browser pass nằm ở runbook của plan H).
 
 ## Review Focus
 
@@ -1177,7 +1177,7 @@ export const IMPORT_RUNNERS: Record<ImportKindId, RunImport> = {
 - [ ] **Step 4: Chạy để thấy xanh**
 
 Run: `cd apps/web && npx vitest run src/lib/api/master-data-import.test.ts && npx tsc --noEmit`
-Expected: PASS và `tsc` sạch. Nếu `tsc` báo `'/rooms/import' is not assignable…`, `schema.d.ts` chưa được sinh lại ở E1 Task 7 — dừng và làm bước đó trước (`packages/shared/src/api/schema.d.ts` phải chứa bốn đường dẫn `…/import`).
+Expected: PASS; `tsc` không có lỗi ở `lib/api/master-data-import.ts` (các lỗi còn lại, nếu có, phải nằm trong `md-restore-web-tsc-red.txt`). Nếu `tsc` báo `'/rooms/import' is not assignable…`, client chưa được sinh lại — dừng và làm G1 Task 1 trước (`packages/shared/src/api/schema.d.ts` phải chứa bốn đường dẫn `…/import`).
 
 - [ ] **Step 5: Commit**
 
@@ -2683,11 +2683,11 @@ export function ImportDialog({ kind, onImported, triggerLabel = 'Nhập từ fil
 cd apps/web
 npx vitest run
 npx eslint src/lib/import src/lib/api/master-data-import.ts src/lib/api/master-data-import.test.ts src/lib/read-workbook.ts src/components/import src/hooks/master-data-keys.ts src/hooks/useMasterDataImport.ts src/hooks/useMasterDataImport.test.tsx
-npx tsc --noEmit
-pnpm build
+npx tsc --noEmit 2>&1 | Select-String -Pattern '^src/' | ForEach-Object { ($_ -split '\(')[0] } | Sort-Object -Unique | Out-File -Encoding utf8 C:/tmp/tsc-red-after-e2.txt
+Compare-Object (Get-Content ../../docs/superpowers/plans/md-restore-web-tsc-red.txt) (Get-Content C:/tmp/tsc-red-after-e2.txt)
 ```
 
-Expected: toàn bộ vitest xanh (cùng số suite cũ, cộng các suite mới của plan này); ESLint, `tsc` sạch; `next build` thành công. Ba chỗ hay vỡ ở bước này: (1) `react/no-unescaped-entities` với dấu `"` trong JSX — dùng `{'…'}` hoặc `&quot;`; (2) `react-hooks/exhaustive-deps` ở effect của `ImportWizard` — `runRef` đã được dùng để `run` không nằm trong mảng phụ thuộc, nên không cần `eslint-disable`; nếu quy tắc vẫn kêu về `extracted`, đó là đúng và phụ thuộc đã đủ; (3) `tsc` kêu `Alert variant="warning"` — xem ghi chú ở Task 6 Step 4.
+Expected: toàn bộ vitest xanh (cùng số suite cũ, cộng các suite mới của plan này); ESLint sạch; `Compare-Object` **không có dòng `=>`** (không file nào ngoài danh sách đỏ bị lỗi `tsc` — đặc biệt không file nào của plan này; dòng `<=` không có vì plan này không sửa file đỏ). Không chạy `pnpm build` ở đây (xem Global Constraints). Ba chỗ hay vỡ ở bước này: (1) `react/no-unescaped-entities` với dấu `"` trong JSX — dùng `{'…'}` hoặc `&quot;`; (2) `react-hooks/exhaustive-deps` ở effect của `ImportWizard` — `runRef` đã được dùng để `run` không nằm trong mảng phụ thuộc, nên không cần `eslint-disable`; nếu quy tắc vẫn kêu về `extracted`, đó là đúng và phụ thuộc đã đủ; (3) `tsc` kêu `Alert variant="warning"` — xem ghi chú ở Task 6 Step 4.
 
 - [ ] **Step 7: Commit**
 

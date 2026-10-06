@@ -3098,7 +3098,7 @@ Compare-Object $base $after
 
 Expected: `tsc` sạch; không `failed > 0`; `Compare-Object` chỉ khác ở các suite của plan A–E1 đã biết (suite mới `master-data-import` cùng các suite đã đổi số test ở plan C–D3). Suite `class-admin` giữ nguyên số test so với trước Task 6.
 
-- [ ] **Step 2: Sinh lại client OpenAPI** *(hoãn được tới plan G1 Task 1 — xem roadmap, mục "Sinh lại client")*
+- [ ] **Step 2: Sinh lại client OpenAPI** *(KHÔNG làm ở đây: làm **G1 Task 1 ngay sau E1 và trước E2** — xem roadmap, mục 4. Sinh lại một lần sau khi **toàn bộ** API A–F và E1 đã có, để diff gồm cả hợp đồng của D1–D3, E1, F.)*
 
 Làm đúng Task 3 của plan B. Diff phải thêm đúng bốn đường dẫn `…/import` và các kiểu `ImportResult`, `ImportRowResult`, `ImportChange`, `ImportSimilar`, `ImportCounts`, cùng bốn thân yêu cầu. Hunk không liên quan ⇒ tách commit riêng.
 
