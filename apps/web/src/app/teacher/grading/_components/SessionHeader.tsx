@@ -36,7 +36,7 @@ export function SessionHeader({
       <div className="flex flex-col gap-1.5">
         <h1 className="text-h1 text-foreground">{session.name}</h1>
         <p className="text-small text-muted-foreground">
-          {[session.className, session.roomName].filter(Boolean).join(' · ')}
+          {[session.classLabel, session.roomName].filter(Boolean).join(' · ')}
         </p>
         <p className="text-small font-medium tabular-nums">{submittedLabel(session)}</p>
       </div>

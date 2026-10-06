@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { DEFAULT_VIEW, groupRows } from '@/lib/session-list';
-import { NOW, rowsOf, session, summary } from '@/lib/session-list.fixtures';
+import { IN_HK2_2025, NOW, rowsOf, session, summary } from '@/lib/session-list.fixtures';
 import { SessionTable, type SessionTableProps } from './SessionTable';
 
 const rows = rowsOf(
   [
-    session({ id: 'a', name: 'Kiểm tra giữa kỳ', className: 'DHKTPM18ATT', roomName: 'Phòng máy A1' }),
-    session({ id: 'b', name: 'TEST dien tap - xoa sau 1790588688826', rubricId: null, className: 'DHKTPM19BTT', roomName: 'H3.03', classId: 'c2' }),
+    session({ id: 'a', name: 'Kiểm tra giữa kỳ', classLabel: 'DHKTPM18ATT', roomName: 'Phòng máy A1' }),
+    session({ id: 'b', name: 'TEST dien tap - xoa sau 1790588688826', rubricId: null, classLabel: 'DHKTPM19BTT', roomName: 'H3.03', classId: 'c2' }),
     session({ id: 'c', name: 'Kiểm tra cuối kỳ', examType: 'CK' }),
   ],
   [summary('a', { flagged_for_review: 11, ai_grading: 4, auto_approved: 23 }), summary('b'), summary('c', { finalized: 38 })],
@@ -120,6 +120,19 @@ describe('SessionTable', () => {
     expect(screen.queryByRole('link', { name: 'Kiểm tra giữa kỳ' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('checkbox', { name: /Chọn cả nhóm DHKTPM18ATT/ }));
     expect(p.onToggleRows).toHaveBeenCalledWith(['a', 'c'], true);
+  });
+
+  it('Review Focus 4: two classes with the same label are told apart in their group headers', () => {
+    const twins = rowsOf(
+      [
+        session({ id: 'x', classId: 'k1', classLabel: 'DHKTPM18A – Nhóm 1' }),
+        session({ id: 'y', classId: 'k2', classLabel: 'DHKTPM18A – Nhóm 1', ...IN_HK2_2025 }),
+      ],
+      [],
+    );
+    render(<SessionTable {...props({ groups: groupRows(twins, 'class') })} />);
+    expect(screen.getByRole('button', { name: /DHKTPM18A – Nhóm 1 · HK1 2026-2027/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /DHKTPM18A – Nhóm 1 · HK2 2025-2026/ })).toBeInTheDocument();
   });
 
   it('while statuses are unknown the row still renders, with dashes and a plain open link', () => {

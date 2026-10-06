@@ -13,13 +13,17 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { EMPTY_LIST_FILTERS, hasActiveFilters, type FacetKey, type FacetOption, type ListFilters } from '@/lib/session-list';
+import { SemesterYearFilter } from '@/components/layout/semester-year-filter';
+import { selectSemester, selectYear, type SemesterRef } from '@/lib/semester-filter';
+import { EMPTY_LIST_FILTERS, FACET_KEYS, hasActiveFilters, type FacetKey, type FacetOption, type ListFilters } from '@/lib/session-list';
 import { cn } from '@/lib/utils';
 
-const FACET_LABEL: Record<FacetKey, string> = { semesters: 'Học kỳ', classIds: 'Lớp', examTypes: 'Loại kỳ thi', rooms: 'Phòng' };
+const FACET_LABEL: Record<FacetKey, string> = { classIds: 'Lớp', examTypes: 'Loại kỳ thi', rooms: 'Phòng' };
 const TIME_LABEL: Record<ListFilters['time'], string> = { all: 'Tất cả', '7': '7 ngày qua', '30': '30 ngày qua' };
 
 export interface FilterBarProps {
+  /** Từ bảng học kỳ (`useSemesters`), KHÔNG từ các phiên đã tải: kỳ chưa có phiên nào vẫn chọn được. */
+  semesters: readonly SemesterRef[];
   filters: ListFilters;
   options: Record<FacetKey, FacetOption[]>;
   /** Số phiên thiếu rubric theo các bộ lọc khác. */
@@ -72,7 +76,7 @@ function FacetFilter({ facet, options, selected, onChange }: { facet: FacetKey; 
  * Ô tìm + bộ lọc. Không có bộ lọc theo môn: `courseName` là hằng số ở mọi phiên (spec D5). Không có công
  * tắc lưu trữ (spec D4). Bộ lọc nhiều lựa chọn trong nhóm là OR, giữa các nhóm là AND.
  */
-export function FilterBar({ filters, options, noRubricCount, onChange, searchRef }: FilterBarProps) {
+export function FilterBar({ filters, semesters, options, noRubricCount, onChange, searchRef }: FilterBarProps) {
   const set = (patch: Partial<ListFilters>) => onChange({ ...filters, ...patch });
   return (
     <div className="flex flex-col gap-3">
@@ -94,7 +98,15 @@ export function FilterBar({ filters, options, noRubricCount, onChange, searchRef
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {(['semesters', 'classIds', 'examTypes', 'rooms'] as FacetKey[]).map((facet) => (
+        {/* Cặp ô Năm học → Học kỳ DÙNG CHUNG (spec §7.2). Menu không còn số phiên theo từng kỳ — số đếm còn ở Lớp/Loại kỳ thi/Phòng và ở tab trạng thái, và đều theo kỳ đang chọn. */}
+        <SemesterYearFilter
+          semesters={semesters}
+          selection={filters.semester}
+          onYearChange={(year) => set({ semester: selectYear(filters.semester, year, semesters) })}
+          onSemesterChange={(id) => set({ semester: selectSemester(id, filters.semester, semesters) })}
+        />
+
+        {FACET_KEYS.map((facet) => (
           <FacetFilter key={facet} facet={facet} options={options[facet]} selected={filters[facet]} onChange={(next) => onChange({ ...filters, [facet]: next } as ListFilters)} />
         ))}
 

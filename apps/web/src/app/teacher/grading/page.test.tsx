@@ -33,6 +33,8 @@ vi.mock('@/hooks/useGrading', () => ({
   useRegradeStuck: () => ({ mutate: h.regradeMutate, isPending: false, isError: false, error: null, data: undefined }),
 }));
 vi.mock('@/hooks/useOnlineStatus', () => ({ useOnlineStatus: () => h.online }));
+// Danh sách phiên (SessionList) lấy danh sách học kỳ qua `useSemesters`; ở đây không quan tâm tới kỳ, chỉ cần nó không gọi useQuery thật.
+vi.mock('@/hooks/useSemesters', () => ({ useSemesters: () => ({ data: [], isLoading: false, isSuccess: true }) }));
 
 // Each has its own tests; here only WHICH one the data selects, and what it is handed, matters.
 vi.mock('./_components/PreparePanel', () => ({
@@ -51,8 +53,8 @@ vi.mock('./_components/BulkAcceptEssays', () => ({ BulkAcceptEssays: () => <div 
 
 const session = (over: Partial<SessionOverviewItem> = {}) =>
   ({
-    id: 's1', name: 'Giữa kỳ N01', code: 'GK-N01', classId: 'c1', className: 'N01', roomName: 'B2.07', status: 'completed',
-    examType: 'GK', startTime: '2026-09-28T00:30:00.000Z', semesterName: 'HK1',
+    id: 's1', name: 'Giữa kỳ N01', code: 'GK-N01', classId: 'c1', classLabel: 'N01', roomName: 'B2.07', status: 'completed',
+    examType: 'GK', startTime: '2026-09-28T00:30:00.000Z', semesterName: 'HK1', semesterId: 'sem-1', academicYear: 2026, term: 1,
     rubricId: 'ru-1', rubricVersion: 2, expectedCount: 40, rosterKnown: true,
     fullySubmittedCount: 30, partialCount: 2, attendedNoSubmissionCount: 0, neverAttendedCount: 0, ...over,
   }) as SessionOverviewItem;
@@ -95,7 +97,7 @@ describe('/teacher/grading — without a session: the picker', () => {
     h.overview = {
       data: [
         session({ id: 'a', name: 'Giữa kỳ N01' }),
-        session({ id: 'b', name: 'Cuối kỳ N02', rubricId: null, className: 'N02' }),
+        session({ id: 'b', name: 'Cuối kỳ N02', rubricId: null, classLabel: 'N02' }),
         session({ id: 'c', name: 'Phiên chưa thu bài', fullySubmittedCount: 0, partialCount: 0 }),
       ],
       isLoading: false, isError: false, error: null,

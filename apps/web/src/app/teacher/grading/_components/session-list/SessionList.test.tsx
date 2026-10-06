@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { session, summary } from '@/lib/session-list.fixtures';
+import { IN_HK2_2025, SEMESTERS, SEM_HK1_2026, SEM_HK2_2025, session, summary } from '@/lib/session-list.fixtures';
 import { SessionList } from './SessionList';
 
 let search = '';
@@ -14,13 +14,16 @@ vi.mock('next/navigation', () => ({
 
 const h = vi.hoisted(() => ({
   summaries: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null },
+  semesters: { data: [] as unknown, isLoading: false, isSuccess: true },
 }));
 vi.mock('@/hooks/useGrading', () => ({ useGradingSessionSummaries: () => h.summaries }));
+// Danh sách kỳ của bộ lọc đến từ BẢNG học kỳ qua `useSemesters` — mock ở mức hook, không thì nó gọi useQuery thật và nổ vì không có QueryClientProvider.
+vi.mock('@/hooks/useSemesters', () => ({ useSemesters: () => h.semesters }));
 
 const sessions = [
-  session({ id: 'a', name: 'Kiểm tra giữa kỳ', classId: 'c1', className: 'DHKTPM18ATT' }),
-  session({ id: 'b', name: 'Thực hành đồ thị', classId: 'c2', className: 'DHKTPM19BTT', rubricId: null, examType: 'TK' }),
-  session({ id: 'c', name: 'Kiểm tra cuối kỳ', classId: 'c1', className: 'DHKTPM18ATT', examType: 'CK' }),
+  session({ id: 'a', name: 'Kiểm tra giữa kỳ', classId: 'c1', classLabel: 'DHKTPM18ATT' }),
+  session({ id: 'b', name: 'Thực hành đồ thị', classId: 'c2', classLabel: 'DHKTPM19BTT', ...IN_HK2_2025, rubricId: null, examType: 'TK' }),
+  session({ id: 'c', name: 'Kiểm tra cuối kỳ', classId: 'c1', classLabel: 'DHKTPM18ATT', examType: 'CK' }),
   session({ id: 'none', name: 'Chưa thu bài', fullySubmittedCount: 0, partialCount: 0 }),
 ];
 
@@ -28,6 +31,7 @@ beforeEach(() => {
   search = '';
   replace.mockReset();
   sessionStorage.clear();
+  h.semesters = { data: SEMESTERS, isLoading: false, isSuccess: true };
   h.summaries = {
     data: [summary('a', { flagged_for_review: 2, auto_approved: 5 }), summary('b'), summary('c', { finalized: 38 })],
     isLoading: false, isError: false, error: null,
@@ -154,6 +158,72 @@ describe('SessionList', () => {
     fireEvent.click(screen.getByRole('button', { name: /Đã chốt/ })); // status=done → chỉ còn phiên "c"
     view.rerender(<SessionList sessions={sessions} loading={false} error={null} />);
     expect(screen.queryByText(/Đã chọn/)).not.toBeInTheDocument();
+  });
+
+  it('T-FLT-2: reads the semester from the URL and filters by KEY', () => {
+    search = `year=2025&sem=${SEM_HK2_2025}`;
+    renderList();
+    expect(names().map((l) => l.textContent)).toEqual(['Thực hành đồ thị']);
+  });
+
+  it('choosing a semester writes year and key to the URL, after the filters already there', () => {
+    search = 'status=attention';
+    renderList();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
+    fireEvent.click(screen.getByRole('option', { name: 'HK1 2026-2027' }));
+    expect(replace).toHaveBeenCalledWith(`/teacher/grading?status=attention&year=2026&sem=${SEM_HK1_2026}`, { scroll: false });
+  });
+
+  it('Review Focus 6: changing the status tab keeps the semester in the URL', () => {
+    search = `year=2025&sem=${SEM_HK2_2025}`;
+    renderList();
+    fireEvent.click(screen.getByRole('button', { name: /Chưa chấm/ }));
+    expect(replace).toHaveBeenCalledWith(`/teacher/grading?status=todo&year=2025&sem=${SEM_HK2_2025}`, { scroll: false });
+  });
+
+  it('Review Focus 2: an old URL that named the semester as text still shows the whole list', () => {
+    search = 'sem=HK1+2026-2027&sem=HK2+2025-2026&year=abc';
+    renderList();
+    expect(names()).toHaveLength(3);
+  });
+
+  it('Review Focus 3: a semester that no longer exists falls back to "all" once the semesters have loaded', () => {
+    search = 'sem=33333333-3333-4333-8333-333333333333';
+    renderList();
+    expect(names()).toHaveLength(3);
+  });
+
+  it('Review Focus 3: a change made from the screen builds on the CLEANED filters — an orphan semester is not written back to the URL', () => {
+    // Tab trạng thái, thanh lọc và hộp chọn đều dựng bản lọc mới từ `filters` ĐÃ dẫn xuất. Dựng từ bản chưa dọn thì mỗi lần bấm lại ghi cái khoá mồ côi
+    // trở lại URL, và học kỳ đã xoá sống mãi trong liên kết người dùng sao chép đi.
+    search = 'sem=33333333-3333-4333-8333-333333333333';
+    renderList();
+    fireEvent.click(screen.getByRole('button', { name: /Chưa chấm/ }));
+    expect(replace).toHaveBeenCalledWith('/teacher/grading?status=todo', { scroll: false });
+  });
+
+  it('Review Focus 3: while the semesters are still loading nothing is cleaned up — the key filters at once', () => {
+    h.semesters = { data: undefined, isLoading: true, isSuccess: false };
+    search = `sem=${SEM_HK2_2025}`;
+    renderList();
+    expect(names().map((l) => l.textContent)).toEqual(['Thực hành đồ thị']);
+  });
+
+  it('Review Focus 1: a semester that leaves nothing shows the way out, and the way out clears the semester too', () => {
+    search = `sem=${SEM_HK2_2025}&status=done`; // kỳ cũ chỉ có phiên "b" (chưa chấm) → không còn gì ở "Đã chốt"
+    renderList();
+    expect(screen.getByText(/Không có phiên nào khớp/)).toBeInTheDocument();
+    const clear = screen.getAllByRole('button', { name: /Xoá bộ lọc/ });
+    fireEvent.click(clear[clear.length - 1]); // nút ở trạng thái rỗng, không phải nút trên thanh lọc
+    expect(replace).toHaveBeenCalledWith('/teacher/grading', { scroll: false });
+  });
+
+  it('grouping by semester: a header per semester, newest first', () => {
+    search = 'group=semester';
+    renderList();
+    const headers = screen.getAllByRole('button', { name: /^HK\d 20/ });
+    expect(headers[0]).toHaveTextContent('HK1 2026-2027');
+    expect(headers[1]).toHaveTextContent('HK2 2025-2026');
   });
 });
 

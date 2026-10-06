@@ -61,7 +61,7 @@ export function BulkDialog({ request, onClose, onFinished }: { request: BulkRequ
   // Tên phiên hay giống nhau giữa các lớp (spec mục 0, lỗi 3): kết quả phải nói rõ phiên NÀO bị từ chối.
   const whereOf = (id: string) => {
     const s = rowOf(id)?.session;
-    return s ? [s.className, s.roomName, formatSessionDate(s.startTime).date].filter(Boolean).join(' · ') : '';
+    return s ? [s.classLabel, s.roomName, formatSessionDate(s.startTime).date].filter(Boolean).join(' · ') : '';
   };
   // Máy chủ trả 200 với `queued: 0` khi phiên không có bài `collected` nào (hoặc bài đã được chấm rồi): đó không
   // phải "đã bắt đầu", và một dấu tích xanh cho nó là báo sai.
@@ -120,7 +120,7 @@ export function BulkDialog({ request, onClose, onFinished }: { request: BulkRequ
             {rows.map((r) => (
               <li key={r.session.id} className="flex justify-between gap-3 px-3 py-2">
                 <span className="min-w-0 font-semibold [overflow-wrap:anywhere]">{r.session.name}</span>
-                <span className="whitespace-nowrap tabular-nums text-muted-foreground">{r.session.className} · {submittedCount(r.session)} bài</span>
+                <span className="whitespace-nowrap tabular-nums text-muted-foreground">{r.session.classLabel} · {submittedCount(r.session)} bài</span>
               </li>
             ))}
           </ul>

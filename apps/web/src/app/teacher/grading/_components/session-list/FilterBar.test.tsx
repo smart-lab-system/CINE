@@ -3,14 +3,14 @@ import { createRef } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { EMPTY_LIST_FILTERS, facetOptions, type ListFilters } from '@/lib/session-list';
-import { NOW, rowsOf, session } from '@/lib/session-list.fixtures';
+import { NOW, SEMESTERS, SEM_HK1_2026, SEM_HK2_2025, rowsOf, session } from '@/lib/session-list.fixtures';
 import { FilterBar, type FilterBarProps } from './FilterBar';
 import { StatusTabs } from './StatusTabs';
 
 const rows = rowsOf(
   [
-    session({ id: 'a', classId: 'c1', className: 'DHKTPM18ATT' }),
-    session({ id: 'b', classId: 'c2', className: 'DHKTPM19BTT', rubricId: null }),
+    session({ id: 'a', classId: 'c1', classLabel: 'DHKTPM18ATT' }),
+    session({ id: 'b', classId: 'c2', classLabel: 'DHKTPM19BTT', rubricId: null }),
   ],
   [],
 );
@@ -21,6 +21,7 @@ function setup(filters: ListFilters = EMPTY_LIST_FILTERS, over: Partial<FilterBa
     <FilterBar
       filters={filters}
       options={facetOptions(rows, filters, NOW)}
+      semesters={SEMESTERS}
       noRubricCount={1}
       onChange={onChange}
       searchRef={createRef<HTMLInputElement>()}
@@ -66,6 +67,33 @@ describe('FilterBar', () => {
   it('the facet button names what is chosen', () => {
     setup({ ...EMPTY_LIST_FILTERS, classIds: ['c2'] });
     expect(screen.getByRole('button', { name: /^Lớp/ })).toHaveTextContent('DHKTPM19BTT');
+  });
+
+  it('has no semester dropdown of its own: the shared year → semester pair is the filter', () => {
+    setup();
+    expect(screen.getByRole('combobox', { name: 'Lọc theo năm học' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Học kỳ/ })).not.toBeInTheDocument();
+  });
+
+  it('choosing a year reports it and leaves the term on "all" (a whole year)', () => {
+    const onChange = setup();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo năm học' }));
+    fireEvent.click(screen.getByRole('option', { name: '2025-2026' }));
+    expect(onChange).toHaveBeenCalledWith({ ...EMPTY_LIST_FILTERS, semester: { academicYear: 2025, semesterId: null } });
+  });
+
+  it('choosing a term carries its year with it; a term nobody has a session in is still offered', () => {
+    const onChange = setup(); // không phiên nào ở HK2 2025-2026 trong `rows`
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo học kỳ' }));
+    fireEvent.click(screen.getByRole('option', { name: 'HK2 2025-2026' }));
+    expect(onChange).toHaveBeenCalledWith({ ...EMPTY_LIST_FILTERS, semester: { academicYear: 2025, semesterId: SEM_HK2_2025 } });
+  });
+
+  it('Review Focus 1: a semester alone makes "Xoá bộ lọc" appear, and clearing resets it too', () => {
+    const onChange = setup({ ...EMPTY_LIST_FILTERS, semester: { academicYear: 2026, semesterId: SEM_HK1_2026 } });
+    fireEvent.click(screen.getByRole('button', { name: /Xoá bộ lọc/ }));
+    expect(onChange).toHaveBeenCalledWith(EMPTY_LIST_FILTERS);
   });
 
   it('"Xoá bộ lọc" appears only when something is filtered', () => {

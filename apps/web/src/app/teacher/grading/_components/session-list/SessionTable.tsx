@@ -80,7 +80,7 @@ function Row({ row, selected, onToggle, onStart, now }: { row: SessionRow; selec
   const note = rowNote(row, now);
   const action = rowActionOf(row);
   const typeLabel = EXAM_TYPE_LABELS[s.examType] ?? s.examType;
-  const actionLabel = `${action.label}: ${s.name}${s.className ? `, ${s.className}` : ''}`;
+  const actionLabel = `${action.label}: ${s.name}${s.classLabel ? `, ${s.classLabel}` : ''}`;
 
   return (
     <tr data-selected={selected} className="border-b border-border last:border-0 hover:bg-surface-2 data-[selected=true]:bg-primary-subtle">
@@ -89,7 +89,7 @@ function Row({ row, selected, onToggle, onStart, now }: { row: SessionRow; selec
           type="checkbox"
           checked={selected}
           onChange={(e) => onToggle(e.target.checked)}
-          aria-label={`Chọn phiên ${s.name}${s.className ? `, ${s.className}` : ''}`}
+          aria-label={`Chọn phiên ${s.name}${s.classLabel ? `, ${s.classLabel}` : ''}`}
           className="h-4 w-4 cursor-pointer accent-primary"
         />
       </td>
@@ -99,7 +99,7 @@ function Row({ row, selected, onToggle, onStart, now }: { row: SessionRow; selec
         </Link>
         <span className="block truncate text-caption text-muted-foreground">
           <span className="min-[1240px]:hidden">{typeLabel} · </span>
-          {[s.className, s.roomName].filter(Boolean).join(' · ')}
+          {[s.classLabel, s.roomName].filter(Boolean).join(' · ')}
         </span>
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 align-middle tabular-nums group-data-[density=compact]:py-1.5">

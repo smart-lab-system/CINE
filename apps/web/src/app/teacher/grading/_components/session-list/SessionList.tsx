@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/layout/page-header';
 import { useGradingSessionSummaries } from '@/hooks/useGrading';
+import { useSemesters } from '@/hooks/useSemesters';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
+import { reconcileSelection } from '@/lib/semester-filter';
 import {
   DEFAULT_SORT_DIR,
   EMPTY_LIST_FILTERS,
@@ -16,6 +18,7 @@ import {
   matchesFilters,
   sortRows,
   statusCounts,
+  type ListFilters,
   type SortKey,
 } from '@/lib/session-list';
 import { FilterBar } from './FilterBar';
@@ -64,7 +67,17 @@ const SORT_PRESETS: Array<[string, string]> = [
  */
 export function SessionList({ sessions, loading, error }: { sessions: SessionOverviewItem[]; loading: boolean; error: Error | null }) {
   const summaries = useGradingSessionSummaries();
-  const { filters, view, setFilters, setView } = useSessionListState();
+  const { filters: listed, view, setFilters, setView } = useSessionListState();
+  // Lựa chọn học kỳ lấy từ BẢNG học kỳ (không từ các phiên đã tải): kỳ chưa có phiên nào vẫn chọn được. `reconcileSelection` là phép DẪN XUẤT, không
+  // phải effect ghi ngược: một học kỳ trong URL mà admin đã xoá (hay dán từ môi trường khác) tự về "Tất cả" thay vì cho ra danh sách rỗng khó hiểu.
+  // Chỉ dọn khi danh sách ĐÃ tải — rỗng vì chưa tải không phải bằng chứng kỳ đã xoá, nên trong lúc chờ, khoá trên URL vẫn lọc ngay.
+  const semesterQuery = useSemesters();
+  const semesterList = useMemo(() => semesterQuery.data ?? [], [semesterQuery.data]);
+  const filters = useMemo<ListFilters>(() => {
+    if (!semesterQuery.isSuccess) return listed;
+    const semester = reconcileSelection(listed.semester, semesterList);
+    return semester === listed.semester ? listed : { ...listed, semester };
+  }, [listed, semesterList, semesterQuery.isSuccess]);
   const [density, setDensity] = useDensity();
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
@@ -157,7 +170,7 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
 
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <FilterBar filters={filters} options={options} noRubricCount={noRubricCount} onChange={setFilters} searchRef={searchRef} />
+              <FilterBar filters={filters} semesters={semesterList} options={options} noRubricCount={noRubricCount} onChange={setFilters} searchRef={searchRef} />
             </div>
             <div className="flex flex-wrap items-center gap-3 text-caption text-muted-foreground">
               <label className="flex items-center gap-2">

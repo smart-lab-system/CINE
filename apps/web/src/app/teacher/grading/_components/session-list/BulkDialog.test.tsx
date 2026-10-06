@@ -15,9 +15,9 @@ vi.mock('@/hooks/useGrading', async (orig) => ({ ...(await orig<typeof import('@
 
 const rows = rowsOf(
   [
-    session({ id: 'a', name: 'Phiên A', className: 'L1', fullySubmittedCount: 30 }),
-    session({ id: 'b', name: 'Phiên B', className: 'L2', fullySubmittedCount: 41, partialCount: 1 }),
-    session({ id: 'c', name: 'Phiên C', className: 'L3', fullySubmittedCount: 5 }),
+    session({ id: 'a', name: 'Phiên A', classLabel: 'L1', fullySubmittedCount: 30 }),
+    session({ id: 'b', name: 'Phiên B', classLabel: 'L2', fullySubmittedCount: 41, partialCount: 1 }),
+    session({ id: 'c', name: 'Phiên C', classLabel: 'L3', fullySubmittedCount: 5 }),
   ],
   [summary('a'), summary('b'), summary('c')],
 );
@@ -137,8 +137,8 @@ describe('BulkDialog — review fixes', () => {
   it('I2: the result list tells same-named sessions apart by class', async () => {
     const twins = rowsOf(
       [
-        session({ id: 'x', name: 'Kiểm tra giữa kỳ', className: 'LỚP-A' }),
-        session({ id: 'y', name: 'Kiểm tra giữa kỳ', className: 'LỚP-B' }),
+        session({ id: 'x', name: 'Kiểm tra giữa kỳ', classLabel: 'LỚP-A' }),
+        session({ id: 'y', name: 'Kiểm tra giữa kỳ', classLabel: 'LỚP-B' }),
       ],
       [summary('x'), summary('y')],
     );
