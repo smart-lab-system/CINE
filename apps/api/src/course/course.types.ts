@@ -56,3 +56,11 @@ export class RoomView {
   isActive!: boolean;
   sessionCount?: number;
 }
+
+/** Một mã trong Danh mục lớp danh nghĩa (chỉ admin thấy). */
+export class AdministrativeClassView {
+  id!: string;
+  code!: string;
+  /** Số lớp học phần đang dùng mã này. */
+  classCount!: number;
+}
