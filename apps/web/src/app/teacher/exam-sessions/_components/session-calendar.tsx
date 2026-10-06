@@ -209,7 +209,7 @@ function SessionCard({
         {formatTimeRange(session.startTime, session.endTime)}
       </div>
       <div className="mt-0.5 text-caption text-muted-foreground">
-        {session.roomName} · {session.className} ·{' '}
+        {session.roomName} · {session.classLabel} ·{' '}
         {EXAM_TYPE_LABELS[session.examType] ?? session.examType}
       </div>
       {hasGapIssue && (

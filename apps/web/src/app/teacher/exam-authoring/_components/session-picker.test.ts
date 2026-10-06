@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockedReason, isAttachable } from './session-picker';
+import { blockedReason, isAttachable, when } from './session-picker';
 
 const NOW = new Date('2026-09-22T10:00:00.000Z');
 
@@ -43,5 +43,27 @@ describe('blockedReason', () => {
   it('trạng thái đóng -> nói đúng trạng thái đó', () => {
     expect(blockedReason(session('cancelled', '2026-09-22T13:00:00.000Z'))).toBe('Đã huỷ');
     expect(blockedReason(session('collecting', '2026-09-22T13:00:00.000Z'))).toContain('thu bài');
+  });
+});
+
+describe('when', () => {
+  it('Review Focus 3: dòng mô tả phiên đọc classLabel', () => {
+    const text = when({
+      id: 's',
+      name: 'Giữa kỳ',
+      code: 'ABC123',
+      courseName: 'CTDL&GT',
+      classLabel: 'DHKTPM18A – Nhóm 1',
+      semesterId: 's1',
+      academicYear: 2026,
+      term: 1,
+      roomName: 'B2.07',
+      semesterName: 'HK1 2026-2027',
+      examType: 'GK',
+      startTime: new Date(2026, 9, 20, 8, 30).toISOString(),
+      endTime: new Date(2026, 9, 20, 10, 30).toISOString(),
+      status: 'active',
+    });
+    expect(text).toBe('20/10 · 08:30 · B2.07 · DHKTPM18A – Nhóm 1');
   });
 });

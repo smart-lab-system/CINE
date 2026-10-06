@@ -53,7 +53,8 @@ const CLOSED_REASON: Record<string, string> = {
   cancelled: 'Đã huỷ',
 };
 
-function when(session: ExamSessionListItem): string {
+// Export để test được (dòng mô tả là chỗ duy nhất của bộ chọn đọc tên lớp).
+export function when(session: ExamSessionListItem): string {
   if (session.status === 'draft') {
     return 'Chưa chốt giờ · chưa chọn phòng';
   }
@@ -62,7 +63,7 @@ function when(session: ExamSessionListItem): string {
   const m = String(start.getMonth() + 1).padStart(2, '0');
   const hh = String(start.getHours()).padStart(2, '0');
   const mm = String(start.getMinutes()).padStart(2, '0');
-  return `${d}/${m} · ${hh}:${mm} · ${session.roomName} · ${session.className}`;
+  return `${d}/${m} · ${hh}:${mm} · ${session.roomName} · ${session.classLabel}`;
 }
 
 /**
