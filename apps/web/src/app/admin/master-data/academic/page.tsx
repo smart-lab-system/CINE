@@ -35,6 +35,14 @@ import {
 } from '../_components/catalog-table';
 import { CatalogFilterBar } from '../_components/catalog-filter-bar';
 import { buildCatalogQuery } from '../_components/catalog-url';
+import { ListPaginationBar } from '@/components/list-pagination-bar';
+import {
+  parsePage,
+  parsePageSize,
+  paginationQueryPatch,
+  totalPages,
+  type PageSize,
+} from '@/lib/list-pagination';
 import {
   ACADEMIC_STATUSES,
   academicStatusLabel,
@@ -69,6 +77,10 @@ function AcademicYearsList() {
 
   const [yearSearch, setYearSearch] = useState(searchParams.get('q') ?? '');
   const [yearStatus, setYearStatus] = useState(searchParams.get('status') ?? 'all');
+  const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
+  const [pageSize, setPageSize] = useState<PageSize>(() =>
+    parsePageSize(searchParams.get('pageSize')),
+  );
   const debouncedYearSearch = useDebouncedValue(yearSearch, 300);
   const lastUrl = useRef('');
 
@@ -76,15 +88,16 @@ function AcademicYearsList() {
     const qs = buildCatalogQuery(new URLSearchParams(), {
       q: debouncedYearSearch.trim() || null,
       status: yearStatus === 'all' ? null : yearStatus,
+      ...paginationQueryPatch(page, pageSize),
     });
     if (qs === lastUrl.current) return;
     lastUrl.current = qs;
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedYearSearch, yearStatus, pathname, router]);
+  }, [debouncedYearSearch, yearStatus, page, pageSize, pathname, router]);
 
   const years = useAcademicYears({
-    page: 1,
-    pageSize: 50,
+    page,
+    pageSize,
     search: debouncedYearSearch.trim() || undefined,
     status: yearStatus === 'all' ? undefined : yearStatus,
   });
@@ -94,8 +107,29 @@ function AcademicYearsList() {
   const [editingYearId, setEditingYearId] = useState<string | null>(null);
   const [yearForm, setYearForm] = useState(EMPTY_YEAR);
 
+  useEffect(() => {
+    if (!years.data) return;
+    const pages = totalPages(years.data.total, pageSize);
+    if (page > pages) setPage(pages);
+  }, [years.data, page, pageSize]);
+
   const yearFiltered =
     Boolean(debouncedYearSearch.trim()) || yearStatus !== 'all';
+
+  function handleSearchChange(value: string) {
+    setYearSearch(value);
+    setPage(1);
+  }
+
+  function handleStatusChange(value: string) {
+    setYearStatus(value);
+    setPage(1);
+  }
+
+  function handlePageSizeChange(next: PageSize) {
+    setPageSize(next);
+    setPage(1);
+  }
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -166,11 +200,11 @@ function AcademicYearsList() {
         toolbar={
           <CatalogFilterBar
             search={yearSearch}
-            onSearchChange={setYearSearch}
+            onSearchChange={handleSearchChange}
             searchPlaceholder="Mã hoặc tên năm…"
             searchAriaLabel="Tìm năm học"
             filters={
-              <Select value={yearStatus} onValueChange={setYearStatus}>
+              <Select value={yearStatus} onValueChange={handleStatusChange}>
                 <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái năm học">
                   <SelectValue />
                 </SelectTrigger>
@@ -188,6 +222,7 @@ function AcademicYearsList() {
             onClear={() => {
               setYearSearch('');
               setYearStatus('all');
+              setPage(1);
             }}
           />
         }
@@ -221,6 +256,17 @@ function AcademicYearsList() {
                 </TableRow>
               ))
             : null
+        }
+        footer={
+          <ListPaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={years.data?.total ?? 0}
+            entityLabel="năm học"
+            disabled={years.isLoading}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
         }
       />
 
