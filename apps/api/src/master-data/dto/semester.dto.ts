@@ -78,4 +78,8 @@ export class ListSemestersDto {
   @IsOptional()
   @IsIn(STATUSES)
   status?: SemesterStatus;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

@@ -60,4 +60,8 @@ export class ListAcademicYearsDto {
   @IsOptional()
   @IsIn(STATUSES)
   status?: AcademicYearStatus;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

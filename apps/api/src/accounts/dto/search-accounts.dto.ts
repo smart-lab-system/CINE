@@ -1,5 +1,13 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 import { AccountRole } from '../../identity/entities/account.entity';
 
 const ACCOUNT_ROLES: AccountRole[] = ['admin', 'teacher'];
@@ -14,6 +22,16 @@ export class SearchAccountsDto {
   @IsOptional()
   @IsIn(ACCOUNT_ROLES)
   role?: AccountRole;
+
+  /** Query string "true"/"false" → boolean (ValidationPipe transform). */
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  @IsBoolean()
+  isActive?: boolean;
 
   @IsOptional()
   @Type(() => Number)

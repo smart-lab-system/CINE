@@ -75,6 +75,10 @@ export class AccountsService {
       qb.andWhere('a.role = :role', { role: query.role });
     }
 
+    if (query.isActive !== undefined) {
+      qb.andWhere('a.is_active = :isActive', { isActive: query.isActive });
+    }
+
     qb.orderBy('a.created_at', 'DESC')
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize);

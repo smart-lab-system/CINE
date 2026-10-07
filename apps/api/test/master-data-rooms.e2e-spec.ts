@@ -135,4 +135,57 @@ describe('Master data — room & computer (e2e)', () => {
       ).status,
     ).toBe(204);
   });
+
+  it('searches computers by hostname, ip, or location', async () => {
+    const stamp = Date.now();
+    const roomRes = await request(app.getHttpServer())
+      .post('/master-data/rooms')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code: `S${stamp.toString().slice(-6)}`,
+        name: 'Phòng search',
+        capacity: 20,
+        status: 'active',
+      });
+    expect(roomRes.status).toBe(201);
+    const roomId = roomRes.body.id as string;
+
+    const pcRes = await request(app.getHttpServer())
+      .post('/master-data/computers')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        roomId,
+        hostname: `HOST-${stamp}`,
+        location: `LOC-${stamp}`,
+        cpu: 'i7',
+        ramGb: 16,
+        storage: '512GB SSD',
+        os: 'Windows 11',
+        ipAddress: '10.0.9.99',
+        status: 'active',
+      });
+    expect(pcRes.status).toBe(201);
+
+    const byIp = await request(app.getHttpServer())
+      .get('/master-data/computers?search=10.0.9.99')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(byIp.status).toBe(200);
+    expect(byIp.body.items.some((c: { id: string }) => c.id === pcRes.body.id)).toBe(
+      true,
+    );
+
+    const byLoc = await request(app.getHttpServer())
+      .get(`/master-data/computers?search=${encodeURIComponent(`LOC-${stamp}`)}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(byLoc.status).toBe(200);
+    expect(byLoc.body.items.some((c: { id: string }) => c.id === pcRes.body.id)).toBe(
+      true,
+    );
+
+    const miss = await request(app.getHttpServer())
+      .get('/master-data/computers?search=no-such-pc-zzzz')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(miss.status).toBe(200);
+    expect(miss.body.items).toHaveLength(0);
+  });
 });

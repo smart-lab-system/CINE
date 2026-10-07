@@ -146,4 +146,35 @@ describe('Master data — nominal class & student (e2e)', () => {
       ).status,
     ).toBe(204);
   });
+
+  it('filters nominal classes by cohortYear', async () => {
+    const stamp = Date.now();
+    const c21 = await request(app.getHttpServer())
+      .post('/master-data/nominal-classes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code: `NC21-${stamp}`,
+        name: 'Cohort 21',
+        cohortYear: 2021,
+        status: 'active',
+      });
+    expect(c21.status).toBe(201);
+    const c22 = await request(app.getHttpServer())
+      .post('/master-data/nominal-classes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code: `NC22-${stamp}`,
+        name: 'Cohort 22',
+        cohortYear: 2022,
+        status: 'active',
+      });
+    expect(c22.status).toBe(201);
+
+    const hit = await request(app.getHttpServer())
+      .get('/master-data/nominal-classes?cohortYear=2021')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(hit.status).toBe(200);
+    expect(hit.body.items.some((c: { id: string }) => c.id === c21.body.id)).toBe(true);
+    expect(hit.body.items.some((c: { id: string }) => c.id === c22.body.id)).toBe(false);
+  });
 });

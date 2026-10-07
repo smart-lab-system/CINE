@@ -130,4 +130,73 @@ describe('Master data — academic year & semester (e2e)', () => {
       ).status,
     ).toBe(204);
   });
+
+  it('lists years/semesters with search and academicYearId filter', async () => {
+    const stamp = Date.now();
+    const code = `YS-${stamp}`;
+    const yearRes = await request(app.getHttpServer())
+      .post('/master-data/academic-years')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code,
+        name: `Năm tìm ${stamp}`,
+        startDate: '2025-09-01',
+        endDate: '2026-08-31',
+        status: 'active',
+      });
+    expect(yearRes.status).toBe(201);
+    const yearId = yearRes.body.id as string;
+
+    const otherYear = await request(app.getHttpServer())
+      .post('/master-data/academic-years')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code: `YO-${stamp}`,
+        name: 'Năm khác',
+        startDate: '2024-09-01',
+        endDate: '2025-08-31',
+        status: 'closed',
+      });
+    expect(otherYear.status).toBe(201);
+
+    const semRes = await request(app.getHttpServer())
+      .post('/master-data/semesters')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        academicYearId: yearId,
+        code: 'HK1',
+        name: `HK1 tìm ${stamp}`,
+        startDate: '2025-09-01',
+        endDate: '2026-01-15',
+        status: 'active',
+      });
+    expect(semRes.status).toBe(201);
+
+    const yearHit = await request(app.getHttpServer())
+      .get(`/master-data/academic-years?search=${encodeURIComponent(code)}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(yearHit.status).toBe(200);
+    expect(yearHit.body.items.some((y: { id: string }) => y.id === yearId)).toBe(true);
+
+    const yearMiss = await request(app.getHttpServer())
+      .get('/master-data/academic-years?search=zzzz-no-match')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(yearMiss.status).toBe(200);
+    expect(yearMiss.body.items).toHaveLength(0);
+
+    const semHit = await request(app.getHttpServer())
+      .get(
+        `/master-data/semesters?academicYearId=${yearId}&search=${encodeURIComponent(`HK1 tìm ${stamp}`)}`,
+      )
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(semHit.status).toBe(200);
+    expect(semHit.body.items).toHaveLength(1);
+    expect(semHit.body.items[0].academicYearId).toBe(yearId);
+
+    const semOtherYear = await request(app.getHttpServer())
+      .get(`/master-data/semesters?academicYearId=${otherYear.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(semOtherYear.status).toBe(200);
+    expect(semOtherYear.body.items).toHaveLength(0);
+  });
 });

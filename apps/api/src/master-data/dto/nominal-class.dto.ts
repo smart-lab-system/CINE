@@ -66,4 +66,11 @@ export class ListNominalClassesDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(COHORT_YEAR_MAX)
+  cohortYear?: number;
 }

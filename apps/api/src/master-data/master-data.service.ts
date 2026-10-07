@@ -65,6 +65,11 @@ export class MasterDataService {
   async listAcademicYears(query: ListAcademicYearsDto) {
     const qb = this.academicYears.createQueryBuilder('y');
     if (query.status) qb.andWhere('y.status = :status', { status: query.status });
+    if (query.search) {
+      qb.andWhere('(y.code ILIKE :term OR y.name ILIKE :term)', {
+        term: `%${query.search}%`,
+      });
+    }
     qb.orderBy('y.start_date', 'DESC')
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize);
@@ -105,6 +110,11 @@ export class MasterDataService {
       });
     }
     if (query.status) qb.andWhere('s.status = :status', { status: query.status });
+    if (query.search) {
+      qb.andWhere('(s.code ILIKE :term OR s.name ILIKE :term)', {
+        term: `%${query.search}%`,
+      });
+    }
     qb.orderBy('s.start_date', 'DESC')
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize);
@@ -186,6 +196,9 @@ export class MasterDataService {
   async listNominalClasses(query: ListNominalClassesDto) {
     const qb = this.nominalClasses.createQueryBuilder('n');
     if (query.status) qb.andWhere('n.status = :status', { status: query.status });
+    if (query.cohortYear != null) {
+      qb.andWhere('n.cohort_year = :cohortYear', { cohortYear: query.cohortYear });
+    }
     if (query.search) {
       qb.andWhere('(n.code ILIKE :term OR n.name ILIKE :term)', {
         term: `%${query.search}%`,
@@ -342,9 +355,11 @@ export class MasterDataService {
     if (query.roomId) qb.andWhere('c.room_id = :roomId', { roomId: query.roomId });
     if (query.status) qb.andWhere('c.status = :status', { status: query.status });
     if (query.search) {
-      qb.andWhere('(c.hostname ILIKE :term OR c.cpu ILIKE :term)', {
-        term: `%${query.search}%`,
-      });
+      // hostname / IP / vị trí là cách admin tìm máy; cpu giữ trong OR cho tương thích cũ
+      qb.andWhere(
+        '(c.hostname ILIKE :term OR c.ip_address ILIKE :term OR c.location ILIKE :term OR c.cpu ILIKE :term)',
+        { term: `%${query.search}%` },
+      );
     }
     qb.orderBy('c.hostname', 'ASC')
       .skip((query.page - 1) * query.pageSize)
