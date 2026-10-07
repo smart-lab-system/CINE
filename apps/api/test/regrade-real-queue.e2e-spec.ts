@@ -6,6 +6,8 @@ import type { Queue } from 'bullmq';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { GRADE_JOB_OPTIONS, GRADING_QUEUE } from '../src/grading/grading.queue';
+import { ExamSessionEntity } from '../src/exam-session/entities/exam-session.entity';
+import { GradingRunService } from '../src/grading/grading-run.service';
 import { RegradeService } from '../src/grading/regrade.service';
 import { forceStatus, seedResult, seedSession } from './helpers/grading-seed';
 
@@ -70,6 +72,37 @@ describe('Chấm lại — job hoàn tất còn trong Redis thật (e2e)', () =>
       expect(job!.data.submissionId).toBe(made.submissionId);
       expect(await job!.getState()).not.toBe('completed');
       await job!.remove(); // dọn khi còn pause: worker không bao giờ chạy nó
+    } finally {
+      await queue.resume();
+    }
+  }, 60_000);
+
+  // Review chung G1→G5 (G3 W1): nếu `enqueue` của chấm lại lỗi SAU khi dòng đã sang `ai_grading` (Redis chập chờn ở
+  // `getJob`/`remove`), job `completed` CŨ vẫn nằm đó. `regradeStuck` là lưới cứu — nó không được bỏ qua job ấy:
+  // dòng ở `ai_grading` mà job đã `completed` thì job đó là của lượt trước.
+  it('regradeStuck: dòng ở ai_grading + job completed cũ cùng jobId -> xoá và xếp lại', async () => {
+    const ctx = await seedSession(ds, 'stuck-real');
+    const made = await seedResult(ds, ctx, 'one_shot'); // seedResult sinh dòng ở `ai_grading`
+    const jobId = `grade-${made.submissionId}`;
+
+    await queue.add(
+      'grade-submission',
+      { submissionId: randomUUID(), requiredFilename: 'x.docx', deliverableType: 'document', rubricId: randomUUID(), teacherId: ctx.teacherId },
+      { ...GRADE_JOB_OPTIONS, jobId },
+    );
+    await waitForState(jobId, 'completed');
+
+    await queue.pause();
+    try {
+      const session = await ds.getRepository(ExamSessionEntity).findOneByOrFail({ id: ctx.sessionId });
+      const outcome = await app.get(GradingRunService).regradeStuck(session, ctx.teacherId);
+      expect(outcome).toEqual({ stuck: 1, requeued: 1 });
+
+      const job = await queue.getJob(jobId);
+      expect(job).toBeDefined();
+      expect(job!.data.submissionId).toBe(made.submissionId);
+      expect(await job!.getState()).not.toBe('completed');
+      await job!.remove();
     } finally {
       await queue.resume();
     }

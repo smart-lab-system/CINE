@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { ErrorRuleService } from '../src/grading/rules/error-rule.service';
 import { PriceService } from '../src/grading/rules/price.service';
+import { GradeExportDataService } from '../src/grade-export/grade-export.data';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { createTestAccount } from './helpers/create-account';
 import { forceStatus, seedSession } from './helpers/grading-seed';
@@ -77,6 +78,29 @@ describe('Bài kiểm mẫu chưa kiểm: mọi đường đọc đều mù (e2e
     expect(res.body).toMatchObject({ status: 'audit_pending', breakdown: null, investigation: null, currentScore: null });
     expect(JSON.stringify(res.body)).not.toContain(SECRET_SCORE);
     expect(JSON.stringify(res.body)).not.toContain(SECRET_RULE);
+  });
+
+  it('văn bản bài nộp: không điểm, không luật của hệ thống', async () => {
+    const w = await world('text');
+    const res = await get(w.owner.token, `/grading-results/${w.resultId}/submission-text`);
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body)).not.toContain(SECRET_SCORE);
+    expect(JSON.stringify(res.body)).not.toContain(SECRET_RULE);
+  });
+
+  // Review chung G1→G5: đường đọc của G5 thêm SAU khi canary này viết. Không có route nào ghi sổ điểm khi phiên còn bài
+  // `audit_pending` (phiên chưa chốt thì `preview` trả 409), nên canary đứng ở lớp nạp dữ liệu mà cả `preview` lẫn `write` dùng.
+  it('xuất sổ điểm: lớp nạp dữ liệu coi bài kiểm mẫu là ô trống "chờ duyệt", không mang điểm', async () => {
+    const w = await world('export');
+    const { students, publishedResults } = await ds.transaction((m) =>
+      app.get(GradeExportDataService).loadStudents(m, w.ctx.sessionId, null),
+    );
+    expect(publishedResults).toBe(0);
+    const row = students.find((s) => s.outcome.kind === 'blank' && s.outcome.reason === 'flagged');
+    expect(row).toBeDefined();
+    expect(students.some((s) => s.outcome.kind === 'scored')).toBe(false);
+    expect(JSON.stringify(students)).not.toContain(SECRET_SCORE);
+    expect(JSON.stringify(students)).not.toContain('863');
   });
 
   it('tiến độ: chỉ số bài theo trạng thái, không lộ gì', async () => {

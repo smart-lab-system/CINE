@@ -62,6 +62,14 @@ export class TestBundleService {
     sessionAlreadyPinned: boolean,
   ): Promise<{ id: string; version: number; approvedAt: string | null; pinned: boolean }> {
     return this.ds.transaction(async (manager) => {
+      // Khoá hàng phiên TRƯỚC khi đọc "đã ghim chưa" và tính số phiên bản. `sessionAlreadyPinned` do người gọi đọc NGOÀI
+      // transaction, nên hai `attach` đồng thời cùng thấy "chưa ghim": cả hai ghim (gói sau đè gói trước) hoặc cả hai
+      // lấy cùng `version` và một bên nổ vì khoá duy nhất. Có khoá, bên đến sau thấy pin của bên đến trước.
+      const [locked] = await manager.query(
+        `SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1 FOR UPDATE`,
+        [examSessionId],
+      );
+      const pinnedNow = sessionAlreadyPinned || (locked?.test_bundle_id ?? null) !== null;
       const version = await this.nextVersion(manager, examSessionId);
       const [bundle] = await manager.query(
         `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
@@ -70,7 +78,7 @@ export class TestBundleService {
       );
       await this.insertCases(manager, bundle.id, cases);
 
-      if (sessionAlreadyPinned) {
+      if (pinnedNow) {
         return { id: bundle.id as string, version: bundle.version as number, approvedAt: null, pinned: false };
       }
 
@@ -166,6 +174,14 @@ export class TestBundleService {
       if (kept.length === rows.length) {
         // "Không có ca đó" khác "bỏ được rồi": giảng viên cần biết là cái nào.
         throw new NotFoundException(`Gói test ${bundleId} không có ca nào tên "${caseKey}".`);
+      }
+      // `create` đòi ≥ 1 ca (`ArrayMinSize(1)`); bỏ ca cuối ra gói rỗng mà `approve`/`pin` không kiểm. Ca hệ thống đã tự bỏ
+      // không chấm được ai nên không tính là "còn ca".
+      if (!kept.some((r) => r.auto_dropped_reason === null)) {
+        throw new ConflictException(
+          `Không bỏ được ca "${caseKey}": đó là ca cuối cùng còn chấm được của gói. Một gói test phải còn ít nhất một ca — ` +
+            'nếu không muốn dùng gói này thì tạo gói khác.',
+        );
       }
 
       const version = await this.nextVersion(manager, examSessionId);

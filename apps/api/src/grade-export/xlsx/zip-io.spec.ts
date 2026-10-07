@@ -76,6 +76,17 @@ describe('readZipEntries / writeZip', () => {
     await expect(readZipEntries(zip, { maxEntries: 10, maxEntryBytes: 50, maxTotalBytes: 1000 })).rejects.toBeInstanceOf(ZipLimitError);
   });
 
+  it('refuses an entry that inflates PAST its declared size — the check runs while streaming, not at the end', async () => {
+    // Zip bomb in miniature: the central directory promises 100 bytes, the deflate stream holds 100 000. The
+    // declared size passes every limit above, so only yauzl's byte-count assertion (`validateEntrySizes`, on by
+    // default) stands between this file and an unbounded Buffer. Do not turn that option off.
+    const zip = await makeZip({ bomb: 'a'.repeat(100_000) });
+    const header = zip.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])); // central directory file header
+    expect(header).toBeGreaterThan(0);
+    zip.writeUInt32LE(100, header + 24); // uncompressedSize
+    await expect(readZipEntries(zip, { maxEntries: 10, maxEntryBytes: 1000, maxTotalBytes: 1000 })).rejects.toBeInstanceOf(CorruptZipError);
+  });
+
   it('refuses a total declared size over the limit even when every entry is small', async () => {
     const zip = await makeZip({ a: 'x'.repeat(40), b: 'y'.repeat(40), c: 'z'.repeat(40) });
     await expect(readZipEntries(zip, { maxEntries: 10, maxEntryBytes: 50, maxTotalBytes: 100 })).rejects.toBeInstanceOf(ZipLimitError);

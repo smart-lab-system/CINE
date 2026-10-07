@@ -195,8 +195,8 @@ export class RegradeService {
    * `jobId` cố định (`grade-<submissionId>`) là cách loại trùng — nhưng cũng là cái bẫy: BullMQ giữ job hoàn tất
    * 24 giờ (`removeOnComplete.age`) và job hỏng mãi mãi (`removeOnFail: false`), và `queue.add` cùng `jobId` với
    * một job ĐANG TỒN TẠI bị bỏ qua IM LẶNG. Một lượt "không chấm được" kết thúc bình thường (`finishUngradable`
-   * không ném) nên job của nó là `completed`; không xoá nó thì bài kẹt ở `ai_grading` không job nào, và
-   * `regradeStuck` cũng không cứu (nó bỏ qua mọi job không `failed`).
+   * không ném) nên job của nó là `completed`; không xoá nó thì bài kẹt ở `ai_grading` không job nào. Nếu
+   * bước này lỗi giữa chừng thì `regradeStuck` là lưới cứu: nó cũng gỡ job `completed` cũ của dòng đang ở `ai_grading`.
    *
    * Job SỐNG thì để yên: nó đọc DB lúc chạy và chấm đúng bài này.
    */
