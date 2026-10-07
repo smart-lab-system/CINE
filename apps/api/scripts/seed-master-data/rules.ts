@@ -9,6 +9,81 @@ export const ADMIN_ACCOUNTS = [
 
 export const TEACHER_PASSWORD = 'Teacher@123';
 
+/**
+ * Lịch năm học / học kỳ ban đầu — chụp từ DB local chính (2026-10-07),
+ * bỏ các hàng test `AY-*`. Idempotent theo `code` (năm) và `(yearCode, code)` (kỳ).
+ */
+export type SeedAcademicYearStatus = 'planned' | 'active' | 'closed';
+export type SeedSemesterStatus = 'planned' | 'active' | 'closed';
+
+export const SEED_ACADEMIC_YEARS = [
+  {
+    code: '2025 - 2026',
+    name: 'Năm học 2025 - 2026',
+    startDate: '2025-08-01',
+    endDate: '2026-07-27',
+    status: 'closed' as SeedAcademicYearStatus,
+  },
+  {
+    code: '2026 - 2027',
+    name: 'Năm học 2026 - 2027',
+    startDate: '2026-08-01',
+    endDate: '2027-07-26',
+    status: 'active' as SeedAcademicYearStatus,
+  },
+] as const;
+
+export const SEED_SEMESTERS = [
+  {
+    yearCode: '2025 - 2026',
+    code: 'HK1',
+    name: 'Học kỳ 1 năm học 2025 - 2026',
+    startDate: '2025-08-04',
+    endDate: '2025-12-29',
+    status: 'closed' as SeedSemesterStatus,
+  },
+  {
+    yearCode: '2025 - 2026',
+    code: 'HK2',
+    name: 'Học kỳ 2 năm học 2025 - 2026',
+    startDate: '2025-12-29',
+    endDate: '2026-06-08',
+    status: 'closed' as SeedSemesterStatus,
+  },
+  {
+    yearCode: '2025 - 2026',
+    code: 'HE',
+    name: 'Học kỳ hè năm học 2025 - 2026',
+    startDate: '2026-06-08',
+    endDate: '2026-07-27',
+    status: 'closed' as SeedSemesterStatus,
+  },
+  {
+    yearCode: '2026 - 2027',
+    code: 'HK1',
+    name: 'Học kỳ 1 năm học 2026 - 2027',
+    startDate: '2026-08-03',
+    endDate: '2026-12-21',
+    status: 'active' as SeedSemesterStatus,
+  },
+  {
+    yearCode: '2026 - 2027',
+    code: 'HK2',
+    name: 'Học kỳ 2 năm học 2026 - 2027',
+    startDate: '2026-12-28',
+    endDate: '2027-06-07',
+    status: 'planned' as SeedSemesterStatus,
+  },
+  {
+    yearCode: '2026 - 2027',
+    code: 'HE',
+    name: 'Học kỳ hè năm học 2026 - 2027',
+    startDate: '2027-06-07',
+    endDate: '2027-07-26',
+    status: 'planned' as SeedSemesterStatus,
+  },
+] as const;
+
 export const COMPUTER_SPECS = {
   cpu: 'i5 11400',
   ramGb: 16,

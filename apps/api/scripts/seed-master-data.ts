@@ -12,14 +12,18 @@ import * as argon2 from 'argon2';
 import { generateFullName } from 'vietnamese-name-generator';
 import dataSource from '../src/database/data-source';
 import { AccountEntity } from '../src/identity/entities/account.entity';
+import { AcademicYearEntity } from '../src/master-data/entities/academic-year.entity';
 import { CourseEntity } from '../src/master-data/entities/course.entity';
 import { RoomEntity } from '../src/master-data/entities/room.entity';
 import { ComputerEntity } from '../src/master-data/entities/computer.entity';
 import { NominalClassEntity } from '../src/master-data/entities/nominal-class.entity';
+import { SemesterEntity } from '../src/master-data/entities/semester.entity';
 import { StudentEntity } from '../src/master-data/entities/student.entity';
 import {
   ADMIN_ACCOUNTS,
   COMPUTER_SPECS,
+  SEED_ACADEMIC_YEARS,
+  SEED_SEMESTERS,
   TEACHER_PASSWORD,
   buildNominalClasses,
   classSizeBand,
@@ -132,6 +136,74 @@ async function seedAccounts(
       throw new Error(`Invalid teacher email in JSON: ${JSON.stringify(t.href)}`);
     }
     await upsertAccount(email, t.text, 'teacher', TEACHER_PASSWORD, resetPasswords, counts);
+  }
+  return counts;
+}
+
+async function seedAcademicYears(): Promise<{
+  counts: Counts;
+  byCode: Map<string, AcademicYearEntity>;
+}> {
+  const repo = dataSource.getRepository(AcademicYearEntity);
+  const counts = emptyCounts();
+  const byCode = new Map<string, AcademicYearEntity>();
+  for (const row of SEED_ACADEMIC_YEARS) {
+    const existing = await repo.findOne({ where: { code: row.code } });
+    if (!existing) {
+      const saved = await repo.save(
+        repo.create({
+          code: row.code,
+          name: row.name,
+          startDate: row.startDate,
+          endDate: row.endDate,
+          status: row.status,
+        }),
+      );
+      byCode.set(saved.code, saved);
+      counts.created++;
+    } else {
+      existing.name = row.name;
+      existing.startDate = row.startDate;
+      existing.endDate = row.endDate;
+      existing.status = row.status;
+      byCode.set(existing.code, await repo.save(existing));
+      counts.updated++;
+    }
+  }
+  return { counts, byCode };
+}
+
+async function seedSemesters(yearsByCode: Map<string, AcademicYearEntity>): Promise<Counts> {
+  const repo = dataSource.getRepository(SemesterEntity);
+  const counts = emptyCounts();
+  for (const row of SEED_SEMESTERS) {
+    const year = yearsByCode.get(row.yearCode);
+    if (!year) {
+      throw new Error(`seed semester ${row.code}: missing academic year ${row.yearCode}`);
+    }
+    const existing = await repo.findOne({
+      where: { academicYearId: year.id, code: row.code },
+    });
+    if (!existing) {
+      await repo.save(
+        repo.create({
+          academicYearId: year.id,
+          code: row.code,
+          name: row.name,
+          startDate: row.startDate,
+          endDate: row.endDate,
+          status: row.status,
+        }),
+      );
+      counts.created++;
+    } else {
+      existing.name = row.name;
+      existing.startDate = row.startDate;
+      existing.endDate = row.endDate;
+      existing.status = row.status;
+      await repo.save(existing);
+      counts.updated++;
+    }
   }
   return counts;
 }
@@ -353,6 +425,8 @@ async function main(): Promise<void> {
     if (freshCatalog) await wipeCatalog();
 
     const accountCounts = await seedAccounts(teachers, resetPasswords);
+    const { counts: yearCounts, byCode: yearsByCode } = await seedAcademicYears();
+    const semesterCounts = await seedSemesters(yearsByCode);
     const courseCounts = await seedCourses(courses);
     const { counts: roomCounts, rooms } = await seedRooms(roomsJson);
     const computerCounts = await seedComputers(rooms);
@@ -363,6 +437,8 @@ async function main(): Promise<void> {
     const studentTotal = await dataSource.getRepository(StudentEntity).count();
 
     console.log(fmt('accounts', accountCounts));
+    console.log(fmt('academic_years', yearCounts));
+    console.log(fmt('semesters', semesterCounts));
     console.log(fmt('courses', courseCounts));
     console.log(fmt('rooms', roomCounts));
     console.log(fmt('computers', computerCounts), `(total rows=${computerTotal})`);

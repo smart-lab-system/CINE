@@ -1,4 +1,6 @@
 import {
+  SEED_ACADEMIC_YEARS,
+  SEED_SEMESTERS,
   buildNominalClasses,
   classSizeBand,
   computerHostname,
@@ -13,6 +15,25 @@ import {
 } from './rules';
 
 describe('seed-master-data rules', () => {
+  it('academic calendar seed matches current local year/semester shape', () => {
+    expect(SEED_ACADEMIC_YEARS).toHaveLength(2);
+    expect(SEED_ACADEMIC_YEARS.map((y) => y.code)).toEqual(['2025 - 2026', '2026 - 2027']);
+    expect(SEED_ACADEMIC_YEARS.find((y) => y.code === '2026 - 2027')?.status).toBe('active');
+    expect(SEED_ACADEMIC_YEARS.find((y) => y.code === '2025 - 2026')?.status).toBe('closed');
+
+    expect(SEED_SEMESTERS).toHaveLength(6);
+    const yearCodes = new Set(SEED_ACADEMIC_YEARS.map((y) => y.code));
+    for (const s of SEED_SEMESTERS) {
+      expect(yearCodes.has(s.yearCode)).toBe(true);
+      expect(s.endDate > s.startDate).toBe(true);
+    }
+    const activeHk1 = SEED_SEMESTERS.find(
+      (s) => s.yearCode === '2026 - 2027' && s.code === 'HK1',
+    );
+    expect(activeHk1?.status).toBe('active');
+    expect(activeHk1?.name).toBe('Học kỳ 1 năm học 2026 - 2027');
+  });
+
   it('pad2 zero-pads', () => {
     expect(pad2(1)).toBe('01');
     expect(pad2(40)).toBe('40');

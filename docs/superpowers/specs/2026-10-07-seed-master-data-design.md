@@ -35,12 +35,12 @@ mã trường.
 | Seed máy tính | Sinh từ `sucChua` / `capacity` từng phòng |
 | Seed lớp danh nghĩa | Khóa 2021–2024, quy tắc mã dưới đây |
 | Seed sinh viên | Theo sĩ số lớp; MSSV + họ tên tiếng Việt |
+| Seed năm học / học kỳ | 2 năm (`2025 - 2026` closed, `2026 - 2027` active) + 6 kỳ (HK1/HK2/HE mỗi năm); chụp từ lịch thực tế |
 | Script chạy một lần (hoặc idempotent) | CLI trong `apps/api` hoặc `scripts/`, đọc JSON, ghi DB qua TypeORM / data-source |
 
 ### 1.2 Cố ý KHÔNG trong phạm vi
 
 - Xóa / sửa nội dung `INSERT` seed trong migration cũ.
-- Seed `academic_year` / `semester` (catalog có bảng; đợt này không yêu cầu).
 - Gắn catalog vào `exam_session` / `class` / `enrollment` / roster cũ.
 - Import Excel, UI admin “Seed”, API public seed.
 - Seed lớp môn (`class`), phiên thi, bài nộp, chấm điểm.
@@ -272,7 +272,7 @@ In ra summary: số account / course / room / computer / nominal_class / student
 ## 8. Tiêu chí chấp nhận
 
 1. Migration seed cũ vẫn còn trong git / vẫn chạy được trên DB mới (không regress migrate); **không** còn là nguồn dữ liệu được tài liệu / reset-dev dựa vào.
-2. Chạy seed một lần trên DB sạch catalog → đủ: **2 admin** (`bao@` / `phat@hui.edu.vn`) + **77 teacher** (email lấy từ `href`), 39 course, 39 room, 1560 computer, 96 nominal_class, sinh viên trong đúng band sĩ số từng loại lớp.
+2. Chạy seed một lần trên DB sạch catalog → đủ: **2 admin** (`bao@` / `phat@hui.edu.vn`) + **77 teacher** (email lấy từ `href`), **2 academic_year** + **6 semester**, 39 course, 39 room, 1560 computer, 96 nominal_class, sinh viên trong đúng band sĩ số từng loại lớp.
 3. Đăng nhập được: admin với `Admin@123`, giảng viên với `Teacher@123`.
 4. Hostname / location đúng mẫu (`H1.1.01` / `M01`); phần cứng / OS / status đúng §4.4.
 5. Mã lớp đúng prefix × middle × postfix; `cohort_year` khớp middle.
@@ -285,5 +285,4 @@ In ra summary: số account / course / room / computer / nominal_class / student
 
 - Có seed thêm khóa 2025+ hay ngành khác → đổi spec / mở rộng bảng quy tắc.
 - Gán giảng viên làm chủ lớp môn / enrollment — spec gắn catalog sau.
-- `academic_year` / `semester` seed — khi UI admin cần lịch học kỳ.
 )
