@@ -21,7 +21,7 @@ export interface SessionOverviewItem {
   /** Nhãn gộp của lớp (`DHKTPM18A – Nhóm 1`), đọc từ view `class_label`. */
   classLabel: string | null;
   /**
-   * Học kỳ HIỆN TẠI của lớp (khoá), nguồn cho bộ lọc phía trình duyệt. `null` chỉ với lớp cũ chưa backfill.
+   * Học kỳ HIỆN TẠI của lớp (khoá), nguồn cho bộ lọc phía trình duyệt. Luôn có giá trị (NOT NULL từ migration thu hẹp); kiểu giữ `| null` để hợp đồng API không đổi.
    * Khác `semesterName` bên dưới: đó là bản chụp lúc tạo phiên.
    */
   semesterId: string | null;

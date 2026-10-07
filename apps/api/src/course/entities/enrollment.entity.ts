@@ -16,16 +16,12 @@ import { ClassEntity } from './class.entity';
 })
 @Check('ck_enrollment_mssv', "student_mssv ~ '^[A-Za-z0-9]{4,20}$'")
 export class EnrollmentEntity extends BaseEntity {
+  /**
+   * Khoá ngoại `fk_enrollment_student` → `student(mssv)` (RESTRICT; chỉ mục `idx_enrollment_student_mssv`) — dựng bằng migration thu hẹp. Tên sinh viên
+   * nằm ở MỘT chỗ: bảng `student` (spec §2.6); enrollment không giữ bản sao.
+   */
   @Column({ name: 'student_mssv', type: 'citext' })
   studentMssv!: string;
-
-  /**
-   * @deprecated TÊN CŨ, đang chờ gỡ. Tên sinh viên nằm ở MỘT chỗ: bảng `student`
-   * (spec §2.6). Không đọc, không ghi cột này ở code mới; nullable từ migration
-   * `ExpandMasterDataEntities` và bị bỏ ở migration thu hẹp (plan H).
-   */
-  @Column({ name: 'student_name', type: 'varchar', length: 150, nullable: true })
-  studentName!: string | null;
 
   @Column({ name: 'home_class_id', type: 'uuid' })
   homeClassId!: string;

@@ -56,11 +56,10 @@ describe('seed helper (e2e)', () => {
 
     expect(klass.label).toBe(`${klass.code} – Nhóm 2`);
     const [row] = await dataSource.query(
-      `SELECT course_name, name, teacher_id, semester_id, administrative_class_id, group_name FROM examcollect.class WHERE id = $1`,
+      `SELECT course_name, teacher_id, semester_id, administrative_class_id, group_name FROM examcollect.class WHERE id = $1`,
       [klass.id],
     );
     expect(row.course_name).toBe(COURSE_NAME);
-    expect(row.name).toBeNull(); // không còn ghi cột cũ
     expect(row.semester_id).not.toBeNull();
     expect(row.administrative_class_id).not.toBeNull();
     expect(row.group_name).toBe('Nhóm 2');
@@ -88,38 +87,23 @@ describe('seed helper (e2e)', () => {
     }
   });
 
-  it('seedEnrollment ghi tên vào `student` (một chỗ) và enrollment KHÔNG kèm tên; đặt tên mặc định khi không cho', async () => {
+  it('seedEnrollment ghi tên vào `student` (một chỗ); enrollment không có cột tên; đặt tên mặc định khi không cho', async () => {
     const klass = await seedClass(dataSource, { teacherId });
     const mssv = `SH${Date.now().toString(36)}`.toUpperCase().slice(0, 12);
     await seedEnrollment(dataSource, { classId: klass.id, teacherId, mssv });
 
     const [row] = await dataSource.query(
-      `SELECT student_mssv, student_name, home_class_id, home_teacher_id
+      `SELECT student_mssv, home_class_id, home_teacher_id
          FROM examcollect.enrollment WHERE home_class_id = $1`,
       [klass.id],
     );
     expect(row).toMatchObject({
       student_mssv: mssv,
-      student_name: null,
       home_class_id: klass.id,
       home_teacher_id: teacherId,
     });
     const [student] = await dataSource.query(`SELECT full_name FROM examcollect.student WHERE mssv = $1`, [mssv]);
     expect(student.full_name).toBe(`Sinh viên ${mssv}`);
-  });
-
-  it('seedEnrollment với legacyName dựng hình dạng TRƯỚC backfill: có tên cũ ở enrollment, không có hàng student', async () => {
-    const klass = await seedClass(dataSource, { teacherId });
-    const mssv = `SL${Date.now().toString(36)}`.toUpperCase().slice(0, 12);
-    await seedEnrollment(dataSource, { classId: klass.id, teacherId, mssv, legacyName: 'Tên cũ chưa backfill' });
-
-    const [row] = await dataSource.query(
-      `SELECT student_name FROM examcollect.enrollment WHERE home_class_id = $1`,
-      [klass.id],
-    );
-    expect(row.student_name).toBe('Tên cũ chưa backfill');
-    const students = await dataSource.query(`SELECT 1 FROM examcollect.student WHERE mssv = $1`, [mssv]);
-    expect(students).toHaveLength(0);
   });
 
   it('seedExamSession chèn thẳng một phiên mà service sẽ từ chối, và trả đủ định danh', async () => {
@@ -204,25 +188,14 @@ describe('seed helper (e2e)', () => {
     expect(b.name).toBe(a.name);
   });
 
-  it('seedClass với semesterId/administrativeClassId = null dựng lớp CŨ (cột NULL)', async () => {
-    const klass = await seedClass(dataSource, { teacherId, semesterId: null, administrativeClassId: null });
-    const [row] = await dataSource.query(
-      `SELECT semester_id, administrative_class_id FROM examcollect.class WHERE id = $1`,
-      [klass.id],
-    );
-    expect(row).toEqual({ semester_id: null, administrative_class_id: null });
-  });
-
-  it('seedExamSession mặc định có room_id; withoutRoom dựng dòng kiểu cũ với room_id NULL', async () => {
+  it('seedExamSession luôn có room_id (NOT NULL)', async () => {
     const klass = await seedClass(dataSource, { teacherId });
     const start = new Date(Date.now() - 30 * 24 * 3_600_000);
-    const base = { teacherId, classId: klass.id, startTime: start, endTime: new Date(start.getTime() + 3_600_000), status: 'completed' as const };
-    const withRoom = await seedExamSession(dataSource, base);
-    const legacy = await seedExamSession(dataSource, { ...base, withoutRoom: true });
-    const rows = await dataSource.query(`SELECT id, room_id FROM examcollect.exam_session WHERE id = ANY($1)`, [[withRoom.id, legacy.id]]);
-    const byId = new Map(rows.map((r: { id: string; room_id: string | null }) => [r.id, r.room_id]));
-    expect(byId.get(withRoom.id)).not.toBeNull();
-    expect(byId.get(legacy.id)).toBeNull();
+    const session = await seedExamSession(dataSource, {
+      teacherId, classId: klass.id, startTime: start, endTime: new Date(start.getTime() + 3_600_000), status: 'completed',
+    });
+    const [row] = await dataSource.query(`SELECT room_id FROM examcollect.exam_session WHERE id = $1`, [session.id]);
+    expect(row.room_id).toBe(session.roomId);
   });
 
   it('seedClass ghi học kỳ, lớp danh nghĩa và nhóm khi được cho', async () => {

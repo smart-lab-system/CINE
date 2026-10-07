@@ -117,19 +117,11 @@ describe('Phiên thi: bản chụp phòng và học kỳ (e2e)', () => {
       expect(res.body.semesterName).toBe(semesterText);
     });
 
-    it('roomId không phải uuid, hoặc không có thật: 400; lớp không có học kỳ: 409 và không ghi gì (Review Focus 4)', async () => {
+    it('roomId không phải uuid, hoặc không có thật: 400 (Review Focus 4)', async () => {
       const klass = await seedClass(ds, { teacherId, semesterId });
       await create({ classId: klass.id, roomId: 'khong-phai-uuid' }).expect(400);
       const ghost = await create({ classId: klass.id, roomId: '00000000-0000-4000-8000-0000000000ee' }).expect(400);
       expect(ghost.body.message).toMatch(/phòng/i);
-
-      const legacy = await seedClass(ds, { teacherId, semesterId: null }); // lớp cũ chưa backfill
-      const room = await ensureRoom(ds, `Phong chup ${tag} C`);
-      const [{ n: before }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.exam_session WHERE class_id = $1`, [legacy.id]);
-      const blocked = await create({ classId: legacy.id, roomId: room.id }).expect(409);
-      expect(blocked.body.message).toMatch(/học kỳ/);
-      const [{ n: after }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.exam_session WHERE class_id = $1`, [legacy.id]);
-      expect(after).toBe(before);
     });
   });
 

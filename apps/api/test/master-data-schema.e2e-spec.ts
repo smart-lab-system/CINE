@@ -52,7 +52,7 @@ describe('Master data schema (e2e)', () => {
     return row.id;
   }
 
-  async function newClass(teacherId: string, extra: { semesterId?: string | null; administrativeClassId?: string | null; groupName?: string } = {}) {
+  async function newClass(teacherId: string, extra: { semesterId?: string; administrativeClassId?: string; groupName?: string } = {}) {
     const klass = await seedClass(ds, { teacherId, ...extra });
     createdClasses.push(klass.id);
     return klass;
@@ -65,7 +65,6 @@ describe('Master data schema (e2e)', () => {
     end: Date;
     roomId?: string;
     roomName?: string;
-    withoutRoom?: boolean;
     status?: 'active' | 'collecting' | 'completed' | 'cancelled';
   }) {
     const session = await seedExamSession(ds, {
@@ -75,7 +74,6 @@ describe('Master data schema (e2e)', () => {
       endTime: opts.end,
       roomId: opts.roomId,
       roomName: opts.roomName,
-      withoutRoom: opts.withoutRoom,
       status: opts.status ?? 'active',
     });
     createdSessions.push(session.id);
@@ -327,17 +325,6 @@ describe('Master data schema (e2e)', () => {
       const free = await newClass(teacherA, { semesterId: s1.id, administrativeClassId: await newAdminClass() });
       await ds.query(`UPDATE examcollect.class SET semester_id = $1 WHERE id = $2`, [s2.id, free.id]);
     });
-
-    it('gán học kỳ LẦN ĐẦU cho lớp đã có phiên (NULL -> giá trị) không phải là "đổi" (Review Focus 2)', async () => {
-      const sem = await newSemester(1);
-      const legacy = await newClass(teacherA, { semesterId: null }); // chưa có học kỳ, như dữ liệu cũ
-      const { start, end } = window();
-      await newSession({ teacherId: teacherA, classId: legacy.id, start, end });
-
-      await ds.query(`UPDATE examcollect.class SET semester_id = $1 WHERE id = $2`, [sem.id, legacy.id]);
-      const [row] = await ds.query(`SELECT semester_id FROM examcollect.class WHERE id = $1`, [legacy.id]);
-      expect(row.semester_id).toBe(sem.id);
-    });
   });
 
   describe('exam_session: chống trùng phòng', () => {
@@ -390,18 +377,7 @@ describe('Master data schema (e2e)', () => {
       await newSession({ teacherId: teacherB, classId: b.id, start, end, roomId: room });
     });
 
-    it('ràng buộc cũ theo TÊN vẫn bảo vệ dòng chưa có room_id (code cũ còn chạy giữa các bước cutover)', async () => {
-      const { a, b } = await twoSides();
-      const { start, end } = window();
-      const roomName = `PHONG CU ${randomTag()}`;
-      await newSession({ teacherId: teacherA, classId: a.id, start, end, roomName, withoutRoom: true });
-      await expectDbError(
-        newSession({ teacherId: teacherB, classId: b.id, start, end, roomName, withoutRoom: true }),
-        '23P01',
-      );
-    });
-
-    it('ràng buộc cũ theo tên CHỈ áp cho dòng chưa có room_id: cùng chuỗi tên nhưng đã có room_id thì không bị nó chặn', async () => {
+    it('chống trùng phòng chỉ theo room_id: hai phòng THẬT khác nhau cùng mang một bản chụp tên thì không bị coi là đặt trùng', async () => {
       const room = await newRoom();
       const other = await newRoom();
       const { a, b } = await twoSides();
@@ -460,15 +436,6 @@ describe('Master data schema (e2e)', () => {
         label_with_semester: `${code} – Nhóm 1 · ${semLabel}`,
       });
     });
-
-    it('lớp cũ chưa gán mã danh nghĩa rơi về tên cũ, không ra NULL', async () => {
-      // Lớp CŨ thật: chưa có học kỳ lẫn lớp danh nghĩa, chỉ có `class.name` (seedClass không còn ghi cột này nên đặt tay).
-      const legacy = await newClass(teacherA, { semesterId: null, administrativeClassId: null });
-      await ds.query(`UPDATE examcollect.class SET name = $2 WHERE id = $1`, [legacy.id, 'Tên cũ trước backfill']);
-      const [row] = await ds.query(`SELECT label, label_with_semester FROM examcollect.class_label WHERE class_id = $1`, [legacy.id]);
-      expect(row.label).toBe('Tên cũ trước backfill');
-      expect(row.label_with_semester).toBe('Tên cũ trước backfill');
-    });
   });
 
   describe('trình dựng schema của TypeORM (đường của `pnpm migration:generate`)', () => {
@@ -479,19 +446,6 @@ describe('Master data schema (e2e)', () => {
       const diff = await ds.driver.createSchemaBuilder().log();
       const statements = [...diff.upQueries, ...diff.downQueries].map((q) => q.query);
       expect(statements.filter((q) => /class_label/i.test(q))).toEqual([]);
-    });
-  });
-
-  describe('nới lỏng cho code cũ', () => {
-    it('class.name và enrollment.student_name cho phép NULL (code mới không ghi chúng)', async () => {
-      const [cls] = await ds.query(
-        `SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'examcollect' AND table_name = 'class' AND column_name = 'name'`,
-      );
-      const [enr] = await ds.query(
-        `SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'examcollect' AND table_name = 'enrollment' AND column_name = 'student_name'`,
-      );
-      expect(cls.is_nullable).toBe('YES');
-      expect(enr.is_nullable).toBe('YES');
     });
   });
 });

@@ -493,30 +493,4 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
     });
   });
 
-  // Reviewer cụm 1, I4. `enrollment.student_name` nullable từ migration mở rộng (code mới không còn ghi nó). Ảnh chụp là
-  // VĨNH VIỄN và không khôi phục lại được từ enrollment, nên một tên thiếu không được ghi thành chuỗi rỗng im lặng:
-  // agent:join sẽ trả tên rỗng, `{TEN}` trong tên file thành rỗng, và `student_name_input` của bài nộp cũng rỗng.
-  it('enrollment không có tên: ảnh chụp và chỗ ngồi lùi về MSSV, không bao giờ là chuỗi rỗng', async () => {
-    const session = await seedSession({ students: 2 });
-    // Từ D1 tên được đọc từ `student` TRƯỚC; muốn chạm nhánh "không có tên ở đâu cả" thì phải xoá cả hàng `student`
-    // (MSSV của spec này là duy nhất cho từng lần seed nên xoá không ảnh hưởng ai khác).
-    await dataSource.query(`DELETE FROM examcollect.student WHERE mssv = ANY($1::citext[])`, [session.students]);
-    await dataSource.query(`UPDATE examcollect.enrollment SET student_name = NULL WHERE home_class_id = $1`, [session.classId]);
-
-    await open(session.id).expect(200);
-
-    const frozen = await rosterRows(session.id);
-    expect(frozen).toHaveLength(2);
-    for (const row of frozen as { student_mssv: string; student_name: string }[]) {
-      expect(row.student_name).toBe(row.student_mssv);
-    }
-    const seats = await dataSource.query(
-      `SELECT student_mssv, student_name_input FROM examcollect.submission WHERE exam_session_id = $1`,
-      [session.id],
-    );
-    expect(seats).toHaveLength(2);
-    for (const seat of seats as { student_mssv: string; student_name_input: string }[]) {
-      expect(seat.student_name_input).toBe(seat.student_mssv);
-    }
-  });
 });

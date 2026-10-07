@@ -112,7 +112,7 @@ export class SessionRosterService {
         );
       }
 
-      // Tên đến từ `student` (spec §2.6), rơi về cột cũ chỉ cho dòng chưa backfill, rồi về MSSV
+      // Tên đến từ `student` (spec §2.6), rơi về MSSV
       // (một tên thiếu không bao giờ thành chuỗi rỗng — xem review cụm 1, I4). Ảnh chốt CHỤP tên
       // tại đây: sửa tên ở `student` sau này không đổi bảng điểm đã có.
       const names = await this.students.findNames(
@@ -120,7 +120,7 @@ export class SessionRosterService {
         enrolled.map((row) => row.studentMssv),
       );
       const nameOf = (row: EnrollmentEntity) =>
-        names.get(row.studentMssv.toLowerCase()) ?? row.studentName ?? row.studentMssv;
+        names.get(row.studentMssv.toLowerCase()) ?? row.studentMssv;
 
       await this.insertChunked(
         rosterRepo,

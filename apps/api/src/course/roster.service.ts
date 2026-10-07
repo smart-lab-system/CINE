@@ -29,16 +29,13 @@ export class RosterService {
     private readonly labels: ClassLabelService,
   ) {}
 
-  /**
-   * `COALESCE(student, enrollment)`: tên trong `student` thắng; cột cũ chỉ cứu dòng chưa
-   * backfill, để một dòng như vậy không biến mất khỏi danh sách. Cột cũ bị gỡ ở plan H.
-   */
+  /** Tên đến từ `student` (spec §2.6); mọi enrollment đều có hàng `student` — khoá ngoại `fk_enrollment_student` ép. */
   async listForClass(classId: string): Promise<RosterEntry[]> {
     return this.dataSource.query(
       `SELECT e.student_mssv::text AS mssv,
-              COALESCE(s.full_name, e.student_name, '') AS name
+              s.full_name AS name
          FROM examcollect.enrollment e
-         LEFT JOIN examcollect.student s ON s.mssv = e.student_mssv
+         JOIN examcollect.student s ON s.mssv = e.student_mssv
         WHERE e.home_class_id = $1
         ORDER BY e.student_mssv`,
       [classId],
@@ -127,7 +124,7 @@ export class RosterService {
         // rather than only counting them. Chỉ enrollment bị xoá — `student` không bao giờ.
         missing: missing.map((row) => ({
           mssv: row.studentMssv,
-          name: missingNames.get(row.studentMssv.toLowerCase()) ?? row.studentName ?? '',
+          name: missingNames.get(row.studentMssv.toLowerCase()) ?? '',
         })),
         renamed,
       };
@@ -204,18 +201,14 @@ export class RosterService {
    * Từng là các lớp "cùng môn" (`class.course_name` bằng nhau). Môn là hằng số nên tập đó là MỌI lớp
    * mọi kỳ — một sinh viên học lại ở kỳ sau bị chặn oan. Phạm vi đúng là học kỳ (spec §2.3 mục 3).
    *
-   * Lớp chưa có học kỳ (dữ liệu cũ chưa backfill) chỉ so với chính nó: không có căn cứ nào để gọi lớp
-   * khác là "cùng kỳ", và chặn nhầm tệ hơn bỏ sót ở một trạng thái chuyển tiếp ngắn.
    */
   private async siblingEnrollments(
     manager: EntityManager,
     klass: ClassEntity,
   ): Promise<EnrollmentEntity[]> {
-    const classIds: string[] = klass.semesterId
-      ? (
-          await manager.query(`SELECT id FROM examcollect.class WHERE semester_id = $1`, [klass.semesterId])
-        ).map((row: { id: string }) => row.id)
-      : [klass.id];
+    const classIds: string[] = (
+      await manager.query(`SELECT id FROM examcollect.class WHERE semester_id = $1`, [klass.semesterId])
+    ).map((row: { id: string }) => row.id);
     return manager.getRepository(EnrollmentEntity).find({
       where: { homeClassId: In(classIds) },
       lock: { mode: 'pessimistic_write' },

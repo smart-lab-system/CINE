@@ -90,16 +90,11 @@ export class ScheduleConflictService {
     const exclude = check.excludeSessionId ?? null;
 
     const roomClash = await this.firstClash(
-      // Cũng quét dòng KIỂU CŨ (`room_id` NULL, chỉ có bản chụp tên) cùng tên phòng này: trong giai đoạn chuyển tiếp
-      // `ex_exam_session_room_overlap` (theo id) và `..._legacy` (theo tên, chỉ dòng NULL) KHÔNG so hai dòng này với
-      // nhau (review cụm 1, M2) — phiên do code cũ tạo và phiên mới chọn phòng đó chồng giờ sẽ lọt nếu chỉ hỏi theo id.
-      `SELECT s.name AS "sessionName", COALESCE(r.name::text, s.room_name) AS "ownerName",
+      `SELECT s.name AS "sessionName", r.name::text AS "ownerName",
               s.start_time AS "startTime", s.end_time AS "endTime"
          FROM examcollect.exam_session s
-         LEFT JOIN examcollect.room r ON r.id = s.room_id
-        WHERE (s.room_id = $1
-               OR (s.room_id IS NULL
-                   AND s.room_name = (SELECT name::text FROM examcollect.room WHERE id = $1)))
+         JOIN examcollect.room r ON r.id = s.room_id
+        WHERE s.room_id = $1
           AND ${HOLDING}
           AND tstzrange(s.start_time, s.end_time, '[)') && tstzrange($2, $3, '[)')
           AND ($4::uuid IS NULL OR s.id <> $4)

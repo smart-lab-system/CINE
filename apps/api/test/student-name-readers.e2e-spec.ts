@@ -11,12 +11,8 @@ import { concurrentLiveWindow } from './helpers/session-window';
 import { openSession } from './helpers/open-session';
 
 /**
- * Mọi nơi hiện tên sinh viên phải đọc từ `student`, không phải từ cột cũ
- * `enrollment.student_name` (spec §2.6, T-RW-1, T-RW-2).
- *
- * Cách chứng minh: sau khi seed, GHI ĐÈ cột cũ bằng một chuỗi sai rõ ràng. Một nơi đọc quên
- * chuyển vẫn đọc cột cũ sẽ ra "TÊN CŨ SAI" — và test đỏ. Đọc từ `student` thì ra tên thật.
- * Không có ca này, một nơi đọc cũ vẫn xanh vì cột cũ còn dữ liệu đúng.
+ * Mọi nơi hiện tên sinh viên đọc từ `student` (spec §2.6, T-RW-1, T-RW-2). Cột cũ `enrollment.student_name` đã bị bỏ ở migration thu hẹp, nên một nơi đọc
+ * còn nhắc tới nó sẽ nổ ở câu SQL thay vì lặng lẽ trả tên cũ; ở đây kiểm tên thật đi ra đúng ở từng nơi đọc.
  */
 describe('Nơi đọc tên sinh viên (e2e)', () => {
   let app: INestApplication;
@@ -25,7 +21,6 @@ describe('Nơi đọc tên sinh viên (e2e)', () => {
   let teacherId: string;
   let classId: string;
   let sessionId: string;
-  const POISON = 'TÊN CŨ SAI';
   const tag = randomTag(8);
   const PRESENT = `NR${tag}1`;
   const ABSENT = `NR${tag}2`;
@@ -55,8 +50,6 @@ describe('Nơi đọc tên sinh viên (e2e)', () => {
     for (const [mssv, name] of NAMES) {
       await seedEnrollment(ds, { classId, teacherId, mssv, name });
     }
-    // ĐẦU ĐỘC cột cũ: sau dòng này chỉ `student` còn mang tên đúng.
-    await ds.query(`UPDATE examcollect.enrollment SET student_name = $1 WHERE home_class_id = $2`, [POISON, classId]);
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -70,7 +63,7 @@ describe('Nơi đọc tên sinh viên (e2e)', () => {
     await app.close();
   });
 
-  it('T-RW (đóng băng): ảnh chốt chụp tên từ `student`, không từ cột cũ', async () => {
+  it('T-RW (đóng băng): ảnh chốt chụp tên từ `student`', async () => {
     await openSession(app, token, sessionId);
     const rows = await ds.query(
       `SELECT student_mssv::text AS mssv, student_name FROM examcollect.session_roster WHERE exam_session_id = $1`,
@@ -117,20 +110,10 @@ describe('Nơi đọc tên sinh viên (e2e)', () => {
     const item = response.body.items.find((s: { id: string }) => s.id === sessionId);
     expect(item).toBeDefined();
     expect(item.matchedStudents).toEqual([{ mssv: PRESENT, name: NAMES.get(PRESENT) }]);
-    // Từ khoá của cột cũ không tìm ra gì: cột cũ không còn là nguồn tên.
-    const poisoned = await get(`/submissions/overview?student=${encodeURIComponent('TÊN CŨ')}`).expect(200);
-    expect(poisoned.body.items.find((s: { id: string }) => s.id === sessionId)).toBeUndefined();
   });
 
-  it('Review Focus 6: dòng enrollment chưa có sinh viên trong `student` vẫn hiện bằng tên cũ, không biến mất', async () => {
-    const legacyMssv = `NR${tag}3`;
-    // Hình dạng TRƯỚC backfill: có `enrollment.student_name`, không có hàng `student`.
-    await seedEnrollment(ds, { classId, teacherId, mssv: legacyMssv, legacyName: 'Tên cũ chưa backfill' });
-    // Lớp của phiên: roster API đọc theo lớp.
+  it('danh sách lớp (roster API) hiện tên từ `student`', async () => {
     const roster = await get(`/classes/${classId}/roster`).expect(200);
-    const legacy = roster.body.find((r: { mssv: string }) => r.mssv === legacyMssv);
-    expect(legacy).toEqual({ mssv: legacyMssv, name: 'Tên cũ chưa backfill' });
-    // Và những em đã có `student` vẫn ra tên mới.
     const present = roster.body.find((r: { mssv: string }) => r.mssv === PRESENT);
     expect(present.name).toBe(NAMES.get(PRESENT));
   });

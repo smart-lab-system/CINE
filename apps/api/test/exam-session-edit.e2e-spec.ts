@@ -11,7 +11,7 @@ import { ExamSessionService } from '../src/exam-session/exam-session.service';
 import { createTestAccount } from './helpers/create-account';
 import { randomTag } from './helpers/master-data';
 import { openSession } from './helpers/open-session';
-import { ensureRoom, seedClass, seedEnrollment, seedExamSession, sessionBody } from './helpers/seed';
+import { ensureRoom, seedClass, seedEnrollment, sessionBody } from './helpers/seed';
 import { releaseTeacherSessions } from './helpers/session-window';
 
 /**
@@ -397,31 +397,6 @@ describe('Sửa và huỷ phiên thi (e2e)', () => {
       const rooms = app.get(RoomService, { strict: false });
       await expect(rooms.requireActiveForNewSession(null as unknown as string)).rejects.toThrow(/phòng/i);
       await expect(rooms.requireActiveForNewSession(undefined as unknown as string)).rejects.toThrow(/phòng/i);
-    });
-
-    describe('phiên cũ chưa có room_id (trước backfill)', () => {
-      it('sửa tên được; đổi giờ không kèm roomId → 400 bảo chọn phòng; kèm roomId → được', async () => {
-        const day = freshDay();
-        const klass = await seedClass(ds, { teacherId: teacher.id });
-        const original = windowAt(day, 8, 10);
-        const legacy = await seedExamSession(ds, {
-          teacherId: teacher.id,
-          classId: klass.id,
-          startTime: new Date(original.startTime),
-          endTime: new Date(original.endTime),
-          roomName: `LEGACY${tag}`,
-          withoutRoom: true, // hình dạng TRƯỚC backfill: chỉ có bản chụp tên phòng, room_id NULL
-        });
-
-        await patch(legacy.id, { name: `Cũ đổi tên ${tag}` }).expect(200);
-
-        const blocked = await patch(legacy.id, windowAt(day, 9, 11)).expect(400);
-        expect(blocked.body.message).toMatch(/chọn một phòng/i);
-
-        const chosen = await room('gan-phong');
-        await patch(legacy.id, { ...windowAt(day, 9, 11), roomId: chosen.id }).expect(200);
-        expect(await dbSession(legacy.id)).toMatchObject({ room_id: chosen.id, room_name: chosen.name });
-      });
     });
 
     it('T-SES-10: audit nêu đúng các trường đổi (cũ → mới), một dòng, cùng người sửa', async () => {

@@ -399,12 +399,11 @@ export class ClassService {
 
   private async assertGroupFree(
     manager: EntityManager,
-    semesterId: string | null,
-    administrativeClassId: string | null,
+    semesterId: string,
+    administrativeClassId: string,
     groupName: string,
     excludeId: string | null,
   ): Promise<void> {
-    if (!semesterId || !administrativeClassId) return; // lớp cũ chưa đủ khoá: DB không có gì để so
     const [row] = await manager.query(
       `SELECT cl.label_with_semester AS label
          FROM examcollect.class c

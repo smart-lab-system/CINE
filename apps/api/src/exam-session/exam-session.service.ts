@@ -141,14 +141,7 @@ export class ExamSessionService {
     // exam for someone else's class.
     const klass = await this.classes.findTaughtBy(dto.classId, teacherId);
 
-    // Học kỳ của phiên SUY RA từ lớp và được CHỤP lúc này (spec §2.4): không có ô nào cho giảng viên gõ. Lớp chưa có
-    // học kỳ (dữ liệu cũ chưa backfill) thì chưa có gì để chụp — nói rõ cách khắc phục thay vì ghi một chuỗi rỗng.
-    if (!klass.semesterId) {
-      throw new ConflictException(
-        'Lớp này chưa thuộc học kỳ nào nên chưa tạo được phiên thi. Hãy nhờ quản trị viên gán học kỳ cho lớp.',
-      );
-    }
-
+    // Học kỳ của phiên SUY RA từ lớp và được CHỤP lúc này (spec §2.4): không có ô nào cho giảng viên gõ. Lớp luôn có học kỳ (NOT NULL).
     // The rubric this session will be graded against, decided here rather
     // than resolved at grading time. Editing the rubric after this point
     // must not change how this session is graded.

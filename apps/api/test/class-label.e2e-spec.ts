@@ -67,13 +67,4 @@ describe('ClassLabelService (e2e)', () => {
     expect((await labels.labelsFor([])).size).toBe(0);
     expect((await labels.labelsWithSemesterFor([])).size).toBe(0);
   });
-
-  it('lớp cũ chưa có lớp danh nghĩa rơi về tên cũ, không ra NULL', async () => {
-    // Lớp CŨ thật: chưa có học kỳ lẫn lớp danh nghĩa, chỉ có `class.name` (seedClass không còn ghi cột này nên đặt tay).
-    const legacy = await seedClass(ds, { teacherId, semesterId: null, administrativeClassId: null });
-    created.classes.push(legacy.id);
-    await ds.query(`UPDATE examcollect.class SET name = $2 WHERE id = $1`, [legacy.id, 'Tên cũ trước backfill']);
-    const map = await labels.labelsFor([legacy.id]);
-    expect(map.get(legacy.id)).toBe('Tên cũ trước backfill');
-  });
 });

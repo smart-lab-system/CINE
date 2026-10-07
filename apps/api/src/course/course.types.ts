@@ -46,7 +46,7 @@ export class TeachingClassView {
   labelWithSemester!: string;
   /** Hằng số của hệ thống (một môn). Giữ vì API vẫn trả; không màn hình nào hiện nó như một cột. */
   courseName!: string;
-  /** `null` chỉ với lớp cũ chưa backfill. */
+  /** Luôn có giá trị (NOT NULL từ migration thu hẹp); kiểu giữ `| null` để hợp đồng API/OpenAPI không đổi. */
   semesterId!: string | null;
   academicYear!: number | null;
   term!: number | null;

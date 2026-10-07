@@ -9,16 +9,7 @@ import { AdministrativeClassEntity } from './administrative-class.entity';
 // Submission with no table behind it. Added here as the FK target those
 // columns need to be a valid schema.
 @Entity({ name: 'class' })
-// Khoá duy nhất viết lại quanh chủ sở hữu mới. Trước đây là
-// (course_id, name) — một môn không có hai lớp trùng tên. Giờ một giảng
-// viên không có hai lớp trùng tên, còn hai giảng viên thì không đụng nhau.
-//
-// `course_name` mang cùng một chuỗi ở mọi dòng (xem common/course-name.ts),
-// nên trên thực tế khoá này là (teacher_id, name). Nó ở lại đúng hình dạng
-// cũ để khỏi phải viết một migration đổi chỉ mục chỉ vì đổi ý — và để nếu
-// ràng buộc một môn có ngày được nới ra thì không phải dựng lại.
-@Index('uq_class_teacher_course_name', ['teacherId', 'courseName', 'name'], { unique: true })
-// Khoá duy nhất MỚI: một lớp học phần là (học kỳ, lớp danh nghĩa, nhóm). `group_name`
+// Khoá duy nhất: một lớp học phần là (học kỳ, lớp danh nghĩa, nhóm). `group_name`
 // là '' chứ không NULL — NULL làm khoá này mất tác dụng (xem migration). Ở DB chỉ mục nằm trên
 // `lower(group_name)` (hoa-thường của tên nhóm không tạo ra một lớp khác); TypeORM không biểu
 // diễn được chỉ mục biểu thức nên decorator chỉ nêu các cột — migration là nguồn thật.
@@ -48,29 +39,24 @@ export class ClassEntity extends BaseEntity {
   courseName!: string;
 
   /**
-   * @deprecated TÊN CŨ, đang chờ gỡ. Từ đợt khôi phục master data tên lớp là biểu
-   * thức (mã danh nghĩa + nhóm) — đọc qua view `class_label`, KHÔNG đọc cột này.
-   * Cột nullable từ migration `ExpandMasterDataEntities` để code mới không phải
-   * ghi nó; migration thu hẹp (plan H) bỏ hẳn cột và chỉ mục
-   * `uq_class_teacher_course_name`.
+   * Tên lớp KHÔNG phải một cột: nó là biểu thức (mã danh nghĩa + nhóm), đọc qua view `class_label` (spec §2.5). Cột `name` cũ và chỉ mục
+   * `uq_class_teacher_course_name` đã bị bỏ ở migration thu hẹp.
    */
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  name!: string | null;
 
-  /** Học kỳ của lớp (spec §2.3). NOT NULL từ migration thu hẹp; hôm nay nullable để code cũ còn chạy. */
-  @Column({ name: 'semester_id', type: 'uuid', nullable: true })
-  semesterId!: string | null;
+  /** Học kỳ của lớp (spec §2.3). */
+  @Column({ name: 'semester_id', type: 'uuid' })
+  semesterId!: string;
 
-  @ManyToOne(() => SemesterEntity, { onDelete: 'RESTRICT', nullable: true })
+  @ManyToOne(() => SemesterEntity, { onDelete: 'RESTRICT', nullable: false })
   @JoinColumn({ name: 'semester_id' })
-  semester!: SemesterEntity | null;
+  semester!: SemesterEntity;
 
-  @Column({ name: 'administrative_class_id', type: 'uuid', nullable: true })
-  administrativeClassId!: string | null;
+  @Column({ name: 'administrative_class_id', type: 'uuid' })
+  administrativeClassId!: string;
 
-  @ManyToOne(() => AdministrativeClassEntity, { onDelete: 'RESTRICT', nullable: true })
+  @ManyToOne(() => AdministrativeClassEntity, { onDelete: 'RESTRICT', nullable: false })
   @JoinColumn({ name: 'administrative_class_id' })
-  administrativeClass!: AdministrativeClassEntity | null;
+  administrativeClass!: AdministrativeClassEntity;
 
   /** `''` khi không tách nhóm (KHÔNG phải NULL: xem `uq_class_semester_admin_group`). */
   @Column({ name: 'group_name', type: 'varchar', length: 50, default: '' })

@@ -19,8 +19,8 @@ export interface RecollectResult {
   acknowledged: number;
   unreachable: number;
   /**
-   * Tên các em không với tới được, lấy từ `enrollment.student_name`
-   * (cột `NOT NULL`) — em unreachable theo định nghĩa là em không có
+   * Tên các em không với tới được, lấy từ `student.full_name`
+   * (khoá ngoại từ `enrollment`) — em unreachable theo định nghĩa là em không có
    * socket để đọc tên ra. Đây là phần giảng viên hành động dựa vào, quan
    * trọng hơn con số.
    */

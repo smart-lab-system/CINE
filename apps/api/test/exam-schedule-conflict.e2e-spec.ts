@@ -552,27 +552,4 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       }),
     ).rejects.toThrow(/Của đồng nghiệp/);
   });
-
-  it('thấy cả phiên KIỂU CŨ (room_id NULL) cùng tên phòng trong giai đoạn chuyển tiếp (review cụm 1, M2)', async () => {
-    const day = freshDay();
-    const { startTime, endTime } = windowAt(day, 8, 10);
-    // Phiên do code cũ tạo: chỉ có bản chụp tên phòng, room_id NULL. `ex_exam_session_room_overlap` (theo id) và
-    // `..._legacy` (theo tên, chỉ dòng NULL) KHÔNG so nó với một phiên mới chọn phòng đó — chỉ pre-check mới thấy.
-    await seedExamSession(dataSource, {
-      teacherId: ownerId,
-      classId: otherClassId,
-      name: 'Phiên kiểu cũ',
-      startTime: new Date(startTime),
-      endTime: new Date(endTime),
-      courseName,
-      roomName,
-      withoutRoom: true,
-    });
-
-    const clash = await createSession({ name: 'Phiên mới cùng phòng', classId, roomId, ...windowAt(day, 9, 11) });
-
-    expect(clash.status).toBe(409);
-    expect(clash.body.message).toContain(roomName);
-    expect(clash.body.message).toContain('Phiên kiểu cũ');
-  });
 });

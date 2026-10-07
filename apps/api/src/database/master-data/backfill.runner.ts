@@ -38,21 +38,26 @@ async function affected(qr: QueryRunner, sql: string, params: unknown[] = []): P
 }
 
 async function readSnapshot(qr: QueryRunner): Promise<LegacySnapshot> {
-  const [classes, sessions, enrollments, semesters, rooms, administrativeClasses, students] = await Promise.all(
-    [
-      `SELECT id, teacher_id AS "teacherId", name, semester_id AS "semesterId",
-              administrative_class_id AS "administrativeClassId", group_name AS "groupName"
-         FROM examcollect.class`,
-      `SELECT id, class_id AS "classId", semester_name AS "semesterName", room_name AS "roomName", room_id AS "roomId"
-         FROM examcollect.exam_session`,
-      `SELECT home_class_id AS "homeClassId", student_mssv::text AS "studentMssv", student_name AS "studentName"
-         FROM examcollect.enrollment`,
-      `SELECT id, academic_year_start AS "academicYearStart", term FROM examcollect.semester`,
-      `SELECT id, name::text AS name FROM examcollect.room`,
-      `SELECT id, code::text AS code FROM examcollect.administrative_class`,
-      `SELECT mssv::text AS mssv FROM examcollect.student`,
-    ].map((sql) => qr.query(sql)),
+  // TUẦN TỰ: một QueryRunner là MỘT kết nối; chạy bảy truy vấn song song trên nó làm `pg` báo "Calling client.query() when the client is already
+  // executing a query" (deprecated, sẽ bị bỏ ở pg@9) — thấy khi diễn tập cutover trên bản sao.
+  const read = (sql: string) => qr.query(sql);
+  const classes = await read(
+    `SELECT id, teacher_id AS "teacherId", name, semester_id AS "semesterId",
+            administrative_class_id AS "administrativeClassId", group_name AS "groupName"
+       FROM examcollect.class`,
   );
+  const sessions = await read(
+    `SELECT id, class_id AS "classId", semester_name AS "semesterName", room_name AS "roomName", room_id AS "roomId"
+       FROM examcollect.exam_session`,
+  );
+  const enrollments = await read(
+    `SELECT home_class_id AS "homeClassId", student_mssv::text AS "studentMssv", student_name AS "studentName"
+       FROM examcollect.enrollment`,
+  );
+  const semesters = await read(`SELECT id, academic_year_start AS "academicYearStart", term FROM examcollect.semester`);
+  const rooms = await read(`SELECT id, name::text AS name FROM examcollect.room`);
+  const administrativeClasses = await read(`SELECT id, code::text AS code FROM examcollect.administrative_class`);
+  const students = await read(`SELECT mssv::text AS mssv FROM examcollect.student`);
   return { classes, sessions, enrollments, semesters, rooms, administrativeClasses, students };
 }
 

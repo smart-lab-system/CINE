@@ -25,8 +25,8 @@ export interface ClassImportContext {
   teachers: Array<{ id: string; email: string; name: string; role: string; isActive: boolean }>;
   classes: Array<{
     id: string;
-    semesterId: string | null;
-    administrativeClassId: string | null;
+    semesterId: string;
+    administrativeClassId: string;
     groupName: string;
     teacherId: string;
     teacherName: string;
@@ -80,11 +80,7 @@ export function planClassImport(
   const semesterByKey = new Map(context.semesters.map((s) => [`${s.academicYearStart}-${s.term}`, s]));
   const codeToId = new Map(context.administrativeClasses.map((a) => [a.code, a.id]));
   const teacherByEmail = new Map(context.teachers.map((t) => [t.email.toLowerCase(), t]));
-  const classByKey = new Map(
-    context.classes
-      .filter((c) => c.semesterId !== null && c.administrativeClassId !== null)
-      .map((c) => [classKey(c.semesterId!, c.administrativeClassId!, c.groupName), c]),
-  );
+  const classByKey = new Map(context.classes.map((c) => [classKey(c.semesterId, c.administrativeClassId, c.groupName), c]));
   const firstLineOfKey = new Map<string, number>();
   const results: ImportRowResult[] = [];
   const writes: ClassWrite[] = [];

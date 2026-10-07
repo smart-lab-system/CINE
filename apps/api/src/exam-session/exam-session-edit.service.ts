@@ -77,12 +77,6 @@ export class ExamSessionEditService {
     const roomId = room?.id ?? session.roomId;
 
     if (roomChanged || timeChanged) {
-      if (roomId === null) {
-        // Phiên tạo trước khi có danh sách phòng (chưa backfill, plan H): không có khoá để kiểm va chạm.
-        throw new BadRequestException(
-          'Phiên này được tạo trước khi có danh sách phòng nên chưa gắn phòng. Hãy chọn một phòng trong danh sách để đổi giờ.',
-        );
-      }
       // `excludeSessionId`: chính phiên này không được tính là va chạm với chính nó (một phiên dời sang khoảng chồng lên
       // khoảng cũ của nó sẽ báo trùng phòng, trùng lớp và vi phạm giãn cách với CHÍNH NÓ nếu thiếu tham số này).
       await this.scheduleConflicts.assertNone({

@@ -73,7 +73,7 @@ export class ExamSessionListItemDto {
   courseName!: string;
   /** Nhãn gộp của lớp. Từng là `className`; giá trị là nhãn, không phải `class.name`. */
   classLabel!: string;
-  /** Học kỳ HIỆN TẠI của lớp — nguồn cho bộ lọc năm học → học kỳ. `null` chỉ với lớp cũ chưa backfill. */
+  /** Học kỳ HIỆN TẠI của lớp — nguồn cho bộ lọc năm học → học kỳ. Luôn có giá trị (NOT NULL từ migration thu hẹp); kiểu giữ `| null` để hợp đồng API không đổi. */
   semesterId!: string | null;
   academicYear!: number | null;
   term!: number | null;

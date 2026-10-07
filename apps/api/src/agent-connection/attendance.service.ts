@@ -141,7 +141,7 @@ export class AttendanceService {
     const byMssv = new Map(enrolled.map((row) => [row.studentMssv.toLowerCase(), row]));
     const names = await this.studentNames(enrolled.map((row) => row.studentMssv));
     const nameOf = (row: EnrollmentEntity) =>
-      names.get(row.studentMssv.toLowerCase()) ?? row.studentName ?? row.studentMssv;
+      names.get(row.studentMssv.toLowerCase()) ?? row.studentMssv;
 
     const classNames = new Map(
       (
@@ -275,7 +275,7 @@ export class AttendanceService {
       .filter(({ mssv }) => !this.wasPresentAt(seen.get(mssv.toLowerCase()), confirmedAt))
       .map(({ mssv }) => {
         const enrollment = byMssv.get(mssv.toLowerCase());
-        const name = names.get(mssv.toLowerCase()) ?? enrollment?.studentName ?? mssv;
+        const name = names.get(mssv.toLowerCase()) ?? mssv;
         const view = this.toView(mssv, name, seen, confirmedAt);
         return enrollment && enrollment.homeClassId !== session.classId
           ? { ...view, homeClassName: classNames.get(enrollment.homeClassId) }

@@ -14,8 +14,7 @@ import { ensureTestSemester } from './master-data';
  * để một test xanh vì sai lý do. Gom về đây thì chỉ file này đổi.
  *
  * Từ vựng ở đây là của schema ĐÍCH: một lớp có `code` (mã lớp danh nghĩa) và
- * `groupName`, và nhãn hiển thị là `code – groupName`. Hôm nay hai thứ ấy được
- * ghép lại và ghi vào cột `class.name`; sau plan D chúng đi vào
+ * `groupName`, và nhãn hiển thị là `code – groupName` (view `class_label`). Chúng nằm ở
  * `administrative_class` và `class.group_name`. Test chỉ nói chuyện bằng
  * `code`/`groupName`/`label`, nên không phải biết bên dưới là cột nào.
  */
@@ -80,15 +79,10 @@ export interface SeedClassOptions {
   groupName?: string;
   /** Chỉ truyền khi test CỐ Ý cần một môn khác. Mặc định là hằng số của hệ thống. */
   courseName?: string;
-  /** Học kỳ của lớp. Mặc định: học kỳ test dùng chung (2200, kỳ 1). `null` = lớp CŨ chưa có học kỳ (dữ liệu trước backfill). */
-  semesterId?: string | null;
-  /** Lớp danh nghĩa có sẵn. Mặc định: tạo/dùng lớp theo `code`. `null` = lớp cũ chưa gán. */
-  administrativeClassId?: string | null;
-  /**
-   * CHỈ cho test về GIAI ĐOẠN CHUYỂN TIẾP (backfill): ghi cột cũ `class.name` như code trước khi có lớp danh nghĩa. Dùng cùng `semesterId: null`
-   * và `administrativeClassId: null` để dựng một lớp ở HÌNH DẠNG CŨ. Bị gỡ ở migration thu hẹp (plan H Task 5) cùng cột `class.name`.
-   */
-  legacyName?: string;
+  /** Học kỳ của lớp. Mặc định: học kỳ test dùng chung (2200, kỳ 1). */
+  semesterId?: string;
+  /** Lớp danh nghĩa có sẵn. Mặc định: tạo/dùng lớp theo `code`. */
+  administrativeClassId?: string;
 }
 
 export interface SeededClass {
@@ -97,22 +91,19 @@ export interface SeededClass {
   groupName: string;
   /** Nhãn hiển thị — đọc từ view `class_label`, đúng thứ mà API trả ra ở mọi nơi hiện tên lớp. */
   label: string;
-  semesterId: string | null;
-  administrativeClassId: string | null;
+  semesterId: string;
+  administrativeClassId: string;
 }
 
 export async function seedClass(db: Queryable, o: SeedClassOptions): Promise<SeededClass> {
   const groupName = o.groupName ?? '';
-  const semesterId = o.semesterId === undefined ? await ensureTestSemester(db, 1) : o.semesterId;
-  const administrativeClassId =
-    o.administrativeClassId === undefined
-      ? await ensureAdministrativeClass(db, o.code ?? `ADM${stamp()}`)
-      : o.administrativeClassId;
+  const semesterId = o.semesterId ?? (await ensureTestSemester(db, 1));
+  const administrativeClassId = o.administrativeClassId ?? (await ensureAdministrativeClass(db, o.code ?? `ADM${stamp()}`));
   const [row] = await db.query(
     `INSERT INTO examcollect.class
-       (course_name, teacher_id, semester_id, administrative_class_id, group_name, name)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-    [o.courseName ?? COURSE_NAME, o.teacherId, semesterId, administrativeClassId, groupName, o.legacyName ?? null],
+       (course_name, teacher_id, semester_id, administrative_class_id, group_name)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [o.courseName ?? COURSE_NAME, o.teacherId, semesterId, administrativeClassId, groupName],
   );
   const [meta] = await db.query(
     `SELECT cl.label, ac.code::text AS code
@@ -139,22 +130,9 @@ export interface SeedEnrollmentOptions {
   mssv: string;
   /** Mặc định `Sinh viên <mssv>`. Ghi vào `student` (tên ở MỘT chỗ). */
   name?: string;
-  /**
-   * Chỉ cho test về GIAI ĐOẠN CHUYỂN TIẾP: dựng một dòng ở hình dạng TRƯỚC backfill — có
-   * `enrollment.student_name`, KHÔNG có hàng trong `student`. Có cờ này thì `name` bị bỏ qua.
-   */
-  legacyName?: string;
 }
 
 export async function seedEnrollment(db: Queryable, o: SeedEnrollmentOptions): Promise<void> {
-  if (o.legacyName !== undefined) {
-    await db.query(
-      `INSERT INTO examcollect.enrollment (student_mssv, student_name, home_class_id, home_teacher_id)
-       VALUES ($1, $2, $3, $4)`,
-      [o.mssv, o.legacyName, o.classId, o.teacherId],
-    );
-    return;
-  }
   const name = o.name ?? `Sinh viên ${o.mssv}`;
   // Tên sinh viên ở MỘT chỗ: upsert, người ghi sau thắng — giống "file thắng" của import danh sách.
   // Hệ quả cho test: hai lần seed cùng MỘT MSSV với HAI tên khác nhau chỉ còn tên sau.
@@ -193,14 +171,12 @@ export interface SeedExamSessionOptions {
    * thì `roomName` mặc định là tên của phòng đó.
    */
   roomId?: string;
-  /** Dòng KIỂU CŨ chỉ có bản chụp tên phòng, `room_id` NULL — cho test về ràng buộc cũ ở giai đoạn chuyển tiếp. */
-  withoutRoom?: boolean;
 }
 
 export interface SeededExamSession {
   id: string;
   code: string;
-  roomId: string | null;
+  roomId: string;
   roomName: string;
   semesterName: string;
   courseName: string;
@@ -218,20 +194,18 @@ export async function seedExamSession(db: Queryable, o: SeedExamSessionOptions):
   const semesterName = o.semesterName ?? 'HK kiểm thử';
   const courseName = o.courseName ?? COURSE_NAME;
 
-  let roomId: string | null = null;
+  let roomId: string;
   let roomName = o.roomName ?? `P ${s}`;
-  if (!o.withoutRoom) {
-    if (o.roomId) {
-      roomId = o.roomId;
-      if (o.roomName === undefined) {
-        const [room] = await db.query(`SELECT name::text AS name FROM examcollect.room WHERE id = $1`, [o.roomId]);
-        roomName = room.name as string;
-      }
-    } else {
-      const room = await ensureRoom(db, roomName);
-      roomId = room.id;
-      roomName = room.name;
+  if (o.roomId) {
+    roomId = o.roomId;
+    if (o.roomName === undefined) {
+      const [room] = await db.query(`SELECT name::text AS name FROM examcollect.room WHERE id = $1`, [o.roomId]);
+      roomName = room.name as string;
     }
+  } else {
+    const room = await ensureRoom(db, roomName);
+    roomId = room.id;
+    roomName = room.name;
   }
 
   const [row] = await db.query(
