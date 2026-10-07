@@ -1391,8 +1391,14 @@ export interface components {
         CreateExamSessionDto: {
             name: string;
             classId: string;
-            roomName: string;
-            semesterName: string;
+            /** Catalog room — dual-write snapshot when set. */
+            roomId?: string;
+            /** Required when roomId omitted. */
+            roomName?: string;
+            /** Catalog semester — dual-write snapshot when set. */
+            semesterId?: string;
+            /** Required when semesterId omitted. */
+            semesterName?: string;
             rubricId?: string;
             /** @enum {string} */
             examType: "TK" | "GK" | "CK";
@@ -1411,9 +1417,9 @@ export interface components {
             name: string;
             code: string;
             teacherId: string;
-            courseId: string;
             classId: string;
-            roomId: string;
+            roomId: string | null;
+            semesterId: string | null;
             courseName: string;
             roomName: string;
             examType: Record<string, never>;
