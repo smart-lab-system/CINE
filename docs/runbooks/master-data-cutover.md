@@ -7,7 +7,10 @@
 ## 0. Điều kiện
 
 - [ ] Mọi migration KHÁC đã áp trên Supabase (G1–G5 đã vào `main` và đã chạy — spec §8.6 khuyến nghị; kiểm: `SELECT name FROM examcollect.migrations ORDER BY id DESC LIMIT 5` không còn migration nào chờ ngoài hai migration của đợt này). Lý do: checksum điểm so trước/sau, mà migration của G1–G5 có thể thêm cột vào bảng điểm.
-- [ ] PR1 (A–G) đã sẵn sàng deploy; PR2 (Task 5) đã review, chưa merge.
+- [ ] **Hai nhánh/PR đã được cắt và gọi đúng tên** (review cuối I3): **PR1 = `feat/master-data-pr1`** — mọi thứ TRỪ migration thu hẹp và việc gỡ giai đoạn chuyển tiếp (= commit `4297940` cộng các commit chỉ-tài-liệu của runbook; còn migration CHỈ mở rộng và bộ e2e `master-data-backfill`); **PR2 = `feat/master-data-restore`** — PR1 cộng commit `94efbaa` (migration `1789700000000-ContractMasterDataEntities`, gỡ cột cũ và cờ chuyển tiếp, xoá e2e backfill). PR2 đã review, chưa merge. **Mọi lệnh `pnpm migration:run` ở 2.4 và 3.4 chạy từ checkout của PR1**: chạy từ PR2 sẽ áp luôn migration thu hẹp, mà tiền điều kiện của nó chỉ kiểm DỮ LIỆU, không kiểm phiên bản code đang chạy — tức có thể thu hẹp khi code PR1 (còn đọc `student_name`) đang phục vụ. Nhánh PR1 là nhánh cục bộ; nếu mất thì dựng lại: `git switch -c feat/master-data-pr1 4297940` rồi `git cherry-pick` các commit chỉ-tài-liệu (`git log --oneline feat/master-data-restore -- docs/runbooks`). (Bản PR1 còn đọc ảnh chụp của backfill SONG SONG trên một kết nối — `pg` chỉ in cảnh báo deprecated, vô hại; bản PR2 đã sửa thành tuần tự.)
+- [ ] **Chạy e2e backfill từ checkout PR1** (nơi nó còn tồn tại, bị xoá ở PR2): `cd apps/api && npx jest --config ./test/jest-e2e.json --runInBand master-data-backfill` — T-MIG-2/T-MIG-3 (spec §11); ở PR2 backfill chỉ còn bộ test thuần và lượt diễn tập tay.
+- [ ] **Đo collation trên Supabase** (carry-forward plan C): `SELECT 'PHÒNG A1'::citext = 'phòng a1'::citext AS citext_gap_chu_co_dau, lower('PHÒNG A1') = 'phòng a1' AS lower_gap_chu_co_dau;` — cả hai phải `true`. Nếu `false`, `planBackfill` (so tên phòng/mã bằng `toLowerCase` của JS) và DB (citext) không còn nói cùng một điều: có thể có phòng bị tạo hai lần hoặc phiên giữ `room_id` NULL (báo cáo ra `remaining` khác 0, `complete: false`) — **dừng** và xử lý trước, đừng ép.
+- [ ] **`lock_timeout`** (carry-forward plan C, M6): hai migration lấy khoá ACCESS EXCLUSIVE lần lượt trên `class`, `enrollment`, `exam_session`. Chạy chúng trong cửa sổ bảo trì với `$env:PGOPTIONS = "-c lock_timeout=10s"` (đã kiểm: node-postgres đọc biến này) — thà lỗi còn hơn treo chờ một giao dịch khác.
 - [ ] Đã ghi số test baseline (unit + e2e) và toàn bộ e2e xanh trên nhánh PR2 — chạy `cd apps/api && npx jest --config ./test/jest-e2e.json --runInBand` (KHÔNG dùng `pnpm test:e2e -- --runInBand`: `--` làm cờ bị hiểu là mẫu tên file và jest báo "No tests found"). Trên DB e2e dùng chung của máy dev, `entity-schema` và `master-data-contract` đỏ cho tới khi migration thu hẹp được áp (đúng ý); chỉ có nghĩa trên DB dựng mới đã áp mọi migration.
 - [ ] Có `pg_dump`/`pg_restore` đúng phiên bản (cùng hoặc mới hơn server). Cách không cần cài gì: chạy trong container `cine-postgres-1`.
 - [ ] Chọn cửa sổ bảo trì (vài phút, giờ không có phiên thi nào đang diễn ra) và báo ba giảng viên.
@@ -27,6 +30,8 @@ git tag pre-master-data-restore 4cb6bca ; git push origin pre-master-data-restor
 ```
 
 Ghi lại đường dẫn dump và kích thước. **Không tiếp tục** nếu `pg_restore --list` lỗi.
+
+Dump này chụp TRƯỚC mọi migration của đợt nên **không chứa view `class_label`** (view do migration mở rộng dựng và migration thu hẹp dựng lại) — đó là lý do §5 KHÔNG khôi phục bằng `pg_restore --clean` (xem §5: thử nghiệm cho thấy nó lỗi hàng loạt).
 
 ## 2. Diễn tập trên bản sao (spec §8.5) — làm TRƯỚC, lặp tới khi sạch
 
@@ -65,7 +70,7 @@ cd apps/api
 pnpm master-data snapshot --database-url $env:REHEARSAL_URL --out $env:TEMP\md-before.json
 ```
 
-2.4 **Migration mở rộng** (chỉ thêm; code cũ vẫn chạy được):
+2.4 **Migration mở rộng** (chỉ thêm; code cũ vẫn chạy được) — **từ checkout `feat/master-data-pr1`**:
 
 ```powershell
 $env:DATABASE_URL = $env:REHEARSAL_URL
@@ -93,7 +98,19 @@ pnpm master-data verify --database-url $env:REHEARSAL_URL --before $env:TEMP\md-
 
 (Spec §8.5 mục 1 liệt kê `enrollment 63→54`, `student +54`, `semester +1`, `room +4`, `administrative_class +2`; còn `class 3→2` do gộp lớp MongoDB, nên có thêm `class=-1`.) Phải thoát 0, kèm `Chống trùng phòng theo room_id … blocked`. Bất kỳ dòng `LỖI` nào = **dừng**, không cutover.
 
-2.7 **Thu hẹp** trên bản sao: checkout nhánh PR2, rồi `pnpm migration:run` (áp `1789700000000-ContractMasterDataEntities`), chạy lại `verify` với **cùng** `--expect` — phải vẫn đạt. Rồi trỏ API vào bản sao và đi qua màn chính bằng trình duyệt (mục 4.3). Lặp lại 2.1–2.7 từ bản dump mới nếu có gì sửa.
+2.7 **Thu hẹp** trên bản sao: checkout `feat/master-data-restore` (PR2), rồi `pnpm migration:run` (áp `1789700000000-ContractMasterDataEntities`), chạy lại `verify` với **cùng** `--expect` — phải vẫn đạt. Rồi trỏ API vào bản sao và đi qua màn chính bằng trình duyệt (mục 4.3). Lặp lại 2.1–2.7 từ bản dump mới nếu có gì sửa.
+
+2.8 **Diễn tập ĐƯỜNG LÙI (bắt buộc, sau 2.7)** — đường lùi chưa thử là đường lùi không có. Khôi phục `pre-md.dump` lên chính bản sao đã thu hẹp bằng đúng thủ tục ở §5 (đổi tên schema hỏng rồi `pg_restore` vào chỗ trống, KHÔNG `--clean`):
+
+```powershell
+docker exec cine-postgres-1 psql -U examcollect_admin -d examcollect_rehearsal -c "ALTER SCHEMA examcollect RENAME TO examcollect_failed_$(Get-Date -Format yyyyMMddHHmm)"
+docker exec cine-postgres-1 pg_restore -U examcollect_admin -d examcollect_rehearsal --no-owner --no-privileges /tmp/pre-md.dump
+cd apps/api
+pnpm master-data snapshot --database-url $env:REHEARSAL_URL --out $env:TEMP\md-restored.json
+pnpm master-data verify   --database-url $env:REHEARSAL_URL --before $env:TEMP\md-before.json     # phần 'Số dòng và checksum' phải KHÔNG có dòng LỖI
+```
+
+Phải thấy: `pg_restore` thoát 0 không lỗi; `class.name` và `enrollment.student_name` có lại; `verify` ở phần số dòng/checksum sạch (phần Bất biến sẽ báo còn dữ liệu cũ — đúng, vì đã lùi về TRƯỚC backfill). Thấy lỗi ở đây thì đường lùi không dùng được: **dừng, sửa thủ tục, KHÔNG cutover**.
 
 ## 3. Cutover trên Supabase (cửa sổ bảo trì)
 
@@ -105,36 +122,49 @@ Trước mỗi bước ghi, in đích: `psql "$env:SUPABASE_DATABASE_URL" -c "SE
 | 3.1 | Sao lưu lại (mục 1) ngay trước giờ G; tag đã có. | `pg_restore --list` lỗi |
 | 3.2 | Đối soát lịch sử migration (2.2) trên Supabase. | đối tượng không khớp |
 | 3.3 | `snapshot --out before.json` trên Supabase. | |
-| 3.4 | `pnpm migration:run` với `DATABASE_URL` Supabase → áp migration **mở rộng**. Kiểm bằng `psql`: `migrations` có `ExpandMasterDataEntities1789600000000`. | lỗi migration |
+| 3.4 | **Từ checkout PR1 (`feat/master-data-pr1`)**, `$env:PGOPTIONS = "-c lock_timeout=10s"`, `pnpm migration:run` với `DATABASE_URL` Supabase → áp migration **mở rộng**. Kiểm bằng `psql`: `migrations` có `ExpandMasterDataEntities1789600000000` và KHÔNG có `ContractMasterDataEntities1789700000000`. | lỗi migration; có migration thu hẹp = đã chạy nhầm từ PR2 |
 | 3.5 | `backfill --dry-run` rồi `backfill` (cùng tuỳ chọn đã diễn tập). | `Backfill DỪNG` — xử lý, không ép |
-| 3.6 | **Deploy PR1** (Railway + Vercel). Đăng nhập admin, mở danh sách lớp/phiên. | trang lỗi |
+| 3.6 | **Deploy PR1** (Railway + Vercel). Đăng nhập admin, mở danh sách lớp/phiên — **chỉ đọc** (xem 3.8). | trang lỗi |
 | 3.7 | **Chạy lại backfill** (bắt phiên tạo bởi code cũ trong khoảng chờ) → `complete: true`. | `remaining` khác 0 |
-| 3.8 | **Merge và deploy PR2** (code không còn đọc cột cũ; chạy được trên schema chưa thu hẹp). Kiểm nhanh: tạo/sửa/huỷ một phiên thử, mở "Lớp của tôi". Máy dev nào trỏ Supabase phải chuyển sang nhánh mới. | trang lỗi |
-| 3.9 | **Migration thu hẹp**: `pnpm migration:run` với `DATABASE_URL` Supabase. Tự dừng nếu còn dữ liệu cũ (đọc câu báo, chạy lại 3.7). | báo tiền điều kiện |
-| 3.10 | `verify --before before.json --expect …` (cùng như 2.6) → **điều kiện báo xong**. | bất kỳ dòng `LỖI` |
+| 3.8 | **Merge và deploy PR2** (code không còn đọc cột cũ; chạy được trên schema chưa thu hẹp). Kiểm nhanh **CHỈ ĐỌC**: mở danh sách phiên, "Lớp của tôi", chi tiết một phiên. **KHÔNG ghi gì** (không tạo/sửa/huỷ phiên, không nhập file) cho tới sau 3.10: mọi dòng ghi thêm làm `verify` ở 3.10 báo `LỖI` (số dòng `exam_session`, `audit_log` đổi ngoài mong đợi). Máy dev nào trỏ Supabase phải chuyển sang nhánh mới. | trang lỗi |
+| 3.9 | **Migration thu hẹp**, từ checkout PR2 (`feat/master-data-restore`), `$env:PGOPTIONS = "-c lock_timeout=10s"`: `pnpm migration:run` với `DATABASE_URL` Supabase. Tự dừng nếu còn dữ liệu cũ (đọc câu báo, chạy lại 3.7). | báo tiền điều kiện |
+| 3.10 | `verify --before before.json --expect …` (cùng như 2.6) → **điều kiện báo xong**. Phải chạy TRƯỚC mọi thao tác ghi bằng tay (3.11). | bất kỳ dòng `LỖI` |
+| 3.11 | Kiểm tay CÓ GHI (sau 3.10): dùng "Phòng diễn tập" (4.1), tạo một phiên thử, sửa giờ, rồi huỷ nó. Các thao tác này đổi số dòng — nếu phải `verify` lại thì chụp bản "trước" mới. | trang lỗi / 409 bất thường |
 
-Chạy migration thu hẹp **trước** khi deploy PR2 làm code PR1 hỏng ở từng câu truy vấn đọc `student_name` — đừng đảo thứ tự 3.8 và 3.9.
+Chạy migration thu hẹp **trước** khi deploy PR2 làm code PR1 hỏng ở từng câu truy vấn đọc `student_name` — đừng đảo thứ tự 3.8 và 3.9, và đừng chạy `migration:run` từ checkout PR2 ở bất kỳ bước nào trước khi PR2 đã deploy xong.
 
 ## 4. Nghiệm thu bằng chấm thật (spec §11)
 
 4.1 Admin tạo phòng **"Phòng diễn tập"** (hoạt động) trên màn Phòng thi; ghi `roomId`. Không dùng lại `TEST-KHONG-PHONG` (đã ngừng).
-4.2 Chạy diễn tập trên Railway với cùng kịch bản và cùng model như lượt trước (`pnpm rehearsal -- …`, CLI đã đổi sang `roomId`/`classId` ở plan D3), rồi **ghi bản ghi và bảng so sánh với lượt trước** vào lịch sử benchmark (`apps/api/eval/rehearsals/`). Điểm số lệch so với lượt trước = lỗi cần điều tra, không phải ghi chú.
+4.2 Chạy diễn tập trên Railway với cùng kịch bản và cùng model như lượt trước (`pnpm rehearsal -- …`, CLI đã đổi sang `roomId`/`classId` ở plan D3), rồi **ghi bản ghi và bảng so sánh với lượt trước** vào lịch sử benchmark (`apps/api/eval/rehearsals/`). Điểm số lệch so với lượt trước = lỗi cần điều tra, không phải ghi chú. **Lưu ý (carry-forward plan D3):** phiên diễn tập nay mang `semester_name` của học kỳ THẬT (không còn "TEST dien tap"), nên `scripts/calibration/export.py` và bộ lọc kỳ không còn tách được phiên diễn tập khỏi phiên thật — chỉ còn tiền tố tên phiên; ghi rõ tên phiên diễn tập vào bản ghi benchmark.
 4.3 Lượt duyệt bằng trình duyệt (Playwright MCP local: `docs/superpowers/tools/pw-mcp.mjs` trong repo CINE) trên bản sao hoặc Supabase sau cutover:
    - [ ] Admin: tạo học kỳ, phòng, mã lớp danh nghĩa, lớp (giao giảng viên); nhập file cho từng loại (dryRun trước); trang audit hiện các thao tác đó.
    - [ ] Giảng viên: "Lớp của tôi" chỉ đọc, bộ lọc năm học → học kỳ; chưa có lớp thì thấy "Chưa có lớp nào được giao cho bạn" và **không** có nút tạo lớp.
    - [ ] Giảng viên: tạo phiên (phòng chọn từ danh sách, học kỳ chỉ-xem); phiên của lớp kỳ cũ vẫn tạo được; sửa phòng/giờ trước giờ bắt đầu; "Sửa" bị chặn kèm lý do sau giờ bắt đầu; huỷ phiên chưa ai vào; huỷ phiên đã có người vào thấy câu 409 trong hộp thoại.
    - [ ] Danh sách Kỳ thi / Bài thu / Chấm điểm lọc theo năm học → học kỳ; lớp trùng nhãn giữa hai kỳ phân biệt được bằng học kỳ.
    - [ ] Agent: sinh viên lớp khác `NOT_ENROLLED` rồi xin phép được (T-GR-3).
+   - [ ] **Trang audit `/admin/audit-log`** (carry-forward plan B — test tự động đã phủ logic, còn hiển thị thật cần mắt người): (1) có dòng, mỗi dòng đọc thành MỘT câu; dòng hành động chưa có câu riêng đọc theo nhánh dự phòng; (2) đổi nhóm "Phiên thi"/"Chấm điểm" thì bảng đổi và về trang 1; (3) chọn người thực hiện, khoảng ngày, "Xoá bộ lọc" về mặc định; (4) mở rộng một dòng: hai khối Trước/Sau, dòng giá trị quá lớn báo "nội dung vượt 4 KB nên không hiện được"; (5) cửa sổ ~375 px: bảng cuộn ngang, thanh lọc xếp dọc; (6) giảng viên gõ thẳng `/admin/audit-log` bị chặn.
+   - [ ] **Import — chọn lại CÙNG MỘT file hai lần liên tiếp** (carry-forward plan E1) trên Chromium: lần hai vẫn phát bản xem trước (Blink có thể không phát `change` khi đường dẫn y hệt; mã đã đặt lại `value` sau mỗi lần chọn nhưng chưa được chạy thật).
+   - [ ] Các ô chọn (Radix Select) ở form lớp và form tạo/sửa phiên: chọn bằng chuột và bàn phím; phòng đã ngừng hoạt động hiện kèm "(đã ngừng hoạt động)" khi sửa phiên.
 
 ## 5. Đường lùi
 
 | Đang ở | Lùi bằng | Mất gì |
 |---|---|---|
 | Trước 3.4 | Không cần lùi. | — |
-| Sau 3.4–3.7 (mở rộng + backfill, chưa thu hẹp) | **Khôi phục bản dump** rồi deploy lại tag `pre-master-data-restore`. Gộp lớp (xoá lớp MongoDB) và viết lại chuỗi học kỳ không đảo được bằng tay. | Dữ liệu phát sinh sau giờ dump |
+| Sau 3.4–3.7 (mở rộng + backfill, chưa thu hẹp) | **Khôi phục bản dump theo thủ tục bên dưới** rồi deploy lại tag `pre-master-data-restore`. Gộp lớp (xoá lớp MongoDB) và viết lại chuỗi học kỳ không đảo được bằng tay. | Dữ liệu phát sinh sau giờ dump |
 | Sau 3.9 (đã thu hẹp) | Như trên — **duy nhất** cách. `down()` của migration thu hẹp ném lỗi có chủ ý. | Dữ liệu phát sinh sau giờ dump |
 
-Khôi phục (thử trên bản sao trước, vì nó ghi đè): `pg_restore --clean --if-exists --no-owner --no-privileges -d "$env:SUPABASE_DATABASE_URL" <dump>`, rồi `git checkout pre-master-data-restore` và deploy lại Railway + Vercel. Ba giảng viên và một cửa sổ bảo trì ngắn làm mức mất dữ liệu này chấp nhận được (spec §12 mục 5).
+**Thủ tục khôi phục** (đã thử trên DB tạm, và phải diễn tập lại ở 2.8): ĐỔI TÊN schema hỏng rồi `pg_restore` vào chỗ trống, **KHÔNG dùng `--clean`**:
+
+```powershell
+psql "$env:SUPABASE_DATABASE_URL" -c "ALTER SCHEMA examcollect RENAME TO examcollect_failed_<yyyyMMddHHmm>"      # giữ lại để điều tra, không mất dữ liệu
+pg_restore --no-owner --no-privileges -d "$env:SUPABASE_DATABASE_URL" <dump>                                         # dump có sẵn CREATE SCHEMA examcollect
+```
+
+Rồi `git checkout pre-master-data-restore` và deploy lại Railway + Vercel. Ba giảng viên và một cửa sổ bảo trì ngắn làm mức mất dữ liệu này chấp nhận được (spec §12 mục 5).
+
+**Vì sao KHÔNG `pg_restore --clean --if-exists`** (đã thử trên DB tạm, review cuối I1): dump chụp TRƯỚC migration nên không có view `class_label`; `--clean` chỉ DROP những gì có trong dump, không CASCADE, nên `DROP TABLE class`/`semester`/`administrative_class`, `DROP FUNCTION semester_label` và `DROP SCHEMA` đều lỗi "cannot drop … because other objects depend on it"; rồi `CREATE SCHEMA`/`CREATE FUNCTION` lỗi "already exists" — kết quả là một schema nửa mới nửa cũ (`class` vẫn ở hình dạng SAU cutover, các bảng khác nạp lại ở hình dạng TRƯỚC) và `pg_restore` thoát 1. Cách đổi tên schema thoát 0, không lỗi, và còn schema hỏng để điều tra. (Nếu Supabase đặt extension trong schema `extensions`, kiểm bước 2.1 trước khi tin vào thủ tục này.)
 
 ## 6. Sau nghiệm thu
 
