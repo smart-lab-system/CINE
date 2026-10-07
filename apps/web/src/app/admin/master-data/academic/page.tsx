@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -32,12 +34,16 @@ import {
   useSemesterMutations,
   useSemesters,
 } from '@/hooks/useMasterData';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { cn } from '@/lib/utils';
 import {
   CatalogSection,
   DeleteIconButton,
   EditIconButton,
   RowActions,
 } from '../_components/catalog-table';
+import { CatalogFilterBar } from '../_components/catalog-filter-bar';
+import { buildCatalogQuery } from '../_components/catalog-url';
 import {
   ACADEMIC_STATUSES,
   SEMESTER_CODES,
@@ -69,9 +75,89 @@ function dateInputValue(raw: string): string {
   return raw.slice(0, 10);
 }
 
+function StatusFilter({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="sm:w-44" aria-label={ariaLabel}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">Tất cả trạng thái</SelectItem>
+        {ACADEMIC_STATUSES.map((s) => (
+          <SelectItem key={s} value={s}>
+            {academicStatusLabel(s)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export default function AcademicMasterDataPage() {
-  const years = useAcademicYears({ page: 1, pageSize: 50 });
-  const semesters = useSemesters({ page: 1, pageSize: 50 });
+  return (
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <AcademicMasterDataContent />
+    </Suspense>
+  );
+}
+
+function AcademicMasterDataContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const [yearSearch, setYearSearch] = useState(searchParams.get('qYear') ?? '');
+  const [yearStatus, setYearStatus] = useState(searchParams.get('statusYear') ?? 'all');
+  const [semSearch, setSemSearch] = useState(searchParams.get('qSem') ?? '');
+  const [semStatus, setSemStatus] = useState(searchParams.get('statusSem') ?? 'all');
+  const [yearId, setYearId] = useState(searchParams.get('yearId') ?? '');
+
+  const debouncedYearSearch = useDebouncedValue(yearSearch, 300);
+  const debouncedSemSearch = useDebouncedValue(semSearch, 300);
+  const lastUrl = useRef('');
+
+  useEffect(() => {
+    const qs = buildCatalogQuery(new URLSearchParams(), {
+      qYear: debouncedYearSearch.trim() || null,
+      statusYear: yearStatus === 'all' ? null : yearStatus,
+      qSem: debouncedSemSearch.trim() || null,
+      statusSem: semStatus === 'all' ? null : semStatus,
+      yearId: yearId || null,
+    });
+    if (qs === lastUrl.current) return;
+    lastUrl.current = qs;
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [
+    debouncedYearSearch,
+    yearStatus,
+    debouncedSemSearch,
+    semStatus,
+    yearId,
+    pathname,
+    router,
+  ]);
+
+  const years = useAcademicYears({
+    page: 1,
+    pageSize: 50,
+    search: debouncedYearSearch.trim() || undefined,
+    status: yearStatus === 'all' ? undefined : yearStatus,
+  });
+  const semesters = useSemesters({
+    page: 1,
+    pageSize: 50,
+    search: debouncedSemSearch.trim() || undefined,
+    status: semStatus === 'all' ? undefined : semStatus,
+    academicYearId: yearId || undefined,
+  });
   const yearMut = useAcademicYearMutations();
   const semMut = useSemesterMutations();
 
@@ -89,6 +175,8 @@ export default function AcademicMasterDataPage() {
   function yearCodeOf(id: string) {
     return years.data?.items.find((y) => y.id === id)?.code;
   }
+
+  const selectedYearCode = yearId ? yearCodeOf(yearId) : undefined;
 
   function setSemesterYear(academicYearId: string) {
     setSemForm((prev) => ({
@@ -126,7 +214,13 @@ export default function AcademicMasterDataPage() {
 
   function openCreateSem() {
     setEditingSemId(null);
-    setSemForm(EMPTY_SEM);
+    setSemForm({
+      ...EMPTY_SEM,
+      academicYearId: yearId || '',
+      name: yearId
+        ? semesterNameFromCodeAndYear('HK1', yearCodeOf(yearId))
+        : EMPTY_SEM.name,
+    });
     setSemOpen(true);
   }
 
@@ -209,6 +303,11 @@ export default function AcademicMasterDataPage() {
     });
   }
 
+  const yearFiltered =
+    Boolean(debouncedYearSearch.trim()) || yearStatus !== 'all';
+  const semFiltered =
+    Boolean(debouncedSemSearch.trim()) || semStatus !== 'all' || Boolean(yearId);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -221,10 +320,43 @@ export default function AcademicMasterDataPage() {
         loading={years.isLoading}
         onCreate={openCreateYear}
         headers={['Mã', 'Tên', 'Bắt đầu', 'Kết thúc', 'Trạng thái', '']}
+        empty={yearFiltered ? 'Không khớp bộ lọc.' : 'Chưa có dữ liệu.'}
+        toolbar={
+          <CatalogFilterBar
+            search={yearSearch}
+            onSearchChange={setYearSearch}
+            searchPlaceholder="Mã hoặc tên năm…"
+            searchAriaLabel="Tìm năm học"
+            filters={
+              <StatusFilter
+                value={yearStatus}
+                onChange={setYearStatus}
+                ariaLabel="Lọc trạng thái năm học"
+              />
+            }
+            activeSummary={
+              yearFiltered
+                ? `Đang lọc năm học${yearStatus !== 'all' ? ` · ${academicStatusLabel(yearStatus as AcademicStatus)}` : ''}`
+                : null
+            }
+            onClear={() => {
+              setYearSearch('');
+              setYearStatus('all');
+            }}
+          />
+        }
         rows={
           years.data?.items.length
             ? years.data.items.map((y) => (
-                <TableRow key={y.id}>
+                <TableRow
+                  key={y.id}
+                  className={cn(
+                    'cursor-pointer',
+                    yearId === y.id && 'bg-muted/60',
+                  )}
+                  onClick={() => setYearId((prev) => (prev === y.id ? '' : y.id))}
+                  title="Bấm để lọc học kỳ theo năm này"
+                >
                   <TableCell className="font-mono">{y.code}</TableCell>
                   <TableCell>{y.name}</TableCell>
                   <TableCell>{dateInputValue(y.startDate)}</TableCell>
@@ -236,7 +368,10 @@ export default function AcademicMasterDataPage() {
                       <DeleteIconButton
                         onClick={() =>
                           yearMut.remove.mutate(y.id, {
-                            onSuccess: () => toast.success('Đã xóa năm học'),
+                            onSuccess: () => {
+                              toast.success('Đã xóa năm học');
+                              if (yearId === y.id) setYearId('');
+                            },
                             onError: onErr,
                           })
                         }
@@ -254,6 +389,34 @@ export default function AcademicMasterDataPage() {
         loading={semesters.isLoading}
         onCreate={openCreateSem}
         headers={['Năm', 'Mã', 'Tên', 'Bắt đầu', 'Kết thúc', 'Trạng thái', '']}
+        empty={semFiltered ? 'Không khớp bộ lọc.' : 'Chưa có dữ liệu.'}
+        toolbar={
+          <CatalogFilterBar
+            search={semSearch}
+            onSearchChange={setSemSearch}
+            searchPlaceholder="Mã hoặc tên học kỳ…"
+            searchAriaLabel="Tìm học kỳ"
+            filters={
+              <StatusFilter
+                value={semStatus}
+                onChange={setSemStatus}
+                ariaLabel="Lọc trạng thái học kỳ"
+              />
+            }
+            activeSummary={
+              selectedYearCode
+                ? `Đang xem: ${selectedYearCode}`
+                : semFiltered
+                  ? 'Đang lọc học kỳ'
+                  : null
+            }
+            onClear={() => {
+              setSemSearch('');
+              setSemStatus('all');
+              setYearId('');
+            }}
+          />
+        }
         rows={
           semesters.data?.items.length
             ? semesters.data.items.map((s) => {

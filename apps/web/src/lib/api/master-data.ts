@@ -141,12 +141,13 @@ export interface ListParams {
   academicYearId?: string;
   nominalClassId?: string;
   roomId?: string;
+  cohortYear?: number;
 }
 
 // --- academic years ---
 export const listAcademicYears = (p: ListParams = {}) =>
   masterDataFetch<PageResult<AcademicYear>>(
-    `/master-data/academic-years${qs({ page: p.page ?? 1, pageSize: p.pageSize ?? 20, status: p.status })}`,
+    `/master-data/academic-years${qs({ page: p.page ?? 1, pageSize: p.pageSize ?? 20, status: p.status, search: p.search })}`,
   );
 export const createAcademicYear = (body: Omit<AcademicYear, 'id'>) =>
   masterDataFetch<{ id: string }>('/master-data/academic-years', {
@@ -164,7 +165,7 @@ export const deleteAcademicYear = (id: string) =>
 // --- semesters ---
 export const listSemesters = (p: ListParams = {}) =>
   masterDataFetch<PageResult<Semester>>(
-    `/master-data/semesters${qs({ page: p.page ?? 1, pageSize: p.pageSize ?? 20, status: p.status, academicYearId: p.academicYearId })}`,
+    `/master-data/semesters${qs({ page: p.page ?? 1, pageSize: p.pageSize ?? 20, status: p.status, academicYearId: p.academicYearId, search: p.search })}`,
   );
 export const createSemester = (body: Omit<Semester, 'id'>) =>
   masterDataFetch<{ id: string }>('/master-data/semesters', {
@@ -200,7 +201,13 @@ export const deleteCourse = (id: string) =>
 // --- nominal classes ---
 export const listNominalClasses = (p: ListParams = {}) =>
   masterDataFetch<PageResult<NominalClass>>(
-    `/master-data/nominal-classes${qs({ page: p.page ?? 1, pageSize: p.pageSize ?? 20, status: p.status, search: p.search })}`,
+    `/master-data/nominal-classes${qs({
+      page: p.page ?? 1,
+      pageSize: p.pageSize ?? 20,
+      status: p.status,
+      search: p.search,
+      cohortYear: p.cohortYear,
+    })}`,
   );
 export const createNominalClass = (body: {
   code: string;
