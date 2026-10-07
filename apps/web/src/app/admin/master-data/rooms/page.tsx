@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -34,13 +36,21 @@ import {
   useRoomMutations,
   useRooms,
 } from '@/hooks/useMasterData';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { cn } from '@/lib/utils';
 import {
   CatalogSection,
   DeleteIconButton,
   EditIconButton,
   RowActions,
 } from '../_components/catalog-table';
-import { FACILITY_STATUSES, facilityStatusLabel } from '@/lib/master-data-defaults';
+import { CatalogFilterBar } from '../_components/catalog-filter-bar';
+import { buildCatalogQuery } from '../_components/catalog-url';
+import {
+  FACILITY_STATUSES,
+  facilityStatusLabel,
+  type FacilityStatus,
+} from '@/lib/master-data-defaults';
 
 const EMPTY_ROOM = {
   code: '',
@@ -66,12 +76,61 @@ const EMPTY_PC = {
 };
 
 export default function RoomsMasterDataPage() {
-  const rooms = useRooms({ page: 1, pageSize: 50 });
-  const [roomFilter, setRoomFilter] = useState<string>('all');
+  return (
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <RoomsMasterDataContent />
+    </Suspense>
+  );
+}
+
+function RoomsMasterDataContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const [roomSearch, setRoomSearch] = useState(searchParams.get('qRoom') ?? '');
+  const [roomStatus, setRoomStatus] = useState(searchParams.get('statusRoom') ?? 'all');
+  const [pcSearch, setPcSearch] = useState(searchParams.get('q') ?? '');
+  const [pcStatus, setPcStatus] = useState(searchParams.get('statusPc') ?? 'all');
+  const [roomId, setRoomId] = useState(searchParams.get('roomId') ?? '');
+
+  const debouncedRoomSearch = useDebouncedValue(roomSearch, 300);
+  const debouncedPcSearch = useDebouncedValue(pcSearch, 300);
+  const lastUrl = useRef('');
+
+  useEffect(() => {
+    const qs = buildCatalogQuery(new URLSearchParams(), {
+      qRoom: debouncedRoomSearch.trim() || null,
+      statusRoom: roomStatus === 'all' ? null : roomStatus,
+      q: debouncedPcSearch.trim() || null,
+      statusPc: pcStatus === 'all' ? null : pcStatus,
+      roomId: roomId || null,
+    });
+    if (qs === lastUrl.current) return;
+    lastUrl.current = qs;
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [
+    debouncedRoomSearch,
+    roomStatus,
+    debouncedPcSearch,
+    pcStatus,
+    roomId,
+    pathname,
+    router,
+  ]);
+
+  const rooms = useRooms({
+    page: 1,
+    pageSize: 50,
+    search: debouncedRoomSearch.trim() || undefined,
+    status: roomStatus === 'all' ? undefined : roomStatus,
+  });
   const computers = useComputers({
     page: 1,
     pageSize: 50,
-    roomId: roomFilter === 'all' ? undefined : roomFilter,
+    roomId: roomId || undefined,
+    search: debouncedPcSearch.trim() || undefined,
+    status: pcStatus === 'all' ? undefined : pcStatus,
   });
   const roomMut = useRoomMutations();
   const pcMut = useComputerMutations();
@@ -88,6 +147,11 @@ export default function RoomsMasterDataPage() {
   }
 
   const roomCode = (id: string) => rooms.data?.items.find((r) => r.id === id)?.code ?? '—';
+  const selectedRoomCode = roomId ? roomCode(roomId) : undefined;
+  const roomFiltered =
+    Boolean(debouncedRoomSearch.trim()) || roomStatus !== 'all';
+  const pcFiltered =
+    Boolean(debouncedPcSearch.trim()) || pcStatus !== 'all' || Boolean(roomId);
 
   function openCreateRoom() {
     setEditingRoomId(null);
@@ -110,7 +174,7 @@ export default function RoomsMasterDataPage() {
 
   function openCreatePc() {
     setEditingPcId(null);
-    setPcForm(EMPTY_PC);
+    setPcForm({ ...EMPTY_PC, roomId: roomId || '' });
     setPcOpen(true);
   }
 
@@ -212,10 +276,44 @@ export default function RoomsMasterDataPage() {
         loading={rooms.isLoading}
         onCreate={openCreateRoom}
         headers={['Mã', 'Tên', 'Sức chứa', 'Tòa', 'Tầng', 'Trạng thái', '']}
+        empty={roomFiltered ? 'Không khớp bộ lọc.' : 'Chưa có dữ liệu.'}
+        toolbar={
+          <CatalogFilterBar
+            search={roomSearch}
+            onSearchChange={setRoomSearch}
+            searchPlaceholder="Mã hoặc tên phòng…"
+            searchAriaLabel="Tìm phòng"
+            filters={
+              <Select value={roomStatus} onValueChange={setRoomStatus}>
+                <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái phòng">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                  {FACILITY_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {facilityStatusLabel(s)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            }
+            activeSummary={roomFiltered ? 'Đang lọc phòng' : null}
+            onClear={() => {
+              setRoomSearch('');
+              setRoomStatus('all');
+            }}
+          />
+        }
         rows={
           rooms.data?.items.length
             ? rooms.data.items.map((r) => (
-                <TableRow key={r.id}>
+                <TableRow
+                  key={r.id}
+                  className={cn('cursor-pointer', roomId === r.id && 'bg-muted/60')}
+                  onClick={() => setRoomId((prev) => (prev === r.id ? '' : r.id))}
+                  title="Bấm để lọc máy theo phòng này"
+                >
                   <TableCell className="font-mono">{r.code}</TableCell>
                   <TableCell>{r.name}</TableCell>
                   <TableCell>{r.capacity}</TableCell>
@@ -228,7 +326,10 @@ export default function RoomsMasterDataPage() {
                       <DeleteIconButton
                         onClick={() =>
                           roomMut.remove.mutate(r.id, {
-                            onSuccess: () => toast.success('Đã xóa phòng'),
+                            onSuccess: () => {
+                              toast.success('Đã xóa phòng');
+                              if (roomId === r.id) setRoomId('');
+                            },
                             onError: onErr,
                           })
                         }
@@ -240,23 +341,6 @@ export default function RoomsMasterDataPage() {
             : null
         }
       />
-
-      <div className="max-w-xs">
-        <Label>Lọc máy theo phòng</Label>
-        <Select value={roomFilter} onValueChange={setRoomFilter}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tất cả</SelectItem>
-            {(rooms.data?.items ?? []).map((r) => (
-              <SelectItem key={r.id} value={r.id}>
-                {r.code}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       <CatalogSection
         title="Máy tính"
@@ -273,6 +357,60 @@ export default function RoomsMasterDataPage() {
           'Trạng thái',
           '',
         ]}
+        empty={pcFiltered ? 'Không khớp bộ lọc.' : 'Chưa có dữ liệu.'}
+        toolbar={
+          <CatalogFilterBar
+            search={pcSearch}
+            onSearchChange={setPcSearch}
+            searchPlaceholder="Hostname, IP hoặc vị trí…"
+            searchAriaLabel="Tìm máy tính"
+            filters={
+              <>
+                <Select
+                  value={roomId || 'all'}
+                  onValueChange={(v) => setRoomId(v === 'all' ? '' : v)}
+                >
+                  <SelectTrigger className="sm:w-44" aria-label="Lọc theo phòng">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả phòng</SelectItem>
+                    {(rooms.data?.items ?? []).map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={pcStatus} onValueChange={setPcStatus}>
+                  <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái máy">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                    {FACILITY_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {facilityStatusLabel(s as FacilityStatus)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            }
+            activeSummary={
+              selectedRoomCode && selectedRoomCode !== '—'
+                ? `Đang xem: ${selectedRoomCode}`
+                : pcFiltered
+                  ? 'Đang lọc máy'
+                  : null
+            }
+            onClear={() => {
+              setPcSearch('');
+              setPcStatus('all');
+              setRoomId('');
+            }}
+          />
+        }
         rows={
           computers.data?.items.length
             ? computers.data.items.map((c) => (
