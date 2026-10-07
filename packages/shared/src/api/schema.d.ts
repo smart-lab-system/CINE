@@ -1071,6 +1071,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/test-bundles/{bundleId}/drop-case": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestBundleController_dropCase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/grading-results/{id}/audit-review": {
         parameters: {
             query?: never;
@@ -1097,6 +1113,38 @@ export interface paths {
         get: operations["AuditReviewController_download"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/grading-results/{id}/regrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RegradeController_regradeOne"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/regrade-ungradable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RegradeController_regradeUngradable"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1515,6 +1563,8 @@ export interface components {
             modelAnswerNote: string | null;
             modelAnswerUnverified: boolean;
             modelAnswerOrigin: Record<string, never> | null;
+            /** Format: date-time */
+            modelAnswerSetAt: string | null;
             createdBy: string;
             createdByAccount?: components["schemas"]["AccountEntity"];
             id: string;
@@ -1565,9 +1615,15 @@ export interface components {
         CreateTestBundleDto: {
             cases: components["schemas"]["TestCaseDto"][];
         };
+        DropTestCaseDto: {
+            caseKey: string;
+        };
         AuditReviewDto: {
             pickedRuleIds: string[];
             extraErrors: string[];
+        };
+        RegradeUngradableDto: {
+            reason?: string | null;
         };
         GenerateExamDto: {
             prompt: string;
@@ -3309,6 +3365,30 @@ export interface operations {
             };
         };
     };
+    TestBundleController_dropCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                bundleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DropTestCaseDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     AuditReviewController_record: {
         parameters: {
             query?: never;
@@ -3350,6 +3430,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    RegradeController_regradeOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    RegradeController_regradeUngradable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegradeUngradableDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };

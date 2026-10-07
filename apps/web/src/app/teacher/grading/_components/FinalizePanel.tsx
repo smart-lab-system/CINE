@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { NeedsBackend } from '@/components/needs-backend';
 import { useFinalizeGrades } from '@/hooks/useGrading';
 import { blockers, finalizeCounts } from '@/lib/session-triage';
 import type { GradingResult } from '@/lib/api/grading';
