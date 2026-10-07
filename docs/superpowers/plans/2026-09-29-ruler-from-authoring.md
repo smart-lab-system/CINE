@@ -2895,7 +2895,9 @@ Semantics, so nobody re-derives them wrongly: `upsert` treats a **note as part o
   Kill stray workers first (they eat BullMQ jobs from a shared Redis and poison later runs):
 
   ```bash
-  taskkill //F //IM node.exe //FI "WINDOWTITLE eq *jest*"
+  # List jest workers; stop ONLY the ones whose command line shows THIS worktree's path, by PID (Stop-Process -Id <pid>).
+  # Never `taskkill /IM node.exe`: it also kills the jest runs and dev servers of every other session on this machine.
+  powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'jest' } | Select-Object ProcessId, CommandLine"
   ```
 
   ```bash
@@ -2962,7 +2964,7 @@ Semantics, so nobody re-derives them wrongly: `upsert` treats a **note as part o
   Create `docs/superpowers/ledgers/2026-09-29-ruler-from-authoring.md` with, per task: the commit hash, the exact test command and its result, and every `Ruling:` line from the in-progress ledger with the reason. Also record the `git show 4e06f00 --stat` finding from Task 1 Step 1.
 
   ```bash
-  git add -A && git commit -F <message-file>
+  git add docs/superpowers/ledgers/2026-09-29-ruler-from-authoring.md && git commit -F <message-file>
   ```
 
   Title: `docs: ledger thực thi G2 (thước và nguồn tài liệu chấm)`

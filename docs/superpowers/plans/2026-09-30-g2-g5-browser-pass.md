@@ -42,6 +42,8 @@ cd apps/api && PORT=4003 WEB_ORIGIN=http://localhost:3003 DOTENV_CONFIG_PATH=.en
 cd apps/web && NEXT_PUBLIC_API_URL=http://localhost:4003 pnpm exec next dev -p 3003                                              # nền
 ```
 
+**Hai điều giao thức ban đầu thiếu (mọi phiên G2–G5 vấp phải):** (a) route proxy `/api/auth/login` và `/refresh` của web đọc `API_URL` (mặc định cổng 4000), KHÁC `NEXT_PUBLIC_API_URL` — phải đặt CẢ HAI khi chạy `next dev`, nếu không đăng nhập báo "Sai email hoặc mật khẩu" dù tài khoản đúng; form đăng nhập submit trước khi hydrate còn rơi về GET và đưa mật khẩu lên URL (lỗi có sẵn), nên chờ trang hydrate xong rồi mới gõ; (b) `findRepoPlaywright()` có thể không thấy gói `playwright` trong `.pnpm` của worktree (chỉ có link `playwright-core`) — khi đó đặt `PLAYWRIGHT_LOCAL_MCP_PLAYWRIGHT_PATH` trỏ vào `playwright@<ver>/node_modules/playwright/index.mjs` của một worktree có đủ (chỉ đọc). `TaskStop` trên `pnpm exec next dev` có thể bỏ sót tiến trình con đang nghe cổng: dừng nó theo PID sau khi kiểm đúng tiến trình đó chiếm cổng của mình.
+
 `PORT`, `WEB_ORIGIN` đặt trước thắng `.env.test` (dotenv không ghi đè biến đã có). Đợi `curl -s -o /dev/null -w '%{http_code}' http://localhost:4003/api-docs-json` ra 200 và trang `http://localhost:3003/login` mở được (lần biên dịch đầu của `next dev` chậm). **Tắt cả hai bằng `TaskStop` khi xong.** Không bao giờ trỏ web vào API của gói khác hay vào cổng 4000.
 
 ## 3. Dữ liệu — dựng bằng một spec e2e dùng một lần, KHÔNG viết INSERT tay

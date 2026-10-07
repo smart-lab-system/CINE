@@ -175,6 +175,7 @@ Chấm lại bài **đã có điểm** (§1.2/§2.2 cấm; lối duy nhất là 
 1. `queue.add` lỗi sau khi DB đã sang `ai_grading` → bài kẹt không job. Cứu bằng nút *Chấm tiếp N bài treo* có sẵn (`regradeStuck`) — nhưng **chỉ** khi nó không bị job `completed` chặn; D4 giữ cho ca chính không dính lỗi đó.
 2. Job `active` cho một bài vừa được đưa về `ai_grading` (D5): job sẽ đọc DB mới; chưa có test chứng minh lượt chạy dở ấy kết thúc sạch.
 3. Băng D12 đo "cùng lý do", không đo "trong một khoảng ngắn", vì danh sách không có thời điểm dừng.
+4. **Chấm lại khoá thước của phiên (luật 6, tìm thấy khi chạy thật).** Chấm lại đưa bài sang `ai_grading`, và `GRADING_LOCKED_SQL` (`grading-lock.ts`) khoá đề, đáp án, gói test và rubric của phiên khi có bài `ai_grading`/`ai_graded`. Khoá tới khi bài có điểm hoặc lại dừng. Hộp xác nhận của `RegradeButton` không nói điều này. Ai cần sửa thước phải sửa **trước** khi chấm lại. Chưa sửa hộp xác nhận (ngoài phạm vi); nên thêm một câu vào hộp ở lượt sau.
 
 **Chưa kiểm chứng:**
 * Chưa chạy e2e (Docker Desktop tắt): mutation check của D1 (bỏ hai cột → 23514) là suy luận từ câu CHECK đã đọc nguyên văn.

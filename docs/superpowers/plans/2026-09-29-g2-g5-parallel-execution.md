@@ -66,6 +66,8 @@ cd ../../packages/shared && API_URL=http://localhost:4003/api-docs-json pnpm gen
 
 `PORT` đặt trước thắng `.env.test` (dotenv không ghi đè biến đã có). Tắt API bằng `TaskStop` khi xong.
 
+**Cài `node_modules` cho worktree mới (2026-10-01, đo trên máy này):** `pnpm install --frozen-lockfile` đầy đủ mất hàng giờ (~8 ms mỗi hardlink). Đường chạy được trong 14 giây là dùng chung kho ảo `.pnpm` của một worktree đã đầy đủ: `CI=true pnpm install --frozen-lockfile --config.verify-store-integrity=false "--config.virtual-store-dir=<worktree gốc>\node_modules\.pnpm"` (trong file `.cmd` gọi bằng `call pnpm`). Hệ quả: **không chạy `pnpm install` thường và không chạy `pnpm install --lockfile-only` trần** trong các worktree đó (pnpm purge `node_modules`); không xoá worktree gốc khi các worktree kia còn sống; đổi dependency thật thì phải cài đầy đủ riêng.
+
 **Máy sẽ chậm:** bốn phiên cùng chạy vitest/tsc/`next build`. Vitest có lúc quá 60 giây; đừng chạy `next build` nếu chưa cần (chỉ ở task xác minh cuối).
 
 ## 3. Quyền sửa file — luật để không xung đột

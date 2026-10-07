@@ -2852,7 +2852,9 @@ Behaviour the tests pin:
 - [ ] **Step 2: Backend e2e — this package's suites plus the neighbours.** Kill stray workers first (they eat BullMQ jobs from a shared Redis):
 
   ```bash
-  taskkill //F //IM node.exe //FI "WINDOWTITLE eq *jest*"
+  # List jest workers; stop ONLY the ones whose command line shows THIS worktree's path, by PID (Stop-Process -Id <pid>).
+  # Never `taskkill /IM node.exe`: it also kills the jest runs and dev servers of every other session on this machine.
+  powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'jest' } | Select-Object ProcessId, CommandLine"
   ```
 
   ```bash
@@ -2888,7 +2890,7 @@ Behaviour the tests pin:
 - [ ] **Step 6: Write the ledger.** Create `docs/superpowers/ledgers/2026-09-29-audit-sampling.md` with, per task: the commit hash, the exact test command and its result, every `Ruling:` line from the in-progress ledger with its reason, the mutation check of Task 10 Step 5 with the failure observed, and the Step 4 findings.
 
   ```bash
-  git add -A && git commit -F <message-file>
+  git add docs/superpowers/ledgers/2026-09-29-audit-sampling.md && git commit -F <message-file>
   ```
 
   Title: `docs: ledger thực thi G4 (kiểm mẫu ngẫu nhiên và màn kiểm mù)`.

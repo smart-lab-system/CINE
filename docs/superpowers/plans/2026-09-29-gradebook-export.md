@@ -80,7 +80,7 @@ Additive only; each is shared with another stream.
 | File | G5 adds (exact anchor) | Who else touches it |
 |---|---|---|
 | `apps/api/package.json` | removes `"jszip": "^3.10.1",` from `devDependencies` (between `"jest"` and `"socket.io-client"`), adds it to `dependencies` (between `"ioredis"` and `"mammoth"`) | nobody planned |
-| `pnpm-lock.yaml` | the `apps/api` importer: `jszip` moves from `devDependencies` to `dependencies` | every stream that touches a dependency — on conflict, **regenerate** with `pnpm install --lockfile-only`, do not hand-merge |
+| `pnpm-lock.yaml` | the `apps/api` importer: `jszip` moves from `devDependencies` to `dependencies` | every stream that touches a dependency — on conflict, **regenerate** the lockfile, do not hand-merge. **Not** with a plain `pnpm install --lockfile-only` inside a worktree whose `node_modules` uses a shared `.pnpm` virtual store: pnpm then purges that `node_modules` (found when this plan was run; restore with the `--config.virtual-store-dir` form in the parallel-execution protocol §2). Do it from a worktree that owns its full `node_modules`, or edit the 3-line `jszip` block by hand and check it with `pnpm install --frozen-lockfile --lockfile-only` (a read-only check) |
 | `apps/api/src/app.module.ts` | `import { GradeExportModule } from './grade-export/grade-export.module';` after the `CourseModule` import; `GradeExportModule,` after `CourseModule,` in `imports` | S may add its own module — keep both |
 | `apps/api/src/database/data-source.ts` | `import { GradeExportRowEntity } …;` after the `GradeExportEntity` import; `GradeExportRowEntity,` after `GradeExportEntity,` in `entities` | G2 adds entities — keep all |
 | `apps/api/src/database/verify-schema.ts` | `'grade_export_row',` after `'audit_sample_review',` | any stream adding a table |
@@ -107,10 +107,10 @@ Nothing else in this plan is shared. `apps/api/src/grade-export/**`, `test/grade
       "jszip": "^3.10.1",
   ```
 
-  from `devDependencies` (it sits between `"jest": "^29.7.0",` and `"socket.io-client": "^4.8.3",`) and add the same line to `dependencies`, between `"ioredis": "^5.4.1",` and `"mammoth": "^1.12.2",`. Then, from the worktree root:
+  from `devDependencies` (it sits between `"jest": "^29.7.0",` and `"socket.io-client": "^4.8.3",`) and add the same line to `dependencies`, between `"ioredis": "^5.4.1",` and `"mammoth": "^1.12.2",`. Then, from the worktree root. **Warning:** if this worktree shares another worktree's `.pnpm` virtual store (the G2–G5 parallel setup), a plain `pnpm install --lockfile-only` makes pnpm purge `node_modules`. Move the 3-line `jszip:` block under `importers → apps/api` from `devDependencies:` to `dependencies:` **by hand** (alphabetical position) and verify with the read-only check below instead of the first command:
 
   ```bash
-  pnpm install --lockfile-only
+  pnpm install --frozen-lockfile --lockfile-only
   git diff --stat -- pnpm-lock.yaml apps/api/package.json
   git diff -- pnpm-lock.yaml
   node -e "const p=require('./apps/api/package.json');console.log(p.dependencies.jszip, p.devDependencies.jszip)"
@@ -8459,7 +8459,9 @@ What the tests pin (Review Focus 3, 5): **no preview is requested until a roundi
 - [ ] **Step 2: Backend e2e — this package's suites plus the neighbours.** Kill stray workers first (they eat BullMQ jobs from a shared Redis):
 
   ```bash
-  taskkill //F //IM node.exe //FI "WINDOWTITLE eq *jest*"
+  # List jest workers; stop ONLY the ones whose command line shows THIS worktree's path, by PID (Stop-Process -Id <pid>).
+  # Never `taskkill /IM node.exe`: it also kills the jest runs and dev servers of every other session on this machine.
+  powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'jest' } | Select-Object ProcessId, CommandLine"
   ```
 
   ```bash
@@ -8520,7 +8522,7 @@ What the tests pin (Review Focus 3, 5): **no preview is requested until a roundi
 - [ ] **Step 8: Write the ledger.** Create `docs/superpowers/ledgers/2026-09-29-gradebook-export.md` with, per task: the commit hash, the exact test command and its result, every `Ruling:` line from the in-progress ledger with its reason, the two mutation checks (Task 4 Step 3, Task 10 Step 4) with the failures observed, the four guard outputs of Step 4 (the `Number(` allowlist with reasons), and what Step 5 actually found.
 
   ```bash
-  git add -A && git commit -F <message-file>
+  git add docs/superpowers/ledgers/2026-09-29-gradebook-export.md && git commit -F <message-file>
   ```
 
   Title: `docs: ledger thực thi G5 (ghi điểm vào sổ điểm)`.

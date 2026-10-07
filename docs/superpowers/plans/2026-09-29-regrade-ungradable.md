@@ -47,6 +47,8 @@ Inputs and conditions the obvious tests would not exercise. Each is pinned by a 
 5. **A result whose class the API did not send** is not counted and produces no button. → Task 8 (helpers) and Task 10 (page).
 6. **Investigator path end to end:** after regrading, the second attempt has `attempt_no = 2`, the score is written and the class is `NULL`. → Task 6.
 
+7. **Regrading locks the session ruler (rule 6) and the confirm dialog does not say so.** Found when the plan was run: a result moved to `ai_grading` makes `GRADING_LOCKED_SQL` refuse edits to the exam, answer, test bundle and rubric until that result has a score or stops again. Not fixed here (out of scope); spec §8 item 4. A reviewer should decide whether `RegradeButton` must warn.
+
 Not changed, recorded so nobody thinks it was missed: regrading a result that **has** a score is refused (400) — the only route is a manual score with an audit-log entry (spec §1.2/§2.2).
 
 ---
@@ -2674,7 +2676,9 @@ A new file rather than an addition to `session-triage.ts` (stream S adds functio
 - [ ] **Step 2: Backend e2e — this package's suites plus the neighbours.** Kill stray workers first (they eat BullMQ jobs from a shared Redis):
 
   ```bash
-  taskkill //F //IM node.exe //FI "WINDOWTITLE eq *jest*"
+  # List jest workers; stop ONLY the ones whose command line shows THIS worktree's path, by PID (Stop-Process -Id <pid>).
+  # Never `taskkill /IM node.exe`: it also kills the jest runs and dev servers of every other session on this machine.
+  powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'jest' } | Select-Object ProcessId, CommandLine"
   ```
 
   ```bash
@@ -2712,7 +2716,7 @@ A new file rather than an addition to `session-triage.ts` (stream S adds functio
 - [ ] **Step 6: Write the ledger.** Create `docs/superpowers/ledgers/2026-09-29-regrade-ungradable.md` with, per task: the commit hash, the exact test command and its result, every `Ruling:` line from the in-progress ledger with the reason, the two mutation checks (Task 3 Step 5, Task 4 Step 3) with the failures observed, and the Step 4 findings.
 
   ```bash
-  git add -A && git commit -F <message-file>
+  git add docs/superpowers/ledgers/2026-09-29-regrade-ungradable.md && git commit -F <message-file>
   ```
 
   Title: `docs: ledger thực thi G3 (chấm lại bài không chấm được)`.
