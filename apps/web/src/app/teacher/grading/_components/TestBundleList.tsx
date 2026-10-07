@@ -120,24 +120,28 @@ function CaseTable({
     );
   }
 
+  // Cột "câu trong đề mà ca này kiểm" là cột giảng viên cần đọc nhất, nên nó KHÔNG được ở độ rộng cố định:
+  // bản `table-fixed` + bốn cột rộng cố định ép nó còn 32px (đo ở trình duyệt, khung 1360px), mỗi chữ một dòng.
+  // Cột chữ nhận phần còn lại với `min-w`; màn hẹp hơn thì cuộn ngang thay vì bóp cột.
   return (
-    <table className="mt-3 w-full table-fixed text-left text-small">
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full min-w-[32rem] text-left text-small">
       <caption className="sr-only">Bộ ca của gói test phiên bản này</caption>
       <thead>
         <tr className="text-caption text-muted-foreground">
-          <th scope="col" className="w-24 py-1">Nhóm</th>
-          <th scope="col" className="w-40 py-1">Input</th>
-          <th scope="col" className="w-40 py-1">Output mong đợi</th>
-          <th scope="col" className="py-1">Câu trong đề mà ca này kiểm</th>
-          <th scope="col" className="w-28 py-1"><span className="sr-only">Thao tác</span></th>
+          <th scope="col" className="w-16 py-1 pr-2">Nhóm</th>
+          <th scope="col" className="w-24 py-1 pr-2">Input</th>
+          <th scope="col" className="w-24 py-1 pr-2">Output mong đợi</th>
+          <th scope="col" className="min-w-[10rem] py-1 pr-2">Câu trong đề mà ca này kiểm</th>
+          <th scope="col" className="w-24 py-1"><span className="sr-only">Thao tác</span></th>
         </tr>
       </thead>
       <tbody>
         {detail.data?.cases.map((c) => (
           <tr key={c.caseKey} className={c.autoDroppedReason ? 'text-muted-foreground line-through' : ''}>
-            <td className="py-1 pr-2 align-top">{c.group}</td>
-            <td className="py-1 pr-2 align-top font-mono text-caption">{c.input}</td>
-            <td className="py-1 pr-2 align-top font-mono text-caption">{c.expectedOutput}</td>
+            <td className="break-words py-1 pr-2 align-top">{c.group}</td>
+            <td className="break-all py-1 pr-2 align-top font-mono text-caption">{c.input}</td>
+            <td className="break-all py-1 pr-2 align-top font-mono text-caption">{c.expectedOutput}</td>
             <td className="py-1 pr-2 align-top">
               {c.autoDroppedReason ? (
                 <span>Hệ thống đã bỏ ca này: {c.autoDroppedReason}</span>
@@ -163,6 +167,7 @@ function CaseTable({
           </tr>
         ))}
       </tbody>
-    </table>
+      </table>
+    </div>
   );
 }
