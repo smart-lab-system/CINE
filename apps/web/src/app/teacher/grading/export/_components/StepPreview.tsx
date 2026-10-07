@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Ban, Check, CircleAlert, CircleDashed, Copy, Download, Lock } from 'lucide-react';
+import { Ban, Check, CircleAlert, CircleDashed, Copy, Download, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -164,8 +164,8 @@ export function StepPreview({
           {plan.changes && (
             <section aria-label="So với lần ghi trước" className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-small">
               <p className="flex flex-wrap items-center gap-x-4 gap-y-1 font-semibold">
-                <span className="flex items-center gap-1"><ArrowDown className="h-4 w-4" aria-hidden="true" />↓ {plan.changes.down} bài giảm</span>
-                <span className="flex items-center gap-1"><ArrowUp className="h-4 w-4" aria-hidden="true" />↑ {plan.changes.up} bài tăng</span>
+                <span>↓ {plan.changes.down} bài giảm</span>
+                <span>↑ {plan.changes.up} bài tăng</span>
                 <span className="font-normal text-muted-foreground">{plan.changes.same} bài không đổi</span>
                 {plan.changes.new > 0 && <span className="font-normal text-muted-foreground">{plan.changes.new} bài mới</span>}
               </p>

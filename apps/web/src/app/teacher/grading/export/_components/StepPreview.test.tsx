@@ -245,6 +245,17 @@ describe('StepPreview — re-export (spec §3.6 "Xuất lại")', () => {
     expect(band).toHaveTextContent('Tăng do: chấm tay (1 bài)');
   });
 
+  // Phát hiện ở browser pass: dải hiện "↓ ↓ 1 bài giảm" vì một icon mũi tên đứng cạnh mũi tên bằng chữ — vẽ MŨI TÊN HAI LẦN.
+  it('draws each arrow ONCE: the text carries the arrow, so no icon sits beside it', () => {
+    previewState = { data: plan({ changes }), isPending: false, error: null };
+    setup();
+    fireEvent.click(rounding('0,5'));
+    const band = screen.getByRole('region', { name: 'So với lần ghi trước' });
+    expect(band.querySelector('svg')).toBeNull();
+    expect(band.textContent!.match(/↓/g)).toHaveLength(1);
+    expect(band.textContent!.match(/↑/g)).toHaveLength(1);
+  });
+
   it('a changed row says the direction in words, what was there, and why', () => {
     previewState = {
       data: plan({ changes, rows: [row({ direction: 'down', previousScore: '8.50', writtenScore: '7.50', causes: [{ kind: 'rule', ruleKey: 'sai_bien', ruleName: 'Sai biên', delta: 100 }] })] }),
