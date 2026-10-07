@@ -74,6 +74,7 @@ function formatDate(iso: string): string {
 export default function AccountsPage() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | (typeof ACCOUNT_ROLE_OPTIONS)[number]>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all');
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AccountView | null>(null);
@@ -87,6 +88,8 @@ export default function AccountsPage() {
   const { data, error, isLoading, refetch } = useAccounts({
     search: debouncedSearch || undefined,
     role: roleFilter === 'all' ? undefined : roleFilter,
+    isActive:
+      activeFilter === 'all' ? undefined : activeFilter === 'true',
     page,
     pageSize: PAGE_SIZE,
   });
@@ -103,6 +106,11 @@ export default function AccountsPage() {
 
   function handleRoleFilterChange(value: string) {
     setRoleFilter(value as typeof roleFilter);
+    setPage(1);
+  }
+
+  function handleActiveFilterChange(value: string) {
+    setActiveFilter(value as typeof activeFilter);
     setPage(1);
   }
 
@@ -260,7 +268,8 @@ export default function AccountsPage() {
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const hasActiveFilters = search.trim() !== '' || roleFilter !== 'all';
+  const hasActiveFilters =
+    search.trim() !== '' || roleFilter !== 'all' || activeFilter !== 'all';
 
   return (
     <div className="flex flex-col gap-8">
@@ -310,6 +319,16 @@ export default function AccountsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={activeFilter} onValueChange={handleActiveFilterChange}>
+            <SelectTrigger className="sm:w-48" aria-label="Lọc theo trạng thái hoạt động">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả trạng thái</SelectItem>
+              <SelectItem value="true">Đang hoạt động</SelectItem>
+              <SelectItem value="false">Đã vô hiệu</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {isLoading ? (
@@ -347,6 +366,7 @@ export default function AccountsPage() {
                     onClick={() => {
                       setSearch('');
                       setRoleFilter('all');
+                      setActiveFilter('all');
                       setPage(1);
                     }}
                   >
