@@ -40,6 +40,14 @@ import {
 } from '../_components/catalog-table';
 import { CatalogFilterBar } from '../_components/catalog-filter-bar';
 import { buildCatalogQuery } from '../_components/catalog-url';
+import { ListPaginationBar } from '@/components/list-pagination-bar';
+import {
+  parsePage,
+  parsePageSize,
+  paginationQueryPatch,
+  totalPages,
+  type PageSize,
+} from '@/lib/list-pagination';
 import {
   CATALOG_ACTIVE_STATUSES,
   catalogActiveStatusLabel,
@@ -76,6 +84,10 @@ function NominalClassesContent() {
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [status, setStatus] = useState(searchParams.get('status') ?? 'all');
   const [cohortYear, setCohortYear] = useState(searchParams.get('cohortYear') ?? '');
+  const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
+  const [pageSize, setPageSize] = useState<PageSize>(() =>
+    parsePageSize(searchParams.get('pageSize')),
+  );
   const debouncedSearch = useDebouncedValue(search, 300);
   const lastUrl = useRef('');
 
@@ -84,18 +96,19 @@ function NominalClassesContent() {
       q: debouncedSearch.trim() || null,
       status: status === 'all' ? null : status,
       cohortYear: cohortYear || null,
+      ...paginationQueryPatch(page, pageSize),
     });
     if (qs === lastUrl.current) return;
     lastUrl.current = qs;
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedSearch, status, cohortYear, pathname, router]);
+  }, [debouncedSearch, status, cohortYear, page, pageSize, pathname, router]);
 
   const cohortNum = cohortYear ? Number(cohortYear) : undefined;
   // Facet năm khóa: không lọc theo cohortYear để luôn thấy các khóa đang có.
   const cohortFacets = useNominalClasses({ page: 1, pageSize: 100 });
   const { data, isLoading } = useNominalClasses({
-    page: 1,
-    pageSize: 100,
+    page,
+    pageSize,
     search: debouncedSearch.trim() || undefined,
     status: status === 'all' ? undefined : status,
     cohortYear:
@@ -105,6 +118,12 @@ function NominalClassesContent() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
+
+  useEffect(() => {
+    if (!data) return;
+    const pages = totalPages(data.total, pageSize);
+    if (page > pages) setPage(pages);
+  }, [data, page, pageSize]);
 
   const cohortOptions = useMemo(() => {
     const years = new Set<number>();
@@ -124,6 +143,26 @@ function NominalClassesContent() {
 
   const filtered =
     Boolean(debouncedSearch.trim()) || status !== 'all' || Boolean(cohortYear);
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
+
+  function handleStatusChange(value: string) {
+    setStatus(value);
+    setPage(1);
+  }
+
+  function handleCohortYearChange(value: string) {
+    setCohortYear(value);
+    setPage(1);
+  }
+
+  function handlePageSizeChange(next: PageSize) {
+    setPageSize(next);
+    setPage(1);
+  }
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -211,7 +250,7 @@ function NominalClassesContent() {
         toolbar={
           <CatalogFilterBar
             search={search}
-            onSearchChange={setSearch}
+            onSearchChange={handleSearchChange}
             searchPlaceholder="Mã hoặc tên lớp…"
             searchAriaLabel="Tìm lớp danh nghĩa"
             filters={
@@ -219,7 +258,7 @@ function NominalClassesContent() {
                 <SearchableSelect
                   className="sm:w-44"
                   value={cohortYear}
-                  onValueChange={setCohortYear}
+                  onValueChange={handleCohortYearChange}
                   options={cohortOptions}
                   placeholder="Chọn năm khóa…"
                   searchPlaceholder="Gõ năm khóa…"
@@ -228,7 +267,7 @@ function NominalClassesContent() {
                   clearLabel="Tất cả khóa"
                   ariaLabel="Lọc năm khóa"
                 />
-                <Select value={status} onValueChange={setStatus}>
+                <Select value={status} onValueChange={handleStatusChange}>
                   <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái lớp">
                     <SelectValue />
                   </SelectTrigger>
@@ -248,6 +287,7 @@ function NominalClassesContent() {
               setSearch('');
               setStatus('all');
               setCohortYear('');
+              setPage(1);
             }}
           />
         }
@@ -280,6 +320,17 @@ function NominalClassesContent() {
                 </TableRow>
               ))
             : null
+        }
+        footer={
+          <ListPaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={data?.total ?? 0}
+            entityLabel="lớp"
+            disabled={isLoading}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
         }
       />
 

@@ -43,6 +43,14 @@ import {
 } from '../_components/catalog-table';
 import { CatalogFilterBar } from '../_components/catalog-filter-bar';
 import { buildCatalogQuery } from '../_components/catalog-url';
+import { ListPaginationBar } from '@/components/list-pagination-bar';
+import {
+  parsePage,
+  parsePageSize,
+  paginationQueryPatch,
+  totalPages,
+  type PageSize,
+} from '@/lib/list-pagination';
 import { STUDENT_STATUSES, studentStatusLabel } from '@/lib/master-data-defaults';
 
 const EMPTY = {
@@ -70,6 +78,10 @@ function StudentsMasterDataContent() {
   const [classFilter, setClassFilter] = useState(
     searchParams.get('classId') ?? '',
   );
+  const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
+  const [pageSize, setPageSize] = useState<PageSize>(() =>
+    parsePageSize(searchParams.get('pageSize')),
+  );
   const debouncedSearch = useDebouncedValue(search, 300);
   const lastUrl = useRef('');
 
@@ -78,16 +90,17 @@ function StudentsMasterDataContent() {
       q: debouncedSearch.trim() || null,
       status: status === 'all' ? null : status,
       classId: classFilter || null,
+      ...paginationQueryPatch(page, pageSize),
     });
     if (qs === lastUrl.current) return;
     lastUrl.current = qs;
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedSearch, status, classFilter, pathname, router]);
+  }, [debouncedSearch, status, classFilter, page, pageSize, pathname, router]);
 
   const classes = useNominalClasses({ page: 1, pageSize: 100 });
   const { data, isLoading } = useStudents({
-    page: 1,
-    pageSize: 50,
+    page,
+    pageSize,
     search: debouncedSearch.trim() || undefined,
     status: status === 'all' ? undefined : status,
     nominalClassId: classFilter || undefined,
@@ -96,6 +109,12 @@ function StudentsMasterDataContent() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
+
+  useEffect(() => {
+    if (!data) return;
+    const pages = totalPages(data.total, pageSize);
+    if (page > pages) setPage(pages);
+  }, [data, page, pageSize]);
 
   const classOptions = useMemo(
     () =>
@@ -112,6 +131,26 @@ function StudentsMasterDataContent() {
   const selectedClassCode = classFilter ? classLabel(classFilter) : undefined;
   const filtered =
     Boolean(debouncedSearch.trim()) || status !== 'all' || Boolean(classFilter);
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
+
+  function handleStatusChange(value: string) {
+    setStatus(value);
+    setPage(1);
+  }
+
+  function handleClassFilterChange(value: string) {
+    setClassFilter(value);
+    setPage(1);
+  }
+
+  function handlePageSizeChange(next: PageSize) {
+    setPageSize(next);
+    setPage(1);
+  }
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -180,7 +219,7 @@ function StudentsMasterDataContent() {
         toolbar={
           <CatalogFilterBar
             search={search}
-            onSearchChange={setSearch}
+            onSearchChange={handleSearchChange}
             searchPlaceholder="MSSV hoặc họ tên…"
             searchAriaLabel="Tìm sinh viên"
             filters={
@@ -188,7 +227,7 @@ function StudentsMasterDataContent() {
                 <SearchableSelect
                   className="sm:w-52"
                   value={classFilter}
-                  onValueChange={setClassFilter}
+                  onValueChange={handleClassFilterChange}
                   options={classOptions}
                   placeholder="Chọn lớp…"
                   searchPlaceholder="Gõ mã hoặc tên lớp…"
@@ -196,7 +235,7 @@ function StudentsMasterDataContent() {
                   clearLabel="Tất cả lớp"
                   ariaLabel="Lọc theo lớp"
                 />
-                <Select value={status} onValueChange={setStatus}>
+                <Select value={status} onValueChange={handleStatusChange}>
                   <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái SV">
                     <SelectValue />
                   </SelectTrigger>
@@ -222,6 +261,7 @@ function StudentsMasterDataContent() {
               setSearch('');
               setStatus('all');
               setClassFilter('');
+              setPage(1);
             }}
           />
         }
@@ -249,6 +289,17 @@ function StudentsMasterDataContent() {
                 </TableRow>
               ))
             : null
+        }
+        footer={
+          <ListPaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={data?.total ?? 0}
+            entityLabel="sinh viên"
+            disabled={isLoading}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
         }
       />
 

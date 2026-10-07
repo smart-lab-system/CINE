@@ -38,6 +38,14 @@ import {
 } from '../_components/catalog-table';
 import { CatalogFilterBar } from '../_components/catalog-filter-bar';
 import { buildCatalogQuery } from '../_components/catalog-url';
+import { ListPaginationBar } from '@/components/list-pagination-bar';
+import {
+  parsePage,
+  parsePageSize,
+  paginationQueryPatch,
+  totalPages,
+  type PageSize,
+} from '@/lib/list-pagination';
 import {
   CATALOG_ACTIVE_STATUSES,
   catalogActiveStatusLabel,
@@ -60,6 +68,10 @@ function CoursesMasterDataContent() {
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [status, setStatus] = useState(searchParams.get('status') ?? 'all');
+  const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
+  const [pageSize, setPageSize] = useState<PageSize>(() =>
+    parsePageSize(searchParams.get('pageSize')),
+  );
   const debouncedSearch = useDebouncedValue(search, 300);
   const lastUrl = useRef('');
 
@@ -67,15 +79,16 @@ function CoursesMasterDataContent() {
     const qs = buildCatalogQuery(new URLSearchParams(), {
       q: debouncedSearch.trim() || null,
       status: status === 'all' ? null : status,
+      ...paginationQueryPatch(page, pageSize),
     });
     if (qs === lastUrl.current) return;
     lastUrl.current = qs;
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedSearch, status, pathname, router]);
+  }, [debouncedSearch, status, page, pageSize, pathname, router]);
 
   const { data, isLoading } = useCourses({
-    page: 1,
-    pageSize: 50,
+    page,
+    pageSize,
     search: debouncedSearch.trim() || undefined,
     status: status === 'all' ? undefined : status,
   });
@@ -84,7 +97,28 @@ function CoursesMasterDataContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
 
+  useEffect(() => {
+    if (!data) return;
+    const pages = totalPages(data.total, pageSize);
+    if (page > pages) setPage(pages);
+  }, [data, page, pageSize]);
+
   const filtered = Boolean(debouncedSearch.trim()) || status !== 'all';
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
+
+  function handleStatusChange(value: string) {
+    setStatus(value);
+    setPage(1);
+  }
+
+  function handlePageSizeChange(next: PageSize) {
+    setPageSize(next);
+    setPage(1);
+  }
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -137,11 +171,11 @@ function CoursesMasterDataContent() {
         toolbar={
           <CatalogFilterBar
             search={search}
-            onSearchChange={setSearch}
+            onSearchChange={handleSearchChange}
             searchPlaceholder="Mã hoặc tên môn…"
             searchAriaLabel="Tìm môn học"
             filters={
-              <Select value={status} onValueChange={setStatus}>
+              <Select value={status} onValueChange={handleStatusChange}>
                 <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái môn">
                   <SelectValue />
                 </SelectTrigger>
@@ -159,6 +193,7 @@ function CoursesMasterDataContent() {
             onClear={() => {
               setSearch('');
               setStatus('all');
+              setPage(1);
             }}
           />
         }
@@ -185,6 +220,17 @@ function CoursesMasterDataContent() {
                 </TableRow>
               ))
             : null
+        }
+        footer={
+          <ListPaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={data?.total ?? 0}
+            entityLabel="môn học"
+            disabled={isLoading}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
         }
       />
 
