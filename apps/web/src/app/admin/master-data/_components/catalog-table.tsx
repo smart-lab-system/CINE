@@ -24,6 +24,7 @@ export function CatalogSection({
   rows,
   empty,
   toolbar,
+  footer,
 }: {
   title: string;
   description?: string;
@@ -34,6 +35,7 @@ export function CatalogSection({
   rows: ReactNode;
   empty?: string;
   toolbar?: ReactNode;
+  footer?: ReactNode;
 }) {
   return (
     <Card>
@@ -75,6 +77,7 @@ export function CatalogSection({
             </TableBody>
           </Table>
         )}
+        {footer}
       </CardContent>
     </Card>
   );
