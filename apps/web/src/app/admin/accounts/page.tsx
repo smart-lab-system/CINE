@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Pencil, Plus, Search, Trash2, UserCheck, UserX, Users } from 'lucide-react';
 import {
@@ -27,6 +28,7 @@ import { AccountForm, AccountFormValues } from '@/components/accounts/account-fo
 import { EditAccountForm, EditAccountFormValues } from '@/components/accounts/edit-account-form';
 import { EmptyState } from '@/components/layout/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
+import { ListPaginationBar } from '@/components/list-pagination-bar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -50,8 +52,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-
-const PAGE_SIZE = 20;
+import {
+  parsePage,
+  parsePageSize,
+  paginationQueryPatch,
+  totalPages,
+  type PageSize,
+} from '@/lib/list-pagination';
 
 const columnHelper = createColumnHelper<AccountView>();
 
@@ -72,10 +79,26 @@ function formatDate(iso: string): string {
  * lại, và đúng như vậy.
  */
 export default function AccountsPage() {
+  return (
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <AccountsPageContent />
+    </Suspense>
+  );
+}
+
+function AccountsPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const lastUrl = useRef('');
+
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | (typeof ACCOUNT_ROLE_OPTIONS)[number]>('all');
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all');
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
+  const [pageSize, setPageSize] = useState<PageSize>(() =>
+    parsePageSize(searchParams.get('pageSize')),
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AccountView | null>(null);
   // Was a native window.confirm(). A browser dialog can't be styled, can't
@@ -85,14 +108,31 @@ export default function AccountsPage() {
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
+  useEffect(() => {
+    const qs = new URLSearchParams();
+    const patch = paginationQueryPatch(page, pageSize);
+    if (patch.page) qs.set('page', patch.page);
+    if (patch.pageSize) qs.set('pageSize', patch.pageSize);
+    const next = qs.toString();
+    if (next === lastUrl.current) return;
+    lastUrl.current = next;
+    router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+  }, [page, pageSize, pathname, router]);
+
   const { data, error, isLoading, refetch } = useAccounts({
     search: debouncedSearch || undefined,
     role: roleFilter === 'all' ? undefined : roleFilter,
     isActive:
       activeFilter === 'all' ? undefined : activeFilter === 'true',
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
   });
+
+  useEffect(() => {
+    if (!data) return;
+    const pages = totalPages(data.total, pageSize);
+    if (page > pages) setPage(pages);
+  }, [data, page, pageSize]);
 
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
@@ -267,9 +307,25 @@ export default function AccountsPage() {
   });
 
   const total = data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasActiveFilters =
     search.trim() !== '' || roleFilter !== 'all' || activeFilter !== 'all';
+
+  function handlePageSizeChange(next: PageSize) {
+    setPageSize(next);
+    setPage(1);
+  }
+
+  const paginationBar = (
+    <ListPaginationBar
+      page={page}
+      pageSize={pageSize}
+      total={total}
+      entityLabel="tài khoản"
+      disabled={isLoading}
+      onPageChange={setPage}
+      onPageSizeChange={handlePageSizeChange}
+    />
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -349,38 +405,41 @@ export default function AccountsPage() {
             </AlertDescription>
           </Alert>
         ) : table.getRowModel().rows.length === 0 ? (
-          <Card>
-            <EmptyState
-              icon={Users}
-              title={hasActiveFilters ? 'Không tìm thấy tài khoản phù hợp' : 'Chưa có tài khoản nào'}
-              description={
-                hasActiveFilters
-                  ? 'Thử đổi từ khoá tìm kiếm hoặc bộ lọc vai trò.'
-                  : 'Tạo tài khoản đầu tiên cho giáo viên hoặc quản trị viên khác.'
-              }
-              action={
-                hasActiveFilters ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setSearch('');
-                      setRoleFilter('all');
-                      setActiveFilter('all');
-                      setPage(1);
-                    }}
-                  >
-                    Xoá bộ lọc
-                  </Button>
-                ) : (
-                  <Button type="button" onClick={() => setCreateOpen(true)}>
-                    <Plus className="h-4 w-4" aria-hidden="true" />
-                    Tạo tài khoản
-                  </Button>
-                )
-              }
-            />
-          </Card>
+          <>
+            <Card>
+              <EmptyState
+                icon={Users}
+                title={hasActiveFilters ? 'Không tìm thấy tài khoản phù hợp' : 'Chưa có tài khoản nào'}
+                description={
+                  hasActiveFilters
+                    ? 'Thử đổi từ khoá tìm kiếm hoặc bộ lọc vai trò.'
+                    : 'Tạo tài khoản đầu tiên cho giáo viên hoặc quản trị viên khác.'
+                }
+                action={
+                  hasActiveFilters ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setSearch('');
+                        setRoleFilter('all');
+                        setActiveFilter('all');
+                        setPage(1);
+                      }}
+                    >
+                      Xoá bộ lọc
+                    </Button>
+                  ) : (
+                    <Button type="button" onClick={() => setCreateOpen(true)}>
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      Tạo tài khoản
+                    </Button>
+                  )
+                }
+              />
+            </Card>
+            {paginationBar}
+          </>
         ) : (
           <>
             {/* overflow-hidden so the tinted header band is clipped by the
@@ -414,32 +473,7 @@ export default function AccountsPage() {
                 </TableBody>
               </Table>
             </Card>
-
-            <div className="flex items-center justify-between gap-4 text-small text-muted-foreground">
-              <span>
-                Trang {page}/{totalPages} • {total} tài khoản
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Trước
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Sau
-                </Button>
-              </div>
-            </div>
+            {paginationBar}
           </>
         )}
       </div>
