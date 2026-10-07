@@ -1,46 +1,56 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
+import { CourseEntity } from '../../master-data/entities/course.entity';
+import { SemesterEntity } from '../../master-data/entities/semester.entity';
 
-// "Lớp môn học" (course section) — not in CLAUDE.md's original schema sketch,
-// which only had a loose `home_class_id` string on ClassRoster/Enrollment/
-// Submission with no table behind it. Added here as the FK target those
-// columns need to be a valid schema.
+/**
+ * Lớp học phần (course section).
+ *
+ * Sau đợt admin course-section: admin tạo lớp gắn catalog môn + kỳ, gắn
+ * roster, rồi phân công `teacher_id`. NULL = chưa phân công — không hiện
+ * ở「Lớp của tôi」, không mở được phiên từ lớp đó.
+ *
+ * `name` = mã lớp = `{course.code}{xxx}` (xxx = 001, 002… thứ tự lớp được
+ * tạo trong học kỳ đó; được phép trùng giữa các học kỳ khác nhau).
+ *
+ * `course_name` vẫn là snapshot text (auth / thi bù / sibling roster).
+ * Lớp mới: copy từ `course.name`. Lớp legacy: có thể còn hằng COURSE_NAME
+ * và `course_id`/`semester_id` NULL.
+ */
 @Entity({ name: 'class' })
-// Khoá duy nhất viết lại quanh chủ sở hữu mới. Trước đây là
-// (course_id, name) — một môn không có hai lớp trùng tên. Giờ một giảng
-// viên không có hai lớp trùng tên, còn hai giảng viên thì không đụng nhau.
-//
-// `course_name` mang cùng một chuỗi ở mọi dòng (xem common/course-name.ts),
-// nên trên thực tế khoá này là (teacher_id, name). Nó ở lại đúng hình dạng
-// cũ để khỏi phải viết một migration đổi chỉ mục chỉ vì đổi ý — và để nếu
-// ràng buộc một môn có ngày được nới ra thì không phải dựng lại.
-@Index('uq_class_teacher_course_name', ['teacherId', 'courseName', 'name'], { unique: true })
+@Index('uq_class_semester_course_name', ['semesterId', 'courseId', 'name'], {
+  unique: true,
+})
 export class ClassEntity extends BaseEntity {
-  /**
-   * Tên môn học dạng VĂN BẢN, thay cho khoá ngoại tới bảng `course` đã bỏ.
-   *
-   * HẰNG SỐ, không phải dữ liệu người dùng nhập: hệ thống phục vụ đúng một
-   * môn, server điền `COURSE_NAME` (common/course-name.ts) và không đường
-   * ghi nào khác chạm tới cột này. `NormalizeCourseNameToSingleSubject` đã
-   * kéo mọi dòng cũ về cùng chuỗi ấy.
-   *
-   * Vì thế cột này không phân biệt được gì, và mọi vị từ còn dùng nó đều
-   * đúng một cách hiển nhiên. Nó ở lại tới đợt dựng lại chấm điểm — xem mục
-   * "Nợ mang sang từ đợt chốt MỘT MÔN" trong spec agent điều tra. Bỏ nó bây
-   * giờ đồng nghĩa với sửa logic định tuyến bài thi bù, việc đáng có test
-   * riêng chứ không đi kèm một đợt dọn giao diện.
-   */
   @Column({ name: 'course_name', type: 'varchar', length: 200 })
   courseName!: string;
 
   @Column({ type: 'varchar', length: 100 })
   name!: string;
 
-  @Column({ name: 'teacher_id', type: 'uuid' })
-  teacherId!: string;
+  /**
+   * Giảng viên được phân công. NULL = admin chưa gán — lớp chưa vào
+   * `/classes/teaching`.
+   */
+  @Column({ name: 'teacher_id', type: 'uuid', nullable: true })
+  teacherId!: string | null;
 
-  @ManyToOne(() => AccountEntity, { onDelete: 'RESTRICT', nullable: false })
+  @ManyToOne(() => AccountEntity, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'teacher_id' })
-  teacher!: AccountEntity;
+  teacher!: AccountEntity | null;
+
+  @Column({ name: 'course_id', type: 'uuid', nullable: true })
+  courseId!: string | null;
+
+  @ManyToOne(() => CourseEntity, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'course_id' })
+  course!: CourseEntity | null;
+
+  @Column({ name: 'semester_id', type: 'uuid', nullable: true })
+  semesterId!: string | null;
+
+  @ManyToOne(() => SemesterEntity, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'semester_id' })
+  semester!: SemesterEntity | null;
 }
