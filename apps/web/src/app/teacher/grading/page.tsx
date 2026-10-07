@@ -14,6 +14,8 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { STATE_ORDER, countStates, leverageOf, stateOf, type SessionState } from '@/lib/session-triage';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
+import { countSystemUngradable } from '@/lib/regrade-triage';
+import { AiServiceBand } from './_components/AiServiceBand';
 import { BulkAcceptEssays } from './_components/BulkAcceptEssays';
 import { LeverageLine } from './_components/LeverageLine';
 import { OverviewBar } from './_components/OverviewBar';
@@ -111,7 +113,7 @@ function SessionScreen({
 
   return (
     <div className="flex flex-col gap-6">
-      <SessionHeader session={session} sessionId={sessionId} resultCount={list.length} systemFailed={counts.ungradable} />
+      <SessionHeader session={session} sessionId={sessionId} resultCount={list.length} systemFailed={countSystemUngradable(list)} />
 
       {results.isError && (
         <Alert variant="destructive">
@@ -121,6 +123,8 @@ function SessionScreen({
           </AlertDescription>
         </Alert>
       )}
+
+      <AiServiceBand sessionId={sessionId} results={list} />
 
       {loading ? (
         <Skeleton className="h-64 w-full" />
@@ -134,6 +138,7 @@ function SessionScreen({
             results={list}
             online={online}
             onRegradeStuck={() => regrade.mutate()}
+            sessionId={sessionId}
             regrade={{
               isPending: regrade.isPending,
               isError: regrade.isError,

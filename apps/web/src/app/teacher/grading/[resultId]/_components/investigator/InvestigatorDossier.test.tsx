@@ -18,6 +18,13 @@ vi.mock('@/hooks/useGrading', () => ({
   useSetErrorException: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
 vi.mock('@/hooks/useSubmissionOverview', () => ({ useSessionOverview: () => overviewMock() }));
+vi.mock('@/app/teacher/grading/_components/RegradeButton', () => ({
+  RegradeButton: ({ scope, label }: { scope: unknown; label: string }) => (
+    <button type="button" data-scope={JSON.stringify(scope)}>
+      {label}
+    </button>
+  ),
+}));
 
 const baseResult = {
   id: 'r1', studentMssv: 'SV1', studentName: 'A', status: 'flagged_for_review',
@@ -43,7 +50,28 @@ describe('InvestigatorDossier', () => {
     });
     render(<InvestigatorDossier resultId="r1" sessionId="s1" />);
     expect(screen.getByText(/chưa có điểm nào cho bài này/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Chấm lại bài này/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Chấm lại bài này/ })).toBeEnabled();
+  });
+
+  it('offers to regrade every result sharing the reason, counted from the session list', () => {
+    resultsMock = () => ({
+      data: [
+        { ...baseResult, ungradableReason: 'x', ungradableClass: 'system' },
+        { ...baseResult, id: 'r2', ungradableReason: 'x', ungradableClass: 'system' },
+        { ...baseResult, id: 'r3', ungradableReason: 'x', ungradableClass: 'submission' },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    detailMock = () => ({
+      data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'flagged_for_review', ungradableClass: 'system', ungradableReason: 'x', breakdown: null, investigation: { summary: 's', investigation: { toolCalls: [] } }, challengeNotes: [], challengeVerdicts: [] },
+      isLoading: false,
+    });
+    render(<InvestigatorDossier resultId="r1" sessionId="s1" />);
+    expect(screen.getByRole('button', { name: 'Chấm lại cả 2 bài cùng lý do' })).toHaveAttribute(
+      'data-scope',
+      JSON.stringify({ kind: 'session', sessionId: 's1', reason: 'x', count: 2 }),
+    );
   });
 
   it('renders the full dossier for a normal flagged result', () => {

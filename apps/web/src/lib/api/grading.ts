@@ -114,6 +114,11 @@ export interface GradingResult {
    * toàn hiển thị thẳng: không chứa bài làm của sinh viên hay khoá API.
    */
   ungradableReason: string | null;
+  /**
+   * Lớp lý do không chấm được (§4.4): `system` chấm lại được, `submission` thì không. `null` khi bài không dừng.
+   * **Tuỳ chọn** vì API cũ không gửi nó — và khi vắng, không dòng nào được coi là `system` (không đoán).
+   */
+  ungradableClass?: 'system' | 'submission' | null;
   criterionResults: {
     criterionId: string;
     verdict: 'met' | 'partially_met' | 'not_met';

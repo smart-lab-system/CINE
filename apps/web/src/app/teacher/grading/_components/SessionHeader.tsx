@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { NeedsBackend } from '@/components/needs-backend';
+import { RegradeButton } from './RegradeButton';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 
 /**
@@ -15,7 +15,7 @@ export function submittedLabel(session: SessionOverviewItem): string {
 
 /**
  * Đầu trang của một phiên (spec §3.3): tên phiên + *Đổi phiên* · lớp, phòng, số bài nộp · *Chốt điểm phiên* (trang
- * riêng, mục 3.10) · *Chấm lại N bài lỗi hệ thống* (mang nhãn *cần backend*, §2.3). Không có nút *Xuất điểm* ở
+ * riêng, mục 3.10) · *Chấm lại N bài lỗi hệ thống* (chỉ đếm bài lớp system, có hộp xác nhận, §2.3). Không có nút *Xuất điểm* ở
  * đây: ghi điểm ra ngoài chỉ mở sau khi chốt.
  */
 export function SessionHeader({
@@ -27,7 +27,7 @@ export function SessionHeader({
   session: SessionOverviewItem;
   sessionId: string;
   resultCount: number;
-  /** Số bài "không chấm được" — chấm lại cả loạt là thứ backend chưa có. */
+  /** Số bài "không chấm được" do lỗi hệ thống (lớp `system`) — đúng số bài mà nút chấm lại sẽ xử lý. */
   systemFailed: number;
 }) {
   return (
@@ -53,10 +53,10 @@ export function SessionHeader({
           </Button>
         )}
         {systemFailed > 0 && (
-          <Button type="button" variant="outline" disabled>
-            Chấm lại {systemFailed} bài lỗi hệ thống
-            <NeedsBackend className="ml-2" />
-          </Button>
+          <RegradeButton
+            scope={{ kind: 'session', sessionId, reason: null, count: systemFailed }}
+            label={`Chấm lại ${systemFailed} bài lỗi hệ thống`}
+          />
         )}
       </div>
     </div>

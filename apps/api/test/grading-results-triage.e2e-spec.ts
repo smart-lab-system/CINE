@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { GradingService } from '../src/grading/grading.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
-import { seedResult, seedSession } from './helpers/grading-seed';
+import { forceStatus, seedResult, seedSession } from './helpers/grading-seed';
 import { seedInvestigatorResult, seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
 
 const SEEN = [
@@ -70,5 +70,26 @@ describe('GradingResultView — triage, loại bài nộp, ngôn ngữ (e2e)', (
     const { ctx } = await codeWorld('triage-nocomp', 'cpp');
     const { resultId } = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
     expect((await rowOf(ctx.sessionId, resultId)).triage).toBeNull();
+  });
+
+  it('G3 §4.3: mỗi dòng mang ungradableClass — system, submission, hoặc null khi bài không dừng', async () => {
+    const ctx = await seedSession(ds, 'triage-class');
+    const system = await seedResult(ds, ctx, 'one_shot');
+    const submission = await seedResult(ds, ctx, 'one_shot');
+    const running = await seedResult(ds, ctx, 'one_shot');
+    await forceStatus(ds, system.resultId, 'flagged_for_review', {
+      ungradable_class: 'system', ungradable_reason: 'Dịch vụ AI không phản hồi.', confidence: 0,
+    });
+    await forceStatus(ds, submission.resultId, 'flagged_for_review', {
+      ungradable_class: 'submission', ungradable_reason: 'Bài nộp là file rỗng.', confidence: 0,
+    });
+
+    expect(await rowOf(ctx.sessionId, system.resultId)).toMatchObject({
+      ungradableReason: 'Dịch vụ AI không phản hồi.', ungradableClass: 'system',
+    });
+    expect(await rowOf(ctx.sessionId, submission.resultId)).toMatchObject({
+      ungradableReason: 'Bài nộp là file rỗng.', ungradableClass: 'submission',
+    });
+    expect((await rowOf(ctx.sessionId, running.resultId)).ungradableClass).toBeNull();
   });
 });

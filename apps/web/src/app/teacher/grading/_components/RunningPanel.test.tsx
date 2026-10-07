@@ -4,6 +4,14 @@ import '@testing-library/jest-dom/vitest';
 import { RunningPanel } from './RunningPanel';
 import type { GradingProgress, GradingResult } from '@/lib/api/grading';
 
+vi.mock('./RegradeButton', () => ({
+  RegradeButton: ({ scope, label }: { scope: unknown; label: string }) => (
+    <button type="button" data-scope={JSON.stringify(scope)}>
+      {label}
+    </button>
+  ),
+}));
+
 const result = (over: Partial<GradingResult> = {}): GradingResult => ({
   id: 'r', submissionId: 's', studentMssv: '1', studentName: 'A', homeClassId: 'c', homeClassName: 'N01',
   status: 'auto_approved', modelUsed: null, aiTotalScore: null, confidence: null, flagForReview: false, ungradableReason: null,
@@ -18,8 +26,8 @@ const progress = (over: Partial<GradingProgress> = {}): GradingProgress => ({
 
 const finished = [
   result({ id: '1' }), result({ id: '2' }),
-  result({ id: '3', status: 'flagged_for_review', ungradableReason: 'Môi trường chạy bài hết giờ' }),
-  result({ id: '4', status: 'flagged_for_review', ungradableReason: 'Môi trường chạy bài hết giờ' }),
+  result({ id: '3', status: 'flagged_for_review', ungradableReason: 'Môi trường chạy bài hết giờ', ungradableClass: 'system' }),
+  result({ id: '4', status: 'flagged_for_review', ungradableReason: 'Môi trường chạy bài hết giờ', ungradableClass: 'system' }),
   result({ id: '5' }), result({ id: '6' }),
 ];
 
@@ -32,6 +40,7 @@ const props = (over: Partial<Props> = {}): Props => ({
   results: finished,
   online: true,
   onRegradeStuck: vi.fn(),
+  sessionId: 's1',
   regrade: { isPending: false, isError: false, error: null, data: undefined },
   ...over,
 });
@@ -170,13 +179,26 @@ describe('RunningPanel — what the API cannot tell yet is labelled, not invente
     expect(within(block).getByText('cần backend')).toBeInTheDocument();
   });
 
-  it('regrading system-stopped results is disabled + "cần backend" and sends nothing', () => {
-    const onRegradeStuck = vi.fn();
-    render(<RunningPanel {...props({ onRegradeStuck })} />);
-    const button = screen.getByRole('button', { name: /Chấm lại 2 bài lỗi hệ thống/ });
-    expect(button).toBeDisabled();
-    fireEvent.click(button);
-    expect(onRegradeStuck).not.toHaveBeenCalled();
+  it('regrading system-stopped results is a real button carrying the SYSTEM count', () => {
+    render(<RunningPanel {...props()} />);
+    const button = screen.getByRole('button', { name: 'Chấm lại 2 bài lỗi hệ thống' });
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute('data-scope', JSON.stringify({ kind: 'session', sessionId: 's1', reason: null, count: 2 }));
+  });
+
+  it('a stopped result of class "submission" is not regradable: still said as stopped, but no button', () => {
+    render(
+      <RunningPanel
+        {...props({
+          results: [
+            result({ id: '1' }),
+            result({ id: '3', status: 'flagged_for_review', ungradableReason: 'Bài nộp rỗng', ungradableClass: 'submission' }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText(/1 bài đã dừng/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /lỗi hệ thống/ })).not.toBeInTheDocument();
   });
 
   it('offers no regrade of stopped results when none stopped', () => {
