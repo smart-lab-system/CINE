@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -27,12 +29,16 @@ import {
   type NominalClassStatus,
 } from '@/lib/api/master-data';
 import { useNominalClassMutations, useNominalClasses } from '@/hooks/useMasterData';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { cn } from '@/lib/utils';
 import {
   CatalogSection,
   DeleteIconButton,
   EditIconButton,
   RowActions,
 } from '../_components/catalog-table';
+import { CatalogFilterBar } from '../_components/catalog-filter-bar';
+import { buildCatalogQuery } from '../_components/catalog-url';
 import {
   CATALOG_ACTIVE_STATUSES,
   catalogActiveStatusLabel,
@@ -49,11 +55,51 @@ const EMPTY = {
 };
 
 export default function NominalClassesPage() {
-  const { data, isLoading } = useNominalClasses({ page: 1, pageSize: 50 });
+  return (
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <NominalClassesContent />
+    </Suspense>
+  );
+}
+
+function NominalClassesContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
+  const [status, setStatus] = useState(searchParams.get('status') ?? 'all');
+  const [cohortYear, setCohortYear] = useState(searchParams.get('cohortYear') ?? '');
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const lastUrl = useRef('');
+
+  useEffect(() => {
+    const qs = buildCatalogQuery(new URLSearchParams(), {
+      q: debouncedSearch.trim() || null,
+      status: status === 'all' ? null : status,
+      cohortYear: cohortYear || null,
+    });
+    if (qs === lastUrl.current) return;
+    lastUrl.current = qs;
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [debouncedSearch, status, cohortYear, pathname, router]);
+
+  const cohortNum = cohortYear ? Number(cohortYear) : undefined;
+  const { data, isLoading } = useNominalClasses({
+    page: 1,
+    pageSize: 100,
+    search: debouncedSearch.trim() || undefined,
+    status: status === 'all' ? undefined : status,
+    cohortYear:
+      cohortNum != null && Number.isInteger(cohortNum) ? cohortNum : undefined,
+  });
   const mut = useNominalClassMutations();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
+
+  const filtered =
+    Boolean(debouncedSearch.trim()) || status !== 'all' || Boolean(cohortYear);
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -76,13 +122,15 @@ export default function NominalClassesPage() {
     setOpen(true);
   }
 
+  function goStudents(c: NominalClass) {
+    router.push(`/admin/master-data/students?classId=${encodeURIComponent(c.id)}`);
+  }
+
   function submit() {
-    const cohortYear = form.cohortYear ? Number(form.cohortYear) : null;
+    const year = form.cohortYear ? Number(form.cohortYear) : null;
     if (
-      cohortYear !== null &&
-      (!Number.isInteger(cohortYear) ||
-        cohortYear < COHORT_MIN ||
-        cohortYear > COHORT_MAX)
+      year !== null &&
+      (!Number.isInteger(year) || year < COHORT_MIN || year > COHORT_MAX)
     ) {
       toast.error(`Năm khóa phải từ ${COHORT_MIN} đến ${COHORT_MAX}`);
       return;
@@ -93,7 +141,7 @@ export default function NominalClassesPage() {
           id: editingId,
           body: {
             name: form.name || null,
-            cohortYear,
+            cohortYear: year,
             status: form.status,
           },
         },
@@ -111,7 +159,7 @@ export default function NominalClassesPage() {
       {
         code: form.code,
         name: form.name || null,
-        cohortYear,
+        cohortYear: year,
         status: form.status,
       },
       {
@@ -128,17 +176,65 @@ export default function NominalClassesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Lớp danh nghĩa"
-        description="Lớp hành chính — khác lớp môn do giảng viên sở hữu."
+        description="Lớp hành chính — khác lớp môn do giảng viên sở hữu. Bấm dòng để xem sinh viên."
       />
       <CatalogSection
         title="Danh sách lớp"
         loading={isLoading}
         onCreate={openCreate}
         headers={['Mã', 'Tên', 'Khóa', 'Trạng thái', '']}
+        empty={filtered ? 'Không khớp bộ lọc.' : 'Chưa có dữ liệu.'}
+        toolbar={
+          <CatalogFilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Mã hoặc tên lớp…"
+            searchAriaLabel="Tìm lớp danh nghĩa"
+            filters={
+              <>
+                <Input
+                  type="number"
+                  min={COHORT_MIN}
+                  max={COHORT_MAX}
+                  step={1}
+                  value={cohortYear}
+                  onChange={(e) => setCohortYear(e.target.value)}
+                  placeholder="Năm khóa"
+                  aria-label="Lọc năm khóa"
+                  className="sm:w-32"
+                />
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái lớp">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                    {CATALOG_ACTIVE_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {catalogActiveStatusLabel(s)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            }
+            activeSummary={filtered ? 'Đang lọc lớp' : null}
+            onClear={() => {
+              setSearch('');
+              setStatus('all');
+              setCohortYear('');
+            }}
+          />
+        }
         rows={
           data?.items.length
             ? data.items.map((c) => (
-                <TableRow key={c.id}>
+                <TableRow
+                  key={c.id}
+                  className={cn('cursor-pointer')}
+                  onClick={() => goStudents(c)}
+                  title="Xem sinh viên của lớp này"
+                >
                   <TableCell className="font-mono">{c.code}</TableCell>
                   <TableCell>{c.name ?? '—'}</TableCell>
                   <TableCell>{c.cohortYear ?? '—'}</TableCell>

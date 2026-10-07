@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -31,12 +33,15 @@ import {
   useStudentMutations,
   useStudents,
 } from '@/hooks/useMasterData';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   CatalogSection,
   DeleteIconButton,
   EditIconButton,
   RowActions,
 } from '../_components/catalog-table';
+import { CatalogFilterBar } from '../_components/catalog-filter-bar';
+import { buildCatalogQuery } from '../_components/catalog-url';
 import { STUDENT_STATUSES, studentStatusLabel } from '@/lib/master-data-defaults';
 
 const EMPTY = {
@@ -47,11 +52,43 @@ const EMPTY = {
 };
 
 export default function StudentsMasterDataPage() {
+  return (
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <StudentsMasterDataContent />
+    </Suspense>
+  );
+}
+
+function StudentsMasterDataContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
+  const [status, setStatus] = useState(searchParams.get('status') ?? 'all');
+  const [classFilter, setClassFilter] = useState(
+    searchParams.get('classId') ?? 'all',
+  );
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const lastUrl = useRef('');
+
+  useEffect(() => {
+    const qs = buildCatalogQuery(new URLSearchParams(), {
+      q: debouncedSearch.trim() || null,
+      status: status === 'all' ? null : status,
+      classId: classFilter === 'all' ? null : classFilter,
+    });
+    if (qs === lastUrl.current) return;
+    lastUrl.current = qs;
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [debouncedSearch, status, classFilter, pathname, router]);
+
   const classes = useNominalClasses({ page: 1, pageSize: 100 });
-  const [classFilter, setClassFilter] = useState<string>('all');
   const { data, isLoading } = useStudents({
     page: 1,
     pageSize: 50,
+    search: debouncedSearch.trim() || undefined,
+    status: status === 'all' ? undefined : status,
     nominalClassId: classFilter === 'all' ? undefined : classFilter,
   });
   const mut = useStudentMutations();
@@ -59,16 +96,25 @@ export default function StudentsMasterDataPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
 
+  const classLabel = (id: string) =>
+    classes.data?.items.find((c) => c.id === id)?.code ?? '—';
+  const selectedClassCode =
+    classFilter !== 'all' ? classLabel(classFilter) : undefined;
+  const filtered =
+    Boolean(debouncedSearch.trim()) ||
+    status !== 'all' ||
+    classFilter !== 'all';
+
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
   }
 
-  const classLabel = (id: string) =>
-    classes.data?.items.find((c) => c.id === id)?.code ?? '—';
-
   function openCreate() {
     setEditingId(null);
-    setForm(EMPTY);
+    setForm({
+      ...EMPTY,
+      nominalClassId: classFilter !== 'all' ? classFilter : '',
+    });
     setOpen(true);
   }
 
@@ -117,28 +163,62 @@ export default function StudentsMasterDataPage() {
     <div className="space-y-6">
       <PageHeader title="Sinh viên" description="Catalog SV — chưa thay enrollment." />
 
-      <div className="max-w-xs">
-        <Label>Lọc theo lớp</Label>
-        <Select value={classFilter} onValueChange={setClassFilter}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tất cả</SelectItem>
-            {(classes.data?.items ?? []).map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.code}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       <CatalogSection
         title="Danh sách sinh viên"
         loading={isLoading}
         onCreate={openCreate}
         headers={['MSSV', 'Họ tên', 'Lớp', 'Trạng thái', '']}
+        empty={filtered ? 'Không khớp bộ lọc.' : 'Chưa có dữ liệu.'}
+        toolbar={
+          <CatalogFilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="MSSV hoặc họ tên…"
+            searchAriaLabel="Tìm sinh viên"
+            filters={
+              <>
+                <Select value={classFilter} onValueChange={setClassFilter}>
+                  <SelectTrigger className="sm:w-48" aria-label="Lọc theo lớp">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả lớp</SelectItem>
+                    {(classes.data?.items ?? []).map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái SV">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                    {STUDENT_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {studentStatusLabel(s)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            }
+            activeSummary={
+              selectedClassCode && selectedClassCode !== '—'
+                ? `Đang xem: ${selectedClassCode}`
+                : filtered
+                  ? 'Đang lọc sinh viên'
+                  : null
+            }
+            onClear={() => {
+              setSearch('');
+              setStatus('all');
+              setClassFilter('all');
+            }}
+          />
+        }
         rows={
           data?.items.length
             ? data.items.map((s) => (
