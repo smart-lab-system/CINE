@@ -15,6 +15,7 @@ import { Sparkles,
   UserRound,
   Building2,
   Monitor,
+  Layers,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -39,6 +40,7 @@ export interface NavItem {
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Quản lý tài khoản', href: '/admin/accounts', icon: Users },
+  { label: 'Lớp học phần', href: '/admin/course-sections', icon: Layers },
   // Catalog master-data (2026-10-07): độc lập schema nghiệp vụ; CRUD admin.
   { label: 'Năm học', href: '/admin/master-data/academic', icon: CalendarRange },
   { label: 'Môn học', href: '/admin/master-data/courses', icon: BookOpen },

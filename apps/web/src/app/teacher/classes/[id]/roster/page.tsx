@@ -6,6 +6,12 @@ import { ArrowLeft } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { RosterScreen } from '@/components/roster/roster-screen';
+import {
+  useAddRosterStudent,
+  useImportRoster,
+  useRemoveRosterStudent,
+  useRoster,
+} from '@/hooks/useRoster';
 import { useTeachingClasses } from '@/hooks/useTeaching';
 
 /**
@@ -21,6 +27,13 @@ export default function TeacherRosterPage() {
   const classId = params.id;
   const classes = useTeachingClasses();
   const klass = classes.data?.find((c) => c.id === classId);
+
+  const adapters = {
+    roster: useRoster(classId),
+    importRoster: useImportRoster(classId),
+    addStudent: useAddRosterStudent(classId),
+    removeStudent: useRemoveRosterStudent(classId),
+  };
 
   return (
     <div className="flex flex-col gap-8">
@@ -41,7 +54,7 @@ export default function TeacherRosterPage() {
         }
       />
 
-      <RosterScreen classId={classId} canEdit />
+      <RosterScreen canEdit adapters={adapters} />
     </div>
   );
 }
