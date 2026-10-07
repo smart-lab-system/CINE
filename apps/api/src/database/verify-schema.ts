@@ -32,6 +32,14 @@ const EXPECTED_TABLES = [
   'score_computation',
   'criterion_waiver',
   'audit_sample_review',
+  // Catalog master data (spec 2026-10-07) — độc lập schema nghiệp vụ cũ.
+  'academic_year',
+  'semester',
+  'course',
+  'nominal_class',
+  'student',
+  'room',
+  'computer',
 ];
 
 async function main() {

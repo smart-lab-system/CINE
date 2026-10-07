@@ -11,6 +11,7 @@ import { SubmissionModule } from './submission/submission.module';
 import { GradingModule } from './grading/grading.module';
 import { ExamAuthoringModule } from './exam-authoring/exam-authoring.module';
 import { CourseModule } from './course/course.module';
+import { MasterDataModule } from './master-data/master-data.module';
 import { buildRedisConnection } from './shared/redis-connection';
 import { dataSourceOptions } from './database/data-source';
 
@@ -80,6 +81,7 @@ import { dataSourceOptions } from './database/data-source';
     GradingModule,
     ExamAuthoringModule,
     CourseModule,
+    MasterDataModule,
   ],
 })
 export class AppModule {}

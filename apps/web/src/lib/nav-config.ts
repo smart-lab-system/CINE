@@ -9,6 +9,11 @@ import { Sparkles,
   ClipboardCheck,
   Inbox,
   ListChecks,
+  BookOpen,
+  CalendarRange,
+  School,
+  UserRound,
+  Monitor,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,10 +38,12 @@ export interface NavItem {
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Quản lý tài khoản', href: '/admin/accounts', icon: Users },
-  // Học kỳ, Phòng thi và "Môn chưa có chủ" đã bỏ khỏi đây ngày 2026-09-21:
-  // ba trang ấy bị xoá cùng đợt thu hẹp master data, nhưng ba mục menu thì
-  // ở lại, nên quản trị viên bấm vào là ra 404. Đúng thứ đoạn chú thích
-  // trên đầu file này cấm — "never a missing/dead nav entry".
+  // Catalog master-data (2026-10-07): độc lập schema nghiệp vụ; CRUD admin.
+  { label: 'Năm học & học kỳ', href: '/admin/master-data/academic', icon: CalendarRange },
+  { label: 'Môn học', href: '/admin/master-data/courses', icon: BookOpen },
+  { label: 'Lớp danh nghĩa', href: '/admin/master-data/nominal-classes', icon: School },
+  { label: 'Sinh viên', href: '/admin/master-data/students', icon: UserRound },
+  { label: 'Phòng & máy', href: '/admin/master-data/rooms', icon: Monitor },
   { label: 'Cấu hình AI', href: '/admin/ai-config', icon: Bot },
   { label: 'Chi phí', href: '/admin/cost', icon: Wallet },
   { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
