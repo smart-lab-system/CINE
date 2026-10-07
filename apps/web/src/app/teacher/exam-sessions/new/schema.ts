@@ -88,24 +88,29 @@ export const createExamSessionSchema = z
       .max(200, 'Tên phiên thi tối đa 200 ký tự'),
     classId: z.string().uuid('Vui lòng chọn lớp thi'),
     /**
-     * Phòng và học kỳ là VĂN BẢN TỰ DO từ đợt thu hẹp master data —
-     * không còn bảng nào để chọn ra.
-     *
-     * Cái giá, và người dùng phải biết: phép chống trùng lịch phòng so
-     * khớp chuỗi CHÍNH XÁC, nên "P.A101" và "P A101" là hai phòng khác
-     * nhau và gõ lệch một ký tự sẽ không bị bắt. Biểu mẫu gợi ý lại các
-     * giá trị giảng viên đã dùng, để đường dễ đi nhất cũng là đường đúng.
+     * Dual-write: chọn catalog (Id) hoặc nhập tay (Name). Server ưu tiên Id
+     * và chụp snapshot từ catalog.name. Overlap vẫn so khớp chuỗi text.
      */
+    roomId: z
+      .union([z.literal(''), z.string().uuid('Phòng không hợp lệ')])
+      .optional()
+      .transform((value) => (value === '' || value === undefined ? undefined : value)),
     roomName: z
       .string()
       .trim()
-      .min(1, 'Vui lòng nhập phòng thi')
-      .max(150, 'Tên phòng tối đa 150 ký tự'),
+      .max(150, 'Tên phòng tối đa 150 ký tự')
+      .optional()
+      .or(z.literal('')),
+    semesterId: z
+      .union([z.literal(''), z.string().uuid('Học kỳ không hợp lệ')])
+      .optional()
+      .transform((value) => (value === '' || value === undefined ? undefined : value)),
     semesterName: z
       .string()
       .trim()
-      .min(1, 'Vui lòng nhập học kỳ')
-      .max(150, 'Tên học kỳ tối đa 150 ký tự'),
+      .max(150, 'Tên học kỳ tối đa 150 ký tự')
+      .optional()
+      .or(z.literal('')),
     /**
      * Rubric dùng để chấm phiên này — quyết định ở đây, lúc ra đề, chứ
      * không tra lại lúc bấm "Bắt đầu chấm". Tuỳ chọn: phiên không chấm bằng
@@ -209,6 +214,14 @@ export const createExamSessionSchema = z
           }),
       )
       .min(1, 'Cần khai báo ít nhất 1 file bắt buộc'),
+  })
+  .refine((values) => Boolean(values.roomId) || Boolean(values.roomName?.trim()), {
+    message: 'Vui lòng chọn hoặc nhập phòng thi',
+    path: ['roomName'],
+  })
+  .refine((values) => Boolean(values.semesterId) || Boolean(values.semesterName?.trim()), {
+    message: 'Vui lòng chọn hoặc nhập học kỳ',
+    path: ['semesterName'],
   })
   .refine(
     (values) => {

@@ -16,9 +16,14 @@ export interface CreateExamSessionInput {
    * choice they make and the thing that can be checked against them.
    */
   classId: string;
-  /** Phòng và học kỳ là VĂN BẢN: không còn bảng nào để chọn ra. */
-  roomName: string;
-  semesterName: string;
+  /** Catalog Id — dual-write snapshot `room.name` khi có. */
+  roomId?: string;
+  /** Text — bắt buộc khi không gửi `roomId`. */
+  roomName?: string;
+  /** Catalog Id — dual-write snapshot `semester.name` khi có. */
+  semesterId?: string;
+  /** Text — bắt buộc khi không gửi `semesterId`. */
+  semesterName?: string;
   /**
    * Rubric để chấm phiên này, ghim ngay lúc tạo. Bỏ trống là hợp lệ: phiên
    * không chấm bằng AI vẫn thi và thu bài bình thường, và rubric gắn được
@@ -72,10 +77,13 @@ export interface ExamSessionResponse {
   code: string;
   teacherId: string;
   classId: string;
-  /** Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên. `courseId`/`roomId`
-   *  biến mất cùng ba bảng dữ liệu nền ở đợt thu hẹp master data. */
+  /** FK catalog — null nếu tạo bằng text hoặc catalog đã xoá. */
+  roomId: string | null;
+  semesterId: string | null;
+  /** Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên (dual-write). */
   courseName: string;
   roomName: string;
+  semesterName: string;
   examType: ExamType;
   startTime: string;
   endTime: string;
