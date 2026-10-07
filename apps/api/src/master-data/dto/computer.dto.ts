@@ -11,7 +11,7 @@ import {
 import { Type } from 'class-transformer';
 import type { ComputerStatus } from '../entities/computer.entity';
 
-const STATUSES: ComputerStatus[] = ['available', 'maintenance', 'retired'];
+const STATUSES: ComputerStatus[] = ['active', 'maintenance', 'inactive'];
 
 export class CreateComputerDto {
   @IsUUID()
@@ -20,6 +20,10 @@ export class CreateComputerDto {
   @IsString()
   @Length(1, 100)
   hostname!: string;
+
+  @IsString()
+  @Length(1, 100)
+  location!: string;
 
   @IsString()
   @Length(1, 200)
@@ -65,7 +69,7 @@ export class UpdateComputerDto {
   @IsOptional()
   @IsString()
   @Length(1, 100)
-  hostname?: string;
+  location?: string;
 
   @IsOptional()
   @IsString()

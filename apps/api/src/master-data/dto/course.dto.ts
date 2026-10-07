@@ -21,11 +21,6 @@ export class CreateCourseDto {
 export class UpdateCourseDto {
   @IsOptional()
   @IsString()
-  @Length(1, 50)
-  code?: string;
-
-  @IsOptional()
-  @IsString()
   @Length(1, 200)
   name?: string;
 

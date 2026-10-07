@@ -2,7 +2,7 @@ import { IsIn, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-valid
 import { Type } from 'class-transformer';
 import type { RoomStatus } from '../entities/room.entity';
 
-const STATUSES: RoomStatus[] = ['available', 'maintenance', 'retired'];
+const STATUSES: RoomStatus[] = ['active', 'maintenance', 'inactive'];
 
 export class CreateRoomDto {
   @IsString()
@@ -23,16 +23,16 @@ export class CreateRoomDto {
   @Length(1, 100)
   building?: string | null;
 
+  @IsOptional()
+  @IsString()
+  @Length(1, 50)
+  floor?: string | null;
+
   @IsIn(STATUSES)
   status!: RoomStatus;
 }
 
 export class UpdateRoomDto {
-  @IsOptional()
-  @IsString()
-  @Length(1, 50)
-  code?: string;
-
   @IsOptional()
   @IsString()
   @Length(1, 150)
@@ -48,6 +48,11 @@ export class UpdateRoomDto {
   @IsString()
   @Length(1, 100)
   building?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 50)
+  floor?: string | null;
 
   @IsOptional()
   @IsIn(STATUSES)

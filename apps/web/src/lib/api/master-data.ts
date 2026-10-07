@@ -58,7 +58,7 @@ export type SemesterStatus = AcademicYearStatus;
 export type CourseStatus = 'active' | 'inactive';
 export type NominalClassStatus = CourseStatus;
 export type StudentStatus = 'active' | 'inactive' | 'graduated' | 'withdrawn';
-export type RoomStatus = 'available' | 'maintenance' | 'retired';
+export type RoomStatus = 'active' | 'maintenance' | 'inactive';
 export type ComputerStatus = RoomStatus;
 
 export interface AcademicYear {
@@ -109,6 +109,7 @@ export interface Room {
   name: string;
   capacity: number;
   building: string | null;
+  floor: string | null;
   status: RoomStatus;
 }
 
@@ -116,6 +117,7 @@ export interface Computer {
   id: string;
   roomId: string;
   hostname: string;
+  location: string;
   cpu: string;
   ramGb: number;
   storage: string;
@@ -254,6 +256,7 @@ export const createRoom = (body: {
   name: string;
   capacity: number;
   building?: string | null;
+  floor?: string | null;
   status: RoomStatus;
 }) =>
   masterDataFetch<{ id: string }>('/master-data/rooms', {
@@ -263,10 +266,10 @@ export const createRoom = (body: {
 export const updateRoom = (
   id: string,
   body: Partial<{
-    code: string;
     name: string;
     capacity: number;
     building: string | null;
+    floor: string | null;
     status: RoomStatus;
   }>,
 ) =>

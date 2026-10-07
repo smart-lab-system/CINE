@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -77,6 +77,27 @@ export function CatalogSection({
   );
 }
 
+export function EditIconButton({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      disabled={disabled}
+      onClick={onClick}
+      title="Sửa"
+    >
+      <Pencil className="size-4" />
+    </Button>
+  );
+}
+
 export function DeleteIconButton({
   onClick,
   disabled,
@@ -96,4 +117,8 @@ export function DeleteIconButton({
       <Trash2 className="size-4" />
     </Button>
   );
+}
+
+export function RowActions({ children }: { children: ReactNode }) {
+  return <div className="flex justify-end gap-0.5">{children}</div>;
 }

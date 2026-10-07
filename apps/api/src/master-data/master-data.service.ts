@@ -206,7 +206,6 @@ export class MasterDataService {
 
   async updateNominalClass(id: string, dto: UpdateNominalClassDto) {
     const row = await this.getNominalClass(id);
-    if (dto.code !== undefined) row.code = dto.code;
     if (dto.name !== undefined) row.name = dto.name;
     if (dto.cohortYear !== undefined) row.cohortYear = dto.cohortYear;
     if (dto.status !== undefined) row.status = dto.status;
@@ -273,6 +272,7 @@ export class MasterDataService {
         name: dto.name,
         capacity: dto.capacity,
         building: dto.building ?? null,
+        floor: dto.floor ?? null,
         status: dto.status,
       }),
     );
@@ -302,10 +302,10 @@ export class MasterDataService {
 
   async updateRoom(id: string, dto: UpdateRoomDto) {
     const row = await this.getRoom(id);
-    if (dto.code !== undefined) row.code = dto.code;
     if (dto.name !== undefined) row.name = dto.name;
     if (dto.capacity !== undefined) row.capacity = dto.capacity;
     if (dto.building !== undefined) row.building = dto.building;
+    if (dto.floor !== undefined) row.floor = dto.floor;
     if (dto.status !== undefined) row.status = dto.status;
     return this.rooms.save(row);
   }
@@ -323,6 +323,7 @@ export class MasterDataService {
       this.computers.create({
         roomId: dto.roomId,
         hostname: dto.hostname,
+        location: dto.location,
         cpu: dto.cpu,
         ramGb: dto.ramGb,
         storage: dto.storage,
@@ -361,7 +362,17 @@ export class MasterDataService {
   async updateComputer(id: string, dto: UpdateComputerDto) {
     const row = await this.getComputer(id);
     if (dto.roomId) await this.getRoom(dto.roomId);
-    Object.assign(row, dto);
+    // hostname (mã máy) không đổi qua PATCH — chỉ đổi ở UI tạo mới.
+    if (dto.roomId !== undefined) row.roomId = dto.roomId;
+    if (dto.location !== undefined) row.location = dto.location;
+    if (dto.cpu !== undefined) row.cpu = dto.cpu;
+    if (dto.ramGb !== undefined) row.ramGb = dto.ramGb;
+    if (dto.storage !== undefined) row.storage = dto.storage;
+    if (dto.gpu !== undefined) row.gpu = dto.gpu;
+    if (dto.os !== undefined) row.os = dto.os;
+    if (dto.ipAddress !== undefined) row.ipAddress = dto.ipAddress;
+    if (dto.macAddress !== undefined) row.macAddress = dto.macAddress;
+    if (dto.status !== undefined) row.status = dto.status;
     return this.computers.save(row);
   }
 

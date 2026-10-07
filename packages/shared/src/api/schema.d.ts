@@ -1767,7 +1767,7 @@ export interface components {
             capacity: number;
             building?: string | null;
             /** @enum {string} */
-            status: "available" | "maintenance" | "retired";
+            status: "active" | "maintenance" | "inactive";
         };
         UpdateRoomDto: {
             code?: string;
@@ -1775,7 +1775,7 @@ export interface components {
             capacity?: number;
             building?: string | null;
             /** @enum {string} */
-            status?: "available" | "maintenance" | "retired";
+            status?: "active" | "maintenance" | "inactive";
         };
         CreateComputerDto: {
             roomId: string;
@@ -1788,7 +1788,7 @@ export interface components {
             ipAddress?: string | null;
             macAddress?: string | null;
             /** @enum {string} */
-            status: "available" | "maintenance" | "retired";
+            status: "active" | "maintenance" | "inactive";
         };
         UpdateComputerDto: {
             roomId?: string;
@@ -1801,7 +1801,7 @@ export interface components {
             ipAddress?: string | null;
             macAddress?: string | null;
             /** @enum {string} */
-            status?: "available" | "maintenance" | "retired";
+            status?: "active" | "maintenance" | "inactive";
         };
     };
     responses: never;
@@ -4096,7 +4096,7 @@ export interface operations {
             query: {
                 page: number;
                 pageSize: number;
-                status?: "available" | "maintenance" | "retired";
+                status?: "active" | "maintenance" | "inactive";
                 search?: string;
             };
             header?: never;
@@ -4201,7 +4201,7 @@ export interface operations {
                 page: number;
                 pageSize: number;
                 roomId?: string;
-                status?: "available" | "maintenance" | "retired";
+                status?: "active" | "maintenance" | "inactive";
                 search?: string;
             };
             header?: never;

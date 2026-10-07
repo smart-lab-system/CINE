@@ -40,10 +40,6 @@ export class UpdateSemesterDto {
   academicYearId?: string;
 
   @IsOptional()
-  @IsIn(SEMESTER_CODES)
-  code?: (typeof SEMESTER_CODES)[number];
-
-  @IsOptional()
   @IsString()
   @Length(1, 100)
   name?: string;

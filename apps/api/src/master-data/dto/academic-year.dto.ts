@@ -27,11 +27,6 @@ export class CreateAcademicYearDto {
 export class UpdateAcademicYearDto {
   @IsOptional()
   @IsString()
-  @Length(1, 20)
-  code?: string;
-
-  @IsOptional()
-  @IsString()
   @Length(1, 100)
   name?: string;
 

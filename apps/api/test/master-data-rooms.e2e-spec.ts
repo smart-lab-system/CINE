@@ -63,7 +63,7 @@ describe('Master data — room & computer (e2e)', () => {
         name: 'Phòng máy A1',
         capacity: 40,
         building: 'A',
-        status: 'available',
+        status: 'active',
       });
     expect(roomRes.status).toBe(201);
     const roomId = roomRes.body.id as string;
@@ -74,11 +74,12 @@ describe('Master data — room & computer (e2e)', () => {
       .send({
         roomId,
         hostname: 'PC-01',
+        location: 'P01',
         cpu: 'i5',
         ramGb: 8,
         storage: '256GB SSD',
         os: 'Windows 11',
-        status: 'available',
+        status: 'active',
       });
     expect(teacherDenied.status).toBe(403);
 
@@ -88,12 +89,13 @@ describe('Master data — room & computer (e2e)', () => {
       .send({
         roomId,
         hostname: 'PC-01',
+        location: 'P01',
         cpu: 'Intel i5-12400',
         ramGb: 16,
         storage: '512GB SSD',
         gpu: null,
         os: 'Windows 11',
-        status: 'available',
+        status: 'active',
       });
     expect(pcRes.status).toBe(201);
 
@@ -103,11 +105,12 @@ describe('Master data — room & computer (e2e)', () => {
       .send({
         roomId,
         hostname: 'PC-01',
+        location: 'P02',
         cpu: 'i5',
         ramGb: 8,
         storage: '256GB SSD',
         os: 'Windows 11',
-        status: 'available',
+        status: 'active',
       });
     expect(dupHost.status).toBe(409);
 

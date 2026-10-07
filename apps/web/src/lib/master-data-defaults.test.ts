@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  academicStatusLabel,
   academicYearNameFromCode,
+  catalogActiveStatusLabel,
   cohortYearBounds,
+  facilityStatusLabel,
   nominalClassNameFromCode,
   semesterNameFromCodeAndYear,
+  studentStatusLabel,
 } from './master-data-defaults';
 
 describe('master-data-defaults', () => {
@@ -27,5 +31,15 @@ describe('master-data-defaults', () => {
     const { min, max } = cohortYearBounds(new Date('2026-10-07'));
     expect(min).toBe(2000);
     expect(max).toBe(2027);
+  });
+
+  it('maps status enums to Vietnamese labels', () => {
+    expect(academicStatusLabel('planned')).toBe('Sắp diễn ra');
+    expect(catalogActiveStatusLabel('active')).toBe('Hoạt động');
+    expect(catalogActiveStatusLabel('inactive')).toBe('Ngừng hoạt động');
+    expect(studentStatusLabel('graduated')).toBe('Đã tốt nghiệp');
+    expect(facilityStatusLabel('active')).toBe('Hoạt động');
+    expect(facilityStatusLabel('maintenance')).toBe('Bảo trì');
+    expect(facilityStatusLabel('inactive')).toBe('Ngừng hoạt động');
   });
 });

@@ -21,29 +21,59 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TableCell, TableRow } from '@/components/ui/table';
-import { MasterDataHttpError, type NominalClassStatus } from '@/lib/api/master-data';
-import { useNominalClassMutations, useNominalClasses } from '@/hooks/useMasterData';
-import { CatalogSection, DeleteIconButton } from '../_components/catalog-table';
 import {
+  MasterDataHttpError,
+  type NominalClass,
+  type NominalClassStatus,
+} from '@/lib/api/master-data';
+import { useNominalClassMutations, useNominalClasses } from '@/hooks/useMasterData';
+import {
+  CatalogSection,
+  DeleteIconButton,
+  EditIconButton,
+  RowActions,
+} from '../_components/catalog-table';
+import {
+  CATALOG_ACTIVE_STATUSES,
+  catalogActiveStatusLabel,
   cohortYearBounds,
   nominalClassNameFromCode,
 } from '@/lib/master-data-defaults';
 
 const { min: COHORT_MIN, max: COHORT_MAX } = cohortYearBounds();
+const EMPTY = {
+  code: '',
+  name: '',
+  cohortYear: '',
+  status: 'active' as NominalClassStatus,
+};
 
 export default function NominalClassesPage() {
   const { data, isLoading } = useNominalClasses({ page: 1, pageSize: 50 });
   const mut = useNominalClassMutations();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    cohortYear: '',
-    status: 'active' as NominalClassStatus,
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(EMPTY);
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
+  }
+
+  function openCreate() {
+    setEditingId(null);
+    setForm(EMPTY);
+    setOpen(true);
+  }
+
+  function openEdit(c: NominalClass) {
+    setEditingId(c.id);
+    setForm({
+      code: c.code,
+      name: c.name ?? '',
+      cohortYear: c.cohortYear != null ? String(c.cohortYear) : '',
+      status: c.status,
+    });
+    setOpen(true);
   }
 
   function submit() {
@@ -55,6 +85,26 @@ export default function NominalClassesPage() {
         cohortYear > COHORT_MAX)
     ) {
       toast.error(`Năm khóa phải từ ${COHORT_MIN} đến ${COHORT_MAX}`);
+      return;
+    }
+    if (editingId) {
+      mut.update.mutate(
+        {
+          id: editingId,
+          body: {
+            name: form.name || null,
+            cohortYear,
+            status: form.status,
+          },
+        },
+        {
+          onSuccess: () => {
+            toast.success('Đã cập nhật lớp');
+            setOpen(false);
+          },
+          onError: onErr,
+        },
+      );
       return;
     }
     mut.create.mutate(
@@ -83,7 +133,7 @@ export default function NominalClassesPage() {
       <CatalogSection
         title="Danh sách lớp"
         loading={isLoading}
-        onCreate={() => setOpen(true)}
+        onCreate={openCreate}
         headers={['Mã', 'Tên', 'Khóa', 'Trạng thái', '']}
         rows={
           data?.items.length
@@ -92,16 +142,19 @@ export default function NominalClassesPage() {
                   <TableCell className="font-mono">{c.code}</TableCell>
                   <TableCell>{c.name ?? '—'}</TableCell>
                   <TableCell>{c.cohortYear ?? '—'}</TableCell>
-                  <TableCell>{c.status}</TableCell>
+                  <TableCell>{catalogActiveStatusLabel(c.status)}</TableCell>
                   <TableCell className="text-right">
-                    <DeleteIconButton
-                      onClick={() =>
-                        mut.remove.mutate(c.id, {
-                          onSuccess: () => toast.success('Đã xóa lớp'),
-                          onError: onErr,
-                        })
-                      }
-                    />
+                    <RowActions>
+                      <EditIconButton onClick={() => openEdit(c)} />
+                      <DeleteIconButton
+                        onClick={() =>
+                          mut.remove.mutate(c.id, {
+                            onSuccess: () => toast.success('Đã xóa lớp'),
+                            onError: onErr,
+                          })
+                        }
+                      />
+                    </RowActions>
                   </TableCell>
                 </TableRow>
               ))
@@ -112,13 +165,17 @@ export default function NominalClassesPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Thêm lớp danh nghĩa</DialogTitle>
+            <DialogTitle>
+              {editingId ? 'Sửa lớp danh nghĩa' : 'Thêm lớp danh nghĩa'}
+            </DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-1.5">
               <Label>Mã</Label>
               <Input
                 value={form.code}
+                readOnly={!!editingId}
+                className={editingId ? 'bg-muted' : undefined}
                 onChange={(e) => {
                   const code = e.target.value;
                   setForm({
@@ -159,8 +216,11 @@ export default function NominalClassesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">active</SelectItem>
-                  <SelectItem value="inactive">inactive</SelectItem>
+                  {CATALOG_ACTIVE_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {catalogActiveStatusLabel(s)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

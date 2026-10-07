@@ -30,11 +30,6 @@ export class CreateNominalClassDto {
 export class UpdateNominalClassDto {
   @IsOptional()
   @IsString()
-  @Length(1, 50)
-  code?: string;
-
-  @IsOptional()
-  @IsString()
   @Length(1, 150)
   name?: string | null;
 

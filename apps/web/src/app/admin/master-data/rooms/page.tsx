@@ -21,16 +21,49 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TableCell, TableRow } from '@/components/ui/table';
-import { MasterDataHttpError, type ComputerStatus, type RoomStatus } from '@/lib/api/master-data';
+import {
+  MasterDataHttpError,
+  type Computer,
+  type ComputerStatus,
+  type Room,
+  type RoomStatus,
+} from '@/lib/api/master-data';
 import {
   useComputerMutations,
   useComputers,
   useRoomMutations,
   useRooms,
 } from '@/hooks/useMasterData';
-import { CatalogSection, DeleteIconButton } from '../_components/catalog-table';
+import {
+  CatalogSection,
+  DeleteIconButton,
+  EditIconButton,
+  RowActions,
+} from '../_components/catalog-table';
+import { FACILITY_STATUSES, facilityStatusLabel } from '@/lib/master-data-defaults';
 
-const ROOM_STATUSES: RoomStatus[] = ['available', 'maintenance', 'retired'];
+const EMPTY_ROOM = {
+  code: '',
+  name: '',
+  capacity: '40',
+  building: '',
+  floor: '',
+  status: 'active' as RoomStatus,
+};
+
+const EMPTY_PC = {
+  roomId: '',
+  hostname: '',
+  location: '',
+  cpu: '',
+  ramGb: '16',
+  storage: '',
+  gpu: '',
+  os: 'Windows 11',
+  ipAddress: '',
+  macAddress: '',
+  status: 'active' as ComputerStatus,
+};
 
 export default function RoomsMasterDataPage() {
   const rooms = useRooms({ page: 1, pageSize: 50 });
@@ -45,31 +78,130 @@ export default function RoomsMasterDataPage() {
 
   const [roomOpen, setRoomOpen] = useState(false);
   const [pcOpen, setPcOpen] = useState(false);
-  const [roomForm, setRoomForm] = useState({
-    code: '',
-    name: '',
-    capacity: '40',
-    building: '',
-    status: 'available' as RoomStatus,
-  });
-  const [pcForm, setPcForm] = useState({
-    roomId: '',
-    hostname: '',
-    cpu: '',
-    ramGb: '16',
-    storage: '',
-    gpu: '',
-    os: 'Windows 11',
-    ipAddress: '',
-    macAddress: '',
-    status: 'available' as ComputerStatus,
-  });
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [editingPcId, setEditingPcId] = useState<string | null>(null);
+  const [roomForm, setRoomForm] = useState(EMPTY_ROOM);
+  const [pcForm, setPcForm] = useState(EMPTY_PC);
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
   }
 
   const roomCode = (id: string) => rooms.data?.items.find((r) => r.id === id)?.code ?? '—';
+
+  function openCreateRoom() {
+    setEditingRoomId(null);
+    setRoomForm(EMPTY_ROOM);
+    setRoomOpen(true);
+  }
+
+  function openEditRoom(r: Room) {
+    setEditingRoomId(r.id);
+    setRoomForm({
+      code: r.code,
+      name: r.name,
+      capacity: String(r.capacity),
+      building: r.building ?? '',
+      floor: r.floor ?? '',
+      status: r.status,
+    });
+    setRoomOpen(true);
+  }
+
+  function openCreatePc() {
+    setEditingPcId(null);
+    setPcForm(EMPTY_PC);
+    setPcOpen(true);
+  }
+
+  function openEditPc(c: Computer) {
+    setEditingPcId(c.id);
+    setPcForm({
+      roomId: c.roomId,
+      hostname: c.hostname,
+      location: c.location,
+      cpu: c.cpu,
+      ramGb: String(c.ramGb),
+      storage: c.storage,
+      gpu: c.gpu ?? '',
+      os: c.os,
+      ipAddress: c.ipAddress ?? '',
+      macAddress: c.macAddress ?? '',
+      status: c.status,
+    });
+    setPcOpen(true);
+  }
+
+  function submitRoom() {
+    const body = {
+      name: roomForm.name,
+      capacity: Number(roomForm.capacity),
+      building: roomForm.building || null,
+      floor: roomForm.floor || null,
+      status: roomForm.status,
+    };
+    if (editingRoomId) {
+      roomMut.update.mutate(
+        { id: editingRoomId, body },
+        {
+          onSuccess: () => {
+            toast.success('Đã cập nhật phòng');
+            setRoomOpen(false);
+          },
+          onError: onErr,
+        },
+      );
+      return;
+    }
+    roomMut.create.mutate(
+      { ...body, code: roomForm.code },
+      {
+        onSuccess: () => {
+          toast.success('Đã tạo phòng');
+          setRoomOpen(false);
+        },
+        onError: onErr,
+      },
+    );
+  }
+
+  function submitPc() {
+    const body = {
+      roomId: pcForm.roomId,
+      location: pcForm.location,
+      cpu: pcForm.cpu,
+      ramGb: Number(pcForm.ramGb),
+      storage: pcForm.storage,
+      gpu: pcForm.gpu || null,
+      os: pcForm.os,
+      ipAddress: pcForm.ipAddress || null,
+      macAddress: pcForm.macAddress || null,
+      status: pcForm.status,
+    };
+    if (editingPcId) {
+      pcMut.update.mutate(
+        { id: editingPcId, body },
+        {
+          onSuccess: () => {
+            toast.success('Đã cập nhật máy');
+            setPcOpen(false);
+          },
+          onError: onErr,
+        },
+      );
+      return;
+    }
+    pcMut.create.mutate(
+      { ...body, hostname: pcForm.hostname },
+      {
+        onSuccess: () => {
+          toast.success('Đã tạo máy');
+          setPcOpen(false);
+        },
+        onError: onErr,
+      },
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -78,8 +210,8 @@ export default function RoomsMasterDataPage() {
       <CatalogSection
         title="Phòng"
         loading={rooms.isLoading}
-        onCreate={() => setRoomOpen(true)}
-        headers={['Mã', 'Tên', 'Sức chứa', 'Tòa', 'Trạng thái', '']}
+        onCreate={openCreateRoom}
+        headers={['Mã', 'Tên', 'Sức chứa', 'Tòa', 'Tầng', 'Trạng thái', '']}
         rows={
           rooms.data?.items.length
             ? rooms.data.items.map((r) => (
@@ -88,16 +220,20 @@ export default function RoomsMasterDataPage() {
                   <TableCell>{r.name}</TableCell>
                   <TableCell>{r.capacity}</TableCell>
                   <TableCell>{r.building ?? '—'}</TableCell>
-                  <TableCell>{r.status}</TableCell>
+                  <TableCell>{r.floor ?? '—'}</TableCell>
+                  <TableCell>{facilityStatusLabel(r.status)}</TableCell>
                   <TableCell className="text-right">
-                    <DeleteIconButton
-                      onClick={() =>
-                        roomMut.remove.mutate(r.id, {
-                          onSuccess: () => toast.success('Đã xóa phòng'),
-                          onError: onErr,
-                        })
-                      }
-                    />
+                    <RowActions>
+                      <EditIconButton onClick={() => openEditRoom(r)} />
+                      <DeleteIconButton
+                        onClick={() =>
+                          roomMut.remove.mutate(r.id, {
+                            onSuccess: () => toast.success('Đã xóa phòng'),
+                            onError: onErr,
+                          })
+                        }
+                      />
+                    </RowActions>
                   </TableCell>
                 </TableRow>
               ))
@@ -125,28 +261,42 @@ export default function RoomsMasterDataPage() {
       <CatalogSection
         title="Máy tính"
         loading={computers.isLoading}
-        onCreate={() => setPcOpen(true)}
-        headers={['Phòng', 'Hostname', 'CPU', 'RAM', 'Ổ cứng', 'OS', 'Trạng thái', '']}
+        onCreate={openCreatePc}
+        headers={[
+          'Phòng',
+          'Hostname',
+          'Vị trí',
+          'CPU',
+          'RAM',
+          'Ổ cứng',
+          'OS',
+          'Trạng thái',
+          '',
+        ]}
         rows={
           computers.data?.items.length
             ? computers.data.items.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-mono">{roomCode(c.roomId)}</TableCell>
                   <TableCell className="font-mono">{c.hostname}</TableCell>
+                  <TableCell>{c.location || '—'}</TableCell>
                   <TableCell>{c.cpu}</TableCell>
                   <TableCell>{c.ramGb} GB</TableCell>
                   <TableCell>{c.storage}</TableCell>
                   <TableCell>{c.os}</TableCell>
-                  <TableCell>{c.status}</TableCell>
+                  <TableCell>{facilityStatusLabel(c.status)}</TableCell>
                   <TableCell className="text-right">
-                    <DeleteIconButton
-                      onClick={() =>
-                        pcMut.remove.mutate(c.id, {
-                          onSuccess: () => toast.success('Đã xóa máy'),
-                          onError: onErr,
-                        })
-                      }
-                    />
+                    <RowActions>
+                      <EditIconButton onClick={() => openEditPc(c)} />
+                      <DeleteIconButton
+                        onClick={() =>
+                          pcMut.remove.mutate(c.id, {
+                            onSuccess: () => toast.success('Đã xóa máy'),
+                            onError: onErr,
+                          })
+                        }
+                      />
+                    </RowActions>
                   </TableCell>
                 </TableRow>
               ))
@@ -157,13 +307,15 @@ export default function RoomsMasterDataPage() {
       <Dialog open={roomOpen} onOpenChange={setRoomOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Thêm phòng</DialogTitle>
+            <DialogTitle>{editingRoomId ? 'Sửa phòng' : 'Thêm phòng'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-1.5">
               <Label>Mã</Label>
               <Input
                 value={roomForm.code}
+                readOnly={!!editingRoomId}
+                className={editingRoomId ? 'bg-muted' : undefined}
                 onChange={(e) => setRoomForm({ ...roomForm, code: e.target.value })}
               />
             </div>
@@ -190,6 +342,14 @@ export default function RoomsMasterDataPage() {
               />
             </div>
             <div className="grid gap-1.5">
+              <Label>Tầng</Label>
+              <Input
+                value={roomForm.floor}
+                onChange={(e) => setRoomForm({ ...roomForm, floor: e.target.value })}
+                placeholder="1, G, B1…"
+              />
+            </div>
+            <div className="grid gap-1.5">
               <Label>Trạng thái</Label>
               <Select
                 value={roomForm.status}
@@ -199,9 +359,9 @@ export default function RoomsMasterDataPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROOM_STATUSES.map((s) => (
+                  {FACILITY_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {facilityStatusLabel(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -209,28 +369,7 @@ export default function RoomsMasterDataPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button
-              onClick={() =>
-                roomMut.create.mutate(
-                  {
-                    code: roomForm.code,
-                    name: roomForm.name,
-                    capacity: Number(roomForm.capacity),
-                    building: roomForm.building || null,
-                    status: roomForm.status,
-                  },
-                  {
-                    onSuccess: () => {
-                      toast.success('Đã tạo phòng');
-                      setRoomOpen(false);
-                    },
-                    onError: onErr,
-                  },
-                )
-              }
-            >
-              Lưu
-            </Button>
+            <Button onClick={submitRoom}>Lưu</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -238,7 +377,7 @@ export default function RoomsMasterDataPage() {
       <Dialog open={pcOpen} onOpenChange={setPcOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Thêm máy tính</DialogTitle>
+            <DialogTitle>{editingPcId ? 'Sửa máy tính' : 'Thêm máy tính'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-1.5">
@@ -259,9 +398,25 @@ export default function RoomsMasterDataPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid gap-1.5">
+              <Label>Hostname</Label>
+              <Input
+                value={pcForm.hostname}
+                readOnly={!!editingPcId}
+                className={editingPcId ? 'bg-muted' : undefined}
+                onChange={(e) => setPcForm({ ...pcForm, hostname: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Vị trí</Label>
+              <Input
+                value={pcForm.location}
+                onChange={(e) => setPcForm({ ...pcForm, location: e.target.value })}
+                placeholder="P01, A-1…"
+              />
+            </div>
             {(
               [
-                ['hostname', 'Hostname'],
                 ['cpu', 'CPU'],
                 ['storage', 'Ổ cứng'],
                 ['gpu', 'GPU (tuỳ chọn)'],
@@ -296,9 +451,9 @@ export default function RoomsMasterDataPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROOM_STATUSES.map((s) => (
+                  {FACILITY_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {facilityStatusLabel(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -306,33 +461,7 @@ export default function RoomsMasterDataPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button
-              onClick={() =>
-                pcMut.create.mutate(
-                  {
-                    roomId: pcForm.roomId,
-                    hostname: pcForm.hostname,
-                    cpu: pcForm.cpu,
-                    ramGb: Number(pcForm.ramGb),
-                    storage: pcForm.storage,
-                    gpu: pcForm.gpu || null,
-                    os: pcForm.os,
-                    ipAddress: pcForm.ipAddress || null,
-                    macAddress: pcForm.macAddress || null,
-                    status: pcForm.status,
-                  },
-                  {
-                    onSuccess: () => {
-                      toast.success('Đã tạo máy');
-                      setPcOpen(false);
-                    },
-                    onError: onErr,
-                  },
-                )
-              }
-            >
-              Lưu
-            </Button>
+            <Button onClick={submitPc}>Lưu</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

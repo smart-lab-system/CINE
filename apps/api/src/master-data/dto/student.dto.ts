@@ -31,11 +31,6 @@ export class CreateStudentDto {
 export class UpdateStudentDto {
   @IsOptional()
   @IsString()
-  @Matches(/^[A-Za-z0-9]{4,20}$/)
-  mssv?: string;
-
-  @IsOptional()
-  @IsString()
   @Length(1, 150)
   fullName?: string;
 

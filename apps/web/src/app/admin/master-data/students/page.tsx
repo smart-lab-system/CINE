@@ -21,15 +21,30 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TableCell, TableRow } from '@/components/ui/table';
-import { MasterDataHttpError, type StudentStatus } from '@/lib/api/master-data';
+import {
+  MasterDataHttpError,
+  type Student,
+  type StudentStatus,
+} from '@/lib/api/master-data';
 import {
   useNominalClasses,
   useStudentMutations,
   useStudents,
 } from '@/hooks/useMasterData';
-import { CatalogSection, DeleteIconButton } from '../_components/catalog-table';
+import {
+  CatalogSection,
+  DeleteIconButton,
+  EditIconButton,
+  RowActions,
+} from '../_components/catalog-table';
+import { STUDENT_STATUSES, studentStatusLabel } from '@/lib/master-data-defaults';
 
-const STATUSES: StudentStatus[] = ['active', 'inactive', 'graduated', 'withdrawn'];
+const EMPTY = {
+  mssv: '',
+  fullName: '',
+  nominalClassId: '',
+  status: 'active' as StudentStatus,
+};
 
 export default function StudentsMasterDataPage() {
   const classes = useNominalClasses({ page: 1, pageSize: 100 });
@@ -41,12 +56,8 @@ export default function StudentsMasterDataPage() {
   });
   const mut = useStudentMutations();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    mssv: '',
-    fullName: '',
-    nominalClassId: '',
-    status: 'active' as StudentStatus,
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(EMPTY);
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -54,6 +65,53 @@ export default function StudentsMasterDataPage() {
 
   const classLabel = (id: string) =>
     classes.data?.items.find((c) => c.id === id)?.code ?? '—';
+
+  function openCreate() {
+    setEditingId(null);
+    setForm(EMPTY);
+    setOpen(true);
+  }
+
+  function openEdit(s: Student) {
+    setEditingId(s.id);
+    setForm({
+      mssv: s.mssv,
+      fullName: s.fullName,
+      nominalClassId: s.nominalClassId,
+      status: s.status,
+    });
+    setOpen(true);
+  }
+
+  function submit() {
+    if (editingId) {
+      mut.update.mutate(
+        {
+          id: editingId,
+          body: {
+            fullName: form.fullName,
+            nominalClassId: form.nominalClassId,
+            status: form.status,
+          },
+        },
+        {
+          onSuccess: () => {
+            toast.success('Đã cập nhật SV');
+            setOpen(false);
+          },
+          onError: onErr,
+        },
+      );
+      return;
+    }
+    mut.create.mutate(form, {
+      onSuccess: () => {
+        toast.success('Đã tạo SV');
+        setOpen(false);
+      },
+      onError: onErr,
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -79,7 +137,7 @@ export default function StudentsMasterDataPage() {
       <CatalogSection
         title="Danh sách sinh viên"
         loading={isLoading}
-        onCreate={() => setOpen(true)}
+        onCreate={openCreate}
         headers={['MSSV', 'Họ tên', 'Lớp', 'Trạng thái', '']}
         rows={
           data?.items.length
@@ -88,16 +146,19 @@ export default function StudentsMasterDataPage() {
                   <TableCell className="font-mono">{s.mssv}</TableCell>
                   <TableCell>{s.fullName}</TableCell>
                   <TableCell className="font-mono">{classLabel(s.nominalClassId)}</TableCell>
-                  <TableCell>{s.status}</TableCell>
+                  <TableCell>{studentStatusLabel(s.status)}</TableCell>
                   <TableCell className="text-right">
-                    <DeleteIconButton
-                      onClick={() =>
-                        mut.remove.mutate(s.id, {
-                          onSuccess: () => toast.success('Đã xóa SV'),
-                          onError: onErr,
-                        })
-                      }
-                    />
+                    <RowActions>
+                      <EditIconButton onClick={() => openEdit(s)} />
+                      <DeleteIconButton
+                        onClick={() =>
+                          mut.remove.mutate(s.id, {
+                            onSuccess: () => toast.success('Đã xóa SV'),
+                            onError: onErr,
+                          })
+                        }
+                      />
+                    </RowActions>
                   </TableCell>
                 </TableRow>
               ))
@@ -108,13 +169,15 @@ export default function StudentsMasterDataPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Thêm sinh viên</DialogTitle>
+            <DialogTitle>{editingId ? 'Sửa sinh viên' : 'Thêm sinh viên'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-1.5">
               <Label>MSSV</Label>
               <Input
                 value={form.mssv}
+                readOnly={!!editingId}
+                className={editingId ? 'bg-muted' : undefined}
                 onChange={(e) => setForm({ ...form, mssv: e.target.value })}
               />
             </div>
@@ -153,9 +216,9 @@ export default function StudentsMasterDataPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUSES.map((s) => (
+                  {STUDENT_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {studentStatusLabel(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -163,19 +226,7 @@ export default function StudentsMasterDataPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button
-              onClick={() =>
-                mut.create.mutate(form, {
-                  onSuccess: () => {
-                    toast.success('Đã tạo SV');
-                    setOpen(false);
-                  },
-                  onError: onErr,
-                })
-              }
-            >
-              Lưu
-            </Button>
+            <Button onClick={submit}>Lưu</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

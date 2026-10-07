@@ -2,7 +2,7 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { RoomEntity } from './room.entity';
 
-export type ComputerStatus = 'available' | 'maintenance' | 'retired';
+export type ComputerStatus = 'active' | 'maintenance' | 'inactive';
 
 @Entity({ name: 'computer' })
 @Index('uq_computer_room_hostname', ['roomId', 'hostname'], { unique: true })
@@ -17,6 +17,10 @@ export class ComputerEntity extends BaseEntity {
 
   @Column({ type: 'varchar', length: 100 })
   hostname!: string;
+
+  /** Vị trí trong phòng (vd. P01, A-1). */
+  @Column({ type: 'varchar', length: 100, default: '' })
+  location!: string;
 
   @Column({ type: 'varchar', length: 200 })
   cpu!: string;
@@ -41,7 +45,7 @@ export class ComputerEntity extends BaseEntity {
 
   @Column({
     type: 'enum',
-    enum: ['available', 'maintenance', 'retired'],
+    enum: ['active', 'maintenance', 'inactive'],
     enumName: 'computer_status',
   })
   status!: ComputerStatus;
