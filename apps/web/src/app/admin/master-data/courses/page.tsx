@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -27,12 +29,15 @@ import {
   type CourseStatus,
 } from '@/lib/api/master-data';
 import { useCourseMutations, useCourses } from '@/hooks/useMasterData';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   CatalogSection,
   DeleteIconButton,
   EditIconButton,
   RowActions,
 } from '../_components/catalog-table';
+import { CatalogFilterBar } from '../_components/catalog-filter-bar';
+import { buildCatalogQuery } from '../_components/catalog-url';
 import {
   CATALOG_ACTIVE_STATUSES,
   catalogActiveStatusLabel,
@@ -41,11 +46,45 @@ import {
 const EMPTY = { code: '', name: '', status: 'active' as CourseStatus };
 
 export default function CoursesMasterDataPage() {
-  const { data, isLoading } = useCourses({ page: 1, pageSize: 50 });
+  return (
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <CoursesMasterDataContent />
+    </Suspense>
+  );
+}
+
+function CoursesMasterDataContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
+  const [status, setStatus] = useState(searchParams.get('status') ?? 'all');
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const lastUrl = useRef('');
+
+  useEffect(() => {
+    const qs = buildCatalogQuery(new URLSearchParams(), {
+      q: debouncedSearch.trim() || null,
+      status: status === 'all' ? null : status,
+    });
+    if (qs === lastUrl.current) return;
+    lastUrl.current = qs;
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [debouncedSearch, status, pathname, router]);
+
+  const { data, isLoading } = useCourses({
+    page: 1,
+    pageSize: 50,
+    search: debouncedSearch.trim() || undefined,
+    status: status === 'all' ? undefined : status,
+  });
   const mut = useCourseMutations();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
+
+  const filtered = Boolean(debouncedSearch.trim()) || status !== 'all';
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -94,6 +133,35 @@ export default function CoursesMasterDataPage() {
         loading={isLoading}
         onCreate={openCreate}
         headers={['Mã', 'Tên', 'Trạng thái', '']}
+        empty={filtered ? 'Không khớp bộ lọc.' : 'Chưa có dữ liệu.'}
+        toolbar={
+          <CatalogFilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Mã hoặc tên môn…"
+            searchAriaLabel="Tìm môn học"
+            filters={
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái môn">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                  {CATALOG_ACTIVE_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {catalogActiveStatusLabel(s)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            }
+            activeSummary={filtered ? 'Đang lọc môn học' : null}
+            onClear={() => {
+              setSearch('');
+              setStatus('all');
+            }}
+          />
+        }
         rows={
           data?.items.length
             ? data.items.map((c) => (
