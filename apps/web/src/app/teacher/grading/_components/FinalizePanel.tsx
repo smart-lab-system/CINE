@@ -97,18 +97,15 @@ export function FinalizePanel({
           <div className="flex flex-wrap items-center gap-3">
             <ExportCsvButton sessionName={session.name} sessionCode={session.code} results={results} />
           </div>
-          <section
-            aria-label="Ghi điểm vào sổ điểm"
-            className="flex flex-col gap-1 rounded-lg border border-dashed border-border p-4"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-small font-semibold">Ghi điểm vào sổ điểm — tính năng dự kiến</h2>
-              <NeedsBackend />
-            </div>
+          <section aria-label="Ghi điểm vào sổ điểm" className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-small font-semibold">Ghi điểm vào sổ điểm</h2>
             <p className="text-caption text-muted-foreground">
-              Tải file sổ điểm của trường, chọn cột, xem trước rồi ghi. Chỉ mở sau khi chốt. Hôm nay dùng &quot;Xuất
-              CSV&quot; ở trên.
+              Tải file sổ điểm của bạn (.xlsx), chọn cột, xem trước rồi ghi. Hệ thống chỉ điền các ô bạn chọn — mọi ô khác
+              giữ nguyên.
             </p>
+            <Button asChild size="sm" className="self-start">
+              <Link href={`/teacher/grading/export?sessionId=${sessionId}`}>Mở màn ghi điểm</Link>
+            </Button>
           </section>
         </>
       ) : block.remaining > 0 ? (

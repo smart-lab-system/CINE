@@ -134,6 +134,7 @@ describe('FinalizePanel — ready (T-UI-16: the two numbers add up to the sessio
     renderPanel(ready());
     expect(screen.queryByRole('button', { name: 'Xuất CSV' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('reapply-panel')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Ghi điểm vào sổ điểm' })).not.toBeInTheDocument();
   });
 });
 
@@ -151,12 +152,12 @@ describe('FinalizePanel — finalised', () => {
     expect(screen.getByTestId('reapply-panel')).toBeInTheDocument();
   });
 
-  it('offers the CSV export only now, and the score-book writing as a "cần backend" placeholder that sends nothing', () => {
+  it('offers the CSV export and a REAL entry to the gradebook screen — no "cần backend" placeholder', () => {
     renderPanel(finalised());
     expect(screen.getByRole('button', { name: 'Xuất CSV' })).toBeEnabled();
     const block = screen.getByRole('region', { name: 'Ghi điểm vào sổ điểm' });
-    expect(within(block).getByText('cần backend')).toBeInTheDocument();
-    expect(within(block).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(block).getByRole('link', { name: 'Mở màn ghi điểm' })).toHaveAttribute('href', '/teacher/grading/export?sessionId=s1');
+    expect(within(block).queryByText('cần backend')).not.toBeInTheDocument();
   });
 });
 

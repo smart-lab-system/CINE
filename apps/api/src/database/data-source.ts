@@ -18,6 +18,7 @@ import { RubricCriterionEntity } from '../grading/entities/rubric-criterion.enti
 import { GradingResultEntity } from '../grading/entities/grading-result.entity';
 import { TeacherReviewEntity } from '../grading/entities/teacher-review.entity';
 import { GradeExportEntity } from '../grading/entities/grade-export.entity';
+import { GradeExportRowEntity } from '../grade-export/entities/grade-export-row.entity';
 import { CalibrationRunEntity } from '../calibration/entities/calibration-run.entity';
 import { AiUsageEntity } from '../exam-authoring/entities/ai-usage.entity';
 import { AuditLogEntity } from '../admin/entities/audit-log.entity';
@@ -106,6 +107,7 @@ export const dataSourceOptions: DataSourceOptions = {
     GradingAnchorSnapshotEntity,
     TeacherReviewEntity,
     GradeExportEntity,
+    GradeExportRowEntity,
     CalibrationRunEntity,
     AiUsageEntity,
     AuditLogEntity,
