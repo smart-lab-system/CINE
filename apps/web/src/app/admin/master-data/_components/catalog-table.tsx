@@ -23,6 +23,7 @@ export function CatalogSection({
   headers,
   rows,
   empty,
+  toolbar,
 }: {
   title: string;
   description?: string;
@@ -32,6 +33,7 @@ export function CatalogSection({
   headers: string[];
   rows: ReactNode;
   empty?: string;
+  toolbar?: ReactNode;
 }) {
   return (
     <Card>
@@ -50,6 +52,7 @@ export function CatalogSection({
             </Button>
           ) : null}
         </div>
+        {toolbar}
         {loading ? (
           <Skeleton className="h-24 w-full" />
         ) : (
@@ -90,7 +93,10 @@ export function EditIconButton({
       variant="ghost"
       size="icon"
       disabled={disabled}
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       title="Sửa"
     >
       <Pencil className="size-4" />
@@ -111,7 +117,10 @@ export function DeleteIconButton({
       variant="ghost"
       size="icon"
       disabled={disabled}
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       title="Xóa"
     >
       <Trash2 className="size-4" />
