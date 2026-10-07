@@ -13,7 +13,7 @@
 -- `audit_log` KHÔNG nằm trong danh sách và không có khoá ngoại tới các bảng dưới đây: trigger append-only của nó từ chối DELETE (Security rule 4), nên nó không
 -- bao giờ reset được bằng script này; muốn rỗng thì dựng lại DB.
 --
--- Cấu hình AI/chi phí của admin (`grading_pipeline_config`, `cost_budget`) và tài khoản giữ nguyên.
+-- Cấu hình AI/chi phí của admin (`grading_pipeline_config`, `cost_budget`) giữ nguyên; tài khoản không phải demo bị xoá, hoặc VÔ HIỆU HOÁ nếu còn được tham chiếu (xem khối `DO` bên dưới).
 
 BEGIN;
 
@@ -32,11 +32,28 @@ RESTART IDENTITY CASCADE;
 -- ---- Tài khoản: giữ hai tài khoản demo DEMO-RUNBOOK.md nhắc tới --------
 -- demo-admin giữ có chủ ý: kiểm route chỉ-cho-giảng-viên cần một đăng nhập admin thật, và từ đợt khôi phục master data, admin là người tạo học kỳ, phòng,
 -- lớp và giao lớp cho giảng viên — reset mà mất nó thì không còn cách dựng lại dữ liệu nền.
-DELETE FROM examcollect.account
-WHERE email NOT IN (
-  'demo-teacher@example.com',
-  'demo-admin@example.com'
-);
+-- Xoá được thì xoá; tài khoản còn bị tham chiếu thì VÔ HIỆU HOÁ thay vì xoá. `audit_log` là append-only và giữ khoá ngoại RESTRICT tới `account` (cột `actor_id`), cũng như
+-- `error_rule`, `price_table_version`, `ai_usage`, `rubric_template`, `grading_pipeline_config`… — một DB đã dùng (nhất là DB e2e: mỗi lần chạy ghi audit cho tài khoản test)
+-- luôn có tài khoản như vậy, và một câu `DELETE` thẳng sẽ làm cả giao dịch lùi lại với lỗi 23503 (review cuối, m1). Từng tài khoản một, trong khối con có bắt lỗi, nên một tài khoản
+-- bị tham chiếu không kéo theo các tài khoản khác.
+DO $$
+DECLARE
+  r record;
+  removed integer := 0;
+  deactivated integer := 0;
+BEGIN
+  FOR r IN SELECT id FROM examcollect.account WHERE email NOT IN ('demo-teacher@example.com', 'demo-admin@example.com') LOOP
+    BEGIN
+      DELETE FROM examcollect.account WHERE id = r.id;
+      removed := removed + 1;
+    EXCEPTION WHEN foreign_key_violation THEN
+      UPDATE examcollect.account SET is_active = false WHERE id = r.id;
+      deactivated := deactivated + 1;
+    END;
+  END LOOP;
+  RAISE NOTICE 'tài khoản: xoá %, vô hiệu hoá (còn bị tham chiếu) %', removed, deactivated;
+END
+$$;
 
 COMMIT;
 
