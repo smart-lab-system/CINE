@@ -20,6 +20,7 @@ import {
 import type { ColumnMapping } from '@/lib/roster-file';
 
 const PREVIEW_ROWS = 6;
+const NONE = '__none__';
 
 /** Spreadsheet column letters, so the user maps against what Excel showed. */
 function columnLabel(index: number): string {
@@ -39,22 +40,29 @@ interface ColumnMapperProps {
 }
 
 /**
- * Which column is the MSSV and which is the name — asked, never inferred.
- *
- * CLAUDE.md Security rule 9 forbids guessing a column from its header for
- * GradeExport, and a roster is the same problem seen earlier: a wrong guess
- * here admits every student under someone else's identity, and nothing about
- * the result looks wrong. So the file is shown as a grid with its real
- * column letters and the user points at the two that matter.
+ * Chọn cột MSSV + họ tên (1 cột, hoặc 2 cột rồi ghép) — hỏi, không suy từ header.
  */
 export function ColumnMapper({ rows, mapping, onChange }: ColumnMapperProps) {
   const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
   const columns = Array.from({ length: columnCount }, (_, index) => index);
   const preview = rows.slice(0, PREVIEW_ROWS);
 
+  const nameCol1 = mapping.nameColumns[0] ?? 0;
+  const nameCol2 =
+    mapping.nameColumns.length > 1 ? mapping.nameColumns[1]! : null;
+  const nameSet = new Set(mapping.nameColumns);
+
+  function setNameColumns(first: number, second: number | null) {
+    const next =
+      second === null || second === first
+        ? [first]
+        : [first, second].sort((a, b) => a - b);
+    onChange({ ...mapping, nameColumns: next });
+  }
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="roster-header-rows">Số dòng tiêu đề</Label>
           <Input
@@ -76,10 +84,12 @@ export function ColumnMapper({ rows, mapping, onChange }: ColumnMapperProps) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="roster-mssv-column">Cột MSSV</Label>
+          <Label htmlFor="roster-mssv-column">Cột MSSV (8 chữ số)</Label>
           <Select
             value={String(mapping.mssvColumn)}
-            onValueChange={(value) => onChange({ ...mapping, mssvColumn: Number(value) })}
+            onValueChange={(value) =>
+              onChange({ ...mapping, mssvColumn: Number(value) })
+            }
           >
             <SelectTrigger id="roster-mssv-column">
               <SelectValue />
@@ -95,12 +105,12 @@ export function ColumnMapper({ rows, mapping, onChange }: ColumnMapperProps) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="roster-name-column">Cột họ tên</Label>
+          <Label htmlFor="roster-name-column-1">Cột họ tên</Label>
           <Select
-            value={String(mapping.nameColumn)}
-            onValueChange={(value) => onChange({ ...mapping, nameColumn: Number(value) })}
+            value={String(nameCol1)}
+            onValueChange={(value) => setNameColumns(Number(value), nameCol2)}
           >
-            <SelectTrigger id="roster-name-column">
+            <SelectTrigger id="roster-name-column-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -111,6 +121,31 @@ export function ColumnMapper({ rows, mapping, onChange }: ColumnMapperProps) {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="roster-name-column-2">Cột tên bổ sung (tuỳ chọn)</Label>
+          <Select
+            value={nameCol2 === null ? NONE : String(nameCol2)}
+            onValueChange={(value) =>
+              setNameColumns(nameCol1, value === NONE ? null : Number(value))
+            }
+          >
+            <SelectTrigger id="roster-name-column-2">
+              <SelectValue placeholder="Không dùng" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>Không dùng</SelectItem>
+              {columns.map((index) => (
+                <SelectItem key={index} value={String(index)}>
+                  Cột {columnLabel(index)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-caption text-muted-foreground">
+            Ví dụ Họ đệm + Tên. Chỉ dòng có MSSV đúng 8 chữ số mới được lấy.
+          </p>
         </div>
       </div>
 
@@ -126,7 +161,7 @@ export function ColumnMapper({ rows, mapping, onChange }: ColumnMapperProps) {
                   key={index}
                   scope="col"
                   data-selected={
-                    index === mapping.mssvColumn || index === mapping.nameColumn
+                    index === mapping.mssvColumn || nameSet.has(index)
                       ? ''
                       : undefined
                   }
@@ -134,7 +169,7 @@ export function ColumnMapper({ rows, mapping, onChange }: ColumnMapperProps) {
                 >
                   {columnLabel(index)}
                   {index === mapping.mssvColumn && ' · MSSV'}
-                  {index === mapping.nameColumn && ' · Họ tên'}
+                  {nameSet.has(index) && ' · Họ tên'}
                 </TableHead>
               ))}
             </TableRow>
@@ -143,8 +178,6 @@ export function ColumnMapper({ rows, mapping, onChange }: ColumnMapperProps) {
             {preview.map((row, rowIndex) => (
               <TableRow
                 key={rowIndex}
-                // Header rows are dimmed so "số dòng tiêu đề" is something
-                // the user can see the effect of rather than guess at.
                 className={rowIndex < mapping.headerRows ? 'opacity-40' : undefined}
               >
                 <TableCell className="text-right tabular-nums text-muted-foreground">

@@ -3,11 +3,13 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { Download } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { exportNominalClassStudentsExcel } from '@/lib/export-nominal-class-students';
 import {
   Dialog,
   DialogContent,
@@ -118,6 +120,7 @@ function NominalClassesContent() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
+  const [exportingId, setExportingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!data) return;
@@ -187,6 +190,18 @@ function NominalClassesContent() {
 
   function goStudents(c: NominalClass) {
     router.push(`/admin/master-data/students?classId=${encodeURIComponent(c.id)}`);
+  }
+
+  async function exportStudents(c: NominalClass) {
+    setExportingId(c.id);
+    try {
+      const { count } = await exportNominalClassStudentsExcel(c);
+      toast.success(`Đã xuất ${count} sinh viên — ${c.code}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Xuất Excel thất bại');
+    } finally {
+      setExportingId(null);
+    }
   }
 
   function submit() {
@@ -306,6 +321,19 @@ function NominalClassesContent() {
                   <TableCell>{catalogActiveStatusLabel(c.status)}</TableCell>
                   <TableCell className="text-right">
                     <RowActions>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title="Xuất danh sách sinh viên Excel"
+                        disabled={exportingId === c.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void exportStudents(c);
+                        }}
+                      >
+                        <Download className="size-4" />
+                      </Button>
                       <EditIconButton onClick={() => openEdit(c)} />
                       <DeleteIconButton
                         onClick={() =>

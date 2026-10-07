@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { CircleCheckBig, FileSpreadsheet, Trash2, Upload, UserPlus, Users } from 'lucide-react';
 import { EmptyState } from '@/components/layout/empty-state';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,52 +29,57 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  useAddRosterStudent,
-  useImportRoster,
-  useRemoveRosterStudent,
-  useRoster,
-} from '@/hooks/useRoster';
+import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 import { readWorkbook, type SheetData } from '@/lib/read-workbook';
 import {
   diffRoster,
   extractRoster,
+  suggestColumnMapping,
   type ColumnMapping,
   type RosterDiff,
 } from '@/lib/roster-file';
-import type { RosterImportResult } from '@/lib/api/roster';
+import type { RosterEntry, RosterImportResult } from '@/lib/api/roster';
 import { ColumnMapper } from '@/components/roster/column-mapper';
 import { ImportReview } from '@/components/roster/import-review';
+import {
+  ManualAddStudentForm,
+  type AddStudentPayload,
+} from '@/components/roster/manual-add-student-form';
 
-const DEFAULT_MAPPING: ColumnMapping = { headerRows: 1, mssvColumn: 0, nameColumn: 1 };
+const DEFAULT_MAPPING: ColumnMapping = {
+  headerRows: 0,
+  mssvColumn: 0,
+  nameColumns: [1],
+};
+
+export type RosterScreenAdapters = {
+  roster: UseQueryResult<RosterEntry[], Error>;
+  importRoster: UseMutationResult<
+    RosterImportResult,
+    Error,
+    { students: RosterEntry[]; removeMissing: boolean }
+  >;
+  addStudent: UseMutationResult<RosterEntry, Error, AddStudentPayload>;
+  removeStudent: UseMutationResult<void, Error, string>;
+};
 
 interface RosterScreenProps {
-  classId: string;
-  /**
-   * False for a Trưởng khoa, who may look at a department's headcounts but
-   * does not maintain the list. Exactly one writer per roster: two roles
-   * editing it means two people who can disagree about who maintains it.
-   */
   canEdit: boolean;
+  adapters: RosterScreenAdapters;
+  /** Admin: gợi ý / tạo SV từ catalog master-data. */
+  catalogAssist?: boolean;
 }
 
 /**
- * The class list — read by two roles, written by one.
- *
- * The lecturer owns it, because they are the one the training office sends
- * the file to and the one who finds out on exam day that it is wrong.
- * Routing every class in a department through one person to have its list
- * typed in is a bottleneck with nothing to show for it.
- *
- * The order of the screen is the order of the decisions: what is on the list
- * now, then the file, then which columns it uses, then exactly what would
- * change, and only then a confirm. Nothing is written until the last step.
+ * Danh sách SV của lớp — Excel đọc trên trình duyệt, chọn cột MSSV / họ tên
+ * (nhiều cột được), xem diff rồi mới gửi JSON lên API.
  */
-export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
-  const roster = useRoster(classId);
-  const importRoster = useImportRoster(classId);
-  const addStudent = useAddRosterStudent(classId);
-  const removeStudent = useRemoveRosterStudent(classId);
+export function RosterScreen({
+  canEdit,
+  adapters,
+  catalogAssist = false,
+}: RosterScreenProps) {
+  const { roster, importRoster, addStudent, removeStudent } = adapters;
 
   const [sheets, setSheets] = useState<SheetData[] | null>(null);
   const [sheetIndex, setSheetIndex] = useState(0);
@@ -84,7 +88,6 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
   const [mapping, setMapping] = useState<ColumnMapping>(DEFAULT_MAPPING);
   const [removeMissing, setRemoveMissing] = useState(false);
   const [result, setResult] = useState<RosterImportResult | null>(null);
-  const [manual, setManual] = useState({ mssv: '', name: '' });
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
 
   const rows = sheets?.[sheetIndex]?.rows ?? null;
@@ -104,7 +107,6 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
     setResult(null);
     setFileError(null);
     setRemoveMissing(false);
-    setMapping(DEFAULT_MAPPING);
     try {
       const read = await readWorkbook(file);
       if (read.length === 0) {
@@ -114,17 +116,24 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
       setSheets(read);
       setSheetIndex(0);
       setFileName(file.name);
+      // Gợi ý cột MSSV / họ tên từ nội dung; user vẫn sửa được.
+      setMapping(suggestColumnMapping(read[0]?.rows ?? []));
     } catch (error) {
       setSheets(null);
-      // A file the library cannot open is the common case here — an .xls
-      // saved from an old Excel, or a .csv renamed. Say which, rather than
-      // showing a parser's own words.
+      setMapping(DEFAULT_MAPPING);
       setFileError(
         error instanceof Error && error.message
           ? error.message
-          : 'Không đọc được file. Hãy lưu lại dưới định dạng .xlsx rồi thử lại.',
+          : 'Không đọc được file. Hãy dùng .xls hoặc .xlsx rồi thử lại.',
       );
     }
+  }
+
+  function onSheetChange(index: number) {
+    setSheetIndex(index);
+    const nextRows = sheets?.[index]?.rows ?? [];
+    setMapping(suggestColumnMapping(nextRows));
+    setRemoveMissing(false);
   }
 
   function onConfirm() {
@@ -163,8 +172,8 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
               Nhập nhanh từ file Excel
             </CardTitle>
             <CardDescription>
-              File được đọc ngay trên trình duyệt và không được tải lên máy chủ. Chỉ khi bạn
-              bấm xác nhận, danh sách đã đọc mới được gửi đi.
+              Đọc trên trình duyệt — hệ thống gợi ý cột và chỉ lấy dòng có MSSV đúng 8 chữ
+              số. Bạn vẫn chọn lại cột MSSV / họ tên (1 hoặc 2 cột) trước khi xác nhận.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
@@ -195,7 +204,7 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
                 <Label htmlFor="roster-sheet">Sheet</Label>
                 <Select
                   value={String(sheetIndex)}
-                  onValueChange={(value) => setSheetIndex(Number(value))}
+                  onValueChange={(value) => onSheetChange(Number(value))}
                 >
                   <SelectTrigger id="roster-sheet" className="max-w-sm">
                     <SelectValue />
@@ -217,6 +226,8 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
               <ImportReview
                 errors={parsed.errors}
                 diff={diff}
+                skipped={parsed.skipped}
+                studentCount={parsed.students.length}
                 removeMissing={removeMissing}
                 onRemoveMissingChange={setRemoveMissing}
               />
@@ -256,50 +267,18 @@ export function RosterScreen({ classId, canEdit }: RosterScreenProps) {
               Thêm thủ công một sinh viên
             </CardTitle>
             <CardDescription>
-              Cho trường hợp chuyển lớp muộn hoặc sửa sót — không phải gửi lại cả file.
+              {catalogAssist
+                ? 'Gõ MSSV để gợi ý từ catalog — khớp thì tự điền tên; chưa có thì tạo sinh viên mới rồi thêm vào lớp.'
+                : 'Cho trường hợp chuyển lớp muộn hoặc sửa sót — không phải gửi lại cả file.'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {addStudent.isError && (
-              <Alert variant="destructive">
-                <AlertDescription>{addStudent.error.message}</AlertDescription>
-              </Alert>
-            )}
-            <form
-              className="flex flex-col gap-3 sm:flex-row sm:items-end"
-              onSubmit={(event) => {
-                event.preventDefault();
-                addStudent.mutate(
-                  { mssv: manual.mssv.trim(), name: manual.name.trim() },
-                  { onSuccess: () => setManual({ mssv: '', name: '' }) },
-                );
-              }}
-            >
-              <div className="flex w-full flex-col gap-1.5 sm:w-52">
-                <Label htmlFor="manual-mssv">MSSV</Label>
-                <Input
-                  id="manual-mssv"
-                  required
-                  className="font-mono"
-                  placeholder="vd: SV20120001"
-                  value={manual.mssv}
-                  onChange={(event) => setManual({ ...manual, mssv: event.target.value })}
-                />
-              </div>
-              <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor="manual-name">Họ và tên</Label>
-                <Input
-                  id="manual-name"
-                  required
-                  placeholder="vd: Nguyễn Văn A"
-                  value={manual.name}
-                  onChange={(event) => setManual({ ...manual, name: event.target.value })}
-                />
-              </div>
-              <Button type="submit" loading={addStudent.isPending} className="shrink-0">
-                Thêm
-              </Button>
-            </form>
+          <CardContent>
+            <ManualAddStudentForm
+              catalogAssist={catalogAssist}
+              isPending={addStudent.isPending}
+              errorMessage={addStudent.isError ? addStudent.error.message : null}
+              onAdd={(payload) => addStudent.mutateAsync(payload)}
+            />
           </CardContent>
         </Card>
       )}

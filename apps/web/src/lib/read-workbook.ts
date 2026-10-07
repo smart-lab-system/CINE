@@ -1,13 +1,18 @@
 /**
- * Pulls the cells out of an .xlsx, in the browser.
+ * Pulls the cells out of an .xlsx or .xls, in the browser.
  *
  * Separated from `roster-file.ts` on purpose: everything there is pure and
  * exhaustively tested, and this is the one part that needs a real file and a
  * real library. Keeping the boundary means the rules that decide whether a
  * roster is acceptable never depend on a mock of a spreadsheet.
  *
- * `exceljs` rather than the npm `xlsx` package: the versions published there
- * are old and have a CVE history, and this parses files a user picked.
+ * `.xlsx` → `exceljs` (preferred; npm `xlsx` has a CVE history for this path).
+ * `.xls` (BIFF/OLE) → SheetJS community `xlsx`, chỉ cho định dạng cũ ExcelJS
+ * không đọc được.
+ *
+ * Không dùng `cell.text` của ExcelJS: getter đó gọi `.toString()` trên value
+ * null / result công thức null → "Cannot read properties of null (reading
+ * 'toString')". Đọc `cell.value` thủ công cho an toàn.
  */
 
 export interface SheetData {
@@ -31,57 +36,159 @@ export async function readWorkbook(file: File): Promise<SheetData[]> {
     );
   }
 
-  // Imported lazily: the library is large and only this one screen needs it,
-  // so it stays out of every other page's bundle.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  try {
+    if (isLegacyXls(file, bytes)) {
+      return readXls(bytes);
+    }
+    return await readXlsx(bytes);
+  } catch (error) {
+    if (error instanceof WorkbookTooLargeError) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Không đọc được file Excel (${detail}). Kiểm tra định dạng .xls/.xlsx hoặc lưu lại bằng Excel rồi thử lại.`,
+    );
+  }
+}
+
+/** OLE Compound Document magic — định dạng .xls cổ. */
+function isOleCompound(bytes: Uint8Array): boolean {
+  return (
+    bytes.length >= 4 &&
+    bytes[0] === 0xd0 &&
+    bytes[1] === 0xcf &&
+    bytes[2] === 0x11 &&
+    bytes[3] === 0xe0
+  );
+}
+
+function isLegacyXls(file: File, bytes: Uint8Array): boolean {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.xlsx') || name.endsWith('.xlsm')) return false;
+  if (name.endsWith('.xls')) return true;
+  return isOleCompound(bytes);
+}
+
+async function readXlsx(bytes: Uint8Array): Promise<SheetData[]> {
   const { Workbook } = await import('exceljs');
   const workbook = new Workbook();
-  // Wrapped in a Uint8Array rather than passed as a raw ArrayBuffer: the
-  // unwrapped buffer is identified by `instanceof` deeper in the zip reader,
-  // which fails whenever it crosses a realm boundary — the case the fixture
-  // test hits, and the same shape of bug an iframe or a worker would produce.
-  //
-  // exceljs ships ONE set of typings for TWO runtime builds, and they
-  // describe the Node one, where `load` takes a Buffer. What actually runs
-  // here is the browser build — its package.json `browser` field points at
-  // dist/exceljs.min.js, which hands the argument straight to JSZip and
-  // accepts any Uint8Array. There is no Buffer in a browser to satisfy the
-  // declared type with, so the browser signature is stated instead.
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  // Uint8Array thay vì ArrayBuffer thô — tránh lỗi realm/instanceof với JSZip.
   const xlsx = workbook.xlsx as unknown as { load(data: Uint8Array): Promise<unknown> };
   await xlsx.load(bytes);
 
   return workbook.worksheets.map((sheet) => {
-    const rowCount = Math.min(sheet.rowCount, MAX_ROWS);
-    const columnCount = Math.min(sheet.columnCount, MAX_COLUMNS);
+    const rowCount = Math.min(
+      Math.max(sheet.actualRowCount || 0, sheet.rowCount || 0),
+      MAX_ROWS,
+    );
+    const columnCount = Math.min(
+      Math.max(sheet.actualColumnCount || 0, sheet.columnCount || 0),
+      MAX_COLUMNS,
+    );
     const rows: string[][] = [];
 
-    // Indexed rather than iterated with eachRow: a sheet with gaps skips
-    // rows there, and a skipped row silently shifts every row number the
-    // user is about to be shown.
     for (let r = 1; r <= rowCount; r++) {
       const row = sheet.getRow(r);
       const values: string[] = [];
       for (let c = 1; c <= columnCount; c++) {
-        values.push(cellText(row.getCell(c)));
+        values.push(safeCellText(row.getCell(c)?.value));
       }
       rows.push(values);
     }
 
-    return { name: sheet.name, rows };
+    return { name: sheet.name || 'Sheet', rows };
+  });
+}
+
+async function readXls(bytes: Uint8Array): Promise<SheetData[]> {
+  const XLSX = await import('xlsx');
+  const workbook = XLSX.read(bytes, {
+    type: 'array',
+    cellDates: true,
+    // Tránh format path dễ nổ với ô lạ; lấy giá trị thô rồi tự String().
+    cellText: false,
+  });
+
+  return workbook.SheetNames.map((name) => {
+    const sheet = workbook.Sheets[name];
+    if (!sheet) {
+      return { name, rows: [] as string[][] };
+    }
+
+    const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: '',
+      raw: true,
+      blankrows: true,
+    });
+
+    const rowCount = Math.min(raw.length, MAX_ROWS);
+    let columnCount = 0;
+    for (let r = 0; r < rowCount; r++) {
+      const row = raw[r];
+      if (Array.isArray(row)) {
+        columnCount = Math.max(columnCount, row.length);
+      }
+    }
+    columnCount = Math.min(columnCount, MAX_COLUMNS);
+
+    const rows: string[][] = [];
+    for (let r = 0; r < rowCount; r++) {
+      const source = Array.isArray(raw[r]) ? raw[r]! : [];
+      const values: string[] = [];
+      for (let c = 0; c < columnCount; c++) {
+        values.push(safeCellText(source[c]));
+      }
+      rows.push(values);
+    }
+
+    return { name, rows };
   });
 }
 
 /**
- * `.text` is the displayed value, which is what the user matched their
- * column choice against — a student id stored as a number reads back as the
- * digits they see, and a formula reads back as its result rather than its
- * source.
+ * Đọc giá trị ô mà không đi qua getter `cell.text` của ExcelJS (dễ crash
+ * khi value/result là null).
  */
-function cellText(cell: { text?: string; value?: unknown }): string {
-  const text = cell.text;
-  if (typeof text === 'string') {
-    return text.trim();
+function safeCellText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).trim();
   }
-  const value = cell.value;
-  return value === null || value === undefined ? '' : String(value).trim();
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+
+    // Rich text: { richText: [{ text: '...' }, ...] }
+    if (Array.isArray(record.richText)) {
+      return (record.richText as Array<{ text?: unknown }>)
+        .map((part) => (part?.text == null ? '' : String(part.text)))
+        .join('')
+        .trim();
+    }
+
+    // Formula: { formula, result } — result có thể null.
+    if ('formula' in record || 'sharedFormula' in record) {
+      return safeCellText(record.result);
+    }
+
+    // Hyperlink / shared string wrapper: { text: '...' }
+    if ('text' in record && record.text != null && typeof record.text !== 'object') {
+      return String(record.text).trim();
+    }
+
+    // Error cell
+    if ('error' in record && record.error != null) {
+      return '';
+    }
+  }
+
+  try {
+    return String(value).trim();
+  } catch {
+    return '';
+  }
 }

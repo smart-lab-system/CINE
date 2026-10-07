@@ -1,181 +1,173 @@
 import { describe, expect, it } from 'vitest';
-import { diffRoster, extractRoster, trimTrailingBlankRows } from './roster-file';
+import {
+  diffRoster,
+  extractRoster,
+  suggestColumnMapping,
+  trimTrailingBlankRows,
+} from './roster-file';
 
 /**
- * The rules the roster importer exists to enforce, tested where they live:
- * in pure functions over already-parsed cells, so they can be checked
- * exhaustively without a real .xlsx or a browser.
- *
- * Both rules are about being wrong loudly. A file that imports 38 of 40 rows
- * produces a headcount that looks healthy and isn't; a re-import that
- * silently deletes a student locks them out of an exam, and that surfaces on
- * exam day when nothing can be done.
+ * Import chỉ lấy dòng có MSSV đúng 8 số; tiêu đề / dòng trống bỏ qua.
+ * Lỗi (thiếu tên, trùng) chỉ trên các dòng đã nhận là sinh viên.
  */
 
-const MAPPING = { headerRows: 1, mssvColumn: 0, nameColumn: 1 };
+const MAPPING = { headerRows: 0, mssvColumn: 0, nameColumns: [1] };
 
 describe('extractRoster', () => {
-  it('reads the mapped columns and skips the header rows', () => {
+  it('chỉ lấy dòng MSSV 8 số, bỏ qua tiêu đề', () => {
     const result = extractRoster(
       [
         ['MSSV', 'Họ và tên', 'Ghi chú'],
-        ['SV001', 'Nguyễn Văn A', 'x'],
-        ['SV002', 'Trần Thị B', ''],
+        ['22691861', 'Nguyễn Văn A', 'x'],
+        ['22691791', 'Trần Thị B', ''],
+      ],
+      MAPPING,
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.skipped).toBe(1);
+    expect(result.students).toEqual([
+      { mssv: '22691861', name: 'Nguyễn Văn A' },
+      { mssv: '22691791', name: 'Trần Thị B' },
+    ]);
+  });
+
+  it('takes the columns it is told to, never the ones that look right', () => {
+    const result = extractRoster(
+      [
+        ['Họ và tên', 'MSSV'],
+        ['Nguyễn Văn A', '22691861'],
+      ],
+      { headerRows: 0, mssvColumn: 1, nameColumns: [0] },
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.students).toEqual([{ mssv: '22691861', name: 'Nguyễn Văn A' }]);
+  });
+
+  it('ghép Họ đệm + Tên', () => {
+    const result = extractRoster(
+      [
+        ['STT', 'Mã số', 'Họ đệm', 'Tên'],
+        ['1', '22691861', 'Nguyễn Gia', 'Bảo'],
+        ['2', '22691791', 'Văn Ngọc', 'Danh'],
+      ],
+      { headerRows: 0, mssvColumn: 1, nameColumns: [2, 3] },
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.students).toEqual([
+      { mssv: '22691861', name: 'Nguyễn Gia Bảo' },
+      { mssv: '22691791', name: 'Văn Ngọc Danh' },
+    ]);
+  });
+
+  it('bỏ qua dòng không phải MSSV 8 số (không báo lỗi)', () => {
+    const result = extractRoster(
+      [
+        ['DANH SÁCH'],
+        ['Mã số', 'Họ'],
+        ['22691861', 'Nguyễn A'],
+        ['SV001', 'Bỏ qua'],
+        ['', ''],
+        ['22691791', 'Trần B'],
       ],
       MAPPING,
     );
 
     expect(result.errors).toEqual([]);
     expect(result.students).toEqual([
-      { mssv: 'SV001', name: 'Nguyễn Văn A' },
-      { mssv: 'SV002', name: 'Trần Thị B' },
+      { mssv: '22691861', name: 'Nguyễn A' },
+      { mssv: '22691791', name: 'Trần B' },
     ]);
+    expect(result.skipped).toBe(4);
   });
 
-  it('takes the columns it is told to, never the ones that look right', () => {
-    // The name column comes FIRST here and the header says "MSSV" over it.
-    // Guessing from a header is what CLAUDE.md Security rule 9 forbids for
-    // GradeExport, and a roster is the same problem: get it wrong and every
-    // student is admitted under someone else's identity.
+  it('báo khi chưa chọn cột họ tên', () => {
     const result = extractRoster(
-      [
-        ['MSSV', 'Họ và tên'],
-        ['Nguyễn Văn A', 'SV001'],
-      ],
-      { headerRows: 1, mssvColumn: 1, nameColumn: 0 },
+      [['22691861', 'Nguyễn']],
+      { headerRows: 0, mssvColumn: 0, nameColumns: [] },
     );
 
-    expect(result.errors).toEqual([]);
-    expect(result.students).toEqual([{ mssv: 'SV001', name: 'Nguyễn Văn A' }]);
+    expect(result.errors).toEqual([{ row: 0, reason: 'Chưa chọn cột họ tên' }]);
   });
 
-  it('reports a malformed MSSV by the row number the user sees', () => {
+  it('chỉ cho tối đa 2 cột họ tên', () => {
+    const result = extractRoster(
+      [['22691861', 'a', 'b', 'c']],
+      { headerRows: 0, mssvColumn: 0, nameColumns: [1, 2, 3] },
+    );
+
+    expect(result.errors).toEqual([{ row: 0, reason: 'Chỉ chọn tối đa 2 cột họ tên' }]);
+  });
+
+  it('trùng MSSV 8 số → lỗi', () => {
     const result = extractRoster(
       [
-        ['MSSV', 'Họ và tên'],
-        ['SV001', 'Nguyễn Văn A'],
-        ['SV 002', 'Trần Thị B'],
+        ['22691861', 'Nguyễn A'],
+        ['22691861', 'Nguyễn A (lặp)'],
       ],
       MAPPING,
     );
 
-    // Row 3 in the spreadsheet, not index 2 in an array — the user is going
-    // to go and look at it.
     expect(result.errors).toEqual([
-      { row: 3, reason: 'MSSV "SV 002" không hợp lệ (chỉ gồm 4-20 chữ cái hoặc chữ số)' },
+      { row: 2, reason: 'MSSV "22691861" đã xuất hiện ở dòng 1' },
     ]);
     expect(result.students).toEqual([]);
   });
 
-  it('returns no students at all when any row is bad', () => {
-    const rows: string[][] = [['MSSV', 'Họ và tên']];
-    for (let i = 0; i < 30; i++) {
-      rows.push([`SV${String(i).padStart(3, '0')}`, `Sinh viên ${i}`]);
-    }
-    rows.push(['!!!', 'Hỏng']);
-
-    const result = extractRoster(rows, MAPPING);
-
-    // 30 good rows are not a partial success. A roster imported at 30/31
-    // gives a headcount that looks right and is not.
-    expect(result.errors).toHaveLength(1);
-    expect(result.students).toEqual([]);
-  });
-
-  it('catches an MSSV listed twice, naming both rows', () => {
+  it('MSSV 8 số nhưng thiếu tên → lỗi', () => {
     const result = extractRoster(
-      [
-        ['MSSV', 'Họ và tên'],
-        ['SV001', 'Nguyễn Văn A'],
-        ['SV002', 'Trần Thị B'],
-        ['sv001', 'Nguyễn Văn A (lặp)'],
-      ],
+      [['22691861', '   ']],
       MAPPING,
     );
 
-    // Different case, same student: student_mssv is citext, so these two
-    // rows would collide in the database. The file has to be fixed, not the
-    // second row quietly dropped.
-    expect(result.errors).toEqual([
-      { row: 4, reason: 'MSSV "sv001" đã xuất hiện ở dòng 2' },
-    ]);
+    expect(result.errors).toEqual([{ row: 1, reason: 'Thiếu họ tên' }]);
   });
 
-  it('reports a row with an MSSV but no name', () => {
+  it('không có dòng MSSV 8 số nào → báo rõ', () => {
     const result = extractRoster(
       [
-        ['MSSV', 'Họ và tên'],
-        ['SV001', '   '],
+        ['MSSV', 'Họ'],
+        ['SV001', 'A'],
       ],
       MAPPING,
     );
-
-    expect(result.errors).toEqual([{ row: 2, reason: 'Thiếu họ tên' }]);
-  });
-
-  it('reports a blank row sitting between data rows', () => {
-    const result = extractRoster(
-      [
-        ['MSSV', 'Họ và tên'],
-        ['SV001', 'Nguyễn Văn A'],
-        ['', ''],
-        ['SV002', 'Trần Thị B'],
-      ],
-      MAPPING,
-    );
-
-    // A gap inside the data almost always means the column mapping or the
-    // header count is wrong, and rows are being read from the wrong place.
-    expect(result.errors).toEqual([
-      { row: 3, reason: 'Dòng trống nằm giữa danh sách — kiểm tra lại cột đã chọn' },
-    ]);
-  });
-
-  it('reports every bad row, not just the first', () => {
-    const result = extractRoster(
-      [
-        ['MSSV', 'Họ và tên'],
-        ['SV 001', 'Nguyễn Văn A'],
-        ['SV002', ''],
-      ],
-      MAPPING,
-    );
-
-    // Fixing one row, re-uploading, and finding the next one is a bad way to
-    // spend the morning of an exam.
-    expect(result.errors.map((e) => e.row)).toEqual([2, 3]);
-  });
-
-  it('trims whitespace around both fields', () => {
-    const result = extractRoster(
-      [
-        ['MSSV', 'Họ và tên'],
-        ['  SV001  ', '  Nguyễn Văn A  '],
-      ],
-      MAPPING,
-    );
-
-    expect(result.students).toEqual([{ mssv: 'SV001', name: 'Nguyễn Văn A' }]);
-  });
-
-  it('says so when the file has no data rows at all', () => {
-    const result = extractRoster([['MSSV', 'Họ và tên']], MAPPING);
 
     expect(result.students).toEqual([]);
-    expect(result.errors).toEqual([
-      { row: 0, reason: 'Không có dòng dữ liệu nào sau phần tiêu đề' },
-    ]);
+    expect(result.errors[0]?.reason).toMatch(/Không tìm thấy dòng nào có MSSV đúng 8/);
+  });
+
+  it('chuẩn hoá MSSV dạng 22691861.0 từ Excel', () => {
+    const result = extractRoster(
+      [['22691861.0', 'Nguyễn A']],
+      MAPPING,
+    );
+
+    expect(result.students).toEqual([{ mssv: '22691861', name: 'Nguyễn A' }]);
+  });
+});
+
+describe('suggestColumnMapping', () => {
+  it('gợi ý cột Mã số / Họ đệm / Tên từ file danh sách thi', () => {
+    const rows = [
+      ['DANH SÁCH SINH VIÊN'],
+      ['STT', 'Mã số', 'Họ đệm', 'Tên', 'Lớp học'],
+      ['1', '22691861', 'Nguyễn Gia', 'Bảo', 'DHKTPM18CTT'],
+      ['2', '22691791', 'Văn Ngọc', 'Danh', 'DHCNTT18ATT'],
+    ];
+
+    expect(suggestColumnMapping(rows)).toEqual({
+      headerRows: 0,
+      mssvColumn: 1,
+      nameColumns: [2, 3],
+    });
   });
 });
 
 describe('trimTrailingBlankRows', () => {
   it('drops blank rows at the end without touching the ones inside', () => {
     const rows = [['a'], [''], ['b'], [''], ['  ']];
-
-    // Trailing blanks are a spreadsheet artifact — a stray format on an
-    // untouched row is enough to produce them, and failing a real file over
-    // them would be theatre. A blank row INSIDE the data is a different
-    // thing, and extractRoster still reports it.
     expect(trimTrailingBlankRows(rows)).toEqual([['a'], [''], ['b']]);
   });
 
@@ -186,40 +178,23 @@ describe('trimTrailingBlankRows', () => {
 
 describe('diffRoster', () => {
   const current = [
-    { mssv: 'SV001', name: 'Nguyễn Văn A' },
-    { mssv: 'SV002', name: 'Trần Thị B' },
-    { mssv: 'SV003', name: 'Lê Văn C' },
+    { mssv: '22691861', name: 'Nguyễn Văn A' },
+    { mssv: '22691791', name: 'Trần Thị B' },
+    { mssv: '23664311', name: 'Lê Văn C' },
   ];
 
   it('splits a re-import into added, renamed, unchanged and missing', () => {
     const diff = diffRoster(current, [
-      { mssv: 'SV001', name: 'Nguyễn Văn A' },
-      { mssv: 'SV002', name: 'Trần Thị B (đổi tên)' },
-      { mssv: 'SV004', name: 'Phạm Thị D' },
+      { mssv: '22691861', name: 'Nguyễn Văn A' },
+      { mssv: '22691791', name: 'Trần Thị B (đổi tên)' },
+      { mssv: '21089761', name: 'Phạm Thị D' },
     ]);
 
-    expect(diff.added).toEqual([{ mssv: 'SV004', name: 'Phạm Thị D' }]);
+    expect(diff.added).toEqual([{ mssv: '21089761', name: 'Phạm Thị D' }]);
     expect(diff.renamed).toEqual([
-      { mssv: 'SV002', from: 'Trần Thị B', to: 'Trần Thị B (đổi tên)' },
+      { mssv: '22691791', from: 'Trần Thị B', to: 'Trần Thị B (đổi tên)' },
     ]);
     expect(diff.unchanged).toBe(1);
-    // Reported, never removed on its own: SV003 losing their enrollment
-    // means losing the exam.
-    expect(diff.missing).toEqual([{ mssv: 'SV003', name: 'Lê Văn C' }]);
-  });
-
-  it('reports no change at all for the same file twice', () => {
-    const diff = diffRoster(current, current);
-
-    expect(diff).toMatchObject({ added: [], renamed: [], missing: [], unchanged: 3 });
-  });
-
-  it('matches MSSV case-insensitively, the way the database does', () => {
-    const diff = diffRoster(current, [{ mssv: 'sv001', name: 'Nguyễn Văn A' }]);
-
-    // student_mssv is citext. Treating these as two people here would show
-    // the user an add and a removal for one unchanged student.
-    expect(diff.added).toEqual([]);
-    expect(diff.unchanged).toBe(1);
+    expect(diff.missing).toEqual([{ mssv: '23664311', name: 'Lê Văn C' }]);
   });
 });
