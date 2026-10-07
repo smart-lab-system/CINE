@@ -14,6 +14,7 @@ import { ExamSessionModule } from '../exam-session/exam-session.module';
 import { GradingService } from './grading.service';
 import { GradingRunService } from './grading-run.service';
 import { DeliverableLanguageService } from './deliverable-language.service';
+import { GradingSummaryService } from './grading-summary.service';
 import { GradingReferenceService } from './grading-reference.service';
 import { SubmissionTextService } from './submission-text.service';
 import { GradingReferenceEntity } from './entities/grading-reference.entity';
@@ -144,6 +145,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     GradingRunService,
     DeliverableLanguageService,
     RegradeService,
+    GradingSummaryService,
     GradingReferenceService,
     SubmissionTextService,
     DocumentResolver,
