@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useGradingResults, useResultInvestigation, useRubrics } from '@/hooks/useGrading';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { groupByUngradableReason } from '@/lib/regrade-triage';
+import { RulerOriginNote } from '@/app/teacher/grading/_components/RulerOriginNote';
 import { DossierHeader } from './DossierHeader';
 import { CaseFlagsBanner } from './CaseFlagsBanner';
 import { ScoreCard } from './ScoreCard';
@@ -138,6 +139,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
   return (
     <div className="flex flex-col gap-4">
       {header(d.status, d.ungradableReason)}
+      <RulerOriginNote sessionId={sessionId} />
       {handGraded && (
         <Alert variant="info">
           <AlertDescription>

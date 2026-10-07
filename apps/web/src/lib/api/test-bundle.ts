@@ -5,6 +5,8 @@ export interface TestBundleSummary {
   id: string;
   version: number;
   approvedAt: string | null;
+  /** `examcollect.test_bundle_origin` — ai viết các ca trong gói này. */
+  origin: 'teacher' | 'from_model_answer' | 'generated';
   caseCount: number;
 }
 
@@ -14,6 +16,8 @@ export interface TestBundleCase {
   group: string;
   input: string;
   expectedOutput: string;
+  /** Trích nguyên văn ràng buộc trong đề mà ca này kiểm. `null` khi giảng viên tự gõ. */
+  constraintQuote: string | null;
   autoDroppedReason: string | null;
 }
 

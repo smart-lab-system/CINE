@@ -79,12 +79,30 @@ export interface SubmissionText {
 
 export type ReadinessLevel = 'rubric_only' | 'with_question' | 'with_model_answer';
 
+/**
+ * Mirror `GradingSourceInfo` ở `apps/api/src/grading/grading-reference.service.ts`.
+ *
+ * `sources` là **tuỳ chọn** (`?`) vì `useGradingReadiness` phải chạy được với
+ * một API chưa regenerate — nếu không, mọi màn chuẩn bị vỡ ngay lúc deploy
+ * lệch phiên bản.
+ */
+export interface GradingSourceInfo {
+  present: boolean;
+  kind: 'teacher_upload' | 'authoring';
+  fileName: string | null;
+  setAt: string | null;
+}
+
 export interface GradingReadiness {
   level: ReadinessLevel;
   /** `null` khi đủ tài liệu. Chuỗi này để UI hiện nguyên văn. */
   warning: string | null;
   hasQuestion: boolean;
   hasModelAnswer: boolean;
+  sources?: {
+    question: GradingSourceInfo;
+    modelAnswer: GradingSourceInfo & { unverified: boolean };
+  };
 }
 
 /** Mirrors GradingResultView (apps/api/src/grading/grading.service.ts). */

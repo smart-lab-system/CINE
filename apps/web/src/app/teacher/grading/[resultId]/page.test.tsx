@@ -57,6 +57,8 @@ vi.mock('./_components/AuditReview', () => ({
     </div>
   ),
 }));
+// `InvestigatorDossier` (rendered for real here) now mounts the ruler-origin note, whose hooks need a QueryClientProvider.
+vi.mock('@/app/teacher/grading/_components/RulerOriginNote', () => ({ RulerOriginNote: () => null }));
 
 function result(over: Partial<GradingResult> = {}): GradingResult {
   return {

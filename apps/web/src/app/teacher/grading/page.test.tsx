@@ -47,6 +47,9 @@ vi.mock('./_components/RegradeButton', () => ({
     </button>
   ),
 }));
+vi.mock('./_components/RulerOriginNote', () => ({
+  RulerOriginNote: ({ sessionId }: { sessionId: string }) => <div data-testid="ruler-note" data-session={sessionId} />,
+}));
 
 const session = (over: Partial<SessionOverviewItem> = {}) =>
   ({
@@ -131,6 +134,19 @@ describe('/teacher/grading — without a session: the picker', () => {
     h.overview = { data: [], isLoading: false, isError: true, error: new Error('Mất kết nối') };
     render(<GradingPage />);
     expect(screen.getByRole('alert')).toHaveTextContent('Mất kết nối');
+  });
+});
+
+describe('ruler origin note (G2 §4.5)', () => {
+  it('is mounted on the session screen, for the chosen session', () => {
+    render(<GradingPage />);
+    expect(screen.getByTestId('ruler-note')).toHaveAttribute('data-session', 's1');
+  });
+
+  it('is not part of the session picker', () => {
+    search = '';
+    render(<GradingPage />);
+    expect(screen.queryByTestId('ruler-note')).not.toBeInTheDocument();
   });
 });
 

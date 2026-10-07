@@ -191,6 +191,6 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
       inject: [ClaudeGradingProvider, KeywordGradingProvider],
     },
   ],
-  exports: [GradingService, GradingRunService, GradingReferenceService, RubricService, ScoreService],
+  exports: [GradingService, GradingRunService, GradingReferenceService, RubricService, ScoreService, TestBundleService],
 })
 export class GradingModule {}
