@@ -1,8 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { AuditLogService } from '../../admin/audit-log.service';
 import { readAutoThreshold } from '../decision/threshold';
+import { drawnForAudit, readAuditSampling } from '../audit-sampling';
 import { GradingResultEntity } from '../entities/grading-result.entity';
 import type { ScoreComputationReason } from '../grading-model.types';
 import { advanceStatus } from '../lifecycle/advance';
@@ -85,12 +86,16 @@ function changedRules(
 @Injectable()
 export class ScoreService {
   private readonly theta = readAutoThreshold(process.env).theta;
+  /** Tỉ lệ kiểm mẫu — đọc lúc khởi tạo như `theta`. Tên khác `audit`: field đó là `AuditLogService`. */
+  private readonly sampling = readAuditSampling(process.env);
 
   constructor(
     @InjectDataSource() private readonly ds: DataSource,
     // Sửa điểm đã công bố phải để lại dấu vết — Security rule 4, do service chịu (không trigger).
     private readonly audit: AuditLogService,
-  ) {}
+  ) {
+    if (this.sampling.warning) new Logger(ScoreService.name).warn(this.sampling.warning);
+  }
 
   readonly latestComputation = latestComputationRow;
 
@@ -250,6 +255,18 @@ export class ScoreService {
     const outcome = out.outcome === 'auto' ? 'auto' : 'flagged';
     const to = outcome === 'auto' ? 'auto_approved' : 'flagged_for_review';
     await advanceStatus(m, ctx.resultId, ['ai_graded'], to, { flagForReview: to === 'flagged_for_review' });
+
+    // §8.1 — rút mẫu kiểm ở QUYẾT ĐỊNH ĐẦU TIÊN, và chỉ ở đây. `writeInitial` là lượt tính đầu (cả
+    // `computeInitial` lẫn `finishAttempt` đều qua nó), nên bài nào tới đây với `auto_approved` là bài hệ thống
+    // tự tin ngay từ đầu. Bài thành tự quyết SAU khi gắn cờ (`ruleLayerTransition`) không đi qua đây → không
+    // bao giờ vào khung (T-SAMP-5). Trigger không có cặp `ai_graded → audit_pending`, nên là HAI bước trong
+    // cùng transaction; hai cột cờ đổi trong MỘT câu lệnh vì `ck_grading_result_audit_sampled_at`.
+    if (to === 'auto_approved' && (await this.drawnForAudit(m, ctx))) {
+      await advanceStatus(m, ctx.resultId, ['auto_approved'], 'audit_pending', {
+        auditSampled: true,
+        auditSampledAt: new Date(),
+      });
+    }
 
     // §2.2 "tất cả hoặc không" (review I1): bài này bắt đầu trước khi có một luật lời mà các bài
     // đã tính của phiên đều có → luật đó thôi được xét cho CẢ phiên, nên các bài kia tính lại ngay.
@@ -517,6 +534,13 @@ export class ScoreService {
       ],
     );
     return row.id as string;
+  }
+
+  /** Bài này có được rút vào mẫu kiểm không — chỉ phụ thuộc seed của phiên và id kết quả. */
+  private async drawnForAudit(m: EntityManager, ctx: ScoreContext): Promise<boolean> {
+    if (!this.sampling.enabled) return false;
+    const [row] = await m.query(`SELECT grading_seed FROM examcollect.exam_session WHERE id = $1`, [ctx.sessionId]);
+    return row !== undefined && drawnForAudit(row.grading_seed as string, ctx.resultId, this.sampling.percent);
   }
 
   /** §14.3 — chỉ lượt tính TẦNG LUẬT mới được đưa bài flagged ⇄ auto_approved. */

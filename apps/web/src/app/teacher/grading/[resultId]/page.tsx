@@ -25,6 +25,7 @@ import { CriterionCard } from './_components/CriterionCard';
 import { ManualCriterionCard } from './_components/ManualCriterionCard';
 import { AdvocatePanel } from './_components/AdvocatePanel';
 import { InvestigatorDossier } from './_components/investigator/InvestigatorDossier';
+import { AuditReview } from './_components/AuditReview';
 
 /** AI còn đang làm việc — chưa duyệt được. */
 const IN_PROGRESS = ['ai_grading', 'ai_graded'];
@@ -65,6 +66,9 @@ export default function GradingDetailPage({
   const [activeCriterionId, setActive] = useState<string | null>(null);
   const [privateNote, setPrivateNote] = useState('');
   const [studentFeedback, setStudentFeedback] = useState('');
+  // Đã ghi nhận xét kiểm mẫu trong lần xem này: giữ bản tiết lộ trên màn hình dù danh sách làm mới đổi trạng thái bài
+  // sang teacher_reviewed — tới khi giảng viên bấm "Mở hồ sơ" (D19).
+  const [audited, setAudited] = useState(false);
 
   // Điểm khởi đầu: bản giảng viên đã sửa nếu có; nếu AI không chấm được
   // (`ungradableReason` khác null) thì dựng từ RUBRIC, mỗi tiêu chí bắt
@@ -111,6 +115,21 @@ export default function GradingDetailPage({
   function pinEvidence(selected: string) {
     if (!activeCriterionId) return;
     update(activeCriterionId, { pinnedEvidence: selected });
+  }
+
+  // Bài kiểm mẫu chưa kiểm: che mù (parent spec §8.1) — KHÔNG dựng hồ sơ, vì hồ sơ chính là thứ đang bị che.
+  // Đặt SAU mọi hook và TRƯỚC nhánh điều tra, theo trạng thái chứ không theo pipeline.
+  if (result && (result.status === 'audit_pending' || audited)) {
+    return (
+      <AuditReview
+        resultId={resultId}
+        sessionId={sessionId}
+        studentMssv={result.studentMssv}
+        studentName={result.studentName}
+        onRecorded={() => setAudited(true)}
+        onOpenDossier={() => setAudited(false)}
+      />
+    );
   }
 
   // Bài chấm theo đường điều tra (§3.11 spec UI): hồ sơ riêng, không đi qua bàn chấm theo tiêu chí.

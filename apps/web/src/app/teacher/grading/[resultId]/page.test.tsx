@@ -48,6 +48,16 @@ vi.mock('@/hooks/useSubmissionOverview', () => ({
   }),
 }));
 
+// Panel kiểm mù có test riêng (AuditReview.test.tsx); ở đây chỉ kiểm việc trang có dựng nó đúng lúc và giữ nó đúng lúc.
+vi.mock('./_components/AuditReview', () => ({
+  AuditReview: (p: { resultId: string; studentMssv: string; onRecorded: () => void; onOpenDossier: () => void }) => (
+    <div data-testid="audit-panel" data-result={p.resultId} data-mssv={p.studentMssv}>
+      <button type="button" onClick={p.onRecorded}>ghi nhận xét</button>
+      <button type="button" onClick={p.onOpenDossier}>mở hồ sơ</button>
+    </div>
+  ),
+}));
+
 function result(over: Partial<GradingResult> = {}): GradingResult {
   return {
     id: 'r1',
@@ -115,6 +125,51 @@ describe('GradingDetailPage', () => {
       unlocatable: [],
       truncatedByGrading: false,
     };
+  });
+
+  it('bài kiểm mẫu chưa kiểm → panel kiểm mù, không phải hồ sơ điều tra và không phải form chấm theo tiêu chí (T-SAMP-1)', async () => {
+    resultsData = [result({ pipeline: 'investigator', status: 'audit_pending', currentScore: null, criterionResults: [] })];
+    await page();
+
+    const panel = await screen.findByTestId('audit-panel');
+    expect(panel).toHaveAttribute('data-result', 'r1');
+    expect(panel).toHaveAttribute('data-mssv', '2151010023');
+    expect(screen.queryByRole('button', { name: /Lưu duyệt/ })).not.toBeInTheDocument();
+  });
+
+  it('bài đã nhận xét (teacher_reviewed) không còn là panel kiểm mù', async () => {
+    resultsData = [result({ pipeline: 'investigator', status: 'teacher_reviewed', currentScore: 8.5, criterionResults: [] })];
+    await page();
+
+    expect(screen.queryByTestId('audit-panel')).not.toBeInTheDocument();
+  });
+
+  // D19: ghi nhận xét đổi trạng thái bài sang teacher_reviewed; nếu danh sách làm mới (focus cửa sổ) trước khi giảng
+  // viên đọc so sánh thì trang chuyển sang hồ sơ thường và bản tiết lộ biến mất.
+  it('giữ panel sau khi ghi nhận xét dù danh sách đã đổi trạng thái bài, tới khi bấm "Mở hồ sơ"', async () => {
+    resultsData = [result({ pipeline: 'investigator', status: 'audit_pending', currentScore: null, criterionResults: [] })];
+    const params = Promise.resolve({ resultId: 'r1' });
+    // Một hàm dựng phần tử MỚI mỗi lần: `rerender` với đúng phần tử cũ khiến React bỏ qua render (cùng tham chiếu,
+    // không đổi state/context), nên trang không bao giờ đọc `resultsData` mới và test không bắt được gì.
+    const tree = () => (
+      <Suspense fallback={null}>
+        <GradingDetailPage params={params} />
+      </Suspense>
+    );
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(tree());
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ghi nhận xét' }));
+    resultsData = [result({ pipeline: 'investigator', status: 'teacher_reviewed', currentScore: 8.5, criterionResults: [] })];
+    await act(async () => {
+      view.rerender(tree());
+    });
+    expect(screen.getByTestId('audit-panel')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'mở hồ sơ' }));
+    expect(screen.queryByTestId('audit-panel')).not.toBeInTheDocument();
   });
 
   it('bài đang chấm thì chỉ đọc, không có nút Lưu', async () => {
