@@ -21,6 +21,14 @@ export function useAcademicYears(params: ListParams = {}) {
   });
 }
 
+export function useAcademicYear(id: string | undefined) {
+  return useQuery({
+    queryKey: [K.years, 'one', id],
+    queryFn: () => api.getAcademicYear(id!),
+    enabled: Boolean(id),
+  });
+}
+
 export function useSemesters(params: ListParams = {}) {
   return useQuery({
     queryKey: [K.semesters, params],

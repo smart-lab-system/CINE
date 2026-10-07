@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/layout/page-header';
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { TableCell, TableRow } from '@/components/ui/table';
 import {
   MasterDataHttpError,
@@ -67,7 +68,7 @@ function StudentsMasterDataContent() {
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [status, setStatus] = useState(searchParams.get('status') ?? 'all');
   const [classFilter, setClassFilter] = useState(
-    searchParams.get('classId') ?? 'all',
+    searchParams.get('classId') ?? '',
   );
   const debouncedSearch = useDebouncedValue(search, 300);
   const lastUrl = useRef('');
@@ -76,7 +77,7 @@ function StudentsMasterDataContent() {
     const qs = buildCatalogQuery(new URLSearchParams(), {
       q: debouncedSearch.trim() || null,
       status: status === 'all' ? null : status,
-      classId: classFilter === 'all' ? null : classFilter,
+      classId: classFilter || null,
     });
     if (qs === lastUrl.current) return;
     lastUrl.current = qs;
@@ -89,21 +90,28 @@ function StudentsMasterDataContent() {
     pageSize: 50,
     search: debouncedSearch.trim() || undefined,
     status: status === 'all' ? undefined : status,
-    nominalClassId: classFilter === 'all' ? undefined : classFilter,
+    nominalClassId: classFilter || undefined,
   });
   const mut = useStudentMutations();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
 
+  const classOptions = useMemo(
+    () =>
+      (classes.data?.items ?? []).map((c) => ({
+        value: c.id,
+        label: c.code,
+        keywords: c.name ?? '',
+      })),
+    [classes.data?.items],
+  );
+
   const classLabel = (id: string) =>
     classes.data?.items.find((c) => c.id === id)?.code ?? '—';
-  const selectedClassCode =
-    classFilter !== 'all' ? classLabel(classFilter) : undefined;
+  const selectedClassCode = classFilter ? classLabel(classFilter) : undefined;
   const filtered =
-    Boolean(debouncedSearch.trim()) ||
-    status !== 'all' ||
-    classFilter !== 'all';
+    Boolean(debouncedSearch.trim()) || status !== 'all' || Boolean(classFilter);
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -113,7 +121,7 @@ function StudentsMasterDataContent() {
     setEditingId(null);
     setForm({
       ...EMPTY,
-      nominalClassId: classFilter !== 'all' ? classFilter : '',
+      nominalClassId: classFilter || '',
     });
     setOpen(true);
   }
@@ -177,19 +185,17 @@ function StudentsMasterDataContent() {
             searchAriaLabel="Tìm sinh viên"
             filters={
               <>
-                <Select value={classFilter} onValueChange={setClassFilter}>
-                  <SelectTrigger className="sm:w-48" aria-label="Lọc theo lớp">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tất cả lớp</SelectItem>
-                    {(classes.data?.items ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  className="sm:w-52"
+                  value={classFilter}
+                  onValueChange={setClassFilter}
+                  options={classOptions}
+                  placeholder="Chọn lớp…"
+                  searchPlaceholder="Gõ mã hoặc tên lớp…"
+                  allowClear
+                  clearLabel="Tất cả lớp"
+                  ariaLabel="Lọc theo lớp"
+                />
                 <Select value={status} onValueChange={setStatus}>
                   <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái SV">
                     <SelectValue />
@@ -215,7 +221,7 @@ function StudentsMasterDataContent() {
             onClear={() => {
               setSearch('');
               setStatus('all');
-              setClassFilter('all');
+              setClassFilter('');
             }}
           />
         }
@@ -270,21 +276,14 @@ function StudentsMasterDataContent() {
             </div>
             <div className="grid gap-1.5">
               <Label>Lớp danh nghĩa</Label>
-              <Select
+              <SearchableSelect
                 value={form.nominalClassId}
                 onValueChange={(v) => setForm({ ...form, nominalClassId: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn lớp" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(classes.data?.items ?? []).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.code}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={classOptions}
+                placeholder="Chọn lớp…"
+                searchPlaceholder="Gõ mã hoặc tên lớp…"
+                ariaLabel="Chọn lớp danh nghĩa"
+              />
             </div>
             <div className="grid gap-1.5">
               <Label>Trạng thái</Label>

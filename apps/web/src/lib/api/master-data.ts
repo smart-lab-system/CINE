@@ -154,6 +154,8 @@ export const createAcademicYear = (body: Omit<AcademicYear, 'id'>) =>
     method: 'POST',
     body: JSON.stringify(body),
   });
+export const getAcademicYear = (id: string) =>
+  masterDataFetch<AcademicYear>(`/master-data/academic-years/${id}`);
 export const updateAcademicYear = (id: string, body: Partial<Omit<AcademicYear, 'id'>>) =>
   masterDataFetch<AcademicYear>(`/master-data/academic-years/${id}`, {
     method: 'PATCH',

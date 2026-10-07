@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/layout/page-header';
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { TableCell, TableRow } from '@/components/ui/table';
 import {
   MasterDataHttpError,
@@ -47,6 +48,11 @@ import {
 } from '@/lib/master-data-defaults';
 
 const { min: COHORT_MIN, max: COHORT_MAX } = cohortYearBounds();
+/** Form tạo/sửa: đủ dải năm hợp lệ. Filter chỉ hiện năm đang có trong data. */
+const COHORT_YEARS = Array.from(
+  { length: COHORT_MAX - COHORT_MIN + 1 },
+  (_, i) => String(COHORT_MAX - i),
+);
 const EMPTY = {
   code: '',
   name: '',
@@ -85,6 +91,8 @@ function NominalClassesContent() {
   }, [debouncedSearch, status, cohortYear, pathname, router]);
 
   const cohortNum = cohortYear ? Number(cohortYear) : undefined;
+  // Facet năm khóa: không lọc theo cohortYear để luôn thấy các khóa đang có.
+  const cohortFacets = useNominalClasses({ page: 1, pageSize: 100 });
   const { data, isLoading } = useNominalClasses({
     page: 1,
     pageSize: 100,
@@ -97,6 +105,22 @@ function NominalClassesContent() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
+
+  const cohortOptions = useMemo(() => {
+    const years = new Set<number>();
+    for (const c of cohortFacets.data?.items ?? []) {
+      if (c.cohortYear != null) years.add(c.cohortYear);
+    }
+    return [...years]
+      .sort((a, b) => b - a)
+      .map((y) => ({ value: String(y), label: String(y) }));
+  }, [cohortFacets.data?.items]);
+
+  // Nếu URL còn năm khóa không còn trong data → bỏ lọc.
+  useEffect(() => {
+    if (!cohortYear || cohortFacets.isLoading) return;
+    if (!cohortOptions.some((o) => o.value === cohortYear)) setCohortYear('');
+  }, [cohortYear, cohortOptions, cohortFacets.isLoading]);
 
   const filtered =
     Boolean(debouncedSearch.trim()) || status !== 'all' || Boolean(cohortYear);
@@ -192,16 +216,17 @@ function NominalClassesContent() {
             searchAriaLabel="Tìm lớp danh nghĩa"
             filters={
               <>
-                <Input
-                  type="number"
-                  min={COHORT_MIN}
-                  max={COHORT_MAX}
-                  step={1}
+                <SearchableSelect
+                  className="sm:w-44"
                   value={cohortYear}
-                  onChange={(e) => setCohortYear(e.target.value)}
-                  placeholder="Năm khóa"
-                  aria-label="Lọc năm khóa"
-                  className="sm:w-32"
+                  onValueChange={setCohortYear}
+                  options={cohortOptions}
+                  placeholder="Chọn năm khóa…"
+                  searchPlaceholder="Gõ năm khóa…"
+                  emptyText="Chưa có năm khóa."
+                  allowClear
+                  clearLabel="Tất cả khóa"
+                  ariaLabel="Lọc năm khóa"
                 />
                 <Select value={status} onValueChange={setStatus}>
                   <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái lớp">
@@ -292,15 +317,24 @@ function NominalClassesContent() {
             </div>
             <div className="grid gap-1.5">
               <Label>Năm khóa</Label>
-              <Input
-                type="number"
-                min={COHORT_MIN}
-                max={COHORT_MAX}
-                step={1}
-                value={form.cohortYear}
-                onChange={(e) => setForm({ ...form, cohortYear: e.target.value })}
-                placeholder={`${COHORT_MIN}–${COHORT_MAX}`}
-              />
+              <Select
+                value={form.cohortYear || 'none'}
+                onValueChange={(v) =>
+                  setForm({ ...form, cohortYear: v === 'none' ? '' : v })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn năm khóa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Không chọn</SelectItem>
+                  {COHORT_YEARS.map((y) => (
+                    <SelectItem key={y} value={y}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-1.5">
               <Label>Trạng thái</Label>
