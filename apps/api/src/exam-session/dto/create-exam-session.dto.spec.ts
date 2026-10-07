@@ -160,3 +160,46 @@ describe('CreateExamSessionDto.requiredFilenames — deliverableType/language (3
     ).toHaveLength(0);
   });
 });
+
+function validateDto(partial: Record<string, unknown>) {
+  // BASE.classId cố ý không phải UUID RFC — các test cũ lọc theo property.
+  // Ở đây dùng UUID hợp lệ để assert toàn DTO.
+  return validateSync(
+    plainToInstance(CreateExamSessionDto, {
+      ...BASE,
+      classId: '550e8400-e29b-41d4-a716-446655440000',
+      requiredFilenames: ['a.docx'],
+      ...partial,
+    }),
+  );
+}
+
+describe('CreateExamSessionDto — dual-write semester/room (Id || Name)', () => {
+  const SEM_ID = '550e8400-e29b-41d4-a716-446655440001';
+  const ROOM_ID = '550e8400-e29b-41d4-a716-446655440002';
+
+  it('chấp nhận chỉ text (tương thích ngược)', () => {
+    expect(validateDto({})).toHaveLength(0);
+  });
+
+  it('chấp nhận chỉ Id — không bắt Name', () => {
+    expect(
+      validateDto({
+        semesterId: SEM_ID,
+        roomId: ROOM_ID,
+        semesterName: undefined,
+        roomName: undefined,
+      }),
+    ).toHaveLength(0);
+  });
+
+  it('từ chối khi thiếu cả semesterId và semesterName', () => {
+    const errors = validateDto({ semesterName: undefined, semesterId: undefined });
+    expect(errors.some((e) => e.property === 'semesterName')).toBe(true);
+  });
+
+  it('từ chối khi thiếu cả roomId và roomName', () => {
+    const errors = validateDto({ roomName: undefined, roomId: undefined });
+    expect(errors.some((e) => e.property === 'roomName')).toBe(true);
+  });
+});

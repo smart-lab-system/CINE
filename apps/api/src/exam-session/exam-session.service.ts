@@ -19,6 +19,8 @@ import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { RequiredDeliverableEntryEntity } from './entities/required-deliverable-entry.entity';
 import { RubricEntity } from '../grading/entities/rubric.entity';
+import { SemesterEntity } from '../master-data/entities/semester.entity';
+import { RoomEntity } from '../master-data/entities/room.entity';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import {
@@ -111,6 +113,10 @@ export class ExamSessionService {
     // graph for.
     @InjectRepository(RubricEntity)
     private readonly rubrics: Repository<RubricEntity>,
+    @InjectRepository(SemesterEntity)
+    private readonly semesters: Repository<SemesterEntity>,
+    @InjectRepository(RoomEntity)
+    private readonly rooms: Repository<RoomEntity>,
     private readonly events: ExamSessionEvents,
     private readonly classes: ClassService,
     private readonly attendance: AttendanceService,
@@ -160,6 +166,11 @@ export class ExamSessionService {
       }
     }
 
+    // Dual-write catalog → snapshot text TRƯỚC assertNone: overlap vẫn
+    // so trên `room_name`, nên phải dùng tên canonical từ catalog khi có Id.
+    const semesterSnap = await this.resolveSemesterSnapshot(dto);
+    const roomSnap = await this.resolveRoomSnapshot(dto);
+
     // Advisory, and deliberately outside the retry loop below: the
     // authority on this rule is the pair of EXCLUDE constraints on the
     // table (see AddExamSessionOverlapConstraints), which is what holds
@@ -169,7 +180,7 @@ export class ExamSessionService {
     // change. Without it they get "This request conflicts with an existing
     // record" from PostgresExceptionFilter and no way to act on it.
     await this.scheduleConflicts.assertNone(
-      dto.roomName,
+      roomSnap.roomName,
       klass.id,
       teacherId,
       new Date(dto.startTime),
@@ -189,13 +200,14 @@ export class ExamSessionService {
               classId: klass.id,
               // Môn LẤY TỪ LỚP, không lấy từ body: một phiên khai một môn
               // khác với lớp của nó sẽ làm mọi phép đối chiếu phía sau nói
-              // về nhầm môn. Phòng và học kỳ thì đến thẳng từ biểu mẫu —
-              // không còn bảng nào để tra chúng.
+              // về nhầm môn.
               courseName: klass.courseName,
-              roomName: dto.roomName,
+              roomName: roomSnap.roomName,
+              roomId: roomSnap.roomId,
               // Chụp MỘT LẦN, tại đây (§7.1.5). Cột mang `update: false`
               // nên một `save()` về sau không ghi đè được.
-              semesterName: dto.semesterName,
+              semesterName: semesterSnap.semesterName,
+              semesterId: semesterSnap.semesterId,
               examType: dto.examType,
               startTime: new Date(dto.startTime),
               endTime: new Date(dto.endTime),
@@ -751,6 +763,60 @@ export class ExamSessionService {
   }
 
   /**
+   * Id thắng text: có semesterId → load catalog active, snapshot = name.
+   * Không Id → bắt buộc semesterName (DTO đã siết); FK null.
+   */
+  private async resolveSemesterSnapshot(dto: CreateExamSessionDto): Promise<{
+    semesterId: string | null;
+    semesterName: string;
+  }> {
+    if (dto.semesterId) {
+      const semester = await this.semesters.findOne({
+        where: { id: dto.semesterId },
+      });
+      if (!semester) {
+        throw new NotFoundException('Học kỳ không tồn tại trong danh mục.');
+      }
+      if (semester.status !== 'active') {
+        throw new BadRequestException(
+          'Chỉ chọn được học kỳ đang hoạt động (active).',
+        );
+      }
+      return { semesterId: semester.id, semesterName: semester.name };
+    }
+    // DTO ValidateIf đã bắt buộc khi thiếu Id; phòng thủ nếu gọi nội bộ.
+    if (!dto.semesterName?.trim()) {
+      throw new BadRequestException('Cần semesterId hoặc semesterName.');
+    }
+    return { semesterId: null, semesterName: dto.semesterName.trim() };
+  }
+
+  /**
+   * Tương tự học kỳ. Room status sau rename: `active` (không còn `available`).
+   */
+  private async resolveRoomSnapshot(dto: CreateExamSessionDto): Promise<{
+    roomId: string | null;
+    roomName: string;
+  }> {
+    if (dto.roomId) {
+      const room = await this.rooms.findOne({ where: { id: dto.roomId } });
+      if (!room) {
+        throw new NotFoundException('Phòng không tồn tại trong danh mục.');
+      }
+      if (room.status !== 'active') {
+        throw new BadRequestException(
+          'Chỉ chọn được phòng đang hoạt động (active).',
+        );
+      }
+      return { roomId: room.id, roomName: room.name };
+    }
+    if (!dto.roomName?.trim()) {
+      throw new BadRequestException('Cần roomId hoặc roomName.');
+    }
+    return { roomId: null, roomName: dto.roomName.trim() };
+  }
+
+  /**
    * @param rubricVersion phiên bản của rubric đã ghim. Truyền vào thay vì tra
    * ở đây: cả hai người gọi đều đã cầm sẵn entity rubric (create vừa kiểm nó,
    * findByIdForOwner nạp kèm quan hệ), nên tra lại là một truy vấn thừa.
@@ -771,6 +837,8 @@ export class ExamSessionService {
     dto.code = session.code;
     dto.teacherId = session.teacherId;
     dto.classId = session.classId;
+    dto.roomId = session.roomId ?? null;
+    dto.semesterId = session.semesterId ?? null;
     dto.courseName = session.courseName;
     dto.roomName = session.roomName;
     dto.examType = session.examType;

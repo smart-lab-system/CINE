@@ -53,12 +53,15 @@ export class AcademicYearsController {
     return this.masterData.createAcademicYear(dto);
   }
 
+  // Teacher cần list để chọn học kỳ lúc tạo phiên (sync catalog → session).
   @Get()
+  @Roles('admin', 'teacher')
   list(@Query() query: ListAcademicYearsDto) {
     return this.masterData.listAcademicYears(query);
   }
 
   @Get(':id')
+  @Roles('admin', 'teacher')
   get(@Param('id') id: string) {
     return this.masterData.getAcademicYear(id);
   }
@@ -87,11 +90,13 @@ export class SemestersController {
   }
 
   @Get()
+  @Roles('admin', 'teacher')
   list(@Query() query: ListSemestersDto) {
     return this.masterData.listSemesters(query);
   }
 
   @Get(':id')
+  @Roles('admin', 'teacher')
   get(@Param('id') id: string) {
     return this.masterData.getSemester(id);
   }
@@ -219,11 +224,13 @@ export class RoomsController {
   }
 
   @Get()
+  @Roles('admin', 'teacher')
   list(@Query() query: ListRoomsDto) {
     return this.masterData.listRooms(query);
   }
 
   @Get(':id')
+  @Roles('admin', 'teacher')
   get(@Param('id') id: string) {
     return this.masterData.getRoom(id);
   }

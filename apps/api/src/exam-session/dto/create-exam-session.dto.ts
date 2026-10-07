@@ -12,6 +12,7 @@ import {
   Matches,
   MaxLength,
   Validate,
+  ValidateIf,
   ValidateNested,
   ValidationArguments,
   ValidatorConstraint,
@@ -285,28 +286,38 @@ export class CreateExamSessionDto {
   classId!: string;
 
   /**
-   * Phòng thi, dạng VĂN BẢN. Giảng viên gõ, không chọn từ danh sách.
-   *
-   * GIÁ PHẢI TRẢ, ghi ở spec §3.4: `ex_exam_session_room_overlap` vẫn chạy
-   * (GiST cộng btree_gist làm việc với text y như với uuid), nhưng nó SUY
-   * GIẢM từ bảo đảm xuống nỗ lực tốt nhất — "P.A101" và "P A101" là hai
-   * phòng khác nhau với Postgres, nên gõ lệch một ký tự là đặt trùng phòng
-   * mà không gì bắt được.
+   * Chọn phòng từ catalog. Nếu có → dual-write: `room_id` + snapshot
+   * `room_name = room.name` (bỏ text client). Overlap vẫn trên text.
    */
-  @IsString()
-  @Length(1, 150)
-  roomName!: string;
+  @IsOptional()
+  @IsUUID()
+  roomId?: string;
 
   /**
-   * Học kỳ, dạng VĂN BẢN, chụp một lần lúc tạo phiên (§7.1.5).
-   *
-   * Trước đây suy ra từ `course.semester_id`. Cả hai bảng đã biến mất, và
-   * bảng điểm lọc thẳng trên chuỗi này — nên nó không đổi theo khi ai đó
-   * gõ tên học kỳ khác ở một phiên sau.
+   * Phòng dạng VĂN BẢN — bắt buộc khi không gửi `roomId` (fallback e2e /
+   * catalog trống). Overlap so khớp chuỗi chính xác.
    */
+  @ValidateIf((o: CreateExamSessionDto) => !o.roomId)
   @IsString()
   @Length(1, 150)
-  semesterName!: string;
+  roomName?: string;
+
+  /**
+   * Chọn học kỳ từ catalog. Nếu có → dual-write: `semester_id` + snapshot
+   * `semester_name = semester.name` (bỏ text client).
+   */
+  @IsOptional()
+  @IsUUID()
+  semesterId?: string;
+
+  /**
+   * Học kỳ dạng VĂN BẢN, chụp một lần lúc tạo (§7.1.5). Bắt buộc khi không
+   * gửi `semesterId`. Cột mang `update: false` — không đổi sau tạo.
+   */
+  @ValidateIf((o: CreateExamSessionDto) => !o.semesterId)
+  @IsString()
+  @Length(1, 150)
+  semesterName?: string;
 
   /**
    * Rubric dùng để chấm phiên này — quyết định lúc ra đề, không tra lại lúc
