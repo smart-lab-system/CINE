@@ -1,7 +1,7 @@
 # UI e2e seed
 
-`seed.ts` boots a real Nest application context against the LOCAL database
-(`.env.test`), inserts one teacher account and one investigator (code)
+`seed.ts` boots a real Nest application context against the e2e database
+(`.env.test` → `postgres-e2e` / `examcollect_e2e`), inserts one teacher account and one investigator (code)
 session with four grading results covering the states the Playwright suite
 in `apps/web-e2e` exercises: a flagged result blocked by an unpriced rule,
 a clean auto-approved result, and two "không chấm được" results (one
@@ -24,10 +24,11 @@ Writes `seed-output.json` (gitignored) with the teacher's login and the
 four result ids. `apps/web-e2e/global-setup.ts` runs this automatically
 before every Playwright run and logs in once to capture `storageState`.
 
-**Prerequisites:** local Postgres/Redis/MinIO up (`docker compose up -d
-postgres redis minio` from the repo root, not from a worktree), the
-`examcollect-submissions` MinIO bucket created, and migrations applied —
-see the project's e2e memory notes if any of these are missing.
+**Prerequisites:** e2e Postgres/Redis/MinIO up (`docker compose up -d
+postgres-e2e redis minio` from the repo root, not from a worktree), the
+`examcollect-submissions` MinIO bucket created, and
+`pnpm --filter api migration:run:e2e` applied — see the project's e2e
+memory notes if any of these are missing.
 
 **Not seeded:** a "dưới sàn" (score computed as null by a later recompute)
 fixture. Tracing `decide()` showed every current `outcome: 'ungradable'`

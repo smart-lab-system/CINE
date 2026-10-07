@@ -99,7 +99,7 @@ docs/superpowers/
   plans/                      implementation plans, task-by-task (the "how it got built")
 scripts/
   smoke-test.sh               curl-based check against a running Docker stack
-docker-compose.yml            postgres, mongo, redis, minio, api, web
+docker-compose.yml            postgres, postgres-e2e, mongo, redis, minio, api, web
 CLAUDE.md                     the actual product spec — roles, schema, business flow, security rules
 ```
 
@@ -158,13 +158,17 @@ cp apps/api/.env.example apps/api/.env
 # 2. Datastores. Postgres runs docker/postgres-init/001-create-schema.sql on
 #    first boot to create an empty `examcollect` schema — TypeORM needs it
 #    to exist before it can write its own migrations table in step 4.
-docker compose up -d postgres mongo redis minio
+#    `postgres-e2e` is a separate instance (port 5443, DB examcollect_e2e)
+#    used only by API/UI e2e — never by local app `.env`.
+docker compose up -d postgres postgres-e2e mongo redis minio
 
 # 3. Dependencies (workspace-wide).
 pnpm install
 
 # 4. Apply the schema. Wait until `docker compose ps` shows postgres healthy.
 pnpm --filter api migration:run
+#    Schema for the e2e DB (required before `pnpm --filter api test:e2e`):
+pnpm --filter api migration:run:e2e
 
 # 5. Run the apps (separate terminals — both are watch processes).
 pnpm --filter api dev   # http://localhost:4000, Swagger at /api-docs
@@ -228,7 +232,8 @@ whatever is free on your machine.
 
 | Service           | Host   | In-container |
 | ----------------- | ------ | ------------ |
-| Postgres          | `5442` | `5432`       |
+| Postgres (dev)    | `5442` | `5432`       |
+| Postgres (e2e)    | `5443` | `5432`       |
 | MongoDB           | `27018`| `27017`      |
 | Redis             | `6390` | `6379`       |
 | MinIO (S3/console)| `9010`/`9011` | `9000`/`9001` |
@@ -264,16 +269,20 @@ just an index of what exists today.
 
 **`pnpm --filter api test:e2e` is the suite that matters.** It's what exercises
 auth, RBAC, account CRUD, and the FK-RESTRICT protection on account
-deletion, against the real Dockerized Postgres — so the datastores must be
-up and the migration applied first. There's no `/auth/register` any more,
-so e2e specs bootstrap test accounts by inserting directly into
+deletion, against the dedicated e2e Postgres (`postgres-e2e` /
+`examcollect_e2e` on host port `5443`) — never cloud and never the local
+main DB on `5442`. Bring `postgres-e2e` (plus redis/minio) up and run
+`pnpm --filter api migration:run:e2e` first. `apps/api/test/setup-env.ts`
+refuses to start otherwise. There's no `/auth/register` any more, so e2e
+specs bootstrap test accounts by inserting directly into
 `examcollect.account` (see `apps/api/test/helpers/create-account.ts`) —
 the same thing a real deployment does for its first admin.
 
 ```bash
-pnpm --filter api test:e2e   # auth + accounts + health, real DB
-pnpm --filter api test       # unit specs only (exception filter, accounts service)
-pnpm --filter web test       # vitest: middleware, forms, accounts page states
+pnpm --filter api migration:run:e2e   # schema on DB e2e only
+pnpm --filter api test:e2e            # auth + accounts + health, DB e2e
+pnpm --filter api test                # unit specs only (exception filter, accounts service)
+pnpm --filter web test                # vitest: middleware, forms, accounts page states
 ```
 
 The root `pnpm test` runs Turborepo's `test` task, which only picks up the two
