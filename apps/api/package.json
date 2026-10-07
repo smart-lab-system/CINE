@@ -18,7 +18,8 @@
     "lint": "eslint .",
     "migration:run": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
     "migration:revert": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts",
-    "migration:generate": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate -d src/database/data-source.ts"
+    "migration:generate": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate -d src/database/data-source.ts",
+    "seed:master-data": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register scripts/seed-master-data.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
@@ -80,16 +81,26 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.6.3",
+    "vietnamese-name-generator": "^0.13.1",
     "yazl": "^3.3.1"
   },
   "jest": {
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "rootDir": ".",
+    "testMatch": [
+      "<rootDir>/src/**/*.spec.ts",
+      "<rootDir>/scripts/seed-master-data/**/*.spec.ts"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/dist/",
+      "/test/"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s",
+      "scripts/seed-master-data/**/*.(t|j)s"
     ]
   }
 }

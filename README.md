@@ -177,8 +177,20 @@ pnpm --filter web dev   # http://localhost:3000
 
 ### Getting a first admin account
 
-There's no self-serve register endpoint (see "What's implemented" above),
-so the first admin is inserted directly:
+There's no self-serve register endpoint (see "What's implemented" above).
+For local/dev, prefer the catalog seed (admins + teachers + rooms/courses/…):
+
+```bash
+cd apps/api
+# .env must point at your local Postgres (not cloud)
+pnpm seed:master-data
+```
+
+That creates `bao@hui.edu.vn` and `phat@hui.edu.vn` (password `Admin@123`)
+plus teachers from `scripts/danh_sach_giang_vien.json` (password `Teacher@123`).
+See `docs/superpowers/specs/2026-10-07-seed-master-data-design.md`.
+
+Alternatively, insert one admin by hand:
 
 ```bash
 docker compose exec postgres psql -U examcollect_admin -d examcollect -c \
