@@ -43,6 +43,14 @@ import {
 } from '../_components/catalog-table';
 import { CatalogFilterBar } from '../_components/catalog-filter-bar';
 import { buildCatalogQuery } from '../_components/catalog-url';
+import { ListPaginationBar } from '@/components/list-pagination-bar';
+import {
+  parsePage,
+  parsePageSize,
+  paginationQueryPatch,
+  totalPages,
+  type PageSize,
+} from '@/lib/list-pagination';
 import { FACILITY_STATUSES, facilityStatusLabel } from '@/lib/master-data-defaults';
 
 const EMPTY_PC = {
@@ -75,6 +83,10 @@ function ComputersMasterDataContent() {
   const [pcSearch, setPcSearch] = useState(searchParams.get('q') ?? '');
   const [pcStatus, setPcStatus] = useState(searchParams.get('status') ?? 'all');
   const [roomId, setRoomId] = useState(searchParams.get('roomId') ?? '');
+  const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
+  const [pageSize, setPageSize] = useState<PageSize>(() =>
+    parsePageSize(searchParams.get('pageSize')),
+  );
   const debouncedPcSearch = useDebouncedValue(pcSearch, 300);
   const lastUrl = useRef('');
 
@@ -83,16 +95,17 @@ function ComputersMasterDataContent() {
       q: debouncedPcSearch.trim() || null,
       status: pcStatus === 'all' ? null : pcStatus,
       roomId: roomId || null,
+      ...paginationQueryPatch(page, pageSize),
     });
     if (qs === lastUrl.current) return;
     lastUrl.current = qs;
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedPcSearch, pcStatus, roomId, pathname, router]);
+  }, [debouncedPcSearch, pcStatus, roomId, page, pageSize, pathname, router]);
 
   const rooms = useRooms({ page: 1, pageSize: 100 });
   const computers = useComputers({
-    page: 1,
-    pageSize: 50,
+    page,
+    pageSize,
     roomId: roomId || undefined,
     search: debouncedPcSearch.trim() || undefined,
     status: pcStatus === 'all' ? undefined : pcStatus,
@@ -102,6 +115,12 @@ function ComputersMasterDataContent() {
   const [pcOpen, setPcOpen] = useState(false);
   const [editingPcId, setEditingPcId] = useState<string | null>(null);
   const [pcForm, setPcForm] = useState(EMPTY_PC);
+
+  useEffect(() => {
+    if (!computers.data) return;
+    const pages = totalPages(computers.data.total, pageSize);
+    if (page > pages) setPage(pages);
+  }, [computers.data, page, pageSize]);
 
   const roomOptions = useMemo(
     () =>
@@ -118,6 +137,26 @@ function ComputersMasterDataContent() {
   const selectedRoomCode = roomId ? roomCode(roomId) : undefined;
   const pcFiltered =
     Boolean(debouncedPcSearch.trim()) || pcStatus !== 'all' || Boolean(roomId);
+
+  function handleSearchChange(value: string) {
+    setPcSearch(value);
+    setPage(1);
+  }
+
+  function handleStatusChange(value: string) {
+    setPcStatus(value);
+    setPage(1);
+  }
+
+  function handleRoomIdChange(value: string) {
+    setRoomId(value);
+    setPage(1);
+  }
+
+  function handlePageSizeChange(next: PageSize) {
+    setPageSize(next);
+    setPage(1);
+  }
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -208,7 +247,7 @@ function ComputersMasterDataContent() {
         toolbar={
           <CatalogFilterBar
             search={pcSearch}
-            onSearchChange={setPcSearch}
+            onSearchChange={handleSearchChange}
             searchPlaceholder="Hostname, IP hoặc vị trí…"
             searchAriaLabel="Tìm máy tính"
             filters={
@@ -216,7 +255,7 @@ function ComputersMasterDataContent() {
                 <SearchableSelect
                   className="sm:w-48"
                   value={roomId}
-                  onValueChange={setRoomId}
+                  onValueChange={handleRoomIdChange}
                   options={roomOptions}
                   placeholder="Chọn phòng…"
                   searchPlaceholder="Tìm mã/tên phòng…"
@@ -224,7 +263,7 @@ function ComputersMasterDataContent() {
                   clearLabel="Tất cả phòng"
                   ariaLabel="Lọc theo phòng"
                 />
-                <Select value={pcStatus} onValueChange={setPcStatus}>
+                <Select value={pcStatus} onValueChange={handleStatusChange}>
                   <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái máy">
                     <SelectValue />
                   </SelectTrigger>
@@ -250,6 +289,7 @@ function ComputersMasterDataContent() {
               setPcSearch('');
               setPcStatus('all');
               setRoomId('');
+              setPage(1);
             }}
           />
         }
@@ -281,6 +321,17 @@ function ComputersMasterDataContent() {
                 </TableRow>
               ))
             : null
+        }
+        footer={
+          <ListPaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={computers.data?.total ?? 0}
+            entityLabel="máy tính"
+            disabled={computers.isLoading}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
         }
       />
 

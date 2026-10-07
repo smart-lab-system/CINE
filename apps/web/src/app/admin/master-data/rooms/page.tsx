@@ -35,6 +35,14 @@ import {
 } from '../_components/catalog-table';
 import { CatalogFilterBar } from '../_components/catalog-filter-bar';
 import { buildCatalogQuery } from '../_components/catalog-url';
+import { ListPaginationBar } from '@/components/list-pagination-bar';
+import {
+  parsePage,
+  parsePageSize,
+  paginationQueryPatch,
+  totalPages,
+  type PageSize,
+} from '@/lib/list-pagination';
 import { FACILITY_STATUSES, facilityStatusLabel } from '@/lib/master-data-defaults';
 
 const EMPTY_ROOM = {
@@ -61,6 +69,10 @@ function RoomsMasterDataContent() {
 
   const [roomSearch, setRoomSearch] = useState(searchParams.get('q') ?? '');
   const [roomStatus, setRoomStatus] = useState(searchParams.get('status') ?? 'all');
+  const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
+  const [pageSize, setPageSize] = useState<PageSize>(() =>
+    parsePageSize(searchParams.get('pageSize')),
+  );
   const debouncedRoomSearch = useDebouncedValue(roomSearch, 300);
   const lastUrl = useRef('');
 
@@ -68,15 +80,16 @@ function RoomsMasterDataContent() {
     const qs = buildCatalogQuery(new URLSearchParams(), {
       q: debouncedRoomSearch.trim() || null,
       status: roomStatus === 'all' ? null : roomStatus,
+      ...paginationQueryPatch(page, pageSize),
     });
     if (qs === lastUrl.current) return;
     lastUrl.current = qs;
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedRoomSearch, roomStatus, pathname, router]);
+  }, [debouncedRoomSearch, roomStatus, page, pageSize, pathname, router]);
 
   const rooms = useRooms({
-    page: 1,
-    pageSize: 50,
+    page,
+    pageSize,
     search: debouncedRoomSearch.trim() || undefined,
     status: roomStatus === 'all' ? undefined : roomStatus,
   });
@@ -86,8 +99,29 @@ function RoomsMasterDataContent() {
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
   const [roomForm, setRoomForm] = useState(EMPTY_ROOM);
 
+  useEffect(() => {
+    if (!rooms.data) return;
+    const pages = totalPages(rooms.data.total, pageSize);
+    if (page > pages) setPage(pages);
+  }, [rooms.data, page, pageSize]);
+
   const roomFiltered =
     Boolean(debouncedRoomSearch.trim()) || roomStatus !== 'all';
+
+  function handleSearchChange(value: string) {
+    setRoomSearch(value);
+    setPage(1);
+  }
+
+  function handleStatusChange(value: string) {
+    setRoomStatus(value);
+    setPage(1);
+  }
+
+  function handlePageSizeChange(next: PageSize) {
+    setPageSize(next);
+    setPage(1);
+  }
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -161,11 +195,11 @@ function RoomsMasterDataContent() {
         toolbar={
           <CatalogFilterBar
             search={roomSearch}
-            onSearchChange={setRoomSearch}
+            onSearchChange={handleSearchChange}
             searchPlaceholder="Mã hoặc tên phòng…"
             searchAriaLabel="Tìm phòng"
             filters={
-              <Select value={roomStatus} onValueChange={setRoomStatus}>
+              <Select value={roomStatus} onValueChange={handleStatusChange}>
                 <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái phòng">
                   <SelectValue />
                 </SelectTrigger>
@@ -183,6 +217,7 @@ function RoomsMasterDataContent() {
             onClear={() => {
               setRoomSearch('');
               setRoomStatus('all');
+              setPage(1);
             }}
           />
         }
@@ -221,6 +256,17 @@ function RoomsMasterDataContent() {
                 </TableRow>
               ))
             : null
+        }
+        footer={
+          <ListPaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={rooms.data?.total ?? 0}
+            entityLabel="phòng"
+            disabled={rooms.isLoading}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
         }
       />
 
