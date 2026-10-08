@@ -1,12 +1,11 @@
 import { createHash } from 'node:crypto';
 import { EntityManager } from 'typeorm';
 
-/**
- * Tiêu chí giữ chỗ của luật còn thiếu: agent không biết lỗi đó thuộc tiêu chí nào của rubric. Luật
- * `proposed` không áp vào điểm (chỉ luật `active` mới được đọc); giảng viên gán tiêu chí thật khi
- * *"Tạo luật từ đây"* (spec UI 3.1) bằng một bản sửa mới rồi mới kích hoạt.
- */
-export const UNASSIGNED_CRITERION = 'chua_gan';
+export interface MissingContext {
+  resultId: string;
+  sessionId: string;
+  rubricName: string;
+}
 
 function normalise(description: string): string {
   return description.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -19,13 +18,15 @@ export function missingRuleKey(description: string): string {
 
 /**
  * *Luật còn thiếu* (§2.1): lỗi agent gặp mà không luật nào khớp → một dòng `error_rule`
- * `proposed` / `agent_reported` trên trang kiến thức. Lỗi đó KHÔNG vào điểm — không có luật thì
- * không có giá. Chạy trong transaction của người gọi; trùng khoá thì bỏ qua, không nổ. Trả số dòng mới.
+ * `proposed` / `agent_reported`, kèm `error_rule_sighting` (rubric, phiên, bài). Lỗi đó KHÔNG vào điểm.
+ * Tiêu chí thuộc dòng áp dụng do giảng viên chọn khi duyệt — không ghi `criterion_key` lúc đề xuất.
+ * Chạy trong transaction của người gọi; trùng khoá thì bỏ qua, không nổ. Trả số dòng luật mới.
  */
 export async function recordMissingRules(
   m: EntityManager,
   teacherId: string,
   missing: readonly { description: string }[],
+  ctx: MissingContext,
 ): Promise<number> {
   let created = 0;
   const seen = new Set<string>();
@@ -42,14 +43,24 @@ export async function recordMissingRules(
        RETURNING id`,
       [teacherId, ruleKey],
     );
-    if (!rule) continue;
-    const [revision] = await m.query(
-      `INSERT INTO examcollect.error_rule_revision (error_rule_id, revision, name, description, criterion_key, predicate, created_by)
-       VALUES ($1, 1, $2, $3, $4, NULL, $5) RETURNING id`,
-      [rule.id, text.slice(0, 200), text, UNASSIGNED_CRITERION, teacherId],
+    if (rule) {
+      // Tiêu chí KHÔNG còn là việc của agent: nó thuộc dòng áp dụng, do giảng viên chọn khi duyệt (spec D5).
+      const [revision] = await m.query(
+        `INSERT INTO examcollect.error_rule_revision (error_rule_id, revision, name, description, predicate, created_by)
+         VALUES ($1, 1, $2, $3, NULL, $4) RETURNING id`,
+        [rule.id, text.slice(0, 200), text, teacherId],
+      );
+      await m.query(`UPDATE examcollect.error_rule SET current_revision_id = $2 WHERE id = $1`, [rule.id, revision.id]);
+      created++;
+    }
+    // Ghi nơi thấy — chỉ khi lỗi còn là đề xuất: lỗi đã duyệt hay đã bỏ thì không còn "thiếu".
+    await m.query(
+      `INSERT INTO examcollect.error_rule_sighting (teacher_id, error_rule_id, grading_result_id, exam_session_id, rubric_name)
+       SELECT r.teacher_id, r.id, $3, $4, $5 FROM examcollect.error_rule r
+        WHERE r.teacher_id = $1 AND r.rule_key = $2 AND r.state = 'proposed'
+       ON CONFLICT (error_rule_id, grading_result_id) DO NOTHING`,
+      [teacherId, ruleKey, ctx.resultId, ctx.sessionId, ctx.rubricName],
     );
-    await m.query(`UPDATE examcollect.error_rule SET current_revision_id = $2 WHERE id = $1`, [rule.id, revision.id]);
-    created++;
   }
   return created;
 }

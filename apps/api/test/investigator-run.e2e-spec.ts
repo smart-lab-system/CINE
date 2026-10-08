@@ -9,6 +9,7 @@ import type { ModelTier } from '../src/grading/investigator/model-pool';
 import { execResult, fakeSandbox } from '../src/grading/investigator/testing/fake-sandbox';
 import { InvestigationContextService } from '../src/grading/pipeline/investigation-context.service';
 import { INVESTIGATOR_DEPS, InvestigatorDeps } from '../src/grading/pipeline/investigator-deps';
+import { ProposalService } from '../src/grading/rules/proposal.service';
 import type { ExecRequest } from '../src/sandbox/sandbox.client';
 import { StorageService } from '../src/storage/storage.service';
 import { seedCodeSession, seedCodeSubmission } from './helpers/code-session-seed';
@@ -92,12 +93,7 @@ describe('Nhánh investigator của worker (e2e)', () => {
     expect(await computations(sub.resultId)).toEqual([{ reason: 'initial' }]);
     expect(['auto_approved', 'flagged_for_review']).toContain((await result(sub.resultId)).status);
     expect((await result(sub.resultId)).ai_total_score).not.toBeNull();
-    // ProposalService.list ở Task A6 — tạm đếm proposed trên DB.
-    const [{ n }] = await ds.query(
-      `SELECT count(*)::int AS n FROM examcollect.error_rule WHERE teacher_id = $1 AND state = 'proposed'`,
-      [s.ctx.teacherId],
-    );
-    expect(n).toBe(1);
+    expect(await app.get(ProposalService).list(s.ctx.teacherId)).toHaveLength(1);
 
     // Review Focus 1: cùng job chạy lại sau khi xong → không lượt chấm, không lượt tính thứ hai.
     await grading.gradeOneById(j);

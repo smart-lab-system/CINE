@@ -132,7 +132,11 @@ export class ScoreService {
     return this.ds.transaction(async (m) => {
       const ctx = await this.lockRunning(m, resultId, attemptId, stored);
       if (stored.result.verdict?.missingRules?.length) {
-        await recordMissingRules(m, ctx.teacherId, stored.result.verdict.missingRules);
+        await recordMissingRules(m, ctx.teacherId, stored.result.verdict.missingRules, {
+          resultId,
+          sessionId: ctx.sessionId,
+          rubricName: ctx.rubricName,
+        });
       }
       let ungradable: { class: 'system' | 'submission'; reason: string } | null = null;
       let out: Computed | null = null;

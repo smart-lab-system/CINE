@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { Roles } from '../../auth/roles.decorator';
@@ -8,19 +8,21 @@ import { CriterionWaiverDto } from './dto/criterion-waiver.dto';
 import { RuleChangesDto } from './dto/rule-body.dto';
 import { RuleStateDto } from './dto/rule-state.dto';
 import { ErrorRuleService } from './error-rule.service';
+import { ProposalService } from './proposal.service';
 import { parseRuleChanges } from './rule-input';
 
 /**
  * Thư viện lỗi của CHÍNH người gọi (§2.1 *"khoá theo giảng viên"*). Không
  * route nào nhận `teacherId` từ body; luật / rubric của người khác → 404 (T-POL-8).
  * Gán lỗi vào rubric / giá theo dòng áp dụng: `/rubric-errors` (Task A9).
- * `rules/missing` trở lại ở Task A6 cùng ProposalService.
+ * Route tĩnh (`rules/missing`) khai TRƯỚC `rules/:id`.
  */
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RulesController {
   constructor(
     private readonly rules: ErrorRuleService,
+    private readonly proposals: ProposalService,
     private readonly waivers: CriterionWaiverService,
   ) {}
 
@@ -28,6 +30,13 @@ export class RulesController {
   @Roles('teacher')
   list(@Req() req: Request) {
     return this.rules.library(req.user!.sub);
+  }
+
+  /** *Lỗi AI đề xuất* — spec §4.3. `rubricName` lọc theo nơi thấy. */
+  @Get('rules/missing')
+  @Roles('teacher')
+  missing(@Req() req: Request, @Query('rubricName') rubricName?: string) {
+    return this.proposals.list(req.user!.sub, rubricName);
   }
 
   @Patch('rules/:id')
