@@ -26,6 +26,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getDisplaySessionStatus } from '@/lib/exam-session-display';
 import { getSessionPhase } from '@/lib/submission-attention';
 import {
+  buildLobbyRosterRows,
+  countInvalidStudents,
+  type LobbyRosterFilter,
+} from '@/lib/lobby-roster';
+import {
   buildSubmissionRows,
   countFullySubmitted,
   countRecollectTargets,
@@ -34,10 +39,10 @@ import {
 } from '@/lib/submission-rows';
 import { AccessRequestPanel } from './_components/AccessRequestPanel';
 import { CollectionPhaseActions } from './_components/CollectionPhaseActions';
-import { AttendancePanel } from './_components/AttendancePanel';
 import { ExamMaterialsCard } from './_components/ExamMaterialsCard';
-import { SubmissionStatusTable } from './_components/SubmissionStatusTable';
 import { FinalizeSessionButton } from './_components/FinalizeSessionButton';
+import { LobbyDashboard } from './_components/LobbyDashboard';
+import { LobbyRosterTable } from './_components/LobbyRosterTable';
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('vi-VN', {
@@ -136,6 +141,7 @@ export default function ExamSessionLobbyPage() {
   const refetchAttendance = attendance.refetch;
 
   const [liveSubmissions, setLiveSubmissions] = useState<LiveSubmissionMap>({});
+  const [rosterFilter, setRosterFilter] = useState<LobbyRosterFilter>('all');
   const [subscribeError, setSubscribeError] = useState<TeacherSubscribeErrorPayload | null>(
     null,
   );
@@ -382,6 +388,18 @@ export default function ExamSessionLobbyPage() {
     [rows, deliverables],
   );
 
+  const notSubmitted = rows.length - fullySubmitted;
+
+  const invalidCount = useMemo(
+    () => countInvalidStudents(rows, deliverables),
+    [rows, deliverables],
+  );
+
+  const lobbyRows = useMemo(
+    () => buildLobbyRosterRows(attendance.data, rows),
+    [attendance.data, rows],
+  );
+
   // Ai CÓ MẶT — `rows` là hợp của roster và người đã nộp, nên nó cũng
   // chứa em vắng thi, và một máy chưa từng kết nối thì không có gì để
   // thu lại.
@@ -618,87 +636,37 @@ export default function ExamSessionLobbyPage() {
               />
             )}
 
-            {/* Who is in the room, and what has arrived from them — two
-                halves of the same question, so they belong beside each
-                other rather than a screen apart. Stacked below `lg`;
-                `items-start` so the shorter panel keeps its own height
-                instead of stretching to match the taller one. */}
-            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-              {/* Each panel is bounded to the viewport and pinned there,
-                  and the list inside it then takes whatever height is
-                  left over (`flex-1` against these `flex` columns).
+            <LobbyDashboard
+              rosterSize={attendance.data?.rosterSize ?? 0}
+              presentCount={attendance.data?.present.length ?? 0}
+              absentCount={attendance.data?.absent.length ?? 0}
+              makeupCount={attendance.data?.makeup.length ?? 0}
+              fullySubmitted={fullySubmitted}
+              notSubmitted={notSubmitted}
+              invalidCount={invalidCount}
+              confirmedAt={attendance.data?.confirmedAt ?? null}
+              confirmedCount={attendance.data?.confirmedCount ?? null}
+              classId={attendance.data?.classId ?? null}
+            />
 
-                  That indirection is the point: capping the lists against
-                  a constant instead would mean guessing how tall
-                  everything above them is, and that height is not
-                  knowable here — the ended-session alert, the materials
-                  list and AccessRequestPanel all come and go, and
-                  DiscrepancyNotice inside the attendance card names one
-                  student per unaccounted submission, so it has no upper
-                  bound at all. Measuring nothing beats guessing well.
-
-                  `3rem` is the only number, and it describes this rule
-                  rather than the page: the 1.5rem pin offset, plus the
-                  same again so the panel does not sit flush against the
-                  bottom edge. `min-h` keeps a short-but-wide window (a
-                  1024x400 window is a real thing on Windows) from
-                  collapsing the lists to nothing. */}
-              <div className="lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:min-h-[22rem] lg:flex-col">
-              <AttendancePanel
-                attendance={attendance.data}
-                isLoading={attendance.isLoading}
-                error={attendance.error}
-                canConfirm={canFinalize}
-                confirming={confirmAttendance.isPending}
-                confirmError={confirmAttendance.error}
-                onConfirm={() => confirmAttendance.mutate()}
-                // AttendancePanel loads independently of sessionDetail (its
-                // own isLoading/error come from the attendance query alone)
-                // — an empty fallback here just means lateMinutes() can't
-                // compute yet (Number.isNaN guards it), not a crash, for
-                // however briefly sessionDetail is still loading.
-                startTime={sessionDetail.data?.startTime ?? ''}
-              />
-              </div>
-
-              <div className="lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:min-h-[22rem] lg:flex-col">
-              <Card className="overflow-hidden lg:flex lg:min-h-0 lg:flex-col">
-                <CardHeader className="border-b border-border bg-surface-2/60">
-                  <CardTitle className="text-h3">Trạng thái nộp bài</CardTitle>
-                </CardHeader>
-
-                <p
-                  aria-live="polite"
-                  className="border-b border-border px-6 py-3 text-body text-muted-foreground"
-                >
-                  <strong className="text-h3 text-foreground">
-                    {fullySubmitted}/{rows.length}
-                  </strong>{' '}
-                  sinh viên đã nộp đủ {deliverables.length} file bắt buộc
-                </p>
-
-                {submissions.isError && (
-                  <div className="px-6 py-3">
-                    <Alert variant="warning">
-                      <AlertDescription>
-                        Không tải được danh sách bài đã nộp trước đó. Bảng dưới chỉ hiển thị các
-                        bài nộp phát sinh từ lúc mở trang này.
-                      </AlertDescription>
-                    </Alert>
-                  </div>
-                )}
-
-                {/* `min-h-0` is load-bearing, not decoration: a flex item
-                    defaults to `min-height: auto`, which refuses to shrink
-                    below its content, and the table inside is exactly the
-                    content that would refuse. Without it the card grows
-                    past the viewport and the cap above does nothing. */}
-                <CardContent className="p-0 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-                  <SubmissionStatusTable deliverables={deliverables} students={rows} />
-                </CardContent>
-              </Card>
-              </div>
-            </div>
+            <LobbyRosterTable
+              rows={lobbyRows}
+              deliverables={deliverables}
+              startTime={sessionDetail.data?.startTime ?? ''}
+              filter={rosterFilter}
+              onFilterChange={setRosterFilter}
+              canConfirm={canFinalize}
+              confirming={confirmAttendance.isPending}
+              confirmError={confirmAttendance.error}
+              onConfirm={() => confirmAttendance.mutate()}
+              confirmedAt={attendance.data?.confirmedAt ?? null}
+              confirmedCount={attendance.data?.confirmedCount ?? null}
+              noClass={attendance.data?.classId === null}
+              discrepancy={attendance.data?.discrepancy ?? null}
+              submissionsError={submissions.isError}
+              isLoading={attendance.isLoading}
+              attendanceError={attendance.error}
+            />
           </>
         )}
       </div>

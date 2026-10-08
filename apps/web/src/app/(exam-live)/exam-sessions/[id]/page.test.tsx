@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import ExamSessionLobbyPage from './page';
 import { socket as mockSocket } from '@/lib/socket';
@@ -309,7 +309,10 @@ describe('ExamSessionLobbyPage', () => {
     // A make-up student reads as "from Nhóm 05, sitting here" rather than as
     // an unfamiliar name among familiar ones.
     expect(screen.getByText('Phạm Thi Bù')).toBeInTheDocument();
-    expect(screen.getByText('Nhóm 05')).toBeInTheDocument();
+    expect(screen.getByText(/Nhóm 05/)).toBeInTheDocument();
+    const roster = screen.getByRole('region', { name: 'Danh sách sinh viên phòng chờ' });
+    expect(within(roster).getByText('Vắng mặt')).toBeInTheDocument();
+    expect(within(roster).getByText('Thi bổ sung')).toBeInTheDocument();
   });
 
   it('tells a machine that came back apart from someone who appeared after the count', async () => {
@@ -330,9 +333,9 @@ describe('ExamSessionLobbyPage', () => {
     // One label for both would bury the case the headcount exists to catch
     // underneath the routine one.
     await waitFor(() =>
-      expect(screen.getByText('Kết nối lại sau khi chốt')).toBeInTheDocument(),
+      expect(screen.getByText('Kết nối lại sau khi xác nhận sĩ số')).toBeInTheDocument(),
     );
-    expect(screen.getByText('Mới vào sau khi chốt')).toBeInTheDocument();
+    expect(screen.getByText('Mới vào sau khi xác nhận sĩ số')).toBeInTheDocument();
   });
 
   it('names the students behind a headcount-vs-submissions gap', async () => {
@@ -359,7 +362,7 @@ describe('ExamSessionLobbyPage', () => {
     useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
     render(<ExamSessionLobbyPage />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /Chốt sĩ số/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Xác nhận sĩ số/ }));
 
     expect(confirmMutateMock).toHaveBeenCalledTimes(1);
   });
@@ -747,7 +750,9 @@ describe('ExamSessionLobbyPage', () => {
       expect(screen.getByText('Cau2.docx')).toBeInTheDocument();
       // A student who joined but submitted nothing still needs a row —
       // "chưa nộp" is the absence of a submission, never an event.
-      expect(screen.getAllByText('Chưa nộp')).toHaveLength(2);
+      // Dashboard + filter also say "Chưa nộp"; cells live in the roster region.
+      const roster = screen.getByRole('region', { name: 'Danh sách sinh viên phòng chờ' });
+      expect(within(roster).getAllByText('Chưa nộp')).toHaveLength(2);
     });
 
     it('flips a cell to "Đã nộp" on lobby:submission_status, without a reload', async () => {
@@ -767,9 +772,10 @@ describe('ExamSessionLobbyPage', () => {
         submittedAt: '2026-08-29T01:30:00.000Z',
       });
 
-      await waitFor(() => expect(screen.getByText('Đã nộp')).toBeInTheDocument());
+      const roster = () => screen.getByRole('region', { name: 'Danh sách sinh viên phòng chờ' });
+      await waitFor(() => expect(within(roster()).getByText('Đã nộp')).toBeInTheDocument());
       // The other deliverable is untouched.
-      expect(screen.getAllByText('Chưa nộp')).toHaveLength(1);
+      expect(within(roster()).getAllByText('Chưa nộp')).toHaveLength(1);
     });
 
     it('counts a student as fully submitted only once every deliverable is collected', async () => {
@@ -788,8 +794,9 @@ describe('ExamSessionLobbyPage', () => {
         status: 'collected',
         submittedAt: '2026-08-29T01:30:00.000Z',
       });
+      // Dashboard «Đã nộp» stays 0 until mọi file bắt buộc đều collected.
       await waitFor(() =>
-        expect(screen.getByText('0/1')).toBeInTheDocument(),
+        expect(screen.getByLabelText('Đã nộp: 0')).toBeInTheDocument(),
       );
 
       trigger('lobby:submission_status', {
@@ -799,7 +806,9 @@ describe('ExamSessionLobbyPage', () => {
         submittedAt: '2026-08-29T01:31:00.000Z',
       });
 
-      await waitFor(() => expect(screen.getByText('1/1')).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByLabelText('Đã nộp: 1')).toBeInTheDocument(),
+      );
     });
 
     it('shows students already collected before the page opened', async () => {
@@ -826,7 +835,8 @@ describe('ExamSessionLobbyPage', () => {
       trigger('connect');
 
       await waitFor(() => expect(screen.getByText('Trần Thị B')).toBeInTheDocument());
-      expect(screen.getByText('Đã nộp')).toBeInTheDocument();
+      const roster = screen.getByRole('region', { name: 'Danh sách sinh viên phòng chờ' });
+      expect(within(roster).getByText('Đã nộp')).toBeInTheDocument();
     });
   });
 
