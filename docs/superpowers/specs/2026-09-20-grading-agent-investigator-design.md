@@ -2824,6 +2824,8 @@ cần sửa.
 
 ### 14.1 Bảng và cột
 
+> **Sửa đổi 2026-10-07:** xem `docs/add/rubric/spec/2026-10-07-rules-by-rubric-design.md` (lỗi theo rubric: `rubric_error`, `rubric_error_price`, sightings).
+
 **Có trên `main`, đổi:**
 
 | Bảng | Thêm / đổi | Ràng buộc, ghi chú |

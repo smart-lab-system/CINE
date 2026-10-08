@@ -413,6 +413,9 @@ Breaker có **thăm dò half-open**: hết 60s thì một lời gọi được t
 | Bảng | Vai trò |
 |---|---|
 | `rubric` / `rubric_criterion` | `unique(course_id, version)`. **Không có route update** — chỉ tạo version mới |
+| `error_rule` / `error_rule_revision` | Thư viện lỗi của giảng viên (danh tính + cách phát hiện). Sửa = bản sửa mới |
+| `rubric_error` / `rubric_error_price` | **Dòng áp dụng** (lỗi × tên rubric × tiêu chí) và điểm trừ theo dòng; `price_table_version` vẫn append-only |
+| `error_rule_sighting` | Nơi agent thấy lỗi `proposed` (rubric, phiên, bài) |
 | `grading_reference` | Đề bài + đáp án mẫu của một phiên. Đóng băng khi đã có kết quả chấm |
 | `grading_result` | Một dòng mỗi bài. Chứa `criterion_results` (jsonb), `ai_total_score`, `confidence`, `advocate_opinion`, `context_used_*` |
 | `teacher_review` | Sửa của giảng viên. **Không bao giờ** ghi đè `grading_result` |
@@ -535,9 +538,33 @@ Ghi ra để không ai tưởng chúng đã tồn tại.
 
 ---
 
+## 11a. Bảng lỗi theo rubric (2026-10-07)
+
+Mô hình hai tầng thay "luật toàn cục" cũ:
+
+1. **Lỗi (thư viện)** — `error_rule` + bản sửa: tên, mô tả, điều kiện máy / bằng lời. Dùng chung nhiều rubric.
+2. **Dòng áp dụng** — `rubric_error`: giảng viên + **tên rubric** + lỗi + tiêu chí. Điểm trừ nằm ở `rubric_error_price` (theo dòng áp dụng, không theo luật).
+
+`loadRuleSnapshots` / chấm điểm đọc theo `rubricName` của bài. Sao chép lỗi giữa rubric: `POST /rubric-errors/copy`. Đề xuất AI kèm sightings: `GET /rules/missing`.
+
+| Method | Path |
+|---|---|
+| GET | `/rubric-errors/overview` |
+| GET | `/rubric-errors?rubricName=` |
+| POST | `/rubric-errors` |
+| POST | `/rubric-errors/copy` |
+| PATCH / DELETE | `/rubric-errors/:id` |
+| PUT / POST | `/rubric-errors/:id/price` (+ `/preview`) |
+| GET | `/rules`, `/rules/missing` |
+| PATCH / POST | `/rules/:id`, `/rules/:id/split`, `/rules/:id/state` |
+
+Đã gỡ: `POST /rules`, `POST /rules/preview`, `PUT /rules/:id/price`. Spec: `docs/add/rubric/spec/2026-10-07-rules-by-rubric-design.md`. Plan B rebuild UI web.
+
+---
+
 ## 12. Đọc thêm
 
-- `CLAUDE.md` — mô hình vai trò, 9 Security rule, quy tắc tổ chức file
 - Spec `docs/superpowers/specs/2026-09-14-ai-grading-agent-design.md` — **§14** (bảng test), **§15.0** (đã đo), **§15.1** (chưa đo)
+- Spec bảng lỗi theo rubric: `docs/add/rubric/spec/2026-10-07-rules-by-rubric-design.md`
 - Plan `docs/superpowers/plans/2026-09-14-grading-agent-context.md` (12 task) và `2026-09-15-advocate-anchors-calibration.md` (8 task) — có cả phần "vì sao không làm cách kia"
 - `scripts/calibration/README.md` — cách chạy đo AI-vs-người
