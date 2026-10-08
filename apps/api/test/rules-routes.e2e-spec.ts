@@ -23,13 +23,6 @@ describe('Route bảng lỗi và bảng giá (e2e)', () => {
     return { id, token: res.body.accessToken as string };
   }
   const as = (token: string) => ({ Authorization: `Bearer ${token}` });
-  const rule = (ruleKey: string, predicate: unknown = { kind: 'test_group_failed', group: 'bien' }) => ({
-    ruleKey,
-    name: 'Sai ca biên',
-    description: 'Nhóm biên không đạt',
-    criterionKey: 'tinh_dung',
-    predicate,
-  });
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -45,38 +38,7 @@ describe('Route bảng lỗi và bảng giá (e2e)', () => {
   }, 60_000);
   afterAll(async () => app.close());
 
-  it('tạo luật → 201 và GET /rules thấy nó; trùng ruleKey → 409; không token → 401', async () => {
-    const created = await request(app.getHttpServer()).post('/rules').set(as(tokenA)).send(rule('sai_bien'));
-    expect(created.status).toBe(201);
-    expect(created.body.ruleId).toEqual(expect.any(String));
-    const list = await request(app.getHttpServer()).get('/rules').set(as(tokenA));
-    expect(list.status).toBe(200);
-    expect(list.body.map((r: { ruleKey: string }) => r.ruleKey)).toContain('sai_bien');
-    expect((await request(app.getHttpServer()).post('/rules').set(as(tokenA)).send(rule('sai_bien'))).status).toBe(409);
-    expect((await request(app.getHttpServer()).get('/rules')).status).toBe(401);
-    expect((await request(app.getHttpServer()).get('/rules/missing').set(as(tokenA))).status).toBe(200);
-  });
-
-  it('điều kiện ngoài bốn mẫu → 400; xem trước luật không ghi gì', async () => {
-    const bad = await request(app.getHttpServer()).post('/rules').set(as(tokenA)).send(rule('ma_doc', { kind: 'eval_code', src: 'x' }));
-    expect(bad.status).toBe(400);
-    const preview = await request(app.getHttpServer()).post('/rules/preview').set(as(tokenA)).send(rule('xem_truoc'));
-    expect(preview.status).toBe(200);
-    expect(preview.body).toEqual({ tier: 2, results: [] });
-    const list = await request(app.getHttpServer()).get('/rules').set(as(tokenA));
-    expect(list.body.map((r: { ruleKey: string }) => r.ruleKey)).not.toContain('xem_truoc');
-  });
-
-  it('sửa luật, đổi trạng thái qua route', async () => {
-    const created = await request(app.getHttpServer()).post('/rules').set(as(tokenA)).send(rule('doi_ten', null));
-    const id = created.body.ruleId as string;
-    const patched = await request(app.getHttpServer()).patch(`/rules/${id}`).set(as(tokenA)).send({ name: 'Tên mới' });
-    expect(patched.status).toBe(200);
-    expect(patched.body.revisionId).toEqual(expect.any(String));
-    const retired = await request(app.getHttpServer()).post(`/rules/${id}/state`).set(as(tokenA)).send({ state: 'retired' });
-    expect(retired.status).toBe(200);
-    expect((await request(app.getHttpServer()).post(`/rules/${id}/state`).set(as(tokenA)).send({ state: 'proposed' })).status).toBe(400);
-  });
+  // POST /rules, /rules/preview, PATCH/state qua route cũ: xoá ở A5; phủ lại ở Task A9.
 
   it('chấm tay "7.555" hay số → 400; hướng ngoại lệ lạ → 400; áp giá cho phiên chưa chốt → 409', async () => {
     const ctx = await seedSession(ds, 'routes', { teacherId: idA, startHoursAgo: 30 });

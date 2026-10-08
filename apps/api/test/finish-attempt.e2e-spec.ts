@@ -3,7 +3,6 @@ import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { resultWith } from '../src/grading/decision/testing/result';
-import { ErrorRuleService } from '../src/grading/rules/error-rule.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import type { StoredInvestigation } from '../src/grading/scoring/stored-investigation';
 import { forceStatus, seedResult, seedSession, SeedSession } from './helpers/grading-seed';
@@ -105,9 +104,20 @@ describe('ScoreService.finishAttempt (e2e)', () => {
       stored.result.verdict!.missingRules = [{ description, toolCallIds: [] }];
       await scores.finishAttempt(r.resultId, r.attemptId, stored, META);
     }
-    const missing = await app.get(ErrorRuleService).missing(ctx.teacherId);
+    // ProposalService.list thay ErrorRuleService.missing ở Task A6 — tạm đọc DB cho đến khi đó.
+    const missing = await ds.query(
+      `SELECT r.state, r.origin, v.name, v.criterion_key FROM examcollect.error_rule r
+         JOIN examcollect.error_rule_revision v ON v.id = r.current_revision_id
+        WHERE r.teacher_id = $1 AND r.state = 'proposed'`,
+      [ctx.teacherId],
+    );
     expect(missing).toHaveLength(1);
-    expect(missing[0]).toMatchObject({ state: 'proposed', origin: 'agent_reported', revision: { name: 'Dùng biến toàn cục thay tham số', criterionKey: 'chua_gan' } });
+    expect(missing[0]).toMatchObject({
+      state: 'proposed',
+      origin: 'agent_reported',
+      name: 'Dùng biến toàn cục thay tham số',
+      criterion_key: 'chua_gan',
+    });
   });
 
   it('lượt không phải lượt hiện hành, hay đã có kết cục → ném, không ghi gì', async () => {
