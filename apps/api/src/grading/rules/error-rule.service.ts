@@ -87,8 +87,9 @@ export class ErrorRuleService {
       const next = {
         name: changes.name ?? current.name,
         description: changes.description ?? current.description,
-        // criterion_key đã nới NULL (A1); tới A5 tiêu chí thuộc dòng áp dụng — tạm giữ chỗ cũ nếu thiếu.
-        criterionKey: changes.criterionKey ?? current.criterionKey ?? 'chua_gan',
+        // criterion_key đã nới NULL (A1); tiêu chí thật nằm ở rubric_error — không mặc định 'chua_gan'
+        // (null → 'chua_gan' sẽ kích hoạt tính lại nhầm khi chỉ sửa tên/mô tả).
+        criterionKey: changes.criterionKey !== undefined ? changes.criterionKey : current.criterionKey,
         predicate: changes.predicate !== undefined ? changes.predicate : current.predicate,
       };
       const rev = await this.insertRevision(m, rule.id, current.revision + 1, next, teacherId);
@@ -257,7 +258,7 @@ export class ErrorRuleService {
     m: EntityManager,
     ruleId: string,
     revision: number,
-    input: Omit<RuleInput, 'ruleKey'>,
+    input: Omit<RuleInput, 'ruleKey' | 'criterionKey'> & { criterionKey: string | null },
     actorId: string,
   ): Promise<ErrorRuleRevisionEntity> {
     const repo = m.getRepository(ErrorRuleRevisionEntity);
