@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { NeedsBackend } from '@/components/needs-backend';
 import { useExamSessionDetail } from '@/hooks/useExamSession';
 import { useGradingReadiness, useRubrics, useStartGrading } from '@/hooks/useGrading';
-import { useRules, useWaivers } from '@/hooks/useRules';
+import { useRubricOverview } from '@/hooks/useRubricErrors';
 import { useTestBundles } from '@/hooks/useTestBundle';
 import { preflightOf } from '@/lib/preflight';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
@@ -36,13 +36,13 @@ export function PreparePanel({
   const rubrics = useRubrics();
   const readiness = useGradingReadiness(sessionId);
   const detail = useExamSessionDetail(sessionId);
-  const rules = useRules();
+  const overviews = useRubricOverview();
   const bundles = useTestBundles(sessionId);
   const start = useStartGrading(sessionId);
   const [dirty, setDirty] = useState(false);
 
   const rubric = session.rubricId ? rubrics.data?.find((r) => r.id === session.rubricId) : undefined;
-  const waivers = useWaivers(rubric?.id);
+  const board = rubric ? overviews.data?.find((o) => o.rubricName === rubric.name) : undefined;
 
   const deliverables = detail.data?.requiredDeliverables ?? [];
   const hasCode = deliverables.some((d) => d.deliverableType === 'code_project');
@@ -64,8 +64,7 @@ export function PreparePanel({
       total: bundleList.length,
       approved: bundleList.filter((b) => b.approvedAt).length,
     },
-    rules: rules.data ?? [],
-    waivedKeys: (waivers.data ?? []).map((w) => w.criterionKey),
+    board,
     dirty,
   });
 

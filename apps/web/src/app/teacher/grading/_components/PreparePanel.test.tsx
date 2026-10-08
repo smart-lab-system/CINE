@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { PreparePanel } from './PreparePanel';
-import { rule } from '@/app/teacher/rules/_components/fixtures';
+import { criterion, overview } from '@/app/teacher/rules/_components/fixtures';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 import type { Rubric } from '@/lib/api/grading';
 
@@ -12,8 +12,7 @@ const h = vi.hoisted(() => ({
   rubrics: { data: [] as unknown[] },
   readiness: { data: undefined as unknown },
   detail: { data: undefined as unknown },
-  rules: { data: [] as unknown[] },
-  waivers: { data: [] as unknown[] },
+  overview: { data: [] as unknown[] },
   bundles: { data: [] as unknown[] },
 }));
 
@@ -23,7 +22,7 @@ vi.mock('@/hooks/useGrading', () => ({
   useStartGrading: () => ({ mutate: h.start, ...h.startState }),
 }));
 vi.mock('@/hooks/useExamSession', () => ({ useExamSessionDetail: () => h.detail }));
-vi.mock('@/hooks/useRules', () => ({ useRules: () => h.rules, useWaivers: () => h.waivers }));
+vi.mock('@/hooks/useRubricErrors', () => ({ useRubricOverview: () => h.overview }));
 vi.mock('@/hooks/useTestBundle', () => ({ useTestBundles: () => h.bundles }));
 
 // Their own tests cover them; here only how the panel wires them matters.
@@ -58,8 +57,7 @@ beforeEach(() => {
   h.rubrics = { data: [rubric] };
   h.readiness = { data: { level: 'with_model_answer', warning: null, hasQuestion: true, hasModelAnswer: true } };
   h.detail = detail();
-  h.rules = { data: [rule({ id: 'r1', revision: { criterionKey: 'tinh_dung' }, deduction: '1.00' })] };
-  h.waivers = { data: [] };
+  h.overview = { data: [overview({ rubricName: 'CTDL', criteria: [criterion({ key: 'tinh_dung', description: 'Tính đúng', maxPoints: 10, errorCount: 1 })] })] };
   h.bundles = { data: [] };
 });
 
@@ -116,13 +114,15 @@ describe('PreparePanel — start button (spec §3.7)', () => {
     expect(h.start).not.toHaveBeenCalled();
   });
 
-  it('warnings (unpriced rules, criteria without rules) do NOT block — they are said before starting', () => {
-    h.rules = { data: [rule({ id: 'r1', revision: { criterionKey: 'khac' }, deduction: null })] };
+  it('cảnh báo (lỗi chưa có điểm trừ, tiêu chí chưa có lỗi) KHÔNG chặn — chỉ nói trước khi bắt đầu', () => {
+    h.overview = {
+      data: [overview({ rubricName: 'CTDL', unpricedCount: 1, errorCount: 1, criteria: [criterion({ key: 'tinh_dung', description: 'Tính đúng', maxPoints: 10, errorCount: 0 })] })],
+    };
     renderPanel();
     expect(startButton()).toBeEnabled();
-    expect(screen.getByText(/1 luật chưa có giá/)).toBeInTheDocument();
-    expect(screen.getByText(/Tiêu chí tinh_dung chưa có luật nào/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Mở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules');
+    expect(screen.getByText(/1 lỗi chưa có điểm trừ/)).toBeInTheDocument();
+    expect(screen.getByText(/Tính đúng chưa có lỗi nào/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Mở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules?rubric=CTDL');
   });
 
   it('reads the result of starting back, and shows a refusal verbatim', () => {

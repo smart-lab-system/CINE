@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { preflightOf, type PreflightInput } from './preflight';
-import { rule } from '@/app/teacher/rules/_components/fixtures';
+import { criterion, overview } from '@/app/teacher/rules/_components/fixtures';
 import type { Rubric } from './api/grading';
 
 const rubric: Rubric = {
@@ -18,11 +18,13 @@ const base = (over: Partial<PreflightInput> = {}): PreflightInput => ({
   readiness: { hasQuestion: true, hasModelAnswer: true },
   hasCodeDeliverable: false,
   bundle: { pinned: false, total: 0, approved: 0 },
-  rules: [
-    rule({ id: 'r1', revision: { criterionKey: 'tinh_dung' }, deduction: '1.00' }),
-    rule({ id: 'r2', revision: { criterionKey: 'trinh_bay' }, deduction: '0.50' }),
-  ],
-  waivedKeys: [],
+  board: overview({
+    rubricName: 'CTDL',
+    criteria: [
+      criterion({ key: 'tinh_dung', description: 'Tính đúng', maxPoints: 6, errorCount: 1 }),
+      criterion({ key: 'trinh_bay', description: 'Trình bày', maxPoints: 4, errorCount: 1 }),
+    ],
+  }),
   dirty: false,
   ...over,
 });
@@ -102,24 +104,41 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     });
   });
 
-  describe('rules table (Bảng lỗi) — warns, never blocks', () => {
-    it('ok when every rule is priced and every criterion has a rule', () => {
+  describe('Bảng lỗi của rubric đã ghim — cảnh báo, không bao giờ chặn', () => {
+    const board = (over: Parameters<typeof overview>[0]) => overview({ rubricName: 'CTDL', ...over });
+
+    it('ok khi mọi lỗi có điểm trừ và mọi tiêu chí có lỗi', () => {
       expect(row(base(), 'rules').status).toBe('ok');
     });
-    it('counts unpriced rules and says results hitting them will need the teacher', () => {
-      const input = base({ rules: [rule({ id: 'a', deduction: null, revision: { criterionKey: 'tinh_dung' } }), rule({ id: 'b', deduction: null, revision: { criterionKey: 'trinh_bay' } })] });
+    it('đếm lỗi chưa có điểm trừ và nói bài dính chúng sẽ cần giảng viên', () => {
+      const input = base({ board: board({ unpricedCount: 2 }) });
       expect(row(input, 'rules')).toMatchObject({ status: 'warn' });
-      expect(row(input, 'rules').text).toMatch(/2 luật chưa có giá/);
+      expect(row(input, 'rules').text).toMatch(/2 lỗi chưa có điểm trừ/);
       expect(preflightOf(input).canStart).toBe(true);
     });
-    it('names a criterion with no rule, and offers the waiver route', () => {
-      const input = base({ rules: [rule({ id: 'a', revision: { criterionKey: 'tinh_dung' } })] });
-      expect(row(input, 'rules').text).toMatch(/trinh_bay chưa có luật nào/);
-      expect(row(input, 'rules').link).toEqual({ href: '/teacher/rules', label: 'Mở Bảng lỗi' });
+    it('gọi tên tiêu chí chưa có lỗi, và dẫn thẳng tới đúng rubric', () => {
+      const input = base({
+        board: board({ criteria: [criterion({ key: 'tinh_dung', description: 'Tính đúng', errorCount: 1 }), criterion({ key: 'trinh_bay', description: 'Trình bày', errorCount: 0 })] }),
+      });
+      expect(row(input, 'rules').text).toMatch(/Trình bày chưa có lỗi nào/);
+      expect(row(input, 'rules').link).toEqual({ href: '/teacher/rules?rubric=CTDL', label: 'Mở Bảng lỗi' });
     });
-    it('a waived criterion is not reported', () => {
-      const input = base({ rules: [rule({ id: 'a', revision: { criterionKey: 'tinh_dung' } })], waivedKeys: ['trinh_bay'] });
+    it('tiêu chí đã đánh dấu không trừ điểm thì không bị nhắc', () => {
+      const input = base({
+        board: board({ criteria: [criterion({ key: 'tinh_dung', errorCount: 1 }), criterion({ key: 'trinh_bay', description: 'Trình bày', errorCount: 0, waiverId: 'w1' })] }),
+      });
       expect(row(input, 'rules').status).toBe('ok');
+    });
+    it('rubric chưa có lỗi nào: nói bài sẽ chuyển sang "Cần bạn xem"', () => {
+      const input = base({ board: board({ criteria: [criterion({ errorCount: 0 })] }) });
+      expect(row(input, 'rules').text).toMatch(/chưa có lỗi nào/);
+      expect(row(input, 'rules').text).toMatch(/Cần bạn xem/);
+    });
+    it('chưa đọc xong Bảng lỗi: cảnh báo "đang đọc", không chặn', () => {
+      const input = base({ board: undefined });
+      expect(row(input, 'rules')).toMatchObject({ status: 'warn' });
+      expect(row(input, 'rules').text).toMatch(/Đang đọc Bảng lỗi/);
+      expect(preflightOf(input).canStart).toBe(true);
     });
   });
 
