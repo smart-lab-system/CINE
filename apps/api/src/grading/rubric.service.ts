@@ -153,6 +153,20 @@ export class RubricService {
         ),
       );
 
+      // Đánh dấu "tiêu chí này không trừ điểm" gắn PHIÊN BẢN, nên lưu bản mới là mất. Với D2 (rubric là danh tính
+      // theo tên) giảng viên không biết "phiên bản" là gì — chép các đánh dấu còn hiệu lực sang bản mới cho
+      // những tiêu chí còn tồn tại ở đó (spec §3.7). Bản cũ giữ nguyên của nó.
+      if (latest) {
+        await manager.query(
+          `INSERT INTO examcollect.criterion_waiver (rubric_id, criterion_key, set_by, set_at)
+           SELECT $1, w.criterion_key, w.set_by, w.set_at
+             FROM examcollect.criterion_waiver w
+            WHERE w.rubric_id = $2 AND w.revoked_at IS NULL
+              AND EXISTS (SELECT 1 FROM examcollect.rubric_criterion rc WHERE rc.rubric_id = $1 AND rc.key = w.criterion_key)`,
+          [rubric.id, latest.id],
+        );
+      }
+
       return this.toView(rubric, manager.getRepository(RubricCriterionEntity));
     });
   }
