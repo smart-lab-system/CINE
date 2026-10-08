@@ -2,17 +2,33 @@ import { BadRequestException } from '@nestjs/common';
 import type { RulePredicate } from '../decision/types';
 import { parseHundredths } from '../scoring/hundredths';
 
-export interface RuleInput {
-  ruleKey: string;
+export interface NewRuleInput {
   name: string;
   description: string;
-  criterionKey: string;
   predicate: RulePredicate | null;
+  /** Chỉ dành cho công cụ (lệnh diễn tập). Giao diện KHÔNG BAO GIỜ gửi nó — server sinh từ tên. */
+  ruleKey?: string;
 }
-export type RuleChanges = Partial<Omit<RuleInput, 'ruleKey'>>;
+export type RuleChanges = Partial<Pick<NewRuleInput, 'name' | 'description' | 'predicate'>> & {
+  /** xoá ở Task A5 — tiêu chí thuộc dòng áp dụng; giữ tạm cho ErrorRuleService.revise */
+  criterionKey?: string;
+};
+export interface AssignInput {
+  rubricName: string;
+  criterionKey: string;
+  deduction?: string | null;
+  ruleId?: string;
+  newRule?: NewRuleInput;
+  /** Chỉ cho lỗi `proposed` được duyệt: sửa rồi kích hoạt. */
+  changes?: RuleChanges;
+}
+
+/** xoá ở Task A5 — ErrorRuleService.create/preview còn dùng tới khi đó */
+export type RuleInput = NewRuleInput & { criterionKey: string; ruleKey: string };
 
 const KEY = /^[a-z0-9_]{1,64}$/;
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const bad = (msg: string): never => {
   throw new BadRequestException(msg);
@@ -66,6 +82,49 @@ export function parsePredicate(x: unknown): RulePredicate | null {
   }
 }
 
+export function parseNewRule(x: unknown): NewRuleInput {
+  const o = (x ?? {}) as Record<string, unknown>;
+  const out: NewRuleInput = {
+    name: text(o.name, 'name', 200),
+    description: text(o.description, 'description', 2000),
+    predicate: parsePredicate(o.predicate === undefined ? null : o.predicate),
+  };
+  if (o.ruleKey !== undefined) out.ruleKey = key(o.ruleKey, 'ruleKey');
+  return out;
+}
+
+export function parseRuleChanges(x: unknown): RuleChanges {
+  const o = (x ?? {}) as Record<string, unknown>;
+  const out: RuleChanges = {};
+  if (o.name !== undefined) out.name = text(o.name, 'name', 200);
+  if (o.description !== undefined) out.description = text(o.description, 'description', 2000);
+  if (o.criterionKey !== undefined) out.criterionKey = key(o.criterionKey, 'criterionKey'); // xoá ở A5
+  if (o.predicate !== undefined) out.predicate = parsePredicate(o.predicate);
+  return out;
+}
+
+export function parseAssignInput(x: unknown): AssignInput {
+  const o = (x ?? {}) as Record<string, unknown>;
+  const hasRule = o.ruleId !== undefined;
+  const hasNew = o.newRule !== undefined;
+  if (hasRule === hasNew) bad('Gửi đúng một trong ruleId hoặc newRule');
+  if (hasNew && o.changes !== undefined) bad('changes chỉ đi cùng ruleId');
+  const out: AssignInput = {
+    rubricName: text(o.rubricName, 'rubricName', 200),
+    criterionKey: key(o.criterionKey, 'criterionKey'),
+  };
+  if (o.deduction !== undefined) out.deduction = parseDeduction(o.deduction);
+  if (hasRule) {
+    if (typeof o.ruleId !== 'string' || !UUID.test(o.ruleId)) bad('ruleId: không phải uuid');
+    out.ruleId = o.ruleId as string;
+    if (o.changes !== undefined) out.changes = parseRuleChanges(o.changes);
+  } else {
+    out.newRule = parseNewRule(o.newRule);
+  }
+  return out;
+}
+
+/** xoá ở Task A5 */
 export function parseRuleInput(x: unknown): RuleInput {
   const o = (x ?? {}) as Record<string, unknown>;
   return {
@@ -75,16 +134,6 @@ export function parseRuleInput(x: unknown): RuleInput {
     criterionKey: key(o.criterionKey, 'criterionKey'),
     predicate: parsePredicate(o.predicate === undefined ? null : o.predicate),
   };
-}
-
-export function parseRuleChanges(x: unknown): RuleChanges {
-  const o = (x ?? {}) as Record<string, unknown>;
-  const out: RuleChanges = {};
-  if (o.name !== undefined) out.name = text(o.name, 'name', 200);
-  if (o.description !== undefined) out.description = text(o.description, 'description', 2000);
-  if (o.criterionKey !== undefined) out.criterionKey = key(o.criterionKey, 'criterionKey');
-  if (o.predicate !== undefined) out.predicate = parsePredicate(o.predicate);
-  return out;
 }
 
 /** Mức trừ: null (chưa có giá) hoặc chuỗi thập phân — không nhận `number` (§13.2: không qua số thực). */
