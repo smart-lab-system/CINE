@@ -33,24 +33,7 @@ export interface RubricErrors {
 }
 
 const KEY = /^[a-z0-9_]{1,64}$/;
-const CAP_ERROR = 'Trần điểm: từ 0,25 đến 100, tối đa hai chữ số lẻ.';
-
-/** Tiêu chí của các bản rubric ĐANG DÙNG, mỗi khoá một lần (cùng khoá ở hai rubric thì lấy bản gặp trước). */
-export function activeCriteria(rubrics: Rubric[] | undefined): { key: string; description: string; max: number }[] {
-  const seen = new Map<string, { key: string; description: string; max: number }>();
-  for (const rubric of rubrics ?? []) {
-    if (!rubric.isActive) continue;
-    for (const c of rubric.criteria) {
-      if (!seen.has(c.key)) seen.set(c.key, { key: c.key, description: c.description, max: c.maxPoints });
-    }
-  }
-  return [...seen.values()];
-}
-
-/** Rubric đầu tiên có bản đang dùng (API sắp theo tên) — `RubricView` không có ngày tạo nên không suy ra "mới nhất". */
-export function defaultRubricName(rubrics: Rubric[] | undefined): string | null {
-  return rubrics?.find((r) => r.isActive)?.name ?? null;
-}
+const CAP_ERROR = 'Điểm tối đa: từ 0,25 đến 100, tối đa hai chữ số lẻ.';
 
 export function rowsFromRubric(rubric: Rubric): CriterionRow[] {
   return rubric.criteria.map((c) => ({
@@ -86,9 +69,9 @@ export function validateRubric(
     if (name === '') errors.name = 'Đặt tên cho rubric.';
     else if (name.length > 200) errors.name = 'Tên tối đa 200 ký tự.';
     // Lưu cùng một tên là tạo phiên bản KẾ TIẾP của rubric đó và sinh lại key từ mô tả — đúng cái bẫy mà
-    // form này tồn tại để tránh. Muốn sửa rubric có sẵn thì chọn nó rồi bấm "Sửa trần".
+    // form này tồn tại để tránh. Muốn sửa rubric có sẵn thì chọn nó rồi bấm "Sửa tiêu chí & điểm tối đa".
     else if (meta.existingNames.includes(name)) {
-      errors.name = 'Đã có rubric tên này — chọn nó ở trên rồi bấm "Sửa trần" thay vì tạo lại.';
+      errors.name = 'Đã có rubric tên này — chọn nó ở trên rồi bấm “Sửa tiêu chí & điểm tối đa” thay vì tạo lại.';
     }
   }
 
@@ -143,7 +126,7 @@ export function buildSaveInput(
   };
 }
 
-/** Khoá của tiêu chí có sẵn mà bản mới không còn — luật trỏ vào chúng sẽ báo "lệch tiêu chí". */
+/** Khoá của tiêu chí có sẵn mà bản mới không còn — lỗi gắn với chúng sẽ thành lỗi mồ côi (cần chuyển sang tiêu chí khác). */
 export function removedKeys(original: Rubric | undefined, rows: CriterionRow[]): string[] {
   if (!original) return [];
   const kept = new Set(rows.filter((r) => r.existing).map((r) => r.key));
