@@ -1,20 +1,19 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { Roles } from '../../auth/roles.decorator';
 import { RolesGuard } from '../../auth/roles.guard';
 import { CriterionWaiverService } from './criterion-waiver.service';
 import { CriterionWaiverDto } from './dto/criterion-waiver.dto';
-import { PriceBodyDto } from './dto/price-body.dto';
 import { RuleBodyDto, RuleChangesDto, RulePreviewDto } from './dto/rule-body.dto';
 import { RuleStateDto } from './dto/rule-state.dto';
 import { ErrorRuleService } from './error-rule.service';
-import { PriceService } from './price.service';
 import { parseDeduction, parseRuleChanges, parseRuleInput } from './rule-input';
 
 /**
- * Bảng lỗi, bảng giá, đánh dấu tiêu chí của CHÍNH người gọi (§2.1 *"khoá theo giảng viên"*). Không
+ * Bảng lỗi, đánh dấu tiêu chí của CHÍNH người gọi (§2.1 *"khoá theo giảng viên"*). Không
  * route nào nhận `teacherId` từ body; luật / rubric của người khác → 404 (T-POL-8).
+ * Giá theo dòng áp dụng chuyển sang `/rubric-errors/:id/price` (Task A9).
  *
  * Route tĩnh (`rules/missing`, `rules/preview`) khai TRƯỚC `rules/:id`.
  */
@@ -23,7 +22,6 @@ import { parseDeduction, parseRuleChanges, parseRuleInput } from './rule-input';
 export class RulesController {
   constructor(
     private readonly rules: ErrorRuleService,
-    private readonly prices: PriceService,
     private readonly waivers: CriterionWaiverService,
   ) {}
 
@@ -69,21 +67,6 @@ export class RulesController {
   @HttpCode(200)
   setState(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request, @Body() dto: RuleStateDto) {
     return this.rules.setState(req.user!.sub, id, dto.state);
-  }
-
-  /** *"Lưu thì điều gì xảy ra"* (spec UI 3.1, T-POL-5) — KHÔNG ghi. */
-  @Post('rules/:id/price/preview')
-  @Roles('teacher')
-  @HttpCode(200)
-  pricePreview(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request, @Body() dto: PriceBodyDto) {
-    return this.prices.preview(req.user!.sub, id, parseDeduction(dto.deduction));
-  }
-
-  /** Một phiên bản bảng giá mới + tính lại mọi bài chưa chốt dính luật đó (§2.2). */
-  @Put('rules/:id/price')
-  @Roles('teacher')
-  setPrice(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request, @Body() dto: PriceBodyDto) {
-    return this.prices.setPrice(req.user!.sub, id, parseDeduction(dto.deduction), req.user!.sub);
   }
 
   @Get('rubrics/:id/criterion-waivers')

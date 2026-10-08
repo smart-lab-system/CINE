@@ -24,6 +24,10 @@ export async function seedInvestigatorSession(ds: DataSource, ctx: SeedSession):
   return { bundleId: b.id };
 }
 
+/**
+ * Luật + dòng áp dụng ở MỌI rubric của giảng viên đang có tiêu chí `criterionKey` (gọi SAU khi tiêu chí đã
+ * có — `seedInvestigatorSession` trước). Trùng hành vi cũ: "luật áp cho rubric nào có khoá đó".
+ */
 export async function seedRule(
   ds: DataSource,
   teacherId: string,
@@ -31,20 +35,20 @@ export async function seedRule(
   criterionKey: string,
   predicate: object | null = null,
 ): Promise<{ ruleId: string; revisionId: string }> {
-  const [r] = await ds.query(
-    `INSERT INTO examcollect.error_rule (teacher_id, rule_key, origin, state) VALUES ($1, $2, 'teacher', 'active') RETURNING id`,
-    [teacherId, ruleKey],
+  const rule = await seedRuleOnly(ds, teacherId, ruleKey, predicate);
+  await ds.query(
+    `INSERT INTO examcollect.rubric_error (teacher_id, rubric_name, error_rule_id, criterion_key)
+     SELECT DISTINCT $1::uuid, rb.name, $2::uuid, $3::text
+       FROM examcollect.rubric rb
+       JOIN examcollect.rubric_criterion rc ON rc.rubric_id = rb.id AND rc.key = $3
+      WHERE rb.teacher_id = $1
+     ON CONFLICT (teacher_id, rubric_name, error_rule_id) DO NOTHING`,
+    [teacherId, rule.ruleId, criterionKey],
   );
-  const [v] = await ds.query(
-    `INSERT INTO examcollect.error_rule_revision (error_rule_id, revision, name, description, criterion_key, predicate, created_by)
-     VALUES ($1, 1, $2, $2, $3, $4, $5) RETURNING id`,
-    [r.id, ruleKey, criterionKey, predicate === null ? null : JSON.stringify(predicate), teacherId],
-  );
-  await ds.query(`UPDATE examcollect.error_rule SET current_revision_id = $2 WHERE id = $1`, [r.id, v.id]);
-  return { ruleId: r.id, revisionId: v.id };
+  return rule;
 }
 
-/** Phiên bản bảng giá mới của giảng viên với ĐÚNG các giá đã cho (luật không có dòng = chưa giá). */
+/** Phiên bản bảng giá mới: mỗi luật nhận giá đã cho ở MỌI dòng áp dụng đang dùng của nó (luật không có = chưa giá). */
 export async function seedPrices(ds: DataSource, teacherId: string, prices: Record<string, string | null>): Promise<string> {
   const [{ next }] = await ds.query(
     `SELECT COALESCE(MAX(version), 0) + 1 AS next FROM examcollect.price_table_version WHERE teacher_id = $1`,
@@ -56,11 +60,13 @@ export async function seedPrices(ds: DataSource, teacherId: string, prices: Reco
   );
   for (const [ruleId, deduction] of Object.entries(prices)) {
     await ds.query(
-      `INSERT INTO examcollect.rule_price (price_table_version_id, error_rule_id, teacher_id, deduction) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO examcollect.rubric_error_price (price_table_version_id, rubric_error_id, teacher_id, deduction)
+       SELECT $1, re.id, $3, $4 FROM examcollect.rubric_error re
+        WHERE re.error_rule_id = $2 AND re.teacher_id = $3 AND re.removed_at IS NULL`,
       [v.id, ruleId, teacherId, deduction],
     );
   }
-  return v.id;
+  return v.id as string;
 }
 
 /**

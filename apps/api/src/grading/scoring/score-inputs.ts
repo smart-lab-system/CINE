@@ -55,10 +55,14 @@ export async function latestComputationRow(
     : null;
 }
 
-/** Luật ĐANG DÙNG của giảng viên, giá ở `priceVersionId` (null = chưa có bảng giá: mọi luật chưa giá). */
+/**
+ * Lỗi ĐANG DÙNG trong MỘT rubric (theo tên, mọi phiên bản), giá ở `priceVersionId` (null = chưa có bảng giá:
+ * mọi lỗi chưa giá). Kiểu trả về giữ nguyên `RuleSnapshot` — lõi tính điểm không biết lỗi đến từ đâu.
+ */
 export async function loadRuleSnapshots(
   m: EntityManager,
   teacherId: string,
+  rubricName: string,
   priceVersionId: string | null,
 ): Promise<RuleSnapshot[]> {
   const rows: {
@@ -69,13 +73,14 @@ export async function loadRuleSnapshots(
     predicate: RulePredicate | null;
     deduction: string | null;
   }[] = await m.query(
-    `SELECT r.id AS rule_id, v.id AS revision_id, r.rule_key, v.criterion_key, v.predicate, p.deduction
-       FROM examcollect.error_rule r
+    `SELECT r.id AS rule_id, v.id AS revision_id, r.rule_key, re.criterion_key, v.predicate, p.deduction
+       FROM examcollect.rubric_error re
+       JOIN examcollect.error_rule r ON r.id = re.error_rule_id
        JOIN examcollect.error_rule_revision v ON v.id = r.current_revision_id
-       LEFT JOIN examcollect.rule_price p ON p.error_rule_id = r.id AND p.price_table_version_id = $2
-      WHERE r.teacher_id = $1 AND r.state = 'active'
+       LEFT JOIN examcollect.rubric_error_price p ON p.rubric_error_id = re.id AND p.price_table_version_id = $3
+      WHERE re.teacher_id = $1 AND re.rubric_name = $2 AND re.removed_at IS NULL AND r.state = 'active'
       ORDER BY r.rule_key`,
-    [teacherId, priceVersionId],
+    [teacherId, rubricName, priceVersionId],
   );
   return rows.map((r) => ({
     ruleId: r.rule_id,
@@ -183,6 +188,8 @@ export interface ScoreContext {
   status: string;
   ungradableClass: 'system' | 'submission' | null;
   rubricId: string;
+  /** Tên rubric (ổn định qua phiên bản) — nạp lỗi theo dòng áp dụng, không theo id phiên bản. */
+  rubricName: string;
   attemptId: string | null;
   stored: StoredInvestigation | null;
   bundleId: string | null;
@@ -205,10 +212,11 @@ export async function loadScoreContext(
   const [row] = await m.query(
     `SELECT g.pipeline, g.status, g.ungradable_class, g.rubric_id_version, g.current_attempt_id,
             s.exam_session_id, es.teacher_id, es.test_bundle_id,
-            a.outcome AS attempt_outcome, a.investigation
+            rb.name AS rubric_name, a.outcome AS attempt_outcome, a.investigation
        FROM examcollect.grading_result g
        JOIN examcollect.submission s ON s.id = g.submission_id
        JOIN examcollect.exam_session es ON es.id = s.exam_session_id
+       JOIN examcollect.rubric rb ON rb.id = g.rubric_id_version
        LEFT JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id
       WHERE g.id = $1`,
     [resultId],
@@ -249,6 +257,7 @@ export async function loadScoreContext(
     status: row.status,
     ungradableClass: row.ungradable_class,
     rubricId: row.rubric_id_version,
+    rubricName: row.rubric_name,
     attemptId: row.current_attempt_id,
     stored: storedOverride ?? (row.attempt_outcome === 'graded' ? readStoredInvestigation(row.investigation) : null),
     bundleId: row.test_bundle_id,

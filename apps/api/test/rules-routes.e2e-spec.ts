@@ -67,23 +67,6 @@ describe('Route bảng lỗi và bảng giá (e2e)', () => {
     expect(list.body.map((r: { ruleKey: string }) => r.ruleKey)).not.toContain('xem_truoc');
   });
 
-  it('xem trước giá không sinh phiên bản; lưu giá sinh đúng một; giảng viên khác → 404; giá là number → 400', async () => {
-    const created = await request(app.getHttpServer()).post('/rules').set(as(tokenA)).send(rule('gia_bien'));
-    const id = created.body.ruleId as string;
-    const versions = async () =>
-      (await ds.query(`SELECT count(*)::int AS n FROM examcollect.price_table_version WHERE teacher_id = $1`, [idA]))[0].n as number;
-    const before = await versions();
-    const preview = await request(app.getHttpServer()).post(`/rules/${id}/price/preview`).set(as(tokenA)).send({ deduction: '1.00' });
-    expect(preview.status).toBe(200);
-    expect(preview.body).toEqual({ openSessions: [], finalizedSessions: [] });
-    expect(await versions()).toBe(before);
-    const put = await request(app.getHttpServer()).put(`/rules/${id}/price`).set(as(tokenA)).send({ deduction: '1.00' });
-    expect(put.status).toBe(200);
-    expect(await versions()).toBe(before + 1);
-    expect((await request(app.getHttpServer()).put(`/rules/${id}/price`).set(as(tokenB)).send({ deduction: '2.00' })).status).toBe(404);
-    expect((await request(app.getHttpServer()).put(`/rules/${id}/price`).set(as(tokenA)).send({ deduction: 1.5 })).status).toBe(400);
-  });
-
   it('sửa luật, đổi trạng thái qua route', async () => {
     const created = await request(app.getHttpServer()).post('/rules').set(as(tokenA)).send(rule('doi_ten', null));
     const id = created.body.ruleId as string;

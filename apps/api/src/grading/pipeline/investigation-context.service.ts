@@ -35,11 +35,12 @@ export class InvestigationContextService {
   async build(resultId: string): Promise<BuiltContext> {
     const [row] = await this.ds.query(
       `SELECT s.storage_key, s.exam_session_id, es.teacher_id, es.test_bundle_id,
-              rd.required_filename, rd.language
+              rd.required_filename, rd.language, rb.name AS rubric_name
          FROM examcollect.grading_result g
          JOIN examcollect.submission s ON s.id = g.submission_id
          JOIN examcollect.exam_session es ON es.id = s.exam_session_id
          JOIN examcollect.required_deliverable rd ON rd.id = s.required_deliverable_id
+         JOIN examcollect.rubric rb ON rb.id = g.rubric_id_version
         WHERE g.id = $1`,
       [resultId],
     );
@@ -74,7 +75,7 @@ export class InvestigationContextService {
         WHERE bundle_id = $1 AND auto_dropped_reason IS NULL ORDER BY case_key`,
       [row.test_bundle_id],
     );
-    const { entries, ruleTable } = await loadRuleEntries(this.ds.manager, row.teacher_id);
+    const { entries, ruleTable } = await loadRuleEntries(this.ds.manager, row.teacher_id, row.rubric_name);
 
     return {
       kind: 'ok',

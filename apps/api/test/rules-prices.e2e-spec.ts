@@ -6,7 +6,15 @@ import { ErrorRuleService } from '../src/grading/rules/error-rule.service';
 import { PriceService } from '../src/grading/rules/price.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { seedSession } from './helpers/grading-seed';
-import { seedInvestigatorResult, seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
+import {
+  assignmentId,
+  rubricNameOf,
+  seedInvestigatorResult,
+  seedInvestigatorSession,
+  seedPrices,
+  seedRule,
+  storedWith,
+} from './helpers/investigator-seed';
 
 const SEEN = [
   { ruleKey: 'sai_bien', checkedBy: 'machine' as const },
@@ -73,13 +81,14 @@ describe('Luật và giá (e2e)', () => {
     expect(await ds.query(`SELECT 1 FROM examcollect.score_computation WHERE grading_result_id = $1`, [a.resultId])).toHaveLength(1);
   });
 
-  it('T-VER-1: sửa giá hai lần → hai phiên bản mới, mỗi bản chép đủ bảng; dòng cũ không đổi', async () => {
+  it('T-VER-1: sửa giá hai lần (theo dòng áp dụng) → hai phiên bản mới, mỗi bản chép đủ bảng; dòng cũ không đổi', async () => {
     const { ctx, bien, ten } = await world('rr-ver');
-    await prices.setPrice(ctx.teacherId, bien.ruleId, '2.00', ctx.teacherId);
-    await prices.setPrice(ctx.teacherId, ten.ruleId, '0.75', ctx.teacherId);
+    const name = await rubricNameOf(ds, ctx.rubricId);
+    await prices.setPrice(ctx.teacherId, await assignmentId(ds, ctx.teacherId, name, bien.ruleId), '2.00', ctx.teacherId);
+    await prices.setPrice(ctx.teacherId, await assignmentId(ds, ctx.teacherId, name, ten.ruleId), '0.75', ctx.teacherId);
     const rows = await ds.query(
       `SELECT v.version, p.deduction FROM examcollect.price_table_version v
-         JOIN examcollect.rule_price p ON p.price_table_version_id = v.id
+         JOIN examcollect.rubric_error_price p ON p.price_table_version_id = v.id
         WHERE v.teacher_id = $1 ORDER BY v.version, p.deduction`,
       [ctx.teacherId],
     );
@@ -93,7 +102,11 @@ describe('Luật và giá (e2e)', () => {
     const extra = await seedRule(ds, ctx.teacherId, 'bien_2', 'trinh_bay', { kind: 'test_group_failed', group: 'bien' });
     for (let i = 0; i < 2; i++) await scores.computeInitial((await seedInvestigatorResult(ds, ctx, storedWith(SEEN))).resultId);
     const [{ n: before }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.score_computation`);
-    const p = await prices.preview(ctx.teacherId, extra.ruleId, '0.25');
+    const p = await prices.preview(
+      ctx.teacherId,
+      await assignmentId(ds, ctx.teacherId, await rubricNameOf(ds, ctx.rubricId), extra.ruleId),
+      '0.25',
+    );
     expect(p.openSessions).toEqual([
       { sessionId: ctx.sessionId, name: expect.any(String), affected: 2, autoAfter: 2, blockedByOtherUnpriced: 0 },
     ]);
@@ -108,9 +121,10 @@ describe('Luật và giá (e2e)', () => {
   it('T-POL-8: giá và bản sửa trên luật của giảng viên khác → 404', async () => {
     const A = await world('rr-a');
     const B = await world('rr-b');
-    await expect(prices.setPrice(B.ctx.teacherId, A.bien.ruleId, '1.00', B.ctx.teacherId)).rejects.toThrow(/Không tìm thấy luật/);
+    const aBien = await assignmentId(ds, A.ctx.teacherId, await rubricNameOf(ds, A.ctx.rubricId), A.bien.ruleId);
+    await expect(prices.setPrice(B.ctx.teacherId, aBien, '1.00', B.ctx.teacherId)).rejects.toThrow(/Không tìm thấy lỗi trong rubric/);
     await expect(rules.revise(B.ctx.teacherId, A.bien.ruleId, { name: 'x' })).rejects.toThrow(/Không tìm thấy luật/);
-    await expect(prices.preview(B.ctx.teacherId, A.bien.ruleId, '1.00')).rejects.toThrow(/Không tìm thấy luật/);
+    await expect(prices.preview(B.ctx.teacherId, aBien, '1.00')).rejects.toThrow(/Không tìm thấy lỗi trong rubric/);
   });
 
   it('list: appliedTo đếm bài của lượt tính mới nhất; trùng ruleKey → 409', async () => {

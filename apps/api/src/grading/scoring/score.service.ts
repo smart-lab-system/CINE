@@ -267,14 +267,15 @@ export class ScoreService {
   /**
    * Lượt tính lại TẦNG LUẬT cho mọi bài chưa chốt của một giảng viên, trong transaction của người
    * gọi. `ruleId` → chỉ bài mà lượt tính mới nhất có lỗi của luật đó; `rubricId` → chỉ bài của
-   * rubric đó. Bài chấm tay không bao giờ tính lại (§2.2).
+   * rubric đó; `rubricName` → chỉ bài của mọi phiên bản rubric mang tên đó. Bài chấm tay không
+   * bao giờ tính lại (§2.2).
    */
   async recomputeForTeacher(
     m: EntityManager,
     teacherId: string,
     reason: ScoreComputationReason,
     actorId: string | null,
-    scope: { ruleId?: string; rubricId?: string; sessionId?: string; exceptResultId?: string } = {},
+    scope: { ruleId?: string; rubricId?: string; rubricName?: string; sessionId?: string; exceptResultId?: string } = {},
   ): Promise<RecomputeSummary> {
     await lockTeacherScoring(m, teacherId);
     const ids: { id: string }[] = await m.query(
@@ -291,13 +292,15 @@ export class ScoreService {
           AND ($2::uuid IS NULL OR g.rubric_id_version = $2)
           AND ($4::uuid IS NULL OR s.exam_session_id = $4)
           AND ($5::uuid IS NULL OR g.id <> $5)
+          AND ($6::text IS NULL OR g.rubric_id_version IN (
+                SELECT id FROM examcollect.rubric WHERE teacher_id = $1 AND name = $6))
           AND ($3::uuid IS NULL OR EXISTS (
                 SELECT 1 FROM (SELECT c.breakdown FROM examcollect.score_computation c
                                 WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) last
                  WHERE last.breakdown -> 'errors' @> jsonb_build_array(jsonb_build_object('ruleId', $3::text))))
         ORDER BY g.id
         FOR UPDATE OF g`,
-      [teacherId, scope.rubricId ?? null, scope.ruleId ?? null, scope.sessionId ?? null, scope.exceptResultId ?? null],
+      [teacherId, scope.rubricId ?? null, scope.ruleId ?? null, scope.sessionId ?? null, scope.exceptResultId ?? null, scope.rubricName ?? null],
     );
     const sum: RecomputeSummary = { recomputed: 0, promoted: 0, demoted: 0, belowFloor: 0 };
     for (const { id } of ids) {
@@ -403,8 +406,17 @@ export class ScoreService {
       throw new ConflictException('Phiên chưa chốt — giá mới đã tự áp cho phiên chưa chốt');
     }
     const price = await currentPriceVersion(m, teacherId);
+    // Giá của riêng rubric của phiên này (§3.4 spec rules-by-rubric): bảng giá chứa dòng của mọi rubric.
     const priceRows: { error_rule_id: string; deduction: string | null }[] = price
-      ? await m.query(`SELECT error_rule_id, deduction FROM examcollect.rule_price WHERE price_table_version_id = $1`, [price.id])
+      ? await m.query(
+          `SELECT re.error_rule_id, p.deduction
+             FROM examcollect.exam_session es
+             JOIN examcollect.rubric rb ON rb.id = es.rubric_id
+             JOIN examcollect.rubric_error re ON re.teacher_id = es.teacher_id AND re.rubric_name = rb.name AND re.removed_at IS NULL
+             JOIN examcollect.rubric_error_price p ON p.rubric_error_id = re.id AND p.price_table_version_id = $2
+            WHERE es.id = $1`,
+          [sessionId, price.id],
+        )
       : [];
     const prices = new Map(priceRows.map((p) => [p.error_rule_id, p.deduction === null ? null : parseHundredths(p.deduction)]));
     const rows: { id: string; score: string; computation_id: string; price_id: string | null; breakdown: ScoreBreakdown }[] =
@@ -473,7 +485,7 @@ export class ScoreService {
   ): Promise<Computed> {
     if (!ctx.stored) throw new Error(`kết quả ${ctx.resultId} không có lượt chấm graded`);
     const price = await currentPriceVersion(m, ctx.teacherId);
-    const rules = await loadRuleSnapshots(m, ctx.teacherId, price?.id ?? null);
+    const rules = await loadRuleSnapshots(m, ctx.teacherId, ctx.rubricName, price?.id ?? null);
     const out = computeScore({
       stored: ctx.stored,
       bundleCases: ctx.bundleCases,
