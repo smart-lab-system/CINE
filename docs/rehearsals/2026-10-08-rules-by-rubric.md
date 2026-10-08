@@ -2,19 +2,33 @@
 
 ## Status
 
-**Chờ chạy trên môi trường diễn tập (Railway)** — Plan A Task A11 §7.7 / D12.
+**Blocked local (2026-10-08):** không chạy được rehearsal thật trên máy này.
 
-Backend Plan A (A0–A10) đã xanh trên e2e rules-related (16 suites / 88 tests) và đã regenerate OpenAPI client (`/rubric-errors*`, `/rules/{id}/split`; bỏ `/rules/preview` và `/rules/{id}/price`).
+| Điều kiện | Local hiện tại |
+|---|---|
+| API `:4000` + Postgres/Redis/MinIO | OK |
+| `GRADING_TIER*_API_KEY` / model | **commented / trống** trong `apps/api/.env` |
+| Sandbox worker process/container | **không chạy** |
+| So với lần trước | Có baseline `apps/api/eval/rehearsals/README.md` (2026-09-28) |
 
-## Cách chạy (cần tài khoản + REHEARSAL_BASE_URL)
+Backend Plan A (A0–A11 code + OpenAPI) đã commit. E2e rules-related: 16 suites / 88 tests xanh.
+
+**Plan B web** bắt đầu vì điều kiện mở plan B là *OpenAPI regenerated and committed* (A11 step 1) — đã có ở `da23e3d`. Rehearsal D12 vẫn cần chạy khi có key + sandbox (local hoặc Railway); ghi số vào bảng dưới khi có.
+
+## Cách chạy khi đủ điều kiện
 
 ```powershell
-pnpm --filter api rehearsal
+$env:REHEARSAL_BASE_URL = "http://localhost:4000"   # hoặc URL Railway
+$env:REHEARSAL_EMAIL = "..."
+$env:REHEARSAL_PASSWORD = "..."
+$env:REHEARSAL_CLASS_ID = "..."
+pnpm --filter api rehearsal -- --scenario ngan-xep-v1 --deploy <sha|local> --note "rules-by-rubric A11 gate"
 ```
 
-Ghi kết quả vào bảng so với lần diễn tập trước: score accuracy, error recall/precision, auto/review, false/missed flags, lens failures, wall time. Kỳ vọng: **không đổi** hành vi chấm (D12).
+So với lượt `20260928T094907Z-f83a05c` (điểm 5/5, lỗi 8/8). Kỳ vọng D12: không đổi hành vi chấm.
 
-## Ghi chú
+## Kết quả lượt này
 
-- Không coi e2e xanh là đủ để mở Plan B web — cần dòng này có số liệu thật.
-- `apps/web` có thể type-check đỏ sau OpenAPI regen; Plan B Task B1 cắt lại UI.
+| Lượt | Bản chạy | Điểm đúng | Lỗi bắt | Quyết định | Ghi chú |
+|---|---|---|---|---|---|
+| — | — | — | — | — | chưa chạy — thiếu model key + sandbox worker |
