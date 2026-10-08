@@ -41,6 +41,7 @@ import { RubricErrorService } from './rules/rubric-error.service';
 import { RubricOverviewService } from './rules/rubric-overview.service';
 import { ErrorExceptionService } from './review/error-exception.service';
 import { CriterionWaiverService } from './rules/criterion-waiver.service';
+import { RubricErrorsController } from './rules/rubric-errors.controller';
 import { RulesController } from './rules/rules.controller';
 import { TestBundleController } from './test-bundle/test-bundle.controller';
 import { TestBundleService } from './test-bundle/test-bundle.service';
@@ -141,7 +142,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     // Chấm điểm chạy trên hàng đợi: một job một bài (CLAUDE.md §7.1.3).
     BullModule.registerQueue({ name: GRADING_QUEUE }),
   ],
-  controllers: [GradingController, RulesController, TestBundleController],
+  controllers: [GradingController, RulesController, RubricErrorsController, TestBundleController],
   providers: [
     GradingService,
     TestBundleService,

@@ -6,6 +6,7 @@ import { RolesGuard } from '../../auth/roles.guard';
 import { CriterionWaiverService } from './criterion-waiver.service';
 import { CriterionWaiverDto } from './dto/criterion-waiver.dto';
 import { RuleChangesDto } from './dto/rule-body.dto';
+import { SplitRuleDto } from './dto/rubric-error.dto';
 import { RuleStateDto } from './dto/rule-state.dto';
 import { ErrorRuleService } from './error-rule.service';
 import { ProposalService } from './proposal.service';
@@ -43,6 +44,15 @@ export class RulesController {
   @Roles('teacher')
   revise(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request, @Body() dto: RuleChangesDto) {
     return this.rules.revise(req.user!.sub, id, parseRuleChanges(dto));
+  }
+
+  @Post('rules/:id/split')
+  @Roles('teacher')
+  split(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request, @Body() dto: SplitRuleDto) {
+    return this.rules.split(req.user!.sub, id, {
+      rubricName: dto.rubricName,
+      changes: parseRuleChanges(dto.changes ?? {}),
+    });
   }
 
   @Post('rules/:id/state')
