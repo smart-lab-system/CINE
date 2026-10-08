@@ -38,6 +38,7 @@ import { ErrorRuleService } from './rules/error-rule.service';
 import { PriceService } from './rules/price.service';
 import { ProposalService } from './rules/proposal.service';
 import { RubricErrorService } from './rules/rubric-error.service';
+import { RubricOverviewService } from './rules/rubric-overview.service';
 import { ErrorExceptionService } from './review/error-exception.service';
 import { CriterionWaiverService } from './rules/criterion-waiver.service';
 import { RulesController } from './rules/rules.controller';
@@ -167,6 +168,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     ErrorRuleService,
     RubricErrorService,
     ProposalService,
+    RubricOverviewService,
     PriceService,
     ErrorExceptionService,
     CriterionWaiverService,
