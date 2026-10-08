@@ -52,6 +52,8 @@ export function useSaveRubric() {
     }) => saveRubric(input.name, input.criteria),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['rubrics'] });
+      // Rubric mới / sửa tiêu chí đổi cả tổng quan Bảng lỗi (ô chọn, đếm tiêu chí, lỗi mồ côi).
+      void queryClient.invalidateQueries({ queryKey: ['rubric-errors'] });
     },
   });
 }
