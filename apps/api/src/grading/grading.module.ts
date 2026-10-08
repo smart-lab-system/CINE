@@ -19,6 +19,9 @@ import { SubmissionTextService } from './submission-text.service';
 import { GradingReferenceEntity } from './entities/grading-reference.entity';
 import { GradingAnchorSnapshotEntity } from './entities/grading-anchor-snapshot.entity';
 import { GradingAttemptEntity } from './entities/grading-attempt.entity';
+import { RubricErrorEntity } from './entities/rubric-error.entity';
+import { RubricErrorPriceEntity } from './entities/rubric-error-price.entity';
+import { ErrorRuleSightingEntity } from './entities/error-rule-sighting.entity';
 import { AnchorService } from './anchor.service';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
@@ -124,6 +127,9 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
       GradingAnchorSnapshotEntity,
       ExamMaterialEntity,
       GradingAttemptEntity,
+      RubricErrorEntity,
+      RubricErrorPriceEntity,
+      ErrorRuleSightingEntity,
     ]),
     StorageModule,
     ExamSessionModule,

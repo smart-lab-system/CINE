@@ -87,7 +87,8 @@ export class ErrorRuleService {
       const next = {
         name: changes.name ?? current.name,
         description: changes.description ?? current.description,
-        criterionKey: changes.criterionKey ?? current.criterionKey,
+        // criterion_key đã nới NULL (A1); tới A5 tiêu chí thuộc dòng áp dụng — tạm giữ chỗ cũ nếu thiếu.
+        criterionKey: changes.criterionKey ?? current.criterionKey ?? 'chua_gan',
         predicate: changes.predicate !== undefined ? changes.predicate : current.predicate,
       };
       const rev = await this.insertRevision(m, rule.id, current.revision + 1, next, teacherId);

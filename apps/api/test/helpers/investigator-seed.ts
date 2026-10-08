@@ -91,6 +91,84 @@ export function storedWith(
   };
 }
 
+/** Luật + bản sửa 1, `criterion_key = NULL` (mô hình mới), KHÔNG dòng áp dụng. */
+export async function seedRuleOnly(
+  ds: DataSource,
+  teacherId: string,
+  ruleKey: string,
+  predicate: object | null = null,
+  state: 'active' | 'proposed' = 'active',
+): Promise<{ ruleId: string; revisionId: string }> {
+  const [r] = await ds.query(
+    `INSERT INTO examcollect.error_rule (teacher_id, rule_key, origin, state) VALUES ($1, $2, 'teacher', $3) RETURNING id`,
+    [teacherId, ruleKey, state],
+  );
+  const [v] = await ds.query(
+    `INSERT INTO examcollect.error_rule_revision (error_rule_id, revision, name, description, predicate, created_by)
+     VALUES ($1, 1, $2, $2, $3, $4) RETURNING id`,
+    [r.id, ruleKey, predicate === null ? null : JSON.stringify(predicate), teacherId],
+  );
+  await ds.query(`UPDATE examcollect.error_rule SET current_revision_id = $2 WHERE id = $1`, [r.id, v.id]);
+  return { ruleId: r.id, revisionId: v.id };
+}
+
+/** Một dòng áp dụng: lỗi `ruleId` nằm trong rubric `rubricName` thuộc tiêu chí `criterionKey`. */
+export async function seedAssignment(
+  ds: DataSource,
+  teacherId: string,
+  rubricName: string,
+  ruleId: string,
+  criterionKey: string,
+): Promise<string> {
+  const [row] = await ds.query(
+    `INSERT INTO examcollect.rubric_error (teacher_id, rubric_name, error_rule_id, criterion_key) VALUES ($1, $2, $3, $4) RETURNING id`,
+    [teacherId, rubricName, ruleId, criterionKey],
+  );
+  return row.id as string;
+}
+
+/** Phiên bản giá mới với ĐÚNG các giá theo DÒNG ÁP DỤNG (dòng không có = chưa giá). */
+export async function seedAssignmentPrices(
+  ds: DataSource,
+  teacherId: string,
+  prices: Record<string, string | null>,
+): Promise<string> {
+  const [{ next }] = await ds.query(
+    `SELECT COALESCE(MAX(version), 0) + 1 AS next FROM examcollect.price_table_version WHERE teacher_id = $1`,
+    [teacherId],
+  );
+  const [v] = await ds.query(
+    `INSERT INTO examcollect.price_table_version (teacher_id, version, created_by) VALUES ($1, $2, $1) RETURNING id`,
+    [teacherId, next],
+  );
+  for (const [rubricErrorId, deduction] of Object.entries(prices)) {
+    await ds.query(
+      `INSERT INTO examcollect.rubric_error_price (price_table_version_id, rubric_error_id, teacher_id, deduction) VALUES ($1, $2, $3, $4)`,
+      [v.id, rubricErrorId, teacherId, deduction],
+    );
+  }
+  return v.id as string;
+}
+
+export async function assignmentId(
+  ds: DataSource,
+  teacherId: string,
+  rubricName: string,
+  ruleId: string,
+): Promise<string> {
+  const [row] = await ds.query(
+    `SELECT id FROM examcollect.rubric_error WHERE teacher_id = $1 AND rubric_name = $2 AND error_rule_id = $3`,
+    [teacherId, rubricName, ruleId],
+  );
+  if (!row) throw new Error(`không có dòng áp dụng của luật ${ruleId} trong rubric "${rubricName}"`);
+  return row.id as string;
+}
+
+export async function rubricNameOf(ds: DataSource, rubricId: string): Promise<string> {
+  const [row] = await ds.query(`SELECT name FROM examcollect.rubric WHERE id = $1`, [rubricId]);
+  return row.name as string;
+}
+
 /** Kết quả đường điều tra ở `ai_grading`, có lượt chấm `graded` mang hồ sơ đã cho. */
 export async function seedInvestigatorResult(
   ds: DataSource,

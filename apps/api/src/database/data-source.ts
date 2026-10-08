@@ -28,6 +28,9 @@ import { ErrorRuleEntity } from '../grading/entities/error-rule.entity';
 import { ErrorRuleRevisionEntity } from '../grading/entities/error-rule-revision.entity';
 import { PriceTableVersionEntity } from '../grading/entities/price-table-version.entity';
 import { RulePriceEntity } from '../grading/entities/rule-price.entity';
+import { RubricErrorEntity } from '../grading/entities/rubric-error.entity';
+import { RubricErrorPriceEntity } from '../grading/entities/rubric-error-price.entity';
+import { ErrorRuleSightingEntity } from '../grading/entities/error-rule-sighting.entity';
 import { GradingTestBundleEntity } from '../grading/entities/grading-test-bundle.entity';
 import { GradingTestCaseEntity } from '../grading/entities/grading-test-case.entity';
 import { GradingAttemptEntity } from '../grading/entities/grading-attempt.entity';
@@ -123,6 +126,9 @@ export const dataSourceOptions: DataSourceOptions = {
     ErrorRuleRevisionEntity,
     PriceTableVersionEntity,
     RulePriceEntity,
+    RubricErrorEntity,
+    RubricErrorPriceEntity,
+    ErrorRuleSightingEntity,
     GradingTestBundleEntity,
     GradingTestCaseEntity,
     GradingAttemptEntity,
