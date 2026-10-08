@@ -92,13 +92,32 @@ const since = (t0: number) => Math.round((Date.now() - t0) / 100) / 10;
 async function ensureRubricAndRules(s: RehearsalScenario): Promise<string> {
   const rubrics = itemsOf<{ id: string; name: string }>(await api('GET', '/rubrics'));
   const rubric = rubrics.find((r) => r.name === s.rubric.name) ?? (await api<{ id: string }>('POST', '/rubrics', s.rubric));
-  const existing = itemsOf<{ id: string; ruleKey: string }>(await api('GET', '/rules'));
+  // Lỗi đã có ở rubric này (theo ruleKey) thì bỏ qua; lỗi đã có trong thư viện nhưng chưa áp thì thêm bằng ruleId.
+  const here = itemsOf<{ ruleKey: string }>(
+    await api('GET', `/rubric-errors?rubricName=${encodeURIComponent(s.rubric.name)}`),
+  );
+  const library = itemsOf<{ id: string; ruleKey: string }>(await api('GET', '/rules'));
   for (const rule of s.rules) {
-    if (existing.some((r) => r.ruleKey === rule.ruleKey)) continue;
-    const { price, ...body } = rule;
-    const created = await api<{ id: string }>('POST', '/rules', body);
-    await api('PUT', `/rules/${created.id}/price`, { deduction: price });
-    console.log(`  + luật ${rule.ruleKey}`);
+    if (here.some((r) => r.ruleKey === rule.ruleKey)) continue;
+    const known = library.find((r) => r.ruleKey === rule.ruleKey);
+    const base = { rubricName: s.rubric.name, criterionKey: rule.criterionKey, deduction: String(rule.price) };
+    await api(
+      'POST',
+      '/rubric-errors',
+      known
+        ? { ...base, ruleId: known.id }
+        // `ruleKey` tường minh: lệnh diễn tập so kết quả theo khoá cố định của kịch bản.
+        : {
+            ...base,
+            newRule: {
+              ruleKey: rule.ruleKey,
+              name: rule.name,
+              description: rule.description,
+              predicate: rule.predicate,
+            },
+          },
+    );
+    console.log(`  + lỗi ${rule.ruleKey}`);
   }
   return rubric.id;
 }
