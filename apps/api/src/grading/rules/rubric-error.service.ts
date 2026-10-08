@@ -217,6 +217,82 @@ export class RubricErrorService {
     });
   }
 
+  /**
+   * Sao chép các dòng áp dụng CHƯA GỠ của rubric nguồn sang rubric đích, ghép theo `criterion_key` (spec D3):
+   * đích đã có lỗi đó thì bỏ qua; tiêu chí không có ở BẢN MỚI NHẤT của đích thì bỏ qua và đếm. Điểm trừ lấy từ
+   * phiên bản giá hiện hành của nguồn, ghi MỘT phiên bản mới. Sau đó hai rubric độc lập.
+   */
+  async copy(
+    teacherId: string,
+    fromRubricName: string,
+    toRubricName: string,
+    actorId: string = teacherId,
+  ): Promise<{ copied: number; skippedNoCriterion: number; skippedExisting: number; recompute: RecomputeSummary | null }> {
+    if (fromRubricName === toRubricName) throw new BadRequestException('Rubric nguồn và rubric đích phải khác nhau');
+    return this.ds.transaction(async (m) => {
+      await lockTeacherScoring(m, teacherId);
+      await this.assertRubricExists(m, teacherId, fromRubricName);
+      await this.assertRubricExists(m, teacherId, toRubricName);
+      const targetKeys = new Set<string>(
+        (
+          await m.query(
+            `SELECT key FROM examcollect.rubric_criterion
+              WHERE rubric_id = (SELECT id FROM examcollect.rubric WHERE teacher_id = $1 AND name = $2 ORDER BY version DESC LIMIT 1)`,
+            [teacherId, toRubricName],
+          )
+        ).map((r: { key: string }) => r.key),
+      );
+      const sources: { error_rule_id: string; criterion_key: string; deduction: string | null }[] = await m.query(
+        `SELECT re.error_rule_id, re.criterion_key, p.deduction
+           FROM examcollect.rubric_error re
+           JOIN examcollect.error_rule r ON r.id = re.error_rule_id AND r.state = 'active'
+           LEFT JOIN examcollect.rubric_error_price p ON p.rubric_error_id = re.id
+            AND p.price_table_version_id = (SELECT id FROM examcollect.price_table_version WHERE teacher_id = $1 ORDER BY version DESC LIMIT 1)
+          WHERE re.teacher_id = $1 AND re.rubric_name = $2 AND re.removed_at IS NULL
+          ORDER BY re.criterion_key, r.rule_key`,
+        [teacherId, fromRubricName],
+      );
+      let skippedNoCriterion = 0;
+      let skippedExisting = 0;
+      const changes: { rubricErrorId: string; deduction: string | null }[] = [];
+      for (const src of sources) {
+        if (!targetKeys.has(src.criterion_key)) {
+          skippedNoCriterion++;
+          continue;
+        }
+        const [existing] = await m.query(
+          `SELECT id, removed_at FROM examcollect.rubric_error WHERE teacher_id = $1 AND rubric_name = $2 AND error_rule_id = $3`,
+          [teacherId, toRubricName, src.error_rule_id],
+        );
+        if (existing && existing.removed_at === null) {
+          skippedExisting++;
+          continue;
+        }
+        let id: string;
+        if (existing) {
+          await m.query(`UPDATE examcollect.rubric_error SET removed_at = NULL, criterion_key = $2 WHERE id = $1`, [
+            existing.id,
+            src.criterion_key,
+          ]);
+          id = existing.id;
+        } else {
+          const [row] = await m.query(
+            `INSERT INTO examcollect.rubric_error (teacher_id, rubric_name, error_rule_id, criterion_key) VALUES ($1, $2, $3, $4) RETURNING id`,
+            [teacherId, toRubricName, src.error_rule_id, src.criterion_key],
+          );
+          id = row.id;
+        }
+        changes.push({ rubricErrorId: id, deduction: src.deduction });
+      }
+      if (changes.length > 0) await writeNextPriceVersion(m, teacherId, actorId, changes);
+      const recompute =
+        changes.length > 0
+          ? await this.scores.recomputeForTeacher(m, teacherId, 'rule_revision', actorId, { rubricName: toRubricName })
+          : null;
+      return { copied: changes.length, skippedNoCriterion, skippedExisting, recompute };
+    });
+  }
+
   private async assertRubricExists(m: EntityManager, teacherId: string, rubricName: string): Promise<void> {
     const [row] = await m.query(`SELECT 1 FROM examcollect.rubric WHERE teacher_id = $1 AND name = $2 LIMIT 1`, [
       teacherId,
