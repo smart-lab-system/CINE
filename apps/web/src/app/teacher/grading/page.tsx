@@ -12,6 +12,7 @@ import {
   useResultDetails,
 } from '@/hooks/useGrading';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useRulesLink } from '@/hooks/useRulesLink';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { STATE_ORDER, countStates, leverageOf, stateOf, type SessionState } from '@/lib/session-triage';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
@@ -83,6 +84,7 @@ function SessionScreen({
   const progress = useGradingProgress(sessionId);
   const regrade = useRegradeStuck(sessionId);
   const online = useOnlineStatus();
+  const rulesLink = useRulesLink(session.rubricId);
   const [filter, setFilter] = useState<ResultsFilter>(() => (isFilter(initialState) ? initialState : 'all'));
 
   const list = results.data ?? [];
@@ -156,7 +158,7 @@ function SessionScreen({
       ) : (
         <>
           <OverviewBar counts={counts} />
-          <LeverageLine leverage={leverageOf(needsYou, details.byId)} />
+          <LeverageLine leverage={leverageOf(needsYou, details.byId)} rulesHref={rulesLink} />
           <BulkAcceptEssays sessionId={sessionId} results={list} />
           {table}
         </>

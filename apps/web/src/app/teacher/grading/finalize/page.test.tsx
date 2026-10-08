@@ -13,8 +13,9 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/hooks/useSubmissionOverview', () => ({ useSessionOverview: () => h.overview }));
 vi.mock('@/hooks/useGrading', () => ({ useGradingResults: () => h.results }));
+vi.mock('@/hooks/useRulesLink', () => ({ useRulesLink: () => '/teacher/rules?rubric=CTDL' }));
 vi.mock('../_components/FinalizePanel', () => ({
-  FinalizePanel: (props: { results: unknown[] }) => {
+  FinalizePanel: (props: { results: unknown[]; rulesHref?: string }) => {
     h.panelProps.push(props);
     return <div data-testid="finalize-panel">{props.results.length} bài</div>;
   },
@@ -40,6 +41,11 @@ describe('/teacher/grading/finalize', () => {
   it('hands the panel the session\'s results', () => {
     render(<FinalizePage />);
     expect(screen.getByTestId('finalize-panel')).toHaveTextContent('2 bài');
+  });
+
+  it('truyền rulesHref mở đúng rubric sang FinalizePanel', () => {
+    render(<FinalizePage />);
+    expect((h.panelProps[0] as { rulesHref?: string }).rulesHref).toBe('/teacher/rules?rubric=CTDL');
   });
 
   it('without a session in the URL, asks to choose one', () => {

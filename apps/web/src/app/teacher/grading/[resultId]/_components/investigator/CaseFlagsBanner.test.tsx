@@ -26,6 +26,19 @@ describe('CaseFlagsBanner', () => {
     expect(screen.getByRole('link', { name: /Đặt giá/i })).toHaveAttribute('href', '/teacher/rules');
   });
 
+  it('mang ?rubric= khi biết rubric của bài', () => {
+    render(
+      <CaseFlagsBanner
+        caseFlags={[{ code: 'criterion_without_rules', detail: 'x' }]}
+        errorFlags={[{ ruleKey: 'ten_bien', code: 'unpriced' }]}
+        onManualScore={vi.fn()}
+        rulesHref="/teacher/rules?rubric=CTDL"
+      />,
+    );
+    expect(screen.getByRole('link', { name: /Đặt giá/i })).toHaveAttribute('href', '/teacher/rules?rubric=CTDL');
+    expect(screen.getByRole('link', { name: 'Tạo luật cho tiêu chí này' })).toHaveAttribute('href', '/teacher/rules?rubric=CTDL');
+  });
+
   it('offers "Chấm tay bài này" for a flag with no rule-level fix, and calls the handler', () => {
     const onManualScore = vi.fn();
     render(

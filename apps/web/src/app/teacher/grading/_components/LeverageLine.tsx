@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { RULES_PATH } from '@/lib/rules-links';
 
 /**
  * Dòng nhắc đòn bẩy (spec §3.3) — điểm khác cốt lõi so với UI cũ: MỘT thao tác ở tầng luật gỡ được nhiều bài
@@ -12,8 +13,10 @@ import { Button } from '@/components/ui/button';
  */
 export function LeverageLine({
   leverage,
+  rulesHref = RULES_PATH,
 }: {
   leverage: { waiting: number; total: number; ruleKeys: string[] } | null;
+  rulesHref?: string;
 }) {
   if (leverage === null) return null;
   return (
@@ -39,7 +42,7 @@ export function LeverageLine({
         </p>
       </div>
       <Button asChild size="sm">
-        <Link href="/teacher/rules">Đặt giá ở Bảng lỗi</Link>
+        <Link href={rulesHref}>Đặt giá ở Bảng lỗi</Link>
       </Button>
     </div>
   );

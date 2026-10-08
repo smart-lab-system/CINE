@@ -34,4 +34,9 @@ describe('LeverageLine (spec §3.3 — one action at the rule layer clears many 
     render(<LeverageLine leverage={{ waiting: 1, total: 1, ruleKeys: ['x'] }} />);
     expect(screen.getByRole('link', { name: 'Đặt giá ở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules');
   });
+
+  it('liên kết mang ?rubric= khi biết rubric', () => {
+    render(<LeverageLine leverage={{ waiting: 1, total: 1, ruleKeys: ['x'] }} rulesHref="/teacher/rules?rubric=CTDL" />);
+    expect(screen.getByRole('link', { name: 'Đặt giá ở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules?rubric=CTDL');
+  });
 });

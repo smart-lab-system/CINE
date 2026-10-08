@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { caseFlagLabel } from '@/lib/grading-vocab';
+import { RULES_PATH } from '@/lib/rules-links';
 
 /** Mã cờ có lối gỡ Ở TẦNG LUẬT (đưa sang Bảng lỗi) thay vì cần chấm tay. */
 const RULE_FIXABLE = new Set(['criterion_without_rules']);
@@ -12,10 +13,12 @@ export function CaseFlagsBanner({
   caseFlags,
   errorFlags,
   onManualScore,
+  rulesHref = RULES_PATH,
 }: {
   caseFlags: { code: string; detail: string }[];
   errorFlags: { ruleKey: string; code: string }[];
   onManualScore: () => void;
+  rulesHref?: string;
 }) {
   const unpriced = errorFlags.filter((f) => f.code === 'unpriced');
   if (caseFlags.length === 0 && unpriced.length === 0) return null;
@@ -33,7 +36,7 @@ export function CaseFlagsBanner({
               Luật <span className="font-mono">{f.ruleKey}</span> chưa có giá
             </span>
             <Button asChild size="sm" variant="outline">
-              <Link href="/teacher/rules">Đặt giá</Link>
+              <Link href={rulesHref}>Đặt giá</Link>
             </Button>
           </li>
         ))}
@@ -43,7 +46,7 @@ export function CaseFlagsBanner({
               <span>{caseFlagLabel(flag.code, flag.detail)}</span>
               {RULE_FIXABLE.has(flag.code) ? (
                 <Button asChild size="sm" variant="outline">
-                  <Link href="/teacher/rules">Tạo luật cho tiêu chí này</Link>
+                  <Link href={rulesHref}>Tạo luật cho tiêu chí này</Link>
                 </Button>
               ) : (
                 <Button size="sm" variant="outline" onClick={onManualScore}>

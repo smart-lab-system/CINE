@@ -9,6 +9,7 @@ import { useSetErrorException } from '@/hooks/useGrading';
 import { SOURCE_LABEL, VERDICT_LABEL, lensLabel, mergedVerdict } from '@/lib/grading-vocab';
 import { formatVnPoints } from '@/lib/format';
 import type { ResultDetailError, ChallengeVerdict } from '@/lib/api/grading';
+import { RULES_PATH } from '@/lib/rules-links';
 
 /** Trạng thái mà một lỗi vẫn sửa được (§4.3 EDITABLE, review/error-exception.service.ts). */
 const EDITABLE = new Set(['auto_approved', 'flagged_for_review', 'teacher_reviewed']);
@@ -21,6 +22,7 @@ export function ErrorList({
   errorFlags,
   verdicts,
   investigationNotes,
+  rulesHref = RULES_PATH,
 }: {
   resultId: string;
   sessionId: string;
@@ -29,6 +31,7 @@ export function ErrorList({
   errorFlags: { ruleKey: string; code: string }[];
   verdicts: ChallengeVerdict[];
   investigationNotes: { ruleKey: string; toolCallIds: string[]; note: string | null }[];
+  rulesHref?: string;
 }) {
   const setException = useSetErrorException(sessionId);
   const editable = EDITABLE.has(status);
@@ -138,7 +141,7 @@ export function ErrorList({
                   )}
                   {!notCounted && !unverified && (
                     <>
-                      <Link href="/teacher/rules" className="font-medium text-accent-strong hover:underline">
+                      <Link href={rulesHref} className="font-medium text-accent-strong hover:underline">
                         Sửa luật này
                       </Link>
                       <Button

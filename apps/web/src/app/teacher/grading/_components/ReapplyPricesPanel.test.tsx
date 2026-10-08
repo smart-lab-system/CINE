@@ -145,6 +145,15 @@ describe('ReapplyPricesPanel', () => {
       expect(screen.getByRole('link', { name: 'Đặt giá ở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules');
       expect(screen.getByRole('button', { name: /^Áp giá mới/ })).toBeDisabled();
     });
+
+    it('mang ?rubric= khi biết rubric', () => {
+      h.preview = {
+        ...h.preview,
+        data: plan({ skipped: [{ resultId: 'cccccccc-3333', reason: 'unpriced', ruleKeys: ['rong_mang'] }] }),
+      };
+      render(<ReapplyPricesPanel sessionId="s1" rulesHref="/teacher/rules?rubric=CTDL" />);
+      expect(screen.getByRole('link', { name: 'Đặt giá ở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules?rubric=CTDL');
+    });
   });
 
   it('a preview with nothing to change says so and offers nothing to apply', () => {

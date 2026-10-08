@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useRubrics, useSetSessionRubric } from '@/hooks/useGrading';
 import { formatVnPoints } from '@/lib/format';
+import { rulesHref } from '@/lib/rules-links';
 
 /**
  * Trần điểm của phiên (spec §3.7): rubric đã ghim — hoặc chỗ để ghim. Thay `SessionRubricCard`.
@@ -47,7 +48,7 @@ export function RubricRow({ sessionId, rubricId }: { sessionId: string; rubricId
                 {formatVnPoints(pinned.totalPoints)} điểm, {pinned.criteria.length} tiêu chí
               </span>
             </div>
-            <Link href="/teacher/rules" className="text-small font-semibold text-accent-strong hover:underline">
+            <Link href={rulesHref(pinned.name)} className="text-small font-semibold text-accent-strong hover:underline">
               Sửa trần ở Bảng lỗi
             </Link>
           </div>
