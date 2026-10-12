@@ -46,6 +46,9 @@ Một giảng viên chạy trọn một bài thi 1–N câu, 30–40 bài nộp,
 - **Nhánh ảnh / bài viết tay.** Hôm nay không có bộ đọc ảnh: `ContentResolverRegistry` chỉ có resolver `document` và `for('image')` ném lỗi *[đọc code: `grading/content-resolver/content-resolver.registry.ts:30`]*, bài ảnh ra nội dung rỗng rồi về giảng viên. Cần model đọc được ảnh (chưa xác minh gateway có) và spec riêng.
 - **Đọc đề dạng PDF.** `extractText` trả rỗng cho PDF có chủ đích; đề PDF làm mọi bài code `ungradable(system)`. Chặng 1 của §6 chỉ hỗ trợ DOCX/TXT cho tới khi có bộ đọc PDF.
 - Đo độ phức tạp (`run_scaled`), hiệu chỉnh và α/κ, Java/Node, chế độ driver hàm.
+- **`probe` và `compare_peers`** (bước 5 của spec lõi, §3.2 và §3.4): so hành vi bài nộp với đáp án mẫu trên input do agent tự chọn, và gom nhóm sinh viên cùng hiểu sai. Đây là đòn bẩy chất lượng chấm lớn (thu hẹp ca lỗi nhỏ nhất, phát hiện hard-code, biến một phần lỗi chỉ-đọc-code thành lỗi có bằng chứng chạy thật), nhưng cần spec riêng. Ràng buộc đã có ở spec lõi §2.1: với đề **không có đáp số duy nhất**, `probe` trên input tự dò **không được** sinh lỗi hành vi nếu gói test không khai bộ so sánh. Thiết kế này để đáp án mẫu **theo từng câu** nên không chặn việc làm sau. Đề nghị đặt nó ngay sau P1.
+- **Tín hiệu giữa các câu của cùng một sinh viên** (ba file giống một mẫu) và so sánh giữa sinh viên theo câu.
+- **Hình dạng đề không hỗ trợ**, ghi rõ để không ai tưởng đã làm: câu tự chọn ("chọn 1 trong 2"); các ý a/b/c dùng chung một file (coi là **một** câu); đề cài đặt hàm hay lớp trong một file rồi chấm bằng driver (chế độ driver hàm, spec lõi đã đẩy ra ngoài); bài C++ nhiều file có header mà không biên dịch được thành một chương trình (ra `ungradable(submission)`). Giả định "mỗi câu một file" **đã được chủ đồ án xác nhận** cho đề thật, nhưng độ phủ của các hình dạng trên chưa đo: **điều kiện trước P1** là một bảng phân loại hình dạng trên 3–5 đề thật (§12).
 - **Ghi từng câu vào nhiều cột của sổ điểm** (bắt giảng viên chọn N cột — vi phạm R1). Chỉ ghi tổng (§8). File CSV tải về thì có từng câu.
 - Các sửa UI độc lập đã nêu ở báo cáo hiện trạng 2026-10-12 (nút "Bắt đầu chấm" cùng "Chấm lại" khi mọi bài không chấm được, nút "Mở bài nộp" còn khoá, lỗi dấu phẩy động của θ ở `decide.ts:188`, bẫy 18) — làm song song, **không phụ thuộc** thiết kế này.
 
@@ -89,7 +92,9 @@ Các bảng hiện có đổi như sau *[bản đồ ảnh hưởng]*:
 
 - `grading_reference`: khoá unique chuyển từ `(exam_session_id)` sang `(exam_session_id, problem_id)`. Đáp án mẫu vẫn **không bao giờ** nằm ở `exam_material` (sinh viên tải được).
 - `grading_test_bundle`: thêm `problem_id`. `unique(exam_session_id, version)` có thể giữ nếu `nextVersion` tiếp tục đánh số theo phiên.
-- `exam_session`: thêm `blueprint_confirmed_at`, `blueprint_confirmed_by` (§6.4). Các cột `rubric_id`, `test_bundle_id` giữ lại như bí danh của "câu mặc định" (§3.3) cho tới khi plan P2 kết thúc.
+- `exam_problem_binding` (mới, §4.3): bản ghi tường minh "giảng viên chỉ định mục này của bài nộp là file của câu này" — `(submission_id, problem_id, entry_path, chosen_by, chosen_at)`, chỉ-thêm, có `audit_log`.
+- `grading_attempt`: thêm `prompt_version` (băm của system prompt) và **ghi thật** `cost_usd` (cột đã có nhưng không ai ghi). `model_used`, `tokens_in`, `tokens_out`, `sandbox_host` đã có *[đọc code: `grading/entities/grading-attempt.entity.ts`]*; cặp (bậc, model) lấy từ `model_used`.
+- `exam_session`: thêm `blueprint_confirmed_at`, `blueprint_confirmed_by` (§6.4). Các cột `rubric_id`, `test_bundle_id` giữ lại như bí danh của "câu mặc định" (§3.3) **cho tới khi plan P2 kết thúc, rồi bị gỡ** (§10.1 nêu cách chống tái phát).
 - `required_deliverable.language` và `ck_required_deliverable_language`: giữ cho phiên cũ; phiên mới đọc ngôn ngữ từ câu.
 
 ### 3.2 Đơn vị chấm
@@ -133,9 +138,15 @@ Danh sách mục bên trong file nén đã được giảng viên khai ở bư�
 
 Tên mục khớp bằng **`matchEntries` chuẩn** (tên cuối, không phân biệt hoa thường, bỏ thư mục) — không viết bộ khớp thứ hai. Mục là một thư mục (`bai1/`) thì mọi file dưới nó là chương trình của câu. Luật "Python nhiều file phải có `main.py`" áp **trong phạm vi từng câu**, không áp cho cả file nén.
 
+**Tên có dấu.** Hôm nay `matchEntries` chỉ hạ chữ thường, **không chuẩn hoá Unicode** (không có `normalize` nào trong `submission/` hay `grading/pipeline/`), nên `Bài1.py` ở dạng NFC và NFD bị coi là hai tên khác nhau và báo "thiếu" oan; tên trong ZIP do Windows tạo còn có thể mang mã hoá cũ. Spec yêu cầu: chuẩn hoá **cả hai phía** về NFC trước khi so, kiểm hành vi bộ đọc ZIP với tên tiếng Việt, và có test với cả hai dạng. Giới hạn đã biết còn lại: sandbox chỉ nhận đường dẫn Latin không dấu (`safePath`), nên một file phụ có dấu trong chương trình của câu vẫn làm job bị từ chối (bẫy 12 của guide) — ghi vào test của P2.
+
+**Nơi giải nén (quyết ở P2, mặc định đề xuất).** Hôm nay ZIP đã được giải nén **trong tiến trình API** (`source-files.ts`, có trần chống bom) — đó là rủi ro nền đã tồn tại; thêm RAR là thêm một bộ giải nén chạy trên đầu vào của sinh viên ngay trong tiến trình giữ khoá model và DB. Mặc định đề xuất: một loại việc `extract` chạy trong **worker sandbox** (worker không cầm khoá nào), trả về các file của câu dưới trần kích thước, dùng chung cho cả ZIP lẫn RAR để không có hai cơ chế. Phương án lùi: giải nén trong API nhưng ở tiến trình con có giới hạn bộ nhớ và thời gian. Cần xác nhận hợp đồng sandbox (`INLINE_MAX_CHARS`, `fileRef`) chịu được trước khi chọn.
+
 ### 4.3 Thiếu mục của câu
 
 Khâu thu bài đã biết chính xác mục nào thiếu (đối chiếu `entries`), nên đây là sự thật xác định. Câu đó ra `ungradable(submission)` với lý do "không nộp file của câu k". Hệ thống **không tự cho 0**: quy tắc dự án coi 0 điểm là phán quyết của giảng viên.
+
+Khi câu "thiếu" thật ra là **đặt tên lệch** (`cau2.py` thay vì `bai2.py`), giảng viên có thao tác **"Chỉ định file cho câu này"**: chọn một mục trong chính file nén của sinh viên đó, hệ thống ghi một dòng `exam_problem_binding` (tường minh, có người chọn, có thời điểm, có `audit_log`), rồi xếp câu đó vào hàng chấm qua đường chấm lại hiện có. Việc chọn vẫn là **quyết định tất định của một người**, không phải đoán của hệ thống, và rẻ hơn nhiều so với chấm tay cả câu. Nhờ phòng ngừa ở agent (§5.3) trường hợp này hiếm, nên không cần cơ chế nào tự động hơn.
 
 ### 4.4 Xác nhận 0 điểm hàng loạt
 
@@ -211,6 +222,15 @@ Khớp bảng §2.1 của spec lõi (đề + đáp án mẫu → hệ thống d�
 Mỗi ca có output do LLM dự đoán và output do **chạy đáp án mẫu thật** trong sandbox (T-POL-4 của spec lõi: chuẩn rút từ đáp án mẫu chạy thật, không từ đọc văn bản). Hai bên khớp thì ca được tin. Lệch thì ca thành **ngoại lệ**, không tự tin bên nào. Việc này vá lỗ hổng đã biết: gói test từ Soạn đề hôm nay được tự duyệt và ghim với `expected_output` do LLM viết mà chưa từng chạy đáp án mẫu (`exam-authoring/ai-provider/claude-authoring.provider.ts:184`; `grading/test-bundle/test-bundle.service.ts:58-108`).
 
 Giới hạn thật: hai nguồn đồng thuận chỉ chứng minh không có lỗi **cài đặt**; nếu model hiểu sai chính đề thì cả hai cùng sai. Đáp án mẫu do **giảng viên** cung cấp là nguồn sự thật độc lập duy nhất, nên chuyển trường hợp "chỉ đề" thành "đề + đáp án" làm thước đáng tin hơn.
+
+### 6.3b Độ tin cậy của thước (bảo vệ ngữ nghĩa)
+
+§6.5 bảo vệ **cấu trúc** (số câu, điểm, tên file). Lỗi đắt hơn là lỗi **ngữ nghĩa**: ở nhánh "chỉ đề", output dự đoán lẫn đáp án mẫu đều do **cùng một model** viết, nên cùng hiểu sai đề thì cùng sai và hai nguồn vẫn "khớp". Hai bước rẻ, độc lập với model:
+
+1. **Ví dụ vào/ra có sẵn trong đề.** Đề CTDL&GT hầu như luôn có ví dụ. Hệ thống trích các ví dụ (kèm đoạn trích nguyên văn mà code kiểm có thật trong đề) và **bắt đáp án mẫu, khi chạy thật trong sandbox, tái tạo đúng các ví dụ đó**. Lệch → ngoại lệ chặn, không đi tiếp.
+2. **Giảng viên liếc vài ca.** Với nhánh "chỉ đề", màn xác nhận hiện 2–3 ca vào/ra cho mỗi câu để giảng viên nhìn trong vài giây. Chi phí nhỏ, và chỉ phát sinh ở nhánh có rủi ro ngữ nghĩa.
+
+**Ba mức tin cậy của thước** (lưu cạnh `model_answer_unverified` đã có ở `grading_reference`): `teacher` (đáp án do giảng viên cung cấp) · `verified` (khớp ví dụ trong đề, hoặc giảng viên đã liếc và xác nhận) · `unverified` (chỉ do model viết). Khi thước còn `unverified`, `decide()` thêm cờ cả bài `ruler_unverified` và **không tự duyệt** bài nào dựa trên thước đó (trần tin cậy, hướng sai là an toàn: bài về giảng viên, không bao giờ tự duyệt oan). Cờ tự gỡ ngay khi thước lên `verified`; vì vậy một lần liếc là đủ, công sức không tăng theo số câu hay số bài.
 
 ### 6.4 Một màn xác nhận
 
@@ -290,7 +310,15 @@ Chính sách (chốt cùng chủ đồ án, phương án **(c)**):
 
 ### 7.5 Canh thước (lưới bắt lúc chạy)
 
-Spec lõi đã thiết kế "canh thước sau khi chấm" (cột `grading_test_case.auto_dropped_reason` đã có) nhưng **chưa cài**: không có bảng cảnh báo, không đâu ghi `auto_dropped_reason`. Spec này đưa nó vào. Khi các bài của lớp lần lượt xong, hệ thống theo dõi tỉ lệ sai theo từng ca. Một ca mà **gần như cả lớp** sai, kể cả sinh viên mạnh, dù đáp án mẫu qua → nghi thước sai: cảnh báo ở đầu trang phiên và **tạm dừng tự duyệt** các bài dính ca đó cho tới khi giảng viên quyết (bỏ ca → tính lại trên kết quả đã lưu, không chạy lại sandbox, như luật máy kiểm hôm nay). Đây là lưới bắt cho phần tách sai lọt qua §6.5 và ca test sai lọt qua §6.3.
+Spec lõi đã thiết kế "canh thước sau khi chấm" (cột `grading_test_case.auto_dropped_reason` đã có) nhưng **chưa cài**: không có bảng cảnh báo, không đâu ghi `auto_dropped_reason`. Spec này đưa nó vào. Thước đo phải cụ thể, vì "gần như cả lớp sai" mơ hồ: với 30–40 sinh viên, một câu khó vốn có thể hỏng nhiều, và theo dõi từng bài một lúc đang chấm còn bị thiên lệch theo thứ tự hoàn thành và so sánh nhiều lần.
+
+- **Độ phân biệt của ca, không phải tỉ lệ sai thô.** Với mỗi ca *c* của một câu, lấy tập sinh viên **mạnh** (qua ≥ 90% các ca *khác* của cùng câu), rồi tính tỉ lệ trong tập đó **sai ca *c***. Ca nghi ngờ khi tỉ lệ này vượt ngưỡng *và* tập mạnh đủ lớn.
+- **Cỡ mẫu tối thiểu.** Không đánh giá khi tập mạnh nhỏ hơn một ngưỡng (đặt ở P4 từ dữ liệu diễn tập). Với lớp nhỏ, ca chỉ ghi nhận chứ không kích hoạt.
+- **Đánh giá theo mốc, không theo từng bài:** khi đã có tối thiểu max(10, 25%) số đơn vị của câu xong, và một lần nữa lúc kết thúc lô. Có hiệu chỉnh cho việc kiểm nhiều ca cùng lúc (ví dụ Bonferroni trên các ca của câu).
+- **Báo động giả đi ngược R1**, nên mức phản ứng chia hai bậc: vượt ngưỡng thường → **chỉ cảnh báo** ở đầu trang phiên; vượt ngưỡng chặt hơn → **tạm dừng tự duyệt** chỉ các bài dính ca đó cho tới khi giảng viên quyết (bỏ ca → tính lại trên kết quả đã lưu, không chạy lại sandbox, như luật máy kiểm hôm nay). Không bao giờ tạm dừng cả phiên.
+- Các ngưỡng là **tham số**, chỉnh trên dữ liệu diễn tập ở P4, và mỗi lần chỉnh phải ghi lý do.
+
+Đây là lưới bắt cho phần tách sai lọt qua §6.5 và ca test sai lọt qua §6.3 / §6.3b.
 
 ### 7.6 Luật lời thêm sau khi chấm
 
@@ -304,7 +332,7 @@ Theo guide §2.2, luật lời tạo sau cuộc điều tra không tự áp cho 
 
 - **Tổng** là hàm đọc (§3.4). Hiển thị "tạm" tới khi mọi câu xong; "—" nếu sinh viên có câu `audit_pending`, để không lộ điểm của câu bị che.
 - **Chốt điểm** giữ ở cấp phiên: máy trạng thái 15 cặp, trigger bất biến và `finalizeGrades` đếm theo từng kết quả nên chạy được không sửa *[bản đồ ảnh hưởng]*. Chốt được khi không còn kết quả ở `ai_grading`, `ai_graded`, `flagged_for_review`, `audit_pending` (`BLOCKS_FINALIZE`).
-- **Kiểm mù rút theo sinh viên.** Một sinh viên được rút thì mọi câu **tự duyệt** của họ vào kiểm mẫu, trình bày gộp ("HS2410020 — Câu 1, Câu 3"). Việc che điểm và lỗi vẫn áp **theo từng câu** như hôm nay. Rút bằng SHA-256 trên `(seed phiên, MSSV)` — tất định, không nhìn điểm. **Đây là thay đổi so với hôm nay**: `audit-sampling.ts` đang rút theo `(seed, resultId)` ở quyết định đầu tiên của từng kết quả. Plan P1 phải ghi rõ bước chuyển và kiểm lại phân bố (hash đều, sàn 5% còn đúng khi mẫu tính theo sinh viên). Giữ tỉ lệ mặc định 20% (`GRADING_AUDIT_SAMPLE_PERCENT`), sàn 5%, không bao giờ 0. Khối lượng kiểm không nhân theo số câu.
+- **Kiểm mù rút theo sinh viên.** Một sinh viên được rút thì mọi câu **tự duyệt** của họ vào kiểm mẫu, trình bày gộp ("HS2410020 — Câu 1, Câu 3"). Việc che điểm và lỗi vẫn áp **theo từng câu** như hôm nay. Rút bằng SHA-256 trên `(seed phiên, MSSV)` — tất định, không nhìn điểm. **Đây là thay đổi so với hôm nay**: `audit-sampling.ts` đang rút theo `(seed, resultId)` ở quyết định đầu tiên của từng kết quả. Plan P1 phải ghi rõ bước chuyển và kiểm lại phân bố (hash đều, sàn 5% còn đúng khi mẫu tính theo sinh viên). Giữ tỉ lệ mặc định 20% (`GRADING_AUDIT_SAMPLE_PERCENT`), sàn 5%, không bao giờ 0. Khối lượng kiểm không nhân theo số câu. **Lưu ý thống kê:** sàn 5% của 30–40 sinh viên chỉ khoảng 2 người — mẫu này để an toàn, **không đủ để ước lượng độ chính xác**. Vì vậy kết quả kiểm (đồng ý hay lệch, bao nhiêu lỗi lệch) phải được **tổng hợp** thành báo cáo mức đồng thuận tích luỹ qua các phiên; hôm nay `audit_sample_review` được ghi nhưng chưa ai đọc (spec lõi §8, `calibration_run` chưa có người ghi).
 - **Xuất sổ điểm: chỉ ghi tổng vào một cột.** Quyết định "không hệ thống nào tự cộng điểm" ở G5 (`2026-09-29-gradebook-export-design.md` §1.2, D7) là một quyết định nghiệp vụ, không phải giới hạn kỹ thuật. Việc giảng viên xác nhận đề cương (điểm từng câu và tổng) **chính là** quyết định đó, nên hệ thống được cộng — nhưng chỉ khi **mọi câu của sinh viên đã chốt** (không ghi điểm tạm). Cộng bằng số nguyên phần trăm điểm, làm tròn đúng một lần theo bước làm tròn giảng viên chọn. Chưa đủ câu thì để ô trống kèm lý do "chưa đủ câu" (một trong các nhãn lý do hiện có). Phiên 1 câu chạy như cũ.
 - **Giao diện:** danh sách kết quả hiện **một dòng mỗi sinh viên**, kèm chip trạng thái từng câu và tổng; bấm chip mở hồ sơ của đúng câu. Các bộ lọc ("cần xem"…) đếm theo câu. CSV tải về có từng câu và tổng.
 
@@ -333,6 +361,8 @@ Ngoài ba bẫy: `planReapply` (`score.service.ts:435`) lấy giá theo `es.rubr
 - **Pha 1 — câu là một yêu cầu nộp riêng** (bài nộp ↔ kết quả vẫn một-một, **chưa đụng** unique): thêm `exam_problem`, `problem_id` cho phép rỗng ở `grading_result`/`grading_test_bundle`/`grading_reference`. Backfill câu mặc định cho phiên đã có kết quả trong **một transaction có cổng checksum** trước/sau trên (`ai_total_score`, `status`, các dòng `score_computation`, `updated_at`), tắt `trg_grading_result_updated_at` tạm thời theo tiền lệ migration `1789430000000`. Diễn tập trên bản sao trước khi áp lên Supabase, chạy `-t all` (`migrationsTransactionMode` là `none`).
 - **Pha 2 — câu nằm trong file nén:** đổi `uq_grading_result_submission` thành `unique(submission_id, problem_id)`; mã công việc theo `resultId`; đọc RAR; `source-files` theo câu; agent tạo sẵn file và kiểm trực tiếp.
 - **Thứ tự triển khai (Railway tự deploy `main` và không chạy migration):** (1) áp migration **chỉ-thêm** lên DB **trước** khi merge — code cũ không bị ảnh hưởng vì chỉ thêm bảng và cột cho phép rỗng; (2) merge/deploy code mới; (3) chạy lại backfill một lần nữa để quét các dòng mà code cũ tạo ra **trong khoảng giữa** (chúng có `problem_id` rỗng). Làm ngược thứ tự (deploy trước, migration sau) làm code mới lỗi SQL "cột không tồn tại" ngay lập tức. Trong suốt pha 1, code mới coi `problem_id` rỗng là **câu mặc định** của phiên, nên không dòng nào bị bỏ sót dù backfill chạy muộn.
+- **Gỡ bí danh, có cơ chế chống tái phát.** Các cột `exam_session.rubric_id` / `test_bundle_id` và các route cấp phiên bị gỡ **trong PR hoàn tất P2**, bằng một migration dọn dẹp. Từ P1, một test quét import (cùng kiểu `decision.import-scan.spec.ts`) **thất bại nếu bất kỳ file nào ngoài `resolveProblemConfig()` còn đọc hai cột đó**, để giai đoạn song song không tích thêm chỗ đọc và dữ liệu không lệch giữa hai nguồn.
+- **Cổng phiên bản schema lúc khởi động.** Hôm nay không có kiểm tra migration chưa áp khi khởi động (`grep` không thấy `migrationsRun`/`showMigrations`/`pendingMigrations`), nên thứ tự "migration trước, merge sau" chỉ dựa vào việc người nhớ làm; lịch sử migration lệch DB đã từng xảy ra. P1 thêm kiểm tra lúc khởi động: còn migration chưa áp thì `/health` báo lỗi, để healthcheck của Railway ngăn bản deploy mới thay bản cũ (hành vi healthcheck của Railway cần xác nhận lúc cài).
 - **Công việc cũ trong Redis** chỉ có `submissionId`: ở pha 1 (bài nộp ↔ kết quả vẫn một-một) bộ xử lý tìm kết quả theo `submissionId` như cũ; chỉ khi sang pha 2 (mã công việc theo `resultId`) mới cần cơ chế khác cho job tồn đọng.
 - **Cổng trước khi đổi unique ở pha 2:** `SELECT count(*) FROM grading_result WHERE problem_id IS NULL` phải bằng 0, nếu không dừng. Hai cặp migration trùng timestamp đã có từ trước (TypeORM 0.3.31 không ép thứ tự), nhưng migration mới nên dùng dải timestamp riêng.
 
@@ -340,12 +370,13 @@ Ngoài ba bẫy: `planReapply` (`score.service.ts:435`) lấy giá theo `es.rubr
 
 | Plan | Nội dung | Phụ thuộc |
 |---|---|---|
-| **P1** | Lõi "câu" với yêu cầu nộp riêng: `exam_problem`, rubric/gói test/đề theo câu, câu mặc định, điểm tổng, xuất tổng, ba bẫy §9, giao diện danh sách theo sinh viên | — |
+| **P0** | Đo nền, cổng trước P1: diễn tập thật trên `main` hiện tại; sửa runner eval chạy cả phản biện và quyết định để nhóm tự quyết có mẫu số; ghi `cost_usd` và `prompt_version`; đo thật thời gian, token, chi phí **mỗi đơn vị** (kèm lăng kính); bảng phân loại hình dạng đề thật (§1.4) | — |
+| **P1** | Lõi "câu" với yêu cầu nộp riêng: `exam_problem`, rubric/gói test/đề theo câu, câu mặc định, điểm tổng, xuất tổng, ba bẫy §9, giao diện danh sách theo sinh viên, cổng phiên bản schema (§10.1) | P0 |
 | **P2** | Câu trong file nén: đổi unique, mã công việc, đọc RAR, `ProblemSourceResolver`, agent tạo sẵn file và kiểm trực tiếp (§5.3), xác nhận 0 hàng loạt (§4.4) | P1 |
 | **P3** | Dựng đề cương tự động và các lớp phòng thủ (§6), màn xác nhận, kiểm đột biến | P1 |
 | **P4** | Canh thước (§7.5), chính sách lỗi lạ (c) và gom nhóm đề xuất (§7.4), "kiểm lại riêng luật này" (§7.6) | P1 |
 
-Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: P1 → (P2, P3, P4 song song được). Một lượt diễn tập thật gate trước khi bắt đầu P1 trên `main` hiện tại để có mốc so sánh.
+Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: **P0 → P1 → (P2, P3, P4 song song được)**. P0 là điều kiện trước P1 vì mọi tuyên bố "không tụt" và mọi ngưỡng trong §6.3b, §7.5, §11 cần số đo nền; riêng việc runner eval chạy phản biện và quyết định còn là điều kiện trước P3. Chưa có lượt diễn tập thật nào kể từ 2026-09-28, trước PR #63, G1–G5 và việc chuyển điểm sang `rubric_error`.
 
 ---
 
@@ -358,8 +389,10 @@ Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: P1 → (P2, P3, P4
 - **Kiểm đột biến** bộ tách đề cương (§6.6): các lớp phòng thủ bắt 100% lỗi nghiêm trọng.
 - **Chứng minh "1 câu chạy như cũ":** chạy lại kịch bản `ngan-xep-v1` và so với lượt `20260928T094907Z-f83a05c` (điểm 5/5, lỗi 8/8, tự duyệt sai 0); không tụt ở chỉ số nào. Ghi bản ghi và dòng so sánh vào `apps/api/eval/rehearsals/` theo quy ước lịch sử benchmark.
 - **Kịch bản diễn tập mới nhiều câu** (đề 3 câu, cả file riêng lẫn trong file nén; ít nhất một bài thiếu mục, một bài đặt tên lệch, một bài có lỗi lạ có bằng chứng). Tên kịch bản chốt ở plan P1. Cần key model và VM sandbox bật.
-- **Eval offline:** thêm fixture nhiều câu; runner eval phải chạy cả khâu phản biện và quyết định để precision của nhóm tự quyết có mẫu số (hôm nay `autoDecision.count = 0`).
-- **Tiêu chí hoàn thành toàn bộ:** một đề 3 câu, 40 bài, cả hai cách nộp. Giảng viên đi từ tạo phiên, gắn đề, xác nhận đề cương **một lần**, thu bài, bấm chấm, xử lý ngoại lệ, chốt, đến nhận file sổ điểm có tổng, không gặp ngõ cụt. Diễn tập: 0 tự duyệt sai.
+- **Eval offline (điều kiện trước P3, không phải gạch đầu dòng tuỳ chọn):** thêm fixture nhiều câu; runner eval **phải chạy cả khâu phản biện và quyết định** để nhóm tự quyết có mẫu số. Hôm nay runner truyền `challenge: null` (`src/eval/investigator-runner.ts`) và `autoDecision.count = 0` ở mọi lượt, nên **không đo được** precision của nhóm tự quyết lẫn hành vi của lăng kính.
+- **Ngân sách mỗi đơn vị và mỗi phiên (đo ở P0, không đoán).** Thời gian, token và chi phí **nhân theo số câu**, trong khi R1 chỉ nói về công sức giảng viên. Ước lượng thô, tính từ số đã commit và **chưa đo** với lăng kính: p50 ≈ 11,4k token mỗi đơn vị ở cấu hình mỏng của eval offline → 120 đơn vị (40 × 3) ≈ 1,3 triệu token chỉ riêng agent điều tra, chưa tính bốn lăng kính; với đồng thời 5 và 74–148 giây mỗi bài trong diễn tập thì ≈ 30–60 phút cho 120 đơn vị. Spec lõi đặt mục tiêu 40 bài ≤ 30 phút khi mỗi sinh viên chỉ một đơn vị (§15.2; chính spec lõi đã ghi nó có thể phải xét lại ở §11), nên **mục tiêu phải đặt lại theo số câu**. P0 ghi số thật (thời gian, token, `cost_usd` mỗi đơn vị và mỗi phiên), rồi mới đặt mục tiêu và chọn đòn bẩy (nâng `GRADE_CONCURRENCY` trong giới hạn của gateway, ngân sách lăng kính nhẹ hơn cho đơn vị sạch…).
+- **Tiêu chí hoàn thành toàn bộ:** một đề 3 câu, 40 bài, cả hai cách nộp. Giảng viên đi từ tạo phiên, gắn đề, xác nhận đề cương **một lần**, thu bài, bấm chấm, xử lý ngoại lệ, chốt, đến nhận file sổ điểm có tổng, không gặp ngõ cụt.
+- **Tiêu chí an toàn tự duyệt, nêu rõ ngưỡng thống kê.** Theo quy tắc ba, 0 lỗi trên *n* đơn vị **tự duyệt** cho cận trên 95% xấp xỉ 3/*n*. Mẫu số là số đơn vị được **tự duyệt**, không phải mọi đơn vị: ở tỉ lệ tự quyết đo được 35%, một lớp 40 × 3 = 120 đơn vị chỉ cho khoảng 42 đơn vị tự duyệt, tức cận trên ≈ 7%. Vì vậy: tuyên bố "tự duyệt sai ≤ 5%" đòi **0 lỗi trên ≥ 60 đơn vị tự duyệt**; tuyên bố "≤ 2,5%" đòi ≥ 120. Các đơn vị đó phải đến từ ít nhất 2 phiên hoặc ≥ 3 câu khác nhau, và được báo cùng cận trên (Clopper–Pearson). Đơn vị cùng sinh viên hoặc cùng câu không độc lập nên con số thật rộng hơn. Dưới ngưỡng thì ghi **"kiểm khói"**, không ghi "đạt". Một lượt diễn tập 5 bài dựng sẵn cho cận trên ≈ 60% (3/5) và **không bao giờ** được trích làm bằng chứng an toàn.
 
 ---
 
@@ -374,7 +407,12 @@ Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: P1 → (P2, P3, P4
 | Gom nhóm đề xuất gần nhau | Phương pháp gom chốt ở P4 |
 | `T-FAIR-1`/`rulesSeen` và "kiểm lại riêng luật này" | Xác nhận lại hành vi hiện tại trước khi cài (§7.6) |
 | Rò điểm bị che trong tổng | Tổng "—" khi có câu `audit_pending`; canary cho đường đọc tổng là **yêu cầu bắt buộc của P1** (§11) |
-| Chưa có số "đúng bao nhiêu %" trên bài thật | Spec này **không** cải thiện điều đó; xem §11 |
+| Chưa có số "đúng bao nhiêu %" trên bài thật | Spec này **không** cải thiện điều đó; P0 và §11 nêu ngưỡng thống kê để không tuyên bố quá tay |
+| Chi phí và thời gian nhân theo số câu | P0 đo thật; mục tiêu "40 bài ≤ 30 phút" đặt lại theo số câu (§11) |
+| Thước `unverified` ở nhánh "chỉ đề" | Cờ `ruler_unverified` chặn tự duyệt tới khi lên `verified` (§6.3b) |
+| Nơi giải nén RAR/ZIP | Quyết ở P2; mặc định đề xuất worker sandbox (§4.2) |
+| Chuẩn hoá Unicode tên mục | Bắt buộc ở P2, có test NFC/NFD (§4.2) |
+| Độ phủ các hình dạng đề chưa hỗ trợ | Bảng phân loại trên 3–5 đề thật là điều kiện trước P1 (§1.4) |
 
 ---
 
@@ -395,6 +433,13 @@ Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: P1 → (P2, P3, P4
 | D11 | Xác nhận 0 điểm hàng loạt cho câu không nộp, luôn do giảng viên bấm | Đề xuất của người viết, chủ đồ án duyệt thiết kế |
 | D12 | Hai pha migration (câu = yêu cầu nộp riêng trước; câu trong file nén sau) | Đề xuất của người viết, chủ đồ án duyệt thiết kế |
 | D13 | Nhánh ảnh và bộ đọc PDF ngoài phạm vi, cần spec riêng | Người viết; chưa có quyết định của chủ đồ án về model đọc ảnh |
+| D14 | P0 đo nền là cổng trước P1; runner eval phải chạy phản biện và quyết định trước P3; tiêu chí an toàn nêu ngưỡng *n* theo quy tắc ba trên số đơn vị **tự duyệt** | Bản review ngoài do chủ đồ án chuyển (2026-10-12); người viết kiểm lại và nhận, chỉnh mẫu số từ "mọi đơn vị" sang "đơn vị tự duyệt" |
+| D15 | Ba mức tin cậy của thước; `unverified` không tự duyệt; kiểm bằng ví dụ trong đề và để giảng viên liếc vài ca | Cùng bản review; nhận |
+| D16 | Canh thước đo bằng độ phân biệt của ca, cỡ mẫu tối thiểu, đánh giá theo mốc, hai bậc phản ứng | Cùng bản review; nhận |
+| D17 | Thao tác "Chỉ định file cho câu này" (`exam_problem_binding`) | Cùng bản review; nhận |
+| D18 | Nơi giải nén RAR/ZIP: mặc định worker sandbox, quyết ở P2; chuẩn hoá Unicode tên mục | Cùng bản review; nhận một phần (ZIP đã giải nén trong API từ trước, nên rủi ro nền không mới). **Chưa chốt** |
+| D19 | Cổng phiên bản schema lúc khởi động; test chống tái đọc cột bí danh; ghi `prompt_version` và `cost_usd` | Cùng bản review; nhận |
+| D20 | `probe`/`compare_peers` tách thành spec riêng, đặt ngay sau P1, kèm ràng buộc comparator của spec lõi | Cùng bản review đề xuất `compare_to_reference`; người viết chỉ ra nó trùng `probe` đã thiết kế. **Chưa chốt** |
 
 ---
 
