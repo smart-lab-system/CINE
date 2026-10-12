@@ -20,6 +20,9 @@ import { SubmissionTextService } from './submission-text.service';
 import { GradingReferenceEntity } from './entities/grading-reference.entity';
 import { GradingAnchorSnapshotEntity } from './entities/grading-anchor-snapshot.entity';
 import { GradingAttemptEntity } from './entities/grading-attempt.entity';
+import { RubricErrorEntity } from './entities/rubric-error.entity';
+import { RubricErrorPriceEntity } from './entities/rubric-error-price.entity';
+import { ErrorRuleSightingEntity } from './entities/error-rule-sighting.entity';
 import { AnchorService } from './anchor.service';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
@@ -34,10 +37,14 @@ import { BulkReviewService } from './bulk-review.service';
 import { ScoreService } from './scoring/score.service';
 import { ErrorRuleService } from './rules/error-rule.service';
 import { PriceService } from './rules/price.service';
+import { ProposalService } from './rules/proposal.service';
+import { RubricErrorService } from './rules/rubric-error.service';
+import { RubricOverviewService } from './rules/rubric-overview.service';
 import { RegradeController } from './regrade.controller';
 import { RegradeService } from './regrade.service';
 import { ErrorExceptionService } from './review/error-exception.service';
 import { CriterionWaiverService } from './rules/criterion-waiver.service';
+import { RubricErrorsController } from './rules/rubric-errors.controller';
 import { RulesController } from './rules/rules.controller';
 import { TestBundleController } from './test-bundle/test-bundle.controller';
 import { TestBundleService } from './test-bundle/test-bundle.service';
@@ -129,6 +136,9 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
       GradingAnchorSnapshotEntity,
       ExamMaterialEntity,
       GradingAttemptEntity,
+      RubricErrorEntity,
+      RubricErrorPriceEntity,
+      ErrorRuleSightingEntity,
     ]),
     StorageModule,
     ExamSessionModule,
@@ -137,7 +147,14 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     // Chấm điểm chạy trên hàng đợi: một job một bài (CLAUDE.md §7.1.3).
     BullModule.registerQueue({ name: GRADING_QUEUE }),
   ],
-  controllers: [GradingController, RulesController, TestBundleController, AuditReviewController, RegradeController],
+  controllers: [
+    GradingController,
+    RulesController,
+    RubricErrorsController,
+    TestBundleController,
+    AuditReviewController,
+    RegradeController,
+  ],
   providers: [
     GradingService,
     TestBundleService,
@@ -165,6 +182,9 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     // Chỗ DUY NHẤT ghi `score_computation` (§2.2) — giá, luật, ngoại lệ, chốt đều gọi vào đây.
     ScoreService,
     ErrorRuleService,
+    RubricErrorService,
+    ProposalService,
+    RubricOverviewService,
     PriceService,
     ErrorExceptionService,
     CriterionWaiverService,

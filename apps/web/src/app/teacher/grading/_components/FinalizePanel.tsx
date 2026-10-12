@@ -32,10 +32,12 @@ export function FinalizePanel({
   sessionId,
   session,
   results,
+  rulesHref,
 }: {
   sessionId: string;
   session: { name: string; code: string };
   results: GradingResult[];
+  rulesHref?: string;
 }) {
   const finalize = useFinalizeGrades(sessionId);
   const [confirming, setConfirming] = useState(false);
@@ -92,7 +94,7 @@ export function FinalizePanel({
           <p className="text-small text-muted-foreground">
             Điểm của phiên này đã chốt. Sửa điểm từ giờ sẽ được ghi vào nhật ký.
           </p>
-          <ReapplyPricesPanel sessionId={sessionId} />
+          <ReapplyPricesPanel sessionId={sessionId} rulesHref={rulesHref} />
           <div className="flex flex-wrap items-center gap-3">
             <ExportCsvButton sessionName={session.name} sessionCode={session.code} results={results} />
           </div>

@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { RubricRow } from './RubricRow';
 import type { Rubric } from '@/lib/api/grading';
+import { rulesHref } from '@/lib/rules-links';
 
 const mutate = vi.fn();
 let rubrics: { data?: Rubric[]; isLoading: boolean };
@@ -47,7 +48,7 @@ describe('RubricRow', () => {
 
   it('links to Bảng lỗi where the ceilings are edited', () => {
     render(<RubricRow sessionId="s1" rubricId="ru-1" />);
-    expect(screen.getByRole('link', { name: 'Sửa trần ở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules');
+    expect(screen.getByRole('link', { name: 'Sửa trần ở Bảng lỗi' })).toHaveAttribute('href', rulesHref('CTDL'));
   });
 
   it('with no rubric pinned: says so, and only ACTIVE versions can be attached', () => {

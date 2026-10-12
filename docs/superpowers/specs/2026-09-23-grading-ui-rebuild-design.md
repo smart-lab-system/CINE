@@ -160,6 +160,8 @@ chính đọc theo mã cờ ở bảng trên.
 
 ### 3.1 Bảng lỗi — `/teacher/rules`
 
+> **Sửa đổi 2026-10-07:** xem `docs/add/rubric/spec/2026-10-07-rules-by-rubric-design.md` (thư viện lỗi + dòng áp dụng theo tên rubric; UI rebuild ở Plan B).
+
 Trang **kiến thức** của spec chấm điểm (§2.1). Nằm trên đường găng của bước 3: luật
 chưa có giá thì không bài nào dính nó được tự quyết, nên thiếu màn này thì bước 3 chỉ
 ra được bài gắn cờ.
@@ -210,6 +212,8 @@ trước (`/exam-sessions/:id/reapply-prices`, `/preview`) — **đều đã có
 động của việc đánh dấu tiêu chí.
 
 ### 3.2 Tạo / sửa một luật — `/teacher/rules/new`, `/teacher/rules/[ruleId]`
+
+> **Sửa đổi 2026-10-07:** xem `docs/add/rubric/spec/2026-10-07-rules-by-rubric-design.md` (`POST /rubric-errors` thay `POST /rules`; giá theo dòng áp dụng).
 
 Bốn khối theo đúng thứ tự giảng viên nghĩ: **lỗi là gì · thuộc tiêu chí nào · hệ thống
 nhận ra bằng cách nào · mức trừ.** Mở từ *Luật còn thiếu* thì điền sẵn những gì agent

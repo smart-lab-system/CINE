@@ -1,15 +1,17 @@
 import type { DeclaredLanguage } from './api/exam-session';
 import type { Rubric } from './api/grading';
-import type { Rule } from './api/rules';
+import type { RubricOverview } from './api/rubric-errors';
 import { formatVnPoints } from './format';
+import { warningSentences } from './rubric-board';
+import { rulesHref } from './rules-links';
 
 /**
  * Cột "Trước khi bắt đầu" của màn chuẩn bị chấm (spec §3.7): mỗi dòng là ok · cảnh báo · chặn, và nút bắt đầu chỉ
  * bật khi không dòng nào chặn.
  *
  * Chặn = đúng những gì server từ chối (rubric, gói test đã ghim cho bài code) HOẶC spec bắt buộc (đề bài, có bài
- * để chấm) HOẶC sẽ khoá tài liệu ngay lúc chưa lưu. Cảnh báo = thứ không chặn nhưng ảnh hưởng kết quả (luật chưa
- * giá, tiêu chí chưa có luật): bài dính chúng vào nhóm cần bạn xem.
+ * để chấm) HOẶC sẽ khoá tài liệu ngay lúc chưa lưu. Cảnh báo = lỗi chưa có điểm trừ, tiêu chí chưa có lỗi: bài
+ * dính chúng vào nhóm cần bạn xem.
  */
 export interface PreflightInput {
   counts: { fullySubmitted: number; partial: number; attendedNoSubmission: number; neverAttended: number };
@@ -23,10 +25,8 @@ export interface PreflightInput {
     pipeline: 'investigator' | 'one_shot';
   }[];
   bundle: { pinned: boolean; total: number; approved: number };
-  /** Luật ĐANG DÙNG của giảng viên. */
-  rules: Rule[];
-  /** Khoá các tiêu chí đã đánh dấu "không có luật trừ" (theo rubric đã ghim). */
-  waivedKeys: string[];
+  /** Tổng quan Bảng lỗi của RUBRIC ĐÃ GHIM cho phiên (đã gồm số lỗi chưa có điểm trừ và các tiêu chí đã đánh dấu không trừ điểm). */
+  board: RubricOverview | undefined;
   /** Form tài liệu chấm còn thay đổi chưa lưu. */
   dirty: boolean;
 }
@@ -119,26 +119,24 @@ export function preflightOf(input: PreflightInput): {
     });
   }
 
-  // Bảng lỗi — cảnh báo, không chặn
-  const unpriced = input.rules.filter((r) => r.deduction === null).length;
-  const ruleKeys = new Set(input.rules.map((r) => r.revision.criterionKey));
-  const waived = new Set(input.waivedKeys);
-  const withoutRules = (rubric?.criteria ?? []).map((c) => c.key).filter((key) => !ruleKeys.has(key) && !waived.has(key));
-  const ruleWarnings: string[] = [];
-  if (unpriced > 0) ruleWarnings.push(`${unpriced} luật chưa có giá — bài dính chúng sẽ vào nhóm cần bạn xem.`);
-  if (withoutRules.length > 0) {
-    ruleWarnings.push(`Tiêu chí ${withoutRules.join(', ')} chưa có luật nào — bài dính tiêu chí đó không tự quyết.`);
-  }
-  if (ruleWarnings.length > 0) {
-    rows.push({
-      key: 'rules',
-      label: 'Bảng lỗi',
-      status: 'warn',
-      text: `${ruleWarnings.join(' ')} Không chặn việc bắt đầu.`,
-      link: { href: '/teacher/rules', label: 'Mở Bảng lỗi' },
-    });
+  // Bảng lỗi của rubric đã ghim — cảnh báo, không chặn
+  if (!input.hasRubricId) {
+    rows.push({ key: 'rules', label: 'Bảng lỗi', status: 'warn', text: 'Chưa có rubric nên chưa kiểm tra được Bảng lỗi. Không chặn việc bắt đầu.' });
+  } else if (!input.board) {
+    rows.push({ key: 'rules', label: 'Bảng lỗi', status: 'warn', text: 'Đang đọc Bảng lỗi của rubric này… Không chặn việc bắt đầu.' });
   } else {
-    rows.push({ key: 'rules', label: 'Bảng lỗi', status: 'ok', text: 'Mọi luật đã có giá và mọi tiêu chí đã có luật.' });
+    const warnings = warningSentences(input.board);
+    if (warnings.length > 0) {
+      rows.push({
+        key: 'rules',
+        label: 'Bảng lỗi',
+        status: 'warn',
+        text: `${warnings.join(' ')} Không chặn việc bắt đầu.`,
+        link: { href: rulesHref(input.board.rubricName), label: 'Mở Bảng lỗi' },
+      });
+    } else {
+      rows.push({ key: 'rules', label: 'Bảng lỗi', status: 'ok', text: 'Mọi lỗi đã có điểm trừ và mọi tiêu chí đã có lỗi.' });
+    }
   }
 
   // Số bài sẽ chấm — chỉ bài đã thu

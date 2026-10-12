@@ -2,17 +2,27 @@ import { BadRequestException } from '@nestjs/common';
 import type { RulePredicate } from '../decision/types';
 import { parseHundredths } from '../scoring/hundredths';
 
-export interface RuleInput {
-  ruleKey: string;
+export interface NewRuleInput {
   name: string;
   description: string;
-  criterionKey: string;
   predicate: RulePredicate | null;
+  /** Chỉ dành cho công cụ (lệnh diễn tập). Giao diện KHÔNG BAO GIỜ gửi nó — server sinh từ tên. */
+  ruleKey?: string;
 }
-export type RuleChanges = Partial<Omit<RuleInput, 'ruleKey'>>;
+export type RuleChanges = Partial<Pick<NewRuleInput, 'name' | 'description' | 'predicate'>>;
+export interface AssignInput {
+  rubricName: string;
+  criterionKey: string;
+  deduction?: string | null;
+  ruleId?: string;
+  newRule?: NewRuleInput;
+  /** Chỉ cho lỗi `proposed` được duyệt: sửa rồi kích hoạt. */
+  changes?: RuleChanges;
+}
 
 const KEY = /^[a-z0-9_]{1,64}$/;
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const bad = (msg: string): never => {
   throw new BadRequestException(msg);
@@ -66,15 +76,15 @@ export function parsePredicate(x: unknown): RulePredicate | null {
   }
 }
 
-export function parseRuleInput(x: unknown): RuleInput {
+export function parseNewRule(x: unknown): NewRuleInput {
   const o = (x ?? {}) as Record<string, unknown>;
-  return {
-    ruleKey: key(o.ruleKey, 'ruleKey'),
+  const out: NewRuleInput = {
     name: text(o.name, 'name', 200),
     description: text(o.description, 'description', 2000),
-    criterionKey: key(o.criterionKey, 'criterionKey'),
     predicate: parsePredicate(o.predicate === undefined ? null : o.predicate),
   };
+  if (o.ruleKey !== undefined) out.ruleKey = key(o.ruleKey, 'ruleKey');
+  return out;
 }
 
 export function parseRuleChanges(x: unknown): RuleChanges {
@@ -82,8 +92,28 @@ export function parseRuleChanges(x: unknown): RuleChanges {
   const out: RuleChanges = {};
   if (o.name !== undefined) out.name = text(o.name, 'name', 200);
   if (o.description !== undefined) out.description = text(o.description, 'description', 2000);
-  if (o.criterionKey !== undefined) out.criterionKey = key(o.criterionKey, 'criterionKey');
   if (o.predicate !== undefined) out.predicate = parsePredicate(o.predicate);
+  return out;
+}
+
+export function parseAssignInput(x: unknown): AssignInput {
+  const o = (x ?? {}) as Record<string, unknown>;
+  const hasRule = o.ruleId !== undefined;
+  const hasNew = o.newRule !== undefined;
+  if (hasRule === hasNew) bad('Gửi đúng một trong ruleId hoặc newRule');
+  if (hasNew && o.changes !== undefined) bad('changes chỉ đi cùng ruleId');
+  const out: AssignInput = {
+    rubricName: text(o.rubricName, 'rubricName', 200),
+    criterionKey: key(o.criterionKey, 'criterionKey'),
+  };
+  if (o.deduction !== undefined) out.deduction = parseDeduction(o.deduction);
+  if (hasRule) {
+    if (typeof o.ruleId !== 'string' || !UUID.test(o.ruleId)) bad('ruleId: không phải uuid');
+    out.ruleId = o.ruleId as string;
+    if (o.changes !== undefined) out.changes = parseRuleChanges(o.changes);
+  } else {
+    out.newRule = parseNewRule(o.newRule);
+  }
   return out;
 }
 

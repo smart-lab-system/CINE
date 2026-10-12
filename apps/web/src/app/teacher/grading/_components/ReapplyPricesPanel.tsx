@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useReapplyPreview, useReapplyPrices } from '@/hooks/useGrading';
 import { formatVnPoints } from '@/lib/format';
 import { formatDeductionString } from '@/lib/rules-vocab';
+import { RULES_PATH } from '@/lib/rules-links';
 
 /** Mức trừ dạng chuỗi thập phân theo ĐIỂM ("1.50") → "−1,5"; chưa có giá thì nói "chưa giá", không "—". */
 const deduction = (d: string | null) => (d === null ? 'chưa giá' : formatDeductionString(d));
@@ -28,7 +29,7 @@ const deduction = (d: string | null) => (d === null ? 'chưa giá' : formatDeduc
  * dòng nhật ký. Server từ chối CẢ LƯỢT khi còn bài dính luật lúc chốt có giá mà nay chưa có giá — nên nút áp chỉ
  * bật khi bản xem trước không có bài nào "không áp được".
  */
-export function ReapplyPricesPanel({ sessionId }: { sessionId: string }) {
+export function ReapplyPricesPanel({ sessionId, rulesHref = RULES_PATH }: { sessionId: string; rulesHref?: string }) {
   const preview = useReapplyPreview(sessionId);
   const apply = useReapplyPrices(sessionId);
   const [confirming, setConfirming] = useState(false);
@@ -92,7 +93,7 @@ export function ReapplyPricesPanel({ sessionId }: { sessionId: string }) {
                 </span>
               ))}
             </span>
-            <Link href="/teacher/rules" className="font-semibold underline underline-offset-2">
+            <Link href={rulesHref} className="font-semibold underline underline-offset-2">
               Đặt giá ở Bảng lỗi
             </Link>
           </AlertDescription>

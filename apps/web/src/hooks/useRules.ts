@@ -2,104 +2,75 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  createRule,
-  listMissingRules,
-  listRules,
-  listWaivers,
-  previewPrice,
-  previewRule,
+  listLibrary,
+  listProposals,
   reviseRule,
   revokeWaiver,
-  setPrice,
   setRuleState,
   setWaiver,
-  type PricePreview,
-  type RuleInput,
+  splitRule,
+  type ErrorChanges,
+  type RecomputeSummary,
 } from '@/lib/api/rules';
+import { invalidateBoard } from './board-cache';
 
-const RULES_KEY = ['rules'] as const;
-const MISSING_KEY = ['rules', 'missing'] as const;
+export const LIBRARY_KEY = ['rules', 'library'] as const;
+export const proposalsKey = (rubricName: string | undefined) => ['rules', 'proposals', rubricName ?? null] as const;
 
-export function useRules() {
-  return useQuery({ queryKey: RULES_KEY, queryFn: listRules });
+/** Thư viện lỗi của giảng viên, kèm nơi dùng (rubric · tiêu chí · điểm trừ). */
+export function useLibrary() {
+  return useQuery({ queryKey: LIBRARY_KEY, queryFn: listLibrary });
 }
 
-/** Luật agent báo còn thiếu (§2.1) — chặn tự quyết cho tới khi giảng viên xử lý (spec UI 3.1). */
-export function useMissingRules() {
-  return useQuery({ queryKey: MISSING_KEY, queryFn: listMissingRules });
+/** Lỗi AI đề xuất; có `rubricName` thì chỉ lỗi thấy ở rubric đó. */
+export function useProposals(rubricName?: string) {
+  return useQuery({ queryKey: proposalsKey(rubricName), queryFn: () => listProposals(rubricName) });
 }
 
-function invalidateRules(queryClient: ReturnType<typeof useQueryClient>) {
-  void queryClient.invalidateQueries({ queryKey: RULES_KEY });
-  void queryClient.invalidateQueries({ queryKey: MISSING_KEY });
-}
-
-export function useCreateRule() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: RuleInput) => createRule(input),
-    onSuccess: () => invalidateRules(queryClient),
-  });
-}
-
-/** Duyệt một luật `proposed` thành luật thật: revise (gắn tiêu chí/predicate) rồi active. */
+/** Sửa cả các rubric đang dùng lỗi này. */
 export function useReviseRule() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ ruleId, changes }: { ruleId: string; changes: RuleInput }) => reviseRule(ruleId, changes),
-    onSuccess: () => invalidateRules(queryClient),
+  return useMutation<{ revisionId: string; recompute: RecomputeSummary | null }, Error, { ruleId: string; changes: ErrorChanges }>({
+    mutationFn: ({ ruleId, changes }) => reviseRule(ruleId, changes),
+    onSuccess: () => invalidateBoard(queryClient),
   });
 }
 
-export function useSetRuleState() {
+/** Sửa CHỈ rubric đang mở (tách bản riêng). */
+export function useSplitRule() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ ruleId, state }: { ruleId: string; state: 'active' | 'dismissed' | 'retired' }) =>
-      setRuleState(ruleId, state),
-    onSuccess: () => invalidateRules(queryClient),
+  return useMutation<
+    { ruleId: string; rubricErrorId: string; recompute: RecomputeSummary },
+    Error,
+    { ruleId: string; rubricName: string; changes: ErrorChanges }
+  >({
+    mutationFn: ({ ruleId, rubricName, changes }) => splitRule(ruleId, rubricName, changes),
+    onSuccess: () => invalidateBoard(queryClient),
   });
 }
 
-/** "Lưu thì áp vào đâu" — không cache, gõ tới đâu xem trước tới đó. */
-export function usePreviewRule() {
-  return useMutation({ mutationFn: previewRule });
-}
-
-/** "Lưu thì ảnh hưởng bao nhiêu bài" (spec UI 3.1, T-POL-5) — PHẢI gọi trước useSetPrice. */
-export function usePreviewPrice() {
-  return useMutation<PricePreview, Error, { ruleId: string; deduction: string | null }>({
-    mutationFn: ({ ruleId, deduction }) => previewPrice(ruleId, deduction),
-  });
-}
-
-export function useSetPrice() {
+/** "Không phải lỗi". */
+export function useDismissRule() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ ruleId, deduction }: { ruleId: string; deduction: string | null }) => setPrice(ruleId, deduction),
-    onSuccess: () => invalidateRules(queryClient),
+  return useMutation<{ recompute: RecomputeSummary }, Error, { ruleId: string }>({
+    mutationFn: ({ ruleId }) => setRuleState(ruleId, 'dismissed'),
+    onSuccess: () => invalidateBoard(queryClient),
   });
 }
 
-export function useWaivers(rubricId: string | undefined) {
-  return useQuery({
-    queryKey: ['rubrics', rubricId, 'criterion-waivers'],
-    queryFn: () => listWaivers(rubricId!),
-    enabled: Boolean(rubricId),
-  });
-}
-
+/** Đánh dấu tiêu chí "không trừ điểm" — trạng thái đánh dấu nằm trong tổng quan nên làm mới cả bảng. */
 export function useSetWaiver(rubricId: string | undefined) {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (criterionKey: string) => setWaiver(rubricId!, criterionKey),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['rubrics', rubricId, 'criterion-waivers'] }),
+  return useMutation<{ waiverId: string; recompute: RecomputeSummary | null }, Error, string>({
+    mutationFn: (criterionKey) => setWaiver(rubricId!, criterionKey),
+    onSuccess: () => invalidateBoard(queryClient),
   });
 }
 
-export function useRevokeWaiver(rubricId: string | undefined) {
+export function useRevokeWaiver() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (waiverId: string) => revokeWaiver(waiverId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['rubrics', rubricId, 'criterion-waivers'] }),
+  return useMutation<{ recompute: RecomputeSummary }, Error, string>({
+    mutationFn: (waiverId) => revokeWaiver(waiverId),
+    onSuccess: () => invalidateBoard(queryClient),
   });
 }

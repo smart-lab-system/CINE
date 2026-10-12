@@ -34,6 +34,22 @@ describe('ErrorList', () => {
     expect(mutate).toHaveBeenCalledWith({ resultId: 'r1', ruleId: 'rule-1', direction: 'exclude' });
   });
 
+  it('"Sửa luật này" mở Bảng lỗi đúng rubric của bài', () => {
+    render(
+      <ErrorList
+        resultId="r1"
+        sessionId="s1"
+        status="flagged_for_review"
+        errors={[baseError]}
+        errorFlags={[]}
+        verdicts={[]}
+        investigationNotes={[]}
+        rulesHref="/teacher/rules?rubric=CTDL"
+      />,
+    );
+    expect(screen.getByRole('link', { name: 'Sửa luật này' })).toHaveAttribute('href', '/teacher/rules?rubric=CTDL');
+  });
+
   it('hides exclude/include actions once the result is finalized (Review Focus #2)', () => {
     render(
       <ErrorList resultId="r1" sessionId="s1" status="finalized" errors={[baseError]} errorFlags={[]} verdicts={[]} investigationNotes={[]} />,

@@ -3,7 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { resultWith } from '../src/grading/decision/testing/result';
-import { ErrorRuleService } from '../src/grading/rules/error-rule.service';
+import { ProposalService } from '../src/grading/rules/proposal.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import type { StoredInvestigation } from '../src/grading/scoring/stored-investigation';
 import { forceStatus, seedResult, seedSession, SeedSession } from './helpers/grading-seed';
@@ -105,9 +105,13 @@ describe('ScoreService.finishAttempt (e2e)', () => {
       stored.result.verdict!.missingRules = [{ description, toolCallIds: [] }];
       await scores.finishAttempt(r.resultId, r.attemptId, stored, META);
     }
-    const missing = await app.get(ErrorRuleService).missing(ctx.teacherId);
+    const missing = await app.get(ProposalService).list(ctx.teacherId);
     expect(missing).toHaveLength(1);
-    expect(missing[0]).toMatchObject({ state: 'proposed', origin: 'agent_reported', revision: { name: 'Dùng biến toàn cục thay tham số', criterionKey: 'chua_gan' } });
+    expect(missing[0]).toMatchObject({
+      name: 'Dùng biến toàn cục thay tham số',
+      legacy: false,
+      sightings: { results: 2 },
+    });
   });
 
   it('lượt không phải lượt hiện hành, hay đã có kết cục → ném, không ghi gì', async () => {

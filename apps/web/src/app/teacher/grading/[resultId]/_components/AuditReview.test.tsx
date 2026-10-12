@@ -3,27 +3,29 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { AuditReview } from './AuditReview';
 import type { AuditReveal as AuditRevealData } from '@/lib/api/audit';
-import type { Rule } from '@/lib/api/rules';
+import type { LibraryRule } from '@/lib/api/rules';
 
 const record = vi.fn();
 const refreshDossier = vi.fn();
 let recordState: { isPending: boolean; isError: boolean; error: Error | null };
 let downloadState: { data?: { downloadUrl: string; fileName: string }; isLoading: boolean; isError: boolean; error: Error | null };
-let rulesState: { data?: Rule[]; isLoading: boolean; isError: boolean; error: Error | null };
+let rulesState: { data?: LibraryRule[]; isLoading: boolean; isError: boolean; error: Error | null };
 
 vi.mock('@/hooks/useAudit', () => ({
   useRecordAuditReview: () => ({ mutate: record, ...recordState }),
   useSubmissionDownload: () => downloadState,
   useOpenDossierAfterAudit: () => refreshDossier,
 }));
-vi.mock('@/hooks/useRules', () => ({ useRules: () => rulesState }));
+vi.mock('@/hooks/useRules', () => ({ useLibrary: () => rulesState }));
 
-const rule = (id: string, key: string, name: string, description: string): Rule =>
-  ({
-    id, ruleKey: key, state: 'active', origin: 'teacher',
-    revision: { id: `rev-${id}`, revision: 1, name, description, criterionKey: 'tinh_dung', predicate: null },
-    checkedBy: 'machine', deduction: '1.50', appliedTo: { results: 0, sessions: 0 }, mismatchedIn: 0,
-  }) as unknown as Rule;
+const rule = (id: string, key: string, name: string, description: string): LibraryRule => ({
+  id,
+  ruleKey: key,
+  origin: 'teacher',
+  revision: { id: `rev-${id}`, revision: 1, name, description, predicate: null },
+  checkedBy: 'machine',
+  uses: [{ rubricName: 'Rubric A', criterionKey: 'tinh_dung', deduction: '1.50' }],
+});
 
 const revealed: AuditRevealData = {
   status: 'teacher_reviewed', currentScore: 8.5, currentScoreSource: 'computation',

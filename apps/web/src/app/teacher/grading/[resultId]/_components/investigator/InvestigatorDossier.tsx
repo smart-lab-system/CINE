@@ -18,6 +18,7 @@ import { CoverageSection } from './CoverageSection';
 import { InvestigationTrail } from './InvestigationTrail';
 import { UngradableView } from './UngradableView';
 import { ManualScoreDialog } from './ManualScoreDialog';
+import { rulesHref } from '@/lib/rules-links';
 
 /**
  * Đúng MỘT `ManualScoreDialog` cho cả trang — cả `DossierHeader`, cả
@@ -152,6 +153,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
           caseFlags={d.breakdown.caseFlags}
           errorFlags={d.breakdown.errorFlags}
           onManualScore={() => setOpenManual(true)}
+          rulesHref={rulesHref(rubric?.name)}
         />
       )}
       <div className="grid gap-4 lg:grid-cols-[1fr_404px]">
@@ -166,6 +168,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
               errorFlags={d.breakdown.errorFlags}
               verdicts={d.challengeVerdicts}
               investigationNotes={d.investigation?.verdict?.errors ?? []}
+              rulesHref={rulesHref(rubric?.name)}
             />
           )}
           <ChallengeNotes notes={d.challengeNotes} />

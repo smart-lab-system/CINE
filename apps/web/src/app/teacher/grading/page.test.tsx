@@ -31,6 +31,7 @@ vi.mock('@/hooks/useGrading', () => ({
   useRegradeStuck: () => ({ mutate: h.regradeMutate, isPending: false, isError: false, error: null, data: undefined }),
 }));
 vi.mock('@/hooks/useOnlineStatus', () => ({ useOnlineStatus: () => h.online }));
+vi.mock('@/hooks/useRulesLink', () => ({ useRulesLink: () => '/teacher/rules?rubric=CTDL' }));
 
 // Each has its own tests; here only WHICH one the data selects, and what it is handed, matters.
 vi.mock('./_components/PreparePanel', () => ({
@@ -361,6 +362,7 @@ describe('list view — filter and the leverage line', () => {
     h.results = { ...h.results, data: needsYou.map((r) => ({ ...r, triage: priced('ten_bien') })) };
     render(<GradingPage />);
     expect(screen.getByRole('status')).toHaveTextContent('2 trong 2 bài cần xem đang chờ bạn đặt giá cho 1 luật');
+    expect(screen.getByRole('link', { name: 'Đặt giá ở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules?rubric=CTDL');
   });
 
   it('says nothing while a result has no triage — no claim from partial data', () => {

@@ -18,7 +18,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOpenDossierAfterAudit, useRecordAuditReview, useSubmissionDownload } from '@/hooks/useAudit';
-import { useRules } from '@/hooks/useRules';
+import { useLibrary } from '@/hooks/useRules';
 import type { AuditReveal as AuditRevealData } from '@/lib/api/audit';
 import { AuditReveal } from './AuditReveal';
 
@@ -138,13 +138,14 @@ function ReviewForm({
   error: Error | null;
   onSubmit: (body: { pickedRuleIds: string[]; extraErrors: string[] }, onFailed: () => void) => void;
 }) {
-  const rules = useRules();
+  const rules = useLibrary();
   const [picked, setPicked] = useState<string[]>([]);
   const [extraText, setExtraText] = useState('');
   const [confirmNone, setConfirmNone] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  const active = (rules.data ?? []).filter((r) => r.state === 'active');
+  // Thư viện chỉ trả lỗi đang dùng (state = active), nên không cần lọc theo trạng thái nữa.
+  const active = rules.data ?? [];
   const extras = extraText
     .split('\n')
     .map((line) => line.trim())

@@ -1,8 +1,8 @@
-import { parseDeduction, parseRuleChanges, parseRuleInput } from './rule-input';
+import { parseAssignInput, parseDeduction, parseNewRule, parseRuleChanges } from './rule-input';
 
-const base = { ruleKey: 'sai_bien', name: 'Sai biên', description: 'Ca biên không đạt', criterionKey: 'tinh_dung' };
+const NEW = { name: 'Sai ca biên', description: 'd', predicate: null };
 
-describe('parseRuleInput', () => {
+describe('parseNewRule', () => {
   it.each([
     [null],
     [{ kind: 'test_group_failed', group: 'bien' }],
@@ -11,7 +11,7 @@ describe('parseRuleInput', () => {
     [{ kind: 'no_recursion' }],
     [{ kind: 'no_recursion', functionName: 'dfs' }],
   ])('nhận mẫu %j', (predicate) => {
-    expect(parseRuleInput({ ...base, predicate }).predicate).toEqual(predicate);
+    expect(parseNewRule({ name: 'Sai biên', description: 'd', predicate }).predicate).toEqual(predicate);
   });
 
   it.each([
@@ -21,22 +21,62 @@ describe('parseRuleInput', () => {
     [{ kind: 'calls_function', name: 'a b' }],
     ['test_group_failed'],
   ])('từ chối mẫu %j', (predicate) => {
-    expect(() => parseRuleInput({ ...base, predicate })).toThrow(/điều kiện/);
-  });
-
-  it('từ chối khoá luật và khoá tiêu chí sai khuôn', () => {
-    expect(() => parseRuleInput({ ...base, ruleKey: 'Sai Bien', predicate: null })).toThrow(/ruleKey/);
-    expect(() => parseRuleInput({ ...base, criterionKey: '', predicate: null })).toThrow(/criterionKey/);
+    expect(() => parseNewRule({ name: 'x', description: 'x', predicate })).toThrow(/điều kiện/);
   });
 
   it('thiếu predicate = luật bằng lời', () => {
-    expect(parseRuleInput(base).predicate).toBeNull();
+    expect(parseNewRule({ name: 'Sai biên', description: 'd' }).predicate).toBeNull();
+  });
+});
+
+describe('parseAssignInput', () => {
+  it('đúng một trong ruleId hoặc newRule', () => {
+    expect(() => parseAssignInput({ rubricName: 'R', criterionKey: 'a' })).toThrow(/đúng một/);
+    expect(() =>
+      parseAssignInput({
+        rubricName: 'R',
+        criterionKey: 'a',
+        ruleId: '00000000-0000-4000-8000-000000000000',
+        newRule: NEW,
+      }),
+    ).toThrow(/đúng một/);
+  });
+  it('newRule + deduction chuỗi; ruleKey tường minh phải đúng khuôn', () => {
+    expect(parseAssignInput({ rubricName: 'R', criterionKey: 'a', deduction: '1.50', newRule: NEW }).deduction).toBe(
+      '1.50',
+    );
+    expect(() =>
+      parseAssignInput({ rubricName: 'R', criterionKey: 'a', newRule: { ...NEW, ruleKey: 'Co Dau' } }),
+    ).toThrow(/ruleKey/);
+    expect(() => parseAssignInput({ rubricName: 'R', criterionKey: 'a', deduction: 1.5, newRule: NEW })).toThrow(
+      /mức trừ/,
+    );
+  });
+  it('changes chỉ đi cùng ruleId', () => {
+    expect(() =>
+      parseAssignInput({ rubricName: 'R', criterionKey: 'a', newRule: NEW, changes: { name: 'x' } }),
+    ).toThrow(/changes/);
+    expect(
+      parseAssignInput({
+        rubricName: 'R',
+        criterionKey: 'a',
+        ruleId: '00000000-0000-4000-8000-000000000000',
+        changes: { name: 'x' },
+      }).changes,
+    ).toEqual({ name: 'x' });
+  });
+  it('parseNewRule không nhận criterionKey (tiêu chí thuộc dòng áp dụng)', () => {
+    expect(parseNewRule({ ...NEW, criterionKey: 'a' })).toEqual({
+      name: 'Sai ca biên',
+      description: 'd',
+      predicate: null,
+    });
   });
 });
 
 describe('parseRuleChanges', () => {
-  it('chỉ trả trường được gửi, không nhận ruleKey', () => {
-    expect(parseRuleChanges({ name: 'Tên mới', ruleKey: 'khac' })).toEqual({ name: 'Tên mới' });
+  it('chỉ trả trường được gửi, không nhận ruleKey hay criterionKey', () => {
+    expect(parseRuleChanges({ name: 'Tên mới', ruleKey: 'khac', criterionKey: 'a' })).toEqual({ name: 'Tên mới' });
     expect(parseRuleChanges({ predicate: null })).toEqual({ predicate: null });
   });
 });

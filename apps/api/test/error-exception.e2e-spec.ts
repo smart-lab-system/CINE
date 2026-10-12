@@ -9,7 +9,15 @@ import { PriceService } from '../src/grading/rules/price.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { TeacherReviewService } from '../src/grading/teacher-review.service';
 import { forceStatus, seedSession } from './helpers/grading-seed';
-import { seedInvestigatorResult, seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
+import {
+  assignmentId,
+  rubricNameOf,
+  seedInvestigatorResult,
+  seedInvestigatorSession,
+  seedPrices,
+  seedRule,
+  storedWith,
+} from './helpers/investigator-seed';
 
 const SEEN = [
   { ruleKey: 'sai_bien', checkedBy: 'machine' as const },
@@ -84,12 +92,13 @@ describe('Ngoại lệ cấp lỗi và chấm tay (e2e)', () => {
 
   it('T-EXC-1: lỗi đã bỏ → đổi giá CHÍNH luật đó không đổi điểm bài; đổi giá luật khác vẫn áp', async () => {
     const { ctx, bien, ten } = await world('ex-reprice');
+    const name = await rubricNameOf(ds, ctx.rubricId);
     const id = await graded(ctx, ['ten_bien']);
     await exceptions.setErrorException(ctx.teacherId, id, ten.ruleId, 'exclude');
     expect(await scoresOf(id)).toEqual(['8.00', '8.50']);
-    await prices.setPrice(ctx.teacherId, ten.ruleId, '1.00', ctx.teacherId);
+    await prices.setPrice(ctx.teacherId, await assignmentId(ds, ctx.teacherId, name, ten.ruleId), '1.00', ctx.teacherId);
     expect(await scoresOf(id)).toEqual(['8.00', '8.50', '8.50']);
-    await prices.setPrice(ctx.teacherId, bien.ruleId, '2.00', ctx.teacherId);
+    await prices.setPrice(ctx.teacherId, await assignmentId(ds, ctx.teacherId, name, bien.ruleId), '2.00', ctx.teacherId);
     expect(await scoresOf(id)).toEqual(['8.00', '8.50', '8.50', '8.00']);
     expect(await statusOf(id)).toBe('teacher_reviewed');
   });
@@ -155,11 +164,12 @@ describe('Ngoại lệ cấp lỗi và chấm tay (e2e)', () => {
 
   it('chấm tay → điểm hiện tại là điểm tay; sửa giá sau đó không sinh lượt tính nào cho bài đó', async () => {
     const { ctx, bien } = await world('ex-manual');
+    const name = await rubricNameOf(ds, ctx.rubricId);
     const id = await graded(ctx);
     expect(await exceptions.setManualScore(ctx.teacherId, id, '4.00')).toEqual({ score: '4.00', status: 'teacher_reviewed' });
     const view = await app.get(GradingService).listForSession(ctx.sessionId);
     expect(view.find((v) => v.id === id)).toMatchObject({ currentScore: 4, currentScoreSource: 'manual' });
-    await prices.setPrice(ctx.teacherId, bien.ruleId, '3.00', ctx.teacherId);
+    await prices.setPrice(ctx.teacherId, await assignmentId(ds, ctx.teacherId, name, bien.ruleId), '3.00', ctx.teacherId);
     expect(await scoresOf(id)).toEqual(['8.50']);
   });
 

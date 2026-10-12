@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeCriteria,
   buildSaveInput,
-  defaultRubricName,
   newRow,
   parseCap,
   removedKeys,
@@ -24,21 +22,6 @@ const rubric = (over: Partial<Rubric> = {}): Rubric => ({
     { id: 'c2', key: 'trinh_bay', description: 'Trình bày', maxPoints: 2.5 },
   ],
   ...over,
-});
-
-describe('activeCriteria', () => {
-  it('takes criteria of ACTIVE versions only, once per key (first one wins)', () => {
-    const list = activeCriteria([
-      rubric(),
-      rubric({ id: 'ru-2', name: 'Khác', criteria: [{ id: 'x', key: 'tinh_dung', description: 'Trùng khoá', maxPoints: 9 }, { id: 'y', key: 'moi', description: 'Mới', maxPoints: 1 }] }),
-      rubric({ id: 'ru-0', isActive: false, criteria: [{ id: 'z', key: 'cu_ky', description: 'Cũ', maxPoints: 5 }] }),
-    ]);
-    expect(list.map((c) => c.key)).toEqual(['tinh_dung', 'trinh_bay', 'moi']);
-    expect(list[0]).toEqual({ key: 'tinh_dung', description: 'Tính đúng', max: 6 });
-  });
-  it('is empty for undefined', () => {
-    expect(activeCriteria(undefined)).toEqual([]);
-  });
 });
 
 describe('rowsFromRubric', () => {
@@ -105,7 +88,7 @@ describe('validateRubric', () => {
     });
     it('cap must parse', () => {
       const errs = validateRubric({ name: 'X', ...ctx }, rows({ maxPoints: '0' }, { maxPoints: '2,5' }));
-      expect(errs.rows.n0.maxPoints).toBe('Trần điểm: từ 0,25 đến 100, tối đa hai chữ số lẻ.');
+      expect(errs.rows.n0.maxPoints).toBe('Điểm tối đa: từ 0,25 đến 100, tối đa hai chữ số lẻ.');
       expect(errs.rows.n1).toBeUndefined();
     });
     it('a typed key must be lower-case letters/digits/underscore, ≤64; blank is fine', () => {
@@ -170,16 +153,5 @@ describe('removedKeys (criteria whose rules would start reporting "lệch tiêu 
   it('is empty when nothing was removed, or when creating from scratch', () => {
     expect(removedKeys(rubric(), rowsFromRubric(rubric()))).toEqual([]);
     expect(removedKeys(undefined, [])).toEqual([]);
-  });
-});
-
-describe('defaultRubricName', () => {
-  it('the first rubric that has an active version', () => {
-    expect(defaultRubricName([rubric({ name: 'A', isActive: false }), rubric({ name: 'B' }), rubric({ name: 'C' })])).toBe('B');
-  });
-  it('null when there is none', () => {
-    expect(defaultRubricName([])).toBeNull();
-    expect(defaultRubricName(undefined)).toBeNull();
-    expect(defaultRubricName([rubric({ isActive: false })])).toBeNull();
   });
 });

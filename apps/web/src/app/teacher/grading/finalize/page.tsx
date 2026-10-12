@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useGradingResults } from '@/hooks/useGrading';
+import { useRulesLink } from '@/hooks/useRulesLink';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { FinalizePanel } from '../_components/FinalizePanel';
 
@@ -27,6 +28,7 @@ function FinalizeContent() {
   const overview = useSessionOverview();
   const results = useGradingResults(sessionId || undefined);
   const session = overview.data?.find((s) => s.id === sessionId);
+  const rulesLink = useRulesLink(session?.rubricId);
 
   if (!sessionId) {
     return (
@@ -71,7 +73,12 @@ function FinalizeContent() {
       ) : results.isLoading || !results.data ? (
         <Skeleton className="h-40 w-full" />
       ) : (
-        <FinalizePanel sessionId={sessionId} session={{ name: session.name, code: session.code }} results={results.data} />
+        <FinalizePanel
+          sessionId={sessionId}
+          session={{ name: session.name, code: session.code }}
+          results={results.data}
+          rulesHref={rulesLink}
+        />
       )}
     </div>
   );

@@ -4,7 +4,8 @@ import { DataSource } from 'typeorm';
 import { parseHundredths } from '../scoring/hundredths';
 import { lockTeacherScoring } from '../scoring/score-inputs';
 import { RecomputeSummary, ScoreService } from '../scoring/score.service';
-import { ErrorRuleService } from './error-rule.service';
+import { writeNextPriceVersion } from './price-version';
+import { RubricErrorService } from './rubric-error.service';
 
 /** Khối *"Lưu thì điều gì xảy ra"* của spec UI 3.1. */
 export interface PricePreview {
@@ -17,53 +18,35 @@ export interface PricePreview {
 export class PriceService {
   constructor(
     @InjectDataSource() private readonly ds: DataSource,
-    private readonly rules: ErrorRuleService,
+    private readonly assignments: RubricErrorService,
     private readonly scores: ScoreService,
   ) {}
 
   /**
-   * Một phiên bản bảng giá MỚI, chép cả bảng + giá đổi (§2.2) — không sửa giá tại chỗ. Tính lại
-   * mọi bài chưa chốt dính luật đó trong CÙNG transaction: giá lưu mà bài chưa tính lại là một
-   * trạng thái không màn nào tả được.
+   * Điểm trừ của MỘT dòng áp dụng (lỗi trong một rubric). Một phiên bản bảng giá MỚI, chép cả bảng (§2.2)
+   * — dòng của rubric khác đi nguyên theo. Tính lại các bài chưa chốt của ĐÚNG rubric đó, cùng transaction.
    */
   async setPrice(
     teacherId: string,
-    ruleId: string,
+    rubricErrorId: string,
     deduction: string | null,
     actorId: string,
   ): Promise<{ versionId: string; recompute: RecomputeSummary }> {
     return this.ds.transaction(async (m) => {
-      // Khoá TRƯỚC mọi thứ khác: số phiên bản giá, bản sửa luật và mọi lượt tính lại xếp hàng theo giảng viên.
       await lockTeacherScoring(m, teacherId);
-      await this.rules.owned(m, teacherId, ruleId);
-      const [{ next }] = await m.query(
-        `SELECT COALESCE(MAX(version), 0) + 1 AS next FROM examcollect.price_table_version WHERE teacher_id = $1`,
-        [teacherId],
-      );
-      const [v] = await m.query(
-        `INSERT INTO examcollect.price_table_version (teacher_id, version, created_by) VALUES ($1, $2, $3) RETURNING id`,
-        [teacherId, next, actorId],
-      );
-      await m.query(
-        `INSERT INTO examcollect.rule_price (price_table_version_id, error_rule_id, teacher_id, deduction)
-         SELECT $1, p.error_rule_id, p.teacher_id, p.deduction
-           FROM examcollect.rule_price p
-           JOIN examcollect.price_table_version pv ON pv.id = p.price_table_version_id
-          WHERE pv.teacher_id = $2 AND pv.version = $3 AND p.error_rule_id <> $4`,
-        [v.id, teacherId, next - 1, ruleId],
-      );
-      await m.query(
-        `INSERT INTO examcollect.rule_price (price_table_version_id, error_rule_id, teacher_id, deduction) VALUES ($1, $2, $3, $4)`,
-        [v.id, ruleId, teacherId, deduction],
-      );
-      const recompute = await this.scores.recomputeForTeacher(m, teacherId, 'price_change', actorId, { ruleId });
-      return { versionId: v.id as string, recompute };
+      const assignment = await this.assignments.owned(m, teacherId, rubricErrorId);
+      const versionId = await writeNextPriceVersion(m, teacherId, actorId, [{ rubricErrorId, deduction }]);
+      const recompute = await this.scores.recomputeForTeacher(m, teacherId, 'price_change', actorId, {
+        rubricName: assignment.rubricName,
+        ruleId: assignment.errorRuleId,
+      });
+      return { versionId, recompute };
     });
   }
 
-  /** Xem trước một giá — KHÔNG ghi gì (T-POL-5). Bài chấm tay không tính: điểm của nó không đổi nữa. */
-  async preview(teacherId: string, ruleId: string, deduction: string | null): Promise<PricePreview> {
-    await this.rules.owned(this.ds.manager, teacherId, ruleId);
+  /** Xem trước một giá — KHÔNG ghi gì (T-POL-5). Chỉ bài của rubric đó; bài chấm tay không tính. */
+  async preview(teacherId: string, rubricErrorId: string, deduction: string | null): Promise<PricePreview> {
+    const assignment = await this.assignments.owned(this.ds.manager, teacherId, rubricErrorId);
     const hundredths = deduction === null ? null : parseHundredths(deduction);
     const rows: { result_id: string; session_id: string; name: string; status: string }[] = await this.ds.query(
       `SELECT g.id AS result_id, es.id AS session_id, es.name, g.status
@@ -71,6 +54,7 @@ export class PriceService {
          JOIN examcollect.submission s ON s.id = g.submission_id
          JOIN examcollect.exam_session es ON es.id = s.exam_session_id
         WHERE es.teacher_id = $1 AND g.pipeline = 'investigator'
+          AND g.rubric_id_version IN (SELECT id FROM examcollect.rubric WHERE teacher_id = $1 AND name = $3)
           AND g.status <> 'audit_pending'
           AND NOT EXISTS (SELECT 1 FROM examcollect.teacher_review t
                            WHERE t.grading_result_id = g.id AND t.kind = 'manual_score')
@@ -78,7 +62,7 @@ export class PriceService {
                                       WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) last
                        WHERE last.breakdown -> 'errors' @> jsonb_build_array(jsonb_build_object('ruleId', $2::text)))
         ORDER BY es.name, g.id`,
-      [teacherId, ruleId],
+      [teacherId, assignment.errorRuleId, assignment.rubricName],
     );
     const open = new Map<string, PricePreview['openSessions'][number]>();
     const closed = new Map<string, PricePreview['finalizedSessions'][number]>();
@@ -89,16 +73,10 @@ export class PriceService {
         closed.set(r.session_id, s);
         continue;
       }
-      const s = open.get(r.session_id) ?? {
-        sessionId: r.session_id,
-        name: r.name,
-        affected: 0,
-        autoAfter: 0,
-        blockedByOtherUnpriced: 0,
-      };
+      const s = open.get(r.session_id) ?? { sessionId: r.session_id, name: r.name, affected: 0, autoAfter: 0, blockedByOtherUnpriced: 0 };
       s.affected++;
       const out = await this.scores.preview(r.result_id, (rules) =>
-        rules.map((x) => (x.ruleId === ruleId ? { ...x, deductionHundredths: hundredths } : x)),
+        rules.map((x) => (x.ruleId === assignment.errorRuleId ? { ...x, deductionHundredths: hundredths } : x)),
       );
       if (out.outcome === 'auto') s.autoAfter++;
       else if (out.breakdown.errorFlags.some((f) => f.code === 'unpriced')) s.blockedByOtherUnpriced++;

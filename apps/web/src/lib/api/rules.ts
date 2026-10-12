@@ -1,8 +1,10 @@
 import { apiClient } from '@/lib/api-client';
+import { apiFailure } from './error';
 
 /**
- * Bốn mẫu điều kiện có sẵn, hoặc `null` (luật bằng lời) — mirrors `RulePredicate`
- * (apps/api/src/grading/decision/types.ts). Không có mẫu thứ năm: không viết code tự do (spec §3.2).
+ * Bốn mẫu điều kiện có sẵn, hoặc `null` (AI đọc bài) — mirrors `RulePredicate`
+ * (apps/api/src/grading/decision/types.ts). Giao diện chỉ TẠO mẫu `test_group_failed`; ba mẫu còn lại chỉ còn ở
+ * lỗi cũ (spec D9) và được hiện như "AI đọc bài" kèm ghi chú.
  */
 export type RulePredicate =
   | { kind: 'test_group_failed'; group: string }
@@ -10,39 +12,9 @@ export type RulePredicate =
   | { kind: 'complexity_exceeds_required' }
   | { kind: 'no_recursion'; functionName?: string };
 
-/** Mirrors RuleListItem (apps/api/src/grading/rules/error-rule.service.ts). */
-export interface Rule {
-  id: string;
-  ruleKey: string;
-  state: string;
-  origin: string;
-  revision: {
-    id: string;
-    revision: number;
-    name: string;
-    description: string;
-    criterionKey: string;
-    predicate: RulePredicate | null;
-  };
-  checkedBy: 'machine' | 'model';
-  deduction: string | null;
-  appliedTo: { results: number; sessions: number };
-  mismatchedIn: number;
-}
-
-/** Mirrors RulePreview (apps/api/src/grading/rules/error-rule.service.ts). */
-export type RulePreview =
-  | {
-      tier: 2;
-      results: { resultId: string; sessionId: string; before: string | null; after: number | null; capped: boolean }[];
-    }
-  | { tier: 3; reason: string }
-  | { tier: 4; sessions: { sessionId: string; name: string; graded: boolean }[] };
-
 /**
- * Kết quả tính lại tầng luật mà server trả sau mỗi thao tác đổi luật/giá/đánh dấu — mirrors
- * `RecomputeSummary` (apps/api/src/grading/scoring/score.service.ts). Bỏ nó đi là để giảng viên bấm xong
- * mà không biết điều gì vừa xảy ra với các bài (spec §2.1 luật 4).
+ * Kết quả tính lại mà máy chủ trả sau mỗi thao tác đổi lỗi / điểm trừ / đánh dấu — mirrors `RecomputeSummary`
+ * (apps/api/src/grading/scoring/score.service.ts). Luôn đọc lại bằng lời cho giảng viên (`describeRecompute`).
  */
 export interface RecomputeSummary {
   recomputed: number;
@@ -54,115 +26,90 @@ export interface RecomputeSummary {
 /** Mirrors PricePreview (apps/api/src/grading/rules/price.service.ts). */
 export interface PricePreview {
   openSessions: { sessionId: string; name: string; affected: number; autoAfter: number; blockedByOtherUnpriced: number }[];
-  /** Phiên đã chốt KHÔNG đổi theo (bảng giá ghim lúc chốt, §2.2) — không có autoAfter/blockedByOtherUnpriced. */
+  /** Phiên đã chốt KHÔNG đổi theo: bảng điểm trừ đã ghim lúc chốt (§2.2). */
   finalizedSessions: { sessionId: string; name: string; affected: number }[];
 }
 
-export interface CriterionWaiver {
-  id: string;
-  criterionKey: string;
-  setAt: string;
-  revokedAt: string | null;
-}
-
-function fail(error: unknown, response: Response): Error {
-  const body = error as { message?: string | string[] } | undefined;
-  const message = Array.isArray(body?.message) ? body!.message.join('; ') : body?.message;
-  return new Error(message ?? `Yêu cầu thất bại (HTTP ${response.status})`);
-}
-
-export async function listRules(): Promise<Rule[]> {
-  const { data, error, response } = await apiClient.GET('/rules');
-  if (error || !response.ok) throw fail(error, response);
-  return data as unknown as Rule[];
-}
-
-/** Luật agent báo còn thiếu (§2.1) — chặn tự quyết cho tới khi giảng viên xử lý (spec UI 3.1). */
-export async function listMissingRules(): Promise<Rule[]> {
-  const { data, error, response } = await apiClient.GET('/rules/missing');
-  if (error || !response.ok) throw fail(error, response);
-  return data as unknown as Rule[];
-}
-
-export interface RuleInput {
-  ruleKey?: string;
+export interface ErrorChanges {
   name?: string;
   description?: string;
-  criterionKey?: string;
-  predicate?: unknown;
+  predicate?: RulePredicate | null;
 }
 
-export async function createRule(
-  input: RuleInput,
-): Promise<{ ruleId: string; revisionId: string; recompute: RecomputeSummary | null }> {
-  const { data, error, response } = await apiClient.POST('/rules', { body: input as never });
-  if (error || !response.ok) throw fail(error, response);
-  return data as unknown as { ruleId: string; revisionId: string; recompute: RecomputeSummary | null };
+/** Một lỗi trong THƯ VIỆN — mirrors LibraryRule (apps/api/src/grading/rules/error-rule.service.ts). */
+export interface LibraryRule {
+  id: string;
+  ruleKey: string;
+  origin: string;
+  revision: { id: string; revision: number; name: string; description: string; predicate: RulePredicate | null };
+  checkedBy: 'machine' | 'model';
+  uses: { rubricName: string; criterionKey: string; deduction: string | null }[];
 }
 
+/** Lỗi AI đề xuất kèm nơi thấy — mirrors ProposalItem (apps/api/src/grading/rules/proposal.service.ts). */
+export interface ProposalItem {
+  id: string;
+  ruleKey: string;
+  name: string;
+  description: string;
+  sightings: { sessions: { id: string; name: string }[]; results: number };
+  /** Báo trước khi có bảng ghi nhận nơi thấy — không biết thấy ở đâu nên hiện ở mọi rubric. */
+  legacy: boolean;
+}
+
+export async function listLibrary(): Promise<LibraryRule[]> {
+  const { data, error, response } = await apiClient.GET('/rules');
+  if (error || !response.ok) throw apiFailure(error, response);
+  return data as unknown as LibraryRule[];
+}
+
+/** Có `rubricName`: chỉ lỗi thấy ở rubric đó (số liệu của rubric đó). Không có: mọi lỗi đề xuất. */
+export async function listProposals(rubricName?: string): Promise<ProposalItem[]> {
+  const { data, error, response } = await apiClient.GET('/rules/missing', {
+    params: { query: rubricName ? { rubricName } : {} } as never,
+  });
+  if (error || !response.ok) throw apiFailure(error, response);
+  return data as unknown as ProposalItem[];
+}
+
+/** Sửa tên / mô tả / điều kiện cho CẢ các rubric đang dùng lỗi này. */
 export async function reviseRule(
   ruleId: string,
-  changes: RuleInput,
+  changes: ErrorChanges,
 ): Promise<{ revisionId: string; recompute: RecomputeSummary | null }> {
   const { data, error, response } = await apiClient.PATCH('/rules/{id}', {
     params: { path: { id: ruleId } },
     body: changes as never,
   });
-  if (error || !response.ok) throw fail(error, response);
+  if (error || !response.ok) throw apiFailure(error, response);
   return data as unknown as { revisionId: string; recompute: RecomputeSummary | null };
 }
 
-export async function previewRule(
-  input: RuleInput & { ruleId?: string; deduction?: string | null },
-): Promise<RulePreview> {
-  const { data, error, response } = await apiClient.POST('/rules/preview', { body: input as never });
-  if (error || !response.ok) throw fail(error, response);
-  return data as unknown as RulePreview;
+/** Sửa CHỈ cho một rubric: tách thành bản riêng, rubric còn lại giữ nguyên (D4). */
+export async function splitRule(
+  ruleId: string,
+  rubricName: string,
+  changes: ErrorChanges,
+): Promise<{ ruleId: string; rubricErrorId: string; recompute: RecomputeSummary }> {
+  const { data, error, response } = await apiClient.POST('/rules/{id}/split', {
+    params: { path: { id: ruleId } },
+    body: { rubricName, changes } as never,
+  });
+  if (error || !response.ok) throw apiFailure(error, response);
+  return data as unknown as { ruleId: string; rubricErrorId: string; recompute: RecomputeSummary };
 }
 
+/** "Không phải lỗi" (`dismissed`). Duyệt một lỗi đề xuất đi qua `assignError`, không qua đây. */
 export async function setRuleState(
   ruleId: string,
-  state: 'active' | 'dismissed' | 'retired',
+  state: 'dismissed' | 'retired',
 ): Promise<{ recompute: RecomputeSummary }> {
   const { data, error, response } = await apiClient.POST('/rules/{id}/state', {
     params: { path: { id: ruleId } },
     body: { state },
   });
-  if (error || !response.ok) throw fail(error, response);
+  if (error || !response.ok) throw apiFailure(error, response);
   return data as unknown as { recompute: RecomputeSummary };
-}
-
-/** "Lưu thì ảnh hưởng bao nhiêu bài" (spec UI 3.1, T-POL-5) — gọi TRƯỚC setPrice. */
-export async function previewPrice(ruleId: string, deduction: string | null): Promise<PricePreview> {
-  const { data, error, response } = await apiClient.POST('/rules/{id}/price/preview', {
-    params: { path: { id: ruleId } },
-    // `PriceBodyDto.deduction` khai `@Allow()` (kiểm ở parseDeduction, không ở decorator, §13.2) —
-    // openapi-typescript không suy được kiểu, sinh ra `Record<string, never>`. Cùng khuôn `body as
-    // never` đã dùng cho các DTO tương tự khác trong `lib/api/grading.ts`.
-    body: { deduction } as never,
-  });
-  if (error || !response.ok) throw fail(error, response);
-  return data as unknown as PricePreview;
-}
-
-export async function setPrice(
-  ruleId: string,
-  deduction: string | null,
-): Promise<{ versionId: string; recompute: RecomputeSummary }> {
-  const { data, error, response } = await apiClient.PUT('/rules/{id}/price', {
-    params: { path: { id: ruleId } },
-    body: { deduction } as never,
-  });
-  if (error || !response.ok) throw fail(error, response);
-  return data as unknown as { versionId: string; recompute: RecomputeSummary };
-}
-
-export async function listWaivers(rubricId: string): Promise<CriterionWaiver[]> {
-  const { data, error, response } = await apiClient.GET('/rubrics/{id}/criterion-waivers', {
-    params: { path: { id: rubricId } },
-  });
-  if (error || !response.ok) throw fail(error, response);
-  return data as unknown as CriterionWaiver[];
 }
 
 export async function setWaiver(
@@ -173,7 +120,7 @@ export async function setWaiver(
     params: { path: { id: rubricId } },
     body: { criterionKey },
   });
-  if (error || !response.ok) throw fail(error, response);
+  if (error || !response.ok) throw apiFailure(error, response);
   return data as unknown as { waiverId: string; recompute: RecomputeSummary | null };
 }
 
@@ -181,6 +128,6 @@ export async function revokeWaiver(waiverId: string): Promise<{ recompute: Recom
   const { data, error, response } = await apiClient.POST('/criterion-waivers/{id}/revoke', {
     params: { path: { id: waiverId } },
   });
-  if (error || !response.ok) throw fail(error, response);
+  if (error || !response.ok) throw apiFailure(error, response);
   return data as unknown as { recompute: RecomputeSummary };
 }

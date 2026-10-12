@@ -968,7 +968,7 @@ export interface paths {
         };
         get: operations["RulesController_list"];
         put?: never;
-        post: operations["RulesController_create"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -991,22 +991,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/rules/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["RulesController_preview"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/rules/{id}": {
         parameters: {
             query?: never;
@@ -1023,6 +1007,22 @@ export interface paths {
         patch: operations["RulesController_revise"];
         trace?: never;
     };
+    "/rules/{id}/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RulesController_split"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rules/{id}/state": {
         parameters: {
             query?: never;
@@ -1033,38 +1033,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["RulesController_setState"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/rules/{id}/price/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["RulesController_pricePreview"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/rules/{id}/price": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["RulesController_setPrice"];
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1097,6 +1065,102 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["RulesController_revokeWaiver"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rubric-errors/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["RubricErrorsController_getOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rubric-errors/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RubricErrorsController_copy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rubric-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["RubricErrorsController_list"];
+        put?: never;
+        post: operations["RubricErrorsController_assign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rubric-errors/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["RubricErrorsController_remove"];
+        options?: never;
+        head?: never;
+        patch: operations["RubricErrorsController_move"];
+        trace?: never;
+    };
+    "/rubric-errors/{id}/price/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RubricErrorsController_pricePreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rubric-errors/{id}/price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["RubricErrorsController_setPrice"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1963,37 +2027,39 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        RuleBodyDto: {
-            ruleKey?: string;
-            name?: string;
-            description?: string;
-            criterionKey?: string;
-            predicate?: Record<string, never>;
-        };
-        RulePreviewDto: {
-            ruleKey?: string;
-            name?: string;
-            description?: string;
-            criterionKey?: string;
-            predicate?: Record<string, never>;
-            ruleId?: string;
-            deduction?: Record<string, never>;
-        };
         RuleChangesDto: {
             name?: string;
             description?: string;
-            criterionKey?: string;
             predicate?: Record<string, never>;
+        };
+        SplitRuleDto: {
+            rubricName: string;
+            changes?: Record<string, never>;
         };
         RuleStateDto: {
             /** @enum {string} */
-            state: "active" | "dismissed" | "retired";
-        };
-        PriceBodyDto: {
-            deduction: Record<string, never>;
+            state: "dismissed" | "retired";
         };
         CriterionWaiverDto: {
             criterionKey: string;
+        };
+        CopyErrorsDto: {
+            fromRubricName: string;
+            toRubricName: string;
+        };
+        AssignErrorDto: {
+            rubricName: string;
+            criterionKey: string;
+            deduction?: Record<string, never>;
+            ruleId?: string;
+            newRule?: Record<string, never>;
+            changes?: Record<string, never>;
+        };
+        MoveErrorDto: {
+            criterionKey: string;
+        };
+        PriceBodyDto: {
+            deduction: Record<string, never>;
         };
         TestCaseDto: {
             caseKey: string;
@@ -3751,30 +3817,11 @@ export interface operations {
             };
         };
     };
-    RulesController_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RuleBodyDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     RulesController_missing: {
         parameters: {
-            query?: never;
+            query: {
+                rubricName: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3787,29 +3834,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>[];
-                };
-            };
-        };
-    };
-    RulesController_preview: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RulePreviewDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -3837,6 +3861,29 @@ export interface operations {
             };
         };
     };
+    RulesController_split: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SplitRuleDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     RulesController_setState: {
         parameters: {
             query?: never;
@@ -3849,54 +3896,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RuleStateDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    RulesController_pricePreview: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PriceBodyDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-        };
-    };
-    RulesController_setPrice: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PriceBodyDto"];
             };
         };
         responses: {
@@ -3960,6 +3959,180 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RubricErrorsController_getOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    RubricErrorsController_copy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CopyErrorsDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RubricErrorsController_list: {
+        parameters: {
+            query: {
+                rubricName: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    RubricErrorsController_assign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignErrorDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    RubricErrorsController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RubricErrorsController_move: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveErrorDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RubricErrorsController_pricePreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceBodyDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    RubricErrorsController_setPrice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceBodyDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {

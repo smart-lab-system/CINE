@@ -26,8 +26,9 @@ export class ErrorRuleRevisionEntity {
   @Column({ type: 'text' })
   description!: string;
 
-  @Column({ name: 'criterion_key', type: 'text' })
-  criterionKey!: string;
+  /** Ngừng ghi từ spec 2026-10-07: tiêu chí giờ thuộc dòng áp dụng. Dữ liệu cũ giữ làm hồ sơ. */
+  @Column({ name: 'criterion_key', type: 'text', nullable: true })
+  criterionKey!: string | null;
 
   /** Một trong bốn mẫu điều kiện của §4.1; null = luật bằng lời. */
   @Column({ type: 'jsonb', nullable: true })

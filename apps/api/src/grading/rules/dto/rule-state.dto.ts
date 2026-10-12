@@ -1,7 +1,9 @@
 import { IsIn } from 'class-validator';
 
-/** `proposed` không đặt được bằng tay — chỉ agent báo *luật còn thiếu* mới sinh nó (3d). */
+/**
+ * Duyệt lỗi đề xuất đi qua POST /rubric-errors; `proposed`/`active` không đặt được bằng tay.
+ */
 export class RuleStateDto {
-  @IsIn(['active', 'dismissed', 'retired'])
-  state!: 'active' | 'dismissed' | 'retired';
+  @IsIn(['dismissed', 'retired'])
+  state!: 'dismissed' | 'retired';
 }

@@ -42,12 +42,11 @@ export async function seedSession(
 ): Promise<SeedSession> {
   const s = stamp();
   const teacherId = opts.teacherId ?? (await seedTeacher(ds, label));
-  // Tên lớp phải khác nhau giữa các lần gọi: lớp legacy (course_id NULL) có
-  // unique (teacher_id, name), nên hai phiên của CÙNG giảng viên mà cùng 'N01'
-  // sẽ đụng uq_class_legacy_teacher_name.
+  // Tên lớp phải duy nhất theo giảng viên (uq_class_legacy_teacher_name) — không dùng cố định 'N01'
+  // khi seedSession thứ hai của cùng teacherId (hai rubric / hai phiên).
   const [klass] = await ds.query(
     `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, $2, $3) RETURNING id`,
-    [`Môn ${label}`, `N01-${s}`, teacherId],
+    [`Môn ${label}`, `N${s}`.slice(0, 20), teacherId],
   );
   const [session] = await ds.query(
     `INSERT INTO examcollect.exam_session
@@ -71,6 +70,8 @@ export async function seedSession(
     `INSERT INTO examcollect.rubric (version, teacher_id, name) VALUES (1, $1, $2) RETURNING id`,
     [teacherId, `Rubric ${label} ${s}`],
   );
+  // planReapply / giá theo rubric đọc tên qua exam_session.rubric_id (spec §3.4).
+  await ds.query(`UPDATE examcollect.exam_session SET rubric_id = $1 WHERE id = $2`, [rubric.id, session.id]);
   return { teacherId, classId: klass.id, sessionId: session.id, deliverableId: deliverable.id, rubricId: rubric.id };
 }
 

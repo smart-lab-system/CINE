@@ -7,7 +7,15 @@ import { latestComputationRow } from '../src/grading/scoring/score-inputs';
 import { TeacherReviewService } from '../src/grading/teacher-review.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { forceStatus, seedSession } from './helpers/grading-seed';
-import { seedInvestigatorResult, seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
+import {
+  assignmentId,
+  rubricNameOf,
+  seedInvestigatorResult,
+  seedInvestigatorSession,
+  seedPrices,
+  seedRule,
+  storedWith,
+} from './helpers/investigator-seed';
 
 const SEEN = [
   { ruleKey: 'sai_bien', checkedBy: 'machine' as const },
@@ -196,6 +204,9 @@ describe('ScoreService (e2e)', () => {
 
   it('review C1: lượt sửa giá BẮT ĐẦU trước nhưng tính lại SAU lượt tính đầu → lượt tính mới nhất là lượt theo giá mới', async () => {
     const { ctx, bien, ten } = await world('sc-order');
+    const name = await rubricNameOf(ds, ctx.rubricId);
+    const aBien = await assignmentId(ds, ctx.teacherId, name, bien.ruleId);
+    const aTen = await assignmentId(ds, ctx.teacherId, name, ten.ruleId);
     const a = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
     const runner = ds.createQueryRunner();
     await runner.connect();
@@ -210,9 +221,9 @@ describe('ScoreService (e2e)', () => {
         [ctx.teacherId],
       );
       await runner.query(
-        `INSERT INTO examcollect.rule_price (price_table_version_id, error_rule_id, teacher_id, deduction)
+        `INSERT INTO examcollect.rubric_error_price (price_table_version_id, rubric_error_id, teacher_id, deduction)
          VALUES ($1, $2, $4, '3.00'), ($1, $3, $4, '0.50')`,
-        [v.id, bien.ruleId, ten.ruleId, ctx.teacherId],
+        [v.id, aBien, aTen, ctx.teacherId],
       );
       await scores.recomputeForTeacher(runner.manager, ctx.teacherId, 'price_change', ctx.teacherId, { ruleId: bien.ruleId });
       await runner.commitTransaction();
@@ -225,6 +236,9 @@ describe('ScoreService (e2e)', () => {
 
   it('lượt tính đầu CHỜ một lượt sửa giá đang mở của cùng giảng viên, rồi tính theo giá mới', async () => {
     const { ctx, bien, ten } = await world('sc-lock');
+    const name = await rubricNameOf(ds, ctx.rubricId);
+    const aBien = await assignmentId(ds, ctx.teacherId, name, bien.ruleId);
+    const aTen = await assignmentId(ds, ctx.teacherId, name, ten.ruleId);
     const a = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
     const runner = ds.createQueryRunner();
     await runner.connect();
@@ -242,9 +256,9 @@ describe('ScoreService (e2e)', () => {
         [ctx.teacherId],
       );
       await runner.query(
-        `INSERT INTO examcollect.rule_price (price_table_version_id, error_rule_id, teacher_id, deduction)
+        `INSERT INTO examcollect.rubric_error_price (price_table_version_id, rubric_error_id, teacher_id, deduction)
          VALUES ($1, $2, $4, '3.00'), ($1, $3, $4, '0.50')`,
-        [v.id, bien.ruleId, ten.ruleId, ctx.teacherId],
+        [v.id, aBien, aTen, ctx.teacherId],
       );
       await runner.commitTransaction();
       // Hồ sơ chỉ có lỗi máy quyết `sai_bien`; giá mới 3,00 (không phải 1,50 của v1) → 10 − 3.

@@ -6,7 +6,15 @@ import { PriceService } from '../src/grading/rules/price.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { TeacherReviewService } from '../src/grading/teacher-review.service';
 import { seedSession, SeedSession } from './helpers/grading-seed';
-import { seedInvestigatorResult, seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
+import {
+  assignmentId,
+  rubricNameOf,
+  seedInvestigatorResult,
+  seedInvestigatorSession,
+  seedPrices,
+  seedRule,
+  storedWith,
+} from './helpers/investigator-seed';
 
 const SEEN = [
   { ruleKey: 'sai_bien', checkedBy: 'machine' as const },
@@ -29,6 +37,8 @@ describe('Chốt điểm đường điều tra và ghim giá (e2e)', () => {
   let A: SeedSession;
   let B: SeedSession;
   let bien: { ruleId: string };
+  let aBien: string;
+  let bBien: string;
   let v1: string;
   const resultsOf: Record<'A' | 'B', string[]> = { A: [], B: [] };
 
@@ -50,6 +60,8 @@ describe('Chốt điểm đường điều tra và ghim giá (e2e)', () => {
     bien = await seedRule(ds, teacherId, 'sai_bien', 'tinh_dung', { kind: 'test_group_failed', group: 'bien' });
     const ten = await seedRule(ds, teacherId, 'ten_bien', 'trinh_bay');
     v1 = await seedPrices(ds, teacherId, { [bien.ruleId]: '1.50', [ten.ruleId]: '0.50' });
+    aBien = await assignmentId(ds, teacherId, await rubricNameOf(ds, A.rubricId), bien.ruleId);
+    bBien = await assignmentId(ds, teacherId, await rubricNameOf(ds, B.rubricId), bien.ruleId);
     for (const [label, ctx] of [['A', A], ['B', B]] as const) {
       for (let i = 0; i < 2; i++) {
         const { resultId } = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
@@ -98,7 +110,8 @@ describe('Chốt điểm đường điều tra và ghim giá (e2e)', () => {
 
   it('T-PIN-1: sửa giá luật chung → phiên chưa chốt tính lại, phiên đã chốt KHÔNG đổi, không dòng audit nào; xem trước tách hai loại phiên', async () => {
     const before = await Promise.all(resultsOf.A.map(latestComputationId));
-    await prices.setPrice(teacherId, bien.ruleId, '2.00', teacherId);
+    await prices.setPrice(teacherId, aBien, '2.00', teacherId);
+    await prices.setPrice(teacherId, bBien, '2.00', teacherId);
     expect(await Promise.all(resultsOf.A.map(latestComputationId))).toEqual(before);
     for (const id of resultsOf.B) {
       const [last] = await ds.query(
@@ -108,9 +121,12 @@ describe('Chốt điểm đường điều tra và ghim giá (e2e)', () => {
       expect(last).toEqual({ reason: 'price_change', score: '8.00' });
     }
     expect(await reapplyLogs([...resultsOf.A, ...resultsOf.B])).toHaveLength(0);
-    const p = await prices.preview(teacherId, bien.ruleId, '2.50');
-    expect(p.finalizedSessions).toEqual([{ sessionId: A.sessionId, name: expect.any(String), affected: 2 }]);
-    expect(p.openSessions.map((s) => [s.sessionId, s.affected])).toEqual([[B.sessionId, 2]]);
+    const pa = await prices.preview(teacherId, aBien, '2.50');
+    expect(pa.finalizedSessions).toEqual([{ sessionId: A.sessionId, name: expect.any(String), affected: 2 }]);
+    expect(pa.openSessions).toEqual([]);
+    const pb = await prices.preview(teacherId, bBien, '2.50');
+    expect(pb.openSessions.map((s) => [s.sessionId, s.affected])).toEqual([[B.sessionId, 2]]);
+    expect(pb.finalizedSessions).toEqual([]);
   });
 
   it('T-FIN-1: áp giá mới cho phiên đã chốt → đúng N dòng audit_log mang tên người bấm, phiên ghim bản mới; bấm lại không đổi gì', async () => {
