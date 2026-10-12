@@ -1354,9 +1354,13 @@ import { SeverityLens } from '../grading/investigator/lenses/severity-lens';
 import { OmissionLens } from '../grading/investigator/lenses/omission-lens';
 import { CheatingLens } from '../grading/investigator/lenses/cheating-lens';
 ```
-Ngay sau khi đã có `dataset` (sau `loadDataset`) và trước khi dùng nó, nếu `args.waive.length > 0` áp miễn trừ lên mọi đề (đổi một bản sao, không ghi ngược file):
+Trước hết, ở dòng destructure (dòng 37) thêm `challenge, waive`:
 ```ts
-    const waiveSet = new Set(args.waive);
+  const { tier, split, concurrency, only, pipeline, compareTo, replayCheck, challenge, waive } = parsed.args;
+```
+Rồi, ngay sau khối `if (dataset.des.length === 0) { … process.exit(2); }` (trước khi tạo client sandbox, nên `process.exit` ở đây không bỏ sót việc đóng kết nối), nếu `waive.length > 0` thì áp miễn trừ lên mọi đề (đổi bản đã nạp trong bộ nhớ, không ghi ngược file):
+```ts
+    const waiveSet = new Set(waive);
     if (waiveSet.size > 0) {
       for (const de of dataset.des) {
         const known = new Set(de.manifest.rubric.map((r) => r.key));
@@ -1369,30 +1373,28 @@ Ngay sau khi đã có `dataset` (sau `loadDataset`) và trước khi dùng nó, 
       }
     }
 ```
-(Đặt trong nhánh `pipeline === 'investigator'`, nơi `dataset` đã được dựng; `args` là kết quả `parseEvalArgs` đã có tên khác trong file — dùng đúng tên biến hiện có.)
-
 Trong lời gọi `runInvestigator({ … })` thêm:
 ```ts
-        challengePhase: args.challenge
+        challengePhase: challenge
           ? {
               challengers: [new CorrectnessLens({ models: tiers, sandbox: client as never }), new SeverityLens({ models: tiers, sandbox: client as never })],
               caseLenses: [new OmissionLens({ models: tiers, sandbox: client as never }), new CheatingLens({ models: tiers, sandbox: client as never })],
             }
           : undefined,
 ```
-Trong khối `config = { … }` của nhánh investigator, đổi `ablation` thành `ablation: args.challenge ? ['−run_scaled', '−probe'] : ['−run_scaled', '−probe', '−advocate'],` và thêm `challenge: args.challenge ? 'on' : 'off', waived: args.waive,`.
+Trong khối `config = { … }` của nhánh investigator, đổi `ablation` thành `ablation: challenge ? ['−run_scaled', '−probe'] : ['−run_scaled', '−probe', '−advocate'],` và thêm `challenge: challenge ? 'on' : 'off', waived: waive,`.
 
 Ở khối so sánh (`if (baseRun) { … comparison = { … } }`) thêm khai báo lẫn biến **trước** `comparison = {`:
 ```ts
     const baseConfig = baseRun.meta.config as { challenge?: string; waived?: string[] };
     const confounded: string[] = [];
-    if ((baseConfig.challenge ?? 'off') !== (args.challenge ? 'on' : 'off')) confounded.push('challenge');
-    if (JSON.stringify(baseConfig.waived ?? []) !== JSON.stringify(args.waive)) confounded.push('waived');
+    if ((baseConfig.challenge ?? 'off') !== (challenge ? 'on' : 'off')) confounded.push('challenge');
+    if (JSON.stringify(baseConfig.waived ?? []) !== JSON.stringify(waive)) confounded.push('waived');
     if (confounded.length > 0) console.warn(`⚠ So sánh lẫn biến: ${confounded.join(', ')} khác lượt gốc — Δ không phải hiệu ứng của một thay đổi.`);
 ```
 và thêm `confounded,` vào đối tượng `comparison`.
 
-(Nếu tên biến cờ trong `cli.ts` khác `args`, dùng đúng tên hiện có — kiểm bằng cách đọc 40 dòng đầu của file; mọi chỗ trên chỉ đổi cách đọc cờ, không đổi luồng.)
+(Tên biến đã kiểm với `cli.ts`: kết quả parse nằm ở `parsed.args` và được destructure ở dòng 37 thành các biến trần `tier`, `split`, …; vì vậy mã trên dùng `challenge` và `waive`, không có tiền tố `args.`. Mọi chỗ trên chỉ đổi cách đọc cờ, không đổi luồng.)
 
 - [ ] **Step 8: Chạy test, kiểu và import-scan**
 
@@ -1853,4 +1855,4 @@ git commit -m "docs(p0): bảng hình dạng đề thật và báo cáo kết th
 
 **4. Review Focus ↔ test:** (1) `challenge-phase.spec` ca "lăng kính hỏng nhưng đã tiêu token" + `lens-loop.spec` ca `UNATTRIBUTED`; (2) `challenge-phase.spec` ca hai lượt đồng thời dùng chung lăng kính; (3) `pricing.spec` các ca `null`; (4) `finish-attempt.e2e-spec` ca cùng-UPDATE và ca "không khai gì → NULL" (cộng ca lượt ungradable vẫn ghi token); (5) `cli-args-challenge.spec` + cảnh báo `confounded` ở Task 6.
 
-**Điểm tôi chưa chắc (người thực thi cần kiểm khi làm):** (a) tên biến chứa kết quả `parseEvalArgs` trong `eval/cli.ts` (Task 6 Step 7 nói rõ dùng đúng tên hiện có); (b) `tsconfig.json` có bao thư mục `scripts/` hay không (Task 7 Step 6 nêu cách kiểm riêng); (c) Railway có `SANDBOX_REDIS_URL` và khoá model đủ để chạy bài code hay không — Task 8 Step 2 kiểm bằng lượt 1 bài trước khi tốn tiền cho lượt đủ.
+**Điểm tôi chưa chắc (người thực thi cần kiểm khi làm):** (a) `tsconfig.json` có bao thư mục `scripts/` hay không (Task 7 Step 6 nêu cách kiểm riêng); (b) Railway có `SANDBOX_REDIS_URL` và khoá model đủ để chạy bài code hay không — Task 8 Step 2 kiểm bằng lượt 1 bài trước khi tốn tiền cho lượt đủ.
