@@ -4,13 +4,21 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
-import { ErrorRuleService } from '../src/grading/rules/error-rule.service';
+import { recordMissingRules } from '../src/grading/rules/missing-rules';
 import { PriceService } from '../src/grading/rules/price.service';
 import { GradeExportDataService } from '../src/grade-export/grade-export.data';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { createTestAccount } from './helpers/create-account';
 import { forceStatus, seedSession } from './helpers/grading-seed';
-import { seedInvestigatorResult, seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
+import {
+  assignmentId,
+  rubricNameOf,
+  seedInvestigatorResult,
+  seedInvestigatorSession,
+  seedPrices,
+  seedRule,
+  storedWith,
+} from './helpers/investigator-seed';
 
 const SECRET_SCORE = '8.63'; // 10 − 1,37
 const SECRET_RULE = 'sai_bien_bi_mat';
@@ -52,11 +60,16 @@ describe('Bài kiểm mẫu chưa kiểm: mọi đường đọc đều mù (e2e
     const { resultId } = await seedInvestigatorResult(ds, ctx, storedWith([{ ruleKey: SECRET_RULE, checkedBy: 'machine' }]));
     await app.get(ScoreService).computeInitial(resultId); // → 8,63
     await forceStatus(ds, resultId, 'audit_pending', { audit_sampled: true, audit_sampled_at: new Date() });
-    return { owner, ctx, secret, resultId };
+    const rubricName = await rubricNameOf(ds, ctx.rubricId);
+    const rubricErrorId = await assignmentId(ds, ctx.teacherId, rubricName, secret.ruleId);
+    return { owner, ctx, secret, resultId, rubricName, rubricErrorId };
   }
-  const ruleCount = async (token: string) => {
-    const rules: { ruleKey: string; appliedTo: { results: number } }[] = (await get(token, '/rules')).body;
-    return rules.find((r) => r.ruleKey === SECRET_RULE)!.appliedTo.results;
+  // Số bài áp dụng lỗi nằm ở bảng lỗi theo rubric (GET /rubric-errors), không còn ở thư viện (GET /rules).
+  const ruleCount = async (token: string, rubricName: string) => {
+    const items: { ruleKey: string; appliedTo: { results: number } }[] = (
+      await get(token, `/rubric-errors?rubricName=${encodeURIComponent(rubricName)}`)
+    ).body;
+    return items.find((r) => r.ruleKey === SECRET_RULE)!.appliedTo.results;
   };
 
   it('danh sách: không điểm, không triage, không độ tin cậy', async () => {
@@ -110,31 +123,41 @@ describe('Bài kiểm mẫu chưa kiểm: mọi đường đọc đều mù (e2e
     expect(JSON.stringify(res.body)).not.toContain(SECRET_SCORE);
   });
 
-  // Review Focus #1 — phía luật. Hai đường trả TỪNG BÀI, hai đường rò bằng phép trừ.
-  it('xem trước luật (tier 2) không trả bài kiểm mẫu và điểm `before` của nó', async () => {
-    const w = await world('rprev');
-    const preview = await app.get(ErrorRuleService).preview(w.ctx.teacherId, {
-      ruleId: w.secret.ruleId, ruleKey: SECRET_RULE, name: SECRET_RULE, description: SECRET_RULE,
-      criterionKey: 'tinh_dung', predicate: { kind: 'test_group_failed', group: 'bien' },
+  // Review Focus #1 — phía luật. Xem trước luật (tier 2) đã bị bảng lỗi theo rubric thay bằng xem trước giá
+  // theo dòng áp dụng; đường trả TỪNG BÀI còn lại là xem trước giá và "nơi thấy" của đề xuất.
+  it('"nơi thấy" của lỗi AI đề xuất không đếm bài kiểm mẫu — và đếm ngay khi bài được nhận xét', async () => {
+    const w = await world('sight');
+    const MISSING = 'Thiếu kiểm tra chia cho không';
+    await recordMissingRules(ds.manager, w.ctx.teacherId, [{ description: MISSING }], {
+      resultId: w.resultId,
+      sessionId: w.ctx.sessionId,
+      rubricName: w.rubricName,
     });
-    expect(preview.tier).toBe(2);
-    expect(JSON.stringify(preview)).not.toContain(w.resultId);
-    expect(JSON.stringify(preview)).not.toContain(SECRET_SCORE);
+    const mine = async () => {
+      const res = await get(w.owner.token, '/rules/missing');
+      expect(JSON.stringify(res.body)).not.toContain(SECRET_SCORE);
+      const items: { name: string; sightings: { results: number; sessions: { id: string }[] } }[] = res.body;
+      return items.find((p) => p.name === MISSING)!;
+    };
+    expect((await mine()).sightings).toEqual({ results: 0, sessions: [] });
+
+    await forceStatus(ds, w.resultId, 'teacher_reviewed'); // đã nhận xét → hết mù
+    expect((await mine()).sightings).toEqual({ results: 1, sessions: [{ id: w.ctx.sessionId, name: expect.any(String) }] });
   });
 
   it('xem trước giá không đếm bài kiểm mẫu', async () => {
     const w = await world('pprev');
-    const preview = await app.get(PriceService).preview(w.ctx.teacherId, w.secret.ruleId, '2.00');
+    const preview = await app.get(PriceService).preview(w.ctx.teacherId, w.rubricErrorId, '2.00');
     expect(preview.openSessions).toEqual([]);
   });
 
   it('số đếm của luật không tính bài kiểm mẫu — và tính lại ngay khi bài được nhận xét (loại theo TRẠNG THÁI)', async () => {
     const w = await world('rcount');
-    expect(await ruleCount(w.owner.token)).toBe(0);
+    expect(await ruleCount(w.owner.token, w.rubricName)).toBe(0);
     expect(JSON.stringify((await get(w.owner.token, '/rules/missing')).body)).not.toContain(SECRET_SCORE);
 
     await forceStatus(ds, w.resultId, 'teacher_reviewed'); // đã nhận xét → hết mù
-    expect(await ruleCount(w.owner.token)).toBe(1);
+    expect(await ruleCount(w.owner.token, w.rubricName)).toBe(1);
     const detail = await get(w.owner.token, `/grading-results/${w.resultId}/investigation`);
     expect(detail.body.breakdown).not.toBeNull();
     expect(detail.body.currentScore).toBe(8.63);
