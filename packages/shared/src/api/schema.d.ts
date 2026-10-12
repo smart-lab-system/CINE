@@ -1926,6 +1926,8 @@ export interface components {
             courseId: string;
             semesterId: string;
             teacherId?: string;
+            /** Lớp danh nghĩa catalog — tuỳ chọn. */
+            nominalClassId?: string;
         };
         UpdateCourseSectionDto: {
             courseId?: string;

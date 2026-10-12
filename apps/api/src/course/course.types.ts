@@ -27,10 +27,18 @@ export interface RosterImportResult {
  */
 export interface TeachingClassView {
   id: string;
+  /** Mã lớp = `{course.code}{001|002|…}` trong học kỳ. */
   name: string;
-  /** Tên môn dạng văn bản. `courseId`/`courseCode` biến mất cùng bảng
-   *  `course` ở đợt thu hẹp master data. */
+  /** Tên môn dạng văn bản. */
   courseName: string;
+  /** null với lớp legacy chưa gắn catalog kỳ. */
+  semesterId: string | null;
+  /** null với lớp legacy chưa gắn catalog kỳ. */
+  semesterName: string | null;
+  /** null khi chưa gắn lớp danh nghĩa. */
+  nominalClassId: string | null;
+  /** Nhãn hiển thị: `code` hoặc `code — name`. */
+  nominalClassName: string | null;
   /** Students on the imported roster — 0 means nobody has imported one yet. */
   studentCount: number;
 }

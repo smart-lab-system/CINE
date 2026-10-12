@@ -10,6 +10,7 @@ import { ClassController } from './class.controller';
 import { AdminCourseSectionController } from './admin-course-section.controller';
 import { AdminCourseSectionService } from './admin-course-section.service';
 import { CourseEntity } from '../master-data/entities/course.entity';
+import { NominalClassEntity } from '../master-data/entities/nominal-class.entity';
 import { SemesterEntity } from '../master-data/entities/semester.entity';
 import { StudentEntity } from '../master-data/entities/student.entity';
 
@@ -27,6 +28,7 @@ import { StudentEntity } from '../master-data/entities/student.entity';
       AccountEntity,
       CourseEntity,
       SemesterEntity,
+      NominalClassEntity,
       StudentEntity,
     ]),
   ],

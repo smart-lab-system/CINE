@@ -101,6 +101,10 @@ export const createExamSessionSchema = z
       .max(150, 'Tên phòng tối đa 150 ký tự')
       .optional()
       .or(z.literal('')),
+    /**
+     * Học kỳ suy từ lớp thi đã chọn (không còn ô chọn riêng trên form).
+     * Giữ dual-write Id/Name để khớp DTO backend.
+     */
     semesterId: z
       .union([z.literal(''), z.string().uuid('Học kỳ không hợp lệ')])
       .optional()
@@ -216,11 +220,11 @@ export const createExamSessionSchema = z
       .min(1, 'Cần khai báo ít nhất 1 file bắt buộc'),
   })
   .refine((values) => Boolean(values.roomId) || Boolean(values.roomName?.trim()), {
-    message: 'Vui lòng chọn hoặc nhập phòng thi',
+    message: 'Vui lòng chọn phòng thi',
     path: ['roomName'],
   })
   .refine((values) => Boolean(values.semesterId) || Boolean(values.semesterName?.trim()), {
-    message: 'Vui lòng chọn hoặc nhập học kỳ',
+    message: 'Lớp thi chưa gắn học kỳ — chọn lớp khác hoặc liên hệ quản trị viên',
     path: ['semesterName'],
   })
   .refine(

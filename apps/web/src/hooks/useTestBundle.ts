@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   approveTestBundle,
   createTestBundle,
+  getTestBundle,
   listTestBundles,
   pinTestBundle,
   type TestBundleCaseInput,
@@ -13,11 +14,24 @@ function testBundlesKey(examSessionId: string | undefined) {
   return ['exam-sessions', examSessionId, 'test-bundles'] as const;
 }
 
+function testBundleKey(examSessionId: string | undefined, bundleId: string | undefined) {
+  return ['exam-sessions', examSessionId, 'test-bundles', bundleId] as const;
+}
+
 export function useTestBundles(examSessionId: string | undefined) {
   return useQuery({
     queryKey: testBundlesKey(examSessionId),
     queryFn: () => listTestBundles(examSessionId!),
     enabled: Boolean(examSessionId),
+  });
+}
+
+/** Chi tiết một gói — chỉ tải khi có `bundleId` (dialog Xem). */
+export function useTestBundle(examSessionId: string | undefined, bundleId: string | null) {
+  return useQuery({
+    queryKey: testBundleKey(examSessionId, bundleId ?? undefined),
+    queryFn: () => getTestBundle(examSessionId!, bundleId!),
+    enabled: Boolean(examSessionId && bundleId),
   });
 }
 

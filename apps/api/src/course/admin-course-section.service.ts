@@ -9,6 +9,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { ClassEntity } from './entities/class.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
 import { CourseEntity } from '../master-data/entities/course.entity';
+import { NominalClassEntity } from '../master-data/entities/nominal-class.entity';
 import { SemesterEntity } from '../master-data/entities/semester.entity';
 import { AccountEntity } from '../identity/entities/account.entity';
 import {
@@ -17,6 +18,7 @@ import {
   ListCourseSectionsQueryDto,
   UpdateCourseSectionDto,
 } from './dto/admin-course-section.dto';
+import { formatNominalClassLabel } from './nominal-class-label';
 
 export interface CourseSectionView {
   id: string;
@@ -26,6 +28,9 @@ export interface CourseSectionView {
   courseName: string;
   semesterId: string | null;
   semesterName: string | null;
+  nominalClassId: string | null;
+  /** Nhãn hiển thị lớp danh nghĩa. */
+  nominalClassName: string | null;
   teacherId: string | null;
   teacherName: string | null;
   studentCount: number;
@@ -44,6 +49,8 @@ export class AdminCourseSectionService {
     private readonly courses: Repository<CourseEntity>,
     @InjectRepository(SemesterEntity)
     private readonly semesters: Repository<SemesterEntity>,
+    @InjectRepository(NominalClassEntity)
+    private readonly nominalClasses: Repository<NominalClassEntity>,
     @InjectRepository(AccountEntity)
     private readonly accounts: Repository<AccountEntity>,
     @InjectDataSource()
@@ -92,13 +99,17 @@ export class AdminCourseSectionService {
     const total = await applyFilters(this.classes.createQueryBuilder('k')).getCount();
 
     const { entities, raw } = await applyFilters(this.classes.createQueryBuilder('k'))
+      .leftJoin('k.nominalClass', 'nc')
       .leftJoin('enrollment', 'e', 'e.home_class_id = k.id')
       .addSelect('COUNT(e.id)', 'studentCount')
       .addSelect('t.name', 'teacherName')
       .addSelect('s.name', 'semesterName')
+      .addSelect('nc.code', 'nominalClassCode')
+      .addSelect('nc.name', 'nominalClassDisplayName')
       .groupBy('k.id')
       .addGroupBy('t.id')
       .addGroupBy('s.id')
+      .addGroupBy('nc.id')
       .orderBy('k.name', 'ASC')
       .offset((page - 1) * pageSize)
       .limit(pageSize)
@@ -106,6 +117,8 @@ export class AdminCourseSectionService {
         studentCount: string;
         teacherName: string | null;
         semesterName: string | null;
+        nominalClassCode: string | null;
+        nominalClassDisplayName: string | null;
       }>();
 
     const items = entities.map((klass, i) =>
@@ -113,6 +126,10 @@ export class AdminCourseSectionService {
         studentCount: parseInt(raw[i].studentCount, 10),
         teacherName: raw[i].teacherName ?? null,
         semesterName: raw[i].semesterName ?? null,
+        nominalClassName: formatNominalClassLabel(
+          raw[i].nominalClassCode,
+          raw[i].nominalClassDisplayName,
+        ),
       }),
     );
 
@@ -122,7 +139,7 @@ export class AdminCourseSectionService {
   async findOne(id: string): Promise<CourseSectionView> {
     const klass = await this.classes.findOne({
       where: { id },
-      relations: { teacher: true, semester: true },
+      relations: { teacher: true, semester: true, nominalClass: true },
     });
     if (!klass) {
       throw new NotFoundException('Không tìm thấy lớp học phần.');
@@ -134,6 +151,10 @@ export class AdminCourseSectionService {
       studentCount,
       teacherName: klass.teacher?.name ?? null,
       semesterName: klass.semester?.name ?? null,
+      nominalClassName: formatNominalClassLabel(
+        klass.nominalClass?.code,
+        klass.nominalClass?.name,
+      ),
     });
   }
 
@@ -153,6 +174,9 @@ export class AdminCourseSectionService {
     if (dto.teacherId) {
       teacherId = await this.requireTeacher(dto.teacherId);
     }
+    const nominalClassId = dto.nominalClassId
+      ? await this.requireNominalClass(dto.nominalClassId)
+      : null;
 
     const saved = await this.dataSource.transaction(async (manager) => {
       const name = await this.nextSectionCode(
@@ -168,6 +192,7 @@ export class AdminCourseSectionService {
           semesterId: dto.semesterId,
           courseName: course.name,
           teacherId,
+          nominalClassId,
         }),
       );
     });
@@ -391,12 +416,24 @@ export class AdminCourseSectionService {
     return account.id;
   }
 
+  private async requireNominalClass(id: string): Promise<string> {
+    const row = await this.nominalClasses.findOne({ where: { id } });
+    if (!row) {
+      throw new NotFoundException('Không tìm thấy lớp danh nghĩa.');
+    }
+    if (row.status !== 'active') {
+      throw new BadRequestException('Lớp danh nghĩa đang bị vô hiệu hoá.');
+    }
+    return row.id;
+  }
+
   private toView(
     klass: ClassEntity,
     extra: {
       studentCount: number;
       teacherName: string | null;
       semesterName: string | null;
+      nominalClassName: string | null;
     },
   ): CourseSectionView {
     return {
@@ -406,6 +443,8 @@ export class AdminCourseSectionService {
       courseName: klass.courseName,
       semesterId: klass.semesterId,
       semesterName: extra.semesterName,
+      nominalClassId: klass.nominalClassId,
+      nominalClassName: extra.nominalClassName,
       teacherId: klass.teacherId,
       teacherName: extra.teacherName,
       studentCount: extra.studentCount,

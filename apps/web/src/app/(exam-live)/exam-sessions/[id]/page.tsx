@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ClipboardCheck, DoorOpen } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, DoorOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { socket } from '@/lib/socket';
 import { createSubscriptionRecovery } from '@/lib/socket-recovery';
@@ -470,30 +471,38 @@ export default function ExamSessionLobbyPage() {
           roster panels sit side by side (see below), and 4xl left each of
           them too narrow to read. */}
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="icon-chip mt-0.5 h-10 w-10 bg-gradient-to-br from-primary to-accent text-white shadow-sm">
-              <ClipboardCheck className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div className="flex flex-col gap-1">
-              <h1 className="text-h1 text-foreground">Phòng chờ phiên thi</h1>
+        <div className="flex flex-col gap-4">
+          <Button asChild variant="ghost" size="sm" className="-ml-2 self-start">
+            <Link href="/teacher/exam-sessions">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Danh sách phiên thi
+            </Link>
+          </Button>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="icon-chip mt-0.5 h-10 w-10 bg-gradient-to-br from-primary to-accent text-white shadow-sm">
+                <ClipboardCheck className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="flex flex-col gap-1">
+                <h1 className="text-h1 text-foreground">Phòng chờ phiên thi</h1>
+                {sessionDetail.data && (
+                  <p className="text-body text-muted-foreground">{sessionDetail.data.name}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-3 self-start">
+              {displayStatus && (
+                <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>
+              )}
               {sessionDetail.data && (
-                <p className="text-body text-muted-foreground">{sessionDetail.data.name}</p>
+                <FinalizeSessionButton
+                  disabled={!canFinalize}
+                  submitting={finalize.isPending}
+                  error={finalize.error}
+                  onConfirm={() => finalize.mutateAsync()}
+                />
               )}
             </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-3 self-start">
-            {displayStatus && (
-              <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>
-            )}
-            {sessionDetail.data && (
-              <FinalizeSessionButton
-                disabled={!canFinalize}
-                submitting={finalize.isPending}
-                error={finalize.error}
-                onConfirm={() => finalize.mutateAsync()}
-              />
-            )}
           </div>
         </div>
 

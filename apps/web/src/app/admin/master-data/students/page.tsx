@@ -35,6 +35,7 @@ import {
   useStudents,
 } from '@/hooks/useMasterData';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { cn } from '@/lib/utils';
 import {
   CatalogSection,
   DeleteIconButton,
@@ -208,7 +209,10 @@ function StudentsMasterDataContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Sinh viên" description="Catalog SV — chưa thay enrollment." />
+      <PageHeader
+        title="Sinh viên"
+        description="Catalog sinh viên. Bấm một dòng để xem lớp danh nghĩa và các lớp học phần."
+      />
 
       <CatalogSection
         title="Danh sách sinh viên"
@@ -268,7 +272,14 @@ function StudentsMasterDataContent() {
         rows={
           data?.items.length
             ? data.items.map((s) => (
-                <TableRow key={s.id}>
+                <TableRow
+                  key={s.id}
+                  className={cn('cursor-pointer')}
+                  onClick={() =>
+                    router.push(`/admin/master-data/students/${s.id}`)
+                  }
+                  title="Xem chi tiết sinh viên"
+                >
                   <TableCell className="font-mono">{s.mssv}</TableCell>
                   <TableCell>{s.fullName}</TableCell>
                   <TableCell className="font-mono">{classLabel(s.nominalClassId)}</TableCell>

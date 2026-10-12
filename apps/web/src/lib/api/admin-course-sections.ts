@@ -58,6 +58,9 @@ export interface CourseSection {
   courseName: string;
   semesterId: string | null;
   semesterName: string | null;
+  nominalClassId: string | null;
+  /** Nhãn: `code` hoặc `code — name`. */
+  nominalClassName: string | null;
   teacherId: string | null;
   teacherName: string | null;
   studentCount: number;
@@ -96,6 +99,7 @@ export async function createCourseSection(body: {
   courseId: string;
   semesterId: string;
   teacherId?: string;
+  nominalClassId?: string;
 }): Promise<CourseSection> {
   return csFetch('/admin/course-sections', {
     method: 'POST',

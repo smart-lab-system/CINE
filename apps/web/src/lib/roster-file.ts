@@ -17,8 +17,8 @@ export const ROSTER_MSSV_REGEX = /^\d{8}$/;
 
 export interface ColumnMapping {
   /**
-   * Số dòng bỏ qua ở đầu (tuỳ chọn). Thường để 0 — dòng tiêu đề tự bị
-   * bỏ vì không có MSSV 8 số.
+   * Luôn 0 — UI không còn cho nhập. Dòng tiêu đề / trống tự bị bỏ vì
+   * không có MSSV 8 số (`extractRoster` đếm vào `skipped`).
    */
   headerRows: number;
   /** 0-based — người dùng chọn / gợi ý. Không suy bắt buộc từ header. */

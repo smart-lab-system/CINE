@@ -103,7 +103,7 @@ export default function CourseSectionDetailPage() {
         </Button>
         <PageHeader
           title={row.name}
-          description={`${row.courseName} · ${row.semesterName ?? '—'}`}
+          description={`${row.courseName} · ${row.semesterName ?? '—'} · ${row.nominalClassName ?? 'Chưa gắn lớp danh nghĩa'}`}
           actions={
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={() => setAssignOpen(true)}>
@@ -128,6 +128,10 @@ export default function CourseSectionDetailPage() {
             {row.teacherName ?? (
               <span className="text-warning-strong">Chưa phân công</span>
             )}
+          </div>
+          <div>
+            <span className="text-muted-foreground">Lớp danh nghĩa: </span>
+            {row.nominalClassName ?? '—'}
           </div>
           <div>
             <span className="text-muted-foreground">Sĩ số: </span>

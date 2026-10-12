@@ -46,9 +46,9 @@ describe('RubricRow', () => {
     expect(screen.getByText('CTDL — phiên bản 1')).toBeInTheDocument();
   });
 
-  it('links to Bảng lỗi where the ceilings are edited', () => {
+  it('links to edit the pinned rubric', () => {
     render(<RubricRow sessionId="s1" rubricId="ru-1" />);
-    expect(screen.getByRole('link', { name: 'Sửa trần ở Bảng lỗi' })).toHaveAttribute('href', rulesHref('CTDL'));
+    expect(screen.getByRole('link', { name: 'Sửa Rubric' })).toHaveAttribute('href', rulesHref('CTDL'));
   });
 
   it('with no rubric pinned: says so, and only ACTIVE versions can be attached', () => {

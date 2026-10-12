@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useSaveRubric } from '@/hooks/useGrading';
 import { useCopyErrors } from '@/hooks/useRubricErrors';
+import { useTeachingClasses } from '@/hooks/useTeaching';
 import type { Rubric } from '@/lib/api/grading';
 import type { RubricOverview } from '@/lib/api/rubric-errors';
 import { shorten } from '@/lib/rubric-board';
@@ -20,6 +22,7 @@ import {
   parseCap,
   removedKeys,
   rowsFromRubric,
+  sumCaps,
   validateRubric,
   type CriterionRow,
 } from '@/lib/rubric-form';
@@ -34,6 +37,8 @@ import { cn } from '@/lib/utils';
  * nguồn nào (D3). Tiêu chí sao chép GIỮ khoá của nguồn, vì đó là cách máy chủ ghép lỗi sang rubric mới.
  *
  * Ruột form nằm TRONG DialogContent — mỗi lần mở là một lần mount mới, không thừa hưởng nội dung gõ dở.
+ *
+ * Môn học (tạo trống) và tổng điểm chỉ là ràng buộc UI — không gửi lên API, không đổi schema.
  */
 export function RubricDialog({
   open,
@@ -150,6 +155,7 @@ function CreateBody({
           errorCounts={{}}
           onSaved={onSaved}
           onClose={onClose}
+          requireCourse={mode === 'blank'}
           seed={
             src
               ? {
@@ -183,6 +189,7 @@ function RubricForm({
   onClose,
   seed,
   copyFrom,
+  requireCourse = false,
 }: {
   rubric?: Rubric;
   existingNames: string[];
@@ -193,19 +200,53 @@ function RubricForm({
   seed?: { name: string; rows: CriterionRow[] };
   /** Có = sau khi lưu có thể sao chép lỗi từ rubric này sang rubric mới. */
   copyFrom?: { name: string; errorCount: number };
+  /** Tạo trống: hiện ô chọn môn học (chỉ UI, không lưu schema). */
+  requireCourse?: boolean;
 }) {
   const seq = useRef(0);
   const nextId = () => `new-${++seq.current}`;
   const [name, setName] = useState(seed?.name ?? '');
+  const [courseName, setCourseName] = useState('');
   const [initialRows] = useState<CriterionRow[]>(() => (rubric ? rowsFromRubric(rubric) : (seed?.rows ?? [newRow('new-0')])));
   const [rows, setRows] = useState<CriterionRow[]>(initialRows);
+  const [totalPoints, setTotalPoints] = useState(() => {
+    if (rubric) return String(rubric.totalPoints);
+    if (seed?.rows.length) {
+      const sum = sumCaps(seed.rows);
+      return sum > 0 ? String(sum) : '10';
+    }
+    return '10';
+  });
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
   const [copyErrorsToo, setCopyErrorsToo] = useState(true);
   const save = useSaveRubric();
   const copy = useCopyErrors();
+  const teaching = useTeachingClasses();
+
+  const courseOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const options: { value: string; label: string }[] = [];
+    for (const klass of teaching.data ?? []) {
+      const label = klass.courseName.trim();
+      if (!label || seen.has(label)) continue;
+      seen.add(label);
+      options.push({ value: label, label });
+    }
+    return options.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [teaching.data]);
 
   const editing = rubric !== undefined;
-  const errors = validateRubric({ name, nameEditable: !editing, existingNames }, rows);
+  const errors = validateRubric(
+    {
+      name,
+      nameEditable: !editing,
+      existingNames,
+      totalPoints,
+      courseRequired: requireCourse,
+      courseName,
+    },
+    rows,
+  );
   const changed = !editing || fingerprint(rows) !== fingerprint(initialRows);
   const busy = save.isPending || copy.isPending;
   const canSave = !hasErrors(errors) && changed && !busy;
@@ -225,6 +266,7 @@ function RubricForm({
   }
 
   function submit() {
+    // courseName / totalPoints: chỉ ràng buộc form — payload vẫn chỉ name + criteria.
     save.mutate(buildSaveInput(editing ? rubric.name : name, rows), {
       onSuccess: (saved) => {
         if (!copyFrom || !copyErrorsToo) {
@@ -270,6 +312,41 @@ function RubricForm({
         </FormField>
       )}
 
+      {requireCourse && (
+        <FormField id="rubric-course" label="Môn học" error={shown('courseName', errors.courseName)}>
+          <SearchableSelect
+            value={courseName}
+            onValueChange={(v) => {
+              setCourseName(v);
+              touch('courseName');
+            }}
+            options={courseOptions}
+            disabled={teaching.isLoading}
+            placeholder={teaching.isLoading ? 'Đang tải…' : 'Chọn môn học'}
+            searchPlaceholder="Tìm môn học…"
+            emptyText="Không tìm thấy môn học trong lớp bạn dạy."
+            ariaLabel="Chọn môn học"
+          />
+        </FormField>
+      )}
+
+      <FormField
+        id="rubric-total"
+        label="Tổng điểm"
+        className="w-full sm:w-40"
+        error={shown('totalPoints', errors.totalPoints)}
+        hint={`Đã phân bổ ${sumCaps(rows)} / ${parseCap(totalPoints) ?? '—'} điểm.`}
+      >
+        <Input
+          id="rubric-total"
+          inputMode="decimal"
+          value={totalPoints}
+          invalid={shown('totalPoints', errors.totalPoints) !== undefined}
+          onChange={(e) => setTotalPoints(e.target.value)}
+          onBlur={() => touch('totalPoints')}
+        />
+      </FormField>
+
       <div className="flex flex-col gap-4">
         {rows.map((row, index) => {
           const n = index + 1;
@@ -294,7 +371,7 @@ function RubricForm({
                 </FormField>
                 <FormField
                   id={`cap-${row.id}`}
-                  label={`Điểm tối đa ${n}`}
+                  label="Điểm tối đa"
                   className="w-full sm:w-32"
                   error={shown(`${row.id}:maxPoints`, rowErrors.maxPoints)}
                 >

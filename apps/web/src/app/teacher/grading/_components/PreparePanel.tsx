@@ -20,7 +20,7 @@ import { TestBundleCard } from './TestBundleCard';
  * Chuẩn bị chấm (spec §3.7) — khi phiên chưa có bài nào được chấm (hoặc mọi bài đều "không chấm được" và tài liệu
  * mở khoá lại). Thay `GradingReferenceDialog`, `SessionRubricCard` và nút bắt đầu cũ.
  *
- * Bắt đầu chấm KHOÁ tài liệu và trần điểm (server: `isGradingLocked`), nên nút chỉ bật khi không dòng nào của cột
+ * Bắt đầu chấm KHOÁ tài liệu và rubric (server: `isGradingLocked`), nên nút chỉ bật khi không dòng nào của cột
  * "Trước khi bắt đầu" chặn — kể cả "còn thay đổi chưa lưu" — và khi bị chặn thì KHÔNG request nào được gửi
  * (T-UI-11). Server vẫn là bên quyết định: nếu nó từ chối, câu của nó hiện nguyên văn.
  */
@@ -130,7 +130,7 @@ export function PreparePanel({
               </p>
             )}
             <p className="text-caption text-muted-foreground">
-              Từ lúc bấm, tài liệu chấm và trần điểm khoá lại; đóng trang không dừng việc chấm — nó chạy tiếp trên máy
+              Từ lúc bấm, tài liệu chấm và rubric khoá lại; đóng trang không dừng việc chấm — nó chạy tiếp trên máy
               chủ.
             </p>
             {start.isSuccess && (
