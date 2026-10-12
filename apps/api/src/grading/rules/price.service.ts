@@ -55,6 +55,7 @@ export class PriceService {
          JOIN examcollect.exam_session es ON es.id = s.exam_session_id
         WHERE es.teacher_id = $1 AND g.pipeline = 'investigator'
           AND g.rubric_id_version IN (SELECT id FROM examcollect.rubric WHERE teacher_id = $1 AND name = $3)
+          AND g.status <> 'audit_pending'
           AND NOT EXISTS (SELECT 1 FROM examcollect.teacher_review t
                            WHERE t.grading_result_id = g.id AND t.kind = 'manual_score')
           AND EXISTS (SELECT 1 FROM (SELECT c.breakdown FROM examcollect.score_computation c

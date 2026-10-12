@@ -10,6 +10,7 @@ import { useRubricOverview } from '@/hooks/useRubricErrors';
 import { useTestBundles } from '@/hooks/useTestBundle';
 import { preflightOf } from '@/lib/preflight';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
+import { DeliverableLanguages } from './DeliverableLanguages';
 import { PreflightColumn } from './PreflightColumn';
 import { ReferenceForm } from './ReferenceForm';
 import { RubricRow } from './RubricRow';
@@ -58,7 +59,7 @@ export function PreparePanel({
     hasRubricId: Boolean(session.rubricId),
     rubric,
     readiness: readiness.data,
-    hasCodeDeliverable: hasCode,
+    deliverables: deliverables.map((d) => ({ deliverableType: d.deliverableType, language: d.language, pipeline: d.pipeline })),
     bundle: {
       pinned: Boolean(detail.data?.testBundleId),
       total: bundleList.length,
@@ -82,7 +83,13 @@ export function PreparePanel({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex flex-col gap-6">
           <RubricRow sessionId={sessionId} rubricId={session.rubricId} />
-          <ReferenceForm sessionId={sessionId} readiness={readiness.data} onDirtyChange={setDirty} />
+          <ReferenceForm
+            sessionId={sessionId}
+            readiness={readiness.data}
+            onDirtyChange={setDirty}
+            hasPinnedBundle={Boolean(detail.data?.testBundleId)}
+          />
+          <DeliverableLanguages sessionId={sessionId} deliverables={deliverables} hasResults={allUngradable} />
 
           {hasCode && (
             <section aria-label="Gói test" className="flex flex-col gap-3">

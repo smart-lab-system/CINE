@@ -10,10 +10,8 @@ import {
   progressPollIntervalMs,
   useReapplyPreview,
   useReapplyPrices,
-  useResultDetails,
   useSetErrorException,
   useSetManualScore,
-  investigationQueryKey,
 } from './useGrading';
 
 vi.mock('@/lib/api/grading', async (importOriginal) => {
@@ -129,46 +127,6 @@ function makeClient() {
   const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
   return { client, wrapper };
 }
-
-/**
- * Một danh sách bài chỉ nói "trạng thái"; lý do cần bạn xem và dòng nhắc đòn bẩy nằm trong HỒ SƠ từng bài. Hook
- * này đọc chúng dưới ĐÚNG khoá của trang hồ sơ — mở một bài sau đó là tức thì, không tải lại.
- */
-describe('useResultDetails', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('loads each dossier and hands them back by id, under the key the dossier page uses', async () => {
-    vi.mocked(gradingApi.getResultInvestigation).mockImplementation(async (id: string) => ({ marker: id }) as never);
-    const { client, wrapper } = makeClient();
-    const { result } = renderHook(() => useResultDetails(['a', 'b']), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(0));
-    expect(result.current.byId.get('a')).toEqual({ marker: 'a' });
-    expect(result.current.byId.get('b')).toEqual({ marker: 'b' });
-    expect(client.getQueryData(investigationQueryKey('a'))).toEqual({ marker: 'a' });
-  });
-
-  it('counts what is still loading, and what failed — a failure is not "loaded"', async () => {
-    vi.mocked(gradingApi.getResultInvestigation).mockImplementation(async (id: string) => {
-      if (id === 'bad') throw new Error('Không tải được');
-      return { marker: id } as never;
-    });
-    const { wrapper } = makeClient();
-    const { result } = renderHook(() => useResultDetails(['ok', 'bad']), { wrapper });
-    expect(result.current.loading).toBe(2);
-    await waitFor(() => expect(result.current.loading).toBe(0));
-    expect(result.current.failed).toBe(1);
-    expect(result.current.byId.has('bad')).toBe(false);
-    expect(result.current.byId.has('ok')).toBe(true);
-  });
-
-  it('no ids → nothing loading, nothing requested', () => {
-    const { wrapper } = makeClient();
-    const { result } = renderHook(() => useResultDetails([]), { wrapper });
-    expect(result.current).toMatchObject({ loading: 0, failed: 0 });
-    expect(result.current.byId.size).toBe(0);
-    expect(gradingApi.getResultInvestigation).not.toHaveBeenCalled();
-  });
-});
 
 describe('reapply prices (spec §3.10 "Áp giá mới cho phiên đã chốt")', () => {
   beforeEach(() => vi.clearAllMocks());

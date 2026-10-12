@@ -112,6 +112,56 @@ describe('Ngoại lệ cấp lỗi và chấm tay (e2e)', () => {
     expect(await scoresOf(id)).toEqual(['8.50', '10.00', '8.50']);
   });
 
+  // G1 §1: góc kiểm bác bỏ `ten_bien` (luật MODEL) → lỗi bị loại khỏi điểm và gắn cờ `refuted`.
+  const refutingStored = () => ({
+    ...storedWith(SEEN, ['ten_bien']),
+    challenge: {
+      perError: [{ challenger: 'lens', perError: [{ ruleKey: 'ten_bien', status: 'refuted' as const, toolCallIds: [] as string[] }] }],
+      caseNotes: [],
+    },
+  });
+  async function gradedRefuted(ctx: Awaited<ReturnType<typeof world>>['ctx']) {
+    const { resultId } = await seedInvestigatorResult(ds, ctx, refutingStored());
+    await scores.computeInitial(resultId);
+    return resultId;
+  }
+  const lastBreakdown = async (id: string) =>
+    (
+      await ds.query(
+        `SELECT breakdown FROM examcollect.score_computation WHERE grading_result_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [id],
+      )
+    )[0].breakdown as { errors: { ruleKey: string; counted: string }[]; errorFlags: { ruleKey: string; code: string }[] };
+  const countedOf = (b: Awaited<ReturnType<typeof lastBreakdown>>) => b.errors.find((e) => e.ruleKey === 'ten_bien')?.counted;
+
+  it('G1: lỗi bị bác bỏ → "giữ lỗi này" (include) tính lại vào điểm, cờ refuted mất, bài sang teacher_reviewed', async () => {
+    const { ctx, ten } = await world('ex-refuted-include');
+    const id = await gradedRefuted(ctx);
+    expect(countedOf(await lastBreakdown(id))).toBe('refuted');
+    expect(await scoresOf(id)).toEqual(['8.50']);
+    expect(await statusOf(id)).toBe('flagged_for_review');
+
+    const out = await exceptions.setErrorException(ctx.teacherId, id, ten.ruleId, 'include');
+    expect(out).toEqual({ scoreHundredths: 800, status: 'teacher_reviewed' });
+    const b = await lastBreakdown(id);
+    expect(countedOf(b)).toBe('counted');
+    expect(b.errorFlags.map((f) => f.code)).not.toContain('refuted');
+    expect(await scoresOf(id)).toEqual(['8.50', '8.00']);
+  });
+
+  it('G1: "đồng ý bác bỏ" (exclude) → nhãn excluded, điểm không đổi; "giữ" ngay sau đó gỡ được', async () => {
+    const { ctx, ten } = await world('ex-refuted-exclude');
+    const id = await gradedRefuted(ctx);
+    const out = await exceptions.setErrorException(ctx.teacherId, id, ten.ruleId, 'exclude');
+    expect(out).toEqual({ scoreHundredths: 850, status: 'teacher_reviewed' });
+    expect(countedOf(await lastBreakdown(id))).toBe('excluded');
+
+    const back = await exceptions.setErrorException(ctx.teacherId, id, ten.ruleId, 'include');
+    expect(back.scoreHundredths).toBe(800);
+    expect(countedOf(await lastBreakdown(id))).toBe('counted');
+    expect(await scoresOf(id)).toEqual(['8.50', '8.50', '8.00']);
+  });
+
   it('chấm tay → điểm hiện tại là điểm tay; sửa giá sau đó không sinh lượt tính nào cho bài đó', async () => {
     const { ctx, bien } = await world('ex-manual');
     const name = await rubricNameOf(ds, ctx.rubricId);

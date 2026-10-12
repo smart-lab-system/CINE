@@ -101,10 +101,11 @@ describe('Giảng viên — lớp đã phân công (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/admin/course-sections')
       .set('Authorization', `Bearer ${adminToken}`)
+      // Không gửi `name`: mã lớp do server tự sinh, và CreateCourseSectionDto
+      // không có trường đó (ValidationPipe từ chối trường lạ).
       .send({
         courseId,
         semesterId,
-        name: `L-${Date.now()}`,
         teacherId,
       })
       .expect(201);

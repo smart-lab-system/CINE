@@ -43,6 +43,7 @@ const EXPECTED_TABLES = [
   'student',
   'room',
   'computer',
+  'grade_export_row',
 ];
 
 async function main() {

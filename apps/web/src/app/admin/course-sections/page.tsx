@@ -73,7 +73,8 @@ function CourseSectionsInner() {
     else next.delete('q');
     next.delete('page');
     router.replace(`?${next.toString()}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync debounce → URL
+    // Deliberately keyed on debouncedQ only: this syncs the debounced search to
+    // the URL, and re-running on every searchParams change would loop.
   }, [debouncedQ]);
 
   const list = useCourseSections({

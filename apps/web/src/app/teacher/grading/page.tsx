@@ -9,17 +9,19 @@ import {
   useGradingProgress,
   useGradingResults,
   useRegradeStuck,
-  useResultDetails,
 } from '@/hooks/useGrading';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useRulesLink } from '@/hooks/useRulesLink';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { STATE_ORDER, countStates, leverageOf, stateOf, type SessionState } from '@/lib/session-triage';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
+import { countSystemUngradable } from '@/lib/regrade-triage';
+import { AiServiceBand } from './_components/AiServiceBand';
 import { BulkAcceptEssays } from './_components/BulkAcceptEssays';
 import { LeverageLine } from './_components/LeverageLine';
 import { OverviewBar } from './_components/OverviewBar';
 import { PreparePanel } from './_components/PreparePanel';
+import { RulerOriginNote } from './_components/RulerOriginNote';
 import { ResultsTable, type ResultsFilter } from './_components/ResultsTable';
 import { RunningPanel } from './_components/RunningPanel';
 import { SessionHeader } from './_components/SessionHeader';
@@ -90,8 +92,6 @@ function SessionScreen({
   const list = results.data ?? [];
   const counts = countStates(list);
   const needsYou = list.filter((r) => stateOf(r) === 'needsYou');
-  // Chỉ bài đường điều tra có hồ sơ chứa lý do/số lỗi; bài tự luận tự nói lý do của nó.
-  const details = useResultDetails(needsYou.filter((r) => r.pipeline !== 'one_shot').map((r) => r.id));
 
   const running = (progress.data?.pending ?? 0) > 0;
   const allUngradable = list.length > 0 && counts.ungradable === list.length;
@@ -109,8 +109,6 @@ function SessionScreen({
       sessionId={sessionId}
       sessionClassId={session.classId}
       results={list}
-      details={details.byId}
-      detailsSettled={details.loading === 0}
       filter={filter}
       onFilterChange={setFilter}
     />
@@ -118,7 +116,8 @@ function SessionScreen({
 
   return (
     <div className="flex flex-col gap-6">
-      <SessionHeader session={session} sessionId={sessionId} resultCount={list.length} systemFailed={counts.ungradable} />
+      <SessionHeader session={session} sessionId={sessionId} resultCount={list.length} systemFailed={countSystemUngradable(list)} />
+      <RulerOriginNote sessionId={sessionId} />
 
       {results.isError && (
         <Alert variant="destructive">
@@ -128,6 +127,8 @@ function SessionScreen({
           </AlertDescription>
         </Alert>
       )}
+
+      <AiServiceBand sessionId={sessionId} results={list} />
 
       {loading ? (
         <Skeleton className="h-64 w-full" />
@@ -141,6 +142,7 @@ function SessionScreen({
             results={list}
             online={online}
             onRegradeStuck={() => regrade.mutate()}
+            sessionId={sessionId}
             regrade={{
               isPending: regrade.isPending,
               isError: regrade.isError,
@@ -158,7 +160,7 @@ function SessionScreen({
       ) : (
         <>
           <OverviewBar counts={counts} />
-          <LeverageLine leverage={leverageOf(needsYou, details.byId)} rulesHref={rulesLink} />
+          <LeverageLine leverage={leverageOf(needsYou)} rulesHref={rulesLink} />
           <BulkAcceptEssays sessionId={sessionId} results={list} />
           {table}
         </>

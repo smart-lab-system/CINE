@@ -99,6 +99,8 @@ export class RubricErrorService {
            JOIN examcollect.grading_result g ON g.id = c.grading_result_id
            JOIN examcollect.submission s ON s.id = g.submission_id
           WHERE g.rubric_id_version IN (SELECT id FROM examcollect.rubric WHERE teacher_id = $1 AND name = $2)
+            -- Bài kiểm mẫu chưa kiểm không được tính vào số đếm lỗi: trừ số đếm ra là suy được tập lỗi của nó.
+            AND g.status <> 'audit_pending'
           ORDER BY c.grading_result_id, c.created_at DESC, c.id DESC),
        applied AS (
          SELECT e ->> 'ruleId' AS rule_id, l.grading_result_id, l.exam_session_id

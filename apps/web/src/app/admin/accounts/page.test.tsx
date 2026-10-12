@@ -21,6 +21,15 @@ vi.mock('@/hooks/useAccounts', () => ({
   useToggleAccountActive: () => ({ mutate: toggleActiveMutate, isPending: false }),
 }));
 
+// The page syncs page/pageSize to the URL (router.replace) and seeds its
+// state from useSearchParams, so the App Router hooks need a stand-in — the
+// real ones throw "expected app router to be mounted" outside Next.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => '/admin/accounts',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 beforeEach(() => {
   useAccountsMock.mockReset();
   createMutate.mockReset();

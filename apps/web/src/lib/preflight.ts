@@ -1,3 +1,4 @@
+import type { DeclaredLanguage } from './api/exam-session';
 import type { Rubric } from './api/grading';
 import type { RubricOverview } from './api/rubric-errors';
 import { formatVnPoints } from './format';
@@ -17,8 +18,12 @@ export interface PreflightInput {
   hasRubricId: boolean;
   rubric: Rubric | undefined;
   readiness: { hasQuestion: boolean; hasModelAnswer: boolean } | undefined;
-  /** Phiên có ít nhất một deliverable `code_project`. */
-  hasCodeDeliverable: boolean;
+  /** Mọi yêu cầu nộp của phiên. `pipeline` do BACKEND tính (`pipelineFor`) — không suy ra ở đây (G1 §3.3). */
+  deliverables: {
+    deliverableType: 'document' | 'code_project' | 'image';
+    language: DeclaredLanguage | null;
+    pipeline: 'investigator' | 'one_shot';
+  }[];
   bundle: { pinned: boolean; total: number; approved: number };
   /** Tổng quan Bảng lỗi của RUBRIC ĐÃ GHIM cho phiên (đã gồm số lỗi chưa có điểm trừ và các tiêu chí đã đánh dấu không trừ điểm). */
   board: RubricOverview | undefined;
@@ -46,6 +51,10 @@ export function preflightOf(input: PreflightInput): {
 } {
   const rows: PreflightRow[] = [];
   const { rubric, readiness } = input;
+  const codeDeliverables = input.deliverables.filter((d) => d.deliverableType === 'code_project');
+  const investigators = codeDeliverables.filter((d) => d.pipeline === 'investigator');
+  const readByReading = codeDeliverables.length - investigators.length;
+  const undeclared = codeDeliverables.filter((d) => d.language === null).length;
 
   // Trần điểm
   if (!input.hasRubricId) {
@@ -91,8 +100,8 @@ export function preflightOf(input: PreflightInput): {
   }
 
   // Gói test — server đòi gói ĐÃ GHIM cho bài code đi đường điều tra
-  if (!input.hasCodeDeliverable) {
-    rows.push({ key: 'bundle', label: 'Gói test', status: 'ok', text: 'Phiên không có bài code — không cần gói test.' });
+  if (investigators.length === 0) {
+    rows.push({ key: 'bundle', label: 'Gói test', status: 'ok', text: 'Phiên không có bài code chạy trong môi trường chạy bài — không cần gói test.' });
   } else if (input.bundle.pinned) {
     rows.push({ key: 'bundle', label: 'Gói test', status: 'ok', text: 'Đã ghim một gói test đã duyệt.' });
   } else {
@@ -148,14 +157,20 @@ export function preflightOf(input: PreflightInput): {
     });
   }
 
-  // Ngôn ngữ bài code — API chưa trả
-  if (input.hasCodeDeliverable) {
+  // Ngôn ngữ bài code — đếm theo đường chấm mà backend đã tính; không chặn (bài đọc mã vẫn chấm được)
+  if (codeDeliverables.length > 0) {
+    const parts: string[] = [];
+    if (investigators.length > 0) parts.push(`${investigators.length} bài code chạy trong môi trường chạy bài`);
+    if (readByReading > 0) {
+      parts.push(
+        `${readByReading} bài code chấm bằng đọc mã, không chạy${undeclared > 0 ? ` (${undeclared} bài chưa khai ngôn ngữ)` : ''}`,
+      );
+    }
     rows.push({
       key: 'language',
       label: 'Ngôn ngữ bài code',
-      status: 'warn',
-      text: 'Chưa đọc được từ API. Bài code chưa khai ngôn ngữ sẽ chấm theo đường cũ — đọc mã, không chạy.',
-      needsBackend: true,
+      status: readByReading > 0 ? 'warn' : 'ok',
+      text: `${parts.join('; ')}.`,
     });
   }
 

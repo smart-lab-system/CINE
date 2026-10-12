@@ -35,6 +35,9 @@ export class ProposalService {
          FROM examcollect.error_rule r
          JOIN examcollect.error_rule_revision v ON v.id = r.current_revision_id
          LEFT JOIN examcollect.error_rule_sighting s ON s.error_rule_id = r.id AND ($2::text IS NULL OR s.rubric_name = $2)
+              -- Nơi thấy ở bài kiểm mẫu chưa kiểm không được đếm: số "bài" và danh sách phiên là suy được bài đó có lỗi gì.
+              AND NOT EXISTS (SELECT 1 FROM examcollect.grading_result sg
+                               WHERE sg.id = s.grading_result_id AND sg.status = 'audit_pending')
          LEFT JOIN examcollect.exam_session es ON es.id = s.exam_session_id
         WHERE r.teacher_id = $1 AND r.state = 'proposed'
           AND ($2::text IS NULL
