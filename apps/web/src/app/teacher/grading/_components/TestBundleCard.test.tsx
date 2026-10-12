@@ -14,6 +14,12 @@ vi.mock('@/hooks/useTestBundle', () => ({
   usePinTestBundle: () => ({ mutate: pinMock, isPending: false }),
 }));
 
+// `TestBundleList` (nằm trong card) gọi thêm hai hook này; không mock thì `useMutation` không có QueryClientProvider.
+vi.mock('@/hooks/useTestBundleDetail', () => ({
+  useTestBundleDetail: () => ({ data: undefined, isLoading: false, isError: false, error: null }),
+  useDropTestBundleCase: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
+}));
+
 let useTestBundlesMock = () => ({ data: [] as unknown[], isLoading: false });
 
 describe('TestBundleCard', () => {

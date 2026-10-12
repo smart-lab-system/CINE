@@ -16,7 +16,7 @@ const base = (over: Partial<PreflightInput> = {}): PreflightInput => ({
   hasRubricId: true,
   rubric,
   readiness: { hasQuestion: true, hasModelAnswer: true },
-  hasCodeDeliverable: false,
+  deliverables: [],
   bundle: { pinned: false, total: 0, approved: 0 },
   rules: [
     rule({ id: 'r1', revision: { criterionKey: 'tinh_dung' }, deduction: '1.00' }),
@@ -25,6 +25,10 @@ const base = (over: Partial<PreflightInput> = {}): PreflightInput => ({
   waivedKeys: [],
   dirty: false,
   ...over,
+});
+
+const codeDeliverable = (over: Partial<PreflightInput['deliverables'][number]> = {}): PreflightInput['deliverables'][number] => ({
+  deliverableType: 'code_project', language: 'python', pipeline: 'investigator', ...over,
 });
 
 const row = (input: PreflightInput, key: string) => preflightOf(input).rows.find((r) => r.key === key)!;
@@ -86,15 +90,21 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     it('not needed without a code deliverable', () => {
       expect(row(base(), 'bundle')).toMatchObject({ status: 'ok' });
     });
+    // G1 §3: the server only demands a bundle for investigator-path submissions, so the UI must not ask for more.
+    it('not needed when every code deliverable is graded by reading', () => {
+      const input = base({ deliverables: [codeDeliverable({ language: 'java', pipeline: 'one_shot' }), codeDeliverable({ language: null, pipeline: 'one_shot' })] });
+      expect(row(input, 'bundle')).toMatchObject({ status: 'ok' });
+      expect(preflightOf(input).canStart).toBe(true);
+    });
     it('ok when a bundle is pinned', () => {
-      expect(row(base({ hasCodeDeliverable: true, bundle: { pinned: true, total: 1, approved: 1 } }), 'bundle').status).toBe('ok');
+      expect(row(base({ deliverables: [codeDeliverable()], bundle: { pinned: true, total: 1, approved: 1 } }), 'bundle').status).toBe('ok');
     });
     it.each([
       [{ pinned: false, total: 0, approved: 0 }, /Chưa có gói test nào/],
       [{ pinned: false, total: 2, approved: 0 }, /chưa duyệt/],
       [{ pinned: false, total: 2, approved: 1 }, /chưa ghim/],
     ])('blocks and says the next step (%j)', (bundle, text) => {
-      const input = base({ hasCodeDeliverable: true, bundle });
+      const input = base({ deliverables: [codeDeliverable()], bundle });
       expect(row(input, 'bundle').status).toBe('block');
       expect(row(input, 'bundle').text).toMatch(text);
       expect(row(input, 'bundle').text).toMatch(/khối "Gói test"/);
@@ -138,11 +148,29 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     });
   });
 
-  describe('code language — the API does not return it yet', () => {
-    it('is a "cần backend" note only when the session has code deliverables', () => {
+  describe('code language (G1 §3) — counted by the backend pipeline, never blocking', () => {
+    it('no row without a code deliverable', () => {
       expect(preflightOf(base()).rows.some((r) => r.key === 'language')).toBe(false);
-      const r = row(base({ hasCodeDeliverable: true, bundle: { pinned: true, total: 1, approved: 1 } }), 'language');
-      expect(r).toMatchObject({ status: 'warn', needsBackend: true });
+    });
+    it('all run in the run environment → ok, no warning, no "cần backend"', () => {
+      const r = row(base({ deliverables: [codeDeliverable(), codeDeliverable({ language: 'cpp' })], bundle: { pinned: true, total: 1, approved: 1 } }), 'language');
+      expect(r.status).toBe('ok');
+      expect(r.needsBackend).toBeUndefined();
+      expect(r.text).toBe('2 bài code chạy trong môi trường chạy bài.');
+    });
+    it('some graded by reading → warns with the counts, and how many never declared a language', () => {
+      const input = base({
+        deliverables: [codeDeliverable(), codeDeliverable({ language: 'java', pipeline: 'one_shot' }), codeDeliverable({ language: null, pipeline: 'one_shot' })],
+        bundle: { pinned: true, total: 1, approved: 1 },
+      });
+      const r = row(input, 'language');
+      expect(r.status).toBe('warn');
+      expect(r.text).toBe('1 bài code chạy trong môi trường chạy bài; 2 bài code chấm bằng đọc mã, không chạy (1 bài chưa khai ngôn ngữ).');
+      expect(preflightOf(input).canStart).toBe(true);
+    });
+    it('documents and images are not counted as code', () => {
+      const input = base({ deliverables: [{ deliverableType: 'document', language: null, pipeline: 'one_shot' }] });
+      expect(preflightOf(input).rows.some((r) => r.key === 'language')).toBe(false);
     });
   });
 

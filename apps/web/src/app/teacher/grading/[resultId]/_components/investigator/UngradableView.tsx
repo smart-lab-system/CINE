@@ -2,17 +2,24 @@
 
 import { CircleMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { NeedsBackend } from '@/components/needs-backend';
+import { RegradeButton } from '@/app/teacher/grading/_components/RegradeButton';
 import { InvestigationTrail } from './InvestigationTrail';
 import type { ResultDetail } from '@/lib/api/grading';
 
 /** Không tự giữ `ManualScoreDialog` — `InvestigatorDossier` (Task 8) giữ đúng MỘT hộp thoại cho cả trang. */
 export function UngradableView({
+  sessionId,
+  resultId,
+  sameReasonCount,
   ungradableClass,
   ungradableReason,
   investigation,
   onOpenManualScore,
 }: {
+  sessionId: string;
+  resultId: string;
+  /** Bao nhiêu bài lớp system của phiên mang ĐÚNG câu lý do này (kể cả bài này). */
+  sameReasonCount: number;
   ungradableClass: 'system' | 'submission';
   ungradableReason: string;
   investigation: ResultDetail['investigation'];
@@ -44,14 +51,19 @@ export function UngradableView({
           <div className="flex flex-wrap gap-2">
             {ungradableClass === 'system' && (
               <>
-                <Button disabled>
-                  Chấm lại bài này
-                  <NeedsBackend className="ml-2" />
-                </Button>
-                <Button variant="outline" disabled>
-                  Chấm lại cả các bài cùng lý do
-                  <NeedsBackend className="ml-2" />
-                </Button>
+                <RegradeButton
+                  scope={{ kind: 'result', sessionId, resultId }}
+                  label="Chấm lại bài này"
+                  variant="default"
+                  size="default"
+                />
+                {sameReasonCount > 1 && (
+                  <RegradeButton
+                    scope={{ kind: 'session', sessionId, reason: ungradableReason, count: sameReasonCount }}
+                    label={`Chấm lại cả ${sameReasonCount} bài cùng lý do`}
+                    size="default"
+                  />
+                )}
               </>
             )}
             <Button variant="outline" onClick={onOpenManualScore}>

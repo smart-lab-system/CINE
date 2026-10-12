@@ -1,10 +1,19 @@
 import { ExamSessionStatus, ExamType } from '../entities/exam-session.entity';
 import { DeliverableType } from '../entities/required-deliverable.entity';
+import type { DeclaredLanguage } from '../declared-language';
+import type { GradingPipeline } from '../../grading/grading-model.types';
 
 export class RequiredDeliverableResponseDto {
   id!: string;
   requiredFilename!: string;
   deliverableType!: DeliverableType;
+  /** Null = chưa khai (§14.1) — bài đi đường `one_shot`. Hệ thống không đoán ngôn ngữ từ đuôi file. */
+  language!: DeclaredLanguage | null;
+  /**
+   * Đường chấm của yêu cầu nộp này — BACKEND tính bằng `pipelineFor`, cùng hàm mà `startGrading` dùng để gán
+   * `grading_result.pipeline`. Giao diện đọc chứ không tự cài lại luật "code + python/cpp ⇒ điều tra".
+   */
+  pipeline!: GradingPipeline;
   /**
    * Tên các file phải nằm BÊN TRONG, nếu deliverable này là một file nén và
    * giảng viên đã khai — spec 2026-09-21-archive-content-validation-design.md

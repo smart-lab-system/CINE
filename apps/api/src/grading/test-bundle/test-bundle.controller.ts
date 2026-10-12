@@ -5,6 +5,7 @@ import { Roles } from '../../auth/roles.decorator';
 import { RolesGuard } from '../../auth/roles.guard';
 import { ExamSessionService } from '../../exam-session/exam-session.service';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
+import { DropTestCaseDto } from './dto/drop-test-case.dto';
 import { TestBundleService } from './test-bundle.service';
 
 /**
@@ -66,5 +67,18 @@ export class TestBundleController {
   ) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.bundles.pin(session.id, bundleId);
+  }
+
+  @Post('exam-sessions/:id/test-bundles/:bundleId/drop-case')
+  @Roles('teacher')
+  @HttpCode(201)
+  async dropCase(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('bundleId', ParseUUIDPipe) bundleId: string,
+    @Body() dto: DropTestCaseDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.bundles.dropCase(session.id, bundleId, dto.caseKey);
   }
 }

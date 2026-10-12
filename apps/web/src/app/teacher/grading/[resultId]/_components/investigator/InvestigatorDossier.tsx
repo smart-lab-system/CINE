@@ -6,6 +6,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useGradingResults, useResultInvestigation, useRubrics } from '@/hooks/useGrading';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
+import { groupByUngradableReason } from '@/lib/regrade-triage';
+import { RulerOriginNote } from '@/app/teacher/grading/_components/RulerOriginNote';
 import { DossierHeader } from './DossierHeader';
 import { CaseFlagsBanner } from './CaseFlagsBanner';
 import { ScoreCard } from './ScoreCard';
@@ -114,10 +116,16 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
   // "Đã duyệt" (review I2). Bài đó đi tiếp xuống bố cục thường, kèm một dòng nhắc vì sao hệ thống không tự chấm.
   const handGraded = d.ungradableClass !== null && d.currentScoreSource === 'manual';
   if (d.ungradableClass && !handGraded) {
+    // Bao nhiêu bài lớp system của phiên mang ĐÚNG câu lý do này — cho nút "chấm lại cả … bài cùng lý do".
+    const sameReasonCount =
+      groupByUngradableReason(results.data ?? []).find((g) => g.reason === (d.ungradableReason ?? ''))?.count ?? 1;
     return (
       <div className="flex flex-col gap-4">
         {header(d.status, d.ungradableReason)}
         <UngradableView
+          sessionId={sessionId}
+          resultId={resultId}
+          sameReasonCount={sameReasonCount}
           ungradableClass={d.ungradableClass as 'system' | 'submission'}
           ungradableReason={d.ungradableReason ?? ''}
           investigation={d.investigation}
@@ -131,6 +139,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
   return (
     <div className="flex flex-col gap-4">
       {header(d.status, d.ungradableReason)}
+      <RulerOriginNote sessionId={sessionId} />
       {handGraded && (
         <Alert variant="info">
           <AlertDescription>

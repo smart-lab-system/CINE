@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { StatusPill } from '@/components/status-pill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -10,18 +11,19 @@ import {
   STATE_ORDER,
   countStates,
   errorCounts,
+  isReadingCode,
   reasonOf,
   scoreCell,
   sortByState,
   stateOf,
   type SessionState,
 } from '@/lib/session-triage';
-import type { GradingResult, ResultDetail } from '@/lib/api/grading';
+import type { GradingResult } from '@/lib/api/grading';
 
 export type ResultsFilter = SessionState | 'all';
 
-function errorsText(detail: ResultDetail | undefined): string {
-  const counts = errorCounts(detail);
+function errorsText(triage: GradingResult['triage']): string {
+  const counts = errorCounts(triage);
   if (counts === null) return '—';
   const parts: string[] = [];
   if (counts.counted > 0) parts.push(`${counts.counted} đã trừ`);
@@ -33,24 +35,19 @@ function errorsText(detail: ResultDetail | undefined): string {
  * Danh sách bài của phiên (spec §3.3): sinh viên (MSSV là link mở hồ sơ) · trạng thái · điểm (kèm *tạm tính* /
  * *chưa có điểm*) · số lỗi đã trừ và chờ giá · **vì sao cần bạn** (một câu). Mặc định sắp cần-bạn-trước.
  *
- * Danh sách API không mang lý do hay số lỗi — hai cột đó đọc từ hồ sơ từng bài (`details`), và nói "đang xem
- * hồ sơ" trong lúc chờ thay vì đoán. `detailsSettled` = mọi hồ sơ đã tải xong (thành công hay thất bại): tới
- * lúc đó mà vẫn chưa có lý do thì chỉ đường mở hồ sơ, không quay mãi.
+ * Lý do và số lỗi đọc từ `result.triage` mà danh sách đã mang sẵn (G1 §2) — không còn một request hồ sơ cho mỗi
+ * bài. Bài chưa có `triage` thì KHÔNG đoán: chỉ đường mở hồ sơ.
  */
 export function ResultsTable({
   sessionId,
   sessionClassId,
   results,
-  details,
-  detailsSettled,
   filter,
   onFilterChange,
 }: {
   sessionId: string;
   sessionClassId: string | null;
   results: GradingResult[];
-  details: Map<string, ResultDetail>;
-  detailsSettled: boolean;
   filter: ResultsFilter;
   onFilterChange: (filter: ResultsFilter) => void;
 }) {
@@ -58,10 +55,9 @@ export function ResultsTable({
   const shown = sortByState(filter === 'all' ? results : results.filter((r) => stateOf(r) === filter));
 
   const reasonCell = (r: GradingResult) => {
-    const reason = reasonOf(r, details.get(r.id));
+    const reason = reasonOf(r);
     if (reason !== null) return reason;
-    if (stateOf(r) !== 'needsYou') return '—';
-    return detailsSettled ? 'Mở hồ sơ để xem lý do.' : 'Đang xem hồ sơ…';
+    return stateOf(r) === 'needsYou' ? 'Mở hồ sơ để xem lý do.' : '—';
   };
 
   return (
@@ -111,17 +107,22 @@ export function ResultsTable({
                         {isMakeupSubmission(r.homeClassId, sessionClassId) && (
                           <Badge variant="info">Thi bù — {r.homeClassName ?? r.homeClassId}</Badge>
                         )}
-                        {r.pipeline === 'one_shot' && <Badge variant="outline">Bài tự luận</Badge>}
+                        {isReadingCode(r) ? (
+                          <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>
+                        ) : (
+                          r.pipeline === 'one_shot' && <Badge variant="outline">Bài tự luận</Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
                       <StatusPill status={r.status} ungradableReason={r.ungradableReason} pipeline={r.pipeline} />
                     </TableCell>
                     <TableCell data-cell="score" className="text-right">
+                      {state === 'audit' && <EyeOff className="mr-1 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
                       <span className="font-semibold tabular-nums">{score.text}</span>{' '}
                       <span className="text-caption text-muted-foreground">{score.tag}</span>
                     </TableCell>
-                    <TableCell className="text-small tabular-nums">{errorsText(details.get(r.id))}</TableCell>
+                    <TableCell className="text-small tabular-nums">{errorsText(r.triage)}</TableCell>
                     <TableCell className="max-w-[360px] text-small text-muted-foreground">{reasonCell(r)}</TableCell>
                   </TableRow>
                 );

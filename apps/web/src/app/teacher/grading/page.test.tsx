@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import GradingPage from './page';
-import type { GradingProgress, GradingResult, ResultDetail } from '@/lib/api/grading';
+import type { GradingProgress, GradingResult, ResultTriage } from '@/lib/api/grading';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 
 let search = '';
@@ -17,7 +17,6 @@ const h = vi.hoisted(() => ({
   summaries: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null },
   results: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null, refetch: vi.fn() },
   progress: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null, dataUpdatedAt: 0, refetch: vi.fn() },
-  details: { byId: new Map<string, unknown>(), loading: 0, failed: 0 },
   regradeMutate: vi.fn(),
   online: true,
   prepareProps: [] as unknown[],
@@ -29,7 +28,6 @@ vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: () => h.results,
   useGradingSessionSummaries: () => h.summaries,
   useGradingProgress: () => h.progress,
-  useResultDetails: () => h.details,
   useRegradeStuck: () => ({ mutate: h.regradeMutate, isPending: false, isError: false, error: null, data: undefined }),
 }));
 vi.mock('@/hooks/useOnlineStatus', () => ({ useOnlineStatus: () => h.online }));
@@ -48,6 +46,16 @@ vi.mock('./_components/RunningPanel', () => ({
   },
 }));
 vi.mock('./_components/BulkAcceptEssays', () => ({ BulkAcceptEssays: () => <div data-testid="bulk-essays" /> }));
+vi.mock('./_components/RegradeButton', () => ({
+  RegradeButton: ({ scope, label }: { scope: unknown; label: string }) => (
+    <button type="button" data-scope={JSON.stringify(scope)}>
+      {label}
+    </button>
+  ),
+}));
+vi.mock('./_components/RulerOriginNote', () => ({
+  RulerOriginNote: ({ sessionId }: { sessionId: string }) => <div data-testid="ruler-note" data-session={sessionId} />,
+}));
 
 const session = (over: Partial<SessionOverviewItem> = {}) =>
   ({
@@ -69,11 +77,10 @@ const progress = (over: Partial<GradingProgress> = {}): GradingProgress => ({
   total: 3, pending: 0, done: 3, byStatus: {}, queue: { waiting: 0, active: 0, failed: 0 }, ...over,
 });
 
-const dossier = (errorFlags: { ruleKey: string; code: string }[]): ResultDetail => ({
-  pipeline: 'investigator', currentScore: 8, currentScoreSource: 'computation', status: 'flagged_for_review',
-  ungradableClass: null, ungradableReason: null,
-  breakdown: { errors: [], perCriterion: [], caseFlags: [], errorFlags, confidence: 1, mismatchedRules: [], notConsidered: [], ungradable: null },
-  investigation: null, challengeNotes: [], challengeVerdicts: [],
+const priced = (...keys: string[]): ResultTriage => ({
+  caseFlags: [],
+  errorFlags: keys.map((ruleKey) => ({ ruleKey, code: 'unpriced' })),
+  counts: { counted: 0, unpriced: keys.length, refuted: 0, excluded: 0 },
 });
 
 beforeEach(() => {
@@ -82,7 +89,6 @@ beforeEach(() => {
   h.summaries = { data: [], isLoading: false, isError: false, error: null };
   h.results = { data: [result()], isLoading: false, isError: false, error: null, refetch: vi.fn() };
   h.progress = { data: progress(), isLoading: false, isError: false, error: null, dataUpdatedAt: 1, refetch: vi.fn() };
-  h.details = { byId: new Map(), loading: 0, failed: 0 };
   h.regradeMutate.mockReset();
   h.online = true;
   h.prepareProps.length = 0;
@@ -139,6 +145,19 @@ describe('/teacher/grading — without a session: the picker', () => {
     h.overview = { data: [], isLoading: false, isError: true, error: new Error('Mất kết nối') };
     render(<GradingPage />);
     expect(screen.getByRole('alert')).toHaveTextContent('Mất kết nối');
+  });
+});
+
+describe('ruler origin note (G2 §4.5)', () => {
+  it('is mounted on the session screen, for the chosen session', () => {
+    render(<GradingPage />);
+    expect(screen.getByTestId('ruler-note')).toHaveAttribute('data-session', 's1');
+  });
+
+  it('is not part of the session picker', () => {
+    search = '';
+    render(<GradingPage />);
+    expect(screen.queryByTestId('ruler-note')).not.toBeInTheDocument();
   });
 });
 
@@ -268,18 +287,55 @@ describe('session header (spec §3.3)', () => {
     expect(screen.getByRole('button', { name: 'Chốt điểm phiên' })).toBeDisabled();
   });
 
-  it('"Chấm lại N bài lỗi hệ thống" is disabled + "cần backend" and sends nothing', () => {
-    h.results = { ...h.results, data: [result({ id: 'a' }), result({ id: 'b', status: 'flagged_for_review', ungradableReason: 'x', currentScore: null })] };
+  it('"Chấm lại N bài lỗi hệ thống" is a real button that counts only SYSTEM-class results', () => {
+    h.results = {
+      ...h.results,
+      data: [
+        result({ id: 'a' }),
+        result({ id: 'b', status: 'flagged_for_review', ungradableReason: 'x', ungradableClass: 'system', currentScore: null }),
+        result({ id: 'c', status: 'flagged_for_review', ungradableReason: 'y', ungradableClass: 'submission', currentScore: null }),
+      ],
+    };
     render(<GradingPage />);
-    const button = screen.getByRole('button', { name: /Chấm lại 1 bài lỗi hệ thống/ });
-    expect(button).toBeDisabled();
-    fireEvent.click(button);
-    expect(h.regradeMutate).not.toHaveBeenCalled();
+    const button = screen.getByRole('button', { name: 'Chấm lại 1 bài lỗi hệ thống' });
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute('data-scope', JSON.stringify({ kind: 'session', sessionId: 's1', reason: null, count: 1 }));
+  });
+
+  // Review Focus #5: an old API sends no class. A number that may be wrong is worse than no button.
+  it('offers no regrade for a stopped result whose class the API did not send', () => {
+    h.results = {
+      ...h.results,
+      data: [result({ id: 'a' }), result({ id: 'b', status: 'flagged_for_review', ungradableReason: 'x', currentScore: null })],
+    };
+    render(<GradingPage />);
+    expect(screen.queryByRole('button', { name: /lỗi hệ thống/ })).not.toBeInTheDocument();
   });
 
   it('does not offer that regrade when nothing failed', () => {
     render(<GradingPage />);
     expect(screen.queryByRole('button', { name: /lỗi hệ thống/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('AI service band (G3 D12)', () => {
+  const stopped = (id: string, over: Partial<GradingResult> = {}) =>
+    result({ id, status: 'flagged_for_review', ungradableReason: 'Dịch vụ AI không phản hồi.', ungradableClass: 'system', currentScore: null, ...over });
+
+  it('is mounted on the session screen and offers to regrade exactly the shared-reason group', () => {
+    h.results = { ...h.results, data: [stopped('a'), stopped('b'), result({ id: 'c' })] };
+    render(<GradingPage />);
+    const band = screen.getByText(/Dịch vụ AI lỗi — 2 bài không chấm được cùng một lý do/).closest('[role="alert"]') as HTMLElement;
+    expect(within(band).getByRole('button', { name: 'Chấm lại 2 bài này' })).toHaveAttribute(
+      'data-scope',
+      JSON.stringify({ kind: 'session', sessionId: 's1', reason: 'Dịch vụ AI không phản hồi.', count: 2 }),
+    );
+  });
+
+  it('is absent when only one result stopped', () => {
+    h.results = { ...h.results, data: [stopped('a'), result({ id: 'c' })] };
+    render(<GradingPage />);
+    expect(screen.queryByText(/Dịch vụ AI lỗi —/)).not.toBeInTheDocument();
   });
 });
 
@@ -301,16 +357,14 @@ describe('list view — filter and the leverage line', () => {
     expect(screen.getByRole('button', { name: 'Tất cả · 2' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('shows the leverage line once every needs-you dossier is loaded and they only wait for prices', () => {
-    h.results = { ...h.results, data: needsYou };
-    h.details = { byId: new Map([['a', dossier([{ ruleKey: 'ten_bien', code: 'unpriced' }])], ['b', dossier([{ ruleKey: 'ten_bien', code: 'unpriced' }])]]), loading: 0, failed: 0 };
+  it('shows the leverage line when every needs-you code result carries its triage and they only wait for prices', () => {
+    h.results = { ...h.results, data: needsYou.map((r) => ({ ...r, triage: priced('ten_bien') })) };
     render(<GradingPage />);
     expect(screen.getByRole('status')).toHaveTextContent('2 trong 2 bài cần xem đang chờ bạn đặt giá cho 1 luật');
   });
 
-  it('says nothing while a dossier is missing — no claim from partial data', () => {
-    h.results = { ...h.results, data: needsYou };
-    h.details = { byId: new Map([['a', dossier([{ ruleKey: 'ten_bien', code: 'unpriced' }])]]), loading: 1, failed: 0 };
+  it('says nothing while a result has no triage — no claim from partial data', () => {
+    h.results = { ...h.results, data: [{ ...needsYou[0], triage: priced('ten_bien') }, { ...needsYou[1], triage: null }] };
     render(<GradingPage />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
