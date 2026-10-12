@@ -43,7 +43,7 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     expect(out.collected).toBe(32);
   });
 
-  describe('ceiling (Trần điểm)', () => {
+  describe('ceiling (Rubric)', () => {
     it('ok: names the rubric, its version, total and number of criteria', () => {
       expect(row(base(), 'ceiling')).toMatchObject({ status: 'ok', text: 'CTDL — phiên bản 2, 10,0 điểm, 2 tiêu chí' });
     });

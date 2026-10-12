@@ -57,6 +57,14 @@ export function useStudents(params: ListParams = {}) {
   });
 }
 
+export function useStudent(id: string | undefined) {
+  return useQuery({
+    queryKey: [K.students, 'one', id],
+    queryFn: () => api.getStudent(id!),
+    enabled: Boolean(id),
+  });
+}
+
 export function useRooms(params: ListParams = {}) {
   return useQuery({
     queryKey: [K.rooms, params],

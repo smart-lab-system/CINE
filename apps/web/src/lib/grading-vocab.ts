@@ -76,7 +76,7 @@ export function toolCallStatusLabel(status: string): string {
 const CASE_FLAG_LABEL: Record<string, string> = {
   criterion_without_rules: 'Tiêu chí chưa có luật nào',
   criterion_untouched: 'Tiêu chí chưa được kiểm tới',
-  nothing_passed: 'Không ca test nào đạt — hệ thống không tự cho điểm',
+  nothing_passed: 'Không trường hợp nào đạt — hệ thống không tự cho điểm',
   low_confidence: 'Độ tin dưới ngưỡng tự quyết',
   not_code_pipeline: 'Bài tự luận — luôn do bạn duyệt',
   challenge_suspected: 'Góc kiểm gian lận nêu nghi vấn',

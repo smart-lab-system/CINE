@@ -25,6 +25,11 @@ export class CreateCourseSectionDto {
   @IsOptional()
   @IsUUID()
   teacherId?: string;
+
+  /** Lớp danh nghĩa catalog — tuỳ chọn. */
+  @IsOptional()
+  @IsUUID()
+  nominalClassId?: string;
 }
 
 export class UpdateCourseSectionDto {

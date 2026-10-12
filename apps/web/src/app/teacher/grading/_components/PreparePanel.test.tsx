@@ -87,7 +87,7 @@ describe('PreparePanel — start button (spec §3.7)', () => {
 
   it('says the consequence right under it: documents and ceilings lock, closing the page does not stop grading', () => {
     renderPanel();
-    expect(screen.getByText(/tài liệu chấm và trần điểm khoá lại/)).toBeInTheDocument();
+    expect(screen.getByText(/tài liệu chấm và rubric khoá lại/)).toBeInTheDocument();
     expect(screen.getByText(/đóng trang không dừng việc chấm/)).toBeInTheDocument();
   });
 
@@ -165,7 +165,7 @@ describe('PreparePanel — the column "Trước khi bắt đầu"', () => {
     renderPanel();
     const list = screen.getByRole('list', { name: 'Trước khi bắt đầu' });
     expect(within(list).getAllByText('Ổn').length).toBeGreaterThan(0);
-    expect(within(list).getByText('Trần điểm')).toBeInTheDocument();
+    expect(within(list).getByText('Rubric')).toBeInTheDocument();
     expect(within(list).getByText('CTDL — phiên bản 2, 10,0 điểm, 1 tiêu chí')).toBeInTheDocument();
   });
 

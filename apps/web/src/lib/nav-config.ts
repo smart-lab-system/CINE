@@ -62,11 +62,11 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Quản lý kỳ thi', href: '/teacher/exam-sessions', icon: CalendarClock },
   { label: 'Quản lý bài thu', href: '/teacher/submissions', icon: Inbox },
   { label: 'Lớp của tôi', href: '/teacher/classes', icon: GraduationCap },
-  // Đứng TRƯỚC "Bảng lỗi" và "Chấm điểm": soạn đề là việc đầu tiên trong vòng đời
+  // Đứng TRƯỚC "Rubric" và "Chấm điểm": soạn đề là việc đầu tiên trong vòng đời
   // một kỳ thi, và thứ tự menu nên đọc ra được vòng đời đó.
   { label: 'Soạn đề', href: '/teacher/exam-authoring', icon: Sparkles },
-  // Bảng lỗi thay mục "Rubric" cũ ở đúng vị trí đó (spec UI §1): bảng luật + mức trừ + trần điểm
-  // theo tiêu chí phải có trước khi chấm. Trang `/teacher/rubrics` chuyển hướng về đây.
-  { label: 'Bảng lỗi', href: '/teacher/rules', icon: ListChecks },
+  // Rubric: tiêu chí, điểm tối đa, lỗi và điểm trừ — phải có trước khi chấm (spec UI §1).
+  // Trang `/teacher/rubrics` chuyển hướng về `/teacher/rules`.
+  { label: 'Rubric', href: '/teacher/rules', icon: ListChecks },
   { label: 'Chấm điểm', href: '/teacher/grading', icon: ClipboardCheck },
 ];

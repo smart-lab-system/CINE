@@ -5,6 +5,7 @@ import {
   parseCap,
   removedKeys,
   rowsFromRubric,
+  sumCaps,
   validateRubric,
   type CriterionRow,
 } from './rubric-form';
@@ -21,6 +22,14 @@ const rubric = (over: Partial<Rubric> = {}): Rubric => ({
     { id: 'c1', key: 'tinh_dung', description: 'Tính đúng', maxPoints: 6 },
     { id: 'c2', key: 'trinh_bay', description: 'Trình bày', maxPoints: 2.5 },
   ],
+  ...over,
+});
+
+const meta = (over: Partial<Parameters<typeof validateRubric>[0]> = {}) => ({
+  name: 'Giữa kỳ',
+  nameEditable: true,
+  existingNames: ['CTDL'] as string[],
+  totalPoints: '10',
   ...over,
 });
 
@@ -49,62 +58,100 @@ describe('parseCap (server: 0,25–100, at most two decimals)', () => {
   });
 });
 
+describe('sumCaps', () => {
+  it('sums parsed caps and ignores invalid ones', () => {
+    expect(
+      sumCaps([
+        { ...newRow('a'), maxPoints: '6' },
+        { ...newRow('b'), maxPoints: '2,5' },
+        { ...newRow('c'), maxPoints: '0' },
+      ]),
+    ).toBe(8.5);
+  });
+});
+
 describe('validateRubric', () => {
   const rows = (...over: Partial<CriterionRow>[]): CriterionRow[] =>
     over.map((o, i) => ({ id: `n${i}`, key: '', existing: false, description: 'Một tiêu chí hợp lệ', maxPoints: '2', ...o }));
-  const ctx = { nameEditable: true, existingNames: ['CTDL'] };
 
   it('a valid rubric has no errors', () => {
-    expect(validateRubric({ name: 'Giữa kỳ', ...ctx }, rows({}))).toEqual({ rows: {} });
+    expect(validateRubric(meta(), rows({}))).toEqual({ rows: {} });
   });
 
   describe('name (only when creating a rubric)', () => {
     it('required, ≤200 chars', () => {
-      expect(validateRubric({ name: '  ', ...ctx }, rows({})).name).toBeTruthy();
-      expect(validateRubric({ name: 'a'.repeat(201), ...ctx }, rows({})).name).toBeTruthy();
-      expect(validateRubric({ name: 'a'.repeat(200), ...ctx }, rows({})).name).toBeUndefined();
+      expect(validateRubric(meta({ name: '  ' }), rows({})).name).toBeTruthy();
+      expect(validateRubric(meta({ name: 'a'.repeat(201) }), rows({})).name).toBeTruthy();
+      expect(validateRubric(meta({ name: 'a'.repeat(200) }), rows({})).name).toBeUndefined();
     });
     it('an existing name is refused: saving it would silently create a new VERSION with re-derived keys', () => {
-      expect(validateRubric({ name: 'CTDL', ...ctx }, rows({})).name).toMatch(/Đã có rubric tên này/);
+      expect(validateRubric(meta({ name: 'CTDL' }), rows({})).name).toMatch(/Đã có rubric tên này/);
     });
     it('is not validated when editing an existing rubric', () => {
-      expect(validateRubric({ name: '', nameEditable: false, existingNames: ['CTDL'] }, rows({})).name).toBeUndefined();
+      expect(validateRubric(meta({ name: '', nameEditable: false }), rows({})).name).toBeUndefined();
+    });
+  });
+
+  describe('course (UI-only, blank create)', () => {
+    it('required when courseRequired', () => {
+      expect(validateRubric(meta({ courseRequired: true, courseName: '' }), rows({})).courseName).toBe('Chọn môn học.');
+      expect(validateRubric(meta({ courseRequired: true, courseName: 'CTDL' }), rows({})).courseName).toBeUndefined();
+    });
+    it('ignored when not required', () => {
+      expect(validateRubric(meta({ courseName: '' }), rows({})).courseName).toBeUndefined();
+    });
+  });
+
+  describe('totalPoints (UI-only ceiling)', () => {
+    it('must parse like a cap', () => {
+      expect(validateRubric(meta({ totalPoints: '0' }), rows({})).totalPoints).toMatch(/Tổng điểm/);
+      expect(validateRubric(meta({ totalPoints: '10' }), rows({})).totalPoints).toBeUndefined();
+    });
+    it('sum of criterion caps must not exceed total', () => {
+      const errs = validateRubric(
+        meta({ totalPoints: '5' }),
+        rows({ maxPoints: '3' }, { maxPoints: '3' }),
+      );
+      expect(errs.general).toMatch(/vượt quá tổng điểm/);
+    });
+    it('equal to total is fine', () => {
+      expect(validateRubric(meta({ totalPoints: '4' }), rows({ maxPoints: '2' }, { maxPoints: '2' })).general).toBeUndefined();
     });
   });
 
   describe('criteria', () => {
     it('needs at least one and at most thirty', () => {
-      expect(validateRubric({ name: 'X', ...ctx }, []).general).toBeTruthy();
+      expect(validateRubric(meta({ name: 'X' }), []).general).toBeTruthy();
       const thirtyOne = rows(...Array.from({ length: 31 }, () => ({})));
-      expect(validateRubric({ name: 'X', ...ctx }, thirtyOne).general).toBeTruthy();
+      expect(validateRubric(meta({ name: 'X', totalPoints: '100' }), thirtyOne).general).toBeTruthy();
       const thirty = rows(...Array.from({ length: 30 }, () => ({})));
-      expect(validateRubric({ name: 'X', ...ctx }, thirty).general).toBeUndefined();
+      expect(validateRubric(meta({ name: 'X', totalPoints: '100' }), thirty).general).toBeUndefined();
     });
     it('description 3–1000 characters', () => {
-      const errs = validateRubric({ name: 'X', ...ctx }, rows({ description: 'ab' }, { description: 'a'.repeat(1001) }, { description: 'abc' }));
+      const errs = validateRubric(meta({ name: 'X' }), rows({ description: 'ab' }, { description: 'a'.repeat(1001) }, { description: 'abc' }));
       expect(errs.rows.n0.description).toBeTruthy();
       expect(errs.rows.n1.description).toBeTruthy();
       expect(errs.rows.n2).toBeUndefined();
     });
     it('cap must parse', () => {
-      const errs = validateRubric({ name: 'X', ...ctx }, rows({ maxPoints: '0' }, { maxPoints: '2,5' }));
+      const errs = validateRubric(meta({ name: 'X' }), rows({ maxPoints: '0' }, { maxPoints: '2,5' }));
       expect(errs.rows.n0.maxPoints).toBe('Điểm tối đa: từ 0,25 đến 100, tối đa hai chữ số lẻ.');
       expect(errs.rows.n1).toBeUndefined();
     });
     it('a typed key must be lower-case letters/digits/underscore, ≤64; blank is fine', () => {
-      const errs = validateRubric({ name: 'X', ...ctx }, rows({ key: 'Có Dấu' }, { key: 'ok_key_2' }, { key: '' }, { key: 'a'.repeat(65) }));
+      const errs = validateRubric(meta({ name: 'X' }), rows({ key: 'Có Dấu' }, { key: 'ok_key_2' }, { key: '' }, { key: 'a'.repeat(65) }));
       expect(errs.rows.n0.key).toBeTruthy();
       expect(errs.rows.n1).toBeUndefined();
       expect(errs.rows.n2).toBeUndefined();
       expect(errs.rows.n3.key).toBeTruthy();
     });
     it('an EXISTING row is never key-validated (its key is fixed, whatever it is)', () => {
-      const errs = validateRubric({ name: 'X', nameEditable: false, existingNames: [] }, rows({ existing: true, key: 'Cũ_Không-Hợp-Lệ' }));
+      const errs = validateRubric(meta({ name: 'X', nameEditable: false, existingNames: [] }), rows({ existing: true, key: 'Cũ_Không-Hợp-Lệ' }));
       expect(errs.rows.n0).toBeUndefined();
     });
     it('two rows must not share a key — typed against typed, or typed against an existing one', () => {
       const errs = validateRubric(
-        { name: 'X', nameEditable: false, existingNames: [] },
+        meta({ name: 'X', nameEditable: false, existingNames: [] }),
         rows({ existing: true, key: 'tinh_dung' }, { key: 'tinh_dung' }, { key: 'moi' }, { key: 'moi' }),
       );
       expect(errs.rows.n0).toBeUndefined();

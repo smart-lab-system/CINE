@@ -39,6 +39,7 @@ import {
 import {
   useAcademicYears,
   useCourses,
+  useNominalClasses,
   useSemesters,
 } from '@/hooks/useMasterData';
 import {
@@ -101,6 +102,11 @@ function CourseSectionsInner() {
     pageSize: 100,
     status: 'active',
   });
+  const nominalClasses = useNominalClasses({
+    page: 1,
+    pageSize: 100,
+    status: 'active',
+  });
 
   const yearOptions = useMemo(
     () =>
@@ -146,10 +152,20 @@ function CourseSectionsInner() {
       })),
     [teachers.data],
   );
+  const nominalClassOptions = useMemo(
+    () =>
+      (nominalClasses.data?.items ?? []).map((c) => ({
+        value: c.id,
+        label: c.name ? `${c.code} — ${c.name}` : c.code,
+        keywords: `${c.code} ${c.name ?? ''}`,
+      })),
+    [nominalClasses.data?.items],
+  );
 
   const [open, setOpen] = useState(false);
   const [courseId, setCourseId] = useState('');
   const [semesterId, setSemesterId] = useState('');
+  const [nominalClassId, setNominalClassId] = useState('');
   const [teacherId, setTeacherId] = useState('');
 
   function patchQuery(patch: Record<string, string | null>) {
@@ -194,10 +210,12 @@ function CourseSectionsInner() {
         courseId,
         semesterId,
         teacherId: teacherId || undefined,
+        nominalClassId: nominalClassId || undefined,
       });
       toast.success(`Đã tạo lớp ${row.name}`);
       setOpen(false);
       setTeacherId('');
+      setNominalClassId('');
       router.push(`/admin/course-sections/${row.id}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Tạo lớp thất bại');
@@ -302,6 +320,7 @@ function CourseSectionsInner() {
                     <TableHead>Mã lớp</TableHead>
                     <TableHead>Môn</TableHead>
                     <TableHead>Học kỳ</TableHead>
+                    <TableHead>Lớp danh nghĩa</TableHead>
                     <TableHead>Giảng viên</TableHead>
                     <TableHead>Sĩ số</TableHead>
                   </TableRow>
@@ -319,6 +338,9 @@ function CourseSectionsInner() {
                       </TableCell>
                       <TableCell>{row.courseName}</TableCell>
                       <TableCell>{row.semesterName ?? '—'}</TableCell>
+                      <TableCell className="max-w-[14rem] truncate" title={row.nominalClassName ?? undefined}>
+                        {row.nominalClassName ?? '—'}
+                      </TableCell>
                       <TableCell>
                         {row.teacherName ?? (
                           <span className="text-warning-strong">Chưa phân công</span>
@@ -349,11 +371,11 @@ function CourseSectionsInner() {
           <DialogHeader>
             <DialogTitle>Tạo lớp học phần</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
+          <div className="flex min-w-0 flex-col gap-4 py-2">
             <p className="text-sm text-muted-foreground">
               Mã lớp sẽ tự sinh: mã môn + số thứ tự trong học kỳ (001, 002…).
             </p>
-            <div className="flex flex-col gap-2">
+            <div className="flex min-w-0 flex-col gap-2">
               <Label>Môn học</Label>
               <SearchableSelect
                 value={courseId}
@@ -364,7 +386,7 @@ function CourseSectionsInner() {
                 ariaLabel="Chọn môn học"
               />
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex min-w-0 flex-col gap-2">
               <Label>Học kỳ</Label>
               <SearchableSelect
                 value={semesterId}
@@ -375,7 +397,20 @@ function CourseSectionsInner() {
                 ariaLabel="Chọn học kỳ"
               />
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex min-w-0 flex-col gap-2">
+              <Label>Lớp danh nghĩa (tuỳ chọn)</Label>
+              <SearchableSelect
+                value={nominalClassId}
+                onValueChange={setNominalClassId}
+                options={nominalClassOptions}
+                placeholder="Chọn lớp danh nghĩa"
+                searchPlaceholder="Gõ mã hoặc tên lớp…"
+                allowClear
+                clearLabel="Không gắn"
+                ariaLabel="Chọn lớp danh nghĩa"
+              />
+            </div>
+            <div className="flex min-w-0 flex-col gap-2">
               <Label>Giảng viên (tuỳ chọn)</Label>
               <SearchableSelect
                 value={teacherId}

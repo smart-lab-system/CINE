@@ -8,6 +8,8 @@ import { NominalClassEntity } from './entities/nominal-class.entity';
 import { StudentEntity } from './entities/student.entity';
 import { RoomEntity } from './entities/room.entity';
 import { ComputerEntity } from './entities/computer.entity';
+import { EnrollmentEntity } from '../course/entities/enrollment.entity';
+import { formatNominalClassLabel } from '../course/nominal-class-label';
 import {
   CreateAcademicYearDto,
   ListAcademicYearsDto,
@@ -36,6 +38,18 @@ import {
   UpdateComputerDto,
 } from './dto/computer.dto';
 
+export interface StudentCourseSectionView {
+  id: string;
+  name: string;
+  courseName: string;
+  semesterId: string | null;
+  semesterName: string | null;
+  teacherId: string | null;
+  teacherName: string | null;
+  nominalClassId: string | null;
+  nominalClassName: string | null;
+}
+
 @Injectable()
 export class MasterDataService {
   constructor(
@@ -53,6 +67,8 @@ export class MasterDataService {
     private readonly rooms: Repository<RoomEntity>,
     @InjectRepository(ComputerEntity)
     private readonly computers: Repository<ComputerEntity>,
+    @InjectRepository(EnrollmentEntity)
+    private readonly enrollments: Repository<EnrollmentEntity>,
   ) {}
 
   // --- academic year ---
@@ -259,21 +275,88 @@ export class MasterDataService {
   }
 
   async getStudent(id: string) {
-    const row = await this.students.findOne({ where: { id } });
+    const row = await this.students.findOne({
+      where: { id },
+      relations: { nominalClass: true },
+    });
     if (!row) throw new NotFoundException('Student not found');
-    return row;
+
+    const courseSections = await this.listCourseSectionsForStudent(row);
+    return {
+      id: row.id,
+      mssv: row.mssv,
+      fullName: row.fullName,
+      nominalClassId: row.nominalClassId,
+      status: row.status,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      nominalClass: {
+        id: row.nominalClass.id,
+        code: row.nominalClass.code,
+        name: row.nominalClass.name,
+        cohortYear: row.nominalClass.cohortYear,
+        status: row.nominalClass.status,
+      },
+      courseSections,
+    };
   }
 
   async updateStudent(id: string, dto: UpdateStudentDto) {
-    const row = await this.getStudent(id);
+    const row = await this.requireStudent(id);
     if (dto.nominalClassId) await this.getNominalClass(dto.nominalClassId);
     Object.assign(row, dto);
     return this.students.save(row);
   }
 
   async removeStudent(id: string) {
-    const row = await this.getStudent(id);
+    const row = await this.requireStudent(id);
     await this.students.remove(row);
+  }
+
+  private async requireStudent(id: string): Promise<StudentEntity> {
+    const row = await this.students.findOne({ where: { id } });
+    if (!row) throw new NotFoundException('Student not found');
+    return row;
+  }
+
+  private async listCourseSectionsForStudent(
+    student: StudentEntity,
+  ): Promise<StudentCourseSectionView[]> {
+    const enrollments = await this.enrollments
+      .createQueryBuilder('e')
+      .innerJoinAndSelect('e.homeClass', 'k')
+      .leftJoinAndSelect('k.teacher', 't')
+      .leftJoinAndSelect('k.semester', 's')
+      .leftJoinAndSelect('k.nominalClass', 'nc')
+      .where('(e.student_mssv = :mssv OR e.student_id = :studentId)', {
+        mssv: student.mssv,
+        studentId: student.id,
+      })
+      .orderBy('k.name', 'ASC')
+      .getMany();
+
+    const seen = new Set<string>();
+    const sections: StudentCourseSectionView[] = [];
+    for (const enrollment of enrollments) {
+      const klass = enrollment.homeClass;
+      if (!klass || seen.has(klass.id)) continue;
+      seen.add(klass.id);
+      sections.push({
+        id: klass.id,
+        name: klass.name,
+        courseName: klass.courseName,
+        semesterId: klass.semesterId,
+        semesterName: klass.semester?.name ?? null,
+        teacherId: klass.teacherId,
+        teacherName: klass.teacher?.name ?? null,
+        nominalClassId: klass.nominalClassId,
+        nominalClassName: formatNominalClassLabel(
+          klass.nominalClass?.code,
+          klass.nominalClass?.name,
+        ),
+      });
+    }
+    return sections;
   }
 
   // --- room ---

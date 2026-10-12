@@ -1,4 +1,5 @@
 import type { Rubric } from './api/grading';
+import { formatVnPoints } from './format';
 
 /**
  * Logic thuần của hộp thoại rubric (spec §3.1, khối "Trần điểm theo tiêu chí"). Giới hạn phản chiếu
@@ -7,6 +8,8 @@ import type { Rubric } from './api/grading';
  * Điều quan trọng nhất ở file này: lưu rubric LUÔN tạo một phiên bản mới, và server sinh lại `key` từ mô tả
  * cho tiêu chí nào không gửi kèm `key`. Luật lỗi trỏ tiêu chí bằng `key` — nên một tiêu chí CÓ SẴN phải gửi
  * lại đúng key cũ của nó, nếu không sửa một câu mô tả sẽ âm thầm cắt liên kết luật → tiêu chí.
+ *
+ * `totalPoints` và `courseName` chỉ sống ở form (UI): không gửi lên API, không đổi schema.
  */
 
 export interface CriterionRow {
@@ -28,12 +31,26 @@ export interface RubricRowErrors {
 
 export interface RubricErrors {
   name?: string;
+  courseName?: string;
+  totalPoints?: string;
   general?: string;
   rows: Record<string, RubricRowErrors>;
 }
 
+export interface RubricFormMeta {
+  name: string;
+  nameEditable: boolean;
+  existingNames: string[];
+  /** Ô "Tổng điểm" trên form — trần cho tổng điểm tối đa các tiêu chí. Mặc định UI: 10. */
+  totalPoints: string;
+  /** Tạo trống: bắt buộc chọn môn (chỉ UI, không lưu). */
+  courseRequired?: boolean;
+  courseName?: string;
+}
+
 const KEY = /^[a-z0-9_]{1,64}$/;
 const CAP_ERROR = 'Điểm tối đa: từ 0,25 đến 100, tối đa hai chữ số lẻ.';
+const TOTAL_ERROR = 'Tổng điểm: từ 0,25 đến 100, tối đa hai chữ số lẻ.';
 
 export function rowsFromRubric(rubric: Rubric): CriterionRow[] {
   return rubric.criteria.map((c) => ({
@@ -57,10 +74,17 @@ export function parseCap(raw: string): number | null {
   return n >= 0.25 && n <= 100 ? n : null;
 }
 
-export function validateRubric(
-  meta: { name: string; nameEditable: boolean; existingNames: string[] },
-  rows: CriterionRow[],
-): RubricErrors {
+/** Tổng điểm tối đa đã parse được của các hàng (hàng sai bỏ qua). */
+export function sumCaps(rows: CriterionRow[]): number {
+  let sum = 0;
+  for (const row of rows) {
+    const n = parseCap(row.maxPoints);
+    if (n !== null) sum += n;
+  }
+  return Math.round(sum * 100) / 100;
+}
+
+export function validateRubric(meta: RubricFormMeta, rows: CriterionRow[]): RubricErrors {
   const errors: RubricErrors = { rows: {} };
   const rowError = (id: string) => (errors.rows[id] ??= {});
 
@@ -75,16 +99,27 @@ export function validateRubric(
     }
   }
 
+  if (meta.courseRequired && (meta.courseName ?? '').trim() === '') {
+    errors.courseName = 'Chọn môn học.';
+  }
+
+  const total = parseCap(meta.totalPoints);
+  if (total === null) errors.totalPoints = TOTAL_ERROR;
+
   if (rows.length === 0) errors.general = 'Rubric cần ít nhất một tiêu chí.';
   else if (rows.length > 30) errors.general = 'Tối đa 30 tiêu chí — nhiều hơn thì không ai rà nổi.';
 
   const seen = new Map<string, string>();
+  let capsOk = true;
   for (const row of rows) {
     const description = row.description.trim();
     if (description.length < 3 || description.length > 1000) {
       rowError(row.id).description = 'Mô tả tiêu chí: 3–1000 ký tự.';
     }
-    if (parseCap(row.maxPoints) === null) rowError(row.id).maxPoints = CAP_ERROR;
+    if (parseCap(row.maxPoints) === null) {
+      rowError(row.id).maxPoints = CAP_ERROR;
+      capsOk = false;
+    }
 
     const key = row.key.trim();
     if (!row.existing && key !== '' && !KEY.test(key)) {
@@ -97,11 +132,26 @@ export function validateRubric(
       } else seen.set(key, row.id);
     }
   }
+
+  // Trần UI: tổng điểm tối đa các tiêu chí không được vượt tổng điểm — không gửi field này lên server.
+  if (errors.general === undefined && total !== null && capsOk) {
+    const sum = sumCaps(rows);
+    if (sum > total) {
+      errors.general = `Tổng điểm tối đa các tiêu chí (${formatVnPoints(sum)}) vượt quá tổng điểm (${formatVnPoints(total)}).`;
+    }
+  }
+
   return errors;
 }
 
 export function hasErrors(errors: RubricErrors): boolean {
-  return errors.name !== undefined || errors.general !== undefined || Object.keys(errors.rows).length > 0;
+  return (
+    errors.name !== undefined ||
+    errors.courseName !== undefined ||
+    errors.totalPoints !== undefined ||
+    errors.general !== undefined ||
+    Object.keys(errors.rows).length > 0
+  );
 }
 
 /**

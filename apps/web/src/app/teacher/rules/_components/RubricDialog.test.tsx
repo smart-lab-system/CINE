@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { toast } from 'sonner';
 import { RubricDialog } from './RubricDialog';
@@ -11,6 +11,16 @@ const copyMutate = vi.fn();
 let saveState: { isPending: boolean; isError: boolean; error: Error | null };
 vi.mock('@/hooks/useGrading', () => ({ useSaveRubric: () => ({ mutate, ...saveState }) }));
 vi.mock('@/hooks/useRubricErrors', () => ({ useCopyErrors: () => ({ mutate: copyMutate, isPending: false }) }));
+vi.mock('@/hooks/useTeaching', () => ({
+  useTeachingClasses: () => ({
+    data: [
+      { id: 'k1', name: 'CTDL001', courseName: 'Cấu trúc dữ liệu', semesterId: null, semesterName: null, nominalClassId: null, nominalClassName: null, studentCount: 30 },
+      { id: 'k2', name: 'CTDL002', courseName: 'Cấu trúc dữ liệu', semesterId: null, semesterName: null, nominalClassId: null, nominalClassName: null, studentCount: 28 },
+      { id: 'k3', name: 'TRR001', courseName: 'Toán rời rạc', semesterId: null, semesterName: null, nominalClassId: null, nominalClassName: null, studentCount: 40 },
+    ],
+    isLoading: false,
+  }),
+}));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const rubric: Rubric = {
@@ -27,6 +37,11 @@ const props = (over: Partial<Props> = {}): Props => ({
   open: true, onOpenChange: vi.fn(), rubric, existingNames: ['CTDL'], errorCounts: {}, overviews: [], onSaved: vi.fn(), ...over,
 });
 const saveButton = () => screen.getByRole('button', { name: /^(Lưu thay đổi|Tạo rubric)/ });
+const caps = () => screen.getAllByLabelText('Điểm tối đa');
+const pickCourse = (label = 'Cấu trúc dữ liệu') => {
+  fireEvent.click(screen.getByRole('combobox', { name: 'Chọn môn học' }));
+  fireEvent.click(screen.getByRole('option', { name: label }));
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -41,7 +56,9 @@ describe('RubricDialog — sửa tiêu chí & điểm tối đa của một rubr
     expect(screen.getByRole('heading', { name: /Sửa tiêu chí & điểm tối đa/ })).toHaveTextContent('CTDL');
     expect(screen.queryByLabelText('Tên rubric')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Tiêu chí 1')).toHaveValue('Tính đúng');
-    expect(screen.getByLabelText('Điểm tối đa 2')).toHaveValue('2.5');
+    expect(caps()[1]).toHaveValue('2.5');
+    expect(screen.getByLabelText('Tổng điểm')).toHaveValue('8.5');
+    expect(screen.queryByRole('combobox', { name: 'Chọn môn học' })).not.toBeInTheDocument();
   });
 
   it('khoá của tiêu chí có sẵn chỉ đọc — không có ô để đổi', () => {
@@ -80,13 +97,15 @@ describe('RubricDialog — sửa tiêu chí & điểm tối đa của một rubr
 
   it('nhận điểm tối đa gõ bằng dấu phẩy và gửi số', () => {
     render(<RubricDialog {...props()} />);
-    fireEvent.change(screen.getByLabelText('Điểm tối đa 2'), { target: { value: '3,25' } });
+    fireEvent.change(screen.getByLabelText('Tổng điểm'), { target: { value: '10' } });
+    fireEvent.change(caps()[1], { target: { value: '3,25' } });
     fireEvent.click(saveButton());
     expect(mutate.mock.calls[0][0].criteria[1]).toMatchObject({ maxPoints: 3.25, key: 'trinh_bay' });
   });
 
   it('tiêu chí mới có thể mang khoá tự gõ, hoặc không (máy chủ tự sinh)', () => {
     render(<RubricDialog {...props()} />);
+    fireEvent.change(screen.getByLabelText('Tổng điểm'), { target: { value: '12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Thêm tiêu chí' }));
     fireEvent.change(screen.getByLabelText('Tiêu chí 3'), { target: { value: 'Xử lý ngoại lệ' } });
     fireEvent.change(screen.getByLabelText('Khoá tiêu chí 3 (tuỳ chọn)'), { target: { value: 'ngoai_le' } });
@@ -121,12 +140,20 @@ describe('RubricDialog — sửa tiêu chí & điểm tối đa của một rubr
 
   it('điểm tối đa sai: thông báo cạnh ô, khoá nút lưu, không gửi gì', () => {
     render(<RubricDialog {...props()} />);
-    fireEvent.change(screen.getByLabelText('Điểm tối đa 1'), { target: { value: '0' } });
-    fireEvent.blur(screen.getByLabelText('Điểm tối đa 1'));
+    fireEvent.change(caps()[0], { target: { value: '0' } });
+    fireEvent.blur(caps()[0]);
     expect(screen.getByText('Điểm tối đa: từ 0,25 đến 100, tối đa hai chữ số lẻ.')).toBeInTheDocument();
     expect(saveButton()).toBeDisabled();
     fireEvent.click(saveButton());
     expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('tổng điểm tối đa các tiêu chí vượt tổng điểm: khoá lưu, không gửi', () => {
+    render(<RubricDialog {...props()} />);
+    fireEvent.change(screen.getByLabelText('Tổng điểm'), { target: { value: '5' } });
+    fireEvent.change(caps()[0], { target: { value: '4' } });
+    expect(screen.getByRole('alert')).toHaveTextContent(/vượt quá tổng điểm/);
+    expect(saveButton()).toBeDisabled();
   });
 
   it('khoá gõ trùng bị bắt trước khi tới máy chủ', () => {
@@ -144,7 +171,8 @@ describe('RubricDialog — sửa tiêu chí & điểm tối đa của một rubr
     const onSaved = vi.fn();
     const onOpenChange = vi.fn();
     render(<RubricDialog {...props({ onSaved, onOpenChange })} />);
-    fireEvent.change(screen.getByLabelText('Điểm tối đa 1'), { target: { value: '7' } });
+    fireEvent.change(screen.getByLabelText('Tổng điểm'), { target: { value: '10' } });
+    fireEvent.change(caps()[0], { target: { value: '7' } });
     fireEvent.click(saveButton());
     expect(onSaved).toHaveBeenCalledWith(saved);
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -176,13 +204,28 @@ describe('RubricDialog — tạo rubric mới', () => {
   });
 
   describe('chưa có rubric nào (tạo trống)', () => {
-    it('hỏi tên và bắt đầu với một tiêu chí trống; không có lựa chọn "bắt đầu từ"', () => {
+    it('hỏi tên, môn học, tổng điểm mặc định 10; bắt đầu với một tiêu chí trống; không có lựa chọn "bắt đầu từ"', () => {
       render(<RubricDialog {...create()} />);
       expect(screen.getByRole('heading', { name: 'Tạo rubric mới' })).toBeInTheDocument();
       expect(screen.queryByRole('group', { name: 'Bắt đầu từ' })).not.toBeInTheDocument();
       expect(screen.getByLabelText('Tên rubric')).toHaveValue('');
+      expect(screen.getByRole('combobox', { name: 'Chọn môn học' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Tổng điểm')).toHaveValue('10');
       expect(screen.getByLabelText('Tiêu chí 1')).toHaveValue('');
+      expect(caps()[0]).toBeInTheDocument();
       expect(saveButton()).toBeDisabled();
+    });
+
+    it('ô môn học gõ để lọc và chọn', () => {
+      render(<RubricDialog {...create()} />);
+      fireEvent.click(screen.getByRole('combobox', { name: 'Chọn môn học' }));
+      const list = screen.getByRole('listbox');
+      expect(within(list).getByRole('option', { name: 'Cấu trúc dữ liệu' })).toBeInTheDocument();
+      expect(within(list).getByRole('option', { name: 'Toán rời rạc' })).toBeInTheDocument();
+      fireEvent.change(screen.getByPlaceholderText('Tìm môn học…'), { target: { value: 'toán' } });
+      expect(within(list).queryByRole('option', { name: 'Cấu trúc dữ liệu' })).not.toBeInTheDocument();
+      fireEvent.click(within(list).getByRole('option', { name: 'Toán rời rạc' }));
+      expect(screen.getByRole('combobox', { name: 'Chọn môn học' })).toHaveTextContent('Toán rời rạc');
     });
 
     it('từ chối tên đã có: lưu cùng tên là âm thầm tạo bản kế tiếp và sinh lại mọi khoá', () => {
@@ -193,13 +236,18 @@ describe('RubricDialog — tạo rubric mới', () => {
       expect(saveButton()).toBeDisabled();
     });
 
-    it('gửi tên và tiêu chí không kèm khoá', () => {
+    it('gửi tên và tiêu chí không kèm khoá — không gửi môn học hay tổng điểm', () => {
       render(<RubricDialog {...create()} />);
       fireEvent.change(screen.getByLabelText('Tên rubric'), { target: { value: 'Giữa kỳ Toán rời rạc' } });
+      pickCourse();
       fireEvent.change(screen.getByLabelText('Tiêu chí 1'), { target: { value: 'Chứng minh đúng' } });
-      fireEvent.change(screen.getByLabelText('Điểm tối đa 1'), { target: { value: '5' } });
+      fireEvent.change(caps()[0], { target: { value: '5' } });
       fireEvent.click(saveButton());
       expect(mutate).toHaveBeenCalledWith({ name: 'Giữa kỳ Toán rời rạc', criteria: [{ description: 'Chứng minh đúng', maxPoints: 5 }] }, expect.anything());
+      const body = mutate.mock.calls[0][0];
+      expect(body).not.toHaveProperty('courseName');
+      expect(body).not.toHaveProperty('courseId');
+      expect(body).not.toHaveProperty('totalPoints');
     });
   });
 
@@ -213,12 +261,14 @@ describe('RubricDialog — tạo rubric mới', () => {
       expect(screen.getByRole('button', { name: 'Tạo rubric' })).toBeDisabled();
     });
 
-    it('chọn nguồn: điền sẵn tên "… — bản sao", tiêu chí và điểm tối đa; hộp sao chép lỗi được chọn sẵn', () => {
+    it('chọn nguồn: điền sẵn tên "… — bản sao", tiêu chí và điểm tối đa; hộp sao chép lỗi được chọn sẵn; không hỏi môn học', () => {
       render(<RubricDialog {...create({ overviews: [source] })} />);
       fireEvent.change(screen.getByLabelText('Sao chép từ'), { target: { value: 'Nguồn' } });
       expect(screen.getByLabelText('Tên rubric')).toHaveValue('Nguồn — bản sao');
       expect(screen.getByLabelText('Tiêu chí 1')).toHaveValue('Tính đúng');
-      expect(screen.getByLabelText('Điểm tối đa 2')).toHaveValue('2.5');
+      expect(caps()[1]).toHaveValue('2.5');
+      expect(screen.getByLabelText('Tổng điểm')).toHaveValue('8.5');
+      expect(screen.queryByRole('combobox', { name: 'Chọn môn học' })).not.toBeInTheDocument();
       expect(screen.getByRole('checkbox', { name: /Sao chép cả 5 lỗi và điểm trừ/ })).toBeChecked();
     });
 
@@ -274,11 +324,13 @@ describe('RubricDialog — tạo rubric mới', () => {
       expect(onSaved).toHaveBeenCalled();
     });
 
-    it('chọn "Tạo trống": bỏ ô nguồn, bảng tiêu chí trống', () => {
+    it('chọn "Tạo trống": bỏ ô nguồn, bảng tiêu chí trống, hiện chọn môn học', () => {
       render(<RubricDialog {...create({ overviews: [source] })} />);
       fireEvent.click(screen.getByRole('button', { name: /^Tạo trống/ }));
       expect(screen.queryByLabelText('Sao chép từ')).not.toBeInTheDocument();
       expect(screen.getByLabelText('Tiêu chí 1')).toHaveValue('');
+      expect(screen.getByRole('combobox', { name: 'Chọn môn học' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Tổng điểm')).toHaveValue('10');
       expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     });
   });

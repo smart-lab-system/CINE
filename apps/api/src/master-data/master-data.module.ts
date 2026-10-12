@@ -7,6 +7,8 @@ import { NominalClassEntity } from './entities/nominal-class.entity';
 import { StudentEntity } from './entities/student.entity';
 import { RoomEntity } from './entities/room.entity';
 import { ComputerEntity } from './entities/computer.entity';
+import { ClassEntity } from '../course/entities/class.entity';
+import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { MasterDataService } from './master-data.service';
 import {
   AcademicYearsController,
@@ -28,6 +30,8 @@ import {
       StudentEntity,
       RoomEntity,
       ComputerEntity,
+      ClassEntity,
+      EnrollmentEntity,
     ]),
   ],
   controllers: [

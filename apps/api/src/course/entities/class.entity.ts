@@ -2,6 +2,7 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { CourseEntity } from '../../master-data/entities/course.entity';
+import { NominalClassEntity } from '../../master-data/entities/nominal-class.entity';
 import { SemesterEntity } from '../../master-data/entities/semester.entity';
 
 /**
@@ -53,4 +54,12 @@ export class ClassEntity extends BaseEntity {
   @ManyToOne(() => SemesterEntity, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'semester_id' })
   semester!: SemesterEntity | null;
+
+  /** Lớp danh nghĩa catalog — tuỳ chọn; lớp legacy có thể NULL. */
+  @Column({ name: 'nominal_class_id', type: 'uuid', nullable: true })
+  nominalClassId!: string | null;
+
+  @ManyToOne(() => NominalClassEntity, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'nominal_class_id' })
+  nominalClass!: NominalClassEntity | null;
 }

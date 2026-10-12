@@ -81,7 +81,8 @@ export function SearchableSelect({
   }
 
   return (
-    <div ref={rootRef} className={cn('relative', className)}>
+    // min-w-0: flex/grid cha không bị label dài kéo rộng vượt khung (dialog, filter bar).
+    <div ref={rootRef} className={cn('relative min-w-0 max-w-full', className)}>
       <Button
         type="button"
         variant="outline"
@@ -90,10 +91,16 @@ export function SearchableSelect({
         aria-expanded={open}
         aria-controls={listId}
         aria-label={ariaLabel}
-        className="w-full justify-between font-normal"
+        className="w-full min-w-0 justify-between overflow-hidden font-normal"
         onClick={() => setOpen((v) => !v)}
       >
-        <span className={cn('truncate', !selected && !value && 'text-muted-foreground')}>
+        <span
+          className={cn(
+            'min-w-0 flex-1 truncate text-left',
+            !selected && !value && 'text-muted-foreground',
+          )}
+          title={selected?.label}
+        >
           {selected?.label ?? (value === '' && allowClear ? clearLabel : placeholder)}
         </span>
         <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
@@ -102,9 +109,9 @@ export function SearchableSelect({
         <div
           id={listId}
           role="listbox"
-          className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+          className="absolute z-50 mt-1 w-full min-w-0 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
         >
-          <div className="relative mb-1">
+          <div className="relative mb-1 min-w-0">
             <Search
               className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
               aria-hidden
@@ -113,27 +120,27 @@ export function SearchableSelect({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={searchPlaceholder}
-              className="h-8 pl-7"
+              className="h-8 min-w-0 pl-7"
               autoFocus
             />
           </div>
-          <ul className="max-h-56 overflow-y-auto">
+          <ul className="max-h-56 overflow-y-auto overflow-x-hidden">
             {allowClear ? (
-              <li>
+              <li className="min-w-0">
                 <button
                   type="button"
                   role="option"
                   aria-selected={value === ''}
                   className={cn(
-                    'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent-subtle',
+                    'flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent-subtle',
                     value === '' && 'bg-accent-subtle',
                   )}
                   onClick={() => pick('')}
                 >
                   <Check
-                    className={cn('size-3.5', value === '' ? 'opacity-100' : 'opacity-0')}
+                    className={cn('size-3.5 shrink-0', value === '' ? 'opacity-100' : 'opacity-0')}
                   />
-                  {clearLabel}
+                  <span className="min-w-0 flex-1 truncate">{clearLabel}</span>
                 </button>
               </li>
             ) : null}
@@ -141,13 +148,13 @@ export function SearchableSelect({
               <li className="px-2 py-1.5 text-sm text-muted-foreground">{emptyText}</li>
             ) : (
               filtered.map((o) => (
-                <li key={o.value}>
+                <li key={o.value} className="min-w-0">
                   <button
                     type="button"
                     role="option"
                     aria-selected={value === o.value}
                     className={cn(
-                      'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent-subtle',
+                      'flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent-subtle',
                       value === o.value && 'bg-accent-subtle',
                     )}
                     onClick={() => pick(o.value)}
@@ -158,7 +165,9 @@ export function SearchableSelect({
                         value === o.value ? 'opacity-100' : 'opacity-0',
                       )}
                     />
-                    <span className="truncate">{o.label}</span>
+                    <span className="min-w-0 flex-1 truncate" title={o.label}>
+                      {o.label}
+                    </span>
                   </button>
                 </li>
               ))

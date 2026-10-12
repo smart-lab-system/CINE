@@ -56,17 +56,17 @@ export function preflightOf(input: PreflightInput): {
   const readByReading = codeDeliverables.length - investigators.length;
   const undeclared = codeDeliverables.filter((d) => d.language === null).length;
 
-  // Trần điểm
+  // Rubric (điểm tối đa theo tiêu chí)
   if (!input.hasRubricId) {
-    rows.push({ key: 'ceiling', label: 'Trần điểm', status: 'block', text: 'Phiên chưa gắn rubric — gắn rubric ở dòng "Trần điểm" bên trái.' });
+    rows.push({ key: 'ceiling', label: 'Rubric', status: 'block', text: 'Phiên chưa gắn rubric — gắn rubric ở dòng "Rubric" bên trái.' });
   } else if (!rubric) {
-    rows.push({ key: 'ceiling', label: 'Trần điểm', status: 'block', text: 'Không tìm thấy rubric đã gắn cho phiên này.' });
+    rows.push({ key: 'ceiling', label: 'Rubric', status: 'block', text: 'Không tìm thấy rubric đã gắn cho phiên này.' });
   } else if (rubric.criteria.length === 0) {
-    rows.push({ key: 'ceiling', label: 'Trần điểm', status: 'block', text: 'Rubric đang dùng không có tiêu chí nào.' });
+    rows.push({ key: 'ceiling', label: 'Rubric', status: 'block', text: 'Rubric đang dùng không có tiêu chí nào.' });
   } else {
     rows.push({
       key: 'ceiling',
-      label: 'Trần điểm',
+      label: 'Rubric',
       status: 'ok',
       text: `${rubric.name} — phiên bản ${rubric.version}, ${formatVnPoints(rubric.totalPoints)} điểm, ${rubric.criteria.length} tiêu chí`,
     });

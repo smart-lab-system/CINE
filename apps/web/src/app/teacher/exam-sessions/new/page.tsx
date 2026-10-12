@@ -1,14 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useForm, FormProvider, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { ArrowLeft, CircleAlert, CircleCheckBig, Copy, TriangleAlert } from 'lucide-react';
-import { useCreateExamSession, useExamSessions } from '@/hooks/useExamSession';
+import { ArrowLeft, CircleAlert, CircleCheckBig, Copy, Pencil, TriangleAlert } from 'lucide-react';
+import { useCreateExamSession } from '@/hooks/useExamSession';
 import { useTeachingClasses } from '@/hooks/useTeaching';
-import { useRooms, useSemesters } from '@/hooks/useMasterData';
+import { useRooms } from '@/hooks/useMasterData';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
@@ -33,6 +33,7 @@ const EMPTY_FORM: CreateExamSessionFormValues = {
   classId: '',
   roomId: '',
   roomName: '',
+  // Học kỳ suy từ lớp đã chọn — không còn ô chọn riêng.
   semesterId: '',
   semesterName: '',
   // Empty-string sentinel for "not yet chosen" (same as classId above),
@@ -48,9 +49,18 @@ const EMPTY_FORM: CreateExamSessionFormValues = {
   requiredFilenames: [{ value: '', deliverableType: 'document' }],
 };
 
-/** Các giá trị đã dùng, mỗi cách viết một lần, giữ nguyên thứ tự mới trước. */
-function distinct(values: (string | undefined | null)[]): string[] {
-  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+/** `Loại kỳ thi Môn MãLớp Học kỳ` — chỉ dựng khi đủ lớp (có HK) + loại kỳ. */
+function buildSessionName(parts: {
+  examType: string;
+  courseName: string;
+  className: string;
+  semesterName: string;
+}): string {
+  const typeLabel = EXAM_TYPE_LABELS[parts.examType];
+  if (!typeLabel || !parts.courseName || !parts.className || !parts.semesterName) {
+    return '';
+  }
+  return `${typeLabel} ${parts.courseName} ${parts.className} ${parts.semesterName}`;
 }
 
 async function copySessionCode(code: string) {
@@ -65,33 +75,37 @@ async function copySessionCode(code: string) {
   }
 }
 
-// Phòng / học kỳ: ưu tiên chọn catalog (dual-write FK + snapshot). Fallback
-// 「Nhập tay」 giữ tương thích e2e và khi catalog trống.
+/** Phòng: chỉ chọn từ catalog. Học kỳ lấy từ lớp thi đã chọn. */
 export default function NewExamSessionPage() {
   const createExamSession = useCreateExamSession();
   const classes = useTeachingClasses();
   const catalogRooms = useRooms({ page: 1, pageSize: 100, status: 'active' });
-  const catalogSemesters = useSemesters({ page: 1, pageSize: 100, status: 'active' });
-  // Chỉ để gợi ý khi nhập tay. Một trang là đủ: cách viết GẦN ĐÂY.
-  const previous = useExamSessions({ page: 1, pageSize: 50 });
   const [created, setCreated] = useState<{ id: string; code: string } | null>(null);
-  const [manualRoom, setManualRoom] = useState(false);
-  const [manualSemester, setManualSemester] = useState(false);
+  /** Sau khi chọn xong lớp + loại kỳ, cho phép sửa tên bằng biểu tượng bút. */
+  const [nameEditable, setNameEditable] = useState(false);
 
   const form = useForm<CreateExamSessionFormValues>({
     resolver: zodResolver(createExamSessionSchema),
     defaultValues: EMPTY_FORM,
   });
 
-  const selectedClass = classes.data?.find((c) => c.id === form.watch('classId'));
+  const classId = form.watch('classId');
+  const examType = form.watch('examType');
+
+  const selectedClass = classes.data?.find((c) => c.id === classId);
 
   const classOptions = useMemo(
     () =>
-      (classes.data ?? []).map((klass) => ({
-        value: klass.id,
-        label: `${klass.name} (${klass.studentCount} SV)`,
-        keywords: klass.courseName ?? '',
-      })),
+      (classes.data ?? []).map((klass) => {
+        const parts = [klass.courseName, klass.name, klass.semesterName].filter(Boolean);
+        return {
+          value: klass.id,
+          label: parts.join(' · '),
+          keywords: [klass.courseName, klass.name, klass.semesterName, String(klass.studentCount)]
+            .filter(Boolean)
+            .join(' '),
+        };
+      }),
     [classes.data],
   );
 
@@ -105,14 +119,34 @@ export default function NewExamSessionPage() {
     [catalogRooms.data],
   );
 
-  const previousRooms = useMemo(
-    () => distinct((previous.data?.items ?? []).map((item) => item.roomName)),
-    [previous.data],
+  const classSemesterName = selectedClass?.semesterName ?? '';
+  const selectionComplete = Boolean(
+    selectedClass &&
+      classSemesterName &&
+      examType &&
+      EXAM_TYPE_LABELS[examType],
   );
-  const previousSemesters = useMemo(
-    () => distinct((previous.data?.items ?? []).map((item) => item.semesterName)),
-    [previous.data],
-  );
+
+  // Tự điền tên khi đủ lớp (kèm học kỳ) + loại kỳ; dừng ghi đè sau khi user mở sửa.
+  useEffect(() => {
+    if (nameEditable || !selectionComplete || !selectedClass) return;
+    const next = buildSessionName({
+      examType,
+      courseName: selectedClass.courseName,
+      className: selectedClass.name,
+      semesterName: classSemesterName,
+    });
+    if (next && form.getValues('name') !== next) {
+      form.setValue('name', next, { shouldValidate: true, shouldDirty: true });
+    }
+  }, [
+    nameEditable,
+    selectionComplete,
+    selectedClass,
+    classSemesterName,
+    examType,
+    form,
+  ]);
 
   // Not an error: a session can be created and run without a roster. But
   // nobody will get in — agent:join requires an enrollment — and finding
@@ -201,6 +235,7 @@ export default function NewExamSessionPage() {
                   // session that was just created.
                   form.reset(EMPTY_FORM);
                   createExamSession.reset();
+                  setNameEditable(false);
                   setCreated(null);
                 }}
               >
@@ -235,19 +270,6 @@ export default function NewExamSessionPage() {
               <CardTitle>Thông tin phiên thi</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
-              <FormField
-                id="exam-session-name"
-                label="Tên phiên thi"
-                error={form.formState.errors.name?.message}
-              >
-                <Input
-                  id="exam-session-name"
-                  placeholder="vd: Thi cuối kỳ Lập trình Web — nhóm 03"
-                  invalid={Boolean(form.formState.errors.name)}
-                  {...form.register('name')}
-                />
-              </FormField>
-
               {/* The lecturer picks a CLASS, not a course. The course
                   follows from it server-side, and this list only ever holds
                   classes they were assigned — a class is what they actually
@@ -265,11 +287,23 @@ export default function NewExamSessionPage() {
                   render={({ field }) => (
                     <SearchableSelect
                       value={field.value}
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        // Học kỳ gắn với lớp — không còn ô chọn riêng.
+                        const klass = classes.data?.find((c) => c.id === value);
+                        form.setValue('semesterId', klass?.semesterId ?? '', {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                        form.setValue('semesterName', klass?.semesterName ?? '', {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
                       options={classOptions}
                       disabled={classes.isLoading || classes.isError}
                       placeholder={classes.isLoading ? 'Đang tải…' : 'Chọn lớp thi'}
-                      searchPlaceholder="Gõ tên lớp…"
+                      searchPlaceholder="Gõ môn, mã lớp hoặc học kỳ…"
                       emptyText="Không tìm thấy lớp."
                       ariaLabel="Chọn lớp thi"
                     />
@@ -291,6 +325,15 @@ export default function NewExamSessionPage() {
                     </button>
                   </p>
                 )}
+                {form.formState.errors.semesterName?.message && (
+                  <p
+                    role="alert"
+                    className="flex items-center gap-1.5 text-small font-medium text-danger-strong"
+                  >
+                    <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {form.formState.errors.semesterName.message}
+                  </p>
+                )}
               </FormField>
 
               {!classes.isLoading && !classes.isError && classes.data?.length === 0 && (
@@ -298,9 +341,19 @@ export default function NewExamSessionPage() {
                   <AlertDescription>
                     Bạn chưa có lớp nào.{' '}
                     <Link href="/teacher/classes" className="font-semibold underline">
-                      Tạo lớp
+                      Xem lớp của tôi
                     </Link>{' '}
-                    rồi quay lại — một phiên thi luôn thuộc về một lớp.
+                    — một phiên thi luôn thuộc về một lớp được phân công.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {selectedClass && !selectedClass.semesterId && (
+                <Alert variant="warning">
+                  <TriangleAlert />
+                  <AlertDescription>
+                    Lớp {selectedClass.name} chưa gắn học kỳ catalog — không tạo được phiên
+                    thi. Liên hệ quản trị viên để cập nhật lớp.
                   </AlertDescription>
                 </Alert>
               )}
@@ -319,153 +372,34 @@ export default function NewExamSessionPage() {
               <FormField
                 id="exam-session-room"
                 label="Phòng thi"
-                hint={
-                  manualRoom
-                    ? 'Gõ đúng chuỗi: phép chống trùng lịch phòng so khớp chính xác từng ký tự.'
-                    : 'Chọn từ danh mục. Snapshot tên phòng được chụp lúc tạo phiên.'
-                }
+                hint="Chọn từ danh mục. Snapshot tên phòng được chụp lúc tạo phiên."
                 error={
                   form.formState.errors.roomId?.message ??
                   form.formState.errors.roomName?.message
                 }
               >
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      className="text-small text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                      onClick={() => {
-                        const next = !manualRoom;
-                        setManualRoom(next);
-                        if (next) {
-                          form.setValue('roomId', '');
-                        } else {
-                          form.setValue('roomName', '');
-                        }
-                      }}
-                    >
-                      {manualRoom ? 'Chọn từ danh mục' : 'Nhập tay'}
-                    </button>
-                  </div>
-                  {manualRoom ? (
-                    <>
-                      <Input
-                        id="exam-session-room"
-                        list="exam-session-room-options"
-                        placeholder="P.A101"
-                        {...form.register('roomName')}
-                      />
-                      <datalist id="exam-session-room-options">
-                        {previousRooms.map((room) => (
-                          <option key={room} value={room} />
-                        ))}
-                      </datalist>
-                    </>
-                  ) : (
-                    <Controller
-                      control={form.control}
-                      name="roomId"
-                      render={({ field }) => (
-                        <SearchableSelect
-                          value={field.value || ''}
-                          onValueChange={field.onChange}
-                          options={roomOptions}
-                          disabled={catalogRooms.isLoading}
-                          placeholder={
-                            catalogRooms.isLoading
-                              ? 'Đang tải phòng…'
-                              : roomOptions.length
-                                ? 'Chọn phòng'
-                                : 'Chưa có phòng active — hãy nhập tay'
-                          }
-                          searchPlaceholder="Gõ tên hoặc mã phòng…"
-                          emptyText="Không tìm thấy phòng."
-                          ariaLabel="Chọn phòng thi"
-                        />
-                      )}
+                <Controller
+                  control={form.control}
+                  name="roomId"
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value || ''}
+                      onValueChange={field.onChange}
+                      options={roomOptions}
+                      disabled={catalogRooms.isLoading}
+                      placeholder={
+                        catalogRooms.isLoading
+                          ? 'Đang tải phòng…'
+                          : roomOptions.length
+                            ? 'Chọn phòng'
+                            : 'Chưa có phòng active trong danh mục'
+                      }
+                      searchPlaceholder="Gõ tên hoặc mã phòng…"
+                      emptyText="Không tìm thấy phòng."
+                      ariaLabel="Chọn phòng thi"
                     />
                   )}
-                </div>
-              </FormField>
-
-              <FormField
-                id="exam-session-semester"
-                label="Học kỳ"
-                hint={
-                  manualSemester
-                    ? 'Chụp lại vào phiên và không đổi về sau — bảng điểm lọc theo đúng chuỗi này.'
-                    : 'Chọn từ danh mục. Tên học kỳ được chụp lúc tạo và không đổi sau đó.'
-                }
-                error={
-                  form.formState.errors.semesterId?.message ??
-                  form.formState.errors.semesterName?.message
-                }
-              >
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      className="text-small text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                      onClick={() => {
-                        const next = !manualSemester;
-                        setManualSemester(next);
-                        if (next) {
-                          form.setValue('semesterId', '');
-                        } else {
-                          form.setValue('semesterName', '');
-                        }
-                      }}
-                    >
-                      {manualSemester ? 'Chọn từ danh mục' : 'Nhập tay'}
-                    </button>
-                  </div>
-                  {manualSemester ? (
-                    <>
-                      <Input
-                        id="exam-session-semester"
-                        list="exam-session-semester-options"
-                        placeholder="HK1 2026-2027"
-                        {...form.register('semesterName')}
-                      />
-                      <datalist id="exam-session-semester-options">
-                        {previousSemesters.map((semester) => (
-                          <option key={semester} value={semester} />
-                        ))}
-                      </datalist>
-                    </>
-                  ) : (
-                    <Controller
-                      control={form.control}
-                      name="semesterId"
-                      render={({ field }) => (
-                        <Select
-                          value={field.value || undefined}
-                          onValueChange={field.onChange}
-                          disabled={catalogSemesters.isLoading}
-                        >
-                          <SelectTrigger id="exam-session-semester" className="w-full">
-                            <SelectValue
-                              placeholder={
-                                catalogSemesters.isLoading
-                                  ? 'Đang tải học kỳ…'
-                                  : catalogSemesters.data?.items.length
-                                    ? 'Chọn học kỳ'
-                                    : 'Chưa có học kỳ active — hãy nhập tay'
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {catalogSemesters.data?.items.map((semester) => (
-                              <SelectItem key={semester.id} value={semester.id}>
-                                {semester.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  )}
-                </div>
+                />
               </FormField>
 
 
@@ -497,6 +431,51 @@ export default function NewExamSessionPage() {
                     </Select>
                   )}
                 />
+              </FormField>
+
+              <FormField
+                id="exam-session-name"
+                label="Tên phiên thi"
+                hint={
+                  nameEditable
+                    ? 'Bạn đang sửa tên thủ công.'
+                    : selectionComplete
+                      ? 'Tự suy từ loại kỳ thi, môn, mã lớp và học kỳ của lớp. Bấm biểu tượng để sửa.'
+                      : 'Sẽ tự tạo khi chọn đủ lớp thi và loại kỳ thi.'
+                }
+                error={form.formState.errors.name?.message}
+              >
+                <div className="flex gap-2">
+                  <Input
+                    id="exam-session-name"
+                    placeholder="vd: Cuối kỳ Lập trình Web WEB001 HK1 2026-2027"
+                    invalid={Boolean(form.formState.errors.name)}
+                    readOnly={!nameEditable}
+                    className={!nameEditable ? 'bg-surface-2' : undefined}
+                    {...form.register('name')}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    disabled={!selectionComplete}
+                    aria-label="Sửa tên phiên thi"
+                    title={
+                      selectionComplete
+                        ? 'Sửa tên phiên thi'
+                        : 'Chọn đủ lớp thi và loại kỳ thi trước'
+                    }
+                    onClick={() => {
+                      setNameEditable(true);
+                      // Focus after unlock so the lecturer can type immediately.
+                      requestAnimationFrame(() => {
+                        document.getElementById('exam-session-name')?.focus();
+                      });
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </div>
               </FormField>
 
               <div className="grid gap-5 sm:grid-cols-2">

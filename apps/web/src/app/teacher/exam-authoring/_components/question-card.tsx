@@ -146,7 +146,7 @@ export function QuestionCard({
         {question.testBundle.length > 0 && (
           <div>
             <p className="mb-1.5 text-caption font-semibold text-muted-foreground">
-              Gói test ({question.testBundle.length} ca)
+              Gói test ({question.testBundle.length} trường hợp)
             </p>
             <div className="overflow-hidden rounded-lg border border-border">
               <table className="w-full border-collapse text-caption">

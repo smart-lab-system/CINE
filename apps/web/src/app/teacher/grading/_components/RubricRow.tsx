@@ -9,7 +9,7 @@ import { formatVnPoints } from '@/lib/format';
 import { rulesHref } from '@/lib/rules-links';
 
 /**
- * Trần điểm của phiên (spec §3.7): rubric đã ghim — hoặc chỗ để ghim. Thay `SessionRubricCard`.
+ * Rubric của phiên (spec §3.7): bản đã ghim — hoặc chỗ để ghim. Thay `SessionRubricCard`.
  *
  * `RubricPicker` (lúc tạo phiên) hứa "cứ tạo phiên thi và gắn sau", và đây là nơi "sau" xảy ra — bỏ thẻ cũ mà
  * không có chỗ này là bội ước. Hiện đúng BẢN ĐÃ GHIM (theo id), không phải bản mới nhất của rubric: phiên được
@@ -49,7 +49,7 @@ export function RubricRow({ sessionId, rubricId }: { sessionId: string; rubricId
               </span>
             </div>
             <Link href={rulesHref(pinned.name)} className="text-small font-semibold text-accent-strong hover:underline">
-              Sửa trần ở Bảng lỗi
+              Sửa Rubric
             </Link>
           </div>
         ) : (
@@ -93,8 +93,8 @@ export function RubricRow({ sessionId, rubricId }: { sessionId: string; rubricId
   };
 
   return (
-    <section aria-label="Trần điểm" className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-h3">Trần điểm</h2>
+    <section aria-label="Rubric" className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+      <h2 className="text-h3">Rubric</h2>
       {body()}
     </section>
   );

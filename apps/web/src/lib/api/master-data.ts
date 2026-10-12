@@ -103,6 +103,25 @@ export interface Student {
   status: StudentStatus;
 }
 
+export interface StudentCourseSection {
+  id: string;
+  name: string;
+  courseName: string;
+  semesterId: string | null;
+  semesterName: string | null;
+  teacherId: string | null;
+  teacherName: string | null;
+  nominalClassId: string | null;
+  nominalClassName: string | null;
+}
+
+export interface StudentDetail extends Student {
+  createdAt?: string;
+  updatedAt?: string;
+  nominalClass: NominalClass;
+  courseSections: StudentCourseSection[];
+}
+
 export interface Room {
   id: string;
   code: string;
@@ -247,6 +266,8 @@ export const createStudent = (body: Omit<Student, 'id'>) =>
     method: 'POST',
     body: JSON.stringify(body),
   });
+export const getStudent = (id: string) =>
+  masterDataFetch<StudentDetail>(`/master-data/students/${id}`);
 export const updateStudent = (id: string, body: Partial<Omit<Student, 'id'>>) =>
   masterDataFetch<Student>(`/master-data/students/${id}`, {
     method: 'PATCH',
