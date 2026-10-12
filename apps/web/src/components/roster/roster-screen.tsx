@@ -277,7 +277,9 @@ export function RosterScreen({
               catalogAssist={catalogAssist}
               isPending={addStudent.isPending}
               errorMessage={addStudent.isError ? addStudent.error.message : null}
-              onAdd={(payload) => addStudent.mutateAsync(payload)}
+              onAdd={async (payload) => {
+                await addStudent.mutateAsync(payload);
+              }}
             />
           </CardContent>
         </Card>
