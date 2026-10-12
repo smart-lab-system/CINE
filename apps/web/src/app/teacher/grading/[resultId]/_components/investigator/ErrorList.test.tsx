@@ -65,24 +65,51 @@ describe('ErrorList', () => {
     expect(screen.queryByRole('button', { name: 'Bỏ lỗi này cho riêng bài này' })).not.toBeInTheDocument();
   });
 
-  // Review C1: the backend never lets `include` flip a refuted error (score-core.ts: `refuted` wins), yet the
-  // service still stamps the result "teacher_reviewed" — a button that says "keep this error" would silently
-  // lie AND clear the result off the review queue. Locked with a "cần backend" badge until the backend honours it.
-  it('locks "Không đồng ý" on a refuted error: disabled, badged "cần backend", and sends nothing', () => {
-    render(
-      <ErrorList
-        resultId="r1" sessionId="s1" status="flagged_for_review"
-        errors={[{ ...baseError, counted: 'refuted', deductionHundredths: 150 }]}
-        errorFlags={[]}
-        verdicts={[{ lens: 'qua_tay', ruleKey: 'sai_bien', status: 'refuted', reason: 'Khung mã của đề đặt sẵn tên biến.' }]}
-        investigationNotes={[]}
-      />,
-    );
-    const button = screen.getByRole('button', { name: /Không đồng ý/i });
-    expect(button).toBeDisabled();
-    expect(screen.getByText('cần backend')).toBeInTheDocument();
-    fireEvent.click(button);
-    expect(mutate).not.toHaveBeenCalled();
+  // G1 §1: the backend now honours the teacher's exception over a refutation (score-core: include → counted,
+  // exclude → excluded), so both buttons are real. (Review C1 had locked "Không đồng ý" while `refuted` won.)
+  describe('a refuted error (counted: "refuted")', () => {
+    const renderRefuted = () =>
+      render(
+        <ErrorList
+          resultId="r1" sessionId="s1" status="flagged_for_review"
+          errors={[{ ...baseError, counted: 'refuted', deductionHundredths: 150 }]}
+          errorFlags={[]}
+          verdicts={[{ lens: 'qua_tay', ruleKey: 'sai_bien', status: 'refuted', reason: 'Khung mã của đề đặt sẵn tên biến.' }]}
+          investigationNotes={[]}
+        />,
+      );
+
+    it('"Đồng ý bác bỏ" sends exclude', () => {
+      renderRefuted();
+      fireEvent.click(screen.getByRole('button', { name: 'Đồng ý bác bỏ' }));
+      expect(mutate).toHaveBeenCalledWith({ resultId: 'r1', ruleId: 'rule-1', direction: 'exclude' });
+    });
+
+    it('"Không đồng ý — giữ lỗi này cho riêng bài này" sends include, and is no longer badged "cần backend"', () => {
+      renderRefuted();
+      const button = screen.getByRole('button', { name: /Không đồng ý — giữ lỗi này/ });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      expect(mutate).toHaveBeenCalledWith({ resultId: 'r1', ruleId: 'rule-1', direction: 'include' });
+      expect(screen.queryByText('cần backend')).not.toBeInTheDocument();
+    });
+
+    it('says the decision is per-result and cannot go back to the system verdict', () => {
+      renderRefuted();
+      expect(screen.getByText(/chỉ áp cho bài này/)).toBeInTheDocument();
+      expect(screen.getByText(/không quay về kết luận của hệ thống/)).toBeInTheDocument();
+    });
+
+    it('offers neither once the result is finalized', () => {
+      render(
+        <ErrorList
+          resultId="r1" sessionId="s1" status="finalized"
+          errors={[{ ...baseError, counted: 'refuted' }]}
+          errorFlags={[]} verdicts={[]} investigationNotes={[]}
+        />,
+      );
+      expect(screen.queryByRole('button', { name: /Đồng ý bác bỏ|Không đồng ý/ })).not.toBeInTheDocument();
+    });
   });
 
   // Review I1: `counted: 'excluded'` used to render exactly like a counted error (−1,5, "Bỏ lỗi này" again,

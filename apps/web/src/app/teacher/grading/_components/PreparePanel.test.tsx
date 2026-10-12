@@ -28,14 +28,15 @@ vi.mock('@/hooks/useTestBundle', () => ({ useTestBundles: () => h.bundles }));
 
 // Their own tests cover them; here only how the panel wires them matters.
 vi.mock('./ReferenceForm', () => ({
-  ReferenceForm: ({ onDirtyChange }: { onDirtyChange: (d: boolean) => void }) => (
-    <button type="button" onClick={() => onDirtyChange(true)}>
+  ReferenceForm: ({ onDirtyChange, hasPinnedBundle }: { onDirtyChange: (d: boolean) => void; hasPinnedBundle: boolean }) => (
+    <button type="button" data-pinned={String(hasPinnedBundle)} onClick={() => onDirtyChange(true)}>
       mô phỏng thay đổi chưa lưu
     </button>
   ),
 }));
 vi.mock('./RubricRow', () => ({ RubricRow: () => <div data-testid="rubric-row" /> }));
 vi.mock('./TestBundleCard', () => ({ TestBundleCard: () => <div data-testid="bundle-card" /> }));
+vi.mock('./DeliverableLanguages', () => ({ DeliverableLanguages: () => <div data-testid="deliverable-languages" /> }));
 
 const rubric: Rubric = {
   id: 'ru-1', teacherId: 't', name: 'CTDL', version: 2, isActive: true, totalPoints: 10,
@@ -49,7 +50,7 @@ const session = (over: Partial<SessionOverviewItem> = {}) =>
   }) as SessionOverviewItem;
 
 const detail = (over: Record<string, unknown> = {}) => ({
-  data: { testBundleId: null, requiredDeliverables: [{ id: 'd1', requiredFilename: 'bai.pdf', deliverableType: 'document', entries: [] }], ...over },
+  data: { testBundleId: null, requiredDeliverables: [{ id: 'd1', requiredFilename: 'bai.pdf', deliverableType: 'document', entries: [], language: null, pipeline: 'one_shot' }], ...over },
 });
 
 beforeEach(() => {
@@ -76,6 +77,16 @@ describe('PreparePanel — start button (spec §3.7)', () => {
     expect(h.start).toHaveBeenCalledTimes(1);
   });
 
+  it('tells ReferenceForm whether the session already has a pinned test bundle', () => {
+    const { unmount } = renderPanel();
+    expect(screen.getByRole('button', { name: 'mô phỏng thay đổi chưa lưu' })).toHaveAttribute('data-pinned', 'false');
+    unmount();
+
+    h.detail = detail({ testBundleId: 'b1' });
+    renderPanel();
+    expect(screen.getByRole('button', { name: 'mô phỏng thay đổi chưa lưu' })).toHaveAttribute('data-pinned', 'true');
+  });
+
   it('says the consequence right under it: documents and ceilings lock, closing the page does not stop grading', () => {
     renderPanel();
     expect(screen.getByText(/tài liệu chấm và trần điểm khoá lại/)).toBeInTheDocument();
@@ -87,7 +98,7 @@ describe('PreparePanel — start button (spec §3.7)', () => {
     ['no rubric pinned', () => { h.rubrics = { data: [rubric] }; }, { rubricId: null } as Partial<SessionOverviewItem>, /chưa gắn rubric/],
     ['no question chosen', () => { h.readiness = { data: { level: 'rubric_only', warning: null, hasQuestion: false, hasModelAnswer: false } }; }, {}, /Chưa chọn đề bài/],
     ['nothing collected', () => {}, { fullySubmittedCount: 0, partialCount: 0 }, /Chưa có bài nào đã thu/],
-    ['code without a pinned bundle', () => { h.detail = detail({ requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [] }] }); }, {}, /khối "Gói test"/],
+    ['code without a pinned bundle', () => { h.detail = detail({ requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [], language: 'python', pipeline: 'investigator' }] }); }, {}, /khối "Gói test"/],
   ])('blocked: %s', (_name, arrange, sessionOver, reasonText) => {
     beforeEach(() => arrange());
 
@@ -101,8 +112,21 @@ describe('PreparePanel — start button (spec §3.7)', () => {
   });
 
   it('a code session with a pinned bundle can start', () => {
-    h.detail = detail({ testBundleId: 'b1', requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [] }] });
+    h.detail = detail({ testBundleId: 'b1', requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [], language: 'python', pipeline: 'investigator' }] });
     h.bundles = { data: [{ id: 'b1', version: 1, approvedAt: '2026-09-29T00:00:00Z', caseCount: 22 }] };
+    renderPanel();
+    expect(startButton()).toBeEnabled();
+  });
+
+  it('shows the language picker for a session with a code deliverable', () => {
+    h.detail = detail({ requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [], language: null, pipeline: 'one_shot' }] });
+    renderPanel();
+    expect(screen.getByTestId('deliverable-languages')).toBeInTheDocument();
+  });
+
+  // The server demands a pinned bundle only for investigator-path submissions (start-grading-test-bundle-guard).
+  it('a code deliverable graded by reading does NOT block starting for want of a bundle', () => {
+    h.detail = detail({ requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [], language: 'java', pipeline: 'one_shot' }] });
     renderPanel();
     expect(startButton()).toBeEnabled();
   });
@@ -155,13 +179,13 @@ describe('PreparePanel — blocks and controls that need the backend (T-UI-10)',
   it('the bundle block appears only for a session with a code deliverable', () => {
     renderPanel();
     expect(screen.queryByTestId('bundle-card')).not.toBeInTheDocument();
-    h.detail = detail({ requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [] }] });
+    h.detail = detail({ requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [], language: 'python', pipeline: 'investigator' }] });
     renderPanel();
     expect(screen.getByTestId('bundle-card')).toBeInTheDocument();
   });
 
   it('generating the model answer / test bundle is disabled + "cần backend" and sends nothing', () => {
-    h.detail = detail({ requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [] }] });
+    h.detail = detail({ requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [], language: 'python', pipeline: 'investigator' }] });
     renderPanel();
     for (const name of [/Sinh đáp án mẫu và gói test từ đề/, /Sinh gói test từ đáp án của bạn/, /Chạy thử đáp án mẫu với gói test/]) {
       const button = screen.getByRole('button', { name });

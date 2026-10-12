@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { NeedsBackend } from '@/components/needs-backend';
 import { useFinalizeGrades } from '@/hooks/useGrading';
 import { blockers, finalizeCounts } from '@/lib/session-triage';
 import type { GradingResult } from '@/lib/api/grading';
@@ -70,7 +69,7 @@ export function FinalizePanel({
 
   const groups = [
     { key: 'needsYou', n: block.needsYou, label: `${block.needsYou} bài cần bạn xem`, state: 'needsYou' },
-    { key: 'audit', n: block.audit, label: `${block.audit} bài kiểm mẫu chưa kiểm`, state: 'audit', needsBackend: true },
+    { key: 'audit', n: block.audit, label: `${block.audit} bài kiểm mẫu chưa kiểm`, state: 'audit' },
     { key: 'ungradable', n: block.ungradable, label: `${block.ungradable} bài không chấm được`, state: 'ungradable' },
     { key: 'grading', n: block.grading, label: `${block.grading} bài đang chấm`, state: 'grading' },
   ].filter((g) => g.n > 0);
@@ -97,18 +96,15 @@ export function FinalizePanel({
           <div className="flex flex-wrap items-center gap-3">
             <ExportCsvButton sessionName={session.name} sessionCode={session.code} results={results} />
           </div>
-          <section
-            aria-label="Ghi điểm vào sổ điểm"
-            className="flex flex-col gap-1 rounded-lg border border-dashed border-border p-4"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-small font-semibold">Ghi điểm vào sổ điểm — tính năng dự kiến</h2>
-              <NeedsBackend />
-            </div>
+          <section aria-label="Ghi điểm vào sổ điểm" className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-small font-semibold">Ghi điểm vào sổ điểm</h2>
             <p className="text-caption text-muted-foreground">
-              Tải file sổ điểm của trường, chọn cột, xem trước rồi ghi. Chỉ mở sau khi chốt. Hôm nay dùng &quot;Xuất
-              CSV&quot; ở trên.
+              Tải file sổ điểm của bạn (.xlsx), chọn cột, xem trước rồi ghi. Hệ thống chỉ điền các ô bạn chọn — mọi ô khác
+              giữ nguyên.
             </p>
+            <Button asChild size="sm" className="self-start">
+              <Link href={`/teacher/grading/export?sessionId=${sessionId}`}>Mở màn ghi điểm</Link>
+            </Button>
           </section>
         </>
       ) : block.remaining > 0 ? (
@@ -116,10 +112,7 @@ export function FinalizePanel({
           <ul aria-label="Đang chặn việc chốt" className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
             {groups.map((g) => (
               <li key={g.key} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                <span className="flex flex-wrap items-center gap-2 text-small font-medium">
-                  <span>{g.label}</span>
-                  {g.needsBackend && <NeedsBackend />}
-                </span>
+                <span className="text-small font-medium">{g.label}</span>
                 <Link
                   href={`${list}&state=${g.state}`}
                   className="text-small font-semibold text-accent-strong hover:underline"

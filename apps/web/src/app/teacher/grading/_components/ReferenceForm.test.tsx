@@ -34,7 +34,7 @@ beforeEach(() => {
 
 const renderForm = (over: Partial<React.ComponentProps<typeof ReferenceForm>> = {}) => {
   const onDirtyChange = vi.fn();
-  render(<ReferenceForm sessionId="s1" readiness={readiness} onDirtyChange={onDirtyChange} {...over} />);
+  render(<ReferenceForm sessionId="s1" readiness={readiness} onDirtyChange={onDirtyChange} hasPinnedBundle={false} {...over} />);
   return { onDirtyChange };
 };
 const saveButton = () => screen.getByRole('button', { name: 'Lưu tài liệu chấm' });
@@ -65,9 +65,55 @@ describe('ReferenceForm (spec §3.7 — replaces GradingReferenceDialog, same wr
     expect(screen.getByText('Đã chỉ định')).toBeInTheDocument();
   });
 
-  it('the "where did this come from" line has no data behind it yet — labelled "cần backend"', () => {
-    renderForm();
-    expect(screen.getAllByText('cần backend').length).toBeGreaterThan(0);
+  describe('where each document came from (G2 §4.4)', () => {
+    const stamp = (iso: string) => new Date(iso).toLocaleString('vi-VN');
+    const sources = (over: Record<string, unknown> = {}) => ({
+      question: { present: true, kind: 'teacher_upload' as const, fileName: 'de-thi-cuoi-ky.pdf', setAt: '2026-09-29T01:14:00.000Z' },
+      modelAnswer: { present: true, kind: 'authoring' as const, fileName: 'dap-an-va-test.docx', setAt: '2026-09-29T01:05:00.000Z', unverified: true },
+      ...over,
+    });
+    const withSources = (s = sources()) => ({ ...readiness, hasQuestion: true, hasModelAnswer: true, sources: s });
+
+    it('no "cần backend" badge is left on this form', () => {
+      renderForm({ readiness: withSources() });
+      expect(screen.queryByText('cần backend')).not.toBeInTheDocument();
+    });
+
+    it('says who supplied the question file, when, and its name', () => {
+      renderForm({ readiness: withSources() });
+      expect(screen.getByText(`Nguồn: bạn tải lên lúc ${stamp('2026-09-29T01:14:00.000Z')} (de-thi-cuoi-ky.pdf).`)).toBeInTheDocument();
+    });
+
+    it('an answer key attached from Soạn đề says so', () => {
+      renderForm({ readiness: withSources(), hasPinnedBundle: true });
+      expect(screen.getByText(`Nguồn: gắn từ Soạn đề lúc ${stamp('2026-09-29T01:05:00.000Z')} (dap-an-va-test.docx).`)).toBeInTheDocument();
+    });
+
+    it('an unverified answer key with no pinned bundle gets the gold band, with the consequence', () => {
+      renderForm({ readiness: withSources(), hasPinnedBundle: false });
+      expect(screen.getByRole('status')).toHaveTextContent(/chưa từng chạy thử/);
+      expect(screen.getByRole('status')).toHaveTextContent(/thước bạn chưa đọc/);
+    });
+
+    it('once a bundle is pinned the band is gone and only the neutral line remains', () => {
+      renderForm({ readiness: withSources(), hasPinnedBundle: true });
+      expect(screen.queryByText(/chưa từng chạy thử/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Nguồn: gắn từ Soạn đề lúc/)).toBeInTheDocument();
+    });
+
+    it('a note is not called an upload', () => {
+      renderForm({
+        readiness: withSources(sources({
+          modelAnswer: { present: true, kind: 'teacher_upload' as const, fileName: null, setAt: '2026-09-29T02:00:00.000Z', unverified: false },
+        })),
+      });
+      expect(screen.getByText(`Nguồn: bạn ghi chú lúc ${stamp('2026-09-29T02:00:00.000Z')}.`)).toBeInTheDocument();
+    });
+
+    it('an API without `sources` still renders — no source lines, nothing thrown', () => {
+      renderForm({ readiness });
+      expect(screen.queryByText(/^Nguồn:/)).not.toBeInTheDocument();
+    });
   });
 
   it('saving is disabled until something changed', () => {

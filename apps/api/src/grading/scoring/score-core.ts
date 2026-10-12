@@ -68,6 +68,8 @@ export interface ScoreCoreOutput {
  * Ngoại lệ `exclude` áp SAU `decide()`: `decide()` vẫn chạy trên đủ luật, vì bỏ luật khỏi bảng thì
  * lỗi máy quyết của nó biến mất khỏi hồ sơ và tiêu chí của nó có thể trông như *"không có luật
  * nào"*. Bài có ngoại lệ đã `teacher_reviewed` (§14.3), nên `outcome` của nó không quyết trạng thái.
+ *
+ * Ngoại lệ của giảng viên (exclude/include) thắng kết luận bác bỏ của phản biện (G1 §1).
  */
 export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
   const rubricKeys = new Set(input.rubric.map((c) => c.key));
@@ -97,10 +99,24 @@ export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
   });
 
   const excludedKeys = new Set(used.filter((r) => input.exceptions.get(r.ruleId) === 'exclude').map((r) => r.ruleKey));
-  const refutedKeys = new Set(decision.errorFlags.filter((f) => f.code === 'refuted').map((f) => f.ruleKey));
+  const includedKeys = new Set(used.filter((r) => input.exceptions.get(r.ruleId) === 'include').map((r) => r.ruleKey));
+  // Ngoại lệ của giảng viên thắng kết luận phản biện: `refuted` là kết luận của một lượt KHÁC (phản biện lúc chấm),
+  // còn ngoại lệ là quyết định đã đưa ra cho riêng bài này (§2.2). `refutedKeys` chỉ còn những lỗi bị bác bỏ mà
+  // giảng viên CHƯA quyết — nên `include` đưa lỗi về counted/unpriced, `exclude` đưa nó về excluded.
+  const decidedRefuted = decision.errorFlags.filter((f) => f.code === 'refuted').map((f) => f.ruleKey);
+  const refutedKeys = new Set(decidedRefuted.filter((key) => !excludedKeys.has(key) && !includedKeys.has(key)));
+  // `decide()` tính giá trên tập lỗi ĐÃ loại lỗi bị bác bỏ, nên nó không bao giờ gắn `unpriced` cho chúng. Giữ lại
+  // một lỗi như vậy (include) mà luật chưa có giá thì cờ này do đây thêm — không thì lỗi bị trừ 0 mà không cờ nào
+  // nói "chờ giá", đúng thứ §2.1 cấm (lỗi chưa giá không được quyết điểm).
+  const revivedUnpriced = decidedRefuted
+    .filter((key) => includedKeys.has(key) && byKey.get(key)?.deductionHundredths === null)
+    .map((ruleKey) => ({ ruleKey, code: 'unpriced' as const }));
   const common = {
     caseFlags: decision.caseFlags,
-    errorFlags: decision.errorFlags.filter((f) => !excludedKeys.has(f.ruleKey)),
+    errorFlags: [
+      ...decision.errorFlags.filter((f) => !excludedKeys.has(f.ruleKey) && !(f.code === 'refuted' && includedKeys.has(f.ruleKey))),
+      ...revivedUnpriced,
+    ],
     confidence: decision.confidence,
     mismatchedRules: mismatched.map((r) => ({ ruleId: r.ruleId, ruleKey: r.ruleKey, criterionKey: r.criterionKey })),
     notConsidered: notConsidered.map((r) => ({ ruleId: r.ruleId, ruleKey: r.ruleKey })),

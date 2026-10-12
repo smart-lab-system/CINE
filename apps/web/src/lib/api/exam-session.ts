@@ -2,6 +2,9 @@ import { apiClient } from '@/lib/api-client';
 
 export type ExamType = 'TK' | 'GK' | 'CK';
 
+/** Ngôn ngữ giảng viên khai cho một yêu cầu nộp code (`DECLARED_LANGUAGES` ở backend). */
+export type DeclaredLanguage = 'python' | 'cpp' | 'java' | 'node';
+
 // Mirrors CreateExamSessionDto
 // (apps/api/src/exam-session/dto/create-exam-session.dto.ts). Hand-written
 // rather than imported from `@cine/shared`, matching how account-form.tsx
@@ -48,7 +51,7 @@ export interface CreateExamSessionInput {
     /** Mặc định `document` phía server khi bỏ trống (§14.1). */
     deliverableType?: 'document' | 'code_project' | 'image';
     /** Chỉ có ý nghĩa khi `deliverableType === 'code_project'`. */
-    language?: 'python' | 'cpp' | 'java' | 'node';
+    language?: DeclaredLanguage;
     entries?: string[];
   }[];
 }
@@ -57,6 +60,10 @@ export interface RequiredDeliverableResponse {
   id: string;
   requiredFilename: string;
   deliverableType: 'document' | 'code_project' | 'image';
+  /** Null = chưa khai. */
+  language: DeclaredLanguage | null;
+  /** Đường chấm do BACKEND tính (`pipelineFor`) — giao diện không tự suy ra từ `language`. */
+  pipeline: 'investigator' | 'one_shot';
   /**
    * Tên các file phải nằm BÊN TRONG, nếu deliverable này là file nén và
    * giảng viên đã khai. Mảng rỗng = không khai file bên trong.
@@ -271,6 +278,23 @@ export async function getExamSession(id: string): Promise<ExamSessionResponse> {
   });
   await throwIfFailed(error, response);
   return data as unknown as ExamSessionResponse;
+}
+
+/**
+ * Khai ngôn ngữ của MỘT yêu cầu nộp code sau khi phiên đã tạo (G1 §3). 409 nếu phiên đã khoá chấm hoặc bài đã có
+ * kết quả — câu của server hiện nguyên văn. `pipeline` trong kết quả do BACKEND tính.
+ */
+export async function declareDeliverableLanguage(
+  examSessionId: string,
+  deliverableId: string,
+  language: DeclaredLanguage,
+): Promise<{ id: string; language: DeclaredLanguage; pipeline: 'investigator' | 'one_shot' }> {
+  const { data, error, response } = await apiClient.PATCH('/exam-sessions/{id}/deliverables/{deliverableId}', {
+    params: { path: { id: examSessionId, deliverableId } },
+    body: { language },
+  });
+  await throwIfFailed(error, response);
+  return data as unknown as { id: string; language: DeclaredLanguage; pipeline: 'investigator' | 'one_shot' };
 }
 
 /**
