@@ -100,6 +100,8 @@ Các bảng hiện có đổi như sau *[bản đồ ảnh hưởng]*:
 
 Phiên 1 câu, và mọi phiên cũ, nhận một câu mặc định (`ordinal = 1`) tự sinh từ rubric, gói test và tài liệu chấm mà phiên đang có. Giảng viên không khai gì. Các route cấp phiên hiện có (`PUT grading-reference`, tạo/duyệt/ghim gói test, gắn rubric) ghi vào câu mặc định. Một resolver duy nhất `resolveProblemConfig()` thay cho 5–6 chỗ đang đọc `es.rubric_id` / `es.test_bundle_id` / `loadForGrading(sessionId)`.
 
+**Giới hạn của các route cấp phiên.** Chúng chỉ còn hợp lệ khi phiên **chưa có đề cương xác nhận** (tức còn đúng một câu mặc định). Khi phiên đã có nhiều câu hoặc đã có `blueprint_confirmed_at`, mọi route cấp phiên bị **từ chối `409` kèm câu tiếng Việt nói rõ** ("phiên này có N câu — sửa tài liệu chấm theo từng câu"). Không route nào được tự chọn một câu để ghi.
+
 ### 3.4 Điểm tổng
 
 Điểm tổng sinh viên **không lưu thành ô**. Nó là một hàm đọc, cùng tinh thần `currentScore()`: tổng điểm hiện tại của các câu, cộng bằng số nguyên phần trăm điểm. Không ghi "tổng" vào `score_computation` (bảng chỉ-thêm, khoá theo `grading_result_id`). Tổng chỉ đủ tin cậy khi mọi câu của sinh viên đã xong; trước đó hiển thị **"tạm"**, và **"—"** nếu có câu đang kiểm mù (§8).
@@ -137,7 +139,7 @@ Khâu thu bài đã biết chính xác mục nào thiếu (đối chiếu `entri
 
 ### 4.4 Xác nhận 0 điểm hàng loạt
 
-Một thao tác **"Xác nhận 0 điểm cho các câu không nộp"** cho cả phiên. Mỗi câu một dòng `teacher_review` kiểu `manual_score` có lưu vết (kiểu này đã có). Luôn do giảng viên bấm. Công sức không tăng theo số câu thiếu.
+Một thao tác **"Xác nhận 0 điểm cho các câu không nộp"** cho cả phiên. Giao diện là **một nút duy nhất** cho cả phiên; nó ghi N dòng `teacher_review` kiểu `manual_score` có lưu vết (kiểu này đã có) trong **một transaction** (hoặc tất cả hoặc không dòng nào), và có hộp xác nhận nói số câu và số sinh viên bị ảnh hưởng. Luôn do giảng viên bấm. Công sức không tăng theo số câu thiếu.
 
 ---
 
@@ -158,7 +160,7 @@ Giới hạn: các nguồn là trang hướng dẫn của từng môn hay công 
 ### 5.2 Hiện trạng agent *[đọc code]*
 
 - `entries` đã thay token (`{MSSV}`, `{SOMAY}`) được gửi xuống agent lúc vào phòng thi (`exam-session/exam-session.gateway.ts:480-486`).
-- Agent đã in các tên đó ra tờ hướng dẫn (`apps/agent/src/exam-materials.ts:199-215`).
+- Agent đã in các tên đó ra tờ hướng dẫn (`apps/agent/src/exam-materials.ts:199-218`).
 - Agent tạo sẵn file riêng đúng tên; với `.zip` tạo sẵn một file nén rỗng hợp lệ; `.rar` không tạo trước được nên ghi chú bảo sinh viên tự nén (`workspace-files.ts:210-223`).
 - Agent có thông báo hệ điều hành, danh sách kiểm từng file ở cửa sổ chi tiết, và snapshot theo chu kỳ.
 - **Lỗ hổng:** lúc nộp, `makeWorkspaceReader` chỉ kiểm file nén có tồn tại, **không nhìn vào bên trong**; việc đối chiếu `entries` do máy chủ làm *sau khi thu*, quá muộn để sinh viên sửa. Chú thích của `matchEntries` đã ghi sẵn có thể dùng lại ở agent.
@@ -270,7 +272,7 @@ Cơ chế này đã có và spec **giữ nguyên**, chỉ giải thích lại v�
 
 - Preflight cảnh báo về Bảng lỗi nhưng **không chặn** ("Không chặn việc bắt đầu", `apps/web/src/lib/preflight.ts`).
 - Luật có nhưng **chưa có giá**: bài ra điểm tạm không trừ lỗi đó và bị gắn cờ `unpriced` (`grading/scoring/deduction-score.ts:45`). Khi giảng viên đặt giá, mọi bài chưa chốt tự tính lại.
-- Lỗi lạ chưa có trong bảng: agent ghi vào `missingRules`; hệ thống tạo luật `proposed` (`origin = 'agent_reported'`) kèm **nơi thấy** (bài, phiên, rubric) (`grading/rules/missing-rules.ts:25-63`). Agent không bị gián đoạn.
+- Lỗi lạ chưa có trong bảng: agent ghi vào `missingRules`; hệ thống tạo luật `proposed` (`origin = 'agent_reported'`) kèm **nơi thấy** (bài, phiên, rubric) (`grading/rules/missing-rules.ts:25-66`). Agent không bị gián đoạn.
 
 Hàng đợi `proposed` là **một cơ chế chung** cho hai việc: gieo lỗi ban đầu khi dựng đề cương (chặng 5, §6.2) và lỗi lạ phát hiện lúc chấm. Mỗi đề xuất kèm gợi ý tiêu chí và điểm trừ theo tỉ lệ điểm của câu. Giảng viên nhận từng cái hoặc "nhận tất cả gợi ý" bằng một thao tác. **Không bước nào chặn chấm.** Công sức đặt giá tỉ lệ với số loại lỗi thật sự gặp, không với số câu hay số file. (Một lượt thiết kế đầu đã đề xuất "xác nhận cả bảng giá trước khi chấm"; chủ đồ án chỉ ra đó là sai hướng và đã bỏ.)
 
@@ -294,13 +296,15 @@ Spec lõi đã thiết kế "canh thước sau khi chấm" (cột `grading_test_
 
 Theo guide §2.2, luật lời tạo sau cuộc điều tra không tự áp cho bài đã chấm (các bài đó bị gắn cờ "chưa xét hết tiêu chí" và chờ chấm lại; chấm lại hiện chỉ có cho bài lỗi hệ thống). Để luồng "ghi đề xuất, giảng viên nhận sau" **đóng vòng**, cần một lượt **"kiểm lại riêng luật này"** rẻ hơn chấm lại cả bài: với các bài chưa từng được kiểm luật mới, chạy một lượt điều tra hẹp chỉ cho luật đó. Với các bài mà agent đã báo đúng lỗi này (bản ghi "nơi thấy"), dùng chính bằng chứng đã lưu. Thiết kế chi tiết thuộc plan P4; điểm kiểm lại ở plan phải xác nhận lại hành vi `T-FAIR-1`/`rulesSeen` trước khi cài.
 
+**Khe hở chấp nhận được giữa P1 và P4 (ghi rõ để không ai tưởng đã đóng vòng):** trước khi P4 xong, luật lời nhận sau khi chấm chỉ tạo ra trạng thái `proposed`/luật mới; các bài đã chấm không được kiểm lại luật đó và bị gắn cờ "chưa xét hết tiêu chí". Cách xử lý tạm là giảng viên chấm tay từng bài bị gắn cờ (đường chấm tay hiện có). Đây là hành vi của hôm nay, không phải thoái lui.
+
 ---
 
 ## 8. Điểm tổng, chốt, kiểm mù, xuất sổ
 
 - **Tổng** là hàm đọc (§3.4). Hiển thị "tạm" tới khi mọi câu xong; "—" nếu sinh viên có câu `audit_pending`, để không lộ điểm của câu bị che.
 - **Chốt điểm** giữ ở cấp phiên: máy trạng thái 15 cặp, trigger bất biến và `finalizeGrades` đếm theo từng kết quả nên chạy được không sửa *[bản đồ ảnh hưởng]*. Chốt được khi không còn kết quả ở `ai_grading`, `ai_graded`, `flagged_for_review`, `audit_pending` (`BLOCKS_FINALIZE`).
-- **Kiểm mù rút theo sinh viên.** Một sinh viên được rút thì mọi câu **tự duyệt** của họ vào kiểm mẫu, trình bày gộp ("HS2410020 — Câu 1, Câu 3"). Việc che điểm và lỗi vẫn áp **theo từng câu** như hôm nay. Rút bằng SHA-256 trên `(seed phiên, MSSV)` — tất định, không nhìn điểm; giữ tỉ lệ mặc định 20% (`GRADING_AUDIT_SAMPLE_PERCENT`), sàn 5%, không bao giờ 0. Khối lượng kiểm không nhân theo số câu.
+- **Kiểm mù rút theo sinh viên.** Một sinh viên được rút thì mọi câu **tự duyệt** của họ vào kiểm mẫu, trình bày gộp ("HS2410020 — Câu 1, Câu 3"). Việc che điểm và lỗi vẫn áp **theo từng câu** như hôm nay. Rút bằng SHA-256 trên `(seed phiên, MSSV)` — tất định, không nhìn điểm. **Đây là thay đổi so với hôm nay**: `audit-sampling.ts` đang rút theo `(seed, resultId)` ở quyết định đầu tiên của từng kết quả. Plan P1 phải ghi rõ bước chuyển và kiểm lại phân bố (hash đều, sàn 5% còn đúng khi mẫu tính theo sinh viên). Giữ tỉ lệ mặc định 20% (`GRADING_AUDIT_SAMPLE_PERCENT`), sàn 5%, không bao giờ 0. Khối lượng kiểm không nhân theo số câu.
 - **Xuất sổ điểm: chỉ ghi tổng vào một cột.** Quyết định "không hệ thống nào tự cộng điểm" ở G5 (`2026-09-29-gradebook-export-design.md` §1.2, D7) là một quyết định nghiệp vụ, không phải giới hạn kỹ thuật. Việc giảng viên xác nhận đề cương (điểm từng câu và tổng) **chính là** quyết định đó, nên hệ thống được cộng — nhưng chỉ khi **mọi câu của sinh viên đã chốt** (không ghi điểm tạm). Cộng bằng số nguyên phần trăm điểm, làm tròn đúng một lần theo bước làm tròn giảng viên chọn. Chưa đủ câu thì để ô trống kèm lý do "chưa đủ câu" (một trong các nhãn lý do hiện có). Phiên 1 câu chạy như cũ.
 - **Giao diện:** danh sách kết quả hiện **một dòng mỗi sinh viên**, kèm chip trạng thái từng câu và tổng; bấm chip mở hồ sơ của đúng câu. Các bộ lọc ("cần xem"…) đếm theo câu. CSV tải về có từng câu và tổng.
 
@@ -316,6 +320,8 @@ Ba chỗ **không nổ lỗi, chỉ ra điểm sai** khi một bài nộp có nh
 | 2 | `loadSessionModelRules` / `sessionModelRulesWith` *[đọc code: `grading/scoring/score-inputs.ts:102-147`]* — lấy **giao** luật lời của MỌI bài `graded` của phiên (`HAVING count(DISTINCT att.id) = (SELECT count(*) FROM att)`) | Hai câu khác rubric → giao rỗng → mọi luật lời rơi âm thầm → điểm bị thổi phồng. Phải tính **theo từng câu** *(nơi gọi: `score.service.ts:277-284,515` — bản đồ ảnh hưởng)* |
 | 3 | `grade-export.data.ts` — `map.set(key, …)` trong vòng lặp theo MSSV *[đọc code: dòng 110]* | N kết quả của một sinh viên đè nhau, chỉ còn câu cuối. Phải gộp theo sinh viên *(`RESULTS_SQL` dòng 36-49, `IS NOT DISTINCT FROM` ở 127/137, `grade-export-plan.service.ts:133-134` — bản đồ ảnh hưởng)* |
 
+**Cả ba bẫy kích hoạt ngay ở pha 1** (nhiều câu trong một phiên đã nghĩa là nhiều rubric trong một phiên, nên bẫy 2 làm rơi luật lời ngay cả khi chưa có file nén). Vì vậy cả ba sửa nằm trong **P1**, không để P2 trở đi.
+
 Ngoài ba bẫy: `planReapply` (`score.service.ts:435`) lấy giá theo `es.rubric_id` — phải theo `g.rubric_id_version` của chính kết quả *[bản đồ ảnh hưởng]*; `grading_anchor_snapshot` chỉ nổ khi `GRADING_ANCHORS_ENABLED=true` (mặc định tắt).
 
 ---
@@ -326,7 +332,9 @@ Ngoài ba bẫy: `planReapply` (`score.service.ts:435`) lấy giá theo `es.rubr
 
 - **Pha 1 — câu là một yêu cầu nộp riêng** (bài nộp ↔ kết quả vẫn một-một, **chưa đụng** unique): thêm `exam_problem`, `problem_id` cho phép rỗng ở `grading_result`/`grading_test_bundle`/`grading_reference`. Backfill câu mặc định cho phiên đã có kết quả trong **một transaction có cổng checksum** trước/sau trên (`ai_total_score`, `status`, các dòng `score_computation`, `updated_at`), tắt `trg_grading_result_updated_at` tạm thời theo tiền lệ migration `1789430000000`. Diễn tập trên bản sao trước khi áp lên Supabase, chạy `-t all` (`migrationsTransactionMode` là `none`).
 - **Pha 2 — câu nằm trong file nén:** đổi `uq_grading_result_submission` thành `unique(submission_id, problem_id)`; mã công việc theo `resultId`; đọc RAR; `source-files` theo câu; agent tạo sẵn file và kiểm trực tiếp.
-- **Vận hành:** Railway tự deploy `main` và **không chạy migration** → áp tay quanh lúc merge. Công việc cũ còn trong Redis chỉ có `submissionId` → bộ xử lý phải chịu được payload cũ. Hai cặp migration trùng timestamp đã có từ trước (TypeORM 0.3.31 không ép thứ tự), nhưng migration mới nên dùng dải timestamp riêng.
+- **Thứ tự triển khai (Railway tự deploy `main` và không chạy migration):** (1) áp migration **chỉ-thêm** lên DB **trước** khi merge — code cũ không bị ảnh hưởng vì chỉ thêm bảng và cột cho phép rỗng; (2) merge/deploy code mới; (3) chạy lại backfill một lần nữa để quét các dòng mà code cũ tạo ra **trong khoảng giữa** (chúng có `problem_id` rỗng). Làm ngược thứ tự (deploy trước, migration sau) làm code mới lỗi SQL "cột không tồn tại" ngay lập tức. Trong suốt pha 1, code mới coi `problem_id` rỗng là **câu mặc định** của phiên, nên không dòng nào bị bỏ sót dù backfill chạy muộn.
+- **Công việc cũ trong Redis** chỉ có `submissionId`: ở pha 1 (bài nộp ↔ kết quả vẫn một-một) bộ xử lý tìm kết quả theo `submissionId` như cũ; chỉ khi sang pha 2 (mã công việc theo `resultId`) mới cần cơ chế khác cho job tồn đọng.
+- **Cổng trước khi đổi unique ở pha 2:** `SELECT count(*) FROM grading_result WHERE problem_id IS NULL` phải bằng 0, nếu không dừng. Hai cặp migration trùng timestamp đã có từ trước (TypeORM 0.3.31 không ép thứ tự), nhưng migration mới nên dùng dải timestamp riêng.
 
 ### 10.2 Chia thành các plan độc lập
 
@@ -344,7 +352,9 @@ Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: P1 → (P2, P3, P4
 ## 11. Kiểm thử và nghiệm thu
 
 - **Bất biến cũ chạy nguyên:** e2e vòng đời 15 cặp, trigger 8 cột AI, các bảng chỉ-thêm; thêm test bất biến `problem_id` (cập nhật `T-LIFE-1`).
+- **Bước đầu tiên của P1 (trước khi viết code):** lập danh sách **cụ thể** các test bị ảnh hưởng (43/90 e2e và 12/147 unit của API, 44/136 test web chạm mô hình chấm; riêng `grading-lifecycle.e2e-spec` kiểm unique phải viết lại; seed ở `test/helpers/grading-seed.ts` chèn `grading_result` không có `problem_id`) để việc cập nhật test không bị bỏ sót.
 - **Viết trước, thấy đỏ:** ba bẫy §9; `planReapply` theo rubric của kết quả.
+- **Canary đường đọc tổng (bắt buộc ở P1):** test chứng minh mọi đường trả tổng điểm (danh sách, hồ sơ, xuất sổ, CSV) **không lộ** điểm của câu `audit_pending`, theo mẫu canary của kiểm mù hiện có.
 - **Kiểm đột biến** bộ tách đề cương (§6.6): các lớp phòng thủ bắt 100% lỗi nghiêm trọng.
 - **Chứng minh "1 câu chạy như cũ":** chạy lại kịch bản `ngan-xep-v1` và so với lượt `20260928T094907Z-f83a05c` (điểm 5/5, lỗi 8/8, tự duyệt sai 0); không tụt ở chỉ số nào. Ghi bản ghi và dòng so sánh vào `apps/api/eval/rehearsals/` theo quy ước lịch sử benchmark.
 - **Kịch bản diễn tập mới nhiều câu** (đề 3 câu, cả file riêng lẫn trong file nén; ít nhất một bài thiếu mục, một bài đặt tên lệch, một bài có lỗi lạ có bằng chứng). Tên kịch bản chốt ở plan P1. Cần key model và VM sandbox bật.
@@ -363,7 +373,7 @@ Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: P1 → (P2, P3, P4
 | Bộ đề thật để đo tách câu | Cần chủ đồ án cung cấp vài đề DOCX/PDF thật |
 | Gom nhóm đề xuất gần nhau | Phương pháp gom chốt ở P4 |
 | `T-FAIR-1`/`rulesSeen` và "kiểm lại riêng luật này" | Xác nhận lại hành vi hiện tại trước khi cài (§7.6) |
-| Rò điểm bị che trong tổng | Tổng "—" khi có câu `audit_pending`; thêm canary cho đường đọc tổng |
+| Rò điểm bị che trong tổng | Tổng "—" khi có câu `audit_pending`; canary cho đường đọc tổng là **yêu cầu bắt buộc của P1** (§11) |
 | Chưa có số "đúng bao nhiêu %" trên bài thật | Spec này **không** cải thiện điều đó; xem §11 |
 
 ---
