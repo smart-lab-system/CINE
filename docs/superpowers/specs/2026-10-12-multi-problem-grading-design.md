@@ -1,6 +1,6 @@
 # Chấm điểm nhiều câu — thiết kế
 
-**Ngày:** 2026-10-12 · **Trạng thái:** bản nháp chờ chủ đồ án duyệt · **Nhánh:** `feat/multi-problem-grading` (rẽ từ `main` @ `dc2d022`)
+**Ngày:** 2026-10-12 · **Trạng thái:** chủ đồ án đã **duyệt** (2026-10-12) kèm năm điều kiện ở §10.3; bước tiếp theo là viết plan (P0 trước) · **Nhánh:** `feat/multi-problem-grading` (rẽ từ `main` @ `dc2d022`)
 
 **Liên quan:** `2026-09-20-grading-agent-investigator-design.md` (spec lõi — §2.1 dựng thước, §8.1 kiểm mẫu, §14 mô hình dữ liệu) · `2026-09-21-archive-content-validation-design.md` (kiểm nội dung file nén) · `2026-09-29-gradebook-export-design.md` (ghi sổ điểm, D7) · `2026-09-29-ruler-from-authoring-design.md` · `2026-10-07-rules-by-rubric-design.md` (Bảng lỗi theo rubric) · `docs/update-grading-system-guide.md` (rev 3, đã cũ — §11 của nó không còn đúng).
 
@@ -44,9 +44,9 @@ Một giảng viên chạy trọn một bài thi 1–N câu, 30–40 bài nộp,
 ### 1.4 Ngoài phạm vi (ghi rõ để không ai tưởng đã làm)
 
 - **Nhánh ảnh / bài viết tay.** Hôm nay không có bộ đọc ảnh: `ContentResolverRegistry` chỉ có resolver `document` và `for('image')` ném lỗi *[đọc code: `grading/content-resolver/content-resolver.registry.ts:30`]*, bài ảnh ra nội dung rỗng rồi về giảng viên. Cần model đọc được ảnh (chưa xác minh gateway có) và spec riêng.
-- **Đọc đề dạng PDF.** `extractText` trả rỗng cho PDF có chủ đích; đề PDF làm mọi bài code `ungradable(system)`. Chặng 1 của §6 chỉ hỗ trợ DOCX/TXT cho tới khi có bộ đọc PDF.
+- **PDF quét ảnh (không có lớp chữ)** cần OCR hoặc model đọc ảnh: ngoài phạm vi. **PDF có lớp chữ thì NẰM TRONG phạm vi**: `extractText` hôm nay trả rỗng cho mọi PDF có chủ đích, và đề PDF làm mọi bài code `ungradable(system)` (bẫy 11 của guide). Đề thật đầu tiên chủ đồ án đưa vào (Phụ lục C) **là PDF có lớp chữ**, nên bộ đọc PDF là điều kiện của chặng 1 (§6.2) chứ không phải tuỳ chọn, và nên được làm như một sửa độc lập sớm.
 - Đo độ phức tạp (`run_scaled`), hiệu chỉnh và α/κ, Java/Node, chế độ driver hàm.
-- **`probe` và `compare_peers`** (bước 5 của spec lõi, §3.2 và §3.4): so hành vi bài nộp với đáp án mẫu trên input do agent tự chọn, và gom nhóm sinh viên cùng hiểu sai. Đây là đòn bẩy chất lượng chấm lớn (thu hẹp ca lỗi nhỏ nhất, phát hiện hard-code, biến một phần lỗi chỉ-đọc-code thành lỗi có bằng chứng chạy thật), nhưng cần spec riêng. Ràng buộc đã có ở spec lõi §2.1: với đề **không có đáp số duy nhất**, `probe` trên input tự dò **không được** sinh lỗi hành vi nếu gói test không khai bộ so sánh. Thiết kế này để đáp án mẫu **theo từng câu** nên không chặn việc làm sau. Đề nghị đặt nó ngay sau P1.
+- **`probe` và `compare_peers`** (bước 5 của spec lõi, §3.2 và §3.4): so hành vi bài nộp với đáp án mẫu trên input do agent tự chọn, và gom nhóm sinh viên cùng hiểu sai. Đây là đòn bẩy chất lượng chấm lớn (thu hẹp ca lỗi nhỏ nhất, phát hiện hard-code, biến một phần lỗi chỉ-đọc-code thành lỗi có bằng chứng chạy thật), nhưng cần spec riêng. Ràng buộc đã có ở spec lõi §2.1: với đề **không có đáp số duy nhất**, `probe` trên input tự dò **không được** sinh lỗi hành vi nếu gói test không khai bộ so sánh. Thiết kế này để đáp án mẫu **theo từng câu** nên không chặn việc làm sau. **Chốt (chủ đồ án, 2026-10-12): tách spec riêng, đặt ngay sau P1**, với ba điều kiện bắt buộc: (1) **phụ thuộc mức tin cậy của thước** — `probe` biến độ lệch so với đáp án mẫu thành lỗi có bằng chứng chạy thật (tin cậy 0,85 bằng θ) nên làm tăng tự duyệt, và nếu đáp án mẫu sai thì trừ oan đồng loạt cả lớp; vì vậy cột `ruler_trust` nằm ở P1a (§6.3b) và `probe` chỉ bật cho thước `teacher` hoặc `verified`; (2) **cần bộ kiểm input hợp lệ cùng bộ so sánh** (cặp validator và checker kiểu testlib), vì agent tự chọn input và input vi phạm tiền điều kiện của đề cho hành vi không xác định ở cả hai phía, gây lệch giả; (3) **chạy chế độ bóng trước**: ghi lệch nhưng chưa tính điểm, đo bằng bộ số liệu P0 xem lệch thật và lệch giả bao nhiêu rồi mới cho tác động điểm, và giới hạn số lần `probe` mỗi đơn vị.
 - **Tín hiệu giữa các câu của cùng một sinh viên** (ba file giống một mẫu) và so sánh giữa sinh viên theo câu.
 - **Hình dạng đề không hỗ trợ**, ghi rõ để không ai tưởng đã làm: câu tự chọn ("chọn 1 trong 2"); các ý a/b/c dùng chung một file (coi là **một** câu); đề cài đặt hàm hay lớp trong một file rồi chấm bằng driver (chế độ driver hàm, spec lõi đã đẩy ra ngoài); bài C++ nhiều file có header mà không biên dịch được thành một chương trình (ra `ungradable(submission)`). Giả định "mỗi câu một file" **đã được chủ đồ án xác nhận** cho đề thật, nhưng độ phủ của các hình dạng trên chưa đo: **điều kiện trước P1** là một bảng phân loại hình dạng trên 3–5 đề thật (§12).
 - **Ghi từng câu vào nhiều cột của sổ điểm** (bắt giảng viên chọn N cột — vi phạm R1). Chỉ ghi tổng (§8). File CSV tải về thì có từng câu.
@@ -140,7 +140,18 @@ Tên mục khớp bằng **`matchEntries` chuẩn** (tên cuối, không phân b
 
 **Tên có dấu.** Hôm nay `matchEntries` chỉ hạ chữ thường, **không chuẩn hoá Unicode** (không có `normalize` nào trong `submission/` hay `grading/pipeline/`), nên `Bài1.py` ở dạng NFC và NFD bị coi là hai tên khác nhau và báo "thiếu" oan; tên trong ZIP do Windows tạo còn có thể mang mã hoá cũ. Spec yêu cầu: chuẩn hoá **cả hai phía** về NFC trước khi so, kiểm hành vi bộ đọc ZIP với tên tiếng Việt, và có test với cả hai dạng. Giới hạn đã biết còn lại: sandbox chỉ nhận đường dẫn Latin không dấu (`safePath`), nên một file phụ có dấu trong chương trình của câu vẫn làm job bị từ chối (bẫy 12 của guide) — ghi vào test của P2.
 
-**Nơi giải nén (quyết ở P2, mặc định đề xuất).** Hôm nay ZIP đã được giải nén **trong tiến trình API** (`source-files.ts`, có trần chống bom) — đó là rủi ro nền đã tồn tại; thêm RAR là thêm một bộ giải nén chạy trên đầu vào của sinh viên ngay trong tiến trình giữ khoá model và DB. Mặc định đề xuất: một loại việc `extract` chạy trong **worker sandbox** (worker không cầm khoá nào), trả về các file của câu dưới trần kích thước, dùng chung cho cả ZIP lẫn RAR để không có hai cơ chế. Phương án lùi: giải nén trong API nhưng ở tiến trình con có giới hạn bộ nhớ và thời gian. Cần xác nhận hợp đồng sandbox (`INLINE_MAX_CHARS`, `fileRef`) chịu được trước khi chọn.
+**Nơi giải nén — CHỐT (chủ đồ án, 2026-10-12): worker sandbox, trong container dùng một lần, là cơ chế duy nhất cho cả ZIP lẫn RAR.** Hôm nay ZIP đã được giải nén **trong tiến trình API** (`source-files.ts`, có trần chống bom) — rủi ro nền đã tồn tại; thêm RAR là thêm một bộ giải nén chạy trên đầu vào của sinh viên ngay trong tiến trình giữ khoá model và DB. Không giữ "tiến trình con trong API" làm đường lùi lúc chạy, vì hai cơ chế là thứ mục này muốn tránh; nó chỉ được dùng nếu spike ở đầu P2 thất bại.
+
+"Trong worker" **chưa phải ranh giới an toàn**: tiến trình worker điều khiển Docker và API tin kết quả của nó, nên một lỗi parser ở đó không lộ khoá nhưng vẫn cho phép **làm giả kết quả chạy**. Vì vậy giải nén phải chạy **trong container** `--network none --read-only --cap-drop ALL` như khi chạy bài. ZIP dùng được image Python sẵn có; RAR cần công cụ giải nén, tức là **thêm một image**. Worker chưa có Dockerfile trong repo (guide §8.1 đã ghi), nên **đưa worker vào repo (Dockerfile, runbook) là tiền đề của P2**.
+
+Tiêu chí đạt/trượt của spike ở đầu P2:
+1. Worker lấy file nén qua URL ký hoặc `fileRef`, không cần khoá nào.
+2. Chỉ trả về văn bản các file của câu, với trần nhỏ hơn nhiều trần cả file nén.
+3. Giải nén **một lần cho mỗi bài nộp**, dùng lại cho N câu.
+4. Bộ file xấu bị từ chối đúng trần và worker **không sập**: bom ZIP và bom RAR, đường dẫn `../`, symlink, nén lồng nhau, RAR mã hoá, tên NFC/NFD, tên mã hoá cũ của Windows.
+5. Báo độ trễ thêm mỗi bài nộp (tham chiếu: khoảng 1,25 giây cho một job biên dịch cộng một ca; 1–2 giây mỗi bài là hợp lý).
+
+Còn lại một phần rủi ro: bộ kiểm nội dung file nén (`archive-check`) vẫn **liệt kê tên mục RAR ngay trong API**. Thêm chế độ `list` cho cùng loại việc, làm **sau P2**. Nếu bảng phân loại hình dạng đề ở P0 cho thấy RAR hiếm, cân nhắc coi ZIP là đường chính và RAR là đường phụ.
 
 ### 4.3 Thiếu mục của câu
 
@@ -209,11 +220,11 @@ Ngay lúc giảng viên gắn đề vào phiên, **chạy nền**, xong trước
 
 | Chặng | Việc | Nguồn |
 |---|---|---|
-| 1. Cấu trúc | Tách danh sách câu: số thứ tự, tên, điểm, đề từng câu, tên file | Soạn đề: **chuyển thẳng** (đã có cấu trúc). Đề tự soạn: AI đọc đề, trả JSON chặt |
+| 1. Cấu trúc | Tách danh sách câu: số thứ tự, tên, điểm, đề từng câu, ngôn ngữ, yêu cầu độ phức tạp, ví dụ vào/ra, **rubric nhúng trong đề nếu có**; tên file | Soạn đề: **chuyển thẳng** (đã có cấu trúc). Đề tự soạn: văn bản lấy từ DOCX/TXT hoặc **PDF có lớp chữ** (cần bộ đọc PDF, §1.4), rồi AI đọc đề, trả JSON chặt. Tên file không có trong đề thì lấy từ danh sách đã khai ở yêu cầu nộp, hoặc đề xuất `bai{n}.<đuôi theo ngôn ngữ>` |
 | 2. Đáp án mẫu | Mỗi câu một chương trình | Giảng viên có: ghép theo câu. Chưa có: AI viết |
 | 3. Gói test | Ca theo nhóm cho từng câu | Soạn đề đã sinh. Chưa có: AI sinh |
 | 4. Kiểm bằng chạy thật | Chạy đáp án mẫu qua sandbox với từng ca | Sandbox hiện có |
-| 5. Rubric và đề xuất lỗi | Tiêu chí của câu (tổng bằng điểm câu), lỗi gợi ý dạng `proposed` | Chép từ rubric cũ nếu có, không thì AI đề xuất |
+| 5. Rubric và đề xuất lỗi | Tiêu chí của câu (tổng bằng điểm câu), lỗi gợi ý dạng `proposed` | **Rubric nhúng trong đề thì dùng trực tiếp** (kèm đoạn trích nguyên văn, kiểm tổng các tiêu chí = điểm câu); không có thì chép từ rubric cũ; không có nữa thì AI đề xuất |
 
 Khớp bảng §2.1 của spec lõi (đề + đáp án mẫu → hệ thống dựng bộ input rồi **chạy đáp án của giảng viên**; chỉ đề → hệ thống viết cả đáp án lẫn gói test, **chưa kiểm chứng cho tới khi giảng viên duyệt**). Cả ba nguồn đi chung một quy trình (R7).
 
@@ -227,10 +238,12 @@ Giới hạn thật: hai nguồn đồng thuận chỉ chứng minh không có l
 
 §6.5 bảo vệ **cấu trúc** (số câu, điểm, tên file). Lỗi đắt hơn là lỗi **ngữ nghĩa**: ở nhánh "chỉ đề", output dự đoán lẫn đáp án mẫu đều do **cùng một model** viết, nên cùng hiểu sai đề thì cùng sai và hai nguồn vẫn "khớp". Hai bước rẻ, độc lập với model:
 
-1. **Ví dụ vào/ra có sẵn trong đề.** Đề CTDL&GT hầu như luôn có ví dụ. Hệ thống trích các ví dụ (kèm đoạn trích nguyên văn mà code kiểm có thật trong đề) và **bắt đáp án mẫu, khi chạy thật trong sandbox, tái tạo đúng các ví dụ đó**. Lệch → ngoại lệ chặn, không đi tiếp.
+1. **Ví dụ vào/ra có sẵn trong đề.** Đề CTDL&GT hầu như luôn có ví dụ. Hệ thống trích các ví dụ (kèm đoạn trích nguyên văn mà code kiểm có thật trong đề) và **bắt đáp án mẫu, khi chạy thật trong sandbox, tái tạo đúng các ví dụ đó**. Lệch → ngoại lệ chặn, không đi tiếp. **Giới hạn:** đề thật đầu tiên (Phụ lục C, mục 7) **không có ví dụ vào/ra nào**, nên bước này không dùng được cho đề đó; khi đề không có ví dụ thì chỉ còn bước 2 và cờ `ruler_unverified`.
 2. **Giảng viên liếc vài ca.** Với nhánh "chỉ đề", màn xác nhận hiện 2–3 ca vào/ra cho mỗi câu để giảng viên nhìn trong vài giây. Chi phí nhỏ, và chỉ phát sinh ở nhánh có rủi ro ngữ nghĩa.
 
-**Ba mức tin cậy của thước** (lưu cạnh `model_answer_unverified` đã có ở `grading_reference`): `teacher` (đáp án do giảng viên cung cấp) · `verified` (khớp ví dụ trong đề, hoặc giảng viên đã liếc và xác nhận) · `unverified` (chỉ do model viết). Khi thước còn `unverified`, `decide()` thêm cờ cả bài `ruler_unverified` và **không tự duyệt** bài nào dựa trên thước đó (trần tin cậy, hướng sai là an toàn: bài về giảng viên, không bao giờ tự duyệt oan). Cờ tự gỡ ngay khi thước lên `verified`; vì vậy một lần liếc là đủ. Công sức **không tăng theo số bài nộp** và chỉ tăng rất nhẹ theo số câu (vài giây mỗi câu, và chỉ ở nhánh "chỉ đề"); nói chính xác như vậy thay vì hứa "không tăng theo số câu", vì việc liếc ca là một việc nhỏ nhưng có thật.
+**Ba mức tin cậy của thước** (lưu cạnh `model_answer_unverified` đã có ở `grading_reference`): `teacher` (đáp án do giảng viên cung cấp) · `verified` (khớp ví dụ trong đề, hoặc giảng viên đã liếc và xác nhận) · `unverified` (chỉ do model viết). Khi thước còn `unverified`, `decide()` thêm cờ cả bài `ruler_unverified` và **không tự duyệt** bài nào dựa trên thước đó (trần tin cậy, hướng sai là an toàn: bài về giảng viên, không bao giờ tự duyệt oan). Cờ tự gỡ ngay khi thước lên `verified`; vì vậy một lần liếc là đủ.
+
+**Chia việc theo pha, vì cờ này là một thay đổi hành vi có chủ ý.** (a) **P1a** chỉ thêm cột `ruler_trust` và backfill, **không** đổi hành vi. Ánh xạ backfill (chủ đồ án duyệt): dòng `grading_reference.model_answer_unverified = true` → `unverified` (giữ nguyên); mọi dòng còn lại → `teacher`. (b) **P1b** mới bật cờ `ruler_unverified` trong `decide()`. Hệ quả cần ghi rõ: một phiên 1 câu có đáp án từ Soạn đề chưa kiểm chứng **hôm nay tự duyệt được, từ P1b thì không** — trái "chạy y như cũ" của R5, nên đây là ngoại lệ **được nêu tên**, và lượt "không tụt" ở §11 phải chạy trên một phiên thuộc loại `teacher`. Kịch bản `ngan-xep-v1` **thuộc loại `teacher`**: bộ diễn tập tạo gói test bằng route của giảng viên rồi duyệt và ghim (`eval/rehearsal/cli.ts:180-182`) và chỉ khai đề, không khai đáp án mẫu (`cli.ts:178`), nên không bị cờ mới chặn. Cần thêm một kịch bản thứ hai thuộc loại `unverified`, kỳ vọng "về giảng viên", để kiểm chính ngoại lệ đó. (c) **P3** mới nâng thước lên `verified` bằng ví dụ trong đề và lần liếc ca. Công sức **không tăng theo số bài nộp** và chỉ tăng rất nhẹ theo số câu (vài giây mỗi câu, và chỉ ở nhánh "chỉ đề"); nói chính xác như vậy thay vì hứa "không tăng theo số câu", vì việc liếc ca là một việc nhỏ nhưng có thật.
 
 ### 6.4 Một màn xác nhận
 
@@ -252,7 +265,7 @@ Phòng thủ nhiều lớp (đường đề **tự soạn**; đường Soạn đ
 
 1. **Thu hẹp vai trò của AI:** số câu và tên file lấy từ danh sách đã khai; AI chỉ *ghép* câu vào file. Điểm do code quét trước theo các mẫu thường gặp (`3 điểm`, `(2,5đ)`, `[1.0 đ]`); AI chỉ xử lý trường hợp mơ hồ.
 2. **Mọi giá trị kèm đoạn trích nguyên văn**, và code kiểm đoạn đó có thật trong văn bản đề (tương tự bước kiểm bằng chứng đã có ở đường chấm).
-3. **Ràng buộc cứng do code kiểm:** số câu = số file khai; tổng điểm = tổng điểm đề (mặc định 10, hoặc theo đề); thứ tự câu liền mạch; mỗi câu có đề không rỗng. Vi phạm → **dừng** (fail-closed).
+3. **Ràng buộc cứng do code kiểm:** số câu = số file khai; tổng điểm = tổng điểm đề (mặc định 10, hoặc theo đề); thứ tự câu liền mạch; mỗi câu có đề không rỗng; **không có hai câu trùng nội dung** (độ giống vượt ngưỡng → ngoại lệ); mỗi rubric nhúng có tổng các tiêu chí bằng điểm câu. Vi phạm → **dừng** (fail-closed). Ngoài ra có hai cảnh báo ⚠ không chặn: câu **không có rubric nhúng** (dùng rubric chép hoặc AI đề xuất), và câu **mô tả "viết hàm" trong khi gói test chạy qua stdin/stdout** — sinh viên có thể chỉ viết hàm mà không đọc input, không in output, rồi bị trừ oan đồng loạt (Phụ lục C, mục 5).
 4. **Hai lần tách độc lập** (khác prompt hoặc khác model); lệch nhau → ngoại lệ bắt buộc.
 5. **Canh thước lúc chạy** (§7.5) bắt phần lọt qua.
 6. Giảng viên chỉ thấy **ngoại lệ** cộng một dòng tổng ("N câu · tổng 10 điểm · khớp N file ✓").
@@ -371,14 +384,36 @@ Ngoài ba bẫy: `planReapply` (`score.service.ts:435`) lấy giá theo `es.rubr
 | Plan | Nội dung | Phụ thuộc |
 |---|---|---|
 | **P0** | Đo nền, cổng trước P1: diễn tập thật trên `main` hiện tại; sửa runner eval chạy cả phản biện và quyết định để nhóm tự quyết có mẫu số; ghi `cost_usd` và `prompt_version`; đo thật thời gian, token, chi phí **mỗi đơn vị** (kèm lăng kính); bảng phân loại hình dạng đề thật (§1.4) | — |
-| **P1** | Lõi "câu" với yêu cầu nộp riêng: `exam_problem`, rubric/gói test/đề theo câu, câu mặc định, điểm tổng, xuất tổng, ba bẫy §9, giao diện danh sách theo sinh viên, cổng phiên bản schema (§10.1) | P0 |
-| **P2** | Câu trong file nén: đổi unique, mã công việc, đọc RAR, `ProblemSourceResolver`, agent tạo sẵn file và kiểm trực tiếp (§5.3), xác nhận 0 hàng loạt (§4.4) | P1 |
-| **P3** | Dựng đề cương tự động và các lớp phòng thủ (§6), màn xác nhận, kiểm đột biến | P1 |
-| **P4** | Canh thước (§7.5), chính sách lỗi lạ (c) và gom nhóm đề xuất (§7.4), "kiểm lại riêng luật này" (§7.6) | P1 |
+| **P1a** | **Chỉ mở rộng, không đổi hành vi:** bảng `exam_problem`, `problem_id` cho phép rỗng, câu mặc định, `resolveProblemConfig()`, ba bẫy §9, cột `ruler_trust` + backfill (§6.3b), cổng phiên bản schema (§10.1), test chống tái đọc cột bí danh. Bị chặn bởi "1 câu chạy như cũ" (§11) | P0 |
+| **P1b** | **Phiên nhiều câu:** đường tạo câu tối thiểu (§10.3 mục 4), danh sách theo sinh viên, điểm tổng, xuất tổng, canary đường đọc tổng, bật cờ `ruler_unverified` (ngoại lệ có tên, §6.3b) | P1a |
+| **P2** | Câu trong file nén: spike giải nén trong container (§4.2), đưa worker vào repo, đổi unique, mã công việc, đọc RAR, `ProblemSourceResolver`, agent tạo sẵn file và kiểm trực tiếp (§5.3), xác nhận 0 hàng loạt (§4.4) | P1b |
+| **P3** | Dựng đề cương tự động và các lớp phòng thủ (§6), bộ đọc PDF, màn xác nhận, kiểm đột biến | P1b |
+| **P4** | Canh thước (§7.5), chính sách lỗi lạ (c) và gom nhóm đề xuất (§7.4), "kiểm lại riêng luật này" (§7.6) | P1b |
+| **Spec riêng sau P1** | `probe` / `compare_peers`, kèm ba điều kiện ở §1.4 | P1a |
 
-Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: **P0 → P1 → (P2, P3, P4 song song được)**. P0 là điều kiện trước P1 vì mọi tuyên bố "không tụt" và mọi ngưỡng trong §6.3b, §7.5, §11 cần số đo nền; riêng việc runner eval chạy phản biện và quyết định còn là điều kiện trước P3. Chưa có lượt diễn tập thật nào kể từ 2026-09-28, trước PR #63, G1–G5 và việc chuyển điểm sang `rubric_error`.
+Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: **P0 → P1a → P1b → (P2, P3, P4 song song được)**. P1 tách làm hai vì nó chạm khoảng 22 file prod và 43/90 e2e: P1a chỉ mở rộng nên dễ review và dễ rollback, P1b mới có hành vi mới. P0 là điều kiện trước P1a vì mọi tuyên bố "không tụt" và mọi ngưỡng trong §6.3b, §7.5, §11 cần số đo nền; riêng việc runner eval chạy phản biện và quyết định còn là điều kiện trước P3. Chưa có lượt diễn tập thật nào kể từ 2026-09-28, trước PR #63, G1–G5 và việc chuyển điểm sang `rubric_error`.
+
+**P0 phụ thuộc môi trường ngoài** (khoá model, VM sandbox, DB thật), nên có điều kiện kết thúc để không kéo dài vô hạn và được phép đổi phạm vi P1:
+- **Xong khi** có ít nhất một bản ghi diễn tập thật trên `main` hiện tại (kịch bản `ngan-xep-v1`, một lượt chạy đủ) và được so với lượt `20260928T094907Z-f83a05c`, kèm số thời gian, token, `cost_usd` mỗi đơn vị.
+- **Nếu lộ hồi quy** so với lượt 2026-09-28 (từ PR #63, G1–G5 hay việc chuyển điểm sang `rubric_error`): P0 xuất danh sách hồi quy; chúng được sửa **trước P1b**, còn P1a (không đổi hành vi) có thể bắt đầu song song.
+- **Nếu môi trường chưa sẵn sàng** sau 3 ngày làm việc kể từ lúc bắt đầu: P1a bắt đầu mà không chờ, P1b chờ số đo. Mốc này ghi lại, không âm thầm kéo dài.
+- Tình trạng môi trường lúc viết: xem §10.4.
 
 ---
+
+### 10.3 Năm điều kiện chủ đồ án duyệt kèm (phải vào plan)
+
+1. **Cổng schema và R4.** Hai dòng migration lệch cũ (`AddAiUsage`, `AddArchiveContentCheck`) **đã được áp** (đo 2026-10-12: DB thật 56 dòng, repo 57 file). Dòng còn thiếu là `1789560000000-AddClassNominalClass` (từ PR #71, thêm `class.nominal_class_id`): production đã deploy `dc2d022` lúc 05:30Z trong khi cột chưa tồn tại trên DB thật, và entity `Class` đã dùng cột đó (`course/entities/class.entity.ts`). Nghĩa là cổng schema, nếu bật hôm nay, sẽ **đỏ đúng lý do**, và nó cũng là một ví dụ sống cho sự cần thiết của cổng. Plan P1a: bước đầu tiên đo lại bảng `migrations` và **không bật cổng trước khi DB thật khớp repo**.
+2. **`ruler_unverified` và R5:** mô tả đầy đủ ở §6.3b (ánh xạ backfill, `ngan-xep-v1` thuộc loại `teacher`, ngoại lệ có tên, cần thêm kịch bản `unverified`).
+3. **Tách P1 làm hai** (P1a chỉ mở rộng, bị chặn bởi "1 câu chạy như cũ"; P1b mới có phiên nhiều câu): bảng ở §10.2.
+4. **Đường tạo câu ở P1**, để P1 không thành tính năng không ai dùng được và P3 (phần rủi ro nhất) không chặn mọi giá trị người dùng: (a) **"Gắn đề vào phiên" từ Soạn đề tạo N câu tự động**, vì dữ liệu theo câu (`statement`, `points`, `modelAnswer`, `testBundle`) đã có cấu trúc, không cần AI tách — nhóm (1), một trong hai nhóm đông nhất, dùng được ngay ở P1b; (b) một màn **"Đề cương" thủ công tối thiểu** cho nhóm (3) cho tới khi có P3: thêm từng dòng (file hoặc mục trong file nén, điểm, rubric, gói test); (c) kịch bản diễn tập tạo câu qua route nội bộ kèm seed. P3 sau đó chỉ **thay việc nhập tay** bằng dựng tự động.
+5. **P0 được phép đổi phạm vi P1**, có điều kiện kết thúc (§10.2).
+
+### 10.4 Tình trạng môi trường lúc viết (2026-10-12)
+
+- **Khoá model:** `apps/api/.env` có `GRADING_TIER1_*` và `GRADING_TIER2_*` (đủ ba biến mỗi bậc), `ANTHROPIC_API_KEY` và `SANDBOX_REDIS_URL` (chỉ kiểm sự hiện diện, không in giá trị).
+- **VM sandbox:** dự án GCP `animated-moon-460103-m3` trả lỗi *"This API method requires billing to be enabled"* khi liệt kê instance, nên VM **không liệt kê và không bật được** cho tới khi billing được bật lại (việc của chủ đồ án trên console). Không có VM thì không có sandbox và P0 không chạy được lượt thật; điều kiện "môi trường chưa sẵn sàng" ở §10.2 áp dụng.
+- **DB thật:** còn một migration chưa áp (§10.3 mục 1).
 
 ## 11. Kiểm thử và nghiệm thu
 
@@ -410,7 +445,9 @@ Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: **P0 → P1 → (P
 | Chưa có số "đúng bao nhiêu %" trên bài thật | Spec này **không** cải thiện điều đó; P0 và §11 nêu ngưỡng thống kê để không tuyên bố quá tay |
 | Chi phí và thời gian nhân theo số câu | P0 đo thật; mục tiêu "40 bài ≤ 30 phút" đặt lại theo số câu (§11) |
 | Thước `unverified` ở nhánh "chỉ đề" | Cờ `ruler_unverified` chặn tự duyệt tới khi lên `verified` (§6.3b) |
-| Nơi giải nén RAR/ZIP | Quyết ở P2; mặc định đề xuất worker sandbox (§4.2) |
+| Nơi giải nén RAR/ZIP | **Đã chốt:** container dùng một lần trong worker; spike ở đầu P2 với tiêu chí đạt/trượt (§4.2). Tiền đề: đưa worker vào repo |
+| Billing GCP của VM sandbox đang tắt | Việc của chủ đồ án; chặn lượt thật của P0 (§10.4) |
+| Migration `1789560000000` chưa áp trên DB thật trong khi production đã deploy code dùng nó | Báo chủ đồ án; plan P1a đo lại trước khi bật cổng schema (§10.3) |
 | Chuẩn hoá Unicode tên mục | Bắt buộc ở P2, có test NFC/NFD (§4.2) |
 | Độ phủ các hình dạng đề chưa hỗ trợ | Bảng phân loại trên 3–5 đề thật là điều kiện trước P1 (§1.4) |
 
@@ -437,9 +474,14 @@ Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: **P0 → P1 → (P
 | D15 | Ba mức tin cậy của thước; `unverified` không tự duyệt; kiểm bằng ví dụ trong đề và để giảng viên liếc vài ca | Cùng bản review; nhận |
 | D16 | Canh thước đo bằng độ phân biệt của ca, cỡ mẫu tối thiểu, đánh giá theo mốc, hai bậc phản ứng | Cùng bản review; nhận |
 | D17 | Thao tác "Chỉ định file cho câu này" (`exam_problem_binding`) | Cùng bản review; nhận |
-| D18 | Nơi giải nén RAR/ZIP: mặc định worker sandbox, quyết ở P2; chuẩn hoá Unicode tên mục | Cùng bản review; nhận một phần (ZIP đã giải nén trong API từ trước, nên rủi ro nền không mới). **Chưa chốt** |
+| D18 | Nơi giải nén RAR/ZIP: **worker sandbox trong container dùng một lần**, cơ chế duy nhất; spike đầu P2; chuẩn hoá Unicode tên mục | Chủ đồ án **chốt** 2026-10-12 (kèm tiêu chí spike và tiền đề đưa worker vào repo) |
 | D19 | Cổng phiên bản schema lúc khởi động; test chống tái đọc cột bí danh; ghi `prompt_version` và `cost_usd` | Cùng bản review; nhận |
-| D20 | `probe`/`compare_peers` tách thành spec riêng, đặt ngay sau P1, kèm ràng buộc comparator của spec lõi | Cùng bản review đề xuất `compare_to_reference`; người viết chỉ ra nó trùng `probe` đã thiết kế. **Chưa chốt** |
+| D20 | `probe`/`compare_peers` tách thành spec riêng, đặt ngay sau P1, kèm ba điều kiện (§1.4): phụ thuộc `ruler_trust`, validator cùng checker, chế độ bóng trước | Chủ đồ án **chốt** 2026-10-12 |
+| D21 | Tách P1 thành P1a (chỉ mở rộng) và P1b (phiên nhiều câu) | Chủ đồ án, điều kiện duyệt spec |
+| D22 | Đường tạo câu ở P1: Soạn đề tạo N câu tự động + màn "Đề cương" thủ công tối thiểu | Chủ đồ án yêu cầu quyết rõ; người viết đề xuất cách này (§10.3) — **cần chủ đồ án xác nhận** |
+| D23 | P0 có điều kiện kết thúc và được phép đổi phạm vi P1 | Chủ đồ án, điều kiện duyệt spec |
+| D24 | Ánh xạ backfill `ruler_trust`: `unverified` giữ nguyên, còn lại thành `teacher`; `ngan-xep-v1` là `teacher` | Chủ đồ án (ánh xạ); người viết xác định loại của `ngan-xep-v1` bằng code (`cli.ts:178-182`) |
+| D25 | Bộ đọc PDF có lớp chữ nằm trong phạm vi (không phải OCR); nên làm như một sửa độc lập sớm | Người viết, từ đề thật đầu tiên là PDF (Phụ lục C) — **cần chủ đồ án xác nhận** |
 
 ---
 
@@ -476,3 +518,19 @@ Mỗi plan có kiểm chứng riêng (§11). Thứ tự giao: **P0 → P1 → (P
 - [DOMjudge team manual](https://www.cs.umd.edu/Outreach/hsContest25/domjudge-team-manual.pdf)
 - [katt (Haskell Kattis client)](https://hackage.haskell.org/package/katt-0.2.0.1/docs/katt.haddock)
 - [CodeGrade hand-in requirements](https://docs.codegra.de/guides/setting-up-hand-in-requirements.html) (không mở được trang; dựa vào tóm tắt kết quả tìm kiếm)
+
+## Phụ lục C. Đề thật #1 và điều nó cho thấy (điểm dữ liệu đầu tiên cho bảng phân loại hình dạng đề)
+
+Nguồn: `de-thi.pdf` do chủ đồ án đưa vào ngày 2026-10-12 (đề thực hành cuối kỳ CTDL&GT, Python, 2 trang, PDF có lớp chữ). Đây là **một** điểm dữ liệu, chưa phải bảng phân loại; P0 cần thêm 2–4 đề nữa.
+
+| # | Quan sát | Hệ quả cho thiết kế |
+|---|---|---|
+| 1 | 3 câu, đều Python qua stdin/stdout; điểm 3 + 3,5 + 3,5 = 10 (khớp). Ngôn ngữ ghi ở đầu đề ("Ngôn ngữ: python"); mỗi câu có dòng "Yêu cầu độ phức tạp" | Hình dạng khớp mô hình "mỗi câu một chương trình". Ngôn ngữ và yêu cầu độ phức tạp **đọc được từ đề**, không cần giảng viên khai lại |
+| 2 | **Rubric nhúng trong đề** cho Câu 1 (0,5 + 1,0 + 1,0 + 0,5 = 3) và Câu 2 (0,75 + 1,25 + 0,75 + 0,5 + 0,25 = 3,5); tổng từng câu khớp điểm câu | Chặng 5 (§6.2) dùng thẳng rubric nhúng, kèm đoạn trích và kiểm tổng; không cần AI đề xuất rubric. Giảm công sức giảng viên |
+| 3 | **Câu 3 trùng nguyên văn phần đề bài của Câu 1** (`validate_expression`), không có dòng tiêu đề kiểu "Câu 3 (độ khó – điểm)" và **không có rubric**. Toàn bộ khung dòng của đề (tiêu đề, `Ngôn ngữ:`, `Câu N. (X điểm)`, `Yêu cầu độ phức tạp:`) **khớp từng dòng** với `buildExamPaperDocx` (`exam-authoring/docx/exam-paper.docx.ts:20-48`), nên đây rất có thể là bản xuất PDF của một đề Soạn đề *(suy luận từ định dạng, không có bằng chứng trực tiếp về cách tạo)*. Riêng thân Câu 3 thiếu dòng tiêu đề và rubric mà hai câu kia có; hai thứ đó nằm trong chính trường `statement` do model viết, không nằm trong mẫu in | Cần ràng buộc **phát hiện câu trùng** (§6.5) và cảnh báo thiếu rubric. Nguồn gốc của sự trùng lặp **chưa xác minh** (có thể sinh lại câu, có thể giảng viên chỉnh): cần hỏi giảng viên đây có cố ý không; nếu do Soạn đề thì cần sửa riêng ở Soạn đề (kiểm trùng khi sinh/sinh lại) |
+| 4 | Đề **không nêu tên file** | Tên file lấy từ danh sách đã khai ở yêu cầu nộp, hoặc hệ thống đề xuất `bai{n}.py` và truyền cho sinh viên qua tờ hướng dẫn của agent (§5.3) |
+| 5 | **Hợp đồng I/O lai:** Câu 1 nói "Viết hàm `validate_expression(s)`" nhưng phần Input/Output đòi đọc một dòng từ stdin và in `True`/`False`; Câu 2 yêu cầu `class Node`, `class BST` nhưng input là `n`, `n` giá trị, `p q` qua stdin | Sinh viên chỉ viết hàm mà không đọc input / không in kết quả sẽ không có output nào và bị trừ oan đồng loạt. Hôm nay hệ thống chỉ chạy chương trình trọn vẹn (chế độ driver hàm ngoài phạm vi). Cảnh báo ⚠ ở màn xác nhận (§6.5); cần nêu rõ hợp đồng I/O cho sinh viên; **nên cân nhắc đưa chế độ driver vào sớm hơn**, vì đề có tên hàm tường minh |
+| 6 | **Tiêu chí không đo được bằng chạy test:** "Đúng độ phức tạp O(n)… không dùng thư viện ngoài" (0,5 điểm, Câu 1); "O(h), không chuyển cây thành mảng" (0,25 điểm, Câu 2); "Cấm dùng `eval`, `re`" | Cần `run_scaled` hoặc `ast_query` (chưa có). Trước khi có: hoặc là luật lời (tin cậy thấp), hoặc miễn trừ; **bài O(n²) vẫn có thể qua mọi test và lấy đủ điểm tiêu chí này**. Quyết cách xử lý ở P3 |
+| 7 | **Không có ví dụ vào/ra cụ thể nào** trong đề (chỉ có quy tắc bằng lời). Có nêu ca biên rõ ràng: chuỗi rỗng, `n = 0` in `NONE`, `p = q` | Biện pháp "tái tạo ví dụ có sẵn trong đề" (§6.3b, bước 1) **không dùng được cho đề này**; còn lại bước 2 (giảng viên liếc ca) và cờ `ruler_unverified`. Các ca biên nêu trong đề cho phép dựng nhóm test `bien` một cách tất định |
+| 8 | Nguồn gốc: nếu đề này đến từ Soạn đề thì cấu trúc theo câu **đã tồn tại** lúc soạn và chỉ bị mất khi giảng viên xuất file rồi tải lên lại thay vì dùng "Gắn đề vào phiên" | Với đề từ Soạn đề, đường đúng là P1b (tạo N câu từ dữ liệu có cấu trúc), không phải tách lại từ PDF. Đường tách PDF vẫn cần cho đề tự soạn (nhóm 3) và cho giảng viên đã tải PDF lên |
+| 9 | Đề là **PDF**, không phải DOCX | Hôm nay `extractText` trả rỗng cho PDF, nên nếu đề này được tải lên làm đề chấm thì **mọi bài code ra `ungradable(system)`** (bẫy 11). Bộ đọc PDF có lớp chữ nằm trong phạm vi (§1.4, D25) |
