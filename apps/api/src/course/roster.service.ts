@@ -1,23 +1,28 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In } from 'typeorm';
 import { ClassEntity } from './entities/class.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
+import { StudentEntity } from '../master-data/entities/student.entity';
 import { ImportRosterDto, RosterStudentDto } from './dto/roster.dto';
 import { RosterEntry, RosterImportResult } from './course.types';
 
+export type AddRosterStudentInput = {
+  studentId?: string;
+  mssv?: string;
+  name?: string;
+};
+
 /**
- * The class list — the Excel the training office issues, or a name typed in
- * one at a time.
+ * Danh sách SV của lớp học phần — ghi `enrollment`.
  *
- * It writes `enrollment`, the table `agent:join` authenticates against,
- * which is why an import is a deliberate act with an explicit removal step
- * rather than a mirror of whatever file was dragged in last.
- *
- * Ownership is decided before anything here is called: the controller
- * resolves the class through `ClassService`, which is the single place
- * "is this class yours" is answered — for a lecturer that means
- * `class.teacher_id`, for a Trưởng khoa it means the course they own.
+ * Ownership do caller quyết (teacher `findTaughtBy` hoặc admin load lớp).
+ * `home_teacher_id` copy từ `class.teacher_id` (có thể null trước khi gán GV).
  */
 @Injectable()
 export class RosterService {
@@ -31,15 +36,6 @@ export class RosterService {
     return rows.map((row) => ({ mssv: row.studentMssv, name: row.studentName }));
   }
 
-  /**
-   * Applies a parsed file to one class, in one transaction.
-   *
-   * The whole file lands or none of it does — a partially applied roster is
-   * the failure mode this phase exists to remove. The diff is recomputed
-   * here from the database rather than trusted from the client: the browser
-   * shows the user a preview, but what a preview said five minutes ago is
-   * not authority over what is written now.
-   */
   async importForClass(
     klass: ClassEntity,
     dto: ImportRosterDto,
@@ -47,10 +43,6 @@ export class RosterService {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(EnrollmentEntity);
 
-      // Phạm vi là MÔN, không phải lớp này — xem `siblingEnrollments`:
-      // khoá duy nhất giờ là (home_class_id, student_mssv), nhưng ca đáng
-      // chặn vẫn là "em đã ở một lớp khác CÙNG MÔN". Khoá trong suốt giao
-      // dịch để hai lượt import song song không cùng nhận một sinh viên.
       const existing = await this.siblingEnrollments(manager, klass);
       const byMssv = new Map(
         existing.map((row) => [row.studentMssv.toLowerCase(), row]),
@@ -63,6 +55,7 @@ export class RosterService {
       let unchanged = 0;
 
       for (const student of dto.students) {
+        const studentId = await this.resolveStudentId(manager, student.mssv);
         const current = byMssv.get(student.mssv.toLowerCase());
 
         if (!current) {
@@ -70,25 +63,22 @@ export class RosterService {
             studentMssv: student.mssv,
             studentName: student.name,
             homeClassId: klass.id,
-            // Taken from the class, never from the file: the file has no
-            // column for it, and inventing one would be the guessing this
-            // project forbids.
-            homeTeacherId: klass.teacherId,
+            homeTeacherId: klass.teacherId ?? null,
+            studentId,
           });
           added++;
           continue;
         }
 
-        // The file carries a name; the class carries the lecturer. Either
-        // drifting is a real change worth reporting, and neither should be
-        // left stale on a row that a submission will be routed through.
         if (
           current.studentName !== student.name ||
-          current.homeTeacherId !== klass.teacherId
+          current.homeTeacherId !== klass.teacherId ||
+          (studentId && current.studentId !== studentId)
         ) {
           await repo.update(current.id, {
             studentName: student.name,
-            homeTeacherId: klass.teacherId,
+            homeTeacherId: klass.teacherId ?? null,
+            ...(studentId ? { studentId } : {}),
           });
           updated++;
         } else {
@@ -113,8 +103,6 @@ export class RosterService {
         updated,
         unchanged,
         removed,
-        // Always reported, even when they were just deleted, so the caller
-        // can name who left rather than only counting them.
         missing: missing.map((row) => ({
           mssv: row.studentMssv,
           name: row.studentName,
@@ -124,60 +112,43 @@ export class RosterService {
   }
 
   /**
-   * Adds one student by hand.
-   *
-   * The bulk import is for the file the training office sends; this is for
-   * the student who is genuinely on the class list and simply not in it —
-   * a late transfer, a correction. Same rules as a row of the file: the
-   * MSSV is validated identically, and a student already sitting in a
-   * sibling class of the same course is refused rather than moved.
-   *
-   * Not audited, and that is deliberate. The access-request path writes an
-   * `audit_log` entry because a machine-enforced refusal is being opened by
-   * a human at exam time; editing your own class list beforehand is
-   * ordinary preparation, and auditing it would bury the entries that
-   * matter under the ones that do not.
+   * Thêm một SV: `{ studentId }` từ catalog, hoặc `{ mssv, name }` gõ tay.
    */
-  async addStudent(klass: ClassEntity, student: RosterStudentDto): Promise<RosterEntry> {
+  async addStudent(
+    klass: ClassEntity,
+    input: AddRosterStudentInput,
+  ): Promise<RosterEntry> {
     return this.dataSource.transaction(async (manager) => {
+      const resolved = await this.resolveAddInput(manager, input);
       const repo = manager.getRepository(EnrollmentEntity);
       const existing = await this.siblingEnrollments(manager, klass);
       const byMssv = new Map(
         existing.map((row) => [row.studentMssv.toLowerCase(), row]),
       );
 
-      await this.assertNoCrossClassMove(manager, klass, [student], byMssv);
+      await this.assertNoCrossClassMove(manager, klass, [resolved], byMssv);
 
-      const current = byMssv.get(student.mssv.toLowerCase());
+      const current = byMssv.get(resolved.mssv.toLowerCase());
       if (current) {
-        // Already in THIS class. Updating the name rather than refusing:
-        // the caller's intent is "this student should be on the list", and
-        // they already are.
         await repo.update(current.id, {
-          studentName: student.name,
-          homeTeacherId: klass.teacherId,
+          studentName: resolved.name,
+          homeTeacherId: klass.teacherId ?? null,
+          studentId: resolved.studentId ?? current.studentId,
         });
       } else {
         await repo.insert({
-          studentMssv: student.mssv,
-          studentName: student.name,
+          studentMssv: resolved.mssv,
+          studentName: resolved.name,
           homeClassId: klass.id,
-          homeTeacherId: klass.teacherId,
+          homeTeacherId: klass.teacherId ?? null,
+          studentId: resolved.studentId ?? null,
         });
       }
 
-      return { mssv: student.mssv, name: student.name };
+      return { mssv: resolved.mssv, name: resolved.name };
     });
   }
 
-  /**
-   * Removes one student from this class's list.
-   *
-   * The counterpart to adding by hand: a lecturer who typed the wrong MSSV
-   * needs an undo that is not "re-import the whole file with a tick".
-   * Scoped to the class, so a valid MSSV from a sibling class reads as
-   * not-found rather than deleting someone else's student.
-   */
   async removeStudent(klass: ClassEntity, studentMssv: string): Promise<void> {
     const repo = this.dataSource.getRepository(EnrollmentEntity);
     const enrollment = await repo.findOne({
@@ -189,34 +160,69 @@ export class RosterService {
     await repo.remove(enrollment);
   }
 
+  private async resolveAddInput(
+    manager: EntityManager,
+    input: AddRosterStudentInput,
+  ): Promise<RosterStudentDto & { studentId: string | null }> {
+    if (input.studentId) {
+      const student = await manager.getRepository(StudentEntity).findOne({
+        where: { id: input.studentId },
+      });
+      if (!student) {
+        throw new NotFoundException('Không tìm thấy sinh viên trong catalog.');
+      }
+      if (student.status !== 'active') {
+        throw new BadRequestException('Sinh viên catalog không ở trạng thái active.');
+      }
+      return {
+        mssv: student.mssv,
+        name: student.fullName,
+        studentId: student.id,
+      };
+    }
+
+    if (!input.mssv || !input.name) {
+      throw new BadRequestException('Cần studentId hoặc cặp mssv + name.');
+    }
+
+    const studentId = await this.resolveStudentId(manager, input.mssv);
+    return { mssv: input.mssv, name: input.name, studentId };
+  }
+
+  private async resolveStudentId(
+    manager: EntityManager,
+    mssv: string,
+  ): Promise<string | null> {
+    const row = await manager.getRepository(StudentEntity).findOne({
+      where: { mssv },
+      select: { id: true },
+    });
+    return row?.id ?? null;
+  }
+
   /**
-   * A student in the file who is already enrolled in this course through a
-   * DIFFERENT class stops the import.
-   *
-   * Silently moving them would change where their submission is routed —
-   * home_class_id and home_teacher_id are copied onto every submission they
-   * make — and it would happen as a side effect of a file someone dragged
-   * in. A transfer between classes is a decision; the path is to remove them
-   * from the old class's roster first, which takes the explicit tick.
-   */
-  /**
-   * Mọi enrollment của các lớp CÙNG MÔN với lớp này, khoá ghi trong giao
-   * dịch.
-   *
-   * Từng là một câu `WHERE course_id = ?`. Bảng `course` không còn, nên
-   * "cùng môn" là hai chuỗi `class.course_name` bằng nhau. Chuỗi ấy là hằng
-   * số ở mọi dòng, nên trên thực tế tập anh em = MỌI lớp — đúng thứ phép
-   * chặn chuyển lớp cần, và không còn khả năng bỏ sót vì gõ lệch tên như
-   * bản văn bản tự do trước đây.
+   * Enrollment các lớp cùng môn: ưu tiên `course_id`, fallback `course_name`
+   * (lớp legacy).
    */
   private async siblingEnrollments(
     manager: EntityManager,
     klass: ClassEntity,
   ): Promise<EnrollmentEntity[]> {
-    const siblings = await manager.getRepository(ClassEntity).find({
-      where: { courseName: klass.courseName },
-      select: { id: true },
-    });
+    const classRepo = manager.getRepository(ClassEntity);
+    const siblings = klass.courseId
+      ? await classRepo.find({
+          where: { courseId: klass.courseId },
+          select: { id: true },
+        })
+      : await classRepo.find({
+          where: { courseName: klass.courseName },
+          select: { id: true },
+        });
+
+    if (siblings.length === 0) {
+      return [];
+    }
+
     return manager.getRepository(EnrollmentEntity).find({
       where: { homeClassId: In(siblings.map((row) => row.id)) },
       lock: { mode: 'pessimistic_write' },

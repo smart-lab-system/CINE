@@ -3,6 +3,8 @@ import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
 import { ClassEntity } from '../../course/entities/class.entity';
 import { RubricEntity } from '../../grading/entities/rubric.entity';
+import { SemesterEntity } from '../../master-data/entities/semester.entity';
+import { RoomEntity } from '../../master-data/entities/room.entity';
 
 // draft (being set up) -> scheduled (waiting for start_time) -> active
 // (start_time has passed, agents may connect) -> collecting (time is up,
@@ -102,19 +104,29 @@ export class ExamSessionEntity extends BaseEntity {
   code!: string;
 
   /**
-   * Môn học và phòng thi dạng VĂN BẢN — giảng viên tự điền lúc tạo phiên.
+   * Môn học và phòng thi dạng VĂN BẢN — snapshot lúc tạo phiên.
    *
-   * Hệ thống thôi quản lý dữ liệu nền của trường. Giá phải trả, ghi rõ ở
-   * spec §3.4: `ex_exam_session_room_overlap` vẫn chạy trên cột văn bản
-   * (GiST cộng btree_gist làm việc với `text` y như với `uuid`), nhưng nó
-   * SUY GIẢM từ bảo đảm xuống nỗ lực tốt nhất — "P.A101" và "P A101" là
-   * hai phòng khác nhau với Postgres.
+   * Phase sync catalog: có thể kèm `room_id` (FK mềm). Overlap vẫn chạy
+   * trên `room_name` (GiST) — "P.A101" và "P A101" vẫn là hai phòng khác
+   * nhau với Postgres khi chỉ gõ text.
    */
   @Column({ name: 'course_name', type: 'varchar', length: 200 })
   courseName!: string;
 
   @Column({ name: 'room_name', type: 'varchar', length: 150 })
   roomName!: string;
+
+  /**
+   * FK mềm tới catalog `room`. NULL = phiên tạo bằng text thuần hoặc catalog
+   * đã bị xoá (ON DELETE SET NULL). Snapshot `room_name` vẫn còn để overlap
+   * / hiển thị lịch sử.
+   */
+  @Column({ name: 'room_id', type: 'uuid', nullable: true })
+  roomId!: string | null;
+
+  @ManyToOne(() => RoomEntity, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'room_id' })
+  room!: RoomEntity | null;
 
   // LỚP CỦA PHIÊN THI — và từ đợt thu hẹp master data, nó cũng là CƠ SỞ
   // XÁC THỰC.
@@ -169,6 +181,18 @@ export class ExamSessionEntity extends BaseEntity {
    */
   @Column({ name: 'semester_name', type: 'varchar', length: 150, update: false })
   semesterName!: string;
+
+  /**
+   * FK mềm tới catalog `semester`. NULL = text thuần hoặc catalog đã xoá
+   * (SET NULL). `semester_name` vẫn bất biến (`update: false`) — bảng điểm
+   * lọc theo chuỗi snapshot, không theo join.
+   */
+  @Column({ name: 'semester_id', type: 'uuid', nullable: true })
+  semesterId!: string | null;
+
+  @ManyToOne(() => SemesterEntity, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'semester_id' })
+  semester!: SemesterEntity | null;
 
   @Column({ name: 'teacher_id', type: 'uuid' })
   teacherId!: string;

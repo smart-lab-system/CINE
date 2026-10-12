@@ -27,14 +27,18 @@ export class ExamSessionResponseDto {
   name!: string;
   code!: string;
   teacherId!: string;
-  courseId!: string;
   classId!: string;
-  roomId!: string;
+  /**
+   * FK catalog phòng — null nếu tạo bằng text hoặc catalog đã xoá (SET NULL).
+   */
+  roomId!: string | null;
+  /**
+   * FK catalog học kỳ — null nếu tạo bằng text hoặc catalog đã xoá.
+   */
+  semesterId!: string | null;
   /**
    * Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên.
-   *
-   * Sống cạnh `courseId`/`roomId` trong giai đoạn mở rộng; hai khoá ngoại
-   * kia biến mất ở `ContractMasterData` và hai trường này là thứ còn lại.
+   * Sống cạnh `roomId` / `semesterId` (dual-write); overlap / filter vẫn text.
    */
   courseName!: string;
   roomName!: string;

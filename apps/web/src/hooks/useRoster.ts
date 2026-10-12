@@ -8,6 +8,7 @@ import {
   removeRosterStudent,
   type RosterEntry,
 } from '@/lib/api/roster';
+import type { AddStudentPayload } from '@/components/roster/manual-add-student-form';
 
 /**
  * Danh sách sinh viên của một lớp.
@@ -45,7 +46,12 @@ export function useImportRoster(classId: string) {
 export function useAddRosterStudent(classId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (student: RosterEntry) => addRosterStudent(classId, student),
+    mutationFn: (student: AddStudentPayload) => {
+      if ('studentId' in student) {
+        throw new Error('Roster giảng viên chỉ nhận MSSV + họ tên.');
+      }
+      return addRosterStudent(classId, student);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['roster', classId] });
       void queryClient.invalidateQueries({ queryKey: ['classes'] });

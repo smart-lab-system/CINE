@@ -500,7 +500,9 @@ export class ExamSessionGateway
     client.data.fullName = enrollment.studentName;
     // Carried so collection never has to look the enrollment up again.
     client.data.homeClassId = enrollment.homeClassId;
-    client.data.homeTeacherId = enrollment.homeTeacherId;
+    // Enrollment có thể null home_teacher_id trước khi gán GV; phiên chỉ
+    // mở được từ lớp đã gán nên fallback session.teacherId luôn có.
+    client.data.homeTeacherId = enrollment.homeTeacherId ?? session.teacherId;
     // Đọc lại ở submission:confirm để render bản chụp entry bên trong file
     // nén — spec 2026-09-21-archive-content-validation-design.md §5.2.
     // `machineName` KHÔNG được ghi xuống DB ở đâu cả, nên nếu không giữ ở

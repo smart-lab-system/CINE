@@ -24,8 +24,7 @@ const ACCOUNTS_QUERY_KEY = 'accounts';
 export function useAccounts(params: SearchAccountsParams) {
   return useQuery({
     // Every param that changes the result set belongs in the key — search,
-    // role, and page all do (pageSize is fixed per call site today, but
-    // included for correctness if that ever changes).
+    // role, page, and pageSize (admin list picker: 30/50/100).
     queryKey: [ACCOUNTS_QUERY_KEY, params],
     queryFn: () => searchAccounts(params),
   });

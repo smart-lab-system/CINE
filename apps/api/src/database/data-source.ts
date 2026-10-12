@@ -35,6 +35,13 @@ import { GradingAttemptEntity } from '../grading/entities/grading-attempt.entity
 import { ScoreComputationEntity } from '../grading/entities/score-computation.entity';
 import { CriterionWaiverEntity } from '../grading/entities/criterion-waiver.entity';
 import { AuditSampleReviewEntity } from '../grading/entities/audit-sample-review.entity';
+import { AcademicYearEntity } from '../master-data/entities/academic-year.entity';
+import { SemesterEntity } from '../master-data/entities/semester.entity';
+import { CourseEntity } from '../master-data/entities/course.entity';
+import { NominalClassEntity } from '../master-data/entities/nominal-class.entity';
+import { StudentEntity } from '../master-data/entities/student.entity';
+import { RoomEntity } from '../master-data/entities/room.entity';
+import { ComputerEntity } from '../master-data/entities/computer.entity';
 
 /**
  * TLS for the Postgres connection, decided by env so one build runs
@@ -124,6 +131,13 @@ export const dataSourceOptions: DataSourceOptions = {
     ScoreComputationEntity,
     CriterionWaiverEntity,
     AuditSampleReviewEntity,
+    AcademicYearEntity,
+    SemesterEntity,
+    CourseEntity,
+    NominalClassEntity,
+    StudentEntity,
+    RoomEntity,
+    ComputerEntity,
   ],
   migrations: [__dirname + '/migrations/*.{js,ts}'],
   // The initial migration's SQL file already wraps itself in BEGIN/COMMIT

@@ -130,4 +130,24 @@ describe('AccountsService', () => {
     await expect(service.deactivate('missing')).rejects.toThrow(NotFoundException);
     expect(repo.update).not.toHaveBeenCalled();
   });
+
+  it('search() applies isActive filter when provided', async () => {
+    const andWhere = jest.fn().mockReturnThis();
+    const qb = {
+      andWhere,
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    const { service } = createHarness({
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
+    });
+
+    await service.search({ isActive: false, page: 1, pageSize: 20 });
+
+    expect(andWhere).toHaveBeenCalledWith('a.is_active = :isActive', {
+      isActive: false,
+    });
+  });
 });

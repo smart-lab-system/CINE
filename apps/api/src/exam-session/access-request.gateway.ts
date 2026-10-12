@@ -213,6 +213,10 @@ export class AccessRequestGateway implements OnGatewayDisconnect {
     if (!homeClass) {
       return fail('CLASS_REQUIRED', 'Không tìm thấy lớp được chọn.');
     }
+    // Lớp chưa phân công GV không thể là lớp gốc định tuyến bài nộp.
+    if (!homeClass.teacherId) {
+      return fail('CLASS_REQUIRED', 'Lớp được chọn chưa được phân công giảng viên.');
+    }
 
     await this.enrollments.addManually({
       studentMssv: request.studentId,

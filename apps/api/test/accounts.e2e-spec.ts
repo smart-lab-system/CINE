@@ -278,6 +278,38 @@ describe('Accounts (e2e)', () => {
       expect(found).toMatchObject({ isActive: false });
     });
 
+    it('filters account list by isActive', async () => {
+      const active = await makeTeacher('filt_active');
+      const inactive = await makeTeacher('filt_inactive');
+      await request(app.getHttpServer())
+        .patch(`/accounts/${inactive.id}/deactivate`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      const onlyInactive = await request(app.getHttpServer())
+        .get(`/accounts?isActive=false&search=${encodeURIComponent(inactive.email)}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(onlyInactive.status).toBe(200);
+      expect(
+        onlyInactive.body.items.some((a: { id: string }) => a.id === inactive.id),
+      ).toBe(true);
+
+      const inactiveAsActive = await request(app.getHttpServer())
+        .get(`/accounts?isActive=true&search=${encodeURIComponent(inactive.email)}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(inactiveAsActive.status).toBe(200);
+      expect(
+        inactiveAsActive.body.items.some((a: { id: string }) => a.id === inactive.id),
+      ).toBe(false);
+
+      const onlyActive = await request(app.getHttpServer())
+        .get(`/accounts?isActive=true&search=${encodeURIComponent(active.email)}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(onlyActive.status).toBe(200);
+      expect(onlyActive.body.items.some((a: { id: string }) => a.id === active.id)).toBe(
+        true,
+      );
+    });
+
     it('refuses deactivation to a teacher', async () => {
       const victim = await makeTeacher('deact_victim');
       const attacker = await makeTeacher('deact_attacker');

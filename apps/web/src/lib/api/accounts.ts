@@ -17,6 +17,8 @@ export interface AccountView {
 export interface SearchAccountsParams {
   search?: string;
   role?: AccountRoleOption;
+  /** Lọc theo account.is_active — query string true/false trên API. */
+  isActive?: boolean;
   page: number;
   pageSize: number;
 }
@@ -51,8 +53,11 @@ async function throwIfFailed(error: unknown, response: Response) {
 export async function searchAccounts(
   params: SearchAccountsParams,
 ): Promise<{ items: AccountView[]; total: number }> {
+  // isActive chưa có trong schema.d.ts cho tới khi regenerate OpenAPI.
   const { data, error, response } = await apiClient.GET('/accounts', {
-    params: { query: params },
+    params: {
+      query: params as SearchAccountsParams & Record<string, unknown>,
+    },
   });
   await throwIfFailed(error, response);
   // Cast needed: AccountsController.search() has no Swagger-decorated

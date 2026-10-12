@@ -1,42 +1,52 @@
--- Resets the DEV database back to exactly what a fresh setup produces:
--- the seed rows created by migration AddCourseRoomExamType, plus the two
--- demo accounts DEMO-RUNBOOK.md tells you to create.
+-- Resets the DEV database toward a clean slate for catalog re-seed.
+-- After this script, run from apps/api:
 --
--- Everything else is residue. The e2e suites create a semester, course,
--- class, enrollment and several accounts per file per run and never clean
--- up (they cannot: each run needs unique values, and unpicking them
--- afterwards would make a failing test destroy the next run's fixtures).
--- Manual verification runs leave exam sessions and submissions behind the
--- same way. After a few weeks of that, the account list and the exam
--- session list are almost entirely noise — which matters now that resource
--- management is getting real screens.
+--   pnpm seed:master-data
+--
+-- Legacy migration INSERTs (CS101/CS201, old room names) are NOT kept as
+-- the demo source — they may still exist historically in migrate history
+-- but catalog tables are wiped here and refilled by the seed script.
+--
+-- Kept accounts (bootstrap admins only):
+--   bao@hui.edu.vn / phat@hui.edu.vn
+-- Teachers and the rest of the catalog come back from seed:master-data.
 --
 --   docker exec -i cine-postgres-1 psql -U examcollect_admin -d examcollect \
 --     < scripts/reset-dev-data.sql
 --
--- SAFE TO RE-RUN. Never point this at anything but a dev database: it is a
--- whitelist, so anything not listed below is deleted.
+-- SAFE TO RE-RUN. Never point this at anything but a dev database.
 --
--- Deletion order follows the FK graph (every FK is ON DELETE RESTRICT, so
--- a wrong order fails loudly rather than cascading).
+-- Deletion order follows the FK graph (every FK is ON DELETE RESTRICT).
 --
--- audit_log is deliberately absent: its append-only trigger refuses DELETE
--- (Security rule 4), so it can never be reset this way. It is empty today;
--- once entries exist, resetting means recreating the database.
+-- audit_log is deliberately absent: its append-only trigger refuses DELETE.
 
 BEGIN;
 
--- ---- Exam + collection data: none of it is seeded, all of it goes ------
+-- ---- Exam + collection data -------------------------------------------
 DELETE FROM examcollect.teacher_review;
+DELETE FROM examcollect.audit_sample_review;
+DELETE FROM examcollect.score_computation;
+DELETE FROM examcollect.criterion_waiver;
+DELETE FROM examcollect.grading_attempt;
 DELETE FROM examcollect.grading_result;
 DELETE FROM examcollect.grade_export;
+DELETE FROM examcollect.grading_test_case;
+DELETE FROM examcollect.grading_test_bundle;
+DELETE FROM examcollect.rule_price;
+DELETE FROM examcollect.price_table_version;
+DELETE FROM examcollect.error_rule_revision;
+DELETE FROM examcollect.error_rule;
+DELETE FROM examcollect.grading_anchor_snapshot;
+DELETE FROM examcollect.grading_reference;
 DELETE FROM examcollect.submission;
+DELETE FROM examcollect.required_deliverable_entry;
 DELETE FROM examcollect.required_deliverable;
 DELETE FROM examcollect.exam_material;
+DELETE FROM examcollect.session_roster;
 DELETE FROM examcollect.agent_connection_event;
 DELETE FROM examcollect.exam_session;
 
--- ---- Academic structure: keep only the migration's seed ---------------
+-- ---- Teacher-owned academic structure (not catalog) -------------------
 DELETE FROM examcollect.enrollment;
 DELETE FROM examcollect.class;
 
@@ -44,36 +54,34 @@ DELETE FROM examcollect.rubric_criterion;
 DELETE FROM examcollect.rubric;
 DELETE FROM examcollect.calibration_run;
 
-DELETE FROM examcollect.course
-WHERE code NOT IN ('CS101', 'CS201');
+-- ---- Catalog master data (re-seed with pnpm seed:master-data) ---------
+DELETE FROM examcollect.student;
+DELETE FROM examcollect.computer;
+DELETE FROM examcollect.nominal_class;
+DELETE FROM examcollect.course;
+DELETE FROM examcollect.room;
+DELETE FROM examcollect.semester;
+DELETE FROM examcollect.academic_year;
 
-DELETE FROM examcollect.semester
-WHERE name <> 'Học kỳ 1 2026-2027';
-
-DELETE FROM examcollect.room
-WHERE name NOT IN ('Phòng máy A1', 'Phòng máy A2', 'Phòng máy B1');
-
--- ---- Accounts: keep the three the runbook documents -------------------
--- demo-admin is kept on purpose, not just for symmetry: verifying the
--- teacher-only guard on POST /exam-sessions needs a real admin login.
--- demo-head is the Trưởng khoa the runbook's step 5b needs: since Phase 3
--- the class and its roster are created through that account, so a reset
--- that removed it would leave the demo with no way back to a working state.
+-- ---- Accounts: keep only the two seed admins --------------------------
 DELETE FROM examcollect.cost_budget;
 DELETE FROM examcollect.account
 WHERE email NOT IN (
-  'demo-teacher@example.com',
-  'demo-admin@example.com',
-  'demo-head@example.com'
+  'bao@hui.edu.vn',
+  'phat@hui.edu.vn'
 );
 
 COMMIT;
 
 SELECT 'account' AS t, count(*) FROM examcollect.account
+UNION ALL SELECT 'academic_year', count(*) FROM examcollect.academic_year
 UNION ALL SELECT 'semester', count(*) FROM examcollect.semester
-UNION ALL SELECT 'course',   count(*) FROM examcollect.course
-UNION ALL SELECT 'room',     count(*) FROM examcollect.room
-UNION ALL SELECT 'class',    count(*) FROM examcollect.class
+UNION ALL SELECT 'course', count(*) FROM examcollect.course
+UNION ALL SELECT 'room', count(*) FROM examcollect.room
+UNION ALL SELECT 'computer', count(*) FROM examcollect.computer
+UNION ALL SELECT 'nominal_class', count(*) FROM examcollect.nominal_class
+UNION ALL SELECT 'student', count(*) FROM examcollect.student
+UNION ALL SELECT 'class', count(*) FROM examcollect.class
 UNION ALL SELECT 'enrollment', count(*) FROM examcollect.enrollment
 UNION ALL SELECT 'exam_session', count(*) FROM examcollect.exam_session
 UNION ALL SELECT 'submission', count(*) FROM examcollect.submission

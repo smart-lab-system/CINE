@@ -29,13 +29,14 @@ import ExcelJS from 'exceljs';
 
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'scripts');
 
+// MSSV đúng 8 chữ số — cùng quy tắc importer (ROSTER_MSSV_REGEX).
 const students = [
   ...Array.from({ length: 20 }, (_, index) => {
     const n = String(index + 1).padStart(2, '0');
-    return { mssv: `MSSVTEST${n}`, name: `Sinh viên test ${n}` };
+    return { mssv: `200000${n}`, name: `Sinh viên test ${n}` };
   }),
-  { mssv: 'SV20120001', name: 'Nguyễn Văn A' },
-  { mssv: 'SV20120002', name: 'Trần Thị B' },
+  { mssv: '20120001', name: 'Nguyễn Văn A' },
+  { mssv: '20120002', name: 'Trần Thị B' },
 ];
 
 /**

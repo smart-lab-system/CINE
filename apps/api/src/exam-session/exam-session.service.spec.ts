@@ -8,6 +8,8 @@ import { ClassService } from '../course/class.service';
 import { AttendanceService } from '../agent-connection/attendance.service';
 import { ScheduleConflictService } from './schedule-conflict.service';
 import { RubricEntity } from '../grading/entities/rubric.entity';
+import { SemesterEntity } from '../master-data/entities/semester.entity';
+import { RoomEntity } from '../master-data/entities/room.entity';
 
 /**
  * Covers the exam_session state machine added in the submission phase:
@@ -57,6 +59,9 @@ function createHarness(affected: number) {
     // Same reasoning as ClassService below: only create() reads a rubric,
     // and every test here is about finalize.
     {} as Repository<RubricEntity>,
+    // Dual-write semester/room — only create() reads these.
+    {} as Repository<SemesterEntity>,
+    {} as Repository<RoomEntity>,
     events,
     // Only create() touches it, and these tests are about finalize. Left
     // unimplemented on purpose: if a finalize path ever starts resolving a

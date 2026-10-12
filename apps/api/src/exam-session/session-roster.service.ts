@@ -115,7 +115,7 @@ export class SessionRosterService {
           studentMssv: row.studentMssv,
           studentName: row.studentName,
           homeClassId: row.homeClassId,
-          homeTeacherId: row.homeTeacherId,
+          homeTeacherId: row.homeTeacherId ?? session.teacherId,
           source: 'frozen' as const,
         })),
       );
@@ -127,7 +127,7 @@ export class SessionRosterService {
           mssv: row.studentMssv,
           name: row.studentName,
           homeClassId: row.homeClassId,
-          homeTeacherId: row.homeTeacherId,
+          homeTeacherId: row.homeTeacherId ?? session.teacherId,
         })),
       );
 

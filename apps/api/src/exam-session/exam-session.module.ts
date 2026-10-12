@@ -23,6 +23,8 @@ import { AccessRequestStore } from './access-request.store';
 import { AgentJoinLockStore } from './agent-join-lock.store';
 import { ScheduleConflictService } from './schedule-conflict.service';
 import { RubricEntity } from '../grading/entities/rubric.entity';
+import { SemesterEntity } from '../master-data/entities/semester.entity';
+import { RoomEntity } from '../master-data/entities/room.entity';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { AdminModule } from '../admin/admin.module';
 import { AgentConnectionModule } from '../agent-connection/agent-connection.module';
@@ -41,6 +43,9 @@ import { StorageModule } from '../storage/storage.module';
       // GradingModule imports THIS module, and importing it back would be a
       // cycle needing forwardRef.
       RubricEntity,
+      // Dual-write catalog → snapshot lúc tạo phiên (FK mềm + text).
+      SemesterEntity,
+      RoomEntity,
       // ExamSessionReassignService kiểm tài khoản đích thật là giảng viên
       // và còn hoạt động, trước khi giao phiên thi cho họ. Entity chứ
       // không phải AccountsModule: một `findOne` không đáng để kéo cả

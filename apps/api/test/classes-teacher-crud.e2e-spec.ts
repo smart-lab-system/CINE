@@ -5,189 +5,122 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
-import { COURSE_NAME } from '../src/common/course-name';
 
 /**
- * Giảng viên tự tạo, sửa, xoá lớp của mình (spec thu hẹp master data §4.1).
- *
- * Trước đợt này, `class` đã có `teacher_id` trỏ thẳng tới giảng viên — nên
- * nhìn qua tưởng lớp đã thuộc về họ. Không phải: MỌI đường tạo và sửa đều
- * gắn `@Roles('department_admin')`, giảng viên chỉ được ĐỌC. Xoá vai trò
- * trưởng khoa mà không chuyển quyền trước sẽ làm hệ thống mất hẳn khả năng
- * tạo lớp, và luồng thi bù chết theo vì nó cần một lớp để định tuyến về.
- *
- * T-OWN-2 quan trọng hơn T-OWN-1: T-OWN-1 hỏng thì ai cũng thấy ngay, còn
- * T-OWN-2 hỏng thì không ai thấy cho tới khi có người mất dữ liệu.
+ * Sau admin course-section: teacher không tạo/sửa/xoá lớp.
+ * Chỉ đọc「Lớp của tôi」+ roster trên lớp đã được phân công.
  */
-describe('Giảng viên CRUD lớp của mình (e2e)', () => {
+describe('Giảng viên — lớp đã phân công (e2e)', () => {
   let app: INestApplication;
   let dataSource: DataSource;
 
   let teacherToken: string;
   let teacherId: string;
   let otherTeacherToken: string;
-  let otherTeacherId: string;
-  let courseName: string;
+  let adminToken: string;
+  let courseId: string;
+  let semesterId: string;
 
   const PASSWORD = 'correct-horse-battery';
 
-  async function makeTeacher(prefix: string) {
-    const email = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}@example.com`;
-    const id = await createTestAccount(dataSource, { email, password: PASSWORD, role: 'teacher' });
-    const login = await request(app.getHttpServer())
-      .post('/auth/login')
-      .send({ email, password: PASSWORD });
-    return { id, token: login.body.accessToken as string };
-  }
-
-  /** Lớp thuộc về `ownerId`, chèn thẳng — không đi qua route đang được test. */
-  async function seedClassOwnedBy(ownerId: string): Promise<string> {
-    const [row] = await dataSource.query(
-      `INSERT INTO examcollect.class (course_name, name, teacher_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [courseName, `L${Date.now()}${Math.random().toString(36).slice(2, 5)}`, ownerId],
-    );
-    return row.id;
-  }
-
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
     app = moduleRef.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
+    );
     app.useGlobalFilters(new PostgresExceptionFilter());
     await app.init();
     dataSource = app.get(DataSource);
 
-    const t = await makeTeacher('gv');
-    teacherToken = t.token;
-    teacherId = t.id;
-    const o = await makeTeacher('gv_khac');
-    otherTeacherToken = o.token;
-    otherTeacherId = o.id;
+    const adminId = await createTestAccount(dataSource, {
+      email: `admin_cls_${Date.now()}@example.com`,
+      password: PASSWORD,
+      role: 'admin',
+    });
+    teacherId = await createTestAccount(dataSource, {
+      email: `teacher_cls_${Date.now()}@example.com`,
+      password: PASSWORD,
+      role: 'teacher',
+    });
+    const otherId = await createTestAccount(dataSource, {
+      email: `other_cls_${Date.now()}@example.com`,
+      password: PASSWORD,
+      role: 'teacher',
+    });
 
-    const course = { name: 'Cấu trúc dữ liệu và Giải thuật' };
-    courseName = course.name;
+    async function login(id: string) {
+      const email = (
+        await dataSource.query(`SELECT email FROM examcollect.account WHERE id = $1`, [id])
+      )[0].email;
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email, password: PASSWORD });
+      return res.body.accessToken as string;
+    }
+
+    adminToken = await login(adminId);
+    teacherToken = await login(teacherId);
+    otherTeacherToken = await login(otherId);
+
+    const [year] = await dataSource.query(
+      `INSERT INTO examcollect.academic_year (code, name, start_date, end_date, status)
+       VALUES ($1, 'Năm', '2026-09-01', '2027-08-31', 'active') RETURNING id`,
+      [`AY-CLS-${Date.now()}`],
+    );
+    const [sem] = await dataSource.query(
+      `INSERT INTO examcollect.semester (academic_year_id, code, name, start_date, end_date, status)
+       VALUES ($1, 'HK1', 'HK1', '2026-09-01', '2027-01-31', 'active') RETURNING id`,
+      [year.id],
+    );
+    semesterId = sem.id;
+    const [course] = await dataSource.query(
+      `INSERT INTO examcollect.course (code, name, status)
+       VALUES ($1, 'Môn test', 'active') RETURNING id`,
+      [`CLS-${Date.now()}`],
+    );
+    courseId = course.id;
   });
 
   afterAll(async () => {
     await app?.close();
   });
 
-  it('T-OWN-1: giảng viên tạo được lớp của mình', async () => {
-    const res = await request(app.getHttpServer())
+  it('POST /classes bị gỡ (404)', async () => {
+    await request(app.getHttpServer())
       .post('/classes')
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({ name: `CTDL-${Date.now()}`, courseName, teacherId })
+      .send({ name: 'X' })
+      .expect(404);
+  });
+
+  it('admin tạo + gán → teacher roster; teacher khác 403', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/admin/course-sections')
+      .set('Authorization', `Bearer ${adminToken}`)
+      // Không gửi `name`: mã lớp do server tự sinh, và CreateCourseSectionDto
+      // không có trường đó (ValidationPipe từ chối trường lạ).
+      .send({
+        courseId,
+        semesterId,
+        teacherId,
+      })
       .expect(201);
 
-    expect(res.body.teacherId).toBe(teacherId);
-  });
+    const classId = created.body.id as string;
 
-  it('T-OWN-1b: chủ sở hữu là NGƯỜI GỌI, kể cả khi body khai người khác', async () => {
-    // `dto.teacherId` bị bỏ qua hoàn toàn ở `createForTeacher`. Nếu nó được
-    // tôn trọng thì một giảng viên tạo được lớp đứng tên người khác — và
-    // người kia không xoá đi được vì họ không phải người tạo.
-    const res = await request(app.getHttpServer())
-      .post('/classes')
+    await request(app.getHttpServer())
+      .post(`/classes/${classId}/roster/students`)
       .set('Authorization', `Bearer ${teacherToken}`)
-      .send({ name: `CTDL-mao-${Date.now()}`, courseName, teacherId: otherTeacherId })
+      .send({ mssv: `SV${Date.now().toString().slice(-8)}`, name: 'Tran B' })
       .expect(201);
 
-    expect(res.body.teacherId).toBe(teacherId);
-    expect(res.body.teacherId).not.toBe(otherTeacherId);
-  });
-
-  it('T-OWN-1c: môn là HẰNG SỐ của server, body không đặt được', async () => {
-    // Cùng lý do với `teacherId` ở T-OWN-1b: giá trị này không phải của
-    // người gọi quyết định. Hệ thống phục vụ đúng một môn, nên ô nhập đã bị
-    // bỏ khỏi biểu mẫu — nhưng một client cũ, hay một lời gọi API thẳng, vẫn
-    // gửi kèm được. Nếu nó lọt thì lớp ấy rơi khỏi mọi phép tra "cùng môn",
-    // và phép gãy đầu tiên là đường định tuyến bài thi bù: lặng lẽ, không
-    // lỗi, chỉ là bài của sinh viên về tay giảng viên không dạy em.
-    const res = await request(app.getHttpServer())
-      .post('/classes')
-      .set('Authorization', `Bearer ${teacherToken}`)
-      .send({ name: `CTDL-hs-${Date.now()}`, courseName: 'Môn Bịa Đặt' })
-      .expect(201);
-
-    const rows = await dataSource.query(
-      `SELECT course_name FROM examcollect.class WHERE id = $1`,
-      [res.body.id],
-    );
-    expect(rows[0].course_name).toBe(COURSE_NAME);
-    expect(rows[0].course_name).not.toBe('Môn Bịa Đặt');
-  });
-
-  it('T-OWN-2: giảng viên KHÔNG sửa hay xoá được lớp của người khác', async () => {
-    const foreign = await seedClassOwnedBy(otherTeacherId);
-
     await request(app.getHttpServer())
-      .patch(`/classes/${foreign}`)
-      .set('Authorization', `Bearer ${teacherToken}`)
-      .send({ name: 'cướp lớp' })
-      .expect(403);
-
-    await request(app.getHttpServer())
-      .delete(`/classes/${foreign}`)
-      .set('Authorization', `Bearer ${teacherToken}`)
-      .expect(403);
-
-    // Và lớp đó còn nguyên — 403 phải là từ chối, không phải xoá rồi báo lỗi.
-    const [still] = await dataSource.query(
-      `SELECT teacher_id FROM examcollect.class WHERE id = $1`,
-      [foreign],
-    );
-    expect(still.teacher_id).toBe(otherTeacherId);
-  });
-
-  it('T-OWN-2b: sửa lớp của mình KHÔNG đổi được chủ sở hữu', async () => {
-    // `updateForHead` cho trưởng khoa đổi giảng viên, kèm cả một giao dịch
-    // đồng bộ `enrollment.home_teacher_id`. Bản cho giảng viên cố ý bỏ
-    // nhánh đó: cho phép nghĩa là đẩy lớp sang người khác rồi mất quyền,
-    // hoặc kéo lớp người khác về.
-    const mine = await seedClassOwnedBy(teacherId);
-
-    await request(app.getHttpServer())
-      .patch(`/classes/${mine}`)
-      .set('Authorization', `Bearer ${teacherToken}`)
-      .send({ name: 'đổi tên thôi', teacherId: otherTeacherId })
-      .expect(200);
-
-    const [row] = await dataSource.query(
-      `SELECT name, teacher_id FROM examcollect.class WHERE id = $1`,
-      [mine],
-    );
-    expect(row.name).toBe('đổi tên thôi');
-    expect(row.teacher_id).toBe(teacherId);
-  });
-
-  it('giảng viên xoá được lớp của mình', async () => {
-    const mine = await seedClassOwnedBy(teacherId);
-
-    await request(app.getHttpServer())
-      .delete(`/classes/${mine}`)
-      .set('Authorization', `Bearer ${teacherToken}`)
-      .expect(204);
-
-    const rows = await dataSource.query(
-      `SELECT id FROM examcollect.class WHERE id = $1`,
-      [mine],
-    );
-    expect(rows).toHaveLength(0);
-  });
-
-  it('không phải giảng viên thì không vào được', async () => {
-    await request(app.getHttpServer())
-      .post('/classes')
-      .send({ name: 'vo danh', courseName, teacherId })
-      .expect(401);
-
-    // Và một giảng viên khác vẫn tạo được lớp của CHÍNH HỌ — 403 ở trên là
-    // về quyền sở hữu, không phải về vai trò.
-    await request(app.getHttpServer())
-      .post('/classes')
+      .get(`/classes/${classId}/roster`)
       .set('Authorization', `Bearer ${otherTeacherToken}`)
-      .send({ name: `CTDL-khac-${Date.now()}`, courseName, teacherId: otherTeacherId })
-      .expect(201);
+      .expect(403);
   });
 });

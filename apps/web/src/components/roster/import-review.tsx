@@ -8,6 +8,10 @@ import type { RosterDiff, RosterRowError } from '@/lib/roster-file';
 interface ImportReviewProps {
   errors: RosterRowError[];
   diff: RosterDiff | null;
+  /** Dòng bỏ qua vì không có MSSV 8 số. */
+  skipped?: number;
+  /** Số SV đọc được từ file (MSSV 8 số hợp lệ). */
+  studentCount?: number;
   removeMissing: boolean;
   onRemoveMissingChange: (value: boolean) => void;
 }
@@ -23,6 +27,8 @@ interface ImportReviewProps {
 export function ImportReview({
   errors,
   diff,
+  skipped = 0,
+  studentCount,
   removeMissing,
   onRemoveMissingChange,
 }: ImportReviewProps) {
@@ -32,8 +38,8 @@ export function ImportReview({
         <Alert variant="destructive">
           <CircleAlert />
           <AlertDescription>
-            File có {errors.length} dòng lỗi. Không có dòng nào được nhập — hãy sửa file rồi
-            chọn lại.
+            File có {errors.length} dòng lỗi trên các sinh viên có MSSV 8 số. Không nhập
+            dòng nào — hãy sửa rồi chọn lại.
           </AlertDescription>
         </Alert>
         <ul className="flex flex-col gap-1 rounded-md border border-border bg-surface-2 p-4">
@@ -61,6 +67,12 @@ export function ImportReview({
 
   return (
     <div className="flex flex-col gap-4">
+      {(studentCount !== undefined || skipped > 0) && (
+        <p className="text-small text-muted-foreground">
+          Đọc được {studentCount ?? 0} sinh viên (MSSV đúng 8 chữ số)
+          {skipped > 0 ? `; bỏ qua ${skipped} dòng tiêu đề/không khớp.` : '.'}
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         <Badge variant="success">
           <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />

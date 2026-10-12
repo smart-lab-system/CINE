@@ -100,29 +100,33 @@ check with `netstat -ano | grep ":3000"`.
 ## 5. Get a teacher account to log in with
 
 There's no self-serve registration (deliberate — see README's "Getting a
-first admin account"). The first account on any fresh database has to be
-inserted directly.
+first admin account"). Prefer the catalog seed over hand-inserted demo
+accounts:
 
-**Already have one on this machine?** Two demo accounts already exist in
-this repo's dev Postgres from the verification runs:
-`demo-teacher@example.com` / `Demo123456!` (role `teacher`) and
-`demo-head@example.com` / `Demo123456!` (role `department_admin` — the
-Trưởng khoa). Skip to step 5b.
-
-Both are needed now: a lecturer no longer creates a session for a *course*,
-they create one for a **class they were assigned**, and only a Trưởng khoa
-creates classes and loads their roster. That split is the point — see
-step 5b.
-
-**Do (fresh database — generate the hash, then insert):**
 ```bash
 cd apps/api
-node -e "require('argon2').hash('Demo123456!',{type:2}).then(console.log)"
+pnpm seed:master-data
+```
+
+**Expect:** admins `bao@hui.edu.vn` / `phat@hui.edu.vn` (`Admin@123`) and
+~77 teachers from `scripts/danh_sach_giang_vien.json` (`Teacher@123`),
+plus courses/rooms/computers/nominal classes/students. Migration-era
+rows like `CS101` / `Phòng máy A1` are **not** the demo source anymore.
+
+Pick any seeded teacher email (e.g. `phamquangtri@hui.edu.vn`) with
+`Teacher@123` for lecturer steps below.
+
+**Already have seeded accounts?** Skip the command and log in.
+
+**Do (manual fallback — generate the hash, then insert):**
+```bash
+cd apps/api
+node -e "require('argon2').hash('Teacher@123',{type:2}).then(console.log)"
 # copy the printed $argon2id$... hash, then:
 cd ..
 docker compose exec postgres psql -U examcollect_admin -d examcollect -c \
   "INSERT INTO examcollect.account (name, email, password_hash, role)
-   VALUES ('Demo Teacher', 'demo-teacher@example.com', '<paste-hash-here>', 'teacher');"
+   VALUES ('Demo Teacher', 'phamquangtri@hui.edu.vn', '<paste-hash-here>', 'teacher');"
 ```
 **Expect:** `INSERT 0 1`.
 **If not:** `duplicate key value violates unique constraint` means the
@@ -140,10 +144,10 @@ the phase-3 flow, and it replaces the SQL seed entirely.
 **Expect:** `/department/dashboard`. The sidebar has Học kỳ, Môn học, Lớp
 học, Phòng thi — and no admin screens, whatever you type in the address bar.
 
-**Do (Môn học):** the dev database seeds `CS101`/`CS201` with no owner, so
-they are invisible here by design. Either create your own course under an
-existing học kỳ, or log in as an admin and assign one from
-`/admin/unowned-courses`. Creating one is faster.
+**Do (Môn học):** catalog courses from `pnpm seed:master-data` live under
+admin master-data; teacher class ownership is separate. Create a class /
+course as the UI requires for this demo path, or log in as admin
+(`bao@hui.edu.vn` / `Admin@123`) to inspect catalog.
 **Expect:** the course appears in the list, owned by you — ownership comes
 from the logged-in account and is never accepted from the form.
 
@@ -153,8 +157,8 @@ choose **Demo Teacher** as giảng viên phụ trách.
 **If not:** an empty giảng viên dropdown means no account has role
 `teacher` — create one as in step 5.
 
-**Then log in as the LECTURER** (`demo-teacher@example.com`) and open
-**Lớp của tôi** → the class → **Danh sách SV**.
+**Then log in as the LECTURER** (any seeded teacher, password
+`Teacher@123`) and open **Lớp của tôi** → the class → **Danh sách SV**.
 
 The roster belongs to the lecturer, not the Trưởng khoa: they are the one
 the training office sends the file to, and the one who finds out on exam day
@@ -197,7 +201,8 @@ logged in as the Trưởng khoa — switch to the lecturer who teaches the class
 ## 6. Log in through the real UI
 
 **Do:** log out of the Trưởng khoa account, then open
-`http://localhost:3000/login` and log in as `demo-teacher@example.com`.
+`http://localhost:3000/login` and log in as a seeded teacher
+(e.g. `phamquangtri@hui.edu.vn` / `Teacher@123`).
 **Expect:** redirected to `/teacher/dashboard` (the demo account from step
 5 is a `teacher`; an `admin` account instead lands on `/admin/dashboard` —
 login redirects by role, and `middleware.ts` independently re-checks role
@@ -218,9 +223,10 @@ straight to `http://localhost:3000/teacher/exam-sessions/new`). Fill in:
   is derived from the class server-side — a lecturer picks the class they
   teach, never a course. An empty dropdown means no class names this
   account; go back to step 5b.
-- **Phòng thi** / **Loại kỳ thi**: any option — the dev DB seeds 3 rooms
-  (migration `AddCourseRoomExamType`). If Phòng thi is empty, `GET /rooms`
-  failed; check the API terminal.
+- **Phòng thi** / **Loại kỳ thi**: any option — catalog rooms come from
+  `pnpm seed:master-data` (e.g. `H1.1`). If the room field is empty, check
+  whether the UI still expects free-text or a catalog picker, and the API
+  terminal.
 - A class with **0 SV** still creates a session, with a warning: it is
   legal, but nobody would get in, and finding that out at the start of an
   exam is the failure the warning exists to prevent.

@@ -5,26 +5,26 @@ import type { RosterEntry } from '@/lib/api/roster';
  *
  * The .xlsx never reaches the API — CLAUDE.md Security rule 5 — so the
  * parsing, the column mapping and the diff all happen here, and what is
- * posted is plain JSON. Everything below is pure: it takes cells that
- * `readSheets` already pulled out of the workbook and returns data, so the
- * rules can be tested exhaustively without a file or a browser.
+ * posted is plain JSON.
  *
- * The rules themselves are re-enforced server-side. This layer exists to
- * tell the user which row is wrong while they can still fix it, not to be
- * trusted.
+ * Danh sách thi thật (vd. file đào tạo) có tiêu đề / dòng trống / STT.
+ * Chỉ lấy dòng có MSSV đúng 8 chữ số ở cột đã chọn; các dòng khác bỏ qua
+ * (không coi là lỗi). Cột MSSV / họ tên vẫn do người dùng chọn (có gợi ý).
  */
 
-// Byte-for-byte the API's STUDENT_MSSV_REGEX (apps/api/src/common/
-// student-mssv.ts), which is itself the database's ck_enrollment_mssv. A
-// mismatch here means the preview says a file is fine and the import 400s.
-const MSSV_REGEX = /^[A-Za-z0-9]{4,20}$/;
+/** MSSV trong file danh sách thi: đúng 8 chữ số. */
+export const ROSTER_MSSV_REGEX = /^\d{8}$/;
 
 export interface ColumnMapping {
-  /** Rows to skip before the data starts — the user says how many. */
+  /**
+   * Số dòng bỏ qua ở đầu (tuỳ chọn). Thường để 0 — dòng tiêu đề tự bị
+   * bỏ vì không có MSSV 8 số.
+   */
   headerRows: number;
-  /** 0-based column indexes, chosen by the user. Never inferred. */
+  /** 0-based — người dùng chọn / gợi ý. Không suy bắt buộc từ header. */
   mssvColumn: number;
-  nameColumn: number;
+  /** 1 hoặc 2 cột họ tên (vd. Họ đệm + Tên). */
+  nameColumns: number[];
 }
 
 export interface RosterRowError {
@@ -36,25 +36,38 @@ export interface RosterRowError {
 export interface ParsedRoster {
   students: RosterEntry[];
   errors: RosterRowError[];
+  /** Dòng đã bỏ vì không có MSSV 8 số (tiêu đề, trống, STT…). */
+  skipped: number;
 }
 
 function cell(row: string[] | undefined, index: number): string {
   return (row?.[index] ?? '').trim();
 }
 
+/** Chuẩn hoá ô MSSV (Excel đôi khi trả "22691861.0"). */
+export function normalizeMssvCell(raw: string): string {
+  const t = raw.trim();
+  if (/^\d+\.0+$/.test(t)) return t.replace(/\.0+$/, '');
+  return t;
+}
+
+export function isEightDigitMssv(raw: string): boolean {
+  return ROSTER_MSSV_REGEX.test(normalizeMssvCell(raw));
+}
+
+/** Ghép các cột họ tên theo thứ tự index tăng dần, bỏ ô trống. */
+export function joinNameColumns(row: string[] | undefined, columns: number[]): string {
+  return [...columns]
+    .sort((a, b) => a - b)
+    .map((index) => cell(row, index))
+    .filter((part) => part !== '')
+    .join(' ');
+}
+
 function isBlankRow(row: string[]): boolean {
   return row.every((value) => (value ?? '').trim() === '');
 }
 
-/**
- * Drops blank rows from the end of a sheet.
- *
- * A stray format on an untouched row is enough for a spreadsheet to report
- * hundreds of them, so failing a real file over trailing blanks would be
- * theatre. A blank row *inside* the data is a different thing entirely —
- * usually a sign the column mapping or header count is wrong — and
- * `extractRoster` still reports those.
- */
 export function trimTrailingBlankRows(rows: string[][]): string[][] {
   let end = rows.length;
   while (end > 0 && isBlankRow(rows[end - 1])) {
@@ -63,55 +76,140 @@ export function trimTrailingBlankRows(rows: string[][]): string[][] {
   return rows.slice(0, end);
 }
 
+function headerLooksLike(text: string, ...needles: string[]): boolean {
+  const n = text.toLowerCase().normalize('NFC');
+  return needles.some((needle) => n.includes(needle.toLowerCase()));
+}
+
 /**
- * Reads the two mapped columns out of the sheet.
- *
- * Returns students only when every single row is good. Importing the valid
- * rows and reporting the rest was rejected deliberately: a class imported at
- * 38/40 produces a headcount that looks healthy and is not, and making that
- * number trustworthy is the whole reason this screen exists.
+ * Gợi ý cột từ nội dung sheet: cột có nhiều ô 8 số nhất = MSSV;
+ * nếu cùng hàng tiêu đề có "Họ"/"Tên" thì lấy; không thì lấy 1–2 cột liền sau MSSV.
+ */
+export function suggestColumnMapping(rows: string[][]): ColumnMapping {
+  const trimmed = trimTrailingBlankRows(rows);
+  const columnCount = trimmed.reduce((max, row) => Math.max(max, row.length), 0);
+  if (columnCount === 0) {
+    return { headerRows: 0, mssvColumn: 0, nameColumns: [1] };
+  }
+
+  const digitCounts = Array.from({ length: columnCount }, () => 0);
+  for (const row of trimmed) {
+    for (let c = 0; c < columnCount; c++) {
+      if (isEightDigitMssv(cell(row, c))) digitCounts[c]++;
+    }
+  }
+
+  let mssvColumn = 0;
+  let best = -1;
+  for (let c = 0; c < columnCount; c++) {
+    if (digitCounts[c] > best) {
+      best = digitCounts[c];
+      mssvColumn = c;
+    }
+  }
+
+  // Hàng tiêu đề gần dòng dữ liệu đầu: tìm nhãn Họ / Tên.
+  let nameColumns: number[] = [];
+  const firstDataRow = trimmed.findIndex((row) => isEightDigitMssv(cell(row, mssvColumn)));
+  if (firstDataRow > 0) {
+    const header = trimmed[firstDataRow - 1] ?? [];
+    let ho = -1;
+    let ten = -1;
+    for (let c = 0; c < columnCount; c++) {
+      const label = cell(header, c);
+      if (
+        ho < 0 &&
+        headerLooksLike(
+          label,
+          'họ đệm',
+          'ho dem',
+          'họ và tên',
+          'ho va ten',
+          'họ tên',
+          'ho ten',
+          'họ',
+        )
+      ) {
+        ho = c;
+      }
+      // "Tên" đơn — không lấy lại ô "Họ và tên".
+      if (ten < 0 && headerLooksLike(label, 'tên') && !headerLooksLike(label, 'họ')) {
+        ten = c;
+      }
+    }
+    if (ho >= 0 && ten >= 0) {
+      nameColumns = [ho, ten];
+    } else if (ho >= 0) {
+      nameColumns = [ho];
+    } else if (ten >= 0) {
+      nameColumns = [ten];
+    }
+  }
+
+  if (nameColumns.length === 0) {
+    const a = mssvColumn + 1;
+    const b = mssvColumn + 2;
+    if (a < columnCount && b < columnCount) nameColumns = [a, b];
+    else if (a < columnCount) nameColumns = [a];
+    else nameColumns = [Math.min(1, columnCount - 1)];
+  }
+
+  return { headerRows: 0, mssvColumn, nameColumns: nameColumns.slice(0, 2) };
+}
+
+/**
+ * Chỉ lấy dòng có MSSV đúng 8 số ở cột đã chọn.
+ * Dòng tiêu đề / trống / không khớp → bỏ qua (skipped).
+ * Dòng có MSSV hợp lệ nhưng thiếu tên / trùng → lỗi (all-or-nothing trên tập hợp đó).
  */
 export function extractRoster(rows: string[][], mapping: ColumnMapping): ParsedRoster {
+  if (mapping.nameColumns.length === 0) {
+    return {
+      students: [],
+      errors: [{ row: 0, reason: 'Chưa chọn cột họ tên' }],
+      skipped: 0,
+    };
+  }
+  if (mapping.nameColumns.length > 2) {
+    return {
+      students: [],
+      errors: [{ row: 0, reason: 'Chỉ chọn tối đa 2 cột họ tên' }],
+      skipped: 0,
+    };
+  }
+
   const body = trimTrailingBlankRows(rows).slice(mapping.headerRows);
   const errors: RosterRowError[] = [];
   const students: RosterEntry[] = [];
   const seen = new Map<string, number>();
+  let skipped = 0;
 
   if (body.length === 0) {
     return {
       students: [],
       errors: [{ row: 0, reason: 'Không có dòng dữ liệu nào sau phần tiêu đề' }],
+      skipped: 0,
     };
   }
 
   body.forEach((row, index) => {
     const sheetRow = index + mapping.headerRows + 1;
+    const mssvRaw = normalizeMssvCell(cell(row, mapping.mssvColumn));
 
-    if (isBlankRow(row)) {
-      errors.push({
-        row: sheetRow,
-        reason: 'Dòng trống nằm giữa danh sách — kiểm tra lại cột đã chọn',
-      });
+    // Tiêu đề, STT, dòng trống, ô không phải MSSV 8 số → bỏ qua.
+    if (!isEightDigitMssv(mssvRaw)) {
+      skipped++;
       return;
     }
 
-    const mssv = cell(row, mapping.mssvColumn);
-    const name = cell(row, mapping.nameColumn);
-
-    if (!MSSV_REGEX.test(mssv)) {
-      errors.push({
-        row: sheetRow,
-        reason: `MSSV "${mssv}" không hợp lệ (chỉ gồm 4-20 chữ cái hoặc chữ số)`,
-      });
-      return;
-    }
-
-    // student_mssv is citext: two rows differing only in case are one
-    // student to the database, and would collide there instead of here.
-    const key = mssv.toLowerCase();
+    const name = joinNameColumns(row, mapping.nameColumns);
+    const key = mssvRaw.toLowerCase();
     const first = seen.get(key);
     if (first !== undefined) {
-      errors.push({ row: sheetRow, reason: `MSSV "${mssv}" đã xuất hiện ở dòng ${first}` });
+      errors.push({
+        row: sheetRow,
+        reason: `MSSV "${mssvRaw}" đã xuất hiện ở dòng ${first}`,
+      });
       return;
     }
     seen.set(key, sheetRow);
@@ -121,11 +219,37 @@ export function extractRoster(rows: string[][], mapping: ColumnMapping): ParsedR
       return;
     }
 
-    students.push({ mssv, name });
+    if (name.length > 150) {
+      errors.push({
+        row: sheetRow,
+        reason: `Họ tên dài quá 150 ký tự (${name.length})`,
+      });
+      return;
+    }
+
+    students.push({ mssv: mssvRaw, name });
   });
 
-  // All or nothing.
-  return { students: errors.length > 0 ? [] : students, errors };
+  if (errors.length === 0 && students.length === 0) {
+    return {
+      students: [],
+      errors: [
+        {
+          row: 0,
+          reason:
+            'Không tìm thấy dòng nào có MSSV đúng 8 chữ số ở cột đã chọn. Hãy kiểm tra lại cột MSSV.',
+        },
+      ],
+      skipped,
+    };
+  }
+
+  // All-or-nothing chỉ trên các dòng đã nhận là sinh viên.
+  return {
+    students: errors.length > 0 ? [] : students,
+    errors,
+    skipped,
+  };
 }
 
 export interface RosterDiff {
@@ -136,14 +260,6 @@ export interface RosterDiff {
   missing: RosterEntry[];
 }
 
-/**
- * What this file would change, shown before anything is written.
- *
- * `missing` is separated from the rest because it is the only category with
- * a consequence that cannot be undone in time: deleting an enrollment locks
- * that student out, and the mistake shows up on exam day. It takes an
- * explicit tick, so the user reads the list first.
- */
 export function diffRoster(current: RosterEntry[], parsed: RosterEntry[]): RosterDiff {
   const byMssv = new Map(current.map((entry) => [entry.mssv.toLowerCase(), entry]));
   const inFile = new Set(parsed.map((entry) => entry.mssv.toLowerCase()));
