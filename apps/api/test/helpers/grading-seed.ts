@@ -42,9 +42,12 @@ export async function seedSession(
 ): Promise<SeedSession> {
   const s = stamp();
   const teacherId = opts.teacherId ?? (await seedTeacher(ds, label));
+  // Tên lớp phải khác nhau giữa các lần gọi: lớp legacy (course_id NULL) có
+  // unique (teacher_id, name), nên hai phiên của CÙNG giảng viên mà cùng 'N01'
+  // sẽ đụng uq_class_legacy_teacher_name.
   const [klass] = await ds.query(
-    `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, 'N01', $2) RETURNING id`,
-    [`Môn ${label}`, teacherId],
+    `INSERT INTO examcollect.class (course_name, name, teacher_id) VALUES ($1, $2, $3) RETURNING id`,
+    [`Môn ${label}`, `N01-${s}`, teacherId],
   );
   const [session] = await ds.query(
     `INSERT INTO examcollect.exam_session
