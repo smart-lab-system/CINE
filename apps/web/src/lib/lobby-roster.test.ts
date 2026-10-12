@@ -38,7 +38,7 @@ function student(
     joinedLate: false,
     firstSeenAt: null,
     lastEventAt: null,
-    afterHeadcount: null as const,
+    afterHeadcount: null,
     ...overrides,
   };
 }
