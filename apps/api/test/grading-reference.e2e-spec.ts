@@ -147,6 +147,15 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
       .set('Authorization', `Bearer ${token}`);
   }
 
+  async function referenceRow(sessionId: string): Promise<{ model_answer_set_at: Date | null }> {
+    const [row] = await dataSource.query(
+      `SELECT model_answer_set_at FROM examcollect.grading_reference WHERE exam_session_id = $1`,
+      [sessionId],
+    );
+    return row;
+  }
+  const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -451,5 +460,92 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     expect((await setReference(session.id, { modelAnswerNote: 'x' }, otherTeacherToken)).status)
       .toBe(403);
     expect((await readiness(session.id, otherTeacherToken)).status).toBe(403);
+  });
+
+  it('viết đáp án (ghi chú) -> model_answer_set_at có giá trị', async () => {
+    const session = await seedSession();
+    await setReference(session.id, { modelAnswerNote: 'chấp nhận cách A' }).expect(200);
+
+    expect((await referenceRow(session.id)).model_answer_set_at).not.toBeNull();
+  });
+
+  // Review Focus #5 (nửa thứ nhất): chọn lại ĐỀ BÀI không phải là ghi đáp án,
+  // nên dấu thời gian của đáp án đứng yên — đây là thứ `updated_at` không làm được.
+  it('chỉ chọn lại đề bài -> model_answer_set_at đứng yên', async () => {
+    const session = await seedSession();
+    await setReference(session.id, { modelAnswerNote: 'A' }).expect(200);
+    const before = await referenceRow(session.id);
+
+    await pause(30);
+    await setReference(session.id, { questionMaterialId: session.materialId }).expect(200);
+
+    const after = await referenceRow(session.id);
+    expect(after.model_answer_set_at!.getTime()).toBe(before.model_answer_set_at!.getTime());
+  });
+
+  // Review Focus #5 (nửa thứ hai): ghi chú LÀ một dạng đáp án.
+  it('viết lại ghi chú -> model_answer_set_at đi tiếp', async () => {
+    const session = await seedSession();
+    await setReference(session.id, { modelAnswerNote: 'A' }).expect(200);
+    const before = await referenceRow(session.id);
+
+    await pause(30);
+    await setReference(session.id, { modelAnswerNote: 'B' }).expect(200);
+
+    const after = await referenceRow(session.id);
+    expect(after.model_answer_set_at!.getTime()).toBeGreaterThan(before.model_answer_set_at!.getTime());
+  });
+
+  it('bỏ đáp án (gửi null) -> model_answer_set_at về NULL', async () => {
+    const session = await seedSession();
+    await setReference(session.id, { modelAnswerNote: 'sẽ bỏ' }).expect(200);
+
+    await setReference(session.id, { modelAnswerNote: null }).expect(200);
+
+    expect((await referenceRow(session.id)).model_answer_set_at).toBeNull();
+  });
+
+  it('sources: phiên chưa có tài liệu -> cả hai đều không có mặt', async () => {
+    const session = await seedSession();
+
+    const res = await readiness(session.id).expect(200);
+
+    expect(res.body.sources.question).toEqual({ present: false, kind: 'teacher_upload', fileName: null, setAt: null });
+    expect(res.body.sources.modelAnswer).toEqual({
+      present: false,
+      kind: 'teacher_upload',
+      fileName: null,
+      setAt: null,
+      unverified: false,
+    });
+  });
+
+  it('sources: đề giảng viên tải lên -> tên file và mốc tải lên', async () => {
+    const session = await seedSession();
+    await setReference(session.id, { questionMaterialId: session.materialId }).expect(200);
+
+    const res = await readiness(session.id).expect(200);
+
+    expect(res.body.sources.question).toEqual({
+      present: true,
+      kind: 'teacher_upload',
+      fileName: 'DeThi.pdf',
+      setAt: expect.any(String),
+    });
+  });
+
+  it('sources: đáp án ghi tay -> tự khai, không có tên file, không mang cờ chưa kiểm chứng', async () => {
+    const session = await seedSession();
+    await setReference(session.id, { modelAnswerNote: 'chấp nhận cả quy hoạch động' }).expect(200);
+
+    const res = await readiness(session.id).expect(200);
+
+    expect(res.body.sources.modelAnswer).toEqual({
+      present: true,
+      kind: 'teacher_upload',
+      fileName: null,
+      setAt: expect.any(String),
+      unverified: false,
+    });
   });
 });

@@ -13,6 +13,7 @@ import { StorageModule } from '../storage/storage.module';
 import { ExamSessionModule } from '../exam-session/exam-session.module';
 import { GradingService } from './grading.service';
 import { GradingRunService } from './grading-run.service';
+import { DeliverableLanguageService } from './deliverable-language.service';
 import { GradingSummaryService } from './grading-summary.service';
 import { GradingReferenceService } from './grading-reference.service';
 import { SubmissionTextService } from './submission-text.service';
@@ -39,12 +40,16 @@ import { PriceService } from './rules/price.service';
 import { ProposalService } from './rules/proposal.service';
 import { RubricErrorService } from './rules/rubric-error.service';
 import { RubricOverviewService } from './rules/rubric-overview.service';
+import { RegradeController } from './regrade.controller';
+import { RegradeService } from './regrade.service';
 import { ErrorExceptionService } from './review/error-exception.service';
 import { CriterionWaiverService } from './rules/criterion-waiver.service';
 import { RubricErrorsController } from './rules/rubric-errors.controller';
 import { RulesController } from './rules/rules.controller';
 import { TestBundleController } from './test-bundle/test-bundle.controller';
 import { TestBundleService } from './test-bundle/test-bundle.service';
+import { AuditReviewController } from './audit/audit-review.controller';
+import { AuditReviewService } from './audit/audit-review.service';
 import { InvestigationContextService } from './pipeline/investigation-context.service';
 import { buildInvestigatorDeps, INVESTIGATOR_DEPS, InvestigatorDepsLifecycle } from './pipeline/investigator-deps';
 import { InvestigatorRunService } from './pipeline/investigator-run.service';
@@ -142,11 +147,21 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     // Chấm điểm chạy trên hàng đợi: một job một bài (CLAUDE.md §7.1.3).
     BullModule.registerQueue({ name: GRADING_QUEUE }),
   ],
-  controllers: [GradingController, RulesController, RubricErrorsController, TestBundleController],
+  controllers: [
+    GradingController,
+    RulesController,
+    RubricErrorsController,
+    TestBundleController,
+    AuditReviewController,
+    RegradeController,
+  ],
   providers: [
     GradingService,
     TestBundleService,
+    AuditReviewService,
     GradingRunService,
+    DeliverableLanguageService,
+    RegradeService,
     GradingSummaryService,
     GradingReferenceService,
     SubmissionTextService,
@@ -198,6 +213,6 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
       inject: [ClaudeGradingProvider, KeywordGradingProvider],
     },
   ],
-  exports: [GradingService, GradingRunService, GradingReferenceService, RubricService, ScoreService],
+  exports: [GradingService, GradingRunService, GradingReferenceService, RubricService, ScoreService, TestBundleService],
 })
 export class GradingModule {}

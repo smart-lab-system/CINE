@@ -13,6 +13,8 @@ export interface Rubric {
    * `key` là định danh ỔN ĐỊNH của tiêu chí — luật trỏ vào nó (`criterionKey`). Lưu rubric mà bỏ `key`
    * thì server sinh lại từ mô tả, và sửa một mô tả có thể âm thầm cắt liên kết luật → tiêu chí.
    */
+  /** Thời điểm tạo bản này (ISO). Server luôn trả; tuỳ chọn để không phá fixture. */
+  createdAt?: string;
   criteria: { id: string; key: string; description: string; maxPoints: number }[];
 }
 
@@ -77,15 +79,40 @@ export interface SubmissionText {
 
 export type ReadinessLevel = 'rubric_only' | 'with_question' | 'with_model_answer';
 
+/**
+ * Mirror `GradingSourceInfo` ở `apps/api/src/grading/grading-reference.service.ts`.
+ *
+ * `sources` là **tuỳ chọn** (`?`) vì `useGradingReadiness` phải chạy được với
+ * một API chưa regenerate — nếu không, mọi màn chuẩn bị vỡ ngay lúc deploy
+ * lệch phiên bản.
+ */
+export interface GradingSourceInfo {
+  present: boolean;
+  kind: 'teacher_upload' | 'authoring';
+  fileName: string | null;
+  setAt: string | null;
+}
+
 export interface GradingReadiness {
   level: ReadinessLevel;
   /** `null` khi đủ tài liệu. Chuỗi này để UI hiện nguyên văn. */
   warning: string | null;
   hasQuestion: boolean;
   hasModelAnswer: boolean;
+  sources?: {
+    question: GradingSourceInfo;
+    modelAnswer: GradingSourceInfo & { unverified: boolean };
+  };
 }
 
 /** Mirrors GradingResultView (apps/api/src/grading/grading.service.ts). */
+/** Mirrors ResultTriage (apps/api/src/grading/scoring/result-triage.ts) — tóm tắt bảng lỗi trên mỗi dòng danh sách. */
+export interface ResultTriage {
+  caseFlags: { code: string; detail: string }[];
+  errorFlags: { ruleKey: string; code: string }[];
+  counts: { counted: number; unpriced: number; refuted: number; excluded: number };
+}
+
 export interface GradingResult {
   id: string;
   submissionId: string;
@@ -105,6 +132,11 @@ export interface GradingResult {
    * toàn hiển thị thẳng: không chứa bài làm của sinh viên hay khoá API.
    */
   ungradableReason: string | null;
+  /**
+   * Lớp lý do không chấm được (§4.4): `system` chấm lại được, `submission` thì không. `null` khi bài không dừng.
+   * **Tuỳ chọn** vì API cũ không gửi nó — và khi vắng, không dòng nào được coi là `system` (không đoán).
+   */
+  ungradableClass?: 'system' | 'submission' | null;
   criterionResults: {
     criterionId: string;
     verdict: 'met' | 'partially_met' | 'not_met';
@@ -155,6 +187,12 @@ export interface GradingResult {
   /** Điểm hiện tại theo §14.2 — MỌI màn đọc điểm từ đây, không phải `aiTotalScore`. */
   currentScore?: number | null;
   currentScoreSource?: string;
+  /** Loại yêu cầu nộp của bài. Server LUÔN trả nó; tuỳ chọn chỉ để không phá fixture cũ. */
+  deliverableType?: 'document' | 'code_project' | 'image' | null;
+  /** Ngôn ngữ đã khai. `code_project` + `pipeline: 'one_shot'` = chấm bằng đọc mã, không chạy. */
+  deliverableLanguage?: 'python' | 'cpp' | 'java' | 'node' | null;
+  /** Tóm tắt bảng lỗi (G1 §2). `null`/thiếu = không có bảng lỗi để tóm tắt — KHÔNG phải "không lỗi nào". */
+  triage?: ResultTriage | null;
 }
 
 export interface StartGradingResult {

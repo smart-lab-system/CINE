@@ -6,10 +6,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { NeedsBackend } from '@/components/needs-backend';
 import { useExamMaterials } from '@/hooks/useExamSession';
 import { useSetGradingReference } from '@/hooks/useGrading';
-import { requestAnswerKeyUpload, type GradingReadiness } from '@/lib/api/grading';
+import { requestAnswerKeyUpload, type GradingReadiness, type GradingSourceInfo } from '@/lib/api/grading';
 import { NO_QUESTION, buildReferencePayload, referenceIsDirty } from '@/lib/grading-reference-form';
 
 /**
@@ -30,17 +29,20 @@ async function uploadAnswerKey(sessionId: string, file: File): Promise<string> {
  * file nào (Security rule 9); lên kho TRƯỚC rồi mới lưu tham chiếu.
  *
  * `onDirtyChange` báo còn thay đổi chưa lưu — màn cha không cho bắt đầu chấm lúc đó, vì bắt đầu chấm khoá tài liệu.
- * "Nguồn của từng tài liệu" (bạn tải lên lúc nào / gắn từ Soạn đề) chưa có trong `grading-readiness`, nên mang
- * nhãn *cần backend*.
+ * "Nguồn của từng tài liệu" (bạn tải lên lúc nào / gắn từ Soạn đề) đọc từ `readiness.sources`. Băng vàng "đáp án
+ * chưa kiểm chứng" hiện cho tới khi phiên có một gói test đã ghim (`hasPinnedBundle` — đã ghim thì theo định
+ * nghĩa đã duyệt), sau đó chỉ còn dòng nguồn trung tính.
  */
 export function ReferenceForm({
   sessionId,
   readiness,
   onDirtyChange,
+  hasPinnedBundle,
 }: {
   sessionId: string;
   readiness: GradingReadiness | undefined;
   onDirtyChange: (dirty: boolean) => void;
+  hasPinnedBundle: boolean;
 }) {
   const materials = useExamMaterials(sessionId);
   const save = useSetGradingReference(sessionId);
@@ -139,9 +141,9 @@ export function ReferenceForm({
             <span>Không dùng đề bài</span>
           </label>
         )}
-        <p className="text-caption text-muted-foreground">
-          Nguồn của tài liệu (tải lên lúc nào, hay gắn từ Soạn đề): <NeedsBackend />
-        </p>
+        {readiness?.sources?.question.present && (
+          <p className="text-caption text-muted-foreground">{sourceLine(readiness.sources.question)}</p>
+        )}
       </fieldset>
 
       <div className="flex flex-col gap-2">
@@ -160,9 +162,17 @@ export function ReferenceForm({
           Đáp án mẫu <span className="font-semibold">không bao giờ hiển thị trên màn chấm</span> và không bao giờ được
           gửi cho mô hình dưới dạng đáp án — nó chỉ dùng để đối chiếu.
         </p>
-        <p className="text-caption text-muted-foreground">
-          Nguồn của đáp án mẫu: <NeedsBackend />
-        </p>
+        {readiness?.sources?.modelAnswer.present && readiness.sources.modelAnswer.unverified && !hasPinnedBundle && (
+          <Alert variant="warning" role="status">
+            <AlertDescription>
+              Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Cả phiên sẽ được đo
+              bằng một cái thước bạn chưa đọc — hãy kiểm tra đáp án và duyệt gói test ở khối bên dưới.
+            </AlertDescription>
+          </Alert>
+        )}
+        {readiness?.sources?.modelAnswer.present && (
+          <p className="text-caption text-muted-foreground">{sourceLine(readiness.sources.modelAnswer)}</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -205,4 +215,12 @@ export function ReferenceForm({
       </div>
     </section>
   );
+}
+
+/** Một câu nguồn: ai đưa tài liệu và lúc nào. Một câu ghi chú không được gọi là "tải lên". */
+function sourceLine(source: GradingSourceInfo): string {
+  const when = source.setAt ? new Date(source.setAt).toLocaleString('vi-VN') : 'thời điểm không ghi nhận';
+  const named = source.fileName ? ` (${source.fileName})` : '';
+  if (source.kind === 'authoring') return `Nguồn: gắn từ Soạn đề lúc ${when}${named}.`;
+  return source.fileName ? `Nguồn: bạn tải lên lúc ${when}${named}.` : `Nguồn: bạn ghi chú lúc ${when}.`;
 }

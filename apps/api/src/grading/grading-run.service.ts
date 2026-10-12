@@ -374,11 +374,15 @@ export class GradingRunService {
         // theo sự tồn tại thôi thì route này thành vô dụng ĐÚNG LÚC nó
         // cần nhất: bài hết retry là bài chắc chắn treo.
         //
-        // Job đã xong thì dòng đã rời `ai_grading`, nên nó không lọt vào
-        // truy vấn ở trên — chỉ còn hai ca ở đây: đang chạy (bỏ qua) và
-        // đã chết (xoá đi rồi xếp lại, vì `jobId` trùng sẽ bị BullMQ từ
-        // chối nếu bản cũ còn nằm đó).
-        if (!(await existing.isFailed())) {
+        // Job đã xong thường đi cùng dòng đã rời `ai_grading`, nên không
+        // lọt vào truy vấn ở trên. NGOẠI LỆ là chấm lại (G3): dòng được đưa
+        // về `ai_grading` trong khi job `completed` của lượt TRƯỚC còn nằm
+        // đó, và nếu `enqueue` của chấm lại lỗi giữa chừng thì chính route
+        // này là lưới cứu. Dòng ở `ai_grading` mà job đã `completed` thì job
+        // ấy là của lượt cũ. Vậy chỉ còn một ca bỏ qua: đang chạy hoặc
+        // đang chờ. Job đã chết hay đã xong thì xoá rồi xếp lại, vì `jobId`
+        // trùng sẽ bị BullMQ từ chối nếu bản cũ còn nằm đó.
+        if (!(await existing.isFailed()) && !(await existing.isCompleted())) {
           continue;
         }
         await existing.remove();

@@ -6,6 +6,7 @@ import {
   listExamSessions,
   listExamSessionsInRange,
   getExamSession,
+  declareDeliverableLanguage,
   finalizeExamSession,
   confirmSessionEnd,
   openSession,
@@ -13,6 +14,7 @@ import {
   listSubmissions,
   archiveRecheck,
   type CreateExamSessionInput,
+  type DeclaredLanguage,
   type ExamSessionResponse,
   type OpenSessionResult,
   type RecollectResult,
@@ -80,6 +82,21 @@ export function useExamSessionDetail(id: string | undefined) {
     queryKey: ['exam-session', id],
     queryFn: () => getExamSession(id!),
     enabled: !!id,
+  });
+}
+
+/**
+ * Khai ngôn ngữ của MỘT yêu cầu nộp code (G1 §3). `onSettled`: một lượt bị từ chối (409: phiên đã khoá hay bài đã
+ * có kết quả) cũng làm mới chi tiết phiên, để ô chọn không giữ một giá trị mà server vừa phản bác.
+ */
+export function useDeclareDeliverableLanguage(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ deliverableId, language }: { deliverableId: string; language: DeclaredLanguage }) =>
+      declareDeliverableLanguage(examSessionId!, deliverableId, language),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-session', examSessionId] });
+    },
   });
 }
 

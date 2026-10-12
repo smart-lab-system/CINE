@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { NeedsBackend } from '@/components/needs-backend';
 import { useSetErrorException } from '@/hooks/useGrading';
 import { SOURCE_LABEL, VERDICT_LABEL, lensLabel, mergedVerdict } from '@/lib/grading-vocab';
 import { formatVnPoints } from '@/lib/format';
@@ -110,13 +109,27 @@ export function ErrorList({
               {editable && (
                 <div className="flex flex-wrap items-center gap-3 text-small">
                   {refuted && (
-                    // Backend gap (review C1): `include` cannot lift a refutation — score-core lets `refuted` win — yet
-                    // the write would still mark the result reviewed. Locked until the backend honours it.
                     <>
-                      <Button variant="link" className="h-auto p-0" disabled>
+                      <Button
+                        variant="link"
+                        className="h-auto p-0"
+                        disabled={busy}
+                        onClick={() => setException.mutate({ resultId, ruleId: error.ruleId, direction: 'exclude' })}
+                      >
+                        Đồng ý bác bỏ
+                      </Button>
+                      <Button
+                        variant="link"
+                        className="h-auto p-0"
+                        disabled={busy}
+                        onClick={() => setException.mutate({ resultId, ruleId: error.ruleId, direction: 'include' })}
+                      >
                         Không đồng ý — giữ lỗi này cho riêng bài này
                       </Button>
-                      <NeedsBackend />
+                      <span className="text-caption text-muted-foreground">
+                        Quyết định này chỉ áp cho bài này và được ghi lại; sau đó chỉ đổi được chiều, không quay về
+                        kết luận của hệ thống.
+                      </span>
                     </>
                   )}
                   {excluded && (

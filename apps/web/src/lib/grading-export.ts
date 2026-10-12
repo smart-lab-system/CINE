@@ -19,7 +19,7 @@ const HEADER = ['MSSV', 'Họ tên', 'Lớp', 'Trạng thái', 'Điểm', 'Ghi c
  */
 const FORMULA_LEADING = /^[=+\-@\t\r]/;
 
-function csvField(value: string): string {
+export function csvField(value: string): string {
   const safe = FORMULA_LEADING.test(value) ? `'${value}` : value;
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }

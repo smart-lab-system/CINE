@@ -88,6 +88,14 @@ export class GradingReferenceEntity extends BaseEntity {
   @Column({ name: 'model_answer_origin', type: 'enum', enum: MODEL_ANSWER_ORIGINS, enumName: 'model_answer_origin', nullable: true })
   modelAnswerOrigin!: ModelAnswerOrigin | null;
 
+  /**
+   * LÚC ĐÁP ÁN MẪU ĐƯỢC ĐẶT — khác `updated_at` có chủ đích: `updated_at` cũng
+   * đổi khi chỉ chọn lại đề bài. Cột này đổi ở đúng lúc khoá đáp án hoặc ghi
+   * chú được gửi lên, cùng nhịp với `modelAnswerOrigin` ở `upsert`.
+   */
+  @Column({ name: 'model_answer_set_at', type: 'timestamptz', nullable: true })
+  modelAnswerSetAt!: Date | null;
+
   @Column({ name: 'created_by', type: 'uuid' })
   createdBy!: string;
 

@@ -204,6 +204,10 @@ describe('Grading (e2e)', () => {
       const versions = listed.body.map((r: { version: number; isActive: boolean }) => r);
       expect(versions.find((r: { version: number }) => r.version === 1).isActive).toBe(false);
       expect(versions.find((r: { version: number }) => r.version === 2).isActive).toBe(true);
+      // G1 §5: mỗi bản mang thời điểm tạo, để "rubric mặc định = bản tạo gần nhất" suy ra được.
+      const createdAt = (v: number) => Date.parse(versions.find((r: { version: number }) => r.version === v).createdAt);
+      expect(Number.isNaN(createdAt(1))).toBe(false);
+      expect(createdAt(2)).toBeGreaterThanOrEqual(createdAt(1));
       expect(versions.find((r: { version: number }) => r.version === 1).criteria).toHaveLength(1);
     });
 

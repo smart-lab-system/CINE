@@ -175,6 +175,60 @@ describe('computeScore', () => {
     expect(out.scoreHundredths).toBe(1000 - 150 - 50); // không đổi so với không có phản biện nào
     expect(out.breakdown.errorFlags).not.toContainEqual({ ruleKey: 'sai_bien', code: 'refuted' });
   });
+
+  // G1 §1: `refuted` là kết luận của một lượt KHÁC (phản biện lúc chấm); ngoại lệ là quyết định đã đưa ra cho
+  // riêng bài này (§2.2). Quyết định của giảng viên thắng.
+  describe('ngoại lệ của giảng viên thắng lỗi bị bác bỏ (G1 §1)', () => {
+    // ten_bien là luật MODEL, nên góc kiểm được phép bác bỏ nó (§4.1) — cùng khuôn ca "bị bác bỏ" ở trên.
+    const refutingTen = () =>
+      stored({
+        challenge: {
+          perError: [{ challenger: 'lens', perError: [{ ruleKey: 'ten_bien', status: 'refuted', toolCallIds: [] }] }],
+          caseNotes: [],
+        },
+      });
+    const errorOf = (out: ReturnType<typeof computeScore>) => out.breakdown.errors.find((e) => e.ruleKey === 'ten_bien');
+
+    it('include → lỗi tính vào điểm, cờ refuted mất', () => {
+      const out = computeScore(input({ stored: refutingTen(), exceptions: new Map([['id-ten_bien', 'include']]) }));
+      expect(errorOf(out)?.counted).toBe('counted');
+      expect(out.scoreHundredths).toBe(1000 - 150 - 50);
+      expect(out.breakdown.errorFlags).not.toContainEqual({ ruleKey: 'ten_bien', code: 'refuted' });
+    });
+
+    it('exclude ("đồng ý bác bỏ") → nhãn excluded chứ không phải refuted, điểm không đổi, cờ refuted mất', () => {
+      const out = computeScore(input({ stored: refutingTen(), exceptions: new Map([['id-ten_bien', 'exclude']]) }));
+      expect(errorOf(out)?.counted).toBe('excluded');
+      expect(out.scoreHundredths).toBe(1000 - 150);
+      expect(out.breakdown.errorFlags.map((f) => f.code)).not.toContain('refuted');
+    });
+
+    it('include mà luật chưa có giá → unpriced kèm cờ unpriced, không thành lỗi miễn phí (Review Focus 1)', () => {
+      const out = computeScore(
+        input({
+          stored: refutingTen(),
+          rules: [BIEN, { ...TEN, deductionHundredths: null }],
+          exceptions: new Map([['id-ten_bien', 'include']]),
+        }),
+      );
+      expect(errorOf(out)?.counted).toBe('unpriced');
+      expect(out.breakdown.errorFlags).toContainEqual({ ruleKey: 'ten_bien', code: 'unpriced' });
+      expect(out.breakdown.errorFlags.map((f) => f.code)).not.toContain('refuted');
+      expect(out.scoreHundredths).toBe(1000 - 150);
+    });
+
+    it('không có ngoại lệ → vẫn refuted (giữ nguyên hành vi §6.2)', () => {
+      const out = computeScore(input({ stored: refutingTen() }));
+      expect(errorOf(out)?.counted).toBe('refuted');
+      expect(out.breakdown.errorFlags).toContainEqual({ ruleKey: 'ten_bien', code: 'refuted' });
+    });
+
+    it('include trên lỗi KHÔNG bị bác bỏ → không đổi so với hôm nay (T-EXC-2)', () => {
+      const out = computeScore(input({ exceptions: new Map([['id-ten_bien', 'include']]) }));
+      expect(errorOf(out)?.counted).toBe('counted');
+      expect(out.scoreHundredths).toBe(1000 - 150 - 50);
+    });
+  });
 });
 
 describe('repriceBreakdown — "áp giá mới cho phiên đã chốt" chỉ đổi GIÁ (§2.2, review I3)', () => {

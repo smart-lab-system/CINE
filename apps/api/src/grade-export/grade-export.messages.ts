@@ -1,0 +1,31 @@
+import { MAX_DATA_ROWS } from './grade-export.types';
+
+/** Mọi câu tiếng Việt của module — chốt ở spec §4.7 để test khẳng định NGUYÊN VĂN. */
+export const MSG = {
+  wrongExtension: 'Chỉ nhận file .xlsx. Nếu sổ điểm của bạn là .csv hoặc .xls, hãy mở bằng Excel rồi lưu lại thành .xlsx.',
+  tooLarge: 'File quá lớn (giới hạn 5 MB).',
+  noFile: 'Chưa thấy file trên kho lưu trữ — hãy tải lên trước.',
+  encryptedOrLegacy: 'File có mật khẩu hoặc là định dạng .xls cũ. Hãy bỏ mật khẩu, mở bằng Excel và lưu lại thành .xlsx.',
+  notZip: 'Đây không phải file .xlsx.',
+  corrupt: 'File .xlsx bị hỏng hoặc không đọc được.',
+  macro: 'File có macro (.xlsm) — hãy lưu lại thành .xlsx thường.',
+  zipLimit: (detail: string) => `File giải nén ra quá lớn hoặc có quá nhiều phần (${detail}).`,
+  unsupported: (detail: string) => `Cấu trúc file không được hỗ trợ (${detail}). Hãy mở bằng Excel và lưu lại thành .xlsx.`,
+  sheetTooLarge: (detail: string) => `Trang tính quá lớn hoặc quá rộng (${detail}).`,
+  noSheet: (name: string) => `Không thấy trang tính "${name}" trong file.`,
+  protectedSheet: 'Trang tính đang được bảo vệ. Hãy bỏ bảo vệ trong Excel rồi tải lại.',
+  notFinalized: 'Phiên chưa chốt điểm — chốt điểm trước rồi mới ghi vào sổ điểm.',
+  needDeliverable: (n: number) => `Phiên có ${n} yêu cầu nộp — hãy chọn ghi điểm của yêu cầu nào.`,
+  foreignDeliverable: 'Yêu cầu nộp này không thuộc phiên thi.',
+  sameColumns: 'Cột MSSV, cột điểm và cột lý do phải là ba cột khác nhau.',
+  columnTooFar: (col: string) => `Cột ${col} nằm ngoài giới hạn (tối đa cột BH).`,
+  tooManyRows: `Quá ${MAX_DATA_ROWS} dòng dữ liệu — hãy tách file.`,
+  duplicates: (n: number, examples: string) => `${n} MSSV xuất hiện nhiều lần trong file (${examples}). Hãy sửa file rồi tải lại — hệ thống không đoán ghi vào dòng nào.`,
+  noMatch: (firstDataRow: number) => `Không có dòng nào từ dòng ${firstDataRow} khớp sinh viên của phiên — hãy kiểm tra lại cột MSSV và dòng bắt đầu.`,
+  overwrite: (n: number) => `${n} ô đã có giá trị và sẽ bị ghi đè — hãy xác nhận ghi đè.`,
+  decreases: (n: number) => `${n} bài bị giảm điểm so với lần ghi trước — hãy xem và xác nhận trước khi ghi.`,
+  digestChanged: 'Kết quả chấm đã đổi kể từ lúc xem trước — hãy xem trước lại.',
+  exportNotFound: 'Không tìm thấy lượt xuất này.',
+  noOutput: 'Lượt xuất này chưa có file đầu ra.',
+  outputWriteFailed: (status: number) => `Không ghi được file kết quả lên kho lưu trữ (HTTP ${status}).`,
+} as const;
