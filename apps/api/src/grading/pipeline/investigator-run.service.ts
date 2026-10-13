@@ -2,6 +2,9 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { ChallengePhaseResult, runChallengePhase } from '../investigator/challenge-phase';
+import { costOf } from '../investigator/pricing';
+import { promptVersionOf } from '../investigator/prompt-version';
+import { mergeUsage } from '../investigator/usage-sink';
 import { investigate } from '../investigator/investigate';
 import type { InvestigationContext, InvestigationResult } from '../investigator/types';
 import { lockTeacherScoring, teacherOfResult } from '../scoring/score-inputs';
@@ -66,11 +69,17 @@ export class InvestigatorRunService {
       modelCeiling: Math.min(1, ...result.investigation.modelsUsed.map((m) => this.deps.ceilingOf(m))),
       challenge: challengeResult,
     };
+    const investigationUsage = result.usageByModel ?? {};
+    // `tokensIn`/`tokensOut` GIỮ ý nghĩa cũ (chỉ agent điều tra) để so được với dữ liệu trước P0;
+    // token của bốn lăng kính nằm trong `usage_by_model.challenge`.
     const out = await this.scores.finishAttempt(resultId, attemptId, stored, {
       modelUsed: result.investigation.modelsUsed.join('+').slice(0, 200) || null,
       tokensIn: result.usage.inputTokens,
       tokensOut: result.usage.outputTokens,
       sandboxHost: hostOf(result),
+      promptVersion: promptVersionOf(),
+      usageByModel: { investigation: investigationUsage, challenge: phase.usageByModel },
+      costUsd: costOf(mergeUsage(investigationUsage, phase.usageByModel), (model) => this.deps.priceOf?.(model)),
     });
     if (out.kind === 'ungradable') this.logger.warn(`kết quả ${resultId}: không chấm được (${out.class}) — ${out.reason}`);
   }

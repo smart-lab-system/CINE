@@ -72,6 +72,60 @@ describe('ScoreService.finishAttempt (e2e)', () => {
     expect(await result(r.resultId)).toMatchObject({ status: 'auto_approved', ai_total_score: '8.50' });
   });
 
+  it('P0 — ghi prompt_version, usage_by_model và cost_usd trong CÙNG câu UPDATE đặt outcome (trigger bất biến không chặn)', async () => {
+    const ctx = await world('fa-usage');
+    const r = await running(ctx);
+    const usageByModel = {
+      investigation: { m: { inputTokens: 100, outputTokens: 20 } },
+      challenge: { m: { inputTokens: 50, outputTokens: 10 } },
+    };
+    const out = await scores.finishAttempt(r.resultId, r.attemptId, storedWith(SEEN), {
+      ...META,
+      promptVersion: 'abc123def456',
+      usageByModel,
+      costUsd: 0.0123,
+    });
+    expect(out).toMatchObject({ kind: 'scored' });
+    const [a] = await ds.query(
+      `SELECT outcome, prompt_version, usage_by_model, cost_usd FROM examcollect.grading_attempt WHERE id = $1`,
+      [r.attemptId],
+    );
+    expect(a.outcome).toBe('graded');
+    expect(a.prompt_version).toBe('abc123def456');
+    expect(a.usage_by_model).toEqual(usageByModel);
+    expect(Number(a.cost_usd)).toBeCloseTo(0.0123, 4);
+  });
+
+  it('P0 — không khai gì thì ba cột mới là NULL (hành vi cũ không đổi)', async () => {
+    const ctx = await world('fa-usage-none');
+    const r = await running(ctx);
+    await scores.finishAttempt(r.resultId, r.attemptId, storedWith(SEEN), META);
+    const [a] = await ds.query(
+      `SELECT prompt_version, usage_by_model, cost_usd FROM examcollect.grading_attempt WHERE id = $1`,
+      [r.attemptId],
+    );
+    expect(a).toEqual({ prompt_version: null, usage_by_model: null, cost_usd: null });
+  });
+
+  it('P0 — lượt không chấm được vẫn ghi token đã tiêu (điều tra tốn tiền dù bài ra ungradable)', async () => {
+    const ctx = await world('fa-usage-ungradable');
+    const r = await running(ctx);
+    const stored: StoredInvestigation = {
+      ...storedWith(SEEN),
+      result: resultWith({ kind: 'ungradable', ungradable: { class: 'submission', reason: 'bài nộp không có dòng mã nào (T-EMPTY-1)' } }),
+    };
+    const usageByModel = { investigation: { m: { inputTokens: 7, outputTokens: 3 } }, challenge: {} };
+    await scores.finishAttempt(r.resultId, r.attemptId, stored, { ...META, promptVersion: 'fff000fff000', usageByModel, costUsd: null });
+    const [a] = await ds.query(
+      `SELECT outcome, prompt_version, usage_by_model, cost_usd FROM examcollect.grading_attempt WHERE id = $1`,
+      [r.attemptId],
+    );
+    expect(a.outcome).toBe('ungradable');
+    expect(a.prompt_version).toBe('fff000fff000');
+    expect(a.usage_by_model).toEqual(usageByModel);
+    expect(a.cost_usd).toBeNull();
+  });
+
   it('cuộc điều tra tự kết luận không chấm được (bài rỗng) → lượt ungradable/submission, bài gắn cờ đúng lớp, không lượt tính', async () => {
     const ctx = await world('fa-empty');
     const r = await running(ctx);

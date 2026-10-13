@@ -132,4 +132,31 @@ describe('ModelPool — xoay bậc ở tầng vòng lặp (§7.3)', () => {
     expect(process.env.NODE_ENV).toBe('test');
     expect(buildInvestigatorTiers()).toEqual([]);
   });
+
+  it('P0 — bậc đọc giá từ env GRADING_TIERn_PRICE_*; thiếu một trong hai thì không có giá', () => {
+    const touched = [
+      'NODE_ENV',
+      'GRADING_TIER1_BASE_URL', 'GRADING_TIER1_MODEL', 'GRADING_TIER1_API_KEY', 'GRADING_TIER1_PRICE_IN_PER_MTOK', 'GRADING_TIER1_PRICE_OUT_PER_MTOK',
+      'GRADING_TIER2_BASE_URL', 'GRADING_TIER2_MODEL', 'GRADING_TIER2_API_KEY', 'GRADING_TIER2_PRICE_IN_PER_MTOK', 'GRADING_TIER2_PRICE_OUT_PER_MTOK',
+    ];
+    const saved = Object.fromEntries(touched.map((k) => [k, process.env[k]]));
+    try {
+      process.env.NODE_ENV = 'development';
+      Object.assign(process.env, {
+        GRADING_TIER1_BASE_URL: 'http://tier1', GRADING_TIER1_MODEL: 'm1', GRADING_TIER1_API_KEY: 'k1',
+        GRADING_TIER1_PRICE_IN_PER_MTOK: '3', GRADING_TIER1_PRICE_OUT_PER_MTOK: '15',
+        GRADING_TIER2_BASE_URL: 'http://tier2', GRADING_TIER2_MODEL: 'm2', GRADING_TIER2_API_KEY: 'k2',
+        GRADING_TIER2_PRICE_IN_PER_MTOK: '3',
+      });
+      delete process.env.GRADING_TIER2_PRICE_OUT_PER_MTOK;
+      const tiers = buildInvestigatorTiers();
+      expect(tiers.find((t) => t.model === 'm1')?.price).toEqual({ inPerMTok: 3, outPerMTok: 15 });
+      expect(tiers.find((t) => t.model === 'm2')?.price).toBeUndefined();
+    } finally {
+      for (const k of touched) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
+  });
 });

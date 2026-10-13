@@ -48,6 +48,14 @@ export class GradingAttemptEntity extends BaseEntity {
   @Column({ name: 'cost_usd', type: 'numeric', precision: 10, scale: 4, nullable: true })
   costUsd!: string | null;
 
+  /** Băm system prompt của agent điều tra lúc chạy (P0); NULL với lượt chạy trước P0. */
+  @Column({ name: 'prompt_version', type: 'varchar', length: 40, nullable: true })
+  promptVersion!: string | null;
+
+  /** `{ investigation, challenge }` — mỗi phần là token theo model (P0); NULL với lượt chạy trước P0. */
+  @Column({ name: 'usage_by_model', type: 'jsonb', nullable: true })
+  usageByModel!: Record<string, unknown> | null;
+
   @Column({ name: 'triggered_by', type: 'uuid' })
   triggeredBy!: string;
 

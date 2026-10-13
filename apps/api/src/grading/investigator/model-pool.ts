@@ -1,3 +1,4 @@
+import { ModelPrice, readPrice } from './pricing';
 import { ChatTextRequest, ChatUsage, postChatText } from '../ai-provider/openai-chat';
 import { classifyProviderFailure } from '../ai-provider/provider-failure';
 import { MAX_TIERS, readTier } from '../ai-provider/select-grading-provider';
@@ -11,6 +12,8 @@ export interface ModelTier {
   model: string;
   /** Trần tin cậy của bậc (GRADING_TIERn_CEILING) — chỉ kéo được nguồn `llm_only` xuống (§4.2). */
   ceiling: number;
+  /** Giá của bậc (env `GRADING_TIER<n>_PRICE_*`); thiếu thì chi phí lượt dùng bậc này là `null`. */
+  price?: ModelPrice;
   call(request: ChatTextRequest): Promise<{ content: string; usage: ChatUsage }>;
 }
 
@@ -170,6 +173,7 @@ export function buildInvestigatorTiers(): ModelTier[] {
       label: config.tier,
       model: config.model,
       ceiling: config.ceiling,
+      price: readPrice(process.env, index),
       call: (request) => postChatText(config, request),
     });
   }

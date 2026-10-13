@@ -1,3 +1,4 @@
+import type { ModelPrice } from '../investigator/pricing';
 import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { createSandboxClient } from '../../sandbox/sandbox.client';
 import { CaseLens } from '../investigator/case-lens';
@@ -22,6 +23,8 @@ export interface InvestigatorDeps {
   caseLenses: CaseLens[];
   /** Trần tin cậy của bậc model đã trả lời (§4.2) — chỉ kéo được `llm_only` xuống. */
   ceilingOf(model: string): number;
+  /** Giá của model (P0 đo nền); tuỳ chọn để mọi nơi dựng deps bằng tay không phải đổi. */
+  priceOf?(model: string): ModelPrice | undefined;
   close(): Promise<void>;
 }
 
@@ -44,6 +47,7 @@ export function buildInvestigatorDeps(
 ): InvestigatorDeps {
   const models = factories.tiers();
   const ceilings = new Map(models.map((m) => [m.model, m.ceiling]));
+  const prices = new Map(models.map((m) => [m.model, m.price]));
   const url = env.SANDBOX_REDIS_URL?.trim();
   const built = url ? factories.sandbox({ redisUrl: url, prefix: env.SANDBOX_PREFIX?.trim() || undefined, log }) : null;
   const sandbox = built?.client ?? null;
@@ -66,6 +70,7 @@ export function buildInvestigatorDeps(
     challengers,
     caseLenses,
     ceilingOf: (model) => ceilings.get(model) ?? UNKNOWN_MODEL_CEILING,
+    priceOf: (model) => prices.get(model),
     close: async () => {
       await built?.close();
     },

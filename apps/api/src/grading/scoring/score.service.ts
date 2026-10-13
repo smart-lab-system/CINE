@@ -1,3 +1,4 @@
+import type { UsageByModel } from '../investigator/usage-sink';
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
@@ -29,6 +30,10 @@ export interface AttemptMeta {
   tokensIn: number;
   tokensOut: number;
   sandboxHost: object | null;
+  /** P0 đo nền — mọi trường tuỳ chọn; không khai thì ghi NULL (hành vi cũ). */
+  promptVersion?: string | null;
+  usageByModel?: { investigation: UsageByModel; challenge: UsageByModel } | null;
+  costUsd?: number | null;
 }
 
 export type FinishOutcome =
@@ -160,9 +165,20 @@ export class ScoreService {
       await m.query(
         `UPDATE examcollect.grading_attempt
             SET outcome = 'graded', investigation = $2, model_used = $3, tokens_in = $4, tokens_out = $5,
-                sandbox_host = $6, finished_at = clock_timestamp()
+                sandbox_host = $6, prompt_version = $7, usage_by_model = $8, cost_usd = $9,
+                finished_at = clock_timestamp()
           WHERE id = $1 AND outcome IS NULL`,
-        [attemptId, JSON.stringify(stored), meta.modelUsed, meta.tokensIn, meta.tokensOut, meta.sandboxHost === null ? null : JSON.stringify(meta.sandboxHost)],
+        [
+          attemptId,
+          JSON.stringify(stored),
+          meta.modelUsed,
+          meta.tokensIn,
+          meta.tokensOut,
+          meta.sandboxHost === null ? null : JSON.stringify(meta.sandboxHost),
+          meta.promptVersion ?? null,
+          meta.usageByModel == null ? null : JSON.stringify(meta.usageByModel),
+          meta.costUsd ?? null,
+        ],
       );
       const scored = await this.writeInitial(m, ctx, stored, { ...out!, scoreHundredths: out!.scoreHundredths! });
       return { kind: 'scored', ...scored };
@@ -205,7 +221,8 @@ export class ScoreService {
     await m.query(
       `UPDATE examcollect.grading_attempt
           SET outcome = 'ungradable', ungradable_class = $2, ungradable_reason = $3, investigation = $4,
-              model_used = $5, tokens_in = $6, tokens_out = $7, sandbox_host = $8, finished_at = clock_timestamp()
+              model_used = $5, tokens_in = $6, tokens_out = $7, sandbox_host = $8,
+              prompt_version = $9, usage_by_model = $10, cost_usd = $11, finished_at = clock_timestamp()
         WHERE id = $1 AND outcome IS NULL`,
       [
         attemptId,
@@ -216,6 +233,9 @@ export class ScoreService {
         meta?.tokensIn ?? null,
         meta?.tokensOut ?? null,
         meta?.sandboxHost == null ? null : JSON.stringify(meta.sandboxHost),
+        meta?.promptVersion ?? null,
+        meta?.usageByModel == null ? null : JSON.stringify(meta.usageByModel),
+        meta?.costUsd ?? null,
       ],
     );
     const updated = await m
