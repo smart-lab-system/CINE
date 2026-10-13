@@ -1,5 +1,6 @@
 import { ChatTextRequest } from '../ai-provider/openai-chat';
 import { badOutputError, httpProviderError } from '../ai-provider/provider-failure';
+import { costOf } from './pricing';
 import { buildInvestigatorTiers, DeadlineExceededError, ModelPool, ModelsExhaustedError, ModelTier } from './model-pool';
 
 const REQ: ChatTextRequest = { system: 's', messages: [{ role: 'user', content: 'u' }], schemaName: 'x', schema: {}, maxTokens: 1 };
@@ -106,6 +107,41 @@ describe('ModelPool — xoay bậc ở tầng vòng lặp (§7.3)', () => {
     expect((error as ModelsExhaustedError).usage.inputTokens).toBe(10);
   });
 
+  it('P0 — token tách theo BẬC đã tiêu: bậc A hỏng hai lần rồi B trả lời → A giữ token của A, B giữ của B', async () => {
+    const withUsage = () => Object.assign(badOutputError('cắt cụt'), { usage: { ...USAGE, inputTokens: 1000, outputTokens: 100 } });
+    const a = tier('A', [withUsage(), withUsage()]);
+    const b = tier('B', ['OK b']);
+    const r = await new ModelPool([a, b], { sleep: noSleep }).ask(REQ, parse);
+    expect(r.model).toBe('B-model');
+    expect(r.usage.inputTokens).toBe(2005); // tổng mọi bậc: 2 × 1000 của A + 5 của B
+    expect(r.usageByModel).toEqual({
+      'A-model': { inputTokens: 2000, outputTokens: 200 },
+      'B-model': { inputTokens: 5, outputTokens: 3 },
+    });
+    // Chi phí theo ĐÚNG bậc: A không có giá thì KHÔNG ra số (trước đây ra số sai vì gán hết cho B).
+    const price = { inPerMTok: 1, outPerMTok: 2 };
+    expect(costOf(r.usageByModel, (m) => (m === 'B-model' ? price : undefined))).toBeNull();
+    expect(costOf(r.usageByModel, () => price)).toBe(0.0024); // (2005·1 + 203·2) / 1e6, làm tròn 4 chữ số
+  });
+
+  it('P0 — hết bậc hay hết giờ: lỗi mang token tách theo bậc', async () => {
+    const withUsage = () => Object.assign(badOutputError('cắt cụt'), { usage: USAGE });
+    const exhausted = (await new ModelPool([tier('A', [withUsage(), withUsage()]), tier('B', [withUsage(), withUsage()])], { sleep: noSleep })
+      .ask(REQ, parse)
+      .catch((e: unknown) => e)) as ModelsExhaustedError;
+    expect(exhausted.usageByModel).toEqual({
+      'A-model': { inputTokens: 10, outputTokens: 6 },
+      'B-model': { inputTokens: 10, outputTokens: 6 },
+    });
+    let t = 0;
+    const slow = tier('A', [Object.assign(badOutputError('x'), { usage: USAGE })]);
+    const late = (await new ModelPool([slow], { sleep: async () => undefined })
+      .ask(REQ, parse, { deadline: 1_500, now: () => (t += 1_000) })
+      .catch((e: unknown) => e)) as DeadlineExceededError;
+    expect(late).toBeInstanceOf(DeadlineExceededError);
+    expect(late.usageByModel).toBeDefined();
+  });
+
   it('review I1 — hạn chót là CỨNG: thử lại và xoay bậc không kéo quá deadline; mỗi lần thử ≤ phần còn lại', async () => {
     let t = 0;
     const timeouts: number[] = [];
@@ -131,5 +167,32 @@ describe('ModelPool — xoay bậc ở tầng vòng lặp (§7.3)', () => {
   it('NODE_ENV=test → không có bậc nào (test không bao giờ gọi API tính tiền)', () => {
     expect(process.env.NODE_ENV).toBe('test');
     expect(buildInvestigatorTiers()).toEqual([]);
+  });
+
+  it('P0 — bậc đọc giá từ env GRADING_TIERn_PRICE_*; thiếu một trong hai thì không có giá', () => {
+    const touched = [
+      'NODE_ENV',
+      'GRADING_TIER1_BASE_URL', 'GRADING_TIER1_MODEL', 'GRADING_TIER1_API_KEY', 'GRADING_TIER1_PRICE_IN_PER_MTOK', 'GRADING_TIER1_PRICE_OUT_PER_MTOK',
+      'GRADING_TIER2_BASE_URL', 'GRADING_TIER2_MODEL', 'GRADING_TIER2_API_KEY', 'GRADING_TIER2_PRICE_IN_PER_MTOK', 'GRADING_TIER2_PRICE_OUT_PER_MTOK',
+    ];
+    const saved = Object.fromEntries(touched.map((k) => [k, process.env[k]]));
+    try {
+      process.env.NODE_ENV = 'development';
+      Object.assign(process.env, {
+        GRADING_TIER1_BASE_URL: 'http://tier1', GRADING_TIER1_MODEL: 'm1', GRADING_TIER1_API_KEY: 'k1',
+        GRADING_TIER1_PRICE_IN_PER_MTOK: '3', GRADING_TIER1_PRICE_OUT_PER_MTOK: '15',
+        GRADING_TIER2_BASE_URL: 'http://tier2', GRADING_TIER2_MODEL: 'm2', GRADING_TIER2_API_KEY: 'k2',
+        GRADING_TIER2_PRICE_IN_PER_MTOK: '3',
+      });
+      delete process.env.GRADING_TIER2_PRICE_OUT_PER_MTOK;
+      const tiers = buildInvestigatorTiers();
+      expect(tiers.find((t) => t.model === 'm1')?.price).toEqual({ inPerMTok: 3, outPerMTok: 15 });
+      expect(tiers.find((t) => t.model === 'm2')?.price).toBeUndefined();
+    } finally {
+      for (const k of touched) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
   });
 });

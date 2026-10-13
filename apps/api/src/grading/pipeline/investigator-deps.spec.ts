@@ -62,4 +62,12 @@ describe('buildInvestigatorDeps — bậc model và cổng sandbox của đườ
     );
     expect(log).toHaveBeenCalledWith(expect.stringContaining('cùng họ'));
   });
+
+  it('P0 — priceOf: giá của bậc có model đó; model không giá hoặc lạ → undefined (không đoán)', () => {
+    const priced: ModelTier = { ...tier('m-a', 0.9), price: { inPerMTok: 3, outPerMTok: 15 } };
+    const deps = buildInvestigatorDeps({}, { tiers: () => [priced, tier('m-b', 0.7)], sandbox: jest.fn() });
+    expect(deps.priceOf?.('m-a')).toEqual({ inPerMTok: 3, outPerMTok: 15 });
+    expect(deps.priceOf?.('m-b')).toBeUndefined();
+    expect(deps.priceOf?.('m-lạ')).toBeUndefined();
+  });
 });

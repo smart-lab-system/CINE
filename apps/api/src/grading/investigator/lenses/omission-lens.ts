@@ -1,3 +1,4 @@
+import type { UsageSink } from '../usage-sink';
 import { CaseLens } from '../case-lens';
 import { CaseLensNote } from '../challenge';
 import { LensDeps, runLensLoop } from '../lens-loop';
@@ -28,7 +29,7 @@ export class OmissionLens implements CaseLens {
   readonly name = 'bo_sot';
   constructor(private readonly deps: LensDeps) {}
 
-  async review(ctx: InvestigationContext, verdict: Verdict, _toolCalls: ToolCall[]): Promise<CaseLensNote> {
+  async review(ctx: InvestigationContext, verdict: Verdict, _toolCalls: ToolCall[], usage?: UsageSink): Promise<CaseLensNote> {
     // Chỉ luật BẰNG LỜI có trong bảng và chưa được kết luận mới có thể bị bỏ sót: luật máy do
     // `diagnose()` tự áp từ run_tests.
     const concluded = new Set(verdict.errors.map((e) => e.ruleKey));
@@ -51,6 +52,7 @@ export class OmissionLens implements CaseLens {
       lensArgsFor as never,
       (reply) => (reply.action === 'final' ? reply.conclusion : null),
       this.deps,
+      usage,
     );
     if (!r.conclusion) return { lens: this.name, suspected: false, note: clampNote(`không kết luận được — ${r.failure}`) };
 

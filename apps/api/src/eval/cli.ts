@@ -14,7 +14,12 @@ import { HostFingerprint } from '../sandbox/contract';
 import { createSandboxClient } from '../sandbox/sandbox.client';
 import { compareRuns, modelConfound } from './compare';
 import { group5Gate, trackedPrivateFiles, withoutGroup5 } from './group5';
+import { CheatingLens } from '../grading/investigator/lenses/cheating-lens';
+import { CorrectnessLens } from '../grading/investigator/lenses/correctness-lens';
+import { OmissionLens } from '../grading/investigator/lenses/omission-lens';
+import { SeverityLens } from '../grading/investigator/lenses/severity-lens';
 import { runInvestigator } from './investigator-runner';
+import { waiveUnmeasured } from './waive';
 import { DockerProgramRunner, dockerImageId } from './program-runner';
 import { refuseInvestigator, refuseReason } from './refuse';
 import { CaseRecord, RunSummary } from './runner-core';
@@ -34,13 +39,32 @@ async function main() {
     console.error(`Từ chối chạy eval: ${parsed.error}`);
     process.exit(2);
   }
-  const { tier, split, concurrency, only, pipeline, compareTo, replayCheck } = parsed.args;
+  const { tier, split, concurrency, only, pipeline, compareTo, replayCheck, challenge, waive } = parsed.args;
   const apiRoot = join(__dirname, '..', '..');
   const runsRoot = join(apiRoot, 'eval', 'runs');
   const dataset = await loadDataset(join(apiRoot, 'eval', 'fixtures'), { split, only });
   if (dataset.des.length === 0) {
     console.error(`Không có đề nào ở tập ${split}${only ? ` khớp ${only}` : ''}`);
     process.exit(2);
+  }
+  // `--waive` (P0): bỏ các luật máy chưa đo được của tiêu chí được nêu — nếu không, `decide()` gắn
+  // `criterion_untouched` ở mọi ca và nhóm tự quyết của eval có mẫu số 0 (xem `waive.ts`). Làm trong
+  // BỘ NHỚ: fixture trên đĩa và `datasetHash` không đổi, nên lượt này vẫn so ghép được với lượt cũ;
+  // `config.waived`/`waivedRules` ghi lại và `confounded` báo khi hai lượt khác nhau ở điểm này.
+  const waivedRules: Record<string, string[]> = {};
+  if (waive.length > 0) {
+    for (const de of dataset.des) {
+      const known = new Set(de.manifest.rubric.map((c) => c.key));
+      const unknown = waive.filter((k) => !known.has(k));
+      if (unknown.length > 0) {
+        console.error(`Từ chối chạy eval: --waive có tiêu chí không tồn tại trong rubric của đề ${de.manifest.id}: ${unknown.join(', ')}`);
+        process.exit(2);
+      }
+      waivedRules[de.manifest.id] = waiveUnmeasured(de.manifest, waive);
+    }
+    for (const [id, keys] of Object.entries(waivedRules)) {
+      console.warn(`⚠ --waive: đề ${id} bỏ ${keys.length} luật chưa đo được: ${keys.join(', ') || '—'} (lượt chạy là bài toán chấm THU HẸP)`);
+    }
   }
 
   // So ghép cặp chỉ có nghĩa trên CÙNG bộ dữ liệu. Đọc và kiểm TRƯỚC khi tiêu tiền.
@@ -125,10 +149,19 @@ async function main() {
       // Duyệt Q8: bài thật chỉ chạy trên máy sandbox riêng.
       const gate = group5Gate(host, process.env);
       const { dataset: runDataset, dropped } = gate.allowed ? { dataset, dropped: 0 } : withoutGroup5(dataset);
+      // Cùng bốn lăng kính, cùng bậc model với đường chấm thật (`buildInvestigatorDeps`).
+      const lensDeps = { models: tiers, sandbox: client as never };
+      const challengePhase = challenge
+        ? {
+            challengers: [new CorrectnessLens(lensDeps), new SeverityLens(lensDeps)],
+            caseLenses: [new OmissionLens(lensDeps), new CheatingLens(lensDeps)],
+          }
+        : undefined;
       const out = await runInvestigator({
         dataset: runDataset, bundles, tier, concurrency, budget, components, theta,
         ceilings: new Map(tiers.map((t) => [t.model, t.ceiling])),
         deps: { models: tiers, sandbox: client },
+        challengePhase,
       });
       records = out.records;
       summary = out.summary;
@@ -137,7 +170,10 @@ async function main() {
         pipeline: 'investigator',
         // Bước 3a: code quyết luật `test_group_failed`; `complexity`, `calls_function`, `no_recursion`
         // chưa đo được (bước 4–5), nên `predicates` ghi đúng mẫu đã có, không ghi "đủ".
-        ablation: ['−run_scaled', '−probe', '−advocate'],
+        ablation: challenge ? ['−run_scaled', '−probe'] : ['−run_scaled', '−probe', '−advocate'],
+        challenge: challenge ? 'on' : 'off',
+        waived: waive,
+        waivedRules,
         predicates: 'test_group_failed',
         theta,
         models: tiers.map((t) => t.label),
@@ -157,8 +193,19 @@ async function main() {
     const models = modelConfound(baseRun.records, records);
     sameModels = models.same;
     // Từ 3a cả hai pipeline đều tự quyết (Q4 hết hiệu lực), nên "khớp kết cục" so được giữa mọi lượt.
+    // Phản biện và miễn trừ làm đổi tỉ lệ tự quyết rất mạnh (spec §11) — hai lượt khác nhau ở đây thì
+    // Δ không phải hiệu ứng của thứ đang đo.
+    const baseCfg = baseRun.meta.config as { challenge?: string; waived?: string[] };
+    const confounded = {
+      challenge: (baseCfg.challenge ?? 'off') !== (challenge ? 'on' : 'off'),
+      waived: [...(baseCfg.waived ?? [])].sort().join(',') !== [...waive].sort().join(','),
+    };
+    if (confounded.challenge || confounded.waived) {
+      console.warn(`⚠ Hai lượt khác nhau ở ${[confounded.challenge && 'phản biện', confounded.waived && 'tiêu chí miễn trừ'].filter(Boolean).join(' và ')} — Δ bị lẫn biến.`);
+    }
     comparison = {
       against: compareTo,
+      confounded,
       againstPipeline: baseRun.meta.config.pipeline,
       absScoreError: compareRuns(baseRun.records, records, 'abs_score_error'),
       gradableAgreement: compareRuns(baseRun.records, records, 'gradable_agreement'),

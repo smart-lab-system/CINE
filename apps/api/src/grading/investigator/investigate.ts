@@ -1,3 +1,4 @@
+import { UsageSink } from './usage-sink';
 import { ChatTextRequest } from '../ai-provider/openai-chat';
 import { wrapSubmission } from '../harness/submission-envelope';
 import { DuplicateGuard } from './dedup';
@@ -124,6 +125,7 @@ export async function investigate(
   let rounds = 0;
   let inputTokens = 0;
   let outputTokens = 0;
+  const usageSink = new UsageSink();
   let verdict: Verdict | null = null;
   let stopReason: StopReason | null = null;
   /** Lý do từng bậc của lần pool hỏng gần nhất — vào lý do ungradable (review M2). */
@@ -153,6 +155,7 @@ export async function investigate(
       if (error instanceof ModelsExhaustedError || error instanceof DeadlineExceededError) {
         inputTokens += error.usage.inputTokens;
         outputTokens += error.usage.outputTokens;
+        usageSink.addSpend(error.usageByModel, error.usage);
         for (const r of error.rotations) tierRotations.push({ round: rounds + 1, ...r });
       }
       if (error instanceof ModelsExhaustedError) poolFailure = error.reasons.join('; ');
@@ -160,6 +163,7 @@ export async function investigate(
     }
     inputTokens += reply.usage.inputTokens;
     outputTokens += reply.usage.outputTokens;
+    usageSink.addSpend(reply.usageByModel, reply.usage);
     if (!modelsUsed.includes(reply.model)) modelsUsed.push(reply.model);
     for (const r of reply.rotations) tierRotations.push({ round: rounds + 1, ...r });
     messages.push({ role: 'assistant', content: JSON.stringify(reply.value) });
@@ -368,5 +372,6 @@ export async function investigate(
       tierRotations,
     },
     usage: { inputTokens, outputTokens },
+    usageByModel: usageSink.snapshot(),
   };
 }

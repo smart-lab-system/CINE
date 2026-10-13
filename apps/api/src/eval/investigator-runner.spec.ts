@@ -6,6 +6,8 @@ import { InvestigationContext, InvestigationResult } from '../grading/investigat
 import { runInvestigator } from './investigator-runner';
 import { loadDataset } from './load-dataset';
 import { writeMiniDe } from './testing/mini-de';
+import { waiveUnmeasured } from './waive';
+import { Challenger } from '../grading/investigator/challenge';
 import { resultWith, runTestsCall } from '../grading/decision/testing/result';
 
 const runsCb1 = (status: 'pass' | 'fail') => resultWith({ calls: [runTestsCall('tc-1', null, [{ name: 'cb1', group: 'co_ban', status }])] });
@@ -134,4 +136,102 @@ describe('runInvestigator', () => {
     expect(g5.investigation).toBeNull();
     expect(g5.summaryText).toBeNull();
   });
+
+  it('P0 — có challengePhase thì phản biện chạy và được lưu trong hồ sơ của lượt', async () => {
+    const { dataset, bundles } = await setupWithModelRule();
+    const probe: Challenger = { name: 'dò', async review() { return { status: 'confirmed', toolCallIds: [] }; } };
+    const withLens = await runInvestigator({
+      dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET, ...opts3a, deps: NO_SANDBOX,
+      investigateFn: async () => result({ verdict: verdictWith(['chu_thich_sai']) }),
+      challengePhase: { challengers: [probe], caseLenses: [] },
+    });
+    const rec = withLens.records.find((r) => r.caseId === 'A0')!;
+    const stored = (rec.investigation as { challenge?: { perError: { challenger: string; perError: { ruleKey: string; status: string }[] }[] } }).challenge;
+    expect(stored?.perError).toHaveLength(1);
+    expect(stored?.perError[0]).toMatchObject({ challenger: 'dò', perError: [{ ruleKey: 'chu_thich_sai', status: 'confirmed' }] });
+  });
+
+  it('P0 — không có challengePhase thì hành vi cũ: không có phản biện trong hồ sơ, token không đổi', async () => {
+    const { dataset, bundles } = await setupWithModelRule();
+    const { records } = await runInvestigator({
+      dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET, ...opts3a, deps: NO_SANDBOX,
+      investigateFn: async () => result({ verdict: verdictWith(['chu_thich_sai']) }),
+    });
+    const rec = records[0];
+    expect((rec.investigation as { challenge?: unknown }).challenge).toBeUndefined();
+    expect(rec.tokensIn).toBe(400);
+    expect(rec.tokensOut).toBe(100);
+  });
+
+  it('P0 — token của lăng kính cộng vào tokensIn/tokensOut của lượt (thống kê phiên thấy chi phí thật)', async () => {
+    const { dataset, bundles } = await setupWithModelRule();
+    const spender: Challenger = {
+      name: 'tốn',
+      async review(input) { input.usage?.add('m-1', { inputTokens: 50, outputTokens: 10 }); return { status: 'confirmed', toolCallIds: [] }; },
+    };
+    const { records } = await runInvestigator({
+      dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET, ...opts3a, deps: NO_SANDBOX,
+      investigateFn: async () => result({ verdict: verdictWith(['chu_thich_sai']) }),
+      challengePhase: { challengers: [spender], caseLenses: [] },
+    });
+    expect(records[0].tokensIn).toBe(450); // 400 điều tra + 50 lăng kính
+    expect(records[0].tokensOut).toBe(110); // 100 điều tra + 10 lăng kính
+  });
+
+  it('P0 (review C3) — đề có luật chưa đo được: không --waive thì KHÔNG ca nào tự quyết (criterion_untouched); có thì nhóm tự quyết có mẫu số', async () => {
+    const hieuNang = {
+      rubric: [
+        { key: 'tinh_dung', description: 'Tính đúng', maxPoints: '8.00' },
+        { key: 'hieu_nang', description: 'Hiệu năng', maxPoints: '2.00' },
+      ],
+      rules: [
+        { ruleKey: 'sai_co_ban', title: 'Sai ca cơ bản', criterionKey: 'tinh_dung', deduction: '4.00', predicate: { kind: 'test_group_failed', group: 'co_ban' } },
+        { ruleKey: 'do_phuc_tap', title: 'Độ phức tạp vượt yêu cầu', criterionKey: 'hieu_nang', deduction: '2.00', predicate: { kind: 'complexity_exceeds_required' } },
+      ],
+    };
+    const build = async () => {
+      const root = await mkdtemp(join(tmpdir(), 'inv-'));
+      await writeMiniDe(root, hieuNang);
+      return {
+        dataset: await loadDataset(root),
+        bundles: new Map([['mini', { id: 'mini@x', cases: [{ name: 'cb1', group: 'co_ban', input: '2\n', expected: '4\n' }] }]]),
+      };
+    };
+    const run = (b: Awaited<ReturnType<typeof build>>) => runInvestigator({
+      ...b, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET, ...opts3a, deps: NO_SANDBOX,
+      investigateFn: async () => runsCb1('pass'),
+    });
+
+    const before = await run(await build());
+    expect(before.summary.autoDecision.count).toBe(0);
+    expect(before.records.find((r) => r.caseId === 'A0')!.flags.join(' ')).toContain('criterion_untouched');
+
+    const waived = await build();
+    for (const de of waived.dataset.des) expect(waiveUnmeasured(de.manifest, ['hieu_nang'])).toEqual(['do_phuc_tap']);
+    const after = await run(waived);
+    expect(after.records.find((r) => r.caseId === 'A0')).toMatchObject({ outcome: 'graded', scoreHundredths: 1000 });
+    expect(after.summary.autoDecision.count).toBeGreaterThan(0);
+  });
+});
+
+
+// Một đề `mini` có THÊM luật do model quyết (`mini-de` mặc định chỉ có một luật máy quyết `sai_co_ban`,
+// mà lăng kính chỉ nhận lỗi của luật model — lỗi luật máy quyết bị lọc).
+async function setupWithModelRule() {
+  const root = await mkdtemp(join(tmpdir(), 'inv-'));
+  await writeMiniDe(root, {
+    rules: [
+      { ruleKey: 'sai_co_ban', title: 'Sai ca cơ bản', criterionKey: 'tinh_dung', deduction: '4.00', predicate: { kind: 'test_group_failed', group: 'co_ban' } },
+      { ruleKey: 'chu_thich_sai', title: 'Chú thích sai', criterionKey: 'tinh_dung', deduction: '0.50', predicate: null },
+    ],
+  });
+  const dataset = await loadDataset(root);
+  const bundles = new Map([['mini', { id: 'mini@x', cases: [{ name: 'cb1', group: 'co_ban', input: '2\n', expected: '4\n' }] }]]);
+  return { dataset, bundles };
+}
+const NO_SANDBOX = { models: [], sandbox: { exec: async () => { throw new Error('không dùng'); } } };
+const verdictWith = (ruleKeys: string[]) => ({
+  errors: ruleKeys.map((ruleKey) => ({ ruleKey, toolCallIds: ['tc-1'], note: null })),
+  missingRules: [],
+  injectionAttempt: { detected: false, excerpt: null },
 });

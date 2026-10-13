@@ -5,6 +5,7 @@ import { ChatTextRequest } from '../ai-provider/openai-chat';
 import { badOutputError, httpProviderError } from '../ai-provider/provider-failure';
 import { ALL_COMPONENTS, investigate } from './investigate';
 import { ModelTier } from './model-pool';
+import { costOf } from './pricing';
 import { execResult, fakeSandbox } from './testing/fake-sandbox';
 import { CTX } from './testing/context';
 
@@ -489,5 +490,29 @@ describe('investigate()', () => {
   it('§12.5 yêu cầu 2 — investigate() KHÔNG tự gọi phản biện', () => {
     const src = readFileSync(join(__dirname, 'investigate.ts'), 'utf8');
     expect(src).not.toMatch(/challenge/i);
+  });
+
+  it('P0 — usageByModel gom token theo từng model đã trả lời', async () => {
+    const model = scripted('A', [turn(call('run_tests')), final([{ ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'], note: null }])]);
+    const r = await investigate(CTX, deps([model]));
+    // Hai lượt hỏi model, mỗi lượt USAGE 100 vào / 20 ra.
+    expect(r.usageByModel).toEqual({ 'A-m': { inputTokens: 200, outputTokens: 40 } });
+    expect(r.usage).toEqual({ inputTokens: 200, outputTokens: 40 });
+  });
+
+  it('P0 (review C1) — bậc A hỏng hai lần rồi B trả lời: token của A ghi cho A, của B ghi cho B; A không có giá → chi phí NULL', async () => {
+    const spent = () => Object.assign(badOutputError('cắt cụt'), { usage: USAGE });
+    const a = scripted('A', [spent(), spent()]);
+    const b = scripted('B', [turn(call('run_tests')), final([{ ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'], note: null }])]);
+    const r = await investigate(CTX, deps([a, b]));
+    expect(r.kind).toBe('verdict');
+    // A: 2 lượt hỏng (mỗi lượt 100/20). B: 2 lượt hỏi thành công (lượt đầu cùng lần hỏi với A hỏng, lượt sau một mình).
+    expect(r.usageByModel).toEqual({
+      'A-m': { inputTokens: 200, outputTokens: 40 },
+      'B-m': { inputTokens: 200, outputTokens: 40 },
+    });
+    const price = { inPerMTok: 1, outPerMTok: 2 };
+    expect(costOf(r.usageByModel!, (m) => (m === 'B-m' ? price : undefined))).toBeNull();
+    expect(costOf(r.usageByModel!, () => price)).toBe(0.0006); // (400·1 + 80·2) / 1e6 = 0,00056 → làm tròn 4 chữ số
   });
 });

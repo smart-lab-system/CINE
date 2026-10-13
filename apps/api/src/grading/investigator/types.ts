@@ -1,3 +1,4 @@
+import type { UsageByModel } from './usage-sink';
 import { CaseStatus, CompileInfo, HostFingerprint, SandboxLanguage } from '../../sandbox/contract';
 
 /**
@@ -179,4 +180,10 @@ export interface InvestigationResult {
   summary: string;
   investigation: Investigation;
   usage: { inputTokens: number; outputTokens: number };
+  /**
+   * Cùng số token của `usage` nhưng tách theo model đã tiêu (P0 đo nền). Tuỳ chọn để mọi nơi dựng
+   * `InvestigationResult` bằng tay (test, fixture) không phải đổi. Token của lượt hỏng nằm ở bậc đã
+   * tiêu chúng; chỉ khi không biết bậc nào mới vào khoá `UNATTRIBUTED`.
+   */
+  usageByModel?: UsageByModel;
 }
