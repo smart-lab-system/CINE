@@ -16,7 +16,8 @@ import type { Manifest } from './manifest.schema';
  *   1. bỏ các luật có `predicate` chưa đo được của tiêu chí được nêu (cả agent lẫn `decide()` đều
  *      không còn thấy chúng);
  *   2. bỏ khoá luật đó khỏi `expectedRuleIds` của mọi ca, để điểm kỳ vọng tính trên cùng bảng luật;
- *   3. tiêu chí nào mất hết luật thì đánh dấu miễn (`criterion_without_rules` không còn chặn).
+ *   3. tiêu chí nào VỪA bị bỏ luật và mất hết luật thì đánh dấu miễn (`criterion_without_rules` không
+ *      còn chặn); tiêu chí vốn không có luật nào thì không bị đụng tới.
  * Luật lời (`predicate: null`, model quyết) và luật máy đo được ở lại.
  *
  * Kết quả là một bài toán chấm THU HẸP, đo đúng thứ máy đo được hôm nay; lượt chạy phải ghi
@@ -30,9 +31,12 @@ export function waiveUnmeasured(manifest: Manifest, criteria: readonly string[])
     .filter((r) => named.has(r.criterionKey) && r.predicate !== null && !isMachineChecked(r.predicate))
     .map((r) => r.ruleKey);
   const gone = new Set(removed);
+  const touched = new Set(manifest.rules.filter((r) => gone.has(r.ruleKey)).map((r) => r.criterionKey));
   manifest.rules = manifest.rules.filter((r) => !gone.has(r.ruleKey));
   for (const c of manifest.cases) c.expectedRuleIds = c.expectedRuleIds.filter((key) => !gone.has(key));
-  const emptied = [...named].filter((key) => !manifest.rules.some((r) => r.criterionKey === key));
+  // Chỉ tiêu chí VỪA bị bỏ luật mà hết luật mới được miễn; tiêu chí vốn không có luật nào thì giữ nguyên cờ
+  // `criterion_without_rules` (không âm thầm tắt nó chỉ vì có tên trong `--waive`).
+  const emptied = [...named].filter((key) => touched.has(key) && !manifest.rules.some((r) => r.criterionKey === key));
   manifest.waivedCriteria = [...new Set([...manifest.waivedCriteria, ...emptied])];
   return removed;
 }

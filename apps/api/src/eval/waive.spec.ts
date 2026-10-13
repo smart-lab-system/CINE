@@ -52,6 +52,13 @@ describe('waiveUnmeasured()', () => {
     expect(m.cases.find((c) => c.id === 'M1')!.expectedRuleIds).toEqual(['sai_co_ban']);
   });
 
+  it('tiêu chí VỐN không có luật nào không bị đánh dấu miễn chỉ vì có tên trong --waive', () => {
+    const m = manifest();
+    m.rubric.push({ key: 'khac', description: 'Khác', maxPoints: '1.00' });
+    expect(waiveUnmeasured(m, ['khac'])).toEqual([]);
+    expect(m.waivedCriteria).toEqual([]);
+  });
+
   it('giữ các tiêu chí đã miễn từ trước và không nhân đôi', () => {
     const m = manifest();
     m.waivedCriteria = ['hieu_nang'];

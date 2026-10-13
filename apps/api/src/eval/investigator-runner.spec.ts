@@ -211,7 +211,7 @@ describe('runInvestigator', () => {
     const after = await run(waived);
     expect(after.records.find((r) => r.caseId === 'A0')).toMatchObject({ outcome: 'graded', scoreHundredths: 1000 });
     expect(after.summary.autoDecision.count).toBeGreaterThan(0);
-  });
+  });
 });
 
 

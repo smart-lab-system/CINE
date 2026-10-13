@@ -182,8 +182,8 @@ export interface InvestigationResult {
   usage: { inputTokens: number; outputTokens: number };
   /**
    * Cùng số token của `usage` nhưng tách theo model đã tiêu (P0 đo nền). Tuỳ chọn để mọi nơi dựng
-   * `InvestigationResult` bằng tay (test, fixture) không phải đổi. Token của lượt hỏng không rõ
-   * model nằm ở khoá `UNATTRIBUTED`.
+   * `InvestigationResult` bằng tay (test, fixture) không phải đổi. Token của lượt hỏng nằm ở bậc đã
+   * tiêu chúng; chỉ khi không biết bậc nào mới vào khoá `UNATTRIBUTED`.
    */
   usageByModel?: UsageByModel;
 }

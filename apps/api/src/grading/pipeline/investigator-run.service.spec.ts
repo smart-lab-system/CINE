@@ -158,7 +158,7 @@ describe('InvestigatorRunService.run() — nối dây đo lường của P0', ()
       }),
     };
     const scores = { finishAttempt: jest.fn().mockResolvedValue({ kind: 'scored' }), finishUngradable: jest.fn() };
-    const contexts = { build: async () => ({ kind: 'ready', ctx: CTX, ruleTable: [] }) };
+    const contexts = { build: async () => ({ kind: 'ok', ctx: CTX, ruleTable: [], teacherId: 'u-1' }) };
     (investigate as jest.Mock).mockResolvedValue({
       ...resultWithErrors([MODEL_ERROR]),
       usage: { inputTokens: 700, outputTokens: 100 },

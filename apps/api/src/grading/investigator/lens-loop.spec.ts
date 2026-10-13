@@ -161,6 +161,24 @@ describe('runLensLoop() — vì sao dừng (end/failure), để một lăng kín
     expect(sink.snapshot()).toEqual({ 'A-m': { inputTokens: rounds * 10 + 2000, outputTokens: rounds * 5 + 200 } });
   });
 
+  it('P0 (review C1) — bậc A hỏng hai lần rồi B trả lời: token ghi đúng bậc, không gán hết cho B', async () => {
+    const sink = new UsageSink();
+    const a: ModelTier = {
+      label: 'A', model: 'A-m', ceiling: 0.5,
+      async call() { throw Object.assign(badOutputError('cắt cụt'), { usage: USAGE }); },
+    };
+    const b: ModelTier = {
+      label: 'B', model: 'B-m', ceiling: 0.5,
+      async call() { return { content: JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'refuted' } }), usage: USAGE }; },
+    };
+    const r = await runLensLoop(CTX, 'tinh_dung', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [a, b], sandbox: passAll() }, sink);
+    expect(r.conclusion).toEqual({ status: 'refuted' });
+    expect(sink.snapshot()).toEqual({
+      'A-m': { inputTokens: 20, outputTokens: 10 },
+      'B-m': { inputTokens: 10, outputTokens: 5 },
+    });
+  });
+
   it('P0 — không truyền sink thì hành vi cũ không đổi', async () => {
     const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'refuted' } })]);
     const r = await runLensLoop(CTX, 'tinh_dung', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [model], sandbox: passAll() });

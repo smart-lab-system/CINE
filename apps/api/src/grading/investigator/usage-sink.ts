@@ -12,9 +12,10 @@ export interface ModelUsage {
 export type UsageByModel = Record<string, ModelUsage>;
 
 /**
- * Khoá cho token của lượt hỏng mà không biết thuộc model nào: `ModelsExhaustedError.usage` và
- * `DeadlineExceededError.usage` cộng dồn qua nhiều bậc đã thử. Có khoá này thì `costOf` biết
- * rằng tổng chi phí chỉ là cận dưới và trả `null` thay vì một con số thiếu.
+ * Khoá cho token đã tiêu mà không biết thuộc model nào. `ModelPool` tách token theo bậc nên đường
+ * thường không dùng khoá này; nó chỉ còn cho lỗi dựng tay không mang `usageByModel` (`addSpend`) và
+ * cho test. Có khoá này thì `costOf` biết tổng chi phí chỉ là cận dưới và trả `null` thay vì một
+ * con số thiếu.
  */
 export const UNATTRIBUTED = '(không rõ model)';
 
