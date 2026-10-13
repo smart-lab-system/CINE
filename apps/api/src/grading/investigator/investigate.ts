@@ -1,4 +1,4 @@
-import { UNATTRIBUTED, UsageSink } from './usage-sink';
+import { UsageSink } from './usage-sink';
 import { ChatTextRequest } from '../ai-provider/openai-chat';
 import { wrapSubmission } from '../harness/submission-envelope';
 import { DuplicateGuard } from './dedup';
@@ -155,7 +155,7 @@ export async function investigate(
       if (error instanceof ModelsExhaustedError || error instanceof DeadlineExceededError) {
         inputTokens += error.usage.inputTokens;
         outputTokens += error.usage.outputTokens;
-        usageSink.add(UNATTRIBUTED, error.usage);
+        usageSink.addSpend(error.usageByModel, error.usage);
         for (const r of error.rotations) tierRotations.push({ round: rounds + 1, ...r });
       }
       if (error instanceof ModelsExhaustedError) poolFailure = error.reasons.join('; ');
@@ -163,7 +163,7 @@ export async function investigate(
     }
     inputTokens += reply.usage.inputTokens;
     outputTokens += reply.usage.outputTokens;
-    usageSink.add(reply.model, reply.usage);
+    usageSink.addSpend(reply.usageByModel, reply.usage);
     if (!modelsUsed.includes(reply.model)) modelsUsed.push(reply.model);
     for (const r of reply.rotations) tierRotations.push({ round: rounds + 1, ...r });
     messages.push({ role: 'assistant', content: JSON.stringify(reply.value) });

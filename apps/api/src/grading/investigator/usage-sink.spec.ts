@@ -27,6 +27,18 @@ describe('UsageSink', () => {
     expect(b.snapshot()).toEqual({});
   });
 
+  it('addSpend: có token tách theo bậc thì ghi đúng từng bậc, KHÔNG ghi tổng vào một bậc nào', () => {
+    const sink = new UsageSink();
+    sink.addSpend({ A: { inputTokens: 2000, outputTokens: 200 }, B: { inputTokens: 5, outputTokens: 3 } }, { inputTokens: 2005, outputTokens: 203 });
+    expect(sink.snapshot()).toEqual({ A: { inputTokens: 2000, outputTokens: 200 }, B: { inputTokens: 5, outputTokens: 3 } });
+  });
+
+  it('addSpend: thiếu phần tách theo bậc (lỗi dựng tay) → cả khoản vào UNATTRIBUTED để chi phí ra NULL', () => {
+    const sink = new UsageSink();
+    sink.addSpend(undefined, { inputTokens: 9, outputTokens: 1 });
+    expect(sink.snapshot()).toEqual({ [UNATTRIBUTED]: { inputTokens: 9, outputTokens: 1 } });
+  });
+
   it('UNATTRIBUTED là khoá thường, cộng như mọi model khác', () => {
     const sink = new UsageSink();
     sink.add(UNATTRIBUTED, { inputTokens: 3, outputTokens: 1 });

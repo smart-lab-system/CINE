@@ -4,6 +4,7 @@
  * Chỉ-đọc: một transaction READ ONLY, không ghi gì. KHÔNG in DATABASE_URL.
  */
 import { Client } from 'pg';
+import { sslOptions } from '../src/database/data-source';
 import { AttemptRow, summarizeAttempts } from '../src/eval/attempt-stats';
 
 async function main(): Promise<void> {
@@ -24,7 +25,9 @@ async function main(): Promise<void> {
     console.error('DATABASE_SCHEMA không hợp lệ');
     process.exit(2);
   }
-  const client = new Client({ connectionString: url, ssl: /localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false } });
+  // TLS đúng như app (`DATABASE_SSL`, `DATABASE_SSL_CA`): đoán từ chuỗi kết nối vừa sai host Docker nội bộ,
+  // vừa yếu hơn app khi đã khai CA.
+  const client = new Client({ connectionString: url, ssl: sslOptions() });
   await client.connect();
   try {
     await client.query('BEGIN READ ONLY');

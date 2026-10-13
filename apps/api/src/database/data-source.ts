@@ -70,7 +70,7 @@ import { ComputerEntity } from '../master-data/entities/computer.entity';
  */
 type PostgresSslOptions = false | { rejectUnauthorized: boolean; ca?: string };
 
-function sslOptions(): PostgresSslOptions {
+export function sslOptions(): PostgresSslOptions {
   if (process.env.DATABASE_SSL !== 'true') {
     return false;
   }

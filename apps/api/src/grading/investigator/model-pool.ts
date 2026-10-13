@@ -1,4 +1,5 @@
 import { ModelPrice, readPrice } from './pricing';
+import type { UsageByModel } from './usage-sink';
 import { ChatTextRequest, ChatUsage, postChatText } from '../ai-provider/openai-chat';
 import { classifyProviderFailure } from '../ai-provider/provider-failure';
 import { MAX_TIERS, readTier } from '../ai-provider/select-grading-provider';
@@ -29,6 +30,8 @@ export class ModelsExhaustedError extends Error {
     readonly usage: ChatUsage,
     /** Lượt xoay của lần hỏi này — không có nó, hồ sơ không nói được bậc nào chết, vì sao (review M2). */
     readonly rotations: TierRotation[] = [],
+    /** `usage` tách theo model đã tiêu (P0) — chi phí tính đúng được chỉ khi biết bậc nào tiêu bao nhiêu. */
+    readonly usageByModel?: UsageByModel,
   ) {
     super(`mọi bậc model đều hỏng: ${reasons.join('; ')}`);
     this.name = 'ModelsExhaustedError';
@@ -40,6 +43,7 @@ export class DeadlineExceededError extends Error {
   constructor(
     readonly usage: ChatUsage,
     readonly rotations: TierRotation[] = [],
+    readonly usageByModel?: UsageByModel,
   ) {
     super('hết thời gian của cuộc điều tra trước khi có phản hồi dùng được');
     this.name = 'DeadlineExceededError';
@@ -59,9 +63,13 @@ function usageOf(error: unknown): ChatUsage | null {
 
 export interface PoolReply<T> {
   value: T;
+  /** TỔNG token mọi bậc đã thử trong lần hỏi này — kể cả bậc hỏng rồi bị loại. */
   usage: ChatUsage;
+  /** Bậc TRẢ LỜI cuối. KHÔNG dùng với `usage` để tính chi phí: `usage` gồm cả bậc khác; dùng `usageByModel`. */
   model: string;
   rotations: TierRotation[];
+  /** `usage` tách theo model đã tiêu (P0). */
+  usageByModel: UsageByModel;
 }
 
 const addUsage = (a: ChatUsage, b: ChatUsage): ChatUsage => ({
@@ -110,32 +118,41 @@ export class ModelPool {
     const rotations: TierRotation[] = [];
     const reasons: string[] = [];
     let spent = ZERO;
+    const spentBy: UsageByModel = {};
+    const charge = (model: string, u: ChatUsage) => {
+      const cur = spentBy[model] ?? { inputTokens: 0, outputTokens: 0 };
+      spentBy[model] = { inputTokens: cur.inputTokens + u.inputTokens, outputTokens: cur.outputTokens + u.outputTokens };
+    };
 
     for (const tier of this.tiers) {
       if (this.excluded.has(tier.label)) continue;
       let badOutputs = 0;
       let transients = 0;
       for (;;) {
-        if (left() < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent, rotations);
+        if (left() < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent, rotations, spentBy);
         const attempt = { ...request, timeoutMs: Math.min(request.timeoutMs ?? DEFAULT_TIMEOUT_MS, left()) };
         try {
           const { content, usage } = await tier.call(attempt);
           spent = addUsage(spent, usage);
+          charge(tier.model, usage);
           const value = parse(content);
-          if (value !== null) return { value, usage: spent, model: tier.model, rotations };
+          if (value !== null) return { value, usage: spent, model: tier.model, rotations, usageByModel: spentBy };
           if (++badOutputs >= 2) {
             this.exclude(tier, 'bad_output: phản hồi không đọc được', rotations, reasons);
             break;
           }
         } catch (error) {
           const lost = usageOf(error);
-          if (lost) spent = addUsage(spent, lost);
+          if (lost) {
+            spent = addUsage(spent, lost);
+            charge(tier.model, lost);
+          }
           const kind = classifyProviderFailure(error);
           if (kind === 'bad_output' && ++badOutputs < 2) continue;
           if (kind === 'transient' && transients < transientRetries) {
             transients++;
             const wait = 1_000 * transients;
-            if (left() - wait < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent, rotations);
+            if (left() - wait < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent, rotations, spentBy);
             await sleep(wait);
             continue;
           }
@@ -144,7 +161,7 @@ export class ModelPool {
         }
       }
     }
-    throw new ModelsExhaustedError(reasons, spent, rotations);
+    throw new ModelsExhaustedError(reasons, spent, rotations, spentBy);
   }
 
   private exclude(

@@ -103,7 +103,7 @@ export function decide(input: DecisionInput): Decision {
     for (const e of errors) {
       // C2 (review cuối): lỗi MÁY QUYẾT miễn nhiễm với phản biện, dù dữ liệu challenge có sẵn
       // một kết luận trỏ đúng ruleKey của nó — phòng thủ SONG SONG với việc
-      // `InvestigatorRunService.runChallenge()` đã không gửi lỗi máy quyết cho lăng kính ngay từ
+      // `runChallengePhase()` đã không gửi lỗi máy quyết cho lăng kính ngay từ
       // đầu; lớp này giữ đúng luôn ĐÚNG dù hồ sơ cũ hay một đường gọi khác quên lọc.
       if (e.source === 'deterministic') continue;
       const status = mergedStatusOf(e.ruleKey, input.challenge.perError);

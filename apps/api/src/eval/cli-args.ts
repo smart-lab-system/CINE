@@ -9,7 +9,7 @@ export interface EvalArgs {
   replayCheck: boolean;
   /** Chạy bốn lăng kính trong lượt eval (mặc định tắt để so được với các lượt đã commit). */
   challenge: boolean;
-  /** Tiêu chí được miễn "luật chưa đo được" — để nhóm tự quyết có mẫu số (spec §11). */
+  /** Tiêu chí được bỏ các luật máy chưa đo được (`waive.ts`) — để nhóm tự quyết có mẫu số (spec §11). */
   waive: string[];
 }
 
@@ -47,6 +47,10 @@ export function parseEvalArgs(argv: string[]): { ok: true; args: EvalArgs } | { 
   if (rawReplay !== 'on' && rawReplay !== 'off') {
     return { ok: false, error: `--replay-check phải là on hoặc off, đang là ${JSON.stringify(rawReplay)}` };
   }
+  // Dạng thiếu `=` (`--challenge`, `--waive hieu_nang`) KHÔNG được âm thầm thành mặc định: người gõ tin rằng
+  // cờ đã bật mà lượt chạy tốn tiền chạy thiếu nó. (Các cờ cũ có cùng lỗ này; chỉ vá hai cờ mới.)
+  const bare = argv.find((a) => a === '--challenge' || a === '--waive');
+  if (bare) return { ok: false, error: `${bare} cần dạng ${bare}=<giá trị>` };
   const rawChallenge = get('challenge') ?? 'off';
   if (rawChallenge !== 'on' && rawChallenge !== 'off') {
     return { ok: false, error: `--challenge phải là on hoặc off, đang là ${JSON.stringify(rawChallenge)}` };
@@ -55,6 +59,9 @@ export function parseEvalArgs(argv: string[]): { ok: true; args: EvalArgs } | { 
   const badWaive = waive.find((k) => !/^[a-z0-9_]{1,64}$/.test(k));
   if (badWaive !== undefined) {
     return { ok: false, error: `--waive: khoá tiêu chí không hợp lệ ${JSON.stringify(badWaive)} (cần ^[a-z0-9_]{1,64}$)` };
+  }
+  if (pipeline === 'baseline' && (rawChallenge === 'on' || waive.length > 0)) {
+    return { ok: false, error: '--challenge và --waive chỉ có nghĩa với --pipeline=investigator' };
   }
   return {
     ok: true,

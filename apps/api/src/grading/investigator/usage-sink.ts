@@ -34,6 +34,20 @@ export class UsageSink {
     };
   }
 
+  /**
+   * Cộng khoản chi của MỘT lần hỏi pool. `perModel` (từ `ModelPool`) tách theo từng bậc đã tiêu — kể cả
+   * bậc hỏng rồi bị loại, vì `usage` của lần hỏi là TỔNG mọi bậc đã thử còn `model` chỉ là bậc trả lời
+   * cuối: ghi tổng vào bậc cuối là gán token của bậc A cho giá của bậc B. Thiếu `perModel` (lỗi dựng
+   * tay) thì cả khoản vào `UNATTRIBUTED`, để `costOf` biết tổng chỉ là cận dưới.
+   */
+  addSpend(perModel: UsageByModel | undefined, total: ModelUsage): void {
+    if (perModel) {
+      for (const [model, usage] of Object.entries(perModel)) this.add(model, usage);
+      return;
+    }
+    this.add(UNATTRIBUTED, total);
+  }
+
   snapshot(): UsageByModel {
     return JSON.parse(JSON.stringify(this.by)) as UsageByModel;
   }

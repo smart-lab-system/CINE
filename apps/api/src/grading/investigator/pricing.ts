@@ -28,6 +28,10 @@ export function readPrice(env: NodeJS.ProcessEnv, index: number): ModelPrice | u
  * Chi phí của một lượt, hoặc `null` khi không biết chắc: có model tiêu token mà không có giá, hay
  * có token không rõ model (`UNATTRIBUTED` — tổng chỉ là cận dưới). `null` chứ KHÔNG phải một số
  * thiếu: số thiếu vào báo cáo chi phí sẽ thành "rẻ hơn thật".
+ *
+ * Là cận TRÊN khi gateway bật prompt caching: `inputTokens` là `prompt_tokens` (đã gồm phần cache) và
+ * mỗi bậc chỉ có MỘT giá vào. Hôm nay endpoint báo `cached_tokens` = 0 (xem `openai-chat.ts`), nên chưa
+ * lưu token cache; bật caching thì phải lưu thêm `cacheReadTokens` vào `usage_by_model` trước khi tin con số này.
  */
 export function costOf(usage: UsageByModel, priceOf: (model: string) => ModelPrice | undefined): number | null {
   let usd = 0;

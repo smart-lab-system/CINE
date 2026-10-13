@@ -36,8 +36,9 @@ export class InvestigatorRunService {
   ) {}
 
   async run(resultId: string): Promise<void> {
-    const attemptId = await this.startAttempt(resultId);
-    if (!attemptId) return;
+    const started = await this.startAttempt(resultId);
+    if (!started) return;
+    const { attemptId, resumed } = started;
 
     const missing = [
       this.deps.sandbox === null ? 'sandbox (SANDBOX_REDIS_URL)' : null,
@@ -79,7 +80,9 @@ export class InvestigatorRunService {
       sandboxHost: hostOf(result),
       promptVersion: promptVersionOf(),
       usageByModel: { investigation: investigationUsage, challenge: phase.usageByModel },
-      costUsd: costOf(mergeUsage(investigationUsage, phase.usageByModel), (model) => this.deps.priceOf?.(model)),
+      // Lượt NỐI LẠI sau một job chết: token job trước đã tiêu không còn ghi ở đâu, nên mọi con số chi phí
+      // chỉ là cận dưới — `NULL`, không phải một số thấp hơn thật (cùng nguyên tắc với model không có giá).
+      costUsd: resumed ? null : costOf(mergeUsage(investigationUsage, phase.usageByModel), (model) => this.deps.priceOf?.(model)),
     });
     if (out.kind === 'ungradable') this.logger.warn(`kết quả ${resultId}: không chấm được (${out.class}) — ${out.reason}`);
   }
@@ -89,7 +92,7 @@ export class InvestigatorRunService {
    * có kết cục → job trước chết giữa chừng, nối vào nó (§2.3 luật 2: một lượt một dòng). Không thì
    * mở lượt mới. Khoá giảng viên TRƯỚC khoá hàng — thứ tự khoá của 3c.
    */
-  private async startAttempt(resultId: string): Promise<string | null> {
+  private async startAttempt(resultId: string): Promise<{ attemptId: string; resumed: boolean } | null> {
     return this.ds.transaction(async (m) => {
       await lockTeacherScoring(m, await teacherOfResult(m, resultId));
       const [row] = await m.query(
@@ -101,7 +104,7 @@ export class InvestigatorRunService {
         [resultId],
       );
       if (!row || row.status !== 'ai_grading') return null;
-      if (row.current_attempt_id && row.current_outcome === null) return row.current_attempt_id as string;
+      if (row.current_attempt_id && row.current_outcome === null) return { attemptId: row.current_attempt_id as string, resumed: true };
       const [a] = await m.query(
         `INSERT INTO examcollect.grading_attempt (grading_result_id, attempt_no, triggered_by, started_at)
          SELECT $1, COALESCE(MAX(attempt_no), 0) + 1, $2, clock_timestamp()
@@ -110,7 +113,7 @@ export class InvestigatorRunService {
         [resultId, row.grading_triggered_by],
       );
       await m.query(`UPDATE examcollect.grading_result SET current_attempt_id = $2 WHERE id = $1`, [resultId, a.id]);
-      return a.id as string;
+      return { attemptId: a.id as string, resumed: false };
     });
   }
 

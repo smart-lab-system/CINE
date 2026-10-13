@@ -19,6 +19,7 @@ import { CorrectnessLens } from '../grading/investigator/lenses/correctness-lens
 import { OmissionLens } from '../grading/investigator/lenses/omission-lens';
 import { SeverityLens } from '../grading/investigator/lenses/severity-lens';
 import { runInvestigator } from './investigator-runner';
+import { waiveUnmeasured } from './waive';
 import { DockerProgramRunner, dockerImageId } from './program-runner';
 import { refuseInvestigator, refuseReason } from './refuse';
 import { CaseRecord, RunSummary } from './runner-core';
@@ -46,10 +47,11 @@ async function main() {
     console.error(`Không có đề nào ở tập ${split}${only ? ` khớp ${only}` : ''}`);
     process.exit(2);
   }
-  // `--waive` (P0): miễn các tiêu chí mà bộ đo chưa đo được để `criterion_untouched` không chặn tự quyết
-  // vì lý do không liên quan tới thứ đang đo. Ghi vào manifest TRONG BỘ NHỚ — fixture trên đĩa và
-  // `datasetHash` không đổi, nên lượt này vẫn so ghép được với lượt cũ; `config.waived` ghi lại để
-  // `confounded` báo khi hai lượt khác nhau ở điểm này.
+  // `--waive` (P0): bỏ các luật máy chưa đo được của tiêu chí được nêu — nếu không, `decide()` gắn
+  // `criterion_untouched` ở mọi ca và nhóm tự quyết của eval có mẫu số 0 (xem `waive.ts`). Làm trong
+  // BỘ NHỚ: fixture trên đĩa và `datasetHash` không đổi, nên lượt này vẫn so ghép được với lượt cũ;
+  // `config.waived`/`waivedRules` ghi lại và `confounded` báo khi hai lượt khác nhau ở điểm này.
+  const waivedRules: Record<string, string[]> = {};
   if (waive.length > 0) {
     for (const de of dataset.des) {
       const known = new Set(de.manifest.rubric.map((c) => c.key));
@@ -58,7 +60,10 @@ async function main() {
         console.error(`Từ chối chạy eval: --waive có tiêu chí không tồn tại trong rubric của đề ${de.manifest.id}: ${unknown.join(', ')}`);
         process.exit(2);
       }
-      de.manifest.waivedCriteria = [...new Set([...de.manifest.waivedCriteria, ...waive])];
+      waivedRules[de.manifest.id] = waiveUnmeasured(de.manifest, waive);
+    }
+    for (const [id, keys] of Object.entries(waivedRules)) {
+      console.warn(`⚠ --waive: đề ${id} bỏ ${keys.length} luật chưa đo được: ${keys.join(', ') || '—'} (lượt chạy là bài toán chấm THU HẸP)`);
     }
   }
 
@@ -86,7 +91,6 @@ async function main() {
   let summary: RunSummary;
   let config: RunMeta['config'];
   if (pipeline === 'baseline') {
-    if (challenge || waive.length > 0) console.warn('⚠ --challenge/--waive chỉ có nghĩa với --pipeline=investigator; bỏ qua.');
     const keyword = new KeywordGradingProvider();
     const provider = selectGradingProvider(new ClaudeGradingProvider(), keyword);
     const refused = refuseReason(process.env, provider, keyword);
@@ -169,6 +173,7 @@ async function main() {
         ablation: challenge ? ['−run_scaled', '−probe'] : ['−run_scaled', '−probe', '−advocate'],
         challenge: challenge ? 'on' : 'off',
         waived: waive,
+        waivedRules,
         predicates: 'test_group_failed',
         theta,
         models: tiers.map((t) => t.label),

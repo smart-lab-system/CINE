@@ -6,6 +6,7 @@ import { InvestigationContext, InvestigationResult } from '../grading/investigat
 import { runInvestigator } from './investigator-runner';
 import { loadDataset } from './load-dataset';
 import { writeMiniDe } from './testing/mini-de';
+import { waiveUnmeasured } from './waive';
 import { Challenger } from '../grading/investigator/challenge';
 import { resultWith, runTestsCall } from '../grading/decision/testing/result';
 
@@ -176,6 +177,41 @@ describe('runInvestigator', () => {
     expect(records[0].tokensIn).toBe(450); // 400 điều tra + 50 lăng kính
     expect(records[0].tokensOut).toBe(110); // 100 điều tra + 10 lăng kính
   });
+
+  it('P0 (review C3) — đề có luật chưa đo được: không --waive thì KHÔNG ca nào tự quyết (criterion_untouched); có thì nhóm tự quyết có mẫu số', async () => {
+    const hieuNang = {
+      rubric: [
+        { key: 'tinh_dung', description: 'Tính đúng', maxPoints: '8.00' },
+        { key: 'hieu_nang', description: 'Hiệu năng', maxPoints: '2.00' },
+      ],
+      rules: [
+        { ruleKey: 'sai_co_ban', title: 'Sai ca cơ bản', criterionKey: 'tinh_dung', deduction: '4.00', predicate: { kind: 'test_group_failed', group: 'co_ban' } },
+        { ruleKey: 'do_phuc_tap', title: 'Độ phức tạp vượt yêu cầu', criterionKey: 'hieu_nang', deduction: '2.00', predicate: { kind: 'complexity_exceeds_required' } },
+      ],
+    };
+    const build = async () => {
+      const root = await mkdtemp(join(tmpdir(), 'inv-'));
+      await writeMiniDe(root, hieuNang);
+      return {
+        dataset: await loadDataset(root),
+        bundles: new Map([['mini', { id: 'mini@x', cases: [{ name: 'cb1', group: 'co_ban', input: '2\n', expected: '4\n' }] }]]),
+      };
+    };
+    const run = (b: Awaited<ReturnType<typeof build>>) => runInvestigator({
+      ...b, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET, ...opts3a, deps: NO_SANDBOX,
+      investigateFn: async () => runsCb1('pass'),
+    });
+
+    const before = await run(await build());
+    expect(before.summary.autoDecision.count).toBe(0);
+    expect(before.records.find((r) => r.caseId === 'A0')!.flags.join(' ')).toContain('criterion_untouched');
+
+    const waived = await build();
+    for (const de of waived.dataset.des) expect(waiveUnmeasured(de.manifest, ['hieu_nang'])).toEqual(['do_phuc_tap']);
+    const after = await run(waived);
+    expect(after.records.find((r) => r.caseId === 'A0')).toMatchObject({ outcome: 'graded', scoreHundredths: 1000 });
+    expect(after.summary.autoDecision.count).toBeGreaterThan(0);
+  });
 });
 
 

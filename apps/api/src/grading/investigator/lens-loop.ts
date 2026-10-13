@@ -1,4 +1,4 @@
-import { UNATTRIBUTED, UsageSink } from './usage-sink';
+import { UsageSink } from './usage-sink';
 import { Logger } from '@nestjs/common';
 import { DuplicateGuard } from './dedup';
 import { ModelPool, ModelsExhaustedError, DeadlineExceededError, ModelTier } from './model-pool';
@@ -30,7 +30,7 @@ export const LENS_BUDGET = { maxRounds: 6, maxToolCalls: 8, maxWallMs: 100_000, 
 /**
  * Ngân sách CẢ pha phản biện (bốn lăng kính) cộng vào trần job chấm (`gradeJobTimeoutMs()`) —
  * sửa sau review cuối của bước 6 (finding C1). Bốn lăng kính chạy SONG SONG với nhau
- * (`InvestigatorRunService.runChallenge`), và mỗi lăng kính xét CÁC LỖI của nó cũng song song
+ * (`runChallengePhase`), và mỗi lăng kính xét CÁC LỖI của nó cũng song song
  * (`challenge()` dùng `Promise.all`) — nên trần thời gian THẬT của cả pha là trần của MỘT lượt
  * lăng kính chậm nhất, không phải tổng theo số lỗi hay số lăng kính. +30s dư cho hàng đợi sandbox
  * khi nhiều job chạy cùng lúc.
@@ -116,13 +116,20 @@ export async function runLensLoop<TReply extends { action: 'call' | 'final'; cal
   };
 
   const ask = async () => {
-    const reply = await pool.ask(
-      { system: systemPrompt, messages: messages.slice(), schemaName: 'lens_turn', schema, maxTokens: 2_048, timeoutMs: 60_000 },
-      parseReply,
-      { deadline, now },
-    );
-    sink?.add(reply.model, reply.usage);
-    return reply;
+    try {
+      const reply = await pool.ask(
+        { system: systemPrompt, messages: messages.slice(), schemaName: 'lens_turn', schema, maxTokens: 2_048, timeoutMs: 60_000 },
+        parseReply,
+        { deadline, now },
+      );
+      sink?.addSpend(reply.usageByModel, reply.usage);
+      return reply;
+    } catch (error) {
+      // Ghi token của lần hỏi hỏng Ở ĐÂY, không ở từng chỗ gọi: lượt ÉP kết luận cũng gọi `ask` và đã
+      // từng làm rơi token khi nó hỏng (review P0, C2).
+      if (error instanceof ModelsExhaustedError || error instanceof DeadlineExceededError) sink?.addSpend(error.usageByModel, error.usage);
+      throw error;
+    }
   };
 
   for (;;) {
@@ -134,14 +141,8 @@ export async function runLensLoop<TReply extends { action: 'call' | 'final'; cal
     try {
       reply = (await ask()).value;
     } catch (error) {
-      if (error instanceof ModelsExhaustedError) {
-        sink?.add(UNATTRIBUTED, error.usage);
-        return failed('models_exhausted', error.reasons.join('; '));
-      }
-      if (error instanceof DeadlineExceededError) {
-        sink?.add(UNATTRIBUTED, error.usage);
-        return failed('deadline');
-      }
+      if (error instanceof ModelsExhaustedError) return failed('models_exhausted', error.reasons.join('; '));
+      if (error instanceof DeadlineExceededError) return failed('deadline');
       throw error;
     }
     rounds++;
