@@ -7,6 +7,10 @@ export interface EvalArgs {
   /** Mã một lượt chạy cũ để so ghép cặp (§12.4). */
   compareTo: string | undefined;
   replayCheck: boolean;
+  /** Chạy bốn lăng kính trong lượt eval (mặc định tắt để so được với các lượt đã commit). */
+  challenge: boolean;
+  /** Tiêu chí được miễn "luật chưa đo được" — để nhóm tự quyết có mẫu số (spec §11). */
+  waive: string[];
 }
 
 /**
@@ -43,8 +47,20 @@ export function parseEvalArgs(argv: string[]): { ok: true; args: EvalArgs } | { 
   if (rawReplay !== 'on' && rawReplay !== 'off') {
     return { ok: false, error: `--replay-check phải là on hoặc off, đang là ${JSON.stringify(rawReplay)}` };
   }
+  const rawChallenge = get('challenge') ?? 'off';
+  if (rawChallenge !== 'on' && rawChallenge !== 'off') {
+    return { ok: false, error: `--challenge phải là on hoặc off, đang là ${JSON.stringify(rawChallenge)}` };
+  }
+  const waive = (get('waive') ?? '').split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+  const badWaive = waive.find((k) => !/^[a-z0-9_]{1,64}$/.test(k));
+  if (badWaive !== undefined) {
+    return { ok: false, error: `--waive: khoá tiêu chí không hợp lệ ${JSON.stringify(badWaive)} (cần ^[a-z0-9_]{1,64}$)` };
+  }
   return {
     ok: true,
-    args: { tier, split, concurrency, only: get('de'), pipeline, compareTo, replayCheck: rawReplay === 'on' },
+    args: {
+      tier, split, concurrency, only: get('de'), pipeline, compareTo, replayCheck: rawReplay === 'on',
+      challenge: rawChallenge === 'on', waive,
+    },
   };
 }

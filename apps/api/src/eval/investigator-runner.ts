@@ -1,4 +1,6 @@
 import { decide } from '../grading/decision/decide';
+import { ChallengePhaseDeps, runChallengePhase } from '../grading/investigator/challenge-phase';
+import { totalOf } from '../grading/investigator/usage-sink';
 import { ALL_COMPONENTS, investigate, InvestigateComponents, InvestigateDeps } from '../grading/investigator/investigate';
 import { InvestigationBudget, InvestigationContext, InvestigationResult } from '../grading/investigator/types';
 import { parseHundredths } from '../grading/scoring/hundredths';
@@ -32,6 +34,8 @@ export async function runInvestigator(opts: {
   ceilings: Map<string, number>;
   deps: InvestigateDeps;
   components?: InvestigateComponents;
+  /** Có thì chạy pha phản biện giống đường chấm thật (spec §11). Không có thì `challenge: null` như trước. */
+  challengePhase?: ChallengePhaseDeps;
   /** Chỉ để test thay; mặc định là `investigate` thật. */
   investigateFn?: (ctx: InvestigationContext, deps: InvestigateDeps, components: InvestigateComponents) => Promise<InvestigationResult>;
 }): Promise<{ records: CaseRecord[]; summary: RunSummary; sandboxHost: HostFingerprint | null }> {
@@ -55,6 +59,8 @@ export async function runInvestigator(opts: {
         if (!bundle) throw new Error(`không có gói test cho đề ${de.manifest.id}`);
         const ctx = contextFor(de, c, bundle, opts.budget);
         const result = await run(ctx, opts.deps, components);
+        const phase = opts.challengePhase ? await runChallengePhase(result, ctx, opts.challengePhase) : null;
+        const lensTotal = totalOf(phase?.usageByModel ?? {});
         sandboxHost ??= hostOf(result);
         const exhausted = result.kind === 'ungradable' && result.investigation.budget.stopReason === 'models_exhausted';
         const rulesSeen = ctx.rules.map((r) => ({ ruleKey: r.ruleKey, checkedBy: r.checkedBy }));
@@ -69,10 +75,9 @@ export async function runInvestigator(opts: {
           waivedCriteria: de.manifest.waivedCriteria,
           modelCeiling: Math.min(1, ...result.investigation.modelsUsed.map((m) => opts.ceilings.get(m) ?? 0.5)),
           theta: opts.theta,
-          // Bộ eval nhóm 6 (đo tỉ lệ bác đúng/bác oan của phản biện) ngoài phạm vi bước 6 —
-          // xem plan 2026-09-27-investigator-challenge-lenses.md. Runner này không gọi
-          // challenge(), nên luôn null; §6.2 không có hiệu lực trên lượt eval.
-          challenge: null,
+          // Có `challengePhase` thì chạy đúng pha phản biện của đường chấm thật; không thì null, và
+          // §6.2 không có hiệu lực trên lượt này (các lượt đã commit trước P0 đều ở trạng thái đó).
+          challenge: phase?.challenge ?? null,
         });
         const bySource = { deterministic: 0, llm_with_tools: 0, llm_only: 0 };
         for (const e of decision.errors) bySource[e.source] += e.deductionHundredths ?? 0;
@@ -85,8 +90,8 @@ export async function runInvestigator(opts: {
           scoreHundredths: decision.scoreHundredths,
           foundRuleIds: decision.outcome === 'ungradable' ? null : decision.errors.map((e) => e.ruleKey),
           modelUsed: result.investigation.modelsUsed.join('+') || null,
-          tokensIn: result.usage.inputTokens,
-          tokensOut: result.usage.outputTokens,
+          tokensIn: result.usage.inputTokens + lensTotal.inputTokens,
+          tokensOut: result.usage.outputTokens + lensTotal.outputTokens,
           wallMs: Date.now() - started,
           toolCalls: result.investigation.budget.toolCalls,
           stopReason: result.investigation.budget.stopReason,
@@ -96,7 +101,11 @@ export async function runInvestigator(opts: {
           // hay làm điểm cao oan (luật thật mất bằng chứng) chỉ đo được khi cases.jsonl mang nó.
           // `rulesSeen` đi kèm để quyết lại trên hồ sơ này (T-TIER) không phải dựng lại nó từ bảng lỗi
           // HIỆN TẠI — dựng lại như vậy là mở lại lỗ review I3.
-          investigation: { ...result.investigation, rejected: result.rejected, rulesSeen, decision },
+          investigation: {
+            ...result.investigation, rejected: result.rejected, rulesSeen, decision,
+            challenge: phase?.challenge ?? undefined,
+            usageByModel: { investigation: result.usageByModel ?? {}, challenge: phase?.usageByModel ?? {} },
+          },
           summaryText: result.summary,
         });
       } catch (error) {

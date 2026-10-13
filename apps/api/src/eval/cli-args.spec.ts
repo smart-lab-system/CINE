@@ -12,6 +12,8 @@ describe('parseEvalArgs — review I2', () => {
         pipeline: 'baseline',
         compareTo: undefined,
         replayCheck: true,
+        challenge: false,
+        waive: [],
       },
     });
   });
@@ -27,6 +29,8 @@ describe('parseEvalArgs — review I2', () => {
         pipeline: 'baseline',
         compareTo: undefined,
         replayCheck: true,
+        challenge: false,
+        waive: [],
       },
     });
   });
