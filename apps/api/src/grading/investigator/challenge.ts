@@ -1,3 +1,4 @@
+import type { UsageSink } from './usage-sink';
 import { InvestigationContext, ToolCall, Verdict, VerdictError } from './types';
 
 export type ChallengeStatus = 'confirmed' | 'refuted' | 'unverified';
@@ -8,6 +9,8 @@ export interface ChallengeInput {
   ctx: InvestigationContext;
   /** Các toolCall THÔ mà lỗi trích. */
   evidence: ToolCall[];
+  /** Sink token của lượt chấm đang xét (P0). Lăng kính chuyển nó cho `runLensLoop`. */
+  usage?: UsageSink;
 }
 
 export interface Challenger {
@@ -39,6 +42,7 @@ export async function challenge(
   ctx: InvestigationContext,
   toolCalls: ToolCall[],
   challenger: Challenger,
+  sink?: UsageSink,
 ): Promise<ChallengeConclusion> {
   const byId = new Map(toolCalls.map((t) => [t.id, t]));
   const perError = await Promise.all(
@@ -47,6 +51,7 @@ export async function challenge(
         error: { ruleKey: e.ruleKey, toolCallIds: e.toolCallIds },
         ctx,
         evidence: e.toolCallIds.map((id) => byId.get(id)).filter((t): t is ToolCall => t !== undefined),
+        usage: sink,
       };
       try {
         const r = await challenger.review(input);

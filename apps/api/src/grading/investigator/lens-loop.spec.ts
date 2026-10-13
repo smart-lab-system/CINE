@@ -3,6 +3,8 @@ import { ModelTier } from './model-pool';
 import { ChatTextRequest } from '../ai-provider/openai-chat';
 import { execResult, fakeSandbox } from './testing/fake-sandbox';
 import { CTX } from './testing/context';
+import { badOutputError } from '../ai-provider/provider-failure';
+import { UNATTRIBUTED, UsageSink } from './usage-sink';
 
 const USAGE = { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheCreationTokens: 0 };
 type Reply = { action: 'call' | 'final'; calls: { tool: 'run_tests' }[]; conclusion: { status: 'confirmed' | 'refuted' } | null };
@@ -115,5 +117,34 @@ describe('runLensLoop() — vì sao dừng (end/failure), để một lăng kín
     const r = await runLensLoop(CTX, 'tinh_dung', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [model], sandbox: failAll });
     expect(r.end).toBe('max_rounds');
     expect(r.failure).toContain(`${LENS_BUDGET.maxRounds} lượt`);
+  });
+
+  it('P0 — ghi token của từng lượt vào sink theo model', async () => {
+    const sink = new UsageSink();
+    const model = scripted([
+      JSON.stringify({ action: 'call', calls: [{ tool: 'run_tests' }], conclusion: null }),
+      JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'confirmed' } }),
+    ]);
+    await runLensLoop(CTX, 'tinh_dung', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [model], sandbox: passAll() }, sink);
+    // Hai lượt hỏi model, mỗi lượt USAGE 10 vào / 5 ra.
+    expect(sink.snapshot()).toEqual({ 'A-m': { inputTokens: 20, outputTokens: 10 } });
+  });
+
+  it('P0 — mọi bậc hỏng: token của các lượt hỏng vào UNATTRIBUTED, không biến mất', async () => {
+    const sink = new UsageSink();
+    const dead: ModelTier = {
+      label: 'A', model: 'A-m', ceiling: 0.5,
+      async call() { throw Object.assign(badOutputError('cắt cụt'), { usage: USAGE }); },
+    };
+    const r = await runLensLoop(CTX, 'tinh_dung', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [dead], sandbox: passAll() }, sink);
+    expect(r.conclusion).toBeNull();
+    // bad_output: thử lại cùng bậc MỘT lần rồi loại → 2 lượt hỏng × USAGE (10 vào / 5 ra).
+    expect(sink.snapshot()).toEqual({ [UNATTRIBUTED]: { inputTokens: 20, outputTokens: 10 } });
+  });
+
+  it('P0 — không truyền sink thì hành vi cũ không đổi', async () => {
+    const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'refuted' } })]);
+    const r = await runLensLoop(CTX, 'tinh_dung', 'system', 'user', SCHEMA, parse, argsFor, (reply) => reply.conclusion, { models: [model], sandbox: passAll() });
+    expect(r.conclusion).toEqual({ status: 'refuted' });
   });
 });

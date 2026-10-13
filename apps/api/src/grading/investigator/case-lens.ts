@@ -1,3 +1,4 @@
+import type { UsageSink } from './usage-sink';
 import { InvestigationContext, ToolCall, Verdict } from './types';
 import { CaseLensNote } from './challenge';
 
@@ -9,7 +10,7 @@ import { CaseLensNote } from './challenge';
  */
 export interface CaseLens {
   readonly name: string;
-  review(ctx: InvestigationContext, verdict: Verdict, toolCalls: ToolCall[]): Promise<CaseLensNote>;
+  review(ctx: InvestigationContext, verdict: Verdict, toolCalls: ToolCall[], usage?: UsageSink): Promise<CaseLensNote>;
 }
 
 /**
@@ -22,9 +23,10 @@ export async function runCaseLens(
   verdict: Verdict,
   toolCalls: ToolCall[],
   lens: CaseLens,
+  sink?: UsageSink,
 ): Promise<CaseLensNote> {
   try {
-    return await lens.review(ctx, verdict, toolCalls);
+    return await lens.review(ctx, verdict, toolCalls, sink);
   } catch {
     return { lens: lens.name, suspected: false, note: 'không đọc được ý kiến của lăng kính này' };
   }

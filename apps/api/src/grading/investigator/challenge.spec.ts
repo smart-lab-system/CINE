@@ -1,6 +1,7 @@
 import { challenge, ChallengeInput, Challenger } from './challenge';
 import { ToolCall, Verdict } from './types';
 import { CTX } from './testing/context';
+import { UsageSink } from './usage-sink';
 
 const EVIDENCE: ToolCall = {
   id: 'tc-1', tool: 'run_tests', args: { group: null }, status: 'ok', output: 'co_ban: 3/3 đạt', structuredRef: null,
@@ -78,5 +79,27 @@ describe('challenge() — ranh giới §12.5', () => {
     // (nhiều test suite chạy song song cùng lúc) mà vẫn cách xa hẳn mốc tuần tự (3×).
     expect(elapsed).toBeLessThan(DELAY_MS * 2.5);
     expect(r.perError.map((e) => e.ruleKey)).toEqual(['a', 'b', 'c']); // giữ đúng thứ tự dù chạy song song
+  });
+
+  it('P0 — challenge() chuyển sink cho lăng kính qua ChallengeInput.usage', async () => {
+    const sink = new UsageSink();
+    let got: ChallengeInput | undefined;
+    const probe: Challenger = {
+      name: 'dò',
+      async review(input) {
+        got = input;
+        input.usage?.add('M', { inputTokens: 4, outputTokens: 2 });
+        return { status: 'confirmed', toolCallIds: [] };
+      },
+    };
+    await challenge(PLANTED, CTX, [EVIDENCE], probe, sink);
+    expect(got?.usage).toBe(sink);
+    expect(sink.snapshot()).toEqual({ M: { inputTokens: 4, outputTokens: 2 } });
+  });
+
+  it('P0 — không truyền sink thì ChallengeInput.usage là undefined (hành vi cũ)', async () => {
+    let got: ChallengeInput | undefined;
+    await challenge(PLANTED, CTX, [EVIDENCE], { name: 'x', async review(i) { got = i; return { status: 'confirmed', toolCallIds: [] }; } });
+    expect(got?.usage).toBeUndefined();
   });
 });

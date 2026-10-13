@@ -50,6 +50,7 @@ export class CorrectnessLens implements Challenger {
       lensArgsFor as never,
       (reply) => (reply.action === 'final' ? reply.conclusion : null),
       this.deps,
+      input.usage,
     );
     if (!r.conclusion) throw new Error(`lăng kính Tính đúng không kết luận được — ${r.failure}`);
     const okIds = new Set(r.toolCalls.filter((t) => t.status === 'ok').map((t) => t.id));

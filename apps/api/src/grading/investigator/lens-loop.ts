@@ -1,3 +1,4 @@
+import { UNATTRIBUTED, UsageSink } from './usage-sink';
 import { Logger } from '@nestjs/common';
 import { DuplicateGuard } from './dedup';
 import { ModelPool, ModelsExhaustedError, DeadlineExceededError, ModelTier } from './model-pool';
@@ -91,6 +92,8 @@ export async function runLensLoop<TReply extends { action: 'call' | 'final'; cal
   argsFor: (call: never) => Record<string, unknown>,
   extractConclusion: (reply: TReply) => TConclusion,
   deps: LensDeps,
+  /** MỘT sink cho MỘT lượt chấm (P0): lăng kính là singleton nên sink đi theo lời gọi, không ở trong lăng kính. */
+  sink?: UsageSink,
 ): Promise<LensRunResult<TConclusion>> {
   const now = deps.now ?? Date.now;
   const started = now();
@@ -112,12 +115,15 @@ export async function runLensLoop<TReply extends { action: 'call' | 'final'; cal
     return { conclusion: null, toolCalls, end, failure };
   };
 
-  const ask = () =>
-    pool.ask(
+  const ask = async () => {
+    const reply = await pool.ask(
       { system: systemPrompt, messages: messages.slice(), schemaName: 'lens_turn', schema, maxTokens: 2_048, timeoutMs: 60_000 },
       parseReply,
       { deadline, now },
     );
+    sink?.add(reply.model, reply.usage);
+    return reply;
+  };
 
   for (;;) {
     if (rounds >= LENS_BUDGET.maxRounds) { stop = 'max_rounds'; break; }
@@ -128,8 +134,14 @@ export async function runLensLoop<TReply extends { action: 'call' | 'final'; cal
     try {
       reply = (await ask()).value;
     } catch (error) {
-      if (error instanceof ModelsExhaustedError) return failed('models_exhausted', error.reasons.join('; '));
-      if (error instanceof DeadlineExceededError) return failed('deadline');
+      if (error instanceof ModelsExhaustedError) {
+        sink?.add(UNATTRIBUTED, error.usage);
+        return failed('models_exhausted', error.reasons.join('; '));
+      }
+      if (error instanceof DeadlineExceededError) {
+        sink?.add(UNATTRIBUTED, error.usage);
+        return failed('deadline');
+      }
       throw error;
     }
     rounds++;

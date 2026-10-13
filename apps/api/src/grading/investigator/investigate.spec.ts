@@ -490,4 +490,12 @@ describe('investigate()', () => {
     const src = readFileSync(join(__dirname, 'investigate.ts'), 'utf8');
     expect(src).not.toMatch(/challenge/i);
   });
+
+  it('P0 — usageByModel gom token theo từng model đã trả lời', async () => {
+    const model = scripted('A', [turn(call('run_tests')), final([{ ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'], note: null }])]);
+    const r = await investigate(CTX, deps([model]));
+    // Hai lượt hỏi model, mỗi lượt USAGE 100 vào / 20 ra.
+    expect(r.usageByModel).toEqual({ 'A-m': { inputTokens: 200, outputTokens: 40 } });
+    expect(r.usage).toEqual({ inputTokens: 200, outputTokens: 40 });
+  });
 });

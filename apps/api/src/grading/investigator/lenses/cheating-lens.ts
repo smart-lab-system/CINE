@@ -1,3 +1,4 @@
+import type { UsageSink } from '../usage-sink';
 import { CaseLens } from '../case-lens';
 import { CaseLensNote } from '../challenge';
 import { LensDeps, runLensLoop } from '../lens-loop';
@@ -31,7 +32,7 @@ export class CheatingLens implements CaseLens {
   readonly name = 'gian_lan';
   constructor(private readonly deps: LensDeps) {}
 
-  async review(ctx: InvestigationContext, verdict: Verdict, _toolCalls: ToolCall[]): Promise<CaseLensNote> {
+  async review(ctx: InvestigationContext, verdict: Verdict, _toolCalls: ToolCall[], usage?: UsageSink): Promise<CaseLensNote> {
     const userMessage = [
       caseLensContext(ctx, verdict, '(không có)'),
       'Tự chọn input riêng (khác goi-test.md) và gọi run() để kiểm gian lận.',
@@ -46,6 +47,7 @@ export class CheatingLens implements CaseLens {
       lensArgsFor as never,
       (reply) => (reply.action === 'final' ? reply.conclusion : null),
       this.deps,
+      usage,
     );
     if (!r.conclusion) return { lens: this.name, suspected: false, note: clampNote(`không kết luận được — ${r.failure}`) };
     // W4 (review cuối): buộc tội gian lận mà không có lấy một lần `run()` thành công của chính
