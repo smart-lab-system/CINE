@@ -44,7 +44,7 @@ function resultWithErrors(errors: { ruleKey: string; toolCallIds: string[]; note
 const MACHINE_ERROR = { ruleKey: 'sai_ca_co_ban', toolCallIds: [], note: null };
 const MODEL_ERROR = { ruleKey: 'chu_thich_sai', toolCallIds: [], note: null };
 
-describe('InvestigatorRunService.runChallenge (bước 6)', () => {
+describe('InvestigatorRunService — pha phản biện (bước 6)', () => {
   it('verdict có lỗi (luật MODEL) → gọi đủ 2 Challenger + 2 CaseLens, ghi vào stored.challenge', async () => {
     const challengerA = { name: 'a', review: jest.fn().mockResolvedValue({ status: 'confirmed', toolCallIds: [] }) };
     const challengerB = { name: 'b', review: jest.fn().mockResolvedValue({ status: 'refuted', toolCallIds: [] }) };
@@ -53,7 +53,7 @@ describe('InvestigatorRunService.runChallenge (bước 6)', () => {
     const svc = service([challengerA, challengerB], [lensA, lensB]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const out = await (svc as any).runChallenge(resultWithErrors([MODEL_ERROR]), CTX);
+    const out = (await (svc as any).challengePhase(resultWithErrors([MODEL_ERROR]), CTX)).challenge;
 
     expect(challengerA.review).toHaveBeenCalledTimes(1);
     expect(challengerB.review).toHaveBeenCalledTimes(1);
@@ -71,7 +71,7 @@ describe('InvestigatorRunService.runChallenge (bước 6)', () => {
     const svc = service([challengerA], [lensA]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const out = await (svc as any).runChallenge(resultWithErrors([MACHINE_ERROR, MODEL_ERROR]), CTX);
+    const out = (await (svc as any).challengePhase(resultWithErrors([MACHINE_ERROR, MODEL_ERROR]), CTX)).challenge;
 
     // Challenger CHỈ được hỏi về lỗi luật model — không hề thấy sai_ca_co_ban.
     expect(challengerA.review).toHaveBeenCalledTimes(1);
@@ -86,7 +86,7 @@ describe('InvestigatorRunService.runChallenge (bước 6)', () => {
     const svc = service([challengerA], []);
     const ungradableResult = { ...resultWithErrors([]), kind: 'ungradable' as const, verdict: null };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const out = await (svc as any).runChallenge(ungradableResult, CTX);
+    const out = (await (svc as any).challengePhase(ungradableResult, CTX)).challenge;
     expect(out).toBeNull();
     expect(challengerA.review).not.toHaveBeenCalled();
   });
@@ -94,18 +94,18 @@ describe('InvestigatorRunService.runChallenge (bước 6)', () => {
   it('deps.challengers rỗng (chưa cấu hình sandbox) → trả null, không lỗi', async () => {
     const svc = service([], []);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const out = await (svc as any).runChallenge(resultWithErrors([MODEL_ERROR]), CTX);
+    const out = (await (svc as any).challengePhase(resultWithErrors([MODEL_ERROR]), CTX)).challenge;
     expect(out).toBeNull();
   });
 
-  it('W8 — một Challenger NÉM lỗi qua runChallenge() thật (không chỉ unit test của chính nó) → vẫn ra kết luận unverified, không văng lỗi', async () => {
+  it('W8 — một Challenger NÉM lỗi qua pha phản biện thật (không chỉ unit test của chính nó) → vẫn ra kết luận unverified, không văng lỗi', async () => {
     const broken = { name: 'hỏng', review: jest.fn().mockRejectedValue(new Error('model chết')) };
     const okOne = { name: 'ok', review: jest.fn().mockResolvedValue({ status: 'confirmed', toolCallIds: [] }) };
     const brokenLens = { name: 'bo_sot', review: jest.fn().mockRejectedValue(new Error('model chết')) };
     const svc = service([broken, okOne], [brokenLens]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const out = await (svc as any).runChallenge(resultWithErrors([MODEL_ERROR]), CTX);
+    const out = (await (svc as any).challengePhase(resultWithErrors([MODEL_ERROR]), CTX)).challenge;
 
     expect(out).not.toBeNull();
     const brokenConclusion = out.perError.find((c: { challenger: string }) => c.challenger === 'hỏng');
