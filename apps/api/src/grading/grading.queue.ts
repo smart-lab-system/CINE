@@ -11,6 +11,8 @@ export interface GradeSubmissionJob {
    * này để chọn resolver — không đoán từ tên file, không hỏi model.
    */
   deliverableType: DeliverableType;
+  /** Kết quả chấm của CÂU (P1a): job tra dòng chấm theo id này, không theo bài nộp (bẫy 1, §9). */
+  resultId: string;
   submissionId: string;
   /** Tên file đã khai báo — chỉ ĐUÔI của nó được dùng để chọn extractor. */
   requiredFilename: string;

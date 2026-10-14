@@ -80,6 +80,7 @@ describe('Chấm lại bài không chấm được (e2e, hàng đợi bị spy)'
     expect(add).toHaveBeenCalledWith(
       'grade-submission',
       expect.objectContaining({
+        resultId: made.resultId,
         submissionId: made.submissionId,
         requiredFilename: 'Cau1.docx',
         deliverableType: 'document',

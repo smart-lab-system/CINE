@@ -76,6 +76,7 @@ describe('Chấm lại — đường điều tra, đầu-cuối (e2e)', () => {
     const sub = await seedCodeSubmission(ds, storage, s);
     const job: GradeSubmissionJob = {
       deliverableType: 'code_project',
+      resultId: sub.resultId,
       submissionId: sub.submissionId,
       requiredFilename: 'Cau1.docx',
       rubricId: s.ctx.rubricId,

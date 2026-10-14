@@ -58,6 +58,7 @@ const CRITERIA = [
 
 const JOB: GradeSubmissionJob = {
   deliverableType: 'document',
+  resultId: 'res1',
   submissionId: 's1',
   requiredFilename: 'Cau1.docx',
   rubricId: 'r1',

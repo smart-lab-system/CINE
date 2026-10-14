@@ -214,6 +214,7 @@ export class RegradeService {
     await this.queue.add(
       'grade-submission',
       {
+        resultId: row.id,
         submissionId: row.submissionId,
         requiredFilename: row.requiredFilename,
         deliverableType: row.deliverableType,

@@ -255,8 +255,10 @@ export class GradingRunService {
     // chờ tới phiên lớn nhất trong năm.
     // Câu của mọi dòng kết quả mới: câu mặc định của phiên (P1a).
     const problemId = await ensureDefaultProblem(this.results.manager, session.id);
+    // Id dòng chấm theo bài, để job tra kết quả theo id (bẫy 1, §9).
+    const resultIdBySubmission = new Map<string, string>();
     for (const batch of chunk(todo, START_GRADING_CHUNK)) {
-      await this.results.save(
+      const saved = await this.results.save(
         batch.map((submission) =>
           this.results.create({
             submissionId: submission.id,
@@ -272,8 +274,14 @@ export class GradingRunService {
           }),
         ),
       );
+      for (const row of saved) resultIdBySubmission.set(row.submissionId, row.id);
     }
 
+    const resultIdOf = (submissionId: string): string => {
+      const id = resultIdBySubmission.get(submissionId);
+      if (!id) throw new Error(`không có dòng chấm cho bài ${submissionId} vừa tạo`);
+      return id;
+    };
     // `addBulk` cũng chia lô: nó là MỘT pipeline Redis, nên một lô lớn
     // là một gói lớn và một lần chờ dài.
     for (const batch of chunk(todo, START_GRADING_CHUNK)) {
@@ -281,6 +289,7 @@ export class GradingRunService {
         batch.map((submission) => ({
           name: 'grade-submission',
           data: {
+            resultId: resultIdOf(submission.id),
             submissionId: submission.id,
             requiredFilename:
               deliverables.get(submission.requiredDeliverableId)?.requiredFilename ?? '',
@@ -401,6 +410,7 @@ export class GradingRunService {
       await this.queue.add(
         'grade-submission',
         {
+          resultId: row.id,
           submissionId: row.submission_id,
           requiredFilename: deliverable?.requiredFilename ?? '',
           deliverableType: deliverable?.deliverableType ?? 'document',

@@ -64,6 +64,7 @@ describe('Nhánh investigator của worker (e2e)', () => {
     const sub = await seedCodeSubmission(ds, storage, s);
     const j: GradeSubmissionJob = {
       deliverableType: 'code_project',
+      resultId: sub.resultId,
       submissionId: sub.submissionId,
       requiredFilename: 'Cau1.docx',
       rubricId: s.ctx.rubricId,

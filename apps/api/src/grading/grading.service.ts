@@ -293,8 +293,9 @@ export class GradingService {
    * chế chặn.
    */
   async gradeOneById(job: GradeSubmissionJob): Promise<void> {
+    // Tra theo id kết quả của job, không theo bài nộp: một bài có thể còn nhiều dòng khi P2 bỏ unique(submission_id).
     const result = await this.results.findOne({
-      where: { submissionId: job.submissionId },
+      where: { id: job.resultId },
     });
     if (!result) {
       // Dòng được tạo đồng bộ ở `startGrading`, nên không có nó nghĩa là
