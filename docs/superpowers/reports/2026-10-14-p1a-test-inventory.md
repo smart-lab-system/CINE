@@ -56,3 +56,25 @@
 | `test/submission-text.e2e-spec.ts` | 4, 11 |
 | `test/teacher-review.e2e-spec.ts` | 4, 11 |
 | `test/test-bundle.e2e-spec.ts` | 4, 11 |
+
+## Kết quả kiểm chứng (Task 11, 2026-10-14)
+
+Mốc: nhánh `feat/multi-problem-p1a`, sau đợt sửa theo đánh giá cuối (commit `0231138`).
+
+| Kiểm tra | Lệnh | Kết quả |
+|---|---|---|
+| tsc (api) | `npx tsc --noEmit -p tsconfig.json` | 0 lỗi |
+| Vòng lặp import | `pnpm check:cycles` | 0 vòng (605 file api, 14 file agent) |
+| ESLint | `npx eslint src test --ext .ts` | 0 lỗi, 7 cảnh báo, đều ở file không đổi trên nhánh |
+| Unit | `npx jest -c <cấu hình unit> src` | 154 suite đạt, 2 bỏ qua; 1519 test đạt, 7 bỏ qua, 0 đỏ |
+| E2E tuần tự | `npx jest --config ./test/jest-e2e.json --runInBand <56 file>` | 56/56 suite, 498/498 test đạt |
+| Web tsc | `npx tsc --noEmit` (apps/web) | 2 lỗi có sẵn trong `src/lib/read-workbook.test.ts`, không do nhánh này |
+| Web vitest | `npx vitest run src/lib/grade-export-view.test.ts` | 35/35 |
+
+Ghi chú:
+- Cấu hình unit được dựng lại trong worktree (`.superpowers/jest.unit.config.js`, git-ignored) vì bản gốc không có ở đây.
+- 56 file e2e gồm 43 file trong bảng ảnh hưởng ở trên và 13 file bổ sung: các `multi-problem-p1a-*` (schema, backfill, resolver, writers, traps), `health`, `submission-overview`, `test-bundle`, `exam-session`, `session-rubric`, `start-grading-test-bundle-guard`, `teacher-review`, `exam-schedule-conflict`, `grade-export-preview`, `grade-export-list`, `audit-blind`, `rubric-errors-routes`, `score-service`.
+
+Chưa chạy (chặn bởi cổng Task 12, bước 1 — cần chủ đồ án duyệt):
+- Nghiệm thu "1 câu chạy như cũ" (§11): cần M1 và M2 đã áp lên Supabase. Lượt diễn tập `ngan-xep-v1` 5 bài chưa chạy; chưa so với lượt nền `20261014T034132Z-0199dd3`.
+- Kiểm `ruler_trust` của kịch bản `ngan-xep-v1` (§6.3b): phụ thuộc bước trên.
