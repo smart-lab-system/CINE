@@ -1,3 +1,4 @@
+import { resolveProblemConfig } from '../problem/resolve-problem-config';
 import { EntityManager } from 'typeorm';
 import type { RulePredicate } from '../decision/types';
 import { currentScore, CurrentScore } from './current-score';
@@ -5,18 +6,7 @@ import { parseHundredths } from './hundredths';
 import type { RuleSnapshot, ScoreBreakdown } from './score-core';
 import { readStoredInvestigation, StoredInvestigation } from './stored-investigation';
 
-/**
- * Mọi lượt tính của MỘT giảng viên xếp hàng qua khoá này, tới hết transaction. Không có nó, một
- * lượt tính đầu đọc bảng giá cũ trong lúc một lượt sửa giá chưa commit và bị lượt đó bỏ qua (bài
- * còn `ai_grading`) — bài giữ điểm theo giá cũ mãi.
- *
- * THỨ TỰ KHOÁ là luật: khoá này TRƯỚC mọi khoá hàng. Người ghi nào của 3d/3e đụng dòng
- * `grading_result` đường điều tra (ghi lượt chấm, rút mẫu, chấm lại) phải xin khoá này trước khi
- * `FOR UPDATE` một dòng, không thì ôm chết với một lượt tính lại đang giữ khoá này và chờ dòng đó.
- */
-export async function lockTeacherScoring(m: EntityManager, teacherId: string): Promise<void> {
-  await m.query(`SELECT pg_advisory_xact_lock(hashtextextended('score_computation:' || $1::text, 0))`, [teacherId]);
-}
+export { lockTeacherScoring } from './teacher-lock';
 
 export async function teacherOfResult(m: EntityManager, resultId: string): Promise<string> {
   const [row] = await m.query(
@@ -211,7 +201,7 @@ export async function loadScoreContext(
 ): Promise<ScoreContext> {
   const [row] = await m.query(
     `SELECT g.pipeline, g.status, g.ungradable_class, g.rubric_id_version, g.current_attempt_id,
-            s.exam_session_id, es.teacher_id, es.test_bundle_id,
+            s.exam_session_id, es.teacher_id,
             rb.name AS rubric_name, a.outcome AS attempt_outcome, a.investigation
        FROM examcollect.grading_result g
        JOIN examcollect.submission s ON s.id = g.submission_id
@@ -226,11 +216,12 @@ export async function loadScoreContext(
     `SELECT key, max_points FROM examcollect.rubric_criterion WHERE rubric_id = $1 ORDER BY sort_order, created_at, key`,
     [row.rubric_id_version],
   );
-  const cases: { case_key: string; group: string }[] = row.test_bundle_id
+  const testBundleId: string | null = (await resolveProblemConfig(m, row.exam_session_id))?.testBundleId ?? null;
+  const cases: { case_key: string; group: string }[] = testBundleId
     ? await m.query(
         `SELECT case_key, "group" FROM examcollect.grading_test_case
           WHERE bundle_id = $1 AND auto_dropped_reason IS NULL ORDER BY case_key`,
-        [row.test_bundle_id],
+        [testBundleId],
       )
     : [];
   const waivers: { criterion_key: string }[] = await m.query(
@@ -260,7 +251,7 @@ export async function loadScoreContext(
     rubricName: row.rubric_name,
     attemptId: row.current_attempt_id,
     stored: storedOverride ?? (row.attempt_outcome === 'graded' ? readStoredInvestigation(row.investigation) : null),
-    bundleId: row.test_bundle_id,
+    bundleId: testBundleId,
     bundleCases: cases.map((c) => ({ name: c.case_key, group: c.group })),
     rubric: rubric.map((c) => ({ key: c.key, maxHundredths: parseHundredths(c.max_points) })),
     waivedCriteria: waivers.map((w) => w.criterion_key),

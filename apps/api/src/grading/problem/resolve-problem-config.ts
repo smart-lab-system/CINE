@@ -1,5 +1,5 @@
 import { EntityManager } from 'typeorm';
-import { lockTeacherScoring } from '../scoring/score-inputs';
+import { lockTeacherScoring } from '../scoring/teacher-lock';
 
 /** Cấu hình chấm của MỘT câu (P1a). Mọi đường đọc rubric / gói test / đáp án đi qua hàm này. */
 export interface ProblemConfig {
