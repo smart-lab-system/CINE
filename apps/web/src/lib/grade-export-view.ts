@@ -103,7 +103,7 @@ export function matchesFilter(row: PlanRowView, filter: RowFilter): boolean {
     case 'blank':
       return row.action === 'blank' || row.action === 'kept';
     case 'problem':
-      return row.action === 'unmatched' || row.action === 'duplicate' || row.action === 'skipped_formula' || row.action === 'skipped_merged';
+      return row.action === 'unmatched' || row.action === 'duplicate' || row.action === 'conflict' || row.action === 'skipped_formula' || row.action === 'skipped_merged';
     case 'changed':
       return row.direction === 'up' || row.direction === 'down';
   }
