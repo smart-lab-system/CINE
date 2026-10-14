@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
 import { ensureDefaultProblem, resolveProblemConfig, setSessionTestBundleAndProblem } from '../problem/resolve-problem-config';
+import { lockTeacherScoring } from '../scoring/teacher-lock';
 
 /**
  * Một ca sẵn sàng ghi. Kiểu CẤU TRÚC, không import từ `exam-authoring`:
@@ -67,6 +68,9 @@ export class TestBundleService {
       // Khoá hàng phiên TRƯỚC khi đọc "đã ghim chưa" và tính số phiên bản. `sessionAlreadyPinned` do người gọi đọc NGOÀI
       // transaction, nên hai `attach` đồng thời cùng thấy "chưa ghim": cả hai ghim (gói sau đè gói trước) hoặc cả hai
       // lấy cùng `version` và một bên nổ vì khoá duy nhất. Có khoá, bên đến sau thấy pin của bên đến trước.
+      // Thứ tự khoá như mọi đường ghi khác: khoá giảng viên TRƯỚC, hàng phiên SAU. Đảo thứ tự này deadlock với
+      // pin/setRubric, vốn lấy khoá giảng viên trước rồi mới cần đúng hàng phiên.
+      await lockTeacherScoring(manager, teacherId);
       await manager.query(`SELECT id FROM examcollect.exam_session WHERE id = $1 FOR UPDATE`, [examSessionId]);
       const cfg = await resolveProblemConfig(manager, examSessionId);
       const pinnedNow = sessionAlreadyPinned || (cfg?.testBundleId ?? null) !== null;
