@@ -10,7 +10,17 @@ export class ExamProblemBackfill1789610000000 implements MigrationInterface {
   name = 'ExamProblemBackfill1789610000000';
 
   public async up(q: QueryRunner): Promise<void> {
-    await backfillDefaultProblems(q);
+    // migrationsTransactionMode = 'none': chạy không có `-t all` thì chưa có transaction nào. Tự mở một cái để
+    // cổng checksum rollback được cả phần đã ghi. Có `-t all` thì transaction ngoài đã có, không mở lồng.
+    const own = !q.isTransactionActive;
+    if (own) await q.startTransaction();
+    try {
+      await backfillDefaultProblems(q);
+      if (own) await q.commitTransaction();
+    } catch (error) {
+      if (own && q.isTransactionActive) await q.rollbackTransaction();
+      throw error;
+    }
   }
 
   public async down(q: QueryRunner): Promise<void> {

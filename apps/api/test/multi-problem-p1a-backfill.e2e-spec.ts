@@ -8,6 +8,7 @@ import {
   installProblemIdGuards,
 } from '../src/grading/problem/default-problem-backfill';
 import { scoreResult, seedCriterion, seedResult, seedSession, SeedSession } from './helpers/grading-seed';
+import { ExamProblemBackfill1789610000000 } from '../src/database/migrations/1789610000000-ExamProblemBackfill';
 
 /** Bộ bản ghi tối thiểu cho một phiên: gói test và đáp án mẫu (chỉ cần các cột NOT NULL). */
 async function seedBundleAndReference(
@@ -135,7 +136,7 @@ describe('P1a — backfill câu mặc định (M2)', () => {
   it('chạy lại lần hai không tạo gì thêm (idempotent)', async () => {
     await runBackfill(ds);
     const again = await runBackfill(ds);
-    expect(again).toEqual({ problems: 0, results: 0, bundles: 0, references: 0 });
+    expect(again).toEqual({ problems: 0, results: 0, bundles: 0, references: 0, synced: 0 });
   });
 
   it('cổng checksum: số liệu đổi giữa chừng → ném ChecksumMismatchError và rollback, không có câu nào được ghi', async () => {
@@ -192,5 +193,59 @@ describe('P1a — backfill câu mặc định (M2)', () => {
     ).rejects.toThrow(/problem_id/);
     // Giữ nguyên giá trị hiện có thì không bị chặn.
     await ds.query(`UPDATE examcollect.grading_result SET problem_id = $2 WHERE id = $1`, [resultId, pa.id]);
+  });
+
+  // Khoảng giữa migration và triển khai: code cũ vẫn ghi cột bí danh của phiên, câu 1 không biết. Chạy lại backfill
+  // phải kéo câu 1 theo cột bí danh (§10.1, bước 3), không chỉ thêm câu còn thiếu.
+  it('chạy lại sau triển khai: câu 1 lệch cột bí danh (code cũ ghi trong khoảng giữa) được kéo theo', async () => {
+    const ctx = await seedSession(ds, 'bf-sync');
+    await runBackfill(ds);
+    const [rubricB] = await ds.query(
+      `INSERT INTO examcollect.rubric (version, teacher_id, name) VALUES (1, $1, $2) RETURNING id`,
+      [ctx.teacherId, `Rubric đồng bộ ${ctx.sessionId}`],
+    );
+    await seedCriterion(ds, rubricB.id, 'tieu_chi_b', 3);
+    await ds.query(`UPDATE examcollect.exam_session SET rubric_id = $2 WHERE id = $1`, [ctx.sessionId, rubricB.id]);
+
+    const counts = await runBackfill(ds);
+
+    const [p] = await ds.query(
+      `SELECT rubric_id, points_hundredths FROM examcollect.exam_problem WHERE exam_session_id = $1 AND ordinal = 1`,
+      [ctx.sessionId],
+    );
+    expect(p).toEqual({ rubric_id: rubricB.id, points_hundredths: 300 });
+    expect(counts.synced).toBeGreaterThanOrEqual(1);
+  });
+
+  // Migration chạy KHÔNG có `-t all` (migrationsTransactionMode = 'none'): migration phải tự mở transaction,
+  // nếu không cổng checksum ném lỗi nhưng các dòng đã ghi vẫn nằm lại trong DB đang phục vụ người dùng.
+  it('migration M2 không có transaction ngoài: checksum lệch → rollback toàn bộ, trigger được bật lại', async () => {
+    const ctx = await seedSession(ds, 'bf-mig-rollback');
+    const { resultId } = await seedResult(ds, ctx);
+    await scoreResult(ds, resultId, '5.00');
+
+    const qr = ds.createQueryRunner();
+    await qr.connect();
+    const realQuery = qr.query.bind(qr);
+    qr.query = (sql: string, params?: unknown[]) => {
+      const out = realQuery(sql, params);
+      if (sql.includes('UPDATE examcollect.grading_reference')) {
+        return out.then(async (rows) => {
+          await realQuery(`UPDATE examcollect.grading_result SET updated_at = now() WHERE id = $1`, [resultId]);
+          return rows;
+        });
+      }
+      return out;
+    };
+
+    await expect(new ExamProblemBackfill1789610000000().up(qr)).rejects.toBeInstanceOf(ChecksumMismatchError);
+    await qr.release();
+
+    const [count] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.exam_problem WHERE exam_session_id = $1`, [ctx.sessionId]);
+    expect(count.n).toBe(0);
+    const [trg] = await ds.query(
+      `SELECT tgenabled FROM pg_trigger WHERE tgrelid = 'examcollect.grading_result'::regclass AND tgname = 'trg_grading_result_updated_at'`,
+    );
+    expect(trg.tgenabled).toBe('O');
   });
 });

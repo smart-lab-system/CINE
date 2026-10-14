@@ -16,6 +16,8 @@ export interface BackfillCounts {
   results: number;
   bundles: number;
   references: number;
+  /** Câu 1 đã kéo theo cột bí danh của phiên vì lệch (chỉ xảy ra khi chạy lại trong khoảng giữa migration và triển khai). */
+  synced: number;
 }
 
 /**
@@ -34,12 +36,17 @@ function rowsOf(result: unknown): unknown[] {
  * Không đọc được thì để lỗi nổi lên, không bỏ qua.
  */
 async function checksum(q: QueryRunner): Promise<string> {
+  // Băm theo TỪNG DÒNG, sắp theo id: tổng hay max không bắt được đổi status, hay hai đổi ngược chiều triệt nhau.
   const [row] = await q.query(`
     SELECT
-      (SELECT coalesce(sum(ai_total_score), 0)::text FROM examcollect.grading_result) AS ai_sum,
-      (SELECT count(*)::text FROM examcollect.grading_result WHERE status IS NOT NULL) AS status_n,
-      (SELECT count(*)::text FROM examcollect.score_computation) AS sc_n,
-      (SELECT coalesce(max(updated_at)::text, '') FROM examcollect.grading_result) AS upd_max`);
+      md5(coalesce(string_agg(
+        g.id::text || '|' || coalesce(g.status::text, '') || '|' || coalesce(g.ai_total_score::text, '') || '|' ||
+        coalesce(g.updated_at::text, '') || '|' ||
+        (SELECT count(*) FROM examcollect.score_computation sc WHERE sc.grading_result_id = g.id)::text,
+        chr(10) ORDER BY g.id), '')) AS per_row,
+      (SELECT count(*)::text FROM examcollect.grading_result) AS result_n,
+      (SELECT count(*)::text FROM examcollect.score_computation) AS sc_n
+    FROM examcollect.grading_result g`);
   return JSON.stringify(row);
 }
 
@@ -48,7 +55,7 @@ async function checksum(q: QueryRunner): Promise<string> {
  * người gọi (migration chạy với `-t all`). Tắt trigger updated_at của grading_result trong lúc điền để
  * dấu thời gian không làm lệch checksum (tiền lệ migration 1789430000000). Luôn bật lại trigger.
  *
- * Idempotent: chỉ điền dòng còn NULL, chỉ tạo câu cho phiên chưa có câu 1.
+ * Idempotent: chỉ điền dòng còn NULL, chỉ tạo câu cho phiên chưa có câu 1, và chỉ kéo câu 1 khi nó lệch cột bí danh.
  */
 export async function backfillDefaultProblems(q: QueryRunner): Promise<BackfillCounts> {
   await installProblemIdGuards(q);
@@ -68,6 +75,19 @@ export async function backfillDefaultProblems(q: QueryRunner): Promise<BackfillC
         FROM examcollect.exam_session es
        WHERE NOT EXISTS (SELECT 1 FROM examcollect.exam_problem p WHERE p.exam_session_id = es.id AND p.ordinal = 1)
       RETURNING id`);
+    // Khoảng giữa migration và triển khai: code cũ vẫn ghi cột bí danh của phiên, câu 1 không biết. Cột bí danh là
+    // sự thật trong khoảng đó (code mới chưa chạy), nên kéo câu 1 theo nó. Sau triển khai hai bên luôn ghi cùng nhau,
+    // nên lượt này không đổi gì. Chỉ đụng exam_problem, không đụng dòng chấm: checksum không đổi.
+    const synced = await q.query(`
+      UPDATE examcollect.exam_problem p
+         SET rubric_id = es.rubric_id,
+             test_bundle_id = es.test_bundle_id,
+             points_hundredths = coalesce((SELECT round(sum(rc.max_points) * 100)::int
+                                             FROM examcollect.rubric_criterion rc WHERE rc.rubric_id = es.rubric_id), 0)
+        FROM examcollect.exam_session es
+       WHERE es.id = p.exam_session_id AND p.ordinal = 1
+         AND (p.rubric_id IS DISTINCT FROM es.rubric_id OR p.test_bundle_id IS DISTINCT FROM es.test_bundle_id)
+      RETURNING p.id`);
     const results = await q.query(`
       UPDATE examcollect.grading_result g SET problem_id = p.id
         FROM examcollect.submission s, examcollect.exam_problem p
@@ -93,6 +113,7 @@ export async function backfillDefaultProblems(q: QueryRunner): Promise<BackfillC
       results: rowsOf(results).length,
       bundles: rowsOf(bundles).length,
       references: rowsOf(references).length,
+      synced: rowsOf(synced).length,
     };
   } finally {
     await q.query(`ALTER TABLE examcollect.grading_result ENABLE TRIGGER trg_grading_result_updated_at`);
