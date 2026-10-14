@@ -9,8 +9,19 @@ import { GradeSubmissionJob } from '../src/grading/grading.queue';
 import { ensureDefaultProblem } from '../src/grading/problem/resolve-problem-config';
 import { loadSessionModelRules, sessionModelRulesWith } from '../src/grading/scoring/score-inputs';
 import { GradeExportDataService } from '../src/grade-export/grade-export.data';
+import { PriceService } from '../src/grading/rules/price.service';
+import { ScoreService } from '../src/grading/scoring/score.service';
+import { TeacherReviewService } from '../src/grading/teacher-review.service';
 import { scoreResult, seedResult, seedSession, SeedSession } from './helpers/grading-seed';
-import { seedInvestigatorResult, storedWith } from './helpers/investigator-seed';
+import {
+  assignmentId,
+  rubricNameOf,
+  seedInvestigatorResult,
+  seedInvestigatorSession,
+  seedPrices,
+  seedRule,
+  storedWith,
+} from './helpers/investigator-seed';
 
 /**
  * P1a — các bẫy §9 của spec, chốt bằng dữ liệu được seed ĐÚNG HÌNH DẠNG của P1a (unique(submission_id) còn).
@@ -149,6 +160,39 @@ describe('P1a — bẫy §9 (e2e)', () => {
       const mine = students.filter((s) => s.mssv.toLowerCase() === mssv.toLowerCase());
       expect(mine).toHaveLength(1);
       expect(mine[0].outcome).toEqual({ kind: 'conflict', reason: expect.stringMatching(/nhiều kết quả/) });
+    });
+  });
+
+  describe('planReapply — giá theo rubric của chính kết quả', () => {
+    it('phiên có hai kết quả thuộc hai rubric: đổi giá rubric B chỉ tính lại bài của B, không bỏ qua vì thiếu giá', async () => {
+      const a = await seedSession(ds, 'trap-8-a');
+      await seedInvestigatorSession(ds, a);
+      const b = await seedSession(ds, 'trap-8-b', { teacherId: a.teacherId, startHoursAgo: 10 });
+      await seedInvestigatorSession(ds, b);
+      const teacherId = a.teacherId;
+      const nameB = await rubricNameOf(ds, b.rubricId);
+      const chung = await seedRule(ds, teacherId, 'chung', 'tinh_dung', { kind: 'test_group_failed', group: 'bien' });
+      const ten = await seedRule(ds, teacherId, 'ten_bien', 'trinh_bay');
+      await seedPrices(ds, teacherId, { [chung.ruleId]: '1.00', [ten.ruleId]: '0.50' });
+      const chungB = await assignmentId(ds, teacherId, nameB, chung.ruleId);
+      const seen = [
+        { ruleKey: 'chung', checkedBy: 'machine' as const },
+        { ruleKey: 'ten_bien', checkedBy: 'model' as const },
+      ];
+
+      // Bài A theo rubric của phiên; bài B cùng phiên nhưng ghim rubric B (rubric_id_version).
+      const ra = await seedInvestigatorResult(ds, a, storedWith(seen));
+      await app.get(ScoreService).computeInitial(ra.resultId);
+      const rb = await seedInvestigatorResult(ds, a, storedWith(seen));
+      await ds.query(`UPDATE examcollect.grading_result SET rubric_id_version = $2 WHERE id = $1`, [rb.resultId, b.rubricId]);
+      await app.get(ScoreService).computeInitial(rb.resultId);
+      await app.get(TeacherReviewService).finalizeGrades(a.sessionId, teacherId);
+
+      await app.get(PriceService).setPrice(teacherId, chungB, '3.00', teacherId);
+      const plan = await app.get(ScoreService).previewReapply(a.sessionId, teacherId);
+
+      expect(plan.skipped).toEqual([]);
+      expect(plan.changes.map((c) => c.resultId)).toEqual([rb.resultId]);
     });
   });
 });

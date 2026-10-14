@@ -447,19 +447,29 @@ export class ScoreService {
       throw new ConflictException('Phiên chưa chốt — giá mới đã tự áp cho phiên chưa chốt');
     }
     const price = await currentPriceVersion(m, teacherId);
-    // Giá của riêng rubric của phiên này (§3.4 spec rules-by-rubric): bảng giá chứa dòng của mọi rubric.
-    const priceRows: { error_rule_id: string; deduction: string | null }[] = price
+    // Giá theo rubric CỦA TỪNG KẾT QUẢ (§3.4 rules-by-rubric), không theo rubric của phiên: một phiên có thể có bài
+    // chấm theo rubric khác. Lấy tên rubric của các kết quả trong phiên, rồi các luật và giá của những rubric đó.
+    const priceRows: { rubric_name: string; error_rule_id: string; deduction: string | null }[] = price
       ? await m.query(
-          `SELECT re.error_rule_id, p.deduction
-             FROM examcollect.exam_session es
-             JOIN examcollect.rubric rb ON rb.id = es.rubric_id
-             JOIN examcollect.rubric_error re ON re.teacher_id = es.teacher_id AND re.rubric_name = rb.name AND re.removed_at IS NULL
-             JOIN examcollect.rubric_error_price p ON p.rubric_error_id = re.id AND p.price_table_version_id = $2
-            WHERE es.id = $1`,
-          [sessionId, price.id],
+          `SELECT used.name AS rubric_name, re.error_rule_id, p.deduction
+             FROM (SELECT DISTINCT rb.name
+                     FROM examcollect.grading_result g
+                     JOIN examcollect.submission s ON s.id = g.submission_id
+                     JOIN examcollect.rubric rb ON rb.id = g.rubric_id_version
+                    WHERE s.exam_session_id = $1) used
+             JOIN examcollect.rubric_error re ON re.teacher_id = $3 AND re.rubric_name = used.name AND re.removed_at IS NULL
+             JOIN examcollect.rubric_error_price p ON p.rubric_error_id = re.id AND p.price_table_version_id = $2`,
+          [sessionId, price.id, teacherId],
         )
       : [];
-    const prices = new Map(priceRows.map((p) => [p.error_rule_id, p.deduction === null ? null : parseHundredths(p.deduction)]));
+    // Khoá theo rubric trước, rồi theo luật: `error_rule_id` dùng chung giữa các rubric, nên một bảng phẳng sẽ để
+    // giá của rubric này đè giá của rubric kia (đã thấy trong bài kiểm bẫy 8).
+    const pricesByRubric = new Map<string, Map<string, number | null>>();
+    for (const p of priceRows) {
+      const byRule = pricesByRubric.get(p.rubric_name) ?? new Map<string, number | null>();
+      byRule.set(p.error_rule_id, p.deduction === null ? null : parseHundredths(p.deduction));
+      pricesByRubric.set(p.rubric_name, byRule);
+    }
     const rows: { id: string; score: string; computation_id: string; price_id: string | null; breakdown: ScoreBreakdown }[] =
       await m.query(
         `SELECT g.id, fc.score, fc.id AS computation_id, fc.price_table_version_id AS price_id, fc.breakdown
@@ -487,7 +497,7 @@ export class ScoreService {
     const skipped: ReapplyPlan['skipped'] = [];
     for (const r of rows) {
       const ctx = await loadScoreContext(m, r.id);
-      const re = repriceBreakdown(r.breakdown, ctx.rubric, prices);
+      const re = repriceBreakdown(r.breakdown, ctx.rubric, pricesByRubric.get(ctx.rubricName) ?? new Map());
       if (re.newlyUnpriced.length > 0) {
         skipped.push({ resultId: r.id, reason: 'unpriced', ruleKeys: re.newlyUnpriced.map((u) => u.ruleKey) });
         continue;
