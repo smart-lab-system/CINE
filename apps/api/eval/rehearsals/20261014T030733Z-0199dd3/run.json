@@ -1,0 +1,50 @@
+{
+  "id": "20261014T030733Z-0199dd3",
+  "startedAt": "2026-10-14T03:07:33.061Z",
+  "scenario": "ngan-xep-v1",
+  "deploy": "0199dd3",
+  "note": "P0: lượt 1 bài sau khi đồng bộ giá về 3 và sửa harness (retry)",
+  "wallSec": 103.3,
+  "backfilled": false,
+  "sessionId": "71a29ea0-fc77-4455-b84d-4bccbc6ae232",
+  "checks": [
+    {
+      "mssv": "HS2410020",
+      "label": "in theo thứ tự hàng đợi — chỉ lỗi máy quyết",
+      "expectedScore": 5.5,
+      "actualScore": 5,
+      "scoreOk": false,
+      "missedErrors": [],
+      "extraErrors": [
+        "khong_dong_goi_thanh_lop_stack"
+      ],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [],
+      "finishedAtSec": 103.3
+    }
+  ],
+  "summary": {
+    "submissions": 1,
+    "scoreOk": 0,
+    "decisionOk": 0,
+    "autoApproved": 0,
+    "expectedAuto": 1,
+    "wrongAuto": 0,
+    "errorsExpected": 2,
+    "errorsCaught": 2,
+    "extraErrors": 1,
+    "falseFlags": 0,
+    "missedFlags": 0,
+    "lensFailures": 0,
+    "maxSubmissionSec": 103.3,
+    "models": [
+      "occ/claude-sonnet-5"
+    ]
+  }
+}

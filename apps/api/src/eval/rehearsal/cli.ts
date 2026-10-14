@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { makeRunId } from '../run-writer';
 import { ActualSubmission, evaluateRun, isRehearsalSession, RehearsalScenario, renderIndex, RunRecord, scenarioRows } from './score-run';
 import { NGAN_XEP_V1 } from './scenarios/ngan-xep-v1';
+import { HttpError, isConnectPhaseError, isNetworkError, withRetry } from './retry';
 
 /**
  * Diễn tập chấm điểm THẬT trên một bản deploy (model + sandbox thật): dựng phiên, cho từng sinh
@@ -72,7 +73,8 @@ function env(name: string): string {
 let BASE = '';
 let token = '';
 
-async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+/** Một lần gọi, không thử lại. Lỗi HTTP ném `HttpError` để phân biệt với lỗi mạng. */
+async function once<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -81,8 +83,32 @@ async function api<T = unknown>(method: string, path: string, body?: unknown): P
   const text = await res.text();
   let json: unknown;
   try { json = JSON.parse(text); } catch { json = text; }
-  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}: ${JSON.stringify(json).slice(0, 500)}`);
+  if (!res.ok) throw new HttpError(res.status, `${method} ${path} -> ${res.status}: ${JSON.stringify(json).slice(0, 500)}`);
   return json as T;
+}
+
+/**
+ * Có thử lại không phụ thuộc phương thức. GET không có tác dụng phụ nên thử lại mọi lỗi mạng và 5xx.
+ * POST/PUT/PATCH chỉ thử lại khi lỗi xảy ra TRƯỚC khi gửi (connect timeout, từ chối kết nối), vì
+ * một request đã tới server có thể đã tạo phiên hoặc đã bắt đầu chấm — gửi lại sẽ làm đôi.
+ */
+function retryable(method: string) {
+  return (error: unknown) => {
+    if (error instanceof HttpError) return error.status >= 500 && method === 'GET';
+    if (!isNetworkError(error)) return false;
+    return method === 'GET' || isConnectPhaseError(error);
+  };
+}
+
+/** Lần chạy 2026-10-14: một connect timeout 10 s làm cả lượt chết, dù chấm phía server vẫn xong. */
+async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+  return withRetry(() => once<T>(method, path, body), {
+    attempts: 4,
+    baseMs: 3000,
+    retryable: retryable(method),
+    onRetry: (attempt, error) =>
+      console.warn(`  thử lại lần ${attempt} (${method} ${path}): ${error instanceof Error ? error.message.slice(0, 120) : String(error)}`),
+  });
 }
 
 const itemsOf = <T>(x: { items?: T[] } | T[]): T[] => (Array.isArray(x) ? x : (x.items ?? []));
@@ -93,12 +119,20 @@ async function ensureRubricAndRules(s: RehearsalScenario): Promise<string> {
   const rubrics = itemsOf<{ id: string; name: string }>(await api('GET', '/rubrics'));
   const rubric = rubrics.find((r) => r.name === s.rubric.name) ?? (await api<{ id: string }>('POST', '/rubrics', s.rubric));
   // Lỗi đã có ở rubric này (theo ruleKey) thì bỏ qua; lỗi đã có trong thư viện nhưng chưa áp thì thêm bằng ruleId.
-  const here = itemsOf<{ ruleKey: string }>(
+  const here = itemsOf<{ id: string; ruleKey: string; deduction: string | null }>(
     await api('GET', `/rubric-errors?rubricName=${encodeURIComponent(s.rubric.name)}`),
   );
   const library = itemsOf<{ id: string; ruleKey: string }>(await api('GET', '/rules'));
   for (const rule of s.rules) {
-    if (here.some((r) => r.ruleKey === rule.ruleKey)) continue;
+    const existing = here.find((r) => r.ruleKey === rule.ruleKey);
+    if (existing) {
+      // Giá của giảng viên có thể đã lệch kịch bản mà không ai biết (lượt 2026-10-14: sai_ca_co_ban 3 → 1,5 từ
+      // phiên bản v6). Đồng bộ về giá kịch bản bằng đúng endpoint của app; đổi giá tính lại bài chưa chốt (§2.2).
+      if (existing.deduction !== null && Number(existing.deduction) === Number(rule.price)) continue;
+      await api('PUT', `/rubric-errors/${existing.id}/price`, { deduction: Number(rule.price).toFixed(2) });
+      console.log(`  ~ giá ${rule.ruleKey}: ${existing.deduction ?? 'chưa có'} → ${rule.price}`);
+      continue;
+    }
     const known = library.find((r) => r.ruleKey === rule.ruleKey);
     const base = { rubricName: s.rubric.name, criterionKey: rule.criterionKey, deduction: String(rule.price) };
     await api(
@@ -274,7 +308,7 @@ async function rescoreAll(): Promise<void> {
 function report(record: RunRecord): void {
   for (const c of record.checks) {
     const bad = [
-      c.scoreOk ? null : `điểm ${c.actualScore} ≠ kỳ vọng ${c.expectedScore}`,
+      c.auditHidden ? 'điểm ẩn do kiểm mẫu — không đo được' : c.scoreOk ? null : `điểm ${c.actualScore} ≠ kỳ vọng ${c.expectedScore}`,
       c.missedErrors.length ? `sót ${c.missedErrors.join(',')}` : null,
       c.extraErrors.length ? `thừa ${c.extraErrors.join(',')}` : null,
       c.decisionOk ? null : `quyết định ${c.actualDecision} ≠ ${c.expectedDecision}`,

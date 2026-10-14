@@ -61,6 +61,8 @@ export interface SubmissionCheck {
   expectedScore: number;
   actualScore: number | null;
   scoreOk: boolean;
+  /** Bài bị chọn kiểm mẫu: API giấu điểm nên điểm không đo được qua lượt này — không tính là điểm sai. */
+  auditHidden: boolean;
   missedErrors: string[];
   extraErrors: string[];
   refuted: string[];
@@ -78,6 +80,8 @@ export interface SubmissionCheck {
 export interface RunSummary {
   submissions: number;
   scoreOk: number;
+  /** Số bài có điểm bị giấu do kiểm mẫu. Lượt cũ không có trường này. */
+  auditHidden?: number;
   decisionOk: number;
   autoApproved: number;
   expectedAuto: number;
@@ -112,6 +116,8 @@ const DECISION: Record<string, Decision> = {
   auto_approved: 'auto',
   flagged_for_review: 'review',
   ungradable: 'ungradable',
+  // Kiểm mẫu (audit): quyết định ĐÃ là tự duyệt; chỉ sau đó bài được chọn cho giảng viên chấm mù, và API giấu điểm.
+  audit_pending: 'auto',
   ai_grading: 'pending',
 };
 
@@ -148,19 +154,21 @@ function checkOne(scenario: RehearsalScenario, sub: ScenarioSubmission, act: Act
   if (missedErrors.some((k) => modelRules.has(k))) expectedFlags.add('bo_sot');
   const allowedFlags = new Set([...expectedFlags, ...(sub.expect.optionalSuspected ?? [])]);
   const scoreOk = act?.score != null && Math.round(act.score * 100) === Math.round(expectedScore * 100);
+  const auditHidden = act?.status === 'audit_pending';
   return {
     mssv: sub.mssv,
     label: sub.label,
     expectedScore,
     actualScore: act?.score ?? null,
     scoreOk,
+    auditHidden,
     missedErrors,
     extraErrors: [...found].filter((k) => !required.has(k) && !optional.has(k)),
     refuted: errors.filter((e) => e.counted === 'refuted').map((e) => e.ruleKey),
     expectedDecision: sub.expect.decision,
     actualDecision,
     decisionOk: actualDecision === sub.expect.decision,
-    wrongAuto: actualDecision === 'auto' && (sub.expect.decision === 'review' || !scoreOk),
+    wrongAuto: actualDecision === 'auto' && (sub.expect.decision === 'review' || (!auditHidden && !scoreOk)),
     falseFlags: suspected.filter((l) => !allowedFlags.has(l)),
     missedFlags: [...expectedFlags].filter((l) => !suspected.includes(l)),
     lensFailures: [
@@ -195,6 +203,7 @@ export function evaluateRun(scenario: RehearsalScenario, actuals: ActualSubmissi
     summary: {
       submissions: checks.length,
       scoreOk: count((c) => c.scoreOk),
+      auditHidden: count((c) => c.auditHidden),
       decisionOk: count((c) => c.decisionOk),
       autoApproved: count((c) => c.actualDecision === 'auto'),
       expectedAuto: count((c) => c.expectedDecision === 'auto'),
@@ -227,7 +236,7 @@ export function renderIndex(runs: RunRecord[]): string {
       s.models?.length ? s.models.join(', ') : '—',
       r.scenario,
       s.wrongAuto,
-      `${s.scoreOk}/${s.submissions}`,
+      `${s.scoreOk}/${s.submissions - (s.auditHidden ?? 0)}`,
       `${s.errorsCaught}/${s.errorsExpected}`,
       s.extraErrors,
       `${s.decisionOk}/${s.submissions}`,

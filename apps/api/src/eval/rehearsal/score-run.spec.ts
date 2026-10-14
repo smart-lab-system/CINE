@@ -42,6 +42,17 @@ describe('evaluateRun() — chấm một lượt diễn tập theo kỳ vọng c
     expect(run.checks[0]).toMatchObject({ missedErrors: [], extraErrors: [], decisionOk: true, scoreOk: true, expectedScore: 10, falseFlags: [], missedFlags: [] });
   });
 
+  it('kiểm mẫu (audit_pending): quyết định là tự duyệt, điểm bị giấu → không tính là điểm sai', () => {
+    const run = evaluateRun(SCENARIO, [actual({ mssv: 'S1', status: 'audit_pending', score: null })]);
+    expect(run.checks[0]).toMatchObject({ actualDecision: 'auto', decisionOk: true, auditHidden: true, scoreOk: false, wrongAuto: false });
+    expect(run.summary.auditHidden).toBe(1);
+  });
+
+  it('kiểm mẫu nhưng bài lẽ ra phải review → vẫn là tự duyệt SAI', () => {
+    const run = evaluateRun(SCENARIO, [actual({ mssv: 'S3', status: 'audit_pending', score: null })]);
+    expect(run.checks[0]).toMatchObject({ actualDecision: 'auto', decisionOk: false, wrongAuto: true });
+  });
+
   it('diễn tập 2026-09-28 r2 (HS2410020) — lỗi đủ, nhưng hai cờ oan đẩy sang giảng viên → quyết định SAI, 2 cờ oan', () => {
     const run = evaluateRun(SCENARIO, [
       actual({
@@ -140,6 +151,7 @@ describe('evaluateRun() — chấm một lượt diễn tập theo kỳ vọng c
       submissions: 3, scoreOk: 2, decisionOk: 2, autoApproved: 1, expectedAuto: 2, wrongAuto: 0,
       // S3: agent sót thieu_chu_thich (luật bằng lời) mà bo_sot không nghi → 1 cờ bỏ lỡ.
       errorsExpected: 3, errorsCaught: 2, extraErrors: 0, falseFlags: 1, missedFlags: 1, lensFailures: 0,
+      auditHidden: 0,
       maxSubmissionSec: 87, models: ['glm-5.3-flash'],
     });
   });

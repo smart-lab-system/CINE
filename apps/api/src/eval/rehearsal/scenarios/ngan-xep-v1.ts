@@ -11,7 +11,7 @@ const L = (...lines: string[]) => [...lines, ''].join('\n');
 export const NGAN_XEP_V1: RehearsalScenario = {
   id: 'ngan-xep-v1',
   rubric: {
-    name: 'CTDL&GT — Ngăn xếp bằng danh sách liên kết (diễn tập)',
+    name: 'CTDL&GT — Ngăn xếp bằng danh sách liên kết (diễn tập, 5 luật)',
     criteria: [
       { key: 'dung_dan', description: 'Tính đúng đắn: kết quả đúng trên mọi ca của đề, kể cả ca biên', maxPoints: 6 },
       { key: 'trinh_bay', description: 'Trình bày: tên gợi nghĩa, có chú thích cấu trúc dữ liệu và thuật toán', maxPoints: 2 },
