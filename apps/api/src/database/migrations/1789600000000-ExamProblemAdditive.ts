@@ -28,9 +28,9 @@ export class ExamProblemAdditive1789600000000 implements MigrationInterface {
         CONSTRAINT "ck_exam_problem_ordinal" CHECK ("ordinal" >= 1),
         CONSTRAINT "ck_exam_problem_points" CHECK ("points_hundredths" >= 0),
         CONSTRAINT "fk_exam_problem_session" FOREIGN KEY ("exam_session_id")
-          REFERENCES "examcollect"."exam_session"("id") ON DELETE RESTRICT,
+          REFERENCES "examcollect"."exam_session"("id") ON DELETE CASCADE,
         CONSTRAINT "fk_exam_problem_deliverable" FOREIGN KEY ("required_deliverable_id")
-          REFERENCES "examcollect"."required_deliverable"("id") ON DELETE RESTRICT,
+          REFERENCES "examcollect"."required_deliverable"("id") ON DELETE SET NULL,
         CONSTRAINT "fk_exam_problem_rubric" FOREIGN KEY ("rubric_id")
           REFERENCES "examcollect"."rubric"("id") ON DELETE RESTRICT,
         CONSTRAINT "fk_exam_problem_test_bundle" FOREIGN KEY ("test_bundle_id")

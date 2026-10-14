@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
+import { setSessionTestBundleAndProblem } from '../problem/resolve-problem-config';
 
 /**
  * Một ca sẵn sàng ghi. Kiểu CẤU TRÚC, không import từ `exam-authoring`:
@@ -89,10 +90,7 @@ export class TestBundleService {
         `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now() WHERE id = $2`,
         [teacherId, bundle.id],
       );
-      await manager.query(`UPDATE examcollect.exam_session SET test_bundle_id = $1 WHERE id = $2`, [
-        bundle.id,
-        examSessionId,
-      ]);
+      await setSessionTestBundleAndProblem(manager, examSessionId, bundle.id);
       // SELECT chứ không `UPDATE … RETURNING`: TypeORM trả `[rows, rowCount]` cho UPDATE/DELETE
       // (không phải mảng hàng), nên `const [row] = …` ra nguyên mảng `rows` và `row.approved_at` là undefined.
       const [approved] = await manager.query(
@@ -130,10 +128,7 @@ export class TestBundleService {
         `Gói test ${bundleId} chưa được duyệt — chỉ gói đã duyệt mới ghim được (§14.1).`,
       );
     }
-    await this.ds.query(`UPDATE examcollect.exam_session SET test_bundle_id = $1 WHERE id = $2`, [
-      bundleId,
-      examSessionId,
-    ]);
+    await this.ds.transaction((m) => setSessionTestBundleAndProblem(m, examSessionId, bundleId));
     return { testBundleId: bundleId };
   }
 

@@ -11,7 +11,7 @@ export class ExamProblemEntity {
   @Column({ name: 'exam_session_id', type: 'uuid' })
   examSessionId!: string;
 
-  @ManyToOne(() => ExamSessionEntity, { onDelete: 'RESTRICT', nullable: false })
+  @ManyToOne(() => ExamSessionEntity, { onDelete: 'CASCADE', nullable: false })
   @JoinColumn({ name: 'exam_session_id' })
   session?: ExamSessionEntity;
 

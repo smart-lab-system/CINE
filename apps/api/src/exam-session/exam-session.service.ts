@@ -42,6 +42,7 @@ import {
 } from './exam-session.types';
 import { ScheduleConflictService } from './schedule-conflict.service';
 import { SUBMISSION_GRACE_PERIOD_MS } from '../submission/submission.types';
+import { ensureDefaultProblem, setSessionRubricAndProblem } from '../grading/problem/resolve-problem-config';
 
 /**
  * Trần độ dài khoảng ngày của chế độ lịch.
@@ -252,6 +253,8 @@ export class ExamSessionService {
             await manager.save(RequiredDeliverableEntryEntity, entryRows);
           }
 
+          // Câu mặc định (P1a): mọi phiên mới có đúng một câu, cùng transaction với việc tạo phiên.
+          await ensureDefaultProblem(manager, session.id);
           const entriesByDeliverable = await this.loadEntriesByDeliverable(
             savedDeliverables.map((d) => d.id),
             manager,
@@ -303,7 +306,10 @@ export class ExamSessionService {
       }
     }
 
-    await this.sessions.update(session.id, { rubricId: rubric?.id ?? null });
+    // Ghi kép: cột bí danh của phiên VÀ câu 1 (P1a), trong một transaction dưới khoá giảng viên.
+    await this.sessions.manager.transaction((m) =>
+      setSessionRubricAndProblem(m, session.id, rubric?.id ?? null),
+    );
     const deliverables = await this.listRequiredDeliverables(session.id);
     const entriesByDeliverable = await this.loadEntriesByDeliverable(
       deliverables.map((d) => d.id),
