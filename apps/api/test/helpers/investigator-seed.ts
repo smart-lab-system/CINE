@@ -2,6 +2,7 @@ import { DataSource } from 'typeorm';
 import { readFileCall, resultWith, runTestsCall } from '../../src/grading/decision/testing/result';
 import type { StoredInvestigation } from '../../src/grading/scoring/stored-investigation';
 import { seedCriterion, seedResult, SeedSession } from './grading-seed';
+import { setSessionTestBundleAndProblem } from '../../src/grading/problem/resolve-problem-config';
 
 /**
  * Phiên đường điều tra: rubric hai tiêu chí (`tinh_dung` 6, `trinh_bay` 4), gói test hai ca
@@ -20,8 +21,14 @@ export async function seedInvestigatorSession(ds: DataSource, ctx: SeedSession):
      VALUES ($1, 'c1', 'co_ban', '1', '1'), ($1, 'c2', 'bien', '2', '2')`,
     [b.id],
   );
-  await ds.query(`UPDATE examcollect.exam_session SET test_bundle_id = $2 WHERE id = $1`, [ctx.sessionId, b.id]);
+  // Ghim qua đường ghi kép (cột bí danh + câu mặc định, §3.3), như API: resolver chỉ đọc câu mặc định.
+  await ds.transaction((m) => setSessionTestBundleAndProblem(m, ctx.sessionId, b.id));
   return { bundleId: b.id };
+}
+
+/** Bỏ ghim gói test của phiên, cả cột bí danh lẫn câu mặc định (cùng đường ghi kép). */
+export async function unpinBundle(ds: DataSource, sessionId: string): Promise<void> {
+  await ds.transaction((m) => setSessionTestBundleAndProblem(m, sessionId, null));
 }
 
 /**

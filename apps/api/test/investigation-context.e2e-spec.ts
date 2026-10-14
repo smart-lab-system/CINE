@@ -5,6 +5,7 @@ import { AppModule } from '../src/app.module';
 import { InvestigationContextService } from '../src/grading/pipeline/investigation-context.service';
 import { StorageService } from '../src/storage/storage.service';
 import { QUESTION, seedCodeSession, seedCodeSubmission, SOURCE } from './helpers/code-session-seed';
+import { unpinBundle } from './helpers/investigator-seed';
 
 /** Ngữ cảnh điều tra dựng từ DB và kho lưu trữ (§5, §2.1); thiếu thước / đề chữ là không chấm được (§4.4). */
 describe('InvestigationContextService (e2e)', () => {
@@ -56,7 +57,7 @@ describe('InvestigationContextService (e2e)', () => {
 
   it('phiên chưa ghim gói test → system, nêu gói test', async () => {
     const s = await seedCodeSession(ds, storage, 'ic-nobundle');
-    await ds.query(`UPDATE examcollect.exam_session SET test_bundle_id = NULL WHERE id = $1`, [s.ctx.sessionId]);
+    await unpinBundle(ds, s.ctx.sessionId);
     const { resultId } = await seedCodeSubmission(ds, storage, s);
     expect(await contexts.build(resultId)).toMatchObject({ kind: 'ungradable', class: 'system', reason: expect.stringMatching(/gói test/) });
   });

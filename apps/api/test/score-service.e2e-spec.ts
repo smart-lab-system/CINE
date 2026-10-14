@@ -7,6 +7,7 @@ import { latestComputationRow } from '../src/grading/scoring/score-inputs';
 import { TeacherReviewService } from '../src/grading/teacher-review.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { forceStatus, seedSession } from './helpers/grading-seed';
+import { unpinBundle } from './helpers/investigator-seed';
 import {
   assignmentId,
   rubricNameOf,
@@ -68,7 +69,7 @@ describe('ScoreService (e2e)', () => {
 
   it('lượt tính đầu dưới sàn → ném, không ghi dòng nào, bài vẫn ai_grading', async () => {
     const { ctx } = await world('sc-floor');
-    await ds.query(`UPDATE examcollect.exam_session SET test_bundle_id = NULL WHERE id = $1`, [ctx.sessionId]);
+    await unpinBundle(ds, ctx.sessionId);
     const { resultId } = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
     await expect(scores.computeInitial(resultId)).rejects.toThrow(/dưới sàn/);
     expect(await computations(resultId)).toEqual([]);
