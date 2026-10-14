@@ -42,6 +42,10 @@ export type AdvocateOutcome = 'not_needed' | 'skipped' | 'failed' | 'completed';
 // và vì sao cột này còn cần một chỉ mục cho `progress()`.
 @Index('uq_grading_result_submission', ['submissionId'], { unique: true })
 export class GradingResultEntity extends BaseEntity {
+  /** Câu của kết quả (P1a). NULL chỉ với dòng cũ trước backfill; sau M2 mọi dòng có câu. Không đổi sau khi tạo. */
+  @Column({ name: 'problem_id', type: 'uuid', nullable: true })
+  problemId!: string | null;
+
   @Column({ name: 'submission_id', type: 'uuid' })
   submissionId!: string;
 
