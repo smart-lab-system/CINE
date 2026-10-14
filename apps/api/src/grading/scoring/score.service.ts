@@ -153,7 +153,7 @@ export class ScoreService {
       if (stored.result.kind === 'ungradable') {
         ungradable = stored.result.ungradable ?? { class: 'system', reason: 'cuộc điều tra không có kết luận' };
       } else {
-        out = await this.compute(m, ctx, undefined, await sessionModelRulesWith(m, ctx.sessionId, resultId, stored.ruleTable));
+        out = await this.compute(m, ctx, undefined, await sessionModelRulesWith(m, ctx.sessionId, ctx.problemId, resultId, stored.ruleTable));
         if (out.outcome === 'ungradable' || out.scoreHundredths === null) {
           ungradable = out.ungradable ?? { class: 'system', reason: 'lượt tính ra dưới sàn' };
         }
@@ -294,8 +294,8 @@ export class ScoreService {
 
     // §2.2 "tất cả hoặc không" (review I1): bài này bắt đầu trước khi có một luật lời mà các bài
     // đã tính của phiên đều có → luật đó thôi được xét cho CẢ phiên, nên các bài kia tính lại ngay.
-    const before = await loadSessionModelRules(m, ctx.sessionId, ctx.resultId);
-    const after = await loadSessionModelRules(m, ctx.sessionId);
+    const before = await loadSessionModelRules(m, ctx.sessionId, ctx.problemId, ctx.resultId);
+    const after = await loadSessionModelRules(m, ctx.sessionId, ctx.problemId);
     if ([...before].some((k) => !after.has(k))) {
       await this.recomputeForTeacher(m, ctx.teacherId, 'session_rule_set', null, {
         sessionId: ctx.sessionId,
@@ -532,7 +532,7 @@ export class ScoreService {
       bundleCases: ctx.bundleCases,
       rubric: ctx.rubric,
       rules: transform ? transform(rules) : rules,
-      sessionModelRules: sessionRules ?? (await loadSessionModelRules(m, ctx.sessionId)),
+      sessionModelRules: sessionRules ?? (await loadSessionModelRules(m, ctx.sessionId, ctx.problemId)),
       waivedCriteria: ctx.waivedCriteria,
       exceptions: ctx.exceptions,
       theta: this.theta,

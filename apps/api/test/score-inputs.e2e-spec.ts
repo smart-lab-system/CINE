@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { loadScoreContext, loadSessionModelRules } from '../src/grading/scoring/score-inputs';
 import { seedResult, seedSession } from './helpers/grading-seed';
+import { ensureDefaultProblem } from '../src/grading/problem/resolve-problem-config';
 import { seedInvestigatorResult, seedInvestigatorSession, seedRule, storedWith } from './helpers/investigator-seed';
 
 /** Đầu vào của lượt tính đọc từ DB (§2.2, §14.1) — hai chỗ SQL dễ sai nhất. */
@@ -31,7 +32,7 @@ describe('Đầu vào lượt tính (e2e)', () => {
       { ruleKey: 'chu_thich_sai', checkedBy: 'model' },
     ]));
     await seedResult(ds, ctx);
-    expect([...(await loadSessionModelRules(ds.manager, ctx.sessionId))]).toEqual(['ten_bien']);
+    expect([...(await loadSessionModelRules(ds.manager, ctx.sessionId, await ensureDefaultProblem(ds.manager, ctx.sessionId)))]).toEqual(['ten_bien']);
   });
 
   it('review I1: tập luật lời của phiên đọc từ BẢNG LỖI lúc điều tra, không từ phần model được xem (§2.1 cắt ~5 luật)', async () => {
@@ -44,7 +45,7 @@ describe('Đầu vào lượt tính (e2e)', () => {
     // Bài 1 được xem đủ; bài 2 chỉ được xem `ten_bien` (truy hồi cắt bớt) — cả hai cùng một bảng lỗi.
     await seedInvestigatorResult(ds, ctx, storedWith(table, [], true, table));
     await seedInvestigatorResult(ds, ctx, storedWith([table[0]], [], true, table));
-    expect([...(await loadSessionModelRules(ds.manager, ctx.sessionId))]).toEqual(['chu_thich_sai', 'ten_bien']);
+    expect([...(await loadSessionModelRules(ds.manager, ctx.sessionId, await ensureDefaultProblem(ds.manager, ctx.sessionId)))]).toEqual(['chu_thich_sai', 'ten_bien']);
   });
 
   it('ngữ cảnh: rubric theo thứ tự, ca của gói ghim, ngoại lệ MỚI NHẤT của từng luật thắng, có chấm tay hay chưa', async () => {
