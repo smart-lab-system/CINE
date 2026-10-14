@@ -7,7 +7,8 @@ import { join } from 'node:path';
  * Ghi (UPDATE) được phép ở exam-session.service.ts (ghi kép, Task 3). Backfill M2 đọc cột bí danh theo thiết kế.
  */
 const ROOT = join(__dirname, '..', '..'); // apps/api/src
-const READ = /\b(es|exam_session)\.(rubric_id|test_bundle_id)\b/;
+// `s` là bí danh thường gặp của exam_session trong SQL (submission-overview); không có `s.` nào khác mang hai tên cột này.
+const READ = /\b(es|exam_session|s)\.(rubric_id|test_bundle_id)\b/;
 const ALLOWED = new Set([
   'grading/problem/resolve-problem-config.ts',
   'grading/problem/default-problem-backfill.ts', // M2: chép cột bí danh vào câu mặc định (migration helper)

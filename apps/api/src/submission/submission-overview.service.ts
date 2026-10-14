@@ -233,7 +233,8 @@ export class SubmissionOverviewService {
              s.class_id,  cl.name AS class_name,
              s.exam_type, s.start_time, s.end_time, s.status,
              s.archived_at, s.attention_closed_at,
-             s.rubric_id, rb.version AS rubric_version,
+             -- Rubric của CÂU 1 (P1a, §3), không đọc cột bí danh của phiên.
+             dp.rubric_id, rb.version AS rubric_version,
              d.required_count,
              rs.roster_size,
              ps.expected_count, ps.fully_submitted, ps.partial,
@@ -245,7 +246,8 @@ export class SubmissionOverviewService {
       JOIN      ${schema}.class  cl ON cl.id = s.class_id
       -- LEFT, không phải JOIN: phiên chưa gắn rubric PHẢI còn trong kết quả.
       -- Đổi thành JOIN thường là âm thầm giấu mất bài thi thật (§5.3).
-      LEFT JOIN ${schema}.rubric rb ON rb.id = s.rubric_id
+      LEFT JOIN ${schema}.exam_problem dp ON dp.exam_session_id = s.id AND dp.ordinal = 1
+      LEFT JOIN ${schema}.rubric rb ON rb.id = dp.rubric_id
       LEFT JOIN deliv       d  ON d.exam_session_id  = s.id
       LEFT JOIN per_session ps ON ps.exam_session_id = s.id
       LEFT JOIN roster_size rs ON rs.exam_session_id = s.id
