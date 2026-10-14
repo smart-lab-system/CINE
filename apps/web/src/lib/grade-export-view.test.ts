@@ -43,7 +43,7 @@ describe('roundingText — how a step is said in a list of past exports', () => 
 describe('words for what happens to a row — every state has words, not just a colour', () => {
   it('labels every action', () => {
     expect(ACTION_LABEL).toEqual({
-      write: 'Sẽ ghi', blank: 'Để trống', kept: 'Giữ nguyên ô', unmatched: 'Không khớp', duplicate: 'MSSV trùng',
+      write: 'Sẽ ghi', blank: 'Để trống', kept: 'Giữ nguyên ô', unmatched: 'Không khớp', duplicate: 'MSSV trùng', conflict: 'Nhiều kết quả',
       skipped_formula: 'Ô có công thức', skipped_merged: 'Ô gộp',
     });
   });

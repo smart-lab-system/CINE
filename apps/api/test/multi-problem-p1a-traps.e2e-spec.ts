@@ -8,6 +8,7 @@ import { GradingService } from '../src/grading/grading.service';
 import { GradeSubmissionJob } from '../src/grading/grading.queue';
 import { ensureDefaultProblem } from '../src/grading/problem/resolve-problem-config';
 import { loadSessionModelRules, sessionModelRulesWith } from '../src/grading/scoring/score-inputs';
+import { GradeExportDataService } from '../src/grade-export/grade-export.data';
 import { scoreResult, seedResult, seedSession, SeedSession } from './helpers/grading-seed';
 import { seedInvestigatorResult, storedWith } from './helpers/investigator-seed';
 
@@ -109,6 +110,45 @@ describe('P1a — bẫy §9 (e2e)', () => {
       const rules = await ds.transaction((m) => loadSessionModelRules(m, ctx.sessionId, problemA));
 
       expect([...rules]).toEqual(['ten_bien']);
+    });
+  });
+
+  describe('bẫy 3 — gộp sổ điểm theo sinh viên không ghi đè', () => {
+    it('một sinh viên có hai kết quả ở hai yêu cầu nộp → conflict, không lấy kết quả cuối', async () => {
+      const ctx = await seedSession(ds, 'trap-3');
+      const first = await seedResult(ds, ctx);
+      await scoreResult(ds, first.resultId, '7.00');
+      const [{ student_mssv: mssv }] = await ds.query(
+        `SELECT student_mssv FROM examcollect.submission WHERE id = $1`,
+        [first.submissionId],
+      );
+      // Yêu cầu nộp thứ hai của cùng sinh viên: uq_submission_identity cho phép vì khác deliverable.
+      const [d2] = await ds.query(
+        `INSERT INTO examcollect.required_deliverable (exam_session_id, required_filename, deliverable_type, language)
+         VALUES ($1, 'Cau2.docx', 'document', NULL) RETURNING id`,
+        [ctx.sessionId],
+      );
+      const [sub2] = await ds.query(
+        `INSERT INTO examcollect.submission
+           (exam_session_id, required_deliverable_id, student_mssv, student_name_input, home_class_id, home_teacher_id, status)
+         VALUES ($1, $2, $3, 'Sinh viên seed', $4, $5, 'received') RETURNING id`,
+        [ctx.sessionId, d2.id, mssv, ctx.classId, ctx.teacherId],
+      );
+      for (const next of ['validated', 'collected']) {
+        await ds.query(`UPDATE examcollect.submission SET status = $1 WHERE id = $2`, [next, sub2.id]);
+      }
+      const [res2] = await ds.query(
+        `INSERT INTO examcollect.grading_result (submission_id, rubric_id_version, grading_triggered_by, status, pipeline)
+         VALUES ($1, $2, $3, 'ai_grading', 'one_shot') RETURNING id`,
+        [sub2.id, ctx.rubricId, ctx.teacherId],
+      );
+      await scoreResult(ds, res2.id, '9.00');
+
+      const { students } = await app.get(GradeExportDataService).loadStudents(ds.manager, ctx.sessionId, null);
+
+      const mine = students.filter((s) => s.mssv.toLowerCase() === mssv.toLowerCase());
+      expect(mine).toHaveLength(1);
+      expect(mine[0].outcome).toEqual({ kind: 'conflict', reason: expect.stringMatching(/nhiều kết quả/) });
     });
   });
 });

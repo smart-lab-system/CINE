@@ -21,7 +21,9 @@ export interface FileRowInput {
 }
 export type StudentOutcome =
   | { kind: 'scored'; hundredths: number; computationId: string | null; source: string }
-  | { kind: 'blank'; reason: BlankReason };
+  | { kind: 'blank'; reason: BlankReason }
+  /** Nhiều kết quả trong phạm vi xuất (R-a, bẫy 3): không chọn một, không ghi. */
+  | { kind: 'conflict'; reason: string };
 export interface PlanStudent {
   mssv: string;
   name: string;
@@ -45,7 +47,7 @@ export interface PlanInput {
   sheetProtected: boolean;
 }
 
-export type RowAction = 'write' | 'blank' | 'kept' | 'unmatched' | 'duplicate' | 'skipped_formula' | 'skipped_merged';
+export type RowAction = 'write' | 'blank' | 'kept' | 'unmatched' | 'duplicate' | 'conflict' | 'skipped_formula' | 'skipped_merged';
 export type Direction = 'up' | 'down' | 'same' | 'new';
 
 export interface PlanRow {
@@ -172,6 +174,10 @@ export function buildPlan(input: PlanInput): ExportPlan {
       };
     }
 
+    if (outcome.kind === 'conflict') {
+      // Nhiều kết quả trong phạm vi (R-a): không ghi điểm lẫn nhãn; `blockers` chặn xuất cho tới khi chọn yêu cầu nộp.
+      return { ...known, action: 'conflict', note: outcome.reason, previousHundredths: previous?.hundredths ?? null };
+    }
     const problem = reasonCell ? cellProblem(reasonCell, 'Ô lý do') : null;
     if (problem) return { ...known, action: problem.action, note: problem.note };
     const kept = previous !== null;
@@ -199,6 +205,8 @@ export function buildPlan(input: PlanInput): ExportPlan {
     const examples = [...duplicated].slice(0, 3).map((k) => byKey.get(k)!.mssv).join(', ');
     blockers.push(MSG.duplicates(duplicated.size, examples));
   }
+  const conflicted = rows.filter((r) => r.action === 'conflict').length;
+  if (conflicted > 0) blockers.push(MSG.conflicts(conflicted));
   if (actionable === 0) blockers.push(MSG.noMatch(input.firstDataRow));
 
   const digest = createHash('sha256')

@@ -2,7 +2,7 @@ import { apiClient } from '@/lib/api-client';
 
 /** Mirrors `apps/api/src/grade-export/` — spec `2026-09-29-gradebook-export-design.md` §4.5-4.6. */
 export type BlankReason = 'absent' | 'not_finished' | 'ungradable' | 'flagged';
-export type RowAction = 'write' | 'blank' | 'kept' | 'unmatched' | 'duplicate' | 'skipped_formula' | 'skipped_merged';
+export type RowAction = 'write' | 'blank' | 'kept' | 'unmatched' | 'duplicate' | 'conflict' | 'skipped_formula' | 'skipped_merged';
 export type Direction = 'up' | 'down' | 'same' | 'new';
 /** Bốn bước làm tròn mà server chấp nhận (phần trăm điểm) — OpenAPI sinh đúng bốn giá trị này. */
 export type RoundingStep = 1 | 10 | 25 | 50;

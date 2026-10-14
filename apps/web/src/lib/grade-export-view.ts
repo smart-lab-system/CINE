@@ -34,6 +34,7 @@ export const ACTION_LABEL: Record<RowAction, string> = {
   kept: 'Giữ nguyên ô',
   unmatched: 'Không khớp',
   duplicate: 'MSSV trùng',
+  conflict: 'Nhiều kết quả',
   skipped_formula: 'Ô có công thức',
   skipped_merged: 'Ô gộp',
 };

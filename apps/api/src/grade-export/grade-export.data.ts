@@ -6,6 +6,7 @@ import { parseHundredths } from '../grading/scoring/hundredths';
 import type { ScoreBreakdown } from '../grading/scoring/score-core';
 import { blankReasonOf } from './blank-reason';
 import type { PlanStudent, PreviousWrite, StudentOutcome } from './plan';
+import { foldStudentResults } from './fold-student-results';
 import { pickScore } from './score-string';
 
 export interface DeliverableInfo {
@@ -100,16 +101,10 @@ export class GradeExportDataService {
     );
     const results: ResultRow[] = await m.query(RESULTS_SQL, [sessionId, deliverableId]);
 
-    const map = new Map<string, PlanStudent>();
-    for (const r of roster) map.set(r.mssv.toLowerCase(), { mssv: r.mssv, name: r.name, outcome: { kind: 'blank', reason: 'absent' } });
     let publishedResults = 0;
-    for (const r of results) {
-      if (r.status === 'finalized' || r.status === 'exported') publishedResults += 1;
-      const key = r.mssv.toLowerCase();
-      const known = map.get(key);
-      map.set(key, { mssv: known?.mssv ?? r.mssv, name: known?.name ?? r.name, outcome: outcomeOf(r) });
-    }
-    return { students: [...map.values()], publishedResults };
+    for (const r of results) if (r.status === 'finalized' || r.status === 'exported') publishedResults += 1;
+    const students = foldStudentResults(roster, results.map((r) => ({ mssv: r.mssv, name: r.name, outcome: outcomeOf(r) })));
+    return { students, publishedResults };
   }
 
   /**
