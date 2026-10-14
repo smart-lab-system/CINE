@@ -65,6 +65,28 @@ describe('P1a — bẫy §9 (e2e)', () => {
     });
   });
 
+    it('job cũ (xếp trước lần triển khai, không có resultId) vẫn tra theo bài nộp, không tra theo id rỗng', async () => {
+      const ctx = await seedSession(ds, 'trap-1-legacy');
+      const { resultId, submissionId } = await seedResult(ds, ctx);
+      await scoreResult(ds, resultId);
+      const repo = app.get<Repository<GradingResultEntity>>(getRepositoryToken(GradingResultEntity));
+      const spy = jest.spyOn(repo, 'findOne');
+
+      // Hình dạng job của mã cũ: không có resultId. Tra theo `{ id: undefined }` sẽ bị TypeORM bỏ điều kiện
+      // và trả dòng bất kỳ của bảng.
+      const legacy = {
+        submissionId,
+        deliverableType: 'document',
+        requiredFilename: 'bai.docx',
+        rubricId: ctx.rubricId,
+        teacherId: ctx.teacherId,
+      } as GradeSubmissionJob;
+      await grading.gradeOneById(legacy);
+
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ where: { submissionId } }));
+      spy.mockRestore();
+    });
+
   describe('bẫy 2 — luật lời tính theo từng câu', () => {
     /** Phiên có hai câu: câu 1 (mặc định) và câu 2. */
     async function twoProblems(label: string): Promise<{ ctx: SeedSession; problemA: string; problemB: string }> {
