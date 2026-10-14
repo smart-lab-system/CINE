@@ -1,3 +1,4 @@
+import { resolveProblemConfig } from '../problem/resolve-problem-config';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -34,7 +35,7 @@ export class InvestigationContextService {
 
   async build(resultId: string): Promise<BuiltContext> {
     const [row] = await this.ds.query(
-      `SELECT s.storage_key, s.exam_session_id, es.teacher_id, es.test_bundle_id,
+      `SELECT s.storage_key, s.exam_session_id, es.teacher_id,
               rd.required_filename, rd.language, rb.name AS rubric_name
          FROM examcollect.grading_result g
          JOIN examcollect.submission s ON s.id = g.submission_id
@@ -48,7 +49,8 @@ export class InvestigationContextService {
 
     const language = sandboxLanguage.safeParse(row.language);
     if (!language.success) return system(`bài khai ngôn ngữ "${row.language}" — đường chấm điều tra chỉ chạy C++ và Python`);
-    if (!row.test_bundle_id) return system('phiên chưa ghim gói test — không có thước để chạy (§4.4)');
+    const cfg = await resolveProblemConfig(this.ds.manager, row.exam_session_id);
+    if (!cfg?.testBundleId) return system('phiên chưa ghim gói test — không có thước để chạy (§4.4)');
 
     const reference = await this.references.loadForGrading(row.exam_session_id);
     const problemStatement = reference.questionPdf
@@ -73,7 +75,7 @@ export class InvestigationContextService {
     const cases: { case_key: string; group: string; input: string; expected_output: string }[] = await this.ds.query(
       `SELECT case_key, "group", input, expected_output FROM examcollect.grading_test_case
         WHERE bundle_id = $1 AND auto_dropped_reason IS NULL ORDER BY case_key`,
-      [row.test_bundle_id],
+      [cfg.testBundleId],
     );
     const { entries, ruleTable } = await loadRuleEntries(this.ds.manager, row.teacher_id, row.rubric_name);
 
@@ -90,7 +92,7 @@ export class InvestigationContextService {
         entry: sources.entry,
         submission: { files: sources.files },
         testBundle: {
-          id: row.test_bundle_id,
+          id: cfg.testBundleId,
           cases: cases.map((c) => ({ name: c.case_key, group: c.group, input: c.input, expected: c.expected_output })),
         },
         modelAnswerAvailable: reference.modelAnswer !== undefined,
