@@ -397,4 +397,13 @@ export class GradingController {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.problems.listStudents(session.id);
   }
+
+  /** 5.3 — giảng viên xác nhận thước của phiên (§6.3b): ghi ai và khi nào. Đáp án của Soạn đề vẫn chưa kiểm chứng tới khi có lệnh này. */
+  @Post('exam-sessions/:id/ruler/confirm')
+  @Roles('teacher')
+  @HttpCode(200)
+  async confirmRuler(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.references.confirmRuler(session, req.user!.sub);
+  }
 }

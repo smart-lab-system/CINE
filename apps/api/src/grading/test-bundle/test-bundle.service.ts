@@ -157,12 +157,14 @@ export class TestBundleService {
     }
     return this.ds.transaction(async (m) => {
       await assertSessionRouteAllowed(m, examSessionId);
-      const [row] = await m.query(
-        `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now()
-          WHERE id = $2 RETURNING id, approved_at`,
+      await m.query(
+        `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now() WHERE id = $2`,
         [teacherId, bundleId],
       );
-      return { id: row.id as string, approvedAt: row.approved_at as string };
+      // SELECT sau UPDATE (M1, review): `UPDATE … RETURNING` qua TypeORM trả [rows, rowCount], nên `[row] = …` không ra hàng
+      // và phản hồi có id và approvedAt là undefined. Cùng cách với `adoptIn`.
+      const [row] = await m.query(`SELECT id, approved_at FROM examcollect.grading_test_bundle WHERE id = $1`, [bundleId]);
+      return { id: row.id as string, approvedAt: new Date(row.approved_at).toISOString() };
     });
   }
 

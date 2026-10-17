@@ -206,9 +206,10 @@ export class AttachExamService {
           questionMaterialId: material.id,
           modelAnswerStorageKey: answerKeyKey,
           modelAnswerFilename: ANSWER_KEY_FILENAME,
-          // Đề do model sinh mà chưa chạy thử thì mang dấu — xem
-          // `grading-reference.entity.ts`.
-          modelAnswerUnverified: exam.verification.status !== "passed",
+          // 5.3: đáp án Soạn đề luôn mang dấu chưa kiểm chứng, kể cả khi sandbox đã chạy qua. Sandbox chỉ chứng tỏ
+          // cài đặt khớp dự đoán; cùng một model hiểu sai đề thì vẫn qua. Chỉ giảng viên xác nhận mới nâng thước
+          // (endpoint ruler/confirm). Xem `grading-reference.entity.ts`.
+          modelAnswerUnverified: true,
         },
         teacherId,
         "authoring",

@@ -104,6 +104,26 @@ export class GradingReferenceService {
     return { storageKey, uploadUrl, expiresIn };
   }
 
+  /**
+   * 5.3 — giảng viên xác nhận thước (§6.3b): đáp án chưa kiểm chứng được nâng lên `teacher`, và ghi ai và khi nào.
+   * Idempotent: xác nhận lại trả đúng mốc lần đầu. Không có đáp án thì không có gì để xác nhận.
+   */
+  async confirmRuler(session: ExamSessionEntity, teacherId: string): Promise<{ confirmedAt: string }> {
+    const ref = await this.references.findOne({ where: { examSessionId: session.id } });
+    if (!ref || !(ref.modelAnswerStorageKey || ref.modelAnswerNote)) {
+      throw new BadRequestException('Chưa có đáp án mẫu để xác nhận — hãy gắn đề hoặc nhập đáp án trước.');
+    }
+    if (ref.rulerConfirmedAt) {
+      return { confirmedAt: ref.rulerConfirmedAt.toISOString() };
+    }
+    const now = new Date();
+    await this.references.update(
+      { examSessionId: session.id },
+      { modelAnswerUnverified: false, rulerTrust: 'teacher', rulerConfirmedBy: teacherId, rulerConfirmedAt: now },
+    );
+    return { confirmedAt: now.toISOString() };
+  }
+
   async upsert(
     session: ExamSessionEntity,
     dto: UpsertGradingReferenceDto,
@@ -187,6 +207,9 @@ export class GradingReferenceService {
       // Câu và độ tin cậy của thước (P1a): giữ câu đã có; thước theo đúng quy tắc backfill M2.
       row.problemId = existing?.problemId ?? (await ensureDefaultProblem(m, session.id));
       row.rulerTrust = row.modelAnswerUnverified ? 'unverified' : 'teacher';
+      // 5.3: đổi đáp án thì xác nhận cũ không còn áp dụng cho đáp án mới — xoá để không ghi "ai xác nhận" sai đáp án.
+      row.rulerConfirmedBy = answerSent ? null : (existing?.rulerConfirmedBy ?? null);
+      row.rulerConfirmedAt = answerSent ? null : (existing?.rulerConfirmedAt ?? null);
       return refs.save(row);
     });
   }
