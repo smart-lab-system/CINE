@@ -1,6 +1,8 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { EntityManager } from 'typeorm';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { lockTeacherScoring } from '../scoring/teacher-lock';
+import { AddProblemDto } from './problem.dto';
 import { ensureDefaultProblem } from './resolve-problem-config';
 
 /**
@@ -114,12 +116,7 @@ export async function createProblemsFromAuthoring(
   sessionId: string,
   questions: AuthoredQuestion[],
 ): Promise<{ problemId: string; ordinal: number }[]> {
-  const [owner] = await m.query(`SELECT teacher_id FROM examcollect.exam_session WHERE id = $1`, [sessionId]);
-  if (!owner) {
-    throw new NotFoundException('Không tìm thấy phiên thi.');
-  }
-  await lockTeacherScoring(m, owner.teacher_id as string);
-  await m.query(`SELECT id FROM examcollect.exam_session WHERE id = $1 FOR UPDATE`, [sessionId]);
+  await lockSessionForWrite(m, sessionId);
 
   const [later] = await m.query(
     `SELECT COUNT(*)::int AS n FROM examcollect.exam_problem WHERE exam_session_id = $1 AND ordinal > 1`,
@@ -155,4 +152,154 @@ export async function createProblemsFromAuthoring(
     out.push({ problemId: row.id as string, ordinal: plan.ordinal });
   }
   return out;
+}
+
+/**
+ * Khoá giảng viên TRƯỚC, rồi hàng phiên `FOR UPDATE`: đúng thứ tự khoá của mọi đường ghi (xem `teacher-lock.ts`).
+ * Trả id giảng viên chủ phiên. Mọi ghi cấu trúc câu đều đi qua đây.
+ */
+export async function lockSessionForWrite(m: EntityManager, sessionId: string): Promise<string> {
+  const [owner] = await m.query(`SELECT teacher_id FROM examcollect.exam_session WHERE id = $1`, [sessionId]);
+  if (!owner) {
+    throw new NotFoundException('Không tìm thấy phiên thi.');
+  }
+  await lockTeacherScoring(m, owner.teacher_id as string);
+  await m.query(`SELECT id FROM examcollect.exam_session WHERE id = $1 FOR UPDATE`, [sessionId]);
+  return owner.teacher_id as string;
+}
+
+/** Đề cương đã xác nhận thì danh sách câu đã chốt: không thêm hay bỏ câu được nữa. */
+async function assertBlueprintOpen(m: EntityManager, sessionId: string): Promise<void> {
+  const [row] = await m.query(`SELECT blueprint_confirmed_at FROM examcollect.exam_session WHERE id = $1`, [sessionId]);
+  if (row.blueprint_confirmed_at) {
+    throw new ConflictException('phiên đã xác nhận đề cương — không thêm hay bỏ câu được nữa.');
+  }
+}
+
+/**
+ * Các đường ghi cấu trúc câu của một phiên (P1b Task 4, §10.3 mục (b)): thêm câu thủ công, bỏ câu, xác nhận đề
+ * cương. Ownership do controller kiểm trước; service chỉ nhận `sessionId` đã xác thực.
+ */
+@Injectable()
+export class ProblemService {
+  constructor(@InjectDataSource() private readonly ds: DataSource) {}
+
+  /**
+   * Thêm câu vào cuối phiên. Ordinal là lớn nhất + 1, nên không đụng câu nào đã có kể cả khi có khoảng trống do
+   * lần bỏ câu trước để lại. D1: rubric phải là rubric của phiên và điểm phải bằng tổng tiêu chí. D2: ngôn ngữ
+   * phải khớp yêu cầu nộp đã chọn.
+   */
+  async appendProblem(sessionId: string, dto: AddProblemDto): Promise<{ problemId: string; ordinal: number }> {
+    return this.ds.transaction(async (m) => {
+      await lockSessionForWrite(m, sessionId);
+      await assertBlueprintOpen(m, sessionId);
+
+      const [deliverable] = await m.query(
+        `SELECT language::text AS language FROM examcollect.required_deliverable WHERE id = $1 AND exam_session_id = $2`,
+        [dto.requiredDeliverableId, sessionId],
+      );
+      if (!deliverable) {
+        throw new BadRequestException('Yêu cầu nộp không thuộc phiên thi này.');
+      }
+      const declared = (deliverable.language as string | null) ?? 'chưa khai ngôn ngữ';
+      if (declared !== dto.language) {
+        throw new BadRequestException(`Yêu cầu nộp này dùng ${declared}, không phải ${dto.language}.`);
+      }
+
+      const ctx = await authoringContextOf(m, sessionId);
+      if (ctx.rubricId === null || ctx.rubricId !== dto.rubricId) {
+        throw new BadRequestException('Câu thủ công phải dùng rubric đang gắn với phiên (D1).');
+      }
+      if (dto.pointsHundredths !== ctx.rubricTotalHundredths) {
+        throw new BadRequestException(
+          `Điểm câu (${dto.pointsHundredths / 100}) khác tổng tiêu chí của rubric phiên (${ctx.rubricTotalHundredths / 100}).`,
+        );
+      }
+
+      const [next] = await m.query(
+        `SELECT COALESCE(MAX(ordinal), 0) + 1 AS next FROM examcollect.exam_problem WHERE exam_session_id = $1`,
+        [sessionId],
+      );
+      const ordinal = next.next as number;
+      const [row] = await m.query(
+        `INSERT INTO examcollect.exam_problem
+           (exam_session_id, ordinal, title, points_hundredths, required_deliverable_id, language, rubric_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [sessionId, ordinal, dto.title, dto.pointsHundredths, dto.requiredDeliverableId, dto.language, ctx.rubricId],
+      );
+      return { problemId: row.id as string, ordinal };
+    });
+  }
+
+  /**
+   * Bỏ một câu. Từ chối câu 1 (câu mặc định, bí danh của phiên trỏ vào nó) và câu đã có kết quả, gói test hay
+   * đáp án trỏ tới. Ba FK tới `exam_problem` đều RESTRICT và gói test là chỉ-thêm, nên đây là điều kiện DB
+   * đòi, không phải lựa chọn nghiệp vụ.
+   */
+  async removeProblem(sessionId: string, problemId: string): Promise<void> {
+    return this.ds.transaction(async (m) => {
+      await lockSessionForWrite(m, sessionId);
+      await assertBlueprintOpen(m, sessionId);
+
+      const [row] = await m.query(
+        `SELECT ordinal FROM examcollect.exam_problem WHERE id = $1 AND exam_session_id = $2`,
+        [problemId, sessionId],
+      );
+      if (!row) {
+        throw new NotFoundException('Không tìm thấy câu của phiên.');
+      }
+      if ((row.ordinal as number) === 1) {
+        throw new ConflictException('Câu 1 là câu mặc định của phiên, không bỏ được.');
+      }
+      const [use] = await m.query(
+        `SELECT (EXISTS (SELECT 1 FROM examcollect.grading_result WHERE problem_id = $1)
+              OR EXISTS (SELECT 1 FROM examcollect.grading_test_bundle WHERE problem_id = $1)
+              OR EXISTS (SELECT 1 FROM examcollect.grading_reference WHERE problem_id = $1)) AS used`,
+        [problemId],
+      );
+      if (use.used) {
+        throw new ConflictException(
+          'Câu đã có kết quả chấm, gói test hoặc đáp án — không bỏ được (các bản ghi này chỉ thêm, không xoá).',
+        );
+      }
+      await m.query(`DELETE FROM examcollect.exam_problem WHERE id = $1`, [problemId]);
+    });
+  }
+
+  /**
+   * Xác nhận đề cương: chốt danh sách câu. Idempotent: lần sau trả đúng thời điểm lần đầu. Phiên một câu mà
+   * chưa có đáp án hay gói test thì từ chối, vì xác nhận một đề cương rỗng là chốt một thứ không tồn tại.
+   */
+  async confirmBlueprint(sessionId: string, teacherId: string): Promise<{ confirmedAt: string }> {
+    return this.ds.transaction(async (m) => {
+      await lockSessionForWrite(m, sessionId);
+      const [session] = await m.query(
+        `SELECT blueprint_confirmed_at,
+                (SELECT COUNT(*)::int FROM examcollect.exam_problem p WHERE p.exam_session_id = $1) AS problems,
+                EXISTS (SELECT 1 FROM examcollect.grading_reference r WHERE r.exam_session_id = $1
+                         AND (r.model_answer_storage_key IS NOT NULL OR r.model_answer_note IS NOT NULL)) AS has_answer,
+                EXISTS (SELECT 1 FROM examcollect.grading_test_bundle b WHERE b.exam_session_id = $1) AS has_bundle
+           FROM examcollect.exam_session WHERE id = $1`,
+        [sessionId],
+      );
+      if (session.blueprint_confirmed_at) {
+        return { confirmedAt: new Date(session.blueprint_confirmed_at as string).toISOString() };
+      }
+      if ((session.problems as number) <= 1 && !session.has_answer && !session.has_bundle) {
+        throw new BadRequestException(
+          'Phiên có một câu mà chưa có đáp án hay gói test — không xác nhận đề cương rỗng.',
+        );
+      }
+      await m.query(
+        `UPDATE examcollect.exam_session SET blueprint_confirmed_at = now(), blueprint_confirmed_by = $2 WHERE id = $1`,
+        [sessionId, teacherId],
+      );
+      // SELECT sau UPDATE, không `UPDATE … RETURNING`: cùng lý do với `adoptIn` trong test-bundle.service.
+      const [confirmed] = await m.query(
+        `SELECT blueprint_confirmed_at FROM examcollect.exam_session WHERE id = $1`,
+        [sessionId],
+      );
+      return { confirmedAt: new Date(confirmed.blueprint_confirmed_at as string).toISOString() };
+    });
+  }
 }
