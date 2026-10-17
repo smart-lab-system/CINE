@@ -36,7 +36,11 @@ Năm trường hợp mà test thông thường dễ bỏ sót, theo thứ tự d
 4. **Một câu đang `audit_pending`** của sinh viên: không đường đọc tổng nào (danh sách, hồ sơ, xuất sổ, CSV) để lộ điểm câu đó; tổng hiện "—". → Task 6.
 5. **Gói test của một câu rỗng hoặc chưa duyệt**: câu đó không được tự duyệt bài nào; báo sàn của câu, không lấy điểm của câu khác. → Task 4, Task 8.
 
-## Quyết định cần chủ đồ án xác nhận trước khi bắt đầu
+## Quyết định đã duyệt (2026-10-17)
+
+Chủ đồ án duyệt toàn bộ D1–D5 theo đề xuất dưới đây, chọn thực thi **Native** (triển khai tuần tự trong một phiên, một reviewer toàn nhánh ở cuối). Plan giữ trên nhánh local `docs/multi-problem-p1b-plan`, chưa push.
+
+## Quyết định (đã duyệt)
 
 - **D1 — Rubric của từng câu.** Đề xuất: mọi câu dùng rubric của phiên; tạo câu bị từ chối `400` nếu tổng tiêu chí của rubric ≠ `points` của câu (đúng bất biến "tổng tiêu chí = `points_hundredths`"). Phương án khác (rubric riêng từng câu trong Soạn đề) làm Task 3 lớn hơn nhiều; để sau.
 - **D2 — Ngôn ngữ của câu.** Soạn đề không có trường ngôn ngữ theo câu. Đề xuất: lấy từ yêu cầu nộp mà câu gắn vào (`required_deliverable.language`); nếu một file nén chứa cả C++ lẫn Python, câu phải khai rõ (Task 3 từ chối câu thiếu ngôn ngữ).
