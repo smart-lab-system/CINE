@@ -26,3 +26,5 @@ Bảng này sinh lại từ mọi `run.json` sau mỗi lượt — đừng sửa
 | 20261014T031502Z-0199dd3 | 2026-10-14 03:15 | 0199dd3 | occ/claude-sonnet-5 | ngan-xep-v1 | 0 | 0/5 | 8/8 | 6 | 2/5 | 0/3 | 0 | 0 | 1 | 180 | P0: lượt nền trên main 0199dd3 (gồm PR #72), 5 bài, lượt 1/2 |
 | 20261014T033349Z-0199dd3 | 2026-10-14 03:33 | 0199dd3 | occ/claude-sonnet-5 | ngan-xep-v1 | 0 | 4/5 | 8/8 | 0 | 3/5 | 1/3 | 0 | 0 | 0 | 136.8 | P0: baseline 5 bài, lượt 1/2, rubric 5 luật mới (tách khỏi rubric cũ nhiễm 13 luật) |
 | 20261014T034132Z-0199dd3 | 2026-10-14 03:41 | 0199dd3 | occ/claude-sonnet-5 | ngan-xep-v1 | 0 | 5/5 | 8/8 | 0 | 4/5 | 2/3 | 0 | 0 | 0 | 94.9 | P0: baseline 5 bài, lượt 2/2, rubric 5 luật, harness đã xử lý audit_pending |
+| 20261017T061433Z-4301be1 | 2026-10-17 06:14 | 4301be1 | — | ngan-xep-v1 | 0 | 0/5 | 0/8 | 0 | 2/5 | 0/3 | 0 | 4 | 0 | 344.1 | P1a sau merge: nghiệm thu 1 câu chạy như cũ |
+| 20261017T064515Z-ab62a27 | 2026-10-17 06:45 | ab62a27 | — | ngan-xep-v1 | 0 | 0/5 | 0/8 | 0 | 2/5 | 0/3 | 0 | 4 | 0 | 654.2 | P1a: nghiệm thu 1 câu chạy như cũ (sandbox worker user) |
