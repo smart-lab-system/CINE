@@ -138,10 +138,20 @@ export class GradingRunService {
     const deliverables = row.deliverables as number;
     const problems = row.problems as number;
     if (deliverables <= 1 && problems <= 1) return;
-    const oneToOne = problems === deliverables && (row.mapped as number) === deliverables;
-    if (!oneToOne || row.confirmed === null) {
+    // Mọi trường hợp còn lại cần đề cương đã xác nhận (quy tắc đã duyệt). Một câu với nhiều yêu cầu nộp thì sau khi xác
+    // nhận mọi bài dùng câu mặc định, như phiên trộn cũ. Nhiều câu thì mỗi yêu cầu nộp phải ghép đúng một câu.
+    if (row.confirmed === null) {
       throw new ConflictException(
-        `Phiên này có ${problems} câu và ${deliverables} yêu cầu nộp. Cần đề cương nhiều câu đã xác nhận, và mỗi yêu cầu nộp ghép đúng một câu — chưa bắt đầu chấm.`,
+        problems > 1
+          ? `Phiên này có ${problems} câu và ${deliverables} yêu cầu nộp. Cần đề cương nhiều câu đã xác nhận, và mỗi yêu cầu nộp ghép đúng một câu — chưa bắt đầu chấm.`
+          : `Phiên này có ${deliverables} yêu cầu nộp. Cần xác nhận đề cương trước khi bắt đầu chấm phiên nhiều yêu cầu nộp.`,
+      );
+    }
+    if (problems <= 1) return;
+    const oneToOne = problems === deliverables && (row.mapped as number) === deliverables;
+    if (!oneToOne) {
+      throw new ConflictException(
+        `Phiên này có ${problems} câu và ${deliverables} yêu cầu nộp, nhưng chưa ghép đúng mỗi câu với một yêu cầu nộp — chưa bắt đầu chấm.`,
       );
     }
   }
