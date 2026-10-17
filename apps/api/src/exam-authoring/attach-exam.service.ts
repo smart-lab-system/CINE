@@ -12,6 +12,7 @@ import { GradingReferenceService } from "../grading/grading-reference.service";
 import { TestBundleService } from "../grading/test-bundle/test-bundle.service";
 import { ensureDefaultProblem } from "../grading/problem/resolve-problem-config";
 import { assertSessionRouteAllowed } from "../grading/problem/session-route-guard";
+import { assertReattachable, reattachProblems } from "../grading/problem/reattach-problems";
 import {
   AuthoredQuestion,
   authoringContextOf,
@@ -148,8 +149,21 @@ export class AttachExamService {
       );
     }
 
-    // Đề nhiều câu bị kiểm D1 (điểm = tổng rubric) và D2 (ngôn ngữ) TRƯỚC mọi lệnh ghi, để đề sai thì không để lại gì.
-    // Đề một câu giữ đường cũ: điểm lấy từ rubric như trước.
+    // 5.4: đề đã gắn trước đó thì chỉ gắn lại khi đủ điều kiện (chưa chấm, chưa xác nhận, giữ số câu và điểm từng câu).
+    // Lần đầu thì giữ cổng cũ (review I1). Cả hai đều kiểm TRƯỚC khi ghi gì lên kho: đáp án được ghi vào khoá cố định.
+    const [prior] = await this.ds.query(
+      `SELECT EXISTS (SELECT 1 FROM examcollect.grading_reference
+                       WHERE exam_session_id = $1 AND model_answer_storage_key IS NOT NULL) AS attached`,
+      [session.id],
+    );
+    const reattach = prior.attached === true;
+    if (reattach) {
+      await this.ds.transaction((m) => assertReattachable(m, session.id, exam.questions));
+    } else {
+      await this.ds.transaction((m) => assertSessionRouteAllowed(m, session.id));
+    }
+
+    // Đề nhiều câu được kiểm số lượng yêu cầu nộp và ngôn ngữ (D2) TRƯỚC mọi lệnh ghi. Đề một câu giữ đường cũ.
     const authoring =
       exam.questions.length > 1
         ? await authoringContextOf(this.ds.manager, session.id)
@@ -157,10 +171,6 @@ export class AttachExamService {
     if (authoring) {
       planAuthoredProblems(exam.questions, authoring, exam.language);
     }
-
-    // Review I1: cùng luật với `references.upsert` (phiên đã nhiều câu hoặc đã xác nhận đề cương). Kiểm TRƯỚC khi ghi
-    // gì lên kho: đáp án được ghi vào khoá cố định, nên ghi rồi mới bị từ chối là ghi đè đáp án đang dùng.
-    await this.ds.transaction((m) => assertSessionRouteAllowed(m, session.id));
 
     const [paper, answerKey] = await Promise.all([
       buildExamPaperDocx(exam),
@@ -213,6 +223,8 @@ export class AttachExamService {
         },
         teacherId,
         "authoring",
+        // 5.4: gắn lại đề nhiều câu đã kiểm số câu và điểm ở trên; cổng route (vốn chặn phiên nhiều câu) bỏ qua.
+        reattach && authoring !== null,
       );
       referenceWritten = true;
 
@@ -221,7 +233,7 @@ export class AttachExamService {
       // của một lượt gắn thất bại, tệ hơn một đề thiếu thước.
       const authoredCases = flattenAuthoringCases(exam.questions);
       const testBundle = authoring
-        ? await this.attachProblems(session.id, teacherId, exam.questions, authoredCases, exam.language)
+        ? await this.attachProblems(session.id, teacherId, exam.questions, authoredCases, exam.language, reattach)
         : authoredCases.length > 0
           ? await this.bundles.adoptFromAuthoring(
               session.id,
@@ -229,6 +241,7 @@ export class AttachExamService {
               authoredCases,
               session.testBundleId !== null,
               await ensureDefaultProblem(this.ds.manager, session.id),
+              reattach,
             )
           : null;
 
@@ -282,9 +295,13 @@ export class AttachExamService {
     questions: AuthoredQuestion[],
     cases: AuthoringCase[],
     examLanguage: string,
+    reattach: boolean,
   ): Promise<AttachResult["testBundle"]> {
     return this.ds.transaction(async (m) => {
-      const problems = await createProblemsFromAuthoring(m, sessionId, questions, examLanguage);
+      // 5.4: gắn lại thì cập nhật đề của từng câu tại chỗ; lần đầu thì tạo câu.
+      const problems = reattach
+        ? await reattachProblems(m, sessionId, questions)
+        : await createProblemsFromAuthoring(m, sessionId, questions, examLanguage);
       let first: AttachResult["testBundle"] = null;
       for (const problem of problems) {
         const own = cases
@@ -298,7 +315,7 @@ export class AttachExamService {
         if (own.length === 0) {
           continue;
         }
-        const bundle = await this.bundles.adoptFromAuthoringWithin(m, sessionId, teacherId, own, problem.problemId);
+        const bundle = await this.bundles.adoptFromAuthoringWithin(m, sessionId, teacherId, own, problem.problemId, reattach);
         if (problem.ordinal === 1) {
           first = bundle;
         }

@@ -130,6 +130,8 @@ export class GradingReferenceService {
     teacherId: string,
     /** Ai đưa đáp án của LƯỢT GHI này (§14.1). Route của giảng viên để mặc định. */
     origin: ModelAnswerOrigin = 'teacher',
+    /** Chỉ luồng gắn đề lại (5.4) đặt: đã tự kiểm số câu, điểm và trạng thái trước khi ghi, nên không chạy cổng route. */
+    bypassRouteGuard = false,
   ): Promise<GradingReferenceEntity> {
     await this.assertNotGradedYet(session);
 
@@ -163,7 +165,9 @@ export class GradingReferenceService {
     return this.references.manager.transaction(async (m) => {
       // Guard TRONG transaction của lượt ghi: khoá giảng viên và hàng phiên giữ tới khi ghi xong, nên một lượt
       // thêm câu đồng thời không chen vào giữa lúc kiểm và lúc ghi (P1b).
-      await assertSessionRouteAllowed(m, session.id);
+      if (!bypassRouteGuard) {
+        await assertSessionRouteAllowed(m, session.id);
+      }
       const refs = m.getRepository(GradingReferenceEntity);
 
       const existing = await refs.findOne({

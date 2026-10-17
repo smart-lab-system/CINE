@@ -66,9 +66,11 @@ export class TestBundleService {
     cases: BundleCaseInput[],
     sessionAlreadyPinned: boolean,
     problemId: string,
+    /** Gắn lại đề (5.4): ghim gói mới thay gói cũ đang ghim; gói cũ giữ làm lịch sử. */
+    replace = false,
   ): Promise<{ id: string; version: number; approvedAt: string | null; pinned: boolean }> {
     return this.ds.transaction((manager) =>
-      this.adoptIn(manager, examSessionId, teacherId, cases, sessionAlreadyPinned, problemId),
+      this.adoptIn(manager, examSessionId, teacherId, cases, sessionAlreadyPinned, problemId, replace),
     );
   }
 
@@ -82,9 +84,10 @@ export class TestBundleService {
     teacherId: string,
     cases: BundleCaseInput[],
     problemId: string,
+    replace = false,
   ): Promise<{ id: string; version: number; approvedAt: string | null; pinned: boolean }> {
     // Đường nhiều câu không dùng ghim cấp phiên: mỗi câu chỉ xem gói của chính nó.
-    return this.adoptIn(manager, examSessionId, teacherId, cases, false, problemId);
+    return this.adoptIn(manager, examSessionId, teacherId, cases, false, problemId, replace);
   }
 
   /**
@@ -98,6 +101,7 @@ export class TestBundleService {
     cases: BundleCaseInput[],
     sessionAlreadyPinned: boolean,
     problemId: string,
+    replace: boolean,
   ): Promise<{ id: string; version: number; approvedAt: string | null; pinned: boolean }> {
     // Khoá hàng phiên TRƯỚC khi đọc "đã ghim chưa" và tính số phiên bản. `sessionAlreadyPinned` do người gọi đọc NGOÀI
     // transaction, nên hai `attach` đồng thời cùng thấy "chưa ghim": cả hai ghim (gói sau đè gói trước) hoặc cả hai
@@ -113,7 +117,8 @@ export class TestBundleService {
     if (!problem) {
       throw new NotFoundException('Không tìm thấy câu của phiên để gắn gói test.');
     }
-    const pinnedNow = sessionAlreadyPinned || (problem.test_bundle_id as string | null) !== null;
+    // Gắn lại (replace) luôn ghim gói mới; còn lại thì một câu đã có gói không bao giờ bị đè.
+    const pinnedNow = !replace && (sessionAlreadyPinned || (problem.test_bundle_id as string | null) !== null);
     const version = await this.nextVersion(manager, examSessionId);
     const [bundle] = await manager.query(
       `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
