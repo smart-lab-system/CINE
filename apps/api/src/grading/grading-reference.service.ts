@@ -10,6 +10,7 @@ import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
 import type { ModelAnswerOrigin } from './grading-model.types';
 import { GRADING_LOCKED_MESSAGE, isGradingLocked } from './grading-lock';
 import { ensureDefaultProblem, resolveProblemConfig } from './problem/resolve-problem-config';
+import { assertSessionRouteAllowed } from './problem/session-route-guard';
 
 /**
  * Ba mức ngữ cảnh mà hệ thống có thể chấm với.
@@ -139,48 +140,55 @@ export class GradingReferenceService {
       }
     }
 
-    const existing = await this.references.findOne({
-      where: { examSessionId: session.id },
-    });
+    return this.references.manager.transaction(async (m) => {
+      // Guard TRONG transaction của lượt ghi: khoá giảng viên và hàng phiên giữ tới khi ghi xong, nên một lượt
+      // thêm câu đồng thời không chen vào giữa lúc kiểm và lúc ghi (P1b).
+      await assertSessionRouteAllowed(m, session.id);
+      const refs = m.getRepository(GradingReferenceEntity);
 
-    // `undefined` (không gửi) giữ nguyên; `null` (gửi rõ) XOÁ.
-    //
-    // Dùng `??` cho cả hai sẽ gộp chúng làm một và giảng viên đổi được
-    // lựa chọn nhưng không bỏ được: chọn nhầm file làm đề thì thay được,
-    // còn "thôi không dùng đề nữa" thì không có đường nào. Phân biệt hai
-    // ca này tốn đúng một phép so sánh.
-    const keep = <T>(sent: T | null | undefined, current: T | null | undefined): T | null =>
-      sent === undefined ? (current ?? null) : sent;
+      const existing = await refs.findOne({
+        where: { examSessionId: session.id },
+      });
 
-    const row = this.references.create({
-      ...(existing ?? {}),
-      examSessionId: session.id,
-      questionMaterialId: keep(dto.questionMaterialId, existing?.questionMaterialId),
-      modelAnswerStorageKey: keep(dto.modelAnswerStorageKey, existing?.modelAnswerStorageKey),
-      modelAnswerFilename: keep(dto.modelAnswerFilename, existing?.modelAnswerFilename),
-      modelAnswerNote: keep(dto.modelAnswerNote, existing?.modelAnswerNote),
-      // KHÔNG dùng `keep`: cờ này gắn với CHÍNH đáp án đang nằm ở đây, nên nó
-      // phải đi theo lượt ghi đáp án, không được thừa kế từ bản trước. Một
-      // giảng viên thay đáp án chưa kiểm chứng bằng đáp án họ tự viết và
-      // kiểm tay xong mà vẫn thấy cảnh báo cũ thì họ sẽ học cách phớt lờ nó.
-      modelAnswerUnverified:
-        dto.modelAnswerUnverified ??
-        (dto.modelAnswerStorageKey !== undefined
-          ? false
-          : (existing?.modelAnswerUnverified ?? false)),
-      createdBy: existing?.createdBy ?? teacherId,
+      // `undefined` (không gửi) giữ nguyên; `null` (gửi rõ) XOÁ.
+      //
+      // Dùng `??` cho cả hai sẽ gộp chúng làm một và giảng viên đổi được
+      // lựa chọn nhưng không bỏ được: chọn nhầm file làm đề thì thay được,
+      // còn "thôi không dùng đề nữa" thì không có đường nào. Phân biệt hai
+      // ca này tốn đúng một phép so sánh.
+      const keep = <T>(sent: T | null | undefined, current: T | null | undefined): T | null =>
+        sent === undefined ? (current ?? null) : sent;
+
+      const row = refs.create({
+        ...(existing ?? {}),
+        examSessionId: session.id,
+        questionMaterialId: keep(dto.questionMaterialId, existing?.questionMaterialId),
+        modelAnswerStorageKey: keep(dto.modelAnswerStorageKey, existing?.modelAnswerStorageKey),
+        modelAnswerFilename: keep(dto.modelAnswerFilename, existing?.modelAnswerFilename),
+        modelAnswerNote: keep(dto.modelAnswerNote, existing?.modelAnswerNote),
+        // KHÔNG dùng `keep`: cờ này gắn với CHÍNH đáp án đang nằm ở đây, nên nó
+        // phải đi theo lượt ghi đáp án, không được thừa kế từ bản trước. Một
+        // giảng viên thay đáp án chưa kiểm chứng bằng đáp án họ tự viết và
+        // kiểm tay xong mà vẫn thấy cảnh báo cũ thì họ sẽ học cách phớt lờ nó.
+        modelAnswerUnverified:
+          dto.modelAnswerUnverified ??
+          (dto.modelAnswerStorageKey !== undefined
+            ? false
+            : (existing?.modelAnswerUnverified ?? false)),
+        createdBy: existing?.createdBy ?? teacherId,
+      });
+      // Nguồn gốc đi theo LƯỢT GHI ĐÁP ÁN, cùng lý do với `modelAnswerUnverified` ở trên: lượt
+      // này gửi đáp án thì nguồn là người gửi; không gửi thì giữ nguồn cũ; không còn đáp án thì null.
+      const answerSent = dto.modelAnswerStorageKey !== undefined || dto.modelAnswerNote !== undefined;
+      const hasAnswer = Boolean(row.modelAnswerStorageKey || row.modelAnswerNote);
+      row.modelAnswerOrigin = !hasAnswer ? null : answerSent ? origin : (existing?.modelAnswerOrigin ?? origin);
+      // Dấu thời gian đi CÙNG nhịp với nguồn gốc: cả hai trả lời "đáp án của bản ghi này đến từ đâu, từ lúc nào".
+      row.modelAnswerSetAt = !hasAnswer ? null : answerSent ? new Date() : (existing?.modelAnswerSetAt ?? new Date());
+      // Câu và độ tin cậy của thước (P1a): giữ câu đã có; thước theo đúng quy tắc backfill M2.
+      row.problemId = existing?.problemId ?? (await ensureDefaultProblem(m, session.id));
+      row.rulerTrust = row.modelAnswerUnverified ? 'unverified' : 'teacher';
+      return refs.save(row);
     });
-    // Nguồn gốc đi theo LƯỢT GHI ĐÁP ÁN, cùng lý do với `modelAnswerUnverified` ở trên: lượt
-    // này gửi đáp án thì nguồn là người gửi; không gửi thì giữ nguồn cũ; không còn đáp án thì null.
-    const answerSent = dto.modelAnswerStorageKey !== undefined || dto.modelAnswerNote !== undefined;
-    const hasAnswer = Boolean(row.modelAnswerStorageKey || row.modelAnswerNote);
-    row.modelAnswerOrigin = !hasAnswer ? null : answerSent ? origin : (existing?.modelAnswerOrigin ?? origin);
-    // Dấu thời gian đi CÙNG nhịp với nguồn gốc: cả hai trả lời "đáp án của bản ghi này đến từ đâu, từ lúc nào".
-    row.modelAnswerSetAt = !hasAnswer ? null : answerSent ? new Date() : (existing?.modelAnswerSetAt ?? new Date());
-    // Câu và độ tin cậy của thước (P1a): giữ câu đã có; thước theo đúng quy tắc backfill M2.
-    row.problemId = existing?.problemId ?? (await ensureDefaultProblem(this.references.manager, session.id));
-    row.rulerTrust = row.modelAnswerUnverified ? 'unverified' : 'teacher';
-    return this.references.save(row);
   }
 
   /**

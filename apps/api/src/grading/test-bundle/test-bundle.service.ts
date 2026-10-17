@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
 import { ensureDefaultProblem, resolveProblemConfig, setSessionTestBundleAndProblem } from '../problem/resolve-problem-config';
+import { assertSessionRouteAllowed } from '../problem/session-route-guard';
 import { lockTeacherScoring } from '../scoring/teacher-lock';
 
 /**
@@ -34,6 +35,7 @@ export class TestBundleService {
 
   async create(examSessionId: string, teacherId: string, dto: CreateTestBundleDto) {
     return this.ds.transaction(async (manager) => {
+      await assertSessionRouteAllowed(manager, examSessionId);
       const version = await this.nextVersion(manager, examSessionId);
       const problemId = await ensureDefaultProblem(manager, examSessionId);
       const [bundle] = await manager.query(
@@ -117,12 +119,15 @@ export class TestBundleService {
         `Gói test ${bundleId} đã được duyệt lúc ${bundle.approved_at} — không duyệt lại được.`,
       );
     }
-    const [row] = await this.ds.query(
-      `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now()
-        WHERE id = $2 RETURNING id, approved_at`,
-      [teacherId, bundleId],
-    );
-    return { id: row.id as string, approvedAt: row.approved_at as string };
+    return this.ds.transaction(async (m) => {
+      await assertSessionRouteAllowed(m, examSessionId);
+      const [row] = await m.query(
+        `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now()
+          WHERE id = $2 RETURNING id, approved_at`,
+        [teacherId, bundleId],
+      );
+      return { id: row.id as string, approvedAt: row.approved_at as string };
+    });
   }
 
   async pin(examSessionId: string, bundleId: string) {
@@ -132,7 +137,10 @@ export class TestBundleService {
         `Gói test ${bundleId} chưa được duyệt — chỉ gói đã duyệt mới ghim được (§14.1).`,
       );
     }
-    await this.ds.transaction((m) => setSessionTestBundleAndProblem(m, examSessionId, bundleId));
+    await this.ds.transaction(async (m) => {
+      await assertSessionRouteAllowed(m, examSessionId);
+      await setSessionTestBundleAndProblem(m, examSessionId, bundleId);
+    });
     return { testBundleId: bundleId };
   }
 
@@ -156,6 +164,7 @@ export class TestBundleService {
     }
 
     return this.ds.transaction(async (manager) => {
+      await assertSessionRouteAllowed(manager, examSessionId);
       const rows: {
         case_key: string;
         group: string;
