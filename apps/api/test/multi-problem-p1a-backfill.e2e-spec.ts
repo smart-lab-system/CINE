@@ -9,6 +9,7 @@ import {
 } from '../src/grading/problem/default-problem-backfill';
 import { scoreResult, seedCriterion, seedResult, seedSession, SeedSession } from './helpers/grading-seed';
 import { ExamProblemBackfill1789610000000 } from '../src/database/migrations/1789610000000-ExamProblemBackfill';
+import { rerunDefaultProblemBackfill } from '../src/grading/problem/rerun-default-problem-backfill';
 
 /** Bộ bản ghi tối thiểu cho một phiên: gói test và đáp án mẫu (chỉ cần các cột NOT NULL). */
 async function seedBundleAndReference(
@@ -193,6 +194,19 @@ describe('P1a — backfill câu mặc định (M2)', () => {
     ).rejects.toThrow(/problem_id/);
     // Giữ nguyên giá trị hiện có thì không bị chặn.
     await ds.query(`UPDATE examcollect.grading_result SET problem_id = $2 WHERE id = $1`, [resultId, pa.id]);
+  });
+
+  // Lượt chạy lại sau triển khai (script rerun-default-problem-backfill): --dry-run đếm rồi rollback, không ghi gì.
+  it('chạy lại ở chế độ dry-run: trả số đếm nhưng không ghi gì', async () => {
+    const ctx = await seedSession(ds, 'bf-dry-run');
+    const counts = await rerunDefaultProblemBackfill(ds, { dryRun: true });
+    expect(counts.problems).toBeGreaterThanOrEqual(1);
+    const [n] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.exam_problem WHERE exam_session_id = $1`, [ctx.sessionId]);
+    expect(n.n).toBe(0);
+    const real = await rerunDefaultProblemBackfill(ds);
+    expect(real.problems).toBeGreaterThanOrEqual(1);
+    const [after] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.exam_problem WHERE exam_session_id = $1`, [ctx.sessionId]);
+    expect(after.n).toBe(1);
   });
 
   // Khoảng giữa migration và triển khai: code cũ vẫn ghi cột bí danh của phiên, câu 1 không biết. Chạy lại backfill

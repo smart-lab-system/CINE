@@ -6,6 +6,7 @@
     "build": "nest build",
     "dev": "nest start --watch",
     "report:attempts": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register scripts/attempt-cost-report.ts",
+    "backfill:default-problems": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register scripts/rerun-default-problem-backfill.ts",
     "start": "node dist/src/main.js",
     "test": "jest --passWithNoTests",
     "test:sandbox": "jest --config test-sandbox/jest-sandbox.json --runInBand",
