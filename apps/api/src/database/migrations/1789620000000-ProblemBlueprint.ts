@@ -11,12 +11,16 @@ export class ProblemBlueprint1789620000000 implements MigrationInterface {
   public async up(q: QueryRunner): Promise<void> {
     await q.query(`ALTER TABLE "examcollect"."exam_session" ADD COLUMN "blueprint_confirmed_at" timestamptz`);
     await q.query(`ALTER TABLE "examcollect"."exam_session" ADD COLUMN "blueprint_confirmed_by" uuid`);
+    // Khoá ngoại mới: thêm NOT VALID rồi VALIDATE riêng (migrationsTransactionMode = none). NOT VALID vẫn chặn mọi
+    // dòng mới ngay, nên lỗi ở bước VALIDATE không để lọt dữ liệu sai.
     await q.query(`ALTER TABLE "examcollect"."exam_session" ADD CONSTRAINT "fk_exam_session_blueprint_confirmed_by"
-      FOREIGN KEY ("blueprint_confirmed_by") REFERENCES "examcollect"."account"("id") ON DELETE SET NULL`);
+      FOREIGN KEY ("blueprint_confirmed_by") REFERENCES "examcollect"."account"("id") ON DELETE SET NULL NOT VALID`);
+    await q.query(`ALTER TABLE "examcollect"."exam_session" VALIDATE CONSTRAINT "fk_exam_session_blueprint_confirmed_by"`);
     await q.query(`ALTER TABLE "examcollect"."exam_problem" DROP CONSTRAINT "fk_exam_problem_test_bundle"`);
     await q.query(`ALTER TABLE "examcollect"."exam_problem" ADD CONSTRAINT "fk_exam_problem_test_bundle_session"
       FOREIGN KEY ("test_bundle_id", "exam_session_id")
-      REFERENCES "examcollect"."grading_test_bundle"("id", "exam_session_id") ON DELETE RESTRICT`);
+      REFERENCES "examcollect"."grading_test_bundle"("id", "exam_session_id") ON DELETE RESTRICT NOT VALID`);
+    await q.query(`ALTER TABLE "examcollect"."exam_problem" VALIDATE CONSTRAINT "fk_exam_problem_test_bundle_session"`);
   }
 
   public async down(q: QueryRunner): Promise<void> {
