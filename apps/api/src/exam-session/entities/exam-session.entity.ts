@@ -278,6 +278,13 @@ export class ExamSessionEntity extends BaseEntity {
   @Column({ name: 'test_bundle_id', type: 'uuid', nullable: true })
   testBundleId!: string | null;
 
+  /** Đề cương được giảng viên xác nhận (§6.4, P1b): mốc và người xác nhận. Rỗng = chưa xác nhận. */
+  @Column({ name: 'blueprint_confirmed_at', type: 'timestamptz', nullable: true })
+  blueprintConfirmedAt!: Date | null;
+
+  @Column({ name: 'blueprint_confirmed_by', type: 'uuid', nullable: true })
+  blueprintConfirmedBy!: string | null;
+
   /** Bảng giá ghim LÚC CHỐT (§2.2). */
   @Column({ name: 'pinned_price_version_id', type: 'uuid', nullable: true })
   pinnedPriceVersionId!: string | null;
