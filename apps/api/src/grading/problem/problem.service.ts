@@ -195,6 +195,18 @@ export class ProblemService {
       await lockSessionForWrite(m, sessionId);
       await assertBlueprintOpen(m, sessionId);
 
+      // Review M5: phiên đã có bài chấm thì đường xuất sổ điểm đã chốt theo file; thêm câu lúc này đổi nó sang tổng theo câu
+      // và làm lệch các điểm đã có. Từ chối trước khi tạo câu.
+      const [graded] = await m.query(
+        `SELECT EXISTS (SELECT 1 FROM examcollect.grading_result g
+                          JOIN examcollect.submission s ON s.id = g.submission_id
+                         WHERE s.exam_session_id = $1) AS graded`,
+        [sessionId],
+      );
+      if (graded.graded as boolean) {
+        throw new ConflictException('phiên đã có bài chấm — không thêm câu được nữa.');
+      }
+
       const [deliverable] = await m.query(
         `SELECT language::text AS language FROM examcollect.required_deliverable WHERE id = $1 AND exam_session_id = $2`,
         [dto.requiredDeliverableId, sessionId],

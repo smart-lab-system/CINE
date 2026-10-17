@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
@@ -131,6 +131,18 @@ export class GradingRunService {
     // course's rubric between two exams must not change how the earlier one
     // is graded, and a colleague teaching another class of the same course
     // must not be able to change it from under this session either.
+    // Review C1: đường chấm chưa định tuyến bài theo câu — mọi kết quả mới gắn câu mặc định và chạy gói test của câu 1.
+    // Phiên nhiều câu vì vậy bị từ chối TRƯỚC khi tạo kết quả nào, thay vì chấm sai thước âm thầm.
+    const [{ n: problemCount }] = await this.results.manager.query(
+      `SELECT COUNT(*)::int AS n FROM examcollect.exam_problem WHERE exam_session_id = $1`,
+      [session.id],
+    );
+    if ((problemCount as number) > 1) {
+      throw new ConflictException(
+        `Phiên này có ${problemCount} câu. Chấm theo từng câu chưa được hỗ trợ — chưa bắt đầu chấm để tránh chấm sai thước.`,
+      );
+    }
+
     // Cấu hình chấm đọc qua câu mặc định (P1a), không qua cột bí danh của phiên.
     const cfg = await resolveProblemConfig(this.results.manager, session.id);
     if (!cfg?.rubricId) {

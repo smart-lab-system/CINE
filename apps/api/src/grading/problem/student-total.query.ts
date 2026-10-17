@@ -56,15 +56,16 @@ const ROSTER_PROBLEM_SQL = `
    ORDER BY r.student_mssv, p.ordinal`;
 
 /** Trạng thái một câu với một sinh viên, từ các bài của sinh viên đó cho câu (thường là đúng một bài). */
-function stateOf(ordinal: number, pointsHundredths: number, rows: RosterProblemRow[]): ProblemState {
+export function stateOf(ordinal: number, pointsHundredths: number, rows: RosterProblemRow[]): ProblemState {
   const results = rows.filter((r) => r.result_id !== null);
   const pendingState: ProblemState = { ordinal, status: 'pending', pointsHundredths, scoreHundredths: null, auditPending: false };
   if (results.length === 0) {
     return { ...pendingState, status: 'blank' };
   }
   // Nhiều bài cho một câu là xung đột: chưa có điểm, cùng quy tắc với sổ điểm (fold-student-results).
+  // Nhưng nếu MỘT bài đang chờ kiểm mẫu thì vẫn báo cờ đó (review M2): tổng phải hiện "—", không phải "tạm".
   if (results.length > 1) {
-    return pendingState;
+    return { ...pendingState, auditPending: results.some((r) => r.status === 'audit_pending') };
   }
   const r = results[0];
   if (r.status === 'audit_pending') {
@@ -113,11 +114,13 @@ export interface StudentBoardRow {
  * thì không có dòng nào: không có câu thì không có gì để cộng.
  */
 export async function loadStudentBoard(m: EntityManager, sessionId: string): Promise<StudentBoardRow[]> {
-  const [count] = await m.query(`SELECT COUNT(*)::int AS n FROM examcollect.exam_problem WHERE exam_session_id = $1`, [
-    sessionId,
-  ]);
-  const expectedCount = count.n as number;
-  if (expectedCount === 0) {
+  // Số thứ tự thực tế, không phải 1..n: bỏ câu giữa chừng để lại khoảng trống (review I2).
+  const ordinalRows: { ordinal: number }[] = await m.query(
+    `SELECT ordinal FROM examcollect.exam_problem WHERE exam_session_id = $1 ORDER BY ordinal`,
+    [sessionId],
+  );
+  const expectedOrdinals = ordinalRows.map((r) => r.ordinal as number);
+  if (expectedOrdinals.length === 0) {
     return [];
   }
   const names: { mssv: string; name: string }[] = await m.query(
@@ -146,7 +149,12 @@ export async function loadStudentBoard(m: EntityManager, sessionId: string): Pro
       ...stateOf(ordinal, list[0].points_hundredths, list),
       problemId: list[0].problem_id,
     }));
-    return { mssv, name, total: aggregateStudentTotal(problems, expectedCount), problems };
+    return {
+      mssv,
+      name,
+      total: aggregateStudentTotal(problems, expectedOrdinals.length, expectedOrdinals),
+      problems,
+    };
   });
 }
 

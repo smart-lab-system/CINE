@@ -29,13 +29,18 @@ export type StudentTotal =
  * Thứ tự ưu tiên: có câu chờ kiểm mẫu → `dash`; rồi thiếu câu hoặc còn câu chưa chốt → `tạm`; còn lại → `final`.
  * `blank` được tính là thiếu, cùng với ordinal vắng hẳn khỏi mảng.
  */
-export function aggregateStudentTotal(problems: ProblemState[], expectedCount: number): StudentTotal {
+export function aggregateStudentTotal(
+  problems: ProblemState[],
+  expectedCount: number,
+  /** Số thứ tự câu thực tế của phiên. Mặc định 1..expectedCount; phiên đã bỏ câu giữa chừng thì truyền số thực tế. */
+  expectedOrdinals: number[] = Array.from({ length: expectedCount }, (_, i) => i + 1),
+): StudentTotal {
   if (problems.some((p) => p.auditPending)) {
     return { kind: 'dash' };
   }
   const byOrdinal = new Map(problems.map((p) => [p.ordinal, p]));
   const missing: number[] = [];
-  for (let ordinal = 1; ordinal <= expectedCount; ordinal += 1) {
+  for (const ordinal of expectedOrdinals) {
     const p = byOrdinal.get(ordinal);
     if (!p || p.status === 'blank') {
       missing.push(ordinal);

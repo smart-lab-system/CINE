@@ -57,4 +57,13 @@ describe('aggregateStudentTotal (P1b §3.4)', () => {
   it('(f) một câu đã chốt → final bằng đúng điểm câu, không làm tròn lại', () => {
     expect(aggregateStudentTotal([done(1, 1234, 1500)], 1)).toEqual({ kind: 'final', hundredths: 1234 });
   });
+
+  // Review I2: bỏ câu giữa chừng để lại khoảng trống trong số thứ tự (1, 3). Khoảng trống không được hiện thành "câu 2 thiếu".
+  it('(g) số thứ tự có khoảng trống (câu 2 đã bỏ, còn 1 và 3), cả hai đã chốt → final, không đòi câu 2', () => {
+    expect(aggregateStudentTotal([done(1, 430), done(3, 520)], 2, [1, 3])).toEqual({ kind: 'final', hundredths: 950 });
+  });
+
+  it('(h) số thứ tự có khoảng trống, câu 3 vắng → tạm, missing = [3]', () => {
+    expect(aggregateStudentTotal([done(1, 430)], 2, [1, 3])).toEqual({ kind: 'tạm', hundredths: 430, missing: [3] });
+  });
 });

@@ -11,6 +11,7 @@ import {
 import { GradingReferenceService } from "../grading/grading-reference.service";
 import { TestBundleService } from "../grading/test-bundle/test-bundle.service";
 import { ensureDefaultProblem } from "../grading/problem/resolve-problem-config";
+import { assertSessionRouteAllowed } from "../grading/problem/session-route-guard";
 import {
   AuthoredQuestion,
   authoringContextOf,
@@ -156,6 +157,10 @@ export class AttachExamService {
     if (authoring) {
       planAuthoredProblems(exam.questions, authoring);
     }
+
+    // Review I1: cùng luật với `references.upsert` (phiên đã nhiều câu hoặc đã xác nhận đề cương). Kiểm TRƯỚC khi ghi
+    // gì lên kho: đáp án được ghi vào khoá cố định, nên ghi rồi mới bị từ chối là ghi đè đáp án đang dùng.
+    await this.ds.transaction((m) => assertSessionRouteAllowed(m, session.id));
 
     const [paper, answerKey] = await Promise.all([
       buildExamPaperDocx(exam),
