@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { lockTeacherScoring } from '../scoring/teacher-lock';
 import { AddProblemDto } from './problem.dto';
+import { cloneRubricForQuestion } from './question-rubric';
 import { loadStudentBoard, StudentBoardRow } from './student-total.query';
 import { ensureDefaultProblem } from './resolve-problem-config';
 
@@ -73,26 +74,22 @@ function toHundredths(points: number, ordinal: number): number {
 }
 
 /**
- * Kiểm đề nhiều câu theo D1 và D2 (đã duyệt, plan P1b), và trả kế hoạch tạo câu. Hàm thuần: không chạm DB.
+ * Kiểm đề nhiều câu trước khi ghi và trả kế hoạch tạo câu. Hàm thuần: không chạm DB.
  *
- * D1: mọi câu dùng chung rubric của phiên, và điểm mỗi câu PHẢI bằng tổng tiêu chí của rubric đó
- * (đúng bất biến "tổng tiêu chí = points_hundredths"). D2: ngôn ngữ phải khai đúng một giá trị trong
- * các yêu cầu nộp của phiên; đề soạn ra không có trường ngôn ngữ theo câu.
+ * Điểm mỗi câu phải là số nguyên phần trăm (tối đa hai chữ số thập phân). Rubric riêng của từng câu được sinh
+ * sau từ rubric mẫu của phiên (5.1), nên không còn ràng buộc "điểm câu = tổng rubric mẫu" (đã bỏ D1).
+ * Ngôn ngữ phải khai đúng một giá trị trong các yêu cầu nộp của phiên (D2).
  */
 export function planAuthoredProblems(questions: AuthoredQuestion[], ctx: AuthoringContext): AuthoredProblemPlan[] {
   const plans = questions.map((q, i) => {
     const ordinal = i + 1;
     const pointsHundredths = toHundredths(q.points, ordinal);
     if (ctx.rubricId === null) {
-      throw new BadRequestException(
-        'Phiên chưa gắn rubric: đề nhiều câu cần một rubric có tổng tiêu chí bằng điểm từng câu.',
-      );
+      throw new BadRequestException('Phiên chưa gắn rubric mẫu: đề nhiều câu cần một rubric để tách tiêu chí cho từng câu.');
     }
-    if (pointsHundredths !== ctx.rubricTotalHundredths) {
-      throw new BadRequestException(
-        `Câu ${ordinal} có ${q.points} điểm, khác tổng tiêu chí của rubric phiên (${ctx.rubricTotalHundredths / 100}). ` +
-          'Đề nhiều câu dùng chung một rubric: điểm mỗi câu phải bằng tổng tiêu chí.',
-      );
+    // Kiểm ở đây (trước mọi lệnh ghi), không để `cloneRubricForQuestion` ném giữa transaction khi đã ghi đề và tham chiếu.
+    if (ctx.rubricTotalHundredths <= 0) {
+      throw new BadRequestException('Rubric mẫu của phiên chưa có tiêu chí có điểm để tách cho từng câu.');
     }
     return { ordinal, title: `Câu ${ordinal}`, pointsHundredths, statement: q.statement };
   });
@@ -117,7 +114,8 @@ export async function createProblemsFromAuthoring(
   sessionId: string,
   questions: AuthoredQuestion[],
 ): Promise<{ problemId: string; ordinal: number }[]> {
-  await lockSessionForWrite(m, sessionId);
+  const teacherId = await lockSessionForWrite(m, sessionId);
+  const [sessionRow] = await m.query(`SELECT code FROM examcollect.exam_session WHERE id = $1`, [sessionId]);
 
   const [later] = await m.query(
     `SELECT COUNT(*)::int AS n FROM examcollect.exam_problem WHERE exam_session_id = $1 AND ordinal > 1`,
@@ -134,12 +132,20 @@ export async function createProblemsFromAuthoring(
 
   const out: { problemId: string; ordinal: number }[] = [];
   for (const plan of plans) {
+    // 5.1: mỗi câu có rubric riêng, co giãn từ rubric mẫu của phiên theo điểm câu.
+    const rubricId = await cloneRubricForQuestion(m, {
+      teacherId,
+      templateRubricId: ctx.rubricId as string,
+      sessionCode: sessionRow.code as string,
+      ordinal: plan.ordinal,
+      pointsHundredths: plan.pointsHundredths,
+    });
     if (plan.ordinal === 1) {
       await m.query(
         `UPDATE examcollect.exam_problem
             SET title = $2, points_hundredths = $3, statement = $4, rubric_id = $5, language = $6
           WHERE id = $1`,
-        [firstId, plan.title, plan.pointsHundredths, plan.statement, ctx.rubricId, language],
+        [firstId, plan.title, plan.pointsHundredths, plan.statement, rubricId, language],
       );
       out.push({ problemId: firstId, ordinal: 1 });
       continue;
@@ -148,7 +154,7 @@ export async function createProblemsFromAuthoring(
       `INSERT INTO examcollect.exam_problem
          (exam_session_id, ordinal, title, points_hundredths, statement, statement_quote, rubric_id, language)
        VALUES ($1, $2, $3, $4, $5, NULL, $6, $7) RETURNING id`,
-      [sessionId, plan.ordinal, plan.title, plan.pointsHundredths, plan.statement, ctx.rubricId, language],
+      [sessionId, plan.ordinal, plan.title, plan.pointsHundredths, plan.statement, rubricId, language],
     );
     out.push({ problemId: row.id as string, ordinal: plan.ordinal });
   }
@@ -187,8 +193,8 @@ export class ProblemService {
 
   /**
    * Thêm câu vào cuối phiên. Ordinal là lớn nhất + 1, nên không đụng câu nào đã có kể cả khi có khoảng trống do
-   * lần bỏ câu trước để lại. D1: rubric phải là rubric của phiên và điểm phải bằng tổng tiêu chí. D2: ngôn ngữ
-   * phải khớp yêu cầu nộp đã chọn.
+   * lần bỏ câu trước để lại. Rubric đưa vào là rubric mẫu, câu nhận rubric riêng co giãn theo điểm (5.1). D2: ngôn
+   * ngữ phải khớp yêu cầu nộp đã chọn.
    */
   async appendProblem(sessionId: string, dto: AddProblemDto): Promise<{ problemId: string; ordinal: number }> {
     return this.ds.transaction(async (m) => {
@@ -219,26 +225,26 @@ export class ProblemService {
         throw new BadRequestException(`Yêu cầu nộp này dùng ${declared}, không phải ${dto.language}.`);
       }
 
-      const ctx = await authoringContextOf(m, sessionId);
-      if (ctx.rubricId === null || ctx.rubricId !== dto.rubricId) {
-        throw new BadRequestException('Câu thủ công phải dùng rubric đang gắn với phiên (D1).');
-      }
-      if (dto.pointsHundredths !== ctx.rubricTotalHundredths) {
-        throw new BadRequestException(
-          `Điểm câu (${dto.pointsHundredths / 100}) khác tổng tiêu chí của rubric phiên (${ctx.rubricTotalHundredths / 100}).`,
-        );
-      }
-
+      // 5.1: rubric đưa vào là rubric MẪU; câu thủ công nhận một rubric riêng co giãn theo điểm của mình. Rubric mẫu
+      // phải thuộc giảng viên chủ phiên — kiểm trong `cloneRubricForQuestion`.
+      const [sessionRow] = await m.query(`SELECT code, teacher_id FROM examcollect.exam_session WHERE id = $1`, [sessionId]);
       const [next] = await m.query(
         `SELECT COALESCE(MAX(ordinal), 0) + 1 AS next FROM examcollect.exam_problem WHERE exam_session_id = $1`,
         [sessionId],
       );
       const ordinal = next.next as number;
+      const rubricId = await cloneRubricForQuestion(m, {
+        teacherId: sessionRow.teacher_id as string,
+        templateRubricId: dto.rubricId,
+        sessionCode: sessionRow.code as string,
+        ordinal,
+        pointsHundredths: dto.pointsHundredths,
+      });
       const [row] = await m.query(
         `INSERT INTO examcollect.exam_problem
            (exam_session_id, ordinal, title, points_hundredths, required_deliverable_id, language, rubric_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [sessionId, ordinal, dto.title, dto.pointsHundredths, dto.requiredDeliverableId, dto.language, ctx.rubricId],
+        [sessionId, ordinal, dto.title, dto.pointsHundredths, dto.requiredDeliverableId, dto.language, rubricId],
       );
       return { problemId: row.id as string, ordinal };
     });

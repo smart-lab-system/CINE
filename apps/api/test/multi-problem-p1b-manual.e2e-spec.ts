@@ -173,16 +173,19 @@ describe('P1b — thêm, bỏ câu thủ công và xác nhận đề cương (e2
     expect((await removeProblem(intruder, session.sessionId, firstId)).status).toBe(403);
   });
 
-  it('điểm câu thêm khác tổng tiêu chí của rubric phiên (D1) → 400, và không có dòng nào được tạo', async () => {
+  it('điểm câu thêm khác rubric mẫu: câu nhận rubric riêng co giãn theo điểm (5.1, bỏ D1)', async () => {
     const { owner, session } = await freshSession('m5');
 
     const res = await addProblem(owner, session.sessionId, session, { pointsHundredths: 300 });
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/tổng tiêu chí/);
+    expect(res.status).toBe(201);
 
-    const rows = await ds.query(`SELECT ordinal FROM examcollect.exam_problem WHERE exam_session_id = $1`, [
-      session.sessionId,
-    ]);
-    expect(rows).toHaveLength(1);
+    const [row] = await ds.query(
+      `SELECT ROUND(SUM(rc.max_points) * 100)::int AS total, p.rubric_id
+         FROM examcollect.exam_problem p JOIN examcollect.rubric_criterion rc ON rc.rubric_id = p.rubric_id
+        WHERE p.id = $1 GROUP BY p.rubric_id`,
+      [res.body.problemId],
+    );
+    expect(row.total).toBe(300);
+    expect(row.rubric_id).not.toEqual(session.rubricId);
   });
 });

@@ -178,7 +178,7 @@ describe('P1b — gắn đề nhiều câu từ Soạn đề (e2e)', () => {
     expect(await materialCount(session.sessionId)).toBe(0);
   });
 
-  it('điểm câu khác tổng tiêu chí của rubric (D1) → 400, và không ghi gì', async () => {
+  it('điểm câu khác tổng rubric mẫu: mỗi câu nhận rubric riêng co giãn đúng điểm câu (5.1, bỏ D1)', async () => {
     const { owner, session } = await sessionWithRubric('a3', { total: 5 });
 
     const res = await attach(
@@ -189,10 +189,24 @@ describe('P1b — gắn đề nhiều câu từ Soạn đề (e2e)', () => {
         { points: 6, cases: ['ca'] },
       ]),
     );
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/tổng tiêu chí/);
-    expect(await problemsOf(session.sessionId)).toHaveLength(0);
-    expect(await materialCount(session.sessionId)).toBe(0);
+    expect(res.status).toBe(201);
+
+    const problems = await problemsOf(session.sessionId);
+    expect(problems.map((p) => p.points_hundredths)).toEqual([500, 600]);
+    // Mỗi câu có rubric riêng, khác rubric mẫu của phiên, và tổng tiêu chí bằng đúng điểm câu.
+    const rubricOf = async (id: string) =>
+      ds.query(
+        `SELECT p.rubric_id, ROUND(SUM(rc.max_points) * 100)::int AS total
+           FROM examcollect.exam_problem p JOIN examcollect.rubric_criterion rc ON rc.rubric_id = p.rubric_id
+          WHERE p.id = $1 GROUP BY p.rubric_id`,
+        [id],
+      );
+    const first = await problemsOf(session.sessionId);
+    const [r1] = await rubricOf(first[0].id);
+    const [r2] = await rubricOf(first[1].id);
+    expect([r1.total, r2.total]).toEqual([500, 600]);
+    expect(r1.rubric_id).not.toEqual(r2.rubric_id);
+    expect(r1.rubric_id).not.toEqual(session.rubricId);
   });
 
   it('phiên chưa có rubric và đề nhiều câu → 400 (D1 không có tổng để so)', async () => {
@@ -207,7 +221,7 @@ describe('P1b — gắn đề nhiều câu từ Soạn đề (e2e)', () => {
       ]),
     );
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/tổng tiêu chí/);
+    expect(res.body.message).toMatch(/tiêu chí/);
     expect(await problemsOf(session.sessionId)).toHaveLength(0);
   });
 
