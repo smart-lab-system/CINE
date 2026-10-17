@@ -44,6 +44,8 @@ describe('P1b 5.1 — rubric theo câu: sao chép lỗi và giá có co giãn (e
       language: 'cpp',
       startHoursAgo: -3,
     });
+    // 5.2: phiên chưa khai yêu cầu nộp nào, để hai câu tự tạo bai1/bai2 (số lượng phải khớp nếu đã khai).
+    await ds.query(`DELETE FROM examcollect.required_deliverable WHERE exam_session_id = $1`, [ctx.sessionId]);
     await seedCriterion(ds, ctx.rubricId, 'tieu_chi_1', 5);
     const rule = await seedRule(ds, ctx.teacherId, 'sai_bien', 'tieu_chi_1');
     await seedPrices(ds, ctx.teacherId, { [rule.ruleId]: '1.00' });

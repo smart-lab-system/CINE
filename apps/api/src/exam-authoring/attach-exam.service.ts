@@ -155,7 +155,7 @@ export class AttachExamService {
         ? await authoringContextOf(this.ds.manager, session.id)
         : null;
     if (authoring) {
-      planAuthoredProblems(exam.questions, authoring);
+      planAuthoredProblems(exam.questions, authoring, exam.language);
     }
 
     // Review I1: cùng luật với `references.upsert` (phiên đã nhiều câu hoặc đã xác nhận đề cương). Kiểm TRƯỚC khi ghi
@@ -220,7 +220,7 @@ export class AttachExamService {
       // của một lượt gắn thất bại, tệ hơn một đề thiếu thước.
       const authoredCases = flattenAuthoringCases(exam.questions);
       const testBundle = authoring
-        ? await this.attachProblems(session.id, teacherId, exam.questions, authoredCases)
+        ? await this.attachProblems(session.id, teacherId, exam.questions, authoredCases, exam.language)
         : authoredCases.length > 0
           ? await this.bundles.adoptFromAuthoring(
               session.id,
@@ -280,9 +280,10 @@ export class AttachExamService {
     teacherId: string,
     questions: AuthoredQuestion[],
     cases: AuthoringCase[],
+    examLanguage: string,
   ): Promise<AttachResult["testBundle"]> {
     return this.ds.transaction(async (m) => {
-      const problems = await createProblemsFromAuthoring(m, sessionId, questions);
+      const problems = await createProblemsFromAuthoring(m, sessionId, questions, examLanguage);
       let first: AttachResult["testBundle"] = null;
       for (const problem of problems) {
         const own = cases

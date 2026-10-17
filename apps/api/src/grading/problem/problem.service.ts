@@ -23,6 +23,8 @@ export interface AuthoringContext {
   rubricTotalHundredths: number;
   /** Ngôn ngữ khai trong các yêu cầu nộp của phiên, đã khử trùng. */
   languages: string[];
+  /** Yêu cầu nộp đã khai của phiên, theo thứ tự tên file. Rỗng khi phiên chưa khai yêu cầu nộp nào. */
+  deliverables: { id: string; filename: string }[];
 }
 
 export interface AuthoredProblemPlan {
@@ -30,6 +32,8 @@ export interface AuthoredProblemPlan {
   title: string;
   pointsHundredths: number;
   statement: string;
+  /** Ngôn ngữ của câu: từ yêu cầu nộp đã khai, hoặc từ đề nếu phiên chưa khai yêu cầu nộp nào. */
+  language: string;
 }
 
 /**
@@ -47,16 +51,20 @@ export async function authoringContextOf(m: EntityManager, sessionId: string): P
        FROM examcollect.rubric_criterion WHERE rubric_id = $1`,
     [rubricId],
   );
-  const langs: { language: string }[] = await m.query(
-    `SELECT DISTINCT language::text AS language
-       FROM examcollect.required_deliverable
-      WHERE exam_session_id = $1 AND language IS NOT NULL`,
+  const rows: { id: string; required_filename: string; language: string | null }[] = await m.query(
+    `SELECT id, required_filename, language::text AS language
+       FROM examcollect.required_deliverable WHERE exam_session_id = $1`,
     [sessionId],
+  );
+  // 5.2: ghép câu với yêu cầu nộp theo thứ tự tên file (không có cột thời gian tạo); tên có số được sắp theo số.
+  const deliverables = [...rows].sort((a, b) =>
+    a.required_filename.localeCompare(b.required_filename, undefined, { numeric: true }),
   );
   return {
     rubricId,
     rubricTotalHundredths: rubricId === null ? 0 : Number(total.total),
-    languages: langs.map((r) => r.language),
+    languages: [...new Set(deliverables.map((d) => d.language).filter((l): l is string => l !== null))],
+    deliverables: deliverables.map((d) => ({ id: d.id, filename: d.required_filename })),
   };
 }
 
@@ -80,7 +88,11 @@ function toHundredths(points: number, ordinal: number): number {
  * sau từ rubric mẫu của phiên (5.1), nên không còn ràng buộc "điểm câu = tổng rubric mẫu" (đã bỏ D1).
  * Ngôn ngữ phải khai đúng một giá trị trong các yêu cầu nộp của phiên (D2).
  */
-export function planAuthoredProblems(questions: AuthoredQuestion[], ctx: AuthoringContext): AuthoredProblemPlan[] {
+export function planAuthoredProblems(
+  questions: AuthoredQuestion[],
+  ctx: AuthoringContext,
+  examLanguage: string,
+): AuthoredProblemPlan[] {
   const plans = questions.map((q, i) => {
     const ordinal = i + 1;
     const pointsHundredths = toHundredths(q.points, ordinal);
@@ -94,13 +106,26 @@ export function planAuthoredProblems(questions: AuthoredQuestion[], ctx: Authori
     return { ordinal, title: `Câu ${ordinal}`, pointsHundredths, statement: q.statement };
   });
 
-  if (ctx.languages.length !== 1) {
-    const shown = ctx.languages.length === 0 ? 'chưa khai' : ctx.languages.join(', ');
-    throw new BadRequestException(
-      `Đề nhiều câu cần khai đúng một ngôn ngữ trong yêu cầu nộp của phiên (hiện: ${shown}).`,
-    );
+  // 5.2: đã khai yêu cầu nộp thì số lượng phải bằng số câu (ghép từng câu với một file) và ngôn ngữ phải thống nhất.
+  if (ctx.deliverables.length > 0) {
+    if (ctx.deliverables.length !== questions.length) {
+      throw new BadRequestException(
+        `Phiên đã khai ${ctx.deliverables.length} yêu cầu nộp nhưng đề có ${questions.length} câu — số phải bằng nhau để ghép từng câu với một file.`,
+      );
+    }
+    if (ctx.languages.length !== 1) {
+      const shown = ctx.languages.length === 0 ? 'chưa khai' : ctx.languages.join(', ');
+      throw new BadRequestException(
+        `Đề nhiều câu cần khai đúng một ngôn ngữ trong yêu cầu nộp của phiên (hiện: ${shown}).`,
+      );
+    }
+    return plans.map((p) => ({ ...p, language: ctx.languages[0] }));
   }
-  return plans;
+  // Chưa khai yêu cầu nộp nào: mỗi câu sẽ có một yêu cầu nộp mới, ngôn ngữ lấy từ đề.
+  if (examLanguage !== 'cpp' && examLanguage !== 'python') {
+    throw new BadRequestException(`Đề nhiều câu cần ngôn ngữ cpp hoặc python, đề hiện khai "${examLanguage}".`);
+  }
+  return plans.map((p) => ({ ...p, language: examLanguage }));
 }
 
 /**
@@ -113,6 +138,7 @@ export async function createProblemsFromAuthoring(
   m: EntityManager,
   sessionId: string,
   questions: AuthoredQuestion[],
+  examLanguage: string,
 ): Promise<{ problemId: string; ordinal: number }[]> {
   const teacherId = await lockSessionForWrite(m, sessionId);
   const [sessionRow] = await m.query(`SELECT code FROM examcollect.exam_session WHERE id = $1`, [sessionId]);
@@ -126,9 +152,24 @@ export async function createProblemsFromAuthoring(
   }
 
   const ctx = await authoringContextOf(m, sessionId);
-  const plans = planAuthoredProblems(questions, ctx);
-  const language = ctx.languages[0];
+  const plans = planAuthoredProblems(questions, ctx, examLanguage);
   const firstId = await ensureDefaultProblem(m, sessionId);
+
+  // 5.2: mỗi câu một yêu cầu nộp. Chưa khai yêu cầu nộp nào thì tạo bai{i}.{cpp|py}; đã khai thì dùng đúng thứ tự.
+  const deliverableIds: string[] = [];
+  if (ctx.deliverables.length > 0) {
+    deliverableIds.push(...ctx.deliverables.map((d) => d.id));
+  } else {
+    for (const plan of plans) {
+      const extension = plan.language === 'python' ? 'py' : 'cpp';
+      const [created] = await m.query(
+        `INSERT INTO examcollect.required_deliverable (exam_session_id, required_filename, deliverable_type, language)
+         VALUES ($1, $2, 'code_project', $3) RETURNING id`,
+        [sessionId, `bai${plan.ordinal}.${extension}`, plan.language],
+      );
+      deliverableIds.push(created.id as string);
+    }
+  }
 
   const out: { problemId: string; ordinal: number }[] = [];
   for (const plan of plans) {
@@ -140,21 +181,24 @@ export async function createProblemsFromAuthoring(
       ordinal: plan.ordinal,
       pointsHundredths: plan.pointsHundredths,
     });
+    const deliverableId = deliverableIds[plan.ordinal - 1];
     if (plan.ordinal === 1) {
       await m.query(
         `UPDATE examcollect.exam_problem
-            SET title = $2, points_hundredths = $3, statement = $4, rubric_id = $5, language = $6
+            SET title = $2, points_hundredths = $3, statement = $4, rubric_id = $5, language = $6,
+                required_deliverable_id = $7
           WHERE id = $1`,
-        [firstId, plan.title, plan.pointsHundredths, plan.statement, rubricId, language],
+        [firstId, plan.title, plan.pointsHundredths, plan.statement, rubricId, plan.language, deliverableId],
       );
       out.push({ problemId: firstId, ordinal: 1 });
       continue;
     }
     const [row] = await m.query(
       `INSERT INTO examcollect.exam_problem
-         (exam_session_id, ordinal, title, points_hundredths, statement, statement_quote, rubric_id, language)
-       VALUES ($1, $2, $3, $4, $5, NULL, $6, $7) RETURNING id`,
-      [sessionId, plan.ordinal, plan.title, plan.pointsHundredths, plan.statement, rubricId, language],
+         (exam_session_id, ordinal, title, points_hundredths, statement, statement_quote, rubric_id, language,
+          required_deliverable_id)
+       VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8) RETURNING id`,
+      [sessionId, plan.ordinal, plan.title, plan.pointsHundredths, plan.statement, rubricId, plan.language, deliverableId],
     );
     out.push({ problemId: row.id as string, ordinal: plan.ordinal });
   }

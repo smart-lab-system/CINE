@@ -60,7 +60,7 @@ describe('P1b — phiên nhiều câu không bắt đầu chấm khi chưa đị
       .set('Authorization', `Bearer ${owner.token}`);
 
     expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/Chấm theo từng câu chưa được hỗ trợ/);
+    expect(res.body.message).toMatch(/Cần đề cương nhiều câu đã xác nhận/);
     const [{ n }] = await ds.query(
       `SELECT COUNT(*)::int AS n FROM examcollect.grading_result g
          JOIN examcollect.submission s ON s.id = g.submission_id WHERE s.exam_session_id = $1`,

@@ -35,15 +35,28 @@ describe('P1b — gắn đề nhiều câu từ Soạn đề (e2e)', () => {
   /** Phiên chưa bắt đầu (start ở tương lai) với một rubric tổng `total` điểm; `total = 0` = rubric rỗng. */
   async function sessionWithRubric(
     label: string,
-    opts: { total: number; deliverableType?: 'document' | 'code_project'; language?: string | null },
+    opts: {
+      total: number;
+      /** Yêu cầu nộp đã khai sẵn của phiên. Mặc định: phiên chưa khai yêu cầu nộp nào (5.2: câu tự tạo bai{i}). */
+      declared?: { type: 'document' | 'code_project'; language: string | null }[];
+    },
   ): Promise<{ owner: Owner; session: SeedSession }> {
     const owner = await login(label);
     const session = await seedSession(ds, label, {
       teacherId: owner.id,
-      deliverableType: opts.deliverableType ?? 'code_project',
-      language: opts.language === undefined ? 'cpp' : opts.language,
+      deliverableType: 'code_project',
+      language: 'cpp',
       startHoursAgo: -3,
     });
+    // Bỏ yêu cầu nộp mặc định của seed (không có bài nào trỏ tới) để phiên bắt đầu như phiên chưa khai gì.
+    await ds.query(`DELETE FROM examcollect.required_deliverable WHERE exam_session_id = $1`, [session.sessionId]);
+    for (const [i, d] of (opts.declared ?? []).entries()) {
+      await ds.query(
+        `INSERT INTO examcollect.required_deliverable (exam_session_id, required_filename, deliverable_type, language)
+         VALUES ($1, $2, $3, $4)`,
+        [session.sessionId, `Khai${i + 1}.docx`, d.type, d.language],
+      );
+    }
     if (opts.total > 0) {
       await seedCriterion(ds, session.rubricId, 'tieu_chi_1', opts.total);
     }
@@ -228,8 +241,10 @@ describe('P1b — gắn đề nhiều câu từ Soạn đề (e2e)', () => {
   it('đề nhiều câu mà yêu cầu nộp không khai ngôn ngữ (D2) → 400, và không ghi gì', async () => {
     const { owner, session } = await sessionWithRubric('a5', {
       total: 5,
-      deliverableType: 'document',
-      language: null,
+      declared: [
+        { type: 'document', language: null },
+        { type: 'document', language: null },
+      ],
     });
 
     const res = await attach(
