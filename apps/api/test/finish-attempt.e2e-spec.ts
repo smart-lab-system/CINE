@@ -7,7 +7,7 @@ import { ProposalService } from '../src/grading/rules/proposal.service';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import type { StoredInvestigation } from '../src/grading/scoring/stored-investigation';
 import { forceStatus, seedResult, seedSession, SeedSession } from './helpers/grading-seed';
-import { seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
+import { seedInvestigatorSession, seedPrices, seedRule, storedWith, unpinBundle } from './helpers/investigator-seed';
 
 const SEEN = [
   { ruleKey: 'sai_bien', checkedBy: 'machine' as const },
@@ -145,7 +145,7 @@ describe('ScoreService.finishAttempt (e2e)', () => {
 
   it('dưới sàn theo lõi tính điểm (gói test rỗng) → system', async () => {
     const ctx = await world('fa-floor');
-    await ds.query(`UPDATE examcollect.exam_session SET test_bundle_id = NULL WHERE id = $1`, [ctx.sessionId]);
+    await unpinBundle(ds, ctx.sessionId);
     const r = await running(ctx);
     expect(await scores.finishAttempt(r.resultId, r.attemptId, storedWith(SEEN), META)).toMatchObject({ kind: 'ungradable', class: 'system' });
     expect(await result(r.resultId)).toMatchObject({ status: 'flagged_for_review', ungradable_class: 'system' });

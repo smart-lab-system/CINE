@@ -14,7 +14,7 @@ import {
 
 const SHOWN_ROWS = 300;
 const ACTION_ICON: Record<RowAction, typeof Check> = {
-  write: Check, blank: CircleDashed, kept: Lock, unmatched: CircleAlert, duplicate: Copy, skipped_formula: Ban, skipped_merged: Ban,
+  write: Check, blank: CircleDashed, kept: Lock, unmatched: CircleAlert, duplicate: Copy, conflict: CircleAlert, skipped_formula: Ban, skipped_merged: Ban,
 };
 
 function downloadCsv(csv: string, filename: string) {

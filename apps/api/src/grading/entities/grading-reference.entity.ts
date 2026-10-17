@@ -33,6 +33,14 @@ import { MODEL_ANSWER_ORIGINS, ModelAnswerOrigin } from '../grading-model.types'
 @Entity({ name: 'grading_reference' })
 @Index('uq_grading_reference_session', ['examSessionId'], { unique: true })
 export class GradingReferenceEntity extends BaseEntity {
+  /** Câu của tham chiếu (P1a). */
+  @Column({ name: 'problem_id', type: 'uuid', nullable: true })
+  problemId!: string | null;
+
+  /** Độ tin cậy của thước (§6.3b): teacher | verified | unverified. Chỉ thêm ở P1a; hành vi chưa đổi. */
+  @Column({ name: 'ruler_trust', type: 'varchar', length: 12, nullable: true })
+  rulerTrust!: 'teacher' | 'verified' | 'unverified' | null;
+
   @Column({ name: 'exam_session_id', type: 'uuid' })
   examSessionId!: string;
 

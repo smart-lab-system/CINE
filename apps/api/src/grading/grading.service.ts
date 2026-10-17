@@ -293,9 +293,11 @@ export class GradingService {
    * chế chặn.
    */
   async gradeOneById(job: GradeSubmissionJob): Promise<void> {
-    const result = await this.results.findOne({
-      where: { submissionId: job.submissionId },
-    });
+    // Tra theo id kết quả của job, không theo bài nộp: một bài có thể còn nhiều dòng khi P2 bỏ unique(submission_id).
+    // Job xếp trước lần triển khai P1a không có resultId: tra theo bài nộp như cũ (§10.1, pha 1). Không được để
+    // `{ id: undefined }` lọt xuống: TypeORM bỏ điều kiện đó và trả một dòng bất kỳ của bảng.
+    const where = job.resultId ? { id: job.resultId } : { submissionId: job.submissionId };
+    const result = await this.results.findOne({ where });
     if (!result) {
       // Dòng được tạo đồng bộ ở `startGrading`, nên không có nó nghĩa là
       // ai đó đã xoá. Không throw: retry mãi một thứ không quay lại

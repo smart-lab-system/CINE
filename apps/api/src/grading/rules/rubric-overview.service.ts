@@ -73,7 +73,8 @@ export class RubricOverviewService {
               count(g.id)::int AS total,
               count(g.id) FILTER (WHERE g.status IN ('finalized', 'exported'))::int AS published
          FROM examcollect.exam_session es
-         JOIN examcollect.rubric rb ON rb.id = es.rubric_id
+         JOIN examcollect.exam_problem ep ON ep.exam_session_id = es.id AND ep.ordinal = 1
+         JOIN examcollect.rubric rb ON rb.id = ep.rubric_id
          LEFT JOIN examcollect.submission s ON s.exam_session_id = es.id
          LEFT JOIN examcollect.grading_result g ON g.submission_id = s.id
         WHERE es.teacher_id = $1

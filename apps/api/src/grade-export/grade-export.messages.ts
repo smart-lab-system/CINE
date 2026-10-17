@@ -21,6 +21,7 @@ export const MSG = {
   columnTooFar: (col: string) => `Cột ${col} nằm ngoài giới hạn (tối đa cột BH).`,
   tooManyRows: `Quá ${MAX_DATA_ROWS} dòng dữ liệu — hãy tách file.`,
   duplicates: (n: number, examples: string) => `${n} MSSV xuất hiện nhiều lần trong file (${examples}). Hãy sửa file rồi tải lại — hệ thống không đoán ghi vào dòng nào.`,
+  conflicts: (n: number) => `${n} sinh viên có nhiều kết quả trong phạm vi xuất (nhiều yêu cầu nộp, hoặc MSSV trùng khác chữ hoa/thường) — chưa có điểm tổng. Hãy chọn một yêu cầu nộp, hoặc sửa MSSV trong file; hệ thống không đoán điểm nào.`,
   noMatch: (firstDataRow: number) => `Không có dòng nào từ dòng ${firstDataRow} khớp sinh viên của phiên — hãy kiểm tra lại cột MSSV và dòng bắt đầu.`,
   overwrite: (n: number) => `${n} ô đã có giá trị và sẽ bị ghi đè — hãy xác nhận ghi đè.`,
   decreases: (n: number) => `${n} bài bị giảm điểm so với lần ghi trước — hãy xem và xác nhận trước khi ghi.`,

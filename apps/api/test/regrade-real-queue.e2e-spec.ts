@@ -55,7 +55,7 @@ describe('Chấm lại — job hoàn tất còn trong Redis thật (e2e)', () =>
     // 1. Job ma: payload trỏ tới bài KHÔNG có dòng chấm → worker thật bỏ qua và job `completed`.
     await queue.add(
       'grade-submission',
-      { submissionId: randomUUID(), requiredFilename: 'x.docx', deliverableType: 'document', rubricId: randomUUID(), teacherId: ctx.teacherId },
+      { resultId: randomUUID(), submissionId: randomUUID(), requiredFilename: 'x.docx', deliverableType: 'document', rubricId: randomUUID(), teacherId: ctx.teacherId },
       { ...GRADE_JOB_OPTIONS, jobId },
     );
     await waitForState(jobId, 'completed');
@@ -87,7 +87,7 @@ describe('Chấm lại — job hoàn tất còn trong Redis thật (e2e)', () =>
 
     await queue.add(
       'grade-submission',
-      { submissionId: randomUUID(), requiredFilename: 'x.docx', deliverableType: 'document', rubricId: randomUUID(), teacherId: ctx.teacherId },
+      { resultId: randomUUID(), submissionId: randomUUID(), requiredFilename: 'x.docx', deliverableType: 'document', rubricId: randomUUID(), teacherId: ctx.teacherId },
       { ...GRADE_JOB_OPTIONS, jobId },
     );
     await waitForState(jobId, 'completed');

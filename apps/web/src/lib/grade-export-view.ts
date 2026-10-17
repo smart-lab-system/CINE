@@ -34,6 +34,7 @@ export const ACTION_LABEL: Record<RowAction, string> = {
   kept: 'Giữ nguyên ô',
   unmatched: 'Không khớp',
   duplicate: 'MSSV trùng',
+  conflict: 'Nhiều kết quả',
   skipped_formula: 'Ô có công thức',
   skipped_merged: 'Ô gộp',
 };
@@ -102,7 +103,7 @@ export function matchesFilter(row: PlanRowView, filter: RowFilter): boolean {
     case 'blank':
       return row.action === 'blank' || row.action === 'kept';
     case 'problem':
-      return row.action === 'unmatched' || row.action === 'duplicate' || row.action === 'skipped_formula' || row.action === 'skipped_merged';
+      return row.action === 'unmatched' || row.action === 'duplicate' || row.action === 'conflict' || row.action === 'skipped_formula' || row.action === 'skipped_merged';
     case 'changed':
       return row.direction === 'up' || row.direction === 'down';
   }

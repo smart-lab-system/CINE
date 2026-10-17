@@ -5,6 +5,7 @@ import { AccountEntity } from '../identity/entities/account.entity';
 import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
+import { ExamProblemEntity } from '../exam-session/entities/exam-problem.entity';
 import { SessionRosterEntity } from '../exam-session/entities/session-roster.entity';
 import { GradingReferenceEntity } from '../grading/entities/grading-reference.entity';
 import { GradingAnchorSnapshotEntity } from '../grading/entities/grading-anchor-snapshot.entity';
@@ -114,6 +115,7 @@ export const dataSourceOptions: DataSourceOptions = {
     RubricCriterionEntity,
     GradingResultEntity,
     GradingReferenceEntity,
+    ExamProblemEntity,
     GradingAnchorSnapshotEntity,
     TeacherReviewEntity,
     GradeExportEntity,

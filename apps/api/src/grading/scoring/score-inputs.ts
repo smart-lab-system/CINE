@@ -1,3 +1,4 @@
+import { ensureDefaultProblem, resolveProblemConfig } from '../problem/resolve-problem-config';
 import { EntityManager } from 'typeorm';
 import type { RulePredicate } from '../decision/types';
 import { currentScore, CurrentScore } from './current-score';
@@ -5,18 +6,7 @@ import { parseHundredths } from './hundredths';
 import type { RuleSnapshot, ScoreBreakdown } from './score-core';
 import { readStoredInvestigation, StoredInvestigation } from './stored-investigation';
 
-/**
- * Mọi lượt tính của MỘT giảng viên xếp hàng qua khoá này, tới hết transaction. Không có nó, một
- * lượt tính đầu đọc bảng giá cũ trong lúc một lượt sửa giá chưa commit và bị lượt đó bỏ qua (bài
- * còn `ai_grading`) — bài giữ điểm theo giá cũ mãi.
- *
- * THỨ TỰ KHOÁ là luật: khoá này TRƯỚC mọi khoá hàng. Người ghi nào của 3d/3e đụng dòng
- * `grading_result` đường điều tra (ghi lượt chấm, rút mẫu, chấm lại) phải xin khoá này trước khi
- * `FOR UPDATE` một dòng, không thì ôm chết với một lượt tính lại đang giữ khoá này và chờ dòng đó.
- */
-export async function lockTeacherScoring(m: EntityManager, teacherId: string): Promise<void> {
-  await m.query(`SELECT pg_advisory_xact_lock(hashtextextended('score_computation:' || $1::text, 0))`, [teacherId]);
-}
+export { lockTeacherScoring } from './teacher-lock';
 
 export async function teacherOfResult(m: EntityManager, resultId: string): Promise<string> {
   const [row] = await m.query(
@@ -97,11 +87,13 @@ export async function loadRuleSnapshots(
  * của phiên — §2.2 *"tất cả hoặc không"*: một luật lời thêm giữa lô thì bài bắt đầu trước không có
  * nó trong bảng, nên không bài nào của phiên xét nó. Đọc bảng lỗi, KHÔNG đọc `rulesSeen`: phép truy
  * hồi §2.1 cho mỗi bài xem một phần khác nhau của cùng một bảng (review 3c I1).
+ * `problemId` (P1a): chỉ các bài của CÂU này; bài có `problem_id` rỗng (dòng ghi thẳng SQL) tính vào câu mặc định.
  * `exceptResultId`: tập của phiên khi CHƯA có bài đó — để phát hiện một bài vừa làm tập thu hẹp.
  */
 export async function loadSessionModelRules(
   m: EntityManager,
   sessionId: string,
+  problemId: string,
   exceptResultId: string | null = null,
 ): Promise<Set<string>> {
   const rows: { rule_key: string }[] = await m.query(
@@ -109,8 +101,10 @@ export async function loadSessionModelRules(
        SELECT a.id, a.investigation
          FROM examcollect.grading_result g
          JOIN examcollect.submission s ON s.id = g.submission_id
+         LEFT JOIN examcollect.exam_problem dp ON dp.exam_session_id = s.exam_session_id AND dp.ordinal = 1
          JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id AND a.outcome = 'graded'
         WHERE s.exam_session_id = $1 AND g.pipeline = 'investigator'
+          AND COALESCE(g.problem_id, dp.id) = $3::uuid
           AND ($2::uuid IS NULL OR g.id <> $2))
      SELECT r ->> 'ruleKey' AS rule_key
        FROM att CROSS JOIN LATERAL jsonb_array_elements(att.investigation -> 'ruleTable') r
@@ -118,7 +112,7 @@ export async function loadSessionModelRules(
       GROUP BY 1
      HAVING count(DISTINCT att.id) = (SELECT count(*) FROM att)
       ORDER BY 1`,
-    [sessionId, exceptResultId],
+    [sessionId, exceptResultId, problemId],
   );
   return new Set(rows.map((r) => r.rule_key));
 }
@@ -131,6 +125,7 @@ export async function loadSessionModelRules(
 export async function sessionModelRulesWith(
   m: EntityManager,
   sessionId: string,
+  problemId: string,
   resultId: string,
   ruleTable: StoredInvestigation['ruleTable'],
 ): Promise<Set<string>> {
@@ -139,12 +134,14 @@ export async function sessionModelRulesWith(
     `SELECT count(*)::int AS n
        FROM examcollect.grading_result g
        JOIN examcollect.submission s ON s.id = g.submission_id
+       LEFT JOIN examcollect.exam_problem dp ON dp.exam_session_id = s.exam_session_id AND dp.ordinal = 1
        JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id AND a.outcome = 'graded'
-      WHERE s.exam_session_id = $1 AND g.pipeline = 'investigator' AND g.id <> $2`,
-    [sessionId, resultId],
+      WHERE s.exam_session_id = $1 AND g.pipeline = 'investigator' AND g.id <> $2
+        AND COALESCE(g.problem_id, dp.id) = $3::uuid`,
+    [sessionId, resultId, problemId],
   );
   if (n === 0) return own;
-  const others = await loadSessionModelRules(m, sessionId, resultId);
+  const others = await loadSessionModelRules(m, sessionId, problemId, resultId);
   return new Set([...own].filter((k) => others.has(k)));
 }
 
@@ -184,6 +181,8 @@ export interface ScoreContext {
   resultId: string;
   teacherId: string;
   sessionId: string;
+  /** Câu của kết quả (P1a): NULL của dòng cũ đã quy về câu mặc định. */
+  problemId: string;
   pipeline: 'one_shot' | 'investigator';
   status: string;
   ungradableClass: 'system' | 'submission' | null;
@@ -211,12 +210,13 @@ export async function loadScoreContext(
 ): Promise<ScoreContext> {
   const [row] = await m.query(
     `SELECT g.pipeline, g.status, g.ungradable_class, g.rubric_id_version, g.current_attempt_id,
-            s.exam_session_id, es.teacher_id, es.test_bundle_id,
+            s.exam_session_id, es.teacher_id, COALESCE(g.problem_id, dp.id) AS problem_id,
             rb.name AS rubric_name, a.outcome AS attempt_outcome, a.investigation
        FROM examcollect.grading_result g
        JOIN examcollect.submission s ON s.id = g.submission_id
        JOIN examcollect.exam_session es ON es.id = s.exam_session_id
        JOIN examcollect.rubric rb ON rb.id = g.rubric_id_version
+       LEFT JOIN examcollect.exam_problem dp ON dp.exam_session_id = s.exam_session_id AND dp.ordinal = 1
        LEFT JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id
       WHERE g.id = $1`,
     [resultId],
@@ -226,11 +226,12 @@ export async function loadScoreContext(
     `SELECT key, max_points FROM examcollect.rubric_criterion WHERE rubric_id = $1 ORDER BY sort_order, created_at, key`,
     [row.rubric_id_version],
   );
-  const cases: { case_key: string; group: string }[] = row.test_bundle_id
+  const testBundleId: string | null = (await resolveProblemConfig(m, row.exam_session_id))?.testBundleId ?? null;
+  const cases: { case_key: string; group: string }[] = testBundleId
     ? await m.query(
         `SELECT case_key, "group" FROM examcollect.grading_test_case
           WHERE bundle_id = $1 AND auto_dropped_reason IS NULL ORDER BY case_key`,
-        [row.test_bundle_id],
+        [testBundleId],
       )
     : [];
   const waivers: { criterion_key: string }[] = await m.query(
@@ -253,6 +254,7 @@ export async function loadScoreContext(
     resultId,
     teacherId: row.teacher_id,
     sessionId: row.exam_session_id,
+    problemId: (row.problem_id as string | null) ?? (await ensureDefaultProblem(m, row.exam_session_id)),
     pipeline: row.pipeline,
     status: row.status,
     ungradableClass: row.ungradable_class,
@@ -260,7 +262,7 @@ export async function loadScoreContext(
     rubricName: row.rubric_name,
     attemptId: row.current_attempt_id,
     stored: storedOverride ?? (row.attempt_outcome === 'graded' ? readStoredInvestigation(row.investigation) : null),
-    bundleId: row.test_bundle_id,
+    bundleId: testBundleId,
     bundleCases: cases.map((c) => ({ name: c.case_key, group: c.group })),
     rubric: rubric.map((c) => ({ key: c.key, maxHundredths: parseHundredths(c.max_points) })),
     waivedCriteria: waivers.map((w) => w.criterion_key),

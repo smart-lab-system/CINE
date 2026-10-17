@@ -17,6 +17,7 @@ import { RubricService } from './rubric.service';
 import { AnchorService } from './anchor.service';
 import { GRADING_ANCHORS_ENABLED } from './grading.types';
 import { pipelineFor } from './pipeline';
+import { ensureDefaultProblem, resolveProblemConfig } from './problem/resolve-problem-config';
 
 export interface StartGradingResult {
   rubricId: string;
@@ -130,12 +131,14 @@ export class GradingRunService {
     // course's rubric between two exams must not change how the earlier one
     // is graded, and a colleague teaching another class of the same course
     // must not be able to change it from under this session either.
-    if (!session.rubricId) {
+    // Cấu hình chấm đọc qua câu mặc định (P1a), không qua cột bí danh của phiên.
+    const cfg = await resolveProblemConfig(this.results.manager, session.id);
+    if (!cfg?.rubricId) {
       throw new BadRequestException(
         'Phiên thi này chưa gắn rubric — hãy gắn rubric trước khi chấm.',
       );
     }
-    const rubric = await this.rubrics.findById(session.rubricId);
+    const rubric = await this.rubrics.findById(cfg.rubricId);
     if (!rubric) {
       // The FK is ON DELETE RESTRICT, so this is unreachable through any
       // supported path. Reported rather than assumed away: a 400 naming the
@@ -209,7 +212,7 @@ export class GradingRunService {
     // `ungradable/system` cho MỌI bài đó (§4.4), và phát hiện việc này SAU
     // khi đã xếp hàng chỉ khiến giảng viên đọc ra từng bài một thay vì một
     // thông báo rõ nghĩa trước khi bấm. Kiểm TRƯỚC khi ghi dòng nào.
-    if (!session.testBundleId) {
+    if (!cfg.testBundleId) {
       const needsBundle = todo.some((submission) => {
         const info = deliverables.get(submission.requiredDeliverableId);
         return info !== undefined && pipelineFor(info) === 'investigator';
@@ -250,11 +253,16 @@ export class GradingRunService {
     // dòng kiểm ba khoá ngoại RESTRICT cộng chỉ mục duy nhất mới. Ở quy
     // mô đồ án thì chưa nổ; chia lô loại hẳn class lỗi thay vì để nó
     // chờ tới phiên lớn nhất trong năm.
+    // Câu của mọi dòng kết quả mới: câu mặc định của phiên (P1a).
+    const problemId = await ensureDefaultProblem(this.results.manager, session.id);
+    // Id dòng chấm theo bài, để job tra kết quả theo id (bẫy 1, §9).
+    const resultIdBySubmission = new Map<string, string>();
     for (const batch of chunk(todo, START_GRADING_CHUNK)) {
-      await this.results.save(
+      const saved = await this.results.save(
         batch.map((submission) =>
           this.results.create({
             submissionId: submission.id,
+            problemId,
             rubricIdVersion: rubric.id,
             gradingTriggeredBy: teacherId,
             status: 'ai_grading',
@@ -266,8 +274,14 @@ export class GradingRunService {
           }),
         ),
       );
+      for (const row of saved) resultIdBySubmission.set(row.submissionId, row.id);
     }
 
+    const resultIdOf = (submissionId: string): string => {
+      const id = resultIdBySubmission.get(submissionId);
+      if (!id) throw new Error(`không có dòng chấm cho bài ${submissionId} vừa tạo`);
+      return id;
+    };
     // `addBulk` cũng chia lô: nó là MỘT pipeline Redis, nên một lô lớn
     // là một gói lớn và một lần chờ dài.
     for (const batch of chunk(todo, START_GRADING_CHUNK)) {
@@ -275,6 +289,7 @@ export class GradingRunService {
         batch.map((submission) => ({
           name: 'grade-submission',
           data: {
+            resultId: resultIdOf(submission.id),
             submissionId: submission.id,
             requiredFilename:
               deliverables.get(submission.requiredDeliverableId)?.requiredFilename ?? '',
@@ -395,6 +410,7 @@ export class GradingRunService {
       await this.queue.add(
         'grade-submission',
         {
+          resultId: row.id,
           submissionId: row.submission_id,
           requiredFilename: deliverable?.requiredFilename ?? '',
           deliverableType: deliverable?.deliverableType ?? 'document',

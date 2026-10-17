@@ -166,6 +166,13 @@ describe('ExamSession (e2e)', () => {
     expect(response.body.code).toMatch(/^[A-Z0-9]{6}$/);
     expect(response.body.requiredDeliverables).toHaveLength(2);
 
+    // P1a: phiên mới có đúng MỘT câu mặc định (ordinal 1), tạo cùng transaction với phiên.
+    const problems: { ordinal: number }[] = await dataSource.query(
+      `SELECT ordinal FROM examcollect.exam_problem WHERE exam_session_id = $1`,
+      [response.body.id],
+    );
+    expect(problems).toEqual([{ ordinal: 1 }]);
+
     // A second session's code must never collide with the first — cheap
     // extra assurance the generator/retry loop actually produces distinct
     // codes, not just "a code". Its own window: this assertion is about

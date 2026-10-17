@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
+import { ensureDefaultProblem, resolveProblemConfig, setSessionTestBundleAndProblem } from '../problem/resolve-problem-config';
+import { lockTeacherScoring } from '../scoring/teacher-lock';
 
 /**
  * Một ca sẵn sàng ghi. Kiểu CẤU TRÚC, không import từ `exam-authoring`:
@@ -33,10 +35,11 @@ export class TestBundleService {
   async create(examSessionId: string, teacherId: string, dto: CreateTestBundleDto) {
     return this.ds.transaction(async (manager) => {
       const version = await this.nextVersion(manager, examSessionId);
+      const problemId = await ensureDefaultProblem(manager, examSessionId);
       const [bundle] = await manager.query(
-        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
-         VALUES ($1, $2, 'teacher', $3) RETURNING id, version`,
-        [examSessionId, version, teacherId],
+        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+         VALUES ($1, $2, 'teacher', $3, $4) RETURNING id, version`,
+        [examSessionId, version, teacherId, problemId],
       );
       await this.insertCases(manager, bundle.id, dto.cases);
       return { id: bundle.id as string, version: bundle.version as number };
@@ -51,7 +54,7 @@ export class TestBundleService {
    * viết ca", không phải "ai bấm nút".
    *
    * `sessionAlreadyPinned` là điều kiện DUY NHẤT quyết định có tự duyệt và
-   * tự ghim không. Nó đọc `exam_session.test_bundle_id` chứ không đọc
+   * tự ghim không. Nó đọc gói đã ghim của câu mặc định (`resolveProblemConfig`) chứ không đọc
    * `origin`, nên một gói giảng viên tự tay duyệt rồi ghim cũng chặn đúng —
    * đè lên nó là xoá mất lựa chọn họ đã cố ý làm.
    */
@@ -65,16 +68,18 @@ export class TestBundleService {
       // Khoá hàng phiên TRƯỚC khi đọc "đã ghim chưa" và tính số phiên bản. `sessionAlreadyPinned` do người gọi đọc NGOÀI
       // transaction, nên hai `attach` đồng thời cùng thấy "chưa ghim": cả hai ghim (gói sau đè gói trước) hoặc cả hai
       // lấy cùng `version` và một bên nổ vì khoá duy nhất. Có khoá, bên đến sau thấy pin của bên đến trước.
-      const [locked] = await manager.query(
-        `SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1 FOR UPDATE`,
-        [examSessionId],
-      );
-      const pinnedNow = sessionAlreadyPinned || (locked?.test_bundle_id ?? null) !== null;
+      // Thứ tự khoá như mọi đường ghi khác: khoá giảng viên TRƯỚC, hàng phiên SAU. Đảo thứ tự này deadlock với
+      // pin/setRubric, vốn lấy khoá giảng viên trước rồi mới cần đúng hàng phiên.
+      await lockTeacherScoring(manager, teacherId);
+      await manager.query(`SELECT id FROM examcollect.exam_session WHERE id = $1 FOR UPDATE`, [examSessionId]);
+      const cfg = await resolveProblemConfig(manager, examSessionId);
+      const pinnedNow = sessionAlreadyPinned || (cfg?.testBundleId ?? null) !== null;
       const version = await this.nextVersion(manager, examSessionId);
+      const problemId = await ensureDefaultProblem(manager, examSessionId);
       const [bundle] = await manager.query(
-        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
-         VALUES ($1, $2, 'generated', $3) RETURNING id, version`,
-        [examSessionId, version, teacherId],
+        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+         VALUES ($1, $2, 'generated', $3, $4) RETURNING id, version`,
+        [examSessionId, version, teacherId, problemId],
       );
       await this.insertCases(manager, bundle.id, cases);
 
@@ -89,10 +94,7 @@ export class TestBundleService {
         `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now() WHERE id = $2`,
         [teacherId, bundle.id],
       );
-      await manager.query(`UPDATE examcollect.exam_session SET test_bundle_id = $1 WHERE id = $2`, [
-        bundle.id,
-        examSessionId,
-      ]);
+      await setSessionTestBundleAndProblem(manager, examSessionId, bundle.id);
       // SELECT chứ không `UPDATE … RETURNING`: TypeORM trả `[rows, rowCount]` cho UPDATE/DELETE
       // (không phải mảng hàng), nên `const [row] = …` ra nguyên mảng `rows` và `row.approved_at` là undefined.
       const [approved] = await manager.query(
@@ -130,10 +132,7 @@ export class TestBundleService {
         `Gói test ${bundleId} chưa được duyệt — chỉ gói đã duyệt mới ghim được (§14.1).`,
       );
     }
-    await this.ds.query(`UPDATE examcollect.exam_session SET test_bundle_id = $1 WHERE id = $2`, [
-      bundleId,
-      examSessionId,
-    ]);
+    await this.ds.transaction((m) => setSessionTestBundleAndProblem(m, examSessionId, bundleId));
     return { testBundleId: bundleId };
   }
 
@@ -185,10 +184,11 @@ export class TestBundleService {
       }
 
       const version = await this.nextVersion(manager, examSessionId);
+      const problemId = await ensureDefaultProblem(manager, examSessionId);
       const [next] = await manager.query(
-        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
-         VALUES ($1, $2, $3, $4) RETURNING id, version`,
-        [examSessionId, version, bundle.origin, bundle.created_by],
+        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id, version`,
+        [examSessionId, version, bundle.origin, bundle.created_by, problemId],
       );
       await this.insertCases(
         manager,

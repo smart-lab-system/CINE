@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { StorageService } from '../storage/storage.service';
@@ -9,6 +9,7 @@ import { GradingResultEntity } from './entities/grading-result.entity';
 import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
 import type { ModelAnswerOrigin } from './grading-model.types';
 import { GRADING_LOCKED_MESSAGE, isGradingLocked } from './grading-lock';
+import { ensureDefaultProblem, resolveProblemConfig } from './problem/resolve-problem-config';
 
 /**
  * Ba mức ngữ cảnh mà hệ thống có thể chấm với.
@@ -176,6 +177,9 @@ export class GradingReferenceService {
     row.modelAnswerOrigin = !hasAnswer ? null : answerSent ? origin : (existing?.modelAnswerOrigin ?? origin);
     // Dấu thời gian đi CÙNG nhịp với nguồn gốc: cả hai trả lời "đáp án của bản ghi này đến từ đâu, từ lúc nào".
     row.modelAnswerSetAt = !hasAnswer ? null : answerSent ? new Date() : (existing?.modelAnswerSetAt ?? new Date());
+    // Câu và độ tin cậy của thước (P1a): giữ câu đã có; thước theo đúng quy tắc backfill M2.
+    row.problemId = existing?.problemId ?? (await ensureDefaultProblem(this.references.manager, session.id));
+    row.rulerTrust = row.modelAnswerUnverified ? 'unverified' : 'teacher';
     return this.references.save(row);
   }
 
@@ -267,8 +271,13 @@ export class GradingReferenceService {
    * kém đi, nhưng không chấm gì cả thì tệ hơn.
    */
   async loadForGrading(examSessionId: string): Promise<LoadedGradingReference> {
+    // Đọc tham chiếu của CÂU MẶC ĐỊNH (P1a); không có cấu hình thì đọc như cũ theo phiên. problem_id rỗng
+    // (dòng ghi thẳng SQL, không qua upsert) được coi là câu mặc định, như backfill M2 làm.
+    const cfg = await resolveProblemConfig(this.references.manager, examSessionId);
     const row = await this.references.findOne({
-      where: { examSessionId },
+      where: cfg
+        ? [{ examSessionId, problemId: cfg.problemId }, { examSessionId, problemId: IsNull() }]
+        : { examSessionId },
       relations: { questionMaterial: true },
     });
     if (!row) {

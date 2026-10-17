@@ -8,6 +8,10 @@ import { TEST_BUNDLE_ORIGINS, TestBundleOrigin } from '../grading-model.types';
  */
 @Entity({ name: 'grading_test_bundle' })
 export class GradingTestBundleEntity extends BaseEntity {
+  /** Câu mà gói test thuộc về (P1a). */
+  @Column({ name: 'problem_id', type: 'uuid', nullable: true })
+  problemId!: string | null;
+
   @Column({ name: 'exam_session_id', type: 'uuid' })
   examSessionId!: string;
 
