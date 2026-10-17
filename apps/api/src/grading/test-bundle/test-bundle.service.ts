@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
-import { ensureDefaultProblem, resolveProblemConfig, setSessionTestBundleAndProblem } from '../problem/resolve-problem-config';
+import { ensureDefaultProblem, setProblemTestBundle, setSessionTestBundleAndProblem } from '../problem/resolve-problem-config';
 import { assertSessionRouteAllowed } from '../problem/session-route-guard';
 import { lockTeacherScoring } from '../scoring/teacher-lock';
 
@@ -65,51 +65,87 @@ export class TestBundleService {
     teacherId: string,
     cases: BundleCaseInput[],
     sessionAlreadyPinned: boolean,
+    problemId: string,
   ): Promise<{ id: string; version: number; approvedAt: string | null; pinned: boolean }> {
-    return this.ds.transaction(async (manager) => {
-      // Khoá hàng phiên TRƯỚC khi đọc "đã ghim chưa" và tính số phiên bản. `sessionAlreadyPinned` do người gọi đọc NGOÀI
-      // transaction, nên hai `attach` đồng thời cùng thấy "chưa ghim": cả hai ghim (gói sau đè gói trước) hoặc cả hai
-      // lấy cùng `version` và một bên nổ vì khoá duy nhất. Có khoá, bên đến sau thấy pin của bên đến trước.
-      // Thứ tự khoá như mọi đường ghi khác: khoá giảng viên TRƯỚC, hàng phiên SAU. Đảo thứ tự này deadlock với
-      // pin/setRubric, vốn lấy khoá giảng viên trước rồi mới cần đúng hàng phiên.
-      await lockTeacherScoring(manager, teacherId);
-      await manager.query(`SELECT id FROM examcollect.exam_session WHERE id = $1 FOR UPDATE`, [examSessionId]);
-      const cfg = await resolveProblemConfig(manager, examSessionId);
-      const pinnedNow = sessionAlreadyPinned || (cfg?.testBundleId ?? null) !== null;
-      const version = await this.nextVersion(manager, examSessionId);
-      const problemId = await ensureDefaultProblem(manager, examSessionId);
-      const [bundle] = await manager.query(
-        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
-         VALUES ($1, $2, 'generated', $3, $4) RETURNING id, version`,
-        [examSessionId, version, teacherId, problemId],
-      );
-      await this.insertCases(manager, bundle.id, cases);
+    return this.ds.transaction((manager) =>
+      this.adoptIn(manager, examSessionId, teacherId, cases, sessionAlreadyPinned, problemId),
+    );
+  }
 
-      if (pinnedNow) {
-        return { id: bundle.id as string, version: bundle.version as number, approvedAt: null, pinned: false };
-      }
+  /**
+   * Như `adoptFromAuthoring`, nhưng chạy trong transaction của người gọi. Đường nhiều câu của attach cần tạo câu
+   * và gói của từng câu trong MỘT transaction, để hỏng ở câu nào thì không câu nào được ghim.
+   */
+  adoptFromAuthoringWithin(
+    manager: EntityManager,
+    examSessionId: string,
+    teacherId: string,
+    cases: BundleCaseInput[],
+    problemId: string,
+  ): Promise<{ id: string; version: number; approvedAt: string | null; pinned: boolean }> {
+    // Đường nhiều câu không dùng ghim cấp phiên: mỗi câu chỉ xem gói của chính nó.
+    return this.adoptIn(manager, examSessionId, teacherId, cases, false, problemId);
+  }
 
-      // Duyệt rồi ghim trong CÙNG transaction: ghim gói chưa duyệt thì
-      // `pin` từ chối, và duyệt xong mà rollback thì để lại một gói đã
-      // duyệt không ai dùng.
-      await manager.query(
-        `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now() WHERE id = $2`,
-        [teacherId, bundle.id],
-      );
-      await setSessionTestBundleAndProblem(manager, examSessionId, bundle.id);
-      // SELECT chứ không `UPDATE … RETURNING`: TypeORM trả `[rows, rowCount]` cho UPDATE/DELETE
-      // (không phải mảng hàng), nên `const [row] = …` ra nguyên mảng `rows` và `row.approved_at` là undefined.
-      const [approved] = await manager.query(
-        `SELECT approved_at FROM examcollect.grading_test_bundle WHERE id = $1`,
-        [bundle.id],
-      );
-      return {
-        id: bundle.id as string,
-        version: bundle.version as number,
-        approvedAt: new Date(approved.approved_at).toISOString(),
-        pinned: true,
-      };
-    });
+  /**
+   * Gói sinh từ soạn đề cho MỘT câu: tạo gói, rồi duyệt và ghim nếu câu đó chưa có gói. `sessionAlreadyPinned` là
+   * ghim cấp phiên do người gọi đọc trước; một câu đã có gói thì không bao giờ bị đè.
+   */
+  private async adoptIn(
+    manager: EntityManager,
+    examSessionId: string,
+    teacherId: string,
+    cases: BundleCaseInput[],
+    sessionAlreadyPinned: boolean,
+    problemId: string,
+  ): Promise<{ id: string; version: number; approvedAt: string | null; pinned: boolean }> {
+    // Khoá hàng phiên TRƯỚC khi đọc "đã ghim chưa" và tính số phiên bản. `sessionAlreadyPinned` do người gọi đọc NGOÀI
+    // transaction, nên hai `attach` đồng thời cùng thấy "chưa ghim": cả hai ghim (gói sau đè gói trước) hoặc cả hai
+    // lấy cùng `version` và một bên nổ vì khoá duy nhất. Có khoá, bên đến sau thấy pin của bên đến trước.
+    // Thứ tự khoá như mọi đường ghi khác: khoá giảng viên TRƯỚC, hàng phiên SAU. Đảo thứ tự này deadlock với
+    // pin/setRubric, vốn lấy khoá giảng viên trước rồi mới cần đúng hàng phiên.
+    await lockTeacherScoring(manager, teacherId);
+    await manager.query(`SELECT id FROM examcollect.exam_session WHERE id = $1 FOR UPDATE`, [examSessionId]);
+    const [problem] = await manager.query(
+      `SELECT test_bundle_id FROM examcollect.exam_problem WHERE id = $1 AND exam_session_id = $2`,
+      [problemId, examSessionId],
+    );
+    if (!problem) {
+      throw new NotFoundException('Không tìm thấy câu của phiên để gắn gói test.');
+    }
+    const pinnedNow = sessionAlreadyPinned || (problem.test_bundle_id as string | null) !== null;
+    const version = await this.nextVersion(manager, examSessionId);
+    const [bundle] = await manager.query(
+      `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+       VALUES ($1, $2, 'generated', $3, $4) RETURNING id, version`,
+      [examSessionId, version, teacherId, problemId],
+    );
+    await this.insertCases(manager, bundle.id, cases);
+
+    if (pinnedNow) {
+      return { id: bundle.id as string, version: bundle.version as number, approvedAt: null, pinned: false };
+    }
+
+    // Duyệt rồi ghim trong CÙNG transaction: ghim gói chưa duyệt thì
+    // `pin` từ chối, và duyệt xong mà rollback thì để lại một gói đã
+    // duyệt không ai dùng.
+    await manager.query(
+      `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now() WHERE id = $2`,
+      [teacherId, bundle.id],
+    );
+    await setProblemTestBundle(manager, examSessionId, problemId, bundle.id);
+    // SELECT chứ không `UPDATE … RETURNING`: TypeORM trả `[rows, rowCount]` cho UPDATE/DELETE
+    // (không phải mảng hàng), nên `const [row] = …` ra nguyên mảng `rows` và `row.approved_at` là undefined.
+    const [approved] = await manager.query(
+      `SELECT approved_at FROM examcollect.grading_test_bundle WHERE id = $1`,
+      [bundle.id],
+    );
+    return {
+      id: bundle.id as string,
+      version: bundle.version as number,
+      approvedAt: new Date(approved.approved_at).toISOString(),
+      pinned: true,
+    };
   }
 
   async approve(examSessionId: string, bundleId: string, teacherId: string) {

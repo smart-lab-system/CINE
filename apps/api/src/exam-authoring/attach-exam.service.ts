@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ConflictException, Injectable, Logger } from "@nestjs/common";
+import { InjectDataSource } from "@nestjs/typeorm";
+import { DataSource } from "typeorm";
 import { ExamSessionService } from "../exam-session/exam-session.service";
 import { ExamMaterialService } from "../exam-session/exam-material.service";
 import {
@@ -8,10 +10,17 @@ import {
 } from "../exam-session/entities/exam-session.entity";
 import { GradingReferenceService } from "../grading/grading-reference.service";
 import { TestBundleService } from "../grading/test-bundle/test-bundle.service";
+import { ensureDefaultProblem } from "../grading/problem/resolve-problem-config";
+import {
+  AuthoredQuestion,
+  authoringContextOf,
+  createProblemsFromAuthoring,
+  planAuthoredProblems,
+} from "../grading/problem/problem.service";
 import { StorageService } from "../storage/storage.service";
 import { buildExamPaperDocx } from "./docx/exam-paper.docx";
 import { buildAnswerKeyDocx } from "./docx/answer-key.docx";
-import { flattenAuthoringCases } from "./authoring-bundle";
+import { AuthoringCase, flattenAuthoringCases } from "./authoring-bundle";
 import { parseExamJson } from "./dto/parse-exam";
 
 export const PAPER_FILENAME = "de-thi.docx";
@@ -111,6 +120,7 @@ export class AttachExamService {
     private readonly references: GradingReferenceService,
     private readonly storage: StorageService,
     private readonly bundles: TestBundleService,
+    @InjectDataSource() private readonly ds: DataSource,
   ) {}
 
   async attach(
@@ -135,6 +145,16 @@ export class AttachExamService {
           "Đề chỉ gắn được trước giờ thi — qua giờ thi thì agent đã nhận tài liệu, " +
           "và gắn thêm sẽ khiến mỗi em nhận một bộ khác nhau.",
       );
+    }
+
+    // Đề nhiều câu bị kiểm D1 (điểm = tổng rubric) và D2 (ngôn ngữ) TRƯỚC mọi lệnh ghi, để đề sai thì không để lại gì.
+    // Đề một câu giữ đường cũ: điểm lấy từ rubric như trước.
+    const authoring =
+      exam.questions.length > 1
+        ? await authoringContextOf(this.ds.manager, session.id)
+        : null;
+    if (authoring) {
+      planAuthoredProblems(exam.questions, authoring);
     }
 
     const [paper, answerKey] = await Promise.all([
@@ -194,13 +214,15 @@ export class AttachExamService {
       // hỏng ở `upsert` vẫn để lại gói đã GHIM — phiên bị đóng dấu bằng thước
       // của một lượt gắn thất bại, tệ hơn một đề thiếu thước.
       const authoredCases = flattenAuthoringCases(exam.questions);
-      const testBundle =
-        authoredCases.length > 0
+      const testBundle = authoring
+        ? await this.attachProblems(session.id, teacherId, exam.questions, authoredCases)
+        : authoredCases.length > 0
           ? await this.bundles.adoptFromAuthoring(
               session.id,
               teacherId,
               authoredCases,
               session.testBundleId !== null,
+              await ensureDefaultProblem(this.ds.manager, session.id),
             )
           : null;
 
@@ -242,5 +264,39 @@ export class AttachExamService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Đề nhiều câu: tạo câu và ghim gói của từng câu trong MỘT transaction, nên hỏng ở đâu thì không câu nào còn
+   * dở dang. Trả gói của câu 1 để giữ hình dạng `AttachResult.testBundle`; câu 1 là bí danh của phiên (§3.3).
+   */
+  private attachProblems(
+    sessionId: string,
+    teacherId: string,
+    questions: AuthoredQuestion[],
+    cases: AuthoringCase[],
+  ): Promise<AttachResult["testBundle"]> {
+    return this.ds.transaction(async (m) => {
+      const problems = await createProblemsFromAuthoring(m, sessionId, questions);
+      let first: AttachResult["testBundle"] = null;
+      for (const problem of problems) {
+        const own = cases
+          .filter((c) => c.questionIndex === problem.ordinal - 1)
+          .map((c) => ({
+            caseKey: c.caseKey,
+            group: c.group,
+            input: c.input,
+            expectedOutput: c.expectedOutput,
+          }));
+        if (own.length === 0) {
+          continue;
+        }
+        const bundle = await this.bundles.adoptFromAuthoringWithin(m, sessionId, teacherId, own, problem.problemId);
+        if (problem.ordinal === 1) {
+          first = bundle;
+        }
+      }
+      return first;
+    });
   }
 }

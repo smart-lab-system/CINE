@@ -112,3 +112,25 @@ export async function setSessionTestBundleAndProblem(
   const problemId = await ensureDefaultProblem(m, sessionId);
   await m.query(`UPDATE examcollect.exam_problem SET test_bundle_id = $2 WHERE id = $1`, [problemId, bundleId]);
 }
+
+/**
+ * Ghim gói test cho MỘT câu cụ thể (P1b). Câu 1 còn ghi bí danh của phiên (§3.3); câu khác thì chỉ ghi câu đó.
+ * Dưới khoá giảng viên. FK ghép `(test_bundle_id, exam_session_id)` bảo đảm gói thuộc đúng phiên này.
+ */
+export async function setProblemTestBundle(
+  m: EntityManager,
+  sessionId: string,
+  problemId: string,
+  bundleId: string,
+): Promise<void> {
+  await lockTeacherScoring(m, await teacherOfSession(m, sessionId));
+  const [problem] = await m.query(
+    `SELECT ordinal FROM examcollect.exam_problem WHERE id = $1 AND exam_session_id = $2`,
+    [problemId, sessionId],
+  );
+  if (!problem) throw new Error(`câu ${problemId} không thuộc phiên ${sessionId}`);
+  await m.query(`UPDATE examcollect.exam_problem SET test_bundle_id = $2 WHERE id = $1`, [problemId, bundleId]);
+  if (problem.ordinal === 1) {
+    await m.query(`UPDATE examcollect.exam_session SET test_bundle_id = $2 WHERE id = $1`, [sessionId, bundleId]);
+  }
+}
