@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { lockTeacherScoring } from '../scoring/teacher-lock';
 import { AddProblemDto } from './problem.dto';
+import { loadStudentBoard, StudentBoardRow } from './student-total.query';
 import { ensureDefaultProblem } from './resolve-problem-config';
 
 /**
@@ -264,6 +265,11 @@ export class ProblemService {
       }
       await m.query(`DELETE FROM examcollect.exam_problem WHERE id = $1`, [problemId]);
     });
+  }
+
+  /** Bảng sinh viên của phiên (P1b Task 9): một dòng mỗi sinh viên, tổng và chip theo câu. Chỉ đọc. */
+  async listStudents(sessionId: string): Promise<StudentBoardRow[]> {
+    return loadStudentBoard(this.ds.manager, sessionId);
   }
 
   /**

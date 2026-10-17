@@ -134,6 +134,15 @@ describe('P1b — canary đường đọc tổng không lộ câu chờ kiểm m
     expect(JSON.stringify(students)).not.toMatch(SECRET);
   });
 
+  it('bảng một dòng mỗi sinh viên (Task 9): không lộ 7.00, tổng của sinh viên là dash', async () => {
+    const w = await twoQuestionWorld('board');
+    const res = await get(w.owner.token, `/exam-sessions/${w.ctx.sessionId}/grading-students`);
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body)).not.toMatch(SECRET);
+    const row = (res.body as { mssv: string; total: { kind: string } }[]).find((r) => r.mssv === MSSV);
+    expect(row?.total).toEqual({ kind: 'dash' });
+  });
+
   it('tổng của sinh viên là dash (—): có câu chờ kiểm mẫu thì không lộ số', async () => {
     const w = await twoQuestionWorld('total');
     const totals = await loadStudentTotals(ds.manager, w.ctx.sessionId);

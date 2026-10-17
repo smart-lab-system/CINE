@@ -5,12 +5,13 @@ import type { TeacherReviewKind } from '../grading-model.types';
 import { aggregateStudentTotal, ProblemState, StudentTotal } from './student-total';
 
 /**
- * Một dòng = (sinh viên trong roster, câu, bài của sinh viên cho câu đó). `result_id` NULL là sinh viên không có
+ * Một dòng = (sinh viên trong roster, câu, bài của sinh viên đó cho câu). `result_id` NULL là sinh viên không có
  * bài cho câu này. Các cột điểm đi cùng nguồn với sổ điểm (`grade-export.data.ts`), để điểm tổng và sổ điểm
  * không bao giờ lệch nhau.
  */
 interface RosterProblemRow {
   mssv: string;
+  problem_id: string;
   ordinal: number;
   points_hundredths: number;
   result_id: string | null;
@@ -31,7 +32,7 @@ interface RosterProblemRow {
  * (như backfill M2). Roster là tập sinh viên — vắng vẫn có dòng, và dòng đó thành `blank`.
  */
 const ROSTER_PROBLEM_SQL = `
-  SELECT r.student_mssv AS mssv, p.ordinal, p.points_hundredths,
+  SELECT r.student_mssv AS mssv, p.id AS problem_id, p.ordinal, p.points_hundredths,
          g.id AS result_id, g.status, g.pipeline, g.ungradable_class, g.ai_total_score, g.finalized_computation_id,
          rv.kind AS review_kind, rv.final_score AS review_score,
          (SELECT t.final_score FROM examcollect.teacher_review t
@@ -94,37 +95,66 @@ function stateOf(ordinal: number, pointsHundredths: number, rows: RosterProblemR
   };
 }
 
+/** Một câu của một sinh viên trên bảng: trạng thái đã rút gọn, kèm id câu để giao diện gọi đúng đường. */
+export interface StudentBoardProblem extends ProblemState {
+  problemId: string;
+}
+
+/** Một dòng của bảng sinh viên: tổng (Task 5) và các chip theo câu. */
+export interface StudentBoardRow {
+  mssv: string;
+  name: string;
+  total: StudentTotal;
+  problems: StudentBoardProblem[];
+}
+
 /**
- * Điểm tổng của MỌI sinh viên trong roster của một phiên, khoá theo MSSV chữ thường (khớp cách so MSSV ở
- * `lower(...)` trong SQL). Chỉ đọc; không ghi gì.
+ * Bảng sinh viên của một phiên, MỘT dòng mỗi sinh viên trong roster, theo MSSV. Chỉ đọc. Phiên không có câu nào
+ * thì không có dòng nào: không có câu thì không có gì để cộng.
  */
-export async function loadStudentTotals(m: EntityManager, sessionId: string): Promise<Map<string, StudentTotal>> {
+export async function loadStudentBoard(m: EntityManager, sessionId: string): Promise<StudentBoardRow[]> {
   const [count] = await m.query(`SELECT COUNT(*)::int AS n FROM examcollect.exam_problem WHERE exam_session_id = $1`, [
     sessionId,
   ]);
   const expectedCount = count.n as number;
+  if (expectedCount === 0) {
+    return [];
+  }
+  const names: { mssv: string; name: string }[] = await m.query(
+    `SELECT student_mssv AS mssv, student_name AS name FROM examcollect.session_roster
+      WHERE exam_session_id = $1 ORDER BY student_mssv`,
+    [sessionId],
+  );
   const rows: RosterProblemRow[] = await m.query(ROSTER_PROBLEM_SQL, [sessionId]);
 
-  const byStudent = new Map<string, { mssv: string; rows: RosterProblemRow[] }>();
+  const byStudent = new Map<string, RosterProblemRow[]>();
   for (const row of rows) {
     const key = row.mssv.toLowerCase();
-    const entry = byStudent.get(key) ?? { mssv: row.mssv, rows: [] };
-    entry.rows.push(row);
-    byStudent.set(key, entry);
+    const list = byStudent.get(key) ?? [];
+    list.push(row);
+    byStudent.set(key, list);
   }
 
-  const totals = new Map<string, StudentTotal>();
-  for (const [key, { rows: studentRows }] of byStudent) {
+  return names.map(({ mssv, name }) => {
     const byOrdinal = new Map<number, RosterProblemRow[]>();
-    for (const row of studentRows) {
+    for (const row of byStudent.get(mssv.toLowerCase()) ?? []) {
       const list = byOrdinal.get(row.ordinal) ?? [];
       list.push(row);
       byOrdinal.set(row.ordinal, list);
     }
-    const states: ProblemState[] = [...byOrdinal].map(([ordinal, list]) =>
-      stateOf(ordinal, list[0].points_hundredths, list),
-    );
-    totals.set(key, aggregateStudentTotal(states, expectedCount));
-  }
-  return totals;
+    const problems: StudentBoardProblem[] = [...byOrdinal].map(([ordinal, list]) => ({
+      ...stateOf(ordinal, list[0].points_hundredths, list),
+      problemId: list[0].problem_id,
+    }));
+    return { mssv, name, total: aggregateStudentTotal(problems, expectedCount), problems };
+  });
+}
+
+/**
+ * Điểm tổng của MỌI sinh viên trong roster của một phiên, khoá theo MSSV chữ thường (khớp cách so MSSV ở
+ * `lower(...)` trong SQL). Chỉ đọc; không ghi gì. Dựng trên `loadStudentBoard` để hai đường không bao giờ lệch.
+ */
+export async function loadStudentTotals(m: EntityManager, sessionId: string): Promise<Map<string, StudentTotal>> {
+  const board = await loadStudentBoard(m, sessionId);
+  return new Map(board.map((row) => [row.mssv.toLowerCase(), row.total]));
 }

@@ -23,6 +23,7 @@ import { GradingService } from './grading.service';
 import { GradingRunService } from './grading-run.service';
 import { GradingSummaryService } from './grading-summary.service';
 import { GradingReferenceService } from './grading-reference.service';
+import { ProblemService } from './problem/problem.service';
 import { SubmissionTextService } from './submission-text.service';
 import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
 import { RubricService } from './rubric.service';
@@ -65,6 +66,7 @@ export class GradingController {
     private readonly scores: ScoreService,
     private readonly deliverableLanguage: DeliverableLanguageService,
     private readonly summaries: GradingSummaryService,
+    private readonly problems: ProblemService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -386,5 +388,13 @@ export class GradingController {
   async listResults(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.grading.listForSession(session.id);
+  }
+
+  /** Một dòng mỗi sinh viên (P1b Task 9): tổng và chip theo câu. Route `grading-results` cũ vẫn giữ nguyên. */
+  @Get('exam-sessions/:id/grading-students')
+  @Roles('teacher')
+  async listStudents(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.problems.listStudents(session.id);
   }
 }
