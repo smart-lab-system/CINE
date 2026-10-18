@@ -1,35 +1,40 @@
 /**
  * The IPC contract between `electron/main` and `electron/renderer`,
- * declared once so both sides (and `electron/preload`, which is the only
- * place actually allowed to touch `ipcRenderer`/`ipcMain`) agree on
- * channel names and payload shapes. Pure types + string constants — no
- * Node or DOM API used here, so this file is safe to import from all
- * three processes.
+ * declared once so both sides (and `electron/preload`) agree on channel
+ * names and payload shapes.
  */
 
 import type { AgentState } from '../../src/session-controller';
+import type { MachineComparison, RoomAggregate } from '../../src/lab-mgmt/hub-actions';
+import type { TeacherHubState } from '../../src/lab-mgmt/teacher-hub';
+import type { StudentNodeState } from '../../src/lab-mgmt/student-node';
+import type { EffectiveExtension } from '../../src/lab-mgmt/allowlist-compare';
 
 export const IPC_CHANNELS = {
-  /** Renderer -> main: submit the join form (state a, and every
-   *  "Thử lại"/"Quay lại"/manual-retry action across states d/d2/e/1b). */
   join: 'agent:join',
-  /** Renderer -> main: state f's "Gửi yêu cầu". */
   sendAccessRequest: 'agent:send-access-request',
-  /** Renderer -> main: state c's auto-minimize, timed by the renderer. */
   minimizeToTray: 'agent:minimize-to-tray',
-  /** Renderer -> main: the tray menu's "Thoát" also reaches here from the
-   *  renderer side in case a future screen ever adds its own exit action;
-   *  today only the tray menu uses it directly. */
   quit: 'agent:quit',
-  /** Main -> renderer: the whole picture, pushed on every change. */
   state: 'agent:state',
-  /** Renderer -> main (request/response): the current snapshot, pulled once
-   *  on mount. The push channel above alone races the renderer's own
-   *  `useEffect` registration — main can (and typically does) send the
-   *  first `agent:state` before `ipcRenderer.on` is wired up, and that
-   *  message is simply dropped, not queued. This is the renderer's
-   *  guaranteed way to catch up regardless of timing. */
   getState: 'agent:get-state',
+
+  /** Module Quản lý */
+  mgmtLoginTeacher: 'mgmt:login-teacher',
+  mgmtStartStudentNode: 'mgmt:start-student-node',
+  mgmtStop: 'mgmt:stop',
+  mgmtGetHubState: 'mgmt:get-hub-state',
+  mgmtGetNodeState: 'mgmt:get-node-state',
+  mgmtHubState: 'mgmt:hub-state',
+  mgmtNodeState: 'mgmt:node-state',
+  mgmtRefreshMachines: 'mgmt:refresh-machines',
+  mgmtScanExtensions: 'mgmt:scan-extensions',
+  mgmtCompareAllowlist: 'mgmt:compare-allowlist',
+  mgmtAggregateRoom: 'mgmt:aggregate-room',
+  mgmtSyncBackend: 'mgmt:sync-backend',
+  mgmtSetCourseId: 'mgmt:set-course-id',
+  mgmtGetRoomProposalPreview: 'mgmt:get-room-proposal-preview',
+  mgmtProposeRoom: 'mgmt:propose-room',
+  setUiMode: 'ui:set-mode',
 } as const;
 
 export interface JoinRequest {
@@ -42,16 +47,109 @@ export interface SendAccessRequestRequest {
   reason: string;
 }
 
+export interface TeacherLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface TeacherLoginResult {
+  ok: boolean;
+  error?: string;
+  email?: string;
+}
+
+export interface StartStudentNodeRequest {
+  mssv: string;
+}
+
+export interface StartStudentNodeResult {
+  ok: boolean;
+  error?: string;
+  mssv?: string;
+  fullName?: string;
+}
+
+export interface CompareResultPayload {
+  comparisons: MachineComparison[];
+  courseId: string | null;
+  warning?: string;
+}
+
+export interface SyncResultPayload {
+  ok: boolean;
+  error?: string;
+}
+
+export type RoomProposalMachineStatus = 'active' | 'maintenance' | 'inactive';
+
+/** Máy gửi kèm đề xuất — đủ field parity `computer` (§5.1), auto-collect. */
+export interface RoomProposalMachinePayload {
+  machineId: string;
+  hostname: string;
+  cpu: string;
+  ramGb: number;
+  storage: string;
+  gpu?: string | null;
+  os: string;
+  localIp: string;
+  macAddress: string;
+  status: RoomProposalMachineStatus;
+  role: 'teacher_hub' | 'student_node';
+  studentMssv?: string | null;
+  studentFullName?: string | null;
+  lastSeenAt?: string | null;
+}
+
+export type RoomProposalMachinePreview = RoomProposalMachinePayload;
+
+export interface RoomProposalPreviewPayload {
+  sessionId: string;
+  machines: RoomProposalMachinePreview[];
+}
+
+export interface ProposeRoomRequest {
+  code: string;
+  name: string;
+  capacity: number;
+  building?: string | null;
+  floor?: string | null;
+  note?: string | null;
+  machines: RoomProposalMachinePayload[];
+}
+
+export interface ProposeRoomResult {
+  ok: boolean;
+  error?: string;
+  proposalId?: string;
+}
+
 /** The typed surface `electron/preload` exposes as `window.agent`. */
 export interface AgentApi {
   join(payload: JoinRequest): void;
   sendAccessRequest(payload: SendAccessRequestRequest): void;
   minimizeToTray(): void;
   quit(): void;
-  /** Returns an unsubscribe function, same convention React effects expect. */
   onState(callback: (state: AgentState) => void): () => void;
-  /** One-shot pull of whatever state exists right now — call on mount,
-   *  before/alongside subscribing via `onState`, so a state pushed before
-   *  this component was listening is never permanently lost. */
   getState(): Promise<AgentState>;
+
+  mgmtLoginTeacher(payload: TeacherLoginRequest): Promise<TeacherLoginResult>;
+  mgmtStartStudentNode(payload: StartStudentNodeRequest): Promise<StartStudentNodeResult>;
+  mgmtStop(): Promise<void>;
+  mgmtGetHubState(): Promise<TeacherHubState | null>;
+  mgmtGetNodeState(): Promise<StudentNodeState | null>;
+  onHubState(callback: (state: TeacherHubState) => void): () => void;
+  onNodeState(callback: (state: StudentNodeState) => void): () => void;
+  mgmtRefreshMachines(): Promise<void>;
+  mgmtScanExtensions(machineIds?: string[]): Promise<void>;
+  mgmtCompareAllowlist(): Promise<CompareResultPayload>;
+  mgmtAggregateRoom(): Promise<RoomAggregate | null>;
+  mgmtSyncBackend(): Promise<SyncResultPayload>;
+  mgmtSetCourseId(courseId: string | null): Promise<void>;
+  mgmtGetRoomProposalPreview(): Promise<RoomProposalPreviewPayload | null>;
+  mgmtProposeRoom(payload: ProposeRoomRequest): Promise<ProposeRoomResult>;
+  setUiMode(mode: UiMode): Promise<void>;
 }
+
+export type UiMode = 'landing' | 'exam' | 'mgmt';
+
+export type { TeacherHubState, StudentNodeState, EffectiveExtension, MachineComparison, RoomAggregate };
