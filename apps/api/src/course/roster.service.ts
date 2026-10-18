@@ -160,6 +160,34 @@ export class RosterService {
     await repo.remove(enrollment);
   }
 
+  /**
+   * Sửa họ tên trên roster lớp — giữ MSSV. Resolve lại `student_id`
+   * theo mssv nếu catalog có hàng khớp (không cascade từ catalog name).
+   */
+  async updateStudentName(
+    klass: ClassEntity,
+    studentMssv: string,
+    name: string,
+  ): Promise<RosterEntry> {
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(EnrollmentEntity);
+      const enrollment = await repo.findOne({
+        where: { studentMssv, homeClassId: klass.id },
+      });
+      if (!enrollment) {
+        throw new NotFoundException('Sinh viên này không có trong danh sách lớp.');
+      }
+
+      const studentId = await this.resolveStudentId(manager, enrollment.studentMssv);
+      enrollment.studentName = name;
+      if (studentId) {
+        enrollment.studentId = studentId;
+      }
+      await repo.save(enrollment);
+      return { mssv: enrollment.studentMssv, name: enrollment.studentName };
+    });
+  }
+
   private async resolveAddInput(
     manager: EntityManager,
     input: AddRosterStudentInput,

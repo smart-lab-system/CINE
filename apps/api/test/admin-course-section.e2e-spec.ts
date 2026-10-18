@@ -18,6 +18,9 @@ describe('Admin course sections (e2e)', () => {
   let semesterId: string;
   let academicYearId: string;
   let studentId: string;
+  let studentId2: string;
+  let nominalClassId: string;
+  let otherNominalClassId: string;
 
   const PASSWORD = 'correct-horse-battery';
 
@@ -90,12 +93,25 @@ describe('Admin course sections (e2e)', () => {
        VALUES ($1, 'Lớp hành chính', 'active') RETURNING id`,
       [`NC-CS-${Date.now()}`],
     );
+    nominalClassId = nc.id;
+    const [nc2] = await dataSource.query(
+      `INSERT INTO examcollect.nominal_class (code, name, status)
+       VALUES ($1, 'Lớp hành chính 2', 'active') RETURNING id`,
+      [`NC-CS2-${Date.now()}`],
+    );
+    otherNominalClassId = nc2.id;
     const [stu] = await dataSource.query(
       `INSERT INTO examcollect.student (mssv, full_name, nominal_class_id, status)
        VALUES ($1, 'Nguyễn Văn A', $2, 'active') RETURNING id`,
       [`SV${Date.now().toString().slice(-8)}`, nc.id],
     );
     studentId = stu.id;
+    const [stu2] = await dataSource.query(
+      `INSERT INTO examcollect.student (mssv, full_name, nominal_class_id, status)
+       VALUES ($1, 'Nguyễn Văn B', $2, 'active') RETURNING id`,
+      [`SB${Date.now().toString().slice(-8)}`, nc.id],
+    );
+    studentId2 = stu2.id;
   });
 
   afterAll(async () => {
@@ -232,5 +248,89 @@ describe('Admin course sections (e2e)', () => {
       .expect(201);
 
     expect(otherSem.body.name).toBe(`${courseCode}001`);
+  });
+
+  it('PATCH nominalClassId / môn khi đã có roster → 400; đổi được khi lớp trống', async () => {
+    const create = await request(app.getHttpServer())
+      .post('/admin/course-sections')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ courseId, semesterId, nominalClassId })
+      .expect(201);
+    const sectionId = create.body.id as string;
+
+    const patchedEmpty = await request(app.getHttpServer())
+      .patch(`/admin/course-sections/${sectionId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ nominalClassId: otherNominalClassId })
+      .expect(200);
+    expect(patchedEmpty.body.nominalClassId).toBe(otherNominalClassId);
+
+    await request(app.getHttpServer())
+      .post(`/admin/course-sections/${sectionId}/roster/students`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ studentId: studentId2 })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/admin/course-sections/${sectionId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ nominalClassId: null })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/admin/course-sections/${sectionId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ courseId })
+      .expect(400);
+  });
+
+  it('PATCH roster student name', async () => {
+    const create = await request(app.getHttpServer())
+      .post('/admin/course-sections')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ courseId, semesterId })
+      .expect(201);
+    const sectionId = create.body.id as string;
+
+    const [stu3] = await dataSource.query(
+      `INSERT INTO examcollect.student (mssv, full_name, nominal_class_id, status)
+       VALUES ($1, 'Tên Sai', $2, 'active') RETURNING id, mssv`,
+      [`SC${Date.now().toString().slice(-8)}`, nominalClassId],
+    );
+
+    await request(app.getHttpServer())
+      .post(`/admin/course-sections/${sectionId}/roster/students`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ studentId: stu3.id })
+      .expect(201);
+
+    const patched = await request(app.getHttpServer())
+      .patch(`/admin/course-sections/${sectionId}/roster/students/${stu3.mssv}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Tên Đúng' })
+      .expect(200);
+    expect(patched.body).toMatchObject({ mssv: stu3.mssv, name: 'Tên Đúng' });
+
+    await request(app.getHttpServer())
+      .patch(`/admin/course-sections/${sectionId}/roster/students/NOPE9999`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Ai Đó' })
+      .expect(404);
+  });
+
+  it('POST unassign khi chưa có phiên → teacherId null', async () => {
+    const create = await request(app.getHttpServer())
+      .post('/admin/course-sections')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ courseId, semesterId, teacherId })
+      .expect(201);
+    const sectionId = create.body.id as string;
+    expect(create.body.teacherId).toBe(teacherId);
+
+    const unassigned = await request(app.getHttpServer())
+      .post(`/admin/course-sections/${sectionId}/unassign`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(unassigned.body.teacherId).toBeNull();
   });
 });

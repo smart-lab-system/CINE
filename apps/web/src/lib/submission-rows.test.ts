@@ -26,6 +26,7 @@ function attendance(overrides: Partial<Attendance> = {}): Attendance {
     present: [],
     absent: [],
     makeup: [],
+    sessionRosterSources: {},
     discrepancy: null,
     ...overrides,
   };

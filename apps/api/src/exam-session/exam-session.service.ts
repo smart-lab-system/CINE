@@ -18,11 +18,13 @@ import {
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
 import { RequiredDeliverableEntryEntity } from './entities/required-deliverable-entry.entity';
+import { SessionRosterEntity } from './entities/session-roster.entity';
 import { RubricEntity } from '../grading/entities/rubric.entity';
 import { SemesterEntity } from '../master-data/entities/semester.entity';
 import { RoomEntity } from '../master-data/entities/room.entity';
 import { pipelineFor } from '../grading/pipeline';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
+import { UpdateExamSessionDto } from './dto/update-exam-session.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import {
   ExamSessionResponseDto,
@@ -317,6 +319,92 @@ export class ExamSessionService {
   }
 
   /**
+   * Sửa phòng / khung giờ trước khi chốt danh sách dự thi (freeze).
+   * Học kỳ bất biến sau tạo. Conflict check loại trừ chính phiên này.
+   */
+  async updateSchedule(
+    session: ExamSessionEntity,
+    dto: UpdateExamSessionDto,
+  ): Promise<ExamSessionResponseDto> {
+    await this.assertRosterNotFrozen(session.id);
+
+    if (
+      dto.roomId === undefined &&
+      dto.roomName === undefined &&
+      dto.startTime === undefined &&
+      dto.endTime === undefined
+    ) {
+      return this.findByIdForOwner(session.id, session.teacherId);
+    }
+
+    const roomSnap =
+      dto.roomId !== undefined || dto.roomName !== undefined
+        ? await this.resolveRoomSnapshot({
+            roomId: dto.roomId,
+            roomName: dto.roomName,
+          } as CreateExamSessionDto)
+        : { roomId: session.roomId, roomName: session.roomName };
+
+    const startTime = dto.startTime ?? session.startTime;
+    const endTime = dto.endTime ?? session.endTime;
+    if (!(endTime > startTime)) {
+      throw new BadRequestException('endTime phải sau startTime.');
+    }
+
+    if (!session.classId) {
+      throw new BadRequestException(
+        'Phiên không gắn lớp — không kiểm trùng lịch được.',
+      );
+    }
+
+    await this.scheduleConflicts.assertNone(
+      roomSnap.roomName,
+      session.classId,
+      session.teacherId,
+      startTime,
+      endTime,
+      { excludeSessionId: session.id },
+    );
+
+    await this.sessions.update(session.id, {
+      roomId: roomSnap.roomId,
+      roomName: roomSnap.roomName,
+      startTime,
+      endTime,
+    });
+
+    return this.findByIdForOwner(session.id, session.teacherId);
+  }
+
+  /**
+   * Soft-cancel phiên nháp — `status = cancelled` giải phóng phòng
+   * (exclusion bỏ cancelled). Chỉ khi chưa freeze roster.
+   */
+  async cancel(session: ExamSessionEntity): Promise<ExamSessionResponseDto> {
+    if (session.status === 'cancelled') {
+      return this.findByIdForOwner(session.id, session.teacherId);
+    }
+    if (isExamOver(session.status)) {
+      throw new ConflictException('Phiên đã kết thúc — không huỷ được.');
+    }
+    await this.assertRosterNotFrozen(session.id);
+
+    await this.sessions.update(session.id, { status: 'cancelled' });
+    return this.findByIdForOwner(session.id, session.teacherId);
+  }
+
+  private async assertRosterNotFrozen(examSessionId: string): Promise<void> {
+    const count = await this.dataSource
+      .getRepository(SessionRosterEntity)
+      .count({ where: { examSessionId } });
+    if (count > 0) {
+      throw new ConflictException(
+        'Đã chốt danh sách dự thi — không đổi phòng/giờ hoặc huỷ phiên được.',
+      );
+    }
+  }
+
+  /**
    * Reused by the WebSocket gateway (Task 3) on `agent:join` — looks up a
    * session by its join code. The gateway is responsible for upper-casing
    * whatever code it receives before calling this, matching how codes are
@@ -480,6 +568,20 @@ export class ExamSessionService {
 
     const [rows, total] = await qb.getManyAndCount();
 
+    const frozenIds = new Set<string>();
+    if (rows.length > 0) {
+      const frozenRows: Array<{ exam_session_id: string }> =
+        await this.dataSource.query(
+          `SELECT DISTINCT exam_session_id
+             FROM examcollect.session_roster
+            WHERE exam_session_id = ANY($1::uuid[])`,
+          [rows.map((r) => r.id)],
+        );
+      for (const row of frozenRows) {
+        frozenIds.add(row.exam_session_id);
+      }
+    }
+
     const items = rows.map((session) => {
       const item = new ExamSessionListItemDto();
       item.id = session.id;
@@ -493,6 +595,7 @@ export class ExamSessionService {
       item.startTime = session.startTime;
       item.endTime = session.endTime;
       item.status = session.status;
+      item.rosterFrozen = frozenIds.has(session.id);
       return item;
     });
 

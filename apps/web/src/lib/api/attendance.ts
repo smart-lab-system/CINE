@@ -6,6 +6,8 @@ import { apiClient } from '@/lib/api-client';
  * Everything here is derived server-side from `agent_connection_event`, which
  * is why this page can be refreshed mid-exam without losing the room.
  */
+export type SessionRosterSource = 'frozen' | 'manual';
+
 export interface AttendanceStudent {
   mssv: string;
   name: string;
@@ -21,6 +23,8 @@ export interface AttendanceStudent {
    * count exists to catch. Two labels on purpose.
    */
   afterHeadcount: 'returned' | 'new' | null;
+  /** Nguồn trên session_roster — `manual` mới cho gỡ trên UI. */
+  rosterSource?: SessionRosterSource;
 }
 
 export interface AttendanceDiscrepancy {
@@ -47,6 +51,8 @@ export interface Attendance {
   present: AttendanceStudent[];
   absent: AttendanceStudent[];
   makeup: AttendanceStudent[];
+  /** MSSV lowercase → frozen | manual */
+  sessionRosterSources: Record<string, SessionRosterSource>;
   discrepancy: AttendanceDiscrepancy | null;
 }
 

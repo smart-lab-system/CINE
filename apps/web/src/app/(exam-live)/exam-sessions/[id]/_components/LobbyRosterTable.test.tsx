@@ -29,6 +29,7 @@ function attendanceStudent(
 function row(partial: Partial<LobbyRosterRow> & Pick<LobbyRosterRow, 'studentMssv' | 'fullName' | 'roomStatus'>): LobbyRosterRow {
   return {
     attendanceStudent: null,
+    rosterSource: null,
     byDeliverable: {},
     ...partial,
   };

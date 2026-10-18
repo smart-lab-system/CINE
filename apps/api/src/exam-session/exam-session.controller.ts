@@ -24,6 +24,7 @@ import { SessionRosterService } from './session-roster.service';
 import { RosterStudentDto } from '../course/dto/roster.dto';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
+import { UpdateExamSessionDto } from './dto/update-exam-session.dto';
 import { ReassignTeacherDto } from './dto/reassign-teacher.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import { ExamMaterialService } from './exam-material.service';
@@ -83,6 +84,35 @@ export class ExamSessionController {
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: Request) {
     return this.examSessions.findByIdForOwner(id, req.user!.sub);
+  }
+
+  /**
+   * Sửa phòng / khung giờ — teacher owner, chỉ khi chưa freeze roster.
+   * Không đụng semester (bất biến sau tạo).
+   */
+  @Patch(':id')
+  @Roles('teacher')
+  async updateSchedule(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateExamSessionDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.examSessions.updateSchedule(session, dto);
+  }
+
+  /**
+   * Soft-cancel phiên nháp (`cancelled`) — giải phóng phòng khi chưa freeze.
+   */
+  @Post(':id/cancel')
+  @Roles('teacher')
+  @HttpCode(200)
+  async cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.examSessions.cancel(session);
   }
 
   /**
@@ -252,6 +282,18 @@ export class ExamSessionController {
   ) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.sessionRoster.addManually(session, { mssv: dto.mssv, name: dto.name });
+  }
+
+  @Delete(':id/roster/students/:studentMssv')
+  @Roles('teacher')
+  @HttpCode(204)
+  async removeRosterStudent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('studentMssv') studentMssv: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    await this.sessionRoster.removeManual(session, studentMssv);
   }
 
   /**

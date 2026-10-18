@@ -11,9 +11,16 @@ import {
   Copy,
   DoorOpen,
   List,
+  Pencil,
   Plus,
+  XCircle,
 } from 'lucide-react';
-import { useExamSessions, useExamSessionsInRange } from '@/hooks/useExamSession';
+import {
+  useCancelExamSession,
+  useExamSessions,
+  useExamSessionsInRange,
+  useUpdateExamSessionSchedule,
+} from '@/hooks/useExamSession';
 import { useSessionViewMode } from '@/hooks/useSessionViewMode';
 import { SessionCalendar } from './_components/session-calendar';
 import { addDays, shortDate, startOfWeek, weekRange } from '@/lib/exam-calendar';
@@ -30,6 +37,14 @@ import { useTeachingClasses } from '@/hooks/useTeaching';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
   Table,
   TableBody,
   TableCell,
@@ -40,7 +55,17 @@ import {
 import { EXAM_TYPE_LABELS, getDisplaySessionStatus } from '@/lib/exam-session-display';
 import { semesterOptions, useSemesterFilter } from '@/hooks/useSemesterFilter';
 import { SemesterFilter } from '@/components/layout/semester-filter';
-import type { ExamSessionStatusFilter, ExamType } from '@/lib/api/exam-session';
+import type {
+  ExamSessionListItem,
+  ExamSessionStatusFilter,
+  ExamType,
+} from '@/lib/api/exam-session';
+
+function toLocalInputValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 const STATUS_FILTER_LABELS: Record<ExamSessionStatusFilter, string> = {
   draft: 'Nháp',
@@ -111,6 +136,13 @@ export default function ExamSessionsListPage() {
   const [examType, setExamType] = useState<ExamType | 'all'>('all');
   const debouncedSearch = useDebouncedValue(search, 300);
   const semesterFilter = useSemesterFilter('teacher-exam-sessions');
+
+  const cancelSession = useCancelExamSession();
+  const updateSchedule = useUpdateExamSessionSchedule();
+  const [editing, setEditing] = useState<ExamSessionListItem | null>(null);
+  const [editRoomName, setEditRoomName] = useState('');
+  const [editStart, setEditStart] = useState('');
+  const [editEnd, setEditEnd] = useState('');
 
   const { data, error, isLoading, refetch } = useExamSessions({
     page,
@@ -506,12 +538,51 @@ export default function ExamSessionsListPage() {
                           <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/exam-sessions/${session.id}`}>
-                              <DoorOpen className="h-4 w-4" aria-hidden="true" />
-                              Phòng chờ
-                            </Link>
-                          </Button>
+                          <div className="flex flex-wrap justify-end gap-1">
+                            {!session.rosterFrozen && session.status !== 'cancelled' ? (
+                              <>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label={`Sửa lịch ${session.name}`}
+                                  onClick={() => {
+                                    setEditing(session);
+                                    setEditRoomName(session.roomName);
+                                    setEditStart(toLocalInputValue(session.startTime));
+                                    setEditEnd(toLocalInputValue(session.endTime));
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label={`Huỷ phiên ${session.name}`}
+                                  disabled={cancelSession.isPending}
+                                  onClick={() => {
+                                    if (!confirm(`Huỷ phiên "${session.name}"?`)) return;
+                                    cancelSession.mutate(session.id, {
+                                      onSuccess: () => toast.success('Đã huỷ phiên'),
+                                      onError: (e) =>
+                                        toast.error(
+                                          e instanceof Error ? e.message : 'Huỷ thất bại',
+                                        ),
+                                    });
+                                  }}
+                                >
+                                  <XCircle className="h-4 w-4 text-danger-strong" aria-hidden="true" />
+                                </Button>
+                              </>
+                            ) : null}
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/exam-sessions/${session.id}`}>
+                                <DoorOpen className="h-4 w-4" aria-hidden="true" />
+                                Phòng chờ
+                              </Link>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -548,6 +619,83 @@ export default function ExamSessionsListPage() {
           </>
         )}
       </div>
+
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sửa phòng / khung giờ</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="edit-room">Phòng</Label>
+              <Input
+                id="edit-room"
+                value={editRoomName}
+                onChange={(e) => setEditRoomName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-start">Bắt đầu</Label>
+              <Input
+                id="edit-start"
+                type="datetime-local"
+                value={editStart}
+                onChange={(e) => setEditStart(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-end">Kết thúc</Label>
+              <Input
+                id="edit-end"
+                type="datetime-local"
+                value={editEnd}
+                onChange={(e) => setEditEnd(e.target.value)}
+              />
+            </div>
+            <p className="text-small text-muted-foreground">
+              Chỉ sửa được trước khi chốt danh sách dự thi. Học kỳ không đổi.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEditing(null)}>
+              Huỷ
+            </Button>
+            <Button
+              type="button"
+              disabled={updateSchedule.isPending || !editRoomName.trim()}
+              loading={updateSchedule.isPending}
+              onClick={() => {
+                if (!editing) return;
+                updateSchedule.mutate(
+                  {
+                    id: editing.id,
+                    body: {
+                      roomName: editRoomName.trim(),
+                      startTime: new Date(editStart).toISOString(),
+                      endTime: new Date(editEnd).toISOString(),
+                    },
+                  },
+                  {
+                    onSuccess: () => {
+                      toast.success('Đã cập nhật lịch phiên');
+                      setEditing(null);
+                    },
+                    onError: (e) =>
+                      toast.error(e instanceof Error ? e.message : 'Cập nhật thất bại'),
+                  },
+                );
+              }}
+            >
+              Lưu
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   useImportRoster,
   useRemoveRosterStudent,
   useRoster,
+  useUpdateRosterStudentName,
 } from '@/hooks/useRoster';
 import { useTeachingClasses } from '@/hooks/useTeaching';
 
@@ -33,6 +34,7 @@ export default function TeacherRosterPage() {
     importRoster: useImportRoster(classId),
     addStudent: useAddRosterStudent(classId),
     removeStudent: useRemoveRosterStudent(classId),
+    updateStudentName: useUpdateRosterStudentName(classId),
   };
 
   return (

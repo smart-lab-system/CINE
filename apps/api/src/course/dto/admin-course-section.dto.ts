@@ -40,6 +40,15 @@ export class UpdateCourseSectionDto {
   @IsOptional()
   @IsUUID()
   semesterId?: string;
+
+  /**
+   * uuid = gắn / đổi lớp danh nghĩa; `null` = gỡ; omit = không đổi.
+   * Đổi nominal không cần lớp “mutable” (khác môn/kỳ) — chỉ gắn nhầm lúc tạo.
+   */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  nominalClassId?: string | null;
 }
 
 export class AssignCourseSectionDto {

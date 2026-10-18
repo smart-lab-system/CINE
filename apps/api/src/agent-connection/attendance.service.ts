@@ -143,12 +143,28 @@ export class AttendanceService {
     const confirmedAt = session.attendanceConfirmedAt;
     const roster = enrolled.filter((row) => row.homeClassId === session.classId);
 
+    const sessionRosterRows = await this.sessionRoster.find({
+      where: { examSessionId: session.id },
+      select: { studentMssv: true, source: true },
+    });
+    const sessionRosterSources: Record<string, 'frozen' | 'manual'> = {};
+    for (const row of sessionRosterRows) {
+      sessionRosterSources[row.studentMssv.toLowerCase()] = row.source;
+    }
+
+    const withSource = (view: AttendanceStudentView): AttendanceStudentView => {
+      const source = sessionRosterSources[view.mssv.toLowerCase()];
+      return source ? { ...view, rosterSource: source } : view;
+    };
+
     const present: AttendanceStudentView[] = [];
     const absent: AttendanceStudentView[] = [];
     const makeup: AttendanceStudentView[] = [];
 
     for (const enrollment of roster) {
-      const view = this.toView(enrollment.studentMssv, enrollment.studentName, seen, confirmedAt);
+      const view = withSource(
+        this.toView(enrollment.studentMssv, enrollment.studentName, seen, confirmedAt),
+      );
       (view.connected ? present : absent).push(view);
     }
 
@@ -164,10 +180,12 @@ export class AttendanceService {
         // Not in the room now: an invigilator has nothing to check.
         continue;
       }
-      makeup.push({
-        ...this.toView(enrollment.studentMssv, enrollment.studentName, seen, confirmedAt),
-        homeClassName: classNames.get(enrollment.homeClassId),
-      });
+      makeup.push(
+        withSource({
+          ...this.toView(enrollment.studentMssv, enrollment.studentName, seen, confirmedAt),
+          homeClassName: classNames.get(enrollment.homeClassId),
+        }),
+      );
     }
 
     const byName = (a: AttendanceStudentView, b: AttendanceStudentView) =>
@@ -175,9 +193,7 @@ export class AttendanceService {
 
     // Cùng một phép đo với SessionRosterService.isFrozen — cái mà
     // `agent:join` hỏi trước khi cho một sinh viên vào phòng.
-    const frozenRows = await this.sessionRoster.count({
-      where: { examSessionId: session.id },
-    });
+    const frozenRows = sessionRosterRows.length;
 
     return {
       classId: session.classId,
@@ -189,6 +205,7 @@ export class AttendanceService {
       present: present.sort(byName),
       absent: absent.sort(byName),
       makeup: makeup.sort(byName),
+      sessionRosterSources,
       discrepancy: await this.buildDiscrepancy(session, seen, byMssv, classNames),
     };
   }

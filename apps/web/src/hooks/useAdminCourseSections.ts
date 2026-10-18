@@ -12,6 +12,9 @@ import {
   listSectionRoster,
   listTeacherOptions,
   removeSectionStudent,
+  unassignCourseSection,
+  updateCourseSection,
+  updateSectionStudentName,
   type RosterEntry,
 } from '@/lib/api/admin-course-sections';
 
@@ -78,6 +81,29 @@ export function useAssignCourseSection() {
   });
 }
 
+export function useUnassignCourseSection() {
+  const invalidate = useInvalidateSections();
+  return useMutation({
+    mutationFn: (id: string) => unassignCourseSection(id),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateCourseSection() {
+  const invalidate = useInvalidateSections();
+  return useMutation({
+    mutationFn: (args: {
+      id: string;
+      body: {
+        courseId?: string;
+        semesterId?: string;
+        nominalClassId?: string | null;
+      };
+    }) => updateCourseSection(args.id, args.body),
+    onSuccess: invalidate,
+  });
+}
+
 export function useDeleteCourseSection() {
   const invalidate = useInvalidateSections();
   return useMutation({
@@ -108,6 +134,15 @@ export function useRemoveSectionStudent(sectionId: string) {
   const invalidate = useInvalidateSections();
   return useMutation({
     mutationFn: (mssv: string) => removeSectionStudent(sectionId, mssv),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateSectionStudentName(sectionId: string) {
+  const invalidate = useInvalidateSections();
+  return useMutation({
+    mutationFn: (args: { mssv: string; name: string }) =>
+      updateSectionStudentName(sectionId, args.mssv, args.name),
     onSuccess: invalidate,
   });
 }
