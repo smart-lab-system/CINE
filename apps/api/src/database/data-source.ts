@@ -46,6 +46,17 @@ import { NominalClassEntity } from '../master-data/entities/nominal-class.entity
 import { StudentEntity } from '../master-data/entities/student.entity';
 import { RoomEntity } from '../master-data/entities/room.entity';
 import { ComputerEntity } from '../master-data/entities/computer.entity';
+import { IdeExtensionEntity } from '../ide-extensions/entities/ide-extension.entity';
+import { IdeExtensionVersionEntity } from '../ide-extensions/entities/ide-extension-version.entity';
+import { IdeExtensionPolicyEntity } from '../ide-extensions/entities/ide-extension-policy.entity';
+import { IdeExtensionPolicyItemEntity } from '../ide-extensions/entities/ide-extension-policy-item.entity';
+import { IdeExtensionScanEntity } from '../ide-extensions/entities/ide-extension-scan.entity';
+import { IdeExtensionScanItemEntity } from '../ide-extensions/entities/ide-extension-scan-item.entity';
+import { IdeExtensionSessionSummaryEntity } from '../ide-extensions/entities/ide-extension-session-summary.entity';
+import { LabMgmtSessionEntity } from '../ide-extensions/entities/lab-mgmt-session.entity';
+import { LabMgmtMachineEntity } from '../ide-extensions/entities/lab-mgmt-machine.entity';
+import { LabRoomProposalEntity } from '../ide-extensions/entities/lab-room-proposal.entity';
+import { LabRoomProposalMachineEntity } from '../ide-extensions/entities/lab-room-proposal-machine.entity';
 
 /**
  * TLS for the Postgres connection, decided by env so one build runs
@@ -146,6 +157,17 @@ export const dataSourceOptions: DataSourceOptions = {
     StudentEntity,
     RoomEntity,
     ComputerEntity,
+    IdeExtensionEntity,
+    IdeExtensionVersionEntity,
+    IdeExtensionPolicyEntity,
+    IdeExtensionPolicyItemEntity,
+    IdeExtensionScanEntity,
+    IdeExtensionScanItemEntity,
+    IdeExtensionSessionSummaryEntity,
+    LabMgmtSessionEntity,
+    LabMgmtMachineEntity,
+    LabRoomProposalEntity,
+    LabRoomProposalMachineEntity,
   ],
   migrations: [__dirname + '/migrations/*.{js,ts}'],
   // The initial migration's SQL file already wraps itself in BEGIN/COMMIT
