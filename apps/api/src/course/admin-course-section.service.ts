@@ -34,6 +34,8 @@ export interface CourseSectionView {
   teacherId: string | null;
   teacherName: string | null;
   studentCount: number;
+  /** Số phiên thi gắn lớp — UI khóa sửa meta khi > 0. */
+  examSessionCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -121,9 +123,25 @@ export class AdminCourseSectionService {
         nominalClassDisplayName: string | null;
       }>();
 
+    const ids = entities.map((klass) => klass.id);
+    const sessionCountByClass = new Map<string, number>();
+    if (ids.length > 0) {
+      const rows: Array<{ class_id: string; count: string }> = await this.dataSource.query(
+        `SELECT class_id, COUNT(*)::text AS count
+           FROM examcollect.exam_session
+          WHERE class_id = ANY($1::uuid[])
+          GROUP BY class_id`,
+        [ids],
+      );
+      for (const row of rows) {
+        sessionCountByClass.set(row.class_id, parseInt(row.count, 10));
+      }
+    }
+
     const items = entities.map((klass, i) =>
       this.toView(klass, {
         studentCount: parseInt(raw[i].studentCount, 10),
+        examSessionCount: sessionCountByClass.get(klass.id) ?? 0,
         teacherName: raw[i].teacherName ?? null,
         semesterName: raw[i].semesterName ?? null,
         nominalClassName: formatNominalClassLabel(
@@ -149,6 +167,7 @@ export class AdminCourseSectionService {
     });
     return this.toView(klass, {
       studentCount,
+      examSessionCount: await this.sessionCount(id),
       teacherName: klass.teacher?.name ?? null,
       semesterName: klass.semester?.name ?? null,
       nominalClassName: formatNominalClassLabel(
@@ -201,12 +220,29 @@ export class AdminCourseSectionService {
   }
 
   async update(id: string, dto: UpdateCourseSectionDto): Promise<CourseSectionView> {
-    if (dto.courseId === undefined && dto.semesterId === undefined) {
+    const touchMeta = dto.courseId !== undefined || dto.semesterId !== undefined;
+    const touchNominal = dto.nominalClassId !== undefined;
+
+    if (!touchMeta && !touchNominal) {
       return this.findOne(id);
     }
 
     await this.getEntity(id);
-    await this.assertMetaMutable(id);
+
+    // Đổi môn/kỳ *hoặc* lớp danh nghĩa chỉ khi lớp còn trống SV và chưa
+    // có phiên — gắn nhầm lúc tạo vẫn sửa được trước khi có dữ liệu
+    // nghiệp vụ; sau đó phải xoá roster / phiên trước.
+    if (touchMeta || touchNominal) {
+      await this.assertMetaMutable(id);
+    }
+
+    let resolvedNominal: string | null | undefined;
+    if (touchNominal) {
+      resolvedNominal =
+        dto.nominalClassId === null
+          ? null
+          : await this.requireNominalClass(dto.nominalClassId!);
+    }
 
     await this.dataSource.transaction(async (manager) => {
       const row = await manager.getRepository(ClassEntity).findOne({
@@ -216,48 +252,55 @@ export class AdminCourseSectionService {
         throw new NotFoundException('Không tìm thấy lớp học phần.');
       }
 
-      let course =
-        row.courseId != null
-          ? await manager.getRepository(CourseEntity).findOne({
-              where: { id: row.courseId },
-            })
-          : null;
-
-      if (dto.courseId !== undefined) {
-        course = await manager.getRepository(CourseEntity).findOne({
-          where: { id: dto.courseId },
-        });
-        if (!course) {
-          throw new NotFoundException('Không tìm thấy môn học.');
-        }
-        row.courseId = course.id;
-        row.courseName = course.name;
+      if (touchNominal) {
+        row.nominalClassId = resolvedNominal ?? null;
       }
 
-      if (dto.semesterId !== undefined) {
-        const semester = await manager.getRepository(SemesterEntity).findOne({
-          where: { id: dto.semesterId },
-        });
-        if (!semester) {
-          throw new NotFoundException('Không tìm thấy học kỳ.');
-        }
-        row.semesterId = dto.semesterId;
-      }
+      if (touchMeta) {
+        let course =
+          row.courseId != null
+            ? await manager.getRepository(CourseEntity).findOne({
+                where: { id: row.courseId },
+              })
+            : null;
 
-      if (!course || !row.courseId || !row.semesterId) {
-        throw new BadRequestException(
-          'Lớp thiếu môn hoặc học kỳ — không đổi meta được.',
+        if (dto.courseId !== undefined) {
+          course = await manager.getRepository(CourseEntity).findOne({
+            where: { id: dto.courseId },
+          });
+          if (!course) {
+            throw new NotFoundException('Không tìm thấy môn học.');
+          }
+          row.courseId = course.id;
+          row.courseName = course.name;
+        }
+
+        if (dto.semesterId !== undefined) {
+          const semester = await manager.getRepository(SemesterEntity).findOne({
+            where: { id: dto.semesterId },
+          });
+          if (!semester) {
+            throw new NotFoundException('Không tìm thấy học kỳ.');
+          }
+          row.semesterId = dto.semesterId;
+        }
+
+        if (!course || !row.courseId || !row.semesterId) {
+          throw new BadRequestException(
+            'Lớp thiếu môn hoặc học kỳ — không đổi meta được.',
+          );
+        }
+
+        // Đổi môn/kỳ → cấp mã mới trong (môn, kỳ) đích; bỏ qua chính hàng này.
+        row.name = await this.nextSectionCode(
+          manager,
+          course.code,
+          row.courseId,
+          row.semesterId,
+          id,
         );
       }
 
-      // Đổi môn/kỳ → cấp mã mới trong (môn, kỳ) đích; bỏ qua chính hàng này.
-      row.name = await this.nextSectionCode(
-        manager,
-        course.code,
-        row.courseId,
-        row.semesterId,
-        id,
-      );
       await manager.getRepository(ClassEntity).save(row);
     });
 
@@ -335,7 +378,7 @@ export class AdminCourseSectionService {
     const students = await this.enrollments.count({ where: { homeClassId: id } });
     if (students > 0 || (await this.sessionCount(id)) > 0) {
       throw new BadRequestException(
-        'Không đổi môn/học kỳ khi lớp đã có sinh viên hoặc phiên thi.',
+        'Không đổi môn/học kỳ/lớp danh nghĩa khi lớp đã có sinh viên hoặc phiên thi.',
       );
     }
   }
@@ -431,6 +474,7 @@ export class AdminCourseSectionService {
     klass: ClassEntity,
     extra: {
       studentCount: number;
+      examSessionCount: number;
       teacherName: string | null;
       semesterName: string | null;
       nominalClassName: string | null;
@@ -448,6 +492,7 @@ export class AdminCourseSectionService {
       teacherId: klass.teacherId,
       teacherName: extra.teacherName,
       studentCount: extra.studentCount,
+      examSessionCount: extra.examSessionCount,
       createdAt: klass.createdAt,
       updatedAt: klass.updatedAt,
     };

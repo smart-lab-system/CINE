@@ -101,11 +101,9 @@ export class ScheduleConflictService {
    * room is the cheaper fix, and a lecturer told about both at once has to
    * work out which to act on.
    *
-   * NOTE for a future reschedule endpoint: an UPDATE must pass the row's
-   * own id so it is excluded from these queries. The EXCLUDE constraints
-   * self-exclude automatically — a row cannot conflict with itself — but
-   * these queries do not, so without it a reschedule would report the
-   * session clashing with where it already is.
+   * Reschedule MUST pass `excludeSessionId` = chính phiên đang sửa. EXCLUDE
+   * constraints tự loại bản thân; các query advisory này thì không — thiếu
+   * exclude sẽ báo đụng lịch với chính mình.
    */
   async assertNone(
     roomName: string,
@@ -113,8 +111,16 @@ export class ScheduleConflictService {
     teacherId: string,
     startTime: Date,
     endTime: Date,
+    opts?: { excludeSessionId?: string },
   ): Promise<void> {
-    const roomClash = await this.findClash(ROOM, roomName, startTime, endTime);
+    const excludeSessionId = opts?.excludeSessionId;
+    const roomClash = await this.findClash(
+      ROOM,
+      roomName,
+      startTime,
+      endTime,
+      excludeSessionId,
+    );
     if (roomClash) {
       throw new ConflictException(
         `Phòng ${roomClash.ownerName} đã có phiên thi "${roomClash.sessionName}" lúc ` +
@@ -123,7 +129,13 @@ export class ScheduleConflictService {
       );
     }
 
-    const classClash = await this.findClash(CLASS, classId, startTime, endTime);
+    const classClash = await this.findClash(
+      CLASS,
+      classId,
+      startTime,
+      endTime,
+      excludeSessionId,
+    );
     if (classClash) {
       throw new ConflictException(
         `Lớp ${classClash.ownerName} đã có phiên thi "${classClash.sessionName}" lúc ` +
@@ -135,7 +147,12 @@ export class ScheduleConflictService {
     // Báo SAU hai cái trên, cố ý: trùng phòng hay trùng lớp là va chạm cứng,
     // còn đây là luật đi lại. Nếu một lịch phạm cả hai thì cái cứng hơn là
     // cái giảng viên cần nghe trước.
-    const gapClash = await this.findTeacherGapClash(teacherId, startTime, endTime);
+    const gapClash = await this.findTeacherGapClash(
+      teacherId,
+      startTime,
+      endTime,
+      excludeSessionId,
+    );
     if (gapClash) {
       throw new ConflictException(
         `Bạn đã có phiên thi "${gapClash.sessionName}" lúc ` +
@@ -164,8 +181,9 @@ export class ScheduleConflictService {
     teacherId: string,
     startTime: Date,
     endTime: Date,
+    excludeSessionId?: string,
   ): Promise<ScheduleClash | undefined> {
-    const raw = await this.sessions
+    const qb = this.sessions
       .createQueryBuilder('s')
       .select([
         's.name AS "sessionName"',
@@ -181,7 +199,11 @@ export class ScheduleConflictService {
         `examcollect.teacher_busy_range(s.start_time, s.end_time)
          && examcollect.teacher_busy_range(:startTime, :endTime)`,
         { startTime, endTime },
-      )
+      );
+    if (excludeSessionId) {
+      qb.andWhere('s.id <> :excludeSessionId', { excludeSessionId });
+    }
+    const raw = await qb
       .orderBy('s.start_time', 'ASC')
       .limit(1)
       .getRawOne<ScheduleClash>();
@@ -201,21 +223,21 @@ export class ScheduleConflictService {
     key: string,
     startTime: Date,
     endTime: Date,
+    excludeSessionId?: string,
   ): Promise<ScheduleClash | undefined> {
     const qb = this.sessions.createQueryBuilder('s');
     if (target.table) {
       qb.innerJoin(target.table, 'o', `o.id = s.${target.column}`);
     }
-    const raw = await qb
-      .select([
-        's.name AS "sessionName"',
-        // Khoá văn bản thì chính nó là tên hiển thị — không có bảng nào để
-        // hỏi, và đó chính là thứ vừa mất: một phòng chỉ tồn tại vì có ai
-        // đó gõ tên nó ra.
-        target.table ? 'o.name AS "ownerName"' : `s.${target.column} AS "ownerName"`,
-        's.start_time AS "startTime"',
-        's.end_time AS "endTime"',
-      ])
+    qb.select([
+      's.name AS "sessionName"',
+      // Khoá văn bản thì chính nó là tên hiển thị — không có bảng nào để
+      // hỏi, và đó chính là thứ vừa mất: một phòng chỉ tồn tại vì có ai
+      // đó gõ tên nó ra.
+      target.table ? 'o.name AS "ownerName"' : `s.${target.column} AS "ownerName"`,
+      's.start_time AS "startTime"',
+      's.end_time AS "endTime"',
+    ])
       .where(`s.${target.column} = :key`, { key })
       // Matches the constraint's predicate EXACTLY — including
       // `collecting`, added 2026-09-11. A finished, collecting or
@@ -232,7 +254,11 @@ export class ScheduleConflictService {
       .andWhere(
         `tstzrange(s.start_time, s.end_time, '[)') && tstzrange(:startTime, :endTime, '[)')`,
         { startTime, endTime },
-      )
+      );
+    if (excludeSessionId) {
+      qb.andWhere('s.id <> :excludeSessionId', { excludeSessionId });
+    }
+    const raw = await qb
       .orderBy('s.start_time', 'ASC')
       .limit(1)
       .getRawOne<ScheduleClash>();

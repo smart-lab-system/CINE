@@ -125,6 +125,8 @@ export interface ExamSessionListItem {
   startTime: string;
   endTime: string;
   status: string;
+  /** true nếu đã có session_roster (sau open / thêm tay). */
+  rosterFrozen?: boolean;
 }
 
 /**
@@ -237,6 +239,68 @@ export async function createExamSession(
   // `Record<string, never>` for them instead of a string type — a
   // DTO-decoration gap, not a real runtime shape mismatch.
   return data as unknown as ExamSessionResponse;
+}
+
+async function examFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const { getAccessToken } = await import('@/lib/auth-token');
+  const token = await getAccessToken();
+  const headers = new Headers(init.headers);
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  if (res.status === 204) return undefined as T;
+  if (!res.ok) {
+    let message = `Yêu cầu thất bại (HTTP ${res.status})`;
+    try {
+      const body = (await res.json()) as { message?: string | string[] };
+      const fromServer = Array.isArray(body.message)
+        ? body.message.join('; ')
+        : body.message;
+      if (fromServer) message = fromServer;
+    } catch {
+      /* keep */
+    }
+    throw new Error(message);
+  }
+  if (res.headers.get('content-type')?.includes('json')) {
+    return (await res.json()) as T;
+  }
+  return undefined as T;
+}
+
+/** PATCH phòng / khung giờ — chỉ khi chưa freeze. */
+export async function updateExamSessionSchedule(
+  id: string,
+  body: {
+    roomId?: string;
+    roomName?: string;
+    startTime?: string;
+    endTime?: string;
+  },
+): Promise<ExamSessionResponse> {
+  return examFetch(`/exam-sessions/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+/** Soft-cancel phiên nháp. */
+export async function cancelExamSession(id: string): Promise<ExamSessionResponse> {
+  return examFetch(`/exam-sessions/${id}/cancel`, { method: 'POST' });
+}
+
+/** Gỡ SV thêm tay khỏi session roster. */
+export async function removeSessionRosterStudent(
+  examSessionId: string,
+  studentMssv: string,
+): Promise<void> {
+  await examFetch(
+    `/exam-sessions/${examSessionId}/roster/students/${encodeURIComponent(studentMssv)}`,
+    { method: 'DELETE' },
+  );
 }
 
 /**

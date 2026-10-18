@@ -95,4 +95,9 @@ export class ExamSessionListItemDto {
   startTime!: Date;
   endTime!: Date;
   status!: ExamSessionStatus;
+  /**
+   * Đã có dòng `session_roster` (sau POST …/open hoặc thêm tay).
+   * UI dùng để ẩn nút sửa lịch / huỷ phiên nháp.
+   */
+  rosterFrozen!: boolean;
 }

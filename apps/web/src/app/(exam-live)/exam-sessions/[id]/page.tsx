@@ -17,6 +17,7 @@ import {
   useFinalizeExamSession,
   useOpenSession,
   useRecollect,
+  useRemoveSessionRosterStudent,
   useSubmissions,
 } from '@/hooks/useExamSession';
 import { useTeachingClasses } from '@/hooks/useTeaching';
@@ -139,6 +140,7 @@ export default function ExamSessionLobbyPage() {
   const attendance = useAttendance(examSessionId);
   const confirmAttendance = useConfirmAttendance(examSessionId);
   const openSession = useOpenSession(examSessionId);
+  const removeManualRoster = useRemoveSessionRosterStudent(examSessionId);
   const refetchAttendance = attendance.refetch;
 
   const [liveSubmissions, setLiveSubmissions] = useState<LiveSubmissionMap>({});
@@ -675,6 +677,24 @@ export default function ExamSessionLobbyPage() {
               submissionsError={submissions.isError}
               isLoading={attendance.isLoading}
               attendanceError={attendance.error}
+              canRemoveManual={
+                !!sessionDetail.data &&
+                sessionDetail.data.status !== 'completed' &&
+                sessionDetail.data.status !== 'collecting' &&
+                sessionDetail.data.status !== 'cancelled'
+              }
+              removingMssv={
+                removeManualRoster.isPending
+                  ? (removeManualRoster.variables ?? null)
+                  : null
+              }
+              onRemoveManual={(mssv) => {
+                removeManualRoster.mutate(mssv, {
+                  onSuccess: () => toast.success(`Đã gỡ ${mssv} khỏi danh sách dự thi`),
+                  onError: (e) =>
+                    toast.error(e instanceof Error ? e.message : 'Gỡ sinh viên thất bại'),
+                });
+              }}
             />
           </>
         )}

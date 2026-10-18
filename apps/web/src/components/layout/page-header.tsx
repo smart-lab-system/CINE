@@ -26,13 +26,17 @@ export function PageHeader({ title, description, actions, className }: PageHeade
         className,
       )}
     >
-      <div className="flex flex-col gap-1.5">
-        <h1 className="text-h1 text-foreground">{title}</h1>
+      <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+        <h1 className="text-h1 text-foreground break-words">{title}</h1>
         {description && (
-          <p className="max-w-2xl text-body text-muted-foreground">{description}</p>
+          <p className="max-w-2xl break-words text-body text-muted-foreground">
+            {description}
+          </p>
         )}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
+      )}
     </div>
   );
 }

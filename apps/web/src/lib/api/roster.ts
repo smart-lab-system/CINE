@@ -82,3 +82,39 @@ export async function removeRosterStudent(
   );
   await throwIfFailed(error, response);
 }
+
+/** Sửa họ tên — giữ MSSV. Path có thể chưa có trong schema.d.ts. */
+export async function updateRosterStudentName(
+  classId: string,
+  studentMssv: string,
+  name: string,
+): Promise<RosterEntry> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const { getAccessToken } = await import('@/lib/auth-token');
+  const token = await getAccessToken();
+  const res = await fetch(
+    `${API_BASE}/classes/${classId}/roster/students/${encodeURIComponent(studentMssv)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ name }),
+    },
+  );
+  if (!res.ok) {
+    let message = `Yêu cầu thất bại (HTTP ${res.status})`;
+    try {
+      const body = (await res.json()) as { message?: string | string[] };
+      const fromServer = Array.isArray(body.message)
+        ? body.message.join('; ')
+        : body.message;
+      if (fromServer) message = fromServer;
+    } catch {
+      /* keep */
+    }
+    throw new Error(message);
+  }
+  return (await res.json()) as RosterEntry;
+}

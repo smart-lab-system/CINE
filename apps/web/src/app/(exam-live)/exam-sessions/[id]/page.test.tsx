@@ -93,6 +93,7 @@ function attendanceOf(overrides: Record<string, unknown> = {}) {
       present: [],
       absent: [],
       makeup: [],
+      sessionRosterSources: {},
       discrepancy: null,
       ...overrides,
     },

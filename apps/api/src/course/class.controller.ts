@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -16,7 +17,11 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ClassService } from './class.service';
 import { RosterService } from './roster.service';
-import { ImportRosterDto, RosterStudentDto } from './dto/roster.dto';
+import {
+  ImportRosterDto,
+  RosterStudentDto,
+  UpdateRosterStudentDto,
+} from './dto/roster.dto';
 
 /**
  * Lớp của giảng viên đã được admin phân công.
@@ -66,6 +71,18 @@ export class ClassController {
   ) {
     const klass = await this.classes.findTaughtBy(id, req.user!.sub);
     return this.roster.addStudent(klass, dto);
+  }
+
+  @Patch(':id/roster/students/:studentMssv')
+  @Roles('teacher')
+  async updateStudentName(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('studentMssv') studentMssv: string,
+    @Body() dto: UpdateRosterStudentDto,
+    @Req() req: Request,
+  ) {
+    const klass = await this.classes.findTaughtBy(id, req.user!.sub);
+    return this.roster.updateStudentName(klass, studentMssv, dto.name);
   }
 
   @Delete(':id/roster/students/:studentMssv')

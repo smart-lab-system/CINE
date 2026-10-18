@@ -28,12 +28,20 @@ async function csFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (res.status === 204) return undefined as T;
   if (!res.ok) {
-    throw new CourseSectionHttpError(
+    let message =
       res.status === 409
         ? 'Xung đột dữ liệu (trùng mã lớp hoặc còn roster/phiên).'
-        : `Yêu cầu thất bại (HTTP ${res.status})`,
-      res.status,
-    );
+        : `Yêu cầu thất bại (HTTP ${res.status})`;
+    try {
+      const body = (await res.json()) as { message?: string | string[] };
+      const fromServer = Array.isArray(body.message)
+        ? body.message.join('; ')
+        : body.message;
+      if (fromServer) message = fromServer;
+    } catch {
+      /* keep fallback */
+    }
+    throw new CourseSectionHttpError(message, res.status);
   }
   if (res.headers.get('content-type')?.includes('json')) {
     return (await res.json()) as T;
@@ -64,6 +72,8 @@ export interface CourseSection {
   teacherId: string | null;
   teacherName: string | null;
   studentCount: number;
+  /** Số phiên thi gắn lớp — khóa sửa meta khi > 0. */
+  examSessionCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -117,6 +127,24 @@ export async function assignCourseSection(
   });
 }
 
+export async function unassignCourseSection(id: string): Promise<CourseSection> {
+  return csFetch(`/admin/course-sections/${id}/unassign`, { method: 'POST' });
+}
+
+export async function updateCourseSection(
+  id: string,
+  body: {
+    courseId?: string;
+    semesterId?: string;
+    nominalClassId?: string | null;
+  },
+): Promise<CourseSection> {
+  return csFetch(`/admin/course-sections/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function deleteCourseSection(id: string): Promise<void> {
   await csFetch(`/admin/course-sections/${id}`, { method: 'DELETE' });
 }
@@ -157,6 +185,20 @@ export async function removeSectionStudent(id: string, mssv: string): Promise<vo
   await csFetch(
     `/admin/course-sections/${id}/roster/students/${encodeURIComponent(mssv)}`,
     { method: 'DELETE' },
+  );
+}
+
+export async function updateSectionStudentName(
+  id: string,
+  mssv: string,
+  name: string,
+): Promise<RosterEntry> {
+  return csFetch(
+    `/admin/course-sections/${id}/roster/students/${encodeURIComponent(mssv)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    },
   );
 }
 

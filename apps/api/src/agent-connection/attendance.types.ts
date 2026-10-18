@@ -5,6 +5,8 @@
  * — nothing about presence is stored twice, so the answer can never
  * disagree with the log it came from.
  */
+export type SessionRosterSource = 'frozen' | 'manual';
+
 export interface AttendanceStudentView {
   mssv: string;
   name: string;
@@ -28,6 +30,11 @@ export interface AttendanceStudentView {
    * underneath the first.
    */
   afterHeadcount: 'returned' | 'new' | null;
+  /**
+   * Nguồn trên `session_roster` (nếu đã freeze). `manual` = thêm tay /
+   * duyệt vào thi — UI cho gỡ; `frozen` = chốt từ lớp — không gỡ.
+   */
+  rosterSource?: SessionRosterSource;
 }
 
 /** Submissions from students who were not in the room when it was counted. */
@@ -61,6 +68,11 @@ export interface AttendanceView {
   absent: AttendanceStudentView[];
   /** Here, but belonging to another class of the same course. */
   makeup: AttendanceStudentView[];
+  /**
+   * Map MSSV (lowercase) → nguồn ảnh chốt. Lobby gắn vào mọi dòng bảng
+   * (kể cả em chỉ hiện qua submission), để nút gỡ biết ai là `manual`.
+   */
+  sessionRosterSources: Record<string, SessionRosterSource>;
   /** Only computed once the session is finalized and a headcount exists. */
   discrepancy: AttendanceDiscrepancy | null;
 }
