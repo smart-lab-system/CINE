@@ -6,7 +6,8 @@ import { LobbyDashboard } from './LobbyDashboard';
 const base = {
   rosterSize: 40,
   presentCount: 32,
-  absentCount: 8,
+  notJoinedCount: 8,
+  absentCount: 0,
   makeupCount: 0,
   fullySubmitted: 10,
   notSubmitted: 30,
@@ -17,16 +18,22 @@ const base = {
 };
 
 describe('LobbyDashboard', () => {
-  it('renders spec labels', () => {
+  it('renders spec labels including Chưa vào', () => {
     render(<LobbyDashboard {...base} />);
 
     expect(screen.getByText('Sĩ số lớp')).toBeInTheDocument();
     expect(screen.getByText('Có mặt')).toBeInTheDocument();
-    expect(screen.getByText('Vắng mặt')).toBeInTheDocument();
+    expect(screen.getByText('Chưa vào')).toBeInTheDocument();
+    expect(screen.queryByText('Vắng mặt')).not.toBeInTheDocument();
     expect(screen.getByText('Đã nộp')).toBeInTheDocument();
     expect(screen.getByText('Chưa nộp')).toBeInTheDocument();
     expect(screen.getByText('File lỗi')).toBeInTheDocument();
     expect(screen.getByText(/Chưa xác nhận/)).toBeInTheDocument();
+  });
+
+  it('shows Vắng mặt when absentCount > 0', () => {
+    render(<LobbyDashboard {...base} notJoinedCount={0} absentCount={5} />);
+    expect(screen.getByText('Vắng mặt')).toBeInTheDocument();
   });
 
   it('hides Thi bổ sung when makeupCount is 0', () => {

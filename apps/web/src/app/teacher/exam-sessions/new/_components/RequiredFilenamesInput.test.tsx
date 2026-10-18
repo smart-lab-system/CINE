@@ -4,7 +4,10 @@ import '@testing-library/jest-dom/vitest';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RequiredFilenamesInput } from './RequiredFilenamesInput';
-import { createExamSessionSchema, type CreateExamSessionFormValues } from '../schema';
+import {
+  replaceRequiredDeliverablesSchema,
+  type ReplaceRequiredDeliverablesFormValues,
+} from '../schema';
 
 /**
  * This component had no test coverage of its own before this file — only
@@ -16,8 +19,8 @@ import { createExamSessionSchema, type CreateExamSessionFormValues } from '../sc
  * fix only reached the student's instructions sheet, not this form.
  */
 function Harness() {
-  const form = useForm<CreateExamSessionFormValues>({
-    resolver: zodResolver(createExamSessionSchema),
+  const form = useForm<ReplaceRequiredDeliverablesFormValues>({
+    resolver: zodResolver(replaceRequiredDeliverablesSchema),
     defaultValues: { requiredFilenames: [{ value: '' }] },
   });
   return (
@@ -28,8 +31,8 @@ function Harness() {
 }
 
 function typeFilename(value: string) {
-  // `getByLabelText(/file bắt buộc số 1/i)` also matches the row's delete
-  // button (`aria-label="Xoá file bắt buộc số 1"`, a substring match) — the
+  // `getByLabelText(/file phải nộp số 1/i)` also matches the row's delete
+  // button (`aria-label="Xoá file phải nộp số 1"`, a substring match) — the
   // placeholder is unique to the input itself.
   fireEvent.change(screen.getByPlaceholderText(/bai_lam\.docx/i), { target: { value } });
 }

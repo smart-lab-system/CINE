@@ -6,7 +6,7 @@ import { CircleAlert, Info, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { CreateExamSessionFormValues } from '../schema';
+import type { ReplaceRequiredDeliverablesFormValues } from '../schema';
 
 /** Phải khớp ARCHIVE_EXTENSIONS trong schema.ts và trong
  *  apps/api/src/exam-session/dto/create-exam-session.dto.ts. */
@@ -32,7 +32,7 @@ export function ArchiveEntriesField({ index }: { index: number }) {
     control,
     register,
     formState: { errors },
-  } = useFormContext<CreateExamSessionFormValues>();
+  } = useFormContext<ReplaceRequiredDeliverablesFormValues>();
 
   const filename = useWatch({ control, name: `requiredFilenames.${index}.value` }) ?? '';
   const isArchive = isArchiveFilename(filename);
