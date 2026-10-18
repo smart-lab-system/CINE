@@ -172,7 +172,7 @@ describe('Nạp luật và giá theo rubric (e2e)', () => {
       stored: storedWith([{ ruleKey: 'x', checkedBy: 'model' }], ['x']),
       bundleCases: [{ name: 'c1', group: 'co_ban' }, { name: 'c2', group: 'bien' }],
       rubric: [{ key: 'tinh_dung', maxHundredths: 600 }, { key: 'trinh_bay', maxHundredths: 400 }],
-      rules: fresh, sessionModelRules: new Set(['x']), waivedCriteria: [], exceptions: new Map(), theta: 0.85,
+      rules: fresh, waivedCriteria: [], exceptions: new Map(), theta: 0.85,
     });
     expect(out.scoreHundredths).toBe(1000 - 100);
   });

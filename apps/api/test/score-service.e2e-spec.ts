@@ -139,47 +139,46 @@ describe('ScoreService (e2e)', () => {
     expect(await computations(rb.resultId)).toHaveLength(1);
   });
 
-  it('T-FAIR-1: luật lời thêm giữa lô → bài chấm sau có thấy nó cũng KHÔNG xét, cả phiên không bài nào về gắn cờ', async () => {
-    const { ctx } = await world('sc-fair');
+  it('T-FAIR-1 (độc lập): luật lời thêm giữa lô chỉ được xét với bài có nó trong bảng lỗi của chính bài; bài chấm trước không đổi, không gắn cờ', async () => {
+    const { ctx, bien, ten } = await world('sc-fair');
     const early = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
     await scores.computeInitial(early.resultId);
-    await seedRule(ds, ctx.teacherId, 'chu_thich_sai', 'trinh_bay');
+    const chu = await seedRule(ds, ctx.teacherId, 'chu_thich_sai', 'trinh_bay');
+    // Luật lời có lỗi mà chưa có giá thì đưa bài về gắn cờ (T-DEMOTE-1). seedPrices ghi một phiên bản giá MỚI
+    // chỉ chứa các luật truyền vào, nên phải truyền đủ giá của mọi luật (như test sc-shrink).
+    await seedPrices(ds, ctx.teacherId, { [bien.ruleId]: '1.50', [ten.ruleId]: '0.50', [chu.ruleId]: '0.25' });
     const late = await seedInvestigatorResult(
       ds,
       ctx,
       storedWith([...SEEN, { ruleKey: 'chu_thich_sai', checkedBy: 'model' }], ['chu_thich_sai']),
     );
-    expect(await scores.computeInitial(late.resultId)).toMatchObject({ outcome: 'auto', scoreHundredths: 850 });
+    expect(await scores.computeInitial(late.resultId)).toMatchObject({ outcome: 'auto', scoreHundredths: 825 });
     await recompute(ctx.teacherId, 'rule_revision');
-    for (const id of [early.resultId, late.resultId]) {
-      expect((await status(id)).status).toBe('auto_approved');
-      const [last] = await ds.query(
-        `SELECT breakdown FROM examcollect.score_computation WHERE grading_result_id = $1 ORDER BY created_at DESC LIMIT 1`,
-        [id],
-      );
-      expect(last.breakdown.notConsidered.map((r: { ruleKey: string }) => r.ruleKey)).toEqual(['chu_thich_sai']);
-    }
+    // Bài trước không có luật trong bảng của nó: vẫn 850, luật vẫn nêu là chưa xét, không bị tính lại thành khác.
+    expect(await latestComputationRow(ds.manager, early.resultId)).toMatchObject({ score: '8.50' });
+    expect((await status(early.resultId)).status).toBe('auto_approved');
+    // Bài sau có luật trong bảng của nó: xét luật, trừ 0,25.
+    expect((await status(late.resultId)).status).toBe('auto_approved');
+    expect((await latestComputationRow(ds.manager, late.resultId))!.breakdown.notConsidered).toEqual([]);
   });
 
-  it('review I1: bài chấm SAU mà bảng lỗi thiếu một luật lời → tập của phiên thu hẹp → bài đã tính trước được tính lại, luật đó không xét cho cả phiên', async () => {
-    const { ctx, bien, ten } = await world('sc-shrink');
+  it('độc lập giữa các bài: bài chấm SAU không tính lại bài đã chấm trước; mỗi bài chỉ xét luật lời có trong bảng lỗi của chính nó', async () => {
+    const { ctx, bien, ten } = await world('sc-indep');
     const chu = await seedRule(ds, ctx.teacherId, 'chu_thich_sai', 'trinh_bay');
     await seedPrices(ds, ctx.teacherId, { [bien.ruleId]: '1.50', [ten.ruleId]: '0.50', [chu.ruleId]: '0.25' });
     const withChu = [...SEEN, { ruleKey: 'chu_thich_sai', checkedBy: 'model' as const }];
-    // A bắt đầu SAU khi có `chu_thich_sai` và xong TRƯỚC; B bắt đầu trước khi có nó, xong sau.
+    // A có `chu_thich_sai` trong bảng lỗi của chính nó; B không có. B chấm SAU A.
     const a = await seedInvestigatorResult(ds, ctx, storedWith(withChu, ['chu_thich_sai']));
     expect(await scores.computeInitial(a.resultId)).toMatchObject({ scoreHundredths: 1000 - 150 - 25 });
     const b = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
     await scores.computeInitial(b.resultId);
+    expect(await computations(a.resultId)).toHaveLength(1);
     const latestA = await latestComputationRow(ds.manager, a.resultId);
-    const [reason] = await ds.query(
-      `SELECT reason FROM examcollect.score_computation WHERE id = $1`,
-      [latestA!.id],
-    );
-    expect(reason.reason).toBe('session_rule_set');
-    expect(latestA).toMatchObject({ score: '8.50' });
-    expect(latestA!.breakdown.notConsidered.map((r) => r.ruleKey)).toEqual(['chu_thich_sai']);
-    expect(await computations(b.resultId)).toHaveLength(1);
+    expect(latestA).toMatchObject({ score: '8.25' });
+    expect(latestA!.breakdown.notConsidered).toEqual([]);
+    const latestB = await latestComputationRow(ds.manager, b.resultId);
+    expect(latestB).toMatchObject({ score: '8.50' });
+    expect(latestB!.breakdown.notConsidered.map((r: { ruleKey: string }) => r.ruleKey)).toEqual(['chu_thich_sai']);
   });
 
   it('review I2: lượt tính lại ra dưới sàn → một dòng KHÔNG điểm; điểm hiện tại "chưa có"; bài teacher_reviewed không chốt được', async () => {

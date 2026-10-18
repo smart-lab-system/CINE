@@ -82,69 +82,6 @@ export async function loadRuleSnapshots(
   }));
 }
 
-/**
- * `rule_key` là luật `model` trong BẢNG LỖI (`ruleTable`) của MỌI lượt chấm hiện hành (`graded`)
- * của phiên — §2.2 *"tất cả hoặc không"*: một luật lời thêm giữa lô thì bài bắt đầu trước không có
- * nó trong bảng, nên không bài nào của phiên xét nó. Đọc bảng lỗi, KHÔNG đọc `rulesSeen`: phép truy
- * hồi §2.1 cho mỗi bài xem một phần khác nhau của cùng một bảng (review 3c I1).
- * `problemId` (P1a): chỉ các bài của CÂU này; bài có `problem_id` rỗng (dòng ghi thẳng SQL) tính vào câu mặc định.
- * `exceptResultId`: tập của phiên khi CHƯA có bài đó — để phát hiện một bài vừa làm tập thu hẹp.
- */
-export async function loadSessionModelRules(
-  m: EntityManager,
-  sessionId: string,
-  problemId: string,
-  exceptResultId: string | null = null,
-): Promise<Set<string>> {
-  const rows: { rule_key: string }[] = await m.query(
-    `WITH att AS (
-       SELECT a.id, a.investigation
-         FROM examcollect.grading_result g
-         JOIN examcollect.submission s ON s.id = g.submission_id
-         LEFT JOIN examcollect.exam_problem dp ON dp.exam_session_id = s.exam_session_id AND dp.ordinal = 1
-         JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id AND a.outcome = 'graded'
-        WHERE s.exam_session_id = $1 AND g.pipeline = 'investigator'
-          AND COALESCE(g.problem_id, dp.id) = $3::uuid
-          AND ($2::uuid IS NULL OR g.id <> $2))
-     SELECT r ->> 'ruleKey' AS rule_key
-       FROM att CROSS JOIN LATERAL jsonb_array_elements(att.investigation -> 'ruleTable') r
-      WHERE r ->> 'checkedBy' = 'model'
-      GROUP BY 1
-     HAVING count(DISTINCT att.id) = (SELECT count(*) FROM att)
-      ORDER BY 1`,
-    [sessionId, exceptResultId, problemId],
-  );
-  return new Set(rows.map((r) => r.rule_key));
-}
-
-/**
- * Tập luật lời của phiên KHI thêm bài đang chấm: tập của các bài khác (`graded`) giao với luật
- * `model` trong bảng lỗi của bài này. Phiên chưa có bài `graded` nào khác → chính bảng của bài này.
- * Cho lượt tính đầu, khi lượt chấm chưa ghi kết cục nên `loadSessionModelRules` chưa thấy nó.
- */
-export async function sessionModelRulesWith(
-  m: EntityManager,
-  sessionId: string,
-  problemId: string,
-  resultId: string,
-  ruleTable: StoredInvestigation['ruleTable'],
-): Promise<Set<string>> {
-  const own = new Set(ruleTable.filter((r) => r.checkedBy === 'model').map((r) => r.ruleKey));
-  const [{ n }] = await m.query(
-    `SELECT count(*)::int AS n
-       FROM examcollect.grading_result g
-       JOIN examcollect.submission s ON s.id = g.submission_id
-       LEFT JOIN examcollect.exam_problem dp ON dp.exam_session_id = s.exam_session_id AND dp.ordinal = 1
-       JOIN examcollect.grading_attempt a ON a.id = g.current_attempt_id AND a.outcome = 'graded'
-      WHERE s.exam_session_id = $1 AND g.pipeline = 'investigator' AND g.id <> $2
-        AND COALESCE(g.problem_id, dp.id) = $3::uuid`,
-    [sessionId, resultId, problemId],
-  );
-  if (n === 0) return own;
-  const others = await loadSessionModelRules(m, sessionId, problemId, resultId);
-  return new Set([...own].filter((k) => others.has(k)));
-}
-
 /** Điểm hiện tại §14.2 của MỘT bài — cùng hàm `currentScore()` mà danh sách kết quả dùng. */
 export async function loadCurrentScore(m: EntityManager, resultId: string): Promise<CurrentScore> {
   const [r] = await m.query(

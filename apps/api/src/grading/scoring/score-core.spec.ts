@@ -54,7 +54,6 @@ function input(over: Partial<ScoreCoreInput> = {}): ScoreCoreInput {
     bundleCases: CASES,
     rubric: RUBRIC,
     rules: [BIEN, TEN],
-    sessionModelRules: new Set(['ten_bien']),
     waivedCriteria: [],
     exceptions: new Map(),
     theta: 0.85,
@@ -91,18 +90,20 @@ describe('computeScore', () => {
     expect(out.scoreHundredths).toBe(computeScore(input()).scoreHundredths);
   });
 
-  it('bài NÀY đã thấy luật lời, nhưng không phải mọi bài của phiên → vẫn không xét (tất cả hoặc không, §2.2)', () => {
-    const saw = stored({
+  it('luật lời được xét theo BẢNG LỖI CỦA CHÍNH BÀI NÀY, không theo các bài khác của phiên (mỗi bài độc lập)', () => {
+    const own = stored({
       rulesSeen: [...stored().rulesSeen, { ruleKey: 'chu_thich_sai', checkedBy: 'model' }],
+      ruleTable: [...stored().ruleTable, { ruleKey: 'chu_thich_sai', checkedBy: 'model' }],
       result: resultWith({
         calls: CALLS,
         errors: [{ ruleKey: 'ten_bien', toolCallIds: ['r1'] }, { ruleKey: 'chu_thich_sai', toolCallIds: ['r1'] }],
       }),
     });
-    const out = computeScore(input({ stored: saw, rules: [BIEN, TEN, LATE] }));
-    expect(out.breakdown.notConsidered.map((r) => r.ruleKey)).toEqual(['chu_thich_sai']);
-    expect(out.breakdown.errors.map((e) => e.ruleKey)).not.toContain('chu_thich_sai');
-    expect(out.scoreHundredths).toBe(800);
+    // Bài này vẫn phải xét luật này, vì nó nằm trong bảng lỗi của chính bài lúc điều tra bắt đầu.
+    const out = computeScore(input({ stored: own, rules: [BIEN, TEN, LATE] }));
+    expect(out.breakdown.notConsidered).toEqual([]);
+    expect(out.breakdown.errors.map((e) => e.ruleKey)).toContain('chu_thich_sai');
+    expect(out.scoreHundredths).toBe(775);
   });
 
   it('luật trỏ tiêu chí không có trong rubric → bị loại và nêu ra, KHÔNG ném (§14.1)', () => {
