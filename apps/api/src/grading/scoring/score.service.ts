@@ -246,7 +246,7 @@ export class ScoreService {
     if ((updated.affected ?? 0) === 0) throw new Error(`kết quả ${resultId} đã rời ai_grading`);
   }
 
-  /** Nửa sau chung của lượt tính đầu: dòng `initial`, cột AI, bước chuyển, và tập luật lời của phiên. */
+  /** Nửa sau chung của lượt tính đầu: dòng `initial`, cột AI và bước chuyển trạng thái. */
   private async writeInitial(
     m: EntityManager,
     ctx: ScoreContext,

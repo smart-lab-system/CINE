@@ -46,7 +46,7 @@ export interface ScoreBreakdown {
   confidence: number | null;
   /** Luật trỏ tiêu chí không có trong rubric của bài — bị loại, nêu ở trang kiến thức (§14.1). */
   mismatchedRules: { ruleId: string; ruleKey: string; criterionKey: string }[];
-  /** Luật model phải phán mà không phải mọi bài của phiên đều đã thấy — không xét (§2.2, T-FAIR-1). */
+  /** Luật model không nằm trong BẢNG LỖI của chính bài lúc điều tra bắt đầu — không xét (T-FAIR-1, review 3c I1). */
   notConsidered: { ruleId: string; ruleKey: string }[];
   /** Khác null = lượt tính ra DƯỚI SÀN (§4.4): dòng tính lại không mang điểm, lý do nằm ở đây. */
   ungradable: Decision['ungradable'];

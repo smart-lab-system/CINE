@@ -106,6 +106,16 @@ describe('computeScore', () => {
     expect(out.scoreHundredths).toBe(775);
   });
 
+  it('luật lời có trong bảng lỗi của bài nhưng model KHÔNG được xem nó (truy hồi §2.1 cắt) → bài về gắn cờ, không tự quyết', () => {
+    const cut = stored({
+      ruleTable: [...stored().ruleTable, { ruleKey: 'chu_thich_sai', checkedBy: 'model' }],
+      // rulesSeen không có chu_thich_sai: model lúc điều tra không xét luật này.
+    });
+    const out = computeScore(input({ stored: cut, rules: [BIEN, TEN, LATE] }));
+    expect(out.outcome).not.toBe('auto');
+    expect(out.breakdown.caseFlags.map((f) => f.code)).toContain('criterion_untouched');
+  });
+
   it('luật trỏ tiêu chí không có trong rubric → bị loại và nêu ra, KHÔNG ném (§14.1)', () => {
     const out = computeScore(input({ rules: [BIEN, TEN, rule({ ruleKey: 'la', criterionKey: 'khong_co', deductionHundredths: 999 })] }));
     expect(out.breakdown.mismatchedRules).toEqual([{ ruleId: 'id-la', ruleKey: 'la', criterionKey: 'khong_co' }]);
