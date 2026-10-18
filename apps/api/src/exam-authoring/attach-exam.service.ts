@@ -7,11 +7,9 @@ import {
   ExamSessionStatus,
 } from "../exam-session/entities/exam-session.entity";
 import { GradingReferenceService } from "../grading/grading-reference.service";
-import { TestBundleService } from "../grading/test-bundle/test-bundle.service";
 import { StorageService } from "../storage/storage.service";
 import { buildExamPaperDocx } from "./docx/exam-paper.docx";
 import { buildAnswerKeyDocx } from "./docx/answer-key.docx";
-import { flattenAuthoringCases } from "./authoring-bundle";
 import { parseExamJson } from "./dto/parse-exam";
 
 export const PAPER_FILENAME = "de-thi.docx";
@@ -65,17 +63,11 @@ export interface AttachResult {
   paperFilename: string;
   answerKeyFilename: string;
   /**
-   * Gói test lấy từ chính đề vừa soạn; `null` khi đề không sinh ca nào.
-   * `grading-run.service.ts` chặn bắt đầu chấm khi phiên có bài code mà chưa
-   * ghim gói test — nên đây là điều kiện để phiên đó chấm được, không phải
-   * tiện lợi.
+   * Gắn đề KHÔNG tạo gói test (G2b A2a): gói do LLM viết chưa được chạy đáp án nên không được tự duyệt
+   * hay ghim. Giảng viên tạo gói ở bước chuẩn bị; `grading-run.service.ts` chặn bắt đầu chấm khi phiên
+   * có bài code mà chưa ghim gói.
    */
-  testBundle: {
-    id: string;
-    version: number;
-    approvedAt: string | null;
-    pinned: boolean;
-  } | null;
+  nextStep: 'create_bundle';
 }
 
 /**
@@ -110,7 +102,6 @@ export class AttachExamService {
     private readonly materials: ExamMaterialService,
     private readonly references: GradingReferenceService,
     private readonly storage: StorageService,
-    private readonly bundles: TestBundleService,
   ) {}
 
   async attach(
@@ -181,42 +172,28 @@ export class AttachExamService {
           questionMaterialId: material.id,
           modelAnswerStorageKey: answerKeyKey,
           modelAnswerFilename: ANSWER_KEY_FILENAME,
-          // Đề do model sinh mà chưa chạy thử thì mang dấu — xem
-          // `grading-reference.entity.ts`.
-          modelAnswerUnverified: exam.verification.status !== "passed",
+          // Soạn đề chưa bao giờ chạy đáp án mẫu trong sandbox, nên đáp án của đề gắn vào luôn là chưa
+          // kiểm chứng (§6.3b). Không đọc `verification` của đề: không có đường nào nâng nó lên `passed`.
+          modelAnswerUnverified: true,
         },
         teacherId,
         "authoring",
       );
       referenceWritten = true;
 
-      // Gói test là bước CUỐI, có chủ ý: đặt trước `upsert` thì một lần gắn
-      // hỏng ở `upsert` vẫn để lại gói đã GHIM — phiên bị đóng dấu bằng thước
-      // của một lượt gắn thất bại, tệ hơn một đề thiếu thước.
-      const authoredCases = flattenAuthoringCases(exam.questions);
-      const testBundle =
-        authoredCases.length > 0
-          ? await this.bundles.adoptFromAuthoring(
-              session.id,
-              teacherId,
-              authoredCases,
-              session.testBundleId !== null,
-            )
-          : null;
-
       return {
         examMaterialId: material.id,
         paperFilename: PAPER_FILENAME,
         answerKeyFilename: ANSWER_KEY_FILENAME,
-        testBundle,
+        nextStep: 'create_bundle',
       };
     } catch (error) {
       if (referenceWritten) {
         // Đề và đáp án đã ghi hợp lệ, và `grading_reference` đang giữ
-        // material bằng FK RESTRICT nên `materials.remove` sẽ từ chối. Chỉ
-        // gói test thiếu — nói thẳng thay vì dọn dở.
+        // material bằng FK RESTRICT nên `materials.remove` sẽ từ chối. Không
+        // dọn dở: nói thẳng rằng lượt này đã ghi một phần.
         this.logger.error(
-          `Gắn đề vào phiên ${session.id}: đề và đáp án đã ghi nhưng gói test hỏng — phiên chưa có thước từ đề này`,
+          `Gắn đề vào phiên ${session.id}: đề và đáp án đã ghi nhưng bước sau đó hỏng`,
           error instanceof Error ? error.stack : String(error),
         );
         throw error;

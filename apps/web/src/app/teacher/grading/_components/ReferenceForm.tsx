@@ -30,8 +30,8 @@ async function uploadAnswerKey(sessionId: string, file: File): Promise<string> {
  *
  * `onDirtyChange` báo còn thay đổi chưa lưu — màn cha không cho bắt đầu chấm lúc đó, vì bắt đầu chấm khoá tài liệu.
  * "Nguồn của từng tài liệu" (bạn tải lên lúc nào / gắn từ Soạn đề) đọc từ `readiness.sources`. Băng vàng "đáp án
- * chưa kiểm chứng" hiện cho tới khi phiên có một gói test đã ghim (`hasPinnedBundle` — đã ghim thì theo định
- * nghĩa đã duyệt), sau đó chỉ còn dòng nguồn trung tính.
+ * chưa kiểm chứng" hiện cho tới khi thước được kiểm chứng (§6.3b). Ghim một gói KHÔNG làm thước thành đã kiểm
+ * chứng: `hasPinnedBundle` chỉ đổi câu chữ, không tắt băng (G2b A2a).
  */
 export function ReferenceForm({
   sessionId,
@@ -162,11 +162,20 @@ export function ReferenceForm({
           Đáp án mẫu <span className="font-semibold">không bao giờ hiển thị trên màn chấm</span> và không bao giờ được
           gửi cho mô hình dưới dạng đáp án — nó chỉ dùng để đối chiếu.
         </p>
-        {readiness?.sources?.modelAnswer.present && readiness.sources.modelAnswer.unverified && !hasPinnedBundle && (
+        {readiness?.sources?.modelAnswer.present && readiness.sources.modelAnswer.unverified && (
           <Alert variant="warning" role="status">
             <AlertDescription>
-              Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Cả phiên sẽ được đo
-              bằng một cái thước bạn chưa đọc — hãy kiểm tra đáp án và duyệt gói test ở khối bên dưới.
+              {hasPinnedBundle ? (
+                <>
+                  Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Phiên đã có gói
+                  test ghim, nhưng thước vẫn chưa kiểm chứng: bài nào dựa vào nó sẽ về giảng viên, không tự quyết.
+                </>
+              ) : (
+                <>
+                  Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Cả phiên sẽ được đo
+                  bằng một cái thước bạn chưa đọc — hãy kiểm tra đáp án và duyệt gói test ở khối bên dưới.
+                </>
+              )}
             </AlertDescription>
           </Alert>
         )}

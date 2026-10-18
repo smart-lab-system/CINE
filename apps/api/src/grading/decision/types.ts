@@ -58,7 +58,8 @@ export type CaseFlagCode =
   | 'investigation_flag'
   | 'low_confidence'
   | 'not_code_pipeline'
-  | 'challenge_suspected';
+  | 'challenge_suspected'
+  | 'ruler_unverified';
 
 export interface CaseFlag {
   code: CaseFlagCode;
@@ -90,6 +91,8 @@ export interface DecisionInput {
   theta: number;
   /** Bước 6 (§6.2) — `null` = phản biện chưa chạy (hồ sơ cũ, hay pipeline one_shot). */
   challenge: StoredChallenge | null;
+  /** Độ tin cậy của thước câu (§6.3b). `unverified` → bài không tự quyết (cờ `ruler_unverified`). Vắng = như `null`. */
+  rulerTrust?: 'teacher' | 'verified' | 'unverified' | null;
 }
 
 export interface Decision {

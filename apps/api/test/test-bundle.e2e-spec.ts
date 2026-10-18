@@ -372,22 +372,4 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
     expect(list.body).toHaveLength(2); // hai gói gốc, không phiên bản nào mới
   });
 
-  // Review chung G1→G5 (G2 A1): hai `attach` đồng thời cùng thấy "chưa ghim" ở NGOÀI transaction. D4 phải đúng cả khi đua:
-  // đúng một gói được ghim, và hai phiên bản không đụng khoá duy nhất (phiên, version).
-  it('adoptFromAuthoring chạy đồng thời hai lần: đúng một gói được ghim, không lần nào nổ', async () => {
-    const owner = await login('adopt-race');
-    const session = await seedSession(ds, 'bundle-adopt-race', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
-    const cases = [{ caseKey: 'a', group: 'public', input: '1', expectedOutput: '1' }];
-    const service = app.get(TestBundleService);
-
-    const results = await Promise.all([
-      service.adoptFromAuthoring(session.sessionId, owner.id, cases, false),
-      service.adoptFromAuthoring(session.sessionId, owner.id, cases, false),
-    ]);
-
-    expect(results.filter((r) => r.pinned)).toHaveLength(1);
-    expect(results.map((r) => r.version).sort()).toEqual([1, 2]);
-    const [row] = await ds.query(`SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`, [session.sessionId]);
-    expect(row.test_bundle_id).toBe(results.find((r) => r.pinned)!.id);
-  });
 });

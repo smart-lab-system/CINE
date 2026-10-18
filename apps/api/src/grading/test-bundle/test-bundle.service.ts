@@ -2,8 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
-import { ensureDefaultProblem, resolveProblemConfig, setSessionTestBundleAndProblem } from '../problem/resolve-problem-config';
-import { lockTeacherScoring } from '../scoring/teacher-lock';
+import { ensureDefaultProblem, setSessionTestBundleAndProblem } from '../problem/resolve-problem-config';
 
 /**
  * Một ca sẵn sàng ghi. Kiểu CẤU TRÚC, không import từ `exam-authoring`:
@@ -43,70 +42,6 @@ export class TestBundleService {
       );
       await this.insertCases(manager, bundle.id, dto.cases);
       return { id: bundle.id as string, version: bundle.version as number };
-    });
-  }
-
-  /**
-   * Nhận gói test mà luồng soạn đề ĐÃ sinh sẵn, vào đúng gói của phiên này.
-   *
-   * `origin='generated'` vì các ca do MÔ HÌNH viết, không phải giảng viên —
-   * dù chính giảng viên đã đọc nó ở màn soạn đề. Cột `origin` trả lời "ai
-   * viết ca", không phải "ai bấm nút".
-   *
-   * `sessionAlreadyPinned` là điều kiện DUY NHẤT quyết định có tự duyệt và
-   * tự ghim không. Nó đọc gói đã ghim của câu mặc định (`resolveProblemConfig`) chứ không đọc
-   * `origin`, nên một gói giảng viên tự tay duyệt rồi ghim cũng chặn đúng —
-   * đè lên nó là xoá mất lựa chọn họ đã cố ý làm.
-   */
-  async adoptFromAuthoring(
-    examSessionId: string,
-    teacherId: string,
-    cases: BundleCaseInput[],
-    sessionAlreadyPinned: boolean,
-  ): Promise<{ id: string; version: number; approvedAt: string | null; pinned: boolean }> {
-    return this.ds.transaction(async (manager) => {
-      // Khoá hàng phiên TRƯỚC khi đọc "đã ghim chưa" và tính số phiên bản. `sessionAlreadyPinned` do người gọi đọc NGOÀI
-      // transaction, nên hai `attach` đồng thời cùng thấy "chưa ghim": cả hai ghim (gói sau đè gói trước) hoặc cả hai
-      // lấy cùng `version` và một bên nổ vì khoá duy nhất. Có khoá, bên đến sau thấy pin của bên đến trước.
-      // Thứ tự khoá như mọi đường ghi khác: khoá giảng viên TRƯỚC, hàng phiên SAU. Đảo thứ tự này deadlock với
-      // pin/setRubric, vốn lấy khoá giảng viên trước rồi mới cần đúng hàng phiên.
-      await lockTeacherScoring(manager, teacherId);
-      await manager.query(`SELECT id FROM examcollect.exam_session WHERE id = $1 FOR UPDATE`, [examSessionId]);
-      const cfg = await resolveProblemConfig(manager, examSessionId);
-      const pinnedNow = sessionAlreadyPinned || (cfg?.testBundleId ?? null) !== null;
-      const version = await this.nextVersion(manager, examSessionId);
-      const problemId = await ensureDefaultProblem(manager, examSessionId);
-      const [bundle] = await manager.query(
-        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
-         VALUES ($1, $2, 'generated', $3, $4) RETURNING id, version`,
-        [examSessionId, version, teacherId, problemId],
-      );
-      await this.insertCases(manager, bundle.id, cases);
-
-      if (pinnedNow) {
-        return { id: bundle.id as string, version: bundle.version as number, approvedAt: null, pinned: false };
-      }
-
-      // Duyệt rồi ghim trong CÙNG transaction: ghim gói chưa duyệt thì
-      // `pin` từ chối, và duyệt xong mà rollback thì để lại một gói đã
-      // duyệt không ai dùng.
-      await manager.query(
-        `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now() WHERE id = $2`,
-        [teacherId, bundle.id],
-      );
-      await setSessionTestBundleAndProblem(manager, examSessionId, bundle.id);
-      // SELECT chứ không `UPDATE … RETURNING`: TypeORM trả `[rows, rowCount]` cho UPDATE/DELETE
-      // (không phải mảng hàng), nên `const [row] = …` ra nguyên mảng `rows` và `row.approved_at` là undefined.
-      const [approved] = await manager.query(
-        `SELECT approved_at FROM examcollect.grading_test_bundle WHERE id = $1`,
-        [bundle.id],
-      );
-      return {
-        id: bundle.id as string,
-        version: bundle.version as number,
-        approvedAt: new Date(approved.approved_at).toISOString(),
-        pinned: true,
-      };
     });
   }
 

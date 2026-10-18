@@ -546,6 +546,7 @@ export class ScoreService {
       waivedCriteria: ctx.waivedCriteria,
       exceptions: ctx.exceptions,
       theta: this.theta,
+      rulerTrust: ctx.rulerTrust,
     });
     return { ...out, priceVersionId: price?.id ?? null };
   }

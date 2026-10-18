@@ -197,6 +197,8 @@ export interface ScoreContext {
   waivedCriteria: string[];
   exceptions: Map<string, 'exclude' | 'include'>;
   hasManualScore: boolean;
+  /** Độ tin cậy của thước câu (§6.3b). `null` khi phiên chưa có dòng tham chiếu. */
+  rulerTrust: 'teacher' | 'verified' | 'unverified' | null;
 }
 
 /**
@@ -250,11 +252,20 @@ export async function loadScoreContext(
     `SELECT 1 FROM examcollect.teacher_review WHERE grading_result_id = $1 AND kind = 'manual_score' LIMIT 1`,
     [resultId],
   );
+  const problemId = (row.problem_id as string | null) ?? (await ensureDefaultProblem(m, row.exam_session_id));
+  // Thước của đúng câu (dòng có problem_id), rồi mới tới dòng cũ chưa gắn câu (ràng buộc M1 của P1a).
+  const [ref] = await m.query(
+    `SELECT ruler_trust FROM examcollect.grading_reference
+      WHERE exam_session_id = $1 AND (problem_id = $2 OR problem_id IS NULL)
+      ORDER BY problem_id IS NULL LIMIT 1`,
+    [row.exam_session_id, problemId],
+  );
   return {
     resultId,
     teacherId: row.teacher_id,
     sessionId: row.exam_session_id,
-    problemId: (row.problem_id as string | null) ?? (await ensureDefaultProblem(m, row.exam_session_id)),
+    problemId,
+    rulerTrust: (ref?.ruler_trust as ScoreContext['rulerTrust']) ?? null,
     pipeline: row.pipeline,
     status: row.status,
     ungradableClass: row.ungradable_class,
