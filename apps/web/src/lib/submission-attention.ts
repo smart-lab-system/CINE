@@ -102,6 +102,11 @@ export function getSessionPhase(item: SessionPhaseInput, now: number): SessionPh
   if (item.status === 'completed') {
     return 'ended';
   }
+  // scheduled = đã tạo chưa mở — luôn "upcoming" dù đồng hồ đã vào khung giờ
+  // (spec 2026-10-18). Không suy "running" từ clock khi chưa open.
+  if (item.status === 'scheduled') {
+    return 'upcoming';
+  }
 
   const start = new Date(item.startTime).getTime();
   const end = new Date(item.endTime).getTime();

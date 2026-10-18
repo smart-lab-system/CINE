@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ClipboardCheck, DoorOpen } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Copy, DoorOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { socket } from '@/lib/socket';
 import { createSubscriptionRecovery } from '@/lib/socket-recovery';
@@ -25,7 +25,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { getDisplaySessionStatus } from '@/lib/exam-session-display';
+import {
+  EXAM_TYPE_LABELS,
+  getDisplaySessionStatus,
+} from '@/lib/exam-session-display';
 import { getSessionPhase } from '@/lib/submission-attention';
 import {
   buildLobbyRosterRows,
@@ -399,9 +402,40 @@ export default function ExamSessionLobbyPage() {
   );
 
   const lobbyRows = useMemo(
-    () => buildLobbyRosterRows(attendance.data, rows),
-    [attendance.data, rows],
+    () =>
+      buildLobbyRosterRows(attendance.data, rows, {
+        // Chưa có detail → coi như chưa hết giờ (Chưa vào, không Vắng mặt).
+        endTime: sessionDetail.data?.endTime ?? '9999-12-31T23:59:59.000Z',
+        status: sessionDetail.data?.status ?? 'active',
+      }),
+    [attendance.data, rows, sessionDetail.data],
   );
+
+  const statusCounts = useMemo(() => {
+    let presentCount = 0;
+    let notJoinedCount = 0;
+    let absentCount = 0;
+    let makeupCount = 0;
+    for (const row of lobbyRows) {
+      switch (row.roomStatus) {
+        case 'present':
+          presentCount += 1;
+          break;
+        case 'not_joined':
+          notJoinedCount += 1;
+          break;
+        case 'absent':
+          absentCount += 1;
+          break;
+        case 'makeup':
+          makeupCount += 1;
+          break;
+        default:
+          break;
+      }
+    }
+    return { presentCount, notJoinedCount, absentCount, makeupCount };
+  }, [lobbyRows]);
 
   // Ai CÓ MẶT — `rows` là hợp của roster và người đã nộp, nên nó cũng
   // chứa em vắng thi, và một máy chưa từng kết nối thì không có gì để
@@ -447,8 +481,10 @@ export default function ExamSessionLobbyPage() {
    * thúc hoặc đã huỷ thì không còn gì để mở, và một lời mời ở đó chỉ
    * làm người đọc tưởng mình bỏ sót việc.
    */
+  // Spec 2026-10-18: chưa mở ≡ status scheduled (không còn "active nhưng chưa freeze").
   const needsOpening =
-    attendance.data?.rosterFrozen === false && (phase === 'running' || phase === 'upcoming');
+    sessionDetail.data?.status === 'scheduled' &&
+    attendance.data?.rosterFrozen === false;
 
   /**
    * Spec §7.3 — có bao nhiêu SINH VIÊN nộp bài sau khi giảng viên xác
@@ -486,7 +522,7 @@ export default function ExamSessionLobbyPage() {
                 <ClipboardCheck className="h-5 w-5" aria-hidden="true" />
               </span>
               <div className="flex flex-col gap-1">
-                <h1 className="text-h1 text-foreground">Phòng chờ phiên thi</h1>
+                <h1 className="text-h1 text-foreground">Vận hành phiên thi</h1>
                 {sessionDetail.data && (
                   <p className="text-body text-muted-foreground">{sessionDetail.data.name}</p>
                 )}
@@ -506,6 +542,66 @@ export default function ExamSessionLobbyPage() {
               )}
             </div>
           </div>
+          {sessionDetail.data && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-h3">Thông tin phiên</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="grid gap-3 text-small sm:grid-cols-2">
+                  <div>
+                    <dt className="text-muted-foreground">Mã phiên</dt>
+                    <dd>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(sessionDetail.data!.code);
+                            toast.success(`Đã sao chép mã "${sessionDetail.data!.code}"`);
+                          } catch {
+                            toast.error('Không sao chép được — hãy đọc mã trực tiếp.');
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-1 font-mono text-body font-semibold tracking-[0.12em] text-primary"
+                        aria-label={`Sao chép mã ${sessionDetail.data.code}`}
+                      >
+                        {sessionDetail.data.code}
+                        <Copy className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                      </button>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Môn / Lớp</dt>
+                    <dd className="text-foreground">
+                      {sessionDetail.data.courseName}
+                      {attendance.data?.className
+                        ? ` · ${attendance.data.className}`
+                        : ''}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Loại kỳ / Học kỳ</dt>
+                    <dd className="text-foreground">
+                      {EXAM_TYPE_LABELS[sessionDetail.data.examType] ??
+                        sessionDetail.data.examType}{' '}
+                      · {sessionDetail.data.semesterName}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Phòng thi</dt>
+                    <dd className="text-foreground">{sessionDetail.data.roomName}</dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-muted-foreground">Thời gian</dt>
+                    <dd className="text-foreground">
+                      {formatDateTime(sessionDetail.data.startTime)} →{' '}
+                      {formatDateTime(sessionDetail.data.endTime)}
+                    </dd>
+                  </div>
+                </dl>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {sessionDetail.data && (
@@ -533,9 +629,16 @@ export default function ExamSessionLobbyPage() {
                     Sinh viên chưa vào được — phiên thi chưa được mở.
                   </strong>
                   <span>
-                    &ldquo;Đang diễn ra&rdquo; chỉ nói phiên đang trong khung giờ thi. Danh
-                    sách dự thi thì chưa được chốt, nên máy chủ đang từ chối mọi máy sinh
-                    viên. Bấm nút này để chốt danh sách và mở cửa phòng.
+                    Phiên đang ở trạng thái Sắp diễn ra — danh sách dự thi chưa chốt,
+                    máy chủ từ chối mọi máy sinh viên. Bấm nút để chốt danh sách và mở
+                    cửa, hoặc quay lại{' '}
+                    <Link
+                      href={`/teacher/exam-sessions/${examSessionId}`}
+                      className="font-semibold underline underline-offset-2"
+                    >
+                      Thiết lập phiên
+                    </Link>
+                    .
                   </span>
                 </div>
                 <Button
@@ -572,17 +675,23 @@ export default function ExamSessionLobbyPage() {
           </Alert>
         )}
 
-        {/* Phân nhánh theo PHASE, không theo chuỗi nhãn. So nhãn là lỗi
-            có sẵn từ trước: `getDisplaySessionStatus` trả 'Đã hoàn thành'
-            cho phiên `completed`, không phải 'Đã kết thúc', nên một phiên
-            đã xong lại rơi vào nhánh else và hiện "chưa bắt đầu — sẽ mở
-            lúc ...". Thêm `collecting` vào chỉ làm nó sai thêm một ca. */}
         {phase === 'ended' && (
           <Alert variant="warning">
-            <AlertDescription>
-              Kỳ thi này đã kết thúc lúc {formatDateTime(sessionDetail.data!.endTime)}. Đây là
-              chế độ xem lại — sinh viên không thể tham gia mới (máy chủ đã tự chặn ở bước
-              kết nối, kể cả khi còn nhớ mã phiên thi).
+            <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Kỳ thi này đã kết thúc lúc {formatDateTime(sessionDetail.data!.endTime)}. Đây là
+                chế độ xem lại — sinh viên không thể tham gia mới.
+              </span>
+              <span className="flex flex-wrap gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/teacher/submissions">Quản lý bài thu</Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/teacher/grading?sessionId=${examSessionId}`}>
+                    Chuẩn bị chấm
+                  </Link>
+                </Button>
+              </span>
             </AlertDescription>
           </Alert>
         )}
@@ -649,9 +758,10 @@ export default function ExamSessionLobbyPage() {
 
             <LobbyDashboard
               rosterSize={attendance.data?.rosterSize ?? 0}
-              presentCount={attendance.data?.present.length ?? 0}
-              absentCount={attendance.data?.absent.length ?? 0}
-              makeupCount={attendance.data?.makeup.length ?? 0}
+              presentCount={statusCounts.presentCount}
+              notJoinedCount={statusCounts.notJoinedCount}
+              absentCount={statusCounts.absentCount}
+              makeupCount={statusCounts.makeupCount}
               fullySubmitted={fullySubmitted}
               notSubmitted={notSubmitted}
               invalidCount={invalidCount}

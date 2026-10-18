@@ -13,6 +13,7 @@ import {
   List,
   Pencil,
   Plus,
+  Settings2,
   XCircle,
 } from 'lucide-react';
 import {
@@ -69,11 +70,11 @@ function toLocalInputValue(iso: string): string {
 
 const STATUS_FILTER_LABELS: Record<ExamSessionStatusFilter, string> = {
   draft: 'Nháp',
-  scheduled: 'Đã lên lịch',
-  active: 'Đang diễn ra',
+  scheduled: 'Sắp diễn ra',
+  active: 'Đang thi',
   collecting: 'Đang thu bài',
   completed: 'Đã kết thúc',
-  cancelled: 'Đã hủy',
+  cancelled: 'Đã huỷ',
 };
 const STATUS_FILTER_OPTIONS = Object.keys(STATUS_FILTER_LABELS) as ExamSessionStatusFilter[];
 const EXAM_TYPE_OPTIONS: ExamType[] = ['TK', 'GK', 'CK'];
@@ -506,8 +507,10 @@ export default function ExamSessionsListPage() {
                       session.endTime,
                     );
                     return (
-                      <TableRow key={session.id}>
-                        <TableCell className="font-medium text-foreground">{session.name}</TableCell>
+                      <TableRow key={session.id} className="h-14">
+                        <TableCell className="max-w-[14rem] truncate font-medium text-foreground" title={session.name}>
+                          {session.name}
+                        </TableCell>
                         <TableCell>
                           {/* The code is the one value a teacher reads out
                               loud; make it monospaced, wide-tracked and
@@ -538,8 +541,14 @@ export default function ExamSessionsListPage() {
                           <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex flex-wrap justify-end gap-1">
-                            {!session.rosterFrozen && session.status !== 'cancelled' ? (
+                          <div className="flex flex-nowrap items-center justify-end gap-1">
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/teacher/exam-sessions/${session.id}`}>
+                                <Settings2 className="h-4 w-4" aria-hidden="true" />
+                                Thiết lập
+                              </Link>
+                            </Button>
+                            {!session.rosterFrozen && session.status === 'scheduled' ? (
                               <>
                                 <Button
                                   type="button"
@@ -579,7 +588,7 @@ export default function ExamSessionsListPage() {
                             <Button asChild variant="outline" size="sm">
                               <Link href={`/exam-sessions/${session.id}`}>
                                 <DoorOpen className="h-4 w-4" aria-hidden="true" />
-                                Phòng chờ
+                                Vận hành
                               </Link>
                             </Button>
                           </div>

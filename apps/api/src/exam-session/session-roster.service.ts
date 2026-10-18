@@ -20,6 +20,29 @@ export interface FreezeResult {
   submissionsSeeded: number;
 }
 
+/** Nguồn trên GET danh sách hiệu lực (hub Thiết lập). */
+export type EffectiveRosterSource = 'class' | 'frozen' | 'manual';
+
+export interface EffectiveRosterStudent {
+  mssv: string;
+  name: string;
+  source: EffectiveRosterSource;
+}
+
+export interface EffectiveRosterView {
+  /** true khi đã có dòng `session_roster` (đã tùy chỉnh hoặc đã mở). */
+  customized: boolean;
+  students: EffectiveRosterStudent[];
+}
+
+export interface SessionRosterImportResult {
+  added: number;
+  updated: number;
+  unchanged: number;
+  removed: number;
+  missing: Array<{ mssv: string; name: string }>;
+}
+
 /**
  * Số dòng mỗi lần INSERT.
  *
@@ -75,6 +98,168 @@ export class SessionRosterService {
       .findOne({ where: { examSessionId, studentMssv } });
   }
 
+  /**
+   * Danh sách hiệu lực cho hub: enrollment lớp nếu chưa có ảnh chốt;
+   * ngược lại đọc `session_roster`.
+   */
+  async listEffective(session: ExamSessionEntity): Promise<EffectiveRosterView> {
+    const rosterRepo = this.dataSource.getRepository(SessionRosterEntity);
+    const rows = await rosterRepo.find({
+      where: { examSessionId: session.id },
+      order: { studentMssv: 'ASC' },
+    });
+
+    if (rows.length > 0) {
+      return {
+        customized: true,
+        students: rows.map((row) => ({
+          mssv: row.studentMssv,
+          name: row.studentName,
+          source: row.source,
+        })),
+      };
+    }
+
+    if (!session.classId) {
+      return { customized: false, students: [] };
+    }
+
+    const enrolled = await this.dataSource.getRepository(EnrollmentEntity).find({
+      where: { homeClassId: session.classId },
+      order: { studentMssv: 'ASC' },
+    });
+
+    return {
+      customized: false,
+      students: enrolled.map((row) => ({
+        mssv: row.studentMssv,
+        name: row.studentName,
+        source: 'class' as const,
+      })),
+    };
+  }
+
+  /**
+   * Chép enrollment → `session_roster` (`frozen`) khi còn rỗng.
+   * Idempotent. Chỉ khi `scheduled`. Không gieo seats (để freeze / add lo).
+   */
+  async materializeFromEnrollment(session: ExamSessionEntity): Promise<EffectiveRosterView> {
+    if (session.status !== 'scheduled') {
+      throw new ConflictException(
+        'Chỉ tùy chỉnh danh sách thi khi phiên còn Sắp diễn ra.',
+      );
+    }
+    if (!session.classId) {
+      throw new BadRequestException(
+        'Phiên thi này không gắn lớp nào nên không có danh sách lớp để chép.',
+      );
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      await this.materializeIfEmpty(manager, session);
+    });
+
+    return this.listEffective(session);
+  }
+
+  /**
+   * Import danh sách vào ảnh chốt phiên (không đụng enrollment lớp).
+   * Materialize trước nếu còn rỗng.
+   */
+  async importStudents(
+    session: ExamSessionEntity,
+    dto: { students: Array<{ mssv: string; name: string }>; removeMissing?: boolean },
+  ): Promise<SessionRosterImportResult> {
+    if (session.status !== 'scheduled') {
+      throw new ConflictException(
+        'Chỉ import danh sách thi khi phiên còn Sắp diễn ra.',
+      );
+    }
+    if (!session.classId) {
+      throw new BadRequestException(
+        'Phiên thi này không gắn lớp nào — không import được danh sách thi.',
+      );
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const rosterRepo = manager.getRepository(SessionRosterEntity);
+      const count = await rosterRepo.count({ where: { examSessionId: session.id } });
+      if (count === 0) {
+        // Có enrollment → chép lớp trước rồi áp file. Lớp rỗng → bắt đầu
+        // từ file (ca thi bù / danh sách riêng), không gọi materialize.
+        const enrolled = await manager.getRepository(EnrollmentEntity).count({
+          where: { homeClassId: session.classId! },
+        });
+        if (enrolled > 0) {
+          await this.materializeIfEmpty(manager, session);
+        }
+      }
+
+      const existing = await rosterRepo.find({ where: { examSessionId: session.id } });
+      const byMssv = new Map(
+        existing.map((row) => [row.studentMssv.toLowerCase(), row]),
+      );
+
+      let added = 0;
+      let updated = 0;
+      let unchanged = 0;
+
+      for (const student of dto.students) {
+        const key = student.mssv.toLowerCase();
+        const current = byMssv.get(key);
+        if (!current) {
+          const enrollment = await this.findEnrollmentForSession(
+            manager,
+            session,
+            student.mssv,
+          );
+          await rosterRepo.insert({
+            examSessionId: session.id,
+            studentMssv: student.mssv,
+            studentName: student.name,
+            homeClassId: enrollment?.homeClassId ?? session.classId!,
+            homeTeacherId:
+              enrollment?.homeTeacherId ?? session.teacherId,
+            source: 'manual',
+          });
+          added += 1;
+          continue;
+        }
+
+        if (current.studentName !== student.name) {
+          await rosterRepo.update(current.id, { studentName: student.name });
+          updated += 1;
+        } else {
+          unchanged += 1;
+        }
+      }
+
+      const inFile = new Set(dto.students.map((s) => s.mssv.toLowerCase()));
+      const missing = existing.filter(
+        (row) => !inFile.has(row.studentMssv.toLowerCase()),
+      );
+
+      let removed = 0;
+      if (dto.removeMissing && missing.length > 0) {
+        for (const row of missing) {
+          await this.deleteRosterRow(manager, session.id, row);
+          removed += 1;
+        }
+      }
+
+      return {
+        added,
+        updated,
+        unchanged,
+        removed,
+        missing: missing.map((row) => ({
+          mssv: row.studentMssv,
+          name: row.studentName,
+        })),
+      };
+    });
+  }
+
   async freeze(session: ExamSessionEntity): Promise<FreezeResult> {
     if (!session.classId) {
       // Phiên tạo trước khi `class_id` tồn tại (nullable vì lý do lịch
@@ -87,13 +272,59 @@ export class SessionRosterService {
 
     return this.dataSource.transaction(async (manager) => {
       const rosterRepo = manager.getRepository(SessionRosterEntity);
+      const sessionRepo = manager.getRepository(ExamSessionEntity);
 
-      const already = await rosterRepo.count({ where: { examSessionId: session.id } });
-      if (already > 0) {
-        // Idempotent: bấm hai lần không phải lỗi, và KHÔNG được chốt
-        // lại — chốt lại nghĩa là ảnh chốt đi theo roster hiện tại, tức
-        // mất đúng tính chất khiến nó có giá trị.
-        return { students: already, submissionsSeeded: 0 };
+      // Đọc lại status trong transaction — tránh race với cancel/finalize.
+      const current = await sessionRepo.findOne({ where: { id: session.id } });
+      if (!current) {
+        throw new NotFoundException('Không tìm thấy phiên thi.');
+      }
+
+      // create-slim: create được 0 file; mở phiên bắt buộc ≥ 1.
+      const deliverableCount = await manager
+        .getRepository(RequiredDeliverableEntity)
+        .count({ where: { examSessionId: session.id } });
+      if (deliverableCount === 0) {
+        throw new BadRequestException(
+          'Hãy khai báo file bắt buộc trước khi mở phiên.',
+        );
+      }
+
+      const existingRows = await rosterRepo.find({
+        where: { examSessionId: session.id },
+      });
+
+      if (existingRows.length > 0) {
+        // Đã tùy chỉnh trên hub (hoặc đã mở). Không chép lại enrollment.
+        if (current.status === 'active') {
+          return { students: existingRows.length, submissionsSeeded: 0 };
+        }
+        if (current.status === 'scheduled') {
+          const seeded = await this.seedSeats(
+            manager,
+            session.id,
+            existingRows.map((row) => ({
+              mssv: row.studentMssv,
+              name: row.studentName,
+              homeClassId: row.homeClassId,
+              homeTeacherId: row.homeTeacherId,
+            })),
+          );
+          await sessionRepo.update(session.id, { status: 'active' });
+          this.logger.log(
+            `session ${session.id}: mở với ${existingRows.length} SV đã tùy chỉnh, gieo ${seeded} chỗ ngồi, status → active`,
+          );
+          return { students: existingRows.length, submissionsSeeded: seeded };
+        }
+        throw new ConflictException(
+          'Phiên không còn ở trạng thái chờ mở — không mở lại được.',
+        );
+      }
+
+      if (current.status !== 'scheduled') {
+        throw new ConflictException(
+          'Chỉ mở được phiên đang ở trạng thái Sắp diễn ra.',
+        );
       }
 
       const enrolled = await manager.getRepository(EnrollmentEntity).find({
@@ -104,10 +335,7 @@ export class SessionRosterService {
         // trước khi nhập roster là lỗi thật) và SAI cho ca hiếm: phiên
         // chỉ dành cho thi bù, lớp cố ý rỗng, người dự thi đều thêm tay.
         // Ca hiếm ấy cần một cờ trên phiên để phân biệt "rỗng do quên"
-        // với "rỗng có chủ đích" — tức chạm vòng đời, tức thuộc spec
-        // `scheduled`. Cho tới lúc đó, nói thẳng là CHƯA HỖ TRỢ: người
-        // gặp nó mà chỉ đọc vế đầu sẽ đi tìm một roster không tồn tại
-        // rồi kết luận hệ thống hỏng.
+        // với "rỗng có chủ đích". Cho tới lúc đó, nói thẳng là CHƯA HỖ TRỢ.
         throw new BadRequestException(
           'Lớp của phiên thi này chưa có sinh viên nào trong danh sách — hãy nhập roster trước khi mở phiên. ' +
             'Nếu đây là phiên thi bù không có lớp cố định, tính năng này chưa được hỗ trợ.',
@@ -137,8 +365,11 @@ export class SessionRosterService {
         })),
       );
 
+      // Cùng transaction với freeze — "Mở phiên" = chốt danh sách + active.
+      await sessionRepo.update(session.id, { status: 'active' });
+
       this.logger.log(
-        `session ${session.id}: chốt ${enrolled.length} sinh viên, gieo ${seeded} dòng chưa nộp`,
+        `session ${session.id}: chốt ${enrolled.length} sinh viên, gieo ${seeded} dòng chưa nộp, status → active`,
       );
       return { students: enrolled.length, submissionsSeeded: seeded };
     });
@@ -160,8 +391,9 @@ export class SessionRosterService {
    * collected` (submission.service.ts) thay vì đâm vào nó.
    */
   /**
-   * Gỡ SV thêm tay (`source=manual`) khỏi ảnh chốt — không gỡ `frozen`.
-   * Chỉ khi mọi submission chỗ ngồi còn `not_submitted` / `absent`.
+   * Gỡ SV khỏi ảnh chốt.
+   * - `scheduled`: gỡ mọi source (tùy chỉnh danh sách thi trên hub).
+   * - `active+`: chỉ gỡ `manual` (rule cũ).
    */
   async removeManual(
     session: ExamSessionEntity,
@@ -174,6 +406,10 @@ export class SessionRosterService {
     }
 
     await this.dataSource.transaction(async (manager) => {
+      if (session.status === 'scheduled') {
+        await this.materializeIfEmpty(manager, session);
+      }
+
       const rosterRepo = manager.getRepository(SessionRosterEntity);
       const row = await rosterRepo.findOne({
         where: { examSessionId: session.id, studentMssv },
@@ -183,30 +419,13 @@ export class SessionRosterService {
           'Sinh viên này không có trong danh sách dự thi của phiên.',
         );
       }
-      if (row.source !== 'manual') {
+      if (session.status !== 'scheduled' && row.source !== 'manual') {
         throw new ConflictException(
           'Chỉ gỡ được sinh viên thêm tay — không gỡ dòng đã chốt từ lớp.',
         );
       }
 
-      const live = await manager.getRepository(SubmissionEntity).count({
-        where: {
-          examSessionId: session.id,
-          studentMssv,
-          status: In(['received', 'validated', 'collected', 'invalid']),
-        },
-      });
-      if (live > 0) {
-        throw new ConflictException(
-          'Sinh viên đã có bài nộp — không gỡ khỏi danh sách dự thi được.',
-        );
-      }
-
-      await manager.getRepository(SubmissionEntity).delete({
-        examSessionId: session.id,
-        studentMssv,
-      });
-      await rosterRepo.remove(row);
+      await this.deleteRosterRow(manager, session.id, row);
     });
   }
 
@@ -224,6 +443,11 @@ export class SessionRosterService {
     }
 
     return this.dataSource.transaction(async (manager) => {
+      // Tránh footgun: thêm 1 SV khi roster rỗng rồi open → chỉ còn 1 người.
+      if (session.status === 'scheduled') {
+        await this.materializeIfEmpty(manager, session);
+      }
+
       const rosterRepo = manager.getRepository(SessionRosterEntity);
       const existing = await rosterRepo.findOne({
         where: { examSessionId: session.id, studentMssv: student.mssv },
@@ -237,41 +461,22 @@ export class SessionRosterService {
         );
       }
 
-      // Lớp GỐC của em, trong phạm vi MÔN của phiên này.
-      //
-      // Không khoá vào `session.classId`: sinh viên thi bù có enrollment ở
-      // lớp khác, và giữ đúng lớp gốc là toàn bộ điểm của phép định tuyến ở
-      // §3.3. Nhưng cũng không được hỏi trống: khoá duy nhất giờ là
-      // (home_class_id, student_mssv), nên một sinh viên có NHIỀU dòng
-      // enrollment ở nhiều môn, và một câu `findOne` không phạm vi sẽ trả
-      // về dòng nào tuỳ thứ tự DB — bài của em bị định tuyến sang một
-      // giảng viên chưa từng dạy môn này. Trước đợt thu hẹp master data
-      // phép tra này khoá theo `course_id`; bản dịch đúng là khoá theo TÊN
-      // môn, qua các lớp anh em.
-      //
-      // Tên môn nay là hằng số, nên vế này khớp mọi lớp và thứ thật sự chọn
-      // ra một dòng là ORDER BY bên dưới. Giữ vế lọc: nó vô hại, và nó là
-      // chỗ duy nhất ghi lại rằng phép tra này CÓ phạm vi theo môn.
-      const enrollment = await manager
-        .getRepository(EnrollmentEntity)
-        .createQueryBuilder('e')
-        .innerJoin(ClassEntity, 'c', 'c.id = e.home_class_id')
-        .where('e.student_mssv = :mssv', { mssv: student.mssv })
-        .andWhere('c.course_name = :courseName', { courseName: session.courseName })
-        // Một sinh viên VẪN có thể có nhiều dòng trong cùng một môn — khoá
-        // duy nhất là (home_class_id, student_mssv), nên chuyển lớp giữa kỳ
-        // để lại hai dòng. Không có ORDER BY thì Postgres trả dòng nào là
-        // tuỳ, và có thể ĐỔI sau một lần VACUUM: cùng một thao tác cho hai
-        // kết quả khác nhau ở hai thời điểm. Lấy dòng MỚI NHẤT — lần ghi
-        // danh gần đây nhất là câu trả lời đúng cho 'em đang ở lớp nào'.
-        .orderBy('e.created_at', 'DESC')
-        .getOne();
+      const enrollment = await this.findEnrollmentForSession(
+        manager,
+        session,
+        student.mssv,
+      );
 
       // Em có enrollment (thi bù lớp khác) thì giữ lớp/GV GỐC của họ —
       // định tuyến ở §3.3. Không có enrollment nào thì họ thuộc lớp của
       // phiên này.
       const homeClassId = enrollment?.homeClassId ?? session.classId;
       const homeTeacherId = enrollment?.homeTeacherId ?? session.teacherId;
+      if (!homeClassId) {
+        throw new BadRequestException(
+          'Phiên thi này không gắn lớp — không thêm được sinh viên.',
+        );
+      }
 
       const saved = await rosterRepo.save(
         rosterRepo.create({
@@ -366,6 +571,90 @@ export class SessionRosterService {
    * phải được giữ nguyên, không bị kéo ngược về `not_submitted`), và
    * lúc duyệt lại một access-request (không có gì để làm).
    */
+  /**
+   * Nếu `session_roster` còn rỗng: chép toàn bộ enrollment lớp (`frozen`).
+   * No-op khi đã có dòng. Caller phải đảm bảo `scheduled` + có `classId`.
+   */
+  private async materializeIfEmpty(
+    manager: EntityManager,
+    session: ExamSessionEntity,
+  ): Promise<void> {
+    if (!session.classId) {
+      throw new BadRequestException(
+        'Phiên thi này không gắn lớp nào nên không có danh sách lớp để chép.',
+      );
+    }
+
+    const rosterRepo = manager.getRepository(SessionRosterEntity);
+    const count = await rosterRepo.count({ where: { examSessionId: session.id } });
+    if (count > 0) return;
+
+    const enrolled = await manager.getRepository(EnrollmentEntity).find({
+      where: { homeClassId: session.classId },
+    });
+    if (enrolled.length === 0) {
+      throw new BadRequestException(
+        'Lớp của phiên thi này chưa có sinh viên nào — hãy nhập roster lớp trước, hoặc import file danh sách thi.',
+      );
+    }
+
+    await this.insertChunked(
+      rosterRepo,
+      enrolled.map((row) => ({
+        examSessionId: session.id,
+        studentMssv: row.studentMssv,
+        studentName: row.studentName,
+        homeClassId: row.homeClassId,
+        homeTeacherId: row.homeTeacherId ?? session.teacherId,
+        source: 'frozen' as const,
+      })),
+    );
+  }
+
+  private async findEnrollmentForSession(
+    manager: EntityManager,
+    session: ExamSessionEntity,
+    mssv: string,
+  ): Promise<EnrollmentEntity | null> {
+    // Lớp GỐC của em, trong phạm vi MÔN của phiên này.
+    //
+    // Không khoá vào `session.classId`: sinh viên thi bù có enrollment ở
+    // lớp khác. Khoá theo TÊN môn qua các lớp anh em; lấy dòng mới nhất.
+    return manager
+      .getRepository(EnrollmentEntity)
+      .createQueryBuilder('e')
+      .innerJoin(ClassEntity, 'c', 'c.id = e.home_class_id')
+      .where('e.student_mssv = :mssv', { mssv })
+      .andWhere('c.course_name = :courseName', { courseName: session.courseName })
+      .orderBy('e.created_at', 'DESC')
+      .getOne();
+  }
+
+  private async deleteRosterRow(
+    manager: EntityManager,
+    examSessionId: string,
+    row: SessionRosterEntity,
+  ): Promise<void> {
+    const live = await manager.getRepository(SubmissionEntity).count({
+      where: {
+        examSessionId,
+        studentMssv: row.studentMssv,
+        status: In(['received', 'validated', 'collected', 'invalid']),
+      },
+    });
+    if (live > 0) {
+      throw new ConflictException(
+        'Sinh viên đã có bài nộp — không gỡ khỏi danh sách dự thi được.',
+      );
+    }
+
+    await manager.getRepository(SubmissionEntity).delete({
+      examSessionId,
+      studentMssv: row.studentMssv,
+    });
+    await manager.getRepository(SessionRosterEntity).remove(row);
+  }
+
   private async seedSeats(
     manager: EntityManager,
     examSessionId: string,

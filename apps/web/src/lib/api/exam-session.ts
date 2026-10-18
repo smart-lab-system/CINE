@@ -28,9 +28,8 @@ export interface CreateExamSessionInput {
   /** Text — bắt buộc khi không gửi `semesterId`. */
   semesterName?: string;
   /**
-   * Rubric để chấm phiên này, ghim ngay lúc tạo. Bỏ trống là hợp lệ: phiên
-   * không chấm bằng AI vẫn thi và thu bài bình thường, và rubric gắn được
-   * sau ở trang Chấm điểm cho tới khi bài đầu tiên được chấm.
+   * Deprecated trên create (create-slim) — gắn qua hub / PATCH rubric.
+   * Giữ optional cho client/e2e cũ.
    */
   rubricId?: string;
   examType: ExamType;
@@ -39,19 +38,13 @@ export interface CreateExamSessionInput {
   /** ISO 8601, must be after `startTime`. */
   endTime: string;
   /**
-   * Backend chấp nhận cả chuỗi trần lẫn object (tương thích ngược — spec
-   * `2026-09-21-archive-content-validation-design.md` §8.4), nhưng bề mặt
-   * OpenAPI do `@nestjs/swagger` sinh ra chỉ phản ánh KIỂU TĨNH khai trên
-   * DTO (`RequiredFilenameDto[]`) — nó không biết `@Transform` còn nhận
-   * thêm chuỗi trần lúc chạy, vì đó là hành vi runtime chứ không phải một
-   * phần của type. `packages/shared/src/api/schema.d.ts` vì vậy chỉ chấp
-   * nhận dạng object, và type ở đây khớp đúng cái đó — không phải một cắt
-   * giảm tính năng.
+   * Deprecated trên create (create-slim) — khai qua
+   * `PUT /exam-sessions/:id/required-deliverables`. Optional / bỏ trống = 0 file.
    *
-   * Biểu mẫu hiện tại (`new/page.tsx`) chỉ gửi `{ filename }`, chưa gửi
-   * `entries` — khối "Kiểm file bên trong" là việc của một task riêng.
+   * Backend chấp nhận cả chuỗi trần lẫn object (tương thích ngược — spec
+   * archive §8.4); OpenAPI chỉ phản ánh dạng object.
    */
-  requiredFilenames: {
+  requiredFilenames?: {
     filename: string;
     /** Mặc định `document` phía server khi bỏ trống (§14.1). */
     deliverableType?: 'document' | 'code_project' | 'image';
@@ -105,9 +98,14 @@ export interface ExamSessionResponse {
    */
   completedAt: string | null;
   completedBy: string | null;
+  /** Rubric đã ghim — null nếu chưa gắn. */
+  rubricId: string | null;
+  rubricVersion?: number | null;
   /** Gói test đã ghim cho đường điều tra (§14.1) — null nếu chưa ghim. */
   testBundleId: string | null;
   requiredDeliverables: RequiredDeliverableResponse[];
+  /** Có trên list; detail có thể không gửi — UI ưu tiên `status === 'scheduled'`. */
+  rosterFrozen?: boolean;
 }
 
 // Mirrors ExamSessionListItemDto — deliberately leaner than
@@ -231,7 +229,11 @@ async function throwIfFailed(error: unknown, response: Response) {
 export async function createExamSession(
   body: CreateExamSessionInput,
 ): Promise<ExamSessionResponse> {
-  const { data, error, response } = await apiClient.POST('/exam-sessions', { body });
+  // Cast: OpenAPI schema có thể vẫn đánh dấu requiredFilenames bắt buộc
+  // cho tới khi regenerate; runtime DTO đã optional (create-slim).
+  const { data, error, response } = await apiClient.POST('/exam-sessions', {
+    body: body as never,
+  });
   await throwIfFailed(error, response);
   // Cast needed: ExamSessionEntity.status/examType/RequiredDeliverableEntity
   // .deliverableType are custom string-union types with no
@@ -239,6 +241,21 @@ export async function createExamSession(
   // `Record<string, never>` for them instead of a string type — a
   // DTO-decoration gap, not a real runtime shape mismatch.
   return data as unknown as ExamSessionResponse;
+}
+
+export type ReplaceRequiredDeliverablesInput = {
+  requiredFilenames: NonNullable<CreateExamSessionInput['requiredFilenames']>;
+};
+
+/** PUT file bắt buộc — chỉ khi `scheduled` (create-slim). */
+export async function replaceRequiredDeliverables(
+  id: string,
+  body: ReplaceRequiredDeliverablesInput,
+): Promise<ExamSessionResponse> {
+  return examFetch<ExamSessionResponse>(`/exam-sessions/${id}/required-deliverables`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
 }
 
 async function examFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -292,7 +309,63 @@ export async function cancelExamSession(id: string): Promise<ExamSessionResponse
   return examFetch(`/exam-sessions/${id}/cancel`, { method: 'POST' });
 }
 
-/** Gỡ SV thêm tay khỏi session roster. */
+export type SessionRosterSource = 'class' | 'frozen' | 'manual';
+
+export interface SessionRosterStudent {
+  mssv: string;
+  name: string;
+  source: SessionRosterSource;
+}
+
+export interface SessionRosterView {
+  customized: boolean;
+  students: SessionRosterStudent[];
+}
+
+export interface SessionRosterImportResult {
+  added: number;
+  updated: number;
+  unchanged: number;
+  removed: number;
+  missing: Array<{ mssv: string; name: string }>;
+}
+
+/** Danh sách thi hiệu lực (lớp ảo hoặc session_roster). */
+export async function listSessionRoster(
+  examSessionId: string,
+): Promise<SessionRosterView> {
+  return examFetch(`/exam-sessions/${examSessionId}/roster`);
+}
+
+export async function materializeSessionRoster(
+  examSessionId: string,
+): Promise<SessionRosterView> {
+  return examFetch(`/exam-sessions/${examSessionId}/roster/materialize`, {
+    method: 'POST',
+  });
+}
+
+export async function importSessionRoster(
+  examSessionId: string,
+  body: { students: Array<{ mssv: string; name: string }>; removeMissing: boolean },
+): Promise<SessionRosterImportResult> {
+  return examFetch(`/exam-sessions/${examSessionId}/roster/import`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function addSessionRosterStudent(
+  examSessionId: string,
+  student: { mssv: string; name: string },
+): Promise<unknown> {
+  return examFetch(`/exam-sessions/${examSessionId}/roster/students`, {
+    method: 'POST',
+    body: JSON.stringify(student),
+  });
+}
+
+/** Gỡ SV khỏi session roster (`scheduled`: mọi source; `active`: chỉ manual). */
 export async function removeSessionRosterStudent(
   examSessionId: string,
   studentMssv: string,

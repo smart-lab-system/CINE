@@ -148,9 +148,55 @@ describe('LobbyRosterTable — merged row', () => {
     ]);
 
     expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument();
-    const roster = screen.getByRole('region', { name: 'Danh sách sinh viên phòng chờ' });
+    const roster = screen.getByRole('region', {
+      name: 'Danh sách sinh viên vận hành phiên thi',
+    });
     expect(within(roster).getByText('Có mặt')).toBeInTheDocument();
     expect(within(roster).getByText(/Vào muộn lúc .+ \(trễ 15 phút\)/)).toBeInTheDocument();
     expect(within(roster).getByText('Chưa nộp')).toBeInTheDocument();
+  });
+
+  it('shows Chưa vào badge and Trạng thái column header', () => {
+    renderTable([
+      row({ studentMssv: 'SV002', fullName: 'Trần B', roomStatus: 'not_joined' }),
+    ]);
+    expect(screen.getByRole('columnheader', { name: 'Trạng thái' })).toBeInTheDocument();
+    const roster = screen.getByRole('region', {
+      name: 'Danh sách sinh viên vận hành phiên thi',
+    });
+    expect(within(roster).getByText('Chưa vào')).toBeInTheDocument();
+  });
+});
+
+describe('LobbyRosterTable — search', () => {
+  it('filters by name and combines with present filter', () => {
+    render(
+      <LobbyRosterTable
+        rows={[
+          row({ studentMssv: 'SV01', fullName: 'Nguyễn Văn A', roomStatus: 'present' }),
+          row({ studentMssv: 'SV02', fullName: 'Trần Thị B', roomStatus: 'present' }),
+          row({ studentMssv: 'SV03', fullName: 'Nguyễn C', roomStatus: 'not_joined' }),
+        ]}
+        deliverables={deliverables}
+        startTime={START_TIME}
+        filter="present"
+        onFilterChange={() => {}}
+        canConfirm
+        confirming={false}
+        confirmError={null}
+        onConfirm={() => {}}
+        confirmedAt={null}
+        confirmedCount={null}
+        noClass={false}
+        discrepancy={null}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Tìm họ tên hoặc MSSV/i), {
+      target: { value: 'Nguyễn' },
+    });
+    expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument();
+    expect(screen.queryByText('Trần Thị B')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nguyễn C')).not.toBeInTheDocument();
   });
 });

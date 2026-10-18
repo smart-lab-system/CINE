@@ -158,7 +158,7 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     await dataSource.query(`DELETE FROM examcollect.ai_usage WHERE teacher_id = $1`, [teacherId]);
     await app.close();
   });
-  // Phiên MỚI TẠO: `create()` ghi status 'active' ngay, giờ thi còn ở tương
+  // Phiên MỚI TẠO: `create()` ghi status 'scheduled'; giờ thi còn ở tương
   // lai. Đây là hình dạng của gần như mọi phiên thật trong hệ thống, nên ca
   // này cũng là chốt chặn chống việc dựng lại luật "chỉ gắn khi draft hoặc
   // scheduled" — luật đó sẽ làm ca này đỏ, và nó đỏ ĐÚNG.

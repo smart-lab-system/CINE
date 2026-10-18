@@ -24,6 +24,7 @@ import { SemesterEntity } from '../master-data/entities/semester.entity';
 import { RoomEntity } from '../master-data/entities/room.entity';
 import { pipelineFor } from '../grading/pipeline';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
+import { ReplaceRequiredDeliverablesDto } from './dto/replace-required-deliverables.dto';
 import { UpdateExamSessionDto } from './dto/update-exam-session.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
 import {
@@ -215,36 +216,37 @@ export class ExamSessionService {
               examType: dto.examType,
               startTime: new Date(dto.startTime),
               endTime: new Date(dto.endTime),
-              // The column defaults to 'draft' — this demo's scope has no
-              // separate "publish" step between creating a session and an
-              // agent being able to join it, so a freshly-created session
-              // must be immediately joinable. Without this, agent:join
-              // rejects with SESSION_NOT_ACTIVE until someone flips the row
-              // by hand.
-              status: 'active',
+              // create → scheduled; "Mở phiên thi" freezes roster and
+              // flips to active (spec 2026-10-18-exam-session-setup-edit-flow).
+              // agent:join still requires active + frozen roster.
+              status: 'scheduled',
               rubricId: rubric?.id ?? null,
             }),
           );
 
-          const savedDeliverables = await manager.save(
-            RequiredDeliverableEntity,
-            dto.requiredFilenames.map((item) =>
-              manager.create(RequiredDeliverableEntity, {
-                examSessionId: session.id,
-                requiredFilename: item.filename,
-                deliverableType: item.deliverableType ?? DEFAULT_DELIVERABLE_TYPE,
-                language: item.language ?? null,
-              }),
-            ),
-          );
+          // create-slim: filenames optional — 0 file hợp lệ tới khi PUT trên hub.
+          const filenames = dto.requiredFilenames ?? [];
+          const savedDeliverables =
+            filenames.length === 0
+              ? []
+              : await manager.save(
+                  RequiredDeliverableEntity,
+                  filenames.map((item) =>
+                    manager.create(RequiredDeliverableEntity, {
+                      examSessionId: session.id,
+                      requiredFilename: item.filename,
+                      deliverableType: item.deliverableType ?? DEFAULT_DELIVERABLE_TYPE,
+                      language: item.language ?? null,
+                    }),
+                  ),
+                );
 
           // Cùng giao dịch với deliverable: một deliverable có mặt mà danh
           // sách bên trong của nó chưa có là một phiên thi kiểm sai. Dựa
           // trên INDEX chứ không trên tên: `savedDeliverables` giữ đúng thứ
-          // tự của mảng đưa vào `manager.save` ở trên, và `dto.requiredFilenames`
-          // là mảng nguồn của chính lệnh save đó.
+          // tự của mảng đưa vào `manager.save` ở trên.
           const entryRows = savedDeliverables.flatMap((deliverable, index) =>
-            (dto.requiredFilenames[index].entries ?? []).map((entryName) =>
+            (filenames[index].entries ?? []).map((entryName) =>
               manager.create(RequiredDeliverableEntryEntity, {
                 requiredDeliverableId: deliverable.id,
                 entryName,
@@ -294,6 +296,65 @@ export class ExamSessionService {
    * Same single check as create(): the rubric must belong to the lecturer
    * who owns this session.
    */
+  /**
+   * Thay toàn bộ file bắt buộc khi phiên còn `scheduled`
+   * (spec 2026-10-18-exam-session-create-slim).
+   */
+  async replaceRequiredDeliverables(
+    session: ExamSessionEntity,
+    dto: ReplaceRequiredDeliverablesDto,
+  ): Promise<ExamSessionResponseDto> {
+    if (session.status !== 'scheduled') {
+      throw new ConflictException(
+        'Chỉ sửa được danh sách file bắt buộc khi phiên còn Sắp diễn ra.',
+      );
+    }
+
+    const saved = await this.sessions.manager.transaction(async (manager) => {
+      await manager.delete(RequiredDeliverableEntity, {
+        examSessionId: session.id,
+      });
+
+      const savedDeliverables = await manager.save(
+        RequiredDeliverableEntity,
+        dto.requiredFilenames.map((item) =>
+          manager.create(RequiredDeliverableEntity, {
+            examSessionId: session.id,
+            requiredFilename: item.filename,
+            deliverableType: item.deliverableType ?? DEFAULT_DELIVERABLE_TYPE,
+            language: item.language ?? null,
+          }),
+        ),
+      );
+
+      const entryRows = savedDeliverables.flatMap((deliverable, index) =>
+        (dto.requiredFilenames[index].entries ?? []).map((entryName) =>
+          manager.create(RequiredDeliverableEntryEntity, {
+            requiredDeliverableId: deliverable.id,
+            entryName,
+          }),
+        ),
+      );
+      if (entryRows.length > 0) {
+        await manager.save(RequiredDeliverableEntryEntity, entryRows);
+      }
+      return savedDeliverables;
+    });
+
+    const rubricVersion = session.rubricId
+      ? (
+          await this.rubrics.findOne({
+            where: { id: session.rubricId },
+            select: ['version'],
+          })
+        )?.version ?? null
+      : null;
+    const entriesByDeliverable = await this.loadEntriesByDeliverable(
+      saved.map((d) => d.id),
+    );
+    return this.toResponseDto(session, saved, rubricVersion, entriesByDeliverable);
+  }
+
   async setRubric(
     session: ExamSessionEntity,
     rubricId: string | null,

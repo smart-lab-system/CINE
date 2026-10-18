@@ -177,10 +177,13 @@ function SessionCard({
   const hasGapIssue = gapMinutes !== undefined;
 
   return (
-    // Cả thẻ là một <a>: Tab tới được và bấm đâu cũng vào phòng chờ. Một div
-    // có onClick thì bàn phím bỏ qua hoàn toàn.
+    // scheduled → hub thiết lập; còn lại → phòng chờ / hub (completed).
     <Link
-      href={`/exam-sessions/${session.id}`}
+      href={
+        session.status === 'scheduled' || session.status === 'completed'
+          ? `/teacher/exam-sessions/${session.id}`
+          : `/exam-sessions/${session.id}`
+      }
       className={cn(
         'block rounded-lg border p-2.5 transition-shadow duration-150 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         visual.card,
@@ -228,10 +231,10 @@ function SessionCard({
 }
 
 const LEGEND: Array<{ label: string; swatch: string }> = [
-  { label: 'Chưa diễn ra', swatch: 'border-info/30 bg-info-subtle' },
-  { label: 'Đang diễn ra', swatch: 'border-success/30 bg-success-subtle' },
+  { label: 'Sắp diễn ra', swatch: 'border-info/30 bg-info-subtle' },
+  { label: 'Đang thi', swatch: 'border-success/30 bg-success-subtle' },
   { label: 'Đang thu bài', swatch: 'border-warning/40 bg-warning-subtle' },
-  { label: 'Đã hoàn thành', swatch: 'border-border bg-surface-2' },
+  { label: 'Đã kết thúc', swatch: 'border-border bg-surface-2' },
   { label: 'Nháp', swatch: 'border-dashed border-border bg-surface' },
   { label: 'Đã huỷ', swatch: 'border-border bg-surface opacity-55' },
 ];
