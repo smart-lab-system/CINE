@@ -16,12 +16,18 @@ import {
   updateExamSessionSchedule,
   cancelExamSession,
   removeSessionRosterStudent,
+  listSessionRoster,
+  materializeSessionRoster,
+  importSessionRoster,
+  addSessionRosterStudent,
+  replaceRequiredDeliverables,
   type CreateExamSessionInput,
   type DeclaredLanguage,
   type ExamSessionResponse,
   type OpenSessionResult,
   type RecollectResult,
   type ArchiveRecheckResult,
+  type ReplaceRequiredDeliverablesInput,
   type SearchExamSessionsParams,
 } from '@/lib/api/exam-session';
 import { confirmAttendance, getAttendance } from '@/lib/api/attendance';
@@ -74,20 +80,59 @@ export function useCancelExamSession() {
   });
 }
 
+function invalidateSessionRoster(queryClient: ReturnType<typeof useQueryClient>, examSessionId: string) {
+  void queryClient.invalidateQueries({ queryKey: ['exam-session-roster', examSessionId] });
+  void queryClient.invalidateQueries({ queryKey: ['exam-session', examSessionId] });
+  void queryClient.invalidateQueries({
+    queryKey: ['exam-sessions', examSessionId, 'attendance'],
+  });
+  void queryClient.invalidateQueries({
+    queryKey: ['exam-session-submissions', examSessionId],
+  });
+}
+
+export function useSessionRoster(examSessionId: string | undefined) {
+  return useQuery({
+    queryKey: ['exam-session-roster', examSessionId],
+    queryFn: () => listSessionRoster(examSessionId!),
+    enabled: Boolean(examSessionId),
+  });
+}
+
+export function useMaterializeSessionRoster(examSessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => materializeSessionRoster(examSessionId),
+    onSuccess: () => invalidateSessionRoster(queryClient, examSessionId),
+  });
+}
+
+export function useImportSessionRoster(examSessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      students: Array<{ mssv: string; name: string }>;
+      removeMissing: boolean;
+    }) => importSessionRoster(examSessionId, body),
+    onSuccess: () => invalidateSessionRoster(queryClient, examSessionId),
+  });
+}
+
+export function useAddSessionRosterStudent(examSessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (student: { mssv: string; name: string }) =>
+      addSessionRosterStudent(examSessionId, student),
+    onSuccess: () => invalidateSessionRoster(queryClient, examSessionId),
+  });
+}
+
 export function useRemoveSessionRosterStudent(examSessionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (studentMssv: string) =>
       removeSessionRosterStudent(examSessionId, studentMssv),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['exam-session', examSessionId] });
-      void queryClient.invalidateQueries({
-        queryKey: ['exam-sessions', examSessionId, 'attendance'],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ['exam-session-submissions', examSessionId],
-      });
-    },
+    onSuccess: () => invalidateSessionRoster(queryClient, examSessionId),
   });
 }
 
@@ -168,20 +213,29 @@ export function useFinalizeExamSession(id: string | undefined) {
   });
 }
 
+/** PUT file bắt buộc khi `scheduled` (create-slim). */
+export function useReplaceRequiredDeliverables(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ReplaceRequiredDeliverablesInput) =>
+      replaceRequiredDeliverables(examSessionId!, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-session', examSessionId] });
+    },
+  });
+}
+
 /**
- * "Mở phiên thi" — đóng băng danh sách dự thi và cho sinh viên vào.
- *
- * Invalidate `attendance` chứ không phải `exam-session`: việc mở phiên
- * KHÔNG đổi `status` (phiên đã `active` từ lúc tạo), nó chỉ đổi câu
- * trả lời cho "đã chốt danh sách chưa" — và câu đó nằm trong view
- * điểm danh. Invalidate nhầm chỗ sẽ để lại cảnh báo trên màn hình sau
- * khi giảng viên vừa bấm xong.
+ * "Mở phiên thi" — freeze roster + flip `scheduled → active`.
+ * Invalidate cả chi tiết phiên (status đổi) và attendance (roster mới).
  */
 export function useOpenSession(id: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation<OpenSessionResult, Error, void>({
     mutationFn: () => openSession(id!),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-session', id] });
+      void queryClient.invalidateQueries({ queryKey: ['exam-sessions'] });
       void queryClient.invalidateQueries({ queryKey: ['exam-sessions', id, 'attendance'] });
     },
   });

@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 // Pins Task 2's own stated acceptance criteria as real, automated tests —
 // they were only manually verified when Task 2 shipped (see
@@ -119,6 +120,14 @@ describe('ExamSession (e2e)', () => {
     );
     classId = klass.id;
 
+    // Cần ≥1 SV để open/finalize (freeze từ chối lớp rỗng).
+    await dataSource.query(
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [`ES${Date.now().toString(36)}`.slice(0, 20), 'SV nền e2e', classId, ownerId],
+    );
+
     // A class of the SAME course taught by someone else — the scope check
     // has to be about who teaches the class, not about the course existing.
     const [foreign] = await dataSource.query(
@@ -164,6 +173,7 @@ describe('ExamSession (e2e)', () => {
     expect(response.status).toBe(201);
     expect(response.body.id).toBeDefined();
     expect(response.body.code).toMatch(/^[A-Z0-9]{6}$/);
+    expect(response.body.status).toBe('scheduled');
     expect(response.body.requiredDeliverables).toHaveLength(2);
 
     // P1a: phiên mới có đúng MỘT câu mặc định (ordinal 1), tạo cùng transaction với phiên.
@@ -192,6 +202,48 @@ describe('ExamSession (e2e)', () => {
       });
     expect(second.status).toBe(201);
     expect(second.body.code).not.toBe(response.body.code);
+  });
+
+  // create-slim 2026-10-18: create không filenames → PUT → open.
+  it('create không file → từ chối open → PUT deliverables → mở được', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Create Slim Session',
+        classId,
+        roomName,
+        semesterName: 'HK kiểm thử',
+        examType: 'TK',
+        ...futureWindow(),
+      });
+
+    expect(created.status).toBe(201);
+    expect(created.body.status).toBe('scheduled');
+    expect(created.body.requiredDeliverables).toEqual([]);
+    expect(created.body.rubricId).toBeNull();
+
+    const openWithoutFiles = await request(app.getHttpServer())
+      .post(`/exam-sessions/${created.body.id}/open`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+    expect(openWithoutFiles.status).toBe(400);
+    expect(JSON.stringify(openWithoutFiles.body)).toMatch(/file bắt buộc/i);
+
+    const replaced = await request(app.getHttpServer())
+      .put(`/exam-sessions/${created.body.id}/required-deliverables`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ requiredFilenames: [{ filename: 'Cau1.docx' }] });
+    expect(replaced.status).toBe(200);
+    expect(replaced.body.requiredDeliverables).toHaveLength(1);
+    expect(replaced.body.requiredDeliverables[0].requiredFilename).toBe('Cau1.docx');
+
+    await openSession(app, ownerToken, created.body.id);
+
+    const locked = await request(app.getHttpServer())
+      .put(`/exam-sessions/${created.body.id}/required-deliverables`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ requiredFilenames: [{ filename: 'Cau2.docx' }] });
+    expect(locked.status).toBe(409);
   });
 
   // Đợt archive-content-validation (2026-09-21/22). Kiểm cả hai đường
@@ -372,7 +424,8 @@ describe('ExamSession (e2e)', () => {
 
     expect(response.status).toBe(200);
     const mine = response.body.find((c: { id: string }) => c.id === classId);
-    expect(mine).toMatchObject({ courseName, studentCount: 1 });
+    // beforeAll đã gieo 1 SV nền; test này thêm 1 nữa.
+    expect(mine).toMatchObject({ courseName, studentCount: 2 });
     // The create-session form is built from this list, so a class the caller
     // does not teach appearing here would put it one click from an exam.
     expect(response.body.map((c: { id: string }) => c.id)).not.toContain(
@@ -668,9 +721,12 @@ describe('ExamSession (e2e)', () => {
 
     it('status filters out a finalized session from the active list, and vice versa', async () => {
       const activeId = await createFilterSession('Vẫn đang mở');
-      const completedId = await createFilterSession('Đã chốt');
+      const collectingId = await createFilterSession('Đã chốt');
+      // finalize chỉ ăn `active` — phải mở phiên trước.
+      await openSession(app, ownerToken, activeId);
+      await openSession(app, ownerToken, collectingId);
       const finalize = await request(app.getHttpServer())
-        .post(`/exam-sessions/${completedId}/finalize`)
+        .post(`/exam-sessions/${collectingId}/finalize`)
         .set('Authorization', `Bearer ${ownerToken}`);
       expect(finalize.status).toBe(200);
 
@@ -679,18 +735,16 @@ describe('ExamSession (e2e)', () => {
         .query({ search: `filter${stamp}`, status: 'active' })
         .set('Authorization', `Bearer ${ownerToken}`);
       expect(active.body.items.map((item: { id: string }) => item.id)).toContain(activeId);
-      expect(active.body.items.map((item: { id: string }) => item.id)).not.toContain(completedId);
+      expect(active.body.items.map((item: { id: string }) => item.id)).not.toContain(collectingId);
 
-      const completed = await request(app.getHttpServer())
+      const collecting = await request(app.getHttpServer())
         .get('/exam-sessions')
         // `collecting`, không phải `completed`: finalize giờ dừng ở
-        // giai đoạn thu bài (spec §3). Lọc theo trạng thái mà luồng
-        // thật sự tạo ra mới là kiểm bộ lọc; đổi sang một trạng thái
-        // không ai đang ở sẽ cho một test xanh vô nghĩa.
+        // giai đoạn thu bài (spec §3).
         .query({ search: `filter${stamp}`, status: 'collecting' })
         .set('Authorization', `Bearer ${ownerToken}`);
-      expect(completed.body.items.map((item: { id: string }) => item.id)).toContain(completedId);
-      expect(completed.body.items.map((item: { id: string }) => item.id)).not.toContain(activeId);
+      expect(collecting.body.items.map((item: { id: string }) => item.id)).toContain(collectingId);
+      expect(collecting.body.items.map((item: { id: string }) => item.id)).not.toContain(activeId);
     });
 
     it('rejects an unrecognized status value with 400, rather than silently ignoring it', async () => {
@@ -845,7 +899,8 @@ describe('ExamSession (e2e)', () => {
         .query({
           search: `Sem${stamp} Gộp`,
           examType: 'CK',
-          status: 'active',
+          // create() ghi `scheduled` — lọc `active` sẽ ra rỗng.
+          status: 'scheduled',
           semesterName: OTHER_SEMESTER,
         })
         .set('Authorization', `Bearer ${ownerToken}`);
@@ -1028,7 +1083,17 @@ describe('ExamSession (e2e)', () => {
           requiredFilenames: ['Cau1.docx'],
         });
       expect(created.status).toBe(201);
-      expect(created.body.status).toBe('active');
+      expect(created.body.status).toBe('scheduled');
+      await openSession(app, ownerToken, created.body.id as string);
+      const opened = await request(app.getHttpServer())
+        .get(`/exam-sessions/${created.body.id}`)
+        .set('Authorization', `Bearer ${ownerToken}`);
+      expect(opened.body.status).toBe('active');
+      const [rosterCount] = await dataSource.query(
+        `SELECT count(*)::int AS n FROM examcollect.session_roster WHERE exam_session_id = $1`,
+        [created.body.id],
+      );
+      expect(rosterCount.n).toBeGreaterThan(0);
       return created.body.id as string;
     }
 

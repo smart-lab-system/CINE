@@ -12,23 +12,19 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useRubrics } from '@/hooks/useGrading';
-import type { CreateExamSessionFormValues } from '../schema';
+
+/** Form tối thiểu — create-slim không còn dùng picker trên form tạo; giữ cho test. */
+type RubricPickerForm = { rubricId?: string };
 
 /**
- * Rubric của phiên thi được chọn ở ĐÂY, lúc ra đề — không tra lại lúc chấm.
+ * Rubric gắn phiên — hiện dùng trên hub qua `RubricRow`; component này còn
+ * cho test / tái sử dụng form có field `rubricId`.
  *
- * Tuỳ chọn, theo §3.1 kế hoạch tổng thể ("gắn rubric chấm điểm — nếu dùng AI
- * chấm"): phiên không gắn rubric vẫn tạo, thi và thu bài bình thường; chỉ
- * "Bắt đầu chấm" là bị chặn, và giảng viên gắn được sau ở trang Chấm điểm.
- *
- * Vì thế chưa soạn rubric nào KHÔNG chặn việc tạo phiên thi — chỉ nói cho
- * biết, kèm đường đi tới chỗ soạn.
- *
- * Danh sách là rubric của CHÍNH giảng viên, không còn của môn học: không ai
- * ghim được rubric của đồng nghiệp vào phiên của mình.
+ * Tuỳ chọn: phiên không gắn rubric vẫn tạo, thi và thu bài bình thường; chỉ
+ * "Bắt đầu chấm" là bị chặn.
  */
 export function RubricPicker() {
-  const form = useFormContext<CreateExamSessionFormValues>();
+  const form = useFormContext<RubricPickerForm>();
   const rubrics = useRubrics();
   const options = rubrics.data ?? [];
   const empty = !rubrics.isLoading && options.length === 0;

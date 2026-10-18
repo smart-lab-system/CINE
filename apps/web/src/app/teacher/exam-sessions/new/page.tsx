@@ -18,9 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
-import { RequiredFilenamesInput } from './_components/RequiredFilenamesInput';
-import { RubricPicker } from './_components/RubricPicker';
-
 import {
   createExamSessionSchema,
   describeCreateError,
@@ -43,10 +40,6 @@ const EMPTY_FORM: CreateExamSessionFormValues = {
   examType: '' as CreateExamSessionFormValues['examType'],
   startTime: '',
   endTime: '',
-  // Cùng kiểu sentinel chuỗi rỗng như classId — schema quy nó về
-  // undefined, vì "chưa chọn rubric" là hợp lệ chứ không phải uuid hỏng.
-  rubricId: '',
-  requiredFilenames: [{ value: '', deliverableType: 'document' }],
 };
 
 /** `Loại kỳ thi Môn MãLớp Học kỳ` — chỉ dựng khi đủ lớp (có HK) + loại kỳ. */
@@ -168,23 +161,6 @@ export default function NewExamSessionPage() {
         examType: values.examType,
         startTime: new Date(values.startTime).toISOString(),
         endTime: new Date(values.endTime).toISOString(),
-        // Schema đã quy chuỗi rỗng về undefined, nên "không chọn rubric" đi
-        // ra ngoài dây dưới dạng field vắng mặt — đúng cái DTO @IsOptional
-        // của server chờ đợi.
-        rubricId: values.rubricId,
-        // Chỉ gửi `entries` khi khối "Kiểm file bên trong" thực sự có dòng
-        // nào — bỏ hẳn key thay vì gửi mảng rỗng, khớp đúng luật DTO backend
-        // "mảng rỗng/vắng mặt = không khai file bên trong" (spec §4.1).
-        requiredFilenames: values.requiredFilenames.map((filename) => ({
-          filename: filename.value,
-          // Chỉ gửi khi khác mặc định — giữ tương thích ngược cho ca phổ
-          // biến nhất (tài liệu, không ngôn ngữ) thay vì gửi field thừa.
-          ...(filename.deliverableType !== 'document' ? { deliverableType: filename.deliverableType } : {}),
-          ...(filename.language ? { language: filename.language } : {}),
-          ...(filename.entries && filename.entries.length > 0
-            ? { entries: filename.entries.map((entry) => entry.value) }
-            : {}),
-        })),
       },
       {
         onSuccess: (session) => setCreated({ id: session.id, code: session.code }),
@@ -221,8 +197,11 @@ export default function NewExamSessionPage() {
               Sao chép mã
             </Button>
 
-            <div className="flex w-full flex-col gap-2 sm:flex-row">
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Button asChild className="flex-1">
+                <Link href={`/teacher/exam-sessions/${created.id}`}>Thiết lập phiên</Link>
+              </Button>
+              <Button asChild variant="outline" className="flex-1">
                 <Link href={`/exam-sessions/${created.id}`}>Vào phòng chờ</Link>
               </Button>
               <Button
@@ -252,7 +231,7 @@ export default function NewExamSessionPage() {
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
       <PageHeader
         title="Tạo phiên thi mới"
-        description="Khai báo lớp, phòng, khung giờ và những file sinh viên bắt buộc phải nộp."
+        description="Khai báo lớp, phòng, loại kỳ và khung giờ. Thư mục bài thi và rubric gắn ở bước Thiết lập sau khi tạo."
         actions={
           <Button asChild variant="ghost" size="sm">
             <Link href="/teacher/exam-sessions">
@@ -403,11 +382,6 @@ export default function NewExamSessionPage() {
               </FormField>
 
 
-              {/* Rubric thuộc về GIẢNG VIÊN từ đợt thu hẹp master data, nên
-                  danh sách không còn phụ thuộc lớp đã chọn. */}
-              <RubricPicker />
-
-
               <FormField
                 id="exam-session-type"
                 label="Loại kỳ thi"
@@ -505,8 +479,6 @@ export default function NewExamSessionPage() {
                   />
                 </FormField>
               </div>
-
-              <RequiredFilenamesInput />
 
               {createExamSession.isError && (
                 <Alert variant="destructive">

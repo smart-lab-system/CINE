@@ -195,6 +195,12 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ students: 3, submissionsSeeded: 6 });
 
+    const [row] = await dataSource.query(
+      `SELECT status FROM examcollect.exam_session WHERE id = $1`,
+      [session.id],
+    );
+    expect(row.status).toBe('active');
+
     const frozen = await rosterRows(session.id);
     expect(frozen).toHaveLength(3);
     expect(frozen.every((r: { source: string }) => r.source === 'frozen')).toBe(true);
@@ -430,18 +436,16 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
     expect((await open(session.id, otherTeacherToken)).status).toBe(403);
   });
 
-  describe('guard tạm — chưa mở phiên thì không ai vào được', () => {
-    it('agent:join bị từ chối khi ảnh chốt còn rỗng, kèm việc cần làm', async () => {
-      // Guard TẠM THỜI cho tới khi `scheduled` thành trạng thái thật
-      // (CLAUDE.md §7.1.1b). Nó hỏng TO và SỚM — cả phòng bị chặn ở giây
-      // đầu, giảng viên bấm một nút là xong — thay vì hỏng nhỏ và muộn,
-      // tức một ảnh chốt thiếu người chỉ lộ ra lúc chấm.
+  describe('chưa mở phiên thì không ai vào được', () => {
+    it('agent:join bị từ chối khi phiên còn scheduled (chưa mở)', async () => {
+      // create → scheduled; join đòi active. Thông báo hướng giảng viên
+      // tới nút Mở phiên (spec 2026-10-18).
       const session = await seedSession({ students: 1 });
 
       const error = await joinExpectingError(session, session.students[0]);
 
-      expect(error.code).toBe('SESSION_NOT_OPEN');
-      expect(error.message).toMatch(/Mở phiên thi/);
+      expect(error.code).toBe('SESSION_NOT_ACTIVE');
+      expect(error.message).toMatch(/not currently active|Mở phiên|active/i);
     });
 
     it('mở phiên xong thì vào được', async () => {
@@ -451,6 +455,66 @@ describe('Đóng băng danh sách dự thi (e2e)', () => {
       const socket = await joinAgent(session, session.students[0]);
 
       expect(socket.connected).toBe(true);
+    });
+  });
+
+  describe('Cấu hình danh sách thi trên hub (session-scoped)', () => {
+    it('GET roster chưa tùy chỉnh → enrollment lớp (source class)', async () => {
+      const session = await seedSession({ students: 2 });
+      const res = await request(app.getHttpServer())
+        .get(`/exam-sessions/${session.id}/roster`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.customized).toBe(false);
+      expect(res.body.students).toHaveLength(2);
+      expect(res.body.students.every((s: { source: string }) => s.source === 'class')).toBe(
+        true,
+      );
+    });
+
+    it('materialize + gỡ 1 SV + open → ảnh chốt không còn SV đó', async () => {
+      const session = await seedSession({ students: 2 });
+      const removed = session.students[0];
+
+      const mat = await request(app.getHttpServer())
+        .post(`/exam-sessions/${session.id}/roster/materialize`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+      expect(mat.status).toBe(200);
+      expect(mat.body.customized).toBe(true);
+
+      const del = await request(app.getHttpServer())
+        .delete(`/exam-sessions/${session.id}/roster/students/${encodeURIComponent(removed)}`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+      expect(del.status).toBe(204);
+
+      const opened = await open(session.id);
+      expect(opened.status).toBe(200);
+      expect(opened.body.students).toBe(1);
+
+      const rows = await rosterRows(session.id);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].student_mssv.toLowerCase()).not.toBe(removed.toLowerCase());
+
+      // Enrollment lớp vẫn đủ 2.
+      const enrolled = await dataSource.query(
+        `SELECT COUNT(*)::int AS n FROM examcollect.enrollment WHERE home_class_id = $1`,
+        [session.classId],
+      );
+      expect(enrolled[0].n).toBe(2);
+    });
+
+    it('sau open không gỡ được dòng frozen', async () => {
+      const session = await seedSession({ students: 1 });
+      await open(session.id);
+
+      const del = await request(app.getHttpServer())
+        .delete(
+          `/exam-sessions/${session.id}/roster/students/${encodeURIComponent(session.students[0])}`,
+        )
+        .set('Authorization', `Bearer ${teacherToken}`);
+
+      expect(del.status).toBe(409);
     });
   });
 

@@ -77,8 +77,112 @@ export function describeCreateError(error: unknown): string {
   return FALLBACK_CREATE_ERROR;
 }
 
+/** Một dòng file bắt buộc — dùng chung form tạo (cũ) và hub thiết lập. */
+const requiredFilenameItemSchema = z
+  .object({
+    value: z
+      .string()
+      .trim()
+      .min(1, 'Tên file không được để trống')
+      .regex(
+        FILENAME_TEMPLATE_REGEX,
+        'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
+      ),
+    deliverableType: z.enum(['document', 'code_project', 'image']).default('document'),
+    language: z.enum(['python', 'cpp']).optional(),
+    entries: z
+      .array(
+        z.object({
+          value: z
+            .string()
+            .trim()
+            .min(1, 'Tên file không được để trống')
+            .regex(
+              FILENAME_TEMPLATE_REGEX,
+              'Tên file bên trong chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
+            ),
+        }),
+      )
+      .max(
+        MAX_ENTRIES_PER_DELIVERABLE,
+        `Tối đa ${MAX_ENTRIES_PER_DELIVERABLE} file bên trong một deliverable`,
+      )
+      .optional(),
+  })
+  .refine(
+    (item) => !item.entries || item.entries.length === 0 || isArchiveFilename(item.value),
+    {
+      message: `Chỉ khai được file bên trong cho deliverable ${ARCHIVE_EXTENSIONS.join(' hoặc ')}`,
+      path: ['entries'],
+    },
+  )
+  .refine(
+    (item) => {
+      if (!item.entries) return true;
+      const seen = new Set<string>();
+      for (const entry of item.entries) {
+        if (seen.has(entry.value)) return false;
+        seen.add(entry.value);
+      }
+      return true;
+    },
+    { message: 'Tên file bên trong bị trùng — mỗi file phải có tên khác nhau.', path: ['entries'] },
+  )
+  .refine((item) => item.deliverableType === 'code_project' || item.language === undefined, {
+    message: 'Chỉ khai ngôn ngữ khi loại bài nộp là "Mã nguồn"',
+    path: ['language'],
+  });
+
+/**
+ * Danh sách file bắt buộc trên hub (PUT …/required-deliverables).
+ * create-slim: không còn trên form tạo.
+ */
+export const requiredFilenamesFormSchema = z
+  .array(requiredFilenameItemSchema)
+  .min(1, 'Cần ít nhất 1 file phải nộp');
+
+export const replaceRequiredDeliverablesSchema = z
+  .object({
+    requiredFilenames: requiredFilenamesFormSchema,
+  })
+  .refine(
+    (values) => {
+      const seen = new Set<string>();
+      for (const filename of values.requiredFilenames) {
+        if (seen.has(filename.value)) return false;
+        seen.add(filename.value);
+      }
+      return true;
+    },
+    (values) => {
+      const seen = new Set<string>();
+      let duplicateIndex = -1;
+      for (const [index, filename] of values.requiredFilenames.entries()) {
+        if (seen.has(filename.value)) {
+          duplicateIndex = index;
+          break;
+        }
+        seen.add(filename.value);
+      }
+      const duplicateName =
+        duplicateIndex === -1 ? '' : values.requiredFilenames[duplicateIndex].value;
+      return {
+        message: `Tên file "${duplicateName}" bị trùng — mỗi file bắt buộc phải có tên khác nhau.`,
+        path:
+          duplicateIndex === -1
+            ? ['requiredFilenames']
+            : ['requiredFilenames', duplicateIndex, 'value'],
+      };
+    },
+  );
+
+export type ReplaceRequiredDeliverablesFormValues = z.infer<
+  typeof replaceRequiredDeliverablesSchema
+>;
+
 // Exported so the rule can be unit-tested directly against the schema
 // (this form has no other test coverage yet — see page.test.tsx history).
+// create-slim: chỉ lịch + danh tính — không rubric / filenames.
 export const createExamSessionSchema = z
   .object({
     name: z
@@ -115,19 +219,6 @@ export const createExamSessionSchema = z
       .max(150, 'Tên học kỳ tối đa 150 ký tự')
       .optional()
       .or(z.literal('')),
-    /**
-     * Rubric dùng để chấm phiên này — quyết định ở đây, lúc ra đề, chứ
-     * không tra lại lúc bấm "Bắt đầu chấm". Tuỳ chọn: phiên không chấm bằng
-     * AI vẫn tạo, thi và thu bài bình thường.
-     *
-     * `<Select>` trả '' khi chưa chọn gì. Không quy đổi thành undefined thì
-     * một form hoàn toàn hợp lệ bị chặn bằng lỗi "uuid không hợp lệ", trong
-     * khi người dùng không hề chọn gì sai.
-     */
-    rubricId: z
-      .union([z.literal(''), z.string().uuid('Rubric không hợp lệ')])
-      .optional()
-      .transform((value) => (value === '' ? undefined : value)),
     examType: z.enum(EXAM_TYPES, { message: 'Vui lòng chọn loại kỳ thi' }),
     // Bound to <input type="datetime-local">, so this is the browser's
     // "YYYY-MM-DDTHH:mm" local-time string, not ISO 8601 yet — converted to
@@ -135,89 +226,6 @@ export const createExamSessionSchema = z
     // @IsISO8601() needs a full ISO string, e.g. with seconds + offset).
     startTime: z.string().min(1, 'Vui lòng chọn thời gian bắt đầu'),
     endTime: z.string().min(1, 'Vui lòng chọn thời gian kết thúc'),
-    requiredFilenames: z
-      .array(
-        z
-          .object({
-            value: z
-              .string()
-              .trim()
-              .min(1, 'Tên file không được để trống')
-              .regex(
-                FILENAME_TEMPLATE_REGEX,
-                'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
-              ),
-            /**
-             * Loại bài nộp (§14.1) — mặc định `document`, giữ tương thích
-             * ngược cho mọi phiên không chấm code.
-             */
-            deliverableType: z.enum(['document', 'code_project', 'image']).default('document'),
-            /**
-             * Ngôn ngữ cho bài `code_project`. Chỉ hai giá trị sandbox thật
-             * sự chạy được (`cpp`/`python`, xem `INVESTIGATOR_LANGUAGES` ở
-             * `apps/api/src/grading/pipeline.ts`) — không cho chọn
-             * `java`/`node` dù backend chấp nhận, vì chọn chúng chỉ âm
-             * thầm rơi về đường `one_shot` mà giảng viên không biết.
-             */
-            language: z.enum(['python', 'cpp']).optional(),
-            /**
-             * Tên các file phải nằm BÊN TRONG, nếu deliverable này là file
-             * nén — tuỳ chọn, spec §5.2/§8.4. Cùng luật path-traversal như
-             * tên file bên ngoài (khớp theo TÊN, không theo đường dẫn —
-             * spec §3.2, nên dấu "/" vẫn bị cấm ở đây).
-             */
-            entries: z
-              .array(
-                z.object({
-                  value: z
-                    .string()
-                    .trim()
-                    .min(1, 'Tên file không được để trống')
-                    .regex(
-                      FILENAME_TEMPLATE_REGEX,
-                      'Tên file bên trong chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
-                    ),
-                }),
-              )
-              .max(
-                MAX_ENTRIES_PER_DELIVERABLE,
-                `Tối đa ${MAX_ENTRIES_PER_DELIVERABLE} file bên trong một deliverable`,
-              )
-              .optional(),
-          })
-          // Chỉ cho khai entries khi bản thân filename là .zip/.rar — khai
-          // trên .docx là một hiểu lầm, và nhận im lặng rồi không kiểm gì
-          // còn tệ hơn từ chối (spec §8.4).
-          .refine(
-            (item) => !item.entries || item.entries.length === 0 || isArchiveFilename(item.value),
-            {
-              message: `Chỉ khai được file bên trong cho deliverable ${ARCHIVE_EXTENSIONS.join(' hoặc ')}`,
-              path: ['entries'],
-            },
-          )
-          // Mirror của @ArrayUnique() trên entries phía backend — trùng tên
-          // bên trong CÙNG một deliverable lọt qua mọi phép kiểm riêng lẻ
-          // rồi chết ở unique index dưới DB.
-          .refine(
-            (item) => {
-              if (!item.entries) return true;
-              const seen = new Set<string>();
-              for (const entry of item.entries) {
-                if (seen.has(entry.value)) return false;
-                seen.add(entry.value);
-              }
-              return true;
-            },
-            { message: 'Tên file bên trong bị trùng — mỗi file phải có tên khác nhau.', path: ['entries'] },
-          )
-          // Mirror của ck_required_deliverable_language phía backend:
-          // language chỉ khai được khi deliverableType là code_project.
-          .refine((item) => item.deliverableType === 'code_project' || item.language === undefined, {
-            message: 'Chỉ khai ngôn ngữ khi loại bài nộp là "Mã nguồn"',
-            path: ['language'],
-          }),
-      )
-      .min(1, 'Cần khai báo ít nhất 1 file bắt buộc'),
   })
   .refine((values) => Boolean(values.roomId) || Boolean(values.roomName?.trim()), {
     message: 'Vui lòng chọn phòng thi',
@@ -265,42 +273,6 @@ export const createExamSessionSchema = z
     {
       message: `Phiên thi phải kéo dài ít nhất ${MIN_EXAM_DURATION_MINUTES} phút`,
       path: ['endTime'],
-    },
-  )
-  // Mirrors the backend's @ArrayUnique() on requiredFilenames (see
-  // create-exam-session.dto.ts) — without this, a duplicate filename
-  // (a realistic typo: retyping the same name twice) passes every
-  // per-field check here, reaches the API, and only then hits the DB's
-  // unique index (uq_required_deliverable_session_filename), coming back
-  // as a 409 the generic API-error banner can't explain. Catch it
-  // client-side and point at exactly which entry is the duplicate.
-  .refine(
-    (values) => {
-      const seen = new Set<string>();
-      for (const filename of values.requiredFilenames) {
-        if (seen.has(filename.value)) return false;
-        seen.add(filename.value);
-      }
-      return true;
-    },
-    (values) => {
-      const seen = new Set<string>();
-      let duplicateIndex = -1;
-      for (const [index, filename] of values.requiredFilenames.entries()) {
-        if (seen.has(filename.value)) {
-          duplicateIndex = index;
-          break;
-        }
-        seen.add(filename.value);
-      }
-      const duplicateName = duplicateIndex === -1 ? '' : values.requiredFilenames[duplicateIndex].value;
-      return {
-        message: `Tên file "${duplicateName}" bị trùng — mỗi file bắt buộc phải có tên khác nhau.`,
-        path:
-          duplicateIndex === -1
-            ? ['requiredFilenames']
-            : ['requiredFilenames', duplicateIndex, 'value'],
-      };
     },
   );
 
