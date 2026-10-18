@@ -33,7 +33,7 @@ interface DetailResponse {
   breakdown: {
     confidence: number | null;
     errors: { ruleKey: string; source: string; counted: string }[];
-    caseFlags: { code: string }[];
+    caseFlags: { code: string; detail?: string }[];
   } | null;
   challengeVerdicts?: ActualSubmission['verdicts'];
   challengeNotes?: ActualSubmission['caseNotes'];
@@ -261,6 +261,7 @@ async function collect(scenario: RehearsalScenario, sessionId: string, doneAt: M
       verdicts: d.challengeVerdicts ?? [],
       caseNotes: d.challengeNotes ?? [],
       caseFlags: (d.breakdown?.caseFlags ?? []).map((f) => f.code),
+      caseFlagDetails: (d.breakdown?.caseFlags ?? []).map((f) => ({ code: f.code, detail: f.detail ?? null })),
       finishedAtSec: doneAt.get(row.studentMssv) ?? null,
     });
   }
