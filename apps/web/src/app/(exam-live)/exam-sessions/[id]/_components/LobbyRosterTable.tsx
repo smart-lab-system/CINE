@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { ClipboardList, FileCheck } from 'lucide-react';
+import { ClipboardList, FileCheck, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -164,6 +164,10 @@ export interface LobbyRosterTableProps {
   submissionsError?: boolean;
   isLoading?: boolean;
   attendanceError?: Error | null;
+  /** Cho phép gỡ SV `source=manual` (phiên chưa kết thúc). */
+  canRemoveManual?: boolean;
+  removingMssv?: string | null;
+  onRemoveManual?: (mssv: string) => void;
 }
 
 /**
@@ -186,11 +190,16 @@ export function LobbyRosterTable({
   submissionsError = false,
   isLoading = false,
   attendanceError = null,
+  canRemoveManual = false,
+  removingMssv = null,
+  onRemoveManual,
 }: LobbyRosterTableProps) {
   const [selectedStudentMssv, setSelectedStudentMssv] = useState<string | null>(null);
   const closingStudentMssvRef = useRef<string | null>(null);
 
   const hasMakeup = rows.some((row) => row.roomStatus === 'makeup');
+  const showRemoveColumn =
+    canRemoveManual && rows.some((row) => row.rosterSource === 'manual');
   const visibleRows = useMemo(
     () => filterLobbyRows(rows, filter, deliverables),
     [rows, filter, deliverables],
@@ -356,6 +365,11 @@ export function LobbyRosterTable({
                   Xem bài nộp
                 </TableHead>
               )}
+              {showRemoveColumn ? (
+                <TableHead scope="col" className={cn('text-right', STICKY_HEAD_RULE)}>
+                  <span className="sr-only">Gỡ khỏi danh sách dự thi</span>
+                </TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -384,6 +398,11 @@ export function LobbyRosterTable({
                         Lớp gốc: {row.makeupFromClass}
                       </Badge>
                     )}
+                    {row.rosterSource === 'manual' ? (
+                      <Badge variant="outline" className="w-fit">
+                        Thêm tay
+                      </Badge>
+                    ) : null}
                   </div>
                 </TableCell>
                 {deliverables.map((deliverable) => {
@@ -438,6 +457,31 @@ export function LobbyRosterTable({
                     </Button>
                   </TableCell>
                 )}
+                {showRemoveColumn ? (
+                  <TableCell className="whitespace-nowrap text-right">
+                    {row.rosterSource === 'manual' && onRemoveManual ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Gỡ ${row.studentMssv} khỏi danh sách dự thi`}
+                        loading={removingMssv === row.studentMssv}
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              `Gỡ ${row.fullName} (${row.studentMssv}) khỏi danh sách dự thi? Chỉ gỡ được SV thêm tay chưa nộp bài.`,
+                            )
+                          ) {
+                            return;
+                          }
+                          onRemoveManual(row.studentMssv);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-danger-strong" aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>

@@ -34,6 +34,13 @@ export class RosterStudentDto {
   name!: string;
 }
 
+/** Sửa tên một dòng enrollment — không đổi MSSV. */
+export class UpdateRosterStudentDto {
+  @IsString()
+  @Length(1, 150)
+  name!: string;
+}
+
 export class ImportRosterDto {
   /**
    * Validation here is what implements "a bad row blocks the whole file":

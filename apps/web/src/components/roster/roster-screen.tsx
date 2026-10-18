@@ -1,9 +1,18 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CircleCheckBig, FileSpreadsheet, Trash2, Upload, UserPlus, Users } from 'lucide-react';
+import {
+  CircleCheckBig,
+  FileSpreadsheet,
+  Pencil,
+  Trash2,
+  Upload,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import { EmptyState } from '@/components/layout/empty-state';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,6 +23,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -61,6 +77,12 @@ export type RosterScreenAdapters = {
   >;
   addStudent: UseMutationResult<RosterEntry, Error, AddStudentPayload>;
   removeStudent: UseMutationResult<void, Error, string>;
+  /** Optional — Wave B sửa tên một dòng. */
+  updateStudentName?: UseMutationResult<
+    RosterEntry,
+    Error,
+    { mssv: string; name: string }
+  >;
 };
 
 interface RosterScreenProps {
@@ -79,7 +101,8 @@ export function RosterScreen({
   adapters,
   catalogAssist = false,
 }: RosterScreenProps) {
-  const { roster, importRoster, addStudent, removeStudent } = adapters;
+  const { roster, importRoster, addStudent, removeStudent, updateStudentName } =
+    adapters;
 
   const [sheets, setSheets] = useState<SheetData[] | null>(null);
   const [sheetIndex, setSheetIndex] = useState(0);
@@ -89,6 +112,8 @@ export function RosterScreen({
   const [removeMissing, setRemoveMissing] = useState(false);
   const [result, setResult] = useState<RosterImportResult | null>(null);
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
+  const [editing, setEditing] = useState<RosterEntry | null>(null);
+  const [editName, setEditName] = useState('');
 
   const rows = sheets?.[sheetIndex]?.rows ?? null;
 
@@ -347,6 +372,19 @@ export function RosterScreen({
                       <TableCell>{student.name}</TableCell>
                       {canEdit && (
                         <TableCell className="whitespace-nowrap text-right">
+                          {updateStudentName ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Sửa tên ${student.mssv}`}
+                              onClick={() => {
+                                setEditing(student);
+                                setEditName(student.name);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -374,6 +412,60 @@ export function RosterScreen({
           )}
         </CardContent>
       </Card>
+
+      {updateStudentName ? (
+        <Dialog
+          open={editing !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Sửa họ tên</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>MSSV</Label>
+                <Input value={editing?.mssv ?? ''} readOnly className="bg-muted font-mono" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="roster-edit-name">Họ và tên</Label>
+                <Input
+                  id="roster-edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  maxLength={150}
+                />
+              </div>
+              {updateStudentName.isError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{updateStudentName.error.message}</AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditing(null)}>
+                Huỷ
+              </Button>
+              <Button
+                type="button"
+                disabled={!editName.trim() || updateStudentName.isPending}
+                loading={updateStudentName.isPending}
+                onClick={() => {
+                  if (!editing) return;
+                  updateStudentName.mutate(
+                    { mssv: editing.mssv, name: editName.trim() },
+                    { onSuccess: () => setEditing(null) },
+                  );
+                }}
+              >
+                Lưu
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import type { Attendance, AttendanceStudent } from './api/attendance';
+import type { Attendance, AttendanceStudent, SessionRosterSource } from './api/attendance';
 import type { SubmissionRowStudent } from './submission-rows';
 
 /**
@@ -21,6 +21,8 @@ export interface LobbyRosterRow {
   /** AttendanceStudent khi có trong present/absent/makeup — dùng cho StudentMarks */
   attendanceStudent: AttendanceStudent | null;
   makeupFromClass?: string;
+  /** Nguồn ảnh chốt — `manual` mới hiện nút gỡ. */
+  rosterSource: SessionRosterSource | null;
   byDeliverable: SubmissionRowStudent['byDeliverable'];
 }
 
@@ -66,9 +68,11 @@ export function buildLobbyRosterRows(
   submissionRows: SubmissionRowStudent[],
 ): LobbyRosterRow[] {
   const byMssv = indexAttendance(attendance);
+  const sources = attendance?.sessionRosterSources ?? {};
 
   return submissionRows.map((row) => {
     const entry = byMssv.get(row.studentMssv);
+    const key = row.studentMssv.toLowerCase();
     return {
       studentMssv: row.studentMssv,
       fullName: row.fullName,
@@ -78,6 +82,8 @@ export function buildLobbyRosterRows(
         row.makeupFromClass ??
         entry?.student.homeClassName ??
         undefined,
+      rosterSource:
+        entry?.student.rosterSource ?? sources[key] ?? null,
       byDeliverable: row.byDeliverable,
     };
   });

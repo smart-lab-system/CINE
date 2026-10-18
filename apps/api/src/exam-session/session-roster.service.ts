@@ -1,6 +1,12 @@
-import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { RequiredDeliverableEntity } from './entities/required-deliverable.entity';
@@ -153,6 +159,57 @@ export class SessionRosterService {
    * một dòng `not_submitted`/`absent` có sẵn qua `received → validated →
    * collected` (submission.service.ts) thay vì đâm vào nó.
    */
+  /**
+   * Gỡ SV thêm tay (`source=manual`) khỏi ảnh chốt — không gỡ `frozen`.
+   * Chỉ khi mọi submission chỗ ngồi còn `not_submitted` / `absent`.
+   */
+  async removeManual(
+    session: ExamSessionEntity,
+    studentMssv: string,
+  ): Promise<void> {
+    if (isExamOver(session.status)) {
+      throw new ConflictException(
+        'Phiên thi đã kết thúc — không gỡ sinh viên khỏi danh sách dự thi được.',
+      );
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const rosterRepo = manager.getRepository(SessionRosterEntity);
+      const row = await rosterRepo.findOne({
+        where: { examSessionId: session.id, studentMssv },
+      });
+      if (!row) {
+        throw new NotFoundException(
+          'Sinh viên này không có trong danh sách dự thi của phiên.',
+        );
+      }
+      if (row.source !== 'manual') {
+        throw new ConflictException(
+          'Chỉ gỡ được sinh viên thêm tay — không gỡ dòng đã chốt từ lớp.',
+        );
+      }
+
+      const live = await manager.getRepository(SubmissionEntity).count({
+        where: {
+          examSessionId: session.id,
+          studentMssv,
+          status: In(['received', 'validated', 'collected', 'invalid']),
+        },
+      });
+      if (live > 0) {
+        throw new ConflictException(
+          'Sinh viên đã có bài nộp — không gỡ khỏi danh sách dự thi được.',
+        );
+      }
+
+      await manager.getRepository(SubmissionEntity).delete({
+        examSessionId: session.id,
+        studentMssv,
+      });
+      await rosterRepo.remove(row);
+    });
+  }
+
   async addManually(
     session: ExamSessionEntity,
     student: { mssv: string; name: string },

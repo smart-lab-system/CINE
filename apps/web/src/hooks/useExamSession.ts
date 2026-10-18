@@ -13,6 +13,9 @@ import {
   recollectSubmissions,
   listSubmissions,
   archiveRecheck,
+  updateExamSessionSchedule,
+  cancelExamSession,
+  removeSessionRosterStudent,
   type CreateExamSessionInput,
   type DeclaredLanguage,
   type ExamSessionResponse,
@@ -36,6 +39,55 @@ import {
 export function useCreateExamSession() {
   return useMutation<ExamSessionResponse, Error, CreateExamSessionInput>({
     mutationFn: createExamSession,
+  });
+}
+
+export function useUpdateExamSessionSchedule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      id: string;
+      body: {
+        roomId?: string;
+        roomName?: string;
+        startTime?: string;
+        endTime?: string;
+      };
+    }) => updateExamSessionSchedule(args.id, args.body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['exam-sessions-range'] });
+      void queryClient.invalidateQueries({ queryKey: ['exam-session'] });
+    },
+  });
+}
+
+export function useCancelExamSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => cancelExamSession(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['exam-sessions-range'] });
+      void queryClient.invalidateQueries({ queryKey: ['exam-session'] });
+    },
+  });
+}
+
+export function useRemoveSessionRosterStudent(examSessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (studentMssv: string) =>
+      removeSessionRosterStudent(examSessionId, studentMssv),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-session', examSessionId] });
+      void queryClient.invalidateQueries({
+        queryKey: ['exam-sessions', examSessionId, 'attendance'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['exam-session-submissions', examSessionId],
+      });
+    },
   });
 }
 

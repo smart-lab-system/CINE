@@ -24,7 +24,7 @@ import {
   ListCourseSectionsQueryDto,
   UpdateCourseSectionDto,
 } from './dto/admin-course-section.dto';
-import { ImportRosterDto } from './dto/roster.dto';
+import { ImportRosterDto, UpdateRosterStudentDto } from './dto/roster.dto';
 
 @ApiTags('admin-course-sections')
 @Controller('admin/course-sections')
@@ -106,6 +106,16 @@ export class AdminCourseSectionController {
       mssv: dto.mssv,
       name: dto.name,
     });
+  }
+
+  @Patch(':id/roster/students/:studentMssv')
+  async updateStudentName(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('studentMssv') studentMssv: string,
+    @Body() dto: UpdateRosterStudentDto,
+  ) {
+    const klass = await this.sections.getEntity(id);
+    return this.roster.updateStudentName(klass, studentMssv, dto.name);
   }
 
   @Delete(':id/roster/students/:studentMssv')

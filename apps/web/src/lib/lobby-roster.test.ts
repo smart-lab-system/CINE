@@ -21,6 +21,7 @@ function attendance(overrides: Partial<Attendance> = {}): Attendance {
     present: [],
     absent: [],
     makeup: [],
+    sessionRosterSources: {},
     discrepancy: null,
     ...overrides,
   };
@@ -135,6 +136,7 @@ describe('filterLobbyRows', () => {
       fullName: mssv,
       roomStatus,
       attendanceStudent: null,
+      rosterSource: null,
       byDeliverable,
     };
   }

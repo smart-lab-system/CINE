@@ -6,6 +6,7 @@ import {
   importRoster,
   listRoster,
   removeRosterStudent,
+  updateRosterStudentName,
   type RosterEntry,
 } from '@/lib/api/roster';
 import type { AddStudentPayload } from '@/components/roster/manual-add-student-form';
@@ -63,6 +64,18 @@ export function useRemoveRosterStudent(classId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (studentMssv: string) => removeRosterStudent(classId, studentMssv),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['roster', classId] });
+      void queryClient.invalidateQueries({ queryKey: ['classes'] });
+    },
+  });
+}
+
+export function useUpdateRosterStudentName(classId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { mssv: string; name: string }) =>
+      updateRosterStudentName(classId, args.mssv, args.name),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['roster', classId] });
       void queryClient.invalidateQueries({ queryKey: ['classes'] });

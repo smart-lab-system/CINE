@@ -91,19 +91,19 @@ export function SearchableSelect({
         aria-expanded={open}
         aria-controls={listId}
         aria-label={ariaLabel}
-        className="w-full min-w-0 justify-between overflow-hidden font-normal"
+        className="h-auto min-h-10 w-full min-w-0 max-w-full justify-between gap-2 overflow-hidden font-normal"
         onClick={() => setOpen((v) => !v)}
       >
         <span
           className={cn(
-            'min-w-0 flex-1 truncate text-left',
+            'min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap',
             !selected && !value && 'text-muted-foreground',
           )}
           title={selected?.label}
         >
           {selected?.label ?? (value === '' && allowClear ? clearLabel : placeholder)}
         </span>
-        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+        <ChevronsUpDown className="size-4 shrink-0 opacity-50" aria-hidden />
       </Button>
       {open ? (
         <div
