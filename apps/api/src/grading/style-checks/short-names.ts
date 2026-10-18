@@ -12,13 +12,26 @@ const LOOP_COUNTERS = new Set(['i', 'j', 'k']);
 
 const TYPE_PREFIX = String.raw`(?:(?:const|unsigned|signed|static)\s+)*`;
 // Nhóm 1: kiểu. Nhóm 2: tên được khai báo. Nhóm 3: ký tự ngay sau tên (để phân biệt khai báo hàm).
-const TYPE = String.raw`(long\s+long|long|int|short|char|bool|float|double|auto|void|size_t|[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*(?:<[^;{}()]*>)?)`;
+// Tham số mẫu chỉ gồm định danh, khoảng trắng, `::`, `,`, `*`, `&` (không `&&`), `<>` lồng nhau. Loại bỏ phép so sánh
+// như `a<b && c> d`, vốn bị đọc nhầm thành kiểu `a<b && c>` với tên `d`.
+const TYPE = String.raw`(long\s+long|long|int|short|char|bool|float|double|auto|void|size_t|[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*(?:<(?:[\w\s:,*<>]|&(?!&))*>)?)`;
 // Giữa kiểu và tên bắt buộc có khoảng trắng hoặc * / &. Không có ràng buộc này, `top` bị đọc thành kiểu `to` và tên `p`.
 const SEPARATOR = String.raw`(?:\s*[*&]+\s*|\s+)`;
 const DECL = new RegExp(
   String.raw`(?:^|[;{}(,])\s*${TYPE_PREFIX}${TYPE}${SEPARATOR}([A-Za-z_]\w*)(?=\s*([=;,)\[{:(]|$))`,
   'gm',
 );
+
+/**
+ * `tên(...)` là khai báo hàm khi danh sách tham số trống, là `void`, hoặc có dạng `Kiểu tên`. Còn lại là khởi tạo biến
+ * kiểu constructor: `Node a(5)`, `vector<int> a(n)`.
+ */
+function isFunctionDeclaration(afterName: string): boolean {
+  const paren = /^\s*\(([^()]*)\)/.exec(afterName);
+  if (!paren) return false;
+  const params = paren[1].trim();
+  return params === '' || params === 'void' || /[A-Za-z_]\w*(?:<[^<>]*>)?\s*[*&]*\s+[A-Za-z_]\w*/.test(params);
+}
 
 /**
  * Tên 1–2 ký tự được khai báo trong bài (biến, tham số, trường struct), đã bỏ qua i/j/k và các tên trong
@@ -35,8 +48,7 @@ export function shortNameDeclarations(source: string, opts: { exceptions?: strin
     const name = m[2];
     const following = m[3] ?? '';
     if (NOT_TYPES.has(typeBase)) continue;
-    // `T f(...)` với T không có tham số kiểu là khai báo hàm, không phải biến. `vector<long long> a(n)` là biến.
-    if (following === '(' && !typeText.includes('<')) continue;
+    if (following === '(' && isFunctionDeclaration(code.slice(m.index + m[0].length))) continue;
     if (name.length > 2 || LOOP_COUNTERS.has(name) || exceptions.has(name)) continue;
     found.add(name);
   }

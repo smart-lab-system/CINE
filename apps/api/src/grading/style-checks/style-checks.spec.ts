@@ -50,6 +50,29 @@ describe('shortNameDeclarations — tên 1–2 ký tự được khai báo', () 
     expect(shortNameDeclarations('else x = 1;', {})).toEqual([]);
   });
 
+  it('phép so sánh < và > trong điều kiện không bị nhận là kiểu mẫu (review W1)', () => {
+    expect(shortNameDeclarations('if (a<b && c> d) {}', {})).toEqual([]);
+    expect(shortNameDeclarations('while(top<sz && arr[top]> x) { }', {})).toEqual([]);
+    expect(shortNameDeclarations('if(n<max && val> m) x = 1;', {})).toEqual([]);
+    expect(shortNameDeclarations('push(a<b && c> d);', {})).toEqual([]);
+  });
+
+  it('kiểu mẫu lồng nhau và có số vẫn được nhận (không hồi quy)', () => {
+    expect(shortNameDeclarations('vector<vector<int>> g(n);', {})).toEqual(['g']);
+    expect(shortNameDeclarations('std::array<int, 5> a;', {})).toEqual(['a']);
+  });
+
+  it('khởi tạo biến kiểu constructor không bị nhận là khai báo hàm (review W2)', () => {
+    expect(shortNameDeclarations('Node a(5);', {})).toEqual(['a']);
+    expect(shortNameDeclarations('int b(n);', {})).toEqual(['b']);
+  });
+
+  it('khai báo hàm không bị tính là biến', () => {
+    expect(shortNameDeclarations('void f() {}', {})).toEqual([]);
+    // Tên hàm g không tính, nhưng tham số t là tên một ký tự và vẫn tính.
+    expect(shortNameDeclarations('int g(Node* t);', {})).toEqual(['t']);
+  });
+
   it('chú thích và chuỗi không bị quét', () => {
     expect(shortNameDeclarations('// int a;\nconst char* text = "int b;";', {})).toEqual([]);
   });
