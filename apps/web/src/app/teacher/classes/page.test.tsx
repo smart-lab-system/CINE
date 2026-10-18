@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import TeacherClassesPage, { filterTeachingClasses } from './page';
+import TeacherClassesPage from './page';
+import { filterTeachingClasses } from './filter-teaching-classes';
 import type { TeachingClass } from '@/lib/api/teaching';
 
 const useTeachingClassesMock = vi.fn();
