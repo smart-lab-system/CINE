@@ -1141,5 +1141,17 @@ describe('ExamSessionLobbyPage', () => {
       expect(screen.queryByRole('button', { name: /Mở phiên thi/ })).toBeNull();
       expect(screen.queryByText(/Sinh viên chưa vào được/)).toBeNull();
     });
+
+    it('vẫn hiện Mở phiên khi hub đã materialize roster (rosterFrozen=true, status scheduled)', async () => {
+      unopened();
+      useAttendanceMock.mockReturnValue(attendanceOf({ rosterFrozen: true }));
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(
+        await screen.findByRole('button', { name: /Mở phiên thi/ }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Sinh viên chưa vào được/)).toBeInTheDocument();
+    });
   });
 });

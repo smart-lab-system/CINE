@@ -481,10 +481,10 @@ export default function ExamSessionLobbyPage() {
    * thúc hoặc đã huỷ thì không còn gì để mở, và một lời mời ở đó chỉ
    * làm người đọc tưởng mình bỏ sót việc.
    */
-  // Spec 2026-10-18: chưa mở ≡ status scheduled (không còn "active nhưng chưa freeze").
-  const needsOpening =
-    sessionDetail.data?.status === 'scheduled' &&
-    attendance.data?.rosterFrozen === false;
+  // Spec 2026-10-18: chưa mở ≡ status scheduled.
+  // Không gắn rosterFrozen: materialize/import trên hub đã ghi session_roster
+  // (rosterFrozen=true) trong khi phiên vẫn scheduled — nút Mở phiên phải còn.
+  const needsOpening = sessionDetail.data?.status === 'scheduled';
 
   /**
    * Spec §7.3 — có bao nhiêu SINH VIÊN nộp bài sau khi giảng viên xác
