@@ -121,7 +121,7 @@ describe('InvestigatorRunService — pha phản biện (bước 6)', () => {
     expect(out).not.toBeNull();
     const brokenConclusion = out.perError.find((c: { challenger: string }) => c.challenger === 'hỏng');
     expect(brokenConclusion.perError[0].status).toBe('unverified');
-    expect(out.caseNotes[0]).toEqual({ lens: 'bo_sot', suspected: false, note: 'không đọc được ý kiến của lăng kính này' });
+    expect(out.caseNotes[0]).toEqual({ lens: 'bo_sot', suspected: false, concluded: false, note: 'không đọc được ý kiến của lăng kính này' });
   });
 });
 

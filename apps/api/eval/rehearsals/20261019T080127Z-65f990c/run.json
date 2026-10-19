@@ -1,0 +1,155 @@
+{
+  "id": "20261019T080127Z-65f990c",
+  "startedAt": "2026-10-19T08:01:27.552Z",
+  "scenario": "ngan-xep-v1",
+  "deploy": "65f990c",
+  "note": "Đo lại hồi quy 18/10 trên main 65f990c (đã có #80 luật theo từng bài). Lượt 2/2 để đo độ dao động, so với lượt 1 cùng bản và cặp 74aae81 (18/10). Cùng kịch bản v1 5 bài.",
+  "wallSec": 622.9,
+  "backfilled": false,
+  "sessionId": "20c667e2-c343-46b3-98d7-40679ac966e2",
+  "checks": [
+    {
+      "mssv": "HS2410018",
+      "label": "int tràn + tên vô nghĩa + không chú thích + rò rỉ",
+      "expectedScore": 6.5,
+      "actualScore": 6.5,
+      "scoreOk": true,
+      "auditHidden": false,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "review",
+      "actualDecision": "review",
+      "decisionOk": true,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [
+        "gian_lan",
+        "tinh_dung:ro_ri_bo_nho",
+        "tinh_dung:ten_bien_vo_nghia",
+        "tinh_dung:thieu_chu_thich",
+        "qua_tay:ro_ri_bo_nho",
+        "qua_tay:ten_bien_vo_nghia",
+        "qua_tay:thieu_chu_thich"
+      ],
+      "finishedAtSec": 272.5
+    },
+    {
+      "mssv": "HS2410019",
+      "label": "đúng hoàn toàn",
+      "expectedScore": 10,
+      "actualScore": 10,
+      "scoreOk": true,
+      "auditHidden": false,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [
+        "bo_sot",
+        "gian_lan"
+      ],
+      "finishedAtSec": 405.9
+    },
+    {
+      "mssv": "HS2410020",
+      "label": "in theo thứ tự hàng đợi — chỉ lỗi máy quyết",
+      "expectedScore": 5.5,
+      "actualScore": null,
+      "scoreOk": false,
+      "auditHidden": false,
+      "missedErrors": [
+        "sai_ca_co_ban",
+        "sai_ca_bien"
+      ],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [],
+      "finishedAtSec": 622.9
+    },
+    {
+      "mssv": "HS2410021",
+      "label": "hard-code theo bộ test (đạt đủ test)",
+      "expectedScore": 9,
+      "actualScore": 10,
+      "scoreOk": false,
+      "auditHidden": false,
+      "missedErrors": [
+        "thieu_chu_thich",
+        "ten_bien_vo_nghia"
+      ],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "review",
+      "actualDecision": "auto",
+      "decisionOk": false,
+      "wrongAuto": true,
+      "falseFlags": [],
+      "missedFlags": [
+        "gian_lan",
+        "bo_sot"
+      ],
+      "lensFailures": [
+        "bo_sot",
+        "gian_lan"
+      ],
+      "finishedAtSec": 454.7
+    },
+    {
+      "mssv": "HS2410022",
+      "label": "đúng, có chú thích, chỉ rò rỉ bộ nhớ",
+      "expectedScore": 9,
+      "actualScore": 9,
+      "scoreOk": true,
+      "auditHidden": false,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [
+        "bo_sot",
+        "gian_lan",
+        "tinh_dung:ro_ri_bo_nho",
+        "qua_tay:ro_ri_bo_nho"
+      ],
+      "finishedAtSec": 362.9
+    }
+  ],
+  "summary": {
+    "submissions": 5,
+    "scoreOk": 3,
+    "auditHidden": 0,
+    "decisionOk": 1,
+    "autoApproved": 1,
+    "expectedAuto": 3,
+    "wrongAuto": 1,
+    "errorsExpected": 9,
+    "errorsCaught": 5,
+    "extraErrors": 0,
+    "falseFlags": 0,
+    "missedFlags": 2,
+    "lensFailures": 15,
+    "maxSubmissionSec": 622.9,
+    "models": [
+      "occ/claude-sonnet-5",
+      "occ/claude-sonnet-5+cnb/glm-5.3"
+    ]
+  }
+}

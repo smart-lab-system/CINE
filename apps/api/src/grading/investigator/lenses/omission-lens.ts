@@ -35,7 +35,7 @@ export class OmissionLens implements CaseLens {
     const concluded = new Set(verdict.errors.map((e) => e.ruleKey));
     const open = ctx.rules.filter((r) => r.checkedBy === 'model' && !concluded.has(r.ruleKey));
     if (open.length === 0) {
-      return { lens: this.name, suspected: false, note: 'mọi luật bằng lời đã được agent chấm kết luận — không còn luật nào để xét bỏ sót' };
+      return { lens: this.name, suspected: false, concluded: true, note: 'mọi luật bằng lời đã được agent chấm kết luận — không còn luật nào để xét bỏ sót' };
     }
     const userMessage = [
       caseLensContext(ctx, verdict, '(không có — bài được coi là đúng)'),
@@ -54,7 +54,7 @@ export class OmissionLens implements CaseLens {
       this.deps,
       usage,
     );
-    if (!r.conclusion) return { lens: this.name, suspected: false, note: clampNote(`không kết luận được — ${r.failure}`) };
+    if (!r.conclusion) return { lens: this.name, suspected: false, concluded: false, note: clampNote(`không kết luận được — ${r.failure}`) };
 
     const openKeys = new Set(open.map((rule) => rule.ruleKey));
     const answered = new Set([...r.conclusion.rules.map((x) => x.ruleKey), ...r.conclusion.missedRuleKeys]);
@@ -66,11 +66,11 @@ export class OmissionLens implements CaseLens {
     const unanswered = [...openKeys].filter((k) => !answered.has(k));
     const tail = unanswered.length > 0 ? ` (chưa xét: ${unanswered.join(', ')})` : '';
 
-    if (missed.length === 0) return { lens: this.name, suspected: false, note: clampNote(`${r.conclusion.note}${tail}`) };
+    if (missed.length === 0) return { lens: this.name, suspected: false, concluded: true, note: clampNote(`${r.conclusion.note}${tail}`) };
     // W4 (review cuối): không có lấy một lời gọi công cụ thành công thì đó là cảm giác, không phải phát hiện.
     if (!r.toolCalls.some((t) => t.status === 'ok')) {
-      return { lens: this.name, suspected: false, note: clampNote(`(chưa tự kiểm được) ${r.conclusion.note}${tail}`) };
+      return { lens: this.name, suspected: false, concluded: true, note: clampNote(`(chưa tự kiểm được) ${r.conclusion.note}${tail}`) };
     }
-    return { lens: this.name, suspected: true, note: clampNote(`Có thể bỏ sót: ${missed.join(', ')}. ${r.conclusion.note}${tail}`) };
+    return { lens: this.name, suspected: true, concluded: true, note: clampNote(`Có thể bỏ sót: ${missed.join(', ')}. ${r.conclusion.note}${tail}`) };
   }
 }

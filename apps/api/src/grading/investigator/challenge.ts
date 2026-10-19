@@ -72,6 +72,12 @@ export async function challenge(
 export interface CaseLensNote {
   lens: string;
   suspected: boolean;
+  /**
+   * `true` = lăng kính đã trả lời, kể cả "không có gì đáng ngờ". `false` = KHÔNG kết luận được (hết giờ,
+   * hết bậc model, JSON hỏng): chưa xét xong, nên bài không được tự quyết (`challenge_incomplete`).
+   * Hồ sơ ghi trước trường này không có nó và cũng bị coi là chưa xét — không biết thì không tự quyết.
+   */
+  concluded: boolean;
   note: string;
 }
 

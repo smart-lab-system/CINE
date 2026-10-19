@@ -47,7 +47,8 @@ export interface ActualSubmission {
   model: string | null;
   errors: { ruleKey: string; source: string; counted: string }[];
   verdicts: { lens: string; ruleKey: string; status: string; reason: string | null }[];
-  caseNotes: { lens: string; suspected: boolean; note: string }[];
+  /** `concluded` có từ bản 2026-10-19 trở đi; lượt cũ không có trường này. */
+  caseNotes: { lens: string; suspected: boolean; concluded?: boolean; note: string }[];
   caseFlags: string[];
   /** Nội dung đầy đủ của từng cờ (mã + lý do). Chỉ để so vết; không tham gia chấm điểm. */
   caseFlagDetails?: { code: string; detail: string | null }[];

@@ -24,8 +24,12 @@ export interface LensDeps {
  * occ/claude-sonnet-5 + cnb/glm-5.3: hai lượt liên tiếp đều thấy lăng kính hết vòng hay hết
  * giờ TRƯỚC khi kết luận — Sonnet suy luận lâu hơn hẳn glm-5.3-flash mà số cũ chỉnh cho. Job
  * chấm còn rất nhiều dư (bài chậm nhất đo được 148s trên trần 450s), nên nới ở đây an toàn.
+ *
+ * Nâng lên 180s ngày 2026-10-19 (lượt 65f990c): provider chậm, lời gọi báo timeout; 100s chỉ đủ hai lời gọi
+ * hỏng, lăng kính rơi vào "hết giờ" mà không có kết luận. 180s cho ba lời gọi chậm nối tiếp. Hệ quả: trần job
+ * chấm (`gradeJobTimeoutMs`) tăng đúng 80s.
  */
-export const LENS_BUDGET = { maxRounds: 6, maxToolCalls: 8, maxWallMs: 100_000, maxTokens: 30_000 };
+export const LENS_BUDGET = { maxRounds: 6, maxToolCalls: 8, maxWallMs: 180_000, maxTokens: 30_000 };
 
 /**
  * Ngân sách CẢ pha phản biện (bốn lăng kính) cộng vào trần job chấm (`gradeJobTimeoutMs()`) —

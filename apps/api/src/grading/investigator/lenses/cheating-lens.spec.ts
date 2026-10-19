@@ -21,19 +21,22 @@ describe('CheatingLens', () => {
     const lens = new CheatingLens({ models: [model], sandbox: passRun() });
     const r = await lens.review(CTX, VERDICT, []);
     expect(r.suspected).toBe(true);
+    expect(r.concluded).toBe(true);
   });
 
-  it('mọi bậc model hỏng → suspected false, không bịa nghi ngờ', async () => {
+  it('mọi bậc model hỏng → suspected false, không bịa nghi ngờ, và CHƯA kết luận', async () => {
     const dead: ModelTier = { label: 'A', model: 'A-m', ceiling: 0.5, async call() { throw Object.assign(new Error('500'), { status: 500 }); } };
     const lens = new CheatingLens({ models: [dead], sandbox: fakeSandbox(() => execResult([])) });
     const r = await lens.review(CTX, VERDICT, []);
     expect(r.suspected).toBe(false);
+    expect(r.concluded).toBe(false);
   });
 
-  it('không kết luận được → ghi chú nêu lý do thật của bậc model (không còn một câu cố định)', async () => {
+  it('không kết luận được → ghi chú nêu lý do thật của bậc model (không còn một câu cố định), concluded false', async () => {
     const lens = new CheatingLens({ models: [scripted(['không phải JSON'])], sandbox: passRun() });
     const r = await lens.review(CTX, VERDICT, []);
     expect(r.suspected).toBe(false);
+    expect(r.concluded).toBe(false);
     expect(r.note).toContain('bad_output');
   });
 

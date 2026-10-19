@@ -40,10 +40,10 @@ describe('loadResultDetail() — challengeNotes (bước 6)', () => {
       rulesSeen: [],
       ruleTable: [],
       modelCeiling: 1,
-      challenge: { perError: [], caseNotes: [{ lens: 'gian_lan', suspected: true, note: 'x' }] },
+      challenge: { perError: [], caseNotes: [{ lens: 'gian_lan', suspected: true, concluded: true, note: 'x' }] },
     });
     const detail = await loadResultDetail(ds, resultEntity());
-    expect(detail.challengeNotes).toEqual([{ lens: 'gian_lan', suspected: true, note: 'x' }]);
+    expect(detail.challengeNotes).toEqual([{ lens: 'gian_lan', suspected: true, concluded: true, note: 'x' }]);
   });
 
   it('hồ sơ trước bước 6 (không có field challenge) → challengeNotes và challengeVerdicts rỗng, không lỗi', async () => {

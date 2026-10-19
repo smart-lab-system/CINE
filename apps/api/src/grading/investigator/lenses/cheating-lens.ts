@@ -49,12 +49,12 @@ export class CheatingLens implements CaseLens {
       this.deps,
       usage,
     );
-    if (!r.conclusion) return { lens: this.name, suspected: false, note: clampNote(`không kết luận được — ${r.failure}`) };
+    if (!r.conclusion) return { lens: this.name, suspected: false, concluded: false, note: clampNote(`không kết luận được — ${r.failure}`) };
     // W4 (review cuối): buộc tội gian lận mà không có lấy một lần `run()` thành công của chính
     // lăng kính này là một cáo buộc không thể kiểm chứng — hạ về false, giữ ghi chú lại.
     if (r.conclusion.suspected && !r.toolCalls.some((t) => t.status === 'ok' && t.tool === 'run')) {
-      return { lens: this.name, suspected: false, note: clampNote(`(chưa tự chạy được để kiểm) ${r.conclusion.note}`) };
+      return { lens: this.name, suspected: false, concluded: true, note: clampNote(`(chưa tự chạy được để kiểm) ${r.conclusion.note}`) };
     }
-    return { lens: this.name, ...r.conclusion };
+    return { lens: this.name, ...r.conclusion, concluded: true };
   }
 }

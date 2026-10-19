@@ -87,8 +87,8 @@ describe('runLensLoop()', () => {
     expect(CHALLENGE_PHASE_BUDGET_MS).toBeGreaterThanOrEqual(LENS_BUDGET.maxWallMs);
   });
 
-  it('diễn tập 2026-09-28 (occ/claude-sonnet-5) — ngân sách đủ rộng cho model chậm hơn flash: ≥100s, ≥6 vòng, ≥8 lời gọi', () => {
-    expect(LENS_BUDGET.maxWallMs).toBeGreaterThanOrEqual(100_000);
+  it('diễn tập 2026-10-19 — ngân sách đủ cho ba lời gọi chậm nối tiếp: ≥180s, ≥6 vòng, ≥8 lời gọi', () => {
+    expect(LENS_BUDGET.maxWallMs).toBeGreaterThanOrEqual(180_000);
     expect(LENS_BUDGET.maxRounds).toBeGreaterThanOrEqual(6);
     expect(LENS_BUDGET.maxToolCalls).toBeGreaterThanOrEqual(8);
   });

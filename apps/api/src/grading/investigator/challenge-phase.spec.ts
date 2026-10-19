@@ -27,7 +27,7 @@ const caseSpend = (model: string, i: number, o: number): CaseLens => ({
   name: `case-${model}`,
   async review(_ctx, _verdict, _calls, usage) {
     usage?.add(model, { inputTokens: i, outputTokens: o });
-    return { lens: `case-${model}`, suspected: false, note: 'ok' };
+    return { lens: `case-${model}`, suspected: false, concluded: true, note: 'ok' };
   },
 });
 
@@ -61,7 +61,7 @@ describe('runChallengePhase()', () => {
     let caseSaw: string[] = [];
     const cl: CaseLens = {
       name: 'c',
-      async review(_ctx, verdict) { caseSaw = verdict.errors.map((e) => e.ruleKey); return { lens: 'c', suspected: false, note: '' }; },
+      async review(_ctx, verdict) { caseSaw = verdict.errors.map((e) => e.ruleKey); return { lens: 'c', suspected: false, concluded: true, note: '' }; },
     };
     // CTX: sai_ca_co_ban là luật máy quyết (checkedBy: 'machine'), chu_thich_sai là luật model.
     await runChallengePhase(investigated(['sai_ca_co_ban', 'chu_thich_sai']), CTX, { challengers: [per], caseLenses: [cl] });
