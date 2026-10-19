@@ -208,11 +208,22 @@ describe('Nạp luật và giá theo rubric (e2e)', () => {
   it('T-RBE-PRICE-3: xem trước đếm đúng phiên đang chấm / đã chốt CỦA RUBRIC ĐÓ', async () => {
     const w = await twoRubrics('pr3');
     for (const ctx of [w.a, w.a, w.b]) await graded(ctx);
-    const [{ n: before }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.score_computation`);
+    // Đếm CHỈ các phiên của ca này: bảng score_computation dùng chung, và một lượt quét của suite khác có thể chốt
+    // phiên khác đúng lúc này. Đếm toàn bảng làm ca này lúc đỏ lúc xanh.
+    const mine = [w.a.sessionId, w.b.sessionId];
+    const countMine = async () =>
+      (await ds.query(
+        `SELECT count(*)::int AS n FROM examcollect.score_computation sc
+           JOIN examcollect.grading_result gr ON gr.id = sc.grading_result_id
+           JOIN examcollect.submission s ON s.id = gr.submission_id
+          WHERE s.exam_session_id = ANY($1)`,
+        [mine],
+      ))[0].n as number;
+    const before = await countMine();
     const p = await prices.preview(w.teacherId, w.chungA, '2.00');
     expect(p.openSessions).toEqual([{ sessionId: w.a.sessionId, name: expect.any(String), affected: 2, autoAfter: 2, blockedByOtherUnpriced: 0 }]);
     expect(p.finalizedSessions).toEqual([]);
-    const [{ n: after }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.score_computation`);
+    const after = await countMine();
     expect(after).toBe(before);
   });
 
