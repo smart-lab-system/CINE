@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -21,9 +22,10 @@ import { ExamSessionReassignService } from './exam-session-reassign.service';
 import { CollectionPhaseService } from './collection-phase.service';
 import { RecollectService } from './recollect.service';
 import { SessionRosterService } from './session-roster.service';
-import { RosterStudentDto } from '../course/dto/roster.dto';
+import { ImportRosterDto, RosterStudentDto } from '../course/dto/roster.dto';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { CreateExamSessionDto } from './dto/create-exam-session.dto';
+import { ReplaceRequiredDeliverablesDto } from './dto/replace-required-deliverables.dto';
 import { UpdateExamSessionDto } from './dto/update-exam-session.dto';
 import { ReassignTeacherDto } from './dto/reassign-teacher.dto';
 import { SearchExamSessionsDto } from './dto/search-exam-sessions.dto';
@@ -113,6 +115,21 @@ export class ExamSessionController {
   ) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.examSessions.cancel(session);
+  }
+
+  /**
+   * Thay toàn bộ file bắt buộc — chỉ khi `scheduled`
+   * (spec 2026-10-18-exam-session-create-slim).
+   */
+  @Put(':id/required-deliverables')
+  @Roles('teacher')
+  async replaceRequiredDeliverables(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReplaceRequiredDeliverablesDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.examSessions.replaceRequiredDeliverables(session, dto);
   }
 
   /**
@@ -247,15 +264,12 @@ export class ExamSessionController {
   }
 
   /**
-   * "Mở phiên thi" — đóng băng danh sách dự thi (CLAUDE.md §7.1.1).
+   * "Mở phiên thi" — đóng băng danh sách dự thi và flip `scheduled → active`
+   * trong một transaction (spec 2026-10-18-exam-session-setup-edit-flow;
+   * CLAUDE.md §7.1.1).
    *
-   * Đây là đường CHỦ ĐỘNG và DUY NHẤT cho tới khi `scheduled` thành
-   * trạng thái thật (§7.1.1b): phiên hiện `active` ngay từ lúc tạo, nên
-   * không có transition nào để móc việc chốt vào. Trong lúc chờ,
-   * `agent:join` từ chối phiên chưa chốt — cửa sổ hở bị đóng bằng một
-   * lỗi to và sớm thay vì một ảnh chốt thiếu người phát hiện lúc chấm.
-   *
-   * Idempotent: bấm lần hai trả về đúng con số cũ, `submissionsSeeded: 0`.
+   * Idempotent khi đã active + đã freeze: bấm lần hai trả con số cũ,
+   * `submissionsSeeded: 0`.
    */
   @Post(':id/open')
   @Roles('teacher')
@@ -266,8 +280,51 @@ export class ExamSessionController {
   }
 
   /**
+   * Danh sách thi hiệu lực — enrollment lớp nếu chưa tùy chỉnh;
+   * `session_roster` nếu đã materialize / đã mở.
+   */
+  @Get(':id/roster')
+  @Roles('teacher')
+  async listRoster(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.sessionRoster.listEffective(session);
+  }
+
+  /** Chép enrollment → session_roster (idempotent, chỉ `scheduled`). */
+  @Post(':id/roster/materialize')
+  @Roles('teacher')
+  @HttpCode(200)
+  async materializeRoster(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.sessionRoster.materializeFromEnrollment(session);
+  }
+
+  /**
+   * Import JSON danh sách vào ảnh chốt phiên (browser đã parse xlsx).
+   * Không đụng enrollment lớp. Reuse `ImportRosterDto` của module course.
+   */
+  @Post(':id/roster/import')
+  @Roles('teacher')
+  @HttpCode(200)
+  async importRoster(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ImportRosterDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.sessionRoster.importStudents(session, {
+      students: dto.students,
+      removeMissing: dto.removeMissing,
+    });
+  }
+
+  /**
    * Thêm một sinh viên vào ảnh chốt tại phòng thi — đường thoát hiểm
-   * §5.8, §7.1.1 đánh dấu "bắt buộc giữ".
+   * §5.8, §7.1.1 đánh dấu "bắt buộc giữ". Khi `scheduled` + roster rỗng:
+   * materialize lớp trước rồi mới thêm (tránh open chỉ còn 1 SV).
    *
    * Dùng lại `RosterStudentDto` của module course thay vì khai một DTO
    * mới: luật hợp lệ của MSSV và tên là một, và hai bản sao là cách

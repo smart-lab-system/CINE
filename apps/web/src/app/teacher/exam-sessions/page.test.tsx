@@ -20,6 +20,8 @@ const useExamSessionsInRangeMock = vi.fn();
 vi.mock('@/hooks/useExamSession', () => ({
   useExamSessions: (...args: unknown[]) => useExamSessionsMock(...args),
   useExamSessionsInRange: (...args: unknown[]) => useExamSessionsInRangeMock(...args),
+  useCancelExamSession: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateExamSessionSchedule: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 // Bộ lọc LỚP đọc danh sách lớp của giảng viên, không đọc các phiên đã
@@ -399,11 +401,9 @@ describe('ExamSessionsListPage — chế độ xem lịch', () => {
     });
     switchToCalendar();
 
-    // Khoanh vào trong LƯỚI: chuỗi "Đang diễn ra" cũng có ở chú giải dưới
-    // chân, nên tìm trên toàn trang sẽ khớp hai chỗ và test đỏ vì lý do
-    // không liên quan tới thứ đang kiểm.
+    // Khoanh vào trong LƯỚI: chuỗi nhãn cũng có ở chú giải dưới chân.
     const grid = await screen.findByRole('table');
-    expect(within(grid).getByText('Đang diễn ra')).toBeInTheDocument();
+    expect(within(grid).getByText('Đang thi')).toBeInTheDocument();
     expect(within(grid).getByText('Giữa kỳ Lập trình Web')).toBeInTheDocument();
   });
 

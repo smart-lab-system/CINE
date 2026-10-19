@@ -103,28 +103,32 @@ Teacher `/classes`: **chỉ** list + roster — cố ý không C/U/D lớp (owne
 
 ### 2.5 Phiên thi (`exam_session`)
 
+> **Cập nhật 2026-10-18:** P1.2 (PATCH lịch), soft-cancel, gỡ roster manual **đã có**.
+> Flow thiết lập / status `scheduled` thật: xem
+> [2026-10-18-exam-session-setup-edit-flow-design.md](./2026-10-18-exam-session-setup-edit-flow-design.md)
+> và plan `docs/superpowers/plans/2026-10-18-exam-session-setup-edit-flow.md`.
+
 | Thao tác | API | UI | Ghi chú |
 |---|---|---|---|
-| Create | ✅ | ✅ | Teacher |
-| Read list/detail | ✅ | ✅ | |
-| Update tổng quát (giờ / phòng / kỳ…) | ❌ | ❌ | **Không** có `PATCH /exam-sessions/:id` |
-| Update rubric gắn phiên | ✅ | ✅ | `PATCH …/rubric` — cố ý hẹp |
-| Update deliverable language | ✅ | ⚠️ | API có; UI theo luồng chấm |
-| Reassign teacher | ✅ | ⚠️ | Admin API; UI admin riêng chưa nổi |
-| Delete phiên | ❌ | ❌ | Không có |
-| Lifecycle (open / finalize / archive…) | ✅ | ✅ | Thay thế một phần U/D |
+| Create | ✅ | ✅ | → `scheduled` (không còn `active` ngay) |
+| Read list/detail | ✅ | ✅ | Hub thiết lập `/teacher/exam-sessions/[id]` |
+| Update phòng / giờ | ✅ | ✅ | `PATCH /exam-sessions/:id` trước khi mở; hub + dialog list |
+| Update rubric gắn phiên | ✅ | ✅ | Hub + grading |
+| Update deliverable language | ✅ | ⚠️ | API có; UI chủ yếu lúc chuẩn bị chấm |
+| Reassign teacher | ✅ | ⚠️ | Admin API |
+| Soft-cancel | ✅ | ✅ | `POST …/cancel` khi `scheduled` |
+| Hard-delete | ❌ | ❌ | Cố ý không làm |
+| Lifecycle (open / finalize / archive…) | ✅ | ✅ | open = freeze + `active` |
 
 **Con phụ thuộc phiên:**
 
 | Thực thể | C | R | U | D | Ghi chú |
 |---|---|---|---|---|---|
-| Exam materials | ✅ | ✅ | — | ✅ | Không “sửa file” — xoá + upload lại |
-| Required deliverables | ✅ (lúc tạo phiên) | ✅ | ⚠️ (language) | ❌ | Không thêm/xoá file bắt buộc sau tạo |
-| Session roster | ✅ freeze + add manual | ✅ (qua attendance) | — | ❌ | **Không xoá** SV khỏi roster phiên |
+| Exam materials | ✅ | ✅ | — | ✅ | Hub + lobby |
+| Required deliverables | ✅ (lúc tạo) | ✅ | ⚠️ (language) | ❌ | Không sửa danh sách file sau tạo |
+| Session roster | ✅ freeze + add manual | ✅ | — | ✅ manual | Gỡ chỉ `source=manual` + điều kiện an toàn |
 
-Spec sync catalog (`2026-10-07-sync-master-data-schema-design.md`) mô tả **PATCH phòng** trước giờ thi; comment DTO rubric còn ghi rõ tránh `PATCH /exam-sessions/:id` vì `ScheduleConflictService` chưa nhận `excludeSessionId`. → **nợ thiết kế đã biết**, chưa làm.
-
-**Kết luận:** phiên thi là **workflow object**, không phải catalog CRUD — nhưng vẫn có **gap vận hành** (đổi phòng/giờ trước giờ thi; huỷ phiên nháp; gỡ SV thêm nhầm trên roster phiên).
+**Kết luận:** workflow object; gap còn lại chủ yếu là hard-delete (không làm) và chỉnh sâu deliverables (cố ý không).
 
 ---
 
@@ -177,9 +181,9 @@ Không đề xuất “bổ sung DELETE đầy đủ” trừ khi có yêu cầu
 | # | Việc | Lý do | Đề xuất |
 |---|---|---|---|
 | P1.1 | `PATCH` enrollment: sửa `student_name` (và optionally resolve lại `student_id`) | Sai chính tả tên hay gặp; xoá+thêm mất ngữ cảnh | `PATCH …/roster/students/:mssv` body `{ name }` — **không** đổi mssv (đổi mssv = xoá+thêm) |
-| P1.2 | `PATCH /exam-sessions/:id` hẹp: đổi `roomId`/`roomName` (và có thể `startTime`/`endTime`) **trước** khi mở phiên | Spec sync đã mô tả; hiện không sửa được phòng sau tạo | Chỉ khi `status` cho phép (vd. chưa `open` / chưa freeze roster); bắt buộc `excludeSessionId` trong conflict check |
-| P1.3 | Xoá / huỷ phiên **nháp** (chưa open / chưa có submission) | Tạo thử / tạo sai không dọn được | `DELETE /exam-sessions/:id` với guard chặt (không submission, không freeze, hoặc chỉ `scheduled`) + UI confirm |
-| P1.4 | Xoá SV khỏi **session roster** nếu `source=manual` và chưa nộp / chưa open xong | Thêm tay nhầm không gỡ được | `DELETE …/roster/students/:mssv` chỉ cho manual + điều kiện an toàn; không xoá dòng `frozen` |
+| P1.2 | `PATCH /exam-sessions/:id` hẹp: đổi phòng/giờ trước mở | **Đã xong** (API + UI list/hub) | — |
+| P1.3 | Huỷ phiên nháp | **Soft-cancel** đã có (`POST …/cancel`); hard-delete cố ý không | — |
+| P1.4 | Xoá SV khỏi session roster (manual) | **Đã xong** | — |
 
 ### P2 — Admin placeholder & rubric dọn
 
