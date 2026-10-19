@@ -70,6 +70,9 @@ describe('Collection phase (e2e)', () => {
        VALUES ($1, $2, $3) RETURNING id`,
       [courseName, `Nhóm ${suffix}`, teacherId],
     );
+    // Freeze từ chối lớp rỗng: một sinh viên giữ chỗ để mở phiên được. Test nào ghi danh thêm sau đó vẫn vào được
+    // danh sách nhờ `enrol` (xem bên dưới).
+    await enrol('SVGIUCHO', 'Sinh viên giữ chỗ', klass.id);
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -87,6 +90,8 @@ describe('Collection phase (e2e)', () => {
         requiredFilenames: options.requiredFilenames ?? ['Cau1.docx'],
       });
     expect(created.status).toBe(201);
+    // Create ghi `scheduled` (spec 2026-10-18); mở phiên mới cho `active` và đóng băng danh sách.
+    await openSession(app, teacherToken, created.body.id);
     return {
       id: created.body.id as string,
       code: created.body.code as string,
@@ -206,11 +211,24 @@ describe('Collection phase (e2e)', () => {
     await app.close();
   });
 
+  /**
+   * Ghi danh vào lớp. Phiên của lớp đã mở thì danh sách thi đã đóng băng lúc mở, nên sinh viên ghi danh sau đó được
+   * thêm tay vào `session_roster` (nguồn `manual`, giống đường giám thị thêm người) để vẫn vào được phiên.
+   */
   async function enrol(mssv: string, name: string, homeClassId: string) {
     await dataSource.query(
       `INSERT INTO examcollect.enrollment
          (student_mssv, student_name, home_class_id, home_teacher_id)
        VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING`,
+      [mssv, name, homeClassId, teacherId],
+    );
+    await dataSource.query(
+      `INSERT INTO examcollect.session_roster
+         (exam_session_id, student_mssv, student_name, home_class_id, home_teacher_id, source)
+       SELECT s.id, $1, $2, $3, $4, 'manual'
+         FROM examcollect.exam_session s
+        WHERE s.class_id = $3 AND s.status IN ('active', 'collecting')
        ON CONFLICT DO NOTHING`,
       [mssv, name, homeClassId, teacherId],
     );

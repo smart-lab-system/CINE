@@ -1,7 +1,7 @@
 import { Column, Entity, JoinColumn, ManyToOne, Unique } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import { AccountEntity } from '../../identity/entities/account.entity';
-import { IdeExtensionEntity } from './ide-extension.entity';
+import type { IdeExtensionEntity } from './ide-extension.entity';
 import type { IdeExtensionApprovalStatus } from './ide-extension-policy-item.entity';
 
 @Entity({ name: 'ide_extension_version' })
@@ -10,7 +10,7 @@ export class IdeExtensionVersionEntity extends BaseEntity {
   @Column({ name: 'extension_pk', type: 'uuid' })
   extensionPk!: string;
 
-  @ManyToOne(() => IdeExtensionEntity, (ext) => ext.versions, {
+  @ManyToOne('IdeExtensionEntity', (ext: IdeExtensionEntity) => ext.versions, {
     onDelete: 'CASCADE',
     nullable: false,
   })
