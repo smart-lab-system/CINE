@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
@@ -20,6 +21,9 @@ export interface AnswerSource {
   key: string;
   sha256: string;
 }
+
+/** Trần kích thước mã đáp án khi giảng viên tải lên. Một lời giải thật chỉ vài KB; trần này chặn upload bậy. */
+export const ANSWER_SOURCE_MAX_BYTES = 256 * 1024;
 
 /**
  * Ba mức ngữ cảnh mà hệ thống có thể chấm với.
@@ -119,7 +123,7 @@ export class GradingReferenceService {
    */
   async confirmRuler(session: ExamSessionEntity, teacherId: string): Promise<{ confirmedAt: string }> {
     const ref = await this.references.findOne({ where: { examSessionId: session.id } });
-    if (!ref || !(ref.modelAnswerStorageKey || ref.modelAnswerNote)) {
+    if (!ref || !(ref.modelAnswerStorageKey || ref.modelAnswerNote || ref.modelAnswerSourceKey)) {
       throw new BadRequestException('Chưa có đáp án mẫu để xác nhận — hãy gắn đề hoặc nhập đáp án trước.');
     }
     if (ref.rulerConfirmedAt) {
@@ -131,6 +135,78 @@ export class GradingReferenceService {
       { modelAnswerUnverified: false, rulerTrust: 'teacher', rulerConfirmedBy: teacherId, rulerConfirmedAt: now },
     );
     return { confirmedAt: now.toISOString() };
+  }
+
+  /**
+   * URL để giảng viên tải MÃ đáp án của mình lên (G2b-R Task 2). Khoá `pending-<uuid>` là chỗ tạm: `confirmAnswerSource`
+   * đọc, băm, đặt nó dưới khoá theo băm rồi xoá bản tạm. Không đi qua NestJS (Security rule 5).
+   */
+  async requestAnswerSourceUpload(
+    session: ExamSessionEntity,
+    extension: 'cpp' | 'py',
+  ): Promise<{ storageKey: string; uploadUrl: string; expiresIn: number }> {
+    await this.assertNotGradedYet(session);
+    const storageKey = `grading-reference/${session.id}/pending-${randomUUID()}.${extension}`;
+    const { uploadUrl, expiresIn } = await this.storage.generateUploadUrl(storageKey);
+    return { storageKey, uploadUrl, expiresIn };
+  }
+
+  /**
+   * Chốt mã đáp án đã tải lên: server đọc object, băm, ghi lại dưới khoá theo băm (nếu chưa có), đặt cột nguồn và xoá
+   * bản tạm. Mã của giảng viên chưa từng được chạy nên thước ở mức `unverified` tới khi họ xác nhận (`confirmRuler`),
+   * và xác nhận cũ không còn áp dụng cho mã mới. Idempotent theo nội dung: cùng mã thì cùng khoá.
+   */
+  async confirmAnswerSource(
+    session: ExamSessionEntity,
+    teacherId: string,
+    storageKey: string,
+  ): Promise<{ sourceKey: string; sha256: string }> {
+    await this.assertNotGradedYet(session);
+
+    // Chỉ nhận khoá pending của CHÍNH phiên này: một khoá tuỳ ý sẽ cho phép trỏ bản ghi vào object bất kỳ trong bucket.
+    const pending = new RegExp(`^grading-reference/${session.id}/pending-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(cpp|py)$`).exec(storageKey);
+    if (!pending) {
+      throw new BadRequestException('Khoá mã đáp án tạm không hợp lệ.');
+    }
+    const size = await this.storage.getObjectSize(storageKey);
+    if (size === null) {
+      throw new BadRequestException('Chưa thấy file mã đáp án trên kho lưu trữ — hãy tải lên trước khi xác nhận.');
+    }
+    // Trần kích thước TRƯỚC khi đọc vào bộ nhớ: presigned URL không giới hạn dung lượng upload.
+    if (size > ANSWER_SOURCE_MAX_BYTES) {
+      throw new BadRequestException(`Mã đáp án quá lớn (${size} byte, tối đa ${ANSWER_SOURCE_MAX_BYTES}).`);
+    }
+
+    const bytes = await this.storage.getObject(storageKey);
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    const sourceKey = `grading-reference/${session.id}/source-${sha256}.${pending[1]}`;
+    if (!(await this.storage.objectExists(sourceKey))) {
+      await this.storage.putObject(sourceKey, bytes, 'text/plain; charset=utf-8');
+    }
+
+    await this.references.manager.transaction(async (m) => {
+      // Cùng cổng với `upsert`: phiên nhiều câu không sửa tài liệu cấp phiên.
+      await assertSessionRouteAllowed(m, session.id);
+      const refs = m.getRepository(GradingReferenceEntity);
+      const existing = await refs.findOne({ where: { examSessionId: session.id } });
+      const row = refs.create({ ...(existing ?? {}), examSessionId: session.id, createdBy: existing?.createdBy ?? teacherId });
+      row.modelAnswerSourceKey = sourceKey;
+      row.modelAnswerSourceSha256 = sha256;
+      row.modelAnswerOrigin = 'teacher';
+      row.modelAnswerSetAt = new Date();
+      row.modelAnswerUnverified = true;
+      row.rulerTrust = 'unverified';
+      row.rulerConfirmedBy = null;
+      row.rulerConfirmedAt = null;
+      row.problemId = existing?.problemId ?? (await ensureDefaultProblem(m, session.id));
+      await refs.save(row);
+    });
+
+    // Bản tạm xoá SAU khi DB đã ghi: hỏng ở bước này chỉ để lại một object mồ côi, không mất mã của giảng viên.
+    await this.storage.deleteObject(storageKey).catch((error: unknown) => {
+      this.logger.warn(`Không xoá được object tạm ${storageKey}: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    return { sourceKey, sha256 };
   }
 
   /**
@@ -238,12 +314,13 @@ export class GradingReferenceService {
       // Nguồn gốc đi theo LƯỢT GHI ĐÁP ÁN, cùng lý do với `modelAnswerUnverified` ở trên: lượt
       // này gửi đáp án thì nguồn là người gửi; không gửi thì giữ nguồn cũ; không còn đáp án thì null.
       const answerSent = dto.modelAnswerStorageKey !== undefined || dto.modelAnswerNote !== undefined;
-      const hasAnswer = Boolean(row.modelAnswerStorageKey || row.modelAnswerNote);
-      row.modelAnswerOrigin = !hasAnswer ? null : answerSent ? origin : (existing?.modelAnswerOrigin ?? origin);
       // Mã nguồn đi theo lượt ghi đáp án như nguồn gốc: lượt này kèm mã thì đặt; gửi đáp án mà không kèm mã thì
       // XOÁ (mã cũ không còn thuộc đáp án mới); không gửi đáp án thì giữ nguyên.
       row.modelAnswerSourceKey = answerSource?.key ?? (answerSent ? null : (existing?.modelAnswerSourceKey ?? null));
       row.modelAnswerSourceSha256 = answerSource?.sha256 ?? (answerSent ? null : (existing?.modelAnswerSourceSha256 ?? null));
+      // Mã nguồn cũng là một đáp án (giảng viên có thể chỉ tải mã lên — G2b-R Task 2), nên cũng giữ nguồn gốc của nó.
+      const hasAnswer = Boolean(row.modelAnswerStorageKey || row.modelAnswerNote || row.modelAnswerSourceKey);
+      row.modelAnswerOrigin = !hasAnswer ? null : answerSent ? origin : (existing?.modelAnswerOrigin ?? origin);
       // Dấu thời gian đi CÙNG nhịp với nguồn gốc: cả hai trả lời "đáp án của bản ghi này đến từ đâu, từ lúc nào".
       row.modelAnswerSetAt = !hasAnswer ? null : answerSent ? new Date() : (existing?.modelAnswerSetAt ?? new Date());
       // Câu và độ tin cậy của thước (P1a): giữ câu đã có; thước theo đúng quy tắc backfill M2.

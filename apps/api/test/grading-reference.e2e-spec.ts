@@ -525,6 +525,169 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     });
   });
 
+  // G2b-R Task 2: giảng viên đưa MÃ đáp án của mình lên bằng presigned URL (Security rule 5: không qua NestJS). Server chỉ
+  // đọc object để băm, rồi đặt nó dưới khoá theo băm; khoá `pending-` là chỗ tạm và bị xoá.
+  describe('tải mã đáp án của giảng viên (G2b-R Task 2)', () => {
+    const sha = (data: string | Buffer) => createHash('sha256').update(data).digest('hex');
+    const post = (path: string, body: object, token = teacherToken) =>
+      request(app.getHttpServer()).post(path).set('Authorization', `Bearer ${token}`).send(body);
+    const uploadUrl = (sessionId: string, extension: string, token = teacherToken) =>
+      post(`/exam-sessions/${sessionId}/grading-reference/answer-source/upload-url`, { extension }, token);
+    const confirm = (sessionId: string, storageKey: string, token = teacherToken) =>
+      post(`/exam-sessions/${sessionId}/grading-reference/answer-source/confirm`, { storageKey }, token);
+
+    /** Xin URL, PUT thật lên kho như trình duyệt, trả khoá tạm. */
+    async function uploadSource(sessionId: string, content: string | Buffer, extension = 'cpp'): Promise<string> {
+      const res = await uploadUrl(sessionId, extension);
+      expect(res.status).toBe(201);
+      const put = await fetch(res.body.uploadUrl as string, {
+        method: 'PUT',
+        body: typeof content === 'string' ? content : new Uint8Array(content),
+      });
+      expect(put.ok).toBe(true);
+      return res.body.storageKey as string;
+    }
+
+    async function referenceColumns(sessionId: string) {
+      const [row] = await dataSource.query(
+        `SELECT model_answer_source_key AS key, model_answer_source_sha256 AS sha256, model_answer_origin AS origin,
+                model_answer_unverified AS unverified, ruler_trust
+           FROM examcollect.grading_reference WHERE exam_session_id = $1`,
+        [sessionId],
+      );
+      return row as { key: string | null; sha256: string | null; origin: string | null; unverified: boolean; ruler_trust: string | null };
+    }
+
+    it('upload-url trả khoá pending đúng tiền tố của phiên, kèm URL và hạn', async () => {
+      const session = await seedSession();
+      const res = await uploadUrl(session.id, 'cpp');
+
+      expect(res.status).toBe(201);
+      expect(res.body.storageKey).toMatch(new RegExp(`^grading-reference/${session.id}/pending-[0-9a-f-]{36}\\.cpp$`));
+      expect(typeof res.body.uploadUrl).toBe('string');
+      expect(res.body.expiresIn).toBeGreaterThan(0);
+    });
+
+    it('đuôi py được nhận; đuôi khác (java, rỗng, thiếu) → 400', async () => {
+      const session = await seedSession();
+      expect((await uploadUrl(session.id, 'py')).body.storageKey).toMatch(/\.py$/);
+      for (const extension of ['java', '', 'CPP', '../x']) {
+        expect((await uploadUrl(session.id, extension)).status).toBe(400);
+      }
+      expect((await post(`/exam-sessions/${session.id}/grading-reference/answer-source/upload-url`, {})).status).toBe(400);
+    });
+
+    it('confirm khi chưa upload gì → 400, không ghi cột nào', async () => {
+      const session = await seedSession();
+      const key = (await uploadUrl(session.id, 'cpp')).body.storageKey as string;
+
+      expect((await confirm(session.id, key)).status).toBe(400);
+      const [row] = await dataSource.query(`SELECT 1 FROM examcollect.grading_reference WHERE exam_session_id = $1`, [session.id]);
+      expect(row).toBeUndefined();
+    });
+
+    it('confirm khoá của phiên khác → 400, dù object đã upload thật', async () => {
+      const mine = await seedSession();
+      const other = await seedSession();
+      const foreignKey = await uploadSource(other.id, 'int main() {}\n');
+
+      expect((await confirm(mine.id, foreignKey)).status).toBe(400);
+    });
+
+    it.each([
+      ['khoá đáp án cố định', (id: string) => `grading-reference/${id}/answer-key`],
+      ['khoá theo băm đã chốt', (id: string) => `grading-reference/${id}/source-${'a'.repeat(64)}.cpp`],
+      ['khoá tài liệu của phiên', (id: string) => `materials/${id}/x`],
+      ['khoá pending đuôi lạ', (id: string) => `grading-reference/${id}/pending-11111111-1111-4111-8111-111111111111.exe`],
+      ['khoá có ..', (id: string) => `grading-reference/${id}/../x/pending-11111111-1111-4111-8111-111111111111.cpp`],
+    ])('confirm với %s → 400 (chỉ nhận khoá pending của chính phiên này)', async (_label, keyOf) => {
+      const session = await seedSession();
+      expect((await confirm(session.id, keyOf(session.id))).status).toBe(400);
+    });
+
+    it('confirm đúng → cột nguồn đặt, băm khớp nội dung, origin teacher, chưa kiểm chứng; object theo băm có, object tạm bị xoá', async () => {
+      const session = await seedSession();
+      const code = '#include <iostream>\nint main() { std::cout << 7; }\n';
+      const pendingKey = await uploadSource(session.id, code);
+
+      const res = await confirm(session.id, pendingKey);
+
+      expect(res.status).toBe(201);
+      const finalKey = `grading-reference/${session.id}/source-${sha(code)}.cpp`;
+      expect(res.body).toEqual({ sourceKey: finalKey, sha256: sha(code) });
+      expect(await referenceColumns(session.id)).toEqual({
+        key: finalKey,
+        sha256: sha(code),
+        origin: 'teacher',
+        unverified: true,
+        ruler_trust: 'unverified',
+      });
+      const storage = app.get(StorageService);
+      expect((await storage.getObject(finalKey)).toString('utf8')).toBe(code);
+      expect(await storage.objectExists(pendingKey)).toBe(false);
+    });
+
+    it('confirm hai lần cùng nội dung → cùng khoá, không lỗi (băm làm nó idempotent)', async () => {
+      const session = await seedSession();
+      const code = 'print(1)\n';
+      const first = await confirm(session.id, await uploadSource(session.id, code, 'py'));
+      const second = await confirm(session.id, await uploadSource(session.id, code, 'py'));
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(201);
+      expect(second.body.sourceKey).toBe(first.body.sourceKey);
+    });
+
+    it('đổi sang mã khác → cột trỏ bản mới, bản cũ còn trên kho', async () => {
+      const session = await seedSession();
+      const first = await confirm(session.id, await uploadSource(session.id, 'int a;\n'));
+      const second = await confirm(session.id, await uploadSource(session.id, 'int b;\n'));
+
+      expect((await referenceColumns(session.id)).key).toBe(second.body.sourceKey);
+      expect(await app.get(StorageService).objectExists(first.body.sourceKey as string)).toBe(true);
+    });
+
+    it('xác nhận lại mã mới xoá xác nhận thước cũ: đáp án mới thì chưa ai xác nhận nó', async () => {
+      const session = await seedSession();
+      await confirm(session.id, await uploadSource(session.id, 'int a;\n'));
+      expect((await post(`/exam-sessions/${session.id}/ruler/confirm`, {})).status).toBe(200);
+      expect((await referenceColumns(session.id)).ruler_trust).toBe('teacher');
+
+      await confirm(session.id, await uploadSource(session.id, 'int b;\n'));
+
+      expect(await referenceColumns(session.id)).toMatchObject({ unverified: true, ruler_trust: 'unverified' });
+      const [row] = await dataSource.query(
+        `SELECT ruler_confirmed_by, ruler_confirmed_at FROM examcollect.grading_reference WHERE exam_session_id = $1`,
+        [session.id],
+      );
+      expect(row).toEqual({ ruler_confirmed_by: null, ruler_confirmed_at: null });
+    });
+
+    it('object lớn hơn trần 256 KiB → 400, không ghi cột nào', async () => {
+      const session = await seedSession();
+      const pendingKey = await uploadSource(session.id, Buffer.alloc(256 * 1024 + 1, 'x'));
+
+      expect((await confirm(session.id, pendingKey)).status).toBe(400);
+      const [row] = await dataSource.query(`SELECT 1 FROM examcollect.grading_reference WHERE exam_session_id = $1`, [session.id]);
+      expect(row).toBeUndefined();
+    });
+
+    it('phiên đã có bài đang chấm → 409 ở cả hai route', async () => {
+      const session = await seedSession();
+      const pendingKey = await uploadSource(session.id, 'int main() {}\n');
+      await seedGradingResult(session);
+
+      expect((await uploadUrl(session.id, 'cpp')).status).toBe(409);
+      expect((await confirm(session.id, pendingKey)).status).toBe(409);
+    });
+
+    it('giảng viên không phải chủ phiên nhận 403 ở cả hai route', async () => {
+      const session = await seedSession();
+      expect((await uploadUrl(session.id, 'cpp', otherTeacherToken)).status).toBe(403);
+      expect((await confirm(session.id, `grading-reference/${session.id}/pending-11111111-1111-4111-8111-111111111111.cpp`, otherTeacherToken)).status).toBe(403);
+    });
+  });
+
   it('giảng viên không phải chủ phiên nhận 403 ở cả hai route', async () => {
     const session = await seedSession();
 

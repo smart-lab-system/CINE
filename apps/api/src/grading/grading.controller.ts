@@ -26,6 +26,7 @@ import { GradingReferenceService } from './grading-reference.service';
 import { ProblemService } from './problem/problem.service';
 import { SubmissionTextService } from './submission-text.service';
 import { UpsertGradingReferenceDto } from './dto/upsert-grading-reference.dto';
+import { ConfirmAnswerSourceDto, RequestAnswerSourceUploadDto } from './dto/answer-source.dto';
 import { RubricService } from './rubric.service';
 import { TeacherReviewService } from './teacher-review.service';
 import { SaveRubricDto } from './dto/rubric.dto';
@@ -364,6 +365,35 @@ export class GradingController {
   ) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.references.requestAnswerKeyUpload(session);
+  }
+
+  /**
+   * URL upload cho MÃ đáp án của giảng viên (G2b-R). File đi thẳng lên kho, không qua NestJS (Security rule 5); khoá là
+   * `pending-<uuid>` dưới prefix `grading-reference/`, nên mã không bao giờ lọt vào `listForAgent`.
+   */
+  @Post('exam-sessions/:id/grading-reference/answer-source/upload-url')
+  @Roles('teacher')
+  @HttpCode(201)
+  async requestAnswerSourceUpload(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RequestAnswerSourceUploadDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.references.requestAnswerSourceUpload(session, dto.extension);
+  }
+
+  /** Chốt mã đã tải lên: server đọc, băm, đặt khoá theo băm và ghi cột nguồn. Mã của giảng viên vẫn `unverified` tới khi xác nhận thước. */
+  @Post('exam-sessions/:id/grading-reference/answer-source/confirm')
+  @Roles('teacher')
+  @HttpCode(201)
+  async confirmAnswerSource(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ConfirmAnswerSourceDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.references.confirmAnswerSource(session, req.user!.sub, dto.storageKey);
   }
 
   /**
