@@ -2,8 +2,6 @@ import { Sparkles,
   LayoutDashboard,
   GraduationCap,
   Users,
-  Bot,
-  Wallet,
   ScrollText,
   CalendarClock,
   ClipboardCheck,
@@ -50,8 +48,6 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Phòng', href: '/admin/master-data/rooms', icon: Building2 },
   { label: 'Máy tính', href: '/admin/master-data/computers', icon: Monitor },
   { label: 'Tiện ích IDE', href: '/admin/ide-utilities', icon: Puzzle },
-  { label: 'Cấu hình AI', href: '/admin/ai-config', icon: Bot },
-  { label: 'Chi phí', href: '/admin/cost', icon: Wallet },
   { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
 ];
 

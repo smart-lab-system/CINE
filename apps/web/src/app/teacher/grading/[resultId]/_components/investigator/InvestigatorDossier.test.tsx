@@ -9,6 +9,9 @@ let overviewMock = () => ({ data: [] as unknown[] });
 let rubricsMock = () => ({ data: [] as unknown[] });
 const manualMutate = vi.fn();
 
+vi.mock('@/hooks/useAudit', () => ({
+  useOpenSubmission: () => ({ mutate: () => {}, isPending: false, isError: false, error: null }),
+}));
 vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: () => resultsMock(),
   useResultInvestigation: () => detailMock(),

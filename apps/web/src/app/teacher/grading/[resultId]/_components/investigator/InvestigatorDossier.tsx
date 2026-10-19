@@ -75,6 +75,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
 
   const header = (status: string, ungradableReason: string | null) => (
     <DossierHeader
+      resultId={resultId}
       sessionId={sessionId}
       sessionName={session?.name ?? '—'}
       roomName={session?.roomName ?? null}

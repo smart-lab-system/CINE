@@ -1,5 +1,7 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { TEACHER_NAV } from './nav-config';
+import { ADMIN_NAV, TEACHER_NAV } from './nav-config';
 
 describe('TEACHER_NAV', () => {
   const labels = TEACHER_NAV.map((item) => item.label);
@@ -17,5 +19,18 @@ describe('TEACHER_NAV', () => {
 
   it('không mục nào trỏ vào trang không tồn tại /teacher/rubrics', () => {
     expect(TEACHER_NAV.map((i) => i.href)).not.toContain('/teacher/rubrics');
+  });
+});
+
+// Quy tắc chung: không mục menu nào dẫn tới trang trống hay nhãn "cần backend".
+describe('ADMIN_NAV', () => {
+  it('mọi mục admin đều có trang thật, không dùng PlaceholderPage hay NeedsBackend', () => {
+    for (const item of ADMIN_NAV) {
+      const file = join(process.cwd(), 'src/app', item.href, 'page.tsx');
+      expect(existsSync(file), item.href).toBe(true);
+      const src = readFileSync(file, 'utf8');
+      expect(src, item.href).not.toContain('PlaceholderPage');
+      expect(src, item.href).not.toContain('NeedsBackend');
+    }
   });
 });
