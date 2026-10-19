@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { makeRunId } from '../run-writer';
 import { ActualSubmission, evaluateRun, isRehearsalSession, RehearsalScenario, renderIndex, RunRecord, scenarioRows } from './score-run';
 import { NGAN_XEP_V1 } from './scenarios/ngan-xep-v1';
+import { NGAN_XEP_V2 } from './scenarios/ngan-xep-v2';
 import { HttpError, isConnectPhaseError, isNetworkError, withRetry } from './retry';
 
 /**
@@ -13,7 +14,10 @@ import { HttpError, isConnectPhaseError, isNetworkError, withRetry } from './ret
  * viên nộp qua socket như agent thật, bấm chấm, chờ, rồi chấm lượt đó theo kỳ vọng của kịch bản
  * và ghi vào `eval/rehearsals/<lượt>/`. `--collect <sessionId>` ghi bù một phiên đã chấm trước đó.
  */
-const SCENARIOS: Record<string, RehearsalScenario> = { [NGAN_XEP_V1.id]: NGAN_XEP_V1 };
+const SCENARIOS: Record<string, RehearsalScenario> = {
+  [NGAN_XEP_V1.id]: NGAN_XEP_V1,
+  [NGAN_XEP_V2.id]: NGAN_XEP_V2,
+};
 const ROOT = join(__dirname, '..', '..', '..', 'eval', 'rehearsals');
 
 interface Args {
