@@ -50,6 +50,7 @@ import { RubricErrorsController } from './rules/rubric-errors.controller';
 import { RulesController } from './rules/rules.controller';
 import { TestBundleController } from './test-bundle/test-bundle.controller';
 import { TestBundleService } from './test-bundle/test-bundle.service';
+import { TestRunService } from './test-bundle/test-run.service';
 import { AuditReviewController } from './audit/audit-review.controller';
 import { AuditReviewService } from './audit/audit-review.service';
 import { InvestigationContextService } from './pipeline/investigation-context.service';
@@ -161,6 +162,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
   providers: [
     GradingService,
     TestBundleService,
+    TestRunService,
     AuditReviewService,
     GradingRunService,
     DeliverableLanguageService,

@@ -6,7 +6,9 @@ import { RolesGuard } from '../../auth/roles.guard';
 import { ExamSessionService } from '../../exam-session/exam-session.service';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
 import { DropTestCaseDto } from './dto/drop-test-case.dto';
+import { RunTestBundleDto } from './dto/run-test-bundle.dto';
 import { TestBundleService } from './test-bundle.service';
+import { TestRunService } from './test-run.service';
 
 /**
  * Tạo, duyệt, ghim gói test của MỘT phiên (§14.1, 3d2). Ownership luôn qua
@@ -17,6 +19,7 @@ import { TestBundleService } from './test-bundle.service';
 export class TestBundleController {
   constructor(
     private readonly bundles: TestBundleService,
+    private readonly runs: TestRunService,
     private readonly examSessions: ExamSessionService,
   ) {}
 
@@ -67,6 +70,23 @@ export class TestBundleController {
   ) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.bundles.pin(session.id, bundleId);
+  }
+
+  /**
+   * Chạy thử đáp án mẫu của giảng viên trên gói này: một ca (`caseKey`) hay mọi ca đang dùng. Không đổi duyệt, ghim hay
+   * `ruler_trust`. Mã đáp án không đi qua body: server đọc nó từ kho.
+   */
+  @Post('exam-sessions/:id/test-bundles/:bundleId/runs')
+  @Roles('teacher')
+  @HttpCode(201)
+  async run(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('bundleId', ParseUUIDPipe) bundleId: string,
+    @Body() dto: RunTestBundleDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.runs.run(session.id, req.user!.sub, bundleId, dto.caseKey ?? null);
   }
 
   @Post('exam-sessions/:id/test-bundles/:bundleId/drop-case')

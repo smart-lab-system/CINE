@@ -133,6 +133,17 @@ export class GradingReferenceService {
     return { confirmedAt: now.toISOString() };
   }
 
+  /**
+   * Mã nguồn đáp án mẫu hiện hành của phiên (G2b A2b), hoặc null khi phiên chưa có (phiên cũ, đáp án là docx hay ghi chú).
+   * Chỉ trả khoá và băm, không trả nội dung: người gọi tự đọc kho khi cần, và không route nào được phát nó cho client.
+   */
+  async getAnswerSource(sessionId: string): Promise<AnswerSource | null> {
+    const ref = await this.references.findOne({ where: { examSessionId: sessionId } });
+    return ref?.modelAnswerSourceKey && ref.modelAnswerSourceSha256
+      ? { key: ref.modelAnswerSourceKey, sha256: ref.modelAnswerSourceSha256 }
+      : null;
+  }
+
   async upsert(
     session: ExamSessionEntity,
     dto: UpsertGradingReferenceDto,
