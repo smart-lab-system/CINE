@@ -688,6 +688,87 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     });
   });
 
+  // G2b-R Task 3: mã đáp án do HỆ THỐNG sinh (LLM viết rồi chạy trong sandbox). Độ tin cậy của thước do bước kiểm ví dụ
+  // trong đề quyết định (`verified` khi khớp hết, `unverified` khi đề không có ví dụ), KHÔNG phải `teacher`.
+  describe('mã đáp án do hệ thống sinh (G2b-R Task 3)', () => {
+    const sha = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+
+    async function generatedSource(sessionId: string, code: string) {
+      const key = `grading-reference/${sessionId}/source-${sha(code)}.cpp`;
+      await app.get(StorageService).putObject(key, Buffer.from(code, 'utf8'), 'text/plain; charset=utf-8');
+      return { key, sha256: sha(code) };
+    }
+    const write = (session: Seeded, source: { key: string; sha256: string }, trust: 'verified' | 'unverified') =>
+      dataSource.transaction((m) => app.get(GradingReferenceService).writeGeneratedSource(m, session.entity, teacherId, source, trust));
+    async function row(sessionId: string) {
+      const [r] = await dataSource.query(
+        `SELECT model_answer_source_key AS key, model_answer_source_sha256 AS sha256, model_answer_origin AS origin,
+                model_answer_unverified AS unverified, ruler_trust, ruler_confirmed_at
+           FROM examcollect.grading_reference WHERE exam_session_id = $1`,
+        [sessionId],
+      );
+      return r as { key: string | null; sha256: string | null; origin: string | null; unverified: boolean; ruler_trust: string | null; ruler_confirmed_at: Date | null };
+    }
+
+    it('unverified: origin generated, cờ chưa kiểm chứng bật, ruler_trust unverified, cột nguồn đặt', async () => {
+      const session = await seedSession();
+      const source = await generatedSource(session.id, 'int main() { return 0; }\n');
+
+      await write(session, source, 'unverified');
+
+      expect(await row(session.id)).toEqual({ key: source.key, sha256: source.sha256, origin: 'generated', unverified: true, ruler_trust: 'unverified', ruler_confirmed_at: null });
+    });
+
+    it('verified (ví dụ trong đề khớp hết): cờ chưa kiểm chứng tắt, ruler_trust verified, origin vẫn generated', async () => {
+      const session = await seedSession();
+      const source = await generatedSource(session.id, 'int main() { return 1; }\n');
+
+      await write(session, source, 'verified');
+
+      expect(await row(session.id)).toMatchObject({ origin: 'generated', unverified: false, ruler_trust: 'verified' });
+    });
+
+    it('lượt sinh sau xoá xác nhận thước cũ của giảng viên: đáp án mới thì chưa ai xác nhận nó', async () => {
+      const session = await seedSession();
+      await write(session, await generatedSource(session.id, 'int a;\n'), 'unverified');
+      expect((await request(app.getHttpServer()).post(`/exam-sessions/${session.id}/ruler/confirm`).set('Authorization', `Bearer ${teacherToken}`)).status).toBe(200);
+      expect((await row(session.id)).ruler_trust).toBe('teacher');
+
+      await write(session, await generatedSource(session.id, 'int b;\n'), 'unverified');
+
+      expect(await row(session.id)).toMatchObject({ unverified: true, ruler_trust: 'unverified', ruler_confirmed_at: null });
+    });
+
+    it('upsert chỉ chọn lại đề KHÔNG hạ verified xuống teacher; upsert gửi đáp án mới thì đưa về teacher và xoá cột nguồn', async () => {
+      const session = await seedSession();
+      await write(session, await generatedSource(session.id, 'int c;\n'), 'verified');
+
+      expect((await setReference(session.id, { questionMaterialId: session.materialId })).status).toBe(200);
+      expect(await row(session.id)).toMatchObject({ ruler_trust: 'verified', unverified: false });
+
+      expect((await setReference(session.id, { modelAnswerNote: 'Đáp án giảng viên tự viết.' })).status).toBe(200);
+      expect(await row(session.id)).toMatchObject({ ruler_trust: 'teacher', key: null, sha256: null });
+    });
+
+    it('khoá mã nguồn sai khuôn hay chưa có trên kho → BadRequestException, không ghi gì', async () => {
+      const session = await seedSession();
+      const other = await seedSession();
+      const foreign = await generatedSource(other.id, 'int d;\n');
+      await expect(write(session, foreign, 'verified')).rejects.toBeInstanceOf(BadRequestException);
+      const missing = { key: `grading-reference/${session.id}/source-${sha('chua tung upload')}.cpp`, sha256: sha('chua tung upload') };
+      await expect(write(session, missing, 'verified')).rejects.toBeInstanceOf(BadRequestException);
+      const [exists] = await dataSource.query(`SELECT 1 FROM examcollect.grading_reference WHERE exam_session_id = $1`, [session.id]);
+      expect(exists).toBeUndefined();
+    });
+
+    it('phiên đã có bài đang chấm → 409', async () => {
+      const session = await seedSession();
+      const source = await generatedSource(session.id, 'int e;\n');
+      await seedGradingResult(session);
+      await expect(write(session, source, 'verified')).rejects.toThrow(/đã chấm|đang chấm|Không sửa/i);
+    });
+  });
+
   it('giảng viên không phải chủ phiên nhận 403 ở cả hai route', async () => {
     const session = await seedSession();
 

@@ -9,6 +9,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * - Unique index từng phần: mỗi phiên tối đa MỘT dòng `running`, nên bấm hai lần luôn có đúng một bên thắng, kể cả khi
  *   hai request đến cùng lúc. Dòng `running` quá 15 phút bị service đánh dấu `aborted` trước khi INSERT (đã chết).
  * - KHÔNG lưu stdout; `cases[].diff` do service cắt còn 200 ký tự.
+ * - Lượt SINH ghi thêm phiên bản prompt, model, token và chi phí (NULL khi chưa khai giá model, không bao giờ 0 giả) trong
+ *   cùng lần UPDATE kết thúc — `ai_usage` không có chỗ cho `prompt_version`.
  */
 export class GradingTestRun1789680000000 implements MigrationInterface {
   name = 'GradingTestRun1789680000000';
@@ -31,6 +33,13 @@ export class GradingTestRun1789680000000 implements MigrationInterface {
         "status"          varchar(20) NOT NULL,
         "host"            jsonb,
         "cases"           jsonb,
+        "prompt_version"  varchar(40),
+        "model_used"      varchar(100),
+        "tokens_in"       integer,
+        "tokens_out"      integer,
+        "cost_usd"        numeric(10, 6),
+        CONSTRAINT "ck_grading_test_run_tokens" CHECK (("tokens_in" IS NULL OR "tokens_in" >= 0) AND ("tokens_out" IS NULL OR "tokens_out" >= 0)),
+        CONSTRAINT "ck_grading_test_run_cost" CHECK ("cost_usd" IS NULL OR "cost_usd" >= 0),
         CONSTRAINT "ck_grading_test_run_kind" CHECK ("kind" IN ('generate_statement', 'generate_answer', 'test_run')),
         CONSTRAINT "ck_grading_test_run_status" CHECK ("status" IN
           ('running', 'pass', 'fail', 'compile_error', 'unavailable', 'aborted', 'dropped_all')),
@@ -43,9 +52,11 @@ export class GradingTestRun1789680000000 implements MigrationInterface {
       LANGUAGE plpgsql SET search_path TO 'examcollect', 'public' AS $$
       BEGIN
         IF OLD.status <> 'running' OR NEW.status = 'running'
-           OR (to_jsonb(NEW) - 'status' - 'finished_at' - 'host' - 'cases' - 'test_bundle_id' - 'source_sha256' - 'updated_at')
+           OR (to_jsonb(NEW) - 'status' - 'finished_at' - 'host' - 'cases' - 'test_bundle_id' - 'source_sha256' - 'updated_at'
+                           - 'prompt_version' - 'model_used' - 'tokens_in' - 'tokens_out' - 'cost_usd')
               IS DISTINCT FROM
-              (to_jsonb(OLD) - 'status' - 'finished_at' - 'host' - 'cases' - 'test_bundle_id' - 'source_sha256' - 'updated_at') THEN
+              (to_jsonb(OLD) - 'status' - 'finished_at' - 'host' - 'cases' - 'test_bundle_id' - 'source_sha256' - 'updated_at'
+                           - 'prompt_version' - 'model_used' - 'tokens_in' - 'tokens_out' - 'cost_usd') THEN
           RAISE EXCEPTION 'Lượt chạy % chỉ ghi được việc kết thúc, và chỉ một lần', OLD.id
             USING ERRCODE = 'object_not_in_prerequisite_state';
         END IF;

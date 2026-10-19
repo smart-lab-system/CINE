@@ -51,6 +51,7 @@ import { RulesController } from './rules/rules.controller';
 import { TestBundleController } from './test-bundle/test-bundle.controller';
 import { TestBundleService } from './test-bundle/test-bundle.service';
 import { TestRunService } from './test-bundle/test-run.service';
+import { TestRunStore } from './test-bundle/test-run.store';
 import { AuditReviewController } from './audit/audit-review.controller';
 import { AuditReviewService } from './audit/audit-review.service';
 import { InvestigationContextService } from './pipeline/investigation-context.service';
@@ -163,6 +164,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     GradingService,
     TestBundleService,
     TestRunService,
+    TestRunStore,
     AuditReviewService,
     GradingRunService,
     DeliverableLanguageService,
@@ -219,6 +221,16 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
       inject: [ClaudeGradingProvider, KeywordGradingProvider],
     },
   ],
-  exports: [GradingService, GradingRunService, GradingReferenceService, RubricService, ScoreService, TestBundleService],
+  exports: [
+    GradingService,
+    GradingRunService,
+    GradingReferenceService,
+    RubricService,
+    ScoreService,
+    TestBundleService,
+    // Cho `exam-authoring` (sinh thước): sổ các lượt chạy và cổng sandbox. Chiều ngược lại không tồn tại.
+    TestRunStore,
+    INVESTIGATOR_DEPS,
+  ],
 })
 export class GradingModule {}

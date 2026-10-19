@@ -58,4 +58,21 @@ export class GradingTestRunEntity extends BaseEntity {
 
   @Column({ type: 'jsonb', nullable: true })
   cases!: TestRunCaseResult[] | null;
+
+  /** Chỉ lượt SINH (G2b-R Task 3): phiên bản khuôn prompt, model đã chạy, token và chi phí. Chạy thử không dùng model nên để null. */
+  @Column({ name: 'prompt_version', type: 'varchar', length: 40, nullable: true })
+  promptVersion!: string | null;
+
+  @Column({ name: 'model_used', type: 'varchar', length: 100, nullable: true })
+  modelUsed!: string | null;
+
+  @Column({ name: 'tokens_in', type: 'int', nullable: true })
+  tokensIn!: number | null;
+
+  @Column({ name: 'tokens_out', type: 'int', nullable: true })
+  tokensOut!: number | null;
+
+  /** NULL khi chưa khai giá model (`GRADING_TIER<n>_PRICE_*`) — KHÔNG phải 0. */
+  @Column({ name: 'cost_usd', type: 'numeric', precision: 10, scale: 6, nullable: true })
+  costUsd!: string | null;
 }

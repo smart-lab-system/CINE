@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { StorageService } from '../storage/storage.service';
@@ -184,29 +184,73 @@ export class GradingReferenceService {
       await this.storage.putObject(sourceKey, bytes, 'text/plain; charset=utf-8');
     }
 
-    await this.references.manager.transaction(async (m) => {
-      // Cùng cổng với `upsert`: phiên nhiều câu không sửa tài liệu cấp phiên.
-      await assertSessionRouteAllowed(m, session.id);
-      const refs = m.getRepository(GradingReferenceEntity);
-      const existing = await refs.findOne({ where: { examSessionId: session.id } });
-      const row = refs.create({ ...(existing ?? {}), examSessionId: session.id, createdBy: existing?.createdBy ?? teacherId });
-      row.modelAnswerSourceKey = sourceKey;
-      row.modelAnswerSourceSha256 = sha256;
-      row.modelAnswerOrigin = 'teacher';
-      row.modelAnswerSetAt = new Date();
-      row.modelAnswerUnverified = true;
-      row.rulerTrust = 'unverified';
-      row.rulerConfirmedBy = null;
-      row.rulerConfirmedAt = null;
-      row.problemId = existing?.problemId ?? (await ensureDefaultProblem(m, session.id));
-      await refs.save(row);
-    });
+    await this.references.manager.transaction((m) =>
+      this.writeSourceRow(m, session, teacherId, { key: sourceKey, sha256 }, { origin: 'teacher', trust: 'unverified' }),
+    );
 
     // Bản tạm xoá SAU khi DB đã ghi: hỏng ở bước này chỉ để lại một object mồ côi, không mất mã của giảng viên.
     await this.storage.deleteObject(storageKey).catch((error: unknown) => {
       this.logger.warn(`Không xoá được object tạm ${storageKey}: ${error instanceof Error ? error.message : String(error)}`);
     });
     return { sourceKey, sha256 };
+  }
+
+  /**
+   * Ghi mã đáp án do HỆ THỐNG sinh (G2b-R Task 3), trong transaction của NGƯỜI GỌI (cùng gói và dòng chạy). Độ tin cậy do
+   * bước kiểm ví dụ trong đề quyết: `verified` khi đáp án chạy thật tái tạo đúng mọi ví dụ, `unverified` khi đề không có
+   * ví dụ. Origin là `generated`, KHÔNG phải `teacher`: đáp án này chưa có người nào xác nhận.
+   */
+  async writeGeneratedSource(
+    m: EntityManager,
+    session: ExamSessionEntity,
+    teacherId: string,
+    source: AnswerSource,
+    trust: 'verified' | 'unverified',
+  ): Promise<void> {
+    await this.assertNotGradedYet(session);
+    await this.assertAnswerSource(session, source);
+    await this.writeSourceRow(m, session, teacherId, source, { origin: 'generated', trust });
+  }
+
+  /**
+   * Khoá theo băm phải đúng tiền tố của PHIÊN NÀY: khoá của phiên khác, hay băm khai báo không khớp băm trong khoá, đều
+   * là lời khai sai. Và object phải có thật trên kho. Kiểm TRƯỚC transaction, cùng chỗ với kiểm khoá đáp án.
+   */
+  private async assertAnswerSource(session: ExamSessionEntity, source: AnswerSource): Promise<void> {
+    const match = new RegExp(`^grading-reference/${session.id}/source-([0-9a-f]{64})\\.(cpp|py)$`).exec(source.key);
+    if (!match || match[1] !== source.sha256) {
+      throw new BadRequestException('Khoá mã nguồn đáp án không hợp lệ.');
+    }
+    if (!(await this.storage.objectExists(source.key))) {
+      throw new BadRequestException('Chưa thấy mã nguồn đáp án trên kho lưu trữ.');
+    }
+  }
+
+  /**
+   * Đặt cột nguồn và những gì đi theo một đáp án MỚI: nguồn gốc, mốc thời gian, cờ chưa kiểm chứng, `ruler_trust`, và xoá
+   * xác nhận thước cũ (đáp án mới thì chưa ai xác nhận nó). Cùng cổng với `upsert`: phiên nhiều câu không sửa tài liệu cấp phiên.
+   */
+  private async writeSourceRow(
+    m: EntityManager,
+    session: ExamSessionEntity,
+    teacherId: string,
+    source: AnswerSource,
+    o: { origin: ModelAnswerOrigin; trust: 'verified' | 'unverified' },
+  ): Promise<void> {
+    await assertSessionRouteAllowed(m, session.id);
+    const refs = m.getRepository(GradingReferenceEntity);
+    const existing = await refs.findOne({ where: { examSessionId: session.id } });
+    const row = refs.create({ ...(existing ?? {}), examSessionId: session.id, createdBy: existing?.createdBy ?? teacherId });
+    row.modelAnswerSourceKey = source.key;
+    row.modelAnswerSourceSha256 = source.sha256;
+    row.modelAnswerOrigin = o.origin;
+    row.modelAnswerSetAt = new Date();
+    row.modelAnswerUnverified = o.trust === 'unverified';
+    row.rulerTrust = o.trust;
+    row.rulerConfirmedBy = null;
+    row.rulerConfirmedAt = null;
+    row.problemId = existing?.problemId ?? (await ensureDefaultProblem(m, session.id));
+    await refs.save(row);
   }
 
   /**
@@ -260,17 +304,7 @@ export class GradingReferenceService {
       }
     }
 
-    if (answerSource !== null) {
-      // Khoá theo băm, đúng tiền tố của PHIÊN NÀY: khoá của phiên khác, hay băm khai báo không khớp băm trong
-      // khoá, đều là lời khai sai. Kiểm trước transaction, cùng chỗ với kiểm khoá đáp án ở trên.
-      const match = new RegExp(`^grading-reference/${session.id}/source-([0-9a-f]{64})\\.(cpp|py)$`).exec(answerSource.key);
-      if (!match || match[1] !== answerSource.sha256) {
-        throw new BadRequestException('Khoá mã nguồn đáp án không hợp lệ.');
-      }
-      if (!(await this.storage.objectExists(answerSource.key))) {
-        throw new BadRequestException('Chưa thấy mã nguồn đáp án trên kho lưu trữ.');
-      }
-    }
+    if (answerSource !== null) await this.assertAnswerSource(session, answerSource);
 
     return this.references.manager.transaction(async (m) => {
       // Guard TRONG transaction của lượt ghi: khoá giảng viên và hàng phiên giữ tới khi ghi xong, nên một lượt
@@ -325,7 +359,9 @@ export class GradingReferenceService {
       row.modelAnswerSetAt = !hasAnswer ? null : answerSent ? new Date() : (existing?.modelAnswerSetAt ?? new Date());
       // Câu và độ tin cậy của thước (P1a): giữ câu đã có; thước theo đúng quy tắc backfill M2.
       row.problemId = existing?.problemId ?? (await ensureDefaultProblem(m, session.id));
-      row.rulerTrust = row.modelAnswerUnverified ? 'unverified' : 'teacher';
+      // `verified` (hệ thống chạy đáp án tái tạo đúng ví dụ trong đề) do lượt sinh ghi; một lượt chỉ chọn lại đề KHÔNG được
+      // hạ nó thành `teacher` (mức cao hơn: giảng viên đã xác nhận). Gửi đáp án mới thì mọi xác nhận cũ hết hiệu lực.
+      row.rulerTrust = row.modelAnswerUnverified ? 'unverified' : !answerSent && existing?.rulerTrust === 'verified' ? 'verified' : 'teacher';
       // 5.3: đổi đáp án thì xác nhận cũ không còn áp dụng cho đáp án mới — xoá để không ghi "ai xác nhận" sai đáp án.
       row.rulerConfirmedBy = answerSent ? null : (existing?.rulerConfirmedBy ?? null);
       row.rulerConfirmedAt = answerSent ? null : (existing?.rulerConfirmedAt ?? null);

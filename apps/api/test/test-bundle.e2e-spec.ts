@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
-import { TestBundleService } from '../src/grading/test-bundle/test-bundle.service';
+import { BundleCaseInput, TestBundleService } from '../src/grading/test-bundle/test-bundle.service';
 import { ensureDefaultProblem } from '../src/grading/problem/resolve-problem-config';
 import { seedSession } from './helpers/grading-seed';
 
@@ -371,6 +371,64 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
 
     const list = await request(app.getHttpServer()).get(`/exam-sessions/${session.sessionId}/test-bundles`).set(as(owner.token));
     expect(list.body).toHaveLength(2); // hai gói gốc, không phiên bản nào mới
+  });
+
+  // G2b-R: gói do HỆ THỐNG sinh (từ đề hay từ đáp án giảng viên). Lúc tạo không bao giờ được duyệt hay ghim: duyệt là hành
+  // động riêng của giảng viên, qua route `approve`.
+  describe('gói do hệ thống sinh (createGeneratedWithin)', () => {
+    const generate = (sessionId: string, teacherId: string, cases: BundleCaseInput[], origin: 'generated' | 'from_model_answer' = 'generated') =>
+      ds.transaction((m) => app.get(TestBundleService).createGeneratedWithin(m, { sessionId, teacherId, origin, cases }));
+
+    const CASES: BundleCaseInput[] = [
+      { caseKey: 'cb1', group: 'co_ban', input: '1\n', expectedOutput: '1\n', constraintQuote: 'In ra số đó' },
+      { caseKey: 'bi-bo', group: 'bien', input: '0\n', expectedOutput: '', autoDroppedReason: 'không trích được câu nào trong đề' },
+    ];
+
+    it('tạo gói CHƯA duyệt, chưa ghim, đúng origin; ca bị bỏ mang lý do và không tính vào caseCount', async () => {
+      const owner = await login('gen1');
+      const session = await seedSession(ds, 'bundle-gen1', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+
+      const made = await generate(session.sessionId, owner.id, CASES, 'from_model_answer');
+
+      expect(made.version).toBe(1);
+      const [row] = await ds.query(
+        `SELECT origin, approved_at, approved_by, created_by, problem_id FROM examcollect.grading_test_bundle WHERE id = $1`,
+        [made.id],
+      );
+      expect(row).toMatchObject({ origin: 'from_model_answer', approved_at: null, approved_by: null, created_by: owner.id });
+      expect(row.problem_id).not.toBeNull();
+      const [alias] = await ds.query(`SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`, [session.sessionId]);
+      expect(alias.test_bundle_id).toBeNull();
+
+      const list = await request(app.getHttpServer()).get(`/exam-sessions/${session.sessionId}/test-bundles`).set(as(owner.token));
+      expect(list.body).toEqual([{ id: made.id, version: 1, approvedAt: null, origin: 'from_model_answer', caseCount: 1 }]);
+      const detail = await request(app.getHttpServer()).get(`/exam-sessions/${session.sessionId}/test-bundles/${made.id}`).set(as(owner.token));
+      expect(detail.body.cases.map((c: { caseKey: string; autoDroppedReason: string | null; constraintQuote: string | null }) => [c.caseKey, c.autoDroppedReason, c.constraintQuote])).toEqual([
+        ['bi-bo', 'không trích được câu nào trong đề', null],
+        ['cb1', null, 'In ra số đó'],
+      ]);
+    });
+
+    it('không còn ca chấm được nào (mọi ca bị bỏ) → 409, không ghi gói nào', async () => {
+      const owner = await login('gen2');
+      const session = await seedSession(ds, 'bundle-gen2', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+
+      await expect(generate(session.sessionId, owner.id, [CASES[1]])).rejects.toThrow(/ít nhất một ca/);
+
+      const [{ n }] = await ds.query(`SELECT COUNT(*)::int AS n FROM examcollect.grading_test_bundle WHERE exam_session_id = $1`, [session.sessionId]);
+      expect(n).toBe(0);
+    });
+
+    it('sinh hai lần → hai phiên bản liên tiếp, không đè nhau', async () => {
+      const owner = await login('gen3');
+      const session = await seedSession(ds, 'bundle-gen3', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+
+      const first = await generate(session.sessionId, owner.id, [CASES[0]]);
+      const second = await generate(session.sessionId, owner.id, [CASES[0]], 'from_model_answer');
+
+      expect([first.version, second.version]).toEqual([1, 2]);
+      expect(first.id).not.toBe(second.id);
+    });
   });
 
 });

@@ -17,6 +17,7 @@ import { INVESTIGATOR_DEPS, InvestigatorDeps } from '../pipeline/investigator-de
 import { resolveProblemConfig } from '../problem/resolve-problem-config';
 import { buildExecRequest, MAX_CASES_PER_JOB, RunStatus, RunSummary, summarizeExec } from './run-source';
 import { TestBundleService } from './test-bundle.service';
+import { TestRunStore } from './test-run.store';
 
 export interface TestRunResult {
   runId: string;
@@ -25,11 +26,6 @@ export interface TestRunResult {
   /** Chỉ có khi `compile_error`; không lưu. */
   compileLog?: string;
 }
-
-/** Dòng `running` quá hạn này được coi là đã chết (tiến trình sập giữa chừng) và được đóng bằng `aborted`. */
-const STALE_RUNNING_MINUTES = 15;
-/** Tên unique index từng phần: mỗi phiên tối đa một dòng `running`. */
-const ONE_RUNNING_INDEX = 'uq_grading_test_run_one_running';
 
 /**
  * Chạy thử đáp án mẫu của giảng viên trên MỘT phiên bản gói test (G2b-R). Không gọi LLM.
@@ -50,6 +46,7 @@ export class TestRunService {
     private readonly bundles: TestBundleService,
     private readonly references: GradingReferenceService,
     private readonly storage: StorageService,
+    private readonly store: TestRunStore,
   ) {}
 
   async run(sessionId: string, teacherId: string, bundleId: string, caseKey: string | null): Promise<TestRunResult> {
@@ -97,7 +94,15 @@ export class TestRunService {
       throw new ConflictException('Mã đáp án trên kho không khớp băm đã ghi — hãy tải mã lên lại.');
     }
 
-    const runId = await this.begin(sessionId, cfg?.problemId ?? null, bundleId, caseKey, source.sha256, teacherId);
+    const runId = await this.store.begin({
+      sessionId,
+      problemId: cfg?.problemId ?? null,
+      bundleId,
+      kind: 'test_run',
+      caseKey,
+      sourceSha256: source.sha256,
+      teacherId,
+    });
 
     let summary: RunSummary;
     let host: Record<string, unknown> | null = null;
@@ -113,12 +118,12 @@ export class TestRunService {
       host = result.host ? { ...result.host } : null;
     } catch (error) {
       // Cổng không ném theo hợp đồng, nhưng một lỗi bất ngờ không được để dòng `running` treo.
-      await this.finish(runId, 'aborted', null, []);
+      await this.store.finish(runId, 'aborted');
       this.logger.error(`Chạy thử ${runId} hỏng bất ngờ`, error instanceof Error ? error.stack : String(error));
       throw new ServiceUnavailableException('Máy chạy bài gặp lỗi khi chạy thử — thử lại sau.');
     }
 
-    await this.finish(runId, summary.status, host, summary.cases);
+    await this.store.finish(runId, summary.status, { host, cases: summary.cases });
     if (summary.status === 'unavailable') {
       throw new ServiceUnavailableException('Máy chạy bài không phản hồi — thử lại sau.');
     }
@@ -128,49 +133,5 @@ export class TestRunService {
       cases: summary.cases,
       ...(summary.compileLog !== null ? { compileLog: summary.compileLog } : {}),
     };
-  }
-
-  /** INSERT dòng `running`. Unique index từng phần làm lượt thứ hai nhận 409, kể cả khi hai request đến cùng lúc. */
-  private async begin(
-    sessionId: string,
-    problemId: string | null,
-    bundleId: string,
-    caseKey: string | null,
-    sourceSha256: string,
-    teacherId: string,
-  ): Promise<string> {
-    // Dòng chết (quá hạn) được đóng trước, nếu không nó chặn phiên mãi mãi. UPDATE này được trigger cho phép
-    // (running → trạng thái kết thúc, các trường khác giữ nguyên).
-    await this.ds.query(
-      `UPDATE examcollect.grading_test_run SET status = 'aborted', finished_at = now()
-        WHERE exam_session_id = $1 AND status = 'running'
-          AND requested_at < now() - make_interval(mins => $2::int)`,
-      [sessionId, STALE_RUNNING_MINUTES],
-    );
-    try {
-      const [row] = await this.ds.query(
-        `INSERT INTO examcollect.grading_test_run
-           (exam_session_id, problem_id, test_bundle_id, kind, case_key, source_sha256, requested_by, status)
-         VALUES ($1, $2, $3, 'test_run', $4, $5, $6, 'running') RETURNING id`,
-        [sessionId, problemId, bundleId, caseKey, sourceSha256, teacherId],
-      );
-      return row.id as string;
-    } catch (error) {
-      const driver = (error as { driverError?: { code?: string; constraint?: string } }).driverError;
-      if (driver?.code === '23505' && driver.constraint === ONE_RUNNING_INDEX) {
-        throw new ConflictException('Phiên này đang chạy thử một lượt khác — chờ lượt đó xong rồi bấm lại.');
-      }
-      throw error;
-    }
-  }
-
-  /** Đúng MỘT UPDATE: từ `running` sang trạng thái kết thúc (trigger `trg_grading_test_run_finish_once`). */
-  private async finish(runId: string, status: RunStatus, host: Record<string, unknown> | null, cases: RunSummary['cases']): Promise<void> {
-    await this.ds.query(
-      `UPDATE examcollect.grading_test_run
-          SET status = $2, finished_at = now(), host = $3::jsonb, cases = $4::jsonb
-        WHERE id = $1 AND status = 'running'`,
-      [runId, status, host === null ? null : JSON.stringify(host), JSON.stringify(cases)],
-    );
   }
 }

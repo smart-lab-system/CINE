@@ -48,6 +48,31 @@ export class TestBundleService {
     });
   }
 
+  /**
+   * Gói do HỆ THỐNG sinh (G2b-R: từ đề hay từ đáp án của giảng viên), trong transaction của NGƯỜI GỌI để gói, thước và
+   * dòng chạy cùng thành công hay cùng không. LUÔN chưa duyệt và chưa ghim: duyệt là hành động riêng của giảng viên,
+   * qua route `approve`. Ca bị hệ thống bỏ mang `autoDroppedReason` để giảng viên thấy vì sao. Gói phải còn ít nhất một
+   * ca chấm được (cùng luật với `dropCase`), nếu không thì không ghi gì.
+   */
+  async createGeneratedWithin(
+    manager: EntityManager,
+    input: { sessionId: string; teacherId: string; origin: 'generated' | 'from_model_answer'; cases: BundleCaseInput[] },
+  ): Promise<{ id: string; version: number }> {
+    if (!input.cases.some((c) => !c.autoDroppedReason)) {
+      throw new ConflictException('Không còn ca nào chấm được sau khi lọc — không ghi gói. Một gói test phải còn ít nhất một ca.');
+    }
+    await assertSessionRouteAllowed(manager, input.sessionId);
+    const version = await this.nextVersion(manager, input.sessionId);
+    const problemId = await ensureDefaultProblem(manager, input.sessionId);
+    const [bundle] = await manager.query(
+      `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, version`,
+      [input.sessionId, version, input.origin, input.teacherId, problemId],
+    );
+    await this.insertCases(manager, bundle.id, input.cases);
+    return { id: bundle.id as string, version: bundle.version as number };
+  }
+
   async approve(examSessionId: string, bundleId: string, teacherId: string) {
     const bundle = await this.findOwnedBundle(examSessionId, bundleId);
     if (bundle.approved_at) {
