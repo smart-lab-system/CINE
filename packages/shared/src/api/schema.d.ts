@@ -172,6 +172,38 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        patch: operations["ExamSessionController_updateSchedule"];
+        trace?: never;
+    };
+    "/exam-sessions/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/required-deliverables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["ExamSessionController_replaceRequiredDeliverables"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -319,6 +351,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ExamSessionController_listRoster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/roster/materialize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_materializeRoster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/roster/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ExamSessionController_importRoster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/roster/students": {
         parameters: {
             query?: never;
@@ -330,6 +410,22 @@ export interface paths {
         put?: never;
         post: operations["ExamSessionController_addRosterStudent"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/roster/students/{studentMssv}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["ExamSessionController_removeRosterStudent"];
         options?: never;
         head?: never;
         patch?: never;
@@ -444,7 +540,7 @@ export interface paths {
         delete: operations["ClassController_removeStudent"];
         options?: never;
         head?: never;
-        patch?: never;
+        patch: operations["ClassController_updateStudentName"];
         trace?: never;
     };
     "/admin/course-sections": {
@@ -554,6 +650,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["AdminCourseSectionController_removeStudent"];
+        options?: never;
+        head?: never;
+        patch: operations["AdminCourseSectionController_updateStudentName"];
+        trace?: never;
+    };
+    "/admin/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AuditLogController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -927,6 +1039,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/grading-reference/answer-source/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GradingController_requestAnswerSourceUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/grading-reference/answer-source/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GradingController_confirmAnswerSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/grading-readiness": {
         parameters: {
             query?: never;
@@ -953,6 +1097,38 @@ export interface paths {
         get: operations["GradingController_listResults"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/grading-students": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GradingController_listStudents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/ruler/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GradingController_confirmRuler"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1231,6 +1407,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{id}/test-bundles/{bundleId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestBundleController_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/test-bundles/{bundleId}/drop-case": {
         parameters: {
             query?: never;
@@ -1241,6 +1433,54 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["TestBundleController_dropCase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/problems": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ProblemController_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/problems/{problemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["ProblemController_remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/blueprint/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ProblemController_confirm"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1369,6 +1609,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["ExamAuthoringController_attach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/test-bundles/generate-from-statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RulerGenerateController_fromStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{id}/test-bundles/generate-from-answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RulerGenerateController_fromAnswer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1679,6 +1951,374 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ide-extensions/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IdeExtensionsController_listCatalog"];
+        put?: never;
+        post: operations["IdeExtensionsController_createCatalog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/catalog/from-scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IdeExtensionsController_fromScan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/catalog/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IdeExtensionsController_getCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["IdeExtensionsController_updateCatalog"];
+        trace?: never;
+    };
+    "/ide-extensions/catalog/{id}/refresh-marketplace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IdeExtensionsController_refreshMarketplace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/catalog/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IdeExtensionsController_addVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/versions/{versionId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["IdeExtensionsController_approveVersion"];
+        trace?: never;
+    };
+    "/ide-extensions/versions/{versionId}/unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["IdeExtensionsController_unapproveVersion"];
+        trace?: never;
+    };
+    "/ide-extensions/versions/{versionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["IdeExtensionsController_deleteVersion"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/policies/course/{courseId}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IdeExtensionsController_listCourse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/policies/course/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IdeExtensionsController_addCourse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/policies/items/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["IdeExtensionsController_approve"];
+        trace?: never;
+    };
+    "/ide-extensions/policies/items/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["IdeExtensionsController_reject"];
+        trace?: never;
+    };
+    "/ide-extensions/policies/items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["IdeExtensionsController_remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/effective": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IdeExtensionsController_effective"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/scans/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IdeExtensionsController_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IdeExtensionsController_listScans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/scans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IdeExtensionsController_getScan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/lab/room-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IdeExtensionsController_listRoomProposals"];
+        put?: never;
+        post: operations["IdeExtensionsController_createRoomProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/lab/room-proposals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IdeExtensionsController_getRoomProposal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/lab/room-proposals/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["IdeExtensionsController_rejectRoomProposal"];
+        trace?: never;
+    };
+    "/ide-extensions/lab/room-proposals/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["IdeExtensionsController_withdrawRoomProposal"];
+        trace?: never;
+    };
+    "/ide-extensions/lab/room-proposals/{id}/accept-create-room": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IdeExtensionsController_acceptCreateRoom"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ide-extensions/lab/students/by-mssv/{mssv}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IdeExtensionsLabController_lookupByMssv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1720,7 +2360,7 @@ export interface components {
             examType: "TK" | "GK" | "CK";
             startTime: string;
             endTime: string;
-            requiredFilenames: components["schemas"]["RequiredFilenameDto"][];
+            requiredFilenames?: components["schemas"]["RequiredFilenameDto"][];
         };
         RequiredDeliverableResponseDto: {
             id: string;
@@ -1754,6 +2394,17 @@ export interface components {
             rubricVersion: number | null;
             testBundleId: string | null;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
+        };
+        UpdateExamSessionDto: {
+            roomId?: string;
+            roomName?: string;
+            /** Format: date-time */
+            startTime?: string;
+            /** Format: date-time */
+            endTime?: string;
+        };
+        ReplaceRequiredDeliverablesDto: {
+            requiredFilenames: components["schemas"]["RequiredFilenameDto"][];
         };
         ReassignTeacherDto: {
             teacherId: string;
@@ -1819,6 +2470,17 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        NominalClassEntity: {
+            code: string;
+            name: string | null;
+            cohortYear: number | null;
+            status: Record<string, never>;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         ClassEntity: {
             courseName: string;
             name: string;
@@ -1828,6 +2490,8 @@ export interface components {
             course: components["schemas"]["CourseEntity"] | null;
             semesterId: string | null;
             semester: components["schemas"]["SemesterEntity"] | null;
+            nominalClassId: string | null;
+            nominalClass: components["schemas"]["NominalClassEntity"] | null;
             id: string;
             /** Format: date-time */
             createdAt: string;
@@ -1881,6 +2545,9 @@ export interface components {
             rubric: components["schemas"]["RubricEntity"] | null;
             gradingSeed: string;
             testBundleId: string | null;
+            /** Format: date-time */
+            blueprintConfirmedAt: string | null;
+            blueprintConfirmedBy: string | null;
             pinnedPriceVersionId: string | null;
             id: string;
             /** Format: date-time */
@@ -1902,6 +2569,10 @@ export interface components {
             mssv: string;
             name: string;
         };
+        ImportRosterDto: {
+            students: components["schemas"]["RosterStudentDto"][];
+            removeMissing?: boolean;
+        };
         SessionRosterEntity: {
             examSessionId: string;
             examSession: components["schemas"]["ExamSessionEntity"];
@@ -1918,20 +2589,19 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        ImportRosterDto: {
-            students: components["schemas"]["RosterStudentDto"][];
-            removeMissing?: boolean;
+        UpdateRosterStudentDto: {
+            name: string;
         };
         CreateCourseSectionDto: {
             courseId: string;
             semesterId: string;
             teacherId?: string;
-            /** Lớp danh nghĩa catalog — tuỳ chọn. */
             nominalClassId?: string;
         };
         UpdateCourseSectionDto: {
             courseId?: string;
             semesterId?: string;
+            nominalClassId?: string | null;
         };
         AssignCourseSectionDto: {
             teacherId: string;
@@ -2010,6 +2680,11 @@ export interface components {
             updatedAt: string;
         };
         GradingReferenceEntity: {
+            problemId: string | null;
+            rulerTrust: Record<string, never>;
+            rulerConfirmedBy: string | null;
+            /** Format: date-time */
+            rulerConfirmedAt: string | null;
             examSessionId: string;
             examSession?: components["schemas"]["ExamSessionEntity"];
             questionMaterialId: string | null;
@@ -2021,6 +2696,8 @@ export interface components {
             modelAnswerOrigin: Record<string, never> | null;
             /** Format: date-time */
             modelAnswerSetAt: string | null;
+            modelAnswerSourceKey: string | null;
+            modelAnswerSourceSha256: string | null;
             createdBy: string;
             createdByAccount?: components["schemas"]["AccountEntity"];
             id: string;
@@ -2028,6 +2705,13 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        RequestAnswerSourceUploadDto: {
+            /** @enum {string} */
+            extension: "cpp" | "py";
+        };
+        ConfirmAnswerSourceDto: {
+            storageKey: string;
         };
         RuleChangesDto: {
             name?: string;
@@ -2073,8 +2757,19 @@ export interface components {
         CreateTestBundleDto: {
             cases: components["schemas"]["TestCaseDto"][];
         };
+        RunTestBundleDto: {
+            caseKey?: string;
+        };
         DropTestCaseDto: {
             caseKey: string;
+        };
+        AddProblemDto: {
+            title: string;
+            pointsHundredths: number;
+            requiredDeliverableId: string;
+            rubricId: string;
+            /** @enum {string} */
+            language: "cpp" | "python";
         };
         AuditReviewDto: {
             pickedRuleIds: string[];
@@ -2087,7 +2782,7 @@ export interface components {
             prompt: string;
             questionCount: number;
             /** @enum {string} */
-            language: "python" | "cpp" | "java" | "node";
+            language: "python" | "cpp";
             avoid?: string[];
             refineNote?: string;
             existingStatements?: string[];
@@ -2247,6 +2942,274 @@ export interface components {
             templateFileName: string;
             overwriteExisting?: boolean;
             confirmDecreases?: boolean;
+        };
+        CatalogFromScanDto: {
+            extensionId: string;
+            version?: string;
+            displayName?: string;
+        };
+        CreateCatalogExtensionDto: {
+            identifier: string;
+            displayName: string;
+            publisher: string;
+            publishedAt?: string;
+            lastReleasedAt?: string;
+        };
+        IdeExtensionEntity: {
+            identifier: string;
+            displayName: string;
+            publisher: string;
+            /** Format: date-time */
+            publishedAt: string | null;
+            /** Format: date-time */
+            lastReleasedAt: string | null;
+            /** Format: date-time */
+            marketplaceSyncedAt: string | null;
+            isActive: boolean;
+            versions: components["schemas"]["IdeExtensionVersionEntity"][];
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        IdeExtensionVersionEntity: {
+            extensionPk: string;
+            extension: components["schemas"]["IdeExtensionEntity"];
+            version: string;
+            /** Format: date-time */
+            addedAt: string;
+            approvalStatus: Record<string, never>;
+            /** Format: date-time */
+            approvedAt: string | null;
+            approvedBy: string | null;
+            approvedByAccount: components["schemas"]["AccountEntity"] | null;
+            note: string | null;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        UpdateCatalogExtensionDto: {
+            displayName?: string;
+            publisher?: string;
+            publishedAt?: string | null;
+            lastReleasedAt?: string | null;
+            isActive?: boolean;
+        };
+        CreateCatalogVersionDto: {
+            version: string;
+            note?: string;
+        };
+        IdeExtensionPolicyEntity: {
+            scopeType: Record<string, never>;
+            courseId: string | null;
+            course: components["schemas"]["CourseEntity"] | null;
+            name: string;
+            isActive: boolean;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        IdeExtensionPolicyItemEntity: {
+            policyId: string;
+            policy: components["schemas"]["IdeExtensionPolicyEntity"];
+            extensionId: string;
+            displayName: string | null;
+            minVersion: string | null;
+            maxVersion: string | null;
+            approvalStatus: Record<string, never>;
+            requestedBy: string | null;
+            requestedByAccount: components["schemas"]["AccountEntity"] | null;
+            reviewedBy: string | null;
+            reviewedByAccount: components["schemas"]["AccountEntity"] | null;
+            /** Format: date-time */
+            reviewedAt: string | null;
+            note: string | null;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateCoursePolicyItemDto: {
+            courseId: string;
+            extensionId: string;
+            displayName?: string;
+            minVersion?: string;
+            maxVersion?: string;
+            note?: string;
+        };
+        BatchMachineDto: {
+            machineId: string;
+            role: Record<string, never>;
+            hostname: string;
+            localIp: string;
+            studentMssv?: string | null;
+            lastSeenAt: string;
+        };
+        BatchScanItemDto: {
+            extensionId: string;
+            displayName?: string | null;
+            version?: string | null;
+            verdict: Record<string, never>;
+            matchedScope?: Record<string, never>;
+            isBuiltin?: boolean;
+        };
+        BatchScanDto: {
+            studentMssv: string;
+            machineId: string;
+            machineName?: string;
+            scannedAt: string;
+            extensionCount: number;
+            violationCount: number;
+            status: Record<string, never>;
+            items: components["schemas"]["BatchScanItemDto"][];
+        };
+        BatchSyncDto: {
+            labMgmtSessionId: string;
+            courseId?: string | null;
+            examSessionId?: string | null;
+            teacherAccountId?: string;
+            machines?: components["schemas"]["BatchMachineDto"][];
+            scans: components["schemas"]["BatchScanDto"][];
+            effectiveExtensionCount?: number;
+        };
+        LabMgmtSessionEntity: {
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            teacherAccountId: string;
+            teacherAccount: components["schemas"]["AccountEntity"];
+            roomHint: string | null;
+            courseId: string | null;
+            course: components["schemas"]["CourseEntity"] | null;
+            examSessionId: string | null;
+            examSession: components["schemas"]["ExamSessionEntity"] | null;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string | null;
+        };
+        IdeExtensionScanEntity: {
+            examSessionId: string | null;
+            examSession: components["schemas"]["ExamSessionEntity"] | null;
+            courseId: string | null;
+            course: components["schemas"]["CourseEntity"] | null;
+            labMgmtSessionId: string | null;
+            labMgmtSession: components["schemas"]["LabMgmtSessionEntity"] | null;
+            studentMssv: string;
+            machineId: string;
+            machineName: string | null;
+            /** Format: date-time */
+            scannedAt: string;
+            reportedBy: string;
+            teacherAccountId: string | null;
+            teacherAccount: components["schemas"]["AccountEntity"] | null;
+            vscodeVersion: string | null;
+            extensionCount: number;
+            violationCount: number;
+            status: Record<string, never>;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RoomProposalMachineDto: {
+            machineId: string;
+            hostname: string;
+            cpu: string;
+            ramGb: number;
+            storage: string;
+            gpu?: string | null;
+            os: string;
+            localIp: string;
+            macAddress: string;
+            /** @enum {string} */
+            status: "active" | "maintenance" | "inactive";
+            studentMssv?: string | null;
+            studentFullName?: string | null;
+            role: Record<string, never>;
+            lastSeenAt?: string | null;
+        };
+        CreateRoomProposalDto: {
+            code: string;
+            name: string;
+            capacity: number;
+            building?: string | null;
+            floor?: string | null;
+            labMgmtSessionId?: string | null;
+            note?: string | null;
+            machines: components["schemas"]["RoomProposalMachineDto"][];
+        };
+        LabRoomProposalEntity: {
+            status: Record<string, never>;
+            code: string;
+            name: string;
+            capacity: number;
+            building: string | null;
+            floor: string | null;
+            proposedByAccountId: string;
+            proposedByAccount: components["schemas"]["AccountEntity"];
+            proposedByEmail: string;
+            proposedByDisplayName: string | null;
+            labMgmtSessionId: string | null;
+            machineCount: number;
+            note: string | null;
+            reviewedBy: string | null;
+            reviewedByAccount: components["schemas"]["AccountEntity"] | null;
+            /** Format: date-time */
+            reviewedAt: string | null;
+            createdRoomId: string | null;
+            createdRoom: components["schemas"]["RoomEntity"] | null;
+            machines: components["schemas"]["LabRoomProposalMachineEntity"][];
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        LabRoomProposalMachineEntity: {
+            proposalId: string;
+            proposal: components["schemas"]["LabRoomProposalEntity"];
+            machineId: string;
+            hostname: string;
+            cpu: string;
+            ramGb: number;
+            storage: string;
+            gpu: string | null;
+            os: string;
+            localIp: string;
+            macAddress: string;
+            status: Record<string, never>;
+            studentMssv: string | null;
+            studentFullName: string | null;
+            role: string;
+            /** Format: date-time */
+            lastSeenAt: string | null;
+            sortOrder: number;
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RejectRoomProposalDto: {
+            note?: string | null;
+        };
+        AcceptCreateRoomDto: {
+            code?: string;
+            name?: string;
+            capacity?: number;
+            building?: string | null;
+            floor?: string | null;
+            note?: string | null;
         };
     };
     responses: never;
@@ -2543,6 +3506,77 @@ export interface operations {
             };
         };
     };
+    ExamSessionController_updateSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateExamSessionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
+    ExamSessionController_replaceRequiredDeliverables: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceRequiredDeliverablesDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponseDto"];
+                };
+            };
+        };
+    };
     ExamSessionController_reassignTeacher: {
         parameters: {
             query?: never;
@@ -2760,6 +3794,73 @@ export interface operations {
             };
         };
     };
+    ExamSessionController_listRoster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    ExamSessionController_materializeRoster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    ExamSessionController_importRoster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRosterDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
     ExamSessionController_addRosterStudent: {
         parameters: {
             query?: never;
@@ -2782,6 +3883,26 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SessionRosterEntity"];
                 };
+            };
+        };
+    };
+    ExamSessionController_removeRosterStudent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                studentMssv: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2989,6 +4110,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ClassController_updateStudentName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                studentMssv: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRosterStudentDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3240,6 +4387,58 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    AdminCourseSectionController_updateStudentName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                studentMssv: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRosterStudentDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    AuditLogController_list: {
+        parameters: {
+            query?: {
+                action?: string;
+                actorId?: string;
+                targetType?: string;
+                from?: string;
+                before?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3758,6 +4957,52 @@ export interface operations {
             };
         };
     };
+    GradingController_requestAnswerSourceUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestAnswerSourceUploadDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GradingController_confirmAnswerSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmAnswerSourceDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     GradingController_gradingReadiness: {
         parameters: {
             query?: never;
@@ -3797,6 +5042,46 @@ export interface operations {
                 content: {
                     "application/json": Record<string, never>[];
                 };
+            };
+        };
+    };
+    GradingController_listStudents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    GradingController_confirmRuler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -4246,6 +5531,32 @@ export interface operations {
             };
         };
     };
+    TestBundleController_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                bundleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunTestBundleDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
     TestBundleController_dropCase: {
         parameters: {
             query?: never;
@@ -4263,6 +5574,68 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ProblemController_add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddProblemDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ProblemController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                problemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ProblemController_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4437,6 +5810,48 @@ export interface operations {
                 "application/json": components["schemas"]["AttachExamDto"];
             };
         };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    RulerGenerateController_fromStatement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    RulerGenerateController_fromAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             201: {
                 headers: {
@@ -5305,6 +6720,550 @@ export interface operations {
             header?: never;
             path: {
                 id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_listCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_createCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCatalogExtensionDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionEntity"];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_fromScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogFromScanDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_getCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_updateCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCatalogExtensionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionEntity"];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_refreshMarketplace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    IdeExtensionsController_addVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCatalogVersionDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionVersionEntity"];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_approveVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionVersionEntity"];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_unapproveVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionVersionEntity"];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_deleteVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_listCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                courseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionPolicyItemEntity"][];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_addCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCoursePolicyItemDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionPolicyItemEntity"];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionPolicyItemEntity"];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_reject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionPolicyItemEntity"];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_effective: {
+        parameters: {
+            query?: {
+                courseId?: string;
+                examSessionId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchSyncDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_listScans: {
+        parameters: {
+            query: {
+                labMgmtSessionId: string;
+                courseId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeExtensionScanEntity"][];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_getScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_listRoomProposals: {
+        parameters: {
+            query: {
+                status: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabRoomProposalEntity"][];
+                };
+            };
+        };
+    };
+    IdeExtensionsController_createRoomProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoomProposalDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_getRoomProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_rejectRoomProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectRoomProposalDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_withdrawRoomProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsController_acceptCreateRoom: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptCreateRoomDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IdeExtensionsLabController_lookupByMssv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mssv: string;
             };
             cookie?: never;
         };
