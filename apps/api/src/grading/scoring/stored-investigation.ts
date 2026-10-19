@@ -14,9 +14,9 @@ export interface StoredInvestigation {
   rulesSeen: { ruleKey: string; checkedBy: 'machine' | 'model' }[];
   /**
    * TOÀN BỘ bảng lỗi đang dùng của giảng viên lúc cuộc điều tra BẮT ĐẦU — không phụ thuộc phép truy
-   * hồi (§2.1 cắt còn ~5 luật khi bảng lớn), nên `rulesSeen ⊆ ruleTable`. Công bằng trong một phiên
-   * (§2.2 *"tất cả hoặc không"*) đọc từ đây: một luật lời "có" với một bài khi nó nằm trong bảng lúc
-   * bài đó bắt đầu, dù model có được xem nó hay không (review 3c I1).
+   * hồi (§2.1 cắt còn ~5 luật khi bảng lớn), nên `rulesSeen ⊆ ruleTable`. Luật lời của CHÍNH bài này
+   * đọc từ đây: một luật lời "có" với bài khi nó nằm trong bảng lúc bài đó bắt đầu, dù model có được
+   * xem nó hay không (review 3c I1). Không đọc bài khác của phiên.
    */
   ruleTable: { ruleKey: string; checkedBy: 'machine' | 'model' }[];
   /** Trần thấp nhất của các bậc model đã trả lời (§4.2). */

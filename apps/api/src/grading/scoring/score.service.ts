@@ -15,10 +15,8 @@ import {
   latestComputationRow,
   loadRuleSnapshots,
   loadScoreContext,
-  loadSessionModelRules,
   lockTeacherScoring,
   ScoreContext,
-  sessionModelRulesWith,
   teacherOfResult,
 } from './score-inputs';
 import { recordMissingRules } from '../rules/missing-rules';
@@ -153,7 +151,7 @@ export class ScoreService {
       if (stored.result.kind === 'ungradable') {
         ungradable = stored.result.ungradable ?? { class: 'system', reason: 'cuộc điều tra không có kết luận' };
       } else {
-        out = await this.compute(m, ctx, undefined, await sessionModelRulesWith(m, ctx.sessionId, ctx.problemId, resultId, stored.ruleTable));
+        out = await this.compute(m, ctx);
         if (out.outcome === 'ungradable' || out.scoreHundredths === null) {
           ungradable = out.ungradable ?? { class: 'system', reason: 'lượt tính ra dưới sàn' };
         }
@@ -248,7 +246,7 @@ export class ScoreService {
     if ((updated.affected ?? 0) === 0) throw new Error(`kết quả ${resultId} đã rời ai_grading`);
   }
 
-  /** Nửa sau chung của lượt tính đầu: dòng `initial`, cột AI, bước chuyển, và tập luật lời của phiên. */
+  /** Nửa sau chung của lượt tính đầu: dòng `initial`, cột AI và bước chuyển trạng thái. */
   private async writeInitial(
     m: EntityManager,
     ctx: ScoreContext,
@@ -292,16 +290,6 @@ export class ScoreService {
       });
     }
 
-    // §2.2 "tất cả hoặc không" (review I1): bài này bắt đầu trước khi có một luật lời mà các bài
-    // đã tính của phiên đều có → luật đó thôi được xét cho CẢ phiên, nên các bài kia tính lại ngay.
-    const before = await loadSessionModelRules(m, ctx.sessionId, ctx.problemId, ctx.resultId);
-    const after = await loadSessionModelRules(m, ctx.sessionId, ctx.problemId);
-    if ([...before].some((k) => !after.has(k))) {
-      await this.recomputeForTeacher(m, ctx.teacherId, 'session_rule_set', null, {
-        sessionId: ctx.sessionId,
-        exceptResultId: ctx.resultId,
-      });
-    }
     return { outcome, computationId, scoreHundredths: out.scoreHundredths };
   }
 
@@ -531,8 +519,6 @@ export class ScoreService {
     m: EntityManager,
     ctx: ScoreContext,
     transform?: (rules: RuleSnapshot[]) => RuleSnapshot[],
-    /** Lượt tính đầu: lượt chấm chưa ghi kết cục nên phải đưa tập của phiên kèm bài này vào tay. */
-    sessionRules?: ReadonlySet<string>,
   ): Promise<Computed> {
     if (!ctx.stored) throw new Error(`kết quả ${ctx.resultId} không có lượt chấm graded`);
     const price = await currentPriceVersion(m, ctx.teacherId);
@@ -542,7 +528,6 @@ export class ScoreService {
       bundleCases: ctx.bundleCases,
       rubric: ctx.rubric,
       rules: transform ? transform(rules) : rules,
-      sessionModelRules: sessionRules ?? (await loadSessionModelRules(m, ctx.sessionId, ctx.problemId)),
       waivedCriteria: ctx.waivedCriteria,
       exceptions: ctx.exceptions,
       theta: this.theta,

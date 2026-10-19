@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { loadScoreContext, loadSessionModelRules } from '../src/grading/scoring/score-inputs';
+import { loadScoreContext } from '../src/grading/scoring/score-inputs';
 import { seedResult, seedSession } from './helpers/grading-seed';
 import { ensureDefaultProblem } from '../src/grading/problem/resolve-problem-config';
 import { seedInvestigatorResult, seedInvestigatorSession, seedRule, storedWith } from './helpers/investigator-seed';
@@ -20,33 +20,6 @@ describe('Đầu vào lượt tính (e2e)', () => {
   });
   afterAll(async () => app.close());
 
-  it('luật lời của phiên = giao của mọi lượt chấm hiện hành, chỉ dạng model, bỏ qua bài một-phát (§2.2 tất cả hoặc không)', async () => {
-    const ctx = await seedSession(ds, 'si-session');
-    await seedInvestigatorSession(ds, ctx);
-    await seedInvestigatorResult(ds, ctx, storedWith([
-      { ruleKey: 'ten_bien', checkedBy: 'model' },
-      { ruleKey: 'sai_bien', checkedBy: 'machine' },
-    ]));
-    await seedInvestigatorResult(ds, ctx, storedWith([
-      { ruleKey: 'ten_bien', checkedBy: 'model' },
-      { ruleKey: 'chu_thich_sai', checkedBy: 'model' },
-    ]));
-    await seedResult(ds, ctx);
-    expect([...(await loadSessionModelRules(ds.manager, ctx.sessionId, await ensureDefaultProblem(ds.manager, ctx.sessionId)))]).toEqual(['ten_bien']);
-  });
-
-  it('review I1: tập luật lời của phiên đọc từ BẢNG LỖI lúc điều tra, không từ phần model được xem (§2.1 cắt ~5 luật)', async () => {
-    const ctx = await seedSession(ds, 'si-table');
-    await seedInvestigatorSession(ds, ctx);
-    const table = [
-      { ruleKey: 'ten_bien', checkedBy: 'model' as const },
-      { ruleKey: 'chu_thich_sai', checkedBy: 'model' as const },
-    ];
-    // Bài 1 được xem đủ; bài 2 chỉ được xem `ten_bien` (truy hồi cắt bớt) — cả hai cùng một bảng lỗi.
-    await seedInvestigatorResult(ds, ctx, storedWith(table, [], true, table));
-    await seedInvestigatorResult(ds, ctx, storedWith([table[0]], [], true, table));
-    expect([...(await loadSessionModelRules(ds.manager, ctx.sessionId, await ensureDefaultProblem(ds.manager, ctx.sessionId)))]).toEqual(['chu_thich_sai', 'ten_bien']);
-  });
 
   it('ngữ cảnh: rubric theo thứ tự, ca của gói ghim, ngoại lệ MỚI NHẤT của từng luật thắng, có chấm tay hay chưa', async () => {
     const ctx = await seedSession(ds, 'si-ctx');

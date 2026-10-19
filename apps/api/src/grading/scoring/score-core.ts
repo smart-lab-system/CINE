@@ -19,8 +19,6 @@ export interface ScoreCoreInput {
   bundleCases: { name: string; group: string }[];
   rubric: { key: string; maxHundredths: number }[];
   rules: RuleSnapshot[];
-  /** `rule_key` mà MỌI lượt chấm hiện hành của phiên đã thấy dưới dạng `model` (§2.2 *"tất cả hoặc không"*). */
-  sessionModelRules: ReadonlySet<string>;
   waivedCriteria: string[];
   /** ruleId → ngoại lệ cấp lỗi MỚI NHẤT của bài này (§2.2). */
   exceptions: ReadonlyMap<string, 'exclude' | 'include'>;
@@ -50,7 +48,7 @@ export interface ScoreBreakdown {
   confidence: number | null;
   /** Luật trỏ tiêu chí không có trong rubric của bài — bị loại, nêu ở trang kiến thức (§14.1). */
   mismatchedRules: { ruleId: string; ruleKey: string; criterionKey: string }[];
-  /** Luật model phải phán mà không phải mọi bài của phiên đều đã thấy — không xét (§2.2, T-FAIR-1). */
+  /** Luật model không nằm trong BẢNG LỖI của chính bài lúc điều tra bắt đầu — không xét (T-FAIR-1, review 3c I1). */
   notConsidered: { ruleId: string; ruleKey: string }[];
   /** Khác null = lượt tính ra DƯỚI SÀN (§4.4): dòng tính lại không mang điểm, lý do nằm ở đây. */
   ungradable: Decision['ungradable'];
@@ -80,9 +78,11 @@ export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
   // ném với luật như vậy (M7 của 3a); một lượt tính không được chết vì giảng viên sửa một luật.
   const mismatched = input.rules.filter((r) => !rubricKeys.has(r.criterionKey));
   const matching = input.rules.filter((r) => rubricKeys.has(r.criterionKey));
-  // T-FAIR-1: luật model phải PHÁN (bằng lời, hay có predicate mà máy chưa đo — Q1) chỉ xét khi
-  // mọi bài của phiên đều đã thấy nó. Luật máy kiểm thì đo lại trên kết quả đã lưu (bậc 2).
-  const considered = (r: RuleSnapshot) => isMachineChecked(r.predicate) || input.sessionModelRules.has(r.ruleKey);
+  // Luật model phải PHÁN (bằng lời, hay có predicate mà máy chưa đo — Q1) chỉ xét khi nó nằm trong BẢNG
+  // LỖI của CHÍNH bài này lúc điều tra bắt đầu (review 3c I1). Mỗi bài chấm độc lập: không đọc bài khác
+  // của phiên. Luật máy kiểm thì đo lại trên kết quả đã lưu (bậc 2).
+  const ownModelRules = new Set(input.stored.ruleTable.filter((r) => r.checkedBy === 'model').map((r) => r.ruleKey));
+  const considered = (r: RuleSnapshot) => isMachineChecked(r.predicate) || ownModelRules.has(r.ruleKey);
   const notConsidered = matching.filter((r) => !considered(r));
   const used = matching.filter(considered);
   const byKey = new Map(used.map((r) => [r.ruleKey, r]));
