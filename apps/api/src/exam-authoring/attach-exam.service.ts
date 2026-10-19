@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { ConflictException, Injectable, Logger } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { DataSource } from "typeorm";
@@ -8,7 +8,7 @@ import {
   ExamSessionEntity,
   ExamSessionStatus,
 } from "../exam-session/entities/exam-session.entity";
-import { GradingReferenceService } from "../grading/grading-reference.service";
+import { AnswerSource, GradingReferenceService } from "../grading/grading-reference.service";
 import { assertSessionRouteAllowed } from "../grading/problem/session-route-guard";
 import { assertReattachable, reattachProblems } from "../grading/problem/reattach-problems";
 import {
@@ -24,6 +24,28 @@ import { parseExamJson } from "./dto/parse-exam";
 
 export const PAPER_FILENAME = "de-thi.docx";
 export const ANSWER_KEY_FILENAME = "dap-an-va-test.docx";
+
+/**
+ * Mã nguồn đáp án lúc gắn (G2b A2b): CHỈ đề MỘT câu có đáp án và ngôn ngữ cpp hoặc python. Đề nhiều câu để các câu
+ * dùng chung một khoá thì đè nhau (P1b xử lý khi có đa câu); ngôn ngữ khác (ví dụ java của đề cũ) không có sandbox để
+ * chạy. Khoá theo BĂM nội dung nên bản cũ không bị ghi đè khi gắn lại; đây là mã, không phải output mong đợi, nên không
+ * phá nguyên tắc "thước không do LLM viết". Thuần: việc ghi lên kho do `attach` làm, trước mọi lệnh ghi DB.
+ */
+export function answerSourceOf(
+  sessionId: string,
+  exam: { language: string; questions: { modelAnswer: string }[] },
+): (AnswerSource & { body: Buffer }) | null {
+  if (exam.questions.length !== 1) return null;
+  const modelAnswer = exam.questions[0].modelAnswer;
+  const ext = exam.language === "cpp" ? "cpp" : exam.language === "python" ? "py" : null;
+  if (ext === null || modelAnswer.trim() === "") return null;
+  const sha256 = createHash("sha256").update(modelAnswer, "utf8").digest("hex");
+  return {
+    key: `grading-reference/${sessionId}/source-${sha256}.${ext}`,
+    sha256,
+    body: Buffer.from(modelAnswer, "utf8"),
+  };
+}
 
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -177,6 +199,7 @@ export class AttachExamService {
 
     const examMaterialId = randomUUID();
     const paperKey = this.storage.buildMaterialKey(session.id, examMaterialId);
+    const source = answerSourceOf(session.id, exam);
 
     // Chặng đã qua quyết định cách dọn khi hỏng — xem `catch`.
     let createdMaterialId: string | null = null;
@@ -186,9 +209,12 @@ export class AttachExamService {
       // nên phải có byte thật TRƯỚC khi gọi bất kỳ cái nào. Trước đây không
       // có lệnh ghi nào ở đây: mọi lượt gắn đề dừng ở 400 "Chưa thấy file
       // trên kho lưu trữ".
+      // Mã nguồn cũng ghi TRƯỚC DB: `upsert` kiểm nó có trên kho. Object mồ côi nếu bước sau hỏng (băm riêng, không
+      // được cột nào trỏ tới) chỉ tốn chỗ, không đè gì.
       await Promise.all([
         this.storage.putObject(paperKey, paper, DOCX_MIME),
         this.storage.putObject(answerKeyKey, answerKey, DOCX_MIME),
+        ...(source ? [this.storage.putObject(source.key, source.body, "text/plain; charset=utf-8")] : []),
       ]);
 
       const material = await this.materials.create(session, {
@@ -214,6 +240,7 @@ export class AttachExamService {
         "authoring",
         // 5.4: gắn lại đề nhiều câu đã kiểm số câu và điểm ở trên; cổng route (vốn chặn phiên nhiều câu) bỏ qua.
         reattach && authoring !== null,
+        source ? { key: source.key, sha256: source.sha256 } : null,
       );
       referenceWritten = true;
 
