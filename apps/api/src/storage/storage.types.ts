@@ -59,6 +59,15 @@ export const BACKUP_OBJECT_NAME = 'latest.zip';
 export const DOWNLOAD_URL_TTL_SECONDS = 300;
 
 /**
+ * Content-Type ép lên MỌI lượt tải bằng presigned GET. Object trong bucket dùng chung
+ * (bài nộp, đề, sổ điểm) có thể mang kiểu do người nộp gửi; nếu trình duyệt đọc được
+ * `text/html` hay `image/svg+xml` trên origin của storage thì đó là XSS. Ép về
+ * octet-stream thì trình duyệt chỉ tải về, không render. Presigned URL không thể gắn
+ * `X-Content-Type-Options: nosniff`, nên đây là cách chặn thay cho nosniff.
+ */
+export const DOWNLOAD_CONTENT_TYPE = 'application/octet-stream';
+
+/**
  * Presigned PUT lifetime. Long enough for a slow lab machine to finish a
  * large upload it has already started, short enough that a URL captured
  * off the wire is not a standing write grant for the rest of the exam.

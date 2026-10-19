@@ -12,6 +12,7 @@ import {
   BACKUP_KEY_PREFIX,
   BACKUP_OBJECT_NAME,
   MATERIAL_KEY_PREFIX,
+  DOWNLOAD_CONTENT_TYPE,
   DOWNLOAD_URL_TTL_SECONDS,
   SAFE_KEY_SEGMENT_REGEX,
   SUBMISSION_KEY_PREFIX,
@@ -201,6 +202,7 @@ export class StorageService {
       new GetObjectCommand({
         Bucket: this.bucket,
         Key: key,
+        ResponseContentType: DOWNLOAD_CONTENT_TYPE,
         ...(options?.filename && {
           ResponseContentDisposition: buildContentDisposition(options.filename),
         }),

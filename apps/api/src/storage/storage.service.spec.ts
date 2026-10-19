@@ -108,14 +108,25 @@ describe('StorageService', () => {
   });
 
   describe('generateDownloadUrl', () => {
-    it('signs a bare GET when no filename is given (e.g. the agent backup restore path)', async () => {
+    it('signs a GET with no filename: no Content-Disposition, still forced to octet-stream (e.g. the agent backup restore path)', async () => {
       const key = service.buildSubmissionKey(SESSION_ID, MSSV, DELIVERABLE_ID);
 
       await service.generateDownloadUrl(key);
 
       const [, command] = getSignedUrlMock.mock.calls[0];
-      expect(command.input).toEqual({ Bucket: 'test-bucket', Key: key });
+      expect(command.input).toEqual({
+        Bucket: 'test-bucket',
+        Key: key,
+        ResponseContentType: 'application/octet-stream',
+      });
       expect(command.input.ResponseContentDisposition).toBeUndefined();
+    });
+
+    it('forces application/octet-stream on every download, so a stored .html or .svg is never rendered on the storage origin', async () => {
+      await service.generateDownloadUrl('submissions/x/y/z', { filename: 'bai.html' });
+
+      const [, command] = getSignedUrlMock.mock.calls[0];
+      expect(command.input.ResponseContentType).toBe('application/octet-stream');
     });
 
     it(
