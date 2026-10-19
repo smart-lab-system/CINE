@@ -79,9 +79,11 @@ export const NGAN_XEP_V1: RehearsalScenario = {
     },
     {
       mssv: 'HS2410021', name: 'Phan Hoàng Cường', label: 'hard-code theo bộ test (đạt đủ test)',
-      // Tên a/x/n một chữ cái là mơ hồ (n theo đề) → tùy chọn. Bỏ sót nghi (vd sót thieu_chu_thich) cũng hợp lệ.
+      // Theo luật "tên một-hai chữ cái không gợi nghĩa, trừ i/j/k": `a` và `x` đều bị trừ. Ngoại lệ theo câu chỉ có `n`
+      // (chữ của đề: "số nguyên n"). Trước đây coi a/x là tùy chọn, không đúng luật. Nên hệ thống trừ 0,5 ở đây.
+      // Lưu ý: đề nêu dãy là `a_i`, nên giảng viên có thể thêm `a` vào ngoại lệ của câu; hiện chưa cấu hình.
       expect: {
-        errors: ['thieu_chu_thich'], optionalErrors: ['ten_bien_vo_nghia'], decision: 'review',
+        errors: ['thieu_chu_thich', 'ten_bien_vo_nghia'], decision: 'review',
         suspectedLenses: ['gian_lan'], optionalSuspected: ['bo_sot'],
       },
       code: L('#include <iostream>', '#include <vector>', 'using namespace std;', '', 'int main() {', '    long long n;', '    cin >> n;',
