@@ -178,7 +178,7 @@ export default function ExamAuthoringPage() {
     try {
       await attachExamToSession(picked.id, exam);
       setAttachStep(null);
-      toast.success('Đã gắn đề và đáp án vào phiên thi.');
+      toast.success('Đã gắn đề và đáp án. Bước tiếp theo: tạo gói test ở trang Chấm điểm trước khi bắt đầu chấm.');
       // Sang phòng chờ để giảng viên kiểm lại tài liệu — việc gắn chỉ coi là
       // xong khi họ xác nhận ở đó.
       router.push(`/exam-sessions/${picked.id}`);

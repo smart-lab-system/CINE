@@ -9,8 +9,6 @@ import {
   ExamSessionStatus,
 } from "../exam-session/entities/exam-session.entity";
 import { GradingReferenceService } from "../grading/grading-reference.service";
-import { TestBundleService } from "../grading/test-bundle/test-bundle.service";
-import { ensureDefaultProblem } from "../grading/problem/resolve-problem-config";
 import { assertSessionRouteAllowed } from "../grading/problem/session-route-guard";
 import { assertReattachable, reattachProblems } from "../grading/problem/reattach-problems";
 import {
@@ -22,7 +20,6 @@ import {
 import { StorageService } from "../storage/storage.service";
 import { buildExamPaperDocx } from "./docx/exam-paper.docx";
 import { buildAnswerKeyDocx } from "./docx/answer-key.docx";
-import { AuthoringCase, flattenAuthoringCases } from "./authoring-bundle";
 import { parseExamJson } from "./dto/parse-exam";
 
 export const PAPER_FILENAME = "de-thi.docx";
@@ -76,17 +73,10 @@ export interface AttachResult {
   paperFilename: string;
   answerKeyFilename: string;
   /**
-   * Gói test lấy từ chính đề vừa soạn; `null` khi đề không sinh ca nào.
-   * `grading-run.service.ts` chặn bắt đầu chấm khi phiên có bài code mà chưa
-   * ghim gói test — nên đây là điều kiện để phiên đó chấm được, không phải
-   * tiện lợi.
+   * Gắn đề không tạo gói test (Q2 của spec G2b). `nextStep` là bước kế tiếp của giảng viên: tạo gói test.
+   * `grading-run.service.ts` vẫn chặn bắt đầu chấm khi phiên có bài code mà chưa ghim gói test.
    */
-  testBundle: {
-    id: string;
-    version: number;
-    approvedAt: string | null;
-    pinned: boolean;
-  } | null;
+  nextStep: 'create_bundle';
 }
 
 /**
@@ -121,7 +111,6 @@ export class AttachExamService {
     private readonly materials: ExamMaterialService,
     private readonly references: GradingReferenceService,
     private readonly storage: StorageService,
-    private readonly bundles: TestBundleService,
     @InjectDataSource() private readonly ds: DataSource,
   ) {}
 
@@ -228,28 +217,18 @@ export class AttachExamService {
       );
       referenceWritten = true;
 
-      // Gói test là bước CUỐI, có chủ ý: đặt trước `upsert` thì một lần gắn
-      // hỏng ở `upsert` vẫn để lại gói đã GHIM — phiên bị đóng dấu bằng thước
-      // của một lượt gắn thất bại, tệ hơn một đề thiếu thước.
-      const authoredCases = flattenAuthoringCases(exam.questions);
-      const testBundle = authoring
-        ? await this.attachProblems(session.id, teacherId, exam.questions, authoredCases, exam.language, reattach)
-        : authoredCases.length > 0
-          ? await this.bundles.adoptFromAuthoring(
-              session.id,
-              teacherId,
-              authoredCases,
-              session.testBundleId !== null,
-              await ensureDefaultProblem(this.ds.manager, session.id),
-              reattach,
-            )
-          : null;
+      // Gắn đề KHÔNG tạo gói test (Q2 của spec G2b, đã duyệt 2026-10-17): thước từ đề chưa được chạy,
+      // nên gói sinh ra lúc gắn sẽ tự duyệt bằng output do LLM viết. Chỉ tạo câu của phiên khi đề có cấu
+      // trúc câu; gói test do giảng viên tạo ở bước kế tiếp (`nextStep`).
+      if (authoring) {
+        await this.attachProblems(session.id, exam.questions, exam.language, reattach);
+      }
 
       return {
         examMaterialId: material.id,
         paperFilename: PAPER_FILENAME,
         answerKeyFilename: ANSWER_KEY_FILENAME,
-        testBundle,
+        nextStep: 'create_bundle',
       };
     } catch (error) {
       if (referenceWritten) {
@@ -291,36 +270,17 @@ export class AttachExamService {
    */
   private attachProblems(
     sessionId: string,
-    teacherId: string,
     questions: AuthoredQuestion[],
-    cases: AuthoringCase[],
     examLanguage: string,
     reattach: boolean,
-  ): Promise<AttachResult["testBundle"]> {
+  ): Promise<void> {
     return this.ds.transaction(async (m) => {
-      // 5.4: gắn lại thì cập nhật đề của từng câu tại chỗ; lần đầu thì tạo câu.
-      const problems = reattach
-        ? await reattachProblems(m, sessionId, questions)
-        : await createProblemsFromAuthoring(m, sessionId, questions, examLanguage);
-      let first: AttachResult["testBundle"] = null;
-      for (const problem of problems) {
-        const own = cases
-          .filter((c) => c.questionIndex === problem.ordinal - 1)
-          .map((c) => ({
-            caseKey: c.caseKey,
-            group: c.group,
-            input: c.input,
-            expectedOutput: c.expectedOutput,
-          }));
-        if (own.length === 0) {
-          continue;
-        }
-        const bundle = await this.bundles.adoptFromAuthoringWithin(m, sessionId, teacherId, own, problem.problemId, reattach);
-        if (problem.ordinal === 1) {
-          first = bundle;
-        }
+      // 5.4: gắn lại thì cập nhật đề của từng câu tại chỗ; lần đầu thì tạo câu. Không tạo gói test ở đây.
+      if (reattach) {
+        await reattachProblems(m, sessionId, questions);
+      } else {
+        await createProblemsFromAuthoring(m, sessionId, questions, examLanguage);
       }
-      return first;
     });
   }
 }

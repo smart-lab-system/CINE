@@ -83,16 +83,12 @@ describe('P1a — ghi tham chiếu và gói test gắn vào câu mặc định (
     expect(loaded.note).toBe('Đáp án ghi thẳng');
   });
 
-  it('adoptFromAuthoring: gói sinh từ soạn đề gắn vào câu 1', async () => {
-    const ctx = await seedSession(ds, 'w-bundle-adopt');
+  it('create: gói tạo tay gắn vào câu 1', async () => {
+    const ctx = await seedSession(ds, 'w-bundle-create');
 
-    const bundle = await bundles.adoptFromAuthoring(
-      ctx.sessionId,
-      ctx.teacherId,
-      [{ caseKey: 'ca_1', group: 'nhom_1', input: '1 2', expectedOutput: '3' }],
-      false,
-      await ensureDefaultProblem(ds.manager, ctx.sessionId),
-    );
+    const bundle = await bundles.create(ctx.sessionId, ctx.teacherId, {
+      cases: [{ caseKey: 'ca_1', group: 'nhom_1', input: '1 2', expectedOutput: '3' }],
+    });
 
     const [row] = await ds.query(
       `SELECT p.ordinal

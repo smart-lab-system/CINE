@@ -62,6 +62,15 @@ function input(over: Partial<ScoreCoreInput> = {}): ScoreCoreInput {
 }
 
 describe('computeScore', () => {
+  it('A2a — thước unverified: điểm đúng nhưng không tự quyết, về giảng viên (§6.3b)', () => {
+    expect(computeScore(input()).outcome).toBe('auto');
+    expect(computeScore(input({ rulerTrust: 'unverified' })).outcome).toBe('flagged');
+  });
+
+  it('A2a — thước teacher: vẫn tự quyết như cũ', () => {
+    expect(computeScore(input({ rulerTrust: 'teacher' })).outcome).toBe('auto');
+  });
+
   it('trừ theo bảng giá, ánh xạ rule_key sang uuid và bản sửa (T-KEY-1); confidence (150·1 + 50·0,5)/200 ≥ θ → tự quyết', () => {
     const out = computeScore(input());
     expect(out.outcome).toBe('auto');

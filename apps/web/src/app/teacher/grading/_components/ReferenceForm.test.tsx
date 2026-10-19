@@ -95,9 +95,11 @@ describe('ReferenceForm (spec §3.7 — replaces GradingReferenceDialog, same wr
       expect(screen.getByRole('status')).toHaveTextContent(/thước bạn chưa đọc/);
     });
 
-    it('once a bundle is pinned the band is gone and only the neutral line remains', () => {
+    // G2b A2a: ghim gói không làm thước thành đã kiểm chứng. Phiên cũ đã ghim gói do model viết vẫn phải có cảnh báo.
+    it('a pinned bundle does not hide the band while the ruler is still unverified', () => {
       renderForm({ readiness: withSources(), hasPinnedBundle: true });
-      expect(screen.queryByText(/chưa từng chạy thử/)).not.toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent(/chưa từng chạy thử/);
+      expect(screen.getByRole('status')).toHaveTextContent(/về giảng viên/);
       expect(screen.getByText(/Nguồn: gắn từ Soạn đề lúc/)).toBeInTheDocument();
     });
 

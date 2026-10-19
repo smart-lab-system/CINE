@@ -17,12 +17,12 @@ import {
 /**
  * Ngôn ngữ mở nhưng KHÔNG tự do.
  *
- * Một chuỗi bất kỳ đi thẳng vào prompt là một đường tiêm lệnh, và cũng là
- * cách sinh ra đề bằng ngôn ngữ mà sandbox sau này không chạy được. Danh sách
- * khớp `SANDBOX_LANGUAGES` của nhánh autograder, để bước kiểm chứng sau này
- * không phải thu hẹp lại.
+ * Một chuỗi bất kỳ đi thẳng vào prompt là một đường tiêm lệnh. Chỉ `cpp` và
+ * `python` vì đó là hai ngôn ngữ worker sandbox chạy được (G2b A2a, D-E): đề sinh
+ * ra bằng java hay node không có cách nào kiểm chứng đáp án, và bài nộp bằng hai
+ * ngôn ngữ đó không chấm được bằng điều tra.
  */
-export const AUTHORING_LANGUAGES = ['python', 'cpp', 'java', 'node'] as const;
+export const AUTHORING_LANGUAGES = ['python', 'cpp'] as const;
 
 export class GenerateExamDto {
   @IsString()

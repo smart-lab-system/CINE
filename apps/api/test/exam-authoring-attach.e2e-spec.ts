@@ -314,61 +314,48 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     expect(await materialsOf(sessionId)).toHaveLength(0);
   });
 
-  it('gắn đề sinh ra gói test đã duyệt và đã ghim, đúng số ca của đề', async () => {
+  // Q2 (spec G2b, đã duyệt): gắn đề KHÔNG sinh gói test, dù đề có ca. Thước từ đề chưa được chạy, nên gói sinh
+  // lúc gắn sẽ tự duyệt bằng output do LLM viết. Giảng viên tạo gói ở bước kế tiếp (`nextStep`).
+  it('gắn đề không sinh gói test nào, dù đề có ca; kết quả nói bước kế tiếp là tạo gói', async () => {
     const sessionId = await makeSession(teacherToken, classId);
 
     const res = await attach(sessionId, examJson);
     expect(res.status).toBe(201);
     expect(authoredCaseCount(examJson)).toBe(3);
+    expect(res.body.nextStep).toBe('create_bundle');
+    expect(res.body.testBundle).toBeUndefined();
 
-    const bundles = await bundlesOf(sessionId);
-    expect(bundles).toHaveLength(1);
-    expect(bundles[0].origin).toBe('generated');
-    expect(bundles[0].approved_by).toBe(teacherId);
-    expect(bundles[0].approved_at).not.toBeNull();
-    expect(await caseKeysOf(bundles[0].id)).toEqual(['q1-co-ban', 'q1-mot-phan-tu', 'q1-rong']);
-
+    expect(await bundlesOf(sessionId)).toHaveLength(0);
     const [pinned] = await dataSource.query(
       `SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`,
       [sessionId],
     );
-    expect(pinned.test_bundle_id).toBe(bundles[0].id);
-    expect(res.body.testBundle).toEqual({
-      id: bundles[0].id,
-      version: 1,
-      approvedAt: expect.any(String),
-      pinned: true,
-    });
+    expect(pinned.test_bundle_id).toBeNull();
   });
 
   // Review Focus #4. Lần gắn thứ hai KHÔNG được đè gói giảng viên đã chọn;
   // gói mới vẫn được tạo (lịch sử không mất) nhưng chưa duyệt.
   // 5.4: gắn lại (chưa chấm, chưa xác nhận, cùng số câu) thay gói đã ghim bằng gói mới đã duyệt và ghim; gói cũ giữ làm lịch sử.
-  it('gắn lần hai thay gói đã ghim bằng gói mới (đã duyệt, đã ghim); gói cũ giữ nguyên', async () => {
+  it('gắn lần hai vẫn không sinh gói nào và không đụng vào gói đã có', async () => {
     const sessionId = await makeSession(teacherToken, classId);
 
     const first = await attach(sessionId, examJson);
     expect(first.status).toBe(201);
     const second = await attach(sessionId, examJson);
     expect(second.status).toBe(201);
+    expect(second.body.nextStep).toBe('create_bundle');
 
-    const bundles = await bundlesOf(sessionId);
-    expect(bundles).toHaveLength(2);
-    expect(bundles[0].approved_at).not.toBeNull();
-    expect(bundles[1].approved_at).not.toBeNull();
-    expect(second.body.testBundle.pinned).toBe(true);
-    expect(second.body.testBundle.approvedAt).not.toBeNull();
-
+    expect(await bundlesOf(sessionId)).toHaveLength(0);
     const [row] = await dataSource.query(
       `SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`,
       [sessionId],
     );
-    expect(row.test_bundle_id).toBe(second.body.testBundle.id);
+    expect(row.test_bundle_id).toBeNull();
   });
 
   // Review Focus #2 + #3, đầu-cuối: tên có dấu/dấu câu và tên trùng trong một
   // câu phải cho ra khoá hợp lệ DUY NHẤT, không phải một lỗi 500 từ DB.
-  it('tên ca có dấu và tên trùng -> vẫn gắn được, khoá hợp lệ và duy nhất', async () => {
+  it('tên ca có dấu và tên trùng -> vẫn gắn được, không tạo gói', async () => {
     const sessionId = await makeSession(teacherToken, classId);
     const json = customExam([
       {
@@ -382,36 +369,17 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
 
     const res = await attach(sessionId, json);
     expect(res.status).toBe(201);
-    expect(await caseKeysOf(res.body.testBundle.id)).toEqual(['q1-ca-1-can-bang', 'q1-x', 'q1-x-2']);
+    expect(res.body.nextStep).toBe('create_bundle');
+    expect(await bundlesOf(sessionId)).toHaveLength(0);
   });
 
-  it('đề không sinh ca nào -> không tạo gói rỗng', async () => {
+  it('đề không sinh ca nào -> vẫn gắn đề, không tạo gói', async () => {
     const sessionId = await makeSession(teacherToken, classId);
 
     const res = await attach(sessionId, customExam([{ cases: [] }]));
 
     expect(res.status).toBe(201);
-    expect(res.body.testBundle).toBeNull();
-    expect(await bundlesOf(sessionId)).toHaveLength(0);
-  });
-
-  // Ghi nhận HÀNH VI ĐÃ CHỌN (Decisions to veto #3), không phải hành vi lý
-  // tưởng: gói test là bước CUỐI, nên khi nó hỏng thì đề và đáp án — đã ghi
-  // hợp lệ và đang được `grading_reference` giữ bằng FK RESTRICT — ở lại.
-  it('gói test hỏng sau khi đề và đáp án đã ghi -> 500, đề và đáp án vẫn nằm đó', async () => {
-    const sessionId = await makeSession(teacherToken, classId);
-
-    const spy = jest
-      .spyOn(app.get(TestBundleService), 'adoptFromAuthoring')
-      .mockRejectedValueOnce(new Error('hỏng giả lập ở gói test'));
-    try {
-      expect((await attach(sessionId, examJson)).status).toBe(500);
-    } finally {
-      spy.mockRestore();
-    }
-
-    expect(await materialsOf(sessionId)).toHaveLength(1);
-    expect(await referenceOf(sessionId)).toBeDefined();
+    expect(res.body.nextStep).toBe('create_bundle');
     expect(await bundlesOf(sessionId)).toHaveLength(0);
   });
 
@@ -439,15 +407,22 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
   it('bỏ ca khỏi gói generated chưa duyệt -> phiên bản mới vẫn là generated, chưa duyệt', async () => {
     const sessionId = await makeSession(teacherToken, classId);
     expect((await attach(sessionId, examJson)).status).toBe(201);
-    // 5.4: gắn lại giờ luôn ghim gói đã duyệt, nên gói "generated chưa duyệt" được dựng trực tiếp: cùng ca với gói đầu.
-    const [firstBundle] = await dataSource.query(
-      `SELECT id FROM examcollect.grading_test_bundle WHERE exam_session_id = $1 ORDER BY version LIMIT 1`,
-      [sessionId],
-    );
     const [ordinalOne] = await dataSource.query(
       `SELECT id FROM examcollect.exam_problem WHERE exam_session_id = $1 AND ordinal = 1`,
       [sessionId],
     );
+    // Gắn đề không tạo gói (Q2): gói nguồn được dựng trực tiếp với ba ca của đề, cùng câu 1.
+    const [firstBundle] = await dataSource.query(
+      `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+       VALUES ($1, 1, 'generated', $2, $3) RETURNING id`,
+      [sessionId, teacherId, ordinalOne.id],
+    );
+    for (const caseKey of ['q1-co-ban', 'q1-mot-phan-tu', 'q1-rong']) {
+      await dataSource.query(
+        `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output) VALUES ($1, $2, 'nhom', '1', '1')`,
+        [firstBundle.id, caseKey],
+      );
+    }
     const [unapproved] = await dataSource.query(
       `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
        VALUES ($1, 2, 'generated', $2, $3) RETURNING id`,

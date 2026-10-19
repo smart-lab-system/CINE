@@ -60,20 +60,15 @@ export interface GeneratedExam {
 export const MAX_CLASSIC_PROBLEM_LENGTH = 200;
 
 /**
- * Bốn ngôn ngữ, không phải `string`.
+ * Hai ngôn ngữ, không phải `string`.
  *
  * Siết lại sau khi regenerate schema: backend khai `@IsIn(AUTHORING_LANGUAGES)`
  * nên OpenAPI sinh ra một union literal, và `string` không gán vào đó được.
- * Kiểu chặt cũng đúng hơn cho `<select>` ở giao diện — nó chỉ có bốn lựa chọn.
+ * Kiểu chặt cũng đúng hơn cho `<select>` ở giao diện — nó chỉ có hai lựa chọn.
  */
-export type AuthoringLanguage = 'python' | 'cpp' | 'java' | 'node';
+export type AuthoringLanguage = 'python' | 'cpp';
 
-export const AUTHORING_LANGUAGES: readonly AuthoringLanguage[] = [
-  'python',
-  'cpp',
-  'java',
-  'node',
-];
+export const AUTHORING_LANGUAGES: readonly AuthoringLanguage[] = ['python', 'cpp'];
 
 export interface GenerateExamInput {
   prompt: string;
