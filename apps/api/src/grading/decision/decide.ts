@@ -174,6 +174,12 @@ export function decide(input: DecisionInput): Decision {
     });
   }
 
+  // §6.3b (P1b): thước chưa kiểm chứng thì bài không tự quyết, dù bằng chứng đủ. Cờ này đi qua `auto` bên dưới,
+  // nên không cần nhánh riêng; các sàn khác không đổi.
+  if (input.rulerTrust === 'unverified') {
+    caseFlags.push({ code: 'ruler_unverified', detail: 'đáp án mẫu của đề chưa được kiểm chứng bằng chạy thử (§6.3b)' });
+  }
+
   const errorFlags: ErrorFlag[] = [
     ...score.unpricedRuleKeys.map((ruleKey) => ({ ruleKey, code: 'unpriced' as const })),
     ...[...refutedKeys].map((ruleKey) => ({ ruleKey, code: 'refuted' as const })),

@@ -91,6 +91,7 @@ describe('P1a — ghi tham chiếu và gói test gắn vào câu mặc định (
       ctx.teacherId,
       [{ caseKey: 'ca_1', group: 'nhom_1', input: '1 2', expectedOutput: '3' }],
       false,
+      await ensureDefaultProblem(ds.manager, ctx.sessionId),
     );
 
     const [row] = await ds.query(

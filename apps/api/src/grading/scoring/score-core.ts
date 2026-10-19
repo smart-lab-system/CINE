@@ -25,6 +25,8 @@ export interface ScoreCoreInput {
   /** ruleId → ngoại lệ cấp lỗi MỚI NHẤT của bài này (§2.2). */
   exceptions: ReadonlyMap<string, 'exclude' | 'include'>;
   theta: number;
+  /** Độ tin cậy của thước của câu (§6.3b, P1b). `unverified` chặn tự quyết; vắng/`null`/`teacher` thì không đổi. */
+  rulerTrust?: 'teacher' | 'verified' | 'unverified' | null;
 }
 
 export interface BreakdownError {
@@ -96,6 +98,7 @@ export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
     modelCeiling: input.stored.modelCeiling,
     theta: input.theta,
     challenge: input.stored.challenge ?? null,
+    rulerTrust: input.rulerTrust,
   });
 
   const excludedKeys = new Set(used.filter((r) => input.exceptions.get(r.ruleId) === 'exclude').map((r) => r.ruleKey));

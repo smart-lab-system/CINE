@@ -41,6 +41,13 @@ export class GradingReferenceEntity extends BaseEntity {
   @Column({ name: 'ruler_trust', type: 'varchar', length: 12, nullable: true })
   rulerTrust!: 'teacher' | 'verified' | 'unverified' | null;
 
+  /** Giảng viên xác nhận thước (5.3, §6.3b): ai và khi nào. Rỗng khi chưa xác nhận. Đổi đáp án thì xoá hai cột này. */
+  @Column({ name: 'ruler_confirmed_by', type: 'uuid', nullable: true })
+  rulerConfirmedBy!: string | null;
+
+  @Column({ name: 'ruler_confirmed_at', type: 'timestamptz', nullable: true })
+  rulerConfirmedAt!: Date | null;
+
   @Column({ name: 'exam_session_id', type: 'uuid' })
   examSessionId!: string;
 

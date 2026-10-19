@@ -60,3 +60,19 @@ export function auditBucket(seed: string, resultId: string): number {
 export function drawnForAudit(seed: string, resultId: string, percent: number): boolean {
   return auditBucket(seed, resultId) < percent * 100;
 }
+
+/**
+ * Số nguyên trong [0, 9999], tất định theo (seed, MSSV chữ thường). Đường rút mẫu THEO SINH VIÊN (P1b §8): mọi câu
+ * tự duyệt của một sinh viên cùng được rút, vì quyết định chỉ phụ thuộc MSSV và seed. `auditBucket` (theo id bài)
+ * vẫn giữ nguyên cho dữ liệu đã rút trước đó.
+ *
+ * Bước chuyển: chỉ các quyết định TỰ DUYỆT MỚI (sau khi triển khai) đi qua đường này. Bài đã được rút theo id
+ * giữ nguyên cờ của nó — không rút lại, vì rút lại là đổi thước dưới chân những bài đã mang kết cục.
+ */
+export function auditBucketByStudent(seed: string, mssv: string): number {
+  return createHash('sha256').update(`${seed}:${mssv.toLowerCase()}`).digest().readUInt32BE(0) % 10_000;
+}
+
+export function drawnForStudentAudit(seed: string, mssv: string, percent: number): boolean {
+  return auditBucketByStudent(seed, mssv) < percent * 100;
+}

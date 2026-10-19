@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ConflictException, Injectable, Logger } from "@nestjs/common";
+import { InjectDataSource } from "@nestjs/typeorm";
+import { DataSource } from "typeorm";
 import { ExamSessionService } from "../exam-session/exam-session.service";
 import { ExamMaterialService } from "../exam-session/exam-material.service";
 import {
@@ -8,10 +10,19 @@ import {
 } from "../exam-session/entities/exam-session.entity";
 import { GradingReferenceService } from "../grading/grading-reference.service";
 import { TestBundleService } from "../grading/test-bundle/test-bundle.service";
+import { ensureDefaultProblem } from "../grading/problem/resolve-problem-config";
+import { assertSessionRouteAllowed } from "../grading/problem/session-route-guard";
+import { assertReattachable, reattachProblems } from "../grading/problem/reattach-problems";
+import {
+  AuthoredQuestion,
+  authoringContextOf,
+  createProblemsFromAuthoring,
+  planAuthoredProblems,
+} from "../grading/problem/problem.service";
 import { StorageService } from "../storage/storage.service";
 import { buildExamPaperDocx } from "./docx/exam-paper.docx";
 import { buildAnswerKeyDocx } from "./docx/answer-key.docx";
-import { flattenAuthoringCases } from "./authoring-bundle";
+import { AuthoringCase, flattenAuthoringCases } from "./authoring-bundle";
 import { parseExamJson } from "./dto/parse-exam";
 
 export const PAPER_FILENAME = "de-thi.docx";
@@ -111,6 +122,7 @@ export class AttachExamService {
     private readonly references: GradingReferenceService,
     private readonly storage: StorageService,
     private readonly bundles: TestBundleService,
+    @InjectDataSource() private readonly ds: DataSource,
   ) {}
 
   async attach(
@@ -135,6 +147,29 @@ export class AttachExamService {
           "Đề chỉ gắn được trước giờ thi — qua giờ thi thì agent đã nhận tài liệu, " +
           "và gắn thêm sẽ khiến mỗi em nhận một bộ khác nhau.",
       );
+    }
+
+    // 5.4: đề đã gắn trước đó thì chỉ gắn lại khi đủ điều kiện (chưa chấm, chưa xác nhận, giữ số câu và điểm từng câu).
+    // Lần đầu thì giữ cổng cũ (review I1). Cả hai đều kiểm TRƯỚC khi ghi gì lên kho: đáp án được ghi vào khoá cố định.
+    const [prior] = await this.ds.query(
+      `SELECT EXISTS (SELECT 1 FROM examcollect.grading_reference
+                       WHERE exam_session_id = $1 AND model_answer_storage_key IS NOT NULL) AS attached`,
+      [session.id],
+    );
+    const reattach = prior.attached === true;
+    if (reattach) {
+      await this.ds.transaction((m) => assertReattachable(m, session.id, exam.questions));
+    } else {
+      await this.ds.transaction((m) => assertSessionRouteAllowed(m, session.id));
+    }
+
+    // Đề nhiều câu được kiểm số lượng yêu cầu nộp và ngôn ngữ (D2) TRƯỚC mọi lệnh ghi. Đề một câu giữ đường cũ.
+    const authoring =
+      exam.questions.length > 1
+        ? await authoringContextOf(this.ds.manager, session.id)
+        : null;
+    if (authoring) {
+      planAuthoredProblems(exam.questions, authoring, exam.language);
     }
 
     const [paper, answerKey] = await Promise.all([
@@ -181,12 +216,15 @@ export class AttachExamService {
           questionMaterialId: material.id,
           modelAnswerStorageKey: answerKeyKey,
           modelAnswerFilename: ANSWER_KEY_FILENAME,
-          // Đề do model sinh mà chưa chạy thử thì mang dấu — xem
-          // `grading-reference.entity.ts`.
-          modelAnswerUnverified: exam.verification.status !== "passed",
+          // 5.3: đáp án Soạn đề luôn mang dấu chưa kiểm chứng, kể cả khi sandbox đã chạy qua. Sandbox chỉ chứng tỏ
+          // cài đặt khớp dự đoán; cùng một model hiểu sai đề thì vẫn qua. Chỉ giảng viên xác nhận mới nâng thước
+          // (endpoint ruler/confirm). Xem `grading-reference.entity.ts`.
+          modelAnswerUnverified: true,
         },
         teacherId,
         "authoring",
+        // 5.4: gắn lại đề nhiều câu đã kiểm số câu và điểm ở trên; cổng route (vốn chặn phiên nhiều câu) bỏ qua.
+        reattach && authoring !== null,
       );
       referenceWritten = true;
 
@@ -194,13 +232,16 @@ export class AttachExamService {
       // hỏng ở `upsert` vẫn để lại gói đã GHIM — phiên bị đóng dấu bằng thước
       // của một lượt gắn thất bại, tệ hơn một đề thiếu thước.
       const authoredCases = flattenAuthoringCases(exam.questions);
-      const testBundle =
-        authoredCases.length > 0
+      const testBundle = authoring
+        ? await this.attachProblems(session.id, teacherId, exam.questions, authoredCases, exam.language, reattach)
+        : authoredCases.length > 0
           ? await this.bundles.adoptFromAuthoring(
               session.id,
               teacherId,
               authoredCases,
               session.testBundleId !== null,
+              await ensureDefaultProblem(this.ds.manager, session.id),
+              reattach,
             )
           : null;
 
@@ -242,5 +283,44 @@ export class AttachExamService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Đề nhiều câu: tạo câu và ghim gói của từng câu trong MỘT transaction, nên hỏng ở đâu thì không câu nào còn
+   * dở dang. Trả gói của câu 1 để giữ hình dạng `AttachResult.testBundle`; câu 1 là bí danh của phiên (§3.3).
+   */
+  private attachProblems(
+    sessionId: string,
+    teacherId: string,
+    questions: AuthoredQuestion[],
+    cases: AuthoringCase[],
+    examLanguage: string,
+    reattach: boolean,
+  ): Promise<AttachResult["testBundle"]> {
+    return this.ds.transaction(async (m) => {
+      // 5.4: gắn lại thì cập nhật đề của từng câu tại chỗ; lần đầu thì tạo câu.
+      const problems = reattach
+        ? await reattachProblems(m, sessionId, questions)
+        : await createProblemsFromAuthoring(m, sessionId, questions, examLanguage);
+      let first: AttachResult["testBundle"] = null;
+      for (const problem of problems) {
+        const own = cases
+          .filter((c) => c.questionIndex === problem.ordinal - 1)
+          .map((c) => ({
+            caseKey: c.caseKey,
+            group: c.group,
+            input: c.input,
+            expectedOutput: c.expectedOutput,
+          }));
+        if (own.length === 0) {
+          continue;
+        }
+        const bundle = await this.bundles.adoptFromAuthoringWithin(m, sessionId, teacherId, own, problem.problemId, reattach);
+        if (problem.ordinal === 1) {
+          first = bundle;
+        }
+      }
+      return first;
+    });
   }
 }

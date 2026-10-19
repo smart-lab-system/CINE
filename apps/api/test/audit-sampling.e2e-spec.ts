@@ -3,7 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { drawnForAudit } from '../src/grading/audit-sampling';
+import { drawnForStudentAudit } from '../src/grading/audit-sampling';
 import { ScoreService } from '../src/grading/scoring/score.service';
 import { seedSession } from './helpers/grading-seed';
 import { seedInvestigatorResult, seedInvestigatorSession, seedPrices, seedRule, storedWith } from './helpers/investigator-seed';
@@ -108,11 +108,14 @@ describe('Rút mẫu phụ thuộc seed và id, không phụ thuộc gì khác �
     ctxApp.restore();
   });
 
-  /** Chọn một seed mà `drawnForAudit(seed, resultId, 5)` trả `want` — hàm là tất định nên chọn trước được. */
-  function seedFor(resultId: string, want: boolean): string {
+  /**
+   * Chọn một seed mà `drawnForStudentAudit(seed, mssv, 5)` trả `want` — hàm là tất định nên chọn trước được. Từ P1b
+   * (Task 10) khoá rút mẫu là MSSV của sinh viên, không còn là id bài.
+   */
+  function seedFor(mssv: string, want: boolean): string {
     for (let i = 0; i < 500; i++) {
       const seed = randomUUID();
-      if (drawnForAudit(seed, resultId, 5) === want) return seed;
+      if (drawnForStudentAudit(seed, mssv, 5) === want) return seed;
     }
     throw new Error('không tìm được seed phù hợp sau 500 lần thử');
   }
@@ -123,7 +126,11 @@ describe('Rút mẫu phụ thuộc seed và id, không phụ thuộc gì khác �
       const { ds, scores } = ctxApp;
       const { ctx } = await world(ds, `samp-seed-${want}`);
       const { resultId } = await seedInvestigatorResult(ds, ctx, storedWith(SEEN));
-      await ds.query(`UPDATE examcollect.exam_session SET grading_seed = $2 WHERE id = $1`, [ctx.sessionId, seedFor(resultId, want)]);
+      const [{ student_mssv: mssv }] = await ds.query(
+        `SELECT s.student_mssv FROM examcollect.grading_result g JOIN examcollect.submission s ON s.id = g.submission_id WHERE g.id = $1`,
+        [resultId],
+      );
+      await ds.query(`UPDATE examcollect.exam_session SET grading_seed = $2 WHERE id = $1`, [ctx.sessionId, seedFor(mssv as string, want)]);
 
       await scores.computeInitial(resultId);
 

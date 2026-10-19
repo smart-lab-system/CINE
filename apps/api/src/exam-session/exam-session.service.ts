@@ -46,6 +46,7 @@ import {
 import { ScheduleConflictService } from './schedule-conflict.service';
 import { SUBMISSION_GRACE_PERIOD_MS } from '../submission/submission.types';
 import { ensureDefaultProblem, setSessionRubricAndProblem } from '../grading/problem/resolve-problem-config';
+import { assertSessionRouteAllowed } from '../grading/problem/session-route-guard';
 
 /**
  * Trần độ dài khoảng ngày của chế độ lịch.
@@ -370,9 +371,10 @@ export class ExamSessionService {
     }
 
     // Ghi kép: cột bí danh của phiên VÀ câu 1 (P1a), trong một transaction dưới khoá giảng viên.
-    await this.sessions.manager.transaction((m) =>
-      setSessionRubricAndProblem(m, session.id, rubric?.id ?? null),
-    );
+    await this.sessions.manager.transaction(async (m) => {
+      await assertSessionRouteAllowed(m, session.id);
+      await setSessionRubricAndProblem(m, session.id, rubric?.id ?? null);
+    });
     const deliverables = await this.listRequiredDeliverables(session.id);
     const entriesByDeliverable = await this.loadEntriesByDeliverable(
       deliverables.map((d) => d.id),
