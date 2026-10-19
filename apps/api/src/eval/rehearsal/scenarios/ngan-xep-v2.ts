@@ -105,7 +105,9 @@ export const NEW_SUBMISSIONS: ScenarioSubmission[] = [
   },
   {
     mssv: 'HS2410031', name: 'Ngô Minh Khang', label: 'lấy ra tối đa hai phần tử (sai ca cơ bản), tên và chú thích tốt, giải phóng đủ',
-    expect: { errors: ['sai_ca_co_ban'], decision: 'auto', suspectedLenses: [] },
+    // Đổi từ auto sang review (2026-10-19): lens bo_sot phát hiện lỗi logic nghiêm trọng ngoài 3 luật
+    // (bài chỉ in tối đa hai phần tử), nên hệ thống đưa về giảng viên là đúng thiết kế.
+    expect: { errors: ['sai_ca_co_ban'], decision: 'review', suspectedLenses: [] },
     code: L('#include <iostream>', 'using namespace std;', '',
       '// Nút của ngăn xếp: giá trị và con trỏ tới nút ngay dưới.', 'struct StackNode {', '    long long value;', '    StackNode* below;', '};', '',
       '// Đặt nút mới lên đỉnh; nút mới trỏ xuống đỉnh cũ.', 'void pushNode(StackNode*& top, long long value) {', '    top = new StackNode{value, top};', '}', '',
