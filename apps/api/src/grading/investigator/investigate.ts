@@ -1,6 +1,6 @@
 import { UsageSink } from './usage-sink';
 import { ChatTextRequest } from '../ai-provider/openai-chat';
-import { wrapSubmission } from '../harness/submission-envelope';
+import { quoteAppearsInSubmission, wrapSubmission } from '../harness/submission-envelope';
 import { DuplicateGuard } from './dedup';
 import { DeadlineExceededError, ModelPool, ModelsExhaustedError, ModelTier, PoolReply } from './model-pool';
 import {
@@ -307,7 +307,14 @@ export async function investigate(
   const flags: InvestigationFlag[] = [];
   if (kind === 'verdict' && stop !== 'verdict') flags.push('budget_exhausted');
   if (rejected.length > 0) flags.push('evidence_rejected');
-  if (submissionSuspected || toolCalls.some((t) => t.injectionSuspected) || accepted?.injectionAttempt.detected) {
+  // Lời khai của model chỉ tính khi đoạn trích (nếu có) thật sự nằm trong bài nộp. Đoạn không khớp là vỏ
+  // bọc của hệ thống hay lời bình của model, không phải chữ của sinh viên (xem quoteAppearsInSubmission).
+  // Không có đoạn trích thì vẫn tính: không kiểm chứng được thì giữ phía an toàn. Lời khai gốc vẫn lưu ở verdict.
+  const claim = accepted?.injectionAttempt;
+  const quote = claim?.excerpt?.trim() ?? '';
+  const claimCredible =
+    claim?.detected === true && (quote === '' || quoteAppearsInSubmission(quote, ctx.submission.files.map((f) => f.content)));
+  if (submissionSuspected || toolCalls.some((t) => t.injectionSuspected) || claimCredible) {
     flags.push('injection_suspected');
   }
 

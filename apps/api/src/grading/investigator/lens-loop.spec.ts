@@ -87,8 +87,8 @@ describe('runLensLoop()', () => {
     expect(CHALLENGE_PHASE_BUDGET_MS).toBeGreaterThanOrEqual(LENS_BUDGET.maxWallMs);
   });
 
-  it('diễn tập 2026-10-19 — ngân sách đủ cho ba lời gọi chậm nối tiếp: ≥180s, ≥6 vòng, ≥8 lời gọi', () => {
-    expect(LENS_BUDGET.maxWallMs).toBeGreaterThanOrEqual(180_000);
+  it('diễn tập 2026-10-19 — ngân sách đủ cho năm lời gọi chậm nối tiếp: ≥300s, ≥6 vòng, ≥8 lời gọi', () => {
+    expect(LENS_BUDGET.maxWallMs).toBeGreaterThanOrEqual(300_000);
     expect(LENS_BUDGET.maxRounds).toBeGreaterThanOrEqual(6);
     expect(LENS_BUDGET.maxToolCalls).toBeGreaterThanOrEqual(8);
   });

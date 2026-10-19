@@ -92,3 +92,28 @@ export function wrapSubmission(rawText: string): SubmissionEnvelope {
       : undefined,
   };
 }
+
+/** Mảnh đủ dài để không khớp ngẫu nhiên với chữ thường gặp trong code. */
+const MIN_QUOTE_FRAGMENT = 12;
+
+/**
+ * Đoạn trích model đưa ra có THẬT SỰ nằm trong bài nộp không?
+ *
+ * Lời khai `injectionAttempt` chỉ có giá trị khi trỏ vào chữ của sinh viên. Diễn tập 19/10: model
+ * "phát hiện injection" với đoạn trích là chính vỏ bọc của hệ thống (`Mã định danh lượt này…`,
+ * `===BEGIN SUBMISSION…===`) hoặc lời bình của nó. Không có dòng nào như vậy trong bài, nên đó là
+ * báo động giả đẩy bài đúng về giảng viên (HS2410019, HS2410022).
+ *
+ * Đoạn trích được tách ở "…" hoặc "..."; một mảnh đủ dài (≥ MIN_QUOTE_FRAGMENT) phải nằm trong một
+ * file của bài sau khi gộp khoảng trắng. Không có mảnh nào đủ dài thì so cả đoạn. Bài là chữ của
+ * sinh viên nên một trích dẫn thật luôn khớp; chuỗi bịa hoặc lặp vỏ bọc thì không.
+ */
+export function quoteAppearsInSubmission(excerpt: string, submissions: string[]): boolean {
+  const flat = (s: string) => s.replace(/\s+/g, ' ').trim();
+  // Model hay bọc trích dẫn trong ngoặc, backtick hay dấu nháy; chữ của sinh viên không có lớp bọc đó.
+  const unquoted = (s: string) => flat(s).replace(/^["'`«“‘]+|["'`»”’]+$/g, '').trim();
+  const haystacks = submissions.map(flat);
+  const fragments = excerpt.split(/…|\.\.\./).map(unquoted).filter((f) => f.length >= MIN_QUOTE_FRAGMENT);
+  const candidates = fragments.length > 0 ? fragments : [unquoted(excerpt)];
+  return candidates.some((c) => c.length > 0 && haystacks.some((h) => h.includes(c)));
+}
