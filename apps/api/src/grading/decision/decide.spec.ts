@@ -254,7 +254,7 @@ describe('decide() — §6.2 phản biện', () => {
   });
 
   it('caseNote suspected=true (Bỏ sót/Gian lận) → caseFlag challenge_suspected, chặn tự quyết', () => {
-    const d = decide(input({ challenge: challengeOf([], [{ lens: 'gian_lan', suspected: true, note: 'nghi hard-code' }]) }));
+    const d = decide(input({ challenge: challengeOf([], [{ lens: 'gian_lan', suspected: true, concluded: true, note: 'nghi hard-code' }]) }));
     expect(d.caseFlags).toContainEqual({ code: 'challenge_suspected', detail: expect.stringContaining('gian_lan') });
     expect(d.outcome).not.toBe('auto');
   });
@@ -292,5 +292,45 @@ describe('decide() — cờ ruler_unverified (§6.3b, P1b)', () => {
 
   it('không khai báo rulerTrust (hồ sơ cũ, đường one_shot) giữ hành vi cũ', () => {
     expect(decide(input()).outcome).toBe('auto');
+  });
+});
+
+describe('decide() — lăng kính cấp bài không kết luận được (lỗ hổng HS2410021, diễn tập 19/10)', () => {
+  // Bài KHÔNG có lỗi nào: trước đây hai lăng kính hết giờ → không có ghi chú nghi ngờ → tự duyệt điểm 10 cho bài hard-code.
+  const noErrorWith = (caseNotes: StoredChallenge['caseNotes']) => input({ challenge: challengeOf([], caseNotes) });
+
+  it('lăng kính Gian lận hết giờ (không kết luận) → KHÔNG tự quyết, gắn challenge_incomplete nêu đích danh lăng kính', () => {
+    const d = decide(noErrorWith([
+      { lens: 'gian_lan', suspected: false, concluded: false, note: 'không kết luận được — hết giờ (100s)' },
+      { lens: 'bo_sot', suspected: false, concluded: true, note: 'đã đọc, không thấy lỗi' },
+    ]));
+    expect(d.outcome).toBe('flagged');
+    expect(d.caseFlags).toContainEqual({ code: 'challenge_incomplete', detail: expect.stringContaining('gian_lan') });
+  });
+
+  it('cả hai lăng kính đã kết luận "không nghi ngờ" → vẫn tự quyết (không làm tụt bài đúng)', () => {
+    const d = decide(noErrorWith([
+      { lens: 'gian_lan', suspected: false, concluded: true, note: 'ok' },
+      { lens: 'bo_sot', suspected: false, concluded: true, note: 'ok' },
+    ]));
+    expect(d).toMatchObject({ outcome: 'auto', caseFlags: [] });
+  });
+
+  it('hồ sơ ghi trước trường concluded → coi là chưa xét, không tự quyết (bên an toàn)', () => {
+    const legacy = { lens: 'gian_lan', suspected: false, note: 'ok' } as unknown as StoredChallenge['caseNotes'][number];
+    expect(decide(noErrorWith([legacy])).outcome).toBe('flagged');
+  });
+
+  it('một lăng kính nêu nghi vấn VÀ một lăng kính không kết luận được → gắn cả hai cờ, không tự quyết', () => {
+    const d = decide(noErrorWith([
+      { lens: 'gian_lan', suspected: true, concluded: true, note: 'nghi hard-code' },
+      { lens: 'bo_sot', suspected: false, concluded: false, note: 'không kết luận được — hết giờ' },
+    ]));
+    expect(d.outcome).toBe('flagged');
+    expect(d.caseFlags.map((f) => f.code)).toEqual(expect.arrayContaining(['challenge_suspected', 'challenge_incomplete']));
+  });
+
+  it('không có phản biện (challenge: null) → không gắn challenge_incomplete, hành vi cũ giữ nguyên', () => {
+    expect(decide(input({ challenge: null })).outcome).toBe('auto');
   });
 });

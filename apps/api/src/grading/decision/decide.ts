@@ -174,6 +174,18 @@ export function decide(input: DecisionInput): Decision {
     });
   }
 
+  // Lăng kính cấp bài KHÔNG KẾT LUẬN được (hết giờ, hết bậc model) không phải "không có gì đáng ngờ": bài chưa
+  // được xét xong nên không tự quyết (§4.4, cùng nguyên tắc với ca test chưa chạy đủ). Lỗ hổng HS2410021 (diễn
+  // tập 19/10): hai lăng kính hết giờ → không có cờ nào → tự duyệt điểm 10 cho bài hard-code. Không có phản biện
+  // (challenge: null) thì không xét ở đây — giữ hành vi cũ.
+  const incompleteNotes = (input.challenge?.caseNotes ?? []).filter((n) => !n.concluded);
+  if (incompleteNotes.length > 0) {
+    caseFlags.push({
+      code: 'challenge_incomplete',
+      detail: incompleteNotes.map((n) => `${n.lens}: ${n.note}`).join(' · '),
+    });
+  }
+
   // §6.3b (P1b): thước chưa kiểm chứng thì bài không tự quyết, dù bằng chứng đủ. Cờ này đi qua `auto` bên dưới,
   // nên không cần nhánh riêng; các sàn khác không đổi.
   if (input.rulerTrust === 'unverified') {

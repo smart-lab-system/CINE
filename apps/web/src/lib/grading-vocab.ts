@@ -80,6 +80,7 @@ const CASE_FLAG_LABEL: Record<string, string> = {
   low_confidence: 'Độ tin dưới ngưỡng tự quyết',
   not_code_pipeline: 'Bài tự luận — luôn do bạn duyệt',
   challenge_suspected: 'Góc kiểm gian lận nêu nghi vấn',
+  challenge_incomplete: 'Góc kiểm chưa kết luận được — bài chưa được tự quyết',
 };
 
 const INVESTIGATION_FLAG_LABEL: Record<string, string> = {

@@ -59,6 +59,7 @@ export type CaseFlagCode =
   | 'low_confidence'
   | 'not_code_pipeline'
   | 'challenge_suspected'
+  | 'challenge_incomplete'
   | 'ruler_unverified';
 
 export interface CaseFlag {

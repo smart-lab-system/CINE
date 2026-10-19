@@ -28,6 +28,6 @@ export async function runCaseLens(
   try {
     return await lens.review(ctx, verdict, toolCalls, sink);
   } catch {
-    return { lens: lens.name, suspected: false, note: 'không đọc được ý kiến của lăng kính này' };
+    return { lens: lens.name, suspected: false, concluded: false, note: 'không đọc được ý kiến của lăng kính này' };
   }
 }

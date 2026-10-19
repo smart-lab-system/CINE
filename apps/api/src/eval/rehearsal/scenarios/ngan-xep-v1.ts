@@ -93,7 +93,11 @@ export const NGAN_XEP_V1: RehearsalScenario = {
     },
     {
       mssv: 'HS2410022', name: 'Lê Minh Mai', label: 'đúng, có chú thích, chỉ rò rỉ bộ nhớ',
-      expect: { errors: ['ro_ri_bo_nho'], decision: 'auto', suspectedLenses: [] },
+      // Đổi 'auto' → 'review' (2026-10-19): lỗi duy nhất là luật lời (ro_ri_bo_nho) do model phát hiện → trần độ tin
+      // cậy 0,5 < θ 0,85 nên theo thiết kế phải về giảng viên (cùng lý do với HS2410018). Các lượt đã ghi (14/10 lượt
+      // 2, 18/10 cả hai lượt, 19/10 cả hai lượt) đều ra review. THEO DÕI MẪU NÀY ở các lượt sau: lượt 19/10 còn có
+      // cờ injection giả và lăng kính hỏng.
+      expect: { errors: ['ro_ri_bo_nho'], decision: 'review', suspectedLenses: [] },
       code: L('#include <iostream>', 'using namespace std;', '', '// Nút của ngăn xếp cài bằng danh sách liên kết đơn.', 'struct Node {',
         '    long long value;', '    Node* next;', '};', '', 'int main() {', '    int count;', '    cin >> count;', '    Node* top = nullptr;',
         '    // Đẩy từng phần tử lên đỉnh.', '    for (int i = 0; i < count; i++) {', '        long long value;', '        cin >> value;',

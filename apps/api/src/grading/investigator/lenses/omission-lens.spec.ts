@@ -53,6 +53,8 @@ describe('OmissionLens — bảng kiểm từng luật bằng lời chưa đư�
     const r = await lens.review(CTX, withErrors('chu_thich_sai'), []);
     expect(calls).toBe(0);
     expect(r.suspected).toBe(false);
+    // Không còn luật nào để xét là một kết luận thật ("đã xét xong"), không phải lăng kính hỏng.
+    expect(r.concluded).toBe(true);
   });
 
   it('model không xét hết bảng kiểm → ghi chú nêu luật CHƯA XÉT (không lặng lẽ coi là "ok")', async () => {
@@ -98,6 +100,8 @@ describe('OmissionLens — bảng kiểm từng luật bằng lời chưa đư�
     expect(r.suspected).toBe(false);
     expect(r.note).toContain('không kết luận được');
     expect(r.note).toContain('bad_output');
+    // Lăng kính hỏng: CHƯA xét xong. Quyết định phải đọc đây là lý do không tự quyết.
+    expect(r.concluded).toBe(false);
   });
 
   it('prompt nói rõ giới hạn 500 ký tự của note', async () => {
