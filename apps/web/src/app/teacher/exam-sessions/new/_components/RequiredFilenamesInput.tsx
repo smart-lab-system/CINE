@@ -6,8 +6,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { CreateExamSessionFormValues } from '../schema';
+import type { ReplaceRequiredDeliverablesFormValues } from '../schema';
 import { ArchiveEntriesField } from './ArchiveEntriesField';
+import {
+  FILENAME_TOKENS,
+  isTemplatedFilename,
+  previewFilenamePattern,
+} from './filename-pattern-preview';
 
 const DELIVERABLE_TYPE_LABELS = {
   document: 'Tài liệu',
@@ -31,34 +36,6 @@ const SELECT_CLASS =
   'h-10 rounded-md border border-input bg-surface px-2 text-small text-foreground shadow-sm focus:border-accent focus:outline-none';
 
 /**
- * What the server fills each token with, and a sample value for the
- * preview.
- *
- * The samples are already ASCII and separator-free on purpose: for values
- * like these the server's rendering is pure substitution, so the preview is
- * exactly what a student would get without this file having to carry a
- * second copy of the server's normalizer. A name with diacritics is
- * stripped there — said in the note below rather than half-imitated here.
- */
-const TOKENS = [
-  { token: '{MSSV}', label: 'MSSV', sample: 'SV20120001' },
-  { token: '{TEN}', label: 'Họ tên', sample: 'NguyenVanAn' },
-  { token: '{PHONG}', label: 'Phòng', sample: 'PhongMayA1' },
-  { token: '{SOMAY}', label: 'Số máy', sample: 'MAY07' },
-] as const;
-
-function preview(pattern: string): string {
-  return TOKENS.reduce(
-    (rendered, { token, sample }) => rendered.split(token).join(sample),
-    pattern,
-  );
-}
-
-function isTemplated(pattern: string): boolean {
-  return TOKENS.some(({ token }) => pattern.includes(token));
-}
-
-/**
  * `.zip` được tạo trước tự động (EOCD rỗng hợp lệ, xem
  * apps/agent/src/workspace-files.ts); `.rar` thì KHÔNG có cách nào hợp
  * pháp tạo trước — sinh viên phải tự nén bằng WinRAR đã cài sẵn trên máy.
@@ -72,7 +49,7 @@ function isRarFilename(value: string): boolean {
 
 /**
  * Controlled add/remove list of required filenames, wired into the parent
- * form via `useFormContext` — the parent (`page.tsx`) wraps its `useForm()`
+ * form via `useFormContext` — hub thiết lập (create-slim) wraps `useForm()`
  * in `<FormProvider>`, so this reads/writes the same form state instead of
  * owning its own.
  *
@@ -87,7 +64,7 @@ export function RequiredFilenamesInput() {
     register,
     setValue,
     formState: { errors },
-  } = useFormContext<CreateExamSessionFormValues>();
+  } = useFormContext<ReplaceRequiredDeliverablesFormValues>();
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -128,10 +105,12 @@ export function RequiredFilenamesInput() {
 
   return (
     <fieldset className="flex flex-col gap-3 rounded-lg border border-border bg-surface-2/60 p-4">
-      <legend className="px-1 text-body font-semibold text-foreground">File bắt buộc nộp</legend>
+      <legend className="px-1 text-body font-semibold text-foreground">
+        File sinh viên phải nộp
+      </legend>
 
       <p className="text-small text-muted-foreground">
-        Máy sinh viên chỉ thu đúng những file có tên dưới đây. Chỉ dùng chữ, số,{' '}
+        Các tên dưới đây là file trong thư mục bài thi mà agent thu bài. Chỉ dùng chữ, số,{' '}
         <code className="rounded bg-surface px-1 py-0.5 font-mono text-caption">_</code>{' '}
         <code className="rounded bg-surface px-1 py-0.5 font-mono text-caption">-</code>{' '}
         <code className="rounded bg-surface px-1 py-0.5 font-mono text-caption">.</code>
@@ -149,11 +128,11 @@ export function RequiredFilenamesInput() {
           return (
             <div key={field.id} className="flex flex-col gap-2">
               <Label htmlFor={`required-filename-${index}`} className="sr-only">
-                {`File bắt buộc số ${index + 1}`}
+                {`File phải nộp số ${index + 1}`}
               </Label>
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-caption text-muted-foreground">Chèn:</span>
-                {TOKENS.map(({ token, label }) => (
+                {FILENAME_TOKENS.map(({ token, label }) => (
                   <button
                     key={token}
                     type="button"
@@ -168,7 +147,7 @@ export function RequiredFilenamesInput() {
               <div className="flex items-center gap-2">
                 <Input
                   id={`required-filename-${index}`}
-        placeholder="vd: bai_lam.docx hoặc {MSSV}_{TEN}.docx"
+                  placeholder="vd: bai_lam.docx hoặc {MSSV}_{TEN}.docx"
                   className="font-mono"
                   invalid={Boolean(fieldError)}
                   {...register(`requiredFilenames.${index}.value` as const)}
@@ -214,10 +193,10 @@ export function RequiredFilenamesInput() {
                   // one entry, so removing the last row would put the form
                   // into a state it can never submit from.
                   disabled={fields.length === 1}
-                  aria-label={`Xoá file bắt buộc số ${index + 1}`}
+                  aria-label={`Xoá file phải nộp số ${index + 1}`}
                   title={
                     fields.length === 1
-                      ? 'Cần ít nhất 1 file bắt buộc'
+                      ? 'Cần ít nhất 1 file phải nộp'
                       : 'Xoá file này khỏi danh sách'
                   }
                   className="shrink-0 hover:bg-danger-subtle hover:text-danger-strong"
@@ -234,13 +213,13 @@ export function RequiredFilenamesInput() {
                   {fieldError.message}
                 </p>
               ) : (
-                isTemplated(values?.[index]?.value ?? '') && (
+                isTemplatedFilename(values?.[index]?.value ?? '') && (
                   // Shown only for a pattern: a literal filename previews to
                   // itself, and a line saying so would be noise on every row.
                   <p className="text-caption text-muted-foreground">
                     Ví dụ với một sinh viên:{' '}
                     <code className="font-mono text-foreground">
-                      {preview(values[index].value)}
+                      {previewFilenamePattern(values[index].value)}
                     </code>
                   </p>
                 )

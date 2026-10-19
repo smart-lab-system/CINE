@@ -180,6 +180,11 @@ describe('start-grading — chặn khi thiếu gói test cho bài điều tra (e
       (d: { requiredFilename: string }) => d.requiredFilename === 'bai1.zip',
     );
     await seedCollectedSubmission(sessionId, codeDeliverable.id, owner.id, classId, 'b3');
+    // 5.2: phiên nhiều yêu cầu nộp phải có đề cương đã xác nhận trước; cổng đó qua rồi thì gói test vẫn chặn (400).
+    await ds.query(
+      `UPDATE examcollect.exam_session SET blueprint_confirmed_at = now(), blueprint_confirmed_by = $2 WHERE id = $1`,
+      [sessionId, owner.id],
+    );
 
     const res = await request(app.getHttpServer())
       .post(`/exam-sessions/${sessionId}/start-grading`)

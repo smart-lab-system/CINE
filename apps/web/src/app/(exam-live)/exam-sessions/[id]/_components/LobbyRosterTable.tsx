@@ -25,6 +25,7 @@ import {
 import type { Attendance } from '@/lib/api/attendance';
 import {
   filterLobbyRows,
+  matchesLobbySearch,
   ROOM_STATUS_LABEL,
   type LobbyRosterFilter,
   type LobbyRosterRow,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/lobby-roster';
 import type { DeliverableColumn, DeliverableState } from '@/lib/submission-rows';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
 import { DiscrepancyNotice } from './DiscrepancyNotice';
 import { formatAttendanceTime, StudentMarks } from './student-marks';
 
@@ -69,10 +71,11 @@ const ROOM_BADGE_VARIANT: Record<
   RoomStatus,
   'success' | 'warning' | 'info' | 'destructive' | 'default'
 > = {
+  not_joined: 'warning',
   present: 'success',
-  absent: 'warning',
-  makeup: 'info',
   disconnected: 'destructive',
+  absent: 'destructive',
+  makeup: 'info',
   unknown: 'default',
 };
 
@@ -80,13 +83,14 @@ const STICKY_HEAD_RULE = 'shadow-[inset_0_-1px_0_hsl(var(--border))]';
 
 const SCROLL_CONTAINER = {
   role: 'region',
-  'aria-label': 'Danh sách sinh viên phòng chờ',
+  'aria-label': 'Danh sách sinh viên vận hành phiên thi',
   tabIndex: 0,
   className: 'max-h-[min(32rem,70dvh)] overflow-auto',
 } as const;
 
 const FILTERS: { id: LobbyRosterFilter; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
+  { id: 'not_joined', label: 'Chưa vào' },
   { id: 'present', label: 'Có mặt' },
   { id: 'absent', label: 'Vắng mặt' },
   { id: 'makeup', label: 'Thi bổ sung' },
@@ -171,7 +175,7 @@ export interface LobbyRosterTableProps {
 }
 
 /**
- * Bảng SV gộp: trạng thái phòng + ghi chú tự sinh + ma trận nộp bài (spec §6).
+ * Bảng SV gộp: trạng thái + ghi chú tự sinh + ma trận nộp bài (exam-ops-lobby-ux).
  */
 export function LobbyRosterTable({
   rows,
@@ -195,14 +199,18 @@ export function LobbyRosterTable({
   onRemoveManual,
 }: LobbyRosterTableProps) {
   const [selectedStudentMssv, setSelectedStudentMssv] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const closingStudentMssvRef = useRef<string | null>(null);
 
   const hasMakeup = rows.some((row) => row.roomStatus === 'makeup');
   const showRemoveColumn =
     canRemoveManual && rows.some((row) => row.rosterSource === 'manual');
   const visibleRows = useMemo(
-    () => filterLobbyRows(rows, filter, deliverables),
-    [rows, filter, deliverables],
+    () =>
+      filterLobbyRows(rows, filter, deliverables).filter((row) =>
+        matchesLobbySearch(row, searchQuery),
+      ),
+    [rows, filter, deliverables, searchQuery],
   );
 
   const selectedStudent = selectedStudentMssv
@@ -289,25 +297,35 @@ export function LobbyRosterTable({
           </Alert>
         )}
 
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Lọc danh sách sinh viên">
-          {FILTERS.map((item) => {
-            if (item.id === 'makeup' && !hasMakeup) {
-              return null;
-            }
-            const active = filter === item.id;
-            return (
-              <Button
-                key={item.id}
-                type="button"
-                size="sm"
-                variant={active ? 'default' : 'outline'}
-                aria-pressed={active}
-                onClick={() => onFilterChange(item.id)}
-              >
-                {item.label}
-              </Button>
-            );
-          })}
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Lọc danh sách sinh viên">
+            {FILTERS.map((item) => {
+              if (item.id === 'makeup' && !hasMakeup) {
+                return null;
+              }
+              const active = filter === item.id;
+              return (
+                <Button
+                  key={item.id}
+                  type="button"
+                  size="sm"
+                  variant={active ? 'default' : 'outline'}
+                  aria-pressed={active}
+                  onClick={() => onFilterChange(item.id)}
+                >
+                  {item.label}
+                </Button>
+              );
+            })}
+          </div>
+          <Input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm họ tên hoặc MSSV"
+            aria-label="Tìm họ tên hoặc MSSV"
+            className="w-full sm:max-w-xs"
+          />
         </div>
       </CardContent>
 
@@ -346,7 +364,7 @@ export function LobbyRosterTable({
                 MSSV
               </TableHead>
               <TableHead scope="col" className={cn('whitespace-nowrap', STICKY_HEAD_RULE)}>
-                Trạng thái phòng
+                Trạng thái
               </TableHead>
               <TableHead scope="col" className={STICKY_HEAD_RULE}>
                 Ghi chú
@@ -378,13 +396,9 @@ export function LobbyRosterTable({
                 <TableCell className="font-medium text-foreground">{row.fullName}</TableCell>
                 <TableCell className="font-mono text-muted-foreground">{row.studentMssv}</TableCell>
                 <TableCell className="whitespace-nowrap">
-                  {row.roomStatus === 'unknown' ? (
-                    <span className="text-muted-foreground">—</span>
-                  ) : (
-                    <Badge variant={ROOM_BADGE_VARIANT[row.roomStatus]}>
-                      {ROOM_STATUS_LABEL[row.roomStatus]}
-                    </Badge>
-                  )}
+                  <Badge variant={ROOM_BADGE_VARIANT[row.roomStatus]}>
+                    {ROOM_STATUS_LABEL[row.roomStatus]}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1.5">

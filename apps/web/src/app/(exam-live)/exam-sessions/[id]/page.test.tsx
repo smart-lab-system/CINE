@@ -39,6 +39,7 @@ vi.mock('@/hooks/useExamSession', () => ({
   useConfirmAttendance: (...args: unknown[]) => useConfirmAttendanceMock(...args),
   useOpenSession: (...args: unknown[]) => useOpenSessionMock(...args),
   useExamMaterials: (...args: unknown[]) => useExamMaterialsMock(...args),
+  useRemoveSessionRosterStudent: () => ({ mutate: vi.fn(), isPending: false }),
   // The two mutations are inert here: nothing in these tests uploads or
   // deletes a file, and a shared no-op keeps the card from throwing while
   // the page around it is what is under test.
@@ -311,8 +312,11 @@ describe('ExamSessionLobbyPage', () => {
     // an unfamiliar name among familiar ones.
     expect(screen.getByText('Phạm Thi Bù')).toBeInTheDocument();
     expect(screen.getByText(/Nhóm 05/)).toBeInTheDocument();
-    const roster = screen.getByRole('region', { name: 'Danh sách sinh viên phòng chờ' });
-    expect(within(roster).getByText('Vắng mặt')).toBeInTheDocument();
+    const roster = screen.getByRole('region', {
+      name: 'Danh sách sinh viên vận hành phiên thi',
+    });
+    // Chưa từng vào + chưa hết giờ → Chưa vào (không còn gộp thành Vắng mặt).
+    expect(within(roster).getByText('Chưa vào')).toBeInTheDocument();
     expect(within(roster).getByText('Thi bổ sung')).toBeInTheDocument();
   });
 
@@ -752,7 +756,7 @@ describe('ExamSessionLobbyPage', () => {
       // A student who joined but submitted nothing still needs a row —
       // "chưa nộp" is the absence of a submission, never an event.
       // Dashboard + filter also say "Chưa nộp"; cells live in the roster region.
-      const roster = screen.getByRole('region', { name: 'Danh sách sinh viên phòng chờ' });
+      const roster = screen.getByRole('region', { name: 'Danh sách sinh viên vận hành phiên thi' });
       expect(within(roster).getAllByText('Chưa nộp')).toHaveLength(2);
     });
 
@@ -773,7 +777,7 @@ describe('ExamSessionLobbyPage', () => {
         submittedAt: '2026-08-29T01:30:00.000Z',
       });
 
-      const roster = () => screen.getByRole('region', { name: 'Danh sách sinh viên phòng chờ' });
+      const roster = () => screen.getByRole('region', { name: 'Danh sách sinh viên vận hành phiên thi' });
       await waitFor(() => expect(within(roster()).getByText('Đã nộp')).toBeInTheDocument());
       // The other deliverable is untouched.
       expect(within(roster()).getAllByText('Chưa nộp')).toHaveLength(1);
@@ -836,7 +840,7 @@ describe('ExamSessionLobbyPage', () => {
       trigger('connect');
 
       await waitFor(() => expect(screen.getByText('Trần Thị B')).toBeInTheDocument());
-      const roster = screen.getByRole('region', { name: 'Danh sách sinh viên phòng chờ' });
+      const roster = screen.getByRole('region', { name: 'Danh sách sinh viên vận hành phiên thi' });
       expect(within(roster).getByText('Đã nộp')).toBeInTheDocument();
     });
   });
@@ -1103,7 +1107,10 @@ describe('ExamSessionLobbyPage', () => {
   describe('phiên chưa được mở', () => {
     function unopened() {
       const session = activeSessionWithDeliverables();
-      useExamSessionDetailMock.mockReturnValue(session);
+      useExamSessionDetailMock.mockReturnValue({
+        ...session,
+        data: { ...session.data, status: 'scheduled' },
+      });
       useAttendanceMock.mockReturnValue(attendanceOf({ rosterFrozen: false }));
     }
 
@@ -1133,6 +1140,18 @@ describe('ExamSessionLobbyPage', () => {
 
       expect(screen.queryByRole('button', { name: /Mở phiên thi/ })).toBeNull();
       expect(screen.queryByText(/Sinh viên chưa vào được/)).toBeNull();
+    });
+
+    it('vẫn hiện Mở phiên khi hub đã materialize roster (rosterFrozen=true, status scheduled)', async () => {
+      unopened();
+      useAttendanceMock.mockReturnValue(attendanceOf({ rosterFrozen: true }));
+
+      render(<ExamSessionLobbyPage />);
+
+      expect(
+        await screen.findByRole('button', { name: /Mở phiên thi/ }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Sinh viên chưa vào được/)).toBeInTheDocument();
     });
   });
 });

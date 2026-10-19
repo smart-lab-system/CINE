@@ -277,3 +277,20 @@ describe('decide() — §6.2 phản biện', () => {
     expect(d.scoreHundredths).toBe(650); // tính như confirmed, không hạ confidence như unverified
   });
 });
+
+describe('decide() — cờ ruler_unverified (§6.3b, P1b)', () => {
+  it('bài đủ bằng chứng nhưng thước chưa kiểm chứng → flagged kèm cờ ruler_unverified, không tự quyết', () => {
+    const d = decide(input({ rulerTrust: 'unverified' }));
+    expect(d.outcome).toBe('flagged');
+    expect(d.caseFlags.map((f) => f.code)).toContain('ruler_unverified');
+  });
+
+  it.each([['teacher'], ['verified'], [null]] as const)('rulerTrust = %s giữ hành vi cũ: bài đủ bằng chứng vẫn tự quyết', (trust) => {
+    const d = decide(input({ rulerTrust: trust }));
+    expect(d).toMatchObject({ outcome: 'auto', caseFlags: [] });
+  });
+
+  it('không khai báo rulerTrust (hồ sơ cũ, đường one_shot) giữ hành vi cũ', () => {
+    expect(decide(input()).outcome).toBe('auto');
+  });
+});

@@ -49,6 +49,8 @@ export interface ActualSubmission {
   verdicts: { lens: string; ruleKey: string; status: string; reason: string | null }[];
   caseNotes: { lens: string; suspected: boolean; note: string }[];
   caseFlags: string[];
+  /** Nội dung đầy đủ của từng cờ (mã + lý do). Chỉ để so vết; không tham gia chấm điểm. */
+  caseFlagDetails?: { code: string; detail: string | null }[];
   /** Giây kể từ lúc bấm bắt đầu chấm tới khi bài rời ai_grading; null = chưa xong. */
   finishedAtSec: number | null;
 }

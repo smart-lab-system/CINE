@@ -1,33 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { createExamSessionSchema, describeCreateError } from './schema';
+import {
+  createExamSessionSchema,
+  describeCreateError,
+  replaceRequiredDeliverablesSchema,
+} from './schema';
+
+const VALID_UUID = '11111111-1111-4111-8111-111111111111';
+
+function scheduleBase(startTime: string, endTime: string) {
+  return {
+    name: 'Kiểm tra giữa kỳ',
+    classId: VALID_UUID,
+    roomName: 'P.A101',
+    semesterName: 'HK1 2026-2027',
+    examType: 'GK' as const,
+    startTime,
+    endTime,
+  };
+}
 
 // QA-reported gap: nothing stopped a teacher from creating a session a few
-// seconds long. Mirrors the backend's HasMinimumDurationConstraint (see
-// apps/api/src/exam-session/dto/create-exam-session.dto.ts) — tested here
-// directly against the exported schema rather than through a full render,
-// since this form has no other test coverage yet.
+// seconds long. Mirrors the backend's HasMinimumDurationConstraint.
 describe('createExamSessionSchema — minimum duration', () => {
-  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
-
-  function baseValues(startTime: string, endTime: string) {
-    return {
-      name: 'Kiểm tra giữa kỳ',
-      classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
-      examType: 'GK' as const,
-      startTime,
-      endTime,
-      requiredFilenames: [{ value: 'Cau1.docx' }],
-    };
-  }
-
   it('rejects a session shorter than 15 minutes, pointing at endTime', () => {
     const start = futureStart();
-    const end = new Date(start.getTime() + 5 * 60_000); // 5 minutes
+    const end = new Date(start.getTime() + 5 * 60_000);
 
     const result = createExamSessionSchema.safeParse(
-      baseValues(toLocalInput(start), toLocalInput(end)),
+      scheduleBase(toLocalInput(start), toLocalInput(end)),
     );
 
     expect(result.success).toBe(false);
@@ -42,7 +42,7 @@ describe('createExamSessionSchema — minimum duration', () => {
     const end = new Date(start.getTime() + 15 * 60_000);
 
     const result = createExamSessionSchema.safeParse(
-      baseValues(toLocalInput(start), toLocalInput(end)),
+      scheduleBase(toLocalInput(start), toLocalInput(end)),
     );
 
     expect(result.success).toBe(true);
@@ -50,10 +50,10 @@ describe('createExamSessionSchema — minimum duration', () => {
 
   it('does not stack the "too short" message on top of an invalid ordering', () => {
     const start = futureStart();
-    const end = new Date(start.getTime() - 5 * 60_000); // before start
+    const end = new Date(start.getTime() - 5 * 60_000);
 
     const result = createExamSessionSchema.safeParse(
-      baseValues(toLocalInput(start), toLocalInput(end)),
+      scheduleBase(toLocalInput(start), toLocalInput(end)),
     );
 
     expect(result.success).toBe(false);
@@ -66,30 +66,12 @@ describe('createExamSessionSchema — minimum duration', () => {
 });
 
 describe('createExamSessionSchema — backdating', () => {
-  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
-
-  function baseValues(startTime: string, endTime: string) {
-    return {
-      name: 'Kiểm tra giữa kỳ',
-      classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
-      examType: 'GK' as const,
-      startTime,
-      endTime,
-      requiredFilenames: [{ value: 'Cau1.docx' }],
-    };
-  }
-
   it('accepts a session declared a few minutes after it started', () => {
-    // The lecturer forgot to create the session and is now entering the
-    // time the exam really began. Refusing this would make them record a
-    // start time they know is wrong.
     const start = new Date(Date.now() - 10 * 60_000);
     const end = new Date(Date.now() + 60 * 60_000);
 
     const result = createExamSessionSchema.safeParse(
-      baseValues(toLocalInput(start), toLocalInput(end)),
+      scheduleBase(toLocalInput(start), toLocalInput(end)),
     );
 
     expect(result.success).toBe(true);
@@ -100,7 +82,7 @@ describe('createExamSessionSchema — backdating', () => {
     const end = new Date(Date.now() + 60 * 60_000);
 
     const result = createExamSessionSchema.safeParse(
-      baseValues(toLocalInput(start), toLocalInput(end)),
+      scheduleBase(toLocalInput(start), toLocalInput(end)),
     );
 
     expect(result.success).toBe(false);
@@ -113,90 +95,42 @@ describe('createExamSessionSchema — backdating', () => {
   });
 });
 
-describe('createExamSessionSchema — rubric', () => {
-  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
-
-  function baseValues(extra: Record<string, unknown> = {}) {
+describe('createExamSessionSchema — create-slim (không filenames/rubric)', () => {
+  it('hợp lệ chỉ với lịch + danh tính', () => {
     const start = futureStart();
     const end = new Date(start.getTime() + 60 * 60_000);
-    return {
-      name: 'Kiểm tra giữa kỳ',
-      classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
-      examType: 'GK' as const,
-      startTime: toLocalInput(start),
-      endTime: toLocalInput(end),
-      requiredFilenames: [{ value: 'Cau1.docx' }],
-      ...extra,
-    };
-  }
-
-  it('cho phép bỏ trống rubric — rubric là tuỳ chọn', () => {
-    expect(createExamSessionSchema.safeParse(baseValues()).success).toBe(true);
-  });
-
-  it('giữ rubricId hợp lệ đi xuyên qua schema', () => {
-    // Khẳng định GIÁ TRỊ, không chỉ success: zod mặc định loại bỏ key lạ,
-    // nên `success === true` vẫn đúng kể cả khi schema không hề biết tới
-    // rubricId — và form sẽ âm thầm gửi đi thiếu field.
-    const rubricId = '22222222-2222-4222-8222-222222222222';
-
-    const result = createExamSessionSchema.safeParse(baseValues({ rubricId }));
-
+    const result = createExamSessionSchema.safeParse(
+      scheduleBase(toLocalInput(start), toLocalInput(end)),
+    );
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.rubricId).toBe(rubricId);
-    }
-  });
-
-  it('coi chuỗi rỗng là "không chọn", không phải uuid hỏng', () => {
-    // <Select> trả '' khi chưa chọn gì. Không xử lý thì một form hoàn toàn
-    // hợp lệ bị chặn bằng lỗi "uuid không hợp lệ" — mà người dùng thì không
-    // hề chọn gì sai cả.
-    const result = createExamSessionSchema.safeParse(baseValues({ rubricId: '' }));
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.rubricId).toBeUndefined();
+      expect(result.data).not.toHaveProperty('requiredFilenames');
+      expect(result.data).not.toHaveProperty('rubricId');
     }
   });
 });
 
-describe('createExamSessionSchema — file bên trong (đợt archive-content-validation, Task 9)', () => {
-  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
-
+describe('replaceRequiredDeliverablesSchema — file bên trong', () => {
   function baseValues(requiredFilenames: unknown) {
-    const start = futureStart();
-    const end = new Date(start.getTime() + 60 * 60_000);
-    return {
-      name: 'Kiểm tra giữa kỳ',
-      classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
-      examType: 'GK' as const,
-      startTime: toLocalInput(start),
-      endTime: toLocalInput(end),
-      requiredFilenames,
-    };
+    return { requiredFilenames };
   }
 
   it('cho khai entries khi tên file là .zip', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'a.zip', entries: [{ value: 'Main.java' }] }]),
     );
     expect(r.success).toBe(true);
   });
 
   it('TỪ CHỐI entries khi tên file là .docx — phải khớp DTO backend', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'a.docx', entries: [{ value: 'Main.java' }] }]),
     );
     expect(r.success).toBe(false);
   });
 
   it('TỪ CHỐI entry có dấu "/" — khớp theo tên nên đường dẫn là vô nghĩa', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'a.zip', entries: [{ value: 'src/Main.java' }] }]),
     );
     expect(r.success).toBe(false);
@@ -204,49 +138,55 @@ describe('createExamSessionSchema — file bên trong (đợt archive-content-va
 
   it('TỪ CHỐI quá 20 entry', () => {
     const entries = Array.from({ length: 21 }, (_, i) => ({ value: `f${i}.java` }));
-    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'a.zip', entries }]));
+    const r = replaceRequiredDeliverablesSchema.safeParse(
+      baseValues([{ value: 'a.zip', entries }]),
+    );
     expect(r.success).toBe(false);
   });
 
   it('CHO ĐÚNG 20 entry', () => {
     const entries = Array.from({ length: 20 }, (_, i) => ({ value: `f${i}.java` }));
-    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'a.zip', entries }]));
+    const r = replaceRequiredDeliverablesSchema.safeParse(
+      baseValues([{ value: 'a.zip', entries }]),
+    );
     expect(r.success).toBe(true);
   });
 
   it('.ZIP viết hoa vẫn được khai entries', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'BaiThi.ZIP', entries: [{ value: 'Main.java' }] }]),
     );
     expect(r.success).toBe(true);
   });
 
   it('.rar cũng được khai entries', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'BaiThi.rar', entries: [{ value: 'Main.java' }] }]),
     );
     expect(r.success).toBe(true);
   });
 
   it('không khai entries vẫn hợp lệ trên .zip — tuỳ chọn, không bắt buộc', () => {
-    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'a.zip' }]));
+    const r = replaceRequiredDeliverablesSchema.safeParse(baseValues([{ value: 'a.zip' }]));
     expect(r.success).toBe(true);
   });
 
   it('entries rỗng thì như không khai gì cả', () => {
-    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'a.zip', entries: [] }]));
+    const r = replaceRequiredDeliverablesSchema.safeParse(
+      baseValues([{ value: 'a.zip', entries: [] }]),
+    );
     expect(r.success).toBe(true);
   });
 
   it('TỪ CHỐI entry trùng tên trong cùng một deliverable', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'a.zip', entries: [{ value: 'M.java' }, { value: 'M.java' }] }]),
     );
     expect(r.success).toBe(false);
   });
 
   it('trộn deliverable có entries và không có entries trong cùng danh sách', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([
         { value: 'Cau1.docx' },
         { value: 'BaiThi.zip', entries: [{ value: 'Main.java' }] },
@@ -254,28 +194,21 @@ describe('createExamSessionSchema — file bên trong (đợt archive-content-va
     );
     expect(r.success).toBe(true);
   });
+
+  it('TỪ CHỐI danh sách rỗng — hub phải lưu ≥ 1 file', () => {
+    expect(replaceRequiredDeliverablesSchema.safeParse(baseValues([])).success).toBe(false);
+  });
 });
 
-describe('createExamSessionSchema — deliverableType/language (3d2, khai qua form)', () => {
-  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
-
+describe('replaceRequiredDeliverablesSchema — deliverableType/language', () => {
   function baseValues(requiredFilenames: unknown) {
-    const start = futureStart();
-    const end = new Date(start.getTime() + 60 * 60_000);
-    return {
-      name: 'Kiểm tra giữa kỳ',
-      classId: VALID_UUID,
-      roomName: 'P.A101',
-      semesterName: 'HK1 2026-2027',
-      examType: 'GK' as const,
-      startTime: toLocalInput(start),
-      endTime: toLocalInput(end),
-      requiredFilenames,
-    };
+    return { requiredFilenames };
   }
 
   it('mặc định deliverableType là document khi không khai', () => {
-    const r = createExamSessionSchema.safeParse(baseValues([{ value: 'Cau1.docx' }]));
+    const r = replaceRequiredDeliverablesSchema.safeParse(
+      baseValues([{ value: 'Cau1.docx' }]),
+    );
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r.data.requiredFilenames[0].deliverableType).toBe('document');
@@ -283,14 +216,14 @@ describe('createExamSessionSchema — deliverableType/language (3d2, khai qua fo
   });
 
   it('nhận code_project kèm language hợp lệ', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }]),
     );
     expect(r.success).toBe(true);
   });
 
   it('TỪ CHỐI language trên deliverable KHÔNG phải code_project', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'Cau1.docx', deliverableType: 'document', language: 'cpp' }]),
     );
     expect(r.success).toBe(false);
@@ -301,14 +234,14 @@ describe('createExamSessionSchema — deliverableType/language (3d2, khai qua fo
   });
 
   it('code_project không khai language vẫn hợp lệ — không bắt buộc', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'bai1.zip', deliverableType: 'code_project' }]),
     );
     expect(r.success).toBe(true);
   });
 
   it('TỪ CHỐI ngôn ngữ ngoài cpp/python — java/node không hiện trong form', () => {
-    const r = createExamSessionSchema.safeParse(
+    const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'bai1.zip', deliverableType: 'code_project', language: 'java' }]),
     );
     expect(r.success).toBe(false);
@@ -317,9 +250,6 @@ describe('createExamSessionSchema — deliverableType/language (3d2, khai qua fo
 
 describe('describeCreateError', () => {
   it('shows the server’s own explanation when there is one', () => {
-    // A room clash names the room and the session holding it. Replacing
-    // that with a generic sentence is what the old hardcoded banner did,
-    // and it sent lecturers looking at their filename list instead.
     const message = 'Phòng A1-05 đã có phiên thi "Ca sáng" lúc 08:00–10:00 ngày 12/09.';
 
     expect(describeCreateError({ statusCode: 409, message })).toBe(message);
@@ -335,16 +265,12 @@ describe('describeCreateError', () => {
   });
 
   it('falls back when the failure carried no message at all', () => {
-    // Network failure, or a status openapi-fetch could not parse a body
-    // from — there is nothing specific to say, so say something true.
     expect(describeCreateError(null)).toBe(
       'Không tạo được phiên thi. Vui lòng kiểm tra lại thông tin và thử lại.',
     );
   });
 });
 
-// A day out, so nothing here trips the backdating rule as the calendar
-// moves — the earlier fixed 2026-09-01 date silently became a past date.
 function futureStart(): Date {
   const start = new Date();
   start.setDate(start.getDate() + 1);
@@ -352,8 +278,6 @@ function futureStart(): Date {
   return start;
 }
 
-// Matches the "YYYY-MM-DDTHH:mm" shape <input type="datetime-local"> produces —
-// the schema validates this raw local-time string, not an ISO string.
 function toLocalInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;

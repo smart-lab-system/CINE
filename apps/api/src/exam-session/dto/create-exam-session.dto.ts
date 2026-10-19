@@ -1,6 +1,5 @@
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   ArrayUnique,
   IsArray,
   IsIn,
@@ -156,7 +155,7 @@ class EntriesOnlyOnArchiveConstraint implements ValidatorConstraintInterface {
  * (`IsAfterStartTimeConstraint` …) đều theo đúng khuôn ở đây.
  */
 @ValidatorConstraint({ name: 'UniqueRequiredFilenames', async: false })
-class UniqueFilenamesConstraint implements ValidatorConstraintInterface {
+export class UniqueFilenamesConstraint implements ValidatorConstraintInterface {
   validate(items: RequiredFilenameDto[] | undefined): boolean {
     if (!Array.isArray(items)) {
       return true;
@@ -320,12 +319,8 @@ export class CreateExamSessionDto {
   semesterName?: string;
 
   /**
-   * Rubric dùng để chấm phiên này — quyết định lúc ra đề, không tra lại lúc
-   * chấm (spec 2026-09-05-session-pinned-rubric §1.2).
-   *
-   * Tuỳ chọn: §3.1 của kế hoạch tổng thể nói "gắn rubric chấm điểm (nếu dùng
-   * AI chấm)", nên phiên không chấm bằng AI vẫn tạo, thi và thu bài bình
-   * thường — chỉ "Bắt đầu chấm" là bị chặn tới khi có rubric.
+   * Rubric ghim phiên — **deprecated trên create** (spec create-slim 2026-10-18).
+   * UI gắn qua hub + `PATCH …/rubric`. Giữ optional để e2e/client cũ chưa chuyển.
    */
   @IsOptional()
   @IsUUID()
@@ -343,19 +338,24 @@ export class CreateExamSessionDto {
   @Validate(HasMinimumDurationConstraint)
   endTime!: string;
 
+  /**
+   * File bắt buộc — **deprecated trên create** (spec create-slim 2026-10-18).
+   * UI khai ở hub qua `PUT …/required-deliverables`. Optional / `[]` = phiên
+   * `scheduled` chưa có file (mở phiên sẽ bị chặn đến khi PUT).
+   *
+   * Chuỗi trần vẫn nhận (tương thích ngược — spec archive §8.4).
+   *
+   * Tự gọi `plainToInstance` NGAY TRONG transform này, không dựa vào
+   * `@Type()`: `@Transform` thay thế hoàn toàn bước chuyển kiểu mặc định
+   * của property, nên nếu chỉ trả về object thường thì `@ValidateNested`
+   * sau đó nhận một plain object chứ không phải instance của
+   * `RequiredFilenameDto` — class-validator không tìm được metadata của
+   * lớp trên một plain object, và mọi validation bên trong lặng lẽ biến
+   * thành no-op (`unknownValue`, đã đo được khi thử `@Type()` riêng).
+   */
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @Validate(UniqueFilenamesConstraint)
-  // Chuỗi trần vẫn nhận, hiểu là "không khai file bên trong" — giữ tương
-  // thích ngược cho mọi chỗ gọi đã có (spec §8.4).
-  //
-  // Tự gọi `plainToInstance` NGAY TRONG transform này, không dựa vào
-  // `@Type()`: `@Transform` thay thế hoàn toàn bước chuyển kiểu mặc định
-  // của property, nên nếu chỉ trả về object thường thì `@ValidateNested`
-  // sau đó nhận một plain object chứ không phải instance của
-  // `RequiredFilenameDto` — class-validator không tìm được metadata của
-  // lớp trên một plain object, và mọi validation bên trong lặng lẽ biến
-  // thành no-op (`unknownValue`, đã đo được khi thử `@Type()` riêng).
   @Transform(({ value }) =>
     Array.isArray(value)
       ? value.map((item: unknown) =>
@@ -367,5 +367,5 @@ export class CreateExamSessionDto {
       : value,
   )
   @ValidateNested({ each: true })
-  requiredFilenames!: RequiredFilenameDto[];
+  requiredFilenames?: RequiredFilenameDto[];
 }

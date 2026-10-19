@@ -135,8 +135,7 @@ const FALLBACK: Omit<SessionVisual, 'label'> = VISUALS.completed;
 
 /**
  * Nhãn lấy từ `getDisplaySessionStatus` để lịch và bảng không bao giờ gọi
- * cùng một phiên bằng hai tên khác nhau — nó cũng là chỗ suy "Sắp diễn ra"
- * / "Đã kết thúc" từ đồng hồ cho các dòng `active`.
+ * cùng một phiên bằng hai tên khác nhau (map thẳng theo status DB).
  */
 export function sessionVisual(
   status: string,
