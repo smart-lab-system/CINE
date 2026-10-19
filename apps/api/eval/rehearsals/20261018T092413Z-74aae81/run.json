@@ -1,0 +1,50 @@
+{
+  "id": "20261018T092413Z-74aae81",
+  "startedAt": "2026-10-18T09:24:13.477Z",
+  "scenario": "ngan-xep-v1",
+  "deploy": "74aae81",
+  "note": "P0: kiểm đường đi 1 bài trước lượt đủ",
+  "wallSec": 77.5,
+  "backfilled": false,
+  "sessionId": "4dd53672-6f42-42ec-b359-b5608764a48a",
+  "checks": [
+    {
+      "mssv": "HS2410020",
+      "label": "in theo thứ tự hàng đợi — chỉ lỗi máy quyết",
+      "expectedScore": 5.5,
+      "actualScore": 5.5,
+      "scoreOk": true,
+      "auditHidden": false,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [],
+      "finishedAtSec": 77.5
+    }
+  ],
+  "summary": {
+    "submissions": 1,
+    "scoreOk": 1,
+    "auditHidden": 0,
+    "decisionOk": 0,
+    "autoApproved": 0,
+    "expectedAuto": 1,
+    "wrongAuto": 0,
+    "errorsExpected": 2,
+    "errorsCaught": 2,
+    "extraErrors": 0,
+    "falseFlags": 0,
+    "missedFlags": 0,
+    "lensFailures": 0,
+    "maxSubmissionSec": 77.5,
+    "models": [
+      "occ/claude-sonnet-5"
+    ]
+  }
+}
