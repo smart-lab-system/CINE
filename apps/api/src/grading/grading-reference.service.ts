@@ -13,6 +13,15 @@ import { ensureDefaultProblem, resolveProblemConfig } from './problem/resolve-pr
 import { assertSessionRouteAllowed } from './problem/session-route-guard';
 
 /**
+ * Mã nguồn đáp án mẫu đã nằm trên kho theo băm nội dung. Đi qua THAM SỐ của service, không qua HTTP DTO:
+ * một client tự đặt được khoá này là trỏ được bản ghi vào object bất kỳ trong bucket.
+ */
+export interface AnswerSource {
+  key: string;
+  sha256: string;
+}
+
+/**
  * Ba mức ngữ cảnh mà hệ thống có thể chấm với.
  *
  * Mức 1 là mức hệ thống chạy hôm nay — ÂM THẦM. Không cấm nó, nhưng không
@@ -132,6 +141,8 @@ export class GradingReferenceService {
     origin: ModelAnswerOrigin = 'teacher',
     /** Chỉ luồng gắn đề lại (5.4) đặt: đã tự kiểm số câu, điểm và trạng thái trước khi ghi, nên không chạy cổng route. */
     bypassRouteGuard = false,
+    /** Mã nguồn của đáp án trong lượt ghi này (G2b A2b). Có thì kiểm khuôn khoá, băm và sự tồn tại trên kho. */
+    answerSource: AnswerSource | null = null,
   ): Promise<GradingReferenceEntity> {
     await this.assertNotGradedYet(session);
 
@@ -159,6 +170,18 @@ export class GradingReferenceService {
         throw new BadRequestException(
           'Chưa thấy file đáp án mẫu trên kho lưu trữ — hãy upload trước khi xác nhận.',
         );
+      }
+    }
+
+    if (answerSource !== null) {
+      // Khoá theo băm, đúng tiền tố của PHIÊN NÀY: khoá của phiên khác, hay băm khai báo không khớp băm trong
+      // khoá, đều là lời khai sai. Kiểm trước transaction, cùng chỗ với kiểm khoá đáp án ở trên.
+      const match = new RegExp(`^grading-reference/${session.id}/source-([0-9a-f]{64})\\.(cpp|py)$`).exec(answerSource.key);
+      if (!match || match[1] !== answerSource.sha256) {
+        throw new BadRequestException('Khoá mã nguồn đáp án không hợp lệ.');
+      }
+      if (!(await this.storage.objectExists(answerSource.key))) {
+        throw new BadRequestException('Chưa thấy mã nguồn đáp án trên kho lưu trữ.');
       }
     }
 
@@ -206,6 +229,10 @@ export class GradingReferenceService {
       const answerSent = dto.modelAnswerStorageKey !== undefined || dto.modelAnswerNote !== undefined;
       const hasAnswer = Boolean(row.modelAnswerStorageKey || row.modelAnswerNote);
       row.modelAnswerOrigin = !hasAnswer ? null : answerSent ? origin : (existing?.modelAnswerOrigin ?? origin);
+      // Mã nguồn đi theo lượt ghi đáp án như nguồn gốc: lượt này kèm mã thì đặt; gửi đáp án mà không kèm mã thì
+      // XOÁ (mã cũ không còn thuộc đáp án mới); không gửi đáp án thì giữ nguyên.
+      row.modelAnswerSourceKey = answerSource?.key ?? (answerSent ? null : (existing?.modelAnswerSourceKey ?? null));
+      row.modelAnswerSourceSha256 = answerSource?.sha256 ?? (answerSent ? null : (existing?.modelAnswerSourceSha256 ?? null));
       // Dấu thời gian đi CÙNG nhịp với nguồn gốc: cả hai trả lời "đáp án của bản ghi này đến từ đâu, từ lúc nào".
       row.modelAnswerSetAt = !hasAnswer ? null : answerSent ? new Date() : (existing?.modelAnswerSetAt ?? new Date());
       // Câu và độ tin cậy của thước (P1a): giữ câu đã có; thước theo đúng quy tắc backfill M2.

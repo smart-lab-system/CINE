@@ -1,8 +1,11 @@
+import { createHash } from 'node:crypto';
 import { Test } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { GradingReferenceService } from '../src/grading/grading-reference.service';
+import { StorageService } from '../src/storage/storage.service';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { forceStatus } from './helpers/grading-seed';
@@ -451,6 +454,74 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
       await setReference(session.id, { modelAnswerNote: 'agent', modelAnswerUnverified: true });
       await setReference(session.id, { modelAnswerNote: 'agent, có sửa lời' });
       expect(await flagOf(session.id)).toBe(true);
+    });
+  });
+
+  // G2b A2b: mã nguồn đáp án lưu theo BĂM nội dung. Khoá do server dựng và kiểm; client không tự đặt được.
+  describe('mã nguồn đáp án (A2b)', () => {
+    const sha = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+    const keyFor = (sessionId: string, text: string, ext = 'cpp') => `grading-reference/${sessionId}/source-${sha(text)}.${ext}`;
+
+    async function putSource(sessionId: string, text: string, ext = 'cpp') {
+      const key = keyFor(sessionId, text, ext);
+      await app.get(StorageService).putObject(key, Buffer.from(text, 'utf8'), 'text/plain; charset=utf-8');
+      return { key, sha256: sha(text) };
+    }
+
+    async function sourceColumns(sessionId: string) {
+      const [row] = await dataSource.query(
+        `SELECT model_answer_source_key AS key, model_answer_source_sha256 AS sha256
+           FROM examcollect.grading_reference WHERE exam_session_id = $1`,
+        [sessionId],
+      );
+      return row as { key: string | null; sha256: string | null };
+    }
+
+    const upsert = (session: Seeded, dto: object, source: { key: string; sha256: string } | null) =>
+      app.get(GradingReferenceService).upsert(session.entity, dto, teacherId, 'authoring', true, source);
+
+    it('upsert với answerSource hợp lệ ghi cả hai cột', async () => {
+      const session = await seedSession();
+      const source = await putSource(session.id, 'int main() { return 0; }\n');
+      await upsert(session, { modelAnswerNote: 'Đáp án' }, source);
+      expect(await sourceColumns(session.id)).toEqual({ key: source.key, sha256: source.sha256 });
+    });
+
+    it('khoá mã nguồn sai khuôn (trỏ sang phiên khác) → BadRequestException, không ghi cột nào', async () => {
+      const mine = await seedSession();
+      const other = await seedSession();
+      const foreign = await putSource(other.id, 'int main() { return 1; }\n');
+      await expect(upsert(mine, { modelAnswerNote: 'x' }, foreign)).rejects.toBeInstanceOf(BadRequestException);
+      const [row] = await dataSource.query(`SELECT 1 FROM examcollect.grading_reference WHERE exam_session_id = $1`, [mine.id]);
+      expect(row).toBeUndefined();
+    });
+
+    it('băm khai báo khác băm trong khoá → BadRequestException', async () => {
+      const session = await seedSession();
+      const source = await putSource(session.id, 'print(1)\n', 'py');
+      await expect(upsert(session, { modelAnswerNote: 'x' }, { key: source.key, sha256: sha('khac') })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('object chưa có trên kho → BadRequestException', async () => {
+      const session = await seedSession();
+      const key = keyFor(session.id, 'chua tung upload');
+      await expect(upsert(session, { modelAnswerNote: 'x' }, { key, sha256: sha('chua tung upload') })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('upsert kế tiếp gửi đáp án mới mà không kèm answerSource → cột mã nguồn về null', async () => {
+      const session = await seedSession();
+      const source = await putSource(session.id, 'int main() {}\n');
+      await upsert(session, { modelAnswerNote: 'bản đầu' }, source);
+      await upsert(session, { modelAnswerNote: 'bản sau, không có mã' }, null);
+      expect(await sourceColumns(session.id)).toEqual({ key: null, sha256: null });
+    });
+
+    it('upsert không gửi đáp án (chỉ chọn lại đề) → giữ nguyên cột mã nguồn', async () => {
+      const session = await seedSession();
+      const source = await putSource(session.id, 'int main() { return 2; }\n');
+      await upsert(session, { modelAnswerNote: 'có mã' }, source);
+      await upsert(session, { questionMaterialId: session.materialId }, null);
+      expect(await sourceColumns(session.id)).toEqual({ key: source.key, sha256: source.sha256 });
     });
   });
 
