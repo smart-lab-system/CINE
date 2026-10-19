@@ -109,7 +109,16 @@ describe('Luật và giá (e2e)', () => {
     const { ctx } = await world('rr-preview');
     const extra = await seedRule(ds, ctx.teacherId, 'bien_2', 'trinh_bay', { kind: 'test_group_failed', group: 'bien' });
     for (let i = 0; i < 2; i++) await scores.computeInitial((await seedInvestigatorResult(ds, ctx, storedWith(SEEN))).resultId);
-    const [{ n: before }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.score_computation`);
+    // Đếm chỉ các kết quả của phiên này (bảng score_computation dùng chung giữa các suite; xem rubric-scoped-pricing).
+    const countMine = async () =>
+      (await ds.query(
+        `SELECT count(*)::int AS n FROM examcollect.score_computation sc
+           JOIN examcollect.grading_result gr ON gr.id = sc.grading_result_id
+           JOIN examcollect.submission s ON s.id = gr.submission_id
+          WHERE s.exam_session_id = $1`,
+        [ctx.sessionId],
+      ))[0].n as number;
+    const before = await countMine();
     const p = await prices.preview(
       ctx.teacherId,
       await assignmentId(ds, ctx.teacherId, await rubricNameOf(ds, ctx.rubricId), extra.ruleId),
@@ -119,7 +128,7 @@ describe('Luật và giá (e2e)', () => {
       { sessionId: ctx.sessionId, name: expect.any(String), affected: 2, autoAfter: 2, blockedByOtherUnpriced: 0 },
     ]);
     expect(p.finalizedSessions).toEqual([]);
-    const [{ n: after }] = await ds.query(`SELECT count(*)::int AS n FROM examcollect.score_computation`);
+    const after = await countMine();
     expect(after).toBe(before);
     expect(
       await ds.query(`SELECT 1 FROM examcollect.price_table_version WHERE teacher_id = $1 AND version > 1`, [ctx.teacherId]),

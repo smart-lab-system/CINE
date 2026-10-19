@@ -1,7 +1,7 @@
 import { Check, Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../shared/base.entity';
 import type { ComputerStatus } from '../../master-data/entities/computer.entity';
-import { LabRoomProposalEntity } from './lab-room-proposal.entity';
+import type { LabRoomProposalEntity } from './lab-room-proposal.entity';
 
 @Entity({ name: 'lab_room_proposal_machine' })
 @Check('ck_lab_room_proposal_machine_ram_gb', '"ram_gb" > 0')
@@ -9,7 +9,7 @@ export class LabRoomProposalMachineEntity extends BaseEntity {
   @Column({ name: 'proposal_id', type: 'uuid' })
   proposalId!: string;
 
-  @ManyToOne(() => LabRoomProposalEntity, (p) => p.machines, {
+  @ManyToOne('LabRoomProposalEntity', (p: LabRoomProposalEntity) => p.machines, {
     onDelete: 'CASCADE',
     nullable: false,
   })
