@@ -57,6 +57,11 @@ export interface GradingReadiness {
   warning: string | null;
   hasQuestion: boolean;
   hasModelAnswer: boolean;
+  /**
+   * Phiên đã có MÃ NGUỒN đáp án mẫu (để chạy thử và sinh gói từ đáp án). KHÁC `hasModelAnswer`: mã là thứ máy chạy bài chạy, không
+   * phải tài liệu AI chấm đọc, nên không được tính vào mức ngữ cảnh `level`.
+   */
+  hasAnswerSource: boolean;
   sources: {
     question: GradingSourceInfo;
     modelAnswer: GradingSourceInfo & { unverified: boolean };
@@ -80,6 +85,17 @@ export interface LoadedGradingReference {
    */
   loadedLevel: GradingReadinessLevel;
 }
+
+/** Hàng này có đáp án mẫu nào không: tài liệu, ghi chú, hay mã nguồn. */
+const hasAnyAnswer = (ref: GradingReferenceEntity | null | undefined): boolean =>
+  Boolean(ref?.modelAnswerStorageKey || ref?.modelAnswerNote || ref?.modelAnswerSourceKey);
+
+/**
+ * Đáp án hiện tại là của giảng viên? Có đáp án mà không rõ nguồn (dòng cũ trước khi có cột nguồn gốc) coi là của giảng viên: thà
+ * chặn nhầm một lượt sinh còn hơn ghi đè một đáp án người đã viết.
+ */
+const teacherOwnsAnswer = (ref: GradingReferenceEntity | null | undefined): boolean =>
+  hasAnyAnswer(ref) && (ref?.modelAnswerOrigin ?? 'teacher') === 'teacher';
 
 @Injectable()
 export class GradingReferenceService {
@@ -178,6 +194,13 @@ export class GradingReferenceService {
     }
 
     const bytes = await this.storage.getObject(storageKey);
+    // Máy chạy bài đọc mã như văn bản UTF-8. Mã lưu ở bảng mã khác (CP1258/ANSI, UTF-16) xác nhận được rồi mọi lượt chạy
+    // sau đó giải mã ra chữ khác với byte đã băm: báo "không khớp băm" mãi mãi. Từ chối ngay đây, nói rõ cách sửa.
+    try {
+      new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      throw new BadRequestException('Mã đáp án phải lưu ở dạng UTF-8 (hãy "Save with Encoding → UTF-8" trong trình soạn thảo rồi tải lại).');
+    }
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const sourceKey = `grading-reference/${session.id}/source-${sha256}.${pending[1]}`;
     if (!(await this.storage.objectExists(sourceKey))) {
@@ -239,8 +262,25 @@ export class GradingReferenceService {
   ): Promise<void> {
     await assertSessionRouteAllowed(m, session.id);
     const refs = m.getRepository(GradingReferenceEntity);
+    // Đọc SAU khi `assertSessionRouteAllowed` đã giữ khoá giảng viên: route lưu đáp án và route xác nhận mã cũng lấy khoá đó, nên
+    // không có lượt lưu nào của giảng viên chen giữa lúc đọc này và lúc ghi bên dưới.
     const existing = await refs.findOne({ where: { examSessionId: session.id } });
+    // Lượt sinh kéo dài cả phút (model, hai lượt chạy). Giảng viên có thể lưu đáp án của mình trong lúc đó; kiểm ở đầu lượt không
+    // đủ — ghi đè lúc này là gắn nhãn `generated` lên đáp án họ vừa viết và mất con trỏ tới mã của họ (spec §3 luật 6).
+    if (o.origin === 'generated' && teacherOwnsAnswer(existing)) {
+      throw new ConflictException(
+        'Giảng viên vừa lưu đáp án mẫu của mình trong lúc hệ thống đang sinh — không ghi đè. Hãy dùng "Sinh gói test từ đáp án của bạn" nếu muốn sinh gói từ đáp án đó.',
+      );
+    }
     const row = refs.create({ ...(existing ?? {}), examSessionId: session.id, createdBy: existing?.createdBy ?? teacherId });
+    // Đáp án cũ do HỆ THỐNG viết (soạn đề hay sinh trước đó) bị thay TRỌN: ghi chú, tài liệu và tên file của nó thuộc về đáp án cũ.
+    // Để lại thì hàng này nói "nguồn gốc mới, độ tin cậy mới" mà vẫn đưa cho bộ chấm tài liệu của một chương trình khác. Đáp án
+    // của giảng viên thì ở lại (họ chỉ thêm mã vào).
+    if (existing?.modelAnswerOrigin && existing.modelAnswerOrigin !== 'teacher') {
+      row.modelAnswerStorageKey = null;
+      row.modelAnswerFilename = null;
+      row.modelAnswerNote = null;
+    }
     row.modelAnswerSourceKey = source.key;
     row.modelAnswerSourceSha256 = source.sha256;
     row.modelAnswerOrigin = o.origin;
@@ -271,8 +311,7 @@ export class GradingReferenceService {
    */
   async answerState(sessionId: string): Promise<{ hasAnswer: boolean; teacherOwned: boolean }> {
     const ref = await this.references.findOne({ where: { examSessionId: sessionId } });
-    const hasAnswer = Boolean(ref?.modelAnswerStorageKey || ref?.modelAnswerNote || ref?.modelAnswerSourceKey);
-    return { hasAnswer, teacherOwned: hasAnswer && (ref?.modelAnswerOrigin ?? 'teacher') === 'teacher' };
+    return { hasAnswer: hasAnyAnswer(ref), teacherOwned: teacherOwnsAnswer(ref) };
   }
 
   async upsert(
@@ -361,8 +400,18 @@ export class GradingReferenceService {
       const answerSent = dto.modelAnswerStorageKey !== undefined || dto.modelAnswerNote !== undefined;
       // Mã nguồn đi theo lượt ghi đáp án như nguồn gốc: lượt này kèm mã thì đặt; gửi đáp án mà không kèm mã thì
       // XOÁ (mã cũ không còn thuộc đáp án mới); không gửi đáp án thì giữ nguyên.
-      row.modelAnswerSourceKey = answerSource?.key ?? (answerSent ? null : (existing?.modelAnswerSourceKey ?? null));
-      row.modelAnswerSourceSha256 = answerSource?.sha256 ?? (answerSent ? null : (existing?.modelAnswerSourceSha256 ?? null));
+      // NGOẠI LỆ: giảng viên sửa đáp án CỦA CHÍNH MÌNH qua route (origin teacher, đáp án đang là teacher) mà không xoá nó
+      // (không đặt khoá hay ghi chú về null) thì mã của họ ở lại — sửa một chữ trong ghi chú không được làm mất mã. Mã do hệ
+      // thống sinh thì không bao giờ ở lại dưới nhãn teacher: nó đi theo đáp án cũ của hệ thống.
+      const teacherEditsOwnAnswer =
+        answerSource === null &&
+        origin === 'teacher' &&
+        existing?.modelAnswerOrigin === 'teacher' &&
+        dto.modelAnswerStorageKey !== null &&
+        dto.modelAnswerNote !== null;
+      const keepSource = !answerSent || teacherEditsOwnAnswer;
+      row.modelAnswerSourceKey = answerSource?.key ?? (keepSource ? (existing?.modelAnswerSourceKey ?? null) : null);
+      row.modelAnswerSourceSha256 = answerSource?.sha256 ?? (keepSource ? (existing?.modelAnswerSourceSha256 ?? null) : null);
       // Mã nguồn cũng là một đáp án (giảng viên có thể chỉ tải mã lên — G2b-R Task 2), nên cũng giữ nguồn gốc của nó.
       const hasAnswer = Boolean(row.modelAnswerStorageKey || row.modelAnswerNote || row.modelAnswerSourceKey);
       row.modelAnswerOrigin = !hasAnswer ? null : answerSent ? origin : (existing?.modelAnswerOrigin ?? origin);
@@ -413,6 +462,7 @@ export class GradingReferenceService {
     });
     const hasQuestion = Boolean(row?.questionMaterialId);
     const hasModelAnswer = Boolean(row?.modelAnswerStorageKey || row?.modelAnswerNote);
+    const hasAnswerSource = Boolean(row?.modelAnswerSourceKey);
     const sources: GradingReadiness['sources'] = {
       question: {
         present: hasQuestion,
@@ -439,6 +489,7 @@ export class GradingReferenceService {
         level: 'rubric_only',
         hasQuestion,
         hasModelAnswer,
+        hasAnswerSource,
         sources,
         warning:
           'Chưa chọn đề bài — AI chỉ đối chiếu rubric và KHÔNG phát hiện được ' +
@@ -450,11 +501,12 @@ export class GradingReferenceService {
         level: 'with_question',
         hasQuestion,
         hasModelAnswer,
+        hasAnswerSource,
         sources,
         warning: 'Chưa có đáp án mẫu — AI đánh giá theo đề, chưa biết cách chấm của thầy.',
       };
     }
-    return { level: 'with_model_answer', hasQuestion, hasModelAnswer, sources, warning: null };
+    return { level: 'with_model_answer', hasQuestion, hasModelAnswer, hasAnswerSource, sources, warning: null };
   }
 
   /**

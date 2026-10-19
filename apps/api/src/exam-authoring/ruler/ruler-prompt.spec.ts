@@ -24,6 +24,15 @@ describe('buildRulerPrompt()', () => {
     expect(p).not.toMatch(/Viết chương trình đáp án/);
   });
 
+  // Thay từng chỗ một thì chữ vừa chèn bị quét lại: một đề chứa `{{TEACHER_ANSWER}}` hay mã chứa `{{STATEMENT}}` sẽ bị ghép lẫn vào nhau.
+  it('đề hay mã chứa chính tên chỗ trống của khuôn thì được giữ NGUYÊN VĂN, không bị thay lần nữa', () => {
+    const statement = 'Đề có chữ {{TEACHER_ANSWER}} và {{LANGUAGE}} trong thân.';
+    const code = '// mã có chữ {{STATEMENT}} và {{LANGUAGE}}\nint main() {}\n';
+    const p = buildRulerPrompt({ statement, language: 'cpp', teacherAnswer: code });
+    expect(p).toContain(`<de_bai>\n${statement}\n</de_bai>`);
+    expect(p).toContain(`<dap_an_giang_vien>\n${code}\n</dap_an_giang_vien>`);
+  });
+
   it('dặn model KHÔNG viết output mong đợi cho các ca — output lấy từ chạy đáp án', () => {
     expect(buildRulerPrompt({ statement: STATEMENT, language: 'cpp' })).toMatch(/KHÔNG viết output mong đợi/);
   });

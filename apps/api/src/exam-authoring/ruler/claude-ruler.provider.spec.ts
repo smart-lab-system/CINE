@@ -76,6 +76,19 @@ describe('ClaudeRulerProvider', () => {
     expect(options.timeout).toBeGreaterThan(0);
   });
 
+  // `timeout` của SDK hết tác dụng khi header đã về (không phủ phần stream) và SDK tự thử lại timeout 2 lần — ba lần 150 giây trước
+  // khi có byte nào. Một lượt sinh chạy quá 15 phút bị lượt kế tiếp coi là chết và dọn, còn lượt này vẫn ghi gói.
+  it('lời gọi bị chặn TOÀN BỘ bởi một tín hiệu huỷ và không tự thử lại ngầm', async () => {
+    finalMessageMock.mockResolvedValue(message());
+
+    await provider.propose({ statement: STATEMENT, language: 'cpp' });
+
+    const [, options] = streamMock.mock.calls[0] as [unknown, { timeout: number; maxRetries: number; signal: AbortSignal }];
+    expect(options.maxRetries).toBe(0);
+    expect(options.signal).toBeInstanceOf(AbortSignal);
+    expect(options.signal.aborted).toBe(false);
+  });
+
   it('luồng từ đáp án của giảng viên: modelAnswer model trả về bị bỏ — không thay được đáp án của giảng viên', async () => {
     finalMessageMock.mockResolvedValue(message());
 

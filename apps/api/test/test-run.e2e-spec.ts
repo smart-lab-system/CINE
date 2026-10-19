@@ -11,6 +11,7 @@ import { execResult } from '../src/grading/investigator/testing/fake-sandbox';
 import { fakeSandbox } from '../src/grading/investigator/testing/fake-sandbox';
 import { INVESTIGATOR_DEPS, InvestigatorDeps } from '../src/grading/pipeline/investigator-deps';
 import { SandboxPort } from '../src/grading/investigator/tools';
+import { TestRunStore } from '../src/grading/test-bundle/test-run.store';
 import { StorageService } from '../src/storage/storage.service';
 import { createTestAccount } from './helpers/create-account';
 import { upcomingSessionWindow } from './helpers/session-window';
@@ -231,6 +232,17 @@ describe('G2b-R — chạy thử đáp án mẫu với gói test (e2e)', () => {
     expect(res.status).toBe(409);
     expect(res.body.message).toMatch(/chưa có mã đáp án/);
     expect(await runRows(sessionId)).toHaveLength(0);
+  });
+
+  it('một lượt SINH gói đang chạy → chạy thử bị 409 và thông điệp nói đúng việc đang chạy (đang sinh), không nói "chạy thử"', async () => {
+    const { sessionId, bundleId } = await prepare();
+    deps.sandbox = passAll();
+    await app.get(TestRunStore).begin({ sessionId, problemId: null, bundleId: null, kind: 'generate_statement', caseKey: null, sourceSha256: null, teacherId });
+
+    const res = await run(sessionId, bundleId);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/đang sinh/);
   });
 
   it('hai lượt chạy liên tiếp khi lượt đầu còn running → 409 "đang chạy", không chạy song song', async () => {

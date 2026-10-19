@@ -38,11 +38,15 @@ export interface FinishRun {
 export class TestRunStore {
   constructor(@InjectDataSource() private readonly ds: DataSource) {}
 
-  /** Phiên có dòng `running` còn sống không? Kiểm TRƯỚC khi tốn hạn mức hay gọi LLM. Dòng chết được đóng trước. */
-  async hasLiveRun(sessionId: string): Promise<boolean> {
+  /** Loại lượt `running` còn sống của phiên, hoặc null. Kiểm TRƯỚC khi tốn hạn mức hay gọi LLM. Dòng chết được đóng trước. */
+  async liveRunKind(sessionId: string): Promise<TestRunKind | null> {
     await this.closeStale(sessionId);
-    const [row] = await this.ds.query(`SELECT 1 FROM examcollect.grading_test_run WHERE exam_session_id = $1 AND status = 'running' LIMIT 1`, [sessionId]);
-    return row !== undefined;
+    return this.currentKind(sessionId);
+  }
+
+  private async currentKind(sessionId: string): Promise<TestRunKind | null> {
+    const [row] = await this.ds.query(`SELECT kind FROM examcollect.grading_test_run WHERE exam_session_id = $1 AND status = 'running' LIMIT 1`, [sessionId]);
+    return (row?.kind as TestRunKind | undefined) ?? null;
   }
 
   /** INSERT dòng `running`. Unique index từng phần làm lượt thứ hai nhận 409, kể cả khi hai request đến cùng lúc. */
@@ -61,7 +65,8 @@ export class TestRunStore {
     } catch (error) {
       const driver = (error as { driverError?: { code?: string; constraint?: string } }).driverError;
       if (driver?.code === '23505' && driver.constraint === ONE_RUNNING_INDEX) {
-        throw new ConflictException(busyMessage(input.kind));
+        // Nói đúng việc ĐANG chạy, không phải việc người bấm vừa xin: chạy thử bị chặn bởi một lượt sinh thì "đang chạy thử" là sai.
+        throw new ConflictException(busyMessage((await this.currentKind(input.sessionId)) ?? input.kind));
       }
       throw error;
     }
@@ -70,11 +75,14 @@ export class TestRunStore {
   /**
    * Đúng MỘT UPDATE: từ `running` sang trạng thái kết thúc (trigger `trg_grading_test_run_finish_once`). `manager` để lượt
    * sinh đóng dòng TRONG transaction ghi gói và thước: hỏng giữa chừng thì không có gói nào mà dòng đã báo kết thúc.
+   * Trả `false` khi không đóng được dòng nào — dòng đã bị đóng trước (quá hạn, bị dọn). Người gọi trong transaction PHẢI coi đó là lỗi
+   * và hoàn tác, nếu không gói và thước vừa ghi không có dòng chạy nào trỏ tới.
    */
-  async finish(runId: string, status: TestRunStatus, result: FinishRun = {}, manager?: EntityManager): Promise<void> {
+  async finish(runId: string, status: TestRunStatus, result: FinishRun = {}, manager?: EntityManager): Promise<boolean> {
     const db = manager ?? this.ds;
     const u = result.usage;
-    await db.query(
+    // Postgres qua TypeORM trả `[rows, rowCount]` cho UPDATE.
+    const [, closed] = await db.query(
       `UPDATE examcollect.grading_test_run
           SET status = $2, finished_at = now(), host = $3::jsonb, cases = $4::jsonb,
               test_bundle_id = COALESCE($5, test_bundle_id), source_sha256 = COALESCE($6, source_sha256),
@@ -94,6 +102,7 @@ export class TestRunStore {
         u?.costUsd ?? null,
       ],
     );
+    return closed > 0;
   }
 
   private async closeStale(sessionId: string): Promise<void> {
@@ -106,7 +115,7 @@ export class TestRunStore {
   }
 }
 
-/** Lời 409 theo loại lượt: chạy thử và sinh gói là hai việc giảng viên đang chờ khác nhau. */
+/** Lời 409 theo loại lượt ĐANG chạy: chạy thử và sinh gói là hai việc giảng viên đang chờ khác nhau. */
 export function busyMessage(kind: TestRunKind): string {
   return kind === 'test_run'
     ? 'Phiên này đang chạy thử một lượt khác — chờ lượt đó xong rồi bấm lại.'

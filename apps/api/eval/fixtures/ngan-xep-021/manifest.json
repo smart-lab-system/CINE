@@ -1,0 +1,88 @@
+{
+  "id": "ngan-xep-021",
+  "split": "dev",
+  "language": "cpp",
+  "statement": "Đề bài (CTDL&GT — ngăn xếp): Cài đặt ngăn xếp bằng danh sách liên kết đơn. Dòng 1: số nguyên n (0 ≤ n ≤ 1000). Dòng 2: n số nguyên a_i (|a_i| ≤ 10^12). Đẩy lần lượt từng a_i vào ngăn xếp, rồi lấy ra hết và in các giá trị theo thứ tự lấy ra, cách nhau một dấu cách, trên một dòng. Yêu cầu: dùng danh sách liên kết tự cài đặt (không dùng std::stack), giải phóng mọi nút đã cấp phát.",
+  "requiredComplexity": null,
+  "driver": "driver.cpp",
+  "modelAnswer": "model.cpp",
+  "tests": "tests.json",
+  "probes": "probes.json",
+  "rubric": [
+    {
+      "key": "dung_dan",
+      "description": "Tính đúng đắn",
+      "maxPoints": "6.00"
+    },
+    {
+      "key": "trinh_bay",
+      "description": "Trình bày",
+      "maxPoints": "2.00"
+    },
+    {
+      "key": "quan_ly_bo_nho",
+      "description": "Quản lý bộ nhớ",
+      "maxPoints": "2.00"
+    }
+  ],
+  "rules": [
+    {
+      "ruleKey": "sai_ca_co_ban",
+      "title": "Sai ca cơ bản",
+      "criterionKey": "dung_dan",
+      "deduction": "3.00",
+      "predicate": {
+        "kind": "test_group_failed",
+        "group": "co_ban"
+      }
+    },
+    {
+      "ruleKey": "sai_ca_bien",
+      "title": "Sai ca biên",
+      "criterionKey": "dung_dan",
+      "deduction": "1.50",
+      "predicate": {
+        "kind": "test_group_failed",
+        "group": "bien"
+      }
+    },
+    {
+      "ruleKey": "ten_bien_vo_nghia",
+      "title": "Tên biến không gợi nghĩa",
+      "criterionKey": "trinh_bay",
+      "deduction": "0.50",
+      "predicate": null
+    },
+    {
+      "ruleKey": "thieu_chu_thich",
+      "title": "Thiếu chú thích",
+      "criterionKey": "trinh_bay",
+      "deduction": "0.50",
+      "predicate": null
+    },
+    {
+      "ruleKey": "ro_ri_bo_nho",
+      "title": "Rò rỉ bộ nhớ",
+      "criterionKey": "quan_ly_bo_nho",
+      "deduction": "1.00",
+      "predicate": null
+    }
+  ],
+  "cases": [
+    {
+      "id": "hs2410021",
+      "group": 1,
+      "file": "cases/hs2410021.cpp",
+      "behavior": "dynamic",
+      "expectedRuleIds": [
+        "thieu_chu_thich"
+      ],
+      "expectedOutcome": "graded",
+      "expectedScore": "9.50",
+      "expectedComplexity": null,
+      "cleanTwin": null,
+      "note": "HS2410021: hard-code theo bộ test, không có chú thích, không cấp phát động. Kỳ vọng 9,5 (chỉ trừ thiếu chú thích). Đặt graded để check tính được điểm; bài thật về giảng viên do luật lời (thiếu chú thích) không tự quyết."
+    }
+  ],
+  "waivedCriteria": []
+}

@@ -88,8 +88,10 @@ export class TestRunService {
       throw new BadRequestException(`Gói có ${picked.length} ca, vượt trần ${MAX_CASES_PER_JOB} ca của một lượt chạy.`);
     }
 
-    const code = (await this.storage.getObject(source.key)).toString('utf8');
-    if (createHash('sha256').update(code, 'utf8').digest('hex') !== source.sha256) {
+    // Băm BYTE thô, đúng thứ `confirmAnswerSource` đã băm: băm chuỗi sau khi giải mã làm byte không phải UTF-8 lệch băm.
+    const bytes = await this.storage.getObject(source.key);
+    const code = bytes.toString('utf8');
+    if (createHash('sha256').update(bytes).digest('hex') !== source.sha256) {
       this.logger.error(`Mã đáp án của phiên ${sessionId}: object ${source.key} không khớp băm đã ghi`);
       throw new ConflictException('Mã đáp án trên kho không khớp băm đã ghi — hãy tải mã lên lại.');
     }

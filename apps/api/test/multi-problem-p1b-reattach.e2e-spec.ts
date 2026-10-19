@@ -10,8 +10,9 @@ import { seedCriterion, seedSession, SeedSession } from './helpers/grading-seed'
 
 /**
  * P1b 5.4 — gắn lại đề. Chưa có bài chấm, chưa xác nhận đề cương, số câu giữ nguyên (và điểm từng câu với đề nhiều
- * câu): đề mới thay đề cũ tại chỗ, gói test mới được ghim, gói cũ giữ làm lịch sử. Vi phạm bất kỳ điều kiện nào thì
- * 409 kèm lý do, và không ghi gì (không có lời gọi lưu trữ nào).
+ * câu): đề mới thay đề cũ tại chỗ. Gắn đề KHÔNG tạo gói test và không đổi ghim nào (G2b A2: gói do giảng viên tạo, hay do nút
+ * sinh gói; gói cũ đã ghim ở lại cho tới khi họ ghim gói khác). Vi phạm bất kỳ điều kiện nào thì 409 kèm lý do, và không
+ * ghi gì (không có lời gọi lưu trữ nào).
  */
 describe('P1b 5.4 — gắn lại đề (e2e)', () => {
   let app: INestApplication;
@@ -80,18 +81,35 @@ describe('P1b 5.4 — gắn lại đề (e2e)', () => {
     return n as number;
   }
 
-  it('một câu, chưa chấm: gắn lại → gói mới được ghim, gói cũ còn làm lịch sử', async () => {
+  /** Giảng viên tạo, duyệt và ghim một gói bằng các route thật (gắn đề không còn làm việc này). */
+  async function pinBundleByRoutes(owner: { token: string }, sessionId: string): Promise<string> {
+    const auth = { Authorization: `Bearer ${owner.token}` };
+    const created = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/test-bundles`)
+      .set(auth)
+      .send({ cases: [{ caseKey: 'c1', group: 'co_ban', input: '1', expectedOutput: '1' }] });
+    expect(created.status).toBe(201);
+    const id = created.body.id as string;
+    expect((await request(app.getHttpServer()).post(`/exam-sessions/${sessionId}/test-bundles/${id}/approve`).set(auth)).status).toBe(201);
+    expect((await request(app.getHttpServer()).post(`/exam-sessions/${sessionId}/test-bundles/${id}/pin`).set(auth)).status).toBe(201);
+    return id;
+  }
+
+  it('một câu, chưa chấm: gắn lại thay đề tại chỗ, KHÔNG tạo gói mới và KHÔNG đổi gói đã ghim', async () => {
     const { owner, ctx } = await freshSession('single');
-    expect((await attach(owner, ctx.sessionId, [{ points: 5, statement: 'Đề cũ' }])).status).toBe(201);
-    const [first] = await ds.query(`SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`, [ctx.sessionId]);
+    const first = await attach(owner, ctx.sessionId, [{ points: 5, statement: 'Đề cũ' }]);
+    expect(first.status).toBe(201);
+    expect(first.body.nextStep).toBe('create_bundle');
+    const pinned = await pinBundleByRoutes(owner, ctx.sessionId);
+
     expect((await attach(owner, ctx.sessionId, [{ points: 5, statement: 'Đề mới' }])).status).toBe(201);
 
-    const [second] = await ds.query(`SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`, [ctx.sessionId]);
-    expect(second.test_bundle_id).not.toEqual(first.test_bundle_id);
-    expect(await bundleCount(ctx.sessionId)).toBe(2);
+    const [after] = await ds.query(`SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`, [ctx.sessionId]);
+    expect(after.test_bundle_id).toBe(pinned);
+    expect(await bundleCount(ctx.sessionId)).toBe(1);
   });
 
-  it('nhiều câu, chưa chấm, cùng số câu và điểm: gắn lại tại chỗ, mỗi câu được ghim gói mới', async () => {
+  it('nhiều câu, chưa chấm, cùng số câu và điểm: gắn lại tại chỗ, không câu nào có gói (gắn đề không tạo gói)', async () => {
     const { owner, ctx } = await freshSession('multi');
     const questions = [
       { points: 2, statement: 'Câu một' },
@@ -116,8 +134,9 @@ describe('P1b 5.4 — gắn lại đề (e2e)', () => {
     expect(after.map((p: { ordinal: number }) => p.ordinal)).toEqual([1, 2]); // không thêm, không bớt câu
     expect(after[0].statement).toBe('Câu một, bản sửa');
     expect(after[1].statement).toBe('Câu hai, bản sửa');
-    expect(after[0].test_bundle_id).not.toEqual(before[0].test_bundle_id);
-    expect(after[1].test_bundle_id).not.toEqual(before[1].test_bundle_id);
+    expect(before.map((p: { test_bundle_id: string | null }) => p.test_bundle_id)).toEqual([null, null]);
+    expect(after.map((p: { test_bundle_id: string | null }) => p.test_bundle_id)).toEqual([null, null]);
+    expect(await bundleCount(ctx.sessionId)).toBe(0);
   });
 
   it('đổi số câu khi gắn lại → 409 kèm lý do, không ghi gì (không gọi lưu trữ, không thêm gói)', async () => {

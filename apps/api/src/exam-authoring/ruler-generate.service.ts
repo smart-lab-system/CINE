@@ -28,7 +28,7 @@ import { StorageService } from '../storage/storage.service';
 import { AiUsageEntity } from './entities/ai-usage.entity';
 import { GenerateQuotaService } from './generate-quota.service';
 import { AuthoringUsage } from './ai-provider/exam-authoring-provider';
-import { checkExamples, coverageWarnings, interpretRuns, KeptCase, prefilterCases, quoteAppearsInStatement, RulerProposal } from './ruler/ruler-core';
+import { checkExamples, coverageWarnings, describeDropped, DroppedRef, exampleIsInStatement, interpretRuns, KeptCase, prefilterCases, RulerProposal } from './ruler/ruler-core';
 import { RULER_PROMPT_VERSION, RulerMode } from './ruler/ruler-prompt';
 import { RULER_PROVIDER, RulerProvider, RulerProviderFailure } from './ruler/ruler-provider';
 
@@ -127,9 +127,8 @@ export class RulerGenerateService {
       throw new BadRequestException('Sinh gói test chỉ hỗ trợ bài C++ hoặc Python; câu này chưa khai ngôn ngữ cpp hay python.');
     }
 
-    if (await this.store.hasLiveRun(session.id)) {
-      throw new ConflictException(busyMessage(mode === 'statement' ? 'generate_statement' : 'generate_answer'));
-    }
+    const live = await this.store.liveRunKind(session.id);
+    if (live !== null) throw new ConflictException(busyMessage(live));
 
     let teacher: Plan['teacher'] = null;
     if (mode === 'statement') {
@@ -159,8 +158,10 @@ export class RulerGenerateService {
   private async readTeacherSource(sessionId: string): Promise<AnswerSource & { code: string }> {
     const source = await this.references.getAnswerSource(sessionId);
     if (!source) throw new ConflictException('Chưa có mã đáp án để sinh gói test — hãy tải mã đáp án lên trước.');
-    const code = (await this.storage.getObject(source.key)).toString('utf8');
-    if (createHash('sha256').update(code, 'utf8').digest('hex') !== source.sha256) {
+    // Băm BYTE thô, đúng thứ `confirmAnswerSource` đã băm (xem `TestRunService`).
+    const bytes = await this.storage.getObject(source.key);
+    const code = bytes.toString('utf8');
+    if (createHash('sha256').update(bytes).digest('hex') !== source.sha256) {
       this.logger.error(`Mã đáp án của phiên ${sessionId}: object ${source.key} không khớp băm đã ghi`);
       throw new ConflictException('Mã đáp án trên kho không khớp băm đã ghi — hãy tải mã lên lại.');
     }
@@ -221,7 +222,7 @@ export class RulerGenerateService {
       throw error;
     }
 
-    const close = (status: TestRunStatus, extra: FinishRun = {}, manager?: EntityManager) =>
+    const close = (status: TestRunStatus, extra: FinishRun = {}, manager?: EntityManager): Promise<boolean> =>
       this.store.finish(runId, status, { usage, ...extra }, manager);
     const stop = async (status: TestRunStatus, error: HttpException, extra: FinishRun = {}): Promise<never> => {
       await close(status, extra);
@@ -240,10 +241,10 @@ export class RulerGenerateService {
     // 3. Lọc TRƯỚC khi chạy. Ví dụ chạy chung job với ca nên chiếm chỗ trong trần 200.
     const runnableExamples = proposal.examples
       .map((example, index) => ({ example, index }))
-      .filter(({ example }) => quoteAppearsInStatement(example.quote, plan.statement));
+      .filter(({ example }) => exampleIsInStatement(example, plan.statement));
     const { kept, dropped } = prefilterCases(proposal.cases, plan.statement, MAX_CASES_PER_JOB - runnableExamples.length);
     if (kept.length === 0) {
-      return stop('dropped_all', new ConflictException(this.droppedAllMessage(proposal.cases.length, dropped.map((d) => `${d.name}: ${d.reason}`))));
+      return stop('dropped_all', new ConflictException(this.droppedAllMessage(proposal.cases.length, dropped.map((d) => ({ name: d.name, reason: d.reason })))));
     }
 
     // 4. Chạy đáp án hai lần: output ổn định hay bỏ ca (D-C).
@@ -283,7 +284,10 @@ export class RulerGenerateService {
     const stableKept = kept.filter((k) => stable.has(k.key));
     const unstableKept = kept.filter((k) => !stable.has(k.key));
     if (stableKept.length === 0) {
-      const reasons = [...dropped.map((d) => `${d.name}: ${d.reason}`), ...unstableKept.map((k) => `${k.key}: ${unstableReason.get(k.key) ?? 'không chạy ổn định'}`)];
+      const reasons = [
+        ...dropped.map((d) => ({ name: d.name, reason: d.reason })),
+        ...unstableKept.map((k) => ({ name: k.key, reason: unstableReason.get(k.key) ?? 'không chạy ổn định' })),
+      ];
       return stop('dropped_all', new ConflictException(this.droppedAllMessage(proposal.cases.length, reasons)), { host, cases: runCases });
     }
     const bundleCases: BundleCaseInput[] = [
@@ -311,7 +315,11 @@ export class RulerGenerateService {
       });
       // Đáp án của giảng viên KHÔNG đổi (nguồn gốc, mã, độ tin cậy): chỉ đường đề mới ghi `grading_reference`.
       if (mode === 'statement') await this.references.writeGeneratedSource(m, session, teacherId, source, trust);
-      await close('pass', { host, cases: runCases, testBundleId: created.id, sourceSha256: source.sha256 }, m);
+      // Dòng chạy phải còn `running`. Đã bị đóng (lượt này chạy quá hạn `STALE_RUNNING_MINUTES` và lượt kế tiếp đã dọn nó) thì ghi gói
+      // lúc này tạo ra một gói không dòng chạy nào trỏ tới, và hai lượt cùng ghi `grading_reference`: hoàn tác.
+      if (!(await close('pass', { host, cases: runCases, testBundleId: created.id, sourceSha256: source.sha256 }, m))) {
+        throw new ConflictException('Lượt sinh này đã bị đóng vì quá hạn trong lúc chạy — không ghi gói. Hãy bấm sinh lại.');
+      }
       return created;
     });
 
@@ -361,8 +369,8 @@ export class RulerGenerateService {
     return { caseKey: k.key, group: k.group, input: k.input, expectedOutput: '', constraintQuote: k.quote, autoDroppedReason: reason };
   }
 
-  private droppedAllMessage(proposed: number, reasons: string[]): string {
-    return `Không còn ca nào chấm được sau khi lọc (${proposed} ca đề xuất${reasons.length ? ` — ${reasons.join('; ')}` : ''}). Không ghi gói test; hãy tự tạo gói bằng route tạo gói test.`;
+  private droppedAllMessage(proposed: number, reasons: DroppedRef[]): string {
+    return `Không còn ca nào chấm được sau khi lọc (${proposed} ca đề xuất${reasons.length ? ` — ${describeDropped(reasons)}` : ''}). Không ghi gói test; hãy tự tạo gói bằng route tạo gói test.`;
   }
 
   private async putGeneratedSource(sessionId: string, language: SandboxLanguage, code: string): Promise<AnswerSource> {

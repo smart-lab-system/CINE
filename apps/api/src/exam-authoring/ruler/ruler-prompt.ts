@@ -68,11 +68,10 @@ export const RULER_PROMPT_VERSION = createHash('sha256').update(TEMPLATE_STATEME
 
 export function buildRulerPrompt(input: RulerPromptInput): string {
   const template = input.teacherAnswer === undefined ? TEMPLATE_STATEMENT : TEMPLATE_ANSWER;
+  const values: Record<string, string> = { STATEMENT: input.statement, LANGUAGE: input.language, TEACHER_ANSWER: input.teacherAnswer ?? '' };
+  // MỘT lượt quét: chữ vừa chèn không bị quét lại, nên đề chứa `{{TEACHER_ANSWER}}` hay mã chứa `{{STATEMENT}}` không bị ghép lẫn nhau.
   // Hàm thay thế (không phải chuỗi): đề hay mã có thể chứa `$&` hay `$1`, và `String.replace` sẽ hiểu chúng.
-  return template
-    .replace('{{STATEMENT}}', () => input.statement)
-    .replace(/\{\{LANGUAGE\}\}/g, () => input.language)
-    .replace('{{TEACHER_ANSWER}}', () => input.teacherAnswer ?? '');
+  return template.replace(/\{\{(STATEMENT|LANGUAGE|TEACHER_ANSWER)\}\}/g, (_match, key: string) => values[key]);
 }
 
 const caseSchema = z.object({

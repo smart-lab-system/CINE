@@ -66,6 +66,29 @@ describe('P1b 5.2 — định tuyến bài theo câu (e2e)', () => {
     return { owner, ctx };
   }
 
+  /**
+   * Mỗi câu một gói ĐÃ DUYỆT và ĐÃ GHIM. Gắn đề không còn tạo gói (G2b A2: gói do giảng viên tạo hay do nút sinh gói), nhưng
+   * bắt đầu chấm đòi mọi câu bài code có gói đã ghim; test định tuyến cần chấm thật nên dựng gói bằng SQL như `investigator-seed`.
+   */
+  async function pinApprovedBundlePerProblem(ctx: SeedSession, teacherId: string): Promise<void> {
+    const problems: { id: string; ordinal: number }[] = await ds.query(
+      `SELECT id, ordinal FROM examcollect.exam_problem WHERE exam_session_id = $1 ORDER BY ordinal`,
+      [ctx.sessionId],
+    );
+    for (const p of problems) {
+      const [bundle] = await ds.query(
+        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, approved_by, approved_at, problem_id)
+         VALUES ($1, $2, 'teacher', $3, $3, now(), $4) RETURNING id`,
+        [ctx.sessionId, p.ordinal, teacherId, p.id],
+      );
+      await ds.query(
+        `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output) VALUES ($1, 'c1', 'co_ban', '1', '1')`,
+        [bundle.id],
+      );
+      await ds.query(`UPDATE examcollect.exam_problem SET test_bundle_id = $2 WHERE id = $1`, [p.id, bundle.id]);
+    }
+  }
+
   /** Một bài đã thu của `mssv` trên yêu cầu nộp `deliverableId`. */
   async function collectedSubmission(ctx: SeedSession, mssv: string, deliverableId: string): Promise<void> {
     const [sub] = await ds.query(
@@ -115,6 +138,7 @@ describe('P1b 5.2 — định tuyến bài theo câu (e2e)', () => {
 
   it('đề cương đã xác nhận: mỗi bài vào đúng câu của file nó nộp, với rubric của câu đó', async () => {
     const { owner, ctx } = await attachedTwoQuestions('route');
+    await pinApprovedBundlePerProblem(ctx, owner.id);
     await ds.query(
       `UPDATE examcollect.exam_session SET blueprint_confirmed_at = now(), blueprint_confirmed_by = $2 WHERE id = $1`,
       [ctx.sessionId, owner.id],

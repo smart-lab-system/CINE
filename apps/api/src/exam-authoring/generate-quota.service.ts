@@ -107,10 +107,10 @@ export class GenerateQuotaService {
     if (mine.length >= this.options.burstLimit) {
       const retryAfterMs = mine[0] + this.options.burstWindowMs - now;
       throw new HttpException(
-        `Bạn đã soạn ${this.options.burstLimit} lượt trong ${Math.round(
+        `Bạn đã gọi model ${this.options.burstLimit} lượt (soạn đề, sinh gói test) trong ${Math.round(
           this.options.burstWindowMs / 60_000,
         )} phút. Chờ khoảng ${Math.max(1, Math.ceil(retryAfterMs / 60_000))} phút rồi thử lại — ` +
-          'mỗi lượt soạn đề là một lời gọi tới model tính tiền thật.',
+          'mỗi lượt soạn đề hay sinh gói test là một lời gọi tới model tính tiền thật.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -134,7 +134,7 @@ export class GenerateQuotaService {
     });
     if (used >= this.options.dailyLimit) {
       throw new HttpException(
-        `Bạn đã dùng hết ${this.options.dailyLimit} lượt soạn đề trong 24 giờ qua. ` +
+        `Bạn đã dùng hết ${this.options.dailyLimit} lượt gọi model (soạn đề, sinh gói test) trong 24 giờ qua. ` +
           'Hạn mức này để một lỗi phía máy không đốt hết ngân sách gọi model; ' +
           'cần thêm thì báo quản trị viên.',
         HttpStatus.TOO_MANY_REQUESTS,

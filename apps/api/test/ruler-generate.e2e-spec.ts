@@ -53,11 +53,16 @@ describe('G2b-R — sinh đáp án và gói test (e2e)', () => {
     'Bài 1. Đảo ngược dãy số.',
     'Cho số nguyên n và dãy gồm n số nguyên. In dãy theo thứ tự ngược lại, cách nhau một dấu cách.',
     'Ràng buộc: 1 ≤ n ≤ 100000.',
-    'Ví dụ 1: đầu vào "2" rồi "5 6", đầu ra "6 5".',
+    'Ví dụ 1:',
+    'Input',
+    '2',
+    '5 6',
+    'Output',
+    '6 5',
   ].join('\n');
   const Q_FORMAT = 'In dãy theo thứ tự ngược lại, cách nhau một dấu cách';
   const Q_LIMIT = 'Ràng buộc: 1 ≤ n ≤ 100000';
-  const Q_EXAMPLE = 'Ví dụ 1: đầu vào "2" rồi "5 6", đầu ra "6 5"';
+  const Q_EXAMPLE = 'Input\n2\n5 6\nOutput\n6 5';
   const EX_INPUT = '2\n5 6\n';
   const MODEL_CODE = '#include <bits/stdc++.h>\nint main() { /* do model viết */ }\n';
   const TEACHER_CODE = '#include <iostream>\nint main() { /* do giảng viên viết */ }\n';
@@ -192,7 +197,8 @@ describe('G2b-R — sinh đáp án và gói test (e2e)', () => {
     );
   const referenceOf = async (sessionId: string) => {
     const [row] = await ds.query(
-      `SELECT model_answer_origin, model_answer_unverified, ruler_trust, model_answer_source_key, model_answer_source_sha256
+      `SELECT model_answer_origin, model_answer_unverified, ruler_trust, model_answer_source_key, model_answer_source_sha256,
+              model_answer_note, model_answer_storage_key, model_answer_filename
          FROM examcollect.grading_reference WHERE exam_session_id = $1`,
       [sessionId],
     );
@@ -352,6 +358,20 @@ describe('G2b-R — sinh đáp án và gói test (e2e)', () => {
       expect(res.status).toBe(201);
       expect(res.body.ruler).toEqual({ trust: 'unverified', examplesChecked: 0 });
       expect(await referenceOf(sessionId)).toMatchObject({ model_answer_unverified: true, ruler_trust: 'unverified', model_answer_origin: 'generated' });
+    });
+
+    it('ví dụ BỊA: đề không có ví dụ, model trích câu chung chung rồi tự viết cặp vào/ra khớp đáp án của nó → vẫn unverified', async () => {
+      const sessionId = await makeSession(a);
+      await giveStatement(a, sessionId, 'Cho n và dãy n số nguyên. In dãy theo thứ tự ngược lại, cách nhau một dấu cách.\nRàng buộc: 1 ≤ n ≤ 100000.');
+      // Đáp án in "đảo dãy"; ví dụ bịa đòi output là chính dãy xuôi và sandbox cũng chạy ra đúng thế để khớp.
+      deps.sandbox = reverseSandbox((input) => (input === EX_INPUT ? { stdout: '5 6\n' } : undefined));
+      provider.next = async () => outcome(proposal({ examples: [{ input: EX_INPUT, output: '5 6\n', quote: Q_FORMAT }] }));
+
+      const res = await post(a, sessionId, 'statement');
+
+      expect(res.status).toBe(201);
+      expect(res.body.ruler).toEqual({ trust: 'unverified', examplesChecked: 0 });
+      expect(await referenceOf(sessionId)).toMatchObject({ model_answer_unverified: true, ruler_trust: 'unverified' });
     });
 
     it('ví dụ có quote không nằm trong đề không được tin và không tính', async () => {
@@ -527,6 +547,71 @@ describe('G2b-R — sinh đáp án và gói test (e2e)', () => {
       }
     });
 
+    it('thay đáp án cũ của hệ thống thì thay TRỌN: ghi chú và tài liệu đáp án của lượt soạn đề không còn dưới nhãn "generated"', async () => {
+      const sessionId = await prepare(d);
+      await giveSource(d, sessionId, 'int main() { /* soạn đề */ }\n', 'authoring'); // kèm ghi chú "Đáp án mẫu" của soạn đề
+      await ds.query(
+        `UPDATE examcollect.grading_reference SET model_answer_storage_key = $2, model_answer_filename = 'dap-an-va-test.docx' WHERE exam_session_id = $1`,
+        [sessionId, `grading-reference/${sessionId}/answer-key`],
+      );
+
+      const res = await post(d, sessionId, 'statement');
+
+      expect(res.status).toBe(201);
+      expect(await referenceOf(sessionId)).toMatchObject({
+        model_answer_origin: 'generated',
+        model_answer_note: null,
+        model_answer_storage_key: null,
+        model_answer_filename: null,
+        model_answer_source_sha256: sha(MODEL_CODE),
+      });
+    });
+
+    it('giảng viên lưu đáp án của mình TRONG LÚC đang sinh → sinh dừng bằng 409, đáp án của giảng viên còn nguyên, không ghi gói', async () => {
+      const sessionId = await prepare(d);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      provider.next = async () => {
+        await gate;
+        return outcome(proposal());
+      };
+      const pending = post(d, sessionId, 'statement').then((r) => r);
+      for (let i = 0; i < 200 && provider.calls.length === 0; i++) await new Promise((r) => setTimeout(r, 25));
+      expect(provider.calls).toHaveLength(1);
+
+      await giveSource(d, sessionId, TEACHER_CODE, 'teacher');
+      release();
+      const res = await pending;
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toMatch(/giảng viên vừa lưu/i);
+      expect(await bundlesOf(sessionId)).toHaveLength(0);
+      expect(await referenceOf(sessionId)).toMatchObject({ model_answer_origin: 'teacher', model_answer_source_sha256: sha(TEACHER_CODE) });
+      expect((await runsOf(sessionId))[0]).toMatchObject({ status: 'aborted' });
+    });
+
+    it('lượt chạy bị đóng (quá hạn, bị dọn) trong lúc đang sinh → KHÔNG ghi gói mồ côi: 409 và hoàn tác', async () => {
+      const sessionId = await prepare(d);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      provider.next = async () => {
+        await gate;
+        return outcome(proposal());
+      };
+      const pending = post(d, sessionId, 'statement').then((r) => r);
+      for (let i = 0; i < 200 && provider.calls.length === 0; i++) await new Promise((r) => setTimeout(r, 25));
+      expect(provider.calls).toHaveLength(1);
+      // Giả lập lượt kế tiếp đã dọn dòng `running` quá 15 phút của lượt này (xem `TestRunStore.closeStale`).
+      await ds.query(`UPDATE examcollect.grading_test_run SET status = 'aborted', finished_at = now() WHERE exam_session_id = $1 AND status = 'running'`, [sessionId]);
+
+      release();
+      const res = await pending;
+
+      expect(res.status).toBe(409);
+      expect(await bundlesOf(sessionId)).toHaveLength(0);
+      expect((await referenceOf(sessionId))?.model_answer_source_key ?? null).toBeNull();
+    });
+
     it('sinh lần hai ra phiên bản mới, không đè gói cũ và không ghim', async () => {
       const sessionId = await prepare(d);
       const first = await post(d, sessionId, 'statement');
@@ -632,6 +717,17 @@ describe('G2b-R — sinh đáp án và gói test (e2e)', () => {
       expect(res.body.message).toMatch(/đang sinh/);
       expect(provider.calls).toHaveLength(0);
       expect(await runsOf(sessionId)).toHaveLength(1);
+    });
+
+    it('một lượt CHẠY THỬ đang chạy → sinh bị 409 và thông điệp nói đúng việc đang chạy (chạy thử), không nói "đang sinh"', async () => {
+      const sessionId = await prepare(b);
+      await app.get(TestRunStore).begin({ sessionId, problemId: null, bundleId: null, kind: 'test_run', caseKey: null, sourceSha256: null, teacherId: b.id });
+
+      const res = await post(b, sessionId, 'statement');
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toMatch(/chạy thử/);
+      expect(provider.calls).toHaveLength(0);
     });
 
     it('phiên đã có bài đang chấm → 409 ở cả hai đường sinh, model chưa được gọi', async () => {

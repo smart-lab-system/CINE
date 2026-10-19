@@ -4,6 +4,7 @@ import {
   CaseProposal,
   checkExamples,
   coverageWarnings,
+  exampleIsInStatement,
   interpretRuns,
   LARGE_INPUT_CHARS,
   normalizeForQuote,
@@ -180,34 +181,85 @@ describe('sameOutput() — cùng chuẩn hoá với comparator exact của worke
     expect(sameOutput('1 2', '1  2')).toBe(false);
     expect(sameOutput('1', '2')).toBe(false);
   });
+  // Worker chỉ bỏ dấu cách và tab ở cuối dòng (`normalizeLines`). Lỏng hơn nó thì ví dụ trong đề "khớp" ở bước kiểm mà chính bài
+  // chấm sau đó lại bắt lệch: NBSP, form feed và \r đứng riêng cuối dòng là ký tự thật của output.
+  it('KHÔNG lỏng hơn worker: NBSP và form feed ở cuối dòng là ký tự thật', () => {
+    expect(sameOutput('7 ', '7')).toBe(false);
+    expect(sameOutput('7\f', '7')).toBe(false);
+    expect(sameOutput('7\t \n', '7')).toBe(true);
+  });
 });
 
 describe('checkExamples() — ví dụ vào/ra trong đề', () => {
-  const ex = (output: string, over = {}) => ({ input: '3\n1 2 3\n', output, quote: 'In ra các số theo thứ tự ngược lại', ...over });
+  // Đề có ví dụ THẬT. Một ví dụ chỉ được tin khi chính input và output của nó nằm trong câu trích, theo đúng thứ tự: nếu chỉ
+  // cần câu trích khớp đề thì model tự bịa cặp vào/ra, tự viết đáp án khớp nó, và thước thành `verified` mà không ai kiểm gì.
+  const WITH_EXAMPLE = `${STATEMENT}\nVí dụ:\nInput\n3\n1 2 3\nOutput\n3 2 1\n`;
+  const REAL_QUOTE = 'Input\n3\n1 2 3\nOutput\n3 2 1';
+  const ex = (output: string, over = {}) => ({ input: '3\n1 2 3\n', output, quote: REAL_QUOTE, ...over });
 
   it('mọi ví dụ khớp (chịu CRLF và khoảng trắng cuối) → checked > 0, không lệch', () => {
-    const r = checkExamples([ex('3 2 1\n'), ex('3 2 1 \r\n')], STATEMENT, (i) => (i === 0 ? '3 2 1\n' : '3 2 1\n'));
+    const r = checkExamples([ex('3 2 1\n'), ex('3 2 1')], WITH_EXAMPLE, (i) => (i === 0 ? '3 2 1\n' : '3 2 1 \r\n'));
     expect(r).toEqual({ checked: 2, mismatches: [] });
   });
 
   it('một ví dụ lệch → báo đích danh, kèm kỳ vọng và thực tế', () => {
-    const r = checkExamples([ex('3 2 1\n')], STATEMENT, () => '1 2 3\n');
+    const r = checkExamples([ex('3 2 1\n')], WITH_EXAMPLE, () => '1 2 3\n');
     expect(r.checked).toBe(1);
     expect(r.mismatches).toEqual([{ index: 0, input: '3\n1 2 3\n', expected: '3 2 1\n', actual: '1 2 3\n' }]);
   });
 
   it('ví dụ không trích được đề không được tin: không tính vào checked', () => {
-    const r = checkExamples([ex('9\n', { quote: 'Một câu không có trong đề này' })], STATEMENT, () => '1\n');
+    const r = checkExamples([ex('9\n', { quote: 'Một câu không có trong đề này' })], WITH_EXAMPLE, () => '1\n');
     expect(r).toEqual({ checked: 0, mismatches: [] });
   });
 
+  it('ví dụ BỊA: đề không có ví dụ nào, model trích một câu chung chung rồi tự viết cặp vào/ra → không tính, thước không thể verified', () => {
+    const invented = { input: '3\n1 2 3\n', output: '1 2 3\n', quote: 'In ra các số theo thứ tự ngược lại' };
+    // Đáp án SAI cũng in "1 2 3", khớp với ví dụ bịa — đúng ca mà bước này phải chặn.
+    expect(checkExamples([invented], STATEMENT, () => '1 2 3\n')).toEqual({ checked: 0, mismatches: [] });
+  });
+
+  it('câu trích có thật nhưng output model chép không có trong câu trích → không tính (chép sai ví dụ trong đề)', () => {
+    const r = checkExamples([ex('1 2 3\n')], WITH_EXAMPLE, () => '1 2 3\n');
+    expect(r).toEqual({ checked: 0, mismatches: [] });
+  });
+
+  it('input không có trong câu trích → không tính', () => {
+    expect(checkExamples([ex('3 2 1\n', { input: '4\n9 9 9 9\n' })], WITH_EXAMPLE, () => '3 2 1\n').checked).toBe(0);
+  });
+
+  it('output phải đứng SAU input trong câu trích; đảo thứ tự thì không tính', () => {
+    const swapped = { input: '3 2 1', output: '3\n1 2 3', quote: REAL_QUOTE };
+    expect(checkExamples([swapped], WITH_EXAMPLE, () => '3 1 2 3').checked).toBe(0);
+  });
+
+  it('khác biệt xuống dòng và khoảng trắng giữa chữ trong đề và ví dụ model chép không làm ví dụ bị loại', () => {
+    const reflowed = { input: '3 1 2 3', output: '3   2\n1', quote: 'Input 3 1 2 3 Output 3 2 1' };
+    expect(checkExamples([reflowed], `${STATEMENT}\nInput\n3\n1 2 3\nOutput\n3 2 1\n`, () => '3 2 1').checked).toBe(1);
+  });
+
+  it('bài không đọc input (input rỗng): chỉ cần output nằm trong câu trích', () => {
+    const noInput = { input: '', output: '42', quote: 'Output: 42 (không có dữ liệu vào)' };
+    expect(checkExamples([noInput], `${STATEMENT}\nOutput: 42 (không có dữ liệu vào)`, () => '42\n')).toEqual({ checked: 1, mismatches: [] });
+  });
+
+  it('ví dụ có output rỗng không chứng minh gì → không tính', () => {
+    const empty = { input: '3\n1 2 3\n', output: '  \n', quote: REAL_QUOTE };
+    expect(checkExamples([empty], WITH_EXAMPLE, () => '')).toEqual({ checked: 0, mismatches: [] });
+  });
+
   it('ví dụ mà đáp án không chạy ra stdout (null) → tính là lệch, không âm thầm bỏ qua', () => {
-    const r = checkExamples([ex('3 2 1\n')], STATEMENT, () => null);
+    const r = checkExamples([ex('3 2 1\n')], WITH_EXAMPLE, () => null);
     expect(r.mismatches).toHaveLength(1);
   });
 
   it('không có ví dụ → checked 0 (thước chỉ có thể unverified)', () => {
-    expect(checkExamples([], STATEMENT, () => '')).toEqual({ checked: 0, mismatches: [] });
+    expect(checkExamples([], WITH_EXAMPLE, () => '')).toEqual({ checked: 0, mismatches: [] });
+  });
+
+  it('exampleIsInStatement dùng chung với bước lọc trước khi chạy', () => {
+    expect(exampleIsInStatement(ex('3 2 1\n'), WITH_EXAMPLE)).toBe(true);
+    expect(exampleIsInStatement(ex('1 2 3\n'), WITH_EXAMPLE)).toBe(false);
   });
 });
 
@@ -238,5 +290,29 @@ describe('coverageWarnings() — độ phủ của gói', () => {
 
   it('thiếu ca lớn → cảnh báo', () => {
     expect(coverageWarnings(6, kept(6, { big: false }), []).join(' ')).toMatch(/lớn/);
+  });
+
+  // Tên ca do model đặt, tới 200 ký tự và tới 500 ca: một danh sách không cắt là một thông điệp hàng trăm KB trong phản hồi.
+  it('danh sách ca bị bỏ dài thì cắt: nêu vài ca đầu và số ca còn lại, mỗi tên cắt ngắn', () => {
+    const many = Array.from({ length: 300 }, (_, i) => ({ name: `${'t'.repeat(200)}${i}`, reason: 'không trích được đề' }));
+    const [warning] = coverageWarnings(300, kept(2), many);
+    expect(warning.length).toBeLessThan(2_000);
+    expect(warning).toMatch(/và 290 ca khác/);
+  });
+});
+
+describe('ca chứa ký tự NUL — Postgres `text` từ chối \\u0000, và một lỗi ghi sau khi đã tốn tiền model là 500', () => {
+  it('prefilterCases bỏ ca có input chứa NUL, nêu lý do', () => {
+    const r = prefilterCases([caseOf({ name: 'nul', input: '1\u00002\n' }), caseOf({ name: 'tot' })], STATEMENT, 200);
+    expect(r.kept.map((c) => c.key)).toEqual(['tot']);
+    expect(r.dropped).toEqual([expect.objectContaining({ name: 'nul', reason: expect.stringMatching(/NUL/) })]);
+  });
+
+  it('interpretRuns bỏ ca mà đáp án in ra NUL, nêu lý do', () => {
+    const ran = (name: string, stdout: string) => ({ name, status: 'ran', stdout });
+    const run = (cases: { name: string; status: string; stdout: string | null }[]) => execResult(cases as Parameters<typeof execResult>[0]);
+    const r = interpretRuns(run([ran('a', 'x\u0000y'), ran('b', 'ok')]), run([ran('a', 'x\u0000y'), ran('b', 'ok')]), ['a', 'b']);
+    expect([...r.stable.keys()]).toEqual(['b']);
+    expect(r.dropped).toEqual([{ name: 'a', reason: expect.stringMatching(/NUL/) }]);
   });
 });

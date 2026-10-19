@@ -11,8 +11,14 @@ import { buildRulerPrompt, parseRulerResponse, RULER_PROMPT_VERSION } from './ru
  * giữ dưới ~21000 token thì SDK cho gọi không stream, nhưng ta vẫn stream cho đồng bộ với soạn đề.
  */
 const MAX_OUTPUT_TOKENS = 32_000;
-/** Trần thời gian của một lời gọi: một kết nối treo không được giữ cả lượt sinh (đồng bộ, spec D-D). */
+/** Trần thời gian chờ HEADER của một lời gọi: một kết nối treo không được giữ cả lượt sinh (đồng bộ, spec D-D). */
 const CALL_TIMEOUT_MS = 150_000;
+/**
+ * Trần TOÀN BỘ lời gọi, kể cả lúc stream. `timeout` của SDK dừng tác dụng khi header đã về, nên một stream chậm không bị chặn; và
+ * SDK tự thử lại lỗi timeout hai lần. Quá 15 phút thì lượt kế tiếp coi lượt này đã chết và dọn nó, còn lượt này vẫn ghi gói
+ * (xem `TestRunStore.closeStale`) — nên cả lượt phải nằm xa dưới ngưỡng đó. Thử lại là việc của giảng viên (bấm lại), không ngầm.
+ */
+const OVERALL_TIMEOUT_MS = 240_000;
 
 /**
  * Model đề xuất thước từ một đề cố định (G2b-R Task 3). Cố ý dùng cùng model với soạn đề (`AUTHORING_MODEL`): việc này
@@ -36,7 +42,7 @@ export class ClaudeRulerProvider implements RulerProvider {
             max_tokens: MAX_OUTPUT_TOKENS,
             messages: [{ role: 'user', content: buildRulerPrompt(request) }],
           },
-          { timeout: CALL_TIMEOUT_MS },
+          { timeout: CALL_TIMEOUT_MS, maxRetries: 0, signal: AbortSignal.timeout(OVERALL_TIMEOUT_MS) },
         )
         .finalMessage();
     } catch (error) {

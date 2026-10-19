@@ -111,6 +111,60 @@ describe('start-grading — chặn khi thiếu gói test cho bài điều tra (e
     expect(res.status).toBe(400);
   });
 
+  // G2b A2: gắn đề từ Soạn đề KHÔNG tạo gói test (trước đây tạo, duyệt và ghim một gói do chính LLM viết — thước tự duyệt).
+  // Giảng viên phải tạo gói (tay, hay nút sinh gói) rồi duyệt và ghim; chưa làm thì bắt đầu chấm bị chặn như mọi phiên bài code.
+  it('phiên đã gắn đề từ Soạn đề nhưng chưa có gói nào → start-grading 400, gắn đề không tự ghim gói', async () => {
+    const owner = await login('b5');
+    const { classId, rubricId } = await createRubricAndClass(owner.token, owner.id, 'b5');
+    const created = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set(as(owner.token))
+      .send({
+        name: 'Phiên code b5',
+        classId,
+        roomName: `Phòng b5 ${stamp}`,
+        semesterName: 'HK kiểm thử',
+        examType: 'CK',
+        rubricId,
+        ...liveSessionWindow(),
+        requiredFilenames: [{ filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }],
+      });
+    expect(created.status).toBe(201);
+    const sessionId = created.body.id as string;
+    const deliverableId = created.body.requiredDeliverables[0].id as string;
+
+    const attached = await request(app.getHttpServer())
+      .post('/exam-authoring/attach')
+      .set(as(owner.token))
+      .send({
+        examSessionId: sessionId,
+        examJson: JSON.stringify({
+          title: 'Đề gắn từ Soạn đề',
+          language: 'cpp',
+          verification: { status: 'unverified', reason: 'sandbox_unavailable' },
+          questions: [
+            {
+              statement: 'In ra tổng hai số.',
+              modelAnswer: 'int main() { return 0; }',
+              topic: 'thử',
+              points: 10,
+              testBundle: [{ name: 'ca 1', group: 'co_ban', input: '1 2', expectedOutput: '3' }],
+            },
+          ],
+        }),
+      });
+    expect(attached.status).toBe(201);
+    expect(attached.body.nextStep).toBe('create_bundle');
+    const [pin] = await ds.query(`SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`, [sessionId]);
+    expect(pin.test_bundle_id).toBeNull();
+    const [{ n }] = await ds.query(`SELECT COUNT(*)::int AS n FROM examcollect.grading_test_bundle WHERE exam_session_id = $1`, [sessionId]);
+    expect(n).toBe(0);
+
+    await seedCollectedSubmission(sessionId, deliverableId, owner.id, classId, 'b5');
+    const res = await request(app.getHttpServer()).post(`/exam-sessions/${sessionId}/start-grading`).set(as(owner.token));
+    expect(res.status).toBe(400);
+  });
+
   it('cùng phiên đó, SAU khi tạo—duyệt—ghim gói test → start-grading chạy (queued: 1)', async () => {
     const owner = await login('b2');
     const { classId, rubricId } = await createRubricAndClass(owner.token, owner.id, 'b2');

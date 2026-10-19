@@ -647,6 +647,87 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
       expect(await app.get(StorageService).objectExists(first.body.sourceKey as string)).toBe(true);
     });
 
+    // Màn chuẩn bị chấm cần biết phiên đã có mã để chạy hay chưa (dòng "Đáp án mẫu" của cột kiểm tra), nhưng mã KHÔNG phải thứ AI
+    // chấm đọc: `hasModelAnswer` (tài liệu hay ghi chú) giữ nguyên nghĩa, nếu không băng "AI thấy đáp án mẫu" nói dối.
+    it('readiness báo hasAnswerSource sau khi tải mã, và vẫn KHÔNG tính mã là đáp án AI đọc', async () => {
+      const session = await seedSession();
+      await setReference(session.id, { questionMaterialId: session.materialId }).expect(200);
+      const before = await readiness(session.id);
+      expect(before.body).toMatchObject({ hasAnswerSource: false, hasModelAnswer: false });
+
+      await confirm(session.id, await uploadSource(session.id, 'int main() { return 13; }\n'));
+
+      const after = await readiness(session.id);
+      expect(after.body).toMatchObject({ hasAnswerSource: true, hasModelAnswer: false });
+    });
+
+    // Mã là một đáp án RIÊNG của giảng viên, không phải phần phụ của ghi chú: sửa một chữ trong ghi chú không được làm mất mã
+    // (rồi mọi lượt chạy thử báo "chưa có mã đáp án"). Ngược lại mã do HỆ THỐNG sinh không bao giờ được gắn nhãn của giảng viên.
+    it('giảng viên sửa ghi chú đáp án của chính mình → mã đã tải lên vẫn còn, nguồn gốc vẫn là teacher', async () => {
+      const session = await seedSession();
+      const confirmed = await confirm(session.id, await uploadSource(session.id, 'int main() { return 7; }\n'));
+      expect(confirmed.status).toBe(201);
+
+      await setReference(session.id, { modelAnswerNote: 'ghi chú mới của tôi' }).expect(200);
+
+      expect(await referenceColumns(session.id)).toMatchObject({ key: confirmed.body.sourceKey, origin: 'teacher' });
+    });
+
+    it('giảng viên xoá đáp án của mình (ghi chú về null) → mã cũng đi theo, không còn đáp án nào', async () => {
+      const session = await seedSession();
+      await setReference(session.id, { modelAnswerNote: 'ghi chú' }).expect(200);
+      await confirm(session.id, await uploadSource(session.id, 'int main() { return 8; }\n'));
+
+      await setReference(session.id, { modelAnswerNote: null }).expect(200);
+
+      expect(await referenceColumns(session.id)).toMatchObject({ key: null, origin: null });
+    });
+
+    it('mã do hệ thống sinh (authoring) rồi giảng viên sửa ghi chú → mã bị bỏ, KHÔNG được gắn nhãn teacher', async () => {
+      const session = await seedSession();
+      const code = 'int main() { return 9; }\n';
+      const key = `grading-reference/${session.id}/source-${createHash('sha256').update(code, 'utf8').digest('hex')}.cpp`;
+      await app.get(StorageService).putObject(key, Buffer.from(code, 'utf8'), 'text/plain; charset=utf-8');
+      await app.get(GradingReferenceService).upsert(session.entity, { modelAnswerNote: 'do soạn đề' }, teacherId, 'authoring', true, {
+        key,
+        sha256: createHash('sha256').update(code, 'utf8').digest('hex'),
+      });
+
+      await setReference(session.id, { modelAnswerNote: 'tôi viết lại' }).expect(200);
+
+      expect(await referenceColumns(session.id)).toMatchObject({ key: null, origin: 'teacher' });
+    });
+
+    // Cùng nguyên tắc ở chiều ngược lại: tải mã của MÌNH đè lên đáp án do soạn đề viết thì phần còn lại của đáp án cũ (ghi chú,
+    // tài liệu) không được mang nhãn teacher, nhưng ghi chú CỦA CHÍNH giảng viên thì ở lại.
+    it('giảng viên tải mã đè lên đáp án của soạn đề → ghi chú của soạn đề bị bỏ, nhãn là teacher', async () => {
+      const session = await seedSession();
+      const code = 'int main() { return 10; }\n';
+      const hash = createHash('sha256').update(code, 'utf8').digest('hex');
+      const key = `grading-reference/${session.id}/source-${hash}.cpp`;
+      await app.get(StorageService).putObject(key, Buffer.from(code, 'utf8'), 'text/plain; charset=utf-8');
+      await app.get(GradingReferenceService).upsert(session.entity, { modelAnswerNote: 'ghi chú do soạn đề' }, teacherId, 'authoring', true, { key, sha256: hash });
+
+      const res = await confirm(session.id, await uploadSource(session.id, 'int main() { return 11; }\n'));
+
+      expect(res.status).toBe(201);
+      const [row] = await dataSource.query(
+        `SELECT model_answer_note AS note, model_answer_origin AS origin FROM examcollect.grading_reference WHERE exam_session_id = $1`,
+        [session.id],
+      );
+      expect(row).toEqual({ note: null, origin: 'teacher' });
+    });
+
+    it('giảng viên tải mã khi đã có ghi chú của chính họ → ghi chú còn nguyên', async () => {
+      const session = await seedSession();
+      await setReference(session.id, { modelAnswerNote: 'ghi chú của tôi' }).expect(200);
+
+      await confirm(session.id, await uploadSource(session.id, 'int main() { return 12; }\n'));
+
+      const [row] = await dataSource.query(`SELECT model_answer_note AS note FROM examcollect.grading_reference WHERE exam_session_id = $1`, [session.id]);
+      expect(row.note).toBe('ghi chú của tôi');
+    });
+
     it('xác nhận lại mã mới xoá xác nhận thước cũ: đáp án mới thì chưa ai xác nhận nó', async () => {
       const session = await seedSession();
       await confirm(session.id, await uploadSource(session.id, 'int a;\n'));
@@ -661,6 +742,30 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
         [session.id],
       );
       expect(row).toEqual({ ruler_confirmed_by: null, ruler_confirmed_at: null });
+    });
+
+    // Máy chạy bài đọc mã như văn bản UTF-8. File lưu ở CP1258/ANSI (Dev-C++, Visual Studio trên Windows tiếng Việt) hay UTF-16
+    // (Notepad) xác nhận được, rồi MỌI lượt chạy thử và sinh gói sau đó báo "không khớp băm" mãi mãi, tải lại cũng vậy.
+    it.each([
+      ['CP1258/ANSI (byte 0xE3 lẻ)', Buffer.from([0x2f, 0x2f, 0x20, 0x62, 0xe3, 0x6e, 0x0a])],
+      ['UTF-16 LE có BOM', Buffer.from('﻿int main() {}\n', 'utf16le')],
+    ])('mã không phải UTF-8 (%s) → 400 nói rõ, không ghi cột nào', async (_name, content) => {
+      const session = await seedSession();
+      const pendingKey = await uploadSource(session.id, content);
+
+      const res = await confirm(session.id, pendingKey);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/UTF-8/);
+      const [row] = await dataSource.query(`SELECT 1 FROM examcollect.grading_reference WHERE exam_session_id = $1`, [session.id]);
+      expect(row).toBeUndefined();
+    });
+
+    it('UTF-8 hợp lệ có tiếng Việt và BOM vẫn nhận', async () => {
+      const session = await seedSession();
+      const pendingKey = await uploadSource(session.id, '﻿// đáp án: đảo dãy\nint main() {}\n');
+
+      expect((await confirm(session.id, pendingKey)).status).toBe(201);
     });
 
     it('object lớn hơn trần 256 KiB → 400, không ghi cột nào', async () => {

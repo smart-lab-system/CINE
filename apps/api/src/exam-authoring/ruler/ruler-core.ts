@@ -1,4 +1,5 @@
 import { ExecResult, INLINE_MAX_CHARS } from '../../sandbox/contract';
+import { normalizeLines } from '../../sandbox-worker/comparators';
 
 /**
  * Lõi THUẦN của sinh thước (G2b-R Task 3): lọc đề xuất của LLM, đọc kết quả hai lượt chạy đáp án, kiểm ví dụ trong đề.
@@ -115,6 +116,8 @@ export function prefilterCases(proposed: CaseProposal[], statement: string, limi
     const group = normalizeGroup(c.group);
     const drop = (reason: string) => dropped.push({ name: c.name, key, group, input: c.input, reason });
     if (!quoteAppearsInStatement(c.quote, statement)) return drop('không trích được câu nào trong đề');
+    // Postgres `text` từ chối \u0000: một ca như vậy làm lệnh ghi gói hỏng (500) SAU khi đã tốn tiền model.
+    if (c.input.includes('\u0000')) return drop('input chứa ký tự NUL (cơ sở dữ liệu không lưu được)');
     if (!c.answerIsUnique) return drop('đáp án không duy nhất và gói chưa có bộ so sánh phù hợp');
     if (c.input.length > INLINE_MAX_CHARS) return drop('input vượt 4 MiB');
     if (kept.length >= limit) return drop(`vượt trần ${limit} ca của một job`);
@@ -150,6 +153,10 @@ export function interpretRuns(first: ExecResult, second: ExecResult, wanted: str
       dropped.push({ name, reason: 'worker không trả stdout' });
       continue;
     }
+    if (x.stdout.includes('\u0000') || y.stdout.includes('\u0000')) {
+      dropped.push({ name, reason: 'output chứa ký tự NUL (cơ sở dữ liệu không lưu được)' });
+      continue;
+    }
     if (x.stdout.length >= STDOUT_LIMIT || y.stdout.length >= STDOUT_LIMIT) {
       dropped.push({ name, reason: 'output vượt 64 KiB' });
       continue;
@@ -163,10 +170,23 @@ export function interpretRuns(first: ExecResult, second: ExecResult, wanted: str
   return { stable, dropped };
 }
 
-/** So output như comparator `exact` của worker: bỏ CRLF, khoảng trắng cuối dòng và xuống dòng cuối. */
+/**
+ * So output đúng như comparator `exact` của worker (dùng chính `normalizeLines` của nó): bỏ CRLF, dấu cách và tab cuối dòng, các
+ * dòng trống cuối. KHÔNG lỏng hơn: lỏng hơn thì ví dụ "khớp" ở bước này mà bài chấm sau đó bắt lệch.
+ */
 export function sameOutput(a: string, b: string): boolean {
-  const norm = (s: string) => s.replace(/\r\n/g, '\n').split('\n').map((line) => line.replace(/\s+$/, '')).join('\n').replace(/\n+$/, '');
-  return norm(a) === norm(b);
+  return normalizeLines(a).join('\n') === normalizeLines(b).join('\n');
+}
+
+const MAX_LISTED = 10;
+const MAX_NAME_CHARS = 60;
+
+/** Danh sách ca bị bỏ cho thông điệp trả giảng viên: vài ca đầu, mỗi tên cắt ngắn, kèm số ca còn lại. Tên ca do model đặt (tới 200 ký tự, tới 500 ca). */
+export function describeDropped(dropped: DroppedRef[]): string {
+  const clip = (name: string) => (name.length > MAX_NAME_CHARS ? name.slice(0, MAX_NAME_CHARS) + '…' : name);
+  const shown = dropped.slice(0, MAX_LISTED).map((d) => clip(d.name) + ': ' + d.reason);
+  const rest = dropped.length - shown.length;
+  return rest > 0 ? shown.join('; ') + '; … và ' + rest + ' ca khác' : shown.join('; ');
 }
 
 export interface ExampleMismatch {
@@ -177,8 +197,29 @@ export interface ExampleMismatch {
 }
 
 /**
- * Đáp án chạy thật phải tái tạo đúng các ví dụ vào/ra TRONG ĐỀ (spec §4.6). Ví dụ không trích được đề thì không được tin
- * và không tính. Ví dụ mà đáp án không in ra gì tính là lệch, không âm thầm bỏ qua.
+ * Ví dụ này có THẬT trong đề không? Câu trích phải nằm trong đề VÀ chính input và output của ví dụ phải nằm trong câu trích,
+ * input trước output (sau chuẩn hoá NFC và gộp khoảng trắng). Chỉ kiểm câu trích thì không đủ: model tự bịa một cặp vào/ra, trích
+ * một câu chung chung của đề, rồi viết đáp án khớp với cặp bịa đó — thước thành `verified` mà không bước nào kiểm gì ngoài chính
+ * model. Ví dụ có output rỗng không chứng minh gì. Bài không đọc input (input rỗng) chỉ cần output.
+ */
+export function exampleIsInStatement(example: ExampleProposal, statement: string): boolean {
+  if (!quoteAppearsInStatement(example.quote, statement)) return false;
+  const quote = normalizeForQuote(example.quote);
+  const input = normalizeForQuote(example.input);
+  const output = normalizeForQuote(example.output);
+  if (output === '') return false;
+  let from = 0;
+  if (input !== '') {
+    const at = quote.indexOf(input);
+    if (at === -1) return false;
+    from = at + input.length;
+  }
+  return quote.indexOf(output, from) !== -1;
+}
+
+/**
+ * Đáp án chạy thật phải tái tạo đúng các ví dụ vào/ra TRONG ĐỀ (spec §4.6). Ví dụ không có thật trong đề (`exampleIsInStatement`)
+ * thì không được tin và không tính. Ví dụ mà đáp án không in ra gì tính là lệch, không âm thầm bỏ qua.
  * Hệ thống KHÔNG kết luận đáp án sai khi lệch: ví dụ trong đề có thể sai chính tả, nên chỉ báo để giảng viên xem.
  */
 export function checkExamples(
@@ -189,7 +230,7 @@ export function checkExamples(
   let checked = 0;
   const mismatches: ExampleMismatch[] = [];
   examples.forEach((ex, index) => {
-    if (!quoteAppearsInStatement(ex.quote, statement)) return;
+    if (!exampleIsInStatement(ex, statement)) return;
     checked += 1;
     const actual = stdoutOf(index);
     if (actual === null || !sameOutput(actual, ex.output)) {
@@ -203,7 +244,7 @@ export function checkExamples(
 export function coverageWarnings(proposedCount: number, kept: { group: string; input: string }[], dropped: DroppedRef[]): string[] {
   const warnings: string[] = [];
   if (kept.length < MIN_USEFUL_CASES || kept.length * 2 < proposedCount) {
-    const list = dropped.map((d) => `${d.name}: ${d.reason}`).join('; ');
+    const list = describeDropped(dropped);
     warnings.push(
       `Chỉ còn ${kept.length}/${proposedCount} ca sau khi lọc${list ? ` — ca bị bỏ: ${list}` : ''}. Hãy thêm ca bằng route tạo gói test.`,
     );
