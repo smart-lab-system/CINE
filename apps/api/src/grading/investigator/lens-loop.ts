@@ -26,10 +26,13 @@ export interface LensDeps {
  * chấm còn rất nhiều dư (bài chậm nhất đo được 148s trên trần 450s), nên nới ở đây an toàn.
  *
  * Nâng lên 180s ngày 2026-10-19 (lượt 65f990c): provider chậm, lời gọi báo timeout; 100s chỉ đủ hai lời gọi
- * hỏng, lăng kính rơi vào "hết giờ" mà không có kết luận. 180s cho ba lời gọi chậm nối tiếp. Hệ quả: trần job
- * chấm (`gradeJobTimeoutMs`) tăng đúng 80s.
+ * hỏng, lăng kính rơi vào "hết giờ" mà không có kết luận.
+ *
+ * Nâng lên 300s ngày 2026-10-19 (lượt 85626, bản f2eefc6): với 180s, hai lăng kính của HS2410020 và HS2410022
+ * vẫn hết giờ khi model chậm, và hai bài đó về giảng viên với cờ challenge_incomplete. 300s cho năm lời gọi chậm
+ * nối tiếp. Hệ quả: trần job chấm mặc định = 600s điều tra + 60s + 330s = 990s.
  */
-export const LENS_BUDGET = { maxRounds: 6, maxToolCalls: 8, maxWallMs: 180_000, maxTokens: 30_000 };
+export const LENS_BUDGET = { maxRounds: 6, maxToolCalls: 8, maxWallMs: 300_000, maxTokens: 30_000 };
 
 /**
  * Ngân sách CẢ pha phản biện (bốn lăng kính) cộng vào trần job chấm (`gradeJobTimeoutMs()`) —
