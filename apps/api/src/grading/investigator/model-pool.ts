@@ -1,6 +1,7 @@
 import { ModelPrice, readPrice } from './pricing';
 import type { UsageByModel } from './usage-sink';
-import { ChatTextRequest, ChatUsage, postChatText } from '../ai-provider/openai-chat';
+import { Logger } from '@nestjs/common';
+import { ChatTextRequest, ChatTextResult, ChatUsage, postChatText } from '../ai-provider/openai-chat';
 import { classifyProviderFailure } from '../ai-provider/provider-failure';
 import { MAX_TIERS, readTier } from '../ai-provider/select-grading-provider';
 // Đổi tên: `describe` của tier-chain trùng tên hàm toàn cục của jest.
@@ -15,7 +16,22 @@ export interface ModelTier {
   ceiling: number;
   /** Giá của bậc (env `GRADING_TIER<n>_PRICE_*`); thiếu thì chi phí lượt dùng bậc này là `null`. */
   price?: ModelPrice;
-  call(request: ChatTextRequest): Promise<{ content: string; usage: ChatUsage }>;
+  call(request: ChatTextRequest): Promise<ChatTextResult>;
+}
+
+const logger = new Logger('ModelPool');
+
+/**
+ * Hình dạng của một phản hồi không đọc được — KHÔNG gồm nội dung, vì nó có thể chứa chữ trích từ bài của
+ * sinh viên và lý do này đi vào hồ sơ và giao diện giảng viên. Đủ để phân biệt cụt (không kết thúc bằng `}`),
+ * chữ thường (không bắt đầu bằng `{`), bọc ``` và JSON đủ nhưng sai schema. Diễn tập 19/10: lăng kính gian_lan loại
+ * cả hai bậc chỉ với "phản hồi không đọc được", không đủ để biết vì sao.
+ */
+export function describeUnreadable(content: string, finishReason?: string | null): string {
+  const text = content.trim();
+  const start = text.startsWith('{') ? 'bắt đầu bằng {' : text.startsWith('```') ? 'bọc trong ```' : 'không bắt đầu bằng {';
+  const end = text.endsWith('}') ? 'kết thúc bằng }' : 'KHÔNG kết thúc bằng }';
+  return `${content.length} ký tự, ${start}, ${end}, finish_reason=${finishReason ?? 'không rõ'}`;
 }
 
 export interface TierRotation {
@@ -128,17 +144,26 @@ export class ModelPool {
       if (this.excluded.has(tier.label)) continue;
       let badOutputs = 0;
       let transients = 0;
+      const unreadable: string[] = [];
       for (;;) {
         if (left() < MIN_ATTEMPT_MS) throw new DeadlineExceededError(spent, rotations, spentBy);
         const attempt = { ...request, timeoutMs: Math.min(request.timeoutMs ?? DEFAULT_TIMEOUT_MS, left()) };
         try {
-          const { content, usage } = await tier.call(attempt);
+          const { content, usage, finishReason } = await tier.call(attempt);
           spent = addUsage(spent, usage);
           charge(tier.model, usage);
           const value = parse(content);
           if (value !== null) return { value, usage: spent, model: tier.model, rotations, usageByModel: spentBy };
+          unreadable.push(describeUnreadable(content, finishReason));
+          // Nội dung chỉ vào log máy chủ (người vận hành), không vào hồ sơ: 200 ký tự đầu, một dòng.
+          logger.warn(`${tier.label}: phản hồi không đọc được — ${unreadable.at(-1)}; đầu: ${content.replace(/\s+/g, ' ').slice(0, 200)}`);
           if (++badOutputs >= 2) {
-            this.exclude(tier, 'bad_output: phản hồi không đọc được', rotations, reasons);
+            this.exclude(
+              tier,
+              `bad_output: phản hồi không đọc được (${unreadable.map((d, i) => `lần ${i + 1}: ${d}`).join('; ')})`,
+              rotations,
+              reasons,
+            );
             break;
           }
         } catch (error) {

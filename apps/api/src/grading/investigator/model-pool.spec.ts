@@ -52,6 +52,38 @@ describe('ModelPool — xoay bậc ở tầng vòng lặp (§7.3)', () => {
     expect(r.value).toBe('OK b');
   });
 
+  // Diễn tập 19/10 (lượt beb6ee6): lăng kính gian_lan loại cả hai bậc với lý do cố định "phản hồi không đọc được",
+  // không đủ để biết model cụt, nói chuyện bằng chữ, hay trả JSON sai schema.
+  it.each([
+    ['JSON cụt, không đóng ngoặc', '{"action":"final","conclusion":{"suspected":tru', 'bắt đầu bằng {', 'KHÔNG kết thúc bằng }'],
+    ['chữ thường, không có JSON', 'Tôi sẽ kiểm tra bài này trước khi kết luận.', 'không bắt đầu bằng {', 'KHÔNG kết thúc bằng }'],
+    ['JSON đầy đủ nhưng sai schema', '{"action":"final","verdict":"khong hop le"}', 'bắt đầu bằng {', 'kết thúc bằng }'],
+    ['bọc trong ```', '```json\n{"a":1}\n```', 'bọc trong ```', 'KHÔNG kết thúc bằng }'],
+  ])('lý do loại bậc ghi HÌNH DẠNG của phản hồi hỏng (%s), không ghi nội dung', async (_label, content, startsWith, endsWith) => {
+    const a: ModelTier = { label: 'A', model: 'A-m', ceiling: 0.5, async call() { return { content, usage: USAGE, finishReason: 'stop' }; } };
+    const err = await new ModelPool([a], { sleep: noSleep }).ask(REQ, parse).catch((e) => e);
+    expect(err).toBeInstanceOf(ModelsExhaustedError);
+    const reason = (err as ModelsExhaustedError).reasons.join(' ');
+    expect(reason).toContain('phản hồi không đọc được');
+    expect(reason).toContain(`${content.length} ký tự`);
+    expect(reason).toContain(startsWith);
+    expect(reason).toContain(endsWith);
+    // "KHÔNG kết thúc bằng }" cũng chứa "kết thúc bằng }": phân biệt hai trường hợp cho đúng.
+    if (endsWith === 'kết thúc bằng }') expect(reason).not.toContain('KHÔNG kết thúc bằng }');
+    expect(reason).toContain('finish_reason=stop');
+    expect(reason).toContain('lần 1');
+    expect(reason).toContain('lần 2');
+    // Nội dung của model không lọt vào bản ghi: nó có thể chứa chữ trích từ bài của sinh viên.
+    expect(reason).not.toContain('khong hop le');
+    expect(reason).not.toContain('kiểm tra bài');
+  });
+
+  it('không có finish_reason (provider cũ, bậc giả) → ghi "không rõ", không vỡ', async () => {
+    const a: ModelTier = { label: 'A', model: 'A-m', ceiling: 0.5, async call() { return { content: 'rác', usage: USAGE }; } };
+    const err = await new ModelPool([a], { sleep: noSleep }).ask(REQ, parse).catch((e) => e);
+    expect((err as ModelsExhaustedError).reasons.join(' ')).toContain('finish_reason=không rõ');
+  });
+
   it('bad_output ném từ provider cũng tính như trên', async () => {
     const a = tier('A', [badOutputError('cắt cụt'), 'OK a']);
     const r = await new ModelPool([a], { sleep: noSleep }).ask(REQ, parse);
