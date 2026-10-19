@@ -2,17 +2,31 @@ import type { Attendance, AttendanceStudent, SessionRosterSource } from './api/a
 import type { SubmissionRowStudent } from './submission-rows';
 
 /**
- * Trạng thái phòng trên bảng SV gộp (spec 2026-10-08 §6.2).
- * Map từ attendance — không suy từ submission.
+ * Trạng thái trên bảng SV gộp (spec 2026-10-18 exam-ops-lobby-ux).
+ * Derive từ AttendanceStudentView + deadline — không suy từ submission.
  */
-export type RoomStatus = 'present' | 'absent' | 'makeup' | 'disconnected' | 'unknown';
+export type RoomStatus =
+  | 'not_joined'
+  | 'present'
+  | 'disconnected'
+  | 'absent'
+  | 'makeup'
+  | 'unknown';
 
 export type LobbyRosterFilter =
   | 'all'
+  | 'not_joined'
   | 'present'
   | 'absent'
   | 'makeup'
   | 'not_submitted';
+
+export type RoomStatusOpts = {
+  endTime: string;
+  status: string;
+  /** Epoch ms — tests inject; production defaults to Date.now(). */
+  now?: number;
+};
 
 export interface LobbyRosterRow {
   studentMssv: string;
@@ -46,26 +60,43 @@ function indexAttendance(
   return map;
 }
 
+export function isDeadlinePassed(opts: RoomStatusOpts): boolean {
+  const now = opts.now ?? Date.now();
+  if (opts.status === 'collecting' || opts.status === 'completed') return true;
+  const end = Date.parse(opts.endTime);
+  return Number.isFinite(end) && now >= end;
+}
+
+/**
+ * Không tin tên mảng present/absent một mình — backend gộp mọi !connected
+ * vào absent. Đọc connected + firstSeenAt + deadline.
+ */
 export function resolveRoomStatus(
   mssv: string,
   attendance: Attendance | undefined,
+  opts: RoomStatusOpts,
 ): RoomStatus {
   const entry = indexAttendance(attendance).get(mssv);
   if (!entry) return 'unknown';
 
-  if (entry.group === 'absent') return 'absent';
   if (entry.group === 'makeup') return 'makeup';
-  // present
-  return entry.student.connected ? 'present' : 'disconnected';
+
+  const { connected, firstSeenAt } = entry.student;
+  if (connected) return 'present';
+  if (firstSeenAt != null) return 'disconnected';
+
+  // Chưa từng vào
+  return isDeadlinePassed(opts) ? 'absent' : 'not_joined';
 }
 
 /**
- * Ghép submission rows (đã sort MSSV) với trạng thái phòng từ attendance.
+ * Ghép submission rows (đã sort MSSV) với trạng thái từ attendance + deadline.
  * Không mutate input.
  */
 export function buildLobbyRosterRows(
   attendance: Attendance | undefined,
   submissionRows: SubmissionRowStudent[],
+  opts: RoomStatusOpts,
 ): LobbyRosterRow[] {
   const byMssv = indexAttendance(attendance);
   const sources = attendance?.sessionRosterSources ?? {};
@@ -76,7 +107,7 @@ export function buildLobbyRosterRows(
     return {
       studentMssv: row.studentMssv,
       fullName: row.fullName,
-      roomStatus: resolveRoomStatus(row.studentMssv, attendance),
+      roomStatus: resolveRoomStatus(row.studentMssv, attendance, opts),
       attendanceStudent: entry?.student ?? null,
       makeupFromClass:
         row.makeupFromClass ??
@@ -120,6 +151,8 @@ export function filterLobbyRows(
   switch (filter) {
     case 'all':
       return rows;
+    case 'not_joined':
+      return rows.filter((row) => row.roomStatus === 'not_joined');
     case 'present':
       return rows.filter(
         (row) => row.roomStatus === 'present' || row.roomStatus === 'disconnected',
@@ -133,10 +166,24 @@ export function filterLobbyRows(
   }
 }
 
+/** Substring match họ tên / MSSV — không phân biệt hoa thường. */
+export function matchesLobbySearch(
+  row: Pick<LobbyRosterRow, 'fullName' | 'studentMssv'>,
+  query: string,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    row.fullName.toLowerCase().includes(q) ||
+    row.studentMssv.toLowerCase().includes(q)
+  );
+}
+
 export const ROOM_STATUS_LABEL: Record<RoomStatus, string> = {
+  not_joined: 'Chưa vào',
   present: 'Có mặt',
+  disconnected: 'Mất kết nối',
   absent: 'Vắng mặt',
   makeup: 'Thi bổ sung',
-  disconnected: 'Mất kết nối',
-  unknown: '—',
+  unknown: 'Chưa xác định',
 };

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ConflictException, Injectable, Logger } from "@nestjs/common";
+import { InjectDataSource } from "@nestjs/typeorm";
+import { DataSource } from "typeorm";
 import { ExamSessionService } from "../exam-session/exam-session.service";
 import { ExamMaterialService } from "../exam-session/exam-material.service";
 import {
@@ -7,6 +9,14 @@ import {
   ExamSessionStatus,
 } from "../exam-session/entities/exam-session.entity";
 import { GradingReferenceService } from "../grading/grading-reference.service";
+import { assertSessionRouteAllowed } from "../grading/problem/session-route-guard";
+import { assertReattachable, reattachProblems } from "../grading/problem/reattach-problems";
+import {
+  AuthoredQuestion,
+  authoringContextOf,
+  createProblemsFromAuthoring,
+  planAuthoredProblems,
+} from "../grading/problem/problem.service";
 import { StorageService } from "../storage/storage.service";
 import { buildExamPaperDocx } from "./docx/exam-paper.docx";
 import { buildAnswerKeyDocx } from "./docx/answer-key.docx";
@@ -63,9 +73,8 @@ export interface AttachResult {
   paperFilename: string;
   answerKeyFilename: string;
   /**
-   * Gắn đề KHÔNG tạo gói test (G2b A2a): gói do LLM viết chưa được chạy đáp án nên không được tự duyệt
-   * hay ghim. Giảng viên tạo gói ở bước chuẩn bị; `grading-run.service.ts` chặn bắt đầu chấm khi phiên
-   * có bài code mà chưa ghim gói.
+   * Gắn đề không tạo gói test (Q2 của spec G2b). `nextStep` là bước kế tiếp của giảng viên: tạo gói test.
+   * `grading-run.service.ts` vẫn chặn bắt đầu chấm khi phiên có bài code mà chưa ghim gói test.
    */
   nextStep: 'create_bundle';
 }
@@ -102,6 +111,7 @@ export class AttachExamService {
     private readonly materials: ExamMaterialService,
     private readonly references: GradingReferenceService,
     private readonly storage: StorageService,
+    @InjectDataSource() private readonly ds: DataSource,
   ) {}
 
   async attach(
@@ -126,6 +136,29 @@ export class AttachExamService {
           "Đề chỉ gắn được trước giờ thi — qua giờ thi thì agent đã nhận tài liệu, " +
           "và gắn thêm sẽ khiến mỗi em nhận một bộ khác nhau.",
       );
+    }
+
+    // 5.4: đề đã gắn trước đó thì chỉ gắn lại khi đủ điều kiện (chưa chấm, chưa xác nhận, giữ số câu và điểm từng câu).
+    // Lần đầu thì giữ cổng cũ (review I1). Cả hai đều kiểm TRƯỚC khi ghi gì lên kho: đáp án được ghi vào khoá cố định.
+    const [prior] = await this.ds.query(
+      `SELECT EXISTS (SELECT 1 FROM examcollect.grading_reference
+                       WHERE exam_session_id = $1 AND model_answer_storage_key IS NOT NULL) AS attached`,
+      [session.id],
+    );
+    const reattach = prior.attached === true;
+    if (reattach) {
+      await this.ds.transaction((m) => assertReattachable(m, session.id, exam.questions));
+    } else {
+      await this.ds.transaction((m) => assertSessionRouteAllowed(m, session.id));
+    }
+
+    // Đề nhiều câu được kiểm số lượng yêu cầu nộp và ngôn ngữ (D2) TRƯỚC mọi lệnh ghi. Đề một câu giữ đường cũ.
+    const authoring =
+      exam.questions.length > 1
+        ? await authoringContextOf(this.ds.manager, session.id)
+        : null;
+    if (authoring) {
+      planAuthoredProblems(exam.questions, authoring, exam.language);
     }
 
     const [paper, answerKey] = await Promise.all([
@@ -172,14 +205,24 @@ export class AttachExamService {
           questionMaterialId: material.id,
           modelAnswerStorageKey: answerKeyKey,
           modelAnswerFilename: ANSWER_KEY_FILENAME,
-          // Soạn đề chưa bao giờ chạy đáp án mẫu trong sandbox, nên đáp án của đề gắn vào luôn là chưa
-          // kiểm chứng (§6.3b). Không đọc `verification` của đề: không có đường nào nâng nó lên `passed`.
+          // 5.3: đáp án Soạn đề luôn mang dấu chưa kiểm chứng, kể cả khi sandbox đã chạy qua. Sandbox chỉ chứng tỏ
+          // cài đặt khớp dự đoán; cùng một model hiểu sai đề thì vẫn qua. Chỉ giảng viên xác nhận mới nâng thước
+          // (endpoint ruler/confirm). Xem `grading-reference.entity.ts`.
           modelAnswerUnverified: true,
         },
         teacherId,
         "authoring",
+        // 5.4: gắn lại đề nhiều câu đã kiểm số câu và điểm ở trên; cổng route (vốn chặn phiên nhiều câu) bỏ qua.
+        reattach && authoring !== null,
       );
       referenceWritten = true;
+
+      // Gắn đề KHÔNG tạo gói test (Q2 của spec G2b, đã duyệt 2026-10-17): thước từ đề chưa được chạy,
+      // nên gói sinh ra lúc gắn sẽ tự duyệt bằng output do LLM viết. Chỉ tạo câu của phiên khi đề có cấu
+      // trúc câu; gói test do giảng viên tạo ở bước kế tiếp (`nextStep`).
+      if (authoring) {
+        await this.attachProblems(session.id, exam.questions, exam.language, reattach);
+      }
 
       return {
         examMaterialId: material.id,
@@ -190,10 +233,10 @@ export class AttachExamService {
     } catch (error) {
       if (referenceWritten) {
         // Đề và đáp án đã ghi hợp lệ, và `grading_reference` đang giữ
-        // material bằng FK RESTRICT nên `materials.remove` sẽ từ chối. Không
-        // dọn dở: nói thẳng rằng lượt này đã ghi một phần.
+        // material bằng FK RESTRICT nên `materials.remove` sẽ từ chối. Chỉ
+        // gói test thiếu — nói thẳng thay vì dọn dở.
         this.logger.error(
-          `Gắn đề vào phiên ${session.id}: đề và đáp án đã ghi nhưng bước sau đó hỏng`,
+          `Gắn đề vào phiên ${session.id}: đề và đáp án đã ghi nhưng gói test hỏng — phiên chưa có thước từ đề này`,
           error instanceof Error ? error.stack : String(error),
         );
         throw error;
@@ -219,5 +262,25 @@ export class AttachExamService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Đề nhiều câu: tạo câu và ghim gói của từng câu trong MỘT transaction, nên hỏng ở đâu thì không câu nào còn
+   * dở dang. Trả gói của câu 1 để giữ hình dạng `AttachResult.testBundle`; câu 1 là bí danh của phiên (§3.3).
+   */
+  private attachProblems(
+    sessionId: string,
+    questions: AuthoredQuestion[],
+    examLanguage: string,
+    reattach: boolean,
+  ): Promise<void> {
+    return this.ds.transaction(async (m) => {
+      // 5.4: gắn lại thì cập nhật đề của từng câu tại chỗ; lần đầu thì tạo câu. Không tạo gói test ở đây.
+      if (reattach) {
+        await reattachProblems(m, sessionId, questions);
+      } else {
+        await createProblemsFromAuthoring(m, sessionId, questions, examLanguage);
+      }
+    });
   }
 }

@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { TestBundleService } from '../src/grading/test-bundle/test-bundle.service';
+import { ensureDefaultProblem } from '../src/grading/problem/resolve-problem-config';
 import { seedSession } from './helpers/grading-seed';
 
 /** Tạo, duyệt, ghim gói test của một phiên (§14.1, 3d2). */

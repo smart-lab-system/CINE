@@ -5,6 +5,7 @@ import {
   ExamAuthoringProvider,
   GeneratedQuestion,
 } from './exam-authoring-provider';
+import { splitTotalHundredths } from './points-split';
 
 /**
  * Bộ ba tất định, không gọi mạng.
@@ -27,15 +28,16 @@ export class StubAuthoringProvider implements ExamAuthoringProvider {
   readonly name = 'stub-authoring';
 
   async generate(request: AuthoringRequest): Promise<AuthoringOutcome> {
+    // Chia đủ 10 điểm bằng số nguyên phần trăm (review I3): 10 cho ba câu là 3,33 + 3,33 + 3,34. Tổng điểm là thứ
+    // giảng viên nhìn đầu tiên, và một bộ đề mẫu cộng ra 9,99 trông như lỗi làm tròn của hệ thống.
+    const pointsByQuestion = splitTotalHundredths(1000, request.questionCount);
     const questions: GeneratedQuestion[] = Array.from(
       { length: request.questionCount },
       (_, i): GeneratedQuestion => ({
         statement:
           `Câu ${i + 1}: cài đặt hàm solve(xs) trả về mảng số nguyên đã sắp xếp ` +
           `tăng dần. Không dùng hàm sắp xếp có sẵn của thư viện chuẩn.`,
-        // Chia đều cho đủ 10: tổng điểm là thứ giảng viên nhìn đầu tiên, và
-        // một bộ đề mẫu cộng ra 9,99 trông như lỗi làm tròn của hệ thống.
-        points: 10 / request.questionCount,
+        points: pointsByQuestion[i] / 100,
         topic: 'sorting',
         requiredComplexity: 'O(n log n)',
         modelAnswer: 'def solve(xs):\n    return sorted(xs)\n',

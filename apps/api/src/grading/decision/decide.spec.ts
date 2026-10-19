@@ -278,18 +278,19 @@ describe('decide() — §6.2 phản biện', () => {
   });
 });
 
-describe('decide() — ruler_trust (G2b A2a, §6.3b)', () => {
-  it('nền: bài đủ bằng chứng không có cờ thước → tự quyết', () => {
-    expect(decide(input()).outcome).toBe('auto');
-  });
-
-  it('thước unverified: bài đủ bằng chứng vẫn về giảng viên với cờ ruler_unverified', () => {
+describe('decide() — cờ ruler_unverified (§6.3b, P1b)', () => {
+  it('bài đủ bằng chứng nhưng thước chưa kiểm chứng → flagged kèm cờ ruler_unverified, không tự quyết', () => {
     const d = decide(input({ rulerTrust: 'unverified' }));
     expect(d.outcome).toBe('flagged');
     expect(d.caseFlags.map((f) => f.code)).toContain('ruler_unverified');
   });
 
-  it.each(['teacher', 'verified', null, undefined] as const)('thước %s: kết quả y hệt khi không truyền ruler_trust', (trust) => {
-    expect(decide(input({ rulerTrust: trust }))).toEqual(decide(input()));
+  it.each([['teacher'], ['verified'], [null]] as const)('rulerTrust = %s giữ hành vi cũ: bài đủ bằng chứng vẫn tự quyết', (trust) => {
+    const d = decide(input({ rulerTrust: trust }));
+    expect(d).toMatchObject({ outcome: 'auto', caseFlags: [] });
+  });
+
+  it('không khai báo rulerTrust (hồ sơ cũ, đường one_shot) giữ hành vi cũ', () => {
+    expect(decide(input()).outcome).toBe('auto');
   });
 });

@@ -1,4 +1,5 @@
 import { resolveProblemConfig } from '../problem/resolve-problem-config';
+import { resolveProblemConfigByProblem } from '../problem/problem-config-by-id';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -35,7 +36,7 @@ export class InvestigationContextService {
 
   async build(resultId: string): Promise<BuiltContext> {
     const [row] = await this.ds.query(
-      `SELECT s.storage_key, s.exam_session_id, es.teacher_id,
+      `SELECT s.storage_key, s.exam_session_id, es.teacher_id, g.problem_id,
               rd.required_filename, rd.language, rb.name AS rubric_name
          FROM examcollect.grading_result g
          JOIN examcollect.submission s ON s.id = g.submission_id
@@ -49,7 +50,10 @@ export class InvestigationContextService {
 
     const language = sandboxLanguage.safeParse(row.language);
     if (!language.success) return system(`bài khai ngôn ngữ "${row.language}" — đường chấm điều tra chỉ chạy C++ và Python`);
-    const cfg = await resolveProblemConfig(this.ds.manager, row.exam_session_id);
+    // 5.2: cấu hình của CÂU của kết quả (gói test, rubric), không phải câu mặc định của phiên.
+    const cfg = row.problem_id
+      ? await resolveProblemConfigByProblem(this.ds.manager, row.problem_id as string)
+      : await resolveProblemConfig(this.ds.manager, row.exam_session_id as string);
     if (!cfg?.testBundleId) return system('phiên chưa ghim gói test — không có thước để chạy (§4.4)');
 
     const reference = await this.references.loadForGrading(row.exam_session_id);

@@ -44,6 +44,7 @@ import {
   type PageSize,
 } from '@/lib/list-pagination';
 import { FACILITY_STATUSES, facilityStatusLabel } from '@/lib/master-data-defaults';
+import { RoomProposalsPanel } from './room-proposals-panel';
 
 const EMPTY_ROOM = {
   code: '',
@@ -183,8 +184,10 @@ function RoomsMasterDataContent() {
     <div className="space-y-6">
       <PageHeader
         title="Phòng"
-        description="Bấm một phòng để xem danh sách máy tính trong phòng đó."
+        description="Bấm một phòng để xem danh sách máy tính trong phòng đó. Xem và duyệt đề xuất từ Teacher Hub bên dưới."
       />
+
+      <RoomProposalsPanel />
 
       <CatalogSection
         title="Danh sách phòng"

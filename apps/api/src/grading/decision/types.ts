@@ -91,7 +91,10 @@ export interface DecisionInput {
   theta: number;
   /** Bước 6 (§6.2) — `null` = phản biện chưa chạy (hồ sơ cũ, hay pipeline one_shot). */
   challenge: StoredChallenge | null;
-  /** Độ tin cậy của thước câu (§6.3b). `unverified` → bài không tự quyết (cờ `ruler_unverified`). Vắng = như `null`. */
+  /**
+   * Độ tin cậy của thước (§6.3b, P1b). `unverified` = đáp án mẫu của đề chưa kiểm chứng: bài đủ bằng chứng vẫn không
+   * tự quyết. Tuỳ chọn để mọi nơi gọi cũ giữ nguyên hành vi; `null`/`teacher`/`verified`/vắng mặt đều không chặn.
+   */
   rulerTrust?: 'teacher' | 'verified' | 'unverified' | null;
 }
 

@@ -197,14 +197,20 @@ export interface ScoreContext {
   waivedCriteria: string[];
   exceptions: Map<string, 'exclude' | 'include'>;
   hasManualScore: boolean;
-  /** Độ tin cậy của thước câu (§6.3b). `null` khi phiên chưa có dòng tham chiếu. */
-  rulerTrust: 'teacher' | 'verified' | 'unverified' | null;
+  /** Độ tin cậy của thước của phiên (`grading_reference.ruler_trust`, P1b §6.3b); `null` = chưa có đáp án mẫu. */
+  rulerTrust?: 'teacher' | 'verified' | 'unverified' | null;
 }
 
 /**
  * `storedOverride`: hồ sơ của lượt chấm ĐANG CHẠY (chưa có kết cục trong DB) — lượt tính đầu quyết
  * kết cục trên hồ sơ này TRƯỚC khi ghi nó, vì lượt chấm bất biến từ lúc có kết cục (§14.4).
  */
+/** `ruler_trust` của thước phiên. Không có dòng đáp án mẫu thì `null`: phiên chưa có thước, giữ hành vi cũ. */
+async function rulerTrustOf(m: EntityManager, sessionId: string): Promise<'teacher' | 'verified' | 'unverified' | null> {
+  const [row] = await m.query(`SELECT ruler_trust FROM examcollect.grading_reference WHERE exam_session_id = $1`, [sessionId]);
+  return (row?.ruler_trust as 'teacher' | 'verified' | 'unverified' | null | undefined) ?? null;
+}
+
 export async function loadScoreContext(
   m: EntityManager,
   resultId: string,
@@ -252,20 +258,11 @@ export async function loadScoreContext(
     `SELECT 1 FROM examcollect.teacher_review WHERE grading_result_id = $1 AND kind = 'manual_score' LIMIT 1`,
     [resultId],
   );
-  const problemId = (row.problem_id as string | null) ?? (await ensureDefaultProblem(m, row.exam_session_id));
-  // Thước của đúng câu (dòng có problem_id), rồi mới tới dòng cũ chưa gắn câu (ràng buộc M1 của P1a).
-  const [ref] = await m.query(
-    `SELECT ruler_trust FROM examcollect.grading_reference
-      WHERE exam_session_id = $1 AND (problem_id = $2 OR problem_id IS NULL)
-      ORDER BY problem_id IS NULL LIMIT 1`,
-    [row.exam_session_id, problemId],
-  );
   return {
     resultId,
     teacherId: row.teacher_id,
     sessionId: row.exam_session_id,
-    problemId,
-    rulerTrust: (ref?.ruler_trust as ScoreContext['rulerTrust']) ?? null,
+    problemId: (row.problem_id as string | null) ?? (await ensureDefaultProblem(m, row.exam_session_id)),
     pipeline: row.pipeline,
     status: row.status,
     ungradableClass: row.ungradable_class,
@@ -279,5 +276,6 @@ export async function loadScoreContext(
     waivedCriteria: waivers.map((w) => w.criterion_key),
     exceptions: new Map(exceptionRows.map((e) => [e.error_rule_id, e.direction])),
     hasManualScore: Boolean(manual),
+    rulerTrust: await rulerTrustOf(m, row.exam_session_id as string),
   };
 }

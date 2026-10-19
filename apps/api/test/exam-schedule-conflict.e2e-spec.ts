@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
+import { openSession } from './helpers/open-session';
 
 /**
  * Two exams cannot share a room, and one class cannot sit two exams at
@@ -111,6 +112,12 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       [courseName, `Lớp A ${Date.now()}`, ownerId],
     );
     classId = klass.id;
+    await dataSource.query(
+      `INSERT INTO examcollect.enrollment
+         (student_mssv, student_name, home_class_id, home_teacher_id)
+       VALUES ($1, $2, $3, $4)`,
+      [`SC${Date.now().toString(36)}`.slice(0, 20), 'SV nền conflict', classId, ownerId],
+    );
     const [otherClass] = await dataSource.query(
       `INSERT INTO examcollect.class (course_name, name, teacher_id)
        VALUES ($1, $2, $3) RETURNING id`,
@@ -155,11 +162,22 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       // foreign-key violation during teardown, not as a failing assertion,
       // so it is worth checking against the FKs on exam_session if this
       // afterAll ever starts throwing.
+      // open() giờ tạo session_roster (+ submission chỗ ngồi) — phải xoá trước
+      // exam_session (RESTRICT).
+      await dataSource.query(
+        `DELETE FROM examcollect.required_deliverable_entry
+          WHERE required_deliverable_id IN (
+            SELECT id FROM examcollect.required_deliverable WHERE exam_session_id = ANY($1)
+          )`,
+        [ids],
+      );
       for (const table of [
         'grade_export',
         'submission',
         'agent_connection_event',
         'exam_material',
+        'session_roster',
+        'exam_problem',
         'required_deliverable',
       ]) {
         await dataSource.query(
@@ -356,6 +374,8 @@ describe('ExamSession schedule conflicts (e2e)', () => {
 
     // The room is a scarce resource: an exam that finished at 09:00 must
     // not keep a lab blocked until the 12:00 it was scheduled to end at.
+    // finalize chỉ chuyển `active → collecting` — phải mở phiên trước.
+    await openSession(app, ownerToken, first.body.id as string);
     const finalize = await request(app.getHttpServer())
       .post(`/exam-sessions/${first.body.id}/finalize`)
       .set('Authorization', `Bearer ${ownerToken}`);

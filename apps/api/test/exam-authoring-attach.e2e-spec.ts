@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { ExamMaterialService } from '../src/exam-session/exam-material.service';
 import { GradingReferenceService } from '../src/grading/grading-reference.service';
+import { TestBundleService } from '../src/grading/test-bundle/test-bundle.service';
 import { StorageService } from '../src/storage/storage.service';
 import { createTestAccount } from './helpers/create-account';
 import { upcomingSessionWindow } from './helpers/session-window';
@@ -80,7 +81,7 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
   async function referenceOf(sessionId: string) {
     const [row] = await dataSource.query(
       `SELECT question_material_id, model_answer_storage_key, model_answer_filename,
-              model_answer_unverified, ruler_trust
+              model_answer_unverified
          FROM examcollect.grading_reference WHERE exam_session_id = $1`,
       [sessionId],
     );
@@ -157,7 +158,7 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     await dataSource.query(`DELETE FROM examcollect.ai_usage WHERE teacher_id = $1`, [teacherId]);
     await app.close();
   });
-  // Phiên MỚI TẠO: `create()` ghi status 'active' ngay, giờ thi còn ở tương
+  // Phiên MỚI TẠO: `create()` ghi status 'scheduled'; giờ thi còn ở tương
   // lai. Đây là hình dạng của gần như mọi phiên thật trong hệ thống, nên ca
   // này cũng là chốt chặn chống việc dựng lại luật "chỉ gắn khi draft hoặc
   // scheduled" — luật đó sẽ làm ca này đỏ, và nó đỏ ĐÚNG.
@@ -313,15 +314,38 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     expect(await materialsOf(sessionId)).toHaveLength(0);
   });
 
-  it('gắn đề không tạo gói test nào, và kết quả nói bước tiếp theo là tạo gói', async () => {
+  // Q2 (spec G2b, đã duyệt): gắn đề KHÔNG sinh gói test, dù đề có ca. Thước từ đề chưa được chạy, nên gói sinh
+  // lúc gắn sẽ tự duyệt bằng output do LLM viết. Giảng viên tạo gói ở bước kế tiếp (`nextStep`).
+  it('gắn đề không sinh gói test nào, dù đề có ca; kết quả nói bước kế tiếp là tạo gói', async () => {
     const sessionId = await makeSession(teacherToken, classId);
 
     const res = await attach(sessionId, examJson);
     expect(res.status).toBe(201);
+    expect(authoredCaseCount(examJson)).toBe(3);
     expect(res.body.nextStep).toBe('create_bundle');
     expect(res.body.testBundle).toBeUndefined();
-    expect(await bundlesOf(sessionId)).toHaveLength(0);
 
+    expect(await bundlesOf(sessionId)).toHaveLength(0);
+    const [pinned] = await dataSource.query(
+      `SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(pinned.test_bundle_id).toBeNull();
+  });
+
+  // Review Focus #4. Lần gắn thứ hai KHÔNG được đè gói giảng viên đã chọn;
+  // gói mới vẫn được tạo (lịch sử không mất) nhưng chưa duyệt.
+  // 5.4: gắn lại (chưa chấm, chưa xác nhận, cùng số câu) thay gói đã ghim bằng gói mới đã duyệt và ghim; gói cũ giữ làm lịch sử.
+  it('gắn lần hai vẫn không sinh gói nào và không đụng vào gói đã có', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+
+    const first = await attach(sessionId, examJson);
+    expect(first.status).toBe(201);
+    const second = await attach(sessionId, examJson);
+    expect(second.status).toBe(201);
+    expect(second.body.nextStep).toBe('create_bundle');
+
+    expect(await bundlesOf(sessionId)).toHaveLength(0);
     const [row] = await dataSource.query(
       `SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`,
       [sessionId],
@@ -329,16 +353,24 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     expect(row.test_bundle_id).toBeNull();
   });
 
-  it('gắn lần hai vẫn không tạo gói, và đề mới vẫn được ghi', async () => {
+  // Review Focus #2 + #3, đầu-cuối: tên có dấu/dấu câu và tên trùng trong một
+  // câu phải cho ra khoá hợp lệ DUY NHẤT, không phải một lỗi 500 từ DB.
+  it('tên ca có dấu và tên trùng -> vẫn gắn được, không tạo gói', async () => {
     const sessionId = await makeSession(teacherToken, classId);
+    const json = customExam([
+      {
+        cases: [
+          { name: 'Ca 1: cân bằng!', group: 'co-ban' },
+          { name: 'x', group: 'co-ban' },
+          { name: 'x', group: 'co-ban' },
+        ],
+      },
+    ]);
 
-    expect((await attach(sessionId, examJson)).status).toBe(201);
-    const second = await attach(sessionId, examJson);
-    expect(second.status).toBe(201);
-    expect(second.body.nextStep).toBe('create_bundle');
-
+    const res = await attach(sessionId, json);
+    expect(res.status).toBe(201);
+    expect(res.body.nextStep).toBe('create_bundle');
     expect(await bundlesOf(sessionId)).toHaveLength(0);
-    expect(await materialsOf(sessionId)).toHaveLength(2);
   });
 
   it('đề không sinh ca nào -> vẫn gắn đề, không tạo gói', async () => {
@@ -347,15 +379,8 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     const res = await attach(sessionId, customExam([{ cases: [] }]));
 
     expect(res.status).toBe(201);
+    expect(res.body.nextStep).toBe('create_bundle');
     expect(await bundlesOf(sessionId)).toHaveLength(0);
-  });
-
-  // Soạn đề chưa bao giờ chạy đáp án, nên thước của đề gắn vào luôn là unverified (§6.3b).
-  it('gắn đề đặt thước unverified, không có bằng chứng chạy thật', async () => {
-    const sessionId = await makeSession(teacherToken, classId);
-
-    expect((await attach(sessionId, examJson)).status).toBe(201);
-    expect((await referenceOf(sessionId)).ruler_trust).toBe('unverified');
   });
 
   it('sau khi gắn từ Soạn đề, readiness nói nguồn là Soạn đề và đáp án chưa kiểm chứng', async () => {
@@ -377,4 +402,49 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     expect(res.body.sources.question.fileName).toBe('de-thi.docx');
   });
 
+  // `dropCase` chép origin và created_by của gói gốc. Ca có sẵn ở test-bundle.e2e chỉ dùng gói 'teacher'
+  // nên không bắt được việc origin bị gán cứng; gói 'generated' chưa duyệt (lần gắn thứ hai) bắt được.
+  it('bỏ ca khỏi gói generated chưa duyệt -> phiên bản mới vẫn là generated, chưa duyệt', async () => {
+    const sessionId = await makeSession(teacherToken, classId);
+    expect((await attach(sessionId, examJson)).status).toBe(201);
+    const [ordinalOne] = await dataSource.query(
+      `SELECT id FROM examcollect.exam_problem WHERE exam_session_id = $1 AND ordinal = 1`,
+      [sessionId],
+    );
+    // Gắn đề không tạo gói (Q2): gói nguồn được dựng trực tiếp với ba ca của đề, cùng câu 1.
+    const [firstBundle] = await dataSource.query(
+      `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+       VALUES ($1, 1, 'generated', $2, $3) RETURNING id`,
+      [sessionId, teacherId, ordinalOne.id],
+    );
+    for (const caseKey of ['q1-co-ban', 'q1-mot-phan-tu', 'q1-rong']) {
+      await dataSource.query(
+        `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output) VALUES ($1, $2, 'nhom', '1', '1')`,
+        [firstBundle.id, caseKey],
+      );
+    }
+    const [unapproved] = await dataSource.query(
+      `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+       VALUES ($1, 2, 'generated', $2, $3) RETURNING id`,
+      [sessionId, teacherId, ordinalOne.id],
+    );
+    await dataSource.query(
+      `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output)
+       SELECT $1, case_key, "group", input, expected_output FROM examcollect.grading_test_case WHERE bundle_id = $2`,
+      [unapproved.id, firstBundle.id],
+    );
+    const unapprovedId = unapproved.id as string;
+
+    const dropped = await request(app.getHttpServer())
+      .post(`/exam-sessions/${sessionId}/test-bundles/${unapprovedId}/drop-case`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ caseKey: 'q1-rong' });
+
+    expect(dropped.status).toBe(201);
+    const bundles = await bundlesOf(sessionId);
+    expect(bundles).toHaveLength(3);
+    expect(bundles[2].origin).toBe('generated');
+    expect(bundles[2].approved_at).toBeNull();
+    expect(await caseKeysOf(dropped.body.id)).toEqual(['q1-co-ban', 'q1-mot-phan-tu']);
+  });
 });
