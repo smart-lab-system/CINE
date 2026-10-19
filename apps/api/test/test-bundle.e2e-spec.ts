@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { TestBundleService } from '../src/grading/test-bundle/test-bundle.service';
+import { ensureDefaultProblem } from '../src/grading/problem/resolve-problem-config';
 import { seedSession } from './helpers/grading-seed';
 
 /** Tạo, duyệt, ghim gói test của một phiên (§14.1, 3d2). */
@@ -380,9 +381,10 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
     const cases = [{ caseKey: 'a', group: 'public', input: '1', expectedOutput: '1' }];
     const service = app.get(TestBundleService);
 
+    const problemId = await ensureDefaultProblem(ds.manager, session.sessionId);
     const results = await Promise.all([
-      service.adoptFromAuthoring(session.sessionId, owner.id, cases, false),
-      service.adoptFromAuthoring(session.sessionId, owner.id, cases, false),
+      service.adoptFromAuthoring(session.sessionId, owner.id, cases, false, problemId),
+      service.adoptFromAuthoring(session.sessionId, owner.id, cases, false, problemId),
     ]);
 
     expect(results.filter((r) => r.pinned)).toHaveLength(1);

@@ -406,24 +406,9 @@ export class ExamSessionGateway
       return;
     }
 
-    // GUARD TẠM THỜI — sẽ được thay khi `scheduled` thành trạng thái
-    // thật (CLAUDE.md §7.1.1b), lúc đó điều kiện đúng là `status ===
-    // 'active'` và guard này biến mất.
-    //
-    // Phiên `active` ngay từ lúc tạo, nên không có transition nào để móc
-    // việc đóng băng danh sách dự thi vào (§7.1.1). Nếu không chặn ở
-    // đây, tồn tại cửa sổ — từ lúc tạo phiên tới lúc ai đó nhớ bấm "Mở
-    // phiên thi", có thể nhiều ngày — mà sinh viên vào thi và nộp bài
-    // trong khi `session_roster` rỗng. Đó đúng là lỗ hổng §7.1.1 sinh ra
-    // để bịt, chỉ dịch sang chỗ khác.
-    //
-    // Chọn chặn thay vì tự đóng băng ở lần join đầu, CÓ CHỦ ĐÍCH: ảnh
-    // chốt là chứng từ, và để một sự kiện TCP quyết định thời điểm lập
-    // nó thì không ai chọn, không ai biết, không tái lập được — cùng
-    // loại lỗi mà việc tách `not_submitted`/`absent` vừa từ chối, chỉ
-    // khác tầng. Chặn thì hỏng TO và SỚM: cả phòng dừng ở giây đầu,
-    // giảng viên bấm một nút là xong. Tự đóng băng thì hỏng nhỏ và
-    // muộn — thiếu vài người trong ảnh chốt, lộ ra lúc chấm.
+    // Defense-in-depth: open() đã flip scheduled→active + freeze cùng
+    // transaction (spec 2026-10-18). Giữ check này nếu status lệch roster
+    // (migrate cũ / lỗi tay). Không tự freeze ở join — ảnh chốt là chứng từ.
     if (!(await this.sessionRoster.isFrozen(session.id))) {
       this.logger.warn(`agent:join refused: session ${session.id} chưa đóng băng danh sách dự thi`);
       this.emitJoinError(

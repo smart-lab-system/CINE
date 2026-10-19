@@ -1,4 +1,12 @@
-import { AUDIT_DEFAULT_PERCENT, AUDIT_FLOOR_PERCENT, auditBucket, drawnForAudit, readAuditSampling } from './audit-sampling';
+import {
+  AUDIT_DEFAULT_PERCENT,
+  AUDIT_FLOOR_PERCENT,
+  auditBucket,
+  auditBucketByStudent,
+  drawnForAudit,
+  drawnForStudentAudit,
+  readAuditSampling,
+} from './audit-sampling';
 
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `00000000-0000-4000-8000-${i.toString(16).padStart(12, '0')}`);
 const SEED = '6f1c1c1e-0d0a-4f0e-9d63-2a4f6d1f7a10';
@@ -87,6 +95,43 @@ describe('readAuditSampling (T-AUDIT-2 — never 0)', () => {
     for (const raw of typed) {
       const r = readAuditSampling({ GRADING_AUDIT_SAMPLE_PERCENT: raw });
       if (r.enabled) expect(r.percent).toBeGreaterThanOrEqual(AUDIT_FLOOR_PERCENT);
+    }
+  });
+
+  it('a 1 % setting is lifted to the 5 % floor, with a warning — it never becomes 0', () => {
+    const r = readAuditSampling({ GRADING_AUDIT_SAMPLE_PERCENT: '1' });
+    expect(r).toMatchObject({ enabled: true, percent: AUDIT_FLOOR_PERCENT });
+    expect(r.warning).not.toBeNull();
+  });
+});
+
+// P1b Task 10 — rút mẫu theo sinh viên (§8). Mọi câu tự duyệt của một sinh viên được rút cùng nhau vì quyết định chỉ
+// phụ thuộc MSSV và seed, không phụ thuộc điểm hay id bài.
+describe('the draw by student (P1b §8)', () => {
+  const MSSVS = Array.from({ length: 40 }, (_, i) => `SV${String(i).padStart(4, '0')}`);
+
+  it('a bucket is an integer in [0, 9999] and is deterministic for (seed, mssv)', () => {
+    for (const m of MSSVS) {
+      const b = auditBucketByStudent(SEED, m);
+      expect(Number.isInteger(b) && b >= 0 && b < 10_000).toBe(true);
+      expect(auditBucketByStudent(SEED, m)).toBe(b);
+    }
+  });
+
+  it('is case-insensitive on the mssv — "sv0001" and "SV0001" are one student', () => {
+    expect(auditBucketByStudent(SEED, 'SV0001')).toBe(auditBucketByStudent(SEED, 'sv0001'));
+  });
+
+  it('draws roughly the requested share over many students (số đo ghi trong ledger, không khẳng định cứng)', () => {
+    const many = Array.from({ length: 4_000 }, (_, i) => `S${i}`);
+    const count = many.filter((m) => drawnForStudentAudit(SEED, m, 20)).length;
+    expect(count).toBeGreaterThan(700); // ~20 % của 4 000 = 800
+    expect(count).toBeLessThan(900);
+  });
+
+  it('with the same seed, a student drawn at 5 % is still drawn at 20 % (đơn điệu)', () => {
+    for (const m of MSSVS) {
+      if (drawnForStudentAudit(SEED, m, 5)) expect(drawnForStudentAudit(SEED, m, 20)).toBe(true);
     }
   });
 });

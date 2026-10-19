@@ -16,6 +16,8 @@ import { GradingRunService } from './grading-run.service';
 import { DeliverableLanguageService } from './deliverable-language.service';
 import { GradingSummaryService } from './grading-summary.service';
 import { GradingReferenceService } from './grading-reference.service';
+import { ProblemController } from './problem/problem.controller';
+import { ProblemService } from './problem/problem.service';
 import { SubmissionTextService } from './submission-text.service';
 import { GradingReferenceEntity } from './entities/grading-reference.entity';
 import { GradingAnchorSnapshotEntity } from './entities/grading-anchor-snapshot.entity';
@@ -152,6 +154,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     RulesController,
     RubricErrorsController,
     TestBundleController,
+    ProblemController,
     AuditReviewController,
     RegradeController,
   ],
@@ -164,6 +167,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     RegradeService,
     GradingSummaryService,
     GradingReferenceService,
+    ProblemService,
     SubmissionTextService,
     DocumentResolver,
     ContentResolverRegistry,

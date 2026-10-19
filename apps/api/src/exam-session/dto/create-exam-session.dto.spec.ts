@@ -174,6 +174,21 @@ function validateDto(partial: Record<string, unknown>) {
   );
 }
 
+describe('CreateExamSessionDto — create-slim (filenames optional)', () => {
+  it('chấp nhận body không có requiredFilenames', () => {
+    const dto = plainToInstance(CreateExamSessionDto, {
+      ...BASE,
+      classId: '550e8400-e29b-41d4-a716-446655440000',
+    });
+    const errors = validateSync(dto).filter((e) => e.property === 'requiredFilenames');
+    expect(errors).toHaveLength(0);
+  });
+
+  it('chấp nhận mảng rỗng — phiên scheduled chưa khai file', () => {
+    expect(validateFilenames([])).toHaveLength(0);
+  });
+});
+
 describe('CreateExamSessionDto — dual-write semester/room (Id || Name)', () => {
   const SEM_ID = '550e8400-e29b-41d4-a716-446655440001';
   const ROOM_ID = '550e8400-e29b-41d4-a716-446655440002';
