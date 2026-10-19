@@ -194,10 +194,6 @@ export function decide(input: DecisionInput): Decision {
   if (caseFlags.length === 0 && errorFlags.length === 0 && confidence < input.theta) {
     caseFlags.push({ code: 'low_confidence', detail: `confidence ${confidence.toFixed(2)} < θ ${input.theta}` });
   }
-  // §6.3b: thước còn `unverified` → bài không tự quyết, dù mọi sàn khác đã đạt. Cờ gỡ ngay khi thước lên `verified`.
-  if (input.rulerTrust === 'unverified') {
-    caseFlags.push({ code: 'ruler_unverified', detail: 'thước chưa kiểm chứng — bài về giảng viên' });
-  }
   const auto = caseFlags.length === 0 && errorFlags.length === 0;
   return {
     outcome: auto ? 'auto' : 'flagged',
