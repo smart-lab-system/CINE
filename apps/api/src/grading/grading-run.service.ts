@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
@@ -121,6 +121,41 @@ export class GradingRunService {
    * produce two AI opinions on one piece of work, and re-grading is a
    * separate decision that would need its own audit trail.
    */
+  /**
+   * 5.2 — cổng bắt đầu chấm. Phiên một câu với một yêu cầu nộp chạy như cũ. Còn lại (nhiều yêu cầu nộp hoặc nhiều
+   * câu) chỉ chạy khi đề cương đã xác nhận VÀ mỗi yêu cầu nộp ghép đúng một câu. Phiên cũ có nhiều yêu cầu nộp nhưng
+   * một câu mặc định cũng bị chặn: câu đó không biết bài nào thuộc về nó.
+   */
+  private async assertRoutableForGrading(sessionId: string): Promise<void> {
+    const [row] = await this.results.manager.query(
+      `SELECT (SELECT COUNT(*)::int FROM examcollect.required_deliverable WHERE exam_session_id = $1) AS deliverables,
+              (SELECT COUNT(*)::int FROM examcollect.exam_problem WHERE exam_session_id = $1) AS problems,
+              (SELECT COUNT(DISTINCT required_deliverable_id)::int FROM examcollect.exam_problem
+                WHERE exam_session_id = $1 AND required_deliverable_id IS NOT NULL) AS mapped,
+              (SELECT blueprint_confirmed_at FROM examcollect.exam_session WHERE id = $1) AS confirmed`,
+      [sessionId],
+    );
+    const deliverables = row.deliverables as number;
+    const problems = row.problems as number;
+    if (deliverables <= 1 && problems <= 1) return;
+    // Mọi trường hợp còn lại cần đề cương đã xác nhận (quy tắc đã duyệt). Một câu với nhiều yêu cầu nộp thì sau khi xác
+    // nhận mọi bài dùng câu mặc định, như phiên trộn cũ. Nhiều câu thì mỗi yêu cầu nộp phải ghép đúng một câu.
+    if (row.confirmed === null) {
+      throw new ConflictException(
+        problems > 1
+          ? `Phiên này có ${problems} câu và ${deliverables} yêu cầu nộp. Cần đề cương nhiều câu đã xác nhận, và mỗi yêu cầu nộp ghép đúng một câu — chưa bắt đầu chấm.`
+          : `Phiên này có ${deliverables} yêu cầu nộp. Cần xác nhận đề cương trước khi bắt đầu chấm phiên nhiều yêu cầu nộp.`,
+      );
+    }
+    if (problems <= 1) return;
+    const oneToOne = problems === deliverables && (row.mapped as number) === deliverables;
+    if (!oneToOne) {
+      throw new ConflictException(
+        `Phiên này có ${problems} câu và ${deliverables} yêu cầu nộp, nhưng chưa ghép đúng mỗi câu với một yêu cầu nộp — chưa bắt đầu chấm.`,
+      );
+    }
+  }
+
   async startGrading(
     session: ExamSessionEntity,
     teacherId: string,
@@ -131,6 +166,9 @@ export class GradingRunService {
     // course's rubric between two exams must not change how the earlier one
     // is graded, and a colleague teaching another class of the same course
     // must not be able to change it from under this session either.
+    // 5.2: cổng bắt đầu chấm. Trước khi có định tuyến theo câu, mọi bài đều rơi vào câu mặc định (review C1).
+    await this.assertRoutableForGrading(session.id);
+
     // Cấu hình chấm đọc qua câu mặc định (P1a), không qua cột bí danh của phiên.
     const cfg = await resolveProblemConfig(this.results.manager, session.id);
     if (!cfg?.rubricId) {
@@ -186,6 +224,38 @@ export class GradingRunService {
     const alreadyGraded = new Set(existing.map((row) => row.submissionId));
     const todo = collected.filter((submission) => !alreadyGraded.has(submission.id));
 
+    // 5.2: mỗi bài vào CÂU ghép với yêu cầu nộp của nó; rubric và gói test lấy từ câu đó. Bài không có câu ghép (phiên
+    // một câu cũ) rơi về câu mặc định như trước.
+    const routedProblems: {
+      id: string;
+      rubric_id: string | null;
+      test_bundle_id: string | null;
+      required_deliverable_id: string;
+    }[] = await this.results.manager.query(
+      `SELECT id, rubric_id, test_bundle_id, required_deliverable_id FROM examcollect.exam_problem
+        WHERE exam_session_id = $1 AND required_deliverable_id IS NOT NULL`,
+      [session.id],
+    );
+    const routeByDeliverable = new Map(routedProblems.map((p) => [p.required_deliverable_id, p]));
+    const routeOf = (submission: { requiredDeliverableId: string }) => routeByDeliverable.get(submission.requiredDeliverableId) ?? null;
+    const rubricOf = (submission: { requiredDeliverableId: string }): string => routeOf(submission)?.rubric_id ?? rubric.id;
+
+    // Rubric của từng câu được kiểm như rubric chính: có tiêu chí, và đóng băng anchor (nếu bật) trước khi xếp hàng.
+    for (const rubricId of new Set(todo.map((submission) => rubricOf(submission)))) {
+      if (rubricId === rubric.id) continue;
+      const other = await this.rubrics.findById(rubricId);
+      if (!other) {
+        throw new BadRequestException('Rubric của một câu không còn tồn tại.');
+      }
+      const otherCriteria = await this.criteria.find({ where: { rubricId } });
+      if (otherCriteria.length === 0) {
+        throw new BadRequestException('Rubric của một câu không có tiêu chí nào.');
+      }
+      if (GRADING_ANCHORS_ENABLED) {
+        await this.anchors.freezeFor(session.id, rubricId);
+      }
+    }
+
     // The declared filename is the ONLY place the file's format is
     // recorded. A submission's storage key is
     // `submissions/{session}/{mssv}/{deliverableId}` — deliberately built
@@ -212,16 +282,16 @@ export class GradingRunService {
     // `ungradable/system` cho MỌI bài đó (§4.4), và phát hiện việc này SAU
     // khi đã xếp hàng chỉ khiến giảng viên đọc ra từng bài một thay vì một
     // thông báo rõ nghĩa trước khi bấm. Kiểm TRƯỚC khi ghi dòng nào.
-    if (!cfg.testBundleId) {
-      const needsBundle = todo.some((submission) => {
-        const info = deliverables.get(submission.requiredDeliverableId);
-        return info !== undefined && pipelineFor(info) === 'investigator';
-      });
-      if (needsBundle) {
-        throw new BadRequestException(
-          'Phiên này có bài chấm bằng đường điều tra (code) nhưng chưa ghim gói test — hãy tạo, duyệt và ghim một gói test trước khi bắt đầu chấm (§14.3).',
-        );
-      }
+    // 5.2: gói test của CÂU của bài (không phải câu mặc định) quyết định bài có thước hay không.
+    const needsBundle = todo.some((submission) => {
+      const info = deliverables.get(submission.requiredDeliverableId);
+      const bundle = routeOf(submission)?.test_bundle_id ?? cfg.testBundleId;
+      return info !== undefined && pipelineFor(info) === 'investigator' && !bundle;
+    });
+    if (needsBundle) {
+      throw new BadRequestException(
+        'Phiên này có bài chấm bằng đường điều tra (code) nhưng chưa ghim gói test — hãy tạo, duyệt và ghim một gói test trước khi bắt đầu chấm (§14.3).',
+      );
     }
 
     // MỌI dòng `grading_result` được tạo NGAY ĐÂY, đồng bộ, trước khi
@@ -262,8 +332,8 @@ export class GradingRunService {
         batch.map((submission) =>
           this.results.create({
             submissionId: submission.id,
-            problemId,
-            rubricIdVersion: rubric.id,
+            problemId: routeOf(submission)?.id ?? problemId,
+            rubricIdVersion: rubricOf(submission),
             gradingTriggeredBy: teacherId,
             status: 'ai_grading',
             // Gán MỘT lần, từ bài nộp (§14.1). Không có dòng khai báo — không nên xảy ra — thì
@@ -295,7 +365,7 @@ export class GradingRunService {
               deliverables.get(submission.requiredDeliverableId)?.requiredFilename ?? '',
             deliverableType:
               deliverables.get(submission.requiredDeliverableId)?.deliverableType ?? 'document',
-            rubricId: rubric.id,
+            rubricId: rubricOf(submission),
             teacherId,
           } satisfies GradeSubmissionJob,
           opts: {

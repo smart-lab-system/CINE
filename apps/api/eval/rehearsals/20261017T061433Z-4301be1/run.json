@@ -1,0 +1,143 @@
+{
+  "id": "20261017T061433Z-4301be1",
+  "startedAt": "2026-10-17T06:14:33.038Z",
+  "scenario": "ngan-xep-v1",
+  "deploy": "4301be1",
+  "note": "P1a sau merge: nghiệm thu 1 câu chạy như cũ",
+  "wallSec": 344.1,
+  "backfilled": false,
+  "sessionId": "48c098ff-614f-413c-9711-99dfd6effed3",
+  "checks": [
+    {
+      "mssv": "HS2410018",
+      "label": "int tràn + tên vô nghĩa + không chú thích + rò rỉ",
+      "expectedScore": 6.5,
+      "actualScore": null,
+      "scoreOk": false,
+      "auditHidden": false,
+      "missedErrors": [
+        "sai_ca_bien",
+        "ro_ri_bo_nho",
+        "ten_bien_vo_nghia",
+        "thieu_chu_thich"
+      ],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "review",
+      "actualDecision": "review",
+      "decisionOk": true,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [
+        "bo_sot"
+      ],
+      "lensFailures": [],
+      "finishedAtSec": 325.1
+    },
+    {
+      "mssv": "HS2410019",
+      "label": "đúng hoàn toàn",
+      "expectedScore": 10,
+      "actualScore": null,
+      "scoreOk": false,
+      "auditHidden": false,
+      "missedErrors": [],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [],
+      "finishedAtSec": 331.6
+    },
+    {
+      "mssv": "HS2410020",
+      "label": "in theo thứ tự hàng đợi — chỉ lỗi máy quyết",
+      "expectedScore": 5.5,
+      "actualScore": null,
+      "scoreOk": false,
+      "auditHidden": false,
+      "missedErrors": [
+        "sai_ca_co_ban",
+        "sai_ca_bien"
+      ],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [],
+      "lensFailures": [],
+      "finishedAtSec": 331.6
+    },
+    {
+      "mssv": "HS2410021",
+      "label": "hard-code theo bộ test (đạt đủ test)",
+      "expectedScore": 9.5,
+      "actualScore": null,
+      "scoreOk": false,
+      "auditHidden": false,
+      "missedErrors": [
+        "thieu_chu_thich"
+      ],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "review",
+      "actualDecision": "review",
+      "decisionOk": true,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [
+        "gian_lan",
+        "bo_sot"
+      ],
+      "lensFailures": [],
+      "finishedAtSec": 344.1
+    },
+    {
+      "mssv": "HS2410022",
+      "label": "đúng, có chú thích, chỉ rò rỉ bộ nhớ",
+      "expectedScore": 9,
+      "actualScore": null,
+      "scoreOk": false,
+      "auditHidden": false,
+      "missedErrors": [
+        "ro_ri_bo_nho"
+      ],
+      "extraErrors": [],
+      "refuted": [],
+      "expectedDecision": "auto",
+      "actualDecision": "review",
+      "decisionOk": false,
+      "wrongAuto": false,
+      "falseFlags": [],
+      "missedFlags": [
+        "bo_sot"
+      ],
+      "lensFailures": [],
+      "finishedAtSec": 337.9
+    }
+  ],
+  "summary": {
+    "submissions": 5,
+    "scoreOk": 0,
+    "auditHidden": 0,
+    "decisionOk": 2,
+    "autoApproved": 0,
+    "expectedAuto": 3,
+    "wrongAuto": 0,
+    "errorsExpected": 8,
+    "errorsCaught": 0,
+    "extraErrors": 0,
+    "falseFlags": 0,
+    "missedFlags": 4,
+    "lensFailures": 0,
+    "maxSubmissionSec": 344.1,
+    "models": []
+  }
+}

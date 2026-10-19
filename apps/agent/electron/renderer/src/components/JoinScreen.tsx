@@ -57,7 +57,13 @@ function useCountdown(retryUntil: string | undefined): number | null {
   return remainingMs;
 }
 
-export function JoinScreen({ state }: { state: AgentState }) {
+export function JoinScreen({
+  state,
+  onBackToLanding,
+}: {
+  state: AgentState;
+  onBackToLanding?: () => void;
+}) {
   const [studentId, setStudentId] = useState(state.studentId ?? '');
   const [sessionCode, setSessionCode] = useState(state.sessionCode ?? '');
   const remainingMs = useCountdown(state.joinPhase === 'rate_limited' ? state.joinError?.retryUntil : undefined);
@@ -132,10 +138,15 @@ export function JoinScreen({ state }: { state: AgentState }) {
         invalid={state.joinPhase === 'error' && state.joinError?.code === 'SESSION_NOT_FOUND'}
       />
 
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col gap-2">
         <AppButton type="submit" disabled={locked || studentId.length < 4 || sessionCode.length < CODE_LENGTH}>
           {submitLabel(state.joinPhase, remainingMs)}
         </AppButton>
+        {onBackToLanding && state.joinPhase === 'form' && (
+          <AppButton type="button" variant="ghost" onClick={onBackToLanding}>
+            Quay lại
+          </AppButton>
+        )}
       </div>
     </form>
   );

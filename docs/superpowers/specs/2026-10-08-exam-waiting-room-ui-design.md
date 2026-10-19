@@ -6,6 +6,8 @@
 **Trang:** `apps/web/src/app/(exam-live)/exam-sessions/[id]/page.tsx`
 **Builds on:** điểm danh live + trạng thái nộp bài hiện có trên lobby; không đổi contract socket/API
 
+> **2026-10-18:** Copy “Phòng chờ”, cột Trạng thái, bộ badge **Chưa vào** / luật hết giờ → Vắng mặt, search SV, và meta phiên trên lobby — xem [exam-ops-lobby-ux](./2026-10-18-exam-ops-lobby-ux-design.md) (supersede một phần §6.1–6.3 và nhãn trang).
+
 ---
 
 ## 1. Vấn đề

@@ -158,7 +158,7 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     await dataSource.query(`DELETE FROM examcollect.ai_usage WHERE teacher_id = $1`, [teacherId]);
     await app.close();
   });
-  // Phiên MỚI TẠO: `create()` ghi status 'active' ngay, giờ thi còn ở tương
+  // Phiên MỚI TẠO: `create()` ghi status 'scheduled'; giờ thi còn ở tương
   // lai. Đây là hình dạng của gần như mọi phiên thật trong hệ thống, nên ca
   // này cũng là chốt chặn chống việc dựng lại luật "chỉ gắn khi draft hoặc
   // scheduled" — luật đó sẽ làm ca này đỏ, và nó đỏ ĐÚNG.
@@ -343,7 +343,8 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
 
   // Review Focus #4. Lần gắn thứ hai KHÔNG được đè gói giảng viên đã chọn;
   // gói mới vẫn được tạo (lịch sử không mất) nhưng chưa duyệt.
-  it('gắn lần hai không đè gói đã ghim, và gói mới chưa duyệt', async () => {
+  // 5.4: gắn lại (chưa chấm, chưa xác nhận, cùng số câu) thay gói đã ghim bằng gói mới đã duyệt và ghim; gói cũ giữ làm lịch sử.
+  it('gắn lần hai thay gói đã ghim bằng gói mới (đã duyệt, đã ghim); gói cũ giữ nguyên', async () => {
     const sessionId = await makeSession(teacherToken, classId);
 
     const first = await attach(sessionId, examJson);
@@ -353,15 +354,16 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
 
     const bundles = await bundlesOf(sessionId);
     expect(bundles).toHaveLength(2);
-    expect(bundles[1].approved_at).toBeNull();
-    expect(second.body.testBundle.pinned).toBe(false);
-    expect(second.body.testBundle.approvedAt).toBeNull();
+    expect(bundles[0].approved_at).not.toBeNull();
+    expect(bundles[1].approved_at).not.toBeNull();
+    expect(second.body.testBundle.pinned).toBe(true);
+    expect(second.body.testBundle.approvedAt).not.toBeNull();
 
     const [row] = await dataSource.query(
       `SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`,
       [sessionId],
     );
-    expect(row.test_bundle_id).toBe(first.body.testBundle.id);
+    expect(row.test_bundle_id).toBe(second.body.testBundle.id);
   });
 
   // Review Focus #2 + #3, đầu-cuối: tên có dấu/dấu câu và tên trùng trong một
@@ -437,9 +439,26 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
   it('bỏ ca khỏi gói generated chưa duyệt -> phiên bản mới vẫn là generated, chưa duyệt', async () => {
     const sessionId = await makeSession(teacherToken, classId);
     expect((await attach(sessionId, examJson)).status).toBe(201);
-    const second = await attach(sessionId, examJson);
-    expect(second.status).toBe(201);
-    const unapprovedId = second.body.testBundle.id as string;
+    // 5.4: gắn lại giờ luôn ghim gói đã duyệt, nên gói "generated chưa duyệt" được dựng trực tiếp: cùng ca với gói đầu.
+    const [firstBundle] = await dataSource.query(
+      `SELECT id FROM examcollect.grading_test_bundle WHERE exam_session_id = $1 ORDER BY version LIMIT 1`,
+      [sessionId],
+    );
+    const [ordinalOne] = await dataSource.query(
+      `SELECT id FROM examcollect.exam_problem WHERE exam_session_id = $1 AND ordinal = 1`,
+      [sessionId],
+    );
+    const [unapproved] = await dataSource.query(
+      `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+       VALUES ($1, 2, 'generated', $2, $3) RETURNING id`,
+      [sessionId, teacherId, ordinalOne.id],
+    );
+    await dataSource.query(
+      `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output)
+       SELECT $1, case_key, "group", input, expected_output FROM examcollect.grading_test_case WHERE bundle_id = $2`,
+      [unapproved.id, firstBundle.id],
+    );
+    const unapprovedId = unapproved.id as string;
 
     const dropped = await request(app.getHttpServer())
       .post(`/exam-sessions/${sessionId}/test-bundles/${unapprovedId}/drop-case`)

@@ -20,7 +20,14 @@ import {
   type IpcMainEvent,
 } from 'electron';
 import { SessionController, type AgentState } from '../../src/session-controller';
-import { IPC_CHANNELS, type JoinRequest, type SendAccessRequestRequest } from '../shared/ipc';
+import {
+  IPC_CHANNELS,
+  type JoinRequest,
+  type SendAccessRequestRequest,
+  type StartStudentNodeRequest,
+  type TeacherLoginRequest,
+} from '../shared/ipc';
+import { LabMgmtRuntime } from './lab-mgmt-runtime';
 
 const JOIN_WINDOW_SIZE = { width: 360, height: 560 };
 // Widened from 440 — required filenames are generated (studentId + name +
@@ -30,6 +37,8 @@ const JOIN_WINDOW_SIZE = { width: 360, height: 560 };
 // the window, but the two together mean it wraps at most once or twice
 // instead of forcing a horizontal scrollbar).
 const DETAIL_WINDOW_SIZE = { width: 480, height: 720 };
+const MGMT_WINDOW_SIZE = { width: 1100, height: 720 };
+const MGMT_MIN_SIZE = { width: 900, height: 600 };
 
 // Precedence: an explicit BACKEND_URL env var (dev/testing override) beats
 // MAIN_VITE_BACKEND_URL (baked in at build time from .env.production for the
@@ -46,10 +55,25 @@ const trayIconPath = join(__dirname, '../../electron/resources/tray-icon.png');
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let controller: SessionController | null = null;
+let labMgmt: LabMgmtRuntime | null = null;
 let latestState: AgentState | null = null;
 // Sticky once true — an exam in progress must survive the window being
 // closed; only the tray's "Thoát" ends the process from that point on.
 let hasEverJoined = false;
+
+function applyUiMode(mode: 'landing' | 'exam' | 'mgmt'): void {
+  if (!mainWindow) return;
+  if (mode === 'mgmt') {
+    mainWindow.setResizable(true);
+    mainWindow.setMinimumSize(MGMT_MIN_SIZE.width, MGMT_MIN_SIZE.height);
+    mainWindow.setSize(MGMT_WINDOW_SIZE.width, MGMT_WINDOW_SIZE.height);
+    return;
+  }
+  mainWindow.setResizable(false);
+  mainWindow.setMinimumSize(JOIN_WINDOW_SIZE.width, JOIN_WINDOW_SIZE.height);
+  const size = mode === 'exam' && hasEverJoined ? DETAIL_WINDOW_SIZE : JOIN_WINDOW_SIZE;
+  mainWindow.setSize(size.width, size.height);
+}
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -119,6 +143,7 @@ let isQuitting = false;
 
 function quitApp(): void {
   isQuitting = true;
+  void labMgmt?.stop();
   controller?.quit();
   tray?.destroy();
   app.quit();
@@ -164,7 +189,7 @@ function wireController(): SessionController {
   return c;
 }
 
-function registerIpcHandlers(c: SessionController): void {
+function registerIpcHandlers(c: SessionController, mgmt: LabMgmtRuntime): void {
   // Request/response, not push: the renderer calls this once on mount to
   // pick up whatever state already exists, closing the gap the push-only
   // `agent:state` channel can't — see IPC_CHANNELS.getState's doc comment.
@@ -181,13 +206,41 @@ function registerIpcHandlers(c: SessionController): void {
   ipcMain.on(IPC_CHANNELS.quit, () => {
     quitApp();
   });
+
+  ipcMain.handle(IPC_CHANNELS.mgmtLoginTeacher, (_e, payload: TeacherLoginRequest) =>
+    mgmt.loginTeacher(payload.email, payload.password),
+  );
+  ipcMain.handle(IPC_CHANNELS.mgmtStartStudentNode, (_e, payload: StartStudentNodeRequest) =>
+    mgmt.startStudentNode(payload.mssv),
+  );
+  ipcMain.handle(IPC_CHANNELS.mgmtStop, () => mgmt.stop());
+  ipcMain.handle(IPC_CHANNELS.mgmtGetHubState, () => mgmt.getHubState());
+  ipcMain.handle(IPC_CHANNELS.mgmtGetNodeState, () => mgmt.getNodeState());
+  ipcMain.handle(IPC_CHANNELS.mgmtRefreshMachines, () => {
+    mgmt.refreshMachines();
+  });
+  ipcMain.handle(IPC_CHANNELS.mgmtScanExtensions, (_e, machineIds?: string[]) =>
+    mgmt.scanExtensions(machineIds),
+  );
+  ipcMain.handle(IPC_CHANNELS.mgmtCompareAllowlist, () => mgmt.compareAllowlist());
+  ipcMain.handle(IPC_CHANNELS.mgmtAggregateRoom, () => mgmt.aggregate());
+  ipcMain.handle(IPC_CHANNELS.mgmtSyncBackend, () => mgmt.syncBackend());
+  ipcMain.handle(IPC_CHANNELS.mgmtSetCourseId, (_e, courseId: string | null) => {
+    mgmt.setCourseId(courseId);
+  });
+  ipcMain.handle(IPC_CHANNELS.mgmtGetRoomProposalPreview, () => mgmt.getRoomProposalPreview());
+  ipcMain.handle(IPC_CHANNELS.mgmtProposeRoom, (_e, payload) => mgmt.proposeRoom(payload));
+  ipcMain.handle(IPC_CHANNELS.setUiMode, (_e, mode: 'landing' | 'exam' | 'mgmt') => {
+    applyUiMode(mode);
+  });
 }
 
 app.whenReady().then(() => {
   mainWindow = createWindow();
   tray = createTray();
   controller = wireController();
-  registerIpcHandlers(controller);
+  labMgmt = new LabMgmtRuntime(BACKEND_URL, app.getPath('userData'), () => mainWindow);
+  registerIpcHandlers(controller, labMgmt);
 
   // A renderer that reloads (dev-mode HMR, or reopening after being
   // hidden) has no memory of prior state — replay whatever we already
@@ -213,5 +266,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  void labMgmt?.stop();
   controller?.quit();
 });

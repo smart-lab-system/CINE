@@ -5,6 +5,7 @@ import {
   FileWarning,
   UserCheck,
   UserMinus,
+  UserX,
   Users,
   FileCheck,
   FileX,
@@ -16,6 +17,9 @@ import { formatAttendanceTime } from './student-marks';
 export interface LobbyDashboardProps {
   rosterSize: number;
   presentCount: number;
+  /** Chưa từng vào — trước hết giờ. */
+  notJoinedCount: number;
+  /** Vắng mặt sau deadline (thường 0 trước hết giờ). */
   absentCount: number;
   makeupCount: number;
   fullySubmitted: number;
@@ -36,11 +40,12 @@ interface Metric {
 }
 
 /**
- * Dashboard tổng quan phòng chờ — chỉ số + nhãn, không danh sách (spec §5).
+ * Dashboard tổng quan vận hành phiên — chỉ số + nhãn (spec exam-ops-lobby-ux §5.4).
  */
 export function LobbyDashboard({
   rosterSize,
   presentCount,
+  notJoinedCount,
   absentCount,
   makeupCount,
   fullySubmitted,
@@ -65,11 +70,19 @@ export function LobbyDashboard({
       variant: 'success',
     },
     {
+      key: 'not_joined',
+      label: 'Chưa vào',
+      value: notJoinedCount,
+      icon: <UserMinus className="h-3.5 w-3.5" aria-hidden="true" />,
+      variant: 'warning',
+    },
+    {
       key: 'absent',
       label: 'Vắng mặt',
       value: absentCount,
-      icon: <UserMinus className="h-3.5 w-3.5" aria-hidden="true" />,
-      variant: 'warning',
+      icon: <UserX className="h-3.5 w-3.5" aria-hidden="true" />,
+      variant: 'destructive',
+      hide: absentCount === 0,
     },
     {
       key: 'makeup',
@@ -105,10 +118,7 @@ export function LobbyDashboard({
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4 sm:p-6">
-        <div
-          aria-live="polite"
-          className="flex flex-wrap gap-2"
-        >
+        <div aria-live="polite" className="flex flex-wrap gap-2">
           {metrics
             .filter((m) => !m.hide)
             .map((metric) => (

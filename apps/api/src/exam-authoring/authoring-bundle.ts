@@ -12,6 +12,8 @@ export interface AuthoringCase {
   group: string;
   input: string;
   expectedOutput: string;
+  /** Chỉ số câu (từ 0) trong đề mà ca này thuộc về. Đường nhiều câu dùng nó để tách gói theo câu (P1b). */
+  questionIndex: number;
 }
 
 /** `CHECK (case_key ~ '^[A-Za-z0-9_-]{1,64})` — viết lại đúng biểu thức đó. */
@@ -59,6 +61,7 @@ export function flattenAuthoringCases(questions: GeneratedQuestion[]): Authoring
         group: groupFor(testCase.group),
         input: testCase.input,
         expectedOutput: testCase.expectedOutput,
+        questionIndex,
       });
     });
   });

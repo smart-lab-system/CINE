@@ -4,6 +4,8 @@ import type { TeacherReviewKind } from '../grading/grading-model.types';
 import type { CurrentScoreInput } from '../grading/scoring/current-score';
 import { parseHundredths } from '../grading/scoring/hundredths';
 import type { ScoreBreakdown } from '../grading/scoring/score-core';
+import type { StudentTotal } from '../grading/problem/student-total';
+import { loadStudentTotals } from '../grading/problem/student-total.query';
 import { blankReasonOf } from './blank-reason';
 import type { PlanStudent, PreviousWrite, StudentOutcome } from './plan';
 import { foldStudentResults } from './fold-student-results';
@@ -55,6 +57,24 @@ const RESULTS_SQL = `
        ORDER BY t.reviewed_at DESC, t.id DESC LIMIT 1) rv ON true
    WHERE s.exam_session_id = $1 AND ($2::uuid IS NULL OR s.required_deliverable_id = $2::uuid)`;
 
+/**
+ * Ô điểm của sinh viên khi xuất tổng (P1b §8). Không có bài nào thì vắng. Tổng `final` là điểm. Còn câu chưa chốt
+ * thì ô trống "chưa chốt" — không ghi điểm tạm. Có câu chờ kiểm mẫu thì ô trống "chờ duyệt", đúng nhãn mà đường một
+ * câu đã dùng cho kiểm mẫu. Nhãn đều là nhãn sẵn có: không thêm nhãn mới.
+ */
+function totalOutcome(total: StudentTotal | undefined, hasSubmission: boolean): StudentOutcome {
+  if (!hasSubmission || total === undefined) {
+    return { kind: 'blank', reason: 'absent' };
+  }
+  if (total.kind === 'final') {
+    return { kind: 'scored', hundredths: total.hundredths, computationId: null, source: 'total' };
+  }
+  if (total.kind === 'tạm') {
+    return { kind: 'blank', reason: 'not_finished' };
+  }
+  return { kind: 'blank', reason: 'flagged' };
+}
+
 function outcomeOf(r: ResultRow): StudentOutcome {
   const reason = blankReasonOf({ hasSubmission: true, status: r.status, ungradableClass: r.ungradable_class });
   if (reason !== null) return { kind: 'blank', reason };
@@ -103,6 +123,23 @@ export class GradeExportDataService {
 
     let publishedResults = 0;
     for (const r of results) if (r.status === 'finalized' || r.status === 'exported') publishedResults += 1;
+
+    // Phiên nhiều câu xuất cả phiên (không chọn file): ô điểm là TỔNG của sinh viên, không gộp bài theo câu (P1b §8).
+    // Gộp như cũ sẽ coi hai bài của hai câu là xung đột, nên ô nào cũng trống.
+    const [count] = await m.query(`SELECT COUNT(*)::int AS n FROM examcollect.exam_problem WHERE exam_session_id = $1`, [
+      sessionId,
+    ]);
+    if (deliverableId === null && (count.n as number) > 1) {
+      const totals = await loadStudentTotals(m, sessionId);
+      const withSubmission = new Set(results.map((r) => r.mssv.toLowerCase()));
+      const students: PlanStudent[] = roster.map(({ mssv, name }) => ({
+        mssv,
+        name,
+        outcome: totalOutcome(totals.get(mssv.toLowerCase()), withSubmission.has(mssv.toLowerCase())),
+      }));
+      return { students, publishedResults };
+    }
+
     const students = foldStudentResults(roster, results.map((r) => ({ mssv: r.mssv, name: r.name, outcome: outcomeOf(r) })));
     return { students, publishedResults };
   }

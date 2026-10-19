@@ -4,7 +4,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { AuditLogService } from '../../admin/audit-log.service';
 import { readAutoThreshold } from '../decision/threshold';
-import { drawnForAudit, readAuditSampling } from '../audit-sampling';
+import { drawnForStudentAudit, readAuditSampling } from '../audit-sampling';
 import { GradingResultEntity } from '../entities/grading-result.entity';
 import type { ScoreComputationReason } from '../grading-model.types';
 import { advanceStatus } from '../lifecycle/advance';
@@ -546,6 +546,7 @@ export class ScoreService {
       waivedCriteria: ctx.waivedCriteria,
       exceptions: ctx.exceptions,
       theta: this.theta,
+      rulerTrust: ctx.rulerTrust,
     });
     return { ...out, priceVersionId: price?.id ?? null };
   }
@@ -582,11 +583,21 @@ export class ScoreService {
     return row.id as string;
   }
 
-  /** Bài này có được rút vào mẫu kiểm không — chỉ phụ thuộc seed của phiên và id kết quả. */
+  /**
+   * Bài này có được rút vào mẫu kiểm không — chỉ phụ thuộc seed của phiên và MSSV của sinh viên (P1b §8): mọi câu tự
+   * duyệt của một sinh viên được rút cùng nhau, nên không thể rút một câu mà bỏ câu kia.
+   */
   private async drawnForAudit(m: EntityManager, ctx: ScoreContext): Promise<boolean> {
     if (!this.sampling.enabled) return false;
-    const [row] = await m.query(`SELECT grading_seed FROM examcollect.exam_session WHERE id = $1`, [ctx.sessionId]);
-    return row !== undefined && drawnForAudit(row.grading_seed as string, ctx.resultId, this.sampling.percent);
+    const [row] = await m.query(
+      `SELECT es.grading_seed, s.student_mssv
+         FROM examcollect.grading_result g
+         JOIN examcollect.submission s ON s.id = g.submission_id
+         JOIN examcollect.exam_session es ON es.id = s.exam_session_id
+        WHERE g.id = $1`,
+      [ctx.resultId],
+    );
+    return row !== undefined && drawnForStudentAudit(row.grading_seed as string, row.student_mssv as string, this.sampling.percent);
   }
 
   /** §14.3 — chỉ lượt tính TẦNG LUẬT mới được đưa bài flagged ⇄ auto_approved. */

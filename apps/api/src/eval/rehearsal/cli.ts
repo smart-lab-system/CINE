@@ -29,6 +29,8 @@ interface Args {
   wallSec: number | null;
   startedAt: string | null;
   timeoutMin: number;
+  /** Phòng dựng phiên. Mặc định cũ `TEST-KHONG-PHONG`; đổi khi phòng đó đang có phiên khác trùng giờ. */
+  room: string;
 }
 
 interface DetailResponse {
@@ -37,7 +39,7 @@ interface DetailResponse {
   breakdown: {
     confidence: number | null;
     errors: { ruleKey: string; source: string; counted: string }[];
-    caseFlags: { code: string }[];
+    caseFlags: { code: string; detail?: string }[];
   } | null;
   challengeVerdicts?: ActualSubmission['verdicts'];
   challengeNotes?: ActualSubmission['caseNotes'];
@@ -62,6 +64,7 @@ function parseArgs(argv: string[]): Args | string {
     wallSec: get('--wall-sec') ? Number(get('--wall-sec')) : null,
     startedAt: get('--started-at') ?? null,
     timeoutMin: get('--timeout-min') ? Number(get('--timeout-min')) : 12,
+    room: get('--room') ?? 'TEST-KHONG-PHONG',
   };
 }
 
@@ -196,12 +199,18 @@ async function submit(sessionId: string, code: string, deliverableId: string, su
   }
 }
 
-async function runSession(s: RehearsalScenario, subs: RehearsalScenario['submissions'], classId: string, timeoutMin: number) {
+async function runSession(
+  s: RehearsalScenario,
+  subs: RehearsalScenario['submissions'],
+  classId: string,
+  timeoutMin: number,
+  room: string,
+) {
   const rubricId = await ensureRubricAndRules(s);
   const now = Date.now();
   const session = await api<{ id: string; code: string; requiredDeliverables: { id: string }[] }>('POST', '/exam-sessions', {
     name: `TEST dien tap ${s.id} - xoa sau ${now}`,
-    classId, roomName: 'TEST-KHONG-PHONG', semesterName: 'TEST dien tap', examType: 'TK',
+    classId, roomName: room, semesterName: 'TEST dien tap', examType: 'TK',
     startTime: new Date(now - 60_000).toISOString(), endTime: new Date(now + 3_600_000).toISOString(),
     rubricId, requiredFilenames: [{ filename: '{MSSV}_bai.cpp', deliverableType: 'code_project', language: 'cpp' }],
   });
@@ -265,6 +274,7 @@ async function collect(scenario: RehearsalScenario, sessionId: string, doneAt: M
       verdicts: d.challengeVerdicts ?? [],
       caseNotes: d.challengeNotes ?? [],
       caseFlags: (d.breakdown?.caseFlags ?? []).map((f) => f.code),
+      caseFlagDetails: (d.breakdown?.caseFlags ?? []).map((f) => ({ code: f.code, detail: f.detail ?? null })),
       finishedAtSec: doneAt.get(row.studentMssv) ?? null,
     });
   }
@@ -346,7 +356,7 @@ async function main() {
     sessionId = args.collect;
     wallSec = args.wallSec;
   } else {
-    ({ sessionId, doneAt, wallSec } = await runSession(scenario, subs, env('REHEARSAL_CLASS_ID'), args.timeoutMin));
+    ({ sessionId, doneAt, wallSec } = await runSession(scenario, subs, env('REHEARSAL_CLASS_ID'), args.timeoutMin, args.room));
   }
   const actuals = await collect(scenario, sessionId, doneAt);
   const { checks, summary } = evaluateRun(scenario, actuals);
