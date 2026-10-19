@@ -264,6 +264,17 @@ export class GradingReferenceService {
       : null;
   }
 
+  /**
+   * Phiên đã có đáp án mẫu chưa, và ai đưa nó (G2b-R Task 3). Chỉ để lượt sinh thước biết nó có được ghi đè không: đáp án
+   * của giảng viên thì không (spec §3 luật 6). Đáp án có mà không rõ nguồn (dòng cũ trước khi có cột nguồn gốc) được coi
+   * là của giảng viên — thà chặn nhầm một lượt sinh còn hơn ghi đè một đáp án người đã viết.
+   */
+  async answerState(sessionId: string): Promise<{ hasAnswer: boolean; teacherOwned: boolean }> {
+    const ref = await this.references.findOne({ where: { examSessionId: sessionId } });
+    const hasAnswer = Boolean(ref?.modelAnswerStorageKey || ref?.modelAnswerNote || ref?.modelAnswerSourceKey);
+    return { hasAnswer, teacherOwned: hasAnswer && (ref?.modelAnswerOrigin ?? 'teacher') === 'teacher' };
+  }
+
   async upsert(
     session: ExamSessionEntity,
     dto: UpsertGradingReferenceDto,
@@ -378,7 +389,7 @@ export class GradingReferenceService {
    * lại, vì chưa bài nào bị đo bằng thước cũ — trước luật này, có một dòng
    * kết quả là khoá, và một lần sandbox sập làm cả phiên kẹt vĩnh viễn.
    */
-  private async assertNotGradedYet(session: ExamSessionEntity): Promise<void> {
+  async assertNotGradedYet(session: ExamSessionEntity): Promise<void> {
     // Gọi `isGradingLocked` (hàm tự do) thay vì `GradingService`: chiều ngược lại đã
     // tồn tại — `GradingService.gradeOne` gọi `loadForGrading` của file này. Hai
     // service cùng module import nhau là phụ thuộc vòng, thứ CLAUDE.md cấm thẳng —

@@ -1,9 +1,15 @@
 import { HttpException, HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Repository } from 'typeorm';
+import { In, MoreThan, Repository } from 'typeorm';
 import { AiUsageEntity } from './entities/ai-usage.entity';
 
 export const GENERATE_QUOTA_OPTIONS = Symbol('GENERATE_QUOTA_OPTIONS');
+
+/**
+ * Các feature của `ai_usage` cùng tiêu một hạn mức ngày: soạn đề và sinh thước (G2b-R) đều là một lời gọi model tính
+ * tiền do giảng viên bấm. Đếm riêng từng loại thì trần thật là tổng của chúng.
+ */
+const COUNTED_FEATURES = ['exam_authoring', 'ruler_generate'];
 
 export interface GenerateQuotaOptions {
   /** Số lượt soạn đề tối đa trong một cửa sổ trượt, tính theo TỪNG giảng viên. */
@@ -124,7 +130,7 @@ export class GenerateQuotaService {
   private async assertDaily(teacherId: string): Promise<void> {
     const since = new Date(this.options.now() - 24 * 60 * 60_000);
     const used = await this.usage.count({
-      where: { teacherId, feature: 'exam_authoring', createdAt: MoreThan(since) },
+      where: { teacherId, feature: In(COUNTED_FEATURES), createdAt: MoreThan(since) },
     });
     if (used >= this.options.dailyLimit) {
       throw new HttpException(

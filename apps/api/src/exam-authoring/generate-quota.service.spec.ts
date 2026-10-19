@@ -1,5 +1,5 @@
 import { HttpException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AiUsageEntity } from './entities/ai-usage.entity';
 import { GenerateQuotaService } from './generate-quota.service';
 
@@ -87,6 +87,18 @@ describe('GenerateQuotaService', () => {
       expect(error.message).toContain('24 giờ');
     });
     expect.assertions(2);
+  });
+
+  // Lượt sinh thước (G2b-R) là một lời gọi model tính tiền như soạn đề: đếm riêng thì giảng viên có thêm một trần
+  // nữa chỉ bằng cách đổi nút bấm.
+  it('hạn mức ngày đếm cả lượt soạn đề lẫn lượt sinh thước', async () => {
+    const quota = make();
+
+    await quota.assertWithin('gv-1');
+
+    expect(usage.count).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ teacherId: 'gv-1', feature: In(['exam_authoring', 'ruler_generate']) }) }),
+    );
   });
 
   it('dưới trần ngày thì vẫn cho qua', async () => {
