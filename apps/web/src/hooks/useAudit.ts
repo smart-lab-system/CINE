@@ -15,6 +15,19 @@ export function useRecordAuditReview(resultId: string) {
   });
 }
 
+/**
+ * Mở bài nộp gốc của ĐÚNG bài này ở tab mới. Link ký có hạn nên lấy lúc bấm, không lấy trước khi mở trang.
+ * `window.open` đặt trong `onSuccess`: trình duyệt cho mở tab khi còn cử chỉ bấm của giảng viên trong vài giây.
+ */
+export function useOpenSubmission(resultId: string) {
+  return useMutation({
+    mutationFn: () => getSubmissionDownload(resultId),
+    onSuccess: ({ downloadUrl }) => {
+      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+    },
+  });
+}
+
 export function useSubmissionDownload(resultId: string) {
   return useQuery({
     queryKey: ['grading-results', resultId, 'submission-download'],

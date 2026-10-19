@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { NeedsBackend } from '@/components/needs-backend';
 import { StatusPill } from '@/components/status-pill';
+import { useOpenSubmission } from '@/hooks/useAudit';
 
 export function DossierHeader({
+  resultId,
   sessionId,
   sessionName,
   roomName,
@@ -23,9 +24,12 @@ export function DossierHeader({
   studentName: string;
   status: string;
   ungradableReason: string | null;
+  /** Bài nộp gốc được mở qua route tải của chính bài này. */
+  resultId: string;
   /** Bấm "Chấm tay bài này" — hộp thoại thật do `InvestigatorDossier` giữ, để cả trang chỉ có MỘT hộp. */
   onOpenManualScore: () => void;
 }) {
+  const openSubmission = useOpenSubmission(resultId);
   return (
     <div className="flex flex-col gap-3">
       <nav aria-label="Vị trí" className="flex items-center gap-1.5 text-caption text-muted-foreground">
@@ -52,12 +56,16 @@ export function DossierHeader({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Bài đi đường điều tra là code_project, mà backend mới có bộ đọc cho 'document': mở ra chỉ thấy
-              "chưa đọc được nội dung" và không có link tải (review I4). Nhãn thật thay cho một nút trông chạy được. */}
-          <Button variant="outline" disabled>
-            Mở bài nộp
-            <NeedsBackend className="ml-2" />
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button variant="outline" loading={openSubmission.isPending} onClick={() => openSubmission.mutate()}>
+              Mở bài nộp
+            </Button>
+            {openSubmission.isError && (
+              <p role="alert" className="text-caption text-danger-strong">
+                {openSubmission.error.message}
+              </p>
+            )}
+          </div>
           <Button variant="outline" onClick={onOpenManualScore}>
             Chấm tay bài này
           </Button>

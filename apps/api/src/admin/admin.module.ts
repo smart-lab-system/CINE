@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditLogEntity } from './entities/audit-log.entity';
 import { AuditLogService } from './audit-log.service';
+import { AuditLogController } from './audit-log.controller';
 
 /**
  * CLAUDE.md's module map puts AuditLog here. Only the service is exported —
@@ -10,6 +11,7 @@ import { AuditLogService } from './audit-log.service';
  */
 @Module({
   imports: [TypeOrmModule.forFeature([AuditLogEntity])],
+  controllers: [AuditLogController],
   providers: [AuditLogService],
   exports: [AuditLogService],
 })

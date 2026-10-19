@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { NeedsBackend } from '@/components/needs-backend';
 import { countSystemUngradable } from '@/lib/regrade-triage';
 import { RegradeButton } from './RegradeButton';
 import { addSample, describeRate, describeStall, estimate, stalledSeconds, type RateSample } from '@/lib/progress-rate';
@@ -173,17 +172,13 @@ export function RunningPanel({
         </p>
       </div>
 
-      <section
-        aria-label="Đang chạy ngay lúc này"
-        className="relative rounded-lg border border-dashed border-border bg-surface p-4"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-small font-semibold">Đang chạy ngay lúc này</h3>
-          <NeedsBackend />
-        </div>
-        <p className="mt-1 text-caption text-muted-foreground">
-          Mỗi bài một dòng — bước hiện tại, số lời gọi trên trần, thời gian đã chạy. Hôm nay tiến độ chỉ đếm số bài;
-          chưa có nguồn cho từng lời gọi.
+      {/* Chỉ số đếm của CHÍNH phiên này (lấy từ grading-progress). Không có thời điểm bắt đầu từng bài trong tiến độ,
+          nên không hiện "bài chạy lâu nhất"; nếu cần, phải thêm trường vào grading-progress trước. */}
+      <section aria-label="Đang chạy ngay lúc này" className="rounded-lg border border-border bg-surface p-4">
+        <h3 className="text-small font-semibold">Đang chạy ngay lúc này</h3>
+        <p className="mt-1 text-small">
+          <span className="font-semibold tabular-nums">{progress.pending}</span> bài của phiên này đang chấm
+          {progress.pending > 0 && ` · ${progress.done} trên ${progress.total} đã có kết quả`}.
         </p>
       </section>
 

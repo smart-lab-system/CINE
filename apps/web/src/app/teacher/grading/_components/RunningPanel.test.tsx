@@ -173,10 +173,12 @@ describe('RunningPanel — incidents: each banner says WHAT broke and whether th
 });
 
 describe('RunningPanel — what the API cannot tell yet is labelled, not invented (T-UI-10)', () => {
-  it('"Đang chạy ngay lúc này" is a "cần backend" block', () => {
-    render(<RunningPanel {...props()} />);
+  it('"Đang chạy ngay lúc này" shows the count of this session, and no "cần backend" placeholder', () => {
+    render(<RunningPanel {...props({ progress: progress({ pending: 4, done: 6, total: 10 }) })} />);
     const block = screen.getByRole('region', { name: 'Đang chạy ngay lúc này' });
-    expect(within(block).getByText('cần backend')).toBeInTheDocument();
+    expect(within(block).getByText('4')).toBeInTheDocument();
+    expect(within(block).getByText(/bài của phiên này đang chấm/)).toBeInTheDocument();
+    expect(within(block).queryByText('cần backend')).not.toBeInTheDocument();
   });
 
   it('regrading system-stopped results is a real button carrying the SYSTEM count', () => {

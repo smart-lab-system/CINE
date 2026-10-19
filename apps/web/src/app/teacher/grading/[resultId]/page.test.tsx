@@ -27,6 +27,9 @@ const rubric: Rubric = {
   criteria: [{ id: 'c1', key: 'nhat_quan', description: 'Xử lý nhất quán dữ liệu', maxPoints: 4 }],
 };
 
+vi.mock('@/hooks/useAudit', () => ({
+  useOpenSubmission: () => ({ mutate: () => {}, isPending: false, isError: false, error: null }),
+}));
 vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: () => ({ data: resultsData, isLoading: false }),
   useGradingReadiness: () => ({ data: readinessData, isLoading: false }),
