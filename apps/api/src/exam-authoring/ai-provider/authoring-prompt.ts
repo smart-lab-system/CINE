@@ -242,7 +242,7 @@ function truncateClassicProblem(value: string): string {
  * Trả `null` khi ngoặc không khép — tức đầu ra bị cắt giữa chừng. Không
  * đoán phần thiếu: một đề bị vá là một đề sai mà trông như đúng.
  */
-function extractJsonObject(text: string): string | null {
+export function extractJsonObject(text: string): string | null {
   const fenced = /```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*```/i.exec(text);
   const source = fenced ? fenced[1] : text;
 

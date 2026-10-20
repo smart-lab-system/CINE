@@ -99,6 +99,8 @@ export interface GradingReadiness {
   warning: string | null;
   hasQuestion: boolean;
   hasModelAnswer: boolean;
+  /** Phiên có mã đáp án để chạy thử (G2b-R). Không phải tài liệu AI đọc. */
+  hasAnswerSource?: boolean;
   sources?: {
     question: GradingSourceInfo;
     modelAnswer: GradingSourceInfo & { unverified: boolean };
@@ -424,6 +426,49 @@ export async function requestAnswerKeyUpload(
   );
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as { storageKey: string; uploadUrl: string; expiresIn: number };
+}
+
+/** Đuôi file mã đáp án — chỉ hai ngôn ngữ sandbox chạy được. */
+export type AnswerSourceExtension = 'cpp' | 'py';
+
+/**
+ * Xin URL để tải MÃ NGUỒN đáp án mẫu thẳng lên kho (G2b-R). Khác `requestAnswerKeyUpload` (file đáp án dạng tài liệu): mã
+ * này là thứ server chạy trong sandbox. File không đi qua API server (Security rule 5); khoá do server cấp.
+ */
+export async function requestAnswerSourceUpload(
+  examSessionId: string,
+  extension: AnswerSourceExtension,
+): Promise<{ storageKey: string; uploadUrl: string; expiresIn: number }> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/grading-reference/answer-source/upload-url', {
+    params: { path: { id: examSessionId } },
+    body: { extension },
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { storageKey: string; uploadUrl: string; expiresIn: number };
+}
+
+/** Xác nhận mã đã lên kho: server đọc object, băm, đặt khoá theo băm và ghi cột nguồn của đáp án mẫu. */
+export async function confirmAnswerSource(examSessionId: string, storageKey: string): Promise<{ sourceKey: string; sha256: string }> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/grading-reference/answer-source/confirm', {
+    params: { path: { id: examSessionId } },
+    body: { storageKey },
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as { sourceKey: string; sha256: string };
+}
+
+/**
+ * Tải cả luồng: xin URL, PUT file thẳng lên kho, rồi xác nhận. PUT hỏng thì DỪNG, không xác nhận — lưu một tham chiếu
+ * tới object không có thì lượt chạy thử sau đó sẽ báo "không khớp băm" mà giảng viên không hiểu vì sao. Đuôi sai bị từ
+ * chối ngay ở đây, trước khi tốn một lời gọi.
+ */
+export async function uploadAnswerSource(examSessionId: string, file: File): Promise<{ sourceKey: string; sha256: string }> {
+  const extension = /\.(cpp|py)$/i.exec(file.name)?.[1].toLowerCase() as AnswerSourceExtension | undefined;
+  if (!extension) throw new Error('Mã đáp án phải là file .cpp hoặc .py.');
+  const { storageKey, uploadUrl } = await requestAnswerSourceUpload(examSessionId, extension);
+  const put = await fetch(uploadUrl, { method: 'PUT', body: file });
+  if (!put.ok) throw new Error('Chưa tải được file mã đáp án lên kho lưu trữ. Thử lại giúp tôi.');
+  return confirmAnswerSource(examSessionId, storageKey);
 }
 
 /**

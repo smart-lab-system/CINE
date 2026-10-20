@@ -36,16 +36,56 @@ export class TestBundleService {
   async create(examSessionId: string, teacherId: string, dto: CreateTestBundleDto) {
     return this.ds.transaction(async (manager) => {
       await assertSessionRouteAllowed(manager, examSessionId);
+      const origin = await this.originFor(manager, examSessionId, dto.derivedFromBundleId);
       const version = await this.nextVersion(manager, examSessionId);
       const problemId = await ensureDefaultProblem(manager, examSessionId);
       const [bundle] = await manager.query(
         `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
-         VALUES ($1, $2, 'teacher', $3, $4) RETURNING id, version`,
-        [examSessionId, version, teacherId, problemId],
+         VALUES ($1, $2, $5, $3, $4) RETURNING id, version`,
+        [examSessionId, version, teacherId, problemId, origin],
       );
       await this.insertCases(manager, bundle.id, dto.cases);
       return { id: bundle.id as string, version: bundle.version as number };
     });
+  }
+
+  /**
+   * Origin của phiên bản mới: `teacher` khi không dẫn xuất từ đâu; ngược lại là origin của gói gốc, KHÔNG phải `teacher`. Gói
+   * gốc không thuộc phiên là 404, không rò sự tồn tại của gói phiên khác.
+   */
+  private async originFor(manager: EntityManager, examSessionId: string, derivedFromBundleId: string | undefined): Promise<string> {
+    if (derivedFromBundleId === undefined) return 'teacher';
+    const [source] = await manager.query(
+      `SELECT origin FROM examcollect.grading_test_bundle WHERE id = $1 AND exam_session_id = $2`,
+      [derivedFromBundleId, examSessionId],
+    );
+    if (!source) throw new NotFoundException(`Gói gốc ${derivedFromBundleId} không thuộc phiên này.`);
+    return source.origin as string;
+  }
+
+  /**
+   * Gói do HỆ THỐNG sinh (G2b-R: từ đề hay từ đáp án của giảng viên), trong transaction của NGƯỜI GỌI để gói, thước và
+   * dòng chạy cùng thành công hay cùng không. LUÔN chưa duyệt và chưa ghim: duyệt là hành động riêng của giảng viên,
+   * qua route `approve`. Ca bị hệ thống bỏ mang `autoDroppedReason` để giảng viên thấy vì sao. Gói phải còn ít nhất một
+   * ca chấm được (cùng luật với `dropCase`), nếu không thì không ghi gì.
+   */
+  async createGeneratedWithin(
+    manager: EntityManager,
+    input: { sessionId: string; teacherId: string; origin: 'generated' | 'from_model_answer'; cases: BundleCaseInput[] },
+  ): Promise<{ id: string; version: number }> {
+    if (!input.cases.some((c) => !c.autoDroppedReason)) {
+      throw new ConflictException('Không còn ca nào chấm được sau khi lọc — không ghi gói. Một gói test phải còn ít nhất một ca.');
+    }
+    await assertSessionRouteAllowed(manager, input.sessionId);
+    const version = await this.nextVersion(manager, input.sessionId);
+    const problemId = await ensureDefaultProblem(manager, input.sessionId);
+    const [bundle] = await manager.query(
+      `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, version`,
+      [input.sessionId, version, input.origin, input.teacherId, problemId],
+    );
+    await this.insertCases(manager, bundle.id, input.cases);
+    return { id: bundle.id as string, version: bundle.version as number };
   }
 
   async approve(examSessionId: string, bundleId: string, teacherId: string) {

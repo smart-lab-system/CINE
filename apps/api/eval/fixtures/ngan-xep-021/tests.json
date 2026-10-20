@@ -1,0 +1,6 @@
+[
+  { "key": "cb1", "group": "co_ban", "input": "3\n1 2 3\n", "expected": "3 2 1\n" },
+  { "key": "cb2", "group": "co_ban", "input": "1\n42\n", "expected": "42\n" },
+  { "key": "cb3", "group": "co_ban", "input": "4\n-1 -2 -3 -4\n", "expected": "-4 -3 -2 -1\n" },
+  { "key": "bi1", "group": "bien", "input": "2\n10000000000 1\n", "expected": "1 10000000000\n" }
+]

@@ -81,10 +81,19 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     it('ok when present', () => {
       expect(row(base(), 'answer').status).toBe('ok');
     });
-    it('a warning, not a block, when missing; auto-building it is "cần backend"', () => {
+    it('a warning, not a block, when missing; says how to add one, and no "cần backend" label', () => {
       const input = base({ readiness: { hasQuestion: true, hasModelAnswer: false } });
-      expect(row(input, 'answer')).toMatchObject({ status: 'warn', needsBackend: true });
+      const r = row(input, 'answer');
+      expect(r).toMatchObject({ status: 'warn' });
+      expect(r.text).toMatch(/Tải mã đáp án|sinh đáp án mẫu/);
       expect(preflightOf(input).canStart).toBe(true);
+    });
+    it('code only (mã để chạy thử, không có tài liệu): a warning that says the grader cannot read it', () => {
+      const input = base({ readiness: { hasQuestion: true, hasModelAnswer: false, hasAnswerSource: true } });
+      const r = row(input, 'answer');
+      expect(r.status).toBe('warn');
+      expect(r.text).toMatch(/chạy thử/);
+      expect(r.text).toMatch(/AI chấm chưa có tài liệu/);
     });
   });
 
@@ -171,10 +180,9 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     it('no row without a code deliverable', () => {
       expect(preflightOf(base()).rows.some((r) => r.key === 'language')).toBe(false);
     });
-    it('all run in the run environment → ok, no warning, no "cần backend"', () => {
+    it('all run in the run environment → ok, no warning', () => {
       const r = row(base({ deliverables: [codeDeliverable(), codeDeliverable({ language: 'cpp' })], bundle: { pinned: true, total: 1, approved: 1 } }), 'language');
       expect(r.status).toBe('ok');
-      expect(r.needsBackend).toBeUndefined();
       expect(r.text).toBe('2 bài code chạy trong môi trường chạy bài.');
     });
     it('some graded by reading → warns with the counts, and how many never declared a language', () => {

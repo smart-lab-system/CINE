@@ -7,6 +7,8 @@ import { ExamAuthoringService } from './exam-authoring.service';
 import { ExamAuthoringController } from './exam-authoring.controller';
 import { AttachExamService } from './attach-exam.service';
 import { GenerateQuotaService } from './generate-quota.service';
+import { RulerGenerateController } from './ruler-generate.controller';
+import { RulerGenerateService } from './ruler-generate.service';
 import { ExamSessionModule } from '../exam-session/exam-session.module';
 import { GradingModule } from '../grading/grading.module';
 import { StorageModule } from '../storage/storage.module';
@@ -16,6 +18,9 @@ import {
 } from './ai-provider/exam-authoring-provider';
 import { ClaudeAuthoringProvider } from './ai-provider/claude-authoring.provider';
 import { StubAuthoringProvider } from './ai-provider/stub-authoring.provider';
+import { ClaudeRulerProvider } from './ruler/claude-ruler.provider';
+import { RULER_PROVIDER, RulerProvider } from './ruler/ruler-provider';
+import { StubRulerProvider } from './ruler/stub-ruler.provider';
 
 /**
  * TEST KHÔNG BAO GIỜ ĐƯỢC GỌI API TÍNH TIỀN.
@@ -45,6 +50,22 @@ export function selectAuthoringProvider(
   return claude;
 }
 
+/**
+ * Cùng luật với `selectAuthoringProvider`: test không bao giờ gọi API tính tiền, và máy không có khoá thì dùng stub. Khác ở
+ * chỗ stub của sinh thước TỪ CHỐI (503) thay vì trả thước mẫu — một gói test cố định cho đề không liên quan nguy hiểm hơn
+ * một lỗi rõ ràng.
+ */
+export function selectRulerProvider(claude: ClaudeRulerProvider, stub: StubRulerProvider): RulerProvider {
+  if (process.env.NODE_ENV === 'test') {
+    return stub;
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    new Logger('ExamAuthoringModule').warn('Không có ANTHROPIC_API_KEY — sinh gói test sẽ trả 503.');
+    return stub;
+  }
+  return claude;
+}
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([AiUsageEntity, RubricEntity, RubricCriterionEntity]),
@@ -54,11 +75,19 @@ export function selectAuthoringProvider(
     GradingModule,
     StorageModule,
   ],
-  controllers: [ExamAuthoringController],
+  controllers: [ExamAuthoringController, RulerGenerateController],
   providers: [
     ExamAuthoringService,
     AttachExamService,
     GenerateQuotaService,
+    RulerGenerateService,
+    ClaudeRulerProvider,
+    StubRulerProvider,
+    {
+      provide: RULER_PROVIDER,
+      useFactory: selectRulerProvider,
+      inject: [ClaudeRulerProvider, StubRulerProvider],
+    },
     ClaudeAuthoringProvider,
     StubAuthoringProvider,
     {

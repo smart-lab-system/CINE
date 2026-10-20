@@ -111,6 +111,18 @@ export class GradingReferenceEntity extends BaseEntity {
   @Column({ name: 'model_answer_set_at', type: 'timestamptz', nullable: true })
   modelAnswerSetAt!: Date | null;
 
+  /**
+   * MÃ NGUỒN của đáp án mẫu (cpp hoặc python), lưu theo BĂM nội dung:
+   * `grading-reference/<sessionId>/source-<sha256>.<cpp|py>` (G2b A2b). Bản cũ không bị ghi đè; cột chỉ trỏ
+   * tới bản hiện hành. Đây là mã, không phải output mong đợi, nên không phá nguyên tắc "thước không do LLM viết".
+   * Không bao giờ đi qua HTTP DTO hay `listForAgent`.
+   */
+  @Column({ name: 'model_answer_source_key', type: 'text', nullable: true })
+  modelAnswerSourceKey!: string | null;
+
+  @Column({ name: 'model_answer_source_sha256', type: 'varchar', length: 64, nullable: true })
+  modelAnswerSourceSha256!: string | null;
+
   @Column({ name: 'created_by', type: 'uuid' })
   createdBy!: string;
 

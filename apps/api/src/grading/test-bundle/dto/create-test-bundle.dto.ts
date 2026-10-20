@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsOptional, IsString, Length, Matches, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateNested } from 'class-validator';
 
 /** Khuôn `case_key` khớp CHECK của DB (`^[A-Za-z0-9_-]{1,64}$`). */
 export const CASE_KEY_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
@@ -31,4 +31,12 @@ export class CreateTestBundleDto {
   @ValidateNested({ each: true })
   @Type(() => TestCaseDto)
   cases!: TestCaseDto[];
+
+  /**
+   * Gói gốc mà phiên bản này dẫn xuất (nút "Tạo phiên bản mới từ gói này"). Phiên bản mới kế thừa ORIGIN của gói gốc: gói do
+   * hệ thống sinh vẫn mang nhãn đó sau khi giảng viên bỏ bớt ca. Phải thuộc đúng phiên (404 nếu không).
+   */
+  @IsOptional()
+  @IsUUID()
+  derivedFromBundleId?: string;
 }

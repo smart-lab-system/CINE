@@ -1,9 +1,15 @@
 import { HttpException, HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Repository } from 'typeorm';
+import { In, MoreThan, Repository } from 'typeorm';
 import { AiUsageEntity } from './entities/ai-usage.entity';
 
 export const GENERATE_QUOTA_OPTIONS = Symbol('GENERATE_QUOTA_OPTIONS');
+
+/**
+ * Các feature của `ai_usage` cùng tiêu một hạn mức ngày: soạn đề và sinh thước (G2b-R) đều là một lời gọi model tính
+ * tiền do giảng viên bấm. Đếm riêng từng loại thì trần thật là tổng của chúng.
+ */
+const COUNTED_FEATURES = ['exam_authoring', 'ruler_generate'];
 
 export interface GenerateQuotaOptions {
   /** Số lượt soạn đề tối đa trong một cửa sổ trượt, tính theo TỪNG giảng viên. */
@@ -101,10 +107,10 @@ export class GenerateQuotaService {
     if (mine.length >= this.options.burstLimit) {
       const retryAfterMs = mine[0] + this.options.burstWindowMs - now;
       throw new HttpException(
-        `Bạn đã soạn ${this.options.burstLimit} lượt trong ${Math.round(
+        `Bạn đã gọi model ${this.options.burstLimit} lượt (soạn đề, sinh gói test) trong ${Math.round(
           this.options.burstWindowMs / 60_000,
         )} phút. Chờ khoảng ${Math.max(1, Math.ceil(retryAfterMs / 60_000))} phút rồi thử lại — ` +
-          'mỗi lượt soạn đề là một lời gọi tới model tính tiền thật.',
+          'mỗi lượt soạn đề hay sinh gói test là một lời gọi tới model tính tiền thật.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -124,11 +130,11 @@ export class GenerateQuotaService {
   private async assertDaily(teacherId: string): Promise<void> {
     const since = new Date(this.options.now() - 24 * 60 * 60_000);
     const used = await this.usage.count({
-      where: { teacherId, feature: 'exam_authoring', createdAt: MoreThan(since) },
+      where: { teacherId, feature: In(COUNTED_FEATURES), createdAt: MoreThan(since) },
     });
     if (used >= this.options.dailyLimit) {
       throw new HttpException(
-        `Bạn đã dùng hết ${this.options.dailyLimit} lượt soạn đề trong 24 giờ qua. ` +
+        `Bạn đã dùng hết ${this.options.dailyLimit} lượt gọi model (soạn đề, sinh gói test) trong 24 giờ qua. ` +
           'Hạn mức này để một lỗi phía máy không đốt hết ngân sách gọi model; ' +
           'cần thêm thì báo quản trị viên.',
         HttpStatus.TOO_MANY_REQUESTS,

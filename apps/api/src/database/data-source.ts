@@ -35,6 +35,7 @@ import { RubricErrorPriceEntity } from '../grading/entities/rubric-error-price.e
 import { ErrorRuleSightingEntity } from '../grading/entities/error-rule-sighting.entity';
 import { GradingTestBundleEntity } from '../grading/entities/grading-test-bundle.entity';
 import { GradingTestCaseEntity } from '../grading/entities/grading-test-case.entity';
+import { GradingTestRunEntity } from '../grading/entities/grading-test-run.entity';
 import { GradingAttemptEntity } from '../grading/entities/grading-attempt.entity';
 import { ScoreComputationEntity } from '../grading/entities/score-computation.entity';
 import { CriterionWaiverEntity } from '../grading/entities/criterion-waiver.entity';
@@ -146,6 +147,7 @@ export const dataSourceOptions: DataSourceOptions = {
     ErrorRuleSightingEntity,
     GradingTestBundleEntity,
     GradingTestCaseEntity,
+    GradingTestRunEntity,
     GradingAttemptEntity,
     ScoreComputationEntity,
     CriterionWaiverEntity,

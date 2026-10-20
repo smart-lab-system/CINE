@@ -136,7 +136,7 @@ describe('P1b — gắn đề nhiều câu từ Soạn đề (e2e)', () => {
 
   afterAll(async () => app.close());
 
-  it('đề hai câu cùng điểm bằng tổng rubric: hai câu, mỗi câu một gói đúng ca của nó, câu 1 là bí danh của phiên', async () => {
+  it('đề hai câu cùng điểm bằng tổng rubric: hai câu, KHÔNG tạo gói nào, câu 1 là bí danh của phiên', async () => {
     const { owner, session } = await sessionWithRubric('a1', { total: 5 });
 
     const res = await attach(
@@ -154,24 +154,29 @@ describe('P1b — gắn đề nhiều câu từ Soạn đề (e2e)', () => {
       [1, 'Câu 1', 500, 'Đề câu 1'],
       [2, 'Câu 2', 500, 'Đề câu 2'],
     ]);
-    const [b1, b2] = [problems[0].test_bundle_id as string, problems[1].test_bundle_id as string];
-    expect(b1).not.toBeNull();
-    expect(b2).not.toBeNull();
-    expect(b1).not.toEqual(b2);
-
-    // Mỗi gói thuộc đúng câu của nó: problem_id của gói trỏ về id của câu đó.
-    const bundles = await bundlesOf(session.sessionId);
-    const problemOfBundle = new Map(bundles.map((b) => [b.id, b.problem_id]));
-    expect(problemOfBundle.get(b1)).toBe(problems[0].id);
-    expect(problemOfBundle.get(b2)).toBe(problems[1].id);
-
-    // Ca của câu 1 mang tiền tố q1-, ca của câu 2 mang tiền tố q2-; trùng tên giữa hai câu không vỡ khoá.
-    expect(await caseKeysOf(b1)).toEqual(['q1-ca-hai', 'q1-ca-mot']);
-    expect(await caseKeysOf(b2)).toEqual(['q2-ca-mot']);
-
+    // Gắn đề KHÔNG tạo gói (A2a, Q2 của spec G2b): thước từ đề chưa được chạy, nên gói do LLM viết không được tự duyệt.
+    // Câu được tạo, nhưng chưa có gói; phiên chưa có gói ghim; kết quả dẫn sang bước tạo gói.
+    expect(res.body.nextStep).toBe('create_bundle');
+    expect(res.body.testBundle).toBeUndefined();
+    expect(problems.map((p) => p.test_bundle_id)).toEqual([null, null]);
+    expect(await bundlesOf(session.sessionId)).toHaveLength(0);
     const [alias] = await ds.query(`SELECT test_bundle_id FROM examcollect.exam_session WHERE id = $1`, [session.sessionId]);
-    expect(alias.test_bundle_id).toBe(b1);
-    expect(res.body.testBundle.id).toBe(b1);
+    expect(alias.test_bundle_id).toBeNull();
+  });
+
+  // G2b A2b: mã nguồn đáp án chỉ ghi khi đề có ĐÚNG MỘT câu; đề nhiều câu để các câu dùng chung một khoá sẽ đè nhau.
+  it('đề nhiều câu không ghi mã nguồn đáp án: cột nguồn của thước rỗng', async () => {
+    const { owner, session } = await sessionWithRubric('a7', { total: 5 });
+
+    const res = await attach(owner, session.sessionId, examJson([{ points: 5, cases: [] }, { points: 5, cases: [] }]));
+    expect(res.status).toBe(201);
+
+    const [ref] = await ds.query(
+      `SELECT model_answer_source_key AS key, model_answer_source_sha256 AS sha256
+         FROM examcollect.grading_reference WHERE exam_session_id = $1`,
+      [session.sessionId],
+    );
+    expect(ref).toEqual({ key: null, sha256: null });
   });
 
   it('điểm câu có hơn hai chữ số thập phân → 400, và không ghi gì', async () => {
@@ -270,6 +275,7 @@ describe('P1b — gắn đề nhiều câu từ Soạn đề (e2e)', () => {
     const problems = await problemsOf(session.sessionId);
     expect(problems.map((p) => p.ordinal)).toEqual([1]);
     expect(problems[0].points_hundredths).toBe(500);
-    expect(await bundlesOf(session.sessionId)).toHaveLength(1);
+    // Gắn đề không tạo gói (A2a): đề có ca nhưng không có gói nào được tạo.
+    expect(await bundlesOf(session.sessionId)).toHaveLength(0);
   });
 });

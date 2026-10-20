@@ -17,7 +17,8 @@ export interface PreflightInput {
   counts: { fullySubmitted: number; partial: number; attendedNoSubmission: number; neverAttended: number };
   hasRubricId: boolean;
   rubric: Rubric | undefined;
-  readiness: { hasQuestion: boolean; hasModelAnswer: boolean } | undefined;
+  /** `hasAnswerSource`: phiên có MÃ đáp án để chạy thử (không phải tài liệu AI đọc). */
+  readiness: { hasQuestion: boolean; hasModelAnswer: boolean; hasAnswerSource?: boolean } | undefined;
   /** Mọi yêu cầu nộp của phiên. `pipeline` do BACKEND tính (`pipelineFor`) — không suy ra ở đây (G1 §3.3). */
   deliverables: {
     deliverableType: 'document' | 'code_project' | 'image';
@@ -39,8 +40,6 @@ export interface PreflightRow {
   status: PreflightStatus;
   text: string;
   link?: { href: string; label: string };
-  /** Chỗ này cần một phần API chưa có — hiện nhãn "cần backend". */
-  needsBackend?: true;
 }
 
 export function preflightOf(input: PreflightInput): {
@@ -86,16 +85,22 @@ export function preflightOf(input: PreflightInput): {
     rows.push({ key: 'question', label: 'Đề bài', status: 'ok', text: 'Đã chỉ định.' });
   }
 
-  // Đáp án mẫu — không bắt buộc
+  // Đáp án mẫu — không bắt buộc. Mã để chạy thử và tài liệu để AI đọc là hai thứ khác nhau, nên dòng nói rõ đang có cái nào.
   if (readiness?.hasModelAnswer) {
     rows.push({ key: 'answer', label: 'Đáp án mẫu', status: 'ok', text: 'Đã có đáp án mẫu hoặc ghi chú đáp án.' });
+  } else if (readiness?.hasAnswerSource) {
+    rows.push({
+      key: 'answer',
+      label: 'Đáp án mẫu',
+      status: 'warn',
+      text: 'Có mã đáp án để chạy thử, nhưng AI chấm chưa có tài liệu đáp án để đọc. Thêm ghi chú hoặc tài liệu nếu muốn AI đối chiếu.',
+    });
   } else {
     rows.push({
       key: 'answer',
       label: 'Đáp án mẫu',
       status: 'warn',
-      text: 'Chưa có — không bắt buộc. Một dòng ghi chú đáp án cũng đủ; hệ thống tự dựng đáp án từ đề thì chưa làm được.',
-      needsBackend: true,
+      text: 'Chưa có — không bắt buộc. Tải mã đáp án (.cpp, .py) để chạy thử, hoặc sinh đáp án mẫu từ đề ở khối "Gói test".',
     });
   }
 

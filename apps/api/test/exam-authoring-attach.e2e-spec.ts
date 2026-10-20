@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
@@ -371,6 +372,75 @@ describe('Exam authoring — gắn đề vào phiên (e2e)', () => {
     expect(res.status).toBe(201);
     expect(res.body.nextStep).toBe('create_bundle');
     expect(await bundlesOf(sessionId)).toHaveLength(0);
+  });
+
+  // G2b A2b: mã đáp án (không phải output mong đợi) được lưu lúc gắn, theo băm nội dung.
+  describe('mã nguồn đáp án lúc gắn (A2b)', () => {
+    const sha = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+
+    function singleExam(language: string, modelAnswer: string): string {
+      return JSON.stringify({
+        title: 'Đề một câu',
+        language,
+        verification: { status: 'unverified', reason: 'sandbox_unavailable' },
+        questions: [{ statement: 'Câu hỏi', modelAnswer, topic: 'thử', points: 1, testBundle: [] }],
+      });
+    }
+
+    async function sourceOf(sessionId: string) {
+      const [row] = await dataSource.query(
+        `SELECT model_answer_source_key AS key, model_answer_source_sha256 AS sha256, ruler_trust
+           FROM examcollect.grading_reference WHERE exam_session_id = $1`,
+        [sessionId],
+      );
+      return row as { key: string | null; sha256: string | null; ruler_trust: string | null };
+    }
+
+    it('đề một câu cpp → ghi object theo băm, cột nguồn trỏ đúng, ruler_trust = unverified', async () => {
+      const sessionId = await makeSession(teacherToken, classId);
+      const code = '#include <iostream>\nint main() { std::cout << 42; }\n';
+
+      const res = await attach(sessionId, singleExam('cpp', code));
+
+      expect(res.status).toBe(201);
+      const key = `grading-reference/${sessionId}/source-${sha(code)}.cpp`;
+      expect(await sourceOf(sessionId)).toEqual({ key, sha256: sha(code), ruler_trust: 'unverified' });
+      expect(await storage.objectExists(key)).toBe(true);
+      expect((await storage.getObject(key)).toString('utf8')).toBe(code);
+    });
+
+    it('đề một câu python → đuôi .py', async () => {
+      const sessionId = await makeSession(teacherToken, classId);
+      const code = 'print(42)\n';
+
+      expect((await attach(sessionId, singleExam('python', code))).status).toBe(201);
+
+      expect((await sourceOf(sessionId)).key).toBe(`grading-reference/${sessionId}/source-${sha(code)}.py`);
+    });
+
+    it('ngôn ngữ java trong JSON cũ → không ghi mã nguồn, không lỗi', async () => {
+      const sessionId = await makeSession(teacherToken, classId);
+
+      const res = await attach(sessionId, singleExam('java', 'class A {}'));
+
+      expect(res.status).toBe(201);
+      expect(await sourceOf(sessionId)).toEqual({ key: null, sha256: null, ruler_trust: 'unverified' });
+    });
+
+    it('gắn hai lần với đáp án khác → hai object, cột trỏ bản mới, bản cũ còn trên kho', async () => {
+      const sessionId = await makeSession(teacherToken, classId);
+      const first = 'print(1)\n';
+      const second = 'print(2)\n';
+
+      expect((await attach(sessionId, singleExam('python', first))).status).toBe(201);
+      expect((await attach(sessionId, singleExam('python', second))).status).toBe(201);
+
+      const oldKey = `grading-reference/${sessionId}/source-${sha(first)}.py`;
+      const newKey = `grading-reference/${sessionId}/source-${sha(second)}.py`;
+      expect((await sourceOf(sessionId)).key).toBe(newKey);
+      expect(await storage.objectExists(oldKey)).toBe(true);
+      expect(await storage.objectExists(newKey)).toBe(true);
+    });
   });
 
   it('đề không sinh ca nào -> vẫn gắn đề, không tạo gói', async () => {
