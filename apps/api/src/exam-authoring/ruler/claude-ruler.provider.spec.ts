@@ -12,7 +12,7 @@ import { BadGatewayException, ServiceUnavailableException, UnprocessableEntityEx
 import { AUTHORING_MODEL } from '../ai-provider/claude-authoring.provider';
 import { ClaudeRulerProvider } from './claude-ruler.provider';
 import { RulerProviderFailure } from './ruler-provider';
-import { RULER_PROMPT_VERSION } from './ruler-prompt';
+import { RULER_OUTPUT_SCHEMA, RULER_PROMPT_VERSION } from './ruler-prompt';
 import { StubRulerProvider } from './stub-ruler.provider';
 
 const STATEMENT = 'Cho n số nguyên. In ra các số theo thứ tự ngược lại.';
@@ -97,6 +97,16 @@ describe('ClaudeRulerProvider', () => {
     expect(r.proposal.modelAnswer).toBeNull();
     const [body] = streamMock.mock.calls[0] as [{ messages: { content: string }[] }];
     expect(body.messages[0].content).toContain('int main() { return 7; }');
+  });
+
+  it('gửi khuôn JSON qua structured outputs (output_config.format), không dùng tool: API ép đầu ra đúng khuôn', async () => {
+    finalMessageMock.mockResolvedValue(message());
+
+    await provider.propose({ statement: STATEMENT, language: 'cpp' });
+
+    const [body] = streamMock.mock.calls[0] as [{ output_config?: unknown; tools?: unknown }];
+    expect(body.output_config).toEqual({ format: { type: 'json_schema', schema: RULER_OUTPUT_SCHEMA } });
+    expect(body.tools).toBeUndefined();
   });
 
   it('model từ chối → 422, vẫn mang usage (đã tốn token)', async () => {
