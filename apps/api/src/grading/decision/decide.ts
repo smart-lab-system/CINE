@@ -159,12 +159,12 @@ export function decide(input: DecisionInput): Decision {
   const ran = runs.some((s) => s.kind === 'run_tests' && ((s.compile && !s.compile.ok) || s.cases.length > 0));
   const anyPass = runs.some((s) => s.kind === 'run_tests' && s.cases.some((c) => c.status === 'pass'));
   const nothingPassed = ran && !anyPass;
-  if (nothingPassed) caseFlags.push({ code: 'nothing_passed', detail: 'mọi ca của gói test đều không đạt — mâu thuẫn với chẩn đoán phải do giảng viên xem (§4.3)' });
+  if (nothingPassed) caseFlags.push({ code: 'nothing_passed', detail: 'mọi ca của gói test đều không đạt — mâu thuẫn với chẩn đoán phải do giảng viên xem' });
 
   // Q5: cờ của cuộc điều tra.
   for (const f of result.flags) caseFlags.push({ code: 'investigation_flag', detail: f });
 
-  if (input.pipeline !== 'investigator') caseFlags.push({ code: 'not_code_pipeline', detail: 'bài tự luận không bao giờ tự quyết (§0.3)' });
+  if (input.pipeline !== 'investigator') caseFlags.push({ code: 'not_code_pipeline', detail: 'bài tự luận không bao giờ tự quyết' });
 
   const suspectedNotes = (input.challenge?.caseNotes ?? []).filter((n) => n.suspected);
   if (suspectedNotes.length > 0) {
@@ -189,7 +189,7 @@ export function decide(input: DecisionInput): Decision {
   // §6.3b (P1b): thước chưa kiểm chứng thì bài không tự quyết, dù bằng chứng đủ. Cờ này đi qua `auto` bên dưới,
   // nên không cần nhánh riêng; các sàn khác không đổi.
   if (input.rulerTrust === 'unverified') {
-    caseFlags.push({ code: 'ruler_unverified', detail: 'đáp án mẫu của đề chưa được kiểm chứng bằng chạy thử (§6.3b)' });
+    caseFlags.push({ code: 'ruler_unverified', detail: 'đáp án mẫu của đề chưa được kiểm chứng bằng chạy thử' });
   }
 
   const errorFlags: ErrorFlag[] = [

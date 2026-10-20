@@ -278,6 +278,28 @@ describe('decide() — §6.2 phản biện', () => {
   });
 });
 
+/** Cờ gửi giảng viên hiện ở dòng chi tiết; mã mục spec (§x.y) là ghi chú nội bộ, không được lộ ra. */
+function expectPlainDetail(d: ReturnType<typeof decide>, code: string): void {
+  const flag = d.caseFlags.find((f) => f.code === code);
+  expect(flag).toBeDefined();
+  expect(flag?.detail).not.toMatch(/§/);
+}
+
+describe('decide() — chi tiết cờ gửi giảng viên không mang mã mục spec', () => {
+  it('nothing_passed: mọi ca không đạt', () => {
+    const allFail = runTestsCall('tc-1', null, [{ name: 'cb1', group: 'co_ban', status: 'fail' }, { name: 'tl1', group: 'trung_lap', status: 'fail' }]);
+    expectPlainDetail(decide(input({ result: resultWith({ calls: [allFail, read] }) })), 'nothing_passed');
+  });
+
+  it('not_code_pipeline: bài tự luận', () => {
+    expectPlainDetail(decide(input({ pipeline: 'one_shot', bundle: { cases: [] }, result: resultWith({ calls: [] }) })), 'not_code_pipeline');
+  });
+
+  it('ruler_unverified: thước chưa kiểm chứng', () => {
+    expectPlainDetail(decide(input({ rulerTrust: 'unverified' })), 'ruler_unverified');
+  });
+});
+
 describe('decide() — cờ ruler_unverified (§6.3b, P1b)', () => {
   it('bài đủ bằng chứng nhưng thước chưa kiểm chứng → flagged kèm cờ ruler_unverified, không tự quyết', () => {
     const d = decide(input({ rulerTrust: 'unverified' }));
