@@ -73,7 +73,7 @@ export function evaluatePredicate(
     return unmeasured('kết quả không ổn định giữa các lần chạy');
   }
   if ([...seen.values()].some((e) => e.statuses.has('timeout'))) {
-    return unmeasured('hết giờ — chưa tách được chậm với treo (§4.5)');
+    return unmeasured('hết giờ — chưa tách được chậm với treo');
   }
   if (expected.every((name) => seen.get(name)?.statuses.has('pass'))) {
     const ids = toolCalls.filter((t) => t.tool === 'run_tests' && t.status === 'ok').map((t) => t.id);

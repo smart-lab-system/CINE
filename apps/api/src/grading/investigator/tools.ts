@@ -35,7 +35,7 @@ const MAX_CASES_PER_JOB = 200;
 const MAX_EXEC_BUDGET_MS = 120_000;
 /** Còn ít hơn thế thì một job sandbox chỉ có thể bị cắt giữa chừng. */
 const MIN_SANDBOX_MS = 3_000;
-const LATE = 'không đủ thời gian còn lại của cuộc điều tra để chạy sandbox (§7)';
+const LATE = 'không đủ thời gian còn lại của cuộc điều tra để chạy sandbox';
 const inline = (content: string) => ({ kind: 'inline' as const, content });
 
 /** Mỗi lần gọi một mã MỚI — mỗi nguồn một mã riêng (§3.3 luật 1). */

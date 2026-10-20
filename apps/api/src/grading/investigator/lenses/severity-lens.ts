@@ -63,7 +63,7 @@ export class SeverityLens implements Challenger {
     if (r.conclusion.status === 'refuted') {
       const ranSomething = r.toolCalls.some((t) => t.status === 'ok' && (t.tool === 'run' || t.tool === 'run_tests'));
       if (!ranSomething) {
-        throw new Error('lăng kính Quá tay kết luận "refuted" mà không tự chạy thử lần nào — không được tin (§6)');
+        throw new Error('lăng kính Quá tay kết luận "refuted" mà không tự chạy thử lần nào — không được tin');
       }
     }
     return { status: r.conclusion.status, toolCallIds };

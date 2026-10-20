@@ -54,7 +54,7 @@ export class InvestigationContextService {
     const cfg = row.problem_id
       ? await resolveProblemConfigByProblem(this.ds.manager, row.problem_id as string)
       : await resolveProblemConfig(this.ds.manager, row.exam_session_id as string);
-    if (!cfg?.testBundleId) return system('phiên chưa ghim gói test — không có thước để chạy (§4.4)');
+    if (!cfg?.testBundleId) return system('phiên chưa ghim gói test — không có thước để chạy');
 
     const reference = await this.references.loadForGrading(row.exam_session_id);
     const problemStatement = reference.questionPdf

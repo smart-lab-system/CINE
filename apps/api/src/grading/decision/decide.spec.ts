@@ -177,6 +177,7 @@ describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
     const rules: ErrorRule[] = [{ ruleKey: 'chu_thich_sai', criterionKey: 'trinh_bay', deductionHundredths: 50, predicate: null }];
     const d = decide(input({ rules, rubric: [{ key: 'trinh_bay', maxHundredths: 1000 }], rulesSeen: [{ ruleKey: 'chu_thich_sai', checkedBy: 'model' }], result: resultWith({ calls: [read] }) }));
     expect(d).toMatchObject({ outcome: 'ungradable', scoreHundredths: null, ungradable: { class: 'system', reason: expect.stringMatching(/chưa chạy đủ/) } });
+    expect(d.ungradable?.reason).not.toMatch(/§/);
   });
 
   it('review I2 — chỉ chạy một nửa gói → ungradable, nêu nhóm còn thiếu', () => {
@@ -187,7 +188,10 @@ describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
   });
 
   it('review I2 — gói test rỗng → ungradable (§4.4 dòng đầu)', () => {
-    expect(decide(input({ bundle: { cases: [] } })).outcome).toBe('ungradable');
+    const d = decide(input({ bundle: { cases: [] } }));
+    expect(d.outcome).toBe('ungradable');
+    expect(d.ungradable?.reason).toMatch(/gói test rỗng/);
+    expect(d.ungradable?.reason).not.toMatch(/§/);
   });
 
   it('review I3 — luật lời thêm SAU cuộc điều tra (model chưa từng thấy) → tiêu chí chưa xét theo luật đó, không tự quyết', () => {
@@ -275,6 +279,28 @@ describe('decide() — §6.2 phản biện', () => {
     const d = decide(input({ ...withModelError, challenge: mixed }));
     expect(d.errorFlags.some((f) => f.ruleKey === 'chu_thich_sai')).toBe(false);
     expect(d.scoreHundredths).toBe(650); // tính như confirmed, không hạ confidence như unverified
+  });
+});
+
+/** Cờ gửi giảng viên hiện ở dòng chi tiết; mã mục spec (§x.y) là ghi chú nội bộ, không được lộ ra. */
+function expectPlainDetail(d: ReturnType<typeof decide>, code: string): void {
+  const flag = d.caseFlags.find((f) => f.code === code);
+  expect(flag).toBeDefined();
+  expect(flag?.detail).not.toMatch(/§/);
+}
+
+describe('decide() — chi tiết cờ gửi giảng viên không mang mã mục spec', () => {
+  it('nothing_passed: mọi ca không đạt', () => {
+    const allFail = runTestsCall('tc-1', null, [{ name: 'cb1', group: 'co_ban', status: 'fail' }, { name: 'tl1', group: 'trung_lap', status: 'fail' }]);
+    expectPlainDetail(decide(input({ result: resultWith({ calls: [allFail, read] }) })), 'nothing_passed');
+  });
+
+  it('not_code_pipeline: bài tự luận', () => {
+    expectPlainDetail(decide(input({ pipeline: 'one_shot', bundle: { cases: [] }, result: resultWith({ calls: [] }) })), 'not_code_pipeline');
+  });
+
+  it('ruler_unverified: thước chưa kiểm chứng', () => {
+    expectPlainDetail(decide(input({ rulerTrust: 'unverified' })), 'ruler_unverified');
   });
 });
 

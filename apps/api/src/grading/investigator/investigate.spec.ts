@@ -137,6 +137,7 @@ describe('investigate()', () => {
     expect(r.investigation.budget.stopReason).toBe('stalled');
     expect(r.kind).toBe('ungradable');
     expect(r.ungradable).toEqual({ class: 'system', reason: expect.stringMatching(/treo/) });
+    expect(r.ungradable?.reason).not.toMatch(/§/);
     expect(r.verdict).toBeNull();
   });
 

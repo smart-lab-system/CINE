@@ -60,7 +60,7 @@ export class CorrectnessLens implements Challenger {
     // hơn một "refuted" suông (finding W-B, review cuối).
     const ranSomething = r.toolCalls.some((t) => t.status === 'ok' && (t.tool === 'run' || t.tool === 'run_tests'));
     if (!ranSomething) {
-      throw new Error(`lăng kính Tính đúng kết luận "${r.conclusion.status}" mà không tự chạy thử lần nào — không được tin (§6.1)`);
+      throw new Error(`lăng kính Tính đúng kết luận "${r.conclusion.status}" mà không tự chạy thử lần nào — không được tin`);
     }
     return { status: r.conclusion.status, toolCallIds };
   }

@@ -72,7 +72,7 @@ export function parsePredicate(x: unknown): RulePredicate | null {
         ? { kind: 'no_recursion' }
         : { kind: 'no_recursion', functionName: o.functionName as string };
     default:
-      return bad('điều kiện: mẫu không có trong bốn mẫu của §4.1');
+      return bad('điều kiện: mẫu không thuộc bốn mẫu được hỗ trợ');
   }
 }
 

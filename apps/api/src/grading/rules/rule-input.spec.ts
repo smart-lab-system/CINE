@@ -21,7 +21,20 @@ describe('parseNewRule', () => {
     [{ kind: 'calls_function', name: 'a b' }],
     ['test_group_failed'],
   ])('từ chối mẫu %j', (predicate) => {
-    expect(() => parseNewRule({ name: 'x', description: 'x', predicate })).toThrow(/điều kiện/);
+    let message = '';
+    try {
+      parseNewRule({ name: 'x', description: 'x', predicate });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/điều kiện/);
+    expect(message).not.toMatch(/§/);
+  });
+
+  it('mẫu ngoài bốn mẫu được hỗ trợ: nói rõ điều kiện, không mang mã mục spec', () => {
+    expect(() => parseNewRule({ name: 'x', description: 'x', predicate: { kind: 'eval_code', src: 'x' } })).toThrow(
+      'điều kiện: mẫu không thuộc bốn mẫu được hỗ trợ',
+    );
   });
 
   it('thiếu predicate = luật bằng lời', () => {

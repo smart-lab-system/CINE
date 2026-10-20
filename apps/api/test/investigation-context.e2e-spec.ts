@@ -59,7 +59,9 @@ describe('InvestigationContextService (e2e)', () => {
     const s = await seedCodeSession(ds, storage, 'ic-nobundle');
     await unpinBundle(ds, s.ctx.sessionId);
     const { resultId } = await seedCodeSubmission(ds, storage, s);
-    expect(await contexts.build(resultId)).toMatchObject({ kind: 'ungradable', class: 'system', reason: expect.stringMatching(/gói test/) });
+    const ctx = await contexts.build(resultId);
+    expect(ctx).toMatchObject({ kind: 'ungradable', class: 'system', reason: expect.stringMatching(/gói test/) });
+    expect((ctx as { reason: string }).reason).not.toMatch(/§/);
   });
 
   it('đề chỉ có bản PDF (chưa đọc được thành chữ) → system, nêu đề', async () => {

@@ -49,7 +49,10 @@ describe('SeverityLens', () => {
   it('C3 — "refuted" ngay lượt đầu, không tự chạy thử lần nào → ném lỗi, không được tin suông', async () => {
     const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'refuted', toolCallIds: [] } })]);
     const lens = new SeverityLens({ models: [model], sandbox: passAll() });
-    await expect(lens.review({ error: { ruleKey: 'chu_thich_sai', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] })).rejects.toThrow();
+    const err = await lens.review({ error: { ruleKey: 'chu_thich_sai', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/không được tin/);
+    expect((err as Error).message).not.toMatch(/§/);
   });
 
   it('C3 — nội dung bằng chứng gốc (evidence) ĐƯỢC đưa vào tin nhắn cho model, không chỉ mã tc-N (Quá tay cần thấy mới đánh giá được mức độ)', async () => {

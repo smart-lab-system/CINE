@@ -103,6 +103,8 @@ describe('evaluatePredicate — test_group_failed (T-POL-3: lỗi phát hiện �
     const out = evalOn(P, r);
     expect(out.state).toBe('unmeasured');
     expect(out.reason).toMatch(/hết giờ/);
+    // Lý do này được chép nguyên vào chi tiết cờ "Cần bạn xem" (criterion_untouched): không mang mã mục spec.
+    expect(out.reason).not.toMatch(/§/);
   });
 
   it('một ca fail thật cộng một ca timeout → present (ca fail là đủ bằng chứng)', () => {

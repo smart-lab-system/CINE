@@ -290,7 +290,7 @@ export class GradingRunService {
     });
     if (needsBundle) {
       throw new BadRequestException(
-        'Phiên này có bài chấm bằng đường điều tra (code) nhưng chưa ghim gói test — hãy tạo, duyệt và ghim một gói test trước khi bắt đầu chấm (§14.3).',
+        'Phiên này có bài chấm bằng đường điều tra (code) nhưng chưa ghim gói test — hãy tạo, duyệt và ghim một gói test trước khi bắt đầu chấm.',
       );
     }
 
