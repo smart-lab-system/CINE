@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useBundleRuns } from '@/hooks/useBundleRuns';
-import { useCreateTestBundle, useTestBundles } from '@/hooks/useTestBundle';
+import { useCreateTestBundle, useGenerateTestBundle, useTestBundles } from '@/hooks/useTestBundle';
 import { useFetchTestBundle } from '@/hooks/useTestBundleDetail';
 import {
   addRow,
@@ -30,6 +30,8 @@ const SUGGESTED_GROUPS = ['co_ban', 'bien', 'lon'];
 
 /** Bản nháp đang sửa: một phiên bản chưa lưu. `baseVersion` null khi bắt đầu từ trống. */
 interface Draft {
+  /** Gói gốc của bản nháp (null khi bắt đầu từ trống): gửi kèm khi lưu để server kế thừa origin. */
+  baseId: string | null;
   baseVersion: number | null;
   version: number;
   rows: DraftRow[];
@@ -53,6 +55,8 @@ export function TestBundleCard({ sessionId, pinnedBundleId }: { sessionId: strin
   const bundles = useTestBundles(sessionId);
   const fetchDetail = useFetchTestBundle(sessionId);
   const createBundle = useCreateTestBundle(sessionId);
+  // Nâng lên đây (không ở BundleActions) để thẻ biết đang sinh và khoá các nút chạy thử của từng phiên bản.
+  const generate = useGenerateTestBundle(sessionId);
   const runs = useBundleRuns(sessionId);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [form, setForm] = useState<OpenForm | null>(null);
@@ -70,7 +74,7 @@ export function TestBundleCard({ sessionId, pinnedBundleId }: { sessionId: strin
   }
 
   function startBlank() {
-    setDraft({ baseVersion: null, version: nextVersion, rows: [] });
+    setDraft({ baseId: null, baseVersion: null, version: nextVersion, rows: [] });
     setMessage('');
     setLoadError(null);
     openForm('add', null, { caseKey: nextCaseKey([]), group: DEFAULT_GROUP, input: '', expectedOutput: '' });
@@ -84,7 +88,7 @@ export function TestBundleCard({ sessionId, pinnedBundleId }: { sessionId: strin
     setLoadError(null);
     try {
       const detail = await fetchDetail(bundleId);
-      setDraft({ baseVersion: detail.version, version: nextVersion, rows: startDraft(detail.cases) });
+      setDraft({ baseId: bundleId, baseVersion: detail.version, version: nextVersion, rows: startDraft(detail.cases) });
       setForm(null);
       setMessage('');
     } catch (error) {
@@ -135,19 +139,23 @@ export function TestBundleCard({ sessionId, pinnedBundleId }: { sessionId: strin
 
   function save() {
     if (!draft) return;
-    const version = draft.version;
-    createBundle.mutate(toCreateInput(draft.rows), {
-      onSuccess: () => {
-        setDraft(null);
-        setForm(null);
-        setMessage(`Đã lưu phiên bản ${version}. Chưa duyệt, chưa dùng để chấm.`);
+    createBundle.mutate(
+      { cases: toCreateInput(draft.rows), derivedFromBundleId: draft.baseId ?? undefined },
+      {
+        onSuccess: (created) => {
+          setDraft(null);
+          setForm(null);
+          // Số của SERVER (bản nháp có thể đã lỗi thời nếu có phiên bản khác được lưu trong lúc sửa).
+          setMessage(`Đã lưu phiên bản ${created.version}. Chưa duyệt, chưa dùng để chấm.`);
+        },
       },
-    });
+    );
   }
 
   function discard() {
     setDraft(null);
     setForm(null);
+    createBundle.reset(); // lỗi của lần lưu trước không đứng lại sau khi bản nháp đó đã bỏ
     setMessage('Đã huỷ bản nháp.');
   }
 
@@ -160,8 +168,14 @@ export function TestBundleCard({ sessionId, pinnedBundleId }: { sessionId: strin
         <CardTitle className="text-h3">Gói test</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <BundleActions sessionId={sessionId} bundles={list} pinnedBundleId={pinnedBundleId} runs={runs} />
-        <TestBundleList sessionId={sessionId} pinnedBundleId={pinnedBundleId} runs={runs} onNewVersion={(id) => void startFrom(id)} />
+        <BundleActions sessionId={sessionId} bundles={list} pinnedBundleId={pinnedBundleId} runs={runs} generate={generate} />
+        <TestBundleList
+          sessionId={sessionId}
+          pinnedBundleId={pinnedBundleId}
+          runs={runs}
+          onNewVersion={(id) => void startFrom(id)}
+          generating={generate.isPending}
+        />
 
         {!draft && (
           <div>

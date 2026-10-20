@@ -63,10 +63,12 @@ beforeEach(() => {
   h.pin = { mutate: vi.fn(), isPending: false, isError: false, error: null };
 });
 
-function renderList(over: { pinnedBundleId?: string | null; runs?: ReturnType<typeof runs>; onNewVersion?: (id: string) => void } = {}) {
+function renderList(over: { pinnedBundleId?: string | null; runs?: ReturnType<typeof runs>; onNewVersion?: (id: string) => void; generating?: boolean } = {}) {
   const r = over.runs ?? runs();
   const onNewVersion = over.onNewVersion ?? vi.fn();
-  render(<TestBundleList sessionId="s1" pinnedBundleId={over.pinnedBundleId ?? null} runs={r} onNewVersion={onNewVersion} />);
+  render(
+    <TestBundleList sessionId="s1" pinnedBundleId={over.pinnedBundleId ?? null} runs={r} onNewVersion={onNewVersion} generating={over.generating ?? false} />,
+  );
   return { runs: r, onNewVersion };
 }
 const open = () => fireEvent.click(screen.getByRole('button', { name: 'Xem bộ ca' }));
@@ -247,6 +249,29 @@ describe('TestBundleList — chạy thử (G2b-R)', () => {
     expect(screen.getByRole('button', { name: 'Chạy thử ca ca1' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Chạy thử ca ca3' })).toHaveTextContent('Đang chạy…');
     expect(screen.getByRole('button', { name: 'Chạy thử ca ca1' })).toHaveTextContent('Chạy');
+  });
+
+  // Đang SINH (không phải chạy thử): các nút chạy cũng phải khoá từ đầu, không chờ máy chủ trả 409.
+  it('đang sinh gói: mọi nút chạy thử (cả gói lẫn từng ca) khoá', () => {
+    renderList({ generating: true });
+    open();
+    expect(screen.getByRole('button', { name: 'Chạy thử tất cả' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Chạy thử ca ca1' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Chạy thử ca ca3' })).toBeDisabled();
+  });
+
+  // Lượt bị cắt vì hết ngân sách trả HTTP 200 với status aborted và chỉ những ca đã kịp chạy. Không được báo như một lượt đầy đủ.
+  it('lượt bị cắt (aborted) không báo "khớp, 0 lệch" như cả gói; nói rõ bao nhiêu ca đã chạy trên tổng', () => {
+    const state = {
+      b1: {
+        status: 'aborted' as const,
+        compileLog: null,
+        cases: { ca1: { name: 'ca1', status: 'pass', ms: 3, diff: null } },
+      },
+    };
+    renderList({ runs: runs({ state }) });
+    expect(screen.getByText(/Chạy chưa hết/)).toHaveTextContent('1 trên 2 ca đã chạy');
+    expect(screen.queryByText(/khớp, 0 lệch/)).not.toBeInTheDocument();
   });
 
   it('kết quả của phiên bản này không hiện ở phiên bản khác', () => {

@@ -5,14 +5,16 @@ import { TestBundleCard } from './TestBundleCard';
 
 const h = vi.hoisted(() => ({
   bundles: { data: [] as unknown[], isLoading: false },
-  create: { mutate: vi.fn(), isPending: false, isError: false, error: null as Error | null },
+  create: { mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null as Error | null },
+  generate: { mutate: vi.fn(), reset: vi.fn(), isPending: false, isSuccess: false, isError: false, error: null as Error | null },
   fetchDetail: vi.fn(),
-  runs: { runs: {}, run: vi.fn(), pendingKey: null as string | null, error: null as Error | null },
+  runs: { runs: {}, run: vi.fn(), clearError: vi.fn(), pendingKey: null as string | null, error: null as Error | null },
 }));
 
 vi.mock('@/hooks/useTestBundle', () => ({
   useTestBundles: () => h.bundles,
   useCreateTestBundle: () => h.create,
+  useGenerateTestBundle: () => h.generate,
 }));
 vi.mock('@/hooks/useTestBundleDetail', () => ({ useFetchTestBundle: () => h.fetchDetail }));
 vi.mock('@/hooks/useBundleRuns', () => ({ useBundleRuns: () => h.runs }));
@@ -41,9 +43,9 @@ const base = () => ({
 
 beforeEach(() => {
   h.bundles = { data: [{ id: 'b1', version: 2, approvedAt: null, origin: 'generated', caseCount: 2 }], isLoading: false };
-  h.create = { mutate: vi.fn(), isPending: false, isError: false, error: null };
+  h.create = { mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null };
   h.fetchDetail = vi.fn().mockResolvedValue(base());
-  h.runs = { runs: {}, run: vi.fn(), pendingKey: null, error: null };
+  h.runs = { runs: {}, run: vi.fn(), clearError: vi.fn(), pendingKey: null, error: null };
 });
 
 const type = (label: RegExp | string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
@@ -89,9 +91,9 @@ describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G
     fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 1/ }));
 
     expect(h.create.mutate).toHaveBeenCalledTimes(1);
-    expect(h.create.mutate.mock.calls[0][0]).toEqual([{ caseKey: 'ca1', group: 'co_ban', input: '1 2', expectedOutput: '3' }]);
+    expect(h.create.mutate.mock.calls[0][0].cases).toEqual([{ caseKey: 'ca1', group: 'co_ban', input: '1 2', expectedOutput: '3' }]);
 
-    act(() => h.create.mutate.mock.calls[0][1].onSuccess());
+    act(() => h.create.mutate.mock.calls[0][1].onSuccess({ id: 'b9', version: 1 }));
     expect(screen.queryByRole('region', { name: /Bản nháp/ })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Đã lưu phiên bản 1. Chưa duyệt, chưa dùng để chấm.');
   });
@@ -122,6 +124,35 @@ describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G
     expect(screen.getByRole('region', { name: /Bản nháp/ })).toHaveTextContent('phiên bản 3');
   });
 
+  // Bản dẫn xuất gửi kèm gói gốc để server kế thừa origin (gói do hệ thống sinh không thành nhãn "teacher").
+  it('bản tạo từ một phiên bản gửi kèm derivedFromBundleId = gói gốc; bản tạo tay thì không gửi', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+    fireEvent.click(screen.getByRole('button', { name: 'Bỏ ca ca2' }));
+    fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ }));
+    expect(h.create.mutate.mock.calls[0][0]).toMatchObject({ derivedFromBundleId: 'b1' });
+  });
+
+  // Phiên bản mà server cấp có thể khác số đoán lúc mở bản nháp (có phiên bản khác được lưu trong lúc sửa): thông báo phải nói số thật.
+  it('thông báo lưu nêu số phiên bản mà SERVER đã cấp, không phải số đoán lúc mở bản nháp', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+    fireEvent.click(screen.getByRole('button', { name: 'Bỏ ca ca2' }));
+    fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ }));
+
+    act(() => h.create.mutate.mock.calls[0][1].onSuccess({ id: 'x', version: 4 }));
+
+    expect(screen.getByRole('status')).toHaveTextContent('Đã lưu phiên bản 4. Chưa duyệt, chưa dùng để chấm.');
+  });
+
+  // Lỗi của lần lưu trước không được đứng lại sau khi giảng viên đã huỷ bản nháp đó.
+  it('huỷ bản nháp gỡ lỗi của lần lưu trước (reset), không để lỗi cũ đứng lại', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+    fireEvent.click(screen.getByRole('button', { name: 'Huỷ bản nháp' }));
+    expect(h.create.reset).toHaveBeenCalled();
+  });
+
   it('chưa đổi gì thì không lưu được và nói rõ lý do', async () => {
     render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
     await startFromB1();
@@ -145,7 +176,7 @@ describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G
     expect(within(row).queryByText(/Dòng đầu là n/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ }));
-    expect(h.create.mutate.mock.calls[0][0]).toEqual([
+    expect(h.create.mutate.mock.calls[0][0].cases).toEqual([
       { caseKey: 'ca1', group: 'co_ban', input: '5\n1 2 3 4 5', expectedOutput: '16' },
       { caseKey: 'ca2', group: 'bien', input: '1\n-3', expectedOutput: '-3' },
     ]);
@@ -158,7 +189,7 @@ describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G
     fireEvent.click(screen.getByRole('button', { name: 'Bỏ ca ca2' }));
     expect(screen.getByRole('button', { name: 'Hoàn tác ca ca2' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ }));
-    expect(h.create.mutate.mock.calls[0][0].map((c: { caseKey: string }) => c.caseKey)).toEqual(['ca1']);
+    expect(h.create.mutate.mock.calls[0][0].cases.map((c: { caseKey: string }) => c.caseKey)).toEqual(['ca1']);
 
     fireEvent.click(screen.getByRole('button', { name: 'Hoàn tác ca ca2' }));
     expect(screen.getByText('Chưa có thay đổi nào để lưu.')).toBeInTheDocument();
@@ -174,7 +205,7 @@ describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G
     fireEvent.click(screen.getByRole('button', { name: 'Thêm vào bản nháp' }));
     fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ }));
 
-    const sent = h.create.mutate.mock.calls[0][0];
+    const sent = h.create.mutate.mock.calls[0][0].cases;
     expect(sent.find((c: { caseKey: string }) => c.caseKey === 'ca1')).toMatchObject({ constraintQuote: 'Dòng đầu là n' });
     expect(sent.find((c: { caseKey: string }) => c.caseKey === 'ca4')).not.toHaveProperty('constraintQuote');
   });

@@ -30,11 +30,14 @@ export interface CaseValues {
 }
 
 export interface DraftRow extends CaseValues {
+  /** Trích đề HIỆN TẠI của ca. Sửa ca làm mất nó (đề không còn biện minh cho input mới). */
   constraintQuote: string | null;
   autoDroppedReason: string | null;
   state: RowState;
   /** Giá trị ở phiên bản gốc; null với ca thêm mới và ca hệ thống đã bỏ. */
   base: CaseValues | null;
+  /** Trích đề GỐC, để trả lại khi giảng viên sửa rồi hoàn về đúng giá trị cũ (không mất trích đề vì một lần sửa thử). */
+  baseQuote: string | null;
 }
 
 export type CaseErrors = Partial<Record<'caseKey' | 'group' | 'expectedOutput', string>>;
@@ -59,6 +62,7 @@ export function startDraft(cases: TestBundleCase[] | null): DraftRow[] {
       autoDroppedReason: c.autoDroppedReason,
       state: dropped ? 'dropped' : 'same',
       base: dropped ? null : valuesOf(c),
+      baseQuote: c.constraintQuote,
     };
   });
 }
@@ -98,16 +102,17 @@ const normalize = (v: CaseValues): CaseValues => ({
 
 export function addRow(rows: DraftRow[], values: CaseValues): DraftRow[] {
   const v = normalize(values);
-  return [...rows, { ...v, constraintQuote: null, autoDroppedReason: null, state: 'added', base: null }];
+  return [...rows, { ...v, constraintQuote: null, autoDroppedReason: null, state: 'added', base: null, baseQuote: null }];
 }
 
 export function editRow(rows: DraftRow[], index: number, values: CaseValues): DraftRow[] {
   const v = normalize(values);
   return rows.map((row, i) => {
-    if (i !== index) return row;
+    // Ca hệ thống đã bỏ không được sửa thành ca sống: nó không chấm được ai (xem `toCreateInput`).
+    if (i !== index || row.state === 'dropped') return row;
     if (row.base === null) return { ...row, ...v };
-    // Sửa về đúng giá trị gốc thì là không sửa gì: trả lại nguyên giá trị gốc (kể cả đuôi output) và trích đề.
-    if (sameValues(v, row.base)) return { ...row, ...row.base, state: 'same' };
+    // Sửa về đúng giá trị gốc thì là không sửa gì: trả lại nguyên giá trị gốc (kể cả đuôi output) VÀ trích đề gốc.
+    if (sameValues(v, row.base)) return { ...row, ...row.base, state: 'same', constraintQuote: row.baseQuote };
     // Ca đã sửa mất trích đề: đề không còn biện minh cho input mới.
     return { ...row, ...v, state: 'edited', constraintQuote: null };
   });
@@ -115,7 +120,8 @@ export function editRow(rows: DraftRow[], index: number, values: CaseValues): Dr
 
 export function removeRow(rows: DraftRow[], index: number): DraftRow[] {
   const row = rows[index];
-  if (row === undefined) return rows;
+  // Ca hệ thống đã bỏ không có nút bỏ; nếu có lời gọi thì phải là no-op, không đổi nó thành ca "đã bỏ bằng tay" hay sống lại.
+  if (row === undefined || row.state === 'dropped') return rows;
   if (row.state === 'added') return rows.filter((_, i) => i !== index);
   return rows.map((r, i) => (i === index ? { ...r, state: 'removed' } : r));
 }
@@ -123,7 +129,9 @@ export function removeRow(rows: DraftRow[], index: number): DraftRow[] {
 export function undoRow(rows: DraftRow[], index: number): DraftRow[] {
   return rows.map((row, i) => {
     if (i !== index || row.state !== 'removed') return row;
-    return { ...row, state: row.base !== null && sameValues(row, row.base) ? 'same' : 'edited' };
+    // Hoàn tác về đúng giá trị gốc thì trích đề gốc cũng quay lại; ca đã sửa thì trích đề vẫn mất như lúc sửa.
+    if (row.base !== null && sameValues(row, row.base)) return { ...row, state: 'same', constraintQuote: row.baseQuote };
+    return { ...row, state: 'edited' };
   });
 }
 
@@ -135,6 +143,12 @@ export function changesCount(rows: DraftRow[]): number {
 export function saveBlocker(rows: DraftRow[], formOpen: boolean): string | null {
   if (formOpen) return 'Lưu hoặc huỷ ca đang nhập trước.';
   if (!rows.some(isActive)) return 'Gói cần ít nhất một ca đang dùng.';
+  // Hai ca đang dùng cùng tên: server chỉ từ chối bằng lỗi trùng khoá (tiếng Anh), nên chặn ở đây và nói tên cụ thể.
+  const seen = new Set<string>();
+  for (const row of rows.filter(isActive)) {
+    if (seen.has(row.caseKey)) return `Có hai ca cùng tên "${row.caseKey}" trong bản nháp — đổi tên một trong hai.`;
+    seen.add(row.caseKey);
+  }
   if (changesCount(rows) === 0) return 'Chưa có thay đổi nào để lưu.';
   return null;
 }

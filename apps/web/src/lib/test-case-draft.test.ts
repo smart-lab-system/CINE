@@ -107,11 +107,26 @@ describe('bản nháp phiên bản gói test (G2b-R, mock-up v2)', () => {
       expect(changesCount(rows)).toBe(1);
     });
 
-    it('sửa về đúng giá trị gốc → trở lại same và giữ lại trích đề', () => {
+    it('sửa về đúng giá trị gốc → trở lại same và TRẢ LẠI trích đề gốc (không mất khi sửa rồi hoàn lại)', () => {
       const edited = editRow(startDraft([bundleCase()]), 0, values({ caseKey: 'ca1', expectedOutput: '7\n' }));
+      expect(edited[0].constraintQuote).toBeNull();
       const back = editRow(edited, 0, { caseKey: 'ca1', group: 'co_ban', input: '3\n1 2 3\n', expectedOutput: '6' });
       expect(back[0].state).toBe('same');
+      expect(back[0].constraintQuote).toBe('Dòng đầu là n (1 ≤ n ≤ 100)');
       expect(changesCount(back)).toBe(0);
+    });
+
+    it('bỏ rồi hoàn tác một ca chưa đổi → trích đề gốc còn nguyên', () => {
+      const rows = undoRow(removeRow(startDraft([bundleCase()]), 0), 0);
+      expect(rows[0]).toMatchObject({ state: 'same', constraintQuote: 'Dòng đầu là n (1 ≤ n ≤ 100)' });
+    });
+
+    // Ca hệ thống đã bỏ không có nút nào trong UI, nhưng hàm vẫn không được đưa nó trở lại: nó là ca không chấm được.
+    it('bỏ / hoàn tác KHÔNG làm sống lại ca hệ thống đã bỏ (state dropped giữ nguyên)', () => {
+      const dropped = startDraft([bundleCase({ caseKey: 'ca9', autoDroppedReason: 'không trích được đề' })]);
+      expect(removeRow(dropped, 0)[0].state).toBe('dropped');
+      expect(undoRow(dropped, 0)[0].state).toBe('dropped');
+      expect(toCreateInput(removeRow(dropped, 0))).toEqual([]);
     });
 
     it('sửa ca vừa thêm vẫn là added', () => {
@@ -143,6 +158,17 @@ describe('bản nháp phiên bản gói test (G2b-R, mock-up v2)', () => {
   });
 
   describe('saveBlocker', () => {
+    // Bỏ ca1 rồi thêm một ca1 mới rồi hoàn tác ca1 cũ: hai ca cùng tên cùng đang dùng. Server từ chối bằng lỗi trùng khoá
+    // (một thông điệp tiếng Anh), nên phải chặn ngay trong bản nháp với lời nói rõ.
+    it('hai ca đang dùng cùng tên → chặn lưu, nói rõ tên trùng', () => {
+      const rows0 = startDraft([bundleCase({ caseKey: 'ca1' }), bundleCase({ caseKey: 'ca2', input: '9', expectedOutput: '9' })]);
+      const removed = removeRow(rows0, 0);
+      const withNew = addRow(removed, values({ caseKey: 'ca1' }));
+      const undone = undoRow(withNew, 0);
+      expect(undone.filter((r) => r.state !== 'removed' && r.state !== 'dropped').map((r) => r.caseKey)).toEqual(['ca1', 'ca2', 'ca1']);
+      expect(saveBlocker(undone, false)).toBe('Có hai ca cùng tên "ca1" trong bản nháp — đổi tên một trong hai.');
+    });
+
     it('đang mở form → chặn; không thay đổi → chặn; hết ca đang dùng → chặn; đủ điều kiện → null', () => {
       const rows = startDraft([bundleCase()]);
       expect(saveBlocker(rows, true)).toMatch(/Lưu hoặc huỷ ca đang nhập/);

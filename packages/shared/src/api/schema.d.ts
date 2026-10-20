@@ -2756,6 +2756,7 @@ export interface components {
         };
         CreateTestBundleDto: {
             cases: components["schemas"]["TestCaseDto"][];
+            derivedFromBundleId?: string;
         };
         RunTestBundleDto: {
             caseKey?: string;

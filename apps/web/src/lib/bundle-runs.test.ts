@@ -35,6 +35,16 @@ describe('kết quả chạy thử theo phiên bản gói (G2b-R)', () => {
     expect(one.b1.status).toBe('fail');
   });
 
+  // Lượt cả gói báo biên dịch hỏng; giảng viên sửa mã rồi chạy MỘT ca và ca đó chạy được. Mã đã biên dịch được, nên thông báo
+  // "không biên dịch được" và log cũ phải biến mất, không ở lại cạnh kết quả "Khớp" mới.
+  it('lượt chạy một ca SAU khi biên dịch hỏng → gỡ trạng thái biên dịch hỏng và log cũ', () => {
+    const broken = applyRun({}, 'b1', null, result({ status: 'compile_error', cases: [], compileLog: 'main.cpp:1: lỗi' }));
+    const fixed = applyRun(broken, 'b1', 'ca1', result({ status: 'pass', cases: [{ name: 'ca1', status: 'pass', ms: 1, diff: null }] }));
+    expect(fixed.b1.status).toBeNull();
+    expect(fixed.b1.compileLog).toBeNull();
+    expect(fixed.b1.cases.ca1.status).toBe('pass');
+  });
+
   it('chạy một ca khi chưa có lượt cả gói → có kết quả ca đó, trạng thái cả lượt chưa biết', () => {
     const one = applyRun({}, 'b1', 'ca1', result({ status: 'pass', cases: [{ name: 'ca1', status: 'pass', ms: 1, diff: null }] }));
     expect(one.b1.status).toBeNull();

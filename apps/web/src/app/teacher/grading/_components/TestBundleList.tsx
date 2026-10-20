@@ -31,12 +31,15 @@ export function TestBundleList({
   pinnedBundleId,
   runs,
   onNewVersion,
+  generating = false,
 }: {
   sessionId: string;
   pinnedBundleId: string | null;
   runs: Runs;
   /** Bắt đầu một bản nháp từ phiên bản này (sửa ca = dựng phiên bản mới). */
   onNewVersion: (bundleId: string) => void;
+  /** Đang sinh gói: mọi nút chạy thử khoá từ đầu (một việc nặng tại một thời điểm), không chờ máy chủ trả 409. */
+  generating?: boolean;
 }) {
   const bundles = useTestBundles(sessionId);
   const approveBundle = useApproveTestBundle(sessionId);
@@ -54,7 +57,7 @@ export function TestBundleList({
     );
   }
 
-  const busy = runs.pendingKey !== null;
+  const busy = runs.pendingKey !== null || generating;
   const mutationError = approveBundle.isError ? approveBundle.error : pinBundle.isError ? pinBundle.error : null;
 
   return (
@@ -100,7 +103,12 @@ export function TestBundleList({
             {bundle.approvedAt && (
               <p className="text-caption text-muted-foreground">Đã duyệt lúc {formatMoment(bundle.approvedAt)}</p>
             )}
-            {summary && (
+            {summary && run?.status === 'aborted' && (
+              <p className="mt-1 text-caption font-medium text-warning-strong">
+                {`Chạy chưa hết (hết thời gian): ${summary.total} trên ${bundle.caseCount} ca đã chạy — chưa kết luận cả gói.`}
+              </p>
+            )}
+            {summary && run?.status !== 'aborted' && (
               <p className="mt-1 text-caption font-medium">{`${summary.matched} khớp, ${summary.mismatched} lệch`}</p>
             )}
             {run?.status === 'compile_error' && (
@@ -117,6 +125,7 @@ export function TestBundleList({
                 drop={dropCase}
                 run={run}
                 runs={runs}
+                locked={busy}
               />
             )}
             <ApproveBundleDialog
@@ -157,9 +166,12 @@ function CaseTable({
   drop,
   run,
   runs,
+  locked,
 }: {
   sessionId: string;
   bundleId: string;
+  /** Khoá các nút chạy: đang chạy một lượt, hoặc đang sinh gói. */
+  locked: boolean;
   approved: boolean;
   drop: ReturnType<typeof useDropTestBundleCase>;
   run: BundleRunState | undefined;
@@ -230,7 +242,7 @@ function CaseTable({
                         size="sm"
                         variant="ghost"
                         aria-label={`Chạy thử ca ${c.caseKey}`}
-                        disabled={runs.pendingKey !== null}
+                        disabled={locked}
                         onClick={() => runs.run(bundleId, c.caseKey)}
                       >
                         {runs.pendingKey === `${bundleId}:${c.caseKey}` ? 'Đang chạy…' : 'Chạy'}

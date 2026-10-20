@@ -18,7 +18,7 @@ import type { GradingProgress, GradingResult } from '@/lib/api/grading';
  *
  * Luật chung cho các băng: mỗi băng nói CÁI GÌ HỎNG (máy bạn · máy chủ · hàng đợi) và BÀI LÀM CÓ BỊ ẢNH HƯỞNG
  * KHÔNG. Không băng nào chỉ ghi "đã xảy ra lỗi". Cái API chưa nói được (bài nào đang chạy công cụ gì) mang nhãn
- * *cần backend* và không gửi gì. Chấm lại bài dừng vì lỗi hệ thống thì ĐÃ có route (G3): nút thật, có hộp xác nhận.
+ * (trước đây là nhãn chờ route) và không gửi gì. Chấm lại bài dừng vì lỗi hệ thống thì ĐÃ có route (G3): nút thật, có hộp xác nhận.
  */
 export function RunningPanel({
   progress,

@@ -30,5 +30,8 @@ export function useBundleRuns(examSessionId: string | undefined) {
     );
   }
 
-  return { runs, run, pendingKey, error };
+  /** Bỏ lỗi của lượt chạy trước: màn hình chỉ hiện MỘT lỗi tại một thời điểm (lỗi "sinh" cũng cần bỏ khi bắt đầu chạy). */
+  const clearError = () => setError(null);
+
+  return { runs, run, pendingKey, error, clearError };
 }

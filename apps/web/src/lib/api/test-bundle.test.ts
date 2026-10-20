@@ -5,7 +5,7 @@ vi.mock('@/lib/api-client', () => ({ apiClient: h }));
 
 import { ApiStatusError } from './error';
 import { confirmAnswerSource, requestAnswerSourceUpload, uploadAnswerSource } from './grading';
-import { generateTestBundle, runTestBundle } from './test-bundle';
+import { createTestBundle, generateTestBundle, runTestBundle } from './test-bundle';
 
 const ok = (data: unknown, status = 201) => ({ data, error: undefined, response: { ok: true, status } });
 const bad = (status: number, body: unknown) => ({ data: undefined, error: body, response: { ok: false, status } });
@@ -14,6 +14,25 @@ beforeEach(() => {
   h.GET.mockReset();
   h.POST.mockReset();
   vi.unstubAllGlobals();
+});
+
+describe('lib/api/test-bundle — tạo phiên bản (G2b-R)', () => {
+  // Phiên bản dẫn xuất gửi kèm gói gốc để server kế thừa origin; phiên bản tạo tay thì không gửi trường đó.
+  it('createTestBundle gửi derivedFromBundleId khi có gói gốc, và trả số phiên bản mà SERVER đã cấp', async () => {
+    h.POST.mockResolvedValue(ok({ id: 'b9', version: 4 }));
+
+    await expect(createTestBundle('s1', [{ caseKey: 'ca1', group: 'co_ban', input: '1', expectedOutput: '1' }], 'b2')).resolves.toEqual({
+      id: 'b9',
+      version: 4,
+    });
+    expect(h.POST).toHaveBeenLastCalledWith('/exam-sessions/{id}/test-bundles', {
+      params: { path: { id: 's1' } },
+      body: { cases: [{ caseKey: 'ca1', group: 'co_ban', input: '1', expectedOutput: '1' }], derivedFromBundleId: 'b2' },
+    });
+
+    await createTestBundle('s1', [{ caseKey: 'ca1', group: 'co_ban', input: '1', expectedOutput: '1' }]);
+    expect(h.POST.mock.calls[1][1].body).toEqual({ cases: [{ caseKey: 'ca1', group: 'co_ban', input: '1', expectedOutput: '1' }] });
+  });
 });
 
 describe('lib/api/test-bundle — chạy thử và sinh gói (G2b-R)', () => {

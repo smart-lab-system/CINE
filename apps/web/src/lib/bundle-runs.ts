@@ -31,10 +31,11 @@ export function applyRun(state: RunsState, bundleId: string, caseKey: string | n
   if (caseKey === null) {
     return { ...state, [bundleId]: { status: result.status, cases: byName(result.cases), compileLog: null } };
   }
+  // Một lượt chạy ca lẻ đã CHẠY được, nên mã đã biên dịch được: trạng thái "không biên dịch" cũ không còn đúng và phải gỡ.
   return {
     ...state,
     [bundleId]: {
-      status: prev?.status ?? null,
+      status: prev?.status === 'compile_error' ? null : (prev?.status ?? null),
       cases: { ...(prev?.cases ?? {}), ...byName(result.cases) },
       compileLog: null,
     },

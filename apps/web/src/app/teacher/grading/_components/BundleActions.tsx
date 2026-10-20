@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import type { useBundleRuns } from '@/hooks/useBundleRuns';
-import { useGenerateTestBundle } from '@/hooks/useTestBundle';
+import type { useGenerateTestBundle } from '@/hooks/useTestBundle';
 import { ApiStatusError } from '@/lib/api/error';
-import type { GenerateResult, TestBundleSummary } from '@/lib/api/test-bundle';
+import type { GenerateMode, GenerateResult, TestBundleSummary } from '@/lib/api/test-bundle';
 import { AnswerSourceForm } from './AnswerSourceForm';
 
-type Runs = Pick<ReturnType<typeof useBundleRuns>, 'run' | 'pendingKey' | 'error'>;
+type Runs = Pick<ReturnType<typeof useBundleRuns>, 'run' | 'pendingKey' | 'error' | 'clearError'>;
+type Generate = ReturnType<typeof useGenerateTestBundle>;
 
 interface Mismatch {
   input: string;
@@ -43,14 +44,26 @@ export function BundleActions({
   bundles,
   pinnedBundleId,
   runs,
+  generate,
 }: {
   sessionId: string;
   bundles: TestBundleSummary[];
   pinnedBundleId: string | null;
   runs: Runs;
+  /** Của thẻ cha: thẻ cũng cần biết đang sinh để khoá các nút chạy thử của từng phiên bản. */
+  generate: Generate;
 }) {
-  const generate = useGenerateTestBundle(sessionId);
   const [showSource, setShowSource] = useState(false);
+
+  // Mỗi việc bắt đầu thì xoá lỗi của việc kia: màn hình chỉ hiện lỗi của việc GẦN NHẤT, không để lỗi cũ đứng cạnh kết quả mới.
+  function generateWith(mode: GenerateMode) {
+    runs.clearError();
+    generate.mutate(mode);
+  }
+  function runWhole(bundleId: string) {
+    generate.reset();
+    runs.run(bundleId);
+  }
 
   const pinned = bundles.find((b) => b.id === pinnedBundleId);
   const newest = bundles.reduce<TestBundleSummary | undefined>((best, b) => (best === undefined || b.version > best.version ? b : best), undefined);
@@ -65,10 +78,10 @@ export function BundleActions({
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border p-3">
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => generate.mutate('statement')}>
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => generateWith('statement')}>
           Sinh đáp án mẫu và gói test từ đề
         </Button>
-        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => generate.mutate('answer')}>
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => generateWith('answer')}>
           Sinh gói test từ đáp án của bạn
         </Button>
         <Button
@@ -76,7 +89,7 @@ export function BundleActions({
           variant="outline"
           size="sm"
           disabled={busy || runTarget === undefined}
-          onClick={() => runTarget && runs.run(runTarget.id)}
+          onClick={() => runTarget && runWhole(runTarget.id)}
         >
           Chạy thử đáp án mẫu với gói test
         </Button>

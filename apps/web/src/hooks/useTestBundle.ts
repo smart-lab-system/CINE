@@ -39,10 +39,12 @@ export function useTestBundle(examSessionId: string | undefined, bundleId: strin
   });
 }
 
+/** Tạo phiên bản. `derivedFromBundleId` là gói gốc khi bấm "Tạo phiên bản mới từ gói này" (server kế thừa origin). */
 export function useCreateTestBundle(examSessionId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (cases: TestBundleCaseInput[]) => createTestBundle(examSessionId!, cases),
+    mutationFn: ({ cases, derivedFromBundleId }: { cases: TestBundleCaseInput[]; derivedFromBundleId?: string }) =>
+      createTestBundle(examSessionId!, cases, derivedFromBundleId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: testBundlesKey(examSessionId) }),
   });
 }

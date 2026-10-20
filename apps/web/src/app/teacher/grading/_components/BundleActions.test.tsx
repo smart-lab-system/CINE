@@ -8,6 +8,7 @@ import { BundleActions } from './BundleActions';
 const h = vi.hoisted(() => ({
   generate: {
     mutate: vi.fn(),
+    reset: vi.fn(),
     isPending: false,
     isSuccess: false,
     isError: false,
@@ -16,18 +17,32 @@ const h = vi.hoisted(() => ({
     variables: undefined as unknown,
   },
 }));
-vi.mock('@/hooks/useTestBundle', () => ({ useGenerateTestBundle: () => h.generate }));
 vi.mock('./AnswerSourceForm', () => ({ AnswerSourceForm: () => <div data-testid="answer-source-form" /> }));
 
 const bundle = (over: Partial<TestBundleSummary> = {}): TestBundleSummary => ({
   id: 'b1', version: 1, approvedAt: null, origin: 'teacher', caseCount: 3, ...over,
 });
 
-const runs = (over: Record<string, unknown> = {}) => ({ runs: {}, run: vi.fn(), pendingKey: null as string | null, error: null as Error | null, ...over });
+const runs = (over: Record<string, unknown> = {}) => ({
+  runs: {},
+  run: vi.fn(),
+  clearError: vi.fn(),
+  pendingKey: null as string | null,
+  error: null as Error | null,
+  ...over,
+});
 
 function setup(over: { bundles?: TestBundleSummary[]; pinnedBundleId?: string | null; runs?: ReturnType<typeof runs> } = {}) {
   const r = over.runs ?? runs();
-  render(<BundleActions sessionId="s1" bundles={over.bundles ?? [bundle()]} pinnedBundleId={over.pinnedBundleId ?? null} runs={r} />);
+  render(
+    <BundleActions
+      sessionId="s1"
+      bundles={over.bundles ?? [bundle()]}
+      pinnedBundleId={over.pinnedBundleId ?? null}
+      runs={r}
+      generate={h.generate as unknown as React.ComponentProps<typeof BundleActions>['generate']}
+    />,
+  );
   return r;
 }
 
@@ -40,7 +55,25 @@ const generated = (over: Partial<GenerateResult> = {}): GenerateResult => ({
 });
 
 beforeEach(() => {
-  h.generate = { mutate: vi.fn(), isPending: false, isSuccess: false, isError: false, error: null, data: undefined, variables: undefined };
+  h.generate = { mutate: vi.fn(), reset: vi.fn(), isPending: false, isSuccess: false, isError: false, error: null, data: undefined, variables: undefined };
+});
+
+// Mỗi việc bắt đầu xoá lỗi của việc kia: chạy thử không để lại lỗi "sinh" cũ, sinh không để lại lỗi "chạy" cũ.
+describe('một lỗi tại một thời điểm (W1)', () => {
+  it('bấm chạy thử → lỗi của lượt sinh trước được gỡ (reset)', () => {
+    h.generate = { ...h.generate, isError: true, error: new ApiStatusError('Phiên đã có đáp án mẫu của giảng viên.', 409, {}) } as typeof h.generate;
+    const r = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Chạy thử đáp án mẫu với gói test' }));
+    expect(h.generate.reset).toHaveBeenCalledTimes(1);
+    expect(r.run).toHaveBeenCalledWith('b1');
+  });
+
+  it('bấm sinh → lỗi của lượt chạy thử trước được gỡ (clearError), không đứng cạnh kết quả sinh', () => {
+    const r = setup({ runs: runs({ error: new ApiStatusError('chưa có mã đáp án để chạy — hãy tải mã lên', 409, {}) }) });
+    fireEvent.click(screen.getByRole('button', { name: 'Sinh gói test từ đáp án của bạn' }));
+    expect(r.clearError).toHaveBeenCalledTimes(1);
+    expect(h.generate.mutate).toHaveBeenCalledWith('answer');
+  });
 });
 
 describe('BundleActions — ba nút sinh và chạy thử (G2b-R)', () => {

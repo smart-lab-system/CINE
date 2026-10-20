@@ -63,10 +63,12 @@ export async function getTestBundle(examSessionId: string, bundleId: string): Pr
 export async function createTestBundle(
   examSessionId: string,
   cases: TestBundleCaseInput[],
+  /** Gói gốc của phiên bản dẫn xuất: server kế thừa origin của nó (xem `CreateTestBundleDto`). Vắng thì phiên bản tạo tay. */
+  derivedFromBundleId?: string,
 ): Promise<{ id: string; version: number }> {
   const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/test-bundles', {
     params: { path: { id: examSessionId } },
-    body: { cases },
+    body: derivedFromBundleId === undefined ? { cases } : { cases, derivedFromBundleId },
   });
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as { id: string; version: number };
