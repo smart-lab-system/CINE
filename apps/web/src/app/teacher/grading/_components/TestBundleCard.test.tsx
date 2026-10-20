@@ -23,10 +23,16 @@ vi.mock('./BundleActions', () => ({
   BundleActions: ({ pinnedBundleId }: { pinnedBundleId: string | null }) => <div data-testid="bundle-actions" data-pinned={String(pinnedBundleId)} />,
 }));
 vi.mock('./TestBundleList', () => ({
-  TestBundleList: ({ onNewVersion }: { onNewVersion: (id: string) => void }) => (
-    <button type="button" onClick={() => onNewVersion('b1')}>
-      mô phỏng: tạo phiên bản mới từ b1
-    </button>
+  // Hai nút giả: tạo phiên bản từ b1, và chạy thử b1 THEO ĐƯỜNG DANH SÁCH (runs.run do thẻ truyền xuống, không phải của BundleActions).
+  TestBundleList: ({ onNewVersion, runs }: { onNewVersion: (id: string) => void; runs: { run: (id: string, caseKey?: string) => void } }) => (
+    <>
+      <button type="button" onClick={() => onNewVersion('b1')}>
+        mô phỏng: tạo phiên bản mới từ b1
+      </button>
+      <button type="button" onClick={() => runs.run('b1')}>
+        mô phỏng: chạy thử b1 từ danh sách
+      </button>
+    </>
   ),
 }));
 
@@ -108,6 +114,14 @@ describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G
     expect(screen.getByLabelText(/^Output mong đợi/)).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByRole('button', { name: /Lưu thành phiên bản/ })).toBeDisabled();
     expect(h.create.mutate).not.toHaveBeenCalled();
+  });
+
+  // Đường chạy thử từ danh sách phiên bản cũng phải gỡ lỗi của lần sinh trước (không chỉ nút trong BundleActions).
+  it('chạy thử từ danh sách phiên bản cũng gỡ lỗi sinh cũ (reset), không chỉ nút ở khối trên', () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'mô phỏng: chạy thử b1 từ danh sách' }));
+    expect(h.generate.reset).toHaveBeenCalledTimes(1);
+    expect(h.runs.run.mock.calls[0][0]).toBe('b1');
   });
 
   it('bắt đầu từ một phiên bản: chép các ca của nó; ca hệ thống đã bỏ hiện gạch ngang và không có nút', async () => {

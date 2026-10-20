@@ -274,6 +274,36 @@ describe('TestBundleList — chạy thử (G2b-R)', () => {
     expect(screen.queryByText(/khớp, 0 lệch/)).not.toBeInTheDocument();
   });
 
+  // Lượt bị cắt nhưng sau đó mọi ca đã được chạy lẻ đủ: không còn gì "chưa kết luận", nên không được giữ nhãn "chưa hết".
+  it('lượt aborted nhưng mọi ca đã có kết quả (đủ N/N) → không còn nhãn "Chạy chưa hết"', () => {
+    const state = {
+      b1: {
+        status: 'aborted' as const,
+        compileLog: null,
+        cases: {
+          ca1: { name: 'ca1', status: 'pass', ms: 3, diff: null },
+          ca2: { name: 'ca2', status: 'pass', ms: 3, diff: null },
+        },
+      },
+    };
+    renderList({ runs: runs({ state }) });
+    expect(screen.queryByText(/Chạy chưa hết/)).not.toBeInTheDocument();
+    expect(screen.getByText('2 khớp, 0 lệch')).toBeInTheDocument();
+  });
+
+  // Chạy MỘT ca lẻ: kết quả chỉ nói về ca đó. Dòng đếm phải nói rõ đã chạy bao nhiêu trên tổng, không để một con số trần.
+  it('chạy lẻ một ca → dòng đếm nói rõ "trên N ca", không phải con số trần như cả gói', () => {
+    const state = {
+      b1: {
+        status: null,
+        compileLog: null,
+        cases: { ca1: { name: 'ca1', status: 'pass', ms: 3, diff: null } },
+      },
+    };
+    renderList({ runs: runs({ state }) });
+    expect(screen.getByText('1 khớp, 0 lệch — 1 trên 2 ca đã chạy')).toBeInTheDocument();
+  });
+
   it('kết quả của phiên bản này không hiện ở phiên bản khác', () => {
     h.bundles = { data: [summary({ id: 'b1', version: 1 }), summary({ id: 'b2', version: 2 })], isLoading: false };
     const state: RunsState = { b2: { status: 'pass', cases: { ca1: { name: 'ca1', status: 'pass', ms: 1, diff: null } }, compileLog: null } };

@@ -129,8 +129,9 @@ export function removeRow(rows: DraftRow[], index: number): DraftRow[] {
 export function undoRow(rows: DraftRow[], index: number): DraftRow[] {
   return rows.map((row, i) => {
     if (i !== index || row.state !== 'removed') return row;
-    // Hoàn tác về đúng giá trị gốc thì trích đề gốc cũng quay lại; ca đã sửa thì trích đề vẫn mất như lúc sửa.
-    if (row.base !== null && sameValues(row, row.base)) return { ...row, state: 'same', constraintQuote: row.baseQuote };
+    // Bỏ rồi hoàn tác không đổi giá trị nên trích đề còn nguyên. Một ca đã sửa thì trích đề đã mất từ lúc sửa, và vẫn mất.
+    // Trích đề gốc chỉ quay lại qua `editRow` khi giảng viên sửa về đúng giá trị cũ.
+    if (row.base !== null && sameValues(row, row.base)) return { ...row, state: 'same' };
     return { ...row, state: 'edited' };
   });
 }

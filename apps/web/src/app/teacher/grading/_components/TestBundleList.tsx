@@ -67,6 +67,8 @@ export function TestBundleList({
         const systemMade = bundle.origin === 'generated' || bundle.origin === 'from_model_answer';
         const run = runs.runs[bundle.id];
         const summary = run && run.status !== 'compile_error' ? summarizeRun(run) : null;
+        // Chưa đủ mọi ca của phiên bản (lượt bị cắt, hoặc mới chạy lẻ vài ca): con số phải nói rõ là một phần.
+        const partial = summary !== null && summary.total < bundle.caseCount;
         return (
           <div key={bundle.id} className="rounded-md border border-border bg-surface p-3 text-small">
             <div className="flex flex-wrap items-center gap-2">
@@ -103,13 +105,15 @@ export function TestBundleList({
             {bundle.approvedAt && (
               <p className="text-caption text-muted-foreground">Đã duyệt lúc {formatMoment(bundle.approvedAt)}</p>
             )}
-            {summary && run?.status === 'aborted' && (
+            {summary && partial && run?.status === 'aborted' && (
               <p className="mt-1 text-caption font-medium text-warning-strong">
                 {`Chạy chưa hết (hết thời gian): ${summary.total} trên ${bundle.caseCount} ca đã chạy — chưa kết luận cả gói.`}
               </p>
             )}
-            {summary && run?.status !== 'aborted' && (
-              <p className="mt-1 text-caption font-medium">{`${summary.matched} khớp, ${summary.mismatched} lệch`}</p>
+            {summary && !(partial && run?.status === 'aborted') && (
+              <p className="mt-1 text-caption font-medium">
+                {`${summary.matched} khớp, ${summary.mismatched} lệch${partial ? ` — ${summary.total} trên ${bundle.caseCount} ca đã chạy` : ''}`}
+              </p>
             )}
             {run?.status === 'compile_error' && (
               <div className="mt-1 text-caption text-danger-strong">

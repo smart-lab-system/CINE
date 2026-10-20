@@ -115,7 +115,6 @@ export function prefilterCases(proposed: CaseProposal[], statement: string, limi
     const key = uniqueKey(c.name, index, taken);
     const group = normalizeGroup(c.group);
     // Input của ca bị bỏ đi vào gói để giảng viên xem, nên cũng không được mang NUL (xem dòng kiểm NUL bên dưới).
-    // Input của ca bị bỏ đi vào gói để giảng viên xem, nên cũng không được mang NUL (xem dòng kiểm NUL bên dưới).
     const drop = (reason: string) => dropped.push({ name: c.name, key, group, input: c.input.replace(/\u0000/g, '\\0'), reason });
     if (!quoteAppearsInStatement(c.quote, statement)) return drop('không trích được câu nào trong đề');
     // Postgres `text` từ chối \u0000: một ca như vậy làm lệnh ghi gói hỏng (500) SAU khi đã tốn tiền model.

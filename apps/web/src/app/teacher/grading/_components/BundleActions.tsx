@@ -128,7 +128,7 @@ export function BundleActions({
             )}
             {result.ruler?.trust === 'unverified' && (
               <span>
-                Đề không có ví dụ vào/ra nào để kiểm, nên đáp án do hệ thống viết CHƯA được kiểm chứng. Hãy đọc kỹ đáp án và các ca trước
+                Không có ví dụ đủ dài trong đề để đối chiếu (ví dụ quá ngắn không được tính), nên đáp án do hệ thống viết CHƯA được kiểm chứng. Hãy đọc kỹ đáp án và các ca trước
                 khi duyệt.
               </span>
             )}

@@ -151,6 +151,8 @@ describe('BundleActions — ba nút sinh và chạy thử (G2b-R)', () => {
       h.generate.variables = 'statement';
       setup();
       expect(screen.getByRole('status')).toHaveTextContent(/CHƯA được kiểm chứng/);
+      // Đề có thể CÓ ví dụ nhưng quá ngắn để đối chiếu: câu chữ không được nói như thể đề không có ví dụ nào.
+      expect(screen.getByRole('status')).toHaveTextContent(/ví dụ đủ dài/);
     });
 
     it('từ đáp án của giảng viên: không có dòng độ tin cậy của thước (đáp án là của bạn)', () => {

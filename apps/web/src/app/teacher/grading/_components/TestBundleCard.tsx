@@ -159,6 +159,16 @@ export function TestBundleCard({ sessionId, pinnedBundleId }: { sessionId: strin
     setMessage('Đã huỷ bản nháp.');
   }
 
+  // Chạy thử từ danh sách phiên bản đi qua đây để gỡ lỗi của lần sinh trước, y như nút ở khối trên (BundleActions.runWhole).
+  // Không có chỗ này thì một lỗi sinh cũ đứng cạnh kết quả chạy mới ở từng dòng phiên bản.
+  const runsFromList = {
+    ...runs,
+    run: (bundleId: string, caseKey?: string) => {
+      generate.reset();
+      runs.run(bundleId, caseKey);
+    },
+  };
+
   const blocker = draft ? saveBlocker(draft.rows, form !== null) : null;
   const knownGroups = Array.from(new Set([...SUGGESTED_GROUPS, ...(draft?.rows.map((r) => r.group) ?? [])]));
 
@@ -172,7 +182,7 @@ export function TestBundleCard({ sessionId, pinnedBundleId }: { sessionId: strin
         <TestBundleList
           sessionId={sessionId}
           pinnedBundleId={pinnedBundleId}
-          runs={runs}
+          runs={runsFromList}
           onNewVersion={(id) => void startFrom(id)}
           generating={generate.isPending}
         />
