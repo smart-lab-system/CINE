@@ -88,7 +88,8 @@ const responseSchema = z.object({
  * `responseSchema` (zod) kiểm sau khi đọc.
  *
  * Mức đã đo: một lượt thăm dò trên `occ/claude-sonnet-5` ngày 2026-10-20 (prompt thử cấm JSON, không phải prompt ruler): có khuôn
- * thì ra JSON đúng khuôn, không có thì ra văn xuôi. Chỉ một lượt mỗi bên, nên chưa kết luận gateway luôn thực thi tham số;
+ * thì ra JSON đúng khuôn, không có thì ra văn xuôi. Lượt thăm dò dùng không stream và `effort: 'low'`; lượt thật dùng stream và
+ * không đặt effort. Chỉ một lượt mỗi bên, nên chưa kết luận gateway luôn thực thi tham số;
  * `extractJsonObject` và `parseRulerResponse` vẫn là lưới kiểm, không được gỡ. Bản ghi: apps/api/eval/rehearsals/2026-10-20-ruler-format-probe.md.
  * Số đo 2026-09-17 trên route chấm điểm ghi gateway không thực thi tham số; route đó chưa được đo lại.
  */

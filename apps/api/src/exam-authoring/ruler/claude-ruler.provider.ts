@@ -41,7 +41,8 @@ export class ClaudeRulerProvider implements RulerProvider {
             model: AUTHORING_MODEL,
             max_tokens: MAX_OUTPUT_TOKENS,
             messages: [{ role: 'user', content: buildRulerPrompt(request) }],
-            // Khuôn JSON do API ép (structured outputs), không phải do model tự viết đúng dấu nháy: xem RULER_OUTPUT_SCHEMA.
+            // Khuôn JSON gửi qua structured outputs: khi gateway thực thi tham số này, đầu ra đúng khuôn, không phụ thuộc việc
+            // model tự escape dấu nháy. Xem RULER_OUTPUT_SCHEMA.
             output_config: { format: { type: 'json_schema', schema: RULER_OUTPUT_SCHEMA } },
           },
           { timeout: CALL_TIMEOUT_MS, maxRetries: 0, signal: AbortSignal.timeout(OVERALL_TIMEOUT_MS) },

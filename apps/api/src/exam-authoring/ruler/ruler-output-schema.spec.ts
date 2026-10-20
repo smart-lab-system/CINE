@@ -66,6 +66,7 @@ describe('RULER_OUTPUT_SCHEMA (khuôn structured outputs)', () => {
     expect(statement.modelAnswer).toBe('x');
     expect(statement.cases).toHaveLength(1);
     expect(answer.modelAnswer).toBeNull();
+    expect((sampleOf(RULER_OUTPUT_SCHEMA, true) as Node).modelAnswer).toBeNull();
   });
 
   it('khuôn thiếu nhánh null của modelAnswer thì sinh instance ném lỗi, không rơi âm thầm về string', () => {

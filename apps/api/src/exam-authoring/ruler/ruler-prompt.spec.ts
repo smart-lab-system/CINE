@@ -55,7 +55,7 @@ describe('RULER_PROMPT_VERSION', () => {
     expect(RULER_PROMPT_VERSION).toBe(RULER_PROMPT_VERSION);
   });
 
-  it('đổi khuôn đầu ra là đổi phiên bản, còn khuôn prompt giữ nguyên', () => {
+  it('đổi khuôn đầu ra là đổi phiên bản; khuôn gốc cho đúng RULER_PROMPT_VERSION', () => {
     expect(computeRulerPromptVersion(RULER_OUTPUT_SCHEMA)).toBe(RULER_PROMPT_VERSION);
     expect(computeRulerPromptVersion({ ...RULER_OUTPUT_SCHEMA, required: [] })).not.toBe(RULER_PROMPT_VERSION);
   });
