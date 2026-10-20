@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { AUTHORING_MODEL } from '../ai-provider/claude-authoring.provider';
 import { AuthoringUsage } from '../ai-provider/exam-authoring-provider';
 import { RulerOutcome, RulerProvider, RulerProviderFailure, RulerRequest } from './ruler-provider';
-import { buildRulerPrompt, parseRulerResponse, RULER_PROMPT_VERSION } from './ruler-prompt';
+import { buildRulerPrompt, parseRulerResponse, RULER_OUTPUT_SCHEMA, RULER_PROMPT_VERSION } from './ruler-prompt';
 
 /**
  * Trần token đầu ra của MỘT lượt: gồm cả token suy nghĩ (Sonnet 5 bật adaptive thinking mặc định và nó tiêu vào đúng
@@ -41,6 +41,8 @@ export class ClaudeRulerProvider implements RulerProvider {
             model: AUTHORING_MODEL,
             max_tokens: MAX_OUTPUT_TOKENS,
             messages: [{ role: 'user', content: buildRulerPrompt(request) }],
+            // Khuôn JSON do API ép (structured outputs), không phải do model tự viết đúng dấu nháy: xem RULER_OUTPUT_SCHEMA.
+            output_config: { format: { type: 'json_schema', schema: RULER_OUTPUT_SCHEMA } },
           },
           { timeout: CALL_TIMEOUT_MS, maxRetries: 0, signal: AbortSignal.timeout(OVERALL_TIMEOUT_MS) },
         )

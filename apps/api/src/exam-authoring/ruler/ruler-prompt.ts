@@ -88,6 +88,48 @@ const responseSchema = z.object({
   cases: z.array(caseSchema).min(1, 'phải có ít nhất một ca').max(500),
 });
 
+/**
+ * Khuôn JSON ép bằng structured outputs (`output_config.format`): API bảo đảm đầu ra là JSON đúng khuôn này, nên dấu nháy hay
+ * xuống dòng trong `modelAnswer` và `quote` không còn làm hỏng JSON. Chỉ dùng từ khoá API nhận được; giới hạn độ dài và số ca
+ * vẫn do `responseSchema` (zod) kiểm sau khi đọc.
+ */
+export const RULER_OUTPUT_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    modelAnswer: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    examples: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          input: { type: 'string' },
+          output: { type: 'string' },
+          quote: { type: 'string' },
+        },
+        required: ['input', 'output', 'quote'],
+        additionalProperties: false,
+      },
+    },
+    cases: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          group: { type: 'string' },
+          input: { type: 'string' },
+          quote: { type: 'string' },
+          answerIsUnique: { type: 'boolean' },
+        },
+        required: ['name', 'group', 'input', 'quote', 'answerIsUnique'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['modelAnswer', 'examples', 'cases'],
+  additionalProperties: false,
+};
+
 const FAIL = 'Không đọc được đầu ra của model';
 
 /**
