@@ -22,7 +22,9 @@ function objectNodes(node: unknown, out: Node[] = []): Node[] {
 function sampleOf(schema: Node, pickNull: boolean): unknown {
   if (Array.isArray(schema.anyOf)) {
     const branches = schema.anyOf as Node[];
-    return sampleOf(branches.find((b) => (b.type === 'null') === pickNull) ?? branches[0], pickNull);
+    const hit = branches.find((b) => (b.type === 'null') === pickNull);
+    if (!hit) throw new Error(`anyOf thiếu nhánh ${pickNull ? 'null' : 'không-null'}`);
+    return sampleOf(hit, pickNull);
   }
   switch (schema.type) {
     case 'object': {
@@ -53,7 +55,7 @@ describe('RULER_OUTPUT_SCHEMA (khuôn structured outputs)', () => {
     }
   });
 
-  it('SDK không loại từ khoá nào khỏi schema, nghĩa là API nhận nguyên khuôn (không có ràng buộc độ dài hay số bị bỏ)', () => {
+  it('theo bộ lọc của SDK, không từ khoá nào bị loại khỏi schema', () => {
     expect(transformJSONSchema(RULER_OUTPUT_SCHEMA)).toEqual(RULER_OUTPUT_SCHEMA);
   });
 
@@ -64,5 +66,14 @@ describe('RULER_OUTPUT_SCHEMA (khuôn structured outputs)', () => {
     expect(statement.modelAnswer).toBe('x');
     expect(statement.cases).toHaveLength(1);
     expect(answer.modelAnswer).toBeNull();
+  });
+
+  it('khuôn thiếu nhánh null của modelAnswer thì sinh instance ném lỗi, không rơi âm thầm về string', () => {
+    const noNullBranch = {
+      ...RULER_OUTPUT_SCHEMA,
+      properties: { ...(RULER_OUTPUT_SCHEMA.properties as Node), modelAnswer: { anyOf: [{ type: 'string' }] } },
+    };
+
+    expect(() => sampleOf(noNullBranch, true)).toThrow(/anyOf thiếu nhánh null/);
   });
 });

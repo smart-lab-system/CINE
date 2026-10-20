@@ -1,4 +1,4 @@
-import { buildRulerPrompt, parseRulerResponse, RULER_PROMPT_VERSION } from './ruler-prompt';
+import { buildRulerPrompt, computeRulerPromptVersion, parseRulerResponse, RULER_OUTPUT_SCHEMA, RULER_PROMPT_VERSION } from './ruler-prompt';
 
 const STATEMENT = 'Cho n số nguyên. In ra các số theo thứ tự ngược lại, cách nhau một dấu cách.';
 const TEACHER_CODE = '#include <iostream>\nint main() { return 0; }\n';
@@ -53,6 +53,11 @@ describe('RULER_PROMPT_VERSION', () => {
   it('là băm 12 ký tự hex của khuôn prompt, ổn định giữa các lần gọi', () => {
     expect(RULER_PROMPT_VERSION).toMatch(/^[0-9a-f]{12}$/);
     expect(RULER_PROMPT_VERSION).toBe(RULER_PROMPT_VERSION);
+  });
+
+  it('đổi khuôn đầu ra là đổi phiên bản, còn khuôn prompt giữ nguyên', () => {
+    expect(computeRulerPromptVersion(RULER_OUTPUT_SCHEMA)).toBe(RULER_PROMPT_VERSION);
+    expect(computeRulerPromptVersion({ ...RULER_OUTPUT_SCHEMA, required: [] })).not.toBe(RULER_PROMPT_VERSION);
   });
 
   it('không phụ thuộc đề hay mã cụ thể (cùng một khuôn thì cùng một phiên bản)', () => {

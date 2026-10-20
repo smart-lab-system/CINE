@@ -83,13 +83,14 @@ const responseSchema = z.object({
 });
 
 /**
- * Khuôn JSON ép bằng structured outputs (`output_config.format`): API bảo đảm đầu ra là JSON đúng khuôn này, nên dấu nháy hay
- * xuống dòng trong `modelAnswer` và `quote` không còn làm hỏng JSON. Chỉ dùng từ khoá API nhận được; giới hạn độ dài và số ca
- * vẫn do `responseSchema` (zod) kiểm sau khi đọc.
+ * Khuôn JSON gửi qua structured outputs (`output_config.format`) để gateway ép đầu ra đúng khuôn này; khi đó dấu nháy hay xuống
+ * dòng trong `modelAnswer` và `quote` không còn làm hỏng JSON. Chỉ dùng từ khoá API nhận được; giới hạn độ dài và số ca vẫn do
+ * `responseSchema` (zod) kiểm sau khi đọc.
  *
- * Đo 2026-10-20 trên `occ/claude-sonnet-5`: prompt cấm JSON mà đầu ra vẫn đúng khuôn này khi có tham số, và ra văn xuôi khi không
- * có (mỗi bên một lượt). Ghi chú đo 2026-09-17 trên route chấm điểm nói gateway không thực thi tham số này; số đo đó không áp cho
- * route ruler, và route chấm điểm chưa được đo lại.
+ * Mức đã đo: một lượt thăm dò trên `occ/claude-sonnet-5` ngày 2026-10-20 (prompt thử cấm JSON, không phải prompt ruler): có khuôn
+ * thì ra JSON đúng khuôn, không có thì ra văn xuôi. Chỉ một lượt mỗi bên, nên chưa kết luận gateway luôn thực thi tham số;
+ * `extractJsonObject` và `parseRulerResponse` vẫn là lưới kiểm, không được gỡ. Bản ghi: apps/api/eval/rehearsals/2026-10-20-ruler-format-probe.md.
+ * Số đo 2026-09-17 trên route chấm điểm ghi gateway không thực thi tham số; route đó chưa được đo lại.
  */
 export const RULER_OUTPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
@@ -133,14 +134,18 @@ export const RULER_OUTPUT_SCHEMA: Record<string, unknown> = {
  * là đổi phiên bản; đổi đề thì không. Ghi cùng mỗi lượt sinh để so chất lượng thước giữa các phiên bản (như `prompt_version` của
  * lượt chấm). Khuôn đầu ra nằm trong băm vì nó đổi cách model trả lời.
  */
-export const RULER_PROMPT_VERSION = createHash('sha256')
-  .update(TEMPLATE_STATEMENT)
-  .update('\0')
-  .update(TEMPLATE_ANSWER)
-  .update('\0')
-  .update(JSON.stringify(RULER_OUTPUT_SCHEMA))
-  .digest('hex')
-  .slice(0, 12);
+export function computeRulerPromptVersion(outputSchema: Record<string, unknown>): string {
+  return createHash('sha256')
+    .update(TEMPLATE_STATEMENT)
+    .update('\0')
+    .update(TEMPLATE_ANSWER)
+    .update('\0')
+    .update(JSON.stringify(outputSchema))
+    .digest('hex')
+    .slice(0, 12);
+}
+
+export const RULER_PROMPT_VERSION = computeRulerPromptVersion(RULER_OUTPUT_SCHEMA);
 
 const FAIL = 'Không đọc được đầu ra của model';
 
