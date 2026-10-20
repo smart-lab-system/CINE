@@ -52,7 +52,7 @@ export function TestBundleList({
   if ((bundles.data?.length ?? 0) === 0) {
     return (
       <p className="rounded-md border border-dashed border-border px-4 py-3 text-small text-muted-foreground">
-        Chưa có gói test nào — bài code không chấm được cho tới khi có một gói đã duyệt và ghim (§14.3).
+        Chưa có gói test nào — bài code không chấm được cho tới khi có một gói đã duyệt và ghim.
       </p>
     );
   }

@@ -51,6 +51,7 @@ describe('SeverityLens', () => {
     const lens = new SeverityLens({ models: [model], sandbox: passAll() });
     const err = await lens.review({ error: { ruleKey: 'chu_thich_sai', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/không được tin/);
     expect((err as Error).message).not.toMatch(/§/);
   });
 

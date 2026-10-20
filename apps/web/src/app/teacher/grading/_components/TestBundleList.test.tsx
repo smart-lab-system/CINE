@@ -73,6 +73,16 @@ function renderList(over: { pinnedBundleId?: string | null; runs?: ReturnType<ty
 }
 const open = () => fireEvent.click(screen.getByRole('button', { name: 'Xem bộ ca' }));
 
+describe('TestBundleList — chưa có gói test', () => {
+  it('nói rõ bài code chưa chấm được, không mang mã mục spec', () => {
+    h.bundles = { data: [], isLoading: false };
+    render(<TestBundleList sessionId="s1" pinnedBundleId={null} runs={runs()} onNewVersion={vi.fn()} />);
+    const note = screen.getByText(/Chưa có gói test nào/);
+    expect(note.textContent).toMatch(/bài code không chấm được/);
+    expect(note.textContent).not.toMatch(/§/);
+  });
+});
+
 describe('TestBundleList (UI spec §3.7, T-UI-18)', () => {
   it('expanding a bundle shows the six columns, including the run result', () => {
     renderList();

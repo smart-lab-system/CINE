@@ -190,6 +190,7 @@ describe('bốn công cụ', () => {
     const late = await r.execute('tc-2', { tool: 'run_tests', args: { group: null } });
     expect(late.toolCall.status).toBe('error');
     expect(late.toolCall.output).toMatch(/không đủ thời gian/);
+    expect(late.toolCall.output).not.toMatch(/§/);
     expect(sandbox.requests).toHaveLength(1);
   });
 

@@ -51,6 +51,7 @@ describe('CorrectnessLens', () => {
     const lens = new CorrectnessLens({ models: [model], sandbox: passNone() });
     const err = await lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/không được tin/);
     expect((err as Error).message).not.toMatch(/§/);
   });
 
