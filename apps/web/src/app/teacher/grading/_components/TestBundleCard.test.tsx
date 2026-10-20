@@ -1,88 +1,231 @@
-import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { TestBundleCard } from './TestBundleCard';
 
-const createMock = vi.fn();
-const approveMock = vi.fn();
-const pinMock = vi.fn();
+const h = vi.hoisted(() => ({
+  bundles: { data: [] as unknown[], isLoading: false },
+  create: { mutate: vi.fn(), isPending: false, isError: false, error: null as Error | null },
+  fetchDetail: vi.fn(),
+  runs: { runs: {}, run: vi.fn(), pendingKey: null as string | null, error: null as Error | null },
+}));
 
 vi.mock('@/hooks/useTestBundle', () => ({
-  useTestBundles: () => useTestBundlesMock(),
-  useCreateTestBundle: () => ({ mutate: createMock, isPending: false }),
-  useApproveTestBundle: () => ({ mutate: approveMock, isPending: false }),
-  usePinTestBundle: () => ({ mutate: pinMock, isPending: false }),
+  useTestBundles: () => h.bundles,
+  useCreateTestBundle: () => h.create,
+}));
+vi.mock('@/hooks/useTestBundleDetail', () => ({ useFetchTestBundle: () => h.fetchDetail }));
+vi.mock('@/hooks/useBundleRuns', () => ({ useBundleRuns: () => h.runs }));
+// Hai khối này có test riêng; ở đây chỉ cần biết thẻ nối chúng đúng.
+vi.mock('./BundleActions', () => ({
+  BundleActions: ({ pinnedBundleId }: { pinnedBundleId: string | null }) => <div data-testid="bundle-actions" data-pinned={String(pinnedBundleId)} />,
+}));
+vi.mock('./TestBundleList', () => ({
+  TestBundleList: ({ onNewVersion }: { onNewVersion: (id: string) => void }) => (
+    <button type="button" onClick={() => onNewVersion('b1')}>
+      mô phỏng: tạo phiên bản mới từ b1
+    </button>
+  ),
 }));
 
-// `TestBundleList` (nằm trong card) gọi thêm hai hook này; không mock thì `useMutation` không có QueryClientProvider.
-vi.mock('@/hooks/useTestBundleDetail', () => ({
-  useTestBundleDetail: () => ({ data: undefined, isLoading: false, isError: false, error: null }),
-  useDropTestBundleCase: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
-}));
+const base = () => ({
+  id: 'b1',
+  version: 2,
+  approvedAt: null,
+  cases: [
+    { caseKey: 'ca1', group: 'co_ban', input: '5\n1 2 3 4 5', expectedOutput: '15', constraintQuote: 'Dòng đầu là n', autoDroppedReason: null },
+    { caseKey: 'ca2', group: 'bien', input: '1\n-3', expectedOutput: '-3', constraintQuote: null, autoDroppedReason: null },
+    { caseKey: 'ca3', group: 'bien', input: '0', expectedOutput: '', constraintQuote: null, autoDroppedReason: 'không trích được câu nào trong đề' },
+  ],
+});
 
-let useTestBundlesMock = () => ({ data: [] as unknown[], isLoading: false });
+beforeEach(() => {
+  h.bundles = { data: [{ id: 'b1', version: 2, approvedAt: null, origin: 'generated', caseCount: 2 }], isLoading: false };
+  h.create = { mutate: vi.fn(), isPending: false, isError: false, error: null };
+  h.fetchDetail = vi.fn().mockResolvedValue(base());
+  h.runs = { runs: {}, run: vi.fn(), pendingKey: null, error: null };
+});
 
-describe('TestBundleCard', () => {
-  it('chưa có gói nào → hiện lời nhắc tạo gói và nút thêm ca', () => {
-    useTestBundlesMock = () => ({ data: [], isLoading: false });
-    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
-    expect(screen.getByText(/chưa có gói test/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /thêm ca/i })).toBeInTheDocument();
-  });
+const type = (label: RegExp | string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
-  it('gói CHƯA duyệt → hiện nút Duyệt, KHÔNG hiện nút Ghim', () => {
-    useTestBundlesMock = () => ({
-      data: [{ id: 'b1', version: 1, approvedAt: null, caseCount: 2 }],
-      isLoading: false,
-    });
-    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
-    expect(screen.getByRole('button', { name: /duyệt/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^ghim$/i })).not.toBeInTheDocument();
-  });
+async function startFromB1() {
+  fireEvent.click(screen.getByRole('button', { name: 'mô phỏng: tạo phiên bản mới từ b1' }));
+  await screen.findByRole('region', { name: /Bản nháp/ });
+}
 
-  it('gói ĐÃ duyệt, chưa ghim → hiện nút Ghim, KHÔNG hiện nút Duyệt', () => {
-    useTestBundlesMock = () => ({
-      data: [{ id: 'b1', version: 1, approvedAt: '2026-09-27T00:00:00.000Z', caseCount: 2 }],
-      isLoading: false,
-    });
-    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
-    expect(screen.getByRole('button', { name: /^ghim$/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /duyệt/i })).not.toBeInTheDocument();
-  });
-
-  it('gói ĐANG ghim → hiện huy hiệu "Đang dùng", không hiện nút Ghim', () => {
-    useTestBundlesMock = () => ({
-      data: [{ id: 'b1', version: 1, approvedAt: '2026-09-27T00:00:00.000Z', caseCount: 2 }],
-      isLoading: false,
-    });
+describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G2b-R)', () => {
+  it('nối ba nút và danh sách: ba nút nhận gói đang ghim', () => {
     render(<TestBundleCard sessionId="s1" pinnedBundleId="b1" />);
-    expect(screen.getByText(/đang dùng/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^ghim$/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('bundle-actions')).toHaveAttribute('data-pinned', 'b1');
   });
 
-  it('bấm "Ghim" gọi usePinTestBundle với đúng bundleId', () => {
-    useTestBundlesMock = () => ({
-      data: [{ id: 'b1', version: 1, approvedAt: '2026-09-27T00:00:00.000Z', caseCount: 2 }],
-      isLoading: false,
-    });
+  it('chưa có bản nháp: có nút tạo, KHÔNG có bảng nháp; chưa có gói nào thì nút nói "Tạo gói bằng tay"', () => {
+    h.bundles = { data: [], isLoading: false };
     render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
-    fireEvent.click(screen.getByRole('button', { name: /^ghim$/i }));
-    expect(pinMock).toHaveBeenCalledWith('b1');
+    expect(screen.queryByRole('region', { name: /Bản nháp/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tạo gói bằng tay' })).toBeInTheDocument();
   });
 
-  it('thêm một dòng ca rồi bấm "Tạo gói" gọi useCreateTestBundle với đúng ca', () => {
-    useTestBundlesMock = () => ({ data: [], isLoading: false });
+  it('tạo tay từ đầu: mở bản nháp rỗng với form thêm ca, tên ca đề xuất ca1, tên phiên bản kế tiếp', () => {
+    h.bundles = { data: [], isLoading: false };
     render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
 
-    fireEvent.change(screen.getByLabelText(/tên ca/i), { target: { value: 'ca1' } });
-    fireEvent.change(screen.getByLabelText(/nhóm/i), { target: { value: 'co_ban' } });
-    fireEvent.change(screen.getByLabelText(/^input/i), { target: { value: '1 2' } });
-    fireEvent.change(screen.getByLabelText(/output mong đợi/i), { target: { value: '3' } });
-    fireEvent.click(screen.getByRole('button', { name: /tạo gói/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo gói bằng tay' }));
 
-    expect(createMock).toHaveBeenCalledWith(
-      [{ caseKey: 'ca1', group: 'co_ban', input: '1 2', expectedOutput: '3' }],
-      expect.any(Object),
-    );
+    expect(screen.getByRole('region', { name: /Bản nháp/ })).toHaveTextContent('phiên bản 1');
+    expect(screen.getByLabelText(/^Tên ca/)).toHaveValue('ca1');
+  });
+
+  it('thêm ca rồi lưu: gửi đúng các ca lên route tạo gói và dọn bản nháp khi thành công', () => {
+    h.bundles = { data: [], isLoading: false };
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo gói bằng tay' }));
+
+    type(/^Input/, '1 2');
+    type(/^Output mong đợi/, '3');
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm vào bản nháp' }));
+
+    expect(screen.getByRole('button', { name: /Lưu thành phiên bản 1/ })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 1/ }));
+
+    expect(h.create.mutate).toHaveBeenCalledTimes(1);
+    expect(h.create.mutate.mock.calls[0][0]).toEqual([{ caseKey: 'ca1', group: 'co_ban', input: '1 2', expectedOutput: '3' }]);
+
+    act(() => h.create.mutate.mock.calls[0][1].onSuccess());
+    expect(screen.queryByRole('region', { name: /Bản nháp/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Đã lưu phiên bản 1. Chưa duyệt, chưa dùng để chấm.');
+  });
+
+  it('form thêm hỏng thì KHÔNG thêm dòng nào và không gọi lưu', () => {
+    h.bundles = { data: [], isLoading: false };
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo gói bằng tay' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm vào bản nháp' })); // output trống
+
+    expect(screen.getByLabelText(/^Output mong đợi/)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('button', { name: /Lưu thành phiên bản/ })).toBeDisabled();
+    expect(h.create.mutate).not.toHaveBeenCalled();
+  });
+
+  it('bắt đầu từ một phiên bản: chép các ca của nó; ca hệ thống đã bỏ hiện gạch ngang và không có nút', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+
+    expect(h.fetchDetail).toHaveBeenCalledWith('b1');
+    const draft = within(screen.getByRole('region', { name: /Bản nháp/ }));
+    expect(draft.getByText('ca1')).toBeInTheDocument();
+    expect(draft.getByText('ca2')).toBeInTheDocument();
+    const dropped = draft.getByText('ca3').closest('tr')!;
+    expect(dropped.className).toContain('line-through');
+    expect(within(dropped).queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Bản nháp/ })).toHaveTextContent('phiên bản 3');
+  });
+
+  it('chưa đổi gì thì không lưu được và nói rõ lý do', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+
+    expect(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ })).toBeDisabled();
+    expect(screen.getByText('Chưa có thay đổi nào để lưu.')).toBeInTheDocument();
+  });
+
+  it('sửa một ca: form điền sẵn, ca đổi thành "Đã sửa" và mất trích đề; lưu gửi giá trị mới', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa ca ca1' }));
+    expect(screen.getByRole('heading', { name: 'Sửa ca ca1' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Output mong đợi/)).toHaveValue('15');
+    type(/^Output mong đợi/, '16');
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu ca' }));
+
+    const row = screen.getByText('ca1').closest('tr')!;
+    expect(within(row).getByText('Đã sửa')).toBeInTheDocument();
+    expect(within(row).queryByText(/Dòng đầu là n/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ }));
+    expect(h.create.mutate.mock.calls[0][0]).toEqual([
+      { caseKey: 'ca1', group: 'co_ban', input: '5\n1 2 3 4 5', expectedOutput: '16' },
+      { caseKey: 'ca2', group: 'bien', input: '1\n-3', expectedOutput: '-3' },
+    ]);
+  });
+
+  it('bỏ một ca: ca gạch ngang với nút Hoàn tác, lưu không gửi ca đó; hoàn tác thì ca trở lại', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bỏ ca ca2' }));
+    expect(screen.getByRole('button', { name: 'Hoàn tác ca ca2' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ }));
+    expect(h.create.mutate.mock.calls[0][0].map((c: { caseKey: string }) => c.caseKey)).toEqual(['ca1']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tác ca ca2' }));
+    expect(screen.getByText('Chưa có thay đổi nào để lưu.')).toBeInTheDocument();
+  });
+
+  it('thêm ca vào bản nháp có sẵn: tên đề xuất tiếp theo ca4 (không tái dùng số của ca đã bỏ), ca giữ nguyên vẫn mang trích đề khi lưu', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm ca' }));
+    expect(screen.getByLabelText(/^Tên ca/)).toHaveValue('ca4');
+    type(/^Output mong đợi/, '9');
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm vào bản nháp' }));
+    fireEvent.click(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ }));
+
+    const sent = h.create.mutate.mock.calls[0][0];
+    expect(sent.find((c: { caseKey: string }) => c.caseKey === 'ca1')).toMatchObject({ constraintQuote: 'Dòng đầu là n' });
+    expect(sent.find((c: { caseKey: string }) => c.caseKey === 'ca4')).not.toHaveProperty('constraintQuote');
+  });
+
+  it('đang mở form thì không lưu được: "Lưu hoặc huỷ ca đang nhập trước."', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm ca' }));
+
+    expect(screen.getByText('Lưu hoặc huỷ ca đang nhập trước.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Lưu thành phiên bản 3/ })).toBeDisabled();
+  });
+
+  it('"Huỷ bản nháp" bỏ bản nháp mà không gọi server', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Huỷ bản nháp' }));
+
+    expect(screen.queryByRole('region', { name: /Bản nháp/ })).not.toBeInTheDocument();
+    expect(h.create.mutate).not.toHaveBeenCalled();
+  });
+
+  it('đang có bản nháp thì không mở bản nháp thứ hai từ danh sách, và nói lý do', async () => {
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+    h.fetchDetail.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: 'mô phỏng: tạo phiên bản mới từ b1' }));
+
+    expect(h.fetchDetail).not.toHaveBeenCalled();
+    expect(screen.getByText(/Lưu hoặc huỷ bản nháp hiện tại trước/)).toBeInTheDocument();
+  });
+
+  it('lưu hỏng: hiện lỗi của máy chủ nguyên văn và GIỮ bản nháp để không mất công gõ', async () => {
+    h.create = { ...h.create, isError: true, error: new Error('phiên này có 2 câu — sửa tài liệu chấm theo từng câu') };
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+    await startFromB1();
+
+    expect(screen.getByText('phiên này có 2 câu — sửa tài liệu chấm theo từng câu')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Bản nháp/ })).toBeInTheDocument();
+  });
+
+  it('không lấy được chi tiết phiên bản gốc: báo lỗi và không mở bản nháp rỗng', async () => {
+    h.fetchDetail = vi.fn().mockRejectedValue(new Error('Không tải được gói'));
+    render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'mô phỏng: tạo phiên bản mới từ b1' }));
+
+    expect(await screen.findByText('Không tải được gói')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /Bản nháp/ })).not.toBeInTheDocument();
   });
 });

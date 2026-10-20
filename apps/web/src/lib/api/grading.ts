@@ -99,6 +99,8 @@ export interface GradingReadiness {
   warning: string | null;
   hasQuestion: boolean;
   hasModelAnswer: boolean;
+  /** Phiên có mã đáp án để chạy thử (G2b-R). Không phải tài liệu AI đọc. */
+  hasAnswerSource?: boolean;
   sources?: {
     question: GradingSourceInfo;
     modelAnswer: GradingSourceInfo & { unverified: boolean };

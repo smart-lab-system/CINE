@@ -184,14 +184,14 @@ describe('PreparePanel — blocks and controls that need the backend (T-UI-10)',
     expect(screen.getByTestId('bundle-card')).toBeInTheDocument();
   });
 
-  it('generating the model answer / test bundle is disabled + "cần backend" and sends nothing', () => {
+  // Ba nút sinh và chạy thử đã chuyển vào thẻ Gói test (BundleActions), không còn vẽ khoá ở đây với nhãn "cần backend".
+  it('no disabled "cần backend" placeholder buttons are drawn by the panel itself', () => {
     h.detail = detail({ requiredDeliverables: [{ id: 'd', requiredFilename: 'a.zip', deliverableType: 'code_project', entries: [], language: 'python', pipeline: 'investigator' }] });
     renderPanel();
-    for (const name of [/Sinh đáp án mẫu và gói test từ đề/, /Sinh gói test từ đáp án của bạn/, /Chạy thử đáp án mẫu với gói test/]) {
-      const button = screen.getByRole('button', { name });
-      expect(button).toBeDisabled();
-      fireEvent.click(button);
-    }
+    expect(screen.getByTestId('bundle-card')).toBeInTheDocument();
+    expect(screen.queryByText('cần backend')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Sinh đáp án mẫu và gói test từ đề/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Chạy thử đáp án mẫu với gói test/ })).not.toBeInTheDocument();
     expect(h.start).not.toHaveBeenCalled();
   });
 

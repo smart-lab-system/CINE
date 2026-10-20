@@ -1,12 +1,16 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { uploadAnswerSource } from '@/lib/api/grading';
 import {
   approveTestBundle,
   createTestBundle,
+  generateTestBundle,
   getTestBundle,
   listTestBundles,
   pinTestBundle,
+  runTestBundle,
+  type GenerateMode,
   type TestBundleCaseInput,
 } from '@/lib/api/test-bundle';
 
@@ -64,5 +68,39 @@ export function usePinTestBundle(examSessionId: string | undefined) {
       void queryClient.invalidateQueries({ queryKey: testBundlesKey(examSessionId) });
       void queryClient.invalidateQueries({ queryKey: ['exam-session', examSessionId] });
     },
+  });
+}
+
+/**
+ * Chạy thử đáp án mẫu trên một phiên bản gói (cả gói hay một ca). KHÔNG làm mới gì: chạy thử không đổi gói, ghim hay thước,
+ * nên không có truy vấn nào cũ đi. Kết quả do người gọi giữ (`useBundleRuns`).
+ */
+export function useRunTestBundle(examSessionId: string | undefined) {
+  return useMutation({
+    mutationFn: ({ bundleId, caseKey }: { bundleId: string; caseKey?: string }) => runTestBundle(examSessionId!, bundleId, caseKey),
+  });
+}
+
+/**
+ * Sinh một phiên bản gói. Làm mới danh sách gói và mức sẵn sàng chấm: sinh từ đề còn GHI đáp án mẫu của phiên (mã nguồn,
+ * nguồn gốc `generated`, độ tin cậy), mà băng "đáp án chưa kiểm chứng" đọc từ `readiness`.
+ */
+export function useGenerateTestBundle(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (mode: GenerateMode) => generateTestBundle(examSessionId!, mode),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: testBundlesKey(examSessionId) });
+      void queryClient.invalidateQueries({ queryKey: ['exam-sessions', examSessionId, 'grading-readiness'] });
+    },
+  });
+}
+
+/** Tải mã nguồn đáp án mẫu (.cpp/.py) lên kho rồi xác nhận. Mã thành đáp án mẫu của phiên nên làm mới cả `readiness`. */
+export function useUploadAnswerSource(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => uploadAnswerSource(examSessionId!, file),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['exam-sessions', examSessionId, 'grading-readiness'] }),
   });
 }

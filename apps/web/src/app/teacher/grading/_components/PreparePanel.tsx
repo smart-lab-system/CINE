@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { NeedsBackend } from '@/components/needs-backend';
 import { useExamSessionDetail } from '@/hooks/useExamSession';
 import { useGradingReadiness, useRubrics, useStartGrading } from '@/hooks/useGrading';
 import { useRubricOverview } from '@/hooks/useRubricErrors';
@@ -94,20 +93,6 @@ export function PreparePanel({
           {hasCode && (
             <section aria-label="Gói test" className="flex flex-col gap-3">
               <TestBundleCard sessionId={sessionId} pinnedBundleId={detail.data?.testBundleId ?? null} />
-              <div className="flex flex-wrap gap-2 rounded-lg border border-dashed border-border p-3">
-                <Button type="button" variant="outline" size="sm" disabled>
-                  Sinh đáp án mẫu và gói test từ đề
-                  <NeedsBackend className="ml-2" />
-                </Button>
-                <Button type="button" variant="outline" size="sm" disabled>
-                  Sinh gói test từ đáp án của bạn
-                  <NeedsBackend className="ml-2" />
-                </Button>
-                <Button type="button" variant="outline" size="sm" disabled>
-                  Chạy thử đáp án mẫu với gói test
-                  <NeedsBackend className="ml-2" />
-                </Button>
-              </div>
             </section>
           )}
         </div>

@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { CheckCircle2, CircleX, TriangleAlert } from 'lucide-react';
-import { NeedsBackend } from '@/components/needs-backend';
 import type { PreflightRow, PreflightStatus } from '@/lib/preflight';
 
 const STATUS: Record<PreflightStatus, { word: string; icon: typeof CheckCircle2; tone: string }> = {
@@ -21,7 +20,6 @@ export function PreflightColumn({ rows }: { rows: PreflightRow[] }) {
               <Icon className={`h-4 w-4 ${tone}`} aria-hidden="true" />
               <span className="text-small font-semibold">{row.label}</span>
               <span className={`text-caption font-semibold ${tone}`}>{word}</span>
-              {row.needsBackend && <NeedsBackend />}
             </div>
             <p className="text-caption text-muted-foreground">{row.text}</p>
             {row.link && (
