@@ -22,6 +22,13 @@ describe('parseNewRule', () => {
     ['test_group_failed'],
   ])('từ chối mẫu %j', (predicate) => {
     expect(() => parseNewRule({ name: 'x', description: 'x', predicate })).toThrow(/điều kiện/);
+    let message = '';
+    try {
+      parseNewRule({ name: 'x', description: 'x', predicate });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).not.toMatch(/§/);
   });
 
   it('thiếu predicate = luật bằng lời', () => {

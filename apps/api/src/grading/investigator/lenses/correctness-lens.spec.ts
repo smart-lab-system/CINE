@@ -49,7 +49,9 @@ describe('CorrectnessLens', () => {
     // Kết luận NGAY ở lượt đầu, không hề gọi công cụ nào — "refuted" ở đây là ý kiến suông.
     const model = scripted([JSON.stringify({ action: 'final', calls: [], conclusion: { status: 'refuted', toolCallIds: [] } })]);
     const lens = new CorrectnessLens({ models: [model], sandbox: passNone() });
-    await expect(lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] })).rejects.toThrow();
+    const err = await lens.review({ error: { ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'] }, ctx: CTX, evidence: [EVIDENCE] }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).not.toMatch(/§/);
   });
 
   it('W-B — "confirmed" mà KHÔNG có lời gọi run/run_tests thành công nào của chính lăng kính → ném lỗi (§6.1: "chứng minh bằng một lần chạy" áp cho cả hai chiều)', async () => {

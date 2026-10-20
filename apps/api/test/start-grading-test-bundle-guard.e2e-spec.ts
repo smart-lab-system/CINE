@@ -244,6 +244,7 @@ describe('start-grading — chặn khi thiếu gói test cho bài điều tra (e
       .post(`/exam-sessions/${sessionId}/start-grading`)
       .set(as(owner.token));
     expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).not.toMatch(/§/);
   });
 
   it('phiên chỉ có deliverable document, chưa ghim gói test → start-grading KHÔNG bị chặn bởi §14.3', async () => {

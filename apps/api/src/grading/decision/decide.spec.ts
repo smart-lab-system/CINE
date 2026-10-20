@@ -177,6 +177,7 @@ describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
     const rules: ErrorRule[] = [{ ruleKey: 'chu_thich_sai', criterionKey: 'trinh_bay', deductionHundredths: 50, predicate: null }];
     const d = decide(input({ rules, rubric: [{ key: 'trinh_bay', maxHundredths: 1000 }], rulesSeen: [{ ruleKey: 'chu_thich_sai', checkedBy: 'model' }], result: resultWith({ calls: [read] }) }));
     expect(d).toMatchObject({ outcome: 'ungradable', scoreHundredths: null, ungradable: { class: 'system', reason: expect.stringMatching(/chưa chạy đủ/) } });
+    expect(d.ungradable?.reason).not.toMatch(/§/);
   });
 
   it('review I2 — chỉ chạy một nửa gói → ungradable, nêu nhóm còn thiếu', () => {
@@ -187,7 +188,10 @@ describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
   });
 
   it('review I2 — gói test rỗng → ungradable (§4.4 dòng đầu)', () => {
-    expect(decide(input({ bundle: { cases: [] } })).outcome).toBe('ungradable');
+    const d = decide(input({ bundle: { cases: [] } }));
+    expect(d.outcome).toBe('ungradable');
+    expect(d.ungradable?.reason).toMatch(/gói test rỗng/);
+    expect(d.ungradable?.reason).not.toMatch(/§/);
   });
 
   it('review I3 — luật lời thêm SAU cuộc điều tra (model chưa từng thấy) → tiêu chí chưa xét theo luật đó, không tự quyết', () => {

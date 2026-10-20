@@ -46,7 +46,7 @@ const MIN_REPLAY_MS = 5_000;
 const REPLAY_CONFIDENCE_CAP = 0.5;
 
 const ZERO_CALL_REASON: Partial<Record<StopReason, string>> = {
-  stalled: 'agent treo: 2 vòng, 0 lời gọi công cụ thành công (§7.2)',
+  stalled: 'agent treo: 2 vòng, 0 lời gọi công cụ thành công',
   models_exhausted: 'mọi bậc model đều hỏng trước khi có lời gọi công cụ thành công nào',
 };
 
@@ -281,7 +281,7 @@ export async function investigate(
     kind = 'ungradable';
     ungradable = {
       class: 'system',
-      reason: (ZERO_CALL_REASON[stop] ?? '0 lời gọi công cụ thành công — cuộc điều tra chưa bắt đầu (§4.4)') + why,
+      reason: (ZERO_CALL_REASON[stop] ?? '0 lời gọi công cụ thành công — cuộc điều tra chưa bắt đầu') + why,
     };
   } else if (stop === 'models_exhausted') {
     kind = 'ungradable';
@@ -289,7 +289,7 @@ export async function investigate(
   } else if (ctx.testBundle.cases.length === 0) {
     // Dòng đầu bảng §4.4: gói rỗng thì `uncoveredCases` cũng rỗng — "chạy đủ" một cách vô nghĩa.
     kind = 'ungradable';
-    ungradable = { class: 'system', reason: 'gói test rỗng — không có thước nào để chạy (§4.4)' };
+    ungradable = { class: 'system', reason: 'gói test rỗng — không có thước nào để chạy' };
   } else if (missing.length > 0) {
     kind = 'ungradable';
     const groups = [...new Set(missing.map((c) => c.group))].join(', ');
@@ -297,7 +297,7 @@ export async function investigate(
       class: 'system',
       reason:
         `gói test chưa chạy đủ: ${missing.length}/${ctx.testBundle.cases.length} ca chưa có kết quả (nhóm ${groups}) — ` +
-        '"không có gì để trừ" không phải "không có gì sai" (§4.4)',
+        '"không có gì để trừ" không phải "không có gì sai"',
     };
   } else if (!accepted) {
     kind = 'ungradable';

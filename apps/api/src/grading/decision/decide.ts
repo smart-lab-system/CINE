@@ -63,7 +63,7 @@ export function decide(input: DecisionInput): Decision {
   // test: nó luôn về giảng viên (`not_code_pipeline`), không rơi xuống sàn này.
   if (input.pipeline === 'investigator') {
     if (input.bundle.cases.length === 0) {
-      return { outcome: 'ungradable', ungradable: { class: 'system', reason: 'gói test rỗng — không có thước nào để chạy (§4.4)' }, ...none };
+      return { outcome: 'ungradable', ungradable: { class: 'system', reason: 'gói test rỗng — không có thước nào để chạy' }, ...none };
     }
     const missing = uncoveredCases(input.bundle.cases, result.investigation.toolCalls, result.investigation.structuredResults);
     if (missing.length > 0) {
@@ -74,7 +74,7 @@ export function decide(input: DecisionInput): Decision {
           class: 'system',
           reason:
             `gói test chưa chạy đủ: ${missing.length}/${input.bundle.cases.length} ca chưa có kết quả (nhóm ${groups}) — ` +
-            '"không có gì để trừ" không phải "không có gì sai" (§4.4)',
+            '"không có gì để trừ" không phải "không có gì sai"',
         },
         ...none,
       };

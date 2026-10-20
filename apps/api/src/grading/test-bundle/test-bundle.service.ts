@@ -112,7 +112,7 @@ export class TestBundleService {
     const bundle = await this.findOwnedBundle(examSessionId, bundleId);
     if (!bundle.approved_at) {
       throw new BadRequestException(
-        `Gói test ${bundleId} chưa được duyệt — chỉ gói đã duyệt mới ghim được (§14.1).`,
+        `Gói test ${bundleId} chưa được duyệt — chỉ gói đã duyệt mới ghim được.`,
       );
     }
     await this.ds.transaction(async (m) => {
