@@ -36,16 +36,31 @@ export class TestBundleService {
   async create(examSessionId: string, teacherId: string, dto: CreateTestBundleDto) {
     return this.ds.transaction(async (manager) => {
       await assertSessionRouteAllowed(manager, examSessionId);
+      const origin = await this.originFor(manager, examSessionId, dto.derivedFromBundleId);
       const version = await this.nextVersion(manager, examSessionId);
       const problemId = await ensureDefaultProblem(manager, examSessionId);
       const [bundle] = await manager.query(
         `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
-         VALUES ($1, $2, 'teacher', $3, $4) RETURNING id, version`,
-        [examSessionId, version, teacherId, problemId],
+         VALUES ($1, $2, $5, $3, $4) RETURNING id, version`,
+        [examSessionId, version, teacherId, problemId, origin],
       );
       await this.insertCases(manager, bundle.id, dto.cases);
       return { id: bundle.id as string, version: bundle.version as number };
     });
+  }
+
+  /**
+   * Origin của phiên bản mới: `teacher` khi không dẫn xuất từ đâu; ngược lại là origin của gói gốc, KHÔNG phải `teacher`. Gói
+   * gốc không thuộc phiên là 404, không rò sự tồn tại của gói phiên khác.
+   */
+  private async originFor(manager: EntityManager, examSessionId: string, derivedFromBundleId: string | undefined): Promise<string> {
+    if (derivedFromBundleId === undefined) return 'teacher';
+    const [source] = await manager.query(
+      `SELECT origin FROM examcollect.grading_test_bundle WHERE id = $1 AND exam_session_id = $2`,
+      [derivedFromBundleId, examSessionId],
+    );
+    if (!source) throw new NotFoundException(`Gói gốc ${derivedFromBundleId} không thuộc phiên này.`);
+    return source.origin as string;
   }
 
   /**

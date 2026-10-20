@@ -114,7 +114,9 @@ export function prefilterCases(proposed: CaseProposal[], statement: string, limi
   proposed.forEach((c, index) => {
     const key = uniqueKey(c.name, index, taken);
     const group = normalizeGroup(c.group);
-    const drop = (reason: string) => dropped.push({ name: c.name, key, group, input: c.input, reason });
+    // Input của ca bị bỏ đi vào gói để giảng viên xem, nên cũng không được mang NUL (xem dòng kiểm NUL bên dưới).
+    // Input của ca bị bỏ đi vào gói để giảng viên xem, nên cũng không được mang NUL (xem dòng kiểm NUL bên dưới).
+    const drop = (reason: string) => dropped.push({ name: c.name, key, group, input: c.input.replace(/\u0000/g, '\\0'), reason });
     if (!quoteAppearsInStatement(c.quote, statement)) return drop('không trích được câu nào trong đề');
     // Postgres `text` từ chối \u0000: một ca như vậy làm lệnh ghi gói hỏng (500) SAU khi đã tốn tiền model.
     if (c.input.includes('\u0000')) return drop('input chứa ký tự NUL (cơ sở dữ liệu không lưu được)');
@@ -197,10 +199,34 @@ export interface ExampleMismatch {
 }
 
 /**
- * Ví dụ này có THẬT trong đề không? Câu trích phải nằm trong đề VÀ chính input và output của ví dụ phải nằm trong câu trích,
- * input trước output (sau chuẩn hoá NFC và gộp khoảng trắng). Chỉ kiểm câu trích thì không đủ: model tự bịa một cặp vào/ra, trích
- * một câu chung chung của đề, rồi viết đáp án khớp với cặp bịa đó — thước thành `verified` mà không bước nào kiểm gì ngoài chính
- * model. Ví dụ có output rỗng không chứng minh gì. Bài không đọc input (input rỗng) chỉ cần output.
+ * Ví dụ tối thiểu phải có tổng từ (input + output) từ này trở lên. Ví dụ một số như "1 → 1" trùng với mọi chữ số trong đề, nên
+ * khớp nó không chứng minh gì: model bịa được cặp như vậy, và đáp án in đúng số đó là "khớp".
+ */
+export const MIN_EXAMPLE_TOKENS = 3;
+const TOKEN_CHAR = /[\p{L}\p{N}_]/u;
+
+const tokensOf = (text: string): number => (text === '' ? 0 : text.split(' ').length);
+
+/**
+ * Vị trí đầu tiên của `needle` trong `haystack` (từ `from` trở đi) mà hai đầu KHÔNG dính chữ/số: "2 3" không khớp bên trong
+ * "12 3 4". Trả -1 khi không có.
+ */
+function indexOfWhole(haystack: string, needle: string, from: number): number {
+  let at = haystack.indexOf(needle, from);
+  while (at !== -1) {
+    const before = at === 0 ? '' : haystack.charAt(at - 1);
+    const after = haystack.charAt(at + needle.length);
+    if ((before === '' || !TOKEN_CHAR.test(before)) && (after === '' || !TOKEN_CHAR.test(after))) return at;
+    at = haystack.indexOf(needle, at + 1);
+  }
+  return -1;
+}
+
+/**
+ * Ví dụ này có THẬT trong đề không? Câu trích phải nằm trong đề VÀ chính input và output của ví dụ phải nằm trong câu trích
+ * dưới dạng token nguyên, input trước output, và tổng hai bên đủ `MIN_EXAMPLE_TOKENS` từ. Chỉ kiểm câu trích thì không đủ: model
+ * tự bịa một cặp vào/ra, trích một câu chung chung của đề, rồi viết đáp án khớp với cặp bịa đó — thước thành `verified` mà không
+ * bước nào kiểm gì ngoài chính model. Ví dụ có output rỗng không chứng minh gì.
  */
 export function exampleIsInStatement(example: ExampleProposal, statement: string): boolean {
   if (!quoteAppearsInStatement(example.quote, statement)) return false;
@@ -208,13 +234,14 @@ export function exampleIsInStatement(example: ExampleProposal, statement: string
   const input = normalizeForQuote(example.input);
   const output = normalizeForQuote(example.output);
   if (output === '') return false;
+  if (tokensOf(input) + tokensOf(output) < MIN_EXAMPLE_TOKENS) return false;
   let from = 0;
   if (input !== '') {
-    const at = quote.indexOf(input);
+    const at = indexOfWhole(quote, input, 0);
     if (at === -1) return false;
     from = at + input.length;
   }
-  return quote.indexOf(output, from) !== -1;
+  return indexOfWhole(quote, output, from) !== -1;
 }
 
 /**

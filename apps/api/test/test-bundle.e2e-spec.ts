@@ -373,6 +373,69 @@ describe('Test bundle — tạo, duyệt, ghim (e2e)', () => {
     expect(list.body).toHaveLength(2); // hai gói gốc, không phiên bản nào mới
   });
 
+  // Phiên bản dẫn xuất (nút "Tạo phiên bản mới từ gói này"): kế thừa ORIGIN của gói gốc. Gói gốc do hệ thống sinh mà bản dẫn
+  // xuất ghi nhãn "teacher" thì huy hiệu "Thước do hệ thống sinh" biến mất, và các ca còn lại vẫn là đầu ra của model.
+  describe('phiên bản dẫn xuất từ một gói (derivedFromBundleId)', () => {
+    async function generatedBundle(sessionId: string, teacherId: string): Promise<string> {
+      const [row] = await ds.query(
+        `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by)
+         VALUES ($1, 1, 'generated', $2) RETURNING id`,
+        [sessionId, teacherId],
+      );
+      await ds.query(
+        `INSERT INTO examcollect.grading_test_case (bundle_id, case_key, "group", input, expected_output)
+         VALUES ($1, 'ca1', 'co_ban', '1\n', '1\n'), ($1, 'ca2', 'bien', '2\n', '2\n')`,
+        [row.id],
+      );
+      return row.id as string;
+    }
+
+    it('gói gốc do hệ thống sinh → bản dẫn xuất giữ origin generated, không thành teacher', async () => {
+      const owner = await login('dv1');
+      const session = await seedSession(ds, 'bundle-dv1', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+      const source = await generatedBundle(session.sessionId, owner.id);
+
+      const res = await request(app.getHttpServer())
+        .post(`/exam-sessions/${session.sessionId}/test-bundles`)
+        .set(as(owner.token))
+        .send({ cases: [{ caseKey: 'ca1', group: 'co_ban', input: '1\n', expectedOutput: '1\n' }], derivedFromBundleId: source });
+
+      expect(res.status).toBe(201);
+      const [row] = await ds.query(`SELECT origin FROM examcollect.grading_test_bundle WHERE id = $1`, [res.body.id]);
+      expect(row.origin).toBe('generated');
+    });
+
+    it('không gửi gói gốc → origin teacher (như trước)', async () => {
+      const owner = await login('dv2');
+      const session = await seedSession(ds, 'bundle-dv2', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+      const res = await request(app.getHttpServer())
+        .post(`/exam-sessions/${session.sessionId}/test-bundles`)
+        .set(as(owner.token))
+        .send({ cases: [{ caseKey: 'ca1', group: 'co_ban', input: '1\n', expectedOutput: '1\n' }] });
+
+      expect(res.status).toBe(201);
+      const [row] = await ds.query(`SELECT origin FROM examcollect.grading_test_bundle WHERE id = $1`, [res.body.id]);
+      expect(row.origin).toBe('teacher');
+    });
+
+    it('gói gốc thuộc phiên KHÁC → 404, không tạo gì', async () => {
+      const owner = await login('dv3');
+      const mine = await seedSession(ds, 'bundle-dv3a', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp' });
+      // Cùng giảng viên: phiên thứ hai phải cách phiên thứ nhất >= 30 phút (ex_exam_session_teacher_gap), nên lùi về quá khứ.
+      const theirs = await seedSession(ds, 'bundle-dv3b', { teacherId: owner.id, deliverableType: 'code_project', language: 'cpp', startHoursAgo: 6 });
+      const foreign = await generatedBundle(theirs.sessionId, owner.id);
+
+      const res = await request(app.getHttpServer())
+        .post(`/exam-sessions/${mine.sessionId}/test-bundles`)
+        .set(as(owner.token))
+        .send({ cases: [{ caseKey: 'ca1', group: 'co_ban', input: '1\n', expectedOutput: '1\n' }], derivedFromBundleId: foreign });
+
+      expect(res.status).toBe(404);
+      const [{ n }] = await ds.query(`SELECT COUNT(*)::int AS n FROM examcollect.grading_test_bundle WHERE exam_session_id = $1`, [mine.sessionId]);
+      expect(n).toBe(0);
+    });
+  });
+
   // G2b-R: gói do HỆ THỐNG sinh (từ đề hay từ đáp án giảng viên). Lúc tạo không bao giờ được duyệt hay ghim: duyệt là hành
   // động riêng của giảng viên, qua route `approve`.
   describe('gói do hệ thống sinh (createGeneratedWithin)', () => {

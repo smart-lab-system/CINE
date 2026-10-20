@@ -673,12 +673,25 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
       expect(await referenceColumns(session.id)).toMatchObject({ key: confirmed.body.sourceKey, origin: 'teacher' });
     });
 
-    it('giảng viên xoá đáp án của mình (ghi chú về null) → mã cũng đi theo, không còn đáp án nào', async () => {
+    // Xoá CHỈ ghi chú (form gửi `modelAnswerNote: null`, không gửi khoá) khi đáp án còn là mã: mã vẫn là đáp án, không được mất
+    // âm thầm. Lần đầu thiết kế, lượt này xoá cả mã; đó là lỗi (giảng viên sửa ghi chú, mọi lượt chạy thử báo "chưa có mã").
+    it('xoá CHỈ ghi chú khi còn mã → mã ở lại, nguồn gốc vẫn teacher', async () => {
       const session = await seedSession();
       await setReference(session.id, { modelAnswerNote: 'ghi chú' }).expect(200);
       await confirm(session.id, await uploadSource(session.id, 'int main() { return 8; }\n'));
 
       await setReference(session.id, { modelAnswerNote: null }).expect(200);
+
+      expect(await referenceColumns(session.id)).toMatchObject({ origin: 'teacher' });
+      expect((await referenceColumns(session.id)).key).not.toBeNull();
+    });
+
+    it('xoá CẢ khoá lẫn ghi chú (đáp án không còn gì) → mã cũng đi theo', async () => {
+      const session = await seedSession();
+      await setReference(session.id, { modelAnswerNote: 'ghi chú' }).expect(200);
+      await confirm(session.id, await uploadSource(session.id, 'int main() { return 8; }\n'));
+
+      await setReference(session.id, { modelAnswerNote: null, modelAnswerStorageKey: null }).expect(200);
 
       expect(await referenceColumns(session.id)).toMatchObject({ key: null, origin: null });
     });

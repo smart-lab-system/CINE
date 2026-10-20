@@ -400,15 +400,12 @@ export class GradingReferenceService {
       const answerSent = dto.modelAnswerStorageKey !== undefined || dto.modelAnswerNote !== undefined;
       // Mã nguồn đi theo lượt ghi đáp án như nguồn gốc: lượt này kèm mã thì đặt; gửi đáp án mà không kèm mã thì
       // XOÁ (mã cũ không còn thuộc đáp án mới); không gửi đáp án thì giữ nguyên.
-      // NGOẠI LỆ: giảng viên sửa đáp án CỦA CHÍNH MÌNH qua route (origin teacher, đáp án đang là teacher) mà không xoá nó
-      // (không đặt khoá hay ghi chú về null) thì mã của họ ở lại — sửa một chữ trong ghi chú không được làm mất mã. Mã do hệ
-      // thống sinh thì không bao giờ ở lại dưới nhãn teacher: nó đi theo đáp án cũ của hệ thống.
+      // NGOẠI LỆ: giảng viên sửa đáp án CỦA CHÍNH MÌNH (origin teacher, đáp án đang là teacher) thì mã của họ ở lại, trừ khi
+      // họ xoá CẢ khoá LẪN ghi chú (đáp án không còn gì). Form chỉ gửi ghi chú khi đổi nó, nên xoá ghi chú không được kéo theo mã:
+      // mã vẫn là đáp án và mọi lượt chạy thử sau đó sẽ báo "chưa có mã". Mã do hệ thống sinh thì không bao giờ ở lại dưới nhãn teacher.
+      const clearsWholeAnswer = dto.modelAnswerStorageKey === null && dto.modelAnswerNote === null;
       const teacherEditsOwnAnswer =
-        answerSource === null &&
-        origin === 'teacher' &&
-        existing?.modelAnswerOrigin === 'teacher' &&
-        dto.modelAnswerStorageKey !== null &&
-        dto.modelAnswerNote !== null;
+        answerSource === null && origin === 'teacher' && existing?.modelAnswerOrigin === 'teacher' && !clearsWholeAnswer;
       const keepSource = !answerSent || teacherEditsOwnAnswer;
       row.modelAnswerSourceKey = answerSource?.key ?? (keepSource ? (existing?.modelAnswerSourceKey ?? null) : null);
       row.modelAnswerSourceSha256 = answerSource?.sha256 ?? (keepSource ? (existing?.modelAnswerSourceSha256 ?? null) : null);

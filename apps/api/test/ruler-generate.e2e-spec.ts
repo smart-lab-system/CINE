@@ -349,6 +349,23 @@ describe('G2b-R — sinh đáp án và gói test (e2e)', () => {
       expect(work[0].program.files[0].ref).toEqual({ kind: 'inline', content: MODEL_CODE });
     });
 
+    // Model đề xuất một ca có NUL trong input. Ca này bị bỏ, nhưng vẫn được ghi vào gói (để giảng viên thấy vì sao): nếu input
+    // còn NUL thì INSERT hỏng và lượt trả 500 sau khi đã tốn tiền model. Lượt phải thành công và ca bị bỏ phải sạch NUL.
+    it('ca có NUL trong input bị bỏ với lý do, lượt vẫn thành công và input ghi vào gói không còn NUL', async () => {
+      const sessionId = await prepare(a);
+      const p = proposal();
+      p.cases.push({ name: 'co nul', group: 'co_ban', input: '1\u00002\n', quote: Q_FORMAT, answerIsUnique: true });
+      provider.next = async () => outcome(p);
+
+      const res = await post(a, sessionId, 'statement');
+
+      expect(res.status).toBe(201);
+      expect(res.body.testBundle).toMatchObject({ caseCount: 5, droppedCount: 1 });
+      const dropped = (await casesOf(res.body.testBundle.id)).find((x: { case_key: string }) => x.case_key === 'co-nul');
+      expect(dropped.auto_dropped_reason).toMatch(/NUL/);
+      expect(dropped.input).not.toContain('\u0000');
+    });
+
     it('đề không có ví dụ → thước unverified, cờ chưa kiểm chứng bật', async () => {
       const sessionId = await prepare(a);
       provider.next = async () => outcome(proposal({ examples: [] }));

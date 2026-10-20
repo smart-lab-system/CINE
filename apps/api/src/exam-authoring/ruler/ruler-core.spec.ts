@@ -100,6 +100,18 @@ describe('prefilterCases() — lọc TRƯỚC khi chạy', () => {
     expect(r.dropped[0]).toMatchObject({ name: 'Bịa', key: 'bia', group: 'bien', input: '7\n' });
   });
 
+  // Postgres `text` từ chối NUL. Ca bị bỏ vẫn được ghi vào gói (để giảng viên thấy vì sao), nên input của nó cũng không được chứa NUL.
+  it('ca bị bỏ vì NUL: input ghi vào gói KHÔNG còn NUL (không thì INSERT hỏng sau khi đã tốn tiền model)', () => {
+    const r = prefilterCases([caseOf({ name: 'nul', input: '1\u00002\n' })], STATEMENT, 200);
+    expect(r.dropped[0].input).not.toContain('\u0000');
+    expect(r.dropped[0].reason).toMatch(/NUL/);
+  });
+
+  it('ca bị bỏ vì lý do khác mà input có NUL cũng được làm sạch', () => {
+    const r = prefilterCases([caseOf({ name: 'bia', quote: 'Tính tổng hai số a và b', input: 'x\u0000y' })], STATEMENT, 200);
+    expect(r.dropped[0].input).not.toContain('\u0000');
+  });
+
   it('answerIsUnique=false bị bỏ (chưa có bộ so sánh phù hợp cho gói)', () => {
     const r = prefilterCases([caseOf({ name: 'nhieu-dap-an', answerIsUnique: false })], STATEMENT, 200);
     expect(r.kept).toEqual([]);
@@ -238,9 +250,11 @@ describe('checkExamples() — ví dụ vào/ra trong đề', () => {
     expect(checkExamples([reflowed], `${STATEMENT}\nInput\n3\n1 2 3\nOutput\n3 2 1\n`, () => '3 2 1').checked).toBe(1);
   });
 
-  it('bài không đọc input (input rỗng): chỉ cần output nằm trong câu trích', () => {
-    const noInput = { input: '', output: '42', quote: 'Output: 42 (không có dữ liệu vào)' };
-    expect(checkExamples([noInput], `${STATEMENT}\nOutput: 42 (không có dữ liệu vào)`, () => '42\n')).toEqual({ checked: 1, mismatches: [] });
+  it('bài không đọc input (input rỗng): output đủ từ nằm trong câu trích thì tính; một số lẻ thì không', () => {
+    const noInput = { input: '', output: '42 17 9', quote: 'Output: 42 17 9 (không có dữ liệu vào)' };
+    expect(checkExamples([noInput], `${STATEMENT}\nOutput: 42 17 9 (không có dữ liệu vào)`, () => '42 17 9\n')).toEqual({ checked: 1, mismatches: [] });
+    const single = { input: '', output: '42', quote: 'Output: 42 (không có dữ liệu vào)' };
+    expect(checkExamples([single], `${STATEMENT}\nOutput: 42 (không có dữ liệu vào)`, () => '42\n').checked).toBe(0);
   });
 
   it('ví dụ có output rỗng không chứng minh gì → không tính', () => {
@@ -260,6 +274,24 @@ describe('checkExamples() — ví dụ vào/ra trong đề', () => {
   it('exampleIsInStatement dùng chung với bước lọc trước khi chạy', () => {
     expect(exampleIsInStatement(ex('3 2 1\n'), WITH_EXAMPLE)).toBe(true);
     expect(exampleIsInStatement(ex('1 2 3\n'), WITH_EXAMPLE)).toBe(false);
+  });
+
+  // Ví dụ một số trùng ngẫu nhiên với mọi chữ số trong đề: model bịa "1 → 1" thì đáp án in 1 là khớp, và thước thành verified.
+  it('ví dụ quá ít token (input + output dưới 3) không chứng minh gì, dù nằm trong câu trích', () => {
+    const quote = 'Cho số nguyên n (1 ≤ n ≤ 1000) và in ra một số';
+    expect(exampleIsInStatement({ input: '1', output: '1', quote }, quote)).toBe(false);
+    expect(exampleIsInStatement({ input: '', output: '1000', quote }, quote)).toBe(false);
+    expect(checkExamples([{ input: '1', output: '1', quote }], quote, () => '1\n')).toEqual({ checked: 0, mismatches: [] });
+  });
+
+  it('khớp theo token nguyên: input "2 3" không khớp bên trong "12 3 4" (chuỗi con giữa hai chữ số)', () => {
+    const quote = 'Input 12 3 4 Output 9';
+    expect(exampleIsInStatement({ input: '2 3', output: '9', quote }, quote)).toBe(false);
+  });
+
+  it('ví dụ đủ token và đúng thứ tự vẫn được tính (điều kiện mới không làm rơi ví dụ thật)', () => {
+    const real = { input: '2\n5 6\n', output: '6 5\n', quote: 'Input\n2\n5 6\nOutput\n6 5' };
+    expect(exampleIsInStatement(real, `${STATEMENT}\nInput\n2\n5 6\nOutput\n6 5`)).toBe(true);
   });
 });
 
