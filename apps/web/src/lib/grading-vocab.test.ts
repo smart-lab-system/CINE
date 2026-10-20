@@ -27,6 +27,7 @@ describe('caseFlagLabel', () => {
   it('never throws on an unknown code — names it instead of hiding it', () => {
     expect(caseFlagLabel('some_future_flag', 'chi tiết')).toContain('some_future_flag');
   });
+  // investigation_flag không nằm ở đây: nhãn của nó tra theo detail (INVESTIGATION_FLAG_LABEL), có test riêng ở trên.
   it('có nhãn cho mọi mã cờ cấp bài mà backend phát — không mã nào rơi về "chưa có tên hiển thị"', () => {
     const BACKEND_CODES = [
       'criterion_untouched',
@@ -42,7 +43,7 @@ describe('caseFlagLabel', () => {
       expect(caseFlagLabel(code, 'chi tiết')).not.toContain('chưa có tên hiển thị');
     }
   });
-  it('challenge_suspected nói chung về mọi lăng kính, không gắn cứng vào gian lận', () => {
+  it('challenge_suspected gọi tên chung, vì nguồn của nó là hai lăng kính cấp bài (gian lận và bỏ sót)', () => {
     expect(caseFlagLabel('challenge_suspected', 'bo_sot: có thể bỏ sót')).toBe('Góc kiểm phản biện nêu nghi vấn');
   });
 });
