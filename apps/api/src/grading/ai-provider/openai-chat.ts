@@ -70,13 +70,23 @@ interface ChatCall {
 }
 
 /**
+ * Kết quả một lượt văn bản thô. `finishReason` để chẩn đoán phản hồi không đọc được (cụt, rỗng, dừng
+ * vì lý do khác); tuỳ chọn để bậc giả trong test và provider khác không phải khai.
+ */
+export interface ChatTextResult {
+  content: string;
+  usage: ChatUsage;
+  finishReason?: string | null;
+}
+
+/**
  * Phần DÙNG CHUNG của mọi lời gọi: gửi, phân loại lỗi, bắt cắt cụt. Một bản duy nhất —
  * xem ghi chú đầu file về vì sao hai bản sao của đoạn này là nguy hiểm.
  */
 async function postChat(
   config: OpenAITierConfig,
   call: ChatCall,
-): Promise<{ content: string; usage: ChatUsage }> {
+): Promise<ChatTextResult> {
   const response = await fetch(`${config.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -155,10 +165,10 @@ async function postChat(
 
   const content = choice?.message?.content;
   if (!content) {
-    throw spentError(`${config.tier}: model không trả về nội dung nào`);
+    throw spentError(`${config.tier}: model không trả về nội dung nào (finish_reason=${choice?.finish_reason ?? 'không rõ'})`);
   }
 
-  return { content, usage };
+  return { content, usage, finishReason: choice?.finish_reason ?? null };
 }
 
 /**
@@ -210,7 +220,7 @@ export interface ChatTextRequest {
 export async function postChatText(
   config: OpenAITierConfig,
   request: ChatTextRequest,
-): Promise<{ content: string; usage: ChatUsage }> {
+): Promise<ChatTextResult> {
   return postChat(config, {
     messages: [{ role: 'system', content: request.system }, ...request.messages],
     schemaName: request.schemaName,
