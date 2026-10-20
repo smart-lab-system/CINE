@@ -60,12 +60,6 @@ const TASK_CASES_AND_EXAMPLES = [
 const TEMPLATE_STATEMENT = [HEADER, '', TASK_ANSWER_FROM_STATEMENT, TASK_CASES_AND_EXAMPLES].join('\n');
 const TEMPLATE_ANSWER = [HEADER, '', TASK_ANSWER_FROM_TEACHER, TASK_CASES_AND_EXAMPLES].join('\n');
 
-/**
- * Băm của KHUÔN prompt (cả hai chế độ), không của đề hay mã cụ thể: đổi chữ trong khuôn là đổi phiên bản, đổi đề thì
- * không. Ghi cùng mỗi lượt sinh để so chất lượng thước giữa các phiên bản prompt (như `prompt_version` của lượt chấm).
- */
-export const RULER_PROMPT_VERSION = createHash('sha256').update(TEMPLATE_STATEMENT).update('\0').update(TEMPLATE_ANSWER).digest('hex').slice(0, 12);
-
 export function buildRulerPrompt(input: RulerPromptInput): string {
   const template = input.teacherAnswer === undefined ? TEMPLATE_STATEMENT : TEMPLATE_ANSWER;
   const values: Record<string, string> = { STATEMENT: input.statement, LANGUAGE: input.language, TEACHER_ANSWER: input.teacherAnswer ?? '' };
@@ -92,6 +86,10 @@ const responseSchema = z.object({
  * Khuôn JSON ép bằng structured outputs (`output_config.format`): API bảo đảm đầu ra là JSON đúng khuôn này, nên dấu nháy hay
  * xuống dòng trong `modelAnswer` và `quote` không còn làm hỏng JSON. Chỉ dùng từ khoá API nhận được; giới hạn độ dài và số ca
  * vẫn do `responseSchema` (zod) kiểm sau khi đọc.
+ *
+ * Đo 2026-10-20 trên `occ/claude-sonnet-5`: prompt cấm JSON mà đầu ra vẫn đúng khuôn này khi có tham số, và ra văn xuôi khi không
+ * có (mỗi bên một lượt). Ghi chú đo 2026-09-17 trên route chấm điểm nói gateway không thực thi tham số này; số đo đó không áp cho
+ * route ruler, và route chấm điểm chưa được đo lại.
  */
 export const RULER_OUTPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
@@ -129,6 +127,20 @@ export const RULER_OUTPUT_SCHEMA: Record<string, unknown> = {
   required: ['modelAnswer', 'examples', 'cases'],
   additionalProperties: false,
 };
+
+/**
+ * Băm của KHUÔN prompt (cả hai chế độ) và khuôn đầu ra, không của đề hay mã cụ thể: đổi chữ trong khuôn, hay đổi khuôn đầu ra,
+ * là đổi phiên bản; đổi đề thì không. Ghi cùng mỗi lượt sinh để so chất lượng thước giữa các phiên bản (như `prompt_version` của
+ * lượt chấm). Khuôn đầu ra nằm trong băm vì nó đổi cách model trả lời.
+ */
+export const RULER_PROMPT_VERSION = createHash('sha256')
+  .update(TEMPLATE_STATEMENT)
+  .update('\0')
+  .update(TEMPLATE_ANSWER)
+  .update('\0')
+  .update(JSON.stringify(RULER_OUTPUT_SCHEMA))
+  .digest('hex')
+  .slice(0, 12);
 
 const FAIL = 'Không đọc được đầu ra của model';
 

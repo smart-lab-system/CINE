@@ -1,3 +1,4 @@
+import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema';
 import { parseRulerResponse, RULER_OUTPUT_SCHEMA } from './ruler-prompt';
 
 type Node = Record<string, unknown>;
@@ -14,17 +15,31 @@ function objectNodes(node: unknown, out: Node[] = []): Node[] {
   return out;
 }
 
-/** Mọi từ khoá xuất hiện ở bất kỳ tầng nào của schema. */
-function allKeys(node: unknown, out: string[] = []): string[] {
-  if (Array.isArray(node)) {
-    node.forEach((child) => allKeys(child, out));
-  } else if (node !== null && typeof node === 'object') {
-    for (const [key, value] of Object.entries(node as Node)) {
-      out.push(key);
-      allKeys(value, out);
-    }
+/**
+ * Một instance tối thiểu đúng khuôn: mỗi trường bắt buộc một giá trị, mỗi mảng đúng một phần tử. Sinh TỪ schema: nếu zod đòi một
+ * trường mà schema không có, instance thiếu trường đó và parser đỏ ngay trong test, không chờ đến lượt chạy thật.
+ */
+function sampleOf(schema: Node, pickNull: boolean): unknown {
+  if (Array.isArray(schema.anyOf)) {
+    const branches = schema.anyOf as Node[];
+    return sampleOf(branches.find((b) => (b.type === 'null') === pickNull) ?? branches[0], pickNull);
   }
-  return out;
+  switch (schema.type) {
+    case 'object': {
+      const props = schema.properties as Record<string, Node>;
+      return Object.fromEntries((schema.required as string[]).map((k) => [k, sampleOf(props[k], pickNull)]));
+    }
+    case 'array':
+      return [sampleOf(schema.items as Node, pickNull)];
+    case 'string':
+      return 'x';
+    case 'boolean':
+      return true;
+    case 'null':
+      return null;
+    default:
+      throw new Error(`kiểu chưa hỗ trợ trong khuôn: ${String(schema.type)}`);
+  }
 }
 
 describe('RULER_OUTPUT_SCHEMA (khuôn structured outputs)', () => {
@@ -38,25 +53,16 @@ describe('RULER_OUTPUT_SCHEMA (khuôn structured outputs)', () => {
     }
   });
 
-  it('không dùng ràng buộc số hay độ dài mà structured outputs không nhận (zod kiểm phần đó)', () => {
-    const FORBIDDEN = ['minLength', 'maxLength', 'minItems', 'maxItems', 'minimum', 'maximum', 'multipleOf', 'pattern'];
-
-    expect(allKeys(RULER_OUTPUT_SCHEMA).filter((k) => FORBIDDEN.includes(k))).toEqual([]);
+  it('SDK không loại từ khoá nào khỏi schema, nghĩa là API nhận nguyên khuôn (không có ràng buộc độ dài hay số bị bỏ)', () => {
+    expect(transformJSONSchema(RULER_OUTPUT_SCHEMA)).toEqual(RULER_OUTPUT_SCHEMA);
   });
 
-  it('một đề xuất đúng khuôn schema đi qua parseRulerResponse, cả hai chế độ', () => {
-    const statementMode = JSON.stringify({
-      modelAnswer: 'int main() { std::cout << "Xin chào"; }',
-      examples: [],
-      cases: [{ name: 'c1', group: 'co_ban', input: '1\n', quote: 'Cho n', answerIsUnique: true }],
-    });
-    const answerMode = JSON.stringify({
-      modelAnswer: null,
-      examples: [],
-      cases: [{ name: 'c1', group: 'co_ban', input: '1\n', quote: 'Cho n', answerIsUnique: true }],
-    });
+  it('instance sinh từ chính schema đi qua parseRulerResponse, cả hai chế độ', () => {
+    const statement = parseRulerResponse(JSON.stringify(sampleOf(RULER_OUTPUT_SCHEMA, false)), 'statement');
+    const answer = parseRulerResponse(JSON.stringify(sampleOf(RULER_OUTPUT_SCHEMA, true)), 'answer');
 
-    expect(parseRulerResponse(statementMode, 'statement').modelAnswer).toBe('int main() { std::cout << "Xin chào"; }');
-    expect(parseRulerResponse(answerMode, 'answer').modelAnswer).toBeNull();
+    expect(statement.modelAnswer).toBe('x');
+    expect(statement.cases).toHaveLength(1);
+    expect(answer.modelAnswer).toBeNull();
   });
 });
