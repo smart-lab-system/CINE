@@ -203,6 +203,18 @@ export function decide(input: DecisionInput): Decision {
   if (nothingPassed) confidence = Math.min(confidence, CONTRADICTION_CAP);
   if (unverifiedKeys.size > 0) confidence = Math.min(confidence, UNVERIFIED_CONFIDENCE_CAP);
 
+  // Cổng chặn tự chốt (cầu dao theo luật / cấp lớp không lỗi, env khẩn cấp). Giá trị do nơi gọi dựng và truyền vào —
+  // hàm vẫn thuần. Chỉ THÊM cờ, không đổi confidence hay điểm. Vắng mặt cả hai tham số = hành vi cũ.
+  if (errors.length === 0 && input.autoNoErrorEnabled === false) {
+    caseFlags.push({ code: 'no_error_auto_disabled', detail: 'tự chốt bài không có lỗi đang tắt — bài cần giảng viên duyệt' });
+  }
+  const blocked = input.autoBlockedRuleKeys;
+  if (blocked && blocked.size > 0) {
+    for (const ruleKey of new Set(errors.map((e) => e.ruleKey))) {
+      if (blocked.has(ruleKey)) caseFlags.push({ code: 'type_auto_disabled', detail: `tự chốt đang tắt cho lỗi "${ruleKey}"` });
+    }
+  }
+
   if (caseFlags.length === 0 && errorFlags.length === 0 && confidence < input.theta) {
     caseFlags.push({ code: 'low_confidence', detail: `confidence ${confidence.toFixed(2)} < θ ${input.theta}` });
   }

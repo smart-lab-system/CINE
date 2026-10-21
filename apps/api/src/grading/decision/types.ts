@@ -60,7 +60,11 @@ export type CaseFlagCode =
   | 'not_code_pipeline'
   | 'challenge_suspected'
   | 'challenge_incomplete'
-  | 'ruler_unverified';
+  | 'ruler_unverified'
+  /** Lỗi thuộc luật đang bị chặn tự chốt (cầu dao theo luật, hay env khẩn cấp) — một cờ cho mỗi khoá. */
+  | 'type_auto_disabled'
+  /** Bài không lỗi trong khi tự chốt lớp bài không lỗi đang tắt (cầu dao cấp lớp, hay env). */
+  | 'no_error_auto_disabled';
 
 export interface CaseFlag {
   code: CaseFlagCode;
@@ -97,6 +101,16 @@ export interface DecisionInput {
    * tự quyết. Tuỳ chọn để mọi nơi gọi cũ giữ nguyên hành vi; `null`/`teacher`/`verified`/vắng mặt đều không chặn.
    */
   rulerTrust?: 'teacher' | 'verified' | 'unverified' | null;
+  /**
+   * Khoá luật bị chặn tự chốt: mỗi lỗi có `ruleKey` thuộc tập → cờ `type_auto_disabled`. Vắng mặt = rỗng = không
+   * chặn gì, giữ hành vi cũ. Nơi gọi dựng tập (cầu dao của giảng viên ∪ env khẩn cấp); `decide()` không đọc env.
+   */
+  autoBlockedRuleKeys?: ReadonlySet<string>;
+  /**
+   * Tự chốt bài không lỗi có được bật không. Vắng mặt = `true`, giữ hành vi cũ; chỉ `false` mới gắn cờ
+   * `no_error_auto_disabled`. Nơi gọi dựng giá trị (env ∧ cầu dao cấp lớp chưa mở); `decide()` không đọc env.
+   */
+  autoNoErrorEnabled?: boolean;
 }
 
 export interface Decision {

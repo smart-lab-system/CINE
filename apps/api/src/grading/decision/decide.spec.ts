@@ -302,6 +302,15 @@ describe('decide() — chi tiết cờ gửi giảng viên không mang mã mục
   it('ruler_unverified: thước chưa kiểm chứng', () => {
     expectPlainDetail(decide(input({ rulerTrust: 'unverified' })), 'ruler_unverified');
   });
+
+  it('no_error_auto_disabled: tự chốt bài không lỗi đang tắt', () => {
+    expectPlainDetail(decide(input({ autoNoErrorEnabled: false })), 'no_error_auto_disabled');
+  });
+
+  it('type_auto_disabled: tự chốt đang tắt cho một loại lỗi', () => {
+    const d = decide(input({ result: resultWith({ calls: [failCoBan, read] }), autoBlockedRuleKeys: new Set(['sai_ca_co_ban']) }));
+    expectPlainDetail(d, 'type_auto_disabled');
+  });
 });
 
 describe('decide() — cờ ruler_unverified (§6.3b, P1b)', () => {
@@ -358,5 +367,61 @@ describe('decide() — lăng kính cấp bài không kết luận được (lỗ
 
   it('không có phản biện (challenge: null) → không gắn challenge_incomplete, hành vi cũ giữ nguyên', () => {
     expect(decide(input({ challenge: null })).outcome).toBe('auto');
+  });
+});
+
+describe('decide() — cờ chặn tự chốt: lớp bài không lỗi và luật bị chặn', () => {
+  // Bài không lỗi = mặc định của input(): mọi ca pass, đã đọc bài nộp, confidence 1,0.
+  // Bài có lỗi máy = failCoBan → sai_ca_co_ban (deterministic), confidence 1,0, hôm nay tự chốt.
+  const withMachineError = { result: resultWith({ calls: [failCoBan, read] }) };
+
+  it('bài không có lỗi nào không tự chốt khi autoNoErrorEnabled=false, kể cả confidence 1,0', () => {
+    const r = decide(input({ autoNoErrorEnabled: false }));
+    expect(r.errors).toEqual([]);
+    expect(r.confidence).toBe(1);
+    expect(r.outcome).toBe('flagged');
+    expect(r.caseFlags.map((f) => f.code)).toContain('no_error_auto_disabled');
+  });
+
+  it('tham số vắng mặt: bài không lỗi vẫn tự chốt như hôm nay', () => {
+    expect(decide(input()).outcome).toBe('auto');
+  });
+
+  it('autoNoErrorEnabled=true: bài không lỗi vẫn tự chốt', () => {
+    expect(decide(input({ autoNoErrorEnabled: true }))).toMatchObject({ outcome: 'auto', caseFlags: [] });
+  });
+
+  it('autoNoErrorEnabled=false chỉ chặn lớp bài không lỗi: bài có lỗi máy vẫn tự chốt', () => {
+    expect(decide(input({ ...withMachineError, autoNoErrorEnabled: false })).outcome).toBe('auto');
+  });
+
+  it('lỗi thuộc autoBlockedRuleKeys không tự chốt; điểm và confidence không đổi', () => {
+    const r = decide(input({ ...withMachineError, autoBlockedRuleKeys: new Set(['sai_ca_co_ban']) }));
+    const base = decide(input(withMachineError));
+    expect(r.outcome).toBe('flagged');
+    expect(r.caseFlags.map((f) => f.code)).toContain('type_auto_disabled');
+    expect([r.scoreHundredths, r.confidence]).toEqual([base.scoreHundredths, base.confidence]);
+  });
+
+  it('tham số vắng mặt: bài có lỗi máy, confidence 1,0 vẫn tự chốt như hôm nay', () => {
+    expect(decide(input(withMachineError))).toMatchObject({ outcome: 'auto', confidence: 1 });
+  });
+
+  it('tập chặn rỗng: bài có lỗi máy vẫn tự chốt như hôm nay', () => {
+    expect(decide(input({ ...withMachineError, autoBlockedRuleKeys: new Set() })).outcome).toBe('auto');
+  });
+
+  it('tập chặn chứa khoá khác thì không ảnh hưởng', () => {
+    expect(decide(input({ ...withMachineError, autoBlockedRuleKeys: new Set(['khong_xu_ly_trung']) })).outcome).toBe('auto');
+  });
+
+  it('nhiều lỗi thuộc tập chặn → một cờ cho mỗi khoá, nêu đích danh khoá', () => {
+    const twoErrors = { result: resultWith({ calls: [failCoBan, read], errors: [{ ruleKey: 'chu_thich_sai', toolCallIds: ['tc-2'] }] }) };
+    const r = decide(input({ ...twoErrors, autoBlockedRuleKeys: new Set(['sai_ca_co_ban', 'chu_thich_sai']) }));
+    const blocked = r.caseFlags.filter((f) => f.code === 'type_auto_disabled');
+    expect(blocked).toHaveLength(2);
+    expect(blocked.map((f) => f.detail)).toEqual(
+      expect.arrayContaining([expect.stringContaining('sai_ca_co_ban'), expect.stringContaining('chu_thich_sai')]),
+    );
   });
 });
