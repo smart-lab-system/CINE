@@ -25,6 +25,10 @@ export interface ScoreCoreInput {
   theta: number;
   /** Độ tin cậy của thước của câu (§6.3b, P1b). `unverified` chặn tự quyết; vắng/`null`/`teacher` thì không đổi. */
   rulerTrust?: 'teacher' | 'verified' | 'unverified' | null;
+  /** Khoá luật bị chặn tự chốt (§5.2) — truyền nguyên xuống `decide()`. Vắng = rỗng = không chặn gì. */
+  autoBlockedRuleKeys?: ReadonlySet<string>;
+  /** Tự chốt bài không lỗi có bật không (§5.2) — truyền nguyên xuống `decide()`. Vắng = `true`. */
+  autoNoErrorEnabled?: boolean;
 }
 
 export interface BreakdownError {
@@ -99,6 +103,8 @@ export function computeScore(input: ScoreCoreInput): ScoreCoreOutput {
     theta: input.theta,
     challenge: input.stored.challenge ?? null,
     rulerTrust: input.rulerTrust,
+    autoBlockedRuleKeys: input.autoBlockedRuleKeys,
+    autoNoErrorEnabled: input.autoNoErrorEnabled,
   });
 
   const excludedKeys = new Set(used.filter((r) => input.exceptions.get(r.ruleId) === 'exclude').map((r) => r.ruleKey));

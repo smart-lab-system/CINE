@@ -25,6 +25,7 @@ import { CriterionCard } from './_components/CriterionCard';
 import { ManualCriterionCard } from './_components/ManualCriterionCard';
 import { AdvocatePanel } from './_components/AdvocatePanel';
 import { InvestigatorDossier } from './_components/investigator/InvestigatorDossier';
+import { useMarkResultOpened } from '@/hooks/useReviewGroups';
 import { AuditReview } from './_components/AuditReview';
 
 /** AI còn đang làm việc — chưa duyệt được. */
@@ -46,6 +47,8 @@ export default function GradingDetailPage({
   const { resultId } = use(params);
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('sessionId') ?? '';
+  // Mốc "đã mở bài" (spec §5.5): ghi một lần khi trang mở, không chặn gì nếu lỗi.
+  useMarkResultOpened(resultId);
 
   const results = useGradingResults(sessionId || undefined);
   const readiness = useGradingReadiness(sessionId || undefined);

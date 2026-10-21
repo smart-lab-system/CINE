@@ -59,6 +59,23 @@ describe('runInvestigator', () => {
     expect(summary.machineDeductionShare).toBe(1);
   });
 
+  it('§5.2 — cờ tự chốt đi xuống decide() như đường production: A0 không lỗi bị chặn, M1 mang cờ chặn theo luật', async () => {
+    const { dataset, bundles } = await setup();
+    const { records, summary } = await runInvestigator({
+      dataset, bundles, tier: 'fast', concurrency: 1, budget: DEFAULT_BUDGET, ...opts3a,
+      autoBlockedRuleKeys: new Set(['sai_co_ban']), autoNoErrorEnabled: false,
+      deps: { models: [], sandbox: { exec: async () => { throw new Error('không dùng'); } } },
+      investigateFn: async (ctx) => runsCb1(ctx.submission.files[0].content.includes('return x;') ? 'fail' : 'pass'),
+    });
+    const a0 = records.find((r) => r.caseId === 'A0')!;
+    expect(a0).toMatchObject({ outcome: 'flagged', scoreHundredths: 1000, foundRuleIds: [] });
+    expect(a0.flags).toContain('no_error_auto_disabled');
+    const m1 = records.find((r) => r.caseId === 'M1')!;
+    expect(m1).toMatchObject({ outcome: 'flagged', scoreHundredths: 600, foundRuleIds: ['sai_co_ban'] });
+    expect(m1.flags).toContain('type_auto_disabled');
+    expect(summary.autoDecision.count).toBe(0);
+  });
+
   it('§15.2 — precision nhóm tự quyết đếm cả lượt tự quyết SAI: M1 chạy qua hết (bài chạy đúng ca duy nhất) → tự quyết mà thiếu luật', async () => {
     const { dataset, bundles } = await setup();
     const { summary } = await runInvestigator({

@@ -42,6 +42,11 @@ import { ManualScoreDto } from './review/dto/manual-score.dto';
 import { ErrorExceptionService } from './review/error-exception.service';
 import { ScoreService } from './scoring/score.service';
 import { loadResultDetail } from './scoring/result-detail';
+import { AutoBreakerService } from './auto-breaker/auto-breaker.service';
+import { ReviewGroupService } from './review-group/review-group.service';
+import type { ReviewGroup } from './review-group/review-group.types';
+import { ReviewGroupConfirmService, type ConfirmOutcome } from './review-group/review-group-confirm.service';
+import { ConfirmReviewGroupDto } from './review-group/dto/confirm-review-group.dto';
 
 /**
  * The grading side of the API.
@@ -68,6 +73,9 @@ export class GradingController {
     private readonly deliverableLanguage: DeliverableLanguageService,
     private readonly summaries: GradingSummaryService,
     private readonly problems: ProblemService,
+    private readonly autoBreakers: AutoBreakerService,
+    private readonly reviewGroups: ReviewGroupService,
+    private readonly reviewGroupConfirms: ReviewGroupConfirmService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -103,6 +111,24 @@ export class GradingController {
   @Roles('teacher')
   async sessionsSummary(@Req() req: Request) {
     return { items: await this.summaries.summarizeForTeacher(req.user!.sub) };
+  }
+
+  /**
+   * Cầu dao tự chốt đang mở của CHÍNH người gọi (spec 2026-10-21 §5.3). Đường chữ cấp gốc, không route tham số nào
+   * che được (`grep -rn "auto-breakers" src` chỉ ra controller này).
+   */
+  @Get('auto-breakers')
+  @Roles('teacher')
+  listAutoBreakers(@Req() req: Request) {
+    return this.autoBreakers.listOpen(req.user!.sub);
+  }
+
+  /** Bật lại một cầu dao của chính người gọi: cầu dao người khác → 404; đã bật lại rồi → 409. Không tính lại bài. */
+  @Post('auto-breakers/:id/reset')
+  @Roles('teacher')
+  @HttpCode(204)
+  async resetAutoBreaker(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request): Promise<void> {
+    await this.autoBreakers.reset(req.user!.sub, id, req.user!.sub);
   }
 
   /**
@@ -241,6 +267,17 @@ export class GradingController {
   async resultInvestigation(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const result = await this.grading.findResultForOwner(id, req.user!.sub);
     return loadResultDetail(this.dataSource, result);
+  }
+
+  /**
+   * Đánh dấu giảng viên đã mở bài này — mốc `opened_at` cho số đo thời gian duyệt (§5.5).
+   * Idempotent: chỉ lần đầu ghi, các lần sau trả 204 mà không đổi gì. Client gọi một lần khi mở trang chi tiết.
+   */
+  @Post('grading-results/:id/opened')
+  @Roles('teacher')
+  @HttpCode(204)
+  async markOpened(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request): Promise<void> {
+    await this.grading.markOpened(id, req.user!.sub);
   }
 
   /**
@@ -418,6 +455,31 @@ export class GradingController {
   async listResults(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.grading.listForSession(session.id);
+  }
+
+  /**
+   * Bài bị gắn cờ của phiên, gom theo lỗi của lượt tính mới nhất (spec 2026-10-21 §5.4): nhóm một luật, `multi`,
+   * `none`. Chỉ đọc. Kiểm sở hữu bằng `findEntityForOwner` như mọi route `exam-sessions/:id/*` (trong service).
+   */
+  @Get('exam-sessions/:id/review-groups')
+  @Roles('teacher')
+  listReviewGroups(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request): Promise<ReviewGroup[]> {
+    return this.reviewGroups.listGroups(id, req.user!.sub);
+  }
+
+  /**
+   * Xác nhận hàng loạt một nhóm (spec 2026-10-21 §5.4): mỗi bài đủ điều kiện một dòng `system_confirm` và sang
+   * `teacher_reviewed`, cả lô một giao dịch. `resultIds` là một bài khi giảng viên chấp nhận từ hồ sơ (§5.8).
+   */
+  @Post('exam-sessions/:id/review-groups/confirm')
+  @Roles('teacher')
+  @HttpCode(200)
+  confirmReviewGroup(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ConfirmReviewGroupDto,
+    @Req() req: Request,
+  ): Promise<ConfirmOutcome> {
+    return this.reviewGroupConfirms.confirmGroup(id, req.user!.sub, dto);
   }
 
   /** Một dòng mỗi sinh viên (P1b Task 9): tổng và chip theo câu. Route `grading-results` cũ vẫn giữ nguyên. */

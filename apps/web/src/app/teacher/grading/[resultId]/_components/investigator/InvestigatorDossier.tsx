@@ -7,11 +7,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useGradingResults, useResultInvestigation, useRubrics } from '@/hooks/useGrading';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { groupByUngradableReason } from '@/lib/regrade-triage';
+import { AUTO_THETA_DEFAULT } from '@/lib/auto-threshold';
+import type { ResultDetailError } from '@/lib/api/grading';
 import { RulerOriginNote } from '@/app/teacher/grading/_components/RulerOriginNote';
 import { DossierHeader } from './DossierHeader';
 import { CaseFlagsBanner } from './CaseFlagsBanner';
 import { ScoreCard } from './ScoreCard';
 import { ErrorList } from './ErrorList';
+import { CertaintyHero, sumAgreement } from './CertaintyHero';
+import { ConfidenceBreakdown } from './ConfidenceBreakdown';
+import { TestBundleMap } from './TestBundleMap';
+import { DecisionBlock } from './DecisionBlock';
 import { ChallengeNotes } from './ChallengeNotes';
 import { CriteriaTable } from './CriteriaTable';
 import { CoverageSection } from './CoverageSection';
@@ -19,6 +25,13 @@ import { InvestigationTrail } from './InvestigationTrail';
 import { UngradableView } from './UngradableView';
 import { ManualScoreDialog } from './ManualScoreDialog';
 import { rulesHref } from '@/lib/rules-links';
+
+/** Mỗi bước điều tra là bằng chứng của những lỗi nào — để bước cuộn tới ghi ngược lại được (§5.8, mục 3). */
+function citedByOf(errors: ResultDetailError[]): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  for (const e of errors) for (const id of e.toolCallIds) map[id] = [...(map[id] ?? []), e.ruleKey];
+  return map;
+}
 
 /**
  * Đúng MỘT `ManualScoreDialog` cho cả trang — cả `DossierHeader`, cả
@@ -138,6 +151,11 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
     );
   }
 
+  // Độ khớp: bài có lỗi thì cộng dồn độ khớp của các lỗi; bài không lỗi thì dùng độ khớp của lớp không lỗi.
+  const errors = d.breakdown?.errors ?? [];
+  const agreement = errors.length > 0 ? sumAgreement(errors.map((e) => e.agreement)) : d.noErrorAgreement;
+  const toolCalls = d.investigation?.investigation.toolCalls ?? [];
+
   return (
     <div className="flex flex-col gap-4">
       {header(d.status, d.ungradableReason)}
@@ -159,6 +177,14 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
       )}
       <div className="grid gap-4 lg:grid-cols-[1fr_404px]">
         <div className="flex flex-col gap-4">
+          {d.breakdown && (
+            <CertaintyHero
+              confidence={d.breakdown.confidence}
+              theta={AUTO_THETA_DEFAULT}
+              terms={d.confidenceTerms}
+              agreement={agreement}
+            />
+          )}
           <ScoreCard currentScore={d.currentScore} currentScoreSource={d.currentScoreSource} breakdown={d.breakdown} />
           {d.breakdown && (
             <ErrorList
@@ -169,13 +195,26 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
               errorFlags={d.breakdown.errorFlags}
               verdicts={d.challengeVerdicts}
               investigationNotes={d.investigation?.verdict?.errors ?? []}
+              toolCalls={toolCalls}
+              structuredResults={d.investigation?.investigation.structuredResults}
               rulesHref={rulesHref(rubric?.name)}
             />
           )}
+          {d.breakdown && (
+            <ConfidenceBreakdown terms={d.confidenceTerms} confidence={d.breakdown.confidence} theta={AUTO_THETA_DEFAULT} />
+          )}
+          {d.testBundle && <TestBundleMap bundle={d.testBundle} rulesHref={rulesHref(rubric?.name)} />}
           <ChallengeNotes notes={d.challengeNotes} />
-          {d.investigation && <InvestigationTrail investigation={d.investigation} />}
+          {d.investigation && <InvestigationTrail investigation={d.investigation} citedBy={citedByOf(errors)} />}
         </div>
         <div className="flex flex-col gap-4">
+          <DecisionBlock
+            sessionId={sessionId}
+            resultId={resultId}
+            status={d.status}
+            currentScore={d.currentScore}
+            onOpenManualScore={() => setOpenManual(true)}
+          />
           {d.breakdown && <CriteriaTable perCriterion={d.breakdown.perCriterion} />}
           {d.investigation && <CoverageSection investigation={d.investigation} />}
         </div>

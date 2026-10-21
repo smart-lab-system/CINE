@@ -4,6 +4,7 @@ import { ChallengeConclusion, ChallengeStatus } from '../investigator/challenge'
 import { StopReason } from '../investigator/types';
 import { caseConfidence } from './confidence';
 import { diagnose } from './diagnose';
+import { AUTO_THETA_EPSILON } from './threshold';
 import { CaseFlag, Decision, DecisionInput, ErrorFlag } from './types';
 
 /** Lý do dừng là CẠN NGÂN SÁCH (§7) — nền của T-FLOOR-1. */
@@ -161,8 +162,12 @@ export function decide(input: DecisionInput): Decision {
   const nothingPassed = ran && !anyPass;
   if (nothingPassed) caseFlags.push({ code: 'nothing_passed', detail: 'mọi ca của gói test đều không đạt — mâu thuẫn với chẩn đoán phải do giảng viên xem' });
 
-  // Q5: cờ của cuộc điều tra.
-  for (const f of result.flags) caseFlags.push({ code: 'investigation_flag', detail: f });
+  // Q5: cờ của cuộc điều tra. Cờ injection ghi kèm nguồn đã khớp (Task 10A) để lần diễn tập đọc được nguồn; hồ sơ
+  // cũ không có nguồn thì giữ nguyên chuỗi. Không đổi quyết định.
+  for (const f of result.flags) {
+    const sources = f === 'injection_suspected' ? result.injectionSources ?? [] : [];
+    caseFlags.push({ code: 'investigation_flag', detail: sources.length > 0 ? `${f}:${sources.join(',')}` : f });
+  }
 
   if (input.pipeline !== 'investigator') caseFlags.push({ code: 'not_code_pipeline', detail: 'bài tự luận không bao giờ tự quyết' });
 
@@ -203,7 +208,19 @@ export function decide(input: DecisionInput): Decision {
   if (nothingPassed) confidence = Math.min(confidence, CONTRADICTION_CAP);
   if (unverifiedKeys.size > 0) confidence = Math.min(confidence, UNVERIFIED_CONFIDENCE_CAP);
 
-  if (caseFlags.length === 0 && errorFlags.length === 0 && confidence < input.theta) {
+  // Cổng chặn tự chốt (cầu dao theo luật / cấp lớp không lỗi, env khẩn cấp). Giá trị do nơi gọi dựng và truyền vào —
+  // hàm vẫn thuần. Chỉ THÊM cờ, không đổi confidence hay điểm. Vắng mặt cả hai tham số = hành vi cũ.
+  if (errors.length === 0 && input.autoNoErrorEnabled === false) {
+    caseFlags.push({ code: 'no_error_auto_disabled', detail: 'tự chốt bài không có lỗi đang tắt — bài cần giảng viên duyệt' });
+  }
+  const blocked = input.autoBlockedRuleKeys;
+  if (blocked && blocked.size > 0) {
+    for (const ruleKey of new Set(errors.map((e) => e.ruleKey))) {
+      if (blocked.has(ruleKey)) caseFlags.push({ code: 'type_auto_disabled', detail: `tự chốt đang tắt cho lỗi "${ruleKey}"` });
+    }
+  }
+
+  if (caseFlags.length === 0 && errorFlags.length === 0 && confidence < input.theta - AUTO_THETA_EPSILON) {
     caseFlags.push({ code: 'low_confidence', detail: `confidence ${confidence.toFixed(2)} < θ ${input.theta}` });
   }
   const auto = caseFlags.length === 0 && errorFlags.length === 0;

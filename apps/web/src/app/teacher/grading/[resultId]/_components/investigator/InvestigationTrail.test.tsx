@@ -13,10 +13,20 @@ const investigation = {
 } as never;
 
 describe('InvestigationTrail', () => {
-  it('shows the §2.2 action name as the primary label, and the raw tool as a secondary mono line', () => {
+  it('shows the §2.2 action name, never the internal tool name (§5.8a: đường điều tra là các bước đã làm)', () => {
     render(<InvestigationTrail investigation={investigation} />);
     expect(screen.getByText('Chạy gói test')).toBeInTheDocument();
-    expect(screen.getByText('run_tests')).toHaveClass('font-mono');
+    expect(screen.queryByText('run_tests')).not.toBeInTheDocument();
+  });
+
+  it('each step has the stable anchor id tc-N that evidence links scroll to', () => {
+    const { container } = render(<InvestigationTrail investigation={investigation} />);
+    expect(container.querySelector('li#tc-1')).toBeInTheDocument();
+  });
+
+  it('says which errors each step is evidence for', () => {
+    render(<InvestigationTrail investigation={investigation} citedBy={{ 'tc-1': ['sai_ca_bien'] }} />);
+    expect(screen.getByText('bằng chứng cho sai_ca_bien')).toBeInTheDocument();
   });
 
   // Spec §2.1 rule 1: icon + words. An icon-only result is invisible to a screen reader, and "blocked as a

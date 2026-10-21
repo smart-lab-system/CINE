@@ -76,3 +76,40 @@ export function auditBucketByStudent(seed: string, mssv: string): number {
 export function drawnForStudentAudit(seed: string, mssv: string, percent: number): boolean {
   return auditBucketByStudent(seed, mssv) < percent * 100;
 }
+
+/** Số sinh viên tối thiểu có bài trong mẫu kiểm của phiên (spec §5.6). Đề xuất 2, chờ chủ đồ án xác nhận. */
+export const AUDIT_MIN_PER_SESSION_DEFAULT = 2;
+const MIN_PER_SESSION_KEY = 'AUDIT_MIN_PER_SESSION';
+
+/** `AUDIT_MIN_PER_SESSION`: số nguyên không âm. Thiếu, rỗng hoặc vô nghĩa thì dùng mặc định 2 (không im lặng lấy số lớn). */
+export function readAuditMinPerSession(env: NodeJS.ProcessEnv): number {
+  const raw = env[MIN_PER_SESSION_KEY];
+  if (raw === undefined || raw.trim() === '') return AUDIT_MIN_PER_SESSION_DEFAULT;
+  const value = Number(raw);
+  return Number.isInteger(value) && value >= 0 ? value : AUDIT_MIN_PER_SESSION_DEFAULT;
+}
+
+/**
+ * Bổ sung sinh viên vào mẫu cho đủ `min` (hoặc toàn bộ nếu ít hơn). HÀM THUẦN, tất định: sinh viên được bổ sung theo
+ * thứ tự SHA-256 của MSSV chữ thường, không phụ thuộc thứ tự đầu vào. Trả về MSSV ở dạng gốc, không trùng; mã được
+ * so sánh không phân biệt hoa thường (`SV0001` và `sv0001` là một sinh viên).
+ */
+export function ensureSessionMinimum(sampled: string[], students: string[], min: number): string[] {
+  const chosen = new Map<string, string>();
+  for (const m of sampled) chosen.set(m.toLowerCase(), m);
+  const everyone = new Map<string, string>();
+  for (const m of students) everyone.set(m.toLowerCase(), m);
+  const target = Math.min(min, everyone.size);
+  const pool = [...everyone.entries()]
+    .filter(([key]) => !chosen.has(key))
+    .sort(([a], [b]) => hashOfMssv(a).localeCompare(hashOfMssv(b)));
+  for (const [key, original] of pool) {
+    if (chosen.size >= target) break;
+    chosen.set(key, original);
+  }
+  return [...chosen.values()];
+}
+
+function hashOfMssv(mssvLower: string): string {
+  return createHash('sha256').update(mssvLower).digest('hex');
+}

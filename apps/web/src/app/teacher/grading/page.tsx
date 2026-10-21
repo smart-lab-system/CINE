@@ -23,6 +23,7 @@ import { OverviewBar } from './_components/OverviewBar';
 import { PreparePanel } from './_components/PreparePanel';
 import { RulerOriginNote } from './_components/RulerOriginNote';
 import { ResultsTable, type ResultsFilter } from './_components/ResultsTable';
+import { ReviewGroupsPanel } from './_components/ReviewGroupsPanel';
 import { RunningPanel } from './_components/RunningPanel';
 import { SessionHeader } from './_components/SessionHeader';
 import { SessionList } from './_components/session-list/SessionList';
@@ -129,6 +130,8 @@ function SessionScreen({
       )}
 
       <AiServiceBand sessionId={sessionId} results={list} />
+
+      {!running && <ReviewGroupsPanel sessionId={sessionId} />}
 
       {loading ? (
         <Skeleton className="h-64 w-full" />

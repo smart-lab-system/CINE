@@ -5,6 +5,8 @@ import {
   auditBucketByStudent,
   drawnForAudit,
   drawnForStudentAudit,
+  ensureSessionMinimum,
+  readAuditMinPerSession,
   readAuditSampling,
 } from './audit-sampling';
 
@@ -133,5 +135,61 @@ describe('the draw by student (P1b §8)', () => {
     for (const m of MSSVS) {
       if (drawnForStudentAudit(SEED, m, 5)) expect(drawnForStudentAudit(SEED, m, 20)).toBe(true);
     }
+  });
+});
+
+describe('the session minimum (spec §5.6, Task 10)', () => {
+  const students = ['SV0001', 'SV0002', 'SV0003', 'SV0004', 'SV0005', 'SV0006', 'SV0007', 'SV0008', 'SV0009', 'SV0010'];
+
+  it('ten students at a 20 % draw give two sampled students, and a minimum of two changes nothing', () => {
+    const sampled = students.filter((m) => drawnForStudentAudit(SEED, m, 20));
+    const out = ensureSessionMinimum(sampled, students, 2);
+    expect(out.length).toBeGreaterThanOrEqual(2);
+    expect(out.every((m) => sampled.includes(m) || students.includes(m))).toBe(true);
+  });
+
+  it('three students with minimum 2 end with two sampled students', () => {
+    const out = ensureSessionMinimum([], ['A1', 'B2', 'C3'], 2);
+    expect(out).toHaveLength(2);
+  });
+
+  it('a minimum larger than the number of students samples everybody', () => {
+    const out = ensureSessionMinimum([], ['A1', 'B2'], 5);
+    expect([...out].sort()).toEqual(['A1', 'B2']);
+  });
+
+  it('is deterministic: the same input gives the same output', () => {
+    const a = ensureSessionMinimum(['SV0002'], students, 4);
+    const b = ensureSessionMinimum(['SV0002'], students, 4);
+    expect(a).toEqual(b);
+  });
+
+  it('keeps the students already sampled and adds no duplicates', () => {
+    const out = ensureSessionMinimum(['SV0003'], students, 3);
+    expect(out).toContain('SV0003');
+    expect(new Set(out).size).toBe(out.length);
+    expect(out).toHaveLength(3);
+  });
+
+  it('adds whole students only: the function returns student ids, never a fraction of one student', () => {
+    const out = ensureSessionMinimum([], ['A1', 'B2', 'C3'], 1);
+    expect(out).toHaveLength(1);
+    expect(['A1', 'B2', 'C3']).toContain(out[0]);
+  });
+});
+
+describe('readAuditMinPerSession (spec §5.6, default 2)', () => {
+  it('unset gives 2', () => {
+    expect(readAuditMinPerSession({})).toBe(2);
+  });
+
+  it('a non-negative integer is used as typed', () => {
+    expect(readAuditMinPerSession({ AUDIT_MIN_PER_SESSION: '3' })).toBe(3);
+    expect(readAuditMinPerSession({ AUDIT_MIN_PER_SESSION: '0' })).toBe(0);
+  });
+
+  it('nonsense falls back to 2 — it never becomes a larger or a negative number silently', () => {
+    expect(readAuditMinPerSession({ AUDIT_MIN_PER_SESSION: 'hai' })).toBe(2);
+    expect(readAuditMinPerSession({ AUDIT_MIN_PER_SESSION: '-1' })).toBe(2);
   });
 });

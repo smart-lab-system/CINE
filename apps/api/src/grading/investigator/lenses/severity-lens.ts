@@ -16,7 +16,7 @@ const SYSTEM_PROMPT = [
   '',
   LENS_PROTOCOL_HELP,
   '',
-  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["qua_tay-tc-N"]}}.',
+  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["qua_tay-tc-N"],"reason":"một hai câu nêu vì sao"}}.',
   'Một kết luận "refuted" không kèm ít nhất một lần run/run_tests THÀNH CÔNG của chính bạn sẽ bị',
   'hệ thống bỏ qua, dù bạn viết gì trong toolCallIds.',
 ].join('\n');
@@ -37,7 +37,7 @@ export class SeverityLens implements Challenger {
   readonly name = 'qua_tay';
   constructor(private readonly deps: LensDeps) {}
 
-  async review(input: ChallengeInput): Promise<{ status: 'confirmed' | 'refuted'; toolCallIds: string[] }> {
+  async review(input: ChallengeInput): Promise<{ status: 'confirmed' | 'refuted'; toolCallIds: string[]; reason?: string }> {
     const userMessage = [
       `Luật bị chẩn đoán: ${input.error.ruleKey}`,
       'Bằng chứng gốc agent chấm đã trích:',
@@ -66,6 +66,6 @@ export class SeverityLens implements Challenger {
         throw new Error('lăng kính Quá tay kết luận "refuted" mà không tự chạy thử lần nào — không được tin');
       }
     }
-    return { status: r.conclusion.status, toolCallIds };
+    return { status: r.conclusion.status, toolCallIds, reason: r.conclusion.reason };
   }
 }

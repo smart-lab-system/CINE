@@ -54,6 +54,9 @@ import { TestRunService } from './test-bundle/test-run.service';
 import { TestRunStore } from './test-bundle/test-run.store';
 import { AuditReviewController } from './audit/audit-review.controller';
 import { AuditReviewService } from './audit/audit-review.service';
+import { AutoBreakerService } from './auto-breaker/auto-breaker.service';
+import { ReviewGroupService } from './review-group/review-group.service';
+import { ReviewGroupConfirmService } from './review-group/review-group-confirm.service';
 import { InvestigationContextService } from './pipeline/investigation-context.service';
 import { buildInvestigatorDeps, INVESTIGATOR_DEPS, InvestigatorDepsLifecycle } from './pipeline/investigator-deps';
 import { InvestigatorRunService } from './pipeline/investigator-run.service';
@@ -166,6 +169,13 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     TestRunService,
     TestRunStore,
     AuditReviewService,
+    // Cầu dao tự chốt (spec 2026-10-21 §5.3): nhãn kiểm mẫu, tắt, bật lại. Phụ thuộc ScoreService; chiều ngược lại
+    // đi qua các hàm thuần trong `auto-breaker/breaker-queries.ts`, không qua provider này.
+    AutoBreakerService,
+    // Gom bài bị gắn cờ theo lỗi để duyệt nhanh (spec 2026-10-21 §5.4). Chỉ đọc.
+    ReviewGroupService,
+    // Xác nhận hàng loạt một nhóm (§5.4): ghi `system_confirm` và chuyển `teacher_reviewed`, một giao dịch.
+    ReviewGroupConfirmService,
     GradingRunService,
     DeliverableLanguageService,
     RegradeService,

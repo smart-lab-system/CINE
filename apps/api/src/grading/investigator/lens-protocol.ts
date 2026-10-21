@@ -85,6 +85,8 @@ export const PER_ERROR_JSON_SCHEMA: Record<string, unknown> = {
 const perErrorConclusion = z.object({
   status: z.enum(['confirmed', 'refuted']),
   toolCallIds: z.array(z.string().max(32)).max(25),
+  // E2 (§5.9): lý do một hai câu, cho mọi trạng thái. Vắng mặt hoặc rỗng thì là undefined; quá dài thì cắt.
+  reason: z.string().nullish().transform((r) => (r ? clampNote(r) : undefined)),
 });
 const perErrorReplySchema = z.discriminatedUnion('action', [
   // `conclusion` không dùng ở lượt "call" — chấp cả `null` lẫn vắng mặt (đo 2026-09-28:

@@ -54,6 +54,7 @@ vi.mock('./_components/RegradeButton', () => ({
     </button>
   ),
 }));
+vi.mock('./_components/ReviewGroupsPanel', () => ({ ReviewGroupsPanel: () => <div data-testid="review-groups" /> }));
 vi.mock('./_components/RulerOriginNote', () => ({
   RulerOriginNote: ({ sessionId }: { sessionId: string }) => <div data-testid="ruler-note" data-session={sessionId} />,
 }));

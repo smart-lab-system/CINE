@@ -15,7 +15,7 @@ export interface ChallengeInput {
 
 export interface Challenger {
   readonly name: string;
-  review(input: ChallengeInput): Promise<{ status: 'confirmed' | 'refuted'; toolCallIds: string[] }>;
+  review(input: ChallengeInput): Promise<{ status: 'confirmed' | 'refuted'; toolCallIds: string[]; reason?: string }>;
 }
 
 export interface ChallengeConclusion {
@@ -55,7 +55,8 @@ export async function challenge(
       };
       try {
         const r = await challenger.review(input);
-        return { ruleKey: e.ruleKey, status: r.status, toolCallIds: r.toolCallIds };
+        // Lý do của lượt "confirmed" và "refuted" đều đi qua (E2); đã được cắt ở lớp đọc của lăng kính.
+        return { ruleKey: e.ruleKey, status: r.status, toolCallIds: r.toolCallIds, ...(r.reason === undefined ? {} : { reason: r.reason }) };
       } catch (error) {
         // Không đọc được → `unverified`, KHÔNG BAO GIỜ `refuted`: chấm nó "đã bác bỏ" là âm
         // thầm chôn một lỗi có thật (§6.2).

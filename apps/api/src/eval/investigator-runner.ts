@@ -30,6 +30,9 @@ export async function runInvestigator(opts: {
   budget: InvestigationBudget;
   /** θ của công thức tự quyết (§4.2) — người gọi đọc bằng `readAutoThreshold`. */
   theta: number;
+  /** Cờ tự chốt (§5.2) — người gọi đọc bằng `readAutoBlockedRules`/`readAutoNoError`, như θ. Vắng = hành vi hôm nay. */
+  autoBlockedRuleKeys?: ReadonlySet<string>;
+  autoNoErrorEnabled?: boolean;
   /** model → trần tin cậy của bậc; chỉ kéo được `llm_only` xuống (§4.2). */
   ceilings: Map<string, number>;
   deps: InvestigateDeps;
@@ -75,6 +78,8 @@ export async function runInvestigator(opts: {
           waivedCriteria: de.manifest.waivedCriteria,
           modelCeiling: Math.min(1, ...result.investigation.modelsUsed.map((m) => opts.ceilings.get(m) ?? 0.5)),
           theta: opts.theta,
+          autoBlockedRuleKeys: opts.autoBlockedRuleKeys,
+          autoNoErrorEnabled: opts.autoNoErrorEnabled,
           // Có `challengePhase` thì chạy đúng pha phản biện của đường chấm thật; không thì null, và
           // §6.2 không có hiệu lực trên lượt này (các lượt đã commit trước P0 đều ở trạng thái đó).
           challenge: phase?.challenge ?? null,

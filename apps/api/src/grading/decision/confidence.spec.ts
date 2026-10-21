@@ -1,4 +1,4 @@
-import { capOf, caseConfidence } from './confidence';
+import { capOf, caseConfidence, confidenceTerms } from './confidence';
 import { DiagnosedError } from './types';
 
 const err = (source: DiagnosedError['source'], deductionHundredths: number | null): DiagnosedError => ({
@@ -34,5 +34,43 @@ describe('confidence theo nguồn gốc (§4.2)', () => {
   it('lỗi chưa có giá không có trọng số — confidence tính trên phần có giá; chỉ có lỗi chưa giá → như bài không lỗi', () => {
     expect(caseConfidence([err('llm_only', null)], { modelCeiling: 1, coverageComplete: true })).toBe(1);
     expect(caseConfidence([err('deterministic', 300), err('llm_only', null)], { modelCeiling: 1, coverageComplete: true })).toBe(1);
+  });
+});
+
+describe('confidenceTerms — bảng đóng góp của bài (E1, §5.8)', () => {
+  const named = (ruleKey: string, source: DiagnosedError['source'], deductionHundredths: number | null): DiagnosedError => ({
+    ruleKey, criterionKey: 'c', deductionHundredths, source, toolCallIds: [],
+  });
+
+  it('HS2410018: bốn lỗi có giá → bốn dòng với trần theo nguồn; trung bình từ các dòng bằng caseConfidence (≈ 0,714)', () => {
+    const errors = [
+      named('sai_ca_bien', 'deterministic', 150),
+      named('ro_ri_bo_nho', 'llm_only', 100),
+      named('ten_bien_vo_nghia', 'llm_only', 50),
+      named('thieu_chu_thich', 'llm_only', 50),
+    ];
+    const terms = confidenceTerms(errors, 1);
+    expect(terms.map((t) => [t.ruleKey, t.cap, t.deductionHundredths])).toEqual([
+      ['sai_ca_bien', 1, 150],
+      ['ro_ri_bo_nho', 0.5, 100],
+      ['ten_bien_vo_nghia', 0.5, 50],
+      ['thieu_chu_thich', 0.5, 50],
+    ]);
+    const fromTerms = terms.reduce((s, t) => s + t.cap * t.deductionHundredths, 0) / terms.reduce((s, t) => s + t.deductionHundredths, 0);
+    expect(fromTerms).toBeCloseTo(caseConfidence(errors, { modelCeiling: 1, coverageComplete: true }));
+    expect(fromTerms).toBeCloseTo(0.714, 3);
+  });
+
+  it('lỗi chưa có giá hoặc mức trừ 0 không vào bảng', () => {
+    const terms = confidenceTerms([named('chua_gia', 'llm_only', null), named('mien_phi', 'deterministic', 0), named('co_gia', 'deterministic', 100)], 1);
+    expect(terms.map((t) => t.ruleKey)).toEqual(['co_gia']);
+  });
+
+  it('trần bậc model kéo llm_only xuống trong bảng, như trong caseConfidence', () => {
+    expect(confidenceTerms([named('r', 'llm_only', 100)], 0.3)[0].cap).toBe(0.3);
+  });
+
+  it('không có lỗi nào có giá → bảng rỗng', () => {
+    expect(confidenceTerms([], 1)).toEqual([]);
   });
 });

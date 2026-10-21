@@ -1,17 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { caseFlagLabel, lensLabel, mergedVerdict, toolActionLabel, toolCallStatusLabel, SOURCE_LABEL, VERDICT_LABEL } from './grading-vocab';
 
-describe('SOURCE_LABEL', () => {
-  it('uses the spec §2.2 Vietnamese labels, not the old "Model" wording', () => {
-    expect(SOURCE_LABEL.llm_with_tools.label).toBe('Mô hình + công cụ');
-    expect(SOURCE_LABEL.llm_only.label).toBe('Chỉ mô hình');
-    expect(SOURCE_LABEL.deterministic.label).toBe('Máy quyết');
+describe('SOURCE_LABEL (spec §5.8a)', () => {
+  it('dùng nhãn giảng viên và mức chắc chắn 100 / 85 / 50 %', () => {
+    expect(SOURCE_LABEL.deterministic).toMatchObject({ label: 'Chạy bài kiểm tra', certaintyPercent: 100 });
+    expect(SOURCE_LABEL.llm_with_tools).toMatchObject({ label: 'Đọc code + chạy thử', certaintyPercent: 85 });
+    expect(SOURCE_LABEL.llm_only).toMatchObject({ label: 'Đọc code, nhận định', certaintyPercent: 50 });
+  });
+
+  it('câu giải thích không dùng từ của AI (model, AI, agent)', () => {
+    for (const source of Object.values(SOURCE_LABEL)) {
+      expect(source.explain).not.toMatch(/model|\bAI\b|agent/i);
+    }
   });
 });
 
-describe('VERDICT_LABEL', () => {
-  it('renders "Chưa kiểm được" for unverified, per §2.2', () => {
-    expect(VERDICT_LABEL.unverified.label).toBe('Chưa kiểm được');
+describe('VERDICT_LABEL (spec §5.8a)', () => {
+  it('"Chưa kiểm tra lại được" cho unverified, và "Đề nghị bỏ lỗi này" cho refuted', () => {
+    expect(VERDICT_LABEL.unverified.label).toBe('Chưa kiểm tra lại được');
+    expect(VERDICT_LABEL.refuted.label).toBe('Đề nghị bỏ lỗi này');
   });
 });
 
@@ -23,6 +30,11 @@ describe('caseFlagLabel', () => {
   });
   it('resolves investigation_flag by its detail, not its code', () => {
     expect(caseFlagLabel('investigation_flag', 'budget_exhausted')).toBe('Hết lượt điều tra trước khi xong');
+  });
+  it('Task 10A — injection_suspected kèm nguồn vẫn ra nhãn chính, không rơi về "chưa có tên hiển thị"', () => {
+    expect(caseFlagLabel('investigation_flag', 'injection_suspected:submission_pattern,tool_output')).toBe(
+      'Bài có chỗ giống lời dặn gửi cho hệ thống chấm',
+    );
   });
   it('never throws on an unknown code — names it instead of hiding it', () => {
     expect(caseFlagLabel('some_future_flag', 'chi tiết')).toContain('some_future_flag');
@@ -38,6 +50,8 @@ describe('caseFlagLabel', () => {
       'challenge_suspected',
       'challenge_incomplete',
       'ruler_unverified',
+      'type_auto_disabled',
+      'no_error_auto_disabled',
     ];
     for (const code of BACKEND_CODES) {
       expect(caseFlagLabel(code, 'chi tiết')).not.toContain('chưa có tên hiển thị');
@@ -57,10 +71,12 @@ describe('toolActionLabel', () => {
   });
 });
 
-describe('lensLabel', () => {
-  it('maps the four known lenses', () => {
-    expect(lensLabel('tinh_dung')).toBe('Tính đúng');
-    expect(lensLabel('gian_lan')).toBe('Gian lận');
+describe('lensLabel (spec §5.8a: câu hỏi của góc kiểm)', () => {
+  it('nêu bốn góc kiểm dưới dạng câu hỏi cho giảng viên', () => {
+    expect(lensLabel('tinh_dung')).toBe('Lỗi có thật không?');
+    expect(lensLabel('qua_tay')).toBe('Trừ vậy có nặng quá không?');
+    expect(lensLabel('bo_sot')).toBe('Có bỏ sót lỗi nào không?');
+    expect(lensLabel('gian_lan')).toBe('Có dấu hiệu gian lận không?');
   });
 });
 

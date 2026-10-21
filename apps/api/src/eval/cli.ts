@@ -7,7 +7,7 @@ import { runBaseline } from './baseline-runner';
 import { parseEvalArgs } from './cli-args';
 import { loadDataset } from './load-dataset';
 import { ALL_COMPONENTS } from '../grading/investigator/investigate';
-import { readAutoThreshold } from '../grading/decision/threshold';
+import { readAutoBlockedRules, readAutoNoError, readAutoThreshold } from '../grading/decision/threshold';
 import { readInvestigationBudget } from '../grading/investigator/budget';
 import { buildInvestigatorTiers } from '../grading/investigator/model-pool';
 import { HostFingerprint } from '../sandbox/contract';
@@ -112,6 +112,11 @@ async function main() {
     // θ của công thức tự quyết (§4.2) — một chỗ đọc, truyền xuống decide().
     const { theta, warning: thetaWarning } = readAutoThreshold(process.env);
     if (thetaWarning) console.warn(`⚠ ${thetaWarning}`);
+    // Cờ tự chốt (§5.2) — cùng nguồn env với `ScoreService`, để eval đo đúng đường production.
+    const autoBlocked = readAutoBlockedRules(process.env);
+    if (autoBlocked.warning) console.warn(`⚠ ${autoBlocked.warning}`);
+    const autoNoError = readAutoNoError(process.env);
+    if (autoNoError.warning) console.warn(`⚠ ${autoNoError.warning}`);
     for (const w of warnings) console.warn(`⚠ ${w}`);
     // Duyệt Q5 lớp 1: sinh output mong đợi bằng ĐÚNG image của worker.
     const generatorImageId = await dockerImageId(BUNDLE_GENERATOR_IMAGE);
@@ -159,6 +164,7 @@ async function main() {
         : undefined;
       const out = await runInvestigator({
         dataset: runDataset, bundles, tier, concurrency, budget, components, theta,
+        autoBlockedRuleKeys: autoBlocked.keys, autoNoErrorEnabled: autoNoError.enabled,
         ceilings: new Map(tiers.map((t) => [t.model, t.ceiling])),
         deps: { models: tiers, sandbox: client },
         challengePhase,
@@ -176,6 +182,9 @@ async function main() {
         waivedRules,
         predicates: 'test_group_failed',
         theta,
+        // Cờ tự chốt làm đổi tỉ lệ tự quyết — ghi lại như θ để lượt chạy truy được.
+        autoBlockedRuleKeys: [...autoBlocked.keys],
+        autoNoErrorEnabled: autoNoError.enabled,
         models: tiers.map((t) => t.label),
         components,
         budget,

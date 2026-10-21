@@ -8,11 +8,33 @@ import type { BadgeProps } from '@/components/ui/badge';
  */
 export const SOURCE_LABEL: Record<
   'deterministic' | 'llm_with_tools' | 'llm_only',
-  { label: string; variant: BadgeProps['variant'] }
+  {
+    label: string;
+    variant: BadgeProps['variant'];
+    /** Mức chắc chắn tự gán theo nguồn (§3), hiện cạnh nhãn dưới dạng phần trăm. */
+    certaintyPercent: number;
+    /** Một câu giải thích cho giảng viên: cách hệ thống tìm ra lỗi, và hệ quả cho tự chốt (§5.8, mục 2). */
+    explain: string;
+  }
 > = {
-  deterministic: { label: 'Máy quyết', variant: 'accent' },
-  llm_with_tools: { label: 'Mô hình + công cụ', variant: 'info' },
-  llm_only: { label: 'Chỉ mô hình', variant: 'warning' },
+  deterministic: {
+    label: 'Chạy bài kiểm tra',
+    variant: 'accent',
+    certaintyPercent: 100,
+    explain: 'Hệ thống đo bằng cách chạy bài. Kết quả đo không cần nhận định nên có thể tự chốt.',
+  },
+  llm_with_tools: {
+    label: 'Đọc code + chạy thử',
+    variant: 'info',
+    certaintyPercent: 85,
+    explain: 'Hệ thống đọc code và nhận định dựa trên kết quả chạy thử. Đủ để tự chốt khi mức chắc chắn đạt ngưỡng.',
+  },
+  llm_only: {
+    label: 'Đọc code, nhận định',
+    variant: 'warning',
+    certaintyPercent: 50,
+    explain: 'Hệ thống chỉ đọc code, không có phép đo. Bài có lỗi này khó được tự chốt.',
+  },
 };
 
 export const VERDICT_LABEL: Record<
@@ -20,8 +42,8 @@ export const VERDICT_LABEL: Record<
   { label: string; variant: BadgeProps['variant']; tintClass: string }
 > = {
   confirmed: { label: 'Xác nhận', variant: 'success', tintClass: 'bg-success-subtle' },
-  refuted: { label: 'Bác bỏ', variant: 'destructive', tintClass: 'bg-danger-subtle' },
-  unverified: { label: 'Chưa kiểm được', variant: 'warning', tintClass: 'bg-warning-subtle' },
+  refuted: { label: 'Đề nghị bỏ lỗi này', variant: 'destructive', tintClass: 'bg-danger-subtle' },
+  unverified: { label: 'Chưa kiểm tra lại được', variant: 'warning', tintClass: 'bg-warning-subtle' },
 };
 
 type Verdict = 'confirmed' | 'refuted' | 'unverified';
@@ -38,11 +60,14 @@ export function mergedVerdict(statuses: Verdict[]): Verdict {
   return 'unverified';
 }
 
+/**
+ * Câu hỏi mà một góc kiểm đặt ra, thay cho tên kỹ thuật (§5.8a). Chỉ đổi nhãn hiển thị; mã lăng kính vẫn giữ nguyên.
+ */
 const LENS_LABEL: Record<string, string> = {
-  tinh_dung: 'Tính đúng',
-  qua_tay: 'Quá tay',
-  bo_sot: 'Bỏ sót',
-  gian_lan: 'Gian lận',
+  tinh_dung: 'Lỗi có thật không?',
+  qua_tay: 'Trừ vậy có nặng quá không?',
+  bo_sot: 'Có bỏ sót lỗi nào không?',
+  gian_lan: 'Có dấu hiệu gian lận không?',
 };
 export function lensLabel(key: string): string {
   return LENS_LABEL[key] ?? key;
@@ -82,10 +107,12 @@ const CASE_FLAG_LABEL: Record<string, string> = {
   challenge_suspected: 'Góc kiểm phản biện nêu nghi vấn',
   challenge_incomplete: 'Góc kiểm chưa kết luận được — bài chưa được tự quyết',
   ruler_unverified: 'Đáp án mẫu chưa được kiểm chứng — bài chưa được tự quyết',
+  type_auto_disabled: 'Tự chốt đang tắt cho loại lỗi này',
+  no_error_auto_disabled: 'Tự chốt bài không có lỗi đang tắt — bài cần giảng viên duyệt',
 };
 
 const INVESTIGATION_FLAG_LABEL: Record<string, string> = {
-  injection_suspected: 'Bài nộp có câu lệnh nhắm vào AI chấm',
+  injection_suspected: 'Bài có chỗ giống lời dặn gửi cho hệ thống chấm',
   replay_mismatch: 'Chạy lại để đối chiếu ra kết quả khác',
   replay_unverified: 'Chưa chạy lại để đối chiếu được',
   evidence_rejected: 'Bằng chứng không khớp lời gọi thật',
@@ -100,7 +127,9 @@ const INVESTIGATION_FLAG_LABEL: Record<string, string> = {
  */
 export function caseFlagLabel(code: string, detail: string): string {
   if (code === 'investigation_flag') {
-    return INVESTIGATION_FLAG_LABEL[detail] ?? `Điều kiện chưa có tên hiển thị (${detail})`;
+    // `injection_suspected:<nguồn>` (Task 10A) chỉ thêm nguồn ở dòng phụ; nhãn chính tra theo mã cờ trước dấu hai chấm.
+    const flag = detail.split(':')[0];
+    return INVESTIGATION_FLAG_LABEL[flag] ?? `Điều kiện chưa có tên hiển thị (${detail})`;
   }
   return CASE_FLAG_LABEL[code] ?? `Điều kiện chưa có tên hiển thị (${code})`;
 }

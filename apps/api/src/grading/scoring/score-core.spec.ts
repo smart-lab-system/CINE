@@ -249,6 +249,50 @@ describe('computeScore', () => {
       expect(out.scoreHundredths).toBe(1000 - 150 - 50);
     });
   });
+
+  // §5.2: hai cờ tự chốt đi qua `computeScore` xuống `decide()` nguyên trạng; vắng mặt = hành vi hôm nay.
+  describe('cờ tự chốt truyền xuống decide() (§5.2)', () => {
+    /** Mọi ca đạt, model không báo lỗi nào → bài không lỗi. */
+    const noErrors = () =>
+      stored({
+        result: resultWith({
+          calls: [
+            runTestsCall('t1', null, [
+              { name: 'c1', group: 'co_ban', status: 'pass' },
+              { name: 'c2', group: 'bien', status: 'pass' },
+            ]),
+            readFileCall('r1', 'bai-nop/main.cpp'),
+          ],
+          errors: [],
+        }),
+      });
+    const codes = (out: ReturnType<typeof computeScore>) => out.breakdown.caseFlags.map((f) => f.code);
+
+    it('vắng cả hai trường → như hôm nay: bài lỗi tự chốt, bài không lỗi không mang cờ chặn', () => {
+      expect(computeScore(input()).outcome).toBe('auto');
+      const clean = computeScore(input({ stored: noErrors() }));
+      expect(clean.breakdown.errors).toEqual([]);
+      expect(codes(clean)).not.toContain('no_error_auto_disabled');
+    });
+
+    it('autoBlockedRuleKeys chứa khoá của một lỗi → type_auto_disabled, không tự chốt; điểm không đổi', () => {
+      const out = computeScore(input({ autoBlockedRuleKeys: new Set(['sai_bien']) }));
+      expect(out.outcome).toBe('flagged');
+      expect(codes(out)).toEqual(['type_auto_disabled']);
+      expect(out.scoreHundredths).toBe(1000 - 150 - 50);
+    });
+
+    it('autoBlockedRuleKeys rỗng, autoNoErrorEnabled=true tường minh → bài lỗi vẫn tự chốt như hôm nay', () => {
+      expect(computeScore(input({ autoBlockedRuleKeys: new Set(), autoNoErrorEnabled: true })).outcome).toBe('auto');
+    });
+
+    it('autoNoErrorEnabled=false trên bài không lỗi → no_error_auto_disabled, không tự chốt', () => {
+      const out = computeScore(input({ stored: noErrors(), autoNoErrorEnabled: false }));
+      expect(out.breakdown.errors).toEqual([]);
+      expect(codes(out)).toContain('no_error_auto_disabled');
+      expect(out.outcome).toBe('flagged');
+    });
+  });
 });
 
 describe('repriceBreakdown — "áp giá mới cho phiên đã chốt" chỉ đổi GIÁ (§2.2, review I3)', () => {

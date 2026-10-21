@@ -9,8 +9,11 @@ export type GradingPipeline = (typeof GRADING_PIPELINES)[number];
 export const UNGRADABLE_CLASSES = ['system', 'submission'] as const;
 export type UngradableClass = (typeof UNGRADABLE_CLASSES)[number];
 
-/** `error_exception` là dòng DUY NHẤT được không mang điểm (§14.1). */
-export const TEACHER_REVIEW_KINDS = ['review', 'error_exception', 'manual_score', 'bulk_accept'] as const;
+/**
+ * `error_exception` là dòng DUY NHẤT được không mang điểm (§14.1). `system_confirm`: giảng viên chấp nhận điểm của
+ * một lượt tính (spec duyệt nhanh 2026-10-21 §5.4) — mang điểm và `confirmed_computation_id`.
+ */
+export const TEACHER_REVIEW_KINDS = ['review', 'error_exception', 'manual_score', 'bulk_accept', 'system_confirm'] as const;
 export type TeacherReviewKind = (typeof TEACHER_REVIEW_KINDS)[number];
 
 /** `exclude` = bỏ lỗi này cho riêng bài này (cũng dùng cho *đồng ý bác bỏ*); `include` = giữ lỗi này. */
@@ -32,5 +35,6 @@ export type TestBundleOrigin = (typeof TEST_BUNDLE_ORIGINS)[number];
 export const SCORE_COMPUTATION_REASONS = [
   'initial', 'price_change', 'rule_revision', 'tier2_rule', 'tier3_rule',
   'case_dropped', 'error_exception', 'finalized_reapply', 'criterion_waiver', 'session_rule_set',
+  'auto_rule_tripped',
 ] as const;
 export type ScoreComputationReason = (typeof SCORE_COMPUTATION_REASONS)[number];

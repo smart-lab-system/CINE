@@ -179,6 +179,19 @@ export class GradingResultEntity extends BaseEntity {
   @Column({ name: 'audit_sampled_at', type: 'timestamptz', nullable: true })
   auditSampledAt!: Date | null;
 
+  /**
+   * Lần ĐẦU giảng viên mở bài này — số đo thời gian duyệt `t` của spec duyệt nhanh 2026-10-21 §5.5.
+   *
+   * Ghi MỘT lần, và chỉ bằng `UPDATE ... WHERE opened_at IS NULL` ở `GradingService.markOpened` — KHÔNG
+   * qua `save()` của entity. `null` = chưa ai mở, KHÁC "mở rồi nhưng không ghi": bài duyệt trước khi cột
+   * này có thì mãi `null`, và `review_label_v` để `review_seconds` rỗng chứ không suy ra.
+   *
+   * Không nằm trong danh sách cột của `guard_grading_result_ai_immutable`, nên ghi được cả khi
+   * `ai_total_score` đã có.
+   */
+  @Column({ name: 'opened_at', type: 'timestamptz', nullable: true })
+  openedAt!: Date | null;
+
   /** Điểm đã công bố của đường `investigator` — bước 3c ghi. */
   @Column({ name: 'finalized_computation_id', type: 'uuid', nullable: true })
   finalizedComputationId!: string | null;

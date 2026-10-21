@@ -200,7 +200,7 @@ describe('SubmissionSessionDetailPage — gradingByMssv', () => {
   it('map kết quả chấm theo MSSV và truyền xuống bảng', () => {
     useGradingResultsMock.mockReturnValue({
       data: [
-        { studentMssv: 'A1', aiTotalScore: 8.5, finalScore: null, status: 'ai_graded' },
+        { studentMssv: 'A1', aiTotalScore: 8.5, finalScore: null, currentScore: 8.5, status: 'ai_graded' },
       ],
     });
     render(<SubmissionSessionDetailPage />);
@@ -209,12 +209,12 @@ describe('SubmissionSessionDetailPage — gradingByMssv', () => {
     });
   });
 
-  it('điểm giảng viên đã chốt thắng điểm AI đề xuất', () => {
+  it('điểm hiện tại của giảng viên (currentScore) là điểm hiển thị, như trang Chấm điểm', () => {
     // Không có test này thì hai màn hình lặng lẽ nói hai con số khác nhau về
     // cùng một bài: trang Chấm điểm hiện 7.5, trang này hiện 4.0.
     useGradingResultsMock.mockReturnValue({
       data: [
-        { studentMssv: 'A1', aiTotalScore: 4, finalScore: 7.5, status: 'finalized' },
+        { studentMssv: 'A1', aiTotalScore: 4, finalScore: 7.5, currentScore: 7.5, status: 'finalized' },
       ],
     });
     render(<SubmissionSessionDetailPage />);
@@ -227,12 +227,37 @@ describe('SubmissionSessionDetailPage — gradingByMssv', () => {
     // `??` chứ không phải `||` — đây là ca duy nhất phân biệt được hai toán tử.
     useGradingResultsMock.mockReturnValue({
       data: [
-        { studentMssv: 'A1', aiTotalScore: 6, finalScore: 0, status: 'finalized' },
+        { studentMssv: 'A1', aiTotalScore: 6, finalScore: 0, currentScore: 0, status: 'finalized' },
       ],
     });
     render(<SubmissionSessionDetailPage />);
     expect(submissionStatusTableProps.gradingByMssv).toEqual({
       A1: { score: 0, status: 'finalized' },
+    });
+  });
+
+  it('bài điều tra đã tính lại theo giá mới: hiện điểm hiện tại, KHÔNG hiện điểm của lượt tính đầu', () => {
+    // aiTotalScore là điểm lượt tính đầu (4); giá đổi rồi tính lại ra 6. Đọc aiTotalScore là hiện số cũ.
+    useGradingResultsMock.mockReturnValue({
+      data: [
+        { studentMssv: 'A1', aiTotalScore: 4, finalScore: null, currentScore: 6, pipeline: 'investigator', status: 'flagged_for_review' },
+      ],
+    });
+    render(<SubmissionSessionDetailPage />);
+    expect(submissionStatusTableProps.gradingByMssv).toEqual({
+      A1: { score: 6, status: 'flagged_for_review' },
+    });
+  });
+
+  it('bài chưa có lượt tính nào (currentScore null) để trống, không rơi về điểm AI', () => {
+    useGradingResultsMock.mockReturnValue({
+      data: [
+        { studentMssv: 'A1', aiTotalScore: 9, finalScore: null, currentScore: null, pipeline: 'investigator', status: 'ai_grading' },
+      ],
+    });
+    render(<SubmissionSessionDetailPage />);
+    expect(submissionStatusTableProps.gradingByMssv).toEqual({
+      A1: { score: null, status: 'ai_grading' },
     });
   });
 });
