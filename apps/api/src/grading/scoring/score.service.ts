@@ -3,7 +3,7 @@ import { ConflictException, Injectable, Logger, NotFoundException } from '@nestj
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { AuditLogService } from '../../admin/audit-log.service';
-import { readAutoThreshold } from '../decision/threshold';
+import { readAutoBlockedRules, readAutoNoError, readAutoThreshold } from '../decision/threshold';
 import { drawnForStudentAudit, readAuditSampling } from '../audit-sampling';
 import { GradingResultEntity } from '../entities/grading-result.entity';
 import type { ScoreComputationReason } from '../grading-model.types';
@@ -91,6 +91,12 @@ export class ScoreService {
   private readonly theta = readAutoThreshold(process.env).theta;
   /** Tỉ lệ kiểm mẫu — đọc lúc khởi tạo như `theta`. Tên khác `audit`: field đó là `AuditLogService`. */
   private readonly sampling = readAuditSampling(process.env);
+  /**
+   * Cờ tự chốt từ env (§5.2) — đọc lúc khởi tạo như `theta`, không đọc lại mỗi lượt tính. Công tắc khẩn cấp áp cho
+   * mọi giảng viên; cầu dao DB của từng giảng viên (Task 5A) hợp thêm vào đúng chỗ truyền ở `compute()`.
+   */
+  private readonly autoBlocked = readAutoBlockedRules(process.env);
+  private readonly autoNoError = readAutoNoError(process.env);
 
   constructor(
     @InjectDataSource() private readonly ds: DataSource,
@@ -98,6 +104,8 @@ export class ScoreService {
     private readonly audit: AuditLogService,
   ) {
     if (this.sampling.warning) new Logger(ScoreService.name).warn(this.sampling.warning);
+    if (this.autoBlocked.warning) new Logger(ScoreService.name).warn(this.autoBlocked.warning);
+    if (this.autoNoError.warning) new Logger(ScoreService.name).warn(this.autoNoError.warning);
   }
 
   readonly latestComputation = latestComputationRow;
@@ -532,6 +540,8 @@ export class ScoreService {
       exceptions: ctx.exceptions,
       theta: this.theta,
       rulerTrust: ctx.rulerTrust,
+      autoBlockedRuleKeys: this.autoBlocked.keys,
+      autoNoErrorEnabled: this.autoNoError.enabled,
     });
     return { ...out, priceVersionId: price?.id ?? null };
   }

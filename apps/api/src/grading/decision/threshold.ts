@@ -17,3 +17,41 @@ export function readAutoThreshold(env: NodeJS.ProcessEnv): { theta: number; warn
     warning: `${KEY}=${JSON.stringify(set)} không phải số trong (0, 1] — dùng mặc định ${AUTO_APPROVE_CONFIDENCE}`,
   };
 }
+
+const BLOCK_KEY = 'GRADING_AUTO_BLOCK_RULE_KEYS';
+const NO_ERROR_KEY = 'GRADING_AUTO_NO_ERROR';
+
+/**
+ * Công tắc khẩn cấp chặn tự chốt theo khoá luật (§5.2), áp cho MỌI giảng viên. Cùng khuôn `readAutoThreshold`:
+ * hàm thuần nhận `env`, nơi gọi đọc một lần lúc khởi tạo rồi truyền xuống `decide()` — `decide()` không đọc env.
+ * Không đặt / rỗng → tập rỗng, không chặn gì (hành vi hôm nay). Tách dấu phẩy, bỏ khoảng trắng và mục rỗng.
+ * KHÔNG kiểm khoá với bảng lỗi ở đây: khoá lạ không khớp lỗi nào nên không chặn gì. Đặt mà không ra khoá nào
+ * (vd `" , "`) → tập rỗng KÈM cảnh báo: im lặng là giấu một lần gõ nhầm.
+ */
+export function readAutoBlockedRules(env: NodeJS.ProcessEnv): { keys: ReadonlySet<string>; warning: string | null } {
+  const raw = env[BLOCK_KEY];
+  if (raw === undefined || raw.trim() === '') return { keys: new Set(), warning: null };
+  const keys = new Set(
+    raw
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k !== ''),
+  );
+  if (keys.size > 0) return { keys, warning: null };
+  return { keys, warning: `${BLOCK_KEY}=${JSON.stringify(raw)} không có khoá luật nào — không chặn luật nào` };
+}
+
+/**
+ * Tự chốt bài không lỗi có bật không (§5.2). Chỉ nhận đúng `true`/`false` (sau khi bỏ khoảng trắng). Không đặt /
+ * rỗng → `true` (hành vi hôm nay). Giá trị khác → `true` KÈM cảnh báo, như `readAutoThreshold`.
+ */
+export function readAutoNoError(env: NodeJS.ProcessEnv): { enabled: boolean; warning: string | null } {
+  const raw = env[NO_ERROR_KEY];
+  const value = raw?.trim() ?? '';
+  if (value === '' || value === 'true') return { enabled: true, warning: null };
+  if (value === 'false') return { enabled: false, warning: null };
+  return {
+    enabled: true,
+    warning: `${NO_ERROR_KEY}=${JSON.stringify(raw)} không phải "true" hay "false" — dùng mặc định true`,
+  };
+}
