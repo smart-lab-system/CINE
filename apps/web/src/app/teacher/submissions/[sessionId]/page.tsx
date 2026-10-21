@@ -82,15 +82,12 @@ function SubmissionSessionDetailContent() {
     const map: Record<string, { score: number | null; status: string }> = {};
     for (const result of gradingResults.data ?? []) {
       map[result.studentMssv] = {
-        // Điểm giảng viên đã chốt thắng điểm AI đề xuất. Trước khi có
-        // TeacherReview thì chỉ có `aiTotalScore`, nên trang này đọc thẳng
-        // nó — giờ để nguyên sẽ khiến một bài đã duyệt 7.5 vẫn hiện 4.0 ở
-        // đây trong khi trang Chấm điểm hiện 7.5. Hai màn hình nói hai con
-        // số khác nhau về cùng một bài là lỗi tệ hơn hẳn việc thiếu số.
+        // Đọc `currentScore` (§14.2), đúng như trang Chấm điểm — MỌI màn đọc điểm đi qua đó. Không dùng
+        // `aiTotalScore`: với đường điều tra nó là điểm của lượt tính đầu, và giá có thể đã đổi từ đó. Không
+        // có lượt tính nào thì `currentScore` là null và ô để trống, không rơi về điểm AI.
         //
-        // `??` chứ không phải `||`: điểm 0 do giảng viên chấm là một quyết
-        // định, không phải một giá trị trống.
-        score: result.finalScore ?? result.aiTotalScore,
+        // `??` chứ không phải `||`: điểm 0 do giảng viên chấm là một quyết định, không phải một giá trị trống.
+        score: result.currentScore ?? null,
         status: result.status,
       };
     }
