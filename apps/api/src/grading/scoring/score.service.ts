@@ -3,6 +3,7 @@ import { ConflictException, Injectable, Logger, NotFoundException } from '@nestj
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { AuditLogService } from '../../admin/audit-log.service';
+import { isNoErrorBreakerOpen, loadOpenBreakerRuleKeys } from '../auto-breaker/breaker-queries';
 import { readAutoBlockedRules, readAutoNoError, readAutoThreshold } from '../decision/threshold';
 import { drawnForStudentAudit, readAuditSampling } from '../audit-sampling';
 import { GradingResultEntity } from '../entities/grading-result.entity';
@@ -304,15 +305,23 @@ export class ScoreService {
   /**
    * Lượt tính lại TẦNG LUẬT cho mọi bài chưa chốt của một giảng viên, trong transaction của người
    * gọi. `ruleId` → chỉ bài mà lượt tính mới nhất có lỗi của luật đó; `rubricId` → chỉ bài của
-   * rubric đó; `rubricName` → chỉ bài của mọi phiên bản rubric mang tên đó. Bài chấm tay không
-   * bao giờ tính lại (§2.2).
+   * rubric đó; `rubricName` → chỉ bài của mọi phiên bản rubric mang tên đó; `noErrors` → chỉ bài mà
+   * lượt tính mới nhất có `breakdown.errors` rỗng (lớp bài không lỗi của cầu dao, spec 2026-10-21 §5.3).
+   * Bài chấm tay không bao giờ tính lại (§2.2).
    */
   async recomputeForTeacher(
     m: EntityManager,
     teacherId: string,
     reason: ScoreComputationReason,
     actorId: string | null,
-    scope: { ruleId?: string; rubricId?: string; rubricName?: string; sessionId?: string; exceptResultId?: string } = {},
+    scope: {
+      ruleId?: string;
+      rubricId?: string;
+      rubricName?: string;
+      sessionId?: string;
+      exceptResultId?: string;
+      noErrors?: boolean;
+    } = {},
   ): Promise<RecomputeSummary> {
     await lockTeacherScoring(m, teacherId);
     const ids: { id: string }[] = await m.query(
@@ -335,9 +344,21 @@ export class ScoreService {
                 SELECT 1 FROM (SELECT c.breakdown FROM examcollect.score_computation c
                                 WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) last
                  WHERE last.breakdown -> 'errors' @> jsonb_build_array(jsonb_build_object('ruleId', $3::text))))
+          AND (NOT $7::boolean OR EXISTS (
+                SELECT 1 FROM (SELECT c.breakdown FROM examcollect.score_computation c
+                                WHERE c.grading_result_id = g.id ORDER BY c.created_at DESC, c.id DESC LIMIT 1) last
+                 WHERE jsonb_array_length(last.breakdown -> 'errors') = 0))
         ORDER BY g.id
         FOR UPDATE OF g`,
-      [teacherId, scope.rubricId ?? null, scope.ruleId ?? null, scope.sessionId ?? null, scope.exceptResultId ?? null, scope.rubricName ?? null],
+      [
+        teacherId,
+        scope.rubricId ?? null,
+        scope.ruleId ?? null,
+        scope.sessionId ?? null,
+        scope.exceptResultId ?? null,
+        scope.rubricName ?? null,
+        scope.noErrors === true,
+      ],
     );
     const sum: RecomputeSummary = { recomputed: 0, promoted: 0, demoted: 0, belowFloor: 0 };
     for (const { id } of ids) {
@@ -522,7 +543,13 @@ export class ScoreService {
     return this.compute(this.ds.manager, ctx, transform);
   }
 
-  /** Lượt tính theo bảng giá HIỆN HÀNH của giảng viên (phiên chưa chốt đi theo giá hiện hành, §2.2). */
+  /**
+   * Lượt tính theo bảng giá HIỆN HÀNH của giảng viên (phiên chưa chốt đi theo giá hiện hành, §2.2).
+   *
+   * Cờ tự chốt (spec 2026-10-21 §5.2): tập chặn = env ∪ cầu dao luật đang mở của giảng viên, dựng thành Set MỚI mỗi
+   * lượt (tập env dùng chung cho mọi lượt, không được sửa); tự chốt bài không lỗi = env VÀ cầu dao lớp không mở. Đọc
+   * cầu dao bằng chính `m`: cầu dao vừa tắt trong giao dịch ghi nhãn phải chặn ngay lượt tính lại cùng giao dịch.
+   */
   private async compute(
     m: EntityManager,
     ctx: ScoreContext,
@@ -531,6 +558,8 @@ export class ScoreService {
     if (!ctx.stored) throw new Error(`kết quả ${ctx.resultId} không có lượt chấm graded`);
     const price = await currentPriceVersion(m, ctx.teacherId);
     const rules = await loadRuleSnapshots(m, ctx.teacherId, ctx.rubricName, price?.id ?? null);
+    const breakerKeys = await loadOpenBreakerRuleKeys(m, ctx.teacherId);
+    const noErrorBreakerOpen = await isNoErrorBreakerOpen(m, ctx.teacherId);
     const out = computeScore({
       stored: ctx.stored,
       bundleCases: ctx.bundleCases,
@@ -540,8 +569,8 @@ export class ScoreService {
       exceptions: ctx.exceptions,
       theta: this.theta,
       rulerTrust: ctx.rulerTrust,
-      autoBlockedRuleKeys: this.autoBlocked.keys,
-      autoNoErrorEnabled: this.autoNoError.enabled,
+      autoBlockedRuleKeys: new Set([...this.autoBlocked.keys, ...breakerKeys]),
+      autoNoErrorEnabled: this.autoNoError.enabled && !noErrorBreakerOpen,
     });
     return { ...out, priceVersionId: price?.id ?? null };
   }

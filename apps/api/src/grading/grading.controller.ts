@@ -42,6 +42,7 @@ import { ManualScoreDto } from './review/dto/manual-score.dto';
 import { ErrorExceptionService } from './review/error-exception.service';
 import { ScoreService } from './scoring/score.service';
 import { loadResultDetail } from './scoring/result-detail';
+import { AutoBreakerService } from './auto-breaker/auto-breaker.service';
 
 /**
  * The grading side of the API.
@@ -68,6 +69,7 @@ export class GradingController {
     private readonly deliverableLanguage: DeliverableLanguageService,
     private readonly summaries: GradingSummaryService,
     private readonly problems: ProblemService,
+    private readonly autoBreakers: AutoBreakerService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -103,6 +105,24 @@ export class GradingController {
   @Roles('teacher')
   async sessionsSummary(@Req() req: Request) {
     return { items: await this.summaries.summarizeForTeacher(req.user!.sub) };
+  }
+
+  /**
+   * Cầu dao tự chốt đang mở của CHÍNH người gọi (spec 2026-10-21 §5.3). Đường chữ cấp gốc, không route tham số nào
+   * che được (`grep -rn "auto-breakers" src` chỉ ra controller này).
+   */
+  @Get('auto-breakers')
+  @Roles('teacher')
+  listAutoBreakers(@Req() req: Request) {
+    return this.autoBreakers.listOpen(req.user!.sub);
+  }
+
+  /** Bật lại một cầu dao của chính người gọi: cầu dao người khác → 404; đã bật lại rồi → 409. Không tính lại bài. */
+  @Post('auto-breakers/:id/reset')
+  @Roles('teacher')
+  @HttpCode(204)
+  async resetAutoBreaker(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request): Promise<void> {
+    await this.autoBreakers.reset(req.user!.sub, id, req.user!.sub);
   }
 
   /**

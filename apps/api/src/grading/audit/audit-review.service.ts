@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
+import { AutoBreakerService } from '../auto-breaker/auto-breaker.service';
 import { advanceStatus } from '../lifecycle/advance';
 import { latestComputationRow, loadCurrentScore, lockTeacherScoring } from '../scoring/score-inputs';
 import { StorageService } from '../../storage/storage.service';
@@ -33,6 +34,7 @@ export class AuditReviewService {
   constructor(
     @InjectDataSource() private readonly ds: DataSource,
     private readonly storage: StorageService,
+    private readonly breakers: AutoBreakerService,
   ) {}
 
   /**
@@ -46,6 +48,9 @@ export class AuditReviewService {
    * Bài sang `teacher_reviewed`; điểm là lượt tính mới nhất của hệ thống, KHÔNG đổi, và không có dòng
    * `teacher_review` — `finalizeGrades` chốt bài điều tra `teacher_reviewed` không cần nó. Bất đồng thì giảng
    * viên dùng đường có sẵn (ngoại lệ, chấm tay): giờ mở vì `teacher_reviewed` sửa được.
+   *
+   * Cũng trong transaction này: nhãn của cầu dao tự chốt (spec 2026-10-21 §5.3) và, nếu một phạm vi tắt, lượt hạ bậc
+   * các bài chưa chốt thuộc phạm vi đó. Lỗi ở đó lùi cả nhận xét kiểm mẫu — không có nhãn nào "đã ghi mà chưa đếm".
    */
   async record(
     teacherId: string,
@@ -84,7 +89,9 @@ export class AuditReviewService {
       const moved = await advanceStatus(m, resultId, ['audit_pending'], 'teacher_reviewed', { flagForReview: false });
       if (!moved) throw new ConflictException(AUDIT_MESSAGES.notSampled);
 
-      return this.reveal(m, resultId, picked, extras, activeIds.size);
+      const reveal = await this.reveal(m, resultId, picked, extras, activeIds.size);
+      await this.breakers.recordLabelsAndEvaluate(m, teacherId, resultId, reveal);
+      return reveal;
     });
   }
 

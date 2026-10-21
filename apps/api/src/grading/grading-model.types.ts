@@ -32,5 +32,6 @@ export type TestBundleOrigin = (typeof TEST_BUNDLE_ORIGINS)[number];
 export const SCORE_COMPUTATION_REASONS = [
   'initial', 'price_change', 'rule_revision', 'tier2_rule', 'tier3_rule',
   'case_dropped', 'error_exception', 'finalized_reapply', 'criterion_waiver', 'session_rule_set',
+  'auto_rule_tripped',
 ] as const;
 export type ScoreComputationReason = (typeof SCORE_COMPUTATION_REASONS)[number];
