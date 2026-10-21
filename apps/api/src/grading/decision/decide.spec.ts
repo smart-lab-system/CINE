@@ -136,6 +136,18 @@ describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
     }
   });
 
+  it('Task 10A — cờ injection ghi kèm nguồn đã khớp; hồ sơ cũ không có nguồn giữ chuỗi cũ', () => {
+    const withSources = {
+      ...resultWith({ calls: [allPass, read], flags: ['injection_suspected'] }),
+      injectionSources: ['submission_pattern' as const, 'tool_output' as const],
+    };
+    expect(decide(input({ result: withSources })).caseFlags).toEqual([
+      { code: 'investigation_flag', detail: 'injection_suspected:submission_pattern,tool_output' },
+    ]);
+    const legacy = resultWith({ calls: [allPass, read], flags: ['injection_suspected'] });
+    expect(decide(input({ result: legacy })).caseFlags).toEqual([{ code: 'investigation_flag', detail: 'injection_suspected' }]);
+  });
+
   it('trần confidence của cuộc điều tra (replay lệch 0,5) được áp', () => {
     const d = decide(input({ result: resultWith({ calls: [allPass, read], confidenceCap: 0.5, flags: ['replay_mismatch'] }) }));
     expect(d.confidence).toBe(0.5);

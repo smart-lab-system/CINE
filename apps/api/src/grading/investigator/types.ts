@@ -165,6 +165,12 @@ export type InvestigationFlag =
   | 'injection_suspected'
   | 'evidence_rejected';
 
+/**
+ * Nguồn làm bật `injection_suspected` (Task 10A). Chỉ để GHI: điều kiện bắn cờ không đổi. Lần diễn tập kế tiếp dùng
+ * nguồn để biết cờ trên bài sạch (HS2410019) đến từ đâu.
+ */
+export type InjectionSource = 'submission_pattern' | 'tool_output' | 'model_claim_with_quote' | 'model_claim_without_quote';
+
 export interface InvestigationResult {
   kind: 'verdict' | 'ungradable';
   /** Đã lọc (T-AG-2). null khi `kind = 'ungradable'`. */
@@ -172,6 +178,8 @@ export interface InvestigationResult {
   rejected: { ruleKey: string; reason: RejectReason }[];
   ungradable: { class: 'system' | 'submission'; reason: string } | null;
   flags: InvestigationFlag[];
+  /** Mọi nguồn đã khớp để bắn `injection_suspected`. Vắng mặt trong hồ sơ cũ, coi là rỗng. */
+  injectionSources?: InjectionSource[];
   /** Trần confidence mà cuộc điều tra này biện minh được; bước 3 lấy min với công thức §4.2. */
   confidenceCap: number;
   /** `matched: null` = lượt chạy lại không chạy được (sandbox) — không đối chiếu được, không phải lệch (review M7). */

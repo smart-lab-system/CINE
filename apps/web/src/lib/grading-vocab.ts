@@ -100,7 +100,9 @@ const INVESTIGATION_FLAG_LABEL: Record<string, string> = {
  */
 export function caseFlagLabel(code: string, detail: string): string {
   if (code === 'investigation_flag') {
-    return INVESTIGATION_FLAG_LABEL[detail] ?? `Điều kiện chưa có tên hiển thị (${detail})`;
+    // `injection_suspected:<nguồn>` (Task 10A) chỉ thêm nguồn ở dòng phụ; nhãn chính tra theo mã cờ trước dấu hai chấm.
+    const flag = detail.split(':')[0];
+    return INVESTIGATION_FLAG_LABEL[flag] ?? `Điều kiện chưa có tên hiển thị (${detail})`;
   }
   return CASE_FLAG_LABEL[code] ?? `Điều kiện chưa có tên hiển thị (${code})`;
 }

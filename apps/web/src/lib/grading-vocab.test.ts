@@ -24,6 +24,11 @@ describe('caseFlagLabel', () => {
   it('resolves investigation_flag by its detail, not its code', () => {
     expect(caseFlagLabel('investigation_flag', 'budget_exhausted')).toBe('Hết lượt điều tra trước khi xong');
   });
+  it('Task 10A — injection_suspected kèm nguồn vẫn ra nhãn chính, không rơi về "chưa có tên hiển thị"', () => {
+    expect(caseFlagLabel('investigation_flag', 'injection_suspected:submission_pattern,tool_output')).toBe(
+      'Bài nộp có câu lệnh nhắm vào AI chấm',
+    );
+  });
   it('never throws on an unknown code — names it instead of hiding it', () => {
     expect(caseFlagLabel('some_future_flag', 'chi tiết')).toContain('some_future_flag');
   });

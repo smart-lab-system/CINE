@@ -162,8 +162,12 @@ export function decide(input: DecisionInput): Decision {
   const nothingPassed = ran && !anyPass;
   if (nothingPassed) caseFlags.push({ code: 'nothing_passed', detail: 'mọi ca của gói test đều không đạt — mâu thuẫn với chẩn đoán phải do giảng viên xem' });
 
-  // Q5: cờ của cuộc điều tra.
-  for (const f of result.flags) caseFlags.push({ code: 'investigation_flag', detail: f });
+  // Q5: cờ của cuộc điều tra. Cờ injection ghi kèm nguồn đã khớp (Task 10A) để lần diễn tập đọc được nguồn; hồ sơ
+  // cũ không có nguồn thì giữ nguyên chuỗi. Không đổi quyết định.
+  for (const f of result.flags) {
+    const sources = f === 'injection_suspected' ? result.injectionSources ?? [] : [];
+    caseFlags.push({ code: 'investigation_flag', detail: sources.length > 0 ? `${f}:${sources.join(',')}` : f });
+  }
 
   if (input.pipeline !== 'investigator') caseFlags.push({ code: 'not_code_pipeline', detail: 'bài tự luận không bao giờ tự quyết' });
 

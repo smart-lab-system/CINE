@@ -10,7 +10,7 @@ import {
 import { renderSummary } from './summary';
 import { programProblem, SandboxPort, ToolRunner } from './tools';
 import {
-  InvestigationContext, InvestigationFlag, InvestigationResult, StopReason, StructuredResult, ToolCall,
+  InjectionSource, InvestigationContext, InvestigationFlag, InvestigationResult, StopReason, StructuredResult, ToolCall,
   ToolCallStatus, ToolName, Verdict,
 } from './types';
 import { uncoveredCases } from './coverage';
@@ -74,6 +74,7 @@ function invalidProgram(
     rejected: [],
     ungradable,
     flags: suspected ? ['injection_suspected'] : [],
+    injectionSources: suspected ? ['submission_pattern'] : [],
     confidenceCap: 1,
     replay: null,
     summary: renderSummary({ toolCalls: [], structured: {}, verdict: null, rules: ctx.rules, stopReason }),
@@ -314,9 +315,12 @@ export async function investigate(
   const quote = claim?.excerpt?.trim() ?? '';
   const claimCredible =
     claim?.detected === true && (quote === '' || quoteAppearsInSubmission(quote, ctx.submission.files.map((f) => f.content)));
-  if (submissionSuspected || toolCalls.some((t) => t.injectionSuspected) || claimCredible) {
-    flags.push('injection_suspected');
-  }
+  // Task 10A: ghi NGUỒN đã khớp (mọi nguồn, không chỉ nguồn đầu). Điều kiện bắn cờ không đổi.
+  const injectionSources: InjectionSource[] = [];
+  if (submissionSuspected) injectionSources.push('submission_pattern');
+  if (toolCalls.some((t) => t.injectionSuspected)) injectionSources.push('tool_output');
+  if (claimCredible) injectionSources.push(quote === '' ? 'model_claim_without_quote' : 'model_claim_with_quote');
+  if (injectionSources.length > 0) flags.push('injection_suspected');
 
   // T-AG-3: chạy lại MỘT lời gọi sandbox, ưu tiên lời gọi được verdict trích.
   let replay: InvestigationResult['replay'] = null;
@@ -356,6 +360,7 @@ export async function investigate(
     rejected,
     ungradable,
     flags,
+    injectionSources,
     confidenceCap,
     replay,
     summary: renderSummary({ toolCalls, structured, verdict: finalVerdict, rules: ctx.rules, stopReason: stop }),
