@@ -7,7 +7,11 @@ export type ReviewGroupKind = 'single' | 'multi' | 'none';
  * tả của bản sửa hiện hành của luật.
  */
 export interface ReviewGroup {
-  /** ruleId với nhóm `single`; `'multi'` hoặc `'none'` với hai nhóm còn lại. */
+  /**
+   * `${rubricVersionId}:${ruleId}` với nhóm `single`; `'multi'` hoặc `'none'` với hai nhóm còn lại. Khoá nhóm đơn
+   * mang phiên bản rubric vì cùng một luật ở hai phiên bản rubric có thể trỏ tiêu chí khác và giá khác
+   * (`rubric_error`, `rubric_error_price`): gộp lại thì một lần xác nhận nhận cả những bài bị trừ khác nhau.
+   */
   key: string;
   label: string;
   description: string | null;
@@ -24,5 +28,7 @@ export interface ReviewGroup {
 /** Một bài và các lỗi trong `breakdown.errors` của lượt tính mới nhất của nó. Một dòng một bài. */
 export interface GroupInput {
   resultId: string;
+  /** `grading_result.rubric_id_version` của bài. */
+  rubricVersionId: string;
   errors: { ruleId: string; source: string }[];
 }

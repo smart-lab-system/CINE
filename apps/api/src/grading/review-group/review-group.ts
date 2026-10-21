@@ -42,18 +42,31 @@ function toGroup(kind: ReviewGroupKind, key: string, ruleId: string | null, labe
   };
 }
 
+/** Khoá của nhóm một luật: phiên bản rubric của bài và luật. */
+export function singleGroupKey(rubricVersionId: string, ruleId: string): string {
+  return `${rubricVersionId}:${ruleId}`;
+}
+
+interface SingleBucket extends Bucket {
+  rubricVersionId: string;
+  ruleId: string;
+}
+
 /**
- * Gom bài theo lỗi (spec 2026-10-21 §5.4): bài có đúng MỘT luật lỗi → nhóm của luật đó; từ hai luật → nhóm `multi`;
- * không lỗi → nhóm `none`. "Không lỗi" là `breakdown.errors` rỗng, không lọc `counted` — cùng lớp mà cầu dao §5.3
- * và phạm vi `noErrors` của `recomputeForTeacher` dùng. Một luật xuất hiện hai lần trong cùng bài vẫn là một luật.
+ * Gom bài theo lỗi (spec 2026-10-21 §5.4): bài có đúng MỘT luật lỗi → nhóm của luật đó TRONG phiên bản rubric của bài;
+ * từ hai luật → nhóm `multi`; không lỗi → nhóm `none`. "Không lỗi" là `breakdown.errors` rỗng, không lọc `counted` —
+ * cùng lớp mà cầu dao §5.3 và phạm vi `noErrors` của `recomputeForTeacher` dùng. Một luật xuất hiện hai lần trong cùng
+ * bài vẫn là một luật.
  *
- * Nhóm khoá theo `ruleId`, không theo `ruleKey`: cùng luật ở hai phiên bản rubric là hai `ruleId`, hai nhóm.
+ * Nhóm đơn khoá theo (phiên bản rubric, `ruleId`): luật thuộc giảng viên, nhưng cùng một luật ở hai phiên bản rubric có
+ * thể trỏ tiêu chí khác và giá khác, nên là hai nhóm. `ruleId` và nhãn tạm của nhóm vẫn là `ruleId`.
  *
- * Kết quả xác định, không phụ thuộc thứ tự đầu vào: nhóm đơn theo `ruleId` tăng dần, rồi `multi`, rồi `none`; bài và
- * nguồn trong nhóm tăng dần; bài mẫu là ba bài đầu. Không trả nhóm rỗng. Không đọc DB, không sửa đầu vào.
+ * Kết quả xác định, không phụ thuộc thứ tự đầu vào: nhóm đơn theo `ruleId` tăng dần (cùng luật thì theo phiên bản
+ * rubric tăng dần), rồi `multi`, rồi `none`; bài và nguồn trong nhóm tăng dần; bài mẫu là ba bài đầu. Không trả nhóm
+ * rỗng. Không đọc DB, không sửa đầu vào.
  */
 export function groupResults(rows: readonly GroupInput[]): ReviewGroup[] {
-  const single = new Map<string, Bucket>();
+  const single = new Map<string, SingleBucket>();
   const multi = emptyBucket();
   const none = emptyBucket();
 
@@ -66,16 +79,19 @@ export function groupResults(rows: readonly GroupInput[]): ReviewGroup[] {
       bucket = multi;
     } else {
       const [ruleId] = ruleIds;
-      bucket = single.get(ruleId) ?? emptyBucket();
-      single.set(ruleId, bucket);
+      const key = singleGroupKey(row.rubricVersionId, ruleId);
+      const existing = single.get(key);
+      const created = existing ?? { ...emptyBucket(), rubricVersionId: row.rubricVersionId, ruleId };
+      if (!existing) single.set(key, created);
+      bucket = created;
     }
     bucket.resultIds.add(row.resultId);
     for (const e of row.errors) bucket.sources.add(e.source);
   }
 
-  const groups = [...single.keys()]
-    .sort(byCodeUnit)
-    .map((ruleId) => toGroup('single', ruleId, ruleId, ruleId, single.get(ruleId)!));
+  const groups = [...single.entries()]
+    .sort(([, a], [, b]) => byCodeUnit(a.ruleId, b.ruleId) || byCodeUnit(a.rubricVersionId, b.rubricVersionId))
+    .map(([key, b]) => toGroup('single', key, b.ruleId, b.ruleId, b));
   if (multi.resultIds.size > 0) groups.push(toGroup('multi', 'multi', null, MULTI_GROUP_LABEL, multi));
   if (none.resultIds.size > 0) groups.push(toGroup('none', 'none', null, NONE_GROUP_LABEL, none));
   return groups;

@@ -33,8 +33,11 @@ export class ReviewGroupService {
   async listGroups(sessionId: string, teacherId: string): Promise<ReviewGroup[]> {
     const session = await this.examSessions.findEntityForOwner(sessionId, teacherId);
 
-    const rows: { resultId: string; errors: StoredError[] }[] = await this.ds.query(
-      `SELECT g.id AS "resultId", last.breakdown -> 'errors' AS errors
+    // Phiên bản rubric lấy từ `grading_result.rubric_id_version`, cột mà các đường tính lại dùng để khoanh phạm vi theo
+    // rubric (`recomputeForTeacher`, `loadScoreContext`); mỗi dòng `score_computation` được ghi với đúng giá trị này.
+    // `errors` có thể null nếu breakdown thiếu mảng: coi như rỗng thay vì để `.map` ném 500.
+    const rows: { resultId: string; rubricVersionId: string; errors: StoredError[] | null }[] = await this.ds.query(
+      `SELECT g.id AS "resultId", g.rubric_id_version AS "rubricVersionId", last.breakdown -> 'errors' AS errors
          FROM examcollect.grading_result g
          JOIN examcollect.submission s ON s.id = g.submission_id
         CROSS JOIN LATERAL (
@@ -52,11 +55,17 @@ export class ReviewGroupService {
       [session.id],
     );
 
+    const stored = rows.map((r) => ({ resultId: r.resultId, rubricVersionId: r.rubricVersionId, errors: r.errors ?? [] }));
     const groups = groupResults(
-      rows.map((r) => ({ resultId: r.resultId, errors: r.errors.map((e) => ({ ruleId: e.ruleId, source: e.source })) })),
+      stored.map((r) => ({
+        resultId: r.resultId,
+        rubricVersionId: r.rubricVersionId,
+        errors: r.errors.map((e) => ({ ruleId: e.ruleId, source: e.source })),
+      })),
     );
 
-    const ruleIds = groups.flatMap((g) => (g.ruleId === null ? [] : [g.ruleId]));
+    // Không trùng: một luật ở hai phiên bản rubric là hai nhóm nhưng một dòng luật.
+    const ruleIds = [...new Set(groups.flatMap((g) => (g.ruleId === null ? [] : [g.ruleId])))];
     if (ruleIds.length === 0) return groups;
 
     // Tên và mô tả từ bản sửa HIỆN HÀNH của luật — cùng phép nối mà hồ sơ một bài dùng cho `ruleName`
@@ -69,7 +78,7 @@ export class ReviewGroupService {
       [ruleIds],
     );
     const rules = new Map(ruleRows.map((r) => [r.id, r]));
-    const ruleKeys = new Map(rows.flatMap((r) => r.errors.map((e) => [e.ruleId, e.ruleKey] as const)));
+    const ruleKeys = new Map(stored.flatMap((r) => r.errors.map((e) => [e.ruleId, e.ruleKey] as const)));
 
     return groups.map((g) => {
       if (g.ruleId === null) return g;
