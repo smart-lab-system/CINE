@@ -45,6 +45,8 @@ import { loadResultDetail } from './scoring/result-detail';
 import { AutoBreakerService } from './auto-breaker/auto-breaker.service';
 import { ReviewGroupService } from './review-group/review-group.service';
 import type { ReviewGroup } from './review-group/review-group.types';
+import { ReviewGroupConfirmService, type ConfirmOutcome } from './review-group/review-group-confirm.service';
+import { ConfirmReviewGroupDto } from './review-group/dto/confirm-review-group.dto';
 
 /**
  * The grading side of the API.
@@ -73,6 +75,7 @@ export class GradingController {
     private readonly problems: ProblemService,
     private readonly autoBreakers: AutoBreakerService,
     private readonly reviewGroups: ReviewGroupService,
+    private readonly reviewGroupConfirms: ReviewGroupConfirmService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -451,6 +454,21 @@ export class GradingController {
   @Roles('teacher')
   listReviewGroups(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request): Promise<ReviewGroup[]> {
     return this.reviewGroups.listGroups(id, req.user!.sub);
+  }
+
+  /**
+   * Xác nhận hàng loạt một nhóm (spec 2026-10-21 §5.4): mỗi bài đủ điều kiện một dòng `system_confirm` và sang
+   * `teacher_reviewed`, cả lô một giao dịch. `resultIds` là một bài khi giảng viên chấp nhận từ hồ sơ (§5.8).
+   */
+  @Post('exam-sessions/:id/review-groups/confirm')
+  @Roles('teacher')
+  @HttpCode(200)
+  confirmReviewGroup(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ConfirmReviewGroupDto,
+    @Req() req: Request,
+  ): Promise<ConfirmOutcome> {
+    return this.reviewGroupConfirms.confirmGroup(id, req.user!.sub, dto);
   }
 
   /** Một dòng mỗi sinh viên (P1b Task 9): tổng và chip theo câu. Route `grading-results` cũ vẫn giữ nguyên. */

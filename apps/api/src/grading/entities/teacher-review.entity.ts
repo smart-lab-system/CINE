@@ -47,6 +47,14 @@ export class TeacherReviewEntity extends BaseEntity {
   @Column({ type: 'enum', enum: EXCEPTION_DIRECTIONS, enumName: 'error_exception_direction', nullable: true })
   direction!: ExceptionDirection | null;
 
+  /**
+   * Chỉ dòng `system_confirm` mang cột này: lượt tính mà giảng viên chấp nhận (`ck_teacher_review_score_by_kind`).
+   * Khoá ngoại ghép với `grading_result_id` (`fk_teacher_review_confirmed_computation`): không trỏ được lượt tính của
+   * bài khác.
+   */
+  @Column({ name: 'confirmed_computation_id', type: 'uuid', nullable: true })
+  confirmedComputationId!: string | null;
+
   @Column({ name: 'edited_criteria', type: 'jsonb', default: {} })
   editedCriteria!: Record<string, unknown>;
 

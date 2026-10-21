@@ -2,11 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { ExamSessionService } from '../../exam-session/exam-session.service';
-import type { BreakdownError } from '../scoring/score-core';
-import { groupResults } from './review-group';
+import { groupRows, loadGroupedRows } from './review-group.query';
 import type { ReviewGroup } from './review-group.types';
-
-type StoredError = Pick<BreakdownError, 'ruleId' | 'ruleKey' | 'source'>;
 
 /**
  * Đọc nhóm bài để duyệt nhanh theo lỗi (spec 2026-10-21 §5.4): chỉ đọc, không ghi gì. Xác nhận hàng loạt là một
@@ -23,46 +20,14 @@ export class ReviewGroupService {
    * Nhóm bài của MỘT phiên của người gọi. Kiểm sở hữu bằng đúng hàm các route `exam-sessions/:id/*` khác dùng
    * (`findEntityForOwner`: không có phiên → 404, phiên người khác → 403), TRƯỚC mọi câu đọc bài.
    *
-   * Bài được gom: `flagged_for_review`, pipeline `investigator`, và lượt tính MỚI NHẤT (`created_at DESC, id DESC`,
-   * cùng luật với `latestComputationRow`) có điểm. Hai lớp bị để ngoài, vì nhóm `none` nghĩa là "hệ thống không tìm thấy
-   * lỗi", không phải "hệ thống không chấm được":
-   * - bài chưa có lượt tính nào (bài dưới sàn ngay từ lượt đầu không có dòng `score_computation`);
-   * - bài dưới sàn: `ungradable_class` khác null, hoặc lượt tính mới nhất có điểm null (`breakdown.errors` của nó rỗng).
-   * Các bài này vẫn hiện trong danh sách kết quả của phiên và được duyệt từng bài.
+   * Bài được gom và hai lớp bị để ngoài (chưa có lượt tính, dưới sàn): xem `loadGroupedRows`, câu đọc dùng chung với
+   * xác nhận hàng loạt. Các bài bị để ngoài vẫn hiện trong danh sách kết quả của phiên và được duyệt từng bài.
    */
   async listGroups(sessionId: string, teacherId: string): Promise<ReviewGroup[]> {
     const session = await this.examSessions.findEntityForOwner(sessionId, teacherId);
 
-    // Phiên bản rubric lấy từ `grading_result.rubric_id_version`, cột mà các đường tính lại dùng để khoanh phạm vi theo
-    // rubric (`recomputeForTeacher`, `loadScoreContext`); mỗi dòng `score_computation` được ghi với đúng giá trị này.
-    // `errors` có thể null nếu breakdown thiếu mảng: coi như rỗng thay vì để `.map` ném 500.
-    const rows: { resultId: string; rubricVersionId: string; errors: StoredError[] | null }[] = await this.ds.query(
-      `SELECT g.id AS "resultId", g.rubric_id_version AS "rubricVersionId", last.breakdown -> 'errors' AS errors
-         FROM examcollect.grading_result g
-         JOIN examcollect.submission s ON s.id = g.submission_id
-        CROSS JOIN LATERAL (
-              SELECT c.score, c.breakdown
-                FROM examcollect.score_computation c
-               WHERE c.grading_result_id = g.id
-               ORDER BY c.created_at DESC, c.id DESC
-               LIMIT 1) last
-        WHERE s.exam_session_id = $1
-          AND g.status = 'flagged_for_review'
-          AND g.pipeline = 'investigator'
-          AND g.ungradable_class IS NULL
-          AND last.score IS NOT NULL
-        ORDER BY g.id`,
-      [session.id],
-    );
-
-    const stored = rows.map((r) => ({ resultId: r.resultId, rubricVersionId: r.rubricVersionId, errors: r.errors ?? [] }));
-    const groups = groupResults(
-      stored.map((r) => ({
-        resultId: r.resultId,
-        rubricVersionId: r.rubricVersionId,
-        errors: r.errors.map((e) => ({ ruleId: e.ruleId, source: e.source })),
-      })),
-    );
+    const stored = await loadGroupedRows(this.ds, session.id);
+    const groups = groupRows(stored);
 
     // Không trùng: một luật ở hai phiên bản rubric là hai nhóm nhưng một dòng luật.
     const ruleIds = [...new Set(groups.flatMap((g) => (g.ruleId === null ? [] : [g.ruleId])))];
