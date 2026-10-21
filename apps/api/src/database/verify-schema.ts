@@ -106,6 +106,24 @@ function triggerCheck(table: string, trigger: string): SchemaCheck {
   };
 }
 
+function checkConstraintCheck(table: string, constraint: string): SchemaCheck {
+  return {
+    name: `check constraint ${constraint} on examcollect.${table}`,
+    sql: `SELECT 1 FROM pg_constraint
+           WHERE conrelid = 'examcollect.${table}'::regclass AND conname = '${constraint}' AND contype = 'c'`,
+    ok: hasRows,
+  };
+}
+
+function functionCheck(name: string): SchemaCheck {
+  return {
+    name: `function examcollect.${name}()`,
+    sql: `SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+           WHERE n.nspname = 'examcollect' AND p.proname = '${name}'`,
+    ok: hasRows,
+  };
+}
+
 const REVIEW_LABEL_VIEW_COLUMNS = [
   'result_id',
   'pipeline',
@@ -128,6 +146,12 @@ const SCHEMA_CHECKS: readonly SchemaCheck[] = [
   foreignKeyCheck('auto_rule_breaker', 'rule_id', 'error_rule'),
   triggerCheck('audit_rule_label', 'trg_audit_rule_label_append_only'),
   triggerCheck('audit_no_error_label', 'trg_audit_no_error_label_append_only'),
+  // Khoá an toàn của cầu dao (cùng khuôn criterion_waiver): bật lại phải có người ký, chỉ một lần, không xoá được.
+  checkConstraintCheck('auto_rule_breaker', 'ck_auto_rule_breaker_reset_pair'),
+  checkConstraintCheck('auto_rule_breaker', 'ck_auto_rule_breaker_reset_after_trip'),
+  functionCheck('guard_auto_rule_breaker_reset_once'),
+  triggerCheck('auto_rule_breaker', 'trg_auto_rule_breaker_reset_once'),
+  triggerCheck('auto_rule_breaker', 'trg_auto_rule_breaker_no_delete'),
   {
     name: 'partial unique index examcollect.uq_auto_rule_breaker_open (WHERE reset_at IS NULL)',
     sql: `SELECT indexdef FROM pg_indexes

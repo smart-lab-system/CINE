@@ -16,6 +16,14 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *   `COALESCE` về uuid toàn số 0 — nếu không, NULL khác nhau trong chỉ mục duy nhất và giảng viên có
  *   thể có nhiều cầu dao `no_error` cùng mở.
  *
+ *   Bảng này là lưới an toàn của tự chốt: xoá một dòng, hoặc bật lại mà không ghi người bật, là bật
+ *   lại tự chốt mà không ai biết. Cùng khuôn `criterion_waiver` (`1789450000000`) nên có đủ bốn lớp:
+ *   `ck_auto_rule_breaker_reset_pair` (`reset_at` và `reset_by` cùng có hoặc cùng không),
+ *   `ck_auto_rule_breaker_reset_after_trip` (`reset_at >= tripped_at`),
+ *   `guard_auto_rule_breaker_reset_once` (UPDATE chỉ được ghi `reset_at`+`reset_by` đúng một lần, mọi
+ *   cột khác bất biến; dòng đã bật lại thì không sửa được nữa) và `trg_auto_rule_breaker_no_delete`
+ *   (`guard_no_delete`, dựng ở `1789440000000`).
+ *
  * Khoá ngoại tới `grading_result` và `account` cùng khuôn `audit_sample_review` (`1789450000000`):
  * `ON DELETE RESTRICT` — nhãn và cầu dao là chứng cứ, không mồ côi, không xoá theo cha.
  */
@@ -56,7 +64,9 @@ export class AutoBreaker1789720000000 implements MigrationInterface {
         "reset_at"    timestamptz,
         "reset_by"    uuid REFERENCES "examcollect"."account"("id") ON DELETE RESTRICT,
         CONSTRAINT "ck_auto_rule_breaker_scope" CHECK ("scope" IN ('rule', 'no_error')),
-        CONSTRAINT "ck_auto_rule_breaker_scope_rule" CHECK (("scope" = 'rule') = ("rule_id" IS NOT NULL))
+        CONSTRAINT "ck_auto_rule_breaker_scope_rule" CHECK (("scope" = 'rule') = ("rule_id" IS NOT NULL)),
+        CONSTRAINT "ck_auto_rule_breaker_reset_pair" CHECK (("reset_at" IS NULL) = ("reset_by" IS NULL)),
+        CONSTRAINT "ck_auto_rule_breaker_reset_after_trip" CHECK ("reset_at" IS NULL OR "reset_at" >= "tripped_at")
       )
     `);
     await q.query(`
@@ -64,9 +74,30 @@ export class AutoBreaker1789720000000 implements MigrationInterface {
         ("teacher_id", "scope", (COALESCE("rule_id", '00000000-0000-0000-0000-000000000000'::uuid)))
         WHERE "reset_at" IS NULL
     `);
+    // UPDATE duy nhất được phép: dòng còn MỞ, và chỉ ghi `reset_at`+`reset_by` (NEW.reset_at phải khác
+    // NULL — một UPDATE không bật lại gì cũng bị từ chối). Mọi cột khác phải IS NOT DISTINCT FROM.
+    await q.query(`
+      CREATE FUNCTION examcollect.guard_auto_rule_breaker_reset_once() RETURNS trigger
+      LANGUAGE plpgsql SET search_path TO 'examcollect', 'public' AS $$
+      BEGIN
+        IF OLD.reset_at IS NOT NULL
+           OR NEW.reset_at IS NULL
+           OR (to_jsonb(NEW) - 'reset_by' - 'reset_at')
+              IS DISTINCT FROM (to_jsonb(OLD) - 'reset_by' - 'reset_at') THEN
+          RAISE EXCEPTION 'Cầu dao % chỉ bật lại được một lần, và chỉ ghi reset_at/reset_by', OLD.id
+            USING ERRCODE = 'object_not_in_prerequisite_state';
+        END IF;
+        RETURN NEW;
+      END $$
+    `);
+    await q.query(`CREATE TRIGGER "trg_auto_rule_breaker_reset_once" BEFORE UPDATE ON "examcollect"."auto_rule_breaker" FOR EACH ROW EXECUTE FUNCTION examcollect.guard_auto_rule_breaker_reset_once()`);
+    await q.query(`CREATE TRIGGER "trg_auto_rule_breaker_no_delete" BEFORE DELETE ON "examcollect"."auto_rule_breaker" FOR EACH ROW EXECUTE FUNCTION examcollect.guard_no_delete()`);
   }
 
   public async down(q: QueryRunner): Promise<void> {
+    await q.query(`DROP TRIGGER "trg_auto_rule_breaker_no_delete" ON "examcollect"."auto_rule_breaker"`);
+    await q.query(`DROP TRIGGER "trg_auto_rule_breaker_reset_once" ON "examcollect"."auto_rule_breaker"`);
+    await q.query(`DROP FUNCTION examcollect.guard_auto_rule_breaker_reset_once()`);
     for (const table of ['auto_rule_breaker', 'audit_no_error_label', 'audit_rule_label']) {
       await q.query(`DROP TABLE "examcollect"."${table}"`);
     }
