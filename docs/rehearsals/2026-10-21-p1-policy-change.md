@@ -15,7 +15,7 @@ Task 11 của plan `2026-10-21-cham-diem-duyet-nhanh-p1`. Ghi lại lượt ch�
 
 E2E chạy trên stack cô lập (Postgres 5463, Redis 6393, MinIO 9013), 75/75 migration đã áp, gồm 5 migration P1. Không dùng DB dùng chung 5442/5443 và không đụng Supabase.
 
-Bộ web (apps/web) không thuộc Task 11, nhưng được chạy để kiểm các file đã đổi: các file của Task 14 pass; còn 3 file ngoài phạm vi (`exam-authoring/page.test.tsx`, `rules/page.test.tsx`) đỏ. Hai file này không import module nào đã đổi, nhưng CHƯA kiểm ở commit gốc, nên chưa khẳng định được chúng đỏ sẵn từ trước.
+Bộ web (apps/web) không thuộc Task 11, nhưng được chạy để kiểm các file đã đổi: các file của Task 14 pass. Hai file ngoài phạm vi, `exam-authoring/page.test.tsx` và `rules/page.test.tsx`, có 8 test đỏ. ĐÃ KIỂM ở commit gốc `bdde467` (worktree tạm, cùng 8 test đỏ): đỏ sẵn từ trước P1, không do thay đổi của nhánh.
 
 ## 2. Kỳ vọng test đã đổi
 
