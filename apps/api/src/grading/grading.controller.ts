@@ -43,6 +43,8 @@ import { ErrorExceptionService } from './review/error-exception.service';
 import { ScoreService } from './scoring/score.service';
 import { loadResultDetail } from './scoring/result-detail';
 import { AutoBreakerService } from './auto-breaker/auto-breaker.service';
+import { ReviewGroupService } from './review-group/review-group.service';
+import type { ReviewGroup } from './review-group/review-group.types';
 
 /**
  * The grading side of the API.
@@ -70,6 +72,7 @@ export class GradingController {
     private readonly summaries: GradingSummaryService,
     private readonly problems: ProblemService,
     private readonly autoBreakers: AutoBreakerService,
+    private readonly reviewGroups: ReviewGroupService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -438,6 +441,16 @@ export class GradingController {
   async listResults(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
     return this.grading.listForSession(session.id);
+  }
+
+  /**
+   * Bài bị gắn cờ của phiên, gom theo lỗi của lượt tính mới nhất (spec 2026-10-21 §5.4): nhóm một luật, `multi`,
+   * `none`. Chỉ đọc. Kiểm sở hữu bằng `findEntityForOwner` như mọi route `exam-sessions/:id/*` (trong service).
+   */
+  @Get('exam-sessions/:id/review-groups')
+  @Roles('teacher')
+  listReviewGroups(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request): Promise<ReviewGroup[]> {
+    return this.reviewGroups.listGroups(id, req.user!.sub);
   }
 
   /** Một dòng mỗi sinh viên (P1b Task 9): tổng và chip theo câu. Route `grading-results` cũ vẫn giữ nguyên. */
