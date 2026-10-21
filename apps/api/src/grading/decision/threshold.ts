@@ -42,13 +42,16 @@ export function readAutoBlockedRules(env: NodeJS.ProcessEnv): { keys: ReadonlySe
 }
 
 /**
- * Tự chốt bài không lỗi có bật không (§5.2). Chỉ nhận đúng `true`/`false` (sau khi bỏ khoảng trắng). Không đặt /
- * rỗng → `true` (hành vi hôm nay). Giá trị khác → `true` KÈM cảnh báo, như `readAutoThreshold`.
+ * Tự chốt bài không lỗi có bật không (§5.2). Chỉ nhận đúng `true`/`false` (sau khi bỏ khoảng trắng). Không đặt →
+ * `true` (hành vi hôm nay), không cảnh báo. Đặt mà rỗng, toàn khoảng trắng hay vô nghĩa → `true` KÈM cảnh báo, như
+ * `readAutoThreshold`: đây là công tắc khẩn cấp, `true` là giá trị dễ dãi, nên một biến đặt rỗng không được lặng lẽ
+ * giấu một lần cấu hình hỏng.
  */
 export function readAutoNoError(env: NodeJS.ProcessEnv): { enabled: boolean; warning: string | null } {
   const raw = env[NO_ERROR_KEY];
-  const value = raw?.trim() ?? '';
-  if (value === '' || value === 'true') return { enabled: true, warning: null };
+  if (raw === undefined) return { enabled: true, warning: null };
+  const value = raw.trim();
+  if (value === 'true') return { enabled: true, warning: null };
   if (value === 'false') return { enabled: false, warning: null };
   return {
     enabled: true,

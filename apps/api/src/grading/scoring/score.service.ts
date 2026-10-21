@@ -93,7 +93,7 @@ export class ScoreService {
   private readonly sampling = readAuditSampling(process.env);
   /**
    * Cờ tự chốt từ env (§5.2) — đọc lúc khởi tạo như `theta`, không đọc lại mỗi lượt tính. Công tắc khẩn cấp áp cho
-   * mọi giảng viên; cầu dao DB của từng giảng viên (Task 5A) hợp thêm vào đúng chỗ truyền ở `compute()`.
+   * mọi giảng viên; cầu dao DB của từng giảng viên (§5.3) hợp thêm vào đúng chỗ truyền ở `compute()`.
    */
   private readonly autoBlocked = readAutoBlockedRules(process.env);
   private readonly autoNoError = readAutoNoError(process.env);

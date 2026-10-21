@@ -73,9 +73,17 @@ describe('readAutoNoError — GRADING_AUTO_NO_ERROR (§5.2)', () => {
     expect(readAutoNoError({ GRADING_AUTO_NO_ERROR: ' false ' })).toEqual({ enabled: false, warning: null });
   });
 
-  it('chuỗi rỗng hay toàn khoảng trắng = không đặt → true, không cảnh báo', () => {
-    expect(readAutoNoError({ GRADING_AUTO_NO_ERROR: '' })).toEqual({ enabled: true, warning: null });
-    expect(readAutoNoError({ GRADING_AUTO_NO_ERROR: '  ' })).toEqual({ enabled: true, warning: null });
+  it('không đặt (undefined) → true, KHÔNG cảnh báo', () => {
+    expect(readAutoNoError({})).toEqual({ enabled: true, warning: null });
+  });
+
+  it('đặt mà rỗng hay toàn khoảng trắng → true KÈM cảnh báo: công tắc khẩn cấp không được lặng lẽ rơi về giá trị dễ dãi', () => {
+    for (const raw of ['', '   ']) {
+      const r = readAutoNoError({ GRADING_AUTO_NO_ERROR: raw });
+      expect(r.enabled).toBe(true);
+      expect(r.warning).not.toBeNull();
+      expect(r.warning).toMatch(/GRADING_AUTO_NO_ERROR/);
+    }
   });
 
   it('chỉ đúng "true"/"false" (phân biệt hoa thường): "FALSE", "0", "no" → true KÈM cảnh báo nêu tên biến', () => {
