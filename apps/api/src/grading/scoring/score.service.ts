@@ -5,7 +5,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { AuditLogService } from '../../admin/audit-log.service';
 import { isNoErrorBreakerOpen, loadOpenBreakerRuleKeys } from '../auto-breaker/breaker-queries';
 import { readAutoBlockedRules, readAutoNoError, readAutoThreshold } from '../decision/threshold';
-import { drawnForStudentAudit, readAuditSampling } from '../audit-sampling';
+import { drawnForStudentAudit, ensureSessionMinimum, readAuditMinPerSession, readAuditSampling } from '../audit-sampling';
 import { GradingResultEntity } from '../entities/grading-result.entity';
 import type { ScoreComputationReason } from '../grading-model.types';
 import { advanceStatus } from '../lifecycle/advance';
@@ -92,6 +92,7 @@ export class ScoreService {
   private readonly theta = readAutoThreshold(process.env).theta;
   /** Tỉ lệ kiểm mẫu — đọc lúc khởi tạo như `theta`. Tên khác `audit`: field đó là `AuditLogService`. */
   private readonly sampling = readAuditSampling(process.env);
+  private readonly auditMinPerSession = readAuditMinPerSession(process.env);
   /**
    * Cờ tự chốt từ env (§5.2) — đọc lúc khởi tạo như `theta`, không đọc lại mỗi lượt tính. Công tắc khẩn cấp áp cho
    * mọi giảng viên; cầu dao DB của từng giảng viên (§5.3) hợp thêm vào đúng chỗ truyền ở `compute()`.
@@ -298,6 +299,9 @@ export class ScoreService {
         auditSampledAt: new Date(),
       });
     }
+
+    // §5.6 — số mẫu tối thiểu theo phiên: chỉ có nghĩa khi không còn bài nào của phiên đang chấm.
+    await this.topUpSessionAudit(m, ctx);
 
     return { outcome, computationId, scoreHundredths: out.scoreHundredths };
   }
@@ -605,6 +609,44 @@ export class ScoreService {
       ],
     );
     return row.id as string;
+  }
+
+  /**
+   * Số mẫu tối thiểu theo phiên (spec §5.6). Khi không còn bài nào của phiên ở `ai_grading`/`ai_graded`, bảo đảm có đủ
+   * sinh viên có bài trong mẫu kiểm. Chỉ bổ sung các bài `auto_approved`, và rút theo sinh viên (P1b): mọi bài của một
+   * sinh viên được bổ sung cùng nhau. Dưới khoá theo giảng viên của transaction này.
+   */
+  private async topUpSessionAudit(m: EntityManager, ctx: ScoreContext): Promise<void> {
+    if (!this.sampling.enabled || this.auditMinPerSession === 0) return;
+    await lockTeacherScoring(m, ctx.teacherId);
+    const [busy] = await m.query(
+      `SELECT COUNT(*)::int AS n
+         FROM examcollect.grading_result g
+         JOIN examcollect.submission s ON s.id = g.submission_id
+        WHERE s.exam_session_id = $1 AND g.status IN ('ai_grading', 'ai_graded')`,
+      [ctx.sessionId],
+    );
+    if (Number(busy.n) > 0) return;
+    // `audit_pending` cũng đếm: bài vừa rút ở chính lượt này đã sang đó, và sinh viên của nó phải được tính là đã có mẫu.
+    const rows: { result_id: string; mssv: string; status: string; audit_sampled: boolean }[] = await m.query(
+      `SELECT g.id AS result_id, s.student_mssv AS mssv, g.status AS status, g.audit_sampled AS audit_sampled
+         FROM examcollect.grading_result g
+         JOIN examcollect.submission s ON s.id = g.submission_id
+        WHERE s.exam_session_id = $1 AND g.status IN ('auto_approved', 'audit_pending')`,
+      [ctx.sessionId],
+    );
+    const students = rows.map((r) => r.mssv);
+    const sampled = rows.filter((r) => r.audit_sampled).map((r) => r.mssv);
+    const sampledLower = new Set(sampled.map((x) => x.toLowerCase()));
+    const wanted = new Set(ensureSessionMinimum(sampled, students, this.auditMinPerSession).map((x) => x.toLowerCase()));
+    for (const row of rows) {
+      const key = row.mssv.toLowerCase();
+      if (row.status !== 'auto_approved' || sampledLower.has(key) || !wanted.has(key)) continue;
+      await advanceStatus(m, row.result_id, ['auto_approved'], 'audit_pending', {
+        auditSampled: true,
+        auditSampledAt: new Date(),
+      });
+    }
   }
 
   /**

@@ -101,11 +101,15 @@ describe('Rút mẫu ở quyết định đầu tiên — 100 % (e2e)', () => {
 describe('Rút mẫu phụ thuộc seed và id, không phụ thuộc gì khác — 5 % (e2e)', () => {
   let ctxApp: Awaited<ReturnType<typeof boot>>;
   beforeAll(async () => {
+    // Ràng buộc số mẫu tối thiểu theo phiên (spec §5.6) được đo riêng. Mỗi kịch bản ở đây chỉ có MỘT sinh viên, nên
+    // `min(min, students)` = 1 buộc sinh viên đó vào mẫu và sẽ che mất đúng thuộc tính đang đo ("rút theo seed").
+    process.env.AUDIT_MIN_PER_SESSION = '0';
     ctxApp = await boot('5');
   }, 60_000);
   afterAll(async () => {
     await ctxApp.app.close();
     ctxApp.restore();
+    delete process.env.AUDIT_MIN_PER_SESSION;
   });
 
   /**
