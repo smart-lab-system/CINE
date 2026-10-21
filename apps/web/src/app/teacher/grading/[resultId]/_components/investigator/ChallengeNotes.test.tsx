@@ -11,7 +11,7 @@ describe('ChallengeNotes', () => {
 
   it('có ghi chú nghi ngờ → hiện tên góc kiểm (tên đọc được) và nội dung, đánh dấu rõ là NGHI NGỜ', () => {
     render(<ChallengeNotes notes={[{ lens: 'gian_lan', suspected: true, note: 'đổi input vẫn ra cùng kết quả' }]} />);
-    expect(screen.getByText('Gian lận')).toBeInTheDocument();
+    expect(screen.getByText('Có dấu hiệu gian lận không?')).toBeInTheDocument();
     expect(screen.getByText(/đổi input vẫn ra cùng kết quả/)).toBeInTheDocument();
     expect(screen.getByText(/góc kiểm phản biện nghi ngờ/i)).toBeInTheDocument();
   });

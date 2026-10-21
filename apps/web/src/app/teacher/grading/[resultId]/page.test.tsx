@@ -44,6 +44,12 @@ vi.mock('@/hooks/useGrading', () => ({
   useSetErrorException: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
 
+// "Quyết định của bạn" đọc nhóm duyệt nhanh và gọi xác nhận — không phải thứ trang này kiểm, nên mock rỗng.
+vi.mock('@/hooks/useReviewGroups', () => ({
+  useMarkResultOpened: () => ({ mutate: vi.fn() }),
+  useReviewGroups: () => ({ data: [], isSuccess: true }),
+  useConfirmReviewGroup: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null, data: undefined }),
+}));
 vi.mock('@/hooks/useSubmissionOverview', () => ({
   useSessionOverview: () => ({
     data: [{ id: 'e1', name: 'Cuối kỳ', rubricId: 'rub-1', rubricVersion: 3 }],
@@ -370,7 +376,7 @@ describe('GradingDetailPage', () => {
       breakdown: {
         errors: [
           {
-            ruleId: 'rule-1', ruleKey: 'sai_bien', ruleName: 'Sai biên', criterionKey: 'c1',
+            ruleId: 'rule-1', ruleKey: 'sai_bien', ruleName: 'Sai biên', ruleDescription: null, predicate: null, agreement: { n: 0, disagreements: 0, paused: false }, criterionKey: 'c1',
             source: 'deterministic', toolCallIds: [], deductionHundredths: 150, counted: 'counted',
           },
         ],
@@ -379,7 +385,7 @@ describe('GradingDetailPage', () => {
       },
       investigation: { kind: 'verdict', summary: 's', flags: [], verdict: { errors: [] }, replay: null, investigation: { toolCalls: [] } },
       challengeNotes: [],
-      challengeVerdicts: [],
+      challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null,
     };
     await page();
 

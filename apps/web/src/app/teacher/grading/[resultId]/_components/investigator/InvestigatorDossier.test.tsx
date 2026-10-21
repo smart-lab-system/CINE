@@ -21,6 +21,11 @@ vi.mock('@/hooks/useGrading', () => ({
   useSetErrorException: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
 vi.mock('@/hooks/useSubmissionOverview', () => ({ useSessionOverview: () => overviewMock() }));
+// "Quyết định của bạn" đọc nhóm duyệt nhanh và gọi xác nhận — không phải thứ bài này kiểm, nên mock rỗng.
+vi.mock('@/hooks/useReviewGroups', () => ({
+  useReviewGroups: () => ({ data: [], isSuccess: true }),
+  useConfirmReviewGroup: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null, data: undefined }),
+}));
 vi.mock('@/app/teacher/grading/_components/RegradeButton', () => ({
   RegradeButton: ({ scope, label }: { scope: unknown; label: string }) => (
     <button type="button" data-scope={JSON.stringify(scope)}>
@@ -41,7 +46,7 @@ describe('InvestigatorDossier', () => {
   it('shows a neutral loading state while the result is still grading (Review Focus #4) — never crashes on a null breakdown', () => {
     resultsMock = () => ({ data: [{ ...baseResult, status: 'ai_grading' }], isLoading: false, isError: false });
     detailMock = () => ({
-      data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'ai_grading', ungradableClass: null, ungradableReason: null, breakdown: null, investigation: null, challengeNotes: [], challengeVerdicts: [] },
+      data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'ai_grading', ungradableClass: null, ungradableReason: null, breakdown: null, investigation: null, challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null },
       isLoading: false,
     });
     render(<InvestigatorDossier resultId="r1" sessionId="s1" />);
@@ -51,7 +56,7 @@ describe('InvestigatorDossier', () => {
   it('renders the Ungradable view when ungradableClass is set', () => {
     resultsMock = () => ({ data: [{ ...baseResult, ungradableReason: 'x' }], isLoading: false, isError: false });
     detailMock = () => ({
-      data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'flagged_for_review', ungradableClass: 'system', ungradableReason: 'x', breakdown: null, investigation: { summary: 's', investigation: { toolCalls: [] } }, challengeNotes: [], challengeVerdicts: [] },
+      data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'flagged_for_review', ungradableClass: 'system', ungradableReason: 'x', breakdown: null, investigation: { summary: 's', investigation: { toolCalls: [] } }, challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null },
       isLoading: false,
     });
     render(<InvestigatorDossier resultId="r1" sessionId="s1" />);
@@ -70,7 +75,7 @@ describe('InvestigatorDossier', () => {
       isError: false,
     });
     detailMock = () => ({
-      data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'flagged_for_review', ungradableClass: 'system', ungradableReason: 'x', breakdown: null, investigation: { summary: 's', investigation: { toolCalls: [] } }, challengeNotes: [], challengeVerdicts: [] },
+      data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'flagged_for_review', ungradableClass: 'system', ungradableReason: 'x', breakdown: null, investigation: { summary: 's', investigation: { toolCalls: [] } }, challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null },
       isLoading: false,
     });
     render(<InvestigatorDossier resultId="r1" sessionId="s1" />);
@@ -87,12 +92,12 @@ describe('InvestigatorDossier', () => {
         pipeline: 'investigator', currentScore: 6, currentScoreSource: 'computation', status: 'flagged_for_review',
         ungradableClass: null, ungradableReason: null,
         breakdown: {
-          errors: [{ ruleId: 'rule-1', ruleKey: 'sai_bien', ruleName: 'Sai biên', criterionKey: 'tinh_dung', source: 'deterministic', toolCallIds: [], deductionHundredths: 150, counted: 'counted' }],
+          errors: [{ ruleId: 'rule-1', ruleKey: 'sai_bien', ruleName: 'Sai biên', criterionKey: 'tinh_dung', source: 'deterministic', toolCallIds: [], deductionHundredths: 150, counted: 'counted', agreement: { n: 0, disagreements: 0, paused: false } }],
           perCriterion: [{ key: 'tinh_dung', maxHundredths: 1000, deductedHundredths: 150, capped: false }],
           caseFlags: [], errorFlags: [], confidence: 0.9, mismatchedRules: [], notConsidered: [], ungradable: null,
         },
         investigation: { summary: 'x', verdict: { errors: [] }, replay: null, investigation: { toolCalls: [] } },
-        challengeNotes: [], challengeVerdicts: [],
+        challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null,
       },
       isLoading: false,
     });
@@ -113,7 +118,7 @@ describe('InvestigatorDossier', () => {
           caseFlags: [], errorFlags: [], confidence: 1, mismatchedRules: [], notConsidered: [], ungradable: null,
         },
         investigation: { summary: 'x', verdict: { errors: [] }, replay: null, investigation: { toolCalls: [] } },
-        challengeNotes: [], challengeVerdicts: [],
+        challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null,
       },
       isLoading: false,
     });
@@ -123,7 +128,7 @@ describe('InvestigatorDossier', () => {
 
     resultsMock = () => ({ data: [{ ...baseResult, ungradableReason: 'x' }], isLoading: false, isError: false });
     detailMock = () => ({
-      data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'flagged_for_review', ungradableClass: 'system', ungradableReason: 'x', breakdown: null, investigation: { summary: 's', investigation: { toolCalls: [] } }, challengeNotes: [], challengeVerdicts: [] },
+      data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'flagged_for_review', ungradableClass: 'system', ungradableReason: 'x', breakdown: null, investigation: { summary: 's', investigation: { toolCalls: [] } }, challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null },
       isLoading: false,
     });
     render(<InvestigatorDossier resultId="r1" sessionId="s1" />);
@@ -142,7 +147,7 @@ describe('InvestigatorDossier', () => {
         },
         investigation: { summary: 'x', verdict: { errors: [] }, replay: null, investigation: { toolCalls: [] } },
         challengeNotes: [{ lens: 'gian_lan', suspected: false, note: 'đã thử 12 input ngoài gói test' }],
-        challengeVerdicts: [],
+        challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null,
       },
       isLoading: false,
     });
@@ -171,7 +176,7 @@ describe('InvestigatorDossier', () => {
         ungradableClass: 'submission', ungradableReason: 'Bài nộp là file rỗng',
         breakdown: null,
         investigation: { summary: 's', investigation: { toolCalls: [] } },
-        challengeNotes: [], challengeVerdicts: [],
+        challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null,
       },
       isLoading: false, isError: false, error: null,
     };
@@ -210,7 +215,7 @@ describe('InvestigatorDossier', () => {
         pipeline: 'investigator', currentScore: 6, currentScoreSource: 'computation', status: 'flagged_for_review',
         ungradableClass: null, ungradableReason: null,
         breakdown: { errors: [], perCriterion: [], caseFlags: [], errorFlags: [], confidence: 1, mismatchedRules: [], notConsidered: [], ungradable: null },
-        investigation: null, challengeNotes: [], challengeVerdicts: [],
+        investigation: null, challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null,
       },
       isLoading: false, isError: false, error: null,
     };
@@ -261,7 +266,7 @@ describe('InvestigatorDossier', () => {
           ungradable: { class: 'submission', reason: 'Tiêu chí "hieu_nang" chưa có luật nào — không tự quyết được.' },
         },
         investigation: { summary: 's', verdict: { errors: [] }, replay: null, investigation: { toolCalls: [] } },
-        challengeNotes: [], challengeVerdicts: [],
+        challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null,
       },
       isLoading: false,
     });

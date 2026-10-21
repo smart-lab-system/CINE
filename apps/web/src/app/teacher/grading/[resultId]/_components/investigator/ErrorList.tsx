@@ -5,10 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useSetErrorException } from '@/hooks/useGrading';
-import { SOURCE_LABEL, VERDICT_LABEL, lensLabel, mergedVerdict } from '@/lib/grading-vocab';
+import { SOURCE_LABEL } from '@/lib/grading-vocab';
 import { formatVnPoints } from '@/lib/format';
-import type { ResultDetailError, ChallengeVerdict } from '@/lib/api/grading';
+import type { ResultDetailError, ChallengeVerdict, StructuredRunTests, ToolCallView } from '@/lib/api/grading';
 import { RULES_PATH } from '@/lib/rules-links';
+import { ErrorEvidence } from './ErrorEvidence';
+import { percentOf } from './ConfidenceBreakdown';
 
 /** Trạng thái mà một lỗi vẫn sửa được (§4.3 EDITABLE, review/error-exception.service.ts). */
 const EDITABLE = new Set(['auto_approved', 'flagged_for_review', 'teacher_reviewed']);
@@ -21,6 +23,8 @@ export function ErrorList({
   errorFlags,
   verdicts,
   investigationNotes,
+  toolCalls = [],
+  structuredResults,
   rulesHref = RULES_PATH,
 }: {
   resultId: string;
@@ -30,10 +34,15 @@ export function ErrorList({
   errorFlags: { ruleKey: string; code: string }[];
   verdicts: ChallengeVerdict[];
   investigationNotes: { ruleKey: string; toolCallIds: string[]; note: string | null }[];
+  /** Đường điều tra; rỗng khi bài không có điều tra (bằng chứng chỉ hiện khi có). */
+  toolCalls?: ToolCallView[];
+  structuredResults?: Record<string, { kind: string } | StructuredRunTests>;
   rulesHref?: string;
 }) {
   const setException = useSetErrorException(sessionId);
   const editable = EDITABLE.has(status);
+  // "Vì sao bị trừ điểm" mở sẵn khi bài đang chờ giảng viên xem; ở trạng thái khác thì đóng, bấm mới mở (§5.8).
+  const flagged = status === 'flagged_for_review';
 
   const verdictsByRule = new Map<string, ChallengeVerdict[]>();
   for (const v of verdicts) verdictsByRule.set(v.ruleKey, [...(verdictsByRule.get(v.ruleKey) ?? []), v]);
@@ -61,14 +70,13 @@ export function ErrorList({
         {errors.map((error) => {
           const source = SOURCE_LABEL[error.source];
           const rowVerdicts = verdictsByRule.get(error.ruleKey) ?? [];
-          const merged = rowVerdicts.length > 0 ? mergedVerdict(rowVerdicts.map((v) => v.status)) : null;
           const refuted = error.counted === 'refuted';
           const excluded = error.counted === 'excluded';
           const unpriced = error.counted === 'unpriced';
           const notCounted = refuted || excluded;
           const busy = setException.isPending;
           const unverified = unverifiedByRule.has(error.ruleKey);
-          const note = investigationNotes.find((n) => n.ruleKey === error.ruleKey)?.note;
+          const note = investigationNotes.find((n) => n.ruleKey === error.ruleKey)?.note ?? null;
 
           return (
             <li
@@ -81,6 +89,7 @@ export function ErrorList({
                   {error.ruleName} · {error.criterionKey}
                 </span>
                 <Badge variant={source.variant}>{source.label}</Badge>
+                <span className="text-caption text-muted-foreground">Chắc chắn {percentOf(source.certaintyPercent / 100)}</span>
                 {unpriced && <Badge variant="warning">Chờ giá — chưa trừ</Badge>}
                 {unverified && !notCounted && (
                   <Badge variant="warning">Chưa xác minh — vẫn bị trừ, nhưng bài không được tự duyệt</Badge>
@@ -91,20 +100,18 @@ export function ErrorList({
                 </span>
               </div>
 
-              {note && <p className="text-small text-muted-foreground">{note}</p>}
-
-              {merged && (
-                <div className={`flex flex-col gap-1 rounded-md p-2 ${VERDICT_LABEL[merged].tintClass}`}>
-                  {rowVerdicts.map((v) => (
-                    <p key={v.lens} className="text-small">
-                      <span className="font-semibold">
-                        {lensLabel(v.lens)}: {VERDICT_LABEL[v.status].label}
-                      </span>
-                      {v.reason && <span className="text-muted-foreground"> — {v.reason}</span>}
-                    </p>
-                  ))}
+              <details open={flagged} className="group">
+                <summary className="cursor-pointer text-small font-medium text-accent-strong">Vì sao bị trừ điểm</summary>
+                <div className="mt-2">
+                  <ErrorEvidence
+                    error={error}
+                    toolCalls={toolCalls}
+                    structuredResults={structuredResults}
+                    verdicts={rowVerdicts}
+                    note={note}
+                  />
                 </div>
-              )}
+              </details>
 
               {editable && (
                 <div className="flex flex-wrap items-center gap-3 text-small">

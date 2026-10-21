@@ -9,7 +9,7 @@ let mockState = { isPending: false, isError: false, error: null as Error | null 
 vi.mock('@/hooks/useGrading', () => ({ useSetErrorException: () => ({ mutate, ...mockState }) }));
 
 const baseError = {
-  ruleId: 'rule-1', ruleKey: 'sai_bien', ruleName: 'Sai biên', criterionKey: 'tinh_dung',
+  ruleId: 'rule-1', ruleKey: 'sai_bien', ruleName: 'Sai biên', ruleDescription: null, predicate: null, agreement: { n: 0, disagreements: 0, paused: false }, criterionKey: 'tinh_dung',
   source: 'deterministic' as const, toolCallIds: ['tc-1'], deductionHundredths: 150, counted: 'counted' as const,
 };
 
@@ -22,7 +22,7 @@ describe('ErrorList', () => {
         errorFlags={[]} verdicts={[]} investigationNotes={[]}
       />,
     );
-    expect(screen.getByText('Mô hình + công cụ')).toBeInTheDocument();
+    expect(screen.getByText('Đọc code + chạy thử')).toBeInTheDocument();
     expect(screen.queryByText(/Model \+ công cụ/)).not.toBeInTheDocument();
   });
 
@@ -72,7 +72,7 @@ describe('ErrorList', () => {
         resultId="r1" sessionId="s1" status="flagged_for_review"
         errors={[{ ...baseError, counted: 'refuted', deductionHundredths: 150 }]}
         errorFlags={[]}
-        verdicts={[{ lens: 'qua_tay', ruleKey: 'sai_bien', status: 'refuted', reason: 'Khung mã của đề đặt sẵn tên biến.' }]}
+        verdicts={[{ lens: 'qua_tay', ruleKey: 'sai_bien', status: 'refuted', reason: 'Khung mã của đề đặt sẵn tên biến.', toolCallIds: [] }]}
         investigationNotes={[]}
       />,
     );
@@ -90,7 +90,7 @@ describe('ErrorList', () => {
           resultId="r1" sessionId="s1" status="flagged_for_review"
           errors={[{ ...baseError, counted: 'refuted', deductionHundredths: 150 }]}
           errorFlags={[]}
-          verdicts={[{ lens: 'qua_tay', ruleKey: 'sai_bien', status: 'refuted', reason: 'Khung mã của đề đặt sẵn tên biến.' }]}
+          verdicts={[{ lens: 'qua_tay', ruleKey: 'sai_bien', status: 'refuted', reason: 'Khung mã của đề đặt sẵn tên biến.', toolCallIds: [] }]}
           investigationNotes={[]}
         />,
       );
@@ -185,15 +185,15 @@ describe('ErrorList', () => {
         errors={[baseError]}
         errorFlags={[]}
         verdicts={[
-          { lens: 'tinh_dung', ruleKey: 'sai_bien', status: 'confirmed', reason: null },
-          { lens: 'qua_tay', ruleKey: 'sai_bien', status: 'unverified', reason: 'Hết ngân sách trước khi đo lại được.' },
+          { lens: 'tinh_dung', ruleKey: 'sai_bien', status: 'confirmed', reason: null, toolCallIds: [] },
+          { lens: 'qua_tay', ruleKey: 'sai_bien', status: 'unverified', reason: 'Hết ngân sách trước khi đo lại được.', toolCallIds: [] },
         ]}
         investigationNotes={[]}
       />,
     );
-    expect(screen.getByText(/Tính đúng/)).toBeInTheDocument();
-    expect(screen.getByText(/Quá tay/)).toBeInTheDocument();
-    expect(screen.getByText(/Chưa kiểm được/)).toBeInTheDocument();
+    expect(screen.getByText(/Lỗi có thật không/)).toBeInTheDocument();
+    expect(screen.getByText(/Trừ vậy có nặng quá không/)).toBeInTheDocument();
+    expect(screen.getByText(/Chưa kiểm tra lại được/)).toBeInTheDocument();
     expect(screen.getByText(/Xác nhận/)).toBeInTheDocument();
     expect(screen.queryByText(/lăng kính/i)).not.toBeInTheDocument(); // spec §2.2 fix #4: never say "lăng kính"
   });
@@ -205,13 +205,13 @@ describe('ErrorList', () => {
       <ErrorList
         resultId="r1" sessionId="s1" status="flagged_for_review" errors={[baseError]} errorFlags={[]}
         verdicts={[
-          { lens: 'tinh_dung', ruleKey: 'sai_bien', status: 'confirmed', reason: null },
-          { lens: 'qua_tay', ruleKey: 'sai_bien', status: 'unverified', reason: 'Hết ngân sách.' },
+          { lens: 'tinh_dung', ruleKey: 'sai_bien', status: 'confirmed', reason: null, toolCallIds: [] },
+          { lens: 'qua_tay', ruleKey: 'sai_bien', status: 'unverified', reason: 'Hết ngân sách.', toolCallIds: [] },
         ]}
         investigationNotes={[]}
       />,
     );
-    expect(screen.getByText(/Tính đúng/).closest('div')).toHaveClass('bg-success-subtle');
+    expect(screen.getByText(/Lỗi có thật không/).closest('div')).toHaveClass('bg-success-subtle');
   });
 
   it('tints a row red as soon as any lens refutes it', () => {
@@ -219,13 +219,13 @@ describe('ErrorList', () => {
       <ErrorList
         resultId="r1" sessionId="s1" status="flagged_for_review" errors={[baseError]} errorFlags={[]}
         verdicts={[
-          { lens: 'tinh_dung', ruleKey: 'sai_bien', status: 'confirmed', reason: null },
-          { lens: 'qua_tay', ruleKey: 'sai_bien', status: 'refuted', reason: 'Đề đặt sẵn.' },
+          { lens: 'tinh_dung', ruleKey: 'sai_bien', status: 'confirmed', reason: null, toolCallIds: [] },
+          { lens: 'qua_tay', ruleKey: 'sai_bien', status: 'refuted', reason: 'Đề đặt sẵn.', toolCallIds: [] },
         ]}
         investigationNotes={[]}
       />,
     );
-    expect(screen.getByText(/Quá tay/).closest('div')).toHaveClass('bg-danger-subtle');
+    expect(screen.getByText(/Trừ vậy có nặng quá không/).closest('div')).toHaveClass('bg-danger-subtle');
   });
 
   // Lost from the old investigation page (review section 7, item 4): what "unverified" MEANS for the score.
@@ -234,7 +234,7 @@ describe('ErrorList', () => {
       <ErrorList
         resultId="r1" sessionId="s1" status="flagged_for_review" errors={[baseError]}
         errorFlags={[{ ruleKey: 'sai_bien', code: 'unverified' }]}
-        verdicts={[{ lens: 'qua_tay', ruleKey: 'sai_bien', status: 'unverified', reason: 'Hết ngân sách.' }]}
+        verdicts={[{ lens: 'qua_tay', ruleKey: 'sai_bien', status: 'unverified', reason: 'Hết ngân sách.', toolCallIds: [] }]}
         investigationNotes={[]}
       />,
     );

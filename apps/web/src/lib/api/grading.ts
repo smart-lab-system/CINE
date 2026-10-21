@@ -530,16 +530,76 @@ export async function bulkReview(
   return data as unknown as BulkReviewOutcome;
 }
 
+/** Mirrors RulePredicate (apps/api/src/grading/decision/types.ts). `null` ở chỗ dùng = luật bằng lời. */
+export type RulePredicate =
+  | { kind: 'test_group_failed'; group: string }
+  | { kind: 'calls_function'; name: string }
+  | { kind: 'complexity_exceeds_required' }
+  | { kind: 'no_recursion'; functionName?: string };
+
+/** Mirrors Agreement (apps/api/src/grading/scoring/result-detail.ts) — độ khớp với giảng viên, §5.8b. */
+export interface Agreement {
+  n: number;
+  disagreements: number;
+  paused: boolean;
+}
+
+/** Mirrors ConfidenceTerm (apps/api/src/grading/decision/confidence.ts) — một dòng của bảng đóng góp, §5.8. */
+export interface ConfidenceTerm {
+  ruleKey: string;
+  source: 'deterministic' | 'llm_with_tools' | 'llm_only';
+  cap: number;
+  deductionHundredths: number;
+}
+
 /** Mirrors ResultDetailError (apps/api/src/grading/scoring/result-detail.ts). */
 export interface ResultDetailError {
   ruleId: string;
   ruleKey: string;
   ruleName: string;
+  ruleDescription: string | null;
+  predicate: RulePredicate | null;
   criterionKey: string;
   source: 'deterministic' | 'llm_with_tools' | 'llm_only';
   toolCallIds: string[];
   deductionHundredths: number | null;
   counted: 'counted' | 'excluded' | 'unpriced' | 'refuted';
+  agreement: Agreement;
+}
+
+/** Mirrors TestBundleView (apps/api/src/grading/scoring/test-bundle-view.ts) — gói test của bài, §5.8c. */
+export interface TestBundleCase {
+  caseKey: string;
+  status: 'pass' | 'fail' | 'timeout' | 'error' | 'not_run';
+  ms: number | null;
+  constraintQuote: string | null;
+  input: string;
+  expectedOutput: string;
+  diff: string | null;
+}
+
+export interface TestBundleView {
+  id: string;
+  version: number;
+  origin: 'teacher' | 'from_model_answer' | 'generated';
+  filename: string | null;
+  approved: boolean;
+  caseCount: number;
+  droppedCount: number;
+  groups: {
+    group: string;
+    cases: TestBundleCase[];
+    rules: { ruleId: string; ruleKey: string; deductionHundredths: number | null; triggered: boolean }[];
+  }[];
+  unmeasuredRules: { ruleId: string; ruleKey: string; group: string }[];
+  uncoveredFailingCases: string[];
+}
+
+/** Phần có cấu trúc của một lời gọi `run_tests` — chỉ các trường giao diện dùng. */
+export interface StructuredRunTests {
+  kind: 'run_tests';
+  aborted: boolean;
+  cases: { name: string; group: string | null; status: string; diff: string | null; ms: number }[];
 }
 
 /** Mirrors CaseLensNote (apps/api/src/grading/investigator/challenge.ts) — bước 6. */
@@ -555,6 +615,7 @@ export interface ChallengeVerdict {
   ruleKey: string;
   status: 'confirmed' | 'refuted' | 'unverified';
   reason: string | null;
+  toolCallIds: string[];
 }
 
 export interface ToolCallView {
@@ -563,6 +624,8 @@ export interface ToolCallView {
   args: Record<string, unknown>;
   status: string;
   output: string;
+  /** Khoá vào `structuredResults` của hồ sơ; null khi lời gọi không có phần có cấu trúc. */
+  structuredRef: string | null;
   startedAt: string;
   wallMs: number;
   injectionSuspected: boolean;
@@ -593,12 +656,22 @@ export interface ResultDetail {
     flags: string[];
     verdict: { errors: { ruleKey: string; toolCallIds: string[]; note: string | null }[] } | null;
     replay: { toolCallId: string; matched: boolean | null } | null;
-    investigation: { toolCalls: ToolCallView[] };
+    investigation: {
+      toolCalls: ToolCallView[];
+      /** Khoá là `ToolCallView.id` (`structuredRef`). Hồ sơ cũ không có phần này. */
+      structuredResults?: Record<string, { kind: string } | StructuredRunTests>;
+    };
   } | null;
   /** Bước 6 — ghi chú của lăng kính Bỏ sót/Gian lận. Rỗng khi chưa bật phản biện hay hồ sơ cũ. */
   challengeNotes: ChallengeNote[];
   /** Bước 6 — kết luận từng lăng kính per-error (Tính đúng, Quá tay), kể cả khi xác nhận. */
   challengeVerdicts: ChallengeVerdict[];
+  /** Bảng đóng góp vào confidence (§5.8). Rỗng khi hồ sơ không lưu trần của model. */
+  confidenceTerms: ConfidenceTerm[];
+  /** Độ khớp với giảng viên trên bài không có lỗi nào (§5.8b). */
+  noErrorAgreement: Agreement;
+  /** Gói test và quy tắc trừ điểm (§5.8c). `null` khi bài không ghim gói test. */
+  testBundle: TestBundleView | null;
 }
 
 /** Chi tiết một lượt tính điểm + đường điều tra — Hồ sơ một bài (§5). */
