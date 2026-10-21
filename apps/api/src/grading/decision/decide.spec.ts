@@ -53,6 +53,16 @@ describe('decide() — MỘT công thức tự quyết (§4.2)', () => {
     expect(d.caseFlags.map((f) => f.code)).toEqual(['low_confidence']);
   });
 
+  it('một lỗi llm_with_tools mức trừ 13 hundredths: confidence 0,85 không bị gắn low_confidence (dung sai θ, 0,85×13/13 = 0,8499999999999999)', () => {
+    // allPass là một run_tests thật (tc-1): lỗi của model dẫn nó làm bằng chứng → llm_with_tools (trần 0,85).
+    const rules: ErrorRule[] = [...RULES.slice(0, 2), { ...RULES[2], deductionHundredths: 13 }];
+    const r = resultWith({ calls: [allPass, read], errors: [{ ruleKey: 'chu_thich_sai', toolCallIds: ['tc-1'] }] });
+    const d = decide(input({ rules, result: r, theta: 0.85 }));
+    expect(d.errors.map((e) => [e.ruleKey, e.source, e.deductionHundredths])).toEqual([['chu_thich_sai', 'llm_with_tools', 13]]);
+    expect(d.caseFlags.map((f) => f.code)).not.toContain('low_confidence');
+    expect(d.outcome).toBe('auto');
+  });
+
   it('T-POL-2 — luật chưa có giá: bài dính nó KHÔNG tự quyết; cờ gắn ĐÚNG lỗi đó, không gắn cả bài', () => {
     const rules = RULES.map((r) => (r.ruleKey === 'sai_ca_co_ban' ? { ...r, deductionHundredths: null } : r));
     const d = decide(input({ rules, result: resultWith({ calls: [failCoBan, read] }) }));

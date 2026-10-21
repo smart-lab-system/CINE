@@ -4,6 +4,7 @@ import { ChallengeConclusion, ChallengeStatus } from '../investigator/challenge'
 import { StopReason } from '../investigator/types';
 import { caseConfidence } from './confidence';
 import { diagnose } from './diagnose';
+import { AUTO_THETA_EPSILON } from './threshold';
 import { CaseFlag, Decision, DecisionInput, ErrorFlag } from './types';
 
 /** Lý do dừng là CẠN NGÂN SÁCH (§7) — nền của T-FLOOR-1. */
@@ -215,7 +216,7 @@ export function decide(input: DecisionInput): Decision {
     }
   }
 
-  if (caseFlags.length === 0 && errorFlags.length === 0 && confidence < input.theta) {
+  if (caseFlags.length === 0 && errorFlags.length === 0 && confidence < input.theta - AUTO_THETA_EPSILON) {
     caseFlags.push({ code: 'low_confidence', detail: `confidence ${confidence.toFixed(2)} < θ ${input.theta}` });
   }
   const auto = caseFlags.length === 0 && errorFlags.length === 0;

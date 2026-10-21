@@ -3,6 +3,15 @@ import { AUTO_APPROVE_CONFIDENCE } from '../grading.types';
 const KEY = 'GRADING_AUTO_THRESHOLD';
 
 /**
+ * Dung sai so sánh `confidence < θ` trong `decide()` (spec §5.1). `caseConfidence` là trung bình có trọng số bằng
+ * số thực nên một lỗi `llm_with_tools` (trần 0,85) mức trừ 13 cho 0,85×13/13 = 0,8499999999999999 — nhỏ hơn θ 0,85 một
+ * ULP dù về mặt toán học bằng nhau. Sai số làm tròn (cỡ 1e-16) nhỏ hơn dung sai nhiều bậc, còn chênh lệch thật giữa hai
+ * confidence khác nhau (mức trừ là số nguyên hundredths) cỡ 1e-5 trở lên với bảng lỗi thực tế (tổng mức trừ vài nghìn hundredths), lớn hơn dung sai nhiều bậc.
+ * Hằng số, không phải cấu hình. Công thức confidence KHÔNG đổi — chỉ phép so sánh.
+ */
+export const AUTO_THETA_EPSILON = 1e-9;
+
+/**
  * θ của công thức tự quyết (§4.2): đọc từ env, mặc định là hằng số hôm nay. Chỉ `decide()` gọi
  * hàm này — không chỗ nào khác của đường chấm mới đọc thẳng hằng số (T-AUTO-1). Env CÓ đặt mà
  * rỗng hay vô nghĩa → mặc định KÈM cảnh báo: im lặng là giấu một lần gõ nhầm.
