@@ -51,5 +51,9 @@ export function blindResultDetail(result: { pipeline: GradingPipeline; status: s
     investigation: null,
     challengeNotes: [],
     challengeVerdicts: [],
+    // Task 13 (E1): mọi trường mới đều rỗng — bài chưa được duyệt không lộ bảng đóng góp, độ khớp hay gói test.
+    confidenceTerms: [],
+    noErrorAgreement: { n: 0, disagreements: 0, paused: false },
+    testBundle: null,
   };
 }

@@ -37,7 +37,7 @@ function reveal(over: Partial<AuditReveal> = {}): AuditReveal {
   };
 }
 function withErrors(errors: Partial<BreakdownError>[]) {
-  return { id: 'c-1', score: '8.50', priceTableVersionId: null, breakdown: { errors } as never };
+  return { id: 'c-1', score: '8.50', priceTableVersionId: null, testBundleId: null, breakdown: { errors } as never };
 }
 
 describe('AutoBreakerService.recordLabelsAndEvaluate', () => {

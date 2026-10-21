@@ -15,6 +15,32 @@ export function capOf(source: VerdictSource, modelCeiling: number): number {
   return source === 'llm_only' ? Math.min(SOURCE_CAP.llm_only, modelCeiling) : SOURCE_CAP[source];
 }
 
+/** Một dòng của bảng đóng góp vào confidence (E1, §5.8): lỗi có giá, nguồn của nó, trần và mức trừ. */
+export interface ConfidenceTerm {
+  ruleKey: string;
+  source: VerdictSource;
+  cap: number;
+  deductionHundredths: number;
+}
+
+/**
+ * Các dòng đóng góp của bài — CÙNG điều kiện với `caseConfidence` (chỉ lỗi có giá và mức trừ dương), nên trung bình
+ * có trọng số của các dòng này đúng bằng confidence đã tính. Hàm thuần: chỉ đọc, không đổi điểm.
+ */
+export function confidenceTerms(
+  errors: Pick<DiagnosedError, 'ruleKey' | 'source' | 'deductionHundredths'>[],
+  modelCeiling: number,
+): ConfidenceTerm[] {
+  return errors
+    .filter((e) => e.deductionHundredths !== null && e.deductionHundredths > 0)
+    .map((e) => ({
+      ruleKey: e.ruleKey,
+      source: e.source,
+      cap: capOf(e.source, modelCeiling),
+      deductionHundredths: e.deductionHundredths as number,
+    }));
+}
+
 /**
  * Trung bình có trọng số theo MỨC TRỪ (§4.2). Không có lỗi nào có giá → trọng số 0: confidence
  * đến từ độ phủ của cuộc điều tra — 1,0 khi mọi điều kiện độ phủ của sàn qua (T-CONF-1). Điều

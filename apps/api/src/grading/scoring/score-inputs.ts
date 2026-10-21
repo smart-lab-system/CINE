@@ -34,14 +34,26 @@ export async function currentPriceVersion(
 export async function latestComputationRow(
   m: EntityManager,
   resultId: string,
-): Promise<{ id: string; score: string | null; priceTableVersionId: string | null; breakdown: ScoreBreakdown } | null> {
+): Promise<{
+  id: string;
+  score: string | null;
+  priceTableVersionId: string | null;
+  testBundleId: string | null;
+  breakdown: ScoreBreakdown;
+} | null> {
   const [row] = await m.query(
-    `SELECT id, score, price_table_version_id, breakdown FROM examcollect.score_computation
+    `SELECT id, score, price_table_version_id, test_bundle_id, breakdown FROM examcollect.score_computation
       WHERE grading_result_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,
     [resultId],
   );
   return row
-    ? { id: row.id, score: row.score, priceTableVersionId: row.price_table_version_id, breakdown: row.breakdown }
+    ? {
+        id: row.id,
+        score: row.score,
+        priceTableVersionId: row.price_table_version_id,
+        testBundleId: row.test_bundle_id ?? null,
+        breakdown: row.breakdown,
+      }
     : null;
 }
 

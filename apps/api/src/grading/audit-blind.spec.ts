@@ -56,6 +56,17 @@ describe('blindResultDetail (T-SAMP-1, dossier side)', () => {
       investigation: null,
       challengeNotes: [],
       challengeVerdicts: [],
+      confidenceTerms: [],
+      noErrorAgreement: { n: 0, disagreements: 0, paused: false },
+      testBundle: null,
     });
+  });
+
+  it('Task 13 — bản mù không lộ bảng đóng góp, độ khớp hay gói test', () => {
+    const detail = blindResultDetail({ pipeline: 'investigator', status: 'audit_pending' });
+    expect(detail.breakdown).toBeNull();
+    expect(detail.confidenceTerms).toEqual([]);
+    expect(detail.noErrorAgreement).toEqual({ n: 0, disagreements: 0, paused: false });
+    expect(detail.testBundle).toBeNull();
   });
 });
