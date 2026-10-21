@@ -7,6 +7,7 @@ import {
   argsFor, FORCE_FINAL_MESSAGE, initialUserMessage, INVESTIGATOR_SYSTEM_PROMPT, MAX_CALLS_PER_ROUND,
   ModelReply, parseReply, renderToolResults, REPLY_JSON_SCHEMA,
 } from './protocol';
+import { verifyEvidence } from './evidence';
 import { renderSummary } from './summary';
 import { programProblem, SandboxPort, ToolRunner } from './tools';
 import {
@@ -261,7 +262,8 @@ export async function investigate(
       if (evidence.length === 0) { rejected.push({ ruleKey: e.ruleKey, reason: 'no_valid_tool_call' }); continue; }
       if (seen.has(e.ruleKey)) continue; // một luật một lần — điểm không trừ hai lần cho cùng luật
       seen.add(e.ruleKey);
-      errors.push({ ...e, toolCallIds: evidence });
+      // E2: đoạn mã được đối chiếu với bài ở đây, không tin lời model. Đoạn không khớp vẫn giữ, chỉ đánh dấu.
+      errors.push({ ...e, toolCallIds: evidence, evidence: verifyEvidence(e.evidence ?? [], ctx.submission.files) });
     }
     accepted = {
       errors,

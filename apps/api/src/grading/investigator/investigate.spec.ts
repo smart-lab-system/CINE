@@ -70,7 +70,7 @@ describe('investigate()', () => {
       ]),
     ]);
     const r = await investigate(CTX, deps([model]), { ...ALL_COMPONENTS, replayCheck: false });
-    expect(r.verdict?.errors).toEqual([{ ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'], note: null }]);
+    expect(r.verdict?.errors).toEqual([{ ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'], note: null, evidence: [] }]);
     expect(r.rejected).toEqual([
       { ruleKey: 'sai_ca_co_ban', reason: 'fabricated_tool_call' },
       { ruleKey: 'chu_thich_sai', reason: 'no_valid_tool_call' },
@@ -386,6 +386,25 @@ describe('investigate()', () => {
     expect(r.flags).toContain('injection_suspected');
     expect(r.injectionSources).toEqual(['submission_pattern']);
     expect(model.requests).toHaveLength(0);
+  });
+
+  it('Task 15 (E2) — đoạn mã dẫn làm bằng chứng được harness đối chiếu với bài: đúng nguyên văn → verified; sai → vẫn giữ, verified false', async () => {
+    const ctx = { ...CTX, submission: { files: [{ path: 'main.cpp', content: 'int f();\n' }] } };
+    const evidence = [
+      { file: 'main.cpp', startLine: 1, endLine: 1, quote: 'int f();' },
+      { file: 'main.cpp', startLine: 9, endLine: 9, quote: 'return 0;' },
+    ];
+    const verdictJson = JSON.stringify({
+      action: 'final',
+      calls: [],
+      verdict: { errors: [{ ruleKey: 'sai_ca_co_ban', toolCallIds: ['tc-1'], note: null, evidence }], missingRules: [], injectionAttempt: { detected: false, excerpt: null } },
+    });
+    const model = scripted('A', [turn(call('run_tests')), verdictJson]);
+    const r = await investigate(ctx, deps([model]), { ...ALL_COMPONENTS, replayCheck: false });
+    expect(r.verdict?.errors[0].evidence).toEqual([
+      { file: 'main.cpp', startLine: 1, endLine: 1, quote: 'int f();', verified: true },
+      { file: 'main.cpp', startLine: 9, endLine: 9, quote: 'return 0;', verified: false },
+    ]);
   });
 
   it('review M4 — tên file bài nộp trượt luật đường dẫn của sandbox → ungradable NGAY, không gọi model, không gửi job', async () => {

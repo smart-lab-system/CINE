@@ -56,10 +56,24 @@ export type StructuredResult =
       host: HostFingerprint | null;
     };
 
+/**
+ * Đoạn mã model dẫn làm bằng chứng cho một lỗi (E2, §5.9). `verified` do HARNESS đặt sau khi đối chiếu với bài nộp
+ * (`verifyEvidence`), không tin lời model; vắng mặt ở đầu ra thô của model.
+ */
+export interface EvidenceClaim {
+  file: string;
+  startLine: number | null;
+  endLine: number | null;
+  quote: string;
+  verified?: boolean;
+}
+
 export interface VerdictError {
   ruleKey: string;
   toolCallIds: string[];
   note: string | null;
+  /** Đoạn mã dẫn làm bằng chứng; rỗng khi model không dẫn. Chỉ hiển thị — không đổi điểm hay cờ. */
+  evidence?: EvidenceClaim[];
 }
 
 /** Thứ model trả về (§5). Harness lọc (T-AG-2) trước khi bất cứ ai đọc. */

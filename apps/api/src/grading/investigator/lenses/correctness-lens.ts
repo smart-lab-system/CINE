@@ -13,7 +13,7 @@ const SYSTEM_PROMPT = [
   '',
   LENS_PROTOCOL_HELP,
   '',
-  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["tinh_dung-tc-N"]}}.',
+  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["tinh_dung-tc-N"],"reason":"một hai câu nêu vì sao"}}.',
   '"refuted" nghĩa là bạn CHẠY THỬ (run hoặc run_tests) và thấy lỗi đó không đúng như mô tả —',
   'không phải "tôi nghĩ có thể sai". Việc của lăng kính này LUÔN LÀ chứng minh bằng một lần chạy',
   '(§6.1) — dù kết luận "confirmed" hay "refuted", nếu không kèm ít nhất một lần run/run_tests',
@@ -34,7 +34,7 @@ export class CorrectnessLens implements Challenger {
   readonly name = 'tinh_dung';
   constructor(private readonly deps: LensDeps) {}
 
-  async review(input: ChallengeInput): Promise<{ status: 'confirmed' | 'refuted'; toolCallIds: string[] }> {
+  async review(input: ChallengeInput): Promise<{ status: 'confirmed' | 'refuted'; toolCallIds: string[]; reason?: string }> {
     const userMessage = [
       `Luật bị chẩn đoán: ${input.error.ruleKey}`,
       `Mã bằng chứng gốc của agent chấm (đọc để biết công cụ nào từng chạy, KHÔNG được trích lại): ${input.error.toolCallIds.join(', ') || '(không có)'}`,
@@ -62,6 +62,6 @@ export class CorrectnessLens implements Challenger {
     if (!ranSomething) {
       throw new Error(`lăng kính Tính đúng kết luận "${r.conclusion.status}" mà không tự chạy thử lần nào — không được tin`);
     }
-    return { status: r.conclusion.status, toolCallIds };
+    return { status: r.conclusion.status, toolCallIds, reason: r.conclusion.reason };
   }
 }
