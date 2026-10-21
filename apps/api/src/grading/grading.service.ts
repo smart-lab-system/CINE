@@ -683,6 +683,28 @@ export class GradingService {
     return result;
   }
 
+  /**
+   * Ghi mốc mở bài (spec duyệt nhanh 2026-10-21 §5.5) — lần đầu thôi, lần sau là không làm gì.
+   *
+   * Một `UPDATE ... WHERE opened_at IS NULL` thay vì đọc-rồi-ghi: hai lần mở đồng thời (hai tab, hai
+   * lần bấm) cùng thấy `NULL` thì chỉ MỘT lần khớp dòng; lần kia không chạm dòng nào. Cũng vì vậy
+   * KHÔNG dùng `save()` của entity — nó ghi đè theo bản đã đọc và đổi `opened_at` về giờ của lần sau.
+   *
+   * Hệ quả đã biết: UPDATE này kích `trg_grading_result_updated_at` nên đẩy `updated_at` của dòng một
+   * lần (lần mở đầu). Chấp nhận — không đường chạy nào của API đọc `updated_at` của bảng này (chỉ chữ ký
+   * số liệu của backfill P1a, tính lúc migration).
+   * `guard_grading_result_ai_immutable` không so cột này nên không chặn dù đã có điểm AI.
+   *
+   * Quyền: cùng `findResultForOwner` với các route còn lại — không có bài → 404, bài của phiên khác → 403.
+   */
+  async markOpened(resultId: string, teacherId: string): Promise<void> {
+    await this.findResultForOwner(resultId, teacherId);
+    await this.results.manager.query(
+      `UPDATE examcollect.grading_result SET opened_at = now() WHERE id = $1 AND opened_at IS NULL`,
+      [resultId],
+    );
+  }
+
   /** Results for one session, newest submission first. */
   async listForSession(examSessionId: string): Promise<GradingResultView[]> {
     const rows = await this.results

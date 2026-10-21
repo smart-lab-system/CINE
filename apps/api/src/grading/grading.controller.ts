@@ -270,6 +270,17 @@ export class GradingController {
   }
 
   /**
+   * Đánh dấu giảng viên đã mở bài này — mốc `opened_at` cho số đo thời gian duyệt (§5.5).
+   * Idempotent: chỉ lần đầu ghi, các lần sau trả 204 mà không đổi gì. Client gọi một lần khi mở trang chi tiết.
+   */
+  @Post('grading-results/:id/opened')
+  @Roles('teacher')
+  @HttpCode(204)
+  async markOpened(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request): Promise<void> {
+    await this.grading.markOpened(id, req.user!.sub);
+  }
+
+  /**
    * Publishes a session's grades. The point of no return: from here on, a
    * score edit is exceptional and lands in the audit log.
    */
