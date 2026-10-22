@@ -79,15 +79,15 @@ describe('RequiredFilenamesInput — deliverableType/language (3d2, khai qua for
     expect(screen.queryByLabelText(/ngôn ngữ số 1/i)).not.toBeInTheDocument();
   });
 
-  it('chọn "Mã nguồn" thì hiện thêm ô chọn ngôn ngữ', () => {
+  it('chọn "Mã nguồn" thì hiện thêm ô chọn loại', () => {
     render(<Harness />);
     fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
       target: { value: 'code_project' },
     });
-    expect(screen.getByLabelText(/ngôn ngữ số 1/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/loại mã nguồn số 1/i)).toBeInTheDocument();
   });
 
-  it('đổi lại về "Tài liệu" thì ô ngôn ngữ biến mất', () => {
+  it('đổi lại về "Tài liệu" thì ô loại mã nguồn biến mất', () => {
     render(<Harness />);
     fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
       target: { value: 'code_project' },
@@ -95,16 +95,42 @@ describe('RequiredFilenamesInput — deliverableType/language (3d2, khai qua for
     fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
       target: { value: 'document' },
     });
-    expect(screen.queryByLabelText(/ngôn ngữ số 1/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/loại mã nguồn số 1/i)).not.toBeInTheDocument();
   });
 
-  it('chỉ hiện C++ và Python — không hiện Java/Node dù backend chấp nhận', () => {
+  it('có Python, C++, C, Java, Jupyter và JSON', () => {
     render(<Harness />);
     fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
       target: { value: 'code_project' },
     });
-    const options = screen.getByLabelText(/ngôn ngữ số 1/i).querySelectorAll('option');
+    const options = screen.getByLabelText(/loại mã nguồn số 1/i).querySelectorAll('option');
     const values = Array.from(options).map((o) => (o as HTMLOptionElement).value);
-    expect(values).toEqual(['cpp', 'python']);
+    expect(values).toEqual(['', 'python', 'cpp', 'c', 'java', 'ipynb', 'json']);
+  });
+
+  it('chọn loại thì đổi đuôi file, giữ nguyên file nén', () => {
+    render(<Harness />);
+    typeFilename('bai_lam.docx');
+    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+      target: { value: 'code_project' },
+    });
+    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'python' } });
+    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.py');
+
+    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'ipynb' } });
+    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.ipynb');
+
+    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'c' } });
+    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.c');
+
+    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'java' } });
+    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.java');
+
+    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'json' } });
+    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.json');
+
+    typeFilename('BaiThi.zip');
+    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'cpp' } });
+    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('BaiThi.zip');
   });
 });

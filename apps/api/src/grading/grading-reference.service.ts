@@ -62,6 +62,11 @@ export interface GradingReadiness {
    * phải tài liệu AI chấm đọc, nên không được tính vào mức ngữ cảnh `level`.
    */
   hasAnswerSource: boolean;
+  /**
+   * Nguyên văn ghi chú đáp án đã lưu. `null` khi không có, hoặc chỉ toàn khoảng trắng.
+   * Không kèm storage key và không kèm nội dung file đáp án.
+   */
+  modelAnswerNote: string | null;
   sources: {
     question: GradingSourceInfo;
     modelAnswer: GradingSourceInfo & { unverified: boolean };
@@ -460,6 +465,7 @@ export class GradingReferenceService {
     const hasQuestion = Boolean(row?.questionMaterialId);
     const hasModelAnswer = Boolean(row?.modelAnswerStorageKey || row?.modelAnswerNote);
     const hasAnswerSource = Boolean(row?.modelAnswerSourceKey);
+    const modelAnswerNote = row?.modelAnswerNote && row.modelAnswerNote.trim() !== '' ? row.modelAnswerNote : null;
     const sources: GradingReadiness['sources'] = {
       question: {
         present: hasQuestion,
@@ -487,6 +493,7 @@ export class GradingReferenceService {
         hasQuestion,
         hasModelAnswer,
         hasAnswerSource,
+        modelAnswerNote,
         sources,
         warning:
           'Chưa chọn đề bài — AI chỉ đối chiếu rubric và KHÔNG phát hiện được ' +
@@ -499,11 +506,20 @@ export class GradingReferenceService {
         hasQuestion,
         hasModelAnswer,
         hasAnswerSource,
+        modelAnswerNote,
         sources,
         warning: 'Chưa có đáp án mẫu — AI đánh giá theo đề, chưa biết cách chấm của thầy.',
       };
     }
-    return { level: 'with_model_answer', hasQuestion, hasModelAnswer, hasAnswerSource, sources, warning: null };
+    return {
+      level: 'with_model_answer',
+      hasQuestion,
+      hasModelAnswer,
+      hasAnswerSource,
+      modelAnswerNote,
+      sources,
+      warning: null,
+    };
   }
 
   /**

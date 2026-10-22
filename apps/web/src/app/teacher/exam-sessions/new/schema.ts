@@ -89,7 +89,7 @@ const requiredFilenameItemSchema = z
         'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
       ),
     deliverableType: z.enum(['document', 'code_project', 'image']).default('document'),
-    language: z.enum(['python', 'cpp']).optional(),
+    language: z.enum(['python', 'cpp', 'java']).optional(),
     entries: z
       .array(
         z.object({

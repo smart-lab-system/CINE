@@ -213,6 +213,50 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     });
   });
 
+  describe('blueprint — phiên nhiều file bắt buộc', () => {
+    it('chưa xác nhận thì chặn, và không có dòng này khi phiên một file', () => {
+      expect(preflightOf(base()).rows.some((r) => r.key === 'blueprint')).toBe(false);
+      const pending = base({ blueprintConfirmed: false });
+      expect(row(pending, 'blueprint').status).toBe('block');
+      expect(preflightOf(pending).canStart).toBe(false);
+      expect(preflightOf(pending).reason).toMatch(/Xác nhận đề cương/);
+    });
+
+    it('đã xác nhận thì dòng ổn và được bắt đầu', () => {
+      const confirmed = base({ blueprintConfirmed: true });
+      expect(row(confirmed, 'blueprint')).toMatchObject({ status: 'ok', text: 'Đề cương đã xác nhận.' });
+      expect(preflightOf(confirmed).canStart).toBe(true);
+    });
+  });
+
+  describe('mode review — “Đã dùng để chấm”', () => {
+    it('states facts and drops the instructions to go fix something', () => {
+      const input = base({
+        mode: 'review',
+        hasRubricId: false,
+        rubric: undefined,
+        readiness: { hasQuestion: false, hasModelAnswer: false },
+        deliverables: [codeDeliverable()],
+        bundle: { pinned: false, total: 0, approved: 0 },
+        dirty: true,
+      });
+      const out = preflightOf(input);
+      expect(out.rows.map((r) => r.text).join(' ')).not.toMatch(/hãy|bên trái|Lưu tài liệu|Không chặn việc bắt đầu/);
+      expect(row(input, 'ceiling').text).toBe('Phiên chưa gắn rubric.');
+      expect(row(input, 'question').text).toBe('Chưa chỉ định đề bài.');
+      expect(row(input, 'answer').text).toBe('Chưa có đáp án mẫu.');
+      expect(row(input, 'bundle').text).toBe('Chưa có gói test nào.');
+      expect(row(input, 'count').label).toBe('Số bài đã thu');
+      expect(out.rows.some((r) => r.key === 'reference')).toBe(false);
+    });
+
+    it('a prepared session recaps the collected count in the past', () => {
+      const input = base({ mode: 'review', bundle: { pinned: true, total: 1, approved: 1 } });
+      expect(row(input, 'count').text).toBe('32 bài đã thu.');
+      expect(row(input, 'bundle').text).toBe('Phiên không có bài code chạy trong môi trường chạy bài — không cần gói test.');
+    });
+  });
+
   it('the reason is the FIRST blocking row', () => {
     const input = base({ hasRubricId: false, rubric: undefined, readiness: { hasQuestion: false, hasModelAnswer: false } });
     expect(preflightOf(input).reason).toBe(row(input, 'ceiling').text);

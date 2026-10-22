@@ -7,6 +7,7 @@ import { RequiredDeliverableEntity } from '../exam-session/entities/required-del
 import { GRADING_LOCKED_MESSAGE, isGradingLocked } from './grading-lock';
 import type { GradingPipeline } from './grading-model.types';
 import { pipelineFor } from './pipeline';
+import { syncSingleProblemLanguageFromDeliverables } from './problem/resolve-problem-config';
 
 export interface DeclaredLanguageView {
   id: string;
@@ -55,6 +56,9 @@ export class DeliverableLanguageService {
     if (!updated.affected) {
       throw new ConflictException('Bài này đã có kết quả chấm, nên đường chấm đã cố định — không đổi ngôn ngữ được nữa.');
     }
+    // Câu 1 được tạo trước khi file có ngôn ngữ. Khai ở đây phải cập nhật cột câu, nếu không chạy thử
+    // và sinh gói test vẫn đọc "chưa khai" dù ô "Ngôn ngữ bài code" đã là C++ hoặc Python.
+    await syncSingleProblemLanguageFromDeliverables(this.deliverables.manager, session.id);
     return { id: deliverable.id, language, pipeline: pipelineFor({ deliverableType: deliverable.deliverableType, language }) };
   }
 }

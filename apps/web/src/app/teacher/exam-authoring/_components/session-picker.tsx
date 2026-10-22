@@ -7,10 +7,13 @@ import type { ExamSessionListItem } from '@/lib/api/exam-session';
 // Bảng nhãn DÙNG CHUNG với các màn phiên thi khác. Bản sao cục bộ trước đây
 // trùng từng chữ với nó — hai bản sao là hai chỗ để cách gọi trạng thái lệch
 // nhau giữa các màn.
-import { EXAM_SESSION_STATUS_LABELS } from '@/lib/exam-session-display';
+import {
+  EXAM_SESSION_STATUS_BADGE_CLASS,
+  getDisplaySessionStatus,
+} from '@/lib/exam-session-display';
 
 /** Trạng thái đã đóng — không còn gì để gắn vào. */
-const CLOSED = new Set(['collecting', 'completed', 'cancelled']);
+const CLOSED = new Set(['collecting', 'completed', 'cancelled', 'missed']);
 
 /**
  * Phiên nào gắn thêm đề được.
@@ -51,6 +54,7 @@ const CLOSED_REASON: Record<string, string> = {
   collecting: 'Đang thu bài — ca thi đã qua',
   completed: 'Đã hoàn thành',
   cancelled: 'Đã huỷ',
+  missed: 'Không diễn ra',
 };
 
 function when(session: ExamSessionListItem): string {
@@ -88,7 +92,7 @@ export function SessionPicker({
     <div className="flex flex-col gap-4">
       <p className="text-small leading-relaxed text-muted-foreground">
         Chỉ gắn được vào phiên <strong className="text-foreground">chưa bắt đầu</strong>. Phiên
-        đang diễn ra không chọn được — tài liệu đã phát cho sinh viên rồi, thêm đề giữa chừng
+        đang thi không chọn được — tài liệu đã phát cho sinh viên rồi, thêm đề giữa chừng
         là hai đề trong một buổi.
       </p>
 
@@ -100,6 +104,7 @@ export function SessionPicker({
         )}
         {sessions.map((s) => {
           const attachable = isAttachable(s);
+          const statusLabel = getDisplaySessionStatus(s.status, s.startTime, s.endTime).label;
           return (
             <label
               key={s.id}
@@ -118,13 +123,16 @@ export function SessionPicker({
                 disabled={!attachable}
                 checked={selectedId === s.id}
                 onChange={() => onSelect(s.id)}
-                aria-label={`${s.name} — ${EXAM_SESSION_STATUS_LABELS[s.status] ?? s.status}`}
+                aria-label={`${s.name} — ${statusLabel}`}
               />
               <span className="flex-grow">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-small font-semibold text-foreground">{s.name}</span>
-                  <Badge variant={attachable ? 'info' : 'default'}>
-                    {EXAM_SESSION_STATUS_LABELS[s.status] ?? s.status}
+                  <Badge
+                    variant={attachable ? 'info' : 'default'}
+                    className={EXAM_SESSION_STATUS_BADGE_CLASS}
+                  >
+                    {statusLabel}
                   </Badge>
                 </span>
                 <span className="mt-0.5 block text-caption text-muted-foreground">

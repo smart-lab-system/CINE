@@ -6,6 +6,7 @@
 
 import type { AgentState } from '../../src/session-controller';
 import type { MachineComparison, RoomAggregate } from '../../src/lab-mgmt/hub-actions';
+import type { VsixDownloadEntry } from '../../src/lab-mgmt/violation-vsix';
 import type { TeacherHubState } from '../../src/lab-mgmt/teacher-hub';
 import type { StudentNodeState } from '../../src/lab-mgmt/student-node';
 import type { EffectiveExtension } from '../../src/lab-mgmt/allowlist-compare';
@@ -28,6 +29,8 @@ export const IPC_CHANNELS = {
   mgmtNodeState: 'mgmt:node-state',
   mgmtRefreshMachines: 'mgmt:refresh-machines',
   mgmtScanExtensions: 'mgmt:scan-extensions',
+  mgmtReadExtensionActivity: 'mgmt:read-extension-activity',
+  mgmtDownloadViolationVsix: 'mgmt:download-violation-vsix',
   mgmtCompareAllowlist: 'mgmt:compare-allowlist',
   mgmtAggregateRoom: 'mgmt:aggregate-room',
   mgmtSyncBackend: 'mgmt:sync-backend',
@@ -78,6 +81,13 @@ export interface CompareResultPayload {
 export interface SyncResultPayload {
   ok: boolean;
   error?: string;
+}
+
+export interface VsixDownloadResult {
+  ok: boolean;
+  error?: string;
+  folder?: string;
+  entries: VsixDownloadEntry[];
 }
 
 export type RoomProposalMachineStatus = 'active' | 'maintenance' | 'inactive';
@@ -141,6 +151,8 @@ export interface AgentApi {
   onNodeState(callback: (state: StudentNodeState) => void): () => void;
   mgmtRefreshMachines(): Promise<void>;
   mgmtScanExtensions(machineIds?: string[]): Promise<void>;
+  mgmtReadExtensionActivity(machineIds?: string[]): Promise<void>;
+  mgmtDownloadViolationVsix(): Promise<VsixDownloadResult>;
   mgmtCompareAllowlist(): Promise<CompareResultPayload>;
   mgmtAggregateRoom(): Promise<RoomAggregate | null>;
   mgmtSyncBackend(): Promise<SyncResultPayload>;

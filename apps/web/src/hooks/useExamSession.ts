@@ -6,6 +6,7 @@ import {
   listExamSessions,
   listExamSessionsInRange,
   getExamSession,
+  confirmBlueprint,
   declareDeliverableLanguage,
   finalizeExamSession,
   confirmSessionEnd,
@@ -54,6 +55,7 @@ export function useUpdateExamSessionSchedule() {
     mutationFn: (args: {
       id: string;
       body: {
+        examType?: ExamSessionResponse['examType'];
         roomId?: string;
         roomName?: string;
         startTime?: string;
@@ -179,6 +181,17 @@ export function useExamSessionDetail(id: string | undefined) {
     queryKey: ['exam-session', id],
     queryFn: () => getExamSession(id!),
     enabled: !!id,
+  });
+}
+
+/** Ghi `blueprint_confirmed_at`. Làm mới chi tiết phiên để nút bắt đầu chấm đọc cờ mới. */
+export function useConfirmBlueprint(examSessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => confirmBlueprint(examSessionId!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exam-session', examSessionId] });
+    },
   });
 }
 

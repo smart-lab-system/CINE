@@ -47,6 +47,31 @@ describe('evaluateSetupChecklist', () => {
     expect(r.blockReason).toMatch(/thư mục bài thi/);
   });
 
+  it('cho mở khi Chưa đủ điều kiện và các điều kiện còn lại đủ', () => {
+    const r = evaluateSetupChecklist({
+      status: 'not_ready',
+      ...future,
+      studentCount: 10,
+      materialCount: 1,
+      hasRubric: true,
+      deliverableCount: 1,
+    });
+    expect(r.canOpen).toBe(true);
+  });
+
+  it('chặn Không diễn ra', () => {
+    const r = evaluateSetupChecklist({
+      status: 'missed',
+      ...future,
+      studentCount: 10,
+      materialCount: 1,
+      hasRubric: true,
+      deliverableCount: 1,
+    });
+    expect(r.canOpen).toBe(false);
+    expect(r.blockReason).toMatch(/không diễn ra/i);
+  });
+
   it('cho mở khi scheduled + giờ hợp lệ + có file; thiếu đề/rubric chỉ cảnh báo', () => {
     const r = evaluateSetupChecklist({
       status: 'scheduled',

@@ -8,7 +8,11 @@ export const LAB_MGMT_TCP_PORT = 41781;
 
 export const LAB_MGMT_ADVERTISE_MAGIC = 'cine-lab-mgmt-hub-v1';
 
-export type LabCommandName = 'SCAN_VSCODE_EXTENSIONS' | 'PING' | 'GET_MACHINE_INFO';
+export type LabCommandName =
+  | 'SCAN_VSCODE_EXTENSIONS'
+  | 'READ_VSCODE_EXTENSION_ACTIVITY'
+  | 'PING'
+  | 'GET_MACHINE_INFO';
 
 export interface LabCommandRequest {
   requestId: string;

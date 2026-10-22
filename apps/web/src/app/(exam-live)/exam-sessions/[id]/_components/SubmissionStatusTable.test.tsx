@@ -96,6 +96,35 @@ describe('SubmissionStatusTable — download link filename', () => {
     expect(link).toHaveAttribute('download', 'Cau1.docx');
     expect(link).toHaveAttribute('href', 'https://storage.example/signed');
   });
+
+  it('shows the student\'s rendered filename instead of the {MSSV} pattern', () => {
+    render(
+      <SubmissionStatusTable
+        deliverables={[{ id: 'd1', requiredFilename: '{MSSV}.cpp' }]}
+        students={[
+          {
+            studentMssv: 'SV20120001',
+            fullName: 'Nguyễn Văn A',
+            byDeliverable: {
+              d1: {
+                state: 'collected',
+                downloadUrl: 'https://storage.example/signed',
+                fileSize: '2048',
+                filename: 'SV20120001.cpp',
+              },
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('SV20120001.cpp')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Xem bài nộp' }));
+    expect(screen.getByRole('link', { name: 'Mở file' })).toHaveAttribute(
+      'download',
+      'SV20120001.cpp',
+    );
+  });
 });
 
 // The default empty-students copy ("Bảng sẽ tự cập nhật...") assumes a live,

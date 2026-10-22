@@ -42,8 +42,37 @@ describe('SessionExamRosterCard', () => {
     expect(screen.getByText('Danh sách thi')).toBeInTheDocument();
     expect(screen.getByText('Theo lớp')).toBeInTheDocument();
     expect(screen.getByText('An')).toBeInTheDocument();
+    const list = screen.getByRole('region', { name: 'Danh sách thi' });
+    expect(list.className).toMatch(/max-h-\[min\(32rem,70dvh\)\]/);
+    expect(list.className).toMatch(/overflow-auto/);
+    expect(list).toHaveAttribute('tabindex', '0');
+    expect(list).toContainElement(screen.getByRole('table'));
     expect(screen.getByRole('button', { name: /Thêm sinh viên/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Tải file danh sách/i })).toBeInTheDocument();
+  });
+
+  it('cột nguồn dùng Thủ công, Tự động và Danh sách đính kèm', () => {
+    useSessionRosterMock.mockReturnValue({
+      data: {
+        customized: true,
+        students: [
+          { mssv: 'SV01', name: 'An', source: 'class' },
+          { mssv: 'SV02', name: 'Bình', source: 'frozen' },
+          { mssv: 'SV03', name: 'Chi', source: 'manual' },
+          { mssv: 'SV04', name: 'Dũng', source: 'attached' },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(<SessionExamRosterCard sessionId="s1" canEdit />);
+
+    expect(screen.getAllByText('Tự động')).toHaveLength(2);
+    expect(screen.getByText('Thủ công')).toBeInTheDocument();
+    expect(screen.getByText('Danh sách đính kèm')).toBeInTheDocument();
+    expect(screen.queryByText('Thêm tay')).not.toBeInTheDocument();
+    expect(screen.queryByText('Từ lớp')).not.toBeInTheDocument();
   });
 
   it('ẩn nút chỉnh khi không canEdit', () => {

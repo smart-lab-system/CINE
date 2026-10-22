@@ -79,6 +79,7 @@ export function useSetSessionRubric(examSessionId: string | undefined) {
     mutationFn: (rubricId: string | null) => setSessionRubric(examSessionId!, rubricId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['submissions', 'overview'] });
+      void queryClient.invalidateQueries({ queryKey: ['exam-session', examSessionId] });
     },
   });
 }

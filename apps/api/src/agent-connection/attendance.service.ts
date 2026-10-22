@@ -6,7 +6,10 @@ import { EnrollmentEntity } from '../course/entities/enrollment.entity';
 import { ClassEntity } from '../course/entities/class.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
-import { SessionRosterEntity } from '../exam-session/entities/session-roster.entity';
+import {
+  SessionRosterEntity,
+  type SessionRosterSource,
+} from '../exam-session/entities/session-roster.entity';
 import { isExamOver } from '../exam-session/exam-session.types';
 import {
   AttendanceDiscrepancy,
@@ -147,7 +150,7 @@ export class AttendanceService {
       where: { examSessionId: session.id },
       select: { studentMssv: true, source: true },
     });
-    const sessionRosterSources: Record<string, 'frozen' | 'manual'> = {};
+    const sessionRosterSources: Record<string, SessionRosterSource> = {};
     for (const row of sessionRosterRows) {
       sessionRosterSources[row.studentMssv.toLowerCase()] = row.source;
     }

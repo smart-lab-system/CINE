@@ -70,10 +70,14 @@ describe('bản nháp phiên bản gói test (G2b-R, mock-up v2)', () => {
       expect(validateCase(values({ caseKey: 'ca2' }), withGone, null)).toEqual({});
     });
 
-    it('nhóm trống hay dài quá 100 ký tự → lỗi; output trống → lỗi', () => {
+    it('nhóm trống hay dài quá 100 ký tự → lỗi', () => {
       expect(validateCase(values({ group: ' ' }), rows, null).group).toMatch(/nhóm/i);
       expect(validateCase(values({ group: 'g'.repeat(101) }), rows, null).group).toMatch(/100/);
-      expect(validateCase(values({ expectedOutput: '  \n' }), rows, null).expectedOutput).toMatch(/output/i);
+    });
+
+    it('input 0 và output rỗng là một ca hợp lệ', () => {
+      expect(validateCase(values({ input: '0', expectedOutput: '' }), rows, null)).toEqual({});
+      expect(validateCase(values({ expectedOutput: '  \n' }), rows, null)).toEqual({});
     });
 
     it('input trống là hợp lệ (bài không đọc input)', () => {

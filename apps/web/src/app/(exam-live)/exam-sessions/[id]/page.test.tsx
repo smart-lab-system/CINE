@@ -315,8 +315,8 @@ describe('ExamSessionLobbyPage', () => {
     const roster = screen.getByRole('region', {
       name: 'Danh sách sinh viên vận hành phiên thi',
     });
-    // Chưa từng vào + chưa hết giờ → Chưa vào (không còn gộp thành Vắng mặt).
-    expect(within(roster).getByText('Chưa vào')).toBeInTheDocument();
+    // Chưa từng kết nối + chưa hết giờ → Chưa kết nối (không còn gộp thành Vắng mặt).
+    expect(within(roster).getByText('Chưa kết nối')).toBeInTheDocument();
     expect(within(roster).getByText('Thi bổ sung')).toBeInTheDocument();
   });
 
@@ -482,7 +482,7 @@ describe('ExamSessionLobbyPage', () => {
       expect(screen.getByText(/đã kết thúc lúc/i)).toBeInTheDocument();
     });
 
-    it('shows an upcoming banner for a session before its start_time', () => {
+    it('phiên đã mở trước giờ bắt đầu hiện Đang diễn ra, không báo sinh viên chưa vào được', () => {
       const future = new Date(Date.now() + 3_600_000).toISOString();
       useExamSessionDetailMock.mockReturnValue({
         refetch: vi.fn(),
@@ -496,7 +496,9 @@ describe('ExamSessionLobbyPage', () => {
 
       render(<ExamSessionLobbyPage />);
 
-      expect(screen.getByText(/chưa bắt đầu/i)).toBeInTheDocument();
+      expect(screen.getByText('Đang diễn ra')).toBeInTheDocument();
+      expect(screen.getByText(/Giờ làm bài bắt đầu lúc/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Sinh viên chưa thể tham gia/i)).not.toBeInTheDocument();
     });
 
     it('shows no timing banner for a session currently within its window', () => {

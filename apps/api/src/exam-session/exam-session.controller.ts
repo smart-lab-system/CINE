@@ -104,7 +104,8 @@ export class ExamSessionController {
   }
 
   /**
-   * Soft-cancel phiên nháp (`cancelled`) — giải phóng phòng khi chưa freeze.
+   * Soft-cancel (`cancelled`) — giải phóng phòng khi phiên chưa mở.
+   * Danh sách đã tùy chỉnh trước lúc mở không chặn.
    */
   @Post(':id/cancel')
   @Roles('teacher')

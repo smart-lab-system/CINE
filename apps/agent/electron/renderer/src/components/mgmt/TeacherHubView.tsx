@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { CompareResultPayload, MachineComparison, RoomAggregate, TeacherHubState } from '../../../../shared/ipc';
+import type {
+  CompareResultPayload,
+  MachineComparison,
+  RoomAggregate,
+  TeacherHubState,
+  VsixDownloadResult,
+} from '../../../../shared/ipc';
 import { AppButton, StatusLine } from '../ui';
+import { ExtensionActivityPanel } from './ExtensionActivityPanel';
 import { ProposeRoomDialog } from './ProposeRoomDialog';
+import { VsixDownloadPanel } from './VsixDownloadPanel';
 
 export function TeacherHubView({
   teacherEmail,
@@ -17,6 +25,7 @@ export function TeacherHubView({
   const [error, setError] = useState<string | null>(null);
   const [comparisons, setComparisons] = useState<MachineComparison[]>([]);
   const [aggregate, setAggregate] = useState<RoomAggregate | null>(null);
+  const [vsix, setVsix] = useState<VsixDownloadResult | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [proposeOpen, setProposeOpen] = useState(false);
 
@@ -95,17 +104,56 @@ export function TeacherHubView({
           type="button"
           disabled={!!busy}
           onClick={() =>
+            void run('activity', async () => {
+              const ids = selected.size > 0 ? [...selected] : undefined;
+              await window.agent.mgmtReadExtensionActivity(ids);
+              setMessage('Đã lấy log cài / gỡ extension.');
+              const state = await window.agent.mgmtGetHubState();
+              setHub(state);
+            })
+          }
+        >
+          Xem log cài / gỡ extension
+        </AppButton>
+        <AppButton
+          type="button"
+          disabled={!!busy}
+          onClick={() =>
             void run('compare', async () => {
               await window.agent.mgmtSetCourseId(courseId.trim() || null);
               const result: CompareResultPayload = await window.agent.mgmtCompareAllowlist();
               setComparisons(result.comparisons);
               setAggregate(null);
+              setVsix(null);
               if (result.warning) setMessage(result.warning);
               else setMessage(`Đã đối chiếu ${result.comparisons.length} máy.`);
             })
           }
         >
           Đối chiếu allowlist
+        </AppButton>
+        <AppButton
+          type="button"
+          disabled={!!busy}
+          onClick={() =>
+            void run('vsix', async () => {
+              const result = await window.agent.mgmtDownloadViolationVsix();
+              setVsix(result);
+              if (!result.ok) {
+                setError(result.error ?? 'Tải VSIX thất bại.');
+                return;
+              }
+              if (result.entries.length === 0) {
+                setMessage('Không có extension vi phạm để tải.');
+                return;
+              }
+              const fresh = result.entries.filter((entry) => entry.status === 'downloaded').length;
+              const had = result.entries.filter((entry) => entry.status === 'already').length;
+              setMessage(`Vừa tải ${fresh}, đã có ${had}.`);
+            })
+          }
+        >
+          Tải VSIX extension vi phạm
         </AppButton>
         <AppButton
           type="button"
@@ -192,6 +240,14 @@ export function TeacherHubView({
                     {n.inventoryError && (
                       <span className="block text-danger-strong">{n.inventoryError}</span>
                     )}
+                    {n.activityAt && !n.activityError && (
+                      <span className="block text-muted-foreground">
+                        Log hôm nay: {n.activityLog?.length ?? 0} sự kiện
+                      </span>
+                    )}
+                    {n.activityError && (
+                      <span className="block text-danger-strong">{n.activityError}</span>
+                    )}
                   </span>
                 </label>
               </li>
@@ -199,6 +255,8 @@ export function TeacherHubView({
           </ul>
         )}
       </section>
+
+      <ExtensionActivityPanel machines={hub?.nodes ?? []} />
 
       {comparisons.length > 0 && (
         <section>
@@ -217,6 +275,10 @@ export function TeacherHubView({
             ))}
           </ul>
         </section>
+      )}
+
+      {vsix?.ok && vsix.folder && (
+        <VsixDownloadPanel folder={vsix.folder} entries={vsix.entries} />
       )}
 
       {aggregate && (

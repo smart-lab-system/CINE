@@ -14,6 +14,11 @@ interface ImportReviewProps {
   studentCount?: number;
   removeMissing: boolean;
   onRemoveMissingChange: (value: boolean) => void;
+  /**
+   * `class` nói về lớp học phần. `exam` nói về danh sách thi của phiên —
+   * cùng cờ `removeMissing`, nhưng ô tích thay cả danh sách thi bằng file.
+   */
+  scope?: 'class' | 'exam';
 }
 
 /**
@@ -31,6 +36,7 @@ export function ImportReview({
   studentCount,
   removeMissing,
   onRemoveMissingChange,
+  scope = 'class',
 }: ImportReviewProps) {
   if (errors.length > 0) {
     return (
@@ -122,16 +128,19 @@ export function ImportReview({
             />
             <div className="flex flex-col gap-1">
               <p className="text-small font-medium">
-                {diff.missing.length} sinh viên đang trong lớp nhưng không có trong file
+                {scope === 'exam'
+                  ? `${diff.missing.length} sinh viên đang trong danh sách thi nhưng không có trong file`
+                  : `${diff.missing.length} sinh viên đang trong lớp nhưng không có trong file`}
               </p>
               <p className="text-caption text-muted-foreground">
-                Mặc định họ được giữ nguyên. Xoá một sinh viên khỏi lớp đồng nghĩa với việc
-                họ không vào được phiên thi — và điều đó chỉ lộ ra vào hôm thi.
+                {scope === 'exam'
+                  ? 'Mặc định họ được giữ trong danh sách thi của phiên này. Tích ô bên dưới để bỏ danh sách cũ và chỉ lấy những người có trong file — không đổi lớp học phần.'
+                  : 'Mặc định họ được giữ nguyên. Xoá một sinh viên khỏi lớp đồng nghĩa với việc họ không vào được phiên thi — và điều đó chỉ lộ ra vào hôm thi.'}
               </p>
             </div>
           </div>
 
-          <ul className="flex flex-col gap-1 pl-6">
+          <ul className="max-h-56 overflow-y-auto rounded-md border border-border bg-surface-2 p-4">
             {diff.missing.map((student) => (
               <li key={student.mssv} className="text-small">
                 <span className="font-mono">{student.mssv}</span> — {student.name}
@@ -139,7 +148,7 @@ export function ImportReview({
             ))}
           </ul>
 
-          <label className="flex cursor-pointer items-start gap-2 pl-6 text-small">
+          <label className="flex cursor-pointer items-start gap-2 text-small">
             <input
               type="checkbox"
               className="mt-0.5 h-4 w-4 accent-danger"
@@ -147,7 +156,9 @@ export function ImportReview({
               onChange={(event) => onRemoveMissingChange(event.target.checked)}
             />
             <span>
-              Xoá {diff.missing.length} sinh viên này khỏi lớp
+              {scope === 'exam'
+                ? 'Sử dụng danh sách mới để xoá danh sách thi cũ và lấy từ danh sách mới'
+                : `Xoá ${diff.missing.length} sinh viên này khỏi lớp`}
             </span>
           </label>
         </div>

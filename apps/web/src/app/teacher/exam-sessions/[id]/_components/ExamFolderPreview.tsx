@@ -39,7 +39,7 @@ export function ExamFolderPreview({
     <div
       role="region"
       aria-label="Preview thư mục bài thi"
-      className="rounded-lg border border-border bg-surface-2/40 px-4 py-3 font-mono text-caption leading-relaxed text-foreground"
+      className="rounded-lg border border-border bg-surface-2/40 px-4 py-3 font-mono text-base leading-relaxed text-foreground"
     >
       <p className="mb-2 font-sans text-small font-semibold text-foreground">
         Thư mục bài thi (máy sinh viên)

@@ -96,6 +96,14 @@ describe('buildSubmissionRows', () => {
     ]);
   });
 
+  it('keeps the rendered filename on the cell when the API sent one', () => {
+    const rows = buildSubmissionRows(attendance(), [
+      submission({ filename: 'SV20120001.cpp' }),
+    ]);
+
+    expect(rows[0].byDeliverable['deliverable-1']?.filename).toBe('SV20120001.cpp');
+  });
+
   it('mang theo ba cột kiểm file nén vào cell, không suy diễn gì thêm', () => {
     // Task 10 — trực giao với `state`: một deliverable `collected` vẫn có
     // thể `archiveCheckStatus: 'failed'` (spec §8.3).

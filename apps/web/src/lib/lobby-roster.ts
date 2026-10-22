@@ -180,7 +180,7 @@ export function matchesLobbySearch(
 }
 
 export const ROOM_STATUS_LABEL: Record<RoomStatus, string> = {
-  not_joined: 'Chưa vào',
+  not_joined: 'Chưa kết nối',
   present: 'Có mặt',
   disconnected: 'Mất kết nối',
   absent: 'Vắng mặt',

@@ -51,6 +51,7 @@ export function compareOutput(expected: string, got: string, c: Comparator): { e
       return { equal, diff: equal ? null : `tập dòng khác nhau (${a.length} dòng mong đợi, ${b.length} dòng nhận)` };
     }
     case 'float_tolerance': {
+      if (expected.trim() === '' && got.trim() === '') return { equal: true, diff: null };
       const a = expected.trim().split(/\s+/);
       const b = got.trim().split(/\s+/);
       if (a.length !== b.length) {

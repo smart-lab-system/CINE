@@ -49,7 +49,7 @@ function question(overrides: Record<string, unknown> = {}) {
 
 /**
  * Giờ bắt đầu là THAM SỐ, không phải hằng số: luật gắn đề đo thời gian chứ
- * không đọc `status` (xem `isAttachable`), nên một phiên "đang diễn ra" mà
+ * không đọc `status` (xem `isAttachable`), nên một phiên "đang thi" mà
  * giờ bắt đầu ở ngày mai là một fixture tự mâu thuẫn — và trước đây nó làm
  * bài test bên dưới xanh vì lý do sai.
  */
@@ -106,7 +106,7 @@ beforeEach(() => {
       items: [
         session('s-draft', 'Cuối kỳ N03', 'draft'),
         session('s-sched', 'Giữa kỳ N01', 'scheduled'),
-                // Đã bắt đầu một giờ trước — đó mới là "đang diễn ra".
+                // Đã bắt đầu một giờ trước — đã mở và đã tới giờ, nên là "Đang thi".
         session('s-live', 'Kiểm tra tuần 6', 'active', -3_600_000),
       ],
       total: 3,
@@ -380,13 +380,13 @@ describe('ExamAuthoringPage — gắn vào phiên thi', () => {
     fireEvent.click(screen.getByRole('button', { name: /gắn vào phiên thi/i }));
   }
 
-  it('phiên ĐANG DIỄN RA hiện nhưng KHÔNG chọn được, kèm lý do', async () => {
+  it('phiên ĐANG THI hiện nhưng KHÔNG chọn được, kèm lý do', async () => {
     await openPicker();
 
     expect(screen.getByRole('radio', { name: /nháp/i })).toBeEnabled();
-    expect(screen.getByRole('radio', { name: /đã lên lịch/i })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: /sắp diễn ra/i })).toBeEnabled();
 
-    const live = screen.getByRole('radio', { name: /đang diễn ra/i });
+    const live = screen.getByRole('radio', { name: /đang thi/i });
     expect(live).toBeDisabled();
     // Vẫn HIỆN, kèm lý do: ẩn hẳn thì giảng viên tưởng hệ thống quên phiên
     // của họ rồi đi tìm ở chỗ khác.
@@ -400,7 +400,7 @@ describe('ExamAuthoringPage — gắn vào phiên thi', () => {
 
   it('bộ ba unverified thì phải qua bước cảnh báo trước khi gắn', async () => {
     await openPicker();
-    fireEvent.click(screen.getByRole('radio', { name: /đã lên lịch/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /sắp diễn ra/i }));
     fireEvent.click(screen.getByRole('button', { name: /tiếp tục/i }));
 
     expect(await screen.findByText(/chưa từng được chạy/i)).toBeInTheDocument();
@@ -409,7 +409,7 @@ describe('ExamAuthoringPage — gắn vào phiên thi', () => {
 
   it('xác nhận xong thì gắn và đi tới phòng chờ', async () => {
     await openPicker();
-    fireEvent.click(screen.getByRole('radio', { name: /đã lên lịch/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /sắp diễn ra/i }));
     fireEvent.click(screen.getByRole('button', { name: /tiếp tục/i }));
     fireEvent.click(await screen.findByRole('button', { name: /vẫn gắn/i }));
 
@@ -420,11 +420,11 @@ describe('ExamAuthoringPage — gắn vào phiên thi', () => {
 
   it('bấm Huỷ ở bước cảnh báo thì quay về chọn phiên, KHÔNG gắn gì', async () => {
     await openPicker();
-    fireEvent.click(screen.getByRole('radio', { name: /đã lên lịch/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /sắp diễn ra/i }));
     fireEvent.click(screen.getByRole('button', { name: /tiếp tục/i }));
     fireEvent.click(await screen.findByRole('button', { name: /^huỷ$/i }));
 
-    expect(await screen.findByRole('radio', { name: /đã lên lịch/i })).toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: /sắp diễn ra/i })).toBeInTheDocument();
     expect(attachMock).not.toHaveBeenCalled();
   });
 });

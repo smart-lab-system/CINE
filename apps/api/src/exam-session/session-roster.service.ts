@@ -13,7 +13,7 @@ import { RequiredDeliverableEntity } from './entities/required-deliverable.entit
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { ExamSessionEntity } from './entities/exam-session.entity';
 import { SessionRosterEntity } from './entities/session-roster.entity';
-import { isExamOver } from './exam-session.types';
+import { isAwaitingOpen, isExamOver } from './exam-session.types';
 
 export interface FreezeResult {
   students: number;
@@ -21,7 +21,7 @@ export interface FreezeResult {
 }
 
 /** Nguồn trên GET danh sách hiệu lực (hub Thiết lập). */
-export type EffectiveRosterSource = 'class' | 'frozen' | 'manual';
+export type EffectiveRosterSource = 'class' | 'frozen' | 'manual' | 'attached';
 
 export interface EffectiveRosterStudent {
   mssv: string;
@@ -144,9 +144,10 @@ export class SessionRosterService {
    * Idempotent. Chỉ khi `scheduled`. Không gieo seats (để freeze / add lo).
    */
   async materializeFromEnrollment(session: ExamSessionEntity): Promise<EffectiveRosterView> {
-    if (session.status !== 'scheduled') {
+    this.assertRosterWritable(session);
+    if (!isAwaitingOpen(session.status)) {
       throw new ConflictException(
-        'Chỉ tùy chỉnh danh sách thi khi phiên còn Sắp diễn ra.',
+        'Chỉ tùy chỉnh danh sách thi khi phiên còn Sắp diễn ra hoặc Chưa đủ điều kiện.',
       );
     }
     if (!session.classId) {
@@ -170,9 +171,10 @@ export class SessionRosterService {
     session: ExamSessionEntity,
     dto: { students: Array<{ mssv: string; name: string }>; removeMissing?: boolean },
   ): Promise<SessionRosterImportResult> {
-    if (session.status !== 'scheduled') {
+    this.assertRosterWritable(session);
+    if (!isAwaitingOpen(session.status)) {
       throw new ConflictException(
-        'Chỉ import danh sách thi khi phiên còn Sắp diễn ra.',
+        'Chỉ import danh sách thi khi phiên còn Sắp diễn ra hoặc Chưa đủ điều kiện.',
       );
     }
     if (!session.classId) {
@@ -220,17 +222,24 @@ export class SessionRosterService {
             homeClassId: enrollment?.homeClassId ?? session.classId!,
             homeTeacherId:
               enrollment?.homeTeacherId ?? session.teacherId,
-            source: 'manual',
+            source: 'attached',
           });
           added += 1;
           continue;
         }
 
+        const patch: { studentName?: string; source?: 'attached' } = {};
         if (current.studentName !== student.name) {
-          await rosterRepo.update(current.id, { studentName: student.name });
+          patch.studentName = student.name;
           updated += 1;
         } else {
           unchanged += 1;
+        }
+        if (current.source !== 'attached') {
+          patch.source = 'attached';
+        }
+        if (patch.studentName !== undefined || patch.source !== undefined) {
+          await rosterRepo.update(current.id, patch);
         }
       }
 
@@ -261,6 +270,9 @@ export class SessionRosterService {
   }
 
   async freeze(session: ExamSessionEntity): Promise<FreezeResult> {
+    if (session.status === 'missed') {
+      throw new ConflictException('Phiên không diễn ra — không mở được.');
+    }
     if (!session.classId) {
       // Phiên tạo trước khi `class_id` tồn tại (nullable vì lý do lịch
       // sử — xem comment trên cột). Không có lớp thì không có danh sách
@@ -299,7 +311,7 @@ export class SessionRosterService {
         if (current.status === 'active') {
           return { students: existingRows.length, submissionsSeeded: 0 };
         }
-        if (current.status === 'scheduled') {
+        if (isAwaitingOpen(current.status)) {
           const seeded = await this.seedSeats(
             manager,
             session.id,
@@ -321,9 +333,12 @@ export class SessionRosterService {
         );
       }
 
-      if (current.status !== 'scheduled') {
+      if (current.status === 'missed') {
+        throw new ConflictException('Phiên không diễn ra — không mở được.');
+      }
+      if (!isAwaitingOpen(current.status)) {
         throw new ConflictException(
-          'Chỉ mở được phiên đang ở trạng thái Sắp diễn ra.',
+          'Chỉ mở được phiên đang ở trạng thái Sắp diễn ra hoặc Chưa đủ điều kiện.',
         );
       }
 
@@ -399,6 +414,7 @@ export class SessionRosterService {
     session: ExamSessionEntity,
     studentMssv: string,
   ): Promise<void> {
+    this.assertRosterWritable(session);
     if (isExamOver(session.status)) {
       throw new ConflictException(
         'Phiên thi đã kết thúc — không gỡ sinh viên khỏi danh sách dự thi được.',
@@ -406,7 +422,7 @@ export class SessionRosterService {
     }
 
     await this.dataSource.transaction(async (manager) => {
-      if (session.status === 'scheduled') {
+      if (isAwaitingOpen(session.status)) {
         await this.materializeIfEmpty(manager, session);
       }
 
@@ -419,7 +435,7 @@ export class SessionRosterService {
           'Sinh viên này không có trong danh sách dự thi của phiên.',
         );
       }
-      if (session.status !== 'scheduled' && row.source !== 'manual') {
+      if (!isAwaitingOpen(session.status) && row.source !== 'manual') {
         throw new ConflictException(
           'Chỉ gỡ được sinh viên thêm tay — không gỡ dòng đã chốt từ lớp.',
         );
@@ -433,6 +449,7 @@ export class SessionRosterService {
     session: ExamSessionEntity,
     student: { mssv: string; name: string },
   ): Promise<SessionRosterEntity> {
+    this.assertRosterWritable(session);
     if (isExamOver(session.status)) {
       // Cùng nguyên tắc route "Thu lại" đã đặt (spec collecting §6.5):
       // thêm người vào danh sách dự thi của một buổi thi đã hết giờ là
@@ -444,7 +461,7 @@ export class SessionRosterService {
 
     return this.dataSource.transaction(async (manager) => {
       // Tránh footgun: thêm 1 SV khi roster rỗng rồi open → chỉ còn 1 người.
-      if (session.status === 'scheduled') {
+      if (isAwaitingOpen(session.status)) {
         await this.materializeIfEmpty(manager, session);
       }
 
@@ -571,9 +588,18 @@ export class SessionRosterService {
    * phải được giữ nguyên, không bị kéo ngược về `not_submitted`), và
    * lúc duyệt lại một access-request (không có gì để làm).
    */
+  /** `missed` không sửa danh sách. Huỷ phiên vẫn đi đường khác. */
+  private assertRosterWritable(session: ExamSessionEntity): void {
+    if (session.status === 'missed') {
+      throw new ConflictException(
+        'Phiên không diễn ra — không sửa danh sách dự thi được. Có thể huỷ phiên.',
+      );
+    }
+  }
+
   /**
    * Nếu `session_roster` còn rỗng: chép toàn bộ enrollment lớp (`frozen`).
-   * No-op khi đã có dòng. Caller phải đảm bảo `scheduled` + có `classId`.
+   * No-op khi đã có dòng. Caller phải đảm bảo phiên còn chờ mở + có `classId`.
    */
   private async materializeIfEmpty(
     manager: EntityManager,

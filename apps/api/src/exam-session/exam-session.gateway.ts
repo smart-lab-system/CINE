@@ -35,6 +35,7 @@ import { ExamMaterialService } from './exam-material.service';
 import { STUDENT_MSSV_REGEX } from '../common/student-mssv';
 import { RECOLLECT_ACK_TIMEOUT_MS } from './recollect.types';
 import { SessionRosterService } from './session-roster.service';
+import { isAgentJoinOpen } from './exam-session.types';
 
 // Server -> Agent. No teacher_id, no other ExamSession field leaks to the
 // agent.
@@ -385,10 +386,14 @@ export class ExamSessionGateway
     }
 
     const now = Date.now();
-    const isActive =
-      session.status === 'active' &&
-      now >= session.startTime.getTime() &&
-      now <= session.endTime.getTime();
+    // Cửa vào rộng hơn giờ phát đề: phiên đã active thì được ngồi từ
+    // 5 phút trước startTime. listForAgent vẫn đóng đề đến đúng startTime.
+    const isActive = isAgentJoinOpen(
+      session.status,
+      session.startTime,
+      session.endTime,
+      new Date(now),
+    );
     if (!isActive) {
       // Does NOT count toward the lockout (§5.2) — a patient early student
       // retrying is not spam. Does get its own, separate throttle (§6.3)

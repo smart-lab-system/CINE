@@ -67,7 +67,22 @@ function GradingPageContent() {
       </Alert>
     );
   }
-  return <SessionScreen sessionId={sessionId} session={session} initialState={params.get('state')} />;
+  return (
+    <SessionScreen
+      sessionId={sessionId}
+      session={session}
+      initialState={params.get('state')}
+      viewPrepare={params.get('view') === 'prepare'}
+    />
+  );
+}
+
+function gradingSessionHref(sessionId: string, extra: { view?: 'prepare'; state?: string | null }): string {
+  const query = new URLSearchParams();
+  query.set('sessionId', sessionId);
+  if (extra.state && isFilter(extra.state)) query.set('state', extra.state);
+  if (extra.view) query.set('view', extra.view);
+  return `/teacher/grading?${query.toString()}`;
 }
 
 function isFilter(value: string | null): value is SessionState {
@@ -78,10 +93,12 @@ function SessionScreen({
   sessionId,
   session,
   initialState,
+  viewPrepare,
 }: {
   sessionId: string;
   session: SessionOverviewItem;
   initialState: string | null;
+  viewPrepare: boolean;
 }) {
   const results = useGradingResults(sessionId);
   const progress = useGradingProgress(sessionId);
@@ -105,6 +122,12 @@ function SessionScreen({
     if (running) void refetchResults();
   }, [running, progress.dataUpdatedAt, refetchResults]);
 
+  const editablePrepare = !running && (list.length === 0 || allUngradable);
+  const showReview = !loading && viewPrepare && !editablePrepare;
+  const showPrepareLink = !loading && !showReview && !editablePrepare;
+  const listHref = gradingSessionHref(sessionId, { state: initialState });
+  const prepareHref = gradingSessionHref(sessionId, { view: 'prepare', state: initialState });
+
   const table = (
     <ResultsTable
       sessionId={sessionId}
@@ -117,7 +140,13 @@ function SessionScreen({
 
   return (
     <div className="flex flex-col gap-6">
-      <SessionHeader session={session} sessionId={sessionId} resultCount={list.length} systemFailed={countSystemUngradable(list)} />
+      <SessionHeader
+        session={session}
+        sessionId={sessionId}
+        resultCount={list.length}
+        systemFailed={countSystemUngradable(list)}
+        prepareReviewHref={showPrepareLink ? prepareHref : null}
+      />
       <RulerOriginNote sessionId={sessionId} />
 
       {results.isError && (
@@ -131,10 +160,28 @@ function SessionScreen({
 
       <AiServiceBand sessionId={sessionId} results={list} />
 
-      {!running && <ReviewGroupsPanel sessionId={sessionId} />}
+      {!running && !showReview && <ReviewGroupsPanel sessionId={sessionId} />}
 
       {loading ? (
         <Skeleton className="h-64 w-full" />
+      ) : showReview ? (
+        <>
+          {running ? (
+            <p role="status">
+              Việc chấm vẫn chạy trên máy chủ.{' '}
+              <Link href={listHref} className="font-semibold underline underline-offset-2">
+                Quay lại tiến độ chấm
+              </Link>
+            </p>
+          ) : (
+            <p>
+              <Link href={listHref} className="font-semibold underline underline-offset-2">
+                Quay lại danh sách bài
+              </Link>
+            </p>
+          )}
+          <PreparePanel mode="review" sessionId={sessionId} session={session} />
+        </>
       ) : running ? (
         <>
           <RunningPanel
@@ -157,7 +204,7 @@ function SessionScreen({
         </>
       ) : list.length === 0 || allUngradable ? (
         <>
-          <PreparePanel sessionId={sessionId} session={session} allUngradable={allUngradable} />
+          <PreparePanel mode="edit" sessionId={sessionId} session={session} allUngradable={allUngradable} />
           {allUngradable && table}
         </>
       ) : (

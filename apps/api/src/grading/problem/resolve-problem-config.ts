@@ -14,13 +14,40 @@ export interface ProblemConfig {
 }
 
 /**
+ * Ngôn ngữ dùng để chạy bài của câu `p`.
+ *
+ * Ô "Ngôn ngữ bài code" và bước thiết lập chỉ ghi `required_deliverable.language`. Cột
+ * `exam_problem.language` được chép một lần lúc tạo câu, thường là lúc phiên còn chưa có file,
+ * nên để trống. Phiên một câu mà mọi file code khai cùng một ngôn ngữ thì lấy ngôn ngữ đó —
+ * đúng thứ giảng viên vừa chọn — trước khi rơi về cột câu rồi tới file mà câu đang trỏ.
+ */
+export const EFFECTIVE_PROBLEM_LANGUAGE = `
+  COALESCE(
+    (
+      SELECT MIN(rd.language::text)
+        FROM examcollect.required_deliverable rd
+       WHERE rd.exam_session_id = p.exam_session_id
+         AND rd.deliverable_type = 'code_project'
+      HAVING COUNT(*) > 0
+         AND COUNT(rd.language) = COUNT(*)
+         AND COUNT(DISTINCT rd.language) = 1
+         AND NOT EXISTS (
+           SELECT 1 FROM examcollect.exam_problem later
+            WHERE later.exam_session_id = p.exam_session_id AND later.ordinal > 1
+         )
+    ),
+    NULLIF(p.language, ''),
+    (SELECT rd.language::text FROM examcollect.required_deliverable rd WHERE rd.id = p.required_deliverable_id)
+  )`;
+
+/**
  * Câu mặc định (ordinal = 1) của phiên. Không có phiên, hoặc phiên chưa có câu → null. Không ném vì thiếu cấu
  * hình: rubric / gói test rỗng là trạng thái hợp lệ của phiên mới (Review Focus 2).
  */
 export async function resolveProblemConfig(m: EntityManager, sessionId: string): Promise<ProblemConfig | null> {
   const [row] = await m.query(
     `SELECT p.id, p.ordinal, es.teacher_id, p.rubric_id, p.test_bundle_id, p.points_hundredths,
-            p.required_deliverable_id, p.language
+            p.required_deliverable_id, ${EFFECTIVE_PROBLEM_LANGUAGE} AS language
        FROM examcollect.exam_session es
        JOIN examcollect.exam_problem p ON p.exam_session_id = es.id AND p.ordinal = 1
       WHERE es.id = $1`,
@@ -37,6 +64,34 @@ export async function resolveProblemConfig(m: EntityManager, sessionId: string):
     requiredDeliverableId: row.required_deliverable_id,
     language: row.language,
   };
+}
+
+/**
+ * Ghi ngôn ngữ thống nhất của các file code lên câu 1, khi phiên chỉ có một câu.
+ * Gọi sau khi khai ngôn ngữ hoặc thay danh sách file, để cột câu không nằm lại ở giá trị lúc tạo phiên.
+ */
+export async function syncSingleProblemLanguageFromDeliverables(m: EntityManager, sessionId: string): Promise<void> {
+  await m.query(
+    `UPDATE examcollect.exam_problem p
+        SET language = src.language
+       FROM (
+         SELECT MIN(rd.language::text) AS language
+           FROM examcollect.required_deliverable rd
+          WHERE rd.exam_session_id = $1
+            AND rd.deliverable_type = 'code_project'
+         HAVING COUNT(*) > 0
+            AND COUNT(rd.language) = COUNT(*)
+            AND COUNT(DISTINCT rd.language) = 1
+       ) src
+      WHERE p.exam_session_id = $1
+        AND p.ordinal = 1
+        AND NOT EXISTS (
+          SELECT 1 FROM examcollect.exam_problem later
+           WHERE later.exam_session_id = p.exam_session_id AND later.ordinal > 1
+        )
+        AND p.language IS DISTINCT FROM src.language`,
+    [sessionId],
+  );
 }
 
 /**

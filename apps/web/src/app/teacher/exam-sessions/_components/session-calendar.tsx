@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
+import { EXAM_SESSION_STATUS_BADGE_CLASS, EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import {
   SHIFTS,
   SHIFT_HINTS,
@@ -180,7 +180,10 @@ function SessionCard({
     // scheduled → hub thiết lập; còn lại → phòng chờ / hub (completed).
     <Link
       href={
-        session.status === 'scheduled' || session.status === 'completed'
+        session.status === 'scheduled' ||
+        session.status === 'not_ready' ||
+        session.status === 'missed' ||
+        session.status === 'completed'
           ? `/teacher/exam-sessions/${session.id}`
           : `/exam-sessions/${session.id}`
       }
@@ -190,7 +193,13 @@ function SessionCard({
         hasGapIssue && 'border-destructive',
       )}
     >
-      <span className={cn('inline-flex items-center gap-1.5 text-caption font-semibold', visual.accent)}>
+      <span
+        className={cn(
+          'inline-flex items-center gap-1.5 text-caption font-semibold',
+          EXAM_SESSION_STATUS_BADGE_CLASS,
+          visual.accent,
+        )}
+      >
         <span
           aria-hidden="true"
           className={cn(
@@ -232,6 +241,9 @@ function SessionCard({
 
 const LEGEND: Array<{ label: string; swatch: string }> = [
   { label: 'Sắp diễn ra', swatch: 'border-info/30 bg-info-subtle' },
+  { label: 'Đang diễn ra', swatch: 'border-info/60 bg-info-subtle' },
+  { label: 'Chưa đủ điều kiện', swatch: 'border-warning/40 bg-warning-subtle' },
+  { label: 'Không diễn ra', swatch: 'border-danger/30 bg-danger-subtle' },
   { label: 'Đang thi', swatch: 'border-success/30 bg-success-subtle' },
   { label: 'Đang thu bài', swatch: 'border-warning/40 bg-warning-subtle' },
   { label: 'Đã kết thúc', swatch: 'border-border bg-surface-2' },
@@ -246,7 +258,7 @@ function CalendarLegend() {
       {LEGEND.map((item) => (
         <span key={item.label} className="inline-flex items-center gap-1.5">
           <span aria-hidden="true" className={cn('h-2.5 w-2.5 rounded-sm border', item.swatch)} />
-          {item.label}
+          <span className={EXAM_SESSION_STATUS_BADGE_CLASS}>{item.label}</span>
         </span>
       ))}
       {/* Nói thẳng ra rằng màu chỉ là bổ trợ — người đọc bằng trình đọc màn

@@ -16,6 +16,8 @@ import {
   getSessionPhase,
   groupByClass,
 } from '@/lib/submission-attention';
+import { EXAM_SESSION_STATUS_BADGE_CLASS } from '@/lib/exam-session-display';
+import { useStatusClock } from '@/lib/use-status-clock';
 import {
   EMPTY_FILTERS,
   applyFilters,
@@ -73,7 +75,9 @@ function SearchResultRow({ item, now }: { item: SessionOverviewItem; now: number
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-foreground">{item.name}</span>
         <Badge variant="outline">{EXAM_TYPE_LABELS[item.examType] ?? item.examType}</Badge>
-        <Badge variant={PHASE_VARIANTS[phase]}>{PHASE_LABELS[phase]}</Badge>
+        <Badge variant={PHASE_VARIANTS[phase]} className={EXAM_SESSION_STATUS_BADGE_CLASS}>
+          {PHASE_LABELS[phase]}
+        </Badge>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-muted-foreground">
@@ -108,9 +112,6 @@ function SearchResultRow({ item, now }: { item: SessionOverviewItem; now: number
  */
 export default function SubmissionsPage() {
   const { data, isLoading, error, refetch } = useSessionOverview();
-  // Chốt `now` một lần mỗi render thay vì gọi Date.now() rải rác: hai dòng
-  // cạnh nhau phải được phân loại theo cùng một mốc thời gian.
-  const now = Date.now();
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -122,6 +123,9 @@ export default function SubmissionsPage() {
   // đó đọc bảng submission nên sinh viên chưa nộp gì là vô hình — đúng nhóm
   // giảng viên đi tra. Server giờ tìm trên roster ∪ người đã nộp.
   const searchResults = useSessionOverview(trimmedSearch || undefined, isSearching);
+  // Một mốc cho mọi dòng. Đồng hồ chỉ nhảy khi phiên đã mở chạm giờ bắt đầu,
+  // để "Đang diễn ra" chuyển thành "Đang thi" mà không tải lại trang.
+  const now = useStatusClock([...(data ?? []), ...(searchResults.data ?? [])]);
 
   const searchGroups = useMemo(() => {
     if (!isSearching) return [];

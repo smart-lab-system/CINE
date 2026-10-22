@@ -3,6 +3,11 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest';
 import ExamSessionsListPage from './page';
 
+const push = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push }),
+}));
+
 // QA-reported gap: "Tạo filter cho cả trang quản lý kỳ thi và bài thu" —
 // this page previously took only page/pageSize. This page had no test
 // coverage at all before (no page.test.tsx existed); mocks the hook
@@ -20,8 +25,6 @@ const useExamSessionsInRangeMock = vi.fn();
 vi.mock('@/hooks/useExamSession', () => ({
   useExamSessions: (...args: unknown[]) => useExamSessionsMock(...args),
   useExamSessionsInRange: (...args: unknown[]) => useExamSessionsInRangeMock(...args),
-  useCancelExamSession: () => ({ mutate: vi.fn(), isPending: false }),
-  useUpdateExamSessionSchedule: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 // Bộ lọc LỚP đọc danh sách lớp của giảng viên, không đọc các phiên đã
@@ -64,8 +67,10 @@ function session(overrides: Record<string, unknown> = {}) {
     name: 'Giữa kỳ Lập trình Web',
     code: 'ABC123',
     courseName: 'Lập trình Web',
-    className: 'Nhóm 01',
+    className: 'CTDL001',
+    nominalClassCode: 'D21CQCN01',
     roomName: 'Phòng máy 1',
+    roomCode: 'A101',
     examType: 'GK',
     startTime: new Date(Date.now() - 60_000).toISOString(),
     endTime: new Date(Date.now() + 3_600_000).toISOString(),
@@ -76,6 +81,7 @@ function session(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  push.mockReset();
   setSemesterName.mockReset();
   useSemesterFilterMock.mockReset();
   useSemesterFilterMock.mockReturnValue(semesterState(CURRENT_SEMESTER));
@@ -102,6 +108,72 @@ beforeEach(() => {
 });
 
 describe('ExamSessionsListPage — filters', () => {
+  it('cột thao tác chỉ còn Thiết lập và Vận hành', () => {
+    useExamSessionsMock.mockReturnValue({
+      data: {
+        items: [session({ status: 'scheduled', rosterFrozen: false })],
+        total: 1,
+        semesterNames: [CURRENT_SEMESTER],
+      },
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+
+    render(<ExamSessionsListPage />);
+
+    expect(screen.getByText('CTDL001 - D21CQCN01')).toBeInTheDocument();
+    expect(screen.getByText('A101')).toBeInTheDocument();
+    expect(screen.queryByText('Phòng máy 1')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Thiết lập' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Vận hành' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Sửa lịch/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Huỷ phiên/ })).not.toBeInTheDocument();
+  });
+
+  it('bấm dòng còn hơn 30 phút thì vào thiết lập, đã gần giờ thì vào vận hành', () => {
+    const later = new Date(Date.now() + 2 * 60 * 60_000).toISOString();
+    useExamSessionsMock.mockReturnValue({
+      data: {
+        items: [session({ id: 'soon', name: 'Sắp tới', startTime: later })],
+        total: 1,
+        semesterNames: [CURRENT_SEMESTER],
+      },
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+
+    const { unmount } = render(<ExamSessionsListPage />);
+    fireEvent.click(screen.getByText('Sắp tới'));
+    expect(push).toHaveBeenCalledWith('/teacher/exam-sessions/soon');
+
+    unmount();
+    push.mockReset();
+    useExamSessionsMock.mockReturnValue({
+      data: {
+        items: [session({ id: 'now', name: 'Sát giờ', startTime: new Date(Date.now() + 10 * 60_000).toISOString() })],
+        total: 1,
+        semesterNames: [CURRENT_SEMESTER],
+      },
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    render(<ExamSessionsListPage />);
+    fireEvent.click(screen.getByText('Sát giờ'));
+    expect(push).toHaveBeenCalledWith('/exam-sessions/now');
+  });
+
+  it('bấm sao chép mã hoặc nút thao tác không điều hướng cả dòng', () => {
+    render(<ExamSessionsListPage />);
+    fireEvent.click(screen.getByRole('button', { name: /Sao chép mã phiên thi/ }));
+    const setup = screen.getByRole('link', { name: 'Thiết lập' });
+    setup.addEventListener('click', (event) => event.preventDefault());
+    fireEvent.click(setup);
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it('calls the hook with the debounced search term, resetting to page 1', async () => {
     render(<ExamSessionsListPage />);
 

@@ -25,6 +25,10 @@ describe('isAttachable', () => {
     expect(isAttachable(session('active', '2026-09-22T10:00:00.000Z'), NOW)).toBe(false);
   });
 
+  it('phiên không diễn ra dù giờ thi còn ở tương lai -> không gắn được', () => {
+    expect(isAttachable(session('missed', '2026-09-22T13:00:00.000Z'), NOW)).toBe(false);
+  });
+
   it('phiên huỷ dù giờ thi còn ở tương lai -> không gắn được', () => {
     expect(isAttachable(session('cancelled', '2026-09-22T13:00:00.000Z'), NOW)).toBe(false);
   });
@@ -42,6 +46,7 @@ describe('blockedReason', () => {
 
   it('trạng thái đóng -> nói đúng trạng thái đó', () => {
     expect(blockedReason(session('cancelled', '2026-09-22T13:00:00.000Z'))).toBe('Đã huỷ');
+    expect(blockedReason(session('missed', '2026-09-22T13:00:00.000Z'))).toBe('Không diễn ra');
     expect(blockedReason(session('collecting', '2026-09-22T13:00:00.000Z'))).toContain('thu bài');
   });
 });

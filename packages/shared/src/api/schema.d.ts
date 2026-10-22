@@ -2473,9 +2473,13 @@ export interface components {
             rubricId: string | null;
             rubricVersion: number | null;
             testBundleId: string | null;
+            /** Format: date-time */
+            blueprintConfirmedAt: string | null;
             requiredDeliverables: components["schemas"]["RequiredDeliverableResponseDto"][];
         };
         UpdateExamSessionDto: {
+            /** @enum {string} */
+            examType?: "TK" | "GK" | "CK";
             roomId?: string;
             roomName?: string;
             /** Format: date-time */
@@ -3526,7 +3530,7 @@ export interface operations {
                 page: number;
                 pageSize: number;
                 search?: string;
-                status?: "draft" | "scheduled" | "active" | "collecting" | "completed" | "cancelled";
+                status?: "draft" | "scheduled" | "not_ready" | "missed" | "active" | "collecting" | "completed" | "cancelled";
                 examType?: "TK" | "GK" | "CK";
                 semesterName?: string;
                 classId?: string;

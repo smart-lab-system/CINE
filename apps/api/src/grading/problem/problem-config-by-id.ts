@@ -1,5 +1,5 @@
 import { EntityManager } from 'typeorm';
-import type { ProblemConfig } from './resolve-problem-config';
+import { EFFECTIVE_PROBLEM_LANGUAGE, type ProblemConfig } from './resolve-problem-config';
 
 /**
  * Cấu hình chấm của đúng MỘT câu theo id (5.2). Đường chấm dùng câu của chính kết quả — rubric, gói test, yêu cầu
@@ -8,7 +8,7 @@ import type { ProblemConfig } from './resolve-problem-config';
 export async function resolveProblemConfigByProblem(m: EntityManager, problemId: string): Promise<ProblemConfig | null> {
   const [row] = await m.query(
     `SELECT p.id, p.ordinal, es.teacher_id, p.rubric_id, p.test_bundle_id, p.points_hundredths,
-            p.required_deliverable_id, p.language
+            p.required_deliverable_id, ${EFFECTIVE_PROBLEM_LANGUAGE} AS language
        FROM examcollect.exam_problem p
        JOIN examcollect.exam_session es ON es.id = p.exam_session_id
       WHERE p.id = $1`,

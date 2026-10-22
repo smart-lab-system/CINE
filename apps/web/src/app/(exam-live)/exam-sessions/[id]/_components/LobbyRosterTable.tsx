@@ -90,7 +90,7 @@ const SCROLL_CONTAINER = {
 
 const FILTERS: { id: LobbyRosterFilter; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
-  { id: 'not_joined', label: 'Chưa vào' },
+  { id: 'not_joined', label: 'Chưa kết nối' },
   { id: 'present', label: 'Có mặt' },
   { id: 'absent', label: 'Vắng mặt' },
   { id: 'makeup', label: 'Thi bổ sung' },
@@ -445,6 +445,11 @@ export function LobbyRosterTable({
                           {time}
                         </span>
                       )}
+                      {cell?.filename && cell.filename !== deliverable.requiredFilename && (
+                        <p className="mt-1 font-mono text-caption text-muted-foreground">
+                          {cell.filename}
+                        </p>
+                      )}
                       {archiveCheck && (
                         <p className={cn('mt-1 whitespace-normal text-caption', archiveCheck.tone)}>
                           {archiveCheck.text}
@@ -539,9 +544,8 @@ export function LobbyRosterTable({
                 const presentation = STATE_PRESENTATION[state];
                 const time = formatTime(cell?.submittedAt);
                 const fileSize = formatFileSize(cell?.fileSize);
-                const fileFormat = cell?.downloadUrl
-                  ? formatFileExtension(deliverable.requiredFilename)
-                  : null;
+                const fileName = cell?.filename || deliverable.requiredFilename;
+                const fileFormat = cell?.downloadUrl ? formatFileExtension(fileName) : null;
                 const archiveCheck = cell ? describeArchiveCheck(cell) : null;
 
                 return (
@@ -550,7 +554,7 @@ export function LobbyRosterTable({
                     className="flex flex-col gap-3 rounded-lg border border-border bg-surface-2/40 p-4 sm:flex-row sm:items-start sm:justify-between"
                   >
                     <div className="space-y-1">
-                      <p className="font-medium text-foreground">{deliverable.requiredFilename}</p>
+                      <p className="font-medium text-foreground">{fileName}</p>
                       <p className={cn('inline-flex items-center gap-2 text-sm', presentation.text)}>
                         <span
                           className={cn('h-2 w-2 shrink-0 rounded-full', presentation.dot)}
@@ -577,7 +581,7 @@ export function LobbyRosterTable({
                           href={cell.downloadUrl}
                           target="_blank"
                           rel="noreferrer"
-                          download={deliverable.requiredFilename}
+                          download={fileName}
                         >
                           Mở file
                         </a>

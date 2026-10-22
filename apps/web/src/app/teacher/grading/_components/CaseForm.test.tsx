@@ -44,23 +44,32 @@ describe('CaseForm — thêm và sửa một ca (mock-up v2)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thêm vào bản nháp' }));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Còn 3 lỗi');
+    expect(screen.getByRole('alert')).toHaveTextContent('Còn 2 lỗi');
     const key = screen.getByLabelText(/^Tên ca/);
     expect(key).toHaveAttribute('aria-invalid', 'true');
     expect(document.getElementById(key.getAttribute('aria-describedby')!)).toHaveTextContent('Nhập tên ca');
-    expect(screen.getByLabelText(/^Output mong đợi/)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(/^Output mong đợi/)).not.toHaveAttribute('aria-invalid');
     expect(key).toHaveFocus();
   });
 
   it('sau lần gửi hỏng, sửa ô nào thì lỗi của ô đó mất ngay (không đợi gửi lại)', () => {
-    setup({ initial: { caseKey: 'ca2', group: 'co_ban', input: '', expectedOutput: '' } });
+    setup({ initial: { caseKey: '', group: 'co_ban', input: '0', expectedOutput: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Thêm vào bản nháp' }));
-    expect(screen.getByLabelText(/^Output mong đợi/)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(/^Tên ca/)).toHaveAttribute('aria-invalid', 'true');
 
-    type(/^Output mong đợi/, '7');
+    type(/^Tên ca/, 'ca2');
 
-    expect(screen.getByLabelText(/^Output mong đợi/)).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByLabelText(/^Tên ca/)).not.toHaveAttribute('aria-invalid');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('thêm được ca input 0 và output rỗng', () => {
+    const { onSubmit } = setup({ initial: { caseKey: 'ca0', group: 'bien', input: '0', expectedOutput: '' } });
+    expect(screen.getByText(/Sẽ hiện là/)).toHaveTextContent('output (rỗng)');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm vào bản nháp' }));
+
+    expect(onSubmit).toHaveBeenCalledWith({ caseKey: 'ca0', group: 'bien', input: '0', expectedOutput: '' }, false);
   });
 
   it('tên ca trùng một ca đang dùng → lỗi cạnh ô; gửi hợp lệ gọi onSubmit với giá trị đã nhập', () => {

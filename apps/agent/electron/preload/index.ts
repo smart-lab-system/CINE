@@ -71,6 +71,12 @@ const api: AgentApi = {
   mgmtScanExtensions(machineIds?: string[]) {
     return ipcRenderer.invoke(IPC_CHANNELS.mgmtScanExtensions, machineIds);
   },
+  mgmtReadExtensionActivity(machineIds?: string[]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtReadExtensionActivity, machineIds);
+  },
+  mgmtDownloadViolationVsix() {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtDownloadViolationVsix);
+  },
   mgmtCompareAllowlist() {
     return ipcRenderer.invoke(IPC_CHANNELS.mgmtCompareAllowlist);
   },
