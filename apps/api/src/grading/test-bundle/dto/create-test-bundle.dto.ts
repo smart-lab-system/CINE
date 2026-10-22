@@ -39,4 +39,11 @@ export class CreateTestBundleDto {
   @IsOptional()
   @IsUUID()
   derivedFromBundleId?: string;
+
+  /**
+   * Câu mà gói này thuộc về (P1b). Vắng → câu mặc định của phiên, như trước P1b. Phải là câu của đúng phiên (404 nếu không).
+   */
+  @IsOptional()
+  @IsUUID()
+  problemId?: string;
 }

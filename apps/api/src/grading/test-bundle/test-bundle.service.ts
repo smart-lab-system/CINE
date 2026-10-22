@@ -2,8 +2,8 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import { CreateTestBundleDto } from './dto/create-test-bundle.dto';
-import { ensureDefaultProblem, setProblemTestBundle, setSessionTestBundleAndProblem } from '../problem/resolve-problem-config';
-import { assertSessionRouteAllowed } from '../problem/session-route-guard';
+import { ensureDefaultProblem, setProblemTestBundle } from '../problem/resolve-problem-config';
+import { assertBundleRouteAllowed, assertSessionRouteAllowed } from '../problem/session-route-guard';
 import { lockTeacherScoring } from '../scoring/teacher-lock';
 
 /**
@@ -35,10 +35,19 @@ export class TestBundleService {
 
   async create(examSessionId: string, teacherId: string, dto: CreateTestBundleDto) {
     return this.ds.transaction(async (manager) => {
-      await assertSessionRouteAllowed(manager, examSessionId);
+      // Gói của một câu cụ thể đi qua chặn theo gói (phiên nhiều câu vẫn được); gói không khai câu thì là câu mặc định,
+      // và vẫn bị chặn như trước khi phiên có nhiều câu.
+      if (dto.problemId === undefined) {
+        await assertSessionRouteAllowed(manager, examSessionId);
+      } else {
+        await assertBundleRouteAllowed(manager, examSessionId);
+      }
       const origin = await this.originFor(manager, examSessionId, dto.derivedFromBundleId);
       const version = await this.nextVersion(manager, examSessionId);
-      const problemId = await ensureDefaultProblem(manager, examSessionId);
+      const problemId = dto.problemId ?? (await ensureDefaultProblem(manager, examSessionId));
+      if (dto.problemId !== undefined) {
+        await this.assertProblemInSession(manager, examSessionId, dto.problemId);
+      }
       const [bundle] = await manager.query(
         `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
          VALUES ($1, $2, $5, $3, $4) RETURNING id, version`,
@@ -47,6 +56,15 @@ export class TestBundleService {
       await this.insertCases(manager, bundle.id, dto.cases);
       return { id: bundle.id as string, version: bundle.version as number };
     });
+  }
+
+  /** Câu phải thuộc đúng phiên (404 nếu không): gói test không được gắn vào câu của phiên khác. */
+  private async assertProblemInSession(manager: EntityManager, examSessionId: string, problemId: string): Promise<void> {
+    const [row] = await manager.query(`SELECT id FROM examcollect.exam_problem WHERE id = $1 AND exam_session_id = $2`, [
+      problemId,
+      examSessionId,
+    ]);
+    if (!row) throw new NotFoundException(`Câu ${problemId} không thuộc phiên này.`);
   }
 
   /**
@@ -96,7 +114,7 @@ export class TestBundleService {
       );
     }
     return this.ds.transaction(async (m) => {
-      await assertSessionRouteAllowed(m, examSessionId);
+      await assertBundleRouteAllowed(m, examSessionId);
       await m.query(
         `UPDATE examcollect.grading_test_bundle SET approved_by = $1, approved_at = now() WHERE id = $2`,
         [teacherId, bundleId],
@@ -115,9 +133,11 @@ export class TestBundleService {
         `Gói test ${bundleId} chưa được duyệt — chỉ gói đã duyệt mới ghim được.`,
       );
     }
+    // Ghim vào CÂU của gói (không phải bí danh phiên): gói câu 2 không được ghi lên câu 1. `setProblemTestBundle` tự
+    // ghi bí danh phiên khi đó là câu mặc định.
     await this.ds.transaction(async (m) => {
-      await assertSessionRouteAllowed(m, examSessionId);
-      await setSessionTestBundleAndProblem(m, examSessionId, bundleId);
+      await assertBundleRouteAllowed(m, examSessionId);
+      await setProblemTestBundle(m, examSessionId, bundle.problem_id as string, bundleId);
     });
     return { testBundleId: bundleId };
   }
@@ -142,7 +162,7 @@ export class TestBundleService {
     }
 
     return this.ds.transaction(async (manager) => {
-      await assertSessionRouteAllowed(manager, examSessionId);
+      await assertBundleRouteAllowed(manager, examSessionId);
       const rows: {
         case_key: string;
         group: string;
@@ -171,7 +191,8 @@ export class TestBundleService {
       }
 
       const version = await this.nextVersion(manager, examSessionId);
-      const problemId = await ensureDefaultProblem(manager, examSessionId);
+      // Phiên bản mới thuộc đúng câu của gói gốc, không về câu mặc định.
+      const problemId = bundle.problem_id as string;
       const [next] = await manager.query(
         `INSERT INTO examcollect.grading_test_bundle (exam_session_id, version, origin, created_by, problem_id)
          VALUES ($1, $2, $3, $4, $5) RETURNING id, version`,
@@ -270,7 +291,7 @@ export class TestBundleService {
   /** Gói phải thuộc ĐÚNG phiên được truyền vào (Review Focus #3). */
   private async findOwnedBundle(examSessionId: string, bundleId: string) {
     const [bundle] = await this.ds.query(
-      `SELECT id, version, origin, created_by, approved_at FROM examcollect.grading_test_bundle
+      `SELECT id, version, origin, created_by, approved_at, problem_id FROM examcollect.grading_test_bundle
         WHERE id = $1 AND exam_session_id = $2`,
       [bundleId, examSessionId],
     );

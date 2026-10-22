@@ -104,8 +104,8 @@ export function FinalizePanel({
               Tải file sổ điểm của bạn (.xlsx), chọn cột, xem trước rồi ghi. Hệ thống chỉ điền các ô bạn chọn — mọi ô khác
               giữ nguyên.
             </p>
-            <Button asChild size="sm" className="self-start">
-              <Link href={`/teacher/grading/export?sessionId=${sessionId}`}>Mở màn ghi điểm</Link>
+            <Button asChild size="sm" className="self-start text-white">
+              <Link href={`/teacher/grading/export?sessionId=${sessionId}`}>Tiến hành điền điểm</Link>
             </Button>
           </section>
         </>

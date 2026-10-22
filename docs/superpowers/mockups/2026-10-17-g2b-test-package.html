@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock-up — Gói test: duyệt và ghim gộp</title>
+<style>
+  :root {
+    --bg: #f6f8fa; --card: #ffffff; --line: #d8dee4; --text: #1f2328; --muted: #656d76;
+    --accent: #0f766e; --accent-soft: #e6f4f1; --warn: #9a6700; --warn-soft: #fff8c5;
+    --new: #0969da; --new-soft: #ddf4ff; --have: #1a7f37; --have-soft: #dafbe1; --todo: #8250df; --todo-soft: #fbefff;
+    --danger: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1117; --card: #161b22; --line: #30363d; --text: #e6edf3; --muted: #8b949e;
+      --accent: #2dd4bf; --accent-soft: #0f2d2a; --warn: #d29922; --warn-soft: #2d2208;
+      --new: #58a6ff; --new-soft: #0c2540; --have: #3fb950; --have-soft: #0f2b16; --todo: #bc8cff; --todo-soft: #261a3a;
+      --danger: #ff7b72;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1117; --card: #161b22; --line: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --accent: #2dd4bf; --accent-soft: #0f2d2a; --warn: #d29922; --warn-soft: #2d2208;
+    --new: #58a6ff; --new-soft: #0c2540; --have: #3fb950; --have-soft: #0f2b16; --todo: #bc8cff; --todo-soft: #261a3a;
+    --danger: #ff7b72;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 8px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-top: 16px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+  .tag.have { color: var(--have); background: var(--have-soft); }
+  .tag.new { color: var(--new); background: var(--new-soft); }
+  .tag.todo { color: var(--todo); background: var(--todo-soft); }
+  .tag.sys { color: var(--warn); background: var(--warn-soft); }
+  .tag.ok { color: var(--accent); background: var(--accent-soft); }
+  .btn { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 4px 8px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn .tag { margin-left: 6px; vertical-align: middle; }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; }
+  .switch { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .switch .btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; }
+  td.mono, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+  tr.dropped td { color: var(--muted); text-decoration: line-through; }
+  tr.dropped td:last-child, tr.dropped td:nth-last-child(2) { text-decoration: none; }
+  .note { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; color: var(--muted); font-size: 12.5px; margin-top: 12px; }
+  .warnbox { border: 1px solid var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+  .confirm { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 12px; margin-top: 12px; }
+  .draft-row td input { font: inherit; font-size: 12px; width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--text); }
+  .sep { height: 1px; background: var(--line); margin: 14px 0; }
+  .hidden { display: none !important; }
+  .decide { border-left: 3px solid var(--todo); padding: 6px 10px; margin: 8px 0; background: var(--todo-soft); border-radius: 0 6px 6px 0; }
+  @media (max-width: 720px) {
+    main { padding: 16px 12px 32px; }
+    table { font-size: 12px; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mock-up — Phần tạo gói test, theo hướng “duyệt và ghim gộp”</h1>
+  <p class="muted small" style="margin:0">Trang tĩnh để xem bố cục và hành vi. Dữ liệu minh hoạ, chưa nối API. Mỗi nhãn màu cho biết thao tác đó hiện có, mới, hay phụ thuộc quyết định chưa chốt.</p>
+
+  <div class="card">
+    <div class="legend">
+      <span class="tag have">có sẵn</span>
+      <span class="tag new">mới (PR-G2b / A2)</span>
+      <span class="tag todo">cần quyết định</span>
+      <span class="tag sys">thước do hệ thống sinh</span>
+      <span class="tag ok">đang dùng</span>
+    </div>
+    <div class="switch" role="group" aria-label="Chọn trạng thái để xem">
+      <button class="btn" data-state-btn="a" aria-pressed="true">A. Gói sinh ra, chưa duyệt</button>
+      <button class="btn" data-state-btn="b" aria-pressed="false">B. Gói đã duyệt và đang dùng</button>
+      <button class="btn" data-state-btn="c" aria-pressed="false">C. Đang sửa (bản nháp)</button>
+    </div>
+  </div>
+
+  <!-- ============ A. Gói sinh ra, chưa duyệt ============ -->
+  <section class="card" data-view="a">
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <h2 style="margin:0">Gói test — câu 1</h2>
+        <span class="tag sys">Thước do hệ thống sinh</span>
+        <span class="tag todo">Chưa duyệt</span>
+      </div>
+      <span class="muted small">Phiên bản 2 · 5 ca · 1 ca tự bỏ</span>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="confirmOpen">Duyệt và ghim <span class="tag new">mới</span></button>
+      <button class="btn" disabled>Chạy thử đáp án mẫu <span class="tag todo">G2b, cần sandbox</span></button>
+      <button class="btn" id="addRowA">Thêm ca <span class="tag new">mới: vào bản nháp</span></button>
+      <button class="btn" data-go="c">Sửa ca… <span class="tag new">mới</span></button>
+    </div>
+
+    <table style="margin-top:12px">
+      <thead>
+        <tr>
+          <th>Tên ca</th><th>Nhóm</th><th>Input</th><th>Output mong đợi</th>
+          <th class="hide-sm">Trích đề</th><th class="hide-sm">Nguồn ca</th><th class="hide-sm">Chạy thử</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">ca1</td><td>co_ban</td><td class="mono">5⏎1 2 3 4 5</td><td class="mono">15</td>
+          <td class="hide-sm"><i>“Dòng đầu là n (1 ≤ n ≤ 100)”</i></td>
+          <td class="hide-sm"><span class="tag sys">hệ thống</span></td>
+          <td class="hide-sm"><span class="muted small">chưa chạy</span></td>
+          <td><button class="btn ghost" data-act="edit">Sửa</button><button class="btn ghost" data-act="drop">Bỏ ca này</button></td>
+        </tr>
+        <tr>
+          <td class="mono">ca2</td><td>co_ban</td><td class="mono">1⏎7</td><td class="mono">7</td>
+          <td class="hide-sm"><i>“Dòng đầu là n (1 ≤ n ≤ 100)”</i></td>
+          <td class="hide-sm"><span class="tag sys">hệ thống</span></td>
+          <td class="hide-sm"><span class="muted small">chưa chạy</span></td>
+          <td><button class="btn ghost" data-act="edit">Sửa</button><button class="btn ghost" data-act="drop">Bỏ ca này</button></td>
+        </tr>
+        <tr>
+          <td class="mono">ca3</td><td>bien</td><td class="mono">1⏎-3</td><td class="mono">-3</td>
+          <td class="hide-sm"><i>“các số có thể âm”</i></td>
+          <td class="hide-sm"><span class="tag sys">hệ thống</span></td>
+          <td class="hide-sm"><span class="muted small">chưa chạy</span></td>
+          <td><button class="btn ghost" data-act="edit">Sửa</button><button class="btn ghost" data-act="drop">Bỏ ca này</button></td>
+        </tr>
+        <tr>
+          <td class="mono">ca4</td><td>bien</td><td class="mono">2⏎0 0</td><td class="mono">0</td>
+          <td class="hide-sm"><span class="muted">—</span></td>
+          <td class="hide-sm"><span class="tag ok">giảng viên sửa</span></td>
+          <td class="hide-sm"><span class="muted small">chưa chạy</span></td>
+          <td><button class="btn ghost" data-act="edit">Sửa</button><button class="btn ghost" data-act="drop">Bỏ ca này</button></td>
+        </tr>
+        <tr>
+          <td class="mono">ca5</td><td>lon</td><td class="mono">100⏎1 1 1 … (100 số)</td><td class="mono">100</td>
+          <td class="hide-sm"><i>“Dòng đầu là n (1 ≤ n ≤ 100)”</i></td>
+          <td class="hide-sm"><span class="tag sys">hệ thống</span></td>
+          <td class="hide-sm"><span class="muted small">chưa chạy</span></td>
+          <td><button class="btn ghost" data-act="edit">Sửa</button><button class="btn ghost" data-act="drop">Bỏ ca này</button></td>
+        </tr>
+        <tr class="dropped">
+          <td class="mono">rong</td><td>bien</td><td class="mono">0</td><td class="mono">—</td>
+          <td class="hide-sm">Hệ thống đã bỏ ca này: không trích được câu nào trong đề</td>
+          <td class="hide-sm"><span class="tag sys">hệ thống</span></td>
+          <td class="hide-sm"><span class="muted small">—</span></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Hộp xác nhận: chỉ mở khi bấm "Duyệt và ghim" -->
+    <div class="confirm hidden" id="confirmBox" role="dialog" aria-label="Xác nhận duyệt và ghim">
+      <p style="margin:0"><b>Duyệt và ghim phiên bản 2 — 5 ca.</b> Sau khi duyệt, gói này thành thước chấm của câu 1.</p>
+      <div class="decide">
+        <p style="margin:0">Đáp án và gói test cùng do hệ thống viết nên <b>khớp nội bộ, chưa chứng tỏ đúng</b>. Hãy đọc vài ca dưới đây rồi quyết định.</p>
+      </div>
+      <p class="small muted" style="margin:6px 0 4px">Ca mẫu cần đọc</p>
+      <table>
+        <thead><tr><th>Ca</th><th>Input</th><th>Output mong đợi</th><th>Đề nói gì</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">ca1</td><td class="mono">5⏎1 2 3 4 5</td><td class="mono">15</td><td><i>“Dòng đầu là n (1 ≤ n ≤ 100)”</i></td></tr>
+          <tr><td class="mono">ca3</td><td class="mono">1⏎-3</td><td class="mono">-3</td><td><i>“các số có thể âm”</i></td></tr>
+        </tbody>
+      </table>
+      <label class="row small" style="margin-top:10px">
+        <input type="checkbox" id="readCheck"> Tôi đã đọc các ca trên và thấy đúng với đề.
+      </label>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="confirmBtn" disabled>Duyệt và ghim phiên bản 2</button>
+        <button class="btn" id="confirmCancel">Huỷ</button>
+        <span class="muted small">Nếu gói có nhiều câu, nút “Duyệt và ghim tất cả” sẽ hiện ở đây (xem mục dưới).</span>
+      </div>
+    </div>
+
+    <div class="note">
+      Đáp án và gói test cùng do hệ thống viết thì <b>khớp nhau chưa chắc là đúng</b>. Bộ ca chỉ thành thước khi bạn duyệt.
+    </div>
+  </section>
+
+  <!-- ============ B. Gói đã duyệt và đang dùng ============ -->
+  <section class="card hidden" data-view="b">
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <h2 style="margin:0">Gói test — câu 1</h2>
+        <span class="tag sys">Thước do hệ thống sinh</span>
+        <span class="tag ok">Đang dùng</span>
+      </div>
+      <span class="muted small">Phiên bản 1 · 4 ca · Đã duyệt lúc 13:44:14 17/10/2026</span>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" data-go="c">Tạo phiên bản mới từ gói này <span class="tag new">mới: nạp sẵn các ca</span></button>
+      <button class="btn" disabled title="Gói đã duyệt không sửa được">Sửa ca <span class="tag have">có sẵn: bất biến</span></button>
+      <button class="btn" disabled title="Gói đã duyệt không bỏ ca được">Bỏ ca này <span class="tag have">có sẵn: chỉ gói chưa duyệt</span></button>
+    </div>
+    <table style="margin-top:12px">
+      <thead><tr><th>Tên ca</th><th>Nhóm</th><th>Input</th><th>Output mong đợi</th><th class="hide-sm">Chạy thử</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">ca1</td><td>co_ban</td><td class="mono">5⏎1 2 3 4 5</td><td class="mono">15</td><td class="hide-sm"><span class="muted small">chưa chạy</span></td></tr>
+        <tr><td class="mono">ca2</td><td>co_ban</td><td class="mono">1⏎7</td><td class="mono">7</td><td class="hide-sm"><span class="muted small">chưa chạy</span></td></tr>
+        <tr><td class="mono">ca3</td><td>bien</td><td class="mono">1⏎-3</td><td class="mono">-3</td><td class="hide-sm"><span class="muted small">chưa chạy</span></td></tr>
+        <tr><td class="mono">ca4</td><td>lon</td><td class="mono">100⏎1 1 1 … (100 số)</td><td class="mono">100</td><td class="hide-sm"><span class="muted small">chưa chạy</span></td></tr>
+      </tbody>
+    </table>
+    <div class="note">Gói đã duyệt là bằng chứng cho từng bài đã chấm, nên không sửa. Muốn đổi ca thì tạo phiên bản mới, duyệt lại và ghim lại.</div>
+  </section>
+
+  <!-- ============ C. Đang sửa (bản nháp) ============ -->
+  <section class="card hidden" data-view="c">
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <h2 style="margin:0">Bản nháp — câu 1</h2>
+        <span class="tag new">Chưa lưu</span>
+      </div>
+      <span class="muted small">Nháp chép từ phiên bản 2 · 1 ca đã sửa · 1 ca thêm · 1 ca bỏ</span>
+    </div>
+    <p class="small muted" style="margin:8px 0 0">Mọi thay đổi gom vào bản nháp. Chỉ khi bấm “Lưu thành phiên bản mới” mới tạo một phiên bản.</p>
+
+    <table class="draft" style="margin-top:12px">
+      <thead><tr><th>Tên ca</th><th>Nhóm</th><th>Input</th><th>Output mong đợi</th><th>Trạng thái</th><th></th></tr></thead>
+      <tbody>
+        <tr class="draft-row">
+          <td><input value="ca1"></td><td><input value="co_ban"></td><td><input value="5&#10;1 2 3 4 5"></td><td><input value="15"></td>
+          <td><span class="muted small">giữ nguyên</span></td><td><button class="btn ghost">Bỏ</button></td>
+        </tr>
+        <tr class="draft-row">
+          <td><input value="ca2"></td><td><input value="co_ban"></td><td><input value="1&#10;7"></td><td><input value="8"></td>
+          <td><span class="tag ok">đã sửa đầu ra</span></td><td><button class="btn ghost">Bỏ</button></td>
+        </tr>
+        <tr class="draft-row">
+          <td><input value="ca6"></td><td><input value="bien"></td><td><input value="3&#10;0 0 0"></td><td><input value="0"></td>
+          <td><span class="tag new">ca mới</span></td><td><button class="btn ghost">Bỏ</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="addRowC">Thêm ca</button>
+      <button class="btn primary">Lưu thành phiên bản mới</button>
+      <button class="btn ghost" data-go="a">Huỷ bản nháp</button>
+    </div>
+    <div class="warnbox small">
+      <b>Ca nhập tay chưa được kiểm.</b> Đầu ra <i>0</i> của ca6 do bạn gõ. Khi có “Chạy thử”, hệ thống sẽ chạy đáp án mẫu trên ca này để xem có khớp không. Đến lúc đó ca mới mới có bằng chứng.
+    </div>
+    <div class="sep"></div>
+    <p class="small muted" style="margin:0">Hiện nay server từ chối tên ca và nhóm rỗng, nhưng vẫn nhận input và output mong đợi rỗng (DTO chỉ kiểm kiểu chuỗi). Mock-up này không cho lưu khi còn ô rỗng.</p>
+  </section>
+
+  <!-- ============ Cần quyết định + hiện có/chưa có ============ -->
+  <section class="card">
+    <h2>Giảng viên làm được gì hôm nay với các ca</h2>
+    <table>
+      <thead><tr><th>Việc</th><th>Hiện nay</th><th>Ghi chú</th></tr></thead>
+      <tbody>
+        <tr><td>Thêm ca</td><td><span class="tag have">có, một cách</span></td><td>Chỉ qua “Tạo phiên bản mới”, form bắt đầu rỗng; muốn thêm một ca vào gói có sẵn phải gõ lại cả gói.</td></tr>
+        <tr><td>Bỏ ca</td><td><span class="tag have">có</span></td><td>Chỉ với gói chưa duyệt. Tạo phiên bản mới không có ca đó.</td></tr>
+        <tr><td>Sửa nội dung một ca</td><td><span class="tag todo">không có đường riêng</span></td><td>Phải bỏ ca cũ rồi gõ lại ca mới trong form trống.</td></tr>
+        <tr><td>Thay đổi gói đã duyệt</td><td><span class="tag have">không được</span></td><td>Gói đã duyệt là bất biến (DB có guard). Đổi thì tạo phiên bản mới và duyệt lại.</td></tr>
+        <tr><td>Duyệt và ghim gộp</td><td><span class="tag todo">không có</span></td><td>Hai nút riêng “Duyệt” và “Ghim”. Gộp cần một route nguyên tử; gọi tuần tự từ FE thì có thể duyệt xong mà ghim lỗi.</td></tr>
+        <tr><td>Kiểm ca nhập tay</td><td><span class="tag todo">không có</span></td><td>DTO chỉ kiểm chuỗi; output rỗng được nhận. Trùng tên ca chưa kiểm ở FE.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Bốn điều tôi cần bạn chốt trước khi làm</h2>
+    <ol style="margin:0; padding-left:20px">
+      <li><b>Sửa theo bản nháp hay theo từng ca?</b> Khuyến nghị: bản nháp (một lần lưu = một phiên bản). Từng ca thì mỗi lần sửa tạo một phiên bản, danh sách phiên bản dài.</li>
+      <li><b>Nguồn của từng ca lưu ở đâu?</b> Trong mock-up ca có nhãn “hệ thống” hoặc “giảng viên sửa”. Cách 1: thêm cột nguồn theo ca (một migration nữa). Cách 2: gói có nguồn chung, ca sửa tay làm gói thành “giảng viên”. Khuyến nghị: cách 1, vì một gói có cả hai nguồn là chuyện thường.</li>
+      <li><b>Có bắt buộc chạy thử trước khi duyệt không?</b> Khuyến nghị: bắt buộc với ca do hệ thống sinh và ca giảng viên nhập tay. Ca đã chạy và khớp đáp án mẫu mới đủ bằng chứng nội bộ.</li>
+      <li><b>“Duyệt và ghim gộp” là một route nguyên tử hay hai route?</b> Khuyến nghị: một route, vì không có trạng thái “đã duyệt nhưng chưa ghim” lọt ra ngoài.</li>
+    </ol>
+    <div class="note">Mục “Duyệt và ghim tất cả (nhiều câu)” phụ thuộc P1b (phiên nhiều câu, chưa có trên main). Mock-up chỉ vẽ phần một câu.</div>
+  </section>
+</main>
+
+<script>
+  // Chuyển trạng thái xem
+  const views = document.querySelectorAll('[data-view]');
+  const stateBtns = document.querySelectorAll('[data-state-btn]');
+  function show(state) {
+    views.forEach((v) => v.classList.toggle('hidden', v.dataset.view !== state));
+    stateBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.stateBtn === state)));
+  }
+  stateBtns.forEach((b) => b.addEventListener('click', () => show(b.dataset.stateBtn)));
+  document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => show(b.dataset.go)));
+
+  // Hộp xác nhận: nút duyệt chỉ mở khi đã tick
+  const box = document.getElementById('confirmBox');
+  const readCheck = document.getElementById('readCheck');
+  const confirmBtn = document.getElementById('confirmBtn');
+  document.getElementById('confirmOpen').addEventListener('click', () => box.classList.toggle('hidden'));
+  document.getElementById('confirmCancel').addEventListener('click', () => box.classList.add('hidden'));
+  readCheck.addEventListener('change', () => { confirmBtn.disabled = !readCheck.checked; });
+</script>
+</body>
+</html>

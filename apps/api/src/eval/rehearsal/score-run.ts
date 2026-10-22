@@ -26,6 +26,19 @@ export interface ScenarioSubmission {
   label: string;
   code: string;
   expect: Expectation;
+  /** Câu mà bài này là lời giải (phiên nhiều câu). Vắng = câu 1 — phiên một câu cũ không khai gì. */
+  ordinal?: number;
+  /** Câu mà sinh viên KHÔNG nộp file. Không có kết quả chấm là đúng: hệ thống không tự cho 0. */
+  missing?: boolean;
+}
+
+export interface ScenarioProblem {
+  ordinal: number;
+  title: string;
+  statement: string;
+  /** Lời giải đúng, đưa vào đáp án Soạn đề (không dùng để chấm). */
+  modelAnswer: string;
+  tests: { caseKey: string; group: string; input: string; expectedOutput: string }[];
 }
 
 export interface RehearsalScenario {
@@ -34,12 +47,21 @@ export interface RehearsalScenario {
   rules: RehearsalRule[];
   question: string;
   tests: { caseKey: string; group: string; input: string; expectedOutput: string }[];
+  /** Phiên nhiều câu: mỗi câu có đề và gói test riêng. Vắng = phiên một câu (dùng `question`/`tests`). */
+  problems?: ScenarioProblem[];
   submissions: ScenarioSubmission[];
+}
+
+/** Khoá của MỘT bài nộp: một sinh viên và một câu. Phiên một câu là câu 1. */
+export function unitKey(mssv: string, ordinal: number): string {
+  return `${mssv}#${ordinal}`;
 }
 
 /** Những gì API trả về cho MỘT bài sau lượt chấm — đủ để chấm lại theo kỳ vọng. */
 export interface ActualSubmission {
   mssv: string;
+  /** Câu của bài (1 cho phiên một câu). Lượt cũ không có trường này. */
+  ordinal?: number;
   status: string;
   score: number | null;
   confidence: number | null;
@@ -60,6 +82,8 @@ export type Decision = 'auto' | 'review' | 'ungradable' | 'pending';
 
 export interface SubmissionCheck {
   mssv: string;
+  /** Câu của bài. Lượt cũ (phiên một câu) không có trường này. */
+  ordinal?: number;
   label: string;
   expectedScore: number;
   actualScore: number | null;
@@ -97,6 +121,11 @@ export interface RunSummary {
   lensFailures: number;
   maxSubmissionSec: number | null;
   models: string[];
+  /** Phiên nhiều câu: số bài kỳ vọng thiếu file, và bao nhiêu bài trong số đó đúng là không có kết quả. */
+  missingTotal?: number;
+  missingOk?: number;
+  /** Bài kỳ vọng có nộp mà không có kết quả chấm — luôn là lỗi. */
+  unitsWithoutResult?: number;
 }
 
 export interface RunRecord {
@@ -160,6 +189,7 @@ function checkOne(scenario: RehearsalScenario, sub: ScenarioSubmission, act: Act
   const auditHidden = act?.status === 'audit_pending';
   return {
     mssv: sub.mssv,
+    ordinal: sub.ordinal ?? 1,
     label: sub.label,
     expectedScore,
     actualScore: act?.score ?? null,
@@ -195,16 +225,25 @@ export function scenarioRows<T extends { studentMssv: string }>(scenario: Rehear
 
 /** Chấm một lượt diễn tập theo kỳ vọng của kịch bản — thuần, không gọi mạng. */
 export function evaluateRun(scenario: RehearsalScenario, actuals: ActualSubmission[]): { checks: SubmissionCheck[]; summary: RunSummary } {
-  const byMssv = new Map(actuals.map((a) => [a.mssv, a]));
-  const checks = scenario.submissions.filter((s) => byMssv.has(s.mssv)).map((s) => checkOne(scenario, s, byMssv.get(s.mssv)));
+  const byUnit = new Map(actuals.map((a) => [unitKey(a.mssv, a.ordinal ?? 1), a]));
+  const expectedOf = new Map(scenario.submissions.map((s) => [unitKey(s.mssv, s.ordinal ?? 1), s]));
+  const hasResult = (s: ScenarioSubmission) => byUnit.has(unitKey(s.mssv, s.ordinal ?? 1));
+  const submitted = scenario.submissions.filter((s) => !s.missing);
+  const missing = scenario.submissions.filter((s) => s.missing);
+  const checks = submitted
+    .filter(hasResult)
+    .map((s) => checkOne(scenario, s, byUnit.get(unitKey(s.mssv, s.ordinal ?? 1))));
   const count = (f: (c: SubmissionCheck) => boolean) => checks.filter(f).length;
   const sum = (f: (c: SubmissionCheck) => number) => checks.reduce((acc, c) => acc + f(c), 0);
-  const expectedErrors = (c: SubmissionCheck) => scenario.submissions.find((s) => s.mssv === c.mssv)!.expect.errors.length;
+  const expectedErrors = (c: SubmissionCheck) => expectedOf.get(unitKey(c.mssv, c.ordinal ?? 1))!.expect.errors.length;
   const times = checks.map((c) => c.finishedAtSec).filter((t): t is number => t !== null);
   return {
     checks,
     summary: {
       submissions: checks.length,
+      missingTotal: missing.length,
+      missingOk: missing.filter((s) => !hasResult(s)).length,
+      unitsWithoutResult: submitted.filter((s) => !hasResult(s)).length,
       scoreOk: count((c) => c.scoreOk),
       auditHidden: count((c) => c.auditHidden),
       decisionOk: count((c) => c.decisionOk),
@@ -218,7 +257,7 @@ export function evaluateRun(scenario: RehearsalScenario, actuals: ActualSubmissi
       missedFlags: sum((c) => c.missedFlags.length),
       lensFailures: sum((c) => c.lensFailures.length),
       maxSubmissionSec: times.length > 0 ? Math.max(...times) : null,
-      models: [...new Set(checks.map((c) => byMssv.get(c.mssv)?.model).filter((m): m is string => !!m))].sort(),
+      models: [...new Set(checks.map((c) => byUnit.get(unitKey(c.mssv, c.ordinal ?? 1))?.model).filter((m): m is string => !!m))].sort(),
     },
   };
 }

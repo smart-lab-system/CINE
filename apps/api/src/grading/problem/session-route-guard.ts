@@ -14,6 +14,23 @@ import { lockTeacherScoring } from '../scoring/teacher-lock';
  * trong cùng một phiên kết nối.
  */
 export async function assertSessionRouteAllowed(m: EntityManager, sessionId: string): Promise<void> {
+  const row = await lockSessionForRoute(m, sessionId);
+  const problemCount = row.problem_count as number;
+  if (problemCount > 1) {
+    throw new ConflictException(`phiên này có ${problemCount} câu — sửa tài liệu chấm theo từng câu`);
+  }
+  assertNotConfirmed(row);
+}
+
+/**
+ * Chặn route theo GÓI TEST của MỘT câu (tạo, duyệt, ghim, bỏ ca): gói đã gắn câu của nó nên phiên nhiều câu vẫn
+ * được phép. Vẫn chặn khi đề cương đã xác nhận, cùng quy tắc với route cấp phiên. Cùng cơ chế khoá.
+ */
+export async function assertBundleRouteAllowed(m: EntityManager, sessionId: string): Promise<void> {
+  assertNotConfirmed(await lockSessionForRoute(m, sessionId));
+}
+
+async function lockSessionForRoute(m: EntityManager, sessionId: string): Promise<{ blueprint_confirmed_at: unknown; problem_count: number }> {
   const [owner] = await m.query(`SELECT teacher_id FROM examcollect.exam_session WHERE id = $1`, [sessionId]);
   if (!owner) {
     throw new NotFoundException('Không tìm thấy phiên thi.');
@@ -28,10 +45,10 @@ export async function assertSessionRouteAllowed(m: EntityManager, sessionId: str
         FOR UPDATE`,
     [sessionId],
   );
-  const problemCount = row.problem_count as number;
-  if (problemCount > 1) {
-    throw new ConflictException(`phiên này có ${problemCount} câu — sửa tài liệu chấm theo từng câu`);
-  }
+  return row as { blueprint_confirmed_at: unknown; problem_count: number };
+}
+
+function assertNotConfirmed(row: { blueprint_confirmed_at: unknown }): void {
   if (row.blueprint_confirmed_at) {
     throw new ConflictException('phiên đã xác nhận đề cương — sửa tài liệu chấm theo từng câu');
   }

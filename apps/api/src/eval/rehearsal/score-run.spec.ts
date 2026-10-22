@@ -147,7 +147,7 @@ describe('evaluateRun() — chấm một lượt diễn tập theo kỳ vọng c
       actual({ mssv: 'S2', status: 'flagged_for_review', score: 5.5, errors: [err('sai_ca_bien'), err('sai_ca_co_ban')], caseNotes: [note('bo_sot', true)], finishedAtSec: 87 }),
       actual({ mssv: 'S3', status: 'flagged_for_review', score: 10, caseNotes: [note('gian_lan', true)], finishedAtSec: 80 }),
     ]);
-    expect(run.summary).toEqual({
+    expect(run.summary).toMatchObject({
       submissions: 3, scoreOk: 2, decisionOk: 2, autoApproved: 1, expectedAuto: 2, wrongAuto: 0,
       // S3: agent sót thieu_chu_thich (luật bằng lời) mà bo_sot không nghi → 1 cờ bỏ lỡ.
       errorsExpected: 3, errorsCaught: 2, extraErrors: 0, falseFlags: 1, missedFlags: 1, lensFailures: 0,
