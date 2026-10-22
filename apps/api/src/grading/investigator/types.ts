@@ -114,6 +114,8 @@ export interface RuleEntry {
   checkedBy: 'machine' | 'model';
   /** Máy kiểm bằng gì, hay vì sao chưa kiểm được (Q1) — model đọc dòng này. */
   machineNote: string | null;
+  /** Mô tả của luật (bản sửa hiện hành). Agent phải thấy nó để nhận ra lỗi; vắng mặt thì dòng không có mô tả. */
+  description?: string | null;
 }
 
 export interface BundleCase {

@@ -25,7 +25,7 @@ export function normalizePath(raw: string): string | null {
  */
 export function renderRulesFile(rules: RuleEntry[]): string {
   const line = (r: RuleEntry) =>
-    `- ${r.ruleKey} — ${r.title} (tiêu chí: ${r.criterionKey})${r.priced ? '' : ' [chưa có giá]'}${r.machineNote ? ` — ${r.machineNote}` : ''}`;
+    `- ${r.ruleKey} — ${r.title}${r.description ? `: ${r.description}` : ''} (tiêu chí: ${r.criterionKey})${r.priced ? '' : ' [chưa có giá]'}${r.machineNote ? ` — ${r.machineNote}` : ''}`;
   const model = rules.filter((r) => r.checkedBy === 'model');
   const machine = rules.filter((r) => r.checkedBy === 'machine');
   return [
