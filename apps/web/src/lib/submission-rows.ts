@@ -31,6 +31,8 @@ export interface SubmissionRowStudent {
       submittedAt?: string | null;
       downloadUrl?: string | null;
       fileSize?: string | null;
+      /** Tên file đã render cho đúng sinh viên. Thiếu thì UI dùng mẫu trên cột. */
+      filename?: string | null;
       /**
        * Kết quả kiểm nội dung file nén — trực giao với `state`, không thay
        * thế nó (spec §8.3: `collected` vẫn nghĩa "đã đi hết đường thu bài",
@@ -107,6 +109,7 @@ export function buildSubmissionRows(
         submittedAt: item.submittedAt,
         downloadUrl: item.downloadUrl,
         fileSize: item.fileSize,
+        ...(item.filename ? { filename: item.filename } : {}),
         archiveCheckStatus: item.archiveCheckStatus,
         archiveMissingEntries: item.archiveMissingEntries,
         archiveCheckError: item.archiveCheckError,

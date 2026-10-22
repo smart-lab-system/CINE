@@ -45,6 +45,7 @@ type MaterialsReply =
 // join-time one, then a later one after `exam:materials-updated`), so it
 // needs to be swappable mid-test, not just a fixed beforeAll reply.
 let nextMaterialsReply: MaterialsReply = { ok: true, materials: [] };
+let materialsRequestCount = 0;
 
 function baseAck(overrides: Partial<AgentJoinAck> = {}): AgentJoinAck {
   return {
@@ -136,6 +137,7 @@ beforeAll(async () => {
     );
 
     socket.on('agent:request-materials', (_payload: unknown, ack: (reply: MaterialsReply) => void) => {
+      materialsRequestCount += 1;
       ack(nextMaterialsReply);
     });
   });
@@ -164,6 +166,7 @@ afterEach(() => {
   joinAttemptCount = 0;
   accessRequestReply = { ok: true, requestId: 'req-1' };
   nextMaterialsReply = { ok: true, materials: [] };
+  materialsRequestCount = 0;
 });
 
 function tmpWorkspaceRoot(): string {
@@ -608,6 +611,39 @@ describe('SessionController — after joining', () => {
     const materialPath = path.join(workspaceDir, 'de-thi', 'de-thi.pdf');
     expect(fs.readFileSync(materialPath, 'utf8')).toBe('noi dung de thi');
     controller.quit();
+  });
+
+  it('vào trước giờ thì chưa xin đề, đến materialsReleaseAt thì tải đề', async () => {
+    const releaseAt = new Date(Date.now() + 800).toISOString();
+    nextJoinReply = {
+      type: 'ack',
+      ack: { examMaterialCount: 0, materialsReleaseAt: releaseAt },
+    };
+    nextMaterialsReply = {
+      ok: true,
+      materials: [
+        { id: 'm1', fileName: 'de-thi.pdf', fileSize: 15, downloadUrl: `${baseUrl}/fake-materials/m1` },
+      ],
+    };
+    const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
+    try {
+      controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+      const waiting = await waitForState(
+        controller,
+        (s) => s.joinPhase === 'joined' && s.materials.status === 'not-yet',
+      );
+      expect(waiting.materials.releaseAt).toBe(releaseAt);
+      expect(materialsRequestCount).toBe(0);
+
+      const state = await waitForState(controller, (s) => s.materials.status === 'downloaded', 3_000);
+      expect(materialsRequestCount).toBe(1);
+      expect(state.materials.downloadedFileNames).toEqual(['de-thi.pdf']);
+      expect(fs.readFileSync(path.join(controllerWorkspaceDir(controller), 'de-thi', 'de-thi.pdf'), 'utf8')).toBe(
+        'noi dung de thi',
+      );
+    } finally {
+      controller.quit();
+    }
   });
 
   it('quit() disconnects cleanly and does not throw when called twice', async () => {

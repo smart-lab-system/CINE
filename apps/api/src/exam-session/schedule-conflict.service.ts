@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ExamSessionEntity } from './entities/exam-session.entity';
+import { slotStillHeldSql } from './exam-session.types';
 
 /**
  * Reports a booking that would collide, in words the lecturer can act on.
@@ -192,9 +193,7 @@ export class ScheduleConflictService {
         's.end_time AS "endTime"',
       ])
       .where('s.teacher_id = :teacherId', { teacherId })
-      .andWhere(
-        `s.status <> 'collecting' AND s.status <> 'completed' AND s.status <> 'cancelled'`,
-      )
+      .andWhere(slotStillHeldSql('s.status'))
       .andWhere(
         `examcollect.teacher_busy_range(s.start_time, s.end_time)
          && examcollect.teacher_busy_range(:startTime, :endTime)`,
@@ -248,9 +247,7 @@ export class ScheduleConflictService {
       // makes this pre-check stricter than the constraint, which is the
       // failure this class's own doc comment warns about: it refuses
       // bookings the database would have accepted.
-      .andWhere(
-        `s.status <> 'collecting' AND s.status <> 'completed' AND s.status <> 'cancelled'`,
-      )
+      .andWhere(slotStillHeldSql('s.status'))
       .andWhere(
         `tstzrange(s.start_time, s.end_time, '[)') && tstzrange(:startTime, :endTime, '[)')`,
         { startTime, endTime },

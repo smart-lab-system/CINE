@@ -12,6 +12,13 @@ describe('compareOutput', () => {
     expect(compareOutput('a\nb\n', 'a\n', { kind: 'exact' }).equal).toBe(false);
   });
 
+  it('output rỗng khớp bài không in gì, kể cả input 0', () => {
+    expect(compareOutput('', '', { kind: 'exact' }).equal).toBe(true);
+    expect(compareOutput('\n', '  \n', { kind: 'exact' }).equal).toBe(true);
+    expect(compareOutput('', '0\n', { kind: 'exact' }).equal).toBe(false);
+    expect(compareOutput('', '', { kind: 'float_tolerance', eps: 1e-6 }).equal).toBe(true);
+  });
+
   it('unordered_lines: cùng tập dòng, khác thứ tự → bằng', () => {
     expect(compareOutput('a\nb\nc\n', 'c\na\nb\n', { kind: 'unordered_lines' }).equal).toBe(true);
     expect(compareOutput('a\nb\n', 'a\na\n', { kind: 'unordered_lines' }).equal).toBe(false);

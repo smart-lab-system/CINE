@@ -38,11 +38,14 @@ export function ReferenceForm({
   readiness,
   onDirtyChange,
   hasPinnedBundle,
+  readOnly = false,
 }: {
   sessionId: string;
   readiness: GradingReadiness | undefined;
   onDirtyChange: (dirty: boolean) => void;
   hasPinnedBundle: boolean;
+  /** Xem lại sau khi đã chấm: hiện tài liệu đã lưu, không có ô ghi. */
+  readOnly?: boolean;
 }) {
   const materials = useExamMaterials(sessionId);
   const save = useSetGradingReference(sessionId);
@@ -59,7 +62,9 @@ export function ReferenceForm({
 
   const draft = { questionTouched, questionId, note, initialNote, storageKey: null, fileName: null };
   const dirty = referenceIsDirty(draft, file !== null);
-  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
+  useEffect(() => onDirtyChange(readOnly ? false : dirty), [dirty, onDirtyChange, readOnly]);
+
+  if (readOnly) return <ReferenceReview readiness={readiness} />;
 
   const touch = () => setSaved(false);
 
@@ -221,6 +226,71 @@ export function ReferenceForm({
         <Button type="button" disabled={!dirty} loading={busy} onClick={handleSave}>
           Lưu tài liệu chấm
         </Button>
+      </div>
+    </section>
+  );
+}
+
+/** Tài liệu đã lưu, không có ô sửa. Không tải nội dung file đáp án. */
+function ReferenceReview({ readiness }: { readiness: GradingReadiness | undefined }) {
+  if (!readiness) return <p className="text-small text-muted-foreground">Đang tải tài liệu chấm…</p>;
+
+  const question = readiness.sources?.question;
+  const answer = readiness.sources?.modelAnswer;
+  const note = readiness.modelAnswerNote?.trim() ? readiness.modelAnswerNote : null;
+
+  return (
+    <section aria-label="Tài liệu chấm" className="flex flex-col gap-5 rounded-lg border border-border bg-surface p-4">
+      <h2 className="text-h3">Tài liệu chấm</h2>
+
+      <div className="flex flex-col gap-1">
+        <h3 className="text-small font-semibold">Đề bài</h3>
+        {question?.present ? (
+          <>
+            <p className="text-small">{question.fileName ?? 'Đã chỉ định.'}</p>
+            <p className="text-caption text-muted-foreground">{sourceLine(question)}</p>
+          </>
+        ) : readiness.hasQuestion ? (
+          <p className="text-small">Đã chỉ định.</p>
+        ) : (
+          <p className="text-small text-muted-foreground">Chưa chỉ định đề bài.</p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <h3 className="text-small font-semibold">Đáp án mẫu</h3>
+        {answer?.present && answer.fileName ? (
+          <>
+            <p className="text-small">{answer.fileName}</p>
+            <p className="text-caption text-muted-foreground">{sourceLine(answer)}</p>
+          </>
+        ) : answer?.present ? (
+          <>
+            <p className="text-small">Chỉ có ghi chú, không có file đáp án mẫu.</p>
+            <p className="text-caption text-muted-foreground">{sourceLine(answer)}</p>
+          </>
+        ) : readiness.hasAnswerSource ? (
+          <p className="text-small">Có mã đáp án để chạy thử. Chưa có file đáp án mẫu.</p>
+        ) : (
+          <p className="text-small text-muted-foreground">Chưa có đáp án mẫu.</p>
+        )}
+        {answer?.present && answer.unverified && (
+          <Alert variant="warning" role="status">
+            <AlertDescription>
+              Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Bài nào dựa vào nó sẽ
+              về giảng viên, không tự quyết.
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <h3 className="text-small font-semibold">Ghi chú đáp án</h3>
+        {note ? (
+          <p className="whitespace-pre-wrap text-small">{note}</p>
+        ) : (
+          <p className="text-small text-muted-foreground">Chưa có ghi chú.</p>
+        )}
       </div>
     </section>
   );

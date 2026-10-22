@@ -1,18 +1,26 @@
 import { Type } from 'class-transformer';
 import {
   IsDate,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
   Length,
   ValidateIf,
 } from 'class-validator';
+import { ExamType } from '../entities/exam-session.entity';
+
+const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
 
 /**
- * PATCH hẹp — chỉ phòng + khung giờ, và chỉ khi chưa freeze roster.
- * Không mở `semesterId` / `classId` / deliverables (xem set-session-rubric.dto).
+ * PATCH hẹp — loại thi, phòng, khung giờ, và chỉ khi chưa freeze roster.
+ * Không mở `semesterId` / `classId` / tên / deliverables.
  */
 export class UpdateExamSessionDto {
+  @IsOptional()
+  @IsIn(EXAM_TYPES)
+  examType?: ExamType;
+
   @IsOptional()
   @IsUUID()
   roomId?: string;

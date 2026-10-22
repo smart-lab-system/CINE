@@ -101,6 +101,8 @@ export interface GradingReadiness {
   hasModelAnswer: boolean;
   /** Phiên có mã đáp án để chạy thử (G2b-R). Không phải tài liệu AI đọc. */
   hasAnswerSource?: boolean;
+  /** Nguyên văn ghi chú đã lưu. `null` khi không có. API cũ có thể chưa gửi trường này. */
+  modelAnswerNote?: string | null;
   sources?: {
     question: GradingSourceInfo;
     modelAnswer: GradingSourceInfo & { unverified: boolean };

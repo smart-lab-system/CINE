@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   CalendarClock,
@@ -11,19 +12,13 @@ import {
   Copy,
   DoorOpen,
   List,
-  Pencil,
   Plus,
   Settings2,
-  XCircle,
 } from 'lucide-react';
-import {
-  useCancelExamSession,
-  useExamSessions,
-  useExamSessionsInRange,
-  useUpdateExamSessionSchedule,
-} from '@/hooks/useExamSession';
+import { useExamSessions, useExamSessionsInRange } from '@/hooks/useExamSession';
 import { useSessionViewMode } from '@/hooks/useSessionViewMode';
 import { SessionCalendar } from './_components/session-calendar';
+import { examSessionRowHref } from './_components/session-row-href';
 import { addDays, shortDate, startOfWeek, weekRange } from '@/lib/exam-calendar';
 import { cn } from '@/lib/utils';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -38,14 +33,6 @@ import { useTeachingClasses } from '@/hooks/useTeaching';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import {
   Table,
   TableBody,
   TableCell,
@@ -53,24 +40,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { EXAM_TYPE_LABELS, getDisplaySessionStatus } from '@/lib/exam-session-display';
+import {
+  EXAM_SESSION_STATUS_BADGE_CLASS,
+  EXAM_TYPE_LABELS,
+  getDisplaySessionStatus,
+} from '@/lib/exam-session-display';
+import { useStatusClock } from '@/lib/use-status-clock';
+import { formatSectionAndNominalClass } from './[id]/_components/section-class-label';
 import { semesterOptions, useSemesterFilter } from '@/hooks/useSemesterFilter';
 import { SemesterFilter } from '@/components/layout/semester-filter';
-import type {
-  ExamSessionListItem,
-  ExamSessionStatusFilter,
-  ExamType,
-} from '@/lib/api/exam-session';
-
-function toLocalInputValue(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+import type { ExamSessionStatusFilter, ExamType } from '@/lib/api/exam-session';
 
 const STATUS_FILTER_LABELS: Record<ExamSessionStatusFilter, string> = {
   draft: 'Nháp',
   scheduled: 'Sắp diễn ra',
+  not_ready: 'Chưa đủ điều kiện',
+  missed: 'Không diễn ra',
   active: 'Đang thi',
   collecting: 'Đang thu bài',
   completed: 'Đã kết thúc',
@@ -121,6 +106,7 @@ function formatDateTime(iso: string): string {
  * một thao tác).
  */
 export default function ExamSessionsListPage() {
+  const router = useRouter();
   const teachingClasses = useTeachingClasses();
   // MỌI lớp của giảng viên, không chỉ những lớp có phiên trên trang đang
   // xem — cùng lý do với danh sách học kỳ bên dưới.
@@ -137,13 +123,6 @@ export default function ExamSessionsListPage() {
   const [examType, setExamType] = useState<ExamType | 'all'>('all');
   const debouncedSearch = useDebouncedValue(search, 300);
   const semesterFilter = useSemesterFilter('teacher-exam-sessions');
-
-  const cancelSession = useCancelExamSession();
-  const updateSchedule = useUpdateExamSessionSchedule();
-  const [editing, setEditing] = useState<ExamSessionListItem | null>(null);
-  const [editRoomName, setEditRoomName] = useState('');
-  const [editStart, setEditStart] = useState('');
-  const [editEnd, setEditEnd] = useState('');
 
   const { data, error, isLoading, refetch } = useExamSessions({
     page,
@@ -174,6 +153,7 @@ export default function ExamSessionsListPage() {
     },
     { enabled: view === 'calendar' },
   );
+  const statusNow = useStatusClock([...(data?.items ?? []), ...(calendarQuery.data?.items ?? [])]);
 
   // Danh sách kỳ đến từ SERVER, tính trên toàn bộ phiên của giảng viên và
   // cố ý không chịu ảnh hưởng của bộ lọc đang bật.
@@ -350,7 +330,7 @@ export default function ExamSessionsListPage() {
           aria-label="Tìm kiếm phiên thi"
         />
         <Select value={status} onValueChange={handleStatusChange}>
-          <SelectTrigger className="sm:w-48" aria-label="Lọc theo trạng thái">
+          <SelectTrigger className="sm:w-56" aria-label="Lọc theo trạng thái">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -489,13 +469,13 @@ export default function ExamSessionsListPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead>Tên phiên thi</TableHead>
+                    <TableHead className="min-w-[22rem]">Tên phiên thi</TableHead>
                     <TableHead>Mã phiên thi</TableHead>
-                    <TableHead>Lớp</TableHead>
+                    <TableHead className="whitespace-nowrap">Lớp</TableHead>
                     <TableHead>Phòng</TableHead>
                     <TableHead>Loại</TableHead>
                     <TableHead>Bắt đầu</TableHead>
-                    <TableHead>Trạng thái</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Trạng thái</TableHead>
                     <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -505,11 +485,23 @@ export default function ExamSessionsListPage() {
                       session.status,
                       session.startTime,
                       session.endTime,
+                      statusNow,
                     );
+                    const rowHref = examSessionRowHref(session.id, session.startTime);
+                    const classLabel =
+                      formatSectionAndNominalClass(session.className, session.nominalClassCode) ??
+                      session.className;
                     return (
-                      <TableRow key={session.id} className="h-14">
-                        <TableCell className="max-w-[14rem] truncate font-medium text-foreground" title={session.name}>
-                          {session.name}
+                      <TableRow
+                        key={session.id}
+                        className="h-28 cursor-pointer"
+                        onClick={() => router.push(rowHref)}
+                      >
+                        <TableCell
+                          className="min-w-[22rem] max-w-[36rem] font-medium text-foreground"
+                          title={session.name}
+                        >
+                          <span className="line-clamp-2 whitespace-normal">{session.name}</span>
                         </TableCell>
                         <TableCell>
                           {/* The code is the one value a teacher reads out
@@ -517,7 +509,10 @@ export default function ExamSessionsListPage() {
                               one click from the clipboard. */}
                           <button
                             type="button"
-                            onClick={() => copySessionCode(session.code)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void copySessionCode(session.code);
+                            }}
                             className="group inline-flex items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-1 font-mono text-body font-semibold tracking-[0.12em] text-primary transition-colors duration-150 hover:border-accent hover:bg-accent-subtle"
                             aria-label={`Sao chép mã phiên thi ${session.code}`}
                             title="Sao chép mã phiên thi để gửi cho sinh viên"
@@ -529,18 +524,24 @@ export default function ExamSessionsListPage() {
                             />
                           </button>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">{session.className ?? String.fromCharCode(8212)}</TableCell>
-                        <TableCell className="whitespace-nowrap">{session.roomName}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                          {classLabel || String.fromCharCode(8212)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap font-mono">
+                          {session.roomCode || String.fromCharCode(8212)}
+                        </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {EXAM_TYPE_LABELS[session.examType] ?? session.examType}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground">
                           {formatDateTime(session.startTime)}
                         </TableCell>
-                        <TableCell>
-                          <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>
+                        <TableCell className="whitespace-nowrap text-center">
+                          <Badge variant={displayStatus.variant} className={EXAM_SESSION_STATUS_BADGE_CLASS}>
+                            {displayStatus.label}
+                          </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
                           <div className="flex flex-nowrap items-center justify-end gap-1">
                             <Button asChild variant="outline" size="sm">
                               <Link href={`/teacher/exam-sessions/${session.id}`}>
@@ -548,43 +549,6 @@ export default function ExamSessionsListPage() {
                                 Thiết lập
                               </Link>
                             </Button>
-                            {!session.rosterFrozen && session.status === 'scheduled' ? (
-                              <>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  aria-label={`Sửa lịch ${session.name}`}
-                                  onClick={() => {
-                                    setEditing(session);
-                                    setEditRoomName(session.roomName);
-                                    setEditStart(toLocalInputValue(session.startTime));
-                                    setEditEnd(toLocalInputValue(session.endTime));
-                                  }}
-                                >
-                                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  aria-label={`Huỷ phiên ${session.name}`}
-                                  disabled={cancelSession.isPending}
-                                  onClick={() => {
-                                    if (!confirm(`Huỷ phiên "${session.name}"?`)) return;
-                                    cancelSession.mutate(session.id, {
-                                      onSuccess: () => toast.success('Đã huỷ phiên'),
-                                      onError: (e) =>
-                                        toast.error(
-                                          e instanceof Error ? e.message : 'Huỷ thất bại',
-                                        ),
-                                    });
-                                  }}
-                                >
-                                  <XCircle className="h-4 w-4 text-danger-strong" aria-hidden="true" />
-                                </Button>
-                              </>
-                            ) : null}
                             <Button asChild variant="outline" size="sm">
                               <Link href={`/exam-sessions/${session.id}`}>
                                 <DoorOpen className="h-4 w-4" aria-hidden="true" />
@@ -628,83 +592,6 @@ export default function ExamSessionsListPage() {
           </>
         )}
       </div>
-
-      <Dialog
-        open={editing !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Sửa phòng / khung giờ</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="edit-room">Phòng</Label>
-              <Input
-                id="edit-room"
-                value={editRoomName}
-                onChange={(e) => setEditRoomName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="edit-start">Bắt đầu</Label>
-              <Input
-                id="edit-start"
-                type="datetime-local"
-                value={editStart}
-                onChange={(e) => setEditStart(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="edit-end">Kết thúc</Label>
-              <Input
-                id="edit-end"
-                type="datetime-local"
-                value={editEnd}
-                onChange={(e) => setEditEnd(e.target.value)}
-              />
-            </div>
-            <p className="text-small text-muted-foreground">
-              Chỉ sửa được trước khi chốt danh sách dự thi. Học kỳ không đổi.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditing(null)}>
-              Huỷ
-            </Button>
-            <Button
-              type="button"
-              disabled={updateSchedule.isPending || !editRoomName.trim()}
-              loading={updateSchedule.isPending}
-              onClick={() => {
-                if (!editing) return;
-                updateSchedule.mutate(
-                  {
-                    id: editing.id,
-                    body: {
-                      roomName: editRoomName.trim(),
-                      startTime: new Date(editStart).toISOString(),
-                      endTime: new Date(editEnd).toISOString(),
-                    },
-                  },
-                  {
-                    onSuccess: () => {
-                      toast.success('Đã cập nhật lịch phiên');
-                      setEditing(null);
-                    },
-                    onError: (e) =>
-                      toast.error(e instanceof Error ? e.message : 'Cập nhật thất bại'),
-                  },
-                );
-              }}
-            >
-              Lưu
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -35,9 +35,15 @@ vi.mock('@/hooks/useRulesLink', () => ({ useRulesLink: () => '/teacher/rules?rub
 
 // Each has its own tests; here only WHICH one the data selects, and what it is handed, matters.
 vi.mock('./_components/PreparePanel', () => ({
-  PreparePanel: (props: { allUngradable?: boolean }) => {
+  PreparePanel: (props: { allUngradable?: boolean; mode?: string }) => {
     h.prepareProps.push(props);
-    return <div data-testid="prepare-panel" data-all-ungradable={String(Boolean(props.allUngradable))} />;
+    return (
+      <div
+        data-testid="prepare-panel"
+        data-all-ungradable={String(Boolean(props.allUngradable))}
+        data-mode={props.mode ?? 'edit'}
+      />
+    );
   },
 }));
 vi.mock('./_components/RunningPanel', () => ({
@@ -370,5 +376,81 @@ describe('list view — filter and the leverage line', () => {
     h.results = { ...h.results, data: [{ ...needsYou[0], triage: priced('ten_bien') }, { ...needsYou[1], triage: null }] };
     render(<GradingPage />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+});
+
+describe('view=prepare — look back at the prepare step', () => {
+  it('the list screen links to the prepare review and keeps a state filter', () => {
+    search = 'sessionId=s1&state=needsYou';
+    render(<GradingPage />);
+    expect(screen.getByRole('link', { name: 'Xem bước chuẩn bị' })).toHaveAttribute(
+      'href',
+      '/teacher/grading?sessionId=s1&state=needsYou&view=prepare',
+    );
+  });
+
+  it('the running screen links to the prepare review', () => {
+    h.progress = { ...h.progress, data: progress({ total: 2, pending: 1, done: 1 }) };
+    render(<GradingPage />);
+    expect(screen.getByRole('link', { name: 'Xem bước chuẩn bị' })).toHaveAttribute(
+      'href',
+      '/teacher/grading?sessionId=s1&view=prepare',
+    );
+  });
+
+  it('the editable prepare screen does not offer the review link', () => {
+    h.results = { ...h.results, data: [] };
+    h.progress = { ...h.progress, data: progress({ total: 0, done: 0 }) };
+    render(<GradingPage />);
+    expect(screen.queryByRole('link', { name: 'Xem bước chuẩn bị' })).not.toBeInTheDocument();
+  });
+
+  it('view=prepare on a graded session replaces the list with the read-only prepare panel', () => {
+    search = 'sessionId=s1&view=prepare&state=needsYou';
+    render(<GradingPage />);
+    expect(screen.getByTestId('prepare-panel')).toHaveAttribute('data-mode', 'review');
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('running-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('review-groups')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Xem bước chuẩn bị' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Quay lại danh sách bài' })).toHaveAttribute(
+      'href',
+      '/teacher/grading?sessionId=s1&state=needsYou',
+    );
+  });
+
+  it('view=prepare while grading keeps the job running and links back to progress', () => {
+    search = 'sessionId=s1&view=prepare';
+    h.progress = { ...h.progress, data: progress({ total: 2, pending: 1, done: 1 }), dataUpdatedAt: 100 };
+    const { rerender } = render(<GradingPage />);
+    expect(screen.getByTestId('prepare-panel')).toHaveAttribute('data-mode', 'review');
+    expect(screen.queryByTestId('running-panel')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Việc chấm vẫn chạy trên máy chủ.');
+    expect(screen.getByRole('link', { name: 'Quay lại tiến độ chấm' })).toHaveAttribute(
+      'href',
+      '/teacher/grading?sessionId=s1',
+    );
+    const before = h.results.refetch.mock.calls.length;
+    h.progress = { ...h.progress, dataUpdatedAt: 200 };
+    rerender(<GradingPage />);
+    expect(h.results.refetch.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it('view=prepare is ignored while the session is still on the editable prepare screen', () => {
+    search = 'sessionId=s1&view=prepare';
+    h.results = { ...h.results, data: [] };
+    h.progress = { ...h.progress, data: progress({ total: 0, done: 0 }) };
+    render(<GradingPage />);
+    expect(screen.getByTestId('prepare-panel')).toHaveAttribute('data-mode', 'edit');
+    expect(screen.queryByRole('link', { name: 'Quay lại danh sách bài' })).not.toBeInTheDocument();
+  });
+
+  it('view=prepare is ignored when every result is ungradable and the prepare screen reopened', () => {
+    search = 'sessionId=s1&view=prepare';
+    h.results = { ...h.results, data: [result({ id: 'a', status: 'flagged_for_review', ungradableReason: 'hết giờ', currentScore: null })] };
+    render(<GradingPage />);
+    expect(screen.getByTestId('prepare-panel')).toHaveAttribute('data-mode', 'edit');
+    expect(screen.getByTestId('prepare-panel')).toHaveAttribute('data-all-ungradable', 'true');
+    expect(screen.getByRole('table')).toBeInTheDocument();
   });
 });

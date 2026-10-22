@@ -5,7 +5,7 @@
  * — nothing about presence is stored twice, so the answer can never
  * disagree with the log it came from.
  */
-export type SessionRosterSource = 'frozen' | 'manual';
+export type SessionRosterSource = 'frozen' | 'manual' | 'attached';
 
 export interface AttendanceStudentView {
   mssv: string;

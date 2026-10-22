@@ -26,10 +26,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
+  EXAM_SESSION_STATUS_BADGE_CLASS,
   EXAM_TYPE_LABELS,
   getDisplaySessionStatus,
 } from '@/lib/exam-session-display';
 import { getSessionPhase } from '@/lib/submission-attention';
+import { useStatusClock } from '@/lib/use-status-clock';
 import {
   buildLobbyRosterRows,
   countInvalidStudents,
@@ -124,11 +126,17 @@ export default function ExamSessionLobbyPage() {
   // Pulled out so the socket effect can depend on a stable reference —
   // TanStack keeps `refetch` stable per query, unlike the result object.
   const refetchSession = sessionDetail.refetch;
+  const statusNow = useStatusClock(
+    sessionDetail.data
+      ? [{ status: sessionDetail.data.status, startTime: sessionDetail.data.startTime }]
+      : [],
+  );
   const displayStatus = sessionDetail.data
     ? getDisplaySessionStatus(
         sessionDetail.data.status,
         sessionDetail.data.startTime,
         sessionDetail.data.endTime,
+        statusNow,
       )
     : null;
 
@@ -404,7 +412,7 @@ export default function ExamSessionLobbyPage() {
   const lobbyRows = useMemo(
     () =>
       buildLobbyRosterRows(attendance.data, rows, {
-        // Chưa có detail → coi như chưa hết giờ (Chưa vào, không Vắng mặt).
+        // Chưa có detail → coi như chưa hết giờ (Chưa kết nối, không Vắng mặt).
         endTime: sessionDetail.data?.endTime ?? '9999-12-31T23:59:59.000Z',
         status: sessionDetail.data?.status ?? 'active',
       }),
@@ -467,7 +475,7 @@ export default function ExamSessionLobbyPage() {
   const canFinalize = sessionDetail.data?.status === 'active';
 
   const phase = sessionDetail.data
-    ? getSessionPhase(sessionDetail.data, Date.now())
+    ? getSessionPhase(sessionDetail.data, statusNow)
     : null;
 
   /**
@@ -484,7 +492,9 @@ export default function ExamSessionLobbyPage() {
   // Spec 2026-10-18: chưa mở ≡ status scheduled.
   // Không gắn rosterFrozen: materialize/import trên hub đã ghi session_roster
   // (rosterFrozen=true) trong khi phiên vẫn scheduled — nút Mở phiên phải còn.
-  const needsOpening = sessionDetail.data?.status === 'scheduled';
+  const needsOpening =
+    sessionDetail.data?.status === 'scheduled' || sessionDetail.data?.status === 'not_ready';
+  const missedSession = sessionDetail.data?.status === 'missed';
 
   /**
    * Spec §7.3 — có bao nhiêu SINH VIÊN nộp bài sau khi giảng viên xác
@@ -530,7 +540,9 @@ export default function ExamSessionLobbyPage() {
             </div>
             <div className="flex shrink-0 items-center gap-3 self-start">
               {displayStatus && (
-                <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>
+                <Badge variant={displayStatus.variant} className={EXAM_SESSION_STATUS_BADGE_CLASS}>
+                  {displayStatus.label}
+                </Badge>
               )}
               {sessionDetail.data && (
                 <FinalizeSessionButton
@@ -629,9 +641,10 @@ export default function ExamSessionLobbyPage() {
                     Sinh viên chưa vào được — phiên thi chưa được mở.
                   </strong>
                   <span>
-                    Phiên đang ở trạng thái Sắp diễn ra — danh sách dự thi chưa chốt,
-                    máy chủ từ chối mọi máy sinh viên. Bấm nút để chốt danh sách và mở
-                    cửa, hoặc quay lại{' '}
+                    {sessionDetail.data?.status === 'not_ready'
+                      ? 'Phiên chưa đủ điều kiện để tự mở. Bổ sung thiết lập trước giờ bắt đầu — đến giờ mà vẫn thiếu, phiên chuyển sang Không diễn ra. '
+                      : 'Phiên đang ở trạng thái Sắp diễn ra — danh sách dự thi chưa chốt, máy chủ từ chối mọi máy sinh viên. '}
+                    Bấm nút để chốt danh sách và mở cửa, hoặc quay lại{' '}
                     <Link
                       href={`/teacher/exam-sessions/${examSessionId}`}
                       className="font-semibold underline underline-offset-2"
@@ -665,6 +678,22 @@ export default function ExamSessionLobbyPage() {
           </Alert>
         )}
 
+        {missedSession && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Phiên không diễn ra — đã đến giờ bắt đầu mà vẫn không mở được. Sinh viên không
+              vào được. Có thể huỷ phiên trong{' '}
+              <Link
+                href={`/teacher/exam-sessions/${examSessionId}`}
+                className="font-semibold underline underline-offset-2"
+              >
+                Thiết lập phiên
+              </Link>
+              .
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Spec §7.3. Không chặn bài về sau khi xác nhận, nhưng phải
             NÓI — giảng viên biết con số đã đổi, thay vì không biết. */}
         {lateAfterConfirm > 0 && (
@@ -692,6 +721,14 @@ export default function ExamSessionLobbyPage() {
                   </Link>
                 </Button>
               </span>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {phase === 'opened' && (
+          <Alert variant="info">
+            <AlertDescription>
+              Phiên đã mở. Giờ làm bài bắt đầu lúc {formatDateTime(sessionDetail.data!.startTime)}.
             </AlertDescription>
           </Alert>
         )}

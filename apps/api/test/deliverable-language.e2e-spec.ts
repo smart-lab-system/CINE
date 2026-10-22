@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PostgresExceptionFilter } from '../src/common/postgres-exception.filter';
 import { createTestAccount } from './helpers/create-account';
 import { forceStatus, seedResult, seedSession } from './helpers/grading-seed';
+import { ensureDefaultProblem } from '../src/grading/problem/resolve-problem-config';
 
 const PASSWORD = 'correct-horse-battery';
 
@@ -57,6 +58,21 @@ describe('Khai ngôn ngữ bài code (e2e)', () => {
 
     const after = await detail(t.token, ctx.sessionId);
     expect(after.body.requiredDeliverables[0]).toMatchObject({ language: 'python', pipeline: 'investigator' });
+  });
+
+  it('khai cpp cho bài code ghi luôn ngôn ngữ lên câu 1 đang trống', async () => {
+    const { t, ctx } = await codeSession('dl-problem-cpp');
+    await ds.transaction((m) => ensureDefaultProblem(m, ctx.sessionId));
+    await ds.query(`UPDATE examcollect.exam_problem SET language = NULL WHERE exam_session_id = $1`, [ctx.sessionId]);
+
+    const res = await patch(t.token, ctx.sessionId, ctx.deliverableId, { language: 'cpp' });
+    expect(res.status).toBe(200);
+
+    const [problem] = await ds.query(
+      `SELECT language FROM examcollect.exam_problem WHERE exam_session_id = $1 AND ordinal = 1`,
+      [ctx.sessionId],
+    );
+    expect(problem.language).toBe('cpp');
   });
 
   it('đổi ngôn ngữ trước khi chấm được: python → java đưa đường chấm về one_shot', async () => {

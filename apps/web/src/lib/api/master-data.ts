@@ -257,6 +257,17 @@ export const deleteNominalClass = (id: string) =>
   masterDataFetch<void>(`/master-data/nominal-classes/${id}`, { method: 'DELETE' });
 
 // --- students ---
+export interface StudentMssvHit {
+  mssv: string;
+  fullName: string;
+}
+
+/** Tiền tố MSSV (≥ 7 số). Giảng viên được gọi — không mở cả catalog. */
+export const lookupStudentsByMssv = (q: string) =>
+  masterDataFetch<{ items: StudentMssvHit[] }>(
+    `/master-data/students/lookup${qs({ q })}`,
+  );
+
 export const listStudents = (p: ListParams = {}) =>
   masterDataFetch<PageResult<Student>>(
     `/master-data/students${qs({ page: p.page ?? 1, pageSize: p.pageSize ?? 20, status: p.status, search: p.search, nominalClassId: p.nominalClassId })}`,

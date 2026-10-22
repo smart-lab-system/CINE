@@ -124,6 +124,8 @@ export interface SessionVisual {
 
 const VISUALS: Record<string, Omit<SessionVisual, 'label'>> = {
   scheduled: { card: 'border-info/30 bg-info-subtle', accent: 'text-info-strong', muted: false },
+  not_ready: { card: 'border-warning/40 bg-warning-subtle', accent: 'text-warning-strong', muted: false },
+  missed: { card: 'border-danger/30 bg-danger-subtle', accent: 'text-danger-strong', muted: true },
   active: { card: 'border-success/30 bg-success-subtle', accent: 'text-success-strong', muted: false },
   collecting: { card: 'border-warning/40 bg-warning-subtle', accent: 'text-warning-strong', muted: false },
   completed: { card: 'border-border bg-surface-2', accent: 'text-muted-foreground', muted: false },
@@ -133,18 +135,27 @@ const VISUALS: Record<string, Omit<SessionVisual, 'label'>> = {
 
 const FALLBACK: Omit<SessionVisual, 'label'> = VISUALS.completed;
 
+/** Đã mở, chưa tới giờ bắt đầu — khác "Sắp diễn ra" (chưa mở) và "Đang thi". */
+const OPENED: Omit<SessionVisual, 'label'> = {
+  card: 'border-info/60 bg-info-subtle',
+  accent: 'text-info-strong',
+  muted: false,
+};
+
 /**
- * Nhãn lấy từ `getDisplaySessionStatus` để lịch và bảng không bao giờ gọi
- * cùng một phiên bằng hai tên khác nhau (map thẳng theo status DB).
+ * Nhãn lấy từ `getDisplaySessionStatus` để lịch và bảng không gọi cùng
+ * một phiên bằng hai tên. `active` trước giờ bắt đầu là "Đang diễn ra".
  */
 export function sessionVisual(
   status: string,
   startTime: string,
   endTime: string,
+  now?: number,
 ): SessionVisual {
   const display: { label: string; variant: NonNullable<BadgeProps['variant']> } =
-    getDisplaySessionStatus(status, startTime, endTime);
-  return { label: display.label, ...(VISUALS[status] ?? FALLBACK) };
+    getDisplaySessionStatus(status, startTime, endTime, now);
+  const visual = display.label === 'Đang diễn ra' ? OPENED : (VISUALS[status] ?? FALLBACK);
+  return { label: display.label, ...visual };
 }
 
 /**

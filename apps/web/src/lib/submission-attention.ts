@@ -12,7 +12,11 @@ export const SUBMISSION_GRACE_MS = 30 * 60_000;
 export type SessionPhase =
   | 'draft'
   | 'cancelled'
+  | 'not_ready'
+  | 'missed'
   | 'upcoming'
+  /** Đã mở (active) nhưng chưa tới giờ bắt đầu. */
+  | 'opened'
   | 'running'
   /** Hết giờ (hoặc đã chốt tay) nhưng còn trong grace — file đang bay về. */
   | 'collecting'
@@ -21,8 +25,11 @@ export type SessionPhase =
 export const PHASE_LABELS: Record<SessionPhase, string> = {
   draft: 'Nháp',
   cancelled: 'Đã huỷ',
+  not_ready: 'Chưa đủ điều kiện',
+  missed: 'Không diễn ra',
   upcoming: 'Chưa diễn ra',
-  running: 'Đang diễn ra',
+  opened: 'Đang diễn ra',
+  running: 'Đang thi',
   collecting: 'Đang thu bài',
   ended: 'Đã kết thúc',
 };
@@ -30,7 +37,10 @@ export const PHASE_LABELS: Record<SessionPhase, string> = {
 export const PHASE_VARIANTS: Record<SessionPhase, NonNullable<BadgeProps['variant']>> = {
   draft: 'default',
   cancelled: 'destructive',
+  not_ready: 'warning',
+  missed: 'destructive',
   upcoming: 'info',
+  opened: 'info',
   running: 'success',
   collecting: 'info',
   ended: 'default',
@@ -83,7 +93,7 @@ export interface SessionPhaseInput {
  *
  * Nhánh suy-từ-đồng-hồ ở cuối còn lại cho ĐÚNG MỘT ca: phiên vẫn
  * `active` mà đồng hồ đã qua `endTime` — lượt quét chạy mỗi 30 giây nên
- * có một quãng ngắn như vậy, và để nó hiện "Đang diễn ra" trong quãng đó
+ * có một quãng ngắn như vậy, và để nó hiện "Đang thi" trong quãng đó
  * là nói sai. Phiên `completed` tạo trước khi giai đoạn thu bài ra đời
  * (spec §9.3) đi qua nhánh `completed` ở trên và cho ra 'ended', đúng
  * như chúng vốn là. Đừng mở rộng nhánh cuối — giữ hai nguồn sự thật
@@ -95,6 +105,12 @@ export function getSessionPhase(item: SessionPhaseInput, now: number): SessionPh
   }
   if (item.status === 'cancelled') {
     return 'cancelled';
+  }
+  if (item.status === 'not_ready') {
+    return 'not_ready';
+  }
+  if (item.status === 'missed') {
+    return 'missed';
   }
   if (item.status === 'collecting') {
     return 'collecting';
@@ -110,6 +126,10 @@ export function getSessionPhase(item: SessionPhaseInput, now: number): SessionPh
 
   const start = new Date(item.startTime).getTime();
   const end = new Date(item.endTime).getTime();
+  // Đã mở — tự động hoặc thủ công — nhưng chưa tới giờ làm bài.
+  if (item.status === 'active' && Number.isFinite(start) && now < start) {
+    return 'opened';
+  }
   if (now <= end) {
     return now < start ? 'upcoming' : 'running';
   }

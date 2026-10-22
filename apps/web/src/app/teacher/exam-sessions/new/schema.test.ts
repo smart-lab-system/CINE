@@ -240,11 +240,18 @@ describe('replaceRequiredDeliverablesSchema — deliverableType/language', () =>
     expect(r.success).toBe(true);
   });
 
-  it('TỪ CHỐI ngôn ngữ ngoài cpp/python — java/node không hiện trong form', () => {
+  it('TỪ CHỐI ngôn ngữ ngoài python/cpp/java — node không có trong form', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
-      baseValues([{ value: 'bai1.zip', deliverableType: 'code_project', language: 'java' }]),
+      baseValues([{ value: 'bai1.zip', deliverableType: 'code_project', language: 'node' }]),
     );
     expect(r.success).toBe(false);
+  });
+
+  it('nhận java — khai được, chấm bằng đọc mã', () => {
+    const r = replaceRequiredDeliverablesSchema.safeParse(
+      baseValues([{ value: 'Main.java', deliverableType: 'code_project', language: 'java' }]),
+    );
+    expect(r.success).toBe(true);
   });
 });
 

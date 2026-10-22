@@ -33,6 +33,7 @@ import {
 import {
   CreateStudentDto,
   ListStudentsDto,
+  LookupStudentsDto,
   UpdateStudentDto,
 } from './dto/student.dto';
 import { CreateRoomDto, ListRoomsDto, UpdateRoomDto } from './dto/room.dto';
@@ -193,6 +194,12 @@ export class StudentsController {
   @Get()
   list(@Query() query: ListStudentsDto) {
     return this.masterData.listStudents(query);
+  }
+
+  @Get('lookup')
+  @Roles('admin', 'teacher')
+  lookup(@Query() query: LookupStudentsDto) {
+    return this.masterData.lookupStudentsByMssvPrefix(query.q);
   }
 
   @Get(':id')

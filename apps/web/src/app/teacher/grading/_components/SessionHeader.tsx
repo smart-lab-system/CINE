@@ -24,12 +24,15 @@ export function SessionHeader({
   sessionId,
   resultCount,
   systemFailed,
+  prepareReviewHref = null,
 }: {
   session: SessionOverviewItem;
   sessionId: string;
   resultCount: number;
   /** Số bài "không chấm được" do lỗi hệ thống (lớp `system`) — đúng số bài mà nút chấm lại sẽ xử lý. */
   systemFailed: number;
+  /** Có địa chỉ thì hiện lối xem lại bước chuẩn bị. Màn chuẩn bị sửa được và màn đang xem lại thì để null. */
+  prepareReviewHref?: string | null;
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -42,6 +45,11 @@ export function SessionHeader({
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <BackToListLink />
+        {prepareReviewHref && (
+          <Button asChild variant="outline">
+            <Link href={prepareReviewHref}>Xem bước chuẩn bị</Link>
+          </Button>
+        )}
         {resultCount > 0 ? (
           <Button asChild>
             <Link href={`/teacher/grading/finalize?sessionId=${sessionId}`}>Chốt điểm phiên</Link>

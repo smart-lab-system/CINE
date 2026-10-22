@@ -1,20 +1,19 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { RequiredFilenamesInput } from '@/app/teacher/exam-sessions/new/_components/RequiredFilenamesInput';
 import {
   replaceRequiredDeliverablesSchema,
   type ReplaceRequiredDeliverablesFormValues,
 } from '@/app/teacher/exam-sessions/new/schema';
-import { useReplaceRequiredDeliverables } from '@/hooks/useExamSession';
 import type { RequiredDeliverableResponse } from '@/lib/api/exam-session';
 import { ExamFolderPreview } from './ExamFolderPreview';
+import { foldersMatch } from './setup-draft';
+import { useSetupDraftOptional } from './SetupDraftProvider';
 
-function toFormValues(
+export function toDeliverableFormValues(
   deliverables: RequiredDeliverableResponse[],
 ): ReplaceRequiredDeliverablesFormValues {
   if (deliverables.length === 0) {
@@ -24,7 +23,7 @@ function toFormValues(
     requiredFilenames: deliverables.map((d) => ({
       value: d.requiredFilename,
       deliverableType: d.deliverableType,
-      ...(d.language === 'python' || d.language === 'cpp'
+      ...(d.language === 'python' || d.language === 'cpp' || d.language === 'java'
         ? { language: d.language }
         : {}),
       ...(d.entries.length > 0
@@ -55,57 +54,42 @@ function LiveFolderPreview({ materialFilenames }: { materialFilenames: string[] 
 }
 
 export function RequiredDeliverablesEditor({
-  sessionId,
-  deliverables,
+  initialValues,
   materialFilenames,
 }: {
-  sessionId: string;
-  deliverables: RequiredDeliverableResponse[];
+  initialValues: ReplaceRequiredDeliverablesFormValues;
   materialFilenames: string[];
 }) {
-  const replace = useReplaceRequiredDeliverables(sessionId);
+  const setupDraft = useSetupDraftOptional();
+  const setupRef = useRef(setupDraft);
+  setupRef.current = setupDraft;
   const form = useForm<ReplaceRequiredDeliverablesFormValues>({
     resolver: zodResolver(replaceRequiredDeliverablesSchema),
-    defaultValues: toFormValues(deliverables),
+    defaultValues: initialValues,
   });
 
   useEffect(() => {
-    form.reset(toFormValues(deliverables));
-  }, [deliverables, form]);
+    return setupRef.current?.registerSnapshot(() => ({
+      folder: form.getValues(),
+    }));
+  }, [form]);
 
-  function onSubmit(values: ReplaceRequiredDeliverablesFormValues) {
-    replace.mutate(
-      {
-        requiredFilenames: values.requiredFilenames.map((filename) => ({
-          filename: filename.value,
-          ...(filename.deliverableType !== 'document'
-            ? { deliverableType: filename.deliverableType }
-            : {}),
-          ...(filename.language ? { language: filename.language } : {}),
-          ...(filename.entries && filename.entries.length > 0
-            ? { entries: filename.entries.map((entry) => entry.value) }
-            : {}),
-        })),
-      },
-      {
-        onSuccess: () => toast.success('Đã lưu cấu hình thư mục bài thi'),
-        onError: (e) =>
-          toast.error(e instanceof Error ? e.message : 'Không lưu được cấu hình thư mục'),
-      },
-    );
-  }
+  const baselineRef = useRef(initialValues);
+  useEffect(() => {
+    const subscription = form.watch((values) => {
+      const next = values as ReplaceRequiredDeliverablesFormValues;
+      const same = foldersMatch(next, baselineRef.current);
+      setupRef.current?.patchDraft({ folder: same ? undefined : next });
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <RequiredFilenamesInput />
-        <div className="flex justify-end">
-          <Button type="submit" loading={replace.isPending}>
-            Lưu cấu hình thư mục
-          </Button>
-        </div>
         <LiveFolderPreview materialFilenames={materialFilenames} />
-      </form>
+      </div>
     </FormProvider>
   );
 }

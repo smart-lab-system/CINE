@@ -314,7 +314,9 @@ function DraftRowView({
       <td className="break-all py-1 pr-2 align-top font-mono text-caption">{row.caseKey}</td>
       <td className="py-1 pr-2 align-top">{row.group}</td>
       <td className="break-all py-1 pr-2 align-top font-mono text-caption whitespace-pre-wrap">{row.input}</td>
-      <td className="break-all py-1 pr-2 align-top font-mono text-caption whitespace-pre-wrap">{dropped ? '—' : row.expectedOutput}</td>
+      <td className="break-all py-1 pr-2 align-top font-mono text-caption whitespace-pre-wrap">
+        {dropped ? '—' : row.expectedOutput.trim() === '' ? <span className="text-muted-foreground">(rỗng)</span> : row.expectedOutput}
+      </td>
       <td className="py-1 pr-2 align-top">
         {dropped
           ? `Hệ thống đã bỏ: ${row.autoDroppedReason}`

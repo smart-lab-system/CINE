@@ -8,6 +8,7 @@ import {
 describe('hub-actions', () => {
   it('lists business actions that must not run on register', () => {
     expect(ACTIONS_NOT_TRIGGERED_ON_REGISTER).toContain('scan_extensions');
+    expect(ACTIONS_NOT_TRIGGERED_ON_REGISTER).toContain('read_extension_activity');
     expect(ACTIONS_NOT_TRIGGERED_ON_REGISTER).toContain('sync_backend');
     expect(ACTIONS_NOT_TRIGGERED_ON_REGISTER).not.toContain('refresh_machines');
   });

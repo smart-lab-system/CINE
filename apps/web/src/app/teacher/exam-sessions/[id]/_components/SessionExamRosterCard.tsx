@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FileSpreadsheet,
   Trash2,
@@ -44,12 +44,8 @@ import {
   ManualAddStudentForm,
   type AddStudentPayload,
 } from '@/components/roster/manual-add-student-form';
-import {
-  useAddSessionRosterStudent,
-  useImportSessionRoster,
-  useRemoveSessionRosterStudent,
-  useSessionRoster,
-} from '@/hooks/useExamSession';
+import { useSessionRoster, useAddSessionRosterStudent, useImportSessionRoster, useRemoveSessionRosterStudent } from '@/hooks/useExamSession';
+import { useSetupDraftOptional } from './SetupDraftProvider';
 import { readWorkbook, type SheetData } from '@/lib/read-workbook';
 import {
   diffRoster,
@@ -66,25 +62,55 @@ const DEFAULT_MAPPING: ColumnMapping = {
 };
 
 const SOURCE_LABEL: Record<SessionRosterSource, string> = {
-  class: 'Lớp',
-  frozen: 'Từ lớp',
-  manual: 'Thêm tay',
+  class: 'Tự động',
+  frozen: 'Tự động',
+  manual: 'Thủ công',
+  attached: 'Danh sách đính kèm',
 };
+
+/**
+ * Cap trên wrapper của Table — đó mới là scrollport. Giới hạn ngoài
+ * wrapper thì header sticky không dính và danh sách dài đẩy cả bước thiết lập.
+ */
+const SCROLL_CONTAINER = {
+  role: 'region',
+  'aria-label': 'Danh sách thi',
+  tabIndex: 0,
+  className: 'max-h-[min(32rem,70dvh)] overflow-auto',
+} as const;
+
+const STICKY_HEAD_RULE = 'shadow-[inset_0_-1px_0_hsl(var(--border))]';
 
 export function SessionExamRosterCard({
   sessionId,
   canEdit,
+  embedded = false,
 }: {
   sessionId: string;
   canEdit: boolean;
+  /** Bước stepper đã có heading riêng. */
+  embedded?: boolean;
 }) {
   const roster = useSessionRoster(sessionId);
   const addStudent = useAddSessionRosterStudent(sessionId);
   const removeStudent = useRemoveSessionRosterStudent(sessionId);
   const importRoster = useImportSessionRoster(sessionId);
+  const setupDraft = useSetupDraftOptional();
+  const setupDraftRef = useRef(setupDraft);
+  setupDraftRef.current = setupDraft;
+  const savedDialog = setupDraft?.draft?.rosterDialog;
+  const pickedImportRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (pickedImportRef.current) {
+        setupDraftRef.current?.patchDraft({ rosterImportPending: true });
+      }
+    };
+  }, []);
 
   const [search, setSearch] = useState('');
-  const [addOpen, setAddOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(Boolean(savedDialog));
   const [importOpen, setImportOpen] = useState(false);
   const [sheets, setSheets] = useState<SheetData[] | null>(null);
   const [sheetIndex, setSheetIndex] = useState(0);
@@ -132,6 +158,8 @@ export function SessionExamRosterCard({
       setSheetIndex(0);
       setFileName(file.name);
       setMapping(suggestColumnMapping(read[0]?.rows ?? []));
+      pickedImportRef.current = true;
+      setupDraft?.patchDraft({ rosterImportPending: true });
     } catch (error) {
       setSheets(null);
       setFileError(
@@ -156,6 +184,8 @@ export function SessionExamRosterCard({
           setSheets(null);
           setFileName('');
           setRemoveMissing(false);
+          pickedImportRef.current = false;
+          setupDraft?.patchDraft({ rosterImportPending: undefined });
         },
         onError: (e) =>
           toast.error(e instanceof Error ? e.message : 'Không import được'),
@@ -174,6 +204,7 @@ export function SessionExamRosterCard({
         onSuccess: () => {
           toast.success('Đã thêm sinh viên vào danh sách thi');
           setAddOpen(false);
+          setupDraft?.patchDraft({ rosterDialog: undefined });
         },
         onError: (e) =>
           toast.error(e instanceof Error ? e.message : 'Không thêm được'),
@@ -194,10 +225,12 @@ export function SessionExamRosterCard({
     <Card data-animate>
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className="flex items-center gap-2 text-h3">
-            <Users className="h-5 w-5" aria-hidden="true" />
-            Danh sách thi
-          </CardTitle>
+          {embedded ? null : (
+            <CardTitle className="flex items-center gap-2 text-h3">
+              <Users className="h-5 w-5" aria-hidden="true" />
+              Danh sách thi
+            </CardTitle>
+          )}
           <Badge variant={customized ? 'warning' : 'info'}>
             {customized ? 'Đã tùy chỉnh cho phiên' : 'Theo lớp'}
           </Badge>
@@ -263,14 +296,14 @@ export function SessionExamRosterCard({
                 Chưa có sinh viên nào — hãy nhập roster lớp hoặc tải file / thêm tay tại đây.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
+              <Table container={SCROLL_CONTAINER}>
+                <TableHeader className="sticky top-0 z-10 [&_tr]:border-b-0">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead>MSSV</TableHead>
-                    <TableHead>Họ tên</TableHead>
-                    <TableHead>Nguồn</TableHead>
+                    <TableHead className={STICKY_HEAD_RULE}>MSSV</TableHead>
+                    <TableHead className={STICKY_HEAD_RULE}>Họ tên</TableHead>
+                    <TableHead className={STICKY_HEAD_RULE}>Nguồn</TableHead>
                     {canEdit ? (
-                      <TableHead className="text-right">
+                      <TableHead className={`text-right ${STICKY_HEAD_RULE}`}>
                         <span className="sr-only">Gỡ</span>
                       </TableHead>
                     ) : null}
@@ -283,9 +316,7 @@ export function SessionExamRosterCard({
                         {row.mssv}
                       </TableCell>
                       <TableCell className="font-medium">{row.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{SOURCE_LABEL[row.source]}</Badge>
-                      </TableCell>
+                      <TableCell className="font-medium">{SOURCE_LABEL[row.source]}</TableCell>
                       {canEdit ? (
                         <TableCell className="text-right">
                           <Button
@@ -308,6 +339,11 @@ export function SessionExamRosterCard({
             <p className="text-caption text-muted-foreground">
               {visible.length}/{students.length} sinh viên
             </p>
+            {setupDraft?.draft?.rosterImportPending && !fileName ? (
+              <p className="text-small text-warning-strong">
+                File vừa chọn chưa được nhập.
+              </p>
+            ) : null}
           </>
         )}
       </CardContent>
@@ -318,6 +354,16 @@ export function SessionExamRosterCard({
             <DialogTitle>Thêm sinh viên vào danh sách thi</DialogTitle>
           </DialogHeader>
           <ManualAddStudentForm
+            directoryLookup
+            initialMssv={savedDialog?.fields.mssv ?? ''}
+            initialName={savedDialog?.fields.name ?? ''}
+            onDraftChange={(fields) => {
+              if (!addOpen) return;
+              const text = Object.values(fields).some((value) => value.trim() !== '');
+              setupDraft?.patchDraft({
+                rosterDialog: text ? { mode: 'add', fields } : undefined,
+              });
+            }}
             isPending={addStudent.isPending}
             errorMessage={
               addStudent.isError && addStudent.error instanceof Error
@@ -409,6 +455,7 @@ export function SessionExamRosterCard({
                   studentCount={parsed.students.length}
                   removeMissing={removeMissing}
                   onRemoveMissingChange={setRemoveMissing}
+                  scope="exam"
                 />
               )}
             </div>
@@ -417,7 +464,11 @@ export function SessionExamRosterCard({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setImportOpen(false)}
+              onClick={() => {
+                pickedImportRef.current = false;
+                setupDraft?.patchDraft({ rosterImportPending: undefined });
+                setImportOpen(false);
+              }}
             >
               Huỷ
             </Button>

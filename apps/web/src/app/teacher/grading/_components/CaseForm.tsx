@@ -183,7 +183,7 @@ export function CaseForm({
 
         <div className="flex flex-col gap-1 sm:col-span-2">
           <label htmlFor={id('expectedOutput')} className="text-small font-semibold">
-            Output mong đợi <span className="text-danger-strong">*</span>
+            Output mong đợi
           </label>
           <AutoTextarea
             ref={refs.expectedOutput}
@@ -201,7 +201,7 @@ export function CaseForm({
             </p>
           ) : (
             <p id={id('expectedOutput-hint')} className="text-caption text-muted-foreground">
-              Đúng từng ký tự bài nộp phải in ra (khoảng trắng và xuống dòng ở cuối không tính). Bắt buộc có.
+              Đúng từng ký tự bài nộp phải in ra (khoảng trắng và xuống dòng ở cuối không tính). Để trống nếu bài không in gì, kể cả khi input là 0.
             </p>
           )}
         </div>
@@ -210,7 +210,7 @@ export function CaseForm({
       <p className="rounded-md border border-dashed border-border bg-surface px-3 py-2 text-caption text-muted-foreground">
         Sẽ hiện là: <code className="font-mono text-foreground">{values.caseKey.trim() || '…'}</code> · nhóm{' '}
         <code className="font-mono text-foreground">{values.group.trim() || '…'}</code> · {lineCount(values.input)} dòng vào · output{' '}
-        <code className="font-mono text-foreground">{values.expectedOutput.trim() || '…'}</code>
+        <code className="font-mono text-foreground">{values.expectedOutput.trim() || '(rỗng)'}</code>
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-2">

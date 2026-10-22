@@ -14,13 +14,15 @@ import { loadOrCreateMachineId } from '../../src/lab-mgmt/machine-identity';
 import {
   aggregateRoom,
   compareAllowlist,
+  readExtensionActivity,
   refreshMachines,
   scanExtensions,
   type MachineComparison,
   type RoomAggregate,
 } from '../../src/lab-mgmt/hub-actions';
 import type { EffectiveExtension } from '../../src/lab-mgmt/allowlist-compare';
-import { IPC_CHANNELS } from '../shared/ipc';
+import { downloadViolationVsixFiles } from '../../src/lab-mgmt/violation-vsix';
+import { IPC_CHANNELS, type VsixDownloadResult } from '../shared/ipc';
 
 export class LabMgmtRuntime {
   private hub: TeacherHub | null = null;
@@ -173,6 +175,29 @@ export class LabMgmtRuntime {
   async scanExtensions(machineIds?: string[]): Promise<void> {
     if (!this.hub) return;
     await scanExtensions(this.hub, machineIds);
+  }
+
+  async readExtensionActivity(machineIds?: string[]): Promise<void> {
+    if (!this.hub) return;
+    await readExtensionActivity(this.hub, machineIds);
+  }
+
+  async downloadViolationVsix(downloadsDir: string): Promise<VsixDownloadResult> {
+    if (!this.hub) {
+      return { ok: false, error: 'Hub chưa chạy.', entries: [] };
+    }
+    if (this.lastComparisons.length === 0) {
+      return {
+        ok: false,
+        error: 'Chưa đối chiếu — bấm «Đối chiếu allowlist» trước.',
+        entries: [],
+      };
+    }
+    const report = await downloadViolationVsixFiles({
+      comparisons: this.lastComparisons,
+      downloadsDir,
+    });
+    return { ok: true, folder: report.folder, entries: report.entries };
   }
 
   async compareAllowlist(): Promise<{

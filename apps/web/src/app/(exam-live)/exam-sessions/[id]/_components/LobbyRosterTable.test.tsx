@@ -156,7 +156,7 @@ describe('LobbyRosterTable — merged row', () => {
     expect(within(roster).getByText('Chưa nộp')).toBeInTheDocument();
   });
 
-  it('shows Chưa vào badge and Trạng thái column header', () => {
+  it('shows Chưa kết nối badge and Trạng thái column header', () => {
     renderTable([
       row({ studentMssv: 'SV002', fullName: 'Trần B', roomStatus: 'not_joined' }),
     ]);
@@ -164,7 +164,7 @@ describe('LobbyRosterTable — merged row', () => {
     const roster = screen.getByRole('region', {
       name: 'Danh sách sinh viên vận hành phiên thi',
     });
-    expect(within(roster).getByText('Chưa vào')).toBeInTheDocument();
+    expect(within(roster).getByText('Chưa kết nối')).toBeInTheDocument();
   });
 });
 

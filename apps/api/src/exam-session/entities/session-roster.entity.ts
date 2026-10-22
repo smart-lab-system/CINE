@@ -4,7 +4,7 @@ import { AccountEntity } from '../../identity/entities/account.entity';
 import { ClassEntity } from '../../course/entities/class.entity';
 import { ExamSessionEntity } from './exam-session.entity';
 
-export type SessionRosterSource = 'frozen' | 'manual';
+export type SessionRosterSource = 'frozen' | 'manual' | 'attached';
 
 /**
  * Ai ĐÁNG LẼ phải có mặt ở phiên thi này — chụp cứng lúc mở phiên
@@ -61,8 +61,8 @@ export class SessionRosterEntity extends BaseEntity {
   homeTeacher!: AccountEntity;
 
   /**
-   * `frozen` = chép từ enrollment lúc mở phiên. `manual` = giảng viên
-   * thêm tay tại phòng thi (§5.8).
+   * `frozen` = chép từ enrollment (tự động từ lớp). `manual` = giảng viên
+   * thêm tay. `attached` = có trong file danh sách được tải lên.
    *
    * Cờ này là lý do việc đóng băng không phá đường thoát hiểm đó: thêm
    * tay vẫn được, nhưng đọc ra được là thêm tay — nên một danh sách
@@ -71,7 +71,7 @@ export class SessionRosterEntity extends BaseEntity {
    */
   @Column({
     type: 'enum',
-    enum: ['frozen', 'manual'],
+    enum: ['frozen', 'manual', 'attached'],
     enumName: 'session_roster_source',
     default: 'frozen',
   })

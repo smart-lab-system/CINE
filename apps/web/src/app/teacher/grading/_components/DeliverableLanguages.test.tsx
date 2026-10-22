@@ -60,6 +60,14 @@ describe('DeliverableLanguages (G1 §3.5)', () => {
     expect(screen.getByText(/Chấm bằng đọc mã, không chạy mã \(môi trường chạy bài chỉ chạy Python và C\+\+\)/)).toBeInTheDocument();
   });
 
+  it('read-only review shows the language and the grading path without a select', () => {
+    render(<DeliverableLanguages sessionId="s1" deliverables={[code({ language: 'python', pipeline: 'investigator' })]} hasResults readOnly />);
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByText('Python')).toBeInTheDocument();
+    expect(screen.getByText(/môi trường chạy bài — cần gói test đã ghim/)).toBeInTheDocument();
+    expect(screen.queryByText(/đã có kết quả chấm nên đường chấm đã cố định/)).not.toBeInTheDocument();
+  });
+
   it('once results exist the select is disabled and says the path is fixed', () => {
     renderIt([code({ language: 'python', pipeline: 'investigator' })], true);
     expect(screen.getByRole('combobox')).toBeDisabled();

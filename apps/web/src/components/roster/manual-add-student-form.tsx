@@ -13,8 +13,10 @@ import { useNominalClasses } from '@/hooks/useMasterData';
 import {
   createStudent,
   listStudents,
+  lookupStudentsByMssv,
   MasterDataHttpError,
   type Student,
+  type StudentMssvHit,
 } from '@/lib/api/master-data';
 import type { RosterEntry } from '@/lib/api/roster';
 import { cn } from '@/lib/utils';
@@ -28,6 +30,14 @@ type Props = {
   errorMessage?: string | null;
   /** Bật gợi ý / tạo catalog (admin). Teacher để tắt. */
   catalogAssist?: boolean;
+  /**
+   * Danh sách thi: đối chiếu MSSV trong catalog. Khớp thì điền tên;
+   * không có trong DB thì không thêm được. Gợi ý hiện từ 7 số.
+   */
+  directoryLookup?: boolean;
+  initialMssv?: string;
+  initialName?: string;
+  onDraftChange?: (fields: { mssv: string; name: string }) => void;
   onAdd: (payload: AddStudentPayload) => void | Promise<void>;
 };
 
@@ -39,11 +49,15 @@ export function ManualAddStudentForm({
   isPending,
   errorMessage,
   catalogAssist = false,
+  directoryLookup = false,
+  initialMssv = '',
+  initialName = '',
+  onDraftChange,
   onAdd,
 }: Props) {
-  const [mssv, setMssv] = useState('');
-  const [name, setName] = useState('');
-  const [matched, setMatched] = useState<Student | null>(null);
+  const [mssv, setMssv] = useState(initialMssv);
+  const [name, setName] = useState(initialName);
+  const [matched, setMatched] = useState<(Student | StudentMssvHit) | null>(null);
   const [nominalClassId, setNominalClassId] = useState('');
   const [openSuggest, setOpenSuggest] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -51,6 +65,13 @@ export function ManualAddStudentForm({
 
   const mssvTrim = mssv.trim();
   const isEightDigit = EIGHT_DIGIT_MSSV.test(mssvTrim);
+
+  const onDraftChangeRef = useRef(onDraftChange);
+  onDraftChangeRef.current = onDraftChange;
+
+  useEffect(() => {
+    onDraftChangeRef.current?.({ mssv, name });
+  }, [mssv, name]);
 
   const searchSource = mssvTrim.length >= 2 ? mssvTrim : name.trim();
   const debouncedQ = useDebouncedValue(searchSource, 300);
@@ -66,6 +87,14 @@ export function ManualAddStudentForm({
         status: 'active',
       }),
     enabled: searchEnabled,
+  });
+
+  const digitQuery = /^\d{7,}$/.test(mssvTrim) ? mssvTrim : '';
+  const debouncedDigits = useDebouncedValue(digitQuery, 300);
+  const directorySuggestions = useQuery({
+    queryKey: ['md-students', 'mssv-prefix', debouncedDigits],
+    queryFn: () => lookupStudentsByMssv(debouncedDigits),
+    enabled: directoryLookup && debouncedDigits.length >= 7,
   });
 
   const classes = useNominalClasses({
@@ -85,6 +114,9 @@ export function ManualAddStudentForm({
   );
 
   const items = suggestions.data?.items ?? [];
+  const directoryReady =
+    directoryLookup && debouncedDigits === mssvTrim && digitQuery.length >= 7;
+  const directoryItems = directoryReady ? (directorySuggestions.data?.items ?? []) : [];
 
   // Chỉ đối chiếu catalog khi đã đủ 8 chữ số.
   useEffect(() => {
@@ -103,6 +135,32 @@ export function ManualAddStudentForm({
   }, [catalogAssist, isEightDigit, mssvTrim, items]);
 
   useEffect(() => {
+    if (!directoryLookup) return;
+    if (digitQuery.length < 7) {
+      setMatched(null);
+      return;
+    }
+    if (!directoryReady || directorySuggestions.isFetching) return;
+    const exact = directoryItems.find(
+      (s) => s.mssv.toLowerCase() === mssvTrim.toLowerCase(),
+    );
+    if (exact) {
+      setMatched(exact);
+      setName(exact.fullName);
+      return;
+    }
+    setMatched(null);
+    setName('');
+  }, [
+    directoryLookup,
+    digitQuery.length,
+    directoryReady,
+    directorySuggestions.isFetching,
+    directoryItems,
+    mssvTrim,
+  ]);
+
+  useEffect(() => {
     if (!openSuggest) return;
     function onDoc(e: MouseEvent) {
       if (!rootRef.current?.contains(e.target as Node)) setOpenSuggest(false);
@@ -112,6 +170,12 @@ export function ManualAddStudentForm({
   }, [openSuggest]);
 
   const lookingUp = catalogAssist && searchEnabled && suggestions.isFetching;
+  const directoryLooking =
+    directoryLookup &&
+    digitQuery.length >= 7 &&
+    (debouncedDigits !== mssvTrim || directorySuggestions.isFetching);
+  const directoryMiss =
+    directoryReady && !directorySuggestions.isFetching && directoryItems.length === 0;
   const exactInResults = items.some(
     (s) => s.mssv.toLowerCase() === mssvTrim.toLowerCase(),
   );
@@ -122,7 +186,7 @@ export function ManualAddStudentForm({
     !lookingUp &&
     !exactInResults;
 
-  function pick(student: Student) {
+  function pick(student: Student | StudentMssvHit) {
     setMssv(student.mssv);
     setName(student.fullName);
     setMatched(student);
@@ -141,15 +205,27 @@ export function ManualAddStudentForm({
     event.preventDefault();
     const m = mssv.trim();
     const n = name.trim();
-    if (!m || !n) {
-      toast.error('Nhập MSSV và họ tên');
-      return;
-    }
 
     try {
+      if (directoryLookup) {
+        if (!matched || matched.mssv.toLowerCase() !== m.toLowerCase()) {
+          toast.error('MSSV không có trong danh sách sinh viên — không thêm được');
+          return;
+        }
+        await onAdd({ mssv: matched.mssv, name: matched.fullName });
+        reset();
+        return;
+      }
+
+      if (!m || !n) {
+        toast.error('Nhập MSSV và họ tên');
+        return;
+      }
+
       if (
         catalogAssist &&
         matched &&
+        'id' in matched &&
         matched.mssv.toLowerCase() === m.toLowerCase()
       ) {
         await onAdd({ studentId: matched.id });
@@ -202,6 +278,14 @@ export function ManualAddStudentForm({
         </Alert>
       ) : null}
 
+      {directoryMiss ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            MSSV không có trong danh sách sinh viên — không thêm được.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {catalogAssist && isNew ? (
         <Alert variant="info">
           <AlertDescription>
@@ -240,31 +324,40 @@ export function ManualAddStudentForm({
                   e.target.value.trim().toLowerCase() !== matched.mssv.toLowerCase()
                 ) {
                   setMatched(null);
+                  if (directoryLookup) setName('');
                 }
               }}
               onFocus={() => setOpenSuggest(true)}
             />
-            {catalogAssist && openSuggest && (items.length > 0 || lookingUp) ? (
+            {(directoryLookup
+              ? openSuggest && digitQuery.length >= 7 && (directoryItems.length > 0 || directoryLooking)
+              : catalogAssist && openSuggest && (items.length > 0 || lookingUp)) ? (
               <ul
                 role="listbox"
-                className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-popover p-1 shadow-md"
+                aria-label="MSSV khớp"
+                className="absolute left-0 top-full z-50 mt-1 max-h-56 w-[min(24rem,80vw)] overflow-y-auto rounded-md border bg-popover p-1 shadow-md"
               >
-                {lookingUp && items.length === 0 ? (
+                {(directoryLookup ? directoryLooking : lookingUp) &&
+                (directoryLookup ? directoryItems : items).length === 0 ? (
                   <li className="px-2 py-1.5 text-sm text-muted-foreground">Đang tìm…</li>
                 ) : (
-                  items.map((s) => (
-                    <li key={s.id}>
+                  (directoryLookup ? directoryItems : items).map((s) => (
+                    <li key={s.mssv}>
                       <button
                         type="button"
                         role="option"
                         className={cn(
-                          'flex w-full flex-col rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent-subtle',
-                          matched?.id === s.id && 'bg-accent-subtle',
+                          'flex w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent-subtle',
+                          directoryLookup ? 'flex-row gap-2' : 'flex-col',
+                          matched?.mssv.toLowerCase() === s.mssv.toLowerCase() &&
+                            'bg-accent-subtle',
                         )}
                         onClick={() => pick(s)}
                       >
                         <span className="font-mono font-medium">{s.mssv}</span>
-                        <span className="text-muted-foreground">{s.fullName}</span>
+                        <span className="text-muted-foreground">
+                          {directoryLookup ? ` - ${s.fullName}` : s.fullName}
+                        </span>
                       </button>
                     </li>
                   ))
@@ -277,8 +370,7 @@ export function ManualAddStudentForm({
             <Label htmlFor="manual-name">Họ và tên</Label>
             <Input
               id="manual-name"
-              required
-              placeholder="vd: Nguyễn Văn A"
+              required={!directoryLookup}
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -287,8 +379,9 @@ export function ManualAddStudentForm({
               onFocus={() => {
                 if (catalogAssist) setOpenSuggest(true);
               }}
-              readOnly={Boolean(matched)}
-              className={matched ? 'bg-muted' : undefined}
+              readOnly={directoryLookup || Boolean(matched)}
+              placeholder={directoryLookup ? 'Điền khi MSSV khớp' : 'vd: Nguyễn Văn A'}
+              className={directoryLookup || matched ? 'bg-muted' : undefined}
             />
           </div>
 
@@ -306,7 +399,15 @@ export function ManualAddStudentForm({
             </div>
           ) : null}
 
-          <Button type="submit" loading={busy} className="shrink-0 lg:mb-0">
+          <Button
+            type="submit"
+            loading={busy}
+            disabled={
+              directoryLookup &&
+              (!matched || matched.mssv.toLowerCase() !== mssvTrim.toLowerCase())
+            }
+            className="shrink-0 lg:mb-0"
+          >
             Thêm
           </Button>
         </div>

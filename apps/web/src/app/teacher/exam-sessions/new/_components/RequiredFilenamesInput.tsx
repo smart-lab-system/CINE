@@ -21,15 +21,38 @@ const DELIVERABLE_TYPE_LABELS = {
 } as const;
 
 /**
- * Chỉ hai giá trị sandbox thật chạy được (`INVESTIGATOR_LANGUAGES`,
- * `apps/api/src/grading/pipeline.ts`) — không cho chọn java/node dù backend
- * chấp nhận, vì chọn chúng chỉ âm thầm rơi về đường one_shot mà giảng viên
- * không biết mình vừa chọn nhầm.
+ * Loại mã nguồn giảng viên chọn trên dòng file. `language` chỉ gửi khi
+ * backend có giá trị đó (`python`/`cpp` chạy được, `java` khai được nhưng
+ * chấm bằng đọc mã). C, Jupyter, JSON chỉ đổi đuôi file — không có cột ngôn ngữ.
  */
-const LANGUAGE_LABELS = {
-  cpp: 'C++',
-  python: 'Python',
-} as const;
+const SOURCE_KINDS = [
+  { id: 'python', label: 'Python', extension: '.py', language: 'python' },
+  { id: 'cpp', label: 'C++', extension: '.cpp', language: 'cpp' },
+  { id: 'c', label: 'C', extension: '.c' },
+  { id: 'java', label: 'Java', extension: '.java', language: 'java' },
+  { id: 'ipynb', label: 'Jupyter', extension: '.ipynb' },
+  { id: 'json', label: 'JSON', extension: '.json' },
+] as const;
+
+type SourceKind = (typeof SOURCE_KINDS)[number];
+
+const ARCHIVE_OUTER = ['.zip', '.rar'];
+
+function sourceKindOf(filename: string): SourceKind | undefined {
+  const lower = filename.toLowerCase();
+  return [...SOURCE_KINDS]
+    .sort((a, b) => b.extension.length - a.extension.length)
+    .find((kind) => lower.endsWith(kind.extension));
+}
+
+/** Đổi đuôi theo loại vừa chọn. File nén giữ nguyên tên ngoài. */
+export function applySourceExtension(filename: string, extension: string): string {
+  const trimmed = filename.trim();
+  const lower = trimmed.toLowerCase();
+  if (ARCHIVE_OUTER.some((ext) => lower.endsWith(ext))) return trimmed;
+  const stem = trimmed.replace(/\.[A-Za-z0-9]+$/, '');
+  return `${stem.length > 0 ? stem : 'bai'}${extension}`;
+}
 
 /** Class chung cho hai <select> gốc — cùng hình dạng với Input, không dùng Select (Radix) vì đây là control nhỏ trong một hàng lặp. */
 const SELECT_CLASS =
@@ -103,6 +126,27 @@ export function RequiredFilenamesInput() {
     });
   }
 
+  function chooseSourceKind(index: number, kindId: string) {
+    const kind = SOURCE_KINDS.find((item) => item.id === kindId);
+    const current = values?.[index]?.value ?? '';
+    if (!kind) {
+      setValue(`requiredFilenames.${index}.language`, undefined, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      return;
+    }
+    setValue(`requiredFilenames.${index}.value`, applySourceExtension(current, kind.extension), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue(
+      `requiredFilenames.${index}.language`,
+      'language' in kind ? kind.language : undefined,
+      { shouldDirty: true, shouldValidate: true },
+    );
+  }
+
   return (
     <fieldset className="flex flex-col gap-3 rounded-lg border border-border bg-surface-2/60 p-4">
       <legend className="px-1 text-body font-semibold text-foreground">
@@ -158,7 +202,15 @@ export function RequiredFilenamesInput() {
                 <select
                   id={`required-deliverable-type-${index}`}
                   className={SELECT_CLASS}
-                  {...register(`requiredFilenames.${index}.deliverableType` as const)}
+                  {...register(`requiredFilenames.${index}.deliverableType` as const, {
+                    onChange: (event) => {
+                      if (event.target.value === 'code_project') return;
+                      setValue(`requiredFilenames.${index}.language`, undefined, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    },
+                  })}
                 >
                   {Object.entries(DELIVERABLE_TYPE_LABELS).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -169,16 +221,25 @@ export function RequiredFilenamesInput() {
                 {values?.[index]?.deliverableType === 'code_project' && (
                   <>
                     <Label htmlFor={`required-language-${index}`} className="sr-only">
-                      {`Ngôn ngữ số ${index + 1}`}
+                      {`Loại mã nguồn số ${index + 1}`}
                     </Label>
                     <select
                       id={`required-language-${index}`}
                       className={SELECT_CLASS}
-                      {...register(`requiredFilenames.${index}.language` as const)}
+                      value={
+                        sourceKindOf(values?.[index]?.value ?? '')?.id ??
+                        (values?.[index]?.language === 'python' ||
+                        values?.[index]?.language === 'cpp' ||
+                        values?.[index]?.language === 'java'
+                          ? values[index].language
+                          : '')
+                      }
+                      onChange={(event) => chooseSourceKind(index, event.target.value)}
                     >
-                      {Object.entries(LANGUAGE_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
+                      <option value="">Chọn loại</option>
+                      {SOURCE_KINDS.map((kind) => (
+                        <option key={kind.id} value={kind.id}>
+                          {kind.label}
                         </option>
                       ))}
                     </select>
@@ -224,6 +285,17 @@ export function RequiredFilenamesInput() {
                   </p>
                 )
               )}
+              {(() => {
+                const kind = sourceKindOf(values?.[index]?.value ?? '');
+                const runnable =
+                  kind !== undefined && 'language' in kind && (kind.language === 'python' || kind.language === 'cpp');
+                if (!kind || values?.[index]?.deliverableType !== 'code_project' || runnable) return null;
+                return (
+                  <p className="text-caption text-muted-foreground">
+                    Loại này được thu như mã nguồn. Chấm bằng chạy code chỉ có với Python và C++.
+                  </p>
+                );
+              })()}
               {isRarFilename(values?.[index]?.value ?? '') && (
                 // Độc lập với fieldError/preview ở trên — chủ đề khác (công
                 // cụ trên máy thi, không phải cú pháp tên file), nên hiện

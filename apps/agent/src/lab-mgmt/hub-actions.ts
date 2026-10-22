@@ -11,6 +11,7 @@ import type { RegisteredNode, TeacherHub } from './teacher-hub';
 export type HubActionName =
   | 'refresh_machines'
   | 'scan_extensions'
+  | 'read_extension_activity'
   | 'compare_allowlist'
   | 'aggregate_room'
   | 'sync_backend';
@@ -18,6 +19,7 @@ export type HubActionName =
 /** Đảm bảo register path không gọi action nghiệp vụ — dùng trong test. */
 export const ACTIONS_NOT_TRIGGERED_ON_REGISTER: readonly HubActionName[] = [
   'scan_extensions',
+  'read_extension_activity',
   'compare_allowlist',
   'aggregate_room',
   'sync_backend',
@@ -32,6 +34,13 @@ export async function scanExtensions(
   machineIds?: string[],
 ): Promise<void> {
   await hub.sendCommand('SCAN_VSCODE_EXTENSIONS', machineIds);
+}
+
+export async function readExtensionActivity(
+  hub: TeacherHub,
+  machineIds?: string[],
+): Promise<void> {
+  await hub.sendCommand('READ_VSCODE_EXTENSION_ACTIVITY', machineIds);
 }
 
 export interface MachineComparison {

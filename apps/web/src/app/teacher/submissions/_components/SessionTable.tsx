@@ -8,7 +8,7 @@ import {
   PHASE_LABELS, getAttentionReasons, getSessionPhase,
   type AttentionReason, type SessionGroup,
 } from '@/lib/submission-attention';
-import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
+import { EXAM_SESSION_STATUS_BADGE_CLASS, EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -73,7 +73,11 @@ function StatusCell({ item, now }: { item: SessionOverviewItem; now: number }) {
   }
   const phase = getSessionPhase(item, now);
   if (phase !== 'ended') {
-    return <span className="text-muted-foreground">{PHASE_LABELS[phase]}</span>;
+    return (
+      <span className={cn('inline-flex items-center text-muted-foreground', EXAM_SESSION_STATUS_BADGE_CLASS)}>
+        {PHASE_LABELS[phase]}
+      </span>
+    );
   }
   const reasons = getAttentionReasons(item, now);
   if (reasons.length === 0) {

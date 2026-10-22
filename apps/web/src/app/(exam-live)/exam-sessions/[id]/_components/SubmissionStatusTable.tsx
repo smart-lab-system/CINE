@@ -160,14 +160,8 @@ function formatTime(iso: string | null | undefined): string | null {
   });
 }
 
-// QA-reported gap (point 2): the teacher had no way to see what format a
-// submitted file actually is without opening it. There is no separately
-// captured "real" format anywhere in the system (see submission.entity.ts —
-// only storageKey/checksum/fileSize) — deriving it from the deliverable's
-// OWN declared requiredFilename is not a guess, it's the same fact the rest
-// of the system already treats as ground truth for what this deliverable
-// IS (submission identity is an exact filename match, by design — see
-// CLAUDE.md's collection rules), so no backend/agent change is needed.
+// Đuôi file lấy từ tên đã render khi có (SV001.cpp), không thì từ mẫu
+// trên cột ({MSSV}.cpp). Hai cái cùng đuôi; mẫu không token thì trùng hẳn.
 function formatFileExtension(requiredFilename: string): string | null {
   const dot = requiredFilename.lastIndexOf('.');
   if (dot === -1 || dot === requiredFilename.length - 1) {
@@ -399,6 +393,11 @@ export function SubmissionStatusTable({
                           {time}
                         </span>
                       )}
+                      {cell?.filename && cell.filename !== deliverable.requiredFilename && (
+                        <p className="mt-1 font-mono text-caption text-muted-foreground">
+                          {cell.filename}
+                        </p>
+                      )}
                       {/* Ngay trong ô, không giấu sau "Xem bài nộp" — spec
                           §9.2: con số giảng viên cần là "thiếu cái gì", và
                           giấu nó sau một cú bấm làm chậm đúng việc họ đang
@@ -483,9 +482,8 @@ export function SubmissionStatusTable({
                 // Only shown once a file actually exists to describe — a
                 // format label on a deliverable nobody submitted yet would
                 // read as "there's a DOCX here" when there is nothing.
-                const fileFormat = cell?.downloadUrl
-                  ? formatFileExtension(deliverable.requiredFilename)
-                  : null;
+                const fileName = cell?.filename || deliverable.requiredFilename;
+                const fileFormat = cell?.downloadUrl ? formatFileExtension(fileName) : null;
                 const archiveCheck = cell ? describeArchiveCheck(cell) : null;
 
                 return (
@@ -494,7 +492,7 @@ export function SubmissionStatusTable({
                     className="flex flex-col gap-3 rounded-lg border border-border bg-surface-2/40 p-4 sm:flex-row sm:items-start sm:justify-between"
                   >
                     <div className="space-y-1">
-                      <p className="font-medium text-foreground">{deliverable.requiredFilename}</p>
+                      <p className="font-medium text-foreground">{fileName}</p>
                       <p className={cn('inline-flex items-center gap-2 text-sm', presentation.text)}>
                         <span
                           className={cn('h-2 w-2 shrink-0 rounded-full', presentation.dot)}
@@ -527,7 +525,7 @@ export function SubmissionStatusTable({
                           href={cell.downloadUrl}
                           target="_blank"
                           rel="noreferrer"
-                          download={deliverable.requiredFilename}
+                          download={fileName}
                         >
                           Mở file
                         </a>

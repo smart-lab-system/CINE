@@ -71,7 +71,7 @@ export function LobbyDashboard({
     },
     {
       key: 'not_joined',
-      label: 'Chưa vào',
+      label: 'Chưa kết nối',
       value: notJoinedCount,
       icon: <UserMinus className="h-3.5 w-3.5" aria-hidden="true" />,
       variant: 'warning',

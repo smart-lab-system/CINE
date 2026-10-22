@@ -1,7 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { ExamSessionService } from './exam-session.service';
 import { CollectionPhaseService } from './collection-phase.service';
+import { SessionRosterService } from './session-roster.service';
+import { isAwaitingOpen } from './exam-session.types';
 
 /**
  * Closes exam sessions whose `end_time` has passed.
@@ -38,9 +46,13 @@ export class ExamSessionScheduler {
    */
   private runningCollectionSweep = false;
 
+  /** Cờ riêng cho lượt thử mở phiên, không chặn finalize hay thu bài. */
+  private runningAutoOpen = false;
+
   constructor(
     private readonly examSessions: ExamSessionService,
     private readonly collectionPhase: CollectionPhaseService,
+    private readonly sessionRoster: SessionRosterService,
   ) {}
 
   @Interval('exam-session-finalize-sweep', ExamSessionScheduler.SWEEP_INTERVAL_MS)
@@ -150,5 +162,89 @@ export class ExamSessionScheduler {
       this.logger.log(`collection sweep closed ${closed} exam session(s)`);
     }
     return closed;
+  }
+
+  /**
+   * Từ 10 phút trước giờ bắt đầu: mở phiên nếu đã đủ điều kiện.
+   * Chưa đủ thì `not_ready`. Tới giờ bắt đầu mà vẫn không mở được,
+   * hoặc đã qua giờ kết thúc mà chưa mở, thì `missed`.
+   */
+  @Interval('exam-session-auto-open-sweep', ExamSessionScheduler.SWEEP_INTERVAL_MS)
+  async handleAutoOpenSweep(): Promise<void> {
+    if (this.runningAutoOpen) {
+      this.logger.debug('auto-open sweep skipped: previous tick still running');
+      return;
+    }
+    this.runningAutoOpen = true;
+    try {
+      await this.sweepAutoOpen(new Date());
+    } catch (error) {
+      this.logger.error(
+        'auto-open sweep failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+    } finally {
+      this.runningAutoOpen = false;
+    }
+  }
+
+  async sweepAutoOpen(now: Date): Promise<number> {
+    const ids = await this.examSessions.findAwaitingOpenIds(now);
+    if (ids.length === 0) {
+      return 0;
+    }
+
+    let changed = 0;
+    for (const id of ids) {
+      try {
+        const outcome = await this.advanceAutoOpen(id, now);
+        if (outcome !== 'unchanged') {
+          changed++;
+        }
+      } catch (error) {
+        this.logger.error(
+          `failed to auto-open exam session ${id}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
+    }
+
+    if (changed > 0) {
+      this.logger.log(`auto-open sweep updated ${changed} exam session(s)`);
+    }
+    return changed;
+  }
+
+  private async advanceAutoOpen(
+    id: string,
+    now: Date,
+  ): Promise<'opened' | 'not_ready' | 'missed' | 'unchanged'> {
+    const session = await this.examSessions.findById(id);
+    if (!session || !isAwaitingOpen(session.status)) {
+      return 'unchanged';
+    }
+
+    if (now.getTime() >= session.endTime.getTime()) {
+      const marked = await this.examSessions.transitionUnopened(id, 'missed');
+      return marked ? 'missed' : 'unchanged';
+    }
+
+    try {
+      await this.sessionRoster.freeze(session);
+      return 'opened';
+    } catch (error) {
+      if (error instanceof ConflictException || error instanceof NotFoundException) {
+        return 'unchanged';
+      }
+      if (!(error instanceof BadRequestException)) {
+        throw error;
+      }
+      const next = now.getTime() >= session.startTime.getTime() ? 'missed' : 'not_ready';
+      if (session.status === next) {
+        return 'unchanged';
+      }
+      const marked = await this.examSessions.transitionUnopened(id, next);
+      return marked ? next : 'unchanged';
+    }
   }
 }

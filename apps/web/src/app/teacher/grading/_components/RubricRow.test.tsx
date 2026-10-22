@@ -51,6 +51,35 @@ describe('RubricRow', () => {
     expect(screen.getByRole('link', { name: 'Sửa Rubric' })).toHaveAttribute('href', rulesHref('CTDL'));
   });
 
+  it('read-only review keeps the pinned rubric and links to the error board without a swap control', () => {
+    render(<RubricRow sessionId="s1" rubricId="ru-1" readOnly />);
+    expect(screen.getByText('CTDL — phiên bản 2')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Xem bảng lỗi' })).toHaveAttribute('href', rulesHref('CTDL'));
+    expect(screen.queryByLabelText('Chọn rubric')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Đổi rubric' })).not.toBeInTheDocument();
+  });
+
+  it('draft: lựa chọn trong nháp được hiện như rubric của phiên, không báo chưa gắn', () => {
+    render(
+      <RubricRow
+        sessionId="s1"
+        rubricId={null}
+        persist="draft"
+        choice="ru-1"
+        onChoiceChange={() => undefined}
+      />,
+    );
+    expect(screen.getByText('CTDL — phiên bản 2')).toBeInTheDocument();
+    expect(screen.queryByText(/chưa gắn rubric/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Gắn rubric' })).not.toBeInTheDocument();
+  });
+
+  it('draft: rubric đã ghim trên phiên vẫn hiện khi chưa chọn lại', () => {
+    render(<RubricRow sessionId="s1" rubricId="ru-1" persist="draft" choice="" />);
+    expect(screen.getByText('CTDL — phiên bản 2')).toBeInTheDocument();
+    expect(screen.queryByText(/chưa gắn rubric/i)).not.toBeInTheDocument();
+  });
+
   it('with no rubric pinned: says so, and only ACTIVE versions can be attached', () => {
     render(<RubricRow sessionId="s1" rubricId={null} />);
     expect(screen.getByText(/chưa gắn rubric/i)).toBeInTheDocument();

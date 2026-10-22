@@ -155,14 +155,15 @@ function StatusRow({ icon, children }: { icon: string; children: ReactNode }) {
 
 function materialsSummary(state: AgentState): string {
   const m = state.materials;
+  if (m.status === 'not-yet') {
+    return `Đề thi: chưa mở${m.releaseAt ? ` — mở lúc ${formatClockTime(m.releaseAt)}` : ''}.`;
+  }
   if (m.count === 0) {
     return 'Đề thi: không có file đính kèm.';
   }
   switch (m.status) {
     case 'downloaded':
       return `Đề thi: đã tải ${m.downloadedFileNames.length}/${m.count} file.`;
-    case 'not-yet':
-      return `Đề thi: chưa mở${m.releaseAt ? ` — mở lúc ${formatClockTime(m.releaseAt)}` : ''}.`;
     case 'failed':
       return 'Đề thi: không tải được — hãy báo giám thị.';
     default:

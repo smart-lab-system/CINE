@@ -5,8 +5,11 @@ import { ClassEntity } from '../../course/entities/class.entity';
 import { RubricEntity } from '../../grading/entities/rubric.entity';
 import { SemesterEntity } from '../../master-data/entities/semester.entity';
 import { RoomEntity } from '../../master-data/entities/room.entity';
+import { slotStillHeldSql } from '../exam-session.types';
 
 // draft (hiếm / không dùng teacher flow) -> scheduled (đã tạo, chưa mở)
+// -> not_ready (đã tới cửa sổ 10 phút mà chưa mở được)
+// -> missed (tới giờ bắt đầu vẫn không mở được — không dùng nữa, vẫn huỷ được)
 // -> active (đã mở: roster frozen, agent được join trong khung giờ)
 // -> collecting (hết giờ / chốt bài sớm) -> completed | cancelled.
 //
@@ -19,6 +22,8 @@ import { RoomEntity } from '../../master-data/entities/room.entity';
 export type ExamSessionStatus =
   | 'draft'
   | 'scheduled'
+  | 'not_ready'
+  | 'missed'
   | 'active'
   // Hết giờ làm bài, đang gom bài về, giảng viên CHƯA xác nhận. Xem
   // docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md.
@@ -55,11 +60,11 @@ export type ExamType = 'TK' | 'GK' | 'CK';
 // `exam-schedule-conflict.e2e-spec.ts` pins this.
 @Exclusion(
   'ex_exam_session_room_overlap',
-  `USING gist ("room_name" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'collecting' AND "status" <> 'completed' AND "status" <> 'cancelled')`,
+  `USING gist ("room_name" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE (${slotStillHeldSql('"status"')})`,
 )
 @Exclusion(
   'ex_exam_session_class_overlap',
-  `USING gist ("class_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE ("status" <> 'collecting' AND "status" <> 'completed' AND "status" <> 'cancelled')`,
+  `USING gist ("class_id" WITH =, tstzrange("start_time", "end_time", '[)') WITH &&) WHERE (${slotStillHeldSql('"status"')})`,
 )
 // Backs ExamSessionScheduler's sweep query (status = 'active' AND
 // end_time <= now()), which runs every 30 seconds forever. Leading with
@@ -69,6 +74,7 @@ export type ExamType = 'TK' | 'GK' | 'CK';
 // Without it, every tick is a sequential scan of the whole table for a
 // query that almost always returns nothing.
 @Index('idx_exam_session_status_end_time', ['status', 'endTime'])
+@Index('idx_exam_session_status_start_time', ['status', 'startTime'])
 export class ExamSessionEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 200 })
   name!: string;
@@ -189,7 +195,7 @@ export class ExamSessionEntity extends BaseEntity {
 
   @Column({
     type: 'enum',
-    enum: ['draft', 'scheduled', 'active', 'collecting', 'completed', 'cancelled'],
+    enum: ['draft', 'scheduled', 'not_ready', 'missed', 'active', 'collecting', 'completed', 'cancelled'],
     enumName: 'exam_session_status',
     default: 'draft',
   })

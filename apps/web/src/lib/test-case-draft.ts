@@ -80,7 +80,6 @@ export function validateCase(values: CaseValues, rows: DraftRow[], skipIndex: nu
   if (group === '') errors.group = 'Chọn hoặc nhập nhóm, ví dụ co_ban.';
   else if (group.length > MAX_GROUP_CHARS) errors.group = `Nhóm dài quá ${MAX_GROUP_CHARS} ký tự.`;
 
-  if (values.expectedOutput.trim() === '') errors.expectedOutput = 'Nhập output mong đợi. Ca không có output không chấm được.';
   return errors;
 }
 

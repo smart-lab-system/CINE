@@ -59,6 +59,32 @@ export interface SubmissionStatusView {
   archiveCheckStatus: SubmissionEntity['archiveCheckStatus'];
   archiveMissingEntries: string[] | null;
   archiveCheckError: string | null;
+  /**
+   * Tên file của đúng sinh viên này. Mẫu khai trên deliverable (`{MSSV}.cpp`)
+   * được render ở đây, cùng hàm đã dùng lúc tạo folder trên máy thi.
+   * `{SOMAY}` thành `UNKNOWN`: tên máy chỉ sống trên socket lúc thu, không
+   * được lưu lại.
+   */
+  filename: string | null;
+}
+
+/**
+ * Mẫu tên file là một quyết định chung của phiên. Tên file của từng bài là
+ * quyết định đó sau khi điền MSSV, tên, phòng. Không đoán từ nội dung file.
+ */
+function renderSubmissionFilename(
+  pattern: string | undefined,
+  studentMssv: string,
+  studentName: string,
+  roomName: string,
+): string | null {
+  if (!pattern) return null;
+  return renderFilename(pattern, {
+    studentMssv,
+    studentName,
+    roomName,
+    machineName: null,
+  });
 }
 
 /**
@@ -246,7 +272,7 @@ export class SubmissionService {
    * session detail it fetched, and pairs the two client-side.
    */
   async listForSession(examSessionId: string): Promise<SubmissionStatusView[]> {
-    const [rows, deliverables] = await Promise.all([
+    const [rows, deliverables, session] = await Promise.all([
       // `NULLS LAST` tường minh dù ASC của Postgres vốn đã thế. Mặc định
       // đó LẬT khi ai đó đổi sang DESC — và không có gì ở dòng `'ASC'`
       // nói cho họ biết điều ấy. `listForTeacher` đã phải trả giá đúng
@@ -266,38 +292,47 @@ export class SubmissionService {
       // repository over exam-session's own table (this module's own
       // reasoning for importing ExamSessionModule in the first place).
       this.examSessions.listRequiredDeliverables(examSessionId),
+      this.examSessions.findById(examSessionId),
     ]);
     const filenameById = new Map(deliverables.map((d) => [d.id, d.requiredFilename]));
+    const roomName = session?.roomName ?? '';
 
     return Promise.all(
-      rows.entities.map(async (row, index) => ({
-        studentMssv: row.studentMssv,
-        studentNameInput: row.studentNameInput,
-        requiredDeliverableId: row.requiredDeliverableId,
-        status: row.status,
-        submittedAt: row.submittedAt,
-        fileSize: row.fileSize,
-        homeClassId: row.homeClassId,
-        archiveCheckStatus: row.archiveCheckStatus,
-        archiveMissingEntries: row.archiveMissingEntries,
-        archiveCheckError: row.archiveCheckError,
-        // `?.` chứ không `[index].`: `getRawAndEntities` trả raw song song
-        // với entities, nhưng nếu một ngày chúng lệch nhau thì thứ hỏng phải
-        // là MỘT cái nhãn, không phải cả trang bài nộp.
-        homeClassName: rows.raw[index]?.homeClassName ?? null,
-        // QA-reported gap: the storage key is a bare id, no extension —
-        // nothing a browser follows this URL could ever name the saved
-        // file after. filename is the declared requiredFilename, the same
-        // ground truth submission identity already uses everywhere else
-        // (exact-filename-match collection) — not a guess.
-        downloadUrl: row.storageKey
-          ? (
-              await this.storage.generateDownloadUrl(row.storageKey, {
-                filename: filenameById.get(row.requiredDeliverableId),
-              })
-            ).downloadUrl
-          : null,
-      })),
+      rows.entities.map(async (row, index) => {
+        // Khoá lưu trữ không mang tên file. Tên lúc tải và lúc xem phải là
+        // tên đã render cho đúng sinh viên — cùng tên folder trên máy thi —
+        // không phải mẫu `{MSSV}` còn nguyên trên deliverable.
+        const filename = renderSubmissionFilename(
+          filenameById.get(row.requiredDeliverableId),
+          row.studentMssv,
+          row.studentNameInput,
+          roomName,
+        );
+        return {
+          studentMssv: row.studentMssv,
+          studentNameInput: row.studentNameInput,
+          requiredDeliverableId: row.requiredDeliverableId,
+          status: row.status,
+          submittedAt: row.submittedAt,
+          fileSize: row.fileSize,
+          homeClassId: row.homeClassId,
+          archiveCheckStatus: row.archiveCheckStatus,
+          archiveMissingEntries: row.archiveMissingEntries,
+          archiveCheckError: row.archiveCheckError,
+          // `?.` chứ không `[index].`: `getRawAndEntities` trả raw song song
+          // với entities, nhưng nếu một ngày chúng lệch nhau thì thứ hỏng phải
+          // là MỘT cái nhãn, không phải cả trang bài nộp.
+          homeClassName: rows.raw[index]?.homeClassName ?? null,
+          filename,
+          downloadUrl: row.storageKey
+            ? (
+                await this.storage.generateDownloadUrl(row.storageKey, {
+                  filename: filename ?? undefined,
+                })
+              ).downloadUrl
+            : null,
+        };
+      }),
     );
   }
 
@@ -348,27 +383,32 @@ export class SubmissionService {
       .getManyAndCount();
 
     const items = await Promise.all(
-      rows.map(async (row) => ({
-        id: row.id,
-        examSessionId: row.examSessionId,
-        examSessionName: row.examSession.name,
-        requiredFilename: row.requiredDeliverable.requiredFilename,
-        studentMssv: row.studentMssv,
-        studentNameInput: row.studentNameInput,
-        status: row.status,
-        submittedAt: row.submittedAt,
-        fileSize: row.fileSize,
-        // filename set (unlike listForSession above, not yet updated on
-        // this branch) — the storage key alone has no extension for a
-        // browser to name the downloaded file after.
-        downloadUrl: row.storageKey
-          ? (
-              await this.storage.generateDownloadUrl(row.storageKey, {
-                filename: row.requiredDeliverable.requiredFilename,
-              })
-            ).downloadUrl
-          : null,
-      })),
+      rows.map(async (row) => {
+        const filename = renderSubmissionFilename(
+          row.requiredDeliverable.requiredFilename,
+          row.studentMssv,
+          row.studentNameInput,
+          row.examSession.roomName ?? '',
+        );
+        return {
+          id: row.id,
+          examSessionId: row.examSessionId,
+          examSessionName: row.examSession.name,
+          requiredFilename: filename ?? row.requiredDeliverable.requiredFilename,
+          studentMssv: row.studentMssv,
+          studentNameInput: row.studentNameInput,
+          status: row.status,
+          submittedAt: row.submittedAt,
+          fileSize: row.fileSize,
+          downloadUrl: row.storageKey
+            ? (
+                await this.storage.generateDownloadUrl(row.storageKey, {
+                  filename: filename ?? undefined,
+                })
+              ).downloadUrl
+            : null,
+        };
+      }),
     );
 
     return { items, total };

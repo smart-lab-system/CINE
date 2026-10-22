@@ -6,7 +6,7 @@ import { apiClient } from '@/lib/api-client';
  * Everything here is derived server-side from `agent_connection_event`, which
  * is why this page can be refreshed mid-exam without losing the room.
  */
-export type SessionRosterSource = 'frozen' | 'manual';
+export type SessionRosterSource = 'frozen' | 'manual' | 'attached';
 
 export interface AttendanceStudent {
   mssv: string;

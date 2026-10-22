@@ -18,6 +18,8 @@ interface ExamMaterialsCardProps {
   releaseAt: string;
   /** Deleting is closed once the session is over; the papers stay for reference. */
   canEdit: boolean;
+  /** Hub: ô file đã chọn nhưng request tải lên chưa xong. */
+  onFileSelected?: (selected: boolean) => void;
 }
 
 function formatSize(bytes: number): string {
@@ -41,6 +43,7 @@ export function ExamMaterialsCard({
   examSessionId,
   releaseAt,
   canEdit,
+  onFileSelected,
 }: ExamMaterialsCardProps) {
   const materials = useExamMaterials(examSessionId);
   const upload = useUploadExamMaterial(examSessionId);
@@ -50,10 +53,12 @@ export function ExamMaterialsCard({
 
   function onPick(file: File | undefined) {
     if (!file) return;
+    onFileSelected?.(true);
     upload.mutate(file, {
       // Cleared on both paths: leaving the chosen file in the input means
       // picking the same file again fires no change event and looks broken.
       onSettled: () => {
+        onFileSelected?.(false);
         if (fileInput.current) fileInput.current.value = '';
       },
     });
@@ -78,7 +83,7 @@ export function ExamMaterialsCard({
               onClick={() => fileInput.current?.click()}
             >
               <Upload className="h-4 w-4" aria-hidden="true" />
-              Tải đề thi lên
+              Tải file
             </Button>
           </>
         )}

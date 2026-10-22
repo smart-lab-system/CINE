@@ -37,15 +37,22 @@ import { AttendanceService } from '../agent-connection/attendance.service';
 import { AttendanceView } from '../agent-connection/attendance.types';
 import { ExamFinalizeReason, ExamSessionEvents } from './exam-session.events';
 import {
+  AUTO_OPEN_LEAD_MS,
   DEFAULT_DELIVERABLE_TYPE,
   EXAM_SESSION_CODE_ALPHABET,
   EXAM_SESSION_CODE_LENGTH,
   EXAM_SESSION_CODE_MAX_ATTEMPTS,
+  canCancelExamSession,
+  isAwaitingOpen,
   isExamOver,
 } from './exam-session.types';
 import { ScheduleConflictService } from './schedule-conflict.service';
 import { SUBMISSION_GRACE_PERIOD_MS } from '../submission/submission.types';
-import { ensureDefaultProblem, setSessionRubricAndProblem } from '../grading/problem/resolve-problem-config';
+import {
+  ensureDefaultProblem,
+  setSessionRubricAndProblem,
+  syncSingleProblemLanguageFromDeliverables,
+} from '../grading/problem/resolve-problem-config';
 import { assertSessionRouteAllowed } from '../grading/problem/session-route-guard';
 
 /**
@@ -305,9 +312,14 @@ export class ExamSessionService {
     session: ExamSessionEntity,
     dto: ReplaceRequiredDeliverablesDto,
   ): Promise<ExamSessionResponseDto> {
-    if (session.status !== 'scheduled') {
+    if (session.status === 'missed') {
       throw new ConflictException(
-        'Chỉ sửa được danh sách file bắt buộc khi phiên còn Sắp diễn ra.',
+        'Phiên không diễn ra — không sửa danh sách file được. Có thể huỷ phiên.',
+      );
+    }
+    if (!isAwaitingOpen(session.status)) {
+      throw new ConflictException(
+        'Chỉ sửa được danh sách file bắt buộc khi phiên còn Sắp diễn ra hoặc Chưa đủ điều kiện.',
       );
     }
 
@@ -339,6 +351,7 @@ export class ExamSessionService {
       if (entryRows.length > 0) {
         await manager.save(RequiredDeliverableEntryEntity, entryRows);
       }
+      await syncSingleProblemLanguageFromDeliverables(manager, session.id);
       return savedDeliverables;
     });
 
@@ -360,6 +373,11 @@ export class ExamSessionService {
     session: ExamSessionEntity,
     rubricId: string | null,
   ): Promise<ExamSessionResponseDto> {
+    if (session.status === 'missed') {
+      throw new ConflictException(
+        'Phiên không diễn ra — không gắn rubric được. Có thể huỷ phiên.',
+      );
+    }
     let rubric: RubricEntity | null = null;
     if (rubricId) {
       rubric = await this.rubrics.findOne({ where: { id: rubricId } });
@@ -388,16 +406,22 @@ export class ExamSessionService {
   }
 
   /**
-   * Sửa phòng / khung giờ trước khi chốt danh sách dự thi (freeze).
-   * Học kỳ bất biến sau tạo. Conflict check loại trừ chính phiên này.
+   * Sửa loại thi / phòng / khung giờ trước khi chốt danh sách dự thi (freeze).
+   * Tên, lớp, học kỳ bất biến sau tạo. Conflict check loại trừ chính phiên này.
    */
   async updateSchedule(
     session: ExamSessionEntity,
     dto: UpdateExamSessionDto,
   ): Promise<ExamSessionResponseDto> {
+    if (session.status === 'missed') {
+      throw new ConflictException(
+        'Phiên không diễn ra — không sửa lịch được. Có thể huỷ phiên.',
+      );
+    }
     await this.assertRosterNotFrozen(session.id);
 
     if (
+      dto.examType === undefined &&
       dto.roomId === undefined &&
       dto.roomName === undefined &&
       dto.startTime === undefined &&
@@ -436,6 +460,7 @@ export class ExamSessionService {
     );
 
     await this.sessions.update(session.id, {
+      ...(dto.examType !== undefined ? { examType: dto.examType } : {}),
       roomId: roomSnap.roomId,
       roomName: roomSnap.roomName,
       startTime,
@@ -446,17 +471,21 @@ export class ExamSessionService {
   }
 
   /**
-   * Soft-cancel phiên nháp — `status = cancelled` giải phóng phòng
-   * (exclusion bỏ cancelled). Chỉ khi chưa freeze roster.
+   * Soft-cancel — `status = cancelled` giải phóng phòng.
+   * Cho phép khi chưa mở, kể cả khi đã tùy chỉnh hoặc nhập danh sách.
+   * `missed` chưa mở nên vẫn huỷ được. Đã mở hoặc đã kết thúc thì không.
    */
   async cancel(session: ExamSessionEntity): Promise<ExamSessionResponseDto> {
     if (session.status === 'cancelled') {
       return this.findByIdForOwner(session.id, session.teacherId);
     }
-    if (isExamOver(session.status)) {
-      throw new ConflictException('Phiên đã kết thúc — không huỷ được.');
+    if (!canCancelExamSession(session.status)) {
+      throw new ConflictException(
+        isExamOver(session.status)
+          ? 'Phiên đã kết thúc — không huỷ được.'
+          : 'Phiên đã mở — không huỷ được.',
+      );
     }
-    await this.assertRosterNotFrozen(session.id);
 
     await this.sessions.update(session.id, { status: 'cancelled' });
     return this.findByIdForOwner(session.id, session.teacherId);
@@ -468,7 +497,7 @@ export class ExamSessionService {
       .count({ where: { examSessionId } });
     if (count > 0) {
       throw new ConflictException(
-        'Đã chốt danh sách dự thi — không đổi phòng/giờ hoặc huỷ phiên được.',
+        'Đã chốt danh sách dự thi — không đổi loại thi, phòng hoặc giờ được.',
       );
     }
   }
@@ -572,8 +601,9 @@ export class ExamSessionService {
 
   /**
    * Powers the "Quản lý kỳ thi" list page — owner-scoped (only sessions
-   * this teacher created), newest first, paginated. Một truy vấn, một JOIN
-   * (lớp) — tên môn, phòng và học kỳ nằm ngay trên hàng.
+   * this teacher created), newest first, paginated. Một truy vấn, JOIN lớp
+   * (kèm lớp danh nghĩa) và phòng — tên môn, học kỳ và tên phòng nằm trên
+   * hàng; mã phòng và mã lớp danh nghĩa lấy từ danh mục.
    */
   async findAllForOwner(
     teacherId: string,
@@ -586,6 +616,8 @@ export class ExamSessionService {
     const qb = this.sessions
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.class', 'class')
+      .leftJoinAndSelect('class.nominalClass', 'nominalClass')
+      .leftJoinAndSelect('s.room', 'room')
       .where('s.teacherId = :teacherId', { teacherId });
 
     if (query.search) {
@@ -658,7 +690,9 @@ export class ExamSessionService {
       item.code = session.code;
       item.courseName = session.courseName;
       item.className = session.class.name;
+      item.nominalClassCode = session.class.nominalClass?.code ?? null;
       item.roomName = session.roomName;
+      item.roomCode = session.room?.code ?? null;
       item.semesterName = session.semesterName;
       item.examType = session.examType;
       item.startTime = session.startTime;
@@ -772,6 +806,43 @@ export class ExamSessionService {
    *
    * Dùng chung idx_exam_session_status_end_time với findFinalizableIds.
    */
+  /**
+   * Phiên `scheduled` hoặc `not_ready` đã vào cửa sổ 10 phút trước giờ
+   * bắt đầu (hoặc đã quá giờ đó). Lượt quét mở phiên đọc danh sách này.
+   *
+   * Chỉ trả id. `sweepAutoOpen` đọc lại từng dòng rồi `freeze` hoặc
+   * đổi trạng thái; một dòng đổi status giữa hai bước thì UPDATE có
+   * điều kiện không ghi đè.
+   */
+  async findAwaitingOpenIds(now: Date): Promise<string[]> {
+    const deadline = new Date(now.getTime() + AUTO_OPEN_LEAD_MS);
+    const rows = await this.sessions
+      .createQueryBuilder('s')
+      .select('s.id', 'id')
+      .where('s.status IN (:...awaiting)', { awaiting: ['scheduled', 'not_ready'] })
+      .andWhere('s.startTime <= :deadline', { deadline })
+      .getRawMany<{ id: string }>();
+    return rows.map((row) => row.id);
+  }
+
+  /**
+   * `scheduled`/`not_ready` → `not_ready` hoặc `missed`.
+   * Trả false khi phiên đã rời hai trạng thái đó (mở tay, huỷ, tick khác).
+   */
+  async transitionUnopened(
+    id: string,
+    status: 'not_ready' | 'missed',
+  ): Promise<boolean> {
+    const result = await this.sessions
+      .createQueryBuilder()
+      .update(ExamSessionEntity)
+      .set({ status })
+      .where('id = :id', { id })
+      .andWhere('status IN (:...awaiting)', { awaiting: ['scheduled', 'not_ready'] })
+      .execute();
+    return (result.affected ?? 0) > 0;
+  }
+
   async findCollectionExpiredIds(now: Date): Promise<string[]> {
     const rows = await this.sessions
       .createQueryBuilder('s')
@@ -1024,6 +1095,7 @@ export class ExamSessionService {
     dto.rubricId = session.rubricId;
     dto.rubricVersion = rubricVersion;
     dto.testBundleId = session.testBundleId;
+    dto.blueprintConfirmedAt = session.blueprintConfirmedAt ?? null;
     dto.requiredDeliverables = deliverables.map((deliverable) => {
       const view = new RequiredDeliverableResponseDto();
       view.id = deliverable.id;

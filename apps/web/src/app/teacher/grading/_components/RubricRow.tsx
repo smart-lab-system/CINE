@@ -15,12 +15,33 @@ import { rulesHref } from '@/lib/rules-links';
  * không có chỗ này là bội ước. Hiện đúng BẢN ĐÃ GHIM (theo id), không phải bản mới nhất của rubric: phiên được
  * chấm bằng bản nó ghim. Đổi được khi phiên chưa có kết quả; nếu server từ chối (409) thì hiện nguyên văn.
  */
-export function RubricRow({ sessionId, rubricId }: { sessionId: string; rubricId: string | null }) {
+export function RubricRow({
+  sessionId,
+  rubricId,
+  readOnly = false,
+  persist = 'immediate',
+  choice: choiceProp,
+  onChoiceChange,
+  heading = true,
+}: {
+  sessionId: string;
+  rubricId: string | null;
+  /** Xem lại sau khi đã chấm: không đổi rubric của phiên. */
+  readOnly?: boolean;
+  /** `draft`: hub giữ lựa chọn trong nháp, không gọi PATCH từ nút này. */
+  persist?: 'immediate' | 'draft';
+  choice?: string;
+  onChoiceChange?: (choice: string) => void;
+  heading?: boolean;
+}) {
   const rubrics = useRubrics();
   const pin = useSetSessionRubric(sessionId);
   const [choice, setChoice] = useState('');
 
-  const pinned = rubricId ? rubrics.data?.find((r) => r.id === rubricId) : undefined;
+  const selected = persist === 'draft' ? (choiceProp || rubricId || '') : choice;
+  const showPicker = !readOnly;
+  const displayedId = persist === 'draft' ? selected || null : rubricId;
+  const pinned = displayedId ? rubrics.data?.find((r) => r.id === displayedId) : undefined;
   const options = (rubrics.data ?? []).filter((r) => r.isActive);
 
   const body = () => {
@@ -49,20 +70,23 @@ export function RubricRow({ sessionId, rubricId }: { sessionId: string; rubricId
               </span>
             </div>
             <Link href={rulesHref(pinned.name)} className="text-small font-semibold text-accent-strong hover:underline">
-              Sửa Rubric
+              {readOnly ? 'Xem bảng lỗi' : 'Sửa Rubric'}
             </Link>
           </div>
         ) : (
           <p className="text-small text-warning-strong">
-            {rubricId ? 'Không tìm thấy rubric đã gắn cho phiên này.' : 'Phiên này chưa gắn rubric — chưa chấm được.'}
+            {displayedId ? 'Không tìm thấy rubric đã gắn cho phiên này.' : 'Phiên này chưa gắn rubric — chưa chấm được.'}
           </p>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
+        {showPicker && <div className="flex flex-wrap items-center gap-2">
           <select
             aria-label="Chọn rubric"
-            value={choice}
-            onChange={(e) => setChoice(e.target.value)}
+            value={selected}
+            onChange={(e) => {
+              if (persist === 'draft') onChoiceChange?.(e.target.value);
+              else setChoice(e.target.value);
+            }}
             className="h-10 min-w-[220px] rounded-md border border-input bg-surface px-3 text-body"
           >
             <option value="">{pinned ? 'Đổi sang rubric khác…' : 'Chọn rubric…'}</option>
@@ -72,18 +96,20 @@ export function RubricRow({ sessionId, rubricId }: { sessionId: string; rubricId
               </option>
             ))}
           </select>
-          <Button
-            type="button"
-            variant={pinned ? 'outline' : 'default'}
-            disabled={choice === '' || choice === rubricId || pin.isPending}
-            loading={pin.isPending}
-            onClick={() => pin.mutate(choice, { onSuccess: () => setChoice('') })}
-          >
-            {pinned ? 'Đổi rubric' : 'Gắn rubric'}
-          </Button>
-        </div>
+          {persist === 'immediate' && (
+            <Button
+              type="button"
+              variant={pinned ? 'outline' : 'default'}
+              disabled={selected === '' || selected === rubricId || pin.isPending}
+              loading={pin.isPending}
+              onClick={() => pin.mutate(selected, { onSuccess: () => setChoice('') })}
+            >
+              {pinned ? 'Đổi rubric' : 'Gắn rubric'}
+            </Button>
+          )}
+        </div>}
 
-        {pin.isError && (
+        {!readOnly && pin.isError && (
           <Alert variant="destructive">
             <AlertDescription>{pin.error.message}</AlertDescription>
           </Alert>
@@ -94,7 +120,7 @@ export function RubricRow({ sessionId, rubricId }: { sessionId: string; rubricId
 
   return (
     <section aria-label="Rubric" className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-h3">Rubric</h2>
+      {heading ? <h2 className="text-h3">Rubric</h2> : null}
       {body()}
     </section>
   );

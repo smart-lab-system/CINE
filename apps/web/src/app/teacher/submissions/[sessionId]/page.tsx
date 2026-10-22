@@ -13,7 +13,8 @@ import {
 } from '@/hooks/useExamSession';
 import { useGradingResults } from '@/hooks/useGrading';
 import { buildSubmissionRows, countFullySubmitted } from '@/lib/submission-rows';
-import { getDisplaySessionStatus } from '@/lib/exam-session-display';
+import { EXAM_SESSION_STATUS_BADGE_CLASS, getDisplaySessionStatus } from '@/lib/exam-session-display';
+import { useStatusClock } from '@/lib/use-status-clock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -108,11 +109,17 @@ function SubmissionSessionDetailContent() {
   );
   const fullySubmitted = useMemo(() => countFullySubmitted(rows, deliverables), [rows, deliverables]);
 
+  const statusNow = useStatusClock(
+    sessionDetail.data
+      ? [{ status: sessionDetail.data.status, startTime: sessionDetail.data.startTime }]
+      : [],
+  );
   const displayStatus = sessionDetail.data
     ? getDisplaySessionStatus(
         sessionDetail.data.status,
         sessionDetail.data.startTime,
         sessionDetail.data.endTime,
+        statusNow,
       )
     : null;
 
@@ -157,7 +164,11 @@ function SubmissionSessionDetailContent() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3 self-start">
-          {displayStatus && <Badge variant={displayStatus.variant}>{displayStatus.label}</Badge>}
+          {displayStatus && (
+            <Badge variant={displayStatus.variant} className={EXAM_SESSION_STATUS_BADGE_CLASS}>
+              {displayStatus.label}
+            </Badge>
+          )}
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>

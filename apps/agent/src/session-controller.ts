@@ -227,6 +227,8 @@ export class SessionController extends EventEmitter {
   private shuttingDown = false;
   private finalizing = false;
   private stopSnapshots: (() => void) | null = null;
+  /** Hẹn xin đề đúng `materialsReleaseAt`. Vào sớm thì lúc vào chưa có đề. */
+  private materialsReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Set once a join() attempt has passed local validation — reused by
   // reconnects and by the access-request/grant flow's re-join, exactly
@@ -354,6 +356,7 @@ export class SessionController extends EventEmitter {
     this.shuttingDown = true;
     this.stopSnapshots?.();
     this.stopSnapshots = null;
+    this.clearMaterialsRelease();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
   }
@@ -566,12 +569,24 @@ export class SessionController extends EventEmitter {
       this.emit('open-workspace', workspaceDir);
     }
 
+    this.clearMaterialsRelease();
     let materialNames: string[] = [];
-    if (typeof ack.examMaterialCount === 'number' && ack.examMaterialCount > 0) {
+    const materialCount = typeof ack.examMaterialCount === 'number' ? ack.examMaterialCount : 0;
+    const releaseAt = typeof ack.materialsReleaseAt === 'string' ? ack.materialsReleaseAt : '';
+    const releaseAtMs = Date.parse(releaseAt);
+    if (materialCount > 0) {
       this.patch({
-        materials: { ...this.state.materials, count: ack.examMaterialCount, status: 'pending' },
+        materials: { ...this.state.materials, count: materialCount, status: 'pending' },
       });
       materialNames = await this.syncMaterials(workspaceDir);
+    } else if (Number.isFinite(releaseAtMs) && releaseAtMs > Date.now()) {
+      // Vào trước giờ: server cố ý báo count 0 để không phát đề. Xin lại
+      // đúng materialsReleaseAt — không thăm dò trước mốc đó.
+      this.patch({
+        materials: { ...this.state.materials, count: 0, status: 'not-yet', releaseAt },
+      });
+      this.log(`Đề thi chưa mở — sẽ mở lúc ${releaseAt}.`);
+      this.armMaterialsRelease(releaseAt);
     }
 
     await writeInstructions(workspaceDir, {
@@ -629,9 +644,11 @@ export class SessionController extends EventEmitter {
   private async syncMaterials(workspaceDir: string): Promise<string[]> {
     const outcome = await downloadMaterials(this.socket!, workspaceDir);
     if (outcome.status === 'downloaded') {
+      this.clearMaterialsRelease();
       this.patch({
         materials: {
           ...this.state.materials,
+          count: Math.max(this.state.materials.count, outcome.fileNames.length),
           status: 'downloaded',
           downloadedFileNames: outcome.fileNames,
         },
@@ -648,11 +665,76 @@ export class SessionController extends EventEmitter {
         },
       });
       this.log(`Đề thi chưa mở — sẽ mở lúc ${outcome.releaseAt ?? '(chưa rõ)'}.`);
+      if (outcome.releaseAt) {
+        this.armMaterialsRelease(outcome.releaseAt);
+      }
+    } else if (outcome.status === 'none') {
+      this.clearMaterialsRelease();
+      this.patch({
+        materials: { ...this.state.materials, count: 0, status: 'none' },
+      });
     } else if (outcome.status === 'failed') {
       this.patch({ materials: { ...this.state.materials, status: 'failed' } });
       this.notify('Không tải được đề thi', 'Hãy báo giám thị.');
     }
     return outcome.fileNames;
+  }
+
+  private clearMaterialsRelease(): void {
+    if (this.materialsReleaseTimer !== null) {
+      clearTimeout(this.materialsReleaseTimer);
+      this.materialsReleaseTimer = null;
+    }
+  }
+
+  /**
+   * Một lần, đúng giờ mở đề. `releaseAt` đã qua (lệch đồng hồ) thì chờ
+   * một nhịp rồi xin lại — gọi ngay sẽ quay vòng vì server vừa từ chối.
+   */
+  private armMaterialsRelease(releaseAtIso: string): void {
+    this.clearMaterialsRelease();
+    if (this.shuttingDown || this.state.examEnded || !this.workspaceDir || !this.socket) {
+      return;
+    }
+    const at = Date.parse(releaseAtIso);
+    if (!Number.isFinite(at)) {
+      return;
+    }
+    const remaining = at - Date.now();
+    const wait = remaining > 0 ? remaining : 1_000;
+    this.materialsReleaseTimer = setTimeout(() => {
+      this.materialsReleaseTimer = null;
+      void this.pullMaterialsWhenOpen();
+    }, wait);
+  }
+
+  private async pullMaterialsWhenOpen(): Promise<void> {
+    if (
+      this.shuttingDown ||
+      this.state.examEnded ||
+      this.state.joinPhase !== 'joined' ||
+      !this.workspaceDir ||
+      !this.socket
+    ) {
+      return;
+    }
+    const workspaceDir = this.workspaceDir;
+    try {
+      const fileNames = await this.syncMaterials(workspaceDir);
+      if (this.shuttingDown || this.state.examEnded) {
+        return;
+      }
+      await writeInstructions(workspaceDir, {
+        sessionName: this.state.sessionName ?? '(không rõ)',
+        studentName: this.state.studentName,
+        studentId: this.state.studentId ?? '',
+        endTime: this.state.endTime ?? '(không rõ)',
+        requiredDeliverables: this.instructionsDeliverables(),
+        materialFileNames: fileNames,
+      });
+    } catch (error) {
+      this.log(`Lỗi không mong muốn khi tải đề thi: ${describeError(error)}`);
+    }
   }
 
   /**
@@ -727,6 +809,7 @@ export class SessionController extends EventEmitter {
     // what stops a later reconnect from re-emitting agent:join into a
     // session that will only ever reject it now.
     if (!this.state.examEnded) {
+      this.clearMaterialsRelease();
       this.patch({ examEnded: true });
     }
     const reasonText = payload.reason === 'manual' ? 'giáo viên chốt bài' : 'tự động theo lịch';

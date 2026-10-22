@@ -7,6 +7,7 @@ import {
   resolveProblemConfig,
   setSessionRubricAndProblem,
   setSessionTestBundleAndProblem,
+  syncSingleProblemLanguageFromDeliverables,
 } from '../src/grading/problem/resolve-problem-config';
 import { seedCriterion, seedSession, SeedSession } from './helpers/grading-seed';
 
@@ -110,5 +111,46 @@ describe('P1a — resolveProblemConfig và ghi kép (e2e)', () => {
     );
     expect(session.test_bundle_id).toBe(bundleId);
     expect(problem.test_bundle_id).toBe(bundleId);
+  });
+
+  it('câu tạo khi chưa có file vẫn đọc cpp khi mọi file code khai cpp', async () => {
+    const ctx = await seedSession(ds, 'rs-late-cpp', { deliverableType: 'code_project', language: 'cpp' });
+    await ds.transaction((m) => ensureDefaultProblem(m, ctx.sessionId));
+    await ds.query(
+      `UPDATE examcollect.exam_problem SET language = NULL, required_deliverable_id = NULL WHERE exam_session_id = $1`,
+      [ctx.sessionId],
+    );
+    await ds.query(
+      `INSERT INTO examcollect.required_deliverable (exam_session_id, required_filename, deliverable_type, language)
+       VALUES ($1, 'cau2.cpp', 'code_project', 'cpp')`,
+      [ctx.sessionId],
+    );
+
+    const cfg = await ds.transaction((m) => resolveProblemConfig(m, ctx.sessionId));
+    expect(cfg?.language).toBe('cpp');
+
+    await ds.transaction((m) => syncSingleProblemLanguageFromDeliverables(m, ctx.sessionId));
+    const [stored] = await ds.query(
+      `SELECT language FROM examcollect.exam_problem WHERE exam_session_id = $1 AND ordinal = 1`,
+      [ctx.sessionId],
+    );
+    expect(stored.language).toBe('cpp');
+  });
+
+  it('hai file code khác ngôn ngữ thì không gán ngôn ngữ cho câu', async () => {
+    const ctx = await seedSession(ds, 'rs-mixed-lang', { deliverableType: 'code_project', language: 'cpp' });
+    await ds.transaction((m) => ensureDefaultProblem(m, ctx.sessionId));
+    await ds.query(
+      `UPDATE examcollect.exam_problem SET language = NULL, required_deliverable_id = NULL WHERE exam_session_id = $1`,
+      [ctx.sessionId],
+    );
+    await ds.query(
+      `INSERT INTO examcollect.required_deliverable (exam_session_id, required_filename, deliverable_type, language)
+       VALUES ($1, 'cau2.py', 'code_project', 'python')`,
+      [ctx.sessionId],
+    );
+
+    const cfg = await ds.transaction((m) => resolveProblemConfig(m, ctx.sessionId));
+    expect(cfg?.language).toBeNull();
   });
 });
