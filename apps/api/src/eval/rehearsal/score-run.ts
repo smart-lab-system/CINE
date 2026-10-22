@@ -126,6 +126,13 @@ export interface RunSummary {
   missingOk?: number;
   /** Bài kỳ vọng có nộp mà không có kết quả chấm — luôn là lỗi. */
   unitsWithoutResult?: number;
+  /**
+   * Recall theo từng luật, trên bài HIỂN THỊ (bài kiểm mẫu ẩn không đo được lỗi). Lượt cũ không có trường này.
+   * Đây là chỉ số để so các lượt: errorsCaught gộp mọi luật nên che mất luật đang yếu.
+   */
+  recallByRule?: Record<string, { caught: number; expected: number }>;
+  /** Số bài hiển thị được dùng cho recallByRule (= submissions − auditHidden). */
+  visibleSubmissions?: number;
 }
 
 export interface RunRecord {
@@ -237,9 +244,21 @@ export function evaluateRun(scenario: RehearsalScenario, actuals: ActualSubmissi
   const sum = (f: (c: SubmissionCheck) => number) => checks.reduce((acc, c) => acc + f(c), 0);
   const expectedErrors = (c: SubmissionCheck) => expectedOf.get(unitKey(c.mssv, c.ordinal ?? 1))!.expect.errors.length;
   const times = checks.map((c) => c.finishedAtSec).filter((t): t is number => t !== null);
+  // Recall theo luật: chỉ bài hiển thị, vì bài ẩn thì không biết lỗi có bị sót hay không.
+  const visible = checks.filter((c) => !c.auditHidden);
+  const recallByRule: Record<string, { caught: number; expected: number }> = {};
+  for (const c of visible) {
+    for (const key of scenario.submissions.find((s) => s.mssv === c.mssv)!.expect.errors) {
+      const r = (recallByRule[key] ??= { caught: 0, expected: 0 });
+      r.expected += 1;
+      if (!c.missedErrors.includes(key)) r.caught += 1;
+    }
+  }
   return {
     checks,
     summary: {
+      recallByRule,
+      visibleSubmissions: visible.length,
       submissions: checks.length,
       missingTotal: missing.length,
       missingOk: missing.filter((s) => !hasResult(s)).length,

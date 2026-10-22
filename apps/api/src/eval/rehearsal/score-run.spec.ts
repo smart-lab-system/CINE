@@ -147,6 +147,7 @@ describe('evaluateRun() — chấm một lượt diễn tập theo kỳ vọng c
       actual({ mssv: 'S2', status: 'flagged_for_review', score: 5.5, errors: [err('sai_ca_bien'), err('sai_ca_co_ban')], caseNotes: [note('bo_sot', true)], finishedAtSec: 87 }),
       actual({ mssv: 'S3', status: 'flagged_for_review', score: 10, caseNotes: [note('gian_lan', true)], finishedAtSec: 80 }),
     ]);
+    // toMatchObject: các chỉ số cũ được khẳng định ở đây; recallByRule/visibleSubmissions có test riêng.
     expect(run.summary).toMatchObject({
       submissions: 3, scoreOk: 2, decisionOk: 2, autoApproved: 1, expectedAuto: 2, wrongAuto: 0,
       // S3: agent sót thieu_chu_thich (luật bằng lời) mà bo_sot không nghi → 1 cờ bỏ lỡ.
@@ -188,5 +189,19 @@ describe('renderIndex() — bảng so sánh mọi lượt, cũ trước mới sa
     expect(md).toContain('Tự duyệt SAI');
     expect(md).toContain('| Model |');
     expect(rows[0]).toContain('glm-5.3-flash');
+  });
+
+  // Wave 1 (D, 2026-10-22): recall theo từng luật, chỉ trên bài HIỂN THỊ (bài kiểm mẫu ẩn không đo được lỗi).
+  it('recallByRule: đếm lỗi kỳ vọng bắt được theo từng luật, bỏ qua bài bị kiểm mẫu ẩn', () => {
+    const run = evaluateRun(SCENARIO, [
+      actual({ mssv: 'S2', errors: [err('sai_ca_co_ban')] }), // bắt được sai_ca_co_ban, sót sai_ca_bien
+      actual({ mssv: 'S3', status: 'audit_pending', score: null, errors: [] }), // bị ẩn: không tính vào recall
+      actual({ mssv: 'S1' }),
+    ]);
+    expect(run.summary.recallByRule).toEqual({
+      sai_ca_co_ban: { caught: 1, expected: 1 },
+      sai_ca_bien: { caught: 0, expected: 1 },
+    });
+    expect(run.summary.visibleSubmissions).toBe(2);
   });
 });

@@ -49,9 +49,10 @@ describe('E2 — đoạn mã làm bằng chứng trong verdict (§5.9)', () => {
     expect(parseEvidenceClaims(undefined)).toEqual([]);
   });
 
-  it('prompt dạy model trường evidence và giới hạn của nó', () => {
-    expect(INVESTIGATOR_SYSTEM_PROMPT).toContain('"evidence"');
-    expect(INVESTIGATOR_SYSTEM_PROMPT).toContain('tối đa 3');
+  // Wave 1 (E, 2026-10-22): gỡ hướng dẫn trích bằng chứng khỏi prompt — mô hình gần như không làm theo (0% verified).
+  // Phần đọc khoan dung ở trên vẫn giữ nguyên, nên nếu mô hình tự gửi `evidence` thì vẫn không làm hỏng lượt.
+  it('prompt không còn yêu cầu trích bằng chứng (wave 1, E)', () => {
+    expect(INVESTIGATOR_SYSTEM_PROMPT).not.toContain('"evidence"');
   });
 });
 
