@@ -19,6 +19,10 @@ import {
   type MachineHardwareInfo,
 } from './machine-hardware';
 import { APP_VERSION, getHostname, getLocalIp, getOsLabel } from './machine-identity';
+import {
+  extensionActivityFromPayload,
+  type ExtensionActivityEvent,
+} from './vscode-extension-activity';
 import type { ScannedExtension } from './vscode-extensions-scan';
 
 export interface HubTeacherIdentity {
@@ -33,6 +37,11 @@ export interface RegisteredNode extends LabMachineInfo {
   inventory?: ScannedExtension[];
   inventoryError?: string;
   inventoryAt?: string;
+  /** Log cài / gỡ trong ngày — chỉ set khi GV bấm xem log. */
+  activityLog?: ExtensionActivityEvent[];
+  activityWarnings?: { path: string; message: string }[];
+  activityError?: string;
+  activityAt?: string;
 }
 
 export interface TeacherHubState {
@@ -149,6 +158,9 @@ export class TeacherHub extends EventEmitter {
       results.push(response);
       if (command === 'SCAN_VSCODE_EXTENSIONS') {
         this.applyScanResponse(id, response);
+      }
+      if (command === 'READ_VSCODE_EXTENSION_ACTIVITY') {
+        this.applyActivityResponse(id, response);
       }
     }
     this.emitState();
@@ -271,6 +283,28 @@ export class TeacherHub extends EventEmitter {
     node.inventory = payload?.extensions ?? [];
     node.inventoryError = undefined;
     node.inventoryAt = new Date().toISOString();
+  }
+
+  private applyActivityResponse(machineId: string, response: LabCommandResponse): void {
+    const node = this.nodes.get(machineId);
+    if (!node) return;
+    node.activityAt = new Date().toISOString();
+    if (!response.ok) {
+      node.activityError = response.error ?? 'Không đọc được log extension.';
+      node.activityLog = undefined;
+      node.activityWarnings = undefined;
+      return;
+    }
+    const parsed = extensionActivityFromPayload(response.payload);
+    if (!parsed) {
+      node.activityError = 'Phản hồi log không hợp lệ.';
+      node.activityLog = undefined;
+      node.activityWarnings = undefined;
+      return;
+    }
+    node.activityLog = parsed.events;
+    node.activityWarnings = parsed.warnings;
+    node.activityError = undefined;
   }
 
   private sendRequest(

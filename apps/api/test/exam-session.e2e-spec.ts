@@ -204,6 +204,44 @@ describe('ExamSession (e2e)', () => {
     expect(second.body.code).not.toBe(response.body.code);
   });
 
+  it('PATCH examType while scheduled, rejects a bad value, and 409s after open', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/exam-sessions')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Exam type patch',
+        classId,
+        roomName,
+        semesterName: 'HK kiểm thử',
+        examType: 'TK',
+        ...futureWindow(),
+        requiredFilenames: ['Bai.docx'],
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.examType).toBe('TK');
+
+    const patched = await request(app.getHttpServer())
+      .patch(`/exam-sessions/${created.body.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ examType: 'GK' });
+    expect(patched.status).toBe(200);
+    expect(patched.body.examType).toBe('GK');
+
+    const bad = await request(app.getHttpServer())
+      .patch(`/exam-sessions/${created.body.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ examType: 'XX' });
+    expect(bad.status).toBe(400);
+
+    await openSession(app, ownerToken, created.body.id);
+
+    const afterOpen = await request(app.getHttpServer())
+      .patch(`/exam-sessions/${created.body.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ examType: 'CK' });
+    expect(afterOpen.status).toBe(409);
+  });
+
   // create-slim 2026-10-18: create không filenames → PUT → open.
   it('create không file → từ chối open → PUT deliverables → mở được', async () => {
     const created = await request(app.getHttpServer())

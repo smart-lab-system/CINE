@@ -258,6 +258,8 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
     expect(res.body.level).toBe('rubric_only');
     expect(res.body.hasQuestion).toBe(false);
     expect(res.body.warning).toMatch(/không phát hiện được/i);
+    expect(res.body.modelAnswerNote).toBeNull();
+    expect(JSON.stringify(res.body)).not.toMatch(/storageKey|storage_key/i);
   });
 
   it('có đề nhưng chưa có đáp án mẫu → mức 2, cảnh báo KHÁC', async () => {
@@ -283,6 +285,8 @@ describe('Tài liệu tham chiếu để chấm (e2e)', () => {
 
     expect(res.body.level).toBe('with_model_answer');
     expect(res.body.warning).toBeNull();
+    expect(res.body.modelAnswerNote).toBe('Câu 2 chấp nhận cả quy hoạch động.');
+    expect(JSON.stringify(res.body)).not.toMatch(/storageKey|storage_key/i);
   });
 
   it('gửi lại một trường KHÔNG làm mất trường đã đặt trước đó', async () => {

@@ -73,6 +73,11 @@ export class ExamSessionResponseDto {
   rubricVersion!: number | null;
   /** Gói test đã ghim cho đường điều tra (§14.1) — null nếu chưa ghim. */
   testBundleId!: string | null;
+  /**
+   * Thời điểm giảng viên xác nhận đề cương. Null = chưa xác nhận.
+   * Chọn file đề hay đáp án mẫu không ghi cột này.
+   */
+  blueprintConfirmedAt!: Date | null;
   requiredDeliverables!: RequiredDeliverableResponseDto[];
 }
 
@@ -87,8 +92,14 @@ export class ExamSessionListItemDto {
   name!: string;
   code!: string;
   courseName!: string;
+  /** Mã lớp học phần (`class.name`). */
   className!: string;
+  /** Mã lớp danh nghĩa, nếu lớp học phần đã gắn. */
+  nominalClassCode!: string | null;
+  /** Tên phòng chụp lúc tạo phiên. */
   roomName!: string;
+  /** Mã phòng trong danh mục. Null khi phiên chỉ có tên phòng gõ tay. */
+  roomCode!: string | null;
   /** Bản chụp lúc tạo phiên — nguồn cho bộ lọc kỳ và cho gợi ý ở biểu mẫu. */
   semesterName!: string;
   examType!: ExamType;

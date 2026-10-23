@@ -109,9 +109,10 @@ describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G
     render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Tạo gói bằng tay' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Thêm vào bản nháp' })); // output trống
+    fireEvent.change(screen.getByLabelText(/^Tên ca/), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm vào bản nháp' }));
 
-    expect(screen.getByLabelText(/^Output mong đợi/)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(/^Tên ca/)).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByRole('button', { name: /Lưu thành phiên bản/ })).toBeDisabled();
     expect(h.create.mutate).not.toHaveBeenCalled();
   });

@@ -254,6 +254,18 @@ export class MasterDataService {
     return { id: saved.id };
   }
 
+  async lookupStudentsByMssvPrefix(q: string) {
+    const rows = await this.students
+      .createQueryBuilder('s')
+      .where('s.mssv ILIKE :prefix', { prefix: `${q}%` })
+      .orderBy('s.mssv', 'ASC')
+      .take(10)
+      .getMany();
+    return {
+      items: rows.map((row) => ({ mssv: row.mssv, fullName: row.fullName })),
+    };
+  }
+
   async listStudents(query: ListStudentsDto) {
     const qb = this.students.createQueryBuilder('s');
     if (query.nominalClassId) {

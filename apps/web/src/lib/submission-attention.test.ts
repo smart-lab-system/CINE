@@ -52,6 +52,15 @@ describe('getSessionPhase', () => {
     expect(getSessionPhase(make({ status: 'cancelled' }), NOW)).toBe('cancelled');
   });
 
+  it('not_ready và missed không bị đồng hồ ghi đè thành đang diễn ra', () => {
+    const window = {
+      startTime: new Date(NOW - HOUR).toISOString(),
+      endTime: new Date(NOW + HOUR).toISOString(),
+    };
+    expect(getSessionPhase(make({ status: 'not_ready', ...window }), NOW)).toBe('not_ready');
+    expect(getSessionPhase(make({ status: 'missed', ...window }), NOW)).toBe('missed');
+  });
+
   it('chưa tới giờ là upcoming', () => {
     const item = make({
       status: 'scheduled',
@@ -59,6 +68,15 @@ describe('getSessionPhase', () => {
       endTime: new Date(NOW + 2 * HOUR).toISOString(),
     });
     expect(getSessionPhase(item, NOW)).toBe('upcoming');
+  });
+
+  it('active đã mở nhưng chưa tới giờ bắt đầu là opened', () => {
+    const item = make({
+      status: 'active',
+      startTime: new Date(NOW + HOUR).toISOString(),
+      endTime: new Date(NOW + 2 * HOUR).toISOString(),
+    });
+    expect(getSessionPhase(item, NOW)).toBe('opened');
   });
 
   it('đang trong giờ là running', () => {

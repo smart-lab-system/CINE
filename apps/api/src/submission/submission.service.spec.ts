@@ -297,9 +297,8 @@ describe('SubmissionService.listForSession', () => {
     expect(listBuilder.where).toHaveBeenCalledWith('sub.examSessionId = :examSessionId', {
       examSessionId: SESSION_ID,
     });
-    // QA-reported gap: the storage key alone has no extension for a
-    // browser to name the downloaded file after — filename must be the
-    // declared requiredFilename, not left out the way it used to be.
+    // Khoá lưu trữ không có đuôi file. Tên lúc tải là tên đã render —
+    // với file không có token thì trùng mẫu đã khai.
     expect(storage.generateDownloadUrl).toHaveBeenCalledWith(EXPECTED_KEY, {
       filename: 'Cau1.docx',
     });
@@ -312,6 +311,7 @@ describe('SubmissionService.listForSession', () => {
         submittedAt: new Date('2026-08-29T04:00:00.000Z'),
         fileSize: '128',
         downloadUrl: 'http://storage/view',
+        filename: 'Cau1.docx',
         homeClassId: 'class-a',
         // Tên lớp gốc đến từ hàng RAW của phép JOIN, không từ entity. Khẳng
         // định nó ở đây là cách duy nhất bắt được một lần đổi tên cột alias
@@ -352,6 +352,31 @@ describe('SubmissionService.listForSession', () => {
     expect(storage.generateDownloadUrl).toHaveBeenCalledWith(EXPECTED_KEY, {
       filename: undefined,
     });
+  });
+
+  it('renders a {MSSV} pattern into that student\'s id for the download name', async () => {
+    const { service, storage } = createHarness({
+      deliverables: [{ id: DELIVERABLE_ID, requiredFilename: '{MSSV}.cpp' }],
+      submissions: [
+        {
+          studentMssv: MSSV,
+          studentNameInput: 'Nguyen Van A',
+          requiredDeliverableId: DELIVERABLE_ID,
+          status: 'collected',
+          submittedAt: new Date('2026-08-29T04:00:00.000Z'),
+          fileSize: '128',
+          storageKey: EXPECTED_KEY,
+          homeClassId: 'class-a',
+        },
+      ],
+    });
+
+    const rows = await service.listForSession(SESSION_ID);
+
+    expect(storage.generateDownloadUrl).toHaveBeenCalledWith(EXPECTED_KEY, {
+      filename: `${MSSV}.cpp`,
+    });
+    expect(rows[0].filename).toBe(`${MSSV}.cpp`);
   });
 });
 
@@ -404,7 +429,7 @@ describe('SubmissionService.listForTeacher', () => {
     return {
       id: 'sub-1',
       examSessionId: SESSION_ID,
-      examSession: { name: 'Giữa kỳ Lập trình Web' },
+      examSession: { name: 'Giữa kỳ Lập trình Web', roomName: 'Phòng test' },
       requiredDeliverable: { requiredFilename: 'Cau1.docx' },
       studentMssv: MSSV,
       studentNameInput: 'Nguyen Van A',
@@ -499,5 +524,23 @@ describe('SubmissionService.listForTeacher', () => {
 
     expect(storage.generateDownloadUrl).not.toHaveBeenCalled();
     expect(result.items[0].downloadUrl).toBeNull();
+  });
+
+  it('renders {MSSV} into the student id on the cross-session list too', async () => {
+    const { service, storage } = createTeacherHarness(
+      [
+        row({
+          requiredDeliverable: { requiredFilename: '{MSSV}.cpp' },
+        }),
+      ],
+      1,
+    );
+
+    const result = await service.listForTeacher(TEACHER_ID, { page: 1, pageSize: 20 });
+
+    expect(storage.generateDownloadUrl).toHaveBeenCalledWith(EXPECTED_KEY, {
+      filename: `${MSSV}.cpp`,
+    });
+    expect(result.items[0].requiredFilename).toBe(`${MSSV}.cpp`);
   });
 });

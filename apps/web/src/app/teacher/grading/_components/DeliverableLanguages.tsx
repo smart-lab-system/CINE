@@ -4,6 +4,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useDeclareDeliverableLanguage } from '@/hooks/useExamSession';
 import type { DeclaredLanguage, RequiredDeliverableResponse } from '@/lib/api/exam-session';
 
+function languageLabel(value: DeclaredLanguage | null): string {
+  return LANGUAGES.find((l) => l.value === value)?.label ?? 'Chưa khai';
+}
+
 const LANGUAGES: { value: DeclaredLanguage; label: string }[] = [
   { value: 'python', label: 'Python' },
   { value: 'cpp', label: 'C++' },
@@ -29,11 +33,14 @@ export function DeliverableLanguages({
   sessionId,
   deliverables,
   hasResults,
+  readOnly = false,
 }: {
   sessionId: string;
   deliverables: RequiredDeliverableResponse[];
   /** Phiên đã có ít nhất một kết quả — đường chấm của các bài đã cố định. */
   hasResults: boolean;
+  /** Xem lại: hiện ngôn ngữ và đường chấm bằng chữ, không có ô chọn. */
+  readOnly?: boolean;
 }) {
   const declare = useDeclareDeliverableLanguage(sessionId);
   const code = deliverables.filter((d) => d.deliverableType === 'code_project');
@@ -47,30 +54,36 @@ export function DeliverableLanguages({
           <li key={d.id} className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-3">
               <span className="font-mono text-small">{d.requiredFilename}</span>
-              <label className="sr-only" htmlFor={`language-${d.id}`}>
-                Ngôn ngữ của {d.requiredFilename}
-              </label>
-              <select
-                id={`language-${d.id}`}
-                value={d.language ?? ''}
-                disabled={hasResults || declare.isPending}
-                onChange={(e) => declare.mutate({ deliverableId: d.id, language: e.target.value as DeclaredLanguage })}
-                className="h-9 rounded-md border border-border bg-surface px-2 text-small disabled:opacity-60"
-              >
-                {d.language === null && (
-                  <option value="" disabled>
-                    Chưa khai
-                  </option>
-                )}
-                {LANGUAGES.map((l) => (
-                  <option key={l.value} value={l.value}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
+              {readOnly ? (
+                <span className="text-small">{languageLabel(d.language)}</span>
+              ) : (
+                <>
+                  <label className="sr-only" htmlFor={`language-${d.id}`}>
+                    Ngôn ngữ của {d.requiredFilename}
+                  </label>
+                  <select
+                    id={`language-${d.id}`}
+                    value={d.language ?? ''}
+                    disabled={hasResults || declare.isPending}
+                    onChange={(e) => declare.mutate({ deliverableId: d.id, language: e.target.value as DeclaredLanguage })}
+                    className="h-9 rounded-md border border-border bg-surface px-2 text-small disabled:opacity-60"
+                  >
+                    {d.language === null && (
+                      <option value="" disabled>
+                        Chưa khai
+                      </option>
+                    )}
+                    {LANGUAGES.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
             <p className="text-caption text-muted-foreground">
-              {hasResults ? 'Bài này đã có kết quả chấm nên đường chấm đã cố định.' : routeText(d)}
+              {readOnly ? routeText(d) : hasResults ? 'Bài này đã có kết quả chấm nên đường chấm đã cố định.' : routeText(d)}
             </p>
           </li>
         ))}

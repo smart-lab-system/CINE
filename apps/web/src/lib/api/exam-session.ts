@@ -103,6 +103,11 @@ export interface ExamSessionResponse {
   rubricVersion?: number | null;
   /** Gói test đã ghim cho đường điều tra (§14.1) — null nếu chưa ghim. */
   testBundleId: string | null;
+  /**
+   * Thời điểm xác nhận đề cương. Null hoặc thiếu = chưa xác nhận.
+   * File đề và đáp án mẫu không đặt cờ này.
+   */
+  blueprintConfirmedAt?: string | null;
   requiredDeliverables: RequiredDeliverableResponse[];
   /** Có trên list; detail có thể không gửi — UI ưu tiên `status === 'scheduled'`. */
   rosterFrozen?: boolean;
@@ -116,8 +121,13 @@ export interface ExamSessionListItem {
   name: string;
   code: string;
   courseName: string;
+  /** Mã lớp học phần. */
   className: string;
+  /** Mã lớp danh nghĩa, nếu có. */
+  nominalClassCode?: string | null;
   roomName: string;
+  /** Mã phòng danh mục. Null khi phiên chỉ lưu tên phòng. */
+  roomCode?: string | null;
   semesterName: string;
   examType: ExamType;
   startTime: string;
@@ -146,6 +156,11 @@ export interface SubmissionStatusItem {
   submittedAt: string | null;
   fileSize: string | null;
   downloadUrl: string | null;
+  /**
+   * Tên file đã điền MSSV / tên / phòng. Thiếu trên payload cũ thì UI
+   * hiện lại mẫu khai trên deliverable.
+   */
+  filename?: string | null;
   /** Lớp GỐC của sinh viên. Khác lớp của phiên nghĩa là THI BÙ. */
   homeClassId: string;
   homeClassName: string | null;
@@ -172,6 +187,8 @@ export interface SubmissionStatusItem {
 export type ExamSessionStatusFilter =
   | 'draft'
   | 'scheduled'
+  | 'not_ready'
+  | 'missed'
   | 'active'
   | 'collecting'
   | 'completed'
@@ -288,10 +305,11 @@ async function examFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   return undefined as T;
 }
 
-/** PATCH phòng / khung giờ — chỉ khi chưa freeze. */
+/** PATCH loại thi / phòng / khung giờ — chỉ khi chưa freeze. */
 export async function updateExamSessionSchedule(
   id: string,
   body: {
+    examType?: ExamType;
     roomId?: string;
     roomName?: string;
     startTime?: string;
@@ -309,7 +327,7 @@ export async function cancelExamSession(id: string): Promise<ExamSessionResponse
   return examFetch(`/exam-sessions/${id}/cancel`, { method: 'POST' });
 }
 
-export type SessionRosterSource = 'class' | 'frozen' | 'manual';
+export type SessionRosterSource = 'class' | 'frozen' | 'manual' | 'attached';
 
 export interface SessionRosterStudent {
   mssv: string;
@@ -410,6 +428,22 @@ export async function listExamSessions(params: SearchExamSessionsParams): Promis
     total: number;
     semesterNames: string[];
   };
+}
+
+/**
+ * Chốt đề cương của phiên (POST …/blueprint/confirm). Idempotent: lần sau trả đúng thời điểm lần đầu.
+ * Phiên một câu mà chưa lưu đáp án mẫu và chưa có gói test thì server trả 400.
+ */
+export async function confirmBlueprint(examSessionId: string): Promise<{ confirmedAt: string }> {
+  const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/blueprint/confirm', {
+    params: { path: { id: examSessionId } },
+  });
+  if (error || !response.ok) {
+    const body = error as { message?: string | string[] } | undefined;
+    const message = Array.isArray(body?.message) ? body.message.join('; ') : body?.message;
+    throw new Error(message ?? `Yêu cầu thất bại (HTTP ${response.status})`);
+  }
+  return data as unknown as { confirmedAt: string };
 }
 
 /**

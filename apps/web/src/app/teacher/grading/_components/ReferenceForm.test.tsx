@@ -118,6 +118,45 @@ describe('ReferenceForm (spec §3.7 — replaces GradingReferenceDialog, same wr
     });
   });
 
+  describe('read-only review', () => {
+    const stamp = (iso: string) => new Date(iso).toLocaleString('vi-VN');
+    const saved = {
+      ...readiness,
+      hasQuestion: true,
+      hasModelAnswer: true,
+      modelAnswerNote: 'chấp nhận Outbox',
+      sources: {
+        question: { present: true, kind: 'teacher_upload' as const, fileName: 'de-thi-cuoi-ky.pdf', setAt: '2026-09-29T01:14:00.000Z' },
+        modelAnswer: { present: true, kind: 'authoring' as const, fileName: 'dap-an.docx', setAt: '2026-09-29T01:05:00.000Z', unverified: true },
+      },
+    };
+
+    it('shows the saved question, answer file, note, and unverified band — with no write controls', () => {
+      renderForm({ readiness: saved, readOnly: true });
+      expect(screen.getByText('de-thi-cuoi-ky.pdf')).toBeInTheDocument();
+      expect(screen.getByText(`Nguồn: bạn tải lên lúc ${stamp('2026-09-29T01:14:00.000Z')} (de-thi-cuoi-ky.pdf).`)).toBeInTheDocument();
+      expect(screen.getByText('dap-an.docx')).toBeInTheDocument();
+      expect(screen.getByText('chấp nhận Outbox')).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent(/chưa từng chạy thử/);
+      expect(screen.getByRole('status')).toHaveTextContent(/về giảng viên/);
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('File đáp án mẫu (tuỳ chọn)')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Lưu tài liệu chấm' })).not.toBeInTheDocument();
+    });
+
+    it('says when there is no note', () => {
+      renderForm({ readiness: { ...saved, modelAnswerNote: null }, readOnly: true });
+      expect(screen.getByText('Chưa có ghi chú.')).toBeInTheDocument();
+    });
+
+    it('says when the question and the answer were never set', () => {
+      renderForm({ readiness, readOnly: true });
+      expect(screen.getByText('Chưa chỉ định đề bài.')).toBeInTheDocument();
+      expect(screen.getByText('Chưa có đáp án mẫu.')).toBeInTheDocument();
+      expect(screen.getByText('Chưa có ghi chú.')).toBeInTheDocument();
+    });
+  });
+
   it('saving is disabled until something changed', () => {
     renderForm();
     expect(saveButton()).toBeDisabled();

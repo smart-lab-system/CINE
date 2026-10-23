@@ -60,6 +60,7 @@ const CLOSED: ReadonlySet<ExamSessionStatus> = new Set<ExamSessionStatus>([
   "collecting",
   "completed",
   "cancelled",
+  "missed",
 ]);
 
 /**

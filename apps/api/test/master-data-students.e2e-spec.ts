@@ -237,6 +237,52 @@ describe('Master data — nominal class & student (e2e)', () => {
     ]);
   });
 
+  it('giảng viên đối chiếu MSSV từ 7 số; không mở catalog', async () => {
+    const classRes = await request(app.getHttpServer())
+      .post('/master-data/nominal-classes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code: `NC-LU-${Date.now()}`,
+        name: 'Lookup',
+        cohortYear: 2022,
+        status: 'active',
+      });
+    expect(classRes.status).toBe(201);
+
+    const mssv = `1${Date.now().toString().slice(-7)}`;
+    const created = await request(app.getHttpServer())
+      .post('/master-data/students')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        mssv,
+        fullName: 'Lê Thị Lookup',
+        nominalClassId: classRes.body.id,
+        status: 'active',
+      });
+    expect(created.status).toBe(201);
+
+    const denied = await request(app.getHttpServer())
+      .get('/master-data/students')
+      .set('Authorization', `Bearer ${teacherToken}`);
+    expect(denied.status).toBe(403);
+
+    const short = await request(app.getHttpServer())
+      .get('/master-data/students/lookup?q=123456')
+      .set('Authorization', `Bearer ${teacherToken}`);
+    expect(short.status).toBe(400);
+
+    const hit = await request(app.getHttpServer())
+      .get(`/master-data/students/lookup?q=${mssv.slice(0, 7)}`)
+      .set('Authorization', `Bearer ${teacherToken}`);
+    expect(hit.status).toBe(200);
+    expect(hit.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ mssv, fullName: 'Lê Thị Lookup' }),
+      ]),
+    );
+    expect(hit.body.items[0]).not.toHaveProperty('nominalClassId');
+  });
+
   it('filters nominal classes by cohortYear', async () => {
     const stamp = Date.now();
     const c21 = await request(app.getHttpServer())

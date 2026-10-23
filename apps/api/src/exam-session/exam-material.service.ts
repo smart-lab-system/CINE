@@ -61,6 +61,7 @@ export class ExamMaterialService {
     session: ExamSessionEntity,
     dto: RequestMaterialUploadDto,
   ): Promise<{ examMaterialId: string; storageKey: string; uploadUrl: string; expiresIn: number }> {
+    this.assertMaterialsWritable(session);
     const examMaterialId = randomUUID();
     const storageKey = this.storage.buildMaterialKey(session.id, examMaterialId);
     const { uploadUrl, expiresIn } = await this.storage.generateUploadUrl(storageKey);
@@ -83,6 +84,7 @@ export class ExamMaterialService {
     session: ExamSessionEntity,
     dto: CreateExamMaterialDto,
   ): Promise<ExamMaterialView> {
+    this.assertMaterialsWritable(session);
     const storageKey = this.storage.buildMaterialKey(session.id, dto.examMaterialId);
     if (dto.storageKey !== storageKey) {
       throw new BadRequestException('Storage key does not match this material.');
@@ -132,10 +134,10 @@ export class ExamMaterialService {
    * failure the rule names.
    *
    * `now` is a parameter so the gate can be tested at both sides of the
-   * boundary. The socket path cannot currently reach the closed side —
-   * `agent:join` independently refuses a session that has not started — but
-   * that is a second lock on the same door, not a reason to leave this one
-   * open.
+   * boundary. `agent:join` lets a student sit in the room up to 5 minutes
+   * early, so this path does see the closed side. The clock is re-checked
+   * on every request: an agent already in the room gets the files at
+   * start_time and not a second before.
    */
   async listForAgent(
     session: ExamSessionEntity,
@@ -166,6 +168,7 @@ export class ExamMaterialService {
    * teacher believes they deleted.
    */
   async remove(session: ExamSessionEntity, examMaterialId: string): Promise<void> {
+    this.assertMaterialsWritable(session);
     const material = await this.materials.findOne({
       where: { id: examMaterialId, examSessionId: session.id },
     });
@@ -200,6 +203,14 @@ export class ExamMaterialService {
 
     await this.materials.remove(material);
     await this.storage.deleteObject(material.storageKey);
+  }
+
+  private assertMaterialsWritable(session: ExamSessionEntity): void {
+    if (session.status === 'missed') {
+      throw new ConflictException(
+        'Phiên không diễn ra — không sửa đề được. Có thể huỷ phiên.',
+      );
+    }
   }
 
   private async toView(

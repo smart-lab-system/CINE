@@ -222,6 +222,12 @@ function registerIpcHandlers(c: SessionController, mgmt: LabMgmtRuntime): void {
   ipcMain.handle(IPC_CHANNELS.mgmtScanExtensions, (_e, machineIds?: string[]) =>
     mgmt.scanExtensions(machineIds),
   );
+  ipcMain.handle(IPC_CHANNELS.mgmtReadExtensionActivity, (_e, machineIds?: string[]) =>
+    mgmt.readExtensionActivity(machineIds),
+  );
+  ipcMain.handle(IPC_CHANNELS.mgmtDownloadViolationVsix, () =>
+    mgmt.downloadViolationVsix(app.getPath('downloads')),
+  );
   ipcMain.handle(IPC_CHANNELS.mgmtCompareAllowlist, () => mgmt.compareAllowlist());
   ipcMain.handle(IPC_CHANNELS.mgmtAggregateRoom, () => mgmt.aggregate());
   ipcMain.handle(IPC_CHANNELS.mgmtSyncBackend, () => mgmt.syncBackend());

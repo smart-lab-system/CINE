@@ -17,6 +17,8 @@ const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
 const EXAM_SESSION_STATUSES: ExamSessionStatus[] = [
   'draft',
   'scheduled',
+  'not_ready',
+  'missed',
   'active',
   'collecting',
   'completed',

@@ -8,6 +8,7 @@ import type { Rubric } from '@/lib/api/grading';
 
 const h = vi.hoisted(() => ({
   start: vi.fn(),
+  confirm: vi.fn(),
   startState: { isPending: false, isError: false, isSuccess: false, error: null as Error | null, data: undefined as unknown },
   rubrics: { data: [] as unknown[] },
   readiness: { data: undefined as unknown },
@@ -21,7 +22,10 @@ vi.mock('@/hooks/useGrading', () => ({
   useGradingReadiness: () => h.readiness,
   useStartGrading: () => ({ mutate: h.start, ...h.startState }),
 }));
-vi.mock('@/hooks/useExamSession', () => ({ useExamSessionDetail: () => h.detail }));
+vi.mock('@/hooks/useExamSession', () => ({
+  useExamSessionDetail: () => h.detail,
+  useConfirmBlueprint: () => ({ mutate: h.confirm, isPending: false, isError: false, error: null }),
+}));
 vi.mock('@/hooks/useRubricErrors', () => ({ useRubricOverview: () => h.overview }));
 vi.mock('@/hooks/useTestBundle', () => ({ useTestBundles: () => h.bundles }));
 
@@ -54,6 +58,7 @@ const detail = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   h.start.mockReset();
+  h.confirm.mockReset();
   h.startState = { isPending: false, isError: false, isSuccess: false, error: null, data: undefined };
   h.rubrics = { data: [rubric] };
   h.readiness = { data: { level: 'with_model_answer', warning: null, hasQuestion: true, hasModelAnswer: true } };
@@ -149,6 +154,37 @@ describe('PreparePanel — start button (spec §3.7)', () => {
     expect(screen.getByRole('link', { name: 'Mở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules?rubric=CTDL');
   });
 
+  it('a session with two required files must confirm the blueprint before starting', () => {
+    h.detail = detail({
+      requiredDeliverables: [
+        { id: 'd1', requiredFilename: 'baocao.docx', deliverableType: 'document', entries: [], language: null, pipeline: 'one_shot' },
+        { id: 'd2', requiredFilename: 'bai.pdf', deliverableType: 'document', entries: [], language: null, pipeline: 'one_shot' },
+      ],
+    });
+    renderPanel();
+    expect(screen.getByRole('button', { name: 'Xác nhận đề cương' })).toBeEnabled();
+    expect(startButton()).toBeDisabled();
+    expect(screen.getByTestId('start-reason')).toHaveTextContent('Xác nhận đề cương');
+    fireEvent.click(startButton());
+    expect(h.start).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đề cương' }));
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('after the blueprint is confirmed, a two-file session can start', () => {
+    h.detail = detail({
+      blueprintConfirmedAt: '2026-10-23T00:00:00.000Z',
+      requiredDeliverables: [
+        { id: 'd1', requiredFilename: 'baocao.docx', deliverableType: 'document', entries: [], language: null, pipeline: 'one_shot' },
+        { id: 'd2', requiredFilename: 'bai.pdf', deliverableType: 'document', entries: [], language: null, pipeline: 'one_shot' },
+      ],
+    });
+    renderPanel();
+    expect(screen.queryByRole('button', { name: 'Xác nhận đề cương' })).not.toBeInTheDocument();
+    expect(screen.getByText('Đề cương đã xác nhận.')).toBeInTheDocument();
+    expect(startButton()).toBeEnabled();
+  });
+
   it('reads the result of starting back, and shows a refusal verbatim', () => {
     h.startState = { isPending: false, isError: false, isSuccess: true, error: null, data: { queued: 32, alreadyGraded: 0, rubricVersion: 2 } };
     const { unmount } = renderPanel();
@@ -198,5 +234,14 @@ describe('PreparePanel — blocks and controls that need the backend (T-UI-10)',
   it('shows the reopen banner when every result was "không chấm được"', () => {
     renderPanel({}, { allUngradable: true });
     expect(screen.getByRole('status')).toHaveTextContent('Mọi bài đều không chấm được');
+  });
+
+  it('review mode is a recap: lock band, renamed column, no start button', () => {
+    renderPanel({}, { mode: 'review' });
+    expect(screen.getByRole('status')).toHaveTextContent('chỉ để xem lại');
+    expect(screen.getByRole('status')).toHaveTextContent('đã có bài mang điểm hoặc đang chấm');
+    expect(screen.getByRole('list', { name: 'Đã dùng để chấm' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Bắt đầu chấm/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/đóng trang không dừng việc chấm/)).not.toBeInTheDocument();
   });
 });

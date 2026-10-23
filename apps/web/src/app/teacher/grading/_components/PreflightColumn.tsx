@@ -8,10 +8,10 @@ const STATUS: Record<PreflightStatus, { word: string; icon: typeof CheckCircle2;
   block: { word: 'Chặn', icon: CircleX, tone: 'text-danger-strong' },
 };
 
-/** Cột "Trước khi bắt đầu" (spec §3.7): mỗi dòng có biểu tượng VÀ chữ — không truyền tin chỉ bằng màu. */
-export function PreflightColumn({ rows }: { rows: PreflightRow[] }) {
+/** Cột chuẩn bị (spec §3.7) hoặc cột xem lại. Mỗi dòng có biểu tượng VÀ chữ — không truyền tin chỉ bằng màu. */
+export function PreflightColumn({ rows, label = 'Trước khi bắt đầu' }: { rows: PreflightRow[]; label?: string }) {
   return (
-    <ul aria-label="Trước khi bắt đầu" className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
+    <ul aria-label={label} className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
       {rows.map((row) => {
         const { word, icon: Icon, tone } = STATUS[row.status];
         return (

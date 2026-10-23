@@ -43,6 +43,13 @@ export class UpdateStudentDto {
   status?: StudentStatus;
 }
 
+/** Tiền tố MSSV — giảng viên đối chiếu khi thêm vào danh sách thi. */
+export class LookupStudentsDto {
+  @IsString()
+  @Matches(/^\d{7,20}$/)
+  q!: string;
+}
+
 export class ListStudentsDto {
   @IsOptional()
   @Type(() => Number)

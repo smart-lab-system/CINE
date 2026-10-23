@@ -1,27 +1,42 @@
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ExamSessionScheduler } from './exam-session.scheduler';
 import { ExamSessionService } from './exam-session.service';
 import { CollectionPhaseService } from './collection-phase.service';
+import { SessionRosterService } from './session-roster.service';
+import { ExamSessionEntity } from './entities/exam-session.entity';
 
 /**
  * Drives the sweep directly at a chosen `now` — no timers, no @Interval,
  * no waiting 30 seconds inside a test.
  */
-type SchedulerDeps = 'findFinalizableIds' | 'finalizeExamSession';
+type SchedulerDeps =
+  | 'findFinalizableIds'
+  | 'finalizeExamSession'
+  | 'findAwaitingOpenIds'
+  | 'findById'
+  | 'transitionUnopened';
 
 function createHarness(overrides: Partial<Record<SchedulerDeps, jest.Mock>> = {}) {
   const examSessions = {
     findFinalizableIds: jest.fn().mockResolvedValue([]),
     finalizeExamSession: jest.fn().mockResolvedValue(true),
+    findAwaitingOpenIds: jest.fn().mockResolvedValue([]),
+    findById: jest.fn().mockResolvedValue(null),
+    transitionUnopened: jest.fn().mockResolvedValue(true),
     ...overrides,
   };
   // `completeExpired` chỉ dùng ở lượt quét thu bài; các test dưới đây lái
   // lượt finalize, nên một stub là đủ và không che giấu gì.
   const collectionPhase = { completeExpired: jest.fn().mockResolvedValue(true) };
+  const sessionRoster = {
+    freeze: jest.fn().mockResolvedValue({ students: 1, submissionsSeeded: 1 }),
+  };
   const scheduler = new ExamSessionScheduler(
     examSessions as unknown as ExamSessionService,
     collectionPhase as unknown as CollectionPhaseService,
+    sessionRoster as unknown as SessionRosterService,
   );
-  return { scheduler, examSessions, collectionPhase };
+  return { scheduler, examSessions, collectionPhase, sessionRoster };
 }
 
 const NOW = new Date('2026-08-29T10:00:00Z');
@@ -99,5 +114,110 @@ describe('ExamSessionScheduler', () => {
 
     release();
     await first;
+  });
+});
+
+function awaiting(over: Partial<ExamSessionEntity> = {}): ExamSessionEntity {
+  return {
+    id: 'session-a',
+    status: 'scheduled',
+    startTime: new Date('2026-08-29T10:05:00Z'),
+    endTime: new Date('2026-08-29T12:00:00Z'),
+    ...over,
+  } as ExamSessionEntity;
+}
+
+describe('ExamSessionScheduler auto-open', () => {
+  it('opens a session that is ready inside the 10-minute window', async () => {
+    const session = awaiting();
+    const { scheduler, examSessions, sessionRoster } = createHarness({
+      findAwaitingOpenIds: jest.fn().mockResolvedValue([session.id]),
+      findById: jest.fn().mockResolvedValue(session),
+    });
+
+    expect(await scheduler.sweepAutoOpen(NOW)).toBe(1);
+    expect(sessionRoster.freeze).toHaveBeenCalledWith(session);
+    expect(examSessions.transitionUnopened).not.toHaveBeenCalled();
+  });
+
+  it('marks Chưa đủ điều kiện when open fails before the start time', async () => {
+    const session = awaiting();
+    const { scheduler, examSessions, sessionRoster } = createHarness({
+      findAwaitingOpenIds: jest.fn().mockResolvedValue([session.id]),
+      findById: jest.fn().mockResolvedValue(session),
+    });
+    sessionRoster.freeze.mockRejectedValue(new BadRequestException('thiếu file'));
+
+    expect(await scheduler.sweepAutoOpen(NOW)).toBe(1);
+    expect(examSessions.transitionUnopened).toHaveBeenCalledWith(session.id, 'not_ready');
+  });
+
+  it('does not rewrite a session that is already Chưa đủ điều kiện', async () => {
+    const session = awaiting({ status: 'not_ready' });
+    const { scheduler, examSessions, sessionRoster } = createHarness({
+      findAwaitingOpenIds: jest.fn().mockResolvedValue([session.id]),
+      findById: jest.fn().mockResolvedValue(session),
+    });
+    sessionRoster.freeze.mockRejectedValue(new BadRequestException('thiếu file'));
+
+    expect(await scheduler.sweepAutoOpen(NOW)).toBe(0);
+    expect(examSessions.transitionUnopened).not.toHaveBeenCalled();
+  });
+
+  it('marks Không diễn ra when open still fails at the start time', async () => {
+    const session = awaiting({ startTime: NOW });
+    const { scheduler, examSessions, sessionRoster } = createHarness({
+      findAwaitingOpenIds: jest.fn().mockResolvedValue([session.id]),
+      findById: jest.fn().mockResolvedValue(session),
+    });
+    sessionRoster.freeze.mockRejectedValue(new BadRequestException('chưa có sinh viên'));
+
+    expect(await scheduler.sweepAutoOpen(NOW)).toBe(1);
+    expect(examSessions.transitionUnopened).toHaveBeenCalledWith(session.id, 'missed');
+  });
+
+  it('marks Không diễn ra without opening once the window has ended', async () => {
+    const session = awaiting({
+      startTime: new Date('2026-08-29T08:00:00Z'),
+      endTime: new Date('2026-08-29T09:00:00Z'),
+    });
+    const { scheduler, examSessions, sessionRoster } = createHarness({
+      findAwaitingOpenIds: jest.fn().mockResolvedValue([session.id]),
+      findById: jest.fn().mockResolvedValue(session),
+    });
+
+    expect(await scheduler.sweepAutoOpen(NOW)).toBe(1);
+    expect(sessionRoster.freeze).not.toHaveBeenCalled();
+    expect(examSessions.transitionUnopened).toHaveBeenCalledWith(session.id, 'missed');
+  });
+
+  it('leaves a session alone when open loses a race', async () => {
+    const session = awaiting();
+    const { scheduler, examSessions, sessionRoster } = createHarness({
+      findAwaitingOpenIds: jest.fn().mockResolvedValue([session.id]),
+      findById: jest.fn().mockResolvedValue(session),
+    });
+    sessionRoster.freeze.mockRejectedValue(new ConflictException('đã huỷ'));
+
+    expect(await scheduler.sweepAutoOpen(NOW)).toBe(0);
+    expect(examSessions.transitionUnopened).not.toHaveBeenCalled();
+  });
+
+  it('keeps going when one session throws', async () => {
+    const bad = awaiting({ id: 'bad' });
+    const good = awaiting({ id: 'good' });
+    const { scheduler, sessionRoster } = createHarness({
+      findAwaitingOpenIds: jest.fn().mockResolvedValue(['bad', 'good']),
+      findById: jest.fn().mockImplementation(async (id: string) => (id === 'bad' ? bad : good)),
+    });
+    sessionRoster.freeze.mockImplementation(async (session: ExamSessionEntity) => {
+      if (session.id === 'bad') {
+        throw new Error('deadlock detected');
+      }
+      return { students: 1, submissionsSeeded: 1 };
+    });
+
+    expect(await scheduler.sweepAutoOpen(NOW)).toBe(1);
+    expect(sessionRoster.freeze).toHaveBeenCalledTimes(2);
   });
 });

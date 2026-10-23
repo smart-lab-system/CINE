@@ -14,6 +14,7 @@ import {
 } from './lan-protocol';
 import { collectMachineHardware } from './machine-hardware';
 import { APP_VERSION, getHostname, getLocalIp, getOsLabel } from './machine-identity';
+import { readVscodeExtensionActivity } from './vscode-extension-activity';
 import { scanVscodeExtensions } from './vscode-extensions-scan';
 
 export interface StudentNodeState {
@@ -215,6 +216,13 @@ export class StudentNode extends EventEmitter {
               payload: { extensions: scan.extensions, vscodeVersion: scan.vscodeVersion },
             }
           : { ...base, ok: false, error: scan.error };
+      } else if (request.command === 'READ_VSCODE_EXTENSION_ACTIVITY') {
+        const activity = readVscodeExtensionActivity();
+        response = {
+          ...base,
+          ok: true,
+          payload: { events: activity.events, warnings: activity.warnings },
+        };
       } else {
         response = { ...base, ok: false, error: `Lệnh không hỗ trợ: ${String(request.command)}` };
       }

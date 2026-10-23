@@ -20,7 +20,15 @@ export interface SessionOverviewItem {
   endTime: string;
   /**  = hết giờ làm bài, file đang bay về, chưa ai chốt.
    *  Thêm 2026-09-11 — xem exam_session.entity.ts. */
-  status: 'draft' | 'scheduled' | 'active' | 'collecting' | 'completed' | 'cancelled';
+  status:
+    | 'draft'
+    | 'scheduled'
+    | 'not_ready'
+    | 'missed'
+    | 'active'
+    | 'collecting'
+    | 'completed'
+    | 'cancelled';
   /**
    * Rubric đã ghim cho phiên — `null` nghĩa là chưa chấm được.
    *

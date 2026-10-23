@@ -4,6 +4,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { AutoBreakerService } from '../auto-breaker/auto-breaker.service';
 import { advanceStatus } from '../lifecycle/advance';
 import { latestComputationRow, loadCurrentScore, lockTeacherScoring } from '../scoring/score-inputs';
+import { renderFilename } from '../../exam-session/filename-template';
 import { StorageService } from '../../storage/storage.service';
 import { compareAudit, type AuditSummary, type AuditVerdict } from './audit-compare';
 
@@ -150,17 +151,25 @@ export class AuditReviewService {
    */
   async submissionDownload(resultId: string): Promise<{ downloadUrl: string; fileName: string }> {
     const [row] = await this.ds.query(
-      `SELECT s.storage_key, rd.required_filename
+      `SELECT s.storage_key, s.student_mssv, s.student_name_input,
+              rd.required_filename, es.room_name
          FROM examcollect.grading_result g
          JOIN examcollect.submission s ON s.id = g.submission_id
          JOIN examcollect.required_deliverable rd ON rd.id = s.required_deliverable_id
+         JOIN examcollect.exam_session es ON es.id = s.exam_session_id
         WHERE g.id = $1`,
       [resultId],
     );
     if (!row?.storage_key) throw new NotFoundException(AUDIT_MESSAGES.noFile);
-    const { downloadUrl } = await this.storage.generateDownloadUrl(row.storage_key as string, {
-      filename: row.required_filename as string,
+    const fileName = renderFilename(row.required_filename as string, {
+      studentMssv: row.student_mssv as string,
+      studentName: (row.student_name_input as string) ?? '',
+      roomName: (row.room_name as string) ?? '',
+      machineName: null,
     });
-    return { downloadUrl, fileName: row.required_filename as string };
+    const { downloadUrl } = await this.storage.generateDownloadUrl(row.storage_key as string, {
+      filename: fileName,
+    });
+    return { downloadUrl, fileName };
   }
 }

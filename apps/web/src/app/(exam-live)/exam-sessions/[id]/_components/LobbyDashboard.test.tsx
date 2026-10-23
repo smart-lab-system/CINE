@@ -18,12 +18,12 @@ const base = {
 };
 
 describe('LobbyDashboard', () => {
-  it('renders spec labels including Chưa vào', () => {
+  it('renders spec labels including Chưa kết nối', () => {
     render(<LobbyDashboard {...base} />);
 
     expect(screen.getByText('Sĩ số lớp')).toBeInTheDocument();
     expect(screen.getByText('Có mặt')).toBeInTheDocument();
-    expect(screen.getByText('Chưa vào')).toBeInTheDocument();
+    expect(screen.getByText('Chưa kết nối')).toBeInTheDocument();
     expect(screen.queryByText('Vắng mặt')).not.toBeInTheDocument();
     expect(screen.getByText('Đã nộp')).toBeInTheDocument();
     expect(screen.getByText('Chưa nộp')).toBeInTheDocument();

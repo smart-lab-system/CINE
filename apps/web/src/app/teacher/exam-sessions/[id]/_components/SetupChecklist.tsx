@@ -26,10 +26,17 @@ export function evaluateSetupChecklist(input: SetupChecklistInput): SetupCheckli
   const end = Date.parse(input.endTime);
   const now = Date.now();
 
-  if (input.status !== 'scheduled') {
+  if (input.status === 'missed') {
     return {
       canOpen: false,
-      blockReason: 'Chỉ mở được phiên đang ở trạng thái Sắp diễn ra.',
+      blockReason: 'Phiên không diễn ra — không mở được.',
+      warnings,
+    };
+  }
+  if (input.status !== 'scheduled' && input.status !== 'not_ready') {
+    return {
+      canOpen: false,
+      blockReason: 'Chỉ mở được phiên đang ở trạng thái Sắp diễn ra hoặc Chưa đủ điều kiện.',
       warnings,
     };
   }
