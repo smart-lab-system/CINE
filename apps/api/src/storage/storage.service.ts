@@ -11,6 +11,12 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   BACKUP_KEY_PREFIX,
   BACKUP_OBJECT_NAME,
+  EXTRACT_PATH_SEGMENT_REGEX,
+  encodeExtractStorageSegment,
+  IDE_EXTENSION_EXTRACTED_DIR,
+  IDE_EXTENSION_KEY_PREFIX,
+  IDE_EXTENSION_OBJECT_SUFFIX,
+  IDE_EXTENSION_TREE_OBJECT,
   MATERIAL_KEY_PREFIX,
   DOWNLOAD_CONTENT_TYPE,
   DOWNLOAD_URL_TTL_SECONDS,
@@ -101,6 +107,86 @@ export class StorageService {
       }
     }
     return [MATERIAL_KEY_PREFIX, ...segments].join('/');
+  }
+
+  /**
+   * Where one catalog VSIX lives. Keyed only by server-minted UUIDs so a
+   * client cannot steer the path with publisher.name or a semver string.
+   */
+  buildIdeExtensionKey(extensionPk: string, versionId: string): string {
+    const segments = [extensionPk, versionId];
+    for (const segment of segments) {
+      if (!segment || !SAFE_KEY_SEGMENT_REGEX.test(segment)) {
+        throw new InternalServerErrorException(
+          `Refusing to build a storage key from an unsafe segment: ${JSON.stringify(segment)}`,
+        );
+      }
+    }
+    return `${[IDE_EXTENSION_KEY_PREFIX, ...segments].join('/')}${IDE_EXTENSION_OBJECT_SUFFIX}`;
+  }
+
+  /** `ide-extensions/{extensionPk}/{versionId}/extracted` */
+  buildIdeExtensionExtractPrefix(extensionPk: string, versionId: string): string {
+    this.assertIdeExtensionIdSegments(extensionPk, versionId);
+    return [IDE_EXTENSION_KEY_PREFIX, extensionPk, versionId, IDE_EXTENSION_EXTRACTED_DIR].join(
+      '/',
+    );
+  }
+
+  /** `ide-extensions/{extensionPk}/{versionId}/extracted/tree.json` */
+  buildIdeExtensionTreeKey(extensionPk: string, versionId: string): string {
+    return `${this.buildIdeExtensionExtractPrefix(extensionPk, versionId)}/${IDE_EXTENSION_TREE_OBJECT}`;
+  }
+
+  /**
+   * Object key for one unpacked file. `relativePath` is the *logical*
+   * sanitized POSIX path (tree / browse); each segment is validated then
+   * `!HH`-encoded so Supabase accepts names like `[Content_Types].xml`
+   * (`%` encoding is also InvalidKey on Supabase).
+   */
+  buildIdeExtensionExtractedFileKey(
+    extensionPk: string,
+    versionId: string,
+    relativePath: string,
+  ): string {
+    const prefix = this.buildIdeExtensionExtractPrefix(extensionPk, versionId);
+    const raw = relativePath.replace(/\\/g, '/');
+    if (
+      !raw ||
+      raw.includes('\0') ||
+      raw.startsWith('/') ||
+      /^[A-Za-z]:/.test(raw) ||
+      raw.split('/').includes('..')
+    ) {
+      throw new InternalServerErrorException(
+        `Refusing to build an extract key from an unsafe path: ${JSON.stringify(relativePath)}`,
+      );
+    }
+    const normalized = raw.replace(/\/+$/, '');
+    const parts = normalized.split('/').filter((s) => s && s !== '.');
+    if (parts.length === 0) {
+      throw new InternalServerErrorException(
+        `Refusing to build an extract key from an empty path: ${JSON.stringify(relativePath)}`,
+      );
+    }
+    for (const segment of parts) {
+      if (!EXTRACT_PATH_SEGMENT_REGEX.test(segment)) {
+        throw new InternalServerErrorException(
+          `Refusing to build an extract key from an unsafe segment: ${JSON.stringify(segment)}`,
+        );
+      }
+    }
+    return `${prefix}/${parts.map(encodeExtractStorageSegment).join('/')}`;
+  }
+
+  private assertIdeExtensionIdSegments(extensionPk: string, versionId: string): void {
+    for (const segment of [extensionPk, versionId]) {
+      if (!segment || !SAFE_KEY_SEGMENT_REGEX.test(segment)) {
+        throw new InternalServerErrorException(
+          `Refusing to build a storage key from an unsafe segment: ${JSON.stringify(segment)}`,
+        );
+      }
+    }
   }
 
   /**

@@ -77,6 +77,70 @@ describe('StorageService', () => {
     });
   });
 
+  describe('buildIdeExtensionKey', () => {
+    const EXT_PK = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const VER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+    it('produces the agreed layout from server UUIDs only', () => {
+      expect(service.buildIdeExtensionKey(EXT_PK, VER_ID)).toBe(
+        `ide-extensions/${EXT_PK}/${VER_ID}.vsix`,
+      );
+    });
+
+    it('does not embed the storage endpoint or hostname', () => {
+      const key = service.buildIdeExtensionKey(EXT_PK, VER_ID);
+      expect(key).not.toContain('localhost');
+      expect(key).not.toContain('http');
+      expect(key).not.toContain(process.env.STORAGE_ENDPOINT ?? '');
+    });
+
+    it.each([
+      ['a path separator', '../../etc'],
+      ['a bare traversal', '..'],
+      ['an empty segment', ''],
+    ])('refuses to build a key from %s', (_label, bad) => {
+      expect(() => service.buildIdeExtensionKey(EXT_PK, bad)).toThrow(InternalServerErrorException);
+    });
+  });
+
+  describe('buildIdeExtension extract keys', () => {
+    const EXT_PK = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const VER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+    it('builds extract prefix and tree key from UUIDs only', () => {
+      expect(service.buildIdeExtensionExtractPrefix(EXT_PK, VER_ID)).toBe(
+        `ide-extensions/${EXT_PK}/${VER_ID}/extracted`,
+      );
+      expect(service.buildIdeExtensionTreeKey(EXT_PK, VER_ID)).toBe(
+        `ide-extensions/${EXT_PK}/${VER_ID}/extracted/tree.json`,
+      );
+    });
+
+    it('builds extracted file keys under the prefix', () => {
+      expect(
+        service.buildIdeExtensionExtractedFileKey(EXT_PK, VER_ID, 'extension/package.json'),
+      ).toBe(`ide-extensions/${EXT_PK}/${VER_ID}/extracted/extension/package.json`);
+    });
+
+    it('bang-hex-encodes brackets so Supabase accepts [Content_Types].xml', () => {
+      expect(
+        service.buildIdeExtensionExtractedFileKey(EXT_PK, VER_ID, '[Content_Types].xml'),
+      ).toBe(`ide-extensions/${EXT_PK}/${VER_ID}/extracted/!5BContent_Types!5D.xml`);
+    });
+
+    it('does not embed the storage endpoint', () => {
+      const key = service.buildIdeExtensionTreeKey(EXT_PK, VER_ID);
+      expect(key).not.toContain('localhost');
+      expect(key).not.toContain('http');
+    });
+
+    it.each(['../x', '/abs', 'a/../../b', ''])('refuses unsafe relative path %s', (bad) => {
+      expect(() => service.buildIdeExtensionExtractedFileKey(EXT_PK, VER_ID, bad)).toThrow(
+        InternalServerErrorException,
+      );
+    });
+  });
+
   describe('generateUploadUrl', () => {
     it('signs a PUT scoped to exactly the requested bucket and key', async () => {
       const key = service.buildSubmissionKey(SESSION_ID, MSSV, DELIVERABLE_ID);

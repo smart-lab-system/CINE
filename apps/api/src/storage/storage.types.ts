@@ -51,6 +51,64 @@ export const MATERIAL_KEY_PREFIX = 'materials';
 export const BACKUP_OBJECT_NAME = 'latest.zip';
 
 /**
+ * Catalog VSIX binaries (Teacher Hub sync):
+ *
+ *   ide-extensions/{extensionPk}/{versionId}.vsix
+ *
+ * Same relative-key layout on MinIO (local) and Supabase Storage (prod);
+ * only STORAGE_* env switches the backend.
+ */
+export const IDE_EXTENSION_KEY_PREFIX = 'ide-extensions';
+export const IDE_EXTENSION_OBJECT_SUFFIX = '.vsix';
+/** Folder under a version that holds unpacked VSIX entries + tree.json. */
+export const IDE_EXTENSION_EXTRACTED_DIR = 'extracted';
+export const IDE_EXTENSION_TREE_OBJECT = 'tree.json';
+
+/**
+ * One *logical* path segment inside an unpacked VSIX (tree.json / browse UI).
+ * Broader than SAFE_KEY_SEGMENT_REGEX so names like `[Content_Types].xml`
+ * survive, but still forbids separators and `..`. Object keys use
+ * {@link encodeExtractStorageSegment}.
+ */
+export const EXTRACT_PATH_SEGMENT_REGEX = /^(?!^\.\.?$)[^/\0\\]+$/;
+
+/**
+ * Unescaped alphabet for extracted object-key segments.
+ * Must stay inside Supabase Storage `isValidKey` (rejects `[` `]` `%` `#`
+ * `~` and non-ASCII). Escape introducer is `!` + 2 hex digits — `!` is
+ * allowed by that validator; `%` is not, so percent-encoding cannot be used.
+ * @see https://github.com/supabase/storage/blob/master/src/storage/limits.ts
+ */
+const EXTRACT_STORAGE_SAFE_CHAR = /[A-Za-z0-9_.-]/;
+
+/**
+ * Encode one VSIX path segment for the object key (`!HH` per unsafe byte).
+ * Logical names stay in tree.json; only the storage key is transformed.
+ */
+export function encodeExtractStorageSegment(segment: string): string {
+  let out = '';
+  for (const ch of segment) {
+    if (EXTRACT_STORAGE_SAFE_CHAR.test(ch)) {
+      out += ch;
+      continue;
+    }
+    for (const byte of Buffer.from(ch, 'utf8')) {
+      out += `!${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+    }
+  }
+  return out;
+}
+
+/** Encode every segment of a sanitized relative path for storage keys. */
+export function encodeExtractStoragePath(relativePath: string): string {
+  return relativePath
+    .split('/')
+    .filter((s) => s.length > 0)
+    .map(encodeExtractStorageSegment)
+    .join('/');
+}
+
+/**
  * Presigned GET lifetime for a restore. Shorter than the upload TTL: a
  * restore happens immediately on reconnect and is one download of a few
  * hundred KB, so a longer grant would only widen the window in which a URL
