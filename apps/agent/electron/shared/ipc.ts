@@ -78,9 +78,16 @@ export interface CompareResultPayload {
   warning?: string;
 }
 
+export interface SyncArtifactSummary {
+  uploaded: number;
+  skipped: number;
+  failed: number;
+}
+
 export interface SyncResultPayload {
   ok: boolean;
   error?: string;
+  artifact?: SyncArtifactSummary;
 }
 
 export interface VsixDownloadResult {
