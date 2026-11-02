@@ -86,6 +86,51 @@ export class CatalogFromScanDto {
   displayName?: string;
 }
 
+export class EnsureArtifactItemDto {
+  @IsString()
+  @MaxLength(200)
+  extensionId!: string;
+
+  @IsString()
+  @MaxLength(50)
+  version!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  displayName?: string;
+}
+
+export class EnsureArtifactsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EnsureArtifactItemDto)
+  items!: EnsureArtifactItemDto[];
+}
+
+export class ConfirmArtifactDto {
+  @IsString()
+  @MinLength(1)
+  storageKey!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  sha256?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sizeBytes?: number;
+}
+
+export class BrowseFileQueryDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1024)
+  path!: string;
+}
+
 export class CreatePolicyItemDto {
   @IsString()
   @MaxLength(200)

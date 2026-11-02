@@ -20,11 +20,14 @@ import {
   AcceptCreateRoomDto,
   BatchSyncDto,
   CatalogFromScanDto,
+  BrowseFileQueryDto,
+  ConfirmArtifactDto,
   CreateCatalogExtensionDto,
   CreateCatalogVersionDto,
   CreateCoursePolicyItemDto,
   CreateRoomProposalDto,
   EffectiveQueryDto,
+  EnsureArtifactsDto,
   RejectRoomProposalDto,
   UpdateCatalogExtensionDto,
 } from './dto/ide-extensions.dto';
@@ -47,6 +50,13 @@ export class IdeExtensionsController {
   @Roles('admin')
   fromScan(@Body() dto: CatalogFromScanDto) {
     return this.service.upsertFromScan(dto);
+  }
+
+  /** Phải khai báo trước `catalog/:id` — Teacher Hub sync VSIX artifacts. */
+  @Post('catalog/ensure-artifacts')
+  @Roles('admin', 'teacher')
+  ensureArtifacts(@Body() dto: EnsureArtifactsDto) {
+    return this.service.ensureArtifacts(dto);
   }
 
   @Get('catalog/:id')
@@ -104,6 +114,36 @@ export class IdeExtensionsController {
   @Roles('admin')
   deleteVersion(@Param('versionId', ParseUUIDPipe) versionId: string) {
     return this.service.deleteVersion(versionId);
+  }
+
+  @Post('versions/:versionId/confirm-artifact')
+  @Roles('admin', 'teacher')
+  confirmArtifact(
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @Body() dto: ConfirmArtifactDto,
+  ) {
+    return this.service.confirmArtifact(versionId, dto);
+  }
+
+  @Get('versions/:versionId/browse')
+  @Roles('admin', 'teacher')
+  browseVersion(@Param('versionId', ParseUUIDPipe) versionId: string) {
+    return this.service.browseVersion(versionId);
+  }
+
+  @Get('versions/:versionId/browse/file')
+  @Roles('admin', 'teacher')
+  browseVersionFile(
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @Query() query: BrowseFileQueryDto,
+  ) {
+    return this.service.browseVersionFile(versionId, query.path);
+  }
+
+  @Post('versions/:versionId/extract')
+  @Roles('admin', 'teacher')
+  requestExtract(@Param('versionId', ParseUUIDPipe) versionId: string) {
+    return this.service.requestExtract(versionId);
   }
 
   // ── Course policy ─────────────────────────────────────────────────

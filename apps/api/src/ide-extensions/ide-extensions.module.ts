@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClassEntity } from '../course/entities/class.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
@@ -17,12 +18,18 @@ import { LabMgmtMachineEntity } from './entities/lab-mgmt-machine.entity';
 import { LabMgmtSessionEntity } from './entities/lab-mgmt-session.entity';
 import { LabRoomProposalEntity } from './entities/lab-room-proposal.entity';
 import { LabRoomProposalMachineEntity } from './entities/lab-room-proposal-machine.entity';
+import { StorageModule } from '../storage/storage.module';
+import { IDE_EXTENSION_EXTRACT_QUEUE } from './extract/ide-extension-extract.constants';
+import { IdeExtensionExtractProcessor } from './extract/ide-extension-extract.processor';
+import { IdeExtensionExtractService } from './extract/ide-extension-extract.service';
 import { IdeExtensionsController } from './ide-extensions.controller';
 import { IdeExtensionsLabController } from './ide-extensions-lab.controller';
 import { IdeExtensionsService } from './ide-extensions.service';
 
 @Module({
   imports: [
+    StorageModule,
+    BullModule.registerQueue({ name: IDE_EXTENSION_EXTRACT_QUEUE }),
     TypeOrmModule.forFeature([
       IdeExtensionEntity,
       IdeExtensionVersionEntity,
@@ -44,7 +51,7 @@ import { IdeExtensionsService } from './ide-extensions.service';
     ]),
   ],
   controllers: [IdeExtensionsController, IdeExtensionsLabController],
-  providers: [IdeExtensionsService],
+  providers: [IdeExtensionsService, IdeExtensionExtractService, IdeExtensionExtractProcessor],
   exports: [IdeExtensionsService],
 })
 export class IdeExtensionsModule {}
