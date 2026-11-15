@@ -174,8 +174,22 @@ export function TeacherHubView({
           onClick={() =>
             void run('sync', async () => {
               const result = await window.agent.mgmtSyncBackend();
-              if (!result.ok) setError(result.error ?? 'Đồng bộ thất bại.');
-              else setMessage('Đã đồng bộ lên hệ thống.');
+              if (!result.ok) {
+                setError(result.error ?? 'Đồng bộ thất bại.');
+                return;
+              }
+              const a = result.artifact;
+              if (!a) {
+                setMessage('Đã ghi kết quả quét.');
+                return;
+              }
+              const vsixLine = `VSIX: tải lên ${a.uploaded}, bỏ qua ${a.skipped}, lỗi ${a.failed}.`;
+              if (a.failed > 0 && a.uploaded === 0 && a.skipped === 0) {
+                setMessage(`Đã ghi kết quả quét. ${vsixLine}`);
+                setError('Không tải được VSIX lên kho lưu trữ — kiểm tra mạng / Marketplace / STORAGE endpoint.');
+              } else {
+                setMessage(`Đã ghi kết quả quét. ${vsixLine}`);
+              }
             })
           }
         >

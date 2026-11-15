@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MachineComparison } from './hub-actions';
-import { collectViolationVsixTargets, downloadViolationVsixFiles, VSIX_DOWNLOAD_FOLDER } from './violation-vsix';
+import {
+  collectSyncArtifactTargets,
+  collectViolationVsixTargets,
+  downloadMarketplaceVsixBuffer,
+  downloadViolationVsixFiles,
+  VSIX_DOWNLOAD_FOLDER,
+} from './violation-vsix';
 
 const roots: string[] = [];
 
@@ -45,6 +51,35 @@ describe('collectViolationVsixTargets', () => {
       { extensionId: 'evil.tool', version: '1.0.0', displayName: undefined, machines: ['SV1', 'SV2'] },
       { extensionId: 'evil.tool', version: '1.2.0', displayName: undefined, machines: ['SV2'] },
     ]);
+  });
+});
+
+describe('collectSyncArtifactTargets', () => {
+  it('includes every verdict, not only blocked', () => {
+    const targets = collectSyncArtifactTargets([
+      machine('SV1', [
+        { extensionId: 'evil.tool', version: '1.0.0', verdict: 'blocked', matchedScope: null },
+        { extensionId: 'ok.ext', version: '2.0.0', verdict: 'allowed', matchedScope: 'global' },
+      ]),
+    ]);
+    expect(targets).toEqual([
+      { extensionId: 'evil.tool', version: '1.0.0', displayName: undefined },
+      { extensionId: 'ok.ext', version: '2.0.0', displayName: undefined },
+    ]);
+  });
+});
+
+describe('downloadMarketplaceVsixBuffer', () => {
+  it('returns a buffer on success', async () => {
+    const fetchImpl = vi.fn(async () => new Response(Uint8Array.from([1, 2, 3]), { status: 200 }));
+    const result = await downloadMarketplaceVsixBuffer('evil.tool', '1.0.0', fetchImpl);
+    expect(result).toEqual({ ok: true, buffer: Buffer.from([1, 2, 3]) });
+  });
+
+  it('returns failed on HTTP error', async () => {
+    const fetchImpl = vi.fn(async () => new Response('nope', { status: 404 }));
+    const result = await downloadMarketplaceVsixBuffer('evil.tool', '1.0.0', fetchImpl);
+    expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/404/) });
   });
 });
 

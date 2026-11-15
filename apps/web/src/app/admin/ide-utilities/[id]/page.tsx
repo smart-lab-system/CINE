@@ -231,6 +231,7 @@ export default function IdeUtilityDetailPage() {
                     <th className="px-3 py-2.5 font-medium">Ngày thêm phiên bản</th>
                     <th className="px-3 py-2.5 font-medium">Ngày approved</th>
                     <th className="px-3 py-2.5 font-medium">Trạng thái</th>
+                    <th className="px-3 py-2.5 font-medium">File</th>
                     <th className="px-3 py-2.5 text-right font-medium">Thao tác</th>
                   </tr>
                 </thead>
@@ -243,6 +244,14 @@ export default function IdeUtilityDetailPage() {
                             *{' '}
                             <span className="text-xs text-muted-foreground">(Mọi phiên bản)</span>
                           </span>
+                        ) : v.approvalStatus !== 'approved' &&
+                          (v.storageKey || v.artifactUploadedAt) ? (
+                          <Link
+                            href={`${pathname}/versions/${v.id}/browse`}
+                            className="text-primary underline-offset-2 hover:underline"
+                          >
+                            {v.version}
+                          </Link>
                         ) : (
                           v.version
                         )}
@@ -250,6 +259,32 @@ export default function IdeUtilityDetailPage() {
                       <td className="px-3 py-2.5">{formatDateTime(v.addedAt)}</td>
                       <td className="px-3 py-2.5">{formatDateTime(v.approvedAt)}</td>
                       <td className="px-3 py-2.5">{versionStatusLabel(v.approvalStatus)}</td>
+                      <td className="px-3 py-2.5">
+                        {v.version !== '*' && (v.storageKey || v.artifactUploadedAt) ? (
+                          <span className="inline-flex flex-wrap items-center gap-1">
+                            <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                              Đã có file
+                            </span>
+                            {v.extractStatus === 'ready' ? (
+                              <span className="inline-flex rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-200">
+                                Sẵn sàng xem
+                              </span>
+                            ) : null}
+                            {v.extractStatus === 'pending' || v.extractStatus === 'extracting' ? (
+                              <span className="inline-flex rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                                Đang giải nén
+                              </span>
+                            ) : null}
+                            {v.extractStatus === 'failed' ? (
+                              <span className="inline-flex rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-950 dark:text-red-200">
+                                Lỗi giải nén
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
                       <td className="space-x-2 px-3 py-2.5 text-right">
                         {v.approvalStatus !== 'approved' ? (
                           <button

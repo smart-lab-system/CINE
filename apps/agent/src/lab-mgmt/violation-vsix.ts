@@ -1,9 +1,5 @@
-import { createWriteStream } from 'node:fs';
-import { mkdir, rename, stat, unlink } from 'node:fs/promises';
+import { mkdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import type { ReadableStream as NodeWebStream } from 'node:stream/web';
 import type { MachineComparison } from './hub-actions';
 
 /** Thư mục cố định trong Downloads để lần sau nhận ra file đã tải. */
@@ -32,6 +28,10 @@ export interface VsixDownloadReport {
   folder: string;
   entries: VsixDownloadEntry[];
 }
+
+export type MarketplaceVsixResult =
+  | { ok: true; buffer: Buffer }
+  | { ok: false; error: string };
 
 const PACKAGE_URL =
   'https://marketplace.visualstudio.com/_apis/public/gallery/publishers';
@@ -70,6 +70,31 @@ export function collectViolationVsixTargets(comparisons: MachineComparison[]): V
     .sort((a, b) => a.extensionId.localeCompare(b.extensionId) || a.version.localeCompare(b.version));
 }
 
+/** Unique (extensionId, version) from every verdict — Hub Storage sync candidates. */
+export function collectSyncArtifactTargets(
+  comparisons: MachineComparison[],
+): Array<{ extensionId: string; version: string; displayName?: string }> {
+  const byKey = new Map<string, { extensionId: string; version: string; displayName?: string }>();
+  for (const machine of comparisons) {
+    for (const row of machine.rows) {
+      const version = row.version?.trim() ?? '';
+      const extensionId = row.extensionId?.trim() ?? '';
+      if (!extensionId || !version || version === '*') continue;
+      const key = `${extensionId}\0${version}`;
+      if (!byKey.has(key)) {
+        byKey.set(key, {
+          extensionId,
+          version,
+          displayName: row.displayName,
+        });
+      }
+    }
+  }
+  return [...byKey.values()].sort(
+    (a, b) => a.extensionId.localeCompare(b.extensionId) || a.version.localeCompare(b.version),
+  );
+}
+
 export function vsixPackageUrl(extensionId: string, version: string): string | null {
   const dot = extensionId.indexOf('.');
   if (dot <= 0 || dot === extensionId.length - 1) return null;
@@ -94,6 +119,39 @@ async function fileReady(path: string): Promise<boolean> {
   }
 }
 
+/** Tải một gói Marketplace về Buffer — dùng chung cho local folder và Storage sync. */
+export async function downloadMarketplaceVsixBuffer(
+  extensionId: string,
+  version: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<MarketplaceVsixResult> {
+  const url = vsixPackageUrl(extensionId, version);
+  if (!url) {
+    return { ok: false, error: 'Không có publisher.name hoặc phiên bản để tải.' };
+  }
+  try {
+    const res = await fetchImpl(url, {
+      headers: { Accept: 'application/octet-stream' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(180_000),
+    });
+    if (!res.ok) {
+      return { ok: false, error: `Marketplace trả HTTP ${res.status}.` };
+    }
+    const ab = await res.arrayBuffer();
+    const buffer = Buffer.from(ab);
+    if (buffer.length === 0) {
+      return { ok: false, error: 'File tải về rỗng.' };
+    }
+    return { ok: true, buffer };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 async function downloadOne(
   target: ViolationVsixTarget,
   folder: string,
@@ -111,21 +169,17 @@ async function downloadOne(
   if (await fileReady(dest)) {
     return { ...base, status: 'already' };
   }
-  const url = vsixPackageUrl(target.extensionId, target.version);
-  if (!url) {
-    return { ...base, status: 'failed', error: 'Không có publisher.name hoặc phiên bản để tải.' };
+  const downloaded = await downloadMarketplaceVsixBuffer(
+    target.extensionId,
+    target.version,
+    fetchImpl,
+  );
+  if (!downloaded.ok) {
+    return { ...base, status: 'failed', error: downloaded.error };
   }
   const partial = `${dest}.partial`;
   try {
-    const res = await fetchImpl(url, {
-      headers: { Accept: 'application/octet-stream' },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(180_000),
-    });
-    if (!res.ok || !res.body) {
-      return { ...base, status: 'failed', error: `Marketplace trả HTTP ${res.status}.` };
-    }
-    await pipeline(Readable.fromWeb(res.body as unknown as NodeWebStream), createWriteStream(partial));
+    await writeFile(partial, downloaded.buffer);
     const written = await stat(partial);
     if (!written.isFile() || written.size === 0) {
       await unlink(partial).catch(() => undefined);

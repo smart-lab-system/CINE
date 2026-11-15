@@ -3,9 +3,13 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Queue } from 'bullmq';
 import { DataSource, Repository } from 'typeorm';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { ClassEntity } from '../course/entities/class.entity';
@@ -28,21 +32,39 @@ import {
   AcceptCreateRoomDto,
   BatchSyncDto,
   CatalogFromScanDto,
+  ConfirmArtifactDto,
   CreateCatalogExtensionDto,
   CreateCatalogVersionDto,
   CreateCoursePolicyItemDto,
   CreateRoomProposalDto,
   EffectiveQueryDto,
+  EnsureArtifactsDto,
   RejectRoomProposalDto,
   UpdateCatalogExtensionDto,
 } from './dto/ide-extensions.dto';
 import { deriveCatalogStatus } from './catalog-status';
 import { fetchMarketplaceMeta } from './marketplace-client';
+import { StorageService } from '../storage/storage.service';
+import { IDE_EXTENSION_EXTRACT_QUEUE } from './extract/ide-extension-extract.constants';
+import {
+  sanitizeExtractRelativePath,
+  UnsafeExtractPathError,
+} from './extract/ide-extension-extract-path';
+import {
+  IDE_EXTENSION_EXTRACT_JOB_OPTIONS,
+  type ExtractTreeDocument,
+  type IdeExtensionExtractJob,
+} from './extract/ide-extension-extract.types';
 
 @Injectable()
 export class IdeExtensionsService {
+  private readonly logger = new Logger(IdeExtensionsService.name);
+
   constructor(
     private readonly dataSource: DataSource,
+    private readonly storage: StorageService,
+    @InjectQueue(IDE_EXTENSION_EXTRACT_QUEUE)
+    private readonly extractQueue: Queue<IdeExtensionExtractJob>,
     @InjectRepository(IdeExtensionEntity)
     private readonly extensions: Repository<IdeExtensionEntity>,
     @InjectRepository(IdeExtensionVersionEntity)
@@ -143,7 +165,7 @@ export class IdeExtensionsService {
     return {
       ...this.toCatalogDto(ext),
       catalogStatus: deriveCatalogStatus(versions),
-      versions,
+      versions: versions.map((v) => this.toVersionDto(v)),
     };
   }
 
@@ -345,6 +367,268 @@ export class IdeExtensionsService {
     const row = await this.versions.findOne({ where: { id: versionId } });
     if (!row) throw new NotFoundException('Không tìm thấy phiên bản.');
     await this.versions.remove(row);
+  }
+
+  /**
+   * Hub sync: upsert thiếu catalog version (pending), trả presigned PUT
+   * chỉ khi chưa có binary trên Storage (điều kiện 1B).
+   *
+   * `version === '*'` bị bỏ qua từng item — không vào `needed`, không đếm
+   * vào `skipped` (skipped = đã có object).
+   */
+  async ensureArtifacts(dto: EnsureArtifactsDto) {
+    const deduped = new Map<
+      string,
+      { extensionId: string; version: string; displayName?: string }
+    >();
+    for (const raw of dto.items ?? []) {
+      const extensionId = raw.extensionId?.trim() ?? '';
+      const version = raw.version?.trim() ?? '';
+      if (!extensionId || !version) continue;
+      // Wildcard never has a VSIX artifact — drop silently per plan.
+      if (version === '*') continue;
+      const key = `${extensionId}\0${version}`;
+      if (!deduped.has(key)) {
+        deduped.set(key, {
+          extensionId,
+          version,
+          displayName: raw.displayName?.trim() || undefined,
+        });
+      }
+    }
+
+    const needed: Array<{
+      versionId: string;
+      extensionId: string;
+      version: string;
+      storageKey: string;
+      uploadUrl: string;
+      expiresIn: number;
+    }> = [];
+    let skipped = 0;
+
+    for (const item of deduped.values()) {
+      const upserted = await this.upsertFromScan({
+        extensionId: item.extensionId,
+        version: item.version,
+        displayName: item.displayName,
+      });
+      const versionRow = upserted.version;
+      if (!versionRow) {
+        continue;
+      }
+
+      if (versionRow.storageKey && (await this.storage.objectExists(versionRow.storageKey))) {
+        skipped += 1;
+        continue;
+      }
+
+      const storageKey = this.storage.buildIdeExtensionKey(
+        versionRow.extensionPk,
+        versionRow.id,
+      );
+      const { uploadUrl, expiresIn } = await this.storage.generateUploadUrl(storageKey);
+      needed.push({
+        versionId: versionRow.id,
+        extensionId: upserted.extension.identifier,
+        version: versionRow.version,
+        storageKey,
+        uploadUrl,
+        expiresIn,
+      });
+    }
+
+    return { needed, skipped };
+  }
+
+  async confirmArtifact(versionId: string, dto: ConfirmArtifactDto) {
+    const row = await this.versions.findOne({ where: { id: versionId } });
+    if (!row) throw new NotFoundException('Không tìm thấy phiên bản.');
+
+    const expectedKey = this.storage.buildIdeExtensionKey(row.extensionPk, row.id);
+    if (dto.storageKey !== expectedKey) {
+      throw new BadRequestException('Storage key does not match this version.');
+    }
+    if (!(await this.storage.objectExists(expectedKey))) {
+      throw new BadRequestException(
+        'Chưa thấy file trên kho lưu trữ — hãy tải lên trước rồi xác nhận.',
+      );
+    }
+
+    row.storageKey = expectedKey;
+    row.artifactSha256 = dto.sha256?.trim() || row.artifactSha256;
+    row.artifactSizeBytes =
+      dto.sizeBytes !== undefined ? String(dto.sizeBytes) : row.artifactSizeBytes;
+    row.artifactUploadedAt = new Date();
+    // Re-confirm clears prior extract so Worker rebuilds from the new object.
+    row.extractStatus = 'pending';
+    row.extractError = null;
+    row.extractTreeKey = null;
+    row.extractEntryCount = null;
+    row.extractTotalBytes = null;
+    row.extractStartedAt = null;
+    row.extractFinishedAt = null;
+    const saved = await this.versions.save(row);
+    await this.enqueueExtract(saved.id);
+    return this.toVersionDto(saved);
+  }
+
+  async browseVersion(versionId: string) {
+    const row = await this.versions.findOne({ where: { id: versionId } });
+    if (!row) throw new NotFoundException('Không tìm thấy phiên bản.');
+    if (!row.storageKey) {
+      throw new BadRequestException('Phiên bản chưa có file .vsix trên kho lưu trữ.');
+    }
+
+    const base = {
+      status: row.extractStatus,
+      entryCount: row.extractEntryCount,
+      error: row.extractError,
+      artifact: {
+        storageKey: row.storageKey,
+        artifactSha256: row.artifactSha256,
+        artifactSizeBytes: row.artifactSizeBytes,
+        artifactUploadedAt: row.artifactUploadedAt,
+      },
+    };
+
+    if (row.extractStatus !== 'ready' || !row.extractTreeKey) {
+      return { ...base, tree: null as ExtractTreeDocument | null };
+    }
+
+    try {
+      const raw = await this.storage.getObject(row.extractTreeKey);
+      const tree = JSON.parse(raw.toString('utf8')) as ExtractTreeDocument;
+      return { ...base, tree };
+    } catch (error) {
+      this.logger.warn(
+        `browse ${versionId}: không đọc được tree.json — ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw new BadRequestException(
+        'Không đọc được cây thư mục đã giải nén. Hãy thử giải nén lại.',
+      );
+    }
+  }
+
+  async browseVersionFile(versionId: string, rawPath: string) {
+    const row = await this.versions.findOne({ where: { id: versionId } });
+    if (!row) throw new NotFoundException('Không tìm thấy phiên bản.');
+    if (!row.storageKey) {
+      throw new BadRequestException('Phiên bản chưa có file .vsix trên kho lưu trữ.');
+    }
+    if (row.extractStatus !== 'ready') {
+      throw new BadRequestException('Chưa giải nén xong — chưa thể xem file.');
+    }
+
+    let relativePath: string;
+    try {
+      relativePath = sanitizeExtractRelativePath(rawPath);
+    } catch (error) {
+      if (error instanceof UnsafeExtractPathError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+
+    let key: string;
+    try {
+      key = this.storage.buildIdeExtensionExtractedFileKey(
+        row.extensionPk,
+        row.id,
+        relativePath,
+      );
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw new BadRequestException('Đường dẫn file không hợp lệ.');
+      }
+      throw error;
+    }
+
+    if (!(await this.storage.objectExists(key))) {
+      throw new NotFoundException('Không tìm thấy file đã giải nén.');
+    }
+
+    const filename = relativePath.split('/').pop() || 'file';
+    const { downloadUrl, expiresIn } = await this.storage.generateDownloadUrl(key, {
+      filename,
+    });
+    const size = await this.storage.getObjectSize(key);
+    return { downloadUrl, expiresIn, path: relativePath, size };
+  }
+
+  async requestExtract(versionId: string) {
+    const row = await this.versions.findOne({ where: { id: versionId } });
+    if (!row) throw new NotFoundException('Không tìm thấy phiên bản.');
+    if (!row.storageKey) {
+      throw new BadRequestException('Phiên bản chưa có file .vsix trên kho lưu trữ.');
+    }
+    if (row.extractStatus === 'pending' || row.extractStatus === 'extracting') {
+      return this.toVersionDto(row);
+    }
+    if (row.extractStatus === 'ready') {
+      return this.toVersionDto(row);
+    }
+
+    row.extractStatus = 'pending';
+    row.extractError = null;
+    row.extractStartedAt = null;
+    row.extractFinishedAt = null;
+    const saved = await this.versions.save(row);
+    await this.enqueueExtract(saved.id);
+    return this.toVersionDto(saved);
+  }
+
+  private async enqueueExtract(versionId: string): Promise<void> {
+    const jobId = `extract-${versionId}`;
+    try {
+      const existing = await this.extractQueue.getJob(jobId);
+      if (existing) {
+        const state = await existing.getState();
+        if (state === 'active' || state === 'waiting' || state === 'delayed') {
+          this.logger.debug(`extract job already ${state} for ${versionId}`);
+          return;
+        }
+        await existing.remove();
+      }
+      await this.extractQueue.add(
+        'extract',
+        { versionId },
+        {
+          ...IDE_EXTENSION_EXTRACT_JOB_OPTIONS,
+          jobId,
+        },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/already|exist|duplicate/i.test(message)) {
+        this.logger.debug(`extract job already queued for ${versionId}`);
+        return;
+      }
+      this.logger.error(`enqueue extract ${versionId} failed: ${message}`);
+      throw error;
+    }
+  }
+
+  private toVersionDto(v: IdeExtensionVersionEntity) {
+    return {
+      id: v.id,
+      extensionPk: v.extensionPk,
+      version: v.version,
+      addedAt: v.addedAt,
+      approvalStatus: v.approvalStatus,
+      approvedAt: v.approvedAt,
+      approvedBy: v.approvedBy,
+      note: v.note,
+      storageKey: v.storageKey ?? null,
+      artifactSha256: v.artifactSha256 ?? null,
+      artifactSizeBytes: v.artifactSizeBytes ?? null,
+      artifactUploadedAt: v.artifactUploadedAt ?? null,
+      extractStatus: v.extractStatus ?? 'none',
+      extractError: v.extractError ?? null,
+      extractEntryCount: v.extractEntryCount ?? null,
+    };
   }
 
   private toCatalogDto(ext: IdeExtensionEntity) {

@@ -21,8 +21,13 @@ import {
   type RoomAggregate,
 } from '../../src/lab-mgmt/hub-actions';
 import type { EffectiveExtension } from '../../src/lab-mgmt/allowlist-compare';
-import { downloadViolationVsixFiles } from '../../src/lab-mgmt/violation-vsix';
-import { IPC_CHANNELS, type VsixDownloadResult } from '../shared/ipc';
+import { createHash } from 'node:crypto';
+import {
+  collectSyncArtifactTargets,
+  downloadMarketplaceVsixBuffer,
+  downloadViolationVsixFiles,
+} from '../../src/lab-mgmt/violation-vsix';
+import { IPC_CHANNELS, type SyncResultPayload, type VsixDownloadResult } from '../shared/ipc';
 
 export class LabMgmtRuntime {
   private hub: TeacherHub | null = null;
@@ -248,7 +253,7 @@ export class LabMgmtRuntime {
     return aggregateRoom(this.lastComparisons);
   }
 
-  async syncBackend(): Promise<{ ok: boolean; error?: string }> {
+  async syncBackend(): Promise<SyncResultPayload> {
     if (!this.hub) {
       return { ok: false, error: 'Hub chưa chạy.' };
     }
@@ -256,6 +261,11 @@ export class LabMgmtRuntime {
       return { ok: false, error: 'Chưa đối chiếu — bấm «Đối chiếu allowlist» trước khi đồng bộ.' };
     }
     const hubState = this.hub.getState();
+    const token = this.hub.getAccessToken();
+    const authHeaders = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
     const body = {
       labMgmtSessionId: hubState.sessionId,
       courseId: this.courseId,
@@ -293,22 +303,102 @@ export class LabMgmtRuntime {
     try {
       const res = await fetch(`${this.backendUrl}/ide-extensions/scans/batch`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.hub.getAccessToken()}`,
-        },
+        headers: authHeaders,
         body: JSON.stringify(body),
       });
       if (!res.ok) {
         return { ok: false, error: `Đồng bộ thất bại (HTTP ${res.status}).` };
       }
-      return { ok: true };
     } catch (err) {
       return {
         ok: false,
         error: `Đồng bộ thất bại: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
+
+    // Best-effort VSIX artifacts — never fails the scan sync above.
+    const artifact = await this.syncVsixArtifacts(authHeaders);
+    return { ok: true, artifact };
+  }
+
+  private async syncVsixArtifacts(authHeaders: {
+    'Content-Type': string;
+    Authorization: string;
+  }): Promise<{ uploaded: number; skipped: number; failed: number }> {
+    const items = collectSyncArtifactTargets(this.lastComparisons);
+    if (items.length === 0) {
+      return { uploaded: 0, skipped: 0, failed: 0 };
+    }
+
+    let skipped = 0;
+    let uploaded = 0;
+    let failed = 0;
+
+    try {
+      const ensureRes = await fetch(`${this.backendUrl}/ide-extensions/catalog/ensure-artifacts`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ items }),
+      });
+      if (!ensureRes.ok) {
+        return { uploaded: 0, skipped: 0, failed: items.length };
+      }
+      const ensureBody = (await ensureRes.json()) as {
+        needed: Array<{
+          versionId: string;
+          extensionId: string;
+          version: string;
+          storageKey: string;
+          uploadUrl: string;
+        }>;
+        skipped: number;
+      };
+      skipped = ensureBody.skipped ?? 0;
+
+      for (const need of ensureBody.needed ?? []) {
+        try {
+          const downloaded = await downloadMarketplaceVsixBuffer(need.extensionId, need.version);
+          if (!downloaded.ok) {
+            failed += 1;
+            continue;
+          }
+          // Node Buffer is not in DOM BodyInit; copy into Uint8Array (same as backup/uploader).
+          const body = new Uint8Array(downloaded.buffer);
+          const put = await fetch(need.uploadUrl, {
+            method: 'PUT',
+            body,
+          });
+          if (!put.ok) {
+            failed += 1;
+            continue;
+          }
+          const sha256 = createHash('sha256').update(downloaded.buffer).digest('hex');
+          const confirm = await fetch(
+            `${this.backendUrl}/ide-extensions/versions/${need.versionId}/confirm-artifact`,
+            {
+              method: 'POST',
+              headers: authHeaders,
+              body: JSON.stringify({
+                storageKey: need.storageKey,
+                sha256,
+                sizeBytes: body.byteLength,
+              }),
+            },
+          );
+          if (!confirm.ok) {
+            failed += 1;
+            continue;
+          }
+          uploaded += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+    } catch {
+      return { uploaded: 0, skipped: 0, failed: items.length };
+    }
+
+    return { uploaded, skipped, failed };
   }
 
   async getRoomProposalPreview() {

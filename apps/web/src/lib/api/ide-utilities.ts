@@ -64,6 +64,8 @@ export interface CatalogExtension {
   catalogStatus: CatalogStatus;
 }
 
+export type ExtractStatus = 'none' | 'pending' | 'extracting' | 'ready' | 'failed';
+
 export interface CatalogVersion {
   id: string;
   extensionPk: string;
@@ -73,6 +75,37 @@ export interface CatalogVersion {
   approvedAt: string | null;
   approvedBy: string | null;
   note: string | null;
+  storageKey?: string | null;
+  artifactSha256?: string | null;
+  artifactSizeBytes?: string | null;
+  artifactUploadedAt?: string | null;
+  extractStatus?: ExtractStatus;
+  extractError?: string | null;
+  extractEntryCount?: number | null;
+}
+
+export type ExtractTreeNode =
+  | { name: string; type: 'file'; size: number }
+  | { name: string; type: 'dir'; children: ExtractTreeNode[] };
+
+export interface VersionBrowseView {
+  status: ExtractStatus;
+  tree: { root: ExtractTreeNode[] } | null;
+  entryCount: number | null;
+  error: string | null;
+  artifact: {
+    storageKey: string | null;
+    artifactSha256: string | null;
+    artifactSizeBytes: string | null;
+    artifactUploadedAt: string | null;
+  };
+}
+
+export interface VersionBrowseFileView {
+  downloadUrl: string;
+  expiresIn: number;
+  path: string;
+  size: number | null;
 }
 
 export interface CatalogExtensionDetail extends CatalogExtension {
@@ -175,6 +208,23 @@ export function unapproveVersion(versionId: string) {
 
 export function deleteVersion(versionId: string) {
   return ideFetch<void>(`/ide-extensions/versions/${versionId}`, { method: 'DELETE' });
+}
+
+export function getVersionBrowse(versionId: string) {
+  return ideFetch<VersionBrowseView>(`/ide-extensions/versions/${versionId}/browse`);
+}
+
+export function getVersionBrowseFile(versionId: string, path: string) {
+  const q = new URLSearchParams({ path });
+  return ideFetch<VersionBrowseFileView>(
+    `/ide-extensions/versions/${versionId}/browse/file?${q.toString()}`,
+  );
+}
+
+export function requestVersionExtract(versionId: string) {
+  return ideFetch<CatalogVersion>(`/ide-extensions/versions/${versionId}/extract`, {
+    method: 'POST',
+  });
 }
 
 export function listCourseItems(courseId: string) {

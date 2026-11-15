@@ -4,6 +4,13 @@ import { AccountEntity } from '../../identity/entities/account.entity';
 import type { IdeExtensionEntity } from './ide-extension.entity';
 import type { IdeExtensionApprovalStatus } from './ide-extension-policy-item.entity';
 
+export type IdeExtensionExtractStatus =
+  | 'none'
+  | 'pending'
+  | 'extracting'
+  | 'ready'
+  | 'failed';
+
 @Entity({ name: 'ide_extension_version' })
 @Unique('uq_ide_extension_version', ['extensionPk', 'version'])
 export class IdeExtensionVersionEntity extends BaseEntity {
@@ -43,4 +50,44 @@ export class IdeExtensionVersionEntity extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   note!: string | null;
+
+  /** Relative object key in the STORAGE_BUCKET — never an absolute URL. */
+  @Column({ name: 'storage_key', type: 'varchar', nullable: true })
+  storageKey!: string | null;
+
+  @Column({ name: 'artifact_sha256', type: 'varchar', length: 64, nullable: true })
+  artifactSha256!: string | null;
+
+  @Column({ name: 'artifact_size_bytes', type: 'bigint', nullable: true })
+  artifactSizeBytes!: string | null;
+
+  @Column({ name: 'artifact_uploaded_at', type: 'timestamptz', nullable: true })
+  artifactUploadedAt!: Date | null;
+
+  @Column({
+    name: 'extract_status',
+    type: 'enum',
+    enum: ['none', 'pending', 'extracting', 'ready', 'failed'],
+    enumName: 'ide_extension_extract_status',
+    default: 'none',
+  })
+  extractStatus!: IdeExtensionExtractStatus;
+
+  @Column({ name: 'extract_tree_key', type: 'varchar', nullable: true })
+  extractTreeKey!: string | null;
+
+  @Column({ name: 'extract_error', type: 'text', nullable: true })
+  extractError!: string | null;
+
+  @Column({ name: 'extract_started_at', type: 'timestamptz', nullable: true })
+  extractStartedAt!: Date | null;
+
+  @Column({ name: 'extract_finished_at', type: 'timestamptz', nullable: true })
+  extractFinishedAt!: Date | null;
+
+  @Column({ name: 'extract_entry_count', type: 'int', nullable: true })
+  extractEntryCount!: number | null;
+
+  @Column({ name: 'extract_total_bytes', type: 'bigint', nullable: true })
+  extractTotalBytes!: string | null;
 }
