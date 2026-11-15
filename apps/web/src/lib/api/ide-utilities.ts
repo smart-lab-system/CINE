@@ -252,6 +252,104 @@ export function getVersionNormalizedSources(versionId: string, opts?: { raw?: bo
   );
 }
 
+export type JplagDemoLanguage =
+  | 'javascript'
+  | 'typescript'
+  | 'cpp'
+  | 'python3'
+  | 'java';
+
+/** Dual-run labels: text vs language parser (SWC for JS/TS). */
+export type JplagDemoRunProfile = 'text' | 'language';
+
+export type JplagMatchPos = { line: number; column: number };
+
+export interface JplagParsedMatch {
+  firstPath: string;
+  secondPath: string;
+  startInFirst: JplagMatchPos;
+  endInFirst: JplagMatchPos;
+  startInSecond: JplagMatchPos;
+  endInSecond: JplagMatchPos;
+  lengthOfFirst: number;
+  lengthOfSecond: number;
+}
+
+export interface JplagParsedFile {
+  id: string;
+  path: string;
+  content: string;
+}
+
+export interface JplagRunView {
+  profile: JplagDemoRunProfile;
+  cliLanguage: string;
+  similarity: number;
+  firstSubmission: string | null;
+  secondSubmission: string | null;
+  extensionFileCount: number;
+  compareFileCount: number;
+  reportUrl: string | null;
+  reportFilename: string | null;
+  viewCommandHint: string | null;
+  comparison: {
+    files: JplagParsedFile[];
+    matches: JplagParsedMatch[];
+  } | null;
+}
+
+export interface JplagDemoResult {
+  language: JplagDemoLanguage;
+  runs: JplagRunView[];
+  reportExpiresIn: number | null;
+  message: string;
+}
+
+/** Demo JPlag — always runs text + language; multipart ZIP/folder + language. */
+export async function postVersionJplagDemo(
+  versionId: string,
+  opts: {
+    language: JplagDemoLanguage;
+    archive?: File | null;
+    files?: File[];
+  },
+): Promise<JplagDemoResult> {
+  const token = await getAccessToken();
+  const body = new FormData();
+  body.append('language', opts.language);
+  if (opts.archive) body.append('archive', opts.archive);
+  for (const file of opts.files ?? []) {
+    const rel =
+      'webkitRelativePath' in file &&
+      typeof (file as File & { webkitRelativePath?: string }).webkitRelativePath === 'string' &&
+      (file as File & { webkitRelativePath: string }).webkitRelativePath
+        ? (file as File & { webkitRelativePath: string }).webkitRelativePath
+        : file.name;
+    body.append('files', file, rel);
+  }
+
+  const headers = new Headers();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const res = await fetch(`${API_BASE}/ide-extensions/versions/${versionId}/jplag-demo`, {
+    method: 'POST',
+    headers,
+    body,
+  });
+  if (!res.ok) {
+    let message = `Yêu cầu thất bại (HTTP ${res.status})`;
+    try {
+      const errBody = (await res.json()) as { message?: string | string[] };
+      if (typeof errBody.message === 'string') message = errBody.message;
+      else if (Array.isArray(errBody.message)) message = errBody.message.join(', ');
+    } catch {
+      /* ignore */
+    }
+    throw new IdeUtilitiesHttpError(message, res.status);
+  }
+  return (await res.json()) as JplagDemoResult;
+}
+
 export function listCourseItems(courseId: string) {
   return ideFetch<PolicyItem[]>(`/ide-extensions/policies/course/${courseId}/items`);
 }

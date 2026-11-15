@@ -22,6 +22,7 @@ import { StorageModule } from '../storage/storage.module';
 import { IDE_EXTENSION_EXTRACT_QUEUE } from './extract/ide-extension-extract.constants';
 import { IdeExtensionExtractProcessor } from './extract/ide-extension-extract.processor';
 import { IdeExtensionExtractService } from './extract/ide-extension-extract.service';
+import { IdeExtensionJplagDemoService } from './jplag/jplag-demo.service';
 import { IdeExtensionsController } from './ide-extensions.controller';
 import { IdeExtensionsLabController } from './ide-extensions-lab.controller';
 import { IdeExtensionsService } from './ide-extensions.service';
@@ -51,7 +52,12 @@ import { IdeExtensionsService } from './ide-extensions.service';
     ]),
   ],
   controllers: [IdeExtensionsController, IdeExtensionsLabController],
-  providers: [IdeExtensionsService, IdeExtensionExtractService, IdeExtensionExtractProcessor],
+  providers: [
+    IdeExtensionsService,
+    IdeExtensionExtractService,
+    IdeExtensionExtractProcessor,
+    IdeExtensionJplagDemoService,
+  ],
   exports: [IdeExtensionsService],
 })
 export class IdeExtensionsModule {}

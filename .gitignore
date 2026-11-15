@@ -22,6 +22,10 @@ CLAUDE.md
 # Cursor IDE local rules / state — not shared with the team/repo.
 .cursor/
 
+# JPlag fat JAR (~80MB) — download locally; see apps/api/.env.example
+apps/api/tools/jplag/*.jar
+!apps/api/tools/jplag/.gitkeep
+
 
 # Python — script calibration offline sinh bytecode
 __pycache__/

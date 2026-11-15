@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,12 +10,18 @@ import {
   Post,
   Query,
   Req,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import type { Request } from 'express';
+import { IdeExtensionJplagDemoService } from './jplag/jplag-demo.service';
+import { JPLAG_DEMO_MAX_ARCHIVE_BYTES } from './jplag/jplag.constants';
 import { IdeExtensionsService } from './ide-extensions.service';
 import {
   AcceptCreateRoomDto,
@@ -36,7 +43,10 @@ import {
 @Controller('ide-extensions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class IdeExtensionsController {
-  constructor(private readonly service: IdeExtensionsService) {}
+  constructor(
+    private readonly service: IdeExtensionsService,
+    private readonly jplagDemoService: IdeExtensionJplagDemoService,
+  ) {}
 
   // ── Catalog ───────────────────────────────────────────────────────
 
@@ -150,6 +160,59 @@ export class IdeExtensionsController {
   ) {
     const raw = query.raw === '1' || query.raw === 'true';
     return this.service.getNormalizedSources(versionId, { raw });
+  }
+
+  /**
+   * Demo JPlag: luôn chạy 2 profile (text + language) rồi trả comparison parse sẵn.
+   * multipart: language, archive? (zip), files? (webkitdirectory).
+   */
+  @Post('versions/:versionId/jplag-demo')
+  @Roles('admin', 'teacher')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'archive', maxCount: 1 },
+        { name: 'files', maxCount: 500 },
+      ],
+      {
+        storage: memoryStorage(),
+        limits: { fileSize: JPLAG_DEMO_MAX_ARCHIVE_BYTES, files: 501 },
+      },
+    ),
+  )
+  jplagDemo(
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @Body('language') language: string,
+    @UploadedFiles()
+    uploaded?: {
+      archive?: Express.Multer.File[];
+      files?: Express.Multer.File[];
+    },
+  ) {
+    if (!language?.trim()) {
+      throw new BadRequestException('Thiếu language (javascript|typescript|cpp|python3|java).');
+    }
+    const archive = uploaded?.archive?.[0] ?? null;
+    const files = uploaded?.files ?? [];
+    if (!archive && files.length === 0) {
+      throw new BadRequestException('Cần upload ZIP (archive) hoặc chọn thư mục (files).');
+    }
+    return this.jplagDemoService.runDemo(versionId, language.trim(), {
+      archive: archive
+        ? {
+            originalname: archive.originalname,
+            buffer: archive.buffer,
+            size: archive.size,
+            mimetype: archive.mimetype,
+          }
+        : null,
+      files: files.map((f) => ({
+        originalname: f.originalname,
+        buffer: f.buffer,
+        size: f.size,
+        mimetype: f.mimetype,
+      })),
+    });
   }
 
   @Post('versions/:versionId/extract')
