@@ -108,6 +108,22 @@ export interface VersionBrowseFileView {
   size: number | null;
 }
 
+export interface NormalizedSourceItem {
+  id: string;
+  prefix: string;
+  title: string;
+  language: string | null;
+  path: string;
+  content: string;
+  truncated: boolean;
+}
+
+export interface NormalizedSourcesView {
+  mode: 'snippets' | 'none';
+  packageName: string | null;
+  items: NormalizedSourceItem[];
+}
+
 export interface CatalogExtensionDetail extends CatalogExtension {
   versions: CatalogVersion[];
 }
@@ -225,6 +241,15 @@ export function requestVersionExtract(versionId: string) {
   return ideFetch<CatalogVersion>(`/ide-extensions/versions/${versionId}/extract`, {
     method: 'POST',
   });
+}
+
+export function getVersionNormalizedSources(versionId: string, opts?: { raw?: boolean }) {
+  const q = new URLSearchParams();
+  if (opts?.raw) q.set('raw', '1');
+  const suffix = q.toString() ? `?${q.toString()}` : '';
+  return ideFetch<NormalizedSourcesView>(
+    `/ide-extensions/versions/${versionId}/normalized-sources${suffix}`,
+  );
 }
 
 export function listCourseItems(courseId: string) {

@@ -8,8 +8,10 @@ import {
   getCatalog,
   getVersionBrowse,
   getVersionBrowseFile,
+  getVersionNormalizedSources,
   requestVersionExtract,
   type ExtractTreeNode,
+  type NormalizedSourcesView,
   type VersionBrowseView,
 } from '@/lib/api/ide-utilities';
 
@@ -118,6 +120,11 @@ export default function IdeExtensionVersionBrowsePage() {
   const [folderPath, setFolderPath] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<string[] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [viewMode, setViewMode] = useState<'files' | 'normalized'>('files');
+  const [normalized, setNormalized] = useState<NormalizedSourcesView | null>(null);
+  const [normalizedBusy, setNormalizedBusy] = useState(false);
+  const [normalizedError, setNormalizedError] = useState<string | null>(null);
+  const [selectedSnippetId, setSelectedSnippetId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
     path: string;
     text: string | null;
@@ -221,16 +228,57 @@ export default function IdeExtensionVersionBrowsePage() {
     }
   };
 
+  const openNormalized = async () => {
+    setViewMode('normalized');
+    setNormalizedError(null);
+    if (normalized) return;
+    setNormalizedBusy(true);
+    try {
+      const data = await getVersionNormalizedSources(versionId);
+      setNormalized(data);
+      setSelectedSnippetId(data.items[0]?.id ?? null);
+    } catch (e) {
+      setNormalizedError(
+        e instanceof Error ? e.message : 'Không tải được mã đã chuẩn hóa.',
+      );
+    } finally {
+      setNormalizedBusy(false);
+    }
+  };
+
+  const selectedSnippet =
+    normalized?.items.find((i) => i.id === selectedSnippetId) ?? null;
+
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-[480px] flex-col gap-3">
       <PageHeader
         title="Xem nội dung VSIX"
         description={`${extensionLabel}${versionLabel ? ` · ${versionLabel}` : ''}`}
       />
-      <div className="text-sm">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
         <Link href={catalogHref} className="text-primary underline-offset-2 hover:underline">
           ← Quay lại catalog
         </Link>
+        {browse?.status === 'ready' ? (
+          viewMode === 'files' ? (
+            <button
+              type="button"
+              className="text-primary underline-offset-2 hover:underline disabled:opacity-50"
+              disabled={normalizedBusy}
+              onClick={() => void openNormalized()}
+            >
+              Xem mã đã chuẩn hóa
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="text-primary underline-offset-2 hover:underline"
+              onClick={() => setViewMode('files')}
+            >
+              ← Quay lại cây file VSIX
+            </button>
+          )
+        ) : null}
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -262,6 +310,61 @@ export default function IdeExtensionVersionBrowsePage() {
           >
             Bắt đầu giải nén
           </button>
+        </div>
+      ) : viewMode === 'normalized' ? (
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden rounded-md border md:grid-cols-[280px_1fr]">
+          <aside className="min-h-0 overflow-auto border-b bg-muted/20 p-2 md:border-b-0 md:border-r">
+            <p className="mb-2 px-1 text-xs text-muted-foreground">
+              Mã từ contributes.snippets
+              {normalized?.packageName ? ` · ${normalized.packageName}` : ''}
+            </p>
+            {normalizedBusy ? (
+              <p className="px-1 text-sm text-muted-foreground">Đang chuẩn hóa…</p>
+            ) : normalizedError ? (
+              <p className="px-1 text-sm text-destructive">{normalizedError}</p>
+            ) : !normalized || normalized.items.length === 0 ? (
+              <p className="px-1 text-sm text-muted-foreground">
+                {normalized?.mode === 'none'
+                  ? 'Không tìm thấy contributes.snippets trong package.json.'
+                  : 'Không có snippet nào.'}
+              </p>
+            ) : (
+              normalized.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left text-sm hover:bg-muted ${
+                    selectedSnippetId === item.id ? 'bg-muted' : ''
+                  }`}
+                  onClick={() => setSelectedSnippetId(item.id)}
+                >
+                  <span className="truncate font-mono text-xs">{item.prefix}</span>
+                  <span className="truncate text-xs text-muted-foreground">{item.title}</span>
+                </button>
+              ))
+            )}
+          </aside>
+          <section className="flex min-h-0 min-w-0 flex-col">
+            <div className="border-b px-3 py-2 text-xs text-muted-foreground">
+              {selectedSnippet ? (
+                <>
+                  <span className="font-mono text-foreground">{selectedSnippet.prefix}</span>
+                  {selectedSnippet.truncated ? ' · đã cắt bớt' : ''}
+                  {' · '}
+                  <span className="font-mono">{selectedSnippet.path}</span>
+                </>
+              ) : (
+                'Chọn một snippet để xem mã đã bung từ body.'
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              {selectedSnippet ? (
+                <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
+                  {selectedSnippet.content}
+                </pre>
+              ) : null}
+            </div>
+          </section>
         </div>
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden rounded-md border md:grid-cols-[260px_1fr]">

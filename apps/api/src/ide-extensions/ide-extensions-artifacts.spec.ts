@@ -339,4 +339,50 @@ describe('IdeExtensionsService artifacts', () => {
       expect(extractQueue.add).toHaveBeenCalled();
     });
   });
+
+  describe('getNormalizedSources', () => {
+    it('parses contributes.snippets from extracted package.json', async () => {
+      const { service, storage } = createService({
+        version: makeVersion({ storageKey: STORAGE_KEY, extractStatus: 'ready' }),
+        objectExists: true,
+      });
+      (storage.getObject as jest.Mock).mockImplementation(async (key: string) => {
+        if (key.includes('package.json')) {
+          return Buffer.from(
+            JSON.stringify({
+              name: 'demo-snippets',
+              contributes: {
+                snippets: [{ path: './snippets/a.code-snippets' }],
+              },
+            }),
+          );
+        }
+        return Buffer.from(
+          JSON.stringify({
+            'Demo Footer': {
+              prefix: 'demo:footer',
+              body: ['const Footer = () => null;', 'export default Footer;'],
+            },
+          }),
+        );
+      });
+
+      const view = await service.getNormalizedSources(VER_ID);
+      expect(view.mode).toBe('snippets');
+      expect(view.packageName).toBe('demo-snippets');
+      expect(view.items).toHaveLength(1);
+      expect(view.items[0]?.prefix).toBe('demo:footer');
+      expect(view.items[0]?.content).toContain('const Footer');
+    });
+
+    it('rejects when extract is not ready', async () => {
+      const { service } = createService({
+        version: makeVersion({ storageKey: STORAGE_KEY, extractStatus: 'pending' }),
+        objectExists: true,
+      });
+      await expect(service.getNormalizedSources(VER_ID)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+  });
 });

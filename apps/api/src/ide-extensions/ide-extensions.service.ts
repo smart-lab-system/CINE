@@ -47,6 +47,11 @@ import { fetchMarketplaceMeta } from './marketplace-client';
 import { StorageService } from '../storage/storage.service';
 import { IDE_EXTENSION_EXTRACT_QUEUE } from './extract/ide-extension-extract.constants';
 import {
+  buildNormalizedSourcesFromPackage,
+  parsePackageSnippetsContributes,
+  SnippetNormalizeError,
+} from './normalize/snippet-normalize';
+import {
   sanitizeExtractRelativePath,
   UnsafeExtractPathError,
 } from './extract/ide-extension-extract-path';
@@ -578,6 +583,97 @@ export class IdeExtensionsService {
     const saved = await this.versions.save(row);
     await this.enqueueExtract(saved.id);
     return this.toVersionDto(saved);
+  }
+
+  /**
+   * On-demand Snippets-first normalize: read extracted package.json +
+   * contributes.snippets bodies. Does not persist synthetic files.
+   */
+  async getNormalizedSources(versionId: string, opts?: { raw?: boolean }) {
+    const row = await this.versions.findOne({ where: { id: versionId } });
+    if (!row) throw new NotFoundException('Không tìm thấy phiên bản.');
+    if (!row.storageKey) {
+      throw new BadRequestException('Phiên bản chưa có file .vsix trên kho lưu trữ.');
+    }
+    if (row.extractStatus !== 'ready') {
+      throw new BadRequestException(
+        'Chưa giải nén xong — hãy đợi extract ready rồi xem mã đã chuẩn hóa.',
+      );
+    }
+
+    const packageKey = this.storage.buildIdeExtensionExtractedFileKey(
+      row.extensionPk,
+      row.id,
+      'extension/package.json',
+    );
+    if (!(await this.storage.objectExists(packageKey))) {
+      throw new BadRequestException(
+        'Không tìm thấy extension/package.json trong bản giải nén.',
+      );
+    }
+
+    let packageBuf: Buffer;
+    try {
+      packageBuf = await this.storage.getObject(packageKey);
+    } catch (error) {
+      this.logger.warn(
+        `normalized-sources ${versionId}: get package.json — ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw new BadRequestException('Không đọc được extension/package.json.');
+    }
+
+    const packageText = packageBuf.toString('utf8');
+    let packageJson: unknown;
+    try {
+      packageJson = JSON.parse(packageText);
+    } catch {
+      throw new BadRequestException('Không parse được extension/package.json.');
+    }
+
+    let contributes;
+    try {
+      ({ contributes } = parsePackageSnippetsContributes(packageJson));
+    } catch (error) {
+      if (error instanceof SnippetNormalizeError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+
+    const fileMap = new Map<string, Buffer>();
+    for (const ref of contributes) {
+      if (fileMap.has(ref.path)) continue;
+      const key = this.storage.buildIdeExtensionExtractedFileKey(
+        row.extensionPk,
+        row.id,
+        ref.path,
+      );
+      if (!(await this.storage.objectExists(key))) {
+        throw new BadRequestException(`Không tìm thấy file snippet: ${ref.path}`);
+      }
+      fileMap.set(ref.path, await this.storage.getObject(key));
+    }
+
+    try {
+      return buildNormalizedSourcesFromPackage(
+        packageText,
+        (relativePath) => {
+          const buf = fileMap.get(relativePath);
+          if (!buf) {
+            throw new SnippetNormalizeError(`Thiếu file snippet: ${relativePath}`);
+          }
+          return buf;
+        },
+        { stripTabstops: !opts?.raw },
+      );
+    } catch (error) {
+      if (error instanceof SnippetNormalizeError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
   }
 
   private async enqueueExtract(versionId: string): Promise<void> {

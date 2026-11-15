@@ -1,0 +1,27 @@
+{
+  "name": "react-bootstrap-kit",
+  "displayName": "Angular Bootstrap Kit",
+  "description": "ho tro thi ptgdud",
+  "version": "0.1.2",
+  "engines": {
+    "vscode": "^1.0.0"
+  },
+  "categories": [
+    "Snippets"
+  ],
+  "contributes": {
+    "snippets": [
+      {
+        "path": "./snippets/snippets.code-snippets"
+      }
+    ]
+  },
+  "publisher": "hungzazed01",
+  "keywords": [
+    "React",
+    "Bootstrap",
+    "snippets",
+    "React Bootstrap"
+  ],
+  "icon": "images/icon.png"
+}

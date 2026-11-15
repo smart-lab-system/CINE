@@ -22,6 +22,7 @@ import {
   CatalogFromScanDto,
   BrowseFileQueryDto,
   ConfirmArtifactDto,
+  NormalizedSourcesQueryDto,
   CreateCatalogExtensionDto,
   CreateCatalogVersionDto,
   CreateCoursePolicyItemDto,
@@ -138,6 +139,17 @@ export class IdeExtensionsController {
     @Query() query: BrowseFileQueryDto,
   ) {
     return this.service.browseVersionFile(versionId, query.path);
+  }
+
+  /** Snippets-first normalize (on-demand). Đặt gần browse — không nuốt bởi route khác. */
+  @Get('versions/:versionId/normalized-sources')
+  @Roles('admin', 'teacher')
+  getNormalizedSources(
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @Query() query: NormalizedSourcesQueryDto,
+  ) {
+    const raw = query.raw === '1' || query.raw === 'true';
+    return this.service.getNormalizedSources(versionId, { raw });
   }
 
   @Post('versions/:versionId/extract')
