@@ -91,6 +91,8 @@
 
 ---
 
-## Pha 2 (chưa làm — plan riêng sau)
+## Pha 2+ (plan riêng)
 
-Queue `ide-extension-jplag`; stage temp từ items normalized + đáp án mẫu; JAR headless `--mode RUN`; entity run metadata; UI so sánh. Không mở rộng plan này.
+JPlag trên phiên thi (detect unauthorized → vs mẫu → vs bài nộp):  
+[`2026-11-15-ide-extension-jplag-exam-flow.md`](./2026-11-15-ide-extension-jplag-exam-flow.md) ·  
+spec [`../specs/2026-11-15-ide-extension-jplag-exam-flow-design.md`](../specs/2026-11-15-ide-extension-jplag-exam-flow-design.md).

@@ -35,7 +35,7 @@ Pha này chỉ chuẩn hóa + xem. So sánh JPlag với đáp án mẫu là pha 
 
 - Lưu body / file synthetic vào Postgres hoặc prefix `normalized/` trên Storage.
 - Fallback liệt kê `extension/src/**` khi không có snippets (API trả `mode: 'none'`).
-- JPlag / so đáp án mẫu / queue JAR / migration `jplag_run`.
+- JPlag / so đáp án mẫu / queue JAR / migration `jplag_run` — xem [`2026-11-15-ide-extension-jplag-exam-flow-design.md`](./2026-11-15-ide-extension-jplag-exam-flow-design.md).
 - Monaco / editor diff.
 - Đổi luồng extract VSIX hiện có.
 
@@ -144,9 +144,10 @@ Client: `getVersionNormalizedSources` trong `apps/web/src/lib/api/ide-utilities.
 
 ---
 
-## 7. Pha 2 (tương lai — không thuộc spec này)
+## 7. Pha 2+ (spec/plan riêng)
 
-So mã đã chuẩn hóa với đáp án mẫu (`grading_reference.model_answer_source`) bằng JPlag: stage temp disk (không DB blob), queue riêng, một ngôn ngữ / run, report `.jplag` trên Storage. Spec/plan riêng khi triển khai.
+JPlag trên phiên (detect unauthorized → vs mẫu → vs bài nộp):  
+[`2026-11-15-ide-extension-jplag-exam-flow-design.md`](./2026-11-15-ide-extension-jplag-exam-flow-design.md).
 
 ---
 
