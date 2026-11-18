@@ -152,6 +152,22 @@ export class CoursesController {
     return this.courseHub.getExam(id, examId);
   }
 
+  @Patch(':id/exams/:examId/deactivate')
+  deactivateExam(@Param('id') id: string, @Param('examId') examId: string) {
+    return this.courseHub.deactivateExam(id, examId);
+  }
+
+  @Patch(':id/exams/:examId/reactivate')
+  reactivateExam(@Param('id') id: string, @Param('examId') examId: string) {
+    return this.courseHub.reactivateExam(id, examId);
+  }
+
+  @Delete(':id/exams/:examId')
+  @HttpCode(204)
+  async removeExam(@Param('id') id: string, @Param('examId') examId: string) {
+    await this.courseHub.removeExam(id, examId);
+  }
+
   @Get(':id/rubrics')
   listRubrics(@Param('id') id: string, @Query() query: CourseHubListQueryDto) {
     return this.courseHub.listRubrics(id, {
@@ -163,6 +179,31 @@ export class CoursesController {
   @Get(':id/rubrics/:rubricId')
   getRubric(@Param('id') id: string, @Param('rubricId') rubricId: string) {
     return this.courseHub.getRubric(id, rubricId);
+  }
+
+  @Patch(':id/rubrics/:rubricId/deactivate')
+  deactivateRubric(
+    @Param('id') id: string,
+    @Param('rubricId') rubricId: string,
+  ) {
+    return this.courseHub.deactivateRubric(id, rubricId);
+  }
+
+  @Patch(':id/rubrics/:rubricId/reactivate')
+  reactivateRubric(
+    @Param('id') id: string,
+    @Param('rubricId') rubricId: string,
+  ) {
+    return this.courseHub.reactivateRubric(id, rubricId);
+  }
+
+  @Delete(':id/rubrics/:rubricId')
+  @HttpCode(204)
+  async removeRubric(
+    @Param('id') id: string,
+    @Param('rubricId') rubricId: string,
+  ) {
+    await this.courseHub.removeRubric(id, rubricId);
   }
 
   @Get(':id')

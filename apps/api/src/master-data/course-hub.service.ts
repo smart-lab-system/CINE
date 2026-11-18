@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { CourseEntity } from './entities/course.entity';
@@ -23,6 +27,8 @@ export interface CourseHubExamView {
   examType: string;
   status: string;
   language: string;
+  /** Soft-deactivate admin — khác status draft/ready. */
+  isActive: boolean;
   questionCount: number;
   totalPoints: number;
   createdBy: string;
@@ -37,7 +43,10 @@ export interface CourseHubRubricView {
   id: string;
   name: string;
   version: number;
+  /** Version hiện hành (không phải soft-delete). */
   isActive: boolean;
+  /** Soft-deactivate admin. */
+  isArchived: boolean;
   kind: 'qa' | 'qs';
   teacherId: string;
   teacherName: string | null;
@@ -134,6 +143,7 @@ export class CourseHubService {
         examType: exam.examType,
         status: exam.status,
         language: exam.language,
+        isActive: exam.isActive !== false,
         questionCount: qCount,
         totalPoints: Math.round(exam.totalPointsHundredths) / 100,
         createdBy: exam.createdBy,
@@ -186,6 +196,7 @@ export class CourseHubService {
         name: row.name,
         version: row.version,
         isActive: row.isActive,
+        isArchived: row.isArchived === true,
         kind: (row.kind ?? 'qa') as 'qa' | 'qs',
         teacherId: row.teacherId,
         teacherName: teacherMap.get(row.teacherId) ?? null,
@@ -228,6 +239,7 @@ export class CourseHubService {
       examType: exam.examType,
       status: exam.status,
       language: exam.language,
+      isActive: exam.isActive !== false,
       questionCount: questions.length,
       totalPoints: Math.round(exam.totalPointsHundredths) / 100,
       createdBy: exam.createdBy,
@@ -300,6 +312,7 @@ export class CourseHubService {
       name: row.name,
       version: row.version,
       isActive: row.isActive,
+      isArchived: row.isArchived === true,
       kind,
       teacherId: row.teacherId,
       teacherName: teacher?.name ?? teacher?.email ?? null,
@@ -319,6 +332,96 @@ export class CourseHubService {
       })),
       approaches,
     };
+  }
+
+  async deactivateExam(courseId: string, examId: string): Promise<CourseHubExamDetailView> {
+    const exam = await this.requireExam(courseId, examId);
+    if (exam.isActive !== false) {
+      exam.isActive = false;
+      await this.exams.save(exam);
+    }
+    return this.getExam(courseId, examId);
+  }
+
+  async reactivateExam(courseId: string, examId: string): Promise<CourseHubExamDetailView> {
+    const exam = await this.requireExam(courseId, examId);
+    if (exam.isActive === false) {
+      exam.isActive = true;
+      await this.exams.save(exam);
+    }
+    return this.getExam(courseId, examId);
+  }
+
+  /**
+   * Hard delete đề. Phụ thuộc phiên↔đề còn stub — luôn cho xóa (P3).
+   */
+  async removeExam(courseId: string, examId: string): Promise<void> {
+    const exam = await this.requireExam(courseId, examId);
+    await this.questions.delete({ courseExamId: exam.id });
+    await this.exams.remove(exam);
+  }
+
+  async deactivateRubric(
+    courseId: string,
+    rubricId: string,
+  ): Promise<CourseHubRubricDetailView> {
+    const row = await this.requireRubric(courseId, rubricId);
+    if (!row.isArchived) {
+      row.isArchived = true;
+      await this.rubrics.save(row);
+    }
+    return this.getRubric(courseId, rubricId);
+  }
+
+  async reactivateRubric(
+    courseId: string,
+    rubricId: string,
+  ): Promise<CourseHubRubricDetailView> {
+    const row = await this.requireRubric(courseId, rubricId);
+    if (row.isArchived) {
+      row.isArchived = false;
+      await this.rubrics.save(row);
+    }
+    return this.getRubric(courseId, rubricId);
+  }
+
+  async removeRubric(courseId: string, rubricId: string): Promise<void> {
+    const row = await this.requireRubric(courseId, rubricId);
+    const refs: { n: string }[] = await this.rubrics.manager.query(
+      `SELECT (
+          (SELECT COUNT(*)::int FROM examcollect.course_exam_question WHERE rubric_id = $1) +
+          (SELECT COUNT(*)::int FROM examcollect.exam_session WHERE rubric_id = $1) +
+          (SELECT COUNT(*)::int FROM examcollect.exam_problem WHERE rubric_id = $1) +
+          (SELECT COUNT(*)::int FROM examcollect.grading_result WHERE rubric_id_version = $1)
+        ) AS n`,
+      [row.id],
+    );
+    if (Number(refs[0]?.n ?? 0) > 0) {
+      throw new ConflictException(
+        'Rubric còn được tham chiếu (đề / phiên / bài chấm) — không xoá được. Hãy vô hiệu hoá.',
+      );
+    }
+    await this.rubrics.manager.query(
+      `DELETE FROM examcollect.criterion_waiver WHERE rubric_id = $1`,
+      [row.id],
+    );
+    await this.criteria.delete({ rubricId: row.id });
+    await this.approaches.delete({ rubricId: row.id });
+    await this.rubrics.remove(row);
+  }
+
+  private async requireExam(courseId: string, examId: string): Promise<CourseExamEntity> {
+    await this.requireCourse(courseId);
+    const exam = await this.exams.findOne({ where: { id: examId, courseId } });
+    if (!exam) throw new NotFoundException('Exam not found');
+    return exam;
+  }
+
+  private async requireRubric(courseId: string, rubricId: string): Promise<RubricEntity> {
+    await this.requireCourse(courseId);
+    const row = await this.rubrics.findOne({ where: { id: rubricId, courseId } });
+    if (!row) throw new NotFoundException('Rubric not found');
+    return row;
   }
 
   private async requireCourse(courseId: string): Promise<CourseEntity> {

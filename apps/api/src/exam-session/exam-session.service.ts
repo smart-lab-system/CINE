@@ -177,6 +177,11 @@ export class ExamSessionService {
           'Rubric này không thuộc về bạn — hãy chọn một rubric bạn đã soạn.',
         );
       }
+      if (rubric.isArchived) {
+        throw new BadRequestException(
+          'Rubric đã bị vô hiệu hoá — chọn rubric khác.',
+        );
+      }
     }
 
     // Dual-write catalog → snapshot text TRƯỚC assertNone: overlap vẫn
@@ -384,6 +389,11 @@ export class ExamSessionService {
       if (!rubric || rubric.teacherId !== session.teacherId) {
         throw new BadRequestException(
           'Rubric này không thuộc về chủ phiên thi.',
+        );
+      }
+      if (rubric.isArchived) {
+        throw new BadRequestException(
+          'Rubric đã bị vô hiệu hoá — chọn rubric khác.',
         );
       }
     }

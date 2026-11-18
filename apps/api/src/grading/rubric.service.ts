@@ -21,6 +21,8 @@ export interface RubricView {
   name: string;
   version: number;
   isActive: boolean;
+  /** Soft-deactivate admin — độc lập versioning. */
+  isArchived: boolean;
   kind: 'qa' | 'qs';
   totalPoints: number;
   /** Thời điểm tạo bản này (ISO 8601) — để suy ra "bản tạo gần nhất" giữa các bộ rubric khác tên (G1 §5). */
@@ -360,6 +362,7 @@ export class RubricService {
       name: rubric.name,
       version: rubric.version,
       isActive: rubric.isActive,
+      isArchived: rubric.isArchived === true,
       kind,
       createdAt: rubric.createdAt.toISOString(),
       updatedAt: rubric.updatedAt.toISOString(),

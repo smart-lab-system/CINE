@@ -44,6 +44,8 @@ export interface CourseExamSummaryView {
   examType: CourseExamType;
   status: CourseExamStatus;
   language: string;
+  /** Soft-deactivate admin; false → không gắn mới. */
+  isActive: boolean;
   questionCount: number;
   /** Trần điểm đề (field tổng điểm). */
   totalPoints: number;
@@ -369,6 +371,11 @@ export class ExamBankService {
       if (!r.isActive) {
         throw new BadRequestException(`Câu ${i + 1}: rubric không còn active — chọn bản mới nhất.`);
       }
+      if (r.isArchived) {
+        throw new BadRequestException(
+          `Câu ${i + 1}: rubric đã bị vô hiệu hoá — chọn rubric khác.`,
+        );
+      }
     }
   }
 
@@ -426,6 +433,7 @@ export class ExamBankService {
       examType: exam.examType,
       status: exam.status,
       language: exam.language,
+      isActive: exam.isActive !== false,
       questionCount: qs.length,
       totalPoints: toPoints(exam.totalPointsHundredths),
       allocatedPoints: toPoints(allocatedHundredths),
