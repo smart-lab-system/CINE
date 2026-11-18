@@ -5,7 +5,10 @@ import { getAccessToken } from '@/lib/auth-token';
  * giống master-data.ts.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(
+  /\/$/,
+  '',
+);
 
 export class CourseSectionHttpError extends Error {
   constructor(

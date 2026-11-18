@@ -276,7 +276,10 @@ export async function replaceRequiredDeliverables(
 }
 
 async function examFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(
+    /\/$/,
+    '',
+  );
   const { getAccessToken } = await import('@/lib/auth-token');
   const token = await getAccessToken();
   const headers = new Headers(init.headers);

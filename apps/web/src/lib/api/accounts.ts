@@ -70,7 +70,10 @@ export async function searchAccounts(
 /** GET /accounts/:id - chưa có trong schema.d.ts cho tới khi regenerate OpenAPI. */
 export async function getAccount(id: string): Promise<AccountView> {
   const token = await getAccessToken();
-  const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(
+    /\/$/,
+    '',
+  );
   const res = await fetch(`${base}/accounts/${id}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
