@@ -18,7 +18,7 @@ import {
   type NormalizedSourcesView,
   type VersionBrowseView,
 } from '@/lib/api/ide-utilities';
-import { JplagComparisonViewer } from './jplag-comparison-viewer';
+import { JplagComparisonViewer } from '@/components/jplag/jplag-comparison-viewer';
 
 const JPLAG_DEMO_LANGUAGE_OPTIONS: { value: JplagDemoLanguage; label: string }[] = [
   { value: 'javascript', label: 'JavaScript / JSX' },

@@ -15,7 +15,7 @@
 
 **Ngoài phạm vi:** Student↔student; JPlag cho extension allowlist; đổi agent scan protocol.
 
-**Trạng thái:** Chưa implement (docs only).
+**Trạng thái:** Implemented (Task 1–4).
 
 ---
 
@@ -48,41 +48,41 @@
 
 **Files:** `jplag-runner.service.ts`, refactor `jplag-demo.service.ts`, specs hiện có
 
-- [ ] API thuần: `runDualComparison({ language, extensionItems, compareFiles })` → runs + buffers
-- [ ] Giữ dual `text` + `language` (SWC JS/TS); constants/suffixes hiện có
-- [ ] Demo multipart chỉ chuẩn bị inputs rồi gọi runner
-- [ ] Unit: parse report (đã có) + smoke runner với fixture nhỏ nếu可行 không cần JAR trong CI
-- [ ] `npx jest` jplag\* pass; demo browse vẫn chạy local
+- [x] API thuần: `runDualComparison({ language, extensionItems, compareFiles })` → runs + buffers
+- [x] Giữ dual `text` + `language` (SWC JS/TS); constants/suffixes hiện có
+- [x] Demo multipart chỉ chuẩn bị inputs rồi gọi runner
+- [x] Unit: parse report (đã có) + staging helpers (không cần JAR trong CI)
+- [x] `npx jest` jplag* pass; demo browse vẫn chạy local
 
 ## Task 2: Persist + vs_model từ scan gate
 
 **Files:** migration, entities, module register, `jplag-exam.service`, queue processor, hook scan
 
-- [ ] Tables `ide_extension_jplag_run` (+ item nếu cần cho vs_model)
-- [ ] Sau classify unauthorized: enqueue `jplag:vs-model` (idempotent)
-- [ ] Worker: `getNormalizedSources` + load `model_answer_source_key` → runner → put Storage → update status
-- [ ] Thiếu model source → `failed` + message rõ
-- [ ] `GET` list/detail runs cho teacher theo `examSessionId`
-- [ ] Manual `POST` retry vs-model
+- [x] Tables `ide_extension_jplag_run` (+ item nếu cần cho vs_model)
+- [x] Sau classify unauthorized: enqueue `jplag:vs-model` (idempotent)
+- [x] Worker: `getNormalizedSources` + load `model_answer_source_key` → runner → put Storage → update status
+- [x] Thiếu model source → `failed` + message rõ
+- [x] `GET` list/detail runs cho teacher theo `examSessionId`
+- [x] Manual `POST` retry vs-model
 
 ## Task 3: vs_student khi nộp bài
 
 **Files:** submission confirm hook, worker, entities item
 
-- [ ] Confirm nộp: nếu SV có unauthorized extension trên session → enqueue `jplag:vs-student`
-- [ ] Worker: `sourceFilesOf(submission)` + snippets cùng `versionId` → runner → persist item (mssv, dual %)
-- [ ] Idempotent per session+version+mssv+deliverable
-- [ ] `GET` items + comparison payload / Presigned cho viewer
-- [ ] Bỏ qua RAR / empty extract với status failed có lý do
+- [x] Confirm nộp: nếu SV có unauthorized extension trên session → enqueue `jplag:vs-student`
+- [x] Worker: `sourceFilesOf(submission)` + snippets cùng `versionId` → runner → persist item (mssv, dual %)
+- [x] Idempotent per session+version+mssv+deliverable
+- [x] `GET` items + comparison payload / Presigned cho viewer
+- [x] Bỏ qua RAR / empty extract với status failed có lý do
 
 ## Task 4: Teacher UI
 
 **Files:** web exam-session / grading; tái dùng `jplag-comparison-viewer.tsx`
 
-- [ ] Panel “Extension trái phép” + trạng thái vs mẫu
-- [ ] Bảng SV sau nộp: % text / % language; chọn run mở viewer (scroll pane + match)
-- [ ] Client API helpers trong `ide-utilities.ts` hoặc module grading/session tương ứng
-- [ ] Không expose API comparison cho role student
+- [x] Panel “Extension trái phép” + trạng thái vs mẫu
+- [x] Bảng SV sau nộp: % text / % language; chọn run mở viewer (scroll pane + match)
+- [x] Client API helpers trong `ide-utilities.ts` hoặc module grading/session tương ứng
+- [x] Không expose API comparison cho role student
 
 ---
 
@@ -98,7 +98,7 @@
 ## Tiêu chí xong
 
 - [x] Spec + plan trong `docs/superpowers/`
-- [ ] Task 1–4 code + migration + tests cần thiết
+- [x] Task 1–4 code + migration + tests cần thiết
 - [ ] Manual: scan cờ → vs_model completed; nộp bài → vs_student item + viewer
 
 ---

@@ -382,6 +382,66 @@ export function removeItem(id: string) {
   return ideFetch<void>(`/ide-extensions/policies/items/${id}`, { method: 'DELETE' });
 }
 
+export type IdeExtensionJplagRunKind = 'vs_model' | 'vs_student';
+export type IdeExtensionJplagRunStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface IdeExtensionJplagRun {
+  id: string;
+  examSessionId: string;
+  extensionPk: string | null;
+  versionId: string | null;
+  extensionIdentifier: string;
+  extensionVersion: string | null;
+  kind: IdeExtensionJplagRunKind;
+  status: IdeExtensionJplagRunStatus;
+  trigger: 'scan' | 'submission' | 'manual';
+  language: string | null;
+  studentMssv: string | null;
+  requiredDeliverableId: string | null;
+  submissionId: string | null;
+  similarityText: number | null;
+  similarityLanguage: number | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IdeExtensionJplagComparisonPayload {
+  run: IdeExtensionJplagRun;
+  profile: JplagDemoRunProfile;
+  cliLanguage: string;
+  similarity: number;
+  firstSubmission: string | null;
+  secondSubmission: string | null;
+  comparison: {
+    files: JplagParsedFile[];
+    matches: JplagParsedMatch[];
+  } | null;
+  reportUrl: string | null;
+}
+
+export function listSessionJplagRuns(examSessionId: string) {
+  return ideFetch<IdeExtensionJplagRun[]>(
+    `/ide-extensions/jplag/sessions/${examSessionId}/runs`,
+  );
+}
+
+export function getJplagRunComparison(
+  runId: string,
+  profile: JplagDemoRunProfile = 'text',
+) {
+  return ideFetch<IdeExtensionJplagComparisonPayload>(
+    `/ide-extensions/jplag/runs/${runId}/comparison?profile=${profile}`,
+  );
+}
+
+export function retryJplagVsModel(examSessionId: string, runId: string) {
+  return ideFetch<IdeExtensionJplagRun>(
+    `/ide-extensions/jplag/sessions/${examSessionId}/runs/${runId}/retry-vs-model`,
+    { method: 'POST' },
+  );
+}
+
 export function listScans(params?: { labMgmtSessionId?: string; courseId?: string }) {
   const sp = new URLSearchParams();
   if (params?.labMgmtSessionId) sp.set('labMgmtSessionId', params.labMgmtSessionId);

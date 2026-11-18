@@ -18,6 +18,7 @@ import type { SessionOverviewItem } from '@/lib/api/submissions';
 import { countSystemUngradable } from '@/lib/regrade-triage';
 import { AiServiceBand } from './_components/AiServiceBand';
 import { BulkAcceptEssays } from './_components/BulkAcceptEssays';
+import { JplagFindingsPanel } from './_components/JplagFindingsPanel';
 import { LeverageLine } from './_components/LeverageLine';
 import { OverviewBar } from './_components/OverviewBar';
 import { PreparePanel } from './_components/PreparePanel';
@@ -159,6 +160,8 @@ function SessionScreen({
       )}
 
       <AiServiceBand sessionId={sessionId} results={list} />
+
+      <JplagFindingsPanel sessionId={sessionId} />
 
       {!running && !showReview && <ReviewGroupsPanel sessionId={sessionId} />}
 
