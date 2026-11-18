@@ -1615,6 +1615,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/grading-results/{id}/regrade-ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RegradeController_regradeAiScored"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{id}/regrade-ungradable": {
         parameters: {
             query?: never;
@@ -5891,6 +5907,27 @@ export interface operations {
         };
     };
     RegradeController_regradeOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    RegradeController_regradeAiScored: {
         parameters: {
             query?: never;
             header?: never;

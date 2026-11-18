@@ -22,6 +22,15 @@ export async function regradeResult(resultId: string): Promise<RegradeOutcome> {
   return data as unknown as RegradeOutcome;
 }
 
+/** Ép chấm lại bằng AI bài đã có điểm (xoá kết quả AI cũ). */
+export async function regradeAiScored(resultId: string): Promise<RegradeOutcome> {
+  const { data, error, response } = await apiClient.POST('/grading-results/{id}/regrade-ai', {
+    params: { path: { id: resultId } },
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as RegradeOutcome;
+}
+
 /** Chấm lại mọi bài lớp system của phiên; `reason` (nguyên văn) giới hạn vào các bài cùng lý do. */
 export async function regradeUngradable(examSessionId: string, reason: string | null): Promise<RegradeOutcome> {
   const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/regrade-ungradable', {

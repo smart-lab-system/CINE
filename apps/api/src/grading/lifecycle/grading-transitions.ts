@@ -5,8 +5,8 @@ import type { GradingResultStatus } from '../entities/grading-result.entity';
  * (`1789460000000`); `grading-lifecycle-v2.e2e-spec.ts` đi qua MỌI cặp trạng thái và đòi hai bản
  * trả lời giống nhau, nên sửa một bản mà quên bản kia là test đỏ.
  *
- * Hai luật DB ép thêm mà bảng này không tả: sang `finalized` phải có `finalized_by`; và
- * `flagged_for_review → ai_grading` chỉ cho bài không chấm được lớp `system`, chưa có điểm (§2.3).
+ * Luật DB ép thêm: sang `finalized` phải có `finalized_by`;
+ * `→ ai_grading` từ flagged/auto_approved: system ungradable (không điểm) hoặc force regrade (NEW xoá điểm AI).
  */
 export const GRADING_STATUSES: readonly GradingResultStatus[] = [
   'ai_grading', 'ai_graded', 'auto_approved', 'audit_pending',
@@ -21,9 +21,10 @@ export const GRADING_TRANSITIONS: ReadonlyArray<readonly [GradingResultStatus, G
   ['auto_approved', 'audit_pending'],
   ['audit_pending', 'teacher_reviewed'],
   ['auto_approved', 'flagged_for_review'],
+  ['auto_approved', 'ai_grading'], // force chấm lại bằng AI (xoá điểm AI cùng UPDATE)
   ['audit_pending', 'flagged_for_review'],
   ['flagged_for_review', 'auto_approved'],
-  ['flagged_for_review', 'ai_grading'],
+  ['flagged_for_review', 'ai_grading'], // system ungradable HOẶC force chấm lại bằng AI
   ['auto_approved', 'teacher_reviewed'],
   ['flagged_for_review', 'teacher_reviewed'],
   ['auto_approved', 'finalized'],
