@@ -10,6 +10,8 @@ export interface Rubric {
   name: string;
   version: number;
   isActive: boolean;
+  /** Soft-deactivate admin — độc lập versioning; optional cho fixture cũ. */
+  isArchived?: boolean;
   /** `qa` (mặc định) hoặc `qs` — checklist nhiều hướng theo câu (DSA). */
   kind?: 'qa' | 'qs';
   totalPoints: number;

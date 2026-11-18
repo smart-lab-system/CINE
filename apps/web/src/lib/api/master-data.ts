@@ -31,10 +31,19 @@ async function masterDataFetch<T>(
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (res.status === 204) return undefined as T;
   if (!res.ok) {
+    let serverMessage: string | undefined;
+    try {
+      const body = (await res.json()) as { message?: string | string[] };
+      if (typeof body.message === 'string') serverMessage = body.message;
+      else if (Array.isArray(body.message)) serverMessage = body.message.join('; ');
+    } catch {
+      /* ignore */
+    }
     throw new MasterDataHttpError(
-      res.status === 409
-        ? 'Xung đột dữ liệu (trùng mã hoặc còn bản ghi con).'
-        : `Yêu cầu thất bại (HTTP ${res.status})`,
+      serverMessage ??
+        (res.status === 409
+          ? 'Xung đột dữ liệu (trùng mã hoặc còn bản ghi con).'
+          : `Yêu cầu thất bại (HTTP ${res.status})`),
       res.status,
     );
   }
@@ -228,6 +237,7 @@ export interface CourseHubExam {
   examType: string;
   status: string;
   language: string;
+  isActive: boolean;
   questionCount: number;
   totalPoints: number;
   createdBy: string;
@@ -243,6 +253,7 @@ export interface CourseHubRubric {
   name: string;
   version: number;
   isActive: boolean;
+  isArchived: boolean;
   kind: 'qa' | 'qs';
   teacherId: string;
   teacherName: string | null;
@@ -314,6 +325,41 @@ export const listCourseHubRubrics = (
 export const getCourseHubRubric = (courseId: string, rubricId: string) =>
   masterDataFetch<CourseHubRubricDetail>(
     `/master-data/courses/${courseId}/rubrics/${rubricId}`,
+  );
+
+export const deactivateCourseHubExam = (courseId: string, examId: string) =>
+  masterDataFetch<CourseHubExamDetail>(
+    `/master-data/courses/${courseId}/exams/${examId}/deactivate`,
+    { method: 'PATCH' },
+  );
+
+export const reactivateCourseHubExam = (courseId: string, examId: string) =>
+  masterDataFetch<CourseHubExamDetail>(
+    `/master-data/courses/${courseId}/exams/${examId}/reactivate`,
+    { method: 'PATCH' },
+  );
+
+export const deleteCourseHubExam = (courseId: string, examId: string) =>
+  masterDataFetch<void>(`/master-data/courses/${courseId}/exams/${examId}`, {
+    method: 'DELETE',
+  });
+
+export const deactivateCourseHubRubric = (courseId: string, rubricId: string) =>
+  masterDataFetch<CourseHubRubricDetail>(
+    `/master-data/courses/${courseId}/rubrics/${rubricId}/deactivate`,
+    { method: 'PATCH' },
+  );
+
+export const reactivateCourseHubRubric = (courseId: string, rubricId: string) =>
+  masterDataFetch<CourseHubRubricDetail>(
+    `/master-data/courses/${courseId}/rubrics/${rubricId}/reactivate`,
+    { method: 'PATCH' },
+  );
+
+export const deleteCourseHubRubric = (courseId: string, rubricId: string) =>
+  masterDataFetch<void>(
+    `/master-data/courses/${courseId}/rubrics/${rubricId}`,
+    { method: 'DELETE' },
   );
 
 // --- nominal classes ---

@@ -22,7 +22,10 @@ type Phase = 'confirm' | 'running' | 'done';
 function RubricPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const rubrics = useRubrics();
   const options = useMemo(
-    () => (rubrics.data ?? []).filter((r) => r.isActive).sort((a, b) => a.name.localeCompare(b.name, 'vi') || a.version - b.version),
+    () =>
+      (rubrics.data ?? [])
+        .filter((r) => r.isActive && !r.isArchived)
+        .sort((a, b) => a.name.localeCompare(b.name, 'vi') || a.version - b.version),
     [rubrics.data],
   );
   useEffect(() => {

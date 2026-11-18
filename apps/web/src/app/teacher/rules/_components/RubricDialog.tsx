@@ -121,7 +121,9 @@ function CreateBody({
 }) {
   const [kind, setKind] = useState<'qa' | 'qs'>(defaultKind);
   const qaOverviews = overviews; // overview hiện chủ yếu phục vụ QA / bảng lỗi
-  const qsSources = rubrics.filter((r) => (r.kind ?? 'qa') === 'qs' && r.isActive);
+  const qsSources = rubrics.filter(
+    (r) => (r.kind ?? 'qa') === 'qs' && r.isActive && !r.isArchived,
+  );
   const hasAny = kind === 'qs' ? qsSources.length > 0 : qaOverviews.length > 0;
   const [mode, setMode] = useState<'copy' | 'blank'>(hasAny ? 'copy' : 'blank');
   const [source, setSource] = useState('');

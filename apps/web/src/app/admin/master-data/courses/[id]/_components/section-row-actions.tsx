@@ -38,7 +38,7 @@ export function SectionRowActions({
 
   return (
     <>
-      <RowActions>
+      <RowActions className="justify-center">
         <Button
           type="button"
           variant="ghost"

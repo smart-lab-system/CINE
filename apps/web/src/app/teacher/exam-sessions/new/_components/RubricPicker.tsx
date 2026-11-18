@@ -26,7 +26,7 @@ type RubricPickerForm = { rubricId?: string };
 export function RubricPicker() {
   const form = useFormContext<RubricPickerForm>();
   const rubrics = useRubrics();
-  const options = rubrics.data ?? [];
+  const options = (rubrics.data ?? []).filter((r) => !r.isArchived);
   const empty = !rubrics.isLoading && options.length === 0;
 
   return (

@@ -73,6 +73,8 @@ export interface CourseExamSummary {
   examType: CourseExamType;
   status: CourseExamStatus;
   language: CourseExamLanguage;
+  /** Soft-deactivate admin; optional cho response cũ. */
+  isActive?: boolean;
   questionCount: number;
   /** Trần điểm đề. */
   totalPoints: number;

@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 export function CatalogSection({
   title,
@@ -21,6 +22,7 @@ export function CatalogSection({
   createLabel = 'Thêm',
   loading,
   headers,
+  headerClassNames,
   rows,
   empty,
   toolbar,
@@ -33,6 +35,7 @@ export function CatalogSection({
   createLabel?: string;
   loading?: boolean;
   headers: string[];
+  headerClassNames?: (string | undefined)[];
   rows: ReactNode;
   empty?: string;
   toolbar?: ReactNode;
@@ -66,7 +69,12 @@ export function CatalogSection({
           <TableHeader>
             <TableRow>
               {headers.map((h, i) => (
-                <TableHead key={`${h || 'col'}-${i}`}>{h}</TableHead>
+                <TableHead
+                  key={`${h || 'col'}-${i}`}
+                  className={headerClassNames?.[i]}
+                >
+                  {h}
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -142,6 +150,14 @@ export function DeleteIconButton({
   );
 }
 
-export function RowActions({ children }: { children: ReactNode }) {
-  return <div className="flex justify-end gap-0.5">{children}</div>;
+export function RowActions({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('flex justify-end gap-0.5', className)}>{children}</div>
+  );
 }

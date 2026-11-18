@@ -42,7 +42,7 @@ export function RubricRow({
   const showPicker = !readOnly;
   const displayedId = persist === 'draft' ? selected || null : rubricId;
   const pinned = displayedId ? rubrics.data?.find((r) => r.id === displayedId) : undefined;
-  const options = (rubrics.data ?? []).filter((r) => r.isActive);
+  const options = (rubrics.data ?? []).filter((r) => r.isActive && !r.isArchived);
 
   const body = () => {
     if (rubrics.isLoading) return <p className="text-small text-muted-foreground">Đang tải…</p>;

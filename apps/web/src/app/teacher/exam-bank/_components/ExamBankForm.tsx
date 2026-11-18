@@ -103,7 +103,7 @@ export function ExamBankForm({
   const qsRubrics = useMemo(
     () =>
       (rubricsQuery.data ?? []).filter(
-        (r) => (r.kind ?? "qa") === "qs" && r.isActive,
+        (r) => (r.kind ?? "qa") === "qs" && r.isActive && !r.isArchived,
       ),
     [rubricsQuery.data],
   );

@@ -29,6 +29,10 @@ import {
   AccountPreviewDialog,
 } from './_components/account-preview-dialog';
 import { SectionRowActions } from './_components/section-row-actions';
+import {
+  ExamRowActions,
+  RubricRowActions,
+} from './_components/bank-row-actions';
 
 type HubTab = 'classes' | 'exams' | 'rubrics';
 
@@ -233,6 +237,7 @@ function ClassesTab({
     <CatalogSection
       title="Lớp học phần"
       headers={['Mã lớp', 'Môn', 'Học kỳ', 'Lớp danh nghĩa', 'Phụ trách', 'Thao tác']}
+      headerClassNames={[undefined, undefined, undefined, undefined, undefined, 'text-center']}
       loading={list.isLoading}
       empty="Chưa có lớp học phần cho bộ lọc này."
       rows={
@@ -264,7 +269,7 @@ function ClassesTab({
                   />
                 </TableCell>
                 <TableCell
-                  className="text-right"
+                  className="text-center"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <SectionRowActions section={row} />
@@ -292,7 +297,8 @@ function ExamsTab({
   return (
     <CatalogSection
       title="Ngân hàng đề thi"
-      headers={['Đề', 'Người tạo', 'Thời điểm tạo']}
+      headers={['Đề', 'Người tạo', 'Thời điểm tạo', 'Thao tác']}
+      headerClassNames={[undefined, undefined, undefined, 'text-center']}
       loading={exams.isLoading}
       empty="Chưa có đề trong bộ lọc này."
       rows={
@@ -305,7 +311,14 @@ function ExamsTab({
                   router.push(`/admin/master-data/courses/${courseId}/exams/${e.id}`)
                 }
               >
-                <TableCell>{e.title}</TableCell>
+                <TableCell>
+                  {e.title}
+                  {e.isActive === false ? (
+                    <span className="ml-2 text-caption text-muted-foreground">
+                      (vô hiệu)
+                    </span>
+                  ) : null}
+                </TableCell>
                 <TableCell>
                   <AccountNameButton
                     accountId={e.createdBy}
@@ -314,6 +327,12 @@ function ExamsTab({
                   />
                 </TableCell>
                 <TableCell>{e.resolvedSemesterName ?? '—'}</TableCell>
+                <TableCell
+                  className="text-center"
+                  onClick={(ev) => ev.stopPropagation()}
+                >
+                  <ExamRowActions courseId={courseId} exam={e} />
+                </TableCell>
               </TableRow>
             ))
           : null
@@ -337,7 +356,8 @@ function RubricsTab({
   return (
     <CatalogSection
       title="Ngân hàng rubric"
-      headers={['Tên', 'Người tạo', 'Thời điểm tạo']}
+      headers={['Tên', 'Người tạo', 'Thời điểm tạo', 'Thao tác']}
+      headerClassNames={[undefined, undefined, undefined, 'text-center']}
       loading={rubrics.isLoading}
       empty="Chưa có rubric gắn môn này trong bộ lọc."
       rows={
@@ -355,6 +375,11 @@ function RubricsTab({
                   {!r.isActive ? (
                     <span className="ml-2 text-caption text-muted-foreground">(cũ)</span>
                   ) : null}
+                  {r.isArchived ? (
+                    <span className="ml-2 text-caption text-muted-foreground">
+                      (vô hiệu)
+                    </span>
+                  ) : null}
                 </TableCell>
                 <TableCell>
                   <AccountNameButton
@@ -364,6 +389,12 @@ function RubricsTab({
                   />
                 </TableCell>
                 <TableCell>{r.resolvedSemesterName ?? '—'}</TableCell>
+                <TableCell
+                  className="text-center"
+                  onClick={(ev) => ev.stopPropagation()}
+                >
+                  <RubricRowActions courseId={courseId} rubric={r} />
+                </TableCell>
               </TableRow>
             ))
           : null
