@@ -233,16 +233,33 @@ export async function listRubrics(): Promise<Rubric[]> {
   return data as unknown as Rubric[];
 }
 
+export type SaveRubricInput =
+  | {
+      name: string;
+      kind?: 'qa';
+      criteria: { description: string; maxPoints: number; key?: string }[];
+    }
+  | {
+      name: string;
+      kind: 'qs';
+      approaches: {
+        name: string;
+        key?: string;
+        steps: { description: string; maxPoints: number; key?: string }[];
+      }[];
+    };
+
 /**
  * Always a NEW version — there is no update endpoint, because editing
  * criteria that existing results cite is what Security rule 7 forbids.
  */
-export async function saveRubric(
-  name: string,
-  criteria: { description: string; maxPoints: number; key?: string }[],
-): Promise<Rubric> {
+export async function saveRubric(input: SaveRubricInput): Promise<Rubric> {
+  const body =
+    input.kind === 'qs'
+      ? { name: input.name, kind: 'qs' as const, approaches: input.approaches }
+      : { name: input.name, kind: 'qa' as const, criteria: input.criteria };
   const { data, error, response } = await apiClient.POST('/rubrics', {
-    body: { name, criteria },
+    body: body as never,
   });
   if (error || !response.ok) throw fail(error, response);
   return data as unknown as Rubric;

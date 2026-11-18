@@ -258,6 +258,7 @@ function RulesContent() {
         existingNames={overviews.map((o) => o.rubricName)}
         errorCounts={errorCounts}
         overviews={overviews}
+        rubrics={rubrics.data ?? []}
         onSaved={(saved) => {
           // Rubric mới chưa gắn phiên nào nên chưa thuộc học kỳ nào: bỏ lọc để nó không biến mất khỏi danh sách.
           setSem(null);

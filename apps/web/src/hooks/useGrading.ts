@@ -44,11 +44,23 @@ export function useRubrics() {
 export function useSaveRubric() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
-      name: string;
-      // `key` của tiêu chí CÓ SẴN phải đi kèm — bỏ nó thì server sinh lại từ mô tả (xem lib/rubric-form).
-      criteria: { description: string; maxPoints: number; key?: string }[];
-    }) => saveRubric(input.name, input.criteria),
+    mutationFn: (
+      input:
+        | {
+            name: string;
+            kind?: 'qa';
+            criteria: { description: string; maxPoints: number; key?: string }[];
+          }
+        | {
+            name: string;
+            kind: 'qs';
+            approaches: {
+              name: string;
+              key?: string;
+              steps: { description: string; maxPoints: number; key?: string }[];
+            }[];
+          },
+    ) => saveRubric(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['rubrics'] });
       // Rubric mới / sửa tiêu chí đổi cả tổng quan Bảng lỗi (ô chọn, đếm tiêu chí, lỗi mồ côi).
