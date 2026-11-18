@@ -113,7 +113,7 @@ function RulesContent() {
   if (overview.isError) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>Không tải được Bảng lỗi — {overview.error?.message}. Thử tải lại trang.</AlertDescription>
+        <AlertDescription>Không tải được Bảng lỗi - {overview.error?.message}. Thử tải lại trang.</AlertDescription>
       </Alert>
     );
   }
@@ -158,15 +158,21 @@ function RulesContent() {
         description={
           current
             ? (current.kind ?? 'qa') === 'qs'
-              ? 'Rubric QS: lỗi gắn theo bước checklist trong từng hướng. Khi chấm chỉ một hướng được chọn.'
+              ? 'Rubric QS: xem cách giải và thứ tự bước checklist. Tạm thời không gắn lỗi vào bước - AI chọn cách giải khi chấm.'
               : 'Chọn rubric, rồi ghi lại những lỗi sinh viên hay mắc ở từng tiêu chí và điểm bị trừ cho mỗi lỗi. Bài chấm sẽ trừ điểm đúng theo bảng này.'
             : 'Nơi bạn ghi lại những lỗi sinh viên hay mắc và điểm bị trừ cho từng lỗi, để bài thi được chấm đúng theo cách của bạn.'
         }
         actions={
-          <Button type="button" variant="primary" disabled={!current} onClick={() => setDrawer({ kind: 'add', criterionKey: null, prefill: null })}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Thêm lỗi
-          </Button>
+          current && (current.kind ?? 'qa') !== 'qs' ? (
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setDrawer({ kind: 'add', criterionKey: null, prefill: null })}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Thêm lỗi
+            </Button>
+          ) : null
         }
       />
 
@@ -194,24 +200,30 @@ function RulesContent() {
               if (rubricRecord) setRubricDialog('edit');
             }}
           />
-          <ReadinessBanner
-            overview={current}
-            overviews={overviews}
-            errors={errors.data}
-            onAddManually={() => setDrawer({ kind: 'add', criterionKey: null, prefill: null })}
-            onGoToCriterion={goToCriterion}
-            onOpenProposals={() => setTab('proposals')}
-            onOpenDangling={() => goToCriterion(DANGLING_KEY)}
-          />
+          {(current.kind ?? 'qa') !== 'qs' ? (
+            <ReadinessBanner
+              overview={current}
+              overviews={overviews}
+              errors={errors.data}
+              onAddManually={() => setDrawer({ kind: 'add', criterionKey: null, prefill: null })}
+              onGoToCriterion={goToCriterion}
+              onOpenProposals={() => setTab('proposals')}
+              onOpenDangling={() => goToCriterion(DANGLING_KEY)}
+            />
+          ) : null}
 
           <div role="tablist" aria-label="Nội dung" className="mt-6 flex gap-1 border-b border-border">
             {tabButton(
               'errors',
-              (current.kind ?? 'qa') === 'qs' ? 'Lỗi theo bước' : 'Lỗi theo tiêu chí',
-              current.errorCount,
+              (current.kind ?? 'qa') === 'qs' ? 'Cấu trúc QS' : 'Lỗi theo tiêu chí',
+              (current.kind ?? 'qa') === 'qs' ? null : current.errorCount,
             )}
-            {tabButton('proposals', 'Lỗi AI đề xuất', current.proposalCount, true)}
-            {tabButton('library', 'Thư viện lỗi', library.data?.length ?? null)}
+            {(current.kind ?? 'qa') !== 'qs' ? (
+              <>
+                {tabButton('proposals', 'Lỗi AI đề xuất', current.proposalCount, true)}
+                {tabButton('library', 'Thư viện lỗi', library.data?.length ?? null)}
+              </>
+            ) : null}
           </div>
 
           {tab === 'errors' && (
@@ -228,7 +240,7 @@ function RulesContent() {
               onOpenRubric={select}
             />
           )}
-          {tab === 'proposals' && (
+          {tab === 'proposals' && (current.kind ?? 'qa') !== 'qs' && (
             <ProposalsTab
               overview={current}
               proposals={proposals.data}
@@ -237,7 +249,7 @@ function RulesContent() {
               onAdd={(prefill) => setDrawer({ kind: 'add', criterionKey: null, prefill })}
             />
           )}
-          {tab === 'library' && (
+          {tab === 'library' && (current.kind ?? 'qa') !== 'qs' && (
             <LibraryTab
               rules={library.data}
               loading={library.isLoading}

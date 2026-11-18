@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCourseHubRubric } from '@/hooks/useMasterData';
 import { formatVnPoints } from '@/lib/format';
 import { formatCreatedAt } from '@/lib/format-created-at';
+import { approachOrdinalLabel } from '@/lib/qs-rubric-form';
 
 export default function AdminRubricDetailPage({
   params,
@@ -83,7 +84,7 @@ function RubricDetail({
       <dl className="grid gap-3 text-small sm:grid-cols-2">
         <div>
           <dt className="text-caption text-muted-foreground">Người tạo</dt>
-          <dd>{rubric.teacherName ?? '—'}</dd>
+          <dd>{rubric.teacherName ?? '-'}</dd>
         </div>
         <div>
           <dt className="text-caption text-muted-foreground">Thời điểm tạo</dt>
@@ -91,7 +92,7 @@ function RubricDetail({
         </div>
         <div>
           <dt className="text-caption text-muted-foreground">Loại</dt>
-          <dd>{isQs ? 'QS — theo câu' : 'QA — tiêu chí phẳng'}</dd>
+          <dd>{isQs ? 'QS - theo câu' : 'QA - tiêu chí phẳng'}</dd>
         </div>
         <div>
           <dt className="text-caption text-muted-foreground">Tổng điểm</dt>
@@ -102,28 +103,42 @@ function RubricDetail({
       {isQs ? (
         <section className="flex flex-col gap-4">
           <h2 className="text-small font-semibold">
-            Hướng lời giải ({rubric.approaches.length})
+            Cách giải ({rubric.approaches.length})
           </h2>
-          {rubric.approaches.map((ap) => (
-            <article key={ap.key} className="rounded-md border border-border p-4">
-              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-medium">{ap.name}</h3>
-                <span className="text-caption text-muted-foreground">
-                  {formatVnPoints(ap.maxPoints)} điểm
-                </span>
-              </div>
-              <ol className="flex list-decimal flex-col gap-2 pl-5">
-                {ap.steps.map((st) => (
-                  <li key={st.key} className="text-body">
-                    <span>{st.description}</span>
-                    <span className="ml-2 text-caption text-muted-foreground">
-                      ({formatVnPoints(st.maxPoints)})
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </article>
-          ))}
+          {rubric.approaches.map((ap, ai) => {
+            const ordinal = approachOrdinalLabel(ai);
+            const extra =
+              ap.name.trim() && ap.name.trim() !== ordinal ? ` - ${ap.name.trim()}` : '';
+            return (
+              <article key={ap.key} className="rounded-md border border-border p-4">
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="font-medium">
+                    {ordinal}
+                    {extra}
+                  </h3>
+                  <span className="text-caption text-muted-foreground">
+                    {ap.steps.length} bước · {formatVnPoints(ap.maxPoints)} điểm
+                  </span>
+                </div>
+                <ol className="flex list-none flex-col gap-2">
+                  {ap.steps.map((st, si) => (
+                    <li key={st.key} className="flex gap-3 text-body">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-caption font-semibold">
+                        {si + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-caption text-muted-foreground">Bước {si + 1}</p>
+                        <p>{st.description}</p>
+                      </div>
+                      <span className="shrink-0 text-caption text-muted-foreground">
+                        {formatVnPoints(st.maxPoints)} điểm
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </article>
+            );
+          })}
         </section>
       ) : (
         <section className="flex flex-col gap-3">

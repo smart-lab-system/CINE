@@ -1,7 +1,11 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { PLAYGROUND_CONCURRENCY, PLAYGROUND_QUEUE } from './playground.constants';
+import {
+  PLAYGROUND_CONCURRENCY,
+  PLAYGROUND_JOB_EXPIRE,
+  PLAYGROUND_QUEUE,
+} from './playground.constants';
 import { PlaygroundService } from './playground.service';
 
 @Processor(PLAYGROUND_QUEUE, {
@@ -17,12 +21,21 @@ export class PlaygroundProcessor extends WorkerHost {
   }
 
   async process(job: Job<{ runId: string }>): Promise<void> {
+    if (job.name === PLAYGROUND_JOB_EXPIRE) {
+      await this.playground.processExpire(job.data.runId);
+      return;
+    }
     await this.playground.processRun(job.data.runId);
   }
 
   @OnWorkerEvent('failed')
   async onFailed(job: Job<{ runId: string }> | undefined, error: Error): Promise<void> {
     if (!job) return;
+    // Expire fail: để sweep bắt lại — không markFailed cả preview.
+    if (job.name === PLAYGROUND_JOB_EXPIRE) {
+      this.logger.warn(`playground expire ${job.data.runId}: ${error.message}`);
+      return;
+    }
     const attempts = job.opts.attempts ?? 1;
     this.logger.warn(
       `playground ${job.data.runId}: lần ${job.attemptsMade}/${attempts} — ${error.message}`,

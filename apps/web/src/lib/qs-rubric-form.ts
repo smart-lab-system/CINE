@@ -39,8 +39,13 @@ export function newQsStep(id: string): QsStepRow {
   return { id, key: '', existing: false, description: '', maxPoints: '1' };
 }
 
-export function newQsApproach(id: string, stepId: string): QsApproachRow {
-  return { id, key: '', existing: false, name: '', steps: [newQsStep(stepId)] };
+export function newQsApproach(id: string, stepId: string, name = ''): QsApproachRow {
+  return { id, key: '', existing: false, name, steps: [newQsStep(stepId)] };
+}
+
+/** Nhãn ổn định "Cách giải N" - N = thứ tự 1-based trong form. */
+export function approachOrdinalLabel(index: number): string {
+  return `Cách giải ${index + 1}`;
 }
 
 export function approachesFromRubric(rubric: Rubric): QsApproachRow[] {
@@ -64,7 +69,7 @@ export function approachesFromRubric(rubric: Rubric): QsApproachRow[] {
       id: `ap-${key}-${i}`,
       key: key === '_' ? '' : key,
       existing: key !== '_',
-      name: key === '_' ? `Hướng ${i + 1}` : key,
+      name: key === '_' ? `Cách giải ${i + 1}` : key,
       steps: steps.map((s) => ({
         id: s.id,
         key: s.key,
@@ -98,7 +103,7 @@ export function sumApproachCaps(approach: QsApproachRow): number {
   return Math.round(sum * 100) / 100;
 }
 
-/** Tổng điểm rubric QS = max các hướng. */
+/** Tổng điểm rubric QS = max các cách giải. */
 export function maxApproachCaps(approaches: QsApproachRow[]): number {
   if (approaches.length === 0) return 0;
   return Math.max(...approaches.map(sumApproachCaps));
@@ -123,7 +128,7 @@ export function validateQsRubric(
     if (name === '') errors.name = 'Đặt tên cho rubric.';
     else if (name.length > 200) errors.name = 'Tên tối đa 200 ký tự.';
     else if (meta.existingNames.includes(name)) {
-      errors.name = 'Đã có rubric tên này — chọn nó rồi sửa thay vì tạo lại.';
+      errors.name = 'Đã có rubric tên này - chọn nó rồi sửa thay vì tạo lại.';
     }
   }
 
@@ -134,19 +139,19 @@ export function validateQsRubric(
   const total = parseCap(meta.totalPoints);
   if (total === null) errors.totalPoints = TOTAL_ERROR;
 
-  if (approaches.length === 0) errors.general = 'Rubric QS cần ít nhất một hướng.';
-  else if (approaches.length > 20) errors.general = 'Tối đa 20 hướng.';
+  if (approaches.length === 0) errors.general = 'Rubric QS cần ít nhất một cách giải.';
+  else if (approaches.length > 20) errors.general = 'Tối đa 20 cách giải.';
 
   let capsOk = true;
 
   for (const ap of approaches) {
     const ae = approachError(ap.id);
     if (ap.name.trim().length < 1 || ap.name.trim().length > 200) {
-      ae.name = 'Tên hướng: 1–200 ký tự.';
+      ae.name = 'Tên cách giải: 1–200 ký tự.';
     }
 
-    if (ap.steps.length === 0) ae.steps = 'Mỗi hướng cần ≥ 1 bước.';
-    else if (ap.steps.length > 30) ae.steps = 'Tối đa 30 bước / hướng.';
+    if (ap.steps.length === 0) ae.steps = 'Mỗi cách giải cần ≥ 1 bước.';
+    else if (ap.steps.length > 30) ae.steps = 'Tối đa 30 bước / cách giải.';
 
     for (const step of ap.steps) {
       const se = (ae.stepsById ??= {})[step.id] ??= {};
@@ -164,7 +169,7 @@ export function validateQsRubric(
   if (errors.general === undefined && total !== null && capsOk && approaches.length > 0) {
     const max = maxApproachCaps(approaches);
     if (max > total) {
-      errors.general = `Điểm hướng cao nhất (${formatVnPoints(max)}) vượt tổng điểm (${formatVnPoints(total)}).`;
+      errors.general = `Điểm cách giải cao nhất (${formatVnPoints(max)}) vượt tổng điểm (${formatVnPoints(total)}).`;
     }
   }
 
@@ -184,7 +189,7 @@ export function hasQsErrors(errors: QsRubricErrors): boolean {
   return false;
 }
 
-/** Server tự gán khoá hướng (từ tên) và bước `{approachKey}_s{n}` — không gửi key. */
+/** Server tự gán khoá hướng (từ tên) và bước `{approachKey}_s{n}` - không gửi key. */
 export function buildSaveQsInput(
   name: string,
   approaches: QsApproachRow[],

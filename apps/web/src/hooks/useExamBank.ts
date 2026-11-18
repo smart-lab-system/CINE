@@ -36,6 +36,21 @@ export function useCourseExam(examId: string | null) {
   });
 }
 
+/** Đề trong môn có ít nhất một câu gắn rubricId. */
+export function useExamsLinkingRubric(courseId: string | null, rubricId: string | null) {
+  return useQuery({
+    queryKey: ['exam-bank', 'by-rubric', courseId, rubricId],
+    enabled: Boolean(courseId && rubricId),
+    queryFn: async () => {
+      const summaries = await listCourseExams(courseId!);
+      const details = await Promise.all(summaries.map((s) => getCourseExam(s.id)));
+      return details.filter((exam) =>
+        exam.questions.some((q) => q.rubricId === rubricId),
+      );
+    },
+  });
+}
+
 export function useExamBankMutations() {
   const qc = useQueryClient();
   const invalidate = () => {

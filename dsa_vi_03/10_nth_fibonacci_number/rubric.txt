@@ -5,7 +5,6 @@ Solution 1: Cách tiếp cận ngây thơ - Đệ quy (Naive Approach - Recursio
    2. Với n > 1, tính toán đệ quy F(n) = F(n-1) + F(n-2). [2 marks]
    3. Trả về kết quả cuối cùng cho số Fibonacci thứ n. [1 mark]
 Solution 2: Cách tiếp cận Memoization
-
       1. Tạo một mảng memoization có kích thước n+1 và khởi tạo tất cả các phần tử bằng -1. [1 mark]
       2. Cài đặt các base case: nếu n ≤ 1, trả về n. [1 mark]
       3. Kiểm tra xem kết quả đã được tính toán trong mảng memoization chưa; nếu có, trả về giá trị đã lưu. [1 mark]

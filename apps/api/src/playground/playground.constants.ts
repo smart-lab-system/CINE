@@ -1,11 +1,18 @@
 export const PLAYGROUND_QUEUE = 'playground-console';
 
+/** Job names trên cùng queue. */
+export const PLAYGROUND_JOB_EXECUTE = 'execute';
+export const PLAYGROUND_JOB_EXPIRE = 'expire';
+
 export const PLAYGROUND_JOB_OPTIONS = {
   attempts: 2,
   backoff: { type: 'fixed' as const, delay: 2_000 },
   removeOnComplete: 50,
   removeOnFail: 50,
 };
+
+/** Sweep lưới an toàn (thưa) — delayed job tắt đúng giờ. */
+export const PLAYGROUND_EXPIRE_SWEEP_MS = 5 * 60 * 1000;
 
 export const PLAYGROUND_CONCURRENCY = 2;
 

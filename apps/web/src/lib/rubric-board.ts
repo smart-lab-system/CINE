@@ -3,7 +3,7 @@ import { formatVnPoints } from './format';
 
 /**
  * Logic thuần của trang Bảng lỗi (spec mục 5.2, 5.6): trạng thái và việc cần làm của một rubric, ô chọn rubric
- * khi có nhiều rubric, học kỳ, xem trước sao chép và câu "Lưu thì áp vào đâu". Không React, không mạng — để test
+ * khi có nhiều rubric, học kỳ, xem trước sao chép và câu "Lưu thì áp vào đâu". Không React, không mạng - để test
  * được từng luật (T-RBE-UI-1). Chỗ DUY NHẤT chạm `localStorage` của trang cũng nằm ở đây, luôn trong try/catch.
  */
 
@@ -23,8 +23,10 @@ export type BoardTask =
   | { kind: 'proposals'; count: number }
   | { kind: 'dangling'; count: number };
 
-/** Mỗi LOẠI việc có mặt đếm một (không đếm theo số lỗi) — đúng "Còn N việc" ở mock-up. */
+/** Mỗi LOẠI việc có mặt đếm một (không đếm theo số lỗi) - đúng "Còn N việc" ở mock-up. */
 export function tasksOf(o: RubricOverview): BoardTask[] {
+  // QS: chấm checklist cách giải/bước - tạm không dùng bảng lỗi gắn bước.
+  if ((o.kind ?? 'qa') === 'qs') return [];
   const tasks: BoardTask[] = [];
   const empty = o.criteria.filter((c) => c.errorCount === 0 && c.waiverId === null);
   if (empty.length > 0) tasks.push({ kind: 'empty_criteria', criteria: empty });
@@ -37,8 +39,12 @@ export function tasksOf(o: RubricOverview): BoardTask[] {
 /**
  * `new`: chưa có lỗi nào (và chưa phải mọi tiêu chí đều "không trừ điểm"); `todo`: còn việc; `ready`: hết việc.
  * Đúng với T-FLOOR-6: tiêu chí không có lỗi và không được đánh dấu thì bài chấm theo rubric không tự quyết.
+ * QS: luôn `ready` về mặt bảng lỗi (không yêu cầu gắn lỗi vào bước).
  */
 export function statusOf(o: RubricOverview): { status: BoardStatus; tasks: BoardTask[]; label: string } {
+  if ((o.kind ?? 'qa') === 'qs') {
+    return { status: 'ready', tasks: [], label: 'QS - chấm checklist theo cách giải' };
+  }
   const tasks = tasksOf(o);
   const allWaived = o.criteria.every((c) => c.waiverId !== null);
   if (o.errorCount === 0 && !allWaived) return { status: 'new', tasks, label: 'Chưa có lỗi nào' };
@@ -49,13 +55,13 @@ export function statusOf(o: RubricOverview): { status: BoardStatus; tasks: Board
 function taskSentence(task: BoardTask): string {
   switch (task.kind) {
     case 'empty_criteria':
-      return `Tiêu chí ${capNames(task.criteria.map((c) => shorten(c.description)), 3, 'tiêu chí')} chưa có lỗi nào — bài dính tiêu chí đó không tự quyết.`;
+      return `Tiêu chí ${capNames(task.criteria.map((c) => shorten(c.description)), 3, 'tiêu chí')} chưa có lỗi nào - bài dính tiêu chí đó không tự quyết.`;
     case 'unpriced':
-      return `${task.count} lỗi chưa có điểm trừ — bài dính chúng sẽ vào nhóm cần bạn xem.`;
+      return `${task.count} lỗi chưa có điểm trừ - bài dính chúng sẽ vào nhóm cần bạn xem.`;
     case 'proposals':
-      return `${task.count} lỗi AI đề xuất chưa xử lý — đang bị loại khỏi điểm.`;
+      return `${task.count} lỗi AI đề xuất chưa xử lý - đang bị loại khỏi điểm.`;
     case 'dangling':
-      return `${task.count} lỗi gắn tiêu chí không còn trong rubric — chuyển sang tiêu chí khác.`;
+      return `${task.count} lỗi gắn tiêu chí không còn trong rubric - chuyển sang tiêu chí khác.`;
   }
 }
 
@@ -64,18 +70,18 @@ export function warningSentences(o: RubricOverview): string[] {
   const { status, tasks } = statusOf(o);
   if (status === 'ready') return [];
   if (status === 'new') {
-    return ['Rubric này chưa có lỗi nào — mọi bài chấm theo rubric này sẽ chuyển sang “Cần bạn xem” thay vì tự duyệt.'];
+    return ['Rubric này chưa có lỗi nào - mọi bài chấm theo rubric này sẽ chuyển sang “Cần bạn xem” thay vì tự duyệt.'];
   }
   return tasks.map(taskSentence);
 }
 
 // ── chuỗi ────────────────────────────────────────────────────────────────────────────────────
 
-/** Bỏ dấu tiếng Việt (kể cả đ), chữ thường — để tìm "cuoi ky" ra "Cuối kỳ". */
+/** Bỏ dấu tiếng Việt (kể cả đ), chữ thường - để tìm "cuoi ky" ra "Cuối kỳ". */
 export const fold = (s: string): string =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 
-/** "A, B và 8 rubric khác" — mọi chỗ liệt kê rubric / phiên đều chặn trần (D7). */
+/** "A, B và 8 rubric khác" - mọi chỗ liệt kê rubric / phiên đều chặn trần (D7). */
 export function capNames(names: string[], max = 2, unit = 'rubric'): string {
   return names.length <= max ? names.join(', ') : `${names.slice(0, max).join(', ')} và ${names.length - max} ${unit} khác`;
 }
@@ -118,7 +124,7 @@ export function semesterChoices(all: RubricOverview[]): { value: string | null; 
   return choices;
 }
 
-/** Lọc theo học kỳ chỉ THU HẸP tầm nhìn — không bao giờ chặn thao tác (`CLAUDE.md` §1.2). */
+/** Lọc theo học kỳ chỉ THU HẸP tầm nhìn - không bao giờ chặn thao tác (`CLAUDE.md` §1.2). */
 export const inSemester = (all: RubricOverview[], sem: string | null): RubricOverview[] =>
   sem === null ? all : all.filter((o) => semestersOf(o).includes(sem));
 
@@ -141,7 +147,7 @@ export function filterCounts(all: RubricOverview[], sem: string | null): Record<
 }
 
 /**
- * "Gần đây" = rubric đã mở gần đây trước (theo lịch sử), rồi theo thứ tự máy chủ trả (lưu mới nhất trước) —
+ * "Gần đây" = rubric đã mở gần đây trước (theo lịch sử), rồi theo thứ tự máy chủ trả (lưu mới nhất trước) -
  * không sắp theo tên khi chưa có lịch sử, vì rubric vừa lưu mới là cái giảng viên đang tìm.
  */
 export function pickRubrics(all: RubricOverview[], query: PickQuery, recent: string[]): RubricOverview[] {
@@ -251,9 +257,9 @@ export function impactLines(sessions: OverviewSession[], detection: 'auto' | 'ai
     state: s.state,
     text:
       s.state === 'finalized'
-        ? 'Giữ nguyên điểm — bảng điểm trừ đã được ghim lúc chốt.'
+        ? 'Giữ nguyên điểm - bảng điểm trừ đã được ghim lúc chốt.'
         : s.state === 'not_started'
-          ? 'Chưa chấm bài nào — lỗi sẽ được dùng khi bắt đầu chấm.'
+          ? 'Chưa chấm bài nào - lỗi sẽ được dùng khi bắt đầu chấm.'
           : detection === 'auto'
             ? `Tính lại ngay các bài dính lỗi này (trong ${s.resultCount} bài).`
             : 'AI xét lỗi này từ các bài chưa chấm; bài đã chấm không tính lại.',
@@ -279,5 +285,5 @@ export function overCap(deductions: (string | null)[], max: number): number | nu
   return hundredths > Math.round(max * 100) ? hundredths / 100 : null;
 }
 
-/** Tổng điểm hiện "10,0 điểm" — dùng chung cho ô chọn và thanh thông tin rubric. */
+/** Tổng điểm hiện "10,0 điểm" - dùng chung cho ô chọn và thanh thông tin rubric. */
 export const pointsText = (value: number): string => `${formatVnPoints(value)} điểm`;

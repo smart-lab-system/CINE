@@ -4,20 +4,20 @@ import { apiClient } from '@/lib/api-client';
 export interface Rubric {
   id: string;
   teacherId: string;
-  /** Neo ngân hàng môn — null với legacy. */
+  /** Neo ngân hàng môn - null với legacy. */
   courseId?: string | null;
   /** Tên do giảng viên đặt. Thay vai trò định danh mà môn học từng giữ. */
   name: string;
   version: number;
   isActive: boolean;
-  /** Soft-deactivate admin — độc lập versioning; optional cho fixture cũ. */
+  /** Soft-deactivate admin - độc lập versioning; optional cho fixture cũ. */
   isArchived?: boolean;
-  /** `qa` (mặc định) hoặc `qs` — checklist nhiều hướng theo câu (DSA). */
+  /** `qa` (mặc định) hoặc `qs` - checklist nhiều hướng theo câu (DSA). */
   kind?: 'qa' | 'qs';
   totalPoints: number;
   updatedAt?: string;
   /**
-   * `key` là định danh ỔN ĐỊNH của tiêu chí — luật trỏ vào nó (`criterionKey`). Lưu rubric mà bỏ `key`
+   * `key` là định danh ỔN ĐỊNH của tiêu chí - luật trỏ vào nó (`criterionKey`). Lưu rubric mà bỏ `key`
    * thì server sinh lại từ mô tả, và sửa một mô tả có thể âm thầm cắt liên kết luật → tiêu chí.
    */
   /** Thời điểm tạo bản này (ISO). Server luôn trả; tuỳ chọn để không phá fixture. */
@@ -45,7 +45,7 @@ export interface ReviewCriterion {
   points: number;
   /**
    * Đoạn giảng viên tự bôi đen làm minh chứng, khi AI trích sai hoặc không
-   * trích được. Đi cùng `verdict` và `points` của chính tiêu chí đó — server
+   * trích được. Đi cùng `verdict` và `points` của chính tiêu chí đó - server
    * đòi payload phủ đủ mọi tiêu chí, nên không có đường gán minh chứng mà
    * bỏ trống đánh giá.
    */
@@ -55,7 +55,7 @@ export interface ReviewCriterion {
 /** Mirrors AdvocateOpinion (apps/api/src/grading/ai-provider/advocate.types.ts). */
 export interface AdvocateOpinion {
   isCorrect: 'yes' | 'partially' | 'no';
-  /** Văn xuôi, viết cho giảng viên đọc — không phải cho máy parse. */
+  /** Văn xuôi, viết cho giảng viên đọc - không phải cho máy parse. */
   reasoning: string;
   evidence: string[];
   suggestedVerdicts: {
@@ -86,14 +86,14 @@ export interface SubmissionTextSpan {
  * Bài làm kèm toạ độ dẫn chứng.
  *
  * Client KHÔNG tự so chuỗi. Server đối chiếu trên cả bài đã làm phẳng, nên
- * chỉ nó mới định vị đúng được — kể cả trích dẫn vắt qua ranh giới đoạn.
+ * chỉ nó mới định vị đúng được - kể cả trích dẫn vắt qua ranh giới đoạn.
  */
 export interface SubmissionText {
   paragraphs: string[];
   spans: SubmissionTextSpan[];
   /** Tiêu chí có dẫn chứng nhưng không tìm thấy trong bài làm. */
   unlocatable: string[];
-  /** Bài đã bị cắt LÚC CHẤM — phần sau đó model chưa bao giờ đọc. */
+  /** Bài đã bị cắt LÚC CHẤM - phần sau đó model chưa bao giờ đọc. */
   truncatedByGrading: boolean;
 }
 
@@ -103,7 +103,7 @@ export type ReadinessLevel = 'rubric_only' | 'with_question' | 'with_model_answe
  * Mirror `GradingSourceInfo` ở `apps/api/src/grading/grading-reference.service.ts`.
  *
  * `sources` là **tuỳ chọn** (`?`) vì `useGradingReadiness` phải chạy được với
- * một API chưa regenerate — nếu không, mọi màn chuẩn bị vỡ ngay lúc deploy
+ * một API chưa regenerate - nếu không, mọi màn chuẩn bị vỡ ngay lúc deploy
  * lệch phiên bản.
  */
 export interface GradingSourceInfo {
@@ -130,7 +130,7 @@ export interface GradingReadiness {
 }
 
 /** Mirrors GradingResultView (apps/api/src/grading/grading.service.ts). */
-/** Mirrors ResultTriage (apps/api/src/grading/scoring/result-triage.ts) — tóm tắt bảng lỗi trên mỗi dòng danh sách. */
+/** Mirrors ResultTriage (apps/api/src/grading/scoring/result-triage.ts) - tóm tắt bảng lỗi trên mỗi dòng danh sách. */
 export interface ResultTriage {
   caseFlags: { code: string; detail: string }[];
   errorFlags: { ruleKey: string; code: string }[];
@@ -151,14 +151,14 @@ export interface GradingResult {
   confidence: number | null;
   flagForReview: boolean;
   /**
-   * Vì sao AI KHÔNG chấm được bài này — `null` với mọi bài chấm bình
+   * Vì sao AI KHÔNG chấm được bài này - `null` với mọi bài chấm bình
    * thường. Đã qua `describeError()` ở backend trước khi tới đây, an
    * toàn hiển thị thẳng: không chứa bài làm của sinh viên hay khoá API.
    */
   ungradableReason: string | null;
   /**
    * Lớp lý do không chấm được (§4.4): `system` chấm lại được, `submission` thì không. `null` khi bài không dừng.
-   * **Tuỳ chọn** vì API cũ không gửi nó — và khi vắng, không dòng nào được coi là `system` (không đoán).
+   * **Tuỳ chọn** vì API cũ không gửi nó - và khi vắng, không dòng nào được coi là `system` (không đoán).
    */
   ungradableClass?: 'system' | 'submission' | null;
   criterionResults: {
@@ -170,7 +170,7 @@ export interface GradingResult {
      * Máy có định vị được `evidence` trong bài làm không (từ 2026-09-15).
      *
      * `null`/thiếu = chấm trước khi hệ thống ghi lại điều này, KHÁC `'ok'`.
-     * UI chưa dùng, nhưng kiểu phải nói đúng thứ API trả về — một kiểu nói
+     * UI chưa dùng, nhưng kiểu phải nói đúng thứ API trả về - một kiểu nói
      * thiếu là một kiểu sẽ được tin.
      */
     check?: 'ok' | 'empty' | 'unverified' | null;
@@ -178,7 +178,7 @@ export interface GradingResult {
   /**
    * Ý kiến của lượt phản biện.
    *
-   * `null` nghĩa là cổng KHÔNG kích hoạt — không có tiêu chí chưa đạt, hoặc
+   * `null` nghĩa là cổng KHÔNG kích hoạt - không có tiêu chí chưa đạt, hoặc
    * phiên chưa có đề bài. Khác hẳn "đã chạy và không bênh được gì", và màn
    * hình phải nói ra khác biệt đó thay vì vẽ một khối rỗng.
    */
@@ -192,7 +192,7 @@ export interface GradingResult {
   contextUsedQuestion: boolean | null;
   contextUsedModelAnswer: boolean | null;
   /**
-   * Điểm cuối cùng — dòng `teacher_review` mới nhất.
+   * Điểm cuối cùng - dòng `teacher_review` mới nhất.
    *
    * `null` nghĩa là "AI đã chấm, chưa ai duyệt", KHÔNG phải "điểm bằng 0".
    * Hai thứ đó không được hiển thị giống nhau.
@@ -202,20 +202,20 @@ export interface GradingResult {
   reviewedByName: string | null;
   editedCriteria: ReviewCriterion[] | null;
   /**
-   * Đường chấm của bài — gán một lần lúc bắt đầu chấm (§14.1).
+   * Đường chấm của bài - gán một lần lúc bắt đầu chấm (§14.1).
    *
    * Tuỳ chọn để không phá vỡ mọi fixture của màn chấm cũ (đường `one_shot`,
-   * chưa từng cần biết trường này) — server LUÔN trả nó thật.
+   * chưa từng cần biết trường này) - server LUÔN trả nó thật.
    */
   pipeline?: 'one_shot' | 'investigator';
-  /** Điểm hiện tại theo §14.2 — MỌI màn đọc điểm từ đây, không phải `aiTotalScore`. */
+  /** Điểm hiện tại theo §14.2 - MỌI màn đọc điểm từ đây, không phải `aiTotalScore`. */
   currentScore?: number | null;
   currentScoreSource?: string;
   /** Loại yêu cầu nộp của bài. Server LUÔN trả nó; tuỳ chọn chỉ để không phá fixture cũ. */
   deliverableType?: 'document' | 'code_project' | 'image' | null;
   /** Ngôn ngữ đã khai. `code_project` + `pipeline: 'one_shot'` = chấm bằng đọc mã, không chạy. */
   deliverableLanguage?: 'python' | 'cpp' | 'java' | 'node' | null;
-  /** Tóm tắt bảng lỗi (G1 §2). `null`/thiếu = không có bảng lỗi để tóm tắt — KHÔNG phải "không lỗi nào". */
+  /** Tóm tắt bảng lỗi (G1 §2). `null`/thiếu = không có bảng lỗi để tóm tắt - KHÔNG phải "không lỗi nào". */
   triage?: ResultTriage | null;
 }
 
@@ -238,6 +238,14 @@ export async function listRubrics(): Promise<Rubric[]> {
   return data as unknown as Rubric[];
 }
 
+export async function getRubric(id: string): Promise<Rubric> {
+  const { data, error, response } = await apiClient.GET('/rubrics/{id}', {
+    params: { path: { id } },
+  });
+  if (error || !response.ok) throw fail(error, response);
+  return data as unknown as Rubric;
+}
+
 export type SaveRubricInput =
   | {
       name: string;
@@ -257,7 +265,7 @@ export type SaveRubricInput =
     };
 
 /**
- * Always a NEW version — there is no update endpoint, because editing
+ * Always a NEW version - there is no update endpoint, because editing
  * criteria that existing results cite is what Security rule 7 forbids.
  */
 export async function saveRubric(input: SaveRubricInput): Promise<Rubric> {
@@ -285,7 +293,7 @@ export async function saveRubric(input: SaveRubricInput): Promise<Rubric> {
 /**
  * Đổi rubric của một phiên thi. `null` để gỡ.
  *
- * Server trả 409 khi phiên đã có kết quả chấm — từ lúc đó, đổi rubric là
+ * Server trả 409 khi phiên đã có kết quả chấm - từ lúc đó, đổi rubric là
  * viết lại lịch sử chấm điểm. UI phải tắt nút trước khi tới đó, nhưng lỗi
  * này vẫn là lớp chặn cuối.
  */
@@ -313,7 +321,7 @@ export async function startGrading(examSessionId: string): Promise<StartGradingR
  * Tiến độ của một lượt chấm đang chạy.
  *
  * `total`/`pending`/`done` đếm bản ghi chấm của CHÍNH phiên này.
- * `queue` là câu hỏi khác — hàng đợi toàn hệ thống có đang kẹt không —
+ * `queue` là câu hỏi khác - hàng đợi toàn hệ thống có đang kẹt không -
  * và cố ý tách riêng: trộn chúng lại sẽ cho giảng viên A thấy con số
  * của giảng viên B.
  */
@@ -353,7 +361,7 @@ export async function listGradingSessionSummaries(): Promise<GradingSessionSumma
 }
 
 /**
- * Một lần duyệt bài. Server tự tính tổng — client KHÔNG gửi `finalScore`.
+ * Một lần duyệt bài. Server tự tính tổng - client KHÔNG gửi `finalScore`.
  *
  * 409 khi bài còn đang chấm (`ai_grading`/`ai_graded`); 400 khi thiếu tiêu chí
  * hoặc điểm vượt thang.
@@ -383,7 +391,7 @@ export async function submitReview(
 
 /**
  * Chốt điểm cả phiên. 409 khi còn bài chưa duyệt xong; 400 khi phiên chưa chấm
- * bài nào. Gọi lần hai là vô hại — trả `{0, 0}`.
+ * bài nào. Gọi lần hai là vô hại - trả `{0, 0}`.
  */
 export async function finalizeGrades(
   examSessionId: string,
@@ -411,7 +419,7 @@ export async function listGradingResults(examSessionId: string): Promise<Grading
  * Trả về toạ độ, không phải chuỗi thô để client tự tìm. Xem
  * `docs/superpowers/specs/2026-09-16-grading-ui-design.md` §5.2 cho lý do:
  * phép đối chiếu chạy trên cả bài đã làm phẳng, nên client chẻ đoạn rồi tự
- * so sẽ trượt đúng những trích dẫn vắt qua ranh giới đoạn — và báo "không
+ * so sẽ trượt đúng những trích dẫn vắt qua ranh giới đoạn - và báo "không
  * tìm thấy" cho câu mà hệ thống đã xác nhận có thật.
  */
 export async function getSubmissionText(gradingResultId: string): Promise<SubmissionText> {
@@ -445,7 +453,7 @@ export interface GradingReferenceInput {
  *
  * BỎ TRỐNG một trường = GIỮ NGUYÊN; gửi `null` = XOÁ. Hai thứ đó khác nhau,
  * và gộp chúng sẽ khiến giảng viên chỉ sửa ghi chú lại mất luôn lựa chọn đề
- * bài — một mất mát họ không thấy cho tới lượt chấm sau.
+ * bài - một mất mát họ không thấy cho tới lượt chấm sau.
  *
  * Server trả 409 khi phiên đã có kết quả chấm: từ lúc đó, đổi tài liệu là
  * viết lại ngữ cảnh mà những bài đã chấm đã dùng.
@@ -465,7 +473,7 @@ export async function setGradingReference(
  * Xin URL để tải đáp án mẫu thẳng lên kho.
  *
  * File KHÔNG đi qua API server (Security rule 5). Khoá do server cấp, client
- * không được tự đặt — một khoá tuỳ ý sẽ cho phép trỏ bản ghi này vào bất kỳ
+ * không được tự đặt - một khoá tuỳ ý sẽ cho phép trỏ bản ghi này vào bất kỳ
  * object nào trong bucket.
  */
 export async function requestAnswerKeyUpload(
@@ -479,7 +487,7 @@ export async function requestAnswerKeyUpload(
   return data as unknown as { storageKey: string; uploadUrl: string; expiresIn: number };
 }
 
-/** Đuôi file mã đáp án — chỉ hai ngôn ngữ sandbox chạy được. */
+/** Đuôi file mã đáp án - chỉ hai ngôn ngữ sandbox chạy được. */
 export type AnswerSourceExtension = 'cpp' | 'py';
 
 /**
@@ -509,7 +517,7 @@ export async function confirmAnswerSource(examSessionId: string, storageKey: str
 }
 
 /**
- * Tải cả luồng: xin URL, PUT file thẳng lên kho, rồi xác nhận. PUT hỏng thì DỪNG, không xác nhận — lưu một tham chiếu
+ * Tải cả luồng: xin URL, PUT file thẳng lên kho, rồi xác nhận. PUT hỏng thì DỪNG, không xác nhận - lưu một tham chiếu
  * tới object không có thì lượt chạy thử sau đó sẽ báo "không khớp băm" mà giảng viên không hiểu vì sao. Đuôi sai bị từ
  * chối ngay ở đây, trước khi tốn một lời gọi.
  */
@@ -525,7 +533,7 @@ export async function uploadAnswerSource(examSessionId: string, file: File): Pro
 /**
  * Xếp lại những bài kẹt ở `ai_grading` mà KHÔNG còn job sống.
  *
- * `stuck` là số bài đang kẹt, `requeued` là số bài thật sự được xếp lại —
+ * `stuck` là số bài đang kẹt, `requeued` là số bài thật sự được xếp lại -
  * hai con số có thể khác nhau, và trộn chúng sẽ báo cho giảng viên một
  * tiến độ chưa xảy ra.
  */
@@ -556,18 +564,18 @@ export interface BulkReviewOutcome {
    * `skipped: 3` bắt giảng viên tự đi tìm ba bài nào trong bốn mươi lăm bài.
    */
   skipped: { resultId: string; reason: SkipReason }[];
-  /** Bài đã công bố — mỗi bài một dòng nhật ký. */
+  /** Bài đã công bố - mỗi bài một dòng nhật ký. */
   audited: number;
 }
 
 /**
  * Áp một luật cho nhiều bài.
  *
- * `resultIds` LUÔN tường minh, kể cả khi là cả phiên — "cho điểm tối đa cả
+ * `resultIds` LUÔN tường minh, kể cả khi là cả phiên - "cho điểm tối đa cả
  * lớp" là thao tác mà *cả lớp* phải do người gửi khai ra, không do server suy.
  *
  * 400 khi có id không thuộc phiên, hoặc tiêu chí không thuộc rubric của phiên
- * — cả hai đều KHÔNG áp gì cả.
+ * - cả hai đều KHÔNG áp gì cả.
  */
 export async function bulkReview(
   examSessionId: string,
@@ -588,14 +596,14 @@ export type RulePredicate =
   | { kind: 'complexity_exceeds_required' }
   | { kind: 'no_recursion'; functionName?: string };
 
-/** Mirrors Agreement (apps/api/src/grading/scoring/result-detail.ts) — độ khớp với giảng viên, §5.8b. */
+/** Mirrors Agreement (apps/api/src/grading/scoring/result-detail.ts) - độ khớp với giảng viên, §5.8b. */
 export interface Agreement {
   n: number;
   disagreements: number;
   paused: boolean;
 }
 
-/** Mirrors ConfidenceTerm (apps/api/src/grading/decision/confidence.ts) — một dòng của bảng đóng góp, §5.8. */
+/** Mirrors ConfidenceTerm (apps/api/src/grading/decision/confidence.ts) - một dòng của bảng đóng góp, §5.8. */
 export interface ConfidenceTerm {
   ruleKey: string;
   source: 'deterministic' | 'llm_with_tools' | 'llm_only';
@@ -618,7 +626,7 @@ export interface ResultDetailError {
   agreement: Agreement;
 }
 
-/** Mirrors TestBundleView (apps/api/src/grading/scoring/test-bundle-view.ts) — gói test của bài, §5.8c. */
+/** Mirrors TestBundleView (apps/api/src/grading/scoring/test-bundle-view.ts) - gói test của bài, §5.8c. */
 export interface TestBundleCase {
   caseKey: string;
   status: 'pass' | 'fail' | 'timeout' | 'error' | 'not_run';
@@ -646,21 +654,21 @@ export interface TestBundleView {
   uncoveredFailingCases: string[];
 }
 
-/** Phần có cấu trúc của một lời gọi `run_tests` — chỉ các trường giao diện dùng. */
+/** Phần có cấu trúc của một lời gọi `run_tests` - chỉ các trường giao diện dùng. */
 export interface StructuredRunTests {
   kind: 'run_tests';
   aborted: boolean;
   cases: { name: string; group: string | null; status: string; diff: string | null; ms: number }[];
 }
 
-/** Mirrors CaseLensNote (apps/api/src/grading/investigator/challenge.ts) — bước 6. */
+/** Mirrors CaseLensNote (apps/api/src/grading/investigator/challenge.ts) - bước 6. */
 export interface ChallengeNote {
   lens: string;
   suspected: boolean;
   note: string;
 }
 
-/** Mirrors ChallengeVerdictDetail (apps/api/src/grading/scoring/result-detail.ts) — bước 6. */
+/** Mirrors ChallengeVerdictDetail (apps/api/src/grading/scoring/result-detail.ts) - bước 6. */
 export interface ChallengeVerdict {
   lens: string;
   ruleKey: string;
@@ -713,9 +721,9 @@ export interface ResultDetail {
       structuredResults?: Record<string, { kind: string } | StructuredRunTests>;
     };
   } | null;
-  /** Bước 6 — ghi chú của lăng kính Bỏ sót/Gian lận. Rỗng khi chưa bật phản biện hay hồ sơ cũ. */
+  /** Bước 6 - ghi chú của lăng kính Bỏ sót/Gian lận. Rỗng khi chưa bật phản biện hay hồ sơ cũ. */
   challengeNotes: ChallengeNote[];
-  /** Bước 6 — kết luận từng lăng kính per-error (Tính đúng, Quá tay), kể cả khi xác nhận. */
+  /** Bước 6 - kết luận từng lăng kính per-error (Tính đúng, Quá tay), kể cả khi xác nhận. */
   challengeVerdicts: ChallengeVerdict[];
   /** Bảng đóng góp vào confidence (§5.8). Rỗng khi hồ sơ không lưu trần của model. */
   confidenceTerms: ConfidenceTerm[];
@@ -725,7 +733,7 @@ export interface ResultDetail {
   testBundle: TestBundleView | null;
 }
 
-/** Chi tiết một lượt tính điểm + đường điều tra — Hồ sơ một bài (§5). */
+/** Chi tiết một lượt tính điểm + đường điều tra - Hồ sơ một bài (§5). */
 export async function getResultInvestigation(gradingResultId: string): Promise<ResultDetail> {
   const { data, error, response } = await apiClient.GET('/grading-results/{id}/investigation', {
     params: { path: { id: gradingResultId } },
@@ -751,9 +759,9 @@ export async function setErrorException(
 }
 
 /**
- * Chấm tay bài này — điểm không đổi theo luật hay giá nữa (§2.2 spec chấm;
+ * Chấm tay bài này - điểm không đổi theo luật hay giá nữa (§2.2 spec chấm;
  * POST /grading-results/:id/manual-score). `score` PHẢI là chuỗi thập phân
- * ("7", "7.5", "7.25"), không phải số — server 400 nếu gửi number.
+ * ("7", "7.5", "7.25"), không phải số - server 400 nếu gửi number.
  */
 export async function setManualScore(
   gradingResultId: string,
@@ -776,11 +784,11 @@ export interface ReapplyPlan {
     newScore: string;
     changedRules: { ruleId: string; ruleKey: string; oldDeduction: string | null; newDeduction: string | null }[];
   }[];
-  /** Bài không áp được: luật lúc chốt có giá nay chưa có — lượt áp thật từ chối khi danh sách này khác rỗng. */
+  /** Bài không áp được: luật lúc chốt có giá nay chưa có - lượt áp thật từ chối khi danh sách này khác rỗng. */
   skipped: { resultId: string; reason: 'unpriced'; ruleKeys: string[] }[];
 }
 
-/** Xem trước "áp giá mới cho phiên đã chốt" — KHÔNG ghi gì. 409 khi phiên chưa chốt hết. */
+/** Xem trước "áp giá mới cho phiên đã chốt" - KHÔNG ghi gì. 409 khi phiên chưa chốt hết. */
 export async function previewReapplyPrices(examSessionId: string): Promise<ReapplyPlan> {
   const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/reapply-prices/preview', {
     params: { path: { id: examSessionId } },

@@ -14,6 +14,7 @@ import { useTeachingClasses } from '@/hooks/useTeaching';
 import type { Rubric } from '@/lib/api/grading';
 import { formatVnPoints } from '@/lib/format';
 import {
+  approachOrdinalLabel,
   approachesFromRubric,
   buildSaveQsInput,
   hasQsErrors,
@@ -56,7 +57,7 @@ export function QsRubricForm({
   const [approaches, setApproaches] = useState<QsApproachRow[]>(() => {
     if (rubric) return approachesFromRubric(rubric);
     if (seedApproaches?.length) return seedApproaches;
-    return [newQsApproach(nextId(), nextId())];
+    return [newQsApproach(nextId(), nextId(), approachOrdinalLabel(0))];
   });
   const [totalPoints, setTotalPoints] = useState(() => {
     if (rubric) return String(rubric.totalPoints);
@@ -134,10 +135,10 @@ export function QsRubricForm({
 
       <Alert>
         <AlertDescription>
-          QS: chấm theo một hướng; quy đổi{' '}
+          QS: chấm theo một cách giải; quy đổi{' '}
           <code className="text-xs">earned / M × điểm câu</code> với M = tổng mark
-          hướng cao nhất ({formatVnPoints(displayMax)}). Trần UI:{' '}
-          {parseCap(totalPoints) ?? '—'} điểm. Không cộng dồn mọi hướng.
+          cách giải cao nhất ({formatVnPoints(displayMax)}). Trần UI:{' '}
+          {parseCap(totalPoints) ?? '-'} điểm. Không cộng dồn mọi cách giải.
         </AlertDescription>
       </Alert>
 
@@ -168,7 +169,7 @@ export function QsRubricForm({
         </FormField>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Rubric: <span className="font-medium text-foreground">{rubric.name}</span> — lưu sẽ tạo phiên
+          Rubric: <span className="font-medium text-foreground">{rubric.name}</span> - lưu sẽ tạo phiên
           bản mới.
         </p>
       )}
@@ -189,38 +190,52 @@ export function QsRubricForm({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        {approaches.map((a, i) => (
-          <Button
-            key={a.id}
-            type="button"
-            size="sm"
-            variant={i === active ? 'default' : 'outline'}
-            onClick={() => setActive(i)}
-          >
-            {a.name.trim() || `Hướng ${i + 1}`} ({formatVnPoints(sumApproachCaps(a))})
-          </Button>
-        ))}
+        {approaches.map((a, i) => {
+          const ordinal = approachOrdinalLabel(i);
+          const custom = a.name.trim() && a.name.trim() !== ordinal ? a.name.trim() : null;
+          return (
+            <Button
+              key={a.id}
+              type="button"
+              size="sm"
+              variant={i === active ? 'default' : 'outline'}
+              onClick={() => setActive(i)}
+            >
+              {ordinal}
+              {custom ? ` - ${custom}` : ''} ({formatVnPoints(sumApproachCaps(a))})
+            </Button>
+          );
+        })}
         <Button
           type="button"
           size="sm"
           variant="outline"
           disabled={approaches.length >= 20}
           onClick={() => {
-            setApproaches((prev) => [...prev, newQsApproach(nextId(), nextId())]);
+            setApproaches((prev) => [
+              ...prev,
+              newQsApproach(nextId(), nextId(), approachOrdinalLabel(prev.length)),
+            ]);
             setActive(approaches.length);
           }}
         >
           <Plus className="mr-1 h-4 w-4" />
-          Thêm hướng
+          Thêm cách giải
         </Button>
       </div>
 
       {current ? (
         <div className="flex flex-col gap-3 rounded-md border border-border p-3">
           <div className="flex flex-wrap items-end gap-3">
+            <p className="w-full text-sm font-semibold text-foreground">
+              {approachOrdinalLabel(Math.max(0, approaches.findIndex((a) => a.id === current.id)))}
+              <span className="ml-2 font-normal text-muted-foreground">
+                · {current.steps.length} bước · {formatVnPoints(sumApproachCaps(current))} điểm
+              </span>
+            </p>
             <FormField
               id={`ap-name-${current.id}`}
-              label="Tên hướng"
+              label="Tên cách giải (tuỳ chọn - mô tả thêm)"
               className="min-w-[12rem] flex-1"
               error={errors.approaches[current.id]?.name}
             >
@@ -228,6 +243,9 @@ export function QsRubricForm({
                 id={`ap-name-${current.id}`}
                 value={current.name}
                 onChange={(e) => patchApproach(current.id, { name: e.target.value })}
+                placeholder={approachOrdinalLabel(
+                  Math.max(0, approaches.findIndex((a) => a.id === current.id)),
+                )}
               />
             </FormField>
             {approaches.length > 1 ? (
@@ -235,7 +253,7 @@ export function QsRubricForm({
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="Xóa hướng"
+                aria-label="Xóa cách giải"
                 onClick={() => {
                   setApproaches((prev) => prev.filter((a) => a.id !== current.id));
                   setActive((i) => Math.max(0, i - 1));
@@ -252,7 +270,10 @@ export function QsRubricForm({
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Bước checklist</span>
+              <span className="text-sm font-medium">
+                Các bước của {approachOrdinalLabel(Math.max(0, approaches.findIndex((a) => a.id === current.id)))}{' '}
+                (theo thứ tự)
+              </span>
               <Button
                 type="button"
                 size="sm"
@@ -274,11 +295,19 @@ export function QsRubricForm({
               return (
                 <div
                   key={step.id}
-                  className="grid gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-[1fr_6rem_auto]"
+                  className="grid gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-[2.5rem_1fr_6rem_auto]"
                 >
+                  <div className="flex items-end justify-center pb-2">
+                    <span
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary"
+                      aria-hidden
+                    >
+                      {si + 1}
+                    </span>
+                  </div>
                   <FormField
                     id={`st-desc-${step.id}`}
-                    label={`Bước ${si + 1}`}
+                    label={`Bước ${si + 1} - mô tả`}
                     error={se?.description}
                   >
                     <Input

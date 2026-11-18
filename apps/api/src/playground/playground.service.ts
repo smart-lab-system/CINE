@@ -16,6 +16,8 @@ import {
   type PlaygroundRunStatus,
 } from './entities/playground-run.entity';
 import {
+  PLAYGROUND_JOB_EXPIRE,
+  PLAYGROUND_JOB_EXECUTE,
   PLAYGROUND_JOB_OPTIONS,
   PLAYGROUND_LANGUAGES,
   PLAYGROUND_QUEUE,
@@ -459,12 +461,43 @@ export class PlaygroundService {
     );
   }
 
-  private async expireIfNeeded(row: PlaygroundRunEntity): Promise<void> {
+  private expireJobId(runId: string): string {
+    return `playground-expire-${runId}`;
+  }
+
+  /** Hủy delayed expire (stop sớm / chạy lại / đã hết hạn). */
+  private async cancelExpireJob(runId: string): Promise<void> {
+    try {
+      const job = await this.queue.getJob(this.expireJobId(runId));
+      if (job) await job.remove();
+    } catch {
+      /* job đã chạy xong hoặc không còn */
+    }
+  }
+
+  /** Xếp job BullMQ delay đúng expiresAt. */
+  private async scheduleExpireJob(runId: string, expiresAt: Date): Promise<void> {
+    await this.cancelExpireJob(runId);
+    const delay = Math.max(0, expiresAt.getTime() - Date.now());
+    await this.queue.add(
+      PLAYGROUND_JOB_EXPIRE,
+      { runId },
+      {
+        jobId: this.expireJobId(runId),
+        delay,
+        attempts: 1,
+        removeOnComplete: true,
+        removeOnFail: 20,
+      },
+    );
+  }
+
+  private async expireIfNeeded(row: PlaygroundRunEntity): Promise<boolean> {
     if (
       this.isPreviewLanguage(row.language) &&
       row.status === 'running' &&
       row.expiresAt &&
-      row.expiresAt.getTime() < Date.now()
+      row.expiresAt.getTime() <= Date.now()
     ) {
       await this.stopPreviewContainer(row);
       row.status = 'finished';
@@ -474,11 +507,21 @@ export class PlaygroundService {
       row.previewUrl = null;
       row.hostPort = null;
       await this.runs.save(row);
+      await this.cancelExpireJob(row.id);
+      return true;
     }
+    return false;
+  }
+
+  /** Delayed job `expire` — tắt đúng giờ. */
+  async processExpire(runId: string): Promise<void> {
+    const row = await this.runs.findOne({ where: { id: runId } });
+    if (!row) return;
+    await this.expireIfNeeded(row);
   }
 
   /**
-   * Quét các preview đã quá expiresAt — không phụ thuộc FE còn poll GET.
+   * Sweep thưa — lưới an toàn nếu delayed job mất / API restart lệch.
    * Gọi từ PlaygroundScheduler.
    */
   async expireExpiredPreviews(): Promise<number> {
@@ -487,17 +530,18 @@ export class PlaygroundService {
       .createQueryBuilder('r')
       .where('r.status = :status', { status: 'running' })
       .andWhere('r.expiresAt IS NOT NULL')
-      .andWhere('r.expiresAt < :now', { now })
+      .andWhere('r.expiresAt <= :now', { now })
       .andWhere('r.language IN (:...langs)', {
         langs: ['static', 'spring-boot', 'vite-react', 'express'],
       })
       .take(50)
       .getMany();
 
+    let n = 0;
     for (const row of rows) {
-      await this.expireIfNeeded(row);
+      if (await this.expireIfNeeded(row)) n += 1;
     }
-    return rows.length;
+    return n;
   }
 
   async execute(
@@ -551,13 +595,14 @@ export class PlaygroundService {
     row.hostPort = null;
     row.expiresAt = null;
     await this.runs.save(row);
+    await this.cancelExpireJob(row.id);
 
     const longBuild =
       row.language === 'spring-boot' ||
       row.language === 'vite-react' ||
       row.language === 'express';
     await this.queue.add(
-      'execute',
+      PLAYGROUND_JOB_EXECUTE,
       { runId: row.id },
       {
         ...PLAYGROUND_JOB_OPTIONS,
@@ -575,6 +620,7 @@ export class PlaygroundService {
     if (!row) throw new NotFoundException('không tìm thấy lượt chạy');
     if (row.createdByAccountId !== accountId) throw new ForbiddenException();
     await this.stopPreviewContainer(row);
+    await this.cancelExpireJob(row.id);
     row.status = 'finished';
     row.finishedAt = new Date();
     row.containerName = null;
@@ -608,6 +654,7 @@ export class PlaygroundService {
         row.error = null;
         row.status = 'running';
         await this.runs.save(row);
+        await this.scheduleExpireJob(row.id, row.expiresAt);
       } catch (e) {
         row.status = 'failed';
         row.error = e instanceof Error ? e.message : String(e);
@@ -630,6 +677,7 @@ export class PlaygroundService {
         row.error = null;
         row.status = 'running';
         await this.runs.save(row);
+        await this.scheduleExpireJob(row.id, row.expiresAt);
       } catch (e) {
         row.status = 'failed';
         row.error = e instanceof Error ? e.message : String(e);
@@ -652,6 +700,7 @@ export class PlaygroundService {
         row.error = null;
         row.status = 'running';
         await this.runs.save(row);
+        await this.scheduleExpireJob(row.id, row.expiresAt);
       } catch (e) {
         row.status = 'failed';
         row.error = e instanceof Error ? e.message : String(e);
@@ -675,6 +724,7 @@ export class PlaygroundService {
         row.error = null;
         row.status = 'running';
         await this.runs.save(row);
+        await this.scheduleExpireJob(row.id, row.expiresAt);
       } catch (e) {
         row.status = 'failed';
         row.error = e instanceof Error ? e.message : String(e);
@@ -705,6 +755,7 @@ export class PlaygroundService {
     if (!row) return;
     if (row.status === 'finished' || row.status === 'failed') return;
     await this.stopPreviewContainer(row).catch(() => undefined);
+    await this.cancelExpireJob(runId);
     row.status = 'failed';
     row.error = message;
     row.finishedAt = new Date();
