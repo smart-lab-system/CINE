@@ -18,7 +18,7 @@
 
 ## Đang / sẽ làm
 
-1. **Kho đề theo môn** — `2026-11-18-course-exam-bank` (đang triển khai)
-2. UI soạn QS gắn đề / nháp
+1. **Kho đề theo môn** — done
+2. UI soạn QS gắn đề / nháp — `2026-11-18-qs-rubric-ui` (done)
 3. Import Q+R từ `dsa_vi_03`
 4. Gắn UC33: AI gán approach khi `kind=qs`
