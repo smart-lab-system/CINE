@@ -23,6 +23,7 @@ import {
   SUBMISSION_GRACE_PERIOD_MS,
 } from './submission.types';
 import { isCollectionOpen } from '../exam-session/exam-session.types';
+import { JplagExamService } from '../ide-extensions/jplag/jplag-exam.service';
 import { ARCHIVE_CHECK_QUEUE } from './archive-check/archive-check.constants';
 import { ArchiveCheckJob, ARCHIVE_CHECK_JOB_OPTIONS } from './archive-check/archive-check.types';
 
@@ -123,6 +124,7 @@ export class SubmissionService {
     private readonly submissions: Repository<SubmissionEntity>,
     private readonly examSessions: ExamSessionService,
     private readonly storage: StorageService,
+    private readonly jplagExam: JplagExamService,
     @InjectQueue(ARCHIVE_CHECK_QUEUE)
     private readonly archiveCheckQueue: Queue<ArchiveCheckJob>,
   ) {}
@@ -248,6 +250,22 @@ export class SubmissionService {
           enqueueError instanceof Error ? enqueueError.stack : String(enqueueError),
         );
       }
+    }
+
+    // JPlag vs unauthorized extension snippets (best-effort; do not fail confirm).
+    try {
+      await this.jplagExam.enqueueFromSubmission({
+        examSessionId: identity.examSessionId,
+        studentMssv: identity.studentId,
+        submissionId: saved.id,
+        requiredDeliverableId: dto.requiredDeliverableId,
+      });
+    } catch (jplagError) {
+      this.logger.warn(
+        `Không enqueue JPlag vs-student cho submission ${saved.id}: ${
+          jplagError instanceof Error ? jplagError.message : String(jplagError)
+        }`,
+      );
     }
 
     return {

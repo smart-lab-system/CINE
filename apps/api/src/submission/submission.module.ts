@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { ExamSessionModule } from '../exam-session/exam-session.module';
+import { IdeExtensionsModule } from '../ide-extensions/ide-extensions.module';
 import { StorageModule } from '../storage/storage.module';
 import { SubmissionEntity } from './entities/submission.entity';
 import { SubmissionService } from './submission.service';
@@ -26,6 +27,7 @@ import { ArchiveRecheckController } from './archive-check/archive-recheck.contro
   imports: [
     TypeOrmModule.forFeature([SubmissionEntity]),
     ExamSessionModule,
+    IdeExtensionsModule,
     StorageModule,
     // Kiểm nội dung file nén chạy trên hàng đợi RIÊNG, không dùng chung
     // GRADING_QUEUE — spec 2026-09-21-archive-content-validation-design.md
