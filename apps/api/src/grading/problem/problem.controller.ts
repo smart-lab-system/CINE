@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { Roles } from '../../auth/roles.decorator';
@@ -18,6 +18,13 @@ export class ProblemController {
     private readonly problems: ProblemService,
     private readonly examSessions: ExamSessionService,
   ) {}
+
+  @Get('exam-sessions/:id/problems')
+  @Roles('teacher')
+  async list(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const session = await this.examSessions.findEntityForOwner(id, req.user!.sub);
+    return this.problems.listProblems(session.id);
+  }
 
   @Post('exam-sessions/:id/problems')
   @Roles('teacher')

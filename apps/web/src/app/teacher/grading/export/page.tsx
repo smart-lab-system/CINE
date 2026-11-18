@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/layout/page-header';
 import { useGradingResults } from '@/hooks/useGrading';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { stateOf } from '@/lib/session-triage';
@@ -59,15 +60,22 @@ function ExportContent() {
 
   return (
     <div className="flex flex-col gap-6">
-      <nav aria-label="Vị trí" className="flex items-center gap-1.5 text-caption text-muted-foreground">
-        <Link href={`/teacher/grading?sessionId=${sessionId}`} className="flex items-center gap-1 hover:text-foreground">
-          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Chấm điểm
-        </Link>
-        <span aria-hidden="true">›</span>
-        <span>{session.name}</span>
-      </nav>
-      <h1 className="text-h1">Ghi điểm vào sổ điểm</h1>
+      <div className="flex flex-col gap-4">
+        <nav aria-label="Vị trí" className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
+          <Link
+            href={`/teacher/grading?sessionId=${sessionId}`}
+            className="flex shrink-0 items-center gap-1 rounded-sm transition-colors duration-200 ease-smooth hover:text-foreground"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Chấm điểm
+          </Link>
+          <span aria-hidden="true">›</span>
+          <span className="truncate" title={session.name}>
+            {session.name}
+          </span>
+        </nav>
+        <PageHeader title="Ghi điểm vào sổ điểm" description="Điền điểm đã chốt của phiên này vào file sổ điểm mà trường phát." />
+      </div>
 
       {results.isError ? (
         <Alert variant="destructive">

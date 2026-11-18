@@ -37,7 +37,8 @@ export class InvestigationContextService {
   async build(resultId: string): Promise<BuiltContext> {
     const [row] = await this.ds.query(
       `SELECT s.storage_key, s.exam_session_id, es.teacher_id, g.problem_id,
-              rd.required_filename, rd.language, rb.name AS rubric_name
+              rd.required_filename, rd.language, rb.name AS rubric_name,
+              (SELECT p.statement FROM examcollect.exam_problem p WHERE p.id = g.problem_id) AS problem_statement
          FROM examcollect.grading_result g
          JOIN examcollect.submission s ON s.id = g.submission_id
          JOIN examcollect.exam_session es ON es.id = s.exam_session_id
@@ -57,9 +58,14 @@ export class InvestigationContextService {
     if (!cfg?.testBundleId) return system('phiên chưa ghim gói test — không có thước để chạy');
 
     const reference = await this.references.loadForGrading(row.exam_session_id);
-    const problemStatement = reference.questionPdf
-      ? (await extractText(reference.questionPdf, reference.questionFilename ?? '')).trim()
-      : '';
+    // Đề của CÂU của kết quả (P1b, §5.2): `exam_problem.statement` là đề riêng từng câu. `loadForGrading` chỉ đọc
+    // tham chiếu của câu mặc định, nên đề câu 2 trở đi không được lấy từ đó. Câu không có đề riêng (phiên một câu,
+    // đề gắn bằng tệp) thì đọc đề cấp phiên như trước.
+    const ownStatement = typeof row.problem_statement === 'string' ? row.problem_statement.trim() : '';
+    let problemStatement = ownStatement;
+    if (problemStatement === '' && reference.questionPdf) {
+      problemStatement = (await extractText(reference.questionPdf, reference.questionFilename ?? '')).trim();
+    }
     if (!problemStatement) {
       const name = reference.questionFilename ? ` (${reference.questionFilename})` : '';
       return system(`đề bài chưa đọc được thành chữ${name} — đường chấm điều tra cần đề dạng DOCX hay TXT`);

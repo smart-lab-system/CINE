@@ -39,7 +39,7 @@ export class OmissionLens implements CaseLens {
     }
     const userMessage = [
       caseLensContext(ctx, verdict, '(không có — bài được coi là đúng)'),
-      `Luật bằng lời CHƯA được kết luận — xét TỪNG luật: ${open.map((r) => `${r.ruleKey} (${r.title})`).join(', ')}`,
+      `Luật bằng lời CHƯA được kết luận — xét TỪNG luật: ${open.map((r) => `${r.ruleKey} (${r.title}${r.description ? `: ${r.description}` : ''})`).join('; ')}`,
       'Tự kiểm bằng công cụ của chính bạn, rồi trả bảng kiểm cho đủ các luật trên.',
     ].join('\n');
     const r = await runLensLoop(

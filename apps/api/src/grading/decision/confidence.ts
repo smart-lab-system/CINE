@@ -3,7 +3,7 @@ import { DiagnosedError, VerdictSource } from './types';
 /** Trần confidence theo NGUỒN GỐC, không theo bậc model (§4.2). */
 export const SOURCE_CAP: Record<VerdictSource, number> = {
   deterministic: 1,
-  llm_with_tools: 0.85,
+  llm_with_tools: 0.8,
   llm_only: 0.5,
 };
 

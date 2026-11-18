@@ -16,7 +16,7 @@ const SYSTEM_PROMPT = [
   '',
   LENS_PROTOCOL_HELP,
   '',
-  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["qua_tay-tc-N"],"reason":"một hai câu nêu vì sao"}}.',
+  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["qua_tay-tc-N"]}}.',
   'Một kết luận "refuted" không kèm ít nhất một lần run/run_tests THÀNH CÔNG của chính bạn sẽ bị',
   'hệ thống bỏ qua, dù bạn viết gì trong toolCallIds.',
 ].join('\n');

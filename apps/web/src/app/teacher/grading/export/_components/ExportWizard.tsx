@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { FileSpreadsheet } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { useInspectTemplate } from '@/hooks/useGradeExport';
 import type { InspectResponse } from '@/lib/api/grade-export';
 import { EMPTY_CHOICE, toPlanBase, type ColumnChoice } from '@/lib/grade-export-view';
@@ -10,8 +12,7 @@ import { PreviousExports } from './PreviousExports';
 import { StepColumns } from './StepColumns';
 import { StepPreview } from './StepPreview';
 import { StepUpload } from './StepUpload';
-
-const STEPS = ['Tải file', 'Chọn cột', 'Xem trước và ghi'] as const;
+import { WizardStepper } from './WizardStepper';
 
 /**
  * Ba bước ghi điểm vào sổ điểm (spec §3.6) và trạng thái chung của chúng. Đổi trang tính thì XOÁ lựa chọn cột (chữ
@@ -28,14 +29,8 @@ export function ExportWizard({ sessionId, sessionName, sessionCode }: { sessionI
     reinspect.mutate({ templateId: template!.templateId, ...body }, { onSuccess: (result) => setInspect(result) });
 
   return (
-    <div className="flex flex-col gap-8">
-      <ol aria-label="Các bước" className="flex flex-wrap gap-x-6 gap-y-2 text-small">
-        {STEPS.map((label, i) => (
-          <li key={label} aria-current={step === i + 1 ? 'step' : undefined} className={step === i + 1 ? 'font-semibold' : 'text-muted-foreground'}>
-            {i + 1}. {label}
-          </li>
-        ))}
-      </ol>
+    <div className="flex w-full max-w-5xl flex-col gap-6">
+      <WizardStepper step={step} />
 
       {reinspect.error && (
         <Alert variant="destructive">
@@ -43,52 +38,64 @@ export function ExportWizard({ sessionId, sessionName, sessionCode }: { sessionI
         </Alert>
       )}
 
-      {step === 1 && (
-        <StepUpload
-          sessionId={sessionId}
-          onInspected={(r) => {
-            setTemplate({ templateId: r.templateId, fileName: r.fileName });
-            setInspect(r.inspect);
-            // Chỉ khi file có ĐÚNG MỘT trang tính (server đã trả lưới) thì trang đó được chọn; cột thì không bao giờ.
-            setChoice({ ...EMPTY_CHOICE, sheetName: r.inspect.sheet?.name ?? '' });
-            setStep(2);
-          }}
-        />
-      )}
-
-      {step === 2 && inspect && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-caption text-muted-foreground">File: {template?.fileName}</p>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setStep(1)}>
-              Chọn file khác
-            </Button>
-          </div>
-          <StepColumns
-            inspect={inspect}
-            choice={choice}
-            busy={reinspect.isPending}
-            onChange={(patch) => setChoice((current) => ({ ...current, ...patch }))}
-            onSelectSheet={(name) => {
-              setChoice({ ...EMPTY_CHOICE, sheetName: name });
-              if (name) load({ sheetName: name });
+      <Card className="p-5 sm:p-6">
+        {step === 1 && (
+          <StepUpload
+            sessionId={sessionId}
+            onInspected={(r) => {
+              setTemplate({ templateId: r.templateId, fileName: r.fileName });
+              setInspect(r.inspect);
+              // Chỉ khi file có ĐÚNG MỘT trang tính (server đã trả lưới) thì trang đó được chọn; cột thì không bao giờ.
+              setChoice({ ...EMPTY_CHOICE, sheetName: r.inspect.sheet?.name ?? '' });
+              setStep(2);
             }}
-            onLoadRows={(fromRow) => load({ sheetName: choice.sheetName, fromRow })}
-            onNext={() => setStep(3)}
           />
-        </div>
-      )}
+        )}
 
-      {step === 3 && template && (
-        <StepPreview
-          sessionId={sessionId}
-          sessionName={sessionName}
-          sessionCode={sessionCode}
-          templateFileName={template.fileName}
-          request={toPlanBase(template.templateId, choice)}
-          onBack={() => setStep(2)}
-        />
-      )}
+        {step === 2 && inspect && (
+          <div className="flex flex-col gap-5">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-2 py-2 pl-3 pr-2">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="icon-chip h-9 w-9 bg-success-subtle text-success-strong">
+                  <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-caption text-muted-foreground">File đã tải lên</span>
+                  <span className="truncate text-small font-semibold" title={template?.fileName}>
+                    {template?.fileName}
+                  </span>
+                </div>
+              </div>
+              <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => setStep(1)}>
+                Chọn file khác
+              </Button>
+            </div>
+            <StepColumns
+              inspect={inspect}
+              choice={choice}
+              busy={reinspect.isPending}
+              onChange={(patch) => setChoice((current) => ({ ...current, ...patch }))}
+              onSelectSheet={(name) => {
+                setChoice({ ...EMPTY_CHOICE, sheetName: name });
+                if (name) load({ sheetName: name });
+              }}
+              onLoadRows={(fromRow) => load({ sheetName: choice.sheetName, fromRow })}
+              onNext={() => setStep(3)}
+            />
+          </div>
+        )}
+
+        {step === 3 && template && (
+          <StepPreview
+            sessionId={sessionId}
+            sessionName={sessionName}
+            sessionCode={sessionCode}
+            templateFileName={template.fileName}
+            request={toPlanBase(template.templateId, choice)}
+            onBack={() => setStep(2)}
+          />
+        )}
+      </Card>
 
       <PreviousExports sessionId={sessionId} />
     </div>

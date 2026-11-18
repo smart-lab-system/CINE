@@ -16,9 +16,9 @@ export async function loadRuleEntries(
   teacherId: string,
   rubricName: string,
 ): Promise<{ entries: RuleEntry[]; ruleTable: StoredInvestigation['ruleTable'] }> {
-  const rows: { rule_key: string; name: string; criterion_key: string; predicate: RulePredicate | null; priced: boolean }[] =
+  const rows: { rule_key: string; name: string; description: string | null; criterion_key: string; predicate: RulePredicate | null; priced: boolean }[] =
     await m.query(
-      `SELECT r.rule_key, v.name, re.criterion_key, v.predicate, (p.deduction IS NOT NULL) AS priced
+      `SELECT r.rule_key, v.name, v.description, re.criterion_key, v.predicate, (p.deduction IS NOT NULL) AS priced
          FROM examcollect.rubric_error re
          JOIN examcollect.error_rule r ON r.id = re.error_rule_id
          JOIN examcollect.error_rule_revision v ON v.id = r.current_revision_id
@@ -34,6 +34,7 @@ export async function loadRuleEntries(
   const entries: RuleEntry[] = rows.map((r) => ({
     ruleKey: r.rule_key,
     title: r.name,
+    description: r.description,
     criterionKey: r.criterion_key,
     priced: r.priced,
     checkedBy: isMachineChecked(r.predicate) ? 'machine' : 'model',

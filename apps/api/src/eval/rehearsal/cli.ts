@@ -4,9 +4,10 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { io, Socket } from 'socket.io-client';
 import { makeRunId } from '../run-writer';
-import { ActualSubmission, evaluateRun, isRehearsalSession, RehearsalScenario, renderIndex, RunRecord, scenarioRows } from './score-run';
+import { ActualSubmission, evaluateRun, isRehearsalSession, RehearsalScenario, renderIndex, RunRecord, scenarioRows, unitKey } from './score-run';
 import { NGAN_XEP_V1 } from './scenarios/ngan-xep-v1';
 import { NGAN_XEP_V2 } from './scenarios/ngan-xep-v2';
+import { NGAN_XEP_3CAU } from './scenarios/ngan-xep-3cau';
 import { HttpError, isConnectPhaseError, isNetworkError, withRetry } from './retry';
 
 /**
@@ -17,6 +18,7 @@ import { HttpError, isConnectPhaseError, isNetworkError, withRetry } from './ret
 const SCENARIOS: Record<string, RehearsalScenario> = {
   [NGAN_XEP_V1.id]: NGAN_XEP_V1,
   [NGAN_XEP_V2.id]: NGAN_XEP_V2,
+  [NGAN_XEP_3CAU.id]: NGAN_XEP_3CAU,
 };
 const ROOT = join(__dirname, '..', '..', '..', 'eval', 'rehearsals');
 
@@ -199,6 +201,70 @@ async function submit(sessionId: string, code: string, deliverableId: string, su
   }
 }
 
+/** Phiên nhiều câu: đề chỉ gắn được TRƯỚC giờ bắt đầu (canAttachExam), nên giờ bắt đầu đặt sau đó ít phút. */
+const START_DELAY_MS = 240_000;
+
+/**
+ * Giờ bắt đầu phiên nhiều câu: `REHEARSAL_START_AT` (ISO, tường minh) khi lớp đã có ca khác trong khung giờ mặc định;
+ * vắng thì sau `now` một khoảng ngắn. Phải ở tương lai đủ để kịp gắn đề.
+ */
+function startAtOf(now: number): number {
+  const raw = process.env.REHEARSAL_START_AT;
+  if (!raw) return now + START_DELAY_MS;
+  const at = Date.parse(raw);
+  if (!Number.isFinite(at) || at < now + 60_000) {
+    throw new Error(`REHEARSAL_START_AT="${raw}" không phải thời điểm trong tương lai (cần ít nhất 1 phút nữa)`);
+  }
+  return at;
+}
+
+interface SessionCreated {
+  id: string;
+  code: string;
+  requiredDeliverables: { id: string; requiredFilename: string }[];
+}
+
+/** Số câu của một yêu cầu nộp: `cau2.cpp` là câu 2; tên khác (phiên một câu `{MSSV}_bai.cpp`) là câu 1. */
+function ordinalOf(requiredFilename: string | null): number {
+  const m = /^cau(\d+)\.cpp$/.exec(requiredFilename ?? '');
+  return m ? Number(m[1]) : 1;
+}
+
+function deliverableOf(session: SessionCreated, sub: { ordinal?: number }, multi: boolean): string {
+  if (!multi) return session.requiredDeliverables[0].id;
+  const d = session.requiredDeliverables.find((x) => x.requiredFilename === `cau${sub.ordinal ?? 1}.cpp`);
+  if (!d) throw new Error(`phiên không có yêu cầu nộp cau${sub.ordinal ?? 1}.cpp`);
+  return d.id;
+}
+
+/**
+ * Gắn đề nhiều câu qua đường gắn đề thật (`/exam-authoring/attach`, không LLM), rồi đặt gói test riêng cho từng câu,
+ * xác nhận thước và đề cương. Đây là đúng thứ tự giảng viên làm trên giao diện.
+ */
+async function attachProblems(s: RehearsalScenario, sessionId: string): Promise<void> {
+  const points = s.rubric.criteria.reduce((sum, c) => sum + c.maxPoints, 0);
+  const examJson = {
+    title: `Đề thi thử ${s.id}`,
+    language: 'cpp',
+    verification: { status: 'unverified' },
+    questions: s.problems!.map((p) => ({
+      statement: p.statement, modelAnswer: p.modelAnswer, topic: p.title, points,
+      requiredComplexity: null, resemblesKnownProblem: null, testBundle: [],
+    })),
+  };
+  await api('POST', '/exam-authoring/attach', { examSessionId: sessionId, examJson: JSON.stringify(examJson) });
+  const problems = await api<{ id: string; ordinal: number }[]>('GET', `/exam-sessions/${sessionId}/problems`);
+  for (const p of s.problems!) {
+    const problem = problems.find((x) => x.ordinal === p.ordinal);
+    if (!problem) throw new Error(`thiếu câu ${p.ordinal} sau khi gắn đề`);
+    const bundle = await api<{ id: string }>('POST', `/exam-sessions/${sessionId}/test-bundles`, { problemId: problem.id, cases: p.tests });
+    await api('POST', `/exam-sessions/${sessionId}/test-bundles/${bundle.id}/approve`, {});
+    await api('POST', `/exam-sessions/${sessionId}/test-bundles/${bundle.id}/pin`, {});
+  }
+  await api('POST', `/exam-sessions/${sessionId}/ruler/confirm`, {});
+  await api('POST', `/exam-sessions/${sessionId}/blueprint/confirm`, {});
+}
+
 async function runSession(
   s: RehearsalScenario,
   subs: RehearsalScenario['submissions'],
@@ -206,16 +272,26 @@ async function runSession(
   timeoutMin: number,
   room: string,
 ) {
+  const multi = s.problems !== undefined;
   const rubricId = await ensureRubricAndRules(s);
   const now = Date.now();
-  const session = await api<{ id: string; code: string; requiredDeliverables: { id: string }[] }>('POST', '/exam-sessions', {
+  const startMs = multi ? startAtOf(now) : now - 60_000;
+  const session = await api<SessionCreated>('POST', '/exam-sessions', {
     name: `TEST dien tap ${s.id} - xoa sau ${now}`,
     classId, roomName: room, semesterName: 'TEST dien tap', examType: 'TK',
-    startTime: new Date(now - 60_000).toISOString(), endTime: new Date(now + 3_600_000).toISOString(),
-    rubricId, requiredFilenames: [{ filename: '{MSSV}_bai.cpp', deliverableType: 'code_project', language: 'cpp' }],
+    startTime: new Date(startMs).toISOString(), endTime: new Date(now + 3_600_000).toISOString(),
+    rubricId,
+    requiredFilenames: multi
+      ? s.problems!.map((p) => ({ filename: `cau${p.ordinal}.cpp`, deliverableType: 'code_project', language: 'cpp' }))
+      : [{ filename: '{MSSV}_bai.cpp', deliverableType: 'code_project', language: 'cpp' }],
   });
-  console.log(`phiên ${session.id} (${session.code})`);
+  console.log(`phiên ${session.id} (${session.code})${multi ? `, ${s.problems!.length} câu` : ''}`);
+  if (multi) {
+    await attachProblems(s, session.id);
+    await sleep(Math.max(0, startMs + 2000 - Date.now()));
+  }
   await api('POST', `/exam-sessions/${session.id}/open`, {});
+  if (!multi) {
 
   const size = Buffer.byteLength(s.question);
   const mat = await api<{ uploadUrl: string; examMaterialId: string; storageKey: string }>('POST', `/exam-sessions/${session.id}/materials/upload-url`, { fileName: 'de-bai.txt', fileSize: size });
@@ -227,10 +303,15 @@ async function runSession(
   const bundle = await api<{ id: string }>('POST', `/exam-sessions/${session.id}/test-bundles`, { cases: s.tests });
   await api('POST', `/exam-sessions/${session.id}/test-bundles/${bundle.id}/approve`, {});
   await api('POST', `/exam-sessions/${session.id}/test-bundles/${bundle.id}/pin`, {});
+  }
 
   for (const sub of subs) {
-    await submit(session.id, session.code, session.requiredDeliverables[0].id, sub);
-    console.log(`  nộp ${sub.mssv} — ${sub.label}`);
+    if (sub.missing) {
+      console.log(`  (không nộp) ${sub.mssv} — câu ${sub.ordinal}`);
+      continue;
+    }
+    await submit(session.id, session.code, deliverableOf(session, sub, multi), sub);
+    console.log(`  nộp ${sub.mssv} câu ${sub.ordinal ?? 1} — ${sub.label}`);
   }
   await api('POST', `/exam-sessions/${session.id}/finalize`, {});
   await api('POST', `/exam-sessions/${session.id}/confirm-end`, {});
@@ -238,17 +319,24 @@ async function runSession(
   await api('POST', `/exam-sessions/${session.id}/start-grading`, {});
   console.log(`bắt đầu chấm; chờ tối đa ${timeoutMin} phút…`);
 
+  // Bài thiếu file (`missing`) không có kết quả, nên không tính vào số bài phải chờ.
+  const expected = subs.filter((x) => !x.missing).length;
   const doneAt = new Map<string, number>();
   for (let i = 0; Date.now() - tGrade < timeoutMin * 60_000; i++) {
     await sleep(5000);
-    const rows = itemsOf<{ studentMssv: string; status: string }>(await api('GET', `/exam-sessions/${session.id}/grading-results`));
-    for (const r of rows) if (r.status !== 'ai_grading' && !doneAt.has(r.studentMssv)) doneAt.set(r.studentMssv, since(tGrade));
+    const rows = itemsOf<{ studentMssv: string; status: string; requiredFilename: string | null }>(
+      await api('GET', `/exam-sessions/${session.id}/grading-results`),
+    );
+    for (const r of rows) {
+      const key = unitKey(r.studentMssv, ordinalOf(r.requiredFilename));
+      if (r.status !== 'ai_grading' && !doneAt.has(key)) doneAt.set(key, since(tGrade));
+    }
     const pending = rows.filter((r) => r.status === 'ai_grading').length;
-    if (i % 4 === 0 || pending === 0) console.log(`  [${since(tGrade)}s] xong ${rows.length - pending}/${subs.length}`);
-    if (rows.length >= subs.length && pending === 0) break;
+    if (i % 4 === 0 || pending === 0) console.log(`  [${since(tGrade)}s] xong ${rows.length - pending}/${expected}`);
+    if (rows.length >= expected && pending === 0) break;
   }
   const times = [...doneAt.values()];
-  return { sessionId: session.id, doneAt, wallSec: times.length === subs.length ? Math.max(...times) : null };
+  return { sessionId: session.id, doneAt, wallSec: times.length === expected ? Math.max(...times) : null };
 }
 
 async function collect(scenario: RehearsalScenario, sessionId: string, doneAt: Map<string, number>): Promise<ActualSubmission[]> {
@@ -259,13 +347,17 @@ async function collect(scenario: RehearsalScenario, sessionId: string, doneAt: M
   }
   const rows = scenarioRows(
     scenario,
-    itemsOf<{ id: string; studentMssv: string; modelUsed: string | null }>(await api('GET', `/exam-sessions/${sessionId}/grading-results`)),
+    itemsOf<{ id: string; studentMssv: string; modelUsed: string | null; requiredFilename: string | null }>(
+      await api('GET', `/exam-sessions/${sessionId}/grading-results`),
+    ),
   );
   const out: ActualSubmission[] = [];
   for (const row of rows) {
     const d = await api<DetailResponse>('GET', `/grading-results/${row.id}/investigation`);
+    const ordinal = ordinalOf(row.requiredFilename);
     out.push({
       mssv: row.studentMssv,
+      ordinal,
       status: d.status,
       score: d.currentScore ?? null,
       confidence: d.breakdown?.confidence ?? null,
@@ -275,7 +367,7 @@ async function collect(scenario: RehearsalScenario, sessionId: string, doneAt: M
       caseNotes: d.challengeNotes ?? [],
       caseFlags: (d.breakdown?.caseFlags ?? []).map((f) => f.code),
       caseFlagDetails: (d.breakdown?.caseFlags ?? []).map((f) => ({ code: f.code, detail: f.detail ?? null })),
-      finishedAtSec: doneAt.get(row.studentMssv) ?? null,
+      finishedAtSec: doneAt.get(unitKey(row.studentMssv, ordinal)) ?? null,
     });
   }
   return out;
@@ -359,7 +451,8 @@ async function main() {
     ({ sessionId, doneAt, wallSec } = await runSession(scenario, subs, env('REHEARSAL_CLASS_ID'), args.timeoutMin, args.room));
   }
   const actuals = await collect(scenario, sessionId, doneAt);
-  const { checks, summary } = evaluateRun(scenario, actuals);
+  // Chấm theo đúng các bài đã chạy (`--only` bỏ bớt sinh viên thì không tính là thiếu kết quả).
+  const { checks, summary } = evaluateRun({ ...scenario, submissions: subs }, actuals);
   const record: RunRecord = {
     id: makeRunId(startedAt, args.deploy),
     startedAt: startedAt.toISOString(),

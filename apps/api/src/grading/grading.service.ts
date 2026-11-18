@@ -769,6 +769,7 @@ export class GradingService {
         'hc.name AS "homeClassName"',
         'rd.deliverable_type AS "deliverableType"',
         'rd.language AS "deliverableLanguage"',
+        'rd.required_filename AS "requiredFilename"',
       ])
       .where('s.exam_session_id = :id', { id: examSessionId })
       .orderBy('s.student_mssv', 'ASC')
@@ -779,6 +780,7 @@ export class GradingService {
         homeClassName: string | null;
         deliverableType: DeliverableType | null;
         deliverableLanguage: DeclaredLanguage | null;
+        requiredFilename: string | null;
       }>();
 
     // The newest review of each result, in ONE query for the whole list.
@@ -849,6 +851,7 @@ export class GradingService {
         submissionId: entity.submissionId,
         studentMssv: rows.raw[index].studentMssv,
         studentName: rows.raw[index].studentName,
+        requiredFilename: rows.raw[index].requiredFilename ?? null,
         homeClassId: rows.raw[index].homeClassId,
         homeClassName: rows.raw[index].homeClassName ?? null,
         status: entity.status,
@@ -913,6 +916,8 @@ export interface GradingResultView {
   submissionId: string;
   studentMssv: string;
   studentName: string;
+  /** Tên yêu cầu nộp mà bài thuộc về (vd `cau2.cpp`): cho biết bài là của câu nào trong phiên nhiều câu. */
+  requiredFilename: string | null;
   /** Lớp GỐC của bài. Khác `exam_session.class_id` nghĩa là thi bù. */
   homeClassId: string;
   homeClassName: string | null;

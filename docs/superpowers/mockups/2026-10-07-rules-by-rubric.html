@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Bảng lỗi theo rubric</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Token lấy nguyên từ apps/web/src/app/globals.css (Deep Indigo + Teal, Inter). */
+:root{
+  --p:hsl(231 48% 30%); --p-strong:hsl(231 48% 24%); --p-subtle:hsl(231 60% 95%); /* MÀU CHỦ ĐẠO duy nhất = token primary (Deep Indigo) của app */
+  --bg:hsl(220 33% 98%); --surface:#fff; --surface-2:hsl(220 20% 96%);
+  --fg:hsl(222 47% 11%); --muted:hsl(215 16% 47%); --border:hsl(220 16% 90%);
+  --primary:hsl(231 48% 30%); --primary-subtle:hsl(231 60% 95%);
+  --accent:hsl(174 62% 40%); --accent-strong:hsl(174 62% 31%); --accent-stronger:hsl(174 62% 25%); --accent-subtle:hsl(174 45% 94%);
+  --success:hsl(152 55% 42%); --success-strong:hsl(152 60% 26%); --success-subtle:hsl(152 50% 94%);
+  --warning:hsl(38 92% 50%); --warning-strong:hsl(38 92% 30%); --warning-subtle:hsl(38 92% 94%);
+  --danger-strong:hsl(0 72% 43%); --danger-subtle:hsl(0 86% 96%);
+  --info:hsl(205 80% 46%); --info-strong:hsl(205 80% 34%); --info-subtle:hsl(205 80% 95%);
+  --r:12px; --r-md:10px; --r-sm:8px;
+  --sh-sm:0 1px 2px 0 rgb(15 23 42 / .04); --sh-md:0 4px 12px -2px rgb(15 23 42 / .08); --sh-lg:0 12px 32px -8px rgb(15 23 42 / .14);
+}
+*{box-sizing:border-box}
+body.brand-teal{--p:hsl(174 62% 31%);--p-strong:hsl(174 62% 25%);--p-subtle:hsl(174 45% 94%)}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 Inter,"Segoe UI",system-ui,sans-serif;min-width:1180px}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3,p{margin:0}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.muted{color:var(--muted)} .small{font-size:12.5px} .mono{font-family:ui-monospace,Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ── thanh công cụ của mockup (không thuộc app) ─────────────────────────── */
+.tool{position:sticky;top:0;z-index:80;background:hsl(222 47% 11%);color:#fff;padding:10px 20px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:12.5px}
+.tool b{letter-spacing:.06em;font-size:11px;background:#fff;color:hsl(222 47% 11%);padding:2px 8px;border-radius:99px}
+.tool .pills{display:flex;flex-wrap:wrap;gap:6px}
+.tool .pill{border:1px solid hsl(222 25% 30%);background:transparent;color:#e2e8f0;border-radius:99px;padding:4px 11px;font-size:12.5px}
+.tool .pill:hover{background:hsl(222 30% 20%)}
+.tool .pill[aria-current=true]{background:#fff;color:hsl(222 47% 11%);border-color:#fff;font-weight:600}
+.tool label{margin-left:auto;display:flex;gap:8px;align-items:center;cursor:pointer}
+.tool label + label{margin-left:0}
+.tool select{background:hsl(222 33% 18%);color:#fff;border:1px solid hsl(222 25% 30%);border-radius:8px;padding:3px 8px;font-size:12.5px}
+
+/* ── app shell ───────────────────────────────────────────────────────────── */
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:calc(100vh - 44px)}
+.side{background:var(--surface);border-right:1px solid var(--border);padding:18px 12px;display:flex;flex-direction:column;gap:18px}
+.brand{padding:0 8px}.brand b{display:block;font-size:16px;color:var(--p);letter-spacing:-.01em}.brand span{font-size:11.5px;color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:var(--r-sm);color:var(--fg);text-decoration:none;font-weight:500}
+.nav a.on{background:var(--p-subtle);color:var(--p);font-weight:600}
+.nav .sep{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:12px 10px 4px}
+.side .foot{margin-top:auto;font-size:12px;color:var(--muted);padding:0 10px}
+main{padding:30px 40px 80px;max-width:1280px;width:100%}
+
+/* ── nút / badge ─────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:13.5px;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.pri{background:var(--p);border-color:var(--p);color:#fff}.btn.pri:hover{background:var(--p-strong)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--p)}.btn.ghost:hover{background:var(--p-subtle)}
+.btn.out{border-color:var(--p);color:var(--p);background:var(--surface)}.btn.out:hover{background:var(--p-subtle)}
+.btn.sm{height:30px;padding:0 11px;font-size:13px}
+.btn.danger{color:var(--danger-strong)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.badge{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.b-auto{background:var(--p-subtle);color:var(--p)}
+.b-ai{background:transparent;color:var(--p);box-shadow:inset 0 0 0 1.5px var(--p)}
+.b-warn{background:var(--warning-subtle);color:var(--warning-strong)}
+.b-open{background:var(--p-subtle);color:var(--p)}
+.b-done{background:var(--surface-2);color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:99px;background:var(--surface-2);font-size:12px;color:var(--muted);font-weight:500;white-space:nowrap}
+
+/* ── tiêu đề trang ───────────────────────────────────────────────────────── */
+.ph{display:flex;gap:24px;align-items:flex-start;justify-content:space-between;margin-bottom:22px}
+.ph h1{font-size:24px;line-height:32px;letter-spacing:-.018em;font-weight:700}
+.ph p{margin-top:4px;color:var(--muted);max-width:720px}
+
+/* ── thanh chọn rubric ───────────────────────────────────────────────────── */
+.rbar{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.rtab{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;min-width:210px;max-width:290px;padding:10px 14px;border:1px solid var(--border);background:var(--surface);border-radius:var(--r);box-shadow:var(--sh-sm)}
+.rtab:hover{background:var(--surface-2)}
+.rtab b{font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rtab span{font-size:12.5px;display:flex;gap:6px;align-items:center}
+.rtab[aria-selected=true]{border-color:var(--p);box-shadow:0 0 0 2px var(--p-subtle),var(--sh-sm);background:#fff}
+.rtab[aria-selected=true] b{color:var(--p)}
+.rtab .s-todo{color:var(--warning-strong)}.rtab .s-ready{color:var(--success-strong)}.rtab .s-new{color:var(--p)}
+.s-todo{color:var(--warning-strong)}.s-ready{color:var(--success-strong)}.s-new{color:var(--p)}
+/* từ 5 rubric trở lên: ô chọn có tìm kiếm thay cho hàng thẻ */
+.rswitch{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.curwrap{position:relative}
+.cur{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--p);box-shadow:0 0 0 2px var(--p-subtle),var(--sh-sm);border-radius:var(--r);padding:8px 8px 8px 16px;font-size:12.5px;font-weight:600}
+.cur .lab{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.cur b{font-size:15px;color:var(--p);max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recent{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rchip{border:1px solid var(--border);background:#fff;border-radius:99px;height:30px;padding:0 12px;font-weight:500;font-size:13px;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rchip:hover{background:var(--surface-2)}
+.rswitch .summary{flex-basis:100%;margin:0}
+.linkbtn{border:0;background:none;padding:0;text-decoration:underline;text-underline-offset:3px;color:var(--p);font:inherit;font-weight:600;cursor:pointer}
+.picker{position:absolute;top:calc(100% + 8px);left:0;z-index:35;width:620px;max-width:calc(100vw - 320px);background:#fff;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-lg);display:flex;flex-direction:column}
+.p-top{padding:12px 14px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--border)}
+.p-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.p-filters{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{border:1px solid var(--border);background:#fff;border-radius:99px;height:28px;padding:0 11px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.fchip:hover{background:var(--surface-2)}
+.fchip[aria-pressed=true]{background:var(--p);color:#fff;border-color:var(--p)}
+.fchip .n{margin-left:6px;opacity:.8}
+.mini{height:28px;border:1px solid var(--border);border-radius:var(--r-sm);padding:0 6px;background:#fff;font-size:12.5px}
+.p-list{max-height:340px;overflow:auto;padding:6px}
+.prow{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;text-align:left;border:0;background:none;border-radius:var(--r-sm);padding:9px 10px}
+.prow:hover,.prow:focus-visible{background:var(--surface-2)}
+.prow[aria-selected=true]{background:var(--p-subtle)}
+.pr-main{display:flex;flex-direction:column;min-width:0}
+.pr-main b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr-stat{display:flex;gap:8px;align-items:center;font-size:12.5px;white-space:nowrap;font-weight:600;color:var(--p)}
+.p-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--border)}
+.p-empty{padding:26px;text-align:center;color:var(--muted)}
+.rnew{align-self:center}
+.rmeta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:14px 2px 0;color:var(--muted);font-size:13px}
+.rmeta b{color:var(--fg)}
+
+/* ── dải trạng thái ──────────────────────────────────────────────────────── */
+.banner{margin-top:18px;border:1px solid;border-radius:var(--r);padding:14px 16px;display:flex;gap:14px}
+.banner .ic{width:34px;height:34px;border-radius:99px;display:grid;place-items:center;flex:none}
+.banner h2{font-size:15px;font-weight:700}
+.banner p{margin-top:2px;font-size:13px}
+.banner ul{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.banner li{display:flex;align-items:center;gap:10px;font-size:13.5px}
+.banner li button{border:0;background:none;padding:0;font-weight:600;text-decoration:underline;text-underline-offset:3px;color:inherit}
+.banner li .dash{width:6px;height:6px;border-radius:99px;background:currentColor;flex:none}
+.banner.todo{background:var(--warning-subtle);border-color:hsl(38 80% 78%);color:var(--warning-strong)}.banner.todo .ic{background:var(--warning);color:hsl(30 60% 12%)}
+.banner.ok{background:var(--success-subtle);border-color:hsl(152 40% 80%);color:var(--success-strong)}.banner.ok .ic{background:var(--success);color:#fff}
+.banner.new{background:var(--p-subtle);border-color:hsl(231 40% 86%);color:var(--p)}.banner.new .ic{background:var(--p);color:#fff}
+.banner .body{flex:1}.banner .act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.banner .act .btn{color:var(--fg)}.banner .act .btn.pri{color:#fff}
+.copyrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;color:var(--fg)}
+.copyrow label{font-weight:600;color:var(--p)}
+.copyrow select{width:320px;height:36px;border:1px solid var(--border);border-radius:var(--r-sm);padding:0 10px;background:#fff;font-weight:500}
+.copyrow .or{color:var(--muted);font-size:13px}
+.copyrow .btn{color:var(--fg)}.copyrow .btn.pri{color:#fff}
+.copyprev{margin-top:8px;font-size:13px;min-height:20px}
+
+/* ── tab nội dung ────────────────────────────────────────────────────────── */
+.ctabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-top:26px}
+.ctab{border:0;background:none;padding:10px 14px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;gap:8px;align-items:center}
+.ctab:hover{color:var(--fg)}
+.ctab[aria-selected=true]{color:var(--p);border-bottom-color:var(--p)}
+.ctab .n{font-size:12px;min-width:20px;height:20px;padding:0 6px;display:inline-grid;place-items:center;border-radius:99px;background:var(--surface-2);color:var(--muted)}
+.ctab .n.w{background:var(--warning);color:hsl(30 60% 12%)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:14px 2px 4px;font-size:12.5px;color:var(--muted)}
+.legend span{display:flex;gap:7px;align-items:center}
+
+/* ── nhóm tiêu chí ───────────────────────────────────────────────────────── */
+.group{margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:visible}
+.g-head{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-radius:var(--r)}
+.g-head:hover{background:var(--bg)}
+.g-head .chev{transition:transform .15s;color:var(--muted)}
+.g-head[aria-expanded=false] .chev{transform:rotate(-90deg)}
+.g-head h3{font-size:16px;line-height:24px;letter-spacing:-.006em;font-weight:600}
+.g-head .grow{flex:1;min-width:0}
+.g-head .max{font-size:13px;color:var(--muted);white-space:nowrap}.g-head .max b{color:var(--fg);font-size:15px}
+.g-body{border-top:1px solid var(--border)}
+.row,.rhead{display:grid;grid-template-columns:minmax(0,1fr) 150px 190px 130px 40px;gap:14px;align-items:center;padding:12px 16px}
+.rhead{padding-top:8px;padding-bottom:8px;background:var(--surface-2);font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.rhead span:nth-child(3){text-align:right}
+.row{border-top:1px solid var(--border)}
+.rhead + .row{border-top:0}
+.row .nm b{font-weight:600}
+.row .nm .d{font-size:12.5px;color:var(--muted);margin-top:1px}
+.row .nm .sh{display:flex;gap:6px;align-items:center;margin-top:5px;font-size:12px;color:var(--muted)}
+.row .pr{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+.price{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid transparent;border-radius:var(--r-sm);background:transparent;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+.price:hover{border-color:var(--border);background:var(--surface-2)}
+.price svg{opacity:0;color:var(--muted)}.price:hover svg,.price:focus-visible svg{opacity:1}
+.row .seen{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
+.icon-btn{width:34px;height:34px;display:grid;place-items:center;border:0;background:transparent;border-radius:var(--r-sm);color:var(--muted)}
+.icon-btn:hover{background:var(--surface-2);color:var(--fg)}
+.g-foot{padding:8px 12px;border-top:1px solid var(--border)}
+.g-note{padding:8px 16px 12px;font-size:12.5px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.empty-crit{margin:14px 16px 16px;border:1.5px dashed hsl(220 16% 80%);border-radius:var(--r);padding:18px;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.empty-crit p{max-width:520px}.empty-crit .a{display:flex;gap:8px;flex-wrap:wrap}
+.waived{margin:14px 16px 16px;background:var(--surface-2);border-radius:var(--r);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+/* ── thẻ lỗi AI đề xuất / thư viện ───────────────────────────────────────── */
+.callout{margin-top:16px;border:1px solid hsl(38 80% 78%);background:var(--warning-subtle);color:var(--warning-strong);border-radius:var(--r);padding:12px 16px;display:flex;gap:10px;align-items:flex-start}
+.callout.info{border-color:hsl(231 40% 86%);background:var(--p-subtle);color:var(--p)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;margin-top:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--sh-sm)}
+.card h3{font-size:15px;font-weight:600}
+.card .ctx{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.card .a{display:flex;gap:8px;margin-top:auto}
+.tbl{margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden}
+.lrow,.lhead{display:grid;grid-template-columns:minmax(0,1.1fr) 140px minmax(0,1.4fr) 170px;gap:16px;align-items:center;padding:12px 16px}
+.lhead{background:var(--surface-2);font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;padding-top:8px;padding-bottom:8px}
+.lrow{border-top:1px solid var(--border)}.lhead + .lrow{border-top:0}
+.use{display:flex;flex-direction:column;gap:5px}
+.use div{font-size:13px;display:flex;gap:6px;flex-wrap:wrap;align-items:baseline}
+.use b{font-variant-numeric:tabular-nums}
+
+/* ── lần đầu ─────────────────────────────────────────────────────────────── */
+.onb{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;margin-top:6px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px;box-shadow:var(--sh-sm)}
+.steps{list-style:none;margin:18px 0 22px;padding:0;display:flex;flex-direction:column;gap:14px}
+.steps li{display:flex;gap:14px}
+.steps .num{width:28px;height:28px;border-radius:99px;display:grid;place-items:center;font-weight:700;font-size:13px;background:var(--surface-2);color:var(--muted);flex:none}
+.steps li.cur .num{background:var(--p);color:#fff}
+.steps b{display:block}.steps span{font-size:13px;color:var(--muted)}
+.tree{font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:2;background:var(--surface-2);border-radius:var(--r);padding:16px 18px;margin-top:14px}
+.tree .l1{color:var(--p);font-weight:700}.tree .l2{color:var(--p);font-weight:700}.tree .l3{color:var(--fg)}
+
+/* ── overlay: drawer, dialog, popover, toast ─────────────────────────────── */
+.ov{position:fixed;inset:var(--toolh,44px) 0 0 0;background:rgb(15 23 42 / .42);z-index:40;display:none}
+.ov.on{display:block}
+.drawer{position:fixed;top:var(--toolh,44px);right:0;bottom:0;width:560px;background:var(--surface);z-index:50;box-shadow:var(--sh-lg);display:none;flex-direction:column}
+.drawer.on{display:flex}
+.drawer header{padding:20px 24px 14px;border-bottom:1px solid var(--border)}
+.drawer h2{font-size:18px;letter-spacing:-.01em}
+.drawer .scroll{overflow:auto;padding:18px 24px;flex:1;display:flex;flex-direction:column;gap:18px}
+.drawer footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;background:var(--surface)}
+.ctxbox{margin-top:12px;background:var(--p-subtle);color:var(--p);border-radius:var(--r);padding:10px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.ctxbox .path{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:600}
+.ctxbox select{height:30px;border:1px solid hsl(231 30% 80%);border-radius:var(--r-sm);padding:0 8px;background:#fff;font-weight:600;color:var(--p)}
+.seg{display:flex;gap:4px;background:var(--surface-2);padding:4px;border-radius:var(--r-sm)}
+.seg button{flex:1;border:0;background:transparent;height:34px;border-radius:7px;font-weight:600;color:var(--muted)}
+.seg button[aria-selected=true]{background:#fff;color:var(--fg);box-shadow:var(--sh-sm)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label,.lbl{font-weight:600;font-size:13px}
+.field .hint{font-size:12.5px;color:var(--muted)}
+.inp{height:38px;border:1px solid var(--border);border-radius:var(--r-sm);padding:0 12px;background:#fff;width:100%}
+textarea.inp{height:auto;padding:8px 12px;resize:vertical}
+.inp:focus{outline:2px solid var(--p);border-color:transparent}
+.inrow{display:flex;gap:10px;align-items:center}.inrow .inp{width:110px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.opt{display:flex;flex-direction:column;gap:4px;padding:11px 13px;border:1px solid var(--border);border-radius:var(--r);cursor:pointer;background:#fff;text-align:left}
+.opt[aria-pressed=true]{border-color:var(--p);background:var(--p-subtle)}
+.opt b{font-size:13.5px}.opt span{font-size:12.5px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.libitem{border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:6px;cursor:pointer;background:#fff;text-align:left}
+.libitem:hover{background:var(--bg)}
+.libitem[aria-pressed=true]{border-color:var(--p);box-shadow:0 0 0 2px var(--p-subtle)}
+.libitem .t{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.libitem .t b{font-weight:600}
+.libitem .u{font-size:12.5px;color:var(--muted)}
+.libitem .set{border-top:1px dashed var(--border);margin-top:4px;padding-top:10px;cursor:default}
+.impact{border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.impact h3{font-size:13px;background:var(--surface-2);padding:9px 14px;font-weight:600}
+.impact .in{padding:12px 14px;font-size:13px}
+.drawer footer{flex-wrap:wrap;align-items:center}
+.drawer footer.scopefoot{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px 12px;align-items:start}
+.scopefoot .btn{width:100%;white-space:normal;height:auto;min-height:36px;padding:8px 10px;line-height:1.25;justify-content:center;text-align:center}
+.scopefoot > .btn:first-child{width:auto}
+.scopefoot p{font-size:12px;color:var(--muted);margin-top:6px;text-align:center;line-height:1.35}
+.scopefoot #edHint{grid-column:1 / -1}
+.scope{border:1px solid var(--border);border-radius:var(--r)}
+.scope h3{font-size:13px;background:var(--surface-2);padding:9px 14px;font-weight:600;border-radius:var(--r) var(--r) 0 0}
+.scope .s{padding:12px 14px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--border);font-size:13px}
+.scope h3 + .s{border-top:0}
+.scope .s b{font-weight:600}.scope .s .tagrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.useline{display:flex;gap:6px;flex-wrap:wrap;font-size:12.5px;margin-top:2px}
+.imp{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.imp li b{font-weight:600}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:99px;background:var(--surface-2);color:var(--muted);margin-left:4px}
+.tag.o{background:var(--p-subtle);color:var(--p)}
+.dialog{position:fixed;z-index:50;left:50%;top:calc(50% + var(--toolh,44px) / 2);transform:translate(-50%,-50%);width:760px;max-height:calc(100vh - var(--toolh,44px) - 32px);background:#fff;border-radius:var(--r);box-shadow:var(--sh-lg);display:none;flex-direction:column}
+.dialog.on{display:flex}
+.dialog header{padding:20px 24px 4px}.dialog h2{font-size:18px}
+.dialog .scroll{overflow:auto;padding:14px 24px;display:flex;flex-direction:column;gap:16px}
+.dialog footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.ctable{border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.crow{display:grid;grid-template-columns:minmax(0,1fr) 120px 36px;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--border)}
+.crow:first-child{border-top:0;background:var(--surface-2);font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;padding-top:7px;padding-bottom:7px}
+.pop{position:absolute;z-index:70;width:380px;background:#fff;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-lg);padding:16px;display:none;flex-direction:column;gap:12px}
+.pop.on{display:flex}
+.pop.menu{width:290px;padding:6px;gap:0}
+.pop.menu button{border:0;background:none;text-align:left;padding:9px 10px;border-radius:var(--r-sm);display:flex;flex-direction:column;gap:1px;font-weight:500}
+.pop.menu button:hover{background:var(--surface-2)}
+.pop.menu small{color:var(--muted);font-size:12px;font-weight:400}
+.pop h3{font-size:14px}
+.pop .f{display:flex;justify-content:flex-end;gap:8px}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:90;background:hsl(222 47% 11%);color:#fff;padding:11px 18px;border-radius:var(--r);box-shadow:var(--sh-lg);font-size:13.5px;display:none;max-width:640px}
+.toast.on{display:block}
+
+/* ── ghi chú thiết kế ────────────────────────────────────────────────────── */
+.pinned{position:relative}
+.pin{display:none;position:absolute;top:-9px;left:-9px;z-index:30;width:22px;height:22px;border-radius:99px;background:hsl(340 82% 46%);color:#fff;font-size:11.5px;font-style:normal;font-weight:700;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff;pointer-events:none}
+body.notes .pin{display:inline-flex}
+.pin.r{left:auto;right:-9px}
+#notes{display:none;margin:50px 40px 60px;max-width:1100px}
+body.notes #notes{display:block}
+#notes h2{font-size:18px;margin-bottom:10px}
+#notes ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:10px 28px}
+#notes li{display:flex;gap:10px;font-size:13px;align-items:flex-start}
+#notes li i{flex:none;width:22px;height:22px;border-radius:99px;background:hsl(340 82% 46%);color:#fff;font-size:11.5px;font-style:normal;font-weight:700;display:grid;place-items:center;margin-top:1px}
+#vocab{margin:0 40px 80px;max-width:1100px}
+#vocab summary{cursor:pointer;font-weight:700;font-size:16px;padding:6px 0}
+#vocab table{border-collapse:collapse;width:100%;margin-top:10px;background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;font-size:13px}
+#vocab th,#vocab td{padding:8px 12px;text-align:left;border-top:1px solid var(--border);vertical-align:top}
+#vocab th{background:var(--surface-2);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-top:0}
+</style>
+</head>
+<body>
+
+<div class="tool" role="toolbar" aria-label="Điều khiển mockup">
+  <b>MOCKUP</b>
+  <span>Dữ liệu minh hoạ, chưa nối API. Bấm một trạng thái:</span>
+  <div class="pills" id="pills"></div>
+  <label>Màu chủ đạo <select id="brand" aria-label="Màu chủ đạo"><option value="">Indigo — primary của app</option><option value="brand-teal">Teal — màu nút hiện tại</option></select></label><label><input type="checkbox" id="notesToggle"> Hiện ghi chú thiết kế</label>
+</div>
+
+<div class="app">
+  <aside class="side" aria-label="Điều hướng (không đổi)">
+    <div class="brand"><b>ExamCollect</b><span>Thu bài &amp; Chấm điểm thông minh</span></div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Quản lý kỳ thi</a>
+      <a href="#">Quản lý bài thu</a>
+      <a href="#">Lớp của tôi</a>
+      <div class="sep">Chấm điểm</div>
+      <a href="#">Soạn đề</a>
+      <a href="#" class="on" aria-current="page">Bảng lỗi</a>
+      <a href="#">Chấm điểm</a>
+    </nav>
+    <div class="foot">Thanh bên giữ nguyên, chỉ trang Bảng lỗi đổi.</div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<section id="notes" aria-label="Chú thích ghi chú thiết kế"></section>
+<details id="vocab" open>
+  <summary>Từ vựng đề xuất (để bạn kiểm tra)</summary>
+  <table>
+    <thead><tr><th>Hiện tại</th><th>Mockup dùng</th><th>Lý do</th></tr></thead>
+    <tbody>
+      <tr><td>Luật / Bảng lỗi</td><td>Lỗi (tên trang vẫn là “Bảng lỗi”)</td><td>Một khái niệm một tên; “luật” là từ của hệ thống.</td></tr>
+      <tr><td>Giá · Đặt giá · Chưa có giá</td><td>Điểm trừ · Đặt điểm trừ · Chưa có điểm trừ</td><td>Cột đã ghi “Mức trừ”, nút lại ghi “giá”; giảng viên trừ điểm chứ không bán hàng.</td></tr>
+      <tr><td>Cách khớp: Máy kiểm / Bằng lời / Máy chưa đo được</td><td>Cách phát hiện: Tự động (chạy test) / AI đọc bài</td><td>Nói hệ quả cho giảng viên; hai giá trị thay cho ba, có chú giải hiển thị sẵn.</td></tr>
+      <tr><td>Trần / Trần điểm theo tiêu chí</td><td>Điểm tối đa (ngay tiêu đề nhóm tiêu chí)</td><td>Giảng viên nói “điểm tối đa”; không còn thẻ phụ riêng.</td></tr>
+      <tr><td>Đang áp vào</td><td>Đã gặp</td><td>Hướng nhìn của giảng viên: lỗi này đã thấy ở bao nhiêu bài.</td></tr>
+      <tr><td>Luật còn thiếu</td><td>Lỗi AI đề xuất</td><td>Nói đúng nguồn gốc; kèm phiên và số bài đã thấy.</td></tr>
+      <tr><td>Tiêu chí này không có luật trừ</td><td>Tiêu chí này không trừ điểm</td><td>Bỏ phủ định kép; nói thẳng hệ quả (trọn điểm).</td></tr>
+      <tr><td>Phiên bản rubric · Sửa trần</td><td>Ẩn “phiên bản”; nút “Sửa tiêu chí &amp; điểm tối đa”</td><td>Hệ thống tự giữ lịch sử; giảng viên không cần biết v1, v2.</td></tr>
+      <tr><td>Lệch tiêu chí</td><td>(biến mất)</td><td>Mỗi lỗi nằm trong một tiêu chí có thật của rubric nên không thể lệch.</td></tr>
+      <tr><td>Rubric</td><td>Rubric (giữ nguyên)</td><td>Đang dùng ở Tạo phiên thi và Chấm điểm. “Barem” là phương án thay thế, chưa chọn.</td></tr>
+    </tbody>
+  </table>
+</details>
+
+<!-- overlay -->
+<div class="ov" id="ov"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dwTitle"></aside>
+<div class="dialog" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dgTitle"></div>
+<div class="pop" id="pop"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ═════════ DỮ LIỆU MINH HOẠ ═════════
+ * Mô hình đích: LỖI (thư viện, dùng chung: tên, mô tả, cách phát hiện)
+ *               ÁP DỤNG trong rubric = (tiêu chí, điểm trừ) — mỗi rubric một khác.
+ */
+const LIB = {
+  bien:  {name:'Sai ca biên', desc:'Kết quả sai khi danh sách rỗng hoặc chỉ có một phần tử.', det:'auto', group:'bien'},
+  coban: {name:'Sai ca cơ bản', desc:'Kết quả sai ở các thao tác thông thường: thêm, xoá, duyệt.', det:'auto', group:'co_ban'},
+  lenh:  {name:'Sai đọc lệnh', desc:'Đọc sai hoặc bỏ sót lệnh trong dữ liệu vào.', det:'auto', group:'doc_lenh'},
+  list:  {name:'Dùng list thay danh sách liên kết', desc:'Cài đặt bằng mảng hoặc list có sẵn trong khi đề yêu cầu danh sách liên kết.', det:'ai'},
+  ro:    {name:'Rò rỉ bộ nhớ', desc:'Cấp phát động nhưng không giải phóng khi xoá phần tử hoặc kết thúc chương trình.', det:'ai'},
+  stack: {name:'Không đóng gói thành lớp Stack', desc:'Các thao tác của ngăn xếp nằm rời rạc, không gom vào một lớp.', det:'ai'},
+  ten:   {name:'Đặt tên biến khó hiểu', desc:'Tên biến một chữ cái hoặc không nói lên ý nghĩa.', det:'ai'},
+  sort:  {name:'Gọi hàm sort có sẵn', desc:'Dùng hàm sắp xếp của thư viện trong khi đề yêu cầu tự cài đặt.', det:'ai'},
+};
+const A = (lib, pts, open=0, final=0) => ({lib, pts, open, final});
+const RUBRICS = [
+  { id:'giua-ky', name:'Giữa kỳ CTDL', short:'Giữa kỳ CTDL',
+    sessions:[{name:'Giữa kỳ HK1 — Ca sáng', st:'grading', n:38, sem:'HK1 2026-2027'},{name:'Giữa kỳ HK1 — Ca chiều', st:'final', n:41, sem:'HK1 2026-2027'}],
+    criteria:[
+      {id:'dd', name:'Tính đúng đắn', desc:'Kết quả đúng trên mọi ca của đề, kể cả ca biên.', max:6, errors:[A('bien',2.0,12,8),A('coban',1.5,10,0),A('lenh',1.0,0,0),A('list',null,0,0)]},
+      {id:'bn', name:'Quản lý bộ nhớ', desc:'Mọi vùng cấp phát động đều được giải phóng.', max:2, errors:[A('ro',1.0,11,8)]},
+      {id:'tb', name:'Trình bày', desc:'Tên gợi nghĩa, có chú thích cấu trúc dữ liệu và thuật toán.', max:2, errors:[]},
+    ],
+    proposals:[
+      {id:'p1', name:'Hàm pop không kiểm tra ngăn xếp rỗng', n:4, session:'Giữa kỳ HK1 — Ca sáng'},
+      {id:'p2', name:'Không giải phóng nút khi xoá phần tử cuối', n:3, session:'Giữa kỳ HK1 — Ca sáng'},
+      {id:'p3', name:'Con trỏ top không được cập nhật sau khi pop', n:2, session:'Giữa kỳ HK1 — Ca sáng'},
+    ]},
+  { id:'dien-tap', name:'CTDL&GT — Ngăn xếp bằng danh sách liên kết (diễn tập)', short:'CTDL&GT — Ngăn xếp (diễn tập)',
+    sessions:[{name:'Diễn tập — Ngăn xếp', st:'grading', n:20, sem:'HK1 2026-2027'}],
+    criteria:[
+      {id:'dd', name:'Tính đúng đắn', desc:'Kết quả đúng trên mọi ca của đề, kể cả ca biên.', max:6, errors:[A('bien',1.5,12,0),A('coban',1.5,10,0),A('lenh',1.0,0,0)]},
+      {id:'bn', name:'Quản lý bộ nhớ', desc:'Mọi vùng cấp phát động đều được giải phóng.', max:2, errors:[A('ro',1.0,8,0)]},
+      {id:'tb', name:'Trình bày', desc:'Tên gợi nghĩa, có chú thích cấu trúc dữ liệu và thuật toán.', max:2, errors:[A('list',2.0,0,0),A('stack',0.5,0,0)]},
+    ],
+    proposals:[]},
+  { id:'cuoi-ky', name:'Cuối kỳ CTDL', short:'Cuối kỳ CTDL', sessions:[],
+    criteria:[
+      {id:'dd', name:'Tính đúng đắn', desc:'Kết quả đúng trên mọi ca của đề, kể cả ca biên.', max:5, errors:[]},
+      {id:'bn', name:'Quản lý bộ nhớ', desc:'Mọi vùng cấp phát động đều được giải phóng.', max:2, errors:[]},
+      {id:'tb', name:'Trình bày', desc:'Tên gợi nghĩa, có chú thích cấu trúc dữ liệu và thuật toán.', max:1, errors:[]},
+      {id:'hq', name:'Hiệu quả thuật toán', desc:'Độ phức tạp thời gian đạt yêu cầu của đề.', max:2, errors:[]},
+    ],
+    proposals:[]},
+];
+const NOTES = [
+  [1,'Rubric là trục chính, nằm ngay đầu trang. Chọn rubric thì mọi thứ bên dưới đổi theo; mỗi thẻ cho thấy rubric nào đang cần làm gì. (P1, P2)'],
+  [2,'Một dải trạng thái theo rubric, bấm được, thay bốn thẻ số. Việc cần làm lên trên cùng, kể cả “lỗi AI thấy mà chưa tính điểm”. (R1, Y5, P6)'],
+  [3,'Nhóm theo tiêu chí; điểm tối đa nằm ngay tiêu đề nhóm. Hiện tên tiêu chí bằng chữ thường, không hiện khoá kỹ thuật. (Y4, R5)'],
+  [4,'“Cách phát hiện” nói hệ quả cho giảng viên, chỉ còn hai giá trị, có chú giải hiển thị sẵn thay vì tooltip. (R4)'],
+  [5,'Điểm trừ sửa ngay tại chỗ, gọi đúng là “điểm trừ”. Một chỗ bấm thay cho ba; bấm vào số để thấy tác động trước khi lưu. (R3, Y1)'],
+  [6,'Lỗi dùng chung được nói ra: lỗi này còn nằm ở rubric nào và trừ bao nhiêu. Điểm trừ của mỗi rubric độc lập. (P3)'],
+  [7,'Tiêu chí chưa có lỗi: nói hậu quả và đưa hai lối đi. Khoảng trống của cấu trúc không còn vô hình. (P5)'],
+  [8,'“Thêm lỗi” bấm từ chính tiêu chí nên rubric và tiêu chí được điền sẵn. Nút “Thêm lỗi” ở đầu trang vẫn có, cho phép chọn tiêu chí. (T1, T5)'],
+  [9,'Ngữ cảnh cố định ở đầu hộp: đang thêm vào rubric nào, tiêu chí nào, điểm tối đa bao nhiêu. (T1)'],
+  [10,'Hai đường: chọn lỗi có sẵn (dùng lại, đặt điểm trừ riêng cho rubric này) hoặc tạo lỗi mới. Đường thứ nhất hiện chưa tồn tại. (T2)'],
+  [11,'“Lưu thì áp vào đâu” viết bằng tên phiên thi và số bài thật, thay cho bốn bậc. (T3)'],
+  [12,'Lỗi AI đề xuất kèm ngữ cảnh: thấy ở phiên nào, mấy bài, và mở form với rubric đã biết. Cần backend ghi thêm. (T4)'],
+  [13,'Thư viện lỗi: danh tính lỗi dùng chung. Điểm trừ không nằm ở đây vì mỗi rubric một khác (mô hình nhiều–nhiều). Sửa từ thư viện = đổi cho tất cả rubric đang dùng.'],
+  [18,'Lọc theo học kỳ: một ô chọn trong bảng Đổi rubric, mặc định “Tất cả học kỳ” (giống bộ lọc học kỳ ở trang phiên thi). Rubric không có học kỳ riêng: nó thuộc mọi học kỳ mà nó từng được dùng qua các phiên thi; chưa gắn phiên nào thì vào “Chưa gắn học kỳ”. Danh sách học kỳ dựng từ dữ liệu có thật, mới nhất trước. Bộ lọc chỉ thu hẹp tầm nhìn, không chặn thao tác nào.'],
+  [17,'Khi có nhiều rubric (từ 5 trở lên), hàng thẻ ngang chuyển thành ô “Rubric đang mở” + nút Đổi rubric: mở ra bảng có tìm kiếm (không phân biệt dấu), lọc theo tình trạng, sắp xếp (gần đây / A–Z / cần làm trước) và tối đa 3 rubric dùng gần đây để chuyển nhanh. Con số “N cần làm” bấm được. Mọi chỗ liệt kê rubric (dùng chung, thư viện, hộp sửa lỗi) đều chặn trần: “A, B và 8 rubric khác”.'],
+  [16,'Sửa một lỗi đang dùng ở nhiều rubric: giảng viên chọn phạm vi bằng hai nút — “Chỉ rubric đang mở” (tách thành bản riêng, rubric kia giữ nguyên) hoặc “Cả N rubric”. Hậu quả của từng nút được viết ngay phía trên, bằng tên rubric và phiên thi thật.'],
+  [14,'Tạo rubric từ rubric cũ: giảng viên tự chọn rubric nguồn (không chọn sẵn, không gợi ý), thấy trước sẽ sao chép bao nhiêu lỗi, rồi hai bên độc lập. Cùng cách chọn ở dải “Rubric mới — chưa có lỗi nào”.'],
+  [15,'Trạng thái lần đầu: dạy cây Rubric → Tiêu chí → Lỗi và thứ tự việc, thay cho ngõ cụt “tạo rubric ở trang Bảng lỗi”. (P1, T5)'],
+];
+
+/* ═════════ TIỆN ÍCH ═════════ */
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const fmt = n => n == null ? '—' : n.toFixed(1).replace('.', ',');
+const minus = n => '−' + fmt(n);
+const IC = {
+  plus:'<path d="M12 5v14M5 12h14"/>', chev:'<path d="m6 9 6 6 6-6"/>', check:'<path d="M20 6 9 17l-5-5"/>',
+  warn:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  x:'<path d="M18 6 6 18M6 6l12 12"/>', more:'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  cpu:'<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/>',
+  bot:'<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  copy:'<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>', search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  pen:'<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+};
+const ico = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
+const pin = (n, side='') => `<i class="pin ${side}" aria-hidden="true">${n}</i>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* Mọi chỗ liệt kê rubric đều bị chặn trần: "A, B và 8 rubric khác" — để 10+ rubric không làm phình giao diện. */
+const capNames = (arr, n = 2, unit = 'rubric') => arr.length <= n ? arr.join(', ') : `${arr.slice(0, n).join(', ')} và ${arr.length - n} ${unit} khác`;
+const fold = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+const R = id => RUBRICS.find(r => r.id === id);
+const allErr = r => r.criteria.flatMap(c => c.errors.map(e => ({...e, crit:c})));
+const detBadge = det => det === 'auto'
+  ? `<span class="badge b-auto">${ico('cpu')}Tự động</span>`
+  : `<span class="badge b-ai">${ico('bot')}AI đọc bài</span>`;
+function others(lib, exceptRid){
+  return RUBRICS.filter(r => r.id !== exceptRid).flatMap(r => r.criteria.flatMap(c => c.errors.filter(e => e.lib === lib).map(e => ({r, c, e}))));
+}
+function tasks(r){
+  const emptyCrit = r.criteria.filter(c => !c.errors.length && !c.waived);
+  const unpriced = allErr(r).filter(e => e.pts == null);
+  const props = r.proposals || [];
+  const total = allErr(r).length;
+  const kinds = [emptyCrit.length, unpriced.length, props.length].filter(Boolean).length;
+  const k = total === 0 && !r.criteria.every(c => c.waived) ? 'new' : kinds ? 'todo' : 'ready';
+  return {emptyCrit, unpriced, props, total, kinds, k};
+}
+const tabLabel = t => t.k === 'new' ? 'Chưa có lỗi nào' : t.k === 'todo' ? `Còn ${t.kinds} việc` : 'Sẵn sàng chấm tự động';
+const sOpen = r => r.sessions.filter(s => s.st === 'grading');
+const sFinal = r => r.sessions.filter(s => s.st === 'final');
+
+/* ═════════ TRẠNG THÁI ═════════ */
+const S = { rid:'giua-ky', tab:'crit', noRubric:false, collapsed:{}, drawer:null, last:1, copySrc:'',
+  pick:{open:false, q:'', filter:'all', sort:'recent', sem:'all'}, recent:['giua-ky','dien-tap','cuoi-ky'] };
+const MANY = 4; // quá ngưỡng này, hàng thẻ ngang chuyển thành ô chọn có tìm kiếm
+let toastTimer;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 4200); }
+
+/* ═════════ RENDER TRANG ═════════ */
+function render(){
+  closePop();
+  const m = $('#main');
+  if (S.noRubric) { m.innerHTML = onboarding(); return; }
+  const r = R(S.rid), t = tasks(r);
+  const many = RUBRICS.length > MANY;
+  const tabs = many ? '' : RUBRICS.map(x => {
+    const tx = tasks(x);
+    const cls = tx.k === 'new' ? 's-new' : tx.k === 'todo' ? 's-todo' : 's-ready';
+    const icon = tx.k === 'ready' ? ico('check') : tx.k === 'todo' ? ico('warn') : ico('info');
+    return `<button class="rtab pinned" role="tab" aria-selected="${x.id === r.id}" data-act="rubric" data-id="${x.id}" title="${esc(x.name)}">
+      ${x.id === 'giua-ky' ? pin(1) : ''}<b>${esc(x.short)}</b><span class="${cls}">${icon}${tabLabel(tx)}</span></button>`;
+  }).join('');
+  const sess = r.sessions.length
+    ? r.sessions.map(s => `${esc(s.name)} <span class="badge ${s.st === 'grading' ? 'b-open' : 'b-done'}" style="height:20px;font-size:11.5px">${s.st === 'grading' ? 'đang chấm' : 'đã chốt'}</span>`).join(' · ')
+    : 'chưa gắn phiên thi nào';
+  const total = r.criteria.reduce((a, c) => a + c.max, 0);
+  m.innerHTML = `
+    <div class="ph">
+      <div><h1>Bảng lỗi</h1><p>Chọn rubric, rồi ghi lại những lỗi sinh viên hay mắc ở từng tiêu chí và điểm bị trừ cho mỗi lỗi. Bài chấm sẽ trừ điểm đúng theo bảng này.</p></div>
+      <button class="btn pri pinned" data-act="add-top">${ico('plus')}Thêm lỗi${pin(8,'r')}</button>
+    </div>
+    ${many ? switcher(r) : `<div class="rbar" role="tablist" aria-label="Chọn rubric">${tabs}
+      <button class="btn ghost rnew" data-act="new-rubric">${ico('plus')}Rubric mới</button></div>`}
+    <div class="rmeta"><span><b>${fmt(total)}</b> điểm · ${r.criteria.length} tiêu chí</span><span>Dùng ở: ${sess}</span>
+      <button class="btn ghost sm" data-act="edit-rubric">${ico('pen')}Sửa tiêu chí &amp; điểm tối đa</button></div>
+    ${banner(r, t)}
+    <div class="ctabs" role="tablist" aria-label="Nội dung">
+      ${ctab('crit', 'Lỗi theo tiêu chí', allErr(r).length)}
+      ${ctab('prop', 'Lỗi AI đề xuất', t.props.length, true)}
+      ${ctab('lib', 'Thư viện lỗi', Object.keys(LIB).length)}
+    </div>
+    ${S.tab === 'crit' ? critView(r) : S.tab === 'prop' ? propView(r) : libView(r)}`;
+  if (many && S.pick.open) { const so = $('#pkSort'); if (so) so.value = S.pick.sort; pickList(); }
+}
+
+/* ═════════ NHIỀU RUBRIC: ô chọn có tìm kiếm, lọc theo tình trạng, sắp xếp, gần đây ═════════ */
+const KIND = {todo:{cls:'s-todo', ic:'warn'}, ready:{cls:'s-ready', ic:'check'}, new:{cls:'s-new', ic:'info'}};
+const statusHtml = x => { const tx = tasks(x), k = KIND[tx.k]; return `<span class="${k.cls}" style="display:inline-flex;gap:6px;align-items:center;font-weight:600">${ico(k.ic)}${tabLabel(tx)}</span>`; };
+const touchRecent = id => { S.recent = [id, ...S.recent.filter(x => x !== id)].slice(0, 8); };
+
+/* Lọc theo học kỳ. Rubric KHÔNG có học kỳ; học kỳ nằm ở PHIÊN THI (exam_session.semester_name). Một rubric thuộc mọi học kỳ
+ * mà nó từng được dùng; chưa gắn phiên nào thì vào nhóm "Chưa gắn học kỳ". Danh sách học kỳ dựng từ dữ liệu có thật, mới nhất
+ * trước; mặc định "Tất cả học kỳ". Bộ lọc chỉ thu hẹp tầm nhìn, không chặn thao tác nào (CLAUDE.md §1.2). */
+const NONE = '__none';
+const semsOf = r => { const s = [...new Set(r.sessions.map(x => x.sem).filter(Boolean))]; return s.length ? s : [NONE]; };
+const semRank = s => { const m = /HK(\d)\s+(\d{4})/.exec(s); return m ? (+m[2]) * 10 + (+m[1]) : 0; };
+const semLabel = s => s === 'all' ? 'Tất cả học kỳ' : s === NONE ? 'Chưa gắn học kỳ' : s;
+const baseList = () => S.pick.sem === 'all' ? RUBRICS : RUBRICS.filter(x => semsOf(x).includes(S.pick.sem));
+function semOptions(){
+  const m = new Map(); RUBRICS.forEach(r => semsOf(r).forEach(s => m.set(s, (m.get(s) || 0) + 1)));
+  const named = [...m.keys()].filter(s => s !== NONE).sort((a, b) => semRank(b) - semRank(a));
+  return [['all', RUBRICS.length], ...named.map(s => [s, m.get(s)]), ...(m.has(NONE) ? [[NONE, m.get(NONE)]] : [])];
+}
+function switcher(r){
+  const base = baseList(); const counts = {todo:0, ready:0, new:0}; base.forEach(x => counts[tasks(x).k]++);
+  const recent = S.recent.filter(id => id !== r.id && R(id)).slice(0, 3);
+  return `<div class="rswitch">
+    <div class="curwrap">
+      <div class="cur pinned">${pin(17)}<span class="lab">Rubric đang mở</span><b title="${esc(r.name)}">${esc(r.name)}</b>${statusHtml(r)}
+        <button class="btn" data-act="pick-open" aria-haspopup="dialog" aria-expanded="${S.pick.open}">Đổi rubric (${S.pick.sem === 'all' ? RUBRICS.length : `${base.length}/${RUBRICS.length}`})${ico('chev')}</button></div>
+      ${S.pick.open ? pickerHTML(counts, base) : ''}
+    </div>
+    ${recent.length ? `<div class="recent"><span class="small muted">Gần đây:</span>${recent.map(id => `<button class="rchip" data-act="rubric" data-id="${id}" title="${esc(R(id).name)}">${esc(R(id).short)}</button>`).join('')}</div>` : ''}
+    <button class="btn ghost rnew" data-act="new-rubric">${ico('plus')}Rubric mới</button>
+    <p class="summary small muted">${S.pick.sem === 'all' ? `${RUBRICS.length} rubric` : `${base.length} / ${RUBRICS.length} rubric`} · <button class="linkbtn" data-act="pick-open" data-f="todo">${counts.todo} cần làm</button> · ${counts.ready} sẵn sàng · ${counts.new} mới${S.pick.sem === 'all' ? '' : ` · <span class="chip" style="background:var(--p-subtle);color:var(--p)">Học kỳ: ${esc(semLabel(S.pick.sem))}<button class="linkbtn" style="margin-left:8px" data-act="sem-clear">Bỏ lọc</button></span>`}</p></div>`;
+}
+function pickerHTML(counts, base){
+  const F = [['all','Tất cả',base.length],['todo','Cần làm',counts.todo],['ready','Sẵn sàng',counts.ready],['new','Mới',counts.new]];
+  const semOpts = semOptions().map(([s, n]) => `<option value="${esc(s)}" ${S.pick.sem === s ? 'selected' : ''}>${esc(semLabel(s))} (${n})</option>`).join('');
+  return `<div class="picker" role="dialog" aria-label="Chọn rubric">
+    <div class="p-top"><input id="pkQ" class="inp" style="text-align:left;font-weight:400" type="search" placeholder="Tìm rubric theo tên…" aria-label="Tìm rubric theo tên" autocomplete="off" value="${esc(S.pick.q)}">
+      <div class="p-row"><label class="small muted pinned" style="display:flex;gap:6px;align-items:center">${pin(18)}Học kỳ<select id="pkSem" data-act="pick-sem" class="mini" style="min-width:190px" aria-label="Lọc theo học kỳ">${semOpts}</select></label>
+        <label class="small muted" style="display:flex;gap:6px;align-items:center">Sắp xếp<select id="pkSort" data-act="pick-sort" class="mini"><option value="recent">Dùng gần đây</option><option value="name">Tên A–Z</option><option value="todo">Cần làm trước</option></select></label></div>
+      <div class="p-filters" role="group" aria-label="Lọc theo tình trạng">${F.map(f => `<button class="fchip" aria-pressed="${S.pick.filter === f[0]}" data-act="pick-f" data-f="${f[0]}">${f[1]}<span class="n">${f[2]}</span></button>`).join('')}</div></div>
+    <div class="p-list" id="pkList" role="listbox" aria-label="Danh sách rubric"></div>
+    <div class="p-foot"><button class="btn ghost sm" data-act="new-rubric">${ico('plus')}Rubric mới</button><span class="small muted" id="pkCount" aria-live="polite"></span><span class="small muted">↑ ↓ chọn · Enter mở · Esc đóng</span></div></div>`;
+}
+function pickList(){
+  const box = $('#pkList'); if (!box) return;
+  const q = fold(S.pick.q.trim()), f = S.pick.filter;
+  const base = baseList();
+  const list = base.filter(x => (f === 'all' || tasks(x).k === f) && fold(x.name).includes(q));
+  const rank = x => { const i = S.recent.indexOf(x.id); return i < 0 ? 999 : i; };
+  const ord = {todo:0, new:1, ready:2}, byName = (a, b) => a.name.localeCompare(b.name, 'vi');
+  if (S.pick.sort === 'name') list.sort(byName);
+  else if (S.pick.sort === 'todo') list.sort((a, b) => ord[tasks(a).k] - ord[tasks(b).k] || rank(a) - rank(b) || byName(a, b));
+  else list.sort((a, b) => rank(a) - rank(b) || byName(a, b));
+  box.innerHTML = list.length ? list.map(x => {
+    const tx = tasks(x), total = x.criteria.reduce((a, c) => a + c.max, 0), open = sOpen(x).length, sel = x.id === S.rid;
+    return `<button class="prow" role="option" aria-selected="${sel}" data-act="pick" data-id="${x.id}"><span class="pr-main"><b>${esc(x.name)}</b><span class="small muted">${fmt(total)} điểm · ${x.criteria.length} tiêu chí · ${tx.total} lỗi${open ? ` · ${open} phiên đang chấm` : ''}</span></span><span class="pr-stat">${statusHtml(x)}${sel ? ico('check') : ''}</span></button>`;
+  }).join('') : `<div class="p-empty">Không có rubric nào khớp${q ? ` “${esc(S.pick.q.trim())}”` : ''}.<br><button class="btn sm" style="margin-top:10px" data-act="pick-clear">Xoá tìm kiếm và bộ lọc</button></div>`;
+  const c = $('#pkCount'); if (c) c.textContent = `${list.length} / ${base.length} rubric`;
+  // số trên các nút lọc tình trạng đếm theo học kỳ đang chọn
+  const cnt = {all: base.length, todo: 0, ready: 0, new: 0}; base.forEach(x => cnt[tasks(x).k]++);
+  $$('.fchip').forEach(b => { const n = $('.n', b); if (n) n.textContent = cnt[b.dataset.f]; });
+}
+function usesPop(lib, anchor, exceptRid){
+  const rows = usageOf(lib).filter(u => u.r.id !== exceptRid);
+  showPop(`<h3>${esc(LIB[lib].name)} — đang dùng ở ${rows.length} nơi</h3>
+    <div style="display:flex;flex-direction:column;max-height:260px;overflow:auto">${rows.map(u => `<button class="prow" data-act="rubric" data-id="${u.r.id}"><span class="pr-main"><b>${esc(u.r.short)}</b><span class="small muted">${esc(u.c.name)}</span></span><span class="pr-stat" style="color:var(--fg)">${u.e.pts == null ? 'chưa có điểm trừ' : minus(u.e.pts)}</span></button>`).join('')}</div>`, anchor, '', 380);
+}
+function addManyRubrics(){
+  const names = ['Giữa kỳ CTDL 2025','Cuối kỳ CTDL 2025','Kiểm tra 15 phút — Mảng','Thực hành — Hàng đợi','Giữa kỳ Lập trình C','Cuối kỳ Lập trình C','Bài tập lớn — Đồ thị','Thực hành — Cây nhị phân','Kiểm tra giữa kỳ — Sắp xếp','Cuối kỳ CTDL (đề B)','Thi lại CTDL'];
+  const kinds = [0,1,2,0,1,0,1,0,2,1,0]; // 0 sẵn sàng · 1 còn việc · 2 mới
+  // phiên thi đã dùng rubric, theo học kỳ (rubric mới thì chưa có phiên nào); rubric đầu dùng ở hai học kỳ
+  const SESS = {0:[['HK1 2025-2026','final'],['HK2 2025-2026','final']], 1:[['HK1 2025-2026','final']], 3:[['HK2 2025-2026','final']],
+    4:[['HK2 2025-2026','final']], 5:[['HK2 2025-2026','final']], 6:[['HK1 2026-2027','grading']], 7:[['HK1 2026-2027','grading']],
+    9:[['HK1 2026-2027','grading']], 10:[['HK1 2026-2027','final']]};
+  const c = (id, name, desc, max, errors) => ({id, name, desc, max, errors});
+  const mk = k => [
+    c('dd','Tính đúng đắn','Kết quả đúng trên mọi ca của đề, kể cả ca biên.',6, k === 0 ? [A('bien',1.5),A('coban',1.5)] : k === 1 ? [A('bien',2.0),A('list',null)] : []),
+    c('bn','Quản lý bộ nhớ','Mọi vùng cấp phát động đều được giải phóng.',2, k === 2 ? [] : [A('ro',1.0)]),
+    c('tb','Trình bày','Tên gợi nghĩa, có chú thích cấu trúc dữ liệu và thuật toán.',2, k === 0 ? [A('stack',0.5)] : []),
+  ];
+  names.forEach((name, i) => RUBRICS.push({
+    id:'m' + i, name, short:name, criteria:mk(kinds[i]),
+    sessions: (SESS[i] || []).map(([sem, st], k) => ({name:`${name} — ${sem}`, st, n:24 + i + k, sem})),
+    proposals: kinds[i] === 1 && i % 2 === 0 ? [{id:'m' + i + 'p', name:'Gọi hàm sort có sẵn', n:2, session:name + ' — Ca 1'}] : [],
+  }));
+}
+const ctab = (id, label, n, warn) => `<button class="ctab" role="tab" aria-selected="${S.tab === id}" data-act="tab" data-tab="${id}">${label}<span class="n ${warn && n ? 'w' : ''}">${n}</span></button>`;
+
+/* Sao chép lỗi từ một rubric khác: giảng viên TỰ CHỌN rubric nguồn, không có mặc định. */
+function copyStats(src, target){
+  let n = 0, m = 0, skipped = 0;
+  src.criteria.forEach(c => {
+    const tc = target.criteria.find(x => x.id === c.id);
+    if (tc) { if (c.errors.length) { n += c.errors.length; m++; } } else skipped += c.errors.length;
+  });
+  return {n, m, skipped};
+}
+function copyPicker(r){
+  const eligible = RUBRICS.filter(x => x.id !== r.id && allErr(x).length > 0);
+  if (!eligible.length) return `<div class="copyrow"><button class="btn" data-act="add-top">${ico('plus')}Tự thêm từng lỗi</button><span class="small">Chưa có rubric nào khác có lỗi để sao chép.</span></div>`;
+  return `<div class="copyrow">
+    <label for="copySrc">Sao chép lỗi và điểm trừ từ</label>
+    <select id="copySrc" data-act="copy-src"><option value="">Chọn rubric…</option>${eligible.map(x => `<option value="${x.id}" ${S.copySrc === x.id ? 'selected' : ''}>${esc(x.name)} — ${allErr(x).length} lỗi</option>`).join('')}</select>
+    <button class="btn pri" data-act="copy-into" ${S.copySrc ? '' : 'disabled'}>${ico('copy')}Sao chép</button>
+    <span class="or">hoặc</span><button class="btn" data-act="add-top">Tự thêm từng lỗi</button></div>
+    <p class="copyprev" id="copyPreview" aria-live="polite">${copyPreviewText(r)}</p>`;
+}
+function copyPreviewText(r){
+  const src = S.copySrc && R(S.copySrc); if (!src) return '';
+  const s = copyStats(src, r);
+  return `Sẽ sao chép <b>${s.n} lỗi</b> vào ${s.m} tiêu chí trùng tên, giữ nguyên điểm trừ để bạn chỉnh cho kỳ này.${s.skipped ? ` ${s.skipped} lỗi thuộc tiêu chí không có ở rubric này sẽ không được sao chép.` : ''} Sau khi sao chép, hai rubric độc lập.`;
+}
+function updateCopyUI(){
+  const btn = $('[data-act=copy-into]'), pv = $('#copyPreview'); if (!btn || !pv) return;
+  btn.disabled = !S.copySrc; pv.innerHTML = copyPreviewText(R(S.rid));
+}
+
+function banner(r, t){
+  if (t.k === 'new') return `<div class="banner new pinned" role="status">${pin(2)}<div class="ic">${ico('info')}</div><div class="body">
+      <h2>Rubric mới — chưa có lỗi nào</h2>
+      <p>Khi chưa có lỗi, mọi bài chấm theo rubric này sẽ chuyển sang “Cần bạn xem” thay vì tự duyệt.</p>
+      ${copyPicker(r)}</div></div>`;
+  if (t.k === 'ready') return `<div class="banner ok pinned" role="status">${pin(2)}<div class="ic">${ico('check')}</div><div class="body">
+      <h2>Sẵn sàng chấm tự động</h2>
+      <p>Mọi tiêu chí đều có lỗi và điểm trừ, và AI chưa báo lỗi nào ngoài bảng.</p></div></div>`;
+  const items = [];
+  if (t.emptyCrit.length) items.push(`<li><span class="dash"></span><span><b>${t.emptyCrit.map(c => esc(c.name)).join(', ')}</b> chưa có lỗi nào.</span><button data-act="goto-crit" data-id="${t.emptyCrit[0].id}">Thêm lỗi</button></li>`);
+  if (t.unpriced.length) items.push(`<li><span class="dash"></span><span><b>${t.unpriced.length} lỗi</b> chưa có điểm trừ.</span><button data-act="goto-crit" data-id="${t.unpriced[0].crit.id}">Đặt điểm trừ</button></li>`);
+  if (t.props.length) items.push(`<li><span class="dash"></span><span><b>${t.props.length} lỗi AI thấy</b> khi chấm nhưng chưa có trong bảng — đang bị bỏ ra khỏi điểm.</span><button data-act="tab" data-tab="prop">Xem lỗi AI đề xuất</button></li>`);
+  return `<div class="banner todo pinned" role="status">${pin(2)}<div class="ic">${ico('warn')}</div><div class="body">
+      <h2>Chưa sẵn sàng chấm tự động — còn ${t.kinds} việc</h2>
+      <p>Cho tới khi xong, bài chấm theo rubric này sẽ chuyển sang “Cần bạn xem” thay vì tự duyệt.</p>
+      <ul>${items.join('')}</ul></div></div>`;
+}
+
+function critView(r){
+  const legend = `<div class="legend pinned">${pin(4)}
+    <span>${detBadge('auto')} Máy so kết quả chạy test với đáp án: chắc chắn, không cần bạn xem.</span>
+    <span>${detBadge('ai')} AI đọc mã rồi kết luận: kém chắc chắn hơn nên có thể cần bạn duyệt.</span></div>`;
+  return legend + r.criteria.map((c, i) => group(r, c, i)).join('');
+}
+function group(r, c, i){
+  const open = !S.collapsed[c.id];
+  const sum = c.errors.reduce((a, e) => a + (e.pts || 0), 0);
+  const over = sum > c.max;
+  const rows = c.errors.map(e => errRow(r, c, e)).join('');
+  let body = '';
+  if (c.waived) body = `<div class="waived"><span><b>Tiêu chí này không trừ điểm</b> — mọi bài được trọn ${fmt(c.max)} điểm.</span><button class="btn sm" data-act="unwaive" data-crit="${c.id}">Bỏ đánh dấu</button></div>`;
+  else if (!c.errors.length) body = `<div class="empty-crit pinned">${pin(7)}<p><b>Chưa có lỗi nào cho tiêu chí này.</b><br><span class="muted">Bài chấm theo rubric này sẽ không tự duyệt được cho tới khi có lỗi, hoặc bạn xác nhận tiêu chí này không trừ điểm.</span></p>
+      <div class="a"><button class="btn out" data-act="add" data-crit="${c.id}">${ico('plus')}Thêm lỗi đầu tiên</button><button class="btn" data-act="waive" data-crit="${c.id}">Tiêu chí này không trừ điểm</button></div></div>`;
+  else body = `<div class="rhead"><span>Lỗi</span><span>Cách phát hiện</span><span>Điểm trừ</span><span>Đã gặp</span><span class="sr">Thao tác</span></div>${rows}
+      ${over ? `<div class="g-note">${ico('info')}Cộng hết các lỗi là ${fmt(sum)}, vượt điểm tối đa ${fmt(c.max)} — bài chỉ bị trừ tới ${fmt(c.max)}.</div>` : ''}
+      <div class="g-foot"><button class="btn ghost sm pinned" data-act="add" data-crit="${c.id}">${ico('plus')}Thêm lỗi vào “${esc(c.name)}”${i === 0 ? pin(8) : ''}</button></div>`;
+  return `<section class="group pinned" aria-label="${esc(c.name)}">${i === 0 ? pin(3) : ''}
+    <div class="g-head" role="button" tabindex="0" aria-expanded="${open}" data-act="toggle" data-id="${c.id}" id="g-${c.id}">
+      ${ico('chev', 'chev')}<div class="grow"><h3>${esc(c.name)}</h3><p class="muted small">${esc(c.desc)}</p></div>
+      <span class="chip">${c.errors.length} lỗi</span><span class="max">Tối đa <b>${fmt(c.max)}</b> điểm</span></div>
+    ${open ? `<div class="g-body">${body}</div>` : ''}</section>`;
+}
+function errRow(r, c, e){
+  const L = LIB[e.lib];
+  const oth = others(e.lib, r.id);
+  const shared = oth.length
+    ? `<div class="sh pinned">${ico('link')}<span>Cũng dùng ở ${oth.slice(0, 2).map(o => `<b>${esc(o.r.short)}</b> (${o.e.pts == null ? 'chưa có điểm trừ' : minus(o.e.pts)}${o.c.id !== c.id ? ' · ' + esc(o.c.name) : ''})`).join('; ')}${oth.length > 2 ? ` và <button class="linkbtn" data-act="uses" data-lib="${e.lib}" data-except="${r.id}">${oth.length - 2} rubric khác</button>` : ''}</span>${r.id === 'giua-ky' && e.lib === 'bien' ? pin(6) : ''}</div>`
+    : '';
+  const seen = e.open + e.final;
+  const seenTxt = seen ? `${seen} bài · ${(e.open > 0) + (e.final > 0)} phiên` : 'Chưa gặp bài nào';
+  const price = e.pts == null
+    ? `<span class="badge b-warn">${ico('warn')}Chưa có điểm trừ</span><button class="btn out sm" data-act="price" data-lib="${e.lib}">Đặt điểm trừ</button>`
+    : `<button class="price pinned" data-act="price" data-lib="${e.lib}" aria-label="Sửa điểm trừ ${esc(L.name)}, hiện ${minus(e.pts)}">${minus(e.pts)}${ico('pen')}${r.id === 'giua-ky' && e.lib === 'bien' ? pin(5) : ''}</button>`;
+  return `<div class="row">
+    <div class="nm"><b>${esc(L.name)}</b><div class="d">${esc(L.desc)}</div>${shared}</div>
+    <div>${detBadge(L.det)}</div><div class="pr">${price}</div>
+    <div class="seen">${seenTxt}</div>
+    <button class="icon-btn" data-act="menu" data-lib="${e.lib}" aria-label="Thao tác với ${esc(L.name)}">${ico('more')}</button></div>`;
+}
+
+function propView(r){
+  if (!r.proposals.length) return `<div class="callout info">${ico('info')}<span>AI chưa báo lỗi nào ngoài bảng ở rubric này.</span></div>`;
+  return `<div class="callout pinned">${pin(12)}${ico('warn')}<span><b>${r.proposals.length} lỗi AI thấy khi chấm nhưng chưa có trong bảng.</b> Các lỗi này đang <b>bị bỏ ra khỏi điểm</b> — hệ thống không tự đoán luật gần nhất. Thêm vào rubric này, hoặc đánh dấu “không phải lỗi”.</span></div>
+  <div class="cards">${r.proposals.map(p => `<div class="card"><div><h3>${esc(p.name)}</h3>
+      <div class="ctx"><span class="chip">Thấy ở ${p.n} bài</span><span class="chip">${esc(p.session)}</span><span class="chip">Rubric: ${esc(r.short)}</span></div></div>
+      <div class="a"><button class="btn out sm" data-act="prop-add" data-id="${p.id}">${ico('plus')}Thêm vào rubric này</button>
+      <button class="btn sm" data-act="prop-no" data-id="${p.id}">Không phải lỗi</button></div></div>`).join('')}</div>`;
+}
+
+function libView(r){
+  const rows = Object.entries(LIB).map(([id, L]) => {
+    const uses = RUBRICS.flatMap(x => x.criteria.flatMap(c => c.errors.filter(e => e.lib === id).map(e => ({x, c, e}))));
+    const n = new Set(uses.map(u => u.x.id)).size;
+    return `<div class="lrow"><div><b>${esc(L.name)}</b><div class="muted small">${esc(L.desc)}</div></div><div>${detBadge(L.det)}</div>
+      <div class="use">${uses.length ? uses.slice(0, 3).map(u => `<div><span>${esc(u.x.short)} · ${esc(u.c.name)}</span> <b>${u.e.pts == null ? 'chưa có điểm trừ' : minus(u.e.pts)}</b></div>`).join('') + (uses.length > 3 ? `<div><button class="linkbtn" data-act="uses" data-lib="${id}" data-except="">và ${uses.length - 3} nơi dùng khác</button></div>` : '') : '<span class="muted small">Chưa dùng ở rubric nào</span>'}</div>
+      <div style="display:flex;gap:6px;justify-content:flex-end"><button class="btn sm" data-act="lib-edit" data-lib="${id}">Sửa lỗi</button></div></div>`;
+  }).join('');
+  return `<div class="callout info pinned">${pin(13)}${ico('info')}<span>Đây là danh sách các lỗi bạn đã viết. <b>Sửa ở đây là đổi cho tất cả rubric đang dùng lỗi đó.</b> Muốn đổi riêng một rubric: mở rubric đó, bấm ⋯ ở dòng lỗi rồi chọn Sửa. <b>Tiêu chí và điểm trừ thì mỗi rubric một khác</b>, nên không có cột điểm trừ chung ở đây.</span></div>
+  <div class="tbl"><div class="lhead"><span>Lỗi</span><span>Cách phát hiện</span><span>Đang dùng ở (tiêu chí · điểm trừ)</span><span class="sr">Thao tác</span></div>${rows}</div>`;
+}
+
+function onboarding(){
+  return `<div class="ph"><div><h1>Bảng lỗi</h1><p>Nơi bạn ghi lại những lỗi sinh viên hay mắc và điểm bị trừ cho từng lỗi, để bài thi được chấm đúng theo cách của bạn.</p></div></div>
+  <div class="onb"><div class="panel pinned">${pin(15)}<h2 style="font-size:20px;letter-spacing:-.012em">Bắt đầu với một rubric</h2>
+    <p class="muted" style="margin-top:6px">Bạn chưa có rubric nào. Rubric là bảng thang điểm của một kỳ thi. Làm lần lượt ba việc:</p>
+    <ol class="steps">
+      <li class="cur"><span class="num">1</span><div><b>Tạo rubric</b><span>Đặt tên, ghi các tiêu chí và điểm tối đa của từng tiêu chí.</span></div></li>
+      <li><span class="num">2</span><div><b>Thêm lỗi cho từng tiêu chí</b><span>Mỗi lỗi có điểm trừ riêng; chọn cách phát hiện: chạy test hay để AI đọc bài.</span></div></li>
+      <li><span class="num">3</span><div><b>Gắn rubric vào phiên thi</b><span>Ở bước Tạo phiên thi, hoặc trong trang Chấm điểm.</span></div></li>
+    </ol>
+    <button class="btn pri" data-act="new-rubric">${ico('plus')}Tạo rubric đầu tiên</button></div>
+    <div class="panel"><h3 style="font-size:16px">Cách các phần ghép lại</h3>
+      <p class="muted" style="margin-top:4px">Bài chấm được trừ điểm theo cây này, từ trên xuống.</p>
+      <div class="tree"><div class="l1">Rubric <span class="muted" style="font-weight:400">— một kỳ thi, 10,0 điểm</span></div>
+      <div>&nbsp;&nbsp;└ <span class="l2">Tiêu chí</span> <span class="muted">— Tính đúng đắn, tối đa 6,0</span></div>
+      <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ <span class="l3">Lỗi</span> <span class="muted">— Sai ca biên, trừ 1,5</span></div>
+      <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ <span class="l3">Lỗi</span> <span class="muted">— Sai ca cơ bản, trừ 1,5</span></div>
+      <div>&nbsp;&nbsp;└ <span class="l2">Tiêu chí</span> <span class="muted">— Quản lý bộ nhớ, tối đa 2,0</span></div>
+      <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ <span class="l3">Lỗi</span> <span class="muted">— Rò rỉ bộ nhớ, trừ 1,0</span></div></div>
+      <p class="muted small" style="margin-top:12px">Một lỗi có thể dùng ở nhiều rubric, mỗi rubric có điểm trừ riêng.</p></div></div>`;
+}
+
+/* ═════════ DRAWER: THÊM LỖI ═════════ */
+function openDrawer(opt){
+  const r = R(S.rid);
+  S.drawer = Object.assign({crit: null, tab:'lib', sel:null, det:'ai', name:'', desc:''}, opt);
+  if (opt.prefill) { S.drawer.name = opt.prefill.name; S.drawer.desc = opt.prefill.name; }
+  drawRender(); showOv('drawer');
+}
+function drawRender(){
+  const r = R(S.rid), d = S.drawer, dw = $('#drawer');
+  const crit = r.criteria.find(c => c.id === d.crit);
+  const ctx = `<div class="ctxbox pinned">${pin(9)}
+    <div class="path"><span>Rubric: ${esc(r.name)}</span><span aria-hidden="true">›</span>
+      ${crit ? `<span>Tiêu chí: ${esc(crit.name)} · tối đa ${fmt(crit.max)}</span>`
+        : `<label class="sr" for="dwCrit">Tiêu chí</label><select id="dwCrit" data-act="dw-crit"><option value="">Chọn tiêu chí…</option>${r.criteria.map(c => `<option value="${c.id}">${esc(c.name)} · tối đa ${fmt(c.max)}</option>`).join('')}</select>`}</div>
+    <span class="small" style="font-weight:400">Lỗi bạn thêm ở đây chỉ nằm trong rubric này.</span></div>`;
+  const used = new Set(r.criteria.flatMap(c => c.errors.map(e => e.lib)));
+  const avail = Object.entries(LIB).filter(([id]) => !used.has(id));
+  const libList = avail.length ? avail.map(([id, L]) => {
+    const oth = others(id, r.id);
+    const sel = d.sel === id;
+    const hint = oth[0] && oth[0].e.pts != null ? oth[0].e.pts : null;
+    return `<div class="libitem" role="button" tabindex="0" aria-pressed="${sel}" data-act="dw-sel" data-id="${id}">
+      <div class="t"><b>${esc(L.name)}</b>${detBadge(L.det)}</div><div class="small muted">${esc(L.desc)}</div>
+      <div class="u">${oth.length ? `Đang dùng ở: ${capNames(oth.map(o => `${esc(o.r.short)} (${o.e.pts == null ? 'chưa có điểm trừ' : minus(o.e.pts)})`), 2)}` : 'Chưa dùng ở rubric nào'}</div>
+      ${sel ? `<div class="set"><div class="field"><label for="dwPts">Điểm trừ cho rubric này</label><div class="inrow"><input id="dwPts" class="inp" value="${hint != null ? fmt(hint) : ''}" placeholder="0,0" inputmode="decimal">
+        <span class="small muted">${hint != null ? `Gợi ý từ ${esc(oth[0].r.short)}: ${fmt(hint)}. Sửa tuỳ ý.` : 'Để trống nếu chưa quyết định.'}</span></div></div></div>` : ''}
+    </div>`;
+  }).join('') : `<p class="muted">Mọi lỗi trong thư viện đã có ở rubric này. Hãy tạo lỗi mới.</p>`;
+  const body = d.tab === 'lib'
+    ? `<div class="field"><div class="inrow"><label class="sr" for="dwSearch">Tìm lỗi</label>${''}<input id="dwSearch" class="inp" style="width:100%;text-align:left;font-weight:400" placeholder="Tìm trong ${avail.length} lỗi chưa dùng ở rubric này"></div></div>
+       <div style="display:flex;flex-direction:column;gap:10px">${libList}</div>`
+    : `<div class="field"><label for="dwName">Tên lỗi</label><input id="dwName" class="inp" style="text-align:left;font-weight:400" value="${esc(d.name)}" placeholder="Ví dụ: Quên giải phóng nút đầu danh sách"></div>
+       <div class="field"><label for="dwDesc">Mô tả lỗi</label><textarea id="dwDesc" class="inp" rows="3" placeholder="Viết sao cho giảng viên khác và AI hiểu cùng một nghĩa.">${esc(d.desc)}</textarea></div>
+       <div class="field"><span class="lbl">Cách phát hiện</span><div class="grid2">
+         <button class="opt" aria-pressed="${d.det === 'auto'}" data-act="dw-det" data-det="auto"><b>Tự động (chạy test)</b><span>Chọn một nhóm test; bài trượt nhóm đó thì bị lỗi. Chắc chắn, không cần bạn xem.</span></button>
+         <button class="opt" aria-pressed="${d.det === 'ai'}" data-act="dw-det" data-det="ai"><b>AI đọc bài</b><span>AI đọc mã và kết luận theo mô tả ở trên. Mô tả càng cụ thể, AI càng ít nhầm.</span></button></div></div>
+       ${d.det === 'auto' ? `<div class="field"><label for="dwGroup">Tên nhóm test</label><input id="dwGroup" class="inp mono" style="text-align:left;font-weight:400" placeholder="vd: bien, mang_rong"></div>` : ''}
+       <div class="field"><label for="dwPts2">Điểm trừ cho rubric này</label><div class="inrow"><input id="dwPts2" class="inp" placeholder="1,0" inputmode="decimal" value="${esc(d.pts2 || '')}"><span class="small muted">${crit ? `“${esc(crit.name)}” tối đa ${fmt(crit.max)} điểm. Để trống nếu chưa quyết định; bài dính lỗi này sẽ chưa tự duyệt được.` : 'Chọn tiêu chí ở trên để biết điểm tối đa.'}</span></div></div>`;
+  const detNow = d.tab === 'lib' ? (d.sel ? LIB[d.sel].det : 'ai') : d.det;
+  const ready = d.tab === 'lib' ? !!d.sel && !!d.crit : !!d.crit;
+  dw.innerHTML = `<header><div style="display:flex;justify-content:space-between;align-items:flex-start"><h2 id="dwTitle">Thêm lỗi</h2>
+      <button class="icon-btn" data-act="close" aria-label="Đóng">${ico('x')}</button></div>${ctx}</header>
+    <div class="scroll"><div class="seg pinned" role="tablist" aria-label="Cách thêm">${pin(10)}
+      <button role="tab" aria-selected="${d.tab === 'lib'}" data-act="dw-tab" data-tab="lib">Chọn lỗi có sẵn (${avail.length})</button>
+      <button role="tab" aria-selected="${d.tab === 'new'}" data-act="dw-tab" data-tab="new">Tạo lỗi mới</button></div>
+      ${body}
+      <div class="impact pinned">${pin(11)}<h3>Lưu thì áp vào đâu</h3><div class="in">${impact(r, detNow)}</div></div></div>
+    <footer><button class="btn" data-act="close">Huỷ</button><button class="btn pri" data-act="dw-save" ${ready ? '' : 'disabled'}>${d.tab === 'lib' ? 'Thêm vào tiêu chí' : 'Tạo và thêm vào tiêu chí'}</button></footer>`;
+  if (!ready) $('[data-act=dw-save]', dw).title = d.crit ? 'Chọn một lỗi trong danh sách' : 'Chọn tiêu chí trước';
+  const sel = $('#dwCrit', dw); if (sel) sel.value = d.crit || '';
+}
+function impact(r, det){
+  if (!r.sessions.length) return `<p class="muted">Rubric này chưa gắn phiên thi nào nên lỗi chưa ảnh hưởng bài nào. Khi gắn vào phiên thi, lỗi sẽ được dùng để chấm.</p>`;
+  return `<ul class="imp">${r.sessions.map(s => s.st === 'final'
+    ? `<li><b>${esc(s.name)}</b><span class="tag">đã chốt</span><br><span class="muted">Giữ nguyên điểm — bảng điểm trừ đã được ghim lúc chốt.</span></li>`
+    : `<li><b>${esc(s.name)}</b><span class="tag o">đang chấm</span><br><span class="muted">${det === 'auto' ? `Tính lại ngay các bài dính lỗi này (trong ${s.n} bài).` : 'AI xét lỗi này từ các bài chưa chấm; bài đã chấm không tính lại.'}</span></li>`).join('')}</ul>
+    <p class="muted small" style="margin-top:10px">Rubric khác không bị ảnh hưởng.</p>`;
+}
+function drawerSave(){
+  const r = R(S.rid), d = S.drawer, crit = r.criteria.find(c => c.id === d.crit);
+  if (!crit) return;
+  let lib = d.sel, pts = null;
+  if (d.tab === 'lib') { const v = $('#dwPts'); pts = parsePts(v && v.value); }
+  else {
+    const name = ($('#dwName').value || 'Lỗi mới').trim(); lib = 'n' + Date.now();
+    LIB[lib] = {name, desc: ($('#dwDesc').value || 'Chưa có mô tả.').trim(), det: d.det};
+    pts = parsePts($('#dwPts2').value);
+    if (d.prefill) r.proposals = r.proposals.filter(p => p.id !== d.prefill.id);
+  }
+  crit.errors.push(A(lib, pts));
+  hideOv(); render();
+  toast(`Đã thêm “${LIB[lib].name}” vào “${crit.name}”${pts != null ? ` (${minus(pts)})` : ' — chưa có điểm trừ'}.`);
+}
+const parsePts = v => { if (!v || !v.trim()) return null; const n = Number(v.replace(',', '.')); return isFinite(n) && n >= 0 ? n : null; };
+
+/* ═════════ DIALOG: TẠO RUBRIC ═════════ */
+const hasRubrics = () => !S.noRubric && RUBRICS.length > 0;
+function openDialog(srcId){
+  const hasAny = hasRubrics();
+  const src = srcId || null; // không chọn sẵn rubric nguồn: giảng viên tự chọn
+  S.dlg = {mode: hasAny ? 'copy' : 'blank', src, autoName: ''};
+  dlgRender(); showOv('dialog');
+}
+function dlgRender(){
+  const g = S.dlg, dg = $('#dialog');
+  const sr = g.src ? R(g.src) : null;
+  const waitingSrc = g.mode === 'copy' && !sr;
+  const rows = g.mode === 'copy' ? (sr ? sr.criteria : []) : [{name:'', max:'', desc:''}];
+  const curName = $('#dgName'); // giữ tên đã gõ; chỉ tự đổi tên khi tên đang là tên tự sinh
+  const autoName = g.mode === 'copy' && sr ? `${sr.name} — bản sao` : '';
+  const nameVal = !curName || curName.value === '' || curName.value === g.autoName ? autoName : curName.value;
+  g.autoName = autoName;
+  const errCount = sr ? allErr(sr).length : 0;
+  const total = rows.reduce((a, c) => a + (Number(c.max) || 0), 0);
+  dg.innerHTML = `<header><div style="display:flex;justify-content:space-between"><h2 id="dgTitle">Tạo rubric mới</h2><button class="icon-btn" data-act="close" aria-label="Đóng">${ico('x')}</button></div></header>
+  <div class="scroll">
+    <div class="field pinned">${pin(14)}<span class="lbl">Bắt đầu từ</span><div class="grid2">
+      ${hasRubrics() ? `<button class="opt" aria-pressed="${g.mode === 'copy'}" data-act="dg-mode" data-mode="copy"><b>Một rubric đã có (khuyên dùng)</b><span>Sao chép tiêu chí, điểm tối đa, lỗi và điểm trừ. Sau đó hai rubric độc lập: sửa bên này không đổi bên kia.</span></button>` : ''}
+      <button class="opt" aria-pressed="${g.mode === 'blank'}" data-act="dg-mode" data-mode="blank"><b>Tạo trống</b><span>Tự nhập tiêu chí và điểm tối đa; thêm lỗi sau.</span></button></div></div>
+    ${g.mode === 'copy' ? `<div class="field"><label for="dgSrc">Sao chép từ</label><select id="dgSrc" class="inp" data-act="dg-src"><option value="">Chọn rubric muốn sao chép…</option>${RUBRICS.map(x => `<option value="${x.id}" ${x.id === g.src ? 'selected' : ''}>${esc(x.name)} — ${allErr(x).length} lỗi</option>`).join('')}</select></div>` : ''}
+    <div class="field"><label for="dgName">Tên rubric</label><input id="dgName" class="inp" style="text-align:left;font-weight:400" placeholder="Ví dụ: Cuối kỳ CTDL 2027" value="${esc(nameVal)}"></div>
+    <div class="field"><span class="lbl">Tiêu chí và điểm tối đa</span>
+      <div class="ctable"><div class="crow"><span>Tiêu chí</span><span style="text-align:right">Điểm tối đa</span><span></span></div>
+      ${waitingSrc ? `<div style="padding:16px;color:var(--muted);border-top:1px solid var(--border)">Chọn rubric ở trên để xem các tiêu chí sẽ được sao chép. Bạn vẫn sửa được trước khi tạo.</div>` : ''}
+      ${rows.map(c => `<div class="crow"><input class="inp" style="text-align:left;font-weight:400" aria-label="Tên tiêu chí" value="${esc(c.name)}" placeholder="Tên tiêu chí"><input class="inp" style="width:100%" aria-label="Điểm tối đa" value="${c.max === '' ? '' : fmt(c.max)}" placeholder="0,0"><button class="icon-btn" aria-label="Xoá tiêu chí">${ico('x')}</button></div>`).join('')}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><button class="btn ghost sm">${ico('plus')}Thêm tiêu chí</button><span class="muted">Tổng <b style="color:var(--fg)">${fmt(total)}</b> điểm</span></div></div>
+    ${g.mode === 'copy' && sr ? `<label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="dgErr" checked style="margin-top:4px"><span><b>Sao chép cả ${errCount} lỗi và điểm trừ</b><br><span class="muted small">Lỗi thuộc tiêu chí bạn xoá khỏi rubric mới sẽ không được sao chép. Lỗi AI đề xuất không sao chép.</span></span></label>` : ''}
+  </div>
+  <footer><span class="muted small">Hệ thống tự giữ lịch sử mọi lần sửa — bạn không cần quản lý “phiên bản”.</span><span style="display:flex;gap:10px"><button class="btn" data-act="close">Huỷ</button><button class="btn pri" data-act="dg-create" ${waitingSrc ? 'disabled title="Chọn rubric muốn sao chép, hoặc chọn Tạo trống"' : ''}>Tạo rubric</button></span></footer>`;
+}
+function dialogCreate(){
+  const g = S.dlg;
+  if (g.mode === 'copy' && !g.src) return;
+  const name = ($('#dgName').value || 'Rubric mới').trim();
+  const rows = $$('.crow', $('#dialog')).slice(1);
+  const src = g.src ? R(g.src) : null;
+  const crits = rows.map((row, i) => {
+    const inp = $$('input', row); const nm = inp[0].value.trim(); if (!nm) return null;
+    const ex = g.mode === 'copy' && src ? src.criteria.find(c => c.name === nm) : null;
+    return {id: ex ? ex.id : 'c' + i, name: nm, desc: ex ? ex.desc : '', max: parsePts(inp[1].value) || 1, errors: [], _src: ex};
+  }).filter(Boolean);
+  if (g.mode === 'copy' && src && $('#dgErr') && $('#dgErr').checked) crits.forEach(c => { if (c._src) c.errors = c._src.errors.map(e => ({...e, open:0, final:0})); });
+  crits.forEach(c => delete c._src);
+  const id = 'r' + Date.now();
+  if (S.noRubric) RUBRICS.length = 0; // trạng thái "chưa có rubric nào": rubric vừa tạo là rubric duy nhất
+  RUBRICS.push({id, name, short: name, sessions: [], criteria: crits.length ? crits : [{id:'c0', name:'Tiêu chí 1', desc:'', max:10, errors:[]}], proposals: []});
+  S.noRubric = false; S.rid = id; S.tab = 'crit';
+  S.pick.sem = 'all'; // rubric mới chưa gắn phiên nào nên chưa thuộc học kỳ nào: bỏ lọc để nó không biến mất khỏi danh sách
+  touchRecent(id);
+  hideOv(); render();
+  toast(`Đã tạo “${name}”${g.mode === 'copy' ? ' từ rubric cũ — hai rubric từ giờ độc lập.' : '.'}`);
+}
+
+/* ═════════ POPOVER ═════════ */
+function showPop(html, anchor, cls='', width=380){
+  const p = $('#pop'); p.className = 'pop on ' + cls; p.innerHTML = html;
+  const b = anchor.getBoundingClientRect();
+  p.style.top = (b.bottom + scrollY + 6) + 'px';
+  p.style.left = Math.max(8, Math.min(b.right + scrollX - width, innerWidth - width - 12)) + 'px';
+}
+const closePop = () => { const p = $('#pop'); p.className = 'pop'; };
+function pricePop(lib, anchor){
+  const r = R(S.rid), e = allErr(r).find(x => x.lib === lib), L = LIB[lib], c = e.crit;
+  const oth = others(lib, r.id);
+  const so = sOpen(r)[0], sf = sFinal(r)[0];
+  const lines = [];
+  if (e.open > 0 && so) lines.push(`<li>Tính lại ngay <b>${e.open} bài</b> ở “${esc(so.name)}” (đang chấm).</li>`);
+  if (e.final > 0 && sf) lines.push(`<li><b>${e.final} bài</b> ở “${esc(sf.name)}” đã chốt: giữ nguyên điểm.</li>`);
+  if (!lines.length) lines.push(`<li>Chưa có bài nào dính lỗi này, nên đổi điểm trừ chưa ảnh hưởng bài nào.</li>`);
+  showPop(`<h3>${e.pts == null ? 'Đặt' : 'Sửa'} điểm trừ — ${esc(L.name)}</h3>
+    <p class="small muted">Chỉ áp cho rubric “${esc(r.short)}”.${oth.length ? ` Ở ${capNames(oth.map(o => esc(o.r.short)), 2)} lỗi này giữ điểm trừ riêng.` : ''}</p>
+    <div class="field"><label for="ppPts">Điểm trừ</label><div class="inrow"><input id="ppPts" class="inp" value="${e.pts == null ? '' : fmt(e.pts)}" placeholder="1,0" inputmode="decimal"><span class="small muted">“${esc(c.name)}” tối đa ${fmt(c.max)}</span></div></div>
+    <div class="impact"><h3>Lưu thì điều gì xảy ra</h3><div class="in"><ul class="imp">${lines.join('')}</ul></div></div>
+    <div class="f"><button class="btn sm" data-act="pop-close">Huỷ</button><button class="btn pri sm" data-act="price-save" data-lib="${lib}">Lưu${e.open ? ` và tính lại ${e.open} bài` : ''}</button></div>`, anchor, '', 380);
+  setTimeout(() => $('#ppPts') && $('#ppPts').focus(), 0);
+}
+function menuPop(lib, anchor){
+  const oth = others(lib, S.rid);
+  showPop(`<button data-act="edit-err" data-lib="${lib}"><span>Sửa tên, mô tả, cách phát hiện</span>${oth.length ? `<small>Lỗi này đang dùng ở ${oth.length + 1} rubric — bạn chọn đổi cả ${oth.length + 1} hoặc chỉ rubric này</small>` : '<small>Chỉ rubric này đang dùng lỗi này</small>'}</button>
+    <button data-act="mock" data-msg="Chuyển lỗi sang tiêu chí khác của rubric này."><span>Chuyển sang tiêu chí khác</span><small>Chỉ đổi ở rubric này</small></button>
+    <button data-act="mock" data-msg="Gỡ lỗi khỏi rubric này; lỗi vẫn nằm trong thư viện."><span style="color:var(--danger-strong)">Gỡ khỏi rubric này</span><small>Lỗi vẫn còn trong thư viện, ở rubric khác không đổi</small></button>`, anchor, 'menu', 290);
+}
+
+/* ═════════ SỬA MỘT LỖI — chọn phạm vi: cả N rubric hoặc chỉ rubric đang mở ═════════ */
+const usageOf = lib => RUBRICS.flatMap(x => x.criteria.flatMap(c => c.errors.filter(e => e.lib === lib).map(e => ({r:x, c, e}))));
+function openEdit(lib, rid){
+  const L = LIB[lib], g = L.group || '';
+  S.edit = {lib, rid, name:L.name, desc:L.desc, det:L.det, group:g, orig:{name:L.name, desc:L.desc, det:L.det, group:g}};
+  editRender(); showOv('drawer');
+}
+function editFields(){
+  const d = S.edit; if (!d) return;
+  const n = $('#edName'), s = $('#edDesc'), g = $('#edGroup');
+  if (n) d.name = n.value; if (s) d.desc = s.value; if (g) d.group = g.value;
+}
+const editDirty = () => { const d = S.edit; return d.name.trim() !== d.orig.name || d.desc.trim() !== d.orig.desc || d.det !== d.orig.det || (d.det === 'auto' && d.group.trim() !== d.orig.group); };
+const editValid = () => { const d = S.edit; return d.name.trim() !== '' && d.desc.trim() !== '' && (d.det !== 'auto' || d.group.trim() !== ''); };
+function editRender(){
+  const d = S.edit, dw = $('#drawer');
+  const uses = usageOf(d.lib), ids = [...new Set(uses.map(u => u.r.id))];
+  const N = ids.length, cur = d.rid ? R(d.rid) : null, shared = N > 1;
+  const ok = editDirty() && editValid();
+  const chips = uses.length ? uses.slice(0, 4).map(u => `<span class="chip">${esc(u.r.short)} · ${esc(u.c.name)} · ${u.e.pts == null ? 'chưa có điểm trừ' : minus(u.e.pts)}</span>`).join('') + (uses.length > 4 ? `<span class="chip">+${uses.length - 4} nơi dùng khác</span>` : '') : '<span class="small">Chưa dùng ở rubric nào</span>';
+  const openSess = ids.flatMap(id => sOpen(R(id)).map(s => esc(s.name))), finalSess = ids.flatMap(id => sFinal(R(id)).map(s => esc(s.name)));
+  const summary = `${openSess.length ? `${openSess.length} phiên đang chấm (${capNames(openSess, 2, 'phiên')}): ${d.det === 'auto' ? 'tính lại ngay các bài dính lỗi' : 'AI xét theo mô tả mới, từ các bài chưa chấm'}` : 'chưa có phiên đang chấm'}${finalSess.length ? `; ${finalSess.length} phiên đã chốt giữ nguyên` : ''}.`;
+  const line = x => {
+    const o = sOpen(x), f = sFinal(x);
+    const what = o.length ? `${o.map(s => esc(s.name)).join(', ')} (đang chấm): ${d.det === 'auto' ? 'tính lại ngay các bài dính lỗi' : 'AI xét theo mô tả mới, từ các bài chưa chấm'}` : 'chưa có phiên đang chấm';
+    return `${what}${f.length ? `; ${f.map(s => esc(s.name)).join(', ')} (đã chốt) giữ nguyên` : ''}.`;
+  };
+  const scope = shared ? `<div class="scope pinned">${pin(16)}<h3>Áp dụng thay đổi cho</h3>
+      <div class="s"><b>Cả ${N} rubric</b><span class="muted">${capNames(ids.map(id => esc(R(id).short)), 3)}</span><span style="margin-top:4px">${summary}</span></div>
+      ${cur ? `<div class="s"><b>Chỉ “${esc(cur.short)}”</b><span class="muted">Tách thành bản riêng cho rubric này, ${N - 1} rubric còn lại giữ nguyên bản cũ “${esc(d.orig.name)}”. ${line(cur)}</span></div>` : `<div class="s"><span class="muted">Muốn đổi riêng một rubric: mở rubric đó, bấm ⋯ ở dòng lỗi rồi chọn Sửa.</span></div>`}</div>` : '';
+  const dis = ok ? '' : 'disabled';
+  const hint = `<span class="small muted" id="edHint">${ok ? '' : 'Chưa có thay đổi để lưu.'}</span>`;
+  const otherNames = ids.filter(id => id !== d.rid).map(id => esc(R(id).short));
+  const footer = shared && cur
+    ? `<footer class="scopefoot"><button class="btn" data-act="close">Huỷ</button>
+        <div><button class="btn out" data-act="ed-save" data-scope="all" ${dis}>Lưu cho cả ${N} rubric</button><p>Đổi ở ${capNames(ids.map(id => esc(R(id).short)), 2)}.</p></div>
+        <div><button class="btn pri" data-act="ed-save" data-scope="one" ${dis}>Chỉ lưu cho “${esc(cur.short)}”</button><p>Tách bản riêng; ${capNames(otherNames, 2)} giữ bản cũ.</p></div>${hint}</footer>`
+    : `<footer>${hint.replace('class="small muted"', 'class="small muted" style="margin-right:auto"')}<button class="btn" data-act="close">Huỷ</button><button class="btn pri" data-act="ed-save" data-scope="all" ${dis}>${shared ? `Lưu cho cả ${N} rubric` : 'Lưu'}</button></footer>`;
+  dw.innerHTML = `<header><div style="display:flex;justify-content:space-between;align-items:flex-start"><h2 id="dwTitle">Sửa lỗi</h2>
+      <button class="icon-btn" data-act="close" aria-label="Đóng">${ico('x')}</button></div>
+      <div class="ctxbox"><div class="path"><span>${esc(d.orig.name)}</span></div>
+        <div class="useline">${chips}</div>
+        <span class="small" style="font-weight:400">${cur ? `Bạn đang mở từ rubric “${esc(cur.short)}”.` : 'Bạn đang mở từ Thư viện lỗi.'} Tiêu chí và điểm trừ không sửa ở đây — mỗi rubric một khác; bấm số điểm trừ ở dòng lỗi để đổi.</span></div></header>
+    <div class="scroll">
+      <div class="field"><label for="edName">Tên lỗi</label><input id="edName" class="inp" style="text-align:left;font-weight:400" value="${esc(d.name)}"></div>
+      <div class="field"><label for="edDesc">Mô tả lỗi</label><textarea id="edDesc" class="inp" rows="3">${esc(d.desc)}</textarea></div>
+      <div class="field"><span class="lbl">Cách phát hiện</span><div class="grid2">
+        <button class="opt" aria-pressed="${d.det === 'auto'}" data-act="ed-det" data-det="auto"><b>Tự động (chạy test)</b><span>Chọn một nhóm test; bài trượt nhóm đó thì bị lỗi.</span></button>
+        <button class="opt" aria-pressed="${d.det === 'ai'}" data-act="ed-det" data-det="ai"><b>AI đọc bài</b><span>AI đọc mã và kết luận theo mô tả ở trên.</span></button></div></div>
+      ${d.det === 'auto' ? `<div class="field"><label for="edGroup">Tên nhóm test</label><input id="edGroup" class="inp mono" style="text-align:left;font-weight:400" value="${esc(d.group)}" placeholder="vd: bien, mang_rong"></div>` : ''}
+      ${scope}</div>
+    ${footer}`;
+}
+function editSave(scope){
+  editFields(); const d = S.edit;
+  if (!d || !editDirty() || !editValid()) return;
+  const vals = {name:d.name.trim(), desc:d.desc.trim(), det:d.det};
+  const N = new Set(usageOf(d.lib).map(u => u.r.id)).size;
+  const apply = obj => { Object.assign(obj, vals); if (d.det === 'auto') obj.group = d.group.trim(); else delete obj.group; };
+  if (scope === 'one' && d.rid) {
+    const nid = 'n' + Date.now(), cur = R(d.rid);
+    LIB[nid] = {...LIB[d.lib]}; apply(LIB[nid]);
+    cur.criteria.forEach(c => c.errors.forEach(e => { if (e.lib === d.lib) e.lib = nid; }));
+    hideOv(); render();
+    toast(`Đã tách bản riêng của “${vals.name}” cho “${cur.short}”. ${N - 1} rubric còn lại giữ nguyên bản cũ.`);
+  } else {
+    apply(LIB[d.lib]);
+    hideOv(); render();
+    toast(N > 1 ? `Đã lưu “${vals.name}” cho cả ${N} rubric.` : `Đã lưu “${vals.name}”.`);
+  }
+}
+
+/* ═════════ OVERLAY ═════════ */
+function showOv(kind){ $('#ov').classList.add('on'); $('#' + kind).classList.add('on'); }
+function hideOv(){ $('#ov').classList.remove('on'); $('#drawer').classList.remove('on'); $('#dialog').classList.remove('on'); S.drawer = null; S.edit = null; closePop(); }
+
+/* ═════════ SỰ KIỆN ═════════ */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]');
+  const outside = S.pick.open && !e.target.closest('.curwrap'); // bấm ra ngoài thì đóng ô chọn rubric
+  if (outside) S.pick.open = false;
+  if (!t) { if (outside) render(); if (!e.target.closest('#pop')) closePop(); return; }
+  const r = R(S.rid);
+  switch (t.dataset.act) {
+    case 'rubric': S.rid = t.dataset.id; touchRecent(t.dataset.id); S.tab = 'crit'; S.copySrc = ''; render(); break;
+    case 'pick-open': { const was = S.pick.open || outside; S.pick.open = t.dataset.f ? true : !was; if (t.dataset.f) { S.pick.filter = t.dataset.f; S.pick.q = ''; } render(); if (S.pick.open) { const q = $('#pkQ'); if (q) q.focus(); } break; }
+    case 'pick': S.rid = t.dataset.id; touchRecent(t.dataset.id); S.tab = 'crit'; S.copySrc = ''; S.pick = {open:false, q:'', filter:'all', sort:S.pick.sort, sem:S.pick.sem}; render(); break;
+    case 'sem-clear': S.pick.sem = 'all'; render(); break;
+    case 'pick-f': S.pick.filter = t.dataset.f; $$('.fchip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === S.pick.filter))); pickList(); break;
+    case 'pick-clear': { S.pick.q = ''; S.pick.filter = 'all'; S.pick.sem = 'all'; const q = $('#pkQ'); if (q) q.value = ''; const sm = $('#pkSem'); if (sm) sm.value = 'all'; $$('.fchip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === 'all'))); pickList(); break; }
+    case 'uses': usesPop(t.dataset.lib, t, t.dataset.except || null); break;
+    case 'tab': S.tab = t.dataset.tab; render(); break;
+    case 'toggle': S.collapsed[t.dataset.id] = !S.collapsed[t.dataset.id]; render(); break;
+    case 'goto-crit': { S.tab = 'crit'; S.collapsed[t.dataset.id] = false; render(); const el = $('#g-' + t.dataset.id); if (el) { el.scrollIntoView({block:'center'}); el.closest('.group').animate([{boxShadow:'0 0 0 3px var(--warning)'},{boxShadow:'0 0 0 0 transparent'}], {duration:1400}); } break; }
+    case 'add-top': openDrawer({crit:null}); break;
+    case 'add': openDrawer({crit:t.dataset.crit}); break;
+    case 'prop-add': { const p = r.proposals.find(x => x.id === t.dataset.id); openDrawer({crit:null, tab:'new', prefill:p}); break; }
+    case 'prop-no': r.proposals = r.proposals.filter(x => x.id !== t.dataset.id); render(); toast('Đã đánh dấu “không phải lỗi”. Lỗi này sẽ không xuất hiện ở bài nữa.'); break;
+    case 'price': pricePop(t.dataset.lib, t); break;
+    case 'price-save': { const e2 = allErr(r).find(x => x.lib === t.dataset.lib); const v = parsePts($('#ppPts').value); r.criteria.forEach(c => c.errors.forEach(x => { if (x.lib === t.dataset.lib) x.pts = v; })); render(); toast(`Đã lưu điểm trừ ${v == null ? '(để trống)' : minus(v)}${e2 && e2.open ? ` và tính lại ${e2.open} bài đang chấm` : ''}.`); break; }
+    case 'pop-close': closePop(); break;
+    case 'menu': menuPop(t.dataset.lib, t); break;
+    case 'mock': closePop(); toast('(Mockup) ' + t.dataset.msg); break;
+    case 'waive': r.criteria.find(c => c.id === t.dataset.crit).waived = true; render(); toast('Đã đánh dấu: tiêu chí này không trừ điểm. Mọi bài được trọn điểm tiêu chí này.'); break;
+    case 'unwaive': r.criteria.find(c => c.id === t.dataset.crit).waived = false; render(); break;
+    case 'edit-rubric': toast('(Mockup) Hộp thoại sửa tiêu chí và điểm tối đa — giữ như hiện nay, bỏ chữ “phiên bản”.'); break;
+    case 'lib-edit': openEdit(t.dataset.lib, null); break;
+    case 'edit-err': closePop(); openEdit(t.dataset.lib, S.rid); break;
+    case 'ed-det': editFields(); S.edit.det = t.dataset.det; editRender(); break;
+    case 'ed-save': editSave(t.dataset.scope); break;
+    case 'new-rubric': openDialog(); break;
+    case 'copy-into': { const src = S.copySrc && R(S.copySrc); if (!src) break; const st = copyStats(src, r); r.criteria.forEach(c => { const sc = src.criteria.find(x => x.id === c.id); if (sc) c.errors = sc.errors.map(x => ({...x, open:0, final:0})); }); S.tab = 'crit'; S.copySrc = ''; render(); toast(`Đã sao chép ${st.n} lỗi từ “${src.short}”. Hai rubric từ giờ độc lập — chỉnh điểm trừ cho kỳ này.`); break; }
+    case 'close': hideOv(); break;
+    case 'dw-tab': keepFields(); S.drawer.tab = t.dataset.tab; drawRender(); break;
+    case 'dw-sel': S.drawer.sel = t.dataset.id; drawRender(); break;
+    case 'dw-det': S.drawer.det = t.dataset.det; keepFields(); drawRender(); break;
+    case 'dw-save': drawerSave(); break;
+    case 'dg-mode': S.dlg.mode = t.dataset.mode; dlgRender(); break;
+    case 'dg-create': dialogCreate(); break;
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  if (t.dataset.act === 'dw-crit') { keepFields(); S.drawer.crit = t.value || null; drawRender(); }
+  if (t.dataset.act === 'dg-src') { S.dlg.src = t.value || null; dlgRender(); }
+  if (t.dataset.act === 'copy-src') { S.copySrc = t.value; updateCopyUI(); }
+  if (t.dataset.act === 'pick-sort') { S.pick.sort = t.value; pickList(); }
+  if (t.dataset.act === 'pick-sem') { S.pick.sem = t.value; pickList(); }
+});
+function keepFields(){
+  if (!S.drawer) return;
+  const n = $('#dwName'), d = $('#dwDesc'), p = $('#dwPts2');
+  if (n) S.drawer.name = n.value; if (d) S.drawer.desc = d.value; if (p) S.drawer.pts2 = p.value;
+}
+document.addEventListener('input', e => {
+  if (e.target.id === 'pkQ') { S.pick.q = e.target.value; pickList(); return; }
+  if (!S.edit || !e.target.matches('#edName,#edDesc,#edGroup')) return;
+  editFields(); const ok = editDirty() && editValid();
+  $$('[data-act=ed-save]').forEach(b => { b.disabled = !ok; });
+  const h = $('#edHint'); if (h) h.textContent = ok ? '' : 'Chưa có thay đổi để lưu.';
+});
+document.addEventListener('keydown', e => {
+  if (S.pick.open && e.key === 'Escape') { S.pick.open = false; render(); const b = $('[data-act=pick-open]'); if (b) b.focus(); return; }
+  if (S.pick.open && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.target.closest('.picker')) {
+    e.preventDefault(); const items = $$('#pkList .prow'); if (!items.length) return;
+    let i = items.indexOf(document.activeElement);
+    i = e.key === 'ArrowDown' ? (i < 0 ? 0 : Math.min(items.length - 1, i + 1)) : (i <= 0 ? -1 : i - 1);
+    if (i < 0) $('#pkQ').focus(); else items[i].focus();
+    return;
+  }
+  if (S.pick.open && e.key === 'Enter' && e.target.id === 'pkQ') { const f = $('#pkList .prow'); if (f) f.click(); return; }
+  if (e.key === 'Escape') { hideOv(); }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-act]')) { e.preventDefault(); e.target.click(); }
+});
+$('#ov').addEventListener('click', hideOv);
+$('#notesToggle').addEventListener('change', e => document.body.classList.toggle('notes', e.target.checked));
+$('#brand').addEventListener('change', e => document.body.classList.toggle('brand-teal', e.target.value === 'brand-teal'));
+
+/* ═════════ CÁC TRẠNG THÁI ĐỂ NHẢY NHANH ═════════ */
+const STATES = [
+  [1, 'Cần làm tiếp',            () => { S.noRubric = false; S.rid = 'giua-ky'; S.tab = 'crit'; }],
+  [2, 'Sẵn sàng',                () => { S.noRubric = false; S.rid = 'dien-tap'; S.tab = 'crit'; }],
+  [3, 'Rubric mới (trống)',      () => { S.noRubric = false; S.rid = 'cuoi-ky'; S.tab = 'crit'; }],
+  [4, 'Chưa có rubric nào',      () => { S.noRubric = true; }],
+  [5, 'Thêm lỗi',                () => { S.noRubric = false; S.rid = 'giua-ky'; S.tab = 'crit'; }, () => openDrawer({crit:'tb'})],
+  [6, 'Lỗi AI đề xuất',          () => { S.noRubric = false; S.rid = 'giua-ky'; S.tab = 'prop'; }],
+  [7, 'Thư viện lỗi',            () => { S.noRubric = false; S.rid = 'giua-ky'; S.tab = 'lib'; }],
+  [8, 'Tạo rubric từ rubric cũ', () => { S.noRubric = false; S.rid = 'giua-ky'; S.tab = 'crit'; }, () => openDialog()],
+  [9, 'Sửa điểm trừ',            () => { S.noRubric = false; S.rid = 'giua-ky'; S.tab = 'crit'; }, () => { const b = $('[data-act=price][data-lib=bien]'); if (b) { const y = b.getBoundingClientRect(); if (y.top < 120 || y.bottom > innerHeight - 340) b.scrollIntoView({block:'center'}); pricePop('bien', b); } }],
+  [11, 'Nhiều rubric (14)',      () => { S.noRubric = false; addManyRubrics(); S.rid = 'giua-ky'; S.tab = 'crit'; S.recent = ['giua-ky', 'dien-tap', 'm0', 'cuoi-ky', 'm3']; }],
+  [12, 'Nhiều rubric — đang tìm', () => { S.noRubric = false; addManyRubrics(); S.rid = 'giua-ky'; S.tab = 'crit'; S.recent = ['giua-ky', 'dien-tap', 'm0', 'cuoi-ky', 'm3']; S.pick = {open:true, q:'giữa kỳ', filter:'all', sort:'recent', sem:'all'}; }],
+  [13, 'Nhiều rubric — lọc học kỳ', () => { S.noRubric = false; addManyRubrics(); S.rid = 'giua-ky'; S.tab = 'crit'; S.recent = ['giua-ky', 'dien-tap', 'm0', 'cuoi-ky', 'm3']; S.pick = {open:true, q:'', filter:'all', sort:'recent', sem:'HK2 2025-2026'}; }],
+  [10, 'Sửa lỗi dùng chung',     () => { S.noRubric = false; S.rid = 'giua-ky'; S.tab = 'crit'; }, () => { openEdit('bien', 'giua-ky'); S.edit.desc = 'Kết quả sai khi danh sách rỗng, chỉ có một phần tử, hoặc sau khi xoá phần tử cuối.'; editRender(); }],
+];
+const SEED = JSON.stringify({RUBRICS, LIB});
+function restoreSeed(){ // mỗi lần bấm một trạng thái là quay về dữ liệu nguyên bản, để thử thao tác xong không bị lẫn sang trạng thái khác
+  const s = JSON.parse(SEED);
+  RUBRICS.splice(0, RUBRICS.length, ...s.RUBRICS);
+  Object.keys(LIB).forEach(k => delete LIB[k]); Object.assign(LIB, s.LIB);
+  S.collapsed = {}; S.pick = {open:false, q:'', filter:'all', sort:'recent', sem:'all'}; S.recent = ['giua-ky', 'dien-tap', 'cuoi-ky'];
+}
+function go(n){
+  const st = STATES.find(s => s[0] === n); if (!st) return;
+  hideOv(); restoreSeed(); S.copySrc = ''; st[2](); S.last = n; render();
+  if (st[3]) st[3]();
+  $$('#pills .pill').forEach(p => p.setAttribute('aria-current', String(+p.dataset.n === n)));
+  history.replaceState(null, '', '#s=' + n);
+}
+const setToolH = () => document.documentElement.style.setProperty('--toolh', $('.tool').offsetHeight + 'px');
+setToolH(); addEventListener('resize', setToolH);
+$('#pills').innerHTML = [...STATES].sort((a, b) => a[0] - b[0]).map(s => `<button class="pill" data-n="${s[0]}" aria-current="false">${s[0]}. ${s[1]}</button>`).join('');
+$('#pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) go(+b.dataset.n); });
+$('#notes').innerHTML = `<h2>Ghi chú thiết kế (các số hồng trên màn hình)</h2><ol>${NOTES.map(n => `<li><i>${n[0]}</i><span>${n[1]}</span></li>`).join('')}</ol>`;
+const hash = /#s=(\d+)/.exec(location.hash);
+if (/notes/.test(location.hash)) { document.body.classList.add('notes'); $('#notesToggle').checked = true; }
+go(hash ? +hash[1] : 1);
+</script>
+</body>
+</html>

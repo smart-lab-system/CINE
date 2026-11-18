@@ -16,6 +16,17 @@ export interface AuthoredQuestion {
   points: number;
 }
 
+/** Một câu như API trả về cho giảng viên: đủ để đặt gói test và hiển thị đề cương. */
+export interface ProblemView {
+  id: string;
+  ordinal: number;
+  title: string;
+  pointsHundredths: number;
+  statement: string | null;
+  requiredDeliverableId: string | null;
+  testBundleId: string | null;
+}
+
 /** Ngữ cảnh mà đề nhiều câu cần để kiểm D1 (rubric) và D2 (ngôn ngữ), đọc dưới khoá giảng viên. */
 export interface AuthoringContext {
   rubricId: string | null;
@@ -332,6 +343,32 @@ export class ProblemService {
   /** Bảng sinh viên của phiên (P1b Task 9): một dòng mỗi sinh viên, tổng và chip theo câu. Chỉ đọc. */
   async listStudents(sessionId: string): Promise<StudentBoardRow[]> {
     return loadStudentBoard(this.ds.manager, sessionId);
+  }
+
+  /** Các câu của phiên theo thứ tự, kèm id để đặt gói test cho đúng câu (route `test-bundles` với `problemId`). */
+  async listProblems(sessionId: string): Promise<ProblemView[]> {
+    const rows: {
+      id: string;
+      ordinal: number;
+      title: string;
+      points_hundredths: number;
+      statement: string | null;
+      required_deliverable_id: string | null;
+      test_bundle_id: string | null;
+    }[] = await this.ds.query(
+      `SELECT id, ordinal, title, points_hundredths, statement, required_deliverable_id, test_bundle_id
+         FROM examcollect.exam_problem WHERE exam_session_id = $1 ORDER BY ordinal`,
+      [sessionId],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      ordinal: r.ordinal,
+      title: r.title,
+      pointsHundredths: r.points_hundredths,
+      statement: r.statement,
+      requiredDeliverableId: r.required_deliverable_id,
+      testBundleId: r.test_bundle_id,
+    }));
   }
 
   /**

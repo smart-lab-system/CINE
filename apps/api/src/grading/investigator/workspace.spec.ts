@@ -51,4 +51,14 @@ describe('bang-loi.md — §4.1 luật 2', () => {
     expect(modelPart).toMatch(/do_phuc_tap .*máy chưa đo được/);
     expect(modelPart).toMatch(/chu_thich_sai .*\[chưa có giá\]/);
   });
+
+  // Wave 1 (2026-10-22): agent không thấy định nghĩa luật, nên bỏ sót ten_bien_vo_nghia (recall 27%).
+  it('mỗi luật có mô tả thì dòng trong bảng lỗi mang mô tả đó; luật không có mô tả thì dòng không đổi', () => {
+    const text = renderRulesFile([
+      { ruleKey: 'ten_bien_vo_nghia', title: 'Tên biến không gợi nghĩa', criterionKey: 'trinh_bay', priced: true, checkedBy: 'model', machineNote: null, description: 'Tên biến chỉ một-hai chữ cái (a, x, t, p, v, n...), trừ biến đếm i/j/k.' },
+      { ruleKey: 'thieu_chu_thich', title: 'Thiếu chú thích', criterionKey: 'trinh_bay', priced: true, checkedBy: 'model', machineNote: null },
+    ]);
+    expect(text).toMatch(/ten_bien_vo_nghia — Tên biến không gợi nghĩa: Tên biến chỉ một-hai chữ cái \(a, x, t, p, v, n\.\.\.\), trừ biến đếm i\/j\/k\. \(tiêu chí: trinh_bay\)/);
+    expect(text).toMatch(/thieu_chu_thich — Thiếu chú thích \(tiêu chí: trinh_bay\)/);
+  });
 });

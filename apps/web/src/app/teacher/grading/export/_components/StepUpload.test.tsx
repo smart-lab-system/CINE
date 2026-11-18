@@ -90,4 +90,45 @@ describe('StepUpload', () => {
     fireEvent.change(input(), { target: { files: [] } });
     expect(uploadAsync).not.toHaveBeenCalled();
   });
+
+  const zone = () => input().parentElement!;
+
+  it('a file dropped on the zone is uploaded just like a picked one', async () => {
+    const onInspected = vi.fn();
+    render(<StepUpload sessionId="s1" onInspected={onInspected} />);
+    const f = file('So-diem N01.xlsx');
+    fireEvent.drop(zone(), { dataTransfer: { files: [f] } });
+    await waitFor(() => expect(onInspected).toHaveBeenCalledTimes(1));
+    expect(uploadAsync).toHaveBeenCalledWith(f);
+  });
+
+  it('a dropped .csv is refused with the same sentence as a picked one', () => {
+    render(<StepUpload sessionId="s1" onInspected={vi.fn()} />);
+    fireEvent.drop(zone(), { dataTransfer: { files: [file('so-diem.csv')] } });
+    expect(screen.getByRole('alert')).toHaveTextContent('Chỉ nhận file .xlsx.');
+    expect(uploadAsync).not.toHaveBeenCalled();
+  });
+
+  it('ignores a drop while the previous file is still on its way', () => {
+    uploadState = { isPending: true, error: null };
+    render(<StepUpload sessionId="s1" onInspected={vi.fn()} />);
+    fireEvent.drop(zone(), { dataTransfer: { files: [file('a.xlsx')] } });
+    expect(uploadAsync).not.toHaveBeenCalled();
+  });
+
+  it('says "drop it" while a file is dragged over the zone, and goes back when it leaves', () => {
+    render(<StepUpload sessionId="s1" onInspected={vi.fn()} />);
+    expect(screen.getByText('Kéo thả file vào đây')).toBeInTheDocument();
+    fireEvent.dragOver(zone(), { dataTransfer: { files: [] } });
+    expect(screen.getByText('Thả file để tải lên')).toBeInTheDocument();
+    fireEvent.dragLeave(zone());
+    expect(screen.getByText('Kéo thả file vào đây')).toBeInTheDocument();
+  });
+
+  it('shows the reading step as its own status once the file is up', () => {
+    inspectState = { isPending: true, error: null };
+    render(<StepUpload sessionId="s1" onInspected={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Đang đọc file…');
+    expect(input()).toBeDisabled();
+  });
 });

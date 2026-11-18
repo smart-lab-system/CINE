@@ -13,7 +13,7 @@ const SYSTEM_PROMPT = [
   '',
   LENS_PROTOCOL_HELP,
   '',
-  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["tinh_dung-tc-N"],"reason":"một hai câu nêu vì sao"}}.',
+  'Kết luận: {"action":"final","calls":[],"conclusion":{"status":"confirmed"|"refuted","toolCallIds":["tinh_dung-tc-N"]}}.',
   '"refuted" nghĩa là bạn CHẠY THỬ (run hoặc run_tests) và thấy lỗi đó không đúng như mô tả —',
   'không phải "tôi nghĩ có thể sai". Việc của lăng kính này LUÔN LÀ chứng minh bằng một lần chạy',
   '(§6.1) — dù kết luận "confirmed" hay "refuted", nếu không kèm ít nhất một lần run/run_tests',
