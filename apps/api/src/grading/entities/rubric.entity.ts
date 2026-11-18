@@ -37,4 +37,11 @@ export class RubricEntity extends BaseEntity {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
+
+  /**
+   * `qa` = tiêu chí phẳng tái sử dụng (mặc định, hành vi cũ).
+   * `qs` = checklist theo câu, nhiều hướng — xem spec 2026-11-18.
+   */
+  @Column({ type: 'varchar', length: 8, default: 'qa' })
+  kind!: 'qa' | 'qs';
 }

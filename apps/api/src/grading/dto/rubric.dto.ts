@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -33,6 +34,38 @@ export class RubricCriterionDto {
   key?: string;
 }
 
+export class RubricApproachStepDto {
+  @IsString()
+  @Length(3, 1000)
+  description!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.25)
+  @Max(100)
+  maxPoints!: number;
+
+  @IsOptional()
+  @Matches(/^[a-z0-9_]{1,64}$/, { message: 'key chỉ gồm chữ thường không dấu, số, "_" và tối đa 64 ký tự' })
+  key?: string;
+}
+
+export class RubricApproachDto {
+  @IsString()
+  @Length(1, 200)
+  name!: string;
+
+  @IsOptional()
+  @Matches(/^[a-z0-9_]{1,64}$/, { message: 'key chỉ gồm chữ thường không dấu, số, "_" và tối đa 64 ký tự' })
+  key?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => RubricApproachStepDto)
+  steps!: RubricApproachStepDto[];
+}
+
 export class SaveRubricDto {
   /**
    * Tên do giảng viên đặt, ví dụ "Giữa kỳ CTDL".
@@ -45,12 +78,31 @@ export class SaveRubricDto {
   @Length(1, 200)
   name!: string;
 
+  /**
+   * Mặc định `qa` — hành vi cũ. `qs` yêu cầu `approaches` và bỏ qua `criteria`
+   * phẳng (server dựng tiêu chí từ bước từng hướng).
+   */
+  @IsOptional()
+  @IsIn(['qa', 'qs'])
+  kind?: 'qa' | 'qs';
+
+  /**
+   * Bắt buộc khi kind = qa (hoặc không khai kind). Khi kind = qs có thể bỏ trống.
+   */
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
-  // A rubric with fifty criteria is a rubric nobody reviews, and every one
-  // of them is a separate question put to the model on every submission.
   @ArrayMaxSize(30)
   @ValidateNested({ each: true })
   @Type(() => RubricCriterionDto)
-  criteria!: RubricCriterionDto[];
+  criteria?: RubricCriterionDto[];
+
+  /** Bắt buộc khi kind = qs. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => RubricApproachDto)
+  approaches?: RubricApproachDto[];
 }

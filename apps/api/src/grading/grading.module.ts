@@ -5,6 +5,7 @@ import { GRADING_QUEUE } from './grading.queue';
 import { GradingProcessor } from './grading.processor';
 import { RubricEntity } from './entities/rubric.entity';
 import { RubricCriterionEntity } from './entities/rubric-criterion.entity';
+import { RubricApproachEntity } from './entities/rubric-approach.entity';
 import { GradingResultEntity } from './entities/grading-result.entity';
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { RequiredDeliverableEntity } from '../exam-session/entities/required-deliverable.entity';
@@ -134,6 +135,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     TypeOrmModule.forFeature([
       RubricEntity,
       RubricCriterionEntity,
+      RubricApproachEntity,
       GradingResultEntity,
       TeacherReviewEntity,
       SubmissionEntity,

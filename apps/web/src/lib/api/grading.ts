@@ -8,6 +8,8 @@ export interface Rubric {
   name: string;
   version: number;
   isActive: boolean;
+  /** `qa` (mặc định) hoặc `qs` — checklist nhiều hướng theo câu (DSA). */
+  kind?: 'qa' | 'qs';
   totalPoints: number;
   /**
    * `key` là định danh ỔN ĐỊNH của tiêu chí — luật trỏ vào nó (`criterionKey`). Lưu rubric mà bỏ `key`
@@ -15,7 +17,20 @@ export interface Rubric {
    */
   /** Thời điểm tạo bản này (ISO). Server luôn trả; tuỳ chọn để không phá fixture. */
   createdAt?: string;
-  criteria: { id: string; key: string; description: string; maxPoints: number }[];
+  criteria: {
+    id: string;
+    key: string;
+    description: string;
+    maxPoints: number;
+    approachKey?: string | null;
+  }[];
+  /** QS: các hướng làm. QA: mảng rỗng hoặc không có. */
+  approaches?: {
+    key: string;
+    name: string;
+    maxPoints: number;
+    steps: { key: string; description: string; maxPoints: number }[];
+  }[];
 }
 
 /** Một tiêu chí trong một lần duyệt của giảng viên. */
