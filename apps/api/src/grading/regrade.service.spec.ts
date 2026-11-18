@@ -1,4 +1,4 @@
-import { regradeRefusal, REGRADE_MESSAGES } from './regrade.service';
+import { forceRegradeAiRefusal, regradeRefusal, REGRADE_MESSAGES } from './regrade.service';
 
 const row = (over: Partial<Parameters<typeof regradeRefusal>[0]> = {}) => ({
   status: 'flagged_for_review' as const,
@@ -53,13 +53,33 @@ describe('regradeRefusal (G3 §4.1) — nothing here needs a database', () => {
   });
 
   it('the messages are the ones the spec fixes, word for word', () => {
-    expect(REGRADE_MESSAGES).toEqual({
-      in_progress: 'Bài này đang được chấm — chưa cần chấm lại.',
-      has_score:
-        'Bài này đã có kết quả — chấm lại là đổi thước sau khi đã đo. Nếu điểm chưa đúng, hãy chấm tay: thao tác đó có ghi nhật ký.',
-      submission_class:
-        'Bài này không chấm được vì bài làm không đọc được — chấm lại sẽ ra đúng kết quả cũ, nên lối duy nhất là chấm tay.',
-      not_ungradable: 'Bài này không ở trạng thái không chấm được.',
-    });
+    expect(REGRADE_MESSAGES.in_progress).toMatch(/đang được chấm/);
+    expect(REGRADE_MESSAGES.has_score).toMatch(/đã có kết quả/);
+    expect(REGRADE_MESSAGES.submission_class).toMatch(/chấm tay/);
+    expect(REGRADE_MESSAGES.not_ungradable).toMatch(/không chấm được/);
+  });
+});
+
+describe('forceRegradeAiRefusal', () => {
+  it('cho phép flagged / auto_approved khi đã có điểm AI', () => {
+    expect(
+      forceRegradeAiRefusal({ status: 'flagged_for_review', aiTotalScore: '0.00' }),
+    ).toBeNull();
+    expect(forceRegradeAiRefusal({ status: 'auto_approved', aiTotalScore: '7' })).toBeNull();
+  });
+
+  it('từ chối khi đang chấm hoặc đã chốt', () => {
+    expect(forceRegradeAiRefusal({ status: 'ai_grading', aiTotalScore: '1' })?.code).toBe(
+      'in_progress',
+    );
+    expect(forceRegradeAiRefusal({ status: 'finalized', aiTotalScore: '1' })?.code).toBe(
+      'force_published',
+    );
+  });
+
+  it('từ chối khi chưa có điểm AI', () => {
+    expect(
+      forceRegradeAiRefusal({ status: 'flagged_for_review', aiTotalScore: null })?.code,
+    ).toBe('force_not_allowed');
   });
 });

@@ -95,6 +95,14 @@ describe('AnswerPane', () => {
     expect(screen.queryByTestId('paragraph-0')).not.toBeInTheDocument();
   });
 
+  it('layout code: giữ xuống dòng trong <pre>', () => {
+    pane({ paragraphs: ['class A {\n  int x;\n}\n'], spans: [] }, { layout: 'code' });
+    const block = screen.getByTestId('paragraph-0');
+    expect(block.tagName).toBe('PRE');
+    expect(block).toHaveClass('whitespace-pre-wrap');
+    expect(block.textContent).toContain('\n');
+  });
+
   it('bôi đen đủ dài thì đề nghị gán làm minh chứng', () => {
     const onPin = vi.fn();
     pane({}, { onPin });

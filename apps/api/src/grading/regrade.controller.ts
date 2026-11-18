@@ -28,6 +28,14 @@ export class RegradeController {
     return this.regrade.regradeOne(req.user!.sub, result.id);
   }
 
+  /** Ép chấm lại bằng AI bài đã có điểm (có hộp xác nhận phía UI). */
+  @Post('grading-results/:id/regrade-ai')
+  @Roles('teacher')
+  async regradeAiScored(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const result = await this.grading.findResultForOwner(id, req.user!.sub);
+    return this.regrade.regradeAiScored(req.user!.sub, result.id);
+  }
+
   @Post('exam-sessions/:id/regrade-ungradable')
   @Roles('teacher')
   async regradeUngradable(

@@ -32,13 +32,18 @@ export const REGRADE_MESSAGES = {
   submission_class:
     'Bài này không chấm được vì bài làm không đọc được — chấm lại sẽ ra đúng kết quả cũ, nên lối duy nhất là chấm tay.',
   not_ungradable: 'Bài này không ở trạng thái không chấm được.',
+  force_not_allowed:
+    'Không ép chấm lại bằng AI được ở trạng thái này (đã chốt / đang chấm / chưa có điểm AI).',
+  force_published: 'Bài đã chốt điểm - không ép chấm lại bằng AI. Sửa tay nếu cần.',
 } as const;
 
 export type RegradeRefusal =
   | { code: 'in_progress'; status: 409; message: string }
   | { code: 'has_score'; status: 400; message: string }
   | { code: 'submission_class'; status: 400; message: string }
-  | { code: 'not_ungradable'; status: 400; message: string };
+  | { code: 'not_ungradable'; status: 400; message: string }
+  | { code: 'force_not_allowed'; status: 400; message: string }
+  | { code: 'force_published'; status: 400; message: string };
 
 /**
  * Bài này có được chấm lại không — và nếu không thì vì sao.
@@ -63,6 +68,26 @@ export function regradeRefusal(row: {
   }
   if (row.ungradableClass !== 'system') {
     return { code: 'not_ungradable', status: 400, message: REGRADE_MESSAGES.not_ungradable };
+  }
+  return null;
+}
+
+/** Ép chấm lại bằng AI trên bài đã có điểm AI (chưa chốt). */
+export function forceRegradeAiRefusal(row: {
+  status: GradingResultStatus;
+  aiTotalScore: string | null;
+}): RegradeRefusal | null {
+  if (row.status === 'ai_grading' || row.status === 'ai_graded') {
+    return { code: 'in_progress', status: 409, message: REGRADE_MESSAGES.in_progress };
+  }
+  if (row.status === 'finalized' || row.status === 'exported') {
+    return { code: 'force_published', status: 400, message: REGRADE_MESSAGES.force_published };
+  }
+  if (
+    (row.status !== 'flagged_for_review' && row.status !== 'auto_approved') ||
+    row.aiTotalScore === null
+  ) {
+    return { code: 'force_not_allowed', status: 400, message: REGRADE_MESSAGES.force_not_allowed };
   }
   return null;
 }
@@ -124,6 +149,24 @@ export class RegradeService {
   }
 
   /**
+   * Ép chấm lại bằng AI bài ĐÃ CÓ ĐIỂM (flagged_for_review / auto_approved).
+   * Xoá output AI trên cùng dòng, đưa về `ai_grading`, xếp job - cần xác nhận phía UI.
+   */
+  async regradeAiScored(teacherId: string, resultId: string): Promise<RegradeOutcome> {
+    const [raw] = await this.ds.query(`${REGRADE_ROW_SQL} WHERE g.id = $1`, [resultId]);
+    if (!raw) throw new NotFoundException('Grading result not found');
+    const row = toRow(raw);
+
+    const refusal = forceRegradeAiRefusal(row);
+    if (refusal) {
+      throw refusal.status === 409
+        ? new ConflictException(refusal.message)
+        : new BadRequestException(refusal.message);
+    }
+    return this.requeueForceAi(teacherId, row);
+  }
+
+  /**
    * Chấm lại MỌI bài lớp system của một phiên — tuỳ chọn chỉ những bài cùng `ungradable_reason`.
    *
    * Một `SELECT` lấy ứng viên rồi gọi `requeue` TUẦN TỰ từng bài, không `UPDATE … WHERE id IN (…)` hàng loạt:
@@ -180,6 +223,42 @@ export class RegradeService {
         .andWhere("status = 'flagged_for_review'")
         .andWhere("ungradable_class = 'system'")
         .andWhere('ai_total_score IS NULL')
+        .execute();
+      return (updated.affected ?? 0) > 0;
+    });
+    if (!moved) return { requeued: 0, skipped: [{ resultId: row.id, reason: SKIP_MOVED_ON }] };
+
+    await this.enqueue(teacherId, row);
+    return { requeued: 1, skipped: [] };
+  }
+
+  /** Force: xoá điểm AI + đưa về ai_grading rồi enqueue. */
+  private async requeueForceAi(teacherId: string, row: RegradeRow): Promise<RegradeOutcome> {
+    const moved = await this.ds.transaction(async (m) => {
+      await lockTeacherScoring(m, teacherId);
+      const updated = await m
+        .createQueryBuilder()
+        .update(GradingResultEntity)
+        .set({
+          status: 'ai_grading',
+          aiTotalScore: null,
+          criterionResults: [],
+          modelUsed: null,
+          confidence: null,
+          advocateOpinion: null,
+          advocateOutcome: null,
+          contextUsedQuestion: null,
+          contextUsedModelAnswer: null,
+          selectedApproachKey: null,
+          ungradableClass: null,
+          ungradableReason: null,
+          flagForReview: false,
+        })
+        .where('id = :id', { id: row.id })
+        .andWhere('status IN (:...statuses)', {
+          statuses: ['flagged_for_review', 'auto_approved'],
+        })
+        .andWhere('ai_total_score IS NOT NULL')
         .execute();
       return (updated.affected ?? 0) > 0;
     });

@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useRegradeResult, useRegradeUngradable } from '@/hooks/useRegrade';
+import { useRegradeAiScored, useRegradeResult, useRegradeUngradable } from '@/hooks/useRegrade';
 import type { RegradeOutcome } from '@/lib/api/regrade';
 
 /** Số bài bị bỏ qua, gộp theo câu lý do của server. */
@@ -24,7 +24,9 @@ function groupSkipped(outcome: RegradeOutcome | null): Map<string, number> {
 
 export type RegradeScope =
   | { kind: 'result'; sessionId: string; resultId: string }
-  | { kind: 'session'; sessionId: string; reason: string | null; count: number };
+  | { kind: 'session'; sessionId: string; reason: string | null; count: number }
+  /** Ép chấm lại bằng AI bài đã có điểm (xoá kết quả AI cũ). */
+  | { kind: 'force-ai'; sessionId: string; resultId: string };
 
 /**
  * MỘT nút chấm lại cho cả bốn chỗ (đầu phiên, khối "đã dừng", hồ sơ, băng dịch vụ AI lỗi), để hộp xác nhận nói
@@ -44,10 +46,12 @@ export function RegradeButton({
 }) {
   const one = useRegradeResult(scope.sessionId);
   const many = useRegradeUngradable(scope.sessionId);
+  const forceAi = useRegradeAiScored(scope.sessionId);
   const [open, setOpen] = useState(false);
   const [outcome, setOutcome] = useState<RegradeOutcome | null>(null);
 
-  const mutation = scope.kind === 'result' ? one : many;
+  const mutation =
+    scope.kind === 'force-ai' ? forceAi : scope.kind === 'result' ? one : many;
   const count = scope.kind === 'session' ? scope.count : 1;
 
   const done = (data: RegradeOutcome) => {
@@ -65,11 +69,26 @@ export function RegradeButton({
     toast.error(error.message);
   };
   const confirm = () => {
-    if (scope.kind === 'result') one.mutate(scope.resultId, { onSuccess: done, onError: failed });
+    if (scope.kind === 'force-ai') forceAi.mutate(scope.resultId, { onSuccess: done, onError: failed });
+    else if (scope.kind === 'result') one.mutate(scope.resultId, { onSuccess: done, onError: failed });
     else many.mutate(scope.reason, { onSuccess: done, onError: failed });
   };
 
   const skippedByReason = groupSkipped(outcome);
+  const title =
+    scope.kind === 'force-ai'
+      ? 'Chấm lại bằng AI?'
+      : scope.kind === 'result'
+        ? 'Chấm lại bài này?'
+        : `Chấm lại ${count} bài?`;
+  const description =
+    scope.kind === 'force-ai'
+      ? 'Điểm và giải trình AI hiện tại sẽ bị xoá. Bài được chấm lại từ đầu bằng mô hình (có tính phí). Đóng trang không dừng việc chấm - kết quả hiện lại khi xong.'
+      : scope.kind === 'result'
+        ? 'Bài này sẽ được chấm lại từ đầu. Mỗi bài là một lượt gọi mô hình có tính phí. Đóng trang không dừng việc chấm - kết quả hiện ở danh sách khi xong.'
+        : `Bạn sắp chấm lại ${count} bài không chấm được do lỗi phía hệ thống${
+            scope.reason ? ` - cùng lý do: "${scope.reason}"` : ''
+          }. Mỗi bài là một lượt gọi mô hình có tính phí. Đóng trang không dừng việc chấm - kết quả hiện ở danh sách khi xong.`;
 
   return (
     <>
@@ -105,16 +124,8 @@ export function RegradeButton({
       <Dialog open={open} onOpenChange={(next) => !next && setOpen(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{scope.kind === 'result' ? 'Chấm lại bài này?' : `Chấm lại ${count} bài?`}</DialogTitle>
-            <DialogDescription>
-              {scope.kind === 'result'
-                ? 'Bài này sẽ được chấm lại từ đầu.'
-                : `Bạn sắp chấm lại ${count} bài không chấm được do lỗi phía hệ thống${
-                    scope.reason ? ` - cùng lý do: “${scope.reason}”` : ''
-                  }.`}{' '}
-              Mỗi bài là một lượt gọi mô hình có tính phí. Đóng trang không dừng việc chấm - kết quả hiện ở danh
-              sách khi xong.
-            </DialogDescription>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           {mutation.isError && mutation.error && (
             <Alert variant="destructive">
@@ -126,7 +137,7 @@ export function RegradeButton({
               Huỷ
             </Button>
             <Button type="button" loading={mutation.isPending} onClick={confirm}>
-              Xác nhận chấm lại
+              {scope.kind === 'force-ai' ? 'Xác nhận chấm lại bằng AI' : 'Xác nhận chấm lại'}
             </Button>
           </DialogFooter>
         </DialogContent>
