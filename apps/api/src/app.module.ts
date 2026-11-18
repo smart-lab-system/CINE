@@ -10,6 +10,7 @@ import { ExamSessionModule } from './exam-session/exam-session.module';
 import { SubmissionModule } from './submission/submission.module';
 import { GradingModule } from './grading/grading.module';
 import { ExamAuthoringModule } from './exam-authoring/exam-authoring.module';
+import { ExamBankModule } from './exam-bank/exam-bank.module';
 import { CourseModule } from './course/course.module';
 import { MasterDataModule } from './master-data/master-data.module';
 import { GradeExportModule } from './grade-export/grade-export.module';
@@ -83,6 +84,7 @@ import { dataSourceOptions } from './database/data-source';
     SubmissionModule,
     GradingModule,
     ExamAuthoringModule,
+    ExamBankModule,
     CourseModule,
     MasterDataModule,
     GradeExportModule,
