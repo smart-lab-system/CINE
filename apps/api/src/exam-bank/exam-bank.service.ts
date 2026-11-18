@@ -165,7 +165,7 @@ export class ExamBankService {
         m.create(CourseExamEntity, {
           courseId: dto.courseId,
           examType: dto.examType,
-          title: buildCourseExamTitle(dto.examType, course.name),
+          title: buildCourseExamTitle(dto.examType, course.name, dto.titleDetail),
           description: normalizeDescription(dto.description),
           status: 'draft',
           language: dto.language,
@@ -237,13 +237,22 @@ export class ExamBankService {
     return this.getOne(teacherId, examId);
   }
 
+  /**
+   * Xóa đề kho khi chưa gắn phiên thi.
+   * (Chưa có FK gắn phiên ↔ course_exam — hiện cho xóa draft và ready.)
+   */
   async remove(teacherId: string, examId: string): Promise<void> {
     const exam = await this.requireExam(examId);
     await this.assertTeachesCourse(teacherId, exam.courseId);
-    if (exam.status !== 'draft') {
-      throw new BadRequestException('Chỉ xóa được đề đang ở trạng thái nháp.');
+    if (await this.isAttachedToExamSession(examId)) {
+      throw new BadRequestException('Không xóa được đề đã gắn vào phiên thi.');
     }
     await this.exams.delete({ id: examId });
+  }
+
+  /** Placeholder tới khi có liên kết course_exam → exam_session. */
+  async isAttachedToExamSession(_examId: string): Promise<boolean> {
+    return false;
   }
 
   /**

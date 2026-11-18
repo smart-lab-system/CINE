@@ -127,12 +127,12 @@ export default function EditExamBankPage() {
         courseName={exam.courseName}
         courseLabel={`${exam.courseCode} — ${exam.courseName}`}
         submitLabel="Lưu"
-        allowDelete={exam.status === "draft"}
+        allowDelete
         busy={busy}
         error={error}
         initial={initial}
         onDelete={() => {
-          if (!confirm("Xóa đề nháp này?")) return;
+          if (!confirm("Xóa đề này? Chỉ xóa được khi chưa gắn vào phiên thi.")) return;
           mutations.remove.mutate(exam.id, {
             onSuccess: () => router.push("/teacher/exam-bank"),
             onError: (err) => {

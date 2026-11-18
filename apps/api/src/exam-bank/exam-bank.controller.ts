@@ -22,8 +22,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ExamBankService } from './exam-bank.service';
+import { ImportDsaVi03Service } from './dsa-import/import-dsa-vi03.service';
 import {
   CreateCourseExamDto,
+  ImportDsaVi03Dto,
   ListCourseExamsQueryDto,
   UpdateCourseExamDto,
 } from './dto/exam-bank.dto';
@@ -35,7 +37,10 @@ const DOCX_MIME =
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('teacher')
 export class ExamBankController {
-  constructor(private readonly bank: ExamBankService) {}
+  constructor(
+    private readonly bank: ExamBankService,
+    private readonly dsaImport: ImportDsaVi03Service,
+  ) {}
 
   @Get('courses')
   listCourses(@Req() req: Request) {
@@ -45,6 +50,25 @@ export class ExamBankController {
   @Get()
   list(@Req() req: Request, @Query() query: ListCourseExamsQueryDto) {
     return this.bank.listByCourse(req.user!.sub, query.courseId);
+  }
+
+  /**
+   * Import dsa_vi_03: mỗi câu → 1 rubric QS + 1 đề kho (mặc định TK).
+   * Đặt trước `:id`.
+   */
+  @Post('import/dsa-vi-03')
+  importDsa(
+    @Req() req: Request,
+    @Body() dto: ImportDsaVi03Dto,
+  ) {
+    return this.dsaImport.importForTeacher(req.user!.sub, {
+      courseId: dto.courseId,
+      examType: dto.examType,
+      language: dto.language,
+      limit: dto.limit,
+      replace: dto.replace,
+      dryRun: dto.dryRun,
+    });
   }
 
   /**

@@ -44,7 +44,7 @@ export default function ExamBankPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Kho đề"
-        description="Đề thi thuộc môn học — dùng chung giữa các giảng viên được phân công dạy môn đó. Nháp có thể xóa; sẵn sàng giữ lại để gắn rubric / phiên sau."
+        description="Đề thi thuộc môn học — dùng chung giữa các giảng viên được phân công dạy môn đó. Đề chưa gắn phiên thi có thể xóa."
         actions={
           effectiveCourseId ? (
             <Button asChild>

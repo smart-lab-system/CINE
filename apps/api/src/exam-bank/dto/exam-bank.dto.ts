@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsNumber,
   IsOptional,
@@ -59,6 +60,15 @@ export class CreateCourseExamDto {
   @Length(0, 20000)
   description?: string;
 
+  /**
+   * Phần phụ tiêu đề (sau tên môn), vd. folder DSA.
+   * Server ghép: `Đề thi {loại} — {môn} — {titleDetail}`.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 120)
+  titleDetail?: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(40)
@@ -103,4 +113,33 @@ export class UpdateCourseExamDto {
 export class ListCourseExamsQueryDto {
   @IsUUID()
   courseId!: string;
+}
+
+/** Import dsa_vi_03 → rubric QS + đề kho. */
+export class ImportDsaVi03Dto {
+  @IsUUID()
+  courseId!: string;
+
+  @IsOptional()
+  @IsIn([...COURSE_EXAM_TYPES])
+  examType?: (typeof COURSE_EXAM_TYPES)[number];
+
+  @IsOptional()
+  @IsIn([...COURSE_EXAM_LANGUAGES])
+  language?: (typeof COURSE_EXAM_LANGUAGES)[number];
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(25)
+  limit?: number;
+
+  /** Xóa đề import cũ rồi tạo lại (mặc định true khi đã có đề marker). */
+  @IsOptional()
+  @IsBoolean()
+  replace?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  dryRun?: boolean;
 }

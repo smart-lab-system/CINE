@@ -39,8 +39,12 @@ export const COURSE_EXAM_TYPE_LABELS: Record<CourseExamType, string> = {
 export function buildCourseExamTitle(
   examType: CourseExamType,
   courseName: string,
+  detail?: string,
 ): string {
-  return `Đề thi ${COURSE_EXAM_TYPE_LABELS[examType]} — ${courseName}`;
+  const base = `Đề thi ${COURSE_EXAM_TYPE_LABELS[examType]} — ${courseName}`;
+  const trimmed = detail?.trim();
+  const full = trimmed ? `${base} — ${trimmed}` : base;
+  return full.length <= 200 ? full : full.slice(0, 200);
 }
 
 export interface TeachingCourse {

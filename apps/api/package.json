@@ -23,7 +23,8 @@
     "migration:run:e2e": "node -r ts-node/register -r ./test/load-dotenv-test.js -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
     "migration:revert": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts",
     "migration:generate": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate -d src/database/data-source.ts",
-    "seed:master-data": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register scripts/seed-master-data.ts"
+    "seed:master-data": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register scripts/seed-master-data.ts",
+    "import:dsa-vi-03": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register scripts/import-dsa-vi03.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
@@ -52,6 +53,7 @@
     "ioredis": "^5.4.1",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.2",
+    "multer": "^2.0.2",
     "node-unrar-js": "^2.0.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

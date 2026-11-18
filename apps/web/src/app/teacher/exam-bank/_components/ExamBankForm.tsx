@@ -474,7 +474,7 @@ export function ExamBankForm({
             disabled={busy}
             onClick={onDelete}
           >
-            Xóa nháp
+            Xóa đề
           </Button>
         ) : null}
       </div>
