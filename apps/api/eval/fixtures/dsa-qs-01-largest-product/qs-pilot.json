@@ -1,0 +1,117 @@
+{
+  "id": "dsa-qs-01-largest-product",
+  "kind": "qs",
+  "source": "dsa_vi_03/01_largest_product",
+  "title": "Largest product",
+  "problemPoints": 7,
+  "questionFile": "../../../../../../dsa_vi_03/01_largest_product/question.txt",
+  "modelAnswerFile": "../../../../../../dsa_vi_03/01_largest_product/solution.txt",
+  "approaches": [
+    {
+      "key": "sliding_window",
+      "name": "Sliding Window",
+      "steps": [
+        { "key": "sw_bounds", "description": "Khởi tạo biến ranh giới window (start/end)", "maxPoints": 1 },
+        { "key": "sw_track", "description": "Khởi tạo biến tích và tích lớn nhất", "maxPoints": 1 },
+        { "key": "sw_logic", "description": "Logic sliding window kích thước k (mở rộng + trượt)", "maxPoints": 2 },
+        { "key": "sw_update", "description": "Cập nhật tích lớn nhất khi window đạt k", "maxPoints": 1 },
+        { "key": "sw_divide", "description": "Chia đúng phần tử rời khỏi window khi trượt", "maxPoints": 1 },
+        { "key": "sw_return", "description": "Trả về tích lớn nhất", "maxPoints": 1 }
+      ]
+    },
+    {
+      "key": "brute_force",
+      "name": "Brute Force",
+      "steps": [
+        { "key": "bf_loops", "description": "Vòng lặp xét mọi subarray kích thước k", "maxPoints": 1 },
+        { "key": "bf_product", "description": "Tính tích từng subarray", "maxPoints": 1 },
+        { "key": "bf_max", "description": "Duy trì tích lớn nhất", "maxPoints": 1 },
+        { "key": "bf_edge", "description": "Xử lý edge case (n < k)", "maxPoints": 1 },
+        { "key": "bf_complexity", "description": "Phân tích độ phức tạp O(n*k) / O(1)", "maxPoints": 1 }
+      ]
+    },
+    {
+      "key": "prefix_products",
+      "name": "Prefix Products",
+      "steps": [
+        { "key": "pp_array", "description": "Tạo mảng prefix product", "maxPoints": 1 },
+        { "key": "pp_compute", "description": "Tính prefix product đúng", "maxPoints": 1 },
+        { "key": "pp_query", "description": "Truy vấn tích subarray kích thước k trong O(1)", "maxPoints": 2 },
+        { "key": "pp_zero", "description": "Xử lý số 0 trong mảng", "maxPoints": 1 },
+        { "key": "pp_complexity", "description": "Phân tích O(n) / O(n)", "maxPoints": 1 }
+      ]
+    },
+    {
+      "key": "two_pointer",
+      "name": "Two-Pointer",
+      "steps": [
+        { "key": "tp_ptrs", "description": "Con trỏ start/end rõ ràng", "maxPoints": 1 },
+        { "key": "tp_product", "description": "Duy trì tích khi trượt", "maxPoints": 1 },
+        { "key": "tp_update", "description": "Cập nhật max khi window đạt k", "maxPoints": 1 },
+        { "key": "tp_remove", "description": "Loại đóng góp phần tử rời window", "maxPoints": 1 },
+        { "key": "tp_complexity", "description": "Phân tích O(n) / O(1)", "maxPoints": 1 }
+      ]
+    },
+    {
+      "key": "logarithm",
+      "name": "Logarithm",
+      "steps": [
+        { "key": "log_convert", "description": "Đổi nhân thành cộng bằng logarithm", "maxPoints": 1 },
+        { "key": "log_sum", "description": "Duy trì tổng logarithm của window", "maxPoints": 1 },
+        { "key": "log_slide", "description": "Thêm/bớt phần tử window đúng", "maxPoints": 1 },
+        { "key": "log_back", "description": "Chuyển ngược về tích", "maxPoints": 1 },
+        { "key": "log_precision", "description": "Thảo luận giới hạn floating-point", "maxPoints": 1 }
+      ]
+    }
+  ],
+  "submissions": [
+    {
+      "id": "correct_1",
+      "file": "sub/correct_1.java",
+      "label": "brute-force cửa sổ k",
+      "expectApproach": "brute_force",
+      "expectDecision": "graded",
+      "note": "Hai vòng duyệt subarray kích thước k — khớp Brute Force hơn Sliding Window chuẩn."
+    },
+    {
+      "id": "correct_2",
+      "file": "sub/correct_2.java",
+      "label": "sliding window nhân/chia",
+      "expectApproach": "sliding_window",
+      "expectDecision": "graded",
+      "note": "Khởi tạo cửa sổ k rồi trượt nhân/chia — Solution 1."
+    },
+    {
+      "id": "correct_3",
+      "file": "sub/correct_3.java",
+      "label": "two-pointer / window i-j",
+      "expectApproach": "two_pointer",
+      "expectDecision": "graded",
+      "note": "i/j mở rộng và trượt — gần Two-Pointer / Sliding Window; pilot gắn two_pointer."
+    },
+    {
+      "id": "wrong",
+      "file": "sub/wrong.java",
+      "label": "sai thuật toán",
+      "expectApproach": "brute_force",
+      "expectDecision": "low_score",
+      "note": "Chỉ nhân từ n/k — sai; vẫn có thể gán hướng gần nhất rồi trừ checklist."
+    },
+    {
+      "id": "TLE",
+      "file": "sub/TLE.java",
+      "label": "vòng while không tăng j",
+      "expectApproach": "sliding_window",
+      "expectDecision": "low_score_or_flag",
+      "note": "Ý tưởng cửa sổ nhưng vòng lặp không tiến — TLE / logic sai."
+    },
+    {
+      "id": "compilation_error",
+      "file": "sub/compilation_error.java",
+      "label": "thiếu ; và import Arrays",
+      "expectApproach": null,
+      "expectDecision": "ungradable_or_zero",
+      "note": "Không biên dịch được — ngoài checklist hướng; QA/sandbox sẽ khác QS checklist."
+    }
+  ]
+}
