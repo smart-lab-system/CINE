@@ -1,7 +1,7 @@
 # QA vs QS Rubric — thiết kế
 
 **Ngày:** 2026-11-18  
-**Trạng thái:** implemented (lớp additive + thư viện QS; QA giữ nguyên; pipeline AI chọn hướng chưa gắn UC33)  
+**Trạng thái:** implemented (lớp additive + thư viện QS; QA giữ nguyên; UC33 gắn `gradeOne` + `resolveAndScoreQs`)  
 **Liên quan:** plan multi-approach rubric; dataset `dsa_vi_03`; multi-problem `exam_problem.rubric_id`
 
 ---
