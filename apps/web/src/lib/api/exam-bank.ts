@@ -1,7 +1,10 @@
 import { getAccessToken } from "@/lib/auth-token";
 import type { PlaygroundLanguage } from "@/lib/api/playground";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(
+  /\/$/,
+  "",
+);
 
 export type CourseExamStatus = "draft" | "ready";
 export type CourseExamType = "TK" | "GK" | "CK";

@@ -5,7 +5,10 @@ import { getAccessToken } from '@/lib/auth-token';
  * OpenAPI. Gọi fetch + Bearer giống exam-authoring (không qua openapi-fetch).
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(
+  /\/$/,
+  '',
+);
 
 export class MasterDataHttpError extends Error {
   constructor(

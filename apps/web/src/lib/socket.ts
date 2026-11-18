@@ -23,7 +23,7 @@ import { getAccessToken } from './auth-token';
 // Phía server đọc `handshake.auth.token` rồi mới rơi về cookie
 // (apps/api/src/common/exam-live-socket.ts).
 export const socket: Socket = io(
-  `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}/exam-live`,
+  `${(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '')}/exam-live`,
   {
     auth: (cb) => {
       // Không await được ở đây (socket.io muốn một callback), nên đường lỗi

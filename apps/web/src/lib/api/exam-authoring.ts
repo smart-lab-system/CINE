@@ -108,7 +108,10 @@ export async function generateExam(body: GenerateExamInput): Promise<GeneratedEx
  */
 async function fetchDocx(path: string, exam: GeneratedExam): Promise<Blob> {
   const token = await getAccessToken();
-  const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(
+    /\/$/,
+    '',
+  );
 
   const res = await fetch(`${base}${path}`, {
     method: 'POST',

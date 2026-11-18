@@ -28,7 +28,10 @@ export interface AuditLogFilter {
   before?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(
+  /\/$/,
+  '',
+);
 
 export async function listAuditLog(filter: AuditLogFilter): Promise<AuditLogPage> {
   const params = new URLSearchParams({ limit: '50' });
