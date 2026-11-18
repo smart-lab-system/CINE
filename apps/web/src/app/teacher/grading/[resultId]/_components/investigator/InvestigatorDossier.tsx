@@ -10,6 +10,7 @@ import { groupByUngradableReason } from '@/lib/regrade-triage';
 import { AUTO_THETA_DEFAULT } from '@/lib/auto-threshold';
 import type { ResultDetailError } from '@/lib/api/grading';
 import { RulerOriginNote } from '@/app/teacher/grading/_components/RulerOriginNote';
+import { GradingInProgressAlert } from '@/app/teacher/grading/_components/GradingInProgressAlert';
 import { DossierHeader } from './DossierHeader';
 import { CaseFlagsBanner } from './CaseFlagsBanner';
 import { ScoreCard } from './ScoreCard';
@@ -118,9 +119,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
     return (
       <div className="flex flex-col gap-4">
         {header(result.status, result.ungradableReason)}
-        <Alert variant="info">
-          <AlertDescription>AI đang chấm bài này - chưa có dữ liệu để hiện. Tải lại sau ít phút.</AlertDescription>
-        </Alert>
+        <GradingInProgressAlert gradingTriggeredAt={result.gradingTriggeredAt} />
         {dialog(null, result.status)}
       </div>
     );

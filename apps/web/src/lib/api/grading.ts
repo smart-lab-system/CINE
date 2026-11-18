@@ -151,6 +151,11 @@ export interface GradingResult {
   confidence: number | null;
   flagForReview: boolean;
   /**
+   * Lúc xếp hàng / đưa về `ai_grading` lần gần nhất (ISO).
+   * Hồ sơ đang chấm dùng để hiện "đã X phút Y giây". Tuỳ chọn vì API cũ / fixture test có thể thiếu.
+   */
+  gradingTriggeredAt?: string;
+  /**
    * Vì sao AI KHÔNG chấm được bài này - `null` với mọi bài chấm bình
    * thường. Đã qua `describeError()` ở backend trước khi tới đây, an
    * toàn hiển thị thẳng: không chứa bài làm của sinh viên hay khoá API.
@@ -175,6 +180,8 @@ export interface GradingResult {
      */
     check?: 'ok' | 'empty' | 'unverified' | null;
   }[];
+  /** UC33 QS: key cách giải đã chọn. `null`/thiếu = QA hoặc bài cũ. */
+  selectedApproachKey?: string | null;
   /**
    * Ý kiến của lượt phản biện.
    *

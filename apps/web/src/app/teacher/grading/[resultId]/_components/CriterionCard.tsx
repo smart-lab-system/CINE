@@ -1,9 +1,11 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import type { GradingResult, ReviewCriterion } from '@/lib/api/grading';
 import { HIGH_CONFIDENCE } from '@/lib/grading-triage';
 import { hueFor } from './AnswerPane';
+import { reducedMotionScrollBehavior, scrollIntoContainer } from './scroll-into-container';
 
 type Criterion = GradingResult['criterionResults'][number];
 type Verdict = ReviewCriterion['verdict'];
@@ -61,6 +63,8 @@ export function CriterionCard({
   onActivate,
   onChange,
   children,
+  /** Mặc định hiện; tắt khi header phiên đã hiện độ tin cậy (tránh hàng chục thanh trắng trùng). */
+  showConfidence = true,
 }: {
   criterion: Criterion;
   index: number;
@@ -72,15 +76,27 @@ export function CriterionCard({
   onActivate: () => void;
   onChange: (next: Partial<ReviewCriterion>) => void;
   children?: React.ReactNode;
+  showConfidence?: boolean;
 }) {
   const badge = checkBadge(criterion.check);
   const steps = Array.from(new Set([0, Math.round(maxPoints * 50) / 100, maxPoints]));
+  const articleRef = useRef<HTMLElement>(null);
+
+  // Bấm highlight bên bài làm → cuộn thẻ tiêu chí tương ứng vào khung thang chấm.
+  useEffect(() => {
+    if (!active || !articleRef.current) return;
+    const container = articleRef.current.closest('[data-criteria-scroll]') as HTMLElement | null;
+    if (!container) return;
+    scrollIntoContainer(container, articleRef.current, reducedMotionScrollBehavior());
+  }, [active]);
 
   return (
     <article
+      ref={articleRef}
       data-active={active}
+      data-criterion-card={criterion.criterionId}
       className={[
-        'overflow-hidden rounded-lg border bg-surface transition-[border-color,box-shadow] duration-200 ease-smooth',
+        'shrink-0 overflow-hidden rounded-lg border bg-surface transition-[border-color,box-shadow] duration-200 ease-smooth',
         active ? 'border-primary/50 shadow-[0_0_0_3px_hsl(var(--primary)/0.12)]' : 'border-border',
       ].join(' ')}
     >
@@ -110,33 +126,35 @@ export function CriterionCard({
           <Badge variant={badge.variant}>{badge.label}</Badge>
         </div>
 
-        {confidence !== null && (
-          <div className="flex items-center gap-2.5">
-            <span className="section-label shrink-0">độ tin cậy</span>
-            <span
-              role="meter"
-              aria-label="độ tin cậy"
-              aria-valuenow={confidence}
-              aria-valuemin={0}
-              aria-valuemax={1}
-              className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2"
-            >
+        {showConfidence && confidence !== null && (
+          <>
+            <div className="flex items-center gap-2.5">
+              <span className="section-label shrink-0">độ tin cậy</span>
               <span
-                className="block h-full rounded-full"
-                style={{
-                  width: `${confidence * 100}%`,
-                  backgroundColor: confidenceColor(confidence),
-                }}
-              />
-            </span>
-            <span className="text-caption font-semibold tabular-nums">
-              {confidence.toFixed(2).replace('.', ',')}
-            </span>
-          </div>
+                role="meter"
+                aria-label="độ tin cậy"
+                aria-valuenow={confidence}
+                aria-valuemin={0}
+                aria-valuemax={1}
+                className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2"
+              >
+                <span
+                  className="block h-full rounded-full"
+                  style={{
+                    width: `${confidence * 100}%`,
+                    backgroundColor: confidenceColor(confidence),
+                  }}
+                />
+              </span>
+              <span className="text-caption font-semibold tabular-nums">
+                {confidence.toFixed(2).replace('.', ',')}
+              </span>
+            </div>
+            <p className="text-caption text-muted-foreground">
+              Đo bằng cách đối chiếu trích dẫn với bài làm - không phải AI tự chấm.
+            </p>
+          </>
         )}
-        <p className="text-caption text-muted-foreground">
-          Đo bằng cách đối chiếu trích dẫn với bài làm - không phải AI tự chấm.
-        </p>
 
         <div>
           <span className="section-label mb-1 block">Trích dẫn từ bài làm</span>

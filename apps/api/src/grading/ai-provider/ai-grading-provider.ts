@@ -74,7 +74,10 @@ export interface GradingRequest {
    * đó là chỗ tôi đã lập luận sai khi chọn `withReference()` lúc đầu.
    */
   reference?: {
+    /** Đề PDF thật - document block (Claude). */
     questionPdf?: Buffer;
+    /** Đề đã trích chữ (docx/txt) - text block mọi provider. */
+    questionText?: string;
     modelAnswerPdf?: Buffer;
     modelAnswerFiles?: Array<{ path: string; text: string }>;
     modelAnswerNote?: string;

@@ -84,23 +84,25 @@ export class OpenAICompatibleAdvocateProvider implements AdvocateProvider {
   async advocate(request: AdvocateRequest): Promise<AdvocateOpinion> {
     const envelope = wrapSubmission(request.content);
     const note = request.modelAnswerNote;
+    const questionText = request.questionText?.trim();
 
-    if (request.questionPdf || request.modelAnswerPdf) {
-      // NÓI RA, không bỏ qua trong im lặng: phiên CÓ đề bài nhưng bậc này
-      // không gửi được PDF, nên ý kiến phản biện sinh ra từ ít ngữ cảnh
-      // hơn hẳn bậc Claude. Đọc log calibration mà không có dòng này thì
-      // một ý kiến nghèo nàn trông như model kém chứ không như thiếu đề.
+    if ((request.questionPdf && !questionText) || request.modelAnswerPdf) {
+      // NÓI RA, không bỏ qua trong im lặng: phiên CÓ đề/đáp án PDF nhưng bậc này
+      // không gửi được document. Đề đã trích chữ (docx) thì vẫn gửi được.
       this.logger.log(
         `submission ${request.studentMssv}: có PDF đề bài/đáp án nhưng ` +
           `${this.config.tier} không gửi được document — lượt phản biện chỉ dựa ` +
-          'trên ghi chú văn bản',
+          'trên chữ đã trích / ghi chú văn bản',
       );
     }
 
     const user = [
+      questionText ? `<exam_question>\n${questionText}\n</exam_question>` : '',
       note ? `<teacher_note>\n${note}\n</teacher_note>` : '<teacher_note/>',
       envelope.wrapped,
-    ].join('\n\n');
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
     const { raw, usage } = await postChatJson(this.config, {
       system: SYSTEM_RULES,

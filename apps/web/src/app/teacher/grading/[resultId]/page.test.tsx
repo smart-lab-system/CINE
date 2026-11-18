@@ -187,10 +187,15 @@ describe('GradingDetailPage', () => {
   });
 
   it('bài đang chấm thì chỉ đọc, không có nút Lưu', async () => {
-    resultsData = [result({ status: 'ai_grading' })];
+    resultsData = [
+      result({
+        status: 'ai_grading',
+        gradingTriggeredAt: new Date(Date.now() - 3 * 60_000 - 12_000).toISOString(),
+      }),
+    ];
     await page();
 
-    expect(await screen.findByText(/AI đang chấm bài này/)).toBeInTheDocument();
+    expect(await screen.findByText(/AI đang chấm bài này - đã 3 phút 1\d giây/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Lưu duyệt/ })).not.toBeInTheDocument();
   });
 

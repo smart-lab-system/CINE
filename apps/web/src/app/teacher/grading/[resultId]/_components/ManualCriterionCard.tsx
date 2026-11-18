@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import type { ReviewCriterion } from '@/lib/api/grading';
+import { reducedMotionScrollBehavior, scrollIntoContainer } from './scroll-into-container';
 
 /**
  * Một tiêu chí khi AI KHÔNG chấm được bài (xem `ungradableReason` ở
@@ -35,13 +37,22 @@ export function ManualCriterionCard({
   onChange: (next: Partial<ReviewCriterion>) => void;
 }) {
   const steps = Array.from(new Set([0, Math.round(maxPoints * 50) / 100, maxPoints]));
+  const articleRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!active || !articleRef.current) return;
+    const container = articleRef.current.closest('[data-criteria-scroll]') as HTMLElement | null;
+    if (!container) return;
+    scrollIntoContainer(container, articleRef.current, reducedMotionScrollBehavior());
+  }, [active]);
 
   return (
     <article
+      ref={articleRef}
       data-active={active}
       data-index={index}
       className={[
-        'overflow-hidden rounded-lg border bg-surface transition-[border-color,box-shadow] duration-200 ease-smooth',
+        'shrink-0 overflow-hidden rounded-lg border bg-surface transition-[border-color,box-shadow] duration-200 ease-smooth',
         active ? 'border-primary/50 shadow-[0_0_0_3px_hsl(var(--primary)/0.12)]' : 'border-border',
       ].join(' ')}
     >

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { SubmissionText, SubmissionTextSpan } from '@/lib/api/grading';
+import { reducedMotionScrollBehavior, scrollIntoContainer } from './scroll-into-container';
 
 /** Một hue cho mỗi tiêu chí, theo thứ tự trong rubric. */
 const HUES = ['var(--ev-1)', 'var(--ev-2)', 'var(--ev-3)', 'var(--ev-4)'];
@@ -68,16 +69,15 @@ export function AnswerPane({
 }) {
   const paneRef = useRef<HTMLDivElement>(null);
 
-  // Cuộn tới dẫn chứng của tiêu chí đang chọn.
+  // Cuộn tới dẫn chứng của tiêu chí đang chọn (trong khung bài làm, không kéo cả trang).
   useEffect(() => {
     if (!activeCriterionId || !paneRef.current) return;
-    const target = paneRef.current.querySelector(`[data-criterion="${activeCriterionId}"]`);
-    target?.scrollIntoView({
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        ? 'auto'
-        : 'smooth',
-      block: 'center',
-    });
+    const container = paneRef.current;
+    const target = container.querySelector(
+      `[data-criterion="${CSS.escape(activeCriterionId)}"]`,
+    ) as HTMLElement | null;
+    if (!target) return;
+    scrollIntoContainer(container, target, reducedMotionScrollBehavior());
   }, [activeCriterionId]);
 
   const empty = text.paragraphs.every((paragraph) => paragraph.trim() === '');

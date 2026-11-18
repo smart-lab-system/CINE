@@ -19,8 +19,10 @@ import {
 } from '@/hooks/useGrading';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import type { ReviewCriterion } from '@/lib/api/grading';
+import { isQsRubric } from '@/lib/qs-rubric-display';
 import { isReadingCode } from '@/lib/session-triage';
 import { RegradeButton } from '../_components/RegradeButton';
+import { GradingInProgressAlert } from '../_components/GradingInProgressAlert';
 import { AnswerPane } from './_components/AnswerPane';
 import { CriterionCard } from './_components/CriterionCard';
 import { ManualCriterionCard } from './_components/ManualCriterionCard';
@@ -192,6 +194,21 @@ export default function GradingDetailPage({
     result.aiTotalScore !== null &&
     (result.status === 'flagged_for_review' || result.status === 'auto_approved');
 
+  const qsMode = isQsRubric(rubric);
+  const selectedApproachKey = result.selectedApproachKey ?? null;
+  const selectedApproach =
+    qsMode && selectedApproachKey
+      ? rubric?.approaches?.find((a) => a.key === selectedApproachKey) ?? null
+      : null;
+  /** QS: chỉ hiện bước của cách giải đã chọn; vẫn giữ đủ `rows` khi Lưu duyệt. */
+  const visibleRows =
+    qsMode && selectedApproachKey && rubric
+      ? rows.filter((row) => {
+          const spec = rubric.criteria.find((c) => c.id === row.criterionId);
+          return spec?.approachKey === selectedApproachKey;
+        })
+      : rows;
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -232,13 +249,7 @@ export default function GradingDetailPage({
         </div>
       </div>
 
-      {readOnly && (
-        <Alert variant="info">
-          <AlertDescription>
-            AI đang chấm bài này - chưa duyệt được. Tải lại sau ít phút.
-          </AlertDescription>
-        </Alert>
-      )}
+      {readOnly && <GradingInProgressAlert gradingTriggeredAt={result.gradingTriggeredAt} />}
 
       {readsCode && (
         <Alert variant="info">
@@ -284,9 +295,23 @@ export default function GradingDetailPage({
           </CardContent>
         </Card>
 
-        <Card className="flex flex-col overflow-hidden">
+        <Card className="flex min-h-0 flex-col overflow-hidden">
           <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b border-border/70">
-            <CardTitle className="text-h3">Thang chấm &amp; giải trình</CardTitle>
+            <div className="flex min-w-0 flex-col gap-1">
+              <CardTitle className="text-h3">Thang chấm &amp; giải trình</CardTitle>
+              {qsMode && selectedApproach && (
+                <p className="text-small text-muted-foreground">
+                  Cách giải đã chọn:{' '}
+                  <span className="font-medium text-foreground">{selectedApproach.name}</span>
+                  <span className="font-mono text-caption"> ({selectedApproach.key})</span>
+                </p>
+              )}
+              {qsMode && selectedApproachKey && !selectedApproach && (
+                <p className="text-small text-muted-foreground">
+                  Cách giải đã chọn: <span className="font-mono">{selectedApproachKey}</span>
+                </p>
+              )}
+            </div>
             {result.confidence !== null && (
               <Badge variant="warning">
                 độ tin cậy {result.confidence.toFixed(2).replace('.', ',')}
@@ -294,9 +319,12 @@ export default function GradingDetailPage({
             )}
           </CardHeader>
 
-          <CardContent className="flex max-h-[80vh] flex-col gap-3 overflow-y-auto p-4 [scroll-padding-top:0.75rem]">
+          <CardContent
+            data-criteria-scroll
+            className="flex min-h-0 max-h-[80vh] flex-col gap-3 overflow-y-auto p-4 [scroll-padding-top:0.75rem]"
+          >
             {aiFailedToGrade
-              ? rows.map((row) => {
+              ? visibleRows.map((row) => {
                   const spec = rubric?.criteria.find((item) => item.id === row.criterionId);
                   return (
                     <ManualCriterionCard
@@ -311,7 +339,7 @@ export default function GradingDetailPage({
                     />
                   );
                 })
-              : rows.map((row) => {
+              : visibleRows.map((row) => {
                   const criterion = result.criterionResults.find(
                     (item) => item.criterionId === row.criterionId,
                   );
@@ -325,6 +353,7 @@ export default function GradingDetailPage({
                       description={spec?.description ?? 'Tiêu chí'}
                       maxPoints={spec?.maxPoints ?? 0}
                       confidence={result.confidence}
+                      showConfidence={false}
                       draft={row}
                       active={activeCriterionId === row.criterionId}
                       onActivate={() => setActive(row.criterionId)}

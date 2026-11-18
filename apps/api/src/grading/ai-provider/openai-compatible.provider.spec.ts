@@ -245,6 +245,20 @@ describe('OpenAICompatibleProvider', () => {
     expect(JSON.stringify(body.messages)).toContain('dùng cây phân đoạn');
   });
 
+  it('đề đã trích chữ (docx/txt) đi vào prompt và contextUsed.question = true', async () => {
+    fetchMock.mockResolvedValue(okGrading());
+
+    const out = await new OpenAICompatibleProvider(CONFIG).grade({
+      ...REQUEST,
+      reference: { questionText: 'Viết hàm sắp xếp mảng.' },
+    });
+
+    expect(out.contextUsed).toEqual({ question: true, modelAnswer: false });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(JSON.stringify(body.messages)).toContain('<exam_question>');
+    expect(JSON.stringify(body.messages)).toContain('sắp xếp mảng');
+  });
+
   it('bài làm được bọc vỏ chống injection như mọi provider khác', async () => {
     fetchMock.mockResolvedValue(okGrading());
 
