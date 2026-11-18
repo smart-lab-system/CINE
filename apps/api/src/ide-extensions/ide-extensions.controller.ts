@@ -21,6 +21,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import type { Request } from 'express';
 import { IdeExtensionJplagDemoService } from './jplag/jplag-demo.service';
+import { JplagExamService } from './jplag/jplag-exam.service';
 import { JPLAG_DEMO_MAX_ARCHIVE_BYTES } from './jplag/jplag.constants';
 import { IdeExtensionsService } from './ide-extensions.service';
 import {
@@ -46,6 +47,7 @@ export class IdeExtensionsController {
   constructor(
     private readonly service: IdeExtensionsService,
     private readonly jplagDemoService: IdeExtensionJplagDemoService,
+    private readonly jplagExamService: JplagExamService,
   ) {}
 
   // ── Catalog ───────────────────────────────────────────────────────
@@ -263,8 +265,52 @@ export class IdeExtensionsController {
 
   @Post('scans/batch')
   @Roles('admin', 'teacher')
-  batch(@Body() dto: BatchSyncDto, @Req() req: Request) {
-    return this.service.syncBatch(dto, req.user!.sub);
+  async batch(@Body() dto: BatchSyncDto, @Req() req: Request) {
+    const result = await this.service.syncBatch(dto, req.user!.sub);
+    const blocked = (dto.scans ?? []).flatMap((scan) =>
+      (scan.items ?? [])
+        .filter((it) => it.verdict === 'blocked')
+        .map((it) => ({
+          extensionId: it.extensionId,
+          version: it.version ?? null,
+          studentMssv: scan.studentMssv,
+        })),
+    );
+    await this.jplagExamService.enqueueFromBlockedScans(dto.examSessionId, blocked, 'scan');
+    return result;
+  }
+
+  // ── JPlag exam-flow (teacher findings) ────────────────────────────
+
+  @Get('jplag/sessions/:examSessionId/runs')
+  @Roles('admin', 'teacher')
+  listJplagRuns(@Param('examSessionId', ParseUUIDPipe) examSessionId: string) {
+    return this.jplagExamService.listRuns(examSessionId);
+  }
+
+  @Get('jplag/runs/:runId')
+  @Roles('admin', 'teacher')
+  getJplagRun(@Param('runId', ParseUUIDPipe) runId: string) {
+    return this.jplagExamService.getRun(runId);
+  }
+
+  @Get('jplag/runs/:runId/comparison')
+  @Roles('admin', 'teacher')
+  getJplagComparison(
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @Query('profile') profile?: string,
+  ) {
+    const p = profile === 'language' ? 'language' : 'text';
+    return this.jplagExamService.getRunComparison(runId, p);
+  }
+
+  @Post('jplag/sessions/:examSessionId/runs/:runId/retry-vs-model')
+  @Roles('admin', 'teacher')
+  retryJplagVsModel(
+    @Param('examSessionId', ParseUUIDPipe) examSessionId: string,
+    @Param('runId', ParseUUIDPipe) runId: string,
+  ) {
+    return this.jplagExamService.retryVsModel(examSessionId, runId);
   }
 
   @Get('scans')

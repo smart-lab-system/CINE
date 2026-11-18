@@ -52,6 +52,7 @@ import { RoomEntity } from '../master-data/entities/room.entity';
 import { ComputerEntity } from '../master-data/entities/computer.entity';
 import { IdeExtensionEntity } from '../ide-extensions/entities/ide-extension.entity';
 import { IdeExtensionVersionEntity } from '../ide-extensions/entities/ide-extension-version.entity';
+import { IdeExtensionJplagRunEntity } from '../ide-extensions/entities/ide-extension-jplag-run.entity';
 import { IdeExtensionPolicyEntity } from '../ide-extensions/entities/ide-extension-policy.entity';
 import { IdeExtensionPolicyItemEntity } from '../ide-extensions/entities/ide-extension-policy-item.entity';
 import { IdeExtensionScanEntity } from '../ide-extensions/entities/ide-extension-scan.entity';
@@ -168,6 +169,7 @@ export const dataSourceOptions: DataSourceOptions = {
     ComputerEntity,
     IdeExtensionEntity,
     IdeExtensionVersionEntity,
+    IdeExtensionJplagRunEntity,
     IdeExtensionPolicyEntity,
     IdeExtensionPolicyItemEntity,
     IdeExtensionScanEntity,
