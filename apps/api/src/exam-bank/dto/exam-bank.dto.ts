@@ -29,6 +29,11 @@ export class ExamBankQuestionDto {
   @Min(0.25)
   @Max(100)
   points!: number;
+
+  /** Rubric QS gắn câu — tuỳ chọn; phải thuộc GV và kind=qs. */
+  @IsOptional()
+  @IsUUID()
+  rubricId?: string | null;
 }
 
 export class CreateCourseExamDto {

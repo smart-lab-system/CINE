@@ -5,11 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { CourseExamEntity, CourseExamStatus } from './entities/course-exam.entity';
 import { CourseExamQuestionEntity } from './entities/course-exam-question.entity';
 import { CourseEntity } from '../master-data/entities/course.entity';
 import { ClassEntity } from '../course/entities/class.entity';
+import { RubricEntity } from '../grading/entities/rubric.entity';
 import { CreateCourseExamDto, ExamBankQuestionDto, UpdateCourseExamDto } from './dto/exam-bank.dto';
 import {
   buildCourseExamTitle,
@@ -29,6 +30,9 @@ export interface CourseExamQuestionView {
   title: string | null;
   statement: string;
   points: number;
+  rubricId: string | null;
+  rubricName: string | null;
+  rubricKind: 'qa' | 'qs' | null;
 }
 
 export interface CourseExamSummaryView {
@@ -86,6 +90,8 @@ export class ExamBankService {
     private readonly courses: Repository<CourseEntity>,
     @InjectRepository(ClassEntity)
     private readonly classes: Repository<ClassEntity>,
+    @InjectRepository(RubricEntity)
+    private readonly rubrics: Repository<RubricEntity>,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -125,16 +131,25 @@ export class ExamBankService {
       order: { ordinal: 'ASC' },
     });
     const summary = await this.toSummary(exam, course, questions);
+    const rubricMeta = await this.loadRubricMeta(
+      questions.map((q) => q.rubricId).filter((id): id is string => Boolean(id)),
+    );
     return {
       ...summary,
       description: exam.description,
-      questions: questions.map((q) => ({
-        id: q.id,
-        ordinal: q.ordinal,
-        title: q.title,
-        statement: q.statement,
-        points: toPoints(q.pointsHundredths),
-      })),
+      questions: questions.map((q) => {
+        const meta = q.rubricId ? rubricMeta.get(q.rubricId) : undefined;
+        return {
+          id: q.id,
+          ordinal: q.ordinal,
+          title: q.title,
+          statement: q.statement,
+          points: toPoints(q.pointsHundredths),
+          rubricId: q.rubricId,
+          rubricName: meta?.name ?? null,
+          rubricKind: meta?.kind ?? null,
+        };
+      }),
     };
   }
 
@@ -143,6 +158,7 @@ export class ExamBankService {
     const course = await this.requireCourse(dto.courseId);
     const totalHundredths = toHundredths(dto.totalPoints);
     this.assertPointsFit(dto.questions, totalHundredths);
+    await this.assertQuestionRubrics(teacherId, dto.questions);
 
     const examId = await this.dataSource.transaction(async (m) => {
       const exam = await m.save(
@@ -204,9 +220,13 @@ export class ExamBankService {
             statement: q.statement,
             points: toPoints(q.pointsHundredths),
             title: q.title ?? undefined,
+            rubricId: q.rubricId,
           }),
         );
       this.assertPointsFit(questions, row.totalPointsHundredths);
+      if (dto.questions) {
+        await this.assertQuestionRubrics(teacherId, dto.questions);
+      }
 
       await repo.save(row);
       if (dto.questions) {
@@ -312,6 +332,49 @@ export class ExamBankService {
     }
   }
 
+  private async assertQuestionRubrics(
+    teacherId: string,
+    questions: ExamBankQuestionDto[],
+  ): Promise<void> {
+    const ids = [
+      ...new Set(
+        questions
+          .map((q) => q.rubricId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ];
+    if (ids.length === 0) return;
+
+    const rows = await this.rubrics.find({ where: { id: In(ids) } });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    for (let i = 0; i < questions.length; i++) {
+      const rid = questions[i].rubricId;
+      if (!rid) continue;
+      const r = byId.get(rid);
+      if (!r || r.teacherId !== teacherId) {
+        throw new BadRequestException(`Câu ${i + 1}: không tìm thấy rubric hoặc không thuộc bạn.`);
+      }
+      if ((r.kind ?? 'qa') !== 'qs') {
+        throw new BadRequestException(`Câu ${i + 1}: chỉ gắn được rubric QS (kind=qs).`);
+      }
+      if (!r.isActive) {
+        throw new BadRequestException(`Câu ${i + 1}: rubric không còn active — chọn bản mới nhất.`);
+      }
+    }
+  }
+
+  private async loadRubricMeta(
+    ids: string[],
+  ): Promise<Map<string, { name: string; kind: 'qa' | 'qs' }>> {
+    const out = new Map<string, { name: string; kind: 'qa' | 'qs' }>();
+    if (ids.length === 0) return out;
+    const rows = await this.rubrics.find({ where: { id: In(ids) } });
+    for (const r of rows) {
+      out.set(r.id, { name: r.name, kind: (r.kind ?? 'qa') as 'qa' | 'qs' });
+    }
+    return out;
+  }
+
   private async replaceQuestions(
     m: EntityManager,
     examId: string,
@@ -327,6 +390,7 @@ export class ExamBankService {
           title: q.title?.trim() || null,
           statement: q.statement.trim(),
           pointsHundredths: toHundredths(q.points),
+          rubricId: q.rubricId ?? null,
         }),
       ),
     );
