@@ -69,6 +69,13 @@ export class GradingResultEntity extends BaseEntity {
   @Column({ name: 'criterion_results', type: 'jsonb', default: [] })
   criterionResults!: unknown[];
 
+  /**
+   * UC33 QS: khoá cách giải đã chọn lúc chấm (AI hoặc fallback).
+   * Null với rubric QA. Bất biến cùng `ai_total_score`.
+   */
+  @Column({ name: 'selected_approach_key', type: 'varchar', length: 120, nullable: true })
+  selectedApproachKey!: string | null;
+
   @Column({
     name: 'ai_total_score',
     type: 'numeric',

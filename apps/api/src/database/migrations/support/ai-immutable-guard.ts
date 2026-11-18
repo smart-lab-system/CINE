@@ -16,6 +16,8 @@ export const AI_OUTPUT_COLUMNS = [
   'advocate_outcome',
   'context_used_question',
   'context_used_model_answer',
+  /** UC33 QS - cách giải đã chọn lúc chấm (null với QA). */
+  'selected_approach_key',
 ] as const;
 
 export function rebuildAiImmutableGuardSql(columns: readonly string[]): string {

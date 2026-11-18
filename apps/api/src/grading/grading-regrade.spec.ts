@@ -174,6 +174,7 @@ describe('GradingService — chấm lại đúng một lần (T-G2-1b, vế sau)
       anchors,
       {} as Repository<GradingAttemptEntity>,
       {} as InvestigatorRunService,
+      { loadQsApproaches: jest.fn().mockResolvedValue(null) } as never,
     );
   });
 

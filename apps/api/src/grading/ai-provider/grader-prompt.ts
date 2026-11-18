@@ -1,4 +1,4 @@
-import { GradingRubricCriterion } from './ai-grading-provider';
+import { GradingQsApproachHint, GradingRubricCriterion } from './ai-grading-provider';
 import { SYSTEM_DELIMITER_RULE, wrapSubmission } from '../harness/submission-envelope';
 import { Anchor } from './anchor.types';
 
@@ -42,6 +42,8 @@ export interface GraderPromptInput {
   questionPdf?: Buffer;
   modelAnswerPdf?: Buffer;
   modelAnswerNote?: string;
+  /** UC33 QS: có mặt → thêm luật chọn một cách giải. */
+  qsApproaches?: GradingQsApproachHint[];
   /**
    * Anchor — few-shot từ lần sửa THẬT của giảng viên (§10).
    *
@@ -98,6 +100,19 @@ function renderRubric(criteria: GradingRubricCriterion[]): string {
       (c) => `  <criterion id="${c.id}" maxPoints="${c.maxPoints}">${c.description}</criterion>`,
     ),
     '</rubric>',
+  ].join('\n');
+}
+
+function renderQsApproaches(approaches: GradingQsApproachHint[] | undefined): string {
+  if (!approaches || approaches.length === 0) return '';
+  const sorted = [...approaches].sort((a, b) => a.key.localeCompare(b.key));
+  return [
+    '<solution_approaches>',
+    'Rubric Question-Specific: bài làm theo ĐÚNG MỘT cách giải dưới đây.',
+    'Đặt selectedApproachKey = key của cách giải khớp nhất với bài làm.',
+    'Vẫn chấm verdict cho MỌI tiêu chí (bước); hệ thống chỉ lấy điểm của cách giải đã chọn.',
+    ...sorted.map((a) => `  <approach key="${a.key}">${a.name}</approach>`),
+    '</solution_approaches>',
   ].join('\n');
 }
 
@@ -183,7 +198,11 @@ export function buildGraderPrompt(input: GraderPromptInput): GraderPrompt {
   // nhau dưới 5 phút, và đó là ca hiếm.
   userContent.push({
     type: 'text',
-    text: [renderRubric(input.criteria), renderAnchors(input.anchors)]
+    text: [
+      renderQsApproaches(input.qsApproaches),
+      renderRubric(input.criteria),
+      renderAnchors(input.anchors),
+    ]
       .filter(Boolean)
       .join('\n\n'),
     cache_control: CACHE_CONTROL,

@@ -42,6 +42,11 @@ export interface GradingRubricCriterion {
   maxPoints: number;
 }
 
+export interface GradingQsApproachHint {
+  key: string;
+  name: string;
+}
+
 export interface GradingRequest {
   studentMssv: string;
   /** Extracted text. Empty when nothing could be read out of the file. */
@@ -49,6 +54,11 @@ export interface GradingRequest {
   /** What kind of file it came from, for providers that care. */
   deliverableType: string;
   criteria: GradingRubricCriterion[];
+  /**
+   * UC33 QS: danh sách cách giải. Có mặt → model phải gán `selectedApproachKey`.
+   * Vắng mặt = rubric QA (hành vi cũ).
+   */
+  qsApproaches?: GradingQsApproachHint[];
   /**
    * Đề bài và đáp án mẫu — ngữ cảnh để phán đoán một bài lệch rubric.
    *
@@ -108,6 +118,11 @@ export interface GradingOutcome {
   modelUsed: string;
   criterionResults: CriterionResult[];
   totalScore: number;
+  /**
+   * UC33 QS: cách giải model chọn. Null/undefined với QA hoặc model bỏ trống.
+   * Server vẫn validate và có thể fallback.
+   */
+  selectedApproachKey?: string | null;
   /**
    * TRẦN tin cậy mà CƠ CHẾ của provider này có thể biện minh — không phải
    * một phán đoán về bài nộp cụ thể.
