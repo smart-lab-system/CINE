@@ -1,7 +1,7 @@
 import { getAccessToken } from '@/lib/auth-token';
 
 /**
- * Catalog master-data — path chưa nằm trong schema.d.ts cho tới khi regenerate
+ * Catalog master-data - path chưa nằm trong schema.d.ts cho tới khi regenerate
  * OpenAPI. Gọi fetch + Bearer giống exam-authoring (không qua openapi-fetch).
  */
 
@@ -94,6 +94,10 @@ export interface Course {
   code: string;
   name: string;
   status: CourseStatus;
+  /** Đếm theo filter năm/kỳ trên list (toàn thời gian nếu không lọc). */
+  sectionCount?: number;
+  examCount?: number;
+  rubricCount?: number;
 }
 
 export interface NominalClass {
@@ -169,6 +173,7 @@ export interface ListParams {
   status?: string;
   search?: string;
   academicYearId?: string;
+  semesterId?: string;
   nominalClassId?: string;
   roomId?: string;
   cohortYear?: number;
@@ -215,7 +220,14 @@ export const deleteSemester = (id: string) =>
 // --- courses ---
 export const listCourses = (p: ListParams = {}) =>
   masterDataFetch<PageResult<Course>>(
-    `/master-data/courses${qs({ page: p.page ?? 1, pageSize: p.pageSize ?? 20, status: p.status, search: p.search })}`,
+    `/master-data/courses${qs({
+      page: p.page ?? 1,
+      pageSize: p.pageSize ?? 20,
+      status: p.status,
+      search: p.search,
+      academicYearId: p.academicYearId,
+      semesterId: p.semesterId,
+    })}`,
   );
 export const getCourse = (id: string) =>
   masterDataFetch<Course>(`/master-data/courses/${id}`);
@@ -232,7 +244,7 @@ export const updateCourse = (id: string, body: Partial<Omit<Course, 'id'>>) =>
 export const deleteCourse = (id: string) =>
   masterDataFetch<void>(`/master-data/courses/${id}`, { method: 'DELETE' });
 
-/** Hub môn — ngân hàng đề (filter kỳ suy diễn ngày). */
+/** Hub môn - ngân hàng đề (filter kỳ suy diễn ngày). */
 export interface CourseHubExam {
   id: string;
   title: string;
@@ -407,7 +419,7 @@ export interface StudentMssvHit {
   fullName: string;
 }
 
-/** Tiền tố MSSV (≥ 7 số). Giảng viên được gọi — không mở cả catalog. */
+/** Tiền tố MSSV (≥ 7 số). Giảng viên được gọi - không mở cả catalog. */
 export const lookupStudentsByMssv = (q: string) =>
   masterDataFetch<{ items: StudentMssvHit[] }>(
     `/master-data/students/lookup${qs({ q })}`,

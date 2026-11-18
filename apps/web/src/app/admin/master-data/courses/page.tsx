@@ -28,7 +28,12 @@ import {
   type Course,
   type CourseStatus,
 } from '@/lib/api/master-data';
-import { useCourseMutations, useCourses } from '@/hooks/useMasterData';
+import {
+  useAcademicYears,
+  useCourseMutations,
+  useCourses,
+  useSemesters,
+} from '@/hooks/useMasterData';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   CatalogSection,
@@ -68,6 +73,10 @@ function CoursesMasterDataContent() {
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [status, setStatus] = useState(searchParams.get('status') ?? 'all');
+  const [yearId, setYearId] = useState(searchParams.get('yearId') ?? '');
+  const [semesterId, setSemesterId] = useState(
+    searchParams.get('semesterId') ?? '',
+  );
   const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
   const [pageSize, setPageSize] = useState<PageSize>(() =>
     parsePageSize(searchParams.get('pageSize')),
@@ -75,22 +84,42 @@ function CoursesMasterDataContent() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const lastUrl = useRef('');
 
+  const years = useAcademicYears({ page: 1, pageSize: 50 });
+  const semesters = useSemesters({
+    page: 1,
+    pageSize: 50,
+    academicYearId: yearId || undefined,
+  });
+
   useEffect(() => {
     const qs = buildCatalogQuery(new URLSearchParams(), {
       q: debouncedSearch.trim() || null,
       status: status === 'all' ? null : status,
+      yearId: yearId || null,
+      semesterId: semesterId || null,
       ...paginationQueryPatch(page, pageSize),
     });
     if (qs === lastUrl.current) return;
     lastUrl.current = qs;
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedSearch, status, page, pageSize, pathname, router]);
+  }, [
+    debouncedSearch,
+    status,
+    yearId,
+    semesterId,
+    page,
+    pageSize,
+    pathname,
+    router,
+  ]);
 
   const { data, isLoading } = useCourses({
     page,
     pageSize,
     search: debouncedSearch.trim() || undefined,
     status: status === 'all' ? undefined : status,
+    academicYearId: yearId || undefined,
+    semesterId: semesterId || undefined,
   });
   const mut = useCourseMutations();
   const [open, setOpen] = useState(false);
@@ -103,7 +132,11 @@ function CoursesMasterDataContent() {
     if (page > pages) setPage(pages);
   }, [data, page, pageSize]);
 
-  const filtered = Boolean(debouncedSearch.trim()) || status !== 'all';
+  const filtered =
+    Boolean(debouncedSearch.trim()) ||
+    status !== 'all' ||
+    Boolean(yearId) ||
+    Boolean(semesterId);
 
   function handleSearchChange(value: string) {
     setSearch(value);
@@ -113,6 +146,16 @@ function CoursesMasterDataContent() {
   function handleStatusChange(value: string) {
     setStatus(value);
     setPage(1);
+  }
+
+  function hubHref(courseId: string) {
+    const sp = new URLSearchParams();
+    if (yearId) sp.set('yearId', yearId);
+    if (semesterId) sp.set('semesterId', semesterId);
+    const qs = sp.toString();
+    return qs
+      ? `/admin/master-data/courses/${courseId}?${qs}`
+      : `/admin/master-data/courses/${courseId}`;
   }
 
   function handlePageSizeChange(next: PageSize) {
@@ -161,12 +204,12 @@ function CoursesMasterDataContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Môn học" description="Catalog môn — chưa gắn lớp môn / phiên thi." />
+      <PageHeader title="Môn học" description="Catalog môn - chưa gắn lớp môn / phiên thi." />
       <CatalogSection
         title="Danh sách môn"
         loading={isLoading}
         onCreate={openCreate}
-        headers={['Mã', 'Tên', 'Trạng thái', '']}
+        headers={['Mã', 'Tên', 'Lớp HP', 'Đề', 'Rubric', 'Trạng thái', '']}
         empty={filtered ? 'Không khớp bộ lọc.' : 'Chưa có dữ liệu.'}
         toolbar={
           <CatalogFilterBar
@@ -175,24 +218,67 @@ function CoursesMasterDataContent() {
             searchPlaceholder="Mã hoặc tên môn…"
             searchAriaLabel="Tìm môn học"
             filters={
-              <Select value={status} onValueChange={handleStatusChange}>
-                <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái môn">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                  {CATALOG_ACTIVE_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {catalogActiveStatusLabel(s)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select
+                  value={yearId || 'all'}
+                  onValueChange={(v) => {
+                    setYearId(v === 'all' ? '' : v);
+                    setSemesterId('');
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="sm:w-48" aria-label="Lọc theo năm học">
+                    <SelectValue placeholder="Tất cả năm" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả năm</SelectItem>
+                    {(years.data?.items ?? []).map((y) => (
+                      <SelectItem key={y.id} value={y.id}>
+                        {y.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={semesterId || 'all'}
+                  onValueChange={(v) => {
+                    setSemesterId(v === 'all' ? '' : v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="sm:w-48" aria-label="Lọc theo học kỳ">
+                    <SelectValue placeholder="Tất cả học kỳ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả học kỳ</SelectItem>
+                    {(semesters.data?.items ?? []).map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={status} onValueChange={handleStatusChange}>
+                  <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái môn">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                    {CATALOG_ACTIVE_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {catalogActiveStatusLabel(s)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
             }
             activeSummary={filtered ? 'Đang lọc môn học' : null}
             onClear={() => {
               setSearch('');
               setStatus('all');
+              setYearId('');
+              setSemesterId('');
               setPage(1);
             }}
           />
@@ -203,10 +289,19 @@ function CoursesMasterDataContent() {
                 <TableRow
                   key={c.id}
                   className="cursor-pointer"
-                  onClick={() => router.push(`/admin/master-data/courses/${c.id}`)}
+                  onClick={() => router.push(hubHref(c.id))}
                 >
                   <TableCell className="font-mono">{c.code}</TableCell>
                   <TableCell>{c.name}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {c.sectionCount ?? 0}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {c.examCount ?? 0}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {c.rubricCount ?? 0}
+                  </TableCell>
                   <TableCell>{catalogActiveStatusLabel(c.status)}</TableCell>
                   <TableCell
                     className="text-right"
