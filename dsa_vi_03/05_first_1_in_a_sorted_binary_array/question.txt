@@ -1,0 +1,15 @@
+Số 1 đầu tiên trong mảng nhị phân đã sắp xếp
+Cho một mảng đã sắp xếp arr bao gồm các số 0 và 1. Nhiệm vụ là tìm chỉ số (0-based indexing) của số 1 đầu tiên trong mảng đã cho.
+Ghi chú: Nếu không có số 1 nào, trả về -1.
+Ví dụ:
+Đầu vào: arr[] = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
+Đầu ra: 6
+Giải thích: Index của số 1 đầu tiên trong mảng là 6.
+Đầu vào: arr[] = [0, 0, 0, 0]
+Đầu ra: -1
+Giải thích: Không có số 1 nào trong mảng.
+Độ phức tạp thời gian kỳ vọng: O(log (n))
+Không gian phụ trợ kỳ vọng: O(1)
+Ràng buộc:
+1 ≤ arr.size() ≤ 106
+0 ≤ arr[i] ≤ 1

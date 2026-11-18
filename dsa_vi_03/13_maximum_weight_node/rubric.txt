@@ -1,0 +1,19 @@
+Node có trọng số lớn nhất
+
+Solution 1: Tính toán trọng số trực tiếp (Direct Weight Calculation)
+1. Tạo một mảng kích thước n để lưu trọng số của từng cell. Khởi tạo tất cả các phần tử bằng 0. [1 mark]
+2. Lặp qua mảng exits. Đối với mỗi cell i, nếu exit không phải là -1, tăng trọng số của cell mà i trỏ tới thêm i. [1 mark]
+3. Tìm cell có trọng số lớn nhất. Nếu có nhiều cell có cùng trọng số lớn nhất, trả về cell có index lớn nhất. [1 mark]
+4. Xử lý trường hợp biên khi không có cell nào có trọng số lớn hơn 0. [1 mark]
+
+Solution 2: Sử dụng danh sách kề (Adjacency List)
+1. Tạo một danh sách kề (adjacency list) để biểu diễn mê cung, trong đó mỗi danh sách chứa các cell có điểm ra trỏ tới cell hiện tại. [1 mark]
+2. Điền dữ liệu vào danh sách kề bằng cách lặp qua mảng exits. Đối với mỗi cell i, nếu điểm ra của nó không phải là -1, thêm i vào danh sách các cell trỏ tới điểm ra đó. [1 mark]
+3. Tính trọng số của mỗi cell bằng cách tính tổng các index trong danh sách kề của nó. [1 mark]
+4. Trả về cell có trọng số lớn nhất, hoặc nếu có nhiều cell như vậy, trả về cell có index lớn nhất. [1 mark]
+
+Solution 3: Sử dụng Map
+1. Tạo một map để lưu trọng số của từng cell. [1 mark]
+2. Lặp qua mảng exits. Đối với mỗi cell i, nếu điểm ra của nó không phải là -1, tăng trọng số của cell đích thêm i trong map. [1 mark]
+3. Lặp qua map để tìm cell có trọng số lớn nhất. Nếu có nhiều cell có cùng trọng số lớn nhất, trả về cell có index lớn nhất. [1 mark]
+4. Xử lý trường hợp đặc biệt khi không có cell nào có điểm vào (tất cả các exits đều là -1). [1 mark]

@@ -1,0 +1,16 @@
+Cho một mảng số nguyên arr[]. Bạn cần tìm tổng lớn nhất của một subarray.
+
+Ví dụ:
+Đầu vào: arr[] = [2, 3, -8, 7, -1, 2, 3]
+Đầu ra: 11
+Giải thích: Subarray {7, -1, 2, 3} có tổng lớn nhất là 11.
+Đầu vào: arr[] = [-2, -4]
+Đầu ra: -2
+Giải thích: Subarray {-2} có tổng lớn nhất là -2.
+Đầu vào: arr[] = [5, 4, 1, 7, 8]
+Đầu ra: 25
+Giải thích: Subarray {5, 4, 1, 7, 8} có tổng lớn nhất là 25.
+Ràng buộc:
+1 ≤ arr.size() ≤ 105
+-109 ≤ arr[i] ≤ 104
+Thử thêm các ví dụ:

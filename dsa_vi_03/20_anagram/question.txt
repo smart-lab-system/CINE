@@ -1,0 +1,15 @@
+Cho hai chuỗi s1 và s2 gồm các ký tự in thường. Nhiệm vụ là kiểm tra xem hai chuỗi đã cho có phải là anagram (đảo chữ) của nhau hay không. Anagram của một chuỗi là một chuỗi khác chứa cùng các ký tự, chỉ khác thứ tự các ký tự. Ví dụ: "act" và "tac" là anagram của nhau. Chuỗi s1 và s2 chỉ chứa các chữ cái tiếng Anh in thường.
+Ghi chú: Bạn có thể giả định cả hai chuỗi s1 & s2 đều không rỗng.
+Ví dụ:
+Đầu vào: s1 = "geeks", s2 = "kseeg"
+Đầu ra: true
+Giải thích: Cả hai chuỗi đều có cùng các ký tự với cùng tần suất. Do đó, chúng là anagram.
+Đầu vào: s1 = "allergy", s2 = "allergic"
+Đầu ra: false
+Giải thích: Các ký tự trong cả hai chuỗi không giống nhau, do đó chúng không phải là anagram.
+
+Đầu vào: s1 = "g", s2 = "g"
+Đầu ra: true
+Giải thích: Ký tự trong cả hai chuỗi giống nhau, do đó chúng là anagram.
+Ràng buộc:
+1 ≤ s1.size(), s2.size() ≤ 105

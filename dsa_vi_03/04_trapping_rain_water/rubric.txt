@@ -1,0 +1,21 @@
+Solution 1: Cách tiếp cận ngây thơ (Naive Approach)
+1. Bắt đầu vòng lặp từ phần tử thứ hai đến phần tử áp chót. Bỏ qua phần tử đầu tiên và cuối cùng vì chúng không thể giữ nước. Đảm bảo xử lý có hệ thống các vị trí có khả năng đọng nước. [1 mark]
+2. Tìm chiều cao lớn nhất ở bên trái của phần tử hiện tại. Khởi tạo left với chiều cao của phần tử hiện tại. Duyệt từ đầu mảng đến index hiện tại. Cập nhật left với chiều cao lớn nhất gặp phải.
+3. Tìm chiều cao lớn nhất ở bên phải của phần tử hiện tại. Khởi tạo right với chiều cao của phần tử hiện tại. Duyệt từ index hiện tại đến cuối mảng. Cập nhật right với chiều cao lớn nhất gặp phải. [1 mark]
+4. Tính lượng nước đọng tại index hiện tại. Sử dụng công thức: Math.min(left, right) - arr[i]. Xác định lượng nước đọng dựa trên chiều cao thấp hơn giữa bên trái và bên phải. Trừ đi chiều cao của phần tử hiện tại để có lượng nước đọng. [2 marks]
+5. Đảm bảo lượng nước đọng không âm trước khi cộng vào kết quả. Tránh tích lũy sai do chênh lệch chiều cao. [1 mark]
+6. Cộng lượng nước đọng đã tính tại index hiện tại vào res. Liên tục cập nhật tổng lượng nước đọng. Tạo kết quả tích lũy trong suốt quá trình lặp. [1 mark]
+7. Đảm bảo xử lý thích hợp các mảng rỗng hoặc mảng có ít hơn 3 phần tử (phải trả về 0). [1 mark]
+8. Xem xét các trường hợp mà tất cả các cột có chiều cao bằng nhau (phải trả về 0). (1 mark)
+9. Trả về tổng lượng nước đọng được lưu trong res. Cung cấp kết quả tính toán cuối cùng cho toàn bộ mảng. [1 mark]
+
+Solution 2: Sử dụng 2 con trỏ (Two Pointers)
+1. Đặt con trỏ left ở đầu mảng có thể duyệt (index 1). Đặt con trỏ right ở cuối mảng có thể duyệt (phần tử áp chót) để thiết lập ranh giới tính toán lượng nước đọng [1 mark]
+2. Khởi tạo lMax với chiều cao của phần tử ngay trước con trỏ left. Khởi tạo rMax với chiều cao của phần tử ngay sau con trỏ right. Chuẩn bị theo dõi chiều cao tối đa từ cả hai phía [1 mark]
+3. Tạo biến res để lưu tổng lượng nước đọng. Khởi tạo res về 0. Chuẩn bị biến tích lũy để tính lượng nước đọng [1 mark]
+4. Cài đặt vòng lặp while để duyệt từ hai đầu. Tiếp tục cho đến khi con trỏ left và right bắt chéo nhau [1 mark]
+5. Kiểm tra nếu giá trị lớn nhất bên phải nhỏ hơn hoặc bằng giá trị lớn nhất bên trái. Tính lượng nước đọng tại con trỏ right. Dùng Math.max(0, rMax - arr[right]) để đảm bảo lượng nước không âm. Cập nhật chiều cao tối đa bên phải. [1 mark]
+6. Logic khi giá trị lớn nhất bên trái nhỏ hơn. Tính lượng nước đọng tại con trỏ left. Dùng Math.max(0, lMax - arr[left]) để đảm bảo lượng nước không âm. Cập nhật chiều cao tối đa bên trái [1 mark]
+7. Di chuyển con trỏ right sang trái khi bên phải được xử lý. Di chuyển con trỏ left sang phải khi bên trái được xử lý. Thu hẹp không gian tìm kiếm một cách có hệ thống. [1 mark]
+8. Đảm bảo vòng lặp tiếp tục khi left <= right. Ngăn chặn vòng lặp vô hạn hoặc các lần lặp không cần thiết. Đưa ra điều kiện kết thúc rõ ràng. [1 mark]
+9. Trả về tổng lượng nước tích lũy [1 mark]

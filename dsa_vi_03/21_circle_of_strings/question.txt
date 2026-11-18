@@ -1,0 +1,14 @@
+Cho một mảng arr gồm các chuỗi in thường, hãy xác định xem các chuỗi có thể liên kết lại với nhau để tạo thành một vòng tròn hay không.
+Một chuỗi X có thể liên kết với một chuỗi Y khác nếu ký tự cuối cùng của X trùng với ký tự đầu tiên của Y. Nếu mọi chuỗi trong mảng có thể liên kết với đúng hai chuỗi khác trong mảng (một chuỗi với ký tự đầu tiên và chuỗi thứ hai với ký tự cuối cùng của chuỗi), nó sẽ tạo thành một vòng tròn.
+Ví dụ: với mảng arr[] = {"for", "geek", "rig", "kaf"}, câu trả lời là Yes vì các chuỗi đã cho có thể liên kết thành "for", "rig", "geek" và "kaf"
+Ví dụ:
+Đầu vào: arr[] = ["abc", "bcd", "cdf"]
+Đầu ra: 0
+Giải thích: Các chuỗi này không thể tạo thành một vòng tròn vì không có chuỗi nào có 'd' ở chỉ số đầu tiên.
+Đầu vào: arr[] = ["ab" , "bc", "cd", "da"]
+Đầu ra: 1
+Giải thích: Các chuỗi này có thể tạo thành một vòng tròn các chuỗi.
+Độ phức tạp thời gian kỳ vọng: O(n)
+Không gian phụ trợ kỳ vọng: O(n)
+Ràng buộc:
+1 ≤ độ dài của các chuỗi ≤ 20

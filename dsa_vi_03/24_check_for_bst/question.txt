@@ -1,0 +1,28 @@
+Kiểm tra BST
+Cho root của một cây nhị phân (binary tree). Hãy kiểm tra xem nó có phải là BST (cây tìm kiếm nhị phân) hay không.
+Ghi chú: Chúng ta coi rằng BST không thể chứa các Node trùng lặp.
+Một BST được định nghĩa như sau:
+•	Cây con bên trái (left subtree) của một node chỉ chứa các node có khóa (key) nhỏ hơn key của node đó.
+•	Cây con bên phải (right subtree) của một node chỉ chứa các node có khóa (key) lớn hơn key của node đó.
+•	Cả hai cây con bên trái và bên phải cũng phải là các cây tìm kiếm nhị phân (BST).
+Ví dụ:
+Đầu vào: root = [2, 1, 3, N, N, N, 5]
+ 
+
+Đầu ra: true 
+Giải thích: Cây con bên trái của mọi node chứa các key nhỏ hơn và cây con bên phải của mọi node chứa các key lớn hơn. Do đó, cây này là một BST.
+
+Đầu vào: root = [2, N, 7, N, 6, N, 9] 
+
+ 
+
+Đầu ra: false 
+Giải thích: Do node bên phải của node có key 7 có giá trị key nhỏ hơn, do đó nó không phải là một BST hợp lệ.
+Đầu vào: root = [10, 5, 20, N, N, 9, 25]
+ 
+
+Đầu ra: false
+Giải thích: Node có key 9 xuất hiện trong cây con bên phải có giá trị key nhỏ hơn root node.
+Ràng buộc:
+1 ≤ number of nodes ≤ 105
+1 ≤ node->data ≤ 109

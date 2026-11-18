@@ -1,0 +1,23 @@
+Cho một lưới hình vuông kích thước N, mỗi ô trong đó chứa một chi phí (cost) dạng số nguyên đại diện cho chi phí để đi qua ô đó. Chúng ta cần tìm một đường đi từ ô trên cùng bên trái đến ô dưới cùng bên phải sao cho tổng chi phí phát sinh là nhỏ nhất.
+Từ ô (i,j) chúng ta có thể đi tới (i,j-1), (i, j+1), (i-1, j), (i+1, j).  
+Ví dụ:
+Đầu vào: grid = {{9,4,9,9},{6,7,6,4},{8,3,3,7},{7,4,9,10}}
+Đầu ra: 43
+Giải thích: Lưới là-
+9 4 9 9
+6 7 6 4
+8 3 3 7
+7 4 9 10
+Chi phí nhỏ nhất là-
+9 + 4 + 7 + 3 + 3 + 7 + 10 = 43.
+Đầu vào: grid = {{4,4},{3,7}}
+Đầu ra: 14
+Giải thích: Lưới là-
+4 4
+3 7
+Chi phí nhỏ nhất là- 4 + 3 + 7 = 14.
+Độ phức tạp thời gian kỳ vọng: O(n2*log(n))
+Không gian phụ trợ kỳ vọng: O(n2) 
+Ràng buộc:
+1 ≤ n ≤ 500
+1 ≤ chi phí của các ô ≤ 500

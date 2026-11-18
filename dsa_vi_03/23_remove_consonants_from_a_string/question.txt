@@ -1,0 +1,23 @@
+Cho một chuỗi S, hãy loại bỏ tất cả các phụ âm và in chuỗi đã sửa đổi chỉ chứa các nguyên âm.
+
+Ví dụ 1:
+Đầu vào:
+S = "abEkipo"
+Đầu ra:
+aEio
+Giải thích: a, E, i, o là các nguyên âm duy nhất trong chuỗi.
+Ví dụ 2:
+Đầu vào:
+S = "rrty"
+Đầu ra:
+No Vowel
+Giải thích: Không có nguyên âm nào.
+
+Nhiệm vụ của bạn: Bạn không cần phải đọc input hay in bất cứ thứ gì. Nhiệm vụ của bạn là hoàn thành hàm removeConsonants() nhận một chuỗi làm tham số đầu vào, và trả về chuỗi đã sửa đổi chỉ chứa các nguyên âm. Nếu không có nguyên âm nào trong chuỗi S, hãy trả về "No Vowel".
+
+Độ phức tạp thời gian kỳ vọng: O(|S|).
+Không gian phụ trợ kỳ vọng: O(1).
+
+Ràng buộc:
+1 <= |S| <= 105
+Chuỗi chỉ bao gồm các chữ cái.

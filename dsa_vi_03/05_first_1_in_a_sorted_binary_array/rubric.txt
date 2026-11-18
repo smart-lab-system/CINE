@@ -1,0 +1,19 @@
+Số 1 đầu tiên trong mảng nhị phân đã sắp xếp
+Solution 1: Cách tiếp cận Binary Search
+1. Khởi tạo các con trỏ để theo dõi phạm vi tìm kiếm [1 mark]
+2. Cài đặt vòng lặp binary search với điều kiện dừng phù hợp [1 mark]
+3. Kiểm tra xem phần tử hiện tại có phải là số 1 xuất hiện đầu tiên hay không với các kiểm tra biên thích hợp [2 marks]
+4. Điều chỉnh chính xác phạm vi tìm kiếm dựa trên kết quả so sánh [2 marks]
+5. Trả về giá trị phù hợp khi không tìm thấy kết quả khớp [1 mark]
+
+Solution 2: Cách tiếp cận Linear Search
+1. Lặp qua mảng trong một lượt duyệt duy nhất (single pass) [2 marks]
+2. Xác định và trả về chính xác lần xuất hiện đầu tiên của 1 [2 marks]
+3. Xử lý trường hợp không có số 1 nào trong mảng [1 mark]
+
+Solution 3: Cài đặt Binary Search thay thế
+1. Thiết lập biến theo dõi cho đáp án tiềm năng [1 mark]
+2. Cài đặt binary search với điều kiện vòng lặp chính xác [1 mark]
+3. Cập nhật biến theo dõi khi tìm thấy kết quả khớp tiềm năng [1 mark]
+4. Thu hẹp chính xác không gian tìm kiếm trong mỗi lần lặp [1 mark]
+5. Trả về kết quả cuối cùng sau khi hoàn thành tìm kiếm [1 mark]

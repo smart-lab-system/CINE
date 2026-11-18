@@ -1,0 +1,17 @@
+Trung vị của 2 mảng đã sắp xếp có kích thước khác nhau
+Cho hai mảng đã sắp xếp a[] và b[], hãy tìm và trả về trung vị (median) của mảng kết hợp sau khi trộn (merge) chúng thành một mảng đã sắp xếp duy nhất.
+Ví dụ:
+Đầu vào: a[] = [-5, 3, 6, 12, 15], b[] = [-12, -10, -6, -3, 4, 10]
+Đầu ra: 3
+Giải thích: Mảng sau khi merge là [-12, -10, -6, -5, -3, 3, 4, 6, 10, 12, 15]. Do đó median của mảng đã merge là 3.
+Đầu vào: a[] = [2, 3, 5, 8], b[] = [10, 12, 14, 16, 18, 20]
+Đầu ra: 11
+Giải thích: Mảng sau khi merge là [2, 3, 5, 8, 10, 12, 14, 16, 18, 20]. Do đó median của mảng đã merge là (10 + 12) / 2 = 11.
+Đầu vào: a[] = [], b[] = [2, 4, 5, 6]
+Đầu ra: 4.5
+Giải thích: Mảng sau khi merge là [2, 4, 5, 6]. Do đó median của mảng đã merge là (4 + 5) / 2 = 4.5.
+
+Ràng buộc:
+0 ≤ a.size(), b.size() ≤ 106
+1 ≤ a[i], b[i] ≤ 109
+a.size() + b.size() > 0

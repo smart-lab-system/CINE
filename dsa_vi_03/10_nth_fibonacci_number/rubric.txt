@@ -1,0 +1,30 @@
+Tìm số Fibonacci thứ n:
+
+1. Solution 1: Cách tiếp cận ngây thơ - Đệ quy (Naive Approach - Recursion)
+   1. Cài đặt các base case: nếu n ≤ 1, trả về n. [1 mark]
+   2. Với n > 1, tính toán đệ quy F(n) = F(n-1) + F(n-2). [2 marks]
+   3. Trả về kết quả cuối cùng cho số Fibonacci thứ n. [1 mark]
+2. Solution 2: Cách tiếp cận Memoization
+
+      1. Tạo một mảng memoization có kích thước n+1 và khởi tạo tất cả các phần tử bằng -1. [1 mark]
+      2. Cài đặt các base case: nếu n ≤ 1, trả về n. [1 mark]
+      3. Kiểm tra xem kết quả đã được tính toán trong mảng memoization chưa; nếu có, trả về giá trị đã lưu. [1 mark]
+      4. Ngược lại, tính toán đệ quy F(n) = F(n-1) + F(n-2) và lưu kết quả vào mảng memoization. [1 mark]
+      5. Trả về kết quả cuối cùng từ mảng memoization. [1 mark]
+3. Solution 3: Cách tiếp cận Bottom-Up (Tabulation)
+    1. Tạo một mảng DP có kích thước n+1 để lưu các số Fibonacci. [1 mark]
+    2. Khởi tạo các base case: dp[0] = 0, dp[1] = 1. [1 mark]
+    3. Lặp từ i = 2 đến n, tính toán dp[i] = dp[i-1] + dp[i-2]. [1 mark]
+    4. Trả về dp[n] làm kết quả. [1 mark]
+4. Solution 4: Cách tiếp cận tối ưu không gian (Space Optimized)
+    1. Xử lý các base case: nếu n ≤ 1, trả về n. [1 mark]
+    2. Khởi tạo các biến để theo dõi hai số Fibonacci trước đó: prev2 = 0, prev1 = 1. [1 mark]
+    3. Lặp từ i = 2 đến n, tính số Fibonacci hiện tại là curr = prev1 + prev2. [1 mark]
+    4. Cập nhật prev2 thành prev1 và prev1 thành curr cho lần lặp tiếp theo. [1 mark]
+    5. Trả về giá trị curr cuối cùng làm số Fibonacci thứ n. [1 mark]
+5. Solution 5: Lũy thừa ma trận (Matrix Exponentiation)
+    1. Cài đặt một hàm nhân hai ma trận 2x2. [1 mark]
+    2. Cài đặt một hàm tính lũy thừa ma trận (matrix exponentiation) sử dụng phương pháp chia để trị (divide-and-conquer). [1 mark]
+    3. Khởi tạo ma trận biến đổi {{1,1},{1,0}}. [1 mark]
+    4. Nâng ma trận lên lũy thừa (n-1) bằng hàm tính lũy thừa ma trận. [1 mark]
+    5. Trả về phần tử tại vị trí [0][0] trong ma trận kết quả làm số Fibonacci thứ n. [1 mark]

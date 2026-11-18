@@ -1,0 +1,25 @@
+Phần tử bị thiếu trong mảng
+Solution 1: Cách tiếp cận tổng toán học (Mathematical Sum)
+1. Khởi tạo một biến để lưu tổng kỳ vọng của các số nguyên từ 1 đến n (n*(n+1)/2) [1 mark]
+2. Tính tổng thực tế của tất cả các phần tử trong mảng [1 mark]
+3. Trả về hiệu giữa tổng kỳ vọng và tổng thực tế [1 mark]
+4. Xử lý chính xác vấn đề tràn số nguyên (integer overflow) đối với các giá trị lớn của n [1 mark]
+Solution 2: Cách tiếp cận XOR
+1. Khởi tạo một biến để lưu kết quả XOR [1 mark]
+2. XOR tất cả các số từ 1 đến n với biến này [1 mark]
+3. XOR tất cả các phần tử trong mảng đầu vào với biến này [1 mark]
+4. Trả về kết quả XOR cuối cùng làm số bị thiếu [1 mark]
+Solution 3: Cách tiếp cận Cyclic Sort
+1. Cài đặt thuật toán cyclic sort để sắp xếp lại các phần tử về đúng vị trí của chúng [2 marks]
+2. Xử lý đúng quy trình hoán đổi (swap) cho các phần tử không ở đúng vị trí [1 mark]
+3. Lặp qua mảng đã sắp xếp để tìm vị trí đầu tiên mà index không khớp với giá trị [1 mark]
+4. Trả về chính xác số bị thiếu sau khi xác định được khoảng trống trong dãy [1 mark]
+Solution 4: Cách tiếp cận Binary Search (cho mảng đã sắp xếp)
+1. Kiểm tra xem mảng đã được sắp xếp chưa và sắp xếp nếu cần [1 mark]
+2. Cài đặt binary search để tìm vị trí đầu tiên mà giá trị phần tử không khớp với vị trí kỳ vọng của nó [2 marks]
+3. Tính toán phần tử bị thiếu dựa trên sự sai lệch tìm thấy [1 mark]
+Solution 5: Cách tiếp cận Linear Search
+1. Tạo một mảng boolean hoặc hash set để đánh dấu các phần tử có mặt [1 mark]
+2. Lặp qua mảng đầu vào và đánh dấu từng phần tử là có mặt [1 mark]
+3. Quét qua mảng boolean hoặc hash set để tìm phần tử đầu tiên chưa được đánh dấu [1 mark]
+4. Trả về chính xác số bị thiếu [1 mark]

@@ -1,0 +1,42 @@
+Khoảng cách ngắn nhất giữa hai node trong cây nhị phân 
+
+Solution 1: Sử dụng LCA và độ dài đường đi – O(n) Time và O(h) Space
+1. Xử lý kiểm tra null: trả về -1 nếu root là null [1 mark]
+2. Trả về level nếu root.data bằng giá trị target [1 mark]
+3. Tìm kiếm đệ quy cây con bên trái và bên phải, tăng level [1 mark]
+4. Trả về level thích hợp hoặc -1 dựa trên kết quả tìm kiếm [1 mark]
+5. Xử lý kiểm tra null và kiểm tra node target cho LCA [1 mark]
+6. Tìm kiếm đệ quy cả hai node target trong cây con bên trái và bên phải [1 mark]
+7. Tính khoảng cách khi cả hai node được tìm thấy trong các cây con khác nhau [1 mark]
+8. Trả về node thích hợp (node tìm thấy hoặc null) [1 mark]
+9. Khởi tạo các mảng để lưu độ sâu và khoảng cách [1 mark]
+10. Tìm LCA và xử lý các trường hợp khi cả hai node đều được tìm thấy [1 mark]
+11. Xử lý các trường hợp khi chỉ tìm thấy một node [1 mark]
+12. Trả về khoảng cách đã tính hoặc -1 nếu không tìm thấy các node [1 mark]
+
+Solution 2: Sử dụng LCA – O(n) Time và O(h) Space
+1. Xử lý kiểm tra null và kiểm tra node target cho LCA [1 mark]
+2. Tìm kiếm đệ quy cây con bên trái và bên phải để tìm LCA [1 mark]
+3. Xác định LCA dựa trên kết quả tìm kiếm [1 mark]
+4. Trả về node thích hợp [1 mark]
+5. Xử lý kiểm tra null: trả về -1 nếu root là null khi tìm level [1 mark]
+6. Trả về level nếu root.data bằng giá trị target [1 mark]
+7. Tìm kiếm đệ quy cây con bên trái và bên phải, tăng level [1 mark]
+8. Trả về level thích hợp hoặc -1 dựa trên kết quả tìm kiếm [1 mark]
+9. Tìm LCA của hai node [1 mark]
+10. Tính khoảng cách từ LCA đến node thứ nhất [1 mark]
+11. Tính khoảng cách từ LCA đến node thứ hai [1 mark]
+12. Trả về tổng của các khoảng cách này [1 mark]
+
+Solution 3: Sử dụng LCA (Một lượt duyệt) – O(n) Time và O(h) Space
+1. Xử lý kiểm tra null: trả về [0,0] nếu root là null [1 mark]
+2. Tính khoảng cách đệ quy trong cây con bên trái và bên phải [1 mark]
+3. Kiểm tra xem node hiện tại có phải là một trong các node target hay không [1 mark]
+4. Cập nhật khoảng cách khi node hiện tại là target và node còn lại được tìm thấy trong cây con [1 mark]
+5. Phát hiện LCA khi cả hai node target được tìm thấy trong các cây con khác nhau [1 mark]
+6. Cập nhật khoảng cách khi tìm thấy LCA [1 mark]
+7. Theo dõi sự tồn tại của node và tăng khoảng cách một cách thích hợp [1 mark]
+8. Trả về trạng thái và khoảng cách hiện tại cho các node cha [1 mark]
+9. Khởi tạo mảng khoảng cách [1 mark]
+10. Gọi hàm bổ trợ để tính khoảng cách [1 mark]
+11. Trả về khoảng cách cuối cùng đã tính [2 marks]

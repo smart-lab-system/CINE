@@ -1,0 +1,26 @@
+number,name,folder
+1,Largest product,01_largest_product
+2,Last index of One,02_last_index_of_one
+3,Maximum Subarray Sum,03_maximum_subarray_sum
+4,Trapping Rain Water,04_trapping_rain_water
+5,First 1 in a Sorted Binary Array,05_first_1_in_a_sorted_binary_array
+6,First and Last Occurrences,06_first_and_last_occurrences
+7,Median of 2 Sorted Arrays of Different Sizes,07_median_of_2_sorted_arrays_of_different_sizes
+8,Missing in Array,08_missing_in_array
+9,Non Repeating Numbers,09_non_repeating_numbers
+10,Nth Fibonacci Number,10_nth_fibonacci_number
+11,Subset Sum Problem,11_subset_sum_problem
+12,Cycle in a Directed Graph,12_cycle_in_a_directed_graph
+13,Maximum Weight Node,13_maximum_weight_node
+14,Minimum Cost Path,14_minimum_cost_path
+15,Find unique element,15_find_unique_element
+16,Frequencies in a Limited Array,16_frequencies_in_a_limited_array
+17,Longest Subarray with Sum K,17_longest_subarray_with_sum_k
+18,Palindrome Linked List,18_palindrome_linked_list
+19,Reverse a linked list,19_reverse_a_linked_list
+20,Anagram,20_anagram
+21,Circle of strings,21_circle_of_strings
+22,Longest Common Substring,22_longest_common_substring
+23,Remove consonants from a string,23_remove_consonants_from_a_string
+24,Check for BST,24_check_for_bst
+25,Minimum distance between two given nodes of a binary tree,25_minimum_distance_between_two_given_nodes_of_a_binary_tree

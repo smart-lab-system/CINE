@@ -1,0 +1,29 @@
+Solution 1: Sử dụng phép AND theo bit (Bitwise AND)
+
+
+1. Tạo một mảng để đếm số lần mỗi vị trí bit (từ 0 đến 31) được bật thành 1 trong biểu diễn nhị phân của tất cả các phần tử. [1 mark]  
+2. Đối với mỗi vị trí bit, kiểm tra xem nó có được bật trong từng phần tử của mảng không. Nếu có, tăng biến đếm tương ứng trong mảng đếm. [1 mark]  
+3. Đối với mỗi vị trí bit, kiểm tra xem số lượng bit được bật có phải là bội số của k hay không. Những bit này là một phần của phần tử duy nhất. [1 mark]  
+4. Kết hợp các bit không phải là bội số của k để tạo thành biểu diễn nhị phân của phần tử duy nhất. [1 mark]  
+5. Chia kết quả cho tần suất của phần tử duy nhất để đảm bảo tính chính xác. [1 mark]  
+6. Xuất ra phần tử duy nhất xuất hiện ít lần hơn các phần tử khác. [1 mark]  
+
+
+Solution 2: Sử dụng sắp xếp (Sorting)
+1. Sắp xếp các phần tử theo thứ tự tăng dần để các phần tử trùng lặp xuất hiện liên tiếp nhau. [1 mark]  
+2. Duyệt qua mảng với bước nhảy là k để kiểm tra các nhóm phần tử trùng lặp. [1 mark]  
+3. So sánh phần tử hiện tại với phần tử tiếp theo. Nếu chúng không giống nhau, phần tử hiện tại là duy nhất. [1 mark]  
+4. Nếu tìm thấy một phần tử duy nhất, trả về nó làm kết quả. [1 mark]  
+5. Nếu không tìm thấy phần tử duy nhất nào sau khi lặp qua mảng, trả về giá trị mặc định (ví dụ: -1). [1 mark]  
+
+
+
+
+Solution 3: Sử dụng bảng băm (Hashing)
+
+
+1. Khởi tạo một HashMap để theo dõi số lần mỗi phần tử xuất hiện trong mảng. [1 mark]  
+2. Lặp qua mảng và cập nhật tần suất của từng phần tử trong HashMap. [1 mark]  
+3. Kiểm tra tần suất của từng phần tử trong HashMap để xác định phần tử không xuất hiện theo bội số của **k** lần. [1 mark]  
+4. Nếu tìm thấy một phần tử có tần suất không phải là bội số của **k**, trả về nó làm phần tử duy nhất. [1 mark]  
+5. Nếu không tìm thấy phần tử duy nhất nào sau khi kiểm tra tất cả các phần tử, trả về giá trị mặc định (ví dụ: -1). [1 mark]

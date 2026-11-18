@@ -1,0 +1,21 @@
+Tần suất trong mảng giới hạn
+Solution 1: Sử dụng mảng tần suất (Frequency Array)
+1. Tạo một mảng tần suất (frequency array) có kích thước n (với n là kích thước của mảng đầu vào) được khởi tạo toàn số 0. [1 mark]
+2. Duyệt qua mảng đầu vào và tăng biến đếm tại chỉ số tương ứng (arr[i]-1) trong mảng tần suất. [1 mark]
+3. Kiểm tra các trường hợp biên chẳng hạn như các phần tử nằm ngoài phạm vi từ 1 đến n (mặc dù ràng buộc nêu rõ tất cả các phần tử sẽ nằm trong phạm vi). [1 mark]
+4. Trả về mảng tần suất đại diện cho số lần xuất hiện của mỗi số từ 1 đến n. [1 mark]
+Solution 2: Đếm tại chỗ bằng đánh dấu số âm (Negative Marking)
+1. Duyệt qua mảng và sử dụng các phần tử làm chỉ số để đánh dấu tần suất bằng cách làm cho các phần tử mang giá trị âm. [1 mark]
+2. Đối với mỗi phần tử, tính elementIndex (arr[i]-1) và sử dụng vị trí đó để theo dõi tần suất bằng cách giảm giá trị tại vị trí đó. [1 mark]
+3. Xử lý chính xác các phần tử đã được xử lý (giá trị âm hoặc bằng 0) trong quá trình duyệt. [1 mark]
+4. Thực hiện lượt duyệt thứ hai để chuyển đổi các giá trị âm thành giá trị tuyệt đối của chúng (tần suất) và thay thế các giá trị khác bằng 0. [1 mark]
+Solution 3: Sử dụng Hash Map
+1. Khởi tạo một hash map rỗng để lưu tần suất của từng phần tử. [1 mark]
+2. Duyệt qua mảng đầu vào và tăng biến đếm của từng phần tử trong hash map. [1 mark]
+3. Khởi tạo một mảng kết quả có kích thước n với toàn số 0. [1 mark]
+4. Đối với mỗi số có thể có từ 1 đến n, cập nhật mảng kết quả với tần suất tương ứng từ hash map (0 nếu không xuất hiện). [1 mark]
+Solution 4: Sắp xếp và đếm (Sort and Count)
+1. Sắp xếp mảng đầu vào theo thứ tự tăng dần. [1 mark]
+2. Khởi tạo một mảng kết quả có kích thước n với toàn số 0. [1 mark]
+3. Duyệt qua mảng đã sắp xếp và đếm các lần xuất hiện liên tiếp của từng số. [1 mark]
+4. Cập nhật mảng kết quả với tần suất của từng số từ 1 đến n. [1 mark]

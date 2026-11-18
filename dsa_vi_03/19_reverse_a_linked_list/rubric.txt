@@ -1,0 +1,18 @@
+Đảo ngược một Linked List
+
+Solution 1: Cách tiếp cận lặp (O(n) Time, O(1) Space)
+1. Khởi tạo các con trỏ: prev là NULL, curr là head, và next là NULL. [1 mark]
+2. Duyệt qua linked list, đảo ngược các con trỏ ở mỗi bước. [2 marks]
+3. Cập nhật con trỏ head trỏ tới node đầu tiên mới (trước đó là node cuối cùng). [1 mark]
+
+Solution 2: Cách tiếp cận đệ quy (O(n) Time, O(n) Space)
+1. Xử lý base case: nếu head là NULL hoặc head.next là NULL, trả về head. [1 mark]
+2. Gọi đệ quy reverseList trên phần còn lại của danh sách. [1 mark]
+3. Đặt head.next.next = head và head.next = NULL để đảo ngược liên kết của node hiện tại. [1 mark]
+4. Trả về head mới của danh sách đã đảo ngược. [1 mark]
+
+Solution 3: Cách tiếp cận sử dụng Stack (O(n) Time, O(n) Space)
+1. Đẩy (push) tất cả các node vào một stack. [1 mark]
+2. Đặt node cuối cùng làm head mới của linked list đã đảo ngược. [1 mark]
+3. Lấy (pop) các node ra khỏi stack và kết nối chúng theo thứ tự ngược lại. [1 mark]
+4. Đặt con trỏ next của node cuối cùng thành NULL để đánh dấu kết thúc danh sách. [1 mark]

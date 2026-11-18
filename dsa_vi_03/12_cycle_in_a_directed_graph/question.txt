@@ -1,0 +1,10 @@
+Cho một đồ thị có hướng (Directed Graph) với V đỉnh (được đánh số từ 0 đến V-1) và E cạnh, hãy kiểm tra xem đồ thị có chứa chu trình (cycle) nào không.
+Đồ thị được biểu diễn dưới dạng danh sách kề (adjacency list), trong đó adj[i] chứa danh sách các đỉnh có thể đi tới trực tiếp từ đỉnh i. Cụ thể, adj[i][j] biểu diễn một cạnh từ đỉnh i đến đỉnh j.
+Ví dụ 1:
+Đầu vào: Output: 1
+Giải thích: 3 -> 3 là một chu trình (cycle)
+Ví dụ 2:
+Đầu vào: Output: 0
+Giải thích: Không có chu trình nào trong đồ thị
+Ràng buộc:
+1 ≤ V, E ≤ 105

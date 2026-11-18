@@ -1,0 +1,43 @@
+Bài toán tổng tập con (Subset Sum Problem) 
+Solution 1: Cách tiếp cận đệ quy (Recursive Approach)
+1. Trả về true khi sum trở về đúng bằng 0 [1 mark]
+2. Trả về false khi không còn phần tử nào và sum khác 0 [1 mark]
+3. Bỏ qua phần tử hiện tại khi giá trị của nó vượt quá sum còn lại [2 marks]
+4. Xử lý kiểm tra biên để tránh lỗi mảng vượt quá chỉ số (array index out of bounds) [1 mark]
+5. Loại trừ phần tử hiện tại (gọi đệ quy với n-1 và sum không đổi) [1 mark]
+6. Bao gồm phần tử hiện tại (gọi đệ quy với n-1 và sum giảm đi) [1 mark]
+7. Kết hợp chính xác các kết quả bằng phép toán logic OR [1 mark]
+8. Cấu trúc các lệnh gọi đệ quy để giảm thiểu các phép tính dư thừa [1 mark]
+
+
+Solution 2: DP Top-Down (Memoization)
+1. Khởi tạo một mảng 2D kích thước (n+1)×(sum+1) với các giá trị lính canh (sentinel values) [1 mark]
+2. Đánh chỉ số mảng chính xác để khớp với các tham số bài toán con [1 mark]
+3. Kiểm tra mảng memo trước khi tính toán một bài toán con [1 mark]
+4. Trả về kết quả đã lưu khi có sẵn [1 mark]
+5. Xử lý chính xác các base case với memoization [1 mark]
+6. Cài đặt đúng các lựa chọn include/exclude [2 marks]
+7. Lưu các kết quả đã tính vào mảng memo tại đúng chỉ số [1 mark]
+8. Đảm bảo tất cả các nhánh đều cập nhật bảng memoization thích hợp trước khi trả về [1 mark]
+
+
+Solution 3: DP Bottom-Up (Tabulation)
+1. Cấp phát một mảng boolean 2D kích thước (n+1)×(sum+1) [1 mark]
+2. Khởi tạo cột đầu tiên (sum=0) thành true cho tất cả các hàng [1 mark]
+3. Khởi tạo hàng đầu tiên một cách thích hợp (ngoại trừ dp[0][0]) [1 mark]
+4. Xử lý các phần tử tuần tự từ 1 đến n [1 mark]
+5. Đánh giá tất cả các tổng có thể từ 1 đến target sum [1 mark]
+6. Khi giá trị phần tử hiện tại > sum hiện tại: dp[i][j] = dp[i-1][j] [2 marks]
+7. Ngược lại: dp[i][j] = dp[i-1][j] OR dp[i-1][j-arr[i-1]] [2 marks]
+8. Trả về kết quả cuối cùng từ đúng ô dp[n][sum] [1 mark]
+
+
+Solution 4: DP tối ưu không gian (Space-Optimized DP)
+1. Cấp phát hai mảng boolean 1D ('prev' và 'curr') kích thước (sum+1) [1 mark]
+2. Khởi tạo chính xác prev[0] = true và các phần tử khác khi cần [1 mark]
+3. Duy trì độ lệch (offset) phù hợp để truy cập phần tử trong mảng đầu vào [1 mark]
+4. Xử lý các điều kiện biên khi cập nhật các mảng [1 mark]
+5. Khi giá trị phần tử hiện tại > sum hiện tại: curr[j] = prev[j] [2 marks]
+6. Ngược lại: curr[j] = prev[j] OR prev[j-arr[i]] [2 marks]
+7. Chuyển đổi giá trị hiệu quả từ 'curr' sang 'prev' cho lần lặp tiếp theo [1 mark]
+8. Tránh sao chép không cần thiết các giá trị không đổi [1 mark]

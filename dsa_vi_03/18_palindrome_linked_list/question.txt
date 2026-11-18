@@ -1,0 +1,14 @@
+Cho node head của một danh sách liên kết đơn (singly linked list) chứa các số nguyên dương. Nhiệm vụ là kiểm tra xem danh sách liên kết đã cho có phải là palindrome hay không.
+Ví dụ:
+Đầu vào: head: 1 -> 2 -> 1 -> 1 -> 2 -> 1
+Đầu ra: true
+Giải thích: Danh sách liên kết đã cho là 1 -> 2 -> 1 -> 1 -> 2 -> 1, là một palindrome và do đó, output là true.
+ 
+Đầu vào: head: 1 -> 2 -> 3 -> 4
+Đầu ra: false
+Giải thích: Danh sách liên kết đã cho là 1 -> 2 -> 3 -> 4, không phải là một palindrome và do đó, output là false.
+ 
+
+Ràng buộc:
+1 <= number of nodes <= 105
+1 ≤ node->data ≤ 103

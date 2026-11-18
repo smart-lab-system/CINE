@@ -1,0 +1,28 @@
+Loại bỏ phụ âm khỏi một chuỗi
+
+Solution 1: Duyệt từng ký tự với hàm kiểm tra nguyên âm
+1. Định nghĩa một hàm bổ trợ isVowel để kiểm tra xem một ký tự có phải là nguyên âm hay không (cả chữ thường và chữ hoa) [1 mark]
+2. Khởi tạo một chuỗi kết quả rỗng để lưu các nguyên âm [1 mark]
+3. Lặp qua từng ký tự trong chuỗi đầu vào và kiểm tra xem nó có phải là nguyên âm bằng hàm bổ trợ hay không [1 mark]
+4. Nếu một ký tự là nguyên âm, nối nó vào chuỗi kết quả [1 mark]
+5. Sau khi lặp xong, kiểm tra xem chuỗi kết quả có rỗng không, nếu có, trả về "No Vowel" [1 mark]
+
+Solution 2: Duyệt trực tiếp từng ký tự
+1. Khởi tạo một chuỗi kết quả rỗng để lưu các nguyên âm [1 mark]
+2. Lặp qua từng ký tự trong chuỗi đầu vào [1 mark]
+3. Với mỗi ký tự, trực tiếp kiểm tra xem nó có phải là một trong các nguyên âm (cả chữ thường và chữ hoa) hay không bằng điều kiện kết hợp [1 mark]
+4. Nếu một ký tự là nguyên âm, nối nó vào chuỗi kết quả [1 mark]
+5. Sau khi lặp xong, kiểm tra xem chuỗi kết quả có rỗng không, nếu có, trả về "No Vowel" [1 mark]
+
+Solution 3: Sử dụng thao tác xử lý chuỗi (String Manipulation)
+1. Tạo một chuỗi chứa tất cả các nguyên âm (cả chữ thường và chữ hoa) [1 mark]
+2. Khởi tạo một chuỗi kết quả rỗng để lưu các nguyên âm [1 mark]
+3. Lặp qua từng ký tự trong chuỗi đầu vào [1 mark]
+4. Với mỗi ký tự, kiểm tra xem nó có xuất hiện trong chuỗi nguyên âm hay không bằng phương thức find của chuỗi hoặc tương đương [1 mark]
+5. Nếu một ký tự được tìm thấy trong chuỗi nguyên âm, nối nó vào chuỗi kết quả [1 mark]
+6. Sau khi lặp xong, kiểm tra xem chuỗi kết quả có rỗng không, nếu có, trả về "No Vowel" [1 mark]
+
+Solution 4: Sử dụng biểu thức chính quy (Regular Expressions)
+1. Định nghĩa một mẫu biểu thức chính quy (regular expression pattern) để khớp với tất cả các phụ âm [2 marks]
+2. Sử dụng regular expression để thay thế tất cả các phụ âm bằng một chuỗi rỗng [2 marks]
+3. Kiểm tra xem chuỗi kết quả có rỗng không, nếu có, trả về "No Vowel" [1 mark]

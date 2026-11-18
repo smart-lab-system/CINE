@@ -1,0 +1,25 @@
+Chuỗi con chung dài nhất (Longest Common Substring)
+
+Solution 1: Cách tiếp cận lặp ngây thơ (Naive Iterative Approach)
+1. Khởi tạo một biến để theo dõi độ dài lớn nhất tìm thấy cho đến nay. [1 mark]
+2. Cài đặt các vòng lặp lồng nhau để xét tất cả các vị trí bắt đầu có thể trong cả hai chuỗi. [1 mark]
+3. Với mỗi cặp vị trí bắt đầu, kiểm tra xem có bao nhiêu ký tự liên tiếp khớp nhau. [1 mark]
+4. Cập nhật độ dài lớn nhất nếu chuỗi con khớp hiện tại dài hơn chuỗi con tìm thấy trước đó. [1 mark]
+
+Solution 2: Cách tiếp cận Quy hoạch động (Dynamic Programming)
+1. Tạo một bảng DP 2D kích thước (m+1) × (n+1) để lưu độ dài của các suffix chung kết thúc tại mỗi vị trí. [1 mark]
+2. Khởi tạo tất cả các giá trị trong bảng bằng 0. [1 mark]
+3. Điền bảng theo phương pháp bottom-up: nếu các ký tự khớp nhau, cộng 1 vào giá trị đường chéo, ngược lại đặt thành 0. [1 mark]
+4. Theo dõi giá trị lớn nhất gặp phải trong bảng và trả về nó làm kết quả. [1 mark]
+
+Solution 3: Cách tiếp cận DP tối ưu không gian (Space-Optimized DP)
+1. Tạo hai mảng 1D (current và previous) kích thước n+1 thay vì sử dụng toàn bộ bảng 2D. [1 mark]
+2. Khởi tạo tất cả các giá trị trong cả hai mảng bằng 0. [1 mark]
+3. Với mỗi hàng trong bảng 2D ảo, cập nhật mảng current dựa trên các giá trị của mảng previous và việc so sánh ký tự hiện tại. [1 mark]
+4. Sau khi xử lý mỗi hàng, hoán đổi mảng current và previous để tái sử dụng không gian bộ nhớ. [1 mark]
+
+Solution 4: Cách tiếp cận đệ quy với hàm bổ trợ LCSuffix
+1. Cài đặt một hàm bổ trợ (helper function) để tìm hậu tố chung dài nhất (longest common suffix) cho các vị trí kết thúc đã cho. [1 mark]
+2. Nếu các ký tự tại các vị trí đã cho khớp nhau, gọi đệ quy hàm helper với các vị trí giảm đi 1 và cộng 1 vào kết quả. [1 mark]
+3. Nếu các ký tự không khớp nhau, trả về 0. [1 mark]
+4. Gọi hàm helper này cho tất cả các vị trí kết thúc có thể và trả về giá trị lớn nhất tìm được. [1 mark]

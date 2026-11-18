@@ -1,0 +1,14 @@
+Bạn được cho hai chuỗi s1 và s2. Nhiệm vụ của bạn là tìm độ dài của chuỗi con chung dài nhất (longest common substring) giữa hai chuỗi đã cho.
+Ví dụ:
+Đầu vào: s1 = "ABCDGH", s2 = "ACDGHR"
+Đầu ra: 4
+Giải thích: Chuỗi con chung dài nhất là "CDGH" với độ dài là 4.
+Đầu vào: s1 = "abc", s2 = "acb"
+Đầu ra: 1
+Giải thích: Các chuỗi con chung dài nhất là "a", "b", "c" đều có độ dài 1.
+Đầu vào: s1 = "YZ", s2 = "yz"
+Đầu ra: 0
+Ràng buộc:
+1 <= s1.size(), s2.size() <= 103
+Cả hai chuỗi có thể chứa các chữ cái in hoa và in thường.
+Thử thêm các ví dụ:

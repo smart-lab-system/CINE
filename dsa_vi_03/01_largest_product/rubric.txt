@@ -1,0 +1,39 @@
+Tích lớn nhất 
+Solution 1: Cách tiếp cận Sliding Window
+1. Khởi tạo các biến cho ranh giới window (i cho start, j cho end) [1 mark]
+2. Khởi tạo một biến để theo dõi tích và một biến để theo dõi tích lớn nhất tìm được [1 mark]
+3. Cài đặt logic sliding window để duy trì một window có kích thước k [2 marks]:
+   * Nhân phần tử hiện tại vào tích
+   * Xử lý trường hợp kích thước window nhỏ hơn k (giai đoạn mở rộng)
+   * Xử lý trường hợp kích thước window bằng k (giai đoạn trượt)
+4. Cập nhật chính xác tích lớn nhất khi kích thước window đạt k [1 mark]
+5. Xử lý chính xác phép chia cho phần tử ngoài cùng bên trái khi trượt window [1 mark]
+6. Trả về tích lớn nhất tìm được [1 mark]
+
+Solution 2: Cách tiếp cận Brute Force
+1. Thiết lập chính xác các vòng lặp lồng nhau để xét tất cả các subarray kích thước k [1 mark]
+2. Tính toán chính xác tích của mỗi subarray bằng cách nhân tất cả các phần tử [1 mark]
+3. Duy trì và cập nhật tích lớn nhất tìm được qua tất cả các subarray [1 mark]
+4. Xử lý các edge case chẳng hạn như khi độ dài array nhỏ hơn k [1 mark]
+5. Phân tích time complexity là O(n*k) và space complexity là O(1) [1 mark]
+
+Solution 3: Cách tiếp cận Prefix Products
+1. Tạo một array để lưu các prefix product [1 mark]
+2. Tính toán chính xác các prefix product cho toàn bộ array [1 mark]
+3. Sử dụng prefix product để tìm tích của bất kỳ subarray kích thước k nào trong thời gian O(1) [2 marks]
+4. Xử lý phù hợp các edge case bao gồm các số 0 trong array [1 mark]
+5. Phân tích time complexity là O(n) và space complexity là O(n) [1 mark]
+
+Solution 4: Kỹ thuật Two-Pointer
+1. Cài đặt các con trỏ start và end rõ ràng để theo dõi ranh giới window [1 mark]
+2. Duy trì tích chính xác trong khi trượt window qua array [1 mark]
+3. Chỉ cập nhật tích lớn nhất khi kích thước window đạt k [1 mark]
+4. Loại bỏ chính xác đóng góp của các phần tử rời khỏi window [1 mark]
+5. Phân tích time complexity là O(n) và space complexity là O(1) [1 mark]
+
+Solution 5: Cách tiếp cận dựa trên Logarithm
+1. Chuyển đổi bài toán nhân thành phép cộng bằng cách dùng logarithm để tránh tràn số (overflow) [1 mark]
+2. Duy trì chính xác tổng tích lũy của các logarithm cho window hiện tại [1 mark]
+3. Thêm phần tử mới và loại bỏ các phần tử rời khỏi window một cách chính xác [1 mark]
+4. Chuyển đổi ngược lại từ không gian logarithm để thu được kết quả cuối cùng [1 mark]
+5. Thảo luận về giới hạn độ chính xác của số thực dấu phẩy động (floating-point arithmetic) [1 mark]

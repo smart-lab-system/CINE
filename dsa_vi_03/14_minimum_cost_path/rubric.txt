@@ -1,0 +1,20 @@
+Đường đi có chi phí nhỏ nhất - CustomRubric
+Solution 1: Cách tiếp cận thuật toán Dijkstra
+
+1. Tạo một cấu trúc dữ liệu để lưu chi phí tối thiểu để đi đến mỗi cell, khởi tạo với giá trị cực đại. [1 mark]
+2. Thiết lập một cấu trúc dữ liệu theo độ ưu tiên (priority-based) để xử lý các cell theo thứ tự chi phí tối thiểu. [1 mark]
+3. Khởi tạo điểm bắt đầu với chi phí của nó trong cả hai cấu trúc dữ liệu. [1 mark]
+4. Trích xuất cell có chi phí nhỏ nhất từ cấu trúc ưu tiên. [1 mark]
+5. Khám phá tất cả 4 cell liền kề và cập nhật chi phí nếu tìm thấy đường đi ít tốn kém hơn. [1 mark]
+6. Xử lý chính xác các trường hợp biên và điều kiện biên. [1 mark]
+7. Trả về chi phí tối thiểu được lưu cho cell đích. [1 mark]
+
+Solution 2: BFS với cấu trúc ưu tiên
+
+1. Thiết lập một cấu trúc ưu tiên để lưu trữ các cell được sắp xếp theo chi phí tích lũy. [1 mark]
+2. Tạo một cấu trúc để theo dõi các cell đã xử lý. [1 mark]
+3. Bắt đầu từ cell ban đầu và khám phá theo thứ tự chi phí tích lũy tối thiểu. [1 mark]
+4. Kiểm tra các cell lân cận và cập nhật chi phí nếu tìm thấy đường đi tốt hơn. [1 mark]
+5. Thêm các cell vào cấu trúc ưu tiên dựa trên chi phí đã cập nhật. [1 mark]
+6. Xử lý phù hợp các ranh giới lưới. [1 mark]
+7. Trả về chi phí tối thiểu khi đến cell đích. [1 mark]

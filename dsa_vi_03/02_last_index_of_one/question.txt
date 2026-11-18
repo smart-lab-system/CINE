@@ -1,0 +1,17 @@
+Cho một chuỗi s chỉ gồm các ký tự '0' và '1', hãy tìm chỉ số (index) cuối cùng của ký tự '1' xuất hiện trong chuỗi.
+
+Ghi chú: Nếu không có '1', trả về "-1"
+
+Ví dụ:
+Đầu vào: s = 00001
+Đầu ra: 4
+Giải thích: Index cuối cùng của 1 trong chuỗi đã cho là 4.
+Đầu vào: s = 0
+Đầu ra: -1
+Giải thích: Do không có 1 xuất hiện, nên output là -1.
+Độ phức tạp thời gian kỳ vọng: O(n)
+Không gian phụ trợ kỳ vọng: O(1)
+
+Ràng buộc:
+1 <= |s| <= 106
+s = {0,1}
