@@ -44,13 +44,23 @@ const baseResult = {
 
 describe('InvestigatorDossier', () => {
   it('shows a neutral loading state while the result is still grading (Review Focus #4) - never crashes on a null breakdown', () => {
-    resultsMock = () => ({ data: [{ ...baseResult, status: 'ai_grading' }], isLoading: false, isError: false });
+    resultsMock = () => ({
+      data: [
+        {
+          ...baseResult,
+          status: 'ai_grading',
+          gradingTriggeredAt: new Date(Date.now() - 45_000).toISOString(),
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
     detailMock = () => ({
       data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'ai_grading', ungradableClass: null, ungradableReason: null, breakdown: null, investigation: null, challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null },
       isLoading: false,
     });
     render(<InvestigatorDossier resultId="r1" sessionId="s1" />);
-    expect(screen.getByText(/chưa có dữ liệu để hiện/i)).toBeInTheDocument();
+    expect(screen.getByText(/AI đang chấm bài này - đã 4\d giây/)).toBeInTheDocument();
   });
 
   it('renders the Ungradable view when ungradableClass is set', () => {
