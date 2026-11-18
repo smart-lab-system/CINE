@@ -8,17 +8,17 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
-// QA-reported gap: "Tạo filter cho cả trang quản lý kỳ thi và bài thu" —
+// QA-reported gap: "Tạo filter cho cả trang quản lý kỳ thi và bài thu" -
 // this page previously took only page/pageSize. This page had no test
 // coverage at all before (no page.test.tsx existed); mocks the hook
 // (CLAUDE.md's frontend rule 1) the same way admin/accounts/page.test.tsx
-// does. The debounce (useDebouncedValue) is the REAL hook, not mocked —
+// does. The debounce (useDebouncedValue) is the REAL hook, not mocked -
 // asserted with `waitFor`'s real-timer polling rather than faking timers,
 // since nothing else in this codebase fakes timers for this hook either.
 const useExamSessionsMock = vi.fn();
 // Chế độ LỊCH có truy vấn riêng. Phải mock ở đây dù mặc định trang mở ra ở
 // chế độ Bảng: hook của React chạy ở MỌI lượt render bất kể `enabled`, nên
-// thiếu nó thì cả file đỏ với "is not a function" — không phải lỗi logic mà
+// thiếu nó thì cả file đỏ với "is not a function" - không phải lỗi logic mà
 // là lỗi factory mock thiếu một export.
 const useExamSessionsInRangeMock = vi.fn();
 
@@ -36,8 +36,8 @@ vi.mock('@/hooks/useTeaching', () => ({
   useTeachingClasses: () => useTeachingClassesMock(),
 }));
 
-// Bộ lọc học kỳ đọc `useSemesterFilter`. Hook đó không còn gọi API nào —
-// học kỳ là một chuỗi trên chính phiên thi từ đợt thu hẹp master data — nên
+// Bộ lọc học kỳ đọc `useSemesterFilter`. Hook đó không còn gọi API nào -
+// học kỳ là một chuỗi trên chính phiên thi từ đợt thu hẹp master data - nên
 // mock chỉ cần điều khiển kỳ đang chọn. Danh sách lựa chọn đến từ
 // `semesterNames` mà API trả về, KHÔNG suy từ các phiên trên trang: một kỳ
 // chỉ có ở trang sau thì vẫn phải chọn được.
@@ -107,7 +107,7 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
-describe('ExamSessionsListPage — filters', () => {
+describe('ExamSessionsListPage - filters', () => {
   it('cột thao tác chỉ còn Thiết lập và Vận hành', () => {
     useExamSessionsMock.mockReturnValue({
       data: {
@@ -188,7 +188,7 @@ describe('ExamSessionsListPage — filters', () => {
     );
   });
 
-  it('does not send an empty-string search — undefined, so the API sees no filter at all', () => {
+  it('does not send an empty-string search - undefined, so the API sees no filter at all', () => {
     render(<ExamSessionsListPage />);
 
     expect(useExamSessionsMock).toHaveBeenCalledWith(
@@ -220,7 +220,7 @@ describe('ExamSessionsListPage — filters', () => {
 
   it('shows a distinct empty state, with a clear-filters action, only once a filter is active', () => {
     // Học kỳ = "tất cả": tách riêng hai câu chuyện "chưa có phiên nào" và
-    // "kỳ này không có phiên nào" — xem test ngay dưới.
+    // "kỳ này không có phiên nào" - xem test ngay dưới.
     useSemesterFilterMock.mockReturnValue(semesterState(null));
     useExamSessionsMock.mockReturnValue({
       data: { items: [], total: 0 },
@@ -231,7 +231,7 @@ describe('ExamSessionsListPage — filters', () => {
 
     const { rerender } = render(<ExamSessionsListPage />);
 
-    // No filter active — the true-empty state, with the "create" CTA.
+    // No filter active - the true-empty state, with the "create" CTA.
     expect(screen.getByText('Chưa có phiên thi nào')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Xoá bộ lọc' })).not.toBeInTheDocument();
 
@@ -260,7 +260,7 @@ describe('ExamSessionsListPage — filters', () => {
   });
 
   it('chọn học kỳ khác thì đổi kỳ và quay về trang 1', () => {
-    // Danh sách kỳ đến từ `semesterNames` — server tính trên TOÀN BỘ phiên
+    // Danh sách kỳ đến từ `semesterNames` - server tính trên TOÀN BỘ phiên
     // của giảng viên. Ở đây cố ý chỉ để MỘT phiên trong `items` mà vẫn khai
     // hai kỳ: đúng tình huống bản cũ làm sai, khi nó suy danh sách từ trang
     // đang xem nên kỳ cũ biến mất khỏi dropdown.
@@ -290,7 +290,7 @@ describe('ExamSessionsListPage — filters', () => {
   it('kỳ rỗng nói khác "chưa có phiên thi nào", và mở được đường sang tất cả học kỳ', () => {
     // Hai câu chuyện khác nhau, không được nói chung một câu: "bạn chưa
     // tạo phiên nào bao giờ" cần nút Tạo, còn "kỳ này bạn không có phiên"
-    // chỉ cần đổi bộ lọc — cùng khuôn với "Lớp của tôi".
+    // chỉ cần đổi bộ lọc - cùng khuôn với "Lớp của tôi".
     useExamSessionsMock.mockReturnValue({
       data: { items: [], total: 0 },
       error: null,
@@ -308,7 +308,7 @@ describe('ExamSessionsListPage — filters', () => {
 
   it('một lớp thì KHÔNG hiện ô lọc lớp', () => {
     // Cùng luật với Phòng và Loại kỳ thi ở màn Bài thu: một lựa chọn là
-    // nhiễu. Học kỳ cố ý KHÔNG theo luật này — nó là chiều thời gian mà
+    // nhiễu. Học kỳ cố ý KHÔNG theo luật này - nó là chiều thời gian mà
     // giảng viên đang đứng trong đó, và ô ấy là chỗ duy nhất nói ra rằng
     // trang đang bị hẹp về một kỳ.
     render(<ExamSessionsListPage />);
@@ -403,14 +403,14 @@ describe('ExamSessionsListPage — filters', () => {
         page: 1,
       }),
     );
-    // Học kỳ là PHẠM VI đang xem, không phải một filter trong phạm vi đó —
+    // Học kỳ là PHẠM VI đang xem, không phải một filter trong phạm vi đó -
     // "Xoá bộ lọc" cố ý không đụng tới nó, giống nút cùng tên ở FilterRail
     // của trang Bài thu. Lối ra khỏi một học kỳ là chính dropdown đó.
     expect(setSemesterName).not.toHaveBeenCalled();
   });
 });
 
-describe('ExamSessionsListPage — chế độ xem lịch', () => {
+describe('ExamSessionsListPage - chế độ xem lịch', () => {
   function switchToCalendar() {
     render(<ExamSessionsListPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Lịch' }));

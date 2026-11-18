@@ -41,7 +41,7 @@ beforeEach(() => {
   h.rubrics = { data: [{ id: 'r3', name: 'CTDL&GT', version: 3, isActive: true }, { id: 'r2', name: 'CTDL&GT', version: 2, isActive: true }, { id: 'old', name: 'Cũ', version: 1, isActive: false }], isLoading: false };
 });
 
-describe('BulkDialog — start grading', () => {
+describe('BulkDialog - start grading', () => {
   const request = (skipped = 0): BulkRequest => ({ kind: 'start', rows, skipped });
 
   it('lists the sessions and the total number of bài before doing anything', () => {
@@ -102,7 +102,7 @@ describe('BulkDialog — start grading', () => {
   });
 });
 
-describe('BulkDialog — assign rubric', () => {
+describe('BulkDialog - assign rubric', () => {
   const request = (): BulkRequest => ({ kind: 'rubric', rows: rows.slice(0, 2), skipped: 0 });
 
   it('offers only active rubrics and applies the chosen one to each session', async () => {
@@ -133,7 +133,7 @@ describe('BulkDialog — assign rubric', () => {
   });
 });
 
-describe('BulkDialog — review fixes', () => {
+describe('BulkDialog - review fixes', () => {
   it('I2: the result list tells same-named sessions apart by class', async () => {
     const twins = rowsOf(
       [

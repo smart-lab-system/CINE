@@ -6,9 +6,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useExportDownload, useGradeExports } from '@/hooks/useGradeExport';
 import { roundingText } from '@/lib/grade-export-view';
 
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('vi-VN') : '—');
+const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('vi-VN') : '-');
 
-/** Các lượt xuất trước của phiên (§13.1 luật 2): mỗi lượt là một hồ sơ chỉ-thêm — ai, cột nào, làm tròn ra sao, bao nhiêu điểm. */
+/** Các lượt xuất trước của phiên (§13.1 luật 2): mỗi lượt là một hồ sơ chỉ-thêm - ai, cột nào, làm tròn ra sao, bao nhiêu điểm. */
 export function PreviousExports({ sessionId }: { sessionId: string }) {
   const list = useGradeExports(sessionId);
   const download = useExportDownload();
@@ -31,7 +31,7 @@ export function PreviousExports({ sessionId }: { sessionId: string }) {
               <div className="flex flex-col gap-0.5">
                 <span className="font-medium">{e.templateFileName ?? e.outputFileName ?? 'Sổ điểm'}</span>
                 <span className="text-caption text-muted-foreground">
-                  {when(e.exportedAt)} · {e.exportedByName} · Trang tính {e.sheetName ?? '—'}
+                  {when(e.exportedAt)} · {e.exportedByName} · Trang tính {e.sheetName ?? '-'}
                   {e.deliverableName ? ` · Yêu cầu nộp ${e.deliverableName}` : ''}
                 </span>
                 <span className="text-caption text-muted-foreground">
@@ -44,7 +44,7 @@ export function PreviousExports({ sessionId }: { sessionId: string }) {
                 </span>
                 {e.decreased > 0 && (
                   <span className="text-caption font-semibold">
-                    ↓ {e.decreased} bài giảm điểm — {e.decreaseConfirmedBy ?? 'người dùng'} đã xác nhận
+                    ↓ {e.decreased} bài giảm điểm - {e.decreaseConfirmedBy ?? 'người dùng'} đã xác nhận
                   </span>
                 )}
               </div>

@@ -23,7 +23,7 @@ export const EXAM_SESSION_STATUS_LABELS: Record<string, string> = {
 
 /**
  * Mọi badge trạng thái phiên cùng một bề rộng.
- * "Chưa đủ điều kiện" là nhãn dài nhất — các nhãn ngắn hơn căn giữa,
+ * "Chưa đủ điều kiện" là nhãn dài nhất - các nhãn ngắn hơn căn giữa,
  * không co theo số chữ.
  */
 export const EXAM_SESSION_STATUS_BADGE_CLASS =
@@ -38,8 +38,8 @@ export const EXAM_SESSION_STATUS_BADGE_VARIANT: Record<
   not_ready: 'warning',
   missed: 'destructive',
   active: 'success',
-  // `info`, không phải `success`: giai đoạn này còn việc phải làm — hai
-  // nút "Thu lại"/"Xác nhận kết thúc" đang chờ ai đó bấm — nên nó không
+  // `info`, không phải `success`: giai đoạn này còn việc phải làm - hai
+  // nút "Thu lại"/"Xác nhận kết thúc" đang chờ ai đó bấm - nên nó không
   // được trông giống một trạng thái đã yên.
   collecting: 'info',
   completed: 'default',
@@ -49,7 +49,7 @@ export const EXAM_SESSION_STATUS_BADGE_VARIANT: Record<
 /**
  * Nhãn + màu badge theo status DB.
  *
- * `scheduled` là chưa mở. `active` là đã mở — tự động hoặc thủ công.
+ * `scheduled` là chưa mở. `active` là đã mở - tự động hoặc thủ công.
  * Đồng hồ chỉ tách `active`: chưa tới `startTime` thì "Đang diễn ra",
  * từ `startTime` trở đi thì "Đang thi". Status khác không bị đồng hồ ghi đè.
  */

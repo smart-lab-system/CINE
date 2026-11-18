@@ -26,7 +26,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
 );
 Card.displayName = 'Card';
 
-// 24px padding throughout — the design spec's floor for card interiors.
+// 24px padding throughout - the design spec's floor for card interiors.
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn('flex flex-col gap-1.5 p-6', className)} {...props} />

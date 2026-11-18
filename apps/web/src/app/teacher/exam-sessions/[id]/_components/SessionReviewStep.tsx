@@ -19,7 +19,7 @@ import { SetupChecklist, type SetupChecklistResult } from './SetupChecklist';
 import type { SetupInfoDraft } from './setup-draft';
 
 function showLocal(value: string): string {
-  if (!value) return '—';
+  if (!value) return '-';
   return value.replace('T', ' ');
 }
 
@@ -107,7 +107,7 @@ export function SessionReviewStep({
           </div>
           <div>
             <dt className="text-muted-foreground">Lớp</dt>
-            <dd className="text-lg font-medium text-foreground">{className ?? '—'}</dd>
+            <dd className="text-lg font-medium text-foreground">{className ?? '-'}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Học kỳ</dt>
@@ -127,7 +127,7 @@ export function SessionReviewStep({
           </div>
           <div>
             <dt className="text-muted-foreground">Phòng thi</dt>
-            <dd className="text-lg font-medium text-foreground">{roomLabel || '—'}</dd>
+            <dd className="text-lg font-medium text-foreground">{roomLabel || '-'}</dd>
           </div>
         </dl>
       </section>
@@ -182,7 +182,7 @@ export function SessionReviewStep({
         <p className="text-small text-muted-foreground">
           {session.status === 'missed'
             ? 'Phiên không diễn ra. Không mở được nữa. Có thể huỷ phiên cạnh tên phiên.'
-            : 'Đã khoá — phiên đã mở hoặc đã kết thúc.'}
+            : 'Đã khoá - phiên đã mở hoặc đã kết thúc.'}
         </p>
       )}
     </div>

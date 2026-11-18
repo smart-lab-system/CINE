@@ -63,7 +63,7 @@ const STATE_PRESENTATION: Record<
     label: 'Chưa nộp',
     text: 'text-muted-foreground',
     dot: 'bg-border',
-    symbol: '—',
+    symbol: '-',
   },
 };
 
@@ -164,7 +164,7 @@ export interface LobbyRosterTableProps {
   confirmedCount: number | null;
   noClass: boolean;
   discrepancy: Attendance['discrepancy'];
-  /** Cảnh báo REST submissions fail — bảng chỉ hiện bài từ lúc mở trang */
+  /** Cảnh báo REST submissions fail - bảng chỉ hiện bài từ lúc mở trang */
   submissionsError?: boolean;
   isLoading?: boolean;
   attendanceError?: Error | null;
@@ -333,7 +333,7 @@ export function LobbyRosterTable({
         <div className="border-t border-border px-6 py-3">
           <Alert variant="info">
             <AlertDescription>
-              Phiên thi này chưa khai báo file bắt buộc — vẫn xem được điểm danh; không có cột nộp
+              Phiên thi này chưa khai báo file bắt buộc - vẫn xem được điểm danh; không có cột nộp
               bài để thu.
             </AlertDescription>
           </Alert>
@@ -347,7 +347,7 @@ export function LobbyRosterTable({
             title={rows.length === 0 ? 'Chưa có sinh viên nào' : 'Không có sinh viên khớp bộ lọc'}
             description={
               rows.length === 0
-                ? 'Bảng sẽ tự cập nhật khi có điểm danh hoặc bài nộp — không cần tải lại trang.'
+                ? 'Bảng sẽ tự cập nhật khi có điểm danh hoặc bài nộp - không cần tải lại trang.'
                 : 'Thử chọn bộ lọc khác.'
             }
             tone="muted"
@@ -405,7 +405,7 @@ export function LobbyRosterTable({
                     {row.attendanceStudent ? (
                       <StudentMarks student={row.attendanceStudent} startTime={startTime} />
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground">-</span>
                     )}
                     {row.makeupFromClass && (
                       <Badge variant="info" className="w-fit">

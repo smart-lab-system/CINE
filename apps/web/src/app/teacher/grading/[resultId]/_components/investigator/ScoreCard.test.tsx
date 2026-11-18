@@ -22,9 +22,9 @@ describe('ScoreCard', () => {
     expect(screen.getByText(/chạm trần/)).toBeInTheDocument();
   });
 
-  it('shows "—", never 0, when currentScore is null and there is no floor reason (still grading)', () => {
+  it('shows "-", never 0, when currentScore is null and there is no floor reason (still grading)', () => {
     render(<ScoreCard currentScore={null} currentScoreSource="none" breakdown={null} />);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
   });
 
   it('distinguishes "dưới sàn" from "không chấm được" (Review Focus #6): shows the floor reason, not a sandbox message', () => {
@@ -32,7 +32,7 @@ describe('ScoreCard', () => {
       <ScoreCard
         currentScore={null}
         currentScoreSource="none"
-        breakdown={{ perCriterion: [], ungradable: { class: 'submission', reason: 'Tiêu chí "hieu_nang" chưa có luật nào — không tự quyết được.' } } as never}
+        breakdown={{ perCriterion: [], ungradable: { class: 'submission', reason: 'Tiêu chí "hieu_nang" chưa có luật nào - không tự quyết được.' } } as never}
       />,
     );
     expect(screen.getByText(/hieu_nang.*chưa có luật nào/)).toBeInTheDocument();
@@ -46,10 +46,10 @@ describe('ScoreCard', () => {
     expect(screen.getByText('5,0 − 1,5 − 1,0 = 2,5')).toBeInTheDocument();
   });
 
-  // Review minor: finalizing writes no file (§3.10) — only `exported` is "đã xuất".
+  // Review minor: finalizing writes no file (§3.10) - only `exported` is "đã xuất".
   it('calls a finalized score "đã chốt", never "đã xuất"', () => {
     render(<ScoreCard currentScore={6} currentScoreSource="finalized" breakdown={{ perCriterion, ungradable: null } as never} />);
-    expect(screen.getByText('Điểm — đã chốt')).toBeInTheDocument();
+    expect(screen.getByText('Điểm - đã chốt')).toBeInTheDocument();
     expect(screen.queryByText(/đã xuất/)).not.toBeInTheDocument();
   });
 
@@ -62,14 +62,14 @@ describe('ScoreCard', () => {
         breakdown={{ perCriterion: [], ungradable: { class: 'submission', reason: 'Tiêu chí "hieu_nang" chưa có luật nào.' } } as never}
       />,
     );
-    expect(screen.getByText('Điểm — do bạn chấm tay')).toBeInTheDocument();
+    expect(screen.getByText('Điểm - do bạn chấm tay')).toBeInTheDocument();
     expect(screen.getByText('7,0')).toBeInTheDocument();
     expect(screen.queryByText(/chưa có luật nào/)).not.toBeInTheDocument();
   });
 
   it('shows a plain note, not a formula, when the score was set by hand', () => {
     render(<ScoreCard currentScore={9} currentScoreSource="manual" breakdown={{ perCriterion, ungradable: null } as never} />);
-    // "chấm tay" legitimately appears twice (the label + the explanatory note) — assert presence.
+    // "chấm tay" legitimately appears twice (the label + the explanatory note) - assert presence.
     expect(screen.getAllByText(/chấm tay/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/−/)).not.toBeInTheDocument();
   });

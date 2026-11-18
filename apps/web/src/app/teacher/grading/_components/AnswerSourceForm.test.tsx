@@ -18,7 +18,7 @@ beforeEach(() => {
 
 const pick = (file: File) => fireEvent.change(screen.getByLabelText(/Mã đáp án/), { target: { files: [file] } });
 
-describe('AnswerSourceForm — tải mã đáp án của giảng viên (G2b-R)', () => {
+describe('AnswerSourceForm - tải mã đáp án của giảng viên (G2b-R)', () => {
   it('chỉ nhận .cpp và .py; nút tải chưa bấm được khi chưa chọn file', () => {
     render(<AnswerSourceForm sessionId="s1" />);
     expect(screen.getByLabelText(/Mã đáp án/)).toHaveAttribute('accept', '.cpp,.py');

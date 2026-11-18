@@ -12,7 +12,7 @@ const STORAGE_KEY = 'examcollect:exam-sessions:view';
  * LUÔN khởi tạo bằng `'table'` rồi mới đọc localStorage trong `useEffect`.
  * Đọc thẳng lúc khởi tạo sẽ cho ra hai kết quả khác nhau giữa server và
  * client (server không có `localStorage`), và React sẽ báo hydration
- * mismatch — hoặc tệ hơn, im lặng giữ cây HTML của server và lựa chọn đã
+ * mismatch - hoặc tệ hơn, im lặng giữ cây HTML của server và lựa chọn đã
  * lưu không bao giờ hiện ra.
  *
  * Mọi truy cập đều bọc `try/catch`: ở chế độ riêng tư hoặc khi trình duyệt
@@ -29,7 +29,7 @@ export function useSessionViewMode(): [SessionViewMode, (next: SessionViewMode) 
         setView(saved);
       }
     } catch {
-      // Không nhớ được thì thôi — mặc định 'table' vẫn là một trang dùng được.
+      // Không nhớ được thì thôi - mặc định 'table' vẫn là một trang dùng được.
     }
   }, []);
 

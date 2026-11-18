@@ -72,7 +72,7 @@ export function TeacherExamPick({
       <BrandMark />
       <h1 className="-mb-1 text-h2 font-bold">Chọn kỳ thi hôm nay</h1>
       <p className="text-small text-muted-foreground">
-        {teacherEmail} — chỉ hiện phiên có giờ bắt đầu trong ngày hôm nay (theo giờ Việt Nam).
+        {teacherEmail} - chỉ hiện phiên có giờ bắt đầu trong ngày hôm nay (theo giờ Việt Nam).
       </p>
       {error && <StatusLine tone="danger">{error}</StatusLine>}
 

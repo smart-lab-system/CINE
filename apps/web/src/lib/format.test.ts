@@ -12,7 +12,7 @@ describe('formatVnPoints', () => {
     expect(formatVnPoints(-1.5)).toBe('−1,5');
   });
   it('renders null as an em dash', () => {
-    expect(formatVnPoints(null)).toBe('—');
+    expect(formatVnPoints(null)).toBe('-');
   });
 });
 

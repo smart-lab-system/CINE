@@ -46,7 +46,7 @@ beforeEach(() => {
   h.split = mutation();
 });
 
-describe('EditErrorDrawer — lỗi dùng ở ≥ 2 rubric, mở từ một rubric (D4)', () => {
+describe('EditErrorDrawer - lỗi dùng ở ≥ 2 rubric, mở từ một rubric (D4)', () => {
   it('hai nút, mỗi nút kèm một dòng hệ quả bằng tên rubric', () => {
     open();
     expect(screen.getByRole('button', { name: 'Lưu cho cả 2 rubric' })).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe('EditErrorDrawer — lỗi dùng ở ≥ 2 rubric, mở từ một rubr
     open();
     const box = screen.getByText('Áp dụng thay đổi cho').closest('div') as HTMLElement;
     expect(within(box).getByText('Cả 2 rubric')).toBeInTheDocument();
-    // Chuỗi ĐẦY ĐỦ (khớp nguyên văn) — dòng "Chỉ …" chứa cùng câu này nhưng dài hơn, nên không bị trùng.
+    // Chuỗi ĐẦY ĐỦ (khớp nguyên văn) - dòng "Chỉ …" chứa cùng câu này nhưng dài hơn, nên không bị trùng.
     expect(within(box).getByText('Ca sáng (đang chấm): tính lại ngay các bài dính lỗi; Ca chiều (đã chốt) giữ nguyên.')).toBeInTheDocument();
     expect(within(box).getByText(/Tách thành bản riêng cho rubric này, 1 rubric còn lại giữ nguyên bản cũ “Sai ca biên”/)).toBeInTheDocument();
   });
@@ -113,7 +113,7 @@ describe('EditErrorDrawer — lỗi dùng ở ≥ 2 rubric, mở từ một rubr
   });
 });
 
-describe('EditErrorDrawer — mở từ Thư viện, hoặc lỗi chỉ ở một rubric', () => {
+describe('EditErrorDrawer - mở từ Thư viện, hoặc lỗi chỉ ở một rubric', () => {
   it('từ Thư viện: chỉ "Lưu cho cả N rubric" và hướng dẫn đổi riêng; không có nút hẹp', () => {
     open(shared, null);
     rename();
@@ -134,7 +134,7 @@ describe('EditErrorDrawer — mở từ Thư viện, hoặc lỗi chỉ ở mộ
   });
 });
 
-describe('EditErrorDrawer — cách phát hiện (D9, Review Focus 6)', () => {
+describe('EditErrorDrawer - cách phát hiện (D9, Review Focus 6)', () => {
   it('lỗi cũ mang điều kiện "gọi hàm": hiện AI đọc bài kèm ghi chú; chỉ đổi tên thì KHÔNG gửi predicate', () => {
     open(legacy);
     expect(screen.getByRole('button', { name: /^AI đọc bài/ })).toHaveAttribute('aria-pressed', 'true');
@@ -161,20 +161,20 @@ describe('EditErrorDrawer — cách phát hiện (D9, Review Focus 6)', () => {
   });
 });
 
-describe('EditErrorDrawer — trạng thái khác', () => {
+describe('EditErrorDrawer - trạng thái khác', () => {
   it('đang tải thư viện thì nói đang tải; tải xong mà không có lỗi thì nói không tìm thấy', () => {
     const { unmount } = render(<EditErrorDrawer rule={undefined} loading fromRubric={null} overviews={[A]} onClose={vi.fn()} />);
     expect(screen.getByText('Đang tải…')).toBeInTheDocument();
     unmount();
     render(<EditErrorDrawer rule={undefined} loading={false} fromRubric={null} overviews={[A]} onClose={vi.fn()} />);
-    expect(screen.getByText('Không tìm thấy lỗi này — có thể nó đã bị bỏ.')).toBeInTheDocument();
+    expect(screen.getByText('Không tìm thấy lỗi này - có thể nó đã bị bỏ.')).toBeInTheDocument();
   });
 
   it('lỗi của máy chủ hiện nguyên văn', () => {
     (h.split as ReturnType<typeof mutation>).isError = true;
-    (h.split as ReturnType<typeof mutation>).error = new Error('Lỗi này chỉ dùng ở một rubric — sửa trực tiếp');
+    (h.split as ReturnType<typeof mutation>).error = new Error('Lỗi này chỉ dùng ở một rubric - sửa trực tiếp');
     open();
-    expect(screen.getByText('Lỗi này chỉ dùng ở một rubric — sửa trực tiếp')).toBeInTheDocument();
+    expect(screen.getByText('Lỗi này chỉ dùng ở một rubric - sửa trực tiếp')).toBeInTheDocument();
   });
 
   it('Huỷ đóng, không gửi gì', () => {

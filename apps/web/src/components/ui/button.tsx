@@ -5,7 +5,7 @@ import { LoaderCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Teal is the action colour, indigo is the brand colour — so `default`
+ * Teal is the action colour, indigo is the brand colour - so `default`
  * (the primary action on any screen: Tạo phiên thi, Lưu, Đăng nhập) is
  * teal, and `primary` is the rarer indigo button for brand-weighted
  * actions. There is deliberately no black/slate fill: a neutral button
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
  * screens suffered from.
  *
  * The fill is `accent-strong`, not `accent`. Same hue and saturation, 9
- * points darker — that's what a 14px white label needs to clear WCAG AA
+ * points darker - that's what a 14px white label needs to clear WCAG AA
  * (4.79:1 vs 3.0:1). See the contrast table in globals.css.
  *
  * No focus-visible ring classes here: globals.css puts one teal ring on
@@ -54,7 +54,7 @@ export interface ButtonProps
   /**
    * Shows an inline spinner and blocks further clicks. Kept as a prop
    * rather than left to each caller so every submit in the app fails/waits
-   * the same way — a form that swaps its label to "Đang lưu…" and one that
+   * the same way - a form that swaps its label to "Đang lưu…" and one that
    * shows a spinner are two different products to the person using them.
    */
   loading?: boolean;
@@ -64,7 +64,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, loading = false, children, disabled, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button';
 
-    // `asChild` renders into a Slot, which accepts exactly one child — so
+    // `asChild` renders into a Slot, which accepts exactly one child - so
     // the spinner is only injected for a real <button>. A caller using
     // asChild (e.g. a Link styled as a button) is navigating, not
     // submitting, and has nothing to wait for.

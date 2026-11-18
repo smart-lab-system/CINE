@@ -17,7 +17,7 @@ import {
 type Tab = 'catalog' | 'violations';
 
 function formatDate(value: string | null) {
-  if (!value) return '—';
+  if (!value) return '-';
   try {
     return new Date(value).toLocaleDateString('vi-VN');
   } catch {
@@ -327,8 +327,8 @@ function ViolationExtensionRows({
   return (
     <>
       <tr className="cursor-pointer border-t hover:bg-muted/60" onClick={onToggle}>
-        <td className="px-3 py-2.5 font-medium">{ext.displayName ?? '—'}</td>
-        <td className="px-3 py-2.5">{ext.publisher ?? '—'}</td>
+        <td className="px-3 py-2.5 font-medium">{ext.displayName ?? '-'}</td>
+        <td className="px-3 py-2.5">{ext.publisher ?? '-'}</td>
         <td className="px-3 py-2.5 font-mono text-xs">{ext.extensionId}</td>
         <td className="px-3 py-2.5">{ext.versionCount}</td>
         <td className="px-3 py-2.5">{ext.incidentCount}</td>
@@ -400,10 +400,10 @@ function ViolationExtensionRows({
                           <tbody>
                             {ver.incidents.map((inc) => (
                               <tr key={inc.scanItemId} className="border-t">
-                                <td className="px-3 py-2">{inc.examSessionName ?? '—'}</td>
-                                <td className="px-3 py-2">{inc.courseName ?? '—'}</td>
+                                <td className="px-3 py-2">{inc.examSessionName ?? '-'}</td>
+                                <td className="px-3 py-2">{inc.courseName ?? '-'}</td>
                                 <td className="px-3 py-2 font-mono text-xs">{inc.studentMssv}</td>
-                                <td className="px-3 py-2">{inc.studentFullName ?? '—'}</td>
+                                <td className="px-3 py-2">{inc.studentFullName ?? '-'}</td>
                                 <td className="px-3 py-2 text-xs text-muted-foreground">
                                   {inc.machineName ?? inc.machineId}
                                 </td>

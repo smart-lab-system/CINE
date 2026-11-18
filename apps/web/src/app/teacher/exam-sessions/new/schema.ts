@@ -4,7 +4,7 @@ import { z } from 'zod';
  * The form's validation rules, kept out of `page.tsx` on purpose.
  *
  * A file under `app/` that Next treats as a route may only export
- * `default` plus the framework's own route config — anything else fails
+ * `default` plus the framework's own route config - anything else fails
  * the build with "does not satisfy the constraint '{ [x: string]: never }'".
  * The schema was exported from the page for its unit test, which broke
  * `next build` while `next dev` and `vitest` both stayed happy; it lives
@@ -13,7 +13,7 @@ import { z } from 'zod';
 
 // Must stay byte-for-byte identical to FILENAME_TEMPLATE_REGEX in
 // apps/api/src/exam-session/filename-template.ts. It is the old
-// SAFE_FILENAME_REGEX plus the four tokens the server fills per student —
+// SAFE_FILENAME_REGEX plus the four tokens the server fills per student -
 // the same character class and the same `(?!.*\.\.)` lookahead, so a
 // pattern is held to exactly the path-traversal rules a literal name is. A
 // mismatch here means the form accepts something the server 400s on.
@@ -22,7 +22,7 @@ const FILENAME_TEMPLATE_REGEX =
 
 // Phải khớp ARCHIVE_EXTENSIONS/MAX_ENTRIES_PER_DELIVERABLE trong
 // apps/api/src/exam-session/dto/create-exam-session.dto.ts. Cùng cặp
-// thông điệp lỗi — spec 2026-09-21-archive-content-validation-design.md
+// thông điệp lỗi - spec 2026-09-21-archive-content-validation-design.md
 // §8.4/§9.1: khai file bên trong chỉ có nghĩa với deliverable .zip/.rar.
 const ARCHIVE_EXTENSIONS = ['.zip', '.rar'] as const;
 const MAX_ENTRIES_PER_DELIVERABLE = 20;
@@ -35,7 +35,7 @@ function isArchiveFilename(value: string): boolean {
 export const EXAM_TYPES = ['TK', 'GK', 'CK'] as const;
 
 // Must stay in sync with MIN_EXAM_DURATION_MINUTES in
-// apps/api/src/exam-session/dto/create-exam-session.dto.ts — QA-reported
+// apps/api/src/exam-session/dto/create-exam-session.dto.ts - QA-reported
 // gap: nothing stopped a teacher from creating a session a few seconds
 // long. Catching it here means a teacher sees the message next to the
 // field they need to fix, instead of a generic API-error banner after a
@@ -51,7 +51,7 @@ const MAX_BACKDATE_MINUTES = 30;
 /**
  * What to show when POST /exam-sessions fails.
  *
- * The server's own message is the useful one — a room clash names the room
+ * The server's own message is the useful one - a room clash names the room
  * and the session already holding it, which is what tells the lecturer
  * what to change. This banner used to hardcode an explanation about
  * duplicate filenames, so every other failure was reported as the one
@@ -77,7 +77,7 @@ export function describeCreateError(error: unknown): string {
   return FALLBACK_CREATE_ERROR;
 }
 
-/** Một dòng file bắt buộc — dùng chung form tạo (cũ) và hub thiết lập. */
+/** Một dòng file bắt buộc - dùng chung form tạo (cũ) và hub thiết lập. */
 const requiredFilenameItemSchema = z
   .object({
     value: z
@@ -126,7 +126,7 @@ const requiredFilenameItemSchema = z
       }
       return true;
     },
-    { message: 'Tên file bên trong bị trùng — mỗi file phải có tên khác nhau.', path: ['entries'] },
+    { message: 'Tên file bên trong bị trùng - mỗi file phải có tên khác nhau.', path: ['entries'] },
   )
   .refine((item) => item.deliverableType === 'code_project' || item.language === undefined, {
     message: 'Chỉ khai ngôn ngữ khi loại bài nộp là "Mã nguồn"',
@@ -167,7 +167,7 @@ export const replaceRequiredDeliverablesSchema = z
       const duplicateName =
         duplicateIndex === -1 ? '' : values.requiredFilenames[duplicateIndex].value;
       return {
-        message: `Tên file "${duplicateName}" bị trùng — mỗi file bắt buộc phải có tên khác nhau.`,
+        message: `Tên file "${duplicateName}" bị trùng - mỗi file bắt buộc phải có tên khác nhau.`,
         path:
           duplicateIndex === -1
             ? ['requiredFilenames']
@@ -181,8 +181,8 @@ export type ReplaceRequiredDeliverablesFormValues = z.infer<
 >;
 
 // Exported so the rule can be unit-tested directly against the schema
-// (this form has no other test coverage yet — see page.test.tsx history).
-// create-slim: chỉ lịch + danh tính — không rubric / filenames.
+// (this form has no other test coverage yet - see page.test.tsx history).
+// create-slim: chỉ lịch + danh tính - không rubric / filenames.
 export const createExamSessionSchema = z
   .object({
     name: z
@@ -221,7 +221,7 @@ export const createExamSessionSchema = z
       .or(z.literal('')),
     examType: z.enum(EXAM_TYPES, { message: 'Vui lòng chọn loại kỳ thi' }),
     // Bound to <input type="datetime-local">, so this is the browser's
-    // "YYYY-MM-DDTHH:mm" local-time string, not ISO 8601 yet — converted to
+    // "YYYY-MM-DDTHH:mm" local-time string, not ISO 8601 yet - converted to
     // a real ISO string in onSubmit before it reaches the API (the backend's
     // @IsISO8601() needs a full ISO string, e.g. with seconds + offset).
     startTime: z.string().min(1, 'Vui lòng chọn thời gian bắt đầu'),
@@ -232,7 +232,7 @@ export const createExamSessionSchema = z
     path: ['roomName'],
   })
   .refine((values) => Boolean(values.semesterId) || Boolean(values.semesterName?.trim()), {
-    message: 'Lớp thi chưa gắn học kỳ — chọn lớp khác hoặc liên hệ quản trị viên',
+    message: 'Lớp thi chưa gắn học kỳ - chọn lớp khác hoặc liên hệ quản trị viên',
     path: ['semesterName'],
   })
   .refine(
@@ -261,7 +261,7 @@ export const createExamSessionSchema = z
     },
   )
   // Mirrors the backend's HasMinimumDurationConstraint. Skips entirely when
-  // end <= start — that's the previous .refine()'s error to report, not a
+  // end <= start - that's the previous .refine()'s error to report, not a
   // "too short" message stacked on top of an already-invalid ordering.
   .refine(
     (values) => {

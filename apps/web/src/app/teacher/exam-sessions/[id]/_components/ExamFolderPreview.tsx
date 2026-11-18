@@ -21,13 +21,13 @@ export type ExamFolderRequiredFile = {
 export type ExamFolderPreviewProps = {
   /** Tên file đề / tài liệu đã upload (thứ tự API trả về). */
   materialFilenames: string[];
-  /** File SV phải nộp — pattern + type + entries (+ language optional). */
+  /** File SV phải nộp - pattern + type + entries (+ language optional). */
   requiredFiles: ExamFolderRequiredFile[];
 };
 
 /**
  * Cây “thư mục bài thi” trên máy SV: đề được phát + file phải nộp.
- * Props thuần — không fetch; parent truyền materials + form/session.
+ * Props thuần - không fetch; parent truyền materials + form/session.
  */
 export function ExamFolderPreview({
   materialFilenames,
@@ -53,7 +53,7 @@ export function ExamFolderPreview({
               <li>
                 <span className="text-muted-foreground">└── </span>
                 <span className="font-sans text-muted-foreground">
-                  (trống) — chưa upload đề/tài liệu
+                  (trống) - chưa upload đề/tài liệu
                 </span>
               </li>
             ) : (
@@ -76,7 +76,7 @@ export function ExamFolderPreview({
               <li>
                 <span className="text-muted-foreground">└── </span>
                 <span className="font-sans text-muted-foreground">
-                  (trống) — chưa khai file phải nộp
+                  (trống) - chưa khai file phải nộp
                 </span>
               </li>
             ) : (

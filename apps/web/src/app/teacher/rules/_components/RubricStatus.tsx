@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import type { RubricOverview } from '@/lib/api/rubric-errors';
 import { statusOf } from '@/lib/rubric-board';
 
-/** Tình trạng một rubric: biểu tượng + chữ (không truyền tin chỉ bằng màu — spec UI §2.1 luật 1). */
+/** Tình trạng một rubric: biểu tượng + chữ (không truyền tin chỉ bằng màu - spec UI §2.1 luật 1). */
 export function RubricStatus({ overview, className }: { overview: RubricOverview; className?: string }) {
   const { status, label } = statusOf(overview);
   const Icon = status === 'ready' ? Check : status === 'todo' ? TriangleAlert : Info;

@@ -1,5 +1,5 @@
 /**
- * Hợp đồng LAN v1 — spec §4.1.
+ * Hợp đồng LAN v1 - spec §4.1.
  * Port cố định theo plan (đổi một chỗ nếu conflict phòng máy).
  */
 
@@ -51,7 +51,7 @@ export interface LabMachineInfo {
   appVersion: string;
   os: string;
   lastSeen: string;
-  /** Phần cứng auto-collect — gửi kèm register / GET_MACHINE_INFO */
+  /** Phần cứng auto-collect - gửi kèm register / GET_MACHINE_INFO */
   cpu?: string;
   ramGb?: number;
   storage?: string;

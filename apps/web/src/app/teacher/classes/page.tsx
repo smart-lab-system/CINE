@@ -26,7 +26,7 @@ import { useTeachingClasses } from '@/hooks/useTeaching';
 import { filterTeachingClasses } from './filter-teaching-classes';
 
 /**
- * Lớp do phòng đào tạo / admin phân công — giảng viên không tạo/xoá lớp.
+ * Lớp do phòng đào tạo / admin phân công - giảng viên không tạo/xoá lớp.
  * Vào roster để kiểm tra / bổ sung SV trước giờ thi.
  */
 export default function TeacherClassesPage() {
@@ -75,7 +75,7 @@ export default function TeacherClassesPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Lớp của tôi"
-        description="Các lớp được phân công dạy. Mỗi lớp có danh sách sinh viên — quyết định ai vào được phiên thi."
+        description="Các lớp được phân công dạy. Mỗi lớp có danh sách sinh viên - quyết định ai vào được phiên thi."
       />
 
       {all.length > 0 && (
@@ -144,7 +144,7 @@ export default function TeacherClassesPage() {
             <EmptyState
               icon={GraduationCap}
               title="Không có lớp khớp bộ lọc"
-              description="Thử đổi từ khóa tìm kiếm, môn hoặc học kỳ — hoặc xóa lọc để xem lại toàn bộ."
+              description="Thử đổi từ khóa tìm kiếm, môn hoặc học kỳ - hoặc xóa lọc để xem lại toàn bộ."
               tone="muted"
               action={
                 <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
@@ -172,12 +172,12 @@ export default function TeacherClassesPage() {
                     <TableRow key={klass.id}>
                       <TableCell className="font-medium">{klass.name}</TableCell>
                       <TableCell>{klass.courseName}</TableCell>
-                      <TableCell>{klass.semesterName ?? '—'}</TableCell>
+                      <TableCell>{klass.semesterName ?? '-'}</TableCell>
                       <TableCell
                         className="max-w-[14rem] truncate"
                         title={klass.nominalClassName ?? undefined}
                       >
-                        {klass.nominalClassName ?? '—'}
+                        {klass.nominalClassName ?? '-'}
                       </TableCell>
                       <TableCell className="whitespace-nowrap tabular-nums">
                         {klass.studentCount === 0 ? (

@@ -3,8 +3,8 @@ import type { NextResponse } from 'next/server';
 /**
  * The one definition of the session cookies.
  *
- * Three separate places mint a session — `app/api/auth/login/route.ts`,
- * `app/api/auth/refresh/route.ts`, and `middleware.ts` — and a token minted
+ * Three separate places mint a session - `app/api/auth/login/route.ts`,
+ * `app/api/auth/refresh/route.ts`, and `middleware.ts` - and a token minted
  * by any of them has to expire on the same schedule and be exactly as
  * reachable (secure, sameSite, path) as one minted by the others. When these
  * were three inline copies, nothing made them agree: a session started at
@@ -32,7 +32,7 @@ export interface Session {
  * Read per call, not once at module load. Edge middleware and Route Handlers
  * are separate bundles evaluated at different moments, and a module-level
  * constant would freeze whatever `NODE_ENV` happened to hold the first time
- * that particular bundle was pulled in — which is how one of these three
+ * that particular bundle was pulled in - which is how one of these three
  * ended up deciding `secure` at a different moment from the other two.
  */
 function cookieBase() {
@@ -56,7 +56,7 @@ export function setSessionCookies<R extends NextResponse<unknown>>(
   });
 
   // Rotated on every refresh (AuthService.refresh: "a leaked one stops being
-  // usable as soon as the legitimate holder refreshes") — always the NEW
+  // usable as soon as the legitimate holder refreshes") - always the NEW
   // value, never the one the request arrived with.
   response.cookies.set('refresh_token', session.refreshToken, {
     ...base,
@@ -82,7 +82,7 @@ export function setSessionCookies<R extends NextResponse<unknown>>(
 }
 
 /**
- * Expired, revoked, or the account is gone — nothing short of a real login
+ * Expired, revoked, or the account is gone - nothing short of a real login
  * recovers. The stale cookies go rather than being left to fail the same way
  * on the next navigation, which is what would otherwise turn one dead refresh
  * token into a pointless API round-trip on every single request.

@@ -3,7 +3,7 @@ import { apiClient } from '@/lib/api-client';
 /** Mirrors `RegradeOutcome` (apps/api/src/grading/regrade.service.ts). */
 export interface RegradeOutcome {
   requeued: number;
-  /** `reason` là câu tiếng Việt của server — hiện nguyên văn. */
+  /** `reason` là câu tiếng Việt của server - hiện nguyên văn. */
   skipped: { resultId: string; reason: string }[];
 }
 

@@ -35,7 +35,7 @@ const codeDeliverable = (over: Partial<PreflightInput['deliverables'][number]> =
 
 const row = (input: PreflightInput, key: string) => preflightOf(input).rows.find((r) => r.key === key)!;
 
-describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', () => {
+describe('preflightOf - the "Trước khi bắt đầu" column (spec §3.7)', () => {
   it('a session that is fully prepared can start, and says how many results it will grade', () => {
     const out = preflightOf(base());
     expect(out.canStart).toBe(true);
@@ -45,7 +45,7 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
 
   describe('ceiling (Rubric)', () => {
     it('ok: names the rubric, its version, total and number of criteria', () => {
-      expect(row(base(), 'ceiling')).toMatchObject({ status: 'ok', text: 'CTDL — phiên bản 2, 10,0 điểm, 2 tiêu chí' });
+      expect(row(base(), 'ceiling')).toMatchObject({ status: 'ok', text: 'CTDL - phiên bản 2, 10,0 điểm, 2 tiêu chí' });
     });
     it('blocks when no rubric is pinned', () => {
       const input = base({ hasRubricId: false, rubric: undefined });
@@ -61,7 +61,7 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     });
   });
 
-  describe('question (Đề bài) — required by the spec', () => {
+  describe('question (Đề bài) - required by the spec', () => {
     it('ok when chosen', () => {
       expect(row(base(), 'question').status).toBe('ok');
     });
@@ -70,14 +70,14 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
       expect(row(input, 'question').status).toBe('block');
       expect(row(input, 'question').text).toMatch(/khối "Đề bài"/);
     });
-    it('blocks while readiness is still loading — no guessing', () => {
+    it('blocks while readiness is still loading - no guessing', () => {
       const r = row(base({ readiness: undefined }), 'question');
       expect(r.status).toBe('block');
       expect(r.text).toMatch(/Đang đọc/);
     });
   });
 
-  describe('model answer (Đáp án mẫu) — not required', () => {
+  describe('model answer (Đáp án mẫu) - not required', () => {
     it('ok when present', () => {
       expect(row(base(), 'answer').status).toBe('ok');
     });
@@ -97,7 +97,7 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     });
   });
 
-  describe('test bundle (Gói test) — the server needs a PINNED bundle for code submissions', () => {
+  describe('test bundle (Gói test) - the server needs a PINNED bundle for code submissions', () => {
     it('not needed without a code deliverable', () => {
       expect(row(base(), 'bundle')).toMatchObject({ status: 'ok' });
     });
@@ -123,7 +123,7 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     });
   });
 
-  describe('Bảng lỗi của rubric đã ghim — cảnh báo, không bao giờ chặn', () => {
+  describe('Bảng lỗi của rubric đã ghim - cảnh báo, không bao giờ chặn', () => {
     const board = (over: Parameters<typeof overview>[0]) => overview({ rubricName: 'CTDL', ...over });
 
     it('ok khi mọi lỗi có điểm trừ và mọi tiêu chí có lỗi', () => {
@@ -162,21 +162,21 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
   });
 
   describe('results to grade (Số bài sẽ chấm)', () => {
-    it('blocks with nothing collected — the server would answer "queued: 0" and look like it worked', () => {
+    it('blocks with nothing collected - the server would answer "queued: 0" and look like it worked', () => {
       const input = base({ counts: { fullySubmitted: 0, partial: 0, attendedNoSubmission: 3, neverAttended: 2 } });
       expect(row(input, 'count').status).toBe('block');
       expect(preflightOf(input).canStart).toBe(false);
     });
     it('says the number graded, and the students who will NOT be', () => {
       const input = base({ counts: { fullySubmitted: 30, partial: 2, attendedNoSubmission: 3, neverAttended: 5 } });
-      expect(row(input, 'count').text).toBe('32 bài đã thu sẽ được chấm. 3 sinh viên vào phòng nhưng không có bài, 5 vắng — không chấm.');
+      expect(row(input, 'count').text).toBe('32 bài đã thu sẽ được chấm. 3 sinh viên vào phòng nhưng không có bài, 5 vắng - không chấm.');
     });
     it('says only what is true when nobody is missing', () => {
       expect(row(base(), 'count').text).toBe('32 bài đã thu sẽ được chấm.');
     });
   });
 
-  describe('code language (G1 §3) — counted by the backend pipeline, never blocking', () => {
+  describe('code language (G1 §3) - counted by the backend pipeline, never blocking', () => {
     it('no row without a code deliverable', () => {
       expect(preflightOf(base()).rows.some((r) => r.key === 'language')).toBe(false);
     });
@@ -213,7 +213,7 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     });
   });
 
-  describe('blueprint — phiên nhiều file bắt buộc', () => {
+  describe('blueprint - phiên nhiều file bắt buộc', () => {
     it('chưa xác nhận thì chặn, và không có dòng này khi phiên một file', () => {
       expect(preflightOf(base()).rows.some((r) => r.key === 'blueprint')).toBe(false);
       const pending = base({ blueprintConfirmed: false });
@@ -229,7 +229,7 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     });
   });
 
-  describe('mode review — “Đã dùng để chấm”', () => {
+  describe('mode review - “Đã dùng để chấm”', () => {
     it('states facts and drops the instructions to go fix something', () => {
       const input = base({
         mode: 'review',
@@ -253,7 +253,7 @@ describe('preflightOf — the "Trước khi bắt đầu" column (spec §3.7)', 
     it('a prepared session recaps the collected count in the past', () => {
       const input = base({ mode: 'review', bundle: { pinned: true, total: 1, approved: 1 } });
       expect(row(input, 'count').text).toBe('32 bài đã thu.');
-      expect(row(input, 'bundle').text).toBe('Phiên không có bài code chạy trong môi trường chạy bài — không cần gói test.');
+      expect(row(input, 'bundle').text).toBe('Phiên không có bài code chạy trong môi trường chạy bài - không cần gói test.');
     });
   });
 

@@ -34,7 +34,7 @@ export function VsixDownloadPanel({
           >
             <strong>{statusLabel(entry.status)}</strong> · {entry.extensionId} {entry.version}
             <span className="block text-muted-foreground">
-              Trên máy: {entry.machines.join(', ') || '—'}
+              Trên máy: {entry.machines.join(', ') || '-'}
             </span>
             {entry.error && <span className="block text-danger-strong">{entry.error}</span>}
           </li>

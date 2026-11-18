@@ -16,7 +16,7 @@ const OPTIONS: { id: ErrorFormState['detection']; title: string; text: string }[
 
 /**
  * Bốn trường của một lỗi (tên, mô tả, cách phát hiện, nhóm test) dùng chung cho ngăn kéo "Thêm lỗi" và "Sửa lỗi".
- * Thông báo kiểm tra chỉ hiện sau khi giảng viên đã rời ô đó — không mắng người chưa kịp gõ.
+ * Thông báo kiểm tra chỉ hiện sau khi giảng viên đã rời ô đó - không mắng người chưa kịp gõ.
  */
 export function ErrorFields({
   form,

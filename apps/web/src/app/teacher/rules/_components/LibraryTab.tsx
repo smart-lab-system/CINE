@@ -15,7 +15,7 @@ const SHOWN = 3;
 
 /**
  * Thư viện lỗi: danh tính lỗi dùng chung (tên, mô tả, cách phát hiện). Không có cột điểm trừ chung vì điểm trừ mỗi
- * rubric một khác (D1) — thay vào đó mỗi lỗi liệt kê nơi nó đang dùng, chặn trần ba dòng (T-RBE-UI-8).
+ * rubric một khác (D1) - thay vào đó mỗi lỗi liệt kê nơi nó đang dùng, chặn trần ba dòng (T-RBE-UI-8).
  */
 export function LibraryTab({
   rules,
@@ -43,7 +43,7 @@ export function LibraryTab({
   if (error) {
     return (
       <Alert variant="destructive" className="mt-4">
-        <AlertDescription>Không tải được thư viện lỗi — {error.message}. Thử tải lại trang.</AlertDescription>
+        <AlertDescription>Không tải được thư viện lỗi - {error.message}. Thử tải lại trang.</AlertDescription>
       </Alert>
     );
   }
@@ -93,7 +93,7 @@ export function LibraryTab({
                     <div>
                       <UsesMore
                         label={`và ${more} nơi dùng khác`}
-                        title={`${rule.revision.name} — đang dùng ở ${rule.uses.length} nơi`}
+                        title={`${rule.revision.name} - đang dùng ở ${rule.uses.length} nơi`}
                         items={rule.uses.map((u) => ({
                           key: u.rubricName,
                           name: u.rubricName,

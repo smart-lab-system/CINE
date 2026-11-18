@@ -17,11 +17,11 @@ import { TestBundleCard } from './TestBundleCard';
 import { TestBundleReview } from './TestBundleReview';
 
 /**
- * Chuẩn bị chấm (spec §3.7) — khi phiên chưa có bài nào được chấm (hoặc mọi bài đều "không chấm được" và tài liệu
+ * Chuẩn bị chấm (spec §3.7) - khi phiên chưa có bài nào được chấm (hoặc mọi bài đều "không chấm được" và tài liệu
  * mở khoá lại). Thay `GradingReferenceDialog`, `SessionRubricCard` và nút bắt đầu cũ.
  *
  * Bắt đầu chấm KHOÁ tài liệu và rubric (server: `isGradingLocked`), nên nút chỉ bật khi không dòng nào của cột
- * "Trước khi bắt đầu" chặn — kể cả "còn thay đổi chưa lưu" — và khi bị chặn thì KHÔNG request nào được gửi
+ * "Trước khi bắt đầu" chặn - kể cả "còn thay đổi chưa lưu" - và khi bị chặn thì KHÔNG request nào được gửi
  * (T-UI-11). Server vẫn là bên quyết định: nếu nó từ chối, câu của nó hiện nguyên văn.
  */
 export function PreparePanel({
@@ -32,9 +32,9 @@ export function PreparePanel({
 }: {
   sessionId: string;
   session: SessionOverviewItem;
-  /** Mọi kết quả hiện có đều là "không chấm được" — màn này được mở lại để sửa thước rồi chấm lại. */
+  /** Mọi kết quả hiện có đều là "không chấm được" - màn này được mở lại để sửa thước rồi chấm lại. */
   allUngradable?: boolean;
-  /** `review`: sau khi đã bắt đầu chấm — chỉ đọc, không nút bắt đầu. */
+  /** `review`: sau khi đã bắt đầu chấm - chỉ đọc, không nút bắt đầu. */
   mode?: 'edit' | 'review';
 }) {
   const rubrics = useRubrics();
@@ -92,7 +92,7 @@ export function PreparePanel({
       {review && (
         <Alert variant="info" role="status">
           <AlertDescription>
-            Phiên đã bắt đầu chấm. Tài liệu chấm và rubric đã khoá — màn này chỉ để xem lại. Phiên thi này đã có bài
+            Phiên đã bắt đầu chấm. Tài liệu chấm và rubric đã khoá - màn này chỉ để xem lại. Phiên thi này đã có bài
             mang điểm hoặc đang chấm.
           </AlertDescription>
         </Alert>
@@ -138,7 +138,7 @@ export function PreparePanel({
                 </Button>
                 <p className="text-caption text-muted-foreground">
                   Phiên có {deliverables.length} file bắt buộc. Đã chọn đề và đáp án mẫu vẫn chưa xác nhận đề
-                  cương — đáp án mẫu phải đã lưu, rồi bấm nút này trước khi bắt đầu chấm.
+                  cương - đáp án mẫu phải đã lưu, rồi bấm nút này trước khi bắt đầu chấm.
                 </p>
                 {confirmBlueprint.isError && (
                   <Alert variant="destructive">
@@ -161,7 +161,7 @@ export function PreparePanel({
               </p>
             )}
             <p className="text-caption text-muted-foreground">
-              Từ lúc bấm, tài liệu chấm và rubric khoá lại; đóng trang không dừng việc chấm — nó chạy tiếp trên máy
+              Từ lúc bấm, tài liệu chấm và rubric khoá lại; đóng trang không dừng việc chấm - nó chạy tiếp trên máy
               chủ.
             </p>
             {start.isSuccess && (

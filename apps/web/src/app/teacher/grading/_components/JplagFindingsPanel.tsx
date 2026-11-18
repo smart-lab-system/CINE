@@ -14,7 +14,7 @@ import {
 } from '@/lib/api/ide-utilities';
 
 function pct(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return '—';
+  if (n == null || Number.isNaN(n)) return '-';
   return `${(n * 100).toFixed(1)}%`;
 }
 
@@ -101,7 +101,7 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
   if (runsQuery.isError) {
     return (
       <section className="rounded-md border border-destructive/40 p-4 text-sm">
-        Không tải được JPlag — {runsQuery.error.message}
+        Không tải được JPlag - {runsQuery.error.message}
       </section>
     );
   }
@@ -111,7 +111,7 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
   return (
     <section className="flex flex-col gap-4 rounded-md border p-4">
       <div>
-        <h2 className="text-base font-semibold">Extension trái phép — JPlag</h2>
+        <h2 className="text-base font-semibold">Extension trái phép - JPlag</h2>
         <p className="text-sm text-muted-foreground">
           So snippet với đáp án mẫu (vs mẫu) và với bài nộp (vs SV). Dual profile: text + language.
         </p>
@@ -207,7 +207,7 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
               <tbody>
                 {vsStudent.map((r) => (
                   <tr key={r.id} className="border-b border-border/60 align-top">
-                    <td className="py-2 pr-2 font-mono text-xs">{r.studentMssv ?? '—'}</td>
+                    <td className="py-2 pr-2 font-mono text-xs">{r.studentMssv ?? '-'}</td>
                     <td className="py-2 pr-2 font-mono text-xs">
                       {r.extensionIdentifier}
                       {r.extensionVersion ? `@${r.extensionVersion}` : ''}

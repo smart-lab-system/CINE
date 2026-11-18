@@ -9,7 +9,7 @@ describe('rulesHref (T-RBE-UI-9)', () => {
   });
 
   it('tên rubric đi vòng qua URL không mất ký tự nào (Review Focus 1)', () => {
-    for (const name of ['Giữa kỳ CTDL', 'A&B #1 — Giữa kỳ?', 'a/b%c+d', ' có khoảng trắng ', 'Đề B (lần 2)']) {
+    for (const name of ['Giữa kỳ CTDL', 'A&B #1 - Giữa kỳ?', 'a/b%c+d', ' có khoảng trắng ', 'Đề B (lần 2)']) {
       const href = rulesHref(name);
       expect(href.startsWith(`${RULES_PATH}?rubric=`)).toBe(true);
       expect(new URLSearchParams(href.split('?')[1]).get('rubric')).toBe(name);

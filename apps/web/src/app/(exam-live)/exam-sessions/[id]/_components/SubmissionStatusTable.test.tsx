@@ -5,16 +5,16 @@ import { SubmissionStatusTable } from './SubmissionStatusTable';
 import type { DeliverableColumn, SubmissionRowStudent } from '@/lib/submission-rows';
 import { scrollportsAbove } from '@/test-utils/scrollports';
 
-// QA-reported gap (point 2): "chưa có cột định dạng file nộp" — the teacher
+// QA-reported gap (point 2): "chưa có cột định dạng file nộp" - the teacher
 // had no way to see what format a submitted file is without opening it.
 // No dedicated test file existed for this component before (it was only
-// exercised indirectly through the parent page's test) — this file tests
+// exercised indirectly through the parent page's test) - this file tests
 // it directly against its own props, since it takes no data-fetching
 // dependency of its own.
-describe('SubmissionStatusTable — file format', () => {
+describe('SubmissionStatusTable - file format', () => {
   const deliverables: DeliverableColumn[] = [
     { id: 'd1', requiredFilename: 'Cau1.docx' },
-    { id: 'd2', requiredFilename: 'BaiTap' }, // no extension — edge case
+    { id: 'd2', requiredFilename: 'BaiTap' }, // no extension - edge case
   ];
 
   function openDialogFor(student: SubmissionRowStudent) {
@@ -37,7 +37,7 @@ describe('SubmissionStatusTable — file format', () => {
   it('does not claim a format for a deliverable nobody submitted yet, even while a sibling deliverable was', () => {
     // d1 stays pending (no entry at all); d2 IS collected, so the "Xem bài
     // nộp" button is enabled and the dialog genuinely opens with both rows
-    // visible — a vacuous pass (dialog never opening) would prove nothing.
+    // visible - a vacuous pass (dialog never opening) would prove nothing.
     openDialogFor({
       studentMssv: 'SV002',
       fullName: 'Trần Thị B',
@@ -47,7 +47,7 @@ describe('SubmissionStatusTable — file format', () => {
     });
 
     // 'Cau1.docx' also appears as the underlying table's column header,
-    // which stays mounted behind the dialog — scope to the dialog first.
+    // which stays mounted behind the dialog - scope to the dialog first.
     const dialog = screen.getByRole('dialog');
     const pendingRow = within(dialog).getByText('Cau1.docx').closest('div');
     expect(pendingRow).not.toBeNull();
@@ -68,11 +68,11 @@ describe('SubmissionStatusTable — file format', () => {
 });
 
 // QA-reported gap: "khi ấn vào 'Xem bài nộp' và tải file về, thì lại tải
-// một file kì lạ chứ ko phải bài của sinh viên" — the real fix is the
+// một file kì lạ chứ ko phải bài của sinh viên" - the real fix is the
 // API's Content-Disposition header (cross-origin, so the HTML `download`
 // attribute alone is browser-ignored for this link), but this attribute
 // should still name the real file rather than silently having none.
-describe('SubmissionStatusTable — download link filename', () => {
+describe('SubmissionStatusTable - download link filename', () => {
   const deliverables: DeliverableColumn[] = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
 
   it('names the download after the required filename, not left blank', () => {
@@ -128,10 +128,10 @@ describe('SubmissionStatusTable — download link filename', () => {
 });
 
 // The default empty-students copy ("Bảng sẽ tự cập nhật...") assumes a live,
-// still-updating table — true on the lobby page, false on the post-hoc
+// still-updating table - true on the lobby page, false on the post-hoc
 // submissions detail page that reuses this same component. An override
 // keeps one component instead of two near-identical copies.
-describe('SubmissionStatusTable — empty-students copy', () => {
+describe('SubmissionStatusTable - empty-students copy', () => {
   const deliverables: DeliverableColumn[] = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
 
   it('shows the default live-page copy when no override is given', () => {
@@ -160,7 +160,7 @@ describe('SubmissionStatusTable — empty-students copy', () => {
   });
 });
 
-describe('SubmissionStatusTable — focusStudentMssv', () => {
+describe('SubmissionStatusTable - focusStudentMssv', () => {
   const deliverables = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
   const makeStudent = (mssv: string): SubmissionRowStudent => ({
     studentMssv: mssv,
@@ -208,11 +208,11 @@ describe('SubmissionStatusTable — focusStudentMssv', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     // Bẫy 4 (nửa focus): dialog này mở bằng code, không có trigger để Radix
-    // tự trả focus về — mặc định của nó là <body>, và giảng viên mất vị trí
+    // tự trả focus về - mặc định của nó là <body>, và giảng viên mất vị trí
     // đang đọc, trừ khi onCloseAutoFocus can thiệp. Radix's FocusScope chạy
     // bước trả-focus-mặc-định của nó trong một setTimeout(0) khi
     // DialogContent unmount (xem @radix-ui/react-focus-scope), tức là SAU
-    // khi fireEvent ở trên đã return — nên assertion này phải chờ nó bằng
+    // khi fireEvent ở trên đã return - nên assertion này phải chờ nó bằng
     // waitFor thay vì đọc document.activeElement ngay lập tức.
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Xem bài nộp' })).toHaveFocus();
@@ -250,7 +250,7 @@ describe('SubmissionStatusTable — focusStudentMssv', () => {
       />,
     );
     // Matching focusStudentMssv also opens that student's dialog (bẫy 6),
-    // and Radix marks the background aria-hidden while a dialog is open —
+    // and Radix marks the background aria-hidden while a dialog is open -
     // so the rows must be queried with `hidden: true` to look past that
     // transient a11y-hiding rather than through it never existing.
     const rows = screen.getAllByRole('row', { hidden: true });
@@ -260,7 +260,7 @@ describe('SubmissionStatusTable — focusStudentMssv', () => {
   });
 
   // Not in the brief's Step 1 test block verbatim, but bẫy 5 is one of the
-  // six the task explicitly requires code AND a test for — without this,
+  // six the task explicitly requires code AND a test for - without this,
   // the `reduceMotion ? 'auto' : 'smooth'` branch would be untested. The
   // global vitest.setup.ts stub always returns matches: false, so this
   // test overrides window.matchMedia itself to exercise the reduce branch,
@@ -302,7 +302,7 @@ describe('SubmissionStatusTable — focusStudentMssv', () => {
   });
 });
 
-describe('SubmissionStatusTable — gradingByMssv', () => {
+describe('SubmissionStatusTable - gradingByMssv', () => {
   const deliverables = [{ id: 'd1', requiredFilename: 'Cau1.docx' }];
   const student: SubmissionRowStudent = {
     studentMssv: 'A1',
@@ -356,9 +356,9 @@ describe('SubmissionStatusTable — gradingByMssv', () => {
   });
 
   // Review round 1 (Important): every test above uses exactly ONE student,
-  // so a lookup bug that ignores the key entirely — e.g.
+  // so a lookup bug that ignores the key entirely - e.g.
   // `Object.values(gradingByMssv ?? {})[0]` instead of
-  // `gradingByMssv?.[selectedStudent.studentMssv]` — would still pass all
+  // `gradingByMssv?.[selectedStudent.studentMssv]` - would still pass all
   // three. In a grading UI, showing one student's score on another
   // student's dialog is a real-consequence bug, not a cosmetic one, so this
   // pins the lookup in BOTH directions with two students and two distinct
@@ -382,8 +382,8 @@ describe('SubmissionStatusTable — gradingByMssv', () => {
   });
 
   // Minor 1: `aiTotalScore` (mapped to `score` here) is nullable for a real
-  // state — a result row exists (status `ai_grading`) before a score is
-  // written. The render falls back to '—' via `grade.score ?? '—'`; this
+  // state - a result row exists (status `ai_grading`) before a score is
+  // written. The render falls back to '-' via `grade.score ?? '-'`; this
   // pins that fallback actually fires instead of e.g. printing "null".
   it('điểm null (đang chấm dở) hiện gạch ngang thay vì "null"', () => {
     render(
@@ -394,16 +394,16 @@ describe('SubmissionStatusTable — gradingByMssv', () => {
         gradingByMssv={{ A1: { score: null, status: 'ai_grading' } }}
       />,
     );
-    expect(screen.getByText('Điểm AI: —')).toBeInTheDocument();
+    expect(screen.getByText('Điểm AI: -')).toBeInTheDocument();
   });
 });
 
-// Task 10 (archive-content-validation) — bảng §7 của spec
+// Task 10 (archive-content-validation) - bảng §7 của spec
 // 2026-09-21-archive-content-validation-design.md. Hiện THẲNG trong ô của
 // ma trận, không giấu sau cú bấm "Xem bài nộp": đó là quyết định spec §9.2
-// nêu tường minh, và test dưới đây khẳng định đúng chỗ đó — không mở dialog
+// nêu tường minh, và test dưới đây khẳng định đúng chỗ đó - không mở dialog
 // nào cả trước khi đọc được các dòng chữ này.
-describe('SubmissionStatusTable — kiểm file nén', () => {
+describe('SubmissionStatusTable - kiểm file nén', () => {
   const deliverables: DeliverableColumn[] = [{ id: 'd1', requiredFilename: 'BaiThi.zip' }];
 
   function studentWith(archive: {
@@ -420,7 +420,7 @@ describe('SubmissionStatusTable — kiểm file nén', () => {
     };
   }
 
-  it('not_applicable — không hiện gì thêm về file nén', () => {
+  it('not_applicable - không hiện gì thêm về file nén', () => {
     render(
       <SubmissionStatusTable
         deliverables={deliverables}
@@ -430,8 +430,8 @@ describe('SubmissionStatusTable — kiểm file nén', () => {
     expect(screen.queryByText(/Đang kiểm|Thiếu:|Không mở được|Đủ nội dung/)).not.toBeInTheDocument();
   });
 
-  it('pending — hiện "Đang kiểm", không để trống', () => {
-    // Ô trống lúc chờ trông giống hệt một bài đã kiểm và đạt — spec §7.
+  it('pending - hiện "Đang kiểm", không để trống', () => {
+    // Ô trống lúc chờ trông giống hệt một bài đã kiểm và đạt - spec §7.
     render(
       <SubmissionStatusTable
         deliverables={deliverables}
@@ -441,7 +441,7 @@ describe('SubmissionStatusTable — kiểm file nén', () => {
     expect(screen.getByText('Đang kiểm')).toBeInTheDocument();
   });
 
-  it('passed — hiện dấu đủ', () => {
+  it('passed - hiện dấu đủ', () => {
     render(
       <SubmissionStatusTable
         deliverables={deliverables}
@@ -451,7 +451,7 @@ describe('SubmissionStatusTable — kiểm file nén', () => {
     expect(screen.getByText('Đủ nội dung')).toBeInTheDocument();
   });
 
-  it('failed — liệt kê thẳng tên file thiếu ngay trong ô, không cần bấm gì', () => {
+  it('failed - liệt kê thẳng tên file thiếu ngay trong ô, không cần bấm gì', () => {
     render(
       <SubmissionStatusTable
         deliverables={deliverables}
@@ -468,7 +468,7 @@ describe('SubmissionStatusTable — kiểm file nén', () => {
     expect(screen.getByText(/BaoCao\.docx/)).toBeInTheDocument();
   });
 
-  it('unreadable — hiện lý do thật, không chỉ chữ "hỏng"', () => {
+  it('unreadable - hiện lý do thật, không chỉ chữ "hỏng"', () => {
     render(
       <SubmissionStatusTable
         deliverables={deliverables}
@@ -501,7 +501,7 @@ describe('SubmissionStatusTable — kiểm file nén', () => {
 });
 
 /**
- * Bố cục: bảng này từng nằm trong HAI div `overflow-x-auto` lồng nhau —
+ * Bố cục: bảng này từng nằm trong HAI div `overflow-x-auto` lồng nhau -
  * một do component tự bọc, một do primitive `Table` luôn bọc. Hai
  * scrollport lồng nhau không chỉ dư: cái trong cùng là cái mà `sticky`
  * của `<thead>` giải theo, và nó cao tự do, nên header không bao giờ
@@ -511,7 +511,7 @@ describe('SubmissionStatusTable — kiểm file nén', () => {
  * kiểm được là hai điều kiện khiến nó dính hay không: chỉ MỘT scrollport,
  * và trần chiều cao nằm đúng trên scrollport đó.
  */
-describe('SubmissionStatusTable — vùng cuộn', () => {
+describe('SubmissionStatusTable - vùng cuộn', () => {
   const cols: DeliverableColumn[] = [
     { id: 'd1', requiredFilename: 'bai1.c' },
     { id: 'd2', requiredFilename: 'bai2.c' },
@@ -529,7 +529,7 @@ describe('SubmissionStatusTable — vùng cuộn', () => {
   it('bọc bảng trong đúng MỘT scrollport, không phải hai div lồng nhau', () => {
     render(<SubmissionStatusTable deliverables={cols} students={rows} />);
 
-    // Nếu con số này thành 2, header dính sẽ hỏng — đây chính là hồi quy
+    // Nếu con số này thành 2, header dính sẽ hỏng - đây chính là hồi quy
     // mà test này canh.
     expect(scrollportsAbove(screen.getByRole('table'))).toHaveLength(1);
   });
@@ -559,7 +559,7 @@ describe('SubmissionStatusTable — vùng cuộn', () => {
     expect(head.className).not.toMatch(/bg-surface-2\//);
 
     // `border-collapse: collapse` (mặc định của primitive Table) không vẽ
-    // border của hàng dính khi cuộn — border thuộc về table, không thuộc
+    // border của hàng dính khi cuộn - border thuộc về table, không thuộc
     // về `<tr>`. Nên đường kẻ dưới header phải đến từ shadow trên `<th>`,
     // nếu không header dính sẽ trông như đè lên dòng đầu tiên.
     const th = head.querySelector('th') as HTMLElement;

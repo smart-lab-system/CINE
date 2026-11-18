@@ -2,7 +2,7 @@
   "name": "agent",
   "version": "0.1.0",
   "private": true,
-  "description": "Student agent that connects to the exam-live WebSocket gateway, joins an exam session, and creates the declared submission files on this machine. Electron app (electron/, driven by src/session-controller.ts) — src/cli.ts, the terminal prototype this replaced, was deleted once parity was confirmed against it (design spec 2026-09-01-student-agent-electron-design.md §8.4).",
+  "description": "Student agent that connects to the exam-live WebSocket gateway, joins an exam session, and creates the declared submission files on this machine. Electron app (electron/, driven by src/session-controller.ts) - src/cli.ts, the terminal prototype this replaced, was deleted once parity was confirmed against it (design spec 2026-09-01-student-agent-electron-design.md §8.4).",
   "main": "./out/main/index.js",
   "scripts": {
     "mock-agent": "ts-node src/mock-agent.ts",

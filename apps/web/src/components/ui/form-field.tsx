@@ -4,12 +4,12 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 interface FormFieldProps {
-  /** Must match the control's `id` — this is what wires the label to it. */
+  /** Must match the control's `id` - this is what wires the label to it. */
   id: string;
   label: string;
   /** The validation message, when there is one. */
   error?: string;
-  /** Standing guidance shown while the field is valid — format rules,
+  /** Standing guidance shown while the field is valid - format rules,
    *  what the value is used for. Hidden once an error takes its place, so
    *  the two never stack and push the form around. */
   hint?: ReactNode;

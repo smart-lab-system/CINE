@@ -32,13 +32,13 @@ import { QsRubricForm } from './QsRubricForm';
 
 /**
  * Sửa tiêu chí & điểm tối đa của một rubric, hoặc tạo rubric mới (spec mục 5, D3). Giữ nguyên ý của hộp thoại cũ:
- * tiêu chí CÓ SẴN gửi lại KHOÁ gốc của nó và không cho gõ khoá — máy chủ sinh lại khoá từ mô tả cho tiêu chí nào
+ * tiêu chí CÓ SẴN gửi lại KHOÁ gốc của nó và không cho gõ khoá - máy chủ sinh lại khoá từ mô tả cho tiêu chí nào
  * thiếu `key`, nên sửa một câu mô tả từng âm thầm cắt liên kết "lỗi → tiêu chí". Chỉ tiêu chí MỚI có ô khoá (tuỳ chọn).
  *
- * Tạo rubric: nếu giảng viên đã có rubric khác, mặc định là "sao chép từ một rubric đã có" — nhưng KHÔNG chọn sẵn
+ * Tạo rubric: nếu giảng viên đã có rubric khác, mặc định là "sao chép từ một rubric đã có" - nhưng KHÔNG chọn sẵn
  * nguồn nào (D3). Tiêu chí sao chép GIỮ khoá của nguồn, vì đó là cách máy chủ ghép lỗi sang rubric mới.
  *
- * Ruột form nằm TRONG DialogContent — mỗi lần mở là một lần mount mới, không thừa hưởng nội dung gõ dở.
+ * Ruột form nằm TRONG DialogContent - mỗi lần mở là một lần mount mới, không thừa hưởng nội dung gõ dở.
  *
  * Môn học bắt buộc khi tạo (gửi `courseId`). Tổng điểm chỉ ràng buộc UI.
  */
@@ -58,7 +58,7 @@ export function RubricDialog({
   /** Bản mới nhất của rubric cần sửa; bỏ trống = tạo rubric mới. */
   rubric?: Rubric;
   existingNames: string[];
-  /** Số lỗi ĐANG DÙNG gắn vào mỗi khoá tiêu chí — để cảnh báo khi xoá tiêu chí. */
+  /** Số lỗi ĐANG DÙNG gắn vào mỗi khoá tiêu chí - để cảnh báo khi xoá tiêu chí. */
   errorCounts: Record<string, number>;
   /** Mọi rubric của giảng viên: nguồn để sao chép khi tạo rubric mới. */
   overviews: RubricOverview[];
@@ -169,7 +169,7 @@ function CreateBody({
             kind === 'qa' ? 'border-primary bg-primary-subtle' : 'border-border hover:bg-surface-2',
           )}
         >
-          <b className="text-small font-semibold">QA — tiêu chí phẳng</b>
+          <b className="text-small font-semibold">QA - tiêu chí phẳng</b>
           <span className="text-caption text-muted-foreground">
             Dùng chung nhiều câu; trừ điểm theo bảng lỗi.
           </span>
@@ -187,9 +187,9 @@ function CreateBody({
             kind === 'qs' ? 'border-primary bg-primary-subtle' : 'border-border hover:bg-surface-2',
           )}
         >
-          <b className="text-small font-semibold">QS — theo câu (DSA)</b>
+          <b className="text-small font-semibold">QS - theo câu (DSA)</b>
           <span className="text-caption text-muted-foreground">
-            Nhiều hướng lời giải; điểm = hướng cao nhất.
+            Nhiều cách giải; điểm = cách giải cao nhất.
           </span>
         </button>
       </div>
@@ -200,14 +200,14 @@ function CreateBody({
             'copy',
             'Một rubric đã có (khuyên dùng)',
             kind === 'qs'
-              ? 'Sao chép hướng và bước checklist.'
+              ? 'Sao chép cách giải và bước checklist.'
               : 'Sao chép tiêu chí, điểm tối đa, lỗi và điểm trừ.',
           )}
           {option(
             'blank',
             'Tạo trống',
             kind === 'qs'
-              ? 'Tự nhập hướng và bước checklist.'
+              ? 'Tự nhập cách giải và bước checklist.'
               : 'Tự nhập tiêu chí và điểm tối đa; thêm lỗi sau.',
           )}
         </div>
@@ -224,7 +224,7 @@ function CreateBody({
             <option value="">Chọn rubric muốn sao chép…</option>
             {qaOverviews.map((o) => (
               <option key={o.rubricName} value={o.rubricName}>
-                {o.rubricName} — {o.errorCount} lỗi
+                {o.rubricName} - {o.errorCount} lỗi
               </option>
             ))}
           </select>
@@ -253,7 +253,7 @@ function CreateBody({
         mode === 'copy' && !srcQs ? (
           <>
             <p className="text-small text-muted-foreground">
-              Chọn rubric QS để sao chép hướng/bước, hoặc chọn Tạo trống.
+              Chọn rubric QS để sao chép cách giải/bước, hoặc chọn Tạo trống.
             </p>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={onClose}>
@@ -272,7 +272,7 @@ function CreateBody({
             onClose={onClose}
             requireCourse
             seedCourseId={srcQs?.courseId ?? undefined}
-            seedName={srcQs ? `${srcQs.name} — bản sao` : undefined}
+            seedName={srcQs ? `${srcQs.name} - bản sao` : undefined}
             seedApproaches={srcQs ? approachesFromRubric(srcQs) : undefined}
           />
         )
@@ -312,7 +312,7 @@ function CreateBody({
           seed={
             srcOverview
               ? {
-                  name: `${srcOverview.rubricName} — bản sao`,
+                  name: `${srcOverview.rubricName} - bản sao`,
                   rows: srcOverview.criteria.map((c) => ({
                     id: `src-${c.key}`,
                     key: c.key,
@@ -334,7 +334,7 @@ function CreateBody({
   );
 }
 
-/** Dấu vân tay các hàng — để biết giảng viên đã đổi gì so với bản đang dùng. */
+/** Dấu vân tay các hàng - để biết giảng viên đã đổi gì so với bản đang dùng. */
 const fingerprint = (rows: CriterionRow[]) =>
   JSON.stringify(rows.map((r) => [r.id, r.key.trim(), r.description.trim(), parseCap(r.maxPoints)]));
 
@@ -444,10 +444,10 @@ function RubricForm({
         copy.mutate(
           { from: copyFrom.name, to: saved.name },
           {
-            onSuccess: (r) => toast.success(`Đã tạo “${saved.name}” từ “${copyFrom.name}” — sao chép ${r.copied} lỗi. Hai rubric từ giờ độc lập.`),
+            onSuccess: (r) => toast.success(`Đã tạo “${saved.name}” từ “${copyFrom.name}” - sao chép ${r.copied} lỗi. Hai rubric từ giờ độc lập.`),
             // Rubric ĐÃ được tạo: không rollback, chỉ nói rõ và chỉ đường làm lại ở dải "Rubric mới".
             onError: (e) =>
-              toast.error(`Đã tạo “${saved.name}” nhưng chưa sao chép được lỗi — ${e.message}. Bạn có thể sao chép lại ở dải “Rubric mới”.`),
+              toast.error(`Đã tạo “${saved.name}” nhưng chưa sao chép được lỗi - ${e.message}. Bạn có thể sao chép lại ở dải “Rubric mới”.`),
             onSettled: () => finish(saved),
           },
         );
@@ -459,7 +459,7 @@ function RubricForm({
     <>
       {editing && (
         <DialogHeader>
-          <DialogTitle>Sửa tiêu chí &amp; điểm tối đa — {rubric.name}</DialogTitle>
+          <DialogTitle>Sửa tiêu chí &amp; điểm tối đa - {rubric.name}</DialogTitle>
         </DialogHeader>
       )}
 
@@ -503,7 +503,7 @@ function RubricForm({
         label="Tổng điểm"
         className="w-full sm:w-40"
         error={shown('totalPoints', errors.totalPoints)}
-        hint={`Đã phân bổ ${sumCaps(rows)} / ${parseCap(totalPoints) ?? '—'} điểm.`}
+        hint={`Đã phân bổ ${sumCaps(rows)} / ${parseCap(totalPoints) ?? '-'} điểm.`}
       >
         <Input
           id="rubric-total"
@@ -567,7 +567,7 @@ function RubricForm({
 
               {row.existing ? (
                 <p className="text-caption text-muted-foreground">
-                  Khoá <span className="font-mono">{row.key}</span> — cố định, các lỗi gắn với tiêu chí này theo khoá đó.
+                  Khoá <span className="font-mono">{row.key}</span> - cố định, các lỗi gắn với tiêu chí này theo khoá đó.
                 </p>
               ) : (
                 <FormField
@@ -618,7 +618,7 @@ function RubricForm({
       {warnings.map((w) => (
         <Alert key={w.key} variant="warning">
           <AlertDescription>
-            Còn {w.count} lỗi đang nằm trong tiêu chí “{w.title}” — sau khi lưu, chúng cần được chuyển sang tiêu chí khác.
+            Còn {w.count} lỗi đang nằm trong tiêu chí “{w.title}” - sau khi lưu, chúng cần được chuyển sang tiêu chí khác.
           </AlertDescription>
         </Alert>
       ))}

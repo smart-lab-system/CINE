@@ -16,13 +16,13 @@ const VERDICT_LABEL = {
 
 const AGREEMENT_LABEL = { full: 'Trùng khớp hoàn toàn', partial: 'Trùng một phần', none: 'Không trùng' } as const;
 const AGREEMENT_VARIANT = { full: 'success', partial: 'warning', none: 'warning' } as const;
-/** Biểu tượng đi KÈM chữ — màu một mình không nói gì với người mù màu. */
+/** Biểu tượng đi KÈM chữ - màu một mình không nói gì với người mù màu. */
 const VERDICT_ICON = { both: Check, teacher_only: User, system_only: Bot } as const;
 
 /**
  * Lúc che mù kết thúc (parent spec §8.1 luật 3): điểm hệ thống, lỗi nó giữ, và so sánh với những gì giảng viên vừa
- * chọn — THEO TỪNG LUẬT, bằng chữ. Nhận xét đã khoá; điểm không đổi. Bất đồng thì giảng viên dùng đường có sẵn trong
- * hồ sơ (ngoại lệ từng lỗi, hoặc chấm tay) — màn này không sửa điểm.
+ * chọn - THEO TỪNG LUẬT, bằng chữ. Nhận xét đã khoá; điểm không đổi. Bất đồng thì giảng viên dùng đường có sẵn trong
+ * hồ sơ (ngoại lệ từng lỗi, hoặc chấm tay) - màn này không sửa điểm.
  */
 export function AuditReveal({ reveal, onOpenDossier }: { reveal: AuditRevealData; onOpenDossier: () => void }) {
   const unpriced = new Set(reveal.systemErrors.filter((e) => e.counted === 'unpriced').map((e) => e.ruleId));
@@ -31,7 +31,7 @@ export function AuditReveal({ reveal, onOpenDossier }: { reveal: AuditRevealData
   return (
     <div className="flex flex-col gap-4">
       <Alert variant="success">
-        <AlertDescription>Đã ghi nhận xét của bạn — khoá, không sửa được nữa. Đây là điều hệ thống đã giữ.</AlertDescription>
+        <AlertDescription>Đã ghi nhận xét của bạn - khoá, không sửa được nữa. Đây là điều hệ thống đã giữ.</AlertDescription>
       </Alert>
 
       <Card>
@@ -62,7 +62,7 @@ export function AuditReveal({ reveal, onOpenDossier }: { reveal: AuditRevealData
                   <span className="font-medium">{r.ruleName}</span>
                   <span className="flex items-center gap-2">
                     {r.verdict === 'system_only' && unpriced.has(r.ruleId) && (
-                      <span className="text-caption text-muted-foreground">chưa có giá — chưa trừ điểm</span>
+                      <span className="text-caption text-muted-foreground">chưa có giá - chưa trừ điểm</span>
                     )}
                     <VerdictBadge verdict={r.verdict} />
                   </span>

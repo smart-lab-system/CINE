@@ -32,7 +32,7 @@ describe('StepUpload', () => {
     expect(input()).toHaveAttribute('accept', expect.stringContaining('.xlsx'));
   });
 
-  it('uploads, then inspects, then hands the result over — in that order', async () => {
+  it('uploads, then inspects, then hands the result over - in that order', async () => {
     const onInspected = vi.fn();
     render(<StepUpload sessionId="s1" onInspected={onInspected} />);
     const f = file('So-diem N01.xlsx');

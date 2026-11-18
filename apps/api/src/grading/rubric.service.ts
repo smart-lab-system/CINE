@@ -135,7 +135,7 @@ export class RubricService {
       }
     } else {
       if (!dto.approaches?.length) {
-        throw new BadRequestException('Rubric QS cần ít nhất một hướng (approaches).');
+        throw new BadRequestException('Rubric QS cần ít nhất một cách giải (approaches).');
       }
       if (dto.criteria?.length) {
         throw new BadRequestException('Rubric QS không nhận criteria phẳng — khai bước trong approaches.');
@@ -230,7 +230,7 @@ export class RubricService {
       approachKeys = assignCriterionKeys(approaches.map((a) => ({ description: a.name, key: a.key })));
     } catch (error) {
       if (error instanceof DuplicateCriterionKeyError) {
-        throw new BadRequestException(`Hai hướng cùng khai key "${error.key}".`);
+        throw new BadRequestException(`Hai cách giải cùng khai key "${error.key}".`);
       }
       throw error;
     }

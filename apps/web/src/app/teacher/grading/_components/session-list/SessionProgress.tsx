@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
  * các con số (`aria-label`), và chú thích bên dưới nói bằng chữ. Đoạn nào 0 bài thì không vẽ.
  */
 export function SessionProgress({ row }: { row: SessionRow }) {
-  if (row.status === null) return <span className="text-caption text-muted-foreground">—</span>;
+  if (row.status === null) return <span className="text-caption text-muted-foreground">-</span>;
   const c = row.counts;
   const segments = [
     { key: 'attn', n: c.needsYou + c.audit + c.ungradable, className: 'bg-warning' },

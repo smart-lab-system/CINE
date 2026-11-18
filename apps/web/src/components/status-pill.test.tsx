@@ -17,17 +17,17 @@ describe('StatusPill', () => {
     render(<StatusPill status="auto_approved" ungradableReason={null} />);
     expect(screen.getByText('Tự quyết')).toBeInTheDocument();
   });
-  it('shows "Kiểm mẫu" for audit_pending (Review Focus #3 — reachable even though nothing produces it yet)', () => {
+  it('shows "Kiểm mẫu" for audit_pending (Review Focus #3 - reachable even though nothing produces it yet)', () => {
     render(<StatusPill status="audit_pending" ungradableReason={null} />);
     expect(screen.getByText('Kiểm mẫu')).toBeInTheDocument();
   });
-  it('never crashes on an unmapped status — names it instead of throwing', () => {
+  it('never crashes on an unmapped status - names it instead of throwing', () => {
     render(<StatusPill status="some_future_status" ungradableReason={null} />);
     expect(screen.getByText('some_future_status')).toBeInTheDocument();
   });
 });
 
-describe('StatusPill — essays never carry a machine-decision label (spec §3.11, T-UI-20)', () => {
+describe('StatusPill - essays never carry a machine-decision label (spec §3.11, T-UI-20)', () => {
   it('a legacy auto-approved essay is "tự duyệt theo chính sách cũ", not "Tự quyết"', () => {
     render(<StatusPill status="auto_approved" ungradableReason={null} pipeline="one_shot" />);
     expect(screen.getByText('Tự duyệt theo chính sách cũ')).toBeInTheDocument();

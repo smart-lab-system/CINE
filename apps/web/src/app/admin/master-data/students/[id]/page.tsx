@@ -88,10 +88,10 @@ function StudentDetail({ studentId }: { studentId: string }) {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <DetailRow label="Mã lớp" value={nc.code} mono />
-            <DetailRow label="Tên lớp" value={nc.name ?? '—'} />
+            <DetailRow label="Tên lớp" value={nc.name ?? '-'} />
             <DetailRow
               label="Khóa"
-              value={nc.cohortYear != null ? String(nc.cohortYear) : '—'}
+              value={nc.cohortYear != null ? String(nc.cohortYear) : '-'}
             />
             <DetailRow
               label="Trạng thái"
@@ -119,7 +119,7 @@ function StudentDetail({ studentId }: { studentId: string }) {
                 >
                   <TableCell className="font-mono">{section.name}</TableCell>
                   <TableCell>{section.courseName}</TableCell>
-                  <TableCell>{section.semesterName ?? '—'}</TableCell>
+                  <TableCell>{section.semesterName ?? '-'}</TableCell>
                   <TableCell>{section.teacherName ?? 'Chưa phân công'}</TableCell>
                 </TableRow>
               ))

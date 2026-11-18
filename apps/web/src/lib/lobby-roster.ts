@@ -3,7 +3,7 @@ import type { SubmissionRowStudent } from './submission-rows';
 
 /**
  * Trạng thái trên bảng SV gộp (spec 2026-10-18 exam-ops-lobby-ux).
- * Derive từ AttendanceStudentView + deadline — không suy từ submission.
+ * Derive từ AttendanceStudentView + deadline - không suy từ submission.
  */
 export type RoomStatus =
   | 'not_joined'
@@ -24,7 +24,7 @@ export type LobbyRosterFilter =
 export type RoomStatusOpts = {
   endTime: string;
   status: string;
-  /** Epoch ms — tests inject; production defaults to Date.now(). */
+  /** Epoch ms - tests inject; production defaults to Date.now(). */
   now?: number;
 };
 
@@ -32,10 +32,10 @@ export interface LobbyRosterRow {
   studentMssv: string;
   fullName: string;
   roomStatus: RoomStatus;
-  /** AttendanceStudent khi có trong present/absent/makeup — dùng cho StudentMarks */
+  /** AttendanceStudent khi có trong present/absent/makeup - dùng cho StudentMarks */
   attendanceStudent: AttendanceStudent | null;
   makeupFromClass?: string;
-  /** Nguồn ảnh chốt — `manual` mới hiện nút gỡ. */
+  /** Nguồn ảnh chốt - `manual` mới hiện nút gỡ. */
   rosterSource: SessionRosterSource | null;
   byDeliverable: SubmissionRowStudent['byDeliverable'];
 }
@@ -68,7 +68,7 @@ export function isDeadlinePassed(opts: RoomStatusOpts): boolean {
 }
 
 /**
- * Không tin tên mảng present/absent một mình — backend gộp mọi !connected
+ * Không tin tên mảng present/absent một mình - backend gộp mọi !connected
  * vào absent. Đọc connected + firstSeenAt + deadline.
  */
 export function resolveRoomStatus(
@@ -120,7 +120,7 @@ export function buildLobbyRosterRows(
   });
 }
 
-/** Đảo của đủ mọi deliverable `collected` — spec §5.1 «Chưa nộp». */
+/** Đảo của đủ mọi deliverable `collected` - spec §5.1 «Chưa nộp». */
 export function isNotFullySubmitted(
   row: SubmissionRowStudent | LobbyRosterRow,
   deliverables: { id: string }[],
@@ -166,7 +166,7 @@ export function filterLobbyRows(
   }
 }
 
-/** Substring match họ tên / MSSV — không phân biệt hoa thường. */
+/** Substring match họ tên / MSSV - không phân biệt hoa thường. */
 export function matchesLobbySearch(
   row: Pick<LobbyRosterRow, 'fullName' | 'studentMssv'>,
   query: string,

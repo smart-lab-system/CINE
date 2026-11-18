@@ -1,7 +1,7 @@
 /** Thời điểm tạo theo lịch Asia/Ho_Chi_Minh. */
 export function formatCreatedAt(iso: string): string {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '-';
   return new Intl.DateTimeFormat('vi-VN', {
     timeZone: 'Asia/Ho_Chi_Minh',
     day: '2-digit',

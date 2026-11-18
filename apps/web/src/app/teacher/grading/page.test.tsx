@@ -106,7 +106,7 @@ beforeEach(() => {
   h.runningProps.length = 0;
 });
 
-describe('/teacher/grading — without a session: the picker', () => {
+describe('/teacher/grading - without a session: the picker', () => {
   beforeEach(() => {
     search = '';
     h.overview = {
@@ -172,7 +172,7 @@ describe('ruler origin note (G2 §4.5)', () => {
   });
 });
 
-describe('/teacher/grading?sessionId=… — one route, three states (spec §1)', () => {
+describe('/teacher/grading?sessionId=… - one route, three states (spec §1)', () => {
   it('no results yet → PREPARE', () => {
     h.results = { ...h.results, data: [] };
     h.progress = { ...h.progress, data: progress({ total: 0, done: 0 }) };
@@ -256,7 +256,7 @@ describe('session header (spec §3.3)', () => {
   it('names the session, class, room and how many results were collected out of how many expected', () => {
     render(<GradingPage />);
     expect(screen.getByRole('heading', { level: 1, name: 'Giữa kỳ N01' })).toBeInTheDocument();
-    // Tên phòng đúng như giảng viên đã nhập — không thêm chữ "Phòng" (spec 2026-09-29 mục 0, lỗi 7).
+    // Tên phòng đúng như giảng viên đã nhập - không thêm chữ "Phòng" (spec 2026-09-29 mục 0, lỗi 7).
     expect(screen.getByText(/N01 · B2\.07/)).toBeInTheDocument();
     expect(screen.getByText('32/40 bài nộp')).toBeInTheDocument();
   });
@@ -291,7 +291,7 @@ describe('session header (spec §3.3)', () => {
     expect(screen.getByRole('link', { name: 'Chốt điểm phiên' })).toHaveAttribute('href', '/teacher/grading/finalize?sessionId=s1');
   });
 
-  it('finalizing is not offered before anything was graded — said, not silently dead', () => {
+  it('finalizing is not offered before anything was graded - said, not silently dead', () => {
     h.results = { ...h.results, data: [] };
     render(<GradingPage />);
     expect(screen.queryByRole('link', { name: 'Chốt điểm phiên' })).not.toBeInTheDocument();
@@ -336,7 +336,7 @@ describe('AI service band (G3 D12)', () => {
   it('is mounted on the session screen and offers to regrade exactly the shared-reason group', () => {
     h.results = { ...h.results, data: [stopped('a'), stopped('b'), result({ id: 'c' })] };
     render(<GradingPage />);
-    const band = screen.getByText(/Dịch vụ AI lỗi — 2 bài không chấm được cùng một lý do/).closest('[role="alert"]') as HTMLElement;
+    const band = screen.getByText(/Dịch vụ AI lỗi - 2 bài không chấm được cùng một lý do/).closest('[role="alert"]') as HTMLElement;
     expect(within(band).getByRole('button', { name: 'Chấm lại 2 bài này' })).toHaveAttribute(
       'data-scope',
       JSON.stringify({ kind: 'session', sessionId: 's1', reason: 'Dịch vụ AI không phản hồi.', count: 2 }),
@@ -346,11 +346,11 @@ describe('AI service band (G3 D12)', () => {
   it('is absent when only one result stopped', () => {
     h.results = { ...h.results, data: [stopped('a'), result({ id: 'c' })] };
     render(<GradingPage />);
-    expect(screen.queryByText(/Dịch vụ AI lỗi —/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Dịch vụ AI lỗi -/)).not.toBeInTheDocument();
   });
 });
 
-describe('list view — filter and the leverage line', () => {
+describe('list view - filter and the leverage line', () => {
   const needsYou = [result({ id: 'a', studentMssv: '1', status: 'flagged_for_review' }), result({ id: 'b', studentMssv: '2', status: 'flagged_for_review' })];
 
   it('?state= seeds the filter (the finalize page links here)', () => {
@@ -375,14 +375,14 @@ describe('list view — filter and the leverage line', () => {
     expect(screen.getByRole('link', { name: 'Đặt giá ở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules?rubric=CTDL');
   });
 
-  it('says nothing while a result has no triage — no claim from partial data', () => {
+  it('says nothing while a result has no triage - no claim from partial data', () => {
     h.results = { ...h.results, data: [{ ...needsYou[0], triage: priced('ten_bien') }, { ...needsYou[1], triage: null }] };
     render(<GradingPage />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });
 
-describe('view=prepare — look back at the prepare step', () => {
+describe('view=prepare - look back at the prepare step', () => {
   it('the list screen links to the prepare review and keeps a state filter', () => {
     search = 'sessionId=s1&state=needsYou';
     render(<GradingPage />);

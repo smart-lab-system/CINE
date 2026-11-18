@@ -1,12 +1,12 @@
 /**
- * Mã lớp danh nghĩa là phần đứng trước ` — ` trong nhãn
- * `code` hoặc `code — name` (xem TeachingClass.nominalClassName).
+ * Mã lớp danh nghĩa là phần đứng trước ` - ` trong nhãn
+ * `code` hoặc `code - name` (xem TeachingClass.nominalClassName).
  */
 export function nominalClassCodeFromLabel(label: string | null | undefined): string | null {
   if (!label) return null;
   const trimmed = label.trim();
   if (!trimmed) return null;
-  const separator = ' — ';
+  const separator = ' - ';
   const index = trimmed.indexOf(separator);
   const code = (index === -1 ? trimmed : trimmed.slice(0, index)).trim();
   return code || null;

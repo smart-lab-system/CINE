@@ -2,7 +2,7 @@ import type { GradingSessionSummary } from './api/grading';
 import type { SessionOverviewItem } from './api/submissions';
 import { buildRows } from './session-list';
 
-/** 15:10 29/09/2026, giờ máy — mọi test tính "bao lâu rồi" từ đây, không từ Date.now(). */
+/** 15:10 29/09/2026, giờ máy - mọi test tính "bao lâu rồi" từ đây, không từ Date.now(). */
 export const NOW = new Date(2026, 8, 29, 15, 10).getTime();
 
 export function session(over: Partial<SessionOverviewItem> = {}): SessionOverviewItem {

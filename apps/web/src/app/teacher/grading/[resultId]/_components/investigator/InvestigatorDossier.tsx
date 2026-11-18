@@ -26,7 +26,7 @@ import { UngradableView } from './UngradableView';
 import { ManualScoreDialog } from './ManualScoreDialog';
 import { rulesHref } from '@/lib/rules-links';
 
-/** Mỗi bước điều tra là bằng chứng của những lỗi nào — để bước cuộn tới ghi ngược lại được (§5.8, mục 3). */
+/** Mỗi bước điều tra là bằng chứng của những lỗi nào - để bước cuộn tới ghi ngược lại được (§5.8, mục 3). */
 function citedByOf(errors: ResultDetailError[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   for (const e of errors) for (const id of e.toolCallIds) map[id] = [...(map[id] ?? []), e.ruleKey];
@@ -34,7 +34,7 @@ function citedByOf(errors: ResultDetailError[]): Record<string, string[]> {
 }
 
 /**
- * Đúng MỘT `ManualScoreDialog` cho cả trang — cả `DossierHeader`, cả
+ * Đúng MỘT `ManualScoreDialog` cho cả trang - cả `DossierHeader`, cả
  * `UngradableView`, cả `CaseFlagsBanner` chỉ gọi `setOpenManual(true)`,
  * không component con nào tự giữ hộp thoại của riêng nó.
  */
@@ -45,7 +45,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
   const overview = useSessionOverview();
   const session = (overview.data ?? []).find((item) => item.id === sessionId);
   const rubrics = useRubrics();
-  // Trần điểm của RUBRIC GHIM CHO PHIÊN, tìm theo id — `version` chỉ duy nhất trong một bộ (giảng viên, tên), mà
+  // Trần điểm của RUBRIC GHIM CHO PHIÊN, tìm theo id - `version` chỉ duy nhất trong một bộ (giảng viên, tên), mà
   // rubric nào cũng bắt đầu ở v1 (review I6). Chưa biết thì để null: server kiểm trần, client không bịa.
   const rubric = session?.rubricId ? rubrics.data?.find((r) => r.id === session.rubricId) : undefined;
   const maxTotal = rubric?.totalPoints ?? null;
@@ -57,7 +57,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
   if (results.isError) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>Không tải được kết quả chấm — {results.error.message}. Thử tải lại trang.</AlertDescription>
+        <AlertDescription>Không tải được kết quả chấm - {results.error.message}. Thử tải lại trang.</AlertDescription>
       </Alert>
     );
   }
@@ -67,7 +67,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
   if (detail.isError) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>Không tải được hồ sơ bài này — {detail.error?.message}. Thử tải lại trang.</AlertDescription>
+        <AlertDescription>Không tải được hồ sơ bài này - {detail.error?.message}. Thử tải lại trang.</AlertDescription>
       </Alert>
     );
   }
@@ -90,7 +90,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
     <DossierHeader
       resultId={resultId}
       sessionId={sessionId}
-      sessionName={session?.name ?? '—'}
+      sessionName={session?.name ?? '-'}
       roomName={session?.roomName ?? null}
       mssv={result.studentMssv}
       studentName={result.studentName}
@@ -113,13 +113,13 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
 
   const d = detail.data;
   if (!d || (d.breakdown === null && d.ungradableClass === null && d.investigation === null)) {
-    // Điều tra chưa xong (ai_grading/ai_graded), hoặc chưa có bản ghi nào — Review Focus #4:
+    // Điều tra chưa xong (ai_grading/ai_graded), hoặc chưa có bản ghi nào - Review Focus #4:
     // KHÔNG đọc breakdown.errors trên null, chỉ nói đang chấm.
     return (
       <div className="flex flex-col gap-4">
         {header(result.status, result.ungradableReason)}
         <Alert variant="info">
-          <AlertDescription>AI đang chấm bài này — chưa có dữ liệu để hiện. Tải lại sau ít phút.</AlertDescription>
+          <AlertDescription>AI đang chấm bài này - chưa có dữ liệu để hiện. Tải lại sau ít phút.</AlertDescription>
         </Alert>
         {dialog(null, result.status)}
       </div>
@@ -131,7 +131,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
   // "Đã duyệt" (review I2). Bài đó đi tiếp xuống bố cục thường, kèm một dòng nhắc vì sao hệ thống không tự chấm.
   const handGraded = d.ungradableClass !== null && d.currentScoreSource === 'manual';
   if (d.ungradableClass && !handGraded) {
-    // Bao nhiêu bài lớp system của phiên mang ĐÚNG câu lý do này — cho nút "chấm lại cả … bài cùng lý do".
+    // Bao nhiêu bài lớp system của phiên mang ĐÚNG câu lý do này - cho nút "chấm lại cả … bài cùng lý do".
     const sameReasonCount =
       groupByUngradableReason(results.data ?? []).find((g) => g.reason === (d.ungradableReason ?? ''))?.count ?? 1;
     return (

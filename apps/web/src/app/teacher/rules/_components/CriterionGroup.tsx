@@ -11,7 +11,7 @@ import { overCap } from '@/lib/rubric-board';
 import { ROW_GRID } from './ErrorRow';
 
 /**
- * Một nhóm tiêu chí: tiêu đề (tên tiêu chí = mô tả của nó, số lỗi, điểm tối đa), rồi các dòng lỗi — hoặc lời nói
+ * Một nhóm tiêu chí: tiêu đề (tên tiêu chí = mô tả của nó, số lỗi, điểm tối đa), rồi các dòng lỗi - hoặc lời nói
  * thẳng về hậu quả khi chưa có lỗi nào / khi tiêu chí đã đánh dấu không trừ điểm (spec mục 5.3). Không hiện khoá
  * kỹ thuật của tiêu chí.
  */
@@ -73,7 +73,7 @@ export function CriterionGroup({
                 <b>
                   {entityNoun === 'bước' ? 'Bước này' : 'Tiêu chí này'} không trừ điểm
                 </b>{' '}
-                — mọi bài được trọn {max} điểm.
+                - mọi bài được trọn {max} điểm.
               </span>
               <Button type="button" size="sm" variant="outline" onClick={onUnwaive}>
                 Bỏ đánh dấu
@@ -117,7 +117,7 @@ export function CriterionGroup({
               {over !== null && (
                 <p className="flex items-center gap-2 px-4 pb-3 text-small text-muted-foreground">
                   <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  Cộng hết các lỗi là {formatVnPoints(over)}, vượt điểm tối đa {max} — bài chỉ bị trừ tới {max}.
+                  Cộng hết các lỗi là {formatVnPoints(over)}, vượt điểm tối đa {max} - bài chỉ bị trừ tới {max}.
                 </p>
               )}
               <div className="border-t border-border px-3 py-2">

@@ -15,7 +15,7 @@ import { useCurrentAccount } from '@/hooks/useCurrentAccount';
 import { ADMIN_NAV, TEACHER_NAV } from '@/lib/nav-config';
 import { cn } from '@/lib/utils';
 
-/** Remembers the rail state across navigations and sessions — a teacher who
+/** Remembers the rail state across navigations and sessions - a teacher who
  *  collapsed it to read a wide submissions table does not want it back at
  *  full width on the next page. */
 const NAV_COLLAPSED_KEY = 'examcollect.nav-collapsed';
@@ -26,21 +26,21 @@ interface AppShellProps {
 }
 
 /**
- * Shared chrome for every page under /admin/* and /teacher/* — sidebar +
+ * Shared chrome for every page under /admin/* and /teacher/* - sidebar +
  * topbar + the per-session providers pages underneath need (QueryClient,
  * toast host). admin/layout.tsx and teacher/layout.tsx are each a one-line
  * `<AppShell role="...">`.
  *
  * Nav config (ADMIN_NAV/TEACHER_NAV, which carries Lucide icon *component*
  * values) is resolved HERE, inside the Client Component, from a plain
- * `role` string prop — not passed in as a `nav` prop from the Server
+ * `role` string prop - not passed in as a `nav` prop from the Server
  * Component layouts. React Server Components can only pass serializable
  * values across the server→client boundary; a component reference (a
  * function) in props throws at build/render time ("Functions cannot be
  * passed directly to Client Components").
  */
 export function AppShell({ role, children }: AppShellProps) {
-  // One lookup per area rather than nested ternaries — a third area is a
+  // One lookup per area rather than nested ternaries - a third area is a
   // row here, not another branch to get wrong.
   //
   // Khu vực "Khoa" đã bỏ ngày 2026-09-21: vai trò Trưởng khoa không còn, và
@@ -51,7 +51,7 @@ export function AppShell({ role, children }: AppShellProps) {
     teacher: { nav: TEACHER_NAV, home: '/teacher/dashboard', label: 'Giảng dạy' },
   } as const;
   const { nav, home: homeHref, label: navLabel } = AREA[role];
-  // Lazily-constructed, one per browser session — never at module scope.
+  // Lazily-constructed, one per browser session - never at module scope.
   // This file is a Client Component but Next still renders it on the
   // server, where a module-scope instance would be a single cache shared
   // by every concurrent request.
@@ -59,13 +59,13 @@ export function AppShell({ role, children }: AppShellProps) {
   const account = useCurrentAccount();
   // admin/layout.tsx and teacher/layout.tsx stay mounted across child-page
   // navigations (that's how App Router layouts work), so without this the
-  // mobile Sheet would stay open after tapping a nav link — the user would
+  // mobile Sheet would stay open after tapping a nav link - the user would
   // have to close it by hand every time.
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Always starts expanded, then corrects itself after mount. Reading
   // localStorage during render would make the server HTML and the first
-  // client render disagree for anyone who had collapsed it — a hydration
+  // client render disagree for anyone who had collapsed it - a hydration
   // mismatch, which React resolves by throwing the server markup away.
   const [navCollapsed, setNavCollapsed] = useState(false);
 

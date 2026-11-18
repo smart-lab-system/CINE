@@ -7,7 +7,7 @@ import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Built on the same Dialog primitive as components/ui/dialog.tsx (a Sheet
-// IS a Dialog, just anchored to a screen edge instead of centered) — no
+// IS a Dialog, just anchored to a screen edge instead of centered) - no
 // separate Radix package needed.
 const Sheet = DialogPrimitive.Root;
 const SheetTrigger = DialogPrimitive.Trigger;

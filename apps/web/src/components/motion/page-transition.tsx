@@ -26,7 +26,7 @@ interface PageTransitionProps {
  *    tween starts, after hydration. If JS never runs, the page is still
  *    readable rather than permanently invisible.
  *
- * 2. `autoAlpha`, not `opacity` — at 0 it also sets `visibility: hidden`,
+ * 2. `autoAlpha`, not `opacity` - at 0 it also sets `visibility: hidden`,
  *    so a card that hasn't faded in yet can't swallow a click aimed at
  *    whatever is beneath it.
  *
@@ -50,7 +50,7 @@ export function PageTransition({ children, className }: PageTransitionProps) {
         () => {
           // `root` explicitly as toArray's second argument: useGSAP's
           // `scope` only constrains GSAP's own selector-string targets,
-          // NOT gsap.utils.toArray — without this it would match every
+          // NOT gsap.utils.toArray - without this it would match every
           // [data-animate] in the document, including any left mounted by
           // the layout outside this container.
           const marked = gsap.utils.toArray<HTMLElement>('[data-animate]', root);
@@ -62,7 +62,7 @@ export function PageTransition({ children, className }: PageTransitionProps) {
             duration: MOTION.enter,
             ease: MOTION.easeOut,
             stagger: targets.length > 1 ? MOTION.stagger : 0,
-            // Transform + opacity only — both composite on the GPU, and
+            // Transform + opacity only - both composite on the GPU, and
             // neither forces layout. Cleared afterwards so a leftover
             // matrix doesn't create a stacking context that traps a
             // dropdown or breaks a sticky header.
@@ -76,7 +76,7 @@ export function PageTransition({ children, className }: PageTransitionProps) {
     },
     // revertOnUpdate: useGSAP otherwise reverts only on unmount, so a
     // route change would stack a second enter tween on top of a running
-    // one — a fast back-and-forth could strand a half-faded page.
+    // one - a fast back-and-forth could strand a half-faded page.
     { scope, dependencies: [pathname], revertOnUpdate: true },
   );
 

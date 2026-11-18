@@ -69,7 +69,7 @@ const SOURCE_LABEL: Record<SessionRosterSource, string> = {
 };
 
 /**
- * Cap trên wrapper của Table — đó mới là scrollport. Giới hạn ngoài
+ * Cap trên wrapper của Table - đó mới là scrollport. Giới hạn ngoài
  * wrapper thì header sticky không dính và danh sách dài đẩy cả bước thiết lập.
  */
 const SCROLL_CONTAINER = {
@@ -195,7 +195,7 @@ export function SessionExamRosterCard({
 
   function onAdd(payload: AddStudentPayload) {
     if ('studentId' in payload) {
-      toast.error('Thêm từ catalog chưa hỗ trợ trên danh sách thi — nhập MSSV và họ tên.');
+      toast.error('Thêm từ catalog chưa hỗ trợ trên danh sách thi - nhập MSSV và họ tên.');
       return;
     }
     addStudent.mutate(
@@ -237,7 +237,7 @@ export function SessionExamRosterCard({
         </div>
         <CardDescription>
           {customized
-            ? 'Danh sách đã tách khỏi lớp — mở phiên sẽ chốt đúng danh sách dưới đây.'
+            ? 'Danh sách đã tách khỏi lớp - mở phiên sẽ chốt đúng danh sách dưới đây.'
             : 'Đang dùng danh sách lớp học phần. Mọi chỉnh sửa chỉ áp dụng cho phiên này.'}
         </CardDescription>
       </CardHeader>
@@ -293,7 +293,7 @@ export function SessionExamRosterCard({
 
             {students.length === 0 ? (
               <p className="text-small text-muted-foreground">
-                Chưa có sinh viên nào — hãy nhập roster lớp hoặc tải file / thêm tay tại đây.
+                Chưa có sinh viên nào - hãy nhập roster lớp hoặc tải file / thêm tay tại đây.
               </p>
             ) : (
               <Table container={SCROLL_CONTAINER}>
@@ -388,14 +388,14 @@ export function SessionExamRosterCard({
         }}
       >
         {/*
-          ColumnMapper có bảng preview + 3 select — cần dialog rộng và
+          ColumnMapper có bảng preview + 3 select - cần dialog rộng và
           thân cuộn được; max-w-lg cắt ngang và không overflow sẽ mất footer.
         */}
         <DialogContent className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
           <DialogHeader className="shrink-0 space-y-1 border-b border-border px-6 py-4 pr-12 text-left">
             <DialogTitle>Tải file danh sách thi</DialogTitle>
             <DialogDescription>
-              Chỉ áp dụng cho phiên này — không đổi danh sách lớp học phần. Chọn cột MSSV
+              Chỉ áp dụng cho phiên này - không đổi danh sách lớp học phần. Chọn cột MSSV
               / họ tên sau khi chọn file .xlsx.
             </DialogDescription>
           </DialogHeader>

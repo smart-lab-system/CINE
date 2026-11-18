@@ -305,7 +305,7 @@ export interface JplagDemoResult {
   message: string;
 }
 
-/** Demo JPlag — always runs text + language; multipart ZIP/folder + language. */
+/** Demo JPlag - always runs text + language; multipart ZIP/folder + language. */
 export async function postVersionJplagDemo(
   versionId: string,
   opts: {
@@ -454,7 +454,7 @@ export function getScan(id: string) {
   return ideFetch<ExtensionScan & { items: ScanItem[] }>(`/ide-extensions/scans/${id}`);
 }
 
-/** Spec 2026-11-18 — blocked pairs still open under global catalog approval. */
+/** Spec 2026-11-18 - blocked pairs still open under global catalog approval. */
 export interface ViolationIncident {
   scanId: string;
   scanItemId: string;

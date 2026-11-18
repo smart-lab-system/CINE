@@ -14,7 +14,7 @@ export interface OverviewCriterion {
   waiverId: string | null;
 }
 
-/** Hướng QS trên Bảng lỗi (mirrors API overview). */
+/** Cách giải QS trên Bảng lỗi (mirrors API overview). */
 export interface OverviewApproach {
   key: string;
   name: string;
@@ -30,10 +30,10 @@ export interface OverviewSession {
   resultCount: number;
 }
 
-/** Một phần tử cho MỖI rubric (theo tên) — mirrors RubricOverview (apps/api/src/grading/rules/rubric-overview.service.ts). */
+/** Một phần tử cho MỖI rubric (theo tên) - mirrors RubricOverview (apps/api/src/grading/rules/rubric-overview.service.ts). */
 export interface RubricOverview {
   rubricName: string;
-  /** Phiên bản mới nhất — dùng cho đánh dấu tiêu chí và hộp thoại sửa tiêu chí. */
+  /** Phiên bản mới nhất - dùng cho đánh dấu tiêu chí và hộp thoại sửa tiêu chí. */
   rubricId: string;
   /** Thiếu (API cũ) → coi như `qa`. */
   kind?: 'qa' | 'qs';
@@ -144,7 +144,7 @@ export async function copyErrors(fromRubricName: string, toRubricName: string): 
   return data as unknown as CopyResult;
 }
 
-/** "Lưu thì ảnh hưởng bao nhiêu bài" (T-POL-5) — gọi TRƯỚC `setErrorPrice`; không ghi gì. */
+/** "Lưu thì ảnh hưởng bao nhiêu bài" (T-POL-5) - gọi TRƯỚC `setErrorPrice`; không ghi gì. */
 export async function previewErrorPrice(rubricErrorId: string, deduction: string | null): Promise<PricePreview> {
   const { data, error, response } = await apiClient.POST('/rubric-errors/{id}/price/preview', {
     params: { path: { id: rubricErrorId } },

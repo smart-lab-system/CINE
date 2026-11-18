@@ -43,7 +43,9 @@ FE: `/teacher/playground` → chọn loại → **Nạp sample…** → đợi p
 | vite-react / express | 20 phút |
 | spring-boot | 30 phút |
 
-`expiresAt` ghi khi preview start. `PlaygroundScheduler` quét mỗi 30s để `compose down` / `docker rm` dù không ai poll; `GET /runs/:id` cũng gọi `expireIfNeeded`.
+`expiresAt` ghi khi preview start → BullMQ delayed job `expire` (jobId `playground-expire-<runId>`) tắt đúng giờ. Stop sớm / chạy lại → `remove` job đó.
+
+`PlaygroundScheduler` quét thưa mỗi **5 phút** làm lưới an toàn (mất job Redis / race). `GET /runs/:id` cũng gọi `expireIfNeeded`.
 
 ## File `.sql` khởi tạo / seed
 

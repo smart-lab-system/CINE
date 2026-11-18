@@ -96,7 +96,7 @@ export function ExamBankForm({
   const [questions, setQuestions] = useState<ExamBankFormQuestion[]>(
     initial.questions,
   );
-  /** Điểm câu lúc focus — dùng để hoàn tác khi Cancel confirm vượt tổng. */
+  /** Điểm câu lúc focus - dùng để hoàn tác khi Cancel confirm vượt tổng. */
   const pointsFocusRef = useRef<Record<number, string>>({});
   const [createQsForIndex, setCreateQsForIndex] = useState<number | null>(null);
   const rubricsQuery = useRubrics();
@@ -201,7 +201,7 @@ export function ExamBankForm({
       {mismatch && !hasNonPositive ? (
         <Alert variant="destructive">
           <AlertDescription>
-            Tổng điểm đề ({totalValid ? totalNum : "—"}) phải bằng điểm đã phân
+            Tổng điểm đề ({totalValid ? totalNum : "-"}) phải bằng điểm đã phân
             bổ ({allocated}).
           </AlertDescription>
         </Alert>

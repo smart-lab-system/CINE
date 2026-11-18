@@ -170,7 +170,7 @@ describe('bản nháp phiên bản gói test (G2b-R, mock-up v2)', () => {
       const withNew = addRow(removed, values({ caseKey: 'ca1' }));
       const undone = undoRow(withNew, 0);
       expect(undone.filter((r) => r.state !== 'removed' && r.state !== 'dropped').map((r) => r.caseKey)).toEqual(['ca1', 'ca2', 'ca1']);
-      expect(saveBlocker(undone, false)).toBe('Có hai ca cùng tên "ca1" trong bản nháp — đổi tên một trong hai.');
+      expect(saveBlocker(undone, false)).toBe('Có hai ca cùng tên "ca1" trong bản nháp - đổi tên một trong hai.');
     });
 
     it('đang mở form → chặn; không thay đổi → chặn; hết ca đang dùng → chặn; đủ điều kiện → null', () => {

@@ -24,11 +24,11 @@ const KNOWN = new Set([
 ]);
 
 /**
- * Nhãn trạng thái của một bài — biểu tượng + chữ, không bao giờ chỉ màu (spec §2.1 luật 1). Nhãn lấy từ
- * `STATE_LABEL` của `session-triage` — MỘT nơi định nghĩa, để danh sách, hồ sơ và file CSV cùng nói một từ.
+ * Nhãn trạng thái của một bài - biểu tượng + chữ, không bao giờ chỉ màu (spec §2.1 luật 1). Nhãn lấy từ
+ * `STATE_LABEL` của `session-triage` - MỘT nơi định nghĩa, để danh sách, hồ sơ và file CSV cùng nói một từ.
  *
  * Bài TỰ LUẬN không bao giờ mang nhãn của một quyết định máy (§3.11, T-UI-20): còn sót `auto_approved` từ
- * trước khi đổi chính sách thì gọi đúng tên nó — "tự duyệt theo chính sách cũ".
+ * trước khi đổi chính sách thì gọi đúng tên nó - "tự duyệt theo chính sách cũ".
  *
  * Status lạ thì hiện nguyên tên, không nổ và không im lặng.
  */

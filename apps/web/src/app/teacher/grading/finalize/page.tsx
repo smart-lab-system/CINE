@@ -12,7 +12,7 @@ import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { FinalizePanel } from '../_components/FinalizePanel';
 
 /**
- * Chốt điểm phiên (spec §3.10) — trang RIÊNG, không gộp vào danh sách bài và không gộp vào việc ghi file.
+ * Chốt điểm phiên (spec §3.10) - trang RIÊNG, không gộp vào danh sách bài và không gộp vào việc ghi file.
  * `useSearchParams` đòi ranh giới Suspense khi build tĩnh.
  */
 export default function FinalizePage() {
@@ -68,7 +68,7 @@ function FinalizeContent() {
 
       {results.isError ? (
         <Alert variant="destructive">
-          <AlertDescription>Không tải được kết quả chấm — {results.error?.message}. Thử tải lại trang.</AlertDescription>
+          <AlertDescription>Không tải được kết quả chấm - {results.error?.message}. Thử tải lại trang.</AlertDescription>
         </Alert>
       ) : results.isLoading || !results.data ? (
         <Skeleton className="h-40 w-full" />

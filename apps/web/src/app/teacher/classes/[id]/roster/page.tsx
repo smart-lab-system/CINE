@@ -40,7 +40,7 @@ export default function TeacherRosterPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title={klass ? `Danh sách lớp — ${klass.name}` : 'Danh sách lớp'}
+        title={klass ? `Danh sách lớp - ${klass.name}` : 'Danh sách lớp'}
         description={
           klass
             ? `Lớp ${klass.name}. Đây là danh sách quyết định ai được vào phiên thi của lớp này.`

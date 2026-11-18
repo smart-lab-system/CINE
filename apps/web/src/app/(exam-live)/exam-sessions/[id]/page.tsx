@@ -64,9 +64,9 @@ function formatDateTime(iso: string): string {
 // Server -> Client payloads, per the WebSocket Event Contract
 // (apps/api/src/exam-session/exam-session.gateway.ts and
 // apps/api/src/submission/submission.gateway.ts). Kept local to this page
-// rather than in `lib/socket.ts` — this page is the only consumer.
+// rather than in `lib/socket.ts` - this page is the only consumer.
 /**
- * Both of these now only say "the room changed" — the room itself is read
+ * Both of these now only say "the room changed" - the room itself is read
  * back from the attendance log, which is the only copy that survives a
  * refresh. Their fields are still part of the wire contract; this page
  * simply no longer keeps its own tally from them.
@@ -87,7 +87,7 @@ interface TeacherSubscribeErrorPayload {
   message: string;
 }
 
-// Vietnamese copy per error code — added to the contract after Task 3
+// Vietnamese copy per error code - added to the contract after Task 3
 // found `teacher:subscribe` had no failure path (see the gateway's
 // `emitSubscribeError`). Falls back to the server's own `message` for any
 // code this map doesn't recognize, so a future 4th code still renders
@@ -106,7 +106,7 @@ type LiveSubmissionMap = Record<string, { state: DeliverableState; submittedAt: 
  * shell (its own route group, no sidebar) and deliberately outside
  * PageTransition: this screen is watched live while an exam starts, so
  * rows appear the instant the server says so. Nothing here staggers,
- * fades, or animates on update — see the design spec's "do not animate"
+ * fades, or animates on update - see the design spec's "do not animate"
  * list. The only motion is the standing "live" pulse, which reports that
  * the socket is open rather than reacting to any particular event.
  */
@@ -114,16 +114,16 @@ export default function ExamSessionLobbyPage() {
   const params = useParams<{ id: string }>();
   const examSessionId = params.id;
 
-  // Read-only metadata (name/start/end/status) via REST — separate from
+  // Read-only metadata (name/start/end/status) via REST - separate from
   // the live roster below, which only ever comes from the WebSocket.
   // `agent:join` already independently re-derives the real time window
-  // server-side (ExamSessionGateway — a stale/forever-'active' status
+  // server-side (ExamSessionGateway - a stale/forever-'active' status
   // column can never let a late agent actually join), but this page had
   // no way to tell the *teacher* the session was over, so a lobby for an
   // exam that ended yesterday looked identical to a live one waiting for
-  // students — reported directly against the live app.
+  // students - reported directly against the live app.
   const sessionDetail = useExamSessionDetail(examSessionId);
-  // Pulled out so the socket effect can depend on a stable reference —
+  // Pulled out so the socket effect can depend on a stable reference -
   // TanStack keeps `refetch` stable per query, unlike the result object.
   const refetchSession = sessionDetail.refetch;
   const statusNow = useStatusClock(
@@ -160,19 +160,19 @@ export default function ExamSessionLobbyPage() {
     null,
   );
   // Students outside the class roster asking to be let in (Security rule
-  // 1's human override). Kept in page state, not the query cache — same
+  // 1's human override). Kept in page state, not the query cache - same
   // reasoning as liveSubmissions: this only ever grows/shrinks from
   // socket events and a resolve action, never from a refetch.
   const [pendingAccessRequests, setPendingAccessRequests] = useState<PendingAccessRequest[]>([]);
   // Gates both the state update and the toast in handleAccessRequest below
-  // on the exact same check — a ref, not state, because it's read-and-
+  // on the exact same check - a ref, not state, because it's read-and-
   // written synchronously inside a socket callback and never needs to
   // trigger a render on its own.
   const knownAccessRequestIds = useRef<Set<string>>(new Set());
   const teachingClasses = useTeachingClasses();
   // MỌI lớp của giảng viên, không lọc. Trước đây danh sách này lọc theo tên
   // môn, và vì tên môn là chuỗi tự do nên gõ lệch một ký tự là lớp biến mất
-  // khỏi ô chọn — ngay trên đường duyệt thi bù, nơi chọn đúng lớp gốc quyết
+  // khỏi ô chọn - ngay trên đường duyệt thi bù, nơi chọn đúng lớp gốc quyết
   // định bài của em về tay ai. Hệ thống phục vụ một môn, nên phép lọc đó chỉ
   // còn khả năng giấu lớp chứ không còn khả năng lọc.
   const classesForThisCourse = teachingClasses.data ?? [];
@@ -204,7 +204,7 @@ export default function ExamSessionLobbyPage() {
       return;
     }
 
-    // Reset error state on a fresh subscribe attempt — otherwise
+    // Reset error state on a fresh subscribe attempt - otherwise
     // navigating from a bad session id straight to a valid one would keep
     // showing the previous error forever (subscribing successfully never
     // emits any "ok" event to clear it).
@@ -212,7 +212,7 @@ export default function ExamSessionLobbyPage() {
     setLiveSubmissions({});
     setPendingAccessRequests([]);
 
-    // Created per mount, and capped at one attempt for its whole life — see
+    // Created per mount, and capped at one attempt for its whole life - see
     // createSubscriptionRecovery for why that cap is the loop guard rather
     // than mere caution.
     const recovery = createSubscriptionRecovery({
@@ -226,7 +226,7 @@ export default function ExamSessionLobbyPage() {
       },
     });
 
-    // `teacher:subscribe` only joins a socket.io room — there is no
+    // `teacher:subscribe` only joins a socket.io room - there is no
     // `teacher:unsubscribe` in the contract. Re-emitting on every
     // `connect` (not just the first) is required, not optional: if this
     // connection ever drops and socket.io-client's built-in reconnection
@@ -237,7 +237,7 @@ export default function ExamSessionLobbyPage() {
       // Cleared here, not just once on mount: `teacher:subscribe`'s
       // replay is the only authoritative list of what's still pending, so
       // a reconnect must rebuild from it rather than keep whatever this
-      // tab happened to accumulate before the drop — a request another
+      // tab happened to accumulate before the drop - a request another
       // invigilator resolved during the outage must not linger as a
       // stale row here. Clearing the dedup set alongside is what lets the
       // replayed events re-add themselves (and re-toast) instead of being
@@ -249,7 +249,7 @@ export default function ExamSessionLobbyPage() {
 
     // The event says the room changed; the server says how. Re-reading is
     // what makes a mid-exam refresh safe, and it is also the only way this
-    // page can know a student is a make-up rather than a stranger — a fact
+    // page can know a student is a make-up rather than a stranger - a fact
     // no socket payload carries.
     function handleRoomChanged(_payload: RoomChangedPayload) {
       scheduleAttendanceRefetch();
@@ -269,25 +269,25 @@ export default function ExamSessionLobbyPage() {
       }));
     }
 
-    // The session just ended (scheduled sweep, or a teacher — possibly on
-    // another screen — pressing "Chốt bài ngay"). Re-read the status
+    // The session just ended (scheduled sweep, or a teacher - possibly on
+    // another screen - pressing "Chốt bài ngay"). Re-read the status
     // instead of assuming it, so this page shows what the DB actually says.
     function handleExamFinalize() {
       void refetchSession();
     }
 
-    // A student outside the roster asking to be let in — see
+    // A student outside the roster asking to be let in - see
     // AccessRequestGateway.broadcast. Before this handler existed, this
     // event reached the browser and was simply never listened for: the
     // teacher was not told anything, ever, at any point. Two cues, not
-    // one — a toast for "look now" and the panel itself (rendered below)
-    // for "still here if you looked away" — because a toast alone is
+    // one - a toast for "look now" and the panel itself (rendered below)
+    // for "still here if you looked away" - because a toast alone is
     // gone in a few seconds if the teacher is looking at a different tab
     // or a projector, and a panel alone can be missed if it is below the
     // fold. Both cues gated on the SAME dedup set (cleared in
     // handleConnect above): `teacher:subscribe` replays whatever is still
     // pending on every (re)connect, and a request already known must
-    // neither become a second row NOR fire a second toast — a Wi-Fi
+    // neither become a second row NOR fire a second toast - a Wi-Fi
     // hiccup with five requests already on screen must not restack five
     // more toasts for rows that never left.
     function handleAccessRequest(payload: PendingAccessRequest) {
@@ -312,7 +312,7 @@ export default function ExamSessionLobbyPage() {
 
     // UNAUTHORIZED is the one code here that is usually recoverable, and it
     // used to be handled like the two that never are. The token behind a
-    // socket is only ever checked at subscribe time, i.e. at (re)connect —
+    // socket is only ever checked at subscribe time, i.e. at (re)connect -
     // so this fires when a network blip reconnects a lobby that has been
     // open longer than ACCESS_TOKEN_TTL, which for a three-hour exam is
     // routine rather than exceptional. Refresh and redial before deciding
@@ -330,7 +330,7 @@ export default function ExamSessionLobbyPage() {
     }
 
     // The shared socket may already be connected (e.g. a fast client-side
-    // navigation from one lobby straight to another) — `connect` would
+    // navigation from one lobby straight to another) - `connect` would
     // never fire again in that case, so subscribe immediately instead of
     // waiting for an event that already happened.
     if (socket.connected) {
@@ -347,7 +347,7 @@ export default function ExamSessionLobbyPage() {
       socket.off('exam:finalize', handleExamFinalize);
       socket.off('lobby:access_request', handleAccessRequest);
       socket.off('teacher:subscribe:error', handleSubscribeError);
-      // Disconnect on unmount, not just remove listeners — see
+      // Disconnect on unmount, not just remove listeners - see
       // lib/socket.ts's comment on why this page owns the connect/
       // disconnect lifecycle (no `teacher:unsubscribe` event exists to
       // leave just this session's room otherwise).
@@ -365,7 +365,7 @@ export default function ExamSessionLobbyPage() {
   );
 
   // Who joined the lobby, plus what was already collected when the page
-  // opened — the same union the per-session submissions detail page builds
+  // opened - the same union the per-session submissions detail page builds
   // from the same two sources (see lib/submission-rows.ts). Live socket
   // events are strictly newer than this and are overlaid separately below,
   // since a REST-only page has no such third source to merge in.
@@ -381,7 +381,7 @@ export default function ExamSessionLobbyPage() {
     // Cloned, not mutated in place: `baseRows` is memoized on
     // attendance/submissions alone, so writing into its row objects here
     // would leak into the next render even if only `liveSubmissions`
-    // changed — corrupting the very state this memo is meant to be pure
+    // changed - corrupting the very state this memo is meant to be pure
     // over.
     const byMssv = new Map(
       baseRows.map((row) => [row.studentMssv, { ...row, byDeliverable: { ...row.byDeliverable } }]),
@@ -445,7 +445,7 @@ export default function ExamSessionLobbyPage() {
     return { presentCount, notJoinedCount, absentCount, makeupCount };
   }, [lobbyRows]);
 
-  // Ai CÓ MẶT — `rows` là hợp của roster và người đã nộp, nên nó cũng
+  // Ai CÓ MẶT - `rows` là hợp của roster và người đã nộp, nên nó cũng
   // chứa em vắng thi, và một máy chưa từng kết nối thì không có gì để
   // thu lại.
   const attendedMssv = useMemo(
@@ -464,7 +464,7 @@ export default function ExamSessionLobbyPage() {
   );
 
   // Khi con số trên được tính. Ghi lại ở đây chứ không đọc `Date.now()`
-  // lúc render: nếu socket rớt, `rows` ngừng đổi và mốc này đứng yên —
+  // lúc render: nếu socket rớt, `rows` ngừng đổi và mốc này đứng yên -
   // đó chính là tín hiệu giảng viên cần thấy. Đọc đồng hồ lúc render sẽ
   // cho ra một mốc luôn tươi mới trên một con số đã chết.
   const [countedAt, setCountedAt] = useState<number | null>(null);
@@ -482,7 +482,7 @@ export default function ExamSessionLobbyPage() {
    * §7.1.1b. `agent:join` từ chối mọi sinh viên khi danh sách dự thi
    * chưa được đóng băng, và không có gì trên màn hình này từng nói ra
    * điều đó: panel điểm danh dựng từ `enrollment` nên nó vẫn hiện đủ
-   * tên, đúng sĩ số, 0/N có mặt — giống hệt một phòng thi mà chưa ai
+   * tên, đúng sĩ số, 0/N có mặt - giống hệt một phòng thi mà chưa ai
    * kịp tới.
    *
    * Chỉ hỏi ở hai pha mà việc mở phiên còn có nghĩa. Với phiên đã kết
@@ -491,13 +491,13 @@ export default function ExamSessionLobbyPage() {
    */
   // Spec 2026-10-18: chưa mở ≡ status scheduled.
   // Không gắn rosterFrozen: materialize/import trên hub đã ghi session_roster
-  // (rosterFrozen=true) trong khi phiên vẫn scheduled — nút Mở phiên phải còn.
+  // (rosterFrozen=true) trong khi phiên vẫn scheduled - nút Mở phiên phải còn.
   const needsOpening =
     sessionDetail.data?.status === 'scheduled' || sessionDetail.data?.status === 'not_ready';
   const missedSession = sessionDetail.data?.status === 'missed';
 
   /**
-   * Spec §7.3 — có bao nhiêu SINH VIÊN nộp bài sau khi giảng viên xác
+   * Spec §7.3 - có bao nhiêu SINH VIÊN nộp bài sau khi giảng viên xác
    * nhận kết thúc.
    *
    * Chỉ khi `completedBy` khác null: phiên do lượt quét dự phòng đóng
@@ -571,7 +571,7 @@ export default function ExamSessionLobbyPage() {
                             await navigator.clipboard.writeText(sessionDetail.data!.code);
                             toast.success(`Đã sao chép mã "${sessionDetail.data!.code}"`);
                           } catch {
-                            toast.error('Không sao chép được — hãy đọc mã trực tiếp.');
+                            toast.error('Không sao chép được - hãy đọc mã trực tiếp.');
                           }
                         }}
                         className="inline-flex items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-1 font-mono text-body font-semibold tracking-[0.12em] text-primary"
@@ -638,12 +638,12 @@ export default function ExamSessionLobbyPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-1">
                   <strong className="font-semibold">
-                    Sinh viên chưa vào được — phiên thi chưa được mở.
+                    Sinh viên chưa vào được - phiên thi chưa được mở.
                   </strong>
                   <span>
                     {sessionDetail.data?.status === 'not_ready'
-                      ? 'Phiên chưa đủ điều kiện để tự mở. Bổ sung thiết lập trước giờ bắt đầu — đến giờ mà vẫn thiếu, phiên chuyển sang Không diễn ra. '
-                      : 'Phiên đang ở trạng thái Sắp diễn ra — danh sách dự thi chưa chốt, máy chủ từ chối mọi máy sinh viên. '}
+                      ? 'Phiên chưa đủ điều kiện để tự mở. Bổ sung thiết lập trước giờ bắt đầu - đến giờ mà vẫn thiếu, phiên chuyển sang Không diễn ra. '
+                      : 'Phiên đang ở trạng thái Sắp diễn ra - danh sách dự thi chưa chốt, máy chủ từ chối mọi máy sinh viên. '}
                     Bấm nút để chốt danh sách và mở cửa, hoặc quay lại{' '}
                     <Link
                       href={`/teacher/exam-sessions/${examSessionId}`}
@@ -661,7 +661,7 @@ export default function ExamSessionLobbyPage() {
                   disabled={openSession.isPending}
                   // `mutate`, không phải `mutateAsync`: lỗi đã được hiện
                   // ngay dưới đây qua `openSession.error`, nên không có
-                  // gì để nối tiếp — và một `mutateAsync` không ai bắt
+                  // gì để nối tiếp - và một `mutateAsync` không ai bắt
                   // sẽ để lại unhandled rejection mỗi lần mở hụt.
                   onClick={() => openSession.mutate()}
                 >
@@ -681,7 +681,7 @@ export default function ExamSessionLobbyPage() {
         {missedSession && (
           <Alert variant="destructive">
             <AlertDescription>
-              Phiên không diễn ra — đã đến giờ bắt đầu mà vẫn không mở được. Sinh viên không
+              Phiên không diễn ra - đã đến giờ bắt đầu mà vẫn không mở được. Sinh viên không
               vào được. Có thể huỷ phiên trong{' '}
               <Link
                 href={`/teacher/exam-sessions/${examSessionId}`}
@@ -695,7 +695,7 @@ export default function ExamSessionLobbyPage() {
         )}
 
         {/* Spec §7.3. Không chặn bài về sau khi xác nhận, nhưng phải
-            NÓI — giảng viên biết con số đã đổi, thay vì không biết. */}
+            NÓI - giảng viên biết con số đã đổi, thay vì không biết. */}
         {lateAfterConfirm > 0 && (
           <Alert variant="info">
             <AlertDescription>
@@ -709,7 +709,7 @@ export default function ExamSessionLobbyPage() {
             <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span>
                 Kỳ thi này đã kết thúc lúc {formatDateTime(sessionDetail.data!.endTime)}. Đây là
-                chế độ xem lại — sinh viên không thể tham gia mới.
+                chế độ xem lại - sinh viên không thể tham gia mới.
               </span>
               <span className="flex flex-wrap gap-2">
                 <Button asChild variant="outline" size="sm">
@@ -736,7 +736,7 @@ export default function ExamSessionLobbyPage() {
         {(phase === 'upcoming' || phase === 'draft') && (
           <Alert variant="info">
             <AlertDescription>
-              Kỳ thi này chưa bắt đầu — sẽ mở lúc {formatDateTime(sessionDetail.data!.startTime)}.
+              Kỳ thi này chưa bắt đầu - sẽ mở lúc {formatDateTime(sessionDetail.data!.startTime)}.
               Sinh viên chưa thể tham gia trước thời điểm đó.
             </AlertDescription>
           </Alert>
@@ -751,8 +751,8 @@ export default function ExamSessionLobbyPage() {
         )}
 
         {subscribeError ? (
-          // A distinct, visible failure state — role="alert" + destructive
-          // styling — instead of silently rendering an empty roster when
+          // A distinct, visible failure state - role="alert" + destructive
+          // styling - instead of silently rendering an empty roster when
           // the subscribe actually failed (expired JWT, not the session
           // owner, or a bogus session id).
           <Card>

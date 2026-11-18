@@ -1,5 +1,5 @@
 /**
- * Handlers nút trên Teacher Hub — mỗi action độc lập, không chain tự động.
+ * Handlers nút trên Teacher Hub - mỗi action độc lập, không chain tự động.
  * Spec §5: register máy không được gọi các hàm này.
  */
 
@@ -16,7 +16,7 @@ export type HubActionName =
   | 'aggregate_room'
   | 'sync_backend';
 
-/** Đảm bảo register path không gọi action nghiệp vụ — dùng trong test. */
+/** Đảm bảo register path không gọi action nghiệp vụ - dùng trong test. */
 export const ACTIONS_NOT_TRIGGERED_ON_REGISTER: readonly HubActionName[] = [
   'scan_extensions',
   'read_extension_activity',
@@ -80,7 +80,7 @@ export function compareAllowlist(
         extensionCount: 0,
         violationCount: 0,
         status: 'clean',
-        error: 'Chưa quét — bấm «Quét extension VS Code» trước.',
+        error: 'Chưa quét - bấm «Quét extension VS Code» trước.',
       };
     }
     const rows = compareInventory(node.inventory, effective);

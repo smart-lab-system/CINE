@@ -3,9 +3,9 @@
  * driven by src/session-controller.ts) and the mock agent
  * (src/mock-agent.ts).
  *
- * The two differ only in where a deliverable's bytes come from — the real
+ * The two differ only in where a deliverable's bytes come from - the real
  * agent reads the student's file off disk, the mock agent synthesizes it in
- * memory — so that is the single injected dependency (`readContent`).
+ * memory - so that is the single injected dependency (`readContent`).
  * Everything else, including the exact order of request-upload-url -> PUT ->
  * confirm and every failure rule, is identical, and must stay that way:
  * a mock agent that uploads differently from the real one tests nothing.
@@ -68,9 +68,9 @@ export type DeliverableOutcome = 'uploaded' | 'missing' | 'failed';
 export interface DeliverableResult {
   deliverable: RequiredDeliverable;
   outcome: DeliverableOutcome;
-  /** Bytes actually PUT — only set when `outcome` is 'uploaded'. */
+  /** Bytes actually PUT - only set when `outcome` is 'uploaded'. */
   byteLength?: number;
-  /** Why it did not upload — set for 'missing' and 'failed'. */
+  /** Why it did not upload - set for 'missing' and 'failed'. */
   reason?: string;
 }
 
@@ -95,7 +95,7 @@ export interface UploadSummary {
  */
 const ACK_TIMEOUT_MS = 30_000;
 
-/** PUT timeout, per deliverable. Generous — a lab network under load. */
+/** PUT timeout, per deliverable. Generous - a lab network under load. */
 const PUT_TIMEOUT_MS = 120_000;
 
 // ---------------------------------------------------------------------------
@@ -104,7 +104,7 @@ const PUT_TIMEOUT_MS = 120_000;
 
 /**
  * Reads one deliverable's bytes. Returning `null` means "the student does
- * not have this file" — a normal, expected outcome that must not abort the
+ * not have this file" - a normal, expected outcome that must not abort the
  * other uploads. Throwing means something went genuinely wrong reading it.
  */
 export type ReadDeliverableContent = (
@@ -130,7 +130,7 @@ export interface UploadAllOptions {
  * so the serial cost is a few seconds.
  *
  * One deliverable failing NEVER stops the others. A student who deleted
- * Cau2.docx must still have Cau1.docx and Cau3.docx collected — losing the
+ * Cau2.docx must still have Cau1.docx and Cau3.docx collected - losing the
  * whole submission over one missing file would be the single worst bug this
  * code could have.
  */
@@ -177,7 +177,7 @@ async function uploadOne(
     content = await readContent(deliverable);
   } catch (error) {
     const reason = describe(error);
-    log(`  [LỖI] ${label}: không đọc được file — ${reason}`);
+    log(`  [LỖI] ${label}: không đọc được file - ${reason}`);
     return { deliverable, outcome: 'failed', reason };
   }
 
@@ -188,7 +188,7 @@ async function uploadOne(
   }
 
   // Computed here, before the upload, over exactly the bytes about to be
-  // sent — so the checksum the server stores always describes what was
+  // sent - so the checksum the server stores always describes what was
   // actually PUT, not what was on disk at some other moment.
   const checksum = createHash('sha256').update(content).digest('hex');
 
@@ -200,7 +200,7 @@ async function uploadOne(
     );
     if (!urlAck.ok) {
       const reason = `${urlAck.code}: ${urlAck.message}`;
-      log(`  [LỖI] ${label}: server từ chối cấp URL — ${reason}`);
+      log(`  [LỖI] ${label}: server từ chối cấp URL - ${reason}`);
       return { deliverable, outcome: 'failed', reason };
     }
 
@@ -210,7 +210,7 @@ async function uploadOne(
     });
     if (!put.ok) {
       const reason = `PUT trả về HTTP ${put.status}`;
-      log(`  [LỖI] ${label}: tải file lên thất bại — ${reason}`);
+      log(`  [LỖI] ${label}: tải file lên thất bại - ${reason}`);
       return { deliverable, outcome: 'failed', reason };
     }
 
@@ -228,7 +228,7 @@ async function uploadOne(
     );
     if (!confirmAck.ok) {
       const reason = `${confirmAck.code}: ${confirmAck.message}`;
-      log(`  [LỖI] ${label}: server không ghi nhận bài nộp — ${reason}`);
+      log(`  [LỖI] ${label}: server không ghi nhận bài nộp - ${reason}`);
       return { deliverable, outcome: 'failed', reason };
     }
 
@@ -245,7 +245,7 @@ async function uploadOne(
  * Socket.IO acknowledgement with a timeout and a shape guard.
  *
  * The server is not a trusted input source for shape any more than the
- * client is — the same stance session-controller.ts already takes with
+ * client is - the same stance session-controller.ts already takes with
  * `agent:join:ack`.
  * A malformed ack must surface as a failed deliverable, not as a TypeError
  * thrown inside a socket callback where nothing can catch it.

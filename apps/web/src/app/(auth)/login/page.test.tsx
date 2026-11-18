@@ -31,10 +31,10 @@ afterEach(() => {
 
 // Pins the fix for a real bug hit while following DEMO-RUNBOOK.md step 6:
 // login used to send every role to /accounts, which is admin-only
-// server-side (AccountsController's @Roles('admin')) — a teacher landed
+// server-side (AccountsController's @Roles('admin')) - a teacher landed
 // there anyway and saw a 403'd table sitting above a still-live "Tạo tài
 // khoản mới" form with no explanation. Destinations updated for the
-// role-scoped route rename (/admin/*, /teacher/*) — see the frontend
+// role-scoped route rename (/admin/*, /teacher/*) - see the frontend
 // rebuild design spec.
 describe('LoginPage redirect', () => {
   it('sends a teacher to their dashboard, not the admin area', async () => {
@@ -96,7 +96,7 @@ describe('LoginPage redirect', () => {
 });
 
 // The accounts here are issued by the khoa admin, so people are typing a
-// string they did not choose — being able to read it back is the point.
+// string they did not choose - being able to read it back is the point.
 describe('LoginPage password visibility', () => {
   it('starts masked and only reveals the password on request', () => {
     render(<LoginPage />);

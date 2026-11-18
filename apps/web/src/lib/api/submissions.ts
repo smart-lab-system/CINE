@@ -6,7 +6,7 @@ export interface SessionOverviewItem {
   name: string;
   code: string;
   /**
-   * HẰNG SỐ ở mọi phiên — hệ thống phục vụ đúng một môn. ĐỪNG đưa trường
+   * HẰNG SỐ ở mọi phiên - hệ thống phục vụ đúng một môn. ĐỪNG đưa trường
    * này vào khoá gộp nhóm hay vào một bộ lọc: nó không tách được gì, và
    * `detectRoomFailure` từng chết âm thầm vì đúng lỗi đó (nó đòi ">=2 môn
    * khác nhau" nên không bao giờ kêu). Muốn phân biệt thì dùng `classId`.
@@ -19,7 +19,7 @@ export interface SessionOverviewItem {
   startTime: string;
   endTime: string;
   /**  = hết giờ làm bài, file đang bay về, chưa ai chốt.
-   *  Thêm 2026-09-11 — xem exam_session.entity.ts. */
+   *  Thêm 2026-09-11 - xem exam_session.entity.ts. */
   status:
     | 'draft'
     | 'scheduled'
@@ -30,7 +30,7 @@ export interface SessionOverviewItem {
     | 'completed'
     | 'cancelled';
   /**
-   * Rubric đã ghim cho phiên — `null` nghĩa là chưa chấm được.
+   * Rubric đã ghim cho phiên - `null` nghĩa là chưa chấm được.
    *
    * `null` KHÔNG phải lý do để ẩn phiên khỏi trang Chấm điểm: bài thi thật
    * của SV đang nằm trong đó, và giảng viên chưa từng được hỏi field này.
@@ -42,14 +42,14 @@ export interface SessionOverviewItem {
   rosterKnown: boolean;
   fullySubmittedCount: number;
   partialCount: number;
-  /** Có event kết nối, 0 bài nộp — nghi mất bài. Xem spec §1.2. */
+  /** Có event kết nối, 0 bài nộp - nghi mất bài. Xem spec §1.2. */
   attendedNoSubmissionCount: number;
-  /** Không event nào, 0 bài nộp — vắng thi. */
+  /** Không event nào, 0 bài nộp - vắng thi. */
   neverAttendedCount: number;
 
   /**
    * Trong roster phiên này, vắng ở đây, nhưng CÓ mặt ở một phiên khác cùng
-   * môn + cùng loại kỳ thi — thi bù. Backend ĐÃ trừ khỏi neverAttendedCount,
+   * môn + cùng loại kỳ thi - thi bù. Backend ĐÃ trừ khỏi neverAttendedCount,
    * nên cộng cả hai mới ra "tổng số người không có gì ở phiên này".
    */
   satElsewhereCount: number;
@@ -60,7 +60,7 @@ export interface SessionOverviewItem {
   invalidFileCount: number;
   /**
    * Số bài mà file nén đã về tới nơi nhưng kiểm nội dung bên trong ra
-   * failed/unreadable — spec
+   * failed/unreadable - spec
    * 2026-09-21-archive-content-validation-design.md §8.3. KHÔNG gộp vào
    * `invalidFileCount`: hai khái niệm khác nhau (xem ghi chú "nghỉ hưu"
    * ở submission-attention.ts).
@@ -72,7 +72,7 @@ export interface SessionOverviewItem {
 }
 
 /**
- * Một bài nộp lẻ — chỉ còn dùng cho luồng search theo MSSV (spec §3.4).
+ * Một bài nộp lẻ - chỉ còn dùng cho luồng search theo MSSV (spec §3.4).
  * Bảng phẳng cũ đã bị xoá; endpoint thì không.
  */
 
@@ -85,7 +85,7 @@ function throwIfFailed(error: unknown, response: Response): void {
 /**
  * Mọi phiên của giảng viên này.
  *
- * `student` giữ lại những phiên có sinh viên khớp MSSV/tên — kể cả sinh viên
+ * `student` giữ lại những phiên có sinh viên khớp MSSV/tên - kể cả sinh viên
  * CHƯA NỘP GÌ. Đó là điểm khác biệt với GET /submissions, thứ chỉ đọc bảng
  * submission và vì vậy không bao giờ thấy được đúng nhóm mà giảng viên đi tra.
  */
@@ -101,7 +101,7 @@ export async function listSessionOverview(student?: string): Promise<SessionOver
 }
 
 /**
- * Bốn thao tác vòng đời. Không hàm nào trả dữ liệu — trang gọi xong thì
+ * Bốn thao tác vòng đời. Không hàm nào trả dữ liệu - trang gọi xong thì
  * invalidate query overview, vì mọi con số roll-up có thể đổi theo.
  */
 async function lifecycle(

@@ -54,15 +54,15 @@ export function QuestionCard({
         <Badge variant="default">{question.points} điểm</Badge>
         {/*
          * Lỗi thật 2026-09-24: `topic`/`requiredComplexity` là văn bản TỰ DO
-         * của model, không giới hạn độ dài ở đâu cả — model đã thật sự viết
+         * của model, không giới hạn độ dài ở đâu cả - model đã thật sự viết
          * cả một câu vào đây (vd "O(M*N log(M*N)) thời gian, O(M*N) bộ nhớ;
          * cấm đệ quy..."). `Badge` không tự cắt, nên dải tiêu đề GẬP LẠI
-         * phình gần bằng lúc MỞ RA — gập "không có tác dụng gì".
+         * phình gần bằng lúc MỞ RA - gập "không có tác dụng gì".
          *
          * Cắt bằng CSS (`max-w` + `truncate`) CHỈ khi gập (`!open`), giống
-         * hệt cách `statement` xem trước đã làm bên dưới — mở ra thì vẫn cần
+         * hệt cách `statement` xem trước đã làm bên dưới - mở ra thì vẫn cần
          * đọc trọn, vì đó đúng lúc giảng viên đang xem chi tiết. `title` giữ
-         * nguyên văn để hiện khi di chuột — cắt hình chứ không cắt chữ.
+         * nguyên văn để hiện khi di chuột - cắt hình chứ không cắt chữ.
          */}
         <Badge
           variant="info"
@@ -82,7 +82,7 @@ export function QuestionCard({
         ) : (
           <Badge variant="default">không ràng buộc độ phức tạp</Badge>
         )}
-        {/* Chip này sống sót qua lượt gập — xem doc của component. */}
+        {/* Chip này sống sót qua lượt gập - xem doc của component. */}
         {isClassic && (
           <Badge variant="warning">
             <AlertTriangle className="h-3 w-3" aria-hidden="true" />
@@ -172,11 +172,11 @@ export function QuestionCard({
         )}
 
         {/*
-         * Yêu cầu 2026-09-25: một câu KHÔNG bị gắn cờ vẫn cần lối sinh lại —
+         * Yêu cầu 2026-09-25: một câu KHÔNG bị gắn cờ vẫn cần lối sinh lại -
          * model ra tốt không có nghĩa giảng viên không muốn đổi test case
          * hoặc nâng độ khó. Trước đây `{isClassic && ...}` bỏ hẳn nhánh còn
          * lại: câu tốt không có cách nào sinh lại RIÊNG nó, chỉ còn "Sinh
-         * lại cả đề" — mất luôn mọi câu khác đang giữ.
+         * lại cả đề" - mất luôn mọi câu khác đang giữ.
          */}
         {isClassic ? (
           <ClassicProblemPanel
@@ -208,7 +208,7 @@ export function QuestionCard({
 }
 
 /**
- * Hộp "câu này là bài kinh điển" — và ba việc giảng viên làm được với nó.
+ * Hộp "câu này là bài kinh điển" - và ba việc giảng viên làm được với nó.
  *
  * Bản đầu của hộp này chỉ nêu sự thật rồi dừng. Một cảnh báo không kèm việc
  * phải làm là nhiễu, và nhiễu thì bị bỏ qua từ lần thứ ba trở đi.
@@ -243,17 +243,17 @@ function ClassicProblemPanel({
             Câu này gần như là bài kinh điển &ldquo;{problem}&rdquo;
           </p>
           <p className="mt-1">
-            <strong>Hệ quả 1 —</strong> phòng thi không chặn Internet, nên sinh viên tra ra
+            <strong>Hệ quả 1 -</strong> phòng thi không chặn Internet, nên sinh viên tra ra
             lời giải đầy đủ rất nhanh. Câu này sẽ đo khả năng tìm kiếm chứ không đo hiểu
             biết.
           </p>
           <p className="mt-1">
-            <strong>Hệ quả 2 —</strong> khi chấm, nhiều bài sẽ giống hệt nhau vì cùng chép
+            <strong>Hệ quả 2 -</strong> khi chấm, nhiều bài sẽ giống hệt nhau vì cùng chép
             một nguồn, và phép so sánh chéo giữa các bài sẽ báo nghi vấn chép bài hàng loạt
             mà không ai thật sự chép của ai.
           </p>
           <p className="mt-1.5 italic text-muted-foreground">
-            Đây là lời tự khai của chính model đã sinh ra câu hỏi — hệ thống không có mạng
+            Đây là lời tự khai của chính model đã sinh ra câu hỏi - hệ thống không có mạng
             để đối chiếu, nên nó không phát hiện được bài kinh điển mà model không tự nhận.
           </p>
         </div>
@@ -289,9 +289,9 @@ function ClassicProblemPanel({
  * Lối vào sinh lại cho câu KHÔNG bị gắn cờ trùng bài kinh điển.
  *
  * Yêu cầu 2026-09-25: model ra một câu tốt không có nghĩa giảng viên không
- * muốn đổi gì — vẫn có thể muốn test case khác, hoặc nâng độ khó. Nhẹ hơn
+ * muốn đổi gì - vẫn có thể muốn test case khác, hoặc nâng độ khó. Nhẹ hơn
  * `ClassicProblemPanel` CÓ CHỦ Ý: không có rủi ro nào để báo ở đây, nên
- * không phải một hộp cảnh báo, chỉ là một lối tắt — một dòng chữ, không màu
+ * không phải một hộp cảnh báo, chỉ là một lối tắt - một dòng chữ, không màu
  * cảnh báo, không đoạn giải thích "Hệ quả".
  */
 function RegenerateQuestionPanel({
@@ -339,18 +339,18 @@ function RegenerateQuestionPanel({
 }
 
 /**
- * Form ghi chú + gợi ý nhanh + nút gửi — DÙNG CHUNG giữa hai lối vào sinh
+ * Form ghi chú + gợi ý nhanh + nút gửi - DÙNG CHUNG giữa hai lối vào sinh
  * lại (`ClassicProblemPanel` và `RegenerateQuestionPanel`).
  *
  * `problem`: bài kinh điển phải tránh, hoặc `null` khi không phải lượt tránh
- * bài kinh điển — dòng "Không được ra lại bài X" trong hộp tự thêm chỉ hiện
+ * bài kinh điển - dòng "Không được ra lại bài X" trong hộp tự thêm chỉ hiện
  * khi có `problem`, vì không có gì để tránh thì không có gì để nói.
  *
  * `tone`: chỉ đổi MÀU (viền/chữ cảnh báo hay trung tính) để khớp bối cảnh
- * bao quanh — `ClassicProblemPanel` nằm trong hộp cảnh báo nên giữ tông màu
+ * bao quanh - `ClassicProblemPanel` nằm trong hộp cảnh báo nên giữ tông màu
  * đó xuyên suốt; `RegenerateQuestionPanel` không có gì để cảnh báo. Luật
  * khoá nút gửi tới khi có ghi chú là MỘT, không đổi theo `tone`: sinh lại mà
- * không nói đổi gì thì model rơi lại đúng chỗ cũ — nó chọn bài kinh điển vì
+ * không nói đổi gì thì model rơi lại đúng chỗ cũ - nó chọn bài kinh điển vì
  * đó là chỗ trũng nhất của phân phối, và prompt không đổi thì phân phối
  * không đổi. Lý do này không riêng gì bài kinh điển, nên luật áp cho cả hai.
  */

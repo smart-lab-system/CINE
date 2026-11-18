@@ -9,12 +9,12 @@ import { useTestBundleDetail } from '@/hooks/useTestBundleDetail';
 import { casesToRead, runnableCases } from '@/lib/bundle-approval';
 
 /**
- * Duyệt và ghim MỘT phiên bản gói trong một bước (mock-up v2). Duyệt là hành động riêng của giảng viên — không nút sinh nào
- * làm thay — nên hộp thoại này là chỗ họ nhìn các ca lần cuối: bảng ca đang dùng, các ca cần đọc kỹ được đánh dấu, và một ô
+ * Duyệt và ghim MỘT phiên bản gói trong một bước (mock-up v2). Duyệt là hành động riêng của giảng viên - không nút sinh nào
+ * làm thay - nên hộp thoại này là chỗ họ nhìn các ca lần cuối: bảng ca đang dùng, các ca cần đọc kỹ được đánh dấu, và một ô
  * "tôi đã đọc" phải tích mới bấm được.
  *
  * Dòng "khớp nội bộ, chưa chứng tỏ đúng" luôn hiện, kể cả khi gói do giảng viên tự gõ: duyệt KHÔNG nâng độ tin cậy của thước
- * (spec G2b §4.6) — nó chỉ cho phép chấm. Việc duyệt rồi ghim là hai lời gọi liên tiếp do người gọi làm (`onConfirm`).
+ * (spec G2b §4.6) - nó chỉ cho phép chấm. Việc duyệt rồi ghim là hai lời gọi liên tiếp do người gọi làm (`onConfirm`).
  */
 export function ApproveBundleDialog({
   sessionId,
@@ -67,7 +67,7 @@ export function ApproveBundleDialog({
         )}
         {loaded && active.length === 0 && (
           <Alert variant="destructive">
-            <AlertDescription>Gói này không còn ca nào dùng được — không duyệt được.</AlertDescription>
+            <AlertDescription>Gói này không còn ca nào dùng được - không duyệt được.</AlertDescription>
           </Alert>
         )}
 

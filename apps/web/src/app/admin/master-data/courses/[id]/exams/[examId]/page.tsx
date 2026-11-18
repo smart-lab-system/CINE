@@ -70,12 +70,12 @@ function ExamDetail({ courseId, examId }: { courseId: string; examId: string }) 
         <div>
           <dt className="text-caption text-muted-foreground">Môn</dt>
           <dd>
-            {exam.courseCode} — {exam.courseName}
+            {exam.courseCode} - {exam.courseName}
           </dd>
         </div>
         <div>
           <dt className="text-caption text-muted-foreground">Người tạo</dt>
-          <dd>{exam.createdByName ?? '—'}</dd>
+          <dd>{exam.createdByName ?? '-'}</dd>
         </div>
         <div>
           <dt className="text-caption text-muted-foreground">Thời điểm tạo</dt>
@@ -113,7 +113,7 @@ function ExamDetail({ courseId, examId }: { courseId: string; examId: string }) 
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="font-medium">
                 Câu {q.ordinal}
-                {q.title ? ` — ${q.title}` : ''}
+                {q.title ? ` - ${q.title}` : ''}
               </h3>
               <span className="text-caption text-muted-foreground">
                 {formatVnPoints(q.points)} điểm

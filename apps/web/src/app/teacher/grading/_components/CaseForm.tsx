@@ -11,10 +11,10 @@ const FIELD_ORDER = ['caseKey', 'group', 'expectedOutput'] as const;
 
 /**
  * Form thêm hoặc sửa MỘT ca của bản nháp (mock-up v2). Nhãn nằm trên ô, ô bắt buộc có dấu `*`, lỗi hiện NGAY cạnh ô kèm
- * một dòng tổng kết nối tới từng ô lỗi — không chỉ đổi màu viền, vì màu một mình không mang thông điệp.
+ * một dòng tổng kết nối tới từng ô lỗi - không chỉ đổi màu viền, vì màu một mình không mang thông điệp.
  *
  * Chưa gửi lần nào thì chưa báo lỗi (đừng mắng người đang gõ dở); đã gửi hỏng một lần thì kiểm lại sau MỖI thay đổi để lỗi
- * mất ngay khi sửa xong. Kiểm bằng `validateCase` — cùng luật với server (`TestCaseDto`), thêm luật trùng tên ca trong bản nháp.
+ * mất ngay khi sửa xong. Kiểm bằng `validateCase` - cùng luật với server (`TestCaseDto`), thêm luật trùng tên ca trong bản nháp.
  */
 export function CaseForm({
   mode,

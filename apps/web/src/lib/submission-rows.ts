@@ -4,7 +4,7 @@ import { isMakeupSubmission } from './grading-triage';
 
 /**
  * Shared between the lobby page (live, one exam session) and the
- * per-session submissions detail page (post-hoc review, no socket) — both
+ * per-session submissions detail page (post-hoc review, no socket) - both
  * render the same matrix from the same two sources, so the shape lives
  * here rather than inside either page's own component.
  */
@@ -16,7 +16,7 @@ export interface SubmissionRowStudent {
   /** Whatever the student typed into the agent; falls back to the MSSV. */
   fullName: string;
   /**
-   * Lớp gốc của em, CHỈ khi nó khác lớp của phiên — tức em thi bù.
+   * Lớp gốc của em, CHỈ khi nó khác lớp của phiên - tức em thi bù.
    * `undefined` với sinh viên của chính lớp này.
    *
    * Tên chứ không phải cờ boolean: biết "thi bù" mà không biết "từ lớp
@@ -34,7 +34,7 @@ export interface SubmissionRowStudent {
       /** Tên file đã render cho đúng sinh viên. Thiếu thì UI dùng mẫu trên cột. */
       filename?: string | null;
       /**
-       * Kết quả kiểm nội dung file nén — trực giao với `state`, không thay
+       * Kết quả kiểm nội dung file nén - trực giao với `state`, không thay
        * thế nó (spec §8.3: `collected` vẫn nghĩa "đã đi hết đường thu bài",
        * bên trong thiếu gì là câu hỏi khác). `undefined` khi nguồn dữ liệu
        * chưa mang trường này (test cũ dựng `SubmissionRowStudent` tay).
@@ -53,7 +53,7 @@ export interface DeliverableColumn {
 
 /**
  * One row per student, from the union of who attended and who submitted
- * something — a student who joined but submitted nothing still needs a row
+ * something - a student who joined but submitted nothing still needs a row
  * (all "Chưa nộp"), and a submission from someone with no attendance record
  * still needs one too.
  */
@@ -90,13 +90,13 @@ export function buildSubmissionRows(
     const row = ensure(item.studentMssv, item.studentNameInput || item.studentMssv);
 
     // THI BÙ: lớp gốc của bài khác lớp của phiên. Đọc từ chính bài nộp
-    // chứ không từ nhóm `makeup` của sảnh thi — nhóm đó chỉ gồm người
+    // chứ không từ nhóm `makeup` của sảnh thi - nhóm đó chỉ gồm người
     // ĐANG kết nối, nên một em thi bù đã nộp rồi tắt máy sẽ rơi khỏi nó.
     if (isMakeupSubmission(item.homeClassId, attendance?.classId ?? null)) {
       row.makeupFromClass = item.homeClassName ?? item.homeClassId;
     }
     // `received`/`validated` tồn tại vài mili giây trong một transaction
-    // phía server — không phải thứ giảng viên hành động được, nên không
+    // phía server - không phải thứ giảng viên hành động được, nên không
     // hiện. `not_submitted` cũng không: nó rơi về "Chưa nộp", đúng bằng
     // cái mà sự vắng mặt của một dòng từng có nghĩa.
     //
@@ -134,14 +134,14 @@ export function countFullySubmitted(
 }
 
 /**
- * Bao nhiêu máy "Thu lại" sẽ nhắm tới — đã dự thi mà chưa nộp đủ.
+ * Bao nhiêu máy "Thu lại" sẽ nhắm tới - đã dự thi mà chưa nộp đủ.
  *
  * Phản chiếu `RecollectService.findMissing` (apps/api). Hai chỗ, một
  * định nghĩa, và đó là một đánh đổi có ý thức: con số trên nút phải tự
  * cập nhật theo sự kiện socket mà không polling (spec §7.1), nên nó phải
  * tính được từ dữ liệu trang đã có. Chúng có thể lệch nhau trong vài
  * giây giữa hai lần đồng bộ, và điều đó chấp nhận được vì con số sau khi
- * bấm — `RecollectResult.missing` — mới là con số có thẩm quyền.
+ * bấm - `RecollectResult.missing` - mới là con số có thẩm quyền.
  *
  * `attended` phải chỉ gồm người CÓ mặt: `rows` là hợp của roster và
  * người đã nộp, nên nó cũng chứa cả em vắng thi. Gửi lệnh thu lại cho

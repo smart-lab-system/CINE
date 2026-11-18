@@ -75,7 +75,7 @@ function NewExamBankInner() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Tạo đề nháp"
-        description="Lưu đề vào kho môn — chưa gắn phiên thi. Có thể tải Word theo mẫu FORMAT-DE-THI rồi kiểm tra trước khi lưu."
+        description="Lưu đề vào kho môn - chưa gắn phiên thi. Có thể tải Word theo mẫu FORMAT-DE-THI rồi kiểm tra trước khi lưu."
         actions={
           <div className="flex flex-wrap gap-2">
             <ExamBankUploadDocxButton
@@ -125,7 +125,7 @@ function NewExamBankInner() {
       <ExamBankForm
         key={formKey}
         courseName={course.name}
-        courseLabel={`${course.code} — ${course.name}`}
+        courseLabel={`${course.code} - ${course.name}`}
         submitLabel="Lưu nháp"
         busy={mutations.create.isPending}
         error={error}

@@ -5,11 +5,11 @@ import { formatVnPoints } from '@/lib/format';
 import { SOURCE_LABEL } from '@/lib/grading-vocab';
 import type { ConfidenceTerm } from '@/lib/api/grading';
 
-/** Sai số cho phép khi so trung bình tính lại với giá trị đã lưu — cùng ngưỡng với `AUTO_THETA_EPSILON` ở backend. */
+/** Sai số cho phép khi so trung bình tính lại với giá trị đã lưu - cùng ngưỡng với `AUTO_THETA_EPSILON` ở backend. */
 const EPSILON = 1e-9;
 
 /**
- * Trung bình có trọng số theo mức trừ — đúng công thức `caseConfidence` ở backend (§4.2). Không có lỗi có giá thì null.
+ * Trung bình có trọng số theo mức trừ - đúng công thức `caseConfidence` ở backend (§4.2). Không có lỗi có giá thì null.
  */
 export function weightedConfidence(terms: ConfidenceTerm[]): number | null {
   const weight = terms.reduce((sum, t) => sum + t.deductionHundredths, 0);

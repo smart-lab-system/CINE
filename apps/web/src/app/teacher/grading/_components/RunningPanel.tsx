@@ -14,7 +14,7 @@ import type { GradingProgress, GradingResult } from '@/lib/api/grading';
  *
  * Số liệu lấy từ `grading-progress` (đếm `grading_result` của CHÍNH phiên này, nên đúng cả khi Redis mất). Bài
  * dừng vì lỗi hệ thống KHÔNG được đếm vào "đã có kết quả" (T-UI-13): nó chưa có điểm. `queue` là hàng đợi toàn
- * hệ thống, nên "đang chạy" và "chờ lượt" của riêng phiên không suy ra được — thanh chỉ có ba phần thật.
+ * hệ thống, nên "đang chạy" và "chờ lượt" của riêng phiên không suy ra được - thanh chỉ có ba phần thật.
  *
  * Luật chung cho các băng: mỗi băng nói CÁI GÌ HỎNG (máy bạn · máy chủ · hàng đợi) và BÀI LÀM CÓ BỊ ẢNH HƯỞNG
  * KHÔNG. Không băng nào chỉ ghi "đã xảy ra lỗi". Cái API chưa nói được (bài nào đang chạy công cụ gì) mang nhãn
@@ -40,7 +40,7 @@ export function RunningPanel({
   results: GradingResult[];
   online: boolean;
   onRegradeStuck: () => void;
-  /** Phiên đang chấm — để nút chấm lại biết chấm lại ở đâu. */
+  /** Phiên đang chấm - để nút chấm lại biết chấm lại ở đâu. */
   sessionId: string;
   regrade: {
     isPending: boolean;
@@ -53,7 +53,7 @@ export function RunningPanel({
   useEffect(() => {
     if (!progress) return;
     setSamples((prev) => addSample(prev, { t: Date.now(), done: progress.done }));
-    // Mỗi lần ĐỌC được thêm một mẫu, kể cả khi số không đổi — không có nó thì không đo được khoảng thời gian.
+    // Mỗi lần ĐỌC được thêm một mẫu, kể cả khi số không đổi - không có nó thì không đo được khoảng thời gian.
   }, [progress?.done, lastReadAt]);
 
   if (!progress) {
@@ -91,7 +91,7 @@ export function RunningPanel({
           <AlertDescription>
             <span className="block font-semibold">Máy bạn đang mất mạng.</span>
             <span className="block">
-              Việc chấm vẫn chạy trên máy chủ — không bài nào bị ảnh hưởng. Trang sẽ tự cập nhật khi có mạng lại.
+              Việc chấm vẫn chạy trên máy chủ - không bài nào bị ảnh hưởng. Trang sẽ tự cập nhật khi có mạng lại.
             </span>
             {lastRead && <span className="block text-caption">Số liệu dưới đây đọc lần cuối lúc {lastRead}.</span>}
           </AlertDescription>
@@ -119,7 +119,7 @@ export function RunningPanel({
         <Alert variant="warning">
           <AlertDescription className="flex flex-col gap-2">
             <span>
-              <strong>{stuckCount} bài không còn ai chấm</strong> — hàng đợi không còn việc nào cho chúng.
+              <strong>{stuckCount} bài không còn ai chấm</strong> - hàng đợi không còn việc nào cho chúng.
               {stall !== null && <> Tiến độ đã đứng yên {describeStall(stall)}.</>}
             </span>
             <span className="flex flex-wrap items-center gap-3">
@@ -168,7 +168,7 @@ export function RunningPanel({
         </ul>
         <p className="text-caption text-muted-foreground">{describeRate(estimate(samples, progress.pending))}</p>
         <p className="text-caption text-muted-foreground">
-          Bài đã có kết quả mở được ngay trong danh sách bên dưới — không phải đợi hết lượt.
+          Bài đã có kết quả mở được ngay trong danh sách bên dưới - không phải đợi hết lượt.
         </p>
       </div>
 
@@ -186,7 +186,7 @@ export function RunningPanel({
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-4">
           <p className="flex-1 text-small text-muted-foreground">
             {stopped} bài đã dừng. Bài dừng vì lỗi hệ thống chưa có điểm nào
-            {systemStopped > 0 ? ` — ${systemStopped} bài trong số đó chấm lại được.` : '.'}
+            {systemStopped > 0 ? ` - ${systemStopped} bài trong số đó chấm lại được.` : '.'}
           </p>
           {systemStopped > 0 && (
             <RegradeButton

@@ -89,7 +89,7 @@ describe('ExportWizard', () => {
     expect(JSON.parse(screen.getByTestId('choice').textContent!).sheetName).toBe('');
   });
 
-  it('a choice is merged into the state and carried to step 3 as the request base — with the file name', () => {
+  it('a choice is merged into the state and carried to step 3 as the request base - with the file name', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'stub-upload' }));
     fireEvent.click(screen.getByRole('button', { name: 'stub-choose' }));

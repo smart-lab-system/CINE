@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ACCOUNT_ROLE_LABELS, ACCOUNT_ROLE_OPTIONS } from '@/lib/account-roles';
 
 // Email isn't editable here, matching the previous form's scope (username
-// wasn't editable either) — keep the edit surface small.
+// wasn't editable either) - keep the edit surface small.
 const editAccountFormSchema = z.object({
   name: z.string().min(1, 'Vui lòng nhập họ tên').max(150),
   role: z.enum(ACCOUNT_ROLE_OPTIONS),
@@ -71,7 +71,7 @@ export function EditAccountForm({
         />
       </FormField>
 
-      {/* Safe option on the left, committing action on the right — the
+      {/* Safe option on the left, committing action on the right - the
           conventional order, and the one the DOM follows too, so tabbing
           reaches "Hủy" before "Lưu thay đổi" rather than landing on the
           destructive-by-accident choice first. */}

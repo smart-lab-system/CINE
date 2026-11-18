@@ -23,7 +23,7 @@ function format(n: number): string {
  * rewinds it to 0 once it's running, so there's no flash of "0" on load
  * and the number is correct with JS disabled. Under reduced motion the
  * matchMedia handler never runs, so the server-rendered value simply
- * stands — no tween is created and there is nothing to interrupt.
+ * stands - no tween is created and there is nothing to interrupt.
  *
  * Only textContent is written per frame; nothing layout-affecting is
  * animated. The tween drives a plain object, not the DOM, so this is safe
@@ -41,7 +41,7 @@ export function CountUp({ value, className }: CountUpProps) {
       // before creating a tween that would paint "NaN" sixty times a
       // second.
       if (!Number.isFinite(value)) {
-        el.textContent = '—';
+        el.textContent = '-';
         return;
       }
 
@@ -64,7 +64,7 @@ export function CountUp({ value, className }: CountUpProps) {
         });
 
         // matchMedia reverts the tween itself when the query stops
-        // matching, but the tween wrote to textContent — which GSAP has no
+        // matching, but the tween wrote to textContent - which GSAP has no
         // record of and cannot restore. Put the true value back by hand so
         // switching on "reduce motion" mid-count can't freeze a partial
         // number on screen.
@@ -80,7 +80,7 @@ export function CountUp({ value, className }: CountUpProps) {
 
   return (
     <span ref={ref} className={className}>
-      {Number.isFinite(value) ? format(value) : '—'}
+      {Number.isFinite(value) ? format(value) : '-'}
     </span>
   );
 }

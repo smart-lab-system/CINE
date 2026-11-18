@@ -100,7 +100,7 @@ describe('SessionList', () => {
     search = 'q=khong-co-phien-nay';
     renderList();
     expect(screen.getByText(/Không có phiên nào khớp/)).toBeInTheDocument();
-    // Hai nút cùng tên: một trên thanh lọc, một ở trạng thái rỗng — cả hai xoá mọi bộ lọc.
+    // Hai nút cùng tên: một trên thanh lọc, một ở trạng thái rỗng - cả hai xoá mọi bộ lọc.
     fireEvent.click(screen.getAllByRole('button', { name: /Xoá bộ lọc/ })[0]);
     expect(replace).toHaveBeenCalledWith('/teacher/grading', { scroll: false });
   });
@@ -142,7 +142,7 @@ describe('SessionList', () => {
   });
 
   it('selection: only rows that are still visible count (narrowing a filter drops the hidden ones)', () => {
-    // `useSearchParams` được mock cố định, nên cho `replace` cập nhật nó rồi render lại — như Next làm.
+    // `useSearchParams` được mock cố định, nên cho `replace` cập nhật nó rồi render lại - như Next làm.
     replace.mockImplementation((url: string) => {
       search = url.split('?')[1] ?? '';
     });
@@ -163,7 +163,7 @@ vi.mock('./BulkDialog', () => ({
   ),
 }));
 
-describe('SessionList — bulk bar', () => {
+describe('SessionList - bulk bar', () => {
   const pick = (name: RegExp) => fireEvent.click(screen.getByRole('checkbox', { name }));
 
   it('offers "Bắt đầu chấm" for sessions that are not graded and have rubric + question, counted', () => {
@@ -217,7 +217,7 @@ describe('SessionList — bulk bar', () => {
   });
 });
 
-describe('SessionList — review fixes', () => {
+describe('SessionList - review fixes', () => {
   it('I1: a status from the URL while the summary is still loading hides nothing', () => {
     search = 'status=attention';
     h.summaries = { data: undefined, isLoading: true, isError: false, error: null };

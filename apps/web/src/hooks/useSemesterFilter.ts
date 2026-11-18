@@ -15,7 +15,7 @@ export interface SemesterFilterState {
  * `start_date`/`end_date` của bảng `semester`, rồi gieo nó làm giá trị mặc
  * định của bộ lọc. Đợt thu hẹp master data bỏ bảng đó. Học kỳ giờ là một
  * chuỗi giảng viên gõ vào lúc tạo phiên thi, và một chuỗi thì **không có
- * ngày tháng** — nên câu hỏi "hôm nay là kỳ nào" không còn trả lời được, và
+ * ngày tháng** - nên câu hỏi "hôm nay là kỳ nào" không còn trả lời được, và
  * banner "kỳ mặc định đã quá hạn" không còn tính được.
  *
  * Thay bằng thứ trung thực hơn: MẶC ĐỊNH LÀ TẤT CẢ, và danh sách lựa chọn
@@ -49,7 +49,7 @@ export function useSemesterFilter(scopeKey: string): SemesterFilterState {
  * bảng nào để liệt kê, và "những kỳ giảng viên này đã dùng" chính xác là
  * tập hợp mà bộ lọc cần nói tới.
  *
- * Sắp giảm dần để kỳ gần nhất đứng đầu — với cách đặt tên thông thường
+ * Sắp giảm dần để kỳ gần nhất đứng đầu - với cách đặt tên thông thường
  * ("HK1 2026-2027") thì sắp chuỗi giảm dần cũng là sắp theo thời gian.
  * Không phải lúc nào cũng đúng, và đó là cái giá của việc bỏ cột ngày.
  */

@@ -11,7 +11,7 @@ import {
 interface SemesterFilterProps {
   value: string | null;
   onChange: (value: string | null) => void;
-  /** Các học kỳ có thật trong dữ liệu trang đang xem — xem `semesterOptions`. */
+  /** Các học kỳ có thật trong dữ liệu trang đang xem - xem `semesterOptions`. */
   semesters: string[];
 }
 
@@ -20,11 +20,11 @@ interface SemesterFilterProps {
  *
  * "Tất cả học kỳ" luôn có mặt, và từ đợt thu hẹp master data nó cũng là MẶC
  * ĐỊNH: học kỳ không còn là một hàng có ngày bắt đầu và ngày kết thúc, nên
- * không có cách nào tính ra "kỳ hợp lý nhất hôm nay" để chọn sẵn — và cảnh
+ * không có cách nào tính ra "kỳ hợp lý nhất hôm nay" để chọn sẵn - và cảnh
  * báo "kỳ mặc định đã kết thúc N ngày trước" cũng mất luôn cơ sở để tính.
  *
  * Bộ lọc này chỉ hẹp tầm nhìn, không bao giờ chặn thao tác nào (CLAUDE.md
- * §1.2) — nên không cần trạng thái disabled hay xác nhận gì.
+ * §1.2) - nên không cần trạng thái disabled hay xác nhận gì.
  */
 export function SemesterFilter({ value, onChange, semesters }: SemesterFilterProps) {
   return (

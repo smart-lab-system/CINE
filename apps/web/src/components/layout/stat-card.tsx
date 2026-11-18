@@ -11,13 +11,13 @@ interface StatCardProps {
   variant?: 'accent' | 'primary' | 'success' | 'warning' | 'info';
   /**
    * One muted line under the number saying what it counts or why it's
-   * empty. Deliberately not a fabricated trend ("+3 so với tuần trước") —
+   * empty. Deliberately not a fabricated trend ("+3 so với tuần trước") -
    * there is no historical data behind these numbers yet, and a made-up
    * delta on a dashboard is a number someone will eventually quote in a
    * meeting.
    */
   hint?: string;
-  /** The query behind `value` failed — shown distinctly from "—" (no data
+  /** The query behind `value` failed - shown distinctly from "-" (no data
    * source wired up yet) so a real outage isn't silently indistinguishable
    * from an intentional placeholder. */
   isError?: boolean;
@@ -33,17 +33,17 @@ const VARIANT_CLASSES: Record<NonNullable<StatCardProps['variant']>, string> = {
 
 /**
  * Dashboard stat tile: small-caps label, an oversized figure, and a tinted
- * icon chip in the corner. The hierarchy is the point — before the
+ * icon chip in the corner. The hierarchy is the point - before the
  * redesign every element on this card was the same size and colour, so the
  * number it exists to communicate had to be hunted for.
  *
  * `value === null` renders a loading skeleton (a fetch in flight);
- * `value === undefined` isn't a valid state — callers pass a literal
- * placeholder string (e.g. "—") for "no data source yet", so a genuinely
+ * `value === undefined` isn't a valid state - callers pass a literal
+ * placeholder string (e.g. "-") for "no data source yet", so a genuinely
  * loading card is never mistaken for one with nothing to show.
  *
  * A numeric value counts up on arrival; a string is printed as-is (there's
- * nothing to count towards in "—").
+ * nothing to count towards in "-").
  */
 export function StatCard({
   icon: Icon,

@@ -3,7 +3,7 @@
  * putting one back.
  *
  * Reconnect splits into two cases that look alike and are not. A network
- * blip with the machine intact is ALREADY handled — `createSubmissionFiles`
+ * blip with the machine intact is ALREADY handled - `createSubmissionFiles`
  * (workspace-files.ts) creates files with the `wx` flag, so an agent that
  * comes back never truncates work that is already there. The case this file
  * exists for is the other
@@ -23,7 +23,7 @@ import * as path from 'node:path';
  *
  * The design names the first four. The rest are the same thing in other
  * ecosystems, and the point of the list is not to be exhaustive but to stop
- * a dependency tree being uploaded from forty machines every four minutes —
+ * a dependency tree being uploaded from forty machines every four minutes -
  * the difference between a snapshot that finishes and one that does not.
  */
 export const IGNORED_DIRECTORIES = new Set([
@@ -42,7 +42,7 @@ export const IGNORED_DIRECTORIES = new Set([
 ]);
 
 /**
- * Extensions a submission could plausibly be — documents, code, data and
+ * Extensions a submission could plausibly be - documents, code, data and
  * photographed answers.
  *
  * A whitelist rather than a blocklist, following the same stance the rest of
@@ -67,7 +67,7 @@ export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 /** And a whole snapshot is never worth more than this over a lab network. */
 export const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 
-/** Four minutes. One value, not a range — two agents must not disagree. */
+/** Four minutes. One value, not a range - two agents must not disagree. */
 export const SNAPSHOT_INTERVAL_MS = 4 * 60_000;
 
 export interface SnapshotFile {
@@ -143,7 +143,7 @@ export function collectSnapshotFiles(workspaceDir: string): SnapshotFile[] {
  * The archive was written by this agent, but it comes back through storage,
  * and an entry that climbs out of its own directory is the oldest trick
  * there is. Resolving and then checking containment catches every spelling
- * of it — `../`, an absolute path, or a `..` buried mid-path — rather than
+ * of it - `../`, an absolute path, or a `..` buried mid-path - rather than
  * trying to enumerate them.
  */
 export function resolveWithinWorkspace(
@@ -171,7 +171,7 @@ export function resolveWithinWorkspace(
  * The rule is content-based, and that is the whole point. "Restore what is
  * missing" reads as the obvious rule and never fires: the agent creates
  * every required file as part of joining, so by the time a restore is
- * considered the files always exist — on a wiped machine they exist and are
+ * considered the files always exist - on a wiped machine they exist and are
  * EMPTY. The one case the backup was built for would have been the one case
  * it skipped.
  *

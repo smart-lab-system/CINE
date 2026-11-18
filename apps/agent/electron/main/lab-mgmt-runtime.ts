@@ -1,6 +1,6 @@
 /**
  * Lifecycle Teacher Hub / Student Node trong main process.
- * Token JWT chỉ giữ ở đây — không đưa xuống renderer.
+ * Token JWT chỉ giữ ở đây - không đưa xuống renderer.
  */
 
 import type { BrowserWindow } from 'electron';
@@ -117,7 +117,7 @@ export class LabMgmtRuntime {
       };
     } catch {
       return this.resolveMachineRoleFromCache(
-        'Không kết nối được máy chủ — dùng vai trò máy đã lưu trên máy này.',
+        'Không kết nối được máy chủ - dùng vai trò máy đã lưu trên máy này.',
       );
     }
   }
@@ -135,7 +135,7 @@ export class LabMgmtRuntime {
       return {
         ok: false,
         error:
-          `${offlineHint} Chưa có bản ghi vai trò máy local — cần online ít nhất một lần khi máy đã có trong catalog.`,
+          `${offlineHint} Chưa có bản ghi vai trò máy local - cần online ít nhất một lần khi máy đã có trong catalog.`,
       };
     }
     if (cached.roomId) this.verifiedTeacherRoomId = cached.roomId;
@@ -186,7 +186,7 @@ export class LabMgmtRuntime {
         return {
           ok: false,
           error:
-            'Cổng Hub đã bị chiếm — có thể máy giảng viên khác đang chạy trên LAN này. Chỉ một Hub mỗi phòng.',
+            'Cổng Hub đã bị chiếm - có thể máy giảng viên khác đang chạy trên LAN này. Chỉ một Hub mỗi phòng.',
         };
       }
       return { ok: false, error: `Không khởi động được Hub: ${msg}` };
@@ -490,7 +490,7 @@ export class LabMgmtRuntime {
     return { ok: true, mssv: student.mssv, fullName: student.fullName };
   }
 
-  /** Rời màn hình đăng nhập/hub — giữ LAN Hub/Node. */
+  /** Rời màn hình đăng nhập/hub - giữ LAN Hub/Node. */
   async leaveSession(): Promise<void> {
     this.pendingTeacher = null;
     this.courseId = null;
@@ -560,7 +560,7 @@ export class LabMgmtRuntime {
     if (this.lastComparisons.length === 0) {
       return {
         ok: false,
-        error: 'Chưa đối chiếu — bấm «Đối chiếu allowlist» trước.',
+        error: 'Chưa đối chiếu - bấm «Đối chiếu allowlist» trước.',
         entries: [],
       };
     }
@@ -600,7 +600,7 @@ export class LabMgmtRuntime {
         if (!this.courseId && !body.courseId) {
           warning =
             warning ??
-            'Chưa chọn môn — chỉ áp dụng allowlist toàn trường (global).';
+            'Chưa chọn môn - chỉ áp dụng allowlist toàn trường (global).';
         }
       } else {
         warning = `Không tải được allowlist (HTTP ${res.status}).`;
@@ -624,7 +624,7 @@ export class LabMgmtRuntime {
       return { ok: false, error: 'Hub chưa chạy.' };
     }
     if (this.lastComparisons.length === 0) {
-      return { ok: false, error: 'Chưa đối chiếu — bấm «Đối chiếu allowlist» trước khi đồng bộ.' };
+      return { ok: false, error: 'Chưa đối chiếu - bấm «Đối chiếu allowlist» trước khi đồng bộ.' };
     }
     const hubState = this.hub.getState();
     const token = this.hub.getAccessToken();
@@ -683,7 +683,7 @@ export class LabMgmtRuntime {
       };
     }
 
-    // Best-effort VSIX artifacts — never fails the scan sync above.
+    // Best-effort VSIX artifacts - never fails the scan sync above.
     const artifact = await this.syncVsixArtifacts(authHeaders);
     return { ok: true, artifact };
   }

@@ -5,7 +5,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   /**
    * Turns the border red and marks the field for assistive tech. The error
    * *message* stays with the caller (it belongs next to the label, in the
-   * caller's own copy) — this only handles the field's own appearance and
+   * caller's own copy) - this only handles the field's own appearance and
    * `aria-invalid`, so the two can never disagree.
    */
   invalid?: boolean;
@@ -16,7 +16,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
  * declares once for every focusable element and tightens to zero offset
  * for text fields so the two cues read as one halo rather than two.
  *
- * An invalid field switches both to red — colour alone never carries the
+ * An invalid field switches both to red - colour alone never carries the
  * message (FormField prints an iconed error underneath), but the field
  * itself should still look wrong while you're standing in it.
  */

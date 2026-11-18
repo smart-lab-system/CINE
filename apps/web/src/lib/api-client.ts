@@ -11,7 +11,7 @@ import { getAccessToken, peekAccessToken, setAccessToken } from './auth-token';
  * định "cả hai app dùng chung top-level domain trong production". Giả định đó
  * sụp khi frontend lên Vercel còn API lên Railway: cookie thuộc về host đã ĐẶT
  * nó, nên cookie của origin frontend không bao giờ tới được API ở domain khác
- * — và không có giá trị `SameSite` nào đổi được điều đó.
+ * - và không có giá trị `SameSite` nào đổi được điều đó.
  *
  * `JwtStrategy` phía Nest vốn đã chấp nhận Bearer làm nguồn thứ hai sau
  * cookie, nên backend không phải đổi gì cho REST.
@@ -29,7 +29,7 @@ function withBearer(headers: Headers, token: string): Headers {
 // A Request's body can be read exactly ONCE, and openapi-fetch's own
 // outgoing `fetch(request, requestInitExt)` consumes it while sending the
 // first attempt. By the time a 401 comes back there is nothing left to
-// replay — so the clone has to be taken HERE, before that first send ever
+// replay - so the clone has to be taken HERE, before that first send ever
 // goes out, not in onResponse where it is already too late.
 //
 // Keyed by the Request object openapi-fetch carries from onRequest through
@@ -63,7 +63,7 @@ let refreshInFlight: Promise<boolean> | null = null;
 /**
  * Đổi refresh token lấy cặp mới, trả `false` khi refresh token cũng đã chết.
  *
- * Gọi `/api/auth/refresh` — một Route Handler CÙNG ORIGIN với trang, nên
+ * Gọi `/api/auth/refresh` - một Route Handler CÙNG ORIGIN với trang, nên
  * cookie httpOnly `refresh_token` tới được nó. Đây là lý do refresh token
  * không cần nằm trong JS: chỉ có access token mới phải vượt biên sang domain
  * của API.
@@ -72,7 +72,7 @@ let refreshInFlight: Promise<boolean> | null = null;
  * when a lobby tab discovers the expired token through an XHR 401 and through
  * a socket UNAUTHORIZED in the same instant, two independent calls would each
  * rotate the refresh token, and the second rotation would invalidate the pair
- * the first just wrote into the cookie jar — logging the teacher out for real
+ * the first just wrote into the cookie jar - logging the teacher out for real
  * while trying to keep them signed in.
  */
 export function refreshSession(): Promise<boolean> {
@@ -105,7 +105,7 @@ export function refreshSession(): Promise<boolean> {
 }
 
 // Silently refreshes and retries once on a 401, instead of leaving every
-// caller to notice the token expired on its own — which nothing in this
+// caller to notice the token expired on its own - which nothing in this
 // app actually did (confirmed: `throwIfFailed()`-style helpers just throw
 // a generic Error on any non-2xx, with no redirect-to-login or retry
 // anywhere), so a session simply broke after ACCESS_TOKEN_TTL with no
@@ -113,7 +113,7 @@ export function refreshSession(): Promise<boolean> {
 // giữa chừng".
 //
 // Never loops: the retried request goes through a bare `fetch`, not back
-// through `apiClient` — so even if the retry itself 401s again (refresh
+// through `apiClient` - so even if the retry itself 401s again (refresh
 // token also expired, account deleted mid-session), there is no second
 // pass through this middleware to recurse into. That second 401 surfaces
 // to the caller exactly as an unrecovered one always has.
@@ -123,7 +123,7 @@ apiClient.use({
       return undefined;
     }
     // Never true today (login/refresh are never called through this
-    // client — see api/auth/*/route.ts), kept as a guard so this can't
+    // client - see api/auth/*/route.ts), kept as a guard so this can't
     // start recursing if that ever changes.
     if (request.url.includes('/auth/login') || request.url.includes('/auth/refresh')) {
       return undefined;
@@ -131,7 +131,7 @@ apiClient.use({
 
     const refreshed = await refreshSession();
     if (!refreshed) {
-      // Nothing else can be done client-side — the refresh token itself
+      // Nothing else can be done client-side - the refresh token itself
       // is gone too. The original 401 is the honest answer here.
       return undefined;
     }
@@ -146,7 +146,7 @@ apiClient.use({
       return undefined;
     }
 
-    // Bản clone mang header Authorization của token CŨ — chính cái vừa bị từ
+    // Bản clone mang header Authorization của token CŨ - chính cái vừa bị từ
     // chối. Gửi lại nguyên xi là 401 lần hai một cách chắc chắn. Dựng lại
     // header bằng token mà refreshSession() vừa ghi.
     //

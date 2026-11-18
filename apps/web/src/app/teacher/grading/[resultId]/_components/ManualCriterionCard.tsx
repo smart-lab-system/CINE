@@ -5,15 +5,15 @@ import type { ReviewCriterion } from '@/lib/api/grading';
 
 /**
  * Một tiêu chí khi AI KHÔNG chấm được bài (xem `ungradableReason` ở
- * `page.tsx`) — khác `CriterionCard` ở chỗ không có gì của AI để hiện:
+ * `page.tsx`) - khác `CriterionCard` ở chỗ không có gì của AI để hiện:
  * không verdict, không trích dẫn, không độ tin cậy. Hiện những thứ đó
  * bằng dữ liệu bịa (`verdict: 'not_met'` mặc định của bản nháp ban đầu)
- * sẽ là đúng loại lời nói dối mà `ungradableReason` sinh ra để chặn —
+ * sẽ là đúng loại lời nói dối mà `ungradableReason` sinh ra để chặn -
  * một phán đoán TRÔNG NHƯ của AI mà AI chưa từng đưa ra.
  *
  * KHÔNG có `AdvocatePanel`: ý kiến phản biện chỉ sinh ra SAU khi Grader
  * chấm xong (`runAdvocate` ở `grading.service.ts` được gọi sau bước
- * chấm điểm) — nó không bao giờ chạy cho một bài AI chấm hỏng ngay từ
+ * chấm điểm) - nó không bao giờ chạy cho một bài AI chấm hỏng ngay từ
  * bước đầu. Hiện panel ở đây chỉ là "không có ý kiến" vẽ lại nhiều lần,
  * không mang thêm thông tin.
  */

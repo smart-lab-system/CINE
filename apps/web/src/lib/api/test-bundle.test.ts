@@ -16,7 +16,7 @@ beforeEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('lib/api/test-bundle — tạo phiên bản (G2b-R)', () => {
+describe('lib/api/test-bundle - tạo phiên bản (G2b-R)', () => {
   // Phiên bản dẫn xuất gửi kèm gói gốc để server kế thừa origin; phiên bản tạo tay thì không gửi trường đó.
   it('createTestBundle gửi derivedFromBundleId khi có gói gốc, và trả số phiên bản mà SERVER đã cấp', async () => {
     h.POST.mockResolvedValue(ok({ id: 'b9', version: 4 }));
@@ -35,7 +35,7 @@ describe('lib/api/test-bundle — tạo phiên bản (G2b-R)', () => {
   });
 });
 
-describe('lib/api/test-bundle — chạy thử và sinh gói (G2b-R)', () => {
+describe('lib/api/test-bundle - chạy thử và sinh gói (G2b-R)', () => {
   it('chạy thử cả gói: POST .../{bundleId}/runs với body rỗng; một ca thì kèm caseKey', async () => {
     const result = { runId: 'r1', status: 'pass', cases: [{ name: 'ca1', status: 'pass', ms: 3, diff: null }] };
     h.POST.mockResolvedValue(ok(result));
@@ -65,7 +65,7 @@ describe('lib/api/test-bundle — chạy thử và sinh gói (G2b-R)', () => {
   });
 
   it('lỗi máy chủ giữ nguyên thông điệp, mã trạng thái và thân lỗi (409 chưa có mã, 422 kèm chi tiết)', async () => {
-    h.POST.mockResolvedValue(bad(409, { message: 'Chưa có mã đáp án để sinh gói test — hãy tải mã đáp án lên trước.' }));
+    h.POST.mockResolvedValue(bad(409, { message: 'Chưa có mã đáp án để sinh gói test - hãy tải mã đáp án lên trước.' }));
     const conflict = await generateTestBundle('s1', 'answer').catch((e: unknown) => e);
     expect(conflict).toBeInstanceOf(ApiStatusError);
     expect(conflict).toMatchObject({ status: 409, message: expect.stringContaining('mã đáp án') });
@@ -84,7 +84,7 @@ describe('lib/api/test-bundle — chạy thử và sinh gói (G2b-R)', () => {
   });
 });
 
-describe('lib/api/grading — tải mã đáp án (G2b-R Task 2, phía FE)', () => {
+describe('lib/api/grading - tải mã đáp án (G2b-R Task 2, phía FE)', () => {
   it('xin URL tải: POST .../answer-source/upload-url kèm đuôi file', async () => {
     h.POST.mockResolvedValue(ok({ storageKey: 'grading-reference/s1/pending-x.cpp', uploadUrl: 'https://kho/put', expiresIn: 300 }));
 

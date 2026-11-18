@@ -44,7 +44,7 @@ export default function ExamBankPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Kho đề"
-        description="Đề thi thuộc môn học — dùng chung giữa các giảng viên được phân công dạy môn đó. Đề chưa gắn phiên thi có thể xóa."
+        description="Đề thi thuộc môn học - dùng chung giữa các giảng viên được phân công dạy môn đó. Đề chưa gắn phiên thi có thể xóa."
         actions={
           effectiveCourseId ? (
             <Button asChild>
@@ -85,7 +85,7 @@ export default function ExamBankPage() {
               <SelectContent>
                 {courseList.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.code} — {c.name}
+                    {c.code} - {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>

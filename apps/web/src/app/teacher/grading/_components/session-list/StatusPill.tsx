@@ -12,7 +12,7 @@ export const STATUS_PILL: Record<ListStatus, { variant: 'warning' | 'success' | 
 };
 
 export function StatusPill({ status }: { status: ListStatus | null }) {
-  if (status === null) return <span className="text-caption text-muted-foreground">—</span>;
+  if (status === null) return <span className="text-caption text-muted-foreground">-</span>;
   const { variant, Icon } = STATUS_PILL[status];
   return (
     <Badge variant={variant}>

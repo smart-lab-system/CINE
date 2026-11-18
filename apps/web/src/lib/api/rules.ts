@@ -2,7 +2,7 @@ import { apiClient } from '@/lib/api-client';
 import { apiFailure } from './error';
 
 /**
- * Bốn mẫu điều kiện có sẵn, hoặc `null` (AI đọc bài) — mirrors `RulePredicate`
+ * Bốn mẫu điều kiện có sẵn, hoặc `null` (AI đọc bài) - mirrors `RulePredicate`
  * (apps/api/src/grading/decision/types.ts). Giao diện chỉ TẠO mẫu `test_group_failed`; ba mẫu còn lại chỉ còn ở
  * lỗi cũ (spec D9) và được hiện như "AI đọc bài" kèm ghi chú.
  */
@@ -13,7 +13,7 @@ export type RulePredicate =
   | { kind: 'no_recursion'; functionName?: string };
 
 /**
- * Kết quả tính lại mà máy chủ trả sau mỗi thao tác đổi lỗi / điểm trừ / đánh dấu — mirrors `RecomputeSummary`
+ * Kết quả tính lại mà máy chủ trả sau mỗi thao tác đổi lỗi / điểm trừ / đánh dấu - mirrors `RecomputeSummary`
  * (apps/api/src/grading/scoring/score.service.ts). Luôn đọc lại bằng lời cho giảng viên (`describeRecompute`).
  */
 export interface RecomputeSummary {
@@ -36,7 +36,7 @@ export interface ErrorChanges {
   predicate?: RulePredicate | null;
 }
 
-/** Một lỗi trong THƯ VIỆN — mirrors LibraryRule (apps/api/src/grading/rules/error-rule.service.ts). */
+/** Một lỗi trong THƯ VIỆN - mirrors LibraryRule (apps/api/src/grading/rules/error-rule.service.ts). */
 export interface LibraryRule {
   id: string;
   ruleKey: string;
@@ -46,14 +46,14 @@ export interface LibraryRule {
   uses: { rubricName: string; criterionKey: string; deduction: string | null }[];
 }
 
-/** Lỗi AI đề xuất kèm nơi thấy — mirrors ProposalItem (apps/api/src/grading/rules/proposal.service.ts). */
+/** Lỗi AI đề xuất kèm nơi thấy - mirrors ProposalItem (apps/api/src/grading/rules/proposal.service.ts). */
 export interface ProposalItem {
   id: string;
   ruleKey: string;
   name: string;
   description: string;
   sightings: { sessions: { id: string; name: string }[]; results: number };
-  /** Báo trước khi có bảng ghi nhận nơi thấy — không biết thấy ở đâu nên hiện ở mọi rubric. */
+  /** Báo trước khi có bảng ghi nhận nơi thấy - không biết thấy ở đâu nên hiện ở mọi rubric. */
   legacy: boolean;
 }
 

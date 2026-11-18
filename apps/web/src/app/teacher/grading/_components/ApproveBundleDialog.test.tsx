@@ -44,7 +44,7 @@ function setup(over: { open?: boolean } = {}) {
 
 const confirmButton = () => screen.getByRole('button', { name: 'Duyệt và ghim phiên bản 2' });
 
-describe('ApproveBundleDialog — duyệt và ghim gộp (mock-up v2, spec G2b §5)', () => {
+describe('ApproveBundleDialog - duyệt và ghim gộp (mock-up v2, spec G2b §5)', () => {
   it('nêu số ca dùng để chấm (không đếm ca hệ thống đã bỏ) và nói duyệt xong thì bài chấm dùng gói này', () => {
     setup();
     expect(screen.getByRole('dialog')).toHaveTextContent('3 ca dùng để chấm');

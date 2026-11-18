@@ -19,7 +19,7 @@ interface FinalizeSessionButtonProps {
   submitting: boolean;
   error: Error | null;
   /**
-   * Must resolve only once the finalize request has settled — the dialog
+   * Must resolve only once the finalize request has settled - the dialog
    * stays open until then so a failure is visible. Rejection is expected
    * and handled here; the reason is rendered from `error`.
    */
@@ -29,7 +29,7 @@ interface FinalizeSessionButtonProps {
 /**
  * "Chốt bài ngay" behind a confirmation.
  *
- * Finalizing cannot be undone — `active -> completed` is one-way, and every
+ * Finalizing cannot be undone - `active -> completed` is one-way, and every
  * agent in the room starts uploading the moment it lands. Doing that by
  * accident, mid-exam, with a stray click is the failure this dialog exists
  * to prevent, so the confirm button carries the consequence rather than a
@@ -91,7 +91,7 @@ export function FinalizeSessionButton({
               // Closes on success only. Closing on click instead would fire
               // the request and immediately hide the dialog the error is
               // rendered inside, so a failed finalize would look exactly
-              // like a successful one — the failure mode this button can
+              // like a successful one - the failure mode this button can
               // least afford.
               onClick={() => {
                 void onConfirm()

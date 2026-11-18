@@ -123,7 +123,7 @@ export function BundleActions({
             {result.ruler?.trust === 'verified' && (
               <span>
                 Đáp án do hệ thống viết đã chạy đúng {result.ruler.examplesChecked} ví dụ trong đề. Khớp ví dụ chưa chứng tỏ đúng với mọi
-                đầu vào — hãy đọc kỹ các ca trước khi duyệt.
+                đầu vào - hãy đọc kỹ các ca trước khi duyệt.
               </span>
             )}
             {result.ruler?.trust === 'unverified' && (
@@ -151,7 +151,7 @@ export function BundleActions({
               <ul className="flex flex-col gap-1">
                 {mismatches.map((m, i) => (
                   <li key={i} className="font-mono text-caption">
-                    Ví dụ {i + 1} — nhập: {JSON.stringify(m.input)} · Mong đợi: {JSON.stringify(m.expected)} · Nhận được: {JSON.stringify(m.actual)}
+                    Ví dụ {i + 1} - nhập: {JSON.stringify(m.input)} · Mong đợi: {JSON.stringify(m.expected)} · Nhận được: {JSON.stringify(m.actual)}
                   </li>
                 ))}
               </ul>

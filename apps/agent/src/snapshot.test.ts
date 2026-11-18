@@ -97,7 +97,7 @@ describe('resolveWithinWorkspace', () => {
 
   it('refuses a path that climbs out of the workspace', () => {
     // The archive is written by this agent, but it comes back through
-    // storage — and a zip entry that escapes its own directory is the
+    // storage - and a zip entry that escapes its own directory is the
     // oldest trick there is.
     expect(resolveWithinWorkspace(root, '../evil.txt')).toBeNull();
     expect(resolveWithinWorkspace(root, 'a/../../evil.txt')).toBeNull();
@@ -126,7 +126,7 @@ describe('shouldRestoreOver', () => {
     write(root, 'Cau1.docx', '');
 
     // THE case this exists for. A wiped machine reruns the agent, which
-    // creates every required file empty as part of joining — so by the time
+    // creates every required file empty as part of joining - so by the time
     // a restore is considered, the files are always there. A rule of
     // "restore what is missing" would never fire, and the work would be
     // lost silently.

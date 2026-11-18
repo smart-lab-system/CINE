@@ -69,14 +69,14 @@ describe('PricePopover (T-RBE-UI-4)', () => {
 
   it('lỗi chưa có điểm trừ: tiêu đề "Đặt điểm trừ", ô trống, nói hệ quả của việc để trống', () => {
     show({ item: errorItem({ deduction: null }) });
-    expect(screen.getByText('Đặt điểm trừ — Sai ca biên')).toBeInTheDocument();
+    expect(screen.getByText('Đặt điểm trừ - Sai ca biên')).toBeInTheDocument();
     expect(input().value).toBe('');
     expect(screen.getByText(/Để trống = chưa có điểm trừ/)).toBeInTheDocument();
   });
 
   it('lỗi đã có điểm trừ: tiêu đề "Sửa điểm trừ" kèm tên lỗi', () => {
     show();
-    expect(screen.getByText('Sửa điểm trừ — Sai ca biên')).toBeInTheDocument();
+    expect(screen.getByText('Sửa điểm trừ - Sai ca biên')).toBeInTheDocument();
   });
 
   it('nói rõ chỉ áp cho rubric này và các rubric khác giữ điểm trừ riêng (bị chặn trần)', () => {

@@ -30,14 +30,14 @@ import { SessionHeader } from './_components/SessionHeader';
 import { SessionList } from './_components/session-list/SessionList';
 
 /**
- * Chấm điểm — MỘT route, ba trạng thái (spec §1): chuẩn bị chấm → đang chấm → danh sách bài. Trang tự chọn màn theo
+ * Chấm điểm - MỘT route, ba trạng thái (spec §1): chuẩn bị chấm → đang chấm → danh sách bài. Trang tự chọn màn theo
  * dữ liệu, nên giảng viên không phải nhớ mình đang ở bước nào.
  *
  * Nó vẫn là màn RIÊNG, tới bằng việc chọn một phiên: thu bài và chấm điểm là hai đường nối với nhau bằng đúng một
  * thao tác tường minh của giảng viên (CLAUDE.md), nên không có nút "chấm ngay" nào ở nơi thu bài.
  */
 export default function GradingPage() {
-  // `useSearchParams` đòi ranh giới Suspense trong App Router — phần còn lại của trang không có lý do chờ gì.
+  // `useSearchParams` đòi ranh giới Suspense trong App Router - phần còn lại của trang không có lý do chờ gì.
   return (
     <Suspense>
       <GradingPageContent />
@@ -153,7 +153,7 @@ function SessionScreen({
       {results.isError && (
         <Alert variant="destructive">
           <AlertDescription>
-            Không tải được kết quả chấm mới nhất — {results.error?.message}. Bảng dưới đây (nếu có) là dữ liệu cũ, có
+            Không tải được kết quả chấm mới nhất - {results.error?.message}. Bảng dưới đây (nếu có) là dữ liệu cũ, có
             thể không còn đúng. Thử tải lại trang.
           </AlertDescription>
         </Alert>

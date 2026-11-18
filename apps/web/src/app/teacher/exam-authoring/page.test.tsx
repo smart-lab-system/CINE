@@ -50,7 +50,7 @@ function question(overrides: Record<string, unknown> = {}) {
 /**
  * Giờ bắt đầu là THAM SỐ, không phải hằng số: luật gắn đề đo thời gian chứ
  * không đọc `status` (xem `isAttachable`), nên một phiên "đang thi" mà
- * giờ bắt đầu ở ngày mai là một fixture tự mâu thuẫn — và trước đây nó làm
+ * giờ bắt đầu ở ngày mai là một fixture tự mâu thuẫn - và trước đây nó làm
  * bài test bên dưới xanh vì lý do sai.
  */
 function session(
@@ -94,7 +94,7 @@ beforeEach(() => {
   attachMock.mockResolvedValue(undefined);
   pushMock.mockReset();
   // Sonner: reset để một test kiểm "KHÔNG gọi" không thừa hưởng lượt gọi
-  // của test chạy trước nó — lỗ hổng lộ ra ngay khi test `toast.warning`
+  // của test chạy trước nó - lỗ hổng lộ ra ngay khi test `toast.warning`
   // đầu tiên kiểm `not.toHaveBeenCalled()` (chưa test nào của `success`/
   // `error` từng kiểm điều đó, nên lỗ hổng nằm im tới giờ).
   vi.mocked(toast.success).mockClear();
@@ -106,7 +106,7 @@ beforeEach(() => {
       items: [
         session('s-draft', 'Cuối kỳ N03', 'draft'),
         session('s-sched', 'Giữa kỳ N01', 'scheduled'),
-                // Đã bắt đầu một giờ trước — đã mở và đã tới giờ, nên là "Đang thi".
+                // Đã bắt đầu một giờ trước - đã mở và đã tới giờ, nên là "Đang thi".
         session('s-live', 'Kiểm tra tuần 6', 'active', -3_600_000),
       ],
       total: 3,
@@ -117,9 +117,9 @@ beforeEach(() => {
 
 const DRAFT_PROMPT = 'hai câu về cây nhị phân tìm kiếm, mức giữa kỳ';
 
-/** Đổ sẵn một bộ ba vào màn hình qua đường nháp — nhanh hơn diễn lại cả lượt
+/** Đổ sẵn một bộ ba vào màn hình qua đường nháp - nhanh hơn diễn lại cả lượt
  *  sinh. Bốn trường, không chỉ `exam`: xem doc của `ExamDraft`
- *  (`lib/exam-draft.ts`) — thiếu `prompt` là chính bug 2026-09-24. */
+ *  (`lib/exam-draft.ts`) - thiếu `prompt` là chính bug 2026-09-24. */
 function renderWithDraft() {
   window.localStorage.setItem(
     'examcollect:exam-draft',
@@ -148,7 +148,7 @@ describe('ExamAuthoringPage', () => {
     expect(within(banner).queryByRole('button')).toBeNull();
   });
 
-  it('gập một câu thì chip cảnh báo VẪN hiện — gập không giấu được nó', async () => {
+  it('gập một câu thì chip cảnh báo VẪN hiện - gập không giấu được nó', async () => {
     renderWithDraft();
     await screen.findByDisplayValue('Tìm k');
     fireEvent.click(screen.getByRole('button', { name: /gập lại câu 2/i }));
@@ -193,10 +193,10 @@ describe('ExamAuthoringPage', () => {
 
   /**
    * Yêu cầu 2026-09-25: câu 1 trong fixture KHÔNG bị gắn cờ
-   * (`resemblesKnownProblem: null`) — trước đây không có nút sinh lại nào
+   * (`resemblesKnownProblem: null`) - trước đây không có nút sinh lại nào
    * cho nó, chỉ "Sinh lại cả đề" (mất luôn câu 2 đang giữ). Test này đi qua
    * đúng nút MỚI ("Sinh lại câu này", khác chữ với "Sinh lại riêng câu này"
-   * của câu bị gắn cờ) và kiểm request KHÔNG mang `avoid` — không có bài
+   * của câu bị gắn cờ) và kiểm request KHÔNG mang `avoid` - không có bài
    * kinh điển nào để tránh.
    */
   it('câu KHÔNG bị gắn cờ vẫn sinh lại được RIÊNG nó, không avoid, vẫn giữ câu 2', async () => {
@@ -222,10 +222,10 @@ describe('ExamAuthoringPage', () => {
   /**
    * Bug thật 2026-09-24: mở trang qua đường nháp (tải lại trang, không phải
    * gõ prompt rồi bấm Sinh đề trong CÙNG một lượt) rồi bấm "Sinh lại riêng
-   * câu này" ngay — request gửi `prompt: ""`, bị API từ chối 400 vì
+   * câu này" ngay - request gửi `prompt: ""`, bị API từ chối 400 vì
    * `GenerateExamDto.prompt` đòi tối thiểu 10 ký tự. Root cause: nháp trước
-   * đây chỉ nhớ `exam`, không nhớ `prompt`. Test này KHÔNG gõ lại prompt —
-   * đúng kịch bản gây lỗi — và kiểm `prompt` gửi lên khớp prompt đã lưu
+   * đây chỉ nhớ `exam`, không nhớ `prompt`. Test này KHÔNG gõ lại prompt -
+   * đúng kịch bản gây lỗi - và kiểm `prompt` gửi lên khớp prompt đã lưu
    * trong nháp, không phải chuỗi rỗng.
    */
   it('mở qua đường nháp rồi sinh lại MỘT câu vẫn gửi đúng prompt gốc, không rỗng', async () => {
@@ -245,11 +245,11 @@ describe('ExamAuthoringPage', () => {
 
   /**
    * Bug thật 2026-09-24 (lần 2): bản vá trước cắt `resemblesKnownProblem` ở
-   * PHÍA API, lúc đọc đầu ra MỚI của model — không cứu được đề ĐÃ NẰM SẴN
+   * PHÍA API, lúc đọc đầu ra MỚI của model - không cứu được đề ĐÃ NẰM SẴN
    * trên máy giảng viên từ trước khi bản vá có hiệu lực (nháp cũ, hoặc câu
    * đã sinh trong cùng phiên trước khi API kịp cập nhật). Field này vẫn là
    * văn bản tự do, không ai đảm bảo mọi nguồn tương lai đều đi qua đúng chỗ
-   * đã cắt. Test này KHÔNG chạm gì tới API — dựng thẳng một nháp với
+   * đã cắt. Test này KHÔNG chạm gì tới API - dựng thẳng một nháp với
    * `resemblesKnownProblem` dài hơn 200 ký tự, và kiểm `avoid` gửi lên VẪN
    * trong hạn, bất kể state đang giữ gì.
    */
@@ -332,7 +332,7 @@ describe('ExamAuthoringPage', () => {
   /**
    * `failedCount` chỉ xuất hiện khi API fan-out có worker hỏng (xem
    * `apps/api/.../claude-authoring.provider.ts`). Giảng viên phải BIẾT đề
-   * đang thiếu câu — im lặng bớt câu là cách một đề 10 câu phát ra chỉ còn
+   * đang thiếu câu - im lặng bớt câu là cách một đề 10 câu phát ra chỉ còn
    * 8 mà không ai để ý tới lúc in.
    */
   it('sinh đề mà thiếu vài câu thì báo rõ số câu lỗi, không im lặng bớt câu', () => {
@@ -363,7 +363,7 @@ describe('ExamAuthoringPage', () => {
   });
 });
 
-describe('ExamAuthoringPage — gắn vào phiên thi', () => {
+describe('ExamAuthoringPage - gắn vào phiên thi', () => {
   async function openPicker() {
     window.localStorage.setItem(
       'examcollect:exam-draft',

@@ -120,7 +120,7 @@ export function SessionInfoStep({
         </div>
         <div>
           <dt className="text-muted-foreground">Lớp</dt>
-          <dd className="mt-1 text-lg font-medium text-foreground">{className ?? '—'}</dd>
+          <dd className="mt-1 text-lg font-medium text-foreground">{className ?? '-'}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Học kỳ</dt>

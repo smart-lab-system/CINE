@@ -25,7 +25,7 @@ const band = (results: GradingResult[]) => render(<AiServiceBand sessionId="s1" 
 describe('AiServiceBand (G3 D12)', () => {
   it('two system-class results with the same reason → says so, quotes the reason, offers to regrade exactly those', () => {
     band([result({ id: 'a' }), result({ id: 'b' })]);
-    expect(screen.getByText(/Dịch vụ AI lỗi — 2 bài không chấm được cùng một lý do/)).toBeInTheDocument();
+    expect(screen.getByText(/Dịch vụ AI lỗi - 2 bài không chấm được cùng một lý do/)).toBeInTheDocument();
     expect(screen.getByText(/“Dịch vụ AI không phản hồi\.”/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Chấm lại 2 bài này' })).toHaveAttribute(
       'data-scope',
@@ -33,17 +33,17 @@ describe('AiServiceBand (G3 D12)', () => {
     );
   });
 
-  it('says plainly what it measures — the same reason, not a time window (the list carries no stop time)', () => {
+  it('says plainly what it measures - the same reason, not a time window (the list carries no stop time)', () => {
     band([result({ id: 'a' }), result({ id: 'b' })]);
     expect(screen.getByText(/không đo được khoảng thời gian/)).toBeInTheDocument();
   });
 
-  it('one stopped result is an ordinary failure — no band', () => {
+  it('one stopped result is an ordinary failure - no band', () => {
     const { container } = band([result({ id: 'a' })]);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('two stopped results with DIFFERENT reasons — no band', () => {
+  it('two stopped results with DIFFERENT reasons - no band', () => {
     const { container } = band([result({ id: 'a' }), result({ id: 'b', ungradableReason: 'Hết giờ' })]);
     expect(container).toBeEmptyDOMElement();
   });

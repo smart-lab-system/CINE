@@ -128,7 +128,7 @@ function StudentsMasterDataContent() {
   );
 
   const classLabel = (id: string) =>
-    classes.data?.items.find((c) => c.id === id)?.code ?? '—';
+    classes.data?.items.find((c) => c.id === id)?.code ?? '-';
   const selectedClassCode = classFilter ? classLabel(classFilter) : undefined;
   const filtered =
     Boolean(debouncedSearch.trim()) || status !== 'all' || Boolean(classFilter);
@@ -255,7 +255,7 @@ function StudentsMasterDataContent() {
               </>
             }
             activeSummary={
-              selectedClassCode && selectedClassCode !== '—'
+              selectedClassCode && selectedClassCode !== '-'
                 ? `Đang xem: ${selectedClassCode}`
                 : filtered
                   ? 'Đang lọc sinh viên'

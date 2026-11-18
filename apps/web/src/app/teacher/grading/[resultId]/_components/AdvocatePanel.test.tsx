@@ -48,7 +48,7 @@ describe('AdvocatePanel', () => {
     expect(screen.queryByText(/tất cả đều có trong bài làm/i)).not.toBeInTheDocument();
   });
 
-  it('KHÔNG loại bỏ kiến nghị khi có trích dẫn trượt — chỉ nêu ra', () => {
+  it('KHÔNG loại bỏ kiến nghị khi có trích dẫn trượt - chỉ nêu ra', () => {
     panel({ opinion: opinion({ unverifiedEvidence: ['câu không có trong bài'] }) });
 
     expect(screen.getByText(/1 trích dẫn không tìm thấy/i)).toBeInTheDocument();
@@ -99,7 +99,7 @@ describe('AdvocatePanel', () => {
   it('không có kiến nghị cho tiêu chí này thì không có nút', () => {
     panel({ criterionId: 'c-khac' });
     expect(screen.queryByRole('button', { name: /theo phản biện/i })).not.toBeInTheDocument();
-    // Lập luận vẫn hiện — nó nói về cả bài, không chỉ về một tiêu chí.
+    // Lập luận vẫn hiện - nó nói về cả bài, không chỉ về một tiêu chí.
     expect(screen.getByText(/mô tả đúng cơ chế bù trừ/)).toBeInTheDocument();
   });
 });

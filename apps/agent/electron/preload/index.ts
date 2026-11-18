@@ -1,5 +1,5 @@
 /**
- * `contextIsolation: true`, `nodeIntegration: false` — only place the
+ * `contextIsolation: true`, `nodeIntegration: false` - only place the
  * renderer's typed surface is defined.
  */
 

@@ -3,7 +3,7 @@
 // It replaces scripts/seed-roster.sql: the roster now arrives through the
 // importer, and a demo that reaches into Postgres to create enrollments
 // would be demonstrating a path that no longer exists. What a dev database
-// lacks is not the SQL — it is the file the training office would issue.
+// lacks is not the SQL - it is the file the training office would issue.
 //
 //   pnpm --filter web make:sample-roster
 //
@@ -29,7 +29,7 @@ import ExcelJS from 'exceljs';
 
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'scripts');
 
-// MSSV đúng 8 chữ số — cùng quy tắc importer (ROSTER_MSSV_REGEX).
+// MSSV đúng 8 chữ số - cùng quy tắc importer (ROSTER_MSSV_REGEX).
 const students = [
   ...Array.from({ length: 20 }, (_, index) => {
     const n = String(index + 1).padStart(2, '0');
@@ -49,7 +49,7 @@ async function write(path, rows) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('DanhSach');
 
-  sheet.addRow(['DANH SÁCH LỚP — CS101 Nhóm 01']);
+  sheet.addRow(['DANH SÁCH LỚP - CS101 Nhóm 01']);
   sheet.addRow(['STT', 'MSSV', 'Họ và tên', 'Ghi chú']);
   rows.forEach((student, index) => {
     sheet.addRow([index + 1, student.mssv, student.name, '']);
@@ -61,7 +61,7 @@ async function write(path, rows) {
 
 await write(join(outDir, 'sample-roster.xlsx'), students);
 
-// One row with a space in the MSSV. The whole file is refused — importing
+// One row with a space in the MSSV. The whole file is refused - importing
 // 21 of 22 would produce a headcount that looks healthy and is not.
 await write(join(outDir, 'sample-roster-bad.xlsx'), [
   ...students.slice(0, 5),

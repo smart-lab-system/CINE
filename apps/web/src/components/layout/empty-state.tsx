@@ -6,7 +6,7 @@ interface EmptyStateProps {
   icon: LucideIcon;
   title: string;
   description: string;
-  /** A way out. An empty screen with nothing to press is a dead end —
+  /** A way out. An empty screen with nothing to press is a dead end -
    *  omit this only when there genuinely is no next step. */
   action?: ReactNode;
   tone?: 'accent' | 'primary' | 'muted';
@@ -24,7 +24,7 @@ const TONE_CLASSES: Record<NonNullable<EmptyStateProps['tone']>, string> = {
  * there, a line explaining why, and the action that fixes it.
  *
  * Shared so "no accounts yet", "no search results", and "not built yet"
- * are visibly the same kind of moment — they differ in their words, which
+ * are visibly the same kind of moment - they differ in their words, which
  * is where the difference actually is.
  */
 export function EmptyState({

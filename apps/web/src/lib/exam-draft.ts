@@ -16,10 +16,10 @@ export const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
  *
  * Bug thật 2026-09-24: bản trước chỉ nhớ `exam`. Sau một lượt tải lại trang,
  * `exam` được khôi phục nhưng `prompt` ở component rơi về `''` (giá trị khởi
- * tạo của `useState`) — và "Sinh lại riêng câu này" gửi thẳng `prompt` đó
+ * tạo của `useState`) - và "Sinh lại riêng câu này" gửi thẳng `prompt` đó
  * lên, bị `GenerateExamDto.prompt` (`@Length(10, 2000)`) từ chối 400. Model
  * cũng CẦN `prompt` gốc để sinh câu thay thế đúng mạch với cả đề (xem
- * "Yêu cầu của giảng viên lần này" trong `buildAuthoringPrompt`) — không chỉ
+ * "Yêu cầu của giảng viên lần này" trong `buildAuthoringPrompt`) - không chỉ
  * để qua được validation.
  */
 export interface ExamDraft {
@@ -29,7 +29,7 @@ export interface ExamDraft {
   language: AuthoringLanguage;
 }
 
-/** `ExamDraft` cộng `savedAt` — chỉ để TÍNH HẠN, không lộ ra ngoài module này
+/** `ExamDraft` cộng `savedAt` - chỉ để TÍNH HẠN, không lộ ra ngoài module này
  *  (`loadDraft` trả `ExamDraft`, cùng quy ước với bản trước trả `exam` trần,
  *  không kèm phong bì lưu trữ). */
 interface StoredDraft extends ExamDraft {
@@ -56,12 +56,12 @@ export function saveDraft(
  * (lưu trước lượt vá bug ở trên, thiếu `prompt`/`questionCount`/`language`).
  *
  * Nháp hình dạng cũ CỐ Ý bị coi là hỏng thay vì khôi phục nửa vời (`exam` có,
- * `prompt` rỗng) — nửa vời đó CHÍNH LÀ trạng thái gây ra bug, chỉ đổi chỗ
+ * `prompt` rỗng) - nửa vời đó CHÍNH LÀ trạng thái gây ra bug, chỉ đổi chỗ
  * phát hiện từ "sau khi tải lại trang" sang "không còn ai nhớ để tránh".
  * Nháp hình dạng cũ trên máy giảng viên cũng tự hết hạn trong 24 giờ.
  *
  * Mọi trường hợp đều DỌN SẠCH chỗ, để lần sau không phải xử lý lại cùng một
- * rác — và để một bản nháp quá hạn không nằm lại trên máy dùng chung chỉ vì
+ * rác - và để một bản nháp quá hạn không nằm lại trên máy dùng chung chỉ vì
  * chưa ai mở trang.
  */
 export function loadDraft(): ExamDraft | null {
@@ -85,7 +85,7 @@ export function loadDraft(): ExamDraft | null {
       clearDraft();
       return null;
     }
-    // `savedAt` chỉ để tính hạn ở TRÊN — không trả ra ngoài, xem doc `ExamDraft`.
+    // `savedAt` chỉ để tính hạn ở TRÊN - không trả ra ngoài, xem doc `ExamDraft`.
     const { exam, prompt, questionCount, language } = parsed as StoredDraft;
     return { exam, prompt, questionCount, language };
   } catch {

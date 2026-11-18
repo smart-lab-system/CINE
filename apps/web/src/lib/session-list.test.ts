@@ -305,11 +305,11 @@ describe('formatSessionDate', () => {
     expect(formatSessionDate(new Date(2026, 8, 5, 7, 5).toISOString())).toEqual({ date: '05/09/2026', time: '07:05' });
   });
   it('an unparseable value gives dashes, not "NaN"', () => {
-    expect(formatSessionDate('???')).toEqual({ date: '—', time: '' });
+    expect(formatSessionDate('???')).toEqual({ date: '-', time: '' });
   });
 });
 
-describe('review fixes — I1: a status filter never hides a row whose status is still unknown', () => {
+describe('review fixes - I1: a status filter never hides a row whose status is still unknown', () => {
   it('unknown status is not "a different status"', () => {
     const [unknown] = rowsOf([session()], undefined);
     expect(unknown.status).toBeNull();
@@ -323,7 +323,7 @@ describe('review fixes — I1: a status filter never hides a row whose status is
   });
 });
 
-describe('review fixes — I6: an exam that has not ended is not "ready to grade"', () => {
+describe('review fixes - I6: an exam that has not ended is not "ready to grade"', () => {
   const ends = (msFromNow: number) => new Date(NOW + msFromNow).toISOString();
 
   it('end time in the future -> todo with the in-progress blocker, even with rubric and question', () => {

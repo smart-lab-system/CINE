@@ -71,7 +71,7 @@ const startButton = () => screen.getByRole('button', { name: /^Bắt đầu ch�
 const renderPanel = (over: Partial<SessionOverviewItem> = {}, extra: Partial<React.ComponentProps<typeof PreparePanel>> = {}) =>
   render(<PreparePanel sessionId="s1" session={session(over)} {...extra} />);
 
-describe('PreparePanel — start button (spec §3.7)', () => {
+describe('PreparePanel - start button (spec §3.7)', () => {
   it('a prepared session: the button carries the number of results and starting sends ONE request', () => {
     renderPanel();
     expect(startButton()).toHaveTextContent('Bắt đầu chấm 32 bài');
@@ -134,7 +134,7 @@ describe('PreparePanel — start button (spec §3.7)', () => {
     expect(startButton()).toBeEnabled();
   });
 
-  it('unsaved reference changes block it — "Lưu tài liệu trước" — until saved', () => {
+  it('unsaved reference changes block it - "Lưu tài liệu trước" - until saved', () => {
     renderPanel();
     fireEvent.click(screen.getByRole('button', { name: 'mô phỏng thay đổi chưa lưu' }));
     expect(startButton()).toBeDisabled();
@@ -143,7 +143,7 @@ describe('PreparePanel — start button (spec §3.7)', () => {
     expect(h.start).not.toHaveBeenCalled();
   });
 
-  it('cảnh báo (lỗi chưa có điểm trừ, tiêu chí chưa có lỗi) KHÔNG chặn — chỉ nói trước khi bắt đầu', () => {
+  it('cảnh báo (lỗi chưa có điểm trừ, tiêu chí chưa có lỗi) KHÔNG chặn - chỉ nói trước khi bắt đầu', () => {
     h.overview = {
       data: [overview({ rubricName: 'CTDL', unpricedCount: 1, errorCount: 1, criteria: [criterion({ key: 'tinh_dung', description: 'Tính đúng', maxPoints: 10, errorCount: 0 })] })],
     };
@@ -196,13 +196,13 @@ describe('PreparePanel — start button (spec §3.7)', () => {
   });
 });
 
-describe('PreparePanel — the column "Trước khi bắt đầu"', () => {
+describe('PreparePanel - the column "Trước khi bắt đầu"', () => {
   it('shows every row with its state in words, not only an icon', () => {
     renderPanel();
     const list = screen.getByRole('list', { name: 'Trước khi bắt đầu' });
     expect(within(list).getAllByText('Ổn').length).toBeGreaterThan(0);
     expect(within(list).getByText('Rubric')).toBeInTheDocument();
-    expect(within(list).getByText('CTDL — phiên bản 2, 10,0 điểm, 1 tiêu chí')).toBeInTheDocument();
+    expect(within(list).getByText('CTDL - phiên bản 2, 10,0 điểm, 1 tiêu chí')).toBeInTheDocument();
   });
 
   it('marks blockers as "Chặn"', () => {
@@ -211,7 +211,7 @@ describe('PreparePanel — the column "Trước khi bắt đầu"', () => {
   });
 });
 
-describe('PreparePanel — blocks and controls that need the backend (T-UI-10)', () => {
+describe('PreparePanel - blocks and controls that need the backend (T-UI-10)', () => {
   it('the bundle block appears only for a session with a code deliverable', () => {
     renderPanel();
     expect(screen.queryByTestId('bundle-card')).not.toBeInTheDocument();

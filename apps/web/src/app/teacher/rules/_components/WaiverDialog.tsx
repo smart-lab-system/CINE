@@ -11,7 +11,7 @@ import { describeRecompute } from '@/lib/rules-vocab';
 
 export interface WaiverTarget {
   criterion: OverviewCriterion;
-  /** Phiên bản MỚI NHẤT của rubric — đánh dấu gắn theo nó và được chép sang bản sau (spec 3.7). */
+  /** Phiên bản MỚI NHẤT của rubric - đánh dấu gắn theo nó và được chép sang bản sau (spec 3.7). */
   rubricId: string;
 }
 

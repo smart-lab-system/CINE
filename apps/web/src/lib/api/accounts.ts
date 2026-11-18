@@ -18,7 +18,7 @@ export interface AccountView {
 export interface SearchAccountsParams {
   search?: string;
   role?: AccountRoleOption;
-  /** Lọc theo account.is_active — query string true/false trên API. */
+  /** Lọc theo account.is_active - query string true/false trên API. */
   isActive?: boolean;
   page: number;
   pageSize: number;
@@ -38,12 +38,12 @@ export interface UpdateAccountInput {
 
 /**
  * Throws on any non-2xx response or network failure, same convention as
- * lib/api/exam-session.ts — callers (hooks/useAccounts.ts) never receive a
+ * lib/api/exam-session.ts - callers (hooks/useAccounts.ts) never receive a
  * partial/undefined result.
  */
 async function throwIfFailed(error: unknown, response: Response) {
   // openapi-fetch only fills `error` from the response *body*, which some
-  // failures leave empty — key off the status too so a 401 (an expired
+  // failures leave empty - key off the status too so a 401 (an expired
   // access_token that middleware's existence-only check waved through)
   // can't be mistaken for an empty result set.
   if (error || !response.ok) {
@@ -62,12 +62,12 @@ export async function searchAccounts(
   });
   await throwIfFailed(error, response);
   // Cast needed: AccountsController.search() has no Swagger-decorated
-  // response type yet, so the generated response schema is empty — the
+  // response type yet, so the generated response schema is empty - the
   // JSON body genuinely has this shape (see AccountsService#toView).
   return data as unknown as { items: AccountView[]; total: number };
 }
 
-/** GET /accounts/:id — chưa có trong schema.d.ts cho tới khi regenerate OpenAPI. */
+/** GET /accounts/:id - chưa có trong schema.d.ts cho tới khi regenerate OpenAPI. */
 export async function getAccount(id: string): Promise<AccountView> {
   const token = await getAccessToken();
   const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';

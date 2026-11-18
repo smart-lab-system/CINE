@@ -48,7 +48,7 @@ function RubricPicker({ value, onChange }: { value: string; onChange: (id: strin
 
 /**
  * Hộp xác nhận + kết quả cho thao tác hàng loạt. Chạy TUẦN TỰ từng phiên qua chính các route theo-phiên
- * (`start-grading`, `PATCH rubric`) — máy chủ vẫn là người quyết phiên nào được bắt đầu (spec mục 1.1, 5).
+ * (`start-grading`, `PATCH rubric`) - máy chủ vẫn là người quyết phiên nào được bắt đầu (spec mục 1.1, 5).
  * Bắt đầu chấm luôn có bước xác nhận này: đây là thao tác tường minh của giảng viên mà CLAUDE.md đòi.
  */
 export function BulkDialog({ request, onClose, onFinished }: { request: BulkRequest; onClose: () => void; onFinished: () => void }) {

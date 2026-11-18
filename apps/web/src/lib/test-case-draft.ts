@@ -18,7 +18,7 @@ const MAX_QUOTE_CHARS = 2000;
  * - `same`: giữ nguyên từ phiên bản gốc;
  * - `added` / `edited`: giảng viên thêm / sửa trong bản nháp này;
  * - `removed`: giảng viên bỏ trong bản nháp này (hoàn tác được);
- * - `dropped`: hệ thống đã bỏ ở phiên bản gốc — chỉ để hiện, KHÔNG bao giờ gửi đi (vắng mặt không có nghĩa là sống lại).
+ * - `dropped`: hệ thống đã bỏ ở phiên bản gốc - chỉ để hiện, KHÔNG bao giờ gửi đi (vắng mặt không có nghĩa là sống lại).
  */
 export type RowState = 'same' | 'added' | 'edited' | 'removed' | 'dropped';
 
@@ -146,7 +146,7 @@ export function saveBlocker(rows: DraftRow[], formOpen: boolean): string | null 
   // Hai ca đang dùng cùng tên: server chỉ từ chối bằng lỗi trùng khoá (tiếng Anh), nên chặn ở đây và nói tên cụ thể.
   const seen = new Set<string>();
   for (const row of rows.filter(isActive)) {
-    if (seen.has(row.caseKey)) return `Có hai ca cùng tên "${row.caseKey}" trong bản nháp — đổi tên một trong hai.`;
+    if (seen.has(row.caseKey)) return `Có hai ca cùng tên "${row.caseKey}" trong bản nháp - đổi tên một trong hai.`;
     seen.add(row.caseKey);
   }
   if (changesCount(rows) === 0) return 'Chưa có thay đổi nào để lưu.';

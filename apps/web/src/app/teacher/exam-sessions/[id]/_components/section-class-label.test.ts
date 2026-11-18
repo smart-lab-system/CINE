@@ -4,7 +4,7 @@ import { formatSectionAndNominalClass } from './section-class-label';
 describe('formatSectionAndNominalClass', () => {
   it('ghép mã lớp học phần và mã lớp danh nghĩa', () => {
     expect(
-      formatSectionAndNominalClass('CTDL001', 'D21CQCN01 — Công nghệ thông tin'),
+      formatSectionAndNominalClass('CTDL001', 'D21CQCN01 - Công nghệ thông tin'),
     ).toBe('CTDL001 - D21CQCN01');
   });
 

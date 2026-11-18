@@ -74,10 +74,10 @@ async function copySessionCode(code: string) {
     await navigator.clipboard.writeText(code);
     toast.success(`Đã sao chép mã "${code}"`);
   } catch {
-    // Clipboard access can be denied (permissions, non-HTTPS context) —
+    // Clipboard access can be denied (permissions, non-HTTPS context) -
     // the code is still right there in the table for the teacher to read
     // out loud, so this is a degraded-but-usable failure, not a dead end.
-    toast.error('Không sao chép được — hãy đọc mã trực tiếp cho sinh viên.');
+    toast.error('Không sao chép được - hãy đọc mã trực tiếp cho sinh viên.');
   }
 }
 
@@ -95,21 +95,21 @@ function formatDateTime(iso: string): string {
 
 /**
  * Lọc theo học kỳ, mặc định là kỳ hợp lý nhất hôm nay (tính từ ngày, xem
- * `useSemesterFilter` — cùng định nghĩa mà badge trên topbar, "Lớp của
+ * `useSemesterFilter` - cùng định nghĩa mà badge trên topbar, "Lớp của
  * tôi" và trang Bài thu đang đọc). Thêm 2026-09-15: yêu cầu QA "Tạo filter
  * cho cả trang quản lý kỳ thi và bài thu" lần đầu chỉ làm ba bộ lọc
  * tên/trạng thái/loại, nên một giảng viên dạy qua nhiều kỳ phải lật từng
  * trang 20 dòng mới tìm lại được phiên của kỳ cũ.
  *
  * "Tất cả học kỳ" luôn nằm trong dropdown: phiên của kỳ cũ vẫn phải mở
- * lại được để tra bài thi bù (CLAUDE.md §1.2 — học kỳ không bao giờ chặn
+ * lại được để tra bài thi bù (CLAUDE.md §1.2 - học kỳ không bao giờ chặn
  * một thao tác).
  */
 export default function ExamSessionsListPage() {
   const router = useRouter();
   const teachingClasses = useTeachingClasses();
   // MỌI lớp của giảng viên, không chỉ những lớp có phiên trên trang đang
-  // xem — cùng lý do với danh sách học kỳ bên dưới.
+  // xem - cùng lý do với danh sách học kỳ bên dưới.
   const classChoices = teachingClasses.data ?? [];
 
   const [view, setView] = useSessionViewMode();
@@ -131,14 +131,14 @@ export default function ExamSessionsListPage() {
     status: status === 'all' ? undefined : status,
     examType: examType === 'all' ? undefined : examType,
     // `?? undefined`: null nghĩa là "tất cả kỳ", và cách nói điều đó với
-    // API là KHÔNG gửi tham số — xem doc của SearchExamSessionsParams.
+    // API là KHÔNG gửi tham số - xem doc của SearchExamSessionsParams.
     semesterName: semesterFilter.semesterName ?? undefined,
     classId: classId === 'all' ? undefined : classId,
   });
 
   // Lịch có truy vấn RIÊNG, và chỉ chạy khi đang ở chế độ lịch. Hai truy vấn
   // chứ không một: trang danh sách phân trang 20 dòng, còn lưới tuần phải có
-  // ĐỦ phiên của tuần — gộp chúng lại thì một trong hai phải nói dối.
+  // ĐỦ phiên của tuần - gộp chúng lại thì một trong hai phải nói dối.
   const calendarRange = weekRange(weekStart);
   const calendarQuery = useExamSessionsInRange(
     {
@@ -160,7 +160,7 @@ export default function ExamSessionsListPage() {
   //
   // Bản trước tự gom danh sách này từ những trang đã tải, nên một kỳ chỉ
   // xuất hiện ở trang 3 thì không chọn được cho tới khi người dùng lật tới
-  // trang 3 — trong khi phép lọc lại chạy trên TOÀN BỘ dữ liệu.
+  // trang 3 - trong khi phép lọc lại chạy trên TOÀN BỘ dữ liệu.
   //
   // Vẫn giữ lại danh sách cũ trong lúc tải: mỗi lần đổi bộ lọc là một
   // queryKey mới nên `data` về `undefined`, và dropdown sẽ chớp mất hết lựa
@@ -305,7 +305,7 @@ export default function ExamSessionsListPage() {
           onChange={handleSemesterChange}
           semesters={semesterChoices}
         />
-        {/* Chỉ một lớp thì ô này là nhiễu — cùng luật với Phòng và Loại
+        {/* Chỉ một lớp thì ô này là nhiễu - cùng luật với Phòng và Loại
             kỳ thi ở màn Bài thu. Học kỳ thì cố ý KHÔNG theo luật đó. */}
         {classChoices.length > 1 && (
           <Select value={classId} onValueChange={handleClassChange}>
@@ -417,7 +417,7 @@ export default function ExamSessionsListPage() {
           <Card>
             {/* Ba câu chuyện khác nhau, không được nói chung một câu.
                 "Bộ lọc không khớp" thì xoá bộ lọc; "kỳ này bạn không có
-                phiên nào" thì đổi kỳ — và chỉ khi KHÔNG lọc gì cả thì mới
+                phiên nào" thì đổi kỳ - và chỉ khi KHÔNG lọc gì cả thì mới
                 thật sự là "bạn chưa tạo phiên nào bao giờ" và mới nên mời
                 họ tạo. Cùng khuôn với "Lớp của tôi". */}
             {hasActiveFilters ? (

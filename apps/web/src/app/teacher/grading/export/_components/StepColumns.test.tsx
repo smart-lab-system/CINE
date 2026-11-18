@@ -29,7 +29,7 @@ const setup = (props: { inspect?: InspectResponse; choice?: ColumnChoice; busy?:
 };
 const next = () => screen.getByRole('button', { name: 'Xem trước điểm sẽ ghi' });
 
-describe('StepColumns — nothing is chosen for the teacher (rule 9)', () => {
+describe('StepColumns - nothing is chosen for the teacher (rule 9)', () => {
   it('every picker starts on its placeholder and the start row is empty, even though row 2 says "MSSV" and "Điểm"', () => {
     setup({ choice: { ...EMPTY_CHOICE, sheetName: 'Bảng điểm' } });
     expect(screen.getByLabelText('Cột MSSV')).toHaveValue('');
@@ -60,7 +60,7 @@ describe('StepColumns — nothing is chosen for the teacher (rule 9)', () => {
   });
 });
 
-describe('StepColumns — a chosen column is marked by colour AND by a word (spec §3.6)', () => {
+describe('StepColumns - a chosen column is marked by colour AND by a word (spec §3.6)', () => {
   it('tags the header of each chosen column and marks every cell of it', () => {
     setup({ choice: READY });
     const table = screen.getByRole('table', { name: 'Xem trước file' });
@@ -85,8 +85,8 @@ describe('StepColumns — a chosen column is marked by colour AND by a word (spe
   });
 });
 
-describe('StepColumns — overwriting is warned about before the last step', () => {
-  it('counts the valued cells of the score column in the rows on screen — and says it is only those rows', () => {
+describe('StepColumns - overwriting is warned about before the last step', () => {
+  it('counts the valued cells of the score column in the rows on screen - and says it is only those rows', () => {
     setup({ choice: READY });
     expect(screen.getByText(/Trong phần xem trước, 2 ô của cột D đã có giá trị/)).toBeInTheDocument();
     expect(screen.getByText(/Số ô thật hiện ở bước sau/)).toBeInTheDocument();
@@ -97,10 +97,10 @@ describe('StepColumns — overwriting is warned about before the last step', () 
   });
 });
 
-describe('StepColumns — protected sheet, next step, paging, sheets, deliverables', () => {
+describe('StepColumns - protected sheet, next step, paging, sheets, deliverables', () => {
   it('a protected sheet is refused with the server sentence and next stays off', () => {
     setup({ choice: READY, inspect: inspect({ sheet: grid({ protected: true }) }) });
-    // `Alert` luôn có role="alert" — cảnh báo ghi đè cũng đang hiện — nên tìm theo chữ, không theo role.
+    // `Alert` luôn có role="alert" - cảnh báo ghi đè cũng đang hiện - nên tìm theo chữ, không theo role.
     expect(screen.getByText('Trang tính đang được bảo vệ. Hãy bỏ bảo vệ trong Excel rồi tải lại.')).toBeInTheDocument();
     expect(next()).toBeDisabled();
   });
@@ -143,7 +143,7 @@ describe('StepColumns — protected sheet, next step, paging, sheets, deliverabl
     expect(h.onSelectSheet).toHaveBeenCalledWith('Ghi chú');
   });
 
-  it('asks which deliverable only when the session has more than one — and requires it', () => {
+  it('asks which deliverable only when the session has more than one - and requires it', () => {
     const one = setup({ choice: READY });
     expect(screen.queryByLabelText('Ghi điểm của yêu cầu nộp')).not.toBeInTheDocument();
     expect(one.onChange).not.toHaveBeenCalled();

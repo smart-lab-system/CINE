@@ -130,7 +130,7 @@ function CourseSectionsInner() {
     () =>
       (courses.data?.items ?? []).map((c) => ({
         value: c.id,
-        label: `${c.code} — ${c.name}`,
+        label: `${c.code} - ${c.name}`,
         keywords: `${c.code} ${c.name}`,
       })),
     [courses.data?.items],
@@ -156,7 +156,7 @@ function CourseSectionsInner() {
     () =>
       (nominalClasses.data?.items ?? []).map((c) => ({
         value: c.id,
-        label: c.name ? `${c.code} — ${c.name}` : c.code,
+        label: c.name ? `${c.code} - ${c.name}` : c.code,
         keywords: `${c.code} ${c.name ?? ''}`,
       })),
     [nominalClasses.data?.items],
@@ -226,7 +226,7 @@ function CourseSectionsInner() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Lớp học phần"
-        description="Tạo lớp theo môn và học kỳ — mã lớp tự sinh (mã môn + 001…). Gắn sinh viên rồi phân công giảng viên."
+        description="Tạo lớp theo môn và học kỳ - mã lớp tự sinh (mã môn + 001…). Gắn sinh viên rồi phân công giảng viên."
         actions={
           <Button type="button" onClick={() => setOpen(true)}>
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -337,9 +337,9 @@ function CourseSectionsInner() {
                         </Link>
                       </TableCell>
                       <TableCell>{row.courseName}</TableCell>
-                      <TableCell>{row.semesterName ?? '—'}</TableCell>
+                      <TableCell>{row.semesterName ?? '-'}</TableCell>
                       <TableCell className="max-w-[14rem] truncate" title={row.nominalClassName ?? undefined}>
-                        {row.nominalClassName ?? '—'}
+                        {row.nominalClassName ?? '-'}
                       </TableCell>
                       <TableCell>
                         {row.teacherName ?? (

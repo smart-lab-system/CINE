@@ -42,14 +42,14 @@ function renderTable(items: SessionOverviewItem[]) {
   );
 }
 
-describe('SessionTable — cấu trúc', () => {
-  it('CẢ TRANG LÀ MỘT <table> — nhóm là dòng gộp cột bên trong', () => {
+describe('SessionTable - cấu trúc', () => {
+  it('CẢ TRANG LÀ MỘT <table> - nhóm là dòng gộp cột bên trong', () => {
     const { container } = renderTable([
       make({ id: 'a' }),
       make({ id: 'b', courseName: 'CTDL', classId: 'k2', className: 'N05' }),
     ]);
     // Nếu mỗi nhóm là một <table> riêng thì cột lệch nhau và toàn bộ lợi thế
-    // quét mắt biến mất — đó là lý do chọn bảng. Test này khoá điều đó.
+    // quét mắt biến mất - đó là lý do chọn bảng. Test này khoá điều đó.
     expect(container.querySelectorAll('table')).toHaveLength(1);
   });
 
@@ -60,14 +60,14 @@ describe('SessionTable — cấu trúc', () => {
   });
 });
 
-describe('SessionTable — cột Tình trạng', () => {
+describe('SessionTable - cột Tình trạng', () => {
   it('phiên đủ bài hiện ✓ Đủ, không để trống', () => {
     renderTable([make()]);
     expect(screen.getByText('✓ Đủ')).toBeInTheDocument();
   });
 
   it('phiên đang thu bài hiện tên pha, KHÔNG hiện lý do', () => {
-    // `status: 'collecting'` từ 2026-09-11 — trước đó pha này phải suy ra
+    // `status: 'collecting'` từ 2026-09-11 - trước đó pha này phải suy ra
     // từ `completed` + grace period, giờ cột status nói thẳng. Ý của test
     // không đổi: còn đang thu bài thì mọi kết luận đều là báo động giả.
     renderTable([make({
@@ -95,7 +95,7 @@ describe('SessionTable — cột Tình trạng', () => {
   });
 });
 
-describe('SessionTable — thao tác', () => {
+describe('SessionTable - thao tác', () => {
   // Hai thao tác điều hướng là <a>, hai thao tác đổi trạng thái là <button>.
   // Phân biệt này có chủ đích: điều hướng phải mở được tab mới / chuột phải,
   // còn lưu trữ và khép thì không được là link vì chúng ghi dữ liệu.

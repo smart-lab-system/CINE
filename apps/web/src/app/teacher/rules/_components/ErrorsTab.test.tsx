@@ -46,8 +46,8 @@ function mount(over: Partial<React.ComponentProps<typeof ErrorsTab>> = {}) {
 
 beforeEach(() => vi.clearAllMocks());
 
-describe('ErrorsTab — nhóm theo tiêu chí (T-RBE-UI-2)', () => {
-  it('mỗi tiêu chí một nhóm: tên, số lỗi, điểm tối đa — không hiện khoá kỹ thuật', () => {
+describe('ErrorsTab - nhóm theo tiêu chí (T-RBE-UI-2)', () => {
+  it('mỗi tiêu chí một nhóm: tên, số lỗi, điểm tối đa - không hiện khoá kỹ thuật', () => {
     mount();
     const group = screen.getByRole('region', { name: 'Tính đúng đắn' });
     expect(within(group).getByText('2 lỗi')).toBeInTheDocument();
@@ -94,7 +94,7 @@ describe('ErrorsTab — nhóm theo tiêu chí (T-RBE-UI-2)', () => {
       errors: [errorItem({ id: 'a', deduction: '4.00' }), errorItem({ id: 'b', name: 'Khác', deduction: '3.00' })],
       overview: overview({ criteria: [criterion({ key: 'tinh_dung', description: 'Tính đúng đắn', maxPoints: 6, errorCount: 2 })] }),
     });
-    expect(screen.getByText('Cộng hết các lỗi là 7,0, vượt điểm tối đa 6,0 — bài chỉ bị trừ tới 6,0.')).toBeInTheDocument();
+    expect(screen.getByText('Cộng hết các lỗi là 7,0, vượt điểm tối đa 6,0 - bài chỉ bị trừ tới 6,0.')).toBeInTheDocument();
   });
 
   it('gập nhóm ẩn các dòng lỗi', () => {
@@ -111,7 +111,7 @@ describe('ErrorsTab — nhóm theo tiêu chí (T-RBE-UI-2)', () => {
   });
 });
 
-describe('ErrorsTab — tiêu chí chưa có lỗi và tiêu chí không trừ điểm', () => {
+describe('ErrorsTab - tiêu chí chưa có lỗi và tiêu chí không trừ điểm', () => {
   it('chưa có lỗi: nói hậu quả và đưa hai lối đi', () => {
     const h = mount();
     const group = screen.getByRole('region', { name: 'Quản lý bộ nhớ' });
@@ -131,7 +131,7 @@ describe('ErrorsTab — tiêu chí chưa có lỗi và tiêu chí không trừ �
   });
 });
 
-describe('ErrorsTab — lỗi dùng chung', () => {
+describe('ErrorsTab - lỗi dùng chung', () => {
   const shared = errorItem({
     id: 'e1',
     alsoIn: [
@@ -152,14 +152,14 @@ describe('ErrorsTab — lỗi dùng chung', () => {
   it('"N rubric khác" mở danh sách đầy đủ; bấm một dòng chuyển sang rubric đó (T-RBE-UI-8)', () => {
     const h = mount({ errors: [shared] });
     fireEvent.click(screen.getByRole('button', { name: '1 rubric khác' }));
-    const list = screen.getByRole('dialog', { name: 'Sai ca biên — đang dùng ở 3 rubric khác' });
+    const list = screen.getByRole('dialog', { name: 'Sai ca biên - đang dùng ở 3 rubric khác' });
     expect(within(list).getByText('Thi lại')).toBeInTheDocument();
     fireEvent.click(within(list).getByRole('button', { name: /Thi lại/ }));
     expect(h.onOpenRubric).toHaveBeenCalledWith('Thi lại');
   });
 });
 
-describe('ErrorsTab — menu ⋯ của dòng', () => {
+describe('ErrorsTab - menu ⋯ của dòng', () => {
   const open = (name = 'Sai ca biên') => fireEvent.keyDown(screen.getByRole('button', { name: `Thao tác với ${name}` }), { key: 'Enter' });
 
   it('Sửa tên, mô tả, cách phát hiện → onEdit với đúng dòng', () => {
@@ -172,7 +172,7 @@ describe('ErrorsTab — menu ⋯ của dòng', () => {
   it('nói lỗi này đang dùng ở mấy rubric', () => {
     mount({ errors: [errorItem({ alsoIn: [{ rubricName: 'B', criterionKey: 'x', deduction: null }] })] });
     open();
-    expect(screen.getByText('Lỗi này đang dùng ở 2 rubric — bạn chọn đổi cả 2 hoặc chỉ rubric này')).toBeInTheDocument();
+    expect(screen.getByText('Lỗi này đang dùng ở 2 rubric - bạn chọn đổi cả 2 hoặc chỉ rubric này')).toBeInTheDocument();
   });
 
   it('Chuyển sang tiêu chí khác mở hộp thoại; Gỡ khỏi rubric này mở hộp xác nhận', () => {
@@ -187,7 +187,7 @@ describe('ErrorsTab — menu ⋯ của dòng', () => {
   });
 });
 
-describe('ErrorsTab — lỗi gắn tiêu chí không còn (Review Focus 4)', () => {
+describe('ErrorsTab - lỗi gắn tiêu chí không còn (Review Focus 4)', () => {
   const orphans = [
     errorItem({ id: 'o1', name: 'Mồ côi A', criterionKey: 'da_xoa', criterionDangling: true }),
     // Máy chủ không đánh dấu nhưng khoá không có trong tổng quan (hai lần đọc lệch nhau): vẫn phải hiện, không văng.
@@ -216,8 +216,8 @@ describe('ErrorsTab — lỗi gắn tiêu chí không còn (Review Focus 4)', ()
   });
 });
 
-describe('ErrorsTab — rubric QS theo hướng/bước', () => {
-  it('nhóm theo hướng, bước bên trong, chú thích QS', () => {
+describe('ErrorsTab - rubric QS theo cách giải/bước', () => {
+  it('chỉ hiện cấu trúc Cách giải N / Bước N - không gắn lỗi', () => {
     const qsBoard = overview({
       kind: 'qs',
       totalPoints: 5,
@@ -244,16 +244,17 @@ describe('ErrorsTab — rubric QS theo hướng/bước', () => {
       overview: qsBoard,
       errors: [errorItem({ criterionKey: 'bf_s1', name: 'Thiếu vòng' })],
     });
-    expect(screen.getByText(/chỉ chọn/)).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Hướng Brute force' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Hướng Sliding window' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Vòng lồng' })).toBeInTheDocument();
-    expect(screen.getByText('Thiếu vòng')).toBeInTheDocument();
-    expect(screen.getByText(/Chưa có lỗi nào cho bước này/)).toBeInTheDocument();
+    expect(screen.getByText(/không gắn lỗi/i)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Cách giải 1 - Brute force' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Cách giải 2 - Sliding window' })).toBeInTheDocument();
+    expect(screen.getAllByText('Bước 1').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Vòng lồng')).toBeInTheDocument();
+    expect(screen.queryByText('Thiếu vòng')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Thêm lỗi/ })).not.toBeInTheDocument();
   });
 });
 
-describe('ErrorsTab — tải, lỗi, và nhảy tới một nhóm', () => {
+describe('ErrorsTab - tải, lỗi, và nhảy tới một nhóm', () => {
   const noop = { onAdd: vi.fn(), onEdit: vi.fn(), onWaive: vi.fn(), onUnwaive: vi.fn(), onOpenRubric: vi.fn() };
 
   it('đang tải / lỗi tải', () => {
@@ -261,7 +262,7 @@ describe('ErrorsTab — tải, lỗi, và nhảy tới một nhóm', () => {
     expect(screen.getByText('Đang tải…')).toBeInTheDocument();
     unmount();
     render(<ErrorsTab overview={board()} errors={undefined} loading={false} error={new Error('Máy chủ không trả lời')} focus={null} {...noop} />);
-    expect(screen.getByText(/Không tải được danh sách lỗi — Máy chủ không trả lời/)).toBeInTheDocument();
+    expect(screen.getByText(/Không tải được danh sách lỗi - Máy chủ không trả lời/)).toBeInTheDocument();
   });
 
   it('focus mở lại nhóm đang gập và cuộn tới nó', () => {

@@ -31,7 +31,7 @@ function verificationLine(opinion: AdvocateOpinion): string {
 }
 
 /**
- * Lượt phản biện — bênh vực sinh viên.
+ * Lượt phản biện - bênh vực sinh viên.
  *
  * Khối này nêu Ý KIẾN, không bao giờ nêu điểm. Nút "theo phản biện" là do
  * GIẢNG VIÊN bấm; nó chỉ đặt sẵn một giá trị quy ra từ mức đánh giá được
@@ -52,12 +52,12 @@ export function AdvocatePanel({
 }) {
   if (!opinion) {
     // KHÔNG render một khối rỗng. `null` nghĩa là cổng không kích hoạt, và
-    // lý do phổ biến nhất là phiên chưa có đề bài — thứ giảng viên sửa được
+    // lý do phổ biến nhất là phiên chưa có đề bài - thứ giảng viên sửa được
     // trong hai phút nếu có ai nói cho họ biết.
     return (
       <p className="border-l-2 border-border pl-2.5 text-caption leading-relaxed text-muted-foreground">
         {hasQuestion
-          ? 'Lượt phản biện không chạy cho tiêu chí này — nó chỉ chạy khi lượt chấm kết luận chưa đạt.'
+          ? 'Lượt phản biện không chạy cho tiêu chí này - nó chỉ chạy khi lượt chấm kết luận chưa đạt.'
           : 'Phiên này chưa nạp đề bài nên lượt phản biện không chạy. Không có ai lên tiếng cho bài làm đúng theo một cách khác.'}
       </p>
     );
@@ -70,7 +70,7 @@ export function AdvocatePanel({
       <header className="flex flex-wrap items-center gap-2 border-b border-info/30 px-3.5 py-2.5">
         <ShieldQuestion className="h-3.5 w-3.5 text-info-strong" aria-hidden="true" />
         <span className="text-small font-semibold text-info-strong">
-          Lượt phản biện — bênh vực sinh viên
+          Lượt phản biện - bênh vực sinh viên
         </span>
         {suggestion && (
           <Badge variant="info" className="ml-auto">
@@ -114,7 +114,7 @@ export function AdvocatePanel({
         )}
 
         <p className="border-t border-dashed border-info/35 pt-2.5 text-caption leading-relaxed text-muted-foreground">
-          Lượt phản biện không đưa ra điểm, và không có đường nào để nó làm thế — hệ thống
+          Lượt phản biện không đưa ra điểm, và không có đường nào để nó làm thế - hệ thống
           chặn ở ba lớp độc lập. {verificationLine(opinion)}
         </p>
       </div>

@@ -13,7 +13,7 @@ const TONE = {
 } as const;
 
 /**
- * Dải trạng thái của rubric đang mở (spec mục 5.3): thay bốn thẻ số cũ. Mỗi dòng việc là MỘT NÚT làm đúng việc đó —
+ * Dải trạng thái của rubric đang mở (spec mục 5.3): thay bốn thẻ số cũ. Mỗi dòng việc là MỘT NÚT làm đúng việc đó -
  * kể cả "lỗi AI thấy mà chưa tính điểm", thứ trước đây nằm chôn dưới cuối trang.
  */
 export function ReadinessBanner({
@@ -37,7 +37,7 @@ export function ReadinessBanner({
   const { status, tasks } = statusOf(overview);
   const tone = TONE[status];
   const heading =
-    status === 'new' ? 'Rubric mới — chưa có lỗi nào' : status === 'ready' ? 'Sẵn sàng chấm tự động' : `Chưa sẵn sàng chấm tự động — còn ${tasks.length} việc`;
+    status === 'new' ? 'Rubric mới - chưa có lỗi nào' : status === 'ready' ? 'Sẵn sàng chấm tự động' : `Chưa sẵn sàng chấm tự động - còn ${tasks.length} việc`;
 
   const row = (task: BoardTask) => {
     switch (task.kind) {
@@ -70,7 +70,7 @@ export function ReadinessBanner({
         return (
           <>
             <span>
-              <b>{task.count} lỗi AI thấy</b> khi chấm nhưng chưa có trong bảng — đang bị bỏ ra khỏi điểm.
+              <b>{task.count} lỗi AI thấy</b> khi chấm nhưng chưa có trong bảng - đang bị bỏ ra khỏi điểm.
             </span>
             <button type="button" onClick={onOpenProposals}>
               Xem lỗi AI đề xuất

@@ -10,7 +10,7 @@ export interface BulkOutcome {
  *
  * Tuần tự vì `start-grading` xếp cả lượt bài vào một hàng đợi dùng chung (năm giảng viên chấm cùng lúc
  * cuối kỳ), và vì thứ tự báo lại phải khớp thứ tự giảng viên đã chọn. Một phiên bị từ chối KHÔNG dừng
- * các phiên sau — nếu dừng, lỗi ở phiên thứ hai biến thành "phiên ba đến mười chưa được bắt đầu" mà
+ * các phiên sau - nếu dừng, lỗi ở phiên thứ hai biến thành "phiên ba đến mười chưa được bắt đầu" mà
  * không ai được báo.
  */
 export async function runSequentially(

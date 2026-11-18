@@ -7,11 +7,11 @@
  *
  * Palette: Deep Indigo (--primary, navigation/brand) + Teal (--accent,
  * call-to-action) on a cool off-white app background. Academic, calm,
- * trustworthy — deliberately not the default shadcn black-on-white, and
+ * trustworthy - deliberately not the default shadcn black-on-white, and
  * deliberately not a saturated consumer-app palette.
  *
  * Contrast note (measured, not assumed): the brief's teal
- * hsl(174 62% 40%) = #26A69A only reaches 3.0:1 against white — fine for
+ * hsl(174 62% 40%) = #26A69A only reaches 3.0:1 against white - fine for
  * non-text UI (WCAG 1.4.11 wants 3:1 for borders/indicators/icons), NOT
  * fine for a 14px button label or a body-size link (needs 4.5:1). So every
  * semantic hue carries three tokens:
@@ -38,9 +38,9 @@
 @layer base {
   :root {
     /* Surfaces */
-    --background: 220 33% 98%;        /* #F6F8FB — app canvas, cool not stark */
-    --surface: 0 0% 100%;             /* #FFFFFF — cards, sidebar, topbar */
-    --surface-2: 220 20% 96%;         /* #F1F3F7 — table head, row hover, wells */
+    --background: 220 33% 98%;        /* #F6F8FB - app canvas, cool not stark */
+    --surface: 0 0% 100%;             /* #FFFFFF - cards, sidebar, topbar */
+    --surface-2: 220 20% 96%;         /* #F1F3F7 - table head, row hover, wells */
     --foreground: 222 47% 11%;        /* #0F172A */
     --muted-foreground: 215 16% 47%;  /* #64748B */
     --border: 220 16% 90%;            /* #DDE2EA */
@@ -57,16 +57,16 @@
     --muted: 220 20% 96%;
     --input: 220 16% 90%;
 
-    /* Primary — Deep Indigo. Brand, sidebar active, admin badge. */
+    /* Primary - Deep Indigo. Brand, sidebar active, admin badge. */
     --primary: 231 48% 30%;           /* #26317A */
     --primary-foreground: 0 0% 100%;
     --primary-strong: 231 48% 24%;    /* hover/pressed on solid indigo */
-    --primary-subtle: 231 60% 95%;    /* #EBEDFB — indigo badge background */
+    --primary-subtle: 231 60% 95%;    /* #EBEDFB - indigo badge background */
 
-    /* Accent — Teal. The single call-to-action colour. */
-    --accent: 174 62% 40%;            /* #26A69A — brief value, non-text use */
+    /* Accent - Teal. The single call-to-action colour. */
+    --accent: 174 62% 40%;            /* #26A69A - brief value, non-text use */
     --accent-foreground: 0 0% 100%;
-    --accent-strong: 174 62% 31%;     /* #1E8076 — CTA fill + teal text */
+    --accent-strong: 174 62% 31%;     /* #1E8076 - CTA fill + teal text */
     --accent-stronger: 174 62% 25%;   /* CTA hover/pressed */
     --accent-subtle: 174 45% 94%;     /* #E7F5F3 */
 
@@ -76,12 +76,12 @@
     --success-strong: 152 60% 26%;
     --success-subtle: 152 50% 94%;
 
-    --warning: 38 92% 50%;            /* #F5A623 — needs a DARK foreground */
+    --warning: 38 92% 50%;            /* #F5A623 - needs a DARK foreground */
     --warning-foreground: 30 60% 12%;
     --warning-strong: 38 92% 30%;
     --warning-subtle: 38 92% 94%;
 
-    --danger: 0 72% 51%;              /* #DC2626 — white text passes at 4.84 */
+    --danger: 0 72% 51%;              /* #DC2626 - white text passes at 4.84 */
     --danger-foreground: 0 0% 100%;
     --danger-strong: 0 72% 43%;
     --danger-subtle: 0 86% 96%;
@@ -98,7 +98,7 @@
 
     --ring: 174 62% 40%;              /* focus ring = brand teal */
 
-    /* Evidence highlights — one hue per rubric criterion, on the grading
+    /* Evidence highlights - one hue per rubric criterion, on the grading
        workspace. Deliberately NOT reused from the semantic set: success /
        warning / danger carry a JUDGEMENT (passed / careful / broken), while
        these carry only "belongs to criterion N". Tinting criterion 3's
@@ -109,7 +109,7 @@
     --ev-3: 152 55% 85%;
     --ev-4: 280 70% 89%;
 
-    /* Elevation — soft, multi-layer, tinted with the slate text colour
+    /* Elevation - soft, multi-layer, tinted with the slate text colour
        instead of pure black, so shadows read as depth rather than dirt. */
     --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04);
     --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08);
@@ -119,7 +119,7 @@
   }
 
   /* Dark mode: tokens are defined so nothing hardcodes a light value, but
-     no toggle is wired into the UI yet (darkMode: 'class' — nothing sets
+     no toggle is wired into the UI yet (darkMode: 'class' - nothing sets
      the class). Treat these as a reviewed starting point, not a shipped,
      visually-audited theme. */
   .dark {
@@ -168,7 +168,7 @@
 
     --ring: 174 55% 52%;
 
-    /* Cùng hue, tối đi — trên nền tối một vệt tô sáng phải là mảng ĐẬM hơn
+    /* Cùng hue, tối đi - trên nền tối một vệt tô sáng phải là mảng ĐẬM hơn
        chữ xung quanh, không phải sáng hơn, nếu không nó đọc ra như lỗi hiển
        thị chứ không như một dấu bút. */
     --ev-1: 45 60% 28%;
@@ -210,7 +210,7 @@
   }
 
   /* Text fields and the Radix Select trigger (a button[role="combobox"])
-     always match :focus-visible, including on a plain mouse click — so
+     always match :focus-visible, including on a plain mouse click - so
      they'd otherwise stack this ring on top of their own focus border and
      read as two concentric halos. Drop the offset so the ring sits tight
      against the field's border and the two cues read as one. */
@@ -225,7 +225,7 @@
     color: hsl(var(--foreground));
   }
 
-  /* Scrollbars styled to the palette instead of the OS default grey slab —
+  /* Scrollbars styled to the palette instead of the OS default grey slab -
      it's on screen the whole time, so it may as well belong. */
   * {
     scrollbar-width: thin;
@@ -251,7 +251,7 @@
 }
 
 @layer components {
-  /* Card that lifts on hover. Only transform + box-shadow animate — both
+  /* Card that lifts on hover. Only transform + box-shadow animate - both
      are cheap; width/height/top would force layout on every frame. */
   .card-elevated {
     @apply rounded-lg border border-border bg-card shadow-sm;
@@ -266,12 +266,12 @@
     transform: translateY(-2px);
   }
 
-  /* Sidebar nav row. The active state is three cues at once — tinted
+  /* Sidebar nav row. The active state is three cues at once - tinted
      indigo ground, indigo label, and the teal rail that slides between
-     items (see sidebar-nav.tsx) — because a single cue reads as a hover
+     items (see sidebar-nav.tsx) - because a single cue reads as a hover
      accident at a glance. */
   /* min-h is what keeps a row the same height with its label hidden as it
-     is with the label showing (collapsed sidebar) — the teal active rail
+     is with the label showing (collapsed sidebar) - the teal active rail
      is positioned from a measured offsetTop, so a 1-2px drift per row
      would accumulate down the list. */
   .sidebar-item {
@@ -293,12 +293,12 @@
     background-color: hsl(var(--primary) / 0.18);
   }
 
-  /* Small-caps group heading — sidebar sections, field clusters. */
+  /* Small-caps group heading - sidebar sections, field clusters. */
   .section-label {
     @apply text-caption font-semibold uppercase tracking-[0.08em] text-muted-foreground;
   }
 
-  /* Tinted rounded square behind an icon — used by stat cards and empty
+  /* Tinted rounded square behind an icon - used by stat cards and empty
      states so a glyph never floats alone in whitespace. */
   .icon-chip {
     @apply flex shrink-0 items-center justify-center rounded-xl;
@@ -317,7 +317,7 @@
     background-attachment: fixed;
   }
 
-  /* Faint ruled grid — an answer-sheet reference, used on the auth screen. */
+  /* Faint ruled grid - an answer-sheet reference, used on the auth screen. */
   .grid-rule {
     background-image:
       linear-gradient(hsl(var(--border) / 0.55) 1px, transparent 1px),
@@ -334,7 +334,7 @@
 
 /* Accessibility floor: honour the OS "reduce motion" setting everywhere.
    GSAP is gated separately in lib/gsap.ts (a JS tween ignores CSS media
-   queries) — this covers Tailwind transitions, tailwindcss-animate's
+   queries) - this covers Tailwind transitions, tailwindcss-animate's
    dialog/toast keyframes, and smooth scrolling. */
 @media (prefers-reduced-motion: reduce) {
   html {

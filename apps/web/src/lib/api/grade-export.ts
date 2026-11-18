@@ -1,10 +1,10 @@
 import { apiClient } from '@/lib/api-client';
 
-/** Mirrors `apps/api/src/grade-export/` — spec `2026-09-29-gradebook-export-design.md` §4.5-4.6. */
+/** Mirrors `apps/api/src/grade-export/` - spec `2026-09-29-gradebook-export-design.md` §4.5-4.6. */
 export type BlankReason = 'absent' | 'not_finished' | 'ungradable' | 'flagged';
 export type RowAction = 'write' | 'blank' | 'kept' | 'unmatched' | 'duplicate' | 'conflict' | 'skipped_formula' | 'skipped_merged';
 export type Direction = 'up' | 'down' | 'same' | 'new';
-/** Bốn bước làm tròn mà server chấp nhận (phần trăm điểm) — OpenAPI sinh đúng bốn giá trị này. */
+/** Bốn bước làm tròn mà server chấp nhận (phần trăm điểm) - OpenAPI sinh đúng bốn giá trị này. */
 export type RoundingStep = 1 | 10 | 25 | 50;
 export type Cause =
   | { kind: 'rule'; ruleKey: string; ruleName: string | null; delta: number }
@@ -143,7 +143,7 @@ function fail(error: unknown, response: Response): Error {
 }
 
 /**
- * Xin URL ký, `PUT` byte THẲNG lên storage rồi trả `templateId` — file không đi qua NestJS (CLAUDE.md Security rule 5;
+ * Xin URL ký, `PUT` byte THẲNG lên storage rồi trả `templateId` - file không đi qua NestJS (CLAUDE.md Security rule 5;
  * cùng đường `uploadExamMaterial` đi). Chưa có dòng DB nào cho tới khi xuất.
  */
 export async function uploadTemplate(sessionId: string, file: File): Promise<string> {

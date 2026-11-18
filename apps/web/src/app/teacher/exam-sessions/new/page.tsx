@@ -30,11 +30,11 @@ const EMPTY_FORM: CreateExamSessionFormValues = {
   classId: '',
   roomId: '',
   roomName: '',
-  // Học kỳ suy từ lớp đã chọn — không còn ô chọn riêng.
+  // Học kỳ suy từ lớp đã chọn - không còn ô chọn riêng.
   semesterId: '',
   semesterName: '',
   // Empty-string sentinel for "not yet chosen" (same as classId above),
-  // even though it's outside the Zod enum's real output type — the
+  // even though it's outside the Zod enum's real output type - the
   // resolver still rejects submit until the user consciously picks one;
   // this cast only tells RHF what shape the default *starts* as.
   examType: '' as CreateExamSessionFormValues['examType'],
@@ -42,7 +42,7 @@ const EMPTY_FORM: CreateExamSessionFormValues = {
   endTime: '',
 };
 
-/** `Loại kỳ thi Môn MãLớp Học kỳ` — chỉ dựng khi đủ lớp (có HK) + loại kỳ. */
+/** `Loại kỳ thi Môn MãLớp Học kỳ` - chỉ dựng khi đủ lớp (có HK) + loại kỳ. */
 function buildSessionName(parts: {
   examType: string;
   courseName: string;
@@ -61,10 +61,10 @@ async function copySessionCode(code: string) {
     await navigator.clipboard.writeText(code);
     toast.success(`Đã sao chép mã "${code}"`);
   } catch {
-    // Clipboard access can be denied (permissions, non-HTTPS context) —
+    // Clipboard access can be denied (permissions, non-HTTPS context) -
     // the code is on screen at projector size anyway, so this is a
     // degraded-but-usable failure, not a dead end.
-    toast.error('Không sao chép được — hãy đọc mã trực tiếp cho sinh viên.');
+    toast.error('Không sao chép được - hãy đọc mã trực tiếp cho sinh viên.');
   }
 }
 
@@ -142,7 +142,7 @@ export default function NewExamSessionPage() {
   ]);
 
   // Not an error: a session can be created and run without a roster. But
-  // nobody will get in — agent:join requires an enrollment — and finding
+  // nobody will get in - agent:join requires an enrollment - and finding
   // that out at the start of the exam is the failure this warning prevents.
   const noRoster = selectedClass?.studentCount === 0;
 
@@ -171,7 +171,7 @@ export default function NewExamSessionPage() {
   if (created) {
     return (
       <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
-        {/* Every error path below uses role="alert" — this is the
+        {/* Every error path below uses role="alert" - this is the
             equivalent for the success outcome, so a screen reader
             announces the newly created code instead of silence.
             role="status" (not "alert") since this isn't urgent or
@@ -188,7 +188,7 @@ export default function NewExamSessionPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-6">
-            {/* Oversized with wide tracking on purpose — this is read off
+            {/* Oversized with wide tracking on purpose - this is read off
                 a projector from across a room, not scanned in a table. */}
             <p className="break-all text-center text-beacon text-primary">{created.code}</p>
 
@@ -251,7 +251,7 @@ export default function NewExamSessionPage() {
             <CardContent className="flex flex-col gap-5">
               {/* The lecturer picks a CLASS, not a course. The course
                   follows from it server-side, and this list only ever holds
-                  classes they were assigned — a class is what they actually
+                  classes they were assigned - a class is what they actually
                   teach, and what the roster and the headcount hang off. */}
               <FormField
                 id="exam-session-class"
@@ -268,7 +268,7 @@ export default function NewExamSessionPage() {
                       value={field.value}
                       onValueChange={(value) => {
                         field.onChange(value);
-                        // Học kỳ gắn với lớp — không còn ô chọn riêng.
+                        // Học kỳ gắn với lớp - không còn ô chọn riêng.
                         const klass = classes.data?.find((c) => c.id === value);
                         form.setValue('semesterId', klass?.semesterId ?? '', {
                           shouldValidate: true,
@@ -322,7 +322,7 @@ export default function NewExamSessionPage() {
                     <Link href="/teacher/classes" className="font-semibold underline">
                       Xem lớp của tôi
                     </Link>{' '}
-                    — một phiên thi luôn thuộc về một lớp được phân công.
+                    - một phiên thi luôn thuộc về một lớp được phân công.
                   </AlertDescription>
                 </Alert>
               )}
@@ -331,7 +331,7 @@ export default function NewExamSessionPage() {
                 <Alert variant="warning">
                   <TriangleAlert />
                   <AlertDescription>
-                    Lớp {selectedClass.name} chưa gắn học kỳ catalog — không tạo được phiên
+                    Lớp {selectedClass.name} chưa gắn học kỳ catalog - không tạo được phiên
                     thi. Liên hệ quản trị viên để cập nhật lớp.
                   </AlertDescription>
                 </Alert>
@@ -342,7 +342,7 @@ export default function NewExamSessionPage() {
                   <TriangleAlert />
                   <AlertDescription>
                     Lớp {selectedClass?.name} chưa có danh sách sinh viên. Bạn vẫn tạo được
-                    phiên thi, nhưng chưa nhập danh sách thì không sinh viên nào vào được —
+                    phiên thi, nhưng chưa nhập danh sách thì không sinh viên nào vào được -
                     hãy nhập danh sách lớp trước.
                   </AlertDescription>
                 </Alert>
@@ -486,7 +486,7 @@ export default function NewExamSessionPage() {
                   <AlertDescription>
                     {/* The server's message, not a guess at what went
                         wrong. A room or class clash names the booking
-                        already holding the slot — the one thing that tells
+                        already holding the slot - the one thing that tells
                         the lecturer what to change. This banner used to
                         hardcode the duplicate-filename explanation, which
                         sent anyone hitting a clash to inspect their

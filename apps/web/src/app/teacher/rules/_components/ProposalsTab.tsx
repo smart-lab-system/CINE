@@ -16,7 +16,7 @@ import { describeRecompute } from '@/lib/rules-vocab';
 
 /**
  * "Lỗi AI đề xuất" (spec D5): lỗi agent gặp khi chấm mà bảng chưa có dòng nào khớp. Mỗi thẻ nói rõ nó thấy ở phiên
- * nào, bao nhiêu bài (của rubric đang mở), và rằng lỗi đó ĐANG BỊ BỎ KHỎI ĐIỂM — hệ thống không đoán lỗi gần nhất.
+ * nào, bao nhiêu bài (của rubric đang mở), và rằng lỗi đó ĐANG BỊ BỎ KHỎI ĐIỂM - hệ thống không đoán lỗi gần nhất.
  * "Không phải lỗi" đổi điểm các phiên chưa chốt nên luôn hỏi xác nhận trước.
  */
 export function ProposalsTab({
@@ -46,7 +46,7 @@ export function ProposalsTab({
   if (error) {
     return (
       <Alert variant="destructive" className="mt-4">
-        <AlertDescription>Không tải được lỗi AI đề xuất — {error.message}. Thử tải lại trang.</AlertDescription>
+        <AlertDescription>Không tải được lỗi AI đề xuất - {error.message}. Thử tải lại trang.</AlertDescription>
       </Alert>
     );
   }
@@ -65,7 +65,7 @@ export function ProposalsTab({
       <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning-subtle px-4 py-3 text-warning-strong">
         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <span>
-          <b>{list.length} lỗi AI thấy khi chấm nhưng chưa có trong bảng.</b> Các lỗi này đang <b>bị bỏ ra khỏi điểm</b> — hệ thống không tự đoán lỗi gần nhất. Thêm vào rubric này, hoặc đánh dấu “không phải lỗi”.
+          <b>{list.length} lỗi AI thấy khi chấm nhưng chưa có trong bảng.</b> Các lỗi này đang <b>bị bỏ ra khỏi điểm</b> - hệ thống không tự đoán lỗi gần nhất. Thêm vào rubric này, hoặc đánh dấu “không phải lỗi”.
         </span>
       </div>
 

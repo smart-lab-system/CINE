@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { LeverageLine } from './LeverageLine';
 
-describe('LeverageLine (spec §3.3 — one action at the rule layer clears many results)', () => {
+describe('LeverageLine (spec §3.3 - one action at the rule layer clears many results)', () => {
   it('says nothing when there is no lever', () => {
     const { container } = render(<LeverageLine leverage={null} />);
     expect(container).toBeEmptyDOMElement();
@@ -15,9 +15,9 @@ describe('LeverageLine (spec §3.3 — one action at the rule layer clears many 
   });
 
   // Verified on the live API: pricing the only unpriced rule removed the "unpriced" flag but EXPOSED a
-  // low_confidence flag that decide() hides while other flags exist (decide.ts:188) — the result stayed flagged.
+  // low_confidence flag that decide() hides while other flags exist (decide.ts:188) - the result stayed flagged.
   // So the line must not promise that prices are all that stands between a result and an automatic decision.
-  it('never promises pricing is enough — it says pricing clears THIS reason and another may appear', () => {
+  it('never promises pricing is enough - it says pricing clears THIS reason and another may appear', () => {
     render(<LeverageLine leverage={{ waiting: 2, total: 2, ruleKeys: ['x'] }} />);
     expect(screen.getByRole('status')).not.toHaveTextContent(/chỉ chờ/);
     expect(screen.getByRole('status')).toHaveTextContent('Đặt giá gỡ lý do này');

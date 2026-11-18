@@ -12,9 +12,9 @@ import { requestAnswerKeyUpload, type GradingReadiness, type GradingSourceInfo }
 import { NO_QUESTION, buildReferencePayload, referenceIsDirty } from '@/lib/grading-reference-form';
 
 /**
- * Tải đáp án mẫu thẳng lên kho — file KHÔNG đi qua API server (Security rule 5). Ném lỗi khi PUT hỏng và người
+ * Tải đáp án mẫu thẳng lên kho - file KHÔNG đi qua API server (Security rule 5). Ném lỗi khi PUT hỏng và người
  * gọi phải DỪNG ở đó: lưu một tham chiếu trỏ tới object không tồn tại sẽ cho ra một phiên báo "mức 3" mà lúc
- * chấm tụt về mức 2 — chỉ một dòng log biết điều đó, và giảng viên thì không.
+ * chấm tụt về mức 2 - chỉ một dòng log biết điều đó, và giảng viên thì không.
  */
 async function uploadAnswerKey(sessionId: string, file: File): Promise<string> {
   const { storageKey, uploadUrl } = await requestAnswerKeyUpload(sessionId);
@@ -24,11 +24,11 @@ async function uploadAnswerKey(sessionId: string, file: File): Promise<string> {
 }
 
 /**
- * Tài liệu chấm của phiên (spec §3.7): đề bài · đáp án mẫu · ghi chú — thay `GradingReferenceDialog`, giữ nguyên
+ * Tài liệu chấm của phiên (spec §3.7): đề bài · đáp án mẫu · ghi chú - thay `GradingReferenceDialog`, giữ nguyên
  * luật ghi của nó: chỉ gửi trường đã đổi (không gửi = giữ, `null` = xoá, giá trị = đặt); đề bài KHÔNG chọn sẵn
  * file nào (Security rule 9); lên kho TRƯỚC rồi mới lưu tham chiếu.
  *
- * `onDirtyChange` báo còn thay đổi chưa lưu — màn cha không cho bắt đầu chấm lúc đó, vì bắt đầu chấm khoá tài liệu.
+ * `onDirtyChange` báo còn thay đổi chưa lưu - màn cha không cho bắt đầu chấm lúc đó, vì bắt đầu chấm khoá tài liệu.
  * "Nguồn của từng tài liệu" (bạn tải lên lúc nào / gắn từ Soạn đề) đọc từ `readiness.sources`. Băng vàng "đáp án
  * chưa kiểm chứng" hiện cho tới khi thước được kiểm chứng (§6.3b). Ghim một gói KHÔNG làm thước thành đã kiểm
  * chứng: `hasPinnedBundle` chỉ đổi câu chữ, không tắt băng (G2b A2a).
@@ -97,7 +97,7 @@ export function ReferenceForm({
           {readiness?.hasQuestion && <Badge variant="accent">Đã chỉ định</Badge>}
         </legend>
         <p className="text-caption text-muted-foreground">
-          Cho hệ thống biết bài hỏi gì, để chấm đúng ý và để góc kiểm đối chiếu được. Bạn chỉ định — hệ thống không tự
+          Cho hệ thống biết bài hỏi gì, để chấm đúng ý và để góc kiểm đối chiếu được. Bạn chỉ định - hệ thống không tự
           đoán theo tên file.
         </p>
         {materials.isLoading && <p className="text-small text-muted-foreground">Đang tải danh sách tài liệu…</p>}
@@ -165,7 +165,7 @@ export function ReferenceForm({
         />
         <p className="text-caption text-muted-foreground">
           Đáp án mẫu <span className="font-semibold">không bao giờ hiển thị trên màn chấm</span> và không bao giờ được
-          gửi cho mô hình dưới dạng đáp án — nó chỉ dùng để đối chiếu.
+          gửi cho mô hình dưới dạng đáp án - nó chỉ dùng để đối chiếu.
         </p>
         {readiness?.sources?.modelAnswer.present && readiness.sources.modelAnswer.unverified && (
           <Alert variant="warning" role="status">
@@ -178,7 +178,7 @@ export function ReferenceForm({
               ) : (
                 <>
                   Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Cả phiên sẽ được đo
-                  bằng một cái thước bạn chưa đọc — hãy kiểm tra đáp án và duyệt gói test ở khối bên dưới.
+                  bằng một cái thước bạn chưa đọc - hãy kiểm tra đáp án và duyệt gói test ở khối bên dưới.
                 </>
               )}
             </AlertDescription>

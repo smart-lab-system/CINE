@@ -65,7 +65,7 @@ describe('predicateOf / buildNewRule', () => {
   });
 });
 
-describe('buildChanges — chỉ gửi điều ĐÃ ĐỔI (Review Focus 6)', () => {
+describe('buildChanges - chỉ gửi điều ĐÃ ĐỔI (Review Focus 6)', () => {
   it('không đổi gì → rỗng, không bẩn', () => {
     const form = formFromRule(ai);
     expect(buildChanges(ai, form)).toEqual({});

@@ -134,7 +134,7 @@ function ComputersMasterDataContent() {
   );
 
   const roomCode = (id: string) =>
-    rooms.data?.items.find((r) => r.id === id)?.code ?? '—';
+    rooms.data?.items.find((r) => r.id === id)?.code ?? '-';
   const selectedRoomCode = roomId ? roomCode(roomId) : undefined;
   const pcFiltered =
     Boolean(debouncedPcSearch.trim()) || pcStatus !== 'all' || Boolean(roomId);
@@ -284,7 +284,7 @@ function ComputersMasterDataContent() {
               </>
             }
             activeSummary={
-              selectedRoomCode && selectedRoomCode !== '—'
+              selectedRoomCode && selectedRoomCode !== '-'
                 ? `Đang xem: ${selectedRoomCode}`
                 : pcFiltered
                   ? 'Đang lọc máy'
@@ -319,7 +319,7 @@ function ComputersMasterDataContent() {
                       </span>
                     ) : null}
                   </TableCell>
-                  <TableCell>{c.location || '—'}</TableCell>
+                  <TableCell>{c.location || '-'}</TableCell>
                   <TableCell>{c.cpu}</TableCell>
                   <TableCell>{c.ramGb} GB</TableCell>
                   <TableCell>{c.storage}</TableCell>

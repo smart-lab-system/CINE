@@ -43,7 +43,7 @@ const renderIt = () =>
       onRecorded={onRecorded} onOpenDossier={onOpenDossier} />,
   );
 const submit = () => screen.getByRole('button', { name: /^Ghi nhận xét/ });
-/** Nút mở hộp xác nhận, rồi nút xác nhận trong hộp — nhãn khoá thì phải qua cả hai. */
+/** Nút mở hộp xác nhận, rồi nút xác nhận trong hộp - nhãn khoá thì phải qua cả hai. */
 const confirmAndSend = () => {
   fireEvent.click(submit());
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Ghi và khoá' }));
@@ -63,7 +63,7 @@ beforeEach(() => {
   };
 });
 
-describe('AuditReview — before the label is written', () => {
+describe('AuditReview - before the label is written', () => {
   it('names the student, links their own submission, and says the system\'s score and errors are hidden until the teacher writes their own', () => {
     renderIt();
     expect(screen.getByRole('heading', { name: 'Nguyễn Văn A' })).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe('AuditReview — before the label is written', () => {
     expect(screen.getByText(/tốn công hơn một bài cần xem/)).toBeInTheDocument();
   });
 
-  it('lists the teacher\'s active rules as checkboxes with name and description — and no price (a price would bias the pick)', () => {
+  it('lists the teacher\'s active rules as checkboxes with name and description - and no price (a price would bias the pick)', () => {
     renderIt();
     expect(screen.getByRole('checkbox', { name: /Sai biên/ })).not.toBeChecked();
     expect(screen.getByText('Test nhóm biên thất bại')).toBeInTheDocument();
@@ -150,9 +150,9 @@ describe('AuditReview — before the label is written', () => {
   });
 
   it('shows the server refusal verbatim and keeps the form on screen', () => {
-    recordState = { isPending: false, isError: true, error: new Error('Nhận xét kiểm mẫu của bài này đã ghi — khoá, không ghi lại được.') };
+    recordState = { isPending: false, isError: true, error: new Error('Nhận xét kiểm mẫu của bài này đã ghi - khoá, không ghi lại được.') };
     renderIt();
-    expect(screen.getByText('Nhận xét kiểm mẫu của bài này đã ghi — khoá, không ghi lại được.')).toBeInTheDocument();
+    expect(screen.getByText('Nhận xét kiểm mẫu của bài này đã ghi - khoá, không ghi lại được.')).toBeInTheDocument();
     expect(extraBox()).toBeInTheDocument();
   });
 
@@ -164,7 +164,7 @@ describe('AuditReview — before the label is written', () => {
     expect(extraBox()).toBeInTheDocument();
   });
 
-  it('cannot submit a label when the rule table failed to load — a blind label without the picks would be wrong data', () => {
+  it('cannot submit a label when the rule table failed to load - a blind label without the picks would be wrong data', () => {
     rulesState = { data: undefined, isLoading: false, isError: true, error: new Error('Không tải được bảng lỗi') };
     renderIt();
     expect(screen.getByText(/Không tải được bảng lỗi/)).toBeInTheDocument();
@@ -181,7 +181,7 @@ describe('AuditReview — before the label is written', () => {
   });
 });
 
-describe('AuditReview — after the label is written', () => {
+describe('AuditReview - after the label is written', () => {
   it('replaces the form with the reveal, tells the page, and refreshes only when the teacher opens the dossier', () => {
     record.mockImplementation((_body: unknown, opts: { onSuccess: (d: AuditRevealData) => void }) => opts.onSuccess(revealed));
     renderIt();

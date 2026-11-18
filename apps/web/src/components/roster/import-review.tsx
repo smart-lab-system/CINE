@@ -15,7 +15,7 @@ interface ImportReviewProps {
   removeMissing: boolean;
   onRemoveMissingChange: (value: boolean) => void;
   /**
-   * `class` nói về lớp học phần. `exam` nói về danh sách thi của phiên —
+   * `class` nói về lớp học phần. `exam` nói về danh sách thi của phiên -
    * cùng cờ `removeMissing`, nhưng ô tích thay cả danh sách thi bằng file.
    */
   scope?: 'class' | 'exam';
@@ -26,7 +26,7 @@ interface ImportReviewProps {
  *
  * Errors and the diff are mutually exclusive by construction: a file with
  * any bad row produces no students, so there is nothing to diff. That is the
- * rule, not a UI shortcut — importing 38 of 40 rows yields a headcount that
+ * rule, not a UI shortcut - importing 38 of 40 rows yields a headcount that
  * looks healthy and is not.
  */
 export function ImportReview({
@@ -45,7 +45,7 @@ export function ImportReview({
           <CircleAlert />
           <AlertDescription>
             File có {errors.length} dòng lỗi trên các sinh viên có MSSV 8 số. Không nhập
-            dòng nào — hãy sửa rồi chọn lại.
+            dòng nào - hãy sửa rồi chọn lại.
           </AlertDescription>
         </Alert>
         <ul className="flex flex-col gap-1 rounded-md border border-border bg-surface-2 p-4">
@@ -100,7 +100,7 @@ export function ImportReview({
       {nothingChanges && (
         <Alert variant="info">
           <AlertDescription>
-            File này khớp hoàn toàn với danh sách hiện tại — nhập lại sẽ không thay đổi gì.
+            File này khớp hoàn toàn với danh sách hiện tại - nhập lại sẽ không thay đổi gì.
           </AlertDescription>
         </Alert>
       )}
@@ -108,7 +108,7 @@ export function ImportReview({
       {diff.added.length > 0 && (
         <DiffList
           title="Sẽ thêm vào lớp"
-          items={diff.added.map((s) => `${s.mssv} — ${s.name}`)}
+          items={diff.added.map((s) => `${s.mssv} - ${s.name}`)}
         />
       )}
 
@@ -134,8 +134,8 @@ export function ImportReview({
               </p>
               <p className="text-caption text-muted-foreground">
                 {scope === 'exam'
-                  ? 'Mặc định họ được giữ trong danh sách thi của phiên này. Tích ô bên dưới để bỏ danh sách cũ và chỉ lấy những người có trong file — không đổi lớp học phần.'
-                  : 'Mặc định họ được giữ nguyên. Xoá một sinh viên khỏi lớp đồng nghĩa với việc họ không vào được phiên thi — và điều đó chỉ lộ ra vào hôm thi.'}
+                  ? 'Mặc định họ được giữ trong danh sách thi của phiên này. Tích ô bên dưới để bỏ danh sách cũ và chỉ lấy những người có trong file - không đổi lớp học phần.'
+                  : 'Mặc định họ được giữ nguyên. Xoá một sinh viên khỏi lớp đồng nghĩa với việc họ không vào được phiên thi - và điều đó chỉ lộ ra vào hôm thi.'}
               </p>
             </div>
           </div>
@@ -143,7 +143,7 @@ export function ImportReview({
           <ul className="max-h-56 overflow-y-auto rounded-md border border-border bg-surface-2 p-4">
             {diff.missing.map((student) => (
               <li key={student.mssv} className="text-small">
-                <span className="font-mono">{student.mssv}</span> — {student.name}
+                <span className="font-mono">{student.mssv}</span> - {student.name}
               </li>
             ))}
           </ul>

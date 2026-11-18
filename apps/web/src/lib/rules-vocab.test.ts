@@ -7,8 +7,8 @@ describe('formatDeductionString', () => {
     expect(formatDeductionString('0.25')).toBe('−0,25');
     expect(formatDeductionString('0.00')).toBe('0');
   });
-  it('chưa có điểm trừ → "—"', () => {
-    expect(formatDeductionString(null)).toBe('—');
+  it('chưa có điểm trừ → "-"', () => {
+    expect(formatDeductionString(null)).toBe('-');
   });
 });
 
@@ -37,8 +37,8 @@ describe('parseDeductionInput', () => {
 });
 
 describe('describeRecompute', () => {
-  it('null = lỗi AI đọc bài không tính lại bài đã chấm (T-FAIR-1) — nói ra, không im lặng', () => {
-    expect(describeRecompute(null)).toBe('Lỗi này không tính lại bài nào đã chấm — chỉ áp cho phiên chấm sau.');
+  it('null = lỗi AI đọc bài không tính lại bài đã chấm (T-FAIR-1) - nói ra, không im lặng', () => {
+    expect(describeRecompute(null)).toBe('Lỗi này không tính lại bài nào đã chấm - chỉ áp cho phiên chấm sau.');
   });
   it('không bài nào bị ảnh hưởng', () => {
     expect(describeRecompute({ recomputed: 0, promoted: 0, demoted: 0, belowFloor: 0 })).toBe('Không có bài nào bị ảnh hưởng.');

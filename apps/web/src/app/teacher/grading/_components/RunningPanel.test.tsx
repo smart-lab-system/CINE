@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe('RunningPanel — the numbers (spec §3.8)', () => {
+describe('RunningPanel - the numbers (spec §3.8)', () => {
   it('splits the session into three parts that add up to the total', () => {
     render(<RunningPanel {...props()} />);
     const legend = screen.getByRole('list', { name: 'Các phần của lượt chấm' });
@@ -90,7 +90,7 @@ describe('RunningPanel — the numbers (spec §3.8)', () => {
   describe('speed and time left', () => {
     it('says it cannot estimate yet', () => {
       render(<RunningPanel {...props()} />);
-      expect(screen.getByText('Chưa ước tính được — cần đo thêm một lúc.')).toBeInTheDocument();
+      expect(screen.getByText('Chưa ước tính được - cần đo thêm một lúc.')).toBeInTheDocument();
     });
 
     it('measures from successive reads, says it is an estimate and over what window', () => {
@@ -98,12 +98,12 @@ describe('RunningPanel — the numbers (spec §3.8)', () => {
       const { rerender } = render(<RunningPanel {...first} />);
       act(() => void vi.advanceTimersByTime(60_000));
       rerender(<RunningPanel {...props({ progress: progress({ done: 6, pending: 6, total: 12 }), results: [], lastReadAt: Date.now() })} />);
-      expect(screen.getByText(/Ước tính: khoảng 6 bài\/phút, còn khoảng 1 phút — đo trong 60 giây vừa qua\./)).toBeInTheDocument();
+      expect(screen.getByText(/Ước tính: khoảng 6 bài\/phút, còn khoảng 1 phút - đo trong 60 giây vừa qua\./)).toBeInTheDocument();
     });
   });
 });
 
-describe('RunningPanel — incidents: each banner says WHAT broke and whether the work is affected', () => {
+describe('RunningPanel - incidents: each banner says WHAT broke and whether the work is affected', () => {
   it('MY machine offline: the grading continues on the server, no result is affected, numbers dimmed with the last read, nothing to press', () => {
     render(<RunningPanel {...props({ online: false })} />);
     expect(screen.getByRole('status')).toHaveTextContent('Việc chấm vẫn chạy trên máy chủ');
@@ -172,7 +172,7 @@ describe('RunningPanel — incidents: each banner says WHAT broke and whether th
   });
 });
 
-describe('RunningPanel — what the API cannot tell yet is labelled, not invented (T-UI-10)', () => {
+describe('RunningPanel - what the API cannot tell yet is labelled, not invented (T-UI-10)', () => {
   it('"Đang chạy ngay lúc này" shows the count of this session, and no "cần backend" placeholder', () => {
     render(<RunningPanel {...props({ progress: progress({ pending: 4, done: 6, total: 10 }) })} />);
     const block = screen.getByRole('region', { name: 'Đang chạy ngay lúc này' });

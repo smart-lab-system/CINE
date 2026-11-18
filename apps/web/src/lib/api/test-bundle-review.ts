@@ -1,7 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 
 /**
- * Bỏ một ca khỏi gói CHƯA duyệt — server sinh một phiên bản gói mới không
+ * Bỏ một ca khỏi gói CHƯA duyệt - server sinh một phiên bản gói mới không
  * chép ca đó (`grading_test_case` là append-only). Gói đã duyệt thì server
  * trả 409 và UI không hiện nút này.
  *

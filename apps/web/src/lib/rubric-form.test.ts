@@ -149,7 +149,7 @@ describe('validateRubric', () => {
       const errs = validateRubric(meta({ name: 'X', nameEditable: false, existingNames: [] }), rows({ existing: true, key: 'Cũ_Không-Hợp-Lệ' }));
       expect(errs.rows.n0).toBeUndefined();
     });
-    it('two rows must not share a key — typed against typed, or typed against an existing one', () => {
+    it('two rows must not share a key - typed against typed, or typed against an existing one', () => {
       const errs = validateRubric(
         meta({ name: 'X', nameEditable: false, existingNames: [] }),
         rows({ existing: true, key: 'tinh_dung' }, { key: 'tinh_dung' }, { key: 'moi' }, { key: 'moi' }),

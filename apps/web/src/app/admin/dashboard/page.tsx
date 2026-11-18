@@ -8,12 +8,12 @@ import { StatCard } from '@/components/layout/stat-card';
 import { Button } from '@/components/ui/button';
 
 // Active-session count needs GET /exam-sessions, which doesn't exist until
-// Phase 2 — stays "—" until then. AI cost has no backing module in this
+// Phase 2 - stays "-" until then. AI cost has no backing module in this
 // task's scope at all (see design spec's phasing/out-of-scope sections).
 // The `hint` under each placeholder says which of the two it is, so an
 // empty tile reads as "not built yet", not "nothing happened today".
 export default function AdminDashboardPage() {
-  // pageSize: 1 — the list body is never read, only `total`; asking the
+  // pageSize: 1 - the list body is never read, only `total`; asking the
   // server for a single row is cheap where a real count endpoint doesn't
   // exist yet.
   const { data, isLoading, isError } = useAccounts({ page: 1, pageSize: 1 });
@@ -22,7 +22,7 @@ export default function AdminDashboardPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Dashboard"
-        description="Tổng quan hệ thống ExamCollect — tài khoản, phiên thi và chi phí AI."
+        description="Tổng quan hệ thống ExamCollect - tài khoản, phiên thi và chi phí AI."
         actions={
           <Button asChild>
             <Link href="/admin/accounts">
@@ -37,7 +37,7 @@ export default function AdminDashboardPage() {
         <StatCard
           icon={Users}
           label="Tổng số tài khoản"
-          value={isLoading ? null : (data?.total ?? '—')}
+          value={isLoading ? null : (data?.total ?? '-')}
           variant="primary"
           hint="Gồm cả quản trị viên và giảng viên"
           isError={isError}
@@ -45,14 +45,14 @@ export default function AdminDashboardPage() {
         <StatCard
           icon={Bot}
           label="Phiên thi đang diễn ra"
-          value="—"
+          value="-"
           variant="info"
           hint="Cần API thống kê phiên thi toàn hệ thống"
         />
         <StatCard
           icon={Wallet}
           label="Chi phí AI tháng này"
-          value="—"
+          value="-"
           variant="warning"
           hint="Có khi module theo dõi chi phí hoàn thiện"
         />

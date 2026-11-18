@@ -1,6 +1,6 @@
 /**
  * Mirror API `apps/api/src/master-data/resolve-semester.ts`
- * (spec 2026-11-18 course hub) — giữ đồng bộ thủ công.
+ * (spec 2026-11-18 course hub) - giữ đồng bộ thủ công.
  */
 
 export type SemesterStatusHint = 'planned' | 'active' | 'closed' | string;

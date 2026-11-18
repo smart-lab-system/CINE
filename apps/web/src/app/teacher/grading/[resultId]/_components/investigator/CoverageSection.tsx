@@ -16,7 +16,7 @@ export function CoverageSection({ investigation }: { investigation: NonNullable<
       </p>
       <ul className="flex flex-col gap-1 text-small">
         <li>Đã chạy {ran} lượt gói test.</li>
-        {notRun > 0 && <li>{notRun} lượt khác không chạy được (lỗi hoặc bị chặn) — không tính là đã kiểm.</li>}
+        {notRun > 0 && <li>{notRun} lượt khác không chạy được (lỗi hoặc bị chặn) - không tính là đã kiểm.</li>}
         {replay && (
           <li>
             Chạy lại ngẫu nhiên lời gọi #{replay.toolCallId} →{' '}
@@ -30,7 +30,7 @@ export function CoverageSection({ investigation }: { investigation: NonNullable<
         </span>
         <h3 className="text-small font-semibold">Độ phức tạp đo được</h3>
         <p className="mt-1 text-caption text-muted-foreground">
-          Cần công cụ đo độ phức tạp (bước 4 của spec chấm điểm) — chưa xây. Bài nộp chưa được so với đề theo lớp thời
+          Cần công cụ đo độ phức tạp (bước 4 của spec chấm điểm) - chưa xây. Bài nộp chưa được so với đề theo lớp thời
           gian chạy.
         </p>
       </div>

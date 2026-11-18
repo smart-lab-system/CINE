@@ -18,15 +18,15 @@ import { formatVnPoints } from '@/lib/format';
 import { formatDeductionString } from '@/lib/rules-vocab';
 import { RULES_PATH } from '@/lib/rules-links';
 
-/** Mức trừ dạng chuỗi thập phân theo ĐIỂM ("1.50") → "−1,5"; chưa có giá thì nói "chưa giá", không "—". */
+/** Mức trừ dạng chuỗi thập phân theo ĐIỂM ("1.50") → "−1,5"; chưa có giá thì nói "chưa giá", không "-". */
 const deduction = (d: string | null) => (d === null ? 'chưa giá' : formatDeductionString(d));
 
 /**
  * "Áp giá mới cho phiên đã chốt" (spec §3.1, §3.10, T-UI-21).
  *
- * Đổi giá ở Bảng lỗi KHÔNG tự đổi điểm phiên đã chốt — bảng giá đã ghim lúc chốt. Muốn áp giá hiện hành phải làm
+ * Đổi giá ở Bảng lỗi KHÔNG tự đổi điểm phiên đã chốt - bảng giá đã ghim lúc chốt. Muốn áp giá hiện hành phải làm
  * một thao tác riêng: xem trước (bài nào đổi điểm, luật nào đổi mức trừ), rồi xác nhận, và mỗi bài đổi điểm có một
- * dòng nhật ký. Server từ chối CẢ LƯỢT khi còn bài dính luật lúc chốt có giá mà nay chưa có giá — nên nút áp chỉ
+ * dòng nhật ký. Server từ chối CẢ LƯỢT khi còn bài dính luật lúc chốt có giá mà nay chưa có giá - nên nút áp chỉ
  * bật khi bản xem trước không có bài nào "không áp được".
  */
 export function ReapplyPricesPanel({ sessionId, rulesHref = RULES_PATH }: { sessionId: string; rulesHref?: string }) {
@@ -45,7 +45,7 @@ export function ReapplyPricesPanel({ sessionId, rulesHref = RULES_PATH }: { sess
       <div className="flex flex-col gap-1">
         <h2 className="text-h3">Áp giá mới cho phiên đã chốt</h2>
         <p className="text-small text-muted-foreground">
-          Đổi giá ở Bảng lỗi không tự đổi điểm phiên đã chốt — bảng giá đã ghim lúc chốt. Muốn áp giá hiện hành, xem
+          Đổi giá ở Bảng lỗi không tự đổi điểm phiên đã chốt - bảng giá đã ghim lúc chốt. Muốn áp giá hiện hành, xem
           trước rồi áp: mỗi bài đổi điểm có một dòng nhật ký.
         </p>
       </div>
@@ -81,7 +81,7 @@ export function ReapplyPricesPanel({ sessionId, rulesHref = RULES_PATH }: { sess
           <AlertDescription className="flex flex-col gap-1">
             <span className="font-semibold">{skipped.length} bài không áp được</span>
             <span>
-              Luật lúc chốt có giá nay chưa có giá — công bố như vậy là công bố một lỗi miễn phí, nên máy chủ từ chối cả
+              Luật lúc chốt có giá nay chưa có giá - công bố như vậy là công bố một lỗi miễn phí, nên máy chủ từ chối cả
               lượt. Đặt giá trước.
             </span>
             <span>

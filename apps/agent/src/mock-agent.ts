@@ -1,5 +1,5 @@
 /**
- * Mock agent — load-test harness for the exam-live demo.
+ * Mock agent - load-test harness for the exam-live demo.
  *
  * Opens N concurrent WebSocket connections to the exam-live gateway
  * (`Promise.all` over N independent connect+join attempts, never a serial
@@ -11,13 +11,13 @@
  *
  * Deliberately lighter than the real agent (the Electron app, driven by
  * session-controller.ts): no filesystem writes (never touches
- * `exam-workspace/`), no interactive prompts, no reconnection loop — built
+ * `exam-workspace/`), no interactive prompts, no reconnection loop - built
  * for throughput and aggregate reporting, not for fidelity to what a real
  * exam-taking machine does.
  *
  * With --simulate-submission it also answers `exam:finalize` by uploading a
  * synthesized file per deliverable. That path runs the SAME
- * uploadAllDeliverables() the real agent uses — only the source of the
+ * uploadAllDeliverables() the real agent uses - only the source of the
  * bytes differs (memory instead of disk), because a mock that uploads
  * differently from the real agent would not be testing the real flow.
  *
@@ -32,14 +32,14 @@
  *   --keep-alive           keep every successfully-joined socket connected
  *                          after the summary is printed, instead of
  *                          disconnecting it right away (default: disconnect
- *                          every socket immediately after its ack/error —
+ *                          every socket immediately after its ack/error -
  *                          fast test mode, also exercises the gateway's
  *                          `agent:disconnected` broadcast for each one)
  *   --simulate-submission  on `exam:finalize`, upload a synthesized file for
  *                          every declared deliverable. Implies --keep-alive,
  *                          since a disconnected socket never hears finalize.
  *   --backend-url <url>   API base URL (default: http://localhost:4000;
- *                         also settable via the BACKEND_URL env var — the
+ *                         also settable via the BACKEND_URL env var - the
  *                         flag wins if both are given)
  *   -h, --help             print usage and exit
  */
@@ -49,7 +49,7 @@ import process from 'node:process';
 
 // ---------------------------------------------------------------------------
 // Client side of the WebSocket Event Contract implemented by
-// apps/api/src/exam-session/exam-session.gateway.ts — the canonical copy
+// apps/api/src/exam-session/exam-session.gateway.ts - the canonical copy
 // now lives in agent-contract.ts (cli.ts, which used to declare its own
 // copy of these same shapes, is retired: design spec §8.4, parity
 // confirmed against the running Electron app). Do not rename/reshape any
@@ -70,11 +70,11 @@ import {
 const DEFAULT_BACKEND_URL = 'http://localhost:4000';
 const DEFAULT_COUNT = 10;
 
-// Safety net only — the manual test suite for this task confirms the real
+// Safety net only - the manual test suite for this task confirms the real
 // gateway always answers `agent:join` with either `agent:join:ack` or
 // `agent:join:error` (even for a bogus session code), so this should never
 // fire in practice. It exists so a genuine server-side hang can't leave
-// `Promise.all` (and this whole process) stuck forever — it surfaces as a
+// `Promise.all` (and this whole process) stuck forever - it surfaces as a
 // `CLIENT_TIMEOUT` failure in the aggregate report instead, which is itself
 // a useful signal.
 const JOIN_TIMEOUT_MS = 15_000;
@@ -102,7 +102,7 @@ function nonEmpty(value: string | undefined): string | undefined {
 }
 
 function printUsage(): void {
-  console.log(`Mock Agent — mở nhiều kết nối agent song song để test tải/chức năng.
+  console.log(`Mock Agent - mở nhiều kết nối agent song song để test tải/chức năng.
 
 Cách dùng:
   ts-node src/mock-agent.ts --session <code> [--count <n>] [--keep-alive] [--backend-url <url>]
@@ -145,7 +145,7 @@ function parseArgs(argv: string[]): MockAgentArgs {
     const key = eqIndex !== -1 ? token.slice(2, eqIndex) : token.slice(2);
     const inlineValue = eqIndex !== -1 ? token.slice(eqIndex + 1) : undefined;
 
-    // --keep-alive is a pure boolean flag — it must NOT consume the next
+    // --keep-alive is a pure boolean flag - it must NOT consume the next
     // token as a value (unlike --session/--count/--backend-url below),
     // otherwise `--keep-alive --count 5` would silently eat "--count".
     if (key === 'keep-alive') {
@@ -207,7 +207,7 @@ function parseArgs(argv: string[]): MockAgentArgs {
 }
 
 // ---------------------------------------------------------------------------
-// Fake identity generation — NEVER real MSSV data.
+// Fake identity generation - NEVER real MSSV data.
 // ---------------------------------------------------------------------------
 
 interface MockIdentity {
@@ -226,7 +226,7 @@ function generateIdentities(count: number): MockIdentity[] {
       fullName: `Sinh viên test ${suffix}`,
       // Letters and digits only, 4-20 chars: exactly ck_submission_mssv and
       // the AgentJoinDto rule it mirrors. These used to read
-      // "MSSV_TEST_01" — the underscores passed agent:join back when it only
+      // "MSSV_TEST_01" - the underscores passed agent:join back when it only
       // checked length, and would then have been rejected by the DB at the
       // moment the submission row was written, i.e. at the end of the exam.
       studentId: `MSSVTEST${suffix}`,
@@ -242,10 +242,10 @@ function generateIdentities(count: number): MockIdentity[] {
 /**
  * Same non-object guard the gateway itself uses on the way in
  * (`ExamSessionGateway.isPlainObject`) and the real agent uses on the way
- * back (`session-controller.ts`'s own `isPlainObject`) — applied here too,
+ * back (`session-controller.ts`'s own `isPlainObject`) - applied here too,
  * since a malformed/hostile `agent:join:ack`/`agent:join:error` payload is
  * just as untrustworthy for this script as for the real one. Re-declared
- * locally (not imported) because it's a runtime value, not a type — this
+ * locally (not imported) because it's a runtime value, not a type - this
  * script's own contract import above is `import type` only, from
  * agent-contract.ts (a pure type-declaration file, nothing to execute).
  */
@@ -285,14 +285,14 @@ interface AgentOutcome {
   status: 'success' | 'error';
   /** Time from emitting `agent:join` to receiving ack/error, in ms. */
   timeToAckMs: number;
-  /** Time from opening the socket to settling, in ms — includes connection setup, used to evidence real concurrency (see report). */
+  /** Time from opening the socket to settling, in ms - includes connection setup, used to evidence real concurrency (see report). */
   totalMs: number;
   errorCode?: AgentJoinErrorCode | LocalFailureCode;
   errorMessage?: string;
   ack?: AgentJoinAck;
   /** Set only when this connection stays open after settling (successful join + --keep-alive). */
   keptAliveSocket?: Socket;
-  /** Resolves once this agent has finished its finalize upload — only with --simulate-submission. */
+  /** Resolves once this agent has finished its finalize upload - only with --simulate-submission. */
   submissionDone?: Promise<UploadSummary>;
 }
 
@@ -310,13 +310,13 @@ function runOneAgent(
     let emitStart = 0;
     let settled = false;
 
-    // forceNew: true is essential here, not decorative — without it,
+    // forceNew: true is essential here, not decorative - without it,
     // socket.io-client multiplexes same-URL connections over one shared
     // Manager/transport, which would NOT exercise N genuinely separate
     // socket connections (N distinct server-side client.id values, N
     // separate per-socket rate-limit buckets, N separate
     // `agent:disconnected` broadcasts). reconnection: false means one
-    // connection attempt, one outcome — no silent background retries that
+    // connection attempt, one outcome - no silent background retries that
     // would re-emit agent:join and skew the rate-limit/attempt counts.
     const socket: Socket = io(`${backendUrl}/exam-live`, {
       forceNew: true,
@@ -366,7 +366,7 @@ function runOneAgent(
       if (partial.status === 'success') {
         console.log(`${tag} ${identity.studentId} OK (${timeToAckMs}ms)`);
       } else {
-        console.log(`${tag} ${identity.studentId} LỖI ${partial.errorCode ?? 'UNKNOWN'} (${timeToAckMs}ms) — ${partial.errorMessage ?? ''}`);
+        console.log(`${tag} ${identity.studentId} LỖI ${partial.errorCode ?? 'UNKNOWN'} (${timeToAckMs}ms) - ${partial.errorMessage ?? ''}`);
       }
 
       resolve({
@@ -397,7 +397,7 @@ function runOneAgent(
       settle({ status: 'error', errorCode: 'CONNECT_ERROR', errorMessage: error.message });
     }
 
-    // The server is not a trusted input source for shape either — same
+    // The server is not a trusted input source for shape either - same
     // defense-in-depth stance session-controller.ts's own ack/error
     // handlers already take.
     function onAck(ack: unknown): void {
@@ -416,7 +416,7 @@ function runOneAgent(
         ? typedAck.requiredDeliverables
         : [];
       // Armed before settle() so the listener is in place the instant the
-      // join is reported — a session finalized moments later must not find
+      // join is reported - a session finalized moments later must not find
       // this socket still unwired.
       const submissionDone = armFinalizeUpload(
         socket,
@@ -447,7 +447,7 @@ function runOneAgent(
 
 /**
  * Waits for `exam:finalize` on one kept-alive socket, then runs the exact
- * same upload loop the real agent runs — only the byte source differs.
+ * same upload loop the real agent runs - only the byte source differs.
  *
  * Resolves with the summary. Never rejects: a mock agent that throws would
  * take down the whole batch report, and the point of running 20 of these is
@@ -498,7 +498,7 @@ function armFinalizeUpload(
     });
 
     /**
-     * "Thu lại" — cùng hợp đồng với agent thật (xem session-controller).
+     * "Thu lại" - cùng hợp đồng với agent thật (xem session-controller).
      *
      * Có mặt ở đây vì công cụ này là thứ dùng để demo và đo tải chính cái
      * màn hình đó: một mock agent không ack sẽ khiến giảng viên thấy cả
@@ -519,7 +519,7 @@ function armFinalizeUpload(
 }
 
 /**
- * Aggregate submission report — the --simulate-submission counterpart to
+ * Aggregate submission report - the --simulate-submission counterpart to
  * printSummary()"s join report, in the same shape so the two read together.
  */
 function printSubmissionSummary(summaries: UploadSummary[], batchElapsedMs: number): void {
@@ -630,7 +630,7 @@ async function main(): Promise<void> {
 
   if (!args.keepAlive) {
     // Every socket was already disconnected inside settle() as each
-    // outcome resolved — nothing left holding the event loop open. The
+    // outcome resolved - nothing left holding the event loop open. The
     // explicit exit is a safety net, not a workaround for a leak.
     process.exit(0);
     return;
@@ -639,7 +639,7 @@ async function main(): Promise<void> {
   const keptSockets = outcomes.map((o) => o.keptAliveSocket).filter((s): s is Socket => s !== undefined);
   console.log('');
   console.log(
-    `${keptSockets.length} kết nối đang được GIỮ SỐNG (khớp với số join thành công) — mở trang lobby để xem, nhấn Ctrl+C để ngắt tất cả và thoát.`,
+    `${keptSockets.length} kết nối đang được GIỮ SỐNG (khớp với số join thành công) - mở trang lobby để xem, nhấn Ctrl+C để ngắt tất cả và thoát.`,
   );
 
   if (args.simulateSubmission) {

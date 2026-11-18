@@ -42,7 +42,7 @@ function machineLabel(row: MachineComparison): string {
 
 /**
  * Gộp extension bị chặn trên mọi máy. Cùng id và cùng version chỉ tải một lần.
- * Khác version thì là hai gói — đúng bản đang cài trên máy sinh viên.
+ * Khác version thì là hai gói - đúng bản đang cài trên máy sinh viên.
  */
 export function collectViolationVsixTargets(comparisons: MachineComparison[]): ViolationVsixTarget[] {
   const byKey = new Map<string, ViolationVsixTarget>();
@@ -70,7 +70,7 @@ export function collectViolationVsixTargets(comparisons: MachineComparison[]): V
     .sort((a, b) => a.extensionId.localeCompare(b.extensionId) || a.version.localeCompare(b.version));
 }
 
-/** Unique (extensionId, version) from every verdict — Hub Storage sync candidates. */
+/** Unique (extensionId, version) from every verdict - Hub Storage sync candidates. */
 export function collectSyncArtifactTargets(
   comparisons: MachineComparison[],
 ): Array<{ extensionId: string; version: string; displayName?: string }> {
@@ -119,7 +119,7 @@ async function fileReady(path: string): Promise<boolean> {
   }
 }
 
-/** Tải một gói Marketplace về Buffer — dùng chung cho local folder và Storage sync. */
+/** Tải một gói Marketplace về Buffer - dùng chung cho local folder và Storage sync. */
 export async function downloadMarketplaceVsixBuffer(
   extensionId: string,
   version: string,

@@ -1,9 +1,9 @@
 // Decodes (never verifies) the `role` claim out of the access-token JWT's
 // payload segment, for `middleware.ts` only. This is deliberately NOT
-// signature verification — it exists purely to pick which dashboard/route
+// signature verification - it exists purely to pick which dashboard/route
 // group to redirect to, a UX convenience. The backend's `JwtAuthGuard` (on
 // every real API call) is what actually verifies the token and enforces
-// `@Roles(...)` — see the design spec's "Route protection" section. A
+// `@Roles(...)` - see the design spec's "Route protection" section. A
 // forged/tampered token here can, at worst, make the wrong empty shell
 // render client-side; it can never grant access to real data.
 //

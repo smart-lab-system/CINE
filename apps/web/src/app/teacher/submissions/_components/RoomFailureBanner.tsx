@@ -17,7 +17,7 @@ export function RoomFailureBanner({
       <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <span>
         Cả <strong>{sessionCount} phiên nghi mất bài</strong> trong phạm vi này đều ở phòng{' '}
-        <strong>{room}</strong>, trải {classCount} lớp khác nhau — nhiều khả năng là sự cố
+        <strong>{room}</strong>, trải {classCount} lớp khác nhau - nhiều khả năng là sự cố
         máy/mạng của phòng, không phải do sinh viên.
       </span>
     </div>

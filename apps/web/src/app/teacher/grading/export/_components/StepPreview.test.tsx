@@ -24,7 +24,7 @@ const plan = (over: Partial<PlanResponse> = {}): PlanResponse => ({
   overwrite: { score: 0, reason: 0 }, changes: null, blockers: [], canWrite: true,
   rows: [
     row(),
-    row({ row: 4, studentMssv: '20120002', studentName: 'Trần Thị Bình', action: 'blank', systemScore: null, writtenScore: null, blankReason: 'absent', blankLabel: 'Vắng — không có bài nộp' }),
+    row({ row: 4, studentMssv: '20120002', studentName: 'Trần Thị Bình', action: 'blank', systemScore: null, writtenScore: null, blankReason: 'absent', blankLabel: 'Vắng - không có bài nộp' }),
     row({ row: 5, mssvInFile: '99999999', studentMssv: null, studentName: null, action: 'unmatched', systemScore: null, writtenScore: null, note: 'Không có trong danh sách sinh viên của phiên.' }),
   ],
   notInFile: [], ...over,
@@ -45,7 +45,7 @@ beforeEach(() => {
   Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
 });
 
-describe('StepPreview — rounding first (spec D9, §13.1 rule 7)', () => {
+describe('StepPreview - rounding first (spec D9, §13.1 rule 7)', () => {
   it('offers four choices, preselects none, and asks for no preview until one is chosen', () => {
     setup();
     const radios = screen.getAllByRole('radio');
@@ -74,7 +74,7 @@ describe('StepPreview — rounding first (spec D9, §13.1 rule 7)', () => {
   });
 });
 
-describe('StepPreview — the three numbers and the table (spec §3.6)', () => {
+describe('StepPreview - the three numbers and the table (spec §3.6)', () => {
   it('shows will-write · left-blank · unmatched', () => {
     previewState = { data: plan(), isPending: false, error: null };
     setup();
@@ -93,7 +93,7 @@ describe('StepPreview — the three numbers and the table (spec §3.6)', () => {
     expect(screen.getByText(/4 sinh viên chưa có dòng trong file/)).toBeInTheDocument();
   });
 
-  it('each row: file row, MSSV, name, the system score, the value to write — with a decimal comma — and a note', () => {
+  it('each row: file row, MSSV, name, the system score, the value to write - with a decimal comma - and a note', () => {
     previewState = { data: plan(), isPending: false, error: null };
     setup();
     const table = screen.getByRole('table', { name: 'Từng dòng của file' });
@@ -102,7 +102,7 @@ describe('StepPreview — the three numbers and the table (spec §3.6)', () => {
     expect(within(first).getByText('7,5')).toBeInTheDocument();
     const blank = within(table).getByText('20120002').closest('tr')!;
     expect(within(blank).getByText('Để trống')).toBeInTheDocument();
-    expect(within(blank).getByText('Vắng — không có bài nộp')).toBeInTheDocument();
+    expect(within(blank).getByText('Vắng - không có bài nộp')).toBeInTheDocument();
     const unmatched = within(table).getByText('99999999').closest('tr')!;
     expect(within(unmatched).getByText('Không khớp')).toBeInTheDocument();
     expect(within(unmatched).getByText('Không có trong danh sách sinh viên của phiên.')).toBeInTheDocument();
@@ -119,13 +119,13 @@ describe('StepPreview — the three numbers and the table (spec §3.6)', () => {
 
   it('a student who is in the session but not in the file is listed, with a score or a reason', () => {
     previewState = {
-      data: plan({ notInFile: [{ mssv: 'SV000001', name: 'Có điểm', blankReason: null, blankLabel: null, score: '8.00' }, { mssv: 'SV000002', name: 'Vắng', blankReason: 'absent', blankLabel: 'Vắng — không có bài nộp', score: null }] }),
+      data: plan({ notInFile: [{ mssv: 'SV000001', name: 'Có điểm', blankReason: null, blankLabel: null, score: '8.00' }, { mssv: 'SV000002', name: 'Vắng', blankReason: 'absent', blankLabel: 'Vắng - không có bài nộp', score: null }] }),
       isPending: false, error: null,
     };
     setup();
     const details = screen.getByRole('group', { name: /Sinh viên có trong phiên nhưng chưa có dòng trong file/ });
     expect(within(details).getByText('SV000001').closest('li')).toHaveTextContent('8,0');
-    expect(within(details).getByText('SV000002').closest('li')).toHaveTextContent('Vắng — không có bài nộp');
+    expect(within(details).getByText('SV000002').closest('li')).toHaveTextContent('Vắng - không có bài nộp');
   });
 
   it('shows what is happening while the preview loads, and a failure verbatim', () => {
@@ -134,13 +134,13 @@ describe('StepPreview — the three numbers and the table (spec §3.6)', () => {
     expect(screen.getByText('Đang tính bản xem trước…')).toBeInTheDocument();
   });
   it('shows a preview failure verbatim', () => {
-    previewState = { isPending: false, error: new Error('Phiên chưa chốt điểm — chốt điểm trước rồi mới ghi vào sổ điểm.') };
+    previewState = { isPending: false, error: new Error('Phiên chưa chốt điểm - chốt điểm trước rồi mới ghi vào sổ điểm.') };
     setup();
-    expect(screen.getByRole('alert')).toHaveTextContent('Phiên chưa chốt điểm — chốt điểm trước rồi mới ghi vào sổ điểm.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Phiên chưa chốt điểm - chốt điểm trước rồi mới ghi vào sổ điểm.');
   });
 });
 
-describe('StepPreview — writing (spec D13, D16, D20)', () => {
+describe('StepPreview - writing (spec D13, D16, D20)', () => {
   const chooseAnd = (data: PlanResponse) => {
     previewState = { data, isPending: false, error: null };
     setup();
@@ -168,7 +168,7 @@ describe('StepPreview — writing (spec D13, D16, D20)', () => {
     expect(writeMutate.mock.calls[0]![0]).not.toHaveProperty('confirmDecreases');
   });
 
-  it('a decrease needs ITS OWN tick — the overwrite tick does not stand in for it', () => {
+  it('a decrease needs ITS OWN tick - the overwrite tick does not stand in for it', () => {
     chooseAnd(plan({
       overwrite: { score: 1, reason: 0 },
       changes: { previousExports: 1, up: 0, down: 2, same: 0, new: 0, downByCause: [], upByCause: [] },
@@ -192,7 +192,7 @@ describe('StepPreview — writing (spec D13, D16, D20)', () => {
     expect(screen.getAllByText('Trang tính đang được bảo vệ. Hãy bỏ bảo vệ trong Excel rồi tải lại.').length).toBeGreaterThan(0);
   });
 
-  it('changing the rounding clears the ticks — they were given for another plan', () => {
+  it('changing the rounding clears the ticks - they were given for another plan', () => {
     chooseAnd(plan({ overwrite: { score: 2, reason: 0 } }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Tôi đồng ý ghi đè 2 ô đã có giá trị' }));
     fireEvent.click(rounding('0,1'));
@@ -201,10 +201,10 @@ describe('StepPreview — writing (spec D13, D16, D20)', () => {
 
   it('a server refusal is quoted verbatim and offers a fresh preview', () => {
     previewState = { data: plan(), isPending: false, error: null };
-    writeState = { isPending: false, error: new Error('Kết quả chấm đã đổi kể từ lúc xem trước — hãy xem trước lại.') };
+    writeState = { isPending: false, error: new Error('Kết quả chấm đã đổi kể từ lúc xem trước - hãy xem trước lại.') };
     setup();
     fireEvent.click(rounding('0,5'));
-    expect(screen.getByRole('alert')).toHaveTextContent('Kết quả chấm đã đổi kể từ lúc xem trước — hãy xem trước lại.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Kết quả chấm đã đổi kể từ lúc xem trước - hãy xem trước lại.');
     previewMutate.mockClear();
     fireEvent.click(screen.getByRole('button', { name: 'Xem trước lại' }));
     expect(previewMutate).toHaveBeenCalledWith({ ...REQUEST, roundingStepHundredths: 50 });
@@ -226,14 +226,14 @@ describe('StepPreview — writing (spec D13, D16, D20)', () => {
   });
 });
 
-describe('StepPreview — re-export (spec §3.6 "Xuất lại")', () => {
+describe('StepPreview - re-export (spec §3.6 "Xuất lại")', () => {
   const changes = {
     previousExports: 1, up: 1, down: 2, same: 5, new: 0,
     downByCause: [{ kind: 'rule' as const, ruleKey: 'sai_bien', ruleName: 'Sai biên', students: 2 }],
     upByCause: [{ kind: 'manual_score' as const, ruleKey: null, ruleName: null, students: 1 }],
   };
 
-  it('a band says how many went down and up — each with an arrow AND words — and what caused each', () => {
+  it('a band says how many went down and up - each with an arrow AND words - and what caused each', () => {
     previewState = { data: plan({ changes }), isPending: false, error: null };
     setup();
     fireEvent.click(rounding('0,5'));
@@ -245,7 +245,7 @@ describe('StepPreview — re-export (spec §3.6 "Xuất lại")', () => {
     expect(band).toHaveTextContent('Tăng do: chấm tay (1 bài)');
   });
 
-  // Phát hiện ở browser pass: dải hiện "↓ ↓ 1 bài giảm" vì một icon mũi tên đứng cạnh mũi tên bằng chữ — vẽ MŨI TÊN HAI LẦN.
+  // Phát hiện ở browser pass: dải hiện "↓ ↓ 1 bài giảm" vì một icon mũi tên đứng cạnh mũi tên bằng chữ - vẽ MŨI TÊN HAI LẦN.
   it('draws each arrow ONCE: the text carries the arrow, so no icon sits beside it', () => {
     previewState = { data: plan({ changes }), isPending: false, error: null };
     setup();
@@ -263,7 +263,7 @@ describe('StepPreview — re-export (spec §3.6 "Xuất lại")', () => {
     };
     setup();
     fireEvent.click(rounding('0,5'));
-    expect(screen.getByText('↓ Giảm — trước đã ghi 8,5, do luật Sai biên')).toBeInTheDocument();
+    expect(screen.getByText('↓ Giảm - trước đã ghi 8,5, do luật Sai biên')).toBeInTheDocument();
   });
 
   it('a first export shows no such band', () => {
@@ -273,7 +273,7 @@ describe('StepPreview — re-export (spec §3.6 "Xuất lại")', () => {
   });
 });
 
-describe('StepPreview — the blank report is a file, not a request', () => {
+describe('StepPreview - the blank report is a file, not a request', () => {
   it('downloads a CSV built from what is on screen', () => {
     previewState = { data: plan(), isPending: false, error: null };
     setup();

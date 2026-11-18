@@ -9,7 +9,7 @@ import { validateUpload } from '@/lib/grade-export-view';
 
 /**
  * Bước 1 (spec §3.6): tải file sổ điểm của trường. File đi THẲNG lên storage bằng URL ký (rule 5), rồi server đọc
- * nó để hiện trang tính. Lỗi của server hiện NGUYÊN VĂN — mỗi loại file xấu (mật khẩu, hỏng, macro…) có câu riêng.
+ * nó để hiện trang tính. Lỗi của server hiện NGUYÊN VĂN - mỗi loại file xấu (mật khẩu, hỏng, macro…) có câu riêng.
  */
 export function StepUpload({
   sessionId,
@@ -44,7 +44,7 @@ export function StepUpload({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-small text-muted-foreground">
-        Tải file sổ điểm mà trường phát (.xlsx, tối đa 5 MB). Bạn sẽ chọn cột ở bước sau; hệ thống chỉ điền các ô bạn chọn —
+        Tải file sổ điểm mà trường phát (.xlsx, tối đa 5 MB). Bạn sẽ chọn cột ở bước sau; hệ thống chỉ điền các ô bạn chọn -
         mọi ô khác giữ nguyên.
       </p>
       <div className="flex flex-col gap-2">

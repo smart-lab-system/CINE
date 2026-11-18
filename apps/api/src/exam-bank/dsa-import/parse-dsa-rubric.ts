@@ -20,7 +20,7 @@ export interface ParsedDsaRubric {
   approaches: ParsedDsaApproach[];
 }
 
-/** Tên sau dấu `:` có thể trống → đặt "Hướng N". */
+/** Tên sau dấu `:` có thể trống → đặt "Cách giải N". */
 const SOLUTION_RE = /^(?:\d+\.\s*)?Solution\s+(\d+)\s*:\s*(.*?)\s*$/i;
 /** Có mark — cho phép `:` sau `marks`. */
 const STEP_MARKED_RE =
@@ -71,7 +71,7 @@ export function parseDsaRubricText(text: string): ParsedDsaRubric {
     if (sol) {
       flushContinuation();
       const n = sol[1];
-      const label = sol[2].trim() || `Hướng ${n}`;
+      const label = sol[2].trim() || `Cách giải ${n}`;
       current = { name: label, steps: [] };
       approaches.push(current);
       continue;

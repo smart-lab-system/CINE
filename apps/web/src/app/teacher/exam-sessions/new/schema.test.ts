@@ -21,7 +21,7 @@ function scheduleBase(startTime: string, endTime: string) {
 
 // QA-reported gap: nothing stopped a teacher from creating a session a few
 // seconds long. Mirrors the backend's HasMinimumDurationConstraint.
-describe('createExamSessionSchema — minimum duration', () => {
+describe('createExamSessionSchema - minimum duration', () => {
   it('rejects a session shorter than 15 minutes, pointing at endTime', () => {
     const start = futureStart();
     const end = new Date(start.getTime() + 5 * 60_000);
@@ -37,7 +37,7 @@ describe('createExamSessionSchema — minimum duration', () => {
     }
   });
 
-  it('accepts a session exactly 15 minutes long — the floor is inclusive', () => {
+  it('accepts a session exactly 15 minutes long - the floor is inclusive', () => {
     const start = futureStart();
     const end = new Date(start.getTime() + 15 * 60_000);
 
@@ -65,7 +65,7 @@ describe('createExamSessionSchema — minimum duration', () => {
   });
 });
 
-describe('createExamSessionSchema — backdating', () => {
+describe('createExamSessionSchema - backdating', () => {
   it('accepts a session declared a few minutes after it started', () => {
     const start = new Date(Date.now() - 10 * 60_000);
     const end = new Date(Date.now() + 60 * 60_000);
@@ -95,7 +95,7 @@ describe('createExamSessionSchema — backdating', () => {
   });
 });
 
-describe('createExamSessionSchema — create-slim (không filenames/rubric)', () => {
+describe('createExamSessionSchema - create-slim (không filenames/rubric)', () => {
   it('hợp lệ chỉ với lịch + danh tính', () => {
     const start = futureStart();
     const end = new Date(start.getTime() + 60 * 60_000);
@@ -110,7 +110,7 @@ describe('createExamSessionSchema — create-slim (không filenames/rubric)', ()
   });
 });
 
-describe('replaceRequiredDeliverablesSchema — file bên trong', () => {
+describe('replaceRequiredDeliverablesSchema - file bên trong', () => {
   function baseValues(requiredFilenames: unknown) {
     return { requiredFilenames };
   }
@@ -122,14 +122,14 @@ describe('replaceRequiredDeliverablesSchema — file bên trong', () => {
     expect(r.success).toBe(true);
   });
 
-  it('TỪ CHỐI entries khi tên file là .docx — phải khớp DTO backend', () => {
+  it('TỪ CHỐI entries khi tên file là .docx - phải khớp DTO backend', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'a.docx', entries: [{ value: 'Main.java' }] }]),
     );
     expect(r.success).toBe(false);
   });
 
-  it('TỪ CHỐI entry có dấu "/" — khớp theo tên nên đường dẫn là vô nghĩa', () => {
+  it('TỪ CHỐI entry có dấu "/" - khớp theo tên nên đường dẫn là vô nghĩa', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'a.zip', entries: [{ value: 'src/Main.java' }] }]),
     );
@@ -166,7 +166,7 @@ describe('replaceRequiredDeliverablesSchema — file bên trong', () => {
     expect(r.success).toBe(true);
   });
 
-  it('không khai entries vẫn hợp lệ trên .zip — tuỳ chọn, không bắt buộc', () => {
+  it('không khai entries vẫn hợp lệ trên .zip - tuỳ chọn, không bắt buộc', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(baseValues([{ value: 'a.zip' }]));
     expect(r.success).toBe(true);
   });
@@ -195,12 +195,12 @@ describe('replaceRequiredDeliverablesSchema — file bên trong', () => {
     expect(r.success).toBe(true);
   });
 
-  it('TỪ CHỐI danh sách rỗng — hub phải lưu ≥ 1 file', () => {
+  it('TỪ CHỐI danh sách rỗng - hub phải lưu ≥ 1 file', () => {
     expect(replaceRequiredDeliverablesSchema.safeParse(baseValues([])).success).toBe(false);
   });
 });
 
-describe('replaceRequiredDeliverablesSchema — deliverableType/language', () => {
+describe('replaceRequiredDeliverablesSchema - deliverableType/language', () => {
   function baseValues(requiredFilenames: unknown) {
     return { requiredFilenames };
   }
@@ -233,21 +233,21 @@ describe('replaceRequiredDeliverablesSchema — deliverableType/language', () =>
     }
   });
 
-  it('code_project không khai language vẫn hợp lệ — không bắt buộc', () => {
+  it('code_project không khai language vẫn hợp lệ - không bắt buộc', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'bai1.zip', deliverableType: 'code_project' }]),
     );
     expect(r.success).toBe(true);
   });
 
-  it('TỪ CHỐI ngôn ngữ ngoài python/cpp/java — node không có trong form', () => {
+  it('TỪ CHỐI ngôn ngữ ngoài python/cpp/java - node không có trong form', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'bai1.zip', deliverableType: 'code_project', language: 'node' }]),
     );
     expect(r.success).toBe(false);
   });
 
-  it('nhận java — khai được, chấm bằng đọc mã', () => {
+  it('nhận java - khai được, chấm bằng đọc mã', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'Main.java', deliverableType: 'code_project', language: 'java' }]),
     );

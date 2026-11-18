@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
  *
  * Các textarea ở trang soạn đề từng đứng im ở số dòng cố định: nhập yêu cầu
  * dài hay đáp án dài thì chữ cuộn trong hộp, trang trông như không phản ứng
- * với độ dài. Hộp này tự giãn theo `scrollHeight` mỗi khi `value` đổi — kể cả
+ * với độ dài. Hộp này tự giãn theo `scrollHeight` mỗi khi `value` đổi - kể cả
  * khi nội dung đến sau mount (khôi phục bản nháp), vì effect nghe chính
  * `value`.
  *

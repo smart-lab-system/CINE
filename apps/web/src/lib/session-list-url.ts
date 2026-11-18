@@ -49,7 +49,7 @@ export function parseListState(params: URLSearchParams): ListState {
   };
 }
 
-/** Chỉ ghi cái khác mặc định — URL mặc định là URL trần. KHÔNG bao giờ ghi `sessionId`. */
+/** Chỉ ghi cái khác mặc định - URL mặc định là URL trần. KHÔNG bao giờ ghi `sessionId`. */
 export function serializeListState({ filters, view }: ListState): URLSearchParams {
   const p = new URLSearchParams();
   if (filters.q.trim()) p.set('q', filters.q.slice(0, MAX_Q));

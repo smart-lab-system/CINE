@@ -142,7 +142,7 @@ export interface VsixDownloadResult {
 
 export type RoomProposalMachineStatus = 'active' | 'maintenance' | 'inactive';
 
-/** Máy gửi kèm đề xuất — đủ field parity `computer` (§5.1), auto-collect. */
+/** Máy gửi kèm đề xuất - đủ field parity `computer` (§5.1), auto-collect. */
 export interface RoomProposalMachinePayload {
   machineId: string;
   hostname: string;

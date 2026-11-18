@@ -30,9 +30,9 @@ const view = (over: Partial<React.ComponentProps<typeof UngradableView>> = {}) =
 );
 
 describe('UngradableView', () => {
-  it('shows "—" for the score, never 0 or the max (T-UI-5)', () => {
+  it('shows "-" for the score, never 0 or the max (T-UI-5)', () => {
     render(view({ ungradableReason: 'Sandbox không phản hồi.' }));
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
     expect(screen.queryByText('10')).not.toBeInTheDocument();
   });
 
@@ -54,13 +54,13 @@ describe('UngradableView', () => {
     expect(screen.queryByText(/cần backend/i)).not.toBeInTheDocument();
   });
 
-  it('with no other result sharing the reason there is no "cả … bài" button — it would only repeat the first', () => {
+  it('with no other result sharing the reason there is no "cả … bài" button - it would only repeat the first', () => {
     render(view({ sameReasonCount: 1 }));
     expect(screen.getByRole('button', { name: 'Chấm lại bài này' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Chấm lại cả/ })).not.toBeInTheDocument();
   });
 
-  it('never offers a regrade path for class "submission" — only chấm tay', () => {
+  it('never offers a regrade path for class "submission" - only chấm tay', () => {
     render(view({ ungradableClass: 'submission' }));
     expect(screen.queryByRole('button', { name: /Chấm lại/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Chấm tay bài này' })).toBeEnabled();

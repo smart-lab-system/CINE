@@ -23,7 +23,7 @@ const DELIVERABLE_TYPE_LABELS = {
 /**
  * Loại mã nguồn giảng viên chọn trên dòng file. `language` chỉ gửi khi
  * backend có giá trị đó (`python`/`cpp` chạy được, `java` khai được nhưng
- * chấm bằng đọc mã). C, Jupyter, JSON chỉ đổi đuôi file — không có cột ngôn ngữ.
+ * chấm bằng đọc mã). C, Jupyter, JSON chỉ đổi đuôi file - không có cột ngôn ngữ.
  */
 const SOURCE_KINDS = [
   { id: 'python', label: 'Python', extension: '.py', language: 'python' },
@@ -54,14 +54,14 @@ export function applySourceExtension(filename: string, extension: string): strin
   return `${stem.length > 0 ? stem : 'bai'}${extension}`;
 }
 
-/** Class chung cho hai <select> gốc — cùng hình dạng với Input, không dùng Select (Radix) vì đây là control nhỏ trong một hàng lặp. */
+/** Class chung cho hai <select> gốc - cùng hình dạng với Input, không dùng Select (Radix) vì đây là control nhỏ trong một hàng lặp. */
 const SELECT_CLASS =
   'h-10 rounded-md border border-input bg-surface px-2 text-small text-foreground shadow-sm focus:border-accent focus:outline-none';
 
 /**
  * `.zip` được tạo trước tự động (EOCD rỗng hợp lệ, xem
  * apps/agent/src/workspace-files.ts); `.rar` thì KHÔNG có cách nào hợp
- * pháp tạo trước — sinh viên phải tự nén bằng WinRAR đã cài sẵn trên máy.
+ * pháp tạo trước - sinh viên phải tự nén bằng WinRAR đã cài sẵn trên máy.
  * Giảng viên cần biết điều này LÚC KHAI BÁO, không phải sau khi phòng thi
  * đã mở (tờ hướng dẫn agent đã nói với sinh viên, nhưng đến lúc đó giảng
  * viên không còn cơ hội đổi sang .zip nữa).
@@ -72,7 +72,7 @@ function isRarFilename(value: string): boolean {
 
 /**
  * Controlled add/remove list of required filenames, wired into the parent
- * form via `useFormContext` — hub thiết lập (create-slim) wraps `useForm()`
+ * form via `useFormContext` - hub thiết lập (create-slim) wraps `useForm()`
  * in `<FormProvider>`, so this reads/writes the same form state instead of
  * owning its own.
  *
@@ -161,7 +161,7 @@ export function RequiredFilenamesInput() {
       </p>
 
       <p className="text-small text-muted-foreground">
-        Muốn mỗi sinh viên nộp một tên file riêng thì chèn các ô dưới đây — máy chủ tự điền
+        Muốn mỗi sinh viên nộp một tên file riêng thì chèn các ô dưới đây - máy chủ tự điền
         theo danh sách lớp, sinh viên không phải tự đặt tên. Dấu tiếng Việt trong họ tên sẽ
         được bỏ đi (&quot;Nguyễn Văn An&quot; → <code className="font-mono">NguyenVanAn</code>).
       </p>
@@ -184,7 +184,7 @@ export function RequiredFilenamesInput() {
                     className="rounded border border-border bg-surface px-2 py-0.5 font-mono text-caption text-muted-foreground transition-colors hover:border-primary hover:text-primary"
                   >
                     {token}
-                    <span className="sr-only"> — {label}</span>
+                    <span className="sr-only"> - {label}</span>
                   </button>
                 ))}
               </div>
@@ -250,7 +250,7 @@ export function RequiredFilenamesInput() {
                   variant="ghost"
                   size="icon"
                   onClick={() => remove(index)}
-                  // The list can't go empty — the schema requires at least
+                  // The list can't go empty - the schema requires at least
                   // one entry, so removing the last row would put the form
                   // into a state it can never submit from.
                   disabled={fields.length === 1}
@@ -297,13 +297,13 @@ export function RequiredFilenamesInput() {
                 );
               })()}
               {isRarFilename(values?.[index]?.value ?? '') && (
-                // Độc lập với fieldError/preview ở trên — chủ đề khác (công
+                // Độc lập với fieldError/preview ở trên - chủ đề khác (công
                 // cụ trên máy thi, không phải cú pháp tên file), nên hiện
                 // bất kể tên file có đang hợp lệ hay không.
                 <Alert variant="warning" className="py-2">
                   <TriangleAlert className="h-4 w-4" aria-hidden="true" />
                   <AlertDescription className="text-caption">
-                    File .rar không tự tạo trước được — máy sinh viên PHẢI có WinRAR cài sẵn
+                    File .rar không tự tạo trước được - máy sinh viên PHẢI có WinRAR cài sẵn
                     mới tự nén được. Cân nhắc đổi sang{' '}
                     <code className="font-mono">.zip</code> (máy Windows nào cũng nén được),
                     hoặc xác nhận phòng máy thi đã cài WinRAR trước khi thi.

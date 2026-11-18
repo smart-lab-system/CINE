@@ -14,7 +14,7 @@ import {
 import { useBulkReview } from '@/hooks/useGrading';
 import type { BulkReviewOutcome, GradingResult, SkipReason } from '@/lib/api/grading';
 
-/** Lý do bỏ qua, viết cho giảng viên đọc — không phải mã của server. */
+/** Lý do bỏ qua, viết cho giảng viên đọc - không phải mã của server. */
 const SKIP_LABEL: Record<SkipReason, string> = {
   not_reviewable: 'đang được chấm lại',
   no_advocate: 'chưa có ý kiến phản biện',
@@ -23,11 +23,11 @@ const SKIP_LABEL: Record<SkipReason, string> = {
 
 /**
  * Duyệt hàng loạt bài TỰ LUẬN (spec §3.11): bài tự luận không bao giờ tự quyết (§0.3), nên để giảng viên không
- * phải bấm từng bài, danh sách cho duyệt cả loạt — nhưng TƯỜNG MINH: hộp xác nhận nói đúng số bài, và mỗi bài
+ * phải bấm từng bài, danh sách cho duyệt cả loạt - nhưng TƯỜNG MINH: hộp xác nhận nói đúng số bài, và mỗi bài
  * được ghi một dòng duyệt hàng loạt.
  *
  * Chỉ bài tự luận đang chờ VÀ có điểm để nhận (bài tự luận không chấm được thì không có gì để "giữ điểm").
- * Luật gửi là `keep_ai` — giữ điểm lượt chấm — kèm danh sách id tường minh.
+ * Luật gửi là `keep_ai` - giữ điểm lượt chấm - kèm danh sách id tường minh.
  */
 export function BulkAcceptEssays({ sessionId, results }: { sessionId: string; results: GradingResult[] }) {
   const bulk = useBulkReview(sessionId);
@@ -59,11 +59,11 @@ export function BulkAcceptEssays({ sessionId, results }: { sessionId: string; re
               Đã duyệt <strong>{outcome.applied} bài</strong>.
             </span>
             {outcome.audited > 0 && (
-              <span className="block">{outcome.audited} bài đã công bố — mỗi bài một dòng nhật ký.</span>
+              <span className="block">{outcome.audited} bài đã công bố - mỗi bài một dòng nhật ký.</span>
             )}
             {[...byReason.entries()].map(([reason, names]) => (
               <span key={reason} className="block">
-                {names.length} bài bỏ qua: {names.join(', ')} — {SKIP_LABEL[reason]}.
+                {names.length} bài bỏ qua: {names.join(', ')} - {SKIP_LABEL[reason]}.
               </span>
             ))}
           </AlertDescription>
@@ -87,7 +87,7 @@ export function BulkAcceptEssays({ sessionId, results }: { sessionId: string; re
             <DialogTitle>Duyệt hàng loạt {essays.length} bài tự luận?</DialogTitle>
             <DialogDescription>
               Bạn sắp duyệt {essays.length} bài tự luận theo đúng điểm hệ thống đề xuất mà chưa mở xem. Mỗi bài được ghi
-              một dòng duyệt hàng loạt mang tên bạn — vì bài tự luận không bao giờ tự quyết.
+              một dòng duyệt hàng loạt mang tên bạn - vì bài tự luận không bao giờ tự quyết.
             </DialogDescription>
           </DialogHeader>
           {bulk.isError && (

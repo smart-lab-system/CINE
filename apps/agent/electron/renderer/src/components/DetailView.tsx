@@ -1,4 +1,4 @@
-/** Group 3 of the mockup — read-only, reachable only via the tray icon.
+/** Group 3 of the mockup - read-only, reachable only via the tray icon.
  *  No confirm/select-file button anywhere, per CLAUDE.md's "minimal"
  *  constraint: this screen only ever displays what SessionController has
  *  already done on its own. */
@@ -51,7 +51,7 @@ export function DetailView({ state }: { state: AgentState }) {
         </span>
         {/* Once exam:finalize has landed, `endTime` is stale by definition
             whenever the teacher closed the session before the scheduled
-            time — counting down against it would keep telling the student
+            time - counting down against it would keep telling the student
             they still have time left after they've already submitted. */}
         {state.examEnded ? (
           <span className="text-caption font-semibold text-muted-foreground">Đã kết thúc</span>
@@ -85,15 +85,15 @@ export function DetailView({ state }: { state: AgentState }) {
               {/* break-all, not truncate: required filenames are generated
                   (studentId + name + session code, see workspace-files.ts)
                   and can run well past what any reasonable window width
-                  fits on one line — wrapping keeps the full name readable
+                  fits on one line - wrapping keeps the full name readable
                   instead of forcing a horizontal scrollbar at any width. */}
               <span className="min-w-0 break-all font-mono text-caption">{file.filename}</span>
               {!file.created && (
                 <span className="text-caption text-muted-foreground">
                   {/* `.rar` không có cách nào tạo trước được (xem
-                      workspace-files.ts) — `note` nói rõ vì sao, thay vì
+                      workspace-files.ts) - `note` nói rõ vì sao, thay vì
                       để sinh viên tưởng đây là một lỗi tạm thời sẽ tự hết. */}
-                  — {file.note ?? 'chưa tạo được'}
+                  - {file.note ?? 'chưa tạo được'}
                 </span>
               )}
             </div>
@@ -107,7 +107,7 @@ export function DetailView({ state }: { state: AgentState }) {
           <StatusRow icon="💾">{backupSummary(state)}</StatusRow>
           {/* examEnded, not just finalizing/summary: the rare path where
               handleFinalize's upload throws before ever setting a summary
-              must still show something here — silently showing nothing
+              must still show something here - silently showing nothing
               would look identical to "exam still running, nothing to
               report yet". */}
           {(state.examEnded || state.submission.finalizing) && (
@@ -156,7 +156,7 @@ function StatusRow({ icon, children }: { icon: string; children: ReactNode }) {
 function materialsSummary(state: AgentState): string {
   const m = state.materials;
   if (m.status === 'not-yet') {
-    return `Đề thi: chưa mở${m.releaseAt ? ` — mở lúc ${formatClockTime(m.releaseAt)}` : ''}.`;
+    return `Đề thi: chưa mở${m.releaseAt ? ` - mở lúc ${formatClockTime(m.releaseAt)}` : ''}.`;
   }
   if (m.count === 0) {
     return 'Đề thi: không có file đính kèm.';
@@ -165,7 +165,7 @@ function materialsSummary(state: AgentState): string {
     case 'downloaded':
       return `Đề thi: đã tải ${m.downloadedFileNames.length}/${m.count} file.`;
     case 'failed':
-      return 'Đề thi: không tải được — hãy báo giám thị.';
+      return 'Đề thi: không tải được - hãy báo giám thị.';
     default:
       return 'Đề thi: đang kiểm tra...';
   }
@@ -194,10 +194,10 @@ function submissionSummary(state: AgentState): string {
   const summary = state.submission.summary;
   if (!summary) {
     // examEnded but no summary: handleFinalize's own catch branch, or its
-    // "no required-deliverable list yet" guard — either way the exam is
+    // "no required-deliverable list yet" guard - either way the exam is
     // over and nothing got uploaded, which is worth surfacing loudly
     // rather than leaving this row silently blank.
-    return state.examEnded ? 'Đã hết giờ làm bài nhưng có lỗi khi nộp — hãy báo giám thị ngay.' : '';
+    return state.examEnded ? 'Đã hết giờ làm bài nhưng có lỗi khi nộp - hãy báo giám thị ngay.' : '';
   }
   const parts = [`Đã nộp ${summary.uploaded}/${summary.total} file`];
   if (summary.missing > 0) parts.push(`${summary.missing} thiếu`);

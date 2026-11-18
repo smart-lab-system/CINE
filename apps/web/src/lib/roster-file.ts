@@ -3,7 +3,7 @@ import type { RosterEntry } from '@/lib/api/roster';
 /**
  * Turning a spreadsheet into a class list, in the browser.
  *
- * The .xlsx never reaches the API — CLAUDE.md Security rule 5 — so the
+ * The .xlsx never reaches the API - CLAUDE.md Security rule 5 - so the
  * parsing, the column mapping and the diff all happen here, and what is
  * posted is plain JSON.
  *
@@ -17,11 +17,11 @@ export const ROSTER_MSSV_REGEX = /^\d{8}$/;
 
 export interface ColumnMapping {
   /**
-   * Luôn 0 — UI không còn cho nhập. Dòng tiêu đề / trống tự bị bỏ vì
+   * Luôn 0 - UI không còn cho nhập. Dòng tiêu đề / trống tự bị bỏ vì
    * không có MSSV 8 số (`extractRoster` đếm vào `skipped`).
    */
   headerRows: number;
-  /** 0-based — người dùng chọn / gợi ý. Không suy bắt buộc từ header. */
+  /** 0-based - người dùng chọn / gợi ý. Không suy bắt buộc từ header. */
   mssvColumn: number;
   /** 1 hoặc 2 cột họ tên (vd. Họ đệm + Tên). */
   nameColumns: number[];
@@ -132,7 +132,7 @@ export function suggestColumnMapping(rows: string[][]): ColumnMapping {
       ) {
         ho = c;
       }
-      // "Tên" đơn — không lấy lại ô "Họ và tên".
+      // "Tên" đơn - không lấy lại ô "Họ và tên".
       if (ten < 0 && headerLooksLike(label, 'tên') && !headerLooksLike(label, 'họ')) {
         ten = c;
       }

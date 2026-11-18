@@ -4,14 +4,14 @@ import { cn } from '@/lib/utils';
 
 /**
  * Every variant is a tinted pill: light `-subtle` ground, saturated
- * `-strong` text. A table of solid pills reads as a table of alarms — the
+ * `-strong` text. A table of solid pills reads as a table of alarms - the
  * colour should classify the row, not shout at it.
  *
  * `-strong` (not the base hue) as the text colour is what makes these
  * legible: teal #26A69A on a teal tint is 2.6:1, which is unreadable; the
  * darker same-hue `-strong` gets the same pill to 5.1:1. See globals.css.
  *
- * Colour is never the only signal — each badge carries its own label, so a
+ * Colour is never the only signal - each badge carries its own label, so a
  * red/green distinction is still readable to someone who can't tell them
  * apart.
  */

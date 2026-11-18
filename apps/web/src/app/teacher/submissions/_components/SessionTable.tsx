@@ -32,7 +32,7 @@ function formatDateTime(iso: string): string {
   });
 }
 
-/** Icon một mình không phải nhãn đọc được — mỗi nút có aria-label VÀ tooltip. */
+/** Icon một mình không phải nhãn đọc được - mỗi nút có aria-label VÀ tooltip. */
 function IconAction({
   label, icon: Icon, onClick, href,
 }: {
@@ -65,7 +65,7 @@ function IconAction({
 
 /**
  * Cột Tình trạng không bao giờ để trống: ô trống trông giống "chưa tính xong"
- * hơn là tin tốt. Phiên chưa kết thúc hiện tên pha thay vì kết luận — spec §4.2.
+ * hơn là tin tốt. Phiên chưa kết thúc hiện tên pha thay vì kết luận - spec §4.2.
  */
 function StatusCell({ item, now }: { item: SessionOverviewItem; now: number }) {
   if (item.attentionClosedAt !== null) {
@@ -116,7 +116,7 @@ interface SessionTableProps {
 }
 
 /**
- * MỘT <table> cho cả trang — tiêu đề nhóm là <tr> gộp cột BÊN TRONG bảng đó.
+ * MỘT <table> cho cả trang - tiêu đề nhóm là <tr> gộp cột BÊN TRONG bảng đó.
  * Nếu tách mỗi nhóm thành một <table> riêng thì cột lệch nhau giữa các nhóm và
  * toàn bộ lợi thế quét mắt biến mất, tức là mất luôn lý do chọn bảng. Spec §5.2.
  */

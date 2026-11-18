@@ -3,14 +3,14 @@
  *
  * `agent:join` now refuses a student with no Enrollment for the course. That
  * closes the security hole, but on its own it would strand a student the
- * registrar missed — on exam day, with nothing they can do. This is the way
+ * registrar missed - on exam day, with nothing they can do. This is the way
  * out: ask, wait for the invigilator, and join if they say yes.
  *
  * Client side of the contract in
  * apps/api/src/exam-session/access-request.gateway.ts. The Electron app's
  * own form (electron/renderer/src/components/JoinScreen.tsx's
  * AccessRequestForm, states f/g) collects fullName/reason and calls
- * `sendAccessRequest` below directly — the readline-based prompt this file
+ * `sendAccessRequest` below directly - the readline-based prompt this file
  * used to also export (`promptAccessRequest`, for `cli.ts`'s terminal UI,
  * plus the `NoTerminalError` it threw when there was no TTY to ask
  * through) was removed when `cli.ts` was retired (design spec §8.4);
@@ -44,7 +44,7 @@ const ACK_TIMEOUT_MS = 20_000;
 
 /**
  * Sends the request and resolves with the server's acknowledgement. The
- * acknowledgement only means "the invigilator can see it now" — the decision
+ * acknowledgement only means "the invigilator can see it now" - the decision
  * arrives later as `agent:access-granted` or `agent:access-denied`.
  */
 export function sendAccessRequest(

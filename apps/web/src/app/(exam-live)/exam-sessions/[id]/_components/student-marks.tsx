@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import type { AttendanceStudent } from '@/lib/api/attendance';
 
 /**
- * Minutes between the session starting and a student's first join —
+ * Minutes between the session starting and a student's first join -
  * QA-reported gap: "vào muộn nhưng ko nói vào lúc mấy giờ, trễ mấy giờ".
  */
 export function lateMinutes(firstSeenAt: string | null, startTime: string): number | null {
@@ -16,7 +16,7 @@ export function lateMinutes(firstSeenAt: string | null, startTime: string): numb
 }
 
 export function formatAttendanceTime(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleTimeString('vi-VN', {
@@ -75,7 +75,7 @@ export function StudentMarks({
   }
 
   if (marks.length === 0) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className="text-muted-foreground">-</span>;
   }
 
   return <span className="flex flex-wrap gap-1.5">{marks}</span>;

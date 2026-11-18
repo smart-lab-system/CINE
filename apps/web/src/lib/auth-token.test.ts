@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * Nó tồn tại vì frontend và API nằm ở hai domain khác nhau (Vercel vs
  * Railway): cookie thuộc về host đã ĐẶT nó, nên cookie do origin frontend
  * đặt không bao giờ được gửi sang API, bất kể SameSite. Token phải do JS
- * đính kèm — qua header Authorization cho REST, qua handshake.auth cho socket.
+ * đính kèm - qua header Authorization cho REST, qua handshake.auth cho socket.
  *
  * Module có state ở cấp module, nên mỗi test nạp lại nó từ đầu.
  */
@@ -50,7 +50,7 @@ describe('auth-token', () => {
   /**
    * Đây là lý do có bootstrap riêng thay vì gọi /api/auth/refresh: refresh
    * XOAY refresh token. Một trang vừa tải mà bắn 5 lời gọi API song song sẽ
-   * xoay 5 lần, và lần xoay sau vô hiệu hoá cặp token lần trước vừa ghi —
+   * xoay 5 lần, và lần xoay sau vô hiệu hoá cặp token lần trước vừa ghi -
    * đăng xuất người dùng ngay lúc đang cố giữ họ đăng nhập.
    */
   it('nhiều lời gọi đồng thời dùng CHUNG một request bootstrap', async () => {
@@ -89,7 +89,7 @@ describe('auth-token', () => {
 
   /**
    * Bootstrap hỏng KHÔNG được nhớ là "vĩnh viễn không có token": người dùng
-   * ở màn login sẽ bootstrap hỏng một lần (đúng — chưa có phiên), rồi đăng
+   * ở màn login sẽ bootstrap hỏng một lần (đúng - chưa có phiên), rồi đăng
    * nhập. Nếu thất bại bị cache thì mọi lời gọi sau đó đều đi không token.
    */
   it('bootstrap hỏng không chặn setAccessToken sau đó', async () => {

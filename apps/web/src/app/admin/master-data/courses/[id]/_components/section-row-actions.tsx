@@ -146,7 +146,7 @@ function SectionEditDialog({
     ) {
       items.unshift({
         value: section.nominalClassId,
-        label: section.nominalClassName.split(' — ')[0] ?? section.nominalClassName,
+        label: section.nominalClassName.split(' - ')[0] ?? section.nominalClassName,
         keywords: section.nominalClassName,
       });
     }
@@ -219,11 +219,11 @@ function SectionEditDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <DialogHeader>
-          <DialogTitle>Sửa lớp học phần — {section.name}</DialogTitle>
+          <DialogTitle>Sửa lớp học phần - {section.name}</DialogTitle>
           <DialogDescription>
             {canEdit
               ? 'Có thể sửa học kỳ, lớp danh nghĩa và giảng viên khi lớp chưa có phiên thi.'
-              : 'Lớp đã có phiên thi — chỉ xem, không sửa được.'}
+              : 'Lớp đã có phiên thi - chỉ xem, không sửa được.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -260,7 +260,7 @@ function SectionEditDialog({
               />
             ) : (
               <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-small">
-                {section.semesterName ?? '—'}
+                {section.semesterName ?? '-'}
               </p>
             )}
           </div>
@@ -278,7 +278,7 @@ function SectionEditDialog({
               />
             ) : (
               <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-small">
-                {section.nominalClassName?.split(' — ')[0] ?? '—'}
+                {section.nominalClassName?.split(' - ')[0] ?? '-'}
               </p>
             )}
           </div>
@@ -376,7 +376,7 @@ function SectionStatusDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <DialogHeader>
-          <DialogTitle>Cập nhật trạng thái — {section.name}</DialogTitle>
+          <DialogTitle>Cập nhật trạng thái - {section.name}</DialogTitle>
           <DialogDescription>
             Hiện tại:{' '}
             <span className="font-medium text-foreground">

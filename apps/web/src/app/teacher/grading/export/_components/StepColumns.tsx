@@ -13,7 +13,7 @@ const ROLE_CELL: Record<Role, string> = { mssv: 'bg-info-subtle', score: 'bg-acc
 const SELECT_CLASS = 'h-10 w-full rounded-md border border-input bg-surface px-3 text-body disabled:opacity-60';
 
 /**
- * Bước 2 (spec §3.6): chọn trang tính, dòng bắt đầu dữ liệu và ba cột. KHÔNG cái nào được chọn sẵn — kể cả khi tiêu
+ * Bước 2 (spec §3.6): chọn trang tính, dòng bắt đầu dữ liệu và ba cột. KHÔNG cái nào được chọn sẵn - kể cả khi tiêu
  * đề ghi "MSSV" (Security rule 9). Cột đã chọn được tô màu VÀ gắn nhãn chữ ở tiêu đề cột. Component chỉ hiện; trạng
  * thái do `ExportWizard` giữ.
  */
@@ -88,7 +88,7 @@ export function StepColumns({
           </select>
         </FormField>
 
-        <FormField id="gx-first-row" label="Dữ liệu bắt đầu từ dòng số" hint="Dòng của sinh viên đầu tiên — tựa đề và dòng tiêu đề nằm phía trên.">
+        <FormField id="gx-first-row" label="Dữ liệu bắt đầu từ dòng số" hint="Dòng của sinh viên đầu tiên - tựa đề và dòng tiêu đề nằm phía trên.">
           <input
             id="gx-first-row"
             type="number"
@@ -182,7 +182,7 @@ export function StepColumns({
                       return (
                         <td key={i} data-role={role ?? undefined} className={`max-w-[220px] truncate border-b border-border p-2 ${role ? ROLE_CELL[role] : ''}`}>
                           {c.formula && (
-                            <span aria-label="ô có công thức" title="Ô có công thức — hệ thống sẽ bỏ qua dòng này" className="mr-1 font-mono text-caption text-muted-foreground">
+                            <span aria-label="ô có công thức" title="Ô có công thức - hệ thống sẽ bỏ qua dòng này" className="mr-1 font-mono text-caption text-muted-foreground">
                               ƒ
                             </span>
                           )}

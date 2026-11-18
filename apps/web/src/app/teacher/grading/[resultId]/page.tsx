@@ -28,9 +28,9 @@ import { InvestigatorDossier } from './_components/investigator/InvestigatorDoss
 import { useMarkResultOpened } from '@/hooks/useReviewGroups';
 import { AuditReview } from './_components/AuditReview';
 
-/** AI còn đang làm việc — chưa duyệt được. */
+/** AI còn đang làm việc - chưa duyệt được. */
 const IN_PROGRESS = ['ai_grading', 'ai_graded'];
-/** Điểm đã CÔNG BỐ — sửa từ đây trở đi để lại dấu vết trong nhật ký. */
+/** Điểm đã CÔNG BỐ - sửa từ đây trở đi để lại dấu vết trong nhật ký. */
 const PUBLISHED = ['finalized', 'exported'];
 
 /**
@@ -53,14 +53,14 @@ export default function GradingDetailPage({
   const results = useGradingResults(sessionId || undefined);
   const readiness = useGradingReadiness(sessionId || undefined);
   const result = results.data?.find((item) => item.id === resultId);
-  // Bài đi đường điều tra là code_project — chưa có bộ đọc nội dung cho nó, nên hỏi chỉ khiến backend đọc kho
+  // Bài đi đường điều tra là code_project - chưa có bộ đọc nội dung cho nó, nên hỏi chỉ khiến backend đọc kho
   // file rồi ghi cảnh báo mỗi lần mở trang (review I4).
   const text = useSubmissionText(result?.pipeline === 'investigator' ? undefined : resultId);
   const overview = useSessionOverview();
   const session = (overview.data ?? []).find((item) => item.id === sessionId);
   const rubrics = useRubrics();
   // Theo id của rubric ghim cho phiên: `version` chỉ duy nhất trong một bộ (giảng viên, tên), mà rubric nào
-  // cũng bắt đầu ở v1 — tra theo nó có thể đưa nhầm tiêu chí của rubric khác vào form duyệt (review I6).
+  // cũng bắt đầu ở v1 - tra theo nó có thể đưa nhầm tiêu chí của rubric khác vào form duyệt (review I6).
   const rubric = session?.rubricId ? rubrics.data?.find((item) => item.id === session.rubricId) : undefined;
 
   const submit = useSubmitReview(sessionId || undefined);
@@ -70,12 +70,12 @@ export default function GradingDetailPage({
   const [privateNote, setPrivateNote] = useState('');
   const [studentFeedback, setStudentFeedback] = useState('');
   // Đã ghi nhận xét kiểm mẫu trong lần xem này: giữ bản tiết lộ trên màn hình dù danh sách làm mới đổi trạng thái bài
-  // sang teacher_reviewed — tới khi giảng viên bấm "Mở hồ sơ" (D19).
+  // sang teacher_reviewed - tới khi giảng viên bấm "Mở hồ sơ" (D19).
   const [audited, setAudited] = useState(false);
 
   // Điểm khởi đầu: bản giảng viên đã sửa nếu có; nếu AI không chấm được
   // (`ungradableReason` khác null) thì dựng từ RUBRIC, mỗi tiêu chí bắt
-  // đầu ở 0đ/chưa đạt — `criterionResults` rỗng VĨNH VIỄN ở ca này, dựng
+  // đầu ở 0đ/chưa đạt - `criterionResults` rỗng VĨNH VIỄN ở ca này, dựng
   // từ nó sẽ cho một danh sách trống không sửa được. Ca còn lại dựng từ
   // bản AI đề xuất như cũ.
   const initial = useMemo<ReviewCriterion[]>(() => {
@@ -97,7 +97,7 @@ export default function GradingDetailPage({
   }, [result, rubric]);
   const rows = draft ?? initial;
 
-  // Tổng LUÔN tính từ các ô, không cho nhập tay — khớp với việc server cũng
+  // Tổng LUÔN tính từ các ô, không cho nhập tay - khớp với việc server cũng
   // tính bằng tổng và bỏ qua mọi tổng client gửi lên.
   const total = Math.round(rows.reduce((sum, row) => sum + row.points, 0) * 100) / 100;
 
@@ -112,7 +112,7 @@ export default function GradingDetailPage({
    * Gán một đoạn bôi đen làm minh chứng.
    *
    * Ghi vào bản nháp của tiêu chí ĐANG CHỌN. Payload lưu vẫn là toàn bộ tiêu
-   * chí — server đòi phủ đủ, nên không có ca "gán minh chứng mà quên cập
+   * chí - server đòi phủ đủ, nên không có ca "gán minh chứng mà quên cập
    * nhật đánh giá".
    */
   function pinEvidence(selected: string) {
@@ -120,7 +120,7 @@ export default function GradingDetailPage({
     update(activeCriterionId, { pinnedEvidence: selected });
   }
 
-  // Bài kiểm mẫu chưa kiểm: che mù (parent spec §8.1) — KHÔNG dựng hồ sơ, vì hồ sơ chính là thứ đang bị che.
+  // Bài kiểm mẫu chưa kiểm: che mù (parent spec §8.1) - KHÔNG dựng hồ sơ, vì hồ sơ chính là thứ đang bị che.
   // Đặt SAU mọi hook và TRƯỚC nhánh điều tra, theo trạng thái chứ không theo pipeline.
   if (result && (result.status === 'audit_pending' || audited)) {
     return (
@@ -136,7 +136,7 @@ export default function GradingDetailPage({
   }
 
   // Bài chấm theo đường điều tra (§3.11 spec UI): hồ sơ riêng, không đi qua bàn chấm theo tiêu chí.
-  // Đặt SAU mọi hook (không vi phạm luật hook) và TRƯỚC chỗ chờ `text.isLoading` — hồ sơ điều tra
+  // Đặt SAU mọi hook (không vi phạm luật hook) và TRƯỚC chỗ chờ `text.isLoading` - hồ sơ điều tra
   // không cần văn bản bài làm để hiện, nên không bắt nó đợi.
   if (result?.pipeline === 'investigator') {
     return <InvestigatorDossier resultId={resultId} sessionId={sessionId} />;
@@ -148,13 +148,13 @@ export default function GradingDetailPage({
 
   // Phải kiểm TRƯỚC `!result`: React Query giữ nguyên `data` thành công gần
   // nhất khi một refetch lỗi, nên nếu chỉ kiểm `!result` thì một lỗi mạng
-  // thoáng qua đọc y hệt "bài này không tồn tại" — sai thông báo cho giảng
+  // thoáng qua đọc y hệt "bài này không tồn tại" - sai thông báo cho giảng
   // viên đi tìm nhầm hướng.
   if (results.isError) {
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          Không tải được kết quả chấm — {results.error.message}. Thử tải lại trang.
+          Không tải được kết quả chấm - {results.error.message}. Thử tải lại trang.
         </AlertDescription>
       </Alert>
     );
@@ -177,10 +177,10 @@ export default function GradingDetailPage({
   const readOnly = IN_PROGRESS.includes(result.status);
   const published = PUBLISHED.includes(result.status);
   const readsCode = isReadingCode(result);
-  // Bài code chấm bằng đọc mã, đã chốt: không có bằng chứng chạy nào để sửa theo (T-UI-19) — không nút sửa nào.
+  // Bài code chấm bằng đọc mã, đã chốt: không có bằng chứng chạy nào để sửa theo (T-UI-19) - không nút sửa nào.
   // Bài tự luận đã chốt thì KHÁC: sửa sau chốt là đường khiếu nại và có nhật ký.
   const frozen = readOnly || (published && readsCode);
-  // AI hỏng hẳn — khác `readOnly` (đang chấm, hai trạng thái không bao
+  // AI hỏng hẳn - khác `readOnly` (đang chấm, hai trạng thái không bao
   // giờ cùng đúng: markUngradable đưa thẳng ai_grading → flagged_for_
   // review, bỏ qua ai_graded). `criterionResults` rỗng VĨNH VIỄN ở ca
   // này, không phải "chưa xong".
@@ -206,7 +206,7 @@ export default function GradingDetailPage({
           {readsCode && <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>}
           {readiness.data && (
             <Badge variant={readiness.data.hasQuestion ? 'accent' : 'warning'}>
-              {readiness.data.hasQuestion ? 'Mức 2 — có đề bài' : 'Mức 1 — chỉ có thang chấm'}
+              {readiness.data.hasQuestion ? 'Mức 2 - có đề bài' : 'Mức 1 - chỉ có thang chấm'}
             </Badge>
           )}
           {/* Nói về BẬC MODEL đã trả lời, không về cấu hình phiên: provider
@@ -221,7 +221,7 @@ export default function GradingDetailPage({
       {readOnly && (
         <Alert variant="info">
           <AlertDescription>
-            AI đang chấm bài này — chưa duyệt được. Tải lại sau ít phút.
+            AI đang chấm bài này - chưa duyệt được. Tải lại sau ít phút.
           </AlertDescription>
         </Alert>
       )}
@@ -230,7 +230,7 @@ export default function GradingDetailPage({
         <Alert variant="info">
           <AlertDescription>
             Bài code này chấm bằng đọc mã, không chạy: không có độ phủ hay bằng chứng lời gọi công cụ.
-            {published && ' Điểm đã chốt — hồ sơ chỉ để xem, không sửa được.'}
+            {published && ' Điểm đã chốt - hồ sơ chỉ để xem, không sửa được.'}
           </AlertDescription>
         </Alert>
       )}
@@ -238,7 +238,7 @@ export default function GradingDetailPage({
       {aiFailedToGrade && (
         <Alert variant="warning">
           <AlertDescription>
-            AI không chấm được bài này — {result.ungradableReason}. Chấm tay các tiêu chí bên
+            AI không chấm được bài này - {result.ungradableReason}. Chấm tay các tiêu chí bên
             dưới.
           </AlertDescription>
         </Alert>
@@ -333,8 +333,8 @@ export default function GradingDetailPage({
                 <span className="text-h1 tabular-nums">{total}</span>
                 <span className="text-caption text-muted-foreground">
                   {' '}
-                  / {rubric?.totalPoints ?? '—'} · AI đề xuất{' '}
-                  <span className="tabular-nums">{result.aiTotalScore ?? '—'}</span>
+                  / {rubric?.totalPoints ?? '-'} · AI đề xuất{' '}
+                  <span className="tabular-nums">{result.aiTotalScore ?? '-'}</span>
                 </span>
               </div>
               <Button
@@ -357,7 +357,7 @@ export default function GradingDetailPage({
       {published && !frozen && (
         <Alert variant="warning">
           <AlertDescription>
-            Điểm đã chốt — thay đổi này sẽ được ghi vào nhật ký.
+            Điểm đã chốt - thay đổi này sẽ được ghi vào nhật ký.
           </AlertDescription>
         </Alert>
       )}

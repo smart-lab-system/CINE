@@ -39,8 +39,8 @@ const renderForm = (over: Partial<React.ComponentProps<typeof ReferenceForm>> = 
 };
 const saveButton = () => screen.getByRole('button', { name: 'Lưu tài liệu chấm' });
 
-describe('ReferenceForm (spec §3.7 — replaces GradingReferenceDialog, same write rules)', () => {
-  it('lists the session materials as radios and preselects NONE — the system never guesses the question by file name (Security rule 9)', () => {
+describe('ReferenceForm (spec §3.7 - replaces GradingReferenceDialog, same write rules)', () => {
+  it('lists the session materials as radios and preselects NONE - the system never guesses the question by file name (Security rule 9)', () => {
     renderForm();
     const radios = screen.getAllByRole('radio') as HTMLInputElement[];
     expect(screen.getByLabelText('de-thi-cuoi-ky.pdf')).toBeInTheDocument();
@@ -112,7 +112,7 @@ describe('ReferenceForm (spec §3.7 — replaces GradingReferenceDialog, same wr
       expect(screen.getByText(`Nguồn: bạn ghi chú lúc ${stamp('2026-09-29T02:00:00.000Z')}.`)).toBeInTheDocument();
     });
 
-    it('an API without `sources` still renders — no source lines, nothing thrown', () => {
+    it('an API without `sources` still renders - no source lines, nothing thrown', () => {
       renderForm({ readiness });
       expect(screen.queryByText(/^Nguồn:/)).not.toBeInTheDocument();
     });
@@ -131,7 +131,7 @@ describe('ReferenceForm (spec §3.7 — replaces GradingReferenceDialog, same wr
       },
     };
 
-    it('shows the saved question, answer file, note, and unverified band — with no write controls', () => {
+    it('shows the saved question, answer file, note, and unverified band - with no write controls', () => {
       renderForm({ readiness: saved, readOnly: true });
       expect(screen.getByText('de-thi-cuoi-ky.pdf')).toBeInTheDocument();
       expect(screen.getByText(`Nguồn: bạn tải lên lúc ${stamp('2026-09-29T01:14:00.000Z')} (de-thi-cuoi-ky.pdf).`)).toBeInTheDocument();
@@ -202,7 +202,7 @@ describe('ReferenceForm (spec §3.7 — replaces GradingReferenceDialog, same wr
       expect(fetch).toHaveBeenCalledWith('https://kho/put', expect.objectContaining({ method: 'PUT' }));
     });
 
-    it('if the upload fails nothing is saved — a reference pointing at a missing object would fake level 3', async () => {
+    it('if the upload fails nothing is saved - a reference pointing at a missing object would fake level 3', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false } as Response));
       renderForm();
       choose();
@@ -218,7 +218,7 @@ describe('ReferenceForm (spec §3.7 — replaces GradingReferenceDialog, same wr
   });
 
   it('shows the server message verbatim when saving is refused (e.g. the session is locked)', async () => {
-    saveMock.mockRejectedValue(new Error('Phiên thi này đã có bài mang điểm hoặc đang chấm — không đổi được tài liệu tham chiếu nữa.'));
+    saveMock.mockRejectedValue(new Error('Phiên thi này đã có bài mang điểm hoặc đang chấm - không đổi được tài liệu tham chiếu nữa.'));
     renderForm();
     fireEvent.change(screen.getByLabelText('Ghi chú đáp án'), { target: { value: 'x' } });
     fireEvent.click(saveButton());

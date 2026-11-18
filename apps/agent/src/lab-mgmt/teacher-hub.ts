@@ -33,11 +33,11 @@ export interface HubTeacherIdentity {
 }
 
 export interface RegisteredNode extends LabMachineInfo {
-  /** Inventory thô sau khi quét — chỉ set khi GV bấm Quét. */
+  /** Inventory thô sau khi quét - chỉ set khi GV bấm Quét. */
   inventory?: ScannedExtension[];
   inventoryError?: string;
   inventoryAt?: string;
-  /** Log cài / gỡ trong ngày — chỉ set khi GV bấm xem log. */
+  /** Log cài / gỡ trong ngày - chỉ set khi GV bấm xem log. */
   activityLog?: ExtensionActivityEvent[];
   activityWarnings?: { path: string; message: string }[];
   activityError?: string;
@@ -54,7 +54,7 @@ export interface TeacherHubState {
 }
 
 /**
- * Teacher Hub LAN — advertise UDP + TCP command server.
+ * Teacher Hub LAN - advertise UDP + TCP command server.
  * Nghiệp vụ quét/đối chiếu/sync chỉ chạy khi caller gọi method (nút UI).
  */
 export class TeacherHub extends EventEmitter {
@@ -97,7 +97,7 @@ export class TeacherHub extends EventEmitter {
   async start(): Promise<void> {
     await this.startTcp();
     this.startUdpAdvertise();
-    this.statusMessage = 'Hub đang chạy — chờ máy sinh viên kết nối.';
+    this.statusMessage = 'Hub đang chạy - chờ máy sinh viên kết nối.';
     this.emitState();
   }
 
@@ -122,9 +122,9 @@ export class TeacherHub extends EventEmitter {
     this.tcp = null;
   }
 
-  /** Nút «Làm mới danh sách máy» — chỉ emit lại registry hiện có. */
+  /** Nút «Làm mới danh sách máy» - chỉ emit lại registry hiện có. */
   refreshRegistry(): void {
-    this.statusMessage = `Đã làm mới — ${this.nodes.size} máy.`;
+    this.statusMessage = `Đã làm mới - ${this.nodes.size} máy.`;
     this.emitState();
   }
 
@@ -224,7 +224,7 @@ export class TeacherHub extends EventEmitter {
     this.emitState();
   }
 
-  /** Snapshot đề xuất phòng: máy Hub + mọi node SV (§5.1) — đủ field Máy tính. */
+  /** Snapshot đề xuất phòng: máy Hub + mọi node SV (§5.1) - đủ field Máy tính. */
   buildRoomProposalMachines(hubHw: MachineHardwareInfo): Array<{
     machineId: string;
     hostname: string;
@@ -344,7 +344,7 @@ export class TeacherHub extends EventEmitter {
       try {
         this.udp?.setBroadcast(true);
       } catch {
-        /* một số NIC không cho broadcast — vẫn thử gửi */
+        /* một số NIC không cho broadcast - vẫn thử gửi */
       }
       this.advertiseOnce();
       this.advertiseTimer = setInterval(() => this.advertiseOnce(), 2000);
@@ -430,7 +430,7 @@ export class TeacherHub extends EventEmitter {
     });
   }
 
-  /** Thông tin hub để snapshot sync — không dùng cho advertise. */
+  /** Thông tin hub để snapshot sync - không dùng cho advertise. */
   async asHubMachineInfo(): Promise<LabMachineInfo> {
     const hw = await collectMachineHardware();
     return {

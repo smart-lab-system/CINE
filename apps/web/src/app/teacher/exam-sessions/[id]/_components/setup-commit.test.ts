@@ -31,7 +31,7 @@ function draft(partial: Partial<SetupDraft>): SetupDraft {
 }
 
 describe('saveDraftPlan', () => {
-  it('giờ kết thúc trước giờ bắt đầu không ném — info nằm trong nháp', () => {
+  it('giờ kết thúc trước giờ bắt đầu không ném - info nằm trong nháp', () => {
     const base = server();
     const plan = saveDraftPlan(
       draft({

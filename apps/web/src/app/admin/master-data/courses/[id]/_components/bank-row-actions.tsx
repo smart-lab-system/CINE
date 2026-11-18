@@ -107,7 +107,7 @@ function ExamInfoDialog({
         <DialogHeader>
           <DialogTitle>Thông tin đề thi</DialogTitle>
           <DialogDescription>
-            Chỉ xem từ hub admin — sửa nội dung ở ngân hàng đề của giảng viên.
+            Chỉ xem từ hub admin - sửa nội dung ở ngân hàng đề của giảng viên.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 py-1">
@@ -121,10 +121,10 @@ function ExamInfoDialog({
             label="Hoạt động"
             value={exam.isActive !== false ? 'Đang hoạt động' : 'Đã vô hiệu hoá'}
           />
-          <MetaRow label="Người tạo" value={exam.createdByName ?? '—'} />
+          <MetaRow label="Người tạo" value={exam.createdByName ?? '-'} />
           <MetaRow
             label="Học kỳ (suy diễn)"
-            value={exam.resolvedSemesterName ?? '—'}
+            value={exam.resolvedSemesterName ?? '-'}
           />
           <MetaRow
             label="Số câu / tổng điểm"
@@ -199,7 +199,7 @@ function ExamStatusDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <DialogHeader>
-          <DialogTitle>Cập nhật trạng thái — đề thi</DialogTitle>
+          <DialogTitle>Cập nhật trạng thái - đề thi</DialogTitle>
           <DialogDescription>
             Hiện tại:{' '}
             <span className="font-medium text-foreground">
@@ -325,7 +325,7 @@ function RubricInfoDialog({
         <DialogHeader>
           <DialogTitle>Thông tin rubric</DialogTitle>
           <DialogDescription>
-            Chỉ xem từ hub admin — sửa nội dung ở portal giảng viên.
+            Chỉ xem từ hub admin - sửa nội dung ở portal giảng viên.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 py-1">
@@ -340,10 +340,10 @@ function RubricInfoDialog({
             label="Hoạt động (admin)"
             value={rubric.isArchived ? 'Đã vô hiệu hoá' : 'Đang hoạt động'}
           />
-          <MetaRow label="Người tạo" value={rubric.teacherName ?? '—'} />
+          <MetaRow label="Người tạo" value={rubric.teacherName ?? '-'} />
           <MetaRow
             label="Học kỳ (suy diễn)"
-            value={rubric.resolvedSemesterName ?? '—'}
+            value={rubric.resolvedSemesterName ?? '-'}
           />
           <MetaRow label="Tổng điểm" value={`${rubric.totalPoints} điểm`} />
         </div>
@@ -423,7 +423,7 @@ function RubricStatusDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <DialogHeader>
-          <DialogTitle>Cập nhật trạng thái — rubric</DialogTitle>
+          <DialogTitle>Cập nhật trạng thái - rubric</DialogTitle>
           <DialogDescription>
             Hiện tại:{' '}
             <span className="font-medium text-foreground">

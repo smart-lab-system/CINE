@@ -146,7 +146,7 @@ function RemoveBody({ item, rubricName, onClose }: { item: RubricErrorItem; rubr
           Gỡ “{item.name}” khỏi rubric “{rubricName}”?
         </DialogTitle>
         <DialogDescription>
-          Lỗi vẫn còn trong Thư viện lỗi, các rubric khác không đổi. Các bài chưa chốt của rubric này được tính lại — lỗi này sẽ không còn bị trừ ở đó.
+          Lỗi vẫn còn trong Thư viện lỗi, các rubric khác không đổi. Các bài chưa chốt của rubric này được tính lại - lỗi này sẽ không còn bị trừ ở đó.
         </DialogDescription>
       </DialogHeader>
       {remove.isError && (

@@ -16,7 +16,7 @@ vi.mock('@/hooks/useSubmissionOverview', () => ({
 
 // Kỳ mặc định của trang giờ đến từ `useCurrentSemester` (GET /semesters)
 // thay vì tự suy từ các phiên. Mock ở mức hook, giống `useSessionOverview`
-// ngay trên — không mock thì nó gọi useQuery thật và nổ vì không có
+// ngay trên - không mock thì nó gọi useQuery thật và nổ vì không có
 // QueryClientProvider. Mặc định trả kỳ của fixture bên dưới, nên hành vi
 // của mọi test cũ giữ nguyên.
 const useCurrentSemesterMock = vi.fn();
@@ -93,7 +93,7 @@ beforeEach(() => {
   });
 });
 
-describe('SubmissionsPage — trạng thái tải', () => {
+describe('SubmissionsPage - trạng thái tải', () => {
   it('hiện skeleton khi đang tải', () => {
     useSessionOverviewMock.mockReturnValue({
       data: undefined,
@@ -130,14 +130,14 @@ describe('SubmissionsPage — trạng thái tải', () => {
   });
 });
 
-describe('SubmissionsPage — bố cục mới', () => {
+describe('SubmissionsPage - bố cục mới', () => {
   it('KHÔNG còn dải "Cần chú ý" là danh sách riêng', () => {
     useSessionOverviewMock.mockReturnValue({
       data: [make({ id: 's1', name: 'Giữa kỳ #2', neverAttendedCount: 2, fullySubmittedCount: 38 })],
       isLoading: false, error: null, refetch: vi.fn(),
     });
     render(<SubmissionsPage />);
-    // Tên phiên xuất hiện đúng MỘT lần trên cả trang — đây là thứ chữa phàn
+    // Tên phiên xuất hiện đúng MỘT lần trên cả trang - đây là thứ chữa phàn
     // nàn "thấy cùng một phiên hai lần".
     expect(screen.getAllByText('Giữa kỳ #2')).toHaveLength(1);
     expect(screen.queryByRole('region', { name: 'Cần chú ý' })).not.toBeInTheDocument();
@@ -173,7 +173,7 @@ describe('SubmissionsPage — bố cục mới', () => {
   });
 });
 
-describe('SubmissionsPage — điều hướng', () => {
+describe('SubmissionsPage - điều hướng', () => {
   it('mỗi phiên link tới trang chi tiết, không kèm ?student=', () => {
     render(<SubmissionsPage />);
     // Bảng không còn thu gọn nhóm: mọi dòng hiện sẵn, không phải bấm mở.
@@ -188,11 +188,11 @@ describe('SubmissionsPage — điều hướng', () => {
 
 /**
  * Search chạy trên CHÍNH endpoint roll-up, chỉ thêm `student`. Bản trước gọi
- * GET /submissions — endpoint đọc bảng submission — nên sinh viên chưa nộp gì
+ * GET /submissions - endpoint đọc bảng submission - nên sinh viên chưa nộp gì
  * là vô hình, đúng nhóm mà giảng viên đi tra. Server giờ tìm trên roster ∪
  * người đã nộp, và trang chỉ vẽ lại thứ nó trả về.
  */
-describe('SubmissionsPage — search theo sinh viên', () => {
+describe('SubmissionsPage - search theo sinh viên', () => {
   it('không bật lượt tìm nào khi ô tìm còn rỗng', () => {
     render(<SubmissionsPage />);
     expect(useSessionOverviewMock).toHaveBeenCalledWith(undefined, false);
@@ -226,7 +226,7 @@ describe('SubmissionsPage — search theo sinh viên', () => {
     );
 
     render(<SubmissionsPage />);
-    // useDebouncedValue là hook THẬT (300ms), không mock — waitFor chờ nó nhả.
+    // useDebouncedValue là hook THẬT (300ms), không mock - waitFor chờ nó nhả.
     fireEvent.change(screen.getByLabelText('Tìm sinh viên theo MSSV hoặc tên'), {
       target: { value: '21520123' },
     });
@@ -234,7 +234,7 @@ describe('SubmissionsPage — search theo sinh viên', () => {
     // Chờ một thứ CHỈ chế độ search mới vẽ: bảng duyệt cũng có chữ 'Cuối kỳ',
     // nên chờ nó sẽ qua waitFor vì lý do sai, trước cả khi debounce nhả.
     await waitFor(() => {
-      expect(screen.getByText(/21520123 — Nguyễn Văn A/)).toBeInTheDocument();
+      expect(screen.getByText(/21520123 - Nguyễn Văn A/)).toBeInTheDocument();
     });
     expect(screen.queryByText('Giữa kỳ #2')).not.toBeInTheDocument();
     const link = screen
@@ -273,7 +273,7 @@ describe('SubmissionsPage — search theo sinh viên', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/21520123 — Nguyễn Văn A và 1 sinh viên khác/),
+        screen.getByText(/21520123 - Nguyễn Văn A và 1 sinh viên khác/),
       ).toBeInTheDocument();
     });
   });

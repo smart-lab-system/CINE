@@ -75,13 +75,13 @@ export default function CourseSectionDetailPage() {
     status: 'active',
   });
 
-  // Ghép giá trị hiện tại vào options — tránh SearchableSelect hiện
+  // Ghép giá trị hiện tại vào options - tránh SearchableSelect hiện
   // placeholder khi môn/kỳ/lớp danh nghĩa không còn trong list `active`
   // (hoặc đang tải), khiến dialog trông như trống.
   const courseOptions = useMemo(() => {
     const items = (courses.data?.items ?? []).map((c) => ({
       value: c.id,
-      label: `${c.code} — ${c.name}`,
+      label: `${c.code} - ${c.name}`,
       keywords: `${c.code} ${c.name}`,
     }));
     const current = section.data;
@@ -120,7 +120,7 @@ export default function CourseSectionDetailPage() {
   const nominalOptions = useMemo(() => {
     const items = (nominalClasses.data?.items ?? []).map((n) => ({
       value: n.id,
-      label: n.name ? `${n.code} — ${n.name}` : n.code,
+      label: n.name ? `${n.code} - ${n.name}` : n.code,
       keywords: `${n.code} ${n.name ?? ''}`,
     }));
     const current = section.data;
@@ -257,7 +257,7 @@ export default function CourseSectionDetailPage() {
         </Button>
         <PageHeader
           title={row.name}
-          description={`${row.courseName} · ${row.semesterName ?? '—'} · ${row.nominalClassName ?? 'Chưa gắn lớp danh nghĩa'}`}
+          description={`${row.courseName} · ${row.semesterName ?? '-'} · ${row.nominalClassName ?? 'Chưa gắn lớp danh nghĩa'}`}
           actions={
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={openEdit}>
@@ -300,7 +300,7 @@ export default function CourseSectionDetailPage() {
           </div>
           <div className="min-w-0 break-words">
             <span className="text-muted-foreground">Lớp danh nghĩa: </span>
-            {row.nominalClassName ?? '—'}
+            {row.nominalClassName ?? '-'}
           </div>
           <div className="min-w-0">
             <span className="text-muted-foreground">Sĩ số: </span>
@@ -330,7 +330,7 @@ export default function CourseSectionDetailPage() {
               ariaLabel="Chọn giảng viên"
             />
             <p className="text-small text-muted-foreground">
-              Đổi GV chỉ cập nhật lớp và enrollment — phiên thi / rubric cũ không chuyển chủ.
+              Đổi GV chỉ cập nhật lớp và enrollment - phiên thi / rubric cũ không chuyển chủ.
             </p>
           </div>
           <DialogFooter>
@@ -351,7 +351,7 @@ export default function CourseSectionDetailPage() {
             <DialogDescription>
               {metaMutable
                 ? 'Đổi môn, học kỳ hoặc lớp danh nghĩa khi lớp còn trống sinh viên và chưa có phiên thi.'
-                : 'Lớp đã có sinh viên hoặc phiên thi — chỉ xem thông tin, không sửa được meta.'}
+                : 'Lớp đã có sinh viên hoặc phiên thi - chỉ xem thông tin, không sửa được meta.'}
             </DialogDescription>
           </DialogHeader>
           <div className="flex min-w-0 flex-col gap-4 py-2">

@@ -9,7 +9,7 @@
  * actually finished with would be a different, worse feature.
  *
  * The bytes go straight to object storage through a presigned URL, never
- * through the API server — CLAUDE.md Security rule 5, the same path
+ * through the API server - CLAUDE.md Security rule 5, the same path
  * submissions take.
  */
 
@@ -67,7 +67,7 @@ function ask(socket: Socket, event: string): Promise<BackupAck> {
  *
  * Returns quietly on every failure rather than throwing. This runs on a
  * timer beside a student writing an exam: a storage blip must not produce a
- * crash, an unhandled rejection, or a wall of noise on their screen — the
+ * crash, an unhandled rejection, or a wall of noise on their screen - the
  * next snapshot is four minutes away and will simply try again.
  */
 export async function uploadSnapshot(
@@ -167,7 +167,7 @@ export async function restoreBackup(
     const target = resolveWithinWorkspace(workspaceDir, entry.name);
     if (!target) {
       // The archive came back through storage. An entry that climbs out of
-      // the workspace is refused rather than sanitised — rewriting it would
+      // the workspace is refused rather than sanitised - rewriting it would
       // put the file somewhere nobody asked for.
       console.warn(`[CẢNH BÁO BẢO MẬT] Bỏ qua mục sao lưu có đường dẫn không an toàn: ${entry.name}`);
       continue;
@@ -198,11 +198,11 @@ export async function restoreBackup(
  * Starts the four-minute snapshot loop. Returns a stop function.
  *
  * `unref()` so a still-pending timer never keeps the process alive after
- * finalize — the agent's job is done at that point, and a lingering handle
+ * finalize - the agent's job is done at that point, and a lingering handle
  * would leave the student's window open for another four minutes.
  *
  * `onResult`, if given, is called after every attempt (not just failures)
- * — optional because the `console.warn` below already covers a failure on
+ * - optional because the `console.warn` below already covers a failure on
  * its own, but `session-controller.ts` (the only caller now that `cli.ts`
  * is retired) always passes it: the detail window's "last backed up at"
  * line has no other way to learn a snapshot just happened.
@@ -218,7 +218,7 @@ export function startSnapshotLoop(
         // Worth saying once, quietly: the student's safety net is not there,
         // and a lab technician looking at the screen should be able to see
         // that. Not an error the student can act on, so not an error.
-        console.warn('[CẢNH BÁO] Không sao lưu được lần này — sẽ thử lại sau vài phút.');
+        console.warn('[CẢNH BÁO] Không sao lưu được lần này - sẽ thử lại sau vài phút.');
       }
       onResult?.(result);
     });

@@ -41,7 +41,7 @@ export function groupQsApproaches(rows: CriterionWithApproach[]): OverviewApproa
 
   for (const row of rows) {
     const ak = row.approachKey ?? '_ungrouped';
-    const name = row.approachName?.trim() || (ak === '_ungrouped' ? 'Chưa gắn hướng' : ak);
+    const name = row.approachName?.trim() || (ak === '_ungrouped' ? 'Chưa gắn cách giải' : ak);
     const sort = row.approachSort ?? 9999;
     let bucket = byKey.get(ak);
     if (!bucket) {

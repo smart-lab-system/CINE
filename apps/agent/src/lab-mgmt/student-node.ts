@@ -48,12 +48,12 @@ export class StudentNode extends EventEmitter {
     super();
   }
 
-  /** Gắn MSSV sau login — gửi lại register nếu đang nối Hub. */
+  /** Gắn MSSV sau login - gửi lại register nếu đang nối Hub. */
   bindStudent(mssv: string, fullName: string): void {
     this.mssv = mssv;
     this.fullName = fullName;
     this.statusMessage = this.tcp && !this.tcp.destroyed
-      ? `Đã gắn với Hub ${this.hubHostname ?? ''} — ${fullName} (${mssv}).`
+      ? `Đã gắn với Hub ${this.hubHostname ?? ''} - ${fullName} (${mssv}).`
       : this.statusMessage;
     this.emitState();
     if (this.tcp && !this.tcp.destroyed && this.hubSessionId) {
@@ -118,7 +118,7 @@ export class StudentNode extends EventEmitter {
     this.tcp = null;
   }
 
-  /** Public cho test — nhận quảng bá Hub. */
+  /** Public cho test - nhận quảng bá Hub. */
   handleAdvertiseFrom(buf: Buffer, remoteAddress: string): void {
     if (this.stopped || this.connecting || (this.tcp && !this.tcp.destroyed)) {
       return;
@@ -205,7 +205,7 @@ export class StudentNode extends EventEmitter {
       this.tcp = null;
       this.connecting = false;
       if (!this.stopped) {
-        this.statusMessage = 'Mất kết nối Hub — đang chờ quảng bá lại…';
+        this.statusMessage = 'Mất kết nối Hub - đang chờ quảng bá lại…';
         this.emitState();
       }
     });

@@ -68,7 +68,7 @@ export default function EditExamBankPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Sửa đề"
-        description={`${exam.courseCode} — ${exam.courseName}`}
+        description={`${exam.courseCode} - ${exam.courseName}`}
         actions={
           <div className="flex flex-wrap gap-2">
             <ExamBankUploadDocxButton
@@ -125,7 +125,7 @@ export default function EditExamBankPage() {
       <ExamBankForm
         key={formKey}
         courseName={exam.courseName}
-        courseLabel={`${exam.courseCode} — ${exam.courseName}`}
+        courseLabel={`${exam.courseCode} - ${exam.courseName}`}
         submitLabel="Lưu"
         allowDelete
         busy={busy}

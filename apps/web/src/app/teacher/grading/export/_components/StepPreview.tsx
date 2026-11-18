@@ -30,7 +30,7 @@ function downloadCsv(csv: string, filename: string) {
 
 /**
  * Bước 3 (spec §3.6): chọn làm tròn (KHÔNG chọn sẵn; được ghi vào bản ghi lượt xuất), xem ba con số và từng dòng, rồi
- * ghi. Không có bản xem trước nào được yêu cầu cho tới khi chọn làm tròn — bản xem trước phụ thuộc vào nó. Nút ghi tắt
+ * ghi. Không có bản xem trước nào được yêu cầu cho tới khi chọn làm tròn - bản xem trước phụ thuộc vào nó. Nút ghi tắt
  * và GHI RA lý do; ghi đè và điểm giảm mỗi cái cần một dấu tick riêng nói rõ con số.
  */
 export function StepPreview({
@@ -153,7 +153,7 @@ export function StepPreview({
               <ul className="mt-2 flex flex-col gap-1">
                 {plan.notInFile.map((s) => (
                   <li key={s.mssv}>
-                    <span className="font-mono">{s.mssv}</span> {s.name} — {s.score !== null ? scoreText(s.score) : s.blankLabel}
+                    <span className="font-mono">{s.mssv}</span> {s.name} - {s.score !== null ? scoreText(s.score) : s.blankLabel}
                   </li>
                 ))}
               </ul>
@@ -212,7 +212,7 @@ export function StepPreview({
               </TableBody>
             </Table>
           </div>
-          {visible.length > SHOWN_ROWS && <p className="text-caption text-muted-foreground">Đang hiện {SHOWN_ROWS}/{visible.length} dòng — dùng bộ lọc để xem phần còn lại.</p>}
+          {visible.length > SHOWN_ROWS && <p className="text-caption text-muted-foreground">Đang hiện {SHOWN_ROWS}/{visible.length} dòng - dùng bộ lọc để xem phần còn lại.</p>}
 
           {overwriteNeeded && (
             <label className="flex cursor-pointer items-start gap-2 text-small">
@@ -292,7 +292,7 @@ function PlanRowLine({ r }: { r: PlanRowView }) {
     <TableRow>
       <TableCell className="tabular-nums">{r.row}</TableCell>
       <TableCell className="font-mono">{r.studentMssv ?? r.mssvInFile}</TableCell>
-      <TableCell>{r.studentName ?? '—'}</TableCell>
+      <TableCell>{r.studentName ?? '-'}</TableCell>
       <TableCell className="text-right tabular-nums">{scoreText(r.systemScore)}</TableCell>
       <TableCell>
         {r.action === 'write' ? (

@@ -12,7 +12,7 @@ import type { AuditLogFilter, AuditLogItem } from '@/lib/api/audit-log';
 const NO_FILTER: AuditLogFilter = {};
 
 /**
- * Nhật ký thao tác — đọc chỉ. Mọi lần ghi đè luật máy kiểm, sửa điểm sau khi chốt, đổi quyền... đều hiện ở đây để
+ * Nhật ký thao tác - đọc chỉ. Mọi lần ghi đè luật máy kiểm, sửa điểm sau khi chốt, đổi quyền... đều hiện ở đây để
  * admin đọc lại được ai đã làm gì, lúc nào. Chỉ hiện TÊN các trường đã đổi: giá trị cũ và mới không đưa ra màn này.
  */
 export default function AuditLogPage() {
@@ -102,7 +102,7 @@ export default function AuditLogPage() {
                 </TableCell>
                 <TableCell>
                   {item.changedFields.length === 0 ? (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">-</span>
                   ) : (
                     <span className="flex flex-wrap gap-1">
                       {item.changedFields.map((f) => (

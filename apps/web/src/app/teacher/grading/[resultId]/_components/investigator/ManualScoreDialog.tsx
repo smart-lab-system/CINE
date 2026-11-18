@@ -12,18 +12,18 @@ import { formatVnPoints } from '@/lib/format';
 /** Cùng tập PUBLISHED của server (review/error-exception.service.ts): điểm đã công bố đổi thì ghi nhật ký. */
 const PUBLISHED = new Set(['finalized', 'exported']);
 
-/** "7,5" — điểm hiện trên trang theo kiểu Việt Nam, ô nhập cũng vậy để người dùng gõ đúng thứ họ đang đọc. */
+/** "7,5" - điểm hiện trên trang theo kiểu Việt Nam, ô nhập cũng vậy để người dùng gõ đúng thứ họ đang đọc. */
 function seedFrom(score: number | null): string {
   return score === null ? '' : String(Number(score.toFixed(2))).replace('.', ',');
 }
 
 /**
- * Chấm tay bài này (§2.2 ngoại lệ cấp bài) — điền sẵn điểm hệ thống (T-UI-25), gửi CHUỖI thập phân
- * (server 400 nếu gửi số). Sau khi lưu, điểm này KHÔNG đổi theo luật hay giá nữa — câu này hiện luôn,
+ * Chấm tay bài này (§2.2 ngoại lệ cấp bài) - điền sẵn điểm hệ thống (T-UI-25), gửi CHUỖI thập phân
+ * (server 400 nếu gửi số). Sau khi lưu, điểm này KHÔNG đổi theo luật hay giá nữa - câu này hiện luôn,
  * không chỉ lúc lỗi, vì đây là hệ quả người bấm nút cần biết TRƯỚC khi bấm.
  *
  * Phần ruột là ManualScoreForm, nằm TRONG DialogContent: Radix gỡ nó khi đóng, nên mỗi lần mở là một lần
- * mount mới — điểm điền sẵn là điểm HIỆN TẠI, không phải điểm lúc trang vừa tải (review I3), và lỗi/giá trị
+ * mount mới - điểm điền sẵn là điểm HIỆN TẠI, không phải điểm lúc trang vừa tải (review I3), và lỗi/giá trị
  * dang dở của lần mở trước không sống sót.
  *
  * maxTotal là null khi chưa biết rubric của phiên: không bịa trần (review I6), để server quyết.
@@ -101,11 +101,11 @@ function ManualScoreForm({
         <DialogTitle>Chấm tay bài này</DialogTitle>
       </DialogHeader>
       <p className="text-caption text-muted-foreground">
-        Từ lúc lưu, điểm bài này không đổi theo luật hay giá nữa — kể cả khi bạn sửa Bảng lỗi sau đó.
+        Từ lúc lưu, điểm bài này không đổi theo luật hay giá nữa - kể cả khi bạn sửa Bảng lỗi sau đó.
       </p>
       {published && (
         <Alert variant="warning">
-          <AlertDescription>Điểm đã chốt — thay đổi này sẽ được ghi vào nhật ký.</AlertDescription>
+          <AlertDescription>Điểm đã chốt - thay đổi này sẽ được ghi vào nhật ký.</AlertDescription>
         </Alert>
       )}
       <FormField id="manual-score" label="Điểm">

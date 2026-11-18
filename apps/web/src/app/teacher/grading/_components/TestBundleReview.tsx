@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 const when = (iso: string) => new Date(iso).toLocaleString('vi-VN');
 
 /**
- * Gói test đã dùng để chấm — chỉ đọc. Không sinh, không duyệt, không ghim, không chạy, không sửa ca.
+ * Gói test đã dùng để chấm - chỉ đọc. Không sinh, không duyệt, không ghim, không chạy, không sửa ca.
  */
 export function TestBundleReview({
   sessionId,

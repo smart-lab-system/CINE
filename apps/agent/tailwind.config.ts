@@ -5,7 +5,7 @@ import type { Config } from 'tailwindcss';
  * shared as a package: this app is a separate Vite/Electron build with no
  * Next.js dependency, and the two teams' colours/radius/shadow values are
  * a design decision meant to move together deliberately, not automatically
- * — see docs/superpowers/specs/2026-09-01-student-agent-electron-design.md
+ * - see docs/superpowers/specs/2026-09-01-student-agent-electron-design.md
  * §7. Every value here still points at a CSS variable declared in
  * electron/renderer/src/globals.css, never a literal.
  */
@@ -23,7 +23,7 @@ const config: Config = {
           DEFAULT: 'hsl(var(--surface))',
           2: 'hsl(var(--surface-2))',
         },
-        // No DEFAULT — nothing in this app uses bg-muted/text-muted, only
+        // No DEFAULT - nothing in this app uses bg-muted/text-muted, only
         // text-muted-foreground (every secondary/helper line in the UI).
         muted: {
           foreground: 'hsl(var(--muted-foreground))',
@@ -78,7 +78,7 @@ const config: Config = {
         md: 'var(--shadow-md)',
         lg: 'var(--shadow-lg)',
       },
-      // Only the steps this app's components actually use — apps/web's
+      // Only the steps this app's components actually use - apps/web's
       // `display`/`h1`/`beacon` steps have no screen here that needs them.
       fontSize: {
         h2: ['1.25rem', { lineHeight: '1.75rem', letterSpacing: '-0.012em', fontWeight: '600' }],
@@ -91,7 +91,7 @@ const config: Config = {
         // System UI stack, not apps/web's Google-Fonts-loaded Inter: a
         // desktop app that must "just work" on a lab machine should not
         // have its typography depend on a CDN reaching the internet at
-        // startup. Segoe UI (Windows' own default — the real deployment
+        // startup. Segoe UI (Windows' own default - the real deployment
         // target, per CLAUDE.md) is close enough to Inter's proportions
         // that the two apps still read as one family at a glance.
         sans: ['ui-sans-serif', '-apple-system', 'Segoe UI', 'Roboto', 'system-ui', 'sans-serif'],

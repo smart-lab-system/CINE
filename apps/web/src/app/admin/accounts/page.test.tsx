@@ -5,7 +5,7 @@ import AccountsPage from './page';
 
 // Phase 1 rebuild: the page now goes through hooks/useAccounts.ts (CLAUDE.md's
 // API-call-layering rule) instead of calling apiClient directly, so these
-// tests mock the hooks module — no QueryClientProvider needed since the
+// tests mock the hooks module - no QueryClientProvider needed since the
 // real useQuery/useMutation never run.
 const useAccountsMock = vi.fn();
 const createMutate = vi.fn();
@@ -22,7 +22,7 @@ vi.mock('@/hooks/useAccounts', () => ({
 }));
 
 // The page syncs page/pageSize to the URL (router.replace) and seeds its
-// state from useSearchParams, so the App Router hooks need a stand-in — the
+// state from useSearchParams, so the App Router hooks need a stand-in - the
 // real ones throw "expected app router to be mounted" outside Next.
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
@@ -60,7 +60,7 @@ describe('AccountsPage fetch states', () => {
 
     expect(screen.getByText(/không tải được danh sách tài khoản/i)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    // AccountsController is @Roles('admin')-only — if the list 403'd, so
+    // AccountsController is @Roles('admin')-only - if the list 403'd, so
     // would a create; the button shouldn't be offered.
     expect(screen.queryByRole('button', { name: /tạo tài khoản/i })).not.toBeInTheDocument();
 
@@ -79,7 +79,7 @@ describe('AccountsPage fetch states', () => {
     render(<AccountsPage />);
 
     expect(screen.getByText(/chưa có tài khoản nào/i)).toBeInTheDocument();
-    // Two "Tạo tài khoản" buttons now — header + empty-state CTA.
+    // Two "Tạo tài khoản" buttons now - header + empty-state CTA.
     expect(screen.getAllByRole('button', { name: /tạo tài khoản/i }).length).toBeGreaterThan(0);
   });
 
@@ -112,7 +112,7 @@ describe('AccountsPage fetch states', () => {
 
   /**
    * Vô hiệu hoá là đường DUY NHẤT dùng được với tài khoản đã đi vào việc
-   * (Xóa bị FK RESTRICT chặn — xem accounts.e2e-spec.ts). Nên nút này phải
+   * (Xóa bị FK RESTRICT chặn - xem accounts.e2e-spec.ts). Nên nút này phải
    * gửi đúng chiều: `isActive` truyền lên là trạng thái HIỆN TẠI, hook tự
    * suy ra gọi deactivate hay reactivate.
    */

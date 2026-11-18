@@ -58,7 +58,7 @@ export function useDismissRule() {
   });
 }
 
-/** Đánh dấu tiêu chí "không trừ điểm" — trạng thái đánh dấu nằm trong tổng quan nên làm mới cả bảng. */
+/** Đánh dấu tiêu chí "không trừ điểm" - trạng thái đánh dấu nằm trong tổng quan nên làm mới cả bảng. */
 export function useSetWaiver(rubricId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation<{ waiverId: string; recompute: RecomputeSummary | null }, Error, string>({

@@ -64,7 +64,7 @@ export default function ExamAuthoringPage() {
   // server và client và React báo hydration mismatch.
   //
   // Khôi phục CẢ BỐN trường, không chỉ `exam`: thiếu `prompt` là bug thật đã
-  // gặp — "Sinh lại riêng câu này" gửi `prompt` từ STATE, và nếu nháp không
+  // gặp - "Sinh lại riêng câu này" gửi `prompt` từ STATE, và nếu nháp không
   // mang nó theo thì sau một lượt tải lại trang, state đó vẫn là `''` (giá
   // trị khởi tạo), và request bị 400 vì `prompt` dưới 10 ký tự. Xem doc của
   // `ExamDraft`.
@@ -94,10 +94,10 @@ export default function ExamAuthoringPage() {
           // model từ chối, hết trần token, JSON hỏng). KHÔNG im lặng bớt câu:
           // một đề 10 câu phát ra chỉ còn 8 mà không ai để ý tới lúc in là
           // đúng thứ giảng viên cần biết TRƯỚC, không phải TRONG LÚC in đề.
-          // Lối thoát: bấm "Sinh lại cả đề" — rẻ, nhờ chính lượt fan-out này.
+          // Lối thoát: bấm "Sinh lại cả đề" - rẻ, nhờ chính lượt fan-out này.
           if ((result.failedCount ?? 0) > 0) {
             toast.warning(
-              `Sinh được ${result.questions.length}/${result.questions.length + result.failedCount!} câu — ` +
+              `Sinh được ${result.questions.length}/${result.questions.length + result.failedCount!} câu - ` +
                 `${result.failedCount} câu lỗi khi gọi model. Bấm "Sinh lại cả đề" để thử lại.`,
             );
           }
@@ -110,7 +110,7 @@ export default function ExamAuthoringPage() {
   /**
    * Sinh lại MỘT câu, giữ nguyên các câu khác.
    *
-   * Ba thứ đi kèm, và thiếu vế nào cũng hỏng: `avoid` (bài model vừa tự khai —
+   * Ba thứ đi kèm, và thiếu vế nào cũng hỏng: `avoid` (bài model vừa tự khai -
    * hệ thống tự điền, giảng viên không phải gõ lại), `refineNote` (hướng đi
    * mới, thứ duy nhất hệ thống không đoán được), và `existingStatements` (đề
    * các câu đang giữ, để câu mới không trùng ý).
@@ -125,7 +125,7 @@ export default function ExamAuthoringPage() {
         questionCount: 1,
         language,
         // Cắt về MAX_CLASSIC_PROBLEM_LENGTH TRƯỚC khi gửi, không tin
-        // `resemblesKnownProblem` trong state đã đúng hạn sẵn — nó có thể
+        // `resemblesKnownProblem` trong state đã đúng hạn sẵn - nó có thể
         // đến từ một đề sinh TRƯỚC khi API biết cắt (nháp cũ, hoặc cùng
         // phiên trước khi bản vá kịp áp dụng). Xem doc của hằng số này.
         avoid: target.resemblesKnownProblem
@@ -179,7 +179,7 @@ export default function ExamAuthoringPage() {
       await attachExamToSession(picked.id, exam);
       setAttachStep(null);
       toast.success('Đã gắn đề và đáp án. Bước tiếp theo: tạo gói test ở trang Chấm điểm trước khi bắt đầu chấm.');
-      // Sang phòng chờ để giảng viên kiểm lại tài liệu — việc gắn chỉ coi là
+      // Sang phòng chờ để giảng viên kiểm lại tài liệu - việc gắn chỉ coi là
       // xong khi họ xác nhận ở đó.
       router.push(`/exam-sessions/${picked.id}`);
     } catch (e) {
@@ -373,7 +373,7 @@ function ExamForm({
 }
 
 /**
- * Băng CHƯA KIỂM CHỨNG — KHÔNG có nút đóng, cố ý.
+ * Băng CHƯA KIỂM CHỨNG - KHÔNG có nút đóng, cố ý.
  *
  * Một cảnh báo tắt được là một cảnh báo sẽ bị tắt, và bên dưới nó là đáp án
  * chưa ai chạy. Nó biến mất khi và chỉ khi sandbox thật sự kiểm chứng xong
@@ -385,7 +385,7 @@ function UnverifiedBanner() {
       <AlertTriangle className="h-4 w-4" aria-hidden="true" />
       <AlertDescription>
         <span className="font-bold">
-          CHƯA KIỂM CHỨNG — đáp án mẫu chưa được chạy lần nào.
+          CHƯA KIỂM CHỨNG - đáp án mẫu chưa được chạy lần nào.
         </span>{' '}
         Sandbox chưa có, nên hệ thống không biết mã dưới đây có biên dịch được không, có qua
         được chính gói test của nó không, hay độ phức tạp thật có khớp con số đã ghi không.
@@ -430,7 +430,7 @@ function ActionBar({
         </CardContent>
       </Card>
       <p className="text-caption leading-relaxed text-muted-foreground">
-        Đề và đáp án là <strong className="text-foreground">hai file riêng</strong>, cố ý —
+        Đề và đáp án là <strong className="text-foreground">hai file riêng</strong>, cố ý -
         một file Word chứa cả hai là cách đáp án đi nhầm vào tài liệu phát cho sinh viên.
         Bản nháp chỉ nằm trên máy này, không lưu lên máy chủ.
       </p>

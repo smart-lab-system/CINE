@@ -4,7 +4,7 @@ import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 
 // Registering useGSAP as a plugin is what lets gsap.context() find and
-// revert animations created inside a React component on unmount — without
+// revert animations created inside a React component on unmount - without
 // it, every route change leaks tweens holding references to unmounted DOM.
 // Safe at module scope: registerPlugin never touches `window`, so this
 // doesn't break server rendering.
@@ -18,7 +18,7 @@ gsap.registerPlugin(useGSAP);
  * matchMedia reverts everything created inside a handler as soon as the
  * query stops matching. Gating on `no-preference` (rather than branching
  * on `reduce` inside the handler) means that for a user who asked for
- * reduced motion no tween is ever created at all — the element simply
+ * reduced motion no tween is ever created at all - the element simply
  * renders in its final state, with nothing to revert and nothing that can
  * flash.
  *
@@ -37,7 +37,7 @@ gsap.registerPlugin(useGSAP);
  *
  * Note `mm.add`'s third argument: it scopes selector text inside the
  * handler. And note that gsap.context() must never be nested inside
- * matchMedia — matchMedia creates one internally.
+ * matchMedia - matchMedia creates one internally.
  */
 export const MOTION_OK = '(prefers-reduced-motion: no-preference)';
 
@@ -57,10 +57,10 @@ export const MOTION = {
   stagger: 0.06,
   /** The sliding sidebar rail. */
   indicator: 0.3,
-  /** Dashboard number count-up. Longer on purpose — it's the one place
+  /** Dashboard number count-up. Longer on purpose - it's the one place
    *  where motion carries information (the magnitude of the number). */
   count: 0.8,
-  /** Enter easing. Fast start, soft landing — no overshoot. */
+  /** Enter easing. Fast start, soft landing - no overshoot. */
   easeOut: 'power3.out',
   /** Numeric easing: gentler, so the last digits don't crawl. */
   easeCount: 'power2.out',

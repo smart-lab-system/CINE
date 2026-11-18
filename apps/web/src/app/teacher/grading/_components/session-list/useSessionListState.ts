@@ -12,8 +12,8 @@ const MAX_IN_FLIGHT = 20;
 /**
  * Trạng thái danh sách: STATE CỤC BỘ là nguồn sự thật, URL là bản sao ghi ra (dán được, và "Đổi phiên" nhớ được).
  *
- * Vì sao không đọc lại từ `useSearchParams`: `router.replace` là một chuyển trang — trên Vercel, với middleware,
- * là một vòng mạng — và `useSearchParams` chỉ đổi SAU đó. Dựng trạng thái mới từ URL cũ trong lúc chờ thì hai
+ * Vì sao không đọc lại từ `useSearchParams`: `router.replace` là một chuyển trang - trên Vercel, với middleware,
+ * là một vòng mạng - và `useSearchParams` chỉ đổi SAU đó. Dựng trạng thái mới từ URL cũ trong lúc chờ thì hai
  * cú bấm nhanh làm rơi cú thứ nhất, và một tiếng vọng đến muộn ghi đè chữ vừa gõ. Ở đây mọi thay đổi áp ngay
  * vào state (giao diện đổi tức thì), rồi mới ghi URL; tiếng vọng của CHÍNH những gì đã ghi thì bị bỏ qua, còn
  * một URL lạ (bấm "Chấm điểm" ở thanh bên khi đang ở danh sách) được nhận vào như thay đổi từ bên ngoài.
@@ -70,7 +70,7 @@ export function useSessionListState() {
     apply(parseListState(new URLSearchParams(urlQuery)));
   }, [urlQuery, apply, cancelPendingWrite]);
 
-  // Rời trang khi còn bản nháp tìm kiếm chưa ghi: chỉ NHỚ nó cho "Đổi phiên". Không `replace` ở đây — lúc này
+  // Rời trang khi còn bản nháp tìm kiếm chưa ghi: chỉ NHỚ nó cho "Đổi phiên". Không `replace` ở đây - lúc này
   // trang đang chuyển đi chỗ khác, và ghi URL của danh sách sẽ tranh với chính cú chuyển trang đó.
   useEffect(
     () => () => {
@@ -86,7 +86,7 @@ export function useSessionListState() {
   const setFilters = useCallback(
     (next: ListFilters) => {
       // Tiếng gõ = `q` đổi và không rỗng: URL đuổi theo sau một nhịp. Mọi thay đổi khác (một bộ lọc, một tab,
-      // "Xoá bộ lọc" — gửi `q: ''`) ghi URL ngay, kèm `q` hiện có.
+      // "Xoá bộ lọc" - gửi `q: ''`) ghi URL ngay, kèm `q` hiện có.
       const typed = next.q !== latest.current.filters.q && next.q !== '';
       const nextState: ListState = { ...latest.current, filters: next };
       apply(nextState);
@@ -107,7 +107,7 @@ export function useSessionListState() {
     (view: ListView) => {
       const nextState: ListState = { ...latest.current, view };
       apply(nextState);
-      // Ghi ngay và huỷ hẹn giờ: bản nháp tìm kiếm nằm sẵn trong state, nên lần ghi này đã mang nó — để hẹn giờ
+      // Ghi ngay và huỷ hẹn giờ: bản nháp tìm kiếm nằm sẵn trong state, nên lần ghi này đã mang nó - để hẹn giờ
       // bắn sau bằng một bản cũ sẽ hoàn tác đúng thay đổi vừa làm.
       cancelPendingWrite();
       write(nextState);

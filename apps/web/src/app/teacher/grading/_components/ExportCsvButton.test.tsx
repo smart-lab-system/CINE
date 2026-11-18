@@ -36,7 +36,7 @@ describe('ExportCsvButton', () => {
   const revokeObjectURL = vi.fn();
   // Gán thẳng vào prototype thay vì `vi.spyOn`: overload spyOn của vitest ở
   // đây chỉ nhận tên THUỘC TÍNH dữ liệu của HTMLAnchorElement, không nhận
-  // "click" (một phương thức) — gán trực tiếp né được ràng buộc kiểu đó.
+  // "click" (một phương thức) - gán trực tiếp né được ràng buộc kiểu đó.
   const anchorClick = vi.fn(function (this: HTMLAnchorElement) {});
   const originalClick = HTMLAnchorElement.prototype.click;
 
@@ -46,7 +46,7 @@ describe('ExportCsvButton', () => {
     anchorClick.mockClear();
     URL.createObjectURL = createObjectURL;
     URL.revokeObjectURL = revokeObjectURL;
-    // jsdom không cài đặt điều hướng thật — nút <a download> vẫn gọi click()
+    // jsdom không cài đặt điều hướng thật - nút <a download> vẫn gọi click()
     // được, chỉ cần chặn log "Not implemented: navigation" làm ồn output.
     HTMLAnchorElement.prototype.click = anchorClick;
   });

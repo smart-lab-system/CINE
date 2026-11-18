@@ -31,16 +31,16 @@ describe('caseFlagLabel', () => {
   it('resolves investigation_flag by its detail, not its code', () => {
     expect(caseFlagLabel('investigation_flag', 'budget_exhausted')).toBe('Hết lượt điều tra trước khi xong');
   });
-  it('Task 10A — injection_suspected kèm nguồn vẫn ra nhãn chính, không rơi về "chưa có tên hiển thị"', () => {
+  it('Task 10A - injection_suspected kèm nguồn vẫn ra nhãn chính, không rơi về "chưa có tên hiển thị"', () => {
     expect(caseFlagLabel('investigation_flag', 'injection_suspected:submission_pattern,tool_output')).toBe(
       'Bài có chỗ giống lời dặn gửi cho hệ thống chấm',
     );
   });
-  it('never throws on an unknown code — names it instead of hiding it', () => {
+  it('never throws on an unknown code - names it instead of hiding it', () => {
     expect(caseFlagLabel('some_future_flag', 'chi tiết')).toContain('some_future_flag');
   });
   // investigation_flag không nằm ở đây: nhãn của nó tra theo detail (INVESTIGATION_FLAG_LABEL), có test riêng ở trên.
-  it('có nhãn cho mọi mã cờ cấp bài mà backend phát — không mã nào rơi về "chưa có tên hiển thị"', () => {
+  it('có nhãn cho mọi mã cờ cấp bài mà backend phát - không mã nào rơi về "chưa có tên hiển thị"', () => {
     const BACKEND_CODES = [
       'criterion_untouched',
       'criterion_without_rules',
@@ -81,7 +81,7 @@ describe('lensLabel (spec §5.8a: câu hỏi của góc kiểm)', () => {
 });
 
 /**
- * Gộp kết luận của nhiều góc kiểm cho MỘT lỗi — phải trùng mergedStatusOf ở backend (decision/decide.ts,
+ * Gộp kết luận của nhiều góc kiểm cho MỘT lỗi - phải trùng mergedStatusOf ở backend (decision/decide.ts,
  * finding W5), không thì màu dòng lỗi nói một đằng còn nút hành động (dựa trên cờ backend) đi một nẻo.
  */
 describe('mergedVerdict', () => {
@@ -89,7 +89,7 @@ describe('mergedVerdict', () => {
     expect(mergedVerdict(['confirmed', 'refuted'])).toBe('refuted');
     expect(mergedVerdict(['unverified', 'refuted', 'confirmed'])).toBe('refuted');
   });
-  it('một góc kiểm xác nhận là đủ để xác nhận, miễn là không ai bác bỏ — góc không trả lời được không kéo tụt nó', () => {
+  it('một góc kiểm xác nhận là đủ để xác nhận, miễn là không ai bác bỏ - góc không trả lời được không kéo tụt nó', () => {
     expect(mergedVerdict(['confirmed', 'unverified'])).toBe('confirmed');
     expect(mergedVerdict(['unverified', 'confirmed'])).toBe('confirmed');
   });
@@ -106,7 +106,7 @@ describe('toolCallStatusLabel', () => {
   it('nói bằng chữ cả bốn trạng thái của backend (ToolCallStatus), không chỉ bằng biểu tượng', () => {
     expect(toolCallStatusLabel('ok')).toBe('Xong');
     expect(toolCallStatusLabel('error')).toBe('Lỗi');
-    expect(toolCallStatusLabel('blocked_duplicate')).toBe('Bị chặn — trùng lời gọi trước');
+    expect(toolCallStatusLabel('blocked_duplicate')).toBe('Bị chặn - trùng lời gọi trước');
     expect(toolCallStatusLabel('unavailable')).toBe('Không dùng được');
   });
   it('trạng thái lạ vẫn hiện nguyên mã, không bỏ trống', () => {

@@ -1,10 +1,10 @@
 /**
- * Bài nào giảng viên đã mở TRÊN TRÌNH DUYỆT NÀY — nguồn của trạng thái "Đã xem / Chưa xem" ở panel duyệt nhanh.
+ * Bài nào giảng viên đã mở TRÊN TRÌNH DUYỆT NÀY - nguồn của trạng thái "Đã xem / Chưa xem" ở panel duyệt nhanh.
  *
  * Vì sao ở phía trình duyệt: mốc thật (`grading_result.opened_at`, spec §5.5) chỉ được GHI qua
  * `POST grading-results/:id/opened`; chưa route đọc nào trả nó ra. Bản ghi ở đây vì thế chỉ biết những bài đã mở trên
  * trình duyệt này. Sai lệch của nó chỉ có một chiều an toàn: một bài đã mở ở máy khác hiện "Chưa xem" và thêm một
- * lời nhắc — không bao giờ một bài chưa mở hiện "Đã xem". Lời nhắc không chặn nút duyệt.
+ * lời nhắc - không bao giờ một bài chưa mở hiện "Đã xem". Lời nhắc không chặn nút duyệt.
  *
  * `localStorage` có thể bị chặn (chế độ riêng tư, chính sách trình duyệt): mọi lần đọc/ghi bọc try/catch, và khi đó
  * mọi bài đơn giản là "Chưa xem".
@@ -53,7 +53,7 @@ export function rememberOpened(resultId: string): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(ids.slice(-MAX_REMEMBERED)));
     window.dispatchEvent(new Event(CHANGE_EVENT));
   } catch {
-    // Không ghi được thì chỉ mất dấu "Đã xem" — không phải lỗi của giảng viên, không báo gì.
+    // Không ghi được thì chỉ mất dấu "Đã xem" - không phải lỗi của giảng viên, không báo gì.
   }
 }
 

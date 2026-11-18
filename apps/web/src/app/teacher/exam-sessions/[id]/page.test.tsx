@@ -86,7 +86,7 @@ vi.mock('@/hooks/useTeaching', () => ({
       {
         id: 'class-1',
         name: 'CTDL001',
-        nominalClassName: 'D21CQCN01 — Công nghệ thông tin',
+        nominalClassName: 'D21CQCN01 - Công nghệ thông tin',
         studentCount: 12,
       },
     ],
@@ -186,7 +186,7 @@ describe('ExamSessionSetupPage', () => {
     expect(screen.getByText('Học kỳ 1')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận' }));
-    expect(screen.getByText('Đã khoá — phiên đã mở hoặc đã kết thúc.')).toBeInTheDocument();
+    expect(screen.getByText('Đã khoá - phiên đã mở hoặc đã kết thúc.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Hoàn tất' })).not.toBeInTheDocument();
   });
 

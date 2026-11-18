@@ -9,8 +9,8 @@ import { LogoutButton } from '@/components/layout/logout-button';
  * Deliberately outside every app shell: the shell's navigation is built per
  * area, and this page exists precisely because the account has none.
  *
- * It replaces a silent failure. Roles that no API handler accepts —
- * `super_admin` today, and whatever gets added to the enum next — used to be
+ * It replaces a silent failure. Roles that no API handler accepts -
+ * `super_admin` today, and whatever gets added to the enum next - used to be
  * grouped with admins and sent to /admin, where the page rendered and every
  * request on it returned 403 with nothing on screen explaining why. A person
  * cannot tell that apart from "the system is broken".
@@ -29,7 +29,7 @@ export default function UnassignedRolePage() {
           <p className="text-body text-muted-foreground">
             Bạn đã đăng nhập thành công, nhưng vai trò của tài khoản này chưa được cấu hình
             khu vực làm việc nào trong hệ thống. Đây không phải lỗi đăng nhập và cũng không
-            phải sự cố — chỉ là tài khoản chưa dùng được.
+            phải sự cố - chỉ là tài khoản chưa dùng được.
           </p>
           <Alert variant="info">
             <AlertDescription>

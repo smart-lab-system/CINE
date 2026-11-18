@@ -36,7 +36,7 @@ export function ErrorMenu({
           <span>Sửa tên, mô tả, cách phát hiện</span>
           <small className="text-caption text-muted-foreground">
             {rubrics > 1
-              ? `Lỗi này đang dùng ở ${rubrics} rubric — bạn chọn đổi cả ${rubrics} hoặc chỉ rubric này`
+              ? `Lỗi này đang dùng ở ${rubrics} rubric - bạn chọn đổi cả ${rubrics} hoặc chỉ rubric này`
               : 'Chỉ rubric này đang dùng lỗi này'}
           </small>
         </DropdownMenuItem>

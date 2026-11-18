@@ -8,7 +8,7 @@ const TEXT: SubmissionText = {
   paragraphs: ['Ưu điểm là mở rộng độc lập.', 'Nhược điểm là phân mảnh dữ liệu.'],
   spans: [
     { criterionId: 'c1', paragraph: 0, start: 11, end: 26 },
-    // Giao hoàn toàn vào c1 — hai tiêu chí trích cùng một câu.
+    // Giao hoàn toàn vào c1 - hai tiêu chí trích cùng một câu.
     { criterionId: 'c2', paragraph: 0, start: 19, end: 26 },
     { criterionId: 'c3', paragraph: 1, start: 0, end: 12 },
   ],
@@ -37,7 +37,7 @@ function pane(over: Partial<SubmissionText> = {}, props: Record<string, unknown>
 describe('marksFor', () => {
   it('chồng lấn: giữ span bắt đầu trước, bỏ phần giao', () => {
     // Tô lồng nhau cho ra HTML không đọc được. Đây là quyết định TRÌNH BÀY,
-    // nên nó ở client — phép đối chiếu đã xong ở server.
+    // nên nó ở client - phép đối chiếu đã xong ở server.
     expect(marksFor(TEXT.spans, 0)).toEqual([
       { criterionId: 'c1', paragraph: 0, start: 11, end: 26 },
     ]);
@@ -84,7 +84,7 @@ describe('AnswerPane', () => {
 
   it('cảnh báo khi bài đã bị cắt LÚC CHẤM', () => {
     pane({ truncatedByGrading: true });
-    // Phần không hiển thị ở đây cũng là phần AI chưa bao giờ đọc — giảng
+    // Phần không hiển thị ở đây cũng là phần AI chưa bao giờ đọc - giảng
     // viên cần biết cả hai vế.
     expect(screen.getByText(/phần cuối bài không được chấm/i)).toBeInTheDocument();
   });

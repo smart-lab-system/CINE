@@ -44,9 +44,9 @@ function suggestionOf(rule: LibraryRule): { from: string; value: string } | null
 }
 
 /**
- * Ngăn kéo "Thêm lỗi" (spec mục 5.4): đầu ngăn kéo cố định **rubric › tiêu chí (điểm tối đa)**; hai đường — chọn lỗi
+ * Ngăn kéo "Thêm lỗi" (spec mục 5.4): đầu ngăn kéo cố định **rubric › tiêu chí (điểm tối đa)**; hai đường - chọn lỗi
  * có sẵn trong thư viện (dùng lại, đặt điểm trừ riêng cho rubric này) hoặc tạo lỗi mới. Khối "Lưu thì áp vào đâu"
- * là chữ dựng từ các phiên của rubric — không gọi API.
+ * là chữ dựng từ các phiên của rubric - không gọi API.
  */
 export function AddErrorDrawer({ overview, library, criterionKey, prefill, onClose }: AddErrorDrawerProps) {
   const [crit, setCrit] = useState<string | null>(criterionKey);
@@ -117,7 +117,7 @@ export function AddErrorDrawer({ overview, library, criterionKey, prefill, onClo
     assign.mutate(input, {
       onSuccess: (r) => {
         toast.success(
-          `Đã thêm “${name}” vào “${where}”${value !== null ? ` (${formatDeductionString(value)})` : ' — chưa có điểm trừ'}. ${describeRecompute(r.recompute)}`,
+          `Đã thêm “${name}” vào “${where}”${value !== null ? ` (${formatDeductionString(value)})` : ' - chưa có điểm trừ'}. ${describeRecompute(r.recompute)}`,
         );
         onClose();
       },

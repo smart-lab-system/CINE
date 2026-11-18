@@ -10,7 +10,7 @@ import {
 
 const PROFILE = 'vscode-userdata:/c%3A/Users/oeb/.vscode/extensions/extensions.json';
 const SESSION = '20261022T171030';
-/** 22 Oct 2026, local — month is 0-based so this is not UTC. */
+/** 22 Oct 2026, local - month is 0-based so this is not UTC. */
 const NOW = new Date(2026, 9, 22, 17, 30, 0);
 
 const roots: string[] = [];

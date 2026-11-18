@@ -6,7 +6,7 @@ import { useConfirmReviewGroup, useReviewGroups } from '@/hooks/useReviewGroups'
 import { formatVnPoints } from '@/lib/format';
 import type { ConfirmSkipReason } from '@/lib/api/review-groups';
 
-/** Trạng thái mà bài đã được giảng viên ghi nhận — không còn quyết định nào để đưa ra. */
+/** Trạng thái mà bài đã được giảng viên ghi nhận - không còn quyết định nào để đưa ra. */
 const RECORDED = new Set(['teacher_reviewed', 'finalized', 'exported']);
 
 const SKIP_TEXT: Record<ConfirmSkipReason, string> = {

@@ -77,7 +77,7 @@ export type RosterScreenAdapters = {
   >;
   addStudent: UseMutationResult<RosterEntry, Error, AddStudentPayload>;
   removeStudent: UseMutationResult<void, Error, string>;
-  /** Optional — Wave B sửa tên một dòng. */
+  /** Optional - Wave B sửa tên một dòng. */
   updateStudentName?: UseMutationResult<
     RosterEntry,
     Error,
@@ -93,7 +93,7 @@ interface RosterScreenProps {
 }
 
 /**
- * Danh sách SV của lớp — Excel đọc trên trình duyệt, chọn cột MSSV / họ tên
+ * Danh sách SV của lớp - Excel đọc trên trình duyệt, chọn cột MSSV / họ tên
  * (nhiều cột được), xem diff rồi mới gửi JSON lên API.
  */
 export function RosterScreen({
@@ -197,7 +197,7 @@ export function RosterScreen({
               Nhập nhanh từ file Excel
             </CardTitle>
             <CardDescription>
-              Đọc trên trình duyệt — hệ thống gợi ý cột và chỉ lấy dòng có MSSV đúng 8 chữ
+              Đọc trên trình duyệt - hệ thống gợi ý cột và chỉ lấy dòng có MSSV đúng 8 chữ
               số. Bạn vẫn chọn lại cột MSSV / họ tên (1 hoặc 2 cột) trước khi xác nhận.
             </CardDescription>
           </CardHeader>
@@ -293,8 +293,8 @@ export function RosterScreen({
             </CardTitle>
             <CardDescription>
               {catalogAssist
-                ? 'Gõ MSSV để gợi ý từ catalog — khớp thì tự điền tên; chưa có thì tạo sinh viên mới rồi thêm vào lớp.'
-                : 'Cho trường hợp chuyển lớp muộn hoặc sửa sót — không phải gửi lại cả file.'}
+                ? 'Gõ MSSV để gợi ý từ catalog - khớp thì tự điền tên; chưa có thì tạo sinh viên mới rồi thêm vào lớp.'
+                : 'Cho trường hợp chuyển lớp muộn hoặc sửa sót - không phải gửi lại cả file.'}
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -7,7 +7,7 @@ import type { ResultDetail } from '@/lib/api/grading';
 
 /**
  * Đường điều tra (§2.1). Mỗi bước có neo `id` ổn định (`tc-N`) để thẻ lỗi cuộn tới đúng dòng; `citedBy` ghi ngược lại
- * bước này là bằng chứng của lỗi nào. Không hiện tên công cụ nội bộ — chỉ hiện việc đã làm.
+ * bước này là bằng chứng của lỗi nào. Không hiện tên công cụ nội bộ - chỉ hiện việc đã làm.
  */
 export function InvestigationTrail({
   investigation,

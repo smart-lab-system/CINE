@@ -46,7 +46,7 @@ export async function exportNominalClassStudentsExcel(
   const workbook = new Workbook();
   const sheet = workbook.addWorksheet('SinhVien');
 
-  sheet.addRow([`Danh sách sinh viên — ${klass.code}`]);
+  sheet.addRow([`Danh sách sinh viên - ${klass.code}`]);
   if (klass.name) {
     sheet.addRow([klass.name]);
   }

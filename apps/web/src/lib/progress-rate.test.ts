@@ -19,7 +19,7 @@ describe('addSample', () => {
   });
 });
 
-describe('estimate — a measurement, or nothing (spec §3.8: "không ước được thì nói là không ước được")', () => {
+describe('estimate - a measurement, or nothing (spec §3.8: "không ước được thì nói là không ước được")', () => {
   it('needs at least two samples', () => {
     expect(estimate([], 10)).toBeNull();
     expect(estimate([s(0, 1)], 10)).toBeNull();
@@ -51,7 +51,7 @@ describe('estimate — a measurement, or nothing (spec §3.8: "không ước đ�
 
 describe('describeRate', () => {
   it('says so when it cannot estimate', () => {
-    expect(describeRate(null)).toBe('Chưa ước tính được — cần đo thêm một lúc.');
+    expect(describeRate(null)).toBe('Chưa ước tính được - cần đo thêm một lúc.');
   });
   it('states it is an estimate and over which window it was measured', () => {
     const text = describeRate({ perMinute: 6, minutesLeft: 2, spanSeconds: 60 });
@@ -73,7 +73,7 @@ describe('describeRate', () => {
   });
 });
 
-describe('stalledSeconds — how long has the count stood still (spec §3.8 "tiến độ đã đứng yên bao lâu")', () => {
+describe('stalledSeconds - how long has the count stood still (spec §3.8 "tiến độ đã đứng yên bao lâu")', () => {
   it('unknown with fewer than two samples', () => {
     expect(stalledSeconds([], 0)).toBeNull();
     expect(stalledSeconds([s(0, 3)], 60_000)).toBeNull();

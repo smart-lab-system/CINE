@@ -7,7 +7,7 @@ import {
   weekRange,
 } from './exam-calendar';
 
-/** Giờ ĐỊA PHƯƠNG — `shiftOf` đọc `getHours()`, nên fixture phải dựng theo giờ máy. */
+/** Giờ ĐỊA PHƯƠNG - `shiftOf` đọc `getHours()`, nên fixture phải dựng theo giờ máy. */
 function localIso(y: number, m: number, d: number, h: number, min = 0): string {
   return new Date(y, m - 1, d, h, min, 0, 0).toISOString();
 }
@@ -83,7 +83,7 @@ describe('findGapViolations', () => {
     status: 'scheduled',
   });
 
-  it('khe đúng 30 phút KHÔNG bị báo — cùng biên với ràng buộc DB', () => {
+  it('khe đúng 30 phút KHÔNG bị báo - cùng biên với ràng buộc DB', () => {
     const found = findGapViolations([base('a', 8, 0, 10, 0), base('b', 10, 30, 12, 0)]);
     expect(found.size).toBe(0);
   });

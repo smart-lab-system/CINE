@@ -45,7 +45,7 @@ describe('FilterRail', () => {
 
   it('chỉ một lớp thì KHÔNG hiện nhóm lọc lớp', () => {
     // Cùng luật với Phòng và Loại kỳ thi: một lựa chọn là nhiễu. Học kỳ cố
-    // ý KHÔNG theo luật này — xem chú thích trong FilterRail.
+    // ý KHÔNG theo luật này - xem chú thích trong FilterRail.
     render(
       <FilterRail
         facets={{ ...facets, classes: [] }}
@@ -100,7 +100,7 @@ describe('FilterRail', () => {
 
   it('ô chọn học kỳ vẫn hiện khi giảng viên CHỈ dạy một kỳ', () => {
     // Khác `rooms`/`examTypes` một cách có chủ đích. Giảng viên mới chỉ
-    // có phiên trong đúng một kỳ, và bản trước ẩn ô này đi — họ đọc thành
+    // có phiên trong đúng một kỳ, và bản trước ẩn ô này đi - họ đọc thành
     // "chức năng lọc theo học kỳ đã bị gỡ". Học kỳ là chiều THỜI GIAN:
     // thấy mình đang đứng ở kỳ nào là một phần của thông tin, kể cả khi
     // chỉ có một lựa chọn.

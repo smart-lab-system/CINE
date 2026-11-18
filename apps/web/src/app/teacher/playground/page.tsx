@@ -365,12 +365,12 @@ export default function TeacherPlaygroundPage() {
               <p className="text-sm">
                 Preview đang chạy
                 {run.language === 'spring-boot'
-                  ? ' (Spring + MariaDB — lần đầu build Maven có thể chậm).'
+                  ? ' (Spring + MariaDB - lần đầu build Maven có thể chậm).'
                   : run.language === 'vite-react'
-                    ? ' (Vite + React — lần đầu npm install có thể chậm).'
+                    ? ' (Vite + React - lần đầu npm install có thể chậm).'
                     : run.language === 'express'
-                      ? ' (Express — cần AWS env; list trống nếu chưa cấu hình bảng/bucket).'
-                      : ' — mở tab mới để tương tác.'}
+                      ? ' (Express - cần AWS env; list trống nếu chưa cấu hình bảng/bucket).'
+                      : ' - mở tab mới để tương tác.'}
               </p>
               <Button asChild>
                 <a href={run.previewUrl} target="_blank" rel="noopener noreferrer">

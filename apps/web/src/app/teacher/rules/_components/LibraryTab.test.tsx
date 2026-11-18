@@ -41,7 +41,7 @@ describe('LibraryTab (T-RBE-UI-8)', () => {
     const row = screen.getByText('Sai ca biên').closest('[data-testid="library-row"]') as HTMLElement;
     expect(within(row).queryByText('Rubric 5 · tiêu chí đã xoá')).not.toBeInTheDocument();
     fireEvent.click(within(row).getByRole('button', { name: 'và 2 nơi dùng khác' }));
-    const list = screen.getByRole('dialog', { name: 'Sai ca biên — đang dùng ở 5 nơi' });
+    const list = screen.getByRole('dialog', { name: 'Sai ca biên - đang dùng ở 5 nơi' });
     expect(within(list).getByText('Rubric 5')).toBeInTheDocument();
     expect(within(list).getAllByRole('listitem')).toHaveLength(5);
     fireEvent.click(within(list).getByRole('button', { name: /Rubric 5/ }));
@@ -63,6 +63,6 @@ describe('LibraryTab (T-RBE-UI-8)', () => {
     expect(screen.getByText('Đang tải…')).toBeInTheDocument();
     second.unmount();
     render(<LibraryTab rules={undefined} loading={false} error={new Error('Máy chủ không trả lời')} overviews={boards} onEdit={vi.fn()} onOpenRubric={vi.fn()} />);
-    expect(screen.getByText(/Không tải được thư viện lỗi — Máy chủ không trả lời/)).toBeInTheDocument();
+    expect(screen.getByText(/Không tải được thư viện lỗi - Máy chủ không trả lời/)).toBeInTheDocument();
   });
 });

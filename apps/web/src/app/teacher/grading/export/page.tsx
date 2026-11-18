@@ -12,7 +12,7 @@ import { stateOf } from '@/lib/session-triage';
 import { ExportWizard } from './_components/ExportWizard';
 
 /**
- * Ghi điểm vào sổ điểm (spec §3.6) — trang RIÊNG, và chỉ mở khi phiên đã chốt hết (§3.10: ghi file trước khi chốt là
+ * Ghi điểm vào sổ điểm (spec §3.6) - trang RIÊNG, và chỉ mở khi phiên đã chốt hết (§3.10: ghi file trước khi chốt là
  * đưa ra ngoài một con số chưa công bố). API lỏng hơn (từng sinh viên chỉ được ghi khi bài của họ đã chốt); trang này
  * theo luật chặt của giao diện. `useSearchParams` đòi ranh giới Suspense khi build tĩnh.
  */
@@ -71,13 +71,13 @@ function ExportContent() {
 
       {results.isError ? (
         <Alert variant="destructive">
-          <AlertDescription>Không tải được kết quả chấm — {results.error?.message}. Thử tải lại trang.</AlertDescription>
+          <AlertDescription>Không tải được kết quả chấm - {results.error?.message}. Thử tải lại trang.</AlertDescription>
         </Alert>
       ) : results.isLoading || !results.data ? (
         <Skeleton className="h-40 w-full" />
       ) : list.length === 0 ? (
         <p className="text-small text-muted-foreground">
-          Chưa chấm bài nào — chưa có điểm để ghi.{' '}
+          Chưa chấm bài nào - chưa có điểm để ghi.{' '}
           <Link href={`/teacher/grading?sessionId=${sessionId}`} className="font-semibold underline underline-offset-2">
             Về danh sách bài
           </Link>
@@ -85,7 +85,7 @@ function ExportContent() {
       ) : !allFinal ? (
         <Alert variant="info">
           <AlertDescription>
-            Phiên chưa chốt điểm — chốt điểm trước rồi mới ghi vào sổ điểm.{' '}
+            Phiên chưa chốt điểm - chốt điểm trước rồi mới ghi vào sổ điểm.{' '}
             <Link href={`/teacher/grading/finalize?sessionId=${sessionId}`} className="font-semibold underline underline-offset-2">
               Đi tới màn chốt điểm
             </Link>

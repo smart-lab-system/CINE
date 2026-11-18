@@ -7,7 +7,7 @@ export type EffectiveMatch = 'wildcard' | 'exact' | 'any';
 export interface EffectiveExtension {
   extensionId: string;
   scope: MatchedScope;
-  /** Spec §6.1a — thiếu match → treat as `any` (tương thích payload cũ). */
+  /** Spec §6.1a - thiếu match → treat as `any` (tương thích payload cũ). */
   match?: EffectiveMatch;
   version?: string | null;
 }

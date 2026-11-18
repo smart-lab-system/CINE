@@ -110,7 +110,7 @@ function CourseHub({ courseId }: { courseId: string }) {
             course.isLoading
               ? 'Đang tải…'
               : course.data
-                ? `${course.data.code} — ${course.data.name}`
+                ? `${course.data.code} - ${course.data.name}`
                 : 'Môn học'
           }
         />
@@ -257,9 +257,9 @@ function ClassesTab({
                   ) : null}
                 </TableCell>
                 <TableCell>{row.courseName}</TableCell>
-                <TableCell>{row.semesterName ?? '—'}</TableCell>
+                <TableCell>{row.semesterName ?? '-'}</TableCell>
                 <TableCell className="font-mono">
-                  {row.nominalClassName?.split(' — ')[0] ?? '—'}
+                  {row.nominalClassName?.split(' - ')[0] ?? '-'}
                 </TableCell>
                 <TableCell>
                   <AccountNameButton
@@ -322,11 +322,11 @@ function ExamsTab({
                 <TableCell>
                   <AccountNameButton
                     accountId={e.createdBy}
-                    label={e.createdByName ?? '—'}
+                    label={e.createdByName ?? '-'}
                     onOpen={onOpenAccount}
                   />
                 </TableCell>
-                <TableCell>{e.resolvedSemesterName ?? '—'}</TableCell>
+                <TableCell>{e.resolvedSemesterName ?? '-'}</TableCell>
                 <TableCell
                   className="text-center"
                   onClick={(ev) => ev.stopPropagation()}
@@ -384,11 +384,11 @@ function RubricsTab({
                 <TableCell>
                   <AccountNameButton
                     accountId={r.teacherId}
-                    label={r.teacherName ?? '—'}
+                    label={r.teacherName ?? '-'}
                     onOpen={onOpenAccount}
                   />
                 </TableCell>
-                <TableCell>{r.resolvedSemesterName ?? '—'}</TableCell>
+                <TableCell>{r.resolvedSemesterName ?? '-'}</TableCell>
                 <TableCell
                   className="text-center"
                   onClick={(ev) => ev.stopPropagation()}

@@ -28,7 +28,7 @@ function setup(over: Partial<React.ComponentProps<typeof CaseForm>> = {}) {
 
 const type = (label: RegExp | string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
-describe('CaseForm — thêm và sửa một ca (mock-up v2)', () => {
+describe('CaseForm - thêm và sửa một ca (mock-up v2)', () => {
   it('có bốn ô có nhãn; ô bắt buộc đánh dấu *; tên ca được đề xuất sẵn', () => {
     setup();
     expect(screen.getByLabelText(/^Tên ca/)).toHaveValue('ca2');

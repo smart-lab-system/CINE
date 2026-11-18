@@ -107,7 +107,7 @@ function CodePane({
             ))}
           </select>
         ) : (
-          <span className="truncate font-mono text-muted-foreground">{file?.path ?? '—'}</span>
+          <span className="truncate font-mono text-muted-foreground">{file?.path ?? '-'}</span>
         )}
       </div>
       <div ref={scrollRef} className={CODE_PANE_SCROLL_CLASS}>

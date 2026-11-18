@@ -28,7 +28,7 @@ import type {
 } from '@/lib/submission-rows';
 
 const DEFAULT_EMPTY_STUDENTS_DESCRIPTION =
-  'Bảng sẽ tự cập nhật ngay khi agent trên máy sinh viên nộp bài — không cần tải lại trang.';
+  'Bảng sẽ tự cập nhật ngay khi agent trên máy sinh viên nộp bài - không cần tải lại trang.';
 
 interface SubmissionStatusTableProps {
   deliverables: DeliverableColumn[];
@@ -64,7 +64,7 @@ function viewButtonDomId(mssv: string): string {
 
 /**
  * "Chưa nộp" là mặc định khi một sinh viên chưa có ô nào cho deliverable
- * đó — HOẶC khi server gửi về `not_submitted`, dòng được gieo sẵn lúc mở
+ * đó - HOẶC khi server gửi về `not_submitted`, dòng được gieo sẵn lúc mở
  * phiên (§7.1.2). Trước 2026-09-11 nó chỉ là sự VẮNG MẶT của một dòng;
  * ghi lại ở đây vì cái bất biến cũ đó đã hết đúng.
  *
@@ -101,7 +101,7 @@ const STATE_PRESENTATION: Record<
     label: 'Chưa nộp',
     text: 'text-muted-foreground',
     dot: 'bg-border',
-    symbol: '—',
+    symbol: '-',
   },
 };
 
@@ -113,12 +113,12 @@ const STATE_PRESENTATION: Record<
  * information to work with. Stacked on a narrow screen there is no height
  * to divide up, so `22rem` simply stops one list from eating the whole
  * page. Side by side from `lg`, the page bounds each panel to the viewport
- * and this grows into whatever is left (`flex-1`) — so nothing here has to
+ * and this grows into whatever is left (`flex-1`) - so nothing here has to
  * guess how tall the card header, the progress line, or the "không tải
  * được" alert above it happen to be today.
  *
  * A box that scrolls has to be focusable to be scrollable without a mouse
- * (WCAG 2.1.1), and a focusable box needs a name — hence all three.
+ * (WCAG 2.1.1), and a focusable box needs a name - hence all three.
  */
 const SCROLL_CONTAINER = {
   role: 'region',
@@ -132,14 +132,14 @@ const SCROLL_CONTAINER = {
  *
  * The header row already asks for `border-b` (see TableHeader), but the
  * primitive's table is `border-collapse: collapse`, where a collapsed
- * border belongs to the TABLE, not to the row that declared it — so it
+ * border belongs to the TABLE, not to the row that declared it - so it
  * stays put while a sticky `<thead>` travels, and the header ends up
  * looking like it is sitting on top of the first body row with no edge
  * between them. An inset shadow is painted by the cell itself, so it goes
  * where the cell goes.
  *
  * The collapsed border TableHeader asks for is switched off alongside
- * (`[&_tr]:border-b-0` on the header below) — leaving both would stack a
+ * (`[&_tr]:border-b-0` on the header below) - leaving both would stack a
  * 1px border and a 1px shadow into a 2px rule while the header sits at
  * rest, which then thins to 1px the moment it sticks.
  */
@@ -172,12 +172,12 @@ function formatFileExtension(requiredFilename: string): string | null {
 
 /**
  * Bảng §7 của spec 2026-09-21-archive-content-validation-design.md. Trả
- * `null` cho `not_applicable`/`undefined` — phần lớn deliverable không khai
+ * `null` cho `not_applicable`/`undefined` - phần lớn deliverable không khai
  * file bên trong, và im lặng là câu trả lời đúng cho chúng (cùng lý do
  * `archive_check_status` mặc định `not_applicable` ở entity).
  *
  * `pending` PHẢI có chữ, không phải một chuỗi rỗng: một ô trống lúc đang
- * chờ trông giống hệt một bài đã kiểm và đạt — kiểu nói dối im lặng tệ nhất
+ * chờ trông giống hệt một bài đã kiểm và đạt - kiểu nói dối im lặng tệ nhất
  * (spec §7).
  */
 function describeArchiveCheck(cell: {
@@ -222,7 +222,7 @@ function formatFileSize(value: string | null | undefined): string | null {
 
 /**
  * Students down, required deliverables across. A real <table> because the
- * data genuinely is a matrix — a screen reader can then announce which
+ * data genuinely is a matrix - a screen reader can then announce which
  * filename a cell belongs to, which a div grid would lose entirely.
  */
 export function SubmissionStatusTable({
@@ -240,7 +240,7 @@ export function SubmissionStatusTable({
   // Bẫy 2: React Query refetch tạo mảng `students` MỚI mỗi lần. Nếu effect
   // dưới phụ thuộc vào `students`, dialog sẽ tự bật lại ngay giữa lúc giảng
   // viên đang đọc. Ref chốt "đã áp dụng rồi", và chỉ reset khi
-  // focusStudentMssv đổi — không phải khi students đổi.
+  // focusStudentMssv đổi - không phải khi students đổi.
   const appliedFocusRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -268,7 +268,7 @@ export function SubmissionStatusTable({
   }, [focusStudentMssv, students]);
 
   // Bẫy 4: Radix trả focus về trigger khi đóng dialog, nhưng dialog này mở
-  // bằng code nên không có trigger — mặc định của Radix là để focus ở
+  // bằng code nên không có trigger - mặc định của Radix là để focus ở
   // phần tử đã focus TRƯỚC KHI dialog mở, tức là <body>, và giảng viên mất
   // vị trí. Trả nó về nút "Xem bài nộp" của chính dòng đó.
   const returnFocusToRow = (mssv: string) => {
@@ -276,12 +276,12 @@ export function SubmissionStatusTable({
   };
 
   // `onOpenChange` chạy đồng bộ khi dialog đóng, nhưng gọi returnFocusToRow
-  // ngay trong đó không có tác dụng: lúc này `DialogContent` — và
-  // `FocusScope` bên trong nó — vẫn còn mounted, và guard "trapped" của
+  // ngay trong đó không có tác dụng: lúc này `DialogContent` - và
+  // `FocusScope` bên trong nó - vẫn còn mounted, và guard "trapped" của
   // FocusScope lập tức revert bất kỳ `.focus()` nào nhắm ra ngoài container
   // dialog trở lại bên trong nó. Ref này nhớ SV nào đang đóng, để
-  // `onCloseAutoFocus` bên dưới — đúng lúc `DialogContent` unmount và
-  // FocusScope không còn giữ trap nữa — mới preventDefault() hành vi mặc
+  // `onCloseAutoFocus` bên dưới - đúng lúc `DialogContent` unmount và
+  // FocusScope không còn giữ trap nữa - mới preventDefault() hành vi mặc
   // định của Radix (trả về <body>, vì không có trigger thật) và focus
   // đúng chỗ thay vào đó.
   const closingStudentMssvRef = useRef<string | null>(null);
@@ -291,7 +291,7 @@ export function SubmissionStatusTable({
       <EmptyState
         icon={FileCheck}
         title="Phiên thi này chưa khai báo file bắt buộc"
-        description="Không có gì để thu — hãy tạo lại phiên thi với danh sách file cần nộp."
+        description="Không có gì để thu - hãy tạo lại phiên thi với danh sách file cần nộp."
         tone="muted"
       />
     );
@@ -310,7 +310,7 @@ export function SubmissionStatusTable({
 
   return (
     // The matrix grows one column per required file, so it scrolls inside
-    // its own container rather than pushing the page sideways — and, since
+    // its own container rather than pushing the page sideways - and, since
     // it grows one ROW per student, that same container caps its height so
     // a class of forty no longer pushes everything below it off the page.
     // Exactly one scrollport, deliberately: a second wrapper around this
@@ -339,7 +339,7 @@ export function SubmissionStatusTable({
         </TableHeader>
         <TableBody>
           {students.map((student) => {
-            // Tính một lần, dùng lại cho cả aria-current lẫn className — hai
+            // Tính một lần, dùng lại cho cả aria-current lẫn className - hai
             // nơi dùng cùng một điều kiện thì chỉ nên có một chỗ định nghĩa
             // nó là gì.
             const isFocused = Boolean(
@@ -363,7 +363,7 @@ export function SubmissionStatusTable({
                       lớp gốc là thứ quyết định bài của em về tay ai. */}
                   {student.makeupFromClass && (
                     <Badge variant="info" className="ml-2">
-                      Thi bù — {student.makeupFromClass}
+                      Thi bù - {student.makeupFromClass}
                     </Badge>
                   )}
                 </TableCell>
@@ -398,7 +398,7 @@ export function SubmissionStatusTable({
                           {cell.filename}
                         </p>
                       )}
-                      {/* Ngay trong ô, không giấu sau "Xem bài nộp" — spec
+                      {/* Ngay trong ô, không giấu sau "Xem bài nộp" - spec
                           §9.2: con số giảng viên cần là "thiếu cái gì", và
                           giấu nó sau một cú bấm làm chậm đúng việc họ đang
                           làm. `whitespace-normal` cục bộ vì "Thiếu: ..." có
@@ -451,7 +451,7 @@ export function SubmissionStatusTable({
             event.preventDefault();
             returnFocusToRow(closing);
             // Reset sau khi dùng: ref này chỉ được gán trong onOpenChange,
-            // nhưng onCloseAutoFocus lại chạy khi DialogContent unmount —
+            // nhưng onCloseAutoFocus lại chạy khi DialogContent unmount -
             // hai thời điểm đó có thể tách rời nhau. Nếu một cập nhật
             // socket trên trang lobby xoá SV đang mở dialog khỏi `students`
             // giữa chừng, dialog đóng lại mà KHÔNG qua onOpenChange, và nếu
@@ -479,7 +479,7 @@ export function SubmissionStatusTable({
                 const presentation = STATE_PRESENTATION[state];
                 const time = formatTime(cell?.submittedAt);
                 const fileSize = formatFileSize(cell?.fileSize);
-                // Only shown once a file actually exists to describe — a
+                // Only shown once a file actually exists to describe - a
                 // format label on a deliverable nobody submitted yet would
                 // read as "there's a DOCX here" when there is nothing.
                 const fileName = cell?.filename || deliverable.requiredFilename;
@@ -517,7 +517,7 @@ export function SubmissionStatusTable({
                       <Button asChild variant="outline" size="sm">
                         {/* download's real fix is the API's
                             Content-Disposition header (cross-origin, so this
-                            attribute alone is browser-ignored) — set anyway
+                            attribute alone is browser-ignored) - set anyway
                             as the honest hint for same-origin/future cases,
                             and so this line doesn't quietly claim the file
                             has no name of its own. */}
@@ -546,14 +546,14 @@ export function SubmissionStatusTable({
                   <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-2/40 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
                       <p className="font-medium text-foreground">
-                        Điểm AI: {grade.score ?? '—'}
+                        Điểm AI: {grade.score ?? '-'}
                       </p>
                       <p className="text-caption text-muted-foreground">
                         Có khi module chấm điểm hoàn thiện
                       </p>
                     </div>
                     {/* Disabled kèm lý do nhìn thấy được, theo quy ước sẵn có
-                        của codebase (placeholder-page.tsx, StatCard.hint) —
+                        của codebase (placeholder-page.tsx, StatCard.hint) -
                         một nút trông sống mà bấm không ra gì là cách nhanh
                         nhất dạy giảng viên rằng app hỏng. Spec §5.4. */}
                     <Button type="button" variant="outline" size="sm" disabled>

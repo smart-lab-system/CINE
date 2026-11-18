@@ -6,7 +6,7 @@ import { RegradeButton } from '@/app/teacher/grading/_components/RegradeButton';
 import { InvestigationTrail } from './InvestigationTrail';
 import type { ResultDetail } from '@/lib/api/grading';
 
-/** Không tự giữ `ManualScoreDialog` — `InvestigatorDossier` (Task 8) giữ đúng MỘT hộp thoại cho cả trang. */
+/** Không tự giữ `ManualScoreDialog` - `InvestigatorDossier` (Task 8) giữ đúng MỘT hộp thoại cho cả trang. */
 export function UngradableView({
   sessionId,
   resultId,
@@ -33,7 +33,7 @@ export function UngradableView({
         <div className="flex flex-col gap-1.5">
           <span className="text-caption font-semibold text-muted-foreground">Điểm</span>
           <span className="text-3xl font-semibold tabular-nums text-muted-foreground">
-            — <span className="text-body font-medium">chưa có điểm nào cho bài này</span>
+            - <span className="text-body font-medium">chưa có điểm nào cho bài này</span>
           </span>
         </div>
         <div className="flex items-center gap-2 text-small font-semibold">
@@ -43,7 +43,7 @@ export function UngradableView({
         <p className="max-w-[640px] text-small text-muted-foreground">{ungradableReason}</p>
         <div className="max-w-[680px] rounded-md bg-surface-2 p-3.5 text-small">
           <strong>Vì sao không cho điểm, thay vì cho một điểm tạm.</strong> Chấm theo kiểu trừ lỗi, một cuộc điều tra
-          không chạy được gì sẽ không tìm ra lỗi nào — và nếu cứ tính, bài sẽ ra <strong>điểm tối đa</strong>. "Không
+          không chạy được gì sẽ không tìm ra lỗi nào - và nếu cứ tính, bài sẽ ra <strong>điểm tối đa</strong>. "Không
           tìm thấy lỗi" không có nghĩa là "không có lỗi".
         </div>
         <div className="flex flex-col gap-2">
@@ -73,7 +73,7 @@ export function UngradableView({
           <p className="text-caption text-muted-foreground">
             {ungradableClass === 'system'
               ? 'Lỗi ở phía hệ thống, không phải ở bài làm.'
-              : 'Bài làm không đọc được — chấm lại sẽ ra đúng kết quả cũ, nên lối duy nhất là chấm tay.'}
+              : 'Bài làm không đọc được - chấm lại sẽ ra đúng kết quả cũ, nên lối duy nhất là chấm tay.'}
           </p>
         </div>
       </section>

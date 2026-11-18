@@ -46,7 +46,7 @@ describe('/teacher/grading/export', () => {
   it('shows a results failure verbatim', () => {
     results = { data: undefined, isLoading: false, isError: true, error: new Error('Không tải được.') };
     render(<ExportPage />);
-    expect(screen.getByRole('alert')).toHaveTextContent('Không tải được kết quả chấm — Không tải được.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Không tải được kết quả chấm - Không tải được.');
   });
 
   it('a session with nothing graded has nothing to write', () => {
@@ -57,10 +57,10 @@ describe('/teacher/grading/export', () => {
   });
 
   // Spec §3.10: ghi file trước khi chốt là đưa ra ngoài một con số chưa công bố.
-  it('a session that is not fully finalised is sent to the finalize screen — the wizard is not shown', () => {
+  it('a session that is not fully finalised is sent to the finalize screen - the wizard is not shown', () => {
     results = { data: [result('finalized', 'a'), result('teacher_reviewed', 'b')], isLoading: false, isError: false, error: null };
     render(<ExportPage />);
-    expect(screen.getByText('Phiên chưa chốt điểm — chốt điểm trước rồi mới ghi vào sổ điểm.')).toBeInTheDocument();
+    expect(screen.getByText('Phiên chưa chốt điểm - chốt điểm trước rồi mới ghi vào sổ điểm.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Đi tới màn chốt điểm' })).toHaveAttribute('href', '/teacher/grading/finalize?sessionId=s1');
     expect(screen.queryByTestId('wizard')).not.toBeInTheDocument();
   });

@@ -26,7 +26,7 @@ export function DossierHeader({
   ungradableReason: string | null;
   /** Bài nộp gốc được mở qua route tải của chính bài này. */
   resultId: string;
-  /** Bấm "Chấm tay bài này" — hộp thoại thật do `InvestigatorDossier` giữ, để cả trang chỉ có MỘT hộp. */
+  /** Bấm "Chấm tay bài này" - hộp thoại thật do `InvestigatorDossier` giữ, để cả trang chỉ có MỘT hộp. */
   onOpenManualScore: () => void;
 }) {
   const openSubmission = useOpenSubmission(resultId);

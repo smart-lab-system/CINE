@@ -12,16 +12,16 @@ const draft = (over: Partial<ReferenceDraft> = {}): ReferenceDraft => ({
 });
 
 /**
- * Ported from GradingReferenceDialog. The DTO distinguishes three states per field — absent = KEEP, `null` =
- * CLEAR, value = SET — and sending the whole object each time would silently drop the question the moment
+ * Ported from GradingReferenceDialog. The DTO distinguishes three states per field - absent = KEEP, `null` =
+ * CLEAR, value = SET - and sending the whole object each time would silently drop the question the moment
  * the teacher only edited the note.
  */
-describe('buildReferencePayload — only what changed', () => {
+describe('buildReferencePayload - only what changed', () => {
   it('nothing touched → an empty payload (everything is kept)', () => {
     expect(buildReferencePayload(draft())).toEqual({});
   });
 
-  it('picking a question sets it — and only it', () => {
+  it('picking a question sets it - and only it', () => {
     expect(buildReferencePayload(draft({ questionTouched: true, questionId: 'm1' }))).toEqual({ questionMaterialId: 'm1' });
   });
 

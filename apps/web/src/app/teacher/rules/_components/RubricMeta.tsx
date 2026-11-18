@@ -21,9 +21,9 @@ export function RubricMeta({ overview, onEdit }: { overview: RubricOverview; onE
         {qs ? <Badge variant="primary">QS</Badge> : <Badge>QA</Badge>}
         <span>
           <b className="text-foreground">{formatVnPoints(overview.totalPoints)}</b>
-          {qs ? ' điểm (max hướng)' : ' điểm'}
+          {qs ? ' điểm (max cách giải)' : ' điểm'}
           {qs
-            ? ` · ${approachCount} hướng · ${stepCount} bước`
+            ? ` · ${approachCount} cách giải · ${stepCount} bước`
             : ` · ${stepCount} tiêu chí`}
         </span>
       </span>
@@ -42,7 +42,7 @@ export function RubricMeta({ overview, onEdit }: { overview: RubricOverview; onE
       </span>
       <Button type="button" variant="ghost" size="sm" className="text-primary hover:text-primary" onClick={onEdit}>
         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-        {qs ? 'Sửa hướng & bước' : 'Sửa tiêu chí & điểm tối đa'}
+        {qs ? 'Sửa cách giải & bước' : 'Sửa tiêu chí & điểm tối đa'}
       </Button>
     </div>
   );

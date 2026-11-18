@@ -9,7 +9,7 @@ import { extractRoster, suggestColumnMapping } from './roster-file';
  * The one test that uses a real .xlsx.
  *
  * `roster-file.test.ts` covers the rules exhaustively over plain arrays;
- * this covers the seam those tests deliberately mock away — that a genuine
+ * this covers the seam those tests deliberately mock away - that a genuine
  * workbook comes out of exceljs as the grid the rules expect.
  */
 

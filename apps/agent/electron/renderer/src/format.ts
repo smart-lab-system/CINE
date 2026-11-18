@@ -11,7 +11,7 @@ export function formatClockTime(iso: string | null): string {
   return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
 
-/** "1:14:22" — h:mm:ss, dropping the hour digit only once it's actually
+/** "1:14:22" - h:mm:ss, dropping the hour digit only once it's actually
  *  zero, so a countdown never jumps from "1:14:22" to "14:22" and back. */
 export function formatDuration(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));

@@ -54,7 +54,7 @@ export function writeSetupDraft(draft: SetupDraft | null): void {
     if (!payload) sessionStorage.removeItem(storageKey(draft.sessionId));
     else sessionStorage.setItem(storageKey(draft.sessionId), JSON.stringify(payload));
   } catch {
-    /* tab ẩn danh — nháp chỉ sống trong bộ nhớ trang */
+    /* tab ẩn danh - nháp chỉ sống trong bộ nhớ trang */
   }
 }
 

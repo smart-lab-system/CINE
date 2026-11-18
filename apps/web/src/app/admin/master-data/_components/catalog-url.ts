@@ -1,4 +1,4 @@
-/** Ghi query params bằng replace — bỏ key khi giá trị rỗng / 'all'. */
+/** Ghi query params bằng replace - bỏ key khi giá trị rỗng / 'all'. */
 export function buildCatalogQuery(
   current: URLSearchParams,
   patch: Record<string, string | undefined | null>,

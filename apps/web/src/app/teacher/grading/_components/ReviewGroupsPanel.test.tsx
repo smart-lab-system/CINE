@@ -224,8 +224,8 @@ describe('ReviewGroupsPanel (spec duyệt nhanh §5.4: duyệt theo nhóm lỗi,
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Duyệt 3 bài' }));
       const status = screen.getByRole('status');
       expect(status).toHaveTextContent('Đã duyệt 1 bài');
-      expect(status).toHaveTextContent('1 bài bỏ qua — bạn đã chấm tay bài này: Sinh viên B');
-      expect(status).toHaveTextContent('1 bài bỏ qua — bài không còn ở trạng thái cần xem: Sinh viên C');
+      expect(status).toHaveTextContent('1 bài bỏ qua - bạn đã chấm tay bài này: Sinh viên B');
+      expect(status).toHaveTextContent('1 bài bỏ qua - bài không còn ở trạng thái cần xem: Sinh viên C');
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 

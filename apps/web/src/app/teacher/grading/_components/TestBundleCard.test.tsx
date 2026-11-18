@@ -61,7 +61,7 @@ async function startFromB1() {
   await screen.findByRole('region', { name: /Bản nháp/ });
 }
 
-describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G2b-R)', () => {
+describe('TestBundleCard - nối khối, và bản nháp phiên bản mới (G2b-R)', () => {
   it('nối ba nút và danh sách: ba nút nhận gói đang ghim', () => {
     render(<TestBundleCard sessionId="s1" pinnedBundleId="b1" />);
     expect(screen.getByTestId('bundle-actions')).toHaveAttribute('data-pinned', 'b1');
@@ -257,11 +257,11 @@ describe('TestBundleCard — nối khối, và bản nháp phiên bản mới (G
   });
 
   it('lưu hỏng: hiện lỗi của máy chủ nguyên văn và GIỮ bản nháp để không mất công gõ', async () => {
-    h.create = { ...h.create, isError: true, error: new Error('phiên này có 2 câu — sửa tài liệu chấm theo từng câu') };
+    h.create = { ...h.create, isError: true, error: new Error('phiên này có 2 câu - sửa tài liệu chấm theo từng câu') };
     render(<TestBundleCard sessionId="s1" pinnedBundleId={null} />);
     await startFromB1();
 
-    expect(screen.getByText('phiên này có 2 câu — sửa tài liệu chấm theo từng câu')).toBeInTheDocument();
+    expect(screen.getByText('phiên này có 2 câu - sửa tài liệu chấm theo từng câu')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: /Bản nháp/ })).toBeInTheDocument();
   });
 

@@ -19,10 +19,10 @@ function card(props: Record<string, unknown> = {}) {
 }
 
 describe('ManualCriterionCard', () => {
-  it('không bịa phán đoán của AI — không có badge đạt/chưa đạt nào', () => {
+  it('không bịa phán đoán của AI - không có badge đạt/chưa đạt nào', () => {
     card();
     // CriterionCard (bài AI chấm được) LUÔN có một trong ba nhãn này.
-    // Card này thì không — vì không có phán đoán nào để hiện.
+    // Card này thì không - vì không có phán đoán nào để hiện.
     expect(screen.queryByText(/^Đạt$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Đạt một phần/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Chưa đạt/)).not.toBeInTheDocument();

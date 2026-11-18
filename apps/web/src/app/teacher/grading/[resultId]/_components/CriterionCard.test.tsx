@@ -61,7 +61,7 @@ describe('CriterionCard', () => {
     expect(screen.queryByText(/khớp từng chữ/i)).not.toBeInTheDocument();
 
     rerenderWith('unverified');
-    // Chuỗi này xuất hiện ở CẢ badge lẫn câu giải thích bên dưới — cả hai
+    // Chuỗi này xuất hiện ở CẢ badge lẫn câu giải thích bên dưới - cả hai
     // đều đúng chỗ, nên test khẳng định có hai, không khẳng định có một.
     expect(screen.getAllByText(/không có trong bài làm/i).length).toBeGreaterThanOrEqual(1);
 
@@ -100,7 +100,7 @@ describe('CriterionCard', () => {
   });
 
   it('thang lẻ không sinh nút trùng', () => {
-    // maxPoints = 0 thì cả ba bậc đều là 0 — một hàng ba nút giống hệt nhau
+    // maxPoints = 0 thì cả ba bậc đều là 0 - một hàng ba nút giống hệt nhau
     // trông như lỗi hiển thị.
     card({ maxPoints: 0, draft: { criterionId: 'c1', verdict: 'not_met', points: 0 } });
     expect(screen.getAllByRole('button', { name: '0' })).toHaveLength(1);

@@ -5,7 +5,7 @@ import { getHostname, getLocalIp, getOsLabel } from './machine-identity';
 
 const execFileAsync = promisify(execFile);
 
-/** Phần cứng máy — map sang field đề xuất phòng / `computer`. */
+/** Phần cứng máy - map sang field đề xuất phòng / `computer`. */
 export interface MachineHardwareInfo {
   hostname: string;
   localIp: string;
@@ -152,7 +152,7 @@ export async function collectMachineHardware(options?: {
   }
 }
 
-/** Xóa cache — dùng trước khi đề xuất để lấy số liệu mới. */
+/** Xóa cache - dùng trước khi đề xuất để lấy số liệu mới. */
 export function clearMachineHardwareCache(): void {
   cached = null;
 }

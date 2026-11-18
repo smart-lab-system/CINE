@@ -41,9 +41,9 @@ export function buildCourseExamTitle(
   courseName: string,
   detail?: string,
 ): string {
-  const base = `Đề thi ${COURSE_EXAM_TYPE_LABELS[examType]} — ${courseName}`;
+  const base = `Đề thi ${COURSE_EXAM_TYPE_LABELS[examType]} - ${courseName}`;
   const trimmed = detail?.trim();
-  const full = trimmed ? `${base} — ${trimmed}` : base;
+  const full = trimmed ? `${base} - ${trimmed}` : base;
   return full.length <= 200 ? full : full.slice(0, 200);
 }
 

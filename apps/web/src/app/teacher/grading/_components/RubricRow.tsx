@@ -9,9 +9,9 @@ import { formatVnPoints } from '@/lib/format';
 import { rulesHref } from '@/lib/rules-links';
 
 /**
- * Rubric của phiên (spec §3.7): bản đã ghim — hoặc chỗ để ghim. Thay `SessionRubricCard`.
+ * Rubric của phiên (spec §3.7): bản đã ghim - hoặc chỗ để ghim. Thay `SessionRubricCard`.
  *
- * `RubricPicker` (lúc tạo phiên) hứa "cứ tạo phiên thi và gắn sau", và đây là nơi "sau" xảy ra — bỏ thẻ cũ mà
+ * `RubricPicker` (lúc tạo phiên) hứa "cứ tạo phiên thi và gắn sau", và đây là nơi "sau" xảy ra - bỏ thẻ cũ mà
  * không có chỗ này là bội ước. Hiện đúng BẢN ĐÃ GHIM (theo id), không phải bản mới nhất của rubric: phiên được
  * chấm bằng bản nó ghim. Đổi được khi phiên chưa có kết quả; nếu server từ chối (409) thì hiện nguyên văn.
  */
@@ -63,7 +63,7 @@ export function RubricRow({
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex flex-col">
               <span className="text-small font-semibold">
-                {pinned.name} — phiên bản {pinned.version}
+                {pinned.name} - phiên bản {pinned.version}
               </span>
               <span className="text-caption text-muted-foreground">
                 {formatVnPoints(pinned.totalPoints)} điểm, {pinned.criteria.length} tiêu chí
@@ -75,7 +75,7 @@ export function RubricRow({
           </div>
         ) : (
           <p className="text-small text-warning-strong">
-            {displayedId ? 'Không tìm thấy rubric đã gắn cho phiên này.' : 'Phiên này chưa gắn rubric — chưa chấm được.'}
+            {displayedId ? 'Không tìm thấy rubric đã gắn cho phiên này.' : 'Phiên này chưa gắn rubric - chưa chấm được.'}
           </p>
         )}
 
@@ -92,7 +92,7 @@ export function RubricRow({
             <option value="">{pinned ? 'Đổi sang rubric khác…' : 'Chọn rubric…'}</option>
             {options.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name} — bản {r.version}, {formatVnPoints(r.totalPoints)} điểm
+                {r.name} - bản {r.version}, {formatVnPoints(r.totalPoints)} điểm
               </option>
             ))}
           </select>

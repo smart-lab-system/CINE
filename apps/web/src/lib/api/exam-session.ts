@@ -8,7 +8,7 @@ export type DeclaredLanguage = 'python' | 'cpp' | 'java' | 'node';
 // Mirrors CreateExamSessionDto
 // (apps/api/src/exam-session/dto/create-exam-session.dto.ts). Hand-written
 // rather than imported from `@cine/shared`, matching how account-form.tsx
-// mirrors CreateAccountDto — `apiClient.POST`'s generic argument still
+// mirrors CreateAccountDto - `apiClient.POST`'s generic argument still
 // structurally checks this against the generated schema at the call site
 // below, so a drift here is still a compile error, just not an import one.
 export interface CreateExamSessionInput {
@@ -19,16 +19,16 @@ export interface CreateExamSessionInput {
    * choice they make and the thing that can be checked against them.
    */
   classId: string;
-  /** Catalog Id — dual-write snapshot `room.name` khi có. */
+  /** Catalog Id - dual-write snapshot `room.name` khi có. */
   roomId?: string;
-  /** Text — bắt buộc khi không gửi `roomId`. */
+  /** Text - bắt buộc khi không gửi `roomId`. */
   roomName?: string;
-  /** Catalog Id — dual-write snapshot `semester.name` khi có. */
+  /** Catalog Id - dual-write snapshot `semester.name` khi có. */
   semesterId?: string;
-  /** Text — bắt buộc khi không gửi `semesterId`. */
+  /** Text - bắt buộc khi không gửi `semesterId`. */
   semesterName?: string;
   /**
-   * Deprecated trên create (create-slim) — gắn qua hub / PATCH rubric.
+   * Deprecated trên create (create-slim) - gắn qua hub / PATCH rubric.
    * Giữ optional cho client/e2e cũ.
    */
   rubricId?: string;
@@ -38,10 +38,10 @@ export interface CreateExamSessionInput {
   /** ISO 8601, must be after `startTime`. */
   endTime: string;
   /**
-   * Deprecated trên create (create-slim) — khai qua
+   * Deprecated trên create (create-slim) - khai qua
    * `PUT /exam-sessions/:id/required-deliverables`. Optional / bỏ trống = 0 file.
    *
-   * Backend chấp nhận cả chuỗi trần lẫn object (tương thích ngược — spec
+   * Backend chấp nhận cả chuỗi trần lẫn object (tương thích ngược - spec
    * archive §8.4); OpenAPI chỉ phản ánh dạng object.
    */
   requiredFilenames?: {
@@ -60,7 +60,7 @@ export interface RequiredDeliverableResponse {
   deliverableType: 'document' | 'code_project' | 'image';
   /** Null = chưa khai. */
   language: DeclaredLanguage | null;
-  /** Đường chấm do BACKEND tính (`pipelineFor`) — giao diện không tự suy ra từ `language`. */
+  /** Đường chấm do BACKEND tính (`pipelineFor`) - giao diện không tự suy ra từ `language`. */
   pipeline: 'investigator' | 'one_shot';
   /**
    * Tên các file phải nằm BÊN TRONG, nếu deliverable này là file nén và
@@ -77,7 +77,7 @@ export interface ExamSessionResponse {
   code: string;
   teacherId: string;
   classId: string;
-  /** FK catalog — null nếu tạo bằng text hoặc catalog đã xoá. */
+  /** FK catalog - null nếu tạo bằng text hoặc catalog đã xoá. */
   roomId: string | null;
   semesterId: string | null;
   /** Môn và phòng dạng VĂN BẢN, chụp lúc tạo phiên (dual-write). */
@@ -91,17 +91,17 @@ export interface ExamSessionResponse {
   /**
    * Khi phiên rời `collecting`, và ai chốt.
    *
-   * `completedBy === null` nghĩa là **không ai xác nhận** — lượt quét dự
+   * `completedBy === null` nghĩa là **không ai xác nhận** - lượt quét dự
    * phòng đã đóng phiên. Với phiên tạo trước 2026-09-11 thì cả hai đều
    * `null` và phải đọc là "không biết" (spec §9.3). Cả hai trường hợp
    * đều không có ai để xưng "bạn", nên dòng cảnh báo ở §7.3 không hiện.
    */
   completedAt: string | null;
   completedBy: string | null;
-  /** Rubric đã ghim — null nếu chưa gắn. */
+  /** Rubric đã ghim - null nếu chưa gắn. */
   rubricId: string | null;
   rubricVersion?: number | null;
-  /** Gói test đã ghim cho đường điều tra (§14.1) — null nếu chưa ghim. */
+  /** Gói test đã ghim cho đường điều tra (§14.1) - null nếu chưa ghim. */
   testBundleId: string | null;
   /**
    * Thời điểm xác nhận đề cương. Null hoặc thiếu = chưa xác nhận.
@@ -109,11 +109,11 @@ export interface ExamSessionResponse {
    */
   blueprintConfirmedAt?: string | null;
   requiredDeliverables: RequiredDeliverableResponse[];
-  /** Có trên list; detail có thể không gửi — UI ưu tiên `status === 'scheduled'`. */
+  /** Có trên list; detail có thể không gửi - UI ưu tiên `status === 'scheduled'`. */
   rosterFrozen?: boolean;
 }
 
-// Mirrors ExamSessionListItemDto — deliberately leaner than
+// Mirrors ExamSessionListItemDto - deliberately leaner than
 // ExamSessionResponse (no requiredDeliverables), matching the list
 // endpoint's own lean query.
 export interface ExamSessionListItem {
@@ -152,7 +152,7 @@ export interface SubmissionStatusItem {
    *  dòng. Xem SubmissionStatus ở apps/api. */
   status: 'not_submitted' | 'received' | 'validated' | 'collected' | 'invalid' | 'absent';
   /** `null` khi chưa có file nào bay về (`not_submitted`/`absent`).
-   *  KHÔNG phải "không rõ giờ" — là "chưa có giờ nào để mà nói". */
+   *  KHÔNG phải "không rõ giờ" - là "chưa có giờ nào để mà nói". */
   submittedAt: string | null;
   fileSize: string | null;
   downloadUrl: string | null;
@@ -165,7 +165,7 @@ export interface SubmissionStatusItem {
   homeClassId: string;
   homeClassName: string | null;
   /**
-   * Kết quả kiểm nội dung file nén — spec
+   * Kết quả kiểm nội dung file nén - spec
    * 2026-09-21-archive-content-validation-design.md §4.2/§7. Mirror
    * `ArchiveCheckStatus` (apps/api/src/submission/entities/submission.entity.ts).
    * `not_applicable` với mọi deliverable không khai file bên trong.
@@ -180,7 +180,7 @@ export interface SubmissionStatusItem {
 /**
  * Phải khớp `EXAM_SESSION_STATUSES` trong
  * apps/api/src/exam-session/dto/search-exam-sessions.dto.ts. Thiếu một
- * giá trị ở đây không gây lỗi build — nó chỉ làm mất hẳn một lựa chọn
+ * giá trị ở đây không gây lỗi build - nó chỉ làm mất hẳn một lựa chọn
  * khỏi dropdown lọc, vì `STATUS_FILTER_OPTIONS` sinh ra từ chính kiểu
  * này (xem teacher/exam-sessions/page.tsx).
  */
@@ -218,7 +218,7 @@ export interface SearchExamSessionsParams {
   /**
    * Khoảng ngày của chế độ LỊCH, ISO 8601, nửa mở `[from, to)`.
    *
-   * Đi theo CẶP — gửi một mình là 400. Khi có mặt, server **bỏ phân trang**
+   * Đi theo CẶP - gửi một mình là 400. Khi có mặt, server **bỏ phân trang**
    * (xem SearchExamSessionsDto ở apps/api): một lưới tuần phân trang 20 dòng
    * sẽ im lặng nuốt phiên thứ 21, và lịch thì không có nút "trang sau" để lộ
    * ra chuyện đó.
@@ -229,7 +229,7 @@ export interface SearchExamSessionsParams {
 
 async function throwIfFailed(error: unknown, response: Response) {
   // openapi-fetch only fills `error` from the response *body*, which some
-  // failures leave empty — key off the status too, same reasoning as
+  // failures leave empty - key off the status too, same reasoning as
   // apps/web/src/app/admin/accounts/page.tsx's GET /accounts call.
   if (error || !response.ok) {
     throw error ?? new Error(`Yêu cầu thất bại (HTTP ${response.status})`);
@@ -239,7 +239,7 @@ async function throwIfFailed(error: unknown, response: Response) {
 /**
  * Creates an exam session (and its required-deliverable rows, in one
  * server-side transaction). Throws on any non-2xx response or network
- * failure, so callers never receive a partial/undefined result — a
+ * failure, so callers never receive a partial/undefined result - a
  * TanStack Query mutation wrapping this surfaces the failure via its own
  * `error`/`isError`.
  */
@@ -255,7 +255,7 @@ export async function createExamSession(
   // Cast needed: ExamSessionEntity.status/examType/RequiredDeliverableEntity
   // .deliverableType are custom string-union types with no
   // `@ApiProperty({ enum: ... })`, so the Swagger CLI plugin generated
-  // `Record<string, never>` for them instead of a string type — a
+  // `Record<string, never>` for them instead of a string type - a
   // DTO-decoration gap, not a real runtime shape mismatch.
   return data as unknown as ExamSessionResponse;
 }
@@ -264,7 +264,7 @@ export type ReplaceRequiredDeliverablesInput = {
   requiredFilenames: NonNullable<CreateExamSessionInput['requiredFilenames']>;
 };
 
-/** PUT file bắt buộc — chỉ khi `scheduled` (create-slim). */
+/** PUT file bắt buộc - chỉ khi `scheduled` (create-slim). */
 export async function replaceRequiredDeliverables(
   id: string,
   body: ReplaceRequiredDeliverablesInput,
@@ -305,7 +305,7 @@ async function examFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   return undefined as T;
 }
 
-/** PATCH loại thi / phòng / khung giờ — chỉ khi chưa freeze. */
+/** PATCH loại thi / phòng / khung giờ - chỉ khi chưa freeze. */
 export async function updateExamSessionSchedule(
   id: string,
   body: {
@@ -395,11 +395,11 @@ export async function removeSessionRosterStudent(
 }
 
 /**
- * Một TUẦN phiên thi, không phân trang — nguồn cho chế độ xem lịch.
+ * Một TUẦN phiên thi, không phân trang - nguồn cho chế độ xem lịch.
  *
  * Là một hàm riêng chứ không phải `listExamSessions` với thêm hai tham số,
  * dù dưới gầm cùng một endpoint. Lý do: hợp đồng khác nhau ở chỗ quan trọng
- * nhất — cái này hứa trả về **mọi** phiên trong khoảng, còn cái kia trả về
+ * nhất - cái này hứa trả về **mọi** phiên trong khoảng, còn cái kia trả về
  * một trang. Gộp chúng lại thì `total` mang hai nghĩa tuỳ tham số, và người
  * đọc phải tự suy ra nghĩa nào đang áp dụng.
  */
@@ -414,7 +414,7 @@ export async function listExamSessions(params: SearchExamSessionsParams): Promis
   total: number;
   /**
    * MỌI học kỳ của giảng viên này, không chỉ các kỳ có trên trang đang
-   * xem và không chịu ảnh hưởng của bộ lọc đang bật — đây là nguồn cho
+   * xem và không chịu ảnh hưởng của bộ lọc đang bật - đây là nguồn cho
    * dropdown. Một dropdown hẹp hơn thứ nó điều khiển là một lời nói dối.
    */
   semesterNames: string[];
@@ -448,7 +448,7 @@ export async function confirmBlueprint(examSessionId: string): Promise<{ confirm
 
 /**
  * 404s if the session doesn't exist, 403s if the caller isn't its owner
- * (see ExamSessionService.findByIdForOwner) — both surface as a thrown
+ * (see ExamSessionService.findByIdForOwner) - both surface as a thrown
  * error, same convention as every other function here.
  */
 export async function getExamSession(id: string): Promise<ExamSessionResponse> {
@@ -461,7 +461,7 @@ export async function getExamSession(id: string): Promise<ExamSessionResponse> {
 
 /**
  * Khai ngôn ngữ của MỘT yêu cầu nộp code sau khi phiên đã tạo (G1 §3). 409 nếu phiên đã khoá chấm hoặc bài đã có
- * kết quả — câu của server hiện nguyên văn. `pipeline` trong kết quả do BACKEND tính.
+ * kết quả - câu của server hiện nguyên văn. `pipeline` trong kết quả do BACKEND tính.
  */
 export async function declareDeliverableLanguage(
   examSessionId: string,
@@ -493,7 +493,7 @@ export async function finalizeExamSession(id: string): Promise<ExamSessionRespon
 }
 
 /**
- * "Xác nhận kết thúc" — `collecting → completed`, ghi tên người chốt.
+ * "Xác nhận kết thúc" - `collecting → completed`, ghi tên người chốt.
  *
  * Khác `finalizeExamSession` ở trên, và hai nút này đứng cạnh nhau nên
  * chỗ khác biệt cần nói rõ: `finalize` nghĩa là "hết giờ, nộp đi" và đưa
@@ -511,7 +511,7 @@ export async function confirmSessionEnd(id: string): Promise<ExamSessionResponse
   return data as unknown as ExamSessionResponse;
 }
 
-/** Kết quả đóng băng danh sách dự thi — xem SessionRosterService.freeze. */
+/** Kết quả đóng băng danh sách dự thi - xem SessionRosterService.freeze. */
 export interface OpenSessionResult {
   /** Số sinh viên được chụp vào ảnh chốt. */
   students: number;
@@ -520,17 +520,17 @@ export interface OpenSessionResult {
 }
 
 /**
- * "Mở phiên thi" — đóng băng danh sách dự thi (CLAUDE.md §7.1.1).
+ * "Mở phiên thi" - đóng băng danh sách dự thi (CLAUDE.md §7.1.1).
  *
  * Cho tới khi `scheduled` thành trạng thái thật (§7.1.1b), đây là
  * đường DUY NHẤT để một phiên trở nên vào được: `agent:join` từ chối
  * mọi sinh viên khi `session_roster` còn rỗng. Phiên `active` ngay từ
- * lúc tạo, nên không có transition nào để móc việc chốt vào — và vì
+ * lúc tạo, nên không có transition nào để móc việc chốt vào - và vì
  * thế "đang diễn ra" KHÔNG hàm ý "đã mở".
  *
  * Idempotent: bấm lần hai trả về đúng con số cũ với
  * `submissionsSeeded: 0`. 400 khi phiên không gắn lớp, hoặc lớp chưa
- * có sinh viên nào — cả hai đều kèm câu giải thích hiển thị được.
+ * có sinh viên nào - cả hai đều kèm câu giải thích hiển thị được.
  */
 export async function openSession(id: string): Promise<OpenSessionResult> {
   const { data, error, response } = await apiClient.POST('/exam-sessions/{id}/open', {
@@ -543,7 +543,7 @@ export async function openSession(id: string): Promise<OpenSessionResult> {
 export interface RecollectResult {
   /** Số sinh viên đã dự thi mà chưa nộp đủ file bắt buộc. */
   missing: number;
-  /** Số máy ĐÃ TRẢ LỜI trong 3 giây — không phải số lệnh đã gửi. */
+  /** Số máy ĐÃ TRẢ LỜI trong 3 giây - không phải số lệnh đã gửi. */
   acknowledged: number;
   unreachable: number;
   /** Phần giảng viên hành động dựa vào, quan trọng hơn con số. */
@@ -551,7 +551,7 @@ export interface RecollectResult {
 }
 
 /**
- * "Thu lại" — yêu cầu agent của những em chưa nộp đủ gửi lại bài.
+ * "Thu lại" - yêu cầu agent của những em chưa nộp đủ gửi lại bài.
  *
  * Bấm lại bao nhiêu lần cũng được: server không đổi trạng thái gì, và em
  * đã nộp giữa hai lần bấm tự rơi khỏi tập đích. 409 nếu phiên không ở
@@ -566,12 +566,12 @@ export async function recollectSubmissions(id: string): Promise<RecollectResult>
 }
 
 export interface ArchiveRecheckResult {
-  /** Bao nhiêu dòng được xếp lại vào hàng đợi — không phải số đã xong. */
+  /** Bao nhiêu dòng được xếp lại vào hàng đợi - không phải số đã xong. */
   requeued: number;
 }
 
 /**
- * "Kiểm lại" — xếp lại các bài `failed`/`unreadable`/`pending` mồ côi vào
+ * "Kiểm lại" - xếp lại các bài `failed`/`unreadable`/`pending` mồ côi vào
  * hàng đợi kiểm file nén, KHÔNG đụng file đã lưu. Bấm bao nhiêu lần cũng
  * được, cùng tính chất đọc-rồi-xếp-hàng như `recollectSubmissions`. Xem
  * ArchiveRecheckService (apps/api).

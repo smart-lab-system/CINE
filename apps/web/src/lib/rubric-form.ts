@@ -6,7 +6,7 @@ import { formatVnPoints } from './format';
  * `apps/api/src/grading/dto/rubric.dto.ts`: server vẫn là bên quyết định, form chỉ báo sớm.
  *
  * Điều quan trọng nhất ở file này: lưu rubric LUÔN tạo một phiên bản mới, và server sinh lại `key` từ mô tả
- * cho tiêu chí nào không gửi kèm `key`. Luật lỗi trỏ tiêu chí bằng `key` — nên một tiêu chí CÓ SẴN phải gửi
+ * cho tiêu chí nào không gửi kèm `key`. Luật lỗi trỏ tiêu chí bằng `key` - nên một tiêu chí CÓ SẴN phải gửi
  * lại đúng key cũ của nó, nếu không sửa một câu mô tả sẽ âm thầm cắt liên kết luật → tiêu chí.
  *
  * `totalPoints` chỉ sống ở form (UI). `courseId` gửi lên API khi tạo (spec course hub).
@@ -16,7 +16,7 @@ export interface CriterionRow {
   /** Định danh phía client cho React (tiêu chí có sẵn dùng id của nó; hàng mới dùng id tự cấp). */
   id: string;
   key: string;
-  /** Tiêu chí đã có ở phiên bản đang sửa — key của nó cố định, không gõ được. */
+  /** Tiêu chí đã có ở phiên bản đang sửa - key của nó cố định, không gõ được. */
   existing: boolean;
   description: string;
   /** Trần điểm như người dùng gõ ("2,5"). */
@@ -41,7 +41,7 @@ export interface RubricFormMeta {
   name: string;
   nameEditable: boolean;
   existingNames: string[];
-  /** Ô "Tổng điểm" trên form — trần cho tổng điểm tối đa các tiêu chí. Mặc định UI: 10. */
+  /** Ô "Tổng điểm" trên form - trần cho tổng điểm tối đa các tiêu chí. Mặc định UI: 10. */
   totalPoints: string;
   /** Tạo trống: bắt buộc chọn môn (chỉ UI, không lưu). */
   courseRequired?: boolean;
@@ -92,10 +92,10 @@ export function validateRubric(meta: RubricFormMeta, rows: CriterionRow[]): Rubr
     const name = meta.name.trim();
     if (name === '') errors.name = 'Đặt tên cho rubric.';
     else if (name.length > 200) errors.name = 'Tên tối đa 200 ký tự.';
-    // Lưu cùng một tên là tạo phiên bản KẾ TIẾP của rubric đó và sinh lại key từ mô tả — đúng cái bẫy mà
+    // Lưu cùng một tên là tạo phiên bản KẾ TIẾP của rubric đó và sinh lại key từ mô tả - đúng cái bẫy mà
     // form này tồn tại để tránh. Muốn sửa rubric có sẵn thì chọn nó rồi bấm "Sửa tiêu chí & điểm tối đa".
     else if (meta.existingNames.includes(name)) {
-      errors.name = 'Đã có rubric tên này — chọn nó ở trên rồi bấm “Sửa tiêu chí & điểm tối đa” thay vì tạo lại.';
+      errors.name = 'Đã có rubric tên này - chọn nó ở trên rồi bấm “Sửa tiêu chí & điểm tối đa” thay vì tạo lại.';
     }
   }
 
@@ -107,7 +107,7 @@ export function validateRubric(meta: RubricFormMeta, rows: CriterionRow[]): Rubr
   if (total === null) errors.totalPoints = TOTAL_ERROR;
 
   if (rows.length === 0) errors.general = 'Rubric cần ít nhất một tiêu chí.';
-  else if (rows.length > 30) errors.general = 'Tối đa 30 tiêu chí — nhiều hơn thì không ai rà nổi.';
+  else if (rows.length > 30) errors.general = 'Tối đa 30 tiêu chí - nhiều hơn thì không ai rà nổi.';
 
   const seen = new Map<string, string>();
   let capsOk = true;
@@ -133,7 +133,7 @@ export function validateRubric(meta: RubricFormMeta, rows: CriterionRow[]): Rubr
     }
   }
 
-  // Trần UI: tổng điểm tối đa các tiêu chí không được vượt tổng điểm — không gửi field này lên server.
+  // Trần UI: tổng điểm tối đa các tiêu chí không được vượt tổng điểm - không gửi field này lên server.
   if (errors.general === undefined && total !== null && capsOk) {
     const sum = sumCaps(rows);
     if (sum > total) {
@@ -182,7 +182,7 @@ export function buildSaveInput(
   };
 }
 
-/** Khoá của tiêu chí có sẵn mà bản mới không còn — lỗi gắn với chúng sẽ thành lỗi mồ côi (cần chuyển sang tiêu chí khác). */
+/** Khoá của tiêu chí có sẵn mà bản mới không còn - lỗi gắn với chúng sẽ thành lỗi mồ côi (cần chuyển sang tiêu chí khác). */
 export function removedKeys(original: Rubric | undefined, rows: CriterionRow[]): string[] {
   if (!original) return [];
   const kept = new Set(rows.filter((r) => r.existing).map((r) => r.key));

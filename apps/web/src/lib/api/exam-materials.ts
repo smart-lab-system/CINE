@@ -25,7 +25,7 @@ export async function listExamMaterials(examSessionId: string): Promise<ExamMate
 
 /**
  * Mint a URL, PUT the bytes straight to storage, then tell the API it
- * landed. The file never passes through the NestJS server — CLAUDE.md
+ * landed. The file never passes through the NestJS server - CLAUDE.md
  * Security rule 5, the same path a submission takes.
  *
  * The confirm step is what creates the row, so a failed PUT leaves nothing

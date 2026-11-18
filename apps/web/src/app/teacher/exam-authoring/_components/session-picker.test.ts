@@ -10,7 +10,7 @@ function session(status: string, startsAt: string) {
 describe('isAttachable', () => {
   // Chốt chặn của cả tính năng. `ExamSessionService.create()` ghi status
   // 'active' cho MỌI phiên mới, nên nếu luật quay về đọc `status` thì ca này
-  // đỏ — và nó đỏ đúng: luật đó chặn sạch mọi lượt gắn đề.
+  // đỏ - và nó đỏ đúng: luật đó chặn sạch mọi lượt gắn đề.
   it('phiên active nhưng chưa tới giờ thi -> gắn được', () => {
     expect(isAttachable(session('active', '2026-09-22T13:00:00.000Z'), NOW)).toBe(true);
   });

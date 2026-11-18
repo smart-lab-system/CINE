@@ -6,7 +6,7 @@ import { gradingCsvFilename, gradingResultsToCsv } from '@/lib/grading-export';
 import type { GradingResult } from '@/lib/api/grading';
 
 /**
- * "Giảng viên chỉ cần export điểm về danh sách" — đúng một nút, tải file
+ * "Giảng viên chỉ cần export điểm về danh sách" - đúng một nút, tải file
  * ngay tại trình duyệt. Không gọi API: mọi thứ cần đã có trong `results`
  * (cùng dữ liệu đang hiện trên bảng), nên không có khoảng trễ, không có
  * trạng thái loading nào phải xử lý.

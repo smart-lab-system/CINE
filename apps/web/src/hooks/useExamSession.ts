@@ -39,7 +39,7 @@ import {
 } from '@/lib/api/exam-materials';
 
 /**
- * TanStack Query mutation wrapping `createExamSession` — pages call this
+ * TanStack Query mutation wrapping `createExamSession` - pages call this
  * hook, never `apiClient`/`lib/api/exam-session.ts` directly (see
  * CLAUDE.md's API-call-layering rule).
  */
@@ -153,8 +153,8 @@ export function useExamSessions(params: SearchExamSessionsParams) {
  * Một tuần phiên thi cho chế độ xem lịch.
  *
  * Hook RIÊNG, cố ý không phải một nhánh bên trong `useExamSessions`. Hook kia
- * có **ba** nơi dùng — trang danh sách, dashboard giảng viên và trang tạo
- * phiên — nên đổi chữ ký hay đổi ngữ nghĩa phân trang của nó để phục vụ cái
+ * có **ba** nơi dùng - trang danh sách, dashboard giảng viên và trang tạo
+ * phiên - nên đổi chữ ký hay đổi ngữ nghĩa phân trang của nó để phục vụ cái
  * lịch là làm vỡ hai trang không liên quan gì tới việc này.
  *
  * `queryKey` cũng tách hẳn: một tuần không phân trang và một trang danh sách
@@ -172,7 +172,7 @@ export function useExamSessionsInRange(
 }
 
 /**
- * Powers the lobby page's "has this session started/ended?" banner — the
+ * Powers the lobby page's "has this session started/ended?" banner - the
  * live roster itself still comes from the WebSocket (`teacher:subscribe`),
  * this is only for the session's own start/end/status metadata.
  */
@@ -213,7 +213,7 @@ export function useDeclareDeliverableLanguage(examSessionId: string | undefined)
 /**
  * "Chốt bài ngay". On success the session detail is invalidated so the
  * page re-reads the real status from the server rather than assuming the
- * mutation result is still current — the scheduled sweep may have
+ * mutation result is still current - the scheduled sweep may have
  * finalized it in the same second.
  */
 export function useFinalizeExamSession(id: string | undefined) {
@@ -239,7 +239,7 @@ export function useReplaceRequiredDeliverables(examSessionId: string | undefined
 }
 
 /**
- * "Mở phiên thi" — freeze roster + flip `scheduled → active`.
+ * "Mở phiên thi" - freeze roster + flip `scheduled → active`.
  * Invalidate cả chi tiết phiên (status đổi) và attendance (roster mới).
  */
 export function useOpenSession(id: string | undefined) {
@@ -254,7 +254,7 @@ export function useOpenSession(id: string | undefined) {
   });
 }
 
-/** "Xác nhận kết thúc" — `collecting → completed`. Xem confirmSessionEnd. */
+/** "Xác nhận kết thúc" - `collecting → completed`. Xem confirmSessionEnd. */
 export function useConfirmSessionEnd(id: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation<ExamSessionResponse, Error, void>({
@@ -266,7 +266,7 @@ export function useConfirmSessionEnd(id: string | undefined) {
 }
 
 /**
- * "Thu lại". KHÔNG invalidate gì cả — và đó là chủ ý, không phải thiếu
+ * "Thu lại". KHÔNG invalidate gì cả - và đó là chủ ý, không phải thiếu
  * sót: lệnh này không đổi trạng thái nào ở server, nó chỉ nhờ vài cái
  * máy nộp lại bài. Bài về sẽ tới qua `lobby:submission_status` như mọi
  * bài khác, và trang đã lắng nghe sự kiện đó rồi. Invalidate ở đây sẽ
@@ -297,7 +297,7 @@ export function useSubmissions(examSessionId: string | undefined) {
 /**
  * "Kiểm lại" file nén. KHÁC `useRecollect`: trang dùng hook này (Màn bài
  * nộp, post-hoc) không có socket sống để tự nhận kết quả, nên phải tự
- * invalidate — `useRecollect` cố ý không làm vậy vì trang lobby của nó CÓ
+ * invalidate - `useRecollect` cố ý không làm vậy vì trang lobby của nó CÓ
  * `lobby:submission_status`. `archive_check_status` đã đổi thành `pending`
  * ngay trong transaction của request (ArchiveRecheckService.requeue), nên
  * refetch ngay sau khi thành công là đọc đúng, không đọc sớm.

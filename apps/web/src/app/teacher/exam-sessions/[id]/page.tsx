@@ -54,7 +54,7 @@ function formatDateTime(iso: string): string {
 }
 
 /**
- * Hub Thiết lập phiên — stepper năm bước (spec 2026-10-22).
+ * Hub Thiết lập phiên - stepper năm bước (spec 2026-10-22).
  * Không thay màn vận hành live tại `/exam-sessions/[id]`.
  */
 export default function ExamSessionSetupPage() {
@@ -181,7 +181,7 @@ function SetupHub({ sessionId }: { sessionId: string }) {
         onCopyCode={() => {
           void navigator.clipboard.writeText(session.code).then(
             () => toast.success(`Đã sao chép mã "${session.code}"`),
-            () => toast.error('Không sao chép được — hãy đọc mã trực tiếp.'),
+            () => toast.error('Không sao chép được - hãy đọc mã trực tiếp.'),
           );
         }}
       />
@@ -471,7 +471,7 @@ function SetupBody({
             roomOptions.find((room) => room.value === (setup.draft?.info ?? server.info).roomId)
               ?.label ||
             session.roomName ||
-            '—'
+            '-'
           }
           info={setup.draft?.info ?? server.info}
           materialFilenames={materialFilenames}

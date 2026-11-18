@@ -110,7 +110,7 @@ export function AccountPreviewDialog({
   );
 }
 
-/** Nút tên trong ô bảng — dừng bubble để không mở hàng chi tiết. */
+/** Nút tên trong ô bảng - dừng bubble để không mở hàng chi tiết. */
 export function AccountNameButton({
   accountId,
   label,
