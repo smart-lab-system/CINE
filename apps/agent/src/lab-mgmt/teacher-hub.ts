@@ -72,7 +72,7 @@ export class TeacherHub extends EventEmitter {
 
   constructor(
     private readonly machineId: string,
-    private readonly teacher: HubTeacherIdentity,
+    private teacher: HubTeacherIdentity,
   ) {
     super();
   }
@@ -181,6 +181,12 @@ export class TeacherHub extends EventEmitter {
 
   getTeacherDisplayName(): string | undefined {
     return this.teacher.displayName;
+  }
+
+  /** Cập nhật JWT/identity sau login mà không tắt LAN Hub. */
+  updateTeacher(identity: HubTeacherIdentity): void {
+    this.teacher = identity;
+    this.emitState();
   }
 
   /**

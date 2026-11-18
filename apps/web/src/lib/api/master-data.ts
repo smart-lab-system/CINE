@@ -154,6 +154,8 @@ export interface Computer {
   ipAddress: string | null;
   macAddress: string | null;
   status: ComputerStatus;
+  isTeacherMachine?: boolean;
+  agentMachineId?: string | null;
 }
 
 export interface PageResult<T> {
@@ -478,6 +480,11 @@ export const updateComputer = (id: string, body: Partial<Omit<Computer, 'id'>>) 
   masterDataFetch<Computer>(`/master-data/computers/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+  });
+export const setTeacherMachine = (id: string, isTeacherMachine: boolean) =>
+  masterDataFetch<Computer>(`/master-data/computers/${id}/set-teacher-machine`, {
+    method: 'POST',
+    body: JSON.stringify({ isTeacherMachine }),
   });
 export const deleteComputer = (id: string) =>
   masterDataFetch<void>(`/master-data/computers/${id}`, { method: 'DELETE' });

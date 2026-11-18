@@ -35,6 +35,7 @@ import { CreateRoomDto, ListRoomsDto, UpdateRoomDto } from './dto/room.dto';
 import {
   CreateComputerDto,
   ListComputersDto,
+  SetTeacherMachineDto,
   UpdateComputerDto,
 } from './dto/computer.dto';
 
@@ -440,6 +441,8 @@ export class MasterDataService {
         ipAddress: dto.ipAddress ?? null,
         macAddress: dto.macAddress ?? null,
         status: dto.status,
+        isTeacherMachine: false,
+        agentMachineId: null,
       }),
     );
     return { id: saved.id };
@@ -483,7 +486,32 @@ export class MasterDataService {
     if (dto.ipAddress !== undefined) row.ipAddress = dto.ipAddress;
     if (dto.macAddress !== undefined) row.macAddress = dto.macAddress;
     if (dto.status !== undefined) row.status = dto.status;
+    if (dto.agentMachineId !== undefined) row.agentMachineId = dto.agentMachineId;
+
+    if (dto.isTeacherMachine === true) {
+      await this.computers.manager.transaction(async (manager) => {
+        await manager.update(
+          ComputerEntity,
+          { roomId: row.roomId, isTeacherMachine: true },
+          { isTeacherMachine: false },
+        );
+        row.isTeacherMachine = true;
+        await manager.save(row);
+      });
+      return this.getComputer(id);
+    }
+
+    if (dto.isTeacherMachine === false) {
+      row.isTeacherMachine = false;
+    }
     return this.computers.save(row);
+  }
+
+  /**
+   * Admin gắn / bỏ máy giảng viên. Mỗi phòng tối đa 1 máy GV (partial unique index).
+   */
+  async setTeacherMachine(id: string, dto: SetTeacherMachineDto) {
+    return this.updateComputer(id, { isTeacherMachine: dto.isTeacherMachine });
   }
 
   async removeComputer(id: string) {

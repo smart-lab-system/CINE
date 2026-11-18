@@ -20,8 +20,13 @@ export const IPC_CHANNELS = {
   getState: 'agent:get-state',
 
   /** Module Quản lý */
+  mgmtResolveMachineRole: 'mgmt:resolve-machine-role',
   mgmtLoginTeacher: 'mgmt:login-teacher',
+  mgmtListTodayExams: 'mgmt:list-today-exams',
+  mgmtStartTeacherHub: 'mgmt:start-teacher-hub',
+  mgmtGetContext: 'mgmt:get-context',
   mgmtStartStudentNode: 'mgmt:start-student-node',
+  mgmtLeaveSession: 'mgmt:leave-session',
   mgmtStop: 'mgmt:stop',
   mgmtGetHubState: 'mgmt:get-hub-state',
   mgmtGetNodeState: 'mgmt:get-node-state',
@@ -50,6 +55,17 @@ export interface SendAccessRequestRequest {
   reason: string;
 }
 
+export type MgmtMachineRole = 'teacher' | 'student' | 'unknown';
+
+export interface MgmtResolveMachineRoleResult {
+  ok: boolean;
+  error?: string;
+  role?: MgmtMachineRole;
+  reason?: string;
+  roomId?: string | null;
+  fromCache?: boolean;
+}
+
 export interface TeacherLoginRequest {
   email: string;
   password: string;
@@ -59,6 +75,33 @@ export interface TeacherLoginResult {
   ok: boolean;
   error?: string;
   email?: string;
+}
+
+export interface MgmtTodayExamItem {
+  id: string;
+  name: string;
+  code: string;
+  courseName: string;
+  roomName: string;
+  roomId: string | null;
+  courseId: string | null;
+  startTime: string;
+  endTime: string;
+  status: string;
+}
+
+export interface MgmtStartTeacherHubRequest {
+  examSessionId?: string | null;
+  courseId?: string | null;
+  roomId?: string | null;
+  examLabel?: string | null;
+}
+
+export interface MgmtContextPayload {
+  courseId: string | null;
+  examSessionId: string | null;
+  roomId: string | null;
+  examLabel: string | null;
 }
 
 export interface StartStudentNodeRequest {
@@ -149,8 +192,13 @@ export interface AgentApi {
   onState(callback: (state: AgentState) => void): () => void;
   getState(): Promise<AgentState>;
 
+  mgmtResolveMachineRole(): Promise<MgmtResolveMachineRoleResult>;
   mgmtLoginTeacher(payload: TeacherLoginRequest): Promise<TeacherLoginResult>;
+  mgmtListTodayExams(): Promise<{ ok: boolean; error?: string; items?: MgmtTodayExamItem[] }>;
+  mgmtStartTeacherHub(payload?: MgmtStartTeacherHubRequest): Promise<{ ok: boolean; error?: string }>;
+  mgmtGetContext(): Promise<MgmtContextPayload>;
   mgmtStartStudentNode(payload: StartStudentNodeRequest): Promise<StartStudentNodeResult>;
+  mgmtLeaveSession(): Promise<void>;
   mgmtStop(): Promise<void>;
   mgmtGetHubState(): Promise<TeacherHubState | null>;
   mgmtGetNodeState(): Promise<StudentNodeState | null>;

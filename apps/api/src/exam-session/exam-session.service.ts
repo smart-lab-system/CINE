@@ -738,6 +738,62 @@ export class ExamSessionService {
   }
 
   /**
+   * Agent Quản lý: kỳ thi của GV có start_time trong ngày Asia/Ho_Chi_Minh.
+   * Status: scheduled | not_ready | active | collecting.
+   */
+  async listTodayForMgmt(teacherId: string) {
+    const tz = 'Asia/Ho_Chi_Minh';
+    const rows: Array<{
+      id: string;
+      name: string;
+      code: string;
+      course_name: string;
+      room_name: string;
+      room_id: string | null;
+      course_id: string | null;
+      start_time: Date;
+      end_time: Date;
+      status: string;
+    }> = await this.dataSource.query(
+      `
+      SELECT s.id,
+             s.name,
+             s.code,
+             s.course_name,
+             s.room_name,
+             s.room_id,
+             c.course_id,
+             s.start_time,
+             s.end_time,
+             s.status
+        FROM examcollect.exam_session s
+        INNER JOIN examcollect."class" c ON c.id = s.class_id
+       WHERE s.teacher_id = $1
+         AND s.status IN ('scheduled', 'not_ready', 'active', 'collecting')
+         AND (s.start_time AT TIME ZONE $2)::date
+             = (NOW() AT TIME ZONE $2)::date
+       ORDER BY s.start_time ASC
+      `,
+      [teacherId, tz],
+    );
+
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        code: r.code,
+        courseName: r.course_name,
+        roomName: r.room_name,
+        roomId: r.room_id,
+        courseId: r.course_id,
+        startTime: new Date(r.start_time).toISOString(),
+        endTime: new Date(r.end_time).toISOString(),
+        status: r.status,
+      })),
+    };
+  }
+
+  /**
    * Hết giờ làm bài: `active → collecting`. Cả lượt quét theo lịch
    * (ExamSessionScheduler) lẫn "Chốt bài ngay" thủ công đều đi qua đây,
    * nên chuyển trạng thái và broadcast không bao giờ lệch nhau.

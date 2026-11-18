@@ -19,7 +19,8 @@ export function TeacherHubView({
   onLeave: () => void;
 }) {
   const [hub, setHub] = useState<TeacherHubState | null>(null);
-  const [courseId, setCourseId] = useState('');
+  const [examLabel, setExamLabel] = useState<string | null>(null);
+  const [courseId, setCourseId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +33,11 @@ export function TeacherHubView({
   useEffect(() => {
     const unsub = window.agent.onHubState(setHub);
     void window.agent.mgmtGetHubState().then(setHub);
+    void window.agent.mgmtGetContext().then((ctx) => {
+      setExamLabel(ctx.examLabel);
+      setCourseId(ctx.courseId);
+      if (ctx.courseId) void window.agent.mgmtSetCourseId(ctx.courseId);
+    });
     return unsub;
   }, []);
 
@@ -49,7 +55,7 @@ export function TeacherHubView({
   };
 
   const leave = async (): Promise<void> => {
-    await window.agent.mgmtStop();
+    await window.agent.mgmtLeaveSession();
     onLeave();
   };
 
@@ -66,16 +72,21 @@ export function TeacherHubView({
         )}
       </div>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-caption font-semibold">Course ID (tuỳ chọn — allowlist theo môn)</span>
-        <input
-          className="rounded-md border border-border bg-surface px-2 py-1.5 text-small"
-          value={courseId}
-          placeholder="uuid môn catalog"
-          onChange={(e) => setCourseId(e.target.value)}
-          onBlur={() => void window.agent.mgmtSetCourseId(courseId.trim() || null)}
-        />
-      </label>
+      {examLabel ? (
+        <p className="rounded-md border border-border bg-surface px-3 py-2 text-small">
+          <span className="font-semibold">Kỳ thi: </span>
+          {examLabel}
+          {courseId ? (
+            <span className="mt-0.5 block font-mono text-caption text-muted-foreground">
+              courseId {courseId}
+            </span>
+          ) : null}
+        </p>
+      ) : (
+        <p className="text-caption text-muted-foreground">
+          Hub lab thuần — chưa gắn kỳ thi hôm nay (allowlist chỉ tầng global nếu không có course).
+        </p>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <AppButton
@@ -120,7 +131,7 @@ export function TeacherHubView({
           disabled={!!busy}
           onClick={() =>
             void run('compare', async () => {
-              await window.agent.mgmtSetCourseId(courseId.trim() || null);
+              if (courseId) await window.agent.mgmtSetCourseId(courseId);
               const result: CompareResultPayload = await window.agent.mgmtCompareAllowlist();
               setComparisons(result.comparisons);
               setAggregate(null);

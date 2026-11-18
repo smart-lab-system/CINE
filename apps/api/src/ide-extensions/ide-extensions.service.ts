@@ -42,6 +42,7 @@ import {
   EnsureArtifactsDto,
   RejectRoomProposalDto,
   UpdateCatalogExtensionDto,
+  VerifyTeacherMachineDto,
 } from './dto/ide-extensions.dto';
 import { deriveCatalogStatus } from './catalog-status';
 import { isViolationPairStillOpen } from './violation-filter';
@@ -1335,6 +1336,176 @@ export class IdeExtensionsService {
     return this.getRoomProposal(id);
   }
 
+  private computerIdentityMatch(
+    pc: { agentMachineId: string | null; hostname: string; macAddress: string | null },
+    machineId: string,
+    host: string | null,
+    mac: string | null,
+  ): boolean {
+    if (pc.agentMachineId != null && pc.agentMachineId === machineId) return true;
+    if (
+      host &&
+      mac &&
+      pc.hostname.toLowerCase() === host &&
+      (pc.macAddress?.trim().toLowerCase() ?? '') === mac
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private async findComputersByIdentity(
+    machineId: string,
+    host: string | null,
+    mac: string | null,
+  ) {
+    const qb = this.computers
+      .createQueryBuilder('c')
+      .where('c.agent_machine_id = :machineId', { machineId });
+    if (host && mac) {
+      qb.orWhere(
+        'LOWER(c.hostname) = :host AND LOWER(COALESCE(c.mac_address, \'\')) = :mac',
+        { host, mac },
+      );
+    }
+    return qb.getMany();
+  }
+
+  private teacherMachineView(pc: {
+    id: string;
+    hostname: string;
+    agentMachineId: string | null;
+    roomId: string;
+  }) {
+    return {
+      id: pc.id,
+      hostname: pc.hostname,
+      agentMachineId: pc.agentMachineId,
+      roomId: pc.roomId,
+    };
+  }
+
+  /**
+   * Công khai — agent Quyết định vào form GV hay SV khi mở Quản lý.
+   * teacher: máy GV, hoặc máy thuộc phòng chưa có máy GV (bootstrap).
+   * student: máy catalog không phải GV và phòng đã có máy GV.
+   */
+  async resolveMachineRole(dto: VerifyTeacherMachineDto) {
+    const machineId = dto.machineId?.trim();
+    if (!machineId) {
+      throw new BadRequestException('Thiếu machineId.');
+    }
+    const mac = dto.macAddress?.trim().toLowerCase() || null;
+    const host = dto.hostname?.trim().toLowerCase() || null;
+    const matches = await this.findComputersByIdentity(machineId, host, mac);
+    if (matches.length === 0) {
+      return {
+        role: 'unknown' as const,
+        reason: 'not_in_catalog' as const,
+        roomId: null,
+        computerId: null,
+      };
+    }
+
+    const asTeacher = matches.find((pc) => pc.isTeacherMachine);
+    if (asTeacher) {
+      return {
+        role: 'teacher' as const,
+        reason: 'teacher_machine' as const,
+        roomId: asTeacher.roomId,
+        computerId: asTeacher.id,
+      };
+    }
+
+    const pc = matches[0];
+    const roomTeacher = await this.computers.findOne({
+      where: { roomId: pc.roomId, isTeacherMachine: true },
+    });
+    if (!roomTeacher) {
+      return {
+        role: 'teacher' as const,
+        reason: 'room_has_no_teacher_machine' as const,
+        roomId: pc.roomId,
+        computerId: pc.id,
+      };
+    }
+    return {
+      role: 'student' as const,
+      reason: 'student_machine' as const,
+      roomId: pc.roomId,
+      computerId: pc.id,
+    };
+  }
+
+  /**
+   * Spec 2026-11-18:
+   * - Không có roomId (login): phải là máy GV, hoặc máy thuộc phòng chưa có máy GV.
+   * - Có roomId: nếu phòng đã có máy GV → phải khớp; chưa có → ok.
+   */
+  async verifyTeacherMachine(dto: VerifyTeacherMachineDto) {
+    const machineId = dto.machineId?.trim();
+    if (!machineId) {
+      throw new BadRequestException('Thiếu machineId.');
+    }
+    const mac = dto.macAddress?.trim().toLowerCase() || null;
+    const host = dto.hostname?.trim().toLowerCase() || null;
+    const roomId = dto.roomId?.trim() || null;
+
+    if (!roomId) {
+      const matches = await this.findComputersByIdentity(machineId, host, mac);
+      const asTeacher = matches.find((pc) => pc.isTeacherMachine);
+      if (asTeacher) {
+        return {
+          ok: true,
+          reason: 'matched' as const,
+          teacherMachine: this.teacherMachineView(asTeacher),
+        };
+      }
+      for (const pc of matches) {
+        const roomTeacher = await this.computers.findOne({
+          where: { roomId: pc.roomId, isTeacherMachine: true },
+        });
+        if (!roomTeacher) {
+          return {
+            ok: true,
+            reason: 'room_has_no_teacher_machine' as const,
+            teacherMachine: this.teacherMachineView(pc),
+          };
+        }
+      }
+      return {
+        ok: false,
+        reason: 'not_teacher_machine' as const,
+        teacherMachine: null,
+      };
+    }
+
+    const teacherPc = await this.computers.findOne({
+      where: { roomId, isTeacherMachine: true },
+    });
+    if (!teacherPc) {
+      return {
+        ok: true,
+        reason: 'room_has_no_teacher_machine' as const,
+        teacherMachine: null,
+      };
+    }
+
+    if (this.computerIdentityMatch(teacherPc, machineId, host, mac)) {
+      return {
+        ok: true,
+        reason: 'matched' as const,
+        teacherMachine: this.teacherMachineView(teacherPc),
+      };
+    }
+
+    return {
+      ok: false,
+      reason: 'not_teacher_machine' as const,
+      teacherMachine: this.teacherMachineView(teacherPc),
+    };
+  }
+
   async acceptCreateRoom(id: string, reviewerId: string, dto: AcceptCreateRoomDto) {
     const detail = await this.getRoomProposal(id);
     if (detail.status !== 'pending') {
@@ -1376,6 +1547,8 @@ export class IdeExtensionsService {
             ipAddress: m.localIp,
             macAddress: m.macAddress,
             status: m.status,
+            isTeacherMachine: m.role === 'teacher_hub',
+            agentMachineId: m.machineId?.trim() || null,
           }),
         );
       }

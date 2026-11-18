@@ -10,7 +10,13 @@ import {
   clearMachineHardwareCache,
   collectMachineHardware,
 } from '../../src/lab-mgmt/machine-hardware';
-import { loadOrCreateMachineId } from '../../src/lab-mgmt/machine-identity';
+import { getHostname, loadOrCreateMachineId } from '../../src/lab-mgmt/machine-identity';
+import type { HubTeacherIdentity } from '../../src/lab-mgmt/teacher-hub';
+import {
+  loadMachineRoleCache,
+  saveMachineRoleCache,
+  type CachedMachineRole,
+} from '../../src/lab-mgmt/machine-role-cache';
 import {
   aggregateRoom,
   compareAllowlist,
@@ -34,6 +40,12 @@ export class LabMgmtRuntime {
   private node: StudentNode | null = null;
   private machineId: string;
   private courseId: string | null = null;
+  private examSessionId: string | null = null;
+  private roomId: string | null = null;
+  private examLabel: string | null = null;
+  private pendingTeacher: HubTeacherIdentity | null = null;
+  /** Phòng của máy GV đã khớp lúc login (null = bootstrap chưa gắn máy GV). */
+  private verifiedTeacherRoomId: string | null = null;
   private lastComparisons: MachineComparison[] = [];
   private lastEffective: EffectiveExtension[] = [];
 
@@ -45,8 +57,164 @@ export class LabMgmtRuntime {
     this.machineId = loadOrCreateMachineId(userDataPath);
   }
 
+  /** Mở app: nếu đã cache role thì bật LAN Hub/Node ngay (kể cả offline). */
+  async bootstrapLanFromCache(): Promise<void> {
+    const cached = loadMachineRoleCache(this.userDataPath);
+    if (!cached) return;
+    await this.ensureLanForRole(cached.role);
+    if (cached.roomId) this.verifiedTeacherRoomId = cached.roomId;
+  }
+
+  /**
+   * Phân loại máy (online → ghi cache; offline → đọc cache) rồi đảm bảo LAN chạy.
+   */
+  async resolveMachineRole(): Promise<{
+    ok: boolean;
+    error?: string;
+    role?: 'teacher' | 'student' | 'unknown';
+    reason?: string;
+    roomId?: string | null;
+    fromCache?: boolean;
+  }> {
+    const hw = await collectMachineHardware({ force: true });
+    try {
+      const res = await fetch(`${this.backendUrl}/ide-extensions/lab/resolve-machine-role`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          machineId: this.machineId,
+          hostname: getHostname(),
+          macAddress: hw.macAddress,
+        }),
+      });
+      if (!res.ok) {
+        return this.resolveMachineRoleFromCache(
+          `Không xác định được loại máy (HTTP ${res.status}).`,
+        );
+      }
+      const body = (await res.json()) as {
+        role: 'teacher' | 'student' | 'unknown';
+        reason?: string;
+        roomId?: string | null;
+        computerId?: string | null;
+      };
+      if (body.role === 'teacher' || body.role === 'student') {
+        saveMachineRoleCache(this.userDataPath, {
+          role: body.role,
+          roomId: body.roomId ?? null,
+          computerId: body.computerId ?? null,
+          reason: body.reason ?? null,
+        });
+        if (body.roomId) this.verifiedTeacherRoomId = body.roomId;
+        await this.ensureLanForRole(body.role);
+      }
+      return {
+        ok: true,
+        role: body.role,
+        reason: body.reason,
+        roomId: body.roomId ?? null,
+        fromCache: false,
+      };
+    } catch {
+      return this.resolveMachineRoleFromCache(
+        'Không kết nối được máy chủ — dùng vai trò máy đã lưu trên máy này.',
+      );
+    }
+  }
+
+  private async resolveMachineRoleFromCache(offlineHint: string): Promise<{
+    ok: boolean;
+    error?: string;
+    role?: 'teacher' | 'student' | 'unknown';
+    reason?: string;
+    roomId?: string | null;
+    fromCache?: boolean;
+  }> {
+    const cached = loadMachineRoleCache(this.userDataPath);
+    if (!cached) {
+      return {
+        ok: false,
+        error:
+          `${offlineHint} Chưa có bản ghi vai trò máy local — cần online ít nhất một lần khi máy đã có trong catalog.`,
+      };
+    }
+    if (cached.roomId) this.verifiedTeacherRoomId = cached.roomId;
+    await this.ensureLanForRole(cached.role);
+    return {
+      ok: true,
+      role: cached.role,
+      reason: cached.reason ?? 'cached',
+      roomId: cached.roomId,
+      fromCache: true,
+    };
+  }
+
+  private async ensureLanForRole(role: CachedMachineRole): Promise<void> {
+    if (role === 'teacher') {
+      await this.ensureTeacherLan();
+      return;
+    }
+    await this.ensureStudentLan();
+  }
+
+  private stubTeacherIdentity(): HubTeacherIdentity {
+    return {
+      accountId: 'local-pending',
+      email: 'chưa-đăng-nhập',
+      displayName: 'Chưa đăng nhập',
+      accessToken: '',
+    };
+  }
+
+  private async ensureTeacherLan(): Promise<{ ok: boolean; error?: string }> {
+    if (this.node) {
+      this.node.stop();
+      this.node = null;
+    }
+    if (this.hub) return { ok: true };
+    this.hub = new TeacherHub(this.machineId, this.pendingTeacher ?? this.stubTeacherIdentity());
+    this.hub.on('state', (state) => {
+      this.getWindow()?.webContents.send(IPC_CHANNELS.mgmtHubState, state);
+    });
+    try {
+      await this.hub.start();
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await this.stopHubOnly();
+      if (msg.includes('EADDRINUSE')) {
+        return {
+          ok: false,
+          error:
+            'Cổng Hub đã bị chiếm — có thể máy giảng viên khác đang chạy trên LAN này. Chỉ một Hub mỗi phòng.',
+        };
+      }
+      return { ok: false, error: `Không khởi động được Hub: ${msg}` };
+    }
+  }
+
+  private async ensureStudentLan(): Promise<void> {
+    if (this.hub) {
+      await this.stopHubOnly();
+    }
+    if (this.node) return;
+    this.node = new StudentNode(this.machineId, '', 'Chưa đăng nhập');
+    this.node.on('state', (state) => {
+      this.getWindow()?.webContents.send(IPC_CHANNELS.mgmtNodeState, state);
+    });
+    this.node.start();
+  }
+
+  /**
+   * Auth + chặn ngay nếu không phải máy GV / máy thuộc phòng chưa có máy GV.
+   * Không tắt LAN Hub nếu đã chạy.
+   */
   async loginTeacher(email: string, password: string): Promise<{ ok: boolean; error?: string; email?: string }> {
-    await this.stop();
+    if (this.node) {
+      this.node.stop();
+      this.node = null;
+    }
+    this.pendingTeacher = null;
     let res: Response;
     try {
       res = await fetch(`${this.backendUrl}/auth/login`, {
@@ -71,36 +239,208 @@ export class LabMgmtRuntime {
       return { ok: false, error: 'Tài khoản không phải giảng viên/admin.' };
     }
 
-    this.hub = new TeacherHub(this.machineId, {
+    const hw = await collectMachineHardware({ force: true });
+    try {
+      const verifyRes = await fetch(`${this.backendUrl}/ide-extensions/lab/teacher-machine/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${body.accessToken}`,
+        },
+        body: JSON.stringify({
+          machineId: this.machineId,
+          hostname: getHostname(),
+          macAddress: hw.macAddress,
+        }),
+      });
+      if (!verifyRes.ok) {
+        return {
+          ok: false,
+          error: `Không kiểm tra được máy giảng viên (HTTP ${verifyRes.status}).`,
+        };
+      }
+      const verdict = (await verifyRes.json()) as {
+        ok: boolean;
+        reason?: string;
+        teacherMachine?: { roomId?: string | null } | null;
+      };
+      if (!verdict.ok) {
+        return {
+          ok: false,
+          error:
+            'Máy này không được phép đăng nhập giảng viên. Chỉ máy GV đã gắn, hoặc máy thuộc phòng chưa có máy GV, mới đăng nhập được.',
+        };
+      }
+      this.verifiedTeacherRoomId = verdict.teacherMachine?.roomId?.trim() || null;
+    } catch (err) {
+      return {
+        ok: false,
+        error: `Không kiểm tra được máy giảng viên: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
+    this.pendingTeacher = {
       accountId: body.account.id,
       email: body.account.email,
       displayName: body.account.name,
       accessToken: body.accessToken,
-    });
-    this.hub.on('state', (state) => {
-      this.getWindow()?.webContents.send(IPC_CHANNELS.mgmtHubState, state);
-    });
+    };
+    if (this.verifiedTeacherRoomId) {
+      const cached = loadMachineRoleCache(this.userDataPath);
+      saveMachineRoleCache(this.userDataPath, {
+        role: 'teacher',
+        roomId: this.verifiedTeacherRoomId,
+        computerId: cached?.computerId ?? null,
+        reason: 'login_verified',
+      });
+    }
+    const lan = await this.ensureTeacherLan();
+    if (!lan.ok) return { ok: false, error: lan.error };
+    this.hub?.updateTeacher(this.pendingTeacher);
+    return { ok: true, email: body.account.email };
+  }
+
+  async listTodayExamSessions(): Promise<{
+    ok: boolean;
+    error?: string;
+    items?: Array<{
+      id: string;
+      name: string;
+      code: string;
+      courseName: string;
+      roomName: string;
+      roomId: string | null;
+      courseId: string | null;
+      startTime: string;
+      endTime: string;
+      status: string;
+    }>;
+  }> {
+    if (!this.pendingTeacher) {
+      return { ok: false, error: 'Chưa đăng nhập giảng viên.' };
+    }
     try {
-      await this.hub.start();
+      const res = await fetch(`${this.backendUrl}/exam-sessions/mgmt/today`, {
+        headers: { Authorization: `Bearer ${this.pendingTeacher.accessToken}` },
+      });
+      if (!res.ok) {
+        return { ok: false, error: `Không tải được kỳ thi hôm nay (HTTP ${res.status}).` };
+      }
+      const body = (await res.json()) as { items: Array<Record<string, unknown>> };
+      let items = (body.items ?? []).map((it) => ({
+        id: String(it.id),
+        name: String(it.name ?? ''),
+        code: String(it.code ?? ''),
+        courseName: String(it.courseName ?? ''),
+        roomName: String(it.roomName ?? ''),
+        roomId: (it.roomId as string | null) ?? null,
+        courseId: (it.courseId as string | null) ?? null,
+        startTime: String(it.startTime ?? ''),
+        endTime: String(it.endTime ?? ''),
+        status: String(it.status ?? ''),
+      }));
+      // Chỉ hiện kỳ thi cùng phòng với máy GV đã xác thực lúc login.
+      if (this.verifiedTeacherRoomId) {
+        items = items.filter(
+          (it) => !it.roomId || it.roomId === this.verifiedTeacherRoomId,
+        );
+      }
+      return { ok: true, items };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await this.stop();
-      if (msg.includes('EADDRINUSE')) {
+      return {
+        ok: false,
+        error: `Không tải được kỳ thi: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+  }
+
+  async startTeacherHub(opts?: {
+    examSessionId?: string | null;
+    courseId?: string | null;
+    roomId?: string | null;
+    examLabel?: string | null;
+  }): Promise<{ ok: boolean; error?: string }> {
+    if (!this.pendingTeacher) {
+      return { ok: false, error: 'Chưa đăng nhập giảng viên.' };
+    }
+
+    const roomId = opts?.roomId?.trim() || null;
+    if (
+      this.verifiedTeacherRoomId &&
+      roomId &&
+      roomId !== this.verifiedTeacherRoomId
+    ) {
+      return {
+        ok: false,
+        error: 'Kỳ thi thuộc phòng khác với máy giảng viên bạn đang đăng nhập.',
+      };
+    }
+    const hw = await collectMachineHardware({ force: true });
+    try {
+      const verifyRes = await fetch(`${this.backendUrl}/ide-extensions/lab/teacher-machine/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.pendingTeacher.accessToken}`,
+        },
+        body: JSON.stringify({
+          machineId: this.machineId,
+          roomId,
+          hostname: getHostname(),
+          macAddress: hw.macAddress,
+        }),
+      });
+      if (!verifyRes.ok) {
+        return {
+          ok: false,
+          error: `Không kiểm tra được máy giảng viên (HTTP ${verifyRes.status}).`,
+        };
+      }
+      const verdict = (await verifyRes.json()) as { ok: boolean; reason?: string };
+      if (!verdict.ok) {
         return {
           ok: false,
           error:
-            'Cổng Hub đã bị chiếm — có thể máy giảng viên khác đang chạy trên LAN này. Chỉ một Hub mỗi phòng.',
+            'Máy này không phải máy giảng viên của phòng kỳ thi. Chỉ máy GV đã gắn trong quản lý phòng máy mới mở được Teacher Hub.',
         };
       }
-      return { ok: false, error: `Không khởi động được Hub: ${msg}` };
+    } catch (err) {
+      return {
+        ok: false,
+        error: `Không kiểm tra được máy giảng viên: ${err instanceof Error ? err.message : String(err)}`,
+      };
     }
-    return { ok: true, email: body.account.email };
+
+    this.courseId = opts?.courseId?.trim() || null;
+    this.examSessionId = opts?.examSessionId?.trim() || null;
+    this.roomId = roomId;
+    this.examLabel = opts?.examLabel?.trim() || null;
+
+    const lan = await this.ensureTeacherLan();
+    if (!lan.ok) return lan;
+    this.hub?.updateTeacher(this.pendingTeacher);
+    return { ok: true };
+  }
+
+  getMgmtContext() {
+    return {
+      courseId: this.courseId,
+      examSessionId: this.examSessionId,
+      roomId: this.roomId,
+      examLabel: this.examLabel,
+    };
+  }
+
+  private async stopHubOnly(): Promise<void> {
+    if (this.hub) {
+      await this.hub.stop();
+      this.hub = null;
+    }
   }
 
   async startStudentNode(
     mssv: string,
   ): Promise<{ ok: boolean; error?: string; mssv?: string; fullName?: string }> {
-    await this.stop();
     const cleaned = mssv.replace(/[^A-Za-z0-9]/g, '').slice(0, 20);
     if (cleaned.length < 4) {
       return { ok: false, error: 'MSSV không hợp lệ.' };
@@ -139,12 +479,32 @@ export class LabMgmtRuntime {
       };
     }
 
-    this.node = new StudentNode(this.machineId, student.mssv, student.fullName);
-    this.node.on('state', (state) => {
-      this.getWindow()?.webContents.send(IPC_CHANNELS.mgmtNodeState, state);
+    await this.ensureStudentLan();
+    saveMachineRoleCache(this.userDataPath, {
+      role: 'student',
+      roomId: loadMachineRoleCache(this.userDataPath)?.roomId ?? null,
+      computerId: loadMachineRoleCache(this.userDataPath)?.computerId ?? null,
+      reason: 'student_login',
     });
-    this.node.start();
+    this.node?.bindStudent(student.mssv, student.fullName);
     return { ok: true, mssv: student.mssv, fullName: student.fullName };
+  }
+
+  /** Rời màn hình đăng nhập/hub — giữ LAN Hub/Node. */
+  async leaveSession(): Promise<void> {
+    this.pendingTeacher = null;
+    this.courseId = null;
+    this.examSessionId = null;
+    this.examLabel = null;
+    this.roomId = null;
+    this.lastComparisons = [];
+    this.lastEffective = [];
+    if (this.hub) {
+      this.hub.updateTeacher(this.stubTeacherIdentity());
+    }
+    if (this.node) {
+      this.node.bindStudent('', 'Chưa đăng nhập');
+    }
   }
 
   async stop(): Promise<void> {
@@ -156,6 +516,12 @@ export class LabMgmtRuntime {
       this.node.stop();
       this.node = null;
     }
+    this.pendingTeacher = null;
+    this.verifiedTeacherRoomId = null;
+    this.courseId = null;
+    this.examSessionId = null;
+    this.roomId = null;
+    this.examLabel = null;
     this.lastComparisons = [];
     this.lastEffective = [];
   }
@@ -269,6 +635,7 @@ export class LabMgmtRuntime {
     const body = {
       labMgmtSessionId: hubState.sessionId,
       courseId: this.courseId,
+      examSessionId: this.examSessionId,
       teacherAccountId: this.hub.getTeacherAccountId(),
       machines: hubState.nodes.map((n) => ({
         machineId: n.machineId,

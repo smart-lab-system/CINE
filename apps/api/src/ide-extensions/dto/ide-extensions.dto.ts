@@ -435,3 +435,23 @@ export class AcceptCreateRoomDto {
   @IsString()
   note?: string | null;
 }
+
+export class VerifyTeacherMachineDto {
+  @IsString()
+  @MaxLength(100)
+  machineId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  roomId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  hostname?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(17)
+  macAddress?: string | null;
+}

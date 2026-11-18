@@ -65,6 +65,7 @@ const EMPTY_PC = {
   ipAddress: '',
   macAddress: '',
   status: 'active' as ComputerStatus,
+  isTeacherMachine: false,
 };
 
 export default function ComputersMasterDataPage() {
@@ -182,6 +183,7 @@ function ComputersMasterDataContent() {
       ipAddress: c.ipAddress ?? '',
       macAddress: c.macAddress ?? '',
       status: c.status,
+      isTeacherMachine: Boolean(c.isTeacherMachine),
     });
     setPcOpen(true);
   }
@@ -201,7 +203,10 @@ function ComputersMasterDataContent() {
     };
     if (editingPcId) {
       pcMut.update.mutate(
-        { id: editingPcId, body },
+        {
+          id: editingPcId,
+          body: { ...body, isTeacherMachine: pcForm.isTeacherMachine },
+        },
         {
           onSuccess: () => {
             toast.success('Đã cập nhật máy');
@@ -296,9 +301,24 @@ function ComputersMasterDataContent() {
         rows={
           computers.data?.items.length
             ? computers.data.items.map((c) => (
-                <TableRow key={c.id}>
+                <TableRow
+                  key={c.id}
+                  className={
+                    c.isTeacherMachine
+                      ? 'bg-sky-500/10 hover:bg-sky-500/15 dark:bg-sky-400/10 dark:hover:bg-sky-400/15'
+                      : undefined
+                  }
+                  title={c.isTeacherMachine ? 'Máy giảng viên' : undefined}
+                >
                   <TableCell className="font-mono">{roomCode(c.roomId)}</TableCell>
-                  <TableCell className="font-mono">{c.hostname}</TableCell>
+                  <TableCell className="font-mono">
+                    {c.hostname}
+                    {c.isTeacherMachine ? (
+                      <span className="ml-2 text-xs font-medium text-sky-800 dark:text-sky-300">
+                        · Máy GV
+                      </span>
+                    ) : null}
+                  </TableCell>
                   <TableCell>{c.location || '—'}</TableCell>
                   <TableCell>{c.cpu}</TableCell>
                   <TableCell>{c.ramGb} GB</TableCell>
@@ -415,6 +435,24 @@ function ComputersMasterDataContent() {
                 </SelectContent>
               </Select>
             </div>
+            {editingPcId ? (
+              <label className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={pcForm.isTeacherMachine}
+                  onChange={(e) =>
+                    setPcForm({ ...pcForm, isTeacherMachine: e.target.checked })
+                  }
+                />
+                <span>
+                  <span className="font-medium">Máy giảng viên</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Mỗi phòng tối đa một máy. Bật sẽ bỏ cờ máy GV cũ cùng phòng (nếu có).
+                  </span>
+                </span>
+              </label>
+            ) : null}
           </div>
           <DialogFooter>
             <Button onClick={submitPc}>Lưu</Button>

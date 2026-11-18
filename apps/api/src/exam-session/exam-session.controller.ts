@@ -83,6 +83,13 @@ export class ExamSessionController {
     return this.examSessions.findAllForOwner(req.user!.sub, query);
   }
 
+  /** Agent Quản lý — kỳ thi bắt đầu hôm nay (Asia/Ho_Chi_Minh). */
+  @Get('mgmt/today')
+  @Roles('teacher', 'admin')
+  listTodayForMgmt(@Req() req: Request) {
+    return this.examSessions.listTodayForMgmt(req.user!.sub);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: Request) {
     return this.examSessions.findByIdForOwner(id, req.user!.sub);

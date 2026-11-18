@@ -37,7 +37,7 @@ export function TeacherLogin({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-5">
         <Spinner />
-        <p className="text-small font-semibold">Đang đăng nhập và khởi động Hub…</p>
+        <p className="text-small font-semibold">Đang đăng nhập…</p>
       </div>
     );
   }
@@ -47,7 +47,8 @@ export function TeacherLogin({
       <BrandMark />
       <h1 className="-mb-1 text-h2 font-bold">Giảng viên</h1>
       <p className="text-small text-muted-foreground">
-        Đăng nhập tài khoản hệ thống. Máy này sẽ thành Teacher Hub trên LAN phòng lab.
+        Đăng nhập trên đúng máy giảng viên của phòng lab. Tài khoản hợp lệ nhưng ngồi sai máy sẽ bị
+        từ chối.
       </p>
       <Field
         label="Email"

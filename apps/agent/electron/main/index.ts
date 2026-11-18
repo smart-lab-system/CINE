@@ -207,12 +207,17 @@ function registerIpcHandlers(c: SessionController, mgmt: LabMgmtRuntime): void {
     quitApp();
   });
 
+  ipcMain.handle(IPC_CHANNELS.mgmtResolveMachineRole, () => mgmt.resolveMachineRole());
   ipcMain.handle(IPC_CHANNELS.mgmtLoginTeacher, (_e, payload: TeacherLoginRequest) =>
     mgmt.loginTeacher(payload.email, payload.password),
   );
+  ipcMain.handle(IPC_CHANNELS.mgmtListTodayExams, () => mgmt.listTodayExamSessions());
+  ipcMain.handle(IPC_CHANNELS.mgmtStartTeacherHub, (_e, payload) => mgmt.startTeacherHub(payload));
+  ipcMain.handle(IPC_CHANNELS.mgmtGetContext, () => mgmt.getMgmtContext());
   ipcMain.handle(IPC_CHANNELS.mgmtStartStudentNode, (_e, payload: StartStudentNodeRequest) =>
     mgmt.startStudentNode(payload.mssv),
   );
+  ipcMain.handle(IPC_CHANNELS.mgmtLeaveSession, () => mgmt.leaveSession());
   ipcMain.handle(IPC_CHANNELS.mgmtStop, () => mgmt.stop());
   ipcMain.handle(IPC_CHANNELS.mgmtGetHubState, () => mgmt.getHubState());
   ipcMain.handle(IPC_CHANNELS.mgmtGetNodeState, () => mgmt.getNodeState());
@@ -247,6 +252,7 @@ app.whenReady().then(() => {
   controller = wireController();
   labMgmt = new LabMgmtRuntime(BACKEND_URL, app.getPath('userData'), () => mainWindow);
   registerIpcHandlers(controller, labMgmt);
+  void labMgmt.bootstrapLanFromCache();
 
   // A renderer that reloads (dev-mode HMR, or reopening after being
   // hidden) has no memory of prior state — replay whatever we already

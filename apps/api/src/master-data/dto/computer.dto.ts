@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -110,6 +111,20 @@ export class UpdateComputerDto {
   @IsOptional()
   @IsIn(STATUSES)
   status?: ComputerStatus;
+
+  @IsOptional()
+  @IsBoolean()
+  isTeacherMachine?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  agentMachineId?: string | null;
+}
+
+export class SetTeacherMachineDto {
+  @IsBoolean()
+  isTeacherMachine!: boolean;
 }
 
 export class ListComputersDto {

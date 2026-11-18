@@ -271,6 +271,11 @@ export function useComputerMutations() {
         api.updateComputer(id, body),
       onSuccess: inv,
     }),
+    setTeacherMachine: useMutation({
+      mutationFn: ({ id, isTeacherMachine }: { id: string; isTeacherMachine: boolean }) =>
+        api.setTeacherMachine(id, isTeacherMachine),
+      onSuccess: inv,
+    }),
     remove: useMutation({ mutationFn: api.deleteComputer, onSuccess: inv }),
   };
 }

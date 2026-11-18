@@ -46,6 +46,7 @@ import { CreateRoomDto, ListRoomsDto, UpdateRoomDto } from './dto/room.dto';
 import {
   CreateComputerDto,
   ListComputersDto,
+  SetTeacherMachineDto,
   UpdateComputerDto,
 } from './dto/computer.dto';
 
@@ -354,6 +355,12 @@ export class ComputersController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateComputerDto) {
     return this.masterData.updateComputer(id, dto);
+  }
+
+  /** Đặt / bỏ cờ máy giảng viên (mỗi phòng tối đa một máy). */
+  @Post(':id/set-teacher-machine')
+  setTeacherMachine(@Param('id') id: string, @Body() dto: SetTeacherMachineDto) {
+    return this.masterData.setTeacherMachine(id, dto);
   }
 
   @Delete(':id')

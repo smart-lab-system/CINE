@@ -39,6 +39,7 @@ import {
   EnsureArtifactsDto,
   RejectRoomProposalDto,
   UpdateCatalogExtensionDto,
+  VerifyTeacherMachineDto,
 } from './dto/ide-extensions.dto';
 
 @Controller('ide-extensions')
@@ -333,6 +334,14 @@ export class IdeExtensionsController {
   @Roles('admin', 'teacher')
   getScan(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.getScanWithItems(id);
+  }
+
+  // ── Teacher machine verify (Agent Hub) ────────────────────────────
+
+  @Post('lab/teacher-machine/verify')
+  @Roles('teacher', 'admin')
+  verifyTeacherMachine(@Body() dto: VerifyTeacherMachineDto) {
+    return this.service.verifyTeacherMachine(dto);
   }
 
   // ── Room proposals ────────────────────────────────────────────────
