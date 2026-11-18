@@ -16,6 +16,7 @@ import { Sparkles,
   Layers,
   Puzzle,
   Terminal,
+  BookMarked,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -64,6 +65,7 @@ export const TEACHER_NAV: NavItem[] = [
   // Đứng TRƯỚC "Rubric" và "Chấm điểm": soạn đề là việc đầu tiên trong vòng đời
   // một kỳ thi, và thứ tự menu nên đọc ra được vòng đời đó.
   { label: 'Soạn đề', href: '/teacher/exam-authoring', icon: Sparkles },
+  { label: 'Kho đề', href: '/teacher/exam-bank', icon: BookMarked },
   // Rubric: tiêu chí, điểm tối đa, lỗi và điểm trừ — phải có trước khi chấm (spec UI §1).
   // Trang `/teacher/rubrics` chuyển hướng về `/teacher/rules`.
   { label: 'Rubric', href: '/teacher/rules', icon: ListChecks },
