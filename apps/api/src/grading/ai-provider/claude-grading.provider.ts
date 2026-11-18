@@ -267,7 +267,7 @@ export class ClaudeGradingProvider implements AIGradingProvider {
       // rỗng thì lượt chấm chạy ở mức "chỉ có rubric" dù phiên có đủ
       // tài liệu, và `grading-readiness` không được phép nói ngược lại.
       contextUsed: {
-        question: Boolean(request.reference?.questionPdf),
+        question: Boolean(request.reference?.questionPdf || request.reference?.questionText),
         modelAnswer: Boolean(
           request.reference?.modelAnswerPdf ||
             request.reference?.modelAnswerNote ||

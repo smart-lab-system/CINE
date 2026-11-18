@@ -43,6 +43,7 @@ export class ClaudeAdvocateProvider implements AdvocateProvider {
     const prompt = buildAdvocatePrompt({
       studentText: request.content,
       questionPdf: request.questionPdf,
+      questionText: request.questionText,
       modelAnswerPdf: request.modelAnswerPdf,
       modelAnswerNote: request.modelAnswerNote,
     });

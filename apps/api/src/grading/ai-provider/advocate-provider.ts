@@ -18,6 +18,8 @@ export interface AdvocateRequest {
    * token hơn, và ý kiến thứ hai không còn độc lập.
    */
   questionPdf?: Buffer;
+  /** Đề đã trích chữ (docx/txt) - text block; OpenAI-compatible cũng gửi được. */
+  questionText?: string;
   modelAnswerPdf?: Buffer;
   modelAnswerNote?: string;
 }

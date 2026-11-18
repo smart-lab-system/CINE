@@ -20,6 +20,7 @@ import {
   type ModelAnswerFileText,
   type ModelAnswerPackageKind,
 } from './model-answer-package';
+import { resolveQuestionMaterial } from './resolve-question-material';
 
 /**
  * Mã nguồn đáp án mẫu đã nằm trên kho theo băm nội dung. Đi qua THAM SỐ của service, không qua HTTP DTO:
@@ -83,7 +84,13 @@ export interface GradingReadiness {
 
 /** Tài liệu đã nạp sẵn, dạng dùng được cho prompt. */
 export interface LoadedGradingReference {
+  /**
+   * Đề PDF thật - document block. Chỉ set khi tên file là `.pdf`.
+   * DOCX/TXT dùng `questionText`, không nhét vào đây.
+   */
   questionPdf?: Buffer;
+  /** Đề đã trích chữ (docx / txt / … mà `extractText` đọc được). */
+  questionText?: string;
   questionFilename?: string;
   /** Buffer PDF đơn (document block). Zip / file text dùng `modelAnswerFiles`. */
   modelAnswer?: Buffer;
@@ -581,8 +588,20 @@ export class GradingReferenceService {
 
     if (row.questionMaterial) {
       try {
-        loaded.questionPdf = await this.storage.getObject(row.questionMaterial.storageKey);
-        loaded.questionFilename = row.questionMaterial.fileName;
+        const bytes = await this.storage.getObject(row.questionMaterial.storageKey);
+        const filename = row.questionMaterial.fileName;
+        loaded.questionFilename = filename;
+        const resolved = await resolveQuestionMaterial(bytes, filename);
+        if (resolved.kind === 'pdf') {
+          loaded.questionPdf = resolved.bytes;
+        } else if (resolved.kind === 'text') {
+          loaded.questionText = resolved.text;
+        } else {
+          this.logger.warn(
+            `session ${examSessionId}: đề bài "${filename}" không trích được chữ và không phải PDF — ` +
+              'chấm tiếp không có đề trong prompt',
+          );
+        }
       } catch (error) {
         this.logger.warn(
           `session ${examSessionId}: không đọc được đề bài — chấm tiếp không có nó: ` +
@@ -626,7 +645,7 @@ export class GradingReferenceService {
       Boolean(loaded.note);
 
     // Mức tính từ thứ THẬT SỰ nạp được, không phải từ thứ đã cấu hình.
-    if (loaded.questionPdf) {
+    if (loaded.questionPdf || loaded.questionText) {
       loaded.loadedLevel = hasLoadedAnswer ? 'with_model_answer' : 'with_question';
     }
 

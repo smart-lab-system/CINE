@@ -39,7 +39,10 @@ export type PromptBlock =
 export interface GraderPromptInput {
   criteria: GradingRubricCriterion[];
   studentText: string;
+  /** Đề PDF thật → document block. */
   questionPdf?: Buffer;
+  /** Đề đã trích (docx/txt) → text block `<exam_question>`. */
+  questionText?: string;
   modelAnswerPdf?: Buffer;
   /** Text trích từ zip / file không-PDF đáp án mẫu. */
   modelAnswerFiles?: Array<{ path: string; text: string }>;
@@ -228,9 +231,14 @@ export function buildGraderPrompt(input: GraderPromptInput): GraderPrompt {
 
   // ③ đề bài + đáp án mẫu — dùng lại cho 40 bài của phiên này.
   //
-  // PDF đi bằng document block, KHÔNG trích text: `extractText` trả rỗng
-  // cho PDF, và một đề thi có sơ đồ mạch điện hay công thức thì trích text
-  // sẽ mất sạch phần quan trọng nhất.
+  // DOCX/TXT: chữ đã trích → text block (cùng ý đáp án mẫu không-PDF).
+  // PDF: document block, KHÔNG trích text — sơ đồ/công thức mất nếu chỉ lấy chữ.
+  if (input.questionText) {
+    userContent.push({
+      type: 'text',
+      text: `<exam_question>\n${input.questionText}\n</exam_question>`,
+    });
+  }
   if (input.questionPdf) {
     userContent.push({
       type: 'document',

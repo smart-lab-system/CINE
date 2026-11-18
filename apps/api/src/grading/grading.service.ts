@@ -146,6 +146,7 @@ export class GradingService {
         studentMssv: submission.studentMssv,
         content: studentText,
         questionPdf: reference.questionPdf,
+        questionText: reference.questionText,
         modelAnswerPdf: reference.modelAnswer,
         modelAnswerNote: [
           reference.note,
@@ -474,6 +475,7 @@ export class GradingService {
         : undefined,
       reference: {
         questionPdf: reference.questionPdf,
+        questionText: reference.questionText,
         modelAnswerPdf: reference.modelAnswer,
         modelAnswerFiles: reference.modelAnswerFiles,
         modelAnswerNote: reference.note,
@@ -859,9 +861,13 @@ export class GradingService {
         aiTotalScore: entity.aiTotalScore === null ? null : Number(entity.aiTotalScore),
         confidence: entity.confidence === null ? null : Number(entity.confidence),
         flagForReview: entity.flagForReview,
+        /** ISO - lúc xếp hàng / đưa về `ai_grading` lần gần nhất. Hồ sơ đang chấm dùng để hiện "đã X phút Y giây". */
+        gradingTriggeredAt: new Date(entity.gradingTriggeredAt).toISOString(),
         ungradableReason: entity.ungradableReason,
         ungradableClass: entity.ungradableClass ?? null,
         criterionResults: entity.criterionResults,
+        /** UC33 QS - null với QA. */
+        selectedApproachKey: entity.selectedApproachKey ?? null,
         // Đầu ra của lượt phản biện. Backend đã ghi ba cột này từ Plan 2;
         // cho tới đây không đường nào đọc chúng ra, nên tính năng hoàn
         // chỉnh ở tầng ghi mà vô hình ở tầng đọc.
@@ -927,6 +933,11 @@ export interface GradingResultView {
   confidence: number | null;
   flagForReview: boolean;
   /**
+   * Lúc xếp hàng / đưa về `ai_grading` lần gần nhất (ISO).
+   * Hồ sơ đang chấm: `now - gradingTriggeredAt` = thời gian đã chạy.
+   */
+  gradingTriggeredAt: string;
+  /**
    * Vì sao AI KHÔNG chấm được — `null` với mọi dòng chấm bình thường.
    * Xem docblock của cột cùng tên ở `grading-result.entity.ts`.
    */
@@ -937,6 +948,8 @@ export interface GradingResultView {
    */
   ungradableClass: 'system' | 'submission' | null;
   criterionResults: unknown[];
+  /** UC33 QS: cách giải đã chọn lúc chấm. `null` với QA hoặc bài cũ. */
+  selectedApproachKey: string | null;
   /**
    * Ý kiến lượt phản biện.
    *

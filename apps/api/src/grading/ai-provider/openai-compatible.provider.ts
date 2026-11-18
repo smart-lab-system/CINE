@@ -197,7 +197,11 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
     // PDF là không. Phân biệt hai thứ đó chính là chỗ `contextUsed` ở cuối
     // hàm lấy sự thật để báo cáo.
     const note = request.reference?.modelAnswerNote;
+    const questionText = request.reference?.questionText?.trim();
     const answerFiles = request.reference?.modelAnswerFiles;
+    const questionBlock = questionText
+      ? `<exam_question>\n${questionText}\n</exam_question>`
+      : '';
     const filesBlock =
       answerFiles && answerFiles.length > 0
         ? [
@@ -221,9 +225,18 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
           ].join('\n')
         : '';
 
+    if (request.reference?.questionPdf && !questionText) {
+      // NÓI RA: có đề PDF nhưng giao thức chat không gửi document block.
+      this.logger.log(
+        `submission ${request.studentMssv}: có PDF đề bài nhưng ${this.config.tier} ` +
+          'không gửi được document — lượt chấm không thấy đề (cần docx/txt hoặc Claude)',
+      );
+    }
+
     const userContent = [
       qsBlock,
       renderRubric(request.criteria),
+      questionBlock,
       filesBlock,
       note ? `<teacher_note>\n${note}\n</teacher_note>` : '<teacher_note/>',
       envelope.wrapped,
@@ -271,10 +284,9 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
       totalScore: 0,
       confidenceCeiling: this.config.ceiling,
       usage,
-      // SỰ THẬT, không phải cấu hình: giao thức này không gửi được PDF, nên
-      // dù giảng viên đã upload đề bài thì lượt chấm NÀY vẫn không thấy nó.
+      // SỰ THẬT: PDF đề không gửi được; đề đã trích chữ (docx/txt) thì có.
       contextUsed: {
-        question: false,
+        question: Boolean(questionText),
         modelAnswer: Boolean(note) || Boolean(answerFiles && answerFiles.length > 0),
       },
     };

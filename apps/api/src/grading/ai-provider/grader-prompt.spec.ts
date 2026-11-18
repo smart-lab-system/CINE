@@ -92,6 +92,20 @@ describe('buildGraderPrompt', () => {
     expect((doc as { source: { media_type: string } }).source.media_type).toBe('application/pdf');
   });
 
+  it('đề đã trích (docx/txt) đi text block exam_question, không giả PDF', () => {
+    const p = buildGraderPrompt({
+      ...BASE,
+      questionText: 'Viết chương trình sắp xếp mảng số nguyên.',
+    });
+
+    const block = p.userContent.find(
+      (b) => b.type === 'text' && b.text.includes('<exam_question>'),
+    );
+    expect(block?.type).toBe('text');
+    expect(block && 'text' in block ? block.text : '').toContain('sắp xếp mảng');
+    expect(p.userContent.some((b) => b.type === 'document')).toBe(false);
+  });
+
   it('không có tài liệu nào thì vẫn dựng được prompt hợp lệ', () => {
     // Mức suy giảm 1 là hợp lệ — chỉ kém hơn. Ném ở đây sẽ biến một sự
     // suy giảm đã báo trước thành một lỗi chặn đường.

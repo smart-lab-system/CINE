@@ -28,6 +28,8 @@ const CACHE_CONTROL = { type: 'ephemeral' as const };
 export interface AdvocatePromptInput {
   studentText: string;
   questionPdf?: Buffer;
+  /** Đề đã trích (docx/txt) → text block. */
+  questionText?: string;
   modelAnswerPdf?: Buffer;
   modelAnswerNote?: string;
 }
@@ -88,9 +90,13 @@ export function buildAdvocatePrompt(input: AdvocatePromptInput): AdvocatePrompt 
 
   const userContent: PromptBlock[] = [];
 
-  // ② đề bài + đáp án mẫu. PDF đi bằng document block, KHÔNG trích text —
-  // cùng lý do với Grader: một đề có sơ đồ hay công thức thì trích text
-  // làm mất đúng phần quan trọng nhất.
+  // ② đề bài + đáp án mẫu. DOCX/TXT → chữ; PDF → document block (giữ sơ đồ).
+  if (input.questionText) {
+    userContent.push({
+      type: 'text',
+      text: `<exam_question>\n${input.questionText}\n</exam_question>`,
+    });
+  }
   if (input.questionPdf) {
     userContent.push({
       type: 'document',

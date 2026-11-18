@@ -218,6 +218,8 @@ export class RegradeService {
           ungradableReason: null,
           flagForReview: false,
           confidence: null,
+          // Đồng hồ "đã chấm bao lâu" phải tính từ lần xếp hàng NÀY, không phải lần cũ.
+          gradingTriggeredAt: () => 'NOW()',
         })
         .where('id = :id', { id: row.id })
         .andWhere("status = 'flagged_for_review'")
@@ -253,6 +255,8 @@ export class RegradeService {
           ungradableClass: null,
           ungradableReason: null,
           flagForReview: false,
+          // Đồng hồ "đã chấm bao lâu" phải tính từ lần xếp hàng NÀY, không phải lần cũ.
+          gradingTriggeredAt: () => 'NOW()',
         })
         .where('id = :id', { id: row.id })
         .andWhere('status IN (:...statuses)', {

@@ -63,6 +63,9 @@ export class InvestigationContextService {
     // đề gắn bằng tệp) thì đọc đề cấp phiên như trước.
     const ownStatement = typeof row.problem_statement === 'string' ? row.problem_statement.trim() : '';
     let problemStatement = ownStatement;
+    if (problemStatement === '' && reference.questionText) {
+      problemStatement = reference.questionText.trim();
+    }
     if (problemStatement === '' && reference.questionPdf) {
       problemStatement = (await extractText(reference.questionPdf, reference.questionFilename ?? '')).trim();
     }
