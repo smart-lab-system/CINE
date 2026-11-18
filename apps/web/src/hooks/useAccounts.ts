@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   searchAccounts,
+  getAccount,
   createAccount,
   updateAccount,
   deleteAccount,
@@ -27,6 +28,14 @@ export function useAccounts(params: SearchAccountsParams) {
     // role, page, and pageSize (admin list picker: 30/50/100).
     queryKey: [ACCOUNTS_QUERY_KEY, params],
     queryFn: () => searchAccounts(params),
+  });
+}
+
+export function useAccount(id: string | undefined) {
+  return useQuery({
+    queryKey: [ACCOUNTS_QUERY_KEY, 'one', id],
+    queryFn: () => getAccount(id!),
+    enabled: Boolean(id),
   });
 }
 

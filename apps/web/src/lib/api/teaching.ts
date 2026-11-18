@@ -7,6 +7,8 @@ export interface TeachingClass {
   id: string;
   /** Mã lớp = `{course.code}{001|002|…}` trong học kỳ. */
   name: string;
+  /** Catalog môn — null với lớp legacy. */
+  courseId: string | null;
   courseName: string;
   /** null với lớp legacy chưa gắn catalog kỳ. */
   semesterId: string | null;

@@ -5,12 +5,14 @@ import {
   addSectionStudent,
   assignCourseSection,
   createCourseSection,
+  deactivateCourseSection,
   deleteCourseSection,
   getCourseSection,
   importSectionRoster,
   listCourseSections,
   listSectionRoster,
   listTeacherOptions,
+  reactivateCourseSection,
   removeSectionStudent,
   unassignCourseSection,
   updateCourseSection,
@@ -108,6 +110,22 @@ export function useDeleteCourseSection() {
   const invalidate = useInvalidateSections();
   return useMutation({
     mutationFn: deleteCourseSection,
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeactivateCourseSection() {
+  const invalidate = useInvalidateSections();
+  return useMutation({
+    mutationFn: deactivateCourseSection,
+    onSuccess: invalidate,
+  });
+}
+
+export function useReactivateCourseSection() {
+  const invalidate = useInvalidateSections();
+  return useMutation({
+    mutationFn: reactivateCourseSection,
     onSuccess: invalidate,
   });
 }

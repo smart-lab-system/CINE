@@ -87,6 +87,10 @@ export class AccountsService {
     return { items: rows.map((row) => this.toView(row)), total };
   }
 
+  async getById(id: string): Promise<AccountView> {
+    return this.toView(await this.findOrThrow(id));
+  }
+
   async update(id: string, dto: UpdateAccountDto): Promise<AccountView> {
     const account = await this.findOrThrow(id);
 

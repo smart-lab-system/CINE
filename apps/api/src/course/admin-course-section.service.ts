@@ -36,6 +36,8 @@ export interface CourseSectionView {
   studentCount: number;
   /** Số phiên thi gắn lớp — UI khóa sửa meta khi > 0. */
   examSessionCount: number;
+  /** `false` = vô hiệu hoá (soft). */
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -321,6 +323,27 @@ export class AdminCourseSectionService {
     await this.classes.remove(klass);
   }
 
+  /** Soft-deactivate: ẩn khỏi「Lớp của tôi」, không mở phiên mới. */
+  async deactivate(id: string): Promise<CourseSectionView> {
+    const klass = await this.getEntity(id);
+    if (!klass.isActive) {
+      return this.findOne(id);
+    }
+    klass.isActive = false;
+    await this.classes.save(klass);
+    return this.findOne(id);
+  }
+
+  async reactivate(id: string): Promise<CourseSectionView> {
+    const klass = await this.getEntity(id);
+    if (klass.isActive) {
+      return this.findOne(id);
+    }
+    klass.isActive = true;
+    await this.classes.save(klass);
+    return this.findOne(id);
+  }
+
   async assign(id: string, dto: AssignCourseSectionDto): Promise<CourseSectionView> {
     const teacherId = await this.requireTeacher(dto.teacherId);
 
@@ -493,6 +516,7 @@ export class AdminCourseSectionService {
       teacherName: extra.teacherName,
       studentCount: extra.studentCount,
       examSessionCount: extra.examSessionCount,
+      isActive: klass.isActive !== false,
       createdAt: klass.createdAt,
       updatedAt: klass.updatedAt,
     };

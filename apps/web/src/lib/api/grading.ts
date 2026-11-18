@@ -4,6 +4,8 @@ import { apiClient } from '@/lib/api-client';
 export interface Rubric {
   id: string;
   teacherId: string;
+  /** Neo ngân hàng môn — null với legacy. */
+  courseId?: string | null;
   /** Tên do giảng viên đặt. Thay vai trò định danh mà môn học từng giữ. */
   name: string;
   version: number;
@@ -11,6 +13,7 @@ export interface Rubric {
   /** `qa` (mặc định) hoặc `qs` — checklist nhiều hướng theo câu (DSA). */
   kind?: 'qa' | 'qs';
   totalPoints: number;
+  updatedAt?: string;
   /**
    * `key` là định danh ỔN ĐỊNH của tiêu chí — luật trỏ vào nó (`criterionKey`). Lưu rubric mà bỏ `key`
    * thì server sinh lại từ mô tả, và sửa một mô tả có thể âm thầm cắt liên kết luật → tiêu chí.
@@ -236,11 +239,13 @@ export async function listRubrics(): Promise<Rubric[]> {
 export type SaveRubricInput =
   | {
       name: string;
+      courseId?: string;
       kind?: 'qa';
       criteria: { description: string; maxPoints: number; key?: string }[];
     }
   | {
       name: string;
+      courseId?: string;
       kind: 'qs';
       approaches: {
         name: string;
@@ -256,8 +261,18 @@ export type SaveRubricInput =
 export async function saveRubric(input: SaveRubricInput): Promise<Rubric> {
   const body =
     input.kind === 'qs'
-      ? { name: input.name, kind: 'qs' as const, approaches: input.approaches }
-      : { name: input.name, kind: 'qa' as const, criteria: input.criteria };
+      ? {
+          name: input.name,
+          kind: 'qs' as const,
+          approaches: input.approaches,
+          ...(input.courseId ? { courseId: input.courseId } : {}),
+        }
+      : {
+          name: input.name,
+          kind: 'qa' as const,
+          criteria: input.criteria,
+          ...(input.courseId ? { courseId: input.courseId } : {}),
+        };
   const { data, error, response } = await apiClient.POST('/rubrics', {
     body: body as never,
   });

@@ -14,9 +14,9 @@ vi.mock('@/hooks/useRubricErrors', () => ({ useCopyErrors: () => ({ mutate: copy
 vi.mock('@/hooks/useTeaching', () => ({
   useTeachingClasses: () => ({
     data: [
-      { id: 'k1', name: 'CTDL001', courseName: 'Cấu trúc dữ liệu', semesterId: null, semesterName: null, nominalClassId: null, nominalClassName: null, studentCount: 30 },
-      { id: 'k2', name: 'CTDL002', courseName: 'Cấu trúc dữ liệu', semesterId: null, semesterName: null, nominalClassId: null, nominalClassName: null, studentCount: 28 },
-      { id: 'k3', name: 'TRR001', courseName: 'Toán rời rạc', semesterId: null, semesterName: null, nominalClassId: null, nominalClassName: null, studentCount: 40 },
+      { id: 'k1', name: 'CTDL001', courseId: 'course-ctdl', courseName: 'Cấu trúc dữ liệu', semesterId: null, semesterName: null, nominalClassId: null, nominalClassName: null, studentCount: 30 },
+      { id: 'k2', name: 'CTDL002', courseId: 'course-ctdl', courseName: 'Cấu trúc dữ liệu', semesterId: null, semesterName: null, nominalClassId: null, nominalClassName: null, studentCount: 28 },
+      { id: 'k3', name: 'TRR001', courseId: 'course-trr', courseName: 'Toán rời rạc', semesterId: null, semesterName: null, nominalClassId: null, nominalClassName: null, studentCount: 40 },
     ],
     isLoading: false,
   }),
@@ -24,7 +24,7 @@ vi.mock('@/hooks/useTeaching', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const rubric: Rubric = {
-  id: 'ru-1', teacherId: 't', name: 'CTDL', version: 2, isActive: true, totalPoints: 8.5,
+  id: 'ru-1', teacherId: 't', courseId: 'course-ctdl', name: 'CTDL', version: 2, isActive: true, totalPoints: 8.5,
   criteria: [
     { id: 'c1', key: 'tinh_dung', description: 'Tính đúng', maxPoints: 6 },
     { id: 'c2', key: 'trinh_bay', description: 'Trình bày', maxPoints: 2.5 },
@@ -86,6 +86,7 @@ describe('RubricDialog — sửa tiêu chí & điểm tối đa của một rubr
     expect(mutate).toHaveBeenCalledWith(
       {
         name: 'CTDL',
+        courseId: 'course-ctdl',
         criteria: [
           { description: 'Chương trình chạy đúng trên mọi test', maxPoints: 6, key: 'tinh_dung' },
           { description: 'Trình bày', maxPoints: 2.5, key: 'trinh_bay' },
@@ -236,17 +237,23 @@ describe('RubricDialog — tạo rubric mới', () => {
       expect(saveButton()).toBeDisabled();
     });
 
-    it('gửi tên và tiêu chí không kèm khoá — không gửi môn học hay tổng điểm', () => {
+    it('gửi tên, courseId và tiêu chí không kèm khoá — không gửi tổng điểm', () => {
       render(<RubricDialog {...create()} />);
       fireEvent.change(screen.getByLabelText('Tên rubric'), { target: { value: 'Giữa kỳ Toán rời rạc' } });
-      pickCourse();
+      pickCourse('Toán rời rạc');
       fireEvent.change(screen.getByLabelText('Tiêu chí 1'), { target: { value: 'Chứng minh đúng' } });
       fireEvent.change(caps()[0], { target: { value: '5' } });
       fireEvent.click(saveButton());
-      expect(mutate).toHaveBeenCalledWith({ name: 'Giữa kỳ Toán rời rạc', criteria: [{ description: 'Chứng minh đúng', maxPoints: 5 }] }, expect.anything());
+      expect(mutate).toHaveBeenCalledWith(
+        {
+          name: 'Giữa kỳ Toán rời rạc',
+          courseId: 'course-trr',
+          criteria: [{ description: 'Chứng minh đúng', maxPoints: 5 }],
+        },
+        expect.anything(),
+      );
       const body = mutate.mock.calls[0][0];
       expect(body).not.toHaveProperty('courseName');
-      expect(body).not.toHaveProperty('courseId');
       expect(body).not.toHaveProperty('totalPoints');
     });
   });
@@ -261,14 +268,14 @@ describe('RubricDialog — tạo rubric mới', () => {
       expect(screen.getByRole('button', { name: 'Tạo rubric' })).toBeDisabled();
     });
 
-    it('chọn nguồn: điền sẵn tên "… — bản sao", tiêu chí và điểm tối đa; hộp sao chép lỗi được chọn sẵn; không hỏi môn học', () => {
+    it('chọn nguồn: điền sẵn tên "… — bản sao", tiêu chí và điểm tối đa; hộp sao chép lỗi được chọn sẵn; vẫn hỏi môn học', () => {
       render(<RubricDialog {...create({ overviews: [source] })} />);
       fireEvent.change(screen.getByLabelText('Sao chép từ'), { target: { value: 'Nguồn' } });
       expect(screen.getByLabelText('Tên rubric')).toHaveValue('Nguồn — bản sao');
       expect(screen.getByLabelText('Tiêu chí 1')).toHaveValue('Tính đúng');
       expect(caps()[1]).toHaveValue('2.5');
       expect(screen.getByLabelText('Tổng điểm')).toHaveValue('8.5');
-      expect(screen.queryByRole('combobox', { name: 'Chọn môn học' })).not.toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Chọn môn học' })).toBeInTheDocument();
       expect(screen.getByRole('checkbox', { name: /Sao chép cả 5 lỗi và điểm trừ/ })).toBeChecked();
     });
 
@@ -282,10 +289,12 @@ describe('RubricDialog — tạo rubric mới', () => {
       const onOpenChange = vi.fn();
       render(<RubricDialog {...create({ overviews: [source], onSaved, onOpenChange })} />);
       fireEvent.change(screen.getByLabelText('Sao chép từ'), { target: { value: 'Nguồn' } });
+      pickCourse();
       fireEvent.click(saveButton());
       expect(mutate).toHaveBeenCalledWith(
         {
           name: 'Nguồn — bản sao',
+          courseId: 'course-ctdl',
           criteria: [
             { description: 'Tính đúng', maxPoints: 6, key: 'tinh_dung' },
             { description: 'Trình bày', maxPoints: 2.5, key: 'trinh_bay' },
@@ -304,6 +313,7 @@ describe('RubricDialog — tạo rubric mới', () => {
       const onSaved = vi.fn();
       render(<RubricDialog {...create({ overviews: [source], onSaved })} />);
       fireEvent.change(screen.getByLabelText('Sao chép từ'), { target: { value: 'Nguồn' } });
+      pickCourse();
       fireEvent.click(screen.getByRole('checkbox', { name: /Sao chép cả 5 lỗi/ }));
       fireEvent.click(saveButton());
       expect(copyMutate).not.toHaveBeenCalled();
@@ -319,6 +329,7 @@ describe('RubricDialog — tạo rubric mới', () => {
       const onSaved = vi.fn();
       render(<RubricDialog {...create({ overviews: [source], onSaved })} />);
       fireEvent.change(screen.getByLabelText('Sao chép từ'), { target: { value: 'Nguồn' } });
+      pickCourse();
       fireEvent.click(saveButton());
       expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('nhưng chưa sao chép được lỗi — Không tìm thấy rubric'));
       expect(onSaved).toHaveBeenCalled();

@@ -40,7 +40,7 @@ import { QsRubricForm } from './QsRubricForm';
  *
  * Ruột form nằm TRONG DialogContent — mỗi lần mở là một lần mount mới, không thừa hưởng nội dung gõ dở.
  *
- * Môn học (tạo trống) và tổng điểm chỉ là ràng buộc UI — không gửi lên API, không đổi schema.
+ * Môn học bắt buộc khi tạo (gửi `courseId`). Tổng điểm chỉ ràng buộc UI.
  */
 export function RubricDialog({
   open,
@@ -268,6 +268,8 @@ function CreateBody({
             existingNames={existingNames}
             onSaved={onSaved}
             onClose={onClose}
+            requireCourse
+            seedCourseId={srcQs?.courseId ?? undefined}
             seedName={srcQs ? `${srcQs.name} — bản sao` : undefined}
             seedApproaches={srcQs ? approachesFromRubric(srcQs) : undefined}
           />
@@ -298,7 +300,13 @@ function CreateBody({
           errorCounts={{}}
           onSaved={onSaved}
           onClose={onClose}
-          requireCourse={mode === 'blank'}
+          requireCourse
+          seedCourseId={
+            srcOverview
+              ? rubrics.find((r) => r.name === srcOverview.rubricName && r.isActive)?.courseId ??
+                undefined
+              : undefined
+          }
           seed={
             srcOverview
               ? {
@@ -337,6 +345,7 @@ function RubricForm({
   seed,
   copyFrom,
   requireCourse = false,
+  seedCourseId,
 }: {
   rubric?: Rubric;
   existingNames: string[];
@@ -347,13 +356,17 @@ function RubricForm({
   seed?: { name: string; rows: CriterionRow[] };
   /** Có = sau khi lưu có thể sao chép lỗi từ rubric này sang rubric mới. */
   copyFrom?: { name: string; errorCount: number };
-  /** Tạo trống: hiện ô chọn môn học (chỉ UI, không lưu schema). */
+  /** Tạo mới: bắt buộc chọn môn (gửi courseId). */
   requireCourse?: boolean;
+  /** Prefill môn khi sao chép. */
+  seedCourseId?: string | null;
 }) {
   const seq = useRef(0);
   const nextId = () => `new-${++seq.current}`;
   const [name, setName] = useState(seed?.name ?? '');
-  const [courseName, setCourseName] = useState('');
+  const [courseId, setCourseId] = useState(
+    () => seedCourseId ?? rubric?.courseId ?? '',
+  );
   const [initialRows] = useState<CriterionRow[]>(() => (rubric ? rowsFromRubric(rubric) : (seed?.rows ?? [newRow('new-0')])));
   const [rows, setRows] = useState<CriterionRow[]>(initialRows);
   const [totalPoints, setTotalPoints] = useState(() => {
@@ -374,23 +387,25 @@ function RubricForm({
     const seen = new Set<string>();
     const options: { value: string; label: string }[] = [];
     for (const klass of teaching.data ?? []) {
-      const label = klass.courseName.trim();
-      if (!label || seen.has(label)) continue;
-      seen.add(label);
-      options.push({ value: label, label });
+      const id = klass.courseId;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      options.push({ value: id, label: klass.courseName.trim() || id });
     }
     return options.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
   }, [teaching.data]);
 
   const editing = rubric !== undefined;
+  // Tạo mới (requireCourse) hoặc sửa bản legacy chưa có môn → bắt chọn.
+  const needCourse = (!editing && requireCourse) || (editing && !rubric?.courseId);
   const errors = validateRubric(
     {
       name,
       nameEditable: !editing,
       existingNames,
       totalPoints,
-      courseRequired: requireCourse,
-      courseName,
+      courseRequired: needCourse,
+      courseId,
     },
     rows,
   );
@@ -413,8 +428,12 @@ function RubricForm({
   }
 
   function submit() {
-    // courseName / totalPoints: chỉ ràng buộc form — payload vẫn chỉ name + criteria.
-    save.mutate(buildSaveInput(editing ? rubric.name : name, rows), {
+    const payload = buildSaveInput(
+      editing ? rubric.name : name,
+      rows,
+      courseId || rubric?.courseId || undefined,
+    );
+    save.mutate(payload, {
       onSuccess: (saved) => {
         if (!copyFrom || !copyErrorsToo) {
           finish(saved);
@@ -459,12 +478,12 @@ function RubricForm({
         </FormField>
       )}
 
-      {requireCourse && (
+      {needCourse && (
         <FormField id="rubric-course" label="Môn học" error={shown('courseName', errors.courseName)}>
           <SearchableSelect
-            value={courseName}
+            value={courseId}
             onValueChange={(v) => {
-              setCourseName(v);
+              setCourseId(v);
               touch('courseName');
             }}
             options={courseOptions}

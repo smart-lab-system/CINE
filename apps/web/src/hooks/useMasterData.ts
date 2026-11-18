@@ -43,6 +43,58 @@ export function useCourses(params: ListParams = {}) {
   });
 }
 
+export function useCourse(id: string | undefined) {
+  return useQuery({
+    queryKey: [K.courses, 'one', id],
+    queryFn: () => api.getCourse(id!),
+    enabled: Boolean(id),
+  });
+}
+
+export function useCourseHubExams(
+  courseId: string | undefined,
+  params: { academicYearId?: string; semesterId?: string } = {},
+) {
+  return useQuery({
+    queryKey: [K.courses, 'hub-exams', courseId, params],
+    queryFn: () => api.listCourseHubExams(courseId!, params),
+    enabled: Boolean(courseId),
+  });
+}
+
+export function useCourseHubExam(
+  courseId: string | undefined,
+  examId: string | undefined,
+) {
+  return useQuery({
+    queryKey: [K.courses, 'hub-exam', courseId, examId],
+    queryFn: () => api.getCourseHubExam(courseId!, examId!),
+    enabled: Boolean(courseId && examId),
+  });
+}
+
+export function useCourseHubRubrics(
+  courseId: string | undefined,
+  params: { academicYearId?: string; semesterId?: string } = {},
+) {
+  return useQuery({
+    queryKey: [K.courses, 'hub-rubrics', courseId, params],
+    queryFn: () => api.listCourseHubRubrics(courseId!, params),
+    enabled: Boolean(courseId),
+  });
+}
+
+export function useCourseHubRubric(
+  courseId: string | undefined,
+  rubricId: string | undefined,
+) {
+  return useQuery({
+    queryKey: [K.courses, 'hub-rubric', courseId, rubricId],
+    queryFn: () => api.getCourseHubRubric(courseId!, rubricId!),
+    enabled: Boolean(courseId && rubricId),
+  });
+}
+
 export function useNominalClasses(params: ListParams = {}) {
   return useQuery({
     queryKey: [K.classes, params],

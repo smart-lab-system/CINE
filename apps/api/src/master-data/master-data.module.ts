@@ -9,7 +9,14 @@ import { RoomEntity } from './entities/room.entity';
 import { ComputerEntity } from './entities/computer.entity';
 import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
+import { CourseExamEntity } from '../exam-bank/entities/course-exam.entity';
+import { CourseExamQuestionEntity } from '../exam-bank/entities/course-exam-question.entity';
+import { RubricEntity } from '../grading/entities/rubric.entity';
+import { RubricCriterionEntity } from '../grading/entities/rubric-criterion.entity';
+import { RubricApproachEntity } from '../grading/entities/rubric-approach.entity';
+import { AccountEntity } from '../identity/entities/account.entity';
 import { MasterDataService } from './master-data.service';
+import { CourseHubService } from './course-hub.service';
 import {
   AcademicYearsController,
   SemestersController,
@@ -32,6 +39,12 @@ import {
       ComputerEntity,
       ClassEntity,
       EnrollmentEntity,
+      CourseExamEntity,
+      CourseExamQuestionEntity,
+      RubricEntity,
+      RubricCriterionEntity,
+      RubricApproachEntity,
+      AccountEntity,
     ]),
   ],
   controllers: [
@@ -43,6 +56,6 @@ import {
     RoomsController,
     ComputersController,
   ],
-  providers: [MasterDataService],
+  providers: [MasterDataService, CourseHubService],
 })
 export class MasterDataModule {}

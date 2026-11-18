@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useSaveRubric } from '@/hooks/useGrading';
+import { useTeachingClasses } from '@/hooks/useTeaching';
 import type { Rubric } from '@/lib/api/grading';
 import { formatVnPoints } from '@/lib/format';
 import {
@@ -31,6 +33,8 @@ export function QsRubricForm({
   onClose,
   seedName,
   seedApproaches,
+  requireCourse = false,
+  seedCourseId,
 }: {
   rubric?: Rubric;
   existingNames: string[];
@@ -38,12 +42,17 @@ export function QsRubricForm({
   onClose: () => void;
   seedName?: string;
   seedApproaches?: QsApproachRow[];
+  requireCourse?: boolean;
+  seedCourseId?: string | null;
 }) {
   const seq = useRef(0);
   const nextId = () => `qs-${++seq.current}`;
   const editing = rubric !== undefined;
 
   const [name, setName] = useState(seedName ?? '');
+  const [courseId, setCourseId] = useState(
+    () => seedCourseId ?? rubric?.courseId ?? '',
+  );
   const [approaches, setApproaches] = useState<QsApproachRow[]>(() => {
     if (rubric) return approachesFromRubric(rubric);
     if (seedApproaches?.length) return seedApproaches;
@@ -56,9 +65,30 @@ export function QsRubricForm({
   });
   const [active, setActive] = useState(0);
   const save = useSaveRubric();
+  const teaching = useTeachingClasses();
 
+  const courseOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const options: { value: string; label: string }[] = [];
+    for (const klass of teaching.data ?? []) {
+      const id = klass.courseId;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      options.push({ value: id, label: klass.courseName.trim() || id });
+    }
+    return options.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [teaching.data]);
+
+  const needCourse = (!editing && requireCourse) || (editing && !rubric?.courseId);
   const errors = validateQsRubric(
-    { name, nameEditable: !editing, existingNames, totalPoints },
+    {
+      name,
+      nameEditable: !editing,
+      existingNames,
+      totalPoints,
+      courseRequired: needCourse,
+      courseId,
+    },
     approaches,
   );
   const busy = save.isPending;
@@ -81,7 +111,11 @@ export function QsRubricForm({
 
   function submit() {
     if (!canSave) return;
-    const payload = buildSaveQsInput(editing ? rubric!.name : name, approaches);
+    const payload = buildSaveQsInput(
+      editing ? rubric!.name : name,
+      approaches,
+      courseId || rubric?.courseId || undefined,
+    );
     save.mutate(payload, {
       onSuccess: (saved) => {
         toast.success(editing ? 'Đã lưu phiên bản QS mới.' : 'Đã tạo rubric QS.');
@@ -106,6 +140,21 @@ export function QsRubricForm({
           {parseCap(totalPoints) ?? '—'} điểm. Không cộng dồn mọi hướng.
         </AlertDescription>
       </Alert>
+
+      {needCourse ? (
+        <FormField id="qs-course" label="Môn học" error={needCourse && !courseId ? 'Chọn môn học.' : undefined}>
+          <SearchableSelect
+            value={courseId}
+            onValueChange={setCourseId}
+            options={courseOptions}
+            disabled={teaching.isLoading}
+            placeholder={teaching.isLoading ? 'Đang tải…' : 'Chọn môn học'}
+            searchPlaceholder="Tìm môn học…"
+            emptyText="Không tìm thấy môn học trong lớp bạn dạy."
+            ariaLabel="Chọn môn học"
+          />
+        </FormField>
+      ) : null}
 
       {!editing ? (
         <FormField id="qs-name" label="Tên rubric" error={errors.name}>

@@ -62,4 +62,11 @@ export class ClassEntity extends BaseEntity {
   @ManyToOne(() => NominalClassEntity, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'nominal_class_id' })
   nominalClass!: NominalClassEntity | null;
+
+  /**
+   * `false` = vô hiệu hoá (soft): ẩn khỏi「Lớp của tôi」, không mở phiên mới.
+   * Xoá cứng vẫn qua DELETE khi roster trống và không còn phiên.
+   */
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive!: boolean;
 }

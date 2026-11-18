@@ -9,6 +9,7 @@ describe('ExamBankService.assertTeachesCourse', () => {
       {} as never,
       { count: jest.fn().mockResolvedValue(n) } as never,
       {} as never,
+      {} as never,
     );
   }
 

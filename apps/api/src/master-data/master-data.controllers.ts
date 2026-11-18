@@ -24,7 +24,13 @@ import {
   ListSemestersDto,
   UpdateSemesterDto,
 } from './dto/semester.dto';
-import { CreateCourseDto, ListCoursesDto, UpdateCourseDto } from './dto/course.dto';
+import {
+  CourseHubListQueryDto,
+  CreateCourseDto,
+  ListCoursesDto,
+  UpdateCourseDto,
+} from './dto/course.dto';
+import { CourseHubService } from './course-hub.service';
 import {
   CreateNominalClassDto,
   ListNominalClassesDto,
@@ -118,7 +124,10 @@ export class SemestersController {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
 export class CoursesController {
-  constructor(private readonly masterData: MasterDataService) {}
+  constructor(
+    private readonly masterData: MasterDataService,
+    private readonly courseHub: CourseHubService,
+  ) {}
 
   @Post()
   create(@Body() dto: CreateCourseDto) {
@@ -128,6 +137,32 @@ export class CoursesController {
   @Get()
   list(@Query() query: ListCoursesDto) {
     return this.masterData.listCourses(query);
+  }
+
+  @Get(':id/exams')
+  listExams(@Param('id') id: string, @Query() query: CourseHubListQueryDto) {
+    return this.courseHub.listExams(id, {
+      academicYearId: query.academicYearId,
+      semesterId: query.semesterId,
+    });
+  }
+
+  @Get(':id/exams/:examId')
+  getExam(@Param('id') id: string, @Param('examId') examId: string) {
+    return this.courseHub.getExam(id, examId);
+  }
+
+  @Get(':id/rubrics')
+  listRubrics(@Param('id') id: string, @Query() query: CourseHubListQueryDto) {
+    return this.courseHub.listRubrics(id, {
+      academicYearId: query.academicYearId,
+      semesterId: query.semesterId,
+    });
+  }
+
+  @Get(':id/rubrics/:rubricId')
+  getRubric(@Param('id') id: string, @Param('rubricId') rubricId: string) {
+    return this.courseHub.getRubric(id, rubricId);
   }
 
   @Get(':id')

@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, Length } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsInt, Max, Min } from 'class-validator';
 import type { CourseStatus } from '../entities/course.entity';
@@ -50,4 +50,15 @@ export class ListCoursesDto {
   @IsOptional()
   @IsString()
   search?: string;
+}
+
+/** Filter hub đề/rubric theo năm / học kỳ (suy diễn ngày). */
+export class CourseHubListQueryDto {
+  @IsOptional()
+  @IsUUID()
+  academicYearId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  semesterId?: string;
 }

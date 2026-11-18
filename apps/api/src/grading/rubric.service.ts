@@ -16,6 +16,8 @@ import type { QsApproach } from './qs';
 export interface RubricView {
   id: string;
   teacherId: string;
+  /** Neo ngân hàng môn — null với legacy chưa gán. */
+  courseId: string | null;
   name: string;
   version: number;
   isActive: boolean;
@@ -23,6 +25,7 @@ export interface RubricView {
   totalPoints: number;
   /** Thời điểm tạo bản này (ISO 8601) — để suy ra "bản tạo gần nhất" giữa các bộ rubric khác tên (G1 §5). */
   createdAt: string;
+  updatedAt: string;
   criteria: {
     id: string;
     key: string;
@@ -89,6 +92,15 @@ export class RubricService {
     return Promise.all(rows.map((row) => this.toView(row)));
   }
 
+  /** Admin hub: mọi rubric neo môn (mọi GV). */
+  async listByCourse(courseId: string): Promise<RubricView[]> {
+    const rows = await this.rubrics.find({
+      where: { courseId },
+      order: { name: 'ASC', version: 'DESC' },
+    });
+    return Promise.all(rows.map((row) => this.toView(row)));
+  }
+
   async findById(rubricId: string): Promise<RubricEntity | null> {
     return this.rubrics.findOne({ where: { id: rubricId } });
   }
@@ -134,6 +146,12 @@ export class RubricService {
         .findOne({ where: { teacherId, name: dto.name }, order: { version: 'DESC' } });
       const version = (latest?.version ?? 0) + 1;
 
+      const courseId = await this.resolveCourseIdForSave(manager, dto.courseId, latest);
+      if (!courseId) {
+        throw new BadRequestException('Chọn môn học khi tạo rubric.');
+      }
+      await this.assertCourseExists(manager, courseId);
+
       await manager
         .getRepository(RubricEntity)
         .update({ teacherId, name: dto.name, isActive: true }, { isActive: false });
@@ -141,6 +159,7 @@ export class RubricService {
       const rubric = await manager.save(
         manager.create(RubricEntity, {
           teacherId,
+          courseId,
           name: dto.name,
           version,
           isActive: true,
@@ -270,6 +289,30 @@ export class RubricService {
     }));
   }
 
+  /**
+   * Create tên mới → bắt buộc dto.courseId.
+   * Version tiếp → dto.courseId nếu gửi, không thì kế thừa latest (kể cả null → vẫn lỗi nếu không gửi).
+   */
+  private async resolveCourseIdForSave(
+    manager: EntityManager,
+    dtoCourseId: string | undefined,
+    latest: RubricEntity | null,
+  ): Promise<string | null> {
+    if (dtoCourseId) return dtoCourseId;
+    if (latest?.courseId) return latest.courseId;
+    return null;
+  }
+
+  private async assertCourseExists(manager: EntityManager, courseId: string): Promise<void> {
+    const rows: { id: string }[] = await manager.query(
+      `SELECT id FROM examcollect.course WHERE id = $1 LIMIT 1`,
+      [courseId],
+    );
+    if (rows.length === 0) {
+      throw new BadRequestException('Môn học không tồn tại.');
+    }
+  }
+
   private async toView(
     rubric: RubricEntity,
     criteriaRepo: Repository<RubricCriterionEntity> = this.criteria,
@@ -313,11 +356,13 @@ export class RubricService {
     return {
       id: rubric.id,
       teacherId: rubric.teacherId,
+      courseId: rubric.courseId ?? null,
       name: rubric.name,
       version: rubric.version,
       isActive: rubric.isActive,
       kind,
       createdAt: rubric.createdAt.toISOString(),
+      updatedAt: rubric.updatedAt.toISOString(),
       totalPoints,
       criteria: criteria.map((c) => ({
         id: c.id,

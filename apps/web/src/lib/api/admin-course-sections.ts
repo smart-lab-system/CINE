@@ -74,6 +74,8 @@ export interface CourseSection {
   studentCount: number;
   /** Số phiên thi gắn lớp — khóa sửa meta khi > 0. */
   examSessionCount: number;
+  /** `false` = vô hiệu hoá (soft). */
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -147,6 +149,14 @@ export async function updateCourseSection(
 
 export async function deleteCourseSection(id: string): Promise<void> {
   await csFetch(`/admin/course-sections/${id}`, { method: 'DELETE' });
+}
+
+export async function deactivateCourseSection(id: string): Promise<CourseSection> {
+  return csFetch(`/admin/course-sections/${id}/deactivate`, { method: 'PATCH' });
+}
+
+export async function reactivateCourseSection(id: string): Promise<CourseSection> {
+  return csFetch(`/admin/course-sections/${id}/reactivate`, { method: 'PATCH' });
 }
 
 export interface RosterImportResult {

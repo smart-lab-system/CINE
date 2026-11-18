@@ -107,6 +107,7 @@ export class ImportDsaVi03Service {
     for (const p of problems) {
       const saved = await this.rubrics.saveNewVersion(teacherId, {
         name: p.rubricName,
+        courseId: opts.courseId,
         kind: 'qs',
         approaches: p.approaches.map((a) => ({
           name: a.name,

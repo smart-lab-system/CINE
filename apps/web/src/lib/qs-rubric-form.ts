@@ -105,7 +105,14 @@ export function maxApproachCaps(approaches: QsApproachRow[]): number {
 }
 
 export function validateQsRubric(
-  meta: { name: string; nameEditable: boolean; existingNames: string[]; totalPoints: string },
+  meta: {
+    name: string;
+    nameEditable: boolean;
+    existingNames: string[];
+    totalPoints: string;
+    courseRequired?: boolean;
+    courseId?: string;
+  },
   approaches: QsApproachRow[],
 ): QsRubricErrors {
   const errors: QsRubricErrors = { approaches: {} };
@@ -118,6 +125,10 @@ export function validateQsRubric(
     else if (meta.existingNames.includes(name)) {
       errors.name = 'Đã có rubric tên này — chọn nó rồi sửa thay vì tạo lại.';
     }
+  }
+
+  if (meta.courseRequired && !(meta.courseId ?? '').trim()) {
+    errors.general = errors.general ?? 'Chọn môn học.';
   }
 
   const total = parseCap(meta.totalPoints);
@@ -177,8 +188,10 @@ export function hasQsErrors(errors: QsRubricErrors): boolean {
 export function buildSaveQsInput(
   name: string,
   approaches: QsApproachRow[],
+  courseId?: string,
 ): {
   name: string;
+  courseId?: string;
   kind: 'qs';
   approaches: {
     name: string;
@@ -187,6 +200,7 @@ export function buildSaveQsInput(
 } {
   return {
     name: name.trim(),
+    ...(courseId ? { courseId } : {}),
     kind: 'qs',
     approaches: approaches.map((ap) => ({
       name: ap.name.trim(),

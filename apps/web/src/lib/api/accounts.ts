@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { getAccessToken } from '@/lib/auth-token';
 import type { AccountRoleOption } from '@/lib/account-roles';
 
 // Mirrors AccountsService.AccountView (apps/api/src/accounts/accounts.service.ts).
@@ -64,6 +65,23 @@ export async function searchAccounts(
   // response type yet, so the generated response schema is empty — the
   // JSON body genuinely has this shape (see AccountsService#toView).
   return data as unknown as { items: AccountView[]; total: number };
+}
+
+/** GET /accounts/:id — chưa có trong schema.d.ts cho tới khi regenerate OpenAPI. */
+export async function getAccount(id: string): Promise<AccountView> {
+  const token = await getAccessToken();
+  const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const res = await fetch(`${base}/accounts/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) {
+    throw new Error(
+      res.status === 404
+        ? 'Không tìm thấy tài khoản.'
+        : `Yêu cầu thất bại (HTTP ${res.status})`,
+    );
+  }
+  return (await res.json()) as AccountView;
 }
 
 export async function createAccount(body: CreateAccountInput): Promise<void> {

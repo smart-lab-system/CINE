@@ -200,11 +200,18 @@ function CoursesMasterDataContent() {
         rows={
           data?.items.length
             ? data.items.map((c) => (
-                <TableRow key={c.id}>
+                <TableRow
+                  key={c.id}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/admin/master-data/courses/${c.id}`)}
+                >
                   <TableCell className="font-mono">{c.code}</TableCell>
                   <TableCell>{c.name}</TableCell>
                   <TableCell>{catalogActiveStatusLabel(c.status)}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell
+                    className="text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <RowActions>
                       <EditIconButton onClick={() => openEdit(c)} />
                       <DeleteIconButton

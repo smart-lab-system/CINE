@@ -9,7 +9,7 @@ import { formatVnPoints } from './format';
  * cho tiêu chí nào không gửi kèm `key`. Luật lỗi trỏ tiêu chí bằng `key` — nên một tiêu chí CÓ SẴN phải gửi
  * lại đúng key cũ của nó, nếu không sửa một câu mô tả sẽ âm thầm cắt liên kết luật → tiêu chí.
  *
- * `totalPoints` và `courseName` chỉ sống ở form (UI): không gửi lên API, không đổi schema.
+ * `totalPoints` chỉ sống ở form (UI). `courseId` gửi lên API khi tạo (spec course hub).
  */
 
 export interface CriterionRow {
@@ -45,7 +45,7 @@ export interface RubricFormMeta {
   totalPoints: string;
   /** Tạo trống: bắt buộc chọn môn (chỉ UI, không lưu). */
   courseRequired?: boolean;
-  courseName?: string;
+  courseId?: string;
 }
 
 const KEY = /^[a-z0-9_]{1,64}$/;
@@ -99,7 +99,7 @@ export function validateRubric(meta: RubricFormMeta, rows: CriterionRow[]): Rubr
     }
   }
 
-  if (meta.courseRequired && (meta.courseName ?? '').trim() === '') {
+  if (meta.courseRequired && !(meta.courseId ?? '').trim()) {
     errors.courseName = 'Chọn môn học.';
   }
 
@@ -161,9 +161,15 @@ export function hasErrors(errors: RubricErrors): boolean {
 export function buildSaveInput(
   name: string,
   rows: CriterionRow[],
-): { name: string; criteria: { description: string; maxPoints: number; key?: string }[] } {
+  courseId?: string,
+): {
+  name: string;
+  courseId?: string;
+  criteria: { description: string; maxPoints: number; key?: string }[];
+} {
   return {
     name: name.trim(),
+    ...(courseId ? { courseId } : {}),
     criteria: rows.map((row) => {
       const criterion: { description: string; maxPoints: number; key?: string } = {
         description: row.description.trim(),

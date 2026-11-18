@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Matches,
   Max,
@@ -74,13 +75,21 @@ export class SaveRubricDto {
   /**
    * Tên do giảng viên đặt, ví dụ "Giữa kỳ CTDL".
    *
-   * Nó thay vai trò định danh mà `course_id` từng giữ: phiên bản được
-   * đánh số theo (giảng viên, tên), nên lưu lại cùng một tên là tạo bản
-   * kế tiếp của CÙNG một rubric, còn đổi tên là bắt đầu một rubric mới.
+   * Phiên bản đánh số theo (giảng viên, tên): lưu lại cùng tên = bản kế
+   * tiếp; đổi tên = rubric mới ở bản 1.
    */
   @IsString()
   @Length(1, 200)
   name!: string;
+
+  /**
+   * Môn neo ngân hàng tiêu chí. Bắt buộc khi tạo chuỗi tên mới; khi tạo
+   * version tiếp theo có thể bỏ — server kế thừa từ bản trước, hoặc nhận
+   * giá trị mới nếu gửi.
+   */
+  @IsOptional()
+  @IsUUID()
+  courseId?: string;
 
   /**
    * Mặc định `qa` — hành vi cũ. `qs` yêu cầu `approaches` và bỏ qua `criteria`

@@ -206,6 +206,8 @@ export const listCourses = (p: ListParams = {}) =>
   masterDataFetch<PageResult<Course>>(
     `/master-data/courses${qs({ page: p.page ?? 1, pageSize: p.pageSize ?? 20, status: p.status, search: p.search })}`,
   );
+export const getCourse = (id: string) =>
+  masterDataFetch<Course>(`/master-data/courses/${id}`);
 export const createCourse = (body: Omit<Course, 'id'>) =>
   masterDataFetch<{ id: string }>('/master-data/courses', {
     method: 'POST',
@@ -218,6 +220,101 @@ export const updateCourse = (id: string, body: Partial<Omit<Course, 'id'>>) =>
   });
 export const deleteCourse = (id: string) =>
   masterDataFetch<void>(`/master-data/courses/${id}`, { method: 'DELETE' });
+
+/** Hub môn — ngân hàng đề (filter kỳ suy diễn ngày). */
+export interface CourseHubExam {
+  id: string;
+  title: string;
+  examType: string;
+  status: string;
+  language: string;
+  questionCount: number;
+  totalPoints: number;
+  createdBy: string;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedSemesterId: string | null;
+  resolvedSemesterName: string | null;
+}
+
+export interface CourseHubRubric {
+  id: string;
+  name: string;
+  version: number;
+  isActive: boolean;
+  kind: 'qa' | 'qs';
+  teacherId: string;
+  teacherName: string | null;
+  totalPoints: number;
+  createdAt: string;
+  updatedAt: string;
+  resolvedSemesterId: string | null;
+  resolvedSemesterName: string | null;
+}
+
+export interface CourseHubExamDetail extends CourseHubExam {
+  description: string | null;
+  courseCode: string;
+  courseName: string;
+  questions: {
+    id: string;
+    ordinal: number;
+    title: string | null;
+    statement: string;
+    points: number;
+    rubricId: string | null;
+    rubricName: string | null;
+  }[];
+}
+
+export interface CourseHubRubricDetail extends CourseHubRubric {
+  criteria: {
+    id: string;
+    key: string;
+    description: string;
+    maxPoints: number;
+    approachKey: string | null;
+  }[];
+  approaches: {
+    key: string;
+    name: string;
+    maxPoints: number;
+    steps: { key: string; description: string; maxPoints: number }[];
+  }[];
+}
+
+export const listCourseHubExams = (
+  courseId: string,
+  p: { academicYearId?: string; semesterId?: string } = {},
+) =>
+  masterDataFetch<CourseHubExam[]>(
+    `/master-data/courses/${courseId}/exams${qs({
+      academicYearId: p.academicYearId,
+      semesterId: p.semesterId,
+    })}`,
+  );
+
+export const getCourseHubExam = (courseId: string, examId: string) =>
+  masterDataFetch<CourseHubExamDetail>(
+    `/master-data/courses/${courseId}/exams/${examId}`,
+  );
+
+export const listCourseHubRubrics = (
+  courseId: string,
+  p: { academicYearId?: string; semesterId?: string } = {},
+) =>
+  masterDataFetch<CourseHubRubric[]>(
+    `/master-data/courses/${courseId}/rubrics${qs({
+      academicYearId: p.academicYearId,
+      semesterId: p.semesterId,
+    })}`,
+  );
+
+export const getCourseHubRubric = (courseId: string, rubricId: string) =>
+  masterDataFetch<CourseHubRubricDetail>(
+    `/master-data/courses/${courseId}/rubrics/${rubricId}`,
+  );
 
 // --- nominal classes ---
 export const listNominalClasses = (p: ListParams = {}) =>
