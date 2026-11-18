@@ -222,8 +222,10 @@ export async function parseCourseExamDocx(
   return (await res.json()) as ParsedCourseExamDocx;
 }
 
-/** Tải đề Word (.docx). */
-export async function downloadCourseExamDocx(id: string): Promise<void> {
+/** Tải đề Word (.docx) dạng Blob (gắn phiên / tải tay). */
+export async function fetchCourseExamDocx(
+  id: string,
+): Promise<{ blob: Blob; filename: string }> {
   const token = await getAccessToken();
   const res = await fetch(`${API_BASE}/exam-bank/${id}/export.docx`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -243,6 +245,12 @@ export async function downloadCourseExamDocx(id: string): Promise<void> {
   const cd = res.headers.get("Content-Disposition") ?? "";
   const match = /filename="([^"]+)"/i.exec(cd);
   const filename = match?.[1] ?? `de-thi-${id}.docx`;
+  return { blob, filename };
+}
+
+/** Tải đề Word (.docx) về máy. */
+export async function downloadCourseExamDocx(id: string): Promise<void> {
+  const { blob, filename } = await fetchCourseExamDocx(id);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
