@@ -19,6 +19,7 @@ import {
   type ErrorFormState,
 } from '@/lib/error-form';
 import { formatVnPoints } from '@/lib/format';
+import { approachOfStep, criterionSelectLabel, isQsOverview } from '@/lib/qs-errors-ui';
 import { NO_SESSION_IMPACT, capNames, fold, impactLines, shorten } from '@/lib/rubric-board';
 import { deductionLabel, describeRecompute, formatDeductionString, parseDeductionInput } from '@/lib/rules-vocab';
 import { cn } from '@/lib/utils';
@@ -71,7 +72,10 @@ export function AddErrorDrawer({ overview, library, criterionKey, prefill, onClo
 
   const price = parseDeductionInput(tab === 'lib' ? libPts : pts);
   let reason: string | null = null;
-  if (crit === null) reason = 'Chọn tiêu chí trước';
+  const qs = isQsOverview(overview);
+  const noun = qs ? 'bước' : 'tiêu chí';
+
+  if (crit === null) reason = qs ? 'Chọn bước trước' : 'Chọn tiêu chí trước';
   else if (tab === 'lib' && selected === null) reason = 'Chọn một lỗi trong danh sách';
   else if (tab === 'new' && Object.keys(validateErrorForm(form)).length > 0) reason = 'Điền tên, mô tả và cách phát hiện của lỗi';
   // Câu dài của ô điểm trừ chỉ hiện MỘT lần (dưới ô); chân ngăn kéo chỉ nhắc ngắn để không lặp lại.
@@ -143,12 +147,16 @@ export function AddErrorDrawer({ overview, library, criterionKey, prefill, onClo
               <span aria-hidden="true">›</span>
               {criterion ? (
                 <span>
-                  Tiêu chí: {shorten(criterion.description, 60)} · tối đa {formatVnPoints(criterion.maxPoints)}
+                  {qs ? 'Bước' : 'Tiêu chí'}: {shorten(criterion.description, 60)} · tối đa{' '}
+                  {formatVnPoints(criterion.maxPoints)}
+                  {qs && approachOfStep(overview, criterion.key)
+                    ? ` · ${approachOfStep(overview, criterion.key)!.name}`
+                    : ''}
                 </span>
               ) : (
                 <>
                   <label className="sr-only" htmlFor="add-crit">
-                    Tiêu chí
+                    {qs ? 'Bước' : 'Tiêu chí'}
                   </label>
                   <select
                     id="add-crit"
@@ -156,10 +164,10 @@ export function AddErrorDrawer({ overview, library, criterionKey, prefill, onClo
                     onChange={(e) => setCrit(e.target.value || null)}
                     className="h-[30px] rounded-md border border-primary/30 bg-surface px-2 font-semibold text-primary"
                   >
-                    <option value="">Chọn tiêu chí…</option>
+                    <option value="">{qs ? 'Chọn bước…' : 'Chọn tiêu chí…'}</option>
                     {overview.criteria.map((c) => (
                       <option key={c.key} value={c.key}>
-                        {shorten(c.description, 50)} · tối đa {formatVnPoints(c.maxPoints)}
+                        {criterionSelectLabel(overview, c)}
                       </option>
                     ))}
                   </select>
@@ -233,7 +241,9 @@ export function AddErrorDrawer({ overview, library, criterionKey, prefill, onClo
                 hint={
                   criterion
                     ? `“${shorten(criterion.description, 40)}” tối đa ${formatVnPoints(criterion.maxPoints)} điểm. Để trống nếu chưa quyết định; bài dính lỗi này sẽ chưa tự duyệt được.`
-                    : 'Chọn tiêu chí ở trên để biết điểm tối đa.'
+                    : qs
+                      ? 'Chọn bước ở trên để biết điểm tối đa.'
+                      : 'Chọn tiêu chí ở trên để biết điểm tối đa.'
                 }
               >
                 <Input id="add-new-price" inputMode="decimal" className="w-28 text-right font-bold" placeholder="1,0" value={pts} invalid={!price.ok} onChange={(e) => setPts(e.target.value)} />
@@ -278,7 +288,7 @@ export function AddErrorDrawer({ overview, library, criterionKey, prefill, onClo
             Huỷ
           </Button>
           <Button type="button" variant="primary" disabled={!ready} loading={assign.isPending} title={reason ?? undefined} onClick={save}>
-            {tab === 'lib' ? 'Thêm vào tiêu chí' : 'Tạo và thêm vào tiêu chí'}
+            {tab === 'lib' ? `Thêm vào ${noun}` : `Tạo và thêm vào ${noun}`}
           </Button>
         </div>
       </SheetContent>

@@ -10,6 +10,7 @@ describe('RubricMeta', () => {
     render(<RubricMeta overview={overview()} onEdit={onEdit} />);
     expect(screen.getByText(/10,0/)).toBeInTheDocument();
     expect(screen.getByText(/3 tiêu chí/)).toBeInTheDocument();
+    expect(screen.getByText('QA')).toBeInTheDocument();
     expect(screen.queryByText(/phiên bản/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Sửa tiêu chí & điểm tối đa/ }));
     expect(onEdit).toHaveBeenCalled();

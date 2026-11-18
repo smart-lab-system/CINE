@@ -216,6 +216,43 @@ describe('ErrorsTab — lỗi gắn tiêu chí không còn (Review Focus 4)', ()
   });
 });
 
+describe('ErrorsTab — rubric QS theo hướng/bước', () => {
+  it('nhóm theo hướng, bước bên trong, chú thích QS', () => {
+    const qsBoard = overview({
+      kind: 'qs',
+      totalPoints: 5,
+      criteria: [
+        criterion({ key: 'bf_s1', description: 'Vòng lồng', maxPoints: 2, errorCount: 1 }),
+        criterion({ key: 'sw_s1', description: 'Cửa sổ', maxPoints: 3, errorCount: 0 }),
+      ],
+      approaches: [
+        {
+          key: 'brute_force',
+          name: 'Brute force',
+          maxPoints: 2,
+          steps: [criterion({ key: 'bf_s1', description: 'Vòng lồng', maxPoints: 2, errorCount: 1 })],
+        },
+        {
+          key: 'sliding',
+          name: 'Sliding window',
+          maxPoints: 3,
+          steps: [criterion({ key: 'sw_s1', description: 'Cửa sổ', maxPoints: 3, errorCount: 0 })],
+        },
+      ],
+    });
+    mount({
+      overview: qsBoard,
+      errors: [errorItem({ criterionKey: 'bf_s1', name: 'Thiếu vòng' })],
+    });
+    expect(screen.getByText(/chỉ chọn/)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Hướng Brute force' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Hướng Sliding window' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Vòng lồng' })).toBeInTheDocument();
+    expect(screen.getByText('Thiếu vòng')).toBeInTheDocument();
+    expect(screen.getByText(/Chưa có lỗi nào cho bước này/)).toBeInTheDocument();
+  });
+});
+
 describe('ErrorsTab — tải, lỗi, và nhảy tới một nhóm', () => {
   const noop = { onAdd: vi.fn(), onEdit: vi.fn(), onWaive: vi.fn(), onUnwaive: vi.fn(), onOpenRubric: vi.fn() };
 

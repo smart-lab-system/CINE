@@ -5,6 +5,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { OverviewCriterion, RubricErrorItem, RubricOverview } from '@/lib/api/rubric-errors';
+import { formatVnPoints } from '@/lib/format';
+import { isQsOverview } from '@/lib/qs-errors-ui';
 import { CriterionGroup } from './CriterionGroup';
 import { DetectionBadge } from './DetectionBadge';
 import { MoveErrorDialog, RemoveErrorDialog } from './ErrorDialogs';
@@ -106,38 +108,102 @@ export function ErrorsTab({
         </span>
       </div>
 
-      {overview.criteria.map((criterion) => {
-        const rows = list.filter((e) => e.criterionKey === criterion.key && !e.criterionDangling);
-        return (
-          <CriterionGroup
-            key={criterion.key}
-            criterion={criterion}
-            errors={rows}
-            open={!collapsed[criterion.key]}
-            onToggle={() => setCollapsed((prev) => ({ ...prev, [criterion.key]: !prev[criterion.key] }))}
-            onAdd={() => onAdd(criterion.key)}
-            onWaive={() => onWaive(criterion)}
-            onUnwaive={() => onUnwaive(criterion)}
-          >
-            {rows.map((item) => row(item, criterion))}
-          </CriterionGroup>
-        );
-      })}
+      {isQsOverview(overview) ? (
+        <div className="mt-2 flex flex-col gap-5">
+          <p className="mx-0.5 text-small text-muted-foreground">
+            Rubric QS: khi chấm chỉ chọn <b className="text-foreground">một hướng</b>. Lỗi gắn theo từng bước
+            checklist trong hướng đó (điểm trừ vẫn theo bảng lỗi như QA).
+          </p>
+          {overview.approaches!.map((ap) => (
+            <section
+              key={ap.key}
+              aria-label={`Hướng ${ap.name}`}
+              className="rounded-lg border border-border bg-surface/50 p-3 sm:p-4"
+            >
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 px-0.5">
+                <h2 className="text-h3 text-foreground">Hướng: {ap.name}</h2>
+                <span className="text-small text-muted-foreground">
+                  Tối đa <b className="text-foreground">{formatVnPoints(ap.maxPoints)}</b> điểm
+                </span>
+              </div>
+              {ap.steps.map((criterion) => {
+                const rows = list.filter(
+                  (e) => e.criterionKey === criterion.key && !e.criterionDangling,
+                );
+                return (
+                  <CriterionGroup
+                    key={criterion.key}
+                    criterion={criterion}
+                    errors={rows}
+                    entityNoun="bước"
+                    open={!collapsed[criterion.key]}
+                    onToggle={() =>
+                      setCollapsed((prev) => ({
+                        ...prev,
+                        [criterion.key]: !prev[criterion.key],
+                      }))
+                    }
+                    onAdd={() => onAdd(criterion.key)}
+                    onWaive={() => onWaive(criterion)}
+                    onUnwaive={() => onUnwaive(criterion)}
+                  >
+                    {rows.map((item) => row(item, criterion))}
+                  </CriterionGroup>
+                );
+              })}
+            </section>
+          ))}
+        </div>
+      ) : (
+        overview.criteria.map((criterion) => {
+          const rows = list.filter(
+            (e) => e.criterionKey === criterion.key && !e.criterionDangling,
+          );
+          return (
+            <CriterionGroup
+              key={criterion.key}
+              criterion={criterion}
+              errors={rows}
+              open={!collapsed[criterion.key]}
+              onToggle={() =>
+                setCollapsed((prev) => ({
+                  ...prev,
+                  [criterion.key]: !prev[criterion.key],
+                }))
+              }
+              onAdd={() => onAdd(criterion.key)}
+              onWaive={() => onWaive(criterion)}
+              onUnwaive={() => onUnwaive(criterion)}
+            >
+              {rows.map((item) => row(item, criterion))}
+            </CriterionGroup>
+          );
+        })
+      )}
 
       {dangling.length > 0 && (
         <section id={`crit-${DANGLING_KEY}`} aria-label="Chưa có tiêu chí" className="mt-3.5 rounded-lg border border-warning/40 bg-surface shadow-sm">
           <div className="flex items-center gap-3 px-4 py-3.5">
-            <h3 className="min-w-0 flex-1 text-h3">Chưa có tiêu chí</h3>
+            <h3 className="min-w-0 flex-1 text-h3">
+              {isQsOverview(overview) ? 'Chưa có bước' : 'Chưa có tiêu chí'}
+            </h3>
             <Badge>{dangling.length} lỗi</Badge>
           </div>
           <p className="px-4 pb-3 text-small text-muted-foreground">
-            Các lỗi này gắn với tiêu chí đã bị xoá khỏi rubric nên chưa được tính vào điểm. Chuyển chúng sang tiêu chí khác hoặc gỡ khỏi rubric.
+            {isQsOverview(overview)
+              ? 'Các lỗi này gắn bước đã bị xoá khỏi rubric. Chuyển sang bước khác hoặc gỡ khỏi rubric.'
+              : 'Các lỗi này gắn với tiêu chí đã bị xoá khỏi rubric nên chưa được tính vào điểm. Chuyển chúng sang tiêu chí khác hoặc gỡ khỏi rubric.'}
           </p>
           <div className="border-t border-border">{dangling.map((item) => row(item))}</div>
         </section>
       )}
 
-      <MoveErrorDialog item={moving} criteria={overview.criteria} onClose={() => setMoving(null)} />
+      <MoveErrorDialog
+        item={moving}
+        criteria={overview.criteria}
+        overview={overview}
+        onClose={() => setMoving(null)}
+      />
       <RemoveErrorDialog item={removing} rubricName={overview.rubricName} onClose={() => setRemoving(null)} />
     </div>
   );

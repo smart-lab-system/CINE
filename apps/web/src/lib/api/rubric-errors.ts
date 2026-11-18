@@ -8,10 +8,18 @@ export interface OverviewCriterion {
   key: string;
   description: string;
   maxPoints: number;
-  /** Dòng áp dụng chưa gỡ ở tiêu chí này. */
+  /** Dòng áp dụng chưa gỡ ở tiêu chí / bước này. */
   errorCount: number;
-  /** ≠ null: tiêu chí đã đánh dấu "không trừ điểm". */
+  /** ≠ null: tiêu chí/bước đã đánh dấu "không trừ điểm". */
   waiverId: string | null;
+}
+
+/** Hướng QS trên Bảng lỗi (mirrors API overview). */
+export interface OverviewApproach {
+  key: string;
+  name: string;
+  maxPoints: number;
+  steps: OverviewCriterion[];
 }
 
 export interface OverviewSession {
@@ -27,8 +35,12 @@ export interface RubricOverview {
   rubricName: string;
   /** Phiên bản mới nhất — dùng cho đánh dấu tiêu chí và hộp thoại sửa tiêu chí. */
   rubricId: string;
+  /** Thiếu (API cũ) → coi như `qa`. */
+  kind?: 'qa' | 'qs';
   totalPoints: number;
   criteria: OverviewCriterion[];
+  /** QS: hướng → bước; QA: null/undefined. */
+  approaches?: OverviewApproach[] | null;
   errorCount: number;
   unpricedCount: number;
   /** Lỗi gắn tiêu chí không còn ở bản mới nhất (spec mục 2.3.4). */

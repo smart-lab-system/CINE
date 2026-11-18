@@ -14,4 +14,4 @@
 
 ## Không làm
 
-Import dsa; UC33; UI lỗi QS riêng.
+UC33; gắn phiên. UI lỗi QS theo hướng/bước — đã làm (overview `kind`+`approaches`).

@@ -157,7 +157,9 @@ function RulesContent() {
         title="Bảng lỗi"
         description={
           current
-            ? 'Chọn rubric, rồi ghi lại những lỗi sinh viên hay mắc ở từng tiêu chí và điểm bị trừ cho mỗi lỗi. Bài chấm sẽ trừ điểm đúng theo bảng này.'
+            ? (current.kind ?? 'qa') === 'qs'
+              ? 'Rubric QS: lỗi gắn theo bước checklist trong từng hướng. Khi chấm chỉ một hướng được chọn.'
+              : 'Chọn rubric, rồi ghi lại những lỗi sinh viên hay mắc ở từng tiêu chí và điểm bị trừ cho mỗi lỗi. Bài chấm sẽ trừ điểm đúng theo bảng này.'
             : 'Nơi bạn ghi lại những lỗi sinh viên hay mắc và điểm bị trừ cho từng lỗi, để bài thi được chấm đúng theo cách của bạn.'
         }
         actions={
@@ -203,7 +205,11 @@ function RulesContent() {
           />
 
           <div role="tablist" aria-label="Nội dung" className="mt-6 flex gap-1 border-b border-border">
-            {tabButton('errors', 'Lỗi theo tiêu chí', current.errorCount)}
+            {tabButton(
+              'errors',
+              (current.kind ?? 'qa') === 'qs' ? 'Lỗi theo bước' : 'Lỗi theo tiêu chí',
+              current.errorCount,
+            )}
             {tabButton('proposals', 'Lỗi AI đề xuất', current.proposalCount, true)}
             {tabButton('library', 'Thư viện lỗi', library.data?.length ?? null)}
           </div>

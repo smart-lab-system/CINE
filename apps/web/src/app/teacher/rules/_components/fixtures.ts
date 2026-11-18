@@ -31,6 +31,8 @@ export function overview(over: Partial<RubricOverview> = {}): RubricOverview {
   return {
     rubricName: 'Giữa kỳ CTDL',
     rubricId: 'ru-1',
+    kind: 'qa',
+    approaches: null,
     totalPoints: criteria.reduce((sum, c) => sum + c.maxPoints, 0),
     criteria,
     errorCount: criteria.reduce((sum, c) => sum + c.errorCount, 0),

@@ -20,7 +20,7 @@ API QS đã có; web chỉ soạn QA phẳng. Kho đề chưa neo rubric theo c�
 | D3 | `course_exam_question.rubric_id` nullable FK → `rubric.id` (ON DELETE SET NULL). |
 | D4 | Chỉ gắn rubric `kind = qs` vào câu kho đề; QA không gắn qua field này. |
 | D5 | Form kho đề: mỗi câu chọn / gỡ / mở dialog tạo QS rồi gắn id trả về. |
-| D6 | Tab lỗi QA giữ nguyên; rubric QS vẫn có thể mở trên rules (tiêu chí = bước phẳng + `approachKey`) — không làm UI lỗi QS riêng đợt này. |
+| D6 | Tab lỗi: QA giữ nhóm tiêu chí phẳng; **QS nhóm theo hướng → bước** (overview trả `kind` + `approaches`). Lỗi vẫn gắn `criterion_key` = khoá bước. |
 
 ## 3. API
 
@@ -30,4 +30,4 @@ API QS đã có; web chỉ soạn QA phẳng. Kho đề chưa neo rubric theo c�
 
 ## 4. Ngoài phạm vi
 
-Import `dsa_vi_03`; UC33 AI chọn hướng; gắn phiên thi; UI lỗi QS chuyên biệt.
+UC33 AI chọn hướng; gắn phiên thi. Import `dsa_vi_03` — xem spec riêng.
