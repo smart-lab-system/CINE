@@ -68,6 +68,9 @@ vi.mock('./_components/AuditReview', () => ({
 }));
 // `InvestigatorDossier` (rendered for real here) now mounts the ruler-origin note, whose hooks need a QueryClientProvider.
 vi.mock('@/app/teacher/grading/_components/RulerOriginNote', () => ({ RulerOriginNote: () => null }));
+vi.mock('../_components/RegradeButton', () => ({
+  RegradeButton: ({ label }: { label: string }) => <button type="button">{label}</button>,
+}));
 
 function result(over: Partial<GradingResult> = {}): GradingResult {
   return {
@@ -210,6 +213,7 @@ describe('GradingDetailPage', () => {
 
     expect(screen.getByText('Chấm bằng đọc mã, không chạy')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Lưu duyệt' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chấm lại bằng AI' })).toBeInTheDocument();
   });
 
   it('bài code chấm bằng đọc mã đã chốt: KHÔNG còn nút sửa nào và nói vì sao', async () => {

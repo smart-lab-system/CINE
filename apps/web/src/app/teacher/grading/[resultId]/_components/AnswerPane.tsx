@@ -55,6 +55,8 @@ export function AnswerPane({
   activeCriterionId,
   onSelectCriterion,
   onPin,
+  /** Bài code (one_shot code_project): giữ xuống dòng / thụt lề như file nguồn. */
+  layout = 'essay',
 }: {
   text: SubmissionText;
   /** Thứ tự tiêu chí trong rubric, để chọn màu tô. */
@@ -62,6 +64,7 @@ export function AnswerPane({
   activeCriterionId: string | null;
   onSelectCriterion: (criterionId: string) => void;
   onPin?: (selected: string) => void;
+  layout?: 'essay' | 'code';
 }) {
   const paneRef = useRef<HTMLDivElement>(null);
 
@@ -107,17 +110,35 @@ export function AnswerPane({
               onPin(selected);
             }
           }}
-          className="max-h-[80vh] overflow-y-auto rounded-md bg-surface px-1 text-body leading-[1.8] [scroll-padding-top:0.75rem]"
+          className={
+            layout === 'code'
+              ? 'max-h-[80vh] overflow-auto rounded-md bg-surface-2 px-3 py-3 [scroll-padding-top:0.75rem]'
+              : 'max-h-[80vh] overflow-y-auto rounded-md bg-surface px-1 text-body leading-[1.8] [scroll-padding-top:0.75rem]'
+          }
         >
-          {text.paragraphs.map((paragraph, index) => (
-            <p key={index} data-testid={`paragraph-${index}`} className="mt-3.5 first:mt-0">
-              {renderParagraph(paragraph, marksFor(text.spans, index), {
-                criterionIndexOf,
-                activeCriterionId,
-                onSelectCriterion,
-              })}
-            </p>
-          ))}
+          {text.paragraphs.map((paragraph, index) =>
+            layout === 'code' ? (
+              <pre
+                key={index}
+                data-testid={`paragraph-${index}`}
+                className="m-0 whitespace-pre-wrap break-words font-mono text-small leading-relaxed text-foreground"
+              >
+                {renderParagraph(paragraph, marksFor(text.spans, index), {
+                  criterionIndexOf,
+                  activeCriterionId,
+                  onSelectCriterion,
+                })}
+              </pre>
+            ) : (
+              <p key={index} data-testid={`paragraph-${index}`} className="mt-3.5 first:mt-0">
+                {renderParagraph(paragraph, marksFor(text.spans, index), {
+                  criterionIndexOf,
+                  activeCriterionId,
+                  onSelectCriterion,
+                })}
+              </p>
+            ),
+          )}
         </div>
       )}
     </div>

@@ -20,6 +20,7 @@ import {
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import type { ReviewCriterion } from '@/lib/api/grading';
 import { isReadingCode } from '@/lib/session-triage';
+import { RegradeButton } from '../_components/RegradeButton';
 import { AnswerPane } from './_components/AnswerPane';
 import { CriterionCard } from './_components/CriterionCard';
 import { ManualCriterionCard } from './_components/ManualCriterionCard';
@@ -185,6 +186,11 @@ export default function GradingDetailPage({
   // review, bỏ qua ai_graded). `criterionResults` rỗng VĨNH VIỄN ở ca
   // này, không phải "chưa xong".
   const aiFailedToGrade = result.ungradableReason !== null;
+  const canForceRegradeAi =
+    !readOnly &&
+    !published &&
+    result.aiTotalScore !== null &&
+    (result.status === 'flagged_for_review' || result.status === 'auto_approved');
 
   return (
     <div className="flex flex-col gap-5">
@@ -214,6 +220,14 @@ export default function GradingDetailPage({
               trung tính, không phải tông lỗi. */}
           {result.contextUsedQuestion === false && readiness.data?.hasQuestion && (
             <Badge variant="default">lượt chấm không dùng đề bài</Badge>
+          )}
+          {canForceRegradeAi && sessionId && (
+            <RegradeButton
+              scope={{ kind: 'force-ai', sessionId, resultId: result.id }}
+              label="Chấm lại bằng AI"
+              variant="outline"
+              size="sm"
+            />
           )}
         </div>
       </div>
@@ -253,6 +267,7 @@ export default function GradingDetailPage({
             {text.data ? (
               <AnswerPane
                 text={text.data}
+                layout={readsCode ? 'code' : 'essay'}
                 criterionIndexOf={criterionIndexOf}
                 activeCriterionId={activeCriterionId}
                 onSelectCriterion={setActive}
