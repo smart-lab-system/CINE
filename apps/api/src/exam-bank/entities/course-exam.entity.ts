@@ -35,6 +35,13 @@ export class CourseExamEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 16, default: 'draft' })
   status!: CourseExamStatus;
 
+  /**
+   * `false` = vô hiệu hoá (soft) từ hub admin — ẩn khỏi picker gắn mới.
+   * Khác `status` draft/ready (trạng thái soạn đề).
+   */
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive!: boolean;
+
   /** Playground language / project stack (c, cpp, java, python, static, …). */
   @Column({ type: 'varchar', length: 32 })
   language!: string;

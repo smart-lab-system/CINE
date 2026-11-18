@@ -42,8 +42,19 @@ export class RubricEntity extends BaseEntity {
   @Column({ type: 'int', default: 1 })
   version!: number;
 
+  /**
+   * Version hiện hành của cùng (teacherId, name). Bản cũ = false → badge `(cũ)`.
+   * Không dùng cho soft-delete admin — xem `isArchived`.
+   */
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
+
+  /**
+   * Vô hiệu hoá admin (hub). Độc lập versioning — bản archived không chọn
+   * khi gắn đề/phiên mới.
+   */
+  @Column({ name: 'is_archived', type: 'boolean', default: false })
+  isArchived!: boolean;
 
   /**
    * `qa` = tiêu chí phẳng tái sử dụng (mặc định, hành vi cũ).
