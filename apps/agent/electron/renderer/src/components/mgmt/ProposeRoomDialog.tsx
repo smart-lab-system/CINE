@@ -168,7 +168,7 @@ export function ProposeRoomDialog({
         <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border">
           <p className="sticky top-0 z-10 border-b border-border bg-surface px-2 py-1.5 text-caption font-semibold">
             Máy trong snapshot ({machines.length})
-            {loadingHw ? ' — đang thu thập phần cứng…' : ''}
+            {loadingHw ? ' - đang thu thập phần cứng…' : ''}
           </p>
           {loadingHw ? (
             <p className="p-3 text-caption text-muted-foreground">
@@ -205,13 +205,13 @@ export function ProposeRoomDialog({
                         ) : null}
                       </td>
                       <td className="px-2 py-1.5 font-mono">{m.hostname}</td>
-                      <td className="px-2 py-1.5">{m.cpu || '—'}</td>
-                      <td className="px-2 py-1.5">{m.ramGb ? `${m.ramGb} GB` : '—'}</td>
-                      <td className="px-2 py-1.5">{m.storage || '—'}</td>
-                      <td className="px-2 py-1.5">{m.gpu || '—'}</td>
-                      <td className="px-2 py-1.5">{m.os || '—'}</td>
-                      <td className="px-2 py-1.5 font-mono">{m.localIp || '—'}</td>
-                      <td className="px-2 py-1.5 font-mono">{m.macAddress || '—'}</td>
+                      <td className="px-2 py-1.5">{m.cpu || '-'}</td>
+                      <td className="px-2 py-1.5">{m.ramGb ? `${m.ramGb} GB` : '-'}</td>
+                      <td className="px-2 py-1.5">{m.storage || '-'}</td>
+                      <td className="px-2 py-1.5">{m.gpu || '-'}</td>
+                      <td className="px-2 py-1.5">{m.os || '-'}</td>
+                      <td className="px-2 py-1.5 font-mono">{m.localIp || '-'}</td>
+                      <td className="px-2 py-1.5 font-mono">{m.macAddress || '-'}</td>
                       <td className="px-2 py-1.5">{statusLabel(m.status)}</td>
                     </tr>
                   ))}

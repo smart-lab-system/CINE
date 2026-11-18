@@ -9,7 +9,7 @@ import type { ExamSessionListItem } from '@/lib/api/exam-session';
  *
  * Nêu ĐÚNG hậu quả, không phải "bạn có chắc không?". Spec soạn đề §4.1: spec
  * chấm dựng toàn bộ cơ chế rút chuẩn trên đáp án mẫu, nên một đáp án sai làm
- * cả phiên bị đo bằng thước bịa — và hỏng im lặng, vì bài nào cũng "lệch
+ * cả phiên bị đo bằng thước bịa - và hỏng im lặng, vì bài nào cũng "lệch
  * chuẩn" nên không có dấu hiệu nào chỉ về phía cái thước.
  *
  * Nút mặc định là HUỶ. "Vẫn gắn" là nút phụ, màu cảnh báo.
@@ -39,7 +39,7 @@ export function UnverifiedWarning({
           </p>
           <p className="mt-2">
             Nếu đáp án này sai hoặc không biên dịch được, cả phiên thi sẽ bị đo bằng một cái
-            thước sai — và <strong>mọi bài đều sẽ trông như có lỗi</strong>, nên sẽ không có
+            thước sai - và <strong>mọi bài đều sẽ trông như có lỗi</strong>, nên sẽ không có
             dấu hiệu nào cho thấy vấn đề nằm ở cái thước chứ không ở sinh viên.
           </p>
         </div>
@@ -53,19 +53,19 @@ export function UnverifiedWarning({
           <li className="flex items-start gap-2">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-success-strong" aria-hidden="true" />
             <span>
-              <strong>Đề thi</strong> — sinh viên tải được sau giờ bắt đầu.
+              <strong>Đề thi</strong> - sinh viên tải được sau giờ bắt đầu.
             </span>
           </li>
           <li className="flex items-start gap-2">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-success-strong" aria-hidden="true" />
             <span>
-              <strong>Đáp án mẫu</strong> — chỉ dùng để chấm, sinh viên không bao giờ tải được.
+              <strong>Đáp án mẫu</strong> - chỉ dùng để chấm, sinh viên không bao giờ tải được.
             </span>
           </li>
           <li className="flex items-start gap-2 text-muted-foreground">
             <Minus className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>
-              <strong>Gói test</strong> — chưa gắn được ở bản này; vẫn nằm trong file Word bạn
+              <strong>Gói test</strong> - chưa gắn được ở bản này; vẫn nằm trong file Word bạn
               đã xuất.
             </span>
           </li>
@@ -91,7 +91,7 @@ export function UnverifiedWarning({
           disabled={pending}
           className="border-destructive/40 text-destructive hover:bg-danger-subtle"
         >
-          {pending ? 'Đang gắn…' : 'Vẫn gắn — tới phòng chờ'}
+          {pending ? 'Đang gắn…' : 'Vẫn gắn - tới phòng chờ'}
         </Button>
       </div>
     </div>

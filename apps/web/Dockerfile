@@ -8,7 +8,7 @@ COPY apps/web ./apps/web
 COPY packages/shared ./packages/shared
 RUN pnpm install --frozen-lockfile
 # NEXT_PUBLIC_* vars are inlined into the client bundle at build time, not
-# read at container runtime — so it must be passed as a build ARG (see
+# read at container runtime - so it must be passed as a build ARG (see
 # docker-compose.yml's api/web `build.args`), not just a runtime `environment:`.
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL

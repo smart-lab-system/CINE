@@ -15,7 +15,7 @@ export function hueFor(index: number): string {
  * Chọn span nào được tô trong một đoạn.
  *
  * Hai tiêu chí trích cùng một câu là chuyện có thật. Sắp theo `start`, giữ
- * span đầu, bỏ phần giao — tô lồng nhau cho ra HTML không đọc được.
+ * span đầu, bỏ phần giao - tô lồng nhau cho ra HTML không đọc được.
  *
  * Việc này ở client vì nó là quyết định TRÌNH BÀY, không phải quyết định
  * đối chiếu. Phép đối chiếu đã xong ở server và không bao giờ chạy lại ở đây.
@@ -44,7 +44,7 @@ export function marksFor(
  *
  * KHÔNG có `indexOf` nào trong file này, và đó là quyết định thiết kế chứ
  * không phải sự lười. Phép đối chiếu chạy trên cả bài ĐÃ LÀM PHẲNG ở server
- * — dòng trống giữa hai đoạn thành một dấu cách — nên chỉ phía đó định vị
+ * - dòng trống giữa hai đoạn thành một dấu cách - nên chỉ phía đó định vị
  * đúng được, kể cả trích dẫn vắt qua ranh giới đoạn. Tự so lại ở client sẽ
  * trượt đúng những ca đó và hiện "không tìm thấy" cho câu mà hệ thống đã xác
  * nhận có thật.
@@ -84,7 +84,7 @@ export function AnswerPane({
       {text.truncatedByGrading && (
         <Alert variant="warning">
           <AlertDescription>
-            Bài này dài quá giới hạn chấm tự động —{' '}
+            Bài này dài quá giới hạn chấm tự động -{' '}
             <span className="font-semibold">phần cuối bài không được chấm</span>. Đoạn không
             hiển thị ở đây cũng là đoạn AI chưa bao giờ đọc.
           </AlertDescription>
@@ -93,7 +93,7 @@ export function AnswerPane({
 
       {empty ? (
         <p className="rounded-md border border-dashed border-border px-4 py-3 text-small text-muted-foreground">
-          Hệ thống <span className="font-semibold">chưa đọc được nội dung</span> bài làm này —
+          Hệ thống <span className="font-semibold">chưa đọc được nội dung</span> bài làm này -
           định dạng chưa được hỗ trợ (ví dụ <span className="font-mono">.zip</span>,{' '}
           <span className="font-mono">.pdf</span>, ảnh chụp). Tải file gốc về để chấm tay.
         </p>

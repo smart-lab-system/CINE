@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * `machine_id` ổn định trên máy — spec §3.2.
+ * `machine_id` ổn định trên máy - spec §3.2.
  * Persist UUID lần đầu vào thư mục userData (Electron) hoặc đường dẫn inject (test).
  */
 export function loadOrCreateMachineId(userDataDir: string): string {
@@ -31,7 +31,7 @@ export function getHostname(): string {
   return osHostname();
 }
 
-/** IPv4 không phải loopback — lấy địa chỉ LAN đầu tiên tìm thấy. */
+/** IPv4 không phải loopback - lấy địa chỉ LAN đầu tiên tìm thấy. */
 export function getLocalIp(): string {
   const nets = networkInterfaces();
   for (const entries of Object.values(nets)) {

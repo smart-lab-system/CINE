@@ -32,7 +32,7 @@ export type Blocker = 'no-rubric' | 'no-question' | 'in-progress';
 
 /**
  * Giờ làm bài chưa hết. So với `endTime`, KHÔNG đọc `status`: status của phiên không đáng tin (hầu hết phiên
- * sinh ra là 'active', memory cine-session-status-is-always-active) — thời gian mới là ranh giới. Ngày
+ * sinh ra là 'active', memory cine-session-status-is-always-active) - thời gian mới là ranh giới. Ngày
  * không đọc được thì coi như đã hết: chặn nhầm một phiên đã xong đắt hơn cho bắt đầu sớm một phiên hỏng ngày.
  */
 function examStillRunning(session: SessionOverviewItem, now: number): boolean {
@@ -67,13 +67,13 @@ export function listStatusOf(counts: Record<SessionState, number>): ListStatus {
   return 'ready';
 }
 
-/** Bài đã thu — cùng phép đếm với `submittedLabel`. */
+/** Bài đã thu - cùng phép đếm với `submittedLabel`. */
 export function submittedCount(session: SessionOverviewItem): number {
   return session.fullySubmittedCount + session.partialCount;
 }
 
 /**
- * Chỉ phiên CÓ bài đã thu (như `SessionPicker` cũ) — nhưng KHÔNG lọc theo rubric hay lưu trữ: phiên thiếu
+ * Chỉ phiên CÓ bài đã thu (như `SessionPicker` cũ) - nhưng KHÔNG lọc theo rubric hay lưu trữ: phiên thiếu
  * rubric phải hiện ra kèm dấu, vì bài thi thật của sinh viên nằm trong đó.
  */
 export function buildRows(
@@ -166,7 +166,7 @@ const FACET_LABEL: Record<FacetKey, (s: SessionOverviewItem) => string> = {
 };
 
 /**
- * `skip` bỏ MỘT bộ lọc ra khỏi phép so — dùng để đếm số lượng của chính bộ lọc đó (đếm theo các bộ lọc KHÁC),
+ * `skip` bỏ MỘT bộ lọc ra khỏi phép so - dùng để đếm số lượng của chính bộ lọc đó (đếm theo các bộ lọc KHÁC),
  * và để đếm tab trạng thái. Trong một nhóm: OR. Giữa các nhóm: AND. Nhóm rỗng = không lọc.
  */
 export function matchesFilters(row: SessionRow, f: ListFilters, now: number, skip?: FacetKey | 'status'): boolean {
@@ -284,7 +284,7 @@ export function groupRows(rows: SessionRow[], group: ListView['group']): RowGrou
 /* -------------------------------------------------------------- hàng loạt */
 
 export interface BulkPlan {
-  /** Chưa chấm, có rubric, có đề bài — ứng viên cho "Bắt đầu chấm". Máy chủ vẫn là người quyết. */
+  /** Chưa chấm, có rubric, có đề bài - ứng viên cho "Bắt đầu chấm". Máy chủ vẫn là người quyết. */
   start: SessionRow[];
   /** Chưa chấm và chưa có rubric. */
   assignRubric: SessionRow[];
@@ -389,7 +389,7 @@ export function progressLabel(row: SessionRow): string {
 /** Giờ máy người xem, không phải giờ UTC: giảng viên đọc "07:30", không đọc "00:30Z". */
 export function formatSessionDate(iso: string): { date: string; time: string } {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { date: '—', time: '' };
+  if (Number.isNaN(d.getTime())) return { date: '-', time: '' };
   const p = (n: number) => String(n).padStart(2, '0');
   return { date: `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`, time: `${p(d.getHours())}:${p(d.getMinutes())}` };
 }

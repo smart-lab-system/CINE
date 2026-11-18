@@ -131,6 +131,13 @@ export class BrowseFileQueryDto {
   path!: string;
 }
 
+/** Optional: raw=1 giữ nguyên tabstop `${1:…}` trong snippet body. */
+export class NormalizedSourcesQueryDto {
+  @IsOptional()
+  @IsIn(['1', 'true', '0', 'false'])
+  raw?: string;
+}
+
 export class CreatePolicyItemDto {
   @IsString()
   @MaxLength(200)
@@ -427,4 +434,24 @@ export class AcceptCreateRoomDto {
   @IsOptional()
   @IsString()
   note?: string | null;
+}
+
+export class VerifyTeacherMachineDto {
+  @IsString()
+  @MaxLength(100)
+  machineId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  roomId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  hostname?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(17)
+  macAddress?: string | null;
 }

@@ -1,7 +1,7 @@
 import { getAccessToken } from '@/lib/auth-token';
 
 /**
- * Catalog master-data — path chưa nằm trong schema.d.ts cho tới khi regenerate
+ * Catalog master-data - path chưa nằm trong schema.d.ts cho tới khi regenerate
  * OpenAPI. Gọi fetch + Bearer giống exam-authoring (không qua openapi-fetch).
  */
 
@@ -31,10 +31,19 @@ async function masterDataFetch<T>(
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (res.status === 204) return undefined as T;
   if (!res.ok) {
+    let serverMessage: string | undefined;
+    try {
+      const body = (await res.json()) as { message?: string | string[] };
+      if (typeof body.message === 'string') serverMessage = body.message;
+      else if (Array.isArray(body.message)) serverMessage = body.message.join('; ');
+    } catch {
+      /* ignore */
+    }
     throw new MasterDataHttpError(
-      res.status === 409
-        ? 'Xung đột dữ liệu (trùng mã hoặc còn bản ghi con).'
-        : `Yêu cầu thất bại (HTTP ${res.status})`,
+      serverMessage ??
+        (res.status === 409
+          ? 'Xung đột dữ liệu (trùng mã hoặc còn bản ghi con).'
+          : `Yêu cầu thất bại (HTTP ${res.status})`),
       res.status,
     );
   }
@@ -85,6 +94,10 @@ export interface Course {
   code: string;
   name: string;
   status: CourseStatus;
+  /** Đếm theo filter năm/kỳ trên list (toàn thời gian nếu không lọc). */
+  sectionCount?: number;
+  examCount?: number;
+  rubricCount?: number;
 }
 
 export interface NominalClass {
@@ -145,6 +158,8 @@ export interface Computer {
   ipAddress: string | null;
   macAddress: string | null;
   status: ComputerStatus;
+  isTeacherMachine?: boolean;
+  agentMachineId?: string | null;
 }
 
 export interface PageResult<T> {
@@ -158,6 +173,7 @@ export interface ListParams {
   status?: string;
   search?: string;
   academicYearId?: string;
+  semesterId?: string;
   nominalClassId?: string;
   roomId?: string;
   cohortYear?: number;
@@ -204,8 +220,17 @@ export const deleteSemester = (id: string) =>
 // --- courses ---
 export const listCourses = (p: ListParams = {}) =>
   masterDataFetch<PageResult<Course>>(
-    `/master-data/courses${qs({ page: p.page ?? 1, pageSize: p.pageSize ?? 20, status: p.status, search: p.search })}`,
+    `/master-data/courses${qs({
+      page: p.page ?? 1,
+      pageSize: p.pageSize ?? 20,
+      status: p.status,
+      search: p.search,
+      academicYearId: p.academicYearId,
+      semesterId: p.semesterId,
+    })}`,
   );
+export const getCourse = (id: string) =>
+  masterDataFetch<Course>(`/master-data/courses/${id}`);
 export const createCourse = (body: Omit<Course, 'id'>) =>
   masterDataFetch<{ id: string }>('/master-data/courses', {
     method: 'POST',
@@ -218,6 +243,138 @@ export const updateCourse = (id: string, body: Partial<Omit<Course, 'id'>>) =>
   });
 export const deleteCourse = (id: string) =>
   masterDataFetch<void>(`/master-data/courses/${id}`, { method: 'DELETE' });
+
+/** Hub môn - ngân hàng đề (filter kỳ suy diễn ngày). */
+export interface CourseHubExam {
+  id: string;
+  title: string;
+  examType: string;
+  status: string;
+  language: string;
+  isActive: boolean;
+  questionCount: number;
+  totalPoints: number;
+  createdBy: string;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedSemesterId: string | null;
+  resolvedSemesterName: string | null;
+}
+
+export interface CourseHubRubric {
+  id: string;
+  name: string;
+  version: number;
+  isActive: boolean;
+  isArchived: boolean;
+  kind: 'qa' | 'qs';
+  teacherId: string;
+  teacherName: string | null;
+  totalPoints: number;
+  createdAt: string;
+  updatedAt: string;
+  resolvedSemesterId: string | null;
+  resolvedSemesterName: string | null;
+}
+
+export interface CourseHubExamDetail extends CourseHubExam {
+  description: string | null;
+  courseCode: string;
+  courseName: string;
+  questions: {
+    id: string;
+    ordinal: number;
+    title: string | null;
+    statement: string;
+    points: number;
+    rubricId: string | null;
+    rubricName: string | null;
+  }[];
+}
+
+export interface CourseHubRubricDetail extends CourseHubRubric {
+  criteria: {
+    id: string;
+    key: string;
+    description: string;
+    maxPoints: number;
+    approachKey: string | null;
+  }[];
+  approaches: {
+    key: string;
+    name: string;
+    maxPoints: number;
+    steps: { key: string; description: string; maxPoints: number }[];
+  }[];
+}
+
+export const listCourseHubExams = (
+  courseId: string,
+  p: { academicYearId?: string; semesterId?: string } = {},
+) =>
+  masterDataFetch<CourseHubExam[]>(
+    `/master-data/courses/${courseId}/exams${qs({
+      academicYearId: p.academicYearId,
+      semesterId: p.semesterId,
+    })}`,
+  );
+
+export const getCourseHubExam = (courseId: string, examId: string) =>
+  masterDataFetch<CourseHubExamDetail>(
+    `/master-data/courses/${courseId}/exams/${examId}`,
+  );
+
+export const listCourseHubRubrics = (
+  courseId: string,
+  p: { academicYearId?: string; semesterId?: string } = {},
+) =>
+  masterDataFetch<CourseHubRubric[]>(
+    `/master-data/courses/${courseId}/rubrics${qs({
+      academicYearId: p.academicYearId,
+      semesterId: p.semesterId,
+    })}`,
+  );
+
+export const getCourseHubRubric = (courseId: string, rubricId: string) =>
+  masterDataFetch<CourseHubRubricDetail>(
+    `/master-data/courses/${courseId}/rubrics/${rubricId}`,
+  );
+
+export const deactivateCourseHubExam = (courseId: string, examId: string) =>
+  masterDataFetch<CourseHubExamDetail>(
+    `/master-data/courses/${courseId}/exams/${examId}/deactivate`,
+    { method: 'PATCH' },
+  );
+
+export const reactivateCourseHubExam = (courseId: string, examId: string) =>
+  masterDataFetch<CourseHubExamDetail>(
+    `/master-data/courses/${courseId}/exams/${examId}/reactivate`,
+    { method: 'PATCH' },
+  );
+
+export const deleteCourseHubExam = (courseId: string, examId: string) =>
+  masterDataFetch<void>(`/master-data/courses/${courseId}/exams/${examId}`, {
+    method: 'DELETE',
+  });
+
+export const deactivateCourseHubRubric = (courseId: string, rubricId: string) =>
+  masterDataFetch<CourseHubRubricDetail>(
+    `/master-data/courses/${courseId}/rubrics/${rubricId}/deactivate`,
+    { method: 'PATCH' },
+  );
+
+export const reactivateCourseHubRubric = (courseId: string, rubricId: string) =>
+  masterDataFetch<CourseHubRubricDetail>(
+    `/master-data/courses/${courseId}/rubrics/${rubricId}/reactivate`,
+    { method: 'PATCH' },
+  );
+
+export const deleteCourseHubRubric = (courseId: string, rubricId: string) =>
+  masterDataFetch<void>(
+    `/master-data/courses/${courseId}/rubrics/${rubricId}`,
+    { method: 'DELETE' },
+  );
 
 // --- nominal classes ---
 export const listNominalClasses = (p: ListParams = {}) =>
@@ -262,7 +419,7 @@ export interface StudentMssvHit {
   fullName: string;
 }
 
-/** Tiền tố MSSV (≥ 7 số). Giảng viên được gọi — không mở cả catalog. */
+/** Tiền tố MSSV (≥ 7 số). Giảng viên được gọi - không mở cả catalog. */
 export const lookupStudentsByMssv = (q: string) =>
   masterDataFetch<{ items: StudentMssvHit[] }>(
     `/master-data/students/lookup${qs({ q })}`,
@@ -335,6 +492,11 @@ export const updateComputer = (id: string, body: Partial<Omit<Computer, 'id'>>) 
   masterDataFetch<Computer>(`/master-data/computers/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+  });
+export const setTeacherMachine = (id: string, isTeacherMachine: boolean) =>
+  masterDataFetch<Computer>(`/master-data/computers/${id}/set-teacher-machine`, {
+    method: 'POST',
+    body: JSON.stringify({ isTeacherMachine }),
   });
 export const deleteComputer = (id: string) =>
   masterDataFetch<void>(`/master-data/computers/${id}`, { method: 'DELETE' });

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Bước 1 (spec §3.6): tải file sổ điểm của trường. File đi THẲNG lên storage bằng URL ký (rule 5), rồi server đọc
- * nó để hiện trang tính. Lỗi của server hiện NGUYÊN VĂN — mỗi loại file xấu (mật khẩu, hỏng, macro…) có câu riêng.
+ * nó để hiện trang tính. Lỗi của server hiện NGUYÊN VĂN - mỗi loại file xấu (mật khẩu, hỏng, macro…) có câu riêng.
  *
  * Vùng thả file: kéo-thả chỉ là đường tắt. Cái làm việc thật là chính `<input type="file">` phủ kín vùng (trong suốt),
  * nên bấm và bàn phím (Tab → Enter/Space) mở hộp chọn file như bình thường, và đọc màn hình thấy một ô chọn file có
@@ -75,7 +75,7 @@ export function StepUpload({
         <p className="text-body text-muted-foreground">Tải file sổ điểm mà trường phát. Bạn sẽ chọn cột ở bước sau.</p>
         <p className="flex items-start gap-2 text-small font-medium text-accent-strong">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>Hệ thống chỉ điền các ô bạn chọn — mọi ô khác giữ nguyên.</span>
+          <span>Hệ thống chỉ điền các ô bạn chọn - mọi ô khác giữ nguyên.</span>
         </p>
       </div>
 

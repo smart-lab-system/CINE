@@ -42,9 +42,9 @@ describe('ResultsTable (spec §3.3)', () => {
     expect(within(rows()[2]).getByText('Tự quyết')).toBeInTheDocument();
   });
 
-  it('shows "—" and "chưa có điểm" for a result without a score, never 0; provisional scores are tagged', () => {
+  it('shows "-" and "chưa có điểm" for a result without a score, never 0; provisional scores are tagged', () => {
     render(<ResultsTable {...props()} />);
-    expect(within(rows()[1]).getByText('—', { selector: '[data-cell="score"] *' })).toBeInTheDocument();
+    expect(within(rows()[1]).getByText('-', { selector: '[data-cell="score"] *' })).toBeInTheDocument();
     expect(within(rows()[1]).getByText('chưa có điểm')).toBeInTheDocument();
     expect(within(rows()[2]).getByText('10,0')).toBeInTheDocument();
     expect(within(rows()[2]).getByText('tạm tính')).toBeInTheDocument();
@@ -55,7 +55,7 @@ describe('ResultsTable (spec §3.3)', () => {
     expect(within(rows()[1]).getByText('Môi trường chạy bài hết giờ')).toBeInTheDocument();
   });
 
-  it('a needs-you result reads its reason and error counts from its own triage — no dossier request', () => {
+  it('a needs-you result reads its reason and error counts from its own triage - no dossier request', () => {
     const triage = {
       caseFlags: [], errorFlags: [{ ruleKey: 'x', code: 'unpriced' }],
       counts: { counted: 1, unpriced: 1, refuted: 0, excluded: 0 },
@@ -65,25 +65,25 @@ describe('ResultsTable (spec §3.3)', () => {
     expect(screen.getByText('1 đã trừ · 1 chờ giá')).toBeInTheDocument();
   });
 
-  // Review Focus 4: a code result with no triage is never guessed at — and never left spinning.
+  // Review Focus 4: a code result with no triage is never guessed at - and never left spinning.
   it('a needs-you code result without triage points the teacher at the dossier', () => {
     render(<ResultsTable {...props()} />);
     expect(within(rows()[0]).getByText('Mở hồ sơ để xem lý do.')).toBeInTheDocument();
     expect(screen.queryByText('Đang xem hồ sơ…')).not.toBeInTheDocument();
   });
 
-  it('the errors cell is "—" without triage, and "Không lỗi nào" with an empty one (not the same thing)', () => {
+  it('the errors cell is "-" without triage, and "Không lỗi nào" with an empty one (not the same thing)', () => {
     const empty = { caseFlags: [], errorFlags: [], counts: { counted: 0, unpriced: 0, refuted: 0, excluded: 0 } };
     render(
       <ResultsTable
         {...props({ results: [result({ id: 'p', studentMssv: '1', triage: null }), result({ id: 'q', studentMssv: '2', triage: empty })] })}
       />,
     );
-    expect(within(rows()[0]).getByText('—', { selector: 'td.tabular-nums' })).toBeInTheDocument();
+    expect(within(rows()[0]).getByText('-', { selector: 'td.tabular-nums' })).toBeInTheDocument();
     expect(within(rows()[1]).getByText('Không lỗi nào')).toBeInTheDocument();
   });
 
-  it('labels a code result graded by reading — never as an essay — and says why it needs the teacher (T-UI-19)', () => {
+  it('labels a code result graded by reading - never as an essay - and says why it needs the teacher (T-UI-19)', () => {
     render(
       <ResultsTable
         {...props({ results: [result({ pipeline: 'one_shot', deliverableType: 'code_project', deliverableLanguage: 'java', status: 'flagged_for_review' })] })}
@@ -91,12 +91,12 @@ describe('ResultsTable (spec §3.3)', () => {
     );
     expect(screen.getByText('Chấm bằng đọc mã, không chạy')).toBeInTheDocument();
     expect(screen.queryByText('Bài tự luận')).not.toBeInTheDocument();
-    expect(screen.getByText('Bài code chấm bằng đọc mã — luôn do bạn duyệt')).toBeInTheDocument();
+    expect(screen.getByText('Bài code chấm bằng đọc mã - luôn do bạn duyệt')).toBeInTheDocument();
   });
 
   it('flags a makeup student with the same label as the submissions screen', () => {
     render(<ResultsTable {...props({ results: [result({ homeClassId: 'other', homeClassName: 'N09' })] })} />);
-    expect(screen.getByText('Thi bù — N09')).toBeInTheDocument();
+    expect(screen.getByText('Thi bù - N09')).toBeInTheDocument();
   });
 
   it('labels an essay, and never calls a legacy auto-approved essay "Tự quyết" (T-UI-20)', () => {
@@ -108,7 +108,7 @@ describe('ResultsTable (spec §3.3)', () => {
 
   it('an essay that needs review says why without any dossier', () => {
     render(<ResultsTable {...props({ results: [result({ pipeline: 'one_shot', status: 'flagged_for_review' })] })} />);
-    expect(screen.getByText('Bài tự luận — luôn do bạn duyệt')).toBeInTheDocument();
+    expect(screen.getByText('Bài tự luận - luôn do bạn duyệt')).toBeInTheDocument();
   });
 
   it('an audit-pending row hides the score behind "ẩn", says why, and still opens the dossier (T-SAMP-1)', () => {
@@ -118,7 +118,7 @@ describe('ResultsTable (spec §3.3)', () => {
     expect(within(row).getByText('chờ nhận xét của bạn')).toBeInTheDocument();
     expect(row).not.toHaveTextContent('8,6');
     expect(row).not.toHaveTextContent('8.63');
-    expect(within(row).getByText('Kiểm mẫu ngẫu nhiên — ghi nhận xét của bạn trước, điểm hệ thống hiện sau.')).toBeInTheDocument();
+    expect(within(row).getByText('Kiểm mẫu ngẫu nhiên - ghi nhận xét của bạn trước, điểm hệ thống hiện sau.')).toBeInTheDocument();
     expect(within(row).getByRole('link', { name: '20120099' })).toHaveAttribute('href', '/teacher/grading/q?sessionId=s1');
   });
 

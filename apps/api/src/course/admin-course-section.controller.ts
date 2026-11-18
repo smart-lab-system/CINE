@@ -65,6 +65,16 @@ export class AdminCourseSectionController {
     await this.sections.remove(id);
   }
 
+  @Patch(':id/deactivate')
+  deactivate(@Param('id', ParseUUIDPipe) id: string) {
+    return this.sections.deactivate(id);
+  }
+
+  @Patch(':id/reactivate')
+  reactivate(@Param('id', ParseUUIDPipe) id: string) {
+    return this.sections.reactivate(id);
+  }
+
   @Post(':id/assign')
   assign(
     @Param('id', ParseUUIDPipe) id: string,

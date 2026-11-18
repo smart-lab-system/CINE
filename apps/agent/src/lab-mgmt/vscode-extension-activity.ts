@@ -46,7 +46,7 @@ function isWarning(value: unknown): value is { path: string; message: string } {
   return typeof warning.path === 'string' && typeof warning.message === 'string';
 }
 
-/** Payload lệnh LAN. `null` khi thân không đúng dạng — Hub báo lỗi, không hiện nửa danh sách. */
+/** Payload lệnh LAN. `null` khi thân không đúng dạng - Hub báo lỗi, không hiện nửa danh sách. */
 export function extensionActivityFromPayload(payload: unknown): ExtensionActivityPayload | null {
   if (!payload || typeof payload !== 'object') return null;
   const body = payload as { events?: unknown; warnings?: unknown };
@@ -135,7 +135,7 @@ function defaultLogsRoot(): string {
 }
 
 /**
- * Parser thuần. Không lọc theo ngày — caller quyết định dòng nào được đưa vào.
+ * Parser thuần. Không lọc theo ngày - caller quyết định dòng nào được đưa vào.
  * `sessionFolder` gắn vào mỗi sự kiện.
  */
 export function parseSharedProcessLog(text: string, sessionFolder: string): ExtensionActivityEvent[] {

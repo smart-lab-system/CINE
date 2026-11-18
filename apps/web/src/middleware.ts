@@ -22,7 +22,7 @@ export function isProtectedPath(pathname: string): boolean {
   );
 }
 
-// Exact-or-segment match only — `/admin`/`/admin/...` matches, a
+// Exact-or-segment match only - `/admin`/`/admin/...` matches, a
 // hypothetical future `/administrator` route would not (plain
 // `startsWith('/admin')` would wrongly treat it as the same area).
 function isUnderSegment(pathname: string, segment: string): boolean {
@@ -33,7 +33,7 @@ function isUnderSegment(pathname: string, segment: string): boolean {
  * Trades a still-valid refresh token for a fresh pair, or `null` if the
  * server will not have it.
  *
- * Server-to-server, so — unlike a browser request — this fetch carries none
+ * Server-to-server, so - unlike a browser request - this fetch carries none
  * of the incoming request's cookies on its own, and the refresh token has to
  * be forwarded explicitly. Nest reads it off `req.cookies?.refresh_token`,
  * the same place JwtStrategy reads `access_token`.
@@ -72,7 +72,7 @@ async function refreshSession(refreshToken: string): Promise<Session | null> {
 /**
  * Where this visitor is allowed to be, given the role in their token.
  *
- * Role-based redirection here is a UX convenience only — it decides which
+ * Role-based redirection here is a UX convenience only - it decides which
  * dashboard to send someone to, never whether they are allowed to see data.
  * The backend's JwtAuthGuard/RolesGuard is the real enforcement on every
  * actual API call. If the role cannot be decoded (a malformed token) we
@@ -90,7 +90,7 @@ function routeByRole(request: NextRequest, accessToken: string): NextResponse {
   const ownArea = areaForRole(role);
   const homeHref = homeForRole(role);
 
-  // There's no page at "/" — send a logged-in visitor straight to their
+  // There's no page at "/" - send a logged-in visitor straight to their
   // dashboard instead of a 404.
   if (pathname === '/') {
     return NextResponse.redirect(new URL(homeHref, request.url));
@@ -124,14 +124,14 @@ function routeByRole(request: NextRequest, accessToken: string): NextResponse {
 
 /**
  * `access_token` is set with maxAge 15m, so after 15 minutes the BROWSER has
- * already deleted it — and every navigation from then on used to arrive here
+ * already deleted it - and every navigation from then on used to arrive here
  * with no token and get redirected to /login, while the `refresh_token`
  * cookie sat right there, valid for another 7 days. That is the "user thoát
  * web giữa chừng" report.
  *
  * lib/api-client.ts's 401-retry covers the XHR half of the same problem. Only
  * middleware ever sees a document request, so only middleware can cover this
- * half — the two are not redundant.
+ * half - the two are not redundant.
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

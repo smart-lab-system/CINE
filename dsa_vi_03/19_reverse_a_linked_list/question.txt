@@ -1,0 +1,10 @@
+Cho head của một linked list, nhiệm vụ là đảo ngược danh sách này và trả về head đã đảo ngược.
+Ví dụ:
+Đầu vào: head: 1 -> 2 -> 3 -> 4 -> NULL
+Đầu ra: head: 4 -> 3 -> 2 -> 1 -> NULL
+Giải thích: Đầu vào: head: 2 -> 7 -> 10 -> 9 -> 8 -> NULL
+Đầu ra: head: 8 -> 9 -> 10 -> 7 -> 2 -> NULL
+Giải thích: Đầu vào: head: 2 -> NULL
+Đầu ra: 2 -> NULL
+Giải thích: Constraints:
+1 <= số lượng node, dữ liệu của node <= 105

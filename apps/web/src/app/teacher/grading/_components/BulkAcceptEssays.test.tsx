@@ -21,7 +21,7 @@ beforeEach(() => {
   state = { isPending: false, isError: false, error: null };
 });
 
-describe('BulkAcceptEssays (spec §3.11: essays never self-approve, so the teacher accepts them in bulk — knowingly)', () => {
+describe('BulkAcceptEssays (spec §3.11: essays never self-approve, so the teacher accepts them in bulk - knowingly)', () => {
   it('renders nothing when there is no essay waiting for review', () => {
     const { container } = render(
       <BulkAcceptEssays sessionId="s1" results={[result({ pipeline: 'investigator' }), result({ id: 'x', status: 'auto_approved' })]} />,
@@ -71,8 +71,8 @@ describe('BulkAcceptEssays (spec §3.11: essays never self-approve, so the teach
     fireEvent.click(screen.getByRole('button', { name: 'Duyệt 2 bài' }));
     const status = screen.getByRole('status');
     expect(status).toHaveTextContent('Đã duyệt 3 bài');
-    expect(status).toHaveTextContent('1 bài đã công bố — mỗi bài một dòng nhật ký');
-    expect(status).toHaveTextContent('1 bài bỏ qua: Bình — đang được chấm lại');
+    expect(status).toHaveTextContent('1 bài đã công bố - mỗi bài một dòng nhật ký');
+    expect(status).toHaveTextContent('1 bài bỏ qua: Bình - đang được chấm lại');
   });
 
   it('shows the server message verbatim when it fails', () => {

@@ -99,7 +99,7 @@ describe('StatusTabs', () => {
     expect(onChange).toHaveBeenCalledWith('ready');
   });
 
-  it('renders nothing while the statuses are unknown — no tab is better than a wrong count', () => {
+  it('renders nothing while the statuses are unknown - no tab is better than a wrong count', () => {
     const { container } = render(<StatusTabs counts={null} value="all" onChange={() => {}} />);
     expect(container).toBeEmptyDOMElement();
   });

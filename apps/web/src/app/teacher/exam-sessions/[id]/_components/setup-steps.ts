@@ -8,18 +8,18 @@ export const SETUP_STEPS: {
   icon: LucideIcon;
 }[] = [
   { id: 'info', label: 'Thông tin chung', icon: Info },
-  { id: 'roster', label: 'Danh sách thi', icon: Users },
-  { id: 'materials', label: 'Đề & thư mục', icon: FolderOpen },
-  { id: 'rubric', label: 'Rubric', icon: ClipboardList },
+  { id: 'roster', label: 'Danh sách thí sinh', icon: Users },
+  { id: 'folder', label: 'Thư mục bài làm', icon: FolderOpen },
+  { id: 'exam', label: 'Đề thi & Rubric', icon: ClipboardList },
   { id: 'review', label: 'Xác nhận', icon: ListChecks },
 ];
 
 const STEP_IDS = new Set<SetupStepId>(SETUP_STEPS.map((step) => step.id));
 
-/** `folder` và `schedule` là query cũ. Thiếu hoặc sai thì mở Thông tin chung. */
+/** Alias query cũ. Thiếu hoặc sai thì mở Thông tin chung. */
 export function parseStep(raw: string | null): SetupStepId {
-  if (raw === 'folder') return 'materials';
   if (raw === 'schedule') return 'info';
+  if (raw === 'materials' || raw === 'rubric') return 'exam';
   if (raw && STEP_IDS.has(raw as SetupStepId)) return raw as SetupStepId;
   return 'info';
 }

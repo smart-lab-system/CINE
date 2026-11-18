@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ---------------------------------------------------------------------------
- * ExamCollect design tokens — copied from apps/web/src/app/globals.css
+ * ExamCollect design tokens - copied from apps/web/src/app/globals.css
  * (see this app's tailwind.config.ts for why it's a copy, not a shared
  * package). Only the values actually used by this app's screens are kept;
  * see the web file for the full contrast-ratio table these were measured
@@ -57,7 +57,7 @@
   --radius: 0.75rem;
 }
 
-/* `darkMode: 'media'` in tailwind.config.ts — this app has no in-app
+/* `darkMode: 'media'` in tailwind.config.ts - this app has no in-app
    toggle (nothing to persist a preference in beyond localStorage, which
    isn't worth the weight here), so it simply follows the OS setting, the
    same as the rest of a Windows lab machine's other apps would. */
@@ -119,7 +119,7 @@
     @apply bg-background text-foreground font-sans antialiased;
     margin: 0;
     -webkit-font-smoothing: antialiased;
-    /* This app's whole window is the UI — nothing here is ever meant to
+    /* This app's whole window is the UI - nothing here is ever meant to
        be text-selected or dragged like a document. */
     user-select: none;
   }

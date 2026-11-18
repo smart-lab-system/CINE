@@ -28,8 +28,8 @@ describe('lib/api/rubric-errors', () => {
 
   it('liệt kê lỗi của một rubric bằng query rubricName (tên có ký tự đặc biệt đi nguyên văn)', async () => {
     h.GET.mockResolvedValue(ok([]));
-    await listRubricErrors('A&B #1 — Giữa kỳ?');
-    expect(h.GET).toHaveBeenCalledWith('/rubric-errors', { params: { query: { rubricName: 'A&B #1 — Giữa kỳ?' } } });
+    await listRubricErrors('A&B #1 - Giữa kỳ?');
+    expect(h.GET).toHaveBeenCalledWith('/rubric-errors', { params: { query: { rubricName: 'A&B #1 - Giữa kỳ?' } } });
   });
 
   it('thêm lỗi gửi đúng nguyên thân (điểm trừ là chuỗi)', async () => {

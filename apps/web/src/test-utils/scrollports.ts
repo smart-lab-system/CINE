@@ -2,8 +2,8 @@
  * Finding the scroll containers above an element, for tests.
  *
  * jsdom computes no layout, so "does this actually scroll" and "does this
- * header actually stick" are both out of reach. What IS reachable — and is
- * what the lobby's two-column layout genuinely turns on — is how many
+ * header actually stick" are both out of reach. What IS reachable - and is
+ * what the lobby's two-column layout genuinely turns on - is how many
  * scroll containers sit above a given element, and which one is nearest.
  *
  * That matters because a `sticky` element resolves its offsets against the
@@ -14,7 +14,7 @@
  */
 
 /**
- * Matches any Tailwind class that makes a box a scroll container — every
+ * Matches any Tailwind class that makes a box a scroll container - every
  * axis, both keywords, and the arbitrary-property form.
  *
  * Deliberately broader than the classes actually in use: a future

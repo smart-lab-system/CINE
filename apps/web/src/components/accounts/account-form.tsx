@@ -60,7 +60,7 @@ export function AccountForm({
         label="Mật khẩu"
         error={errors.password?.message}
         // The rule is stated up front rather than only after a rejected
-        // submit — it's cheaper to meet a requirement you can see.
+        // submit - it's cheaper to meet a requirement you can see.
         hint="Tối thiểu 8 ký tự. Người dùng nên đổi lại sau lần đăng nhập đầu."
       >
         <Input

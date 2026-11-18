@@ -9,7 +9,7 @@ import type { RubricOverview } from '@/lib/api/rubric-errors';
 import { copyPreviewText, copyStats } from '@/lib/rubric-board';
 
 /**
- * Sao chép lỗi + điểm trừ từ một rubric khác (D3). Giảng viên TỰ chọn nguồn — không chọn sẵn, không gợi ý: chọn
+ * Sao chép lỗi + điểm trừ từ một rubric khác (D3). Giảng viên TỰ chọn nguồn - không chọn sẵn, không gợi ý: chọn
  * sẵn một nguồn là thay họ quyết định. Xem trước tính từ dữ liệu tổng quan, ghép theo khoá tiêu chí như máy chủ.
  */
 export function CopyFromRubric({
@@ -44,7 +44,7 @@ export function CopyFromRubric({
       {
         onSuccess: (r) =>
           toast.success(
-            `Đã sao chép ${r.copied} lỗi từ “${chosen.rubricName}”. Hai rubric từ giờ độc lập — chỉnh điểm trừ cho kỳ này.` +
+            `Đã sao chép ${r.copied} lỗi từ “${chosen.rubricName}”. Hai rubric từ giờ độc lập - chỉnh điểm trừ cho kỳ này.` +
               (r.skippedNoCriterion > 0 ? ` ${r.skippedNoCriterion} lỗi thuộc tiêu chí không có ở rubric này nên không sao chép.` : ''),
           ),
       },
@@ -66,7 +66,7 @@ export function CopyFromRubric({
           <option value="">Chọn rubric…</option>
           {sources.map((s) => (
             <option key={s.rubricName} value={s.rubricName}>
-              {s.rubricName} — {s.errorCount} lỗi
+              {s.rubricName} - {s.errorCount} lỗi
             </option>
           ))}
         </select>

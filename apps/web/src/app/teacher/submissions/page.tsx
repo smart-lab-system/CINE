@@ -50,7 +50,7 @@ function formatDateTime(iso: string): string {
 }
 
 /**
- * Dòng kết quả tìm kiếm — KHÔNG dùng lại bảng triage.
+ * Dòng kết quả tìm kiếm - KHÔNG dùng lại bảng triage.
  *
  * Search trả lời một câu hỏi khác: "bài của sinh viên này nằm ở phiên nào?".
  * Câu trả lời là danh tính phiên + mốc thời gian, nên dòng ở đây cố ý gọn và
@@ -60,7 +60,7 @@ function formatDateTime(iso: string): string {
 function SearchResultRow({ item, now }: { item: SessionOverviewItem; now: number }) {
   const phase = getSessionPhase(item, now);
   const matched = item.matchedStudents ?? [];
-  // Trang chi tiết nhận MSSV, không nhận tên — một tên có thể trùng.
+  // Trang chi tiết nhận MSSV, không nhận tên - một tên có thể trùng.
   const primary = matched[0];
 
   return (
@@ -92,7 +92,7 @@ function SearchResultRow({ item, now }: { item: SessionOverviewItem; now: number
           vẫn ra kết quả là cách tra nhầm người mà không ai phát hiện. */}
       <span className="text-caption text-muted-foreground">
         {primary
-          ? `${primary.mssv} — ${primary.name}${
+          ? `${primary.mssv} - ${primary.name}${
               matched.length > 1 ? ` và ${matched.length - 1} sinh viên khác` : ''
             }`
           : 'Có sinh viên khớp trong phiên này'}
@@ -102,7 +102,7 @@ function SearchResultRow({ item, now }: { item: SessionOverviewItem; now: number
 }
 
 /**
- * "Quản lý bài thu" — cột lọc bên trái, một bảng bên phải.
+ * "Quản lý bài thu" - cột lọc bên trái, một bảng bên phải.
  *
  * Bố cục hai cột thay cho hai section chồng dọc của bản trước: dải "Cần chú ý"
  * cũ lặp lại đúng những phiên nằm trong nhóm bên dưới, nên giảng viên đọc
@@ -120,7 +120,7 @@ export default function SubmissionsPage() {
 
   // Cùng endpoint roll-up, chỉ hẹp lại theo sinh viên. Bản trước gọi
   // GET /submissions rồi đối chiếu ngược về danh sách phiên, và vì endpoint
-  // đó đọc bảng submission nên sinh viên chưa nộp gì là vô hình — đúng nhóm
+  // đó đọc bảng submission nên sinh viên chưa nộp gì là vô hình - đúng nhóm
   // giảng viên đi tra. Server giờ tìm trên roster ∪ người đã nộp.
   const searchResults = useSessionOverview(trimmedSearch || undefined, isSearching);
   // Một mốc cho mọi dòng. Đồng hồ chỉ nhảy khi phiên đã mở chạm giờ bắt đầu,
@@ -155,13 +155,13 @@ export default function SubmissionsPage() {
   const archive = useArchiveSession();
   const close = useCloseAttention();
 
-  // Dùng chung cho cả nhánh loading và nhánh chính — ô search phải luôn có
+  // Dùng chung cho cả nhánh loading và nhánh chính - ô search phải luôn có
   // mặt, kể cả khi danh sách phiên (browse) còn đang tải.
   const header = (
     <>
       <PageHeader
         title="Quản lý bài thu"
-        description="Phiên thi nào đã thu đủ bài, phiên nào còn thiếu — và tìm bài của một sinh viên qua tất cả các kỳ."
+        description="Phiên thi nào đã thu đủ bài, phiên nào còn thiếu - và tìm bài của một sinh viên qua tất cả các kỳ."
       />
       <Input
         value={search}
@@ -176,7 +176,7 @@ export default function SubmissionsPage() {
   // Chỉ còn MỘT query để chờ. Đoạn này từng chờ cả endpoint /semesters:
   // bộ lọc khi ấy tự gieo "kỳ hiện tại", nên vẽ trước khi biết kỳ nào sẽ
   // cho một khung hình sai, nhấp nháy đúng vào con số "phiên cần chú ý".
-  // Cả endpoint lẫn phép gieo đều biến mất cùng bảng `semester` — mặc định
+  // Cả endpoint lẫn phép gieo đều biến mất cùng bảng `semester` - mặc định
   // giờ là TẤT CẢ các kỳ, và "tất cả" thì không cần đợi ai xác nhận.
   if (isLoading) {
     return (
@@ -227,7 +227,7 @@ export default function SubmissionsPage() {
               // sinh viên chưa nộp gì vẫn ra. Không còn gì phải thú nhận ở
               // đây, và giữ lại câu cảnh báo cũ sẽ khiến giảng viên tự nghi
               // ngờ một kết quả đã đúng.
-              description="Không có phiên nào của bạn chứa sinh viên này — kiểm tra lại MSSV, hoặc lớp đó do giảng viên khác phụ trách."
+              description="Không có phiên nào của bạn chứa sinh viên này - kiểm tra lại MSSV, hoặc lớp đó do giảng viên khác phụ trách."
               action={
                 <Button type="button" variant="outline" onClick={() => setSearch('')}>
                   Xoá tìm kiếm

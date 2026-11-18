@@ -6,7 +6,7 @@ interface PageHeaderProps {
   /** One line saying what this screen is for. Optional, but a title alone
    *  on an empty screen tells a first-time user nothing. */
   description?: string;
-  /** Primary action for the page — sits opposite the title. */
+  /** Primary action for the page - sits opposite the title. */
   actions?: ReactNode;
   className?: string;
 }
@@ -14,7 +14,7 @@ interface PageHeaderProps {
 /**
  * Every page opens the same way: title, a muted line of context, and the
  * page's single primary action pinned to the right. Consistency here is
- * what stops each screen from inventing its own header — and it gives
+ * what stops each screen from inventing its own header - and it gives
  * PageTransition a stable first thing to animate in (`data-animate`).
  */
 export function PageHeader({ title, description, actions, className }: PageHeaderProps) {

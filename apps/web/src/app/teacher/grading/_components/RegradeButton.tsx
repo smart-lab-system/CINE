@@ -55,12 +55,12 @@ export function RegradeButton({
     setOpen(false);
     // Thông báo ngay trong trang chết cùng cái nút: danh sách tải lại không còn đếm các bài vừa xếp lại (UPDATE đã
     // xoá lớp lý do của chúng), nên nút ở đầu phiên / băng / khối đang chấm biến mất vài trăm mili-giây sau khi xác
-    // nhận — kéo theo dòng "bỏ qua" mà giảng viên cần đọc. Toast thì sống qua việc đó (phát hiện ở browser pass).
-    const lines = [...groupSkipped(data)].map(([reason, n]) => `${n} bài bỏ qua — ${reason}`);
+    // nhận - kéo theo dòng "bỏ qua" mà giảng viên cần đọc. Toast thì sống qua việc đó (phát hiện ở browser pass).
+    const lines = [...groupSkipped(data)].map(([reason, n]) => `${n} bài bỏ qua - ${reason}`);
     toast.success(`Đã xếp lại ${data.requeued} bài`, { description: lines.length > 0 ? lines.join('; ') : undefined });
   };
   // Lời từ chối của server cũng ra toast: 409 "đang được chấm" nghĩa là bài đã đi tiếp, nên lần tải lại ngay sau đó
-  // đổi màn hình và gỡ cả nút lẫn hộp thoại đang giữ Alert đỏ — câu nguyên văn sẽ không bao giờ kịp được đọc.
+  // đổi màn hình và gỡ cả nút lẫn hộp thoại đang giữ Alert đỏ - câu nguyên văn sẽ không bao giờ kịp được đọc.
   const failed = (error: Error) => {
     toast.error(error.message);
   };
@@ -94,7 +94,7 @@ export function RegradeButton({
               </span>
               {[...skippedByReason.entries()].map(([reason, n]) => (
                 <span key={reason} className="block">
-                  {n} bài bỏ qua — {reason}
+                  {n} bài bỏ qua - {reason}
                 </span>
               ))}
             </AlertDescription>
@@ -110,9 +110,9 @@ export function RegradeButton({
               {scope.kind === 'result'
                 ? 'Bài này sẽ được chấm lại từ đầu.'
                 : `Bạn sắp chấm lại ${count} bài không chấm được do lỗi phía hệ thống${
-                    scope.reason ? ` — cùng lý do: “${scope.reason}”` : ''
+                    scope.reason ? ` - cùng lý do: “${scope.reason}”` : ''
                   }.`}{' '}
-              Mỗi bài là một lượt gọi mô hình có tính phí. Đóng trang không dừng việc chấm — kết quả hiện ở danh
+              Mỗi bài là một lượt gọi mô hình có tính phí. Đóng trang không dừng việc chấm - kết quả hiện ở danh
               sách khi xong.
             </DialogDescription>
           </DialogHeader>

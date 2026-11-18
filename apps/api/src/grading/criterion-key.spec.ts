@@ -1,4 +1,23 @@
-import { assignCriterionKeys, DuplicateCriterionKeyError } from './criterion-key';
+import {
+  assignCriterionKeys,
+  assignQsStepKeys,
+  DuplicateCriterionKeyError,
+} from './criterion-key';
+
+describe('assignQsStepKeys', () => {
+  it('tiền tố hướng + số thứ tự 1-based', () => {
+    expect(assignQsStepKeys('brute_force', 3, 0)).toEqual([
+      'brute_force_s1',
+      'brute_force_s2',
+      'brute_force_s3',
+    ]);
+  });
+
+  it('approachKey quá dài → a{index}_s{n}', () => {
+    const long = 'a'.repeat(64);
+    expect(assignQsStepKeys(long, 2, 4)).toEqual(['a5_s1', 'a5_s2']);
+  });
+});
 
 describe('assignCriterionKeys', () => {
   it('sinh key từ mô tả: bỏ dấu, đ → d, chữ thường, ký tự lạ thành _', () => {

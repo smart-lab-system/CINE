@@ -1,13 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import {
+  groupQsApproaches,
+  qsOverviewTotalPoints,
+  type OverviewApproach,
+} from './rubric-overview-qs';
 
 export interface RubricOverview {
   rubricName: string;
   /** Phiên bản mới nhất — dùng cho đánh dấu tiêu chí và hộp thoại sửa. */
   rubricId: string;
+  /** `qa` = trừ điểm phẳng; `qs` = checklist theo hướng. */
+  kind: 'qa' | 'qs';
   totalPoints: number;
   criteria: { key: string; description: string; maxPoints: number; errorCount: number; waiverId: string | null }[];
+  /**
+   * Chỉ khi `kind = qs`: hướng → bước (cùng payload với `criteria` từng bước).
+   * `criteria` vẫn phẳng để drawer/move lỗi giữ contract cũ.
+   */
+  approaches: OverviewApproach[] | null;
   errorCount: number;
   unpricedCount: number;
   /** Dòng áp dụng gắn tiêu chí không còn ở bản mới nhất (spec §2.3.4). */
@@ -24,21 +36,47 @@ export class RubricOverviewService {
   constructor(@InjectDataSource() private readonly ds: DataSource) {}
 
   async overview(teacherId: string): Promise<RubricOverview[]> {
-    const versions: { id: string; name: string; version: number; created_at: Date }[] = await this.ds.query(
-      `SELECT id, name, version, created_at FROM examcollect.rubric WHERE teacher_id = $1 ORDER BY name, version DESC`,
+    const versions: {
+      id: string;
+      name: string;
+      version: number;
+      kind: string;
+      created_at: Date;
+    }[] = await this.ds.query(
+      `SELECT id, name, version, kind, created_at FROM examcollect.rubric WHERE teacher_id = $1 ORDER BY name, version DESC`,
       [teacherId],
     );
-    const latest = new Map<string, { id: string; created_at: Date }>();
+    const latest = new Map<string, { id: string; kind: 'qa' | 'qs'; created_at: Date }>();
     for (const v of versions) {
       const cur = latest.get(v.name);
-      if (!cur || v.created_at > cur.created_at) latest.set(v.name, { id: v.id, created_at: v.created_at });
+      if (!cur || v.created_at > cur.created_at) {
+        latest.set(v.name, {
+          id: v.id,
+          kind: v.kind === 'qs' ? 'qs' : 'qa',
+          created_at: v.created_at,
+        });
+      }
     }
     if (latest.size === 0) return [];
     const latestIds = [...latest.values()].map((l) => l.id);
 
-    const criteria: { rubric_id: string; key: string; description: string; max_points: string }[] = await this.ds.query(
-      `SELECT rubric_id, key, description, max_points FROM examcollect.rubric_criterion
-        WHERE rubric_id = ANY($1::uuid[]) ORDER BY sort_order, created_at, key`,
+    const criteria: {
+      rubric_id: string;
+      key: string;
+      description: string;
+      max_points: string;
+      sort_order: number;
+      approach_id: string | null;
+      approach_key: string | null;
+      approach_name: string | null;
+      approach_sort: number | null;
+    }[] = await this.ds.query(
+      `SELECT rc.rubric_id, rc.key, rc.description, rc.max_points, rc.sort_order,
+              rc.approach_id, ra.key AS approach_key, ra.name AS approach_name, ra.sort_order AS approach_sort
+         FROM examcollect.rubric_criterion rc
+         LEFT JOIN examcollect.rubric_approach ra ON ra.id = rc.approach_id
+        WHERE rc.rubric_id = ANY($1::uuid[])
+        ORDER BY ra.sort_order NULLS FIRST, rc.sort_order, rc.created_at, rc.key`,
       [latestIds],
     );
     const waivers: { id: string; rubric_id: string; criterion_key: string }[] = await this.ds.query(
@@ -84,7 +122,7 @@ export class RubricOverviewService {
       );
 
     const out: (RubricOverview & { _at: Date })[] = [];
-    for (const [rubricName, { id, created_at }] of latest) {
+    for (const [rubricName, { id, kind, created_at }] of latest) {
       const crit = criteria.filter((c) => c.rubric_id === id);
       const keys = new Set(crit.map((c) => c.key));
       const mine = apps.filter((a) => a.rubric_name === rubricName);
@@ -100,18 +138,44 @@ export class RubricOverviewService {
             | 'finalized',
           resultCount: s.total,
         }));
+
+      const criteriaView = crit.map((c) => ({
+        key: c.key,
+        description: c.description,
+        maxPoints: Number(c.max_points),
+        errorCount: mine.filter((a) => a.criterion_key === c.key).length,
+        waiverId: waivers.find((w) => w.rubric_id === id && w.criterion_key === c.key)?.id ?? null,
+      }));
+
+      let approaches: OverviewApproach[] | null = null;
+      let totalPoints: number;
+      if (kind === 'qs') {
+        approaches = groupQsApproaches(
+          crit.map((c, i) => ({
+            key: c.key,
+            description: c.description,
+            maxPoints: Number(c.max_points),
+            errorCount: criteriaView[i].errorCount,
+            waiverId: criteriaView[i].waiverId,
+            approachKey: c.approach_key,
+            approachName: c.approach_name,
+            approachSort: c.approach_sort,
+            stepSort: c.sort_order,
+          })),
+        );
+        totalPoints = qsOverviewTotalPoints(approaches);
+      } else {
+        totalPoints = Math.round(criteriaView.reduce((sum, c) => sum + c.maxPoints, 0) * 100) / 100;
+      }
+
       out.push({
         _at: created_at,
         rubricName,
         rubricId: id,
-        totalPoints: Math.round(crit.reduce((sum, c) => sum + Number(c.max_points), 0) * 100) / 100,
-        criteria: crit.map((c) => ({
-          key: c.key,
-          description: c.description,
-          maxPoints: Number(c.max_points),
-          errorCount: mine.filter((a) => a.criterion_key === c.key).length,
-          waiverId: waivers.find((w) => w.rubric_id === id && w.criterion_key === c.key)?.id ?? null,
-        })),
+        kind,
+        totalPoints,
+        criteria: criteriaView,
+        approaches,
         errorCount: mine.length,
         unpricedCount: mine.filter((a) => a.deduction === null).length,
         danglingCount: mine.filter((a) => !keys.has(a.criterion_key)).length,

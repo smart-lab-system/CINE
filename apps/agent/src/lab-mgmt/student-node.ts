@@ -42,10 +42,43 @@ export class StudentNode extends EventEmitter {
 
   constructor(
     private readonly machineId: string,
-    private readonly mssv: string,
-    private readonly fullName: string,
+    private mssv: string,
+    private fullName: string,
   ) {
     super();
+  }
+
+  /** Gắn MSSV sau login - gửi lại register nếu đang nối Hub. */
+  bindStudent(mssv: string, fullName: string): void {
+    this.mssv = mssv;
+    this.fullName = fullName;
+    this.statusMessage = this.tcp && !this.tcp.destroyed
+      ? `Đã gắn với Hub ${this.hubHostname ?? ''} - ${fullName} (${mssv}).`
+      : this.statusMessage;
+    this.emitState();
+    if (this.tcp && !this.tcp.destroyed && this.hubSessionId) {
+      void collectMachineHardware().then((hw) => {
+        if (!this.tcp || this.tcp.destroyed) return;
+        const machine: LabMachineInfo = {
+          machineId: this.machineId,
+          hostname: hw.hostname,
+          localIp: hw.localIp,
+          role: 'student_node',
+          studentMssv: this.mssv,
+          studentFullName: this.fullName,
+          labMgmtSessionId: this.hubSessionId!,
+          appVersion: APP_VERSION,
+          os: hw.os,
+          lastSeen: new Date().toISOString(),
+          cpu: hw.cpu,
+          ramGb: hw.ramGb,
+          storage: hw.storage,
+          gpu: hw.gpu,
+          macAddress: hw.macAddress,
+        };
+        this.tcp.write(encodeWireMessage({ type: 'register', machine }));
+      });
+    }
   }
 
   getState(): StudentNodeState {
@@ -85,7 +118,7 @@ export class StudentNode extends EventEmitter {
     this.tcp = null;
   }
 
-  /** Public cho test — nhận quảng bá Hub. */
+  /** Public cho test - nhận quảng bá Hub. */
   handleAdvertiseFrom(buf: Buffer, remoteAddress: string): void {
     if (this.stopped || this.connecting || (this.tcp && !this.tcp.destroyed)) {
       return;
@@ -172,7 +205,7 @@ export class StudentNode extends EventEmitter {
       this.tcp = null;
       this.connecting = false;
       if (!this.stopped) {
-        this.statusMessage = 'Mất kết nối Hub — đang chờ quảng bá lại…';
+        this.statusMessage = 'Mất kết nối Hub - đang chờ quảng bá lại…';
         this.emitState();
       }
     });

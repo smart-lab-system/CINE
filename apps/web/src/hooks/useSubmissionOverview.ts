@@ -10,11 +10,11 @@ import {
 } from '@/lib/api/submissions';
 
 /**
- * Mọi phiên của GV này kèm số liệu roll-up. Không phân trang — spec §1.2.
+ * Mọi phiên của GV này kèm số liệu roll-up. Không phân trang - spec §1.2.
  *
  * `student` biến nó thành luồng tìm kiếm: cùng endpoint, cùng hình dạng dữ
  * liệu, chỉ hẹp lại còn những phiên có sinh viên khớp. Dùng lại chính endpoint
- * này thay vì GET /submissions là điều sửa được lỗ cũ — endpoint kia đọc bảng
+ * này thay vì GET /submissions là điều sửa được lỗ cũ - endpoint kia đọc bảng
  * submission nên không bao giờ thấy sinh viên chưa nộp gì, tức đúng nhóm mà
  * giảng viên đi tra.
  *

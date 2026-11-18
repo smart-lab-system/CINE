@@ -3,11 +3,11 @@ import { Button } from '@/components/ui/button';
 import { RULES_PATH } from '@/lib/rules-links';
 
 /**
- * Dòng nhắc đòn bẩy (spec §3.3) — điểm khác cốt lõi so với UI cũ: MỘT thao tác ở tầng luật gỡ được nhiều bài
- * một lúc. Chỉ hiện khi có (`leverage` là `null` cho tới khi mọi hồ sơ cần xem đã tải — xem `leverageOf`).
+ * Dòng nhắc đòn bẩy (spec §3.3) - điểm khác cốt lõi so với UI cũ: MỘT thao tác ở tầng luật gỡ được nhiều bài
+ * một lúc. Chỉ hiện khi có (`leverage` là `null` cho tới khi mọi hồ sơ cần xem đã tải - xem `leverageOf`).
  *
  * Lời là "đang chờ", KHÔNG phải "chỉ chờ" như mockup. Kiểm trên API thật: đặt giá cho luật cuối cùng làm cờ
- * "chưa có giá" biến mất nhưng LỘ RA cờ `low_confidence` mà `decide()` giấu khi còn cờ khác (decide.ts:188) — bài
+ * "chưa có giá" biến mất nhưng LỘ RA cờ `low_confidence` mà `decide()` giấu khi còn cờ khác (decide.ts:188) - bài
  * vẫn cần xem. Nên dòng này nói đúng phần chứng minh được (giá là lý do hiện có) và nói thẳng rằng còn lý do
  * khác thì sẽ hiện sau khi tính lại.
  */

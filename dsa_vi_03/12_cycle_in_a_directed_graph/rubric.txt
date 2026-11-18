@@ -1,0 +1,15 @@
+Chu trình trong đồ thị có hướng (Directed Graph)
+
+
+Solution 1: DFS với Recursion Stack
+1. Khởi tạo một mảng visited và một mảng recursion stack, cả hai đều có kích thước V để theo dõi các đỉnh đã duyệt và các đỉnh trong đường đi hiện tại. [1 mark]
+2. Đánh dấu đỉnh hiện tại là đã duyệt và cũng đánh dấu đỉnh đó trong recursion stack trong quá trình duyệt DFS. [1 mark]
+3. Đối với mỗi đỉnh kề chưa duyệt, gọi đệ quy hàm DFS. Nếu gặp một đỉnh đã có trong recursion stack, trả về true (phát hiện chu trình). [1 mark]
+4. Cài đặt một hàm wrapper gọi DFS cho tất cả các đỉnh chưa duyệt và trả về kết quả cuối cùng một cách chính xác. [1 mark]
+
+
+Solution 2: Thuật toán Kahn (Sắp xếp tô-pô bằng BFS)
+1. Tính bán bậc vào (in-degree) cho mỗi đỉnh trong đồ thị sử dụng một mảng kích thước V. [1 mark]
+2. Khởi tạo một queue với tất cả các đỉnh có in-degree bằng 0 và duy trì một biến đếm cho các đỉnh đã xử lý. [1 mark]
+3. Thực hiện duyệt BFS: với mỗi đỉnh được lấy ra khỏi queue, giảm in-degree của tất cả các đỉnh kề của nó và thêm các đỉnh có in-degree bằng 0 vào queue. [1 mark]
+4. Nếu số lượng đỉnh đã xử lý nhỏ hơn V, trả về true (tồn tại chu trình); ngược lại, trả về false (không có chu trình). [1 mark]

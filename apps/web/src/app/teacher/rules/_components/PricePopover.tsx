@@ -18,7 +18,7 @@ import { describeRecompute, formatDeductionString, parseDeductionInput } from '@
  * nó theo id dòng để mỗi lỗi một trạng thái riêng.
  *
  * Giữ ba bài học của bảng đặt giá cũ: (1) ô nhập luôn hiện giá trị hiện tại; (2) lỗi khi xem trước / khi lưu hiện
- * nguyên văn; (3) "đã xem trước cho giá trị nào" là một state riêng (`previewedFor`) — đổi số thì xem trước cũ mất
+ * nguyên văn; (3) "đã xem trước cho giá trị nào" là một state riêng (`previewedFor`) - đổi số thì xem trước cũ mất
  * và nút lưu khoá lại, nên không bao giờ lưu theo tác động của một số khác (T-POL-5).
  */
 export function PricePopover({
@@ -29,7 +29,7 @@ export function PricePopover({
 }: {
   item: RubricErrorItem;
   rubricName: string;
-  /** Tiêu chí chứa lỗi, nếu biết — chỉ để nói điểm tối đa. */
+  /** Tiêu chí chứa lỗi, nếu biết - chỉ để nói điểm tối đa. */
   criterion?: OverviewCriterion;
   onClose: () => void;
 }) {
@@ -79,7 +79,7 @@ export function PricePopover({
   return (
     <>
       <h3 className="text-body font-semibold">
-        {item.deduction === null ? 'Đặt' : 'Sửa'} điểm trừ — {item.name}
+        {item.deduction === null ? 'Đặt' : 'Sửa'} điểm trừ - {item.name}
       </h3>
       <p className="text-small text-muted-foreground">
         Chỉ áp cho rubric “{rubricName}”.
@@ -170,7 +170,7 @@ export function PricePopover({
               <p className="flex items-start gap-1.5 rounded-md bg-surface-2 p-2.5 text-muted-foreground">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>
-                  {finalTotal} bài thuộc phiên đã chốt: giữ nguyên điểm, vì bảng điểm trừ đã được ghim lúc chốt. Muốn áp điểm trừ mới cho phiên đó, dùng mục áp lại ở trang chấm điểm của phiên — mỗi bài đổi điểm có một dòng nhật ký.
+                  {finalTotal} bài thuộc phiên đã chốt: giữ nguyên điểm, vì bảng điểm trừ đã được ghim lúc chốt. Muốn áp điểm trừ mới cho phiên đó, dùng mục áp lại ở trang chấm điểm của phiên - mỗi bài đổi điểm có một dòng nhật ký.
                 </span>
               </p>
             )}

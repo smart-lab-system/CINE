@@ -4,10 +4,10 @@ import { cn } from '@/lib/utils';
 
 interface BrandProps {
   href: string;
-  /** Drops the tagline — for the mobile sheet header, where the row is
+  /** Drops the tagline - for the mobile sheet header, where the row is
    *  tight and the tagline would wrap. */
   compact?: boolean;
-  /** Drops the wordmark too, leaving only the mark — for the collapsed
+  /** Drops the wordmark too, leaving only the mark - for the collapsed
    *  desktop sidebar, which is narrower than the word "ExamCollect". The
    *  link keeps its accessible name from the sr-only text below. */
   iconOnly?: boolean;

@@ -101,9 +101,9 @@ describe('countStates / sortByState', () => {
   });
 });
 
-describe('scoreCell (every score is currentScore; null is "—", never 0)', () => {
-  it('null score → "—" and "chưa có điểm"', () => {
-    expect(scoreCell(result({ currentScore: null }), 'ungradable')).toEqual({ text: '—', tag: 'chưa có điểm' });
+describe('scoreCell (every score is currentScore; null is "-", never 0)', () => {
+  it('null score → "-" and "chưa có điểm"', () => {
+    expect(scoreCell(result({ currentScore: null }), 'ungradable')).toEqual({ text: '-', tag: 'chưa có điểm' });
   });
   it('a computed score is provisional until finalised', () => {
     expect(scoreCell(result({ currentScore: 8.5 }), 'needsYou')).toEqual({ text: '8,5', tag: 'tạm tính' });
@@ -119,9 +119,9 @@ describe('scoreCell (every score is currentScore; null is "—", never 0)', () =
     expect(scoreCell(result({ currentScore: 0 }), 'auto')).toEqual({ text: '0,0', tag: 'tạm tính' });
   });
   it('never reads aiTotalScore or finalScore', () => {
-    expect(scoreCell(result({ currentScore: null, aiTotalScore: 9, finalScore: 9 }), 'needsYou').text).toBe('—');
+    expect(scoreCell(result({ currentScore: null, aiTotalScore: 9, finalScore: 9 }), 'needsYou').text).toBe('-');
   });
-  it('an audit-pending result shows "ẩn", never a number — even if the payload carried one (T-SAMP-1, second lock)', () => {
+  it('an audit-pending result shows "ẩn", never a number - even if the payload carried one (T-SAMP-1, second lock)', () => {
     expect(scoreCell(result({ currentScore: 8.63 }), 'audit')).toEqual({ text: 'ẩn', tag: 'chờ nhận xét của bạn' });
     expect(scoreCell(result({ currentScore: 0 }), 'audit')).toEqual({ text: 'ẩn', tag: 'chờ nhận xét của bạn' });
   });
@@ -193,7 +193,7 @@ describe('errorCounts', () => {
     expect(errorCounts(null)).toBeNull();
     expect(errorCounts(undefined)).toBeNull();
   });
-  it('a triage with no errors is zeros — "no errors" is not "unknown"', () => {
+  it('a triage with no errors is zeros - "no errors" is not "unknown"', () => {
     expect(errorCounts(triage())).toEqual({ counted: 0, unpriced: 0, refuted: 0, unverified: 0 });
   });
 });
@@ -205,10 +205,10 @@ describe('reasonOf', () => {
     expect(reasonOf(flagged({ ungradableReason: 'Hết giờ chạy bài' }))).toBe('Hết giờ chạy bài');
   });
   it('an essay always needs the teacher', () => {
-    expect(reasonOf(flagged({ pipeline: 'one_shot', deliverableType: 'document' }))).toBe('Bài tự luận — luôn do bạn duyệt');
+    expect(reasonOf(flagged({ pipeline: 'one_shot', deliverableType: 'document' }))).toBe('Bài tự luận - luôn do bạn duyệt');
   });
   it('a code result graded by reading says so instead of calling itself an essay', () => {
-    expect(reasonOf(flagged({ pipeline: 'one_shot', deliverableType: 'code_project' }))).toBe('Bài code chấm bằng đọc mã — luôn do bạn duyệt');
+    expect(reasonOf(flagged({ pipeline: 'one_shot', deliverableType: 'code_project' }))).toBe('Bài code chấm bằng đọc mã - luôn do bạn duyệt');
   });
   it('a flagged code result without triage has no reason (the UI points at the dossier)', () => {
     expect(reasonOf(flagged())).toBeNull();
@@ -230,14 +230,14 @@ describe('reasonOf', () => {
     expect(reasonOf(flagged({ triage: triage({ errorFlags: [{ ruleKey: 'a', code: 'unpriced' }] }) }))).toBe('1 luật chưa có giá');
   });
   it('a triage that names no blocker says so instead of inventing one', () => {
-    expect(reasonOf(flagged({ triage: triage() }))).toBe('Hồ sơ không nêu lý do cụ thể — mở hồ sơ để xem.');
+    expect(reasonOf(flagged({ triage: triage() }))).toBe('Hồ sơ không nêu lý do cụ thể - mở hồ sơ để xem.');
   });
   it('is null for a result nobody needs to look at', () => {
     expect(reasonOf(result({ status: 'auto_approved', triage: triage() }))).toBeNull();
   });
   it('an audit-pending result says why its score is hidden', () => {
     expect(reasonOf(result({ status: 'audit_pending', triage: null }))).toBe(
-      'Kiểm mẫu ngẫu nhiên — ghi nhận xét của bạn trước, điểm hệ thống hiện sau.',
+      'Kiểm mẫu ngẫu nhiên - ghi nhận xét của bạn trước, điểm hệ thống hiện sau.',
     );
   });
   it('a result in any other state is unaffected by the audit sentence', () => {
@@ -279,7 +279,7 @@ describe('leverageOf (Review Focus 4: no claim from partial data)', () => {
   });
 });
 
-describe('countsFromSummary — agrees with stateOf', () => {
+describe('countsFromSummary - agrees with stateOf', () => {
   const summaryOf = (results: GradingResult[]) => {
     const byStatus: Record<string, number> = {};
     let ungradable = 0;

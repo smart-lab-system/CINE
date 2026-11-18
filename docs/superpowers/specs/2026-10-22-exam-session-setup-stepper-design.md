@@ -1,7 +1,7 @@
 # Design: Stepper cho hub Thiết lập phiên thi
 
 **Ngày:** 2026-10-22
-**Trạng thái:** planned (`docs/superpowers/plans/2026-10-22-exam-session-setup-stepper.md`)
+**Trạng thái:** superseded for step list by `2026-11-18-exam-session-setup-steps-design` (vẫn giữ khung stepper / nháp / footer)
 **Liên quan:**
 - [exam-session-setup-edit-flow](./2026-10-18-exam-session-setup-edit-flow-design.md) — lifecycle, ma trận sửa, checklist mở phiên. Spec này đổi cách trình bày hub, và nới một điểm của ma trận đó: **loại thi sửa được khi `scheduled`**. Status và luật mở phiên giữ nguyên.
 - [session-exam-roster-setup](./2026-10-18-session-exam-roster-setup-design.md)
@@ -99,16 +99,18 @@ Quay lại / Tiếp tục đi theo thứ tự danh sách cho người dùng lầ
 | # | `step` (query) | Nhãn | Icon (lucide) | Nội dung | Ghi server hôm nay |
 |---|---|---|---|---|---|
 | 1 | `info` | Thông tin chung | `Info` | Đủ mục của card Thông tin phiên. Sửa loại thi, thời gian, phòng thi | `PATCH /exam-sessions/:id` (thêm `examType`) |
-| 2 | `roster` | Danh sách thi | `Users` | `SessionExamRosterCard` | Từng thao tác thêm / gỡ / import |
-| 3 | `materials` | Đề & thư mục | `FolderOpen` | Đề phát, rồi thư mục bài thi và preview | Upload / xoá đề ngay; `PUT …/required-deliverables` cho thư mục |
-| 4 | `rubric` | Rubric | `ClipboardList` | `RubricRow` | `PATCH …/rubric` |
-| 5 | `review` | Xem lại | `ListChecks` | Checklist §5.4 trên dữ liệu đã trộn, nút Mở phiên thi | `POST …/open` chỉ từ nút đó |
+| 2 | `roster` | Danh sách thí sinh | `Users` | `SessionExamRosterCard` | Từng thao tác thêm / gỡ / import |
+| 3 | `folder` | Thư mục bài làm | `FolderOpen` | Thư mục bài làm và preview | `PUT …/required-deliverables` |
+| 4 | `exam` | Đề thi & Rubric | `ClipboardList` | Đề phát · Rubric · Đáp án mẫu (file/folder/zip) | Upload đề; `PATCH …/rubric`; grading-reference |
+| 5 | `review` | Xác nhận | `ListChecks` | Checklist §5.4 trên dữ liệu đã trộn, nút Mở phiên thi | `POST …/open` chỉ từ nút đó |
 
-Một bước, hai khối xếp dọc trong vùng nội dung. Khối trên là `ExamMaterialsCard` (đề phát cho sinh viên). Khối dưới là `RequiredDeliverablesEditor` và preview cây thư mục. Preview dùng tên file đề vừa upload trên cùng bước. Ngôn ngữ deliverable (`code_project`) nằm trong khối dưới, không thành bước riêng.
+> Bảng bước cập nhật 2026-11-18 - xem `2026-11-18-exam-session-setup-steps-design.md`.
 
-`?step=folder` mở bước Đề & thư mục rồi `replace` thành `?step=materials`. `?step=schedule` mở Thông tin chung rồi `replace` thành `?step=info`.
+Thư mục bài làm và Đề thi & Rubric là hai bước riêng (2026-11-18). Ngôn ngữ deliverable (`code_project`) nằm ở bước thư mục.
 
-URL: `/teacher/exam-sessions/[id]?step=materials`. Thiếu hoặc sai `step` thì mở `info`. Đổi bước thì `replace` query, không đẩy thêm history cho từng cú bấm stepper (Quay lại của trình duyệt vẫn ra khỏi hub).
+Alias query: `materials`/`rubric` → `exam`; `schedule` → `info`; `folder` là id thật. Thiếu hoặc sai `step` thì mở `info`. Đổi bước thì `replace` query.
+
+URL ví dụ: `/teacher/exam-sessions/[id]?step=exam`.
 
 ### 5.1 Bước Thông tin chung
 

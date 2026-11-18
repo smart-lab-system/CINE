@@ -49,4 +49,12 @@ export class ComputerEntity extends BaseEntity {
     enumName: 'computer_status',
   })
   status!: ComputerStatus;
+
+  /** Đúng một máy / phòng được đánh dấu máy giảng viên (Teacher Hub). */
+  @Column({ name: 'is_teacher_machine', type: 'boolean', default: false })
+  isTeacherMachine!: boolean;
+
+  /** UUID ổn định từ agent (`lab-mgmt/machine-id`); dùng verify Hub. */
+  @Column({ name: 'agent_machine_id', type: 'varchar', length: 64, nullable: true })
+  agentMachineId!: string | null;
 }

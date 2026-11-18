@@ -60,7 +60,7 @@ export function ErrorRow({
             {more > 0 && (
               <UsesMore
                 label={`${more} rubric khác`}
-                title={`${item.name} — đang dùng ở ${item.alsoIn.length} rubric khác`}
+                title={`${item.name} - đang dùng ở ${item.alsoIn.length} rubric khác`}
                 items={item.alsoIn.map((a) => ({ key: a.rubricName, name: a.rubricName, value: deductionLabel(a.deduction) }))}
                 onPick={onOpenRubric}
               />

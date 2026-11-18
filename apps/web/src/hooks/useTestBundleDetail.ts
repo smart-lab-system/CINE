@@ -6,7 +6,7 @@ import { dropTestBundleCase } from '@/lib/api/test-bundle-review';
 
 /**
  * Khoá chi tiết nằm DƯỚI khoá danh sách (`['exam-sessions', id, 'test-bundles']`)
- * một cấp — TanStack Query khớp theo tiền tố, nên mọi `invalidateQueries` của
+ * một cấp - TanStack Query khớp theo tiền tố, nên mọi `invalidateQueries` của
  * danh sách (duyệt, ghim, tạo) làm mới luôn chi tiết.
  */
 export function useTestBundleDetail(examSessionId: string | undefined, bundleId: string | null) {
@@ -28,7 +28,7 @@ export function useDropTestBundleCase(examSessionId: string | undefined) {
 }
 
 /**
- * Lấy chi tiết một phiên bản gói theo yêu cầu (không cần đang mở nó) — để dựng bản nháp từ một phiên bản. Dùng chung khoá và
+ * Lấy chi tiết một phiên bản gói theo yêu cầu (không cần đang mở nó) - để dựng bản nháp từ một phiên bản. Dùng chung khoá và
  * bộ nhớ đệm với `useTestBundleDetail`, nên phiên bản đã mở rồi không tải lại.
  */
 export function useFetchTestBundle(examSessionId: string | undefined) {

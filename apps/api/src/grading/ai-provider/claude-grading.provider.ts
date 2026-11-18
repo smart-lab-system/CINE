@@ -53,6 +53,8 @@ const GraderOutputSchema = z.object({
     detected: z.boolean(),
     quote: z.string().optional(),
   }),
+  /** UC33 QS — tuỳ chọn ở schema zod; QA bỏ trống. */
+  selectedApproachKey: z.string().optional().nullable(),
 });
 
 /**
@@ -71,47 +73,56 @@ const GraderOutputSchema = z.object({
  * model được phép bỏ trường, và một `criterionResults` thiếu sẽ đọc ra
  * như một bài không có tiêu chí nào.
  */
-const GRADER_JSON_SCHEMA: Record<string, unknown> = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['criterionResults', 'uncoveredContent', 'injectionAttempt'],
-  properties: {
-    criterionResults: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['criterionId', 'verdict', 'evidence'],
-        properties: {
-          criterionId: { type: 'string' },
-          verdict: { type: 'string', enum: ['met', 'partially_met', 'not_met'] },
-          evidence: {
-            type: 'string',
-            description:
-              'Trích NGUYÊN VĂN từ bài làm, đúng từng chữ. Chuỗi RỖNG nếu sinh viên ' +
-              'không đề cập tiêu chí này. Dẫn chứng bịa bị phát hiện bằng máy.',
+function graderJsonSchema(requireApproachKey: boolean): Record<string, unknown> {
+  const required = ['criterionResults', 'uncoveredContent', 'injectionAttempt'];
+  if (requireApproachKey) required.push('selectedApproachKey');
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required,
+    properties: {
+      criterionResults: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['criterionId', 'verdict', 'evidence'],
+          properties: {
+            criterionId: { type: 'string' },
+            verdict: { type: 'string', enum: ['met', 'partially_met', 'not_met'] },
+            evidence: {
+              type: 'string',
+              description:
+                'Trích NGUYÊN VĂN từ bài làm, đúng từng chữ. Chuỗi RỖNG nếu sinh viên ' +
+                'không đề cập tiêu chí này. Dẫn chứng bịa bị phát hiện bằng máy.',
+            },
           },
         },
       },
-    },
-    uncoveredContent: {
-      type: 'array',
-      items: { type: 'string' },
-      description:
-        'Đoạn trong bài làm không thuộc tiêu chí nào — nơi ghi nhận một em trả lời ' +
-        'đúng theo hướng rubric không lường trước.',
-    },
-    injectionAttempt: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['detected'],
-      properties: {
-        detected: { type: 'boolean' },
-        quote: { type: 'string' },
+      uncoveredContent: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Đoạn trong bài làm không thuộc tiêu chí nào — nơi ghi nhận một em trả lời ' +
+          'đúng theo hướng rubric không lường trước.',
+      },
+      injectionAttempt: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['detected'],
+        properties: {
+          detected: { type: 'boolean' },
+          quote: { type: 'string' },
+        },
+      },
+      selectedApproachKey: {
+        type: 'string',
+        description:
+          'UC33 QS: key của đúng một cách giải trong <solution_approaches>. Bắt buộc khi rubric QS.',
       },
     },
-  },
-};
+  };
+}
 
 @Injectable()
 export class ClaudeGradingProvider implements AIGradingProvider {
@@ -125,10 +136,12 @@ export class ClaudeGradingProvider implements AIGradingProvider {
   // xảy ra. Tài liệu tham chiếu đi theo `request.reference`.
 
   async grade(request: GradingRequest): Promise<GradingOutcome> {
+    const qsMode = Boolean(request.qsApproaches?.length);
     const prompt = buildGraderPrompt({
       criteria: request.criteria,
       studentText: request.content,
       anchors: request.anchors,
+      qsApproaches: request.qsApproaches,
       ...(request.reference ?? {}),
     });
 
@@ -145,7 +158,7 @@ export class ClaudeGradingProvider implements AIGradingProvider {
       thinking: { type: 'adaptive' },
       output_config: {
         effort: 'high',
-        format: { type: 'json_schema', schema: GRADER_JSON_SCHEMA },
+        format: { type: 'json_schema', schema: graderJsonSchema(qsMode) },
       },
       system: prompt.system as Anthropic.TextBlockParam[],
       messages: [{ role: 'user', content: prompt.userContent as Anthropic.ContentBlockParam[] }],
@@ -242,6 +255,7 @@ export class ClaudeGradingProvider implements AIGradingProvider {
         points: 0,
         evidence: row.evidence,
       })),
+      selectedApproachKey: parsed.selectedApproachKey ?? null,
       totalScore: 0,
       // 1 = không tự hạ trần. Đây KHÔNG phải tự khai độ tin cậy về bài
       // này — nó nói rằng cơ chế (model mạnh đọc hiểu + trích dẫn nguyên
@@ -255,7 +269,10 @@ export class ClaudeGradingProvider implements AIGradingProvider {
       contextUsed: {
         question: Boolean(request.reference?.questionPdf),
         modelAnswer: Boolean(
-          request.reference?.modelAnswerPdf || request.reference?.modelAnswerNote,
+          request.reference?.modelAnswerPdf ||
+            request.reference?.modelAnswerNote ||
+            (request.reference?.modelAnswerFiles &&
+              request.reference.modelAnswerFiles.length > 0),
         ),
       },
       usage: {

@@ -173,7 +173,7 @@ describe('lọc theo LỚP', () => {
 
 describe('detectRoomFailure', () => {
   // Mẫu số là LỚP, không còn là môn. Bản cũ dựng hai `courseName` khác nhau
-  // để làm cảnh báo nổ — một trạng thái dữ liệu không còn tồn tại được từ
+  // để làm cảnh báo nổ - một trạng thái dữ liệu không còn tồn tại được từ
   // khi hệ thống chốt phục vụ một môn, nên test cũ xanh trong khi hàm thật
   // luôn trả `null` và banner không bao giờ hiện.
   const red = (id: string, room: string, classId: string) =>

@@ -21,6 +21,8 @@ import {
 } from './ai-provider/ai-grading-provider';
 import { GradingInputTooLargeError } from './extract-text';
 import { gradeOneShot } from './one-shot-grade';
+import { approachKeyByCriterionId, resolveAndScoreQs } from './qs';
+import { RubricService } from './rubric.service';
 import { verifyEvidence } from './harness/evidence-check';
 import { AdvocateOpinion } from './ai-provider/advocate.types';
 import { ADVOCATE_PROVIDER, AdvocateProvider } from './ai-provider/advocate-provider';
@@ -86,6 +88,7 @@ export class GradingService {
     @InjectRepository(GradingAttemptEntity)
     private readonly attempts: Repository<GradingAttemptEntity>,
     private readonly investigatorRun: InvestigatorRunService,
+    private readonly rubrics: RubricService,
   ) {}
 
   /**
@@ -144,7 +147,12 @@ export class GradingService {
         content: studentText,
         questionPdf: reference.questionPdf,
         modelAnswerPdf: reference.modelAnswer,
-        modelAnswerNote: reference.note,
+        modelAnswerNote: [
+          reference.note,
+          ...(reference.modelAnswerFiles ?? []).map((f) => `[${f.path}]\n${f.text}`),
+        ]
+          .filter(Boolean)
+          .join('\n\n') || undefined,
       });
 
       // DẪN CHỨNG CỦA ADVOCATE CŨNG BỊ KIỂM NGUYÊN VĂN.
@@ -441,6 +449,9 @@ export class GradingService {
       maxPoints: Number(criterion.maxPoints),
     }));
 
+    // UC33 QS: load cách giải — null = QA, giữ đường cũ.
+    const qsApproaches = await this.rubrics.loadQsApproaches(rubricId);
+
     // Anchor đọc từ ẢNH CHỤP của phiên, không dựng lại ở đây (A3).
     //
     // Dựng lại mỗi bài sẽ để một lần duyệt giữa chừng lọt vào tập anchor,
@@ -458,9 +469,13 @@ export class GradingService {
       content,
       deliverableType,
       criteria: rubricCriteria,
+      qsApproaches: qsApproaches
+        ? qsApproaches.map((a) => ({ key: a.key, name: a.name }))
+        : undefined,
       reference: {
         questionPdf: reference.questionPdf,
         modelAnswerPdf: reference.modelAnswer,
+        modelAnswerFiles: reference.modelAnswerFiles,
         modelAnswerNote: reference.note,
       },
       anchors: anchors ?? undefined,
@@ -536,7 +551,39 @@ export class GradingService {
     // khác — một sai lệch không bao giờ lộ ra trong log.
     const checkByCriterion = new Map(guards.perCriterion.map((r) => [r.criterionId, r.check]));
 
-    const { scored } = run;
+    // QA: enforceScoring (cộng điểm tiêu chí). QS: resolve approach + scoreQs.
+    let scored = run.scored;
+    let selectedApproachKey: string | null = null;
+    if (qsApproaches && qsApproaches.length > 0) {
+      const approachByCrit = approachKeyByCriterionId(criteria, qsApproaches);
+      const qsCriteria = criteria
+        .map((c) => {
+          const ak = approachByCrit.get(c.id);
+          return ak ? { id: c.id, key: c.key, approachKey: ak } : null;
+        })
+        .filter((c): c is { id: string; key: string; approachKey: string } => c !== null);
+      const qs = resolveAndScoreQs({
+        approaches: qsApproaches,
+        criteria: qsCriteria,
+        criterionResults: outcome.criterionResults.map((r) => ({
+          criterionId: r.criterionId,
+          verdict: r.verdict,
+          evidence: r.evidence,
+        })),
+        aiSelectedApproachKey: outcome.selectedApproachKey,
+      });
+      selectedApproachKey = qs.selectedApproachKey;
+      scored = {
+        criterionResults: qs.criterionResults,
+        totalScore: qs.totalScore,
+        unknownCriterionIds: qs.unknownCriterionIds,
+      };
+      this.logger.log(
+        `submission ${submission.id}: QS cách giải=${qs.selectedApproachKey} ` +
+          `(${qs.selectionSource}) → ${qs.totalScore}`,
+      );
+    }
+
     if (scored.unknownCriterionIds.length > 0) {
       // Cho 0 điểm là hướng an toàn, nhưng an-toàn-và-im-lặng vẫn là lỗi.
       // Guard coverage (G3) sẽ xử lý chính thức; tới lúc đó ít nhất nó
@@ -579,6 +626,7 @@ export class GradingService {
           ...row,
           check: checkByCriterion.get(row.criterionId) ?? null,
         })),
+        selectedApproachKey,
         aiTotalScore: String(scored.totalScore),
         // confidence từ GUARD, không phải từ provider. Model tự chấm độ
         // tin cậy của chính nó là tín hiệu hiệu chỉnh kém nhất có thể — và

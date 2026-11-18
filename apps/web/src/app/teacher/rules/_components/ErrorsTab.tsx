@@ -5,16 +5,19 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { OverviewCriterion, RubricErrorItem, RubricOverview } from '@/lib/api/rubric-errors';
+import { formatVnPoints } from '@/lib/format';
+import { isQsOverview } from '@/lib/qs-errors-ui';
 import { CriterionGroup } from './CriterionGroup';
 import { DetectionBadge } from './DetectionBadge';
 import { MoveErrorDialog, RemoveErrorDialog } from './ErrorDialogs';
 import { ErrorRow } from './ErrorRow';
+import { QsStructurePanels } from './QsStructurePanels';
 
-/** Khoá của nhóm "Chưa có tiêu chí" (lỗi mồ côi) — dùng để cuộn tới nó (`focus`). */
+/** Khoá của nhóm "Chưa có tiêu chí" (lỗi mồ côi) - dùng để cuộn tới nó (`focus`). */
 export const DANGLING_KEY = '__dangling';
 
 /**
- * Tab "Lỗi theo tiêu chí": một nhóm cho mỗi tiêu chí của rubric, và — nếu có — một nhóm "Chưa có tiêu chí" ở cuối
+ * Tab "Lỗi theo tiêu chí": một nhóm cho mỗi tiêu chí của rubric, và - nếu có - một nhóm "Chưa có tiêu chí" ở cuối
  * cho lỗi gắn tiêu chí đã bị xoá (spec 2.3.4). Một lỗi có khoá KHÔNG có trong tổng quan cũng rơi vào nhóm cuối dù
  * máy chủ chưa đánh dấu mồ côi (hai lần đọc lệch nhau): hiện được còn hơn làm sập trang (Review Focus 4).
  *
@@ -71,7 +74,7 @@ export function ErrorsTab({
   if (error) {
     return (
       <Alert variant="destructive" className="mt-4">
-        <AlertDescription>Không tải được danh sách lỗi — {error.message}. Thử tải lại trang.</AlertDescription>
+        <AlertDescription>Không tải được danh sách lỗi - {error.message}. Thử tải lại trang.</AlertDescription>
       </Alert>
     );
   }
@@ -97,34 +100,55 @@ export function ErrorsTab({
 
   return (
     <div>
-      <div className="mx-0.5 mb-1 mt-3.5 flex flex-wrap gap-x-[18px] gap-y-1.5 text-small text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <DetectionBadge predicate={{ kind: 'test_group_failed', group: '' }} /> Máy so kết quả chạy test với đáp án: chắc chắn, không cần bạn xem.
-        </span>
-        <span className="flex items-center gap-1.5">
-          <DetectionBadge predicate={null} /> AI đọc mã rồi kết luận: kém chắc chắn hơn nên có thể cần bạn duyệt.
-        </span>
-      </div>
+      {!isQsOverview(overview) ? (
+        <div className="mx-0.5 mb-1 mt-3.5 flex flex-wrap gap-x-[18px] gap-y-1.5 text-small text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <DetectionBadge predicate={{ kind: 'test_group_failed', group: '' }} /> Máy so kết quả chạy test với đáp án: chắc chắn, không cần bạn xem.
+          </span>
+          <span className="flex items-center gap-1.5">
+            <DetectionBadge predicate={null} /> AI đọc mã rồi kết luận: kém chắc chắn hơn nên có thể cần bạn duyệt.
+          </span>
+        </div>
+      ) : null}
 
-      {overview.criteria.map((criterion) => {
-        const rows = list.filter((e) => e.criterionKey === criterion.key && !e.criterionDangling);
-        return (
-          <CriterionGroup
-            key={criterion.key}
-            criterion={criterion}
-            errors={rows}
-            open={!collapsed[criterion.key]}
-            onToggle={() => setCollapsed((prev) => ({ ...prev, [criterion.key]: !prev[criterion.key] }))}
-            onAdd={() => onAdd(criterion.key)}
-            onWaive={() => onWaive(criterion)}
-            onUnwaive={() => onUnwaive(criterion)}
-          >
-            {rows.map((item) => row(item, criterion))}
-          </CriterionGroup>
-        );
-      })}
+      {isQsOverview(overview) ? (
+        <div className="mt-2 flex flex-col gap-4">
+          <Alert>
+            <AlertDescription>
+              Rubric QS chấm theo checklist <b>cách giải → bước</b> (AI chọn một cách giải). Tạm
+              thời <b>không gắn lỗi</b> vào từng bước - chỉ xem cấu trúc bên dưới.
+            </AlertDescription>
+          </Alert>
+          <QsStructurePanels approaches={overview.approaches!} />
+        </div>
+      ) : (
+        overview.criteria.map((criterion) => {
+          const rows = list.filter(
+            (e) => e.criterionKey === criterion.key && !e.criterionDangling,
+          );
+          return (
+            <CriterionGroup
+              key={criterion.key}
+              criterion={criterion}
+              errors={rows}
+              open={!collapsed[criterion.key]}
+              onToggle={() =>
+                setCollapsed((prev) => ({
+                  ...prev,
+                  [criterion.key]: !prev[criterion.key],
+                }))
+              }
+              onAdd={() => onAdd(criterion.key)}
+              onWaive={() => onWaive(criterion)}
+              onUnwaive={() => onUnwaive(criterion)}
+            >
+              {rows.map((item) => row(item, criterion))}
+            </CriterionGroup>
+          );
+        })
+      )}
 
-      {dangling.length > 0 && (
+      {!isQsOverview(overview) && dangling.length > 0 && (
         <section id={`crit-${DANGLING_KEY}`} aria-label="Chưa có tiêu chí" className="mt-3.5 rounded-lg border border-warning/40 bg-surface shadow-sm">
           <div className="flex items-center gap-3 px-4 py-3.5">
             <h3 className="min-w-0 flex-1 text-h3">Chưa có tiêu chí</h3>
@@ -137,8 +161,17 @@ export function ErrorsTab({
         </section>
       )}
 
-      <MoveErrorDialog item={moving} criteria={overview.criteria} onClose={() => setMoving(null)} />
-      <RemoveErrorDialog item={removing} rubricName={overview.rubricName} onClose={() => setRemoving(null)} />
+      {!isQsOverview(overview) && (
+        <>
+          <MoveErrorDialog
+            item={moving}
+            criteria={overview.criteria}
+            overview={overview}
+            onClose={() => setMoving(null)}
+          />
+          <RemoveErrorDialog item={removing} rubricName={overview.rubricName} onClose={() => setRemoving(null)} />
+        </>
+      )}
     </div>
   );
 }

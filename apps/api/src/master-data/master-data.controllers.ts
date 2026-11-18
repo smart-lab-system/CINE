@@ -24,7 +24,13 @@ import {
   ListSemestersDto,
   UpdateSemesterDto,
 } from './dto/semester.dto';
-import { CreateCourseDto, ListCoursesDto, UpdateCourseDto } from './dto/course.dto';
+import {
+  CourseHubListQueryDto,
+  CreateCourseDto,
+  ListCoursesDto,
+  UpdateCourseDto,
+} from './dto/course.dto';
+import { CourseHubService } from './course-hub.service';
 import {
   CreateNominalClassDto,
   ListNominalClassesDto,
@@ -40,6 +46,7 @@ import { CreateRoomDto, ListRoomsDto, UpdateRoomDto } from './dto/room.dto';
 import {
   CreateComputerDto,
   ListComputersDto,
+  SetTeacherMachineDto,
   UpdateComputerDto,
 } from './dto/computer.dto';
 
@@ -118,7 +125,10 @@ export class SemestersController {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
 export class CoursesController {
-  constructor(private readonly masterData: MasterDataService) {}
+  constructor(
+    private readonly masterData: MasterDataService,
+    private readonly courseHub: CourseHubService,
+  ) {}
 
   @Post()
   create(@Body() dto: CreateCourseDto) {
@@ -128,6 +138,73 @@ export class CoursesController {
   @Get()
   list(@Query() query: ListCoursesDto) {
     return this.masterData.listCourses(query);
+  }
+
+  @Get(':id/exams')
+  listExams(@Param('id') id: string, @Query() query: CourseHubListQueryDto) {
+    return this.courseHub.listExams(id, {
+      academicYearId: query.academicYearId,
+      semesterId: query.semesterId,
+    });
+  }
+
+  @Get(':id/exams/:examId')
+  getExam(@Param('id') id: string, @Param('examId') examId: string) {
+    return this.courseHub.getExam(id, examId);
+  }
+
+  @Patch(':id/exams/:examId/deactivate')
+  deactivateExam(@Param('id') id: string, @Param('examId') examId: string) {
+    return this.courseHub.deactivateExam(id, examId);
+  }
+
+  @Patch(':id/exams/:examId/reactivate')
+  reactivateExam(@Param('id') id: string, @Param('examId') examId: string) {
+    return this.courseHub.reactivateExam(id, examId);
+  }
+
+  @Delete(':id/exams/:examId')
+  @HttpCode(204)
+  async removeExam(@Param('id') id: string, @Param('examId') examId: string) {
+    await this.courseHub.removeExam(id, examId);
+  }
+
+  @Get(':id/rubrics')
+  listRubrics(@Param('id') id: string, @Query() query: CourseHubListQueryDto) {
+    return this.courseHub.listRubrics(id, {
+      academicYearId: query.academicYearId,
+      semesterId: query.semesterId,
+    });
+  }
+
+  @Get(':id/rubrics/:rubricId')
+  getRubric(@Param('id') id: string, @Param('rubricId') rubricId: string) {
+    return this.courseHub.getRubric(id, rubricId);
+  }
+
+  @Patch(':id/rubrics/:rubricId/deactivate')
+  deactivateRubric(
+    @Param('id') id: string,
+    @Param('rubricId') rubricId: string,
+  ) {
+    return this.courseHub.deactivateRubric(id, rubricId);
+  }
+
+  @Patch(':id/rubrics/:rubricId/reactivate')
+  reactivateRubric(
+    @Param('id') id: string,
+    @Param('rubricId') rubricId: string,
+  ) {
+    return this.courseHub.reactivateRubric(id, rubricId);
+  }
+
+  @Delete(':id/rubrics/:rubricId')
+  @HttpCode(204)
+  async removeRubric(
+    @Param('id') id: string,
+    @Param('rubricId') rubricId: string,
+  ) {
+    await this.courseHub.removeRubric(id, rubricId);
   }
 
   @Get(':id')
@@ -278,6 +355,12 @@ export class ComputersController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateComputerDto) {
     return this.masterData.updateComputer(id, dto);
+  }
+
+  /** Đặt / bỏ cờ máy giảng viên (mỗi phòng tối đa một máy). */
+  @Post(':id/set-teacher-machine')
+  setTeacherMachine(@Param('id') id: string, @Body() dto: SetTeacherMachineDto) {
+    return this.masterData.setTeacherMachine(id, dto);
   }
 
   @Delete(':id')

@@ -240,8 +240,8 @@ function RoomsMasterDataContent() {
                   <TableCell className="font-mono">{r.code}</TableCell>
                   <TableCell>{r.name}</TableCell>
                   <TableCell>{r.capacity}</TableCell>
-                  <TableCell>{r.building ?? '—'}</TableCell>
-                  <TableCell>{r.floor ?? '—'}</TableCell>
+                  <TableCell>{r.building ?? '-'}</TableCell>
+                  <TableCell>{r.floor ?? '-'}</TableCell>
                   <TableCell>{facilityStatusLabel(r.status)}</TableCell>
                   <TableCell className="text-right">
                     <RowActions>

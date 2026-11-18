@@ -50,7 +50,7 @@ beforeEach(() => {
   h.assign = mutation();
 });
 
-describe('AddErrorDrawer — ngữ cảnh (T-RBE-UI-5)', () => {
+describe('AddErrorDrawer - ngữ cảnh (T-RBE-UI-5)', () => {
   it('mở từ một nhóm tiêu chí: rubric › tiêu chí (điểm tối đa) cố định, không có ô chọn', () => {
     open();
     expect(screen.getByText('Rubric: Giữa kỳ CTDL')).toBeInTheDocument();
@@ -70,7 +70,7 @@ describe('AddErrorDrawer — ngữ cảnh (T-RBE-UI-5)', () => {
   });
 });
 
-describe('AddErrorDrawer — chọn lỗi có sẵn', () => {
+describe('AddErrorDrawer - chọn lỗi có sẵn', () => {
   it('không mời lỗi đã có ở rubric này; tab ghi đúng số', () => {
     open();
     expect(screen.getByRole('tab', { name: 'Chọn lỗi có sẵn (2)' })).toBeInTheDocument();
@@ -124,7 +124,7 @@ describe('AddErrorDrawer — chọn lỗi có sẵn', () => {
     expect(body).toEqual({ rubricName: 'Giữa kỳ CTDL', criterionKey: 'tinh_dung', ruleId: 'ten' });
     expect(body).not.toHaveProperty('deduction');
     assign().mock.calls[0][1].onSuccess({ rubricErrorId: 'e9', ruleId: 'ten', recompute: null });
-    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('— chưa có điểm trừ'));
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('- chưa có điểm trừ'));
   });
 
   it('điểm trừ sai định dạng khoá nút lưu và nói lý do', () => {
@@ -136,7 +136,7 @@ describe('AddErrorDrawer — chọn lỗi có sẵn', () => {
   });
 });
 
-describe('AddErrorDrawer — tạo lỗi mới', () => {
+describe('AddErrorDrawer - tạo lỗi mới', () => {
   const toNew = () => fireEvent.click(screen.getByRole('tab', { name: 'Tạo lỗi mới' }));
 
   it('thiếu tên/mô tả thì khoá; điền đủ thì lưu newRule (AI đọc bài → predicate null)', () => {
@@ -180,7 +180,7 @@ describe('AddErrorDrawer — tạo lỗi mới', () => {
   });
 });
 
-describe('AddErrorDrawer — duyệt lỗi AI đề xuất (Review Focus 5)', () => {
+describe('AddErrorDrawer - duyệt lỗi AI đề xuất (Review Focus 5)', () => {
   it('mở sẵn tab "Tạo lỗi mới", điền sẵn tên và mô tả, tiêu chí CHƯA chọn nên nút lưu khoá', () => {
     open({ criterionKey: null, prefill: proposal({ id: 'p9', name: 'Hàm pop không kiểm tra rỗng', description: 'Gọi pop khi rỗng' }) });
     expect(screen.getByRole('tab', { name: 'Tạo lỗi mới' })).toHaveAttribute('aria-selected', 'true');
@@ -211,14 +211,14 @@ describe('AddErrorDrawer — duyệt lỗi AI đề xuất (Review Focus 5)', ()
   });
 });
 
-describe('AddErrorDrawer — "Lưu thì áp vào đâu" (không gọi API)', () => {
+describe('AddErrorDrawer - "Lưu thì áp vào đâu" (không gọi API)', () => {
   it('viết bằng tên phiên thật: phiên đang chấm / đã chốt', () => {
     open();
     const box = screen.getByRole('region', { name: 'Lưu thì áp vào đâu' });
     expect(within(box).getByText('Ca sáng')).toBeInTheDocument();
     expect(within(box).getByText(/AI xét lỗi này từ các bài chưa chấm; bài đã chấm không tính lại/)).toBeInTheDocument();
     expect(within(box).getByText('Ca chiều')).toBeInTheDocument();
-    expect(within(box).getByText(/Giữ nguyên điểm — bảng điểm trừ đã được ghim lúc chốt/)).toBeInTheDocument();
+    expect(within(box).getByText(/Giữ nguyên điểm - bảng điểm trừ đã được ghim lúc chốt/)).toBeInTheDocument();
     expect(within(box).getByText('Rubric khác không bị ảnh hưởng.')).toBeInTheDocument();
   });
 
@@ -235,7 +235,7 @@ describe('AddErrorDrawer — "Lưu thì áp vào đâu" (không gọi API)', () 
   });
 });
 
-describe('AddErrorDrawer — lỗi và huỷ', () => {
+describe('AddErrorDrawer - lỗi và huỷ', () => {
   it('lỗi của máy chủ hiện nguyên văn (409: lỗi đã có trong rubric)', () => {
     (h.assign as ReturnType<typeof mutation>).isError = true;
     (h.assign as ReturnType<typeof mutation>).error = new Error('Lỗi này đã có trong rubric');

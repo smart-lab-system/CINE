@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { EditAccountForm } from './edit-account-form';
 
-// Role is now a shadcn/Radix Select (was raw radio inputs) — open it via
+// Role is now a shadcn/Radix Select (was raw radio inputs) - open it via
 // its trigger (role="combobox", labelled by the "Vai trò" <Label>) and
 // pick the option by its rendered text.
 function selectRole(name: RegExp) {

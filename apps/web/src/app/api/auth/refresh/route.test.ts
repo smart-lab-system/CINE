@@ -34,7 +34,7 @@ describe('POST /api/auth/refresh', () => {
     const response = await POST(requestWithCookie('old-refresh'));
 
     expect(response.status).toBe(200);
-    // The Nest API gets the incoming refresh_token forwarded explicitly —
+    // The Nest API gets the incoming refresh_token forwarded explicitly -
     // a server-to-server fetch does not carry the original request's
     // cookies on its own.
     const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -44,7 +44,7 @@ describe('POST /api/auth/refresh', () => {
     const refreshCookie = response.cookies.get('refresh_token');
     expect(accessCookie?.value).toBe('new-access');
     expect(accessCookie?.httpOnly).toBe(true);
-    // Rotated — the NEW token from the response, not the one the request
+    // Rotated - the NEW token from the response, not the one the request
     // came in with (AuthService.refresh's own stated design: "a leaked
     // one stops being usable as soon as the legitimate holder refreshes").
     expect(refreshCookie?.value).toBe('new-refresh');
@@ -67,7 +67,7 @@ describe('POST /api/auth/refresh', () => {
 
     expect(response.status).toBe(401);
     // Stale cookies must not linger to fail the same way on every
-    // subsequent silent-refresh attempt — see route.ts's own comment.
+    // subsequent silent-refresh attempt - see route.ts's own comment.
     expect(response.cookies.get('access_token')?.value).toBe('');
     expect(response.cookies.get('refresh_token')?.value).toBe('');
     expect(response.cookies.get('account')?.value).toBe('');

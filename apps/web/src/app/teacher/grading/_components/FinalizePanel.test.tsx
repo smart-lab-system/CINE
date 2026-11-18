@@ -27,7 +27,7 @@ beforeEach(() => {
   state = { isPending: false, isError: false, error: null };
 });
 
-describe('FinalizePanel — the header claim (spec §3.10)', () => {
+describe('FinalizePanel - the header claim (spec §3.10)', () => {
   it('says at the very top that finalising is a publication milestone that writes no file, and signs the clicker\'s name', () => {
     renderPanel(list(['auto_approved']));
     expect(screen.getByText(/Chốt là mốc công bố/)).toBeInTheDocument();
@@ -36,7 +36,7 @@ describe('FinalizePanel — the header claim (spec §3.10)', () => {
   });
 });
 
-describe('FinalizePanel — blocked: each blocking group, its count, and a way to act', () => {
+describe('FinalizePanel - blocked: each blocking group, its count, and a way to act', () => {
   const blocked = () => list(['flagged_for_review', 'flagged_for_review', 'audit_pending', 'ai_grading', 'auto_approved']);
 
   it('lists only the groups that block, with counts', () => {
@@ -59,7 +59,7 @@ describe('FinalizePanel — blocked: each blocking group, its count, and a way t
     expect(screen.getByText('1 bài không chấm được')).toBeInTheDocument();
   });
 
-  it('the sampling audit step is a real blocker the teacher clears in the list — no "cần backend" badge', () => {
+  it('the sampling audit step is a real blocker the teacher clears in the list - no "cần backend" badge', () => {
     renderPanel(blocked());
     const item = screen.getByText('1 bài kiểm mẫu chưa kiểm').closest('li')!;
     expect(within(item).queryByText('cần backend')).not.toBeInTheDocument();
@@ -78,7 +78,7 @@ describe('FinalizePanel — blocked: each blocking group, its count, and a way t
   });
 });
 
-describe('FinalizePanel — ready (T-UI-16: the two numbers add up to the session)', () => {
+describe('FinalizePanel - ready (T-UI-16: the two numbers add up to the session)', () => {
   const ready = () => list(['auto_approved', 'auto_approved', 'auto_approved', 'teacher_reviewed']);
 
   it('asks first; the dialog states exactly two numbers that add up to the size of the session', () => {
@@ -110,16 +110,16 @@ describe('FinalizePanel — ready (T-UI-16: the two numbers add up to the sessio
   });
 
   it('shows the server refusal verbatim inside the dialog', () => {
-    state = { isPending: false, isError: true, error: new Error('1 bài không còn điểm theo bảng lỗi hiện hành (dưới sàn) — hãy chấm tay trước khi chốt điểm.') };
+    state = { isPending: false, isError: true, error: new Error('1 bài không còn điểm theo bảng lỗi hiện hành (dưới sàn) - hãy chấm tay trước khi chốt điểm.') };
     renderPanel(ready());
     fireEvent.click(finalizeButton());
     expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('dưới sàn');
   });
 
   // Verified on the live API: finalize-grades answers {reviewedByHand: 3, acceptedAsProposed: 0, finalizedDirectly: 1}
-  // for a session with one auto-decided code result — the auto-decided investigator results are counted in
+  // for a session with one auto-decided code result - the auto-decided investigator results are counted in
   // `finalizedDirectly`, NOT in `acceptedAsProposed`. Reading only the first two under-reported the session.
-  it('reads the outcome back after a successful finalise — counting results the system decided, incl. those finalised directly', () => {
+  it('reads the outcome back after a successful finalise - counting results the system decided, incl. those finalised directly', () => {
     mutate.mockImplementation(
       (_v: void, opts: { onSuccess: (d: { reviewedByHand: number; acceptedAsProposed: number; finalizedDirectly: number }) => void }) =>
         opts.onSuccess({ reviewedByHand: 1, acceptedAsProposed: 1, finalizedDirectly: 2 }),
@@ -138,7 +138,7 @@ describe('FinalizePanel — ready (T-UI-16: the two numbers add up to the sessio
   });
 });
 
-describe('FinalizePanel — finalised', () => {
+describe('FinalizePanel - finalised', () => {
   const finalised = () => list(['finalized', 'finalized', 'exported']);
 
   it('says the scores are final and that later changes are logged', () => {
@@ -152,7 +152,7 @@ describe('FinalizePanel — finalised', () => {
     expect(screen.getByTestId('reapply-panel')).toBeInTheDocument();
   });
 
-  it('offers the CSV export and a REAL entry to the gradebook screen — no "cần backend" placeholder', () => {
+  it('offers the CSV export and a REAL entry to the gradebook screen - no "cần backend" placeholder', () => {
     renderPanel(finalised());
     expect(screen.getByRole('button', { name: 'Xuất CSV' })).toBeEnabled();
     const block = screen.getByRole('region', { name: 'Ghi điểm vào sổ điểm' });
@@ -161,7 +161,7 @@ describe('FinalizePanel — finalised', () => {
   });
 });
 
-describe('FinalizePanel — nothing graded', () => {
+describe('FinalizePanel - nothing graded', () => {
   it('says there is nothing to finalise and leads back', () => {
     renderPanel([]);
     expect(screen.getByText(/Chưa chấm bài nào/)).toBeInTheDocument();

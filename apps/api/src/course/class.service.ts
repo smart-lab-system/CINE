@@ -29,6 +29,7 @@ export class ClassService {
       .addSelect('nc.code', 'nominalClassCode')
       .addSelect('nc.name', 'nominalClassDisplayName')
       .where('k.teacherId = :teacherId', { teacherId })
+      .andWhere('k.isActive = true')
       .groupBy('k.id')
       .addGroupBy('s.id')
       .addGroupBy('nc.id')
@@ -43,6 +44,7 @@ export class ClassService {
     return entities.map((klass, index) => ({
       id: klass.id,
       name: klass.name,
+      courseId: klass.courseId,
       courseName: klass.courseName,
       semesterId: klass.semesterId,
       semesterName: raw[index].semesterName ?? null,

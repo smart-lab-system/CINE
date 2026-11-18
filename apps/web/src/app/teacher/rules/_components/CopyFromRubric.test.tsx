@@ -31,7 +31,7 @@ describe('CopyFromRubric (D3: giảng viên TỰ chọn nguồn)', () => {
   it('mỗi nguồn ghi số lỗi; chọn nguồn thì hiện xem trước đúng số và mở nút', () => {
     render(<CopyFromRubric target={target} sources={sources} onAddManually={vi.fn()} />);
     const select = screen.getByLabelText('Sao chép lỗi và điểm trừ từ');
-    expect(screen.getByRole('option', { name: 'Nguồn 1 — 9 lỗi' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Nguồn 1 - 9 lỗi' })).toBeInTheDocument();
     fireEvent.change(select, { target: { value: 'Nguồn 1' } });
     expect(screen.getByText(/Sẽ sao chép 5 lỗi vào 2 tiêu chí trùng tên/)).toBeInTheDocument();
     expect(screen.getByText(/4 lỗi thuộc tiêu chí không có ở rubric này sẽ không được sao chép/)).toBeInTheDocument();
@@ -63,7 +63,7 @@ describe('CopyFromRubric (D3: giảng viên TỰ chọn nguồn)', () => {
     expect(onAddManually).toHaveBeenCalled();
   });
 
-  it('không có nguồn nào: nói rõ và chỉ còn lối tự thêm — không hiện ô chọn', () => {
+  it('không có nguồn nào: nói rõ và chỉ còn lối tự thêm - không hiện ô chọn', () => {
     render(<CopyFromRubric target={target} sources={[]} onAddManually={vi.fn()} />);
     expect(screen.getByText('Chưa có rubric nào khác có lỗi để sao chép.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Sao chép lỗi và điểm trừ từ')).not.toBeInTheDocument();

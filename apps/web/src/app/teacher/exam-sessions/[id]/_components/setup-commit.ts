@@ -27,7 +27,7 @@ export type SaveDraftPlan = {
 };
 
 export type FinishPlan =
-  | { ok: false; step: Extract<SetupStepId, 'info' | 'materials'>; blockReason: string }
+  | { ok: false; step: Extract<SetupStepId, 'info' | 'folder'>; blockReason: string }
   | { ok: true; plan: SaveDraftPlan };
 
 export function infoReady(info: SetupInfoDraft | undefined): info is SetupInfoDraft {
@@ -139,7 +139,7 @@ export function finishPlan(
   const checklist = mergedChecklist(draft, server, counts);
 
   if (checklist.blockReason) {
-    const step = checklist.blockReason.includes('thư mục') ? 'materials' : 'info';
+    const step = checklist.blockReason.includes('thư mục') ? 'folder' : 'info';
     return { ok: false, step, blockReason: checklist.blockReason };
   }
 

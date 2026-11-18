@@ -1,0 +1,19 @@
+Tổng subarray lớn nhất: Tìm contiguous subarray có tổng lớn nhất
+
+Solution 1: Cách tiếp cận Brute Force
+   1. Khởi tạo một biến để lưu tổng lớn nhất với giá trị nhỏ nhất có thể. [1 mark]
+   2. Sử dụng các vòng lặp lồng nhau để xét mọi subarray có thể. [1 mark]
+   3. Đối với mỗi subarray, tính tổng của nó và cập nhật tổng lớn nhất nếu tổng hiện tại lớn hơn. [1 mark]
+   4. Trả về tổng lớn nhất sau khi đã kiểm tra tất cả các subarray. [1 mark]
+
+Solution 2: Cách tiếp cận Quy hoạch động - Tabulation (Dynamic Programming - Tabulation)
+   1. Tạo một mảng DP có cùng kích thước với mảng đầu vào. [1 mark]
+   2. Khởi tạo phần tử đầu tiên của mảng DP bằng phần tử đầu tiên của mảng đầu vào. [1 mark]
+   3. Đối với mỗi vị trí i trong mảng đầu vào, tính dp[i] là giá trị lớn nhất giữa (phần tử hiện tại) hoặc (phần tử hiện tại + dp[i-1]). [1 mark]
+   4. Trả về giá trị lớn nhất trong mảng DP. [1 mark]
+
+Solution 3: Thuật toán Kadane (Kadane's Algorithm)
+   1. Thiết lập hai biến, một biến lưu tổng của subarray hiện tại và một biến lưu tổng lớn nhất tìm được cho đến nay. Khởi tạo biến tổng lớn nhất với giá trị nhỏ nhất có thể để xử lý các số âm.
+   2. Ở mỗi bước, quyết định xem nên bắt đầu một subarray mới từ phần tử hiện tại hay tiếp tục subarray hiện có bằng cách cộng phần tử hiện tại vào tổng subarray hiện tại.
+   3. Sau khi cập nhật tổng subarray hiện tại, so sánh nó với tổng subarray lớn nhất và cập nhật tổng lớn nhất nếu tổng hiện tại lớn hơn.
+   4. Khi quá trình lặp hoàn tất, biến tổng subarray lớn nhất sẽ chứa kết quả cuối cùng, cần được trả về.

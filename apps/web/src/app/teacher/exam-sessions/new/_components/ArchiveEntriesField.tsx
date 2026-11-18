@@ -19,11 +19,11 @@ function isArchiveFilename(value: string): boolean {
 
 /**
  * Khối "Kiểm file bên trong (tuỳ chọn)", gắn dưới MỘT dòng file bắt buộc
- * trong `RequiredFilenamesInput` — một khối cho mỗi `index` của
+ * trong `RequiredFilenamesInput` - một khối cho mỗi `index` của
  * `requiredFilenames`. Chỉ nghĩa khi bản thân dòng đó là `.zip`/`.rar`
  * (spec 2026-09-21-archive-content-validation-design.md §9.1).
  *
- * Hiện/ẩn theo chính giá trị đang gõ, không theo một cờ bật/tắt riêng —
+ * Hiện/ẩn theo chính giá trị đang gõ, không theo một cờ bật/tắt riêng -
  * cùng lý lẽ `filename-template.ts` phía backend đã viết cho chính nó:
  * một cờ là một sự thật thứ hai có thể lệch khỏi cái tên.
  */
@@ -42,7 +42,7 @@ export function ArchiveEntriesField({ index }: { index: number }) {
     name: `requiredFilenames.${index}.entries`,
   });
 
-  // Gõ lại thành KHÔNG PHẢI .zip/.rar thì XOÁ entries đã nhập — không giữ
+  // Gõ lại thành KHÔNG PHẢI .zip/.rar thì XOÁ entries đã nhập - không giữ
   // ngầm. Giữ lại sẽ gửi lên một danh sách mà DTO backend từ chối
   // (EntriesOnlyOnArchiveConstraint), và người dùng không hiểu vì sao form
   // báo lỗi ở một trường họ không còn nhìn thấy (spec §9.1).
@@ -57,7 +57,7 @@ export function ArchiveEntriesField({ index }: { index: number }) {
   }
 
   // Lỗi ở tầng "cả danh sách entries" (quá trần .max(), trùng tên, hoặc
-  // khai trên deliverable không phải archive) — KHÔNG phải lỗi từng dòng.
+  // khai trên deliverable không phải archive) - KHÔNG phải lỗi từng dòng.
   // Xem doc comment §6.3 của archive-check.e2e-spec.ts cho hình dạng lỗi
   // zodResolver thật sự trả về: message nằm trực tiếp trên node `entries`.
   const listError = errors.requiredFilenames?.[index]?.entries?.message;
@@ -78,7 +78,7 @@ export function ArchiveEntriesField({ index }: { index: number }) {
 
       {fields.length === 0 ? (
         <p className="text-caption text-muted-foreground">
-          Chưa khai file nào — nộp đúng tên <code className="font-mono">{filename}</code> là
+          Chưa khai file nào - nộp đúng tên <code className="font-mono">{filename}</code> là
           đủ, hệ thống không mở ra kiểm gì bên trong.
         </p>
       ) : (

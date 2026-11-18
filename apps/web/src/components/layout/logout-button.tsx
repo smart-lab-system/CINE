@@ -12,7 +12,7 @@ export function LogoutButton() {
 
   async function handleLogout() {
     setPending(true);
-    // Only the Route Handler can clear the tokens — they're in httpOnly
+    // Only the Route Handler can clear the tokens - they're in httpOnly
     // cookies the browser can't touch from here. It clears them
     // unconditionally, so even a failed request still ends the session
     // locally; redirect either way rather than trapping the user on a page
@@ -22,7 +22,7 @@ export function LogoutButton() {
     // Cookie do Route Handler xoá, nhưng access token còn một bản trong bộ
     // nhớ tab (lib/auth-token.ts). Bỏ qua bước này thì sau khi "đăng xuất",
     // JS vẫn cầm một token còn hiệu lực tới 15 phút và mọi lời gọi API vẫn
-    // đi lọt — đăng xuất chỉ là ảo giác trên giao diện.
+    // đi lọt - đăng xuất chỉ là ảo giác trên giao diện.
     clearAccessToken();
     router.push('/login');
   }

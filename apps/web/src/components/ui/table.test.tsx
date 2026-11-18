@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableRow } from './table';
  * scrollport in BOTH axes, not just the horizontal one: per CSS Overflow,
  * when one of overflow-x/overflow-y is not `visible`, the `visible` one
  * computes to `auto`. So `overflow-x-auto` alone already makes that div a
- * vertical scroll container — with `height: auto`, i.e. one that can never
+ * vertical scroll container - with `height: auto`, i.e. one that can never
  * actually scroll.
  *
  * That is why a vertical height cap has to land on THAT div and nowhere
@@ -19,7 +19,7 @@ import { Table, TableBody, TableCell, TableRow } from './table';
  * nothing at all. The `container` prop is the only way to reach the one
  * element that works, so these tests pin that it does.
  */
-describe('Table — scroll container', () => {
+describe('Table - scroll container', () => {
   function renderTable(container?: HTMLAttributes<HTMLDivElement>) {
     render(
       <Table container={container}>
@@ -51,7 +51,7 @@ describe('Table — scroll container', () => {
 
   it('passes attributes through, so a capped table stays scrollable by keyboard', () => {
     // A box that scrolls but cannot be focused is unreachable without a
-    // mouse (WCAG 2.1.1) — the caller needs to reach the wrapper with
+    // mouse (WCAG 2.1.1) - the caller needs to reach the wrapper with
     // role/aria-label/tabIndex, not only with a class.
     renderTable({
       role: 'region',
@@ -66,7 +66,7 @@ describe('Table — scroll container', () => {
   });
 
   it('renders the plain wrapper unchanged when no container prop is given', () => {
-    // 10 other call sites pass nothing — the prop must stay additive.
+    // 10 other call sites pass nothing - the prop must stay additive.
     const wrapper = renderTable().parentElement as HTMLElement;
 
     expect(wrapper.className).toContain('w-full');

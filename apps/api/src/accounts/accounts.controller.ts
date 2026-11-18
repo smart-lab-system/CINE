@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -46,6 +47,11 @@ export class AccountsController {
   @Get()
   search(@Query() query: SearchAccountsDto) {
     return this.accounts.search(query);
+  }
+
+  @Get(':id')
+  get(@Param('id', ParseUUIDPipe) id: string) {
+    return this.accounts.getById(id);
   }
 
   @Patch(':id')

@@ -15,12 +15,12 @@ const plan = (over: Partial<PlanResponse> = {}): PlanResponse => ({
   overwrite: { score: 0, reason: 0 }, changes: null, blockers: [], canWrite: true, rows: [row()], notInFile: [], ...over,
 });
 
-describe('scoreText — a decimal STRING becomes a Vietnamese number, without a float', () => {
+describe('scoreText - a decimal STRING becomes a Vietnamese number, without a float', () => {
   it.each([['7.25', '7,25'], ['8.50', '8,5'], ['7.00', '7,0'], ['0.05', '0,05'], ['10', '10,0'], ['7.5', '7,5']])('%s → %s', (input, out) => {
     expect(scoreText(input as string)).toBe(out);
   });
   it('null is a dash, never 0; something that is not a score is shown as it came', () => {
-    expect(scoreText(null)).toBe('—');
+    expect(scoreText(null)).toBe('-');
     expect(scoreText('abc')).toBe('abc');
   });
 });
@@ -31,7 +31,7 @@ describe('rounding options (spec D9)', () => {
   });
 });
 
-describe('roundingText — how a step is said in a list of past exports', () => {
+describe('roundingText - how a step is said in a list of past exports', () => {
   it('exact is "Không làm tròn", the others "Làm tròn <step>"', () => {
     expect(roundingText(1)).toBe('Không làm tròn');
     expect(roundingText(10)).toBe('Làm tròn 0,1');
@@ -40,7 +40,7 @@ describe('roundingText — how a step is said in a list of past exports', () => 
   });
 });
 
-describe('words for what happens to a row — every state has words, not just a colour', () => {
+describe('words for what happens to a row - every state has words, not just a colour', () => {
   it('labels every action', () => {
     expect(ACTION_LABEL).toEqual({
       write: 'Sẽ ghi', blank: 'Để trống', kept: 'Giữ nguyên ô', unmatched: 'Không khớp', duplicate: 'MSSV trùng', conflict: 'Nhiều kết quả',
@@ -64,10 +64,10 @@ describe('words for what happens to a row — every state has words, not just a 
   });
   it('says the direction with an arrow AND words, what was there before, and why (spec §3.6)', () => {
     expect(directionText(row({ direction: 'down', previousScore: '7.50', causes: [{ kind: 'rule', ruleKey: 'a', ruleName: 'Sai biên', delta: 50 }] })))
-      .toBe('↓ Giảm — trước đã ghi 7,5, do luật Sai biên');
-    expect(directionText(row({ direction: 'up', previousScore: '7.00' }))).toBe('↑ Tăng — trước đã ghi 7,0');
+      .toBe('↓ Giảm - trước đã ghi 7,5, do luật Sai biên');
+    expect(directionText(row({ direction: 'up', previousScore: '7.00' }))).toBe('↑ Tăng - trước đã ghi 7,0');
     expect(directionText(row({ direction: 'same' }))).toBe('Không đổi so với lần ghi trước');
-    expect(directionText(row({ direction: 'new' }))).toBe('Mới — chưa từng ghi');
+    expect(directionText(row({ direction: 'new' }))).toBe('Mới - chưa từng ghi');
     expect(directionText(row({ direction: null }))).toBe('');
   });
 });
@@ -95,17 +95,17 @@ describe('row filters', () => {
   });
 });
 
-describe('the blank report (spec D14) — CSV, grouped by reason, safe against formulas', () => {
+describe('the blank report (spec D14) - CSV, grouped by reason, safe against formulas', () => {
   const p = plan({
     rows: [
       row({ row: 9, action: 'blank', studentMssv: 'SV000009', studentName: 'Vũ Thị Hà', blankReason: 'flagged', blankLabel: 'Đang chờ giảng viên duyệt' }),
-      row({ row: 5, action: 'blank', studentMssv: 'SV000005', studentName: '=HYPERLINK("http://x")', blankReason: 'absent', blankLabel: 'Vắng — không có bài nộp' }),
+      row({ row: 5, action: 'blank', studentMssv: 'SV000005', studentName: '=HYPERLINK("http://x")', blankReason: 'absent', blankLabel: 'Vắng - không có bài nộp' }),
       row({ row: 6, action: 'kept', studentMssv: 'SV000006', studentName: 'Trần, Văn B', blankReason: 'flagged', blankLabel: 'Đang chờ giảng viên duyệt' }),
       row({ row: 3 }),
     ],
     notInFile: [
       { mssv: 'SV000001', name: 'Có điểm', blankReason: null, blankLabel: null, score: '8.00' },
-      { mssv: 'SV000002', name: 'Không dòng', blankReason: 'absent', blankLabel: 'Vắng — không có bài nộp', score: null },
+      { mssv: 'SV000002', name: 'Không dòng', blankReason: 'absent', blankLabel: 'Vắng - không có bài nộp', score: null },
     ],
   });
   const lines = () => blankReportCsv(p).replace(/^﻿/, '').trimEnd().split('\r\n');
@@ -114,7 +114,7 @@ describe('the blank report (spec D14) — CSV, grouped by reason, safe against f
     expect(blankReportCsv(p).startsWith('﻿')).toBe(true);
     expect(lines()[0]).toBe('Dòng,MSSV,Họ tên,Lý do ô trống,Ghi chú');
   });
-  it('lists blank and kept rows plus students with no row in the file — not the ones that have a score', () => {
+  it('lists blank and kept rows plus students with no row in the file - not the ones that have a score', () => {
     const body = lines().slice(1).join('\n');
     expect(body).toContain('SV000005');
     expect(body).toContain('SV000006');
@@ -140,7 +140,7 @@ describe('the blank report (spec D14) — CSV, grouped by reason, safe against f
   });
 });
 
-describe('validateUpload — the same rules the server enforces, reported early', () => {
+describe('validateUpload - the same rules the server enforces, reported early', () => {
   it('accepts a small .xlsx', () => {
     expect(validateUpload({ name: 'So-diem.XLSX', size: 1000 })).toBeNull();
   });
@@ -155,7 +155,7 @@ describe('validateUpload — the same rules the server enforces, reported early'
   });
 });
 
-describe('column choice — nothing is preselected (spec D5, rule 9)', () => {
+describe('column choice - nothing is preselected (spec D5, rule 9)', () => {
   const ready: ColumnChoice = { sheetName: 'S', firstDataRow: 3, mssvColumn: 'B', scoreColumn: 'D', reasonColumn: '', deliverableId: '' };
   it('the empty choice has no column and no row', () => {
     expect(EMPTY_CHOICE).toEqual({ sheetName: '', firstDataRow: null, mssvColumn: '', scoreColumn: '', reasonColumn: '', deliverableId: '' });
@@ -179,7 +179,7 @@ describe('column choice — nothing is preselected (spec D5, rule 9)', () => {
   });
 });
 
-describe('sampledOverwriteCount — only what the grid on screen shows', () => {
+describe('sampledOverwriteCount - only what the grid on screen shows', () => {
   const cell = (kind: GridCell['kind'], text = ''): GridCell => ({ kind, text, formula: false });
   const grid: InspectGrid = {
     name: 'S', rowCount: 5, columnCount: 3, protected: false, fromRow: 1, hasMore: false, columns: ['A', 'B', 'C'],
@@ -201,7 +201,7 @@ describe('sampledOverwriteCount — only what the grid on screen shows', () => {
   });
 });
 
-describe('canWriteNow — every reason the button is off is written down', () => {
+describe('canWriteNow - every reason the button is off is written down', () => {
   it('needs a rounding choice and a plan', () => {
     expect(canWriteNow({ plan: null, roundingStep: null, overwriteAck: false, decreaseAck: false })).toEqual({ enabled: false, reasons: ['Chọn cách làm tròn.'] });
     expect(canWriteNow({ plan: null, roundingStep: 10, overwriteAck: false, decreaseAck: false })).toEqual({ enabled: false, reasons: ['Đang xem trước…'] });

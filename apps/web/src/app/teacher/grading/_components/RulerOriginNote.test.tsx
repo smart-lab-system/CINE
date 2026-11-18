@@ -24,7 +24,7 @@ describe('RulerOriginNote (UI spec T-UI-17)', () => {
   it('says the ruler was made by the system, and when the teacher approved it', () => {
     render(<RulerOriginNote sessionId="s1" />);
     expect(screen.getByText(
-      `Thước do hệ thống sinh — bạn duyệt lúc ${new Date('2026-09-29T01:05:00.000Z').toLocaleString('vi-VN')}.`,
+      `Thước do hệ thống sinh - bạn duyệt lúc ${new Date('2026-09-29T01:05:00.000Z').toLocaleString('vi-VN')}.`,
     )).toBeInTheDocument();
   });
 
@@ -46,7 +46,7 @@ describe('RulerOriginNote (UI spec T-UI-17)', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('says nothing while data is loading, and when the API gives no origin — never a guess', () => {
+  it('says nothing while data is loading, and when the API gives no origin - never a guess', () => {
     h.detail = { data: undefined };
     expect(render(<RulerOriginNote sessionId="s1" />).container).toBeEmptyDOMElement();
 

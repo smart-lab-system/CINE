@@ -8,7 +8,7 @@ import { SessionController, type AgentState } from './session-controller';
 import type { AgentJoinAck, AgentJoinError } from './agent-contract';
 
 /**
- * Drives SessionController against a REAL socket.io server — no
+ * Drives SessionController against a REAL socket.io server - no
  * mocked socket, same "no Electron needed" testability the design spec
  * promises for this file (§9), scaled to sockets the way
  * snapshot.test.ts scales it to the filesystem.
@@ -25,10 +25,10 @@ let io: SocketIoServer;
 let ns: Namespace;
 let baseUrl: string;
 let uploadedBodies: Buffer[] = [];
-/** Cho một test bắt object storage trả lỗi — xem ca "vẫn ack dù upload
+/** Cho một test bắt object storage trả lỗi - xem ca "vẫn ack dù upload
  *  thất bại" trong khối recollect. */
 let storagePutShouldFail = false;
-/** Cho một test bắt object storage trả lời CHẬM — xem ca "ack về trước
+/** Cho một test bắt object storage trả lời CHẬM - xem ca "ack về trước
  *  khi upload xong". */
 let storagePutDelayMs = 0;
 
@@ -40,7 +40,7 @@ type MaterialsReply =
   | { ok: true; materials: { id: string; fileName: string; fileSize: number; downloadUrl?: string }[] }
   | { ok: false; code: 'NOT_JOINED' | 'STORAGE_UNAVAILABLE'; message: string }
   | { ok: false; code: 'NOT_YET_RELEASED'; message: string; releaseAt: string };
-// Mirrors nextJoinReply's pattern — QA-reported gap tests drive this
+// Mirrors nextJoinReply's pattern - QA-reported gap tests drive this
 // across TWO separate agent:request-materials calls in one test (the
 // join-time one, then a later one after `exam:materials-updated`), so it
 // needs to be swappable mid-test, not just a fixed beforeAll reply.
@@ -199,7 +199,7 @@ function waitForState(
 }
 
 /** For asserting on something outside SessionController's own `state`
- *  events entirely (here: a count the fake server keeps) — `waitForState`
+ *  events entirely (here: a count the fake server keeps) - `waitForState`
  *  only ever resolves the instant the CLIENT patches, which can land
  *  before an emit it just sent has actually reached and been processed by
  *  the server. Polling, not racing a single push, is what closes that gap. */
@@ -213,10 +213,10 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void
   }
 }
 
-describe('SessionController — join flow (design spec §4)', () => {
-  it('emits the default form state on its own, before any command — the renderer has nothing else to render from', async () => {
+describe('SessionController - join flow (design spec §4)', () => {
+  it('emits the default form state on its own, before any command - the renderer has nothing else to render from', async () => {
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
-    // A listener attached synchronously, right after construction — the
+    // A listener attached synchronously, right after construction - the
     // exact shape of what electron/main/index.ts's wireController() does.
     // getState() alone can't catch a regression here (it trivially
     // returns the right default either way); this asserts the 'state'
@@ -270,7 +270,7 @@ describe('SessionController — join flow (design spec §4)', () => {
     controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
     // joinPhase flips to 'joined' immediately (so the UI confirms fast);
     // the checklist fills in moments later via a separate patch, once
-    // backup/file-creation finish — wait for that, not just the phase.
+    // backup/file-creation finish - wait for that, not just the phase.
     const state = await waitForState(controller, (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0);
 
     expect(state.studentName).toBe('Nguyễn Văn A');
@@ -293,7 +293,7 @@ describe('SessionController — join flow (design spec §4)', () => {
   });
 
   it('group 1b: a connection that never succeeds shows connect_error, not a plain error, before the first join', async () => {
-    // A port nothing is listening on — the request fails locally
+    // A port nothing is listening on - the request fails locally
     // (ECONNREFUSED), no real network flakiness needed for this to be
     // deterministic.
     const controller = new SessionController({
@@ -359,7 +359,7 @@ describe('SessionController — join flow (design spec §4)', () => {
     controller.sendAccessRequest({ fullName: 'Người Lạ', reason: 'Thi bù' });
     await waitForState(controller, (s) => s.joinPhase === 'access_request_pending');
 
-    // The invigilator approves — server broadcasts agent:access-granted to
+    // The invigilator approves - server broadcasts agent:access-granted to
     // this socket specifically.
     nextJoinReply = { type: 'ack', ack: {} };
     const socket = [...ns.sockets.values()][ns.sockets.size - 1];
@@ -405,8 +405,8 @@ describe('SessionController — join flow (design spec §4)', () => {
   });
 });
 
-describe('SessionController — after joining', () => {
-  it('a reconnect does not recreate a required file the student has since renamed away — QA-reported bug', async () => {
+describe('SessionController - after joining', () => {
+  it('a reconnect does not recreate a required file the student has since renamed away - QA-reported bug', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
     controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
@@ -415,11 +415,11 @@ describe('SessionController — after joining', () => {
     expect(joined.requiredFiles).toEqual([{ filename: 'Cau1.docx', created: true }]);
 
     // The student renames their required file to something else, WITH
-    // real content in it — exactly the QA repro: before the fix, a
+    // real content in it - exactly the QA repro: before the fix, a
     // reconnect's `createSubmissionFiles` re-runs unconditionally and
     // creates a fresh EMPTY Cau1.docx back at the original path, which
     // `submission:confirm` then uploads at finalize as a "successful"
-    // 0-byte submission — while the student's real, renamed file is
+    // 0-byte submission - while the student's real, renamed file is
     // never touched or submitted at all.
     fs.writeFileSync(path.join(workspaceDir, 'Cau1.docx'), 'bai lam that cua sinh vien');
     fs.renameSync(path.join(workspaceDir, 'Cau1.docx'), path.join(workspaceDir, 'Cau1_final.docx'));
@@ -444,7 +444,7 @@ describe('SessionController — after joining', () => {
     await waitForState(controller, (s) => s.joinPhase === 'joined');
     expect(joinAttemptCount).toBe(1);
 
-    // socket.conn.close() (not socket.disconnect()) — a graceful server-
+    // socket.conn.close() (not socket.disconnect()) - a graceful server-
     // initiated disconnect tells socket.io-client's own reason
     // ('io server disconnect') NOT to auto-reconnect, which is correct
     // for "you're not welcome" but wrong for what this test simulates: an
@@ -457,7 +457,7 @@ describe('SessionController — after joining', () => {
     expect(state.joinPhase).toBe('joined'); // never regresses to the form
 
     // The client patches 'connected' the instant its own 'connect' handler
-    // runs — before the agent:join it emits in that same handler has
+    // runs - before the agent:join it emits in that same handler has
     // necessarily reached and been processed by the server yet. Poll for
     // the count instead of asserting immediately.
     await waitFor(() => joinAttemptCount === 2, 5000);
@@ -487,7 +487,7 @@ describe('SessionController — after joining', () => {
 
   it('does not re-attempt agent:join (and does not regress the UI) if the socket reconnects after exam:finalize', async () => {
     // Reproduces the bug report: teacher finalizes early, agent logs the
-    // upload as done, but a later reconnect still re-emits agent:join —
+    // upload as done, but a later reconnect still re-emits agent:join -
     // which the (now 'completed') session rejects with SESSION_NOT_ACTIVE,
     // and that error used to unconditionally flip joinPhase away from
     // 'joined', kicking the student back to what looks like a rejection
@@ -507,14 +507,14 @@ describe('SessionController — after joining', () => {
     expect(joinAttemptCount).toBe(1);
 
     // The real server would now reject a rejoin with SESSION_NOT_ACTIVE
-    // (the session is 'completed') — configuring that here proves the
+    // (the session is 'completed') - configuring that here proves the
     // client never even attempts it, not merely that this particular
     // reply would have been handled gracefully.
     nextJoinReply = { type: 'error', error: { code: 'SESSION_NOT_ACTIVE', message: 'not active anymore' } };
     socket.conn.close();
     await waitForState(controller, (s) => s.connection === 'disconnected');
     await waitForState(controller, (s) => s.connection === 'connected', 10_000);
-    // No state change to await for the negative case — give a wrongly-sent
+    // No state change to await for the negative case - give a wrongly-sent
     // agent:join a moment to round-trip if the guard were missing.
     await new Promise((resolve) => setTimeout(resolve, 150));
 
@@ -540,7 +540,7 @@ describe('SessionController — after joining', () => {
     controller.quit();
   });
 
-  it('never deletes the workspace folder on a disconnect — a student mid-exam has no way to know they lost connection', async () => {
+  it('never deletes the workspace folder on a disconnect - a student mid-exam has no way to know they lost connection', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
     controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
@@ -557,7 +557,7 @@ describe('SessionController — after joining', () => {
     expect(fs.readFileSync(path.join(workspaceDir, 'Cau1.docx'), 'utf8')).toBe('bai lam dang do');
     controller.quit();
   });
-  it('emits open-workspace exactly once, right after the first join creates the folder — not again on a reconnect', async () => {
+  it('emits open-workspace exactly once, right after the first join creates the folder - not again on a reconnect', async () => {
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
     const opened: string[] = [];
@@ -569,7 +569,7 @@ describe('SessionController — after joining', () => {
     expect(opened).toEqual([controllerWorkspaceDir(controller)]);
 
     // A reconnect replays agent:join:ack (see the "re-emits agent:join
-    // automatically" test above) — createSubmissionFiles running again is
+    // automatically" test above) - createSubmissionFiles running again is
     // fine (idempotent), but the folder must not pop open a second time.
     const serverSocket = [...ns.sockets.values()][ns.sockets.size - 1];
     serverSocket.conn.close();
@@ -577,7 +577,7 @@ describe('SessionController — after joining', () => {
     await waitForState(controller, (s) => s.connection === 'connected', 10_000);
     await waitFor(() => joinAttemptCount === 2, 5000);
     // The second ack's async handler has no state change of its own to
-    // await on (requiredFiles/workspaceDir are already set) — give its
+    // await on (requiredFiles/workspaceDir are already set) - give its
     // microtasks a tick before asserting the negative.
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -585,8 +585,8 @@ describe('SessionController — after joining', () => {
     controller.quit();
   }, 15_000);
 
-  it('fetches a material added AFTER join, on exam:materials-updated — QA-reported gap', async () => {
-    // Default baseAck: examMaterialCount 0 — the exact "nothing existed
+  it('fetches a material added AFTER join, on exam:materials-updated - QA-reported gap', async () => {
+    // Default baseAck: examMaterialCount 0 - the exact "nothing existed
     // yet when I joined" case that used to leave this agent stuck forever.
     nextJoinReply = { type: 'ack', ack: {} };
     const controller = new SessionController({ backendUrl: baseUrl, workspaceRoot: tmpWorkspaceRoot() });
@@ -660,17 +660,17 @@ describe('SessionController — after joining', () => {
 });
 
 /**
- * "Thu lại" — spec
+ * "Thu lại" - spec
  * docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md §6.
  *
  * Ack được phát bằng `socket.timeout().emitWithAck()` từ phía server, y
  * như `RecollectService` làm thật: server đếm ACK chứ không đếm emit, nên
  * một test tự gọi callback bằng tay sẽ không kiểm được đúng thứ đang lo.
  */
-describe('SessionController — exam:recollect', () => {
+describe('SessionController - exam:recollect', () => {
   /**
    * Đưa agent vào đúng trạng thái mà "Thu lại" nhắm tới: đã hết giờ, đã
-   * nộp, nhưng THIẾU một file — nên thư mục làm bài vẫn còn (handleFinalize
+   * nộp, nhưng THIẾU một file - nên thư mục làm bài vẫn còn (handleFinalize
    * chỉ xoá nó khi mọi file đã vào). Một em nộp đủ thì không nằm trong tập
    * đích của server, nên trạng thái đó không phải cái cần dựng ở đây.
    */
@@ -711,7 +711,7 @@ describe('SessionController — exam:recollect', () => {
   it('nộp lại MỌI file bắt buộc, kể cả file đã nộp được lần trước', async () => {
     // Agent gửi lại tất cả chứ không cố đoán server còn thiếu gì: bản ghi
     // submission là upsert theo (phiên, deliverable, MSSV), nên nộp lại
-    // file cũ chỉ ghi đè đúng bằng chính nó — còn để agent tự suy ra "tôi
+    // file cũ chỉ ghi đè đúng bằng chính nó - còn để agent tự suy ra "tôi
     // thiếu gì" là dựng một bản sao thứ hai của sự thật mà server đã có.
     const { controller, socket, workspaceDir } = await joinThenFinalizeWithOneFileMissing();
     fs.writeFileSync(path.join(workspaceDir, 'Cau2.docx'), 'cau 2');
@@ -736,7 +736,7 @@ describe('SessionController — exam:recollect', () => {
   it('KHÔNG đụng tới examEnded', async () => {
     // `examEnded` là thứ chặn agent gửi lại `agent:join` sau khi phiên
     // đóng. Đặt lại nó ở đây sẽ làm màn hình của sinh viên tụt từ "đã
-    // nộp" về màn hình join/lỗi — đúng con bug mà guard đó sinh ra để
+    // nộp" về màn hình join/lỗi - đúng con bug mà guard đó sinh ra để
     // chặn (xem ca "does not re-attempt agent:join" ở trên).
     const { controller, socket } = await joinThenFinalizeWithOneFileMissing();
 
@@ -750,7 +750,7 @@ describe('SessionController — exam:recollect', () => {
   it('ack về TRƯỚC khi upload xong, không chờ file bay hết', async () => {
     // Đây là lý do ack nằm ở dòng đầu handler chứ không ở cuối. Server
     // chỉ chờ 3 giây; một em có file 50MB trên mạng phòng máy đang tải
-    // nặng sẽ bị báo unreachable nếu agent chờ upload xong mới trả lời —
+    // nặng sẽ bị báo unreachable nếu agent chờ upload xong mới trả lời -
     // và giảng viên sẽ đi tìm một cái máy vẫn đang làm việc bình thường.
     const { controller, socket, workspaceDir } = await joinThenFinalizeWithOneFileMissing();
     fs.writeFileSync(path.join(workspaceDir, 'Cau2.docx'), 'cau 2');
@@ -762,7 +762,7 @@ describe('SessionController — exam:recollect', () => {
     const ack = await socket.timeout(500).emitWithAck('exam:recollect', { examSessionId: 'exam-1' });
 
     expect(ack).toEqual({ ok: true });
-    // Và upload vẫn thật sự chạy tới cùng sau đó — ack sớm không phải là
+    // Và upload vẫn thật sự chạy tới cùng sau đó - ack sớm không phải là
     // ack thay cho việc nộp bài.
     await waitFor(() => uploadedBodies.length === 2, 10_000);
     controller.quit();
@@ -771,7 +771,7 @@ describe('SessionController — exam:recollect', () => {
   it('vẫn ack dù upload thất bại', async () => {
     // Ack nghĩa là "tôi còn sống và đã nhận lệnh", KHÔNG phải "đã nộp
     // xong". Nuốt ack khi upload lỗi sẽ báo máy đó unreachable, và giảng
-    // viên sẽ đi tìm một cái máy đã tắt — trong khi nó đang ở ngay đó,
+    // viên sẽ đi tìm một cái máy đã tắt - trong khi nó đang ở ngay đó,
     // báo lỗi trên màn hình, và xử lý tay được.
     const { controller, socket, workspaceDir } = await joinThenFinalizeWithOneFileMissing();
     fs.writeFileSync(path.join(workspaceDir, 'Cau2.docx'), 'cau 2');
@@ -795,7 +795,7 @@ function controllerWorkspaceDir(controller: SessionController): string {
   // Thư mục: <dir>" is the only place the resolved dir is surfaced.
   const entry = state.log.find((l) => l.message.includes('Thư mục:'));
   if (!entry) {
-    throw new Error('workspace dir not yet known — join has not completed');
+    throw new Error('workspace dir not yet known - join has not completed');
   }
   return entry.message.split('Thư mục:')[1].trim();
 }

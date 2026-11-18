@@ -15,15 +15,15 @@ export interface AttendanceStudent {
   joinedLate: boolean;
   firstSeenAt: string | null;
   lastEventAt: string | null;
-  /** Only on make-up students — the class they actually belong to. */
+  /** Only on make-up students - the class they actually belong to. */
   homeClassName?: string;
   /**
-   * `returned` — a machine that crashed and came back, routine.
-   * `new` — someone who appeared after the count, which is the case the
+   * `returned` - a machine that crashed and came back, routine.
+   * `new` - someone who appeared after the count, which is the case the
    * count exists to catch. Two labels on purpose.
    */
   afterHeadcount: 'returned' | 'new' | null;
-  /** Nguồn trên session_roster — `manual` mới cho gỡ trên UI. */
+  /** Nguồn trên session_roster - `manual` mới cho gỡ trên UI. */
   rosterSource?: SessionRosterSource;
 }
 
@@ -38,7 +38,7 @@ export interface Attendance {
   className: string | null;
   rosterSize: number;
   /**
-   * Đã đóng băng danh sách dự thi chưa — tức phiên đã được "mở" hay
+   * Đã đóng băng danh sách dự thi chưa - tức phiên đã được "mở" hay
    * chưa (§7.1.1).
    *
    * Không suy ra được từ `rosterSize`: mọi nhóm ở dưới dựng từ

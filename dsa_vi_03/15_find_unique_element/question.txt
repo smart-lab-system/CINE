@@ -1,0 +1,16 @@
+Cho một mảng gồm các phần tử xuất hiện theo bội số của k, ngoại trừ một phần tử không xuất hiện theo bội số của k. Hãy trả về phần tử duy nhất đó.
+
+Ví dụ:
+Đầu vào: k = 3, arr[] = [6, 2, 5, 2, 2, 6, 6]
+Đầu ra: 5
+Giải thích: Mọi phần tử đều xuất hiện 3 lần ngoại trừ 5.
+Đầu vào: k = 4, arr[] = [2, 2, 2, 10, 2]
+Đầu ra: 10
+Giải thích: Mọi phần tử đều xuất hiện 4 lần ngoại trừ 10.
+Độ phức tạp thời gian kỳ vọng: O(n* log(arr[i]))
+Không gian phụ trợ kỳ vọng: O(log(arr[i]))
+
+Ràng buộc:
+3<= arr.size()<=2*105
+2<= k<=2*105
+1<= arr[i]<=109

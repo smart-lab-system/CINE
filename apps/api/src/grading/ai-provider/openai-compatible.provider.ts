@@ -68,14 +68,17 @@ const GraderOutputSchema = z.object({
       evidence: z.string(),
     }),
   ),
+  selectedApproachKey: z.string().optional().nullable(),
 });
 
 /** Cùng schema, viết cho API. `strict: true` là thứ đã ĐO được là có hiệu lực. */
-function jsonSchema(): Record<string, unknown> {
+function jsonSchema(requireApproachKey: boolean): Record<string, unknown> {
+  const required = ['criterionResults'];
+  if (requireApproachKey) required.push('selectedApproachKey');
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['criterionResults'],
+    required,
     properties: {
       criterionResults: {
         type: 'array',
@@ -94,6 +97,10 @@ function jsonSchema(): Record<string, unknown> {
             },
           },
         },
+      },
+      selectedApproachKey: {
+        type: 'string',
+        description: 'UC33 QS: key của một cách giải trong <solution_approaches>.',
       },
     },
   };
@@ -184,23 +191,51 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
 
   async grade(request: GradingRequest): Promise<GradingOutcome> {
     const envelope = wrapSubmission(request.content);
+    const qsMode = Boolean(request.qsApproaches?.length);
 
     // Ghi chú của giảng viên là VĂN BẢN nên đi được qua mọi provider; chỉ
     // PDF là không. Phân biệt hai thứ đó chính là chỗ `contextUsed` ở cuối
     // hàm lấy sự thật để báo cáo.
     const note = request.reference?.modelAnswerNote;
+    const answerFiles = request.reference?.modelAnswerFiles;
+    const filesBlock =
+      answerFiles && answerFiles.length > 0
+        ? [
+            '<model_answer_files>',
+            ...[...answerFiles]
+              .sort((a, b) => a.path.localeCompare(b.path))
+              .map((f) => `<file path="${f.path.replace(/"/g, '')}">\n${f.text}\n</file>`),
+            '</model_answer_files>',
+          ].join('\n')
+        : '';
+
+    const qsBlock =
+      qsMode && request.qsApproaches
+        ? [
+            '<solution_approaches>',
+            'Rubric QS: chọn ĐÚNG MỘT cách giải; đặt selectedApproachKey = key.',
+            ...[...request.qsApproaches]
+              .sort((a, b) => a.key.localeCompare(b.key))
+              .map((a) => `  <approach key="${a.key}">${a.name}</approach>`),
+            '</solution_approaches>',
+          ].join('\n')
+        : '';
 
     const userContent = [
+      qsBlock,
       renderRubric(request.criteria),
+      filesBlock,
       note ? `<teacher_note>\n${note}\n</teacher_note>` : '<teacher_note/>',
       envelope.wrapped,
-    ].join('\n\n');
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
     const { raw, usage } = await postChatJson(this.config, {
       system: SYSTEM_RULES,
       user: userContent,
       schemaName: 'grading',
-      schema: jsonSchema(),
+      schema: jsonSchema(qsMode),
       maxTokens: maxTokensFor(request.criteria),
     });
 
@@ -232,12 +267,16 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
         points: 0,
         evidence: row.evidence,
       })),
+      selectedApproachKey: validation.data.selectedApproachKey ?? null,
       totalScore: 0,
       confidenceCeiling: this.config.ceiling,
       usage,
       // SỰ THẬT, không phải cấu hình: giao thức này không gửi được PDF, nên
       // dù giảng viên đã upload đề bài thì lượt chấm NÀY vẫn không thấy nó.
-      contextUsed: { question: false, modelAnswer: Boolean(note) },
+      contextUsed: {
+        question: false,
+        modelAnswer: Boolean(note) || Boolean(answerFiles && answerFiles.length > 0),
+      },
     };
   }
 }

@@ -13,11 +13,11 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useRubrics } from '@/hooks/useGrading';
 
-/** Form tối thiểu — create-slim không còn dùng picker trên form tạo; giữ cho test. */
+/** Form tối thiểu - create-slim không còn dùng picker trên form tạo; giữ cho test. */
 type RubricPickerForm = { rubricId?: string };
 
 /**
- * Rubric gắn phiên — hiện dùng trên hub qua `RubricRow`; component này còn
+ * Rubric gắn phiên - hiện dùng trên hub qua `RubricRow`; component này còn
  * cho test / tái sử dụng form có field `rubricId`.
  *
  * Tuỳ chọn: phiên không gắn rubric vẫn tạo, thi và thu bài bình thường; chỉ
@@ -26,7 +26,7 @@ type RubricPickerForm = { rubricId?: string };
 export function RubricPicker() {
   const form = useFormContext<RubricPickerForm>();
   const rubrics = useRubrics();
-  const options = rubrics.data ?? [];
+  const options = (rubrics.data ?? []).filter((r) => !r.isArchived);
   const empty = !rubrics.isLoading && options.length === 0;
 
   return (
@@ -53,7 +53,7 @@ export function RubricPicker() {
             <SelectContent>
               {options.map((rubric) => (
                 <SelectItem key={rubric.id} value={rubric.id}>
-                  {rubric.name} — bản {rubric.version}, {rubric.totalPoints} điểm
+                  {rubric.name} - bản {rubric.version}, {rubric.totalPoints} điểm
                   {rubric.isActive ? ' (mới nhất)' : ''}
                 </SelectItem>
               ))}
@@ -69,7 +69,7 @@ export function RubricPicker() {
             <Link href="/teacher/rules" className="font-semibold underline">
               Soạn rubric ở Bảng lỗi
             </Link>{' '}
-            rồi quay lại — hoặc cứ tạo phiên thi và gắn sau.
+            rồi quay lại - hoặc cứ tạo phiên thi và gắn sau.
           </AlertDescription>
         </Alert>
       )}

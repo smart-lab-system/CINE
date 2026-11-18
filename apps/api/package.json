@@ -12,6 +12,7 @@
     "test:sandbox": "jest --config test-sandbox/jest-sandbox.json --runInBand",
     "sandbox:spike": "node -r ts-node/register -r tsconfig-paths/register src/sandbox-spike/spike.ts",
     "sandbox:images": "docker build -t cine-sandbox-cpp:1 -f sandbox-images/cpp/Dockerfile sandbox-images && docker build -t cine-sandbox-python:1 -f sandbox-images/python/Dockerfile sandbox-images",
+    "playground:image": "docker build -t cine-playground-console:1 -f sandbox-images/playground-console/Dockerfile sandbox-images/playground-console",
     "sandbox:worker:dev": "node -r ts-node/register -r tsconfig-paths/register src/sandbox-worker/main.ts",
     "eval:check": "node -r ts-node/register -r tsconfig-paths/register src/eval/check-cli.ts",
     "eval": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register src/eval/cli.ts",
@@ -22,7 +23,8 @@
     "migration:run:e2e": "node -r ts-node/register -r ./test/load-dotenv-test.js -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
     "migration:revert": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts",
     "migration:generate": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate -d src/database/data-source.ts",
-    "seed:master-data": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register scripts/seed-master-data.ts"
+    "seed:master-data": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register scripts/seed-master-data.ts",
+    "import:dsa-vi-03": "node -r ts-node/register -r dotenv/config -r tsconfig-paths/register scripts/import-dsa-vi03.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
@@ -40,6 +42,7 @@
     "@nestjs/swagger": "^7.4.2",
     "@nestjs/typeorm": "^10.0.2",
     "@nestjs/websockets": "^10.4.4",
+    "@swc/core": "^1.16.22",
     "argon2": "^0.41.1",
     "bullmq": "^6.3.4",
     "class-transformer": "^0.5.1",
@@ -50,6 +53,7 @@
     "ioredis": "^5.4.1",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.2",
+    "multer": "^2.0.2",
     "node-unrar-js": "^2.0.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
@@ -68,6 +72,7 @@
     "@types/cookie-parser": "^1.4.7",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.13",
+    "@types/multer": "^2.3.0",
     "@types/node": "^20.16.10",
     "@types/passport-jwt": "^4.0.1",
     "@types/pg": "^8.11.10",

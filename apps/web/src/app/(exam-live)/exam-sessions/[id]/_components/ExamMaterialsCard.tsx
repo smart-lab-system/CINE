@@ -14,7 +14,7 @@ import {
 
 interface ExamMaterialsCardProps {
   examSessionId: string;
-  /** Formatted start time — when students may first open these. */
+  /** Formatted start time - when students may first open these. */
   releaseAt: string;
   /** Deleting is closed once the session is over; the papers stay for reference. */
   canEdit: boolean;
@@ -29,14 +29,14 @@ function formatSize(bytes: number): string {
 }
 
 /**
- * The question paper, the dataset, the starter code — uploaded here instead
+ * The question paper, the dataset, the starter code - uploaded here instead
  * of emailed round or carried in on a USB stick.
  *
  * The file goes straight from this browser to object storage through a
  * presigned URL and never through the API server (Security rule 5). What
  * the card has to make unmistakable is the OTHER rule: uploading a paper
  * does not publish it. Students receive nothing until start_time, however
- * early their machine connected — so the release time is stated on the card
+ * early their machine connected - so the release time is stated on the card
  * rather than left for someone to assume.
  */
 export function ExamMaterialsCard({
@@ -94,7 +94,7 @@ export function ExamMaterialsCard({
         <Alert variant="info">
           <AlertDescription>
             Máy sinh viên chỉ nhận được những file này từ{' '}
-            <strong>{releaseAt}</strong> — kể cả máy đã kết nối sớm hơn. Tải lên trước
+            <strong>{releaseAt}</strong> - kể cả máy đã kết nối sớm hơn. Tải lên trước
             không làm lộ đề.
           </AlertDescription>
         </Alert>
@@ -118,7 +118,7 @@ export function ExamMaterialsCard({
           </Alert>
         ) : (materials.data?.length ?? 0) === 0 ? (
           <p className="rounded-md border border-dashed border-border px-4 py-3 text-small text-muted-foreground">
-            Chưa có đề thi nào. Sinh viên vẫn thi được — chỉ là đề phải phát bằng cách khác.
+            Chưa có đề thi nào. Sinh viên vẫn thi được - chỉ là đề phải phát bằng cách khác.
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-border rounded-md border border-border">

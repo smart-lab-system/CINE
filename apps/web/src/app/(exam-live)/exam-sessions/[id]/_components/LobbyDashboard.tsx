@@ -17,7 +17,7 @@ import { formatAttendanceTime } from './student-marks';
 export interface LobbyDashboardProps {
   rosterSize: number;
   presentCount: number;
-  /** Chưa từng vào — trước hết giờ. */
+  /** Chưa từng vào - trước hết giờ. */
   notJoinedCount: number;
   /** Vắng mặt sau deadline (thường 0 trước hết giờ). */
   absentCount: number;
@@ -40,7 +40,7 @@ interface Metric {
 }
 
 /**
- * Dashboard tổng quan vận hành phiên — chỉ số + nhãn (spec exam-ops-lobby-ux §5.4).
+ * Dashboard tổng quan vận hành phiên - chỉ số + nhãn (spec exam-ops-lobby-ux §5.4).
  */
 export function LobbyDashboard({
   rosterSize,
@@ -59,7 +59,7 @@ export function LobbyDashboard({
     {
       key: 'roster',
       label: 'Sĩ số lớp',
-      value: classId === null ? '—' : rosterSize,
+      value: classId === null ? '-' : rosterSize,
       icon: <Users className="h-3.5 w-3.5" aria-hidden="true" />,
     },
     {

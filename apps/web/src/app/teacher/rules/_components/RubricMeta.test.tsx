@@ -5,11 +5,12 @@ import { RubricMeta } from './RubricMeta';
 import { overview, session } from './fixtures';
 
 describe('RubricMeta', () => {
-  it('điểm tổng, số tiêu chí và nút sửa tiêu chí — không có chữ "phiên bản"', () => {
+  it('điểm tổng, số tiêu chí và nút sửa tiêu chí - không có chữ "phiên bản"', () => {
     const onEdit = vi.fn();
     render(<RubricMeta overview={overview()} onEdit={onEdit} />);
     expect(screen.getByText(/10,0/)).toBeInTheDocument();
     expect(screen.getByText(/3 tiêu chí/)).toBeInTheDocument();
+    expect(screen.getByText('QA')).toBeInTheDocument();
     expect(screen.queryByText(/phiên bản/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Sửa tiêu chí & điểm tối đa/ }));
     expect(onEdit).toHaveBeenCalled();

@@ -1,0 +1,16 @@
+Cho một mảng arr và một số nguyên k. Bạn cần tìm tích lớn nhất của k phần tử liên tiếp trong mảng. 
+
+Ví dụ:
+Đầu vào: arr[] = [1, 2, 3, 4] và k = 2
+Đầu ra: 12 
+Giải thích: Mảng con (subarray) có kích thước 2 là 3 4 và tích là 12.
+Đầu vào: arr[] = [1, 6, 7, 8] và k = 3
+Đầu ra: 336
+Giải thích: Mảng con (subarray) có kích thước 3 là 6 7 8 và tích là 336.
+Độ phức tạp thời gian kỳ vọng: O(n)
+Không gian phụ trợ kỳ vọng: O(1)
+
+Ràng buộc:
+1 <= arr.size() <= 106
+1 <= k<= 8
+1<= arr[i] <=102

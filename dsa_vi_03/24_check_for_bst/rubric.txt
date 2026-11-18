@@ -1,0 +1,25 @@
+Kiểm tra BST.
+
+Solution 1: Cách tiếp cận khoảng Min-Max
+1. Tạo một hàm bổ trợ nhận một node, giá trị nhỏ nhất (min) và giá trị lớn nhất (max) làm tham số [1 mark]
+2. Trả về true nếu node là null (base case) [1 mark]
+3. Kiểm tra xem giá trị của node hiện tại có vi phạm phạm vi hợp lệ không (< min hoặc > max); nếu có, trả về false [1 mark]
+4. Xác thực đệ quy cây con bên trái với giá trị cực đại được cập nhật là giá trị của node hiện tại [1 mark]
+5. Xác thực đệ quy cây con bên phải với giá trị cực tiểu được cập nhật là giá trị của node hiện tại [1 mark]
+6. Chỉ trả về true nếu cả hai cây con bên trái và bên phải đều là các BST hợp lệ [1 mark]
+
+Solution 2: Cách tiếp cận duyệt Inorder (Inorder Traversal)
+1. Khởi tạo một biến để theo dõi giá trị của node trước đó [1 mark]
+2. Cài đặt duyệt inorder (trái, gốc, phải) [1 mark]
+3. Kiểm tra xem giá trị của mỗi node có lớn hơn giá trị trước đó hay không [1 mark]
+4. Nếu có bất kỳ node nào vi phạm tính chất này, trả về false [1 mark]
+5. Trả về true nếu toàn bộ quá trình duyệt hoàn tất mà không phát hiện vi phạm nào [1 mark]
+
+Solution 3: Duyệt Morris (Bộ nhớ hằng số)
+1. Bắt đầu với root node và duyệt cây trong khi duy trì một con trỏ tới node hiện tại. [1 mark]
+2. Đối với mỗi node, tìm node đứng trước theo thứ tự inorder (node ngoài cùng bên phải trong cây con bên trái của nó). Sử dụng node này để liên kết tạm thời quay lại node hiện tại. [1 mark]
+3. Nếu con bên trái tồn tại, tạo một liên kết tạm (thread) từ inorder predecessor tới node hiện tại. [1 mark]
+4. Nếu con bên trái không tồn tại, xử lý dữ liệu của node hiện tại và di chuyển sang con bên phải của nó. [1 mark]
+5. Khi bạn đã thăm node hiện tại, khôi phục lại cây bằng cách xóa liên kết tạm thời. Kiểm tra tính chất inorder và tiếp tục sang con bên phải. [1 mark]
+6. So sánh giá trị của node hiện tại với giá trị của node đã thăm trước đó. [1 mark]
+7. Tiếp tục quá trình này cho đến khi tất cả các node được thăm. Nếu tất cả các node đều thỏa mãn tính chất BST, thì cây là một BST. [1 mark]

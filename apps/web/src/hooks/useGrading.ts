@@ -8,6 +8,7 @@ import {
   getGradingProgress,
   getGradingReadiness,
   getResultInvestigation,
+  getRubric,
   getSubmissionText,
   listGradingResults,
   listGradingSessionSummaries,
@@ -31,7 +32,7 @@ import {
  * Rubric của CHÍNH người đang đăng nhập.
  *
  * Trước đợt thu hẹp master data, khoá truy vấn là một môn học và hook nhận
- * `courseId`. Rubric giờ thuộc về giảng viên, nên không còn tham số nào —
+ * `courseId`. Rubric giờ thuộc về giảng viên, nên không còn tham số nào -
  * và không còn trạng thái "chưa chọn môn nên chưa tải được".
  */
 export function useRubrics() {
@@ -41,14 +42,34 @@ export function useRubrics() {
   });
 }
 
+export function useRubric(id: string | undefined) {
+  return useQuery({
+    queryKey: ['rubrics', id],
+    queryFn: () => getRubric(id!),
+    enabled: Boolean(id),
+  });
+}
+
 export function useSaveRubric() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
-      name: string;
-      // `key` của tiêu chí CÓ SẴN phải đi kèm — bỏ nó thì server sinh lại từ mô tả (xem lib/rubric-form).
-      criteria: { description: string; maxPoints: number; key?: string }[];
-    }) => saveRubric(input.name, input.criteria),
+    mutationFn: (
+      input:
+        | {
+            name: string;
+            kind?: 'qa';
+            criteria: { description: string; maxPoints: number; key?: string }[];
+          }
+        | {
+            name: string;
+            kind: 'qs';
+            approaches: {
+              name: string;
+              key?: string;
+              steps: { description: string; maxPoints: number; key?: string }[];
+            }[];
+          },
+    ) => saveRubric(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['rubrics'] });
       // Rubric mới / sửa tiêu chí đổi cả tổng quan Bảng lỗi (ô chọn, đếm tiêu chí, lỗi mồ côi).
@@ -70,7 +91,7 @@ export function useGradingResults(examSessionId: string | undefined) {
  *
  * Invalidate overview chứ không phải danh sách rubric: danh sách phiên của
  * trang Chấm điểm lấy từ overview, và `rubricId` của phiên vừa đổi nằm
- * trong chính payload ấy — không invalidate thì thẻ chặn vẫn còn nguyên
+ * trong chính payload ấy - không invalidate thì thẻ chặn vẫn còn nguyên
  * sau khi người dùng vừa gắn xong.
  */
 export function useSetSessionRubric(examSessionId: string | undefined) {
@@ -111,7 +132,7 @@ export function useSubmitReview(examSessionId: string | undefined) {
 }
 
 /**
- * Chốt điểm cả phiên — mốc công bố, không phải một lần lưu. Sau đó mọi lần sửa
+ * Chốt điểm cả phiên - mốc công bố, không phải một lần lưu. Sau đó mọi lần sửa
  * đều để lại dấu vết trong nhật ký.
  */
 export function useFinalizeGrades(examSessionId: string | undefined) {
@@ -128,12 +149,12 @@ export function useFinalizeGrades(examSessionId: string | undefined) {
 
 /**
  * The explicit action, and the only thing that starts grading. Nothing in
- * the collection flow calls this — that separation is the point.
+ * the collection flow calls this - that separation is the point.
  *
  * Từ 2026-09-11 nó chỉ XẾP HÀNG rồi trả về. `onSuccess` vì thế làm mới
  * TIẾN ĐỘ, không làm mới kết quả: lúc này chưa bài nào được chấm, và
  * refetch danh sách kết quả ở đây sẽ lấy về đúng một danh sách rỗng rồi
- * không bao giờ hỏi lại — giảng viên bấm nút và nhìn màn hình đứng yên
+ * không bao giờ hỏi lại - giảng viên bấm nút và nhìn màn hình đứng yên
  * cho tới khi tự F5. `useGradingProgress` bên dưới mới là thứ theo dõi
  * đến khi xong, và nó làm mới kết quả khi xong.
  */
@@ -152,18 +173,18 @@ export function useStartGrading(examSessionId: string | undefined) {
 /**
  * Nhịp hỏi lại: nhanh lúc đầu, chậm dần.
  *
- * 2 giây là đúng cho phút đầu — giảng viên vừa bấm nút và đang nhìn.
+ * 2 giây là đúng cho phút đầu - giảng viên vừa bấm nút và đang nhìn.
  * Nhưng một lượt 40 bài mất nhiều phút, và không ai theo dõi từng giây
  * suốt ngần ấy. Giữ nguyên 2 giây tới cuối là 2.5 request/giây khi năm
  * giảng viên chấm cùng lúc cuối kỳ, mỗi request một GROUP BY join hai
- * bảng — trên đúng process đang chạy năm worker chấm.
+ * bảng - trên đúng process đang chạy năm worker chấm.
  */
 export const PROGRESS_POLL_FAST_MS = 2_000;
 export const PROGRESS_POLL_SLOW_MS = 5_000;
 export const PROGRESS_FAST_WINDOW_MS = 60_000;
 
 /**
- * Quyết định nhịp — tách ra vì nó là toàn bộ luật, và luật thì nên ghim
+ * Quyết định nhịp - tách ra vì nó là toàn bộ luật, và luật thì nên ghim
  * được bằng test mà không phải dựng một QueryClient.
  */
 export function progressPollIntervalMs(pending: number, elapsedMs: number): number | false {
@@ -176,7 +197,7 @@ export function progressPollIntervalMs(pending: number, elapsedMs: number): numb
 export const SESSION_SUMMARIES_KEY = ['grading', 'sessions-summary'] as const;
 
 /**
- * Tóm tắt chấm điểm mọi phiên — trang danh sách phiên đọc nó cạnh `useSessionOverview`.
+ * Tóm tắt chấm điểm mọi phiên - trang danh sách phiên đọc nó cạnh `useSessionOverview`.
  * Luôn đọc lại khi mở trang: trạng thái đổi ở các trang khác (bắt đầu chấm, chốt điểm), và một
  * danh sách nói "Chưa chấm" về phiên đang chạy là lời nói dối tệ hơn việc chờ thêm một request.
  */
@@ -199,14 +220,14 @@ export function useGradingSessionSummaries() {
  * chấm" rồi chuyển tab là hành vi mặc định của một lượt chấm dài, và
  * một tab nền không ai nhìn thì mỗi request là chi phí thuần.
  *
- * Khi lượt chấm kết thúc, nó làm mới danh sách kết quả đúng một lần —
+ * Khi lượt chấm kết thúc, nó làm mới danh sách kết quả đúng một lần -
  * đó là chỗ duy nhất biết được "vừa xong", vì response của
  * `startGrading` trả về từ nhiều phút trước.
  */
 export function useGradingProgress(examSessionId: string | undefined) {
   const queryClient = useQueryClient();
   const settled = useRef(true);
-  /** Lượt chấm HIỆN TẠI bắt đầu lúc nào — mốc để giãn nhịp. */
+  /** Lượt chấm HIỆN TẠI bắt đầu lúc nào - mốc để giãn nhịp. */
   const startedAt = useRef<number | null>(null);
 
   const query = useQuery({
@@ -237,7 +258,7 @@ export function useGradingProgress(examSessionId: string | undefined) {
     if (settled.current) {
       return;
     }
-    // Chuyển từ "đang chấm" sang "xong" — một lần, không phải mỗi lần
+    // Chuyển từ "đang chấm" sang "xong" - một lần, không phải mỗi lần
     // component render lại.
     settled.current = true;
     void queryClient.invalidateQueries({
@@ -249,7 +270,7 @@ export function useGradingProgress(examSessionId: string | undefined) {
 }
 
 /**
- * Khoá cache của mức sẵn sàng — export để test ghim đúng chuỗi này.
+ * Khoá cache của mức sẵn sàng - export để test ghim đúng chuỗi này.
  *
  * Invalidate nhầm khoá là một lỗi KHÔNG hiện ra: lưu xong, server đã đổi,
  * màn hình vẫn vẽ mức cũ, và giảng viên bấm "Bắt đầu chấm" tin rằng mình
@@ -271,7 +292,7 @@ export function useGradingReadiness(examSessionId: string | undefined) {
 /**
  * Lưu tài liệu tham chiếu.
  *
- * Invalidate mức sẵn sàng, vì đó chính là thứ vừa đổi — và nó là điều kiện
+ * Invalidate mức sẵn sàng, vì đó chính là thứ vừa đổi - và nó là điều kiện
  * để lượt phản biện chạy được.
  */
 export function useSetGradingReference(examSessionId: string | undefined) {
@@ -307,7 +328,7 @@ export function useRegradeStuck(examSessionId: string | undefined) {
  * Bài làm kèm toạ độ dẫn chứng.
  *
  * `staleTime` dài có chủ đích: nội dung một bài đã nộp không đổi, còn mỗi
- * lần gọi là một lần tải file từ kho rồi trích lại text — đắt hơn hẳn mọi
+ * lần gọi là một lần tải file từ kho rồi trích lại text - đắt hơn hẳn mọi
  * endpoint khác ở màn này. Giảng viên chuyển qua lại giữa các tiêu chí
  * không được phép kéo theo một lượt tải file mỗi lần.
  */
@@ -323,15 +344,15 @@ export function useSubmissionText(gradingResultId: string | undefined) {
 /**
  * Duyệt hàng loạt.
  *
- * Invalidate danh sách kết quả — điểm và trạng thái của mọi bài vừa áp đều
+ * Invalidate danh sách kết quả - điểm và trạng thái của mọi bài vừa áp đều
  * nằm trong đó, và màn Ma trận đọc chính danh sách ấy.
  */
-/** Khoá cache của một hồ sơ điều tra — export để invalidate đúng chỗ và để test ghim. */
+/** Khoá cache của một hồ sơ điều tra - export để invalidate đúng chỗ và để test ghim. */
 export function investigationQueryKey(gradingResultId: string | undefined) {
   return ['grading-results', gradingResultId, 'investigation'] as const;
 }
 
-/** Chi tiết một lượt tính điểm — Hồ sơ một bài, đường điều tra (§5). */
+/** Chi tiết một lượt tính điểm - Hồ sơ một bài, đường điều tra (§5). */
 export function useResultInvestigation(gradingResultId: string | undefined) {
   return useQuery({
     queryKey: investigationQueryKey(gradingResultId),
@@ -358,7 +379,7 @@ export function useSetErrorException(examSessionId: string | undefined) {
   });
 }
 
-/** Chấm tay bài này — từ đây điểm không đổi theo luật/giá nữa. */
+/** Chấm tay bài này - từ đây điểm không đổi theo luật/giá nữa. */
 export function useSetManualScore(examSessionId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -382,13 +403,13 @@ export function useBulkReview(examSessionId: string | undefined) {
   });
 }
 
-/** Xem trước "áp giá mới cho phiên đã chốt" — không cache, không làm mới gì: nó không ghi gì cả. */
+/** Xem trước "áp giá mới cho phiên đã chốt" - không cache, không làm mới gì: nó không ghi gì cả. */
 export function useReapplyPreview(examSessionId: string | undefined) {
   return useMutation({ mutationFn: () => previewReapplyPrices(examSessionId!) });
 }
 
 /**
- * Áp giá mới cho phiên đã chốt. `onSettled`: một lượt bị từ chối (409) cũng làm mới — trang không được giữ một
+ * Áp giá mới cho phiên đã chốt. `onSettled`: một lượt bị từ chối (409) cũng làm mới - trang không được giữ một
  * bản xem trước mà server vừa phản bác.
  */
 export function useReapplyPrices(examSessionId: string | undefined) {

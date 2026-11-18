@@ -38,17 +38,17 @@ interface ResourceShellProps<T> {
   error: Error | null;
   emptyTitle: string;
   emptyDescription: string;
-  /** Rendered under the header — dialogs, extra notices. */
+  /** Rendered under the header - dialogs, extra notices. */
   children?: ReactNode;
   /**
    * Extra per-row controls, placed before edit and delete. Used where a row
-   * leads somewhere rather than just being edited in place — a class opens
+   * leads somewhere rather than just being edited in place - a class opens
    * onto its roster.
    */
   rowActions?: (row: T) => ReactNode;
   /**
    * Extra buttons beside the add button, for actions that create rows by a
-   * different route — bulk import, for instance. A slot rather than a
+   * different route - bulk import, for instance. A slot rather than a
    * second `onImport` prop, so the shell does not grow a concept per screen
    * that needs one.
    */
@@ -59,7 +59,7 @@ interface ResourceShellProps<T> {
  * The four academic-resource screens are the same screen with different
  * columns: a list, an add button, and per-row edit and delete. Sharing the
  * frame keeps their loading, empty and error states identical, which is the
- * part that otherwise drifts — one page ends up with a spinner, another with
+ * part that otherwise drifts - one page ends up with a spinner, another with
  * a blank table, and a third with nothing at all when the request fails.
  *
  * Forms stay in the pages. They are the part that genuinely differs, and a

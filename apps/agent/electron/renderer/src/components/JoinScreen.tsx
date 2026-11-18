@@ -1,6 +1,6 @@
 /**
  * States a, b, d, d2, e, f, g of the design spec's §4 table, plus group
- * 1b's connect_error — every screen that exists before `agent:join`
+ * 1b's connect_error - every screen that exists before `agent:join`
  * actually succeeds. 'joined' is handled by App.tsx, not here: this
  * component never renders once that happens.
  */
@@ -9,7 +9,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import type { AgentState } from '../../../../src/session-controller';
 import { AppButton, BrandMark, Field, Spinner, StatusLine } from './ui';
 
-// Client-side conveniences only (design spec §5.1) — the server DTOs are
+// Client-side conveniences only (design spec §5.1) - the server DTOs are
 // the actual enforcement. General alphanumeric, not the narrower
 // confusable-free alphabet new codes are generated from: an old session
 // created before that change may still have an O/I/0/1 in its code, and
@@ -83,7 +83,7 @@ export function JoinScreen({
         <Spinner />
         <p className="mt-1.5 text-small font-semibold">Đã gửi yêu cầu</p>
         <p className="max-w-[26ch] text-caption text-muted-foreground">
-          Đang chờ giảng viên duyệt. Đừng tắt cửa sổ này — nếu chờ quá lâu, báo trực tiếp giám thị trong phòng.
+          Đang chờ giảng viên duyệt. Đừng tắt cửa sổ này - nếu chờ quá lâu, báo trực tiếp giám thị trong phòng.
         </p>
       </Centered>
     );
@@ -112,7 +112,7 @@ export function JoinScreen({
         <StatusLine tone="danger">
           <b>Không kết nối được máy chủ.</b>
           <br />
-          Hệ thống không thể tự báo giám thị trong tình huống này — vui lòng đứng lên và báo trực tiếp.
+          Hệ thống không thể tự báo giám thị trong tình huống này - vui lòng đứng lên và báo trực tiếp.
         </StatusLine>
       )}
       {(state.joinPhase === 'error' || state.joinPhase === 'rate_limited' || state.joinPhase === 'session_not_active') &&
@@ -180,7 +180,7 @@ function ErrorBanner({
         <b>Tạm khoá do nhập sai nhiều lần.</b>
         <br />
         {remainingMs !== null
-          ? `Thử lại sau ${formatCountdown(remainingMs)} — lần khoá sau sẽ lâu hơn nếu tiếp tục sai.`
+          ? `Thử lại sau ${formatCountdown(remainingMs)} - lần khoá sau sẽ lâu hơn nếu tiếp tục sai.`
           : 'Có thể thử lại ngay bây giờ.'}
       </StatusLine>
     );

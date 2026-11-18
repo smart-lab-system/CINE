@@ -25,7 +25,7 @@ function makeRequest(pathname: string, accessToken?: string, refreshToken?: stri
   } as unknown as Parameters<typeof middleware>[0];
 }
 
-// A JWT is header.payload.signature — only the payload needs to be real
+// A JWT is header.payload.signature - only the payload needs to be real
 // base64url JSON for decodeAccessTokenRole; header/signature can be
 // anything since they're never read.
 function fakeToken(payload: Record<string, unknown>): string {
@@ -81,7 +81,7 @@ describe('middleware', () => {
 
   it('does not treat a same-prefix-but-different route as the admin area', async () => {
     // "/administrator" starts with "/admin" as a string, but is not under
-    // the /admin/* segment — a plain startsWith('/admin') would wrongly
+    // the /admin/* segment - a plain startsWith('/admin') would wrongly
     // redirect a teacher away from it.
     const response = await middleware(
       makeRequest('/administrator', fakeToken({ role: 'teacher' })),
@@ -119,13 +119,13 @@ describe('middleware', () => {
 });
 
 
-// H1 — the hole this suite exists for: `access_token` has maxAge 15m, so the
+// H1 - the hole this suite exists for: `access_token` has maxAge 15m, so the
 // BROWSER deletes it after 15 minutes. Every navigation after that arrived
 // here with no access_token and was redirected to /login, even though the
 // refresh_token cookie was still valid for another 7 days. Reported as
 // "user thoát web giữa chừng". lib/api-client.ts's 401-retry middleware does
 // not help: it only sees XHR, never a document request.
-describe('middleware — silent refresh on an expired access_token', () => {
+describe('middleware - silent refresh on an expired access_token', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -164,7 +164,7 @@ describe('middleware — silent refresh on an expired access_token', () => {
     expect(response.cookies.get('access_token')?.value).toBe(NEW_ACCESS);
   });
 
-  // AuthService.refresh rotates on every use — writing back the token the
+  // AuthService.refresh rotates on every use - writing back the token the
   // request came in with would hand the browser one the server has already
   // retired, and the NEXT refresh would fail.
   it('writes back the ROTATED refresh_token, not the incoming one', async () => {
@@ -175,7 +175,7 @@ describe('middleware — silent refresh on an expired access_token', () => {
     expect(response.cookies.get('refresh_token')?.value).toBe('rotated-refresh');
   });
 
-  // The role routing below this point reads the token — after a refresh it
+  // The role routing below this point reads the token - after a refresh it
   // must read the NEW one, not fall through as though no role were known.
   it('routes by the role carried in the refreshed token', async () => {
     stubRefreshOk();
@@ -214,7 +214,7 @@ describe('middleware — silent refresh on an expired access_token', () => {
 
   // Without this, dropping a `cookies.delete` from clearSessionCookies would
   // pass every other test in this file while leaving a dead refresh_token in
-  // the browser — one wasted API round-trip per navigation, forever, for a
+  // the browser - one wasted API round-trip per navigation, forever, for a
   // token that can never succeed again.
   it('clears the dead cookies rather than leaving them to fail again', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })));
@@ -232,7 +232,7 @@ describe('middleware — silent refresh on an expired access_token', () => {
   });
 
   // A dead API must not strand the user in a redirect loop with cookies that
-  // would have worked once it came back — but it must not hang either.
+  // would have worked once it came back - but it must not hang either.
   it('redirects to /login when the refresh call throws', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNREFUSED'); }));
     const response = await middleware(

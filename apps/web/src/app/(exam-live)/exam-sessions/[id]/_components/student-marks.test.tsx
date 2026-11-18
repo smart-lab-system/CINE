@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import type { AttendanceStudent } from '@/lib/api/attendance';
 import { StudentMarks } from './student-marks';
 
-describe('StudentMarks — late-join detail', () => {
+describe('StudentMarks - late-join detail', () => {
   const START_TIME = '2026-09-01T08:00:00.000Z';
 
   function student(overrides: Partial<AttendanceStudent> = {}): AttendanceStudent {

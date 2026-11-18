@@ -4,8 +4,8 @@
  * How long one recovery attempt holds the door shut behind it.
  *
  * Long enough that a broken subscription cannot spin (socket.io redials on
- * its own schedule, and every redial that fails would otherwise mint — and
- * ROTATE — another refresh token), short enough that two genuinely separate
+ * its own schedule, and every redial that fails would otherwise mint - and
+ * ROTATE - another refresh token), short enough that two genuinely separate
  * network blips in a three-hour exam are both recoverable.
  */
 export const RECOVERY_COOLDOWN_MS = 60_000;
@@ -42,7 +42,7 @@ export interface SubscriptionRecovery {
  * Throttled rather than one-shot. A hard one-attempt-per-mount cap would be
  * a simpler loop guard, but it fails the case this exists for: over three
  * hours of invigilation the Wi-Fi drops more than once, and by the second
- * drop the access_token minted by the FIRST recovery has itself aged out —
+ * drop the access_token minted by the FIRST recovery has itself aged out -
  * an ordinary, perfectly recoverable expiry that a permanent cap would turn
  * into a login screen mid-exam.
  *

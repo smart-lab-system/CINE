@@ -115,14 +115,25 @@ function createHarness(
   };
   const transaction = jest.fn();
   const archiveCheckQueue = { add: jest.fn().mockResolvedValue(undefined) };
+  const jplagExam = { enqueueFromSubmission: jest.fn().mockResolvedValue(undefined) };
   const service = new SubmissionService(
     { transaction } as unknown as DataSource,
     submissions as unknown as Repository<SubmissionEntity>,
     examSessions as unknown as ExamSessionService,
     storage as unknown as StorageService,
+    jplagExam as never,
     archiveCheckQueue as unknown as Queue<ArchiveCheckJob>,
   );
-  return { service, examSessions, storage, submissions, listBuilder, transaction, archiveCheckQueue };
+  return {
+    service,
+    examSessions,
+    storage,
+    submissions,
+    listBuilder,
+    transaction,
+    archiveCheckQueue,
+    jplagExam,
+  };
 }
 
 describe('SubmissionService — preconditions', () => {
@@ -420,6 +431,7 @@ describe('SubmissionService.listForTeacher', () => {
       submissions as unknown as Repository<SubmissionEntity>,
       {} as ExamSessionService,
       storage as unknown as StorageService,
+      { enqueueFromSubmission: jest.fn() } as never,
       {} as Queue<ArchiveCheckJob>,
     );
     return { service, submissions, builder, storage };

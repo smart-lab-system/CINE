@@ -9,11 +9,11 @@ vi.mock('next/navigation', () => ({
 }));
 
 // Session metadata (name/start/end/status) now comes through
-// useExamSessionDetail — mocked directly (not the underlying apiClient) so
+// useExamSessionDetail - mocked directly (not the underlying apiClient) so
 // these tests don't need a QueryClientProvider ancestor, same convention
 // as admin/accounts/page.test.tsx. Defaults to "not loaded yet", which
 // keeps every pre-existing test's behavior identical (no banner renders
-// without session data) — only the new describe block below overrides it.
+// without session data) - only the new describe block below overrides it.
 const useExamSessionDetailMock = vi.fn();
 const useSubmissionsMock = vi.fn();
 const finalizeMutateAsyncMock = vi.fn();
@@ -58,17 +58,17 @@ vi.mock('@/lib/access-request', async () => {
   return { ...actual, resolveAccessRequest: (...args: unknown[]) => resolveAccessRequestMock(...args) };
 });
 
-// sonner needs a mounted <Toaster/> to render anything into the DOM — this
+// sonner needs a mounted <Toaster/> to render anything into the DOM - this
 // page-level test has none (that lives in the app shell), so a real
 // toast.warning() call here would silently push to sonner's own internal
-// store and never appear in jsdom at all. Mocked so the CALL itself — the
-// actual attention cue — is what gets verified, not a DOM node that would
+// store and never appear in jsdom at all. Mocked so the CALL itself - the
+// actual attention cue - is what gets verified, not a DOM node that would
 // never exist in this test's tree.
 const toastWarningMock = vi.fn();
 vi.mock('sonner', () => ({
   toast: {
     warning: (...args: unknown[]) => toastWarningMock(...args),
-    // AccessRequestPanel also fires toast.success on a resolved request —
+    // AccessRequestPanel also fires toast.success on a resolved request -
     // a real (unmocked) function here so that call doesn't throw, even
     // though these tests don't assert on it directly.
     success: vi.fn(),
@@ -78,7 +78,7 @@ vi.mock('sonner', () => ({
 }));
 
 /**
- * Attendance comes from the server, not from the socket — the whole point
+ * Attendance comes from the server, not from the socket - the whole point
  * of moving it out of page state. Tests describe a room by building one of
  * these rather than by replaying join events.
  */
@@ -121,7 +121,7 @@ function student(mssv: string, name: string, extra: Record<string, unknown> = {}
 // resolves `import { socket } from '@/lib/socket'` (in both page.tsx and
 // this test file) to the exact same object. `on`/`off` register/remove
 // listeners exactly like the real thing; `emit` is a spy (outgoing,
-// server-bound — must NOT trigger this fake's own listeners); `__trigger`
+// server-bound - must NOT trigger this fake's own listeners); `__trigger`
 // is a test-only helper simulating an incoming server -> client event.
 vi.mock('@/lib/socket', () => {
   const listeners = new Map<string, Array<(...args: unknown[]) => void>>();
@@ -162,7 +162,7 @@ vi.mock('@/lib/socket', () => {
   return { socket };
 });
 
-// Cast once — the mock's extra `__trigger`/`__listenerCount`/`__reset`
+// Cast once - the mock's extra `__trigger`/`__listenerCount`/`__reset`
 // helpers aren't part of the real `Socket` type this module normally
 // exports.
 const fakeSocket = mockSocket as unknown as {
@@ -177,7 +177,7 @@ const fakeSocket = mockSocket as unknown as {
 
 // `__trigger` invokes the page's registered listeners synchronously and
 // outside of any React event handler, which is exactly what a real
-// incoming socket.io event does — wrapping it in `act()` just tells
+// incoming socket.io event does - wrapping it in `act()` just tells
 // React Testing Library "this state update is expected", matching how the
 // browser would actually batch it, and silences the act() warning.
 function trigger(event: string, payload?: unknown) {
@@ -202,7 +202,7 @@ beforeEach(() => {
     isPending: false,
     error: null,
   });
-  // Hai mutation của giai đoạn thu bài. Trơ ở mặc định — chỉ khối
+  // Hai mutation của giai đoạn thu bài. Trơ ở mặc định - chỉ khối
   // describe riêng của chúng mới ghi đè.
   confirmEndMutateAsyncMock.mockReset();
   recollectMutateAsyncMock.mockReset();
@@ -394,7 +394,7 @@ describe('ExamSessionLobbyPage', () => {
   // H2. UNAUTHORIZED is the one subscribe error that is usually recoverable
   // and used to be treated like the two that are not. `access_token` has
   // maxAge 15m, so a socket that drops and auto-reconnects after that window
-  // shakes hands with no token at all — while refresh_token is still good for
+  // shakes hands with no token at all - while refresh_token is still good for
   // another 7 days. Telling the teacher to log in again there throws away a
   // working session mid-exam.
   it('refreshes and redials on UNAUTHORIZED instead of telling the teacher to log in', async () => {
@@ -413,7 +413,7 @@ describe('ExamSessionLobbyPage', () => {
       message: 'Missing or invalid access token.',
     });
 
-    // Redialled, because the handshake cookie is frozen at connection time —
+    // Redialled, because the handshake cookie is frozen at connection time -
     // a refreshed cookie reaches the gateway only via a NEW handshake.
     await waitFor(() => expect(fakeSocket.connect).toHaveBeenCalled());
     expect(fakeSocket.disconnect).toHaveBeenCalled();
@@ -522,7 +522,7 @@ describe('ExamSessionLobbyPage', () => {
       // Lỗi có sẵn từ trước, lộ ra khi rà lại chỗ này: banner phân nhánh
       // bằng cách so CHUỖI NHÃN với 'Đã kết thúc', nhưng
       // `getDisplaySessionStatus` trả 'Đã hoàn thành' cho phiên
-      // `completed` — nên một phiên đã xong rơi vào nhánh else và mời
+      // `completed` - nên một phiên đã xong rơi vào nhánh else và mời
       // giảng viên chờ tới một giờ mở đã trôi qua từ lâu.
       useExamSessionDetailMock.mockReturnValue({
         refetch: vi.fn(),
@@ -540,7 +540,7 @@ describe('ExamSessionLobbyPage', () => {
       expect(screen.queryByText(/chưa bắt đầu/i)).not.toBeInTheDocument();
     });
 
-    it('phiên đang thu bài không hiện banner nào — panel thu bài đã nói rồi', () => {
+    it('phiên đang thu bài không hiện banner nào - panel thu bài đã nói rồi', () => {
       useExamSessionDetailMock.mockReturnValue({
         refetch: vi.fn(),
         data: {
@@ -655,7 +655,7 @@ describe('ExamSessionLobbyPage', () => {
       useSubmissionsMock.mockReturnValue({
         data: {
           items: [
-            // Cùng MỘT em, hai file, cả hai đều sau mốc xác nhận — con số
+            // Cùng MỘT em, hai file, cả hai đều sau mốc xác nhận - con số
             // phải là 1. Đếm file sẽ ra 2 và thổi phồng số NGƯỜI cần nhìn
             // lại theo số deliverable của phiên.
             {
@@ -689,7 +689,7 @@ describe('ExamSessionLobbyPage', () => {
     });
 
     it('phiên do lượt quét dự phòng đóng thì KHÔNG có dòng đó', () => {
-      // `completedBy === null` nghĩa là không ai xác nhận — không có ai
+      // `completedBy === null` nghĩa là không ai xác nhận - không có ai
       // để xưng "bạn". Phiên tạo trước 2026-09-11 cũng rơi vào đây, và
       // với chúng `completedAt = null` phải đọc là "không biết".
       useExamSessionDetailMock.mockReturnValue(
@@ -755,7 +755,7 @@ describe('ExamSessionLobbyPage', () => {
 
       await waitFor(() => expect(screen.getByText('Cau1.docx')).toBeInTheDocument());
       expect(screen.getByText('Cau2.docx')).toBeInTheDocument();
-      // A student who joined but submitted nothing still needs a row —
+      // A student who joined but submitted nothing still needs a row -
       // "chưa nộp" is the absence of a submission, never an event.
       // Dashboard + filter also say "Chưa nộp"; cells live in the roster region.
       const roster = screen.getByRole('region', { name: 'Danh sách sinh viên vận hành phiên thi' });
@@ -820,7 +820,7 @@ describe('ExamSessionLobbyPage', () => {
 
     it('shows students already collected before the page opened', async () => {
       useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
-      // No lobby:student_joined for this student — they joined before this
+      // No lobby:student_joined for this student - they joined before this
       // page was opened, so only the REST fetch knows about them.
       useSubmissionsMock.mockReturnValue({
         data: {
@@ -863,7 +863,7 @@ describe('ExamSessionLobbyPage', () => {
       fireEvent.click(screen.getByRole('button', { name: /^chốt bài$/i }));
 
       expect(finalizeMutateAsyncMock).toHaveBeenCalledTimes(1);
-      // Closes once the request settles, not on click — see below.
+      // Closes once the request settles, not on click - see below.
       await waitFor(() =>
         expect(screen.queryByText(/không thể hoàn tác/i)).not.toBeInTheDocument(),
       );
@@ -910,7 +910,7 @@ describe('ExamSessionLobbyPage', () => {
       trigger('connect');
 
       // The scheduled sweep, or a teacher on another screen. The page must
-      // not assume the new status — it asks the server.
+      // not assume the new status - it asks the server.
       trigger('exam:finalize', { examSessionId: 'session-123', reason: 'scheduled' });
 
       await waitFor(() => expect(session.refetch).toHaveBeenCalled());
@@ -920,7 +920,7 @@ describe('ExamSessionLobbyPage', () => {
   // Pins the fix for a real bug reported against the live app: the
   // backend has always broadcast `lobby:access_request` when a student
   // outside the roster asks to join, but this page never listened for
-  // it — the teacher was never told anything, ever, at any point.
+  // it - the teacher was never told anything, ever, at any point.
   describe('access requests', () => {
     function accessRequest(overrides: Record<string, unknown> = {}) {
       return {
@@ -949,7 +949,7 @@ describe('ExamSessionLobbyPage', () => {
       );
     });
 
-    it('never shows the same pending request twice, and never re-toasts it either — teacher:subscribe replays it on every reconnect', async () => {
+    it('never shows the same pending request twice, and never re-toasts it either - teacher:subscribe replays it on every reconnect', async () => {
       useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
       render(<ExamSessionLobbyPage />);
       trigger('connect');
@@ -958,20 +958,20 @@ describe('ExamSessionLobbyPage', () => {
       trigger('lobby:access_request', accessRequest()); // same requestId, e.g. replayed on reconnect
 
       await waitFor(() => expect(screen.getAllByText('Người Lạ')).toHaveLength(1));
-      // Not two toasts either — a teacher with five requests already on
+      // Not two toasts either - a teacher with five requests already on
       // screen must not get five more toasts for rows that never left,
       // just because a Wi-Fi hiccup replayed them.
       expect(toastWarningMock).toHaveBeenCalledTimes(1);
     });
 
-    it('a genuine reconnect rebuilds the list from the replay — a request another invigilator resolved during the outage does not linger', async () => {
+    it('a genuine reconnect rebuilds the list from the replay - a request another invigilator resolved during the outage does not linger', async () => {
       useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
       render(<ExamSessionLobbyPage />);
       trigger('connect');
       trigger('lobby:access_request', accessRequest());
       await waitFor(() => expect(screen.getByText('Người Lạ')).toBeInTheDocument());
 
-      // The socket drops and reconnects — a brand-new server-side socket,
+      // The socket drops and reconnects - a brand-new server-side socket,
       // per lib/socket.ts's own doc comment. teacher:subscribe's replay is
       // the only thing that follows; this test's fake socket doesn't
       // replay anything, simulating "this request was already resolved by
@@ -987,7 +987,7 @@ describe('ExamSessionLobbyPage', () => {
         data: [
           { id: 'class-mine', name: 'Nhóm 01', courseName: 'CTDL&GT', studentCount: 0 },
           // Dòng dữ liệu cũ, tên môn viết lệch một dấu cách. Bản trước lọc ô
-          // chọn theo tên môn, nên lớp này BIẾN MẤT — ngay trên đường duyệt
+          // chọn theo tên môn, nên lớp này BIẾN MẤT - ngay trên đường duyệt
           // thi bù, nơi chọn đúng lớp gốc quyết định bài của em về tay ai.
           // Hệ thống phục vụ một môn, nên phép lọc ấy không còn lọc được gì,
           // chỉ còn giấu được. Thừa một dòng hơn thiếu đúng dòng cần.
@@ -1040,7 +1040,7 @@ describe('ExamSessionLobbyPage', () => {
         ],
       });
       // The most likely real-world failure: approving without CLASS_REQUIRED
-      // — the server enforces it even though the button is already disabled
+      // - the server enforces it even though the button is already disabled
       // client-side until a class is picked, so this exercises the actual
       // server round-trip failing for some other reason with the same code.
       resolveAccessRequestMock.mockResolvedValue({
@@ -1063,7 +1063,7 @@ describe('ExamSessionLobbyPage', () => {
           screen.getByText('Hãy chọn lớp cho sinh viên này trước khi duyệt.'),
         ).toBeInTheDocument(),
       );
-      // The row stays — nothing was actually approved.
+      // The row stays - nothing was actually approved.
       expect(screen.getByText('Người Lạ')).toBeInTheDocument();
     });
 
@@ -1099,7 +1099,7 @@ describe('ExamSessionLobbyPage', () => {
    * Khoảng hở §7.1.1b, nhìn từ phía giảng viên.
    *
    * `agent:join` từ chối phiên chưa đóng băng danh sách dự thi, và
-   * đường DUY NHẤT để đóng băng là POST /exam-sessions/:id/open —
+   * đường DUY NHẤT để đóng băng là POST /exam-sessions/:id/open -
    * nhưng trang này chưa từng gọi nó. Thông báo lỗi hiện trên máy sinh
    * viên bảo giảng viên bấm "Mở phiên thi", một cái nút không tồn tại.
    * Tệ hơn: panel điểm danh dựng từ `enrollment` nên màn hình vẫn đủ
@@ -1133,7 +1133,7 @@ describe('ExamSessionLobbyPage', () => {
       expect(openMutateMock).toHaveBeenCalledTimes(1);
     });
 
-    it('im lặng khi phiên đã mở — đây không phải một lời nhắc thường trực', async () => {
+    it('im lặng khi phiên đã mở - đây không phải một lời nhắc thường trực', async () => {
       useExamSessionDetailMock.mockReturnValue(activeSessionWithDeliverables());
       useAttendanceMock.mockReturnValue(attendanceOf({ rosterFrozen: true }));
 

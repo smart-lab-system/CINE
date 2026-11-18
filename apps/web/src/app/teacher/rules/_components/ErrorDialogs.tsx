@@ -7,52 +7,81 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/form-field';
 import { useMoveError, useRemoveError } from '@/hooks/useRubricErrors';
-import type { OverviewCriterion, RubricErrorItem } from '@/lib/api/rubric-errors';
+import type { OverviewCriterion, RubricErrorItem, RubricOverview } from '@/lib/api/rubric-errors';
 import { formatVnPoints } from '@/lib/format';
+import { criterionSelectLabel, isQsOverview } from '@/lib/qs-errors-ui';
 import { shorten } from '@/lib/rubric-board';
 import { describeRecompute } from '@/lib/rules-vocab';
 
-/** "Chuyển sang tiêu chí khác": chỉ đổi ở rubric đang mở; chọn tiêu chí đích rồi xác nhận. */
+/** "Chuyển sang tiêu chí/bước khác": chỉ đổi ở rubric đang mở; chọn đích rồi xác nhận. */
 export function MoveErrorDialog({
   item,
   criteria,
+  overview,
   onClose,
 }: {
   item: RubricErrorItem | null;
   criteria: OverviewCriterion[];
+  overview?: RubricOverview;
   onClose: () => void;
 }) {
   return (
     <Dialog open={item !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>{item && <MoveBody key={item.id} item={item} criteria={criteria} onClose={onClose} />}</DialogContent>
+      <DialogContent>
+        {item && (
+          <MoveBody
+            key={item.id}
+            item={item}
+            criteria={criteria}
+            overview={overview}
+            onClose={onClose}
+          />
+        )}
+      </DialogContent>
     </Dialog>
   );
 }
 
-function MoveBody({ item, criteria, onClose }: { item: RubricErrorItem; criteria: OverviewCriterion[]; onClose: () => void }) {
+function MoveBody({
+  item,
+  criteria,
+  overview,
+  onClose,
+}: {
+  item: RubricErrorItem;
+  criteria: OverviewCriterion[];
+  overview?: RubricOverview;
+  onClose: () => void;
+}) {
   const [target, setTarget] = useState('');
   const move = useMoveError();
   // Lỗi mồ côi mang khoá không có trong `criteria`, nên lọc theo khoá vẫn đúng: mọi tiêu chí hiện hành đều là đích.
   const options = criteria.filter((c) => c.key !== item.criterionKey);
   const chosen = options.find((c) => c.key === target);
+  const qs = overview ? isQsOverview(overview) : false;
+  const noun = qs ? 'bước' : 'tiêu chí';
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Chuyển “{item.name}” sang tiêu chí khác</DialogTitle>
+        <DialogTitle>
+          Chuyển “{item.name}” sang {noun} khác
+        </DialogTitle>
         <DialogDescription>Chỉ đổi ở rubric này. Các bài chưa chốt của rubric này được tính lại.</DialogDescription>
       </DialogHeader>
-      <FormField id="move-target" label="Tiêu chí mới">
+      <FormField id="move-target" label={qs ? 'Bước mới' : 'Tiêu chí mới'}>
         <select
           id="move-target"
           value={target}
           onChange={(e) => setTarget(e.target.value)}
           className="h-10 w-full rounded-md border border-input bg-surface px-3 text-body"
         >
-          <option value="">Chọn tiêu chí…</option>
+          <option value="">{qs ? 'Chọn bước…' : 'Chọn tiêu chí…'}</option>
           {options.map((c) => (
             <option key={c.key} value={c.key}>
-              {shorten(c.description, 60)} · tối đa {formatVnPoints(c.maxPoints)}
+              {overview
+                ? criterionSelectLabel(overview, c)
+                : `${shorten(c.description, 60)} · tối đa ${formatVnPoints(c.maxPoints)}`}
             </option>
           ))}
         </select>
@@ -117,7 +146,7 @@ function RemoveBody({ item, rubricName, onClose }: { item: RubricErrorItem; rubr
           Gỡ “{item.name}” khỏi rubric “{rubricName}”?
         </DialogTitle>
         <DialogDescription>
-          Lỗi vẫn còn trong Thư viện lỗi, các rubric khác không đổi. Các bài chưa chốt của rubric này được tính lại — lỗi này sẽ không còn bị trừ ở đó.
+          Lỗi vẫn còn trong Thư viện lỗi, các rubric khác không đổi. Các bài chưa chốt của rubric này được tính lại - lỗi này sẽ không còn bị trừ ở đó.
         </DialogDescription>
       </DialogHeader>
       {remove.isError && (

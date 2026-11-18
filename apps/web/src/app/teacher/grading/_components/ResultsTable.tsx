@@ -24,7 +24,7 @@ export type ResultsFilter = SessionState | 'all';
 
 function errorsText(triage: GradingResult['triage']): string {
   const counts = errorCounts(triage);
-  if (counts === null) return '—';
+  if (counts === null) return '-';
   const parts: string[] = [];
   if (counts.counted > 0) parts.push(`${counts.counted} đã trừ`);
   if (counts.unpriced > 0) parts.push(`${counts.unpriced} chờ giá`);
@@ -35,7 +35,7 @@ function errorsText(triage: GradingResult['triage']): string {
  * Danh sách bài của phiên (spec §3.3): sinh viên (MSSV là link mở hồ sơ) · trạng thái · điểm (kèm *tạm tính* /
  * *chưa có điểm*) · số lỗi đã trừ và chờ giá · **vì sao cần bạn** (một câu). Mặc định sắp cần-bạn-trước.
  *
- * Lý do và số lỗi đọc từ `result.triage` mà danh sách đã mang sẵn (G1 §2) — không còn một request hồ sơ cho mỗi
+ * Lý do và số lỗi đọc từ `result.triage` mà danh sách đã mang sẵn (G1 §2) - không còn một request hồ sơ cho mỗi
  * bài. Bài chưa có `triage` thì KHÔNG đoán: chỉ đường mở hồ sơ.
  */
 export function ResultsTable({
@@ -57,7 +57,7 @@ export function ResultsTable({
   const reasonCell = (r: GradingResult) => {
     const reason = reasonOf(r);
     if (reason !== null) return reason;
-    return stateOf(r) === 'needsYou' ? 'Mở hồ sơ để xem lý do.' : '—';
+    return stateOf(r) === 'needsYou' ? 'Mở hồ sơ để xem lý do.' : '-';
   };
 
   return (
@@ -105,7 +105,7 @@ export function ResultsTable({
                         </Link>
                         <span>{r.studentName}</span>
                         {isMakeupSubmission(r.homeClassId, sessionClassId) && (
-                          <Badge variant="info">Thi bù — {r.homeClassName ?? r.homeClassId}</Badge>
+                          <Badge variant="info">Thi bù - {r.homeClassName ?? r.homeClassId}</Badge>
                         )}
                         {isReadingCode(r) ? (
                           <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>

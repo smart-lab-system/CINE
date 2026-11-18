@@ -11,7 +11,7 @@ import { overCap } from '@/lib/rubric-board';
 import { ROW_GRID } from './ErrorRow';
 
 /**
- * Một nhóm tiêu chí: tiêu đề (tên tiêu chí = mô tả của nó, số lỗi, điểm tối đa), rồi các dòng lỗi — hoặc lời nói
+ * Một nhóm tiêu chí: tiêu đề (tên tiêu chí = mô tả của nó, số lỗi, điểm tối đa), rồi các dòng lỗi - hoặc lời nói
  * thẳng về hậu quả khi chưa có lỗi nào / khi tiêu chí đã đánh dấu không trừ điểm (spec mục 5.3). Không hiện khoá
  * kỹ thuật của tiêu chí.
  */
@@ -24,6 +24,8 @@ export function CriterionGroup({
   onWaive,
   onUnwaive,
   children,
+  /** QA = tiêu chí; QS = bước checklist. */
+  entityNoun = 'tiêu chí',
 }: {
   criterion: OverviewCriterion;
   errors: RubricErrorItem[];
@@ -33,6 +35,7 @@ export function CriterionGroup({
   onWaive: () => void;
   onUnwaive: () => void;
   children: ReactNode;
+  entityNoun?: 'tiêu chí' | 'bước';
 }) {
   const waived = criterion.waiverId !== null;
   const max = formatVnPoints(criterion.maxPoints);
@@ -67,7 +70,10 @@ export function CriterionGroup({
           {waived && (
             <div className="m-4 flex items-center justify-between gap-2.5 rounded-lg bg-surface-2 px-3.5 py-3">
               <span>
-                <b>Tiêu chí này không trừ điểm</b> — mọi bài được trọn {max} điểm.
+                <b>
+                  {entityNoun === 'bước' ? 'Bước này' : 'Tiêu chí này'} không trừ điểm
+                </b>{' '}
+                - mọi bài được trọn {max} điểm.
               </span>
               <Button type="button" size="sm" variant="outline" onClick={onUnwaive}>
                 Bỏ đánh dấu
@@ -78,10 +84,12 @@ export function CriterionGroup({
           {!waived && errors.length === 0 && (
             <div className="m-4 flex flex-wrap items-center justify-between gap-4 rounded-lg border-[1.5px] border-dashed border-border p-[18px]">
               <p className="max-w-[520px]">
-                <b>Chưa có lỗi nào cho tiêu chí này.</b>
+                <b>Chưa có lỗi nào cho {entityNoun} này.</b>
                 <br />
                 <span className="text-muted-foreground">
-                  Bài chấm theo rubric này sẽ không tự duyệt được cho tới khi có lỗi, hoặc bạn xác nhận tiêu chí này không trừ điểm.
+                  {entityNoun === 'bước'
+                    ? 'Có thể thêm lỗi gắn bước này, hoặc đánh dấu bước không trừ điểm.'
+                    : 'Bài chấm theo rubric này sẽ không tự duyệt được cho tới khi có lỗi, hoặc bạn xác nhận tiêu chí này không trừ điểm.'}
                 </span>
               </p>
               <div className="flex flex-wrap gap-2">
@@ -90,7 +98,7 @@ export function CriterionGroup({
                   Thêm lỗi đầu tiên
                 </Button>
                 <Button type="button" variant="outline" onClick={onWaive}>
-                  Tiêu chí này không trừ điểm
+                  {entityNoun === 'bước' ? 'Bước này không trừ điểm' : 'Tiêu chí này không trừ điểm'}
                 </Button>
               </div>
             </div>
@@ -109,7 +117,7 @@ export function CriterionGroup({
               {over !== null && (
                 <p className="flex items-center gap-2 px-4 pb-3 text-small text-muted-foreground">
                   <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  Cộng hết các lỗi là {formatVnPoints(over)}, vượt điểm tối đa {max} — bài chỉ bị trừ tới {max}.
+                  Cộng hết các lỗi là {formatVnPoints(over)}, vượt điểm tối đa {max} - bài chỉ bị trừ tới {max}.
                 </p>
               )}
               <div className="border-t border-border px-3 py-2">

@@ -28,12 +28,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { RubricRow } from '@/app/teacher/grading/_components/RubricRow';
 import { ExamSetupDraftProvider, useSetupDraft } from './_components/SetupDraftProvider';
 import { SetupFooter } from './_components/SetupFooter';
 import { SetupStepper } from './_components/SetupStepper';
 import { SessionInfoStep } from './_components/SessionInfoStep';
-import { SessionMaterialsStep } from './_components/SessionMaterialsStep';
+import { SessionFolderStep } from './_components/SessionFolderStep';
+import { SessionExamRubricStep } from './_components/SessionExamRubricStep';
 import { SessionReviewStep } from './_components/SessionReviewStep';
 import { SessionExamRosterCard } from './_components/SessionExamRosterCard';
 import { toDeliverableFormValues } from './_components/RequiredDeliverablesEditor';
@@ -54,7 +54,7 @@ function formatDateTime(iso: string): string {
 }
 
 /**
- * Hub Thiết lập phiên — stepper năm bước (spec 2026-10-22).
+ * Hub Thiết lập phiên - stepper năm bước (spec 2026-10-22).
  * Không thay màn vận hành live tại `/exam-sessions/[id]`.
  */
 export default function ExamSessionSetupPage() {
@@ -139,6 +139,7 @@ function SetupHub({ sessionId }: { sessionId: string }) {
       <SetupBody
         sessionId={sessionId}
         step={step}
+        courseId={teachingClass?.courseId ?? null}
         materialsCount={materials.data?.length ?? null}
         materialFilenames={(materials.data ?? []).map((item) => item.fileName)}
         className={formatSectionAndNominalClass(
@@ -181,7 +182,7 @@ function SetupHub({ sessionId }: { sessionId: string }) {
         onCopyCode={() => {
           void navigator.clipboard.writeText(session.code).then(
             () => toast.success(`Đã sao chép mã "${session.code}"`),
-            () => toast.error('Không sao chép được — hãy đọc mã trực tiếp.'),
+            () => toast.error('Không sao chép được - hãy đọc mã trực tiếp.'),
           );
         }}
       />
@@ -192,6 +193,7 @@ function SetupHub({ sessionId }: { sessionId: string }) {
 function SetupBody({
   sessionId,
   step,
+  courseId,
   materialsCount,
   materialFilenames,
   className,
@@ -210,6 +212,7 @@ function SetupBody({
 }: {
   sessionId: string;
   step: SetupStepId;
+  courseId: string | null;
   materialsCount: number | null;
   materialFilenames: string[];
   className: string | null;
@@ -301,7 +304,7 @@ function SetupBody({
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Không lưu được';
         const failedStep: SetupStepId =
-          action.kind === 'info' ? 'info' : action.kind === 'folder' ? 'materials' : 'rubric';
+          action.kind === 'info' ? 'info' : action.kind === 'folder' ? 'folder' : 'exam';
         failure = { step: failedStep, message };
         if (mode === 'finish') break;
       }
@@ -416,16 +419,13 @@ function SetupBody({
       {step === 'roster' && (
         <div className="flex flex-col gap-4">
           <h2 tabIndex={-1} autoFocus className="text-h1 outline-none">
-            Danh sách thi
+            Danh sách thí sinh
           </h2>
           <SessionExamRosterCard sessionId={session.id} canEdit={mutable} embedded />
         </div>
       )}
-      {step === 'materials' && (
-        <SessionMaterialsStep
-          sessionId={session.id}
-          releaseAt={formatDateTime(session.startTime)}
-          materialsEditable={mutable || session.status === 'active'}
+      {step === 'folder' && (
+        <SessionFolderStep
           folderEditable={mutable}
           materialFilenames={materialFilenames}
           initialFolder={setup.draft?.folder ?? server.folder}
@@ -437,30 +437,20 @@ function SetupBody({
           }))}
         />
       )}
-      {step === 'rubric' && (
-        <div className="flex flex-col gap-4">
-          <h2 tabIndex={-1} autoFocus className="text-h1 outline-none">
-            Rubric
-          </h2>
-          <RubricRow
-            sessionId={session.id}
-            rubricId={session.rubricId}
-            readOnly={
-              session.status !== 'scheduled' &&
-              session.status !== 'not_ready' &&
-              session.status !== 'active'
-            }
-            persist={mutable ? 'draft' : 'immediate'}
-            heading={false}
-            choice={setup.draft?.rubricChoice ?? ''}
-            onChoiceChange={(choice) => setup.patchDraft({ rubricChoice: choice || undefined })}
-          />
-          {setup.apiError?.step === 'rubric' ? (
-            <Alert variant="destructive">
-              <AlertDescription>{setup.apiError.message}</AlertDescription>
-            </Alert>
-          ) : null}
-        </div>
+      {step === 'exam' && (
+        <SessionExamRubricStep
+          sessionId={session.id}
+          courseId={courseId}
+          releaseAt={formatDateTime(session.startTime)}
+          materialsEditable={mutable || session.status === 'active'}
+          rubricId={session.rubricId}
+          rubricReadOnly={
+            session.status !== 'scheduled' &&
+            session.status !== 'not_ready' &&
+            session.status !== 'active'
+          }
+          rubricPersist={mutable ? 'draft' : 'immediate'}
+        />
       )}
       {step === 'review' && (
         <SessionReviewStep
@@ -471,7 +461,7 @@ function SetupBody({
             roomOptions.find((room) => room.value === (setup.draft?.info ?? server.info).roomId)
               ?.label ||
             session.roomName ||
-            '—'
+            '-'
           }
           info={setup.draft?.info ?? server.info}
           materialFilenames={materialFilenames}

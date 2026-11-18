@@ -14,7 +14,7 @@ export type SearchableSelectOption = {
 };
 
 /**
- * Select gõ để lọc — dùng khi danh sách dài (lớp, phòng…). Không phụ thuộc cmdk.
+ * Select gõ để lọc - dùng khi danh sách dài (lớp, phòng…). Không phụ thuộc cmdk.
  */
 export function SearchableSelect({
   value,

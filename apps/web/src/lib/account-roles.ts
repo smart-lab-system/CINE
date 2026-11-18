@@ -15,7 +15,7 @@ export const ACCOUNT_ROLE_LABELS: Record<AccountRoleOption, string> = {
   teacher: 'Giảng viên',
 };
 
-// Indigo for administrators, teal for teachers — the same two brand
+// Indigo for administrators, teal for teachers - the same two brand
 // colours used by the shell, so "who am I / who is this row" reads the
 // same way in the topbar and in a table. Never the only signal: each badge
 // carries its own label.
@@ -28,7 +28,7 @@ export const ACCOUNT_ROLE_BADGE_VARIANT: Record<
 };
 
 // Mọi vai trò mà JWT có thể mang. Giờ đúng bằng hai lựa chọn của form tạo
-// tài khoản — nhưng `getRoleDisplay` vẫn nhận string và vẫn có nhánh lùi,
+// tài khoản - nhưng `getRoleDisplay` vẫn nhận string và vẫn có nhánh lùi,
 // vì một token cũ phát trước đợt thu hẹp master data còn hạn tới lúc hết
 // hạn, và nó mang một vai trò không còn tồn tại.
 const ROLE_DISPLAY: Record<string, { label: string; variant: NonNullable<BadgeProps['variant']> }> =

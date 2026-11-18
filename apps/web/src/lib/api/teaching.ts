@@ -1,12 +1,14 @@
 import { apiClient } from '@/lib/api-client';
 
 /**
- * Lớp giảng viên được admin phân công — mirrors TeachingClassView.
+ * Lớp giảng viên được admin phân công - mirrors TeachingClassView.
  */
 export interface TeachingClass {
   id: string;
   /** Mã lớp = `{course.code}{001|002|…}` trong học kỳ. */
   name: string;
+  /** Catalog môn - null với lớp legacy. */
+  courseId: string | null;
   courseName: string;
   /** null với lớp legacy chưa gắn catalog kỳ. */
   semesterId: string | null;
@@ -14,7 +16,7 @@ export interface TeachingClass {
   semesterName: string | null;
   /** null khi chưa gắn lớp danh nghĩa. */
   nominalClassId: string | null;
-  /** Nhãn: `code` hoặc `code — name`. */
+  /** Nhãn: `code` hoặc `code - name`. */
   nominalClassName: string | null;
   /** 0 means no roster has been imported for this class yet. */
   studentCount: number;

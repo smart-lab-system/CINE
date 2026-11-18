@@ -7,7 +7,7 @@
  *
  * That rule exists because the alternative already bit us twice. `middleware`
  * used to sort roles into "admin family" and "everyone else", which put every
- * admin-ish role into `/admin/*` — where the calls 403, because the API only
+ * admin-ish role into `/admin/*` - where the calls 403, because the API only
  * accepts the roles it names. A logged-in user landed on a page where nothing
  * worked and nothing said why.
  *

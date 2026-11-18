@@ -3,13 +3,13 @@ import { cn } from '@/lib/utils';
 
 export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   /**
-   * Props for the wrapper div — the one element that can cap this table's
+   * Props for the wrapper div - the one element that can cap this table's
    * height, because it is the only one that is actually a scrollport.
    *
    * `overflow-x: auto` here already makes `overflow-y` compute to `auto`
    * too (per CSS Overflow, `visible` becomes `auto` when the other axis
    * is not `visible`), so this div is the nearest scrollport for anything
-   * inside it — including a `sticky` `<thead>`. With `height: auto` it can
+   * inside it - including a `sticky` `<thead>`. With `height: auto` it can
    * never scroll, which is why a cap placed on some div *outside* this one
    * makes a sticky header silently scroll away instead of sticking: the
    * header resolves against this div, not the one that scrolls.
@@ -19,7 +19,7 @@ export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
    * a vertical cap pass nothing and get the plain horizontal scroller.
    *
    * `children` and `dangerouslySetInnerHTML` are excluded because this
-   * div's child is the table — React throws outright if both are set.
+   * div's child is the table - React throws outright if both are set.
    */
   container?: Omit<
     React.HTMLAttributes<HTMLDivElement>,
@@ -30,7 +30,7 @@ export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
 /**
  * The wrapper scrolls horizontally on its own so a wide table (the exam
  * session list has eight columns) never forces the whole page sideways on
- * a laptop screen. It scrolls vertically too when a caller caps it — see
+ * a laptop screen. It scrolls vertically too when a caller caps it - see
  * `container` above.
  */
 const Table = React.forwardRef<HTMLTableElement, TableProps>(

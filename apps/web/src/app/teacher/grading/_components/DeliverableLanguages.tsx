@@ -15,18 +15,18 @@ const LANGUAGES: { value: DeclaredLanguage; label: string }[] = [
   { value: 'node', label: 'Node.js' },
 ];
 
-/** Đường chấm của một yêu cầu nộp code, nói bằng lời. `pipeline` do backend tính — không suy ra từ `language`. */
+/** Đường chấm của một yêu cầu nộp code, nói bằng lời. `pipeline` do backend tính - không suy ra từ `language`. */
 function routeText(d: RequiredDeliverableResponse): string {
-  if (d.pipeline === 'investigator') return 'Chấm trong môi trường chạy bài — cần gói test đã ghim.';
+  if (d.pipeline === 'investigator') return 'Chấm trong môi trường chạy bài - cần gói test đã ghim.';
   if (d.language === null) {
-    return 'Chưa khai — chấm bằng đọc mã, không chạy mã. Hệ thống không đoán ngôn ngữ từ đuôi file.';
+    return 'Chưa khai - chấm bằng đọc mã, không chạy mã. Hệ thống không đoán ngôn ngữ từ đuôi file.';
   }
   return 'Chấm bằng đọc mã, không chạy mã (môi trường chạy bài chỉ chạy Python và C++).';
 }
 
 /**
  * Khai ngôn ngữ cho từng yêu cầu nộp code (G1 §3.5, spec UI §3.7). Ngôn ngữ quyết đường chấm của cả bài và khoá cùng
- * tài liệu chấm, nên khi phiên đã có kết quả thì ô bị khoá — lý do là dữ liệu thật (bài đã có dòng kết quả), và câu
+ * tài liệu chấm, nên khi phiên đã có kết quả thì ô bị khoá - lý do là dữ liệu thật (bài đã có dòng kết quả), và câu
  * từ chối của server vẫn hiện nguyên văn nếu vẫn bị từ chối.
  */
 export function DeliverableLanguages({
@@ -37,7 +37,7 @@ export function DeliverableLanguages({
 }: {
   sessionId: string;
   deliverables: RequiredDeliverableResponse[];
-  /** Phiên đã có ít nhất một kết quả — đường chấm của các bài đã cố định. */
+  /** Phiên đã có ít nhất một kết quả - đường chấm của các bài đã cố định. */
   hasResults: boolean;
   /** Xem lại: hiện ngôn ngữ và đường chấm bằng chữ, không có ô chọn. */
   readOnly?: boolean;

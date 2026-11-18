@@ -8,7 +8,7 @@ export type ReviewGroupKind = 'single' | 'multi' | 'none';
 export interface ReviewGroup {
   /**
    * `${rubricVersionId}:${ruleId}` với nhóm `single`; `'multi'` hoặc `'none'` với hai nhóm còn lại. Gửi lại NGUYÊN
-   * VĂN khi duyệt — server dựng lại nhóm rồi so khoá, không tách chuỗi.
+   * VĂN khi duyệt - server dựng lại nhóm rồi so khoá, không tách chuỗi.
    */
   key: string;
   /** Tên quy tắc (bản sửa hiện hành); nhóm `multi`/`none` mang chính khoá của nó. */
@@ -27,13 +27,13 @@ export interface ReviewGroup {
 /** Mirrors ConfirmSkipReason (apps/api/src/grading/review-group/review-group-confirm.ts). */
 export type ConfirmSkipReason = 'not_flagged' | 'has_manual' | 'ungradable' | 'no_computation' | 'not_investigator';
 
-/** Mirrors ConfirmOutcome — kết quả một lần duyệt nhóm. Bài bị bỏ qua không đổi gì. */
+/** Mirrors ConfirmOutcome - kết quả một lần duyệt nhóm. Bài bị bỏ qua không đổi gì. */
 export interface ConfirmOutcome {
   confirmed: number;
   skipped: { resultId: string; reason: ConfirmSkipReason }[];
 }
 
-/** Mirrors OpenAutoBreaker (apps/api/src/grading/auto-breaker/auto-breaker.service.ts) — một phạm vi đang tạm dừng tự chốt. */
+/** Mirrors OpenAutoBreaker (apps/api/src/grading/auto-breaker/auto-breaker.service.ts) - một phạm vi đang tạm dừng tự chốt. */
 export interface OpenAutoBreaker {
   id: string;
   scope: 'rule' | 'no_error';
@@ -62,9 +62,9 @@ export async function listReviewGroups(examSessionId: string): Promise<ReviewGro
 /**
  * Duyệt một nhóm: mỗi bài đủ điều kiện được ghi "giảng viên chấp nhận điểm của lượt tính này", cả lô một giao dịch.
  *
- * - 404: nhóm không còn bài nào gắn cờ (thường là bấm lần hai) — giao diện coi là đã xong.
- * - 409: có bài đã sang nhóm khác hoặc vừa đổi trạng thái — không bài nào được ghi, tải lại rồi duyệt lại.
- * - 400: có bài không thuộc phiên — không bài nào được ghi.
+ * - 404: nhóm không còn bài nào gắn cờ (thường là bấm lần hai) - giao diện coi là đã xong.
+ * - 409: có bài đã sang nhóm khác hoặc vừa đổi trạng thái - không bài nào được ghi, tải lại rồi duyệt lại.
+ * - 400: có bài không thuộc phiên - không bài nào được ghi.
  */
 export async function confirmReviewGroup(
   examSessionId: string,

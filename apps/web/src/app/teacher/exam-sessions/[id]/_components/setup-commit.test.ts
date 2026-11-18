@@ -31,7 +31,7 @@ function draft(partial: Partial<SetupDraft>): SetupDraft {
 }
 
 describe('saveDraftPlan', () => {
-  it('giờ kết thúc trước giờ bắt đầu không ném — info nằm trong nháp', () => {
+  it('giờ kết thúc trước giờ bắt đầu không ném - info nằm trong nháp', () => {
     const base = server();
     const plan = saveDraftPlan(
       draft({
@@ -60,7 +60,7 @@ describe('saveDraftPlan', () => {
 });
 
 describe('finishPlan', () => {
-  it('thiếu file nộp thì chặn ở Đề & thư mục và không có PUT', () => {
+  it('thiếu file nộp thì chặn ở Thư mục bài làm và không có PUT', () => {
     const result = finishPlan(
       null,
       server({ folder: { requiredFilenames: [{ value: '', deliverableType: 'document' }] } }),
@@ -68,7 +68,7 @@ describe('finishPlan', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.step).toBe('materials');
+      expect(result.step).toBe('folder');
       expect(result.blockReason).toMatch(/thư mục/i);
     }
   });

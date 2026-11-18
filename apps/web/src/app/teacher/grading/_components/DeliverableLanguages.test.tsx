@@ -51,7 +51,7 @@ describe('DeliverableLanguages (G1 §3.5)', () => {
   it('python/cpp on the investigator path say it runs in the run environment and needs a pinned bundle', () => {
     renderIt([code({ language: 'python', pipeline: 'investigator' })]);
     expect(screen.getByRole('combobox')).toHaveValue('python');
-    expect(screen.getByText(/môi trường chạy bài — cần gói test đã ghim/)).toBeInTheDocument();
+    expect(screen.getByText(/môi trường chạy bài - cần gói test đã ghim/)).toBeInTheDocument();
     expect(screen.queryByText('Chưa khai')).not.toBeInTheDocument();
   });
 
@@ -64,7 +64,7 @@ describe('DeliverableLanguages (G1 §3.5)', () => {
     render(<DeliverableLanguages sessionId="s1" deliverables={[code({ language: 'python', pipeline: 'investigator' })]} hasResults readOnly />);
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.getByText('Python')).toBeInTheDocument();
-    expect(screen.getByText(/môi trường chạy bài — cần gói test đã ghim/)).toBeInTheDocument();
+    expect(screen.getByText(/môi trường chạy bài - cần gói test đã ghim/)).toBeInTheDocument();
     expect(screen.queryByText(/đã có kết quả chấm nên đường chấm đã cố định/)).not.toBeInTheDocument();
   });
 
@@ -75,7 +75,7 @@ describe('DeliverableLanguages (G1 §3.5)', () => {
   });
 
   it('shows the server refusal verbatim', () => {
-    state = { isPending: false, isError: true, error: new Error('Bài này đã có kết quả chấm, nên đường chấm đã cố định — không đổi ngôn ngữ được nữa.') };
+    state = { isPending: false, isError: true, error: new Error('Bài này đã có kết quả chấm, nên đường chấm đã cố định - không đổi ngôn ngữ được nữa.') };
     renderIt([code()]);
     expect(screen.getByRole('alert')).toHaveTextContent('nên đường chấm đã cố định');
   });

@@ -1,0 +1,21 @@
+Subarray dài nhất có tổng K
+Solution 1: Phương pháp Vét cạn
+1. Khởi tạo một biến để theo dõi độ dài subarray lớn nhất (result = 0). [1 mark]
+2. Sử dụng các vòng lặp lồng nhau để xét tất cả các subarray có thể - vòng lặp ngoài cho điểm bắt đầu, vòng lặp trong cho điểm kết thúc. [1 mark]
+3. Với mỗi subarray, tính tổng của nó bằng cách cộng từng phần tử một. [1 mark]
+4. Khi tìm thấy một subarray có tổng bằng k, tính độ dài của nó (j - i + 1) và cập nhật result nếu độ dài này lớn hơn result hiện tại. [1 mark]
+
+
+Solution 2: Phương pháp Tổng tiền tố kết hợp Bảng băm
+1. Khởi tạo một HashMap để lưu các prefix sum làm key và index xuất hiện đầu tiên của chúng làm value, cùng với một biến result (= 0) và một biến prefixSum (= 0). [1 mark]
+2. Lặp qua mảng một lần, cộng từng phần tử vào prefixSum. [1 mark]
+3. Đối với mỗi vị trí, kiểm tra xem toàn bộ prefix từ index 0 đến index hiện tại có tổng bằng k hay không (prefixSum == k). Nếu đúng, cập nhật result thành current index + 1. [1 mark]
+4. Kiểm tra xem (prefixSum - k) có tồn tại trong HashMap hay không. Nếu tồn tại, điều đó có nghĩa là có một subarray kết thúc tại index hiện tại có tổng bằng k, do đó cập nhật result bằng cách lấy giá trị lớn nhất giữa result hiện tại và (current index - index tìm thấy (prefixSum - k)). [1 mark]
+5. Chỉ lưu lần xuất hiện đầu tiên của mỗi prefix sum trong HashMap (để tối đa hóa độ dài subarray). [1 mark]
+
+
+Solution 3: Phương pháp Mảng tổng tiền tố
+1. Khởi tạo một cấu trúc dữ liệu để lưu tổng tích lũy từ đầu đến từng index. [1 mark]
+2. Đối với mỗi prefix sum, kiểm tra xem (prefixSum - k) đã tồn tại trước đó hay chưa. [1 mark]
+3. Nếu tìm thấy, tính độ dài của subarray đó và cập nhật result nếu độ dài này lớn hơn giá trị lớn nhất hiện tại. [1 mark]
+4. Xử lý trường hợp chính prefix sum bằng k. [1 mark]

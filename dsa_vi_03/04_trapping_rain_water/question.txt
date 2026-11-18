@@ -1,0 +1,19 @@
+Cho một mảng arr[] gồm các số nguyên không âm đại diện cho chiều cao của các khối (blocks). Nếu chiều rộng của mỗi khối là 1, hãy tính lượng nước có thể đọng lại giữa các khối sau mùa mưa. 
+Ví dụ:
+Đầu vào: arr[] = [3, 0, 1, 0, 4, 0 2]
+Đầu ra: 10
+Giải thích: Tổng lượng nước đọng = 0 + 3 + 2 + 3 + 0 + 2 + 0 = 10 đơn vị.
+ 
+Đầu vào: arr[] = [3, 0, 2, 0, 4]
+Đầu ra: 7
+Giải thích: Tổng lượng nước đọng = 0 + 3 + 1 + 3 + 0 = 7 đơn vị.
+Đầu vào: arr[] = [1, 2, 3, 4]
+Đầu ra: 0
+Giải thích: Không thể đọng nước vì không có giới hạn chiều cao ở cả hai phía.
+Đầu vào: arr[] = [2, 1, 5, 3, 1, 0, 4]
+Đầu ra: 9
+Giải thích: Tổng lượng nước đọng = 0 + 1 + 0 + 1 + 3 + 4 + 0 = 9 đơn vị.
+Ràng buộc:
+1 < arr.size() < 105
+0 < arr[i] < 103
+Thử thêm các ví dụ:

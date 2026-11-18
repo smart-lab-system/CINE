@@ -10,7 +10,7 @@ export interface UseItem {
   value: string;
 }
 
-/** "và N rubric khác": mở danh sách đầy đủ, bấm một dòng để chuyển sang rubric đó (D7 — mọi chỗ liệt kê đều chặn trần). */
+/** "và N rubric khác": mở danh sách đầy đủ, bấm một dòng để chuyển sang rubric đó (D7 - mọi chỗ liệt kê đều chặn trần). */
 export function UsesMore({
   label,
   title,

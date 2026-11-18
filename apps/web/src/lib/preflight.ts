@@ -2,7 +2,8 @@ import type { DeclaredLanguage } from './api/exam-session';
 import type { Rubric } from './api/grading';
 import type { RubricOverview } from './api/rubric-errors';
 import { formatVnPoints } from './format';
-import { warningSentences } from './rubric-board';
+import { isQsRubric, qsRubricSummary } from './qs-rubric-display';
+import { statusOf, warningSentences } from './rubric-board';
 import { rulesHref } from './rules-links';
 
 /**
@@ -19,7 +20,7 @@ export interface PreflightInput {
   rubric: Rubric | undefined;
   /** `hasAnswerSource`: phiên có MÃ đáp án để chạy thử (không phải tài liệu AI đọc). */
   readiness: { hasQuestion: boolean; hasModelAnswer: boolean; hasAnswerSource?: boolean } | undefined;
-  /** Mọi yêu cầu nộp của phiên. `pipeline` do BACKEND tính (`pipelineFor`) — không suy ra ở đây (G1 §3.3). */
+  /** Mọi yêu cầu nộp của phiên. `pipeline` do BACKEND tính (`pipelineFor`) - không suy ra ở đây (G1 §3.3). */
   deliverables: {
     deliverableType: 'document' | 'code_project' | 'image';
     language: DeclaredLanguage | null;
@@ -36,7 +37,7 @@ export interface PreflightInput {
    */
   blueprintConfirmed?: boolean | null;
   /**
-   * `review`: cột “Đã dùng để chấm” — câu sự thật, không câu hướng dẫn sửa.
+   * `review`: cột “Đã dùng để chấm” - câu sự thật, không câu hướng dẫn sửa.
    * Vắng mặt thì là màn chuẩn bị (nút bắt đầu).
    */
   mode?: 'prepare' | 'review';
@@ -66,28 +67,43 @@ export function preflightOf(input: PreflightInput): {
   const readByReading = codeDeliverables.length - investigators.length;
   const undeclared = codeDeliverables.filter((d) => d.language === null).length;
 
-  // Rubric (điểm tối đa theo tiêu chí)
+  // Rubric - QA: điểm theo tiêu chí; QS: max một cách giải, AI chọn cách giải lúc chấm (UC33).
+  const qs = isQsRubric(rubric);
   if (!input.hasRubricId) {
     rows.push({
       key: 'ceiling',
       label: 'Rubric',
       status: 'block',
-      text: review ? 'Phiên chưa gắn rubric.' : 'Phiên chưa gắn rubric — gắn rubric ở dòng "Rubric" bên trái.',
+      text: review ? 'Phiên chưa gắn rubric.' : 'Phiên chưa gắn rubric - gắn rubric ở dòng "Rubric" bên trái.',
     });
   } else if (!rubric) {
     rows.push({ key: 'ceiling', label: 'Rubric', status: 'block', text: 'Không tìm thấy rubric đã gắn cho phiên này.' });
-  } else if (rubric.criteria.length === 0) {
+  } else if (qs && !(rubric.approaches && rubric.approaches.length > 0) && rubric.criteria.length === 0) {
+    rows.push({
+      key: 'ceiling',
+      label: 'Rubric QS',
+      status: 'block',
+      text: 'Rubric QS không có cách giải / bước nào - sửa cấu trúc QS trước khi chấm.',
+    });
+  } else if (!qs && rubric.criteria.length === 0) {
     rows.push({ key: 'ceiling', label: 'Rubric', status: 'block', text: 'Rubric đang dùng không có tiêu chí nào.' });
+  } else if (qs) {
+    rows.push({
+      key: 'ceiling',
+      label: 'Rubric QS',
+      status: 'ok',
+      text: qsRubricSummary(rubric),
+    });
   } else {
     rows.push({
       key: 'ceiling',
       label: 'Rubric',
       status: 'ok',
-      text: `${rubric.name} — phiên bản ${rubric.version}, ${formatVnPoints(rubric.totalPoints)} điểm, ${rubric.criteria.length} tiêu chí`,
+      text: `${rubric.name} - phiên bản ${rubric.version}, ${formatVnPoints(rubric.totalPoints)} điểm, ${rubric.criteria.length} tiêu chí`,
     });
   }
 
-  // Đề bài — bắt buộc (spec §3.7)
+  // Đề bài - bắt buộc (spec §3.7)
   if (!readiness) {
     rows.push({ key: 'question', label: 'Đề bài', status: 'block', text: 'Đang đọc mức sẵn sàng của phiên…' });
   } else if (!readiness.hasQuestion) {
@@ -95,13 +111,13 @@ export function preflightOf(input: PreflightInput): {
       key: 'question',
       label: 'Đề bài',
       status: 'block',
-      text: review ? 'Chưa chỉ định đề bài.' : 'Chưa chọn đề bài — chọn file đề bài ở khối "Đề bài" bên trái. Đề bài là thứ bắt buộc.',
+      text: review ? 'Chưa chỉ định đề bài.' : 'Chưa chọn đề bài - chọn file đề bài ở khối "Đề bài" bên trái. Đề bài là thứ bắt buộc.',
     });
   } else {
     rows.push({ key: 'question', label: 'Đề bài', status: 'ok', text: 'Đã chỉ định.' });
   }
 
-  // Đáp án mẫu — không bắt buộc. Mã để chạy thử và tài liệu để AI đọc là hai thứ khác nhau, nên dòng nói rõ đang có cái nào.
+  // Đáp án mẫu - không bắt buộc. Mã để chạy thử và tài liệu để AI đọc là hai thứ khác nhau, nên dòng nói rõ đang có cái nào.
   if (readiness?.hasModelAnswer) {
     rows.push({ key: 'answer', label: 'Đáp án mẫu', status: 'ok', text: 'Đã có đáp án mẫu hoặc ghi chú đáp án.' });
   } else if (readiness?.hasAnswerSource) {
@@ -120,13 +136,13 @@ export function preflightOf(input: PreflightInput): {
       status: 'warn',
       text: review
         ? 'Chưa có đáp án mẫu.'
-        : 'Chưa có — không bắt buộc. Tải mã đáp án (.cpp, .py) để chạy thử, hoặc sinh đáp án mẫu từ đề ở khối "Gói test".',
+        : 'Chưa có - không bắt buộc. Tải mã đáp án (.cpp, .py) để chạy thử, hoặc sinh đáp án mẫu từ đề ở khối "Gói test".',
     });
   }
 
-  // Gói test — server đòi gói ĐÃ GHIM cho bài code đi đường điều tra
+  // Gói test - server đòi gói ĐÃ GHIM cho bài code đi đường điều tra
   if (investigators.length === 0) {
-    rows.push({ key: 'bundle', label: 'Gói test', status: 'ok', text: 'Phiên không có bài code chạy trong môi trường chạy bài — không cần gói test.' });
+    rows.push({ key: 'bundle', label: 'Gói test', status: 'ok', text: 'Phiên không có bài code chạy trong môi trường chạy bài - không cần gói test.' });
   } else if (input.bundle.pinned) {
     rows.push({ key: 'bundle', label: 'Gói test', status: 'ok', text: 'Đã ghim một gói test đã duyệt.' });
   } else {
@@ -140,11 +156,11 @@ export function preflightOf(input: PreflightInput): {
       key: 'bundle',
       label: 'Gói test',
       status: 'block',
-      text: review ? `${why}.` : `${why} — bài code cần một gói đã duyệt và ghim. Làm ở khối "Gói test" bên trái.`,
+      text: review ? `${why}.` : `${why} - bài code cần một gói đã duyệt và ghim. Làm ở khối "Gói test" bên trái.`,
     });
   }
 
-  // Đề cương — chỉ phiên nhiều file bắt buộc. File đề và đáp án mẫu không đặt cờ này.
+  // Đề cương - chỉ phiên nhiều file bắt buộc. File đề và đáp án mẫu không đặt cờ này.
   if (input.blueprintConfirmed === false) {
     rows.push({
       key: 'blueprint',
@@ -152,26 +168,42 @@ export function preflightOf(input: PreflightInput): {
       status: 'block',
       text: review
         ? 'Chưa xác nhận đề cương.'
-        : 'Phiên có nhiều file bắt buộc. File đề và đáp án mẫu không thay cho bước này — bấm "Xác nhận đề cương" cạnh nút bắt đầu chấm.',
+        : 'Phiên có nhiều file bắt buộc. File đề và đáp án mẫu không thay cho bước này - bấm "Xác nhận đề cương" cạnh nút bắt đầu chấm.',
     });
   } else if (input.blueprintConfirmed === true) {
     rows.push({ key: 'blueprint', label: 'Đề cương', status: 'ok', text: 'Đề cương đã xác nhận.' });
   }
 
-  // Bảng lỗi của rubric đã ghim — cảnh báo, không chặn
+  // QA: Bảng lỗi; QS: cấu trúc cách giải (không dùng bảng lỗi gắn bước).
+  const rulesLabel = qs || (input.board && isQsRubric(input.board)) ? 'Cấu trúc QS' : 'Bảng lỗi';
   if (!input.hasRubricId) {
     rows.push({
       key: 'rules',
-      label: 'Bảng lỗi',
+      label: rulesLabel,
       status: 'warn',
-      text: review ? 'Chưa có rubric nên chưa kiểm tra được Bảng lỗi.' : 'Chưa có rubric nên chưa kiểm tra được Bảng lỗi. Không chặn việc bắt đầu.',
+      text: review
+        ? `Chưa có rubric nên chưa kiểm tra được ${rulesLabel}.`
+        : `Chưa có rubric nên chưa kiểm tra được ${rulesLabel}. Không chặn việc bắt đầu.`,
     });
   } else if (!input.board) {
     rows.push({
       key: 'rules',
-      label: 'Bảng lỗi',
+      label: rulesLabel,
       status: 'warn',
-      text: review ? 'Đang đọc Bảng lỗi của rubric này…' : 'Đang đọc Bảng lỗi của rubric này… Không chặn việc bắt đầu.',
+      text: review
+        ? `Đang đọc ${rulesLabel} của rubric này…`
+        : `Đang đọc ${rulesLabel} của rubric này… Không chặn việc bắt đầu.`,
+    });
+  } else if (isQsRubric(input.board)) {
+    const qsStatus = statusOf(input.board);
+    rows.push({
+      key: 'rules',
+      label: 'Cấu trúc QS',
+      status: 'ok',
+      text: review
+        ? qsStatus.label
+        : `${qsStatus.label}. AI chọn đúng một cách giải lúc chấm (UC33) - không cấu hình trước.`,
+      link: { href: rulesHref(input.board.rubricName), label: 'Mở cấu trúc QS' },
     });
   } else {
     const warnings = warningSentences(input.board);
@@ -184,11 +216,16 @@ export function preflightOf(input: PreflightInput): {
         link: { href: rulesHref(input.board.rubricName), label: 'Mở Bảng lỗi' },
       });
     } else {
-      rows.push({ key: 'rules', label: 'Bảng lỗi', status: 'ok', text: 'Mọi lỗi đã có điểm trừ và mọi tiêu chí đã có lỗi.' });
+      rows.push({
+        key: 'rules',
+        label: 'Bảng lỗi',
+        status: 'ok',
+        text: 'Mọi lỗi đã có điểm trừ và mọi tiêu chí đã có lỗi.',
+      });
     }
   }
 
-  // Số bài sẽ chấm — chỉ bài đã thu
+  // Số bài sẽ chấm - chỉ bài đã thu
   const collected = input.counts.fullySubmitted + input.counts.partial;
   const countLabel = review ? 'Số bài đã thu' : 'Số bài sẽ chấm';
   if (collected === 0) {
@@ -204,7 +241,7 @@ export function preflightOf(input: PreflightInput): {
       notGraded.push(`${input.counts.attendedNoSubmission} sinh viên vào phòng nhưng không có bài`);
     }
     if (input.counts.neverAttended > 0) notGraded.push(`${input.counts.neverAttended} vắng`);
-    const aside = notGraded.length > 0 ? ` ${notGraded.join(', ')} — không chấm.` : '';
+    const aside = notGraded.length > 0 ? ` ${notGraded.join(', ')} - không chấm.` : '';
     rows.push({
       key: 'count',
       label: countLabel,
@@ -213,7 +250,7 @@ export function preflightOf(input: PreflightInput): {
     });
   }
 
-  // Ngôn ngữ bài code — đếm theo đường chấm mà backend đã tính; không chặn (bài đọc mã vẫn chấm được)
+  // Ngôn ngữ bài code - đếm theo đường chấm mà backend đã tính; không chặn (bài đọc mã vẫn chấm được)
   if (codeDeliverables.length > 0) {
     const parts: string[] = [];
     if (investigators.length > 0) parts.push(`${investigators.length} bài code chạy trong môi trường chạy bài`);
@@ -230,13 +267,13 @@ export function preflightOf(input: PreflightInput): {
     });
   }
 
-  // Tài liệu chấm chưa lưu — bắt đầu chấm sẽ khoá tài liệu. Màn xem lại không có form.
+  // Tài liệu chấm chưa lưu - bắt đầu chấm sẽ khoá tài liệu. Màn xem lại không có form.
   if (input.dirty && !review) {
     rows.push({
       key: 'reference',
       label: 'Tài liệu chấm',
       status: 'block',
-      text: 'Tài liệu chấm có thay đổi chưa lưu — bấm "Lưu tài liệu chấm" trước, vì bắt đầu chấm sẽ khoá chúng.',
+      text: 'Tài liệu chấm có thay đổi chưa lưu - bấm "Lưu tài liệu chấm" trước, vì bắt đầu chấm sẽ khoá chúng.',
     });
   }
 

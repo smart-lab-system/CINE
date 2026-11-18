@@ -33,13 +33,13 @@ function readAccountCookie(): CurrentAccount | null {
 
 /**
  * Reads the non-httpOnly `account` cookie set by `api/auth/login/route.ts`
- * — display-only ("who's logged in" in the Topbar), never a source of
+ * - display-only ("who's logged in" in the Topbar), never a source of
  * authorization (see that route's comment). Not a TanStack Query hook:
  * there's no network call here, just a same-tick cookie read, so it's
  * plain `useState`/`useEffect` rather than `useQuery`.
  */
 export function useCurrentAccount(): CurrentAccount | null {
-  // Starts null even though readAccountCookie() could run synchronously —
+  // Starts null even though readAccountCookie() could run synchronously -
   // avoids a server/client render mismatch, since the server render has no
   // `document` at all.
   const [account, setAccount] = useState<CurrentAccount | null>(null);

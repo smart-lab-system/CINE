@@ -32,7 +32,7 @@ export async function readWorkbook(file: File): Promise<SheetData[]> {
   if (file.size > MAX_BYTES) {
     throw new WorkbookTooLargeError(
       `File ${(file.size / 1024 / 1024).toFixed(1)}MB vượt quá giới hạn 5MB. ` +
-        'Danh sách lớp thường chỉ vài chục KB — hãy kiểm tra lại file.',
+        'Danh sách lớp thường chỉ vài chục KB - hãy kiểm tra lại file.',
     );
   }
 
@@ -51,7 +51,7 @@ export async function readWorkbook(file: File): Promise<SheetData[]> {
   }
 }
 
-/** OLE Compound Document magic — định dạng .xls cổ. */
+/** OLE Compound Document magic - định dạng .xls cổ. */
 function isOleCompound(bytes: Uint8Array): boolean {
   return (
     bytes.length >= 4 &&
@@ -72,7 +72,7 @@ function isLegacyXls(file: File, bytes: Uint8Array): boolean {
 async function readXlsx(bytes: Uint8Array): Promise<SheetData[]> {
   const { Workbook } = await import('exceljs');
   const workbook = new Workbook();
-  // Uint8Array thay vì ArrayBuffer thô — tránh lỗi realm/instanceof với JSZip.
+  // Uint8Array thay vì ArrayBuffer thô - tránh lỗi realm/instanceof với JSZip.
   const xlsx = workbook.xlsx as unknown as { load(data: Uint8Array): Promise<unknown> };
   await xlsx.load(bytes);
 
@@ -170,7 +170,7 @@ function safeCellText(value: unknown): string {
         .trim();
     }
 
-    // Formula: { formula, result } — result có thể null.
+    // Formula: { formula, result } - result có thể null.
     if ('formula' in record || 'sharedFormula' in record) {
       return safeCellText(record.result);
     }

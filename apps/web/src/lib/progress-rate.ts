@@ -2,7 +2,7 @@
  * Tốc độ chấm và thời gian còn lại (spec §3.8): "số đo được, ghi rõ là ước tính và đo trên khoảng nào. Không
  * ước được thì nói là không ước được."
  *
- * Đo từ CHÍNH các lần hỏi tiến độ của trang này (số bài đã xong theo thời gian) — server không trả tốc độ và
+ * Đo từ CHÍNH các lần hỏi tiến độ của trang này (số bài đã xong theo thời gian) - server không trả tốc độ và
  * `queue` là hàng đợi toàn hệ thống, không phải của riêng phiên. Nên: chưa đủ mẫu, chưa đủ thời gian, hoặc
  * chưa có bài nào xong trong khoảng đo thì trả `null`, không bịa một con số.
  */
@@ -42,14 +42,14 @@ export function estimate(samples: RateSample[], pending: number): RateEstimate |
 const vn = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','));
 
 export function describeRate(e: RateEstimate | null): string {
-  if (e === null) return 'Chưa ước tính được — cần đo thêm một lúc.';
+  if (e === null) return 'Chưa ước tính được - cần đo thêm một lúc.';
   const left =
     e.minutesLeft <= 0 ? '' : e.minutesLeft < 1 ? ', còn dưới 1 phút' : `, còn khoảng ${Math.ceil(e.minutesLeft)} phút`;
-  return `Ước tính: khoảng ${vn(e.perMinute)} bài/phút${left} — đo trong ${e.spanSeconds} giây vừa qua.`;
+  return `Ước tính: khoảng ${vn(e.perMinute)} bài/phút${left} - đo trong ${e.spanSeconds} giây vừa qua.`;
 }
 
 /**
- * Số bài đã xong đứng yên bao lâu (giây), tính từ LẦN ĐỔI cuối cùng giữa các mẫu — hoặc từ mẫu đầu nếu chưa
+ * Số bài đã xong đứng yên bao lâu (giây), tính từ LẦN ĐỔI cuối cùng giữa các mẫu - hoặc từ mẫu đầu nếu chưa
  * từng đổi. Cho băng "bài bị treo": nói "tiến độ đã đứng yên bao lâu" thay vì chỉ "có bài treo". `null` khi
  * chưa đủ hai mẫu để nói.
  */

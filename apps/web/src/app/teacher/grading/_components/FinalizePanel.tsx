@@ -19,12 +19,12 @@ import { ExportCsvButton } from './ExportCsvButton';
 import { ReapplyPricesPanel } from './ReapplyPricesPanel';
 
 /**
- * Chốt điểm phiên (spec §3.10) — MỘT thao tác riêng, không gộp vào việc ghi file. Ba tình huống: còn bài chưa xong ·
+ * Chốt điểm phiên (spec §3.10) - MỘT thao tác riêng, không gộp vào việc ghi file. Ba tình huống: còn bài chưa xong ·
  * sẵn sàng · đã chốt.
  *
  * - Chốt là mốc CÔNG BỐ (nói ngay ở đầu): không ghi file nào; tên người bấm ghi lên từng bài.
  * - Chưa chốt được: từng nhóm đang chặn (đúng tập `BLOCKS_FINALIZE`), mỗi nhóm một con số và một lối đi.
- * - Hộp xác nhận nói đúng HAI con số — bài theo điểm hệ thống tự quyết mà bạn chưa mở, và bài bạn đã xem — cộng lại
+ * - Hộp xác nhận nói đúng HAI con số - bài theo điểm hệ thống tự quyết mà bạn chưa mở, và bài bạn đã xem - cộng lại
  *   bằng số bài của phiên (T-UI-16), kèm hậu quả.
  * - Xuất điểm chỉ mở SAU khi chốt: ghi ra ngoài một con số chưa công bố là sai thứ tự.
  */
@@ -46,7 +46,7 @@ export function FinalizePanel({
   const list = `/teacher/grading?sessionId=${sessionId}`;
   const claim = (
     <p className="rounded-lg border border-border bg-surface-2 p-4 text-small">
-      <strong>Chốt là mốc công bố</strong> — chốt không ghi file nào. Tên bạn được ghi lên từng bài đã chốt, kể cả bài
+      <strong>Chốt là mốc công bố</strong> - chốt không ghi file nào. Tên bạn được ghi lên từng bài đã chốt, kể cả bài
       hệ thống tự quyết mà không ai mở.
     </p>
   );
@@ -56,7 +56,7 @@ export function FinalizePanel({
       <div className="flex flex-col gap-4">
         {claim}
         <p className="text-small text-muted-foreground">
-          Chưa chấm bài nào — chưa có gì để chốt.{' '}
+          Chưa chấm bài nào - chưa có gì để chốt.{' '}
           <Link href={list} className="font-semibold underline underline-offset-2">
             Về danh sách bài
           </Link>
@@ -101,7 +101,7 @@ export function FinalizePanel({
           <section aria-label="Ghi điểm vào sổ điểm" className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4">
             <h2 className="text-small font-semibold">Ghi điểm vào sổ điểm</h2>
             <p className="text-caption text-muted-foreground">
-              Tải file sổ điểm của bạn (.xlsx), chọn cột, xem trước rồi ghi. Hệ thống chỉ điền các ô bạn chọn — mọi ô khác
+              Tải file sổ điểm của bạn (.xlsx), chọn cột, xem trước rồi ghi. Hệ thống chỉ điền các ô bạn chọn - mọi ô khác
               giữ nguyên.
             </p>
             <Button asChild size="sm" className="self-start text-white">
@@ -129,7 +129,7 @@ export function FinalizePanel({
               Chốt điểm phiên
             </Button>
             <p className="text-caption text-muted-foreground">
-              Còn {block.remaining} bài chưa xong — xử lý hết rồi mới chốt được.
+              Còn {block.remaining} bài chưa xong - xử lý hết rồi mới chốt được.
             </p>
           </div>
         </div>
@@ -155,7 +155,7 @@ export function FinalizePanel({
             </DialogDescription>
           </DialogHeader>
           <p className="text-small text-muted-foreground">
-            Từ lúc chốt, mọi thay đổi điểm đều được ghi vào nhật ký — khi bạn sửa tay, và khi bạn chủ động áp giá mới cho
+            Từ lúc chốt, mọi thay đổi điểm đều được ghi vào nhật ký - khi bạn sửa tay, và khi bạn chủ động áp giá mới cho
             phiên đã chốt. Đổi giá ở Bảng lỗi không tự đổi điểm phiên đã chốt.
           </p>
           {finalize.isError && (

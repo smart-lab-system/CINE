@@ -6,7 +6,7 @@
  * like these the server's rendering is pure substitution, so the preview is
  * exactly what a student would get without this file having to carry a
  * second copy of the server's normalizer. A name with diacritics is
- * stripped there — said in the form note rather than half-imitated here.
+ * stripped there - said in the form note rather than half-imitated here.
  */
 export const FILENAME_TOKENS = [
   { token: '{MSSV}', label: 'MSSV', sample: 'SV20120001' },

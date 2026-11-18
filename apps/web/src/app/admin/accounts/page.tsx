@@ -67,15 +67,15 @@ function formatDate(iso: string): string {
 }
 
 /**
- * List-only page (Phase 1 rebuild — was previously a list with a create
+ * List-only page (Phase 1 rebuild - was previously a list with a create
  * form wedged in below it). "Tạo tài khoản" and "Sửa" both open a Dialog
  * instead. Routed through hooks/useAccounts.ts + lib/api/accounts.ts
- * (CLAUDE.md's API-call-layering rule — the previous version of this page
+ * (CLAUDE.md's API-call-layering rule - the previous version of this page
  * called `apiClient` directly).
  *
  * Cột "Trạng thái" đọc `account.is_active` (CLAUDE.md §7.2.8). Vô hiệu
  * hoá là đường dùng được cho nhân sự nghỉ việc; "Xóa" vẫn còn nhưng chỉ
- * thành công với tài khoản chưa từng dạy gì — FK RESTRICT chặn phần còn
+ * thành công với tài khoản chưa từng dạy gì - FK RESTRICT chặn phần còn
  * lại, và đúng như vậy.
  */
 export default function AccountsPage() {
@@ -103,7 +103,7 @@ function AccountsPageContent() {
   const [editingAccount, setEditingAccount] = useState<AccountView | null>(null);
   // Was a native window.confirm(). A browser dialog can't be styled, can't
   // name the consequence, and looks like a page error rather than part of
-  // the product — for a destructive action that's exactly the wrong tone.
+  // the product - for a destructive action that's exactly the wrong tone.
   const [deletingAccount, setDeletingAccount] = useState<AccountView | null>(null);
 
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -187,7 +187,7 @@ function AccountsPageContent() {
       },
       onError: () =>
         toast.error(
-          'Không xoá được tài khoản — tài khoản này có thể đang sở hữu dữ liệu khác (phiên thi, lớp...).',
+          'Không xoá được tài khoản - tài khoản này có thể đang sở hữu dữ liệu khác (phiên thi, lớp...).',
         ),
     });
   }
@@ -199,7 +199,7 @@ function AccountsPageContent() {
         onSuccess: () =>
           toast.success(
             account.isActive
-              ? `Đã vô hiệu hoá ${account.name} — không đăng nhập được nữa, dữ liệu giữ nguyên.`
+              ? `Đã vô hiệu hoá ${account.name} - không đăng nhập được nữa, dữ liệu giữ nguyên.`
               : `Đã mở lại quyền đăng nhập cho ${account.name}.`,
           ),
         onError: () => toast.error('Không đổi được trạng thái tài khoản.'),
@@ -263,7 +263,7 @@ function AccountsPageContent() {
             <Pencil className="h-4 w-4" aria-hidden="true" />
           </Button>
           {/* Trước nút Xóa: với hầu hết tài khoản đã đi vào việc, đây là
-              thao tác DUY NHẤT thực sự chạy được — Xóa sẽ trả 409 vì FK
+              thao tác DUY NHẤT thực sự chạy được - Xóa sẽ trả 409 vì FK
               RESTRICT. Đặt cái dùng được lên trước cái gần như luôn hỏng. */}
           <Button
             type="button"
@@ -333,7 +333,7 @@ function AccountsPageContent() {
         title="Quản lý tài khoản"
         description="Cấp và thu hồi quyền truy cập ExamCollect cho giảng viên và quản trị viên."
         actions={
-          /* Hidden (not just disabled) when the list query itself failed —
+          /* Hidden (not just disabled) when the list query itself failed -
              AccountsController is @Roles('admin')-only, so if GET /accounts
              403'd, POST /accounts would too; showing a create button whose
              submit can only fail the same way is misleading busywork, not a
@@ -523,7 +523,7 @@ function AccountsPageContent() {
               <br />
               <br />
               Nếu tài khoản này đã dạy lớp hoặc mở phiên thi, thao tác xoá sẽ bị từ chối để không
-              làm mất dữ liệu đó — hãy dùng <strong className="font-semibold">vô hiệu hoá</strong>{' '}
+              làm mất dữ liệu đó - hãy dùng <strong className="font-semibold">vô hiệu hoá</strong>{' '}
               để chặn đăng nhập mà vẫn giữ nguyên lịch sử.
             </DialogDescription>
           </DialogHeader>

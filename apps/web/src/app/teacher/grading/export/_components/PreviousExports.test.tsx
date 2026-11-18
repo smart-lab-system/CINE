@@ -48,7 +48,7 @@ describe('PreviousExports', () => {
     listState = { data: [item({ decreased: 2, decreaseConfirmedBy: 'Nguyễn Văn Giảng', deliverableName: 'Cau2.docx', roundingStepHundredths: 1 })], isLoading: false, error: null };
     render(<PreviousExports sessionId="s1" />);
     const li = screen.getByRole('list', { name: 'Các lượt xuất trước' }).querySelector('li')!;
-    expect(li).toHaveTextContent('↓ 2 bài giảm điểm — Nguyễn Văn Giảng đã xác nhận');
+    expect(li).toHaveTextContent('↓ 2 bài giảm điểm - Nguyễn Văn Giảng đã xác nhận');
     expect(li).toHaveTextContent('Yêu cầu nộp Cau2.docx');
     expect(li).toHaveTextContent('Không làm tròn');
     expect(li).not.toHaveTextContent('Làm tròn Không');

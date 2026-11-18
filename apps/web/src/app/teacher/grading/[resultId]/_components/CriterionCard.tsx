@@ -25,7 +25,7 @@ const VERDICT_VARIANT: Record<Verdict, 'success' | 'warning' | 'destructive'> = 
  *
  * BỐN trạng thái, không ba: `null`/thiếu nghĩa là bài được chấm TRƯỚC khi hệ
  * thống ghi lại phép đối chiếu. Gộp nó vào `'ok'` làm mọi bài cũ trông như
- * đã được kiểm — đúng loại lời nói dối mà guard này sinh ra để chặn.
+ * đã được kiểm - đúng loại lời nói dối mà guard này sinh ra để chặn.
  */
 function checkBadge(check: Criterion['check']) {
   if (check === 'ok') return { variant: 'success' as const, label: 'trích dẫn khớp từng chữ' };
@@ -46,7 +46,7 @@ function confidenceColor(value: number): string {
  * Một tiêu chí: AI chấm gì, dựa vào đâu, và bạn quyết gì.
  *
  * Thanh độ tin cậy được gắn nhãn là PHÉP ĐO, không phải "AI tự tin bao
- * nhiêu" — `confidence` do guard tính bằng đối chiếu trích dẫn với bài làm,
+ * nhiêu" - `confidence` do guard tính bằng đối chiếu trích dẫn với bài làm,
  * còn provider chỉ được đặt trần. Vẽ nó như model tự chấm là nói sai bản
  * chất kiến trúc, và đó lại là thứ đáng trình ra nhất khi bảo vệ.
  */
@@ -135,7 +135,7 @@ export function CriterionCard({
           </div>
         )}
         <p className="text-caption text-muted-foreground">
-          Đo bằng cách đối chiếu trích dẫn với bài làm — không phải AI tự chấm.
+          Đo bằng cách đối chiếu trích dẫn với bài làm - không phải AI tự chấm.
         </p>
 
         <div>

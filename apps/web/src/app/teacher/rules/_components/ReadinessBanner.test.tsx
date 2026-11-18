@@ -27,7 +27,7 @@ describe('ReadinessBanner (T-RBE-UI-3)', () => {
     const fresh = overview({ criteria: [criterion({ errorCount: 0 })] });
     const other = overview({ rubricName: 'Cũ' });
     mount(fresh, [], [fresh, other]);
-    expect(screen.getByRole('heading', { name: 'Rubric mới — chưa có lỗi nào' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Rubric mới - chưa có lỗi nào' })).toBeInTheDocument();
     expect(screen.getByText(/Khi chưa có lỗi, mọi bài chấm theo rubric này sẽ chuyển sang “Cần bạn xem” thay vì tự duyệt/)).toBeInTheDocument();
     expect(screen.getByLabelText('Sao chép lỗi và điểm trừ từ')).toHaveValue('');
   });
@@ -41,7 +41,7 @@ describe('ReadinessBanner (T-RBE-UI-3)', () => {
     });
     const errors = [errorItem({ id: 'e1', criterionKey: 'a', deduction: '1.00' }), errorItem({ id: 'e2', criterionKey: 'a', deduction: null })];
     const h = mount(o, errors);
-    expect(screen.getByRole('heading', { name: 'Chưa sẵn sàng chấm tự động — còn 4 việc' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Chưa sẵn sàng chấm tự động - còn 4 việc' })).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
     fireEvent.click(screen.getByRole('button', { name: 'Thêm lỗi' }));
     expect(h.onGoToCriterion).toHaveBeenLastCalledWith('b');

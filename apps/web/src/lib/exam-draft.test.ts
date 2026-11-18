@@ -22,7 +22,7 @@ describe('exam-draft', () => {
   it('lưu rồi đọc lại ra đúng bộ ba VÀ đúng yêu cầu đã sinh ra nó', () => {
     // `prompt`/`questionCount`/`language` PHẢI đi cùng `exam`: "Sinh lại
     // riêng câu này" gửi lại `prompt` gốc, và nếu chỉ `exam` được nhớ, sau
-    // một lượt tải lại trang thì `prompt` rơi về '' — request 400 vì
+    // một lượt tải lại trang thì `prompt` rơi về '' - request 400 vì
     // `GenerateExamDto.prompt` đòi tối thiểu 10 ký tự (bug thật 2026-09-24).
     saveDraft(exam, PROMPT, QUESTION_COUNT, LANGUAGE);
     expect(loadDraft()).toEqual({
@@ -77,9 +77,9 @@ describe('exam-draft', () => {
   });
 
   // Nháp ĐÃ LƯU TỪ TRƯỚC lượt sửa này (hình dạng cũ: chỉ có `savedAt`+`exam`)
-  // vẫn còn thật trên máy giảng viên sau khi triển khai bản vá — coi là hỏng
+  // vẫn còn thật trên máy giảng viên sau khi triển khai bản vá - coi là hỏng
   // và TỰ DỌN, giống mọi nháp hỏng khác, thay vì khôi phục nửa vời (exam có,
-  // prompt rỗng) — đó CHÍNH LÀ trạng thái gây ra bug, chỉ là không còn ai
+  // prompt rỗng) - đó CHÍNH LÀ trạng thái gây ra bug, chỉ là không còn ai
   // biết để tránh nó. Nháp cũng hết hạn tự nhiên trong 24 giờ, nên đây chỉ
   // là khoảng chuyển tiếp ngắn.
   it('nháp hình dạng CŨ (thiếu prompt/questionCount/language) bị coi là hỏng, không khôi phục nửa vời', () => {

@@ -13,14 +13,14 @@ export const criterion = (over: Partial<OverviewCriterion> = {}): OverviewCriter
 
 export const session = (over: Partial<OverviewSession> = {}): OverviewSession => ({
   id: 's1',
-  name: 'Giữa kỳ HK1 — Ca sáng',
+  name: 'Giữa kỳ HK1 - Ca sáng',
   semesterName: 'HK1 2026-2027',
   state: 'grading',
   resultCount: 38,
   ...over,
 });
 
-/** Mặc định: một rubric SẴN SÀNG — mọi tiêu chí có lỗi, không còn việc nào. Ghi đè để dựng trạng thái khác. */
+/** Mặc định: một rubric SẴN SÀNG - mọi tiêu chí có lỗi, không còn việc nào. Ghi đè để dựng trạng thái khác. */
 export function overview(over: Partial<RubricOverview> = {}): RubricOverview {
   const criteria = over.criteria ?? [
     criterion({ key: 'tinh_dung', description: 'Tính đúng đắn', maxPoints: 6, errorCount: 2 }),
@@ -31,6 +31,8 @@ export function overview(over: Partial<RubricOverview> = {}): RubricOverview {
   return {
     rubricName: 'Giữa kỳ CTDL',
     rubricId: 'ru-1',
+    kind: 'qa',
+    approaches: null,
     totalPoints: criteria.reduce((sum, c) => sum + c.maxPoints, 0),
     criteria,
     errorCount: criteria.reduce((sum, c) => sum + c.errorCount, 0),
@@ -81,7 +83,7 @@ export const proposal = (over: Partial<ProposalItem> = {}): ProposalItem => ({
   ruleKey: 'de_xuat_1',
   name: 'Hàm pop không kiểm tra ngăn xếp rỗng',
   description: 'Hàm pop không kiểm tra ngăn xếp rỗng',
-  sightings: { sessions: [{ id: 's1', name: 'Giữa kỳ HK1 — Ca sáng' }], results: 4 },
+  sightings: { sessions: [{ id: 's1', name: 'Giữa kỳ HK1 - Ca sáng' }], results: 4 },
   legacy: false,
   ...over,
 });

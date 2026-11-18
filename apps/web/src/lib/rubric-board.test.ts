@@ -31,7 +31,7 @@ const todo = (name: string, over = {}) => overview({ rubricName: name, unpricedC
 const fresh = (name: string, over = {}) => overview({ rubricName: name, criteria: [criterion({ errorCount: 0 })], ...over });
 const ready = (name: string, over = {}) => overview({ rubricName: name, ...over });
 
-describe('statusOf — bảng chân trị 16 tổ hợp việc cần làm (T-RBE-UI-1)', () => {
+describe('statusOf - bảng chân trị 16 tổ hợp việc cần làm (T-RBE-UI-1)', () => {
   const combos = Array.from({ length: 16 }, (_, i) => ({ empty: !!(i & 1), unpriced: !!(i & 2), proposals: !!(i & 4), dangling: !!(i & 8) }));
   it.each(combos)('tiêu chí rỗng=$empty chưa điểm trừ=$unpriced đề xuất=$proposals mồ côi=$dangling', ({ empty, unpriced, proposals, dangling }) => {
     const criteria = [criterion({ key: 'a', errorCount: 2 }), criterion({ key: 'b', errorCount: empty ? 0 : 1 })];
@@ -66,13 +66,13 @@ describe('statusOf — bảng chân trị 16 tổ hợp việc cần làm (T-RBE
   });
 });
 
-describe('warningSentences — nuôi dòng "Bảng lỗi" của màn chuẩn bị chấm', () => {
+describe('warningSentences - nuôi dòng "Bảng lỗi" của màn chuẩn bị chấm', () => {
   it('sẵn sàng → không câu nào', () => {
     expect(warningSentences(ready('A'))).toEqual([]);
   });
   it('rubric mới → một câu nói bài sẽ vào "Cần bạn xem"', () => {
     expect(warningSentences(fresh('A'))).toEqual([
-      'Rubric này chưa có lỗi nào — mọi bài chấm theo rubric này sẽ chuyển sang “Cần bạn xem” thay vì tự duyệt.',
+      'Rubric này chưa có lỗi nào - mọi bài chấm theo rubric này sẽ chuyển sang “Cần bạn xem” thay vì tự duyệt.',
     ]);
   });
   it('mỗi loại việc một câu, theo thứ tự', () => {
@@ -83,17 +83,17 @@ describe('warningSentences — nuôi dòng "Bảng lỗi" của màn chuẩn b�
       danglingCount: 3,
     });
     expect(warningSentences(o)).toEqual([
-      'Tiêu chí Trình bày chưa có lỗi nào — bài dính tiêu chí đó không tự quyết.',
-      '2 lỗi chưa có điểm trừ — bài dính chúng sẽ vào nhóm cần bạn xem.',
-      '1 lỗi AI đề xuất chưa xử lý — đang bị loại khỏi điểm.',
-      '3 lỗi gắn tiêu chí không còn trong rubric — chuyển sang tiêu chí khác.',
+      'Tiêu chí Trình bày chưa có lỗi nào - bài dính tiêu chí đó không tự quyết.',
+      '2 lỗi chưa có điểm trừ - bài dính chúng sẽ vào nhóm cần bạn xem.',
+      '1 lỗi AI đề xuất chưa xử lý - đang bị loại khỏi điểm.',
+      '3 lỗi gắn tiêu chí không còn trong rubric - chuyển sang tiêu chí khác.',
     ]);
   });
 });
 
 describe('chuỗi', () => {
   it('fold bỏ dấu, đ → d, không phân biệt hoa thường', () => {
-    expect(fold('Cuối KỲ — Đồ thị')).toBe('cuoi ky — do thi');
+    expect(fold('Cuối KỲ - Đồ thị')).toBe('cuoi ky - do thi');
   });
   it('capNames chặn trần danh sách', () => {
     expect(capNames(['A', 'B'])).toBe('A, B');
@@ -137,8 +137,8 @@ describe('ô chọn rubric (T-RBE-UI-1)', () => {
   const all = [
     todo('Giữa kỳ CTDL', { sessions: [session({ semesterName: 'HK1 2026-2027' })] }),
     fresh('Cuối kỳ CTDL'),
-    ready('Thực hành — Hàng đợi', { sessions: [session({ id: 's2', semesterName: 'HK2 2025-2026' })] }),
-    ready('Bài tập lớn — Đồ thị'),
+    ready('Thực hành - Hàng đợi', { sessions: [session({ id: 's2', semesterName: 'HK2 2025-2026' })] }),
+    ready('Bài tập lớn - Đồ thị'),
   ];
   const q = (over = {}) => ({ q: '', filter: 'all' as const, sort: 'recent' as const, sem: null, ...over });
   const names = (list: { rubricName: string }[]) => list.map((o) => o.rubricName);
@@ -148,31 +148,31 @@ describe('ô chọn rubric (T-RBE-UI-1)', () => {
   });
   it('tìm không phân biệt dấu và đ → d', () => {
     expect(names(pickRubrics(all, q({ q: 'cuoi ky' }), []))).toEqual(['Cuối kỳ CTDL']);
-    expect(names(pickRubrics(all, q({ q: 'do thi' }), []))).toEqual(['Bài tập lớn — Đồ thị']);
+    expect(names(pickRubrics(all, q({ q: 'do thi' }), []))).toEqual(['Bài tập lớn - Đồ thị']);
     expect(pickRubrics(all, q({ q: 'khong co' }), [])).toEqual([]);
   });
   it('lọc theo tình trạng', () => {
     expect(names(pickRubrics(all, q({ filter: 'todo' }), []))).toEqual(['Giữa kỳ CTDL']);
     expect(names(pickRubrics(all, q({ filter: 'new' }), []))).toEqual(['Cuối kỳ CTDL']);
-    expect(names(pickRubrics(all, q({ filter: 'ready' }), []))).toEqual(['Thực hành — Hàng đợi', 'Bài tập lớn — Đồ thị']);
+    expect(names(pickRubrics(all, q({ filter: 'ready' }), []))).toEqual(['Thực hành - Hàng đợi', 'Bài tập lớn - Đồ thị']);
   });
   it('hợp của học kỳ + tình trạng + từ khoá', () => {
-    expect(names(pickRubrics(all, q({ sem: 'HK2 2025-2026', filter: 'ready', q: 'hang doi' }), []))).toEqual(['Thực hành — Hàng đợi']);
+    expect(names(pickRubrics(all, q({ sem: 'HK2 2025-2026', filter: 'ready', q: 'hang doi' }), []))).toEqual(['Thực hành - Hàng đợi']);
     expect(pickRubrics(all, q({ sem: 'HK2 2025-2026', filter: 'todo' }), [])).toEqual([]);
   });
   it('sắp "gần đây": theo lịch sử đã mở, rồi theo thứ tự lưu mới nhất của máy chủ', () => {
-    expect(names(pickRubrics(all, q(), ['Bài tập lớn — Đồ thị', 'Cuối kỳ CTDL']))).toEqual([
-      'Bài tập lớn — Đồ thị',
+    expect(names(pickRubrics(all, q(), ['Bài tập lớn - Đồ thị', 'Cuối kỳ CTDL']))).toEqual([
+      'Bài tập lớn - Đồ thị',
       'Cuối kỳ CTDL',
       'Giữa kỳ CTDL',
-      'Thực hành — Hàng đợi',
+      'Thực hành - Hàng đợi',
     ]);
   });
   it('sắp A–Z theo locale vi', () => {
-    expect(names(pickRubrics(all, q({ sort: 'name' }), []))).toEqual(['Bài tập lớn — Đồ thị', 'Cuối kỳ CTDL', 'Giữa kỳ CTDL', 'Thực hành — Hàng đợi']);
+    expect(names(pickRubrics(all, q({ sort: 'name' }), []))).toEqual(['Bài tập lớn - Đồ thị', 'Cuối kỳ CTDL', 'Giữa kỳ CTDL', 'Thực hành - Hàng đợi']);
   });
   it('sắp "cần làm trước": todo, rồi new, rồi ready', () => {
-    expect(names(pickRubrics(all, q({ sort: 'todo' }), []))).toEqual(['Giữa kỳ CTDL', 'Cuối kỳ CTDL', 'Thực hành — Hàng đợi', 'Bài tập lớn — Đồ thị']);
+    expect(names(pickRubrics(all, q({ sort: 'todo' }), []))).toEqual(['Giữa kỳ CTDL', 'Cuối kỳ CTDL', 'Thực hành - Hàng đợi', 'Bài tập lớn - Đồ thị']);
   });
   it('số trên các nút lọc đếm theo học kỳ đang chọn', () => {
     expect(filterCounts(all, null)).toEqual({ all: 4, todo: 1, ready: 2, new: 1 });
@@ -249,8 +249,8 @@ describe('"Lưu thì áp vào đâu" (spec 1.1, không gọi API)', () => {
   it('Tự động: tính lại ngay phiên đang chấm; phiên đã chốt giữ nguyên; phiên chưa chấm thì dùng khi bắt đầu', () => {
     expect(impactLines(sessions, 'auto').map((l) => l.text)).toEqual([
       'Tính lại ngay các bài dính lỗi này (trong 38 bài).',
-      'Giữ nguyên điểm — bảng điểm trừ đã được ghim lúc chốt.',
-      'Chưa chấm bài nào — lỗi sẽ được dùng khi bắt đầu chấm.',
+      'Giữ nguyên điểm - bảng điểm trừ đã được ghim lúc chốt.',
+      'Chưa chấm bài nào - lỗi sẽ được dùng khi bắt đầu chấm.',
     ]);
   });
   it('AI đọc bài: không tính lại bài đã chấm (T-FAIR-1)', () => {
@@ -265,7 +265,7 @@ describe('"Lưu thì áp vào đâu" (spec 1.1, không gọi API)', () => {
   });
 });
 
-describe('overCap — lời nhắc khi cộng các điểm trừ vượt điểm tối đa', () => {
+describe('overCap - lời nhắc khi cộng các điểm trừ vượt điểm tối đa', () => {
   it('trả tổng khi vượt, null khi không', () => {
     expect(overCap(['2.00', '1.50', '1.00'], 4)).toBe(4.5);
     expect(overCap(['2.00'], 4)).toBeNull();

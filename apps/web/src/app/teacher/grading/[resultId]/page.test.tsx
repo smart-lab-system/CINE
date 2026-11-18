@@ -44,7 +44,7 @@ vi.mock('@/hooks/useGrading', () => ({
   useSetErrorException: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
 
-// "Quyết định của bạn" đọc nhóm duyệt nhanh và gọi xác nhận — không phải thứ trang này kiểm, nên mock rỗng.
+// "Quyết định của bạn" đọc nhóm duyệt nhanh và gọi xác nhận - không phải thứ trang này kiểm, nên mock rỗng.
 vi.mock('@/hooks/useReviewGroups', () => ({
   useMarkResultOpened: () => ({ mutate: vi.fn() }),
   useReviewGroups: () => ({ data: [], isSuccess: true }),
@@ -104,7 +104,7 @@ function result(over: Partial<GradingResult> = {}): GradingResult {
 }
 
 async function page() {
-  // Trang dùng `use(params)` — Next 15 truyền params dưới dạng Promise, và
+  // Trang dùng `use(params)` - Next 15 truyền params dưới dạng Promise, và
   // `use` suspend ở lần render đầu kể cả khi promise đã resolve. Cần CẢ ranh
   // giới Suspense lẫn một `act` được await, nếu không render đồng bộ của RTL
   // dừng lại ở fallback và mọi truy vấn đều không thấy gì.
@@ -287,7 +287,7 @@ describe('GradingDetailPage', () => {
     resultsData = [
       result({
         ungradableReason:
-          'HTTP 400 invalid_request_error (nội dung lỗi bị cắt — có thể chứa bài làm)',
+          'HTTP 400 invalid_request_error (nội dung lỗi bị cắt - có thể chứa bài làm)',
         criterionResults: [],
         aiTotalScore: null,
       }),
@@ -295,7 +295,7 @@ describe('GradingDetailPage', () => {
     await page();
 
     expect(await screen.findByText(/AI không chấm được bài này/)).toBeInTheDocument();
-    // Không phải một câu chung chung — đúng lý do đã lưu, để giảng viên/
+    // Không phải một câu chung chung - đúng lý do đã lưu, để giảng viên/
     // quản trị viên biết cần làm gì (ở đây: nạp lại quota).
     expect(screen.getByText(/nội dung lỗi bị cắt/)).toBeInTheDocument();
   });
@@ -304,7 +304,7 @@ describe('GradingDetailPage', () => {
     resultsData = [
       result({
         ungradableReason:
-          'HTTP 400 invalid_request_error (nội dung lỗi bị cắt — có thể chứa bài làm)',
+          'HTTP 400 invalid_request_error (nội dung lỗi bị cắt - có thể chứa bài làm)',
         criterionResults: [],
         aiTotalScore: null,
       }),
@@ -312,7 +312,7 @@ describe('GradingDetailPage', () => {
     await page();
 
     // Rubric của test có đúng một tiêu chí, maxPoints 4 (xem fixture
-    // `rubric` ở đầu file) — nó phải hiện được dù `criterionResults` rỗng.
+    // `rubric` ở đầu file) - nó phải hiện được dù `criterionResults` rỗng.
     await screen.findByText('Xử lý nhất quán dữ liệu');
     expect(screen.getByText(/AI chưa chấm tiêu chí này/i)).toBeInTheDocument();
 
@@ -340,7 +340,7 @@ describe('GradingDetailPage', () => {
     expect(screen.queryByText('Tiêu chí của rubric khác')).not.toBeInTheDocument();
   });
 
-  // Review I4: an investigator result is a code_project and has no document text — reading it only made the
+  // Review I4: an investigator result is a code_project and has no document text - reading it only made the
   // backend hit object storage and log a warning on every page open.
   it('không tải nội dung bài nộp cho bài đi đường điều tra', async () => {
     resultsData = [result({ pipeline: 'investigator', currentScore: 8.5, currentScoreSource: 'computation', criterionResults: [], aiTotalScore: 8.5 })];

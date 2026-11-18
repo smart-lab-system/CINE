@@ -12,6 +12,14 @@ import type { ModelAnswerOrigin } from './grading-model.types';
 import { GRADING_LOCKED_MESSAGE, isGradingLocked } from './grading-lock';
 import { ensureDefaultProblem, resolveProblemConfig } from './problem/resolve-problem-config';
 import { assertSessionRouteAllowed } from './problem/session-route-guard';
+import { extractText } from './extract-text';
+import {
+  extractModelAnswerZip,
+  isPdfFilename,
+  packageKindFromFilename,
+  type ModelAnswerFileText,
+  type ModelAnswerPackageKind,
+} from './model-answer-package';
 
 /**
  * Mã nguồn đáp án mẫu đã nằm trên kho theo băm nội dung. Đi qua THAM SỐ của service, không qua HTTP DTO:
@@ -77,8 +85,12 @@ export interface GradingReadiness {
 export interface LoadedGradingReference {
   questionPdf?: Buffer;
   questionFilename?: string;
+  /** Buffer PDF đơn (document block). Zip / file text dùng `modelAnswerFiles`. */
   modelAnswer?: Buffer;
   modelAnswerFilename?: string;
+  modelAnswerPackageKind?: ModelAnswerPackageKind;
+  /** Text đã trích từ zip hoặc file không-PDF. */
+  modelAnswerFiles?: ModelAnswerFileText[];
   note?: string;
   /**
    * Mức NGỮ CẢNH THẬT SỰ có được, tính từ những gì đọc được — khác với
@@ -284,6 +296,7 @@ export class GradingReferenceService {
     if (existing?.modelAnswerOrigin && existing.modelAnswerOrigin !== 'teacher') {
       row.modelAnswerStorageKey = null;
       row.modelAnswerFilename = null;
+      row.modelAnswerPackageKind = null;
       row.modelAnswerNote = null;
     }
     row.modelAnswerSourceKey = source.key;
@@ -382,12 +395,27 @@ export class GradingReferenceService {
       const keep = <T>(sent: T | null | undefined, current: T | null | undefined): T | null =>
         sent === undefined ? (current ?? null) : sent;
 
+      const nextStorageKey = keep(dto.modelAnswerStorageKey, existing?.modelAnswerStorageKey);
+      const nextFilename = keep(dto.modelAnswerFilename, existing?.modelAnswerFilename);
+      let nextPackageKind: ModelAnswerPackageKind | null = existing?.modelAnswerPackageKind ?? null;
+      if (dto.modelAnswerStorageKey === null) {
+        nextPackageKind = null;
+      } else if (dto.modelAnswerStorageKey !== undefined) {
+        nextPackageKind = packageKindFromFilename(
+          dto.modelAnswerFilename ?? existing?.modelAnswerFilename,
+        );
+      } else if (dto.modelAnswerFilename !== undefined && nextStorageKey) {
+        nextPackageKind = packageKindFromFilename(dto.modelAnswerFilename);
+      }
+      if (!nextStorageKey) nextPackageKind = null;
+
       const row = refs.create({
         ...(existing ?? {}),
         examSessionId: session.id,
         questionMaterialId: keep(dto.questionMaterialId, existing?.questionMaterialId),
-        modelAnswerStorageKey: keep(dto.modelAnswerStorageKey, existing?.modelAnswerStorageKey),
-        modelAnswerFilename: keep(dto.modelAnswerFilename, existing?.modelAnswerFilename),
+        modelAnswerStorageKey: nextStorageKey,
+        modelAnswerFilename: nextFilename,
+        modelAnswerPackageKind: nextPackageKind,
         modelAnswerNote: keep(dto.modelAnswerNote, existing?.modelAnswerNote),
         // KHÔNG dùng `keep`: cờ này gắn với CHÍNH đáp án đang nằm ở đây, nên nó
         // phải đi theo lượt ghi đáp án, không được thừa kế từ bản trước. Một
@@ -565,8 +593,25 @@ export class GradingReferenceService {
 
     if (row.modelAnswerStorageKey) {
       try {
-        loaded.modelAnswer = await this.storage.getObject(row.modelAnswerStorageKey);
-        loaded.modelAnswerFilename = row.modelAnswerFilename ?? undefined;
+        const bytes = await this.storage.getObject(row.modelAnswerStorageKey);
+        const filename = row.modelAnswerFilename ?? undefined;
+        const kind =
+          row.modelAnswerPackageKind ?? packageKindFromFilename(filename);
+        loaded.modelAnswerFilename = filename;
+        loaded.modelAnswerPackageKind = kind;
+        if (kind === 'zip') {
+          loaded.modelAnswerFiles = await extractModelAnswerZip(bytes);
+        } else if (isPdfFilename(filename)) {
+          loaded.modelAnswer = bytes;
+        } else {
+          const text = (await extractText(bytes, filename ?? 'answer')).trim();
+          if (text.length > 0) {
+            loaded.modelAnswerFiles = [{ path: filename ?? 'answer', text }];
+          } else {
+            // Không trích được text - vẫn giữ buffer (Claude có thể dùng nếu PDF giả).
+            loaded.modelAnswer = bytes;
+          }
+        }
       } catch (error) {
         this.logger.warn(
           `session ${examSessionId}: không đọc được đáp án mẫu — chấm tiếp không có nó: ` +
@@ -575,9 +620,14 @@ export class GradingReferenceService {
       }
     }
 
+    const hasLoadedAnswer =
+      Boolean(loaded.modelAnswer) ||
+      Boolean(loaded.modelAnswerFiles && loaded.modelAnswerFiles.length > 0) ||
+      Boolean(loaded.note);
+
     // Mức tính từ thứ THẬT SỰ nạp được, không phải từ thứ đã cấu hình.
     if (loaded.questionPdf) {
-      loaded.loadedLevel = loaded.modelAnswer || loaded.note ? 'with_model_answer' : 'with_question';
+      loaded.loadedLevel = hasLoadedAnswer ? 'with_model_answer' : 'with_question';
     }
 
     const configured = await this.readiness(examSessionId);

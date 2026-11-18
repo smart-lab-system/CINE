@@ -1,0 +1,16 @@
+Bạn được cung cấp một mảng arr có kích thước n - 1 chứa các số nguyên phân biệt trong phạm vi từ 1 đến n (bao gồm cả hai đầu). Mảng này đại diện cho một hoán vị của các số nguyên từ 1 đến n với một phần tử bị thiếu. Nhiệm vụ của bạn là xác định và trả về phần tử bị thiếu đó.
+Ví dụ:
+Đầu vào: arr[] = [1, 2, 3, 5]
+Đầu ra: 4
+Giải thích: Tất cả các số từ 1 đến 5 đều có mặt ngoại trừ 4.
+
+Đầu vào: arr[] = [8, 2, 4, 5, 3, 7, 1]
+Đầu ra: 6
+Giải thích: Tất cả các số từ 1 đến 8 đều có mặt ngoại trừ 6.
+Đầu vào: arr[] = [1]
+Đầu ra: 2
+Giải thích: Chỉ có 1 xuất hiện nên phần tử bị thiếu là 2.
+
+Ràng buộc:
+1 ≤ arr.size() ≤ 106
+1 ≤ arr[i] ≤ arr.size() + 1

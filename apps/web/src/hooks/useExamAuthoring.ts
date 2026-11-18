@@ -12,7 +12,7 @@ import {
  *
  * Nó tiêu tiền và không idempotent. Một `useQuery` sẽ tự refetch khi cửa sổ
  * lấy lại focus, và mỗi lần như vậy là một lần trả tiền cho một đề KHÁC HẲN
- * đề đang hiện trên màn hình — giảng viên nhìn xuống thì đề đã đổi.
+ * đề đang hiện trên màn hình - giảng viên nhìn xuống thì đề đã đổi.
  */
 export function useGenerateExam() {
   return useMutation<GeneratedExam, Error, GenerateExamInput>({

@@ -49,7 +49,7 @@ describe('ReapplyPricesPanel', () => {
     expect(screen.getByText(/không tự đổi điểm phiên đã chốt/)).toBeInTheDocument();
   });
 
-  it('"Xem trước" asks the server — and only that; nothing is applied yet', () => {
+  it('"Xem trước" asks the server - and only that; nothing is applied yet', () => {
     render(<ReapplyPricesPanel sessionId="s1" />);
     fireEvent.click(screen.getByRole('button', { name: 'Xem trước' }));
     expect(h.previewMutate).toHaveBeenCalledTimes(1);
@@ -164,7 +164,7 @@ describe('ReapplyPricesPanel', () => {
   });
 
   it('shows the preview error verbatim (e.g. the session is not fully finalised)', () => {
-    h.preview = { ...h.preview, isError: true, error: new Error('Phiên chưa chốt — giá mới đã tự áp cho phiên chưa chốt') };
+    h.preview = { ...h.preview, isError: true, error: new Error('Phiên chưa chốt - giá mới đã tự áp cho phiên chưa chốt') };
     render(<ReapplyPricesPanel sessionId="s1" />);
     expect(screen.getByRole('alert')).toHaveTextContent('Phiên chưa chốt');
   });

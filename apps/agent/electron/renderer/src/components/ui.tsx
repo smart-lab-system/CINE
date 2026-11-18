@@ -1,7 +1,7 @@
 /**
  * The small set of building blocks every screen in this app reuses.
  * Deliberately not a design-system package (class-variance-authority,
- * Radix, an icon library) the way apps/web's components/ui is — this app
+ * Radix, an icon library) the way apps/web's components/ui is - this app
  * has a small, fixed set of screens, not an extensible surface, so plain
  * Tailwind classes on plain elements is the right amount of machinery.
  */

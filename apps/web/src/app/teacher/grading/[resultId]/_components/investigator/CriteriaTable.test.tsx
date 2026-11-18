@@ -15,7 +15,7 @@ describe('CriteriaTable', () => {
     );
     expect(screen.getByText('tinh_dung')).toBeInTheDocument();
     expect(screen.getByText(/chạm trần/)).toBeInTheDocument();
-    // "2,5" also legitimately appears in the tinh_dung row (400-150) — assert on the TOTAL row only.
+    // "2,5" also legitimately appears in the tinh_dung row (400-150) - assert on the TOTAL row only.
     const totalRow = screen.getByText('Tổng').closest('tr')!;
     expect(within(totalRow).getByText('2,5')).toBeInTheDocument(); // (400+100-150-100)/100
     expect(within(totalRow).getByText('−2,5')).toBeInTheDocument(); // deducted 150+100

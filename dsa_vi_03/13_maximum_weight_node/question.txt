@@ -1,0 +1,25 @@
+Cho một mê cung có n ô (cell). Mỗi cell có thể có nhiều điểm vào nhưng không quá một điểm ra (tức là các điểm vào/ra là cửa một chiều như van).
+Bạn được cho một mảng exits[], trong đó exits[i] chứa điểm ra của cell thứ i.
+Nếu exits[i] là -1, thì cell thứ i không có điểm ra.
+Nhiệm vụ là tìm cell có trọng số (weight) lớn nhất (Trọng số của một cell i là tổng của tất cả các chỉ số cell có điểm ra là i). Nếu có nhiều cell có trọng số lớn nhất bằng nhau, hãy trả về cell có chỉ số lớn nhất.
+Ghi chú: Các cell được đánh chỉ số bằng giá trị nguyên từ 0 đến n-1.
+Một cell i có weight bằng 0 nếu không có cell nào có điểm ra là i.
+Ví dụ:
+Đầu vào: exits[] = [2, 0, -1, 2}
+Đầu ra: 2
+Giải thích: 1 -> 0 -> 2 <- 3
+weight của ô thứ 0 = 1
+weight của ô thứ 1 = 0 (vì không có cell nào trỏ tới cell thứ 1)
+weight của ô thứ 2 = 0+3 = 3
+weight của ô thứ 3 = 0
+Chỉ có một cell có trọng số lớn nhất (là 2)
+Do đó, cell 2 là output.
+Đầu vào: exits[] = [-1]
+Đầu ra: 0
+Giải thích: weight của ô thứ 0 là 0.
+Chỉ có một cell nên cell 0 có trọng số lớn nhất.
+Ràng buộc:
+1  ≤  n  ≤  105
+-1  <  exits[i]  <  N
+exits[i]  ≠  i
+Thử thêm các ví dụ:

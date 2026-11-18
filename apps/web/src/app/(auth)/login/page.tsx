@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   // Typing a password blind is where most failed logins here actually come
-  // from — the accounts are handed out by the khoa admin, so people are
+  // from - the accounts are handed out by the khoa admin, so people are
   // transcribing a string they did not choose.
   const [showPassword, setShowPassword] = useState(false);
   const scope = useRef<HTMLDivElement>(null);
@@ -78,11 +78,11 @@ export default function LoginPage() {
     }
 
     // The route handler already echoes back the logged-in account (see
-    // api/auth/login/route.ts) — read its role instead of sending every
+    // api/auth/login/route.ts) - read its role instead of sending every
     // role to /admin/*, which is admin-only server-side
     // (AccountsController's @Roles('admin')) and used to 403 for teachers
     // who landed there anyway with no visible explanation. This is a
-    // convenience default, not the security boundary — middleware.ts
+    // convenience default, not the security boundary - middleware.ts
     // re-checks role from the JWT on every navigation regardless of what
     // this push() targets.
     const body = await response.json().catch(() => null);
@@ -90,7 +90,7 @@ export default function LoginPage() {
     // Đưa access token vào bộ nhớ NGAY, trước khi điều hướng. Trang đích
     // bắn request đầu tiên gần như tức thì; không có bước này thì lời gọi
     // đó phải bootstrap lại qua /api/auth/token cho một giá trị vừa nằm
-    // sẵn trong tay — một round trip thừa trên chính màn hình mà người
+    // sẵn trong tay - một round trip thừa trên chính màn hình mà người
     // dùng cảm nhận độ trễ rõ nhất.
     setAccessToken(typeof body?.accessToken === 'string' ? body.accessToken : null);
 
@@ -101,8 +101,8 @@ export default function LoginPage() {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
       {/* Two decorative layers, both behind the content and both muted
-          almost to nothing: a ruled grid that fades out downward — an
-          answer-sheet reference, which is what this system collects — and
+          almost to nothing: a ruled grid that fades out downward - an
+          answer-sheet reference, which is what this system collects - and
           the same indigo/teal blooms the app shell uses, so signing in
           already looks like the product you're signing into. */}
       <div

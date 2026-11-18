@@ -105,7 +105,7 @@ describe('buildSubmissionRows', () => {
   });
 
   it('mang theo ba cột kiểm file nén vào cell, không suy diễn gì thêm', () => {
-    // Task 10 — trực giao với `state`: một deliverable `collected` vẫn có
+    // Task 10 - trực giao với `state`: một deliverable `collected` vẫn có
     // thể `archiveCheckStatus: 'failed'` (spec §8.3).
     const rows = buildSubmissionRows(attendance(), [
       submission({
@@ -132,7 +132,7 @@ describe('buildSubmissionRows', () => {
     expect(rows[0].byDeliverable['deliverable-1'].state).toBe('collected');
   });
 
-  it('ignores received/validated submissions — only collected/invalid are terminal', () => {
+  it('ignores received/validated submissions - only collected/invalid are terminal', () => {
     const rows = buildSubmissionRows(attendance(), [submission({ status: 'received' })]);
 
     expect(rows[0].byDeliverable).toEqual({});
@@ -258,7 +258,7 @@ describe('countStudentsSubmittingAfter', () => {
   const CONFIRMED_AT = new Date('2026-08-29T05:00:00.000Z').getTime();
 
   it('đếm NGƯỜI, không đếm file', () => {
-    // Một em nộp hai file sau khi xác nhận là 1, không phải 2 — đếm file
+    // Một em nộp hai file sau khi xác nhận là 1, không phải 2 - đếm file
     // sẽ thổi con số lên theo số deliverable của phiên.
     const rows = buildSubmissionRows(attendance(), [
       submission({ requiredDeliverableId: 'd1', submittedAt: '2026-08-29T05:01:00.000Z' }),

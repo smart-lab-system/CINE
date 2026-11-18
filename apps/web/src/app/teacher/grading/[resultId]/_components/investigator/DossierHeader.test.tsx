@@ -21,7 +21,7 @@ const baseProps = {
 describe('DossierHeader', () => {
   it('shows MSSV, name, session and room', () => {
     render(<DossierHeader {...baseProps} />);
-    // MSSV appears twice by design (breadcrumb current-item + h1) — assert presence, not uniqueness.
+    // MSSV appears twice by design (breadcrumb current-item + h1) - assert presence, not uniqueness.
     expect(screen.getAllByText(/SV20120088/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Nguyễn Văn A/)).toBeInTheDocument();
     expect(screen.getAllByText(/Giữa kỳ N01/).length).toBeGreaterThan(0);
@@ -29,7 +29,7 @@ describe('DossierHeader', () => {
   });
 
   // Review I4: an investigator result is a code_project, and the only registered content resolver handles
-  // 'document' — so "Mở bài nộp" could only ever show "Hệ thống chưa đọc được nội dung… Tải file gốc về",
+  // 'document' - so "Mở bài nộp" could only ever show "Hệ thống chưa đọc được nội dung… Tải file gốc về",
   // with no download link. A working-looking button that cannot work is worse than a labelled gap.
   it('"Mở bài nộp" bấm được, gọi tải đúng bài này, và không còn nhãn cần backend', () => {
     render(<DossierHeader {...baseProps} />);

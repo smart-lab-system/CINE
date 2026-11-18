@@ -90,13 +90,13 @@ export function ErrorList({
                 </span>
                 <Badge variant={source.variant}>{source.label}</Badge>
                 <span className="text-caption text-muted-foreground">Chắc chắn {percentOf(source.certaintyPercent / 100)}</span>
-                {unpriced && <Badge variant="warning">Chờ giá — chưa trừ</Badge>}
+                {unpriced && <Badge variant="warning">Chờ giá - chưa trừ</Badge>}
                 {unverified && !notCounted && (
-                  <Badge variant="warning">Chưa xác minh — vẫn bị trừ, nhưng bài không được tự duyệt</Badge>
+                  <Badge variant="warning">Chưa xác minh - vẫn bị trừ, nhưng bài không được tự duyệt</Badge>
                 )}
                 {excluded && <Badge variant="outline">Đã bỏ cho bài này</Badge>}
                 <span className="ml-auto font-semibold tabular-nums">
-                  {notCounted ? '0' : unpriced ? '—' : formatVnPoints(-error.deductionHundredths! / 100)}
+                  {notCounted ? '0' : unpriced ? '-' : formatVnPoints(-error.deductionHundredths! / 100)}
                 </span>
               </div>
 
@@ -131,7 +131,7 @@ export function ErrorList({
                         disabled={busy}
                         onClick={() => setException.mutate({ resultId, ruleId: error.ruleId, direction: 'include' })}
                       >
-                        Không đồng ý — giữ lỗi này cho riêng bài này
+                        Không đồng ý - giữ lỗi này cho riêng bài này
                       </Button>
                       <span className="text-caption text-muted-foreground">
                         Quyết định này chỉ áp cho bài này và được ghi lại; sau đó chỉ đổi được chiều, không quay về

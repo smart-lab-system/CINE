@@ -18,7 +18,7 @@ const CLASS_A: TeachingClass = {
   semesterId: 'sem-1',
   semesterName: 'HK1 2025-2026',
   nominalClassId: 'nc-1',
-  nominalClassName: 'D21CQCN01 — Công nghệ thông tin',
+  nominalClassName: 'D21CQCN01 - Công nghệ thông tin',
   studentCount: 40,
 };
 
@@ -34,7 +34,7 @@ const CLASS_B: TeachingClass = {
 };
 
 /**
- * Lớp do admin phân công — teacher không tạo/xoá lớp trên trang này.
+ * Lớp do admin phân công - teacher không tạo/xoá lớp trên trang này.
  */
 describe('TeacherClassesPage', () => {
   beforeEach(() => {
@@ -55,13 +55,13 @@ describe('TeacherClassesPage', () => {
     expect(screen.getByText('CTDL001')).toBeInTheDocument();
     expect(screen.getByText('CTDL&GT')).toBeInTheDocument();
     expect(screen.getByText('HK1 2025-2026')).toBeInTheDocument();
-    expect(screen.getByText('D21CQCN01 — Công nghệ thông tin')).toBeInTheDocument();
+    expect(screen.getByText('D21CQCN01 - Công nghệ thông tin')).toBeInTheDocument();
     const rosterLinks = screen.getAllByRole('link', { name: /danh sách sv/i });
     expect(rosterLinks[0]).toHaveAttribute('href', '/teacher/classes/k1/roster');
     expect(rosterLinks[1]).toHaveAttribute('href', '/teacher/classes/k2/roster');
   });
 
-  it('hiện — khi lớp chưa gắn học kỳ hoặc lớp danh nghĩa', () => {
+  it('hiện - khi lớp chưa gắn học kỳ hoặc lớp danh nghĩa', () => {
     useTeachingClassesMock.mockReturnValue({
       data: [
         {
@@ -76,7 +76,7 @@ describe('TeacherClassesPage', () => {
       isError: false,
     });
     render(<TeacherClassesPage />);
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(2);
   });
 
   it('empty state khi chưa được phân công', () => {
@@ -101,7 +101,7 @@ describe('TeacherClassesPage', () => {
     });
   });
 
-  it('lọc theo môn — gõ để tìm trong danh sách môn', async () => {
+  it('lọc theo môn - gõ để tìm trong danh sách môn', async () => {
     render(<TeacherClassesPage />);
     fireEvent.click(screen.getByRole('combobox', { name: 'Lọc theo môn' }));
     fireEvent.change(screen.getByPlaceholderText('Gõ tên môn…'), {

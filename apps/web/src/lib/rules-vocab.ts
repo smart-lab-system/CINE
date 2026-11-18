@@ -1,9 +1,9 @@
 import type { RecomputeSummary } from './api/rules';
 import { formatVnPoints } from './format';
 
-/** Điểm trừ lưu dạng chuỗi thập phân ("1.50") → hiện "−1,5"; chưa có → "—". */
+/** Điểm trừ lưu dạng chuỗi thập phân ("1.50") → hiện "−1,5"; chưa có → "-". */
 export function formatDeductionString(deduction: string | null): string {
-  if (deduction === null) return '—';
+  if (deduction === null) return '-';
   const n = Number(deduction);
   if (n === 0) return '0';
   return formatVnPoints(-n);
@@ -29,11 +29,11 @@ export function parseDeductionInput(raw: string): { ok: true; value: string | nu
 }
 
 /**
- * Kết quả tính lại đọc bằng lời. `null` = lỗi do AI đọc bài không áp ngược cho bài đã chấm (T-FAIR-1) — nói ra,
+ * Kết quả tính lại đọc bằng lời. `null` = lỗi do AI đọc bài không áp ngược cho bài đã chấm (T-FAIR-1) - nói ra,
  * không im lặng.
  */
 export function describeRecompute(r: RecomputeSummary | null): string {
-  if (r === null) return 'Lỗi này không tính lại bài nào đã chấm — chỉ áp cho phiên chấm sau.';
+  if (r === null) return 'Lỗi này không tính lại bài nào đã chấm - chỉ áp cho phiên chấm sau.';
   if (r.recomputed === 0) return 'Không có bài nào bị ảnh hưởng.';
   const parts: string[] = [];
   if (r.promoted > 0) parts.push(`${r.promoted} bài đủ điều kiện tự quyết`);

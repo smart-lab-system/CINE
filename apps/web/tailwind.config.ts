@@ -2,7 +2,7 @@ import type { Config } from 'tailwindcss';
 import tailwindcssAnimate from 'tailwindcss-animate';
 
 /**
- * Every value here points at a CSS variable declared in src/app/globals.css —
+ * Every value here points at a CSS variable declared in src/app/globals.css -
  * nothing is a literal colour, radius or shadow. That's what makes the token
  * system enforceable: a component can only reach a colour by naming a token,
  * so there is no "one page uses a slightly different grey" drift, and dark
@@ -109,7 +109,7 @@ const config: Config = {
         body: ['0.875rem', { lineHeight: '1.5' }],
         small: ['0.8125rem', { lineHeight: '1.5' }],
         caption: ['0.75rem', { lineHeight: '1.4', letterSpacing: '0.01em', fontWeight: '500' }],
-        // Projector-scale — the exam session code read from across a room.
+        // Projector-scale - the exam session code read from across a room.
         beacon: ['4.5rem', { lineHeight: '1', letterSpacing: '0.28em', fontWeight: '700' }],
       },
       fontFamily: {
@@ -117,7 +117,7 @@ const config: Config = {
         // Vietnamese diacritics well at small sizes, which matters more
         // here than a second display face would: this UI is mostly dense
         // tables and forms. `font-display` is kept as an alias (rather
-        // than deleted) so existing markup keeps compiling — it now means
+        // than deleted) so existing markup keeps compiling - it now means
         // "heading treatment", carried by weight and tracking, not by a
         // second font download.
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -141,7 +141,7 @@ const config: Config = {
       },
     },
   },
-  // Utility classes only (animate-in/fade-in/zoom-in etc.) — plain CSS
+  // Utility classes only (animate-in/fade-in/zoom-in etc.) - plain CSS
   // keyframes, not a JS animation runtime. Dialog/Sheet/DropdownMenu
   // open+close stay on CSS; GSAP is reserved for the sequenced page-enter,
   // the sliding sidebar rail, and stat count-ups (see src/lib/gsap.ts).

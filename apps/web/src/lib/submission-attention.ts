@@ -4,7 +4,7 @@ import type { SessionOverviewItem } from './api/submissions';
 /**
  * Phải khớp SUBMISSION_GRACE_PERIOD_MS
  * (apps/api/src/submission/submission.types.ts). Agent còn được nộp tới
- * endTime + 30' — kêu "thiếu bài" trong khoảng đó là báo động giả, xem
+ * endTime + 30' - kêu "thiếu bài" trong khoảng đó là báo động giả, xem
  * spec §4.2.
  */
 export const SUBMISSION_GRACE_MS = 30 * 60_000;
@@ -18,7 +18,7 @@ export type SessionPhase =
   /** Đã mở (active) nhưng chưa tới giờ bắt đầu. */
   | 'opened'
   | 'running'
-  /** Hết giờ (hoặc đã chốt tay) nhưng còn trong grace — file đang bay về. */
+  /** Hết giờ (hoặc đã chốt tay) nhưng còn trong grace - file đang bay về. */
   | 'collecting'
   | 'ended';
 
@@ -50,8 +50,8 @@ export type AttentionKind =
   | 'attended-no-submission'
   | 'partial'
   /**
-   * File nén đã về tới nơi (không phải 'partial' — đủ SỐ LƯỢNG deliverable)
-   * nhưng kiểm nội dung bên trong ra failed/unreadable — spec
+   * File nén đã về tới nơi (không phải 'partial' - đủ SỐ LƯỢNG deliverable)
+   * nhưng kiểm nội dung bên trong ra failed/unreadable - spec
    * 2026-09-21-archive-content-validation-design.md §8.3.
    */
   | 'archive-issue'
@@ -65,14 +65,14 @@ export interface AttentionReason {
   label: string;
   /** Ánh xạ sang màu ở tầng UI. Không dùng BadgeProps nữa: bảng dùng chấm
    *  tròn + chữ, không dùng pill (spec §5.4). `neutral` dành cho dòng chỉ
-   *  thông báo — tô nó màu cảnh báo là dạy giảng viên bỏ qua màu cảnh báo. */
+   *  thông báo - tô nó màu cảnh báo là dạy giảng viên bỏ qua màu cảnh báo. */
   tone: 'danger' | 'warning' | 'caution' | 'neutral';
   /** 1 gấp nhất. Bảng ưu tiên spec §1.2. */
   priority: 1 | 2 | 3 | 4;
 }
 
 /**
- * Chỉ ba trường quyết định phase — nhận kiểu cấu trúc chứ không nhận
+ * Chỉ ba trường quyết định phase - nhận kiểu cấu trúc chứ không nhận
  * `SessionOverviewItem`, để màn hình phòng thi (`ExamSessionResponse`)
  * dùng lại được cùng một luật thay vì viết bản thứ hai của nó.
  */
@@ -84,7 +84,7 @@ export interface SessionPhaseInput {
 
 /**
  * `collecting` và `completed` là trạng thái THẬT trong DB từ 2026-09-11,
- * nên đồng hồ không còn tiếng nói ở hai ca đó — đọc thẳng.
+ * nên đồng hồ không còn tiếng nói ở hai ca đó - đọc thẳng.
  *
  * Trước đó `completed` là trạng thái hậu-thi duy nhất và phải gánh cả hai
  * nghĩa, nên hàm này suy "đang thu bài" từ grace period. Giờ nó không
@@ -92,11 +92,11 @@ export interface SessionPhaseInput {
  * là đã có người chốt.
  *
  * Nhánh suy-từ-đồng-hồ ở cuối còn lại cho ĐÚNG MỘT ca: phiên vẫn
- * `active` mà đồng hồ đã qua `endTime` — lượt quét chạy mỗi 30 giây nên
+ * `active` mà đồng hồ đã qua `endTime` - lượt quét chạy mỗi 30 giây nên
  * có một quãng ngắn như vậy, và để nó hiện "Đang thi" trong quãng đó
  * là nói sai. Phiên `completed` tạo trước khi giai đoạn thu bài ra đời
  * (spec §9.3) đi qua nhánh `completed` ở trên và cho ra 'ended', đúng
- * như chúng vốn là. Đừng mở rộng nhánh cuối — giữ hai nguồn sự thật
+ * như chúng vốn là. Đừng mở rộng nhánh cuối - giữ hai nguồn sự thật
  * song song là đúng thứ nó từng gây ra.
  */
 export function getSessionPhase(item: SessionPhaseInput, now: number): SessionPhase {
@@ -118,7 +118,7 @@ export function getSessionPhase(item: SessionPhaseInput, now: number): SessionPh
   if (item.status === 'completed') {
     return 'ended';
   }
-  // scheduled = đã tạo chưa mở — luôn "upcoming" dù đồng hồ đã vào khung giờ
+  // scheduled = đã tạo chưa mở - luôn "upcoming" dù đồng hồ đã vào khung giờ
   // (spec 2026-10-18). Không suy "running" từ clock khi chưa open.
   if (item.status === 'scheduled') {
     return 'upcoming';
@@ -126,7 +126,7 @@ export function getSessionPhase(item: SessionPhaseInput, now: number): SessionPh
 
   const start = new Date(item.startTime).getTime();
   const end = new Date(item.endTime).getTime();
-  // Đã mở — tự động hoặc thủ công — nhưng chưa tới giờ làm bài.
+  // Đã mở - tự động hoặc thủ công - nhưng chưa tới giờ làm bài.
   if (item.status === 'active' && Number.isFinite(start) && now < start) {
     return 'opened';
   }
@@ -143,17 +143,17 @@ export function hasRatio(item: SessionOverviewItem): boolean {
 
 /**
  * Ba cổng chặn, theo đúng thứ tự:
- *  1. archived/closed  — giảng viên đã nói "đừng nhắc nữa" (spec §1.3)
- *  2. phải là `ended`  — grace period còn đang nhận file, kết luận lúc này là
+ *  1. archived/closed  - giảng viên đã nói "đừng nhắc nữa" (spec §1.3)
+ *  2. phải là `ended`  - grace period còn đang nhận file, kết luận lúc này là
  *                        báo động giả
- *  3. hasRatio         — không biết roster hoặc chưa khai file bắt buộc thì
+ *  3. hasRatio         - không biết roster hoặc chưa khai file bắt buộc thì
  *                        không thể nói ai thiếu
  *
  * `invalidFileCount` KHÔNG sinh lý do, và từ 2026-09-22 đây là một QUYẾT
  * ĐỊNH, không phải việc còn dở: `submission_status = 'invalid'` đã NGHỈ HƯU
  * (spec 2026-09-21-archive-content-validation-design.md §8.2). Mọi kết luận
  * về nội dung bài nộp đi qua `archiveIssueCount` ngay bên dưới. Đừng
- * implement nhánh `'invalid'` — nó sẽ là tín hiệu thứ hai cho cùng một mối
+ * implement nhánh `'invalid'` - nó sẽ là tín hiệu thứ hai cho cùng một mối
  * lo, đúng loại hai-nguồn-sự-thật mà dự án này đã hai lần phải đi dọn.
  */
 export function getAttentionReasons(
@@ -185,7 +185,7 @@ export function getAttentionReasons(
   }
   // Cùng bậc với 'partial' (priority 2, tone 'warning'): cả hai đều nghĩa
   // là "trông như đã nộp xong nhưng chưa thật sự đủ", và cả hai đòi cùng
-  // một hành động của giảng viên — nhắc em nộp lại rồi bấm "Thu lại".
+  // một hành động của giảng viên - nhắc em nộp lại rồi bấm "Thu lại".
   if (item.archiveIssueCount > 0) {
     reasons.push({
       kind: 'archive-issue',
@@ -219,7 +219,7 @@ export function getAttentionReasons(
   return reasons;
 }
 
-/** 5 = không cần chú ý; nhỏ hơn là gấp hơn. Phải nằm NGOÀI dải priority —
+/** 5 = không cần chú ý; nhỏ hơn là gấp hơn. Phải nằm NGOÀI dải priority -
  *  khi 'sat-elsewhere' (priority 4) ra đời, một sentinel bằng 4 sẽ xếp phiên
  *  chỉ-thi-bù ngang hàng với phiên chẳng có gì để nói. */
 function attentionRank(item: SessionOverviewItem, now: number): number {
@@ -242,14 +242,14 @@ export interface SessionGroup {
   key: string;
   className: string | null;
   sessions: SessionOverviewItem[];
-  /** Bao nhiêu phiên trong nhóm này cần chú ý — hiện ở header nhóm, §4.4. */
+  /** Bao nhiêu phiên trong nhóm này cần chú ý - hiện ở header nhóm, §4.4. */
   attentionCount: number;
 }
 
 /**
  * Nhóm theo LỚP. Phiên cần chú ý VẪN Ở LẠI nhóm gốc dù nó cũng hiện ở dải
  * ghim trên: nhóm phải là danh sách đầy đủ của lớp đó, nếu lọc bớt thì GV
- * duyệt theo lớp sẽ tưởng phiên đã bị xoá — spec §4.4.
+ * duyệt theo lớp sẽ tưởng phiên đã bị xoá - spec §4.4.
  *
  * Tầng "Môn" đã bỏ: hệ thống phục vụ một môn, nên nó là một mức lồng nhau
  * chỉ có đúng một nhánh.

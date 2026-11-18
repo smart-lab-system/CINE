@@ -8,13 +8,28 @@ import {
   getCatalog,
   getVersionBrowse,
   getVersionBrowseFile,
+  getVersionNormalizedSources,
+  postVersionJplagDemo,
   requestVersionExtract,
   type ExtractTreeNode,
+  type JplagDemoLanguage,
+  type JplagDemoResult,
+  type JplagDemoRunProfile,
+  type NormalizedSourcesView,
   type VersionBrowseView,
 } from '@/lib/api/ide-utilities';
+import { JplagComparisonViewer } from '@/components/jplag/jplag-comparison-viewer';
+
+const JPLAG_DEMO_LANGUAGE_OPTIONS: { value: JplagDemoLanguage; label: string }[] = [
+  { value: 'javascript', label: 'JavaScript / JSX' },
+  { value: 'typescript', label: 'TypeScript / TSX' },
+  { value: 'cpp', label: 'C / C++' },
+  { value: 'python3', label: 'Python' },
+  { value: 'java', label: 'Java' },
+];
 
 function formatSize(bytes: number | null | undefined) {
-  if (bytes == null || Number.isNaN(bytes)) return '—';
+  if (bytes == null || Number.isNaN(bytes)) return '-';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -118,6 +133,18 @@ export default function IdeExtensionVersionBrowsePage() {
   const [folderPath, setFolderPath] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<string[] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [viewMode, setViewMode] = useState<'files' | 'normalized'>('files');
+  const [normalized, setNormalized] = useState<NormalizedSourcesView | null>(null);
+  const [normalizedBusy, setNormalizedBusy] = useState(false);
+  const [normalizedError, setNormalizedError] = useState<string | null>(null);
+  const [selectedSnippetId, setSelectedSnippetId] = useState<string | null>(null);
+  const [jplagLanguage, setJplagLanguage] = useState<JplagDemoLanguage>('javascript');
+  const [jplagZip, setJplagZip] = useState<File | null>(null);
+  const [jplagFolderFiles, setJplagFolderFiles] = useState<File[]>([]);
+  const [jplagBusy, setJplagBusy] = useState(false);
+  const [jplagError, setJplagError] = useState<string | null>(null);
+  const [jplagResult, setJplagResult] = useState<JplagDemoResult | null>(null);
+  const [jplagViewProfile, setJplagViewProfile] = useState<JplagDemoRunProfile>('text');
   const [preview, setPreview] = useState<{
     path: string;
     text: string | null;
@@ -221,16 +248,80 @@ export default function IdeExtensionVersionBrowsePage() {
     }
   };
 
+  const openNormalized = async () => {
+    setViewMode('normalized');
+    setNormalizedError(null);
+    if (normalized) return;
+    setNormalizedBusy(true);
+    try {
+      const data = await getVersionNormalizedSources(versionId);
+      setNormalized(data);
+      setSelectedSnippetId(data.items[0]?.id ?? null);
+    } catch (e) {
+      setNormalizedError(
+        e instanceof Error ? e.message : 'Không tải được mã đã chuẩn hóa.',
+      );
+    } finally {
+      setNormalizedBusy(false);
+    }
+  };
+
+  const selectedSnippet =
+    normalized?.items.find((i) => i.id === selectedSnippetId) ?? null;
+
+  const runJplagDemo = async () => {
+    setJplagError(null);
+    setJplagResult(null);
+    if (!jplagZip && jplagFolderFiles.length === 0) {
+      setJplagError('Chọn ZIP hoặc thư mục mã nguồn để so sánh.');
+      return;
+    }
+    setJplagBusy(true);
+    try {
+      const result = await postVersionJplagDemo(versionId, {
+        language: jplagLanguage,
+        archive: jplagZip,
+        files: jplagFolderFiles,
+      });
+      setJplagResult(result);
+      setJplagViewProfile('text');
+    } catch (e) {
+      setJplagError(e instanceof Error ? e.message : 'So sánh JPlag thất bại.');
+    } finally {
+      setJplagBusy(false);
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-[480px] flex-col gap-3">
       <PageHeader
         title="Xem nội dung VSIX"
         description={`${extensionLabel}${versionLabel ? ` · ${versionLabel}` : ''}`}
       />
-      <div className="text-sm">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
         <Link href={catalogHref} className="text-primary underline-offset-2 hover:underline">
           ← Quay lại catalog
         </Link>
+        {browse?.status === 'ready' ? (
+          viewMode === 'files' ? (
+            <button
+              type="button"
+              className="text-primary underline-offset-2 hover:underline disabled:opacity-50"
+              disabled={normalizedBusy}
+              onClick={() => void openNormalized()}
+            >
+              Xem mã đã chuẩn hóa
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="text-primary underline-offset-2 hover:underline"
+              onClick={() => setViewMode('files')}
+            >
+              ← Quay lại cây file VSIX
+            </button>
+          )
+        ) : null}
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -262,6 +353,197 @@ export default function IdeExtensionVersionBrowsePage() {
           >
             Bắt đầu giải nén
           </button>
+        </div>
+      ) : viewMode === 'normalized' ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          {normalized && normalized.items.length > 0 ? (
+            <div className="space-y-2 rounded-md border p-3 text-sm">
+              <p className="font-medium">So sánh demo (JPlag)</p>
+              <p className="text-xs text-muted-foreground">
+                Mỗi lần so luôn chạy hai profile: <code className="font-mono">text</code> và{' '}
+                <code className="font-mono">language</code> (JS/TS = SWC + parser). Cần Java + JAR
+                trên máy chạy API.
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-xs">
+                  Ngôn ngữ
+                  <select
+                    className="h-9 rounded-md border bg-background px-2 text-sm"
+                    value={jplagLanguage}
+                    onChange={(e) => setJplagLanguage(e.target.value as JplagDemoLanguage)}
+                  >
+                    {JPLAG_DEMO_LANGUAGE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-xs">
+                  ZIP
+                  <input
+                    type="file"
+                    accept=".zip,application/zip"
+                    className="max-w-[220px] text-xs"
+                    onChange={(e) => setJplagZip(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs">
+                  Thư mục
+                  <input
+                    type="file"
+                    className="max-w-[220px] text-xs"
+                    multiple
+                    ref={(el) => {
+                      if (!el) return;
+                      el.setAttribute('webkitdirectory', '');
+                      el.setAttribute('directory', '');
+                    }}
+                    onChange={(e) => setJplagFolderFiles(Array.from(e.target.files ?? []))}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={jplagBusy}
+                  className="h-9 rounded-md bg-primary px-3 text-primary-foreground disabled:opacity-50"
+                  onClick={() => void runJplagDemo()}
+                >
+                  {jplagBusy ? 'Đang so (text + language)…' : 'So sánh (demo JPlag)'}
+                </button>
+              </div>
+              {jplagFolderFiles.length > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Đã chọn thư mục: {jplagFolderFiles.length} file
+                </p>
+              ) : null}
+              {jplagError ? <p className="text-sm text-destructive">{jplagError}</p> : null}
+              {jplagResult ? (
+                <div className="space-y-3 text-sm">
+                  <p className="text-xs text-muted-foreground">{jplagResult.message}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {jplagResult.runs.map((run) => (
+                      <div
+                        key={run.profile}
+                        className={`rounded-md border p-2 ${
+                          jplagViewProfile === run.profile ? 'border-primary' : ''
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          className="w-full text-left"
+                          onClick={() => setJplagViewProfile(run.profile)}
+                        >
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            {run.profile}
+                          </p>
+                          <p className="text-lg font-semibold">
+                            {(run.similarity * 100).toFixed(1)}%
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            <code className="font-mono">-l {run.cliLanguage}</code>
+                            {' · '}
+                            {run.extensionFileCount}/{run.compareFileCount} files
+                          </p>
+                        </button>
+                        {run.reportUrl ? (
+                          <a
+                            href={run.reportUrl}
+                            className="mt-1 inline-block text-xs text-primary underline-offset-2 hover:underline"
+                            download={run.reportFilename ?? 'report.jplag'}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Tải .jplag
+                          </a>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  {jplagResult.reportExpiresIn ? (
+                    <p className="text-xs text-muted-foreground">
+                      Link tải hết hạn sau ~{Math.round(jplagResult.reportExpiresIn / 60)} phút.
+                    </p>
+                  ) : null}
+                  <div className="flex gap-2 text-xs">
+                    {(['text', 'language'] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={`rounded px-2 py-1 ${
+                          jplagViewProfile === p
+                            ? 'bg-primary text-primary-foreground'
+                            : 'border bg-background'
+                        }`}
+                        onClick={() => setJplagViewProfile(p)}
+                      >
+                        Xem highlight: {p}
+                      </button>
+                    ))}
+                  </div>
+                  {(() => {
+                    const run =
+                      jplagResult.runs.find((r) => r.profile === jplagViewProfile) ??
+                      jplagResult.runs[0];
+                    return run ? <JplagComparisonViewer run={run} /> : null;
+                  })()}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden rounded-md border md:grid-cols-[280px_1fr]">
+          <aside className="min-h-0 overflow-auto border-b bg-muted/20 p-2 md:border-b-0 md:border-r">
+            <p className="mb-2 px-1 text-xs text-muted-foreground">
+              Mã từ contributes.snippets
+              {normalized?.packageName ? ` · ${normalized.packageName}` : ''}
+            </p>
+            {normalizedBusy ? (
+              <p className="px-1 text-sm text-muted-foreground">Đang chuẩn hóa…</p>
+            ) : normalizedError ? (
+              <p className="px-1 text-sm text-destructive">{normalizedError}</p>
+            ) : !normalized || normalized.items.length === 0 ? (
+              <p className="px-1 text-sm text-muted-foreground">
+                {normalized?.mode === 'none'
+                  ? 'Không tìm thấy contributes.snippets trong package.json.'
+                  : 'Không có snippet nào.'}
+              </p>
+            ) : (
+              normalized.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left text-sm hover:bg-muted ${
+                    selectedSnippetId === item.id ? 'bg-muted' : ''
+                  }`}
+                  onClick={() => setSelectedSnippetId(item.id)}
+                >
+                  <span className="truncate font-mono text-xs">{item.prefix}</span>
+                  <span className="truncate text-xs text-muted-foreground">{item.title}</span>
+                </button>
+              ))
+            )}
+          </aside>
+          <section className="flex min-h-0 min-w-0 flex-col">
+            <div className="border-b px-3 py-2 text-xs text-muted-foreground">
+              {selectedSnippet ? (
+                <>
+                  <span className="font-mono text-foreground">{selectedSnippet.prefix}</span>
+                  {selectedSnippet.truncated ? ' · đã cắt bớt' : ''}
+                  {' · '}
+                  <span className="font-mono">{selectedSnippet.path}</span>
+                </>
+              ) : (
+                'Chọn một snippet để xem mã đã bung từ body.'
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              {selectedSnippet ? (
+                <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
+                  {selectedSnippet.content}
+                </pre>
+              ) : null}
+            </div>
+          </section>
+        </div>
         </div>
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden rounded-md border md:grid-cols-[260px_1fr]">
@@ -385,7 +667,7 @@ export default function IdeExtensionVersionBrowsePage() {
                               {node.type === 'dir' ? 'Thư mục' : 'File'}
                             </td>
                             <td className="px-3 py-2 text-muted-foreground">
-                              {node.type === 'file' ? formatSize(node.size) : '—'}
+                              {node.type === 'file' ? formatSize(node.size) : '-'}
                             </td>
                           </tr>
                         );

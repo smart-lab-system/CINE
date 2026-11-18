@@ -1,0 +1,14 @@
+Bạn được cung cấp một mảng arr[] chứa các số nguyên dương. Các phần tử trong mảng arr[] nằm trong phạm vi từ 1 đến n (với n là kích thước của mảng), và một số số có thể bị lặp lại hoặc vắng mặt. Nhiệm vụ của bạn là đếm tần suất của tất cả các số trong phạm vi từ 1 đến n và trả về một mảng có kích thước n sao cho result[i] biểu diễn tần suất của số i (1-based indexing).
+Ví dụ:
+Đầu vào: arr[] = [2, 3, 2, 3, 5]
+Đầu ra: [0, 2, 2, 0, 1]
+Giải thích: Chúng ta có: 1 xuất hiện 0 lần, 2 xuất hiện 2 lần, 3 xuất hiện 2 lần, 4 xuất hiện 0 lần, và 5 xuất hiện 1 lần.
+Đầu vào: arr[] = [3, 3, 3, 3]
+Đầu ra: [0, 0, 4, 0]
+Giải thích: Chúng ta có: 1 xuất hiện 0 lần, 2 xuất hiện 0 lần, 3 xuất hiện 4 lần, và 4 xuất hiện 0 lần.
+Đầu vào: arr[] = [1]
+Đầu ra: [1]
+Giải thích: Chúng ta có: 1 xuất hiện 1 lần, và không có số nào khác giữa 1 và kích thước của mảng.
+Ràng buộc:
+1 ≤ arr.size() ≤ 106
+1 ≤ arr[i] ≤ arr.size()

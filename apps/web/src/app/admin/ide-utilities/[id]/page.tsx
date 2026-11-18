@@ -17,7 +17,7 @@ import {
 } from '@/lib/api/ide-utilities';
 
 function formatDate(value: string | null) {
-  if (!value) return '—';
+  if (!value) return '-';
   try {
     return new Date(value).toLocaleDateString('vi-VN');
   } catch {
@@ -26,7 +26,7 @@ function formatDate(value: string | null) {
 }
 
 function formatDateTime(value: string | null) {
-  if (!value) return '—';
+  if (!value) return '-';
   try {
     return new Date(value).toLocaleString('vi-VN');
   } catch {
@@ -174,7 +174,7 @@ export default function IdeUtilityDetailPage() {
                 setInfo(
                   res.refreshed
                     ? 'Đã cập nhật metadata từ Marketplace.'
-                    : 'Không lấy được dữ liệu Marketplace — giữ thông tin hiện tại.',
+                    : 'Không lấy được dữ liệu Marketplace - giữ thông tin hiện tại.',
                 );
               })
             }
@@ -282,7 +282,7 @@ export default function IdeUtilityDetailPage() {
                             ) : null}
                           </span>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </td>
                       <td className="space-x-2 px-3 py-2.5 text-right">

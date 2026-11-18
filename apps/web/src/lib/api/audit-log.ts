@@ -1,7 +1,7 @@
 import { getAccessToken } from '@/lib/auth-token';
 
 /**
- * Nhật ký thao tác (chỉ đọc, chỉ admin). API chỉ trả TÊN các trường đã đổi — không có giá trị cũ hay mới.
+ * Nhật ký thao tác (chỉ đọc, chỉ admin). API chỉ trả TÊN các trường đã đổi - không có giá trị cũ hay mới.
  * Route chưa có trong schema đã sinh, nên gọi bằng fetch với cùng cách gắn Bearer như `api-client.ts`.
  */
 export interface AuditLogItem {

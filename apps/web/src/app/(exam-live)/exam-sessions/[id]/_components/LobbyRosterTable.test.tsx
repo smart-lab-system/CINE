@@ -62,7 +62,7 @@ function renderTable(
   return { onFilterChange, onConfirm };
 }
 
-describe('LobbyRosterTable — toolbar', () => {
+describe('LobbyRosterTable - toolbar', () => {
   it('shows Xác nhận sĩ số and calls onConfirm', () => {
     const { onConfirm } = renderTable([]);
     fireEvent.click(screen.getByRole('button', { name: /Xác nhận sĩ số/ }));
@@ -133,7 +133,7 @@ describe('LobbyRosterTable — toolbar', () => {
   });
 });
 
-describe('LobbyRosterTable — merged row', () => {
+describe('LobbyRosterTable - merged row', () => {
   it('shows Có mặt, late note, and Chưa nộp on one row', () => {
     renderTable([
       row({
@@ -168,7 +168,7 @@ describe('LobbyRosterTable — merged row', () => {
   });
 });
 
-describe('LobbyRosterTable — search', () => {
+describe('LobbyRosterTable - search', () => {
   it('filters by name and combines with present filter', () => {
     render(
       <LobbyRosterTable

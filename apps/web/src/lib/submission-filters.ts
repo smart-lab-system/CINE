@@ -6,7 +6,7 @@ export interface FilterState {
   /** null = tất cả học kỳ. */
   semesterName: string | null;
   kinds: AttentionKind[];
-  /** Lọc "đã đủ" — phiên ended không lý do nào. */
+  /** Lọc "đã đủ" - phiên ended không lý do nào. */
   complete: boolean;
   examTypes: string[];
   rooms: string[];
@@ -26,7 +26,7 @@ export const EMPTY_FILTERS: FilterState = {
 
 export interface FacetOption { value: string; label: string; count: number }
 
-/** Ẩn/hiện theo vòng đời. `archived` thắng `closed` — spec §4.3. */
+/** Ẩn/hiện theo vòng đời. `archived` thắng `closed` - spec §4.3. */
 function passesLifecycle(item: SessionOverviewItem, f: FilterState): boolean {
   if (item.archivedAt !== null) return f.showArchived;
   if (item.attentionClosedAt !== null) return f.showClosed;
@@ -85,7 +85,7 @@ function countBy(
 
 /**
  * Số đếm của mỗi nhóm được tính với các bộ lọc KHÁC đang bật, nhưng KHÔNG
- * tính chính nhóm đó — nếu không, bật "A3-01" sẽ đưa "A3-02" về 0 và giảng
+ * tính chính nhóm đó - nếu không, bật "A3-01" sẽ đưa "A3-02" về 0 và giảng
  * viên không bao giờ chọn thêm được phòng thứ hai.
  */
 export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: number) {
@@ -129,11 +129,11 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
   );
   const semesters = countBy(items, (i) => i.semesterName, (i) => i.semesterName);
 
-  // Một nhóm lọc chỉ có một lựa chọn là nhiễu — UI không render nó. Spec §4.3.
+  // Một nhóm lọc chỉ có một lựa chọn là nhiễu - UI không render nó. Spec §4.3.
   const meaningful = (o: FacetOption[]) => (o.length > 1 ? o : []);
 
   return {
-    // `semesters` KHÔNG qua `meaningful` — ngoại lệ có chủ đích, xem chú
+    // `semesters` KHÔNG qua `meaningful` - ngoại lệ có chủ đích, xem chú
     // thích ở FilterRail. Lớp thì qua, vì nó là một thuộc tính của phiên
     // đúng như phòng và loại kỳ thi, không phải chiều thời gian.
     semesters,
@@ -149,7 +149,7 @@ export function buildFacets(items: SessionOverviewItem[], f: FilterState, now: n
 /**
  * Cảnh báo hỏng-theo-phòng: mọi phiên đỏ đang xem cùng một phòng, >=2 phiên,
  * trải >=2 LỚP. Điều kiện thứ hai để không kêu oan khi một lớp thi nhiều ca ở
- * phòng cố định của nó — lúc đó thứ chung là cái lớp, không phải cái phòng.
+ * phòng cố định của nó - lúc đó thứ chung là cái lớp, không phải cái phòng.
  * Spec §5.5.
  *
  * Mẫu số từng là "môn", và từ lúc hệ thống chốt phục vụ một môn thì

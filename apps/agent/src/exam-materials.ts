@@ -1,8 +1,8 @@
 /**
  * Fetching the exam materials, and writing the instructions sheet.
  *
- * Both replace something a teacher used to do by hand — emailing a question
- * paper round, or reading the required filenames out loud — with something
+ * Both replace something a teacher used to do by hand - emailing a question
+ * paper round, or reading the required filenames out loud - with something
  * derived from data the server already holds. Neither asks the student for
  * anything, which is the constraint the agent lives under.
  *
@@ -154,7 +154,7 @@ export interface InstructionsInput {
   studentId: string;
   endTime: string;
   /**
-   * Thay `requiredFiles: string[]` cũ — giữ cả hai là đúng kiểu "hai sự
+   * Thay `requiredFiles: string[]` cũ - giữ cả hai là đúng kiểu "hai sự
    * thật có thể lệch nhau" mà chính module này đang cố tránh (xem
    * `RequiredDeliverableEntryEntity`/`filename-template.ts` phía backend,
    * cùng lý lẽ). `entries` rỗng = không kiểm bên trong.
@@ -167,7 +167,7 @@ export interface InstructionsInput {
  * The sheet that replaces reading the rules out loud.
  *
  * Generated from what the server already declared, so it cannot disagree
- * with what will actually be collected — the filenames here are the exact
+ * with what will actually be collected - the filenames here are the exact
  * ones the agent created and the exact ones that will be uploaded. Plain
  * text on purpose: it is read, not edited, and every machine can open it
  * without anything installed.
@@ -189,7 +189,7 @@ export function renderInstructions(input: InstructionsInput): string {
     `  ${input.sessionName}`,
     '===========================================================',
     '',
-    `Sinh viên : ${input.studentName ?? '(chưa xác định)'} — MSSV ${input.studentId}`,
+    `Sinh viên : ${input.studentName ?? '(chưa xác định)'} - MSSV ${input.studentId}`,
     `Hết giờ   : ${endText}`,
     '',
     '-- BÀI LÀM PHẢI CÓ ĐÚNG NHỮNG FILE SAU -------------------',
@@ -199,14 +199,14 @@ export function renderInstructions(input: InstructionsInput): string {
   for (const { filename, entries } of input.requiredDeliverables) {
     lines.push(`  * ${filename}`);
 
-    // `.rar`: sự thật TĨNH về đuôi file — tự kiểm ở đây, không nhận qua
+    // `.rar`: sự thật TĨNH về đuôi file - tự kiểm ở đây, không nhận qua
     // tham số. Không có cách nào hợp lệ tạo trước một RAR rỗng (xem
-    // workspace-files.ts) — sinh viên PHẢI biết trước, không phải lúc
+    // workspace-files.ts) - sinh viên PHẢI biết trước, không phải lúc
     // đang bối rối nhìn một file không mở ra được.
     if (archiveKindOf(filename) === 'rar') {
       lines.push(
         '      - Hệ thống KHÔNG tạo trước được file .rar này (không có công cụ',
-        '        nén .rar cài sẵn) — tự nén bằng WinRAR, đặt đúng tên như trên.',
+        '        nén .rar cài sẵn) - tự nén bằng WinRAR, đặt đúng tên như trên.',
       );
     }
 
@@ -240,7 +240,7 @@ export function renderInstructions(input: InstructionsInput): string {
     'Bài làm được sao lưu tự động vài phút một lần, nên máy hỏng giữa',
     'chừng vẫn lấy lại được.',
     '',
-    'File này do hệ thống tạo ra và sẽ bị ghi đè — đừng ghi bài vào đây.',
+    'File này do hệ thống tạo ra và sẽ bị ghi đè - đừng ghi bài vào đây.',
     '',
   );
 
@@ -251,7 +251,7 @@ export function renderInstructions(input: InstructionsInput): string {
  * Writes the sheet, overwriting any earlier one.
  *
  * Overwrite, not `wx`: this is generated from the server's own data, so
- * the freshest version is always the correct one — and a stale copy
+ * the freshest version is always the correct one - and a stale copy
  * restored from a backup would otherwise outlive the truth. It is the one
  * file in the workspace the student is told not to write in.
  */

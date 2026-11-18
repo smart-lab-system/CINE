@@ -1,0 +1,20 @@
+Trung vị của 2 mảng đã sắp xếp 
+Solution 1: Cách tiếp cận ngây thơ (Sử dụng Sorting)
+1. Merge hai mảng thành một mảng duy nhất [1 mark]
+2. Sắp xếp mảng đã merge [1 mark]
+3. Đối với mảng đã merge có độ dài lẻ, trả về phần tử ở giữa [1 mark]
+4. Đối với mảng đã merge có độ dài chẵn, trả về trung bình cộng của hai phần tử ở giữa [1 mark]
+Solution 2: Cách tiếp cận tốt hơn (Sử dụng phép Merge của Merge Sort)
+1. Khởi tạo hai con trỏ để duyệt hai mảng [1 mark]
+2. Duyệt cả hai mảng trong khi theo dõi các phần tử ở giữa [1 mark]
+3. Dừng duyệt khi tổng số lượng phần tử đạt (n + m) / 2 [1 mark]
+4. Đối với tổng số phần tử lẻ, trả về phần tử ở giữa [1 mark]
+5. Đối với tổng số phần tử chẵn, trả về trung bình cộng của hai phần tử ở giữa [1 mark]
+Solution 3: Cách tiếp cận kỳ vọng (Sử dụng Binary Search)
+1. Xác định mảng nào nhỏ hơn để thực hiện binary search trên đó [1 mark]
+2. Khởi tạo các giá trị low và high cho binary search trên mảng nhỏ hơn [1 mark]
+3. Tính toán các điểm mid để phân hoạch (partition) chính xác cả hai mảng [1 mark]
+4. Kiểm tra tính hợp lệ của phân hoạch bằng cách kiểm tra các điều kiện chéo biên (cross-boundary conditions) [1 mark]
+5. Đối với phân hoạch hợp lệ có tổng số phần tử lẻ, trả về giá trị lớn nhất của phân hoạch bên trái [1 mark]
+6. Đối với phân hoạch hợp lệ có tổng số phần tử chẵn, trả về trung bình cộng của max bên trái và min bên phải [1 mark]
+7. Điều chỉnh các ranh giới binary search nếu phân hoạch không hợp lệ [1 mark]

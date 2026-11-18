@@ -12,7 +12,7 @@ interface PlaceholderPageProps {
 
 /**
  * A structured "sắp có" state for a nav item whose real page hasn't been
- * built yet — a real route, real title, real layout, instead of a missing
+ * built yet - a real route, real title, real layout, instead of a missing
  * menu entry or a blank page. Replaced by the real page's content in a
  * later phase; the nav link never dangles in the meantime.
  *

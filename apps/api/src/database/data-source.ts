@@ -16,12 +16,15 @@ import { AgentConnectionEventEntity } from '../agent-connection/entities/agent-c
 import { SubmissionEntity } from '../submission/entities/submission.entity';
 import { RubricEntity } from '../grading/entities/rubric.entity';
 import { RubricCriterionEntity } from '../grading/entities/rubric-criterion.entity';
+import { RubricApproachEntity } from '../grading/entities/rubric-approach.entity';
 import { GradingResultEntity } from '../grading/entities/grading-result.entity';
 import { TeacherReviewEntity } from '../grading/entities/teacher-review.entity';
 import { GradeExportEntity } from '../grading/entities/grade-export.entity';
 import { GradeExportRowEntity } from '../grade-export/entities/grade-export-row.entity';
 import { CalibrationRunEntity } from '../calibration/entities/calibration-run.entity';
 import { AiUsageEntity } from '../exam-authoring/entities/ai-usage.entity';
+import { CourseExamEntity } from '../exam-bank/entities/course-exam.entity';
+import { CourseExamQuestionEntity } from '../exam-bank/entities/course-exam-question.entity';
 import { AuditLogEntity } from '../admin/entities/audit-log.entity';
 import { RubricTemplateEntity } from '../admin/entities/rubric-template.entity';
 import { CostBudgetEntity } from '../admin/entities/cost-budget.entity';
@@ -49,6 +52,7 @@ import { RoomEntity } from '../master-data/entities/room.entity';
 import { ComputerEntity } from '../master-data/entities/computer.entity';
 import { IdeExtensionEntity } from '../ide-extensions/entities/ide-extension.entity';
 import { IdeExtensionVersionEntity } from '../ide-extensions/entities/ide-extension-version.entity';
+import { IdeExtensionJplagRunEntity } from '../ide-extensions/entities/ide-extension-jplag-run.entity';
 import { IdeExtensionPolicyEntity } from '../ide-extensions/entities/ide-extension-policy.entity';
 import { IdeExtensionPolicyItemEntity } from '../ide-extensions/entities/ide-extension-policy-item.entity';
 import { IdeExtensionScanEntity } from '../ide-extensions/entities/ide-extension-scan.entity';
@@ -58,6 +62,7 @@ import { LabMgmtSessionEntity } from '../ide-extensions/entities/lab-mgmt-sessio
 import { LabMgmtMachineEntity } from '../ide-extensions/entities/lab-mgmt-machine.entity';
 import { LabRoomProposalEntity } from '../ide-extensions/entities/lab-room-proposal.entity';
 import { LabRoomProposalMachineEntity } from '../ide-extensions/entities/lab-room-proposal-machine.entity';
+import { PlaygroundRunEntity } from '../playground/entities/playground-run.entity';
 
 /**
  * TLS for the Postgres connection, decided by env so one build runs
@@ -125,6 +130,7 @@ export const dataSourceOptions: DataSourceOptions = {
     SubmissionEntity,
     RubricEntity,
     RubricCriterionEntity,
+    RubricApproachEntity,
     GradingResultEntity,
     GradingReferenceEntity,
     ExamProblemEntity,
@@ -134,6 +140,8 @@ export const dataSourceOptions: DataSourceOptions = {
     GradeExportRowEntity,
     CalibrationRunEntity,
     AiUsageEntity,
+    CourseExamEntity,
+    CourseExamQuestionEntity,
     AuditLogEntity,
     RubricTemplateEntity,
     CostBudgetEntity,
@@ -161,6 +169,7 @@ export const dataSourceOptions: DataSourceOptions = {
     ComputerEntity,
     IdeExtensionEntity,
     IdeExtensionVersionEntity,
+    IdeExtensionJplagRunEntity,
     IdeExtensionPolicyEntity,
     IdeExtensionPolicyItemEntity,
     IdeExtensionScanEntity,
@@ -170,6 +179,7 @@ export const dataSourceOptions: DataSourceOptions = {
     LabMgmtMachineEntity,
     LabRoomProposalEntity,
     LabRoomProposalMachineEntity,
+    PlaygroundRunEntity,
   ],
   migrations: [__dirname + '/migrations/*.{js,ts}'],
   // The initial migration's SQL file already wraps itself in BEGIN/COMMIT

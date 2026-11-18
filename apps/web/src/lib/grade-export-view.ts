@@ -14,7 +14,7 @@ const SCORE = /^(\d{1,4})(?:\.(\d{1,2}))?$/;
 
 /** "7.25" → "7,25", "8.50" → "8,5": chuỗi thập phân của API → chữ hiển thị, không qua số thực để LÀM TOÁN. */
 export function scoreText(score: string | null): string {
-  if (score === null) return '—';
+  if (score === null) return '-';
   const match = SCORE.exec(score);
   if (!match) return score;
   return formatVnHundredths(Number(match[1]) * 100 + (match[2] ? Number(match[2].padEnd(2, '0')) : 0));
@@ -62,24 +62,24 @@ export function causeTallyText(c: CauseTally): string {
   return `${label} (${c.students} bài)`;
 }
 
-/** "Không làm tròn" / "Làm tròn 0,5" — cho danh sách lượt xuất trước. */
+/** "Không làm tròn" / "Làm tròn 0,5" - cho danh sách lượt xuất trước. */
 export function roundingText(step: number): string {
   const option = ROUNDING_OPTIONS.find((o) => o.value === step);
   return step === 1 || !option ? 'Không làm tròn' : `Làm tròn ${option.label}`;
 }
 
-/** "↓ Giảm — trước đã ghi 7,5, do luật …": chiều bằng mũi tên VÀ chữ (spec §3.6). */
+/** "↓ Giảm - trước đã ghi 7,5, do luật …": chiều bằng mũi tên VÀ chữ (spec §3.6). */
 export function directionText(row: Pick<PlanRowView, 'direction' | 'previousScore' | 'causes'>): string {
   const because = row.causes.length > 0 ? `, do ${causesText(row.causes)}` : '';
   switch (row.direction) {
     case 'down':
-      return `↓ Giảm — trước đã ghi ${scoreText(row.previousScore)}${because}`;
+      return `↓ Giảm - trước đã ghi ${scoreText(row.previousScore)}${because}`;
     case 'up':
-      return `↑ Tăng — trước đã ghi ${scoreText(row.previousScore)}${because}`;
+      return `↑ Tăng - trước đã ghi ${scoreText(row.previousScore)}${because}`;
     case 'same':
       return 'Không đổi so với lần ghi trước';
     case 'new':
-      return 'Mới — chưa từng ghi';
+      return 'Mới - chưa từng ghi';
     default:
       return '';
   }
@@ -120,7 +120,7 @@ const REPORT_HEADER = ['Dòng', 'MSSV', 'Họ tên', 'Lý do ô trống', 'Ghi c
 
 /**
  * Bảng kê ô trống theo lý do (§13.1 luật 5): dòng để trống hoặc giữ nguyên ô, cộng sinh viên KHÔNG có dòng trong file
- * mà cũng không có điểm. BOM (U+FEFF) ở đầu để Excel đọc tên tiếng Việt đúng; `csvField` chặn công thức (CWE-1236) —
+ * mà cũng không có điểm. BOM (U+FEFF) ở đầu để Excel đọc tên tiếng Việt đúng; `csvField` chặn công thức (CWE-1236) -
  * họ tên là chữ người dùng nhập, không phải hằng của hệ thống.
  */
 export function blankReportCsv(plan: Pick<PlanResponse, 'rows' | 'notInFile'>): string {
@@ -168,7 +168,7 @@ export interface ColumnChoice {
   deliverableId: string;
 }
 
-/** Không cột nào, không dòng nào được chọn sẵn — kể cả khi tiêu đề ghi "MSSV" (rule 9). */
+/** Không cột nào, không dòng nào được chọn sẵn - kể cả khi tiêu đề ghi "MSSV" (rule 9). */
 export const EMPTY_CHOICE: ColumnChoice = { sheetName: '', firstDataRow: null, mssvColumn: '', scoreColumn: '', reasonColumn: '', deliverableId: '' };
 
 export function columnsReady(choice: ColumnChoice, needsDeliverable: boolean): { ok: boolean; hints: string[] } {
@@ -197,7 +197,7 @@ export function toPlanBase(templateId: string, choice: ColumnChoice): PlanBase {
   };
 }
 
-/** Số ô của cột đã có giá trị TRONG PHẦN LƯỚI ĐANG HIỆN — con số thật do server đếm ở bước sau. */
+/** Số ô của cột đã có giá trị TRONG PHẦN LƯỚI ĐANG HIỆN - con số thật do server đếm ở bước sau. */
 export function sampledOverwriteCount(grid: InspectGrid, column: string, firstDataRow: number): number {
   const index = grid.columns.indexOf(column);
   if (index < 0) return 0;

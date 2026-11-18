@@ -1,0 +1,19 @@
+Vòng tròn chuỗi (Circle of strings)
+
+Solution 1: Sử dụng đồ thị và Chu trình Euler (Using Graph and Eulerian Circuit)
+1. Tạo một directed graph trong đó mỗi đỉnh đại diện cho một ký tự (các ký tự đầu và cuối của các chuỗi). [1 mark]
+2. Đối với mỗi chuỗi trong mảng, thêm một cạnh có hướng từ ký tự đầu tiên đến ký tự cuối cùng của chuỗi. [1 mark]
+3. Kiểm tra xem mọi đỉnh trong đồ thị có bán bậc vào (in-degree) bằng bán bậc ra (out-degree) hay không (điều kiện cần cho chu trình Euler / Eulerian circuit). [1 mark]
+4. Xác minh rằng tất cả các đỉnh có bậc khác không tạo thành một thành phần liên thông mạnh (strongly connected component) duy nhất (sử dụng DFS hoặc thuật toán tương tự). [1 mark]
+
+Solution 2: Đếm tần suất ký tự (Character Frequency Counting)
+1. Đếm tần suất của từng ký tự xuất hiện ở đầu và ở cuối tất cả các chuỗi. [1 mark]
+2. Đối với mỗi ký tự duy nhất, kiểm tra xem tần suất của nó ở đầu chuỗi có bằng tần suất ở cuối chuỗi hay không. [1 mark]
+3. Đảm bảo rằng đồ thị được tạo bởi các chuỗi là liên thông (có thể kiểm tra bằng cách xây dựng adjacency list và thực hiện DFS). [1 mark]
+4. Trả về true nếu cả hai điều kiện đều được thỏa mãn (tần suất cân bằng và đồ thị liên thông), ngược lại trả về false. [1 mark]
+
+Solution 3: Sử dụng danh sách kề trực tiếp (Direct Adjacency List Approach)
+1. Tạo một adjacency list trong đó mỗi node đại diện cho một chuỗi, và các cạnh đại diện cho khả năng liên kết hai chuỗi. [1 mark]
+2. Đối với mỗi chuỗi, xác định tất cả các chuỗi khác có thể liên kết sau nó (ký tự cuối của chuỗi hiện tại = ký tự đầu của chuỗi tiếp theo). [1 mark]
+3. Kiểm tra xem mỗi chuỗi có thể liên kết với đúng hai chuỗi khác (một chuỗi phía trước và một chuỗi phía sau) hay không. [1 mark]
+4. Xác minh rằng các liên kết này tạo thành một chu trình duy nhất chứa tất cả các chuỗi (bằng cách duyệt adjacency list). [1 mark]

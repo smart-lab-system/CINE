@@ -3,12 +3,12 @@
  * workspace folder. Extracted from cli.ts (ported verbatim, no behavior
  * change) so session-controller.ts could reuse it without pulling in
  * cli.ts's own `main()` module-level side effect (cli.ts itself is now
- * retired — design spec §8.4 — but the extraction it prompted stands on
- * its own merit regardless), and so this — the core security property
- * this whole area exists to prove — has direct unit test coverage of its
+ * retired - design spec §8.4 - but the extraction it prompted stands on
+ * its own merit regardless), and so this - the core security property
+ * this whole area exists to prove - has direct unit test coverage of its
  * own, which it did not have before this extraction.
  *
- * Layered, independently-redundant checks — a regex-only check can miss
+ * Layered, independently-redundant checks - a regex-only check can miss
  * encoding tricks that only surface once the path is actually resolved,
  * so the resolved-path prefix check is the real defense; the checks
  * before it exist to fail fast with a specific, readable reason before
@@ -23,7 +23,7 @@ export const WORKSPACE_DIRNAME = 'exam-workspace';
 
 // Mirrors SAFE_FILENAME_CHARSET_REGEX's character class from
 // apps/api/src/exam-session/dto/create-exam-session.dto.ts. That regex
-// protects a DIFFERENT trust boundary — it validates what a *teacher* may
+// protects a DIFFERENT trust boundary - it validates what a *teacher* may
 // declare when creating a session. This one re-validates what the *server*
 // echoes back to THIS process over the wire in `agent:join:ack`. The
 // backend having already validated the filename at write time is not a
@@ -34,10 +34,10 @@ export const SAFE_FILENAME_CHARSET_REGEX = /^[A-Za-z0-9_.-]+$/;
 
 // Windows treats these as reserved device names REGARDLESS of extension or
 // case ("NUL.txt" still resolves to the NUL device, not a file called
-// "NUL.txt") — none of them are caught by the checks above (no separator,
+// "NUL.txt") - none of them are caught by the checks above (no separator,
 // no "..", pure letters/digits), so a required filename equal to one would
 // silently write to a device instead of a real file. Checked defensively
-// on every platform — this app's real deployment target is Windows lab
+// on every platform - this app's real deployment target is Windows lab
 // machines.
 const WINDOWS_RESERVED_DEVICE_NAMES = new Set([
   'con', 'prn', 'aux', 'nul',
@@ -67,7 +67,7 @@ export function validateFilename(workspaceDir: string, filename: unknown): Filen
       reason: `chứa ký tự không cho phép (chỉ cho phép chữ/số/_/-/.): "${filename}"`,
     };
   }
-  // "NUL", "NUL.txt", "com1.py", ... — the part before the first "." is
+  // "NUL", "NUL.txt", "com1.py", ... - the part before the first "." is
   // what Windows matches against the reserved device name, case-insensitive.
   if (WINDOWS_RESERVED_DEVICE_NAMES.has(filename.split('.')[0].toLowerCase())) {
     return {
@@ -93,7 +93,7 @@ export function validateFilename(workspaceDir: string, filename: unknown): Filen
 
 /**
  * studentId is LOCAL input (typed into the join form) rather than
- * server-supplied — but it still becomes a directory name
+ * server-supplied - but it still becomes a directory name
  * (`./exam-workspace/<studentId>/`), so it gets the same allow-list
  * treatment before this process ever touches the filesystem with it.
  */
@@ -106,19 +106,19 @@ export function isErrnoException(error: unknown): error is NodeJS.ErrnoException
 }
 
 /**
- * 22 byte "End Of Central Directory" của một file ZIP 0 mục — file nén RỖNG
+ * 22 byte "End Of Central Directory" của một file ZIP 0 mục - file nén RỖNG
  * nhưng HỢP LỆ, không phải file 0 byte.
  *
- * Lỗi thật 2026-09-25: bản trước tạo MỌI file bắt buộc — kể cả `.zip`/`.rar`
- * — thành file 0 byte. Với `.docx`/`.py` thì rỗng là điểm bắt đầu hợp lý;
+ * Lỗi thật 2026-09-25: bản trước tạo MỌI file bắt buộc - kể cả `.zip`/`.rar`
+ * - thành file 0 byte. Với `.docx`/`.py` thì rỗng là điểm bắt đầu hợp lý;
  * với file nén thì 0 byte KHÔNG PHẢI một file nén rỗng hợp lệ ở bất kỳ định
- * dạng nào — Explorer không mở duyệt được, không kéo-thả nội dung vào được.
+ * dạng nào - Explorer không mở duyệt được, không kéo-thả nội dung vào được.
  * Sinh viên có một "file nén sẵn có" nhưng nó đã hỏng từ lúc phòng thi mở ra
- * — đúng khớp "The archive is either in an unknown format or damaged" khi
+ * - đúng khớp "The archive is either in an unknown format or damaged" khi
  * mở bằng WinRAR.
  *
  * `archive-reader.ts` (phía backend) đã nhận đúng byte này là magic hợp lệ
- * (`// end of central directory (archive rỗng)`) — không phải hằng số tự
+ * (`// end of central directory (archive rỗng)`) - không phải hằng số tự
  * bịa, test đối chiếu byte-for-byte với JSZip thật.
  */
 const EMPTY_ZIP_EOCD = Buffer.from([
@@ -127,16 +127,16 @@ const EMPTY_ZIP_EOCD = Buffer.from([
 ]);
 
 /**
- * Suy ra "đây là file nén" từ ĐUÔI TÊN, không phải cờ riêng — cùng cách
+ * Suy ra "đây là file nén" từ ĐUÔI TÊN, không phải cờ riêng - cùng cách
  * `apps/web/.../schema.ts` và `create-exam-session.dto.ts` (backend) đã
  * làm, và đúng nguyên tắc `filename-template.ts` đã phát biểu: một cờ là
  * một sự thật thứ hai có thể lệch khỏi cái tên. `deliverableType` KHÔNG
- * dùng được ở đây — nó chỉ có `'document' | 'code_project' | 'image'`,
+ * dùng được ở đây - nó chỉ có `'document' | 'code_project' | 'image'`,
  * không có giá trị nào cho "file nén" cả.
  *
  * Exported vì `exam-materials.ts` cần đúng phép suy luận này để quyết định
  * có chèn câu giải thích ".rar không tạo trước được" vào tờ hướng dẫn hay
- * không — khai lại hàm này ở đó sẽ tái tạo đúng thứ nguyên tắc trên đang
+ * không - khai lại hàm này ở đó sẽ tái tạo đúng thứ nguyên tắc trên đang
  * cấm: hai nơi có thể lệch nhau nếu danh sách đuôi file mở rộng sau này.
  */
 export function archiveKindOf(filename: string): 'zip' | 'rar' | null {
@@ -148,43 +148,43 @@ export function archiveKindOf(filename: string): 'zip' | 'rar' | null {
 
 export interface CreateSubmissionFilesResult {
   createdCount: number;
-  /** Per-file outcome, in `requiredFiles` order — this is the checklist
+  /** Per-file outcome, in `requiredFiles` order - this is the checklist
    *  the detail window renders. `created: true` covers both "wrote a new
-   *  empty file" and "already existed" (EEXIST) — both mean the file is
+   *  empty file" and "already existed" (EEXIST) - both mean the file is
    *  there and the student can find it, which is the property this
    *  function is responsible for.
    *
    *  `note`: chỉ có khi `created === false`, và phân biệt HAI trạng thái
-   *  khác nhau đằng sau cùng một `false` — tên không an toàn (giữ nguyên
+   *  khác nhau đằng sau cùng một `false` - tên không an toàn (giữ nguyên
    *  từ trước), hoặc `.rar` không có cách nào tạo trước được (mới, KHÔNG
    *  phải lỗi). `session-controller.ts`'s `RequiredFileStatus` khai RIÊNG
-   *  interface này (không import từ đây) — thêm `note` ở CẢ HAI chỗ, thiếu
+   *  interface này (không import từ đây) - thêm `note` ở CẢ HAI chỗ, thiếu
    *  một bên thì TypeScript cho qua nhưng `note` rớt lặng lẽ ở render. */
   files: { filename: string; created: boolean; note?: string }[];
 }
 
 /**
  * Creates `workspaceDir` and, for each entry in `requiredFiles`, a starting
- * file inside it — after independently re-validating the filename. Invalid
+ * file inside it - after independently re-validating the filename. Invalid
  * entries are skipped (reported via `files[].created === false`), never
  * written, and never throw.
  *
  * "Starting file" khác nhau theo đuôi tên, xem `archiveKindOf`:
  * - `.zip`  → `EMPTY_ZIP_EOCD` (file nén rỗng HỢP LỆ).
- * - `.rar`  → KHÔNG ghi gì cả — không có cách hợp pháp tạo RAR rỗng hợp lệ
+ * - `.rar`  → KHÔNG ghi gì cả - không có cách hợp pháp tạo RAR rỗng hợp lệ
  *   mà không có bộ mã hoá độc quyền của WinRAR (`node-unrar-js`, dùng ở
- *   backend, CHỈ ĐỌC). Vẫn kiểm file đã tồn tại chưa — sinh viên có thể đã
+ *   backend, CHỈ ĐỌC). Vẫn kiểm file đã tồn tại chưa - sinh viên có thể đã
  *   tự nén thật trước một lần kết nối lại, và lúc đó phải báo `created:
  *   true`, không phải ghi đè hay báo sai.
  * - đuôi khác → `''`, y nguyên hành vi cũ.
  *
  * Uses the `wx` flag (`O_CREAT | O_EXCL`) rather than the default `w`:
  * socket.io reconnects (a network blip, not a fresh exam attempt) re-emit
- * `agent:join` and get a fresh `agent:join:ack` — this function then runs
+ * `agent:join` and get a fresh `agent:join:ack` - this function then runs
  * again for the SAME files. A plain write would silently truncate whatever
  * the student had already written into them. `wx` refuses to write if the
- * path already exists (`EEXIST`), so an existing file — the student's own
- * in-progress work, or a symlink someone planted at that path — is left
+ * path already exists (`EEXIST`), so an existing file - the student's own
+ * in-progress work, or a symlink someone planted at that path - is left
  * completely untouched and still counted as "created".
  */
 export function createSubmissionFiles(
@@ -202,7 +202,7 @@ export function createSubmissionFiles(
   for (const filename of requiredFiles) {
     const result = validateFilename(workspaceDir, filename);
     if (!result.ok) {
-      // filename is not necessarily a string here — String() covers that.
+      // filename is not necessarily a string here - String() covers that.
       files.push({ filename: String(filename), created: false });
       continue;
     }
@@ -214,7 +214,7 @@ export function createSubmissionFiles(
         created: already,
         note: already
           ? undefined
-          : 'Hệ thống không tạo trước được — tự nén bằng WinRAR, đặt đúng tên này.',
+          : 'Hệ thống không tạo trước được - tự nén bằng WinRAR, đặt đúng tên này.',
       });
       if (already) createdCount++;
       continue;
@@ -240,7 +240,7 @@ export function createSubmissionFiles(
 /**
  * Reads one deliverable's bytes out of the workspace for upload.
  *
- * Returns null when the file is not there — the student deleted it, or
+ * Returns null when the file is not there - the student deleted it, or
  * never created it. That is a reportable outcome, not an error: the other
  * deliverables must still be collected (see uploadAllDeliverables).
  *
@@ -253,7 +253,7 @@ export function makeWorkspaceReader(workspaceDir: string): ReadDeliverableConten
   return async (deliverable: RequiredDeliverable): Promise<Buffer | null> => {
     const validation = validateFilename(workspaceDir, deliverable.requiredFilename);
     if (!validation.ok) {
-      throw new Error(`filename không an toàn — ${validation.reason}`);
+      throw new Error(`filename không an toàn - ${validation.reason}`);
     }
     try {
       return await fs.promises.readFile(validation.resolvedPath!);

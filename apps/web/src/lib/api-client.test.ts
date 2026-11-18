@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The silent-refresh-and-retry middleware in api-client.ts, against a
- * stubbed `fetch` — the real openapi-fetch pipeline runs, not a mock of
+ * stubbed `fetch` - the real openapi-fetch pipeline runs, not a mock of
  * this module's own logic, so this proves the middleware is actually
  * wired into the client and not just correct in isolation.
  *
  * `apiClient` is a singleton created at module load, so every test
  * re-imports the module fresh (after stubbing `fetch` and resetting the
- * module registry) — otherwise a later test's stub would arrive after
+ * module registry) - otherwise a later test's stub would arrive after
  * openapi-fetch already captured a reference to the earlier one.
  */
 
@@ -44,7 +44,7 @@ async function freshApiClient() {
   return mod.apiClient;
 }
 
-describe('apiClient — silent refresh on 401', () => {
+describe('apiClient - silent refresh on 401', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
   });
@@ -104,7 +104,7 @@ describe('apiClient — silent refresh on 401', () => {
     const apiClient = await freshApiClient();
     const result = await apiClient.GET('/health');
 
-    // The honest answer — nothing client-side can recover a dead refresh
+    // The honest answer - nothing client-side can recover a dead refresh
     // token. Exactly one call to /health: the retry path is never taken
     // because the refresh itself failed, so there is no second /health
     // call to prove a loop didn't happen.
@@ -148,7 +148,7 @@ describe('apiClient — silent refresh on 401', () => {
 
   // H3. A Request's body can be read exactly once, and openapi-fetch's own
   // outgoing `fetch(request, requestInitExt)` consumes it while sending the
-  // first attempt — so by the time the 401 comes back there is nothing left
+  // first attempt - so by the time the 401 comes back there is nothing left
   // to replay, and every POST/PATCH/PUT (and body-carrying DELETE) used to
   // fall back to surfacing the 401. A teacher who hit "Lưu điểm" at minute 16
   // got an error for no reason a person could see.
@@ -168,7 +168,7 @@ describe('apiClient — silent refresh on 401', () => {
         accountCalls++;
         // A canned-response mock never reads the Request, so `bodyUsed`
         // stays false and the bug cannot reproduce. A REAL fetch streams
-        // the body to the network as part of sending — reading it here is
+        // the body to the network as part of sending - reading it here is
         // what matches that observable effect.
         if (input instanceof Request) {
           bodiesSeen.push(await input.text());
@@ -188,7 +188,7 @@ describe('apiClient — silent refresh on 401', () => {
     expect(accountCalls).toBe(2);
     expect(result.response.status).toBe(201);
     // The replay has to carry the SAME body. A retry that quietly dropped it
-    // would create an empty account instead of the one that was filled in —
+    // would create an empty account instead of the one that was filled in -
     // worse than the 401 this replaces, because it looks like success.
     expect(bodiesSeen).toHaveLength(2);
     expect(bodiesSeen[1]).toBe(bodiesSeen[0]);
@@ -197,7 +197,7 @@ describe('apiClient — silent refresh on 401', () => {
 
   /**
    * Từ khi frontend và API ở hai domain khác nhau, cookie không còn tới được
-   * API — token phải đi trong header. Test này kiểm chính cái nối đó, không
+   * API - token phải đi trong header. Test này kiểm chính cái nối đó, không
    * phải kiểm việc api-client "có gửi header" một cách trừu tượng.
    */
   it('đính Authorization: Bearer lấy từ /api/auth/token', async () => {
@@ -244,9 +244,9 @@ describe('apiClient — silent refresh on 401', () => {
    * CÁI BẪY CHÍNH của việc chuyển sang Bearer.
    *
    * Bản clone dùng để thử lại được chụp trong onRequest, nên nó mang header
-   * Authorization của token CŨ — đúng cái vừa bị từ chối. Gửi lại nguyên xi
+   * Authorization của token CŨ - đúng cái vừa bị từ chối. Gửi lại nguyên xi
    * là 401 lần hai một cách chắc chắn, và triệu chứng sẽ là "refresh chạy
-   * nhưng vẫn out" — trông y hệt lỗi backend.
+   * nhưng vẫn out" - trông y hệt lỗi backend.
    *
    * Thời cookie thì vấn đề này không tồn tại: trình duyệt tự gắn cookie mới
    * nhất vào mọi request, bản clone không mang theo bản sao nào cả.
@@ -281,7 +281,7 @@ describe('apiClient — silent refresh on 401', () => {
 
   /**
    * Chưa đăng nhập là trạng thái BÌNH THƯỜNG (màn login). Request vẫn phải
-   * đi, không header, và 401 từ API là câu trả lời đúng — chặn tại client sẽ
+   * đi, không header, và 401 từ API là câu trả lời đúng - chặn tại client sẽ
    * biến một phiên còn cứu được thành lỗi ngay lập tức.
    */
   it('không có token thì vẫn gửi request, chỉ là không có header', async () => {

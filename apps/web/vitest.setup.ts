@@ -1,10 +1,10 @@
 // jsdom is missing a handful of browser APIs that Radix UI's interactive
-// primitives (Select, Dialog, DropdownMenu — used by the shadcn components
+// primitives (Select, Dialog, DropdownMenu - used by the shadcn components
 // added in the frontend rebuild) call unconditionally: pointer capture,
 // scrollIntoView, and ResizeObserver. Without these stubs, any test that
 // opens one of those components throws "... is not a function" before it
 // gets anywhere near an assertion. None of this changes real browser
-// behavior — jsdom just doesn't implement these APIs at all.
+// behavior - jsdom just doesn't implement these APIs at all.
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
 }
@@ -18,7 +18,7 @@ if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
 // jsdom 25 still ships no window.matchMedia at all, and GSAP calls it
-// unconditionally from gsap.matchMedia() — which every animation in this
+// unconditionally from gsap.matchMedia() - which every animation in this
 // app is gated behind (see src/lib/gsap.ts), so without this any test
 // rendering an animated component throws "_win.matchMedia is not a
 // function" during the layout effect.

@@ -3,7 +3,7 @@ import { createSubscriptionRecovery } from './socket-recovery';
 
 /**
  * H2. `teacher:subscribe` authenticates off `client.handshake.headers.cookie`
- * (apps/api/src/exam-session/exam-session.gateway.ts) — the cookie captured
+ * (apps/api/src/exam-session/exam-session.gateway.ts) - the cookie captured
  * when the socket shook hands, not one read per event. `access_token` has
  * maxAge 15m, so a socket that drops and auto-reconnects after that window
  * hands the gateway a handshake with no token and gets
@@ -62,7 +62,7 @@ describe('createSubscriptionRecovery', () => {
   // The loop this guards against is real: refresh succeeds, the socket
   // reconnects, subscribe STILL says UNAUTHORIZED (clock skew, a revoked
   // account, a gateway secret mismatch). Unthrottled that is an infinite
-  // refresh/reconnect spin against the API — and every one of those
+  // refresh/reconnect spin against the API - and every one of those
   // refreshes ROTATES the refresh token, so the spin is not merely wasteful.
   it('refuses a second attempt while the first is still inside the cooldown', async () => {
     const refresh = vi.fn(async () => true);
@@ -78,7 +78,7 @@ describe('createSubscriptionRecovery', () => {
   });
 
   // A three-hour exam on school Wi-Fi blips more than once, and each blip is
-  // a genuinely separate expiry — the access_token minted by the previous
+  // a genuinely separate expiry - the access_token minted by the previous
   // recovery has itself aged out by then. A permanent one-shot cap would
   // send the teacher to a login message they do not need, mid-exam, for a
   // condition that recovers perfectly well.

@@ -43,6 +43,106 @@ export function useCourses(params: ListParams = {}) {
   });
 }
 
+export function useCourse(id: string | undefined) {
+  return useQuery({
+    queryKey: [K.courses, 'one', id],
+    queryFn: () => api.getCourse(id!),
+    enabled: Boolean(id),
+  });
+}
+
+export function useCourseHubExams(
+  courseId: string | undefined,
+  params: { academicYearId?: string; semesterId?: string } = {},
+) {
+  return useQuery({
+    queryKey: [K.courses, 'hub-exams', courseId, params],
+    queryFn: () => api.listCourseHubExams(courseId!, params),
+    enabled: Boolean(courseId),
+  });
+}
+
+export function useCourseHubExam(
+  courseId: string | undefined,
+  examId: string | undefined,
+) {
+  return useQuery({
+    queryKey: [K.courses, 'hub-exam', courseId, examId],
+    queryFn: () => api.getCourseHubExam(courseId!, examId!),
+    enabled: Boolean(courseId && examId),
+  });
+}
+
+export function useCourseHubRubrics(
+  courseId: string | undefined,
+  params: { academicYearId?: string; semesterId?: string } = {},
+) {
+  return useQuery({
+    queryKey: [K.courses, 'hub-rubrics', courseId, params],
+    queryFn: () => api.listCourseHubRubrics(courseId!, params),
+    enabled: Boolean(courseId),
+  });
+}
+
+export function useCourseHubRubric(
+  courseId: string | undefined,
+  rubricId: string | undefined,
+) {
+  return useQuery({
+    queryKey: [K.courses, 'hub-rubric', courseId, rubricId],
+    queryFn: () => api.getCourseHubRubric(courseId!, rubricId!),
+    enabled: Boolean(courseId && rubricId),
+  });
+}
+
+function useInvalidateCourseHub(courseId: string) {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: [K.courses, 'hub-exams', courseId] });
+    void qc.invalidateQueries({ queryKey: [K.courses, 'hub-rubrics', courseId] });
+    void qc.invalidateQueries({ queryKey: [K.courses, 'hub-exam', courseId] });
+    void qc.invalidateQueries({ queryKey: [K.courses, 'hub-rubric', courseId] });
+  };
+}
+
+export function useCourseHubExamMutations(courseId: string) {
+  const inv = useInvalidateCourseHub(courseId);
+  return {
+    deactivate: useMutation({
+      mutationFn: (examId: string) => api.deactivateCourseHubExam(courseId, examId),
+      onSuccess: inv,
+    }),
+    reactivate: useMutation({
+      mutationFn: (examId: string) => api.reactivateCourseHubExam(courseId, examId),
+      onSuccess: inv,
+    }),
+    remove: useMutation({
+      mutationFn: (examId: string) => api.deleteCourseHubExam(courseId, examId),
+      onSuccess: inv,
+    }),
+  };
+}
+
+export function useCourseHubRubricMutations(courseId: string) {
+  const inv = useInvalidateCourseHub(courseId);
+  return {
+    deactivate: useMutation({
+      mutationFn: (rubricId: string) =>
+        api.deactivateCourseHubRubric(courseId, rubricId),
+      onSuccess: inv,
+    }),
+    reactivate: useMutation({
+      mutationFn: (rubricId: string) =>
+        api.reactivateCourseHubRubric(courseId, rubricId),
+      onSuccess: inv,
+    }),
+    remove: useMutation({
+      mutationFn: (rubricId: string) => api.deleteCourseHubRubric(courseId, rubricId),
+      onSuccess: inv,
+    }),
+  };
+}
+
 export function useNominalClasses(params: ListParams = {}) {
   return useQuery({
     queryKey: [K.classes, params],
@@ -169,6 +269,11 @@ export function useComputerMutations() {
     update: useMutation({
       mutationFn: ({ id, body }: { id: string; body: Parameters<typeof api.updateComputer>[1] }) =>
         api.updateComputer(id, body),
+      onSuccess: inv,
+    }),
+    setTeacherMachine: useMutation({
+      mutationFn: ({ id, isTeacherMachine }: { id: string; isTeacherMachine: boolean }) =>
+        api.setTeacherMachine(id, isTeacherMachine),
       onSuccess: inv,
     }),
     remove: useMutation({ mutationFn: api.deleteComputer, onSuccess: inv }),

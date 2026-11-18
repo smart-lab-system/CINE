@@ -16,7 +16,7 @@ describe('countSystemUngradable (G3 §4.4)', () => {
     expect(countSystemUngradable([result(), result({ id: 'b' })])).toBe(2);
   });
 
-  it('does not count the submission class — regrading it would only reproduce the same failure', () => {
+  it('does not count the submission class - regrading it would only reproduce the same failure', () => {
     expect(countSystemUngradable([result(), result({ id: 'b', ungradableClass: 'submission' })])).toBe(1);
   });
 

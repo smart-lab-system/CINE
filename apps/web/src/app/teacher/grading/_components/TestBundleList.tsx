@@ -18,8 +18,8 @@ const formatMoment = (iso: string | null) => (iso ? new Date(iso).toLocaleString
  * Danh sách gói test + bảng duyệt bộ ca (UI spec §3.7, T-UI-18).
  *
  * Sáu cột: nhóm, input, output, câu trong đề mà ca kiểm, kết quả chạy thử, thao tác. Cột "câu trong đề mà ca này kiểm" đọc
- * `constraint_quote` — KHÔNG suy từ `group` (Security rule 9: cột nào kiểm cái gì phải được nói thẳng, không đoán), nên ca
- * giảng viên tự gõ hiện "—". Cột "Chạy thử" là kết quả lượt chạy đáp án mẫu gần nhất (G2b-R), chỉ còn trong phiên làm việc này.
+ * `constraint_quote` - KHÔNG suy từ `group` (Security rule 9: cột nào kiểm cái gì phải được nói thẳng, không đoán), nên ca
+ * giảng viên tự gõ hiện "-". Cột "Chạy thử" là kết quả lượt chạy đáp án mẫu gần nhất (G2b-R), chỉ còn trong phiên làm việc này.
  *
  * Ca hệ thống đã tự bỏ vẫn hiện, gạch ngang, kèm lý do, và không có nút chạy. Nó KHÔNG tính vào `caseCount`
  * (`TestBundleService.list` đã loại sẵn), nên con số ở đây là số ca THẬT sự chạy.
@@ -52,7 +52,7 @@ export function TestBundleList({
   if ((bundles.data?.length ?? 0) === 0) {
     return (
       <p className="rounded-md border border-dashed border-border px-4 py-3 text-small text-muted-foreground">
-        Chưa có gói test nào — bài code không chấm được cho tới khi có một gói đã duyệt và ghim.
+        Chưa có gói test nào - bài code không chấm được cho tới khi có một gói đã duyệt và ghim.
       </p>
     );
   }
@@ -107,17 +107,17 @@ export function TestBundleList({
             )}
             {summary && partial && run?.status === 'aborted' && (
               <p className="mt-1 text-caption font-medium text-warning-strong">
-                {`Chạy chưa hết (hết thời gian): ${summary.total} trên ${bundle.caseCount} ca đã chạy — chưa kết luận cả gói.`}
+                {`Chạy chưa hết (hết thời gian): ${summary.total} trên ${bundle.caseCount} ca đã chạy - chưa kết luận cả gói.`}
               </p>
             )}
             {summary && !(partial && run?.status === 'aborted') && (
               <p className="mt-1 text-caption font-medium">
-                {`${summary.matched} khớp, ${summary.mismatched} lệch${partial ? ` — ${summary.total} trên ${bundle.caseCount} ca đã chạy` : ''}`}
+                {`${summary.matched} khớp, ${summary.mismatched} lệch${partial ? ` - ${summary.total} trên ${bundle.caseCount} ca đã chạy` : ''}`}
               </p>
             )}
             {run?.status === 'compile_error' && (
               <div className="mt-1 text-caption text-danger-strong">
-                <p className="font-medium">Đáp án không biên dịch được — chưa chạy ca nào.</p>
+                <p className="font-medium">Đáp án không biên dịch được - chưa chạy ca nào.</p>
                 {run.compileLog && <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-mono">{run.compileLog}</pre>}
               </div>
             )}
@@ -154,7 +154,7 @@ export function TestBundleList({
         </Alert>
       )}
 
-      {/* Giới hạn mà spec §3.7 đòi nói thẳng — luôn bật, kể cả khi gói do giảng viên tự gõ. */}
+      {/* Giới hạn mà spec §3.7 đòi nói thẳng - luôn bật, kể cả khi gói do giảng viên tự gõ. */}
       <p className="rounded-md border border-dashed border-border px-3 py-2 text-caption text-muted-foreground">
         Đáp án và gói test cùng do hệ thống viết thì <strong>khớp nhau chưa chắc là đúng</strong>. Bộ ca chỉ thành
         thước khi bạn duyệt.
@@ -223,12 +223,12 @@ function CaseTable({
                   ) : c.constraintQuote ? (
                     <span className="italic text-muted-foreground">“{c.constraintQuote}”</span>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">-</span>
                   )}
                 </td>
                 <td className="py-1 pr-2 align-top">
                   {c.autoDroppedReason ? (
-                    '—'
+                    '-'
                   ) : verdict ? (
                     <div className="flex flex-col gap-0.5">
                       <Badge variant={verdict.tone === 'ok' ? 'success' : 'destructive'}>{verdict.label}</Badge>

@@ -73,7 +73,7 @@ function renderList(over: { pinnedBundleId?: string | null; runs?: ReturnType<ty
 }
 const open = () => fireEvent.click(screen.getByRole('button', { name: 'Xem bộ ca' }));
 
-describe('TestBundleList — chưa có gói test', () => {
+describe('TestBundleList - chưa có gói test', () => {
   it('nói rõ bài code chưa chấm được, không mang mã mục spec', () => {
     h.bundles = { data: [], isLoading: false };
     render(<TestBundleList sessionId="s1" pinnedBundleId={null} runs={runs()} onNewVersion={vi.fn()} />);
@@ -92,12 +92,12 @@ describe('TestBundleList (UI spec §3.7, T-UI-18)', () => {
     }
   });
 
-  it('shows the quoted constraint when there is one and "—" when there is not', () => {
+  it('shows the quoted constraint when there is one and "-" when there is not', () => {
     renderList();
     open();
     expect(screen.getByText('“Cho 1 ≤ n ≤ 100”')).toBeInTheDocument();
     const ca3 = screen.getByText('7', { selector: 'td.font-mono' }).closest('tr')!;
-    expect(within(ca3).getByText('—')).toBeInTheDocument();
+    expect(within(ca3).getByText('-')).toBeInTheDocument();
   });
 
   it('a case the system dropped is struck through with its reason, and has no drop or run button', () => {
@@ -109,7 +109,7 @@ describe('TestBundleList (UI spec §3.7, T-UI-18)', () => {
     expect(within(row).queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('an APPROVED bundle offers no "Bỏ ca này" anywhere — the server would answer 409', () => {
+  it('an APPROVED bundle offers no "Bỏ ca này" anywhere - the server would answer 409', () => {
     h.bundles = { data: [summary({ approvedAt: '2026-09-29T08:00:00.000Z' })], isLoading: false };
     h.detail = detail('2026-09-29T08:00:00.000Z');
     renderList();
@@ -117,7 +117,7 @@ describe('TestBundleList (UI spec §3.7, T-UI-18)', () => {
     expect(screen.queryAllByRole('button', { name: 'Bỏ ca này' })).toHaveLength(0);
   });
 
-  it('clicking "Bỏ ca này" sends the bundle id and the case key — one request', () => {
+  it('clicking "Bỏ ca này" sends the bundle id and the case key - one request', () => {
     renderList();
     open();
     const buttons = screen.getAllByRole('button', { name: 'Bỏ ca này' });
@@ -130,10 +130,10 @@ describe('TestBundleList (UI spec §3.7, T-UI-18)', () => {
   it('shows the server refusal verbatim', () => {
     h.drop = {
       mutate: vi.fn(), isPending: false, isError: true,
-      error: new Error('Gói test b1 đã được duyệt lúc 2026-09-29 — không bỏ ca được nữa.'),
+      error: new Error('Gói test b1 đã được duyệt lúc 2026-09-29 - không bỏ ca được nữa.'),
     };
     renderList();
-    expect(screen.getByRole('alert')).toHaveTextContent('Gói test b1 đã được duyệt lúc 2026-09-29 — không bỏ ca được nữa.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Gói test b1 đã được duyệt lúc 2026-09-29 - không bỏ ca được nữa.');
   });
 
   it('always states the limit: matching each other is not the same as being right', () => {
@@ -141,7 +141,7 @@ describe('TestBundleList (UI spec §3.7, T-UI-18)', () => {
     expect(screen.getByText(/khớp nhau chưa chắc là đúng/)).toBeInTheDocument();
   });
 
-  it('labels a system-made bundle, and only that — not a teacher bundle, not one with no origin', () => {
+  it('labels a system-made bundle, and only that - not a teacher bundle, not one with no origin', () => {
     h.bundles = {
       data: [
         summary({ id: 'b1', origin: 'generated' }),
@@ -155,7 +155,7 @@ describe('TestBundleList (UI spec §3.7, T-UI-18)', () => {
   });
 });
 
-describe('TestBundleList — duyệt và ghim gộp', () => {
+describe('TestBundleList - duyệt và ghim gộp', () => {
   it('a bundle that is not approved offers ONE "Duyệt và ghim" button that opens the review dialog, no bare "Duyệt"', () => {
     renderList();
     expect(screen.queryByRole('button', { name: 'Duyệt' })).not.toBeInTheDocument();
@@ -200,7 +200,7 @@ describe('TestBundleList — duyệt và ghim gộp', () => {
   });
 });
 
-describe('TestBundleList — chạy thử (G2b-R)', () => {
+describe('TestBundleList - chạy thử (G2b-R)', () => {
   it('"Chạy thử tất cả" chạy cả gói đúng một lần, không cần mở bảng ca', () => {
     const { runs: r } = renderList();
     fireEvent.click(screen.getByRole('button', { name: 'Chạy thử tất cả' }));
@@ -311,7 +311,7 @@ describe('TestBundleList — chạy thử (G2b-R)', () => {
       },
     };
     renderList({ runs: runs({ state }) });
-    expect(screen.getByText('1 khớp, 0 lệch — 1 trên 2 ca đã chạy')).toBeInTheDocument();
+    expect(screen.getByText('1 khớp, 0 lệch - 1 trên 2 ca đã chạy')).toBeInTheDocument();
   });
 
   it('kết quả của phiên bản này không hiện ở phiên bản khác', () => {
@@ -322,7 +322,7 @@ describe('TestBundleList — chạy thử (G2b-R)', () => {
   });
 });
 
-describe('TestBundleList — tạo phiên bản mới từ gói này', () => {
+describe('TestBundleList - tạo phiên bản mới từ gói này', () => {
   it('mỗi phiên bản có nút "Tạo phiên bản mới từ gói này" gọi onNewVersion với đúng gói', () => {
     const { onNewVersion } = renderList();
     fireEvent.click(screen.getByRole('button', { name: 'Tạo phiên bản mới từ gói này' }));

@@ -1,7 +1,7 @@
-/** State c — shown for a few seconds right after a successful join
+/** State c - shown for a few seconds right after a successful join
  *  (App.tsx owns the timer), then the window auto-minimizes and any
  *  later reopen shows DetailView instead. This *is* the attendance
- *  confirmation — `agent:join` already wrote it server-side. */
+ *  confirmation - `agent:join` already wrote it server-side. */
 
 import type { AgentState } from '../../../../src/session-controller';
 import { StatusLine } from './ui';

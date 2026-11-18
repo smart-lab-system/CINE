@@ -69,14 +69,14 @@ describe('một lỗi tại một thời điểm (W1)', () => {
   });
 
   it('bấm sinh → lỗi của lượt chạy thử trước được gỡ (clearError), không đứng cạnh kết quả sinh', () => {
-    const r = setup({ runs: runs({ error: new ApiStatusError('chưa có mã đáp án để chạy — hãy tải mã lên', 409, {}) }) });
+    const r = setup({ runs: runs({ error: new ApiStatusError('chưa có mã đáp án để chạy - hãy tải mã lên', 409, {}) }) });
     fireEvent.click(screen.getByRole('button', { name: 'Sinh gói test từ đáp án của bạn' }));
     expect(r.clearError).toHaveBeenCalledTimes(1);
     expect(h.generate.mutate).toHaveBeenCalledWith('answer');
   });
 });
 
-describe('BundleActions — ba nút sinh và chạy thử (G2b-R)', () => {
+describe('BundleActions - ba nút sinh và chạy thử (G2b-R)', () => {
   it('có đủ ba nút, không còn nhãn "cần backend"', () => {
     setup();
     expect(screen.getByRole('button', { name: 'Sinh đáp án mẫu và gói test từ đề' })).toBeEnabled();
@@ -174,7 +174,7 @@ describe('BundleActions — ba nút sinh và chạy thử (G2b-R)', () => {
   describe('lỗi', () => {
     it('lỗi thường hiện nguyên văn, không mở form tải mã', () => {
       h.generate.isError = true;
-      h.generate.error = new ApiStatusError('Phiên đã có đáp án mẫu của giảng viên — không ghi đè.', 409, {});
+      h.generate.error = new ApiStatusError('Phiên đã có đáp án mẫu của giảng viên - không ghi đè.', 409, {});
       setup();
       expect(screen.getByRole('alert')).toHaveTextContent('Phiên đã có đáp án mẫu của giảng viên');
       expect(screen.queryByTestId('answer-source-form')).not.toBeInTheDocument();
@@ -182,13 +182,13 @@ describe('BundleActions — ba nút sinh và chạy thử (G2b-R)', () => {
 
     it('409 "chưa có mã đáp án" khi sinh từ đáp án → hiện form tải mã', () => {
       h.generate.isError = true;
-      h.generate.error = new ApiStatusError('Chưa có mã đáp án để sinh gói test — hãy tải mã đáp án lên trước.', 409, {});
+      h.generate.error = new ApiStatusError('Chưa có mã đáp án để sinh gói test - hãy tải mã đáp án lên trước.', 409, {});
       setup();
       expect(screen.getByTestId('answer-source-form')).toBeInTheDocument();
     });
 
     it('409 "chưa có mã đáp án" khi chạy thử → cũng hiện form tải mã', () => {
-      setup({ runs: runs({ error: new ApiStatusError('chưa có mã đáp án để chạy — hãy tải mã lên', 409, {}) }) });
+      setup({ runs: runs({ error: new ApiStatusError('chưa có mã đáp án để chạy - hãy tải mã lên', 409, {}) }) });
       expect(screen.getByRole('alert')).toHaveTextContent('chưa có mã đáp án để chạy');
       expect(screen.getByTestId('answer-source-form')).toBeInTheDocument();
     });
@@ -208,7 +208,7 @@ describe('BundleActions — ba nút sinh và chạy thử (G2b-R)', () => {
 
     it('422 không biên dịch: hiện log biên dịch', () => {
       h.generate.isError = true;
-      h.generate.error = new ApiStatusError('Đáp án không biên dịch được — không ghi gói test.', 422, {
+      h.generate.error = new ApiStatusError('Đáp án không biên dịch được - không ghi gói test.', 422, {
         compileLog: 'main.cpp:1:1: error: expected unqualified-id',
       });
       setup();

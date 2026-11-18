@@ -5,14 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ExamSessionListItem } from '@/lib/api/exam-session';
 // Bảng nhãn DÙNG CHUNG với các màn phiên thi khác. Bản sao cục bộ trước đây
-// trùng từng chữ với nó — hai bản sao là hai chỗ để cách gọi trạng thái lệch
+// trùng từng chữ với nó - hai bản sao là hai chỗ để cách gọi trạng thái lệch
 // nhau giữa các màn.
 import {
   EXAM_SESSION_STATUS_BADGE_CLASS,
   getDisplaySessionStatus,
 } from '@/lib/exam-session-display';
 
-/** Trạng thái đã đóng — không còn gì để gắn vào. */
+/** Trạng thái đã đóng - không còn gì để gắn vào. */
 const CLOSED = new Set(['collecting', 'completed', 'cancelled', 'missed']);
 
 /**
@@ -30,7 +30,7 @@ const CLOSED = new Set(['collecting', 'completed', 'cancelled', 'missed']);
  *
  * Luật thật nằm ở server (`AttachExamService.canAttachExam`); bản ở đây chỉ
  * để UI không mời người dùng bấm một thứ chắc chắn hỏng. Hai chỗ lệch nhau
- * thì server thắng — nó là chỗ duy nhất chặn được.
+ * thì server thắng - nó là chỗ duy nhất chặn được.
  */
 export function isAttachable(
   session: Pick<ExamSessionListItem, 'status' | 'startTime'>,
@@ -42,16 +42,16 @@ export function isAttachable(
   return now.getTime() < new Date(session.startTime).getTime();
 }
 
-/** Vì sao phiên này không gắn được — hiện ngay dưới tên phiên. */
+/** Vì sao phiên này không gắn được - hiện ngay dưới tên phiên. */
 export function blockedReason(session: Pick<ExamSessionListItem, 'status'>): string {
   if (CLOSED.has(session.status)) {
     return CLOSED_REASON[session.status] ?? 'Phiên đã đóng';
   }
-  return 'Đã tới giờ thi — đã phát tài liệu cho sinh viên, không gắn thêm đề được nữa';
+  return 'Đã tới giờ thi - đã phát tài liệu cho sinh viên, không gắn thêm đề được nữa';
 }
 
 const CLOSED_REASON: Record<string, string> = {
-  collecting: 'Đang thu bài — ca thi đã qua',
+  collecting: 'Đang thu bài - ca thi đã qua',
   completed: 'Đã hoàn thành',
   cancelled: 'Đã huỷ',
   missed: 'Không diễn ra',
@@ -72,7 +72,7 @@ function when(session: ExamSessionListItem): string {
 /**
  * Chọn phiên để gắn bộ ba vào.
  *
- * Phiên không gắn được vẫn HIỆN, xám mờ và kèm lý do — ẩn hẳn sẽ làm giảng
+ * Phiên không gắn được vẫn HIỆN, xám mờ và kèm lý do - ẩn hẳn sẽ làm giảng
  * viên tưởng hệ thống quên mất phiên của họ, rồi đi tìm ở chỗ khác.
  */
 export function SessionPicker({
@@ -92,7 +92,7 @@ export function SessionPicker({
     <div className="flex flex-col gap-4">
       <p className="text-small leading-relaxed text-muted-foreground">
         Chỉ gắn được vào phiên <strong className="text-foreground">chưa bắt đầu</strong>. Phiên
-        đang thi không chọn được — tài liệu đã phát cho sinh viên rồi, thêm đề giữa chừng
+        đang thi không chọn được - tài liệu đã phát cho sinh viên rồi, thêm đề giữa chừng
         là hai đề trong một buổi.
       </p>
 
@@ -123,7 +123,7 @@ export function SessionPicker({
                 disabled={!attachable}
                 checked={selectedId === s.id}
                 onChange={() => onSelect(s.id)}
-                aria-label={`${s.name} — ${statusLabel}`}
+                aria-label={`${s.name} - ${statusLabel}`}
               />
               <span className="flex-grow">
                 <span className="flex flex-wrap items-center gap-2">

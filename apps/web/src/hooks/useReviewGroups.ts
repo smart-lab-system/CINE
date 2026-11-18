@@ -18,7 +18,7 @@ import {
 } from '@/lib/opened-results';
 
 /**
- * Khoá cache của nhóm bài — NẰM DƯỚI khoá danh sách kết quả của phiên (`['exam-sessions', id, 'grading-results']`).
+ * Khoá cache của nhóm bài - NẰM DƯỚI khoá danh sách kết quả của phiên (`['exam-sessions', id, 'grading-results']`).
  * Cố ý: mọi chỗ làm mới danh sách kết quả (duyệt từng bài, chấm tay, chốt điểm, lượt chấm vừa xong) đều làm mới
  * theo tiền tố đó, nên nhóm bài được làm mới cùng lúc mà không chỗ nào phải nhớ thêm một khoá.
  */
@@ -71,14 +71,14 @@ export function useResetAutoBreaker() {
   });
 }
 
-/** Bài đã mở trên trình duyệt này — xem giới hạn ở `lib/opened-results.ts`. */
+/** Bài đã mở trên trình duyệt này - xem giới hạn ở `lib/opened-results.ts`. */
 export function useOpenedResults(): ReadonlySet<string> {
   return useSyncExternalStore(subscribeOpenedResults, openedResultsSnapshot, openedResultsServerSnapshot);
 }
 
 /**
  * Ghi mốc mở bài MỘT lần cho mỗi bài khi trang chi tiết mở (spec §5.5). Không dùng React Query: không có gì để cache,
- * và mốc đo thời gian không được làm phiền giảng viên — lỗi bị nuốt. Ref chặn lần gọi thứ hai khi effect chạy lại
+ * và mốc đo thời gian không được làm phiền giảng viên - lỗi bị nuốt. Ref chặn lần gọi thứ hai khi effect chạy lại
  * (StrictMode, render lại); server vẫn tự chặn bằng `WHERE opened_at IS NULL`.
  */
 export function useMarkResultOpened(resultId: string | undefined) {

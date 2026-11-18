@@ -8,27 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useExamMaterials } from '@/hooks/useExamSession';
 import { useSetGradingReference } from '@/hooks/useGrading';
-import { requestAnswerKeyUpload, type GradingReadiness, type GradingSourceInfo } from '@/lib/api/grading';
+import type { GradingReadiness, GradingSourceInfo } from '@/lib/api/grading';
 import { NO_QUESTION, buildReferencePayload, referenceIsDirty } from '@/lib/grading-reference-form';
+import { ModelAnswerPackageField } from '@/app/teacher/exam-sessions/[id]/_components/ModelAnswerPackageField';
 
 /**
- * Tải đáp án mẫu thẳng lên kho — file KHÔNG đi qua API server (Security rule 5). Ném lỗi khi PUT hỏng và người
- * gọi phải DỪNG ở đó: lưu một tham chiếu trỏ tới object không tồn tại sẽ cho ra một phiên báo "mức 3" mà lúc
- * chấm tụt về mức 2 — chỉ một dòng log biết điều đó, và giảng viên thì không.
- */
-async function uploadAnswerKey(sessionId: string, file: File): Promise<string> {
-  const { storageKey, uploadUrl } = await requestAnswerKeyUpload(sessionId);
-  const put = await fetch(uploadUrl, { method: 'PUT', body: file });
-  if (!put.ok) throw new Error('Chưa tải được file đáp án lên kho lưu trữ. Thử lại giúp tôi.');
-  return storageKey;
-}
-
-/**
- * Tài liệu chấm của phiên (spec §3.7): đề bài · đáp án mẫu · ghi chú — thay `GradingReferenceDialog`, giữ nguyên
+ * Tài liệu chấm của phiên (spec §3.7): đề bài · đáp án mẫu · ghi chú - thay `GradingReferenceDialog`, giữ nguyên
  * luật ghi của nó: chỉ gửi trường đã đổi (không gửi = giữ, `null` = xoá, giá trị = đặt); đề bài KHÔNG chọn sẵn
  * file nào (Security rule 9); lên kho TRƯỚC rồi mới lưu tham chiếu.
  *
- * `onDirtyChange` báo còn thay đổi chưa lưu — màn cha không cho bắt đầu chấm lúc đó, vì bắt đầu chấm khoá tài liệu.
+ * `onDirtyChange` báo còn thay đổi chưa lưu - màn cha không cho bắt đầu chấm lúc đó, vì bắt đầu chấm khoá tài liệu.
  * "Nguồn của từng tài liệu" (bạn tải lên lúc nào / gắn từ Soạn đề) đọc từ `readiness.sources`. Băng vàng "đáp án
  * chưa kiểm chứng" hiện cho tới khi thước được kiểm chứng (§6.3b). Ghim một gói KHÔNG làm thước thành đã kiểm
  * chứng: `hasPinnedBundle` chỉ đổi câu chữ, không tắt băng (G2b A2a).
@@ -54,14 +43,13 @@ export function ReferenceForm({
   const [questionTouched, setQuestionTouched] = useState(false);
   const [note, setNote] = useState('');
   const [initialNote, setInitialNote] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [fileKey, setFileKey] = useState(0);
+  const [packagePending, setPackagePending] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   const draft = { questionTouched, questionId, note, initialNote, storageKey: null, fileName: null };
-  const dirty = referenceIsDirty(draft, file !== null);
+  const dirty = referenceIsDirty(draft, packagePending);
   useEffect(() => onDirtyChange(readOnly ? false : dirty), [dirty, onDirtyChange, readOnly]);
 
   if (readOnly) return <ReferenceReview readiness={readiness} />;
@@ -72,13 +60,10 @@ export function ReferenceForm({
     setError(null);
     setBusy(true);
     try {
-      // Thứ tự bắt buộc: lên kho TRƯỚC, lưu tham chiếu SAU.
-      const storageKey = file ? await uploadAnswerKey(sessionId, file) : null;
-      await save.mutateAsync(buildReferencePayload({ ...draft, storageKey, fileName: file?.name ?? null }));
+      // File đáp án mẫu lưu ngay qua ModelAnswerPackageField; đây chỉ đề + ghi chú.
+      await save.mutateAsync(buildReferencePayload(draft));
       setQuestionTouched(false);
       setInitialNote(note);
-      setFile(null);
-      setFileKey((k) => k + 1);
       setSaved(true);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Lưu không thành công.');
@@ -97,7 +82,7 @@ export function ReferenceForm({
           {readiness?.hasQuestion && <Badge variant="accent">Đã chỉ định</Badge>}
         </legend>
         <p className="text-caption text-muted-foreground">
-          Cho hệ thống biết bài hỏi gì, để chấm đúng ý và để góc kiểm đối chiếu được. Bạn chỉ định — hệ thống không tự
+          Cho hệ thống biết bài hỏi gì, để chấm đúng ý và để góc kiểm đối chiếu được. Bạn chỉ định - hệ thống không tự
           đoán theo tên file.
         </p>
         {materials.isLoading && <p className="text-small text-muted-foreground">Đang tải danh sách tài liệu…</p>}
@@ -151,43 +136,35 @@ export function ReferenceForm({
         )}
       </fieldset>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="answer-key-file">File đáp án mẫu (tuỳ chọn)</Label>
-        <input
-          key={fileKey}
-          id="answer-key-file"
-          type="file"
-          className="text-small"
-          onChange={(event) => {
-            touch();
-            setFile(event.target.files?.[0] ?? null);
-          }}
-        />
-        <p className="text-caption text-muted-foreground">
-          Đáp án mẫu <span className="font-semibold">không bao giờ hiển thị trên màn chấm</span> và không bao giờ được
-          gửi cho mô hình dưới dạng đáp án — nó chỉ dùng để đối chiếu.
-        </p>
-        {readiness?.sources?.modelAnswer.present && readiness.sources.modelAnswer.unverified && (
-          <Alert variant="warning" role="status">
-            <AlertDescription>
-              {hasPinnedBundle ? (
-                <>
-                  Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Phiên đã có gói
-                  test ghim, nhưng thước vẫn chưa kiểm chứng: bài nào dựa vào nó sẽ về giảng viên, không tự quyết.
-                </>
-              ) : (
-                <>
-                  Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Cả phiên sẽ được đo
-                  bằng một cái thước bạn chưa đọc — hãy kiểm tra đáp án và duyệt gói test ở khối bên dưới.
-                </>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-        {readiness?.sources?.modelAnswer.present && (
-          <p className="text-caption text-muted-foreground">{sourceLine(readiness.sources.modelAnswer)}</p>
-        )}
-      </div>
+      <ModelAnswerPackageField
+        sessionId={sessionId}
+        readiness={readiness}
+        onPendingChange={(pending) => {
+          touch();
+          setPackagePending(pending);
+        }}
+        onSaved={touch}
+      />
+      {readiness?.sources?.modelAnswer.present && readiness.sources.modelAnswer.unverified && (
+        <Alert variant="warning" role="status">
+          <AlertDescription>
+            {hasPinnedBundle ? (
+              <>
+                Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Phiên đã có gói
+                test ghim, nhưng thước vẫn chưa kiểm chứng: bài nào dựa vào nó sẽ về giảng viên, không tự quyết.
+              </>
+            ) : (
+              <>
+                Đáp án mẫu này do hệ thống soạn đề sinh ra và <strong>chưa từng chạy thử</strong>. Cả phiên sẽ được đo
+                bằng một cái thước bạn chưa đọc - hãy kiểm tra đáp án và duyệt gói test ở khối bên dưới.
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+      {readiness?.sources?.modelAnswer.present && (
+        <p className="text-caption text-muted-foreground">{sourceLine(readiness.sources.modelAnswer)}</p>
+      )}
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="model-answer-note">Ghi chú đáp án</Label>

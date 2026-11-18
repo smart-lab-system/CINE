@@ -5,12 +5,12 @@ import { CollectionPhaseActions } from './CollectionPhaseActions';
 import type { RecollectResult } from '@/lib/api/exam-session';
 
 /**
- * Giai đoạn "Đang thu bài" — spec
+ * Giai đoạn "Đang thu bài" - spec
  * docs/superpowers/specs/2026-09-11-exam-collection-phase-design.md §7.
  *
  * Component thuần props, không gọi API: mọi mutation đi vào từ ngoài,
  * đúng khuôn AttendancePanel. Nhờ vậy test không cần QueryClient và
- * kiểm được thẳng thứ đáng kiểm — cái gì hiện ra trên màn hình.
+ * kiểm được thẳng thứ đáng kiểm - cái gì hiện ra trên màn hình.
  */
 describe('CollectionPhaseActions', () => {
   const NOW = new Date('2026-09-11T10:30:00Z').getTime();
@@ -63,7 +63,7 @@ describe('CollectionPhaseActions', () => {
   });
 
   it('sau khi thu lại, hiện TÊN những máy không phản hồi', async () => {
-    // Danh sách tên là phần giảng viên hành động dựa vào — họ cầm nó rồi
+    // Danh sách tên là phần giảng viên hành động dựa vào - họ cầm nó rồi
     // đi tới từng bàn. Con số một mình không nói đi đâu.
     const onRecollect = vi.fn<() => Promise<RecollectResult>>().mockResolvedValue({
       missing: 3,
@@ -112,7 +112,7 @@ describe('CollectionPhaseActions', () => {
   it('hộp xác nhận nói rõ bài còn được nhận tới lúc nào', async () => {
     // endTime 10:00Z + 30 phút = 10:30Z. Giờ hiển thị theo múi giờ của
     // máy đang xem, nên test chỉ kiểm là có một mốc giờ, không kiểm
-    // chuỗi cứng — kiểm chuỗi cứng sẽ đỏ trên máy CI ở múi giờ khác.
+    // chuỗi cứng - kiểm chuỗi cứng sẽ đỏ trên máy CI ở múi giờ khác.
     render(<CollectionPhaseActions {...props()} />);
 
     fireEvent.click(screen.getByRole('button', { name: /xác nhận kết thúc/i }));

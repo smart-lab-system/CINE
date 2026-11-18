@@ -12,7 +12,7 @@ export function LandingScreen({
       <BrandMark />
       <h1 className="-mb-1 text-h2 font-bold">ExamCollect Agent</h1>
       <p className="text-small text-muted-foreground">
-        Chọn chế độ làm việc trên máy này. Hai lựa chọn tách biệt — vào phiên thi không mở module
+        Chọn chế độ làm việc trên máy này. Hai lựa chọn tách biệt - vào phiên thi không mở module
         Quản lý.
       </p>
       <div className="mt-2 flex flex-col gap-2.5">

@@ -40,7 +40,7 @@ describe('InvestigationTrail', () => {
     render(<InvestigationTrail investigation={many} />);
     expect(screen.getByText('Xong')).toBeInTheDocument();
     expect(screen.getByText('Lỗi')).toBeInTheDocument();
-    expect(screen.getByText('Bị chặn — trùng lời gọi trước')).toBeInTheDocument();
+    expect(screen.getByText('Bị chặn - trùng lời gọi trước')).toBeInTheDocument();
   });
 
   it('expands a row to show its real output', () => {
@@ -49,7 +49,7 @@ describe('InvestigationTrail', () => {
     expect(screen.getByText('PASS')).toBeInTheDocument();
   });
 
-  it('shows the harness summary verbatim (T-UI-4) — the field itself, not model prose reconstructed client-side', () => {
+  it('shows the harness summary verbatim (T-UI-4) - the field itself, not model prose reconstructed client-side', () => {
     render(<InvestigationTrail investigation={investigation} />);
     expect(screen.getByText('Tóm tắt hệ thống.')).toBeInTheDocument();
   });

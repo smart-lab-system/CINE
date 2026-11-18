@@ -2702,7 +2702,18 @@ export interface components {
         };
         SaveRubricDto: {
             name: string;
-            criteria: components["schemas"]["RubricCriterionDto"][];
+            /** @enum {string} */
+            kind?: "qa" | "qs";
+            criteria?: components["schemas"]["RubricCriterionDto"][];
+            approaches?: {
+                name: string;
+                key?: string;
+                steps: {
+                    description: string;
+                    maxPoints: number;
+                    key?: string;
+                }[];
+            }[];
         };
         SetSessionRubricDto: {
             rubricId: string | null;

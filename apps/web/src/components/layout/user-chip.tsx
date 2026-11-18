@@ -6,7 +6,7 @@ import type { CurrentAccount } from '@/hooks/useCurrentAccount';
 
 /**
  * Two letters for the avatar: first letter of the first word plus first
- * letter of the last word, which gives "NA" for "Nguyễn Văn A" — the
+ * letter of the last word, which gives "NA" for "Nguyễn Văn A" - the
  * initials a Vietnamese reader expects. Falls back to the local part of
  * the email for an account with no name, and to "?" rather than an empty
  * circle if both are blank.
@@ -27,7 +27,7 @@ export function UserChip({ account }: { account: CurrentAccount }) {
   return (
     <div className="flex items-center gap-3">
       {/* The visible name is hidden below `sm`, where only the avatar
-          remains — and initials read aloud are noise. So the identity is
+          remains - and initials read aloud are noise. So the identity is
           stated once, unconditionally, for assistive tech, and both visual
           pieces below are marked decorative. That way the announcement
           doesn't change with the viewport width. */}

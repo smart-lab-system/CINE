@@ -6,7 +6,7 @@ import type { ReplaceRequiredDeliverablesFormValues } from '@/app/teacher/exam-s
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useSessionRoster } from '@/hooks/useExamSession';
-import { useRubrics } from '@/hooks/useGrading';
+import { useGradingReadiness, useRubrics } from '@/hooks/useGrading';
 import type { ExamSessionResponse } from '@/lib/api/exam-session';
 import {
   EXAM_SESSION_STATUS_BADGE_CLASS,
@@ -19,7 +19,7 @@ import { SetupChecklist, type SetupChecklistResult } from './SetupChecklist';
 import type { SetupInfoDraft } from './setup-draft';
 
 function showLocal(value: string): string {
-  if (!value) return '—';
+  if (!value) return '-';
   return value.replace('T', ' ');
 }
 
@@ -53,6 +53,7 @@ export function SessionReviewStep({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const roster = useSessionRoster(sessionId);
   const rubrics = useRubrics();
+  const readiness = useGradingReadiness(sessionId);
   const statusNow = useStatusClock([session]);
   const display = getDisplaySessionStatus(
     session.status,
@@ -107,7 +108,7 @@ export function SessionReviewStep({
           </div>
           <div>
             <dt className="text-muted-foreground">Lớp</dt>
-            <dd className="text-lg font-medium text-foreground">{className ?? '—'}</dd>
+            <dd className="text-lg font-medium text-foreground">{className ?? '-'}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Học kỳ</dt>
@@ -127,17 +128,17 @@ export function SessionReviewStep({
           </div>
           <div>
             <dt className="text-muted-foreground">Phòng thi</dt>
-            <dd className="text-lg font-medium text-foreground">{roomLabel || '—'}</dd>
+            <dd className="text-lg font-medium text-foreground">{roomLabel || '-'}</dd>
           </div>
         </dl>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h3 className="text-h3">Danh sách thi</h3>
+        <h3 className="text-h3">Danh sách thí sinh</h3>
         {roster.isLoading ? (
           <p className="text-small text-muted-foreground">Đang tải danh sách.</p>
         ) : roster.isError ? (
-          <p className="text-small text-muted-foreground">Không tải được danh sách thi.</p>
+          <p className="text-small text-muted-foreground">Không tải được danh sách thí sinh.</p>
         ) : students.length === 0 ? (
           <p className="text-small text-muted-foreground">Chưa có sinh viên.</p>
         ) : (
@@ -153,14 +154,28 @@ export function SessionReviewStep({
       </section>
 
       <section className="flex flex-col gap-3">
-        <h3 className="text-h3">Đề & thư mục</h3>
+        <h3 className="text-h3">Thư mục bài làm</h3>
         <ExamFolderPreview materialFilenames={materialFilenames} requiredFiles={requiredFiles} />
       </section>
 
       <section className="flex flex-col gap-3">
-        <h3 className="text-h3">Rubric</h3>
+        <h3 className="text-h3">Đề thi & Rubric</h3>
         <p className="text-small text-foreground">
+          Đề phát:{' '}
+          {materialFilenames.length > 0
+            ? materialFilenames.join(', ')
+            : 'Chưa có file đề.'}
+        </p>
+        <p className="text-small text-foreground">
+          Rubric:{' '}
           {rubricId ? rubricName ?? 'Không tìm thấy rubric đã gắn cho phiên này.' : 'Chưa gắn rubric.'}
+        </p>
+        <p className="text-small text-foreground">
+          Đáp án mẫu:{' '}
+          {readiness.data?.sources?.modelAnswer.fileName ||
+            (readiness.data?.hasModelAnswer
+              ? 'Đã có (ghi chú hoặc file).'
+              : 'Chưa có (tuỳ chọn).')}
         </p>
       </section>
 
@@ -182,7 +197,7 @@ export function SessionReviewStep({
         <p className="text-small text-muted-foreground">
           {session.status === 'missed'
             ? 'Phiên không diễn ra. Không mở được nữa. Có thể huỷ phiên cạnh tên phiên.'
-            : 'Đã khoá — phiên đã mở hoặc đã kết thúc.'}
+            : 'Đã khoá - phiên đã mở hoặc đã kết thúc.'}
         </p>
       )}
     </div>

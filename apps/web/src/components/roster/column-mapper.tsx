@@ -48,7 +48,7 @@ interface ColumnMapperProps {
 }
 
 /**
- * Chọn cột MSSV + họ tên (1 cột, hoặc 2 cột rồi ghép) — hỏi, không suy từ header.
+ * Chọn cột MSSV + họ tên (1 cột, hoặc 2 cột rồi ghép) - hỏi, không suy từ header.
  * Dòng tiêu đề / trống tự bỏ khi parse (không có MSSV 8 số).
  */
 export function ColumnMapper({ rows, mapping, onChange }: ColumnMapperProps) {
@@ -178,7 +178,7 @@ export function ColumnMapper({ rows, mapping, onChange }: ColumnMapperProps) {
         </TableBody>
       </Table>
       <p className="text-caption text-muted-foreground">
-        {rows.length} dòng trong sheet — cuộn để xem toàn bộ. Dòng không có MSSV 8 chữ số sẽ
+        {rows.length} dòng trong sheet - cuộn để xem toàn bộ. Dòng không có MSSV 8 chữ số sẽ
         bị bỏ qua khi nhập.
       </p>
     </div>

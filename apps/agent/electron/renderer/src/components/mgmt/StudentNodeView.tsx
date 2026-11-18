@@ -20,7 +20,7 @@ export function StudentNodeView({
   }, []);
 
   const leave = async (): Promise<void> => {
-    await window.agent.mgmtStop();
+    await window.agent.mgmtLeaveSession();
     onLeave();
   };
 

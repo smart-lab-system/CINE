@@ -71,7 +71,7 @@ interface FilterRailProps {
 
 /**
  * Bảng điều khiển, KHÔNG phải bản sao của danh sách bên phải. Đó là điểm khác
- * biệt so với bản trước — dải "Cần chú ý" cũ lặp lại chính những phiên nằm
+ * biệt so với bản trước - dải "Cần chú ý" cũ lặp lại chính những phiên nằm
  * trong nhóm bên dưới, và giảng viên đọc thành "đếm hai lần". Spec §5.1.
  */
 export function FilterRail({ facets, filters, onChange, attentionTotal }: FilterRailProps) {
@@ -87,7 +87,7 @@ export function FilterRail({ facets, filters, onChange, attentionTotal }: Filter
           "một lựa chọn là nhiễu" đúng cho một thuộc tính của phiên, nhưng
           học kỳ là chiều THỜI GIAN mà giảng viên đang đứng trong đó: ẩn ô
           này khi họ mới dạy một kỳ khiến họ đọc thành "chức năng lọc theo
-          học kỳ đã bị gỡ" — chính phản hồi đã dẫn tới thay đổi này
+          học kỳ đã bị gỡ" - chính phản hồi đã dẫn tới thay đổi này
           (2026-09-15). Ô cũng là chỗ duy nhất nói ra rằng trang đang bị
           hẹp về một kỳ, vì học kỳ cố ý không tính vào `hasActive` bên
           dưới và nút "Xoá tất cả bộ lọc" cố ý giữ nó lại. */}

@@ -47,7 +47,7 @@ export function StudentLogin({
   return (
     <form onSubmit={(e) => void submit(e)} className="flex h-full flex-col gap-4 p-5">
       <BrandMark />
-      <h1 className="-mb-1 text-h2 font-bold">Sinh viên — Quản lý</h1>
+      <h1 className="-mb-1 text-h2 font-bold">Sinh viên - Quản lý</h1>
       <p className="text-small text-muted-foreground">
         Nhập MSSV. Hệ thống đối chiếu danh sách sinh viên; chỉ máy có MSSV hợp lệ mới gắn vào Teacher
         Hub.

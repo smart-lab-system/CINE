@@ -80,7 +80,7 @@ beforeEach(() => {
   h.rubrics = { data: [rubricRecord] };
 });
 
-describe('Bảng lỗi — chọn rubric và URL (Review Focus 1, 2)', () => {
+describe('Bảng lỗi - chọn rubric và URL (Review Focus 1, 2)', () => {
   it('không có ?rubric= thì mở rubric đầu tiên của tổng quan (lưu gần nhất)', () => {
     render(<RulesPage />);
     expect(screen.getByRole('heading', { level: 1, name: 'Bảng lỗi' })).toBeInTheDocument();
@@ -96,7 +96,7 @@ describe('Bảng lỗi — chọn rubric và URL (Review Focus 1, 2)', () => {
   });
 
   it('tên rubric có & # ? / và dấu đi vòng qua URL không mất ký tự nào', () => {
-    const name = 'A&B #1 — Giữa kỳ? 50%+';
+    const name = 'A&B #1 - Giữa kỳ? 50%+';
     h.overview.data = [GK, overview({ rubricName: name, rubricId: 'sp' })];
     search = `rubric=${encodeURIComponent(name)}`;
     render(<RulesPage />);
@@ -145,7 +145,7 @@ describe('Bảng lỗi — chọn rubric và URL (Review Focus 1, 2)', () => {
   });
 });
 
-describe('Bảng lỗi — các trạng thái của trang', () => {
+describe('Bảng lỗi - các trạng thái của trang', () => {
   it('đang tải / lỗi tải tổng quan', () => {
     h.overview = { data: [], isLoading: true, isFetching: true, isError: false, error: null };
     const { unmount } = render(<RulesPage />);
@@ -153,7 +153,7 @@ describe('Bảng lỗi — các trạng thái của trang', () => {
     unmount();
     h.overview = { data: [], isLoading: false, isFetching: false, isError: true, error: new Error('Máy chủ không trả lời') };
     render(<RulesPage />);
-    expect(screen.getByText(/Không tải được Bảng lỗi — Máy chủ không trả lời/)).toBeInTheDocument();
+    expect(screen.getByText(/Không tải được Bảng lỗi - Máy chủ không trả lời/)).toBeInTheDocument();
   });
 
   it('chưa có rubric nào: màn hình lần đầu; "Tạo rubric đầu tiên" mở hộp thoại; nút "Thêm lỗi" khoá', () => {
@@ -167,7 +167,7 @@ describe('Bảng lỗi — các trạng thái của trang', () => {
 
   it('dải trạng thái, thông tin rubric và ba tab có đếm', () => {
     render(<RulesPage />);
-    expect(screen.getByRole('heading', { name: 'Chưa sẵn sàng chấm tự động — còn 3 việc' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Chưa sẵn sàng chấm tự động - còn 3 việc' })).toBeInTheDocument();
     expect(screen.getByText(/Dùng ở:/)).toHaveTextContent('Ca sáng');
     expect(screen.getByRole('tab', { name: 'Lỗi theo tiêu chí 2' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Lỗi AI đề xuất 2' })).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe('Bảng lỗi — các trạng thái của trang', () => {
   });
 });
 
-describe('Bảng lỗi — việc cần làm là nút làm đúng việc (T-RBE-UI-3)', () => {
+describe('Bảng lỗi - việc cần làm là nút làm đúng việc (T-RBE-UI-3)', () => {
   it('"Xem lỗi AI đề xuất" mở tab đề xuất', () => {
     render(<RulesPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Xem lỗi AI đề xuất' }));
@@ -201,7 +201,7 @@ describe('Bảng lỗi — việc cần làm là nút làm đúng việc (T-RBE-
   });
 });
 
-describe('Bảng lỗi — ngăn kéo và hộp thoại', () => {
+describe('Bảng lỗi - ngăn kéo và hộp thoại', () => {
   it('"Thêm lỗi" (đầu trang) mở ngăn kéo với ô chọn tiêu chí', () => {
     render(<RulesPage />);
     fireEvent.click(screen.getAllByRole('button', { name: 'Thêm lỗi' })[0]);
@@ -249,11 +249,11 @@ describe('Bảng lỗi — ngăn kéo và hộp thoại', () => {
   it('"Sửa tiêu chí & điểm tối đa" mở hộp thoại sửa của đúng rubric', () => {
     render(<RulesPage />);
     fireEvent.click(screen.getByRole('button', { name: /Sửa tiêu chí & điểm tối đa/ }));
-    expect(screen.getByRole('heading', { name: /Sửa tiêu chí & điểm tối đa — Giữa kỳ CTDL/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Sửa tiêu chí & điểm tối đa - Giữa kỳ CTDL/ })).toBeInTheDocument();
   });
 });
 
-describe('Bảng lỗi — nhiều rubric và học kỳ (T-RBE-UI-10)', () => {
+describe('Bảng lỗi - nhiều rubric và học kỳ (T-RBE-UI-10)', () => {
   it('từ 5 rubric: ô "Rubric đang mở"; tạo rubric mới đặt lại bộ lọc học kỳ và chuyển sang rubric vừa tạo', () => {
     h.overview.data = [GK, DT, CK, ...extra(3)];
     const saved = { ...rubricRecord, id: 'ru-new', name: 'Rubric mới tạo', version: 1 };
@@ -276,7 +276,7 @@ describe('Bảng lỗi — nhiều rubric và học kỳ (T-RBE-UI-10)', () => {
  * T-RBE-UI-2: chữ giảng viên đọc không còn từ vựng của dev. Quét văn bản thật của trang ở nhiều trạng thái; khi
  * hỏng, thông báo nêu đúng từ vi phạm. Từ "luật/giá/trần" chỉ cấm đứng riêng một chữ (không cấm "đánh giá").
  */
-describe('Bảng lỗi — từ vựng (T-RBE-UI-2)', () => {
+describe('Bảng lỗi - từ vựng (T-RBE-UI-2)', () => {
   const BANNED = /(?<![\p{L}\p{N}_])(giá|trần|luật|cách khớp|cần backend|chua_gan)(?![\p{L}\p{N}_])/iu;
   const clean = () => expect((document.body.textContent ?? '').match(BANNED)?.[0]).toBeUndefined();
 

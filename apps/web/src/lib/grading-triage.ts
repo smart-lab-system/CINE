@@ -12,7 +12,7 @@ export const HIGH_CONFIDENCE = 0.7;
  * Điểm một mức đánh giá đáng được, theo đúng `pointsFor()` của server.
  *
  * Chép lại ba nhánh chứ không đoán: `partially_met` là ĐÚNG MỘT NỬA, và con
- * số đó cố tình chưa cấu hình được — trọng số từng phần là câu hỏi thiết kế
+ * số đó cố tình chưa cấu hình được - trọng số từng phần là câu hỏi thiết kế
  * rubric, không phải một hằng số nằm trong helper.
  */
 export function pointsForVerdict(
@@ -29,7 +29,7 @@ export function pointsForVerdict(
  *
  * Phép so sánh, không phải một cột mới: `submission.home_class_id` là lớp
  * GỐC của sinh viên, còn `exam_session.class_id` là lớp của phiên. Khác
- * nhau nghĩa là em ngồi ở phiên của lớp khác — đúng định nghĩa thi bù, và
+ * nhau nghĩa là em ngồi ở phiên của lớp khác - đúng định nghĩa thi bù, và
  * cùng phép so sánh mà sảnh thi đã dùng để tách nhóm (`attendance.service.ts`).
  *
  * `exam_session.class_id` thành NOT NULL ở `ExpandMasterDataToText` làm phép

@@ -44,7 +44,7 @@ describe('gradingResultsToCsv', () => {
   });
 
   it('bài chưa có điểm (currentScore null) để ô trống, không hiện "0"', () => {
-    // 0 đọc thành "chấm 0 điểm" — điểm null nghĩa là chưa có ý kiến.
+    // 0 đọc thành "chấm 0 điểm" - điểm null nghĩa là chưa có ý kiến.
     const csv = gradingResultsToCsv([result({ currentScore: null })]);
     const dataLine = csv.split('\r\n')[1];
     // Cột thứ 5 (chỉ số 4): MSSV, Họ tên, Lớp, Trạng thái, Điểm.
@@ -71,7 +71,7 @@ describe('gradingResultsToCsv', () => {
   });
 
   it('currentScore = 0 xuất ra "0", không phải ô trống', () => {
-    // `??` chứ không `||` — 0 là một điểm thật, khác "chưa có ý kiến" (null).
+    // `??` chứ không `||` - 0 là một điểm thật, khác "chưa có ý kiến" (null).
     const csv = gradingResultsToCsv([result({ currentScore: 0 })]);
     const cols = csv.split('\r\n')[1].split(',');
     expect(cols[4]).toBe('0');
@@ -82,7 +82,7 @@ describe('gradingResultsToCsv', () => {
       result({ studentName: '=HYPERLINK("http://evil","click")' }),
     ]);
     const dataLine = csv.split('\r\n')[1];
-    // Dấu `'` đứng trước buộc trình đọc hiểu là văn bản — Excel tự bỏ dấu
+    // Dấu `'` đứng trước buộc trình đọc hiểu là văn bản - Excel tự bỏ dấu
     // đó khi hiện ô, không hiện nguyên văn cho người đọc.
     expect(dataLine).toContain("'=HYPERLINK");
     expect(dataLine).not.toMatch(/,=HYPERLINK/);
@@ -129,7 +129,7 @@ describe('gradingResultsToCsv', () => {
 
 describe('gradingCsvFilename', () => {
   // Giờ ĐỊA PHƯƠNG (không phải chuỗi ISO/UTC): hàm đọc ngày bằng
-  // getFullYear/getMonth/getDate, nên test phải dựng Date theo cách đó —
+  // getFullYear/getMonth/getDate, nên test phải dựng Date theo cách đó -
   // dùng chuỗi ISO UTC sẽ cho ngày khác nhau tuỳ múi giờ máy chạy test.
   const now = new Date(2026, 8, 29, 10, 0, 0);
 

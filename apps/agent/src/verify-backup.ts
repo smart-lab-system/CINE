@@ -1,6 +1,6 @@
 /**
  * Manual end-to-end check of the snapshot backup, against a running API and
- * a real MinIO. Not part of `pnpm test` — that suite must not need infra.
+ * a real MinIO. Not part of `pnpm test` - that suite must not need infra.
  *
  *   pnpm --filter agent exec ts-node src/verify-backup.ts <SESSION_CODE> <MSSV>
  *
@@ -21,7 +21,7 @@ const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:4000';
 const results: { label: string; ok: boolean; detail?: string }[] = [];
 function check(label: string, ok: boolean, detail?: string): void {
   results.push({ label, ok, detail });
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? '  — ' + detail : ''}`);
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? '  - ' + detail : ''}`);
 }
 
 function join(

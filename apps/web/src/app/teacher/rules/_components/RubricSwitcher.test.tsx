@@ -10,9 +10,9 @@ const FEW = [named('Giữa kỳ CTDL', { unpricedCount: 1 }), named('Diễn tậ
 
 /** 14 rubric: tên thật, trạng thái xen kẽ, một nửa có phiên ở HK khác nhau. */
 const NAMES = [
-  'Giữa kỳ CTDL', 'Diễn tập — Ngăn xếp', 'Cuối kỳ CTDL', 'Giữa kỳ CTDL 2025', 'Cuối kỳ CTDL 2025', 'Kiểm tra 15 phút — Mảng',
-  'Thực hành — Hàng đợi', 'Giữa kỳ Lập trình C', 'Cuối kỳ Lập trình C', 'Bài tập lớn — Đồ thị', 'Thực hành — Cây nhị phân',
-  'Kiểm tra giữa kỳ — Sắp xếp', 'Cuối kỳ CTDL (đề B)', 'Thi lại CTDL',
+  'Giữa kỳ CTDL', 'Diễn tập - Ngăn xếp', 'Cuối kỳ CTDL', 'Giữa kỳ CTDL 2025', 'Cuối kỳ CTDL 2025', 'Kiểm tra 15 phút - Mảng',
+  'Thực hành - Hàng đợi', 'Giữa kỳ Lập trình C', 'Cuối kỳ Lập trình C', 'Bài tập lớn - Đồ thị', 'Thực hành - Cây nhị phân',
+  'Kiểm tra giữa kỳ - Sắp xếp', 'Cuối kỳ CTDL (đề B)', 'Thi lại CTDL',
 ];
 const MANY_LIST = NAMES.map((name, i) =>
   named(name, {
@@ -36,7 +36,7 @@ function show(overviews: RubricOverview[], over: Partial<React.ComponentProps<ty
   return { props, ...render(<RubricSwitcher {...props} />) };
 }
 
-describe('RubricSwitcher — ít rubric: hàng thẻ (T-RBE-UI-2)', () => {
+describe('RubricSwitcher - ít rubric: hàng thẻ (T-RBE-UI-2)', () => {
   it('mỗi rubric một thẻ có tên và tình trạng; thẻ đang mở được chọn', () => {
     show(FEW);
     const tabs = screen.getAllByRole('tab');
@@ -61,7 +61,7 @@ describe('RubricSwitcher — ít rubric: hàng thẻ (T-RBE-UI-2)', () => {
   });
 });
 
-describe('RubricSwitcher — nhiều rubric: ô chọn có tìm kiếm', () => {
+describe('RubricSwitcher - nhiều rubric: ô chọn có tìm kiếm', () => {
   it('từ 5 rubric: không còn hàng thẻ; hiện "Rubric đang mở" và nút Đổi rubric kèm tổng số', () => {
     show([...FEW, named('Bốn'), named('Năm')]);
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
@@ -115,14 +115,14 @@ describe('RubricSwitcher — nhiều rubric: ô chọn có tìm kiếm', () => {
     show(MANY_LIST);
     fireEvent.click(screen.getByRole('button', { name: /Đổi rubric/ }));
     fireEvent.keyDown(screen.getByLabelText('Tìm rubric theo tên'), { key: 'ArrowDown' });
-    // getAllByRole('option') gồm cả <option> của <select> học kỳ/sắp xếp — chỉ lấy dòng trong listbox.
+    // getAllByRole('option') gồm cả <option> của <select> học kỳ/sắp xếp - chỉ lấy dòng trong listbox.
     expect(within(screen.getByRole('listbox', { name: 'Danh sách rubric' })).getAllByRole('option')[0]).toHaveFocus();
   });
 
   it('"Gần đây": tối đa 3 chip, không gồm rubric đang mở, bỏ tên không còn tồn tại', () => {
-    const { props } = show(MANY_LIST, { recent: ['Giữa kỳ CTDL', 'Thi lại CTDL', 'Đã bị xoá', 'Cuối kỳ CTDL', 'Diễn tập — Ngăn xếp', 'Giữa kỳ CTDL 2025'] });
-    const chips = screen.getAllByRole('button', { name: /^(Thi lại CTDL|Cuối kỳ CTDL|Diễn tập — Ngăn xếp|Giữa kỳ CTDL 2025)$/ });
-    expect(chips.map((c) => c.textContent)).toEqual(['Thi lại CTDL', 'Cuối kỳ CTDL', 'Diễn tập — Ngăn xếp']);
+    const { props } = show(MANY_LIST, { recent: ['Giữa kỳ CTDL', 'Thi lại CTDL', 'Đã bị xoá', 'Cuối kỳ CTDL', 'Diễn tập - Ngăn xếp', 'Giữa kỳ CTDL 2025'] });
+    const chips = screen.getAllByRole('button', { name: /^(Thi lại CTDL|Cuối kỳ CTDL|Diễn tập - Ngăn xếp|Giữa kỳ CTDL 2025)$/ });
+    expect(chips.map((c) => c.textContent)).toEqual(['Thi lại CTDL', 'Cuối kỳ CTDL', 'Diễn tập - Ngăn xếp']);
     fireEvent.click(chips[0]);
     expect(props.onSelect).toHaveBeenCalledWith('Thi lại CTDL');
   });
@@ -134,7 +134,7 @@ describe('RubricSwitcher — nhiều rubric: ô chọn có tìm kiếm', () => {
     expect(screen.getByRole('button', { name: /^Cần làm/ })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('T-RBE-UI-10: lọc học kỳ — danh sách dựng từ phiên, mới nhất trước, "Chưa gắn học kỳ" cuối', () => {
+  it('T-RBE-UI-10: lọc học kỳ - danh sách dựng từ phiên, mới nhất trước, "Chưa gắn học kỳ" cuối', () => {
     show(MANY_LIST);
     fireEvent.click(screen.getByRole('button', { name: /Đổi rubric/ }));
     const options = within(screen.getByLabelText('Lọc theo học kỳ')).getAllByRole('option').map((o) => o.textContent);
@@ -157,7 +157,7 @@ describe('RubricSwitcher — nhiều rubric: ô chọn có tìm kiếm', () => {
     expect(props.onSem).toHaveBeenLastCalledWith(null);
   });
 
-  it('T-RBE-UI-10: lọc học kỳ không vô hiệu hoá nút nào — "Rubric mới" và "Đổi rubric" vẫn bấm được', () => {
+  it('T-RBE-UI-10: lọc học kỳ không vô hiệu hoá nút nào - "Rubric mới" và "Đổi rubric" vẫn bấm được', () => {
     const { props } = show(MANY_LIST, { sem: 'HK2 2025-2026' });
     expect(screen.getAllByRole('button', { name: /Rubric mới/ })[0]).toBeEnabled();
     expect(screen.getByRole('button', { name: /Đổi rubric/ })).toBeEnabled();

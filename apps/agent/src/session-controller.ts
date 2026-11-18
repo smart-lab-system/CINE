@@ -1,17 +1,17 @@
 /**
- * The Electron app's orchestration core — `cli.ts`'s `main()` body, ported
+ * The Electron app's orchestration core - `cli.ts`'s `main()` body, ported
  * to a class that pushes state instead of printing lines, and takes
  * commands instead of reading a terminal. Design spec §7/§8.2.
  *
  * Deliberately has no `electron` import anywhere in this file: it only
  * knows sockets and the filesystem, so it can be unit-tested exactly like
- * `snapshot.test.ts` — spin up a real (tiny) socket.io server, drive a
+ * `snapshot.test.ts` - spin up a real (tiny) socket.io server, drive a
  * real client against it, assert on the `state` events that come out.
  * `electron/main/index.ts` is the only place that imports both this file
- * and `electron` — it wires `state`/`notify` events to a `BrowserWindow`
+ * and `electron` - it wires `state`/`notify` events to a `BrowserWindow`
  * and native `Notification`s.
  *
- * One instance per app run — this app manages exactly one student's
+ * One instance per app run - this app manages exactly one student's
  * session on one machine, never several.
  */
 
@@ -73,7 +73,7 @@ export type UiErrorCode = AgentJoinErrorCode | 'ACCESS_DENIED' | 'ACCESS_REQUEST
 export interface JoinErrorState {
   code: UiErrorCode;
   message: string;
-  /** Only set when code is RATE_LIMITED — an absolute timestamp (ISO), not
+  /** Only set when code is RATE_LIMITED - an absolute timestamp (ISO), not
    *  a duration, so the renderer's own countdown stays correct even if it
    *  misses a tick; never re-derived from a re-push of this same state. */
   retryUntil?: string;
@@ -83,10 +83,10 @@ export interface RequiredFileStatus {
   filename: string;
   created: boolean;
   /** Khớp `CreateSubmissionFilesResult['files'][number].note` ở
-   *  `workspace-files.ts` — khai RIÊNG, không import, nên phải thêm trường
+   *  `workspace-files.ts` - khai RIÊNG, không import, nên phải thêm trường
    *  này ở CẢ HAI chỗ. Thiếu một bên thì TypeScript vẫn biên dịch qua (hai
    *  interface cùng hình dạng thừa), nhưng `note` bị rớt lặng lẽ ở chỗ gán
-   *  `this.patch({ requiredFiles: created.files })` — `DetailView.tsx` đọc
+   *  `this.patch({ requiredFiles: created.files })` - `DetailView.tsx` đọc
    *  theo interface hẹp hơn và không bao giờ thấy nó. */
   note?: string;
 }
@@ -133,14 +133,14 @@ export interface AgentState {
   submission: SubmissionState;
   log: LogEntry[];
   /**
-   * True from the moment `exam:finalize` is first received, forever —
+   * True from the moment `exam:finalize` is first received, forever -
    * regardless of whether the upload itself succeeds. Once the server has
    * closed the session, nothing this client does can reopen it, and a
    * later reconnect (network blip, laptop sleep, a dev-server restart)
    * must not try `agent:join` again: the server would reject it with
    * SESSION_NOT_ACTIVE now that the session is 'completed', and treating
    * that like any other join error would regress the UI from "already
-   * submitted" back to a join/error screen — see connectSocket's
+   * submitted" back to a join/error screen - see connectSocket's
    * `on('connect')` and handleJoinError's own `examEnded` guards.
    */
   examEnded: boolean;
@@ -151,7 +151,7 @@ export interface NotifyEvent {
   body: string;
 }
 
-// A capped log, not an unbounded one — this process is meant to run for a
+// A capped log, not an unbounded one - this process is meant to run for a
 // whole exam sitting.
 const MAX_LOG_ENTRIES = 200;
 
@@ -182,7 +182,7 @@ function initialState(): AgentState {
   };
 }
 
-/** Same non-object guard the gateway itself uses on the way in — applied
+/** Same non-object guard the gateway itself uses on the way in - applied
  *  here on the way back, since a malformed or hostile server response is
  *  just as untrustworthy as a malformed client request. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -192,7 +192,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export interface SessionControllerOptions {
   backendUrl: string;
   /** Where `exam-workspace/<studentId>/` is created. Injected rather than
-   *  read from `process.cwd()` (what `cli.ts` used) — that has no stable
+   *  read from `process.cwd()` (what `cli.ts` used) - that has no stable
    *  meaning for a packaged Electron app, and injecting it here is what
    *  keeps this class testable without Electron: a test passes a tmp dir,
    *  `electron/main/index.ts` passes `app.getPath('documents')`. */
@@ -200,20 +200,20 @@ export interface SessionControllerOptions {
 }
 
 /**
- * Emits exactly three events — documented here rather than as overloaded
+ * Emits exactly three events - documented here rather than as overloaded
  * `on()` signatures (which would need unsafe class/interface declaration
  * merging) since `EventEmitter` itself is already untyped:
- *   - `'state'`         — `(state: {@link AgentState}) => void`, on every
+ *   - `'state'`         - `(state: {@link AgentState}) => void`, on every
  *     state change.
- *   - `'notify'`        — `(notification: {@link NotifyEvent}) => void`,
+ *   - `'notify'`        - `(notification: {@link NotifyEvent}) => void`,
  *     for the moments `electron/main` should fire a native `Notification`.
- *   - `'open-workspace'` — `(workspaceDir: string) => void`, fired once,
- *     right after the FIRST successful join creates the workspace folder —
+ *   - `'open-workspace'` - `(workspaceDir: string) => void`, fired once,
+ *     right after the FIRST successful join creates the workspace folder -
  *     `electron/main` opens it in the OS file manager so the student never
  *     has to go looking for it themselves (CLAUDE.md's "don't push work
  *     onto anyone the system can resolve itself"). Deliberately not
  *     re-fired on a reconnect's repeat `agent:join:ack` (see
- *     `doHandleJoinAck`'s `isFirstJoin`) — the folder is already open by
+ *     `doHandleJoinAck`'s `isFirstJoin`) - the folder is already open by
  *     then, and popping a second Explorer window on every network blip
  *     would be the opposite of "stay out of the way".
  */
@@ -230,7 +230,7 @@ export class SessionController extends EventEmitter {
   /** Hẹn xin đề đúng `materialsReleaseAt`. Vào sớm thì lúc vào chưa có đề. */
   private materialsReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Set once a join() attempt has passed local validation — reused by
+  // Set once a join() attempt has passed local validation - reused by
   // reconnects and by the access-request/grant flow's re-join, exactly
   // like cli.ts's closed-over `payload`.
   private lastJoinPayload: AgentJoinPayload | null = null;
@@ -245,9 +245,9 @@ export class SessionController extends EventEmitter {
     // Without this, the renderer's join form never appears: main.ts's
     // `webContents.on('did-finish-load', ...)` only replays a state if
     // `latestState` is already set, which only happens once this class
-    // has emitted 'state' at least once — and nothing did that until the
+    // has emitted 'state' at least once - and nothing did that until the
     // student called join(), which they cannot do on a window with no
-    // form rendered yet. A blank window forever, on every fresh launch —
+    // form rendered yet. A blank window forever, on every fresh launch -
     // missed by every automated check here (they all call join()
     // immediately) and by the "process stayed alive" smoke test, since
     // neither one looks at what actually rendered.
@@ -273,7 +273,7 @@ export class SessionController extends EventEmitter {
 
   /**
    * Submits the join form (state a's "Xác nhận vào thi", state d/d2/e's
-   * "Thử lại"/"Quay lại", and the manual retry in group 1b — all four are
+   * "Thử lại"/"Quay lại", and the manual retry in group 1b - all four are
    * the same action: try to join with whatever is in the two fields now).
    */
   join(payload: { studentId: string; sessionCode: string }): void {
@@ -302,14 +302,14 @@ export class SessionController extends EventEmitter {
     if (this.socket.connected) {
       this.emitJoin();
     } else {
-      // Mid-reconnect (or the manual retry button in group 1b) — force an
+      // Mid-reconnect (or the manual retry button in group 1b) - force an
       // immediate attempt instead of waiting for socket.io's own backoff
       // timer. The 'connect' handler re-emits agent:join once it lands.
       this.socket.connect();
     }
   }
 
-  /** State f's "Gửi yêu cầu" — the one place a typed name is real input. */
+  /** State f's "Gửi yêu cầu" - the one place a typed name is real input. */
   sendAccessRequest(payload: { fullName: string; reason: string }): void {
     if (!this.socket || !this.state.studentId || !this.state.sessionCode) {
       this.setJoinError('ACCESS_REQUEST_FAILED', 'Chưa có phiên kết nối để gửi yêu cầu.');
@@ -345,7 +345,7 @@ export class SessionController extends EventEmitter {
 
   /**
    * Cleans up this controller's own resources (snapshot timer, socket).
-   * Does NOT call `process.exit`/`app.quit` — that is `electron/main`'s
+   * Does NOT call `process.exit`/`app.quit` - that is `electron/main`'s
    * call, made after this resolves cleanly, same separation `cli.ts`'s
    * own `shutdown()` had between socket teardown and `process.exit`.
    */
@@ -367,7 +367,7 @@ export class SessionController extends EventEmitter {
 
   private connectSocket(): void {
     this.patch({ connection: 'connecting' });
-    // No cookie/JWT — agents are public/unauthenticated by design, unlike
+    // No cookie/JWT - agents are public/unauthenticated by design, unlike
     // the teacher lobby (which authenticates via a Bearer token in handshake.auth).
     const socket = io(`${this.backendUrl}/exam-live`, { reconnection: true });
     this.socket = socket;
@@ -376,13 +376,13 @@ export class SessionController extends EventEmitter {
       this.patch({ connection: 'connected' });
       if (this.state.examEnded) {
         // The exam is already over for this student (exam:finalize was
-        // already received at least once) — re-emitting agent:join here
+        // already received at least once) - re-emitting agent:join here
         // would only get rejected with SESSION_NOT_ACTIVE now that the
         // session itself is 'completed' server-side, which would wrongly
         // regress the UI from "already submitted" back to an error/join
         // screen. Nothing left to authenticate once the exam has ended,
         // successfully uploaded or not.
-        this.log('Kết nối lại sau khi bài thi đã kết thúc — không gửi lại yêu cầu vào thi.');
+        this.log('Kết nối lại sau khi bài thi đã kết thúc - không gửi lại yêu cầu vào thi.');
         return;
       }
       this.emitJoin();
@@ -391,7 +391,7 @@ export class SessionController extends EventEmitter {
     socket.on('connect_error', (error: Error) => {
       this.patch({ connection: 'connect_error' });
       if (!this.hasJoinedOnce) {
-        // Group 1b — the one failure mode with no channel to notify the
+        // Group 1b - the one failure mode with no channel to notify the
         // teacher through, because the channel itself is what is down.
         this.setJoinPhase('connect_error');
       }
@@ -410,7 +410,7 @@ export class SessionController extends EventEmitter {
 
     socket.on('agent:join:ack', (ack: unknown) => {
       if (!isPlainObject(ack)) {
-        this.log('[CẢNH BÁO] Server gửi agent:join:ack không hợp lệ — bỏ qua.');
+        this.log('[CẢNH BÁO] Server gửi agent:join:ack không hợp lệ - bỏ qua.');
         return;
       }
       void this.handleJoinAck(ack as unknown as AgentJoinAck);
@@ -426,23 +426,23 @@ export class SessionController extends EventEmitter {
 
     socket.on('exam:finalize', (payload: unknown) => {
       if (!isPlainObject(payload)) {
-        this.log('[CẢNH BÁO] Server gửi exam:finalize không hợp lệ — bỏ qua.');
+        this.log('[CẢNH BÁO] Server gửi exam:finalize không hợp lệ - bỏ qua.');
         return;
       }
       void this.handleFinalize(payload as unknown as ExamFinalizePayload);
     });
 
     /**
-     * Giảng viên bấm "Thu lại" — nộp lại mọi deliverable bắt buộc.
+     * Giảng viên bấm "Thu lại" - nộp lại mọi deliverable bắt buộc.
      *
      * Không đọc payload: nó chỉ chứa `examSessionId`, và socket này đã
-     * gắn với đúng một phiên từ lúc `agent:join` — kiểm lại sẽ là so một
+     * gắn với đúng một phiên từ lúc `agent:join` - kiểm lại sẽ là so một
      * giá trị với chính nó.
      *
      * Ack NGAY, TRƯỚC mọi guard và trước cả upload. Ack nghĩa là "máy
      * này còn sống và đã nhận lệnh", không phải "đã nộp xong". Server
      * dùng nó để nói cho giảng viên biết máy nào không với tới được, và
-     * một máy im lặng vì upload lỗi sẽ bị báo nhầm là đã tắt — trong khi
+     * một máy im lặng vì upload lỗi sẽ bị báo nhầm là đã tắt - trong khi
      * nó đang ở ngay đó, báo lỗi trên màn hình, và xử lý tay được.
      */
     socket.on('exam:recollect', (_payload: unknown, ack?: (result: RecollectAck) => void) => {
@@ -450,7 +450,7 @@ export class SessionController extends EventEmitter {
       void this.handleRecollect();
     });
 
-    // No payload to validate — this is purely a "check again" nudge, see
+    // No payload to validate - this is purely a "check again" nudge, see
     // handleMaterialsUpdated's own doc comment.
     socket.on('exam:materials-updated', () => {
       void this.handleMaterialsUpdated();
@@ -480,7 +480,7 @@ export class SessionController extends EventEmitter {
   }
 
   // -------------------------------------------------------------------
-  // agent:join:ack — ordering-sensitive: restore MUST finish before the
+  // agent:join:ack - ordering-sensitive: restore MUST finish before the
   // required files are created (see workspace-files.createSubmissionFiles'
   // own doc comment for why).
   // -------------------------------------------------------------------
@@ -489,13 +489,13 @@ export class SessionController extends EventEmitter {
     try {
       await this.doHandleJoinAck(ack);
     } catch (error) {
-      // Fired from a socket listener via `void this.handleJoinAck(...)` —
+      // Fired from a socket listener via `void this.handleJoinAck(...)` -
       // an uncaught rejection here has no `.catch` to land in and would
       // crash Electron's main process outright, at the exact moment a
       // student is mid-exam. Reported, not swallowed: the student is
       // already confirmed joined by this point (that patch happens first,
       // synchronously, below), so this can only affect backup/materials/
-      // instructions — worth surfacing, never worth taking the app down
+      // instructions - worth surfacing, never worth taking the app down
       // for.
       this.log(`Lỗi không mong muốn sau khi vào thi: ${describeError(error)}`);
     }
@@ -529,7 +529,7 @@ export class SessionController extends EventEmitter {
     );
 
     if (!isFirstJoin) {
-      // Kết nối lại — giữ nguyên toàn bộ file đã có trên máy, không đụng
+      // Kết nối lại - giữ nguyên toàn bộ file đã có trên máy, không đụng
       // tới filesystem. state.requiredFiles already holds the checklist
       // from the real first join and stays exactly as it was.
       this.log('Đã kết nối lại. Giữ nguyên các file đã có trên máy, không tạo lại.');
@@ -549,7 +549,7 @@ export class SessionController extends EventEmitter {
           this.log(`Đã khôi phục ${outcome.restored} file từ bản sao lưu (giữ nguyên ${outcome.skipped} file có sẵn).`);
         } else if (outcome.status === 'failed') {
           this.patch({ backup: { ...this.state.backup, status: 'failed' } });
-          this.notify('Không khôi phục được bản sao lưu', 'Bạn vẫn làm bài bình thường — hãy báo giám thị nếu bài làm cũ bị mất.');
+          this.notify('Không khôi phục được bản sao lưu', 'Bạn vẫn làm bài bình thường - hãy báo giám thị nếu bài làm cũ bị mất.');
         } else {
           this.patch({ backup: { ...this.state.backup, status: 'nothing-to-restore' } });
         }
@@ -560,7 +560,7 @@ export class SessionController extends EventEmitter {
       this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
     }
     if (isFirstJoin) {
-      // Fired before materials/instructions finish writing, not after —
+      // Fired before materials/instructions finish writing, not after -
       // those can take a real amount of time on a slow connection, and the
       // student's own required files already exist right now. The file
       // manager window shows whatever is in the folder at the moment it's
@@ -581,11 +581,11 @@ export class SessionController extends EventEmitter {
       materialNames = await this.syncMaterials(workspaceDir);
     } else if (Number.isFinite(releaseAtMs) && releaseAtMs > Date.now()) {
       // Vào trước giờ: server cố ý báo count 0 để không phát đề. Xin lại
-      // đúng materialsReleaseAt — không thăm dò trước mốc đó.
+      // đúng materialsReleaseAt - không thăm dò trước mốc đó.
       this.patch({
         materials: { ...this.state.materials, count: 0, status: 'not-yet', releaseAt },
       });
-      this.log(`Đề thi chưa mở — sẽ mở lúc ${releaseAt}.`);
+      this.log(`Đề thi chưa mở - sẽ mở lúc ${releaseAt}.`);
       this.armMaterialsRelease(releaseAt);
     }
 
@@ -610,7 +610,7 @@ export class SessionController extends EventEmitter {
           });
         }
         // 'empty' (nothing written yet) leaves lastSnapshotAt/lastSnapshotFailed
-        // alone — there is nothing new to report, and clearing a real
+        // alone - there is nothing new to report, and clearing a real
         // earlier timestamp back to null would read as "never backed up".
       });
     }
@@ -618,7 +618,7 @@ export class SessionController extends EventEmitter {
 
   /**
    * `this.requiredDeliverables` (đã lưu ở `agent:join:ack`, xem trên) rút
-   * gọn về đúng hình dạng `InstructionsInput` cần — dùng chung cho cả hai
+   * gọn về đúng hình dạng `InstructionsInput` cần - dùng chung cho cả hai
    * lần gọi `writeInstructions` (`doHandleJoinAck` lúc mới vào, và
    * `handleMaterialsUpdated` khi giảng viên thêm đề giữa giờ), để hai lần
    * không lệch cách đọc `entries`.
@@ -636,7 +636,7 @@ export class SessionController extends EventEmitter {
    * by `doHandleJoinAck` (count > 0 at join time) and `handleMaterialsUpdated`
    * below (a material the teacher added AFTER this agent already joined).
    *
-   * Safe to call with nothing new to fetch — `downloadMaterials` itself
+   * Safe to call with nothing new to fetch - `downloadMaterials` itself
    * re-checks the release clock (Security rule 2, unaffected by this) and
    * skips any file already on disk, so a redundant call is a no-op, not a
    * re-download.
@@ -654,7 +654,7 @@ export class SessionController extends EventEmitter {
         },
       });
       if (outcome.downloaded > 0) {
-        this.notify('Đã tải xong đề thi', `${outcome.downloaded} file trong thư mục "de-thi" — sẵn sàng làm bài.`);
+        this.notify('Đã tải xong đề thi', `${outcome.downloaded} file trong thư mục "de-thi" - sẵn sàng làm bài.`);
       }
     } else if (outcome.status === 'not-yet') {
       this.patch({
@@ -664,7 +664,7 @@ export class SessionController extends EventEmitter {
           releaseAt: outcome.releaseAt ?? null,
         },
       });
-      this.log(`Đề thi chưa mở — sẽ mở lúc ${outcome.releaseAt ?? '(chưa rõ)'}.`);
+      this.log(`Đề thi chưa mở - sẽ mở lúc ${outcome.releaseAt ?? '(chưa rõ)'}.`);
       if (outcome.releaseAt) {
         this.armMaterialsRelease(outcome.releaseAt);
       }
@@ -689,7 +689,7 @@ export class SessionController extends EventEmitter {
 
   /**
    * Một lần, đúng giờ mở đề. `releaseAt` đã qua (lệch đồng hồ) thì chờ
-   * một nhịp rồi xin lại — gọi ngay sẽ quay vòng vì server vừa từ chối.
+   * một nhịp rồi xin lại - gọi ngay sẽ quay vòng vì server vừa từ chối.
    */
   private armMaterialsRelease(releaseAtIso: string): void {
     this.clearMaterialsRelease();
@@ -740,7 +740,7 @@ export class SessionController extends EventEmitter {
   /**
    * Server -> agent: a teacher added an exam material after this agent
    * already joined. QA-reported gap: this agent used to ask for materials
-   * exactly once, at join-ack time, gated on the join ack's OWN count —
+   * exactly once, at join-ack time, gated on the join ack's OWN count -
    * a student connected before the teacher uploaded anything got
    * `examMaterialCount: 0` and was never told to ask again, permanently,
    * short of a full disconnect/reconnect. This event is that "ask again"
@@ -751,7 +751,7 @@ export class SessionController extends EventEmitter {
   private async handleMaterialsUpdated(): Promise<void> {
     if (this.state.joinPhase !== 'joined' || !this.workspaceDir || !this.socket) {
       // Not actually in an exam yet (still on the join form, rejected,
-      // waiting on an access request...) — nothing to fetch into.
+      // waiting on an access request...) - nothing to fetch into.
       return;
     }
     const workspaceDir = this.workspaceDir;
@@ -773,10 +773,10 @@ export class SessionController extends EventEmitter {
   private handleJoinError(error: AgentJoinError): void {
     if (this.state.examEnded) {
       // Should be unreachable now that connect() itself skips emitJoin
-      // once the exam has ended — kept as a second layer so no future
+      // once the exam has ended - kept as a second layer so no future
       // path that calls emitJoin can regress an already-finished exam
       // back to a join/error screen.
-      this.log(`[CẢNH BÁO] Nhận agent:join:error (${error.code}) sau khi thi đã kết thúc — bỏ qua.`);
+      this.log(`[CẢNH BÁO] Nhận agent:join:error (${error.code}) sau khi thi đã kết thúc - bỏ qua.`);
       return;
     }
     const code = error.code;
@@ -805,7 +805,7 @@ export class SessionController extends EventEmitter {
     // Set unconditionally, before either guard below can return early: the
     // server has closed the session the moment this event was sent at all
     // (a duplicate broadcast, or a client-side gap that leaves nothing to
-    // upload, included) — from here on `connect`'s own examEnded check is
+    // upload, included) - from here on `connect`'s own examEnded check is
     // what stops a later reconnect from re-emitting agent:join into a
     // session that will only ever reject it now.
     if (!this.state.examEnded) {
@@ -820,12 +820,12 @@ export class SessionController extends EventEmitter {
   }
 
   /**
-   * "Thu lại" — giảng viên yêu cầu nộp lại (spec §6).
+   * "Thu lại" - giảng viên yêu cầu nộp lại (spec §6).
    *
    * KHÔNG đụng `examEnded`, và đó là điểm khác duy nhất đáng kể so với
    * `handleFinalize`: cờ đó là thứ chặn agent gửi lại `agent:join` sau
    * khi phiên đóng, nên đặt lại nó sẽ làm màn hình của sinh viên tụt từ
-   * "đã nộp" về màn hình join/lỗi — đúng con bug mà guard đó sinh ra để
+   * "đã nộp" về màn hình join/lỗi - đúng con bug mà guard đó sinh ra để
    * chặn.
    *
    * Ack đã được gửi ở call site, trước khi hàm này chạy.
@@ -839,7 +839,7 @@ export class SessionController extends EventEmitter {
     } catch (error) {
       // Gọi qua `void` từ một socket listener, nên một rejection ở đây
       // không có `.catch` nào để rơi vào và sẽ hạ luôn tiến trình chính
-      // của Electron — giữa lúc giảng viên đang đứng cạnh cái máy đó.
+      // của Electron - giữa lúc giảng viên đang đứng cạnh cái máy đó.
       this.log(`Lỗi không mong muốn khi thu lại: ${describeError(error)}`);
     }
   }
@@ -848,7 +848,7 @@ export class SessionController extends EventEmitter {
    * Đường nộp bài dùng chung của "hết giờ" và "Thu lại".
    *
    * Một bản duy nhất, không phải hai: bản sao thứ hai của đường nộp bài
-   * sẽ lệch khỏi bản đầu ở đúng những chi tiết khó thấy nhất — cờ
+   * sẽ lệch khỏi bản đầu ở đúng những chi tiết khó thấy nhất - cờ
    * `finalizing`, việc dừng snapshot, điều kiện xoá thư mục làm bài.
    */
   private async collectAll(
@@ -858,19 +858,19 @@ export class SessionController extends EventEmitter {
     if (this.finalizing) {
       this.log(
         trigger === 'recollect'
-          ? 'Đang nộp bài theo lệnh trước đó — bỏ qua lệnh thu lại.'
-          : 'Đang nộp bài theo lệnh trước đó — bỏ qua lệnh chốt bài lặp.',
+          ? 'Đang nộp bài theo lệnh trước đó - bỏ qua lệnh thu lại.'
+          : 'Đang nộp bài theo lệnh trước đó - bỏ qua lệnh chốt bài lặp.',
       );
       return;
     }
     if (this.requiredDeliverables.length === 0 || !this.examSessionId || !this.state.studentId) {
-      this.log('[CẢNH BÁO] Nhận lệnh nộp bài nhưng chưa có danh sách file bắt buộc — không nộp được gì.');
+      this.log('[CẢNH BÁO] Nhận lệnh nộp bài nhưng chưa có danh sách file bắt buộc - không nộp được gì.');
       return;
     }
 
     this.finalizing = true;
     // Idempotent, và với `recollect` thì snapshot đã dừng từ lượt chốt
-    // bài trước đó — gọi lại ở đây là để đường đi này đúng một mình, chứ
+    // bài trước đó - gọi lại ở đây là để đường đi này đúng một mình, chứ
     // không phải vì nó còn việc để làm.
     this.stopSnapshots?.();
     this.stopSnapshots = null;
@@ -896,12 +896,12 @@ export class SessionController extends EventEmitter {
         this.notify('Còn file chưa nộp được', `${stragglers}. Hãy báo giám thị ngay.`);
       } else {
         // QA-reported gap (point 6): the folder must survive every OTHER
-        // event in this app's life — a dropped connection, a reconnect, an
-        // exam simply running long — because a student mid-exam has no way
+        // event in this app's life - a dropped connection, a reconnect, an
+        // exam simply running long - because a student mid-exam has no way
         // to know they're disconnected and would lose unsaved work the
         // moment it's deleted out from under them. The ONLY safe trigger is
-        // "every required file is confirmed collected, right here" — never
-        // disconnect, never time-up on its own — the socket 'disconnect'
+        // "every required file is confirmed collected, right here" - never
+        // disconnect, never time-up on its own - the socket 'disconnect'
         // handler and quit() elsewhere in this class both deliberately
         // never touch the filesystem, only in-memory/socket state.
         this.removeWorkspaceAfterCollection();
@@ -941,7 +941,7 @@ export class SessionController extends EventEmitter {
   }
 
   /** Fires a native notification (via `electron/main`) AND leaves a trace
-   *  in the on-screen log — the detail window's log is the durable record
+   *  in the on-screen log - the detail window's log is the durable record
    *  of everything a transient OS toast already said. */
   private notify(title: string, body: string): void {
     this.emit('notify', { title, body } satisfies NotifyEvent);
@@ -949,12 +949,12 @@ export class SessionController extends EventEmitter {
   }
 
   /**
-   * Deletes the student's workspace folder — called ONLY from
+   * Deletes the student's workspace folder - called ONLY from
    * `handleFinalize`, and only once every required file has already been
    * confirmed uploaded (see the caller). A failure here is a disk-hygiene
    * nit, not a data-loss risk (the submission is already safely on the
    * server by the time this runs), so it never escalates to the student as
-   * an error — logged and swallowed.
+   * an error - logged and swallowed.
    */
   private removeWorkspaceAfterCollection(): void {
     if (!this.workspaceDir) return;
@@ -971,7 +971,7 @@ export class SessionController extends EventEmitter {
 // Small local helpers
 // ---------------------------------------------------------------------------
 
-/** The hostname, or undefined if the OS will not say. Never fatal — a
+/** The hostname, or undefined if the OS will not say. Never fatal - a
  *  pattern using {SOMAY} renders it as UNKNOWN, which is visible, and a
  *  pattern that does not use it never notices. */
 function machineName(): string | undefined {

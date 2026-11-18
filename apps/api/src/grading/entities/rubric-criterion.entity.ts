@@ -38,4 +38,12 @@ export class RubricCriterionEntity extends BaseEntity {
    */
   @Column({ type: 'text' })
   key!: string;
+
+  /**
+   * QS: tiêu chí thuộc một hướng. QA: luôn null.
+   * ON DELETE CASCADE theo approach — xoá hướng (khi tạo bản rubric mới) kéo theo bước.
+   */
+  @Index('idx_rubric_criterion_approach')
+  @Column({ name: 'approach_id', type: 'uuid', nullable: true })
+  approachId!: string | null;
 }

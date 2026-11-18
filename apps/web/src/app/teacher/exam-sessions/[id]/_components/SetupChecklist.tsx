@@ -19,7 +19,7 @@ export interface SetupChecklistResult {
   warnings: string[];
 }
 
-/** Luật checklist sẵn sàng mở — spec §5.4. */
+/** Luật checklist sẵn sàng mở - spec §5.4. */
 export function evaluateSetupChecklist(input: SetupChecklistInput): SetupChecklistResult {
   const warnings: string[] = [];
   const start = Date.parse(input.startTime);
@@ -29,7 +29,7 @@ export function evaluateSetupChecklist(input: SetupChecklistInput): SetupCheckli
   if (input.status === 'missed') {
     return {
       canOpen: false,
-      blockReason: 'Phiên không diễn ra — không mở được.',
+      blockReason: 'Phiên không diễn ra - không mở được.',
       warnings,
     };
   }
@@ -50,7 +50,7 @@ export function evaluateSetupChecklist(input: SetupChecklistInput): SetupCheckli
   if (end <= now) {
     return {
       canOpen: false,
-      blockReason: 'Khung giờ thi đã qua — hãy sửa lịch trước khi mở.',
+      blockReason: 'Khung giờ thi đã qua - hãy sửa lịch trước khi mở.',
       warnings,
     };
   }
@@ -63,13 +63,13 @@ export function evaluateSetupChecklist(input: SetupChecklistInput): SetupCheckli
   }
 
   if (input.studentCount === 0) {
-    warnings.push('Lớp chưa có sinh viên — mở phiên sẽ bị từ chối cho đến khi nhập roster.');
+    warnings.push('Lớp chưa có sinh viên - mở phiên sẽ bị từ chối cho đến khi nhập roster.');
   }
   if (input.materialCount === 0) {
     warnings.push('Chưa có đề phát cho sinh viên.');
   }
   if (!input.hasRubric) {
-    warnings.push('Chưa gắn rubric — sẽ cần trước khi chấm.');
+    warnings.push('Chưa gắn rubric - sẽ cần trước khi chấm.');
   }
 
   return { canOpen: true, blockReason: null, warnings };
@@ -86,7 +86,7 @@ export function SetupChecklist({ result }: { result: SetupChecklistResult }) {
   if (result.warnings.length === 0) {
     return (
       <Alert variant="success">
-        <AlertDescription>Đủ điều kiện mở phiên — có thể mở cửa cho sinh viên.</AlertDescription>
+        <AlertDescription>Đủ điều kiện mở phiên - có thể mở cửa cho sinh viên.</AlertDescription>
       </Alert>
     );
   }

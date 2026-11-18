@@ -9,12 +9,12 @@ const STEPS = [
 ];
 
 const TREE = [
-  'Rubric — một kỳ thi, 10,0 điểm',
-  '  └ Tiêu chí — Tính đúng đắn, tối đa 6,0',
-  '      └ Lỗi — Sai trường hợp biên, trừ 1,5',
-  '      └ Lỗi — Sai trường hợp cơ bản, trừ 1,5',
-  '  └ Tiêu chí — Quản lý bộ nhớ, tối đa 2,0',
-  '      └ Lỗi — Rò rỉ bộ nhớ, trừ 1,0',
+  'Rubric - một kỳ thi, 10,0 điểm',
+  '  └ Tiêu chí - Tính đúng đắn, tối đa 6,0',
+  '      └ Lỗi - Sai trường hợp biên, trừ 1,5',
+  '      └ Lỗi - Sai trường hợp cơ bản, trừ 1,5',
+  '  └ Tiêu chí - Quản lý bộ nhớ, tối đa 2,0',
+  '      └ Lỗi - Rò rỉ bộ nhớ, trừ 1,0',
 ];
 
 /** Màn hình lần đầu (chưa có rubric nào): dạy cây Rubric → Tiêu chí → Lỗi và thứ tự việc, thay cho ngõ cụt cũ. */

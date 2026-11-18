@@ -1,9 +1,9 @@
 import type { BadgeProps } from '@/components/ui/badge';
 
 /**
- * Bảng quy đổi lời văn — spec UI §2.2. Nhãn ở ĐÂY là chuẩn. Nếu một chỗ
+ * Bảng quy đổi lời văn - spec UI §2.2. Nhãn ở ĐÂY là chuẩn. Nếu một chỗ
  * khác trong code lệch bảng này (ví dụ "Model" thay vì "Mô hình"), sửa
- * theo bảng này — spec §2.2 tự nêu đích danh mockup còn phạm luật ở bốn
+ * theo bảng này - spec §2.2 tự nêu đích danh mockup còn phạm luật ở bốn
  * chỗ, và đây là nơi sửa cả bốn.
  */
 export const SOURCE_LABEL: Record<
@@ -49,7 +49,7 @@ export const VERDICT_LABEL: Record<
 type Verdict = 'confirmed' | 'refuted' | 'unverified';
 
 /**
- * Gộp kết luận của nhiều góc kiểm cho MỘT lỗi — đúng luật của backend (mergedStatusOf, decision/decide.ts,
+ * Gộp kết luận của nhiều góc kiểm cho MỘT lỗi - đúng luật của backend (mergedStatusOf, decision/decide.ts,
  * finding W5): một góc bác bỏ là đủ để bác bỏ; một góc xác nhận là đủ để xác nhận miễn là không ai bác bỏ;
  * "chưa kiểm được" chỉ khi KHÔNG góc nào trả lời được. Không dùng "tệ nhất thắng": nó tô vàng một dòng mà nút
  * hành động (theo cờ backend) đối xử như đã xác nhận (Review Focus #5).
@@ -73,7 +73,7 @@ export function lensLabel(key: string): string {
   return LENS_LABEL[key] ?? key;
 }
 
-/** Tên VIỆC hiện đầu mỗi dòng đường điều tra — không phải tên công cụ (spec §2.2, sửa vi phạm #3). */
+/** Tên VIỆC hiện đầu mỗi dòng đường điều tra - không phải tên công cụ (spec §2.2, sửa vi phạm #3). */
 const TOOL_ACTION_LABEL: Record<string, string> = {
   run_tests: 'Chạy gói test',
   run_scaled: 'Đo độ phức tạp',
@@ -87,11 +87,11 @@ export function toolActionLabel(tool: string): string {
   return TOOL_ACTION_LABEL[tool] ?? tool;
 }
 
-/** Kết quả một lời gọi công cụ bằng CHỮ (spec §2.1 luật 1) — bốn trạng thái của ToolCallStatus ở backend. */
+/** Kết quả một lời gọi công cụ bằng CHỮ (spec §2.1 luật 1) - bốn trạng thái của ToolCallStatus ở backend. */
 const TOOL_CALL_STATUS_LABEL: Record<string, string> = {
   ok: 'Xong',
   error: 'Lỗi',
-  blocked_duplicate: 'Bị chặn — trùng lời gọi trước',
+  blocked_duplicate: 'Bị chặn - trùng lời gọi trước',
   unavailable: 'Không dùng được',
 };
 export function toolCallStatusLabel(status: string): string {
@@ -101,14 +101,14 @@ export function toolCallStatusLabel(status: string): string {
 const CASE_FLAG_LABEL: Record<string, string> = {
   criterion_without_rules: 'Tiêu chí chưa có luật nào',
   criterion_untouched: 'Tiêu chí chưa được kiểm tới',
-  nothing_passed: 'Không trường hợp nào đạt — hệ thống không tự cho điểm',
+  nothing_passed: 'Không trường hợp nào đạt - hệ thống không tự cho điểm',
   low_confidence: 'Độ tin dưới ngưỡng tự quyết',
-  not_code_pipeline: 'Bài tự luận — luôn do bạn duyệt',
+  not_code_pipeline: 'Bài tự luận - luôn do bạn duyệt',
   challenge_suspected: 'Góc kiểm phản biện nêu nghi vấn',
-  challenge_incomplete: 'Góc kiểm chưa kết luận được — bài chưa được tự quyết',
-  ruler_unverified: 'Đáp án mẫu chưa được kiểm chứng — bài chưa được tự quyết',
+  challenge_incomplete: 'Góc kiểm chưa kết luận được - bài chưa được tự quyết',
+  ruler_unverified: 'Đáp án mẫu chưa được kiểm chứng - bài chưa được tự quyết',
   type_auto_disabled: 'Tự chốt đang tắt cho loại lỗi này',
-  no_error_auto_disabled: 'Tự chốt bài không có lỗi đang tắt — bài cần giảng viên duyệt',
+  no_error_auto_disabled: 'Tự chốt bài không có lỗi đang tắt - bài cần giảng viên duyệt',
 };
 
 const INVESTIGATION_FLAG_LABEL: Record<string, string> = {
@@ -121,7 +121,7 @@ const INVESTIGATION_FLAG_LABEL: Record<string, string> = {
 
 /**
  * Nhãn CHÍNH của một cờ cấp bài. `detail` luôn hiện thêm ở dòng phụ dạng
- * mono — bao gồm cả khi nó chỉ lặp lại mã (`investigation_flag`), vì đó là
+ * mono - bao gồm cả khi nó chỉ lặp lại mã (`investigation_flag`), vì đó là
  * đúng thứ tự spec §2.2 mô tả. Không cờ nào bị bỏ im lặng: mã lạ vẫn ra
  * một dòng có tên, không phải một khối rỗng.
  */

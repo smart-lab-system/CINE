@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AcademicYearEntity } from './entities/academic-year.entity';
 import { SemesterEntity } from './entities/semester.entity';
 import { CourseEntity } from './entities/course.entity';
@@ -8,8 +8,15 @@ import { NominalClassEntity } from './entities/nominal-class.entity';
 import { StudentEntity } from './entities/student.entity';
 import { RoomEntity } from './entities/room.entity';
 import { ComputerEntity } from './entities/computer.entity';
+import { ClassEntity } from '../course/entities/class.entity';
 import { EnrollmentEntity } from '../course/entities/enrollment.entity';
+import { CourseExamEntity } from '../exam-bank/entities/course-exam.entity';
+import { RubricEntity } from '../grading/entities/rubric.entity';
 import { formatNominalClassLabel } from '../course/nominal-class-label';
+import {
+  resolveSemester,
+  type SemesterRange,
+} from './resolve-semester';
 import {
   CreateAcademicYearDto,
   ListAcademicYearsDto,
@@ -35,6 +42,7 @@ import { CreateRoomDto, ListRoomsDto, UpdateRoomDto } from './dto/room.dto';
 import {
   CreateComputerDto,
   ListComputersDto,
+  SetTeacherMachineDto,
   UpdateComputerDto,
 } from './dto/computer.dto';
 
@@ -48,6 +56,18 @@ export interface StudentCourseSectionView {
   teacherName: string | null;
   nominalClassId: string | null;
   nominalClassName: string | null;
+}
+
+type RangeWithYear = SemesterRange & { academicYearId: string };
+
+export interface CourseListItemView {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  sectionCount: number;
+  examCount: number;
+  rubricCount: number;
 }
 
 @Injectable()
@@ -69,6 +89,12 @@ export class MasterDataService {
     private readonly computers: Repository<ComputerEntity>,
     @InjectRepository(EnrollmentEntity)
     private readonly enrollments: Repository<EnrollmentEntity>,
+    @InjectRepository(ClassEntity)
+    private readonly classes: Repository<ClassEntity>,
+    @InjectRepository(CourseExamEntity)
+    private readonly courseExams: Repository<CourseExamEntity>,
+    @InjectRepository(RubricEntity)
+    private readonly rubrics: Repository<RubricEntity>,
   ) {}
 
   // --- academic year ---
@@ -163,7 +189,10 @@ export class MasterDataService {
     return { id: saved.id };
   }
 
-  async listCourses(query: ListCoursesDto) {
+  async listCourses(query: ListCoursesDto): Promise<{
+    items: CourseListItemView[];
+    total: number;
+  }> {
     const qb = this.courses.createQueryBuilder('c');
     if (query.status) qb.andWhere('c.status = :status', { status: query.status });
     if (query.search) {
@@ -174,8 +203,119 @@ export class MasterDataService {
     qb.orderBy('c.code', 'ASC')
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize);
-    const [items, total] = await qb.getManyAndCount();
+    const [rows, total] = await qb.getManyAndCount();
+    if (rows.length === 0) {
+      return { items: [], total };
+    }
+
+    const courseIds = rows.map((r) => r.id);
+    const ranges = await this.loadSemesterRangesWithYear();
+    const yearSemesterIds =
+      query.academicYearId && !query.semesterId
+        ? new Set(
+            ranges
+              .filter((r) => r.academicYearId === query.academicYearId)
+              .map((r) => r.id),
+          )
+        : null;
+
+    const sectionCounts = await this.countSectionsByCourse(
+      courseIds,
+      query.semesterId,
+      yearSemesterIds,
+    );
+    const examCounts = this.countResolvedByCourse(
+      await this.courseExams.find({
+        where: { courseId: In(courseIds) },
+        select: ['id', 'courseId', 'createdAt', 'updatedAt'],
+      }),
+      ranges,
+      query.semesterId,
+      query.academicYearId,
+    );
+    const rubricCounts = this.countResolvedByCourse(
+      await this.rubrics.find({
+        where: { courseId: In(courseIds) },
+        select: ['id', 'courseId', 'createdAt', 'updatedAt'],
+      }),
+      ranges,
+      query.semesterId,
+      query.academicYearId,
+    );
+
+    const items: CourseListItemView[] = rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      status: r.status,
+      sectionCount: sectionCounts.get(r.id) ?? 0,
+      examCount: examCounts.get(r.id) ?? 0,
+      rubricCount: rubricCounts.get(r.id) ?? 0,
+    }));
     return { items, total };
+  }
+
+  private async loadSemesterRangesWithYear(): Promise<RangeWithYear[]> {
+    const rows = await this.semesters.find({ order: { startDate: 'ASC' } });
+    return rows.map((s) => ({
+      id: s.id,
+      academicYearId: s.academicYearId,
+      startDate: String(s.startDate).slice(0, 10),
+      endDate: String(s.endDate).slice(0, 10),
+      status: s.status,
+    }));
+  }
+
+  private async countSectionsByCourse(
+    courseIds: string[],
+    semesterId: string | undefined,
+    yearSemesterIds: Set<string> | null,
+  ): Promise<Map<string, number>> {
+    const qb = this.classes
+      .createQueryBuilder('k')
+      .select('k.course_id', 'courseId')
+      .addSelect('COUNT(*)::int', 'n')
+      .where('k.course_id IN (:...courseIds)', { courseIds })
+      .groupBy('k.course_id');
+    if (semesterId) {
+      qb.andWhere('k.semester_id = :semesterId', { semesterId });
+    } else if (yearSemesterIds) {
+      if (yearSemesterIds.size === 0) return new Map();
+      qb.andWhere('k.semester_id IN (:...semesterIds)', {
+        semesterIds: [...yearSemesterIds],
+      });
+    }
+    const rows: { courseId: string; n: number }[] = await qb.getRawMany();
+    return new Map(rows.map((r) => [r.courseId, Number(r.n)]));
+  }
+
+  private countResolvedByCourse(
+    rows: {
+      courseId: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }[],
+    ranges: RangeWithYear[],
+    semesterId: string | undefined,
+    academicYearId: string | undefined,
+  ): Map<string, number> {
+    const byId = new Map(ranges.map((r) => [r.id, r]));
+    const out = new Map<string, number>();
+    for (const row of rows) {
+      if (!row.courseId) continue;
+      if (semesterId || academicYearId) {
+        const hit = resolveSemester(row.createdAt, row.updatedAt, ranges);
+        if (!hit) continue;
+        const full = byId.get(hit.id);
+        if (!full) continue;
+        if (semesterId && full.id !== semesterId) continue;
+        if (!semesterId && academicYearId && full.academicYearId !== academicYearId) {
+          continue;
+        }
+      }
+      out.set(row.courseId, (out.get(row.courseId) ?? 0) + 1);
+    }
+    return out;
   }
 
   async getCourse(id: string) {
@@ -440,6 +580,8 @@ export class MasterDataService {
         ipAddress: dto.ipAddress ?? null,
         macAddress: dto.macAddress ?? null,
         status: dto.status,
+        isTeacherMachine: false,
+        agentMachineId: null,
       }),
     );
     return { id: saved.id };
@@ -483,7 +625,32 @@ export class MasterDataService {
     if (dto.ipAddress !== undefined) row.ipAddress = dto.ipAddress;
     if (dto.macAddress !== undefined) row.macAddress = dto.macAddress;
     if (dto.status !== undefined) row.status = dto.status;
+    if (dto.agentMachineId !== undefined) row.agentMachineId = dto.agentMachineId;
+
+    if (dto.isTeacherMachine === true) {
+      await this.computers.manager.transaction(async (manager) => {
+        await manager.update(
+          ComputerEntity,
+          { roomId: row.roomId, isTeacherMachine: true },
+          { isTeacherMachine: false },
+        );
+        row.isTeacherMachine = true;
+        await manager.save(row);
+      });
+      return this.getComputer(id);
+    }
+
+    if (dto.isTeacherMachine === false) {
+      row.isTeacherMachine = false;
+    }
     return this.computers.save(row);
+  }
+
+  /**
+   * Admin gắn / bỏ máy giảng viên. Mỗi phòng tối đa 1 máy GV (partial unique index).
+   */
+  async setTeacherMachine(id: string, dto: SetTeacherMachineDto) {
+    return this.updateComputer(id, { isTeacherMachine: dto.isTeacherMachine });
   }
 
   async removeComputer(id: string) {

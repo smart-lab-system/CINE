@@ -3,6 +3,13 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "plugins": ["@nestjs/swagger"]
+    "plugins": ["@nestjs/swagger"],
+    "assets": [
+      {
+        "include": "playground/templates/**/*",
+        "watchAssets": true,
+        "outDir": "dist/src"
+      }
+    ]
   }
 }

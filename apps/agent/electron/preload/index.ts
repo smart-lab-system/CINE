@@ -1,5 +1,5 @@
 /**
- * `contextIsolation: true`, `nodeIntegration: false` — only place the
+ * `contextIsolation: true`, `nodeIntegration: false` - only place the
  * renderer's typed surface is defined.
  */
 
@@ -40,11 +40,26 @@ const api: AgentApi = {
     return ipcRenderer.invoke(IPC_CHANNELS.getState) as Promise<AgentState>;
   },
 
+  mgmtResolveMachineRole() {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtResolveMachineRole);
+  },
   mgmtLoginTeacher(payload: TeacherLoginRequest) {
     return ipcRenderer.invoke(IPC_CHANNELS.mgmtLoginTeacher, payload);
   },
+  mgmtListTodayExams() {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtListTodayExams);
+  },
+  mgmtStartTeacherHub(payload?: import('../shared/ipc').MgmtStartTeacherHubRequest) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtStartTeacherHub, payload);
+  },
+  mgmtGetContext() {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtGetContext);
+  },
   mgmtStartStudentNode(payload: StartStudentNodeRequest) {
     return ipcRenderer.invoke(IPC_CHANNELS.mgmtStartStudentNode, payload);
+  },
+  mgmtLeaveSession() {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtLeaveSession);
   },
   mgmtStop() {
     return ipcRenderer.invoke(IPC_CHANNELS.mgmtStop);

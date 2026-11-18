@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 export function CatalogSection({
   title,
@@ -21,10 +22,12 @@ export function CatalogSection({
   createLabel = 'Thêm',
   loading,
   headers,
+  headerClassNames,
   rows,
   empty,
   toolbar,
   footer,
+  embedded = false,
 }: {
   title: string;
   description?: string;
@@ -32,53 +35,69 @@ export function CatalogSection({
   createLabel?: string;
   loading?: boolean;
   headers: string[];
+  headerClassNames?: (string | undefined)[];
   rows: ReactNode;
   empty?: string;
   toolbar?: ReactNode;
   footer?: ReactNode;
+  /** Skip Card chrome when nested (e.g. accordion panel). */
+  embedded?: boolean;
 }) {
-  return (
-    <Card>
-      <CardContent className="pt-6 space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">{title}</h2>
-            {description ? (
-              <p className="text-sm text-muted-foreground mt-1">{description}</p>
-            ) : null}
-          </div>
-          {onCreate ? (
-            <Button type="button" size="sm" onClick={onCreate}>
-              <Plus className="size-4" />
-              {createLabel}
-            </Button>
+  const body = (
+    <div className={embedded ? 'space-y-4' : 'pt-6 space-y-4'}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className={embedded ? 'text-base font-semibold' : 'text-lg font-semibold'}>
+            {title}
+          </h2>
+          {description ? (
+            <p className="text-sm text-muted-foreground mt-1">{description}</p>
           ) : null}
         </div>
-        {toolbar}
-        {loading ? (
-          <Skeleton className="h-24 w-full" />
-        ) : (
-          <Table>
-            <TableHeader>
+        {onCreate ? (
+          <Button type="button" size="sm" onClick={onCreate}>
+            <Plus className="size-4" />
+            {createLabel}
+          </Button>
+        ) : null}
+      </div>
+      {toolbar}
+      {loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {headers.map((h, i) => (
+                <TableHead
+                  key={`${h || 'col'}-${i}`}
+                  className={headerClassNames?.[i]}
+                >
+                  {h}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows ?? (
               <TableRow>
-                {headers.map((h) => (
-                  <TableHead key={h}>{h}</TableHead>
-                ))}
+                <TableCell colSpan={headers.length} className="text-muted-foreground">
+                  {empty ?? 'Chưa có dữ liệu.'}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows ?? (
-                <TableRow>
-                  <TableCell colSpan={headers.length} className="text-muted-foreground">
-                    {empty ?? 'Chưa có dữ liệu.'}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
-        {footer}
-      </CardContent>
+            )}
+          </TableBody>
+        </Table>
+      )}
+      {footer}
+    </div>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <Card>
+      <CardContent>{body}</CardContent>
     </Card>
   );
 }
@@ -131,6 +150,14 @@ export function DeleteIconButton({
   );
 }
 
-export function RowActions({ children }: { children: ReactNode }) {
-  return <div className="flex justify-end gap-0.5">{children}</div>;
+export function RowActions({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('flex justify-end gap-0.5', className)}>{children}</div>
+  );
 }

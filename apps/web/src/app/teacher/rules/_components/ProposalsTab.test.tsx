@@ -93,6 +93,6 @@ describe('ProposalsTab (T-RBE-UI-7)', () => {
     expect(screen.getByText('Đang tải…')).toBeInTheDocument();
     unmount();
     render(<ProposalsTab overview={board} proposals={undefined} loading={false} error={new Error('Máy chủ không trả lời')} onAdd={vi.fn()} />);
-    expect(screen.getByText(/Không tải được lỗi AI đề xuất — Máy chủ không trả lời/)).toBeInTheDocument();
+    expect(screen.getByText(/Không tải được lỗi AI đề xuất - Máy chủ không trả lời/)).toBeInTheDocument();
   });
 });

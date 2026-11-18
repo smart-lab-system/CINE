@@ -39,7 +39,7 @@ function statusLabel(status: string) {
 }
 
 function formatWhen(value: string | null | undefined) {
-  if (!value) return '—';
+  if (!value) return '-';
   try {
     return new Date(value).toLocaleString('vi-VN');
   } catch {
@@ -159,7 +159,7 @@ export function RoomProposalsPanel() {
         <div>
           <h2 className="text-base font-semibold">Đề xuất từ lab</h2>
           <p className="text-sm text-muted-foreground">
-            Giảng viên gửi từ Teacher Hub — kèm máy GV và máy SV trong registry.
+            Giảng viên gửi từ Teacher Hub - kèm máy GV và máy SV trong registry.
           </p>
         </div>
         <div className="flex gap-2">
@@ -215,7 +215,7 @@ export function RoomProposalsPanel() {
                   <td className="py-2 pr-2">{p.name}</td>
                   <td className="py-2 pr-2">{p.capacity}</td>
                   <td className="py-2 pr-2">
-                    {p.building ?? '—'} / {p.floor ?? '—'}
+                    {p.building ?? '-'} / {p.floor ?? '-'}
                   </td>
                   <td className="py-2 pr-2">{p.machineCount}</td>
                   <td className="py-2 pr-2">
@@ -237,7 +237,7 @@ export function RoomProposalsPanel() {
             <>
               <DialogHeader>
                 <DialogTitle>
-                  Đề xuất {detail.code} — {detail.name}
+                  Đề xuất {detail.code} - {detail.name}
                 </DialogTitle>
               </DialogHeader>
               <div className="grid gap-2 text-sm sm:grid-cols-2">
@@ -246,11 +246,11 @@ export function RoomProposalsPanel() {
                 </p>
                 <p>
                   <span className="text-muted-foreground">Tòa / Tầng:</span>{' '}
-                  {detail.building ?? '—'} / {detail.floor ?? '—'}
+                  {detail.building ?? '-'} / {detail.floor ?? '-'}
                 </p>
                 <p className="sm:col-span-2">
                   <span className="text-muted-foreground">Người gửi:</span>{' '}
-                  {detail.proposedByDisplayName ?? '—'} ({detail.proposedByEmail})
+                  {detail.proposedByDisplayName ?? '-'} ({detail.proposedByEmail})
                 </p>
                 <p className="sm:col-span-2">
                   <span className="text-muted-foreground">Trạng thái:</span>{' '}
@@ -285,7 +285,7 @@ export function RoomProposalsPanel() {
                         <td className="px-2 py-1.5">{m.cpu}</td>
                         <td className="px-2 py-1.5">{m.ramGb} GB</td>
                         <td className="px-2 py-1.5">{m.storage}</td>
-                        <td className="px-2 py-1.5">{m.gpu ?? '—'}</td>
+                        <td className="px-2 py-1.5">{m.gpu ?? '-'}</td>
                         <td className="px-2 py-1.5">{m.os}</td>
                         <td className="px-2 py-1.5 font-mono text-xs">{m.localIp}</td>
                         <td className="px-2 py-1.5 font-mono text-xs">{m.macAddress}</td>
@@ -293,7 +293,7 @@ export function RoomProposalsPanel() {
                         <td className="px-2 py-1.5">
                           {m.studentMssv
                             ? `${m.studentFullName ?? ''} ${m.studentMssv}`.trim()
-                            : '—'}
+                            : '-'}
                         </td>
                       </tr>
                     ))}
@@ -365,7 +365,7 @@ export function RoomProposalsPanel() {
             </div>
             <p className="text-xs text-muted-foreground">
               Sẽ tạo {detail?.machineCount ?? 0} máy map 1-1 từ snapshot (Hostname, CPU, RAM, Ổ
-              cứng, GPU, HĐH, IP, MAC, Trạng thái) — không cần nhập lại phần cứng.
+              cứng, GPU, HĐH, IP, MAC, Trạng thái) - không cần nhập lại phần cứng.
             </p>
           </div>
           <DialogFooter>

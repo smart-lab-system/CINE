@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Generates the two placeholder PNGs this app needs (window icon, tray
- * icon) with zero dependencies — just Node's built-in zlib, so this can
+ * icon) with zero dependencies - just Node's built-in zlib, so this can
  * run anywhere without pulling in an image library for two solid-colour
  * squares.
  *
- * Deliberately minimal: a solid `--primary` (#26317A, Deep Indigo — see
+ * Deliberately minimal: a solid `--primary` (#26317A, Deep Indigo - see
  * apps/web/src/app/globals.css) square. Good enough to be recognizable in
  * a taskbar and a title bar during dev-mode verification; a real mark
  * (the gradient+"E" glyph from the approved mockup) is a design pass for

@@ -8,7 +8,7 @@ const STATUS: Record<PreflightStatus, { word: string; icon: typeof CheckCircle2;
   block: { word: 'Chặn', icon: CircleX, tone: 'text-danger-strong' },
 };
 
-/** Cột chuẩn bị (spec §3.7) hoặc cột xem lại. Mỗi dòng có biểu tượng VÀ chữ — không truyền tin chỉ bằng màu. */
+/** Cột chuẩn bị (spec §3.7) hoặc cột xem lại. Mỗi dòng có biểu tượng VÀ chữ - không truyền tin chỉ bằng màu. */
 export function PreflightColumn({ rows, label = 'Trước khi bắt đầu' }: { rows: PreflightRow[]; label?: string }) {
   return (
     <ul aria-label={label} className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">

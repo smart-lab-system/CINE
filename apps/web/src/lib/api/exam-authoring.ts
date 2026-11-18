@@ -2,7 +2,7 @@ import { apiClient } from '@/lib/api-client';
 import { getAccessToken } from '@/lib/auth-token';
 
 /**
- * Kiểu viết tay, soi gương backend — cùng khuôn với `lib/api/exam-session.ts`.
+ * Kiểu viết tay, soi gương backend - cùng khuôn với `lib/api/exam-session.ts`.
  * `apiClient.POST` vẫn kiểm cấu trúc với schema sinh ra ở chỗ gọi, nên lệch
  * vẫn là lỗi biên dịch, chỉ không phải lỗi import.
  */
@@ -36,7 +36,7 @@ export interface GeneratedExam {
   questions: GeneratedQuestion[];
   verification: Verification;
   /**
-   * Số câu KHÔNG sinh được — chỉ có khi API sinh song song (fan-out) có
+   * Số câu KHÔNG sinh được - chỉ có khi API sinh song song (fan-out) có
    * worker hỏng. Vắng mặt hoặc `0` = không câu nào lỗi; `questions` khi đó
    * NGẮN HƠN số câu đã yêu cầu, không phải một mảng đủ chỗ trống.
    */
@@ -45,17 +45,17 @@ export interface GeneratedExam {
 
 /**
  * Trần độ dài của `resemblesKnownProblem` khi dùng làm phần tử `avoid` ở
- * lượt sinh lại — PHẢI khớp `MAX_CLASSIC_PROBLEM_LENGTH` phía API
+ * lượt sinh lại - PHẢI khớp `MAX_CLASSIC_PROBLEM_LENGTH` phía API
  * (`exam-authoring-provider.ts`), nơi API tự cắt field này khi đọc đầu ra
  * MỚI của model.
  *
- * Không tin API đã cắt SẴN: bug thật 2026-09-24 — API chỉ cắt ở lúc PARSE
+ * Không tin API đã cắt SẴN: bug thật 2026-09-24 - API chỉ cắt ở lúc PARSE
  * response mới, không cứu được đề ĐÃ NẰM SẴN trên máy giảng viên từ trước
  * khi bản vá đó có hiệu lực (nháp cũ trong `localStorage`, hoặc câu đã sinh
  * trong cùng phiên trước khi API kịp cập nhật). `resemblesKnownProblem` vẫn
- * là văn bản tự do của model — không có gì đảm bảo MỌI nguồn dữ liệu tương
+ * là văn bản tự do của model - không có gì đảm bảo MỌI nguồn dữ liệu tương
  * lai đều đi qua đúng chỗ API cắt. Cắt lại Ở ĐÂY, ngay trước khi gửi lên,
- * đóng vòng cho chắc — không phụ thuộc thời điểm dữ liệu này sinh ra.
+ * đóng vòng cho chắc - không phụ thuộc thời điểm dữ liệu này sinh ra.
  */
 export const MAX_CLASSIC_PROBLEM_LENGTH = 200;
 
@@ -64,7 +64,7 @@ export const MAX_CLASSIC_PROBLEM_LENGTH = 200;
  *
  * Siết lại sau khi regenerate schema: backend khai `@IsIn(AUTHORING_LANGUAGES)`
  * nên OpenAPI sinh ra một union literal, và `string` không gán vào đó được.
- * Kiểu chặt cũng đúng hơn cho `<select>` ở giao diện — nó chỉ có hai lựa chọn.
+ * Kiểu chặt cũng đúng hơn cho `<select>` ở giao diện - nó chỉ có hai lựa chọn.
  */
 export type AuthoringLanguage = 'python' | 'cpp';
 
@@ -74,7 +74,7 @@ export interface GenerateExamInput {
   prompt: string;
   questionCount: number;
   language: AuthoringLanguage;
-  /** Bài kinh điển phải tránh — điền từ `resemblesKnownProblem` của câu đang
+  /** Bài kinh điển phải tránh - điền từ `resemblesKnownProblem` của câu đang
    *  bị thay, KHÔNG phải giảng viên gõ. */
   avoid?: string[];
   /** Ghi chú lái của giảng viên. Đây là phần hệ thống không đoán được. */
@@ -97,11 +97,11 @@ export async function generateExam(body: GenerateExamInput): Promise<GeneratedEx
  * Tải một file Word về máy, và trả lại chính `Blob` đó.
  *
  * KHÔNG dùng `apiClient`: `openapi-fetch` đọc body thành JSON, còn đây là nhị
- * phân. Nên `fetch` thẳng — và vì thế phải tự gắn Bearer, `apiClient` mới là
+ * phân. Nên `fetch` thẳng - và vì thế phải tự gắn Bearer, `apiClient` mới là
  * chỗ làm việc đó tự động.
  *
  * Trả `Blob` chứ không `void`: khi giảng viên gắn đề vào phiên thi, CHÍNH
- * TRÌNH DUYỆT `PUT` bytes này lên presigned URL (Security rule 5 — file không
+ * TRÌNH DUYỆT `PUT` bytes này lên presigned URL (Security rule 5 - file không
  * bao giờ đi xuyên NestJS). Sinh lại file lần hai chỉ để upload là trả tiền
  * hai lần cho cùng một tài liệu, và hai lần sinh có thể ra hai file khác nhau
  * nếu giảng viên vừa sửa gì đó ở giữa.
@@ -163,7 +163,7 @@ export async function downloadAnswerKey(exam: GeneratedExam): Promise<Blob> {
 }
 
 /**
- * Gắn bộ ba vào một phiên thi — MỘT lượt gọi, server làm trọn.
+ * Gắn bộ ba vào một phiên thi - MỘT lượt gọi, server làm trọn.
  *
  * Bản trước xâu bốn lượt từ đây: xuất đề → tạo material → xin URL đáp án →
  * PUT đáp án → ghi grading reference. Bỏ đi vì hai lý do, và cả hai đều

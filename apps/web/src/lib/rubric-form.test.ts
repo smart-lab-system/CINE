@@ -92,13 +92,13 @@ describe('validateRubric', () => {
     });
   });
 
-  describe('course (UI-only, blank create)', () => {
+  describe('course (courseId sent on create)', () => {
     it('required when courseRequired', () => {
-      expect(validateRubric(meta({ courseRequired: true, courseName: '' }), rows({})).courseName).toBe('Chọn môn học.');
-      expect(validateRubric(meta({ courseRequired: true, courseName: 'CTDL' }), rows({})).courseName).toBeUndefined();
+      expect(validateRubric(meta({ courseRequired: true, courseId: '' }), rows({})).courseName).toBe('Chọn môn học.');
+      expect(validateRubric(meta({ courseRequired: true, courseId: 'course-1' }), rows({})).courseName).toBeUndefined();
     });
     it('ignored when not required', () => {
-      expect(validateRubric(meta({ courseName: '' }), rows({})).courseName).toBeUndefined();
+      expect(validateRubric(meta({ courseId: '' }), rows({})).courseName).toBeUndefined();
     });
   });
 
@@ -149,7 +149,7 @@ describe('validateRubric', () => {
       const errs = validateRubric(meta({ name: 'X', nameEditable: false, existingNames: [] }), rows({ existing: true, key: 'Cũ_Không-Hợp-Lệ' }));
       expect(errs.rows.n0).toBeUndefined();
     });
-    it('two rows must not share a key — typed against typed, or typed against an existing one', () => {
+    it('two rows must not share a key - typed against typed, or typed against an existing one', () => {
       const errs = validateRubric(
         meta({ name: 'X', nameEditable: false, existingNames: [] }),
         rows({ existing: true, key: 'tinh_dung' }, { key: 'tinh_dung' }, { key: 'moi' }, { key: 'moi' }),

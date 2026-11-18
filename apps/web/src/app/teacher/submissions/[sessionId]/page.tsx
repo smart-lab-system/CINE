@@ -25,14 +25,14 @@ import { SubmissionStatusTable } from '@/app/(exam-live)/exam-sessions/[id]/_com
 
 /**
  * The post-hoc counterpart to the lobby page: same facts (attendance ∪
- * submissions, via the same shared helper — see lib/submission-rows.ts),
+ * submissions, via the same shared helper - see lib/submission-rows.ts),
  * no live socket, no access-request/finalize concerns. Reached from
  * "Quản lý bài thu" once its exam-session filter narrows to one session;
- * bridges onward to "Chấm điểm" with that session pre-selected — see
+ * bridges onward to "Chấm điểm" with that session pre-selected - see
  * docs/superpowers/specs/2026-09-02-submission-session-detail-page-design.md.
  */
 export default function SubmissionSessionDetailPage() {
-  // useSearchParams requires a Suspense boundary in the App Router — the
+  // useSearchParams requires a Suspense boundary in the App Router - the
   // rest of the page has no reason to wait on anything, so only this one
   // read is wrapped, not the whole tree.
   return (
@@ -45,7 +45,7 @@ export default function SubmissionSessionDetailPage() {
 function SubmissionSessionDetailContent() {
   const params = useParams<{ sessionId: string }>();
   const sessionId = params.sessionId;
-  // Đến từ luồng search trên "Quản lý bài thu" — spec §5.2. Không có param
+  // Đến từ luồng search trên "Quản lý bài thu" - spec §5.2. Không có param
   // nghĩa là GV đến từ lối duyệt Môn/Lớp và muốn thấy CẢ LỚP.
   const focusStudentMssv = useSearchParams().get('student') ?? undefined;
 
@@ -56,10 +56,10 @@ function SubmissionSessionDetailContent() {
   const archiveRecheck = useArchiveRecheck(sessionId);
 
   /**
-   * "Kiểm lại" — đọc-rồi-xếp-hàng, không đụng bài nộp (xem doc comment
+   * "Kiểm lại" - đọc-rồi-xếp-hàng, không đụng bài nộp (xem doc comment
    * trên `useArchiveRecheck`). Toast thay vì Alert cạnh bảng: trang này
    * không có socket để dòng thời gian trôi qua tự nhiên như trang lobby,
-   * nên một thông báo tức thời rồi biến mất là đủ — cùng quy ước
+   * nên một thông báo tức thời rồi biến mất là đủ - cùng quy ước
    * admin/accounts/page.tsx đã dùng cho mọi mutation của nó.
    */
   function handleArchiveRecheck() {
@@ -76,14 +76,14 @@ function SubmissionSessionDetailContent() {
   }
 
   /**
-   * Chỉ-đọc. Nguồn là GET /exam-sessions/:id/grading-results, đã có sẵn —
+   * Chỉ-đọc. Nguồn là GET /exam-sessions/:id/grading-results, đã có sẵn -
    * Tầng 1 không thêm endpoint chấm nào.
    */
   const gradingByMssv = useMemo(() => {
     const map: Record<string, { score: number | null; status: string }> = {};
     for (const result of gradingResults.data ?? []) {
       map[result.studentMssv] = {
-        // Đọc `currentScore` (§14.2), đúng như trang Chấm điểm — MỌI màn đọc điểm đi qua đó. Không dùng
+        // Đọc `currentScore` (§14.2), đúng như trang Chấm điểm - MỌI màn đọc điểm đi qua đó. Không dùng
         // `aiTotalScore`: với đường điều tra nó là điểm của lượt tính đầu, và giá có thể đã đổi từ đó. Không
         // có lượt tính nào thì `currentScore` là null và ô để trống, không rơi về điểm AI.
         //
@@ -187,7 +187,7 @@ function SubmissionSessionDetailContent() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                Chạy lại phép kiểm file nén cho các bài lỗi — không đụng bài nộp, không cần sinh
+                Chạy lại phép kiểm file nén cho các bài lỗi - không đụng bài nộp, không cần sinh
                 viên nộp lại.
               </TooltipContent>
             </Tooltip>

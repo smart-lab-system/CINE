@@ -23,9 +23,9 @@ const lastUrl = () => replace.mock.calls.at(-1)?.[0] as string;
 
 /**
  * `router.replace` của Next là một chuyển trang (có thể là một vòng mạng): `useSearchParams` chỉ đổi SAU
- * đó. Ở đây `search` cố định cho tới khi test tự "gửi tiếng vọng" về — đó chính là độ trễ cần chịu được.
+ * đó. Ở đây `search` cố định cho tới khi test tự "gửi tiếng vọng" về - đó chính là độ trễ cần chịu được.
  */
-describe('useSessionListState — while the URL has not come back yet', () => {
+describe('useSessionListState - while the URL has not come back yet', () => {
   it('two quick changes both survive: the second is built on the first, not on the stale URL', () => {
     const { result } = renderHook(() => useSessionListState());
     act(() => result.current.setFilters({ ...result.current.filters, classIds: ['c1'] }));
@@ -77,7 +77,7 @@ describe('useSessionListState — while the URL has not come back yet', () => {
   });
 });
 
-describe('useSessionListState — changes that come from outside', () => {
+describe('useSessionListState - changes that come from outside', () => {
   it('starts from the URL, and adopts a URL it did not write (e.g. the sidebar link to the bare list)', () => {
     search = 'status=done';
     const { result, rerender } = renderHook(() => useSessionListState());

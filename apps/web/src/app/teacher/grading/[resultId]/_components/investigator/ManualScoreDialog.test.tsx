@@ -29,7 +29,7 @@ describe('ManualScoreDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Chấm tay' }));
     expect(mutate).toHaveBeenCalledWith({ resultId: 'r1', score: '8' }, expect.anything());
   });
-  it('accepts a decimal comma — the page shows "7,5", so the teacher types "7,5" — and sends "7.5"', () => {
+  it('accepts a decimal comma - the page shows "7,5", so the teacher types "7,5" - and sends "7.5"', () => {
     render(<ManualScoreDialog {...props({ currentScore: null })} />);
     fireEvent.change(screen.getByLabelText(/Điểm/i), { target: { value: '7,5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Chấm tay' }));
@@ -52,7 +52,7 @@ describe('ManualScoreDialog', () => {
 
   // Review I6: the ceiling used to be looked up by rubric *version* (every rubric starts at v1) and defaulted
   // to 10, so the client could refuse a score the server would accept. Unknown ceiling ⇒ the server decides.
-  it('does not invent a ceiling when the rubric is unknown (maxTotal null) — the server checks it', () => {
+  it('does not invent a ceiling when the rubric is unknown (maxTotal null) - the server checks it', () => {
     render(<ManualScoreDialog {...props({ maxTotal: null })} />);
     fireEvent.change(screen.getByLabelText(/Điểm/i), { target: { value: '15' } });
     fireEvent.click(screen.getByRole('button', { name: 'Chấm tay' }));
@@ -60,7 +60,7 @@ describe('ManualScoreDialog', () => {
   });
 
   // Review I3: the field was seeded once at mount, so after the score moved (e.g. "Bỏ lỗi" 6 → 7,5) the
-  // dialog still offered "6" — and one click locked that stale score in for good.
+  // dialog still offered "6" - and one click locked that stale score in for good.
   describe('every opening starts from the score as it is NOW', () => {
     it('re-seeds from the new currentScore after the dialog was closed and reopened', () => {
       const { rerender } = render(<ManualScoreDialog {...props({ currentScore: 6 })} />);
@@ -89,11 +89,11 @@ describe('ManualScoreDialog', () => {
   });
 
   // Review I7 (Review Focus #2): a finalized score can still be changed, and the change is written to the audit
-  // log — the teacher must be told BEFORE pressing, not discover it afterwards.
+  // log - the teacher must be told BEFORE pressing, not discover it afterwards.
   describe('a score that was already finalized', () => {
     it.each(['finalized', 'exported'])('says the change goes into the audit log (%s)', (status) => {
       render(<ManualScoreDialog {...props({ status })} />);
-      expect(screen.getByText('Điểm đã chốt — thay đổi này sẽ được ghi vào nhật ký.')).toBeInTheDocument();
+      expect(screen.getByText('Điểm đã chốt - thay đổi này sẽ được ghi vào nhật ký.')).toBeInTheDocument();
     });
     it('does not say it for a result that is still being reviewed', () => {
       render(<ManualScoreDialog {...props({ status: 'flagged_for_review' })} />);

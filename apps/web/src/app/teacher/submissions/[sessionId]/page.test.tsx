@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => searchParamsMock(),
 }));
 
-// Same 3 hooks the lobby page composes — mocked directly (not the
+// Same 3 hooks the lobby page composes - mocked directly (not the
 // underlying apiClient), same convention as that page's own tests, so
 // these run with no QueryClientProvider ancestor.
 const useExamSessionDetailMock = vi.fn();
@@ -26,7 +26,7 @@ vi.mock('@/hooks/useExamSession', () => ({
 
 // `vi.mock` factories run before any top-level `const` in this file
 // (hoisted above every import, including `./page`'s own chain, which pulls
-// in 'sonner' immediately) — `toastMock` has to be created through
+// in 'sonner' immediately) - `toastMock` has to be created through
 // `vi.hoisted` so it exists by the time the factory below runs, or this
 // throws "Cannot access 'toastMock' before initialization".
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -182,7 +182,7 @@ describe('SubmissionSessionDetailPage', () => {
   });
 });
 
-describe('SubmissionSessionDetailPage — ?student=', () => {
+describe('SubmissionSessionDetailPage - ?student=', () => {
   it('truyền MSSV từ URL xuống bảng', () => {
     searchParamsMock.mockReturnValue(new URLSearchParams('student=21520123'));
     render(<SubmissionSessionDetailPage />);
@@ -196,7 +196,7 @@ describe('SubmissionSessionDetailPage — ?student=', () => {
   });
 });
 
-describe('SubmissionSessionDetailPage — gradingByMssv', () => {
+describe('SubmissionSessionDetailPage - gradingByMssv', () => {
   it('map kết quả chấm theo MSSV và truyền xuống bảng', () => {
     useGradingResultsMock.mockReturnValue({
       data: [
@@ -224,7 +224,7 @@ describe('SubmissionSessionDetailPage — gradingByMssv', () => {
   });
 
   it('điểm 0 do giảng viên chấm KHÔNG bị rơi về điểm AI', () => {
-    // `??` chứ không phải `||` — đây là ca duy nhất phân biệt được hai toán tử.
+    // `??` chứ không phải `||` - đây là ca duy nhất phân biệt được hai toán tử.
     useGradingResultsMock.mockReturnValue({
       data: [
         { studentMssv: 'A1', aiTotalScore: 6, finalScore: 0, currentScore: 0, status: 'finalized' },
@@ -262,10 +262,10 @@ describe('SubmissionSessionDetailPage — gradingByMssv', () => {
   });
 });
 
-// Task 10 — nút "Kiểm lại" (POST /exam-sessions/:id/archive-recheck).
+// Task 10 - nút "Kiểm lại" (POST /exam-sessions/:id/archive-recheck).
 // KHÁC "Thu lại" của trang lobby: trang này không đụng gì tới bài nộp,
 // chỉ xếp lại các dòng failed/unreadable/pending mồ côi vào hàng đợi kiểm.
-describe('SubmissionSessionDetailPage — Kiểm lại', () => {
+describe('SubmissionSessionDetailPage - Kiểm lại', () => {
   it('bấm thì gọi mutate, và thành công thì báo đúng số đã xếp lại', () => {
     const mutate = vi.fn((_arg, opts?: { onSuccess?: (r: { requeued: number }) => void }) => {
       opts?.onSuccess?.({ requeued: 3 });

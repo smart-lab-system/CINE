@@ -32,18 +32,50 @@ beforeEach(() => {
 
 /**
  * Replaces SessionRubricCard. RubricPicker (create-session) promises "cứ tạo phiên thi và gắn sau", so this is
- * where "later" happens — deleting the card without it would break that promise (Review Focus 7).
+ * where "later" happens - deleting the card without it would break that promise (Review Focus 7).
  */
 describe('RubricRow', () => {
   it('shows the pinned rubric: name, version, total and number of criteria', () => {
     render(<RubricRow sessionId="s1" rubricId="ru-1" />);
-    expect(screen.getByText('CTDL — phiên bản 2')).toBeInTheDocument();
+    expect(screen.getByText('CTDL - phiên bản 2')).toBeInTheDocument();
     expect(screen.getByText(/10,0 điểm, 2 tiêu chí/)).toBeInTheDocument();
+  });
+
+  it('QS: badge, caption cách giải, link cấu trúc QS', () => {
+    const qs: Rubric = {
+      ...ctdl,
+      id: 'ru-qs',
+      kind: 'qs',
+      approaches: [
+        {
+          key: 'a1',
+          name: 'DP',
+          maxPoints: 10,
+          steps: [
+            { key: 's1', description: 'Bước 1', maxPoints: 6 },
+            { key: 's2', description: 'Bước 2', maxPoints: 4 },
+          ],
+        },
+      ],
+      criteria: [
+        { id: 'c1', key: 's1', description: 'Bước 1', maxPoints: 6, approachKey: 'a1' },
+        { id: 'c2', key: 's2', description: 'Bước 2', maxPoints: 4, approachKey: 'a1' },
+      ],
+    };
+    rubrics = { data: [qs], isLoading: false };
+    render(<RubricRow sessionId="s1" rubricId="ru-qs" />);
+    expect(screen.getByText('QS')).toBeInTheDocument();
+    expect(screen.getByText(/1 cách giải, 2 bước/)).toBeInTheDocument();
+    expect(screen.getByText(/AI chọn đúng một cách giải/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sửa cách giải & bước' })).toHaveAttribute(
+      'href',
+      rulesHref('CTDL'),
+    );
   });
 
   it('shows the PINNED version, not the newest one of the same rubric', () => {
     render(<RubricRow sessionId="s1" rubricId="ru-0" />);
-    expect(screen.getByText('CTDL — phiên bản 1')).toBeInTheDocument();
+    expect(screen.getByText('CTDL - phiên bản 1')).toBeInTheDocument();
   });
 
   it('links to edit the pinned rubric', () => {
@@ -53,7 +85,7 @@ describe('RubricRow', () => {
 
   it('read-only review keeps the pinned rubric and links to the error board without a swap control', () => {
     render(<RubricRow sessionId="s1" rubricId="ru-1" readOnly />);
-    expect(screen.getByText('CTDL — phiên bản 2')).toBeInTheDocument();
+    expect(screen.getByText('CTDL - phiên bản 2')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Xem bảng lỗi' })).toHaveAttribute('href', rulesHref('CTDL'));
     expect(screen.queryByLabelText('Chọn rubric')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Đổi rubric' })).not.toBeInTheDocument();
@@ -69,14 +101,14 @@ describe('RubricRow', () => {
         onChoiceChange={() => undefined}
       />,
     );
-    expect(screen.getByText('CTDL — phiên bản 2')).toBeInTheDocument();
+    expect(screen.getByText('CTDL - phiên bản 2')).toBeInTheDocument();
     expect(screen.queryByText(/chưa gắn rubric/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Gắn rubric' })).not.toBeInTheDocument();
   });
 
   it('draft: rubric đã ghim trên phiên vẫn hiện khi chưa chọn lại', () => {
     render(<RubricRow sessionId="s1" rubricId="ru-1" persist="draft" choice="" />);
-    expect(screen.getByText('CTDL — phiên bản 2')).toBeInTheDocument();
+    expect(screen.getByText('CTDL - phiên bản 2')).toBeInTheDocument();
     expect(screen.queryByText(/chưa gắn rubric/i)).not.toBeInTheDocument();
   });
 
@@ -104,7 +136,7 @@ describe('RubricRow', () => {
   });
 
   it('shows the server message verbatim when the swap is refused (session already has results)', () => {
-    setState = { isPending: false, isError: true, error: new Error('Phiên thi đã có kết quả chấm — không đổi được rubric') };
+    setState = { isPending: false, isError: true, error: new Error('Phiên thi đã có kết quả chấm - không đổi được rubric') };
     render(<RubricRow sessionId="s1" rubricId="ru-1" />);
     expect(screen.getByRole('alert')).toHaveTextContent('không đổi được rubric');
   });

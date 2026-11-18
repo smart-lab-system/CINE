@@ -4,8 +4,8 @@ import type { TestBundleCase } from '@/lib/api/test-bundle';
 export const runnableCases = (cases: TestBundleCase[]): TestBundleCase[] => cases.filter((c) => c.autoDroppedReason === null);
 
 /**
- * Ca giảng viên PHẢI đọc kỹ trước khi duyệt và ghim (mock-up v2): mọi ca biên (`bien`) và ca lớn (`lon`) — nơi đáp án sai
- * lộ ra nhiều nhất — cộng ca cơ bản đầu tiên làm mẫu. Duyệt một gói chưa đọc là biến "khớp nội bộ" thành thước mà chưa ai nhìn.
+ * Ca giảng viên PHẢI đọc kỹ trước khi duyệt và ghim (mock-up v2): mọi ca biên (`bien`) và ca lớn (`lon`) - nơi đáp án sai
+ * lộ ra nhiều nhất - cộng ca cơ bản đầu tiên làm mẫu. Duyệt một gói chưa đọc là biến "khớp nội bộ" thành thước mà chưa ai nhìn.
  * Trả tập `caseKey`.
  */
 export function casesToRead(cases: TestBundleCase[]): Set<string> {

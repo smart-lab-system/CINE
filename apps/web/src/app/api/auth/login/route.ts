@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   // Options live in lib/auth-cookies.ts, shared with refresh/route.ts and
   // middleware.ts. The `account` cookie is deliberately NOT httpOnly and is
   // used for no auth decision whatsoever (middleware decodes the real
-  // access_token JWT for that, see lib/jwt.ts) — it only lets client
+  // access_token JWT for that, see lib/jwt.ts) - it only lets client
   // components (AppShell's Topbar) show who is logged in without a fetch.
   // `accessToken` ĐI RA BODY, ngoài việc vẫn được set thành cookie httpOnly.
   //

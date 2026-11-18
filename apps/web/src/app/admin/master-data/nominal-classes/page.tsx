@@ -196,7 +196,7 @@ function NominalClassesContent() {
     setExportingId(c.id);
     try {
       const { count } = await exportNominalClassStudentsExcel(c);
-      toast.success(`Đã xuất ${count} sinh viên — ${c.code}`);
+      toast.success(`Đã xuất ${count} sinh viên - ${c.code}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Xuất Excel thất bại');
     } finally {
@@ -254,7 +254,7 @@ function NominalClassesContent() {
     <div className="space-y-6">
       <PageHeader
         title="Lớp danh nghĩa"
-        description="Lớp hành chính — khác lớp môn do giảng viên sở hữu. Bấm dòng để xem sinh viên."
+        description="Lớp hành chính - khác lớp môn do giảng viên sở hữu. Bấm dòng để xem sinh viên."
       />
       <CatalogSection
         title="Danh sách lớp"
@@ -316,8 +316,8 @@ function NominalClassesContent() {
                   title="Xem sinh viên của lớp này"
                 >
                   <TableCell className="font-mono">{c.code}</TableCell>
-                  <TableCell>{c.name ?? '—'}</TableCell>
-                  <TableCell>{c.cohortYear ?? '—'}</TableCell>
+                  <TableCell>{c.name ?? '-'}</TableCell>
+                  <TableCell>{c.cohortYear ?? '-'}</TableCell>
                   <TableCell>{catalogActiveStatusLabel(c.status)}</TableCell>
                   <TableCell className="text-right">
                     <RowActions>

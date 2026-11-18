@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 
-/** One student on a class list — the shape both directions speak. */
+/** One student on a class list - the shape both directions speak. */
 export interface RosterEntry {
   mssv: string;
   name: string;
@@ -18,7 +18,7 @@ export interface RosterImportResult {
 async function throwIfFailed(error: unknown, response: Response) {
   if (error || !response.ok) {
     // openapi-fetch only fills `error` from the body, and some failures
-    // leave it empty — key off the status too. The message matters more here
+    // leave it empty - key off the status too. The message matters more here
     // than elsewhere: a 409 names the students who are in another class, and
     // that text is the only way the user learns which ones.
     const body = error as { message?: string | string[] } | undefined;
@@ -56,7 +56,7 @@ export async function importRoster(
 
 /**
  * One student, typed in rather than imported. Same rules as a row of the
- * file — the MSSV is validated identically server-side, and a student who
+ * file - the MSSV is validated identically server-side, and a student who
  * already sits in a sibling class of the same course is refused.
  */
 export async function addRosterStudent(
@@ -83,7 +83,7 @@ export async function removeRosterStudent(
   await throwIfFailed(error, response);
 }
 
-/** Sửa họ tên — giữ MSSV. Path có thể chưa có trong schema.d.ts. */
+/** Sửa họ tên - giữ MSSV. Path có thể chưa có trong schema.d.ts. */
 export async function updateRosterStudentName(
   classId: string,
   studentMssv: string,

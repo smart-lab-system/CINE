@@ -21,7 +21,7 @@ vi.mock('@/hooks/useGrading', () => ({
   useSetErrorException: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
 }));
 vi.mock('@/hooks/useSubmissionOverview', () => ({ useSessionOverview: () => overviewMock() }));
-// "Quyết định của bạn" đọc nhóm duyệt nhanh và gọi xác nhận — không phải thứ bài này kiểm, nên mock rỗng.
+// "Quyết định của bạn" đọc nhóm duyệt nhanh và gọi xác nhận - không phải thứ bài này kiểm, nên mock rỗng.
 vi.mock('@/hooks/useReviewGroups', () => ({
   useReviewGroups: () => ({ data: [], isSuccess: true }),
   useConfirmReviewGroup: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null, data: undefined }),
@@ -43,7 +43,7 @@ const baseResult = {
 };
 
 describe('InvestigatorDossier', () => {
-  it('shows a neutral loading state while the result is still grading (Review Focus #4) — never crashes on a null breakdown', () => {
+  it('shows a neutral loading state while the result is still grading (Review Focus #4) - never crashes on a null breakdown', () => {
     resultsMock = () => ({ data: [{ ...baseResult, status: 'ai_grading' }], isLoading: false, isError: false });
     detailMock = () => ({
       data: { pipeline: 'investigator', currentScore: null, currentScoreSource: 'none', status: 'ai_grading', ungradableClass: null, ungradableReason: null, breakdown: null, investigation: null, challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null },
@@ -157,7 +157,7 @@ describe('InvestigatorDossier', () => {
   });
 
 
-  // Review I5: a failed GET /investigation used to fall into "AI đang chấm" — telling the teacher to wait
+  // Review I5: a failed GET /investigation used to fall into "AI đang chấm" - telling the teacher to wait
   // for something that will never arrive.
   it('shows the server error, not "AI đang chấm", when the investigation cannot be loaded', () => {
     resultsMock = () => ({ data: [baseResult], isLoading: false, isError: false });
@@ -168,7 +168,7 @@ describe('InvestigatorDossier', () => {
   });
 
   // Review I2: setManualScore never clears ungradable_class, so after a hand-graded "không chấm được" result
-  // the page kept saying "— chưa có điểm nào cho bài này" right under a "Đã duyệt" pill.
+  // the page kept saying "- chưa có điểm nào cho bài này" right under a "Đã duyệt" pill.
   describe('an ungradable result the teacher has since graded by hand', () => {
     const manualDetail = {
       data: {
@@ -185,7 +185,7 @@ describe('InvestigatorDossier', () => {
       resultsMock = () => ({ data: [{ ...baseResult, status: 'teacher_reviewed' }], isLoading: false, isError: false });
       detailMock = () => manualDetail as never;
       render(<InvestigatorDossier resultId="r1" sessionId="s1" />);
-      expect(screen.getByText('Điểm — do bạn chấm tay')).toBeInTheDocument();
+      expect(screen.getByText('Điểm - do bạn chấm tay')).toBeInTheDocument();
       expect(screen.getByText('7,0')).toBeInTheDocument();
       expect(screen.queryByText(/chưa có điểm nào cho bài này/)).not.toBeInTheDocument();
     });
@@ -207,7 +207,7 @@ describe('InvestigatorDossier', () => {
     });
   });
 
-  // Review I6: the ceiling came from `find(r => r.version === session.rubricVersion)` — every rubric starts at
+  // Review I6: the ceiling came from `find(r => r.version === session.rubricVersion)` - every rubric starts at
   // v1, so a 10-point session could be checked against a 5-point rubric and a valid score refused.
   describe('the score ceiling belongs to the rubric pinned to this session', () => {
     const detailFlagged = {
@@ -242,7 +242,7 @@ describe('InvestigatorDossier', () => {
       expect(manualMutate).toHaveBeenCalledWith({ resultId: 'r1', score: '8' }, expect.anything());
     });
 
-    it('does not guess a ceiling while the session or its rubric is unknown — the server checks it', () => {
+    it('does not guess a ceiling while the session or its rubric is unknown - the server checks it', () => {
       setup();
       overviewMock = () => ({ data: [] });
       rubricsMock = () => ({ data: [] });
@@ -263,7 +263,7 @@ describe('InvestigatorDossier', () => {
         ungradableClass: null, ungradableReason: null,
         breakdown: {
           errors: [], perCriterion: [], caseFlags: [], errorFlags: [], confidence: 0, mismatchedRules: [], notConsidered: [],
-          ungradable: { class: 'submission', reason: 'Tiêu chí "hieu_nang" chưa có luật nào — không tự quyết được.' },
+          ungradable: { class: 'submission', reason: 'Tiêu chí "hieu_nang" chưa có luật nào - không tự quyết được.' },
         },
         investigation: { summary: 's', verdict: { errors: [] }, replay: null, investigation: { toolCalls: [] } },
         challengeNotes: [], challengeVerdicts: [], confidenceTerms: [], noErrorAgreement: { n: 0, disagreements: 0, paused: false }, testBundle: null,

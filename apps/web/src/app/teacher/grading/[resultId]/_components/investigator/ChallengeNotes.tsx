@@ -5,10 +5,10 @@ import type { ChallengeNote } from '@/lib/api/grading';
 import { lensLabel } from '@/lib/grading-vocab';
 
 /**
- * Ghi chú của hai góc kiểm CẤP BÀI (Bỏ sót, Gian lận, §6.1) — không gắn với một lỗi cụ thể
+ * Ghi chú của hai góc kiểm CẤP BÀI (Bỏ sót, Gian lận, §6.1) - không gắn với một lỗi cụ thể
  * nên không vào được `ErrorList`. Ghi chú NGHI NGỜ nổi thành cảnh báo; ghi chú "không
- * thấy vấn đề" nằm trong mục thu gọn — không đòi giảng viên đọc, nhưng vẫn cho thấy góc kiểm
- * đã chạy và đã thử gì (hay vì sao không kết luận được) — spec §3.5.
+ * thấy vấn đề" nằm trong mục thu gọn - không đòi giảng viên đọc, nhưng vẫn cho thấy góc kiểm
+ * đã chạy và đã thử gì (hay vì sao không kết luận được) - spec §3.5.
  *
  * Từ "lăng kính" là tên nội bộ; giảng viên đọc "góc kiểm" (spec §2.2).
  */
@@ -27,7 +27,7 @@ export function ChallengeNotes({ notes }: { notes: ChallengeNote[] }) {
           <ul className="flex flex-col gap-1.5">
             {suspected.map((n, i) => (
               <li key={i} className="text-small text-muted-foreground">
-                <span className="font-medium text-foreground">{lensLabel(n.lens)}</span> — {n.note}
+                <span className="font-medium text-foreground">{lensLabel(n.lens)}</span> - {n.note}
               </li>
             ))}
           </ul>
@@ -41,7 +41,7 @@ export function ChallengeNotes({ notes }: { notes: ChallengeNote[] }) {
           <ul className="mt-2 flex flex-col gap-1.5">
             {clear.map((n, i) => (
               <li key={i} className="text-small text-muted-foreground">
-                <span className="font-medium text-foreground">{lensLabel(n.lens)}</span> — {n.note}
+                <span className="font-medium text-foreground">{lensLabel(n.lens)}</span> - {n.note}
               </li>
             ))}
           </ul>

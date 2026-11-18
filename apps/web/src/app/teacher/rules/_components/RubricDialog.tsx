@@ -26,19 +26,21 @@ import {
   validateRubric,
   type CriterionRow,
 } from '@/lib/rubric-form';
+import { approachesFromRubric } from '@/lib/qs-rubric-form';
 import { cn } from '@/lib/utils';
+import { QsRubricForm } from './QsRubricForm';
 
 /**
  * Sửa tiêu chí & điểm tối đa của một rubric, hoặc tạo rubric mới (spec mục 5, D3). Giữ nguyên ý của hộp thoại cũ:
- * tiêu chí CÓ SẴN gửi lại KHOÁ gốc của nó và không cho gõ khoá — máy chủ sinh lại khoá từ mô tả cho tiêu chí nào
+ * tiêu chí CÓ SẴN gửi lại KHOÁ gốc của nó và không cho gõ khoá - máy chủ sinh lại khoá từ mô tả cho tiêu chí nào
  * thiếu `key`, nên sửa một câu mô tả từng âm thầm cắt liên kết "lỗi → tiêu chí". Chỉ tiêu chí MỚI có ô khoá (tuỳ chọn).
  *
- * Tạo rubric: nếu giảng viên đã có rubric khác, mặc định là "sao chép từ một rubric đã có" — nhưng KHÔNG chọn sẵn
+ * Tạo rubric: nếu giảng viên đã có rubric khác, mặc định là "sao chép từ một rubric đã có" - nhưng KHÔNG chọn sẵn
  * nguồn nào (D3). Tiêu chí sao chép GIỮ khoá của nguồn, vì đó là cách máy chủ ghép lỗi sang rubric mới.
  *
- * Ruột form nằm TRONG DialogContent — mỗi lần mở là một lần mount mới, không thừa hưởng nội dung gõ dở.
+ * Ruột form nằm TRONG DialogContent - mỗi lần mở là một lần mount mới, không thừa hưởng nội dung gõ dở.
  *
- * Môn học (tạo trống) và tổng điểm chỉ là ràng buộc UI — không gửi lên API, không đổi schema.
+ * Môn học bắt buộc khi tạo (gửi `courseId`). Tổng điểm chỉ ràng buộc UI.
  */
 export function RubricDialog({
   open,
@@ -47,6 +49,8 @@ export function RubricDialog({
   existingNames,
   errorCounts,
   overviews,
+  rubrics = [],
+  defaultKind = 'qa',
   onSaved,
 }: {
   open: boolean;
@@ -54,10 +58,14 @@ export function RubricDialog({
   /** Bản mới nhất của rubric cần sửa; bỏ trống = tạo rubric mới. */
   rubric?: Rubric;
   existingNames: string[];
-  /** Số lỗi ĐANG DÙNG gắn vào mỗi khoá tiêu chí — để cảnh báo khi xoá tiêu chí. */
+  /** Số lỗi ĐANG DÙNG gắn vào mỗi khoá tiêu chí - để cảnh báo khi xoá tiêu chí. */
   errorCounts: Record<string, number>;
   /** Mọi rubric của giảng viên: nguồn để sao chép khi tạo rubric mới. */
   overviews: RubricOverview[];
+  /** Bản đầy đủ (có approaches) để sao chép QS. */
+  rubrics?: Rubric[];
+  /** Mặc định loại khi tạo (exam bank → qs). */
+  defaultKind?: 'qa' | 'qs';
   onSaved: (saved: Rubric) => void;
 }) {
   const close = () => onOpenChange(false);
@@ -65,9 +73,31 @@ export function RubricDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         {rubric ? (
-          <RubricForm rubric={rubric} existingNames={existingNames} errorCounts={errorCounts} onSaved={onSaved} onClose={close} />
+          (rubric.kind ?? 'qa') === 'qs' ? (
+            <QsRubricForm
+              rubric={rubric}
+              existingNames={existingNames}
+              onSaved={onSaved}
+              onClose={close}
+            />
+          ) : (
+            <RubricForm
+              rubric={rubric}
+              existingNames={existingNames}
+              errorCounts={errorCounts}
+              onSaved={onSaved}
+              onClose={close}
+            />
+          )
         ) : (
-          <CreateBody existingNames={existingNames} overviews={overviews} onSaved={onSaved} onClose={close} />
+          <CreateBody
+            existingNames={existingNames}
+            overviews={overviews}
+            rubrics={rubrics}
+            defaultKind={defaultKind}
+            onSaved={onSaved}
+            onClose={close}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -77,18 +107,32 @@ export function RubricDialog({
 function CreateBody({
   existingNames,
   overviews,
+  rubrics,
+  defaultKind,
   onSaved,
   onClose,
 }: {
   existingNames: string[];
   overviews: RubricOverview[];
+  rubrics: Rubric[];
+  defaultKind: 'qa' | 'qs';
   onSaved: (saved: Rubric) => void;
   onClose: () => void;
 }) {
-  const hasAny = overviews.length > 0;
+  const [kind, setKind] = useState<'qa' | 'qs'>(defaultKind);
+  const qaOverviews = overviews; // overview hiện chủ yếu phục vụ QA / bảng lỗi
+  const qsSources = rubrics.filter(
+    (r) => (r.kind ?? 'qa') === 'qs' && r.isActive && !r.isArchived,
+  );
+  const hasAny = kind === 'qs' ? qsSources.length > 0 : qaOverviews.length > 0;
   const [mode, setMode] = useState<'copy' | 'blank'>(hasAny ? 'copy' : 'blank');
   const [source, setSource] = useState('');
-  const src = mode === 'copy' ? overviews.find((o) => o.rubricName === source) : undefined;
+  const srcOverview =
+    kind === 'qa' && mode === 'copy'
+      ? qaOverviews.find((o) => o.rubricName === source)
+      : undefined;
+  const srcQs =
+    kind === 'qs' && mode === 'copy' ? qsSources.find((r) => r.id === source) : undefined;
 
   const option = (id: 'copy' | 'blank', title: string, text: string) => (
     <button
@@ -111,14 +155,65 @@ function CreateBody({
         <DialogTitle>Tạo rubric mới</DialogTitle>
       </DialogHeader>
 
+      <div role="group" aria-label="Loại rubric" className="grid gap-2.5 sm:grid-cols-2">
+        <button
+          type="button"
+          aria-pressed={kind === 'qa'}
+          onClick={() => {
+            setKind('qa');
+            setSource('');
+            setMode(qaOverviews.length > 0 ? 'copy' : 'blank');
+          }}
+          className={cn(
+            'flex flex-col gap-1 rounded-lg border p-3 text-left',
+            kind === 'qa' ? 'border-primary bg-primary-subtle' : 'border-border hover:bg-surface-2',
+          )}
+        >
+          <b className="text-small font-semibold">QA - tiêu chí phẳng</b>
+          <span className="text-caption text-muted-foreground">
+            Dùng chung nhiều câu; trừ điểm theo bảng lỗi.
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={kind === 'qs'}
+          onClick={() => {
+            setKind('qs');
+            setSource('');
+            setMode(qsSources.length > 0 ? 'copy' : 'blank');
+          }}
+          className={cn(
+            'flex flex-col gap-1 rounded-lg border p-3 text-left',
+            kind === 'qs' ? 'border-primary bg-primary-subtle' : 'border-border hover:bg-surface-2',
+          )}
+        >
+          <b className="text-small font-semibold">QS - theo câu (DSA)</b>
+          <span className="text-caption text-muted-foreground">
+            Nhiều cách giải; điểm = cách giải cao nhất.
+          </span>
+        </button>
+      </div>
+
       {hasAny && (
         <div role="group" aria-label="Bắt đầu từ" className="grid gap-2.5 sm:grid-cols-2">
-          {option('copy', 'Một rubric đã có (khuyên dùng)', 'Sao chép tiêu chí, điểm tối đa, lỗi và điểm trừ. Sau đó hai rubric độc lập: sửa bên này không đổi bên kia.')}
-          {option('blank', 'Tạo trống', 'Tự nhập tiêu chí và điểm tối đa; thêm lỗi sau.')}
+          {option(
+            'copy',
+            'Một rubric đã có (khuyên dùng)',
+            kind === 'qs'
+              ? 'Sao chép cách giải và bước checklist.'
+              : 'Sao chép tiêu chí, điểm tối đa, lỗi và điểm trừ.',
+          )}
+          {option(
+            'blank',
+            'Tạo trống',
+            kind === 'qs'
+              ? 'Tự nhập cách giải và bước checklist.'
+              : 'Tự nhập tiêu chí và điểm tối đa; thêm lỗi sau.',
+          )}
         </div>
       )}
 
-      {mode === 'copy' && (
+      {mode === 'copy' && kind === 'qa' && (
         <FormField id="rubric-source" label="Sao chép từ">
           <select
             id="rubric-source"
@@ -127,40 +222,98 @@ function CreateBody({
             className="h-10 w-full rounded-md border border-input bg-surface px-3 text-body"
           >
             <option value="">Chọn rubric muốn sao chép…</option>
-            {overviews.map((o) => (
+            {qaOverviews.map((o) => (
               <option key={o.rubricName} value={o.rubricName}>
-                {o.rubricName} — {o.errorCount} lỗi
+                {o.rubricName} - {o.errorCount} lỗi
               </option>
             ))}
           </select>
         </FormField>
       )}
 
-      {mode === 'copy' && !src ? (
+      {mode === 'copy' && kind === 'qs' && (
+        <FormField id="rubric-source-qs" label="Sao chép từ">
+          <select
+            id="rubric-source-qs"
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className="h-10 w-full rounded-md border border-input bg-surface px-3 text-body"
+          >
+            <option value="">Chọn rubric QS…</option>
+            {qsSources.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name} (v{r.version})
+              </option>
+            ))}
+          </select>
+        </FormField>
+      )}
+
+      {kind === 'qs' ? (
+        mode === 'copy' && !srcQs ? (
+          <>
+            <p className="text-small text-muted-foreground">
+              Chọn rubric QS để sao chép cách giải/bước, hoặc chọn Tạo trống.
+            </p>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={onClose}>
+                Huỷ
+              </Button>
+              <Button type="button" disabled>
+                Tạo rubric QS
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <QsRubricForm
+            key={`qs:${mode}:${source}`}
+            existingNames={existingNames}
+            onSaved={onSaved}
+            onClose={onClose}
+            requireCourse
+            seedCourseId={srcQs?.courseId ?? undefined}
+            seedName={srcQs ? `${srcQs.name} - bản sao` : undefined}
+            seedApproaches={srcQs ? approachesFromRubric(srcQs) : undefined}
+          />
+        )
+      ) : mode === 'copy' && !srcOverview ? (
         <>
-          <p className="text-small text-muted-foreground">Chọn rubric ở trên để xem các tiêu chí sẽ được sao chép. Bạn vẫn sửa được trước khi tạo.</p>
+          <p className="text-small text-muted-foreground">
+            Chọn rubric ở trên để xem các tiêu chí sẽ được sao chép. Bạn vẫn sửa được trước khi tạo.
+          </p>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>
               Huỷ
             </Button>
-            <Button type="button" variant="primary" disabled title="Chọn rubric muốn sao chép, hoặc chọn Tạo trống">
+            <Button
+              type="button"
+              variant="primary"
+              disabled
+              title="Chọn rubric muốn sao chép, hoặc chọn Tạo trống"
+            >
               Tạo rubric
             </Button>
           </DialogFooter>
         </>
       ) : (
         <RubricForm
-          key={`${mode}:${source}`}
+          key={`qa:${mode}:${source}`}
           existingNames={existingNames}
           errorCounts={{}}
           onSaved={onSaved}
           onClose={onClose}
-          requireCourse={mode === 'blank'}
+          requireCourse
+          seedCourseId={
+            srcOverview
+              ? rubrics.find((r) => r.name === srcOverview.rubricName && r.isActive)?.courseId ??
+                undefined
+              : undefined
+          }
           seed={
-            src
+            srcOverview
               ? {
-                  name: `${src.rubricName} — bản sao`,
-                  rows: src.criteria.map((c) => ({
+                  name: `${srcOverview.rubricName} - bản sao`,
+                  rows: srcOverview.criteria.map((c) => ({
                     id: `src-${c.key}`,
                     key: c.key,
                     existing: true,
@@ -170,14 +323,18 @@ function CreateBody({
                 }
               : undefined
           }
-          copyFrom={src ? { name: src.rubricName, errorCount: src.errorCount } : undefined}
+          copyFrom={
+            srcOverview
+              ? { name: srcOverview.rubricName, errorCount: srcOverview.errorCount }
+              : undefined
+          }
         />
       )}
     </>
   );
 }
 
-/** Dấu vân tay các hàng — để biết giảng viên đã đổi gì so với bản đang dùng. */
+/** Dấu vân tay các hàng - để biết giảng viên đã đổi gì so với bản đang dùng. */
 const fingerprint = (rows: CriterionRow[]) =>
   JSON.stringify(rows.map((r) => [r.id, r.key.trim(), r.description.trim(), parseCap(r.maxPoints)]));
 
@@ -190,6 +347,7 @@ function RubricForm({
   seed,
   copyFrom,
   requireCourse = false,
+  seedCourseId,
 }: {
   rubric?: Rubric;
   existingNames: string[];
@@ -200,13 +358,17 @@ function RubricForm({
   seed?: { name: string; rows: CriterionRow[] };
   /** Có = sau khi lưu có thể sao chép lỗi từ rubric này sang rubric mới. */
   copyFrom?: { name: string; errorCount: number };
-  /** Tạo trống: hiện ô chọn môn học (chỉ UI, không lưu schema). */
+  /** Tạo mới: bắt buộc chọn môn (gửi courseId). */
   requireCourse?: boolean;
+  /** Prefill môn khi sao chép. */
+  seedCourseId?: string | null;
 }) {
   const seq = useRef(0);
   const nextId = () => `new-${++seq.current}`;
   const [name, setName] = useState(seed?.name ?? '');
-  const [courseName, setCourseName] = useState('');
+  const [courseId, setCourseId] = useState(
+    () => seedCourseId ?? rubric?.courseId ?? '',
+  );
   const [initialRows] = useState<CriterionRow[]>(() => (rubric ? rowsFromRubric(rubric) : (seed?.rows ?? [newRow('new-0')])));
   const [rows, setRows] = useState<CriterionRow[]>(initialRows);
   const [totalPoints, setTotalPoints] = useState(() => {
@@ -227,23 +389,25 @@ function RubricForm({
     const seen = new Set<string>();
     const options: { value: string; label: string }[] = [];
     for (const klass of teaching.data ?? []) {
-      const label = klass.courseName.trim();
-      if (!label || seen.has(label)) continue;
-      seen.add(label);
-      options.push({ value: label, label });
+      const id = klass.courseId;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      options.push({ value: id, label: klass.courseName.trim() || id });
     }
     return options.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
   }, [teaching.data]);
 
   const editing = rubric !== undefined;
+  // Tạo mới (requireCourse) hoặc sửa bản legacy chưa có môn → bắt chọn.
+  const needCourse = (!editing && requireCourse) || (editing && !rubric?.courseId);
   const errors = validateRubric(
     {
       name,
       nameEditable: !editing,
       existingNames,
       totalPoints,
-      courseRequired: requireCourse,
-      courseName,
+      courseRequired: needCourse,
+      courseId,
     },
     rows,
   );
@@ -266,8 +430,12 @@ function RubricForm({
   }
 
   function submit() {
-    // courseName / totalPoints: chỉ ràng buộc form — payload vẫn chỉ name + criteria.
-    save.mutate(buildSaveInput(editing ? rubric.name : name, rows), {
+    const payload = buildSaveInput(
+      editing ? rubric.name : name,
+      rows,
+      courseId || rubric?.courseId || undefined,
+    );
+    save.mutate(payload, {
       onSuccess: (saved) => {
         if (!copyFrom || !copyErrorsToo) {
           finish(saved);
@@ -276,10 +444,10 @@ function RubricForm({
         copy.mutate(
           { from: copyFrom.name, to: saved.name },
           {
-            onSuccess: (r) => toast.success(`Đã tạo “${saved.name}” từ “${copyFrom.name}” — sao chép ${r.copied} lỗi. Hai rubric từ giờ độc lập.`),
+            onSuccess: (r) => toast.success(`Đã tạo “${saved.name}” từ “${copyFrom.name}” - sao chép ${r.copied} lỗi. Hai rubric từ giờ độc lập.`),
             // Rubric ĐÃ được tạo: không rollback, chỉ nói rõ và chỉ đường làm lại ở dải "Rubric mới".
             onError: (e) =>
-              toast.error(`Đã tạo “${saved.name}” nhưng chưa sao chép được lỗi — ${e.message}. Bạn có thể sao chép lại ở dải “Rubric mới”.`),
+              toast.error(`Đã tạo “${saved.name}” nhưng chưa sao chép được lỗi - ${e.message}. Bạn có thể sao chép lại ở dải “Rubric mới”.`),
             onSettled: () => finish(saved),
           },
         );
@@ -291,7 +459,7 @@ function RubricForm({
     <>
       {editing && (
         <DialogHeader>
-          <DialogTitle>Sửa tiêu chí &amp; điểm tối đa — {rubric.name}</DialogTitle>
+          <DialogTitle>Sửa tiêu chí &amp; điểm tối đa - {rubric.name}</DialogTitle>
         </DialogHeader>
       )}
 
@@ -312,12 +480,12 @@ function RubricForm({
         </FormField>
       )}
 
-      {requireCourse && (
+      {needCourse && (
         <FormField id="rubric-course" label="Môn học" error={shown('courseName', errors.courseName)}>
           <SearchableSelect
-            value={courseName}
+            value={courseId}
             onValueChange={(v) => {
-              setCourseName(v);
+              setCourseId(v);
               touch('courseName');
             }}
             options={courseOptions}
@@ -335,7 +503,7 @@ function RubricForm({
         label="Tổng điểm"
         className="w-full sm:w-40"
         error={shown('totalPoints', errors.totalPoints)}
-        hint={`Đã phân bổ ${sumCaps(rows)} / ${parseCap(totalPoints) ?? '—'} điểm.`}
+        hint={`Đã phân bổ ${sumCaps(rows)} / ${parseCap(totalPoints) ?? '-'} điểm.`}
       >
         <Input
           id="rubric-total"
@@ -399,7 +567,7 @@ function RubricForm({
 
               {row.existing ? (
                 <p className="text-caption text-muted-foreground">
-                  Khoá <span className="font-mono">{row.key}</span> — cố định, các lỗi gắn với tiêu chí này theo khoá đó.
+                  Khoá <span className="font-mono">{row.key}</span> - cố định, các lỗi gắn với tiêu chí này theo khoá đó.
                 </p>
               ) : (
                 <FormField
@@ -450,7 +618,7 @@ function RubricForm({
       {warnings.map((w) => (
         <Alert key={w.key} variant="warning">
           <AlertDescription>
-            Còn {w.count} lỗi đang nằm trong tiêu chí “{w.title}” — sau khi lưu, chúng cần được chuyển sang tiêu chí khác.
+            Còn {w.count} lỗi đang nằm trong tiêu chí “{w.title}” - sau khi lưu, chúng cần được chuyển sang tiêu chí khác.
           </AlertDescription>
         </Alert>
       ))}

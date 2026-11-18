@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   searchAccounts,
+  getAccount,
   createAccount,
   updateAccount,
   deleteAccount,
@@ -16,17 +17,25 @@ import {
 const ACCOUNTS_QUERY_KEY = 'accounts';
 
 /**
- * TanStack Query wrappers around lib/api/accounts.ts — pages call these
+ * TanStack Query wrappers around lib/api/accounts.ts - pages call these
  * hooks, never `apiClient`/`lib/api/accounts.ts` directly (CLAUDE.md's
  * API-call-layering rule; the previous accounts page violated this by
  * calling `apiClient` inline, fixed here).
  */
 export function useAccounts(params: SearchAccountsParams) {
   return useQuery({
-    // Every param that changes the result set belongs in the key — search,
+    // Every param that changes the result set belongs in the key - search,
     // role, page, and pageSize (admin list picker: 30/50/100).
     queryKey: [ACCOUNTS_QUERY_KEY, params],
     queryFn: () => searchAccounts(params),
+  });
+}
+
+export function useAccount(id: string | undefined) {
+  return useQuery({
+    queryKey: [ACCOUNTS_QUERY_KEY, 'one', id],
+    queryFn: () => getAccount(id!),
+    enabled: Boolean(id),
   });
 }
 
@@ -57,7 +66,7 @@ export function useDeleteAccount() {
 
 /**
  * Một hook cho cả hai chiều: màn hình chỉ có một nút gạt, và tách thành
- * hai mutation sẽ buộc trang phải tự chọn hook nào theo trạng thái hàng —
+ * hai mutation sẽ buộc trang phải tự chọn hook nào theo trạng thái hàng -
  * logic đó thuộc về đây, không thuộc về trang.
  */
 export function useToggleAccountActive() {

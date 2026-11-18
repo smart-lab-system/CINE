@@ -10,9 +10,10 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { ClassEntity } from '../course/entities/class.entity';
+import { CourseEntity } from '../master-data/entities/course.entity';
 import { StudentEntity } from '../master-data/entities/student.entity';
 import { RoomEntity } from '../master-data/entities/room.entity';
 import { ComputerEntity } from '../master-data/entities/computer.entity';
@@ -41,11 +42,18 @@ import {
   EnsureArtifactsDto,
   RejectRoomProposalDto,
   UpdateCatalogExtensionDto,
+  VerifyTeacherMachineDto,
 } from './dto/ide-extensions.dto';
 import { deriveCatalogStatus } from './catalog-status';
+import { isViolationPairStillOpen } from './violation-filter';
 import { fetchMarketplaceMeta } from './marketplace-client';
 import { StorageService } from '../storage/storage.service';
 import { IDE_EXTENSION_EXTRACT_QUEUE } from './extract/ide-extension-extract.constants';
+import {
+  buildNormalizedSourcesFromPackage,
+  parsePackageSnippetsContributes,
+  SnippetNormalizeError,
+} from './normalize/snippet-normalize';
 import {
   sanitizeExtractRelativePath,
   UnsafeExtractPathError,
@@ -580,6 +588,97 @@ export class IdeExtensionsService {
     return this.toVersionDto(saved);
   }
 
+  /**
+   * On-demand Snippets-first normalize: read extracted package.json +
+   * contributes.snippets bodies. Does not persist synthetic files.
+   */
+  async getNormalizedSources(versionId: string, opts?: { raw?: boolean }) {
+    const row = await this.versions.findOne({ where: { id: versionId } });
+    if (!row) throw new NotFoundException('Không tìm thấy phiên bản.');
+    if (!row.storageKey) {
+      throw new BadRequestException('Phiên bản chưa có file .vsix trên kho lưu trữ.');
+    }
+    if (row.extractStatus !== 'ready') {
+      throw new BadRequestException(
+        'Chưa giải nén xong — hãy đợi extract ready rồi xem mã đã chuẩn hóa.',
+      );
+    }
+
+    const packageKey = this.storage.buildIdeExtensionExtractedFileKey(
+      row.extensionPk,
+      row.id,
+      'extension/package.json',
+    );
+    if (!(await this.storage.objectExists(packageKey))) {
+      throw new BadRequestException(
+        'Không tìm thấy extension/package.json trong bản giải nén.',
+      );
+    }
+
+    let packageBuf: Buffer;
+    try {
+      packageBuf = await this.storage.getObject(packageKey);
+    } catch (error) {
+      this.logger.warn(
+        `normalized-sources ${versionId}: get package.json — ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw new BadRequestException('Không đọc được extension/package.json.');
+    }
+
+    const packageText = packageBuf.toString('utf8');
+    let packageJson: unknown;
+    try {
+      packageJson = JSON.parse(packageText);
+    } catch {
+      throw new BadRequestException('Không parse được extension/package.json.');
+    }
+
+    let contributes;
+    try {
+      ({ contributes } = parsePackageSnippetsContributes(packageJson));
+    } catch (error) {
+      if (error instanceof SnippetNormalizeError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+
+    const fileMap = new Map<string, Buffer>();
+    for (const ref of contributes) {
+      if (fileMap.has(ref.path)) continue;
+      const key = this.storage.buildIdeExtensionExtractedFileKey(
+        row.extensionPk,
+        row.id,
+        ref.path,
+      );
+      if (!(await this.storage.objectExists(key))) {
+        throw new BadRequestException(`Không tìm thấy file snippet: ${ref.path}`);
+      }
+      fileMap.set(ref.path, await this.storage.getObject(key));
+    }
+
+    try {
+      return buildNormalizedSourcesFromPackage(
+        packageText,
+        (relativePath) => {
+          const buf = fileMap.get(relativePath);
+          if (!buf) {
+            throw new SnippetNormalizeError(`Thiếu file snippet: ${relativePath}`);
+          }
+          return buf;
+        },
+        { stripTabstops: !opts?.raw },
+      );
+    } catch (error) {
+      if (error instanceof SnippetNormalizeError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
   private async enqueueExtract(versionId: string): Promise<void> {
     const jobId = `extract-${versionId}`;
     try {
@@ -838,6 +937,168 @@ export class IdeExtensionsService {
     return { ...scan, items };
   }
 
+  /**
+   * Spec 2026-11-18: blocked scan items still open under global catalog approval (2B).
+   */
+  async listViolations() {
+    const blocked = await this.scanItems.find({
+      where: { verdict: 'blocked' },
+      relations: { scan: { examSession: true } },
+      order: { extensionId: 'ASC' },
+    });
+
+    const approvedVersions = await this.versions.find({
+      where: { approvalStatus: 'approved' },
+      relations: { extension: true },
+    });
+    const approvedPairs = approvedVersions
+      .filter((v) => v.extension?.identifier)
+      .map((v) => ({ identifier: v.extension.identifier, version: v.version }));
+
+    const openItems = blocked.filter((it) =>
+      isViolationPairStillOpen(it.extensionId, it.version, approvedPairs),
+    );
+    if (openItems.length === 0) return [];
+
+    const mssvs = [...new Set(openItems.map((it) => it.scan.studentMssv))];
+    const courseIds = [
+      ...new Set(
+        openItems
+          .map((it) => it.scan.courseId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ];
+
+    const [studentRows, courseRows, catalogExts] = await Promise.all([
+      mssvs.length
+        ? this.students.find({ where: { mssv: In(mssvs) } })
+        : Promise.resolve([] as StudentEntity[]),
+      courseIds.length
+        ? this.dataSource.getRepository(CourseEntity).find({ where: { id: In(courseIds) } })
+        : Promise.resolve([] as CourseEntity[]),
+      this.extensions.find({
+        where: {
+          identifier: In([...new Set(openItems.map((it) => it.extensionId))]),
+        },
+      }),
+    ]);
+
+    const studentByMssv = new Map(studentRows.map((s) => [s.mssv.toLowerCase(), s]));
+    const courseById = new Map(courseRows.map((c) => [c.id, c]));
+    const catalogByIdentifier = new Map(catalogExts.map((e) => [e.identifier, e]));
+
+    type Incident = {
+      scanId: string;
+      scanItemId: string;
+      examSessionId: string | null;
+      examSessionName: string | null;
+      courseId: string | null;
+      courseName: string | null;
+      studentMssv: string;
+      studentFullName: string | null;
+      machineId: string;
+      machineName: string | null;
+      scannedAt: string;
+    };
+
+    const byExt = new Map<
+      string,
+      {
+        extensionId: string;
+        displayName: string | null;
+        versions: Map<string, { version: string | null; incidents: Incident[] }>;
+      }
+    >();
+
+    for (const it of openItems) {
+      const scan = it.scan;
+      const exam = scan.examSession;
+      const course =
+        (scan.courseId ? courseById.get(scan.courseId) : undefined) ?? null;
+      const student = studentByMssv.get(scan.studentMssv.toLowerCase()) ?? null;
+      const catalog = catalogByIdentifier.get(it.extensionId);
+
+      const incident: Incident = {
+        scanId: scan.id,
+        scanItemId: it.id,
+        examSessionId: scan.examSessionId,
+        examSessionName: exam?.name ?? null,
+        courseId: scan.courseId,
+        courseName: course?.name ?? exam?.courseName ?? null,
+        studentMssv: scan.studentMssv,
+        studentFullName: student?.fullName ?? null,
+        machineId: scan.machineId,
+        machineName: scan.machineName,
+        scannedAt: scan.scannedAt.toISOString(),
+      };
+
+      let ext = byExt.get(it.extensionId);
+      if (!ext) {
+        ext = {
+          extensionId: it.extensionId,
+          displayName: it.displayName ?? catalog?.displayName ?? null,
+          versions: new Map(),
+        };
+        byExt.set(it.extensionId, ext);
+      } else if (!ext.displayName && (it.displayName || catalog?.displayName)) {
+        ext.displayName = it.displayName ?? catalog?.displayName ?? null;
+      }
+
+      const versionKey = it.version ?? '';
+      let ver = ext.versions.get(versionKey);
+      if (!ver) {
+        ver = { version: it.version, incidents: [] };
+        ext.versions.set(versionKey, ver);
+      }
+      ver.incidents.push(incident);
+    }
+
+    const result = [...byExt.values()].map((ext) => {
+      const catalog = catalogByIdentifier.get(ext.extensionId);
+      const publisher =
+        catalog?.publisher ??
+        (ext.extensionId.includes('.')
+          ? ext.extensionId.slice(0, ext.extensionId.indexOf('.'))
+          : null);
+
+      const versions = [...ext.versions.values()]
+        .map((v) => {
+          const incidents = [...v.incidents].sort((a, b) =>
+            a.scannedAt < b.scannedAt ? 1 : a.scannedAt > b.scannedAt ? -1 : 0,
+          );
+          return {
+            version: v.version,
+            incidentCount: incidents.length,
+            incidents,
+          };
+        })
+        .sort((a, b) => {
+          if (a.version == null && b.version == null) return 0;
+          if (a.version == null) return 1;
+          if (b.version == null) return -1;
+          return a.version.localeCompare(b.version);
+        });
+
+      const allIncidents = versions.flatMap((v) => v.incidents);
+      const studentCount = new Set(allIncidents.map((i) => i.studentMssv.toLowerCase())).size;
+
+      return {
+        extensionId: ext.extensionId,
+        displayName: ext.displayName ?? catalog?.displayName ?? null,
+        publisher,
+        inCatalog: Boolean(catalog),
+        catalogExtensionPk: catalog?.id ?? null,
+        versionCount: versions.length,
+        incidentCount: allIncidents.length,
+        studentCount,
+        versions,
+      };
+    });
+
+    result.sort((a, b) => a.extensionId.localeCompare(b.extensionId));
+    return result;
+  }
+
   async syncBatch(dto: BatchSyncDto, callerAccountId: string) {
     if (!dto.labMgmtSessionId) {
       throw new BadRequestException('Thiếu labMgmtSessionId.');
@@ -1075,6 +1336,176 @@ export class IdeExtensionsService {
     return this.getRoomProposal(id);
   }
 
+  private computerIdentityMatch(
+    pc: { agentMachineId: string | null; hostname: string; macAddress: string | null },
+    machineId: string,
+    host: string | null,
+    mac: string | null,
+  ): boolean {
+    if (pc.agentMachineId != null && pc.agentMachineId === machineId) return true;
+    if (
+      host &&
+      mac &&
+      pc.hostname.toLowerCase() === host &&
+      (pc.macAddress?.trim().toLowerCase() ?? '') === mac
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private async findComputersByIdentity(
+    machineId: string,
+    host: string | null,
+    mac: string | null,
+  ) {
+    const qb = this.computers
+      .createQueryBuilder('c')
+      .where('c.agent_machine_id = :machineId', { machineId });
+    if (host && mac) {
+      qb.orWhere(
+        'LOWER(c.hostname) = :host AND LOWER(COALESCE(c.mac_address, \'\')) = :mac',
+        { host, mac },
+      );
+    }
+    return qb.getMany();
+  }
+
+  private teacherMachineView(pc: {
+    id: string;
+    hostname: string;
+    agentMachineId: string | null;
+    roomId: string;
+  }) {
+    return {
+      id: pc.id,
+      hostname: pc.hostname,
+      agentMachineId: pc.agentMachineId,
+      roomId: pc.roomId,
+    };
+  }
+
+  /**
+   * Công khai — agent Quyết định vào form GV hay SV khi mở Quản lý.
+   * teacher: máy GV, hoặc máy thuộc phòng chưa có máy GV (bootstrap).
+   * student: máy catalog không phải GV và phòng đã có máy GV.
+   */
+  async resolveMachineRole(dto: VerifyTeacherMachineDto) {
+    const machineId = dto.machineId?.trim();
+    if (!machineId) {
+      throw new BadRequestException('Thiếu machineId.');
+    }
+    const mac = dto.macAddress?.trim().toLowerCase() || null;
+    const host = dto.hostname?.trim().toLowerCase() || null;
+    const matches = await this.findComputersByIdentity(machineId, host, mac);
+    if (matches.length === 0) {
+      return {
+        role: 'unknown' as const,
+        reason: 'not_in_catalog' as const,
+        roomId: null,
+        computerId: null,
+      };
+    }
+
+    const asTeacher = matches.find((pc) => pc.isTeacherMachine);
+    if (asTeacher) {
+      return {
+        role: 'teacher' as const,
+        reason: 'teacher_machine' as const,
+        roomId: asTeacher.roomId,
+        computerId: asTeacher.id,
+      };
+    }
+
+    const pc = matches[0];
+    const roomTeacher = await this.computers.findOne({
+      where: { roomId: pc.roomId, isTeacherMachine: true },
+    });
+    if (!roomTeacher) {
+      return {
+        role: 'teacher' as const,
+        reason: 'room_has_no_teacher_machine' as const,
+        roomId: pc.roomId,
+        computerId: pc.id,
+      };
+    }
+    return {
+      role: 'student' as const,
+      reason: 'student_machine' as const,
+      roomId: pc.roomId,
+      computerId: pc.id,
+    };
+  }
+
+  /**
+   * Spec 2026-11-18:
+   * - Không có roomId (login): phải là máy GV, hoặc máy thuộc phòng chưa có máy GV.
+   * - Có roomId: nếu phòng đã có máy GV → phải khớp; chưa có → ok.
+   */
+  async verifyTeacherMachine(dto: VerifyTeacherMachineDto) {
+    const machineId = dto.machineId?.trim();
+    if (!machineId) {
+      throw new BadRequestException('Thiếu machineId.');
+    }
+    const mac = dto.macAddress?.trim().toLowerCase() || null;
+    const host = dto.hostname?.trim().toLowerCase() || null;
+    const roomId = dto.roomId?.trim() || null;
+
+    if (!roomId) {
+      const matches = await this.findComputersByIdentity(machineId, host, mac);
+      const asTeacher = matches.find((pc) => pc.isTeacherMachine);
+      if (asTeacher) {
+        return {
+          ok: true,
+          reason: 'matched' as const,
+          teacherMachine: this.teacherMachineView(asTeacher),
+        };
+      }
+      for (const pc of matches) {
+        const roomTeacher = await this.computers.findOne({
+          where: { roomId: pc.roomId, isTeacherMachine: true },
+        });
+        if (!roomTeacher) {
+          return {
+            ok: true,
+            reason: 'room_has_no_teacher_machine' as const,
+            teacherMachine: this.teacherMachineView(pc),
+          };
+        }
+      }
+      return {
+        ok: false,
+        reason: 'not_teacher_machine' as const,
+        teacherMachine: null,
+      };
+    }
+
+    const teacherPc = await this.computers.findOne({
+      where: { roomId, isTeacherMachine: true },
+    });
+    if (!teacherPc) {
+      return {
+        ok: true,
+        reason: 'room_has_no_teacher_machine' as const,
+        teacherMachine: null,
+      };
+    }
+
+    if (this.computerIdentityMatch(teacherPc, machineId, host, mac)) {
+      return {
+        ok: true,
+        reason: 'matched' as const,
+        teacherMachine: this.teacherMachineView(teacherPc),
+      };
+    }
+
+    return {
+      ok: false,
+      reason: 'not_teacher_machine' as const,
+      teacherMachine: this.teacherMachineView(teacherPc),
+    };
+  }
+
   async acceptCreateRoom(id: string, reviewerId: string, dto: AcceptCreateRoomDto) {
     const detail = await this.getRoomProposal(id);
     if (detail.status !== 'pending') {
@@ -1116,6 +1547,8 @@ export class IdeExtensionsService {
             ipAddress: m.localIp,
             macAddress: m.macAddress,
             status: m.status,
+            isTeacherMachine: m.role === 'teacher_hub',
+            agentMachineId: m.machineId?.trim() || null,
           }),
         );
       }

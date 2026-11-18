@@ -10,12 +10,12 @@ import {
 } from '../schema';
 
 /**
- * This component had no test coverage of its own before this file — only
+ * This component had no test coverage of its own before this file - only
  * indirect exercise through the parent page. New coverage here is for the
  * WinRAR warning specifically (spec follow-up to the 2026-09-25
  * archive/RAR student-facing fix, apps/agent commit 18b8bd7): a teacher who
  * declares a `.rar` required file has no way to know, at declaration time,
- * that a student without WinRAR installed cannot produce one — the earlier
+ * that a student without WinRAR installed cannot produce one - the earlier
  * fix only reached the student's instructions sheet, not this form.
  */
 function Harness() {
@@ -32,19 +32,19 @@ function Harness() {
 
 function typeFilename(value: string) {
   // `getByLabelText(/file phải nộp số 1/i)` also matches the row's delete
-  // button (`aria-label="Xoá file phải nộp số 1"`, a substring match) — the
+  // button (`aria-label="Xoá file phải nộp số 1"`, a substring match) - the
   // placeholder is unique to the input itself.
   fireEvent.change(screen.getByPlaceholderText(/bai_lam\.docx/i), { target: { value } });
 }
 
-describe('RequiredFilenamesInput — cảnh báo .rar cần WinRAR', () => {
+describe('RequiredFilenamesInput - cảnh báo .rar cần WinRAR', () => {
   it('tên file thường thì không có cảnh báo WinRAR', () => {
     render(<Harness />);
     typeFilename('bai_lam.docx');
     expect(screen.queryByText(/winrar/i)).not.toBeInTheDocument();
   });
 
-  it('tên file .zip thì không có cảnh báo — .zip máy nào cũng nén được', () => {
+  it('tên file .zip thì không có cảnh báo - .zip máy nào cũng nén được', () => {
     render(<Harness />);
     typeFilename('BaiThi_{MSSV}.zip');
     expect(screen.queryByText(/winrar/i)).not.toBeInTheDocument();
@@ -72,7 +72,7 @@ describe('RequiredFilenamesInput — cảnh báo .rar cần WinRAR', () => {
   });
 });
 
-describe('RequiredFilenamesInput — deliverableType/language (3d2, khai qua form)', () => {
+describe('RequiredFilenamesInput - deliverableType/language (3d2, khai qua form)', () => {
   it('mặc định là "Tài liệu", không hiện ô chọn ngôn ngữ', () => {
     render(<Harness />);
     expect(screen.getByLabelText(/loại bài nộp số 1/i)).toHaveValue('document');

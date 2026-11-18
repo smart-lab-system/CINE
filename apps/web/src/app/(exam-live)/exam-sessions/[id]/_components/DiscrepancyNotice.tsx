@@ -17,7 +17,7 @@ export function DiscrepancyNotice({
       <Alert variant="success">
         <AlertDescription>
           Đã xác nhận {discrepancy.confirmedCount} sinh viên, nhận bài của{' '}
-          {discrepancy.submittedCount} — mọi bài nộp đều từ người có mặt lúc xác nhận sĩ số.
+          {discrepancy.submittedCount} - mọi bài nộp đều từ người có mặt lúc xác nhận sĩ số.
         </AlertDescription>
       </Alert>
     );
@@ -30,13 +30,13 @@ export function DiscrepancyNotice({
         <span>
           Đã xác nhận <strong>{discrepancy.confirmedCount}</strong> sinh viên nhưng nhận bài của{' '}
           <strong>{discrepancy.submittedCount}</strong>
-          {gap > 0 ? ` — lệch ${gap}.` : '.'}{' '}
+          {gap > 0 ? ` - lệch ${gap}.` : '.'}{' '}
           {discrepancy.unaccounted.length} bài đến từ người không có mặt lúc xác nhận sĩ số:
         </span>
         <ul className="flex flex-col gap-1">
           {discrepancy.unaccounted.map((student) => (
             <li key={student.mssv}>
-              <span className="font-mono">{student.mssv}</span> — {student.name}
+              <span className="font-mono">{student.mssv}</span> - {student.name}
               {student.homeClassName ? ` (lớp ${student.homeClassName})` : ''}
               {student.firstSeenAt
                 ? `, kết nối lúc ${formatAttendanceTime(student.firstSeenAt)}`

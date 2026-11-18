@@ -89,7 +89,7 @@ describe('getSessionPhase', () => {
   });
 
   it('đọc collecting thẳng từ status, không suy từ đồng hồ', () => {
-    // `endTime` còn ở TƯƠNG LAI mà status đã là `collecting` — đó là
+    // `endTime` còn ở TƯƠNG LAI mà status đã là `collecting` - đó là
     // "Chốt bài ngay". Suy từ đồng hồ sẽ trả 'running', tức nói sai hẳn
     // tình trạng của một phiên đã hết bài làm.
     const item = make({
@@ -193,9 +193,9 @@ describe('getAttentionReasons', () => {
     expect(getAttentionReasons(item, NOW)).toEqual([]);
   });
 
-  it('đang thu bài: không lý do nào, dù thiếu bài — báo động giả', () => {
+  it('đang thu bài: không lý do nào, dù thiếu bài - báo động giả', () => {
     // Nguyên tắc không đổi: còn đang thu bài thì kết luận là báo động
-    // giả. Cái đổi là trạng thái biểu đạt nó — trước 2026-09-11 phải suy
+    // giả. Cái đổi là trạng thái biểu đạt nó - trước 2026-09-11 phải suy
     // từ `completed` + grace period, giờ `collecting` nói thẳng.
     const item = make({
       status: 'collecting',
@@ -206,7 +206,7 @@ describe('getAttentionReasons', () => {
     expect(getAttentionReasons(item, NOW)).toEqual([]);
   });
 
-  it('active mà đã qua endTime cũng im lặng — lượt quét chưa kịp tick', () => {
+  it('active mà đã qua endTime cũng im lặng - lượt quét chưa kịp tick', () => {
     const item = make({
       status: 'active',
       endTime: new Date(NOW - 10_000).toISOString(),
@@ -221,7 +221,7 @@ describe('getAttentionReasons', () => {
     // vẫn im lặng, vì `completed` khi đó cũng có nghĩa "vừa hết giờ".
     //
     // Giờ tới được `completed` trong grace chỉ có một đường: một người
-    // đã bấm "Xác nhận kết thúc" — lượt quét dự phòng chỉ chạy SAU grace
+    // đã bấm "Xác nhận kết thúc" - lượt quét dự phòng chỉ chạy SAU grace
     // nên không tạo ra được trạng thái này. Người đó vừa nhìn khắp
     // phòng, và đó chính là lúc kết luận trở nên đáng tin (spec §8.1).
     //
@@ -254,12 +254,12 @@ describe('getAttentionReasons', () => {
     expect(getAttentionReasons(make({ status: 'cancelled', ...shape }), NOW)).toEqual([]);
   });
 
-  it('invalidFileCount KHÔNG sinh lý do — NGHỈ HƯU (spec §8.2), không phải việc còn dở', () => {
+  it('invalidFileCount KHÔNG sinh lý do - NGHỈ HƯU (spec §8.2), không phải việc còn dở', () => {
     const item = make({ invalidFileCount: 7, fullySubmittedCount: 40 });
     expect(getAttentionReasons(item, NOW)).toEqual([]);
   });
 
-  it('archiveIssueCount SINH lý do — kết luận về nội dung file nén đi qua đây, không qua invalidFileCount', () => {
+  it('archiveIssueCount SINH lý do - kết luận về nội dung file nén đi qua đây, không qua invalidFileCount', () => {
     const item = make({ archiveIssueCount: 3, fullySubmittedCount: 40 });
     expect(getAttentionReasons(item, NOW)).toEqual([
       {
@@ -284,7 +284,7 @@ describe('hasRatio', () => {
 describe('compareSessions', () => {
   it('lý do gấp hơn xếp trước; cùng mức thì phiên mới hơn trước', () => {
     // Mức 1 (nghi mất bài) phải xếp trước mức 3 (vắng thi). invalidFileCount
-    // không còn dùng được để dựng thứ hạng — nó đã thôi sinh lý do.
+    // không còn dùng được để dựng thứ hạng - nó đã thôi sinh lý do.
     const lost = make({ id: 'a', attendedNoSubmissionCount: 1, fullySubmittedCount: 39 });
     const absent = make({ id: 'b', neverAttendedCount: 1, fullySubmittedCount: 39 });
     const clean = make({ id: 'c' });
@@ -320,7 +320,7 @@ describe('groupByClass', () => {
 
     expect(groups).toHaveLength(2);
     const n01 = groups.find((g) => g.className === 'N01')!;
-    // Phiên cần chú ý VẪN nằm trong nhóm gốc — spec §4.4, cố ý lặp.
+    // Phiên cần chú ý VẪN nằm trong nhóm gốc - spec §4.4, cố ý lặp.
     expect(n01.sessions.map((s) => s.id)).toEqual(['a', 'b']);
     expect(n01.attentionCount).toBe(1);
     expect(groups.find((g) => g.className === 'N05')!.attentionCount).toBe(0);
@@ -351,7 +351,7 @@ describe('groupByClass', () => {
 
 /**
  * Trước đây sinh viên thi bù ở phiên khác bị đếm vào neverAttendedCount và
- * hiện ra là "vắng thi" — vừa sai bản chất vừa tốn công: giảng viên đi truy
+ * hiện ra là "vắng thi" - vừa sai bản chất vừa tốn công: giảng viên đi truy
  * một người đã thi rồi. Backend tách sẵn con số; ở đây nó phải trở thành một
  * lý do riêng, và phải là lý do NHẸ nhất.
  */
@@ -365,7 +365,7 @@ describe('thi bù ở phiên khác', () => {
     expect(reasons[0].count).toBe(2);
   });
 
-  it('xếp sau mọi lý do thật — nó là thông tin, không phải lỗi', () => {
+  it('xếp sau mọi lý do thật - nó là thông tin, không phải lỗi', () => {
     const reasons = getAttentionReasons(
       make({
         attendedNoSubmissionCount: 1,
@@ -388,7 +388,7 @@ describe('thi bù ở phiên khác', () => {
   });
 
   it('vẫn im lặng khi phiên đang thu bài, như mọi lý do khác', () => {
-    // Còn đang thu bài thì file đang bay về — kết luận lúc này là báo
+    // Còn đang thu bài thì file đang bay về - kết luận lúc này là báo
     // động giả.
     const collecting = make({
       status: 'collecting',

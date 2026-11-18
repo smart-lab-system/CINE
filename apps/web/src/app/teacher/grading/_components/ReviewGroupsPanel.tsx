@@ -77,7 +77,7 @@ function flagReasons(results: GradingResult[]): string[] {
 function summarize(outcome: ConfirmOutcome, byId: Map<string, GradingResult>): string {
   const parts = [`Đã duyệt ${outcome.confirmed} bài.`];
   for (const s of outcome.skipped) {
-    parts.push(`1 bài bỏ qua — ${SKIP_TEXT[s.reason]}: ${byId.get(s.resultId)?.studentName ?? s.resultId}`);
+    parts.push(`1 bài bỏ qua - ${SKIP_TEXT[s.reason]}: ${byId.get(s.resultId)?.studentName ?? s.resultId}`);
   }
   return parts.join(' ');
 }

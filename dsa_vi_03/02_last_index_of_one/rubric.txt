@@ -1,0 +1,16 @@
+Chỉ số cuối cùng của số một 
+Solution 1: Duyệt ngược (Backward Traversal)
+1. Hiểu rằng cần tìm index của lần xuất hiện cuối cùng của '1' trong chuỗi [1 mark]
+2. Duyệt chuỗi từ cuối về đầu (từ phải sang trái) [1 mark]
+3. Trả về index của ký tự '1' đầu tiên gặp phải trong quá trình duyệt ngược này [1 mark]
+4. Trả về -1 nếu không tìm thấy '1' trong chuỗi [1 mark]
+
+Solution 2: Duyệt xuôi với biến theo dõi (Forward Traversal with Variable Tracking)
+1. Khởi tạo một biến để lưu index của lần xuất hiện cuối cùng của '1', ban đầu đặt là -1 [1 mark]
+2. Duyệt chuỗi từ đầu đến cuối (từ trái sang phải) [1 mark]
+3. Cập nhật biến theo dõi bất cứ khi nào gặp '1' [1 mark]
+4. Sau khi hoàn thành việc duyệt, trả về giá trị cuối cùng của biến theo dõi [1 mark]
+
+Solution 3: Sử dụng các hàm chuỗi có sẵn (Using Built-in String Functions)
+1. Sử dụng một hàm chuỗi có sẵn (built-in string function) để tìm lần xuất hiện cuối cùng của '1' [2 marks]
+2. Xử lý trường hợp không có '1' xuất hiện, trả về -1 [2 marks]

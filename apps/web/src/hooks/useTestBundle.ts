@@ -30,7 +30,7 @@ export function useTestBundles(examSessionId: string | undefined) {
   });
 }
 
-/** Chi tiết một gói — chỉ tải khi có `bundleId` (dialog Xem). */
+/** Chi tiết một gói - chỉ tải khi có `bundleId` (dialog Xem). */
 export function useTestBundle(examSessionId: string | undefined, bundleId: string | null) {
   return useQuery({
     queryKey: testBundleKey(examSessionId, bundleId ?? undefined),
@@ -58,7 +58,7 @@ export function useApproveTestBundle(examSessionId: string | undefined) {
 }
 
 /**
- * Ghim gói — đổi `test_bundle_id` của PHIÊN, không phải của riêng gói này.
+ * Ghim gói - đổi `test_bundle_id` của PHIÊN, không phải của riêng gói này.
  * Làm mới cả chi tiết phiên (§14.3: start-grading đọc `testBundleId` từ đó
  * để quyết có chặn hay không) lẫn danh sách gói (huy hiệu "Đang dùng").
  */

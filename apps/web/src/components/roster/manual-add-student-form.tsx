@@ -107,7 +107,7 @@ export function ManualAddStudentForm({
     () =>
       (classes.data?.items ?? []).map((c) => ({
         value: c.id,
-        label: c.name ? `${c.code} — ${c.name}` : c.code,
+        label: c.name ? `${c.code} - ${c.name}` : c.code,
         keywords: `${c.code} ${c.name ?? ''}`,
       })),
     [classes.data?.items],
@@ -209,7 +209,7 @@ export function ManualAddStudentForm({
     try {
       if (directoryLookup) {
         if (!matched || matched.mssv.toLowerCase() !== m.toLowerCase()) {
-          toast.error('MSSV không có trong danh sách sinh viên — không thêm được');
+          toast.error('MSSV không có trong danh sách sinh viên - không thêm được');
           return;
         }
         await onAdd({ mssv: matched.mssv, name: matched.fullName });
@@ -281,7 +281,7 @@ export function ManualAddStudentForm({
       {directoryMiss ? (
         <Alert variant="destructive">
           <AlertDescription>
-            MSSV không có trong danh sách sinh viên — không thêm được.
+            MSSV không có trong danh sách sinh viên - không thêm được.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -290,14 +290,14 @@ export function ManualAddStudentForm({
         <Alert variant="info">
           <AlertDescription>
             Sinh viên <span className="font-mono">{mssvTrim}</span> chưa có trong hệ
-            thống — sẽ tạo mới rồi thêm vào lớp.
+            thống - sẽ tạo mới rồi thêm vào lớp.
           </AlertDescription>
         </Alert>
       ) : null}
 
       {catalogAssist && matched ? (
         <p className="text-caption text-muted-foreground">
-          Đã khớp catalog: <span className="font-mono">{matched.mssv}</span> —{' '}
+          Đã khớp catalog: <span className="font-mono">{matched.mssv}</span> -{' '}
           {matched.fullName}
         </p>
       ) : null}

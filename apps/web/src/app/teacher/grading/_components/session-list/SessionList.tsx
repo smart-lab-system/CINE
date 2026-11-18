@@ -60,7 +60,7 @@ const SORT_PRESETS: Array<[string, string]> = [
 
 /**
  * Chọn phiên để chấm: bảng có trạng thái chấm, tìm, lọc, sắp xếp, nhóm (spec 2026-09-29-grading-session-list).
- * Mỗi phiên vẫn là một liên kết giữ `sessionId` trên URL — trang một-route-ba-trạng-thái chọn màn theo dữ liệu.
+ * Mỗi phiên vẫn là một liên kết giữ `sessionId` trên URL - trang một-route-ba-trạng-thái chọn màn theo dữ liệu.
  */
 export function SessionList({ sessions, loading, error }: { sessions: SessionOverviewItem[]; loading: boolean; error: Error | null }) {
   const summaries = useGradingSessionSummaries();
@@ -70,7 +70,7 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [bulk, setBulk] = useState<BulkRequest | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  // Một mốc thời gian, làm mới khi dữ liệu đổi — bộ lọc thời gian không nên chớp mỗi lần gõ.
+  // Một mốc thời gian, làm mới khi dữ liệu đổi - bộ lọc thời gian không nên chớp mỗi lần gõ.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => setNow(Date.now()), [sessions]);
 
@@ -78,7 +78,7 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
   const visible = useMemo(() => sortRows(rows.filter((r) => matchesFilters(r, filters, now)), view), [rows, filters, view, now]);
   const groups = useMemo(() => groupRows(visible, view.group), [visible, view.group]);
   // "Đang hiện" là hàng giảng viên NHÌN THẤY: hàng trong nhóm đã thu gọn vẫn được tick nhưng không tính vào thanh
-  // thao tác (spec mục 5) — thao tác hàng loạt lên thứ không thấy là thao tác mù.
+  // thao tác (spec mục 5) - thao tác hàng loạt lên thứ không thấy là thao tác mù.
   const shownRows = useMemo(() => groups.flatMap((g) => (g.key !== null && collapsed.has(g.key) ? [] : g.rows)), [groups, collapsed]);
   const selectedRows = useMemo(() => shownRows.filter((r) => selected.has(r.session.id)), [shownRows, selected]);
   const options = useMemo(() => facetOptions(rows, filters, now), [rows, filters, now]);
@@ -94,7 +94,7 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
     });
   }, [visible]);
 
-  // "/" nhảy vào ô tìm, như các trang danh sách khác — trừ khi đang gõ ở đâu đó.
+  // "/" nhảy vào ô tìm, như các trang danh sách khác - trừ khi đang gõ ở đâu đó.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (document.activeElement?.tagName ?? '').toUpperCase();
@@ -131,13 +131,13 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
 
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>Không tải được danh sách phiên thi — {error.message}.</AlertDescription>
+          <AlertDescription>Không tải được danh sách phiên thi - {error.message}.</AlertDescription>
         </Alert>
       )}
       {summaries.isError && (
         <Alert variant="destructive">
           <AlertDescription>
-            Không tải được trạng thái chấm của các phiên — {summaries.error?.message}. Bảng vẫn tìm, lọc và mở phiên được; tab trạng thái,
+            Không tải được trạng thái chấm của các phiên - {summaries.error?.message}. Bảng vẫn tìm, lọc và mở phiên được; tab trạng thái,
             thanh tiến độ và thao tác hàng loạt tạm ẩn.
           </AlertDescription>
         </Alert>

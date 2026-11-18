@@ -1,0 +1,31 @@
+Xuất hiện đầu tiên và cuối cùng trong mảng đã sắp xếp
+Solution 1: Cách tiếp cận Brute Force (Linear Search)
+1. Khởi tạo các biến để theo dõi lần xuất hiện đầu tiên và cuối cùng [1 mark]
+2. Duyệt mảng chính xác từ trái sang phải [1 mark]
+3. Cập nhật đúng lần xuất hiện đầu tiên khi phần tử được tìm thấy lần đầu [1 mark]
+4. Cập nhật nhất quán lần xuất hiện cuối cùng ở mỗi lần gặp phần tử mục tiêu [1 mark]
+5. Trả về kết quả phù hợp với cả hai lần xuất hiện hoặc [-1, -1] nếu không tìm thấy [1 mark]
+
+Solution 2: Cách tiếp cận Binary Search
+1. Cài đặt binary search để tìm lần xuất hiện đầu tiên với khởi tạo phù hợp [1 mark]
+2. Xử lý chính xác việc tính toán mid-point và các điều kiện biên trong lần tìm kiếm thứ nhất [1 mark]
+3. Thu hẹp chính xác phạm vi tìm kiếm cho lần xuất hiện đầu tiên dựa trên kết quả so sánh [2 marks]
+4. Cài đặt binary search để tìm lần xuất hiện cuối cùng với khởi tạo phù hợp [1 mark]
+5. Xử lý chính xác việc tính toán mid-point và các điều kiện biên trong lần tìm kiếm thứ hai [1 mark]
+6. Thu hẹp chính xác phạm vi tìm kiếm cho lần xuất hiện cuối cùng dựa trên kết quả so sánh [2 marks]
+7. Trả về kết quả vector/array phù hợp chứa cả hai lần xuất hiện [1 mark]
+
+Solution 3: Sử dụng các hàm thư viện chuẩn
+1. Sử dụng chính xác hàm lower_bound hoặc hàm tương đương cho lần xuất hiện đầu tiên [1 mark]
+2. Tính toán chính xác index từ iterator/pointer cho lần xuất hiện đầu tiên [1 mark]
+3. Sử dụng chính xác hàm upper_bound hoặc hàm tương đương cho lần xuất hiện cuối cùng [1 mark]
+4. Tính toán chính xác index từ iterator/pointer cho lần xuất hiện cuối cùng [1 mark]
+5. Xác thực phần tử có tồn tại trong mảng hay không và trả về kết quả phù hợp [1 mark]
+
+Solution 4: Binary Search đệ quy
+1. Xác định chính xác base case cho đệ quy trong hàm tìm lần xuất hiện đầu tiên [1 mark]
+2. Cài đặt logic đệ quy với các điều kiện phù hợp cho lần xuất hiện đầu tiên [2 marks]
+3. Xác định chính xác base case cho đệ quy trong hàm tìm lần xuất hiện cuối cùng [1 mark]
+4. Cài đặt logic đệ quy với các điều kiện phù hợp cho lần xuất hiện cuối cùng [2 marks]
+5. Gọi chính xác các hàm đệ quy và xử lý kết quả [1 mark]
+6. Trả về kết quả phù hợp với cả hai lần xuất hiện hoặc [-1, -1] nếu không tìm thấy [1 mark]

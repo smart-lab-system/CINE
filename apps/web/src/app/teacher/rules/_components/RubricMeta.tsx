@@ -5,17 +5,27 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { RubricOverview } from '@/lib/api/rubric-errors';
 import { formatVnPoints } from '@/lib/format';
-
 const SHOWN = 3;
 
-/** Dòng thông tin dưới ô chọn rubric: điểm tổng, số tiêu chí, nơi dùng, và lối sửa tiêu chí. */
+/** Dòng thông tin dưới ô chọn rubric: điểm tổng, số tiêu chí/bước, nơi dùng, và lối sửa. */
 export function RubricMeta({ overview, onEdit }: { overview: RubricOverview; onEdit: () => void }) {
   const shown = overview.sessions.slice(0, SHOWN);
   const more = overview.sessions.length - shown.length;
+  const qs = (overview.kind ?? 'qa') === 'qs';
+  const stepCount = overview.criteria.length;
+  const approachCount = overview.approaches?.length ?? 0;
+
   return (
     <div className="mt-3.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 px-0.5 text-small text-muted-foreground">
-      <span>
-        <b className="text-foreground">{formatVnPoints(overview.totalPoints)}</b> điểm · {overview.criteria.length} tiêu chí
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        {qs ? <Badge variant="primary">QS</Badge> : <Badge>QA</Badge>}
+        <span>
+          <b className="text-foreground">{formatVnPoints(overview.totalPoints)}</b>
+          {qs ? ' điểm (max cách giải)' : ' điểm'}
+          {qs
+            ? ` · ${approachCount} cách giải · ${stepCount} bước`
+            : ` · ${stepCount} tiêu chí`}
+        </span>
       </span>
       <span className="flex flex-wrap items-center gap-x-1.5">
         Dùng ở:
@@ -32,7 +42,7 @@ export function RubricMeta({ overview, onEdit }: { overview: RubricOverview; onE
       </span>
       <Button type="button" variant="ghost" size="sm" className="text-primary hover:text-primary" onClick={onEdit}>
         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-        Sửa tiêu chí &amp; điểm tối đa
+        {qs ? 'Sửa cách giải & bước' : 'Sửa tiêu chí & điểm tối đa'}
       </Button>
     </div>
   );

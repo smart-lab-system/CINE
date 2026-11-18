@@ -11,8 +11,8 @@ import {
 } from './workspace-files';
 
 /**
- * The path-traversal defense — the core security property this module
- * exists to prove — plus the `wx`-idempotent file creation cli.ts always
+ * The path-traversal defense - the core security property this module
+ * exists to prove - plus the `wx`-idempotent file creation cli.ts always
  * relied on but never had a direct test for.
  */
 
@@ -62,7 +62,7 @@ describe('validateFilename', () => {
   it('refuses a resolved path that escapes the workspace even without ".." literally in the string', () => {
     // A Windows drive-relative or UNC-style value could resolve outside the
     // workspace on some platform without ever containing "..". The
-    // resolved-path prefix check is what actually defends against this —
+    // resolved-path prefix check is what actually defends against this -
     // not the string checks above it.
     const root = tmpWorkspace();
     const result = validateFilename(root, 'Cau1.docx');
@@ -102,7 +102,7 @@ describe('createSubmissionFiles', () => {
     expect(fs.readFileSync(path.join(workspaceDir, 'Cau1.docx'), 'utf8')).toBe('');
   });
 
-  // Lỗi thật 2026-09-25: file 0 byte KHÔNG phải một file .zip rỗng hợp lệ —
+  // Lỗi thật 2026-09-25: file 0 byte KHÔNG phải một file .zip rỗng hợp lệ -
   // không mở duyệt được, không kéo-thả nội dung vào được. Sinh viên có
   // một file nén "sẵn có" nhưng đã hỏng ngay từ lúc phòng thi mở ra.
   it('.zip được tạo thành MỘT FILE NÉN RỖNG HỢP LỆ, không phải file 0 byte', async () => {
@@ -114,7 +114,7 @@ describe('createSubmissionFiles', () => {
     expect(result.files).toEqual([{ filename: 'BaiThi.zip', created: true }]);
     const bytes = fs.readFileSync(path.join(workspaceDir, 'BaiThi.zip'));
 
-    // Đối chiếu với chính JSZip — không tin hằng số tự tay gõ.
+    // Đối chiếu với chính JSZip - không tin hằng số tự tay gõ.
     const reference = await new JSZip().generateAsync({ type: 'nodebuffer' });
     expect(bytes.equals(reference)).toBe(true);
 
@@ -137,11 +137,11 @@ describe('createSubmissionFiles', () => {
     );
   });
 
-  // .rar: KHÔNG có cách nào hợp lệ tạo trước một file RAR rỗng — RAR là định
+  // .rar: KHÔNG có cách nào hợp lệ tạo trước một file RAR rỗng - RAR là định
   // dạng độc quyền, không có bộ mã hoá mở nào trong dự án này (node-unrar-js
   // ở backend chỉ ĐỌC). Tạo một file 0 byte tên .rar vẫn hỏng y hệt bug gốc,
   // chỉ đổi định dạng. Đúng là KHÔNG TẠO GÌ CẢ, kèm lý do.
-  it('.rar KHÔNG được tạo file nào cả — không có cách hợp lệ để làm placeholder', () => {
+  it('.rar KHÔNG được tạo file nào cả - không có cách hợp lệ để làm placeholder', () => {
     const root = tmpWorkspace();
     const workspaceDir = path.join(root, 'ws');
 
@@ -159,7 +159,7 @@ describe('createSubmissionFiles', () => {
   });
 
   // Reconnect: sinh viên đã tự nén file .rar thật TRƯỚC một lần join lại.
-  // Phải nhận ra file đó đã có — không được báo sai "chưa tạo được", và
+  // Phải nhận ra file đó đã có - không được báo sai "chưa tạo được", và
   // chắc chắn không đụng vào nó.
   it('.rar sinh viên đã tự tạo TỪ TRƯỚC thì báo created:true, không note, không đụng vào', () => {
     const root = tmpWorkspace();
@@ -176,7 +176,7 @@ describe('createSubmissionFiles', () => {
     );
   });
 
-  it('đuôi .ZIP/.RAR viết hoa vẫn được nhận ra — không phân biệt hoa/thường', () => {
+  it('đuôi .ZIP/.RAR viết hoa vẫn được nhận ra - không phân biệt hoa/thường', () => {
     const root = tmpWorkspace();
     const workspaceDir = path.join(root, 'ws');
 
@@ -190,7 +190,7 @@ describe('createSubmissionFiles', () => {
     ]);
   });
 
-  it("never truncates a file the student already wrote into — the whole point of 'wx'", () => {
+  it("never truncates a file the student already wrote into - the whole point of 'wx'", () => {
     const root = tmpWorkspace();
     const workspaceDir = path.join(root, 'ws');
     fs.mkdirSync(workspaceDir, { recursive: true });

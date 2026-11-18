@@ -4,7 +4,7 @@ import type { ErrorChanges, RulePredicate } from './api/rules';
 /**
  * Logic thuần của form lỗi (ngăn kéo "Thêm lỗi" và "Sửa lỗi", spec mục 5.4–5.5, D9). Giao diện chỉ có HAI cách
  * phát hiện: Tự động (nhóm test trượt) và AI đọc bài (không có điều kiện). Ba mẫu điều kiện cũ vẫn chạy ở máy chủ
- * và hiện như "AI đọc bài" kèm ghi chú — form KHÔNG BAO GIỜ gửi `predicate` nếu giảng viên không đổi cách phát hiện,
+ * và hiện như "AI đọc bài" kèm ghi chú - form KHÔNG BAO GIỜ gửi `predicate` nếu giảng viên không đổi cách phát hiện,
  * để sửa tên một lỗi cũ không âm thầm xoá điều kiện của nó (Review Focus 6).
  */
 
@@ -75,7 +75,7 @@ export function predicateOf(form: ErrorFormState): RulePredicate | null {
   return form.detection === 'auto' ? { kind: 'test_group_failed', group: form.group.trim() } : null;
 }
 
-/** Lỗi MỚI. `ruleKey` do máy chủ sinh từ tên — form không bao giờ gửi nó (spec 4.2). */
+/** Lỗi MỚI. `ruleKey` do máy chủ sinh từ tên - form không bao giờ gửi nó (spec 4.2). */
 export function buildNewRule(form: ErrorFormState): NewErrorInput {
   return { name: form.name.trim(), description: form.description.trim(), predicate: predicateOf(form) };
 }

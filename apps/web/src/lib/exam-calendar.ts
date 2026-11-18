@@ -45,7 +45,7 @@ export function startOfWeek(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   // getDay(): 0 = Chủ nhật. Tuần ở VN bắt đầu THỨ HAI, nên Chủ nhật phải lùi
-  // 6 ngày chứ không phải 0 — đây đúng là chỗ lệch một ngày mà không ai thấy
+  // 6 ngày chứ không phải 0 - đây đúng là chỗ lệch một ngày mà không ai thấy
   // trừ phi hôm đó là Chủ nhật.
   const back = (d.getDay() + 6) % 7;
   d.setDate(d.getDate() - back);
@@ -94,7 +94,7 @@ export function formatTimeRange(startTime: string, endTime: string): string {
 /**
  * Khoảng gửi lên API cho một tuần: `[thứ Hai 00:00, thứ Hai kế 00:00)`.
  *
- * Nửa mở, cùng quy ước với `tstzrange(..., '[)')` ở backend — một phiên bắt
+ * Nửa mở, cùng quy ước với `tstzrange(..., '[)')` ở backend - một phiên bắt
  * đầu đúng 00:00 thứ Hai thuộc về tuần MỚI, không phải cả hai.
  */
 export function weekRange(weekStart: Date): { from: string; to: string } {
@@ -135,7 +135,7 @@ const VISUALS: Record<string, Omit<SessionVisual, 'label'>> = {
 
 const FALLBACK: Omit<SessionVisual, 'label'> = VISUALS.completed;
 
-/** Đã mở, chưa tới giờ bắt đầu — khác "Sắp diễn ra" (chưa mở) và "Đang thi". */
+/** Đã mở, chưa tới giờ bắt đầu - khác "Sắp diễn ra" (chưa mở) và "Đang thi". */
 const OPENED: Omit<SessionVisual, 'label'> = {
   card: 'border-info/60 bg-info-subtle',
   accent: 'text-info-strong',
@@ -162,7 +162,7 @@ export function sessionVisual(
  * Khoảng cách tối thiểu giữa hai phiên của cùng một giảng viên.
  *
  * Phải khớp `TEACHER_GAP_MINUTES` ở apps/api và con số 30 trong
- * `examcollect.teacher_busy_range()`. Ở đây nó chỉ để BÁO, không để chặn —
+ * `examcollect.teacher_busy_range()`. Ở đây nó chỉ để BÁO, không để chặn -
  * server mới là nơi từ chối.
  */
 export const TEACHER_GAP_MINUTES = 30;
@@ -178,14 +178,14 @@ interface GapInput {
  * Những phiên cách phiên liền trước dưới 30 phút.
  *
  * Trang này chỉ hiện phiên CỦA CHÍNH giảng viên đang đăng nhập, nên mọi cặp
- * ở đây đều là "cùng một người" — không cần so `teacher_id`.
+ * ở đây đều là "cùng một người" - không cần so `teacher_id`.
  *
  * Vì sao vẫn tính ở client dù server đã chặn: ràng buộc chỉ chặn phiên TẠO
  * MỚI. Dữ liệu có trước migration vẫn vi phạm và vẫn nằm đó, và lịch chính
  * là màn hình đầu tiên phơi nó ra. Trả về số phút thật để thẻ nói được "cách
  * 15 phút" thay vì một cảnh báo chung chung.
  *
- * Bỏ qua `cancelled`/`completed`/`collecting` — cùng vị từ với ràng buộc, nếu
+ * Bỏ qua `cancelled`/`completed`/`collecting` - cùng vị từ với ràng buộc, nếu
  * không giao diện sẽ báo động về những phiên mà server coi là đã nhả chỗ.
  */
 export function findGapViolations(sessions: GapInput[]): Map<string, number> {
@@ -201,7 +201,7 @@ export function findGapViolations(sessions: GapInput[]): Map<string, number> {
     const gapMs = Date.parse(curr.startTime) - Date.parse(prev.endTime);
     if (gapMs < TEACHER_GAP_MINUTES * 60_000) {
       // Âm nghĩa là CHỒNG giờ, không phải "cách -10 phút". Kẹp về 0 và để
-      // thẻ tự nói "chồng giờ" — một con số âm trên giao diện là vô nghĩa.
+      // thẻ tự nói "chồng giờ" - một con số âm trên giao diện là vô nghĩa.
       out.set(curr.id, Math.max(0, Math.round(gapMs / 60_000)));
     }
   }

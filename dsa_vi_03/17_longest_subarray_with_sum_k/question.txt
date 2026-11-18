@@ -1,0 +1,15 @@
+Cho một mảng arr[] chứa các số nguyên và một số nguyên k, nhiệm vụ của bạn là tìm độ dài của subarray dài nhất có tổng các phần tử bằng giá trị k đã cho. Nếu không có subarray nào có tổng bằng k, trả về 0.
+Ví dụ:
+Đầu vào: arr[] = [10, 5, 2, 7, 1, -10], k = 15
+Đầu ra: 6
+Giải thích: Các subarray có tổng = 15 là [5, 2, 7, 1], [10, 5] và [10, 5, 2, 7, 1, -10]. Độ dài của subarray dài nhất có tổng bằng 15 là 6.
+Đầu vào: arr[] = [-5, 8, -14, 2, 4, 12], k = -5
+Đầu ra: 5
+Giải thích: Subarray duy nhất có tổng = -5 là [-5, 8, -14, 2, 4] có độ dài 5.
+Đầu vào: arr[] = [10, -10, 20, 30], k = 5
+Đầu ra: 0
+Giải thích: Không có subarray nào có tổng = 5 xuất hiện trong arr[].
+Ràng buộc:
+1 ≤ arr.size() ≤ 105
+-104 ≤ arr[i] ≤ 104
+-109 ≤ k ≤ 109

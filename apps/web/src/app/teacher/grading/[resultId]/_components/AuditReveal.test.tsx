@@ -35,9 +35,9 @@ describe('AuditReveal (parent spec §8.1 rule 3)', () => {
     expect(screen.getByText(/Ngoại lệ hoặc Chấm tay/)).toBeInTheDocument();
   });
 
-  it('a missing score is "—", never 0', () => {
+  it('a missing score is "-", never 0', () => {
     renderIt({ currentScore: null });
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
     expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 

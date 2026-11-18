@@ -8,7 +8,7 @@ const counts = (over: Partial<Record<SessionState, number>> = {}): Record<Sessio
   needsYou: 0, audit: 0, ungradable: 0, grading: 0, auto: 0, reviewed: 0, finalised: 0, ...over,
 });
 
-describe('OverviewBar (spec §3.3 — a proportional bar and five numbers with icons)', () => {
+describe('OverviewBar (spec §3.3 - a proportional bar and five numbers with icons)', () => {
   it('shows the five numbers of the spec, in words, even at zero', () => {
     render(<OverviewBar counts={counts({ auto: 5, needsYou: 2, ungradable: 1 })} />);
     const list = screen.getByRole('list', { name: 'Số bài theo trạng thái' });

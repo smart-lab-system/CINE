@@ -1,0 +1,26 @@
+Hai phần tử không lặp lại trong một mảng
+Solution 1: Cách tiếp cận Brute Force (Sử dụng Sorting)
+1. Sắp xếp toàn bộ mảng theo thứ tự tăng dần [2 marks]
+2. Duyệt qua mảng đã sắp xếp và so sánh các phần tử liền kề [1 mark]
+3. Nếu một phần tử không trùng khớp với phần tử tiếp theo, thêm nó vào kết quả (và xử lý trường hợp phần tử cuối cùng là duy nhất) [2 marks]
+4. Trả về mảng kết quả chứa hai phần tử không lặp lại theo thứ tự đã sắp xếp [1 mark]
+
+Solution 2: Cách tiếp cận tối ưu (Sử dụng XOR)
+1. Tính XOR của tất cả các phần tử trong mảng (điều này sẽ cho XOR của hai số không lặp lại) [1 mark]
+2. Tìm bit 1 ngoài cùng bên phải (rightmost set bit) trong kết quả XOR [1 mark]
+3. Chia các phần tử thành hai nhóm: một nhóm có bit đó được bật (set) và một nhóm có bit đó không được bật [1 mark]
+4. XOR tất cả các phần tử trong nhóm thứ nhất để lấy phần tử không lặp lại thứ nhất [1 mark]
+5. XOR tất cả các phần tử trong nhóm thứ hai để lấy phần tử không lặp lại thứ hai [1 mark]
+6. Trả về hai phần tử theo thứ tự tăng dần [1 mark]
+
+Solution 3: Sử dụng bộ đếm tần suất (Frequency Counter)
+1. Tạo một bảng tần suất (frequency map / hash map hoặc dictionary) để lưu số lần xuất hiện của mỗi phần tử [1 mark]
+2. Duyệt qua mảng và cập nhật tần suất của từng phần tử [1 mark]
+3. Xác định các phần tử có tần suất bằng 1 (các phần tử không lặp lại) [1 mark]
+4. Trả về các phần tử này theo thứ tự tăng dần [1 mark]
+
+Solution 4: Sử dụng Set
+1. Tạo một set rỗng [1 mark]
+2. Duyệt qua mảng: nếu một phần tử đã tồn tại trong set, xóa nó đi; ngược lại, thêm nó vào set [2 marks]
+3. Sau khi xử lý tất cả các phần tử, set sẽ chỉ chứa hai phần tử không lặp lại [1 mark]
+4. Trả về các phần tử này theo thứ tự tăng dần [1 mark]

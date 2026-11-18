@@ -147,7 +147,7 @@ function Row({ row, selected, onToggle, onStart, now }: { row: SessionRow; selec
 
 /**
  * Bảng phiên. Cột "Loại" ẩn dưới 1240px (loại kỳ thi chuyển lên dòng phụ của tên); dưới 820px bảng cuộn
- * ngang trong khung của nó — đầu bảng dính chỉ hoạt động khi khung không cuộn.
+ * ngang trong khung của nó - đầu bảng dính chỉ hoạt động khi khung không cuộn.
  */
 export function SessionTable({ groups, view, onSort, selected, onToggleRows, collapsed, onToggleGroup, onStart, density, now }: SessionTableProps) {
   const allRows = groups.flatMap((g) => g.rows);

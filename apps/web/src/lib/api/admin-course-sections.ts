@@ -1,7 +1,7 @@
 import { getAccessToken } from '@/lib/auth-token';
 
 /**
- * Admin lớp học phần — path chưa chắc trong schema.d.ts; fetch + Bearer
+ * Admin lớp học phần - path chưa chắc trong schema.d.ts; fetch + Bearer
  * giống master-data.ts.
  */
 
@@ -67,13 +67,15 @@ export interface CourseSection {
   semesterId: string | null;
   semesterName: string | null;
   nominalClassId: string | null;
-  /** Nhãn: `code` hoặc `code — name`. */
+  /** Nhãn: `code` hoặc `code - name`. */
   nominalClassName: string | null;
   teacherId: string | null;
   teacherName: string | null;
   studentCount: number;
-  /** Số phiên thi gắn lớp — khóa sửa meta khi > 0. */
+  /** Số phiên thi gắn lớp - khóa sửa meta khi > 0. */
   examSessionCount: number;
+  /** `false` = vô hiệu hoá (soft). */
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -147,6 +149,14 @@ export async function updateCourseSection(
 
 export async function deleteCourseSection(id: string): Promise<void> {
   await csFetch(`/admin/course-sections/${id}`, { method: 'DELETE' });
+}
+
+export async function deactivateCourseSection(id: string): Promise<CourseSection> {
+  return csFetch(`/admin/course-sections/${id}/deactivate`, { method: 'PATCH' });
+}
+
+export async function reactivateCourseSection(id: string): Promise<CourseSection> {
+  return csFetch(`/admin/course-sections/${id}/reactivate`, { method: 'PATCH' });
 }
 
 export interface RosterImportResult {

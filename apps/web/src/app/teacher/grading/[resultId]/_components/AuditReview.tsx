@@ -27,7 +27,7 @@ const MAX_EXTRA_LENGTH = 500;
 
 /**
  * Màn kiểm mù (parent spec §8.1): bài thuộc mẫu kiểm, điểm và lỗi hệ thống bị ẩn ở API. Giảng viên tick lỗi họ thấy
- * — từ bảng lỗi ĐANG DÙNG của chính họ — ghi thêm lỗi ngoài bảng, rồi ghi nhận xét. Ghi xong là khoá; bản tiết lộ
+ * - từ bảng lỗi ĐANG DÙNG của chính họ - ghi thêm lỗi ngoài bảng, rồi ghi nhận xét. Ghi xong là khoá; bản tiết lộ
  * hiện ngay tại đây và ở lại cho tới khi họ bấm *Mở hồ sơ* (trang cha giữ panel, kể cả khi danh sách làm mới đổi
  * trạng thái bài).
  */
@@ -81,7 +81,7 @@ export function AuditReview({
         <>
           <Alert variant="info">
             <AlertDescription>
-              Bài này được hệ thống chọn ngẫu nhiên để kiểm — không dựa vào điểm của nó. Hệ thống đã chấm xong, nhưng
+              Bài này được hệ thống chọn ngẫu nhiên để kiểm - không dựa vào điểm của nó. Hệ thống đã chấm xong, nhưng
               điểm và lỗi hệ thống đã giữ đang được ẩn cho tới khi bạn ghi nhận xét của mình. Bước này gần như chấm
               lại từ đầu, nên tốn công hơn một bài cần xem.
             </AlertDescription>
@@ -178,7 +178,7 @@ function ReviewForm({
           <CardContent className="flex flex-col gap-4">
             <p className="text-small text-muted-foreground">
               Tick những lỗi bạn thấy trong bài, theo bảng lỗi đang dùng của bạn. Lỗi nào chưa có trong bảng thì ghi ở ô
-              bên dưới — mỗi dòng một lỗi.
+              bên dưới - mỗi dòng một lỗi.
             </p>
 
             {rules.isLoading ? (
@@ -189,7 +189,7 @@ function ReviewForm({
               </Alert>
             ) : active.length === 0 ? (
               <p className="text-small text-muted-foreground">
-                Bạn chưa có luật nào đang dùng — ghi lỗi ở ô bên dưới, hoặc xác nhận bài không có lỗi nào.
+                Bạn chưa có luật nào đang dùng - ghi lỗi ở ô bên dưới, hoặc xác nhận bài không có lỗi nào.
               </p>
             ) : (
               <fieldset className="flex flex-col gap-2">
@@ -249,7 +249,7 @@ function ReviewForm({
 
         <div className="flex flex-col gap-2">
           <p className="text-caption text-muted-foreground">
-            Ghi xong là khoá — bạn không sửa được nhận xét này nữa. Nếu sau đó bạn không đồng ý với hệ thống, dùng Ngoại
+            Ghi xong là khoá - bạn không sửa được nhận xét này nữa. Nếu sau đó bạn không đồng ý với hệ thống, dùng Ngoại
             lệ hoặc Chấm tay trong hồ sơ.
           </p>
           <Button type="submit" className="self-start" disabled={!canSubmit}>

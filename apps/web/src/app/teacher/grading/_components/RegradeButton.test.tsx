@@ -39,7 +39,7 @@ describe('RegradeButton (G3 §4.4, D10)', () => {
 
   // Browser pass (G3, screenshot s2-01): inside the "Dịch vụ AI lỗi" alert the button was stretched to the full width of
   // the band, because its wrapper is a flex column whose default alignment is stretch.
-  it('the button keeps its own width — it is not stretched by its column wrapper', () => {
+  it('the button keeps its own width - it is not stretched by its column wrapper', () => {
     render(<RegradeButton scope={session()} label="Chấm lại" />);
     expect(screen.getByRole('button', { name: 'Chấm lại' }).parentElement).toHaveClass('items-start');
   });
@@ -79,10 +79,10 @@ describe('RegradeButton (G3 §4.4, D10)', () => {
 
   it('shows the server refusal verbatim inside the confirmation', () => {
     h.many.isError = true;
-    h.many.error = new Error('Bài này đang được chấm — chưa cần chấm lại.');
+    h.many.error = new Error('Bài này đang được chấm - chưa cần chấm lại.');
     render(<RegradeButton scope={session()} label="Chấm lại" />);
     open('Chấm lại');
-    expect(screen.getByRole('alert')).toHaveTextContent('Bài này đang được chấm — chưa cần chấm lại.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Bài này đang được chấm - chưa cần chấm lại.');
   });
 
   it('after success, says how many were re-queued and groups the skipped ones by their reason', () => {
@@ -90,8 +90,8 @@ describe('RegradeButton (G3 §4.4, D10)', () => {
       options.onSuccess({
         requeued: 2,
         skipped: [
-          { resultId: 'a', reason: 'Bài đã đi tiếp — có lượt khác vừa xử lý nó.' },
-          { resultId: 'b', reason: 'Bài đã đi tiếp — có lượt khác vừa xử lý nó.' },
+          { resultId: 'a', reason: 'Bài đã đi tiếp - có lượt khác vừa xử lý nó.' },
+          { resultId: 'b', reason: 'Bài đã đi tiếp - có lượt khác vừa xử lý nó.' },
         ],
       }),
     );
@@ -102,17 +102,17 @@ describe('RegradeButton (G3 §4.4, D10)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     const status = screen.getByRole('status');
     expect(status).toHaveTextContent('Đã xếp lại 2 bài');
-    expect(status).toHaveTextContent('2 bài bỏ qua — Bài đã đi tiếp — có lượt khác vừa xử lý nó.');
+    expect(status).toHaveTextContent('2 bài bỏ qua - Bài đã đi tiếp - có lượt khác vừa xử lý nó.');
   });
 
   // Browser pass (G3): the refreshed list no longer counts the re-queued results (the UPDATE clears their class), so the
-  // header / band / panel button — and the inline notice it owns — unmounts a few hundred ms after confirming. The
+  // header / band / panel button - and the inline notice it owns - unmounts a few hundred ms after confirming. The
   // outcome, and above all the "bỏ qua" lines, must survive that: a toast does.
   it('also raises a toast on success, because the inline notice dies with the unmounting button', () => {
     h.many.mutate = vi.fn((_reason: unknown, options: { onSuccess: (o: unknown) => void }) =>
       options.onSuccess({
         requeued: 2,
-        skipped: [{ resultId: 'a', reason: 'Bài đã đi tiếp — có lượt khác vừa xử lý nó.' }],
+        skipped: [{ resultId: 'a', reason: 'Bài đã đi tiếp - có lượt khác vừa xử lý nó.' }],
       }),
     );
     render(<RegradeButton scope={session()} label="Chấm lại" />);
@@ -120,20 +120,20 @@ describe('RegradeButton (G3 §4.4, D10)', () => {
     confirm();
     expect(toastSpy.success).toHaveBeenCalledTimes(1);
     expect(toastSpy.success).toHaveBeenCalledWith('Đã xếp lại 2 bài', {
-      description: '1 bài bỏ qua — Bài đã đi tiếp — có lượt khác vừa xử lý nó.',
+      description: '1 bài bỏ qua - Bài đã đi tiếp - có lượt khác vừa xử lý nó.',
     });
   });
 
   // Browser pass (G3, S4): a 409 "đang được chấm" means the result moved on, so the refetch that follows swaps the view and
-  // unmounts the button together with the dialog that held the destructive Alert — the verbatim refusal was never readable.
+  // unmounts the button together with the dialog that held the destructive Alert - the verbatim refusal was never readable.
   it('also raises the server refusal as a toast, because the dialog can unmount before it is read', () => {
     h.one.mutate = vi.fn((_id: unknown, options: { onError: (e: Error) => void }) =>
-      options.onError(new Error('Bài này đang được chấm — chưa cần chấm lại.')),
+      options.onError(new Error('Bài này đang được chấm - chưa cần chấm lại.')),
     );
     render(<RegradeButton scope={single} label="Chấm lại bài này" />);
     open('Chấm lại bài này');
     confirm();
-    expect(toastSpy.error).toHaveBeenCalledWith('Bài này đang được chấm — chưa cần chấm lại.');
+    expect(toastSpy.error).toHaveBeenCalledWith('Bài này đang được chấm - chưa cần chấm lại.');
   });
 
   it('the toast has no description when nothing was skipped', () => {

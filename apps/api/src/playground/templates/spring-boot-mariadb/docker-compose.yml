@@ -1,0 +1,32 @@
+# Project name do worker truyền: docker compose -p pg_<runId> ...
+services:
+  db:
+    image: mariadb:11.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${PLAYGROUND_DB_PASSWORD:-6f6562}
+      MYSQL_DATABASE: ${PLAYGROUND_DB_NAME:-shoppingdb}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    # Không publish 3306 ra host — mỗi stack một DB riêng
+
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:0:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://db:3306/${PLAYGROUND_DB_NAME:-shoppingdb}
+      SPRING_DATASOURCE_USERNAME: ${PLAYGROUND_DB_USER:-root}
+      SPRING_DATASOURCE_PASSWORD: ${PLAYGROUND_DB_PASSWORD:-6f6562}
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.mariadb.jdbc.Driver
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      # Chạy schema.sql/data.sql (classpath) SAU khi Hibernate tạo bảng
+      SPRING_JPA_DEFER_DATASOURCE_INITIALIZATION: "true"
+      SPRING_SQL_INIT_MODE: always
+      SERVER_PORT: "8080"
+    depends_on:
+      db:
+        condition: service_healthy

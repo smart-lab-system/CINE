@@ -6,7 +6,7 @@ export interface TestBundleSummary {
   id: string;
   version: number;
   approvedAt: string | null;
-  /** `examcollect.test_bundle_origin` — ai viết các ca trong gói này. */
+  /** `examcollect.test_bundle_origin` - ai viết các ca trong gói này. */
   origin: 'teacher' | 'from_model_answer' | 'generated';
   caseCount: number;
 }
@@ -59,7 +59,7 @@ export async function getTestBundle(examSessionId: string, bundleId: string): Pr
   return data as unknown as TestBundleDetail;
 }
 
-/** Tạo một PHIÊN BẢN gói test mới, ca giảng viên tự viết (§14.1) — chưa duyệt. */
+/** Tạo một PHIÊN BẢN gói test mới, ca giảng viên tự viết (§14.1) - chưa duyệt. */
 export async function createTestBundle(
   examSessionId: string,
   cases: TestBundleCaseInput[],
@@ -81,7 +81,7 @@ export async function approveTestBundle(examSessionId: string, bundleId: string)
   if (error || !response.ok) throw fail(error, response);
 }
 
-/** Chỉ gói ĐÃ duyệt mới ghim được (§14.1) — server tự chặn, đây chỉ gọi. */
+/** Chỉ gói ĐÃ duyệt mới ghim được (§14.1) - server tự chặn, đây chỉ gọi. */
 export async function pinTestBundle(examSessionId: string, bundleId: string): Promise<void> {
   const { error, response } = await apiClient.POST('/exam-sessions/{id}/test-bundles/{bundleId}/pin', {
     params: { path: { id: examSessionId, bundleId } },

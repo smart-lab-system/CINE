@@ -17,7 +17,7 @@ import { ErrorFields } from './ErrorFields';
 const CHIPS = 4;
 
 /**
- * Ngăn kéo "Sửa lỗi" (spec mục 5.5, D4). Chỉ sửa NỘI DUNG lỗi (tên, mô tả, cách phát hiện) — tiêu chí và điểm trừ
+ * Ngăn kéo "Sửa lỗi" (spec mục 5.5, D4). Chỉ sửa NỘI DUNG lỗi (tên, mô tả, cách phát hiện) - tiêu chí và điểm trừ
  * mỗi rubric một khác nên không sửa ở đây. Lỗi đang dùng ở ≥ 2 rubric: giảng viên chọn phạm vi bằng hai nút, mỗi nút
  * kèm một dòng hệ quả bằng tên rubric và phiên thật. Mở từ Thư viện thì chỉ có "Lưu cho cả N rubric".
  */
@@ -45,7 +45,7 @@ export function EditErrorDrawer({
         {rule ? (
           <EditBody key={rule.id} rule={rule} fromRubric={fromRubric} overviews={overviews} onClose={onClose} />
         ) : (
-          <p className="p-6 text-muted-foreground">{loading ? 'Đang tải…' : 'Không tìm thấy lỗi này — có thể nó đã bị bỏ.'}</p>
+          <p className="p-6 text-muted-foreground">{loading ? 'Đang tải…' : 'Không tìm thấy lỗi này - có thể nó đã bị bỏ.'}</p>
         )}
       </SheetContent>
     </Sheet>
@@ -123,7 +123,7 @@ function EditBody({
             {rule.uses.length === 0 && <span>Chưa dùng ở rubric nào</span>}
           </div>
           <span className="font-normal">
-            {here ? `Bạn đang mở từ rubric “${here}”.` : 'Bạn đang mở từ Thư viện lỗi.'} Tiêu chí và điểm trừ không sửa ở đây — mỗi rubric một khác; bấm số điểm trừ ở dòng lỗi để đổi.
+            {here ? `Bạn đang mở từ rubric “${here}”.` : 'Bạn đang mở từ Thư viện lỗi.'} Tiêu chí và điểm trừ không sửa ở đây - mỗi rubric một khác; bấm số điểm trừ ở dòng lỗi để đổi.
           </span>
         </div>
 

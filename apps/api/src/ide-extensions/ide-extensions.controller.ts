@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,12 +10,19 @@ import {
   Post,
   Query,
   Req,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import type { Request } from 'express';
+import { IdeExtensionJplagDemoService } from './jplag/jplag-demo.service';
+import { JplagExamService } from './jplag/jplag-exam.service';
+import { JPLAG_DEMO_MAX_ARCHIVE_BYTES } from './jplag/jplag.constants';
 import { IdeExtensionsService } from './ide-extensions.service';
 import {
   AcceptCreateRoomDto,
@@ -22,6 +30,7 @@ import {
   CatalogFromScanDto,
   BrowseFileQueryDto,
   ConfirmArtifactDto,
+  NormalizedSourcesQueryDto,
   CreateCatalogExtensionDto,
   CreateCatalogVersionDto,
   CreateCoursePolicyItemDto,
@@ -30,12 +39,17 @@ import {
   EnsureArtifactsDto,
   RejectRoomProposalDto,
   UpdateCatalogExtensionDto,
+  VerifyTeacherMachineDto,
 } from './dto/ide-extensions.dto';
 
 @Controller('ide-extensions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class IdeExtensionsController {
-  constructor(private readonly service: IdeExtensionsService) {}
+  constructor(
+    private readonly service: IdeExtensionsService,
+    private readonly jplagDemoService: IdeExtensionJplagDemoService,
+    private readonly jplagExamService: JplagExamService,
+  ) {}
 
   // ── Catalog ───────────────────────────────────────────────────────
 
@@ -140,6 +154,70 @@ export class IdeExtensionsController {
     return this.service.browseVersionFile(versionId, query.path);
   }
 
+  /** Snippets-first normalize (on-demand). Đặt gần browse — không nuốt bởi route khác. */
+  @Get('versions/:versionId/normalized-sources')
+  @Roles('admin', 'teacher')
+  getNormalizedSources(
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @Query() query: NormalizedSourcesQueryDto,
+  ) {
+    const raw = query.raw === '1' || query.raw === 'true';
+    return this.service.getNormalizedSources(versionId, { raw });
+  }
+
+  /**
+   * Demo JPlag: luôn chạy 2 profile (text + language) rồi trả comparison parse sẵn.
+   * multipart: language, archive? (zip), files? (webkitdirectory).
+   */
+  @Post('versions/:versionId/jplag-demo')
+  @Roles('admin', 'teacher')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'archive', maxCount: 1 },
+        { name: 'files', maxCount: 500 },
+      ],
+      {
+        storage: memoryStorage(),
+        limits: { fileSize: JPLAG_DEMO_MAX_ARCHIVE_BYTES, files: 501 },
+      },
+    ),
+  )
+  jplagDemo(
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @Body('language') language: string,
+    @UploadedFiles()
+    uploaded?: {
+      archive?: Express.Multer.File[];
+      files?: Express.Multer.File[];
+    },
+  ) {
+    if (!language?.trim()) {
+      throw new BadRequestException('Thiếu language (javascript|typescript|cpp|python3|java).');
+    }
+    const archive = uploaded?.archive?.[0] ?? null;
+    const files = uploaded?.files ?? [];
+    if (!archive && files.length === 0) {
+      throw new BadRequestException('Cần upload ZIP (archive) hoặc chọn thư mục (files).');
+    }
+    return this.jplagDemoService.runDemo(versionId, language.trim(), {
+      archive: archive
+        ? {
+            originalname: archive.originalname,
+            buffer: archive.buffer,
+            size: archive.size,
+            mimetype: archive.mimetype,
+          }
+        : null,
+      files: files.map((f) => ({
+        originalname: f.originalname,
+        buffer: f.buffer,
+        size: f.size,
+        mimetype: f.mimetype,
+      })),
+    });
+  }
+
   @Post('versions/:versionId/extract')
   @Roles('admin', 'teacher')
   requestExtract(@Param('versionId', ParseUUIDPipe) versionId: string) {
@@ -186,10 +264,61 @@ export class IdeExtensionsController {
     return this.service.getEffective(query);
   }
 
+  /** Blocked scan pairs still open under global catalog approval (2B). */
+  @Get('violations')
+  @Roles('admin', 'teacher')
+  listViolations() {
+    return this.service.listViolations();
+  }
+
   @Post('scans/batch')
   @Roles('admin', 'teacher')
-  batch(@Body() dto: BatchSyncDto, @Req() req: Request) {
-    return this.service.syncBatch(dto, req.user!.sub);
+  async batch(@Body() dto: BatchSyncDto, @Req() req: Request) {
+    const result = await this.service.syncBatch(dto, req.user!.sub);
+    const blocked = (dto.scans ?? []).flatMap((scan) =>
+      (scan.items ?? [])
+        .filter((it) => it.verdict === 'blocked')
+        .map((it) => ({
+          extensionId: it.extensionId,
+          version: it.version ?? null,
+          studentMssv: scan.studentMssv,
+        })),
+    );
+    await this.jplagExamService.enqueueFromBlockedScans(dto.examSessionId, blocked, 'scan');
+    return result;
+  }
+
+  // ── JPlag exam-flow (teacher findings) ────────────────────────────
+
+  @Get('jplag/sessions/:examSessionId/runs')
+  @Roles('admin', 'teacher')
+  listJplagRuns(@Param('examSessionId', ParseUUIDPipe) examSessionId: string) {
+    return this.jplagExamService.listRuns(examSessionId);
+  }
+
+  @Get('jplag/runs/:runId')
+  @Roles('admin', 'teacher')
+  getJplagRun(@Param('runId', ParseUUIDPipe) runId: string) {
+    return this.jplagExamService.getRun(runId);
+  }
+
+  @Get('jplag/runs/:runId/comparison')
+  @Roles('admin', 'teacher')
+  getJplagComparison(
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @Query('profile') profile?: string,
+  ) {
+    const p = profile === 'language' ? 'language' : 'text';
+    return this.jplagExamService.getRunComparison(runId, p);
+  }
+
+  @Post('jplag/sessions/:examSessionId/runs/:runId/retry-vs-model')
+  @Roles('admin', 'teacher')
+  retryJplagVsModel(
+    @Param('examSessionId', ParseUUIDPipe) examSessionId: string,
+    @Param('runId', ParseUUIDPipe) runId: string,
+  ) {
+    return this.jplagExamService.retryVsModel(examSessionId, runId);
   }
 
   @Get('scans')
@@ -205,6 +334,14 @@ export class IdeExtensionsController {
   @Roles('admin', 'teacher')
   getScan(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.getScanWithItems(id);
+  }
+
+  // ── Teacher machine verify (Agent Hub) ────────────────────────────
+
+  @Post('lab/teacher-machine/verify')
+  @Roles('teacher', 'admin')
+  verifyTeacherMachine(@Body() dto: VerifyTeacherMachineDto) {
+    return this.service.verifyTeacherMachine(dto);
   }
 
   // ── Room proposals ────────────────────────────────────────────────

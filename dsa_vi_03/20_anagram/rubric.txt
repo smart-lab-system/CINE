@@ -1,0 +1,14 @@
+Anagram (Đảo chữ): Kiểm tra xem hai chuỗi có phải là Anagram của nhau không
+Solution 1: Phương pháp Đếm tần suất bằng một cấu trúc dữ liệu chung
+      1. Khởi tạo một map hoặc dictionary hoặc array để lưu tần suất các ký tự. Ban đầu, tần suất của mỗi ký tự phải bằng không. [1 mark]
+      2. Đối với mỗi ký tự trong chuỗi thứ nhất, tần suất tương ứng được tăng lên 1. [1 mark]
+      3. Đối với mỗi ký tự trong chuỗi thứ hai, giảm tần suất tương ứng đi 1. [1 mark]
+      4. Duyệt qua toàn bộ map hoặc dictionary hoặc array. Nếu có bất kỳ tần suất nào khác không, trả về false. Ngược lại trả về true. [1 mark]
+Solution 2: Phương pháp Đếm tần suất độc lập cho từng chuỗi
+      1. Khởi tạo một map hoặc dictionary hoặc array để lưu tần suất các ký tự. Ban đầu, tần suất của mỗi ký tự phải bằng không. Giữ các cấu trúc dữ liệu riêng biệt cho mỗi chuỗi. [1 mark]
+      2. Đối với mỗi ký tự trong chuỗi thứ nhất, tần suất tương ứng trong cấu trúc dữ liệu của nó được tăng lên 1. [1 mark]
+      3. Đối với mỗi ký tự trong chuỗi thứ hai, tần suất tương ứng trong cấu trúc dữ liệu của nó được tăng lên 1. [1 mark]
+      4. Duyệt qua cả hai cấu trúc dữ liệu. Nếu tần suất của bất kỳ ký tự duy nhất nào trong cả hai cấu trúc dữ liệu không khớp, trả về false. Ngược lại trả về true. [1 mark]
+Solution 3: Phương pháp Sắp xếp và So sánh
+      1. Sắp xếp cả hai chuỗi. [2 marks]
+      2. Trả về true nếu cả hai chuỗi đã sắp xếp hoàn toàn giống nhau. Ngược lại, trả về false [2 marks]

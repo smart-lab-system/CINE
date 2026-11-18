@@ -3,7 +3,7 @@ import { formatVnPoints } from './format';
 import { caseFlagLabel } from './grading-vocab';
 
 /**
- * Bảy trạng thái hiển thị của một bài trong phiên (spec §3.3) — suy từ `status` và `ungradableReason`, vì
+ * Bảy trạng thái hiển thị của một bài trong phiên (spec §3.3) - suy từ `status` và `ungradableReason`, vì
  * không trường nào nói thẳng: "cần bạn xem" và "không chấm được" đều là `flagged_for_review` (§4.4).
  *
  * Toàn bộ file là hàm thuần, không chạm DOM hay mạng: một phép phân loại sai không làm đỏ test nào khác, nó
@@ -11,7 +11,7 @@ import { caseFlagLabel } from './grading-vocab';
  */
 export type SessionState = 'needsYou' | 'audit' | 'ungradable' | 'grading' | 'auto' | 'reviewed' | 'finalised';
 
-/** Việc cần làm trước, việc đã xong sau — "cần bạn và kiểm mẫu trước, tự quyết sau". */
+/** Việc cần làm trước, việc đã xong sau - "cần bạn và kiểm mẫu trước, tự quyết sau". */
 export const STATE_ORDER: SessionState[] = ['needsYou', 'audit', 'ungradable', 'grading', 'auto', 'reviewed', 'finalised'];
 
 export const STATE_LABEL: Record<SessionState, string> = {
@@ -41,7 +41,7 @@ export function stateOf(result: Pick<GradingResult, 'status' | 'ungradableReason
     case 'ai_graded':
       return 'grading';
     default:
-      // Mọi giá trị thêm về sau: vẫn HIỆN và vẫn CHẶN chốt — cái giá của việc giấu một bài lớn hơn hẳn việc xếp
+      // Mọi giá trị thêm về sau: vẫn HIỆN và vẫn CHẶN chốt - cái giá của việc giấu một bài lớn hơn hẳn việc xếp
       // nó nhầm nhóm.
       return 'grading';
   }
@@ -54,7 +54,7 @@ export function countStates(results: GradingResult[]): Record<SessionState, numb
 }
 
 /**
- * Bảy con số của một phiên, từ bảng tóm tắt của server — cùng phép phân loại với `stateOf`, đếm theo
+ * Bảy con số của một phiên, từ bảng tóm tắt của server - cùng phép phân loại với `stateOf`, đếm theo
  * số lượng thay vì theo từng bài. Hai bản phải khớp nhau: bài test đối chiếu chúng trên mọi trạng thái.
  * Trạng thái lạ rơi vào `grading` (giống nhánh mặc định của `stateOf`): giấu một bài đắt hơn xếp nhầm nhóm.
  */
@@ -102,15 +102,15 @@ export function sortByState(results: GradingResult[]): GradingResult[] {
 export type ScoreTag = 'tạm tính' | 'chấm tay' | 'đã chốt' | 'chưa có điểm' | 'chờ nhận xét của bạn';
 
 /**
- * Ô điểm. MỌI điểm đọc từ `currentScore` (§14.2) — không `aiTotalScore`, không `finalScore`. `null` là "—",
+ * Ô điểm. MỌI điểm đọc từ `currentScore` (§14.2) - không `aiTotalScore`, không `finalScore`. `null` là "-",
  * không bao giờ 0: "chưa có điểm" và "điểm 0" là hai chuyện khác nhau.
  */
 export function scoreCell(result: Pick<GradingResult, 'currentScore' | 'currentScoreSource'>, state: SessionState): { text: string; tag: ScoreTag } {
   // Bài kiểm mẫu chưa kiểm: điểm hệ thống bị ẩn tới khi giảng viên ghi nhận xét (parent spec §8.1 luật 2). API đã bỏ
-  // điểm khỏi payload — dòng này là khoá thứ hai, để một cache cũ hay một lỗi sau này cũng không lộ con số.
+  // điểm khỏi payload - dòng này là khoá thứ hai, để một cache cũ hay một lỗi sau này cũng không lộ con số.
   if (state === 'audit') return { text: 'ẩn', tag: 'chờ nhận xét của bạn' };
   const score = result.currentScore ?? null;
-  if (score === null) return { text: '—', tag: 'chưa có điểm' };
+  if (score === null) return { text: '-', tag: 'chưa có điểm' };
   const text = formatVnPoints(score);
   if (state === 'finalised') return { text, tag: 'đã chốt' };
   if (result.currentScoreSource === 'manual') return { text, tag: 'chấm tay' };
@@ -136,7 +136,7 @@ export function finalizeCounts(results: GradingResult[]) {
 }
 
 /**
- * Bài code chấm bằng đọc mã, không chạy (spec T-UI-19): đường `one_shot` cho một yêu cầu nộp `code_project` —
+ * Bài code chấm bằng đọc mã, không chạy (spec T-UI-19): đường `one_shot` cho một yêu cầu nộp `code_project` -
  * bài code cũ chưa khai ngôn ngữ, hoặc khai `java`/`node` mà môi trường chạy bài không chạy được.
  */
 export function isReadingCode(result: Pick<GradingResult, 'pipeline' | 'deliverableType'>): boolean {
@@ -159,16 +159,16 @@ export function errorCounts(
 }
 
 /**
- * "Vì sao cần bạn" — MỘT câu, ghép từ `triage` mà danh sách đã mang sẵn. `null` = chưa biết; màn hình chỉ đường mở
+ * "Vì sao cần bạn" - MỘT câu, ghép từ `triage` mà danh sách đã mang sẵn. `null` = chưa biết; màn hình chỉ đường mở
  * hồ sơ, không đoán.
  */
 export function reasonOf(result: GradingResult): string | null {
   const state = stateOf(result);
   if (state === 'ungradable') return result.ungradableReason;
-  if (state === 'audit') return 'Kiểm mẫu ngẫu nhiên — ghi nhận xét của bạn trước, điểm hệ thống hiện sau.';
+  if (state === 'audit') return 'Kiểm mẫu ngẫu nhiên - ghi nhận xét của bạn trước, điểm hệ thống hiện sau.';
   if (state !== 'needsYou') return null;
   if (result.pipeline === 'one_shot') {
-    return isReadingCode(result) ? 'Bài code chấm bằng đọc mã — luôn do bạn duyệt' : 'Bài tự luận — luôn do bạn duyệt';
+    return isReadingCode(result) ? 'Bài code chấm bằng đọc mã - luôn do bạn duyệt' : 'Bài tự luận - luôn do bạn duyệt';
   }
 
   const triage = result.triage;
@@ -182,16 +182,16 @@ export function reasonOf(result: GradingResult): string | null {
   const refuted = distinct(triage.errorFlags, 'refuted');
   if (refuted > 0) parts.push(`${refuted} lỗi bị bác bỏ`);
 
-  return parts.length > 0 ? parts.join(' · ') : 'Hồ sơ không nêu lý do cụ thể — mở hồ sơ để xem.';
+  return parts.length > 0 ? parts.join(' · ') : 'Hồ sơ không nêu lý do cụ thể - mở hồ sơ để xem.';
 }
 
 /**
  * Dòng nhắc đòn bẩy (spec §3.3): "W trong T bài cần xem đang chờ bạn đặt giá cho R luật".
  *
- * KHÔNG nói gì (`null`) chừng nào còn một bài đường điều tra chưa có `triage` — một lời khẳng định dựng trên dữ liệu
+ * KHÔNG nói gì (`null`) chừng nào còn một bài đường điều tra chưa có `triage` - một lời khẳng định dựng trên dữ liệu
  * thiếu là lời khẳng định sai. Bài tự luận tính vào T nhưng không bao giờ "chờ giá" (nó luôn do người duyệt).
  *
- * "Chờ giá" ở đây nghĩa là: lý do DUY NHẤT đang hiện ra là giá. Nó KHÔNG hứa rằng đặt giá là đủ — `decide()` giấu cờ
+ * "Chờ giá" ở đây nghĩa là: lý do DUY NHẤT đang hiện ra là giá. Nó KHÔNG hứa rằng đặt giá là đủ - `decide()` giấu cờ
  * `low_confidence` khi còn cờ khác (decide.ts:188), nên sau khi đặt giá, lý do đó có thể lộ ra (đã kiểm trên API
  * thật). Lời hiển thị vì vậy nói "đang chờ", không nói "chỉ chờ".
  */

@@ -16,7 +16,7 @@ describe('CaseFlagsBanner', () => {
     expect(screen.getByText('tiêu chí "hieu_nang" không có luật nào trỏ vào')).toHaveClass('font-mono');
   });
 
-  it('never hides an unmapped code — still shows a line with the raw code (T-UI-23)', () => {
+  it('never hides an unmapped code - still shows a line with the raw code (T-UI-23)', () => {
     render(<CaseFlagsBanner caseFlags={[{ code: 'brand_new_flag', detail: 'chi tiết lạ' }]} errorFlags={[]} onManualScore={vi.fn()} />);
     expect(screen.getByText(/brand_new_flag/)).toBeInTheDocument();
   });
@@ -54,7 +54,7 @@ describe('CaseFlagsBanner', () => {
 
   // Review minor: `<Link><Button>` renders <a><button>, invalid nesting (two tab stops); the app's own
   // convention is `<Button asChild><Link>`.
-  it('renders links as links — no button nested inside an anchor', () => {
+  it('renders links as links - no button nested inside an anchor', () => {
     const { container } = render(
       <CaseFlagsBanner
         caseFlags={[{ code: 'criterion_without_rules', detail: 'x' }]}

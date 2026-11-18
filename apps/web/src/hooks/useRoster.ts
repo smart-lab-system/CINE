@@ -15,12 +15,12 @@ import type { AddStudentPayload } from '@/components/roster/manual-add-student-f
  * Danh sách sinh viên của một lớp.
  *
  * Bốn hook này trước nằm trong `useDepartment.ts`, cùng file với mọi thứ
- * thuộc tầng khoa — môn học, phòng, học kỳ, phân công giảng viên. Đợt thu
+ * thuộc tầng khoa - môn học, phòng, học kỳ, phân công giảng viên. Đợt thu
  * hẹp master data xoá cả tầng đó; roster thì ở lại, vì nó là thứ quyết định
  * ai vào được phiên thi. Tách ra file riêng để lần dọn sau không phải đọc
  * lại xem trong một file lẫn lộn còn sót thứ gì.
  *
- * Khoá cache theo id lớp: hai lớp không bao giờ dùng chung một mục cache —
+ * Khoá cache theo id lớp: hai lớp không bao giờ dùng chung một mục cache -
  * trình import tính diff dựa trên thứ hàm này trả về, và một mục cũ của lớp
  * khác sẽ cho người dùng xem một diff xoá sạch cả lớp.
  */

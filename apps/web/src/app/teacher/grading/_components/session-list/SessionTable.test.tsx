@@ -127,6 +127,6 @@ describe('SessionTable', () => {
     render(<SessionTable {...props({ groups: groupRows(unknown, 'none') })} />);
     const row = rowOf('Chưa rõ');
     expect(within(row).getByRole('link', { name: /^Mở/ })).toBeInTheDocument();
-    expect(within(row).getAllByText('—').length).toBeGreaterThan(0);
+    expect(within(row).getAllByText('-').length).toBeGreaterThan(0);
   });
 });

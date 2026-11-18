@@ -24,7 +24,7 @@ import type { ExamSessionListItem } from '@/lib/api/exam-session';
  * Lưới `Ca thi × 7 ngày` cho trang Quản lý kỳ thi.
  *
  * Là một `<table>` THẬT, không phải lưới div. Đây là dữ liệu dạng bảng đúng
- * nghĩa — hàng là ca, cột là ngày — nên `<th scope>` cho trình đọc màn hình
+ * nghĩa - hàng là ca, cột là ngày - nên `<th scope>` cho trình đọc màn hình
  * biết "ô này là ca nào, ngày nào" mà không phải thêm một dòng aria nào.
  *
  * Mỗi thẻ mang NHÃN CHỮ trạng thái, không chỉ màu: truyền thông tin bằng màu
@@ -231,7 +231,7 @@ function SessionCard({
             {gapMinutes === 0
               ? 'Chồng giờ với phiên trước'
               : `Cách phiên trước ${gapMinutes} phút`}{' '}
-            — cần tối thiểu {TEACHER_GAP_MINUTES}
+            - cần tối thiểu {TEACHER_GAP_MINUTES}
           </span>
         </div>
       )}
@@ -261,9 +261,9 @@ function CalendarLegend() {
           <span className={EXAM_SESSION_STATUS_BADGE_CLASS}>{item.label}</span>
         </span>
       ))}
-      {/* Nói thẳng ra rằng màu chỉ là bổ trợ — người đọc bằng trình đọc màn
+      {/* Nói thẳng ra rằng màu chỉ là bổ trợ - người đọc bằng trình đọc màn
           hình không mất gì, vì nhãn trạng thái đã nằm trong từng thẻ. */}
-      <span className="italic">Màu chỉ bổ trợ — mỗi thẻ đã mang nhãn chữ riêng.</span>
+      <span className="italic">Màu chỉ bổ trợ - mỗi thẻ đã mang nhãn chữ riêng.</span>
     </div>
   );
 }

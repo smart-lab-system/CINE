@@ -101,9 +101,9 @@ describe('ErrorList', () => {
       expect(mutate).toHaveBeenCalledWith({ resultId: 'r1', ruleId: 'rule-1', direction: 'exclude' });
     });
 
-    it('"Không đồng ý — giữ lỗi này cho riêng bài này" sends include, and is no longer badged "cần backend"', () => {
+    it('"Không đồng ý - giữ lỗi này cho riêng bài này" sends include, and is no longer badged "cần backend"', () => {
       renderRefuted();
-      const button = screen.getByRole('button', { name: /Không đồng ý — giữ lỗi này/ });
+      const button = screen.getByRole('button', { name: /Không đồng ý - giữ lỗi này/ });
       expect(button).toBeEnabled();
       fireEvent.click(button);
       expect(mutate).toHaveBeenCalledWith({ resultId: 'r1', ruleId: 'rule-1', direction: 'include' });
@@ -129,7 +129,7 @@ describe('ErrorList', () => {
   });
 
   // Review I1: `counted: 'excluded'` used to render exactly like a counted error (−1,5, "Bỏ lỗi này" again,
-  // no way back) while ScoreCard had already dropped it from the sum — the row contradicted the formula.
+  // no way back) while ScoreCard had already dropped it from the sum - the row contradicted the formula.
   describe('an error already dropped for this result (counted: "excluded")', () => {
     const excluded = { ...baseError, counted: 'excluded' as const };
     const renderExcluded = (over: Partial<typeof baseError> = {}) =>
@@ -140,7 +140,7 @@ describe('ErrorList', () => {
         />,
       );
 
-    it('strikes it through, shows "0" and the "Đã bỏ cho bài này" badge — not "−1,5"', () => {
+    it('strikes it through, shows "0" and the "Đã bỏ cho bài này" badge - not "−1,5"', () => {
       renderExcluded();
       expect(screen.getByText('sai_bien')).toHaveClass('line-through');
       expect(screen.getByText('Đã bỏ cho bài này')).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe('ErrorList', () => {
       expect(screen.queryByText(/0,0/)).not.toBeInTheDocument();
     });
 
-    it('offers the way back — "Giữ lại lỗi này" sends include — and no second "Bỏ lỗi này"', () => {
+    it('offers the way back - "Giữ lại lỗi này" sends include - and no second "Bỏ lỗi này"', () => {
       renderExcluded();
       fireEvent.click(screen.getByRole('button', { name: 'Giữ lại lỗi này' }));
       expect(mutate).toHaveBeenCalledWith({ resultId: 'r1', ruleId: 'rule-1', direction: 'include' });
@@ -199,7 +199,7 @@ describe('ErrorList', () => {
   });
 
   // Review minor #5: the tint must follow how the BACKEND merges lenses (one confirmation stands unless
-  // someone refutes) — a row tinted "chưa kiểm được" while its buttons behave as confirmed contradicts itself.
+  // someone refutes) - a row tinted "chưa kiểm được" while its buttons behave as confirmed contradicts itself.
   it('tints a row by the merged verdict: confirmed + unverified is confirmed, not a warning', () => {
     render(
       <ErrorList
@@ -238,7 +238,7 @@ describe('ErrorList', () => {
         investigationNotes={[]}
       />,
     );
-    expect(screen.getByText('Chưa xác minh — vẫn bị trừ, nhưng bài không được tự duyệt')).toBeInTheDocument();
+    expect(screen.getByText('Chưa xác minh - vẫn bị trừ, nhưng bài không được tự duyệt')).toBeInTheDocument();
   });
 
   it('does not say it for an error nobody flagged as unverified', () => {

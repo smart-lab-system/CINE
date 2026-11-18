@@ -27,7 +27,7 @@ function formatTime(iso: string): string {
 
 interface AccessRequestPanelProps {
   requests: PendingAccessRequest[];
-  /** Already filtered to this session's course — a class from a different
+  /** Already filtered to this session's course - a class from a different
    *  course would fail server-side anyway (`findClassForCourse`), so
    *  there is no point offering it. */
   classes: TeachingClass[];
@@ -35,11 +35,11 @@ interface AccessRequestPanelProps {
 }
 
 /**
- * Sinh viên ngoài danh sách lớp xin vào phiên thi — the counterweight to
+ * Sinh viên ngoài danh sách lớp xin vào phiên thi - the counterweight to
  * `agent:join`'s enrollment check (Security rule 1). The backend has
  * always broadcast `lobby:access_request` the moment this happens; this
  * panel (and the toast that fires alongside it, see the lobby page) is
- * what was missing — before this, the event reached the browser and was
+ * what was missing - before this, the event reached the browser and was
  * dropped on the floor, so the teacher was never told a student was
  * waiting at all. Reported directly against the live app.
  */
@@ -84,7 +84,7 @@ function RequestRow({
 }) {
   const [approveOpen, setApproveOpen] = useState(false);
   // '' rather than undefined, and always passed to Select's `value` below
-  // — React warns loudly if a controlled input ever starts undefined and
+  // - React warns loudly if a controlled input ever starts undefined and
   // later gets a real value ("changing from uncontrolled to controlled").
   const [homeClassId, setHomeClassId] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -150,7 +150,7 @@ function RequestRow({
           <DialogHeader>
             <DialogTitle>Duyệt {request.fullName} vào thi?</DialogTitle>
             <DialogDescription>
-              Chọn lớp để thêm sinh viên này vào danh sách — bài nộp sau này sẽ được tính vào
+              Chọn lớp để thêm sinh viên này vào danh sách - bài nộp sau này sẽ được tính vào
               lớp bạn chọn ở đây.
             </DialogDescription>
           </DialogHeader>

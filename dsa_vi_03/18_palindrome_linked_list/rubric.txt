@@ -1,0 +1,20 @@
+Kiểm tra xem Linked List có phải là Palindrome:
+Solution 1: Sử dụng Stack
+
+    1. Tạo một stack rỗng và duyệt linked list từ head đến cuối, đẩy (push) dữ liệu của từng node vào stack. [1 mark]
+    2. Quay trở lại head của linked list và so sánh dữ liệu của từng node với giá trị được lấy ra (pop) từ stack. [1 mark]
+    3. Nếu có bất kỳ phép so sánh nào cho thấy các giá trị không bằng nhau, trả về false ngay lập tức. [1 mark]
+    4. Nếu duyệt qua toàn bộ danh sách mà tất cả các phép so sánh đều bằng nhau, trả về true (danh sách là palindrome). [1 mark]
+
+Solution 2: Cách tiếp cận đệ quy (Recursive Approach)
+
+    1. Khởi tạo một con trỏ bắt đầu (tham chiếu đến head) để theo dõi quá trình duyệt xuôi. [1 mark]
+    2. Tạo một hàm đệ quy duyệt đến cuối danh sách và sau đó so sánh các node trong quá trình đệ quy quay lui (callbacks). [1 mark]
+    3. Trong mỗi lần callback, so sánh dữ liệu của node cuối hiện tại với dữ liệu của node đầu và cập nhật kết quả. [1 mark]
+    4. Cập nhật con trỏ bắt đầu sau mỗi phép so sánh và trả về kết quả kết hợp (true chỉ khi tất cả các phép so sánh đều bằng nhau). [1 mark]
+Solution 3: Cách tiếp cận lặp tối ưu (Two-Pointer)
+
+    1. Tìm điểm giữa của linked list bằng kỹ thuật con trỏ chậm và nhanh (slow and fast pointers). [1 mark]
+    2. Đảo ngược nửa sau của linked list bắt đầu từ node sau điểm giữa. [1 mark]
+    3. So sánh nửa đầu với nửa sau đã đảo ngược bằng cách duyệt cả hai đồng thời và kiểm tra xem các giá trị có khớp không. [1 mark]
+    4. Khôi phục lại cấu trúc danh sách ban đầu bằng cách đảo ngược nửa sau một lần nữa và nối lại với nửa đầu. [1 mark]

@@ -49,7 +49,7 @@ function readPackageJson(dir: string): {
 }
 
 /**
- * Quét thư mục extensions — mỗi thư mục con có package.json hợp lệ
+ * Quét thư mục extensions - mỗi thư mục con có package.json hợp lệ
  * thành một entry `publisher.name`.
  */
 export function scanVscodeExtensions(dirs: string[] = defaultExtensionDirs()): ScanResult {

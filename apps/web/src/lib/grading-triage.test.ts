@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isMakeupSubmission, pointsForVerdict } from './grading-triage';
 
 describe('pointsForVerdict', () => {
-  it('khớp pointsFor() của server — nửa thang cho đạt một phần', () => {
+  it('khớp pointsFor() của server - nửa thang cho đạt một phần', () => {
     expect(pointsForVerdict('met', 4)).toBe(4);
     expect(pointsForVerdict('partially_met', 4)).toBe(2);
     expect(pointsForVerdict('partially_met', 3)).toBe(1.5);
@@ -19,7 +19,7 @@ describe('isMakeupSubmission', () => {
   it('thiếu một vế thì KHÔNG đoán là thi bù', () => {
     // Dữ liệu cũ trước khi `exam_session.class_id` thành NOT NULL vẫn còn
     // trong DB. Gắn nhãn "thi bù" cho một bài chỉ vì thiếu dữ liệu là bịa
-    // ra một sự kiện chưa chắc đã xảy ra — im lặng là câu trả lời đúng.
+    // ra một sự kiện chưa chắc đã xảy ra - im lặng là câu trả lời đúng.
     expect(isMakeupSubmission(null, 'class-a')).toBe(false);
     expect(isMakeupSubmission('class-b', null)).toBe(false);
   });

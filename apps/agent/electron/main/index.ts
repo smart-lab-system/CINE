@@ -3,7 +3,7 @@
  * privileged APIs (design spec §7). Owns exactly one `SessionController`
  * (this app manages one student's session on one machine, never several)
  * and one `BrowserWindow` whose size/visibility it drives from the
- * controller's own state — not two separate windows, per CLAUDE.md's
+ * controller's own state - not two separate windows, per CLAUDE.md's
  * "a single screen... minimize to tray... passively display a checklist."
  */
 
@@ -30,7 +30,7 @@ import {
 import { LabMgmtRuntime } from './lab-mgmt-runtime';
 
 const JOIN_WINDOW_SIZE = { width: 360, height: 560 };
-// Widened from 440 — required filenames are generated (studentId + name +
+// Widened from 440 - required filenames are generated (studentId + name +
 // session code, see workspace-files.ts) and routinely run to 60+ chars;
 // DetailView's filename span also wraps now (belt-and-suspenders: no width
 // eliminates wrapping entirely, since a filename can always be longer than
@@ -42,7 +42,7 @@ const MGMT_MIN_SIZE = { width: 900, height: 600 };
 
 // Precedence: an explicit BACKEND_URL env var (dev/testing override) beats
 // MAIN_VITE_BACKEND_URL (baked in at build time from .env.production for the
-// packaged .exe — see env.d.ts and dist:win), which beats the localhost
+// packaged .exe - see env.d.ts and dist:win), which beats the localhost
 // fallback used by plain `pnpm dev`.
 const BACKEND_URL =
   process.env.BACKEND_URL?.trim() ||
@@ -57,7 +57,7 @@ let tray: Tray | null = null;
 let controller: SessionController | null = null;
 let labMgmt: LabMgmtRuntime | null = null;
 let latestState: AgentState | null = null;
-// Sticky once true — an exam in progress must survive the window being
+// Sticky once true - an exam in progress must survive the window being
 // closed; only the tray's "Thoát" ends the process from that point on.
 let hasEverJoined = false;
 
@@ -79,7 +79,7 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     ...JOIN_WINDOW_SIZE,
     resizable: false,
-    // No menu bar, no confirm/select-file button anywhere in this app —
+    // No menu bar, no confirm/select-file button anywhere in this app -
     // CLAUDE.md's "minimal" constraint starts at the chrome itself.
     autoHideMenuBar: true,
     icon: nativeImage.createFromPath(iconPath),
@@ -92,7 +92,7 @@ function createWindow(): BrowserWindow {
   });
 
   // Before a first join, there is nothing running in the background worth
-  // preserving — closing the window is closing the app. After a join, the
+  // preserving - closing the window is closing the app. After a join, the
   // socket/snapshot loop must keep running through the exam, so the 'X'
   // button only hides the window; the tray icon is the only way back in.
   win.on('close', (event) => {
@@ -126,7 +126,7 @@ function createTray(): Tray {
 }
 
 /** Tray click / "Xem chi tiết": reopen the one window, sized for whichever
- *  screen the current state calls for — the join form if not joined yet
+ *  screen the current state calls for - the join form if not joined yet
  *  (e.g. it was closed via 1b's failure before ever connecting), the
  *  read-only detail view otherwise. */
 function showDetailOrJoinWindow(): void {
@@ -160,7 +160,7 @@ function broadcastState(state: AgentState): void {
 function wireController(): SessionController {
   const c = new SessionController({
     backendUrl: BACKEND_URL,
-    // Documents, not process.cwd() (what cli.ts used) — a packaged app's
+    // Documents, not process.cwd() (what cli.ts used) - a packaged app's
     // cwd has no stable, student-discoverable meaning. INSTRUCTIONS.txt
     // (written into the workspace itself) tells the student the exact
     // path either way, so this only has to be *somewhere* findable.
@@ -177,7 +177,7 @@ function wireController(): SessionController {
   // student never has to go find it themselves (see SessionController's
   // 'open-workspace' doc comment for why this fires exactly once).
   // shell.openPath resolves to an error string on failure rather than
-  // throwing — never worth interrupting the exam over, just worth a log.
+  // throwing - never worth interrupting the exam over, just worth a log.
   c.on('open-workspace', (workspaceDir: string) => {
     void shell.openPath(workspaceDir).then((errorMessage) => {
       if (errorMessage) {
@@ -192,7 +192,7 @@ function wireController(): SessionController {
 function registerIpcHandlers(c: SessionController, mgmt: LabMgmtRuntime): void {
   // Request/response, not push: the renderer calls this once on mount to
   // pick up whatever state already exists, closing the gap the push-only
-  // `agent:state` channel can't — see IPC_CHANNELS.getState's doc comment.
+  // `agent:state` channel can't - see IPC_CHANNELS.getState's doc comment.
   ipcMain.handle(IPC_CHANNELS.getState, () => c.getState());
   ipcMain.on(IPC_CHANNELS.join, (_event: IpcMainEvent, payload: JoinRequest) => {
     c.join(payload);
@@ -207,12 +207,17 @@ function registerIpcHandlers(c: SessionController, mgmt: LabMgmtRuntime): void {
     quitApp();
   });
 
+  ipcMain.handle(IPC_CHANNELS.mgmtResolveMachineRole, () => mgmt.resolveMachineRole());
   ipcMain.handle(IPC_CHANNELS.mgmtLoginTeacher, (_e, payload: TeacherLoginRequest) =>
     mgmt.loginTeacher(payload.email, payload.password),
   );
+  ipcMain.handle(IPC_CHANNELS.mgmtListTodayExams, () => mgmt.listTodayExamSessions());
+  ipcMain.handle(IPC_CHANNELS.mgmtStartTeacherHub, (_e, payload) => mgmt.startTeacherHub(payload));
+  ipcMain.handle(IPC_CHANNELS.mgmtGetContext, () => mgmt.getMgmtContext());
   ipcMain.handle(IPC_CHANNELS.mgmtStartStudentNode, (_e, payload: StartStudentNodeRequest) =>
     mgmt.startStudentNode(payload.mssv),
   );
+  ipcMain.handle(IPC_CHANNELS.mgmtLeaveSession, () => mgmt.leaveSession());
   ipcMain.handle(IPC_CHANNELS.mgmtStop, () => mgmt.stop());
   ipcMain.handle(IPC_CHANNELS.mgmtGetHubState, () => mgmt.getHubState());
   ipcMain.handle(IPC_CHANNELS.mgmtGetNodeState, () => mgmt.getNodeState());
@@ -247,9 +252,10 @@ app.whenReady().then(() => {
   controller = wireController();
   labMgmt = new LabMgmtRuntime(BACKEND_URL, app.getPath('userData'), () => mainWindow);
   registerIpcHandlers(controller, labMgmt);
+  void labMgmt.bootstrapLanFromCache();
 
   // A renderer that reloads (dev-mode HMR, or reopening after being
-  // hidden) has no memory of prior state — replay whatever we already
+  // hidden) has no memory of prior state - replay whatever we already
   // have so it doesn't render the initial empty form over a live session.
   mainWindow.webContents.on('did-finish-load', () => {
     if (latestState) {

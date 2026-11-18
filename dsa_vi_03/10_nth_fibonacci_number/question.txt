@@ -1,0 +1,19 @@
+Số Fibonacci thứ n
+Cho một số nguyên không âm n, nhiệm vụ của bạn là tìm số Fibonacci thứ n.
+Dãy Fibonacci là một dãy số trong đó mỗi số hạng tiếp theo là tổng của hai số hạng trước đó. Hai số hạng đầu tiên của dãy Fibonacci là 0 tiếp theo là 1. Dãy Fibonacci: 0, 1, 1, 2, 3, 5, 8, 13, 21
+Dãy Fibonacci được định nghĩa như sau:
+•	F(0) = 0
+•	F(1) = 1
+•	F(n) = F(n - 1) + F(n - 2) với n > 1
+Ví dụ:
+Đầu vào: n = 5
+Đầu ra: 5
+Giải thích: Số Fibonacci thứ 5 là 5.
+Đầu vào: n = 0
+Đầu ra: 0 
+Giải thích: Số Fibonacci thứ 0 là 0.
+Đầu vào: n = 1
+Đầu ra: 1
+Giải thích: Số Fibonacci thứ 1 là 1.
+Ràng buộc:
+0 ≤ n ≤ 30

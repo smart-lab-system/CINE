@@ -23,7 +23,7 @@ interface ConfirmDeleteDialogProps {
 }
 
 /**
- * Deleting academic data is mostly refused by the database — every FK into
+ * Deleting academic data is mostly refused by the database - every FK into
  * course, class, semester and room is ON DELETE RESTRICT, so a row still in
  * use comes back as a 409 rather than taking its dependents with it. This
  * dialog exists for the case that is *not* refused: a genuinely unused row,

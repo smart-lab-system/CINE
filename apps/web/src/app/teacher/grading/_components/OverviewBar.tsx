@@ -11,7 +11,7 @@ const ICON: Record<SessionState, typeof CheckCircle2> = {
   finalised: Lock,
 };
 
-/** Màu chỉ để nhìn nhanh — mỗi đoạn và mỗi con số còn có biểu tượng và chữ (spec §2.1 luật 1). */
+/** Màu chỉ để nhìn nhanh - mỗi đoạn và mỗi con số còn có biểu tượng và chữ (spec §2.1 luật 1). */
 const SEGMENT: Record<SessionState, string> = {
   needsYou: 'bg-warning',
   audit: 'bg-primary',

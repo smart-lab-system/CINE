@@ -78,6 +78,13 @@ export class GradingReferenceEntity extends BaseEntity {
   modelAnswerFilename!: string | null;
 
   /**
+   * Gói đáp án mẫu: `file` (một tài liệu) hoặc `zip` (folder/zip đã chuẩn hoá).
+   * Null khi chưa có file đáp án (chỉ ghi chú / mã nguồn).
+   */
+  @Column({ name: 'model_answer_package_kind', type: 'varchar', length: 8, nullable: true })
+  modelAnswerPackageKind!: 'file' | 'zip' | null;
+
+  /**
    * Lối vào rẻ nhất cho giảng viên: một câu, không cần file.
    *
    * Nhiều khi thứ cần nói không phải cả trang đáp án mà là một dòng:
