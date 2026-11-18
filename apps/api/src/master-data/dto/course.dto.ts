@@ -50,6 +50,15 @@ export class ListCoursesDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  /** Scope cột đếm lớp/đề/rubric — không ẩn môn. */
+  @IsOptional()
+  @IsUUID()
+  academicYearId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  semesterId?: string;
 }
 
 /** Filter hub đề/rubric theo năm / học kỳ (suy diễn ngày). */
