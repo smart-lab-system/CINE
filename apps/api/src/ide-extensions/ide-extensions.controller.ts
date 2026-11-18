@@ -263,6 +263,13 @@ export class IdeExtensionsController {
     return this.service.getEffective(query);
   }
 
+  /** Blocked scan pairs still open under global catalog approval (2B). */
+  @Get('violations')
+  @Roles('admin', 'teacher')
+  listViolations() {
+    return this.service.listViolations();
+  }
+
   @Post('scans/batch')
   @Roles('admin', 'teacher')
   async batch(@Body() dto: BatchSyncDto, @Req() req: Request) {

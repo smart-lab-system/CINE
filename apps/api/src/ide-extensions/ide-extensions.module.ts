@@ -5,6 +5,7 @@ import { ClassEntity } from '../course/entities/class.entity';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { RequiredDeliverableEntity } from '../exam-session/entities/required-deliverable.entity';
 import { GradingModule } from '../grading/grading.module';
+import { CourseEntity } from '../master-data/entities/course.entity';
 import { StudentEntity } from '../master-data/entities/student.entity';
 import { RoomEntity } from '../master-data/entities/room.entity';
 import { ComputerEntity } from '../master-data/entities/computer.entity';
@@ -59,6 +60,7 @@ import { IdeExtensionsService } from './ide-extensions.service';
       AccountEntity,
       ExamSessionEntity,
       ClassEntity,
+      CourseEntity,
       StudentEntity,
       SubmissionEntity,
       RequiredDeliverableEntity,

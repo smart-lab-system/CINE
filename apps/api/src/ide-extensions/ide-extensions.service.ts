@@ -10,9 +10,10 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { ExamSessionEntity } from '../exam-session/entities/exam-session.entity';
 import { ClassEntity } from '../course/entities/class.entity';
+import { CourseEntity } from '../master-data/entities/course.entity';
 import { StudentEntity } from '../master-data/entities/student.entity';
 import { RoomEntity } from '../master-data/entities/room.entity';
 import { ComputerEntity } from '../master-data/entities/computer.entity';
@@ -43,6 +44,7 @@ import {
   UpdateCatalogExtensionDto,
 } from './dto/ide-extensions.dto';
 import { deriveCatalogStatus } from './catalog-status';
+import { isViolationPairStillOpen } from './violation-filter';
 import { fetchMarketplaceMeta } from './marketplace-client';
 import { StorageService } from '../storage/storage.service';
 import { IDE_EXTENSION_EXTRACT_QUEUE } from './extract/ide-extension-extract.constants';
@@ -932,6 +934,168 @@ export class IdeExtensionsService {
       order: { extensionId: 'ASC' },
     });
     return { ...scan, items };
+  }
+
+  /**
+   * Spec 2026-11-18: blocked scan items still open under global catalog approval (2B).
+   */
+  async listViolations() {
+    const blocked = await this.scanItems.find({
+      where: { verdict: 'blocked' },
+      relations: { scan: { examSession: true } },
+      order: { extensionId: 'ASC' },
+    });
+
+    const approvedVersions = await this.versions.find({
+      where: { approvalStatus: 'approved' },
+      relations: { extension: true },
+    });
+    const approvedPairs = approvedVersions
+      .filter((v) => v.extension?.identifier)
+      .map((v) => ({ identifier: v.extension.identifier, version: v.version }));
+
+    const openItems = blocked.filter((it) =>
+      isViolationPairStillOpen(it.extensionId, it.version, approvedPairs),
+    );
+    if (openItems.length === 0) return [];
+
+    const mssvs = [...new Set(openItems.map((it) => it.scan.studentMssv))];
+    const courseIds = [
+      ...new Set(
+        openItems
+          .map((it) => it.scan.courseId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ];
+
+    const [studentRows, courseRows, catalogExts] = await Promise.all([
+      mssvs.length
+        ? this.students.find({ where: { mssv: In(mssvs) } })
+        : Promise.resolve([] as StudentEntity[]),
+      courseIds.length
+        ? this.dataSource.getRepository(CourseEntity).find({ where: { id: In(courseIds) } })
+        : Promise.resolve([] as CourseEntity[]),
+      this.extensions.find({
+        where: {
+          identifier: In([...new Set(openItems.map((it) => it.extensionId))]),
+        },
+      }),
+    ]);
+
+    const studentByMssv = new Map(studentRows.map((s) => [s.mssv.toLowerCase(), s]));
+    const courseById = new Map(courseRows.map((c) => [c.id, c]));
+    const catalogByIdentifier = new Map(catalogExts.map((e) => [e.identifier, e]));
+
+    type Incident = {
+      scanId: string;
+      scanItemId: string;
+      examSessionId: string | null;
+      examSessionName: string | null;
+      courseId: string | null;
+      courseName: string | null;
+      studentMssv: string;
+      studentFullName: string | null;
+      machineId: string;
+      machineName: string | null;
+      scannedAt: string;
+    };
+
+    const byExt = new Map<
+      string,
+      {
+        extensionId: string;
+        displayName: string | null;
+        versions: Map<string, { version: string | null; incidents: Incident[] }>;
+      }
+    >();
+
+    for (const it of openItems) {
+      const scan = it.scan;
+      const exam = scan.examSession;
+      const course =
+        (scan.courseId ? courseById.get(scan.courseId) : undefined) ?? null;
+      const student = studentByMssv.get(scan.studentMssv.toLowerCase()) ?? null;
+      const catalog = catalogByIdentifier.get(it.extensionId);
+
+      const incident: Incident = {
+        scanId: scan.id,
+        scanItemId: it.id,
+        examSessionId: scan.examSessionId,
+        examSessionName: exam?.name ?? null,
+        courseId: scan.courseId,
+        courseName: course?.name ?? exam?.courseName ?? null,
+        studentMssv: scan.studentMssv,
+        studentFullName: student?.fullName ?? null,
+        machineId: scan.machineId,
+        machineName: scan.machineName,
+        scannedAt: scan.scannedAt.toISOString(),
+      };
+
+      let ext = byExt.get(it.extensionId);
+      if (!ext) {
+        ext = {
+          extensionId: it.extensionId,
+          displayName: it.displayName ?? catalog?.displayName ?? null,
+          versions: new Map(),
+        };
+        byExt.set(it.extensionId, ext);
+      } else if (!ext.displayName && (it.displayName || catalog?.displayName)) {
+        ext.displayName = it.displayName ?? catalog?.displayName ?? null;
+      }
+
+      const versionKey = it.version ?? '';
+      let ver = ext.versions.get(versionKey);
+      if (!ver) {
+        ver = { version: it.version, incidents: [] };
+        ext.versions.set(versionKey, ver);
+      }
+      ver.incidents.push(incident);
+    }
+
+    const result = [...byExt.values()].map((ext) => {
+      const catalog = catalogByIdentifier.get(ext.extensionId);
+      const publisher =
+        catalog?.publisher ??
+        (ext.extensionId.includes('.')
+          ? ext.extensionId.slice(0, ext.extensionId.indexOf('.'))
+          : null);
+
+      const versions = [...ext.versions.values()]
+        .map((v) => {
+          const incidents = [...v.incidents].sort((a, b) =>
+            a.scannedAt < b.scannedAt ? 1 : a.scannedAt > b.scannedAt ? -1 : 0,
+          );
+          return {
+            version: v.version,
+            incidentCount: incidents.length,
+            incidents,
+          };
+        })
+        .sort((a, b) => {
+          if (a.version == null && b.version == null) return 0;
+          if (a.version == null) return 1;
+          if (b.version == null) return -1;
+          return a.version.localeCompare(b.version);
+        });
+
+      const allIncidents = versions.flatMap((v) => v.incidents);
+      const studentCount = new Set(allIncidents.map((i) => i.studentMssv.toLowerCase())).size;
+
+      return {
+        extensionId: ext.extensionId,
+        displayName: ext.displayName ?? catalog?.displayName ?? null,
+        publisher,
+        inCatalog: Boolean(catalog),
+        catalogExtensionPk: catalog?.id ?? null,
+        versionCount: versions.length,
+        incidentCount: allIncidents.length,
+        studentCount,
+        versions,
+      };
+    });
+
+    result.sort((a, b) => a.extensionId.localeCompare(b.extensionId));
+    return result;
   }
 
   async syncBatch(dto: BatchSyncDto, callerAccountId: string) {

@@ -453,3 +453,40 @@ export function listScans(params?: { labMgmtSessionId?: string; courseId?: strin
 export function getScan(id: string) {
   return ideFetch<ExtensionScan & { items: ScanItem[] }>(`/ide-extensions/scans/${id}`);
 }
+
+/** Spec 2026-11-18 — blocked pairs still open under global catalog approval. */
+export interface ViolationIncident {
+  scanId: string;
+  scanItemId: string;
+  examSessionId: string | null;
+  examSessionName: string | null;
+  courseId: string | null;
+  courseName: string | null;
+  studentMssv: string;
+  studentFullName: string | null;
+  machineId: string;
+  machineName: string | null;
+  scannedAt: string;
+}
+
+export interface ViolationVersion {
+  version: string | null;
+  incidentCount: number;
+  incidents: ViolationIncident[];
+}
+
+export interface ViolationExtension {
+  extensionId: string;
+  displayName: string | null;
+  publisher: string | null;
+  inCatalog: boolean;
+  catalogExtensionPk: string | null;
+  versionCount: number;
+  incidentCount: number;
+  studentCount: number;
+  versions: ViolationVersion[];
+}
+
+export function listViolations() {
+  return ideFetch<ViolationExtension[]>('/ide-extensions/violations');
+}

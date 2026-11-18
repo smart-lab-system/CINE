@@ -4,29 +4,30 @@ import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import {
-  addCourseItem,
-  approveItem,
-  catalogFromScan,
   CATALOG_STATUS_LABEL,
+  catalogFromScan,
   createCatalog,
-  getScan,
   listCatalog,
-  listCourseItems,
-  listScans,
-  rejectItem,
-  removeItem,
+  listViolations,
   type CatalogExtension,
   type CatalogStatus,
-  type ExtensionScan,
-  type PolicyItem,
+  type ViolationExtension,
 } from '@/lib/api/ide-utilities';
 
-type Tab = 'catalog' | 'course' | 'results';
+type Tab = 'catalog' | 'violations';
 
 function formatDate(value: string | null) {
   if (!value) return '—';
   try {
     return new Date(value).toLocaleDateString('vi-VN');
+  } catch {
+    return value;
+  }
+}
+
+function formatDateTime(value: string) {
+  try {
+    return new Date(value).toLocaleString('vi-VN');
   } catch {
     return value;
   }
@@ -52,12 +53,9 @@ export default function IdeUtilitiesPage() {
 
   const [tab, setTab] = useState<Tab>('catalog');
   const [catalog, setCatalog] = useState<CatalogExtension[]>([]);
-  const [courseId, setCourseId] = useState('');
-  const [courseItems, setCourseItems] = useState<PolicyItem[]>([]);
-  const [scans, setScans] = useState<ExtensionScan[]>([]);
-  const [selectedScan, setSelectedScan] = useState<Awaited<ReturnType<typeof getScan>> | null>(
-    null,
-  );
+  const [violations, setViolations] = useState<ViolationExtension[]>([]);
+  const [expandedExt, setExpandedExt] = useState<string | null>(null);
+  const [openVersionKey, setOpenVersionKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -66,22 +64,13 @@ export default function IdeUtilitiesPage() {
   const [newIdentifier, setNewIdentifier] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newPublisher, setNewPublisher] = useState('');
-  const [courseExtensionId, setCourseExtensionId] = useState('');
 
   const reloadCatalog = useCallback(async () => {
     setCatalog(await listCatalog());
   }, []);
 
-  const reloadCourse = useCallback(async () => {
-    if (!courseId.trim()) {
-      setCourseItems([]);
-      return;
-    }
-    setCourseItems(await listCourseItems(courseId.trim()));
-  }, [courseId]);
-
-  const reloadScans = useCallback(async () => {
-    setScans(await listScans());
+  const reloadViolations = useCallback(async () => {
+    setViolations(await listViolations());
   }, []);
 
   useEffect(() => {
@@ -89,10 +78,10 @@ export default function IdeUtilitiesPage() {
   }, [reloadCatalog]);
 
   useEffect(() => {
-    if (tab === 'results') {
-      void reloadScans().catch((e: Error) => setError(e.message));
+    if (tab === 'violations') {
+      void reloadViolations().catch((e: Error) => setError(e.message));
     }
-  }, [tab, reloadScans]);
+  }, [tab, reloadViolations]);
 
   const onAddCatalog = async () => {
     if (!newIdentifier.trim() || !newDisplayName.trim() || !newPublisher.trim()) return;
@@ -116,25 +105,7 @@ export default function IdeUtilitiesPage() {
     }
   };
 
-  const onAddCourse = async () => {
-    if (!courseExtensionId.trim() || !courseId.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await addCourseItem({
-        courseId: courseId.trim(),
-        extensionId: courseExtensionId.trim(),
-      });
-      setCourseExtensionId('');
-      await reloadCourse();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onImportFromScan = async (item: {
+  const onImportFromViolation = async (item: {
     extensionId: string;
     version: string | null;
     displayName?: string | null;
@@ -158,7 +129,7 @@ export default function IdeUtilitiesPage() {
       } else {
         setInfo('Đã cập nhật catalog.');
       }
-      await reloadCatalog();
+      await Promise.all([reloadCatalog(), reloadViolations()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -171,14 +142,13 @@ export default function IdeUtilitiesPage() {
       <div className="border-b px-4 py-4 md:px-6">
         <PageHeader
           title="Quản lý tiện ích IDE"
-          description="Catalog extension VS Code (duyệt theo phiên bản / *), allowlist theo môn, kết quả quét từ Teacher Hub."
+          description="Catalog extension VS Code (duyệt theo phiên bản / *) và danh sách extension vi phạm chưa được duyệt."
         />
         <div className="mt-4 flex flex-wrap gap-2">
           {(
             [
               ['catalog', 'Catalog extension'],
-              ['course', 'Theo môn'],
-              ['results', 'Kết quả quét'],
+              ['violations', 'Vi phạm'],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -272,127 +242,62 @@ export default function IdeUtilitiesPage() {
           </section>
         )}
 
-        {tab === 'course' && (
+        {tab === 'violations' && (
           <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
-            <div className="flex flex-wrap gap-2">
-              <input
-                className="rounded-md border bg-background px-2 py-1.5 text-sm"
-                placeholder="Course UUID"
-                value={courseId}
-                onChange={(e) => setCourseId(e.target.value)}
-              />
-              <button
-                type="button"
-                className="rounded-md border px-3 py-1.5 text-sm"
-                onClick={() => void reloadCourse().catch((e: Error) => setError(e.message))}
-              >
-                Tải danh sách
-              </button>
-              <input
-                className="rounded-md border bg-background px-2 py-1.5 font-mono text-sm"
-                placeholder="publisher.name"
-                value={courseExtensionId}
-                onChange={(e) => setCourseExtensionId(e.target.value)}
-              />
-              <button
-                type="button"
-                disabled={busy}
-                className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-                onClick={() => void onAddCourse()}
-              >
-                Đề xuất (pending)
-              </button>
-            </div>
-            <CourseItemTable
-              items={courseItems}
-              onApprove={(id) => void approveItem(id).then(reloadCourse)}
-              onReject={(id) => void rejectItem(id).then(reloadCourse)}
-              onRemove={(id) => void removeItem(id).then(reloadCourse)}
-            />
-          </section>
-        )}
-
-        {tab === 'results' && (
-          <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
-            <div className="min-h-0 flex-1 overflow-auto rounded-md border lg:max-w-sm">
-              {scans.length === 0 ? (
-                <p className="p-3 text-sm text-muted-foreground">Chưa có bản quét nào được đồng bộ.</p>
-              ) : (
-                <ul>
-                  {scans.map((s) => (
-                    <li key={s.id} className="border-b last:border-b-0">
-                      <button
-                        type="button"
-                        className={`w-full px-3 py-2.5 text-left text-sm hover:bg-muted ${
-                          selectedScan?.id === s.id ? 'bg-muted' : ''
-                        }`}
-                        onClick={() =>
-                          void getScan(s.id)
-                            .then(setSelectedScan)
-                            .catch((e: Error) => setError(e.message))
-                        }
-                      >
-                        <strong>{s.studentMssv}</strong>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {s.machineName ?? s.machineId} · {s.status} · vi phạm{' '}
-                          {s.violationCount}/{s.extensionCount}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="min-h-0 flex-[2] overflow-auto rounded-md border">
-              {!selectedScan ? (
-                <p className="p-3 text-sm text-muted-foreground">Chọn một bản quét để xem chi tiết.</p>
-              ) : (
-                <div className="p-3">
-                  <p className="mb-3 font-semibold">
-                    Chi tiết {selectedScan.studentMssv}{' '}
-                    <span className="font-normal text-muted-foreground">
-                      ({selectedScan.machineName ?? selectedScan.machineId})
-                    </span>
-                  </p>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-muted-foreground">
-                        <th className="py-2 pr-2 font-medium">Extension</th>
-                        <th className="py-2 pr-2 font-medium">Version</th>
-                        <th className="py-2 pr-2 font-medium">Verdict</th>
-                        <th className="py-2 font-medium text-right">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedScan.items.map((it) => {
-                        const key = `${it.extensionId}@${it.version ?? ''}`;
-                        return (
-                          <tr key={key} className="border-b">
-                            <td className="py-2 pr-2 font-mono text-xs">{it.extensionId}</td>
-                            <td className="py-2 pr-2 font-mono">{it.version ?? '—'}</td>
-                            <td className="py-2 pr-2">
-                              {it.verdict}
-                              {it.matchedScope ? ` (${it.matchedScope})` : ''}
-                            </td>
-                            <td className="py-2 text-right">
-                              <button
-                                type="button"
-                                disabled={importingKey === key}
-                                className="text-primary disabled:opacity-50"
-                                onClick={() => void onImportFromScan(it)}
-                              >
-                                {importingKey === key ? 'Đang thêm…' : 'Thêm vào catalog'}
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            {violations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Chưa có extension vi phạm chưa được duyệt.
+              </p>
+            ) : (
+              <div className="overflow-auto rounded-md border">
+                <table className="w-full min-w-[960px] text-sm">
+                  <thead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
+                    <tr className="text-left text-muted-foreground">
+                      <th className="px-3 py-2.5 font-medium">Extension name</th>
+                      <th className="px-3 py-2.5 font-medium">Publisher</th>
+                      <th className="px-3 py-2.5 font-medium">Identifier</th>
+                      <th className="px-3 py-2.5 font-medium"># Version</th>
+                      <th className="px-3 py-2.5 font-medium"># Lần</th>
+                      <th className="px-3 py-2.5 font-medium"># SV</th>
+                      <th className="px-3 py-2.5 font-medium">Catalog</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {violations.map((ext) => {
+                      const expanded = expandedExt === ext.extensionId;
+                      return (
+                        <ViolationExtensionRows
+                          key={ext.extensionId}
+                          ext={ext}
+                          expanded={expanded}
+                          openVersionKey={openVersionKey}
+                          importingKey={importingKey}
+                          onToggle={() => {
+                            setExpandedExt(expanded ? null : ext.extensionId);
+                            setOpenVersionKey(null);
+                          }}
+                          onToggleVersion={(key) =>
+                            setOpenVersionKey((cur) => (cur === key ? null : key))
+                          }
+                          onImport={(version, displayName) =>
+                            void onImportFromViolation({
+                              extensionId: ext.extensionId,
+                              version,
+                              displayName,
+                            })
+                          }
+                          onOpenCatalog={() => {
+                            if (ext.catalogExtensionPk) {
+                              router.push(`${basePath}/${ext.catalogExtensionPk}`);
+                            }
+                          }}
+                        />
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         )}
       </div>
@@ -400,62 +305,124 @@ export default function IdeUtilitiesPage() {
   );
 }
 
-function CourseItemTable({
-  items,
-  onApprove,
-  onReject,
-  onRemove,
+function ViolationExtensionRows({
+  ext,
+  expanded,
+  openVersionKey,
+  importingKey,
+  onToggle,
+  onToggleVersion,
+  onImport,
+  onOpenCatalog,
 }: {
-  items: PolicyItem[];
-  onApprove?: (id: string) => void;
-  onReject?: (id: string) => void;
-  onRemove?: (id: string) => void;
+  ext: ViolationExtension;
+  expanded: boolean;
+  openVersionKey: string | null;
+  importingKey: string | null;
+  onToggle: () => void;
+  onToggleVersion: (key: string) => void;
+  onImport: (version: string | null, displayName: string | null) => void;
+  onOpenCatalog: () => void;
 }) {
-  if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">Chưa có extension nào.</p>;
-  }
   return (
-    <div className="overflow-auto rounded-md border">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-left">
-            <th className="px-3 py-2">Extension</th>
-            <th className="px-3 py-2">Trạng thái</th>
-            <th className="px-3 py-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it) => (
-            <tr key={it.id} className="border-b">
-              <td className="px-3 py-2 font-mono">{it.extensionId}</td>
-              <td className="px-3 py-2">{it.approvalStatus}</td>
-              <td className="space-x-2 px-3 py-2 text-right">
-                {it.approvalStatus === 'pending' && (
-                  <>
-                    <button type="button" className="text-primary" onClick={() => onApprove?.(it.id)}>
-                      Duyệt
-                    </button>
-                    <button
-                      type="button"
-                      className="text-destructive"
-                      onClick={() => onReject?.(it.id)}
-                    >
-                      Từ chối
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  className="text-muted-foreground"
-                  onClick={() => onRemove?.(it.id)}
-                >
-                  Xóa
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <tr className="cursor-pointer border-t hover:bg-muted/60" onClick={onToggle}>
+        <td className="px-3 py-2.5 font-medium">{ext.displayName ?? '—'}</td>
+        <td className="px-3 py-2.5">{ext.publisher ?? '—'}</td>
+        <td className="px-3 py-2.5 font-mono text-xs">{ext.extensionId}</td>
+        <td className="px-3 py-2.5">{ext.versionCount}</td>
+        <td className="px-3 py-2.5">{ext.incidentCount}</td>
+        <td className="px-3 py-2.5">{ext.studentCount}</td>
+        <td className="px-3 py-2.5">
+          {ext.inCatalog ? (
+            <button
+              type="button"
+              className="text-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenCatalog();
+              }}
+            >
+              Trong catalog
+            </button>
+          ) : (
+            <span className="text-muted-foreground">Chưa có</span>
+          )}
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="border-t bg-muted/20">
+          <td colSpan={7} className="px-3 py-3">
+            <div className="space-y-2">
+              {ext.versions.map((ver) => {
+                const vKey = `${ext.extensionId}@${ver.version ?? ''}`;
+                const open = openVersionKey === vKey;
+                const importKey = vKey;
+                return (
+                  <div key={vKey} className="rounded-md border bg-background">
+                    <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
+                        onClick={() => onToggleVersion(vKey)}
+                        aria-expanded={open}
+                      >
+                        <span className="text-muted-foreground" aria-hidden>
+                          {open ? '▾' : '▸'}
+                        </span>
+                        <span className="font-mono font-medium">{ver.version ?? '(không có version)'}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {ver.incidentCount} lần vi phạm
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={importingKey === importKey}
+                        className="rounded-md border px-2 py-1 text-xs text-primary disabled:opacity-50"
+                        onClick={() => onImport(ver.version, ext.displayName)}
+                      >
+                        {importingKey === importKey ? 'Đang thêm…' : 'Thêm vào catalog'}
+                      </button>
+                    </div>
+                    {open && (
+                      <div className="overflow-auto border-t">
+                        <table className="w-full min-w-[720px] text-sm">
+                          <thead>
+                            <tr className="text-left text-muted-foreground">
+                              <th className="px-3 py-2 font-medium">Kỳ thi</th>
+                              <th className="px-3 py-2 font-medium">Môn</th>
+                              <th className="px-3 py-2 font-medium">MSSV</th>
+                              <th className="px-3 py-2 font-medium">Họ tên</th>
+                              <th className="px-3 py-2 font-medium">Máy</th>
+                              <th className="px-3 py-2 font-medium">Thời điểm</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ver.incidents.map((inc) => (
+                              <tr key={inc.scanItemId} className="border-t">
+                                <td className="px-3 py-2">{inc.examSessionName ?? '—'}</td>
+                                <td className="px-3 py-2">{inc.courseName ?? '—'}</td>
+                                <td className="px-3 py-2 font-mono text-xs">{inc.studentMssv}</td>
+                                <td className="px-3 py-2">{inc.studentFullName ?? '—'}</td>
+                                <td className="px-3 py-2 text-xs text-muted-foreground">
+                                  {inc.machineName ?? inc.machineId}
+                                </td>
+                                <td className="px-3 py-2 text-xs text-muted-foreground">
+                                  {formatDateTime(inc.scannedAt)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
