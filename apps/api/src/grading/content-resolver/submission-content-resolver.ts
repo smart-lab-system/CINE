@@ -4,8 +4,8 @@ import { DeliverableType } from '../../exam-session/entities/required-deliverabl
  * Cái mà mọi nhánh chấm trả về, bất kể bài nộp là gì.
  *
  * Seam này tồn tại để nhánh ẢNH và nhánh CODE thêm được mà không phải mổ
- * lại `GradingService`. Hôm nay chỉ có `DocumentResolver`; hai nhánh kia
- * có spec riêng, và khi tới lượt chúng chỉ cần đăng ký thêm.
+ * lại `GradingService`. Có `DocumentResolver` + `CodeProjectResolver`; nhánh
+ * ảnh (`image`) vẫn chờ spec riêng rồi đăng ký thêm.
  */
 export interface ResolvedContent {
   /**
@@ -25,7 +25,8 @@ export interface ResolvedContent {
    *   là ĐỌC NHẦM, và nếu nó bị giấu bên trong một lời gọi thì giảng viên
    *   không kiểm được — họ sẽ phải tự đọc lại cả 40 bài, tức ta không tự
    *   động hoá được gì.
-   * `code_project` (spec sau): log chạy test.
+   * `code_project` one-shot: không dùng — mã nguồn đã nằm trong `text`.
+   * `code_project` investigator: log chạy test ở pipeline riêng.
    */
   artifact?: string;
 }
