@@ -53,11 +53,13 @@ rubric_criterion.approach_id NULL  -- QA: luôn NULL; QS: FK approach
 
 ## 6. Tính điểm QS
 
-1. AI / heuristic chọn `approachKey` thắng (hoặc điểm tạm từng hướng rồi lấy max).
-2. Chỉ tiêu chí (và luật trỏ tới) của hướng đó vào primitive tính điểm.
-3. `score = earned / approachMax × problemPoints` (hundredths), nếu điểm câu ≠ tổng mark hướng.
+1. Chọn **một** hướng khớp bài (`approachKey`) — AI / heuristic / GV.
+2. Chỉ checklist hướng đó → `earned` (mark).
+3. `M = max(tổng mark mọi hướng)` — mẫu số quy đổi chung.
+4. `score = earned / M × problemPoints` (hundredths).  
+   Ví dụ câu 5đ, A max 7, B max 9: A full → `7/9×5`; B full → `9/9×5=5`.
 
-Thư viện thuần: `apps/api/src/grading/qs/`.
+Thư viện thuần: `apps/api/src/grading/qs/` (`scoreQs`).
 
 ## 7. Regression
 

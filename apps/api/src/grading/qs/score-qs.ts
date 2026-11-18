@@ -19,10 +19,16 @@ export function approachMaxHundredths(approach: QsApproach): number {
   return approach.steps.reduce((sum, s) => sum + toHundredths(s.maxPoints), 0);
 }
 
+/** Mẫu số quy đổi: tổng mark của hướng có tổng cao nhất. */
+export function scaleMaxHundredths(approaches: QsApproach[]): number {
+  if (approaches.length === 0) return 0;
+  return Math.max(...approaches.map(approachMaxHundredths));
+}
+
 /**
- * Điểm QS: chỉ checklist của hướng thắng. Công thức:
- *   score = earned / approachMax × problemPoints
- * (làm tròn hundredths). Không đụng các hướng khác.
+ * Điểm QS: chỉ checklist của **một** hướng đã chọn. Quy đổi:
+ *   score = earned / M × problemPoints
+ * với M = max(tổng mark mọi hướng). Không dùng tổng mark của riêng hướng đang chấm làm mẫu số.
  */
 export function scoreQs(input: QsScoreInput): QsScoreOutput {
   const approach = input.approaches.find((a) => a.key === input.selectedApproachKey);
@@ -47,13 +53,15 @@ export function scoreQs(input: QsScoreInput): QsScoreOutput {
 
   const approachMax = perStep.reduce((s, p) => s + p.maxHundredths, 0);
   const earned = perStep.reduce((s, p) => s + p.earnedHundredths, 0);
-  const problemPoints = input.problemPointsHundredths ?? approachMax;
+  const scaleMax = scaleMaxHundredths(input.approaches);
+  const problemPoints = input.problemPointsHundredths ?? scaleMax;
   const scoreHundredths =
-    approachMax === 0 ? 0 : Math.round((earned / approachMax) * problemPoints);
+    scaleMax === 0 ? 0 : Math.round((earned / scaleMax) * problemPoints);
 
   return {
     selectedApproachKey: approach.key,
     approachMaxHundredths: approachMax,
+    scaleMaxHundredths: scaleMax,
     earnedHundredths: earned,
     scoreHundredths,
     problemPointsHundredths: problemPoints,

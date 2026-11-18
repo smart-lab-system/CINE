@@ -22,8 +22,9 @@ export function selectWinningApproach(
 
   const candidates: ApproachCandidate[] = approaches.map((a) => {
     const stepResults = resultsByApproach.get(a.key) ?? [];
+    // Truyền đủ approaches để M = max mọi hướng (công thức quy đổi thống nhất).
     const scored = scoreQs({
-      approaches: [a],
+      approaches,
       selectedApproachKey: a.key,
       stepResults,
     });

@@ -20,5 +20,5 @@
 
 1. **Kho đề theo môn** — done
 2. UI soạn QS gắn đề / nháp — `2026-11-18-qs-rubric-ui` (done)
-3. Import Q+R từ `dsa_vi_03`
+3. Import Q+R từ `dsa_vi_03` — `2026-11-18-dsa-vi03-import` (done)
 4. Gắn UC33: AI gán approach khi `kind=qs`

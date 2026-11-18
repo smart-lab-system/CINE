@@ -26,17 +26,20 @@ export interface QsScoreInput {
   selectedApproachKey: string;
   stepResults: QsStepResult[];
   /**
-   * Điểm tối đa của câu (hundredths). Nếu bỏ trống, dùng tổng mark của hướng
-   * thắng × 100.
+   * Điểm tối đa của câu (hundredths). Nếu bỏ trống = M
+   * (max tổng mark mọi hướng).
    */
   problemPointsHundredths?: number;
 }
 
 export interface QsScoreOutput {
   selectedApproachKey: string;
+  /** Tổng mark của hướng đang chấm. */
   approachMaxHundredths: number;
+  /** Mẫu số quy đổi = max tổng mark mọi hướng. */
+  scaleMaxHundredths: number;
   earnedHundredths: number;
-  /** Điểm quy về thang câu. */
+  /** Điểm quy về thang câu: earned / scaleMax × problemPoints. */
   scoreHundredths: number;
   problemPointsHundredths: number;
   perStep: {

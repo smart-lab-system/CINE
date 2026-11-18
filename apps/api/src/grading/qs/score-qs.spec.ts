@@ -27,22 +27,67 @@ const brute: QsApproach = {
   ],
 };
 
+/** Hướng A = 7, B = 9 — ví dụ quy đổi theo M = 9. */
+const approachA7: QsApproach = {
+  key: 'a7',
+  name: 'A',
+  steps: Array.from({ length: 7 }, (_, i) => ({
+    key: `a${i}`,
+    description: `a${i}`,
+    maxPoints: 1,
+  })),
+};
+
+const approachB9: QsApproach = {
+  key: 'b9',
+  name: 'B',
+  steps: Array.from({ length: 9 }, (_, i) => ({
+    key: `b${i}`,
+    description: `b${i}`,
+    maxPoints: 1,
+  })),
+};
+
 const allMet = (approach: QsApproach): QsStepResult[] =>
   approach.steps.map((s) => ({ stepKey: s.key, verdict: 'met' as const }));
 
 describe('scoreQs', () => {
-  it('chỉ tính hướng thắng — đủ bước → full trên thang hướng', () => {
+  it('một hướng: M = tổng hướng đó; full → full thang', () => {
     const out = scoreQs({
-      approaches: [sliding, brute],
+      approaches: [sliding],
       selectedApproachKey: 'sliding_window',
       stepResults: allMet(sliding),
     });
     expect(out.approachMaxHundredths).toBe(700);
+    expect(out.scaleMaxHundredths).toBe(700);
     expect(out.earnedHundredths).toBe(700);
     expect(out.scoreHundredths).toBe(700);
   });
 
-  it('quy về điểm câu khi problemPoints khác tổng mark hướng', () => {
+  it('quy theo M = max mọi hướng: A full 7, B max 9, câu 5đ → 7/9×5', () => {
+    const out = scoreQs({
+      approaches: [approachA7, approachB9],
+      selectedApproachKey: 'a7',
+      stepResults: allMet(approachA7),
+      problemPointsHundredths: 500,
+    });
+    expect(out.scaleMaxHundredths).toBe(900);
+    expect(out.earnedHundredths).toBe(700);
+    // 700/900*500 = 388.8… → 389
+    expect(out.scoreHundredths).toBe(389);
+  });
+
+  it('hướng B full trên M=9, câu 5đ → 5', () => {
+    const out = scoreQs({
+      approaches: [approachA7, approachB9],
+      selectedApproachKey: 'b9',
+      stepResults: allMet(approachB9),
+      problemPointsHundredths: 500,
+    });
+    expect(out.scoreHundredths).toBe(500);
+  });
+
+  it('quy về điểm câu khi chỉ một hướng (M = tổng hướng)', () => {
     const out = scoreQs({
       approaches: [brute],
       selectedApproachKey: 'brute_force',
@@ -53,9 +98,9 @@ describe('scoreQs', () => {
     expect(out.scoreHundredths).toBe(1000);
   });
 
-  it('partially_met lấy một nửa mark bước', () => {
+  it('partially_met lấy một nửa mark bước; mẫu số vẫn là M', () => {
     const out = scoreQs({
-      approaches: [brute],
+      approaches: [brute, sliding],
       selectedApproachKey: 'brute_force',
       stepResults: [
         { stepKey: 'bf_loops', verdict: 'met' },
@@ -65,8 +110,9 @@ describe('scoreQs', () => {
         { stepKey: 'bf_complexity', verdict: 'not_met' },
       ],
     });
-    // 100 + 50 = 150 / 500
+    // earned 150; M = sliding 700; mặc định problemPoints = 700 → 150/700*700 = 150
     expect(out.earnedHundredths).toBe(150);
+    expect(out.scaleMaxHundredths).toBe(700);
     expect(out.scoreHundredths).toBe(150);
   });
 
@@ -108,8 +154,10 @@ describe('selectWinningApproach', () => {
 
   it('hòa earned → giữ hướng đứng trước trong danh sách', () => {
     const half = (a: QsApproach): QsStepResult[] =>
-      a.steps.map((s, i) => ({ stepKey: s.key, verdict: i === 0 ? ('met' as const) : ('not_met' as const) }));
-    // sliding first step 1pt, brute first step 1pt → hòa 100
+      a.steps.map((s, i) => ({
+        stepKey: s.key,
+        verdict: i === 0 ? ('met' as const) : ('not_met' as const),
+      }));
     const { selectedApproachKey } = selectWinningApproach(
       [sliding, brute],
       new Map([

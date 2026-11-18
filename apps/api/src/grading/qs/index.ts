@@ -6,7 +6,7 @@ export type {
   QsStepResult,
   StepVerdict,
 } from './qs.types';
-export { approachMaxHundredths, scoreQs } from './score-qs';
+export { approachMaxHundredths, scaleMaxHundredths, scoreQs } from './score-qs';
 export { assertApproachKey, selectWinningApproach } from './select-approach';
 export type { ApproachCandidate } from './select-approach';
 export { criteriaForSelectedApproach, rulesForSelectedApproach } from './filter-approach';
