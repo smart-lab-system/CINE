@@ -34,5 +34,7 @@ describe('qs-rubric-form', () => {
     expect(body.kind).toBe('qs');
     expect(body.approaches).toHaveLength(1);
     expect(body.approaches[0].steps[0].maxPoints).toBe(5);
+    expect(body.approaches[0]).not.toHaveProperty('key');
+    expect(body.approaches[0].steps[0]).not.toHaveProperty('key');
   });
 });

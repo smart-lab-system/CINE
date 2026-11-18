@@ -44,6 +44,9 @@ export class RubricApproachStepDto {
   @Max(100)
   maxPoints!: number;
 
+  /**
+   * Bỏ qua khi lưu QS — server gán `{approachKey}_s{n}`. Giữ field để DTO cũ không 400.
+   */
   @IsOptional()
   @Matches(/^[a-z0-9_]{1,64}$/, { message: 'key chỉ gồm chữ thường không dấu, số, "_" và tối đa 64 ký tự' })
   key?: string;
@@ -54,6 +57,7 @@ export class RubricApproachDto {
   @Length(1, 200)
   name!: string;
 
+  /** Tuỳ chọn: không khai thì server sinh từ tên hướng. */
   @IsOptional()
   @Matches(/^[a-z0-9_]{1,64}$/, { message: 'key chỉ gồm chữ thường không dấu, số, "_" và tối đa 64 ký tự' })
   key?: string;

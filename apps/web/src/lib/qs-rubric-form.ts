@@ -24,11 +24,14 @@ export interface QsRubricErrors {
   general?: string;
   approaches: Record<
     string,
-    { name?: string; key?: string; steps?: string; stepsById?: Record<string, { description?: string; maxPoints?: string; key?: string }> }
+    {
+      name?: string;
+      steps?: string;
+      stepsById?: Record<string, { description?: string; maxPoints?: string }>;
+    }
   >;
 }
 
-const KEY = /^[a-z0-9_]{1,64}$/;
 const CAP_ERROR = 'Điểm tối đa: từ 0,25 đến 100, tối đa hai chữ số lẻ.';
 const TOTAL_ERROR = 'Tổng điểm: từ 0,25 đến 100, tối đa hai chữ số lẻ.';
 
@@ -123,22 +126,12 @@ export function validateQsRubric(
   if (approaches.length === 0) errors.general = 'Rubric QS cần ít nhất một hướng.';
   else if (approaches.length > 20) errors.general = 'Tối đa 20 hướng.';
 
-  const seenApproachKeys = new Map<string, string>();
-  const seenStepKeys = new Map<string, string>();
   let capsOk = true;
 
   for (const ap of approaches) {
     const ae = approachError(ap.id);
     if (ap.name.trim().length < 1 || ap.name.trim().length > 200) {
       ae.name = 'Tên hướng: 1–200 ký tự.';
-    }
-    const ak = ap.key.trim();
-    if (!ap.existing && ak !== '' && !KEY.test(ak)) {
-      ae.key = 'Khoá hướng: chữ thường, số, "_", tối đa 64.';
-    }
-    if (ak !== '') {
-      if (seenApproachKeys.has(ak)) ae.key = 'Trùng khoá hướng.';
-      else seenApproachKeys.set(ak, ap.id);
     }
 
     if (ap.steps.length === 0) ae.steps = 'Mỗi hướng cần ≥ 1 bước.';
@@ -153,14 +146,6 @@ export function validateQsRubric(
       if (parseCap(step.maxPoints) === null) {
         se.maxPoints = CAP_ERROR;
         capsOk = false;
-      }
-      const sk = step.key.trim();
-      if (!step.existing && sk !== '' && !KEY.test(sk)) {
-        se.key = 'Khoá bước không hợp lệ.';
-      }
-      if (sk !== '') {
-        if (seenStepKeys.has(sk)) se.key = 'Trùng khoá bước (toàn rubric).';
-        else seenStepKeys.set(sk, step.id);
       }
     }
   }
@@ -178,16 +163,17 @@ export function validateQsRubric(
 export function hasQsErrors(errors: QsRubricErrors): boolean {
   if (errors.name || errors.totalPoints || errors.general) return true;
   for (const ae of Object.values(errors.approaches)) {
-    if (ae.name || ae.key || ae.steps) return true;
+    if (ae.name || ae.steps) return true;
     if (ae.stepsById && Object.keys(ae.stepsById).length > 0) {
       for (const se of Object.values(ae.stepsById)) {
-        if (se.description || se.maxPoints || se.key) return true;
+        if (se.description || se.maxPoints) return true;
       }
     }
   }
   return false;
 }
 
+/** Server tự gán khoá hướng (từ tên) và bước `{approachKey}_s{n}` — không gửi key. */
 export function buildSaveQsInput(
   name: string,
   approaches: QsApproachRow[],
@@ -196,33 +182,18 @@ export function buildSaveQsInput(
   kind: 'qs';
   approaches: {
     name: string;
-    key?: string;
-    steps: { description: string; maxPoints: number; key?: string }[];
+    steps: { description: string; maxPoints: number }[];
   }[];
 } {
   return {
     name: name.trim(),
     kind: 'qs',
-    approaches: approaches.map((ap) => {
-      const item: {
-        name: string;
-        key?: string;
-        steps: { description: string; maxPoints: number; key?: string }[];
-      } = {
-        name: ap.name.trim(),
-        steps: ap.steps.map((st) => {
-          const step: { description: string; maxPoints: number; key?: string } = {
-            description: st.description.trim(),
-            maxPoints: parseCap(st.maxPoints) as number,
-          };
-          const sk = st.key.trim();
-          if (sk !== '') step.key = sk;
-          return step;
-        }),
-      };
-      const ak = ap.key.trim();
-      if (ak !== '') item.key = ak;
-      return item;
-    }),
+    approaches: approaches.map((ap) => ({
+      name: ap.name.trim(),
+      steps: ap.steps.map((st) => ({
+        description: st.description.trim(),
+        maxPoints: parseCap(st.maxPoints) as number,
+      })),
+    })),
   };
 }

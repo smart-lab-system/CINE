@@ -40,3 +40,21 @@ export function assignCriterionKeys(criteria: { description: string; key?: strin
     return key;
   });
 }
+
+/**
+ * QS bước checklist: `{approachKey}_s{n}` (1-based), không lấy từ mô tả.
+ * Bỏ qua mọi `key` client gửi. Nếu vượt 64 ký tự → `a{approachIndex+1}_s{n}`.
+ */
+export function assignQsStepKeys(
+  approachKey: string,
+  stepCount: number,
+  approachIndex: number,
+): string[] {
+  if (stepCount < 1) return [];
+  const fallbackPrefix = `a${approachIndex + 1}`;
+  return Array.from({ length: stepCount }, (_, i) => {
+    const suffix = `_s${i + 1}`;
+    if (approachKey.length + suffix.length <= 64) return `${approachKey}${suffix}`;
+    return `${fallbackPrefix}${suffix}`;
+  });
+}

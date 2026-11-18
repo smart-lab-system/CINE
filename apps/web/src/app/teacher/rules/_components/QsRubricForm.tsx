@@ -100,8 +100,10 @@ export function QsRubricForm({
 
       <Alert>
         <AlertDescription>
-          QS: điểm đề = hướng đạt cao nhất ({formatVnPoints(displayMax)} /{' '}
-          {parseCap(totalPoints) ?? '—'} điểm trần UI). Không cộng dồn mọi hướng.
+          QS: chấm theo một hướng; quy đổi{' '}
+          <code className="text-xs">earned / M × điểm câu</code> với M = tổng mark
+          hướng cao nhất ({formatVnPoints(displayMax)}). Trần UI:{' '}
+          {parseCap(totalPoints) ?? '—'} điểm. Không cộng dồn mọi hướng.
         </AlertDescription>
       </Alert>
 
@@ -179,22 +181,6 @@ export function QsRubricForm({
                 onChange={(e) => patchApproach(current.id, { name: e.target.value })}
               />
             </FormField>
-            {!current.existing ? (
-              <FormField
-                id={`ap-key-${current.id}`}
-                label="Khoá (tuỳ chọn)"
-                className="w-40"
-                error={errors.approaches[current.id]?.key}
-              >
-                <Input
-                  id={`ap-key-${current.id}`}
-                  value={current.key}
-                  onChange={(e) => patchApproach(current.id, { key: e.target.value })}
-                />
-              </FormField>
-            ) : (
-              <p className="pb-2 text-xs text-muted-foreground">Khoá: {current.key}</p>
-            )}
             {approaches.length > 1 ? (
               <Button
                 type="button"
@@ -282,22 +268,6 @@ export function QsRubricForm({
                       <span className="h-10 w-10" />
                     )}
                   </div>
-                  {!step.existing ? (
-                    <FormField
-                      id={`st-key-${step.id}`}
-                      label="Khoá bước (tuỳ chọn)"
-                      className="sm:col-span-3"
-                      error={se?.key}
-                    >
-                      <Input
-                        id={`st-key-${step.id}`}
-                        value={step.key}
-                        onChange={(e) =>
-                          patchStep(current.id, step.id, { key: e.target.value })
-                        }
-                      />
-                    </FormField>
-                  ) : null}
                 </div>
               );
             })}

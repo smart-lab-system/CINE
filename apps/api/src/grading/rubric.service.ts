@@ -1,5 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { assignCriterionKeys, DuplicateCriterionKeyError } from './criterion-key';
+import {
+  assignCriterionKeys,
+  assignQsStepKeys,
+  DuplicateCriterionKeyError,
+} from './criterion-key';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { RubricEntity } from './entities/rubric.entity';
@@ -200,40 +204,30 @@ export class RubricService {
     rubricId: string,
     approaches: NonNullable<SaveRubricDto['approaches']>,
   ): Promise<void> {
-    const approachKeys = assignCriterionKeys(approaches.map((a) => ({ description: a.name, key: a.key })));
-    const seenStepKeys = new Set<string>();
+    let approachKeys: string[];
+    try {
+      approachKeys = assignCriterionKeys(approaches.map((a) => ({ description: a.name, key: a.key })));
+    } catch (error) {
+      if (error instanceof DuplicateCriterionKeyError) {
+        throw new BadRequestException(`Hai hướng cùng khai key "${error.key}".`);
+      }
+      throw error;
+    }
 
     for (let ai = 0; ai < approaches.length; ai++) {
       const approachDto = approaches[ai];
+      const approachKey = approachKeys[ai];
       const approach = await manager.save(
         manager.create(RubricApproachEntity, {
           rubricId,
-          key: approachKeys[ai],
+          key: approachKey,
           name: approachDto.name,
           sortOrder: ai,
         }),
       );
 
-      let stepKeys: string[];
-      try {
-        stepKeys = assignCriterionKeys(approachDto.steps);
-      } catch (error) {
-        if (error instanceof DuplicateCriterionKeyError) {
-          throw new BadRequestException(
-            `Hai bước cùng key "${error.key}" trong hướng "${approachDto.name}".`,
-          );
-        }
-        throw error;
-      }
-
-      for (const key of stepKeys) {
-        if (seenStepKeys.has(key)) {
-          throw new BadRequestException(
-            `Key bước "${key}" trùng giữa các hướng — hãy đặt key riêng (ví dụ tiền tố hướng).`,
-          );
-        }
-        seenStepKeys.add(key);
-      }
+      // QS: luôn `{approachKey}_s{n}` — không dùng mô tả / key client.
+      const stepKeys = assignQsStepKeys(approachKey, approachDto.steps.length, ai);
 
       await manager.save(
         RubricCriterionEntity,
