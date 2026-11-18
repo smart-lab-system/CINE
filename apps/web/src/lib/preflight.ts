@@ -2,7 +2,8 @@ import type { DeclaredLanguage } from './api/exam-session';
 import type { Rubric } from './api/grading';
 import type { RubricOverview } from './api/rubric-errors';
 import { formatVnPoints } from './format';
-import { warningSentences } from './rubric-board';
+import { isQsRubric, qsRubricSummary } from './qs-rubric-display';
+import { statusOf, warningSentences } from './rubric-board';
 import { rulesHref } from './rules-links';
 
 /**
@@ -66,7 +67,8 @@ export function preflightOf(input: PreflightInput): {
   const readByReading = codeDeliverables.length - investigators.length;
   const undeclared = codeDeliverables.filter((d) => d.language === null).length;
 
-  // Rubric (điểm tối đa theo tiêu chí)
+  // Rubric - QA: điểm theo tiêu chí; QS: max một cách giải, AI chọn cách giải lúc chấm (UC33).
+  const qs = isQsRubric(rubric);
   if (!input.hasRubricId) {
     rows.push({
       key: 'ceiling',
@@ -76,8 +78,22 @@ export function preflightOf(input: PreflightInput): {
     });
   } else if (!rubric) {
     rows.push({ key: 'ceiling', label: 'Rubric', status: 'block', text: 'Không tìm thấy rubric đã gắn cho phiên này.' });
-  } else if (rubric.criteria.length === 0) {
+  } else if (qs && !(rubric.approaches && rubric.approaches.length > 0) && rubric.criteria.length === 0) {
+    rows.push({
+      key: 'ceiling',
+      label: 'Rubric QS',
+      status: 'block',
+      text: 'Rubric QS không có cách giải / bước nào - sửa cấu trúc QS trước khi chấm.',
+    });
+  } else if (!qs && rubric.criteria.length === 0) {
     rows.push({ key: 'ceiling', label: 'Rubric', status: 'block', text: 'Rubric đang dùng không có tiêu chí nào.' });
+  } else if (qs) {
+    rows.push({
+      key: 'ceiling',
+      label: 'Rubric QS',
+      status: 'ok',
+      text: qsRubricSummary(rubric),
+    });
   } else {
     rows.push({
       key: 'ceiling',
@@ -158,20 +174,36 @@ export function preflightOf(input: PreflightInput): {
     rows.push({ key: 'blueprint', label: 'Đề cương', status: 'ok', text: 'Đề cương đã xác nhận.' });
   }
 
-  // Bảng lỗi của rubric đã ghim - cảnh báo, không chặn
+  // QA: Bảng lỗi; QS: cấu trúc cách giải (không dùng bảng lỗi gắn bước).
+  const rulesLabel = qs || (input.board && isQsRubric(input.board)) ? 'Cấu trúc QS' : 'Bảng lỗi';
   if (!input.hasRubricId) {
     rows.push({
       key: 'rules',
-      label: 'Bảng lỗi',
+      label: rulesLabel,
       status: 'warn',
-      text: review ? 'Chưa có rubric nên chưa kiểm tra được Bảng lỗi.' : 'Chưa có rubric nên chưa kiểm tra được Bảng lỗi. Không chặn việc bắt đầu.',
+      text: review
+        ? `Chưa có rubric nên chưa kiểm tra được ${rulesLabel}.`
+        : `Chưa có rubric nên chưa kiểm tra được ${rulesLabel}. Không chặn việc bắt đầu.`,
     });
   } else if (!input.board) {
     rows.push({
       key: 'rules',
-      label: 'Bảng lỗi',
+      label: rulesLabel,
       status: 'warn',
-      text: review ? 'Đang đọc Bảng lỗi của rubric này…' : 'Đang đọc Bảng lỗi của rubric này… Không chặn việc bắt đầu.',
+      text: review
+        ? `Đang đọc ${rulesLabel} của rubric này…`
+        : `Đang đọc ${rulesLabel} của rubric này… Không chặn việc bắt đầu.`,
+    });
+  } else if (isQsRubric(input.board)) {
+    const qsStatus = statusOf(input.board);
+    rows.push({
+      key: 'rules',
+      label: 'Cấu trúc QS',
+      status: 'ok',
+      text: review
+        ? qsStatus.label
+        : `${qsStatus.label}. AI chọn đúng một cách giải lúc chấm (UC33) - không cấu hình trước.`,
+      link: { href: rulesHref(input.board.rubricName), label: 'Mở cấu trúc QS' },
     });
   } else {
     const warnings = warningSentences(input.board);
@@ -184,7 +216,12 @@ export function preflightOf(input: PreflightInput): {
         link: { href: rulesHref(input.board.rubricName), label: 'Mở Bảng lỗi' },
       });
     } else {
-      rows.push({ key: 'rules', label: 'Bảng lỗi', status: 'ok', text: 'Mọi lỗi đã có điểm trừ và mọi tiêu chí đã có lỗi.' });
+      rows.push({
+        key: 'rules',
+        label: 'Bảng lỗi',
+        status: 'ok',
+        text: 'Mọi lỗi đã có điểm trừ và mọi tiêu chí đã có lỗi.',
+      });
     }
   }
 

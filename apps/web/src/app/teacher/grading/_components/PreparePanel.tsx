@@ -9,6 +9,8 @@ import { useRubricOverview } from '@/hooks/useRubricErrors';
 import { useTestBundles } from '@/hooks/useTestBundle';
 import { preflightOf } from '@/lib/preflight';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
+import { QsStructurePanels } from '@/app/teacher/rules/_components/QsStructurePanels';
+import { isQsRubric } from '@/lib/qs-rubric-display';
 import { DeliverableLanguages } from './DeliverableLanguages';
 import { PreflightColumn } from './PreflightColumn';
 import { ReferenceForm } from './ReferenceForm';
@@ -101,6 +103,20 @@ export function PreparePanel({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex flex-col gap-6">
           <RubricRow sessionId={sessionId} rubricId={session.rubricId} readOnly={review} />
+          {isQsRubric(rubric) && (rubric?.approaches?.length ?? 0) > 0 ? (
+            <section
+              aria-label="Cấu trúc cách giải"
+              className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+            >
+              <div>
+                <h2 className="text-h3">Cách giải (QS)</h2>
+                <p className="text-caption text-muted-foreground">
+                  Checklist theo cách giải. Khi chấm, AI gán đúng một cách giải rồi chỉ lấy điểm các bước của cách đó.
+                </p>
+              </div>
+              <QsStructurePanels approaches={rubric!.approaches!} />
+            </section>
+          ) : null}
           <ReferenceForm
             sessionId={sessionId}
             readiness={readiness.data}

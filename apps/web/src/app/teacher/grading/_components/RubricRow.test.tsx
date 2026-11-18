@@ -41,6 +41,38 @@ describe('RubricRow', () => {
     expect(screen.getByText(/10,0 điểm, 2 tiêu chí/)).toBeInTheDocument();
   });
 
+  it('QS: badge, caption cách giải, link cấu trúc QS', () => {
+    const qs: Rubric = {
+      ...ctdl,
+      id: 'ru-qs',
+      kind: 'qs',
+      approaches: [
+        {
+          key: 'a1',
+          name: 'DP',
+          maxPoints: 10,
+          steps: [
+            { key: 's1', description: 'Bước 1', maxPoints: 6 },
+            { key: 's2', description: 'Bước 2', maxPoints: 4 },
+          ],
+        },
+      ],
+      criteria: [
+        { id: 'c1', key: 's1', description: 'Bước 1', maxPoints: 6, approachKey: 'a1' },
+        { id: 'c2', key: 's2', description: 'Bước 2', maxPoints: 4, approachKey: 'a1' },
+      ],
+    };
+    rubrics = { data: [qs], isLoading: false };
+    render(<RubricRow sessionId="s1" rubricId="ru-qs" />);
+    expect(screen.getByText('QS')).toBeInTheDocument();
+    expect(screen.getByText(/1 cách giải, 2 bước/)).toBeInTheDocument();
+    expect(screen.getByText(/AI chọn đúng một cách giải/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sửa cách giải & bước' })).toHaveAttribute(
+      'href',
+      rulesHref('CTDL'),
+    );
+  });
+
   it('shows the PINNED version, not the newest one of the same rubric', () => {
     render(<RubricRow sessionId="s1" rubricId="ru-0" />);
     expect(screen.getByText('CTDL - phiên bản 1')).toBeInTheDocument();

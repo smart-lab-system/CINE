@@ -59,6 +59,65 @@ describe('preflightOf - the "Trước khi bắt đầu" column (spec §3.7)', ()
     it('blocks a rubric with no criteria (the server refuses it too)', () => {
       expect(row(base({ rubric: { ...rubric, criteria: [] } }), 'ceiling').status).toBe('block');
     });
+    it('QS: ceiling nói cách giải / bước, không đếm tiêu chí QA', () => {
+      const qsRubric: Rubric = {
+        ...rubric,
+        kind: 'qs',
+        approaches: [
+          {
+            key: 'a1',
+            name: 'Quy hoạch động',
+            maxPoints: 10,
+            steps: [
+              { key: 's1', description: 'Công thức', maxPoints: 6 },
+              { key: 's2', description: 'Cài đặt', maxPoints: 4 },
+            ],
+          },
+          {
+            key: 'a2',
+            name: 'Tham lam',
+            maxPoints: 8,
+            steps: [{ key: 's3', description: 'Chứng minh', maxPoints: 8 }],
+          },
+        ],
+        criteria: [
+          { id: 'c1', key: 's1', description: 'Công thức', maxPoints: 6, approachKey: 'a1' },
+          { id: 'c2', key: 's2', description: 'Cài đặt', maxPoints: 4, approachKey: 'a1' },
+          { id: 'c3', key: 's3', description: 'Chứng minh', maxPoints: 8, approachKey: 'a2' },
+        ],
+      };
+      const r = row(
+        base({
+          rubric: qsRubric,
+          board: overview({ rubricName: 'CTDL', kind: 'qs', approaches: qsRubric.approaches }),
+        }),
+        'ceiling',
+      );
+      expect(r.label).toBe('Rubric QS');
+      expect(r.text).toMatch(/2 cách giải/);
+      expect(r.text).toMatch(/3 bước/);
+      expect(r.text).toMatch(/max một cách giải/);
+      expect(r.text).not.toMatch(/tiêu chí/);
+    });
+  });
+
+  describe('rules row for QS', () => {
+    it('QS: ok với nhãn Cấu trúc QS, không nói bảng lỗi QA', () => {
+      const qsBoard = overview({
+        rubricName: 'CTDL',
+        kind: 'qs',
+        errorCount: 0,
+        unpricedCount: 0,
+        criteria: [],
+      });
+      const r = row(base({ board: qsBoard, rubric: { ...rubric, kind: 'qs', approaches: [] } }), 'rules');
+      expect(r.label).toBe('Cấu trúc QS');
+      expect(r.status).toBe('ok');
+      expect(r.text).toMatch(/QS/);
+      expect(r.text).toMatch(/AI chọn/);
+      expect(r.link?.label).toBe('Mở cấu trúc QS');
+      expect(r.text).not.toMatch(/mọi tiêu chí đã có lỗi/i);
+    });
   });
 
   describe('question (Đề bài) - required by the spec', () => {
