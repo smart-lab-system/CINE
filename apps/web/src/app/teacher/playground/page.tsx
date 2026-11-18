@@ -65,17 +65,16 @@ export default function TeacherPlaygroundPage() {
   useEffect(() => {
     if (!run) return;
     if (isDone(run.status) || run.status === 'needs_entry' || run.status === 'created') return;
-    // preview: poll until previewUrl có
-    if (
+
+    const previewLive =
       run.status === 'running' &&
       (run.language === 'static' ||
         run.language === 'spring-boot' ||
         run.language === 'vite-react' ||
         run.language === 'express') &&
-      run.previewUrl
-    ) {
-      return;
-    }
+      !!run.previewUrl;
+    // Đang chờ build: poll nhanh. Đã có preview: poll chậm để nhận hết hạn / dừng.
+    const intervalMs = previewLive ? 10_000 : 800;
 
     let cancelled = false;
     const tick = async () => {
@@ -86,7 +85,7 @@ export default function TeacherPlaygroundPage() {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       }
     };
-    const id = window.setInterval(() => void tick(), 800);
+    const id = window.setInterval(() => void tick(), intervalMs);
     return () => {
       cancelled = true;
       window.clearInterval(id);

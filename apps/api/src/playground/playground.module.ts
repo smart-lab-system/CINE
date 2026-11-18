@@ -5,6 +5,7 @@ import { PlaygroundRunEntity } from './entities/playground-run.entity';
 import { PLAYGROUND_QUEUE } from './playground.constants';
 import { PlaygroundController } from './playground.controller';
 import { PlaygroundProcessor } from './playground.processor';
+import { PlaygroundScheduler } from './playground.scheduler';
 import { PlaygroundService } from './playground.service';
 
 @Module({
@@ -13,6 +14,6 @@ import { PlaygroundService } from './playground.service';
     BullModule.registerQueue({ name: PLAYGROUND_QUEUE }),
   ],
   controllers: [PlaygroundController],
-  providers: [PlaygroundService, PlaygroundProcessor],
+  providers: [PlaygroundService, PlaygroundProcessor, PlaygroundScheduler],
 })
 export class PlaygroundModule {}

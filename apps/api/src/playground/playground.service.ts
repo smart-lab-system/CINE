@@ -450,12 +450,18 @@ export class PlaygroundService {
     }
   }
 
+  private isPreviewLanguage(language: PlaygroundLanguage): boolean {
+    return (
+      language === 'static' ||
+      language === 'spring-boot' ||
+      language === 'vite-react' ||
+      language === 'express'
+    );
+  }
+
   private async expireIfNeeded(row: PlaygroundRunEntity): Promise<void> {
     if (
-      (row.language === 'static' ||
-        row.language === 'spring-boot' ||
-        row.language === 'vite-react' ||
-        row.language === 'express') &&
+      this.isPreviewLanguage(row.language) &&
       row.status === 'running' &&
       row.expiresAt &&
       row.expiresAt.getTime() < Date.now()
@@ -465,8 +471,33 @@ export class PlaygroundService {
       row.finishedAt = new Date();
       row.error = 'preview hết hạn';
       row.containerName = null;
+      row.previewUrl = null;
+      row.hostPort = null;
       await this.runs.save(row);
     }
+  }
+
+  /**
+   * Quét các preview đã quá expiresAt — không phụ thuộc FE còn poll GET.
+   * Gọi từ PlaygroundScheduler.
+   */
+  async expireExpiredPreviews(): Promise<number> {
+    const now = new Date();
+    const rows = await this.runs
+      .createQueryBuilder('r')
+      .where('r.status = :status', { status: 'running' })
+      .andWhere('r.expiresAt IS NOT NULL')
+      .andWhere('r.expiresAt < :now', { now })
+      .andWhere('r.language IN (:...langs)', {
+        langs: ['static', 'spring-boot', 'vite-react', 'express'],
+      })
+      .take(50)
+      .getMany();
+
+    for (const row of rows) {
+      await this.expireIfNeeded(row);
+    }
+    return rows.length;
   }
 
   async execute(
@@ -547,6 +578,8 @@ export class PlaygroundService {
     row.status = 'finished';
     row.finishedAt = new Date();
     row.containerName = null;
+    row.previewUrl = null;
+    row.hostPort = null;
     row.error = row.error ?? 'đã dừng preview';
     await this.runs.save(row);
     return this.toView(row);

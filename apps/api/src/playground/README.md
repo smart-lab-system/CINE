@@ -35,6 +35,16 @@ FE: `/teacher/playground` → chọn loại → **Nạp sample…** → đợi p
 - Vite: `docker build` (npm) + `docker run` nginx; Stop = `rm` container + image.
 - Express: `docker build` + `docker run` Node :3000; AWS qua env host (`AWS_*` hoặc `PLAYGROUND_AWS_*`, `PLAYGROUND_DYNAMODB_TABLE_NAME`, `PLAYGROUND_S3_BUCKET_NAME`).
 
+## TTL preview
+
+| Loại | TTL |
+|---|---|
+| static | 15 phút |
+| vite-react / express | 20 phút |
+| spring-boot | 30 phút |
+
+`expiresAt` ghi khi preview start. `PlaygroundScheduler` quét mỗi 30s để `compose down` / `docker rm` dù không ai poll; `GET /runs/:id` cũng gọi `expireIfNeeded`.
+
 ## File `.sql` khởi tạo / seed
 
 Hai cách phổ biến:
