@@ -29,6 +29,7 @@ import { ErrorRuleSightingEntity } from './entities/error-rule-sighting.entity';
 import { AnchorService } from './anchor.service';
 import { ExamMaterialEntity } from '../exam-session/entities/exam-material.entity';
 import { ContentResolverRegistry } from './content-resolver/content-resolver.registry';
+import { CodeProjectResolver } from './content-resolver/code-project-resolver';
 import { DocumentResolver } from './content-resolver/document-resolver';
 import {
   SUBMISSION_CONTENT_RESOLVERS,
@@ -186,14 +187,17 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     ProblemService,
     SubmissionTextService,
     DocumentResolver,
+    CodeProjectResolver,
     ContentResolverRegistry,
     {
       // Danh sách resolver khai Ở ĐÂY và không ở đâu khác. Thêm nhánh ảnh
-      // hay nhánh code sau này là thêm một phần tử vào mảng này — không
-      // phải sửa GradingService.
+      // sau này là thêm một phần tử vào mảng này — không phải sửa GradingService.
       provide: SUBMISSION_CONTENT_RESOLVERS,
-      useFactory: (doc: DocumentResolver): SubmissionContentResolver[] => [doc],
-      inject: [DocumentResolver],
+      useFactory: (
+        doc: DocumentResolver,
+        code: CodeProjectResolver,
+      ): SubmissionContentResolver[] => [doc, code],
+      inject: [DocumentResolver, CodeProjectResolver],
     },
     GradingProcessor,
     RubricService,
