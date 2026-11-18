@@ -147,7 +147,12 @@ export class GradingService {
         content: studentText,
         questionPdf: reference.questionPdf,
         modelAnswerPdf: reference.modelAnswer,
-        modelAnswerNote: reference.note,
+        modelAnswerNote: [
+          reference.note,
+          ...(reference.modelAnswerFiles ?? []).map((f) => `[${f.path}]\n${f.text}`),
+        ]
+          .filter(Boolean)
+          .join('\n\n') || undefined,
       });
 
       // DẪN CHỨNG CỦA ADVOCATE CŨNG BỊ KIỂM NGUYÊN VĂN.
@@ -470,6 +475,7 @@ export class GradingService {
       reference: {
         questionPdf: reference.questionPdf,
         modelAnswerPdf: reference.modelAnswer,
+        modelAnswerFiles: reference.modelAnswerFiles,
         modelAnswerNote: reference.note,
       },
       anchors: anchors ?? undefined,

@@ -269,7 +269,10 @@ export class ClaudeGradingProvider implements AIGradingProvider {
       contextUsed: {
         question: Boolean(request.reference?.questionPdf),
         modelAnswer: Boolean(
-          request.reference?.modelAnswerPdf || request.reference?.modelAnswerNote,
+          request.reference?.modelAnswerPdf ||
+            request.reference?.modelAnswerNote ||
+            (request.reference?.modelAnswerFiles &&
+              request.reference.modelAnswerFiles.length > 0),
         ),
       },
       usage: {

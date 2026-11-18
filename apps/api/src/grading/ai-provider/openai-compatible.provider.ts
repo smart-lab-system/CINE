@@ -197,6 +197,17 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
     // PDF là không. Phân biệt hai thứ đó chính là chỗ `contextUsed` ở cuối
     // hàm lấy sự thật để báo cáo.
     const note = request.reference?.modelAnswerNote;
+    const answerFiles = request.reference?.modelAnswerFiles;
+    const filesBlock =
+      answerFiles && answerFiles.length > 0
+        ? [
+            '<model_answer_files>',
+            ...[...answerFiles]
+              .sort((a, b) => a.path.localeCompare(b.path))
+              .map((f) => `<file path="${f.path.replace(/"/g, '')}">\n${f.text}\n</file>`),
+            '</model_answer_files>',
+          ].join('\n')
+        : '';
 
     const qsBlock =
       qsMode && request.qsApproaches
@@ -213,6 +224,7 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
     const userContent = [
       qsBlock,
       renderRubric(request.criteria),
+      filesBlock,
       note ? `<teacher_note>\n${note}\n</teacher_note>` : '<teacher_note/>',
       envelope.wrapped,
     ]
@@ -261,7 +273,10 @@ export class OpenAICompatibleProvider implements AIGradingProvider {
       usage,
       // SỰ THẬT, không phải cấu hình: giao thức này không gửi được PDF, nên
       // dù giảng viên đã upload đề bài thì lượt chấm NÀY vẫn không thấy nó.
-      contextUsed: { question: false, modelAnswer: Boolean(note) },
+      contextUsed: {
+        question: false,
+        modelAnswer: Boolean(note) || Boolean(answerFiles && answerFiles.length > 0),
+      },
     };
   }
 }

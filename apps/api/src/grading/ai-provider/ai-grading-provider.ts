@@ -76,6 +76,7 @@ export interface GradingRequest {
   reference?: {
     questionPdf?: Buffer;
     modelAnswerPdf?: Buffer;
+    modelAnswerFiles?: Array<{ path: string; text: string }>;
     modelAnswerNote?: string;
   };
   /**

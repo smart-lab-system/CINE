@@ -41,6 +41,8 @@ export interface GraderPromptInput {
   studentText: string;
   questionPdf?: Buffer;
   modelAnswerPdf?: Buffer;
+  /** Text trích từ zip / file không-PDF đáp án mẫu. */
+  modelAnswerFiles?: Array<{ path: string; text: string }>;
   modelAnswerNote?: string;
   /** UC33 QS: có mặt → thêm luật chọn một cách giải. */
   qsApproaches?: GradingQsApproachHint[];
@@ -113,6 +115,22 @@ function renderQsApproaches(approaches: GradingQsApproachHint[] | undefined): st
     'Vẫn chấm verdict cho MỌI tiêu chí (bước); hệ thống chỉ lấy điểm của cách giải đã chọn.',
     ...sorted.map((a) => `  <approach key="${a.key}">${a.name}</approach>`),
     '</solution_approaches>',
+  ].join('\n');
+}
+
+function renderModelAnswerFiles(
+  files: Array<{ path: string; text: string }> | undefined,
+): string {
+  if (!files || files.length === 0) return '';
+  const sorted = [...files].sort((a, b) => a.path.localeCompare(b.path));
+  return [
+    '<model_answer_files>',
+    'Đáp án mẫu (gói file / zip). Dùng để đối chiếu bài làm.',
+    ...sorted.map(
+      (f) =>
+        `<file path="${f.path.replace(/"/g, '')}">\n${f.text}\n</file>`,
+    ),
+    '</model_answer_files>',
   ].join('\n');
 }
 
@@ -232,6 +250,11 @@ export function buildGraderPrompt(input: GraderPromptInput): GraderPrompt {
         data: input.modelAnswerPdf.toString('base64'),
       },
     });
+  }
+
+  const filesBlock = renderModelAnswerFiles(input.modelAnswerFiles);
+  if (filesBlock) {
+    userContent.push({ type: 'text', text: filesBlock });
   }
 
   // Khối này LUÔN tồn tại, kể cả khi rỗng: nó mang breakpoint ③, và một
