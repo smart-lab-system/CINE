@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AutoTextarea } from "@/components/ui/auto-textarea";
+import { useRubrics } from "@/hooks/useGrading";
 import {
   buildCourseExamTitle,
   COURSE_EXAM_LANGUAGE_OPTIONS,
@@ -23,10 +24,14 @@ import {
   type CourseExamStatus,
   type CourseExamType,
 } from "@/lib/api/exam-bank";
+import { RubricDialog } from "@/app/teacher/rules/_components/RubricDialog";
 
 export interface ExamBankFormQuestion {
   statement: string;
   points: string;
+  /** Rubric QS gắn câu (id bản active). */
+  rubricId: string | null;
+  rubricName?: string | null;
 }
 
 export interface ExamBankFormValues {
@@ -40,7 +45,7 @@ export interface ExamBankFormValues {
 }
 
 export function emptyQuestion(): ExamBankFormQuestion {
-  return { statement: "", points: "1" };
+  return { statement: "", points: "1", rubricId: null };
 }
 
 function sumQuestionPoints(questions: ExamBankFormQuestion[]): number {
@@ -93,6 +98,15 @@ export function ExamBankForm({
   );
   /** Điểm câu lúc focus — dùng để hoàn tác khi Cancel confirm vượt tổng. */
   const pointsFocusRef = useRef<Record<number, string>>({});
+  const [createQsForIndex, setCreateQsForIndex] = useState<number | null>(null);
+  const rubricsQuery = useRubrics();
+  const qsRubrics = useMemo(
+    () =>
+      (rubricsQuery.data ?? []).filter(
+        (r) => (r.kind ?? "qa") === "qs" && r.isActive,
+      ),
+    [rubricsQuery.data],
+  );
 
   const titlePreview = useMemo(
     () => buildCourseExamTitle(examType, courseName),
@@ -373,10 +387,81 @@ export function ExamBankForm({
                   }
                 />
               </div>
+              <div className="grid gap-2">
+                <Label>Rubric QS</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    value={q.rubricId ?? "__none__"}
+                    onValueChange={(v) => {
+                      if (v === "__none__") {
+                        updateQuestionMeta(index, {
+                          rubricId: null,
+                          rubricName: null,
+                        });
+                        return;
+                      }
+                      const r = qsRubrics.find((x) => x.id === v);
+                      updateQuestionMeta(index, {
+                        rubricId: v,
+                        rubricName: r?.name ?? null,
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="min-w-[14rem] max-w-md">
+                      <SelectValue placeholder="Chưa gắn" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Chưa gắn</SelectItem>
+                      {qsRubrics.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.name} (v{r.version})
+                        </SelectItem>
+                      ))}
+                      {q.rubricId &&
+                      !qsRubrics.some((r) => r.id === q.rubricId) ? (
+                        <SelectItem value={q.rubricId}>
+                          {q.rubricName ?? q.rubricId} (đã gắn)
+                        </SelectItem>
+                      ) : null}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCreateQsForIndex(index)}
+                  >
+                    Tạo QS mới
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Chỉ rubric loại QS (theo câu). Tạo mới sẽ gắn ngay vào câu này.
+                </p>
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <RubricDialog
+        open={createQsForIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreateQsForIndex(null);
+        }}
+        existingNames={(rubricsQuery.data ?? []).map((r) => r.name)}
+        errorCounts={{}}
+        overviews={[]}
+        rubrics={rubricsQuery.data ?? []}
+        defaultKind="qs"
+        onSaved={(saved) => {
+          if (createQsForIndex === null) return;
+          updateQuestionMeta(createQsForIndex, {
+            rubricId: saved.id,
+            rubricName: saved.name,
+          });
+          setCreateQsForIndex(null);
+        }}
+      />
 
       <div className="flex flex-wrap gap-3">
         <Button type="submit" disabled={busy || blockSave}>
@@ -399,8 +484,9 @@ export function ExamBankForm({
 
 export function parseQuestions(
   questions: ExamBankFormQuestion[],
-): { statement: string; points: number }[] | string {
-  const out: { statement: string; points: number }[] = [];
+): { statement: string; points: number; rubricId?: string | null }[] | string {
+  const out: { statement: string; points: number; rubricId?: string | null }[] =
+    [];
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
     const statement = q.statement.trim();
@@ -409,7 +495,11 @@ export function parseQuestions(
     if (!Number.isFinite(points) || points <= 0) {
       return `Câu ${i + 1}: điểm phải lớn hơn 0.`;
     }
-    out.push({ statement, points });
+    out.push({
+      statement,
+      points,
+      rubricId: q.rubricId ?? null,
+    });
   }
   if (out.length === 0) return "Cần ít nhất một câu.";
   return out;

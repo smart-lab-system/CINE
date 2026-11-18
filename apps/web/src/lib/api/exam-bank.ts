@@ -55,6 +55,9 @@ export interface CourseExamQuestion {
   title: string | null;
   statement: string;
   points: number;
+  rubricId?: string | null;
+  rubricName?: string | null;
+  rubricKind?: 'qa' | 'qs' | null;
 }
 
 export interface CourseExamSummary {
@@ -135,7 +138,12 @@ export function createCourseExam(body: {
   language: CourseExamLanguage;
   totalPoints: number;
   description?: string;
-  questions: { title?: string; statement: string; points: number }[];
+  questions: {
+    title?: string;
+    statement: string;
+    points: number;
+    rubricId?: string | null;
+  }[];
 }) {
   return bankFetch<CourseExamDetail>("/exam-bank", {
     method: "POST",
@@ -151,7 +159,12 @@ export function updateCourseExam(
     totalPoints?: number;
     description?: string;
     status?: CourseExamStatus;
-    questions?: { title?: string; statement: string; points: number }[];
+    questions?: {
+      title?: string;
+      statement: string;
+      points: number;
+      rubricId?: string | null;
+    }[];
   },
 ) {
   return bankFetch<CourseExamDetail>(`/exam-bank/${id}`, {

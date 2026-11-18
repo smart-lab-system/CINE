@@ -30,6 +30,8 @@ function valuesFromExam(exam: CourseExamDetail): ExamBankFormValues {
     questions: exam.questions.map((q) => ({
       statement: q.statement,
       points: String(q.points),
+      rubricId: q.rubricId ?? null,
+      rubricName: q.rubricName ?? null,
     })),
   };
 }
@@ -90,6 +92,7 @@ export default function EditExamBankPage() {
                     questions: draft.questions.map((q) => ({
                       statement: q.statement,
                       points: String(q.points),
+                      rubricId: null,
                     })),
                   },
                 });

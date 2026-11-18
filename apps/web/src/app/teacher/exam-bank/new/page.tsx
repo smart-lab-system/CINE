@@ -40,7 +40,7 @@ function NewExamBankInner() {
     status: "draft",
     totalPoints: "10",
     description: "",
-    questions: [{ statement: "", points: "10" }],
+    questions: [{ statement: "", points: "10", rubricId: null }],
   });
 
   const course = useMemo(
@@ -97,6 +97,7 @@ function NewExamBankInner() {
                   questions: draft.questions.map((q) => ({
                     statement: q.statement,
                     points: String(q.points),
+                    rubricId: null,
                   })),
                 });
                 setFormKey((k) => k + 1);
