@@ -140,7 +140,7 @@ describe('ReferenceForm (spec §3.7 - replaces GradingReferenceDialog, same writ
       expect(screen.getByRole('status')).toHaveTextContent(/chưa từng chạy thử/);
       expect(screen.getByRole('status')).toHaveTextContent(/về giảng viên/);
       expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('File đáp án mẫu (tuỳ chọn)')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('File')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Lưu tài liệu chấm' })).not.toBeInTheDocument();
     });
 
@@ -186,18 +186,20 @@ describe('ReferenceForm (spec §3.7 - replaces GradingReferenceDialog, same writ
   });
 
   describe('answer key file', () => {
-    const choose = () => fireEvent.change(screen.getByLabelText('File đáp án mẫu (tuỳ chọn)'), {
-      target: { files: [new File(['x'], 'dap-an.py')] },
-    });
+    const choose = () =>
+      fireEvent.change(screen.getByLabelText('File'), {
+        target: { files: [new File(['x'], 'dap-an.py')] },
+      });
 
     it('goes to storage FIRST, then the reference is saved with the server-issued key and the file name', async () => {
       renderForm();
       choose();
-      fireEvent.click(saveButton());
-      await waitFor(() => expect(saveMock).toHaveBeenCalledWith({
-        modelAnswerStorageKey: 'grading-reference/s1/answer',
-        modelAnswerFilename: 'dap-an.py',
-      }));
+      await waitFor(() =>
+        expect(saveMock).toHaveBeenCalledWith({
+          modelAnswerStorageKey: 'grading-reference/s1/answer',
+          modelAnswerFilename: 'dap-an.py',
+        }),
+      );
       expect(vi.mocked(fetch).mock.invocationCallOrder[0]).toBeLessThan(saveMock.mock.invocationCallOrder[0]);
       expect(fetch).toHaveBeenCalledWith('https://kho/put', expect.objectContaining({ method: 'PUT' }));
     });
@@ -206,7 +208,6 @@ describe('ReferenceForm (spec §3.7 - replaces GradingReferenceDialog, same writ
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false } as Response));
       renderForm();
       choose();
-      fireEvent.click(saveButton());
       expect(await screen.findByRole('alert')).toHaveTextContent('Chưa tải được file đáp án lên kho lưu trữ');
       expect(saveMock).not.toHaveBeenCalled();
     });
@@ -245,10 +246,24 @@ describe('ReferenceForm (spec §3.7 - replaces GradingReferenceDialog, same writ
       expect(onDirtyChange).toHaveBeenLastCalledWith(true);
     });
 
-    it('a chosen but not yet uploaded file counts as unsaved', () => {
+    it('while a package upload is in flight the form counts as unsaved', async () => {
+      let resolvePut: (value: { ok: boolean }) => void = () => undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          () =>
+            new Promise<{ ok: boolean }>((resolve) => {
+              resolvePut = resolve;
+            }),
+        ),
+      );
       const { onDirtyChange } = renderForm();
-      fireEvent.change(screen.getByLabelText('File đáp án mẫu (tuỳ chọn)'), { target: { files: [new File(['x'], 'a.py')] } });
-      expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+      fireEvent.change(screen.getByLabelText('File'), {
+        target: { files: [new File(['x'], 'a.py')] },
+      });
+      await waitFor(() => expect(onDirtyChange).toHaveBeenCalledWith(true));
+      resolvePut({ ok: true });
+      await waitFor(() => expect(saveMock).toHaveBeenCalled());
     });
   });
 });

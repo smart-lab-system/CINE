@@ -2,24 +2,20 @@
 
 import { useEffect, useRef } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ExamMaterialsCard } from '@/app/(exam-live)/exam-sessions/[id]/_components/ExamMaterialsCard';
 import type { ReplaceRequiredDeliverablesFormValues } from '@/app/teacher/exam-sessions/new/schema';
 import { ExamFolderPreview } from './ExamFolderPreview';
 import { RequiredDeliverablesEditor } from './RequiredDeliverablesEditor';
 import { useSetupDraft } from './SetupDraftProvider';
 
-export function SessionMaterialsStep({
-  sessionId,
-  releaseAt,
-  materialsEditable,
+export function SessionFolderStep({
+  materialsEditable: _materialsEditable,
   folderEditable,
   materialFilenames,
   initialFolder,
   previewFiles,
 }: {
-  sessionId: string;
-  releaseAt: string;
-  materialsEditable: boolean;
+  /** Giữ prop cũ từ page nếu còn truyền; bước này không upload đề. */
+  materialsEditable?: boolean;
   folderEditable: boolean;
   materialFilenames: string[];
   initialFolder: ReplaceRequiredDeliverablesFormValues;
@@ -32,8 +28,8 @@ export function SessionMaterialsStep({
 }) {
   const setup = useSetupDraft();
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const reason = setup.errorStep === 'materials' ? setup.blockReason : null;
-  const apiMessage = setup.apiError?.step === 'materials' ? setup.apiError.message : null;
+  const reason = setup.errorStep === 'folder' ? setup.blockReason : null;
+  const apiMessage = setup.apiError?.step === 'folder' ? setup.apiError.message : null;
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -42,21 +38,9 @@ export function SessionMaterialsStep({
   return (
     <div className="flex flex-col gap-6">
       <h2 ref={headingRef} tabIndex={-1} className="text-h1 outline-none">
-        Đề & thư mục
+        Thư mục bài làm
       </h2>
-      <ExamMaterialsCard
-        examSessionId={sessionId}
-        releaseAt={releaseAt}
-        canEdit={materialsEditable}
-        onFileSelected={(selected) =>
-          setup.patchDraft({ materialsFilePending: selected || undefined })
-        }
-      />
-      {setup.draft?.materialsFilePending ? (
-        <p className="text-small text-warning-strong">File vừa chọn chưa được tải lên.</p>
-      ) : null}
       <div className="flex flex-col gap-3">
-        <h3 className="text-h3">Thư mục bài thi</h3>
         {folderEditable ? (
           <RequiredDeliverablesEditor
             key={setup.epoch}

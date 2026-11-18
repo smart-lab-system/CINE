@@ -157,8 +157,8 @@ export function ExamSetupDraftProvider({
       if (errorStep && (partial.info || partial.folder || partial.rubricChoice)) {
         const touched =
           (errorStep === 'info' && partial.info) ||
-          (errorStep === 'materials' && partial.folder) ||
-          (errorStep === 'rubric' && partial.rubricChoice);
+          (errorStep === 'folder' && partial.folder) ||
+          (errorStep === 'exam' && partial.rubricChoice);
         if (touched) {
           setErrorStep(null);
           setBlockReason(null);
@@ -196,8 +196,8 @@ export function ExamSetupDraftProvider({
       const current = errorStepRef.current;
       const clears =
         (current === 'info' && branches.includes('info')) ||
-        (current === 'materials' && branches.includes('folder')) ||
-        (current === 'rubric' && branches.includes('rubricChoice'));
+        (current === 'folder' && branches.includes('folder')) ||
+        (current === 'exam' && branches.includes('rubricChoice'));
       if (clears) {
         setErrorStep(null);
         setBlockReason(null);

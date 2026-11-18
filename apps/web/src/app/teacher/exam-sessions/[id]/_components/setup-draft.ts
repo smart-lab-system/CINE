@@ -1,6 +1,6 @@
 import type { ReplaceRequiredDeliverablesFormValues } from '@/app/teacher/exam-sessions/new/schema';
 
-export type SetupStepId = 'info' | 'roster' | 'materials' | 'rubric' | 'review';
+export type SetupStepId = 'info' | 'roster' | 'folder' | 'exam' | 'review';
 
 export type SetupInfoDraft = {
   examType: string;
@@ -18,6 +18,8 @@ export type SetupDraft = {
   rosterDialog?: { mode: 'add'; fields: Record<string, string> };
   rosterImportPending?: boolean;
   materialsFilePending?: boolean;
+  /** Đáp án mẫu đang chọn/tải (chưa xong) trên bước Đề thi & Rubric. */
+  modelAnswerPending?: boolean;
 };
 
 export type SetupServerBaseline = {
@@ -131,6 +133,7 @@ export function stripClean(
   }
   if (draft.rosterImportPending) next.rosterImportPending = true;
   if (draft.materialsFilePending) next.materialsFilePending = true;
+  if (draft.modelAnswerPending) next.modelAnswerPending = true;
   return stripEmpty(next);
 }
 
@@ -141,7 +144,8 @@ function stripEmpty(draft: SetupDraft): SetupDraft | null {
     draft.rubricChoice !== undefined ||
     draft.rosterDialog !== undefined ||
     draft.rosterImportPending === true ||
-    draft.materialsFilePending === true;
+    draft.materialsFilePending === true ||
+    draft.modelAnswerPending === true;
   return has ? draft : null;
 }
 
@@ -149,8 +153,14 @@ export function isStepDirty(draft: SetupDraft | null, step: SetupStepId): boolea
   if (!draft) return false;
   if (step === 'info') return draft.info !== undefined;
   if (step === 'roster') return draft.rosterDialog !== undefined || draft.rosterImportPending === true;
-  if (step === 'materials') return draft.folder !== undefined || draft.materialsFilePending === true;
-  if (step === 'rubric') return draft.rubricChoice !== undefined;
+  if (step === 'folder') return draft.folder !== undefined;
+  if (step === 'exam') {
+    return (
+      draft.materialsFilePending === true ||
+      draft.rubricChoice !== undefined ||
+      draft.modelAnswerPending === true
+    );
+  }
   return false;
 }
 
