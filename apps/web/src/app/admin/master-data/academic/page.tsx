@@ -1,7 +1,8 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,7 @@ import {
   academicYearNameFromCode,
   type AcademicStatus,
 } from '@/lib/master-data-defaults';
+import { YearSemestersPanel } from './_components/year-semesters-panel';
 
 const EMPTY_YEAR = {
   code: '',
@@ -77,6 +79,9 @@ function AcademicYearsList() {
 
   const [yearSearch, setYearSearch] = useState(searchParams.get('q') ?? '');
   const [yearStatus, setYearStatus] = useState(searchParams.get('status') ?? 'all');
+  const [expandedYearId, setExpandedYearId] = useState<string | null>(
+    () => searchParams.get('expand') || null,
+  );
   const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
   const [pageSize, setPageSize] = useState<PageSize>(() =>
     parsePageSize(searchParams.get('pageSize')),
@@ -88,12 +93,21 @@ function AcademicYearsList() {
     const qs = buildCatalogQuery(new URLSearchParams(), {
       q: debouncedYearSearch.trim() || null,
       status: yearStatus === 'all' ? null : yearStatus,
+      expand: expandedYearId,
       ...paginationQueryPatch(page, pageSize),
     });
     if (qs === lastUrl.current) return;
     lastUrl.current = qs;
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedYearSearch, yearStatus, page, pageSize, pathname, router]);
+  }, [
+    debouncedYearSearch,
+    yearStatus,
+    expandedYearId,
+    page,
+    pageSize,
+    pathname,
+    router,
+  ]);
 
   const years = useAcademicYears({
     page,
@@ -129,6 +143,10 @@ function AcademicYearsList() {
   function handlePageSizeChange(next: PageSize) {
     setPageSize(next);
     setPage(1);
+  }
+
+  function toggleYear(id: string) {
+    setExpandedYearId((prev) => (prev === id ? null : id));
   }
 
   function onErr(e: unknown) {
@@ -188,14 +206,14 @@ function AcademicYearsList() {
     <div className="space-y-6">
       <PageHeader
         title="Năm học"
-        description="Bấm một năm để xem và quản lý học kỳ tương ứng."
+        description="Bấm một năm để mở danh sách học kỳ tương ứng."
       />
 
       <CatalogSection
         title="Danh sách năm học"
         loading={years.isLoading}
         onCreate={openCreateYear}
-        headers={['Mã', 'Tên', 'Bắt đầu', 'Kết thúc', 'Trạng thái', '']}
+        headers={['', 'Mã', 'Tên', 'Bắt đầu', 'Kết thúc', 'Trạng thái', '']}
         empty={yearFiltered ? 'Không khớp bộ lọc.' : 'Chưa có dữ liệu.'}
         toolbar={
           <CatalogFilterBar
@@ -228,33 +246,57 @@ function AcademicYearsList() {
         }
         rows={
           years.data?.items.length
-            ? years.data.items.map((y) => (
-                <TableRow
-                  key={y.id}
-                  className={cn('cursor-pointer')}
-                  onClick={() => router.push(`/admin/master-data/academic/${y.id}`)}
-                  title="Xem học kỳ của năm này"
-                >
-                  <TableCell className="font-mono">{y.code}</TableCell>
-                  <TableCell>{y.name}</TableCell>
-                  <TableCell>{dateInputValue(y.startDate)}</TableCell>
-                  <TableCell>{dateInputValue(y.endDate)}</TableCell>
-                  <TableCell>{academicStatusLabel(y.status)}</TableCell>
-                  <TableCell className="text-right">
-                    <RowActions>
-                      <EditIconButton onClick={() => openEditYear(y)} />
-                      <DeleteIconButton
-                        onClick={() =>
-                          yearMut.remove.mutate(y.id, {
-                            onSuccess: () => toast.success('Đã xóa năm học'),
-                            onError: onErr,
-                          })
-                        }
-                      />
-                    </RowActions>
-                  </TableCell>
-                </TableRow>
-              ))
+            ? years.data.items.map((y) => {
+                const open = expandedYearId === y.id;
+                return (
+                  <Fragment key={y.id}>
+                    <TableRow
+                      className={cn('cursor-pointer', open && 'bg-surface-2/60')}
+                      onClick={() => toggleYear(y.id)}
+                      aria-expanded={open}
+                      title={open ? 'Thu gọn học kỳ' : 'Mở học kỳ của năm này'}
+                    >
+                      <TableCell className="w-10 pr-0">
+                        <ChevronDown
+                          className={cn(
+                            'size-4 text-muted-foreground transition-transform duration-200',
+                            open ? 'rotate-0' : '-rotate-90',
+                          )}
+                          aria-hidden
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono">{y.code}</TableCell>
+                      <TableCell>{y.name}</TableCell>
+                      <TableCell>{dateInputValue(y.startDate)}</TableCell>
+                      <TableCell>{dateInputValue(y.endDate)}</TableCell>
+                      <TableCell>{academicStatusLabel(y.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <RowActions>
+                          <EditIconButton onClick={() => openEditYear(y)} />
+                          <DeleteIconButton
+                            onClick={() =>
+                              yearMut.remove.mutate(y.id, {
+                                onSuccess: () => {
+                                  toast.success('Đã xóa năm học');
+                                  if (expandedYearId === y.id) setExpandedYearId(null);
+                                },
+                                onError: onErr,
+                              })
+                            }
+                          />
+                        </RowActions>
+                      </TableCell>
+                    </TableRow>
+                    {open ? (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={7} className="p-0">
+                          <YearSemestersPanel yearId={y.id} yearCode={y.code} />
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
+                );
+              })
             : null
         }
         footer={
