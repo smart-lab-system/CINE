@@ -15,6 +15,7 @@ import { Sparkles,
   Monitor,
   Layers,
   Puzzle,
+  Terminal,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -68,4 +69,5 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Rubric', href: '/teacher/rules', icon: ListChecks },
   { label: 'Chấm điểm', href: '/teacher/grading', icon: ClipboardCheck },
   { label: 'Tiện ích IDE', href: '/teacher/ide-utilities', icon: Puzzle },
+  { label: 'Playground', href: '/teacher/playground', icon: Terminal },
 ];

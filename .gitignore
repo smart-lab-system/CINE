@@ -26,6 +26,9 @@ CLAUDE.md
 apps/api/tools/jplag/*.jar
 !apps/api/tools/jplag/.gitkeep
 
+# Sample bài demo playground (local only — không commit)
+sample project/
+
 
 # Python — script calibration offline sinh bytecode
 __pycache__/

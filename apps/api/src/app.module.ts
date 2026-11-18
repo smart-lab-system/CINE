@@ -14,6 +14,7 @@ import { CourseModule } from './course/course.module';
 import { MasterDataModule } from './master-data/master-data.module';
 import { GradeExportModule } from './grade-export/grade-export.module';
 import { IdeExtensionsModule } from './ide-extensions/ide-extensions.module';
+import { PlaygroundModule } from './playground/playground.module';
 import { buildRedisConnection } from './shared/redis-connection';
 import { dataSourceOptions } from './database/data-source';
 
@@ -86,6 +87,7 @@ import { dataSourceOptions } from './database/data-source';
     MasterDataModule,
     GradeExportModule,
     IdeExtensionsModule,
+    PlaygroundModule,
   ],
 })
 export class AppModule {}

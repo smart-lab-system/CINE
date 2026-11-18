@@ -58,6 +58,7 @@ import { LabMgmtSessionEntity } from '../ide-extensions/entities/lab-mgmt-sessio
 import { LabMgmtMachineEntity } from '../ide-extensions/entities/lab-mgmt-machine.entity';
 import { LabRoomProposalEntity } from '../ide-extensions/entities/lab-room-proposal.entity';
 import { LabRoomProposalMachineEntity } from '../ide-extensions/entities/lab-room-proposal-machine.entity';
+import { PlaygroundRunEntity } from '../playground/entities/playground-run.entity';
 
 /**
  * TLS for the Postgres connection, decided by env so one build runs
@@ -170,6 +171,7 @@ export const dataSourceOptions: DataSourceOptions = {
     LabMgmtMachineEntity,
     LabRoomProposalEntity,
     LabRoomProposalMachineEntity,
+    PlaygroundRunEntity,
   ],
   migrations: [__dirname + '/migrations/*.{js,ts}'],
   // The initial migration's SQL file already wraps itself in BEGIN/COMMIT
