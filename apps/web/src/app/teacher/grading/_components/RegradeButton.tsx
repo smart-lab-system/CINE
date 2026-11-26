@@ -29,7 +29,7 @@ export type RegradeScope =
   | { kind: 'force-ai'; sessionId: string; resultId: string };
 
 /**
- * MỘT nút chấm lại cho cả bốn chỗ (đầu phiên, khối "đã dừng", hồ sơ, băng dịch vụ AI lỗi), để hộp xác nhận nói
+ * Nút chấm lại dùng chung cho đầu phiên và hồ sơ bài, để hộp xác nhận nói
  * đúng ba điều ở mọi nơi: (1) bao nhiêu bài; (2) mỗi bài là một lượt gọi mô hình CÓ TÍNH PHÍ; (3) đóng trang
  * không dừng việc chấm. Bấm nút chỉ MỞ hộp; chỉ "Xác nhận chấm lại" mới gửi.
  */

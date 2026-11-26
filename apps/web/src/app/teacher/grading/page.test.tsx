@@ -333,14 +333,14 @@ describe('AI service band (G3 D12)', () => {
   const stopped = (id: string, over: Partial<GradingResult> = {}) =>
     result({ id, status: 'flagged_for_review', ungradableReason: 'Dịch vụ AI không phản hồi.', ungradableClass: 'system', currentScore: null, ...over });
 
-  it('is mounted on the session screen and offers to regrade exactly the shared-reason group', () => {
+  it('is mounted on the session screen, says what is shared, and leaves the regrade to the one button at the top', () => {
     h.results = { ...h.results, data: [stopped('a'), stopped('b'), result({ id: 'c' })] };
     render(<GradingPage />);
     const band = screen.getByText(/Dịch vụ AI lỗi - 2 bài không chấm được cùng một lý do/).closest('[role="alert"]') as HTMLElement;
-    expect(within(band).getByRole('button', { name: 'Chấm lại 2 bài này' })).toHaveAttribute(
-      'data-scope',
-      JSON.stringify({ kind: 'session', sessionId: 's1', reason: 'Dịch vụ AI không phản hồi.', count: 2 }),
-    );
+    expect(within(band).queryByRole('button')).not.toBeInTheDocument();
+    const regrades = screen.getAllByRole('button', { name: /Chấm lại \d+ bài lỗi hệ thống/ });
+    expect(regrades).toHaveLength(1);
+    expect(regrades[0]).toHaveAttribute('data-scope', JSON.stringify({ kind: 'session', sessionId: 's1', reason: null, count: 2 }));
   });
 
   it('is absent when only one result stopped', () => {
