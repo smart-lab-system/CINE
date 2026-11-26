@@ -305,7 +305,7 @@ function ComputersMasterDataContent() {
                   key={c.id}
                   className={
                     c.isTeacherMachine
-                      ? 'bg-sky-500/10 hover:bg-sky-500/15 dark:bg-sky-400/10 dark:hover:bg-sky-400/15'
+                      ? 'bg-info-subtle hover:bg-info-subtle/80'
                       : undefined
                   }
                   title={c.isTeacherMachine ? 'Máy giảng viên' : undefined}
@@ -314,7 +314,7 @@ function ComputersMasterDataContent() {
                   <TableCell className="font-mono">
                     {c.hostname}
                     {c.isTeacherMachine ? (
-                      <span className="ml-2 text-xs font-medium text-sky-800 dark:text-sky-300">
+                      <span className="ml-2 text-xs font-medium text-info-strong">
                         · Máy GV
                       </span>
                     ) : null}

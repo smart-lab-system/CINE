@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
  * colour should classify the row, not shout at it.
  *
  * `-strong` (not the base hue) as the text colour is what makes these
- * legible: teal #26A69A on a teal tint is 2.6:1, which is unreadable; the
+ * legible: teal (the brief value) on a teal tint is 2.6:1, which is unreadable; the
  * darker same-hue `-strong` gets the same pill to 5.1:1. See globals.css.
  *
  * Colour is never the only signal - each badge carries its own label, so a

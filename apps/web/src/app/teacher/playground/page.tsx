@@ -385,7 +385,7 @@ export default function TeacherPlaygroundPage() {
               />
             </div>
           ) : (
-            <pre className="min-h-[360px] flex-1 overflow-auto rounded-md border border-border bg-zinc-950 p-4 font-mono text-sm text-zinc-100 whitespace-pre-wrap">
+            <pre className="min-h-[360px] flex-1 overflow-auto rounded-md border border-border bg-foreground p-4 font-mono text-sm text-background whitespace-pre-wrap">
               {run?.status === 'queued' || (run?.status === 'running' && !run.previewUrl)
                 ? 'Đang khởi động…'
                 : terminalText ||

@@ -4,12 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { JplagParsedFile, JplagParsedMatch, JplagRunView } from '@/lib/api/ide-utilities';
 
 const MATCH_COLORS = [
-  'bg-amber-200/70 dark:bg-amber-500/30',
-  'bg-sky-200/70 dark:bg-sky-500/30',
-  'bg-emerald-200/70 dark:bg-emerald-500/30',
-  'bg-violet-200/70 dark:bg-violet-500/30',
-  'bg-rose-200/70 dark:bg-rose-500/30',
-  'bg-lime-200/70 dark:bg-lime-500/30',
+  'bg-ev-1/70',
+  'bg-ev-2/70',
+  'bg-ev-3/70',
+  'bg-ev-4/70',
+  'bg-accent-subtle',
+  'bg-danger-subtle',
 ];
 
 const CODE_PANE_SCROLL_CLASS = 'h-[min(40vh,360px)] max-h-[360px] overflow-auto bg-muted/20 p-2';

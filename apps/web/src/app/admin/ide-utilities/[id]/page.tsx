@@ -43,11 +43,11 @@ function versionStatusLabel(status: string) {
 function statusBadgeClass(status: CatalogStatus) {
   switch (status) {
     case 'wildcard_approved':
-      return 'bg-emerald-700/15 text-emerald-800 dark:text-emerald-300';
+      return 'bg-success-subtle text-success-strong';
     case 'fully_approved':
-      return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400';
+      return 'bg-success-subtle text-success-strong';
     case 'has_pending':
-      return 'bg-amber-500/15 text-amber-800 dark:text-amber-300';
+      return 'bg-warning-subtle text-warning-strong';
     default:
       return 'bg-muted text-muted-foreground';
   }
@@ -121,9 +121,9 @@ export default function IdeUtilityDetailPage() {
           description="Chi tiết extension và quản lý phiên bản (exact / duyệt mọi phiên bản *)."
         />
         {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-        {info && <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-400">{info}</p>}
+        {info && <p className="mt-3 text-sm text-success-strong">{info}</p>}
         {wildcard?.approvalStatus === 'approved' && (
-          <p className="mt-3 rounded-md border border-emerald-600/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-200">
+          <p className="mt-3 rounded-md border border-success/30 bg-success-subtle px-3 py-2 text-sm text-success-strong">
             Đang duyệt mọi phiên bản (*) kể từ {formatDateTime(wildcard.approvedAt)}.
           </p>
         )}
@@ -262,21 +262,21 @@ export default function IdeUtilityDetailPage() {
                       <td className="px-3 py-2.5">
                         {v.version !== '*' && (v.storageKey || v.artifactUploadedAt) ? (
                           <span className="inline-flex flex-wrap items-center gap-1">
-                            <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                            <span className="inline-flex rounded-md bg-success-subtle px-2 py-0.5 text-xs font-medium text-success-strong">
                               Đã có file
                             </span>
                             {v.extractStatus === 'ready' ? (
-                              <span className="inline-flex rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-200">
+                              <span className="inline-flex rounded-md bg-info-subtle px-2 py-0.5 text-xs font-medium text-info-strong">
                                 Sẵn sàng xem
                               </span>
                             ) : null}
                             {v.extractStatus === 'pending' || v.extractStatus === 'extracting' ? (
-                              <span className="inline-flex rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                              <span className="inline-flex rounded-md bg-warning-subtle px-2 py-0.5 text-xs font-medium text-warning-strong">
                                 Đang giải nén
                               </span>
                             ) : null}
                             {v.extractStatus === 'failed' ? (
-                              <span className="inline-flex rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-950 dark:text-red-200">
+                              <span className="inline-flex rounded-md bg-danger-subtle px-2 py-0.5 text-xs font-medium text-danger-strong">
                                 Lỗi giải nén
                               </span>
                             ) : null}
@@ -299,7 +299,7 @@ export default function IdeUtilityDetailPage() {
                           <button
                             type="button"
                             disabled={busy}
-                            className="text-amber-700 disabled:opacity-50 dark:text-amber-400"
+                            className="text-warning-strong disabled:opacity-50"
                             onClick={() => {
                               if (
                                 v.version === '*' &&
