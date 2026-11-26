@@ -3,7 +3,9 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet } from 'lucide-react';
+import { EmptyState } from '@/components/layout/empty-state';
+import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/layout/page-header';
@@ -33,12 +35,16 @@ function ExportContent() {
 
   if (!sessionId) {
     return (
-      <p className="text-small text-muted-foreground">
-        Chưa chọn phiên thi.{' '}
-        <Link href="/teacher/grading" className="font-semibold underline underline-offset-2">
-          Chọn phiên
-        </Link>
-      </p>
+      <EmptyState
+        icon={FileSpreadsheet}
+        title="Chưa chọn phiên thi"
+        description="Xuất điểm được làm cho từng phiên đã chốt. Chọn một phiên từ màn Chấm điểm để bắt đầu."
+        action={
+          <Button asChild variant="outline">
+            <Link href="/teacher/grading">Chọn phiên</Link>
+          </Button>
+        }
+      />
     );
   }
   if (!session) {
