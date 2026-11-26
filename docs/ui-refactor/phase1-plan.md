@@ -68,6 +68,7 @@ Hiến chương áp dụng: [constitution](../../.specify/memory/constitution.md
 ### WP5 · Tiêu đề trang (S)
 - **Việc:** thêm `PageHeader` cho 14 trang còn thiếu, hoặc ghi lý do không cần (ví dụ trang đăng nhập).
 - **Xong khi:** mỗi route có một `h1` mô tả ngữ cảnh; trang export và finalize nói rõ việc của chúng.
+- **Kết quả đo (sửa con số 14 ở trên):** tìm `PageHeader` theo tên file báo 14 trang, nhưng đọc từng trang thì phần lớn không thiếu. Đổi: `finalize` (chỉ có h1, không có mô tả) và `unassigned-role` (tiêu đề là `CardTitle`, không phải h1). Không cần: 4 trang chỉ chuyển hướng (`academic/[id]`, `rubrics/qa`, `rules/[ruleId]`, `rules/new`); 3 trang `teacher/ide-utilities` chỉ re-export trang admin đã có `PageHeader`; `grading` có `PageHeader` trong `SessionList`. Giữ nguyên vì đã có h1 theo ngữ cảnh: `exam-sessions/[id]` (Vận hành phiên thi), `grading/[resultId]` (tên sinh viên), `submissions/[sessionId]` (tên phiên). Giữ `login` có h1 là tên sản phẩm, theo ví dụ trong mục này.
 
 ### WP6 · Thứ bậc nút theo trạng thái (M, có quyết định)
 - **Việc:** mỗi màn một CTA chính. Nút không áp dụng được thì ẩn hoặc vô hiệu hoá kèm lý do trong `title` và chữ hiển thị.
