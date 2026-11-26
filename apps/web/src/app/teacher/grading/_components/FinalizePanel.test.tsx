@@ -147,7 +147,7 @@ describe('FinalizePanel - finalised', () => {
     expect(screen.queryByRole('button', { name: 'Chốt điểm phiên' })).not.toBeInTheDocument();
   });
 
-  it('offers "Áp giá mới cho phiên đã chốt" as its own action', () => {
+  it('offers "Cập nhật mức trừ cho phiên đã chốt" as its own action', () => {
     renderPanel(finalised());
     expect(screen.getByTestId('reapply-panel')).toBeInTheDocument();
   });

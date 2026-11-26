@@ -10,7 +10,7 @@ export function CoverageSection({ investigation }: { investigation: NonNullable<
 
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="section-label">Độ phủ điều tra</h2>
+      <h2 className="section-label">Mức kiểm tra bài</h2>
       <p className="text-caption text-muted-foreground">
         "Không tìm thấy lỗi" và "đã kiểm và không có lỗi" là hai chuyện khác nhau. Đây là phần đã kiểm.
       </p>
@@ -19,8 +19,8 @@ export function CoverageSection({ investigation }: { investigation: NonNullable<
         {notRun > 0 && <li>{notRun} lượt khác không chạy được (lỗi hoặc bị chặn) - không tính là đã kiểm.</li>}
         {replay && (
           <li>
-            Chạy lại ngẫu nhiên lời gọi #{replay.toolCallId} →{' '}
-            {replay.matched === true ? 'khớp' : replay.matched === false ? 'lệch' : 'chưa chạy lại được để đối chiếu'}.
+            Chạy lại ngẫu nhiên lượt kiểm tra #{replay.toolCallId} →{' '}
+            {replay.matched === true ? 'khớp' : replay.matched === false ? 'lệch' : 'chưa chạy lại được để so sánh'}.
           </li>
         )}
       </ul>
@@ -30,7 +30,7 @@ export function CoverageSection({ investigation }: { investigation: NonNullable<
         </span>
         <h3 className="text-small font-semibold">Độ phức tạp đo được</h3>
         <p className="mt-1 text-caption text-muted-foreground">
-          Cần công cụ đo độ phức tạp (bước 4 của spec chấm điểm) - chưa xây. Bài nộp chưa được so với đề theo lớp thời
+          Không có số đo độ phức tạp cho bài này. Bài nộp chưa được so với đề theo thời
           gian chạy.
         </p>
       </div>

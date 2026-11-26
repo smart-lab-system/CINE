@@ -69,7 +69,7 @@ export default function ExamBankPage() {
         <EmptyState
           icon={BookMarked}
           title="Chưa có môn để mở kho đề"
-          description="Kho đề theo catalog môn. Bạn cần được admin phân công lớp có gắn môn học (course_id)."
+          description="Kho đề theo môn học. Bạn cần được quản trị viên phân công một lớp thuộc môn học này để tạo đề."
         />
       ) : (
         <>

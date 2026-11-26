@@ -79,7 +79,7 @@ describe('order and labels', () => {
     expect(STATE_LABEL.needsYou).toBe('Cần bạn xem');
     expect(STATE_LABEL.audit).toBe('Kiểm mẫu');
     expect(STATE_LABEL.ungradable).toBe('Không chấm được');
-    expect(STATE_LABEL.auto).toBe('Tự quyết');
+    expect(STATE_LABEL.auto).toBe('AI tự chốt');
     for (const s of STATE_ORDER) expect(STATE_LABEL[s]).toBeTruthy();
   });
 });

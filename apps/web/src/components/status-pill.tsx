@@ -45,7 +45,7 @@ export function StatusPill({
   const style = STYLE[state];
   const Icon = KNOWN.has(status) ? style.icon : TriangleAlert;
   const legacyEssay = pipeline === 'one_shot' && state === 'auto';
-  const label = !KNOWN.has(status) ? status : legacyEssay ? 'Tự duyệt theo chính sách cũ' : STATE_LABEL[state];
+  const label = !KNOWN.has(status) ? status : legacyEssay ? 'Đã chốt theo quy tắc cũ' : STATE_LABEL[state];
   return (
     <Badge variant={legacyEssay ? 'default' : style.variant} className="gap-1.5">
       <Icon className="h-3 w-3" aria-hidden="true" />

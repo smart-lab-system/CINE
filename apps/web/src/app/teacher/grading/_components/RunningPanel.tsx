@@ -119,12 +119,12 @@ export function RunningPanel({
         <Alert variant="warning">
           <AlertDescription className="flex flex-col gap-2">
             <span>
-              <strong>{stuckCount} bài không còn ai chấm</strong> - hàng đợi không còn việc nào cho chúng.
-              {stall !== null && <> Tiến độ đã đứng yên {describeStall(stall)}.</>}
+              <strong>{stuckCount} bài đang bị kẹt</strong> - không còn tiến trình chấm nào xử lý chúng.
+              {stall !== null && <> Không có bài nào hoàn thành trong {describeStall(stall)}.</>}
             </span>
             <span className="flex flex-wrap items-center gap-3">
               <Button type="button" size="sm" loading={regrade.isPending} onClick={onRegradeStuck}>
-                Chấm tiếp {stuckCount} bài treo
+                Chấm lại {stuckCount} bài bị kẹt
               </Button>
               {regrade.data && (
                 <span className="text-caption">

@@ -77,10 +77,10 @@ vi.mock('@/hooks/useCurrentAccount', () => ({
 
 import QsRubricsPage from './page';
 
-describe('/teacher/rubrics - Question Specific', () => {
+describe('/teacher/rubrics - Rubric theo câu hỏi', () => {
   it('hiện danh sách QS với môn, số cách giải, người tạo', () => {
     render(<QsRubricsPage />);
-    expect(screen.getByRole('heading', { name: 'Question Specific' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Rubric theo câu hỏi' })).toBeInTheDocument();
     expect(screen.getByText('01_largest_product')).toBeInTheDocument();
     expect(screen.getByText('Cấu trúc dữ liệu')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();

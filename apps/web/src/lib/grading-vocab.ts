@@ -91,7 +91,7 @@ export function toolActionLabel(tool: string): string {
 const TOOL_CALL_STATUS_LABEL: Record<string, string> = {
   ok: 'Xong',
   error: 'Lỗi',
-  blocked_duplicate: 'Bị chặn - trùng lời gọi trước',
+  blocked_duplicate: 'Bị chặn - trùng lượt kiểm tra trước',
   unavailable: 'Không dùng được',
 };
 export function toolCallStatusLabel(status: string): string {
@@ -113,9 +113,9 @@ const CASE_FLAG_LABEL: Record<string, string> = {
 
 const INVESTIGATION_FLAG_LABEL: Record<string, string> = {
   injection_suspected: 'Bài có chỗ giống lời dặn gửi cho hệ thống chấm',
-  replay_mismatch: 'Chạy lại để đối chiếu ra kết quả khác',
-  replay_unverified: 'Chưa chạy lại để đối chiếu được',
-  evidence_rejected: 'Bằng chứng không khớp lời gọi thật',
+  replay_mismatch: 'Chạy lại cho kết quả khác',
+  replay_unverified: 'Chưa chạy lại được để so sánh',
+  evidence_rejected: 'Bằng chứng không khớp lượt kiểm tra thật',
   budget_exhausted: 'Hết lượt điều tra trước khi xong',
 };
 

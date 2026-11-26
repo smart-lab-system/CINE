@@ -128,7 +128,7 @@ function makeClient() {
   return { client, wrapper };
 }
 
-describe('reapply prices (spec §3.10 "Áp giá mới cho phiên đã chốt")', () => {
+describe('reapply prices (spec §3.10 "Cập nhật mức trừ cho phiên đã chốt")', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('the preview writes nothing and refreshes nothing', async () => {

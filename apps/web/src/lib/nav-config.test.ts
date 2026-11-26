@@ -16,8 +16,8 @@ describe('TEACHER_NAV', () => {
     const rubric = TEACHER_NAV.find((i) => i.label === 'Rubric');
     expect(rubric && isNavGroup(rubric)).toBe(true);
     expect(isNavGroup(rubric!) && rubric.children.map((c) => c.label)).toEqual([
-      'Question Agnostic',
-      'Question Specific',
+      'Rubric chung',
+      'Rubric theo câu hỏi',
       'Bảng lỗi',
     ]);
     expect(labels.indexOf('Rubric')).toBe(labels.indexOf('Chấm điểm') - 1);
@@ -27,10 +27,10 @@ describe('TEACHER_NAV', () => {
     const rubric = TEACHER_NAV.find((i) => i.label === 'Rubric');
     expect(isNavGroup(rubric!)).toBe(true);
     if (!isNavGroup(rubric!)) return;
-    expect(rubric.children.find((c) => c.label === 'Question Agnostic')?.href).toBe(
+    expect(rubric.children.find((c) => c.label === 'Rubric chung')?.href).toBe(
       '/teacher/rubrics/qa',
     );
-    expect(rubric.children.find((c) => c.label === 'Question Specific')?.href).toBe(
+    expect(rubric.children.find((c) => c.label === 'Rubric theo câu hỏi')?.href).toBe(
       '/teacher/rubrics',
     );
     expect(rubric.children.find((c) => c.label === 'Bảng lỗi')?.href).toBe('/teacher/rules');

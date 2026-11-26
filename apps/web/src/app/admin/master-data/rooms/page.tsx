@@ -184,7 +184,7 @@ function RoomsMasterDataContent() {
     <div className="space-y-6">
       <PageHeader
         title="Phòng"
-        description="Bấm một phòng để xem danh sách máy tính trong phòng đó. Xem và duyệt đề xuất từ Teacher Hub bên dưới."
+        description="Bấm một phòng để xem danh sách máy tính trong phòng đó. Xem và duyệt đề xuất của giảng viên ở phần bên dưới."
       />
 
       <RoomProposalsPanel />

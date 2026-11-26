@@ -35,7 +35,7 @@ function checkBadge(check: Criterion['check']) {
     return { variant: 'destructive' as const, label: 'không có trong bài làm' };
   if (check === 'empty')
     return { variant: 'default' as const, label: 'AI không đưa trích dẫn nào' };
-  return { variant: 'default' as const, label: 'chưa đối chiếu' };
+  return { variant: 'default' as const, label: 'chưa kiểm tra lại' };
 }
 
 function confidenceColor(value: number): string {
@@ -151,7 +151,7 @@ export function CriterionCard({
               </span>
             </div>
             <p className="text-caption text-muted-foreground">
-              Đo bằng cách đối chiếu trích dẫn với bài làm - không phải AI tự chấm.
+              Đo bằng cách kiểm tra trích dẫn có trong bài làm - không phải AI tự chấm.
             </p>
           </>
         )}

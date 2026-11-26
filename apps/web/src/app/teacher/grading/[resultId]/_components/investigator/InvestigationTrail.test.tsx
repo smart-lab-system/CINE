@@ -40,7 +40,7 @@ describe('InvestigationTrail', () => {
     render(<InvestigationTrail investigation={many} />);
     expect(screen.getByText('Xong')).toBeInTheDocument();
     expect(screen.getByText('Lỗi')).toBeInTheDocument();
-    expect(screen.getByText('Bị chặn - trùng lời gọi trước')).toBeInTheDocument();
+    expect(screen.getByText('Bị chặn - trùng lượt kiểm tra trước')).toBeInTheDocument();
   });
 
   it('expands a row to show its real output', () => {

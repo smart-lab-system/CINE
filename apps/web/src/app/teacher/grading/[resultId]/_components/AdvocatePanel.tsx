@@ -22,10 +22,10 @@ const VERDICT_LABEL = {
  */
 function verificationLine(opinion: AdvocateOpinion): string {
   if (opinion.unverifiedEvidence === null) {
-    return 'Các trích dẫn chưa đối chiếu.';
+    return 'Các trích dẫn chưa được kiểm tra lại với bài làm.';
   }
   if (opinion.unverifiedEvidence.length === 0) {
-    return `Đã đối chiếu ${opinion.evidence.length} trích dẫn, tất cả đều có trong bài làm.`;
+    return `Đã kiểm tra ${opinion.evidence.length} trích dẫn, tất cả đều có trong bài làm.`;
   }
   return `${opinion.unverifiedEvidence.length} trích dẫn không tìm thấy trong bài làm.`;
 }
@@ -58,7 +58,7 @@ export function AdvocatePanel({
       <p className="border-l-2 border-border pl-2.5 text-caption leading-relaxed text-muted-foreground">
         {hasQuestion
           ? 'Lượt phản biện không chạy cho tiêu chí này - nó chỉ chạy khi lượt chấm kết luận chưa đạt.'
-          : 'Phiên này chưa nạp đề bài nên lượt phản biện không chạy. Không có ai lên tiếng cho bài làm đúng theo một cách khác.'}
+          : 'Phiên này chưa có đề bài nên phần phản biện không chạy.'}
       </p>
     );
   }

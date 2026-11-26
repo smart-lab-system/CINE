@@ -229,7 +229,7 @@ export default function GradingDetailPage({
           {readsCode && <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>}
           {readiness.data && (
             <Badge variant={readiness.data.hasQuestion ? 'accent' : 'warning'}>
-              {readiness.data.hasQuestion ? 'Mức 2 - có đề bài' : 'Mức 1 - chỉ có thang chấm'}
+              {readiness.data.hasQuestion ? 'Có đề bài' : 'Chỉ có thang chấm'}
             </Badge>
           )}
           {/* Nói về BẬC MODEL đã trả lời, không về cấu hình phiên: provider
@@ -254,7 +254,7 @@ export default function GradingDetailPage({
       {readsCode && (
         <Alert variant="info">
           <AlertDescription>
-            Bài code này chấm bằng đọc mã, không chạy: không có độ phủ hay bằng chứng lời gọi công cụ.
+            Bài code này được chấm bằng cách đọc mã, không chạy thử: không có kết quả chạy thử hay bằng chứng tự động.
             {published && ' Điểm đã chốt - hồ sơ chỉ để xem, không sửa được.'}
           </AlertDescription>
         </Alert>

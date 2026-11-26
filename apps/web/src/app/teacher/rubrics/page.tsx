@@ -150,7 +150,7 @@ export default function QsRubricsPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title="Question Specific"
+        title="Rubric theo câu hỏi"
         description="Rubric QS theo câu - checklist nhiều cách giải. Lọc theo môn, năm học và học kỳ (theo lớp bạn đang dạy)."
       />
 
@@ -238,7 +238,7 @@ export default function QsRubricsPage() {
             <EmptyState
               icon={ListChecks}
               title="Chưa có rubric QS"
-              description="Tạo rubric Question Specific từ Kho đề hoặc khi soạn checklist theo câu."
+              description="Tạo rubric theo câu hỏi từ Kho đề hoặc khi soạn checklist theo câu."
               tone="muted"
             />
           ) : visible.length === 0 ? (
