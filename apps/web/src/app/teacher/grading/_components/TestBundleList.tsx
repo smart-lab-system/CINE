@@ -195,7 +195,7 @@ function CaseTable({
   // bản `table-fixed` + bốn cột rộng cố định ép nó còn 32px (đo ở trình duyệt, khung 1360px), mỗi chữ một dòng.
   // Cột chữ nhận phần còn lại với `min-w`; màn hẹp hơn thì cuộn ngang thay vì bóp cột.
   return (
-    <div className="mt-3 overflow-x-auto">
+    <div className="mt-3 overflow-x-auto scroll-edges">
       <table className="w-full min-w-[36rem] text-left text-small">
         <caption className="sr-only">Bộ ca của gói test phiên bản này</caption>
         <thead>

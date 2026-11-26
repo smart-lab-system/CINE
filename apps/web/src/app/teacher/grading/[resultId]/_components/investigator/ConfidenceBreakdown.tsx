@@ -1,4 +1,5 @@
 'use client';
+import { Table } from '@/components/ui/table';
 
 import { Badge } from '@/components/ui/badge';
 import { formatVnPoints } from '@/lib/format';
@@ -41,7 +42,7 @@ export function ConfidenceBreakdown({
       {terms.length === 0 ? (
         <p className="text-small text-muted-foreground">Không có lỗi nào có điểm để đo, nên mức chắc chắn không lấy từ lỗi nào.</p>
       ) : (
-        <table className="w-full text-small">
+        <Table className="text-small">
           <thead>
             <tr className="text-left text-caption text-muted-foreground">
               <th className="py-1 font-medium">Lỗi</th>
@@ -62,7 +63,7 @@ export function ConfidenceBreakdown({
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
       {average !== null && (
         <p className="text-small">

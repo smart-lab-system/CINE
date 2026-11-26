@@ -332,6 +332,24 @@
   }
 }
 
+  /* Mép bóng cho khung cuộn ngang (bảng rộng): hiện bóng ở mép còn cột bị giấu, mất khi đã tới cuối.
+     Không dùng JS: lớp `local` đi theo nội dung (che bóng khi đã tới mép), lớp `scroll` đứng yên ở mép khung.
+     Màu nền bằng card vì bảng luôn nằm trong thẻ. */
+  .scroll-edges {
+    /* Dùng thuộc tính con, không dùng shorthand `background`: shorthand sẽ xoá màu nền (bg-surface) của wrapper. */
+    /* Màu mép khớp nền thẻ chứa bảng. Nếu bảng đặt trên nền khác thì ghi đè --scroll-edge-bg ở wrapper. */
+    --scroll-edge-bg: hsl(var(--card));
+    background-image:
+      linear-gradient(to right, var(--scroll-edge-bg) 30%, transparent),
+      linear-gradient(to left, var(--scroll-edge-bg) 30%, transparent),
+      linear-gradient(to right, hsl(var(--foreground) / 0.14), hsl(var(--foreground) / 0)),
+      linear-gradient(to left, hsl(var(--foreground) / 0.14), hsl(var(--foreground) / 0));
+    background-position: left center, right center, left center, right center;
+    background-size: 2.5rem 100%, 2.5rem 100%, 0.75rem 100%, 0.75rem 100%;
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll;
+  }
+
 /* Accessibility floor: honour the OS "reduce motion" setting everywhere.
    GSAP is gated separately in lib/gsap.ts (a JS tween ignores CSS media
    queries) - this covers Tailwind transitions, tailwindcss-animate's

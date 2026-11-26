@@ -62,7 +62,7 @@ export function TestBundleReview({
           <p className="text-small text-muted-foreground">Gói đang dùng không có ca nào.</p>
         )}
         {pinnedBundleId && detail.data && detail.data.cases.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scroll-edges">
             <table className="w-full min-w-[24rem] text-left text-small">
               <caption className="sr-only">Bộ ca của gói đang dùng</caption>
               <thead>

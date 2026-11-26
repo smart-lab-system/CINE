@@ -60,7 +60,7 @@ export function SessionCalendar({
           ngang cả trang là lỗi bố cục, còn cuộn ngang một bảng trong khung
           `overflow-x-auto` lại đúng là cách xử lý bảng rộng trên mobile. */}
       <div className="overflow-hidden rounded-xl border border-border bg-surface">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scroll-edges">
           <table className="w-full min-w-[960px] table-fixed border-collapse text-small">
             <caption className="sr-only">
               Lịch phiên thi tuần {shortDate(days[0])} đến {shortDate(days[6])}, xếp theo ca

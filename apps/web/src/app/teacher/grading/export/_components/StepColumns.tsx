@@ -130,7 +130,7 @@ export function StepColumns({
 
       {grid ? (
         <div className="flex flex-col gap-2">
-          <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+          <div className="overflow-x-auto scroll-edges rounded-lg border border-border bg-surface">
             <table aria-label="Xem trước file" className="w-full border-collapse text-small">
               <thead>
                 <tr>
