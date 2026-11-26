@@ -24,6 +24,7 @@ export function SessionHeader({
   sessionId,
   resultCount,
   systemFailed,
+  remaining = 0,
   prepareReviewHref = null,
 }: {
   session: SessionOverviewItem;
@@ -31,6 +32,8 @@ export function SessionHeader({
   resultCount: number;
   /** Số bài "không chấm được" do lỗi hệ thống (lớp `system`) - đúng số bài mà nút chấm lại sẽ xử lý. */
   systemFailed: number;
+  /** Số bài còn chặn việc chốt (đang chấm, chờ duyệt, chưa xử lý). 0 = chốt được. */
+  remaining?: number;
   /** Có địa chỉ thì hiện lối xem lại bước chuẩn bị. Màn chuẩn bị sửa được và màn đang xem lại thì để null. */
   prepareReviewHref?: string | null;
 }) {
@@ -51,9 +54,15 @@ export function SessionHeader({
           </Button>
         )}
         {resultCount > 0 ? (
-          <Button asChild>
-            <Link href={`/teacher/grading/finalize?sessionId=${sessionId}`}>Chốt điểm phiên</Link>
-          </Button>
+          // Chỉ là CTA chính khi thật sự chốt được. Còn bài đang chấm thì nút phụ và nói rõ còn bao nhiêu bài.
+          <div className="flex flex-col items-end gap-1">
+            <Button asChild variant={remaining > 0 ? 'outline' : 'default'}>
+              <Link href={`/teacher/grading/finalize?sessionId=${sessionId}`}>Chốt điểm phiên</Link>
+            </Button>
+            {remaining > 0 && (
+              <span className="text-caption text-muted-foreground">Còn {remaining} bài chưa xong</span>
+            )}
+          </div>
         ) : (
           <Button type="button" disabled title="Chưa chấm bài nào - chưa có gì để chốt.">
             Chốt điểm phiên
