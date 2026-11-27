@@ -97,6 +97,8 @@ Quy tắc đợt refactor: KHÔNG sửa logic trong PR giao diện. Mỗi mục 
 - Cột hành động: `grading_result.score_reapplied_after_finalize`, `exam_session.reassign_teacher`. Cột "Trường đã đổi": `finalScore`, `grantedTo`, `until`. Placeholder lọc: "vd: grading.override" (ảnh 3, 4).
 - Hướng sửa: bảng nhãn tiếng Việt cho từng mã hành động và từng trường.
 
+- **Xử lý (PR sửa L-17):** thêm `lib/audit-labels.ts` (nhãn cho 6 hành động, 3 loại đối tượng, 13 tên trường mà backend đang ghi). Trang nhật ký hiện nhãn tiếng Việt, mã thô nằm trong tooltip; mã chưa có nhãn giữ nguyên mã. Ô lọc hành động thành danh sách chọn (backend lọc khớp chính xác, nên gõ tự do không có ích). Mục menu "Audit log" đổi thành "Nhật ký thao tác". Còn mở: hành động mới ở backend phải thêm một dòng nhãn, nếu không sẽ hiện mã thô.
+
 ### L-18 · Phiên bản IDE "đã duyệt" nhưng không có tệp · Cao · Nghi ngờ
 - Ảnh 13 (C/C++ 1.22.11, 1.21.6): trạng thái "Đã duyệt", cột File "-", và trang browse báo "Phiên bản chưa có file .vsix". Cùng giây duyệt và thêm.
 - Có thể do seed không tạo tệp. Nhưng nếu quy trình cho phép duyệt phiên bản không có tệp thì đó là lỗi dữ liệu.
