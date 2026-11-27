@@ -293,7 +293,7 @@ export function RosterScreen({
             </CardTitle>
             <CardDescription>
               {catalogAssist
-                ? 'Gõ MSSV để gợi ý từ catalog - khớp thì tự điền tên; chưa có thì tạo sinh viên mới rồi thêm vào lớp.'
+                ? 'Gõ MSSV để gợi ý từ danh mục - khớp thì tự điền tên; chưa có thì tạo sinh viên mới rồi thêm vào lớp.'
                 : 'Cho trường hợp chuyển lớp muộn hoặc sửa sót - không phải gửi lại cả file.'}
             </CardDescription>
           </CardHeader>

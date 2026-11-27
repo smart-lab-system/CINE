@@ -231,7 +231,7 @@ function ComputersMasterDataContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Máy tính" description="Catalog máy tính theo phòng." />
+      <PageHeader title="Máy tính" description="Danh mục máy tính theo phòng." />
 
       <CatalogSection
         title="Danh sách máy tính"

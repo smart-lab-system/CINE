@@ -204,7 +204,7 @@ function CoursesMasterDataContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Môn học" description="Catalog môn - chưa gắn lớp môn / phiên thi." />
+      <PageHeader title="Môn học" description="Danh mục môn - chưa gắn lớp học phần hoặc phiên thi." />
       <CatalogSection
         title="Danh sách môn"
         loading={isLoading}
