@@ -80,6 +80,13 @@ const config: Config = {
           strong: 'hsl(var(--info-strong))',
           subtle: 'hsl(var(--info-subtle))',
         },
+        // Tô màu bằng chứng theo tiêu chí (globals.css --ev-*). Không dùng cho trạng thái đúng/sai.
+        ev: {
+          1: 'hsl(var(--ev-1))',
+          2: 'hsl(var(--ev-2))',
+          3: 'hsl(var(--ev-3))',
+          4: 'hsl(var(--ev-4))',
+        },
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',

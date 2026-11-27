@@ -36,11 +36,11 @@ function formatDateTime(value: string) {
 function statusBadgeClass(status: CatalogStatus) {
   switch (status) {
     case 'wildcard_approved':
-      return 'bg-emerald-700/15 text-emerald-800 dark:text-emerald-300';
+      return 'bg-success-subtle text-success-strong';
     case 'fully_approved':
-      return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400';
+      return 'bg-success-subtle text-success-strong';
     case 'has_pending':
-      return 'bg-amber-500/15 text-amber-800 dark:text-amber-300';
+      return 'bg-warning-subtle text-warning-strong';
     default:
       return 'bg-muted text-muted-foreground';
   }
@@ -164,7 +164,7 @@ export default function IdeUtilitiesPage() {
           ))}
         </div>
         {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-        {info && <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-400">{info}</p>}
+        {info && <p className="mt-3 text-sm text-success-strong">{info}</p>}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 md:px-6">
