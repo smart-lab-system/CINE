@@ -190,7 +190,7 @@ Các mục **không** phải lỗi seed vẫn còn nguyên, cần sửa ở sả
 
 ---
 
-- **Xử lý (PR sửa L-25): KHÔNG phải lỗi, là thiết kế đã duyệt.** Spec `2026-10-21-cham-diem-duyet-nhanh-design.md` §5.8b quy định rõ: bài không có lỗi nào KHÔNG hiện số %, hiện "Chưa đo được", ô thanh viền đứt và cảnh báo "Không thấy lỗi không có nghĩa là bài đúng", vì giá trị nội bộ 1,0 (chặn 0,97) của bài sạch chỉ nói về độ phủ chứ không phải mức chắc chắn (`confidence.ts`, `caseConfidence`). `CertaintyHero` làm đúng spec nên giữ nguyên. Phần còn lại là chỗ giải thích thiếu: mục "Mức chắc chắn tính từ đâu" vẫn viết "Cần từ 85% mới tự chốt" cho bài sạch dù bài tự chốt theo độ phủ chứ không theo %. Đã sửa chữ (không đổi hành vi): bài không có lỗi nói "chỉ được tự chốt khi mức kiểm tra bài đủ; chưa đủ thì bài bị gắn cờ", và bỏ dòng ngưỡng không áp dụng. Nếu chủ dự án muốn đổi chính quyết định §5.8b (hiện số % cho bài sạch) thì đó là đổi spec, không phải sửa lỗi.
+- **Xử lý (PR sửa L-25): chủ dự án quyết định hiện số % cho bài không có lỗi (27/11/2026).** Ban đầu spec `2026-10-21-cham-diem-duyet-nhanh-design.md` §5.8b chủ đích ẩn số % ở bài sạch (giá trị 1,0 chỉ nói về độ phủ; ở lượt `ngan-xep-v2` lượt 1, 3 trên 10 bài confidence 100% vẫn điểm sai). Chủ dự án chọn hiện số để minh chứng độ chính xác nên spec §5.8b, câu hỏi mở số 8 và danh sách test đã sửa theo. Hero hiện số %, vạch ngưỡng và chip theo θ, kèm dòng "đến từ mức kiểm tra bài (độ phủ), không phải từ một lỗi cụ thể", và "Độ khớp với bạn" vẫn đặt cạnh số. Lưu ý đã nói với chủ dự án: số này vẫn là confidence tự gán theo độ phủ, chưa hiệu chỉnh với nhãn giảng viên.
 
 ## G. Chấm lại các màn chấm điểm sau khi seed lại
 

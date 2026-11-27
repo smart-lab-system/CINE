@@ -14,17 +14,17 @@ const COMFORT_MARGIN = 0.05;
 export type CertaintyState = 'reached' | 'borderline' | 'below' | 'unmeasured' | 'paused';
 
 /**
- * Trạng thái của hero (§5.8b). Bài không có lỗi nào, hoặc thuộc loại đã tạm dừng tự chốt, KHÔNG có số %: giá trị nội
- * bộ 1,0 của bài sạch chỉ nói về độ phủ, không phải mức chắc chắn để đưa cho giảng viên.
+ * Trạng thái của hero (§5.8b). Mọi bài có confidence đều hiện số %, kể cả bài không có lỗi nào (quyết định của chủ dự án
+ * 27/11/2026: số % là minh chứng cho độ chính xác của hệ thống). Chỉ bài thuộc loại đã tạm dừng tự chốt, hoặc chưa có
+ * confidence, mới là "chưa đo được".
  */
 export function certaintyState(input: {
   confidence: number | null;
   theta: number;
-  hasPricedErrors: boolean;
   paused: boolean;
 }): CertaintyState {
   if (input.paused) return 'paused';
-  if (!input.hasPricedErrors || input.confidence === null) return 'unmeasured';
+  if (input.confidence === null) return 'unmeasured';
   if (input.confidence >= input.theta + COMFORT_MARGIN) return 'reached';
   if (input.confidence >= input.theta) return 'borderline';
   return 'below';
@@ -42,7 +42,7 @@ const CHIP: Record<CertaintyState, { label: string; variant: 'success' | 'info' 
   reached: { label: 'Đạt ngưỡng', variant: 'success' },
   borderline: { label: 'Vừa đủ ngưỡng', variant: 'info' },
   below: { label: 'Chưa đạt ngưỡng', variant: 'warning' },
-  unmeasured: { label: 'Bài không có lỗi nào', variant: 'outline' },
+  unmeasured: { label: 'Chưa có mức chắc chắn', variant: 'outline' },
   paused: { label: 'Đã tạm dừng tự chốt cho loại bài này', variant: 'destructive' },
 };
 
@@ -61,7 +61,7 @@ export function CertaintyHero({
   terms: ConfidenceTerm[];
   agreement: Agreement;
 }) {
-  const state = certaintyState({ confidence, theta, hasPricedErrors: terms.length > 0, paused: agreement.paused });
+  const state = certaintyState({ confidence, theta, paused: agreement.paused });
   const unmeasured = state === 'unmeasured' || state === 'paused';
   const lowest = terms.reduce<ConfidenceTerm | null>((min, t) => (min === null || t.cap < min.cap ? t : min), null);
   const shortBy = state === 'below' && confidence !== null ? Math.round((theta - confidence) * 100) : null;
@@ -100,8 +100,10 @@ export function CertaintyHero({
         )}
       </div>
 
-      {state === 'unmeasured' && (
-        <p className="text-small text-warning-strong">Không thấy lỗi không có nghĩa là bài đúng.</p>
+      {terms.length === 0 && !unmeasured && (
+        <p className="text-small text-muted-foreground">
+          Bài không có lỗi nào: mức này đến từ mức kiểm tra bài (độ phủ), không phải từ một lỗi cụ thể.
+        </p>
       )}
       {lowest && !unmeasured && (
         <p className="text-small text-muted-foreground">

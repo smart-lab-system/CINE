@@ -49,10 +49,4 @@ describe('ConfidenceBreakdown', () => {
     expect(screen.getByText(/mức chắc chắn không lấy từ lỗi nào/)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
-
-  it('bài không có lỗi: nói khi nào được tự chốt và không hiện dòng ngưỡng không áp dụng', () => {
-    render(<ConfidenceBreakdown terms={[]} confidence={0.97} theta={0.85} />);
-    expect(screen.getByText(/chỉ được tự chốt khi mức kiểm tra bài đủ/)).toBeInTheDocument();
-    expect(screen.queryByText(/Cần từ 85% mới tự chốt/)).not.toBeInTheDocument();
-  });
 });
